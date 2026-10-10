@@ -44,7 +44,6 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
   }, [open]);
   const admin = snap.me.role === "admin";
   const item = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-muted hover:bg-bg2 hover:text-txt";
-  const here = location.hash.slice(1).split("/")[0]; // page affichée : son lien n'est pas proposé (inutile d'aller où l'on est)
   const go = (hash: string) => { location.hash = hash; setOpen(false); };
   return (
     <div ref={box} className="relative">
@@ -61,8 +60,8 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
             <div className="text-xs text-dim">{admin ? tx("admin : tout, réglages compris") : tx("lecture seule")}</div>
           </div>
           <div className="my-1 border-t border-line/70" />
-          {admin && here !== "settings" && <button type="button" role="menuitem" className={item} onClick={() => go("settings")}><Settings size={15} />{tx("Réglages")}</button>}
-          {here !== "profile" && <button type="button" role="menuitem" className={item} onClick={() => go("profile")}><UserRound size={15} />{tx("Profil")}</button>}
+          {admin && <button type="button" role="menuitem" className={item} onClick={() => go("settings")}><Settings size={15} />{tx("Réglages")}</button>}
+          <button type="button" role="menuitem" className={item} onClick={() => go("profile")}><UserRound size={15} />{tx("Profil")}</button>
           {admin && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); reopenFirstSteps(); }} title={tx("Rouvre la carte et efface vos choix « Passer »")}><ListChecks size={15} />{tx("Revoir les premiers pas")}</button>}
           <button type="button" role="menuitem" className={item} onClick={toggleTheme}>
             {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}{tx("Thème")} {theme === "dark" ? tx("clair") : tx("sombre")}

@@ -553,6 +553,7 @@ export const EN: Record<string, string> = {
   "Joignable seulement par NPM": "Reachable only through NPM",
   "Jour :": "Day:",
   "Compte": "Account",
+  "Retour à l'accueil": "Back to home",
   "Ton mot de passe et tes sessions :": "Your password and sessions:",
   "Mes sessions": "My sessions",
   "Navigateurs et appareils connectés à ce compte. Une session dure {0} jours et se prolonge à l'usage.": "Browsers and devices signed in to this account. A session lasts {0} days and is extended as you use it.",

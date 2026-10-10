@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, NotConfigured, loadSnapshot, logout, type Snapshot } from "./api";
 import { Header } from "./components/Header";
@@ -79,15 +80,20 @@ export default function App() {
   const badges: Partial<Record<TabId, "crit" | "warn">> = {};
   for (const a of items) if (badges[a.tab] !== "crit") badges[a.tab] = a.level;
   const current = visible(tab, snap) ? tab : "home";
+  const profile = hash.startsWith("#profile"); // page à part (tout compte), indépendante des Réglages et de la gestion des comptes
 
   return (
     <div className="mx-auto max-w-[var(--content-max)] px-4 pb-10 sm:px-6">
       <ScanBar onFinished={load} />
       <Header snap={snap} theme={theme} toggleTheme={toggleTheme} now={now} />
       {error && <p className="mb-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">{tx("⚠ Mise à jour impossible :")} {error}</p>}
-      <Tabs tab={current} snap={snap} badges={badges} onSelect={go} />
-      {hash.startsWith("#profile") && <Profile username={snap.me.username} role={snap.me.role} />}
-      {!hash.startsWith("#profile") && current === "home" && <Home snap={snap} items={items} go={go} now={now} />}
+      {profile ? (
+        <>
+          <a href="#" className="mt-3 inline-flex items-center gap-1 text-sm text-link hover:underline"><ArrowLeft size={14} aria-hidden />{tx("Retour à l'accueil")}</a>
+          <Profile username={snap.me.username} role={snap.me.role} />
+        </>
+      ) : <Tabs tab={current} snap={snap} badges={badges} onSelect={go} />}
+      {!profile && current === "home" && <Home snap={snap} items={items} go={go} now={now} />}
       {current === "history" && <History snap={snap} />}
       {current === "machines" && <Machines snap={snap} onMachine={(ip) => { setSvcFilter((f) => ({ sel: { machine: [ip] }, n: f.n + 1 })); go("services"); }} />}
       {current === "services" && <Services key={svcFilter.n} snap={snap} initial={svcFilter.sel} />}
