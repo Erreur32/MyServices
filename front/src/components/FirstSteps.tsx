@@ -171,17 +171,17 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
             </p>
           )}
         </Step>
+        <Step state={skipped.includes("network") ? "next" : netState(net) === "run" ? "run" : netState(net) === "found" ? "now" : "next"}
+          title={tx("Recherche des autres machines du réseau")}
+          skipped={skipped.includes("network")} onResume={() => resume("network")}>
+          <NetworkStep net={net} reload={reloadNet} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} onSkip={() => skip("network")} />
+        </Step>
         <Step state={keyDone && proposals.length && !skipped.includes("connectors") ? "now" : "next"} title={tx("Connecteurs proposés d'après ce qui est trouvé")}
           onSkip={proposals.length ? () => skip("connectors") : undefined} skipped={skipped.includes("connectors") && proposals.length > 0}
           onResume={() => resume("connectors")}>
           {proposals.length > 0
             ? <><p className="mb-2">{tx("MyServices a reconnu des applis qu'il sait lire par leur API. Un connecteur ajoute leurs données (certificats, DNS, santé) sans rien recoder.")}</p><Proposals list={proposals} /></>
             : tx("Rien à proposer pour l'instant. Cette étape s'allume toute seule quand NPM, AdGuard, Beszel, Uptime Kuma… sont reconnus sur vos machines.")}
-        </Step>
-        <Step state={skipped.includes("network") ? "next" : netState(net) === "run" ? "run" : netState(net) === "found" ? "now" : "next"}
-          title={tx("Recherche des autres machines du réseau")}
-          skipped={skipped.includes("network")} onResume={() => resume("network")}>
-          <NetworkStep net={net} reload={reloadNet} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} onSkip={() => skip("network")} />
         </Step>
       </ol>
       <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line/70 pt-4">
