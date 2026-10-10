@@ -9,6 +9,9 @@ export function sshWarn(m: Machine): boolean {
   return !!d && (risky(d.permitrootlogin) || !!d.passwordauthentication?.startsWith("yes"));
 }
 
+/** Rôle d'une machine (texte « a, b, c ») en étiquettes */
+export const rolesOf = (role?: string | null): string[] => (role ?? "").split(",").map((t) => t.trim()).filter(Boolean);
+
 /** Dossier personnel d'un compte Linux : /root pour root, sinon /home/<compte> */
 export const homeOf = (user: string) => (user === "root" ? "/root" : `/home/${user}`);
 

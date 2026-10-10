@@ -9,7 +9,7 @@ import { tx } from "../lib/i18n";
 import { dateTime } from "../lib/format";
 import { ADDED_KEY, DISMISSED_KEY, LATER_HIDDEN_KEY, REOPEN_EVENT } from "../lib/firstSteps";
 import { appIcon } from "../lib/appIcons";
-import { changes, interesting, needsLink, netState, osOf, quiet, summarize, tagsOf, viaMynetwork } from "../lib/netScan";
+import { changes, interesting, needsLink, netState, osOf, quiet, roleOf, summarize, tagsOf, viaMynetwork } from "../lib/netScan";
 import { pokeScan } from "../lib/scan";
 import { ConnectorForm } from "../tabs/Connectors";
 import type { ConnectorsState, ConnectorType, NetHost, NetScan, SystemState } from "../types";
@@ -154,7 +154,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
     const done: Record<string, NetHost> = {};
     await act(async () => {
       for (const h of found.filter((x) => picked.has(x.ip))) {
-        await send("PUT", `machines/settings/${h.ip}`, { machine: { name: (names[h.ip] ?? h.name ?? "").trim() || h.ip, role: h.hints.join(", ") }, extra: [] });
+        await send("PUT", `machines/settings/${h.ip}`, { machine: { name: (names[h.ip] ?? h.name ?? "").trim() || h.ip, role: roleOf(h) }, extra: [] });
         done[h.ip] = h;
       }
     }, tx("machines ajoutées : prises en compte au prochain passage de la collecte"), setNote);
@@ -349,7 +349,7 @@ function AddedMachine({ host, linked, onDone }: { host: NetHost; linked: boolean
     setBusy(true);
     await act(async () => {
       const { alias } = await send<{ alias: string }>("POST", "machines/ssh-alias", { ip: host.ip, user, port: host.ssh_port ?? 22 });
-      await send("PUT", `machines/settings/${host.ip}`, { machine: { name: label, role: host.hints.join(", "), ssh: alias }, extra: [] });
+      await send("PUT", `machines/settings/${host.ip}`, { machine: { name: label, role: roleOf(host), ssh: alias }, extra: [] });
       const sys = await read<SystemState>("system");
       setCmd(sys.ssh.authorize ?? null);
     }, tx("accès SSH préparé : lancer la commande sur la machine, puis tester"), setNote);

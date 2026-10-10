@@ -9,6 +9,7 @@ import type { HealthHost, Machine, MachineConf, MachinesSettings, NetScan } from
 import { NoteLine } from "../components/form";
 import type { Note } from "../lib/forms";
 import { MSTATE, ORDER, mState, type MState } from "../lib/machines";
+import { rolesOf } from "../lib/ssh";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, FilterBar, Level, Table, Td, Th } from "../components/ui";
 import { tx } from "../lib/i18n";
@@ -190,7 +191,7 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
   const name = (m: Machine) => (
     <button type="button" onClick={() => onMachine(m.ip)} className="text-left" title={tx("Voir ses services")}>
       <b className="font-semibold hover:text-link">{m.name}</b>
-      <span className="block text-xs text-dim">{m.ip}{m.role ? ` · ${m.role}` : ""}</span>
+      <span className="flex flex-wrap items-center gap-1 text-xs text-dim">{m.ip}{rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}</span>
     </button>
   );
   const svc = (m: Machine) => (

@@ -125,6 +125,57 @@ def _page(ip: str, port: int, timeout: float = 1.5) -> str | None:
     return title[:80] or None
 
 
+def _clean_name(raw: str | None) -> str:
+    """Nom de machine plausible (« nas », « DESKTOP-4F2K ») ou "" : pas d'adresse IP, de nom générique ni de caractère étrange."""
+    n = (raw or "").strip().split(".")[0].lstrip("*_-")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{1,38}", n) or re.fullmatch(r"[\d-]+", n):
+        return ""
+    return "" if n.lower() in {"localhost", "default", "example", "invalid", "unknown", "server", "ubuntu", "debian"} else n
+
+
+def _netbios_name(ip: str, timeout: float = PROBE_TIMEOUT) -> str:
+    """Nom NetBIOS (PC Windows, partage SMB / Samba) par une requête d'état de nœud sur UDP 137, sans identifiant ; "" si la
+    machine ne répond pas. Premier nom « poste de travail » (suffixe 00) qui n'est pas un nom de groupe."""
+    query = (b"\x13\x37\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00" + b"\x20" + b"CKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" + b"\x00"
+             + b"\x00\x21\x00\x01")
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(timeout)
+            s.sendto(query, (ip, 137))
+            data, _ = s.recvfrom(1024)
+        i = 12
+        while i < len(data) and data[i]:  # question recopiée : étiquettes jusqu'à l'octet nul
+            i += data[i] + 1
+        i += 1 + 4 + 2 + 4 + 2 + 2  # fin de nom, type, classe, (nom de réponse), type, classe, TTL, longueur
+        i = data.index(b"\x00\x21\x00\x01", 12) + 4 + 4 + 2  # robuste : on repart du type/classe de la réponse
+        for k in range(data[i]):
+            entry = data[i + 1 + k * 18:i + 1 + (k + 1) * 18]
+            if len(entry) == 18 and entry[15] == 0 and not entry[16] & 0x80:
+                return _clean_name(entry[:15].decode("ascii", "ignore").strip())
+    except (OSError, ValueError, IndexError):
+        pass
+    return ""
+
+
+def _cert_name(ip: str, port: int = 443, timeout: float = PROBE_TIMEOUT) -> str:
+    """Nom lu dans le certificat HTTPS (CN, sinon premier nom alternatif), même auto-signé ; "" s'il n'y en a pas d'exploitable."""
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname, ctx.verify_mode = False, ssl.CERT_NONE
+        with socket.create_connection((ip, port), timeout=timeout) as raw, ctx.wrap_socket(raw, server_hostname=None) as tls:
+            der = tls.getpeercert(binary_form=True)
+        from cryptography import x509
+        cert = x509.load_der_x509_certificate(der)
+        names = [a.value for a in cert.subject.get_attributes_for_oid(x509.NameOID.COMMON_NAME)]
+        try:
+            names += cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value.get_values_for_type(x509.DNSName)
+        except x509.ExtensionNotFound:
+            pass
+    except (OSError, ValueError, ImportError):
+        return ""
+    return next((n for n in map(_clean_name, names) if n), "")
+
+
 def _ssh_banner(ip: str, port: int) -> str:
     """Bannière SSH (« SSH-2.0-OpenSSH_9.2p1 Debian… ») ou "" : un port ouvert ne suffit pas, c'est peut-être autre chose."""
     try:
@@ -144,7 +195,7 @@ def ssh_ports(configured: dict | None = None) -> tuple[int, ...]:
 
 
 def _describe(ip: str, probe=_open, lookup=socket.gethostbyaddr, banner=_ssh_banner, ssh=SSH_PORTS, page=_page,
-              ttl=lambda ip: _ttls.get(ip), vendor=_vendor) -> dict:
+              ttl=lambda ip: _ttls.get(ip), vendor=_vendor, netbios=_netbios_name, cert=_cert_name) -> dict:
     """Une machine qui répond : nom DNS court, SSH (port et bannière), ports ouverts parmi HINT_PORTS, applis probables."""
     try:
         name = lookup(ip)[0].split(".")[0].lstrip("_")  # « _gateway » de systemd-resolved
@@ -158,11 +209,27 @@ def _describe(ip: str, probe=_open, lookup=socket.gethostbyaddr, banner=_ssh_ban
         os_open = {p for p, f in zip(OS_PORTS, osf) if f.result()}
         got = {p: f.result() for p, f in zip(ssh, sshf)}
         ssh_port = next((p for p in ssh if got[p]), None)
-    web = [p for p in (80, 443) if p in opened]
-    with ThreadPoolExecutor(2) as wx:  # page d'accueil des ports web : le titre dit souvent ce que c'est
+    # Le port 5000 sert à beaucoup de choses (NAS Synology, Frigate, registre Docker, appli Python…) : on lit sa page pour savoir lesquelles
+    name_how = "dns" if name else ""
+    # Pas de nom DNS : le nom NetBIOS (Windows, Samba) si SMB répond, sinon celui du certificat HTTPS
+    if not name and ({139, 445} & set(opened) or {135, 139} & os_open) and (nb := netbios(ip)):
+        name, name_how = nb, "netbios"
+    if not name and 443 in opened and (cn := cert(ip)):
+        name, name_how = cn, "certificat"
+    web = [p for p in (80, 443, 5000) if p in opened]
+    with ThreadPoolExecutor(3) as wx:  # page d'accueil des ports web : le titre dit souvent ce que c'est
         pages = [{"port": p, "scheme": "https" if p == 443 else "http", "title": t} for p, t in zip(web, wx.map(lambda p: page(ip, p), web))]
     app_of = {p: hit[0].label for p in opened if (hit := known_apps.identify(port=p))}
-    hints = list(dict.fromkeys((f"web :{p}" if p in (80, 443) else HINT_PORTS[p]) for p in opened if p not in app_of))
+    titled = {x["port"]: x["title"] for x in pages if x["title"]}
+    def hint(p: int) -> str | None:
+        if p in (80, 443):
+            return f"web :{p}"
+        if p == 5000:  # reconnu par sa page (Frigate…) : c'est l'appli qui le dit ; sinon le titre ; sinon « port 5000 »
+            if 5000 in titled and known_apps.identify(title=titled[5000]):
+                return None
+            return f"web :5000 · {titled[5000]}" if 5000 in titled else HINT_PORTS[p]
+        return HINT_PORTS[p]
+    hints = list(dict.fromkeys(h for p in opened if p not in app_of and (h := hint(p))))
     if ssh_port:
         hints.insert(0, "SSH" if ssh_port == 22 else f"SSH :{ssh_port}")
         opened = sorted({*opened, ssh_port})
@@ -171,7 +238,7 @@ def _describe(ip: str, probe=_open, lookup=socket.gethostbyaddr, banner=_ssh_ban
     apps = list(dict.fromkeys([*app_of.values(), *(hit[0].label for x in pages if x["title"] and (hit := known_apps.identify(title=x["title"]))), *by_name]))
     banner_text = got.get(ssh_port) if ssh_port else None
     os_name, os_how = guess_os(banner_text if isinstance(banner_text, str) else None, {*opened, *os_open}, ttl(ip), vendor(ip))
-    return {"ip": ip, "name": name, "ports": opened, "ssh_port": ssh_port, "hints": hints, "apps": apps,
+    return {"ip": ip, "name": name, "name_how": name_how, "ports": opened, "ssh_port": ssh_port, "hints": hints, "apps": apps,
             "title": title, "pages": pages, "os": os_name, "os_how": os_how}
 
 

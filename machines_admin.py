@@ -31,6 +31,7 @@ FLAGS = ("off", "gateway", "npm", "npm_only", "vm", "disabled")
 TEXT = ("name", "role", "ssh", "adguard", "adguard_sync", "health", "os")
 HEALTH_SOURCES = ("ssh", "agent", "beszel")  # priorité de lecture de la santé (health.py : source_order)
 NAME_MAX = 80
+ROLE_MAX = 200  # le rôle est une liste d'étiquettes (« Docker, SSH, partage SMB ») gardée en texte
 
 
 class MachineError(Exception):
@@ -158,8 +159,9 @@ def _clean(m: dict) -> dict:
         v = m.get(k)
         if v in (None, ""):
             continue
-        if not isinstance(v, str) or len(v) > NAME_MAX:
-            raise MachineError(f"« {k} » : texte de {NAME_MAX} caractères au plus")
+        limit = ROLE_MAX if k == "role" else NAME_MAX
+        if not isinstance(v, str) or len(v) > limit:
+            raise MachineError(f"« {k} » : texte de {limit} caractères au plus")
         out[k] = v.strip()
     for k in FLAGS:
         if m.get(k):

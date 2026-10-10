@@ -6,7 +6,7 @@
 import { Check, ChevronDown, ChevronRight, Loader2, Plus, Radar, ShieldCheck, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
-import { Field, NoteLine, Switch } from "../components/form";
+import { Field, NoteLine, Switch, TagInput } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { dateTime, ipNum } from "../lib/format";
@@ -18,7 +18,7 @@ import { MSTATE, mState, osOfMachine } from "../lib/machines";
 import { AuthorizeKey } from "../components/AuthorizeKey";
 import { SshGuide } from "../components/SshGuide";
 import { SshDetails } from "../components/ssh";
-import { sshBrief, sshWarn } from "../lib/ssh";
+import { rolesOf, sshBrief, sshWarn } from "../lib/ssh";
 import { pokeScan } from "../lib/scan";
 import { tx } from "../lib/i18n";
 
@@ -232,7 +232,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
           {statuses.some((c) => !c.ok) && <Badge tone="bad">{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
           {m.disabled ? <Badge tone="off">{tx("non suivie")}</Badge> : state && <Badge tone={state[0]} title={state[2]}>{state[1]}</Badge>}
         </span>
-        {!open && <span className="basis-full truncate pl-5 text-xs text-dim">{[m.role, (live && sshBrief(live)) || access, st.process_hosts[ip] ? tx("process lus") : null].filter(Boolean).join(" · ")}</span>}
+        {!open && <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">{rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}<span className="truncate">{[(live && sshBrief(live)) || access, st.process_hosts[ip] ? tx("process lus") : null].filter(Boolean).join(" · ")}</span></span>}
       </button>
       {open && (
         <div className="flex flex-col gap-3 px-3 pb-3">
@@ -365,6 +365,13 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
   }, [live?.detected?.join(), isNew]);
   const Saved = ({ k }: { k: string }) => (pending === k ? <Loader2 size={13} className="animate-spin text-dim" aria-label={tx("enregistrement…")} />
     : flash === k ? <span className="saved-pop inline-flex items-center gap-1 text-xs font-semibold text-ok"><Check size={13} aria-hidden />{tx("enregistré")}</span> : null);
+  // Étiquettes proposées en un clic d'après ce que la machine est réellement : Docker (conteneurs lus), Apache, nginx, SSH, Windows, VM, passerelle, NPM
+  const i = live?.info;
+  const roleSuggestions = [
+    ...(i?.docker || i?.docker_installed ? ["Docker"] : []), ...(i?.apache ? ["Apache"] : []), ...(i?.nginx ? ["nginx"] : []),
+    ...(windows ? ["Windows"] : v.ssh ? ["SSH"] : []), ...((v.vm || found.has("vm")) ? ["VM"] : []),
+    ...((v.gateway || found.has("gateway")) ? ["Passerelle"] : []), ...((v.npm || found.has("npm")) ? ["NPM"] : []),
+  ];
   const procRow = (
     <label className="flex items-start gap-2">
       <Switch on={proc} disabled={pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Lire les services hors Docker")} />
@@ -476,7 +483,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
         <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("Identité")}</h4>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={tx("Nom")}><input className={input} required maxLength={80} value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>
-          <Field label={tx("Rôle (libre)")}><input className={input} maxLength={80} value={v.role || ""} onChange={(e) => setV({ ...v, role: e.target.value })} /></Field>
+          <TagInput label={tx("Rôle (étiquettes)")} value={v.role || ""} onChange={(role) => setV({ ...v, role })} suggestions={roleSuggestions} placeholder={tx("ex. Docker, NAS…")} />
         </div>
       </section>
       {agent && sshAccess && (

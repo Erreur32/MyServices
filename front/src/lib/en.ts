@@ -909,7 +909,6 @@ export const EN: Record<string, string> = {
   "rien de plus": "nothing more",
   "Rien envoyé pour l'instant.": "Nothing sent yet.",
   "Rôle": "Role",
-  "Rôle (libre)": "Role (free text)",
   "Rôle de {0}": "Role of {0}",
   "root autorisé": "root allowed",
   "Salon → Modifier → Intégrations → Webhooks → Copier l'URL": "Channel → Edit → Integrations → Webhooks → Copy URL",
@@ -1140,4 +1139,8 @@ export const EN: Record<string, string> = {
   "État de la connexion": "Connection status",
   "Options actives": "Active options",
   "Allumées pour cette machine ; les autres sont dans « Options de la machine »": "Turned on for this machine; the others are in \"Machine options\"",
+  "Rôle (étiquettes)": "Role (tags)",
+  "ex. Docker, NAS…": "e.g. Docker, NAS…",
+  "Retirer {0}": "Remove {0}",
+  "Suggestions :": "Suggestions:",
 };

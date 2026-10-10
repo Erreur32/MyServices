@@ -56,6 +56,8 @@ APPS: tuple[App, ...] = (
     App("proxmox", "Proxmox VE", "Infra / virtualisation", ports=(8006,), title=r"proxmox", host=r"^proxmox"),
     App("unifi", "UniFi", "Réseau / DNS", title=r"unifi", host=r"^(unifi|udm|ucg|usg)"),  # lu plus tard par l'API MynetworK, pas par SSH
     App("synology", "Synology DSM", "Fichiers / sync", title=r"synology"),
+    App("frigate", "Frigate", "Domotique", title=r"^frigate", images=("ghcr.io/blakeblackshear/frigate", "blakeblackshear/frigate")),  # port 5000 : trop courant pour l'identifier seul
+    App("myelectricaldata", "MyElectricalData", "Domotique", title=r"myelectricaldata"),
 )
 
 

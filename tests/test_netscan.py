@@ -340,6 +340,57 @@ class MultiReseauxEtDiscret(unittest.TestCase):
         with self.assertRaises(ValueError):
             netscan.targets("192.168.1.0/24,10.0.0.0/16")
 
+    def test_port_5000_lit_la_page_au_lieu_d_une_etiquette_generique(self):
+        base = dict(probe=lambda ip, p: p in (5000, 445), lookup=lambda ip: ("tower", [], []), banner=lambda ip, p: "", ssh=(22,),
+                    ttl=lambda ip: None, vendor=lambda ip: None)
+        d = netscan._describe("10.0.0.9", page=lambda ip, p: "Frigate" if p == 5000 else None, **base)
+        self.assertEqual((d["hints"], d["apps"]), (["partage SMB"], ["Frigate"]))      # reconnu : l'appli le dit, plus de « port 5000 »
+        d = netscan._describe("10.0.0.9", page=lambda ip, p: "Mon appli" if p == 5000 else None, **base)
+        self.assertEqual(d["hints"], ["partage SMB", "web :5000 · Mon appli"])   # titre inconnu : il est gardé
+        d = netscan._describe("10.0.0.9", page=lambda ip, p: None, **base)
+        self.assertEqual(d["hints"], ["partage SMB", "port 5000"])                     # rien ne répond en HTTP : l'étiquette neutre
+        d = netscan._describe("10.0.0.9", page=lambda ip, p: "MyElectricalData" if p == 5000 else None, **base)
+        self.assertEqual(d["apps"], ["MyElectricalData"])
+
+    def test_nom_devine_sans_dns_netbios_puis_certificat(self):
+        base = dict(lookup=lambda ip: (_ for _ in ()).throw(OSError("pas de nom")), banner=lambda ip, p: "", ssh=(22,), page=lambda ip, p: None,
+                    ttl=lambda ip: None, vendor=lambda ip: None)
+        d = netscan._describe("10.0.0.9", probe=lambda ip, p: p == 445, netbios=lambda ip: "GAMER32", cert=lambda ip: "autre", **base)
+        self.assertEqual((d["name"], d["name_how"]), ("GAMER32", "netbios"))
+        d = netscan._describe("10.0.0.9", probe=lambda ip, p: p in (445, 443), netbios=lambda ip: "", cert=lambda ip: "nas", **base)
+        self.assertEqual((d["name"], d["name_how"]), ("nas", "certificat"))
+        d = netscan._describe("10.0.0.9", probe=lambda ip, p: p == 443, netbios=lambda ip: "jamais", cert=lambda ip: "", **base)
+        self.assertEqual((d["name"], d["name_how"]), ("", ""))   # NetBIOS n'est pas essayé sans SMB
+        d = netscan._describe("10.0.0.9", probe=lambda ip, p: p == 445, netbios=lambda ip: "x", cert=lambda ip: "y",
+                              **{**base, "lookup": lambda ip: ("pc.lan", [], [])})
+        self.assertEqual((d["name"], d["name_how"]), ("pc", "dns"))   # le DNS passe avant
+
+    def test_nom_plausible(self):
+        for good, want in (("DESKTOP-4F2K", "DESKTOP-4F2K"), ("nas.lan", "nas"), ("*.home", ""), ("localhost", ""), ("192.168.1.5", ""),
+                           ("", ""), ("a", ""), ("nom avec espace", ""), ("123-456", "")):
+            self.assertEqual(netscan._clean_name(good), want, good)
+
+    def test_netbios_lit_la_reponse_d_etat_de_noeud(self):
+        import socket as sk
+        entries = b"GAMER32        " + b"\x00" + b"\x04\x00" + b"WORKGROUP     " + b"\x00" + b"\x84\x00"   # poste (unique), groupe
+        rdata = bytes([2]) + entries + b"\x00" * 6
+        reply = (b"\x13\x37\x84\x00\x00\x00\x00\x01\x00\x00\x00\x00" + b"\x20" + b"CKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" + b"\x00"
+                 + b"\x00\x21\x00\x01" + b"\x00\x00\x00\x00" + len(rdata).to_bytes(2, "big") + rdata)
+
+        class Fake:
+            def __init__(self, *a): pass
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def settimeout(self, t): pass
+            def sendto(self, data, addr): self.sent = (data, addr)
+            def recvfrom(self, n): return reply, ("10.0.0.9", 137)
+        real = sk.socket
+        sk.socket = Fake
+        try:
+            self.assertEqual(netscan._netbios_name("10.0.0.9"), "GAMER32")
+        finally:
+            sk.socket = real
+
     def test_describe_discret_ne_devine_pas_par_ttl(self):
         args = dict(probe=lambda ip, p: False, lookup=lambda ip: ("x",), banner=lambda ip, p: None, page=lambda ip, p: None)
         self.assertEqual(netscan._describe("1.2.3.4", ttl=lambda ip: 128, **args)["os"], "windows")

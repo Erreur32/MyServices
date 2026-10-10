@@ -27,6 +27,9 @@ export interface Tag { label: string; kind: "ssh" | "app" | "port" }
 
 /** Étiquettes d'une machine trouvée, sans doublon : l'appli reconnue passe avant l'indice de port qui porte le même
  *  nom (« Proxmox VE » remplace « Proxmox »), y compris dans un ancien résultat enregistré avant ce correctif. */
+/** Rôle proposé à l'ajout d'une machine trouvée par la recherche : ce qui y tourne (applis reconnues), puis ses services (SSH, partages…). Texte libre, modifiable. */
+export const roleOf = (h: { hints: string[]; apps?: string[] }): string => [...new Set([...(h.apps ?? []), ...h.hints])].join(", ");
+
 export function tagsOf(h: { hints: string[]; apps: string[] }): Tag[] {
   const out: Tag[] = [];
   const known = (l: string) => out.some((t) => {
