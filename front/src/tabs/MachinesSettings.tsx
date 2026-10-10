@@ -123,7 +123,7 @@ function Proposal({ d, st, onDone }: { d: Detection; st: State; onDone: () => vo
           ))}
         </div>
       )}
-      <MachineForm ip={d.ip} m={d.machine} st={st} isNew={!d.known} extra={d.web.filter((w) => web.includes(w.port))} onDone={onDone} />
+      <MachineForm ip={d.ip} m={d.machine} st={st} isNew={!d.known} detected={[...(d.detected ?? []), ...(d.machine.off && !d.known ? ["off"] : [])]} extra={d.web.filter((w) => web.includes(w.port))} onDone={onDone} />
     </div>
   );
 }
@@ -189,8 +189,8 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus }: {
   );
 }
 
-function MachineForm({ ip, m, st, isNew, process, extra, onDone }: {
-  ip: string; m: MachineConf; st: State; isNew?: boolean; process?: boolean; extra?: Detection["web"]; onDone: () => void;
+function MachineForm({ ip, m, st, isNew, process, extra, detected = [], onDone }: {
+  detected?: string[]; ip: string; m: MachineConf; st: State; isNew?: boolean; process?: boolean; extra?: Detection["web"]; onDone: () => void;
 }) {
   const [v, setV] = useState<MachineConf>(m);
   const [proc, setProc] = useState(!!process);
@@ -232,7 +232,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, onDone }: {
         {FLAGS.map((f) => (
           <label key={f.k} className="flex items-start gap-2">
             <Switch on={!!v[f.k]} onChange={(on) => setV({ ...v, [f.k]: on })} label={f.label} />
-            <span>{f.label} <Dim>· {f.help}</Dim></span>
+            <span>{f.label} {detected.includes(String(f.k)) && <Badge tone="info" title={tx("Trouvé par la détection : décochez si c'est faux")}>{tx("détecté")}</Badge>} <Dim>· {f.help}</Dim></span>
           </label>
         ))}
         {!windows && v.ssh && (

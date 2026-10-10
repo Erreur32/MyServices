@@ -74,6 +74,15 @@ def _resolve(target: str) -> tuple[str, str | None]:
     return ip, alias
 
 
+def default_gateway() -> str | None:
+    """Adresse de la passerelle par défaut de l'hôte (box ou routeur), d'après sa route par défaut ; None si introuvable."""
+    try:
+        out = subprocess.run(["ip", "-4", "route", "show", "default"], capture_output=True, text=True, timeout=5).stdout.split()
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return out[out.index("via") + 1] if "via" in out else None
+
+
 def detect(target: str) -> dict:
     """Proposition pour une machine, nouvelle ou déjà déclarée (ses réglages gardés, détection refaite)."""
     ip, alias = _resolve(target)
@@ -81,7 +90,7 @@ def detect(target: str) -> dict:
     up = subprocess.run(["ping", "-c1", "-W1", ip], capture_output=True).returncode == 0
     dns, hints = setup.identify(ip)
     m = dict(known or {"name": dns or alias or ip, "role": hints[0] if hints else "", "ssh": None})
-    notes, found = [], []
+    notes, found, detected = [], [], []
     kind = None
     if alias and not m.get("gateway"):
         kind, r = setup.ssh_os(alias)
@@ -91,9 +100,13 @@ def detect(target: str) -> dict:
         elif kind == "linux":
             conts = setup.containers(alias)
             m["ssh"] = alias
-            m.update(setup.roles(conts or []))
-            if setup.is_vm(alias):
+            roles = setup.roles(conts or [])
+            m.update(roles)
+            if roles.get("npm") and not known:
+                detected.append("npm")
+            if setup.is_vm(alias) and "vm" not in m:
                 m["vm"] = True
+                detected.append("vm")
             notes.append(f"✓ SSH {alias} : Linux" + (f", Docker {len(conts)} conteneurs" if conts is not None
                                                       else " ; Docker inaccessible (absent, ou compte hors du groupe docker)"))
             if "adguard" not in m and (ag := setup.find_adguard(alias, conts)):
@@ -104,6 +117,12 @@ def detect(target: str) -> dict:
             notes.append("⚠ " + setup.ssh_why(alias, r))
     elif "SSH" in hints:
         notes.append(f"⚠ accepte SSH, mais aucun alias ne la vise : en ajouter un dans {setup.SSH_CONF}")
+    if "gateway" not in m and ip == default_gateway():
+        m["gateway"] = True
+        detected.append("gateway")
+    notes += [{"gateway": "✓ Passerelle détectée (route par défaut de l'hôte) : cochée, à confirmer",
+               "npm": "✓ Nginx Proxy Manager trouvé dans ses conteneurs : « Héberge NPM » coché, à confirmer",
+               "vm": "✓ Machine virtuelle détectée : « Machine virtuelle » cochée, à confirmer"}[f] for f in detected]
     web = []
     if kind != "linux":
         with ThreadPoolExecutor(len(setup.WEB_PORTS)) as px:
@@ -112,7 +131,7 @@ def detect(target: str) -> dict:
         if "off" not in m and ("Windows (RDP)" in hints or m.get("os") == "windows"):
             m["off"] = True  # poste souvent éteint : proposé, modifiable
     return {"ip": ip, "alias": alias, "up": up, "dns": dns, "hints": hints, "known": known is not None,
-            "machine": m, "notes": notes, "connectors": found, "web": web}
+            "machine": m, "notes": notes, "detected": detected, "connectors": found, "web": web}
 
 
 def _connectors(ip: str, conts: list) -> list[dict]:

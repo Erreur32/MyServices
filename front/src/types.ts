@@ -446,6 +446,7 @@ export interface Detection {
   known: boolean;
   machine: MachineConf;
   notes: string[];
+  detected?: string[];  // réglages cochés d'après la détection (gateway, npm, vm, off), à confirmer
   connectors: { type: string; label: string; container: string; proposed: Record<string, string> }[];
   web: { port: number; scheme: string; label: string }[];
 }

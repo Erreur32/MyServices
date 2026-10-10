@@ -93,5 +93,37 @@ class SshAlias(unittest.TestCase):
             machines_admin.add_alias("192.168.1.20")
 
 
+class DetectionDesReglages(unittest.TestCase):
+    """Passerelle, NPM et machine virtuelle sont cochées d'après la détection (à confirmer dans la page)."""
+
+    def test_npm_vu_dans_les_conteneurs(self):
+        conts = [("npm", "jc21/nginx-proxy-manager:latest", ""), ("autre", "nginx", "")]
+        self.assertTrue(machines_admin.setup.roles(conts)["npm"])
+        self.assertNotIn("npm", machines_admin.setup.roles([("web", "nginx", "")]))
+
+    def test_passerelle_par_defaut(self):
+        out = mock.Mock(stdout="default via 192.168.1.1 dev eth0 proto dhcp src 192.168.1.5 metric 100\n")
+        with mock.patch.object(machines_admin.subprocess, "run", return_value=out):
+            self.assertEqual(machines_admin.default_gateway(), "192.168.1.1")
+        with mock.patch.object(machines_admin.subprocess, "run", return_value=mock.Mock(stdout="")):
+            self.assertIsNone(machines_admin.default_gateway())
+
+    def test_detect_coche_la_passerelle_sans_ecraser_un_choix(self):
+        def run(ip_known):
+            with mock.patch.object(machines_admin, "_resolve", return_value=("192.168.1.1", None)), \
+                    mock.patch.object(machines_admin, "_meta", return_value={"machines": {"192.168.1.1": ip_known} if ip_known else {}}), \
+                    mock.patch.object(machines_admin, "default_gateway", return_value="192.168.1.1"), \
+                    mock.patch.object(machines_admin.setup, "identify", return_value=("box", [])), \
+                    mock.patch.object(machines_admin.setup, "_open", return_value=False), \
+                    mock.patch.object(machines_admin.subprocess, "run", return_value=mock.Mock(returncode=0)):
+                return machines_admin.detect("192.168.1.1")
+        d = run(None)
+        self.assertTrue(d["machine"]["gateway"])
+        self.assertEqual(d["detected"], ["gateway"])
+        d = run({"name": "box", "gateway": False})  # choix explicite de l'auteur : gardé
+        self.assertFalse(d["machine"]["gateway"])
+        self.assertEqual(d["detected"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

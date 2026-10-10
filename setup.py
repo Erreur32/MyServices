@@ -139,6 +139,8 @@ def roles(conts: list[tuple[str, str, str]]) -> dict:
             flags["adguard_sync"] = name
         elif "adguard/adguardhome" in image:
             flags["adguard"] = name
+        elif "nginx-proxy-manager" in image:
+            flags["npm"] = True  # sous-titre de la page : cette machine héberge NPM
     return flags
 
 

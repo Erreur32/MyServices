@@ -548,6 +548,8 @@ export const EN: Record<string, string> = {
   "Joignable seulement par NPM": "Reachable only through NPM",
   "Jour :": "Day:",
   "Compte": "Account",
+  "détecté": "detected",
+  "Trouvé par la détection : décochez si c'est faux": "Found by detection: untick it if it is wrong",
   "Lus par SSH": "Read over SSH",
   "Docker, services en écoute et AdGuard natif sont lus par SSH : l'accès et ce qui est lu se règlent machine par machine.": "Docker, listening services and native AdGuard are read over SSH: access and what is read are set machine by machine.",
   "Aucune machine lue par SSH pour l'instant.": "No machine read over SSH yet.",
