@@ -176,6 +176,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
   const [note, setNote] = useState<Note>(null), [lines, setLines] = useState<string[] | null>(null), [busy, setBusy] = useState(false);
   const linesTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(linesTimer.current), []);
+  const sshUser = st.aliases.find((a) => a.alias === m.ssh)?.user || "root";  // compte de l'accès, pour le chemin de authorized_keys
   const keyMissing = statuses.some((c) => c.type === "docker" && !c.ok);  // accès SSH activé, mais la clé de l'app n'est pas autorisée
   const goAuthorize = () => document.getElementById("authorize-key")?.scrollIntoView({ behavior: "smooth", block: "start" });
   const state = live ? MSTATE[mState(live)] : null;
@@ -223,10 +224,14 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
             </ul>
           )}
           {keyMissing && (
-            <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
-              <b className="text-warn">!</b> {tx("Action requise : la clé SSH de l'app n'est pas autorisée sur cette machine, donc Docker n'est pas lisible.")}{" "}
-              <button type="button" className="text-link hover:underline" onClick={goAuthorize}>{tx("Voir la commande à lancer")}</button>
-            </p>
+            <div className="flex flex-col gap-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
+              <p>
+                <b className="text-warn">!</b> {tx("Action requise : la clé SSH de l'app est refusée pour le compte")} <b className="text-txt">{sshUser}</b>{tx(" sur cette machine, donc Docker n'est pas lisible. Ce n'est pas la clé qui a changé : elle n'est pas (encore) dans les clés autorisées de ce compte.")}
+              </p>
+              <p>{tx("Sur la machine, connecté en")} <b className="text-txt">{sshUser}</b>{tx(", lancez :")}</p>
+              <AuthorizeKey bare user={sshUser} failing={statuses.filter((c) => c.type === "docker" && !c.ok)} />
+              <p className="text-xs text-dim">{tx("Puis « Vérifier ». Si l'accès marchait avec un autre compte (root, par exemple), revenez-y en réactivant l'accès avec ce compte.")}</p>
+            </div>
           )}
           {unfinished && (
             <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">

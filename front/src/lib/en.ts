@@ -556,8 +556,6 @@ export const EN: Record<string, string> = {
   "À faire : lancer cette commande sur {0}, avec le compte visé (membre du groupe docker), puis tester.": "To do: run this command on {0}, with the target account (member of the docker group), then test.",
   "Docker illisible sur cette machine : la clé SSH de l'app n'y est pas encore autorisée. Cliquez pour voir la commande à lancer sur la machine.": "Docker unreadable on this machine: the app SSH key is not yet authorized there. Click to see the command to run on the machine.",
   "Action requise : autoriser la clé de l'app sur cette machine": "Action required: authorize the app key on this machine",
-  "Action requise : la clé SSH de l'app n'est pas autorisée sur cette machine, donc Docker n'est pas lisible.": "Action required: the app SSH key is not authorized on this machine, so Docker is not readable.",
-  "Voir la commande à lancer": "See the command to run",
   "Réglages → Connecteurs": "Settings → Connectors",
   "Jeton Home Assistant manquant": "Home Assistant token missing",
   "Accès SSH à régler": "SSH access to set up",
@@ -1135,4 +1133,9 @@ export const EN: Record<string, string> = {
   "L'accès existe mais la connexion échoue : la clé n'est pas (ou plus) autorisée sur la machine.": "The access exists but the connection fails: the key is not (or no longer) authorized on the machine.",
   "Accès rétabli : la clé est déjà valide, rien à refaire.": "Access restored: the key is already valid, nothing to redo.",
   "dernier relevé {0}": "last report {0}",
+  "Action requise : la clé SSH de l'app est refusée pour le compte": "Action required: the app's SSH key is refused for the account",
+  " sur cette machine, donc Docker n'est pas lisible. Ce n'est pas la clé qui a changé : elle n'est pas (encore) dans les clés autorisées de ce compte.": " on this machine, so Docker cannot be read. The key has not changed: it is not (yet) in this account's authorized keys.",
+  "Sur la machine, connecté en": "On the machine, logged in as",
+  ", lancez :": ", run:",
+  "Puis « Vérifier ». Si l'accès marchait avec un autre compte (root, par exemple), revenez-y en réactivant l'accès avec ce compte.": "Then \"Check\". If access worked with another account (root, for example), go back to it by turning access on again with that account.",
 };
