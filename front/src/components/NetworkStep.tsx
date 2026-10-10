@@ -397,6 +397,8 @@ function HomeAssistantLink({ host, onLinked }: { host: NetHost; onLinked: () => 
       const t = st.types.find((x) => x.type === "home-assistant");
       if (!t) throw new Error(tx("connecteur Home Assistant introuvable"));
       setType(t);
+      // déjà relié (enregistré, mais pas encore vu par la collecte) : pas de second formulaire, qui échouerait en doublon
+      if (st.instances.some((i) => i.type === "home-assistant" && String(i.config.url ?? "").includes(host.ip))) { setDone(true); onLinked(); }
     }, "", setNote);
   }, []);
   if (done) return <p className="mt-2 text-sm text-muted">{tx("Home Assistant relié par son API : première lecture en cours")}</p>;
