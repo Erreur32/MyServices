@@ -296,8 +296,9 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
   const [proc, setProc] = useState(!!process);
   const [unlock, setUnlock] = useState(false);  // détection incomplète : débloque tous les interrupteurs
   const [hasAdguard] = useState(() => !!m.adguard);  // figé à l'ouverture : vider le champ ne le fait pas disparaître
-  // Menu ouvert d'office dès qu'il y a quelque chose de détecté ou d'allumé à montrer ; les « non détectés » restent pliés
-  const [options, setOptions] = useState(() => detected.length > 0 || (live?.detected?.length ?? 0) > 0 || FLAGS.some((f) => !!m[f.k]));
+  // Menu des options replié ; les options ACTIVES sont montrées dehors, sous « Options actives ». Ouvert d'office seulement à l'ajout
+  // d'une machine dont la détection est à confirmer.
+  const [options, setOptions] = useState(() => !!isNew && detected.length > 0);
   const [missingOpen, setMissingOpen] = useState(false), [manualOpen, setManualOpen] = useState(false);
   const [sshOpen, setSshOpen] = useState(!!isNew);  // replié d'office ; ouvert à l'ajout d'une machine, où il faut choisir l'accès
   const [localNote, setLocalNote] = useState<Note>(null), [busy, setBusy] = useState(false);
@@ -321,9 +322,11 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
   const DETECTABLE = ["gateway", "vm", "npm", "off"];
   const locked = (k: string) => !unlock && DETECTABLE.includes(k) && !found.has(k) && !v[k as keyof MachineConf];
   const isOn = (k: string) => found.has(k) || !!v[k as keyof MachineConf];
-  const detectedFlags = FLAGS.filter((f) => DETECTABLE.includes(String(f.k)) && isOn(String(f.k)));
+  const activeFlags = FLAGS.filter((f) => !!v[f.k]);  // allumées : montrées hors du menu
+  const procOn = proc && !windows && !!v.ssh;
+  const detectedFlags = FLAGS.filter((f) => DETECTABLE.includes(String(f.k)) && isOn(String(f.k)) && !v[f.k]);
   const missingFlags = FLAGS.filter((f) => DETECTABLE.includes(String(f.k)) && !isOn(String(f.k)));
-  const manualFlags = FLAGS.filter((f) => !DETECTABLE.includes(String(f.k)));
+  const manualFlags = FLAGS.filter((f) => !DETECTABLE.includes(String(f.k)) && !v[f.k]);
   const flagRow = (f: (typeof FLAGS)[number]) => (
     <label key={String(f.k)} className={`flex items-start gap-2 ${locked(String(f.k)) ? "opacity-50" : ""}`}
       title={locked(String(f.k)) ? tx("Non détecté sur cette machine : grisé") : undefined}>
@@ -362,6 +365,12 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
   }, [live?.detected?.join(), isNew]);
   const Saved = ({ k }: { k: string }) => (pending === k ? <Loader2 size={13} className="animate-spin text-dim" aria-label={tx("enregistrement…")} />
     : flash === k ? <span className="saved-pop inline-flex items-center gap-1 text-xs font-semibold text-ok"><Check size={13} aria-hidden />{tx("enregistré")}</span> : null);
+  const procRow = (
+    <label className="flex items-start gap-2">
+      <Switch on={proc} disabled={pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Lire les services hors Docker")} />
+      <span>{tx("Lire les services hors Docker")} <Saved k="proc" /> <Dim>{tx("· ports en écoute (ss -tlnp, root requis sur la machine)")}</Dim></span>
+    </label>
+  );
   // Accès SSH : un simple interrupteur. Actif = l'accès de cette IP (créé avec la clé de l'app s'il n'existe pas encore, compte root
   // port 22 comme « Lire cette machine par SSH »), inactif = on le retire. Le choix d'un autre compte se fait dans la config SSH.
   const [winGuide, setWinGuide] = useState(false);
@@ -486,16 +495,19 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
         <Switch on={!v.disabled} disabled={pending === "disabled"} onChange={(on) => void autoSave("disabled", { disabled: !on })} label={tx("Machine suivie")} />
         <span><b>{tx("Machine suivie")}</b> <Saved k="disabled" /> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>
       </label>
-      {/* Menu pliant des interrupteurs : replié, sauf à l'ajout avec une détection à confirmer ou si la machine n'est pas suivie */}
+      {(activeFlags.length > 0 || procOn) && (
+        <OptionGroup title={tx("Options actives")} hint={tx("Allumées pour cette machine ; les autres sont dans « Options de la machine »")}>
+          {activeFlags.map(flagRow)}
+          {procOn && procRow}
+        </OptionGroup>
+      )}
+      {/* Menu pliant des autres interrupteurs : replié, sauf à l'ajout d'une machine dont la détection est à confirmer */}
       <div className="rounded-xl border border-line/60 bg-bg2/30">
         <button type="button" onClick={() => setOptions(!options)} aria-expanded={options}
           className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-bg2/60">
           {options ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}
           {tx("Options de la machine")}
-          <span className="flex flex-wrap items-center gap-1 font-normal">
-            {FLAGS.filter((f) => v[f.k]).map((f) => <Badge key={String(f.k)} tone={found.has(String(f.k)) ? "info" : "off"}>{f.label}</Badge>)}
-            {proc && !windows && !!v.ssh && <Badge tone="off">{tx("services hors Docker")}</Badge>}
-          </span>
+          <span className="font-mono text-xs font-normal text-dim">({detectedFlags.length + manualFlags.length + missingFlags.length + (!windows && !!v.ssh && !procOn ? 1 : 0)})</span>
         </button>
         {options && (
           <div className="flex flex-col gap-3 border-t border-line/60 p-3">
@@ -516,12 +528,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
               <div className="flex flex-col gap-2 border-t border-line/60 p-3">
                 <p className="text-xs text-dim">{tx("Non détectables : c'est à vous de choisir.")}</p>
                 {manualFlags.map(flagRow)}
-                {!windows && v.ssh && (
-                  <label className="flex items-start gap-2">
-                    <Switch on={proc} disabled={pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Lire les services hors Docker")} />
-                    <span>{tx("Lire les services hors Docker")} <Saved k="proc" /> <Dim>{tx("· ports en écoute (ss -tlnp, root requis sur la machine)")}</Dim></span>
-                  </label>
-                )}
+                {!windows && v.ssh && !procOn && procRow}
               </div>
             )}
           </div>

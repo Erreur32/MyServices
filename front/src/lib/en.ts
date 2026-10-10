@@ -1138,4 +1138,6 @@ export const EN: Record<string, string> = {
   "Accès rétabli : la clé est déjà valide, rien à refaire. L'état se met à jour à la fin du prochain passage.": "Access restored: the key is already valid, nothing to redo. The status updates when the next run ends.",
   "par l'agent": "by the agent",
   "État de la connexion": "Connection status",
+  "Options actives": "Active options",
+  "Allumées pour cette machine ; les autres sont dans « Options de la machine »": "Turned on for this machine; the others are in \"Machine options\"",
 };
