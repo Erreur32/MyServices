@@ -405,7 +405,6 @@ export const EN: Record<string, string> = {
   "Machine hôte détectée": "Host machine detected",
   "service trouvé": "service found",
   "services trouvés": "services found",
-  "par leurs ports en écoute, nommés d'après leur page web.": "from their listening ports, named after their web page.",
   "présent sur l'hôte": "present on the host",
   "conteneur": "container",
   "réseau": "network",
