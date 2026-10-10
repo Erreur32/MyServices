@@ -329,7 +329,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
           {detectedFlags.length > 0 && (
             <OptionGroup title={tx("Détectés sur cette machine")} tone="ok">{detectedFlags.map(flagRow)}</OptionGroup>
           )}
-          <OptionGroup title={tx("À régler à la main")} hint={tx("Pas détectables : c'est à vous de dire.")}>
+          <OptionGroup title={tx("À changer manuellement")} hint={tx("Non détectables : c'est à vous de choisir.")}>
             {manualFlags.map(flagRow)}
             {!windows && v.ssh && (
               <label className="flex items-start gap-2">
