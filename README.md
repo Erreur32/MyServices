@@ -4,8 +4,9 @@
 > les écrans et les réglages peuvent encore changer d'une version à l'autre, l'agent Windows (PowerShell) n'a été validé que sur un PC,
 > et l'assistant Veeam comme les sauvegardes de Home Assistant n'ont été essayés que sur de faux serveurs. Gardez une copie de
 > `config/` et `data/` avant chaque mise à jour, et signalez ce qui ne va pas (issues GitHub).
-> Les versions portent le suffixe `-beta.N` (image `ghcr.io/erreur32/myservices:2.0.0-beta.N`) ; l'étiquette `:docker` suit la branche, donc
-> le dernier état, sans promesse de stabilité.
+> Les versions portent un suffixe `-beta.N` puis `-rc.N` (candidate à la sortie), par exemple l'image
+> `ghcr.io/erreur32/myservices:2.0.0-rc.1` ; l'étiquette `:docker` suit la branche, donc le dernier état, sans promesse de stabilité.
+> L'étiquette `:latest` n'existe qu'à partir de la `2.0.0` finale.
 
 Annuaire de tous les services d'un réseau local, avec leur état en direct : `hosts Nginx Proxy Manager`,
 `conteneurs Docker`, `process en écoute`, `services ajoutés à la main`, `contrôle DNS AdGuard Home`.
