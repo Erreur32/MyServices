@@ -2,7 +2,7 @@
 // Une carte par machine : celles qui ont un agent (actif, silencieux, en attente) d'un côté, celles qui n'en ont pas de l'autre,
 // prêtes à être cliquées. Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller sur le PC.
 // Gérés seulement depuis une session admin.
-import { ChevronDown, ChevronRight, MonitorUp, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Monitor, MonitorUp, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Copyable, Field, NoteLine } from "../components/form";
@@ -123,7 +123,13 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
             {(() => {  // confirmation côté MyServices : la page relit les agents toutes les 5 s tant qu'un premier relevé est attendu
               const seen = st.agents.find((x) => x.id === created.info.id);
               return seen?.last_seen
-                ? <p role="status" className="mt-3 rounded-lg bg-ok/10 px-3 py-2 text-sm text-ok">✓ {tx("Premier relevé reçu")} ({dateTime(seen.last_seen * 1000)}{seen.os ? ` · ${seen.os}` : ""}) : {tx("l'agent est installé et actif.")}</p>
+                ? <div role="status" className="mt-3 rounded-lg bg-ok/10 px-3 py-2">
+                    <p className="text-sm font-semibold text-ok">✓ {tx("Agent installé et actif : premier relevé reçu")}</p>
+                    <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted">
+                      <Monitor size={16} className="shrink-0 text-ok" aria-hidden />{tx("Système détecté :")} <b className="text-base text-txt">{seen.os || tx("non précisé par l'agent")}</b>
+                      <Dim>· {tx("agent")} v{seen.version || "?"} · {dateTime(seen.last_seen * 1000)}</Dim>
+                    </p>
+                  </div>
                 : <p role="status" className="mt-3 rounded-lg bg-bg2 px-3 py-2 text-sm text-muted">⏳ {tx("En attente du premier relevé : cette ligne se met à jour toute seule dès que le PC a envoyé le premier, sans rien à recharger.")}</p>;
             })()}
           </div>}
