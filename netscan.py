@@ -27,8 +27,11 @@ from pathlib import Path
 import known_apps
 
 # Ports regardés sur une machine qui répond : port -> indice affiché (reprend l'assistant d'installation)
-HINT_PORTS = {3389: "Windows (RDP)", 445: "partage SMB", 9419: "Veeam B&R (API 9419)", 8006: "Proxmox",
-              5000: "port 5000", 8123: "Home Assistant", 4357: "Home Assistant (observer :4357)", 81: "admin NPM", 80: "web", 443: "web", 32400: "Plex"}
+HINT_PORTS = {3389: "Windows (RDP)", 445: "partage SMB", 9419: "Veeam B&R (API 9419)", 9392: "Veeam B&R (service 9392)", 9401: "Veeam B&R (montage 9401)",
+              8006: "Proxmox", 8007: "Proxmox Backup Server", 5000: "port 5000", 8080: "port 8080", 8123: "Home Assistant", 4357: "Home Assistant (observer :4357)",
+              81: "admin NPM", 80: "web", 443: "web", 32400: "Plex", 11434: "Ollama", 1234: "LM Studio"}
+# Ports trop courants pour être un indice : montrés seulement si la page web de la machine dit ce qui y tourne (llama.cpp, Frigate…)
+PAGE_ONLY_PORTS = (5000, 8080)
 # Ports regardés seulement pour deviner le système (jamais affichés comme indice) : RPC/NetBIOS Windows, AFP et VNC macOS, iPhone / iPad
 OS_PORTS = (135, 139, 548, 5900, 62078)
 RASPBERRY_OUI = ("b8:27:eb", "dc:a6:32", "e4:5f:01", "28:cd:c1", "d8:3a:dd")  # adresses MAC des Raspberry Pi : toujours Linux
@@ -216,7 +219,7 @@ def _describe(ip: str, probe=_open, lookup=socket.gethostbyaddr, banner=_ssh_ban
         name, name_how = nb, "netbios"
     if not name and 443 in opened and (cn := cert(ip)):
         name, name_how = cn, "certificat"
-    web = [p for p in (80, 443, 5000) if p in opened]
+    web = [p for p in (80, 443, *PAGE_ONLY_PORTS) if p in opened]
     with ThreadPoolExecutor(3) as wx:  # page d'accueil des ports web : le titre dit souvent ce que c'est
         pages = [{"port": p, "scheme": "https" if p == 443 else "http", "title": t} for p, t in zip(web, wx.map(lambda p: page(ip, p), web))]
     app_of = {p: hit[0].label for p in opened if (hit := known_apps.identify(port=p))}
@@ -224,7 +227,7 @@ def _describe(ip: str, probe=_open, lookup=socket.gethostbyaddr, banner=_ssh_ban
     def hint(p: int) -> str | None:
         if p in (80, 443):
             return f"web :{p}"
-        if p == 5000:  # sert à trop de choses pour être un indice : montré seulement si sa page est reconnue (alors c'est l'appli, en étiquette d'appli)
+        if p in PAGE_ONLY_PORTS:  # sert à trop de choses pour être un indice : seule une page reconnue le dit (alors c'est l'appli, en étiquette d'appli)
             return None
         return HINT_PORTS[p]
     hints = list(dict.fromkeys(h for p in opened if p not in app_of and (h := hint(p))))

@@ -360,6 +360,26 @@ class MultiReseauxEtDiscret(unittest.TestCase):
         d = netscan._describe("10.0.0.9", probe=lambda ip, p: p == 80, **{**base, "page": lambda ip, p: "Home Assistant"})
         self.assertEqual(d["apps"], ["Home Assistant"])                                # HA servi sur le port 80 : reconnu par sa page
 
+    def test_ports_connus_proxmox_ia_veeam(self):
+        base = dict(lookup=lambda ip: ("srv", [], []), banner=lambda ip, p: "", ssh=(22,), page=lambda ip, p: None, ttl=lambda ip: None, vendor=lambda ip: None)
+        for port, app in ((8006, "Proxmox VE"), (8007, "Proxmox Backup Server"), (11434, "Ollama"), (1234, "LM Studio"),
+                          (32400, "Plex"), (9419, "Veeam Backup & Replication"), (9392, "Veeam Backup & Replication"), (9401, "Veeam Backup & Replication")):
+            d = netscan._describe("10.0.0.9", probe=lambda ip, p, port=port: p == port, **base)
+            self.assertEqual(d["apps"], [app], port)
+            self.assertNotIn(port, [h for h in d["hints"] if isinstance(h, int)])
+        # nom DNS « pve » : Proxmox même sans port reconnu
+        d = netscan._describe("10.0.0.9", probe=lambda ip, p: False, **{**base, "lookup": lambda ip: ("pve1.lan", [], [])})
+        self.assertEqual(d["apps"], ["Proxmox VE"])
+
+    def test_port_8080_lu_par_sa_page(self):
+        base = dict(probe=lambda ip, p: p == 8080, lookup=lambda ip: ("gpu", [], []), banner=lambda ip, p: "", ssh=(22,), ttl=lambda ip: None, vendor=lambda ip: None)
+        d = netscan._describe("10.0.0.9", page=lambda ip, p: "llama.cpp" if p == 8080 else None, **base)
+        self.assertEqual((d["apps"], d["hints"]), (["llama.cpp"], []))
+        d = netscan._describe("10.0.0.9", page=lambda ip, p: "Open WebUI" if p == 8080 else None, **base)
+        self.assertEqual(d["apps"], ["Open WebUI"])
+        d = netscan._describe("10.0.0.9", page=lambda ip, p: "Autre chose" if p == 8080 else None, **base)
+        self.assertEqual((d["apps"], d["hints"]), ([], []))   # 8080 seul n'est pas un indice
+
     def test_nom_devine_sans_dns_netbios_puis_certificat(self):
         base = dict(lookup=lambda ip: (_ for _ in ()).throw(OSError("pas de nom")), banner=lambda ip, p: "", ssh=(22,), page=lambda ip, p: None,
                     ttl=lambda ip: None, vendor=lambda ip: None)

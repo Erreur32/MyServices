@@ -53,7 +53,15 @@ APPS: tuple[App, ...] = (
     App("jellyfin", "Jellyfin", "Médias", ports=(8096,), title=r"jellyfin", images=("jellyfin/jellyfin", "linuxserver/jellyfin")),
     App("plex", "Plex", "Médias", ports=(32400,), title=r"^plex", images=("plexinc/pms-docker", "linuxserver/plex")),
     App("homeassistant", "Home Assistant", "Domotique", ports=(8123, 4357), title=r"home assistant", connector="home-assistant"),
-    App("proxmox", "Proxmox VE", "Infra / virtualisation", ports=(8006,), title=r"proxmox", host=r"^proxmox"),
+    App("proxmox", "Proxmox VE", "Infra / virtualisation", ports=(8006,), title=r"proxmox virtual environment|^proxmox", host=r"^(proxmox|pve)"),
+    App("pbs", "Proxmox Backup Server", "Sauvegardes", ports=(8007,), title=r"proxmox backup server", host=r"^(pbs|proxmox-?backup)"),
+    # IA locale : Ollama et LM Studio ont un port à eux ; llama.cpp (8080) et Open WebUI (3000 / 8080) partagent des ports trop courants, d'où le titre de la page
+    App("ollama", "Ollama", "IA / LLM", ports=(11434,), images=("ollama/ollama",)),
+    App("lmstudio", "LM Studio", "IA / LLM", ports=(1234,)),
+    App("llamacpp", "llama.cpp", "IA / LLM", title=r"^llama\.cpp", images=("ghcr.io/ggml-org/llama.cpp", "ghcr.io/ggerganov/llama.cpp")),
+    App("open-webui", "Open WebUI", "IA / LLM", title=r"open webui", images=("ghcr.io/open-webui/open-webui",)),
+    # Veeam Backup & Replication : API REST 9419 (lue par Sauvegardes), service 9392, serveur de montage 9401. Ports d'après la doc Veeam, à confirmer sur un vrai serveur
+    App("veeam", "Veeam Backup & Replication", "Sauvegardes", ports=(9419, 9392, 9401)),
     App("unifi", "UniFi", "Réseau / DNS", title=r"unifi", host=r"^(unifi|udm|ucg|usg)"),  # lu plus tard par l'API MynetworK, pas par SSH
     App("synology", "Synology DSM", "Fichiers / sync", title=r"synology"),
     App("frigate", "Frigate", "Domotique", title=r"^frigate", images=("ghcr.io/blakeblackshear/frigate", "blakeblackshear/frigate")),  # port 5000 : trop courant pour l'identifier seul

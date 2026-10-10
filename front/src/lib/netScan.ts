@@ -99,7 +99,7 @@ export function summarize(found: Seen[], known: string[]): NetSummary {
   return {
     total: found.length, known: found.length - cand.length, candidates: cand.length, watch: watch.length,
     ssh: watch.filter((h) => !!h.ssh_port).length, apps: watch.filter((h) => h.apps.length > 0).length,
-    shares: watch.filter((h) => h.hints.some((x) => x === "partage SMB" || x.startsWith("Windows") || x.startsWith("Veeam"))).length,
+    shares: watch.filter((h) => h.hints.some((x) => x === "partage SMB" || x.startsWith("Windows") || x.startsWith("Veeam")) || h.apps.some((a) => a.startsWith("Veeam"))).length,
     webOnly: rest.filter((h) => !quiet(h)).length, pingOnly: rest.filter(quiet).length,
   };
 }

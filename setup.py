@@ -180,7 +180,7 @@ def npm_test(inst: dict) -> str | None:
 
 
 # Ports sondés sur les machines trouvées sur le réseau : indice de ce qu'elles sont (rien n'est envoyé)
-HINT_PORTS = {22: "SSH", 3389: "Windows (RDP)", 445: "partage SMB", 9419: "Veeam B&R (API 9419)", 8006: "Proxmox",
+HINT_PORTS = {22: "SSH", 3389: "Windows (RDP)", 445: "partage SMB", 9419: "Veeam B&R (API 9419)", 9392: "Veeam B&R (service 9392)", 8006: "Proxmox", 8007: "Proxmox Backup Server", 11434: "Ollama",
               5000: "port 5000", 8123: "Home Assistant", 81: "admin NPM", 80: "web", 443: "web", 32400: "Plex"}
 # Services web proposés dans « extra » à l'ajout d'une machine sans SSH : port -> (schéma, nom par défaut)
 WEB_PORTS = {80: ("http", "Interface web"), 443: ("https", "Interface web (https)"), 32400: ("http", "Plex")}
