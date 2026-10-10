@@ -62,7 +62,7 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
           <div className="my-1 border-t border-line/70" />
           {admin && <button type="button" role="menuitem" className={item} onClick={() => go("settings")}><Settings size={15} />{tx("Réglages")}</button>}
           {admin && <button type="button" role="menuitem" className={item} onClick={() => go("settings/accounts")}><KeyRound size={15} />{tx("Mon mot de passe")}</button>}
-          {admin && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); reopenFirstSteps(); }}><ListChecks size={15} />{tx("Revoir les premiers pas")}</button>}
+          {admin && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); reopenFirstSteps(); }} title={tx("Rouvre la carte et efface vos choix « Passer »")}><ListChecks size={15} />{tx("Revoir les premiers pas")}</button>}
           <button type="button" role="menuitem" className={item} onClick={toggleTheme}>
             {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}{tx("Thème")} {theme === "dark" ? tx("clair") : tx("sombre")}
           </button>

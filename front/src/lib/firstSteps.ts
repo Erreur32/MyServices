@@ -14,8 +14,21 @@ const all = (): Saved => {
 export const savedState = (fp: string): Saved[string] | undefined => all()[fp];
 export const saveState = (fp: string, v: "open" | "closed"): void => localStorage.setItem(STORE, JSON.stringify({ ...all(), [fp]: v }));
 
-/** Menu du compte -> « Revoir les premiers pas » : la carte s'ouvre à l'accueil, même si elle avait été fermée */
+/** Accès à régler fermés par « Passer » / « Terminé » (par navigateur) et cadres de machines ajoutées (par onglet) */
+export const DISMISSED_KEY = "myservices-network-dismissed";
+export const ADDED_KEY = "myservices-network-added";
+
+/** Efface les choix faits dans la carte : étapes passées, accès passés, cadres de machines ouverts */
+export function forgetChoices(): void {
+  localStorage.removeItem(SKIPS);
+  localStorage.removeItem(DISMISSED_KEY);
+  sessionStorage.removeItem(ADDED_KEY);
+}
+
+/** Menu du compte -> « Revoir les premiers pas » : la carte s'ouvre à l'accueil, même si elle avait été fermée,
+ *  et repart de zéro (plus aucune étape ni aucun accès « passé ») */
 export function reopenFirstSteps(): void {
+  forgetChoices();
   localStorage.setItem(REOPEN, "1");
   location.hash = "";
   dispatchEvent(new Event(REOPEN_EVENT));

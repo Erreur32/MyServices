@@ -7,6 +7,7 @@ import { read, send } from "../api";
 import { act, button, input, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { dateTime } from "../lib/format";
+import { ADDED_KEY, DISMISSED_KEY, REOPEN_EVENT } from "../lib/firstSteps";
 import { changes, interesting, needsLink, netState, quiet, summarize, tagsOf } from "../lib/netScan";
 import { pokeScan } from "../lib/scan";
 import { ConnectorForm } from "../tabs/Connectors";
@@ -42,12 +43,12 @@ function HostInfo({ h, fresh = false, hint = false }: { h: NetHost; fresh?: bool
 
 const quietBtn = `${button} border-line text-muted hover:border-link hover:text-txt`;
 
-const ADDED = "myservices-network-added";
+const ADDED = ADDED_KEY;
 const loadAdded = (): Record<string, NetHost> => {
   try { return JSON.parse(sessionStorage.getItem(ADDED) || "{}") as Record<string, NetHost>; } catch { return {}; }
 };
 
-const DISMISSED = "myservices-network-dismissed";
+const DISMISSED = DISMISSED_KEY;
 const loadDismissed = (): string[] => {
   try { return JSON.parse(localStorage.getItem(DISMISSED) || "[]") as string[]; } catch { return []; }
 };
@@ -63,6 +64,11 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
   // Machines ajoutées dont les options (SSH, jeton) restent à régler : gardées si la page est rechargée, retirées par « Terminé »
   const [added, setAdded] = useState<Record<string, NetHost>>(loadAdded);
   useEffect(() => { sessionStorage.setItem(ADDED, JSON.stringify(added)); }, [added]);
+  useEffect(() => {  // « Revoir les premiers pas » efface la mémoire : la carte déjà affichée la relit
+    const refresh = () => { setDismissed(loadDismissed()); setAdded(loadAdded()); };
+    addEventListener(REOPEN_EVENT, refresh);
+    return () => removeEventListener(REOPEN_EVENT, refresh);
+  }, []);
   const state = netState(net);
   const preselected = useRef<number | null>(null);
   useEffect(() => {  // fin d'une recherche : les machines intéressantes sont cochées d'office (décochables)
@@ -229,6 +235,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
               <Check size={14} aria-hidden />{tx("Ajouter la sélection")} {picked.size > 0 && `(${picked.size})`}
             </button>
             <button type="button" className={quietBtn} onClick={() => setPicked(new Set(watch.map((h) => h.ip)))}>{tx("Tout sélectionner")}</button>
+            <button type="button" className={quietBtn} disabled={picked.size === 0} onClick={() => setPicked(new Set())}>{tx("Tout désélectionner")}</button>
           </div>
         </>
       )}
@@ -250,9 +257,6 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
           <button type="button" className="text-link hover:underline" onClick={resumeLater}>{tx("Reprendre")}</button>
         </p>
       )}
-      <div className="flex flex-col gap-2 border-t border-line/60 pt-3">
-        {actions}
-      </div>
       <NoteLine note={note} />
     </div>
   );

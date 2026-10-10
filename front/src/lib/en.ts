@@ -377,6 +377,8 @@ export const EN: Record<string, string> = {
   "On n'y touche pas : décochés. Cochez-en un si vous voulez le suivre quand même.": "We leave them alone: unchecked. Check one if you still want to follow it.",
   "Pages web seules": "Web-only pages",
   "Répondent au ping seulement": "Answer ping only",
+  "Rouvre la carte et efface vos choix « Passer »": "Reopens the card and clears your \"Skip\" choices",
+  "Tout désélectionner": "Unselect all",
   "Premiers pas": "Getting started",
   "MyServices a déjà trouvé des services. Pour être complet, il faudrait une clé SSH. Pas de panique, c'est simple !": "MyServices has already found some services. To be complete, it needs an SSH key. Don't panic, it's easy!",
   "Compte administrateur créé": "Administrator account created",
