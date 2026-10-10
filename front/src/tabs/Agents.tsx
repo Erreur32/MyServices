@@ -106,6 +106,12 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
           {command ? <Copyable key={command} text={command} />
             : <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{tx("Adresse de MyServices invalide : http://hôte:port, sans chemin. Corrigez-la en haut de la page, la commande se met à jour.")}</p>}
           <p className="mt-2 text-xs text-dim">{tx("L'installation crée une tâche planifiée (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur le PC relancer la commande avec MSV_UNINSTALL = '1'.")}</p>
+          {(() => {  // confirmation côté MyServices : la page relit les agents toutes les 5 s tant qu'un premier relevé est attendu
+            const seen = st.agents.find((x) => x.id === created.info.id);
+            return seen?.last_seen
+              ? <p role="status" className="mt-3 rounded-lg bg-ok/10 px-3 py-2 text-sm text-ok">✓ {tx("Premier relevé reçu")} ({dateTime(seen.last_seen * 1000)}{seen.os ? ` · ${seen.os}` : ""}) : {tx("l'agent est installé et actif.")}</p>
+              : <p role="status" className="mt-3 rounded-lg bg-bg2 px-3 py-2 text-sm text-muted">⏳ {tx("En attente du premier relevé : cette ligne se met à jour toute seule dès que le PC a envoyé le premier, sans rien à recharger.")}</p>;
+          })()}
           <button type="button" className={`${quiet} mt-3`} onClick={() => setCreated(null)}>{tx("C'est copié, fermer")}</button>
         </Card>
       )}

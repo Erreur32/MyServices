@@ -1190,4 +1190,7 @@ export const EN: Record<string, string> = {
   "Toutes les machines ont un accès.": "Every machine has access.",
   "Régler l'accès SSH": "Set up SSH access",
   "Adresse de MyServices invalide : http://hôte:port, sans chemin. Corrigez-la en haut de la page, la commande se met à jour.": "Invalid MyServices address: http://host:port, no path. Fix it at the top of the page, the command updates.",
+  "Premier relevé reçu": "First report received",
+  "l'agent est installé et actif.": "the agent is installed and active.",
+  "En attente du premier relevé : cette ligne se met à jour toute seule dès que le PC a envoyé le premier, sans rien à recharger.": "Waiting for the first report: this line updates by itself as soon as the PC has sent it, nothing to reload.",
 };
