@@ -542,7 +542,6 @@ export const EN: Record<string, string> = {
   "Un clic sur l'interrupteur prépare l'accès (compte root, port 22) avec la clé de l'app.": "One click on the switch prepares the access (root account, port 22) with the app key.",
   "Cette clé est à autoriser sur la machine : Réglages → Clé SSH.": "That key must be authorized on the machine: Settings → SSH key.",
   "pas de Docker": "no Docker",
-  "PC Windows, relevé de la santé": "Windows PC, health reading",
   "Lu par OpenSSH et PowerShell, en lecture seule : disques, services, processeur, mises à jour Windows, journal Système. Pas de Docker. Accès :": "Read through OpenSSH and PowerShell, read-only: disks, services, processor, Windows updates, System log. No Docker. Access:",
   "Marqué « souvent éteinte » : la santé ne le relève pas tant que cette option est cochée.": "Marked “often switched off”: health does not read it while this option is ticked.",
   "Système de la machine": "Machine system",
@@ -958,7 +957,6 @@ export const EN: Record<string, string> = {
   "SSH manuel": "manual SSH",
   "SSH refusé": "SSH refused",
   "SSH refusés 24 h :": "SSH refused 24 h:",
-  "SSH, relevé par la collecte": "SSH, as read by the collector",
   "sshd : root ou mot de passe autorisé": "sshd: root or password allowed",
   "SSL forcé": "SSL forced",
   "SSL non forcé": "SSL not forced",
@@ -1139,4 +1137,5 @@ export const EN: Record<string, string> = {
   "Puis « Vérifier ». Si l'accès marchait avec un autre compte (root, par exemple), revenez-y en réactivant l'accès avec ce compte.": "Then \"Check\". If access worked with another account (root, for example), go back to it by turning access on again with that account.",
   "Accès rétabli : la clé est déjà valide, rien à refaire. L'état se met à jour à la fin du prochain passage.": "Access restored: the key is already valid, nothing to redo. The status updates when the next run ends.",
   "par l'agent": "by the agent",
+  "État de la connexion": "Connection status",
 };

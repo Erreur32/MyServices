@@ -171,7 +171,6 @@ function Proposal({ d, st, onDone }: { d: Detection; st: State; onDone: () => vo
 function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished, agent }: {
   agent?: AgentInfo; unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[]; ssh?: boolean }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
 }) {
-  const [details, setDetails] = useState(false);  // « SSH, relevé par la collecte » : replié, une ligne de résumé
   const [open, setOpen] = useState(!!focus), [confirm, setConfirm] = useState(false);  // focus : arrivée depuis un lien (Connecteurs → machine)
   const card = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) card.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focus]);
@@ -201,8 +200,22 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
   };
   const access = agent ? tx("agent MyServices") : m.os === "windows" ? (m.health ? tx("Windows · santé par {0}", m.health) : tx("Windows · sans agent")) : m.ssh ? `SSH ${m.ssh}` : tx("sans SSH");
   const Chevron = open ? ChevronDown : ChevronRight;
+  // Ce que la collecte (SSH) ou l'agent a lu de la connexion : montré dans le cadre « Accès », sous l'interrupteur
+  const connection = m.os === "windows" ? (
+    <div className="text-sm">
+      {agent ? (
+        <p className="text-muted">{tx("Lu par l'agent MyServices, en lecture seule : système, disques, services, processeur, mémoire, mises à jour Windows, journal Système, ports en écoute. Pas de Docker.")}{" "}
+          {agent.last_seen ? tx("Dernier relevé {0}.", dateTime(agent.last_seen * 1000)) : tx("Aucun relevé reçu pour l'instant.")}{" "}
+          <a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a></p>
+      ) : typeof m.health === "string" && m.health ? (
+        <p className="text-muted">{tx("Lu par OpenSSH et PowerShell, en lecture seule : disques, services, processeur, mises à jour Windows, journal Système. Pas de Docker. Accès :")} <code className="font-mono text-xs">{sshWho(st, m.health)}</code>.
+          {m.off ? <span className="block text-dim">{tx("Marqué « souvent éteinte » : la santé ne le relève pas tant que cette option est cochée.")}</span> : null}</p>
+      ) : <p className="text-dim">{tx("Pas d'agent : ping et services web seulement.")}{" "}
+        <a className="text-link hover:underline" href={`#settings/agents/${ip}`}>{tx("Installer l'agent")}</a>{tx(" pour lire sa santé sans SSH.")}</p>}
+    </div>
+  ) : live ? <SshDetails m={live} statuses={statuses} /> : null;
   return (
-    <div ref={card} className={`rounded-xl border bg-card text-sm ${m.disabled ? "opacity-60" : ""} ${focus ? "border-link shadow-[0_0_0_1px_rgb(var(--link))]" : "border-line"}`}>
+    <div ref={card} className={`rounded-xl border bg-card text-sm transition-colors ${m.disabled ? "opacity-60" : ""} ${focus ? "border-link shadow-[0_0_0_1px_rgb(var(--link))]" : open ? "border-link/60 shadow-[0_0_0_1px_rgb(var(--link)/0.35)]" : "border-line"}`}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl p-3 text-left hover:bg-bg2">
         <Chevron size={14} className="text-txt" /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl }} scan={scan} reserve /><b>{m.name}</b><Dim>{ip}</Dim>
         <span className="ml-auto flex items-center gap-1.5">
@@ -246,30 +259,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
                 : tx("cette machine offre SSH mais MyServices n'y a pas d'accès : activez « Lecture par SSH » ci-dessous.")}
             </p>
           )}
-          {m.os === "windows" ? (
-            <section className="rounded-lg border border-line/60 bg-bg2/40 p-2.5 text-sm">
-              <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("PC Windows, relevé de la santé")}</h4>
-              {agent ? (
-                <p className="text-muted">{tx("Lu par l'agent MyServices, en lecture seule : système, disques, services, processeur, mémoire, mises à jour Windows, journal Système, ports en écoute. Pas de Docker.")}{" "}
-                  {agent.last_seen ? tx("Dernier relevé {0}.", dateTime(agent.last_seen * 1000)) : tx("Aucun relevé reçu pour l'instant.")}{" "}
-                  <a className="text-link hover:underline" href="#settings/agents">{tx("Réglages → Connecteurs")}</a></p>
-              ) : typeof m.health === "string" && m.health ? (
-                <p className="text-muted">{tx("Lu par OpenSSH et PowerShell, en lecture seule : disques, services, processeur, mises à jour Windows, journal Système. Pas de Docker. Accès :")} <code className="font-mono text-xs">{sshWho(st, m.health)}</code>.
-                  {m.off ? <span className="block text-dim">{tx("Marqué « souvent éteinte » : la santé ne le relève pas tant que cette option est cochée.")}</span> : null}</p>
-              ) : <p className="text-dim">{tx("Pas d'agent : ping et services web seulement.")}{" "}
-                <a className="text-link hover:underline" href={`#settings/agents/${ip}`}>{tx("Installer l'agent")}</a>{tx(" pour lire sa santé sans SSH.")}</p>}
-            </section>
-          ) : live && (
-            <section className="rounded-lg border border-line/60 bg-bg2/40 p-2.5">
-              <button type="button" onClick={() => setDetails(!details)} aria-expanded={details} className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 text-left">
-                {details ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("SSH, relevé par la collecte")}</h4>
-                {!details && <span className="min-w-0 truncate text-xs text-muted">{sshBrief(live)}</span>}
-              </button>
-              {details && <div className="mt-2"><SshDetails m={live} statuses={statuses} /></div>}
-            </section>
-          )}
-          <MachineForm agent={agent} report={setNote} ip={ip} m={m} st={st} live={live} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
+          <MachineForm agent={agent} connection={connection} report={setNote} ip={ip} m={m} st={st} live={live} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
             <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
             <span className="ml-auto flex items-center gap-1.5">
               {confirm ? <>
@@ -295,7 +285,8 @@ function OptionGroup({ title, hint, tone, children }: { title: string; hint?: st
   );
 }
 
-function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, actions, windowsGuess, report, onDone, agent }: {
+function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, actions, windowsGuess, report, onDone, agent, connection }: {
+  connection?: React.ReactNode;  // ce qui a été lu de la connexion (SSH ou agent), montré dans le cadre « Accès »
   agent?: AgentInfo;  // agent actif de la machine : c'est son accès (Windows), ou une deuxième source de santé à ordonner (avec SSH)
   report?: (n: Note) => void;  // dans une carte de machine : le message s'affiche en haut de la carte
   windowsGuess?: boolean;
@@ -413,13 +404,6 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
   const dirty = isNew || ["name", "role", "adguard", "adguard_sync"].some((k) => String(v[k] ?? "") !== String(saved[k] ?? ""));
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
-      <section>
-        <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("Identité")}</h4>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label={tx("Nom")}><input className={input} required maxLength={80} value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>
-          <Field label={tx("Rôle (libre)")}><input className={input} maxLength={80} value={v.role || ""} onChange={(e) => setV({ ...v, role: e.target.value })} /></Field>
-        </div>
-      </section>
       <section className="rounded-xl border border-muted/60 bg-bg2/30 p-4 shadow-sm">
         <button type="button" onClick={() => setSshOpen(!sshOpen)} aria-expanded={sshOpen} className="flex w-full flex-wrap items-center gap-2 text-left">
           {sshOpen ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}
@@ -458,6 +442,12 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
           </ul>
         </div>
         <NoteLine note={reuse} />
+        {connection && (
+          <div className="rounded-lg border border-line/60 bg-bg2/70 p-3">
+            <h5 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{agentMode ? tx("Lecture par l'agent") : tx("État de la connexion")}</h5>
+            {connection}
+          </div>
+        )}
         {winGuide && <SshGuide ip={ip} user={known?.user} guess={windows || windowsGuess ? "windows" : "linux"} onCancel={() => setWinGuide(false)}
           onReady={(alias) => autoSave("ssh", { os: undefined, ssh: alias, health: undefined })} />}
         {!windows && v.ssh && hasAdguard && (  // seulement si AdGuard a été trouvé sur la machine (ou déjà réglé) : sinon rien à montrer
@@ -472,6 +462,13 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
           <span className="block">{tx("Cette clé est à autoriser sur la machine : Réglages → Clé SSH.")}</span>
         </p>
         </div>}
+      </section>
+      <section className="rounded-xl border border-line bg-bg2/30 p-4">
+        <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("Identité")}</h4>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={tx("Nom")}><input className={input} required maxLength={80} value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>
+          <Field label={tx("Rôle (libre)")}><input className={input} maxLength={80} value={v.role || ""} onChange={(e) => setV({ ...v, role: e.target.value })} /></Field>
+        </div>
       </section>
       {agent && sshAccess && (
         <label className="flex flex-wrap items-center gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
