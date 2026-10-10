@@ -541,7 +541,6 @@ export const EN: Record<string, string> = {
   "Compte": "Account",
   "Un clic sur l'interrupteur prépare l'accès (compte root, port 22) avec la clé de l'app.": "One click on the switch prepares the access (root account, port 22) with the app key.",
   "Cette clé est à autoriser sur la machine : Réglages → Clé SSH.": "That key must be authorized on the machine: Settings → SSH key.",
-  "Docker n'est pas installé sur cette machine": "Docker is not installed on this machine",
   "pas de Docker": "no Docker",
   "PC Windows, relevé de la santé": "Windows PC, health reading",
   "Lu par OpenSSH et PowerShell, en lecture seule : disques, services, processeur, mises à jour Windows, journal Système. Pas de Docker. Accès :": "Read through OpenSSH and PowerShell, read-only: disks, services, processor, Windows updates, System log. No Docker. Access:",

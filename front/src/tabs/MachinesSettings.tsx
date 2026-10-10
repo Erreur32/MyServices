@@ -285,8 +285,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
   // Ce que l'accès choisi permet de lire (suit le formulaire, avant même l'enregistrement)
   const access = windows ? !!v.health : !!v.ssh, health = access && !v.off && v.health !== false;
   const gives: [string, boolean, string][] = [
-    ["Docker", !windows && access && live?.info?.docker_installed !== false,
-      live?.info?.docker_installed === false ? tx("Docker n'est pas installé sur cette machine") : tx("Conteneurs, images, ports (onglet Services)")],
+    // Pas de pastille Docker quand la machine est lue par SSH et qu'il n'y en a pas : rien à dire, ce n'est pas un manque
+    ...(access && !windows && live?.info?.docker_installed === false ? [] : [["Docker", !windows && access, tx("Conteneurs, images, ports (onglet Services)")] as [string, boolean, string]]),
     [tx("Santé"), health, v.off ? tx("Souvent éteinte : la santé ne la lit pas") : tx("Disques, mémoire, CPU, systemd, mises à jour (onglet Santé)")],
     [tx("Système"), !windows && access, tx("Système, noyau, sshd, Apache (onglet Machines)")],
     ...(hasAdguard ? [["AdGuard Home", !windows && access, tx("Réécritures et réponses DNS (onglet DNS)")] as [string, boolean, string]] : []),
