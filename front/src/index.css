@@ -54,3 +54,8 @@ body {
 @keyframes nudge { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--link) / .55); } 60% { box-shadow: 0 0 0 7px rgb(var(--link) / 0); } }
 .nudge { animation: nudge 1.8s ease-out infinite; }
 @media (prefers-reduced-motion: reduce) { .nudge { animation: none; box-shadow: 0 0 0 2px rgb(var(--link) / .6); } }
+
+/* Coche « enregistré » à côté d'un interrupteur qui vient de se sauvegarder tout seul */
+@keyframes saved-pop { 0% { opacity: 0; transform: scale(.6) translateX(-4px); } 25% { opacity: 1; transform: scale(1.12); } 40% { transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+.saved-pop { animation: saved-pop 1.8s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) { .saved-pop { animation: none; } }

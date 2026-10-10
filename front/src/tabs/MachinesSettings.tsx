@@ -3,7 +3,7 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
-import { ChevronDown, ChevronRight, Plus, Radar, ShieldCheck, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Loader2, Plus, Radar, ShieldCheck, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
@@ -215,6 +215,23 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
   const DETECTABLE = ["gateway", "vm", "npm", "off"];
   const locked = (k: string) => !unlock && DETECTABLE.includes(k) && !found.has(k) && !v[k as keyof MachineConf];
   const nLocked = DETECTABLE.filter((k) => locked(k)).length;
+  // Machine déjà enregistrée : un interrupteur se sauvegarde tout seul (sans toucher aux champs texte en cours de saisie) ;
+  // une coche « ✓ enregistré » s'anime à côté. À l'ajout (isNew), tout part avec « Enregistrer la machine ».
+  const [saved, setSaved] = useState<MachineConf>(m), [savedProc, setSavedProc] = useState(!!process);
+  const [flash, setFlash] = useState(""), [pending, setPending] = useState("");
+  const autoSave = async (key: string, next: Partial<MachineConf>, nextProc = savedProc) => {
+    if (isNew) { setV((x) => ({ ...x, ...next })); if (key === "proc") setProc(nextProc); return; }
+    setPending(key);
+    const machine = { ...saved, ...next };
+    const ok = await act(() => send("PUT", `machines/settings/${ip}`, { machine, process: windows ? null : nextProc, extra: [] }), tx("enregistré"), (n) => setNote(n && !n.ok ? n : null));  // succès : seulement la coche animée ; erreur : message
+    setPending("");
+    if (!ok) return;
+    setSaved(machine); setSavedProc(nextProc);
+    setV((x) => ({ ...x, ...next })); if (key === "proc") setProc(nextProc);
+    setFlash(key); setTimeout(() => setFlash((f) => (f === key ? "" : f)), 1800);
+  };
+  const Saved = ({ k }: { k: string }) => (pending === k ? <Loader2 size={13} className="animate-spin text-dim" aria-label={tx("enregistrement…")} />
+    : flash === k ? <span className="saved-pop inline-flex items-center gap-1 text-xs font-semibold text-ok"><Check size={13} aria-hidden />{tx("enregistré")}</span> : null);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -284,15 +301,15 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
         {options && (
           <div className="flex flex-col gap-1.5 border-t border-line/60 p-3">
           <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/40 p-2">
-            <Switch on={!v.disabled} onChange={(on) => setV({ ...v, disabled: !on })} label={tx("Machine suivie")} />
-            <span><b>{tx("Machine suivie")}</b> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>
+            <Switch on={!v.disabled} disabled={pending === "disabled"} onChange={(on) => void autoSave("disabled", { disabled: !on })} label={tx("Machine suivie")} />
+            <span><b>{tx("Machine suivie")}</b> <Saved k="disabled" /> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>
           </label>
           {FLAGS.map((f) => (
             <label key={f.k} className={`flex items-start gap-2 ${locked(String(f.k)) ? "opacity-50" : ""}`}
               title={locked(String(f.k)) ? tx("Non détecté sur cette machine : grisé") : undefined}>
-              <Switch on={!!v[f.k]} disabled={locked(String(f.k))} onChange={(on) => setV({ ...v, [f.k]: on })} label={f.label} />
+              <Switch on={!!v[f.k]} disabled={locked(String(f.k)) || pending === String(f.k)} onChange={(on) => void autoSave(String(f.k), { [f.k]: on })} label={f.label} />
               <span>{f.label} {found.has(String(f.k)) && <Badge tone="info" title={tx("Trouvé par la détection : décochez si c'est faux")}>{tx("détecté")}</Badge>}
-                {locked(String(f.k)) && <Badge tone="off">{tx("non détecté")}</Badge>} <Dim>· {f.help}</Dim></span>
+                {locked(String(f.k)) && <Badge tone="off">{tx("non détecté")}</Badge>} <Saved k={String(f.k)} /> <Dim>· {f.help}</Dim></span>
             </label>
           ))}
           {nLocked > 0 && (
@@ -301,14 +318,14 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
           )}
           {!windows && v.ssh && (
             <label className="flex items-start gap-2">
-              <Switch on={proc} onChange={setProc} label={tx("Lire les services hors Docker")} />
-              <span>{tx("Lire les services hors Docker")} <Dim>{tx("· ports en écoute (ss -tlnp, root requis sur la machine)")}</Dim></span>
+              <Switch on={proc} disabled={pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Lire les services hors Docker")} />
+              <span>{tx("Lire les services hors Docker")} <Saved k="proc" /> <Dim>{tx("· ports en écoute (ss -tlnp, root requis sur la machine)")}</Dim></span>
             </label>
           )}
           </div>
         )}
       </div>
-      <div><button className={primary} disabled={busy}>{isNew ? tx("Enregistrer la machine") : tx("Enregistrer")}</button></div>
+      <div><button className={primary} disabled={busy}>{isNew ? tx("Enregistrer la machine") : tx("Enregistrer le nom et l'accès")}</button></div>
       <NoteLine note={note} />
     </form>
   );
