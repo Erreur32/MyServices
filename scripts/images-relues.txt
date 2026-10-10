@@ -5,8 +5,6 @@ d15ad0d7c94ad6736de4e8982be42027  web/apache-logo.svg
 bd571939eb4ec943bef64ff8a4fb8d29  web/github-logo.svg
 261e9cf65e60fb5e802ebf0a4e7d65b4  web/npm-logo.svg
 4b95ac494d4756d579fe2a9df67360d5  web/ssh-logo.svg
-df1a44eac6b36448e3dc918992982d60  chrome-capture-demo.png
-74f07c4700d0870e0099f0996ac447e8  web/chrome-capture-demo.png  (lien vers la capture de démonstration)
 4a65b23ae16bf700f35139e2c10a5f73  front/public/icons/adguard-home.svg
 fc18cdc7440745756e012b5581104952  front/public/icons/apache.svg
 91efe4eceea112acc9ded959c3cb28d2  front/public/icons/beszel.svg

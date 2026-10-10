@@ -13,7 +13,6 @@ web/backups.json
 *.png
 *.md
 !README.md
-!chrome-capture-*.png
 __pycache__
 !deploy/fetch_archify.py
 .github

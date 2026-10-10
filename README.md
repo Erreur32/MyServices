@@ -7,8 +7,6 @@ avec peu de sondes.
 
 Tout se fait en **lecture seule**. Seule la bibliothèque standard de Python 3 est utilisée : pas de pip, pas de PyYAML.
 
-![MyServices, onglet Historique](chrome-capture-demo.png)
-
 ## Installation Docker (v2, en test sur la branche `docker`)
 
 Un seul conteneur fait tout : collecte, veille, santé, sauvegardes et page sur `:8090/myservices/`.
