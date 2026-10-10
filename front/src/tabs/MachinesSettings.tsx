@@ -19,6 +19,7 @@ import { AuthorizeKey } from "../components/AuthorizeKey";
 import { SshGuide } from "../components/SshGuide";
 import { SshDetails } from "../components/ssh";
 import { sshBrief, sshWarn } from "../lib/ssh";
+import { pokeScan } from "../lib/scan";
 import { tx } from "../lib/i18n";
 
 const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
@@ -180,11 +181,14 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
   const keyMissing = statuses.some((c) => c.type === "docker" && !c.ok);  // accès SSH activé, mais la clé de l'app n'est pas autorisée
   const goAuthorize = () => document.getElementById("authorize-key")?.scrollIntoView({ behavior: "smooth", block: "start" });
   const state = live ? MSTATE[mState(live)] : null;
+  // Les badges viennent du dernier passage de la collecte : après un test réussi, on en lance un (sans bloquer si un passage est déjà en cours)
+  const refreshState = () => { void send("POST", "system/tasks/collect/run").then(pokeScan, () => undefined); };
   const verify = async () => {
     setBusy(true); setLines(null);
     try {
       const r = await send<{ lines: string[]; failed: number }>("POST", `machines/settings/${ip}/check`);
       setLines(r.lines);
+      if (!r.failed) refreshState();  // l'accès répond : le badge (état du dernier passage) est remis à jour
       clearTimeout(linesTimer.current);
       linesTimer.current = setTimeout(() => setLines(null), 15_000);  // résultat visible 15 s, puis il disparaît
     } catch (e) {
@@ -377,7 +381,10 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
     try {
       const r = await send<{ lines: string[]; failed: number }>("POST", `machines/settings/${ip}/check`);
       if (r.failed) { setReuse({ ok: false, text: tx("L'accès existe mais la connexion échoue : la clé n'est pas (ou plus) autorisée sur la machine.") }); setWinGuide(true); }
-      else setReuse({ ok: true, text: tx("Accès rétabli : la clé est déjà valide, rien à refaire.") });
+      else {
+        setReuse({ ok: true, text: tx("Accès rétabli : la clé est déjà valide, rien à refaire. L'état se met à jour à la fin du prochain passage.") });
+        void send("POST", "system/tasks/collect/run").then(pokeScan, () => undefined);
+      }
     } catch (e) {
       if (e instanceof LoginRequired) location.replace(LOGIN);
       else setReuse({ ok: false, text: (e as Error).message });

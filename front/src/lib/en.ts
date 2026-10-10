@@ -1131,11 +1131,11 @@ export const EN: Record<string, string> = {
   "Un petit script PowerShell sur le PC envoie sa santé à MyServices : disques, services, processeur, mémoire, mises à jour, journal.": "A small PowerShell script on the PC sends its health to MyServices: disks, services, CPU, memory, updates, event log.",
   "cliquez pour installer l'agent": "click to install the agent",
   "L'accès existe mais la connexion échoue : la clé n'est pas (ou plus) autorisée sur la machine.": "The access exists but the connection fails: the key is not (or no longer) authorized on the machine.",
-  "Accès rétabli : la clé est déjà valide, rien à refaire.": "Access restored: the key is already valid, nothing to redo.",
   "dernier relevé {0}": "last report {0}",
   "Action requise : la clé SSH de l'app est refusée pour le compte": "Action required: the app's SSH key is refused for the account",
   " sur cette machine, donc Docker n'est pas lisible. Ce n'est pas la clé qui a changé : elle n'est pas (encore) dans les clés autorisées de ce compte.": " on this machine, so Docker cannot be read. The key has not changed: it is not (yet) in this account's authorized keys.",
   "Sur la machine, connecté en": "On the machine, logged in as",
   ", lancez :": ", run:",
   "Puis « Vérifier ». Si l'accès marchait avec un autre compte (root, par exemple), revenez-y en réactivant l'accès avec ce compte.": "Then \"Check\". If access worked with another account (root, for example), go back to it by turning access on again with that account.",
+  "Accès rétabli : la clé est déjà valide, rien à refaire. L'état se met à jour à la fin du prochain passage.": "Access restored: the key is already valid, nothing to redo. The status updates when the next run ends.",
 };
