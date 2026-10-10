@@ -1,14 +1,21 @@
 // Éléments de formulaire des Réglages (composants) ; classes, type Note et act() : lib/forms.ts.
 import { Check, Copy } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { copyText } from "../lib/clipboard";
 import { button, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 
 /** Retour d'une action : message vert ou rouge sous le formulaire. */
 
+/** Message d'un enregistrement : un succès disparaît au bout de 15 s, une erreur reste affichée. */
 export function NoteLine({ note }: { note: Note }) {
-  if (!note || (note.ok && !note.text)) return null;
+  const [gone, setGone] = useState<Note>(null);
+  useEffect(() => {
+    if (!note?.ok) return;
+    const t = setTimeout(() => setGone(note), 15_000);
+    return () => clearTimeout(t);
+  }, [note]);
+  if (!note || (note.ok && !note.text) || gone === note) return null;
   return <p role="status" className={`mt-2 text-sm ${note.ok ? "text-ok" : "text-bad"}`}>{note.ok ? "✓" : "⚠"} {note.text}</p>;
 }
 

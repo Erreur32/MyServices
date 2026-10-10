@@ -135,12 +135,16 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus }: {
   const card = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) card.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focus]);
   const [note, setNote] = useState<Note>(null), [lines, setLines] = useState<string[] | null>(null), [busy, setBusy] = useState(false);
+  const linesTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(linesTimer.current), []);
   const state = live ? MSTATE[mState(live)] : null;
   const verify = async () => {
     setBusy(true); setLines(null);
     try {
       const r = await send<{ lines: string[]; failed: number }>("POST", `machines/settings/${ip}/check`);
       setLines(r.lines);
+      clearTimeout(linesTimer.current);
+      linesTimer.current = setTimeout(() => setLines(null), 15_000);  // résultat visible 15 s, puis il disparaît
     } catch (e) {
       if (e instanceof LoginRequired) location.replace(LOGIN);
       else setNote({ ok: false, text: (e as Error).message });
