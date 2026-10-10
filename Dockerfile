@@ -2,7 +2,7 @@
 # Outils système : ssh, ping, ip ; Node pour Archify.
 
 # Nouveau front (front/, React + Vite) : tests, contrôle des types, puis compilation ; seul dist/ passe dans l'image
-FROM node:22-trixie-slim AS front
+FROM node:25-trixie-slim AS front
 WORKDIR /front
 COPY front/package.json front/package-lock.json front/.npmrc ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
