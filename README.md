@@ -1,4 +1,11 @@
-# MyServices
+# MyServices ![BETA](https://img.shields.io/badge/version-BETA-orange)
+
+> **BETA : MyServices v2 (Docker) est en test.** Il lit vos machines en **lecture seule** et sert déjà au quotidien, mais :
+> les écrans et les réglages peuvent encore changer d'une version à l'autre, l'agent Windows (PowerShell) n'a été validé que sur un PC,
+> et l'assistant Veeam comme les sauvegardes de Home Assistant n'ont été essayés que sur de faux serveurs. Gardez une copie de
+> `config/` et `data/` avant chaque mise à jour, et signalez ce qui ne va pas (issues GitHub).
+> Les versions portent le suffixe `-beta.N` (image `ghcr.io/erreur32/myservices:2.0.0-beta.N`) ; l'étiquette `:docker` suit la branche, donc
+> le dernier état, sans promesse de stabilité.
 
 Annuaire de tous les services d'un réseau local, avec leur état en direct : `hosts Nginx Proxy Manager`,
 `conteneurs Docker`, `process en écoute`, `services ajoutés à la main`, `contrôle DNS AdGuard Home`.
@@ -7,7 +14,7 @@ avec peu de sondes.
 
 Tout se fait en **lecture seule**. Seule la bibliothèque standard de Python 3 est utilisée : pas de pip, pas de PyYAML.
 
-## Installation Docker (v2, en test sur la branche `docker`)
+## Installation Docker (v2 BETA)
 
 Un seul conteneur fait tout : collecte, veille, santé, sauvegardes et page sur `:8090/myservices/`.
 Plus de timers systemd, ni de config nginx ou Apache à écrire (la page se met derrière NPM comme un
