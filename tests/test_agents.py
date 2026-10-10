@@ -190,6 +190,23 @@ class Agents(unittest.TestCase):
         self.assertIn("ok → crit", calls[1])
         self.assertIn("crit → ok", calls[2])
 
+    def test_systeme_et_ports_du_releve(self):
+        data = {**DATA, "os": {"n": "Microsoft Windows 11 Professionnel", "v": "10.0.26100", "b": "26100", "h": "GAMER32"},
+                "boot": "2026-10-10T08:00:00.0000000Z",
+                "ports": [{"p": 445, "a": "0.0.0.0", "n": "System"}, {"p": 8080, "a": "127.0.0.1", "n": "node"},
+                          {"p": 8080, "a": "0.0.0.0", "n": "node"}, {"p": 135, "a": "0.0.0.0", "n": "svchost"},
+                          {"p": 49670, "a": "0.0.0.0", "n": "lsass"}, {"p": 32400, "a": "::", "n": "Plex Media Server"}, {"p": "x"}]}
+        rep = {**REPORT, "data": data}
+        self.assertEqual(agents.ports_of(rep), {445: {"name": "System", "lan": True}, 8080: {"name": "node", "lan": True},
+                                               32400: {"name": "Plex Media Server", "lan": True}})
+        s = agents.system_of(rep)
+        self.assertEqual((s["os"], s["kernel"]), ("Microsoft Windows 11 Professionnel", "10.0.26100 (build 26100)"))
+        self.assertGreater(s["uptime_s"], 0)
+        self.assertEqual(agents.ports_of({}), {})
+        self.assertIsNone(agents.system_of({"data": DATA}))
+        h = health.parse_windows(data)
+        self.assertEqual(h["system"]["build"], "26100")
+
     def test_fraicheur(self):
         token, info = self.create()
         self.send(token)

@@ -46,6 +46,7 @@ import connectors.base as cbase
 from connectors.uptime_kuma import attach_monitors
 from connectors.docker_ssh import HOST_ADDR
 from connectors.process import host_ports
+import agents
 import hostinfo
 import inventory_cache
 import known_apps
@@ -164,6 +165,16 @@ def read_npm():
         if ip in MACHINE_FLAGS:
             MACHINE_FLAGS[ip]["npm"] = True
     return lists["hosts"], lists["redirects"], lists["dead"], lists["streams"]
+
+
+def agent_reports() -> dict:
+    """Derniers relevés des agents {IP: {"report", "seen", "fresh"}} ; vide si la base n'existe pas (installation sans agents)."""
+    try:
+        from auth import db_path
+        return agents.Agents(db_path(CFG)).fresh_reports()
+    except Exception as e:  # base absente ou illisible : la collecte continue sans agents
+        print(f"⚠ agents : {e}", file=sys.stderr)
+        return {}
 
 
 def _process_read(conn):
@@ -791,6 +802,13 @@ def main():
                 for ip, c in ((c.conf["ip"], c) for c in connectors.instances(CFG, kind="inventory", meta=META_RAW)
                               if c.type == "process")}
     procs = {ip: j.result() for ip, j in jobs.items()}
+    # PC Windows lus par leur agent : ports à l'écoute et système viennent de son dernier relevé frais (rien lu par SSH)
+    agent_sys = {}
+    for ip, a in agent_reports().items():
+        if a["fresh"]:
+            agent_sys[ip] = agents.system_of(a["report"])
+            if not procs.get(ip):
+                procs[ip] = agents.ports_of(a["report"])
     meta = load_meta()
     # Machine hôte de MyServices (« host » : true) sans process lus par SSH : ses ports en écoute, lus sur place
     # (premier démarrage : de quoi remplir la page avant toute clé SSH ; les conteneurs reconnus passent devant)
@@ -1087,6 +1105,7 @@ def main():
                     "methods": ssh_methods(ssh_cache, ip, sc["port"], ip in changed),
                     "note": notes.get(f'{sc["user"]}@{ip}:{sc["port"]}') or sc.get("note")} if sc and ip not in DISABLED else None,
             "info": info,
+            "agent": ({**agent_sys[ip], "via": "agent"} if agent_sys.get(ip) else None),  # système lu par l'agent (info = lu par SSH)
             "services": len(rs), "npm": sum(1 for r in rs if r["type"] != "local"),
             "down": sum(1 for r in rs if r.get("enabled") and not r.get("paused") and not r.get("machine_off")
                         and (r.get("backend") or {}).get("up") is False),

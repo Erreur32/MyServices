@@ -18,7 +18,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "1"
+VERSION = "2"
 SCRIPTS = Path(__file__).resolve().parent / "agent"
 PREFIX = "msv_agent_"
 NAME_RE = re.compile(r"^[\w .@-]{2,64}$")
@@ -124,6 +124,42 @@ class Agents:
             out[r["ip"]] = {"report": json.loads(r["report"]) if r["report"] else None, "seen": r["last_seen"],
                             "fresh": bool(r["last_seen"] and now - r["last_seen"] <= FRESH_MULT * (r["interval"] or DEFAULT_INTERVAL))}
         return out
+
+
+# Ports Windows sans intérêt dans l'annuaire : RPC dynamique (49152 et au-delà), RPC/DCOM (135), NetBIOS (139), diffusion de l'appli Connected Devices (5040)
+NOISE_PORTS = {135, 139, 5040}
+
+
+def ports_of(report: dict | None) -> dict[int, dict]:
+    """Ports TCP à l'écoute d'un relevé d'agent : {port: {"name": processus, "lan": joignable depuis le réseau}} (même forme que
+    connectors/process.py). Les ports de bouclage seuls ne sont pas « lan » ; les ports dynamiques et le bruit Windows sont écartés."""
+    out: dict[int, dict] = {}
+    for it in ((report or {}).get("data") or {}).get("ports") or []:
+        try:
+            port, addr, name = int(it["p"]), str(it.get("a") or ""), str(it.get("n") or "").strip()
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not 1 <= port < 49152 or port in NOISE_PORTS:
+            continue
+        lan = not addr.startswith(("127.", "::1"))
+        cur = out.setdefault(port, {"name": name or f"port {port}", "lan": lan})
+        cur["lan"] = cur["lan"] or lan
+    return out
+
+
+def system_of(report: dict | None) -> dict | None:
+    """Système d'un relevé d'agent : {"os", "kernel" (build), "uptime_s"} ou None si le relevé n'en contient pas."""
+    import datetime
+    data = (report or {}).get("data") or {}
+    o = data.get("os")
+    if not isinstance(o, dict) or not o.get("n"):
+        return None
+    up = None
+    try:
+        up = int((datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromisoformat(str(data["boot"]).replace("Z", "+00:00"))).total_seconds())
+    except (KeyError, ValueError, TypeError):
+        pass
+    return {"os": str(o["n"]).strip(), "kernel": f"{o.get('v') or ''} (build {o.get('b')})".strip() if o.get("b") else o.get("v"), "uptime_s": up}
 
 
 def report_level(report: dict) -> str | None:

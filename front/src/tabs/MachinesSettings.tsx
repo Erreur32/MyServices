@@ -250,7 +250,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
             <section className="rounded-lg border border-line/60 bg-bg2/40 p-2.5 text-sm">
               <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("PC Windows, relevé de la santé")}</h4>
               {agent ? (
-                <p className="text-muted">{tx("Lu par l'agent MyServices, en lecture seule : disques, services, processeur, mémoire, mises à jour Windows, journal Système. Pas de Docker.")}{" "}
+                <p className="text-muted">{tx("Lu par l'agent MyServices, en lecture seule : système, disques, services, processeur, mémoire, mises à jour Windows, journal Système, ports en écoute. Pas de Docker.")}{" "}
                   {agent.last_seen ? tx("Dernier relevé {0}.", dateTime(agent.last_seen * 1000)) : tx("Aucun relevé reçu pour l'instant.")}{" "}
                   <a className="text-link hover:underline" href="#settings/agents">{tx("Réglages → Connecteurs")}</a></p>
               ) : typeof m.health === "string" && m.health ? (
@@ -433,7 +433,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
         </button>
         {sshOpen && <div className="mt-4 flex flex-col gap-4">
         <p className="text-xs leading-relaxed text-muted">
-          {agentMode ? tx("Un petit script PowerShell sur le PC envoie sa santé à MyServices : disques, services, processeur, mémoire, mises à jour, journal.") : tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache.")} <b className="text-txt">{tx("Lecture seule")}</b>{tx(" : rien n'y est modifié.")}
+          {agentMode ? tx("Un petit script PowerShell sur le PC envoie sa santé à MyServices : système, disques, services, processeur, mémoire, mises à jour, journal, ports en écoute.") : tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache.")} <b className="text-txt">{tx("Lecture seule")}</b>{tx(" : rien n'y est modifié.")}
           <span className="block text-dim">{tx("Sans accès : ping et services web seulement.")}</span>
         </p>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-lg border border-line/60 bg-bg2/70 p-3">

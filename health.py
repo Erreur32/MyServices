@@ -497,6 +497,8 @@ $o.disks=@(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3'|%{@{m=$_.Devi
 $o.svc=@(Get-CimInstance Win32_Service -Filter "StartMode='Auto' AND State<>'Running'"|?{$_.ExitCode -ne 0}|%{@{n=$_.Name;d=$_.DisplayName;e=$_.ExitCode}})
 $p=@(Get-CimInstance Win32_Processor);$o.cpu=($p|Measure-Object LoadPercentage -Average).Average;$o.ncpu=($p|Measure-Object NumberOfLogicalProcessors -Sum).Sum
 $w=Get-CimInstance Win32_OperatingSystem;$o.boot=$w.LastBootUpTime.ToUniversalTime().ToString('o');if($w.TotalVisibleMemorySize){$o.mem=[math]::Round(100*($w.TotalVisibleMemorySize-$w.FreePhysicalMemory)/$w.TotalVisibleMemorySize,1)}
+$o.os=@{n=$w.Caption;v=$w.Version;b=$w.BuildNumber;h=$env:COMPUTERNAME}
+$pm=@{};Get-Process|%{$pm[[int]$_.Id]=$_.ProcessName};$o.ports=@(Get-NetTCPConnection -State Listen|Select-Object -First 400|%{@{p=[int]$_.LocalPort;a=[string]$_.LocalAddress;n=$pm[[int]$_.OwningProcess]}})
 $k='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion';$o.reboot=(Test-Path "$k\WindowsUpdate\Auto Update\RebootRequired") -or (Test-Path "$k\Component Based Servicing\RebootPending")
 $o.pd=@(Get-PhysicalDisk|%{@{n=$_.FriendlyName;h=[string]$_.HealthStatus}})
 $o.ev=@(Get-WinEvent -FilterHashtable @{LogName='System';Level=1,2;StartTime=$t} -MaxEvents 300|?{$_.Level -eq 1 -or $_.ProviderName -match 'disk|Ntfs|volmgr|stor|WHEA'}|Select-Object -First 8|%{'{0} {1} {2}' -f $_.TimeCreated.ToString('dd/MM HH:mm'),$_.ProviderName,(($_.Message -split "`n")[0]).Trim()})
@@ -543,6 +545,8 @@ def parse_windows(raw: dict) -> dict:
                     else {"failed_24h": 0, "available": False, "reason": "journal Sécurité réservé aux administrateurs"},
         "smart": {"accessible": bool(pd), "disks": [{"device": d.get("n", "?"), "healthy": d.get("h") == "Healthy",
                                                      "failed": d.get("h") not in ("Healthy", "", None)} for d in pd]},
+        "system": {"os": (raw.get("os") or {}).get("n"), "version": (raw.get("os") or {}).get("v"), "build": (raw.get("os") or {}).get("b"),
+                   "boot": raw.get("boot")} if isinstance(raw.get("os"), dict) else None,
         "res": ({"available": True, "cpu_pct": round(raw["cpu"], 1), "mem_pct": round(raw["mem"], 1)}
                 if isinstance(raw.get("cpu"), (int, float)) and isinstance(raw.get("mem"), (int, float)) else {"available": False}),
     }

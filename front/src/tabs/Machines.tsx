@@ -218,7 +218,8 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
               <tr key={m.ip} className={`hover:bg-bg2/60 ${isOff(m) ? "opacity-50" : ""}`}>
                 <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td><Td>{name(m)}</Td><Td>{st(m)}</Td><Td><Ssh m={m} /></Td>
                 <Td><KeyCell m={m} /></Td><Td><HostKey m={m} /></Td><Td><Sshd m={m} what="root" /></Td><Td><Sshd m={m} what="pwd" /></Td>
-                <Td>{m.info?.os ? <>{m.info.os}<span className="block text-xs text-dim">{tx("noyau")} {m.info.kernel || "?"} {tx("· up")} {dur(m.info.uptime_s)}</span></> : <Dim>—</Dim>}</Td>
+                <Td>{m.info?.os ? <>{m.info.os}<span className="block text-xs text-dim">{tx("noyau")} {m.info.kernel || "?"} {tx("· up")} {dur(m.info.uptime_s)}</span></>
+                  : m.agent ? <>{m.agent.os}<span className="block text-xs text-dim">{m.agent.kernel ? `${m.agent.kernel} · ` : ""}{tx("par l'agent")}{m.agent.uptime_s ? ` ${tx("· up")} ${dur(m.agent.uptime_s)}` : ""}</span></> : <Dim>—</Dim>}</Td>
                 <Td><Servers m={m} snap={snap} /></Td><Td>{svc(m)}</Td>
                 {snap.health && <><Td><Level level={hb.get(m.ip) ? (hb.get(m.ip)!.reachable === false ? "down" : hb.get(m.ip)!.level) : "na"} /></Td>
                   <Td><ResCell h={hb.get(m.ip)} what="cpu" /></Td><Td><ResCell h={hb.get(m.ip)} what="mem" /></Td><Td><DiskCell h={hb.get(m.ip)} /></Td><Td><SystemdCell h={hb.get(m.ip)} /></Td><Td><UpdatesCell h={hb.get(m.ip)} /></Td></>}
@@ -231,7 +232,8 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
               <div key={m.ip} className={`rounded-2xl border border-line bg-card p-3.5 ${isOff(m) ? "opacity-50" : ""}`}>
                 <div className="flex items-start justify-between gap-2"><span className="flex items-start gap-2"><MachineIcon m={m} scan={scanOs[m.ip]} reserve />{name(m)}</span>{st(m)}</div>
                 <div className="mt-2 flex flex-col gap-2 text-sm">
-                  {m.info?.os && <span className="text-muted">{m.info.os} {tx("· up")} {dur(m.info.uptime_s)}</span>}
+                  {m.info?.os ? <span className="text-muted">{m.info.os} {tx("· up")} {dur(m.info.uptime_s)}</span>
+                    : m.agent && <span className="text-muted">{m.agent.os}{m.agent.uptime_s ? ` ${tx("· up")} ${dur(m.agent.uptime_s)}` : ""} <Dim>({tx("par l'agent")})</Dim></span>}
                   <Servers m={m} snap={snap} />
                   <div className="flex items-start justify-between gap-3">{svc(m)}{snap.health && <HealthCell h={hb.get(m.ip)} />}</div>
                   {admin && <div>{followBtn(m)}</div>}

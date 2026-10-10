@@ -1069,7 +1069,7 @@ export const EN: Record<string, string> = {
   "agent MyServices": "MyServices agent",
   "Windows · sans agent": "Windows · no agent",
   "Santé envoyée par l'agent MyServices (Réglages → Connecteurs)": "Health sent by the MyServices agent (Settings → Connectors)",
-  "Lu par l'agent MyServices, en lecture seule : disques, services, processeur, mémoire, mises à jour Windows, journal Système. Pas de Docker.": "Read by the MyServices agent, read-only: disks, services, CPU, memory, Windows updates, System log. No Docker.",
+  "Lu par l'agent MyServices, en lecture seule : système, disques, services, processeur, mémoire, mises à jour Windows, journal Système, ports en écoute. Pas de Docker.": "Read by the MyServices agent, read-only: system, disks, services, CPU, memory, Windows updates, System log, listening ports. No Docker.",
   "Dernier relevé {0}.": "Last report {0}.",
   "Aucun relevé reçu pour l'instant.": "No report received yet.",
   "Pas d'agent : ping et services web seulement.": "No agent: ping and web services only.",
@@ -1128,7 +1128,7 @@ export const EN: Record<string, string> = {
   "Accès par l'agent": "Access through the agent",
   "pas d'agent": "no agent",
   "Lecture par l'agent": "Read through the agent",
-  "Un petit script PowerShell sur le PC envoie sa santé à MyServices : disques, services, processeur, mémoire, mises à jour, journal.": "A small PowerShell script on the PC sends its health to MyServices: disks, services, CPU, memory, updates, event log.",
+  "Un petit script PowerShell sur le PC envoie sa santé à MyServices : système, disques, services, processeur, mémoire, mises à jour, journal, ports en écoute.": "A small PowerShell script on the PC sends its health to MyServices: system, disks, services, CPU, memory, updates, event log, listening ports.",
   "cliquez pour installer l'agent": "click to install the agent",
   "L'accès existe mais la connexion échoue : la clé n'est pas (ou plus) autorisée sur la machine.": "The access exists but the connection fails: the key is not (or no longer) authorized on the machine.",
   "dernier relevé {0}": "last report {0}",
@@ -1138,4 +1138,5 @@ export const EN: Record<string, string> = {
   ", lancez :": ", run:",
   "Puis « Vérifier ». Si l'accès marchait avec un autre compte (root, par exemple), revenez-y en réactivant l'accès avec ce compte.": "Then \"Check\". If access worked with another account (root, for example), go back to it by turning access on again with that account.",
   "Accès rétabli : la clé est déjà valide, rien à refaire. L'état se met à jour à la fin du prochain passage.": "Access restored: the key is already valid, nothing to redo. The status updates when the next run ends.",
+  "par l'agent": "by the agent",
 };
