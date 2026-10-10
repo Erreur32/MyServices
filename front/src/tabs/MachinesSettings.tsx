@@ -276,7 +276,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
           {live && <Badge tone={MSTATE[mState(live)][0]} title={MSTATE[mState(live)][2]}>{MSTATE[mState(live)][1]}</Badge>}
         </div>
         <p className="mb-2 text-xs text-muted">
-          {tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache. Rien n'y est modifié. Sans accès : ping et services web seulement.")}
+          {tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache. Rien n'y est modifié.")}
+          <span className="block text-dim">{tx("Sans accès : ping et services web seulement.")}</span>
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           {windows ? (
