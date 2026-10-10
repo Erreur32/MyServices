@@ -1,0 +1,13 @@
+# Outils de la CI seulement (couverture envoyée à SonarCloud) : version figée et empreintes, comme requirements.txt
+coverage==7.16.2 \
+    --hash=sha256:0fd7a86fdda7cb6d616d178654bd0ad6bc0f3f33c2e478aa598500a1a9e34eda \
+    --hash=sha256:11d28e9123a9156cb405d8d27b44256c9a58fb5decc2073a8f17862057e3aa0f \
+    --hash=sha256:35f37886699cb9abd29958247d718628d5bc6f39e623dff66a09e546c42a7e03 \
+    --hash=sha256:382d3346d56b0eec1b793d53a4c88799c8053f516aa3a8d7c44315696954bacf \
+    --hash=sha256:57ff3783f99d75a1e81dd56a9737eb5665e6736a5d93258ba596b6dcad8fd05b \
+    --hash=sha256:648352b94507179d82637292e7ae8802508d95f78e2f00a705a50b6c48011681 \
+    --hash=sha256:7d0732c83746bc24123c581a85d9dd96b70ddb538c9076020aa1a041790361e9 \
+    --hash=sha256:a0f2285329dac10ab08f79cb11f5692c497018e6c7c511f95e6fd63a70b8f831 \
+    --hash=sha256:ac0f3b379c94acc2f7dce5f5f0b24d44fa1cc6a509717ef83dfee07450c2117c \
+    --hash=sha256:db76506aa5416081f3e8974ae0f7965c58ada0bb0ef7339ac86099588dbb20d3 \
+    --hash=sha256:fb2bde05838fffae1a1bf75e5d411a6cac3e4e9bb97e6640fed8cd47888b33f0

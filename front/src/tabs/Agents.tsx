@@ -21,6 +21,9 @@ const STATE: Record<AgentInfo["state"], ["ok" | "warn" | "info" | "off", string]
   révoqué: ["off", tx("révoqué")],
 };
 
+// Exemple d'adresse du LAN : en local il n'y a pas de TLS, http est voulu
+const EXAMPLE_URL = "http://192.168.1.10:8090"; // NOSONAR
+
 /** Nom d'agent accepté par le serveur (lettres, chiffres, espace, . _ @ -) tiré du nom de la machine */
 const agentName = (machine: string) => machine.replace(/[^\p{L}\p{N}_ .@-]/gu, "").trim().slice(0, 64) || "agent";
 
@@ -80,7 +83,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         </p>
         <div className="mt-3 max-w-md">
           <Field label={tx("Adresse de MyServices, vue du PC")}>
-            <input className={input} value={url} onChange={(e) => setUrl(e.target.value.trim())} placeholder="http://192.168.1.10:8090" inputMode="url" />
+            <input className={input} value={url} onChange={(e) => setUrl(e.target.value.trim())} placeholder={EXAMPLE_URL} inputMode="url" />
           </Field>
         </div>
         {local && <p className="mt-2 text-sm text-warn">{tx("localhost ne marchera pas depuis un autre PC : mettez l'adresse du LAN de MyServices (ex. http://192.168.1.10:8090).")}</p>}

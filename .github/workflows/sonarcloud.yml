@@ -28,7 +28,7 @@ jobs:
           python-version: "3.14"
       - run: |
           pip install --require-hashes --only-binary=:all: -r requirements.txt
-          pip install coverage
+          pip install --require-hashes --only-binary=:all: -r requirements-ci.txt
           # Dossiers de données de l'application (dans l'image : /data) vers un dossier jetable
           export MYSERVICES_STATE_DIR="$RUNNER_TEMP/data/state" MYSERVICES_WEB_DIR="$RUNNER_TEMP/data/web" MYSERVICES_CACHE_DIR="$RUNNER_TEMP/data/cache"
           mkdir -p "$MYSERVICES_STATE_DIR" "$MYSERVICES_WEB_DIR" "$MYSERVICES_CACHE_DIR"
