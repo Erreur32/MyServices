@@ -95,7 +95,7 @@ def load_hosts() -> tuple[list[dict], dict]:
     hosts = []
     for ip, m in meta.get("machines", {}).items():
         alias = m.get("health") if isinstance(m.get("health"), str) else m.get("ssh") or meta.get("process_hosts", {}).get(ip)
-        if m.get("off") or m.get("health") is False:
+        if m.get("off") or m.get("disabled") or m.get("health") is False:
             continue
         hid = re.sub(r"[^a-z0-9]+", "-", m["name"].lower()).strip("-") or ip
         hosts.append({"id": hid, "name": f"{m['name']} · {ip}",  # « Nom · IP » : l'IP est relue par la page

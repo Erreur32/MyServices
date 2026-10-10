@@ -44,10 +44,12 @@ export function FilterBar<T>({ f, placeholder, extra }: {
        chips: { facet: Facet<T>; chips: Chip[] }[]; toggle: (k: string, v: string) => void };
   placeholder: string; extra?: ReactNode;
 }) {
-  // Pastilles dépliées d'office sur grand écran, repliées sur mobile (elles prendraient tout l'écran)
-  const [open, setOpen] = useState(() => typeof window === "undefined" || window.innerWidth >= 768);
+  // Filtres repliés d'office (sur tous les écrans) : la barre de recherche suffit le plus souvent ; ce qui est actif
+  // reste visible en pastilles retirables, et le bouton « Filtres » déplie le reste.
+  const [open, setOpen] = useState(false), [more, setMore] = useState<Record<string, boolean>>({});
   const groups = f.chips.filter((g) => g.chips.length > 1 || g.chips.some((c) => c.on));
-  const on = f.chips.reduce((n, g) => n + g.chips.filter((c) => c.on).length, 0);
+  const active = f.chips.flatMap((g) => g.chips.filter((c) => c.on).map((c) => ({ facet: g.facet, chip: c })));
+  const LIMIT = 12;
   return (
     <div className="my-4 flex flex-col gap-3 rounded-2xl border border-line bg-card/70 p-3">
       <div className="flex flex-wrap items-center gap-3">
@@ -64,24 +66,39 @@ export function FilterBar<T>({ f, placeholder, extra }: {
         )}
         {groups.length > 0 && (
           <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm ${on ? "border-link text-txt" : "border-line text-muted hover:text-txt"}`}>
-            <SlidersHorizontal size={14} />{tx("Filtres")}{on > 0 && <b className="text-link">{on}</b>}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm ${active.length ? "border-link text-txt" : "border-line text-muted hover:text-txt"}`}>
+            <SlidersHorizontal size={14} />{tx("Filtres")}{active.length > 0 && <b className="text-link">{active.length}</b>}
+            {open ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
           </button>
         )}
         {extra}
       </div>
-      {open && groups.map(({ facet, chips }) => (
-        <div key={facet.key} className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-dim">{facet.label}</span>
-          {chips.map((c) => (
-            <button key={c.value} type="button" onClick={() => f.toggle(facet.key, c.value)}
-              className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${c.on
-                ? "border-link bg-link/15 text-txt" : c.count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60"}`}>
-              {c.label}<span className="ml-1.5 font-mono text-[11px] text-dim">{c.count}</span>
+      {!open && active.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {active.map(({ facet, chip }) => (
+            <button key={`${facet.key}/${chip.value}`} type="button" onClick={() => f.toggle(facet.key, chip.value)} title={tx("Retirer ce filtre")}
+              className="inline-flex items-center gap-1 rounded-full border border-link bg-link/15 px-2.5 py-1 text-xs font-medium text-txt hover:bg-link/25">
+              <span className="text-dim">{facet.label} :</span>{chip.label}<X size={11} aria-hidden />
             </button>
           ))}
         </div>
-      ))}
+      )}
+      {open && groups.map(({ facet, chips }) => {
+        const all = more[facet.key] || chips.length <= LIMIT, list = all ? chips : chips.filter((c, i) => i < LIMIT || c.on);
+        return (
+          <div key={facet.key} className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-dim">{facet.label}</span>
+            {list.map((c) => (
+              <button key={c.value} type="button" onClick={() => f.toggle(facet.key, c.value)}
+                className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${c.on
+                  ? "border-link bg-link/15 text-txt" : c.count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60"}`}>
+                {c.label}<span className="ml-1.5 font-mono text-[11px] text-dim">{c.count}</span>
+              </button>
+            ))}
+            {!all && <button type="button" onClick={() => setMore({ ...more, [facet.key]: true })} className="text-xs text-link hover:underline">+{chips.length - list.length} {tx("autres")}</button>}
+          </div>
+        );
+      })}
     </div>
   );
 }

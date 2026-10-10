@@ -68,6 +68,7 @@ _progress_lock = threading.Lock()
 _progress_last = [0.0]
 
 NPM_ONLY: set = set()  # machines joignables seulement depuis NPM (pare-feu) : sondées via NPM
+DISABLED: set = set()  # machines non suivies (services-meta.json : disabled)
 MACHINES_OFF: set = set()  # machines éteintes volontairement : services « machine éteinte » tant que le ping échoue
 MACHINE_FLAGS: dict = {}
 ADGUARD: dict = {}  # IP du serveur DNS -> connecteur AdGuard Home
@@ -91,7 +92,15 @@ def _load_config():
             cfg = json.load(f)
     except (OSError, ValueError) as e:
         sys.exit(f"{META} illisible : {e} (modèle : services-meta.example.json)")
+    # Machine désactivée (Réglages → Machines, « Machine suivie » coupée) : ni ping, ni SSH, ni santé ; elle reste connue
+    # (nom, services NPM qui la visent) et compte comme éteinte voulue, donc aucune alerte.
+    off_ips = {ip for ip, m in cfg.get("machines", {}).items() if m.get("disabled")}
+    if off_ips:
+        cfg = {**cfg, "machines": {ip: ({**m, "ssh": None, "health": False} if ip in off_ips else m) for ip, m in cfg["machines"].items()},
+               "process_hosts": {ip: v for ip, v in cfg.get("process_hosts", {}).items() if ip not in off_ips}}
     machines = {ip: (m["name"], m["role"], m.get("ssh")) for ip, m in cfg.get("machines", {}).items()}
+    global DISABLED
+    DISABLED = off_ips
     global META_RAW, NPM_ONLY, MACHINES_OFF, MACHINE_FLAGS, ADGUARD, ADGUARD_SYNC
     META_RAW = cfg
     MACHINE_FLAGS = {ip: {k: True for k in ROLE_FLAGS if m.get(k)} for ip, m in cfg.get("machines", {}).items()}
@@ -103,7 +112,7 @@ def _load_config():
     ADGUARD_SYNC = {ip: m.get("adguard_sync") for ip, m in cfg.get("machines", {}).items()
                     if m.get("ssh") and m.get("adguard_sync") is not False}
     NPM_ONLY = {ip for ip, m in cfg.get("machines", {}).items() if m.get("npm_only")}
-    MACHINES_OFF = {ip for ip, m in cfg.get("machines", {}).items() if m.get("off")}
+    MACHINES_OFF = {ip for ip, m in cfg.get("machines", {}).items() if m.get("off")} | off_ips
     cats = [(n, re.compile(p, re.I)) for n, p in cfg.get("categories", [])]
     return machines, set(cfg.get("ignored_ips", [])), cfg.get("process_hosts", {}), cats
 
@@ -198,7 +207,7 @@ def docker_inventory(force=False):
         # Infos machines (SSH, OS, Apache…) : toute IP connue ayant une entrée ~/.ssh/config, plus la machine collectrice en local
         sshc = hostinfo.ssh_config()
         hi = {ip: ex.submit(hostinfo.host_info, "local" if MACHINES.get(ip, (0, 0, None))[2] == "local" else sshc[ip]["alias"])
-              for ip in MACHINES if ip in sshc or MACHINES[ip][2] == "local"}
+              for ip in MACHINES if ip not in DISABLED and (ip in sshc or MACHINES[ip][2] == "local")}
     got = {ip: job.result() for ip, job in jobs.items()}
     data = {ip: g["containers"] for ip, g in got.items()}
     data["_internal"] = {ip: g["internal"] for ip, g in got.items()}
@@ -734,7 +743,7 @@ def main():
     # Ping d'abord : une machine qui change d'état invalide les caches SSH et docker
     progress(2, "ping des machines")
     with ThreadPoolExecutor(8) as ex:
-        pings = dict(zip(MACHINES, ex.map(ping, MACHINES)))
+        pings = dict(zip(MACHINES, ex.map(lambda ip: False if ip in DISABLED else ping(ip), MACHINES)))
     ssh_cache = load_ssh_cache()
     changed = {ip for ip, up in pings.items() if ip in ssh_cache and ssh_cache[ip].get("ping") not in (None, up)}
     if changed:
@@ -1065,11 +1074,12 @@ def main():
             "ip": ip, "name": name, "role": role,
             "ping": pings[ip],
             "off": ip in MACHINES_OFF,
+            "disabled": ip in DISABLED,
             "local": MACHINES[ip][2] == "local",
             "ssh": {"alias": sc["alias"], "port": sc["port"], "user": sc["user"], "identity": sc["identity"],
                     "key_fp": hostinfo.key_fingerprint(sc["identity"]), "host_key": hostinfo.host_key(ip, sc["port"]),
                     "methods": ssh_methods(ssh_cache, ip, sc["port"], ip in changed),
-                    "note": notes.get(f'{sc["user"]}@{ip}:{sc["port"]}') or sc.get("note")} if sc else None,
+                    "note": notes.get(f'{sc["user"]}@{ip}:{sc["port"]}') or sc.get("note")} if sc and ip not in DISABLED else None,
             "info": info,
             "services": len(rs), "npm": sum(1 for r in rs if r["type"] != "local"),
             "down": sum(1 for r in rs if r.get("enabled") and not r.get("paused") and not r.get("machine_off")

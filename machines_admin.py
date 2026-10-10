@@ -26,7 +26,7 @@ import hostinfo
 import setup
 
 # Champs d'une machine réglables depuis la page (le reste du fichier est gardé tel quel)
-FLAGS = ("off", "gateway", "npm", "npm_only", "vm")
+FLAGS = ("off", "gateway", "npm", "npm_only", "vm", "disabled")
 TEXT = ("name", "role", "ssh", "adguard", "adguard_sync", "health", "os")
 NAME_MAX = 80
 

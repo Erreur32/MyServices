@@ -1,5 +1,6 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { useCallback, useMemo } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { useFilter, useSort, type Facet } from "../lib/filter";
 import { dur, ipNum, splitHostName } from "../lib/format";
@@ -136,7 +137,11 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
     { key: "user", label: tx("Compte SSH"), get: (m) => m.ssh?.user || "" },
   ], [hb]);
   const text = useCallback((m: Machine) => [m.name, m.ip, m.role, MSTATE[mState(m)][1], m.ssh?.alias, m.ssh?.user, m.info?.os].join(" "), []);
-  const f = useFilter(snap.data.machine_list, facets, text);
+  // Machines non suivies : masquées d'office, un bouton les ramène (grisées)
+  const [showOff, setShowOff] = useState(false);
+  const nOff = snap.data.machine_list.filter((m) => m.disabled).length;
+  const items = useMemo(() => (showOff ? snap.data.machine_list : snap.data.machine_list.filter((m) => !m.disabled)), [snap.data.machine_list, showOff]);
+  const f = useFilter(items, facets, text);
   const keyOf = useCallback((m: Machine, k: string): string | number => {
     switch (k) {
       case "state": return ORDER.indexOf(mState(m));
@@ -162,7 +167,13 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
   return (
     <div className="py-1">
       {snap.me.role === "admin" && <AuthorizeKey failing={(snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok)} />}
-      <FilterBar f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")} />
+      <FilterBar f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
+        extra={nOff > 0 && (
+          <button type="button" onClick={() => setShowOff(!showOff)} aria-pressed={showOff}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm ${showOff ? "border-link text-txt" : "border-line text-muted hover:text-txt"}`}>
+            {showOff ? <Eye size={14} aria-hidden /> : <EyeOff size={14} aria-hidden />}{showOff ? tx("Masquer les désactivées") : tx("Afficher les désactivées")} <b className="text-dim">({nOff})</b>
+          </button>
+        )} />
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           <Table head={<>
@@ -170,7 +181,7 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
             <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th>{tx("Systemd")}</Th><Th>{tx("Mises à jour")}</Th></>}
           </>}>
             {sort.sorted.map((m) => (
-              <tr key={m.ip} className="hover:bg-bg2/60">
+              <tr key={m.ip} className={`hover:bg-bg2/60 ${m.disabled ? "opacity-50" : ""}`}>
                 <Td>{name(m)}</Td><Td>{st(m)}</Td><Td><Ssh m={m} /></Td>
                 <Td><KeyCell m={m} /></Td><Td><HostKey m={m} /></Td><Td><Sshd m={m} what="root" /></Td><Td><Sshd m={m} what="pwd" /></Td>
                 <Td>{m.info?.os ? <>{m.info.os}<span className="block text-xs text-dim">{tx("noyau")} {m.info.kernel || "?"} {tx("· up")} {dur(m.info.uptime_s)}</span></> : <Dim>—</Dim>}</Td>
@@ -182,7 +193,7 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
           </Table>
           <Cards>
             {sort.sorted.map((m) => (
-              <div key={m.ip} className="rounded-2xl border border-line bg-card p-3.5">
+              <div key={m.ip} className={`rounded-2xl border border-line bg-card p-3.5 ${m.disabled ? "opacity-50" : ""}`}>
                 <div className="flex items-start justify-between gap-2">{name(m)}{st(m)}</div>
                 <div className="mt-2 flex flex-col gap-2 text-sm">
                   {m.info?.os && <span className="text-muted">{m.info.os} {tx("· up")} {dur(m.info.uptime_s)}</span>}

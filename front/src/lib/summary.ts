@@ -61,9 +61,9 @@ function fullDisk(h: HealthHost): string {
 export function attention({ data, health, backups, now = Date.now() }: Inputs): Attention[] {
   const out: Attention[] = [];
   for (const m of data.machine_list)
-    if (!m.ping && !m.off) out.push({ level: "crit", text: tx("La machine **{0}** ({1}) ne répond plus au ping", m.name, m.ip), tab: "machines" });
+    if (!m.ping && !m.off && !m.disabled) out.push({ level: "crit", text: tx("La machine **{0}** ({1}) ne répond plus au ping", m.name, m.ip), tab: "machines" });
   // En ligne mais sans accès SSH utilisable : ni conteneurs ni santé lus (box et machines éteintes volontairement exclues)
-  const noSsh = data.machine_list.filter((m) => m.ping && !m.off && !m.gateway && !m.local && ["nossh", "refused"].includes(mState(m)));
+  const noSsh = data.machine_list.filter((m) => m.ping && !m.off && !m.disabled && !m.gateway && !m.local && ["nossh", "refused"].includes(mState(m)));
   if (noSsh.length)
     out.push({ level: "warn", text: tx("{0} sans accès SSH utilisable ({1}) : leurs conteneurs et leur santé ne sont pas lus", plural(noSsh.length, "machine"), names(noSsh.map((m) => m.name))), tab: "machines" });
   // NPM : entrées actives avec un avertissement (accès, SSL, DNS…), en une seule ligne
@@ -123,7 +123,7 @@ function servicesParagraph(data: Data): Paragraph {
 }
 
 function machinesParagraph(data: Data): Paragraph {
-  const ms = data.machine_list;
+  const ms = data.machine_list.filter((m) => !m.disabled);
   const off = ms.filter((m) => m.off), down = ms.filter((m) => !m.off && !m.ping), up = ms.filter((m) => !m.off && m.ping);
   const s = [tx("{0} : {1} en ligne", plural(ms.length, "machine"), up.length)
     + (down.length ? tx(", {0} hors ligne ({1})", down.length, names(down.map((m) => m.name))) : "")

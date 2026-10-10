@@ -147,7 +147,7 @@ def machine_snaps(data: dict) -> dict:
     out = {}
     for m in data.get("machine_list", []):
         out[f'machine:{m["ip"]}'] = {"label": m["name"], "machine": m["name"], "target": m["ip"],
-                                     "ping": bool(m.get("ping")) or bool(m.get("off")),  # éteinte voulue : pas d'alerte
+                                     "ping": bool(m.get("ping")) or bool(m.get("off")) or bool(m.get("disabled")),  # éteinte voulue ou non suivie : pas d'alerte
                                      "ssh": (m["ssh"].get("methods") is not None) if m.get("ssh") else None}
     return out
 

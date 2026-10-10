@@ -36,7 +36,7 @@ export function StatsColumn({ snap, go }: { snap: Snapshot; go: (t: TabId) => vo
   const n = (rows: typeof npm, cls: string) => rows.filter((r) => r.enabled && status(r)[0] === cls).length;
   const hl = (l: string) => (health?.hosts || []).filter((h) => (h.reachable === false ? "down" : h.level) === l).length;
   const dns = data.dns;
-  const ms = data.machine_list || [], ml = (...st: ReturnType<typeof mState>[]) => ms.filter((m) => st.includes(mState(m))).length;
+  const ms = (data.machine_list || []).filter((m) => !m.disabled), ml = (...st: ReturnType<typeof mState>[]) => ms.filter((m) => st.includes(mState(m))).length;
   const groups = [
     ms.length > 0 && <Group key="mc" title={tx("🖥 Machines")} sub={tx("{0} machines", ms.length)} accent="border-l-muted" tab="machines" go={go} cells={[
       ["ok", ml("ssh", "manual"), tx("SSH OK")], ["warn", ml("nossh", "refused"), tx("à régler")],

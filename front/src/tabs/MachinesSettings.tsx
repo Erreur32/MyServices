@@ -150,14 +150,14 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus }: {
   const access = m.os === "windows" ? tx("Windows · santé par {0}", m.health) : m.ssh ? `SSH ${m.ssh}` : tx("sans SSH");
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
-    <div ref={card} className={`rounded-xl border bg-card text-sm ${focus ? "border-link shadow-[0_0_0_1px_rgb(var(--link))]" : "border-line"}`}>
+    <div ref={card} className={`rounded-xl border bg-card text-sm ${m.disabled ? "opacity-60" : ""} ${focus ? "border-link shadow-[0_0_0_1px_rgb(var(--link))]" : "border-line"}`}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl p-3 text-left hover:bg-bg2">
         <Chevron size={14} className="text-dim" /><b>{m.name}</b><Dim>{ip}</Dim>
         <span className="ml-auto flex items-center gap-1.5">
           {m.off && <Badge tone="off">{tx("souvent éteinte")}</Badge>}
           {live && sshWarn(live) && <Badge tone="warn" title={tx("sshd : root ou mot de passe autorisé")}>{tx("sshd")}</Badge>}
           {statuses.some((c) => !c.ok) && <Badge tone="bad">{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
-          {state && <Badge tone={state[0]} title={state[2]}>{state[1]}</Badge>}
+          {m.disabled ? <Badge tone="off">{tx("non suivie")}</Badge> : state && <Badge tone={state[0]} title={state[2]}>{state[1]}</Badge>}
         </span>
         {!open && <span className="basis-full truncate pl-5 text-xs text-dim">{[m.role, (live && sshBrief(live)) || access, st.process_hosts[ip] ? tx("process lus") : null].filter(Boolean).join(" · ")}</span>}
       </button>
@@ -229,6 +229,10 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], onDone }
         )}
       </div>
       <div className="flex flex-col gap-1.5">
+        <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/40 p-2">
+          <Switch on={!v.disabled} onChange={(on) => setV({ ...v, disabled: !on })} label={tx("Machine suivie")} />
+          <span><b>{tx("Machine suivie")}</b> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>
+        </label>
         {FLAGS.map((f) => (
           <label key={f.k} className="flex items-start gap-2">
             <Switch on={!!v[f.k]} onChange={(on) => setV({ ...v, [f.k]: on })} label={f.label} />

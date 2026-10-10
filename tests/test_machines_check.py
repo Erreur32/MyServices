@@ -125,5 +125,23 @@ class DetectionDesReglages(unittest.TestCase):
         self.assertEqual(d["detected"], [])
 
 
+class MachineNonSuivie(unittest.TestCase):
+    def test_le_drapeau_disabled_est_garde_par_la_page(self):
+        out = machines_admin._clean({"name": "PC", "disabled": True, "off": False})
+        self.assertTrue(out["disabled"])
+        self.assertNotIn("off", out)
+        self.assertNotIn("disabled", machines_admin._clean({"name": "PC", "disabled": False}))
+
+    def test_la_sante_saute_une_machine_non_suivie(self):
+        import health
+        meta = {"machines": {"10.0.0.1": {"name": "A", "ssh": "a"}, "10.0.0.2": {"name": "B", "ssh": "b", "disabled": True}}}
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "m.json"
+            f.write_text(json.dumps(meta), encoding="utf-8")
+            with mock.patch.dict(health.CFG, {"meta": str(f)}):
+                hosts, _ = health.load_hosts()
+        self.assertEqual([h["ip"] for h in hosts], ["10.0.0.1"])
+
+
 if __name__ == "__main__":
     unittest.main()

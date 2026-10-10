@@ -95,6 +95,7 @@ export interface Machine {
   role?: string;
   ping: boolean;
   off: boolean;
+  disabled?: boolean;  // machine non suivie (Réglages → Machines) : ni ping, ni SSH, ni santé
   local?: boolean;
   gateway?: boolean;
   services: number;
@@ -424,6 +425,7 @@ export interface MachineConf {
   os?: string;
   health?: string | boolean | Record<string, unknown>;
   off?: boolean;
+  disabled?: boolean;
   gateway?: boolean;
   npm?: boolean;
   npm_only?: boolean;
