@@ -52,8 +52,8 @@ const loadDismissed = (): string[] => {
   try { return JSON.parse(localStorage.getItem(DISMISSED) || "[]") as string[]; } catch { return []; }
 };
 
-export function NetworkStep({ net, reload, machines, connected }: {
-  net: NetScan | null; reload: () => void;
+export function NetworkStep({ net, reload, machines, connected, onSkip }: {
+  net: NetScan | null; reload: () => void; onSkip: () => void;
   machines: { ip: string; ssh?: unknown }[]; connected: { connector: string; url?: string | null }[];
 }) {
   const known = machines.map((m) => m.ip);
@@ -87,6 +87,18 @@ export function NetworkStep({ net, reload, machines, connected }: {
   const toLink = [...Object.values(added), ...pending];
   const later = (net?.found ?? []).filter((h) => known.includes(h.ip) && dismissed.includes(h.ip) && needsLink(h, machines, connected));
   const resumeLater = () => setDismissed((d) => { const n = d.filter((ip) => !later.some((h) => h.ip === ip)); localStorage.setItem(DISMISSED, JSON.stringify(n)); return n; });
+
+  const scanned = !!net && net.phase === "done" && !!net.ended;
+  /** Les deux actions de l'étape, ensemble : (re)lancer la recherche, ou la passer (à reprendre plus tard) */
+  const actions = (
+    <div className="flex flex-wrap items-center gap-2">
+      <button type="button" className={scanned ? `${button} border-link/60 bg-link/10 text-txt hover:bg-link/20` : primary} disabled={busy} onClick={() => void start()}>
+        {scanned ? <RefreshCw size={14} aria-hidden /> : <Search size={14} aria-hidden />}{scanned ? tx("Refaire un scan") : tx("Lancer le scan")}
+      </button>
+      <button type="button" className={quietBtn} onClick={onSkip}
+        title={tx("Passer cette étape : vous pourrez la refaire plus tard, ici ou dans les Réglages")}>{tx("Passer")}</button>
+    </div>
+  );
 
   const renderRows = (list: NetHost[]) => list.map((h) => (
     <li key={h.ip}>
@@ -152,6 +164,7 @@ export function NetworkStep({ net, reload, machines, connected }: {
 
   return (
     <div className="flex flex-col gap-3">
+      {actions}
       {toLink.length === 0 && found.length === 0 && (
         <p>{tx("Cherche les machines allumées sur votre réseau local (un seul sous-réseau /24, en lecture seule : ping, nom et quelques ports). Vous choisissez ensuite lesquelles ajouter ; rien n'est ajouté tout seul.")}</p>
       )}
@@ -203,7 +216,7 @@ export function NetworkStep({ net, reload, machines, connected }: {
               setDismissed((d) => { const n = [...new Set([...d, h.ip])]; localStorage.setItem(DISMISSED, JSON.stringify(n)); return n; });
             }} />
           ))}
-          {found.length === 0 && <p className="text-sm text-dim">{tx("Toutes les machines trouvées sont ajoutées. « Terminé » ferme un cadre ; « Chercher à nouveau » relance la recherche.")}</p>}
+          {found.length === 0 && <p className="text-sm text-dim">{tx("Toutes les machines trouvées sont ajoutées. « Terminé » ferme un cadre ; « Refaire un scan » relance la recherche.")}</p>}
         </div>
       )}
       {later.length > 0 && (
@@ -212,20 +225,12 @@ export function NetworkStep({ net, reload, machines, connected }: {
           <button type="button" className="text-link hover:underline" onClick={resumeLater}>{tx("Reprendre")}</button>
         </p>
       )}
-      <div className="flex flex-wrap items-center gap-3 border-t border-line/60 pt-3">
-        {net && net.phase === "done" && net.ended ? (
-          <>
-            <button type="button" className={`${button} border-link/60 bg-link/10 text-txt hover:bg-link/20`} disabled={busy} onClick={() => void start()}>
-              <RefreshCw size={14} aria-hidden />{tx("Chercher à nouveau")}
-            </button>
-            <span className="text-sm text-dim">
-              {tx("Dernière recherche : {0}. À refaire de temps en temps pour voir ce qui est apparu ou disparu sur le réseau.", dateTime(net.ended * 1000))}
-            </span>
-          </>
-        ) : (
-          <button type="button" className={primary} disabled={busy} onClick={() => void start()}>
-            <Search size={14} aria-hidden />{tx("Lancer la recherche")}
-          </button>
+      <div className="flex flex-col gap-2 border-t border-line/60 pt-3">
+        {actions}
+        {scanned && net?.ended && (
+          <span className="text-sm text-dim">
+            {tx("Dernier scan : {0}. À refaire de temps en temps pour voir ce qui est apparu ou disparu sur le réseau.", dateTime(net.ended * 1000))}
+          </span>
         )}
       </div>
       <NoteLine note={note} />

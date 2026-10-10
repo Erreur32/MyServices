@@ -180,8 +180,8 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
         </Step>
         <Step state={skipped.includes("network") ? "next" : netState(net) === "run" ? "run" : netState(net) === "found" ? "now" : "next"}
           title={tx("Recherche des autres machines du réseau")}
-          onSkip={netState(net) === "run" ? undefined : () => skip("network")} skipped={skipped.includes("network")} onResume={() => resume("network")}>
-          <NetworkStep net={net} reload={reloadNet} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} />
+          skipped={skipped.includes("network")} onResume={() => resume("network")}>
+          <NetworkStep net={net} reload={reloadNet} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} onSkip={() => skip("network")} />
         </Step>
       </ol>
       <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line/70 pt-4">
