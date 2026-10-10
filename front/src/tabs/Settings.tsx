@@ -77,7 +77,7 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
         ))}
       </nav>
       <div className="min-w-0 flex-1">
-        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors /> : section === "machines" ? <MachinesSettings snap={snap} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings /> : section === "audit" ? <AuditLog /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} /> : <SystemSettings part="system" />}
+        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors /> : section === "machines" ? <MachinesSettings snap={snap} focusIp={location.hash.split("/")[2]} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings /> : section === "audit" ? <AuditLog /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} /> : <SystemSettings part="system" />}
       </div>
     </div>
   );

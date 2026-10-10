@@ -1,14 +1,14 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { Ban, HelpCircle, Pencil, Plug, Plus, Server, Trash2, X } from "lucide-react";
+import { ArrowRight, Ban, HelpCircle, Pencil, Plug, Plus, Server, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { StatusLine } from "../components/ssh";
-import type { ConnectorInstance, ConnectorsState, ConnectorType } from "../types";
+import type { ConnectorInstance, ConnectorsState, ConnectorType, MachinesSettings } from "../types";
 import { takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
 import { appIcon } from "../lib/appIcons";
@@ -112,14 +112,41 @@ export function Connectors() {
           </div>
         )}
       </Card>
-      <div className="flex items-start gap-3 rounded-xl border border-line bg-bg2/40 px-4 py-3 text-sm text-muted">
-        <Server size={16} className="mt-0.5 shrink-0 text-dim" aria-hidden />
-        <p>{tx("Docker, services en écoute et AdGuard sont lus")} <b className="text-txt">{tx("par SSH")}</b> {tx(": leur accès et leur état se règlent avec chaque machine, dans Réglages → Machines.")}</p>
-      </div>
+      <SshReads />
     </div>
   );
 }
 
+
+/** Lus par SSH : pas d'URL ni de jeton ici, l'accès se règle avec la machine (Réglages → Machines) ; chaque ligne ouvre la bonne carte */
+function SshReads() {
+  const [m, setM] = useState<MachinesSettings | null>(null);
+  useEffect(() => { read<MachinesSettings>("machines/settings").then(setM).catch(() => undefined); }, []);
+  const rows = m ? Object.entries(m.machines).filter(([, c]) => c.ssh || c.health).sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true })) : [];
+  return (
+    <Card>
+      <h2 className="mb-1 flex items-center gap-2 font-bold"><Server size={16} />{tx("Lus par SSH")} <Dim>· {rows.length}</Dim></h2>
+      <p className="mb-2 text-sm text-muted">{tx("Docker, services en écoute et AdGuard natif sont lus par SSH : l'accès et ce qui est lu se règlent machine par machine.")}</p>
+      {rows.length === 0 ? <Dim>{tx("Aucune machine lue par SSH pour l'instant.")}</Dim> : (
+        <ul className="flex flex-col divide-y divide-line/60">
+          {rows.map(([ip, c]) => {
+            const reads = [c.os === "windows" ? tx("santé Windows") : "Docker", m!.process_hosts[ip] && tx("services en écoute"), c.adguard && "AdGuard"].filter(Boolean).join(" · ");
+            return (
+              <li key={ip}>
+                <a href={`#settings/machines/${ip}`} className="group flex items-center gap-3 py-2.5 text-sm hover:bg-bg2/60">
+                  <b className="min-w-0 flex-1 truncate">{c.name} <Dim>· {ip}</Dim></b>
+                  <span className="hidden truncate text-xs text-dim sm:inline">{reads}</span>
+                  <Badge tone="off">SSH {String((c.os === "windows" ? c.health : c.ssh) ?? "")}</Badge>
+                  <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-link">{tx("Régler")}<ArrowRight size={13} aria-hidden className="transition-transform group-hover:translate-x-0.5" /></span>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
+  );
+}
 
 /** Connecteurs dont l'affichage sur la page est une source activable (le même interrupteur vaut pour toutes les instances du type) */
 const SHOWN: Record<string, string> = { npm: tx("Afficher les services et compteurs NPM sur la page"), adguard: tx("Afficher l'onglet DNS et les compteurs AdGuard (toutes les instances)") };
@@ -131,16 +158,27 @@ function InstanceCard({ inst, type, reload, source }: { inst: ConnectorInstance;
   const toggle = (on: boolean) => void act(() => send("PATCH", path, { enabled: on }),
     on ? tx("allumé : relu au prochain passage de la collecte") : tx("coupé : réglages gardés, plus rien de lu"), setNote).then((ok) => ok && reload());
   return (
-    <Card className={inst.enabled ? "" : "opacity-70"}>
+    <Card className={inst.enabled ? "" : "opacity-80"}>
+      <div className="-mx-4 -mt-4 mb-3 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-t-2xl border-b border-line/60 bg-bg2/50 px-4 py-2.5 text-sm">
+        <label className="flex items-center gap-2">
+          <Switch on={inst.enabled} onChange={toggle} label={inst.enabled ? `Couper ${inst.label}` : `Allumer ${inst.label}`} />
+          <span className={inst.enabled ? "font-semibold text-txt" : "text-dim"}>{inst.enabled ? tx("Collecte active") : tx("Collecte coupée")}</span>
+        </label>
+        {source && (
+          <label className="flex items-center gap-2">
+            <Switch on={source.on} onChange={source.set} label={source.label} />
+            <span className={source.on ? "text-muted" : "text-dim"} title={source.label}>{source.on ? tx("Affiché sur la page") : tx("Masqué sur la page")}</span>
+          </label>
+        )}
+        <span className="ml-auto text-xs text-dim">{tx("Réglages de l'accès ci-dessous")}</span>
+      </div>
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         <div className="min-w-[220px] flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <Switch on={inst.enabled} onChange={toggle} label={inst.enabled ? `Couper ${inst.label}` : `Allumer ${inst.label}`} />
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">
               {appIcon([inst.label]) ? <img src={appIcon([inst.label])!} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}
             </span>
             <b>{inst.label}</b><Dim>· {inst.name}</Dim>
-            {!inst.enabled && <Badge tone="off">{tx("coupé")}</Badge>}
             {type.kinds.map((k) => <Badge key={k} tone="info">{KIND[k] || k}</Badge>)}
           </div>
           {url && <a className="mt-1 inline-block break-all font-mono text-xs text-dim hover:text-link hover:underline" href={url} target="_blank" rel="noopener noreferrer">{url}</a>}
@@ -154,11 +192,6 @@ function InstanceCard({ inst, type, reload, source }: { inst: ConnectorInstance;
           </> : <button type="button" className={danger} onClick={() => setConfirm(true)}><Trash2 size={14} />{tx("Supprimer")}</button>}
         </div>
       </div>
-      {source && (
-        <label className="mt-3 flex items-center gap-2 border-t border-line/60 pt-3 text-sm">
-          <Switch on={source.on} onChange={source.set} label={source.label} /><span className="text-muted">{source.label}</span>
-        </label>
-      )}
       {edit && <ConnectorForm type={type} inst={inst} onDone={() => { setEdit(false); reload(); }} onCancel={() => setEdit(false)} />}
       <NoteLine note={note} />
     </Card>

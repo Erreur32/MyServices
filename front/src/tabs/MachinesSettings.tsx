@@ -4,7 +4,7 @@
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
 import { ChevronDown, ChevronRight, Plus, Radar, ShieldCheck, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
@@ -24,7 +24,7 @@ const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
   { k: "vm", label: tx("Machine virtuelle"), help: tx("la santé n'y lit pas SMART") },
 ];
 
-export function MachinesSettings({ snap }: { snap: Snapshot }) {
+export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: string }) {
   const [st, setSt] = useState<State | null>(null);
   const [error, setError] = useState("");
   const [detecting, setDetecting] = useState(false);
@@ -54,7 +54,7 @@ export function MachinesSettings({ snap }: { snap: Snapshot }) {
         {ips.map((ip) => {
           const lm = live.get(ip);
           const stat = (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.name === ip || c.name === lm?.name));
-          return <MachineRow key={ip} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
+          return <MachineRow key={ip} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
         })}
       </div>
     </div>
@@ -128,10 +128,12 @@ function Proposal({ d, st, onDone }: { d: Detection; st: State; onDone: () => vo
   );
 }
 
-function MachineRow({ ip, m, st, live, statuses, reload }: {
-  ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
+function MachineRow({ ip, m, st, live, statuses, reload, focus }: {
+  focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
 }) {
-  const [open, setOpen] = useState(false), [confirm, setConfirm] = useState(false);
+  const [open, setOpen] = useState(!!focus), [confirm, setConfirm] = useState(false);  // focus : arrivée depuis un lien (Connecteurs → machine)
+  const card = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (focus) card.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focus]);
   const [note, setNote] = useState<Note>(null), [lines, setLines] = useState<string[] | null>(null), [busy, setBusy] = useState(false);
   const state = live ? MSTATE[mState(live)] : null;
   const verify = async () => {
@@ -148,7 +150,7 @@ function MachineRow({ ip, m, st, live, statuses, reload }: {
   const access = m.os === "windows" ? tx("Windows · santé par {0}", m.health) : m.ssh ? `SSH ${m.ssh}` : tx("sans SSH");
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
-    <div className="rounded-xl border border-line bg-card text-sm">
+    <div ref={card} className={`rounded-xl border bg-card text-sm ${focus ? "border-link shadow-[0_0_0_1px_rgb(var(--link))]" : "border-line"}`}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl p-3 text-left hover:bg-bg2">
         <Chevron size={14} className="text-dim" /><b>{m.name}</b><Dim>{ip}</Dim>
         <span className="ml-auto flex items-center gap-1.5">
