@@ -47,6 +47,7 @@ from connectors.uptime_kuma import attach_monitors
 from connectors.docker_ssh import HOST_ADDR
 from connectors.process import host_ports
 import hostinfo
+import inventory_cache
 import known_apps
 import npmapi
 
@@ -193,30 +194,27 @@ def _docker_read(conn):
     return got
 
 
-def docker_inventory(force=False):
-    try:
-        with open(DOCKER_CACHE) as f:
-            cache = json.load(f)
-        if not force and time.time() - cache["ts"] < DOCKER_CACHE_TTL - CACHE_SLACK:
-            return cache["data"]
-    except (OSError, ValueError, KeyError):
-        pass
-    docks = {c.conf["ip"]: c for c in connectors.instances(CFG, kind="inventory", meta=META_RAW) if c.type == "docker"}
+def _read_inventory(only: set | None = None) -> dict:
+    """Lit par SSH l'inventaire Docker et les infos machines ; only : seulement ces IP (relecture d'une machine)."""
+    want = lambda ip: only is None or ip in only  # noqa: E731
+    docks = {c.conf["ip"]: c for c in connectors.instances(CFG, kind="inventory", meta=META_RAW) if c.type == "docker" and want(c.conf["ip"])}
     with ThreadPoolExecutor(8) as ex:
         jobs = {ip: ex.submit(_docker_read, c) for ip, c in docks.items()}
         # Infos machines (SSH, OS, Apache…) : toute IP connue ayant une entrée ~/.ssh/config, plus la machine collectrice en local
         sshc = hostinfo.ssh_config()
         hi = {ip: ex.submit(hostinfo.host_info, "local" if MACHINES.get(ip, (0, 0, None))[2] == "local" else sshc[ip]["alias"])
-              for ip in MACHINES if ip not in DISABLED and (ip in sshc or MACHINES[ip][2] == "local")}
+              for ip in MACHINES if want(ip) and ip not in DISABLED and (ip in sshc or MACHINES[ip][2] == "local")}
     got = {ip: job.result() for ip, job in jobs.items()}
     data = {ip: g["containers"] for ip, g in got.items()}
     data["_internal"] = {ip: g["internal"] for ip, g in got.items()}
     data["_hostinfo"] = {ip: j.result() for ip, j in hi.items()}
-    os.makedirs(os.path.dirname(DOCKER_CACHE), exist_ok=True)
-    failed = any(v is None for k, v in data.items() if not k.startswith("_"))
-    with open(DOCKER_CACHE, "w") as f:  # lecture ratée (clé pas encore autorisée) : relue au prochain passage, pas dans 2 h
-        json.dump({"ts": time.time() - (DOCKER_CACHE_TTL if failed else 0), "data": data}, f)
     return data
+
+
+def docker_inventory(force: bool | set = False):
+    """Inventaire Docker et machines, gardé DOCKER_CACHE_TTL (inventory_cache) : une machine marquée « stale » (accès SSH changé,
+    état de ping changé) est seule relue, les autres restent en cache. force : True = tout relire ; ensemble d'IP = celles-là."""
+    return inventory_cache.refresh(DOCKER_CACHE, DOCKER_CACHE_TTL - CACHE_SLACK, _read_inventory, force)
 
 
 PING_TTL: dict = {}  # IP -> TTL de la dernière réponse au ping (128 Windows, 64 Linux / macOS, 255 matériel réseau)
@@ -755,7 +753,7 @@ def main():
     if changed:
         print("état ping changé, caches ignorés : " + ", ".join(sorted(changed)), file=sys.stderr)
     progress(3, "inventaire Docker et machines (SSH, cache 2 h)")
-    dock = docker_inventory(force=bool(changed))
+    dock = docker_inventory(force=changed)  # machines dont l'état de ping a changé : relues seules
     # Machine hôte -> {IP interne docker: conteneur} : un NPM ne joint que les réseaux docker de SA
     # machine (172.x se répètent d'une machine à l'autre), d'où une recherche par hôte d'instance
     internal = dock.pop("_internal", {})

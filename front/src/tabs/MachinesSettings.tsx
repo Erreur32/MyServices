@@ -171,6 +171,7 @@ function Proposal({ d, st, onDone }: { d: Detection; st: State; onDone: () => vo
 function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished, agent }: {
   agent?: AgentInfo; unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[]; ssh?: boolean }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
 }) {
+  const [details, setDetails] = useState(false);  // « SSH, relevé par la collecte » : replié, une ligne de résumé
   const [open, setOpen] = useState(!!focus), [confirm, setConfirm] = useState(false);  // focus : arrivée depuis un lien (Connecteurs → machine)
   const card = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) card.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focus]);
@@ -182,7 +183,8 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
   const goAuthorize = () => document.getElementById("authorize-key")?.scrollIntoView({ behavior: "smooth", block: "start" });
   const state = live ? MSTATE[mState(live)] : null;
   // Les badges viennent du dernier passage de la collecte : après un test réussi, on en lance un (sans bloquer si un passage est déjà en cours)
-  const refreshState = () => { void send("POST", "system/tasks/collect/run").then(pokeScan, () => undefined); };
+  // Seule cette machine est relue (SSH, Docker, santé) : les autres restent en cache, le passage est court.
+  const refreshState = () => { void send("POST", `machines/settings/${ip}/refresh`).then(pokeScan, () => undefined); };
   const verify = async () => {
     setBusy(true); setLines(null);
     try {
@@ -259,8 +261,12 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
             </section>
           ) : live && (
             <section className="rounded-lg border border-line/60 bg-bg2/40 p-2.5">
-              <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("SSH, relevé par la collecte")}</h4>
-              <SshDetails m={live} statuses={statuses} />
+              <button type="button" onClick={() => setDetails(!details)} aria-expanded={details} className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 text-left">
+                {details ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("SSH, relevé par la collecte")}</h4>
+                {!details && <span className="min-w-0 truncate text-xs text-muted">{sshBrief(live)}</span>}
+              </button>
+              {details && <div className="mt-2"><SshDetails m={live} statuses={statuses} /></div>}
             </section>
           )}
           <MachineForm agent={agent} report={setNote} ip={ip} m={m} st={st} live={live} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
@@ -338,6 +344,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
   // une coche « ✓ enregistré » s'anime à côté. À l'ajout (isNew), tout part avec « Enregistrer la machine ».
   const [saved, setSaved] = useState<MachineConf>(m), [savedProc, setSavedProc] = useState(!!process);
   const [flash, setFlash] = useState(""), [pending, setPending] = useState("");
+  // Seule cette machine est relue (SSH, Docker, santé) : les autres restent en cache, le passage est court.
+  const refreshState = () => { void send("POST", `machines/settings/${ip}/refresh`).then(pokeScan, () => undefined); };
   const autoSave = async (key: string, next: Partial<MachineConf>, nextProc = savedProc) => {
     if (isNew) { setV((x) => ({ ...x, ...next })); if (key === "proc") setProc(nextProc); return; }
     setPending(key);
@@ -347,6 +355,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
     if (!ok) return;
     setSaved(machine); setSavedProc(nextProc);
     setV((x) => ({ ...x, ...next })); if (key === "proc") setProc(nextProc);
+    refreshState();  // un réglage changé (accès, options) : cette machine est relue tout de suite, pas au prochain horaire
     setFlash(key); setTimeout(() => setFlash((f) => (f === key ? "" : f)), 1800);
   };
   // Machine virtuelle détectée sur une machine déjà enregistrée : « Machine virtuelle » se coche toute seule, une fois par machine
@@ -383,7 +392,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
       if (r.failed) { setReuse({ ok: false, text: tx("L'accès existe mais la connexion échoue : la clé n'est pas (ou plus) autorisée sur la machine.") }); setWinGuide(true); }
       else {
         setReuse({ ok: true, text: tx("Accès rétabli : la clé est déjà valide, rien à refaire. L'état se met à jour à la fin du prochain passage.") });
-        void send("POST", "system/tasks/collect/run").then(pokeScan, () => undefined);
+        refreshState();
       }
     } catch (e) {
       if (e instanceof LoginRequired) location.replace(LOGIN);
@@ -397,6 +406,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
       isNew ? tx("machine ajoutée : relevée au prochain passage de la collecte") : tx("enregistrée : prise en compte au prochain passage"), setNote);
     setBusy(false);
     if (ok && !isNew) setSaved(v);
+    if (ok) refreshState();  // ajout ou modification : cette machine est relue tout de suite
     if (ok) setTimeout(onDone, 900);
   };
   // Carte d'une machine déjà enregistrée : l'accès SSH et les interrupteurs s'enregistrent seuls ; ce bouton ne sert qu'aux champs texte

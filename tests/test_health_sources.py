@@ -101,6 +101,48 @@ class Sources(unittest.TestCase):
         h = health.read_host(hc(), None, beszel(), ssh=lambda x: ssh_ok(x, smart={"accessible": False, "disks": [], "vm": True}))
         self.assertFalse(h["smart"]["accessible"])
 
+    def test_inventaire_relu_machine_par_machine(self):
+        import json
+        import tempfile
+        import inventory_cache as ic
+        with tempfile.TemporaryDirectory() as d:
+            path, reads = str(Path(d) / "docker.json"), []
+
+            def read(only):
+                reads.append(sorted(only) if only is not None else None)
+                ips = only if only is not None else {"10.0.0.1", "10.0.0.2"}
+                return {**{ip: [f"c{len(reads)}"] for ip in ips}, "_internal": {ip: {} for ip in ips}, "_hostinfo": {ip: {"n": len(reads)} for ip in ips}}
+            first = ic.refresh(path, 7200, read)                       # tout relu
+            self.assertEqual(ic.refresh(path, 7200, read), first)      # cache : aucune lecture
+            ic.mark_stale(path, "10.0.0.2")
+            out = ic.refresh(path, 7200, read)                         # seule 10.0.0.2 est relue
+            self.assertEqual(reads, [None, ["10.0.0.2"]])
+            self.assertEqual((out["10.0.0.1"], out["10.0.0.2"]), (["c1"], ["c2"]))
+            self.assertEqual(out["_hostinfo"]["10.0.0.2"], {"n": 2})
+            self.assertEqual(json.loads(Path(path).read_text())["stale"], [])
+            ic.refresh(path, 7200, read)
+            self.assertEqual(len(reads), 2)                            # plus rien à relire
+            ic.refresh(path, 7200, read, force={"10.0.0.1"})           # ping changé : cette machine seule
+            self.assertEqual(reads[-1], ["10.0.0.1"])
+            ic.mark_stale(path)                                        # sans machine : tout est relu
+            ic.refresh(path, 7200, read)
+            self.assertEqual(reads[-1], None)
+
+    def test_lecture_ratee_reste_a_relire(self):
+        import json
+        import tempfile
+        import inventory_cache as ic
+        with tempfile.TemporaryDirectory() as d:
+            path = str(Path(d) / "docker.json")
+            ic.refresh(path, 7200, lambda only: {"10.0.0.1": ["a"], "_internal": {}, "_hostinfo": {}})
+            ic.mark_stale(path, "10.0.0.1")
+            ic.refresh(path, 7200, lambda only: {"10.0.0.1": None, "_internal": {}, "_hostinfo": {}})  # clé pas encore autorisée
+            self.assertEqual(json.loads(Path(path).read_text())["stale"], ["10.0.0.1"])
+            # un tout premier passage raté : cache déjà périmé, relu au suivant
+            path2 = str(Path(d) / "autre.json")
+            ic.refresh(path2, 7200, lambda only: {"10.0.0.1": None, "_internal": {}, "_hostinfo": {}})
+            self.assertIsNone(ic.load(path2, 7200))
+
     def test_machines_admin_valide_la_priorite(self):
         ok = machines_admin._clean({"name": "PC", "health_sources": ["agent", "ssh", "agent"]})
         self.assertEqual(ok["health_sources"], ["agent", "ssh"])

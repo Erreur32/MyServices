@@ -195,7 +195,7 @@ def save(ip: str, m: dict, process: bool | None = None, extra: list[dict] | None
     keep = {k: v for k, v in old.items() if k not in TEXT + FLAGS + ("health_sources",)}  # réglages hors page (ex. health détaillé)
     machines[ip] = {**keep, **new}
     if old.get("ssh") != new.get("ssh"):
-        expire_inventory()
+        expire_inventory(ip)
     if process is not None:
         ph = meta.setdefault("process_hosts", {})
         if process and new.get("ssh"):
@@ -212,17 +212,13 @@ def save(ip: str, m: dict, process: bool | None = None, extra: list[dict] | None
     return machines[ip]
 
 
-def expire_inventory() -> None:
+def expire_inventory(ip: str | None = None) -> None:
     """Accès SSH changé : l'inventaire Docker et machines (cache 2 h) est relu à la prochaine collecte, au lieu
-    de garder un relevé fait avec l'ancien accès (ex. « SSH refusé » d'avant l'autorisation de la clé)."""
+    de garder un relevé fait avec l'ancien accès (ex. « SSH refusé » d'avant l'autorisation de la clé). ip : cette machine
+    seulement (les autres restent en cache) ; sans ip, tout est relu."""
+    import inventory_cache
     from config import CFG
-    f = Path(CFG["cache_dir"]) / "docker.json"
-    try:
-        c = json.loads(f.read_text(encoding="utf-8"))
-        c["ts"] = 0
-        f.write_text(json.dumps(c), encoding="utf-8")
-    except (OSError, ValueError):
-        pass
+    inventory_cache.mark_stale(str(Path(CFG["cache_dir"]) / "docker.json"), ip)
 
 
 def delete(ip: str) -> None:
@@ -253,7 +249,7 @@ def check(ip: str) -> dict:
         setup.check_machine(ip, m, setup.ssh_aliases())
     lines = agent_lines + [ln.strip() for ln in buf.getvalue().splitlines() if ln.strip()]
     if not setup.FAILED:  # accès SSH qui répond : l'inventaire raté d'avant ne doit pas rester en cache (2 h)
-        expire_inventory()
+        expire_inventory(ip)
     return {"lines": lines, "failed": len(setup.FAILED) + agent_failed}
 
 

@@ -88,8 +88,9 @@ def enabled(name: str) -> bool:
     return True
 
 
-def run_task(name: str, why: str) -> bool:
-    """Lance la tâche si elle ne tourne pas déjà ; False sinon. Le watcher suit chaque collecte."""
+def run_task(name: str, why: str, args: tuple = ()) -> bool:
+    """Lance la tâche si elle ne tourne pas déjà ; False sinon. Le watcher suit chaque collecte. args : arguments du script
+    (ex. health.py --only <ip> : une seule machine)."""
     t = TASKS[name]
     with LOCK:
         if t["proc"] is not None:
@@ -97,7 +98,7 @@ def run_task(name: str, why: str) -> bool:
         env = dict(os.environ, MYSERVICES_PROGRESS=PROGRESS, PYTHONDONTWRITEBYTECODE="1")
         if name in ("watch", "health") and alerts_on():
             env["MYSERVICES_ALERTS_ENGINE"] = "1"  # Réglages → Alertes envoie : le script se tait (pas de doublon)
-        t["proc"] = subprocess.Popen([sys.executable, str(HERE / t["script"])], cwd=HERE, env=env,
+        t["proc"] = subprocess.Popen([sys.executable, str(HERE / t["script"]), *args], cwd=HERE, env=env,
                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         t["start"], t["end"], t["result"] = time.time(), None, None
     log(f"{name} : démarré ({why})")

@@ -48,7 +48,8 @@ class CheckExpiresInventory(unittest.TestCase):
 
     def test_ssh_ok_expire_le_cache(self):
         self.assertEqual(self.run_check(failed=False)["failed"], 0)
-        self.assertEqual(json.loads(self.cache.read_text())["ts"], 0)
+        c = json.loads(self.cache.read_text())
+        self.assertEqual((c["ts"], c["stale"]), (1791636409.0, ["10.0.0.1"]))  # cette machine seule sera relue, le reste reste en cache
 
     def test_ssh_en_echec_garde_le_cache(self):
         self.assertEqual(self.run_check(failed=True)["failed"], 1)

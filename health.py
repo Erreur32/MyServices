@@ -1316,7 +1316,15 @@ def main() -> int:
     hosts = []
     agents = agent_reports()
     candidates, meta = load_hosts(set(agents))
-    besz, _ = beszel_systems(meta)
+    only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv[:-1] else None  # une seule machine (IP) : les autres gardent leur dernier relevé
+    previous = []
+    if only:
+        try:
+            previous = json.loads(STATS_JSON.read_text(encoding="utf-8")).get("hosts", [])
+        except (OSError, ValueError):
+            previous = []
+        candidates = [hc for hc in candidates if hc["ip"] == only]
+    besz, _ = beszel_systems(meta) if (not only or any(hc["target"] is None or "beszel" in source_order(hc) for hc in candidates)) else ({}, [])
     for hc in candidates:
         print(f"▸ {hc['name']}...")
         h = read_host(hc, agents.get(hc["ip"]), besz.get(hc["ip"]))
@@ -1327,6 +1335,9 @@ def main() -> int:
         print(f"  → {h['level'].upper()}" + ("" if h["reachable"] else " (injoignable)"))
         hosts.append(h)
 
+    if only:  # relevé d'une machine : elle remplace son ancienne ligne (ou s'ajoute), les autres restent telles quelles
+        fresh = {h["id"] for h in hosts}
+        hosts = [h for h in previous if h["id"] not in fresh] + hosts
     overall = worst(*(h["level"] for h in hosts))
     stats = {"timestamp": ts, "hosts": hosts, "overall_level": overall}
     print(f"→ global={overall.upper()}")
