@@ -8,7 +8,8 @@ import { input, primary, quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import type { SystemState } from "../types";
 
-const WIN_SETUP = `Start-Service sshd; Set-Service sshd -StartupType Automatic`;
+const WIN_SETUP = `Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+Start-Service sshd; Set-Service sshd -StartupType Automatic`;
 const LINUX_SETUP = `sudo apt install -y openssh-server && sudo systemctl enable --now ssh`;
 
 type Kind = "windows" | "linux";
@@ -64,9 +65,9 @@ export function SshGuide({ ip, guess, onReady, onCancel }: Props) {
         <b className="text-txt">{win ? tx("PC Windows") : tx("Machine Linux")}</b> {tx(": rien de MyServices à installer, seulement autoriser sa clé sur la machine. Une fois.")}
       </p>
       <ol className="flex list-decimal flex-col gap-2.5 pl-5 text-muted">
-        <li>{win ? tx("Sur le PC : Paramètres → Système → Fonctionnalités facultatives → Ajouter → Serveur OpenSSH. Puis, dans PowerShell en administrateur :")
+        <li>{win ? tx("Dans PowerShell ouvert en administrateur : la première ligne installe le Serveur OpenSSH (une minute, Windows Update doit être accessible), la seconde le démarre. « Service sshd introuvable » veut dire qu'il n'est pas encore installé :")
           : tx("Si SSH n'est pas installé sur la machine (sinon, passez à l'étape suivante) :")}
-          <Copyable text={win ? WIN_SETUP : LINUX_SETUP} oneLine /></li>
+          <Copyable text={win ? WIN_SETUP : LINUX_SETUP} oneLine={!win} /></li>
         <li>{win ? tx("Autorisez la clé de l'app pour un compte administrateur (sur un Windows en anglais : Administrators au lieu de Administrateurs) :")
           : tx("Sur la machine, connecté avec le compte choisi ci-dessous, autorisez la clé de l'app :")}
           {(win ? winKey : authorize) ? <Copyable text={win ? winKey : authorize} /> : <span className="block text-warn">{tx("Clé de l'app introuvable : voir Réglages → Clé SSH.")}</span>}</li>
