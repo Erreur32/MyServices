@@ -595,6 +595,23 @@ def system_schedule(name: str, body: Schedule, request: Request):
     return {"ok": True, **out}
 
 
+class HealthSwitch(BaseModel):
+    enabled: bool
+
+
+@app.put(API + "/system/health", tags=["système"], summary="Allumer ou couper la santé des machines (admin)")
+def system_health(body: HealthSwitch, request: Request):
+    import system
+    if denied := admin_write(request):
+        return denied
+    try:
+        out = system.set_health(core, body.enabled)
+    except ValueError as e:
+        return deny(400, str(e))
+    store().audit("santé des machines " + ("allumée" if body.enabled else "coupée"), request.state.user["username"], ip_of(request))
+    return {"ok": True, **out}
+
+
 @app.post(API + "/system/tasks/{name}/run", tags=["système"], summary="Lancer une tâche maintenant (admin)")
 def system_run(name: str, request: Request):
     if denied := admin_write(request):

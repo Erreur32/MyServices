@@ -50,8 +50,36 @@ def tasks(core) -> list[dict]:
         out.append({"name": name, "label": LABELS.get(name, name), "at": t["at"], "fixed": t["fixed"],
                     "enabled": core.enabled(name), "running": t["proc"] is not None, "started": t["start"],
                     "ended": t["end"], "result": t["result"], "timeout_s": t["timeout"],
-                    "default": core.DEFAULTS_AT[name][1]})
+                    "default": core.DEFAULTS_AT[name][1], **_why_off(core, name)})
     return out
+
+
+def _why_off(core, name: str) -> dict:
+    """Pourquoi une tâche est coupée et comment l'allumer : `switch` = interrupteur proposé dans la page, `why` = explication."""
+    if core.enabled(name):
+        return {"switch": name == "health", "why": None}
+    if name == "health":
+        ext = core.CFG["health_url"] not in ("", "health/")
+        return {"switch": not ext, "why": ("Santé lue par un health-watcher externe (health_url dans config.json) : rien à faire ici."
+                                           if ext else "Coupée. Allumez-la pour lire disque, services, mises à jour et SMART des machines en SSH.")}
+    if name == "backups":
+        return {"switch": False, "why": "Pas d'inventaire de sauvegardes (backups-meta.json) : rien à surveiller pour l'instant."}
+    return {"switch": False, "why": "Aucune machine déclarée : la tâche démarre dès qu'il y en a une."}
+
+
+def set_health(core, on: bool) -> dict:
+    """Allume ou coupe la santé intégrée (health_url = « health/ »), écrite dans config.json et appliquée aussitôt."""
+    if core.CFG["health_url"] not in ("", "health/"):
+        raise ValueError("santé branchée sur un health-watcher externe (health_url) : à changer dans config.json")
+
+    def change(raw: dict) -> None:
+        if on:
+            raw["health_url"] = "health/"
+        else:
+            raw.pop("health_url", None)
+    _update_config(core, change)
+    core.CFG["health_url"] = "health/" if on else ""
+    return {"enabled": on}
 
 
 def _update_config(core, change) -> None:
