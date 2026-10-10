@@ -339,10 +339,10 @@ function AddedMachine({ host, onDone }: { host: NetHost; onDone: () => void }) {
   };
 
   return (
-    <div className={`rounded-lg border p-3 ${valid ? "border-ok/50 bg-ok/10" : "border-line bg-bg2/40"}`}>
+    <div className={`rounded-lg border p-3 ${valid ? "border-ok/50 bg-ok/10" : "border-warn/50 bg-warn/10"}`}>
       <p className="flex flex-wrap items-center gap-2">
-        <Check size={14} className={valid ? "text-ok" : "text-dim"} aria-hidden /><b className="text-txt">{label}</b>
-        <span className="font-mono text-xs text-dim">{host.ip}</span><Badge tone={valid ? "ok" : "off"}>{tx("ajoutée")}</Badge>
+        <Check size={14} className={valid ? "text-ok" : "text-warn"} aria-hidden /><b className="text-txt">{label}</b>
+        <span className="font-mono text-xs text-dim">{host.ip}</span><Badge tone={valid ? "ok" : "warn"}>{valid ? tx("ajoutée") : tx("accès à régler")}</Badge>
         {ssh && ok && <Badge tone="ok">{tx("SSH accepté")}</Badge>}
         <button type="button" className={`${quietBtn} ml-auto`} onClick={onDone} title={tx("Passer ou fermer ce cadre : la machine reste ajoutée, ses accès se règlent aussi plus tard (« Reprendre » ici, ou Réglages → Machines et Connecteurs)")}>
           {ssh && !ok ? tx("Passer") : tx("Terminé")}
