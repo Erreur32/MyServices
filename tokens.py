@@ -134,7 +134,7 @@ def allows(level: str, needed: str) -> bool:
 # Droits d'un jeton d'API sur les routes REST : (méthode, motif de chemin sous api/v1/) -> niveau requis.
 # Absent de la liste = refusé (TOKEN_ROUTE_NOT_ALLOWED) : jetons, comptes, mots de passe, déconnexion.
 API_ROUTES: list[tuple[str, re.Pattern, str]] = [
-    ("GET", re.compile(r"^(status|tasks|connectors|events|events/per-day|me)$"), "read"),
+    ("GET", re.compile(r"^(status|tasks|connectors|events|events/per-day|me|machines|services|health|backups)$"), "read"),
     ("POST", re.compile(r"^refresh$"), "runs"),
     ("GET", re.compile(r"^(audit|alerts|connectors/settings|machines/settings|system|sources)$"), "admin"),
     ("PUT", re.compile(r"^sources/.+$"), "admin"),

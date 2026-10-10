@@ -27,6 +27,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
+import models
 import server as core
 import auth as auth_mod
 from auth import AuthError, Store, db_path
@@ -262,6 +263,91 @@ def connectors_v1():
     except (OSError, ValueError):
         return {"generated": None, "connectors": []}
     return {"generated": data.get("generated"), "connectors": data.get("connectors", [])}
+
+
+# Lectures typées (modèle commun models.py) : fichier absent = liste vide, élément hors modèle = ignoré et compté.
+
+class MachinesOut(BaseModel):
+    generated: str | None = None
+    machines: list[models.Machine] = []
+    skipped: int = 0
+
+
+class ServicesOut(BaseModel):
+    generated: str | None = None
+    services: list[models.Service] = []
+    skipped: int = 0
+
+
+class HealthOut(BaseModel):
+    generated: str | float | None = None
+    overall: models.Level | None = None
+    hosts: list[models.Health] = []
+    skipped: int = 0
+
+
+class BackupsOut(BaseModel):
+    generated: str | float | None = None
+    sets: list[models.Backup] = []
+    skipped: int = 0
+
+
+def read_produced(rel: str) -> dict | None:
+    """Fichier produit lu en JSON ; None s'il manque ou n'est pas lisible (jamais d'erreur)."""
+    try:
+        d = json.loads((core.WEB / rel).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return d if isinstance(d, dict) else None
+
+
+def typed(model: type[BaseModel], items) -> tuple[list, int]:
+    """(éléments conformes au modèle, nombre d'éléments ignorés)."""
+    ok, skipped = [], 0
+    for it in items if isinstance(items, list) else []:
+        try:
+            ok.append(model.model_validate(it))
+        except Exception:
+            skipped += 1
+    return ok, skipped
+
+
+@app.get(API + "/machines", tags=["modèle"], summary="Machines du réseau (modèle commun)", response_model=MachinesOut)
+def machines_v1():
+    d = read_produced("data.json") or {}
+    items, skipped = typed(models.Machine, d.get("machine_list"))
+    return MachinesOut(generated=d.get("generated"), machines=items, skipped=skipped)
+
+
+@app.get(API + "/services", tags=["modèle"], summary="Services exposés (modèle commun), filtrables par machine et par type",
+         response_model=ServicesOut)
+def services_v1(machine: str | None = None, type: Literal["proxy", "redirect", "dead", "stream", "local"] | None = None):
+    d = read_produced("data.json") or {}
+    items, skipped = typed(models.Service, d.get("hosts"))
+    if machine:
+        items = [s for s in items if (s.machine or "").casefold() == machine.casefold() or s.ip == machine]
+    if type:
+        items = [s for s in items if s.type == type]
+    return ServicesOut(generated=d.get("generated"), services=items, skipped=skipped)
+
+
+@app.get(API + "/health", tags=["modèle"], summary="Santé des machines et niveau global (modèle commun)", response_model=HealthOut)
+def health_v1():
+    d = read_produced("health/stats.json") or {}
+    items, skipped = typed(models.Health, d.get("hosts"))
+    level = d.get("overall_level")
+    return HealthOut(generated=d.get("timestamp"), overall=level if level in ("ok", "warn", "crit", "down", "na") else None,
+                     hosts=items, skipped=skipped)
+
+
+@app.get(API + "/backups", tags=["modèle"], summary="Jeux de sauvegarde et leurs emplacements (modèle commun)",
+         response_model=BackupsOut, responses={404: {"description": "sauvegardes non suivies (pas de backups.json)"}})
+def backups_v1():
+    d = read_produced("backups.json")
+    if d is None:
+        return deny(404, "pas de backups.json : sauvegardes non suivies")
+    items, skipped = typed(models.Backup, d.get("sets"))
+    return BackupsOut(generated=d.get("generated"), sets=items, skipped=skipped)
 
 
 class ConnectorConf(BaseModel):
