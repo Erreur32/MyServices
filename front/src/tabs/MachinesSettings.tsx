@@ -9,8 +9,8 @@ import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
-import { ipNum } from "../lib/format";
-import type { Detection, MachineConf, MachinesSettings as State, NetHost, NetScan } from "../types";
+import { dateTime, ipNum } from "../lib/format";
+import type { AgentInfo, Detection, MachineConf, MachinesSettings as State, NetHost, NetScan } from "../types";
 import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
@@ -45,6 +45,8 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
   // Système vu par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas (suggestion)
   const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean }>>({});
   const [hosts, setHosts] = useState<NetHost[]>([]);
+  const [agents, setAgents] = useState<Record<string, AgentInfo>>({});  // agent actif par IP
+  useEffect(() => { read<{ agents: AgentInfo[] }>("agents").then((r) => setAgents(Object.fromEntries(r.agents.filter((a) => a.state !== "révoqué").map((a) => [a.ip, a])))).catch(() => undefined); }, []);
   useEffect(() => { read<NetScan>("network/scan").then((n) => { setHosts(n.found || []); setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [], ssh: !!h.ssh_port }]))); }).catch(() => undefined); }, []);
   const reload = useCallback(() => {
     read<State>("machines/settings")
@@ -85,7 +87,7 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
           const lm = live.get(ip);
           // Un PC Windows n'a ni Docker ni services en écoute à lire : pas d'état de connecteur SSH Linux (reste d'un ancien relevé)
           const stat = st.machines[ip].os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.ip ? c.ip === ip : c.name === ip || c.name === lm?.name));
-          return <MachineRow key={ip} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
+          return <MachineRow key={ip} agent={agents[ip]} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
         })}
       </div>
     </div>
@@ -159,8 +161,8 @@ function Proposal({ d, st, onDone }: { d: Detection; st: State; onDone: () => vo
   );
 }
 
-function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished }: {
-  unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[]; ssh?: boolean }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
+function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished, agent }: {
+  agent?: AgentInfo; unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[]; ssh?: boolean }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
 }) {
   const [open, setOpen] = useState(!!focus), [confirm, setConfirm] = useState(false);  // focus : arrivée depuis un lien (Connecteurs → machine)
   const card = useRef<HTMLDivElement>(null);
@@ -184,7 +186,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
     }
     setBusy(false);
   };
-  const access = m.os === "windows" ? tx("Windows · santé par {0}", m.health) : m.ssh ? `SSH ${m.ssh}` : tx("sans SSH");
+  const access = agent ? tx("agent MyServices") : m.os === "windows" ? (m.health ? tx("Windows · santé par {0}", m.health) : tx("Windows · sans agent")) : m.ssh ? `SSH ${m.ssh}` : tx("sans SSH");
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
     <div ref={card} className={`rounded-xl border bg-card text-sm ${m.disabled ? "opacity-60" : ""} ${focus ? "border-link shadow-[0_0_0_1px_rgb(var(--link))]" : "border-line"}`}>
@@ -198,6 +200,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
               onClick={(e) => { e.stopPropagation(); goAuthorize(); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); goAuthorize(); } }}>!</span>
           )}
           {unfinished && <Badge tone="warn" title={unfinished.why === "ha" ? tx("Jeton Home Assistant manquant") : tx("Accès SSH à régler")}>{unfinished.passed ? tx("Non terminé (passé)") : tx("Non terminé")}</Badge>}
+          {agent && <Badge tone={agent.state === "actif" ? "ok" : agent.state === "silencieux" ? "warn" : "info"} title={tx("Santé envoyée par l'agent MyServices (Réglages → Agents)")}>{tx("agent")}</Badge>}
           {m.off && <Badge tone="off">{tx("souvent éteinte")}</Badge>}
           {live && sshWarn(live) && <Badge tone="warn" title={tx("sshd : root ou mot de passe autorisé")}>{tx("sshd")}</Badge>}
           {statuses.some((c) => !c.ok) && <Badge tone="bad">{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
@@ -229,10 +232,15 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
           {m.os === "windows" ? (
             <section className="rounded-lg border border-line/60 bg-bg2/40 p-2.5 text-sm">
               <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("PC Windows, relevé de la santé")}</h4>
-              {typeof m.health === "string" && m.health ? (
+              {agent ? (
+                <p className="text-muted">{tx("Lu par l'agent MyServices, en lecture seule : disques, services, processeur, mémoire, mises à jour Windows, journal Système. Pas de Docker.")}{" "}
+                  {agent.last_seen ? tx("Dernier relevé {0}.", dateTime(agent.last_seen * 1000)) : tx("Aucun relevé reçu pour l'instant.")}{" "}
+                  <a className="text-link hover:underline" href="#settings/agents">{tx("Réglages → Agents")}</a></p>
+              ) : typeof m.health === "string" && m.health ? (
                 <p className="text-muted">{tx("Lu par OpenSSH et PowerShell, en lecture seule : disques, services, processeur, mises à jour Windows, journal Système. Pas de Docker. Accès :")} <code className="font-mono text-xs">{sshWho(st, m.health)}</code>.
                   {m.off ? <span className="block text-dim">{tx("Marqué « souvent éteinte » : la santé ne le relève pas tant que cette option est cochée.")}</span> : null}</p>
-              ) : <p className="text-dim">{tx("Pas d'accès SSH : ping et services web seulement. Activez « Lecture par SSH » pour lire sa santé.")}</p>}
+              ) : <p className="text-dim">{tx("Pas d'agent : ping et services web seulement.")}{" "}
+                <a className="text-link hover:underline" href={`#settings/agents/${ip}`}>{tx("Installer l'agent")}</a>{tx(" pour lire sa santé sans SSH.")}</p>}
             </section>
           ) : live && (
             <section className="rounded-lg border border-line/60 bg-bg2/40 p-2.5">
@@ -385,10 +393,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
           </ul>
         </div>
         {winGuide && <SshGuide ip={ip} guess={windows || windowsGuess ? "windows" : "linux"} onCancel={() => setWinGuide(false)}
-          onReady={async (alias, kind) => {
-            if (kind === "windows") { await autoSave("ssh", { os: "windows", health: alias, ssh: null }); setWinGuide(false); }
-            else await autoSave("ssh", { os: undefined, ssh: alias, health: undefined });
-          }} />}
+          onReady={(alias) => autoSave("ssh", { os: undefined, ssh: alias, health: undefined })} />}
         {!windows && v.ssh && hasAdguard && (  // seulement si AdGuard a été trouvé sur la machine (ou déjà réglé) : sinon rien à montrer
           <div className="sm:max-w-[50%]">
             <Field label={tx("AdGuard Home trouvé (conteneur ou chemin du .yaml)")}>

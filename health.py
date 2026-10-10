@@ -579,7 +579,7 @@ def agent_reports() -> dict:
 def host_from_agent(hc: dict, a: dict) -> dict:
     """Machine d'après le dernier relevé de son agent (mêmes champs qu'une lecture SSH). Relevé périmé ou jamais
     reçu : injoignable, comme une machine SSH qui ne répond pas."""
-    base = {"id": hc["id"], "name": hc["name"], "os": hc["os"]}
+    base = {"id": hc["id"], "name": hc["name"], "os": "windows"}  # l'agent est un script PowerShell
     data = (a["report"] or {}).get("data")
     if not a["fresh"] or not isinstance(data, dict):
         return {**base, "reachable": False, "disks": [], "systemd": {"failed": []},

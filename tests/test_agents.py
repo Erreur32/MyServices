@@ -141,6 +141,25 @@ class Agents(unittest.TestCase):
         self.assertIn(f"$env:MSV_TOKEN = '{r.json()['token']}'", cmd)
         self.assertIn("/myservices/agent/install.ps1", cmd)
 
+    def test_adresse_corrigee_a_la_main(self):
+        ok = self.c.post(BASE + "/agents", json={"ip": "192.168.1.60", "name": "Gamer32", "url": "http://192.168.1.10:8090/"}, headers=self.h)
+        self.assertIn("$env:MSV_URL = 'http://192.168.1.10:8090'", ok.json()["command"])
+        for bad in ("ftp://x", "http://x/chemin", "http://a b", "javascript:alert(1)", "http://x'; calc; '"):
+            r = self.c.post(BASE + "/agents", json={"ip": "192.168.1.60", "name": "Gamer32", "url": bad}, headers=self.h)
+            self.assertEqual(r.status_code, 400, bad)
+
+    def test_premier_releve_lance_la_sante_une_fois(self):
+        calls = []
+        old = (server.run_task, server.enabled)
+        server.run_task, server.enabled = (lambda name, why: calls.append(name) or True), (lambda name: True)
+        try:
+            token, _ = self.create()
+            self.send(token)
+            self.send(token)
+        finally:
+            server.run_task, server.enabled = old
+        self.assertEqual(calls, ["health"])
+
     def test_fraicheur(self):
         token, info = self.create()
         self.send(token)

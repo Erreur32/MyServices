@@ -576,8 +576,9 @@ def tokens_revoke(tid: int, request: Request):
 # ── Agents (agents.py) : la machine envoie son relevé, sans SSH ───────────────────────────────────
 
 class NewAgent(BaseModel):
-    ip: str
-    name: str
+    ip: str = Field(max_length=45)
+    name: str = Field(max_length=64)
+    url: str | None = Field(default=None, max_length=200)  # adresse de MyServices vue par la machine (sinon celle du navigateur)
 
 
 @app.post(AGENT_REPORT, tags=["agents"], summary="Relevé de santé envoyé par un agent (jeton msv_agent_)")
@@ -594,6 +595,8 @@ async def agent_report(request: Request):
         return deny(400, str(e))
     a = request.state.agent
     agents_store().store_report(a["id"], report, ip_of(request))
+    if not a["last_seen"] and core.enabled("health"):  # premier relevé : la machine apparaît sans attendre l'horaire
+        core.run_task("health", f"premier relevé de l'agent {a['name']}")
     return {"ok": True, "interval": agents.DEFAULT_INTERVAL}
 
 
@@ -627,11 +630,12 @@ def agents_create(body: NewAgent, request: Request):
         return denied
     u, ip = request.state.user, ip_of(request)
     try:
+        url = agents.clean_url(body.url) if body.url else base_url(request)
         raw, info = agents_store().create(body.ip, body.name, u["username"])
     except agents.AgentError as e:
         return deny(400, str(e))
     store().audit("agent créé", u["username"], ip, f"« {body.name} » ({info['ip']})")
-    return {"token": raw, "info": info, "command": agents.install_command(base_url(request), raw)}
+    return {"token": raw, "info": info, "url": url, "command": agents.install_command(url, raw)}
 
 
 @app.delete(API + "/agents/{aid}", tags=["agents"], summary="Révoquer un agent (session admin)")

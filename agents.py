@@ -165,6 +165,14 @@ def script(name: str) -> str:
     return text
 
 
+def clean_url(url: str) -> str:
+    """Adresse de MyServices pour l'agent : http(s)://hôte[:port], sans chemin. AgentError sinon."""
+    url = (url or "").strip().rstrip("/")
+    if not re.fullmatch(r"https?://[A-Za-z0-9.-]+(:\d{1,5})?", url) and not re.fullmatch(r"https?://\[[0-9A-Fa-f:]+\](:\d{1,5})?", url):
+        raise AgentError("adresse de MyServices : http(s)://hôte[:port], sans chemin")
+    return url
+
+
 def install_command(base_url: str, token: str) -> str:
     """Commande à coller dans un PowerShell administrateur de la machine."""
     return ("Set-ExecutionPolicy Bypass -Scope Process -Force\n"

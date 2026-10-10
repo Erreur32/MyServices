@@ -476,6 +476,24 @@ export interface ApiToken {
 export interface McpTool { name: string; level: string; description: string; enabled: boolean }
 export interface TokensState { tokens: ApiToken[]; tools: McpTool[]; mcp_path: string; api_path: string }
 
+/** Réglages → Agents (api/v1/agents) */
+export interface AgentInfo {
+  id: number;
+  ip: string;
+  name: string;
+  hint: string;
+  created: number;
+  created_by: string | null;
+  revoked: number | null;
+  last_seen: number | null;
+  last_ip: string | null;
+  interval: number;
+  version: string | null;
+  os: string | null;
+  state: "actif" | "silencieux" | "en attente" | "révoqué";
+}
+export interface AgentsState { agents: AgentInfo[]; report_path: string }
+
 /** Réglages → Système (api/v1/system) */
 export interface SystemTask {
   name: string; label: string; at: string; default: string; fixed: boolean; enabled: boolean; running: boolean;
