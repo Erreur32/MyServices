@@ -3,7 +3,7 @@
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
 import { Ban, HelpCircle, MonitorUp, Pencil, Plug, Plus, Server, ToggleRight, Trash2, X, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { LOGIN, LoginRequired, read, send } from "../api";
+import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
@@ -19,7 +19,7 @@ const KIND: Record<string, string> = {
 };
 
 // Proposé depuis « Premiers pas » : lu une seule fois, à l'ouverture de l'onglet
-export function Connectors({ agentIp }: { agentIp?: string }) {
+export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string }) {
   const [prefill] = useState(takePrefill);
   const [st, setSt] = useState<ConnectorsState | null>(null);
   const [error, setError] = useState("");
@@ -101,7 +101,7 @@ export function Connectors({ agentIp }: { agentIp?: string }) {
 
       </>}
 
-      {part === "agents" && <Agents focusIp={agentIp} />}
+      {part === "agents" && <Agents focusIp={agentIp} live={snap.data.machine_list || []} />}
 
       {part === "activation" && <>
       <p className="px-1 text-sm text-muted">{tx("Ce que la collecte lit et ce que la page affiche. Un changement est pris en compte à la prochaine collecte.")}</p>
@@ -179,7 +179,7 @@ export function Connectors({ agentIp }: { agentIp?: string }) {
 type Part = "connectors" | "agents" | "activation";
 const PARTS: [Part, string, string, LucideIcon][] = [
   ["connectors", tx("Connecteurs"), tx("L'accès à chaque outil : adresse, jeton, test"), Plug],
-  ["agents", tx("Agents"), tx("Un PC Windows qui envoie lui-même sa santé, sans SSH"), MonitorUp],
+  ["agents", tx("Agents et SSH"), tx("Comment chaque machine est lue : agent PowerShell (Windows) ou SSH (Linux)"), MonitorUp],
   ["activation", tx("Activation"), tx("Ce que la collecte lit et ce que la page affiche"), ToggleRight],
 ];
 

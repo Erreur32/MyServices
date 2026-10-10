@@ -1,4 +1,4 @@
-// Réglages → Connecteurs → Agents : une machine envoie elle-même sa santé (petit script PowerShell en lecture seule), sans SSH.
+// Réglages → Connecteurs → Agents et SSH : comment chaque machine est lue. Agent : une machine envoie elle-même sa santé (petit script PowerShell en lecture seule), sans SSH.
 // Une carte par machine : celles qui ont un agent (actif, silencieux, en attente) d'un côté, celles qui n'en ont pas de l'autre,
 // prêtes à être cliquées. Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller sur le PC.
 // Gérés seulement depuis une session admin.
@@ -10,7 +10,8 @@ import { MachineIcon } from "../components/MachineIcon";
 import { act, danger, input, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { dateTime, ipNum } from "../lib/format";
-import type { AgentInfo, AgentsState, MachineConf, MachinesSettings } from "../types";
+import type { AgentInfo, AgentsState, Machine, MachineConf, MachinesSettings } from "../types";
+import { MSTATE, mState } from "../lib/machines";
 import { tx } from "../lib/i18n";
 
 const STATE: Record<AgentInfo["state"], ["ok" | "warn" | "info" | "off", string]> = {
@@ -23,7 +24,7 @@ const STATE: Record<AgentInfo["state"], ["ok" | "warn" | "info" | "off", string]
 /** Nom d'agent accepté par le serveur (lettres, chiffres, espace, . _ @ -) tiré du nom de la machine */
 const agentName = (machine: string) => machine.replace(/[^\p{L}\p{N}_ .@-]/gu, "").trim().slice(0, 64) || "agent";
 
-export function Agents({ focusIp }: { focusIp?: string }) {
+export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] }) {
   const [st, setSt] = useState<AgentsState | null>(null);
   const [machines, setMachines] = useState<MachinesSettings["machines"]>({});
   const [error, setError] = useState("");
@@ -52,6 +53,9 @@ export function Agents({ focusIp }: { focusIp?: string }) {
   // Avec agent : tous. Sans agent : les machines que SSH ne lit pas (Windows, sans accès) ; une machine lue par SSH n'en a pas besoin.
   const withAgent = sorted([...byIp.keys()]);
   const without = sorted(Object.keys(machines).filter((ip) => !byIp.has(ip) && !machines[ip].disabled && (machines[ip].os === "windows" || !machines[ip].ssh)));
+  // Lues par SSH (Linux, hors Windows) : l'accès se règle avec la machine, la carte y renvoie
+  const ssh = sorted(Object.keys(machines).filter((ip) => !byIp.has(ip) && !machines[ip].disabled && machines[ip].os !== "windows" && !!machines[ip].ssh));
+  const liveBy = new Map(live.map((m) => [m.ip, m]));
   const local = /^https?:\/\/(localhost|127\.|\[::1\])/i.test(url);
 
   const create = async (ip: string) => {
@@ -69,9 +73,10 @@ export function Agents({ focusIp }: { focusIp?: string }) {
   return (
     <div className="flex flex-col gap-4">
       <Card>
-        <h2 className="flex items-center gap-2 font-bold"><MonitorUp size={16} />{tx("Agents")} <Dim>· {withAgent.length} {tx("actifs")}</Dim></h2>
+        <h2 className="flex items-center gap-2 font-bold"><MonitorUp size={16} />{tx("Accès aux machines")} <Dim>· {withAgent.length} {tx("agents")} · {ssh.length} SSH</Dim></h2>
         <p className="mt-1 text-sm text-muted">
-          {tx("Un agent est un petit script PowerShell, en lecture seule, installé sur un PC Windows : il envoie lui-même sa santé à MyServices (disques, services, processeur, mémoire, mises à jour, journal). Pas de SSH à ouvrir ; un PC souvent éteint se signale dès qu'il se rallume. Un agent ne peut qu'envoyer un relevé pour sa machine.")}
+          {tx("Deux façons de lire la santé d'une machine, toujours en lecture seule.")} <b className="text-txt">{tx("Agent")}</b> {tx(": un petit script PowerShell installé sur un PC Windows, qui envoie lui-même sa santé à MyServices (disques, services, processeur, mémoire, mises à jour, journal) ; pas de SSH à ouvrir, et un PC souvent éteint se signale dès qu'il se rallume.")}{" "}
+          <b className="text-txt">SSH</b> {tx(": pour les machines Linux, MyServices s'y connecte avec sa clé (santé, Docker, services en écoute).")}
         </p>
         <div className="mt-3 max-w-md">
           <Field label={tx("Adresse de MyServices, vue du PC")}>
@@ -113,6 +118,26 @@ export function Agents({ focusIp }: { focusIp?: string }) {
             </button>
           </li>
         ))}
+      </Group>
+
+      <Group title={tx("Linux, lus par SSH")} n={ssh.length}
+        hint={tx("L'accès SSH se règle avec la machine : cliquez sur une carte pour ouvrir ses réglages.")}
+        empty={tx("Aucune machine Linux lue par SSH pour l'instant : activez « Lecture par SSH » dans Réglages → Machines.")}>
+        {ssh.map((ip) => {
+          const lm = liveBy.get(ip), s = lm ? MSTATE[mState(lm)] : null;
+          return (
+            <li key={ip}>
+              <a href={`#settings/machines/${ip}`} className="flex h-full items-center gap-3 rounded-xl border border-line bg-bg2/60 p-3 transition-colors hover:border-link hover:bg-link/10">
+                <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl }} reserve />
+                <span className="min-w-0 flex-1">
+                  <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
+                  <span className="block truncate text-xs text-dim">{ip} · SSH {machines[ip].ssh}</span>
+                </span>
+                {s && <Badge tone={s[0]} title={s[2]}>{s[1]}</Badge>}
+              </a>
+            </li>
+          );
+        })}
       </Group>
 
       {revoked.length > 0 && (
