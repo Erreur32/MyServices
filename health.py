@@ -332,6 +332,46 @@ def collect_load(run) -> dict:
     return {"load_1": load_1, "ncpu": ncpu, "available": True}
 
 
+MEM_WARN_PCT, MEM_CRIT_PCT = 90, 97  # mémoire utilisée (hors cache) ; le CPU instantané seul n'alerte pas, c'est la charge qui le fait
+
+# Deux lectures de /proc/stat à 1 s d'écart (pourcentage CPU réel) puis la mémoire
+_RES_CMD = "head -1 /proc/stat; sleep 1; head -1 /proc/stat; grep -E '^(MemTotal|MemAvailable|SwapTotal|SwapFree):' /proc/meminfo"
+
+
+def parse_resources(out: str) -> dict:
+    """Usage CPU (%) et mémoire d'une machine Linux d'après /proc ; {"available": False} si illisible."""
+    stats, mem = [], {}
+    for ln in out.splitlines():
+        cols = ln.split()
+        if cols and cols[0] == "cpu" and len(cols) >= 8:
+            try:
+                stats.append([int(x) for x in cols[1:9]])
+            except ValueError:
+                return {"available": False}
+        elif len(cols) >= 2 and cols[0].rstrip(":") in ("MemTotal", "MemAvailable", "SwapTotal", "SwapFree") and cols[1].isdigit():
+            mem[cols[0].rstrip(":")] = int(cols[1]) // 1024  # ko -> Mo
+    if len(stats) != 2 or not mem.get("MemTotal") or "MemAvailable" not in mem:
+        return {"available": False}
+    total = sum(stats[1]) - sum(stats[0])
+    idle = (stats[1][3] + stats[1][4]) - (stats[0][3] + stats[0][4])
+    used = mem["MemTotal"] - mem["MemAvailable"]
+    return {"available": True, "cpu_pct": round(100 * (total - idle) / total, 1) if total > 0 else 0.0,
+            "mem_total_mb": mem["MemTotal"], "mem_used_mb": used, "mem_pct": round(100 * used / mem["MemTotal"], 1),
+            "swap_total_mb": mem.get("SwapTotal", 0), "swap_used_mb": max(mem.get("SwapTotal", 0) - mem.get("SwapFree", 0), 0)}
+
+
+def collect_resources(run) -> dict:
+    rc, out = run(_RES_CMD, timeout=10)
+    return parse_resources(out) if rc == 0 else {"available": False}
+
+
+def resources_level(res) -> str:
+    p = res.get("mem_pct") if isinstance(res, dict) else None
+    if not isinstance(p, (int, float)):
+        return "na"
+    return "crit" if p >= MEM_CRIT_PCT else "warn" if p >= MEM_WARN_PCT else "ok"
+
+
 TEMP_WARN_C, TEMP_CRIT_C = 85, 95  # °C du processeur ; au-delà, la machine bride ou s'éteint
 
 # Capteur du processeur : AMD (k10temp), Intel (coretemp), ARM / Raspberry Pi (cpu_thermal, cpu-thermal), x86_pkg_temp.
@@ -548,6 +588,8 @@ def parse_beszel(sys_: dict) -> dict:
         "ssh_auth": {"failed_24h": 0, "available": False, "reason": "non relevé par Beszel"},
         "smart": smart_from_beszel(sys_),
         "temp": ({"available": True, "celsius": round(sys_["temp"], 1), "source": "Beszel"} if isinstance(sys_.get("temp"), (int, float)) else {"available": False}),
+        "res": ({"available": True, "cpu_pct": round(sys_["cpu"], 1), "mem_pct": round(sys_["mem_pct"], 1)}
+                if isinstance(sys_.get("cpu"), (int, float)) and isinstance(sys_.get("mem_pct"), (int, float)) else {"available": False}),
         "source": "beszel",
     }
 
@@ -651,14 +693,14 @@ def host_level(h: dict) -> str:
     """Pire niveau des contrôles d'une machine joignable (Linux ou Windows)."""
     return worst(disk_level(h["disks"]), systemd_level(h["systemd"]), docker_level(h["docker"]),
                  kernel_level(h["kernel"]), load_level(h["load"]), ssh_auth_level(h["ssh_auth"]),
-                 smart_level(h["smart"]), temp_level(h.get("temp")))
+                 smart_level(h["smart"]), temp_level(h.get("temp")), resources_level(h.get("res")))
 
 
 _EMPTY_HOST_EXTRAS = {
     "apt": {"upgradable": 0, "sample": []}, "kernel": {"has_errors": False, "samples": []},
     "reboot_required": False, "load": {"load_1": 0.0, "ncpu": 1, "available": False},
     "ssh_auth": {"failed_24h": 0, "available": False},
-    "smart": {"accessible": False, "disks": []}, "temp": {"available": False},
+    "smart": {"accessible": False, "disks": []}, "temp": {"available": False}, "res": {"available": False},
 }
 
 
@@ -680,11 +722,12 @@ def collect_host(host: dict) -> dict:
     load = collect_load(run)
     ssh_auth = collect_ssh_auth(run)
     temp = collect_cpu_temp(run, bool(host.get("vm")))
+    res = collect_resources(run)
     # SMART non pertinent sur une VM (disque virtualisé, pas de hardware physique dédié)
     smart = {"accessible": False, "disks": [], "vm": True} if host.get("vm") else collect_smart(run)
     h = {"id": host["id"], "name": host["name"], "reachable": True,
          "disks": disks, "systemd": systemd, "docker": docker, "apt": apt, "kernel": kernel,
-         "reboot_required": reboot_required, "load": load, "ssh_auth": ssh_auth, "smart": smart, "temp": temp}
+         "reboot_required": reboot_required, "load": load, "ssh_auth": ssh_auth, "smart": smart, "temp": temp, "res": res}
     h["level"] = host_level(h)
     return h
 
@@ -721,6 +764,8 @@ def build_discord_payload(stats: dict) -> dict:
             bits.append("disque SMART en échec")
         if temp_level(h.get("temp")) in ("warn", "crit"):
             bits.append(f"CPU {h['temp']['celsius']:.0f} °C")
+        if resources_level(h.get("res")) in ("warn", "crit"):
+            bits.append(f"mémoire {h['res']['mem_pct']:.0f} %")
         dk = h["docker"]
         if dk.get("accessible"):
             n = dk["unhealthy"] + dk["restarting"] + dk["exited"]
@@ -1126,7 +1171,7 @@ def host_reasons(h: dict) -> str:
     sub = (("disque", disk_level(h["disks"])), ("systemd", systemd_level(h["systemd"])),
            ("docker", docker_level(h["docker"])), ("noyau", kernel_level(h["kernel"])),
            ("charge", load_level(h["load"])), ("SSH", ssh_auth_level(h["ssh_auth"])),
-           ("SMART", smart_level(h["smart"])), ("température", temp_level(h.get("temp"))))
+           ("SMART", smart_level(h["smart"])), ("température", temp_level(h.get("temp"))), ("mémoire", resources_level(h.get("res"))))
     return ", ".join(f"{name} {LEVEL_LABEL[lvl]}" for name, lvl in sub if lvl in ("warn", "crit"))
 
 
@@ -1182,6 +1227,8 @@ def main() -> int:
             if b and h["reachable"]:  # Beszel complète ce que SSH n'a pas pu lire
                 if not h["smart"]["accessible"] and not h["smart"].get("vm") and b.get("smart"):
                     h["smart"] = smart_from_beszel(b)
+                if not h.get("res", {}).get("available") and isinstance(b.get("cpu"), (int, float)) and isinstance(b.get("mem_pct"), (int, float)):
+                    h["res"] = {"available": True, "cpu_pct": round(b["cpu"], 1), "mem_pct": round(b["mem_pct"], 1)}
                 if not h.get("temp", {}).get("available") and isinstance(b.get("temp"), (int, float)):
                     h["temp"] = {"available": True, "celsius": round(b["temp"], 1), "source": "Beszel"}
                 h["level"] = host_level(h)

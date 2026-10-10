@@ -78,5 +78,25 @@ class TemperatureCpu(unittest.TestCase):
         self.assertEqual(health.collect_cpu_temp(runner("none"), vm=True), {"available": False, "virt": "vm"})
 
 
+class Ressources(unittest.TestCase):
+    OUT = ("cpu  100 0 100 800 0 0 0 0 0 0\ncpu  150 0 150 900 0 0 0 0 0 0\n"
+           "MemTotal:       16384000 kB\nMemAvailable:    4096000 kB\nSwapTotal:       2048000 kB\nSwapFree:        1024000 kB\n")
+
+    def test_cpu_et_memoire(self):
+        r = health.parse_resources(self.OUT)
+        self.assertEqual(r["cpu_pct"], 50.0)  # 100 actifs sur 200 de temps
+        self.assertEqual((r["mem_total_mb"], r["mem_used_mb"], r["mem_pct"]), (16000, 12000, 75.0))
+        self.assertEqual((r["swap_total_mb"], r["swap_used_mb"]), (2000, 1000))
+
+    def test_illisible(self):
+        for bad in ("", "cpu  1 2 x 4 5 6 7 8\ncpu  1 2 3 4 5 6 7 8\n", "MemTotal: 1 kB\n"):
+            self.assertEqual(health.parse_resources(bad), {"available": False})
+
+    def test_niveaux_memoire(self):
+        lv = lambda p: health.resources_level({"available": True, "mem_pct": p})
+        self.assertEqual([lv(50), lv(90), lv(97)], ["ok", "warn", "crit"])
+        self.assertEqual(health.resources_level({"available": False}), "na")
+
+
 if __name__ == "__main__":
     unittest.main()

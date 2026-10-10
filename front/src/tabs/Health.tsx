@@ -9,6 +9,7 @@ import { ServiceStatusCards } from "../components/ServiceStatusCards";
 import { LEVEL } from "../lib/level";
 import { tx } from "../lib/i18n";
 
+const gb = (mb?: number) => ((mb ?? 0) / 1024).toFixed(1);
 const levelOf = (h: HealthHost) => (h.reachable === false ? "down" : h.level || "ok");
 const RANK: Record<string, number> = { down: 0, crit: 1, warn: 2, ok: 3, na: 4 };
 
@@ -26,6 +27,7 @@ function problems(h: HealthHost): [("bad" | "warn"), string][] {
   for (const d of h.smart?.disks || []) if (d.failed || !d.healthy) out.push(["bad", tx("SMART : {0} en défaut", d.device)]);
   if (h.load?.available && h.load.load_1 > h.load.ncpu) out.push(["warn", tx("charge {0} pour {1} CPU", h.load.load_1, h.load.ncpu)]);
   if (h.ssh_auth?.available && h.ssh_auth.failed_24h > 20) out.push(["warn", tx("{0} connexions SSH refusées en 24 h", h.ssh_auth.failed_24h)]);
+  if (h.res?.available && (h.res.mem_pct ?? 0) >= 90) out.push([h.res.mem_pct! >= 97 ? "bad" : "warn", tx("mémoire utilisée à {0} %", Math.round(h.res.mem_pct!))]);
   if (h.temp?.available && h.temp.celsius! >= 85) out.push([h.temp.celsius! >= 95 ? "bad" : "warn", tx("processeur à {0} °C", h.temp.celsius)]);
   if (h.reboot_required) out.push(["warn", tx("redémarrage requis")]);
   if (h.apt?.upgradable) out.push(["warn", tx("{0} mise(s) à jour en attente", h.apt.upgradable)]);
@@ -48,6 +50,20 @@ function HostCard({ h }: { h: HealthHost }) {
       ) : h.reachable !== false && <p className="mt-3 text-sm text-ok">{tx("Rien à signaler.")}</p>}
       {h.reachable !== false && (
         <div className="mt-3 flex flex-col gap-1.5 border-t border-line/60 pt-3 text-xs text-muted">
+          {h.res?.available && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="w-24 truncate">{tx("CPU")}</span>
+                <Fill pct={h.res.cpu_pct ?? 0} tone={(h.res.cpu_pct ?? 0) >= 90 ? "warn" : "ok"} /><span>{Math.round(h.res.cpu_pct ?? 0)} %</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-24 truncate">{tx("Mémoire")}</span>
+                <Fill pct={h.res.mem_pct ?? 0} tone={(h.res.mem_pct ?? 0) >= 97 ? "bad" : (h.res.mem_pct ?? 0) >= 90 ? "warn" : "ok"} /><span>{Math.round(h.res.mem_pct ?? 0)} %</span>
+                {h.res.mem_total_mb != null && <Dim>· {gb(h.res.mem_used_mb)} / {gb(h.res.mem_total_mb)} {tx("Go")}</Dim>}
+              </div>
+              {!!h.res.swap_total_mb && (h.res.swap_used_mb ?? 0) > 0 && <Dim>{tx("swap")} {gb(h.res.swap_used_mb)} / {gb(h.res.swap_total_mb)} {tx("Go")}</Dim>}
+            </>
+          )}
           {(h.disks || []).filter((d) => (d.size_gb ?? 1) >= 1).map((d) => (
             <div key={d.mount} className="flex items-center gap-2">
               <span className="w-24 truncate font-mono" title={d.mount}>{d.mount}</span>

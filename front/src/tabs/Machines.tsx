@@ -86,6 +86,12 @@ function DiskCell({ h }: { h?: HealthHost }) {
   if (!d) return <Dim>—</Dim>;
   return <span title={tx("Disque le plus rempli")}><b className={d.critical || d.used_pct >= 90 ? "text-bad" : d.warning || d.used_pct >= 80 ? "text-warn" : "text-ok"}>{d.used_pct} %</b> <code className="text-xs">{d.mount}</code></span>;
 }
+function ResCell({ h, what }: { h?: HealthHost; what: "cpu" | "mem" }) {
+  const v = what === "cpu" ? h?.res?.cpu_pct : h?.res?.mem_pct;
+  if (!h?.res?.available || v == null) return <Dim>—</Dim>;
+  const tone = what === "mem" && v >= 97 ? "text-bad" : (what === "mem" && v >= 90) || (what === "cpu" && v >= 90) ? "text-warn" : "text-ok";
+  return <b className={tone} title={what === "mem" && h.res?.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} Go` : undefined}>{Math.round(v)} %</b>;
+}
 function SystemdCell({ h }: { h?: HealthHost }) {
   if (!h) return <Dim>—</Dim>;
   const f = h.systemd?.failed || [];
@@ -161,7 +167,7 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
         <>
           <Table head={<>
             <Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("État")}</Th><Th>{tx("SSH")}</Th><Th>{tx("Clé utilisée")}</Th><Th>{tx("Hôte")}</Th><Th>{tx("Root")}</Th><Th>{tx("Mot de passe")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
-            <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("Disque")}</Th><Th>{tx("Systemd")}</Th><Th>{tx("Mises à jour")}</Th></>}
+            <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th>{tx("Systemd")}</Th><Th>{tx("Mises à jour")}</Th></>}
           </>}>
             {sort.sorted.map((m) => (
               <tr key={m.ip} className="hover:bg-bg2/60">
@@ -170,7 +176,7 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
                 <Td>{m.info?.os ? <>{m.info.os}<span className="block text-xs text-dim">{tx("noyau")} {m.info.kernel || "?"} {tx("· up")} {dur(m.info.uptime_s)}</span></> : <Dim>—</Dim>}</Td>
                 <Td><Servers m={m} snap={snap} /></Td><Td>{svc(m)}</Td>
                 {snap.health && <><Td><Level level={hb.get(m.ip) ? (hb.get(m.ip)!.reachable === false ? "down" : hb.get(m.ip)!.level) : "na"} /></Td>
-                  <Td><DiskCell h={hb.get(m.ip)} /></Td><Td><SystemdCell h={hb.get(m.ip)} /></Td><Td><UpdatesCell h={hb.get(m.ip)} /></Td></>}
+                  <Td><ResCell h={hb.get(m.ip)} what="cpu" /></Td><Td><ResCell h={hb.get(m.ip)} what="mem" /></Td><Td><DiskCell h={hb.get(m.ip)} /></Td><Td><SystemdCell h={hb.get(m.ip)} /></Td><Td><UpdatesCell h={hb.get(m.ip)} /></Td></>}
               </tr>
             ))}
           </Table>
