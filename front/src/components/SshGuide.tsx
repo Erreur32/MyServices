@@ -14,6 +14,8 @@ type Kind = "windows" | "linux";
 
 interface Props {
   ip: string;
+  /** compte de l'accès déjà connu pour cette machine (réactivation) : proposé au lieu de root */
+  user?: string;
   /** système supposé (TTL, scan, réglage) : le choix reste à l'utilisateur */
   guess: Kind;
   /** l'accès SSH est créé avec le compte donné, puis la machine est enregistrée */
@@ -21,10 +23,10 @@ interface Props {
   onCancel: () => void;
 }
 
-export function SshGuide({ ip, guess, onReady, onCancel }: Props) {
+export function SshGuide({ ip, user: knownUser, guess, onReady, onCancel }: Props) {
   const [kind, setKind] = useState<Kind>(guess);
   const win = kind === "windows";
-  const [user, setUser] = useState("root"), [authorize, setAuthorize] = useState("");
+  const [user, setUser] = useState(knownUser || "root"), [authorize, setAuthorize] = useState("");
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [lines, setLines] = useState<string[] | null>(null), [applied, setApplied] = useState("");
   useEffect(() => { read<SystemState>("system").then((s) => setAuthorize(s.ssh.authorize ?? "")).catch(() => undefined); }, []);
   const ok = /^[A-Za-z_][A-Za-z0-9_.-]{0,31}$/.test(user);

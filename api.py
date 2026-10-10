@@ -594,9 +594,10 @@ async def agent_report(request: Request):
     except agents.AgentError as e:
         return deny(400, str(e))
     a = request.state.agent
-    agents_store().store_report(a["id"], report, ip_of(request))
-    if not a["last_seen"] and core.enabled("health"):  # premier relevé : la machine apparaît sans attendre l'horaire
-        core.run_task("health", f"premier relevé de l'agent {a['name']}")
+    before, now = agents_store().store_report(a["id"], report, ip_of(request))
+    # La santé est relue tout de suite au premier relevé et quand le niveau de la machine change (sinon, au prochain horaire)
+    if (not a["last_seen"] or before != now) and core.enabled("health"):
+        core.run_task("health", f"relevé de l'agent {a['name']} : {before or 'premier'} → {now}")
     return {"ok": True, "interval": agents.DEFAULT_INTERVAL}
 
 

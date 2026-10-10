@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import time
 import ipaddress
 import json
 import re
@@ -242,14 +243,40 @@ def check(ip: str) -> dict:
     m = machines.get(ip)
     if m is None:
         raise MachineError("machine inconnue")
+    agent_lines, agent_failed = _check_agent(ip, m)
+    has_ssh = bool(m.get("ssh") or isinstance(m.get("health"), str))
+    if agent_lines and not has_ssh:  # lu par son agent seulement (PC Windows) : rien à tester en SSH
+        return {"lines": agent_lines, "failed": agent_failed}
     buf = io.StringIO()
     setup.FAILED.clear()
     with contextlib.redirect_stdout(buf):
         setup.check_machine(ip, m, setup.ssh_aliases())
-    lines = [ln.strip() for ln in buf.getvalue().splitlines() if ln.strip()]
+    lines = agent_lines + [ln.strip() for ln in buf.getvalue().splitlines() if ln.strip()]
     if not setup.FAILED:  # accès SSH qui répond : l'inventaire raté d'avant ne doit pas rester en cache (2 h)
         expire_inventory()
-    return {"lines": lines, "failed": len(setup.FAILED)}
+    return {"lines": lines, "failed": len(setup.FAILED) + agent_failed}
+
+
+def _check_agent(ip: str, m: dict, store=None) -> tuple[list[str], int]:
+    """Lignes de vérification de l'agent de la machine (état, dernier relevé) ; vide si elle n'en a pas."""
+    try:
+        if store is None:
+            from agents import Agents
+            from auth import db_path
+            from config import CFG
+            store = Agents(db_path(CFG))
+        a = next((x for x in store.listing() if x["ip"] == ip and x["state"] != "révoqué"), None)
+    except Exception:  # base absente ou illisible : pas de ligne agent
+        return [], 0
+    if a is None:
+        return [], 0
+    name = m.get("name", ip)
+    age = f"il y a {max(1, round((time.time() - a['last_seen']) / 60))} min" if a["last_seen"] else None
+    if a["state"] == "actif":
+        return [f"✓ {name} : agent actif, dernier relevé {age} (toutes les {a['interval'] // 60} min)"], 0
+    if a["state"] == "silencieux":
+        return [f"✗ {name} : l'agent ne répond plus (dernier relevé {age}) : PC éteint, ou tâche « MyServices Agent » arrêtée"], 1
+    return [f"⚠ {name} : agent créé, aucun relevé reçu : coller la commande d'installation sur le PC (Réglages → Connecteurs → Agents)"], 1
 
 
 def known_ips() -> set[str]:

@@ -102,15 +102,18 @@ class Agents:
             raise AgentError("TOKEN_REVOKED")
         return _public(r)
 
-    def store_report(self, aid: int, report: dict, ip: str) -> None:
-        """Garde le relevé (déjà validé) et note le passage de l'agent."""
+    def store_report(self, aid: int, report: dict, ip: str) -> tuple[str | None, str | None]:
+        """Garde le relevé (déjà validé) et note le passage de l'agent. Rend (niveau du relevé précédent, niveau de celui-ci) :
+        None pour le précédent s'il n'y en avait pas ; le serveur relit la santé quand ils diffèrent."""
         interval = report.get("interval")
         interval = interval if isinstance(interval, int) and MIN_INTERVAL <= interval <= MAX_INTERVAL else DEFAULT_INTERVAL
         with self._db() as db:
+            old = db.execute("SELECT report FROM agents WHERE id = ?", (aid,)).fetchone()
             db.execute("UPDATE agents SET last_seen = ?, last_ip = ?, interval = ?, version = ?, os_name = ?, report = ? "
                        "WHERE id = ? AND revoked IS NULL",
                        (time.time(), ip, interval, str(report.get("version") or "")[:32], str(report.get("os") or "")[:120],
                         json.dumps(report, ensure_ascii=False), aid))
+        return report_level(json.loads(old["report"])) if old and old["report"] else None, report_level(report)
 
     def fresh_reports(self) -> dict[str, dict]:
         """{IP: {"report": relevé, "seen": date, "fresh": bool}} pour les agents actifs ayant déjà envoyé un relevé."""
@@ -121,6 +124,15 @@ class Agents:
             out[r["ip"]] = {"report": json.loads(r["report"]) if r["report"] else None, "seen": r["last_seen"],
                             "fresh": bool(r["last_seen"] and now - r["last_seen"] <= FRESH_MULT * (r["interval"] or DEFAULT_INTERVAL))}
         return out
+
+
+def report_level(report: dict) -> str | None:
+    """Niveau de santé (ok, warn, crit) que donne un relevé, avec les mêmes règles que la page Santé ; None s'il est illisible."""
+    import health
+    try:
+        return health.host_level({"reachable": True, **health.parse_windows(report["data"])})
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return None
 
 
 def validate_report(body) -> dict:

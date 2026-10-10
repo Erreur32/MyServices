@@ -1127,4 +1127,12 @@ export const EN: Record<string, string> = {
   "Astuce : si la connexion est refusée, vérifiez que le serveur SSH est installé et démarré sur la machine.": "Tip: if the connection is refused, check that the SSH server is installed and running on the machine.",
   "Enregistrer les modifications": "Save changes",
   "Rien à enregistrer : l'accès et les options s'enregistrent tout seuls": "Nothing to save: access and options are saved automatically",
+  "Accès par l'agent": "Access through the agent",
+  "pas d'agent": "no agent",
+  "Lecture par l'agent": "Read through the agent",
+  "Un petit script PowerShell sur le PC envoie sa santé à MyServices : disques, services, processeur, mémoire, mises à jour, journal.": "A small PowerShell script on the PC sends its health to MyServices: disks, services, CPU, memory, updates, event log.",
+  "cliquez pour installer l'agent": "click to install the agent",
+  "L'accès existe mais la connexion échoue : la clé n'est pas (ou plus) autorisée sur la machine.": "The access exists but the connection fails: the key is not (or no longer) authorized on the machine.",
+  "Accès rétabli : la clé est déjà valide, rien à refaire.": "Access restored: the key is already valid, nothing to redo.",
+  "dernier relevé {0}": "last report {0}",
 };

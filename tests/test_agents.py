@@ -160,6 +160,36 @@ class Agents(unittest.TestCase):
             server.run_task, server.enabled = old
         self.assertEqual(calls, ["health"])
 
+    def test_verifier_une_machine_lue_par_son_agent(self):
+        import machines_admin
+        token, info = self.create()
+        m = {"name": "Gamer32", "os": "windows", "ssh": None}
+        lines, failed = machines_admin._check_agent("192.168.1.60", m, api.agents_store())
+        self.assertEqual(failed, 1)
+        self.assertIn("aucun relevé reçu", lines[0])
+        self.send(token)
+        lines, failed = machines_admin._check_agent("192.168.1.60", m, api.agents_store())
+        self.assertEqual((failed, lines[0].startswith("✓ Gamer32 : agent actif")), (0, True))
+        self.assertEqual(machines_admin._check_agent("192.168.1.99", m, api.agents_store()), ([], 0))  # pas d'agent pour cette IP
+
+    def test_sante_relue_quand_le_niveau_change(self):
+        calls = []
+        old = (server.run_task, server.enabled)
+        server.run_task, server.enabled = (lambda name, why: calls.append(why) or True), (lambda name: True)
+        try:
+            token, _ = self.create()
+            self.send(token)                       # premier relevé
+            self.send(token)                       # même niveau : rien
+            bad = {**REPORT, "data": {**DATA, "disks": [{"m": "C:", "s": 500e9, "f": 10e9}]}}
+            self.send(token, bad)                  # disque à 98 % : critique
+            self.send(token, bad)                  # toujours critique : rien
+            self.send(token)                       # retour à la normale
+        finally:
+            server.run_task, server.enabled = old
+        self.assertEqual(len(calls), 3)
+        self.assertIn("ok → crit", calls[1])
+        self.assertIn("crit → ok", calls[2])
+
     def test_fraicheur(self):
         token, info = self.create()
         self.send(token)

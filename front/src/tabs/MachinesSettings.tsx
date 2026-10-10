@@ -254,7 +254,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
               <SshDetails m={live} statuses={statuses} />
             </section>
           )}
-          <MachineForm agent={!!agent} report={setNote} ip={ip} m={m} st={st} live={live} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
+          <MachineForm agent={agent} report={setNote} ip={ip} m={m} st={st} live={live} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
             <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
             <span className="ml-auto flex items-center gap-1.5">
               {confirm ? <>
@@ -281,7 +281,7 @@ function OptionGroup({ title, hint, tone, children }: { title: string; hint?: st
 }
 
 function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, actions, windowsGuess, report, onDone, agent }: {
-  agent?: boolean;  // la machine a un agent actif : la santé a alors deux sources, à ordonner
+  agent?: AgentInfo;  // agent actif de la machine : c'est son accès (Windows), ou une deuxième source de santé à ordonner (avec SSH)
   report?: (n: Note) => void;  // dans une carte de machine : le message s'affiche en haut de la carte
   windowsGuess?: boolean;
   live?: Snapshot["data"]["machine_list"][number]; actions?: React.ReactNode; detected?: string[]; ip: string; m: MachineConf; st: State; isNew?: boolean; process?: boolean; extra?: Detection["web"]; onDone: () => void;
@@ -298,7 +298,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
   const setNote = report ?? setLocalNote;
   const windows = v.os === "windows";
   // Ce que l'accès choisi permet de lire (suit le formulaire, avant même l'enregistrement)
-  const access = windows ? !!v.health : !!v.ssh, health = access && !v.off && v.health !== false;
+  const sshAccess = windows ? !!v.health : !!v.ssh;
+  const access = sshAccess || !!agent, health = access && (!!agent || (!v.off && v.health !== false));  // un agent lit même un poste « souvent éteint »
   const gives: [string, boolean, string][] = [
     // Pas de pastille Docker quand la machine est lue par SSH et qu'il n'y en a pas : rien à dire, ce n'est pas un manque
     ...(access && !windows && live?.info?.docker_installed === false ? [] : [["Docker", !windows && access, tx("Conteneurs, images, ports (onglet Services)")] as [string, boolean, string]]),
@@ -355,13 +356,27 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
   // Accès SSH : un simple interrupteur. Actif = l'accès de cette IP (créé avec la clé de l'app s'il n'existe pas encore, compte root
   // port 22 comme « Lire cette machine par SSH »), inactif = on le retire. Le choix d'un autre compte se fait dans la config SSH.
   const [winGuide, setWinGuide] = useState(false);
+  const agentMode = windows || windowsGuess === true || !!agent;  // un PC Windows se lit par l'agent (pas de SSH) ; on garde le SSH s'il est déjà réglé
   const key = (windows ? v.health : v.ssh) as string | null | undefined | false;
   const sshOn = typeof key === "string" && key !== "";
   const info = st.aliases.find((a) => a.alias === key);
   const sshWho = info ? `${info.user ? `${info.user}@` : ""}${info.ip || info.host}${info.port ? `:${info.port}` : ""}` : String(key || "");
+  // Réactivation : si un accès existe déjà pour cette IP (la config SSH garde l'alias quand on coupe l'interrupteur), on le reprend et on
+  // teste la clé tout de suite ; le guide ne s'ouvre que si la connexion échoue (ou s'il n'y a encore aucun accès).
+  const known = st.aliases.find((a) => a.ip === ip);
+  const [reuse, setReuse] = useState<Note>(null);
   const toggleSsh = async (on: boolean) => {
-    if (!on) { setWinGuide(false); return void autoSave("ssh", { ssh: null, health: undefined }); }
-    setWinGuide(true);  // le guide demande le système (Linux / Windows) et le compte, puis crée l'accès : jamais de root « par défaut » pour un Windows
+    if (!on) { setWinGuide(false); setReuse(null); return void autoSave("ssh", { ssh: null, health: undefined }); }
+    if (!known) return setWinGuide(true);  // premier accès : le guide demande le compte et crée l'alias
+    await autoSave("ssh", { ssh: known.alias, health: undefined });
+    try {
+      const r = await send<{ lines: string[]; failed: number }>("POST", `machines/settings/${ip}/check`);
+      if (r.failed) { setReuse({ ok: false, text: tx("L'accès existe mais la connexion échoue : la clé n'est pas (ou plus) autorisée sur la machine.") }); setWinGuide(true); }
+      else setReuse({ ok: true, text: tx("Accès rétabli : la clé est déjà valide, rien à refaire.") });
+    } catch (e) {
+      if (e instanceof LoginRequired) location.replace(LOGIN);
+      else setReuse({ ok: false, text: (e as Error).message });
+    }
   };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -386,25 +401,32 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
       <section className="rounded-xl border border-muted/60 bg-bg2/30 p-4 shadow-sm">
         <button type="button" onClick={() => setSshOpen(!sshOpen)} aria-expanded={sshOpen} className="flex w-full flex-wrap items-center gap-2 text-left">
           {sshOpen ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("Accès SSH")}</h4>
-          {live && <Badge tone={MSTATE[mState(live)][0]} title={MSTATE[mState(live)][2]}>{MSTATE[mState(live)][1]}</Badge>}
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{agentMode ? tx("Accès par l'agent") : tx("Accès SSH")}</h4>
+          {agentMode ? <Badge tone={agent ? (agent.state === "actif" ? "ok" : agent.state === "silencieux" ? "warn" : "info") : "off"}>{agent ? agent.state : tx("pas d'agent")}</Badge>
+          : live && <Badge tone={MSTATE[mState(live)][0]} title={MSTATE[mState(live)][2]}>{MSTATE[mState(live)][1]}</Badge>}
           {!sshOpen && <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-            {sshOn && <code className="font-mono text-xs text-muted">{sshWho}</code>}
+            {!agentMode && sshOn && <code className="font-mono text-xs text-muted">{sshWho}</code>}
             {gives.filter(([, on]) => on).map(([label, , why]) => <Badge key={label} tone="ok" title={why}>✓ {label}</Badge>)}
           </span>}
         </button>
         {sshOpen && <div className="mt-4 flex flex-col gap-4">
         <p className="text-xs leading-relaxed text-muted">
-          {tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache.")} <b className="text-txt">{tx("Lecture seule")}</b>{tx(" : rien n'y est modifié.")}
+          {agentMode ? tx("Un petit script PowerShell sur le PC envoie sa santé à MyServices : disques, services, processeur, mémoire, mises à jour, journal.") : tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache.")} <b className="text-txt">{tx("Lecture seule")}</b>{tx(" : rien n'y est modifié.")}
           <span className="block text-dim">{tx("Sans accès : ping et services web seulement.")}</span>
         </p>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-lg border border-line/60 bg-bg2/70 p-3">
           <label className="flex min-w-[240px] flex-1 items-center gap-3 text-sm">
-            <Switch on={sshOn} disabled={pending === "ssh"} onChange={(on) => void toggleSsh(on)} label={tx("Lecture par SSH")} />
-            <span><b>{sshOn ? tx("Actif") : tx("Inactif")}</b> <Saved k="ssh" />
-              <Dim> · {sshOn ? sshWho : tx("ping et services web seulement")}</Dim></span>
+            {agentMode ? <>
+              <Switch on={!!agent} onChange={() => { location.hash = `#settings/agents/${ip}`; }} label={tx("Lecture par l'agent")} />
+              <span><b>{agent ? tx("Actif") : tx("Inactif")}</b>
+                <Dim> · {agent ? (agent.last_seen ? tx("dernier relevé {0}", dateTime(agent.last_seen * 1000)) : tx("en attente du premier relevé")) : tx("cliquez pour installer l'agent")}</Dim></span>
+            </> : <>
+              <Switch on={sshOn} disabled={pending === "ssh"} onChange={(on) => void toggleSsh(on)} label={tx("Lecture par SSH")} />
+              <span><b>{sshOn ? tx("Actif") : tx("Inactif")}</b> <Saved k="ssh" />
+                <Dim> · {sshOn ? sshWho : tx("ping et services web seulement")}</Dim></span>
+            </>}
           </label>
-          {sshOn && !winGuide && live && ["refused", "nossh"].includes(mState(live)) && (
+          {!agentMode && sshOn && !winGuide && live && ["refused", "nossh"].includes(mState(live)) && (
             <button type="button" className="text-xs text-link hover:underline" onClick={() => setWinGuide(true)}>{tx("La connexion échoue ? Voir les commandes")}</button>
           )}
           <ul className="flex flex-wrap items-center justify-end gap-2" aria-label={tx("Ce que cet accès permet de lire")}>
@@ -413,7 +435,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
             ))}
           </ul>
         </div>
-        {winGuide && <SshGuide ip={ip} guess={windows || windowsGuess ? "windows" : "linux"} onCancel={() => setWinGuide(false)}
+        <NoteLine note={reuse} />
+        {winGuide && <SshGuide ip={ip} user={known?.user} guess={windows || windowsGuess ? "windows" : "linux"} onCancel={() => setWinGuide(false)}
           onReady={(alias) => autoSave("ssh", { os: undefined, ssh: alias, health: undefined })} />}
         {!windows && v.ssh && hasAdguard && (  // seulement si AdGuard a été trouvé sur la machine (ou déjà réglé) : sinon rien à montrer
           <div className="sm:max-w-[50%]">
@@ -428,7 +451,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
         </p>
         </div>}
       </section>
-      {agent && access && (
+      {agent && sshAccess && (
         <label className="flex flex-wrap items-center gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
           <b>{tx("Santé lue d'abord par")}</b> <Saved k="health_sources" />
           <select className={`${input} w-auto`} disabled={pending === "health_sources"} value={(v.health_sources as string[] | undefined)?.[0] ?? ""}
