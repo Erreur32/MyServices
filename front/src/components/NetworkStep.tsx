@@ -7,7 +7,7 @@ import { read, send } from "../api";
 import { act, button, input, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { dateTime } from "../lib/format";
-import { changes, interesting, needsLink, netState, quiet, tagsOf } from "../lib/netScan";
+import { changes, interesting, needsLink, netState, quiet, summarize, tagsOf } from "../lib/netScan";
 import { pokeScan } from "../lib/scan";
 import { ConnectorForm } from "../tabs/Connectors";
 import type { ConnectorsState, ConnectorType, NetHost, NetScan, SystemState } from "../types";
@@ -81,7 +81,11 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
 
   const toggle = (ip: string) => setPicked((p) => { const n = new Set(p); if (n.has(ip)) n.delete(ip); else n.add(ip); return n; });
   const found = (net?.found ?? []).filter((h) => !added[h.ip] && !known.includes(h.ip));
-  const useful = found.filter((h) => !quiet(h)), silent = found.filter(quiet);
+  const watch = found.filter(interesting);                              // liste principale : SSH, appli reconnue, service utile
+  const webOnly = found.filter((h) => !interesting(h) && !quiet(h));    // repliés : caméras, box, objets connectés…
+  const pingOnly = found.filter((h) => !interesting(h) && quiet(h));
+  const rest = webOnly.length + pingOnly.length;
+  const sum = net && net.phase === "done" ? summarize(net.found, known) : null;
   // Accès à régler : machines ajoutées à l'instant, plus celles déjà déclarées dont le SSH ou le jeton Home Assistant manque
   const pending = (net?.found ?? []).filter((h) => known.includes(h.ip) && !added[h.ip] && !dismissed.includes(h.ip) && needsLink(h, machines, connected));
   const toLink = [...Object.values(added), ...pending];
@@ -169,41 +173,62 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
         <p>{tx("Cherche les machines allumées sur votre réseau local (un seul sous-réseau /24, en lecture seule : ping, nom et quelques ports). Vous choisissez ensuite lesquelles ajouter ; rien n'est ajouté tout seul.")}</p>
       )}
       {net?.error && <p className="text-bad">⚠ {net.error}</p>}
-      {net && net.phase === "done" && !net.error && (
-        <p className="text-dim">
-          {net.stopped ? tx("Recherche arrêtée : ") : ""}{tx("{0} machine(s) nouvelle(s) sur {1}", net.found.length, net.net ?? "")}
-        </p>
-      )}
-      {diff && net?.phase === "done" && !net.stopped && (
-        <p className="text-sm" aria-live="polite">
-          {diff.fresh.size === 0 && diff.gone.length === 0
-            ? <span className="text-dim">{tx("Aucun changement depuis la recherche du {0}.", dateTime((net.previous_ended ?? 0) * 1000))}</span>
-            : <>
-                <b className="text-txt">{tx("Depuis la recherche du {0} :", dateTime((net.previous_ended ?? 0) * 1000))}</b>{" "}
-                {diff.fresh.size > 0 && <span className="text-warn">{tx("{0} nouvelle(s)", diff.fresh.size)}</span>}
-                {diff.fresh.size > 0 && diff.gone.length > 0 && " · "}
-                {diff.gone.length > 0 && <span className="text-bad" title={diff.gone.join(", ")}>{tx("{0} disparue(s) : {1}", diff.gone.length, diff.gone.slice(0, 4).join(", "))}{diff.gone.length > 4 ? "…" : ""}</span>}
-              </>}
-        </p>
+      {sum && scanned && !net.error && (
+        <section className="rounded-xl border border-line bg-bg2/40 p-3" aria-live="polite">
+          <p className="text-sm">
+            <b className="text-txt">{net.stopped ? tx("Scan arrêté : ") : ""}{tx("{0} appareil(s) sur {1}", sum.total, net.net ?? "")}</b>
+            {sum.known > 0 && <span className="text-dim"> · {tx("{0} déjà ajouté(s)", sum.known)}</span>}
+            {net.ended && <span className="text-dim"> · {tx("scan du {0}", dateTime(net.ended * 1000))}</span>}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <Badge tone={sum.watch ? "ok" : "off"}>{tx("{0} à regarder", sum.watch)}</Badge>
+            {sum.ssh > 0 && <Badge tone="ok">SSH {sum.ssh}</Badge>}
+            {sum.apps > 0 && <Badge tone="info">{tx("{0} applis reconnues", sum.apps)}</Badge>}
+            {sum.shares > 0 && <Badge tone="off">{tx("{0} partages / bureau à distance", sum.shares)}</Badge>}
+            {sum.webOnly > 0 && <Badge tone="off">{tx("{0} pages web seules (repliées)", sum.webOnly)}</Badge>}
+            {sum.pingOnly > 0 && <Badge tone="off">{tx("{0} ping seulement (repliés)", sum.pingOnly)}</Badge>}
+          </div>
+          {diff && !net.stopped && (
+            <p className="mt-2 text-sm">
+              {diff.fresh.size === 0 && diff.gone.length === 0
+                ? <span className="text-dim">{tx("Aucun changement depuis le scan du {0}.", dateTime((net.previous_ended ?? 0) * 1000))}</span>
+                : <>
+                    <b className="text-txt">{tx("Depuis le scan du {0} :", dateTime((net.previous_ended ?? 0) * 1000))}</b>{" "}
+                    {diff.fresh.size > 0 && <span className="text-warn">{tx("{0} nouvelle(s)", diff.fresh.size)}</span>}
+                    {diff.fresh.size > 0 && diff.gone.length > 0 && " · "}
+                    {diff.gone.length > 0 && <span className="text-bad" title={diff.gone.join(", ")}>{tx("{0} disparue(s) : {1}", diff.gone.length, diff.gone.slice(0, 4).join(", "))}{diff.gone.length > 4 ? "…" : ""}</span>}
+                  </>}
+            </p>
+          )}
+        </section>
       )}
       {found.length > 0 && (
         <>
-          {picked.size > 0 && <p className="text-sm text-dim">{tx("{0} machine(s) pré-sélectionnée(s) : SSH, appli reconnue ou service utile. Décochez ce que vous ne voulez pas.", picked.size)}</p>}
-          {useful.length > 0 && <ul className="flex flex-col gap-1.5">{renderRows(useful)}</ul>}
-          {silent.length > 0 && (
-            <details open={silent.some((h) => diff?.fresh.has(h.ip))} className="rounded-lg border border-line/60 px-3 py-2">
+          {watch.length > 0 && (
+            <>
+              <p className="text-sm font-semibold text-txt">
+                {tx("À regarder")} <span className="font-normal text-dim">({watch.length}) · {tx("cochées d'office : SSH, appli reconnue ou service utile ; décochez ce que vous ne voulez pas")}</span>
+              </p>
+              <ul className="flex flex-col gap-1.5">{renderRows(watch)}</ul>
+            </>
+          )}
+          {watch.length === 0 && rest > 0 && <p className="text-sm text-dim">{tx("Rien d'évident à ajouter dans ce scan : les appareils trouvés sont repliés ci-dessous.")}</p>}
+          {rest > 0 && (
+            <details open={[...webOnly, ...pingOnly].some((h) => diff?.fresh.has(h.ip))} className="rounded-lg border border-line/60 px-3 py-2">
               <summary className="cursor-pointer text-sm text-muted">
-                {tx("{0} appareil(s) sans service reconnu (ils répondent au ping seulement)", silent.length)}
-                {silent.some((h) => diff?.fresh.has(h.ip)) && <> <Badge tone="warn">{tx("nouvelle")}</Badge></>}
+                {tx("{0} autre(s) appareil(s) : pages web seules, caméras, objets connectés, ping seulement", rest)}
+                {[...webOnly, ...pingOnly].some((h) => diff?.fresh.has(h.ip)) && <> <Badge tone="warn">{tx("nouvelle")}</Badge></>}
               </summary>
-              <ul className="mt-2 flex flex-col gap-1.5">{renderRows(silent)}</ul>
+              <p className="mt-2 text-xs text-dim">{tx("On n'y touche pas : décochés. Cochez-en un si vous voulez le suivre quand même.")}</p>
+              {webOnly.length > 0 && (<><p className="mt-2 text-xs font-semibold text-muted">{tx("Pages web seules")} ({webOnly.length})</p><ul className="mt-1 flex flex-col gap-1.5">{renderRows(webOnly)}</ul></>)}
+              {pingOnly.length > 0 && (<><p className="mt-3 text-xs font-semibold text-muted">{tx("Répondent au ping seulement")} ({pingOnly.length})</p><ul className="mt-1 flex flex-col gap-1.5">{renderRows(pingOnly)}</ul></>)}
             </details>
           )}
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" className={primary} disabled={busy || picked.size === 0} onClick={() => void addPicked()}>
               <Check size={14} aria-hidden />{tx("Ajouter la sélection")} {picked.size > 0 && `(${picked.size})`}
             </button>
-            <button type="button" className={quietBtn} onClick={() => setPicked(new Set(useful.map((h) => h.ip)))}>{tx("Tout sélectionner")}</button>
+            <button type="button" className={quietBtn} onClick={() => setPicked(new Set(watch.map((h) => h.ip)))}>{tx("Tout sélectionner")}</button>
           </div>
         </>
       )}
@@ -227,11 +252,6 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
       )}
       <div className="flex flex-col gap-2 border-t border-line/60 pt-3">
         {actions}
-        {scanned && net?.ended && (
-          <span className="text-sm text-dim">
-            {tx("Dernier scan : {0}. À refaire de temps en temps pour voir ce qui est apparu ou disparu sur le réseau.", dateTime(net.ended * 1000))}
-          </span>
-        )}
       </div>
       <NoteLine note={note} />
     </div>

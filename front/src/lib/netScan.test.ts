@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changes, interesting, needsLink, quiet, tagsOf } from "./netScan";
+import { changes, interesting, needsLink, quiet, summarize, tagsOf } from "./netScan";
 
 const labels = (h: { hints: string[]; apps: string[] }) => tagsOf(h).map((t) => t.label);
 
@@ -71,5 +71,27 @@ describe("needsLink", () => {
   });
   it("machine sans SSH : rien à régler", () => {
     expect(needsLink({ ip: "10.0.0.6", apps: [] }, [{ ip: "10.0.0.6" }], [])).toBeNull();
+  });
+});
+
+describe("summarize", () => {
+  const h = (ip: string, hints: string[], apps: string[] = [], ssh_port: number | null = null) => ({ ip, hints, apps, ssh_port });
+  const found = [
+    h("1", ["SSH :22232", "partage SMB"], [], 22232),   // à regarder : SSH + partage
+    h("2", ["web :80"], ["Plex"]),                      // à regarder : appli
+    h("3", ["Windows (RDP)"]),                          // à regarder : bureau à distance
+    h("4", ["web :80"]), h("5", ["web :443"]),          // replié : web seul (caméras…)
+    h("6", []), h("7", []),                             // replié : ping seulement
+    h("8", ["SSH"], [], 22),                            // déjà ajoutée
+  ];
+  it("compte ce qui est à regarder et ce qui est replié", () => {
+    expect(summarize(found, ["8"])).toEqual({ total: 8, known: 1, candidates: 7, watch: 3, ssh: 1, apps: 1, shares: 2, webOnly: 2, pingOnly: 2 });
+  });
+  it("rien trouvé", () => {
+    expect(summarize([], [])).toEqual({ total: 0, known: 0, candidates: 0, watch: 0, ssh: 0, apps: 0, shares: 0, webOnly: 0, pingOnly: 0 });
+  });
+  it("tout est replié quand rien n'est intéressant (réseau de caméras)", () => {
+    const s = summarize([h("1", ["web :80"]), h("2", ["web :80"])], []);
+    expect([s.watch, s.webOnly]).toEqual([0, 2]);
   });
 });
