@@ -10,7 +10,9 @@ import { Field, NoteLine, Switch } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { ipNum } from "../lib/format";
-import type { Detection, MachineConf, MachinesSettings as State, NetScan } from "../types";
+import type { Detection, MachineConf, MachinesSettings as State, NetHost, NetScan } from "../types";
+import { DISMISSED_KEY } from "../lib/firstSteps";
+import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
 import { MSTATE, mState, osOfMachine } from "../lib/machines";
 import { SshGuide } from "../components/SshGuide";
@@ -32,7 +34,8 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
   const [detecting, setDetecting] = useState(false);
   // Système vu par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas (suggestion)
   const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[] }>>({});
-  useEffect(() => { read<NetScan>("network/scan").then((n) => setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [] }])))).catch(() => undefined); }, []);
+  const [hosts, setHosts] = useState<NetHost[]>([]);
+  useEffect(() => { read<NetScan>("network/scan").then((n) => { setHosts(n.found || []); setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [] }]))); }).catch(() => undefined); }, []);
   const reload = useCallback(() => {
     read<State>("machines/settings")
       .then((s) => { setSt(s); setError(""); })
@@ -41,6 +44,17 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
   useEffect(reload, [reload]);
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   const live = new Map((snap.data.machine_list || []).map((m) => [m.ip, m]));
+  // « Non terminé » : accès encore à régler (SSH absent alors que la machine l'offre, jeton Home Assistant manquant). Ceux que l'on
+  // a fait « Passer » dans les premiers pas le sont forcément : on le dit aussi ici, pour ne pas les oublier.
+  let passed: string[] = [];
+  try { passed = JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]") as string[]; } catch { /* mémoire du navigateur illisible */ }
+  const asMachines = Object.entries(st.machines).map(([ip, c]) => ({ ip, ssh: c.ssh ?? (typeof c.health === "string" ? c.health : null) }));
+  const unfinished: Record<string, { why: "ha" | "ssh"; passed: boolean }> = {};
+  for (const h of hosts) {
+    if (!st.machines[h.ip] || st.machines[h.ip].disabled) continue;
+    const why = needsLink(h, asMachines, snap.data.services_status ?? []);
+    if (why) unfinished[h.ip] = { why, passed: passed.includes(h.ip) };
+  }
   const ips = Object.keys(st.machines).sort((a, b) => ipNum(a) - ipNum(b));
   return (
     <div className="flex flex-col gap-4">
@@ -59,7 +73,7 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
         {ips.map((ip) => {
           const lm = live.get(ip);
           const stat = (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.name === ip || c.name === lm?.name));
-          return <MachineRow key={ip} scan={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
+          return <MachineRow key={ip} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
         })}
       </div>
     </div>
@@ -133,8 +147,8 @@ function Proposal({ d, st, onDone }: { d: Detection; st: State; onDone: () => vo
   );
 }
 
-function MachineRow({ ip, m, st, live, statuses, reload, focus, scan }: {
-  scan?: { os?: string; apps: string[] }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
+function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished }: {
+  unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[] }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
 }) {
   const [open, setOpen] = useState(!!focus), [confirm, setConfirm] = useState(false);  // focus : arrivée depuis un lien (Connecteurs → machine)
   const card = useRef<HTMLDivElement>(null);
@@ -163,6 +177,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan }: {
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl p-3 text-left hover:bg-bg2">
         <Chevron size={14} className="text-dim" /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl }} scan={scan} reserve /><b>{m.name}</b><Dim>{ip}</Dim>
         <span className="ml-auto flex items-center gap-1.5">
+          {unfinished && <Badge tone="warn" title={unfinished.why === "ha" ? tx("Jeton Home Assistant manquant") : tx("Accès SSH à régler")}>{unfinished.passed ? tx("Non terminé (passé)") : tx("Non terminé")}</Badge>}
           {m.off && <Badge tone="off">{tx("souvent éteinte")}</Badge>}
           {live && sshWarn(live) && <Badge tone="warn" title={tx("sshd : root ou mot de passe autorisé")}>{tx("sshd")}</Badge>}
           {statuses.some((c) => !c.ok) && <Badge tone="bad">{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
@@ -172,6 +187,13 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan }: {
       </button>
       {open && (
         <div className="flex flex-col gap-3 px-3 pb-3">
+          {unfinished && (
+            <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
+              <b className="text-warn">{tx("Non terminé")}</b>{unfinished.passed ? ` · ${tx("vous l'aviez passé dans les premiers pas")}` : ""} {" : "}
+              {unfinished.why === "ha" ? <>{tx("le jeton de Home Assistant manque : ")}<a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a></>
+                : tx("cette machine offre SSH mais MyServices n'y a pas d'accès : activez « Lecture par SSH » ci-dessous.")}
+            </p>
+          )}
           {live && (
             <section className="rounded-lg border border-line/60 bg-bg2/40 p-2.5">
               <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("SSH, relevé par la collecte")}</h4>
