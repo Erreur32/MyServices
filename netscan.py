@@ -28,7 +28,7 @@ import known_apps
 
 # Ports regardés sur une machine qui répond : port -> indice affiché (reprend l'assistant d'installation)
 HINT_PORTS = {3389: "Windows (RDP)", 445: "partage SMB", 9419: "Veeam B&R (API 9419)", 8006: "Proxmox",
-              5000: "port 5000", 8123: "Home Assistant", 81: "admin NPM", 80: "web", 443: "web", 32400: "Plex"}
+              5000: "port 5000", 8123: "Home Assistant", 4357: "Home Assistant (observer :4357)", 81: "admin NPM", 80: "web", 443: "web", 32400: "Plex"}
 # Ports regardés seulement pour deviner le système (jamais affichés comme indice) : RPC/NetBIOS Windows, AFP et VNC macOS, iPhone / iPad
 OS_PORTS = (135, 139, 548, 5900, 62078)
 RASPBERRY_OUI = ("b8:27:eb", "dc:a6:32", "e4:5f:01", "28:cd:c1", "d8:3a:dd")  # adresses MAC des Raspberry Pi : toujours Linux
@@ -224,10 +224,8 @@ def _describe(ip: str, probe=_open, lookup=socket.gethostbyaddr, banner=_ssh_ban
     def hint(p: int) -> str | None:
         if p in (80, 443):
             return f"web :{p}"
-        if p == 5000:  # reconnu par sa page (Frigate…) : c'est l'appli qui le dit ; sinon le titre ; sinon « port 5000 »
-            if 5000 in titled and known_apps.identify(title=titled[5000]):
-                return None
-            return f"web :5000 · {titled[5000]}" if 5000 in titled else HINT_PORTS[p]
+        if p == 5000:  # sert à trop de choses pour être un indice : montré seulement si sa page est reconnue (alors c'est l'appli, en étiquette d'appli)
+            return None
         return HINT_PORTS[p]
     hints = list(dict.fromkeys(h for p in opened if p not in app_of and (h := hint(p))))
     if ssh_port:

@@ -52,7 +52,7 @@ APPS: tuple[App, ...] = (
     App("radarr", "Radarr", "Médias", ports=(7878,), title=r"^radarr", images=("linuxserver/radarr", "hotio/radarr")),
     App("jellyfin", "Jellyfin", "Médias", ports=(8096,), title=r"jellyfin", images=("jellyfin/jellyfin", "linuxserver/jellyfin")),
     App("plex", "Plex", "Médias", ports=(32400,), title=r"^plex", images=("plexinc/pms-docker", "linuxserver/plex")),
-    App("homeassistant", "Home Assistant", "Domotique", ports=(8123,), title=r"home assistant", connector="home-assistant"),
+    App("homeassistant", "Home Assistant", "Domotique", ports=(8123, 4357), title=r"home assistant", connector="home-assistant"),
     App("proxmox", "Proxmox VE", "Infra / virtualisation", ports=(8006,), title=r"proxmox", host=r"^proxmox"),
     App("unifi", "UniFi", "Réseau / DNS", title=r"unifi", host=r"^(unifi|udm|ucg|usg)"),  # lu plus tard par l'API MynetworK, pas par SSH
     App("synology", "Synology DSM", "Fichiers / sync", title=r"synology"),

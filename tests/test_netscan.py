@@ -340,17 +340,25 @@ class MultiReseauxEtDiscret(unittest.TestCase):
         with self.assertRaises(ValueError):
             netscan.targets("192.168.1.0/24,10.0.0.0/16")
 
-    def test_port_5000_lit_la_page_au_lieu_d_une_etiquette_generique(self):
+    def test_port_5000_sans_appli_reconnue_n_est_pas_un_indice(self):
         base = dict(probe=lambda ip, p: p in (5000, 445), lookup=lambda ip: ("tower", [], []), banner=lambda ip, p: "", ssh=(22,),
                     ttl=lambda ip: None, vendor=lambda ip: None)
         d = netscan._describe("10.0.0.9", page=lambda ip, p: "Frigate" if p == 5000 else None, **base)
-        self.assertEqual((d["hints"], d["apps"]), (["partage SMB"], ["Frigate"]))      # reconnu : l'appli le dit, plus de « port 5000 »
-        d = netscan._describe("10.0.0.9", page=lambda ip, p: "Mon appli" if p == 5000 else None, **base)
-        self.assertEqual(d["hints"], ["partage SMB", "web :5000 · Mon appli"])   # titre inconnu : il est gardé
-        d = netscan._describe("10.0.0.9", page=lambda ip, p: None, **base)
-        self.assertEqual(d["hints"], ["partage SMB", "port 5000"])                     # rien ne répond en HTTP : l'étiquette neutre
+        self.assertEqual((d["hints"], d["apps"]), (["partage SMB"], ["Frigate"]))      # reconnu : c'est l'appli qui le dit
         d = netscan._describe("10.0.0.9", page=lambda ip, p: "MyElectricalData" if p == 5000 else None, **base)
-        self.assertEqual(d["apps"], ["MyElectricalData"])
+        self.assertEqual((d["hints"], d["apps"]), (["partage SMB"], ["MyElectricalData"]))
+        for title in ("Mon appli", None):                                              # inconnu ou muet : plus de « port 5000 »
+            d = netscan._describe("10.0.0.9", page=lambda ip, p: title if p == 5000 else None, **base)
+            self.assertEqual((d["hints"], d["apps"]), (["partage SMB"], []))
+
+    def test_home_assistant_par_ses_ports(self):
+        base = dict(lookup=lambda ip: ("ha", [], []), banner=lambda ip, p: "", ssh=(22,), page=lambda ip, p: None,
+                    ttl=lambda ip: None, vendor=lambda ip: None)
+        for port in (8123, 4357):
+            d = netscan._describe("10.0.0.9", probe=lambda ip, p, port=port: p == port, **base)
+            self.assertEqual(d["apps"], ["Home Assistant"], port)
+        d = netscan._describe("10.0.0.9", probe=lambda ip, p: p == 80, **{**base, "page": lambda ip, p: "Home Assistant"})
+        self.assertEqual(d["apps"], ["Home Assistant"])                                # HA servi sur le port 80 : reconnu par sa page
 
     def test_nom_devine_sans_dns_netbios_puis_certificat(self):
         base = dict(lookup=lambda ip: (_ for _ in ()).throw(OSError("pas de nom")), banner=lambda ip, p: "", ssh=(22,), page=lambda ip, p: None,
