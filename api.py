@@ -360,7 +360,8 @@ def _netscan_file():
 @app.get(API + "/network/scan", tags=["réseau"], summary="Dernière recherche de machines sur le réseau local (admin)")
 def network_scan_state(request: Request):
     import netscan
-    return admin_only(request) or JSONResponse(netscan.state(_netscan_file()), headers={"Cache-Control": "no-store"})
+    return admin_only(request) or JSONResponse({**netscan.state(_netscan_file()), "ignored": [e["ip"] for e in core.CFG["netscan_ignored"]]},
+                                               headers={"Cache-Control": "no-store"})
 
 
 @app.post(API + "/network/scan", tags=["réseau"], summary="Chercher les machines du réseau local : ping, nom, ports (lecture seule) (admin)")
@@ -406,6 +407,37 @@ def network_settings_set(body: NetscanEvery, request: Request):
         return deny(400, str(e))
     store().audit("recherche réseau", request.state.user["username"], ip_of(request), " ; ".join(what))
     return {"ok": True, **(out or system.netscan_settings(core))}
+
+
+class IgnoreBody(BaseModel):
+    ip: str
+    name: str = ""
+
+
+@app.post(API + "/network/ignored", tags=["réseau"], summary="Ne plus proposer un appareil trouvé par la recherche (admin)")
+def network_ignore(body: IgnoreBody, request: Request):
+    import system
+    if denied := admin_write(request):
+        return denied
+    try:
+        out = system.set_netscan_ignored(core, body.ip, body.name, True)
+    except ValueError as e:
+        return deny(400, str(e))
+    store().audit("appareil ignoré", request.state.user["username"], ip_of(request), body.ip)
+    return {"ok": True, **out}
+
+
+@app.delete(API + "/network/ignored/{ip}", tags=["réseau"], summary="Proposer de nouveau un appareil ignoré (admin)")
+def network_unignore(ip: str, request: Request):
+    import system
+    if denied := admin_write(request):
+        return denied
+    try:
+        out = system.set_netscan_ignored(core, ip, "", False)
+    except ValueError as e:
+        return deny(400, str(e))
+    store().audit("appareil de nouveau proposé", request.state.user["username"], ip_of(request), ip)
+    return {"ok": True, **out}
 
 
 @app.post(API + "/network/scan/stop", tags=["réseau"], summary="Arrêter la recherche en cours (admin)")

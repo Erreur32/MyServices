@@ -167,6 +167,7 @@ export interface NetScan {
   previous?: string[];
   previous_ended?: number | null;
   gone?: string[];
+  ignored?: string[];  // appareils que l'auteur ne veut plus voir proposés
   started: number | null;
   ended: number | null;
   error: string | null;

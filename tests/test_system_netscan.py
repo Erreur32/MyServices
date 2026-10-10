@@ -20,7 +20,7 @@ class NetscanEvery(unittest.TestCase):
         self.dir = tempfile.TemporaryDirectory()
         self.f = Path(self.dir.name) / "config.json"
         self.f.write_text(json.dumps({"public_url": "http://x/"}), encoding="utf-8")
-        self.core = types.SimpleNamespace(CFG={"netscan_every": 6, "netscan_nets": [], "netscan_discreet": False}, HERE=self.dir.name)
+        self.core = types.SimpleNamespace(CFG={"netscan_every": 6, "netscan_nets": [], "netscan_ignored": [], "netscan_discreet": False}, HERE=self.dir.name)
         env = {k: v for k, v in os.environ.items() if k != "MYSERVICES_NETSCAN_EVERY"}
         env["MYSERVICES_CONFIG"] = str(self.f)
         self.patch = mock.patch.dict(os.environ, env, clear=True)
@@ -34,7 +34,7 @@ class NetscanEvery(unittest.TestCase):
         return json.loads(self.f.read_text(encoding="utf-8"))
 
     def test_defaut(self):
-        self.assertEqual(system.netscan_settings(self.core), {"every_h": 6, "default_h": 6, "max_h": 168, "fixed": False, "nets": [], "discreet": False})
+        self.assertEqual(system.netscan_settings(self.core), {"every_h": 6, "default_h": 6, "max_h": 168, "fixed": False, "nets": [], "ignored": [], "discreet": False})
 
     def test_change_et_applique_tout_de_suite(self):
         out = system.set_netscan_every(self.core, 12)
@@ -81,6 +81,16 @@ class NetscanEvery(unittest.TestCase):
         self.assertTrue(self.raw()["netscan_discreet"])
         system.set_netscan_discreet(self.core, False)
         self.assertNotIn("netscan_discreet", self.raw())
+
+    def test_ignorer_puis_reproposer(self):
+        out = system.set_netscan_ignored(self.core, "192.168.1.30", " Caméra ")
+        self.assertEqual(out["ignored"], [{"ip": "192.168.1.30", "name": "Caméra"}])
+        system.set_netscan_ignored(self.core, "192.168.1.30", "autre")  # pas de doublon
+        self.assertEqual(self.raw()["netscan_ignored"], [{"ip": "192.168.1.30", "name": "autre"}])
+        system.set_netscan_ignored(self.core, "192.168.1.30", ignore=False)
+        self.assertNotIn("netscan_ignored", self.raw())
+        with self.assertRaises(ValueError):
+            system.set_netscan_ignored(self.core, "pas une ip")
 
 
 if __name__ == "__main__":

@@ -73,7 +73,7 @@ def netscan_settings(core) -> dict:
     """Recherche réseau automatique : toutes les `every_h` heures (0 = coupée) ; `fixed` si MYSERVICES_NETSCAN_EVERY l'impose."""
     return {"every_h": core.CFG["netscan_every"], "default_h": NETSCAN_DEFAULT_H, "max_h": NETSCAN_MAX_H,
             "fixed": "MYSERVICES_NETSCAN_EVERY" in os.environ,
-            "nets": core.CFG["netscan_nets"], "discreet": core.CFG["netscan_discreet"]}
+            "nets": core.CFG["netscan_nets"], "ignored": core.CFG["netscan_ignored"], "discreet": core.CFG["netscan_discreet"]}
 
 
 def set_netscan_every(core, hours: int) -> dict:
@@ -116,6 +116,29 @@ def set_netscan_nets(core, nets: list[str]) -> dict:
             raw.pop("netscan_nets", None)
     _update_config(core, change)
     core.CFG["netscan_nets"] = clean
+    return netscan_settings(core)
+
+
+def set_netscan_ignored(core, ip: str, name: str = "", ignore: bool = True) -> dict:
+    """Ajoute (ignore) ou retire (ignore=False) un appareil de la liste de ceux que la recherche ne propose plus."""
+    import ipaddress
+    try:
+        ip = str(ipaddress.IPv4Address(ip.strip()))
+    except ValueError:
+        raise ValueError(f"« {ip} » n'est pas une adresse IPv4") from None
+    kept = [e for e in core.CFG["netscan_ignored"] if e["ip"] != ip]
+    if ignore:
+        if len(kept) >= 500:
+            raise ValueError("500 appareils ignorés au plus")
+        kept.append({"ip": ip, "name": name.strip()[:60]})
+
+    def change(raw: dict) -> None:
+        if kept:
+            raw["netscan_ignored"] = kept
+        else:
+            raw.pop("netscan_ignored", None)
+    _update_config(core, change)
+    core.CFG["netscan_ignored"] = kept
     return netscan_settings(core)
 
 

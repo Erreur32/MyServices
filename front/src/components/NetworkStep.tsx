@@ -1,7 +1,7 @@
 // Étape « Recherche des autres machines du réseau » de Premiers pas : lancer la recherche, choisir les machines à
 // ajouter, puis, pour celles qui répondent en SSH, préparer l'accès (alias + commande à autoriser + test).
 // Lecture seule sur le réseau ; rien n'est ajouté sans que l'admin le demande.
-import { Check, Circle, KeyRound, Loader2, Plug, RefreshCw, RotateCcw, Search, Square, X } from "lucide-react";
+import { Check, Circle, EyeOff, KeyRound, Loader2, Plug, RefreshCw, RotateCcw, Search, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { read, send } from "../api";
 import { act, button, input, primary, type Note } from "../lib/forms";
@@ -100,7 +100,8 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
   const stop = async () => { await send("POST", "network/scan/stop"); reload(); };
 
   const toggle = (ip: string) => setPicked((p) => { const n = new Set(p); if (n.has(ip)) n.delete(ip); else n.add(ip); return n; });
-  const found = (net?.found ?? []).filter((h) => !added[h.ip] && !known.includes(h.ip));
+  const found = (net?.found ?? []).filter((h) => !added[h.ip] && !known.includes(h.ip) && !net?.ignored?.includes(h.ip));
+  const hiddenCount = (net?.found ?? []).filter((h) => !known.includes(h.ip) && net?.ignored?.includes(h.ip)).length;
   const watch = found.filter(interesting);                              // liste principale : SSH, appli reconnue, service utile
   const webOnly = found.filter((h) => !interesting(h) && !quiet(h));    // repliés : caméras, box, objets connectés…
   const pingOnly = found.filter((h) => !interesting(h) && quiet(h));
@@ -126,13 +127,21 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
   );
 
   const renderRows = (list: NetHost[]) => list.map((h) => (
-    <li key={h.ip}>
-      <label className="flex cursor-pointer flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2 hover:bg-bg2">
+    <li key={h.ip} className="flex items-center gap-1 rounded-lg bg-bg2/60 hover:bg-bg2">
+      <label className="flex min-w-0 flex-1 cursor-pointer flex-wrap items-center gap-2 px-3 py-2">
         <input type="checkbox" className="h-4 w-4 accent-[rgb(var(--link))]" checked={picked.has(h.ip)} onChange={() => toggle(h.ip)} />
         <HostInfo h={h} fresh={!!diff?.fresh.has(h.ip)} hint={picked.has(h.ip)} />
       </label>
+      <button type="button" className="mr-2 shrink-0 rounded-md p-1.5 text-dim hover:bg-line/40 hover:text-txt" aria-label={tx("Ignorer {0}", h.name || h.ip)}
+        title={tx("Ignorer : ne plus le proposer (à reprendre dans Réglages → Recherche réseau)")} onClick={() => void ignore(h)}><EyeOff size={15} aria-hidden /></button>
     </li>
   ));
+
+  const ignore = async (h: NetHost) => {
+    setPicked((p) => { const n = new Set(p); n.delete(h.ip); return n; });
+    await act(() => send("POST", "network/ignored", { ip: h.ip, name: h.name || "" }), tx("{0} ignoré : retrouvez-le dans Réglages → Recherche réseau", h.name || h.ip), setNote);
+    reload();
+  };
 
   const addPicked = async () => {
     setBusy(true);
@@ -245,6 +254,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
               {pingOnly.length > 0 && (<><p className="mt-3 text-xs font-semibold text-muted">{tx("Répondent au ping seulement")} ({pingOnly.length})</p><ul className="mt-1 flex flex-col gap-1.5">{renderRows(pingOnly)}</ul></>)}
             </details>
           )}
+          {hiddenCount > 0 && <p className="text-xs text-dim">{tx("{0} appareil(s) ignoré(s) : à reprendre dans Réglages → Recherche réseau.", hiddenCount)}</p>}
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" className={primary} disabled={busy || picked.size === 0} onClick={() => void addPicked()}>
               <Check size={14} aria-hidden />{tx("Ajouter la sélection")} {picked.size > 0 && `(${picked.size})`}

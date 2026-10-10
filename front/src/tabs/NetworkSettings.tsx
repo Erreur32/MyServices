@@ -1,6 +1,6 @@
 // Réglages → Recherche réseau : le scan du réseau local (lecture seule) et sa fréquence automatique ; relancer à la main,
 // refaire le parcours des premiers pas. Le premier scan est toujours manuel : l'automatique ne démarre qu'après lui.
-import { ListChecks, RotateCcw, Search } from "lucide-react";
+import { EyeOff, ListChecks, RotateCcw, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { NoteLine } from "../components/form";
@@ -12,7 +12,7 @@ import { tx } from "../lib/i18n";
 import { pokeScan } from "../lib/scan";
 import type { NetScan } from "../types";
 
-interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean }
+interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean; ignored: { ip: string; name: string }[] }
 
 export function NetworkSettings() {
   const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
@@ -88,6 +88,21 @@ export function NetworkSettings() {
           <span><b>{tx("Mode discret")}</b> <Dim>{tx("— ne lit ni le TTL du ping ni l'adresse MAC : le système des machines n'est alors plus deviné par là.")}</Dim></span>
         </label>
         <NoteLine note={note} />
+      </Card>
+      <Card>
+        <h2 className="mb-1 flex items-center gap-2 font-bold"><EyeOff size={16} />{tx("Appareils ignorés")} <Dim>· {cfg.ignored.length}</Dim></h2>
+        <p className="mb-3 text-sm text-muted">{tx("Ces appareils ne sont plus proposés par la recherche (bouton « Ignorer » dans les premiers pas). Reprenez-en un pour qu'il soit de nouveau proposé.")}</p>
+        {cfg.ignored.length === 0 ? <Dim>{tx("Aucun appareil ignoré.")}</Dim> : (
+          <ul className="flex flex-col divide-y divide-line/60">
+            {cfg.ignored.map((e) => (
+              <li key={e.ip} className="flex items-center gap-3 py-2 text-sm">
+                <b className="min-w-0 flex-1 truncate">{e.name || e.ip}</b>
+                <code className="font-mono text-xs text-dim">{e.ip}</code>
+                <button type="button" className={quiet} onClick={() => void act(() => send("DELETE", `network/ignored/${e.ip}`), tx("{0} sera de nouveau proposé", e.name || e.ip), setNote).then(() => load())}>{tx("Reprendre")}</button>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
       <Card>
         <h2 className="mb-2 font-bold">{tx("Actions")}</h2>
