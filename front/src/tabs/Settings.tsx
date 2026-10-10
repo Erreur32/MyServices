@@ -150,6 +150,9 @@ function Accounts({ me }: { me: string }) {
   return (
     <div className="flex flex-col gap-4">
       {error && <p className="rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">⚠ {error}</p>}
+      <p className="text-sm text-muted">
+        {tx("Ton mot de passe et tes sessions :")} <a className="font-semibold text-link hover:underline" href="#profile">{tx("Profil")} →</a>
+      </p>
       <div className="grid gap-4 xl:grid-cols-2">
         <AddUser onDone={reload} />
         <SessionDays />
