@@ -75,6 +75,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
   const [laterHidden, setLaterHidden] = useState(() => localStorage.getItem(LATER_HIDDEN_KEY) === "1");
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [names, setNames] = useState<Record<string, string>>({});  // nom choisi avant l'ajout (sinon : nom DNS, sinon l'IP)
   // Machines ajoutées dont les options (SSH, jeton) restent à régler : gardées si la page est rechargée, retirées par « Terminé »
   const [added, setAdded] = useState<Record<string, NetHost>>(loadAdded);
   useEffect(() => { sessionStorage.setItem(ADDED, JSON.stringify(added)); }, [added]);
@@ -132,6 +133,11 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
         <input type="checkbox" className="h-4 w-4 accent-[rgb(var(--link))]" checked={picked.has(h.ip)} onChange={() => toggle(h.ip)} />
         <HostInfo h={h} fresh={!!diff?.fresh.has(h.ip)} hint={picked.has(h.ip)} />
       </label>
+      {picked.has(h.ip) && (
+        <input className={`${input} w-40 shrink-0 py-1 text-xs`} value={names[h.ip] ?? h.name ?? ""} maxLength={60} placeholder={h.ip}
+          aria-label={tx("Nom de {0}", h.ip)} title={tx("Nom donné à la machine une fois ajoutée (modifiable ici avant l'ajout)")}
+          onChange={(e) => setNames((n) => ({ ...n, [h.ip]: e.target.value }))} />
+      )}
       <button type="button" className="mr-2 shrink-0 rounded-md p-1.5 text-dim hover:bg-line/40 hover:text-txt" aria-label={tx("Ignorer {0}", h.name || h.ip)}
         title={tx("Ignorer : ne plus le proposer (à reprendre dans Réglages → Recherche réseau)")} onClick={() => void ignore(h)}><EyeOff size={15} aria-hidden /></button>
     </li>
@@ -148,12 +154,13 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
     const done: Record<string, NetHost> = {};
     await act(async () => {
       for (const h of found.filter((x) => picked.has(x.ip))) {
-        await send("PUT", `machines/settings/${h.ip}`, { machine: { name: h.name || h.ip, role: h.hints.join(", ") }, extra: [] });
+        await send("PUT", `machines/settings/${h.ip}`, { machine: { name: (names[h.ip] ?? h.name ?? "").trim() || h.ip, role: h.hints.join(", ") }, extra: [] });
         done[h.ip] = h;
       }
     }, tx("machines ajoutées : prises en compte au prochain passage de la collecte"), setNote);
     setAdded((a) => ({ ...a, ...done }));
     setPicked(new Set());
+    setNames({});
     if (Object.keys(done).length) {  // les machines ajoutées apparaissent après un passage de la collecte
       await send("POST", "system/tasks/collect/run").catch(() => undefined);
       pokeScan();

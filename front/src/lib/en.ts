@@ -553,6 +553,8 @@ export const EN: Record<string, string> = {
   "Joignable seulement par NPM": "Reachable only through NPM",
   "Jour :": "Day:",
   "Compte": "Account",
+  "Nom de {0}": "Name of {0}",
+  "Nom donné à la machine une fois ajoutée (modifiable ici avant l'ajout)": "Name given to the machine once added (editable here before adding)",
   "Ignorer {0}": "Ignore {0}",
   "Ignorer : ne plus le proposer (à reprendre dans Réglages → Recherche réseau)": "Ignore: stop suggesting it (take it back in Settings → Network search)",
   "{0} ignoré : retrouvez-le dans Réglages → Recherche réseau": "{0} ignored: find it again in Settings → Network search",
