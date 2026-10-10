@@ -32,6 +32,12 @@ const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
 /** Machine Windows déclarée (système ou accès de santé seul) : la commande « authorized_keys » ne la concerne pas */
 const isWindowsConf = (c?: MachineConf) => !!c && (c.os === "windows" || (typeof c.health === "string" && !c.ssh));
 
+/** « compte@adresse:port » de l'accès (alias) d'une machine, d'après la liste des accès connus */
+function sshWho(st: State, alias: string): string {
+  const a = st.aliases.find((x) => x.alias === alias);
+  return a ? `${a.user ? `${a.user}@` : ""}${a.ip || a.host}${a.port ? `:${a.port}` : ""}` : alias;
+}
+
 export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: string }) {
   const [st, setSt] = useState<State | null>(null);
   const [error, setError] = useState("");
@@ -77,7 +83,8 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
       <div className="grid items-start gap-3 lg:grid-cols-2">
         {ips.map((ip) => {
           const lm = live.get(ip);
-          const stat = (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.name === ip || c.name === lm?.name));
+          // Un PC Windows n'a ni Docker ni services en écoute à lire : pas d'état de connecteur SSH Linux (reste d'un ancien relevé)
+          const stat = st.machines[ip].os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.name === ip || c.name === lm?.name));
           return <MachineRow key={ip} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
         })}
       </div>
@@ -219,7 +226,15 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
                 : tx("cette machine offre SSH mais MyServices n'y a pas d'accès : activez « Lecture par SSH » ci-dessous.")}
             </p>
           )}
-          {live && (
+          {m.os === "windows" ? (
+            <section className="rounded-lg border border-line/60 bg-bg2/40 p-2.5 text-sm">
+              <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("PC Windows, relevé de la santé")}</h4>
+              {typeof m.health === "string" && m.health ? (
+                <p className="text-muted">{tx("Lu par OpenSSH et PowerShell, en lecture seule : disques, services, processeur, mises à jour Windows, journal Système. Pas de Docker. Accès :")} <code className="font-mono text-xs">{sshWho(st, m.health)}</code>.
+                  {m.off ? <span className="block text-dim">{tx("Marqué « souvent éteinte » : la santé ne le relève pas tant que cette option est cochée.")}</span> : null}</p>
+              ) : <p className="text-dim">{tx("Pas d'accès SSH : ping et services web seulement. Activez « Lecture par SSH » pour lire sa santé.")}</p>}
+            </section>
+          ) : live && (
             <section className="rounded-lg border border-line/60 bg-bg2/40 p-2.5">
               <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("SSH, relevé par la collecte")}</h4>
               <SshDetails m={live} statuses={statuses} />
