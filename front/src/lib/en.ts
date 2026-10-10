@@ -622,6 +622,7 @@ export const EN: Record<string, string> = {
   "Modifier": "Edit",
   "Modifier / Tester": "Edit / Test",
   "Mon mot de passe": "My password",
+  "Profil": "Profile",
   "mot de passe": "password",
   "Mot de passe": "Password",
   "Mot de passe ({0} caractères min., à lui transmettre)": "Password ({0} characters min., to pass on to them)",

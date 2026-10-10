@@ -1,4 +1,4 @@
-import { ChevronDown, ExternalLink, KeyRound, ListChecks, LogOut, Map, Moon, Settings, Sun, UserRound } from "lucide-react";
+import { ChevronDown, ExternalLink, ListChecks, LogOut, Map, Moon, Settings, Sun, UserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { logout, ROOT, type Snapshot } from "../api";
 import type { Theme } from "../theme";
@@ -30,7 +30,7 @@ export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; them
   );
 }
 
-/** Menu du compte, à droite : rôle, réglages, mot de passe, thème, liens (carte, ancienne page, projet), déconnexion. */
+/** Menu du compte, à droite : rôle, réglages, profil, thème, liens (carte, ancienne page, projet), déconnexion. */
 function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; toggleTheme: () => void }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -61,7 +61,7 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
           </div>
           <div className="my-1 border-t border-line/70" />
           {admin && <button type="button" role="menuitem" className={item} onClick={() => go("settings")}><Settings size={15} />{tx("Réglages")}</button>}
-          {admin && <button type="button" role="menuitem" className={item} onClick={() => go("settings/accounts")}><KeyRound size={15} />{tx("Mon mot de passe")}</button>}
+          {admin && <button type="button" role="menuitem" className={item} onClick={() => go("settings/accounts")}><UserRound size={15} />{tx("Profil")}</button>}
           {admin && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); reopenFirstSteps(); }} title={tx("Rouvre la carte et efface vos choix « Passer »")}><ListChecks size={15} />{tx("Revoir les premiers pas")}</button>}
           <button type="button" role="menuitem" className={item} onClick={toggleTheme}>
             {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}{tx("Thème")} {theme === "dark" ? tx("clair") : tx("sombre")}
