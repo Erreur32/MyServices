@@ -199,10 +199,11 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
             ? <><p className="mb-2">{tx("MyServices a reconnu des applis qu'il sait lire par leur API. Un connecteur ajoute leurs données (certificats, DNS, santé) sans rien recoder.")}</p><Proposals list={proposals} /></>
             : <>
                 <p>
-                  {tx("Rien d'autre à relier pour l'instant")}{containers > 0 && ` ${tx("({0} conteneurs examinés)", containers)}`}.
+                  {tx("Aucune autre appli à relier")}{containers > 0 && ` ${tx("({0} conteneurs examinés)", containers)}`}.
                 </p>
                 {linked.length > 0 && <p className="mt-1 text-ok">{tx("Déjà reliés : {0}.", linked.join(", "))}</p>}
-                <p className="mt-1 text-dim">{tx("Applis que MyServices sait lire : NPM, AdGuard, Beszel, Uptime Kuma, Dozzle, Web-Check, Home Assistant. Cette étape s'allume toute seule dès qu'une nouvelle est reconnue (nouveau scan, nouvelle machine).")}</p>
+                <p className="mt-1 text-dim">{tx("Applis que MyServices sait lire : NPM, AdGuard, Beszel, Uptime Kuma, Dozzle, Web-Check, Home Assistant.")}</p>
+                <p className="mt-1 font-semibold text-ok">{tx("Rien à faire pour l'instant : tout est en ordre.")}</p>
               </>}
         </Step>
       </ol>
