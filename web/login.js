@@ -7,6 +7,10 @@
   var setup = false;
   // Retour seulement vers une page de ce site, sous /myservices/ (jamais une adresse externe)
   if (!/^\/myservices\/[^\\]*$/.test(next) || next.indexOf("//") >= 0) next = "v2/";  // page par défaut : le nouveau front (/myservices/v2/)
+  // Destination relue comme une adresse : même site, dans /myservices/ seulement (jamais un autre site ni javascript:)
+  var dest = new URL(next, location.href);
+  if (dest.origin !== location.origin || dest.pathname.indexOf("/myservices/") !== 0) dest = new URL("/myservices/v2/", location.origin);
+  next = dest.pathname + dest.search + dest.hash;
 
   function $(id) { return document.getElementById(id); }
   function show(t) {

@@ -1225,7 +1225,7 @@ def files(rel: str):
         rel += "index.html"
     f = find(rel)
     if f is None and find(rel + "/index.html"):  # dossier tapé sans « / » final (ex. /myservices/v2)
-        return RedirectResponse(f"{PREFIX}/{rel}/", status_code=302)
+        return RedirectResponse(f"{PREFIX}/{quote(rel.strip('/'))}/", status_code=302)  # toujours sous /myservices/, jamais un autre site
     if f is None:
         return HTMLResponse(f'<!doctype html><meta charset="utf-8"><title>MyServices</title>'
                             f'<p style="font:16px system-ui;padding:2em">Page introuvable. '
