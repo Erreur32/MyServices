@@ -778,7 +778,7 @@ export const EN: Record<string, string> = {
   "La collecte lit chaque machine avec cette clé, en lecture seule. À ajouter dans": "The collector reads each machine with this key, read-only. Add it to",
   "La configuration depuis la page (Réglages → Machines) arrive avec les prochains onglets. Cette page se remplira toute seule après la première collecte.": "Set up machines in Settings → Machines. This page fills itself after the first collection run.",
   "La machine **{0}** ({1}) ne répond plus au ping": "Machine **{0}** ({1}) no longer answers ping",
-  "la santé n'y lit pas SMART": "health checks skip SMART there",
+  "pas de SMART ni de température du processeur : le disque et le processeur sont virtuels, rien de réel à lire (se coche seule si détectée)": "no SMART and no CPU temperature: the disk and CPU are virtual, nothing real to read (ticks itself when detected)",
   "lancée : son état se met à jour ici": "started: its state updates here",
   "Lancer": "Run",
   "Langue": "Language",

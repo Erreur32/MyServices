@@ -26,8 +26,10 @@ const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
   { k: "gateway", label: tx("Passerelle"), help: tx("box / routeur : sous-titre de la page") },
   { k: "npm", label: tx("Héberge NPM"), help: tx("sous-titre de la page") },
   { k: "npm_only", label: tx("Joignable seulement par NPM"), help: tx("pare-feu : ses services sont testés via NPM") },
-  { k: "vm", label: tx("Machine virtuelle"), help: tx("la santé n'y lit pas SMART") },
+  { k: "vm", label: tx("Machine virtuelle"), help: tx("pas de SMART ni de température du processeur : le disque et le processeur sont virtuels, rien de réel à lire (se coche seule si détectée)") },
 ];
+
+const VM_AUTO_KEY = "ms.vm.auto";
 
 /** Machine Windows déclarée (système ou accès de santé seul) : la commande « authorized_keys » ne la concerne pas */
 const isWindowsConf = (c?: MachineConf) => !!c && (c.os === "windows" || (typeof c.health === "string" && !c.ssh));
@@ -332,6 +334,17 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
     setV((x) => ({ ...x, ...next })); if (key === "proc") setProc(nextProc);
     setFlash(key); setTimeout(() => setFlash((f) => (f === key ? "" : f)), 1800);
   };
+  // Machine virtuelle détectée sur une machine déjà enregistrée : « Machine virtuelle » se coche toute seule, une fois par machine
+  // (la liste est gardée par le navigateur : si l'on décoche ensuite, c'est respecté)
+  useEffect(() => {
+    if (isNew || m.vm || m.disabled || !live?.detected?.includes("vm")) return;
+    let done: string[] = [];
+    try { done = JSON.parse(localStorage.getItem(VM_AUTO_KEY) || "[]") as string[]; } catch { /* mémoire du navigateur illisible */ }
+    if (done.includes(ip)) return;
+    try { localStorage.setItem(VM_AUTO_KEY, JSON.stringify([...done, ip])); } catch { /* navigation privée : tant pis */ }
+    void autoSave("vm", { vm: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live?.detected?.join(), isNew]);
   const Saved = ({ k }: { k: string }) => (pending === k ? <Loader2 size={13} className="animate-spin text-dim" aria-label={tx("enregistrement…")} />
     : flash === k ? <span className="saved-pop inline-flex items-center gap-1 text-xs font-semibold text-ok"><Check size={13} aria-hidden />{tx("enregistré")}</span> : null);
   // Accès SSH : un simple interrupteur. Actif = l'accès de cette IP (créé avec la clé de l'app s'il n'existe pas encore, compte root
