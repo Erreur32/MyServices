@@ -55,7 +55,7 @@ const loadDismissed = (): string[] => {
 
 export function NetworkStep({ net, reload, machines, connected, onSkip }: {
   net: NetScan | null; reload: () => void; onSkip: () => void;
-  machines: { ip: string; ssh?: unknown }[]; connected: { connector: string; url?: string | null }[];
+  machines: { ip: string; name?: string; ping?: boolean; local?: boolean; off?: boolean; ssh?: unknown }[]; connected: { connector: string; url?: string | null }[];
 }) {
   const known = machines.map((m) => m.ip);
   const [dismissed, setDismissed] = useState<string[]>(loadDismissed);
@@ -99,6 +99,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
   const resumeLater = () => setDismissed((d) => { const n = d.filter((ip) => !later.some((h) => h.ip === ip)); localStorage.setItem(DISMISSED, JSON.stringify(n)); return n; });
 
   const scanned = !!net && net.phase === "done" && !!net.ended;
+  const declared = machines.filter((m) => !m.local);  // machines déjà ajoutées (hors la machine hôte)
   /** Les deux actions de l'étape, ensemble : (re)lancer la recherche, ou la passer (à reprendre plus tard) */
   const actions = (
     <div className="flex flex-wrap items-center gap-2">
@@ -220,7 +221,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
           )}
           {watch.length === 0 && rest > 0 && <p className="text-sm text-dim">{tx("Rien d'évident à ajouter dans ce scan : les appareils trouvés sont repliés ci-dessous.")}</p>}
           {rest > 0 && (
-            <details open={[...webOnly, ...pingOnly].some((h) => diff?.fresh.has(h.ip))} className="rounded-lg border border-line/60 px-3 py-2">
+            <details className="rounded-lg border border-line/60 px-3 py-2">
               <summary className="cursor-pointer text-sm text-muted">
                 {tx("{0} autre(s) appareil(s) : pages web seules, caméras, objets connectés, ping seulement", rest)}
                 {[...webOnly, ...pingOnly].some((h) => diff?.fresh.has(h.ip)) && <> <Badge tone="warn">{tx("nouvelle")}</Badge></>}
@@ -265,6 +266,31 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
             {later.map((h) => <Badge key={h.ip} tone="warn" title={h.ip}>{h.name || h.ip}</Badge>)}
           </div>
         </section>
+      )}
+      {scanned && declared.length > 0 && (
+        <details open={watch.length === 0} className="rounded-lg border border-line/60 px-3 py-2">
+          <summary className="cursor-pointer text-sm font-semibold text-txt">
+            {tx("{0} machine(s) déjà ajoutée(s)", declared.length)}
+            <span className="font-normal text-dim"> · {tx("vos choix précédents")}</span>
+          </summary>
+          <ul className="mt-2 flex flex-col gap-1.5">
+            {declared.map((m) => {
+              const seen = net?.found.find((h) => h.ip === m.ip);
+              const link = seen ? needsLink(seen, machines, connected) : null;
+              return (
+                <li key={m.ip} className="flex flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2">
+                  <b className="text-txt">{m.name || m.ip}</b>
+                  <span className="font-mono text-xs text-dim">{m.ip}</span>
+                  {m.ssh ? <Badge tone="ok">SSH</Badge> : null}
+                  {link && <Badge tone="warn">{link === "ha" ? tx("jeton à régler") : tx("accès SSH à régler")}</Badge>}
+                  {!m.off && m.ping === false && <Badge tone="bad">{tx("hors ligne")}</Badge>}
+                  {m.off && <Badge tone="off">{tx("éteinte volontairement")}</Badge>}
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-2 text-xs text-dim">{tx("Pour retirer une machine : Réglages → Machines. Pour effacer vos « Passer » : menu du compte → « Revoir les premiers pas ».")}</p>
+        </details>
       )}
       <NoteLine note={note} />
     </div>
