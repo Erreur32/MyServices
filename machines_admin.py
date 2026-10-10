@@ -4,6 +4,7 @@
                  reconnus d'après les images : une proposition, rien n'est écrit
   save(ip, m)    écrit la machine dans services-meta.json (autres machines et clés intouchées)
   delete(ip)     la retire (et de process_hosts)
+  redetect(ips)  détection refaite pour les machines déclarées : écarts proposés, rien n'est écrit
   check(ip)      vérification de setup.py (SSH, Docker, AdGuard, santé), lignes ✓ / ⚠ / ✗
 
 Mêmes fonctions que setup.py (importées) : une détection corrigée là l'est ici aussi. Lecture seule sur le
@@ -129,6 +130,56 @@ def detect(target: str) -> dict:
             m["off"] = True  # poste souvent éteint : proposé, modifiable
     return {"ip": ip, "alias": alias, "up": up, "dns": dns, "hints": hints, "known": known is not None,
             "machine": m, "notes": notes, "detected": detected, "connectors": found, "web": web}
+
+REDETECT_OFF = ("vm", "npm", "gateway")  # drapeaux que la détection peut retirer ; « off » (poste souvent éteint) reste un choix de l'utilisateur
+
+
+def _redetect_one(ip: str, m: dict, process_hosts: dict) -> dict:
+    """Écarts d'une machine déclarée : détection de detect(), drapeaux confirmés de hostinfo, ports hors Docker du process connector."""
+    out = {"ip": ip, "name": m.get("name") or ip, "verifiable": False, "note": None,
+           "flags_on": [], "flags_off": [], "os": None, "process": False, "ports": []}
+    try:
+        d = detect(ip)
+    except MachineError as e:
+        out["note"] = str(e)
+        return out
+    if not d["up"]:
+        out["note"] = "injoignable : non vérifiable"
+        return out
+    out["verifiable"] = True
+    if not m.get("os") and (d["machine"].get("os") == "windows" or "Windows (RDP)" in d["hints"]):
+        out["os"] = "windows"
+    ssh = m.get("ssh")
+    info = hostinfo.host_info(ssh) if ssh else None  # None : pas d'accès SSH ou machine muette, rien n'est retiré
+    flags = set(hostinfo.detected_flags(ip, info, {**m, **({"os": out["os"]} if out["os"] else {})}))
+    out["flags_on"] = [f for f in FLAGS if f in flags and not m.get(f)]
+    if info is not None:  # fiable : lu par SSH et la machine répond
+        out["flags_off"] = [f for f in REDETECT_OFF if m.get(f) and f not in flags]
+        try:
+            from connectors.process import listening_processes
+            ports = listening_processes(ssh)
+        except connectors.ConnectorError:
+            ports = {}
+        out["ports"] = [{"port": p, "name": v["name"]} for p, v in sorted(ports.items()) if v["lan"]]
+        out["process"] = bool(out["ports"]) and ip not in process_hosts
+    if not (out["flags_on"] or out["flags_off"] or out["os"] or out["process"]):
+        out["note"] = "rien à changer"
+    return out
+
+
+def redetect(ips: list[str] | None = None) -> dict:
+    """Détection refaite sans rien écrire pour les machines déclarées non désactivées (ou celles de la liste) : les écarts
+    à confirmer (drapeaux à allumer ou à éteindre, système, services hors Docker). L'écriture passe par save()."""
+    meta = _meta()
+    machines, ph = meta.get("machines", {}), meta.get("process_hosts", {})
+    if ips is not None:
+        unknown = [i for i in ips if i not in machines]
+        if unknown:
+            raise MachineError(f"machine inconnue : {unknown[0]}")
+    todo = [(ip, m) for ip, m in machines.items() if not m.get("disabled") and (ips is None or ip in ips)]
+    with ThreadPoolExecutor(max(1, min(4, len(todo)))) as px:
+        res = list(px.map(lambda t: _redetect_one(t[0], t[1], ph), todo))
+    return {"machines": res, "changes": sum(1 for r in res if r["note"] is None)}
 
 
 def _connectors(ip: str, conts: list) -> list[dict]:

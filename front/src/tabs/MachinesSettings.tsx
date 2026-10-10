@@ -3,14 +3,14 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
-import { Check, ChevronDown, ChevronRight, Loader2, Plus, Radar, ShieldCheck, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Loader2, Plus, Radar, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch, TagInput } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { dateTime, ipNum } from "../lib/format";
-import type { AgentInfo, Detection, MachineConf, MachinesSettings as State, NetHost, NetScan } from "../types";
+import type { AgentInfo, Detection, MachineConf, MachinesSettings as State, NetHost, NetScan, Redetection, RedetectItem } from "../types";
 import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
@@ -46,6 +46,7 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
   const [st, setSt] = useState<State | null>(null);
   const [error, setError] = useState("");
   const [detecting, setDetecting] = useState(false);
+  const [redetecting, setRedetecting] = useState(false);
   // Système vu par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas (suggestion)
   const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean }>>({});
   const [hosts, setHosts] = useState<NetHost[]>([]);
@@ -82,8 +83,14 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-bold">{tx("Machines")} <Dim>· {ips.length}</Dim></h2>
-          {!detecting && <button type="button" className={primary} onClick={() => setDetecting(true)}><Plus size={14} />{tx("Ajouter une machine")}</button>}
+          {!detecting && (
+            <div className="flex flex-wrap gap-2">
+              {!redetecting && <button type="button" className={quiet} onClick={() => setRedetecting(true)}><RefreshCw size={14} />{tx("Redétecter")}</button>}
+              <button type="button" className={primary} onClick={() => setDetecting(true)}><Plus size={14} />{tx("Ajouter une machine")}</button>
+            </div>
+          )}
         </div>
+        {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
         {detecting && <Detect st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
       </Card>
       <div className="grid items-start gap-3 lg:grid-cols-2">
@@ -93,6 +100,79 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
           const stat = st.machines[ip].os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.ip ? c.ip === ip : c.name === ip || c.name === lm?.name));
           return <MachineRow key={ip} agent={agents[ip]} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
         })}
+      </div>
+    </div>
+  );
+}
+
+const REDETECT_FLAGS: Record<string, string> = { vm: tx("Machine virtuelle"), gateway: tx("Passerelle"), npm: tx("Héberge NPM"), off: tx("Souvent éteinte") };
+
+/** Écarts d'un item en lignes cochables : clé stable, texte, effet sur la machine (ou sur « process_hosts ») */
+function redetectChanges(r: RedetectItem): { key: string; text: string }[] {
+  return [
+    ...r.flags_on.map((f) => ({ key: `on:${f}`, text: `${tx("Allumer")} « ${REDETECT_FLAGS[f] ?? f} »` })),
+    ...r.flags_off.map((f) => ({ key: `off:${f}`, text: `${tx("Éteindre")} « ${REDETECT_FLAGS[f] ?? f} »` })),
+    ...(r.os ? [{ key: "os", text: tx("Système : Windows") }] : []),
+    ...(r.process ? [{ key: "process", text: `${tx("Lire les services hors Docker")} (${r.ports.slice(0, 5).map((p) => `${p.name} :${p.port}`).join(", ")}${r.ports.length > 5 ? "…" : ""})` }] : []),
+  ];
+}
+
+/** Redétection de toutes les machines : écarts proposés, cochés par défaut ; rien n'est écrit avant « Appliquer » */
+function Redetect({ st, onDone }: { st: State; onDone: () => void }) {
+  const [res, setRes] = useState<Redetection | null>(null);
+  const [off, setOff] = useState<Set<string>>(new Set());  // écarts décochés : « ip|clé »
+  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
+  useEffect(() => {
+    send<Redetection>("POST", "machines/redetect", {}).then(setRes, (err) => {
+      if (err instanceof LoginRequired) location.replace(LOGIN);
+      else setNote({ ok: false, text: (err as Error).message });
+    });
+  }, []);
+  const withChanges = (res?.machines ?? []).filter((r) => r.note === null);
+  const toggle = (id: string) => setOff((o) => { const n = new Set(o); if (!n.delete(id)) n.add(id); return n; });
+  const apply = async () => {
+    setBusy(true); setNote(null);
+    let failed = 0;
+    for (const r of withChanges) {
+      const keep = (k: string) => !off.has(`${r.ip}|${k}`);
+      const machine: MachineConf = { ...st.machines[r.ip] };
+      let proc: boolean | null = null, touched = false;
+      for (const f of r.flags_on) if (keep(`on:${f}`)) { (machine as Record<string, unknown>)[f] = true; touched = true; }
+      for (const f of r.flags_off) if (keep(`off:${f}`)) { delete (machine as Record<string, unknown>)[f]; touched = true; }
+      if (r.os && keep("os")) { machine.os = r.os; touched = true; }
+      if (r.process && keep("process")) { proc = true; touched = true; }
+      if (!touched) continue;
+      try {
+        await send("PUT", `machines/settings/${r.ip}`, { machine, process: proc, extra: [] });
+        void send("POST", `machines/settings/${r.ip}/refresh`).then(pokeScan, () => undefined);
+      } catch (err) {
+        if (err instanceof LoginRequired) { location.replace(LOGIN); return; }
+        failed++;
+      }
+    }
+    setBusy(false);
+    if (failed) setNote({ ok: false, text: `${failed} ${tx("machine(s) non enregistrée(s)")}` });
+    else onDone();
+  };
+  return (
+    <div className="mt-3 flex flex-col gap-3 rounded-xl border border-line bg-bg2/50 p-3">
+      {!res && !note && <p className="flex items-center gap-2 text-sm text-muted"><Loader2 size={14} className="animate-spin" />{tx("Détection de toutes les machines…")}</p>}
+      {res && withChanges.length === 0 && <p className="text-sm text-ok">{tx("Rien à changer")}</p>}
+      {withChanges.map((r) => (
+        <div key={r.ip} className="flex flex-col gap-1 text-sm">
+          <div className="font-semibold">{r.name} <Dim>· {r.ip}</Dim></div>
+          {redetectChanges(r).map((c) => (
+            <label key={c.key} className="flex items-center gap-2 pl-3">
+              <input type="checkbox" checked={!off.has(`${r.ip}|${c.key}`)} onChange={() => toggle(`${r.ip}|${c.key}`)} />{c.text}
+            </label>
+          ))}
+        </div>
+      ))}
+      {res && res.machines.filter((r) => r.note !== null && r.note !== "rien à changer").map((r) => <Dim key={r.ip}>{r.name} · {tx("Injoignable ou illisible : non vérifiable")}</Dim>)}
+      {note && <NoteLine note={note} />}
+      <div className="flex gap-2">
+        {withChanges.length > 0 && <button type="button" className={primary} disabled={busy} onClick={apply}><Check size={14} />{busy ? tx("Enregistrement…") : tx("Appliquer")}</button>}
+        <button type="button" className={quiet} onClick={onDone}>{withChanges.length > 0 ? tx("Annuler") : tx("Fermer")}</button>
       </div>
     </div>
   );

@@ -461,6 +461,20 @@ export interface Detection {
   web: { port: number; scheme: string; label: string }[];
 }
 
+/** Redétection des machines enregistrées (POST machines/redetect) : écarts proposés, rien n'est écrit */
+export interface RedetectItem {
+  ip: string;
+  name: string;
+  verifiable: boolean;
+  note: string | null;  // « injoignable : non vérifiable », « rien à changer » ; null = des écarts à confirmer
+  flags_on: string[];   // réglages détectés mais éteints
+  flags_off: string[];  // réglages allumés mais plus confirmés (détection fiable seulement)
+  os: string | null;    // système probable quand il manque
+  process: boolean;     // lire aussi les services hors Docker
+  ports: { port: number; name: string }[];
+}
+export interface Redetection { machines: RedetectItem[]; changes: number }
+
 /** Réglages → API et MCP (api/v1/tokens) */
 export interface ApiToken {
   id: number;

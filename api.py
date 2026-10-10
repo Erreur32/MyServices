@@ -448,6 +448,16 @@ def machines_detect(request: Request, target: str):
     return machine_call(request, "", "", lambda m: m.detect(target))
 
 
+class RedetectBody(BaseModel):
+    ips: list[str] | None = None
+
+
+@app.post(API + "/machines/redetect", tags=["machines"], summary="Refaire la détection des machines déclarées : écarts proposés, rien n'est écrit (admin)")
+def machines_redetect(request: Request, body: RedetectBody | None = None):
+    return machine_call(request, "machines redétectées", ", ".join(body.ips) if body and body.ips else "toutes",
+                        lambda m: m.redetect(body.ips if body else None))
+
+
 @app.put(API + "/machines/settings/{ip}", tags=["machines"], summary="Ajouter ou modifier une machine (admin)")
 def machines_save(ip: str, body: MachineConf, request: Request):
     return machine_call(request, "machine enregistrée", ip,

@@ -56,6 +56,77 @@ class CheckExpiresInventory(unittest.TestCase):
         self.assertEqual(json.loads(self.cache.read_text())["ts"], 1791636409.0)
 
 
+class Redetection(unittest.TestCase):
+    """redetect() : les écarts entre les réglages enregistrés et la détection refaite, sans rien écrire."""
+
+    def run_redetect(self, machines, detect_d, info=None, ports=None, ph=None, ips=None, gw="10.0.0.1"):
+        meta = {"machines": machines, "process_hosts": ph or {}}
+        d = {"up": True, "hints": [], "machine": {}, **detect_d}
+        with mock.patch.object(machines_admin, "_meta", return_value=meta), \
+                mock.patch.object(machines_admin, "detect", return_value=d), \
+                mock.patch.object(machines_admin.hostinfo, "host_info", return_value=info), \
+                mock.patch.object(machines_admin.hostinfo, "default_gateway", return_value=gw), \
+                mock.patch("connectors.process.listening_processes", return_value=ports or {}), \
+                mock.patch.object(machines_admin.setup, "save") as sv:
+            out = machines_admin.redetect(ips)
+        sv.assert_not_called()
+        return {r["ip"]: r for r in out["machines"]}, out
+
+    def test_drapeaux_a_allumer_et_service_hors_docker(self):
+        r, out = self.run_redetect({"10.0.0.1": {"name": "box", "ssh": "box"}}, {}, info={"virt": "kvm", "npm": True},
+                                   ports={8080: {"name": "app", "lan": True}, 9000: {"name": "loc", "lan": False}})
+        x = r["10.0.0.1"]
+        self.assertEqual(set(x["flags_on"]), {"gateway", "vm", "npm"})
+        self.assertEqual(x["flags_off"], [])
+        self.assertTrue(x["process"])
+        self.assertEqual([p["port"] for p in x["ports"]], [8080])
+        self.assertEqual(out["changes"], 1)
+
+    def test_drapeaux_a_eteindre_si_lu_par_ssh(self):
+        m = {"name": "a", "ssh": "a", "vm": True, "npm": True, "gateway": True}
+        r, _ = self.run_redetect({"10.0.0.5": m}, {}, info={"virt": None, "npm": False}, ports={}, ph={"10.0.0.5": "a"})
+        self.assertEqual(set(r["10.0.0.5"]["flags_off"]), {"vm", "npm", "gateway"})
+
+    def test_sans_ssh_rien_n_est_eteint(self):
+        r, _ = self.run_redetect({"10.0.0.5": {"name": "a", "vm": True}}, {}, info=None)
+        self.assertEqual(r["10.0.0.5"]["flags_off"], [])
+        self.assertEqual(r["10.0.0.5"]["note"], "rien à changer")
+
+    def test_ssh_muet_rien_n_est_eteint(self):
+        r, _ = self.run_redetect({"10.0.0.5": {"name": "a", "ssh": "a", "vm": True}}, {}, info=None)
+        self.assertEqual(r["10.0.0.5"]["flags_off"], [])
+
+    def test_windows_off_et_systeme(self):
+        r, _ = self.run_redetect({"10.0.0.9": {"name": "pc"}}, {"hints": ["Windows (RDP)"]})
+        x = r["10.0.0.9"]
+        self.assertEqual((x["os"], x["flags_on"]), ("windows", ["off"]))
+
+    def test_injoignable_non_verifiable(self):
+        r, out = self.run_redetect({"10.0.0.7": {"name": "x", "ssh": "x", "vm": True}}, {"up": False}, info={"virt": None})
+        x = r["10.0.0.7"]
+        self.assertFalse(x["verifiable"])
+        self.assertEqual((x["flags_on"], x["flags_off"], x["os"], x["process"]), ([], [], None, False))
+        self.assertIn("non vérifiable", x["note"])
+        self.assertEqual(out["changes"], 0)
+
+    def test_machine_desactivee_ignoree(self):
+        r, _ = self.run_redetect({"10.0.0.7": {"name": "x", "disabled": True}}, {})
+        self.assertEqual(r, {})
+
+    def test_rien_a_changer(self):
+        m = {"name": "a", "ssh": "a", "vm": True}
+        r, out = self.run_redetect({"10.0.0.5": m}, {}, info={"virt": "kvm", "npm": False}, ports={}, ph={})
+        self.assertEqual(r["10.0.0.5"]["note"], "rien à changer")
+        self.assertEqual(out["changes"], 0)
+
+    def test_liste_donnee_et_machine_inconnue(self):
+        ms = {"10.0.0.5": {"name": "a"}, "10.0.0.6": {"name": "b"}}
+        r, _ = self.run_redetect(ms, {}, ips=["10.0.0.6"])
+        self.assertEqual(list(r), ["10.0.0.6"])
+        with self.assertRaises(machines_admin.MachineError):
+            self.run_redetect(ms, {}, ips=["10.0.0.99"])
+
+
 class SshAlias(unittest.TestCase):
     """Préparer l'accès SSH d'une machine trouvée : bloc « Host » avec la clé de l'app, sans doublon."""
 
