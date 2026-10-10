@@ -80,7 +80,7 @@ class SshAlias(unittest.TestCase):
 
     def test_alias_existant_repris(self):
         self.aliases["192.168.1.20"] = "nas"
-        self.assertEqual(machines_admin.add_alias("192.168.1.20"), {"alias": "nas", "created": False})
+        self.assertEqual(machines_admin.add_alias("192.168.1.20"), {"alias": "nas", "created": False, "updated": False})
         self.assertFalse(self.conf.exists())
 
     def test_refus(self):
@@ -175,6 +175,41 @@ class PingTtl(unittest.TestCase):
         self.assertEqual(hostinfo.ping_ttl("64 bytes from x: TTL=64 time=1 ms"), 64)
         self.assertIsNone(hostinfo.ping_ttl(""))
         self.assertIsNone(hostinfo.ping_ttl(None))
+
+
+class AliasWindows(unittest.TestCase):
+    """Un PC Windows prend le compte Windows : l'alias « m-<ip> » créé en root par défaut est mis à jour, jamais un alias écrit à la main."""
+
+    CONF = ("Host perso\n    HostName 10.0.0.9\n    User moi\n    Port 2222\n\n"
+            "# Machine trouvée par la recherche réseau\nHost m-10-0-0-5\n    HostName 10.0.0.5\n    User root\n    Port 22\n"
+            "    IdentityFile ~/.ssh/myservices\n")
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.conf = Path(self.tmp.name) / "config"
+        self.conf.write_text(self.CONF, encoding="utf-8")
+        self.addCleanup(self.tmp.cleanup)
+
+    def run_set(self, alias, user, port=22):
+        with mock.patch.object(machines_admin.setup, "SSH_CONF", str(self.conf)):
+            return machines_admin._set_alias_user(alias, user, port)
+
+    def test_alias_de_la_page_passe_au_compte_windows(self):
+        self.assertTrue(self.run_set("m-10-0-0-5", "Jean.Dupont"))
+        text = self.conf.read_text(encoding="utf-8")
+        self.assertIn("Host m-10-0-0-5\n    HostName 10.0.0.5\n    User Jean.Dupont\n    Port 22", text)
+        self.assertIn("User moi\n    Port 2222", text)  # l'autre alias n'est pas touché
+        self.assertFalse(self.run_set("m-10-0-0-5", "Jean.Dupont"))  # rien à changer
+
+    def test_alias_ecrit_a_la_main_jamais_modifie(self):
+        self.assertFalse(self.run_set("perso", "root"))
+        self.assertIn("User moi", self.conf.read_text(encoding="utf-8"))
+
+    def test_comptes_windows_acceptes_et_injection_refusee(self):
+        for ok in ("Administrateur", "Jean.Dupont", "user_1"):
+            self.assertTrue(machines_admin._ALIAS_USER.match(ok), ok)
+        for bad in ("a b", "x\nHost evil", "-oProxyCommand=x", "1abc", ""):
+            self.assertFalse(machines_admin._ALIAS_USER.match(bad), bad)
 
 
 if __name__ == "__main__":

@@ -251,7 +251,34 @@ def known_ips() -> set[str]:
     return set(_meta().get("machines", {}))
 
 
-_ALIAS_USER = re.compile(r"^[a-z_][a-z0-9_.-]{0,31}$")
+_ALIAS_USER = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]{0,31}$")  # Linux (minuscules) comme Windows (Administrateur, Jean.Dupont)
+
+
+def _set_alias_user(alias: str, user: str, port: int) -> bool:
+    """Compte et port d'un alias créé par la page (« m-<ip> ») changés dans la config SSH de l'app ; un alias écrit à la main n'est
+    jamais modifié. True si le fichier a changé (ex. alias créé en root par défaut pour un PC Windows, à passer au compte Windows)."""
+    if not alias.startswith("m-"):
+        return False
+    conf = Path(setup.SSH_CONF)
+    try:
+        lines = conf.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return False
+    out, inside, seen = [], False, {"user": False, "port": False}
+    for ln in lines:
+        head = ln.split()
+        if head[:1] == ["Host"]:
+            inside = head[1:] == [alias]
+        elif inside and head[:1] == ["User"]:
+            ln, seen["user"] = f"    User {user}", True
+        elif inside and head[:1] == ["Port"]:
+            ln, seen["port"] = f"    Port {port}", True
+        out.append(ln)
+    if out == lines:
+        return False
+    conf.write_text("\n".join(out) + "\n", encoding="utf-8")
+    conf.chmod(0o600)
+    return True
 
 
 def add_alias(ip: str, user: str = "root", port: int = 22) -> dict:
@@ -268,7 +295,7 @@ def add_alias(ip: str, user: str = "root", port: int = 22) -> dict:
     if not isinstance(port, int) or not 1 <= port <= 65535:
         raise MachineError("port SSH invalide")
     if alias := setup.ssh_aliases().get(ip):
-        return {"alias": alias, "created": False}
+        return {"alias": alias, "created": False, "updated": _set_alias_user(alias, user, port)}
     alias = "m-" + ip.replace(".", "-")
     conf = Path(setup.SSH_CONF)
     text = conf.read_text(encoding="utf-8") if conf.exists() else ""

@@ -12,7 +12,8 @@ import { Badge, Card, Dim } from "../components/ui";
 import { ipNum } from "../lib/format";
 import type { Detection, MachineConf, MachinesSettings as State, NetScan } from "../types";
 import { MachineIcon } from "../components/MachineIcon";
-import { MSTATE, mState } from "../lib/machines";
+import { MSTATE, mState, osOfMachine } from "../lib/machines";
+import { SshGuide } from "../components/SshGuide";
 import { SshDetails } from "../components/ssh";
 import { sshBrief, sshWarn } from "../lib/ssh";
 import { tx } from "../lib/i18n";
@@ -177,7 +178,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan }: {
               <SshDetails m={live} statuses={statuses} />
             </section>
           )}
-          <MachineForm ip={ip} m={m} st={st} live={live} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
+          <MachineForm ip={ip} m={m} st={st} live={live} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
             <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
             <span className="ml-auto flex items-center gap-1.5">
               {confirm ? <>
@@ -209,7 +210,8 @@ function OptionGroup({ title, hint, tone, dim, children }: { title: string; hint
   );
 }
 
-function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, actions, onDone }: {
+function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, actions, windowsGuess, onDone }: {
+  windowsGuess?: boolean;
   live?: Snapshot["data"]["machine_list"][number]; actions?: React.ReactNode; detected?: string[]; ip: string; m: MachineConf; st: State; isNew?: boolean; process?: boolean; extra?: Detection["web"]; onDone: () => void;
 }) {
   const [v, setV] = useState<MachineConf>(m);
@@ -267,18 +269,20 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
     : flash === k ? <span className="saved-pop inline-flex items-center gap-1 text-xs font-semibold text-ok"><Check size={13} aria-hidden />{tx("enregistré")}</span> : null);
   // Accès SSH : un simple interrupteur. Actif = l'accès de cette IP (créé avec la clé de l'app s'il n'existe pas encore, compte root
   // port 22 comme « Lire cette machine par SSH »), inactif = on le retire. Le choix d'un autre compte se fait dans la config SSH.
+  const [winGuide, setWinGuide] = useState(false);
   const key = (windows ? v.health : v.ssh) as string | null | undefined | false;
   const sshOn = typeof key === "string" && key !== "";
   const info = st.aliases.find((a) => a.alias === key);
   const sshWho = info ? `${info.user ? `${info.user}@` : ""}${info.ip || info.host}${info.port ? `:${info.port}` : ""}` : String(key || "");
   const toggleSsh = async (on: boolean) => {
-    if (!on) return void autoSave("ssh", windows ? { health: undefined } : { ssh: null });
+    if (!on) { setWinGuide(false); return void autoSave("ssh", { ssh: null, health: undefined }); }
+    if (windows || windowsGuess) return void setWinGuide(true);  // PC Windows : guide (compte Windows, OpenSSH), pas d'accès root par défaut
     setPending("ssh");
     try {
       const r = await send<{ alias: string; created: boolean }>("POST", "machines/ssh-alias", { ip });
       setPending("");
       await autoSave("ssh", windows ? { health: r.alias } : { ssh: r.alias });
-      if (r.created) setNote({ ok: true, text: tx("Accès préparé (root, port 22) : autorisez la clé de l'app sur la machine (Réglages → Clé SSH).") });
+      setWinGuide(true);  // Linux : commandes pour autoriser la clé de l'app (utile si l'installation n'avait pas été terminée)
     } catch (e) {
       setPending("");
       if (e instanceof LoginRequired) location.replace(LOGIN);
@@ -323,12 +327,17 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
             <span><b>{sshOn ? tx("Actif") : tx("Inactif")}</b> <Saved k="ssh" />
               <Dim> · {sshOn ? sshWho : tx("ping et services web seulement")}</Dim></span>
           </label>
+          {sshOn && !winGuide && live && ["refused", "nossh"].includes(mState(live)) && (
+            <button type="button" className="text-xs text-link hover:underline" onClick={() => setWinGuide(true)}>{tx("La connexion échoue ? Voir les commandes")}</button>
+          )}
           <ul className="flex flex-wrap items-center justify-end gap-1.5" aria-label={tx("Ce que cet accès permet de lire")}>
             {gives.map(([label, on, why]) => (
               <li key={label} title={why}><Badge tone={on ? "ok" : "off"}>{on ? "✓" : "–"} {label}</Badge></li>
             ))}
           </ul>
         </div>
+        {winGuide && <SshGuide ip={ip} os={windows || windowsGuess ? "windows" : "linux"} onCancel={() => setWinGuide(false)}
+          onReady={async (alias) => { await autoSave("ssh", { os: "windows", health: alias, ssh: null }); setWinGuide(false); }} />}
         {!windows && v.ssh && hasAdguard && (  // seulement si AdGuard a été trouvé sur la machine (ou déjà réglé) : sinon rien à montrer
           <div className="mt-3 sm:max-w-[50%]">
             <Field label={tx("AdGuard Home trouvé (conteneur ou chemin du .yaml)")}>
