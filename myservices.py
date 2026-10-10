@@ -1075,6 +1075,7 @@ def main():
             "ping": pings[ip],
             "off": ip in MACHINES_OFF,
             "disabled": ip in DISABLED,
+            "detected": hostinfo.detected_flags(ip, info, META_RAW.get("machines", {}).get(ip, {})),
             "local": MACHINES[ip][2] == "local",
             "ssh": {"alias": sc["alias"], "port": sc["port"], "user": sc["user"], "identity": sc["identity"],
                     "key_fp": hostinfo.key_fingerprint(sc["identity"]), "host_key": hostinfo.host_key(ip, sc["port"]),

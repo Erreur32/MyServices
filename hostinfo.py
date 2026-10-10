@@ -25,6 +25,8 @@ echo "##SVC apache2=$(systemctl is-active apache2 2>/dev/null) nginx=$(systemctl
 echo "##SSHDR $( [ -r /etc/ssh/sshd_config ] && echo yes || echo no)"
 echo "##SSHD $(grep -h -E -i '^[[:space:]]*(Port|PermitRootLogin|PasswordAuthentication)[[:space:]]' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null | tr -s ' \t' ' ' | paste -sd';')"
 echo "##DOCKER $(docker ps -q 2>/dev/null | wc -l)"
+echo "##VIRT $(systemd-detect-virt 2>/dev/null)"
+echo "##NPM $(docker ps --format '{{.Image}}' 2>/dev/null | grep -c nginx-proxy-manager)"
 echo "##LISTEN $(grep -h -E -i '^[[:space:]]*Listen[[:space:]]' /etc/apache2/ports.conf 2>/dev/null | awk '{print $2}' | sort -u | paste -sd' ')"
 for f in /etc/apache2/sites-enabled/*.conf; do
   [ -e "$f" ] || continue
@@ -32,6 +34,30 @@ for f in /etc/apache2/sites-enabled/*.conf; do
   else echo "##U $f"; fi
 done
 """
+
+
+def default_gateway() -> str | None:
+    """Adresse de la passerelle par défaut de l'hôte (box ou routeur), d'après sa route par défaut ; None si introuvable."""
+    try:
+        out = subprocess.run(["ip", "-4", "route", "show", "default"], capture_output=True, text=True, timeout=5).stdout.split()
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return out[out.index("via") + 1] if "via" in out else None
+
+
+def detected_flags(ip: str, info: dict | None, conf: dict) -> list[str]:
+    """Réglages de machine que la détection confirme (page : un interrupteur non détecté est grisé) : passerelle (route par
+    défaut de l'hôte), machine virtuelle (systemd-detect-virt), hôte NPM (conteneur), Windows (poste souvent éteint)."""
+    out = []
+    if ip == default_gateway():
+        out.append("gateway")
+    if (info or {}).get("virt"):
+        out.append("vm")
+    if (info or {}).get("npm"):
+        out.append("npm")
+    if conf.get("os") == "windows":
+        out.append("off")
+    return out
 
 
 def ssh_config() -> dict[str, dict]:
@@ -188,6 +214,8 @@ def host_info(alias: str) -> dict | None:
         "apache": svc.get("apache2") == "active",
         "nginx": svc.get("nginx") == "active",
         "docker": int(tag["DOCKER"]) if tag.get("DOCKER", "").isdigit() else 0,
+        "virt": tag.get("VIRT") if re.fullmatch(r"[a-z0-9-]{2,20}", tag.get("VIRT", "")) and tag.get("VIRT") != "none" else None,  # kvm, vmware, lxc…
+        "npm": tag.get("NPM", "").isdigit() and int(tag["NPM"]) > 0,  # conteneur Nginx Proxy Manager présent
         "sshd": sshd,  # vide si /etc/ssh/sshd_config illisible pour ce compte
         "vhosts": vhosts,
         "vhosts_unreadable": unreadable,

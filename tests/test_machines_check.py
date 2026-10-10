@@ -143,5 +143,30 @@ class MachineNonSuivie(unittest.TestCase):
         self.assertEqual([h["ip"] for h in hosts], ["10.0.0.1"])
 
 
+class ReglagesDetectes(unittest.TestCase):
+    """La collecte dit quels interrupteurs de machine sont confirmés par la détection (les autres sont grisés dans la page)."""
+
+    def flags(self, ip, info, os_=None, gw="10.0.0.1"):
+        import hostinfo
+        with mock.patch.object(hostinfo, "default_gateway", return_value=gw):
+            return hostinfo.detected_flags(ip, info, {"os": os_} if os_ else {})
+
+    def test_passerelle_vm_npm_windows(self):
+        self.assertEqual(self.flags("10.0.0.1", {}), ["gateway"])
+        self.assertEqual(self.flags("10.0.0.5", {"virt": "kvm", "npm": True}), ["vm", "npm"])
+        self.assertEqual(self.flags("10.0.0.9", None, os_="windows"), ["off"])
+        self.assertEqual(self.flags("10.0.0.7", {"virt": None, "npm": False}), [])
+
+    def test_infos_machine_lit_virt_et_npm(self):
+        import hostinfo
+        out = "##OS Debian\n##KERNEL 6.1\n##UP 10\n##SVC apache2=inactive nginx=inactive\n##SSHDR no\n##SSHD\n##DOCKER 2\n##VIRT kvm\n##NPM 1\n"
+        with mock.patch.object(hostinfo.subprocess, "run", return_value=mock.Mock(returncode=0, stdout=out)):
+            info = hostinfo.host_info("x")
+        self.assertEqual((info["virt"], info["npm"]), ("kvm", True))
+        with mock.patch.object(hostinfo.subprocess, "run", return_value=mock.Mock(returncode=0, stdout=out.replace("kvm", "none").replace("NPM 1", "NPM 0"))):
+            info = hostinfo.host_info("x")
+        self.assertEqual((info["virt"], info["npm"]), (None, False))
+
+
 if __name__ == "__main__":
     unittest.main()

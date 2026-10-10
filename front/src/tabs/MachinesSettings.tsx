@@ -194,6 +194,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
 }) {
   const [v, setV] = useState<MachineConf>(m);
   const [proc, setProc] = useState(!!process);
+  const [unlock, setUnlock] = useState(false);  // détection incomplète : débloque tous les interrupteurs
   const [hasAdguard] = useState(() => !!m.adguard);  // figé à l'ouverture : vider le champ ne le fait pas disparaître
   const [options, setOptions] = useState(() => !!m.disabled || detected.length > 0);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
@@ -207,6 +208,13 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
     ...(hasAdguard ? [["AdGuard Home", !windows && access, tx("Réécritures et réponses DNS (onglet DNS)")] as [string, boolean, string]] : []),
     [tx("Services en écoute"), !windows && access && proc, tx("Ports en écoute hors Docker (option ci-dessous)")],
   ];
+  // Interrupteurs détectables (passerelle, VM, hôte NPM, poste Windows) : grisés si la détection ne les confirme pas et qu'ils
+  // sont éteints. Un interrupteur déjà allumé reste modifiable (pour le retirer). Les autres (NPM seulement, services hors Docker)
+  // ne se détectent pas : toujours libres.
+  const found = new Set([...(live?.detected ?? []), ...detected]);
+  const DETECTABLE = ["gateway", "vm", "npm", "off"];
+  const locked = (k: string) => !unlock && DETECTABLE.includes(k) && !found.has(k) && !v[k as keyof MachineConf];
+  const nLocked = DETECTABLE.filter((k) => locked(k)).length;
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -269,7 +277,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
           {tx("Options de la machine")}
           <span className="flex flex-wrap items-center gap-1 font-normal">
             {v.disabled && <Badge tone="warn">{tx("non suivie")}</Badge>}
-            {FLAGS.filter((f) => v[f.k]).map((f) => <Badge key={String(f.k)} tone={detected.includes(String(f.k)) ? "info" : "off"}>{f.label}</Badge>)}
+            {FLAGS.filter((f) => v[f.k]).map((f) => <Badge key={String(f.k)} tone={found.has(String(f.k)) ? "info" : "off"}>{f.label}</Badge>)}
             {proc && !windows && !!v.ssh && <Badge tone="off">{tx("services hors Docker")}</Badge>}
           </span>
         </button>
@@ -280,11 +288,17 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
             <span><b>{tx("Machine suivie")}</b> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>
           </label>
           {FLAGS.map((f) => (
-            <label key={f.k} className="flex items-start gap-2">
-              <Switch on={!!v[f.k]} onChange={(on) => setV({ ...v, [f.k]: on })} label={f.label} />
-              <span>{f.label} {detected.includes(String(f.k)) && <Badge tone="info" title={tx("Trouvé par la détection : décochez si c'est faux")}>{tx("détecté")}</Badge>} <Dim>· {f.help}</Dim></span>
+            <label key={f.k} className={`flex items-start gap-2 ${locked(String(f.k)) ? "opacity-50" : ""}`}
+              title={locked(String(f.k)) ? tx("Non détecté sur cette machine : grisé") : undefined}>
+              <Switch on={!!v[f.k]} disabled={locked(String(f.k))} onChange={(on) => setV({ ...v, [f.k]: on })} label={f.label} />
+              <span>{f.label} {found.has(String(f.k)) && <Badge tone="info" title={tx("Trouvé par la détection : décochez si c'est faux")}>{tx("détecté")}</Badge>}
+                {locked(String(f.k)) && <Badge tone="off">{tx("non détecté")}</Badge>} <Dim>· {f.help}</Dim></span>
             </label>
           ))}
+          {nLocked > 0 && (
+            <p className="text-xs text-dim">{tx("Les interrupteurs grisés ne sont pas confirmés par la détection (elle lit la machine à chaque collecte).")}{" "}
+              <button type="button" className="text-link hover:underline" onClick={() => setUnlock(true)}>{tx("Détection incomplète ? Tout débloquer")}</button></p>
+          )}
           {!windows && v.ssh && (
             <label className="flex items-start gap-2">
               <Switch on={proc} onChange={setProc} label={tx("Lire les services hors Docker")} />

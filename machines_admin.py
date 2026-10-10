@@ -74,13 +74,7 @@ def _resolve(target: str) -> tuple[str, str | None]:
     return ip, alias
 
 
-def default_gateway() -> str | None:
-    """Adresse de la passerelle par défaut de l'hôte (box ou routeur), d'après sa route par défaut ; None si introuvable."""
-    try:
-        out = subprocess.run(["ip", "-4", "route", "show", "default"], capture_output=True, text=True, timeout=5).stdout.split()
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    return out[out.index("via") + 1] if "via" in out else None
+default_gateway = hostinfo.default_gateway  # la détection de l'ajout et celle de la collecte partagent le même code
 
 
 def detect(target: str) -> dict:

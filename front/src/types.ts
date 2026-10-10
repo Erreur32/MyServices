@@ -95,6 +95,7 @@ export interface Machine {
   role?: string;
   ping: boolean;
   off: boolean;
+  detected?: string[];  // réglages confirmés par la détection (gateway, vm, npm, off) : les autres interrupteurs sont grisés
   disabled?: boolean;  // machine non suivie (Réglages → Machines) : ni ping, ni SSH, ni santé
   local?: boolean;
   gateway?: boolean;
