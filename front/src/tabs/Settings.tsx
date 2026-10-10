@@ -20,6 +20,7 @@ import { ApiMcp } from "./ApiMcp";
 import { AuditLog } from "./AuditLog";
 import { SystemSettings } from "./SystemSettings";
 import { tx } from "../lib/i18n";
+import { lastSettingsSection, rememberSettingsSection } from "../lib/settingsNav";
 import { checkPassword, okField, PASSWORD_MIN } from "../lib/password";
 import { PasswordRules } from "../components/PasswordRules";
 
@@ -53,8 +54,10 @@ export interface Look {
 export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
   const [section, setSection] = useState(() => {
     const s = location.hash.split("/")[1]; // lien direct : #settings/<section> (menu du compte)
-    return s === "sources" ? "connectors" : SECTIONS.some((x) => x.id === s) ? s : "accounts"; // « sources » : ancien lien, fondu dans Connecteurs
+    const wanted = s === "sources" ? "connectors" : s || lastSettingsSection(); // « sources » : ancien lien, fondu dans Connecteurs
+    return SECTIONS.some((x) => x.id === wanted) ? wanted : "accounts";
   });
+  useEffect(() => rememberSettingsSection(section), [section]);
   return (
     <div className="flex flex-col gap-4 py-4 md:flex-row">
       <nav className="flex shrink-0 gap-3 overflow-x-auto md:w-60 md:flex-col md:overflow-visible" aria-label={tx("Sections des réglages")}>

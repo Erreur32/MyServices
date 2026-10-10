@@ -48,8 +48,13 @@ export function Connectors() {
           </button>
         </div>
         <p className="mt-1 text-sm text-muted">
-          {tx("Services lus par leur API,")} <b className="text-txt">{tx("en lecture seule")}</b> {tx(": prévoir un compte ou une clé lecture seule. « Tester » essaie les réglages sans les enregistrer ; un changement est pris en compte au prochain passage de la collecte.")}
+          {tx("Un connecteur relie MyServices à un outil par son API (NPM, AdGuard, Beszel…) pour en lire les services et l'état.")}{" "}
+          <b className="text-txt">{tx("Lecture seule")}</b> {tx(": donnez-lui un compte ou une clé qui ne peut rien modifier.")}
         </p>
+        <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-dim">
+          <li>• {tx("« Tester » vérifie les réglages sans les enregistrer")}</li>
+          <li>• {tx("Un changement est pris en compte à la prochaine collecte")}</li>
+        </ul>
         {picking && (
           <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label={tx("Connecteurs disponibles")}>
             {st.types.map((t) => {
@@ -74,6 +79,9 @@ export function Connectors() {
         )}
         {type && <ConnectorForm key={type.type} type={type} prefill={prefill?.type === type.type ? prefill : null} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
       </Card>
+      {st.instances.length === 0 && !type && (
+        <Card><p className="text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p></Card>
+      )}
       {st.instances.map((i, n) => (
         <InstanceCard key={`${i.type}/${i.name}`} inst={i} type={st.types.find((t) => t.type === i.type)!} reload={reload}
           source={i.type in SHOWN && st.instances.findIndex((x) => x.type === i.type) === n && i.type in src ? { label: SHOWN[i.type], on: src[i.type], set: (on) => toggleSource(i.type, on) } : undefined} />
@@ -104,9 +112,10 @@ export function Connectors() {
           </div>
         )}
       </Card>
-      <p className="px-1 text-sm text-muted">
-        {tx("Docker, services en écoute et AdGuard sont lus")} <b className="text-txt">{tx("par SSH")}</b> {tx(": leur accès et leur état se règlent avec chaque machine, dans Réglages → Machines.")}
-      </p>
+      <div className="flex items-start gap-3 rounded-xl border border-line bg-bg2/40 px-4 py-3 text-sm text-muted">
+        <Server size={16} className="mt-0.5 shrink-0 text-dim" aria-hidden />
+        <p>{tx("Docker, services en écoute et AdGuard sont lus")} <b className="text-txt">{tx("par SSH")}</b> {tx(": leur accès et leur état se règlent avec chaque machine, dans Réglages → Machines.")}</p>
+      </div>
     </div>
   );
 }
@@ -127,11 +136,14 @@ function InstanceCard({ inst, type, reload, source }: { inst: ConnectorInstance;
         <div className="min-w-[220px] flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Switch on={inst.enabled} onChange={toggle} label={inst.enabled ? `Couper ${inst.label}` : `Allumer ${inst.label}`} />
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">
+              {appIcon([inst.label]) ? <img src={appIcon([inst.label])!} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}
+            </span>
             <b>{inst.label}</b><Dim>· {inst.name}</Dim>
             {!inst.enabled && <Badge tone="off">{tx("coupé")}</Badge>}
             {type.kinds.map((k) => <Badge key={k} tone="info">{KIND[k] || k}</Badge>)}
           </div>
-          {url && <div className="mt-0.5 font-mono text-xs text-dim">{url}</div>}
+          {url && <a className="mt-1 inline-block break-all font-mono text-xs text-dim hover:text-link hover:underline" href={url} target="_blank" rel="noopener noreferrer">{url}</a>}
           {inst.enabled && <div className="mt-2 text-sm"><StatusLine s={inst.status} /></div>}
         </div>
         <div className="flex flex-wrap gap-1.5">

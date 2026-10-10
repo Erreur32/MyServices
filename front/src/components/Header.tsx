@@ -5,6 +5,7 @@ import type { Theme } from "../theme";
 import { LOCALE, tx } from "../lib/i18n";
 import { reopenFirstSteps } from "../lib/firstSteps";
 import { GITHUB } from "../lib/links";
+import { lastSettingsSection } from "../lib/settingsNav";
 
 function ago(iso: string, now: number): string {
   const min = Math.round((now - new Date(iso).getTime()) / 60000);
@@ -59,7 +60,7 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
             <div className="text-xs text-dim">{admin ? tx("admin : tout, réglages compris") : tx("lecture seule")}</div>
           </div>
           <div className="my-1 border-t border-line/70" />
-          {admin && <button type="button" role="menuitem" className={item} onClick={() => go("settings")}><Settings size={15} />{tx("Réglages")}</button>}
+          {admin && <button type="button" role="menuitem" className={item} onClick={() => go(lastSettingsSection() ? `settings/${lastSettingsSection()}` : "settings")}><Settings size={15} />{tx("Réglages")}</button>}
           <button type="button" role="menuitem" className={item} onClick={() => go("profile")}><UserRound size={15} />{tx("Profil")}</button>
           {admin && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); reopenFirstSteps(); }} title={tx("Rouvre la carte et efface vos choix « Passer »")}><ListChecks size={15} />{tx("Revoir les premiers pas")}</button>}
           <button type="button" role="menuitem" className={item} onClick={toggleTheme}>
