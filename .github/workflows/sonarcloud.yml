@@ -29,6 +29,9 @@ jobs:
       - run: |
           pip install --require-hashes --only-binary=:all: -r requirements.txt
           pip install coverage
+          # Dossiers de données de l'application (dans l'image : /data) vers un dossier jetable
+          export MYSERVICES_STATE_DIR="$RUNNER_TEMP/data/state" MYSERVICES_WEB_DIR="$RUNNER_TEMP/data/web" MYSERVICES_CACHE_DIR="$RUNNER_TEMP/data/cache"
+          mkdir -p "$MYSERVICES_STATE_DIR" "$MYSERVICES_WEB_DIR" "$MYSERVICES_CACHE_DIR"
           coverage run -m unittest discover -s tests
           coverage xml -o coverage.xml
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
