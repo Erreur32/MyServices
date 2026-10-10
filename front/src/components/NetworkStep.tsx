@@ -1,7 +1,7 @@
 // Étape « Recherche des autres machines du réseau » de Premiers pas : lancer la recherche, choisir les machines à
 // ajouter, puis, pour celles qui répondent en SSH, préparer l'accès (alias + commande à autoriser + test).
 // Lecture seule sur le réseau ; rien n'est ajouté sans que l'admin le demande.
-import { Check, Circle, KeyRound, Loader2, Plug, RefreshCw, Search, Square } from "lucide-react";
+import { Check, Circle, KeyRound, Loader2, Plug, RefreshCw, RotateCcw, Search, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { read, send } from "../api";
 import { act, button, input, primary, type Note } from "../lib/forms";
@@ -252,10 +252,19 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
         </div>
       )}
       {later.length > 0 && (
-        <p className="text-sm text-dim">
-          {tx("{0} accès passé(s) : {1}.", later.length, later.map((h) => h.name || h.ip).join(", "))}{" "}
-          <button type="button" className="text-link hover:underline" onClick={resumeLater}>{tx("Reprendre")}</button>
-        </p>
+        <section className="rounded-xl border border-warn/50 bg-warn/10 p-3" aria-live="polite">
+          <div className="flex flex-wrap items-center gap-2">
+            <RotateCcw size={16} className="text-warn" aria-hidden />
+            <b className="text-txt">{later.length > 1 ? tx("{0} accès passés, à régler plus tard", later.length) : tx("1 accès passé, à régler plus tard")}</b>
+            <button type="button" className={`${primary} ml-auto`} onClick={resumeLater}>
+              <RotateCcw size={14} aria-hidden />{later.length > 1 ? tx("Tout reprendre") : tx("Reprendre")}
+            </button>
+          </div>
+          <p className="mt-1 text-sm text-muted">{tx("Ces machines sont ajoutées, mais leur accès (SSH ou jeton Home Assistant) n'est pas réglé : MyServices ne lit pas leurs conteneurs ni leur état.")}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {later.map((h) => <Badge key={h.ip} tone="warn" title={h.ip}>{h.name || h.ip}</Badge>)}
+          </div>
+        </section>
       )}
       <NoteLine note={note} />
     </div>
