@@ -169,7 +169,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus }: {
               <SshDetails m={live} statuses={statuses} />
             </section>
           )}
-          <MachineForm ip={ip} m={m} st={st} process={!!st.process_hosts[ip]} onDone={reload} />
+          <MachineForm ip={ip} m={m} st={st} live={live} process={!!st.process_hosts[ip]} onDone={reload} />
           <div className="flex flex-wrap gap-1.5">
             <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
             {confirm ? <>
@@ -189,14 +189,22 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus }: {
   );
 }
 
-function MachineForm({ ip, m, st, isNew, process, extra, detected = [], onDone }: {
-  detected?: string[]; ip: string; m: MachineConf; st: State; isNew?: boolean; process?: boolean; extra?: Detection["web"]; onDone: () => void;
+function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, onDone }: {
+  live?: Snapshot["data"]["machine_list"][number]; detected?: string[]; ip: string; m: MachineConf; st: State; isNew?: boolean; process?: boolean; extra?: Detection["web"]; onDone: () => void;
 }) {
   const [v, setV] = useState<MachineConf>(m);
   const [proc, setProc] = useState(!!process);
   const [options, setOptions] = useState(() => !!m.disabled || detected.length > 0);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const windows = v.os === "windows";
+  // Ce que l'accès choisi permet de lire (suit le formulaire, avant même l'enregistrement)
+  const access = windows ? !!v.health : !!v.ssh, health = access && !v.off && v.health !== false;
+  const gives: [string, boolean, string][] = [
+    ["Docker", !windows && access, tx("Conteneurs, images, ports (onglet Services)")],
+    [tx("Santé"), health, v.off ? tx("Souvent éteinte : la santé ne la lit pas") : tx("Disques, mémoire, CPU, systemd, mises à jour (onglet Santé)")],
+    [tx("Système"), !windows && access, tx("Système, noyau, sshd, Apache (onglet Machines)")],
+    [tx("Services en écoute"), !windows && access && proc, tx("Ports en écoute hors Docker (option ci-dessous)")],
+  ];
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -207,28 +215,50 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], onDone }
   };
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label={tx("Nom")}><input className={input} required maxLength={80} value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>
-        <Field label={tx("Rôle (libre)")}><input className={input} maxLength={80} value={v.role || ""} onChange={(e) => setV({ ...v, role: e.target.value })} /></Field>
-        {windows ? (
-          <Field label={tx("Alias SSH de la santé (Windows)")}>
-            <input className={input} value={String(v.health || "")} onChange={(e) => setV({ ...v, health: e.target.value })} list="ssh-aliases-f" />
-          </Field>
-        ) : (
-          <Field label={tx("Alias SSH (inventaire Docker, santé)")}>
-            <select className={input} value={v.ssh || ""} onChange={(e) => setV({ ...v, ssh: e.target.value || null })}>
-              <option value="">{tx("aucun : ping et services web seulement")}</option>
-              {st.aliases.map((a) => <option key={a.alias} value={a.alias}>{a.alias} · {a.user ? `${a.user}@` : ""}{a.ip || a.host}{a.port ? `:${a.port}` : ""}</option>)}
-            </select>
-          </Field>
-        )}
-        <datalist id="ssh-aliases-f">{st.aliases.map((a) => <option key={a.alias} value={a.alias} />)}</datalist>
-        {!windows && v.ssh && (
-          <Field label={tx("AdGuard Home (conteneur ou chemin du .yaml)")}>
-            <input className={input} maxLength={80} value={v.adguard || ""} placeholder={tx("aucun")} onChange={(e) => setV({ ...v, adguard: e.target.value })} />
-          </Field>
-        )}
-      </div>
+      <section>
+        <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("Identité")}</h4>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={tx("Nom")}><input className={input} required maxLength={80} value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>
+          <Field label={tx("Rôle (libre)")}><input className={input} maxLength={80} value={v.role || ""} onChange={(e) => setV({ ...v, role: e.target.value })} /></Field>
+        </div>
+      </section>
+      <section className="rounded-xl border border-line/60 bg-bg2/30 p-3">
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("Accès SSH (lecture seule)")}</h4>
+          {live && <Badge tone={MSTATE[mState(live)][0]} title={MSTATE[mState(live)][2]}>{MSTATE[mState(live)][1]}</Badge>}
+        </div>
+        <p className="mb-2 text-xs text-muted">
+          {tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache. Rien n'y est modifié. Sans accès : ping et services web seulement.")}
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {windows ? (
+            <Field label={tx("Accès SSH de la santé (Windows)")}>
+              <input className={input} value={String(v.health || "")} onChange={(e) => setV({ ...v, health: e.target.value })} list="ssh-aliases-f" />
+            </Field>
+          ) : (
+            <Field label={tx("Accès SSH (alias)")}>
+              <select className={input} value={v.ssh || ""} onChange={(e) => setV({ ...v, ssh: e.target.value || null })}>
+                <option value="">{tx("aucun : ping et services web seulement")}</option>
+                {st.aliases.map((a) => <option key={a.alias} value={a.alias}>{a.alias} · {a.user ? `${a.user}@` : ""}{a.ip || a.host}{a.port ? `:${a.port}` : ""}</option>)}
+              </select>
+            </Field>
+          )}
+          <datalist id="ssh-aliases-f">{st.aliases.map((a) => <option key={a.alias} value={a.alias} />)}</datalist>
+          {!windows && v.ssh && (
+            <Field label={tx("AdGuard Home (conteneur ou chemin du .yaml)")}>
+              <input className={input} maxLength={80} value={v.adguard || ""} placeholder={tx("aucun")} onChange={(e) => setV({ ...v, adguard: e.target.value })} />
+            </Field>
+          )}
+        </div>
+        <ul className="mt-2.5 flex flex-wrap gap-1.5" aria-label={tx("Ce que cet accès permet de lire")}>
+          {gives.map(([label, on, why]) => (
+            <li key={label} title={why}><Badge tone={on ? "ok" : "off"}>{on ? "✓" : "–"} {label}</Badge></li>
+          ))}
+        </ul>
+        <p className="mt-1.5 text-xs text-dim">
+          {tx("Pas encore d'alias ? « Lire cette machine par SSH » (Réglages → Découverte) le crée avec la clé de l'app ; la clé est dans Réglages → Clé SSH.")}
+        </p>
+      </section>
       {/* Menu pliant des interrupteurs : replié, sauf à l'ajout avec une détection à confirmer ou si la machine n'est pas suivie */}
       <div className="rounded-xl border border-line/60 bg-bg2/30">
         <button type="button" onClick={() => setOptions(!options)} aria-expanded={options}
