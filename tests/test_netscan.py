@@ -69,16 +69,16 @@ class PageTitle(unittest.TestCase):
 
 
 class Targets(unittest.TestCase):
-    def test_exclut_les_machines_connues(self):
-        got = netscan.targets("192.168.1.0/24", {"192.168.1.5", "192.168.1.1"})
-        self.assertEqual(len(got), 252)
-        self.assertNotIn("192.168.1.5", got)
+    def test_tout_le_reseau_sans_adresse_reseau_ni_diffusion(self):
+        got = netscan.targets("192.168.1.0/24")
+        self.assertEqual(len(got), 254)
+        self.assertIn("192.168.1.5", got)  # une machine déjà déclarée est pinguée aussi
         self.assertNotIn("192.168.1.0", got)
         self.assertNotIn("192.168.1.255", got)
 
     def test_refuse_un_reseau_plus_grand_qu_un_24(self):
         with self.assertRaises(ValueError):
-            netscan.targets("10.0.0.0/16", set())
+            netscan.targets("10.0.0.0/16")
 
 
 class Describe(unittest.TestCase):
@@ -143,6 +143,28 @@ class Describe(unittest.TestCase):
         self.assertEqual(sorted(d["apps"]), ["Home Assistant", "Nginx Proxy Manager", "Plex"])
 
 
+class Auto(unittest.TestCase):
+    """Recherche automatique : seulement après une première recherche manuelle, puis à intervalle régulier."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.file = Path(self.tmp.name) / "network-scan.json"
+        netscan._state.update(phase="idle", found=[], ended=None, started=None)
+
+    def test_jamais_sans_premiere_recherche(self):
+        self.assertFalse(netscan.due(self.file, 6, now=10 ** 9))
+
+    def test_due_apres_l_intervalle(self):
+        self.file.write_text(json.dumps({"phase": "done", "ended": 1000.0, "started": 990.0, "found": []}))
+        self.assertFalse(netscan.due(self.file, 6, now=1000 + 5 * 3600))
+        self.assertTrue(netscan.due(self.file, 6, now=1000 + 6 * 3600))
+
+    def test_zero_coupe_l_automatique(self):
+        self.file.write_text(json.dumps({"phase": "done", "ended": 1.0, "found": []}))
+        self.assertFalse(netscan.due(self.file, 0, now=10 ** 9))
+
+
 class Run(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -152,14 +174,14 @@ class Run(unittest.TestCase):
 
     def test_trouve_les_machines_qui_repondent(self):
         up = {"192.168.1.10", "192.168.1.2"}
-        ok = netscan.start({"192.168.1.1"}, self.file, ping=lambda ip: ip in up,
+        ok = netscan.start(set(), self.file, ping=lambda ip: ip in up,
                            describe=lambda ip: {"ip": ip, "name": "", "ports": [], "hints": [], "apps": []}, net="192.168.1.0/29")
         self.assertTrue(ok)
         wait_done()
         st = netscan.state(self.file)
         self.assertEqual([f["ip"] for f in st["found"]], ["192.168.1.2"])  # /29 : .1 à .6 ; .10 hors réseau
         self.assertEqual((st["up"], st["described"]), (1, 1))
-        self.assertEqual((st["total"], st["done"], st["stopped"], st["error"]), (5, 5, False, None))
+        self.assertEqual((st["total"], st["done"], st["stopped"], st["error"]), (6, 6, False, None))  # /29 : 6 adresses, aucune exclue
         self.assertEqual(json.loads(self.file.read_text())["found"][0]["ip"], "192.168.1.2")
 
     def test_resultat_trie_par_adresse_meme_si_l_identification_finit_dans_le_desordre(self):
@@ -183,8 +205,7 @@ class Run(unittest.TestCase):
         self.assertEqual(netscan.summary()["described"], 14)
 
     def test_changements_depuis_la_recherche_precedente(self):
-        """2e recherche : ce qui a répondu avant et plus maintenant est « disparu » ; une machine ajoutée entre-temps
-        (donc non pingée) n'est pas « disparue »."""
+        """2e recherche : ce qui a répondu avant et plus maintenant est « disparu », machines déclarées comprises."""
         mk = lambda ip: {"ip": ip, "name": "", "ports": [], "hints": [], "apps": []}  # noqa: E731
         netscan.start(set(), self.file, ping=lambda ip: ip in {"192.168.1.2", "192.168.1.3", "192.168.1.4"}, describe=mk, net="192.168.1.0/29")
         wait_done()
@@ -194,7 +215,8 @@ class Run(unittest.TestCase):
         st = netscan.state(self.file)
         self.assertEqual([h["ip"] for h in st["found"]], ["192.168.1.2", "192.168.1.5"])
         self.assertEqual(st["previous"], ["192.168.1.2", "192.168.1.3", "192.168.1.4"])
-        self.assertEqual(st["gone"], ["192.168.1.3"])  # .4 est devenue une machine déclarée
+        self.assertEqual(st["gone"], ["192.168.1.3", "192.168.1.4"])
+        self.assertEqual({h["ip"]: h["known"] for h in st["found"]}, {"192.168.1.2": False, "192.168.1.5": False})
         self.assertEqual(st["previous_ended"], first_end)
 
     def test_recherche_precedente_relue_apres_redemarrage(self):
@@ -216,6 +238,14 @@ class Run(unittest.TestCase):
         gate.set()
         wait_done()
         self.assertEqual(netscan.state(self.file)["gone"], [])
+
+    def test_machine_declaree_decrite_et_marquee(self):
+        mk = lambda ip: {"ip": ip, "name": "", "ports": [], "hints": [], "apps": [], "ssh_port": 22232}  # noqa: E731
+        netscan.start({"192.168.1.2"}, self.file, ping=lambda ip: ip in {"192.168.1.2", "192.168.1.3"}, describe=mk, net="192.168.1.0/29")
+        wait_done()
+        got = {h["ip"]: h for h in netscan.state(self.file)["found"]}
+        self.assertEqual((got["192.168.1.2"]["known"], got["192.168.1.2"]["ssh_port"]), (True, 22232))
+        self.assertFalse(got["192.168.1.3"]["known"])
 
     def test_un_seul_passage_a_la_fois(self):
         gate = threading.Event()

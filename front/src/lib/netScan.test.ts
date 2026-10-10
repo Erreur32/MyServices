@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changes, interesting, quiet, tagsOf } from "./netScan";
+import { changes, interesting, needsLink, quiet, tagsOf } from "./netScan";
 
 const labels = (h: { hints: string[]; apps: string[] }) => tagsOf(h).map((t) => t.label);
 
@@ -54,5 +54,22 @@ describe("quiet", () => {
     expect(quiet({ hints: [], apps: [] })).toBe(true);
     expect(quiet({ hints: ["web :80"], apps: [] })).toBe(false);
     expect(quiet({ hints: [], apps: ["Plex"] })).toBe(false);
+  });
+});
+
+describe("needsLink", () => {
+  const ha = { ip: "10.0.0.8", apps: ["Home Assistant"], ssh_port: 22232 };
+  it("Home Assistant sans connecteur : jeton à régler (jamais SSH, même si un port SSH répond)", () => {
+    expect(needsLink(ha, [{ ip: "10.0.0.8" }], [])).toBe("ha");
+    expect(needsLink(ha, [{ ip: "10.0.0.8" }], [{ connector: "home-assistant", url: "http://10.0.0.8:8123" }])).toBeNull();
+    expect(needsLink(ha, [], [{ connector: "home-assistant", url: "http://10.0.0.9:8123" }])).toBe("ha");
+  });
+  it("machine en SSH sans accès réglé : clé à préparer", () => {
+    const h = { ip: "10.0.0.5", apps: [], ssh_port: 22 };
+    expect(needsLink(h, [{ ip: "10.0.0.5", ssh: null }], [])).toBe("ssh");
+    expect(needsLink(h, [{ ip: "10.0.0.5", ssh: { alias: "m-5" } }], [])).toBeNull();
+  });
+  it("machine sans SSH : rien à régler", () => {
+    expect(needsLink({ ip: "10.0.0.6", apps: [] }, [{ ip: "10.0.0.6" }], [])).toBeNull();
   });
 });

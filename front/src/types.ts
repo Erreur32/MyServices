@@ -151,6 +151,7 @@ export interface NetHost {
   hints: string[];
   apps: string[];
   title?: string | null;  // titre de la page web (port 80 ou 443)
+  known?: boolean;        // machine déjà déclarée dans MyServices
 }
 
 export interface NetScan {

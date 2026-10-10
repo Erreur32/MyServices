@@ -5,7 +5,9 @@ quelques connexions TCP sur des ports connus (SSH, RDP, SMB, web…). Rien n'est
 rien n'est ajouté tout seul : la page propose « Ajouter » pour chacune.
 
 Au plus un /24 (celui de la machine hôte), un seul passage à la fois, arrêt possible à tout moment. Les machines
-déjà déclarées ne sont ni pinguées ni proposées. Le dernier résultat est gardé dans le dossier d'état.
+déjà déclarées sont pinguées et décrites comme les autres (la page y retrouve leur SSH et leurs applis, pour les
+accès encore à régler, et une machine déclarée qui ne répond plus est « disparue ») ; la page ne propose à l'ajout
+que les autres. Le dernier résultat est gardé dans le dossier d'état.
 """
 from __future__ import annotations
 
@@ -123,12 +125,12 @@ def local_net() -> str:
     return str(ipaddress.ip_interface(addr[3]).network) if len(addr) > 3 else ""
 
 
-def targets(net: str, known: set[str]) -> list[str]:
-    """Adresses à pinguer : le réseau (jamais plus grand que le /24 de la machine), sans les machines déjà connues."""
+def targets(net: str) -> list[str]:
+    """Adresses à pinguer : tout le réseau, jamais plus grand qu'un /24."""
     network = ipaddress.ip_network(net, strict=False)
     if network.num_addresses > 256:
         raise ValueError("réseau plus grand qu'un /24")
-    return [str(h) for h in network.hosts() if str(h) not in known]
+    return [str(h) for h in network.hosts()]
 
 
 def _ipkey(ip: str) -> tuple:
@@ -170,7 +172,7 @@ def _scan(hosts: list[str], ping=_ping, describe=None) -> None:
             while todo and not _stop.is_set():
                 done, todo = wait(todo, timeout=0.2, return_when=FIRST_COMPLETED)
                 with _lock:
-                    _state["found"] += [f.result() for f in done]
+                    _state["found"] += [{**f.result(), "known": f.result()["ip"] in _known} for f in done]
                     _state["described"] += len(done)
         finally:
             dx.shutdown(wait=False, cancel_futures=True)
@@ -188,7 +190,7 @@ def _run(hosts: list[str], net: str, ping=_ping, describe=None) -> None:
             _state["error"] = f"{type(e).__name__}: {e}"
     with _lock:
         seen = {h["ip"] for h in _state["found"]}
-        gone = [] if _stop.is_set() or _state["error"] else sorted(set(_state["previous"]) - seen - _known, key=_ipkey)
+        gone = [] if _stop.is_set() or _state["error"] else sorted(set(_state["previous"]) - seen, key=_ipkey)
         _state.update(phase="done", ended=time.time(), stopped=_stop.is_set(), gone=gone)
         _save()
 
@@ -202,19 +204,28 @@ def start(known: set[str], state_file: Path | None = None, ping=_ping, describe=
             return False
         previous = [h["ip"] for h in _state["found"]] or _state["previous"]
         previous_ended = _state["ended"] if _state["found"] else _state["previous_ended"]
-        _known = set(known)
+        _known = set(known)  # gardé pour l'information seulement : les machines connues sont décrites comme les autres
         net = net or local_net()
         if not net:
             _state.update(phase="done", error="réseau local introuvable", found=[], total=0, done=0, up=0, described=0, net=None,
                           started=time.time(), ended=time.time(), stopped=False)
             return True
-        hosts = targets(net, known)
+        hosts = targets(net)
         _file = state_file or _file
         _stop.clear()
         _state.update(phase="ping", net=net, total=len(hosts), done=0, up=0, described=0, found=[], started=time.time(),
                       ended=None, error=None, stopped=False, previous=previous, previous_ended=previous_ended, gone=[])
     threading.Thread(target=_run, args=(hosts, net, ping, describe), daemon=True, name="netscan").start()
     return True
+
+
+def due(state_file: Path, every_h: float, now: float | None = None) -> bool:
+    """Vrai si une recherche automatique est due : seulement une fois qu'une recherche a été lancée à la main (le
+    fichier de résultat existe), et si la dernière date de plus de `every_h` heures. every_h = 0 : jamais."""
+    if every_h <= 0 or not state_file.exists():
+        return False
+    last = state(state_file).get("ended") or state(state_file).get("started") or 0
+    return (now if now is not None else time.time()) - last >= every_h * 3600
 
 
 def stop() -> None:

@@ -7,7 +7,7 @@ import { read, send } from "../api";
 import { act, button, input, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { dateTime } from "../lib/format";
-import { changes, interesting, netState, quiet, tagsOf } from "../lib/netScan";
+import { changes, interesting, needsLink, netState, quiet, tagsOf } from "../lib/netScan";
 import { pokeScan } from "../lib/scan";
 import { ConnectorForm } from "../tabs/Connectors";
 import type { ConnectorsState, ConnectorType, NetHost, NetScan, SystemState } from "../types";
@@ -47,7 +47,17 @@ const loadAdded = (): Record<string, NetHost> => {
   try { return JSON.parse(sessionStorage.getItem(ADDED) || "{}") as Record<string, NetHost>; } catch { return {}; }
 };
 
-export function NetworkStep({ net, reload, known }: { net: NetScan | null; reload: () => void; known: string[] }) {
+const DISMISSED = "myservices-network-dismissed";
+const loadDismissed = (): string[] => {
+  try { return JSON.parse(localStorage.getItem(DISMISSED) || "[]") as string[]; } catch { return []; }
+};
+
+export function NetworkStep({ net, reload, machines, connected }: {
+  net: NetScan | null; reload: () => void;
+  machines: { ip: string; ssh?: unknown }[]; connected: { connector: string; url?: string | null }[];
+}) {
+  const known = machines.map((m) => m.ip);
+  const [dismissed, setDismissed] = useState<string[]>(loadDismissed);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   // Machines ajoutées dont les options (SSH, jeton) restent à régler : gardées si la page est rechargée, retirées par « Terminé »
@@ -72,6 +82,11 @@ export function NetworkStep({ net, reload, known }: { net: NetScan | null; reloa
   const toggle = (ip: string) => setPicked((p) => { const n = new Set(p); if (n.has(ip)) n.delete(ip); else n.add(ip); return n; });
   const found = (net?.found ?? []).filter((h) => !added[h.ip] && !known.includes(h.ip));
   const useful = found.filter((h) => !quiet(h)), silent = found.filter(quiet);
+  // Accès à régler : machines ajoutées à l'instant, plus celles déjà déclarées dont le SSH ou le jeton Home Assistant manque
+  const pending = (net?.found ?? []).filter((h) => known.includes(h.ip) && !added[h.ip] && !dismissed.includes(h.ip) && needsLink(h, machines, connected));
+  const toLink = [...Object.values(added), ...pending];
+  const later = (net?.found ?? []).filter((h) => known.includes(h.ip) && dismissed.includes(h.ip) && needsLink(h, machines, connected));
+  const resumeLater = () => setDismissed((d) => { const n = d.filter((ip) => !later.some((h) => h.ip === ip)); localStorage.setItem(DISMISSED, JSON.stringify(n)); return n; });
 
   const renderRows = (list: NetHost[]) => list.map((h) => (
     <li key={h.ip}>
@@ -137,7 +152,7 @@ export function NetworkStep({ net, reload, known }: { net: NetScan | null; reloa
 
   return (
     <div className="flex flex-col gap-3">
-      {Object.keys(added).length === 0 && found.length === 0 && (
+      {toLink.length === 0 && found.length === 0 && (
         <p>{tx("Cherche les machines allumées sur votre réseau local (un seul sous-réseau /24, en lecture seule : ping, nom et quelques ports). Vous choisissez ensuite lesquelles ajouter ; rien n'est ajouté tout seul.")}</p>
       )}
       {net?.error && <p className="text-bad">⚠ {net.error}</p>}
@@ -179,14 +194,23 @@ export function NetworkStep({ net, reload, known }: { net: NetScan | null; reloa
           </div>
         </>
       )}
-      {Object.keys(added).length > 0 && (
+      {toLink.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-sm font-semibold text-txt">{tx("Machines ajoutées : à relier")}</p>
-          {Object.values(added).map((h) => (
-            <AddedMachine key={h.ip} host={h} onDone={() => setAdded((a) => { const n = { ...a }; delete n[h.ip]; return n; })} />
+          <p className="text-sm font-semibold text-txt">{tx("Machines ajoutées : accès à régler")}</p>
+          {toLink.map((h) => (
+            <AddedMachine key={h.ip} host={h} onDone={() => {
+              setAdded((a) => { const n = { ...a }; delete n[h.ip]; return n; });
+              setDismissed((d) => { const n = [...new Set([...d, h.ip])]; localStorage.setItem(DISMISSED, JSON.stringify(n)); return n; });
+            }} />
           ))}
           {found.length === 0 && <p className="text-sm text-dim">{tx("Toutes les machines trouvées sont ajoutées. « Terminé » ferme un cadre ; « Chercher à nouveau » relance la recherche.")}</p>}
         </div>
+      )}
+      {later.length > 0 && (
+        <p className="text-sm text-dim">
+          {tx("{0} accès passé(s) : {1}.", later.length, later.map((h) => h.name || h.ip).join(", "))}{" "}
+          <button type="button" className="text-link hover:underline" onClick={resumeLater}>{tx("Reprendre")}</button>
+        </p>
       )}
       <div className="flex flex-wrap items-center gap-3 border-t border-line/60 pt-3">
         {net && net.phase === "done" && net.ended ? (
@@ -245,8 +269,8 @@ function AddedMachine({ host, onDone }: { host: NetHost; onDone: () => void }) {
         <Check size={14} className="text-ok" aria-hidden /><b className="text-txt">{label}</b>
         <span className="font-mono text-xs text-dim">{host.ip}</span><Badge tone="ok">{tx("ajoutée")}</Badge>
         {ssh && ok && <Badge tone="ok">{tx("SSH accepté")}</Badge>}
-        <button type="button" className={`${quietBtn} ml-auto`} onClick={onDone} title={tx("Fermer ce cadre : la machine reste ajoutée, ses accès se règlent aussi dans Réglages → Machines")}>
-          {tx("Terminé")}
+        <button type="button" className={`${quietBtn} ml-auto`} onClick={onDone} title={tx("Passer ou fermer ce cadre : la machine reste ajoutée, ses accès se règlent aussi plus tard (« Reprendre » ici, ou Réglages → Machines et Connecteurs)")}>
+          {ssh && !ok ? tx("Passer") : tx("Terminé")}
         </button>
       </p>
       {ssh && !ok && !cmd && (

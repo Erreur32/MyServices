@@ -27,3 +27,19 @@ export function takeReopen(): boolean {
   localStorage.removeItem(REOPEN);
   return asked;
 }
+
+const SKIPS = "myservices-first-steps-skipped";
+export type StepId = "key" | "connectors" | "network";
+
+const allSkips = (): Record<string, StepId[]> => {
+  try { return JSON.parse(localStorage.getItem(SKIPS) || "{}") as Record<string, StepId[]>; } catch { return {}; }
+};
+
+/** Étapes que l'utilisateur a choisi de passer (il les reprend quand il veut) */
+export const skippedSteps = (fp: string): StepId[] => allSkips()[fp] ?? [];
+
+export function setSkipped(fp: string, id: StepId, skipped: boolean): void {
+  const now = new Set(skippedSteps(fp));
+  if (skipped) now.add(id); else now.delete(id);
+  localStorage.setItem(SKIPS, JSON.stringify({ ...allSkips(), [fp]: [...now] }));
+}

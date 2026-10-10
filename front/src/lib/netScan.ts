@@ -52,3 +52,12 @@ export function changes(net: { found: { ip: string }[]; previous?: string[]; gon
 
 /** Appareils sans aucune information (ni port reconnu, ni titre de page) : rangés à part, décochés */
 export const quiet = (h: { hints: string[]; apps: string[] }): boolean => tagsOf(h).length === 0;
+
+/** Accès encore à régler sur une machine déjà déclarée : Home Assistant sans connecteur, ou machine en SSH sans accès SSH.
+ *  Déduit des données (pas de l'état du navigateur) : revient à chaque chargement jusqu'à ce que ce soit fait. */
+export function needsLink(h: { ip: string; ssh_port?: number | null; apps: string[] },
+                          machines: { ip: string; ssh?: unknown }[], connected: { connector: string; url?: string | null }[]): "ha" | "ssh" | null {
+  if (h.apps.includes("Home Assistant"))
+    return connected.some((s) => s.connector === "home-assistant" && (s.url ?? "").includes(h.ip)) ? null : "ha";
+  return h.ssh_port && !machines.find((m) => m.ip === h.ip)?.ssh ? "ssh" : null;
+}

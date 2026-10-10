@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { read } from "../api";
 import type { Snapshot } from "../api";
 import { openConnector } from "../lib/connectorPrefill";
-import { REOPEN_EVENT, savedState, saveState, takeReopen } from "../lib/firstSteps";
+import { REOPEN_EVENT, savedState, saveState, setSkipped, skippedSteps, takeReopen, type StepId } from "../lib/firstSteps";
 import { tx } from "../lib/i18n";
 import { useScan } from "../lib/scan";
 import { plural } from "../lib/summary";
@@ -22,7 +22,12 @@ type State = "done" | "now" | "run" | "next" | "soon";
 
 /** done : acquis ; now : la seule étape qui demande une action (mise en avant) ; run : en cours ;
  *  next : suite directe ; soon : pas encore codé */
-function Step({ state, title, children }: { state: State; title: string; children?: React.ReactNode }) {
+function Step({ state, title, children, onSkip, skipped, onResume }: {
+  state: State; title: string; children?: React.ReactNode;
+  onSkip?: () => void;      // bouton « Passer » : l'étape reste faisable plus tard
+  skipped?: boolean;        // étape passée : repliée, avec « Reprendre »
+  onResume?: () => void;
+}) {
   const Icon = state === "done" ? Check : state === "now" ? ArrowRight : state === "run" ? Loader2 : Circle;
   const tone = state === "done" ? "text-ok" : state === "now" ? "text-warn" : state === "run" ? "text-link" : "text-dim";
   const box = state === "now" ? "border-warn/40 bg-bg2/60 p-3 sm:p-4" : state === "run" ? "border-link/40 bg-bg2/60 p-3 sm:p-4" : "border-transparent";
@@ -33,10 +38,16 @@ function Step({ state, title, children }: { state: State; title: string; childre
         <Icon size={18} aria-hidden className={state === "run" ? "animate-spin" : undefined} />
       </span>
       <div className="min-w-0 flex-1">
-        <h3 className={`flex flex-wrap items-center gap-2 text-sm font-bold ${state === "next" || state === "soon" ? "text-muted" : ""}`}>
+        <h3 className={`flex flex-wrap items-center gap-2 text-sm font-bold ${state === "next" || state === "soon" || skipped ? "text-muted" : ""}`}>
           {title}{state === "soon" && <Badge tone="off">{tx("À venir")}</Badge>}
+          {skipped && <Badge tone="off">{tx("passée")}</Badge>}
+          {skipped && onResume && <button type="button" className="text-xs font-normal text-link hover:underline" onClick={onResume}>{tx("Reprendre")}</button>}
+          {!skipped && onSkip && (
+            <button type="button" className="ml-auto rounded-md px-2 py-0.5 text-xs font-normal text-dim hover:bg-bg2 hover:text-txt" onClick={onSkip}
+              title={tx("Passer cette étape : vous pourrez la refaire plus tard, ici ou dans les Réglages")}>{tx("Passer")}</button>
+          )}
         </h3>
-        {children && <div className="mt-1 text-sm text-muted">{children}</div>}
+        {children && !skipped && <div className="mt-1 text-sm text-muted">{children}</div>}
       </div>
     </li>
   );
@@ -85,6 +96,9 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
     addEventListener(REOPEN_EVENT, reopen);
     return () => removeEventListener(REOPEN_EVENT, reopen);
   }, [sys, fp]);
+  const skipped = skippedSteps(fp);
+  const skip = (id: StepId) => { setSkipped(fp, id, true); bump((n) => n + 1); };
+  const resume = (id: StepId) => { setSkipped(fp, id, false); bump((n) => n + 1); };
   if (!admin || !sys || !(saved === "open" || (failing.length > 0 && saved !== "closed"))) return null;
 
   // Clé acceptée : la carte le montre tout de suite, sans attendre la fin du scan. Si le scan se termine et que
@@ -137,7 +151,8 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
         {keyDone ? (
           <Step state="done" title={tx("Clé SSH de MyServices autorisée")} />
         ) : (
-          <Step state="now" title={tx("Autoriser la clé SSH de MyServices")}>
+          <Step state={skipped.includes("key") ? "next" : "now"} title={tx("Autoriser la clé SSH de MyServices")}
+            onSkip={() => skip("key")} skipped={skipped.includes("key")} onResume={() => resume("key")}>
             {reopened && <p className="mb-2 text-warn">{tx("La clé répond, mais Docker reste illisible après le scan : vérifier que le compte est dans le groupe docker.")}</p>}
             <AuthorizeKey failing={failing} bare onAccepted={() => setAcceptedGen(snap.data.generated)} />
           </Step>
@@ -156,13 +171,17 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
             </p>
           )}
         </Step>
-        <Step state={keyDone && proposals.length ? "now" : "next"} title={tx("Connecteurs proposés d'après ce qui est trouvé")}>
+        <Step state={keyDone && proposals.length && !skipped.includes("connectors") ? "now" : "next"} title={tx("Connecteurs proposés d'après ce qui est trouvé")}
+          onSkip={proposals.length ? () => skip("connectors") : undefined} skipped={skipped.includes("connectors") && proposals.length > 0}
+          onResume={() => resume("connectors")}>
           {proposals.length > 0
             ? <><p className="mb-2">{tx("MyServices a reconnu des applis qu'il sait lire par leur API. Un connecteur ajoute leurs données (certificats, DNS, santé) sans rien recoder.")}</p><Proposals list={proposals} /></>
             : tx("Rien à proposer pour l'instant. Cette étape s'allume toute seule quand NPM, AdGuard, Beszel, Uptime Kuma… sont reconnus sur vos machines.")}
         </Step>
-        <Step state={netState(net) === "run" ? "run" : netState(net) === "found" ? "now" : "next"} title={tx("Recherche des autres machines du réseau")}>
-          <NetworkStep net={net} reload={reloadNet} known={snap.data.machine_list.map((m) => m.ip)} />
+        <Step state={skipped.includes("network") ? "next" : netState(net) === "run" ? "run" : netState(net) === "found" ? "now" : "next"}
+          title={tx("Recherche des autres machines du réseau")}
+          onSkip={netState(net) === "run" ? undefined : () => skip("network")} skipped={skipped.includes("network")} onResume={() => resume("network")}>
+          <NetworkStep net={net} reload={reloadNet} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} />
         </Step>
       </ol>
       <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line/70 pt-4">
