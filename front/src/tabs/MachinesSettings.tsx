@@ -671,7 +671,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
         )}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        <button className={primary} disabled={busy || !dirty} title={dirty ? undefined : tx("Rien à enregistrer : l'accès, les options et les étiquettes s'enregistrent tout seuls")}>{tx("Enregistrer")}</button>
+        <button type="submit" className={primary} disabled={busy || !dirty} title={dirty ? undefined : tx("Rien à enregistrer : l'accès, les options et les étiquettes s'enregistrent tout seuls")}>{tx("Enregistrer")}</button>
         {actions}
       </div>
       {!report && <NoteLine note={localNote} />}

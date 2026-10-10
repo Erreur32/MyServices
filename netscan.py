@@ -163,7 +163,9 @@ def _netbios_name(ip: str, timeout: float = PROBE_TIMEOUT) -> str:
 def _cert_name(ip: str, port: int = 443, timeout: float = PROBE_TIMEOUT) -> str:
     """Nom lu dans le certificat HTTPS (CN, sinon premier nom alternatif), même auto-signé ; "" s'il n'y en a pas d'exploitable."""
     try:
-        ctx = ssl.create_default_context()
+        # On ne lit que le NOM du certificat d'un appareil du réseau local (souvent auto-signé) : rien n'est échangé ni cru. TLS 1.2 au moins.
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         ctx.check_hostname, ctx.verify_mode = False, ssl.CERT_NONE
         with socket.create_connection((ip, port), timeout=timeout) as raw, ctx.wrap_socket(raw, server_hostname=None) as tls:
             der = tls.getpeercert(binary_form=True)
