@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Copyable, Field, NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
+import { installCommand } from "../lib/agentCommand";
 import { isWindowsMachine } from "../lib/machines";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
@@ -33,8 +34,9 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   const [machines, setMachines] = useState<MachinesSettings["machines"]>({});
   const [error, setError] = useState("");
   const [url, setUrl] = useState(location.origin);
-  const [created, setCreated] = useState<{ info: AgentInfo; command: string } | null>(null);
+  const [created, setCreated] = useState<{ info: AgentInfo; token: string } | null>(null);  // jeton gardé en mémoire de la page seulement
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState("");
+  const command = created ? installCommand(url, created.token) : null;  // suit le champ « Adresse de MyServices » même après la création
   const [pick, setPick] = useState("");  // PC Windows choisi, en attente de confirmation (rien n'est créé avant)
   const reload = useCallback(() => {
     read<AgentsState>("agents")
@@ -69,7 +71,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   const create = async (ip: string) => {
     setBusy(ip); setNote(null);
     try {
-      setCreated(await send<{ info: AgentInfo; command: string }>("POST", "agents", { ip, name: agentName(machines[ip]?.name ?? ip), url }));
+      setCreated(await send<{ info: AgentInfo; token: string }>("POST", "agents", { ip, name: agentName(machines[ip]?.name ?? ip), url }));
       setPick("");
       reload();
     } catch (err) {
@@ -101,7 +103,8 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
           <h2 className="mb-1 font-bold text-ok">{tx("Agent «")} {created.info.name} {tx("» créé")}</h2>
           <p className="mb-2 text-sm text-warn">{tx("À copier maintenant : le jeton qu'elle contient ne sera plus jamais affiché.")}</p>
           <p className="mb-2 text-sm text-muted">{tx("Sur le PC, ouvrez PowerShell en administrateur (clic droit → Exécuter en tant qu'administrateur) et collez :")}</p>
-          <Copyable text={created.command} />
+          {command ? <Copyable key={command} text={command} />
+            : <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{tx("Adresse de MyServices invalide : http://hôte:port, sans chemin. Corrigez-la en haut de la page, la commande se met à jour.")}</p>}
           <p className="mt-2 text-xs text-dim">{tx("L'installation crée une tâche planifiée (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur le PC relancer la commande avec MSV_UNINSTALL = '1'.")}</p>
           <button type="button" className={`${quiet} mt-3`} onClick={() => setCreated(null)}>{tx("C'est copié, fermer")}</button>
         </Card>

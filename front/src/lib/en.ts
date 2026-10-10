@@ -1189,4 +1189,5 @@ export const EN: Record<string, string> = {
   "Ni agent possible (pas un PC Windows) ni SSH : activez l'accès SSH dans les réglages de la machine.": "No agent possible (not a Windows PC) and no SSH: turn on SSH access in the machine's settings.",
   "Toutes les machines ont un accès.": "Every machine has access.",
   "Régler l'accès SSH": "Set up SSH access",
+  "Adresse de MyServices invalide : http://hôte:port, sans chemin. Corrigez-la en haut de la page, la commande se met à jour.": "Invalid MyServices address: http://host:port, no path. Fix it at the top of the page, the command updates.",
 };
