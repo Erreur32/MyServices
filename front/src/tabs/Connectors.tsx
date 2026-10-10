@@ -1,7 +1,7 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { ArrowRight, Ban, HelpCircle, Pencil, Plug, Plus, Server, Trash2, X } from "lucide-react";
+import { ArrowRight, Ban, HelpCircle, KeyRound, Pencil, Plug, Plus, Server, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
@@ -40,9 +40,10 @@ export function Connectors() {
   const type = st.types.find((t) => t.type === adding);
   return (
     <div className="flex flex-col gap-4">
+      <PartTitle n={1} title={tx("Connecteurs")} sub={tx("L'accès à chaque outil : adresse, jeton, test.")} />
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Connecteurs")} <Dim>· {st.instances.length}</Dim></h2>
+          <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Mes connecteurs")} <Dim>· {st.instances.length}</Dim></h2>
           <button type="button" className={picking ? primary : quiet} aria-expanded={picking} onClick={() => setPicking(!picking)}>
             {picking ? <X size={14} /> : <Plus size={14} />}{picking ? tx("Fermer") : tx("Ajouter un connecteur")}
           </button>
@@ -82,41 +83,109 @@ export function Connectors() {
       {st.instances.length === 0 && !type && (
         <Card><p className="text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p></Card>
       )}
-      {st.instances.map((i, n) => (
-        <InstanceCard key={`${i.type}/${i.name}`} inst={i} type={st.types.find((t) => t.type === i.type)!} reload={reload}
-          source={i.type in SHOWN && st.instances.findIndex((x) => x.type === i.type) === n && i.type in src ? { label: SHOWN[i.type], on: src[i.type], set: (on) => toggleSource(i.type, on) } : undefined} />
+      {st.instances.map((i) => (
+        <InstanceCard key={`${i.type}/${i.name}`} inst={i} type={st.types.find((t) => t.type === i.type)!} reload={reload} />
       ))}
+
+      <PartTitle n={2} title={tx("Activation")} sub={tx("Ce que la collecte lit et ce que la page affiche. Un changement est pris en compte à la prochaine collecte.")} />
       <Card>
-        <h2 className="mb-1 font-bold">{tx("Lus sans connecteur")}</h2>
-        <p className="mb-2 text-sm text-muted">{tx("Ces sources n'ont pas d'URL ni de jeton à régler ici : leur interrupteur décide seulement si la page les affiche.")}</p>
+        <h2 className="mb-1 flex items-center gap-2 font-bold"><Plug size={16} />{tx("Par un connecteur")} <Dim>· {st.instances.length}</Dim></h2>
+        <p className="mb-2 text-sm text-muted">{tx("« Collecte » : le connecteur est lu ou non. « Affichage » : la page montre ou non ses services et compteurs (même réglage pour toutes les instances du type).")}</p>
+        {st.instances.length === 0 ? <Dim>{tx("Aucun connecteur.")}</Dim> : (
+          <ul className="flex flex-col divide-y divide-line/60">
+            {st.instances.map((i, n) => {
+              const first = st.instances.findIndex((x) => x.type === i.type) === n, shown = i.type in SHOWN && i.type in src;
+              return (
+                <li key={`${i.type}/${i.name}`} className="flex flex-wrap items-center gap-x-5 gap-y-2 py-2.5 text-sm">
+                  <span className="flex min-w-[200px] flex-1 items-center gap-2">
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-bg2">
+                      {appIcon([i.label]) ? <img src={appIcon([i.label])!} alt="" className="h-4 w-4" /> : <Plug size={14} className="text-muted" aria-hidden />}
+                    </span>
+                    <b className="truncate">{i.label}</b><Dim>· {i.name}</Dim>
+                  </span>
+                  <Toggle on={i.enabled} label={tx("Collecte")} set={(on) => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
+                    on ? tx("allumé : relu au prochain passage de la collecte") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })} />
+                  {shown && first ? <Toggle on={src[i.type]} label={tx("Affichage")} title={SHOWN[i.type]} set={(on) => toggleSource(i.type, on)} />
+                    : shown ? <span className="w-[130px] text-xs text-dim">{tx("affichage : voir ci-dessus")}</span> : <span className="w-[130px]" />}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
+      <Card>
+        <h2 className="mb-1 flex items-center gap-2 font-bold"><Server size={16} />{tx("Natifs, sans connecteur")}</h2>
+        <p className="mb-2 text-sm text-muted">{tx("Rien à relier ici : la collecte lit ces sources directement. L'interrupteur décide seulement si la page les affiche.")}</p>
         <ul className="flex flex-col divide-y divide-line/60">
-          <li className="flex items-center gap-3 py-2.5">
+          <li className="flex items-center gap-3 py-2.5 text-sm">
             <Switch on={!!src.apache} onChange={(on) => toggleSource("apache", on)} label={`${src.apache ? tx("Couper") : tx("Activer")} Apache`} />
             <Server size={16} className="text-muted" aria-hidden />
-            <div className="min-w-0 flex-1"><b>Apache</b> <Dim>· {tx("vhosts lus par SSH sur chaque machine, comme services (accès : Réglages → Machines)")}</Dim></div>
+            <div className="min-w-0 flex-1"><b>Apache</b> <Dim>· {tx("vhosts lus par SSH sur chaque machine, comme services")}</Dim></div>
           </li>
-          <li className="flex items-center gap-3 py-2.5 opacity-60">
+          <li className="flex items-center gap-3 py-2.5 text-sm opacity-60">
             <Switch on={false} disabled onChange={() => undefined} label="Fail2ban" />
             <Ban size={16} className="text-muted" aria-hidden />
             <div className="min-w-0 flex-1"><b>Fail2ban</b> <Badge tone="off">{tx("à venir")}</Badge> <Dim>· {tx("bannissements et prisons, par LogviewR (arrive avec son connecteur)")}</Dim></div>
           </li>
         </ul>
-        <NoteLine note={srcNote} />
-        {changed && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted">
-            {tx("Pris en compte à la prochaine collecte.")}
-            <button type="button" className={primary}
-              onClick={() => void act(() => send("POST", "system/tasks/collect/run"), tx("collecte lancée : la page se met à jour à la fin"), setSrcNote)}>
-              {tx("Lancer la collecte maintenant")}
-            </button>
-          </div>
-        )}
       </Card>
-      <SshReads />
+      <ManualAccess instances={st.instances} />
+      <NoteLine note={srcNote} />
+      {changed && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-bg2/40 px-4 py-3 text-sm text-muted">
+          {tx("Pris en compte à la prochaine collecte.")}
+          <button type="button" className={primary}
+            onClick={() => void act(() => send("POST", "system/tasks/collect/run"), tx("collecte lancée : la page se met à jour à la fin"), setSrcNote)}>
+            {tx("Lancer la collecte maintenant")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
+/** Titre d'une des deux parties de la page */
+function PartTitle({ n, title, sub }: { n: number; title: string; sub: string }) {
+  return (
+    <div className="flex items-center gap-3 px-1 pt-2">
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-link/20 text-sm font-bold text-link" aria-hidden>{n}</span>
+      <div><h2 className="text-lg font-bold leading-tight">{title}</h2><p className="text-xs text-dim">{sub}</p></div>
+    </div>
+  );
+}
+
+function Toggle({ on, set, label, title }: { on: boolean; set: (on: boolean) => void; label: string; title?: string }) {
+  return (
+    <label className="flex w-[130px] items-center gap-2" title={title}>
+      <Switch on={on} onChange={set} label={`${label} : ${on ? tx("coupé") : tx("activé")}`} />
+      <span className={on ? "text-txt" : "text-dim"}>{label}</span>
+    </label>
+  );
+}
+
+/** Accès qu'il fallait régler à la main (clé et alias SSH par machine, jeton Home Assistant) : où ils en sont, et un lien pour les régler */
+function ManualAccess({ instances }: { instances: ConnectorInstance[] }) {
+  const ha = instances.filter((i) => i.type === "home-assistant");
+  return (
+    <Card>
+      <h2 className="mb-1 flex items-center gap-2 font-bold"><KeyRound size={16} />{tx("Accès réglés à la main")}</h2>
+      <p className="mb-2 text-sm text-muted">{tx("Ce que MyServices ne peut pas deviner seul : l'accès SSH de chaque machine et le jeton de Home Assistant. Ils se règlent une fois, puis la collecte les utilise.")}</p>
+      {ha.length > 0 && (
+        <ul className="mb-2 flex flex-col divide-y divide-line/60 rounded-lg border border-line/60 px-3">
+          {ha.map((i) => (
+            <li key={i.name} className="flex flex-wrap items-center gap-3 py-2.5 text-sm">
+              <img src={appIcon(["Home Assistant"])!} alt="" className="h-5 w-5" />
+              <b className="min-w-0 flex-1 truncate">{i.label} <Dim>· {i.name}</Dim></b>
+              {i.set.token ? <Badge tone="ok">{tx("jeton enregistré")}</Badge> : <Badge tone="warn">{tx("jeton manquant")}</Badge>}
+              <span className="text-xs text-dim">{tx("à changer : « Modifier / Tester » dans la partie 1")}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <SshReads />
+    </Card>
+  );
+}
 
 /** Lus par SSH : pas d'URL ni de jeton ici, l'accès se règle avec la machine (Réglages → Machines) ; chaque ligne ouvre la bonne carte */
 function SshReads() {
@@ -124,54 +193,48 @@ function SshReads() {
   useEffect(() => { read<MachinesSettings>("machines/settings").then(setM).catch(() => undefined); }, []);
   const rows = m ? Object.entries(m.machines).filter(([, c]) => c.ssh || c.health).sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true })) : [];
   return (
-    <Card>
-      <h2 className="mb-1 flex items-center gap-2 font-bold"><Server size={16} />{tx("Lus par SSH")} <Dim>· {rows.length}</Dim></h2>
+    <div>
+      <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold text-txt"><Server size={15} />{tx("Lus par SSH")} <Dim>· {rows.length}</Dim></h3>
       <p className="mb-2 text-sm text-muted">{tx("Docker, services en écoute et AdGuard natif sont lus par SSH : l'accès et ce qui est lu se règlent machine par machine.")}</p>
       {rows.length === 0 ? <Dim>{tx("Aucune machine lue par SSH pour l'instant.")}</Dim> : (
-        <ul className="flex flex-col divide-y divide-line/60">
+        <ul className="flex flex-col gap-2">
           {rows.map(([ip, c]) => {
-            const reads = [c.os === "windows" ? tx("santé Windows") : "Docker", m!.process_hosts[ip] && tx("services en écoute"), c.adguard && "AdGuard"].filter(Boolean).join(" · ");
+            const reads = [c.os === "windows" ? tx("santé Windows") : "Docker", m!.process_hosts[ip] && tx("services en écoute"), c.adguard && "AdGuard"].filter(Boolean);
             return (
               <li key={ip}>
-                <a href={`#settings/machines/${ip}`} className="group flex items-center gap-3 py-2.5 text-sm hover:bg-bg2/60">
-                  <b className="min-w-0 flex-1 truncate">{c.name} <Dim>· {ip}</Dim></b>
-                  <span className="hidden truncate text-xs text-dim sm:inline">{reads}</span>
-                  <Badge tone="off">SSH {String((c.os === "windows" ? c.health : c.ssh) ?? "")}</Badge>
-                  <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-link">{tx("Régler")}<ArrowRight size={13} aria-hidden className="transition-transform group-hover:translate-x-0.5" /></span>
+                <a href={`#settings/machines/${ip}`}
+                  className="group flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-line bg-bg2/40 px-3.5 py-2.5 text-sm transition-colors hover:border-link hover:bg-link/10">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-card text-muted"><Server size={16} aria-hidden /></span>
+                  <span className="min-w-0 flex-1">
+                    <b className="block truncate text-txt">{c.name}</b>
+                    <span className="block truncate font-mono text-xs text-dim">{ip}</span>
+                  </span>
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <Badge tone="off">SSH {String((c.os === "windows" ? c.health : c.ssh) ?? "")}</Badge>
+                    {reads.map((r) => <Badge key={String(r)} tone="info">{r}</Badge>)}
+                  </span>
+                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-link/50 bg-link/10 px-3 py-1.5 text-xs font-semibold text-link transition-colors group-hover:border-link group-hover:bg-link/20">
+                    {tx("Régler")}<ArrowRight size={14} aria-hidden className="transition-transform group-hover:translate-x-0.5" />
+                  </span>
                 </a>
               </li>
             );
           })}
         </ul>
       )}
-    </Card>
+    </div>
   );
 }
 
 /** Connecteurs dont l'affichage sur la page est une source activable (le même interrupteur vaut pour toutes les instances du type) */
 const SHOWN: Record<string, string> = { npm: tx("Afficher les services et compteurs NPM sur la page"), adguard: tx("Afficher l'onglet DNS et les compteurs AdGuard (toutes les instances)") };
 
-function InstanceCard({ inst, type, reload, source }: { inst: ConnectorInstance; type: ConnectorType; reload: () => void; source?: { label: string; on: boolean; set: (on: boolean) => void } }) {
+function InstanceCard({ inst, type, reload }: { inst: ConnectorInstance; type: ConnectorType; reload: () => void }) {
   const [edit, setEdit] = useState(false), [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null);
   const url = inst.config.url as string | undefined;
   const path = `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}`;
-  const toggle = (on: boolean) => void act(() => send("PATCH", path, { enabled: on }),
-    on ? tx("allumé : relu au prochain passage de la collecte") : tx("coupé : réglages gardés, plus rien de lu"), setNote).then((ok) => ok && reload());
   return (
     <Card className={inst.enabled ? "" : "opacity-80"}>
-      <div className="-mx-4 -mt-4 mb-3 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-t-2xl border-b border-line/60 bg-bg2/50 px-4 py-2.5 text-sm">
-        <label className="flex items-center gap-2">
-          <Switch on={inst.enabled} onChange={toggle} label={inst.enabled ? `Couper ${inst.label}` : `Allumer ${inst.label}`} />
-          <span className={inst.enabled ? "font-semibold text-txt" : "text-dim"}>{inst.enabled ? tx("Collecte active") : tx("Collecte coupée")}</span>
-        </label>
-        {source && (
-          <label className="flex items-center gap-2">
-            <Switch on={source.on} onChange={source.set} label={source.label} />
-            <span className={source.on ? "text-muted" : "text-dim"} title={source.label}>{source.on ? tx("Affiché sur la page") : tx("Masqué sur la page")}</span>
-          </label>
-        )}
-        <span className="ml-auto text-xs text-dim">{tx("Réglages de l'accès ci-dessous")}</span>
-      </div>
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         <div className="min-w-[220px] flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -182,6 +245,7 @@ function InstanceCard({ inst, type, reload, source }: { inst: ConnectorInstance;
             {type.kinds.map((k) => <Badge key={k} tone="info">{KIND[k] || k}</Badge>)}
           </div>
           {url && <a className="mt-1 inline-block break-all font-mono text-xs text-dim hover:text-link hover:underline" href={url} target="_blank" rel="noopener noreferrer">{url}</a>}
+          {!inst.enabled && <div className="mt-1"><Badge tone="off">{tx("collecte coupée (partie 2)")}</Badge></div>}
           {inst.enabled && <div className="mt-2 text-sm"><StatusLine s={inst.status} /></div>}
         </div>
         <div className="flex flex-wrap gap-1.5">
