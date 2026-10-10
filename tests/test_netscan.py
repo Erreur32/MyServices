@@ -110,6 +110,10 @@ class GuessOs(unittest.TestCase):
     def test_ports_et_mac(self):
         g = netscan.guess_os
         self.assertEqual(g(None, {3389}, None, None)[0], "windows")
+        self.assertEqual(g(None, {135, 139, 445}, 128, None)[0], "windows")
+        self.assertEqual(g(None, {139, 445}, 64, None), (None, None))        # Samba (Home Assistant, NAS) : pas Windows
+        self.assertEqual(g(None, {139, 445}, 128, None)[0], "windows")       # NetBIOS + TTL 128 : Windows
+        self.assertEqual(g(None, {139, 445}, None, None), (None, None))
         self.assertEqual(g(None, {548}, 64, None)[0], "macos")
         self.assertEqual(g(None, {62078}, 64, None)[0], "ios")
         self.assertEqual(g(None, set(), 64, "Raspberry Pi"), ("linux", "MAC"))

@@ -82,8 +82,10 @@ def guess_os(banner: str | None, ports: set[int], ttl: int | None, vendor: str |
         return "linux", "MAC"
     if 62078 in ports:
         return "ios", "port 62078"
-    if ports & {135, 139, 3389}:
+    if ports & {135, 3389}:  # RPC et bureau à distance : propres à Windows
         return "windows", "ports"
+    if 139 in ports and ttl and ttl > 64:  # NetBIOS : Samba (NAS, Home Assistant) l'ouvre aussi, il faut le TTL de Windows pour conclure
+        return "windows", "ports + TTL"
     if 548 in ports:
         return "macos", "port 548"
     if "openssh" in low and 5900 in ports:  # OpenSSH sans étiquette de distribution + Partage d'écran
