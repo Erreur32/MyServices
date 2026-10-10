@@ -207,10 +207,14 @@ def run_py(ssh: str | None, src: str, arg: str, sudo: str | None = None) -> tupl
         return None, f"timeout après {TIMEOUT}s"
     if r.returncode != 0:
         return None, (r.stderr.strip().splitlines() or [f"code {r.returncode}"])[-1][:200]
-    try:
-        return json.loads(r.stdout), ""
-    except ValueError:
-        return None, "réponse illisible"
+    # Un bandeau de connexion (fastfetch, motd dans ~/.bashrc) peut précéder la réponse : elle est sur la dernière ligne JSON
+    for line in reversed(r.stdout.splitlines()):
+        if line.startswith("{"):
+            try:
+                return json.loads(line), ""
+            except ValueError:
+                break
+    return None, "réponse illisible"
 
 
 def qm_crontab(spec: str) -> list[dict]:

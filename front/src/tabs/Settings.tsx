@@ -2,7 +2,7 @@
 // les comptes (ajout, rôle, activation, nouveau mot de passe, suppression) et le journal des actions.
 // Apparence : thème et largeur de la page (« Page width » de GpuViewR), retenus par le navigateur.
 // Menu en quatre groupes (Données, Surveillance, Accès et sécurité, Application). Autres sections : un fichier chacune dans tabs/.
-import { ArrowRight, Bell, KeyRound, Moon, MoveHorizontal, Palette, Plug, Plus, Radar, RotateCcw, ScrollText, Server, Settings2, Sun, Timer, Trash2, UserCheck, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bell, HardDrive, KeyRound, Moon, MoveHorizontal, Palette, Plug, Plus, Radar, RotateCcw, ScrollText, Server, Settings2, Sun, Timer, Trash2, UserCheck, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { dateTime } from "../lib/format";
@@ -18,6 +18,7 @@ import { MachinesSettings } from "./MachinesSettings";
 import { NetworkSettings } from "./NetworkSettings";
 import { ApiMcp } from "./ApiMcp";
 import { AuditLog } from "./AuditLog";
+import { BackupsSettings } from "./BackupsSettings";
 import { SystemSettings } from "./SystemSettings";
 import { tx } from "../lib/i18n";
 import { lastSettingsSection, rememberSettingsSection } from "../lib/settingsNav";
@@ -30,7 +31,7 @@ const GROUPS: { label: string; sections: { id: string; label: string; icon: Luci
     { id: "machines", label: tx("Machines"), icon: Server }, { id: "connectors", label: tx("Connecteurs"), icon: Plug },
   ] },
   { label: tx("Surveillance"), sections: [
-    { id: "alerts", label: tx("Alertes"), icon: Bell }, { id: "network", label: tx("Découverte"), icon: Radar }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer },
+    { id: "alerts", label: tx("Alertes"), icon: Bell }, { id: "network", label: tx("Découverte"), icon: Radar }, { id: "backups", label: tx("Sauvegardes"), icon: HardDrive }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer },
   ] },
   { label: tx("Accès et sécurité"), sections: [
     { id: "accounts", label: tx("Comptes"), icon: Users }, { id: "ssh", label: tx("Clé SSH"), icon: KeyRound },
@@ -77,7 +78,7 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
         ))}
       </nav>
       <div className="min-w-0 flex-1">
-        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors /> : section === "machines" ? <MachinesSettings snap={snap} focusIp={location.hash.split("/")[2]} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings /> : section === "audit" ? <AuditLog /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} /> : <SystemSettings part="system" />}
+        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors /> : section === "machines" ? <MachinesSettings snap={snap} focusIp={location.hash.split("/")[2]} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings /> : section === "audit" ? <AuditLog /> : section === "backups" ? <BackupsSettings /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} /> : <SystemSettings part="system" />}
       </div>
     </div>
   );

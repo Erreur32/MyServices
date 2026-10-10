@@ -614,6 +614,64 @@ def system_health(body: HealthSwitch, request: Request):
     return {"ok": True, **out, "started": body.enabled}
 
 
+# ── Sauvegardes à suivre, décrites depuis la page (backups-meta.json) ──────────────────────────────
+
+def backups_call(request: Request, action: str, detail: str, fn, write: bool = True):
+    import backups_admin
+    if denied := (admin_write(request) if write else admin_only(request)):
+        return denied
+    try:
+        out = fn(backups_admin)
+    except backups_admin.BackupError as e:
+        return deny(400, str(e))
+    if action:
+        store().audit(action, request.state.user["username"], ip_of(request), detail)
+    return out
+
+
+class BackupItem(BaseModel):
+    ip: str
+    path: str
+    label: str
+    max_age_days: float = 2.0
+
+
+class BackupFollow(BaseModel):
+    items: list[BackupItem]
+
+
+@app.get(API + "/backups/settings", tags=["sauvegardes"], summary="Jeux de sauvegarde suivis et état de l'onglet (admin)")
+def backups_settings(request: Request):
+    return backups_call(request, "", "", lambda b: b.current(), write=False)
+
+
+@app.post(API + "/backups/discover", tags=["sauvegardes"], summary="Chercher les dossiers de sauvegarde des machines lues par SSH, lecture seule (admin)")
+def backups_discover(request: Request):
+    return backups_call(request, "recherche de sauvegardes", "", lambda b: b.discover())
+
+
+@app.put(API + "/backups/settings", tags=["sauvegardes"], summary="Suivre des dossiers de sauvegarde : écrit l'inventaire, active l'onglet (admin)")
+def backups_follow(body: BackupFollow, request: Request):
+    import system
+
+    def go(b):
+        out = b.follow([i.model_dump() for i in body.items])
+        if not core.CFG.get("backups_url"):  # onglet Sauvegardes activé par le premier jeu
+            system.set_backups_url(core, "backups.json")
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes")
+        return {"ok": True, **out}
+    return backups_call(request, "sauvegardes suivies", f"{len(body.items)} dossier(s)", go)
+
+
+@app.delete(API + "/backups/settings/{set_id}", tags=["sauvegardes"], summary="Ne plus suivre un jeu de sauvegarde (admin)")
+def backups_unfollow(set_id: str, request: Request):
+    def go(b):
+        b.unfollow(set_id)
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes")
+        return {"ok": True}
+    return backups_call(request, "sauvegarde retirée", set_id, go)
+
+
 @app.post(API + "/system/tasks/{name}/run", tags=["système"], summary="Lancer une tâche maintenant (admin)")
 def system_run(name: str, request: Request):
     if denied := admin_write(request):

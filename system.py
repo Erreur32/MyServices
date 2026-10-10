@@ -67,6 +67,14 @@ def _why_off(core, name: str) -> dict:
     return {"switch": False, "why": "Aucune machine déclarée : la tâche démarre dès qu'il y en a une."}
 
 
+def set_backups_url(core, url: str) -> None:
+    """Active l'onglet Sauvegardes (backups_url = « backups.json », fichier de backups.py) dans config.json, appliqué aussitôt."""
+    def change(raw: dict) -> None:
+        raw["backups_url"] = url
+    _update_config(core, change)
+    core.CFG["backups_url"] = url
+
+
 def set_health(core, on: bool) -> dict:
     """Allume ou coupe la santé intégrée (health_url = « health/ »), écrite dans config.json et appliquée aussitôt."""
     if core.CFG["health_url"] not in ("", "health/"):
