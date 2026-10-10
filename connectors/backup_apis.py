@@ -18,7 +18,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 
-from connectors.base import Connector, ConnectorError, Field
+from connectors.base import Connector, ConnectorError, Field, Result
 
 
 def read_secrets(path: str) -> dict:
@@ -58,38 +58,74 @@ def veeam_parse(jobs: list, repos: list) -> dict:
 
 
 class Veeam(Connector):
+    """Veeam B&R par son API REST. Compte : soit « user » + « password » (réglés dans la page, mot de passe chiffré dans
+    config.json), soit un fichier de secrets CLÉ=valeur (ancienne méthode, toujours lue)."""
     type = "veeam"
     label = "Veeam Backup & Replication"
     kinds = ("backups",)
+    tested = ("12", "13")
+    guide = (
+        "Dans la console Veeam : Menu → Users and Roles → Add, créer (ou choisir) un compte Windows dédié.",
+        "Lui donner le seul rôle « Veeam Backup Viewer » (lecture seule : il ne peut ni lancer ni modifier un job).",
+        "L'adresse est celle de l'API REST : https://<serveur>:9419 (le port 9392 est celui de la console).",
+    )
     fields = (
         Field("url", "URL de l'API REST", "url", required=True, help="https://<serveur>:9419"),
-        Field("secrets", "Fichier VEEAM_USER= / VEEAM_PASS= (mode 600)", required=True),
+        Field("user", "Compte (lecture seule)", help="rôle Veeam Backup Viewer, par exemple DOMAINE\\myservices"),
+        Field("password", "Mot de passe du compte", "password", secret=True, help="chiffré dans config.json, jamais renvoyé à la page"),
+        Field("secrets", "Ou fichier VEEAM_USER= / VEEAM_PASS= (mode 600)", help="ancienne méthode, si aucun compte n'est saisi"),
         Field("api_version", "x-api-version", default="1.1-rev0"),
     )
 
+    @classmethod
+    def validate(cls, conf: dict) -> list[str]:
+        missing = [f"« {k} » requis" for k in ("url",) if not conf.get(k)]
+        if not conf.get("secrets") and not (conf.get("user") and conf.get("password")):
+            missing.append("« user » et « password » (ou « secrets ») requis")
+        return missing
+
     def _call(self, path: str, data: bytes | None = None, token: str | None = None) -> dict:
-        hd = {"x-api-version": self.conf.get("api_version", "1.1-rev0"), **({"Authorization": "Bearer " + token} if token else {})}
+        hd = {"x-api-version": self.conf.get("api_version") or "1.1-rev0", **({"Authorization": "Bearer " + token} if token else {})}
         req = urllib.request.Request(self.conf["url"].rstrip("/") + path, data=data, headers=hd)
         ctx = ssl._create_unverified_context()  # certificat auto-signé de Veeam (LAN), comme la console
         with urllib.request.urlopen(req, context=ctx, timeout=30) as r:
             return json.load(r)
 
-    def collect(self) -> dict:
+    def _credentials(self) -> tuple[str, str]:
+        if self.conf.get("user") and self.conf.get("password"):
+            return self.conf["user"], self.conf["password"]
         env = read_secrets(self.conf["secrets"])
         if not env.get("VEEAM_USER") or not env.get("VEEAM_PASS"):
             raise ConnectorError(f"VEEAM_USER / VEEAM_PASS absents de {self.conf['secrets']}")
-        form = urllib.parse.urlencode({"grant_type": "password", "username": env["VEEAM_USER"],
-                                       "password": env["VEEAM_PASS"]}).encode()
+        return env["VEEAM_USER"], env["VEEAM_PASS"]
+
+    def fetch(self) -> tuple[list, list]:
+        """(jobs, dépôts) bruts de l'API : lecture seule (un jeton d'accès, puis deux GET)."""
+        user, pw = self._credentials()
+        form = urllib.parse.urlencode({"grant_type": "password", "username": user, "password": pw}).encode()
         try:
-            token = self._call("/api/oauth2/token", form)["access_token"]
+            try:
+                token = self._call("/api/oauth2/token", form)["access_token"]
+            except urllib.error.HTTPError as e:
+                e.close()
+                if e.code in (400, 401):  # Veeam répond 400 « invalid_grant » à un mauvais compte
+                    raise ConnectorError(f"identifiants refusés (HTTP {e.code}) : vérifier le compte et son mot de passe") from None
+                raise
             jobs = self._call("/api/v1/jobs/states", token=token).get("data", [])
         except (OSError, ValueError, KeyError) as e:
-            raise ConnectorError(f"{e}"[:200]) from None
+            raise ConnectorError(f"{e if isinstance(e, urllib.error.HTTPError) else getattr(e, 'reason', e)}"[:200]) from None
         try:  # capacité des dépôts : facultatif (droits ou version)
             repos = self._call("/api/v1/backupInfrastructure/repositories/states", token=token).get("data", [])
         except (OSError, ValueError):
             repos = []
-        return veeam_parse(jobs, repos)
+        return jobs, repos
+
+    def collect(self) -> dict:
+        return veeam_parse(*self.fetch())
+
+    def test(self) -> Result:
+        jobs, repos = self.fetch()
+        return Result(True, f"connecté : {len(jobs)} job(s), {len(repos)} dépôt(s) lus")
 
 
 class HomeAssistant(Connector):
@@ -98,7 +134,13 @@ class HomeAssistant(Connector):
     type = "home-assistant-backups"
     label = "Home Assistant"
     kinds = ("backups",)
-    fields = (Field("secrets", "Fichier HA_URL= / HA_TOKEN= (mode 600)", required=True),)
+    fields = (Field("secrets", "Fichier HA_URL= / HA_TOKEN= (mode 600)", required=True),)  # ou url + token du connecteur « home-assistant »
+
+    def _env(self) -> dict:
+        """Adresse et jeton : ceux du connecteur Home Assistant de la page (url + token) ou, à défaut, le fichier de secrets."""
+        if self.conf.get("url") and self.conf.get("token"):
+            return {"HA_URL": self.conf["url"], "HA_TOKEN": self.conf["token"]}
+        return read_secrets(self.conf["secrets"])
 
     def _states(self, env: dict) -> list:
         req = urllib.request.Request(env["HA_URL"].rstrip("/") + "/api/states", headers={"Authorization": "Bearer " + env["HA_TOKEN"]})
@@ -106,7 +148,7 @@ class HomeAssistant(Connector):
             return json.load(r)
 
     def version(self) -> str | None:
-        env = read_secrets(self.conf["secrets"])
+        env = self._env()
         req = urllib.request.Request(env["HA_URL"].rstrip("/") + "/api/config", headers={"Authorization": "Bearer " + env["HA_TOKEN"]})
         try:
             with urllib.request.urlopen(req, timeout=20) as r:
@@ -115,7 +157,7 @@ class HomeAssistant(Connector):
             return None
 
     def collect(self) -> dict:
-        env = read_secrets(self.conf["secrets"])
+        env = self._env()
         try:
             states = {x["entity_id"]: x for x in self._states(env)}
         except (OSError, ValueError, KeyError, TypeError) as e:

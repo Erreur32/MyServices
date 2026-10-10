@@ -7,7 +7,15 @@
   unfollow(id)     retire un jeu
 
 Un « jeu » de sauvegarde = un dossier d'une machine dont le fichier le plus récent ne doit pas dépasser un certain âge.
-Les sauvegardes Veeam, Home Assistant, Proxmox… se décrivent autrement (étapes suivantes) ; leurs jeux, s'il y en a, sont gardés.
+  veeam_test / veeam_discover / veeam_follow   assistant Veeam B&R : essai de connexion sans rien enregistrer, jobs et dépôts
+                   lus par l'API REST (lecture seule), puis compte (connecteur « veeam » de config.json, mot de passe chiffré)
+                   et un jeu par job coché
+  ha_check / ha_follow   sauvegardes de Home Assistant, lues avec l'adresse et le jeton du connecteur « home-assistant »
+                   (déjà réglé dans Connecteurs) : un jeu « sauvegarde automatique » rapproché de l'âge de la dernière réussie
+
+Un « jeu » de sauvegarde = un dossier d'une machine dont le fichier le plus récent ne doit pas dépasser un certain âge ;
+pour Veeam, le dernier passage d'un job ; pour Home Assistant, sa dernière sauvegarde automatique réussie.
+Les secrets (mot de passe Veeam, jeton HA) ne sont jamais renvoyés à la page ni écrits dans backups-meta.json ni dans un journal.
 """
 from __future__ import annotations
 
@@ -19,11 +27,20 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import setup
+from connectors import settings
+from connectors.backup_apis import HomeAssistant, Veeam
+from connectors.base import ConnectorError, Context
 
 AGE_MIN, AGE_MAX = 0.1, 365.0
 AGE_DEFAULT = 2.0
 LABEL_MAX = 80
 DEPTH = 3  # un dossier de sauvegarde range souvent ses archives dans des sous-dossiers datés
+
+
+VEEAM_NAME = "veeam"  # nom de l'instance « veeam » de config.json (une seule, gérée ici)
+VEEAM_HOST, VEEAM_SOURCES = "veeam", "veeam-sources"
+HA_HOST, HA_SOURCE, HA_SET = "home-assistant", "home-assistant-source", "home-assistant-sauvegardes"
+TEST_TIMEOUT = 20
 
 
 class BackupError(Exception):
@@ -80,10 +97,12 @@ def current() -> dict:
         loc = (s.get("locations") or [{}])[0]
         sets.append({"id": s["id"], "label": s.get("label", s["id"]), "origin": hosts.get(s.get("origin"), {}).get("label", s.get("origin", "")),
                      "path": loc.get("path"), "veeam_job": loc.get("veeam_job"), "max_age_days": s.get("max_age_days", 8),
+                     "ha": any(l.get("ha_backup") for l in s.get("locations", [])),
                      "editable": bool(loc.get("path")) and len(s.get("locations", [])) == 1})
     import config
     return {"sets": sets, "exists": _path().exists(), "tab": bool(config.CFG.get("backups_url")),
-            "patterns": meta.get("discover", []), "machines": len(_machines())}
+            "patterns": meta.get("discover", []), "machines": len(_machines()),
+            "veeam": _veeam_state(), "ha": _ha_state(meta)}
 
 
 def _scan(item: tuple[str, dict], patterns: list[str]) -> dict:
@@ -175,3 +194,193 @@ def unfollow(set_id: str) -> None:
         raise BackupError("jeu inconnu")
     meta["sets"] = keep
     _write(meta)
+
+
+# ───────────── Veeam Backup & Replication ─────────────
+
+def _veeam_state() -> dict:
+    """Compte Veeam enregistré, sans le mot de passe (seulement s'il existe)."""
+    c = settings.get("veeam", VEEAM_NAME)
+    return {"configured": c is not None, "url": (c or {}).get("url", ""), "user": (c or {}).get("user", ""),
+            "password_set": bool((c or {}).get("password"))}
+
+
+def _veeam_conn(conf: dict) -> Veeam:
+    """Connecteur prêt d'après le formulaire (mot de passe vide = celui déjà enregistré). Rien n'est écrit."""
+    exists = settings.get("veeam", VEEAM_NAME) is not None
+    fields = {k: str(conf.get(k) or "").strip() for k in ("url", "user")} | {"password": str(conf.get("password") or "")}
+    if len(fields["user"]) > 200 or len(fields["password"]) > 500:
+        raise BackupError("compte ou mot de passe trop long")
+    try:
+        plain = settings.resolve("veeam", VEEAM_NAME, fields, VEEAM_NAME if exists else None)
+    except settings.SettingsError as e:
+        raise BackupError(str(e)) from None
+    return Veeam(plain, Context(timeout=TEST_TIMEOUT))
+
+
+def veeam_test(conf: dict) -> dict:
+    """Essai de connexion (jeton d'accès, jobs, dépôts) sans rien enregistrer."""
+    conn = _veeam_conn(conf)
+    try:
+        r = conn.test()
+    except ConnectorError as e:
+        return {"ok": False, "message": str(e)}
+    except Exception as e:  # bug du connecteur : message lisible plutôt qu'une erreur 500
+        return {"ok": False, "message": f"erreur du connecteur : {type(e).__name__}"}
+    return {"ok": r.ok, "message": r.message}
+
+
+def _epoch(v) -> int | None:
+    from datetime import datetime
+    try:
+        return int(datetime.fromisoformat(v.replace("Z", "+00:00")).timestamp())
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def veeam_discover(conf: dict) -> dict:
+    """Jobs et dépôts du serveur Veeam (lecture seule, rien n'est enregistré). Les dépôts n'ont rien à cocher :
+    leur espace libre est lu à chaque relevé dès que le serveur Veeam est suivi."""
+    try:
+        jobs, repos = _veeam_conn(conf).fetch()
+    except ConnectorError as e:
+        raise BackupError(str(e)) from None
+    followed = {loc.get("veeam_job") for s in _read().get("sets", []) for loc in s.get("locations", [])}
+    return {"jobs": [{"name": j.get("name", "?"), "type": j.get("type") or "", "status": j.get("status") or "",
+                      "last_result": j.get("lastResult") or "", "last_run": _epoch(j.get("lastRun")),
+                      "disabled": j.get("status") == "Disabled", "followed": j.get("name") in followed} for j in jobs],
+            "repos": [{"name": r.get("name", "?"), "type": r.get("type") or "", "size_gb": r.get("capacityGB"), "free_gb": r.get("freeGB")}
+                      for r in repos]}
+
+
+def _ensure_host(meta: dict, host: dict) -> dict:
+    """Machine de backups-meta.json par son id : créée, ou complétée (champs donnés) si elle existe."""
+    cur = next((h for h in meta["hosts"] if h["id"] == host["id"]), None)
+    if cur is None:
+        meta["hosts"].append(host)
+        return host
+    cur.update(host)
+    return cur
+
+
+def _check_age_label(it: dict, default_label: str) -> tuple[str, float]:
+    label = str(it.get("label") or default_label).strip()
+    if not label or len(label) > LABEL_MAX:
+        raise BackupError(f"nom : 1 à {LABEL_MAX} caractères")
+    try:
+        age = float(it.get("max_age_days", AGE_DEFAULT))
+    except (TypeError, ValueError):
+        raise BackupError("âge maximum : un nombre de jours") from None
+    if not AGE_MIN <= age <= AGE_MAX:
+        raise BackupError(f"âge maximum : de {AGE_MIN:g} à {AGE_MAX:g} jours")
+    return label, age
+
+
+def veeam_follow(conf: dict, jobs: list[dict]) -> dict:
+    """Enregistre le compte Veeam (connecteur « veeam », mot de passe chiffré) puis un jeu par job choisi. Le serveur est relu avant
+    d'écrire : compte refusé ou job inconnu = rien n'est enregistré."""
+    if not jobs:
+        raise BackupError("aucun job choisi")
+    if len(jobs) > 50:
+        raise BackupError("50 jobs au plus à la fois")
+    conn = _veeam_conn(conf)
+    try:
+        known = {j.get("name") for j in conn.fetch()[0]}
+    except ConnectorError as e:
+        raise BackupError(str(e)) from None
+    todo = []
+    for it in jobs:
+        name = str(it.get("name") or "")
+        if name not in known:
+            raise BackupError(f"job « {name[:80]} » absent de Veeam")
+        todo.append((name, *_check_age_label(it, f"Veeam : {name}")))
+    exists = settings.get("veeam", VEEAM_NAME) is not None
+    try:
+        settings.save("veeam", VEEAM_NAME, {"url": conn.conf["url"], "user": conn.conf["user"], "password": conn.conf["password"]},
+                      VEEAM_NAME if exists else None)
+    except settings.SettingsError as e:
+        raise BackupError(str(e)) from None
+    meta = _read()
+    meta.setdefault("hosts", [])
+    meta.setdefault("sets", [])
+    old = next((h for h in meta["hosts"] if h["id"] == VEEAM_HOST), {})
+    old.pop("secrets", None)  # l'ancien fichier de secrets cède la place au compte réglé ici
+    _ensure_host(meta, {**old, "id": VEEAM_HOST, "label": old.get("label", "Serveur Veeam"), "kind": "Veeam Backup & Replication",
+                        "api": "veeam", "url": conn.conf["url"], "connector": VEEAM_NAME})
+    _ensure_host(meta, {"id": VEEAM_SOURCES, "label": "Machines sauvegardées par Veeam", "kind": "origine des jobs Veeam", "api": "none"})
+    added = updated = 0
+    for name, label, age in todo:
+        existing = next((s for s in meta["sets"] for loc in s.get("locations", []) if loc.get("veeam_job") == name), None)
+        if existing:
+            existing["label"], existing["max_age_days"] = label, age
+            updated += 1
+            continue
+        taken = {s["id"] for s in meta["sets"]}
+        base = sid = _slug(f"veeam-{name}")
+        n = 2
+        while sid in taken:
+            sid, n = f"{base}-{n}", n + 1
+        meta["sets"].append({"id": sid, "label": label, "origin": VEEAM_SOURCES, "schedule": "", "max_age_days": age,
+                             "locations": [{"host": VEEAM_HOST, "veeam_job": name, "via": "job Veeam"}]})
+        added += 1
+    _write(meta)
+    return {"added": added, "updated": updated}
+
+
+# ───────────── Home Assistant ─────────────
+
+def _ha_names() -> list[str]:
+    """Noms des connecteurs « home-assistant » actifs de config.json (réglés dans Connecteurs, jeton déjà géré)."""
+    return settings.names("home-assistant")
+
+
+def _ha_state(meta: dict) -> dict:
+    host = next((h for h in meta.get("hosts", []) if h.get("api") == "ha"), None)
+    return {"connectors": _ha_names(), "followed": any(l.get("ha_backup") for s in meta.get("sets", []) for l in s.get("locations", [])),
+            "connector": (host or {}).get("connector", "")}
+
+
+def _ha_conn(name: str) -> HomeAssistant:
+    if name not in _ha_names():
+        raise BackupError(f"connecteur Home Assistant « {name[:64]} » introuvable (Réglages → Connecteurs)")
+    plain = settings.get("home-assistant", name, plain=True)
+    return HomeAssistant({"name": name, "url": plain.get("url"), "token": plain.get("token")}, Context(timeout=TEST_TIMEOUT))
+
+
+def ha_check(name: str) -> dict:
+    """Lit les sauvegardes de Home Assistant avec le connecteur choisi (rien n'est enregistré) : dernière réussie et son âge."""
+    import time
+    conn = _ha_conn(name)
+    try:
+        d = conn.collect()
+    except ConnectorError as e:
+        return {"ok": False, "message": str(e), "last_ok": None, "age_days": None}
+    hb = d["ha_backup"]
+    if not hb["last_ok"]:
+        return {"ok": False, "last_ok": None, "age_days": None,
+                "message": "connexion bonne, mais aucune sauvegarde automatique réussie n'est publiée (capteur sensor.backup_last_successful_automatic_backup) : "
+                           "sauvegardes automatiques non activées dans Home Assistant (Paramètres → Système → Sauvegardes) ?"}
+    age = round((time.time() - hb["last_ok"]) / 86400, 1)
+    return {"ok": True, "last_ok": hb["last_ok"], "age_days": age, "message": f"dernière sauvegarde automatique réussie il y a {age:g} j"}
+
+
+def ha_follow(name: str, label: str = "", max_age_days: float = 2.0) -> dict:
+    """Un jeu « sauvegarde automatique de Home Assistant » : l'hôte lit le connecteur choisi (adresse et jeton), pas de fichier de secrets."""
+    _ha_conn(name)
+    label, age = _check_age_label({"label": label, "max_age_days": max_age_days}, "Home Assistant : sauvegarde automatique")
+    meta = _read()
+    meta.setdefault("hosts", [])
+    meta.setdefault("sets", [])
+    old = next((h for h in meta["hosts"] if h["id"] == HA_HOST), {})
+    old.pop("secrets", None)
+    _ensure_host(meta, {**old, "id": HA_HOST, "label": old.get("label", "Home Assistant"), "kind": "domotique", "api": "ha", "connector": name})
+    _ensure_host(meta, {"id": HA_SOURCE, "label": "Configuration de Home Assistant", "kind": "origine de la sauvegarde", "api": "none"})
+    existing = next((s for s in meta["sets"] if s["id"] == HA_SET), None)
+    if existing:
+        existing["label"], existing["max_age_days"] = label, age
+    else:
+        # offsite : la sauvegarde automatique de HA compte comme copie hors de lui (sinon le jeu serait toujours « critique »)
+        meta["sets"].append({"id": HA_SET, "label": label, "origin": HA_SOURCE, "schedule": "", "max_age_days": age,
+                             "locations": [{"host": HA_HOST, "ha_backup": True, "offsite": True, "via": "gestionnaire de sauvegardes HA"}]})
+    _write(meta)
+    return {"added": 0 if existing else 1, "updated": 1 if existing else 0}

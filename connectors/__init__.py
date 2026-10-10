@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from connectors.adguard import AdGuard
 from connectors.alerts import Discord, Telegram
+from connectors.backup_apis import Veeam
 from connectors.base import Connector, ConnectorError, Context
 from connectors.beszel import Beszel
 from connectors.docker_ssh import DockerSSH
@@ -22,7 +23,7 @@ from connectors.process import Process
 from connectors.uptime_kuma import UptimeKuma
 from connectors.webcheck import WebCheck
 
-TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Discord, Telegram)}
+TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, Discord, Telegram)}
 
 
 def declared(cfg: dict, meta: dict | None = None) -> list[dict]:

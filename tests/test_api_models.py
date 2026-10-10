@@ -128,5 +128,25 @@ class ApiModels(unittest.TestCase):
             self.assertEqual(self.anon.get(f"{BASE}/{p}").status_code, 401, p)
 
 
+class Validation(unittest.TestCase):
+    def test_erreur_422_ne_renvoie_pas_la_valeur_envoyee(self):
+        import tempfile
+        import auth
+        import api
+        import server
+        from fastapi.testclient import TestClient
+        with tempfile.TemporaryDirectory() as d:
+            server.STATIC = server.WEB = Path(d)
+            api.AUTH = True
+            api.STORE = auth.Store(Path(d) / "myservices.db")
+            api.STORE.create_user("admin", "un mot de passe long", "admin")
+            c = TestClient(api.app, client=("192.168.1.50", 50000))
+            c.post("/myservices/api/v1/login", json={"username": "admin", "password": "un mot de passe long"})
+            r = c.post("/myservices/api/v1/backups/veeam/test", json={"password": "SECRET-A-NE-PAS-RENVOYER"}, headers={"X-CSRF-Token": c.cookies["ms_csrf"]})
+        self.assertEqual(r.status_code, 422)
+        self.assertNotIn("SECRET-A-NE-PAS-RENVOYER", r.text)
+        self.assertIn("url", r.text)  # le champ manquant est dit
+
+
 if __name__ == "__main__":
     unittest.main()

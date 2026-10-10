@@ -24,6 +24,7 @@ from typing import Literal
 from urllib.parse import quote
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
@@ -37,6 +38,14 @@ API = PREFIX + "/api/v1"
 
 app = FastAPI(title="MyServices", version="2", docs_url=API + "/docs", redoc_url=None,
               openapi_url=API + "/openapi.json")
+
+@app.exception_handler(RequestValidationError)
+async def invalid_request(request: Request, exc: RequestValidationError):
+    """Requête mal formée : champ et raison, JAMAIS la valeur envoyée (FastAPI la renverrait : mot de passe, jeton)."""
+    errors = [{"loc": [str(x) for x in e.get("loc", [])], "msg": e.get("msg", "invalide"), "type": e.get("type", "")} for e in exc.errors()]
+    return JSONResponse({"error": "requête invalide : " + "; ".join(f"{'.'.join(e['loc'])} ({e['msg']})" for e in errors), "detail": errors},
+                        status_code=422, headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"})
+
 
 SECURITY_HEADERS = {"X-Content-Type-Options": "nosniff", "Referrer-Policy": "same-origin",
                     "X-Frame-Options": "SAMEORIGIN"}
@@ -873,6 +882,69 @@ def backups_follow(body: BackupFollow, request: Request):
         core.run_chain(["backups", "collect"], "Réglages → Sauvegardes")
         return {"ok": True, **out}
     return backups_call(request, "sauvegardes suivies", f"{len(body.items)} dossier(s)", go)
+
+
+class VeeamAccount(BaseModel):
+    url: str
+    user: str = ""
+    password: str = ""  # vide = celui déjà enregistré ; jamais renvoyé, ni écrit dans le journal
+
+
+class VeeamJob(BaseModel):
+    name: str
+    label: str = ""
+    max_age_days: float = 2.0
+
+
+class VeeamFollow(VeeamAccount):
+    jobs: list[VeeamJob]
+
+
+class HaFollow(BaseModel):
+    connector: str
+    label: str = ""
+    max_age_days: float = 2.0
+
+
+@app.post(API + "/backups/veeam/test", tags=["sauvegardes"], summary="Essayer la connexion à Veeam B&R sans rien enregistrer (admin)")
+def backups_veeam_test(body: VeeamAccount, request: Request):
+    return backups_call(request, "essai de connexion Veeam", body.url, lambda b: b.veeam_test(body.model_dump()))
+
+
+@app.post(API + "/backups/veeam/discover", tags=["sauvegardes"], summary="Lister les jobs et dépôts de Veeam B&R, lecture seule, sans rien enregistrer (admin)")
+def backups_veeam_discover(body: VeeamAccount, request: Request):
+    return backups_call(request, "recherche des jobs Veeam", body.url, lambda b: b.veeam_discover(body.model_dump()))
+
+
+@app.put(API + "/backups/veeam", tags=["sauvegardes"], summary="Enregistrer le compte Veeam (mot de passe chiffré) et suivre des jobs (admin)")
+def backups_veeam_follow(body: VeeamFollow, request: Request):
+    import system
+
+    def go(b):
+        out = b.veeam_follow(body.model_dump(exclude={"jobs"}), [j.model_dump() for j in body.jobs])
+        if not core.CFG.get("backups_url"):
+            system.set_backups_url(core, "backups.json")
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (Veeam)")
+        return {"ok": True, **out}
+    return backups_call(request, "jobs Veeam suivis", f"{body.url} : {len(body.jobs)} job(s)", go)
+
+
+@app.post(API + "/backups/ha/check", tags=["sauvegardes"], summary="Lire les sauvegardes de Home Assistant par son connecteur, sans rien enregistrer (admin)")
+def backups_ha_check(body: HaFollow, request: Request):
+    return backups_call(request, "", "", lambda b: b.ha_check(body.connector))
+
+
+@app.put(API + "/backups/ha", tags=["sauvegardes"], summary="Suivre la sauvegarde automatique de Home Assistant (admin)")
+def backups_ha_follow(body: HaFollow, request: Request):
+    import system
+
+    def go(b):
+        out = b.ha_follow(body.connector, body.label, body.max_age_days)
+        if not core.CFG.get("backups_url"):
+            system.set_backups_url(core, "backups.json")
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (Home Assistant)")
+        return {"ok": True, **out}
+    return backups_call(request, "sauvegarde Home Assistant suivie", body.connector, go)
 
 
 @app.delete(API + "/backups/settings/{set_id}", tags=["sauvegardes"], summary="Ne plus suivre un jeu de sauvegarde (admin)")

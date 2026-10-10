@@ -34,6 +34,7 @@ from config import CFG, HERE
 from connectors.backup_apis import HomeAssistant, Veeam
 from connectors.base import ConnectorError, Context
 
+CONNECTOR_OF = {Veeam: ("veeam",), HomeAssistant: ("home-assistant",)}  # types de config.json dont un hôte « connector » reprend les réglages
 META = Path(CFG["backups_meta"])
 OUT_JSON = Path(CFG["web_dir"]) / "backups.json"
 SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=15"]
@@ -233,6 +234,11 @@ def qm_crontab(spec: str) -> list[dict]:
 def api_collect(cls, h: dict, prefix: str) -> tuple[dict | None, str]:
     """Machine lue par API (connecteur Veeam ou Home Assistant) : (données, "") ou (None, message)."""
     conf = {"name": h["id"], **{k: h[k] for k in ("url", "secrets", "api_version") if k in h}}
+    if h.get("connector"):  # compte réglé dans la page (connecteur de config.json, secrets déjà déchiffrés en mémoire)
+        c = next((c for c in CFG.get("connectors") or [] if c.get("name") == h["connector"] and c.get("type") in CONNECTOR_OF[cls]), None)
+        if c is None:
+            return None, f"{prefix} : connecteur « {h['connector']} » absent de config.json (ou coupé dans Réglages)"
+        conf.update({k: c[k] for k in ("url", "user", "password", "token", "api_version") if c.get(k)})
     try:
         return cls(conf, Context()).collect(), ""
     except ConnectorError as e:
@@ -341,6 +347,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                     L["newest"] = {"name": "sauvegarde auto HA", "mtime": hb["last_ok"], "size": 0}
                     L["level"] = level_for_age(L["age"], max_age)
                     L["detail"] = "dernière sauvegarde auto réussie"
+                    L["offsite"] = loc.get("offsite", False)  # « offsite »: true (Réglages) : la sauvegarde de HA compte comme copie hors de lui
                     if hb["last_attempt"] and hb["last_attempt"] > hb["last_ok"] + 3600:
                         L["level"], L["detail"] = "crit", "le dernier essai de sauvegarde a échoué"
                 locs.append(L)

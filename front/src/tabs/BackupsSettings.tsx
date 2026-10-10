@@ -1,6 +1,6 @@
 // Réglages → Sauvegardes : choisir, depuis la page, les dossiers de sauvegarde à surveiller. La recherche passe par SSH, en lecture
 // seule, dans les emplacements habituels de chaque machine ; on coche, on nomme, on fixe l'âge maximum du dernier fichier.
-// Veeam, Home Assistant, Proxmox… viennent ensuite (leurs jeux déjà décrits sont gardés et listés ici).
+// Veeam (BackupsVeeam.tsx) et Home Assistant (BackupsHa.tsx) ont leur assistant plus bas ; Proxmox… viendra ensuite.
 import { FolderSearch, HardDrive, Loader2, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
@@ -9,9 +9,11 @@ import { Badge, Card, Dim } from "../components/ui";
 import { bytes, dateTime } from "../lib/format";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { BackupsHa, type HaState } from "./BackupsHa";
+import { BackupsVeeam, type VeeamState } from "./BackupsVeeam";
 
-interface SetRow { id: string; label: string; origin: string; path: string | null; veeam_job: string | null; max_age_days: number; editable: boolean }
-interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; machines: number }
+interface SetRow { id: string; label: string; origin: string; path: string | null; veeam_job: string | null; max_age_days: number; ha: boolean; editable: boolean }
+interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; machines: number; veeam: VeeamState; ha: HaState }
 interface Folder { path: string; size: number | null; newest: number | null; newest_name: string; readable: boolean; followed: boolean }
 interface Found { ip: string; name: string; ssh: string; ok: boolean; error: string; folders: Folder[] }
 interface Choice { on: boolean; label: string; age: string }
@@ -71,7 +73,7 @@ export function BackupsSettings() {
               <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-sm">
                 <div className="min-w-[200px] flex-1">
                   <b>{s.label}</b>
-                  <div className="font-mono text-xs text-dim">{s.path ?? (s.veeam_job ? `Veeam : ${s.veeam_job}` : "—")}</div>
+                  <div className="font-mono text-xs text-dim">{s.path ?? (s.veeam_job ? `Veeam : ${s.veeam_job}` : s.ha ? "Home Assistant" : "—")}</div>
                 </div>
                 <Badge tone="off">{tx("alerte après {0} j", s.max_age_days)}</Badge>
                 {confirm === s.id ? <>
@@ -147,6 +149,9 @@ export function BackupsSettings() {
         )}
         <NoteLine note={note} />
       </Card>
+
+      <BackupsVeeam key={`${cur.veeam.url}|${cur.veeam.user}`} state={cur.veeam} reload={load} />
+      <BackupsHa key={`${cur.ha.connector}|${cur.ha.connectors.join()}`} state={cur.ha} reload={load} />
     </div>
   );
 }

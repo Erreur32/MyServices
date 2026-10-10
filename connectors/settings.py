@@ -178,12 +178,29 @@ def delete(type_: str, name: str) -> None:
     _write(raw)
 
 
-def test(type_: str, name: str, conf: dict, original: str | None = None) -> dict:
-    """Essai des réglages du formulaire, sans enregistrer (secrets vides = ceux déjà enregistrés)."""
+def get(type_: str, name: str, plain: bool = False) -> dict | None:
+    """Réglages enregistrés d'une instance (secrets encore chiffrés, ou en clair avec plain=True), None si absente."""
+    for _, _, c in _entries(_raw()):
+        if c["type"] == type_ and (c.get("name") or type_) == name:
+            return secrets_store.decrypt_all(dict(c), config_file()) if plain else dict(c)
+    return None
+
+
+def names(type_: str) -> list[str]:
+    """Noms des instances actives (non coupées) de ce type."""
+    return [c.get("name") or type_ for _, _, c in _entries(_raw()) if c["type"] == type_ and c.get("enabled", True) is not False]
+
+
+def resolve(type_: str, name: str, conf: dict, original: str | None = None) -> dict:
+    """Réglages du formulaire en clair, secrets vides repris de l'instance « original » : pour essayer sans enregistrer."""
     raw = _raw()
     old = _find(raw, type_, original)[2] if original else None
-    plain = secrets_store.decrypt_all(_merged(type_, name or type_, conf, old), config_file())
-    conn = TYPES[type_](plain, Context(timeout=TEST_TIMEOUT))
+    return secrets_store.decrypt_all(_merged(type_, name or type_, conf, old), config_file())
+
+
+def test(type_: str, name: str, conf: dict, original: str | None = None) -> dict:
+    """Essai des réglages du formulaire, sans enregistrer (secrets vides = ceux déjà enregistrés)."""
+    conn = TYPES[type_](resolve(type_, name, conf, original), Context(timeout=TEST_TIMEOUT))
     try:
         r = conn.test()
     except ConnectorError as e:
