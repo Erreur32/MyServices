@@ -1,5 +1,5 @@
 import { ArrowLeft } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LOGIN, LoginRequired, NotConfigured, loadSnapshot, logout, type Snapshot } from "./api";
 import { Header } from "./components/Header";
 import { Home } from "./components/Home";
@@ -38,13 +38,15 @@ export default function App() {
   // Filtre posé en ouvrant Services depuis une machine (clic sur son nom) ; la clé recrée l'onglet
   const [svcFilter, setSvcFilter] = useState<{ sel: Selected; n: number }>({ sel: {}, n: 0 });
 
+  const retry = useRef<ReturnType<typeof setTimeout>>(undefined);
   const load = useCallback(() => {
+    clearTimeout(retry.current);
     loadSnapshot()
       .then((s) => { setSnap(s); setError(""); setFresh(null); setNow(Date.now()); })
       .catch((e) => {
         if (e instanceof LoginRequired) location.replace(LOGIN);
         else if (e instanceof NotConfigured) setFresh(e);
-        else setError(String(e.message || e));
+        else { setError(String(e.message || e)); retry.current = setTimeout(load, 4000); }  // serveur qui redémarre : on réessaie vite, l'alerte disparaît toute seule
       });
   }, []);
 

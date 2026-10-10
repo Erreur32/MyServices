@@ -550,6 +550,25 @@ def hardware_of_raw(hw) -> dict | None:
     return out if any(out.values()) else None
 
 
+def _titles(upd) -> list[str] | None:
+    """Titres des mises à jour d'un relevé Windows : une liste de textes, ou None si la recherche n'a rien donné. PowerShell 5.1 peut
+    envoyer {"value": [...], "Count": n} au lieu du tableau, ou des éléments qui ne sont pas des textes : on déballe et on convertit."""
+    if isinstance(upd, dict):
+        upd = upd.get("value")
+    if upd is None or isinstance(upd, bool):
+        return None
+    if isinstance(upd, str):
+        upd = [upd]
+    if not isinstance(upd, list):
+        return None
+    out = []
+    for u in upd:
+        if isinstance(u, dict):
+            u = u.get("value") if "value" in u else u.get("Title") or u.get("title")
+        out += [str(x) for x in (u if isinstance(u, list) else [u]) if x is not None and str(x).strip()]
+    return out
+
+
 def parse_windows(raw: dict) -> dict:
     """Relevé PowerShell -> mêmes champs que la collecte Linux (rendu, niveaux et alertes communs)."""
     gb = 1024 ** 3
@@ -564,7 +583,7 @@ def parse_windows(raw: dict) -> dict:
                       "used_pct": pct, "inode_pct": 0,
                       "critical": pct >= DISK_CRIT_PCT, "warning": pct >= DISK_WARN_PCT})
     disks.sort(key=lambda d: d["used_pct"], reverse=True)
-    upd = raw.get("upd")
+    upd = _titles(raw.get("upd"))
     fail = raw.get("fail")
     pd = raw.get("pd") or []
     return {
@@ -1147,7 +1166,7 @@ def compute_host_blocks(h: dict) -> dict:
                      else "<div class='muted'>Non lisible (recherche Windows Update refusée)</div>")
     elif apt["upgradable"]:
         apt_cls = "crit" if apt["upgradable"] >= APT_CRIT_N else "warn"
-        sample = "".join(f"<li>{html_lib.escape(s)}</li>" for s in apt["sample"])
+        sample = "".join(f"<li>{html_lib.escape(str(s))}</li>" for s in apt["sample"])
         apt_block = (f"<span class='badge {apt_cls}'>{apt['upgradable']}</span> paquet(s) à mettre à jour"
                     + (f"<details><summary>voir</summary><ul class='top-list'>{sample}</ul></details>" if sample else ""))
     else:

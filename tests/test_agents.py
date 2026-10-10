@@ -231,8 +231,24 @@ class Agents(unittest.TestCase):
         self.assertIsNone(health.parse_windows(DATA)["hardware"])
 
     def test_script_ascii_et_version(self):
-        self.assertEqual(agents.VERSION, "3")
+        self.assertEqual(agents.VERSION, "4")
         agents.script("agent.ps1").encode("ascii")
+
+    def test_titres_de_mises_a_jour_au_format_powershell_5_1(self):
+        # PowerShell 5.1 envoie parfois {"value": [...], "Count": n} (tableau relu d'un fichier JSON) ou des éléments non textuels
+        for upd, want in (([ "KB1", "KB2" ], ["KB1", "KB2"]), ({"value": ["KB1", "KB2"], "Count": 2}, ["KB1", "KB2"]),
+                          ([{"value": ["KB1", "KB2"], "Count": 2}], ["KB1", "KB2"]), ([{"Title": "KB9"}], ["KB9"]),
+                          ("KB3", ["KB3"]), ([], []), (None, None), (7, None), ([None, " ", "KB4"], ["KB4"])):
+            self.assertEqual(health._titles(upd), want, upd)
+        h = health.parse_windows({**DATA, "upd": [{"value": ["Mise a jour A", "Mise a jour B"], "Count": 2}]})
+        self.assertEqual(h["apt"]["sample"], ["Mise a jour A", "Mise a jour B"])
+        self.assertEqual(h["apt"]["upgradable"], 2)
+
+    def test_la_page_sante_ne_plante_pas_sur_un_releve_mal_forme(self):
+        raw = {**DATA, "upd": [{"value": ["Mise a jour A"], "Count": 1}]}
+        host = {"id": "pc", "name": "PC · 192.168.1.60", "os": "windows", "reachable": True, **health.parse_windows(raw)}
+        host["level"] = health.host_level(host)
+        self.assertIn("Mise a jour A", health.render_html({"timestamp": "2026-10-11T00:00:00+00:00", "hosts": [host], "overall_level": host["level"]}))
 
     def test_fraicheur(self):
         token, info = self.create()

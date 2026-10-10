@@ -422,12 +422,12 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
     </label>
   );
   // Machine déjà enregistrée : un interrupteur se sauvegarde tout seul (sans toucher aux champs texte en cours de saisie) ;
-  // une coche « ✓ enregistré » s'anime à côté. À l'ajout (isNew), tout part avec « Enregistrer la machine ».
+  // une coche « ✓ enregistré » s'anime à côté. À l'ajout (isNew), tout part avec « Enregistrer ».
   const [saved, setSaved] = useState<MachineConf>(m), [savedProc, setSavedProc] = useState(!!process);
   const [flash, setFlash] = useState(""), [pending, setPending] = useState("");
   // Seule cette machine est relue (SSH, Docker, santé) : les autres restent en cache, le passage est court.
   const refreshState = () => { void send("POST", `machines/settings/${ip}/refresh`).then(pokeScan, () => undefined); };
-  const autoSave = async (key: string, next: Partial<MachineConf>, nextProc = savedProc) => {
+  const autoSave = async (key: string, next: Partial<MachineConf>, nextProc = savedProc, refresh = true) => {
     if (isNew) { setV((x) => ({ ...x, ...next })); if (key === "proc") setProc(nextProc); return; }
     setPending(key);
     const machine = { ...saved, ...next };
@@ -436,7 +436,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
     if (!ok) return;
     setSaved(machine); setSavedProc(nextProc);
     setV((x) => ({ ...x, ...next })); if (key === "proc") setProc(nextProc);
-    refreshState();  // un réglage changé (accès, options) : cette machine est relue tout de suite, pas au prochain horaire
+    if (refresh) refreshState();  // un réglage changé (accès, options) : cette machine est relue tout de suite, pas au prochain horaire
     setFlash(key); setTimeout(() => setFlash((f) => (f === key ? "" : f)), 1800);
   };
   // Machine virtuelle détectée sur une machine déjà enregistrée : « Machine virtuelle » se coche toute seule, une fois par machine
@@ -504,7 +504,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
     if (ok) setTimeout(onDone, 900);
   };
   // Carte d'une machine déjà enregistrée : l'accès SSH et les interrupteurs s'enregistrent seuls ; ce bouton ne sert qu'aux champs texte
-  const dirty = isNew || ["name", "role", "adguard", "adguard_sync"].some((k) => String(v[k] ?? "") !== String(saved[k] ?? ""));
+  const dirty = isNew || ["name", "adguard", "adguard_sync"].some((k) => String(v[k] ?? "") !== String(saved[k] ?? ""));
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
       <section className="rounded-xl border border-muted/60 bg-bg2/30 p-4 shadow-sm">
@@ -570,7 +570,11 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
         <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("Identité")}</h4>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={tx("Nom")}><input className={input} required maxLength={80} value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>
-          <TagInput label={tx("Rôle (étiquettes)")} value={v.role || ""} onChange={(role) => setV({ ...v, role })} suggestions={roleSuggestions} placeholder={tx("ex. Docker, NAS…")} />
+          <div>
+            <TagInput label={tx("Rôle (étiquettes)")} value={v.role || ""} suggestions={roleSuggestions} placeholder={tx("ex. Docker, NAS…")}
+              onChange={(role) => (isNew ? setV({ ...v, role }) : void autoSave("role", { role }, savedProc, false))} />  {/* chaque étiquette s'enregistre seule, comme un interrupteur */}
+            <Saved k="role" />
+          </div>
         </div>
       </section>
       {agent && sshAccess && (
@@ -646,7 +650,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
         )}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        <button className={primary} disabled={busy || !dirty} title={dirty ? undefined : tx("Rien à enregistrer : l'accès et les options s'enregistrent tout seuls")}>{isNew ? tx("Enregistrer la machine") : tx("Enregistrer les modifications")}</button>
+        <button className={primary} disabled={busy || !dirty} title={dirty ? undefined : tx("Rien à enregistrer : l'accès, les options et les étiquettes s'enregistrent tout seuls")}>{tx("Enregistrer")}</button>
         {actions}
       </div>
       {!report && <NoteLine note={localNote} />}

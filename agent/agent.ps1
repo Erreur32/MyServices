@@ -29,7 +29,9 @@ try {
   if (Test-Path $StatePath) { try { $state = Get-Content $StatePath -Raw | ConvertFrom-Json } catch { } }
   $env:MSV_UPD = ''
   if ($state -and $state.upd_at -and ((Get-Date) - [datetime]$state.upd_at).TotalSeconds -lt $UpdateEvery -and $null -ne $state.upd) {
-    $env:MSV_UPD = Json @($state.upd)
+    # Windows PowerShell 5.1 turns an array read back from a JSON file into {"value":[...],"Count":n}: unwrap it and force strings
+    $u = $state.upd; if ($u -and $u.value) { $u = $u.value }
+    $env:MSV_UPD = ConvertTo-Json -InputObject ([string[]]@($u | ForEach-Object { "$_" })) -Compress
   }
 
   $collect = {
@@ -42,7 +44,10 @@ try {
   if (-not $env:MSV_UPD) {  # fresh search: keep its titles for the next runs
     try {
       $o = $data | ConvertFrom-Json
-      if ($null -ne $o.upd) { @{ upd_at = (Get-Date).ToString('o'); upd = @($o.upd) } | ConvertTo-Json -Depth 3 | Set-Content $StatePath }
+      if ($null -ne $o.upd) {
+        $titles = [string[]]@($o.upd | ForEach-Object { "$_" })
+        ConvertTo-Json -InputObject @{ upd_at = (Get-Date).ToString('o'); upd = $titles } -Depth 3 | Set-Content $StatePath
+      }
     } catch { }
   }
   $env:MSV_UPD = ''

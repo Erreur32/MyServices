@@ -18,7 +18,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "3"
+VERSION = "4"
 SCRIPTS = Path(__file__).resolve().parent / "agent"
 PREFIX = "msv_agent_"
 NAME_RE = re.compile(r"^[\w .@-]{2,64}$")

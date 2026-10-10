@@ -462,7 +462,6 @@ export const EN: Record<string, string> = {
   "enregistré : pris en compte au prochain passage de la collecte": "saved: applies at the next collection run",
   "enregistrée : prise en compte au prochain passage": "saved: applies at the next run",
   "Enregistrer": "Save",
-  "Enregistrer la machine": "Save machine",
   "envoyé dans l'en-tête Authorization": "sent in the Authorization header",
   "erreur": "error",
   "erreurs noyau récentes": "recent kernel errors",
@@ -1126,8 +1125,6 @@ export const EN: Record<string, string> = {
   "root par défaut ; un compte dédié du groupe docker est plus sûr": "root by default; a dedicated account in the docker group is safer",
   "Sur la machine, connecté avec ce compte, ajoutez la clé de l'app dans": "On the machine, logged in with this account, add the app's key to",
   "Astuce : si la connexion est refusée, vérifiez que le serveur SSH est installé et démarré sur la machine.": "Tip: if the connection is refused, check that the SSH server is installed and running on the machine.",
-  "Enregistrer les modifications": "Save changes",
-  "Rien à enregistrer : l'accès et les options s'enregistrent tout seuls": "Nothing to save: access and options are saved automatically",
   "Accès par l'agent": "Access through the agent",
   "pas d'agent": "no agent",
   "Lecture par l'agent": "Read through the agent",
@@ -1183,4 +1180,5 @@ export const EN: Record<string, string> = {
   "Cette clé est à autoriser sur la machine :": "This key must be authorized on the machine:",
   "Réglages → Clé SSH": "Settings → SSH key",
   "Clé de l'app introuvable : voir": "App key not found: see",
+  "Rien à enregistrer : l'accès, les options et les étiquettes s'enregistrent tout seuls": "Nothing to save: access, options and tags are saved automatically",
 };
