@@ -28,6 +28,7 @@ import setup
 # Champs d'une machine réglables depuis la page (le reste du fichier est gardé tel quel)
 FLAGS = ("off", "gateway", "npm", "npm_only", "vm", "disabled")
 TEXT = ("name", "role", "ssh", "adguard", "adguard_sync", "health", "os")
+HEALTH_SOURCES = ("ssh", "agent", "beszel")  # priorité de lecture de la santé (health.py : source_order)
 NAME_MAX = 80
 
 
@@ -164,6 +165,11 @@ def _clean(m: dict) -> dict:
             out[k] = True
     if m.get("health") is False:
         out["health"] = False
+    src = m.get("health_sources")
+    if src:
+        if not isinstance(src, list) or any(x not in HEALTH_SOURCES for x in src):
+            raise MachineError("priorité de la santé : ssh, agent, beszel")
+        out["health_sources"] = list(dict.fromkeys(src))
     if not out.get("name"):
         raise MachineError("nom requis")
     known = {a["alias"] for a in aliases()} | {"local"}
@@ -185,7 +191,7 @@ def save(ip: str, m: dict, process: bool | None = None, extra: list[dict] | None
     machines = meta.setdefault("machines", {})
     old = machines.get(ip, {})
     new = _clean(m)
-    keep = {k: v for k, v in old.items() if k not in TEXT + FLAGS}  # réglages hors page (ex. health détaillé)
+    keep = {k: v for k, v in old.items() if k not in TEXT + FLAGS + ("health_sources",)}  # réglages hors page (ex. health détaillé)
     machines[ip] = {**keep, **new}
     if old.get("ssh") != new.get("ssh"):
         expire_inventory()

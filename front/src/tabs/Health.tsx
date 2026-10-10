@@ -72,6 +72,7 @@ function HostCard({ h }: { h: HealthHost }) {
             </div>
           ))}
           <div className="flex flex-wrap gap-1.5 pt-1">
+            {!!h.sources?.length && <Badge tone="off" title={tx("Source de la santé : la première de la liste répond, les suivantes complètent ce qu'elle n'a pas lu")}>{tx("lu par")} {h.sources.map((s) => SOURCE_LABEL[s] ?? s).join(" + ")}</Badge>}
             {h.docker?.accessible && <Badge tone="off">{tx("Docker ·")} {h.docker.total ?? 0} {tx("conteneurs")}</Badge>}
             {h.load?.available && <Badge tone="off">{tx("charge")} {h.load.load_1} / {h.load.ncpu} {tx("CPU")}</Badge>}
         {!h.temp?.available && h.temp?.virt && <Badge tone="off" title={tx("Machine virtuelle ({0}) : pas de capteur de température", h.temp.virt)}>{tx("VM")}</Badge>}
@@ -84,6 +85,8 @@ function HostCard({ h }: { h: HealthHost }) {
     </section>
   );
 }
+
+const SOURCE_LABEL: Record<string, string> = { ssh: "SSH", agent: tx("agent"), beszel: "Beszel" };
 
 export function Health({ snap }: { snap: Snapshot }) {
   const hosts = useMemo(() => [...(snap.health?.hosts || [])].sort((a, b) => RANK[levelOf(a)] - RANK[levelOf(b)]), [snap.health]);

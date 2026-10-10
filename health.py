@@ -101,7 +101,8 @@ def load_hosts(agent_ips: frozenset | set = frozenset()) -> tuple[list[dict], di
         hid = re.sub(r"[^a-z0-9]+", "-", m["name"].lower()).strip("-") or ip
         hosts.append({"id": hid, "name": f"{m['name']} · {ip}",  # « Nom · IP » : l'IP est relue par la page
                       "mode": "local" if alias == "local" else "ssh", "target": alias, "vm": bool(m.get("vm")),
-                      "os": m.get("os", "linux"), "ip": ip, "off": bool(m.get("off"))})
+                      "os": m.get("os", "linux"), "ip": ip, "off": bool(m.get("off")),
+                      "sources": m.get("health_sources") if isinstance(m.get("health_sources"), list) else []})
     return hosts, meta
 
 
@@ -589,6 +590,76 @@ def host_from_agent(hc: dict, a: dict) -> dict:
     h["docker"] = {"accessible": False, "reason": "agent"}
     h["level"] = host_level(h)
     return h
+
+
+# ───────────── Fusion des sources (SSH, agent, Beszel) ─────────────
+
+SOURCES = ("ssh", "agent", "beszel")
+
+
+def source_order(hc: dict) -> list[str]:
+    """Priorité de lecture de la santé d'une machine : « health_sources » de services-meta, puis l'ordre par défaut pour
+    les sources non citées. Par défaut SSH, agent, Beszel ; Windows : agent d'abord (c'est son accès recommandé)."""
+    default = ["agent", "ssh", "beszel"] if hc.get("os") == "windows" else ["ssh", "agent", "beszel"]
+    wanted = [x for x in hc.get("sources") or [] if x in SOURCES]
+    return list(dict.fromkeys(wanted + default))
+
+
+def host_from_beszel(hc: dict, b: dict) -> dict:
+    h = {"id": hc["id"], "name": hc["name"], "os": hc["os"], "reachable": b.get("status") == "up", **parse_beszel(b)}
+    h["level"] = host_level(h) if h["reachable"] else "down"
+    return h
+
+
+def complement(h: dict, parts: dict[str, dict]) -> None:
+    """Ce que la source retenue n'a pas pu lire (SMART, mémoire / processeur, température) est pris dans les autres
+    sources qui répondent, dans l'ordre de priorité. h est modifié ; h["sources"] dit qui a servi."""
+    used = [h["source"]]
+    for name, part in parts.items():
+        gave = False
+        if not h["smart"]["accessible"] and not h["smart"].get("vm") and part.get("smart", {}).get("accessible"):
+            h["smart"], gave = {**part["smart"], "source": name}, True
+        if not h.get("res", {}).get("available") and part.get("res", {}).get("available"):
+            h["res"], gave = part["res"], True
+        if not h.get("temp", {}).get("available") and part.get("temp", {}).get("available"):
+            h["temp"], gave = part["temp"], True
+        if gave:
+            used.append(name)
+    h["sources"] = used
+    h["level"] = host_level(h)
+
+
+def read_host(hc: dict, agent: dict | None, beszel: dict | None, ssh=None) -> dict | None:
+    """Santé d'une machine d'après ses sources, dans l'ordre de priorité : la première qui répond fait foi, les suivantes
+    ne complètent que ce qu'elle n'a pas pu lire. Aucune ne répond : la première muette (« injoignable »), sauf pour un
+    poste « souvent éteint » (rien, pas d'alerte). None : machine sans aucune source (ni SSH, ni agent, ni Beszel)."""
+    ssh = ssh or collect_host
+    readers = {"ssh": lambda: ssh(hc) if hc["target"] else None,
+               "agent": lambda: host_from_agent(hc, agent) if agent else None,
+               "beszel": lambda: host_from_beszel(hc, beszel) if beszel else None}
+    silent, primary = None, None
+    for name in source_order(hc):
+        h = readers[name]()
+        if h is None:
+            continue
+        h["source"] = name
+        if h["reachable"]:
+            primary = h
+            break
+        silent = silent or h
+    if primary is None:
+        return None if hc.get("off") else silent
+    # parties lisibles à peu de frais (relevé d'agent frais, Beszel qui répond), sans relancer de lecture SSH
+    cheap = {}
+    for name in source_order(hc):
+        if name == primary["source"]:
+            continue
+        if name == "agent" and agent and agent["fresh"] and isinstance((agent["report"] or {}).get("data"), dict):
+            cheap[name] = parse_windows(agent["report"]["data"])
+        elif name == "beszel" and beszel and beszel.get("status") == "up":
+            cheap[name] = parse_beszel(beszel)
+    complement(primary, cheap)
+    return primary
 
 
 # ───────────── Beszel (connecteur) ─────────────
@@ -1247,30 +1318,12 @@ def main() -> int:
     candidates, meta = load_hosts(set(agents))
     besz, _ = beszel_systems(meta)
     for hc in candidates:
-        b = besz.get(hc["ip"])
-        a = agents.get(hc["ip"])
-        if a and (a["fresh"] or (not hc["target"] and not hc["off"])):  # périmé : SSH reprend la main, ou « injoignable »
-            h = host_from_agent(hc, a)
-            print(f"▸ {hc['name']} : relevé de l'agent" + ("" if a["fresh"] else " périmé"))
-        elif hc["off"] and not hc["target"] and not b:  # PC souvent éteint, sans agent : jamais relevé
+        print(f"▸ {hc['name']}...")
+        h = read_host(hc, agents.get(hc["ip"]), besz.get(hc["ip"]))
+        if h is None:
             continue
-        elif not hc["target"]:  # sans SSH : Beszel seulement
-            if not b:
-                continue
-            print(f"▸ {hc['name']} : relevé Beszel")
-            h = {"id": hc["id"], "name": hc["name"], "os": hc["os"], "reachable": b.get("status") == "up", **parse_beszel(b)}
-            h["level"] = host_level(h) if h["reachable"] else "down"
-        else:
-            print(f"▸ Collecte {hc['name']}...")
-            h = collect_host(hc)
-            if b and h["reachable"]:  # Beszel complète ce que SSH n'a pas pu lire
-                if not h["smart"]["accessible"] and not h["smart"].get("vm") and b.get("smart"):
-                    h["smart"] = smart_from_beszel(b)
-                if not h.get("res", {}).get("available") and isinstance(b.get("cpu"), (int, float)) and isinstance(b.get("mem_pct"), (int, float)):
-                    h["res"] = {"available": True, "cpu_pct": round(b["cpu"], 1), "mem_pct": round(b["mem_pct"], 1)}
-                if not h.get("temp", {}).get("available") and isinstance(b.get("temp"), (int, float)):
-                    h["temp"] = {"available": True, "celsius": round(b["temp"], 1), "source": "Beszel"}
-                h["level"] = host_level(h)
+        if h.get("sources"):
+            print("  sources : " + " + ".join(h["sources"]))
         print(f"  → {h['level'].upper()}" + ("" if h["reachable"] else " (injoignable)"))
         hosts.append(h)
 

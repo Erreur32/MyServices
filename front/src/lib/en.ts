@@ -1106,4 +1106,11 @@ export const EN: Record<string, string> = {
   "Linux, lus par SSH": "Linux, read over SSH",
   "L'accès SSH se règle avec la machine : cliquez sur une carte pour ouvrir ses réglages.": "SSH access is set up with the machine: click a card to open its settings.",
   "Aucune machine Linux lue par SSH pour l'instant : activez « Lecture par SSH » dans Réglages → Machines.": "No Linux machine read over SSH yet: turn on \"Read over SSH\" in Settings → Machines.",
+  "lu par": "read by",
+  "Source de la santé : la première de la liste répond, les suivantes complètent ce qu'elle n'a pas lu": "Health source: the first one in the list answers, the next ones fill in what it could not read",
+  "Santé lue d'abord par": "Health read first by",
+  "Automatique (l'agent, puis SSH)": "Automatic (the agent, then SSH)",
+  "Automatique (SSH, puis l'agent)": "Automatic (SSH, then the agent)",
+  "L'agent": "The agent",
+  "la première source qui répond fait foi, l'autre prend le relais si elle se tait et complète ce qui manque": "the first source that answers is used, the other takes over if it goes quiet and fills in what is missing",
 };

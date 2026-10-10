@@ -1,0 +1,114 @@
+"""Fusion des sources de santé (health.py : source_order, read_host, complement) : priorité réglable, repli quand une source
+se tait, une source ne complète que ce que la première n'a pas lu, poste « souvent éteint », validation côté machines_admin.
+
+  À lancer dans l'image : python3 -m unittest discover -s tests
+"""
+import sys
+import time
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+try:
+    import health
+    import machines_admin
+except ImportError:
+    health = None
+
+DATA = {"disks": [{"m": "C:", "s": 500e9, "f": 400e9}], "cpu": 12, "mem": 41.5, "pd": [{"n": "SSD", "h": "Healthy"}],
+        "ev": [], "fail": 0, "upd": [], "svc": [], "ncpu": 8}
+
+
+def hc(**kw):
+    return {"id": "pc", "name": "PC · 192.168.1.60", "os": "linux", "ip": "192.168.1.60", "target": "pc", "off": False, "sources": [], **kw}
+
+
+def agent(fresh=True):
+    return {"report": {"data": DATA}, "seen": time.time(), "fresh": fresh}
+
+
+def beszel(up=True):
+    return {"status": "up" if up else "down", "disks": [{"mount": "/", "size_gb": 100, "used_gb": 10, "used_pct": 10}],
+            "cpu": 3.0, "mem_pct": 20.0, "temp": 51.0, "smart": [{"name": "nvme0", "state": "PASSED"}], "cores": 4}
+
+
+def ssh_ok(host, **extra):
+    h = {"id": host["id"], "name": host["name"], "reachable": True, "disks": [], "systemd": {"failed": []},
+         "docker": {"accessible": False}, "apt": {"upgradable": 0, "sample": [], "available": True},
+         "kernel": {"has_errors": False, "samples": []}, "reboot_required": False,
+         "load": {"load_1": 0.1, "ncpu": 4, "available": True}, "ssh_auth": {"failed_24h": 0, "available": True},
+         "smart": {"accessible": False, "disks": []}, "temp": {"available": False}, "res": {"available": False}, **extra}
+    h["level"] = health.host_level(h)
+    return h
+
+
+def ssh_down(host):
+    return {"id": host["id"], "name": host["name"], "reachable": False, "disks": [], "systemd": {"failed": []},
+            "docker": {"accessible": False}, "level": "down", **health._EMPTY_HOST_EXTRAS}
+
+
+@unittest.skipIf(health is None, "dépendances absentes : tests à lancer dans l'image")
+class Sources(unittest.TestCase):
+    def test_ordre_par_defaut_et_reglage(self):
+        self.assertEqual(health.source_order(hc()), ["ssh", "agent", "beszel"])
+        self.assertEqual(health.source_order(hc(os="windows")), ["agent", "ssh", "beszel"])
+        self.assertEqual(health.source_order(hc(sources=["beszel"])), ["beszel", "ssh", "agent"])
+        self.assertEqual(health.source_order(hc(sources=["agent", "agent", "nimporte"])), ["agent", "ssh", "beszel"])
+
+    def test_la_premiere_source_qui_repond_fait_foi(self):
+        h = health.read_host(hc(), agent(), beszel(), ssh=ssh_ok)
+        self.assertEqual(h["source"], "ssh")
+        self.assertEqual(h["sources"][0], "ssh")
+
+    def test_priorite_changee_agent_d_abord(self):
+        calls = []
+        h = health.read_host(hc(sources=["agent"]), agent(), beszel(), ssh=lambda x: calls.append(1) or ssh_ok(x))
+        self.assertEqual(h["source"], "agent")
+        self.assertEqual(calls, [])  # SSH n'est pas relancé quand une source plus prioritaire répond
+
+    def test_repli_quand_ssh_se_tait(self):
+        h = health.read_host(hc(), agent(), beszel(), ssh=ssh_down)
+        self.assertEqual((h["source"], h["reachable"]), ("agent", True))
+        h = health.read_host(hc(), agent(fresh=False), beszel(), ssh=ssh_down)
+        self.assertEqual((h["source"], h["reachable"]), ("beszel", True))
+
+    def test_toutes_muettes_injoignable_sauf_poste_eteint(self):
+        h = health.read_host(hc(), None, beszel(up=False), ssh=ssh_down)
+        self.assertEqual((h["reachable"], h["level"], h["source"]), (False, "down", "ssh"))
+        self.assertIsNone(health.read_host(hc(off=True), None, None, ssh=ssh_down))
+        self.assertIsNone(health.read_host(hc(off=True, target=None), agent(fresh=False), None))
+
+    def test_machine_sans_aucune_source(self):
+        self.assertIsNone(health.read_host(hc(target=None), None, None))
+
+    def test_complement_seulement_ce_qui_manque(self):
+        h = health.read_host(hc(), agent(), beszel(), ssh=ssh_ok)
+        self.assertEqual(h["res"], {"available": True, "cpu_pct": 12.0, "mem_pct": 41.5})  # agent, 1re source qui sait
+        self.assertEqual(h["temp"]["celsius"], 51.0)                                       # Beszel : l'agent n'a pas de température
+        self.assertTrue(h["smart"]["accessible"])
+        self.assertEqual(h["sources"], ["ssh", "agent", "beszel"])
+        # ce que SSH a lu n'est jamais écrasé
+        h = health.read_host(hc(), None, beszel(), ssh=lambda x: ssh_ok(x, res={"available": True, "cpu_pct": 99.0, "mem_pct": 1.0}))
+        self.assertEqual(h["res"]["cpu_pct"], 99.0)
+        self.assertEqual(h["sources"], ["ssh", "beszel"])
+
+    def test_agent_perime_ne_complete_pas(self):
+        h = health.read_host(hc(), agent(fresh=False), None, ssh=ssh_ok)
+        self.assertEqual(h["sources"], ["ssh"])
+        self.assertFalse(h["res"]["available"])
+
+    def test_vm_sans_smart_n_est_pas_complete(self):
+        h = health.read_host(hc(), None, beszel(), ssh=lambda x: ssh_ok(x, smart={"accessible": False, "disks": [], "vm": True}))
+        self.assertFalse(h["smart"]["accessible"])
+
+    def test_machines_admin_valide_la_priorite(self):
+        ok = machines_admin._clean({"name": "PC", "health_sources": ["agent", "ssh", "agent"]})
+        self.assertEqual(ok["health_sources"], ["agent", "ssh"])
+        self.assertNotIn("health_sources", machines_admin._clean({"name": "PC", "health_sources": []}))
+        for bad in (["telepathie"], "agent", [1]):
+            with self.assertRaises(machines_admin.MachineError):
+                machines_admin._clean({"name": "PC", "health_sources": bad})
+
+
+if __name__ == "__main__":
+    unittest.main()

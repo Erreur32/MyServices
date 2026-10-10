@@ -250,7 +250,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
               <SshDetails m={live} statuses={statuses} />
             </section>
           )}
-          <MachineForm report={setNote} ip={ip} m={m} st={st} live={live} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
+          <MachineForm agent={!!agent} report={setNote} ip={ip} m={m} st={st} live={live} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
             <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
             <span className="ml-auto flex items-center gap-1.5">
               {confirm ? <>
@@ -276,7 +276,8 @@ function OptionGroup({ title, hint, tone, children }: { title: string; hint?: st
   );
 }
 
-function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, actions, windowsGuess, report, onDone }: {
+function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, actions, windowsGuess, report, onDone, agent }: {
+  agent?: boolean;  // la machine a un agent actif : la santé a alors deux sources, à ordonner
   report?: (n: Note) => void;  // dans une carte de machine : le message s'affiche en haut de la carte
   windowsGuess?: boolean;
   live?: Snapshot["data"]["machine_list"][number]; actions?: React.ReactNode; detected?: string[]; ip: string; m: MachineConf; st: State; isNew?: boolean; process?: boolean; extra?: Detection["web"]; onDone: () => void;
@@ -420,6 +421,18 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
         </p>
         </div>}
       </section>
+      {agent && access && (
+        <label className="flex flex-wrap items-center gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
+          <b>{tx("Santé lue d'abord par")}</b> <Saved k="health_sources" />
+          <select className={`${input} w-auto`} disabled={pending === "health_sources"} value={(v.health_sources as string[] | undefined)?.[0] ?? ""}
+            onChange={(e) => void autoSave("health_sources", { health_sources: e.target.value ? [e.target.value] : undefined })}>
+            <option value="">{windows ? tx("Automatique (l'agent, puis SSH)") : tx("Automatique (SSH, puis l'agent)")}</option>
+            <option value="ssh">SSH</option>
+            <option value="agent">{tx("L'agent")}</option>
+          </select>
+          <Dim>· {tx("la première source qui répond fait foi, l'autre prend le relais si elle se tait et complète ce qui manque")}</Dim>
+        </label>
+      )}
       <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
         <Switch on={!v.disabled} disabled={pending === "disabled"} onChange={(on) => void autoSave("disabled", { disabled: !on })} label={tx("Machine suivie")} />
         <span><b>{tx("Machine suivie")}</b> <Saved k="disabled" /> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>

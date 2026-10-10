@@ -235,6 +235,8 @@ export interface HealthHost {
   temp?: { available: boolean; celsius?: number; source?: string; virt?: string };  // température du processeur (capteur de la machine ou Beszel)
   ssh_auth?: { failed_24h: number; available: boolean };
   smart?: { accessible: boolean; disks: { device: string; healthy: boolean; failed?: boolean }[]; vm?: boolean };
+  source?: "ssh" | "agent" | "beszel";  // source retenue pour la santé de la machine
+  sources?: string[];                    // toutes celles qui ont servi (la retenue, puis celles qui ont complété)
 }
 
 export interface Health {
