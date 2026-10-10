@@ -169,14 +169,15 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus }: {
               <SshDetails m={live} statuses={statuses} />
             </section>
           )}
-          <MachineForm ip={ip} m={m} st={st} live={live} process={!!st.process_hosts[ip]} onDone={reload} />
-          <div className="flex flex-wrap gap-1.5">
+          <MachineForm ip={ip} m={m} st={st} live={live} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
             <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
-            {confirm ? <>
-              <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `machines/settings/${ip}`), tx("machine retirée"), setNote).then((ok) => ok && reload())}>{tx("Confirmer le retrait")}</button>
-              <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
-            </> : <button type="button" className={danger} onClick={() => setConfirm(true)}><Trash2 size={14} />{tx("Retirer")}</button>}
-          </div>
+            <span className="ml-auto flex items-center gap-1.5">
+              {confirm ? <>
+                <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `machines/settings/${ip}`), tx("machine retirée"), setNote).then((ok) => ok && reload())}>{tx("Confirmer le retrait")}</button>
+                <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
+              </> : <button type="button" className={danger} onClick={() => setConfirm(true)}><Trash2 size={14} />{tx("Retirer")}</button>}
+            </span>
+          </>} />
           {lines && (
             <ul className="rounded-lg bg-bg2 p-2 font-mono text-xs">
               {lines.map((l, i) => <li key={i} className={l.startsWith("✓") ? "text-ok" : l.startsWith("✗") ? "text-bad" : "text-warn"}>{l}</li>)}
@@ -200,8 +201,8 @@ function OptionGroup({ title, hint, tone, dim, children }: { title: string; hint
   );
 }
 
-function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, onDone }: {
-  live?: Snapshot["data"]["machine_list"][number]; detected?: string[]; ip: string; m: MachineConf; st: State; isNew?: boolean; process?: boolean; extra?: Detection["web"]; onDone: () => void;
+function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, actions, onDone }: {
+  live?: Snapshot["data"]["machine_list"][number]; actions?: React.ReactNode; detected?: string[]; ip: string; m: MachineConf; st: State; isNew?: boolean; process?: boolean; extra?: Detection["web"]; onDone: () => void;
 }) {
   const [v, setV] = useState<MachineConf>(m);
   const [proc, setProc] = useState(!!process);
@@ -363,7 +364,10 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
           </div>
         )}
       </div>
-      <div><button className={primary} disabled={busy}>{isNew ? tx("Enregistrer la machine") : tx("Enregistrer le nom et l'accès")}</button></div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button className={primary} disabled={busy}>{isNew ? tx("Enregistrer la machine") : tx("Enregistrer le nom et l'accès")}</button>
+        {actions}
+      </div>
       <NoteLine note={note} />
     </form>
   );
