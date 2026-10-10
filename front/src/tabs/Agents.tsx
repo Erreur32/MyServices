@@ -7,7 +7,8 @@ import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Copyable, Field, NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
-import { act, danger, input, quiet, type Note } from "../lib/forms";
+import { osOfMachine } from "../lib/machines";
+import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { dateTime, ipNum } from "../lib/format";
 import type { AgentInfo, AgentsState, Machine, MachineConf, MachinesSettings } from "../types";
@@ -34,6 +35,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   const [url, setUrl] = useState(location.origin);
   const [created, setCreated] = useState<{ info: AgentInfo; command: string } | null>(null);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState("");
+  const [pick, setPick] = useState("");  // PC Windows choisi, en attente de confirmation (rien n'est créé avant)
   const reload = useCallback(() => {
     read<AgentsState>("agents")
       .then((s) => { setSt(s); setError(""); })
@@ -53,18 +55,22 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   const byIp = new Map(st.agents.filter((a) => a.state !== "révoqué").map((a) => [a.ip, a]));
   const revoked = st.agents.filter((a) => a.state === "révoqué");
   const sorted = (ips: string[]) => ips.sort((a, b) => ipNum(a) - ipNum(b));
-  // Avec agent : tous. Sans agent : les machines que SSH ne lit pas (Windows, sans accès) ; une machine lue par SSH n'en a pas besoin.
-  const withAgent = sorted([...byIp.keys()]);
-  const without = sorted(Object.keys(machines).filter((ip) => !byIp.has(ip) && !machines[ip].disabled && (machines[ip].os === "windows" || !machines[ip].ssh)));
-  // Lues par SSH (Linux, hors Windows) : l'accès se règle avec la machine, la carte y renvoie
-  const ssh = sorted(Object.keys(machines).filter((ip) => !byIp.has(ip) && !machines[ip].disabled && machines[ip].os !== "windows" && !!machines[ip].ssh));
   const liveBy = new Map(live.map((m) => [m.ip, m]));
+  // L'agent est un script PowerShell : il ne concerne que Windows (réglage « windows » ou système probable : TTL, scan). Une machine
+  // qui n'est pas Windows se lit par SSH ; sans SSH, il lui faut d'abord un accès (réglage de la machine).
+  const isWindows = (ip: string) => machines[ip].os === "windows" || osOfMachine({ os: machines[ip].os, info: liveBy.get(ip)?.info, ttl: liveBy.get(ip)?.ttl })?.kind === "windows";
+  const tracked = Object.keys(machines).filter((ip) => !byIp.has(ip) && !machines[ip].disabled);
+  const withAgent = sorted([...byIp.keys()]);
+  const without = sorted(tracked.filter((ip) => isWindows(ip) && !machines[ip].ssh));          // PC Windows sans agent
+  const ssh = sorted(tracked.filter((ip) => !isWindows(ip) && !!machines[ip].ssh));           // Linux lus par SSH
+  const noAccess = sorted(tracked.filter((ip) => !isWindows(ip) && !machines[ip].ssh));       // ni agent possible ni SSH
   const local = /^https?:\/\/(localhost|127\.|\[::1\])/i.test(url);
 
   const create = async (ip: string) => {
     setBusy(ip); setNote(null);
     try {
       setCreated(await send<{ info: AgentInfo; command: string }>("POST", "agents", { ip, name: agentName(machines[ip]?.name ?? ip), url }));
+      setPick("");
       reload();
     } catch (err) {
       if (err instanceof LoginRequired) location.replace(LOGIN);
@@ -101,17 +107,29 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         </Card>
       )}
 
+      {pick && machines[pick] && (
+        <Card className="border-link/60">
+          <h2 className="mb-1 font-bold">{tx("Installer l'agent sur")} {machines[pick].name} <Dim>· {pick}</Dim></h2>
+          <p className="text-sm text-muted">{tx("L'agent est un script PowerShell pour Windows, en lecture seule. « Créer l'agent » génère son jeton (montré une seule fois) et la commande à coller dans un PowerShell administrateur du PC.")}</p>
+          {local && <p className="mt-2 text-sm text-warn">{tx("L'adresse de MyServices ci-dessus contient localhost : le PC ne pourra pas la joindre.")}</p>}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" className={primary} disabled={!!busy || !url} onClick={() => void create(pick)}><Plus size={14} />{tx("Créer l'agent")}</button>
+            <button type="button" className={quiet} onClick={() => setPick("")}>{tx("Annuler")}</button>
+          </div>
+        </Card>
+      )}
+
       <Group title={tx("Avec un agent")} n={withAgent.length} empty={tx("Aucun agent pour l'instant : cliquez sur une machine ci-dessous.")}>
-        {withAgent.map((ip) => <ActiveCard key={ip} a={byIp.get(ip)!} conf={machines[ip]} ip={ip} focus={ip === focusIp} busy={busy === ip} onRenew={() => void create(ip)} reload={reload} />)}
+        {withAgent.map((ip) => <ActiveCard key={ip} a={byIp.get(ip)!} conf={machines[ip]} ip={ip} focus={ip === focusIp} busy={busy === ip} onRenew={isWindows(ip) ? () => void create(ip) : undefined} reload={reload} />)}
       </Group>
 
       <Group title={tx("Sans agent")} n={without.length}
-        hint={tx("Cliquez sur une machine pour créer son agent et obtenir la commande à coller. Les machines lues par SSH n'apparaissent pas ici.")}
-        empty={Object.keys(machines).length === 0 ? tx("Aucune machine déclarée : ajoutez d'abord le PC dans Réglages → Machines.") : tx("Toutes les machines sans SSH ont déjà leur agent.")}>
+        hint={tx("PC Windows seulement. Cliquez sur un PC pour préparer son agent : rien n'est créé avant que vous confirmiez.")}
+        empty={Object.keys(machines).length === 0 ? tx("Aucune machine déclarée : ajoutez d'abord le PC dans Réglages → Machines.") : tx("Aucun PC Windows sans agent.")}>
         {without.map((ip) => (
           <li key={ip}>
-            <button type="button" disabled={!!busy || !url} onClick={() => void create(ip)}
-              className={`flex h-full w-full items-center gap-3 rounded-xl border bg-bg2/60 p-3 text-left transition-colors hover:border-link hover:bg-link/10 disabled:opacity-60 ${ip === focusIp ? "border-link" : "border-line"}`}>
+            <button type="button" disabled={!!busy} onClick={() => setPick(pick === ip ? "" : ip)} aria-pressed={pick === ip}
+              className={`flex h-full w-full items-center gap-3 rounded-xl border bg-bg2/60 p-3 text-left transition-colors hover:border-link hover:bg-link/10 disabled:opacity-60 ${pick === ip || ip === focusIp ? "border-link bg-link/10" : "border-line"}`}>
               <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os }} reserve />
               <span className="min-w-0 flex-1">
                 <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
@@ -143,6 +161,23 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         })}
       </Group>
 
+      <Group title={tx("Sans accès : à régler")} n={noAccess.length}
+        hint={tx("Ni agent possible (pas un PC Windows) ni SSH : activez l'accès SSH dans les réglages de la machine.")}
+        empty={tx("Toutes les machines ont un accès.")}>
+        {noAccess.map((ip) => (
+          <li key={ip}>
+            <a href={`#settings/machines/${ip}`} className="flex h-full items-center gap-3 rounded-xl border border-line bg-bg2/60 p-3 transition-colors hover:border-link hover:bg-link/10">
+              <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, info: liveBy.get(ip)?.info, ttl: liveBy.get(ip)?.ttl }} reserve />
+              <span className="min-w-0 flex-1">
+                <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
+                <span className="block truncate text-xs text-dim">{ip}{machines[ip].off ? ` · ${tx("souvent éteinte")}` : ""}</span>
+              </span>
+              <Badge tone="warn">{tx("Régler l'accès SSH")}</Badge>
+            </a>
+          </li>
+        ))}
+      </Group>
+
       {revoked.length > 0 && (
         <details className="rounded-xl border border-line/60 bg-card/50 px-4 py-2 text-sm">
           <summary className="cursor-pointer text-muted">{tx("Agents révoqués")} <Dim>· {revoked.length}</Dim></summary>
@@ -169,7 +204,7 @@ function Group({ title, n, hint, empty, children }: { title: string; n: number; 
 
 /** Carte d'une machine qui a un agent : état, dernier relevé, nouvelle commande, révocation */
 function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
-  a: AgentInfo; conf?: MachineConf; ip: string; focus: boolean; busy: boolean; onRenew: () => void; reload: () => void;
+  a: AgentInfo; conf?: MachineConf; ip: string; focus: boolean; busy: boolean; onRenew?: () => void; reload: () => void;  // onRenew : seulement pour un PC Windows (la commande est PowerShell)
 }) {
   const [confirm, setConfirm] = useState<"" | "renew" | "revoke">(""), [note, setNote] = useState<Note>(null);
   const [tone, label] = STATE[a.state];
@@ -190,13 +225,13 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
       </p>
       <div className="flex flex-wrap items-center gap-1.5">
         {confirm === "" && <>
-          <button type="button" className={quiet} disabled={busy} title={tx("Crée un nouveau jeton et révoque l'ancien : à refaire sur le PC avec la nouvelle commande")} onClick={() => setConfirm("renew")}><RefreshCw size={14} />{tx("Nouvelle commande")}</button>
+          {onRenew && <button type="button" className={quiet} disabled={busy} title={tx("Crée un nouveau jeton et révoque l'ancien : à refaire sur le PC avec la nouvelle commande")} onClick={() => setConfirm("renew")}><RefreshCw size={14} />{tx("Nouvelle commande")}</button>}
           <button type="button" className={`${danger} ml-auto`} onClick={() => setConfirm("revoke")}><Trash2 size={14} />{tx("Révoquer")}</button>
         </>}
         {confirm !== "" && <>
           <span className="text-xs text-muted">{confirm === "renew" ? tx("L'ancien jeton cessera de marcher.") : tx("La machine n'enverra plus rien.")}</span>
           <button type="button" className={`${danger} ml-auto`} onClick={() => {
-            if (confirm === "renew") { setConfirm(""); onRenew(); }
+            if (confirm === "renew") { setConfirm(""); onRenew?.(); }
             else void act(() => send("DELETE", `agents/${a.id}`), tx("révoqué"), setNote).then((ok) => ok && reload());
           }}>{tx("Confirmer")}</button>
           <button type="button" className={quiet} onClick={() => setConfirm("")}>{tx("Annuler")}</button>
