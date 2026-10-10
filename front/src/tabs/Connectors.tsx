@@ -1,7 +1,7 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { ArrowRight, Ban, HelpCircle, KeyRound, Pencil, Plug, Plus, Server, Trash2, X } from "lucide-react";
+import { ArrowRight, Ban, HelpCircle, Info, KeyRound, Pencil, Plug, Plus, Server, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
@@ -163,27 +163,37 @@ function Toggle({ on, set, label, title }: { on: boolean; set: (on: boolean) => 
   );
 }
 
-/** Accès qu'il fallait régler à la main (clé et alias SSH par machine, jeton Home Assistant) : où ils en sont, et un lien pour les régler */
+/** Rappel : les accès qui viennent de l'extérieur du projet (jeton créé dans Home Assistant, clé SSH à autoriser sur chaque machine) */
 function ManualAccess({ instances }: { instances: ConnectorInstance[] }) {
   const ha = instances.filter((i) => i.type === "home-assistant");
   return (
-    <Card>
-      <h2 className="mb-1 flex items-center gap-2 font-bold"><KeyRound size={16} />{tx("Accès réglés à la main")}</h2>
-      <p className="mb-2 text-sm text-muted">{tx("Ce que MyServices ne peut pas deviner seul : l'accès SSH de chaque machine et le jeton de Home Assistant. Ils se règlent une fois, puis la collecte les utilise.")}</p>
+    <section className="rounded-2xl border border-link/40 bg-link/5 p-4" aria-label={tx("Accès à préparer ailleurs")}>
+      <div className="flex items-start gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-link/20 text-link"><Info size={18} aria-hidden /></span>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-bold">{tx("À préparer hors de MyServices")}</h2>
+          <p className="mt-0.5 text-sm text-muted">{tx("Ces accès se créent dans les outils eux-mêmes : MyServices ne peut pas les fabriquer à votre place. Une fois fournis, la collecte les utilise toute seule.")}</p>
+        </div>
+      </div>
       {ha.length > 0 && (
-        <ul className="mb-2 flex flex-col divide-y divide-line/60 rounded-lg border border-line/60 px-3">
-          {ha.map((i) => (
-            <li key={i.name} className="flex flex-wrap items-center gap-3 py-2.5 text-sm">
-              <img src={appIcon(["Home Assistant"])!} alt="" className="h-5 w-5" />
-              <b className="min-w-0 flex-1 truncate">{i.label} <Dim>· {i.name}</Dim></b>
-              {i.set.token ? <Badge tone="ok">{tx("jeton enregistré")}</Badge> : <Badge tone="warn">{tx("jeton manquant")}</Badge>}
-              <span className="text-xs text-dim">{tx("à changer : « Modifier / Tester » dans la partie 1")}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-3 rounded-xl border border-line/60 bg-card/70 p-3">
+          <h3 className="mb-1.5 flex items-center gap-2 text-sm font-semibold"><KeyRound size={15} className="text-muted" aria-hidden />{tx("Jeton Home Assistant")}</h3>
+          <ul className="flex flex-col gap-1.5">
+            {ha.map((i) => (
+              <li key={i.name} className="flex flex-wrap items-center gap-2 text-sm">
+                <img src={appIcon(["Home Assistant"])!} alt="" className="h-5 w-5" />
+                <b className="truncate">{i.name}</b>
+                {i.set.token ? <Badge tone="ok">{tx("jeton enregistré")}</Badge> : <Badge tone="warn">{tx("jeton manquant")}</Badge>}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1.5 text-xs text-dim">{tx("Créé dans Home Assistant (votre profil, « Jetons d'accès longue durée »), à coller dans « Modifier / Tester » de la partie 1.")}</p>
+        </div>
       )}
-      <SshReads />
-    </Card>
+      <div className="mt-3 rounded-xl border border-line/60 bg-card/70 p-3">
+        <SshReads />
+      </div>
+    </section>
   );
 }
 
@@ -194,8 +204,8 @@ function SshReads() {
   const rows = m ? Object.entries(m.machines).filter(([, c]) => c.ssh || c.health).sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true })) : [];
   return (
     <div>
-      <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold text-txt"><Server size={15} />{tx("Lus par SSH")} <Dim>· {rows.length}</Dim></h3>
-      <p className="mb-2 text-sm text-muted">{tx("Docker, services en écoute et AdGuard natif sont lus par SSH : l'accès et ce qui est lu se règlent machine par machine.")}</p>
+      <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold text-txt"><Server size={15} className="text-muted" aria-hidden />{tx("Clé SSH à autoriser sur chaque machine")} <Dim>· {rows.length}</Dim></h3>
+      <p className="mb-2 text-xs text-dim">{tx("Docker, services en écoute et AdGuard natif sont lus par SSH. La clé publique de MyServices (Réglages → Clé SSH) doit être dans les clés autorisées de chaque machine.")}</p>
       {rows.length === 0 ? <Dim>{tx("Aucune machine lue par SSH pour l'instant.")}</Dim> : (
         <ul className="flex flex-col gap-2">
           {rows.map(([ip, c]) => {
