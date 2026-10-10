@@ -6,6 +6,7 @@ import { ArrowRight, Check, Circle, KeyRound, Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { read } from "../api";
 import type { Snapshot } from "../api";
+import { appIcon } from "../lib/appIcons";
 import { openConnector } from "../lib/connectorPrefill";
 import { REOPEN_EVENT, savedState, saveState, setSkipped, skippedSteps, takeReopen, type StepId } from "../lib/firstSteps";
 import { tx } from "../lib/i18n";
@@ -111,6 +112,11 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
   const proposals = snap.data.proposals ?? [];
   const host = snap.data.machine_list.find((m) => m.local) || snap.data.machine_list[0];
   const docker = sys.host_docker;
+  // Services reconnus sur l'hôte (applis nommées par le scan des ports, serveurs web vus par SSH), Docker mis à part
+  const onHost = [...new Set([
+    ...(host ? snap.data.hosts.filter((h) => h.machine === host.name && h.app).map((h) => h.app!.label) : []),
+    ...(host?.info?.apache ? ["Apache"] : []), ...(host?.info?.nginx ? ["Nginx"] : []),
+  ])].filter((a) => a !== "Docker");
   const readable = (snap.data.connectors || []).filter((c) => c.type === "docker" && c.ok);
   const p = scan?.progress;
 
@@ -135,11 +141,15 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
             <p className="flex flex-wrap items-center gap-1.5">
               <Badge tone="info">{host.name}</Badge>
               <b className="text-txt">{plural(host.services, "service trouvé", "services trouvés")}</b>
-              {tx("par leurs ports en écoute, nommés d'après leur page web.")}
+              {onHost.map((a) => {
+                const src = appIcon([a]);
+                return <span key={a} title={a} className="inline-flex items-center gap-1 text-xs text-muted">{src && <img src={src} alt="" aria-hidden className="h-5 w-5 object-contain" />}{a}</span>;
+              })}
             </p>
           )}
           {docker?.present && (
             <p className="mt-1 flex flex-wrap items-center gap-1.5">
+              <img src={appIcon(["Docker"]) ?? ""} alt="" aria-hidden className="h-5 w-5 object-contain" />
               <Badge tone="info">Docker</Badge>
               <b className="text-txt">{tx("présent sur l'hôte")}</b>
               {!keyDone && <Badge tone="off">≈ {plural(docker.containers, "conteneur")}</Badge>}

@@ -19,3 +19,5 @@ cd1c2846965e710008aca19eacab1c0c  front/public/icons/dozzle.svg
 94890bac62a8c3a8c608c855103fe4fd  front/public/icons/syncthing.svg
 f2110e7e2a8e8552dc85bb0ead039637  front/public/icons/unifi.svg
 f3caa8a8bac253a77fa2ae7e7bc9b062  front/public/icons/uptime-kuma.svg
+7de45e1ea203da32a040c257f47cd39a  front/public/icons/docker.svg
+3860f0d399e48fcaa30f2b21d3cd5e0d  front/public/icons/nginx.svg
