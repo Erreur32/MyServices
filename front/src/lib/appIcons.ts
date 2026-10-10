@@ -14,3 +14,13 @@ export function appIcon(apps: readonly string[] | undefined): string | null {
   }
   return null;
 }
+
+const squash = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+/** Icône d'après un texte libre (nom ou rôle d'une machine : « homeassistant », « Proxmox VE »…) ; null si rien ne correspond */
+export function appIconByText(...texts: (string | undefined | null)[]): string | null {
+  const hay = texts.filter(Boolean).map((t) => squash(t!)).join(" ");
+  if (!hay) return null;
+  for (const [name, file] of Object.entries(FILES)) if (hay.includes(squash(name))) return `${import.meta.env.BASE_URL}icons/${file}.svg`;
+  return null;
+}

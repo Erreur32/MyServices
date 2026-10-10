@@ -11,6 +11,7 @@ import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { ipNum } from "../lib/format";
 import type { Detection, MachineConf, MachinesSettings as State, NetScan } from "../types";
+import { appIcon, appIconByText } from "../lib/appIcons";
 import { MSTATE, mState, osOfMachine, type OsKind } from "../lib/machines";
 import { SshDetails } from "../components/ssh";
 import { sshBrief, sshWarn } from "../lib/ssh";
@@ -26,8 +27,10 @@ const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
 
 const OS_ICON: Record<OsKind, typeof Terminal> = { linux: Terminal, windows: Monitor, macos: Apple, ios: Smartphone, network: Router, pi: Cpu };
 
-/** Icône du système détecté (relevé SSH, réglage ou dernier scan) ; rien si on ne sait pas */
-function OsIcon({ os }: { os: ReturnType<typeof osOfMachine> }) {
+/** Icône de la machine : l'appli qu'elle héberge si on la reconnaît (Proxmox, Home Assistant, UniFi… d'après le scan ou le nom),
+ *  sinon son système (relevé SSH, réglage ou dernier scan) ; rien si on ne sait pas */
+function OsIcon({ os, app }: { os: ReturnType<typeof osOfMachine>; app?: string | null }) {
+  if (app) return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-bg2" title={os?.label}><img src={app} alt="" className="h-4 w-4" /></span>;
   if (!os) return null;
   const Icon = OS_ICON[os.kind];
   return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-bg2 text-muted" title={os.label}><Icon size={14} aria-hidden /></span>;
@@ -38,8 +41,8 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
   const [error, setError] = useState("");
   const [detecting, setDetecting] = useState(false);
   // Système vu par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas (suggestion)
-  const [scanOs, setScanOs] = useState<Record<string, string>>({});
-  useEffect(() => { read<NetScan>("network/scan").then((n) => setScanOs(Object.fromEntries((n.found || []).filter((h) => h.os).map((h) => [h.ip, h.os!])))).catch(() => undefined); }, []);
+  const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[] }>>({});
+  useEffect(() => { read<NetScan>("network/scan").then((n) => setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [] }])))).catch(() => undefined); }, []);
   const reload = useCallback(() => {
     read<State>("machines/settings")
       .then((s) => { setSt(s); setError(""); })
@@ -66,7 +69,7 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
         {ips.map((ip) => {
           const lm = live.get(ip);
           const stat = (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.name === ip || c.name === lm?.name));
-          return <MachineRow key={ip} scanOs={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
+          return <MachineRow key={ip} scan={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
         })}
       </div>
     </div>
@@ -140,8 +143,8 @@ function Proposal({ d, st, onDone }: { d: Detection; st: State; onDone: () => vo
   );
 }
 
-function MachineRow({ ip, m, st, live, statuses, reload, focus, scanOs }: {
-  scanOs?: string; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
+function MachineRow({ ip, m, st, live, statuses, reload, focus, scan }: {
+  scan?: { os?: string; apps: string[] }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
 }) {
   const [open, setOpen] = useState(!!focus), [confirm, setConfirm] = useState(false);  // focus : arrivée depuis un lien (Connecteurs → machine)
   const card = useRef<HTMLDivElement>(null);
@@ -168,7 +171,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scanOs }: {
   return (
     <div ref={card} className={`rounded-xl border bg-card text-sm ${m.disabled ? "opacity-60" : ""} ${focus ? "border-link shadow-[0_0_0_1px_rgb(var(--link))]" : "border-line"}`}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl p-3 text-left hover:bg-bg2">
-        <Chevron size={14} className="text-dim" /><OsIcon os={osOfMachine({ os: m.os, info: live?.info }, scanOs)} /><b>{m.name}</b><Dim>{ip}</Dim>
+        <Chevron size={14} className="text-dim" /><OsIcon os={osOfMachine({ os: m.os, info: live?.info }, scan?.os)} app={appIcon(scan?.apps) ?? appIconByText(m.name, m.role)} /><b>{m.name}</b><Dim>{ip}</Dim>
         <span className="ml-auto flex items-center gap-1.5">
           {m.off && <Badge tone="off">{tx("souvent éteinte")}</Badge>}
           {live && sshWarn(live) && <Badge tone="warn" title={tx("sshd : root ou mot de passe autorisé")}>{tx("sshd")}</Badge>}
