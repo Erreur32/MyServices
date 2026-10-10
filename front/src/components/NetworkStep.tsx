@@ -259,7 +259,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
           {found.length > 0 && <p className="text-xs text-dim">{tx("{0} autre(s) appareil(s) masqué(s) : ils reviennent quand les accès ci-dessous sont réglés ou passés.", found.length)}</p>}
           <p className="text-sm font-semibold text-txt">{tx("Machines ajoutées : accès à régler")}</p>
           {toLink.map((h) => (
-            <AddedMachine key={h.ip} host={h} onDone={() => {
+            <AddedMachine key={h.ip} host={h} linked={!viaMynetwork(h) && !needsLink(h, machines, connected)} onDone={() => {
               setAdded((a) => { const n = { ...a }; delete n[h.ip]; return n; });
               setDismissed((d) => { const n = [...new Set([...d, h.ip])]; localStorage.setItem(DISMISSED, JSON.stringify(n)); return n; });
             }} />
@@ -317,12 +317,14 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
 }
 
 /** Machine ajoutée : si elle répond en SSH, préparer l'accès (alias avec la clé de l'app), puis la commande et le test */
-function AddedMachine({ host, onDone }: { host: NetHost; onDone: () => void }) {
+/** linked : l'accès marche déjà d'après les données du serveur (cadre rouvert après un rechargement de la page) */
+function AddedMachine({ host, linked, onDone }: { host: NetHost; linked: boolean; onDone: () => void }) {
   const ha = host.apps.includes("Home Assistant");
   const mwk = viaMynetwork(host);  // UniFi : API MynetworK à venir ; SSH facultatif
   const ssh = !!host.ssh_port && !ha;  // Home Assistant se relie par son API : pas de SSH proposé, même s'il répond
   const [user, setUser] = useState("root"), [cmd, setCmd] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null), [ok, setOk] = useState(false), [haOk, setHaOk] = useState(false);
+  const [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null), [tested, setTested] = useState(false), [haOk, setHaOk] = useState(false);
+  const ok = tested || linked;
   const valid = ok || haOk || (!ssh && !ha);  // vert seulement une fois l'accès validé (ou s'il n'y en a aucun à régler)
   const label = host.name || host.ip;
 
@@ -344,7 +346,7 @@ function AddedMachine({ host, onDone }: { host: NetHost; onDone: () => void }) {
       await send("POST", "system/tasks/collect/run");
       pokeScan();
     }, tx("accès SSH accepté : nouveau passage de la collecte lancé"), setNote);
-    setOk(good);
+    setTested(good);
     setBusy(false);
   };
 
