@@ -189,6 +189,17 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus }: {
   );
 }
 
+/** Groupe d'interrupteurs : titre, éventuel rappel, interrupteurs en dessous */
+function OptionGroup({ title, hint, tone, dim, children }: { title: string; hint?: string; tone?: "ok"; dim?: boolean; children: React.ReactNode }) {
+  return (
+    <fieldset className={`flex flex-col gap-1.5 rounded-lg border p-2.5 ${tone === "ok" ? "border-ok/40 bg-ok/5" : "border-line/60"} ${dim ? "bg-bg2/30" : ""}`}>
+      <legend className="px-1 text-[11px] font-semibold uppercase tracking-wide text-dim">{title}</legend>
+      {hint && <p className="text-xs text-dim">{hint}</p>}
+      {children}
+    </fieldset>
+  );
+}
+
 function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, onDone }: {
   live?: Snapshot["data"]["machine_list"][number]; detected?: string[]; ip: string; m: MachineConf; st: State; isNew?: boolean; process?: boolean; extra?: Detection["web"]; onDone: () => void;
 }) {
@@ -214,7 +225,17 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
   const found = new Set([...(live?.detected ?? []), ...detected]);
   const DETECTABLE = ["gateway", "vm", "npm", "off"];
   const locked = (k: string) => !unlock && DETECTABLE.includes(k) && !found.has(k) && !v[k as keyof MachineConf];
-  const nLocked = DETECTABLE.filter((k) => locked(k)).length;
+  const isOn = (k: string) => found.has(k) || !!v[k as keyof MachineConf];
+  const detectedFlags = FLAGS.filter((f) => DETECTABLE.includes(String(f.k)) && isOn(String(f.k)));
+  const missingFlags = FLAGS.filter((f) => DETECTABLE.includes(String(f.k)) && !isOn(String(f.k)));
+  const manualFlags = FLAGS.filter((f) => !DETECTABLE.includes(String(f.k)));
+  const flagRow = (f: (typeof FLAGS)[number]) => (
+    <label key={String(f.k)} className={`flex items-start gap-2 ${locked(String(f.k)) ? "opacity-50" : ""}`}
+      title={locked(String(f.k)) ? tx("Non détecté sur cette machine : grisé") : undefined}>
+      <Switch on={!!v[f.k]} disabled={locked(String(f.k)) || pending === String(f.k)} onChange={(on) => void autoSave(String(f.k), { [f.k]: on })} label={f.label} />
+      <span>{f.label} {found.has(String(f.k)) && <Badge tone="info" title={tx("Trouvé par la détection : décochez si c'est faux")}>{tx("détecté")}</Badge>} <Saved k={String(f.k)} /> <Dim>· {f.help}</Dim></span>
+    </label>
+  );
   // Machine déjà enregistrée : un interrupteur se sauvegarde tout seul (sans toucher aux champs texte en cours de saisie) ;
   // une coche « ✓ enregistré » s'anime à côté. À l'ajout (isNew), tout part avec « Enregistrer la machine ».
   const [saved, setSaved] = useState<MachineConf>(m), [savedProc, setSavedProc] = useState(!!process);
@@ -304,23 +325,23 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
             <Switch on={!v.disabled} disabled={pending === "disabled"} onChange={(on) => void autoSave("disabled", { disabled: !on })} label={tx("Machine suivie")} />
             <span><b>{tx("Machine suivie")}</b> <Saved k="disabled" /> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>
           </label>
-          {FLAGS.map((f) => (
-            <label key={f.k} className={`flex items-start gap-2 ${locked(String(f.k)) ? "opacity-50" : ""}`}
-              title={locked(String(f.k)) ? tx("Non détecté sur cette machine : grisé") : undefined}>
-              <Switch on={!!v[f.k]} disabled={locked(String(f.k)) || pending === String(f.k)} onChange={(on) => void autoSave(String(f.k), { [f.k]: on })} label={f.label} />
-              <span>{f.label} {found.has(String(f.k)) && <Badge tone="info" title={tx("Trouvé par la détection : décochez si c'est faux")}>{tx("détecté")}</Badge>}
-                {locked(String(f.k)) && <Badge tone="off">{tx("non détecté")}</Badge>} <Saved k={String(f.k)} /> <Dim>· {f.help}</Dim></span>
-            </label>
-          ))}
-          {nLocked > 0 && (
-            <p className="text-xs text-dim">{tx("Les interrupteurs grisés ne sont pas confirmés par la détection (elle lit la machine à chaque collecte).")}{" "}
-              <button type="button" className="text-link hover:underline" onClick={() => setUnlock(true)}>{tx("Détection incomplète ? Tout débloquer")}</button></p>
+          {detectedFlags.length > 0 && (
+            <OptionGroup title={tx("Détectés sur cette machine")} tone="ok">{detectedFlags.map(flagRow)}</OptionGroup>
           )}
-          {!windows && v.ssh && (
-            <label className="flex items-start gap-2">
-              <Switch on={proc} disabled={pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Lire les services hors Docker")} />
-              <span>{tx("Lire les services hors Docker")} <Saved k="proc" /> <Dim>{tx("· ports en écoute (ss -tlnp, root requis sur la machine)")}</Dim></span>
-            </label>
+          <OptionGroup title={tx("À régler à la main")} hint={tx("Pas détectables : c'est à vous de dire.")}>
+            {manualFlags.map(flagRow)}
+            {!windows && v.ssh && (
+              <label className="flex items-start gap-2">
+                <Switch on={proc} disabled={pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Lire les services hors Docker")} />
+                <span>{tx("Lire les services hors Docker")} <Saved k="proc" /> <Dim>{tx("· ports en écoute (ss -tlnp, root requis sur la machine)")}</Dim></span>
+              </label>
+            )}
+          </OptionGroup>
+          {missingFlags.length > 0 && (
+            <OptionGroup title={tx("Non détectés")} hint={unlock ? undefined : tx("Grisés : la détection ne les confirme pas (elle relit la machine à chaque collecte).")} dim>
+              {missingFlags.map(flagRow)}
+              {!unlock && <button type="button" className="self-start text-xs text-link hover:underline" onClick={() => setUnlock(true)}>{tx("Détection incomplète ? Tout débloquer")}</button>}
+            </OptionGroup>
           )}
           </div>
         )}
