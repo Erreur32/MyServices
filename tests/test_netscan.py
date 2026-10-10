@@ -327,5 +327,20 @@ class Run(unittest.TestCase):
         self.assertIsNotNone(netscan.state(self.file)["error"])
 
 
+class MultiReseauxEtDiscret(unittest.TestCase):
+    def test_targets_plusieurs_reseaux_sans_doublon(self):
+        t = netscan.targets("192.168.1.0/30, 10.0.0.0/30,192.168.1.0/30")
+        self.assertEqual(t, ["192.168.1.1", "192.168.1.2", "10.0.0.1", "10.0.0.2"])
+
+    def test_targets_refuse_plus_grand_qu_un_24(self):
+        with self.assertRaises(ValueError):
+            netscan.targets("192.168.1.0/24,10.0.0.0/16")
+
+    def test_describe_discret_ne_devine_pas_par_ttl(self):
+        args = dict(probe=lambda ip, p: False, lookup=lambda ip: ("x",), banner=lambda ip, p: None, page=lambda ip, p: None)
+        self.assertEqual(netscan._describe("1.2.3.4", ttl=lambda ip: 128, **args)["os"], "windows")
+        self.assertIsNone(netscan._describe("1.2.3.4", ttl=lambda ip: None, vendor=lambda ip: None, **args)["os"])
+
+
 if __name__ == "__main__":
     unittest.main()

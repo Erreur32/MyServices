@@ -2,7 +2,7 @@
 // les comptes (ajout, rôle, activation, nouveau mot de passe, suppression) et le journal des actions.
 // Apparence : thème et largeur de la page (« Page width » de GpuViewR), retenus par le navigateur.
 // Menu en quatre groupes (Données, Surveillance, Accès et sécurité, Application). Autres sections : un fichier chacune dans tabs/.
-import { KeyRound, Moon, MoveHorizontal, Plus, RotateCcw, Sun, Trash2, UserCheck, UserX } from "lucide-react";
+import { Bell, KeyRound, Layers, Moon, MoveHorizontal, Palette, Plug, Plus, Radar, RotateCcw, ScrollText, Server, Settings2, Sun, Timer, Trash2, UserCheck, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { dateTime } from "../lib/format";
@@ -25,13 +25,18 @@ import { checkPassword, okField, PASSWORD_MIN } from "../lib/password";
 import { PasswordRules } from "../components/PasswordRules";
 
 /** Menu en quatre groupes ; les identifiants restent ceux des liens directs (#settings/<section>) */
-const GROUPS: { label: string; sections: { id: string; label: string }[] }[] = [
+const GROUPS: { label: string; sections: { id: string; label: string; icon: LucideIcon }[] }[] = [
   { label: tx("Données"), sections: [
-    { id: "machines", label: tx("Machines") }, { id: "connectors", label: tx("Connecteurs") }, { id: "sources", label: tx("Sources") },
+    { id: "machines", label: tx("Machines"), icon: Server }, { id: "connectors", label: tx("Connecteurs"), icon: Plug }, { id: "sources", label: tx("Sources"), icon: Layers },
   ] },
-  { label: tx("Surveillance"), sections: [{ id: "alerts", label: tx("Alertes") }, { id: "network", label: tx("Recherche réseau") }, { id: "tasks", label: tx("Tâches et horaires") }] },
-  { label: tx("Accès et sécurité"), sections: [{ id: "accounts", label: tx("Comptes") }, { id: "ssh", label: tx("Clé SSH") }, { id: "audit", label: tx("Journal d'audit") }, { id: "api", label: tx("API et MCP") }] },
-  { label: tx("Application"), sections: [{ id: "look", label: tx("Apparence") }, { id: "system", label: tx("Système") }] },
+  { label: tx("Surveillance"), sections: [
+    { id: "alerts", label: tx("Alertes"), icon: Bell }, { id: "network", label: tx("Recherche réseau"), icon: Radar }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer },
+  ] },
+  { label: tx("Accès et sécurité"), sections: [
+    { id: "accounts", label: tx("Comptes"), icon: Users }, { id: "ssh", label: tx("Clé SSH"), icon: KeyRound },
+    { id: "audit", label: tx("Journal d'audit"), icon: ScrollText }, { id: "api", label: tx("API et MCP"), icon: Webhook },
+  ] },
+  { label: tx("Application"), sections: [{ id: "look", label: tx("Apparence"), icon: Palette }, { id: "system", label: tx("Système"), icon: Settings2 }] },
 ];
 const SECTIONS = GROUPS.flatMap((g) => g.sections);
 
@@ -53,16 +58,19 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
   });
   return (
     <div className="flex flex-col gap-4 py-4 md:flex-row">
-      <nav className="flex shrink-0 gap-1 overflow-x-auto md:w-52 md:flex-col" aria-label={tx("Sections des réglages")}>
-        {GROUPS.map((g, i) => (
-          <div key={g.label} role="group" aria-label={g.label} className="flex shrink-0 gap-1 md:flex-col">
-            <p className={`hidden px-3 pb-0.5 text-xs font-semibold uppercase tracking-wide text-dim md:block ${i ? "pt-3" : ""}`}>{g.label}</p>
-            {g.sections.map((s) => (
-              <button key={s.id} type="button" onClick={() => setSection(s.id)} aria-current={s.id === section ? "page" : undefined}
-                className={`shrink-0 rounded-lg px-3 py-2 text-left text-sm font-semibold ${s.id === section ? "bg-card text-txt shadow-[inset_2px_0_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
-                {s.label}
-              </button>
-            ))}
+      <nav className="flex shrink-0 gap-3 overflow-x-auto md:w-60 md:flex-col md:overflow-visible" aria-label={tx("Sections des réglages")}>
+        {GROUPS.map((g) => (
+          <div key={g.label} role="group" aria-label={g.label} className="flex shrink-0 gap-1 rounded-xl border border-line bg-card/60 p-1.5 md:flex-col">
+            <p className="hidden px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-widest text-dim md:block">{g.label}</p>
+            {g.sections.map((s) => {
+              const on = s.id === section;
+              return (
+                <button key={s.id} type="button" onClick={() => setSection(s.id)} aria-current={on ? "page" : undefined}
+                  className={`flex shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors ${on ? "bg-link/15 text-txt shadow-[inset_3px_0_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
+                  <s.icon size={16} className={on ? "text-link" : "text-dim"} aria-hidden />{s.label}
+                </button>
+              );
+            })}
           </div>
         ))}
       </nav>

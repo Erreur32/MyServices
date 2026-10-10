@@ -41,6 +41,8 @@ DEFAULTS = {
     "confirm_runs": 2,                   # passages consécutifs avant d'annoncer une panne / un rétablissement
     "retention_days": 90,                # historique du watcher
     "netscan_every": 6,                  # h, recherche réseau automatique (après une première faite à la main) ; 0 = coupée
+    "netscan_nets": [],                  # recherche réseau : réseaux en CIDR (chacun /24 au plus) ; vide = celui de l'hôte
+    "netscan_discreet": False,           # recherche réseau : ne lit ni le TTL ni l'adresse MAC (pas de système deviné par là)
     # Page web : intégrations facultatives (vide = onglet ou lien masqué)
     "health_url": "",                    # dossier health-watcher (stats.json, events.json, index) vu de la page
     "backups_url": "",                   # backups.json vu de la page : "backups.json" (backups.py) ou script externe

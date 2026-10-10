@@ -206,7 +206,7 @@ def auto_netscan() -> None:
     if netscan.due(f, every) and not netscan.summary()["running"]:
         try:
             import machines_admin
-            netscan.start(machines_admin.known_ips(), f)
+            netscan.start(machines_admin.known_ips(), f, net=",".join(CFG["netscan_nets"]) or None, discreet=CFG["netscan_discreet"])
             log(f"recherche réseau automatique (toutes les {every:g} h)")
         except Exception as e:  # noqa: BLE001 : le planificateur ne s'arrête jamais pour ça
             log(f"recherche réseau automatique impossible : {type(e).__name__}: {e}")

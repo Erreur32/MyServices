@@ -368,14 +368,16 @@ def network_scan_start(request: Request):
     import netscan
 
     def launch(m):
-        if not netscan.start(m.known_ips(), _netscan_file()):
+        if not netscan.start(m.known_ips(), _netscan_file(), net=",".join(core.CFG["netscan_nets"]) or None, discreet=core.CFG["netscan_discreet"]):
             raise m.MachineError("une recherche est déjà en cours")
         return netscan.state(_netscan_file())
     return machine_call(request, "recherche réseau lancée", "", launch)
 
 
 class NetscanEvery(BaseModel):
-    every_h: int
+    every_h: int | None = None
+    nets: list[str] | None = None
+    discreet: bool | None = None
 
 
 @app.get(API + "/network/settings", tags=["réseau"], summary="Fréquence de la recherche réseau automatique (admin)")
@@ -390,11 +392,20 @@ def network_settings_set(body: NetscanEvery, request: Request):
     if denied := admin_write(request):
         return denied
     try:
-        out = system.set_netscan_every(core, body.every_h)
+        out, what = None, []
+        if body.every_h is not None:
+            out = system.set_netscan_every(core, body.every_h)
+            what.append(f"automatique : {'coupée' if not body.every_h else f'toutes les {body.every_h} h'}")
+        if body.nets is not None:
+            out = system.set_netscan_nets(core, body.nets)
+            what.append("réseaux : " + (", ".join(body.nets) or "celui de l'hôte"))
+        if body.discreet is not None:
+            out = system.set_netscan_discreet(core, body.discreet)
+            what.append("mode discret " + ("activé" if body.discreet else "coupé"))
     except ValueError as e:
         return deny(400, str(e))
-    store().audit("recherche réseau", request.state.user["username"], ip_of(request), f"automatique : {'coupée' if not body.every_h else f'toutes les {body.every_h} h'}")
-    return {"ok": True, **out}
+    store().audit("recherche réseau", request.state.user["username"], ip_of(request), " ; ".join(what))
+    return {"ok": True, **(out or system.netscan_settings(core))}
 
 
 @app.post(API + "/network/scan/stop", tags=["réseau"], summary="Arrêter la recherche en cours (admin)")

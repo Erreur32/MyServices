@@ -72,7 +72,8 @@ NETSCAN_DEFAULT_H, NETSCAN_MAX_H = 6, 168
 def netscan_settings(core) -> dict:
     """Recherche réseau automatique : toutes les `every_h` heures (0 = coupée) ; `fixed` si MYSERVICES_NETSCAN_EVERY l'impose."""
     return {"every_h": core.CFG["netscan_every"], "default_h": NETSCAN_DEFAULT_H, "max_h": NETSCAN_MAX_H,
-            "fixed": "MYSERVICES_NETSCAN_EVERY" in os.environ}
+            "fixed": "MYSERVICES_NETSCAN_EVERY" in os.environ,
+            "nets": core.CFG["netscan_nets"], "discreet": core.CFG["netscan_discreet"]}
 
 
 def set_netscan_every(core, hours: int) -> dict:
@@ -89,6 +90,44 @@ def set_netscan_every(core, hours: int) -> dict:
             raw["netscan_every"] = hours
     _update_config(core, change)
     core.CFG["netscan_every"] = hours
+    return netscan_settings(core)
+
+
+def set_netscan_nets(core, nets: list[str]) -> dict:
+    """Réseaux de la recherche (CIDR, chacun un /24 au plus, 8 au plus) ; liste vide = réseau de l'hôte."""
+    import ipaddress
+    clean = []
+    for n in nets:
+        try:
+            net = ipaddress.ip_network(n.strip(), strict=False)
+        except ValueError:
+            raise ValueError(f"« {n} » n'est pas un réseau (ex. 192.168.1.0/24)") from None
+        if net.version != 4 or net.num_addresses > 256:
+            raise ValueError(f"« {n} » : un réseau IPv4 de /24 au plus")
+        if str(net) not in clean:
+            clean.append(str(net))
+    if len(clean) > 8:
+        raise ValueError("8 réseaux au plus")
+
+    def change(raw: dict) -> None:
+        if clean:
+            raw["netscan_nets"] = clean
+        else:
+            raw.pop("netscan_nets", None)
+    _update_config(core, change)
+    core.CFG["netscan_nets"] = clean
+    return netscan_settings(core)
+
+
+def set_netscan_discreet(core, on: bool) -> dict:
+    """Mode discret : la recherche ne lit ni le TTL ni l'adresse MAC."""
+    def change(raw: dict) -> None:
+        if on:
+            raw["netscan_discreet"] = True
+        else:
+            raw.pop("netscan_discreet", None)
+    _update_config(core, change)
+    core.CFG["netscan_discreet"] = on
     return netscan_settings(core)
 
 

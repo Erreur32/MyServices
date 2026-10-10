@@ -20,7 +20,7 @@ class NetscanEvery(unittest.TestCase):
         self.dir = tempfile.TemporaryDirectory()
         self.f = Path(self.dir.name) / "config.json"
         self.f.write_text(json.dumps({"public_url": "http://x/"}), encoding="utf-8")
-        self.core = types.SimpleNamespace(CFG={"netscan_every": 6}, HERE=self.dir.name)
+        self.core = types.SimpleNamespace(CFG={"netscan_every": 6, "netscan_nets": [], "netscan_discreet": False}, HERE=self.dir.name)
         env = {k: v for k, v in os.environ.items() if k != "MYSERVICES_NETSCAN_EVERY"}
         env["MYSERVICES_CONFIG"] = str(self.f)
         self.patch = mock.patch.dict(os.environ, env, clear=True)
@@ -34,7 +34,7 @@ class NetscanEvery(unittest.TestCase):
         return json.loads(self.f.read_text(encoding="utf-8"))
 
     def test_defaut(self):
-        self.assertEqual(system.netscan_settings(self.core), {"every_h": 6, "default_h": 6, "max_h": 168, "fixed": False})
+        self.assertEqual(system.netscan_settings(self.core), {"every_h": 6, "default_h": 6, "max_h": 168, "fixed": False, "nets": [], "discreet": False})
 
     def test_change_et_applique_tout_de_suite(self):
         out = system.set_netscan_every(self.core, 12)
@@ -61,6 +61,26 @@ class NetscanEvery(unittest.TestCase):
             with self.assertRaises(ValueError):
                 system.set_netscan_every(self.core, 12)
         self.assertEqual(self.raw(), {"public_url": "http://x/"})
+
+
+    def test_reseaux_valides_et_ecrits(self):
+        out = system.set_netscan_nets(self.core, ["192.168.1.7/24", "10.0.0.0/24", "10.0.0.0/24"])
+        self.assertEqual(out["nets"], ["192.168.1.0/24", "10.0.0.0/24"])
+        self.assertEqual(self.raw()["netscan_nets"], ["192.168.1.0/24", "10.0.0.0/24"])
+        system.set_netscan_nets(self.core, [])
+        self.assertNotIn("netscan_nets", self.raw())
+
+    def test_reseaux_refuses(self):
+        for bad in ("pas un réseau", "10.0.0.0/16", "::1/128"):
+            with self.assertRaises(ValueError):
+                system.set_netscan_nets(self.core, [bad])
+        self.assertEqual(self.core.CFG["netscan_nets"], [])
+
+    def test_mode_discret(self):
+        self.assertTrue(system.set_netscan_discreet(self.core, True)["discreet"])
+        self.assertTrue(self.raw()["netscan_discreet"])
+        system.set_netscan_discreet(self.core, False)
+        self.assertNotIn("netscan_discreet", self.raw())
 
 
 if __name__ == "__main__":

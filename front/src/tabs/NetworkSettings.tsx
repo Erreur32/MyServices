@@ -12,11 +12,11 @@ import { tx } from "../lib/i18n";
 import { pokeScan } from "../lib/scan";
 import type { NetScan } from "../types";
 
-interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean }
+interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean }
 
 export function NetworkSettings() {
   const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
-  const [hours, setHours] = useState(""), [note, setNote] = useState<Note>(null), [error, setError] = useState("");
+  const [hours, setHours] = useState(""), [nets, setNets] = useState<string | null>(null), [note, setNote] = useState<Note>(null), [error, setError] = useState("");
   const load = useCallback(() => {
     Promise.all([read<NetSettings>("network/settings"), read<NetScan>("network/scan")])
       .then(([c, s]) => { setCfg(c); setScan(s); setHours((h) => (h === "" ? String(c.every_h) : h)); setError(""); })
@@ -35,6 +35,11 @@ export function NetworkSettings() {
   const valid = hours !== "" && Number.isInteger(n) && n >= 0 && n <= cfg.max_h;
   const save = (value: number) => act(() => send("PUT", "network/settings", { every_h: value }), value ? tx("enregistré : toutes les {0} h", value) : tx("enregistré : recherche automatique coupée"), setNote)
     .then((ok) => { if (ok) { setHours(String(value)); load(); } });
+  const netsText = nets ?? cfg.nets.join(", ");
+  const netsList = netsText.split(/[\s,;]+/).filter(Boolean);
+  const saveNets = () => act(() => send("PUT", "network/settings", { nets: netsList }), netsList.length ? tx("réseaux enregistrés") : tx("réseau de la machine hôte"), setNote)
+    .then((ok) => { if (ok) { setNets(null); load(); } });
+  const saveDiscreet = (on: boolean) => act(() => send("PUT", "network/settings", { discreet: on }), on ? tx("mode discret activé") : tx("mode discret coupé"), setNote).then(() => load());
   const next = last && cfg.every_h ? last + cfg.every_h * 3_600_000 : null;
   const state = cfg.every_h === 0 ? <Badge tone="off">{tx("automatique coupée")}</Badge>
     : !last ? <Badge tone="warn">{tx("en attente d'une première recherche à la main")}</Badge>
@@ -66,6 +71,22 @@ export function NetworkSettings() {
         {cfg.fixed && <p className="mt-1 text-xs text-dim">{tx("Fixée par MYSERVICES_NETSCAN_EVERY dans le compose.")}</p>}
         {!valid && hours !== "" && <p className="mt-1 text-xs text-warn">{tx("Un nombre entier de 0 à {0}.", cfg.max_h)}</p>}
         <p className="mt-2 text-xs text-dim">{tx("Le premier scan est toujours lancé à la main ; l'automatique ne démarre qu'après lui.")}</p>
+        <NoteLine note={note} />
+      </Card>
+      <Card>
+        <h2 className="mb-1 font-bold">{tx("Réseaux et discrétion")}</h2>
+        <p className="mb-3 text-sm text-muted">{tx("Par défaut, le réseau de la machine hôte. Vous pouvez en indiquer plusieurs (un /24 au plus chacun), séparés par une virgule.")}</p>
+        <form className="mb-4 flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void saveNets(); }}>
+          <label className="flex flex-col gap-1 text-xs text-dim">{tx("Réseaux à parcourir")}
+            <input className={`${input} w-80 font-mono`} value={netsText} placeholder={scan.net || "192.168.1.0/24"} onChange={(e) => setNets(e.target.value)} />
+          </label>
+          <button className={quiet} disabled={nets === null}>{tx("Enregistrer")}</button>
+          {cfg.nets.length > 0 && <button type="button" className={quiet} onClick={() => { setNets(""); }}>{tx("Revenir au réseau de l'hôte")}</button>}
+        </form>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1" checked={cfg.discreet} onChange={(e) => void saveDiscreet(e.target.checked)} />
+          <span><b>{tx("Mode discret")}</b> <Dim>{tx("— ne lit ni le TTL du ping ni l'adresse MAC : le système des machines n'est alors plus deviné par là.")}</Dim></span>
+        </label>
         <NoteLine note={note} />
       </Card>
       <Card>

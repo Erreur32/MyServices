@@ -187,11 +187,14 @@ def local_net() -> str:
 
 
 def targets(net: str) -> list[str]:
-    """Adresses à pinguer : tout le réseau, jamais plus grand qu'un /24."""
-    network = ipaddress.ip_network(net, strict=False)
-    if network.num_addresses > 256:
-        raise ValueError("réseau plus grand qu'un /24")
-    return [str(h) for h in network.hosts()]
+    """Adresses à pinguer : un ou plusieurs réseaux séparés par des virgules, chacun jamais plus grand qu'un /24."""
+    hosts: dict[str, None] = {}
+    for part in net.split(","):
+        network = ipaddress.ip_network(part.strip(), strict=False)
+        if network.num_addresses > 256:
+            raise ValueError("réseau plus grand qu'un /24")
+        hosts.update(dict.fromkeys(str(h) for h in network.hosts()))
+    return list(hosts)
 
 
 def _ipkey(ip: str) -> tuple:
@@ -243,9 +246,10 @@ def _scan(hosts: list[str], ping=_ping, describe=None) -> None:
         ex.shutdown(wait=False, cancel_futures=True)
 
 
-def _run(hosts: list[str], net: str, ping=_ping, describe=None) -> None:
+def _run(hosts: list[str], net: str, ping=_ping, describe=None, discreet: bool = False) -> None:
+    quiet = {"ttl": lambda ip: None, "vendor": lambda ip: None} if discreet else {}  # mode discret : ni TTL ni MAC
     try:
-        _scan(hosts, ping, describe or (lambda ip, ports=ssh_ports(): _describe(ip, ssh=ports)))
+        _scan(hosts, ping, describe or (lambda ip, ports=ssh_ports(): _describe(ip, ssh=ports, **quiet)))
     except Exception as e:  # noqa: BLE001 : le passage ne doit jamais faire tomber le serveur
         with _lock:
             _state["error"] = f"{type(e).__name__}: {e}"
@@ -256,8 +260,9 @@ def _run(hosts: list[str], net: str, ping=_ping, describe=None) -> None:
         _save()
 
 
-def start(known: set[str], state_file: Path | None = None, ping=_ping, describe=None, net: str | None = None) -> bool:
-    """Lance une recherche ; False s'il y en a déjà une. known : IP des machines déjà déclarées (ignorées)."""
+def start(known: set[str], state_file: Path | None = None, ping=_ping, describe=None, net: str | None = None, discreet: bool = False) -> bool:
+    """Lance une recherche ; False s'il y en a déjà une. known : IP des machines déjà déclarées (ignorées). net : réseaux
+    en CIDR séparés par des virgules (défaut : celui de l'hôte). discreet : le système n'est pas deviné d'après le TTL ni la MAC."""
     global _file, _known
     state(state_file)  # relit la dernière recherche enregistrée (serveur redémarré depuis)
     with _lock:
@@ -276,7 +281,7 @@ def start(known: set[str], state_file: Path | None = None, ping=_ping, describe=
         _stop.clear()
         _state.update(phase="ping", net=net, total=len(hosts), done=0, up=0, described=0, found=[], started=time.time(),
                       ended=None, error=None, stopped=False, previous=previous, previous_ended=previous_ended, gone=[])
-    threading.Thread(target=_run, args=(hosts, net, ping, describe), daemon=True, name="netscan").start()
+    threading.Thread(target=_run, args=(hosts, net, ping, describe, discreet), daemon=True, name="netscan").start()
     return True
 
 
