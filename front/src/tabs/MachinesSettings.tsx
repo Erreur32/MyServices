@@ -256,9 +256,9 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
 }
 
 /** Groupe d'interrupteurs : titre, éventuel rappel, interrupteurs en dessous */
-function OptionGroup({ title, hint, tone, dim, children }: { title: string; hint?: string; tone?: "ok"; dim?: boolean; children: React.ReactNode }) {
+function OptionGroup({ title, hint, tone, children }: { title: string; hint?: string; tone?: "ok"; children: React.ReactNode }) {
   return (
-    <fieldset className={`flex flex-col gap-1.5 rounded-lg border p-2.5 ${tone === "ok" ? "border-ok/40 bg-ok/5" : "border-line/60"} ${dim ? "bg-bg2/30" : ""}`}>
+    <fieldset className={`flex flex-col gap-2 rounded-lg border p-3 ${tone === "ok" ? "border-ok/40 bg-ok/10" : "border-line/60 bg-bg2/70"}`}>
       <legend className="px-1 text-[11px] font-semibold uppercase tracking-wide text-dim">{title}</legend>
       {hint && <p className="text-xs text-dim">{hint}</p>}
       {children}
@@ -354,7 +354,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
           <Field label={tx("Rôle (libre)")}><input className={input} maxLength={80} value={v.role || ""} onChange={(e) => setV({ ...v, role: e.target.value })} /></Field>
         </div>
       </section>
-      <section className="rounded-xl border border-line/60 bg-bg2/30 p-3">
+      <section className="rounded-xl border border-line/60 bg-bg2/30 p-4">
         <button type="button" onClick={() => setSshOpen(!sshOpen)} aria-expanded={sshOpen} className="flex w-full flex-wrap items-center gap-2 text-left">
           {sshOpen ? <ChevronDown size={14} className="text-dim" aria-hidden /> : <ChevronRight size={14} className="text-dim" aria-hidden />}
           <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("Accès SSH")}</h4>
@@ -364,13 +364,13 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
             {gives.filter(([, on]) => on).map(([label, , why]) => <Badge key={label} tone="ok" title={why}>✓ {label}</Badge>)}
           </span>}
         </button>
-        {sshOpen && <div className="mt-2">
-        <p className="mb-2 text-xs text-muted">
+        {sshOpen && <div className="mt-4 flex flex-col gap-4">
+        <p className="text-xs leading-relaxed text-muted">
           {tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache.")} <b className="text-txt">{tx("Lecture seule")}</b>{tx(" : rien n'y est modifié.")}
           <span className="block text-dim">{tx("Sans accès : ping et services web seulement.")}</span>
         </p>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <label className="flex min-w-[240px] flex-1 items-center gap-2.5 text-sm">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+          <label className="flex min-w-[240px] flex-1 items-center gap-3 text-sm">
             <Switch on={sshOn} disabled={pending === "ssh"} onChange={(on) => void toggleSsh(on)} label={tx("Lecture par SSH")} />
             <span><b>{sshOn ? tx("Actif") : tx("Inactif")}</b> <Saved k="ssh" />
               <Dim> · {sshOn ? sshWho : tx("ping et services web seulement")}</Dim></span>
@@ -378,7 +378,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
           {sshOn && !winGuide && live && ["refused", "nossh"].includes(mState(live)) && (
             <button type="button" className="text-xs text-link hover:underline" onClick={() => setWinGuide(true)}>{tx("La connexion échoue ? Voir les commandes")}</button>
           )}
-          <ul className="flex flex-wrap items-center justify-end gap-1.5" aria-label={tx("Ce que cet accès permet de lire")}>
+          <ul className="flex flex-wrap items-center justify-end gap-2" aria-label={tx("Ce que cet accès permet de lire")}>
             {gives.map(([label, on, why]) => (
               <li key={label} title={why}><Badge tone={on ? "ok" : "off"}>{on ? "✓" : "–"} {label}</Badge></li>
             ))}
@@ -390,13 +390,13 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
             else await autoSave("ssh", { os: undefined, ssh: alias, health: undefined });
           }} />}
         {!windows && v.ssh && hasAdguard && (  // seulement si AdGuard a été trouvé sur la machine (ou déjà réglé) : sinon rien à montrer
-          <div className="mt-3 sm:max-w-[50%]">
+          <div className="sm:max-w-[50%]">
             <Field label={tx("AdGuard Home trouvé (conteneur ou chemin du .yaml)")}>
               <input className={input} maxLength={80} value={v.adguard || ""} placeholder={tx("aucun")} onChange={(e) => setV({ ...v, adguard: e.target.value })} />
             </Field>
           </div>
         )}
-        <p className="mt-1.5 text-xs text-dim">
+        <p className="text-xs leading-relaxed text-dim">
           {tx("Un clic sur l'interrupteur prépare l'accès (compte root, port 22) avec la clé de l'app.")}
           <span className="block">{tx("Cette clé est à autoriser sur la machine : Réglages → Clé SSH.")}</span>
         </p>
@@ -415,8 +415,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
           </span>
         </button>
         {options && (
-          <div className="flex flex-col gap-1.5 border-t border-line/60 p-3">
-          <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/40 p-2">
+          <div className="flex flex-col gap-3 border-t border-line/60 p-3">
+          <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
             <Switch on={!v.disabled} disabled={pending === "disabled"} onChange={(on) => void autoSave("disabled", { disabled: !on })} label={tx("Machine suivie")} />
             <span><b>{tx("Machine suivie")}</b> <Saved k="disabled" /> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>
           </label>
@@ -433,14 +433,14 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
             )}
           </OptionGroup>
           {missingFlags.length > 0 && (
-            <div className="rounded-lg border border-line/60 bg-bg2/30">
+            <div className="rounded-lg border border-line/60 bg-bg2/50">
               <button type="button" onClick={() => setMissingOpen(!missingOpen)} aria-expanded={missingOpen}
                 className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-dim hover:text-txt">
                 {missingOpen ? <ChevronDown size={13} aria-hidden /> : <ChevronRight size={13} aria-hidden />}
                 {tx("Non détectés")} <span className="font-mono normal-case">({missingFlags.length})</span>
               </button>
               {missingOpen && (
-                <div className="flex flex-col gap-1.5 border-t border-line/60 p-2.5">
+                <div className="flex flex-col gap-2 border-t border-line/60 p-3">
                   {!unlock && <p className="text-xs text-dim">{tx("Grisés : la détection ne les confirme pas (elle relit la machine à chaque collecte).")}</p>}
                   {missingFlags.map(flagRow)}
                   {!unlock && <button type="button" className="self-start text-xs text-link hover:underline" onClick={() => setUnlock(true)}>{tx("Détection incomplète ? Tout débloquer")}</button>}
