@@ -89,7 +89,9 @@ export default function App() {
       {error && <p className="mb-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">{tx("⚠ Mise à jour impossible :")} {error}</p>}
       {profile ? (
         <>
-          <a href="#" className="mt-3 inline-flex items-center gap-1 text-sm text-link hover:underline"><ArrowLeft size={14} aria-hidden />{tx("Retour à l'accueil")}</a>
+          <a href="#" className="group mt-4 inline-flex items-center gap-2 rounded-full border border-line bg-card py-1.5 pl-2.5 pr-4 text-sm font-semibold text-muted transition-colors hover:border-link hover:text-txt">
+            <ArrowLeft size={16} aria-hidden className="transition-transform group-hover:-translate-x-0.5" />{tx("Retour")}
+          </a>
           <Profile username={snap.me.username} role={snap.me.role} />
         </>
       ) : <Tabs tab={current} snap={snap} badges={badges} onSelect={go} />}

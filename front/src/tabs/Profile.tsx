@@ -16,7 +16,13 @@ interface MySession { created: number; expires: number; ip: string | null; curre
 export function Profile({ username, role }: { username: string; role: "admin" | "viewer" }) {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4 py-4">
-      <h1 className="text-lg font-bold">{username} <Badge tone="off">{role === "admin" ? "admin" : tx("lecture seule")}</Badge></h1>
+      <header className="flex items-center gap-4 rounded-2xl border border-line bg-card p-4">
+        <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-link/20 text-xl font-bold uppercase text-link" aria-hidden>{username.slice(0, 1)}</span>
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-bold">{username}</h1>
+          <div className="mt-0.5 flex items-center gap-2 text-sm text-dim"><Badge tone="off">{role === "admin" ? "admin" : tx("lecture seule")}</Badge>{tx("Mon profil")}</div>
+        </div>
+      </header>
       <MyPassword />
       <Sessions />
     </div>
