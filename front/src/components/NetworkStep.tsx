@@ -214,7 +214,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
           )}
         </section>
       )}
-      {found.length > 0 && (
+      {found.length > 0 && toLink.length === 0 && (
         <>
           {watch.length > 0 && (
             <>
@@ -247,6 +247,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
       )}
       {toLink.length > 0 && (
         <div className="flex flex-col gap-2">
+          {found.length > 0 && <p className="text-xs text-dim">{tx("{0} autre(s) appareil(s) masqué(s) : ils reviennent quand les accès ci-dessous sont réglés ou passés.", found.length)}</p>}
           <p className="text-sm font-semibold text-txt">{tx("Machines ajoutées : accès à régler")}</p>
           {toLink.map((h) => (
             <AddedMachine key={h.ip} host={h} onDone={() => {
