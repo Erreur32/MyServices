@@ -14,6 +14,7 @@ import type { AgentInfo, Detection, MachineConf, MachinesSettings as State, NetH
 import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
+import { MACHINE_ICONS } from "../lib/machineIcons";
 import { MSTATE, mState, osOfMachine } from "../lib/machines";
 import { AuthorizeKey } from "../components/AuthorizeKey";
 import { SshGuide } from "../components/SshGuide";
@@ -113,6 +114,8 @@ function redetectChanges(r: RedetectItem): { key: string; text: string }[] {
     ...r.flags_on.map((f) => ({ key: `on:${f}`, text: `${tx("Allumer")} « ${REDETECT_FLAGS[f] ?? f} »` })),
     ...r.flags_off.map((f) => ({ key: `off:${f}`, text: `${tx("Éteindre")} « ${REDETECT_FLAGS[f] ?? f} »` })),
     ...(r.os ? [{ key: "os", text: tx("Système : Windows") }] : []),
+    ...(r.role_add ?? []).map((t) => ({ key: `tag+:${t}`, text: `${tx("Ajouter l'étiquette")} « ${t} »` })),
+    ...(r.role_remove ?? []).map((t) => ({ key: `tag-:${t}`, text: `${tx("Retirer l'étiquette")} « ${t} » ${tx("(plus vue sur la machine)")}` })),
     ...(r.process ? [{ key: "process", text: `${tx("Lire les services hors Docker")} (${r.ports.slice(0, 5).map((p) => `${p.name} :${p.port}`).join(", ")}${r.ports.length > 5 ? "…" : ""})` }] : []),
   ];
 }
@@ -141,6 +144,9 @@ function Redetect({ st, onDone }: { st: State; onDone: () => void }) {
       for (const f of r.flags_off) if (keep(`off:${f}`)) { delete (machine as Record<string, unknown>)[f]; touched = true; }
       if (r.os && keep("os")) { machine.os = r.os; touched = true; }
       if (r.process && keep("process")) { proc = true; touched = true; }
+      const tags = rolesOf(machine.role).filter((t) => !(r.role_remove ?? []).some((x) => x === t && keep(`tag-:${x}`)));
+      for (const t of r.role_add ?? []) if (keep(`tag+:${t}`) && !tags.includes(t)) tags.push(t);
+      if (tags.join(", ") !== rolesOf(machine.role).join(", ")) { machine.role = tags.join(", ").slice(0, 200); touched = true; }
       if (!touched) continue;
       try {
         await send("PUT", `machines/settings/${r.ip}`, { machine, process: proc, extra: [] });
@@ -304,7 +310,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
   return (
     <div ref={card} className={`rounded-xl border bg-card text-sm transition-colors ${m.disabled ? "opacity-60" : ""} ${focus ? "border-link shadow-[0_0_0_1px_rgb(var(--link))]" : open ? "border-link/60 shadow-[0_0_0_1px_rgb(var(--link)/0.35)]" : "border-line"}`}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl p-3 text-left hover:bg-bg2">
-        <Chevron size={14} className="text-txt" /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl }} scan={scan} reserve /><b>{m.name}</b><Dim>{ip}</Dim>
+        <Chevron size={14} className="text-txt" /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: m.icon as string | undefined }} scan={scan} reserve /><b>{m.name}</b><Dim>{ip}</Dim>
         <span className="ml-auto flex items-center gap-1.5">
           {keyMissing && (
             <span role="button" tabIndex={0} className="grid h-5 w-5 cursor-pointer place-items-center rounded-full bg-warn text-xs font-extrabold text-bg hover:brightness-110"
@@ -574,6 +580,21 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
             <TagInput label={tx("Rôle (étiquettes)")} value={v.role || ""} suggestions={roleSuggestions} placeholder={tx("ex. Docker, NAS…")}
               onChange={(role) => (isNew ? setV({ ...v, role }) : void autoSave("role", { role }, savedProc, false))} />  {/* chaque étiquette s'enregistre seule, comme un interrupteur */}
             <Saved k="role" />
+          </div>
+        </div>
+        <div className="mt-3">
+          <div className="mb-1 flex items-center gap-2 text-sm text-muted">{tx("Icône")} <Saved k="icon" /><Dim>· {v.icon ? (MACHINE_ICONS.find((i) => i.key === v.icon)?.label ?? "") : tx("automatique (appli reconnue, sinon système)")}</Dim></div>
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={tx("Icône de la machine")}>
+            <button type="button" role="radio" aria-checked={!v.icon} disabled={pending === "icon"} title={tx("Automatique")}
+              onClick={() => (isNew ? setV({ ...v, icon: undefined }) : void autoSave("icon", { icon: undefined }))}
+              className={`inline-flex h-9 items-center rounded-lg border px-2.5 text-xs font-semibold ${!v.icon ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`}>{tx("Auto")}</button>
+            {MACHINE_ICONS.map((i) => (
+              <button key={i.key} type="button" role="radio" aria-checked={v.icon === i.key} aria-label={i.label} title={i.label} disabled={pending === "icon"}
+                onClick={() => (isNew ? setV({ ...v, icon: i.key }) : void autoSave("icon", { icon: i.key }))}
+                className={`grid h-9 w-9 place-items-center rounded-lg border ${v.icon === i.key ? "border-link bg-link/15" : "border-line hover:border-link"}`}>
+                {"file" in i ? <img src={`${import.meta.env.BASE_URL}icons/${i.file}.svg`} alt="" className="h-5 w-5" /> : <i.Icon size={17} className="text-muted" aria-hidden />}
+              </button>
+            ))}
           </div>
         </div>
       </section>

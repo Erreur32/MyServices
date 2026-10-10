@@ -95,6 +95,7 @@ export interface Machine {
   role?: string;
   ping: boolean;
   off: boolean;
+  icon?: string | null;  // icône choisie dans Réglages → Machines (clé de lib/machineIcons.ts) ; absent = automatique
   detected?: string[];  // réglages confirmés par la détection (gateway, vm, npm, off) : les autres interrupteurs sont grisés
   ttl?: number | null;  // TTL du ping : 128 = Windows probable, 255 = matériel réseau
   disabled?: boolean;  // machine non suivie (Réglages → Machines) : ni ping, ni SSH, ni santé
@@ -472,6 +473,8 @@ export interface RedetectItem {
   os: string | null;    // système probable quand il manque
   process: boolean;     // lire aussi les services hors Docker
   ports: { port: number; name: string }[];
+  role_add?: string[];     // étiquettes du rôle vues par la détection (applis, ports par défaut joignables)
+  role_remove?: string[];  // étiquettes automatiques périmées (« port 5000 »…)
 }
 export interface Redetection { machines: RedetectItem[]; changes: number }
 

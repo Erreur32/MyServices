@@ -56,16 +56,26 @@ class CheckExpiresInventory(unittest.TestCase):
         self.assertEqual(json.loads(self.cache.read_text())["ts"], 1791636409.0)
 
 
+class IconField(unittest.TestCase):
+    def test_icone_choisie_validee_et_gardee(self):
+        self.assertEqual(machines_admin._clean({"name": "pc", "icon": "home-assistant"})["icon"], "home-assistant")
+        self.assertNotIn("icon", machines_admin._clean({"name": "pc", "icon": ""}))   # vide = automatique
+        for bad in ("../x", "Home Assistant", "a b", "<img>", "-x", "x-"):
+            with self.assertRaises(machines_admin.MachineError):
+                machines_admin._clean({"name": "pc", "icon": bad})
+
+
 class Redetection(unittest.TestCase):
     """redetect() : les écarts entre les réglages enregistrés et la détection refaite, sans rien écrire."""
 
-    def run_redetect(self, machines, detect_d, info=None, ports=None, ph=None, ips=None, gw="10.0.0.1"):
+    def run_redetect(self, machines, detect_d, info=None, ports=None, ph=None, ips=None, gw="10.0.0.1", tags=None):
         meta = {"machines": machines, "process_hosts": ph or {}}
         d = {"up": True, "hints": [], "machine": {}, **detect_d}
         with mock.patch.object(machines_admin, "_meta", return_value=meta), \
                 mock.patch.object(machines_admin, "detect", return_value=d), \
                 mock.patch.object(machines_admin.hostinfo, "host_info", return_value=info), \
                 mock.patch.object(machines_admin.hostinfo, "default_gateway", return_value=gw), \
+                mock.patch.object(machines_admin, "_seen_tags", side_effect=lambda ip: list((tags or {}).get(ip, []))), \
                 mock.patch("connectors.process.listening_processes", return_value=ports or {}), \
                 mock.patch.object(machines_admin.setup, "save") as sv:
             out = machines_admin.redetect(ips)
@@ -125,6 +135,24 @@ class Redetection(unittest.TestCase):
         self.assertEqual(list(r), ["10.0.0.6"])
         with self.assertRaises(machines_admin.MachineError):
             self.run_redetect(ms, {}, ips=["10.0.0.99"])
+
+    def test_etiquettes_du_role_mises_a_jour(self):
+        """Port 5000 enregistré à l'époque, applis vues aujourd'hui : on propose d'ajouter l'appli et de retirer l'indice périmé."""
+        m = {"10.0.0.2": {"name": "ha", "role": "SSH :22232, partage SMB, port 5000, ma note"}}
+        seen = {"10.0.0.2": ["Home Assistant", "SSH :22232", "partage SMB"]}
+        rs, out = self.run_redetect(m, {"hints": []}, tags=seen)
+        self.assertEqual((rs["10.0.0.2"]["role_add"], rs["10.0.0.2"]["role_remove"]), (["Home Assistant"], ["port 5000"]))  # « ma note » reste
+        self.assertIsNone(rs["10.0.0.2"]["note"])
+        self.assertEqual(out["changes"], 1)
+
+    def test_etiquette_automatique_disparue_retiree_mais_pas_le_texte_saisi(self):
+        add, remove = machines_admin.role_changes("Plex, Ollama, mon NAS perso, web :5000 · Mon appli", ["Plex"])
+        self.assertEqual(add, [])
+        self.assertEqual(remove, ["Ollama", "web :5000 · Mon appli"])  # Ollama : appli connue qu'on ne voit plus ; « mon NAS perso » est de vous
+
+    def test_rien_a_changer_quand_le_role_correspond(self):
+        rs, _ = self.run_redetect({"10.0.0.3": {"name": "pc", "role": "SSH, partage SMB"}}, {"hints": []}, tags={"10.0.0.3": ["partage SMB", "SSH"]})
+        self.assertEqual(rs["10.0.0.3"]["note"], "rien à changer")
 
 
 class SshAlias(unittest.TestCase):

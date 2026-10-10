@@ -1101,6 +1101,7 @@ def main():
             "disabled": ip in DISABLED,
             "ttl": PING_TTL.get(ip),  # indice du système pour une machine sans SSH (suggestion, jamais une certitude)
             "detected": hostinfo.detected_flags(ip, info, META_RAW.get("machines", {}).get(ip, {})),
+            "icon": META_RAW.get("machines", {}).get(ip, {}).get("icon") or None,  # icône choisie dans Réglages → Machines (absent = automatique)
             "local": MACHINES[ip][2] == "local",
             "ssh": {"alias": sc["alias"], "port": sc["port"], "user": sc["user"], "identity": sc["identity"],
                     "key_fp": hostinfo.key_fingerprint(sc["identity"]), "host_key": hostinfo.host_key(ip, sc["port"]),

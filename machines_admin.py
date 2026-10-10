@@ -29,7 +29,7 @@ import setup
 
 # Champs d'une machine réglables depuis la page (le reste du fichier est gardé tel quel)
 FLAGS = ("off", "gateway", "npm", "npm_only", "vm", "disabled")
-TEXT = ("name", "role", "ssh", "adguard", "adguard_sync", "health", "os")
+TEXT = ("name", "role", "ssh", "adguard", "adguard_sync", "health", "os", "icon")
 HEALTH_SOURCES = ("ssh", "agent", "beszel")  # priorité de lecture de la santé (health.py : source_order)
 NAME_MAX = 80
 ROLE_MAX = 200  # le rôle est une liste d'étiquettes (« Docker, SSH, partage SMB ») gardée en texte
@@ -134,10 +134,44 @@ def detect(target: str) -> dict:
 REDETECT_OFF = ("vm", "npm", "gateway")  # drapeaux que la détection peut retirer ; « off » (poste souvent éteint) reste un choix de l'utilisateur
 
 
+def role_tags(role: str | None) -> list[str]:
+    """Rôle (texte « a, b, c ») en étiquettes."""
+    return [t.strip() for t in (role or "").split(",") if t.strip()]
+
+
+def auto_labels() -> set[str]:
+    """Étiquettes que la recherche réseau écrit elle-même (indices de ports, applis connues) : seules celles-là sont retirées à la
+    redétection, jamais un texte saisi à la main. Y figurent aussi les anciennes formes (« NAS Synology » pour le port 5000)."""
+    import known_apps
+    import netscan
+    return ({*netscan.HINT_PORTS.values(), "SSH", "web :80", "web :443", "NAS Synology"} | {a.label for a in known_apps.APPS}
+            | {f"SSH :{p}" for p in netscan.SSH_PORTS})
+
+
+def role_changes(current: str | None, seen: list[str]) -> tuple[list[str], list[str]]:
+    """(étiquettes à ajouter, à retirer) : ajoute ce que la détection voit (applis, ports par défaut joignables) ; retire une étiquette
+    automatique que la détection ne voit plus, ou un « port N » / « web :N … » générique. Les étiquettes saisies à la main restent."""
+    have = role_tags(current)
+    low = {t.lower() for t in have}
+    seen_low = {t.lower() for t in seen}
+    add = [t for t in seen if t.lower() not in low]
+    auto = {a.lower() for a in auto_labels()}
+    generic = re.compile(r"^(port \d+|web :\d+( · .*)?)$", re.I)
+    remove = [t for t in have if t.lower() not in seen_low and (t.lower() in auto or (generic.match(t) and t.lower() not in ("web :80", "web :443")))]
+    return add, remove
+
+
+def _seen_tags(ip: str, ssh_port_hint: bool = True) -> list[str]:
+    """Étiquettes d'après la détection du réseau (applis reconnues, puis ports par défaut joignables), sans rien écrire."""
+    import netscan
+    d = netscan._describe(ip, ssh=netscan.ssh_ports())
+    return list(dict.fromkeys([*d["apps"], *d["hints"]]))
+
+
 def _redetect_one(ip: str, m: dict, process_hosts: dict) -> dict:
     """Écarts d'une machine déclarée : détection de detect(), drapeaux confirmés de hostinfo, ports hors Docker du process connector."""
     out = {"ip": ip, "name": m.get("name") or ip, "verifiable": False, "note": None,
-           "flags_on": [], "flags_off": [], "os": None, "process": False, "ports": []}
+           "flags_on": [], "flags_off": [], "os": None, "process": False, "ports": [], "role_add": [], "role_remove": []}
     try:
         d = detect(ip)
     except MachineError as e:
@@ -162,7 +196,11 @@ def _redetect_one(ip: str, m: dict, process_hosts: dict) -> dict:
             ports = {}
         out["ports"] = [{"port": p, "name": v["name"]} for p, v in sorted(ports.items()) if v["lan"]]
         out["process"] = bool(out["ports"]) and ip not in process_hosts
-    if not (out["flags_on"] or out["flags_off"] or out["os"] or out["process"]):
+    try:
+        out["role_add"], out["role_remove"] = role_changes(m.get("role"), _seen_tags(ip))
+    except OSError:
+        pass  # détection réseau indisponible : le rôle n'est pas touché
+    if not (out["flags_on"] or out["flags_off"] or out["os"] or out["process"] or out["role_add"] or out["role_remove"]):
         out["note"] = "rien à changer"
     return out
 
@@ -219,6 +257,8 @@ def _clean(m: dict) -> dict:
             out[k] = True
     if m.get("health") is False:
         out["health"] = False
+    if out.get("icon") and not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", out["icon"]):  # clé d'icône choisie à la main (front/src/lib/machineIcons.ts)
+        raise MachineError("icône : une clé en minuscules, chiffres et tirets")
     src = m.get("health_sources")
     if src:
         if not isinstance(src, list) or any(x not in HEALTH_SOURCES for x in src):
