@@ -312,7 +312,8 @@ function AddedMachine({ host, onDone }: { host: NetHost; onDone: () => void }) {
   const mwk = viaMynetwork(host);  // UniFi : API MynetworK à venir ; SSH facultatif
   const ssh = !!host.ssh_port && !ha;  // Home Assistant se relie par son API : pas de SSH proposé, même s'il répond
   const [user, setUser] = useState("root"), [cmd, setCmd] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null), [ok, setOk] = useState(false);
+  const [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null), [ok, setOk] = useState(false), [haOk, setHaOk] = useState(false);
+  const valid = ok || haOk || (!ssh && !ha);  // vert seulement une fois l'accès validé (ou s'il n'y en a aucun à régler)
   const label = host.name || host.ip;
 
   const prepare = async () => {
@@ -338,10 +339,10 @@ function AddedMachine({ host, onDone }: { host: NetHost; onDone: () => void }) {
   };
 
   return (
-    <div className="rounded-lg border border-ok/50 bg-ok/10 p-3">
+    <div className={`rounded-lg border p-3 ${valid ? "border-ok/50 bg-ok/10" : "border-line bg-bg2/40"}`}>
       <p className="flex flex-wrap items-center gap-2">
-        <Check size={14} className="text-ok" aria-hidden /><b className="text-txt">{label}</b>
-        <span className="font-mono text-xs text-dim">{host.ip}</span><Badge tone="ok">{tx("ajoutée")}</Badge>
+        <Check size={14} className={valid ? "text-ok" : "text-dim"} aria-hidden /><b className="text-txt">{label}</b>
+        <span className="font-mono text-xs text-dim">{host.ip}</span><Badge tone={valid ? "ok" : "off"}>{tx("ajoutée")}</Badge>
         {ssh && ok && <Badge tone="ok">{tx("SSH accepté")}</Badge>}
         <button type="button" className={`${quietBtn} ml-auto`} onClick={onDone} title={tx("Passer ou fermer ce cadre : la machine reste ajoutée, ses accès se règlent aussi plus tard (« Reprendre » ici, ou Réglages → Machines et Connecteurs)")}>
           {ssh && !ok ? tx("Passer") : tx("Terminé")}
@@ -369,7 +370,7 @@ function AddedMachine({ host, onDone }: { host: NetHost; onDone: () => void }) {
           <div><button type="button" className={primary} disabled={busy} onClick={() => void test()}>{busy ? tx("Test…") : tx("Tester")}</button></div>
         </div>
       )}
-      {ha && <HomeAssistantLink host={host} />}
+      {ha && <HomeAssistantLink host={host} onLinked={() => setHaOk(true)} />}
       {!ssh && !ha && <p className="mt-1 text-sm text-dim">{tx("Pas de SSH sur cette machine : ses services web seront suivis par leur adresse.")}</p>}
       <NoteLine note={note} />
     </div>
@@ -377,7 +378,7 @@ function AddedMachine({ host, onDone }: { host: NetHost; onDone: () => void }) {
 }
 
 /** Home Assistant : pas de SSH, son API avec un jeton (connecteur « home-assistant », formulaire et aide partagés avec Réglages) */
-function HomeAssistantLink({ host }: { host: NetHost }) {
+function HomeAssistantLink({ host, onLinked }: { host: NetHost; onLinked: () => void }) {
   const [type, setType] = useState<ConnectorType | null>(null), [open, setOpen] = useState(true), [done, setDone] = useState(false);
   const [note, setNote] = useState<Note>(null);
   useEffect(() => {  // le formulaire (et son aide) s'ouvre d'office : c'est la suite logique de l'ajout
@@ -400,7 +401,7 @@ function HomeAssistantLink({ host }: { host: NetHost }) {
       )}
       {open && type && (
         <ConnectorForm type={type} prefill={{ type: "home-assistant", name: "home-assistant", url: `http://${host.ip}:8123` }}
-          onDone={() => { setDone(true); void send("POST", "system/tasks/collect/run").catch(() => undefined); pokeScan(); }}
+          onDone={() => { setDone(true); onLinked(); void send("POST", "system/tasks/collect/run").catch(() => undefined); pokeScan(); }}
           onCancel={() => setOpen(false)} />
       )}
       <NoteLine note={note} />
