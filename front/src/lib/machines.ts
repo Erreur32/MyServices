@@ -25,3 +25,18 @@ export function mState(m: Machine): MState {
   return m.ping ? "nossh" : "down";
 }
 
+export type OsKind = "linux" | "windows" | "macos" | "ios" | "network" | "pi";
+
+/** Système d'une machine d'après ce que l'on sait d'elle : réglage « windows », relevé SSH (PRETTY_NAME), sinon le dernier scan
+ *  du réseau (suggestion). null = inconnu : pas d'icône plutôt qu'une icône fausse. */
+export function osOfMachine(m: { os?: string; info?: { os?: string | null } | null; name?: string }, scan?: string | null): { kind: OsKind; label: string } | null {
+  const raw = (m.info?.os || "").toLowerCase();
+  if (m.os === "windows" || scan === "windows" || /windows/.test(raw)) return { kind: "windows", label: "Windows" };
+  if (/raspbian|raspberry/.test(raw)) return { kind: "pi", label: "Raspberry Pi OS" };
+  if (/mac ?os|darwin|os x/.test(raw) || scan === "macos") return { kind: "macos", label: "macOS" };
+  if (scan === "ios") return { kind: "ios", label: "iOS" };
+  if (scan === "network") return { kind: "network", label: tx("Matériel réseau") };
+  if (raw) return { kind: "linux", label: m.info!.os! };
+  if (scan === "linux") return { kind: "linux", label: "Linux" };
+  return null;
+}

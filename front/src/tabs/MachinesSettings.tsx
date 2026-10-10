@@ -3,15 +3,15 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
-import { Check, ChevronDown, ChevronRight, Loader2, Plus, Radar, ShieldCheck, Trash2 } from "lucide-react";
+import { Apple, Check, ChevronDown, ChevronRight, Cpu, Loader2, Monitor, Plus, Radar, Router, ShieldCheck, Smartphone, Terminal, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { ipNum } from "../lib/format";
-import type { Detection, MachineConf, MachinesSettings as State } from "../types";
-import { MSTATE, mState } from "../lib/machines";
+import type { Detection, MachineConf, MachinesSettings as State, NetScan } from "../types";
+import { MSTATE, mState, osOfMachine, type OsKind } from "../lib/machines";
 import { SshDetails } from "../components/ssh";
 import { sshBrief, sshWarn } from "../lib/ssh";
 import { tx } from "../lib/i18n";
@@ -24,10 +24,22 @@ const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
   { k: "vm", label: tx("Machine virtuelle"), help: tx("la santé n'y lit pas SMART") },
 ];
 
+const OS_ICON: Record<OsKind, typeof Terminal> = { linux: Terminal, windows: Monitor, macos: Apple, ios: Smartphone, network: Router, pi: Cpu };
+
+/** Icône du système détecté (relevé SSH, réglage ou dernier scan) ; rien si on ne sait pas */
+function OsIcon({ os }: { os: ReturnType<typeof osOfMachine> }) {
+  if (!os) return null;
+  const Icon = OS_ICON[os.kind];
+  return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-bg2 text-muted" title={os.label}><Icon size={14} aria-hidden /></span>;
+}
+
 export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: string }) {
   const [st, setSt] = useState<State | null>(null);
   const [error, setError] = useState("");
   const [detecting, setDetecting] = useState(false);
+  // Système vu par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas (suggestion)
+  const [scanOs, setScanOs] = useState<Record<string, string>>({});
+  useEffect(() => { read<NetScan>("network/scan").then((n) => setScanOs(Object.fromEntries((n.found || []).filter((h) => h.os).map((h) => [h.ip, h.os!])))).catch(() => undefined); }, []);
   const reload = useCallback(() => {
     read<State>("machines/settings")
       .then((s) => { setSt(s); setError(""); })
@@ -54,7 +66,7 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
         {ips.map((ip) => {
           const lm = live.get(ip);
           const stat = (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.name === ip || c.name === lm?.name));
-          return <MachineRow key={ip} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
+          return <MachineRow key={ip} scanOs={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
         })}
       </div>
     </div>
@@ -128,8 +140,8 @@ function Proposal({ d, st, onDone }: { d: Detection; st: State; onDone: () => vo
   );
 }
 
-function MachineRow({ ip, m, st, live, statuses, reload, focus }: {
-  focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
+function MachineRow({ ip, m, st, live, statuses, reload, focus, scanOs }: {
+  scanOs?: string; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
 }) {
   const [open, setOpen] = useState(!!focus), [confirm, setConfirm] = useState(false);  // focus : arrivée depuis un lien (Connecteurs → machine)
   const card = useRef<HTMLDivElement>(null);
@@ -156,7 +168,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus }: {
   return (
     <div ref={card} className={`rounded-xl border bg-card text-sm ${m.disabled ? "opacity-60" : ""} ${focus ? "border-link shadow-[0_0_0_1px_rgb(var(--link))]" : "border-line"}`}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl p-3 text-left hover:bg-bg2">
-        <Chevron size={14} className="text-dim" /><b>{m.name}</b><Dim>{ip}</Dim>
+        <Chevron size={14} className="text-dim" /><OsIcon os={osOfMachine({ os: m.os, info: live?.info }, scanOs)} /><b>{m.name}</b><Dim>{ip}</Dim>
         <span className="ml-auto flex items-center gap-1.5">
           {m.off && <Badge tone="off">{tx("souvent éteinte")}</Badge>}
           {live && sshWarn(live) && <Badge tone="warn" title={tx("sshd : root ou mot de passe autorisé")}>{tx("sshd")}</Badge>}
@@ -261,6 +273,26 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
   };
   const Saved = ({ k }: { k: string }) => (pending === k ? <Loader2 size={13} className="animate-spin text-dim" aria-label={tx("enregistrement…")} />
     : flash === k ? <span className="saved-pop inline-flex items-center gap-1 text-xs font-semibold text-ok"><Check size={13} aria-hidden />{tx("enregistré")}</span> : null);
+  // Accès SSH : un simple interrupteur. Actif = l'accès de cette IP (créé avec la clé de l'app s'il n'existe pas encore, compte root
+  // port 22 comme « Lire cette machine par SSH »), inactif = on le retire. Le choix d'un autre compte se fait dans la config SSH.
+  const key = (windows ? v.health : v.ssh) as string | null | undefined | false;
+  const sshOn = typeof key === "string" && key !== "";
+  const info = st.aliases.find((a) => a.alias === key);
+  const sshWho = info ? `${info.user ? `${info.user}@` : ""}${info.ip || info.host}${info.port ? `:${info.port}` : ""}` : String(key || "");
+  const toggleSsh = async (on: boolean) => {
+    if (!on) return void autoSave("ssh", windows ? { health: undefined } : { ssh: null });
+    setPending("ssh");
+    try {
+      const r = await send<{ alias: string; created: boolean }>("POST", "machines/ssh-alias", { ip });
+      setPending("");
+      await autoSave("ssh", windows ? { health: r.alias } : { ssh: r.alias });
+      if (r.created) setNote({ ok: true, text: tx("Accès préparé (root, port 22) : autorisez la clé de l'app sur la machine (Réglages → Clé SSH).") });
+    } catch (e) {
+      setPending("");
+      if (e instanceof LoginRequired) location.replace(LOGIN);
+      else setNote({ ok: false, text: (e as Error).message });
+    }
+  };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -284,7 +316,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
           <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("Accès SSH (lecture seule)")}</h4>
           {live && <Badge tone={MSTATE[mState(live)][0]} title={MSTATE[mState(live)][2]}>{MSTATE[mState(live)][1]}</Badge>}
           {!sshOpen && <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-            {(windows ? v.health : v.ssh) && <code className="font-mono text-xs text-muted">{String(windows ? v.health : v.ssh)}</code>}
+            {sshOn && <code className="font-mono text-xs text-muted">{sshWho}</code>}
             {gives.filter(([, on]) => on).map(([label, , why]) => <Badge key={label} tone="ok" title={why}>✓ {label}</Badge>)}
           </span>}
         </button>
@@ -293,28 +325,18 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
           {tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache. Rien n'y est modifié.")}
           <span className="block text-dim">{tx("Sans accès : ping et services web seulement.")}</span>
         </p>
-        <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-          <div className="min-w-[240px] flex-1">
-            {windows ? (
-              <Field label={tx("Accès SSH de la santé (Windows)")}>
-                <input className={input} value={String(v.health || "")} onChange={(e) => setV({ ...v, health: e.target.value })} list="ssh-aliases-f" />
-              </Field>
-            ) : (
-              <Field label={tx("Accès SSH (alias)")}>
-                <select className={input} value={v.ssh || ""} onChange={(e) => setV({ ...v, ssh: e.target.value || null })}>
-                  <option value="">{tx("aucun : ping et services web seulement")}</option>
-                  {st.aliases.map((a) => <option key={a.alias} value={a.alias}>{a.alias} · {a.user ? `${a.user}@` : ""}{a.ip || a.host}{a.port ? `:${a.port}` : ""}</option>)}
-                </select>
-              </Field>
-            )}
-          </div>
-          <ul className="flex flex-wrap items-center justify-end gap-1.5 pb-1.5" aria-label={tx("Ce que cet accès permet de lire")}>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <label className="flex min-w-[240px] flex-1 items-center gap-2.5 text-sm">
+            <Switch on={sshOn} disabled={pending === "ssh"} onChange={(on) => void toggleSsh(on)} label={tx("Lecture par SSH")} />
+            <span><b>{sshOn ? tx("Actif") : tx("Inactif")}</b> <Saved k="ssh" />
+              <Dim> · {sshOn ? sshWho : tx("ping et services web seulement")}</Dim></span>
+          </label>
+          <ul className="flex flex-wrap items-center justify-end gap-1.5" aria-label={tx("Ce que cet accès permet de lire")}>
             {gives.map(([label, on, why]) => (
               <li key={label} title={why}><Badge tone={on ? "ok" : "off"}>{on ? "✓" : "–"} {label}</Badge></li>
             ))}
           </ul>
         </div>
-        <datalist id="ssh-aliases-f">{st.aliases.map((a) => <option key={a.alias} value={a.alias} />)}</datalist>
         {!windows && v.ssh && hasAdguard && (  // seulement si AdGuard a été trouvé sur la machine (ou déjà réglé) : sinon rien à montrer
           <div className="mt-3 sm:max-w-[50%]">
             <Field label={tx("AdGuard Home trouvé (conteneur ou chemin du .yaml)")}>
@@ -323,7 +345,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
           </div>
         )}
         <p className="mt-1.5 text-xs text-dim">
-          {tx("Pas encore d'alias ? « Lire cette machine par SSH » (Réglages → Découverte) le crée avec la clé de l'app ; la clé est dans Réglages → Clé SSH.")}
+          {tx("Un clic sur l'interrupteur prépare l'accès (compte root, port 22) avec la clé de l'app ; cette clé est à autoriser sur la machine : Réglages → Clé SSH.")}
         </p>
         </div>}
       </section>
