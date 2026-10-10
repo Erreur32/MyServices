@@ -68,6 +68,7 @@ function Tasks({ tasks, reload }: { tasks: SystemTask[]; reload: () => void }) {
 
 function TaskRow({ t, reload }: { t: SystemTask; reload: () => void }) {
   const [at, setAt] = useState(t.at), [note, setNote] = useState<Note>(null);
+  const first = t.enabled && !t.running && !t.result;  // jamais passée : le bouton « Lancer » attire l'œil
   const result = t.running ? <Badge tone="info">{tx("en cours")}</Badge> : t.result === "success" ? <Badge tone="ok">{tx("réussi")}</Badge>
     : t.result ? <Badge tone="bad">{t.result}</Badge> : <Dim>{tx("pas encore lancé")}</Dim>;
   return (
@@ -99,7 +100,8 @@ function TaskRow({ t, reload }: { t: SystemTask; reload: () => void }) {
             </button>
           )}
         </form>
-        <button type="button" className={primary} disabled={!t.enabled || t.running}
+        <button type="button" className={`${primary} ${first ? "nudge" : ""}`} disabled={!t.enabled || t.running}
+          title={first ? tx("Jamais lancée : lancez-la une fois pour voir ses résultats sans attendre l'horaire") : undefined}
           onClick={() => void act(() => send("POST", `system/tasks/${t.name}/run`), tx("lancée : son état se met à jour ici"), setNote).then((ok) => ok && reload())}>
           <Play size={14} />{tx("Lancer")}
         </button>
