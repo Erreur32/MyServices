@@ -25,7 +25,8 @@ function Servers({ m, snap }: { m: Machine; snap: Snapshot }) {
   const i = m.info || {};
   const tags = [
     npm && <Badge key="npm" tone="off"><span className="text-npm">{tx("NPM")}</span></Badge>,
-    i.apache && <Badge key="ap" tone={apDown ? "bad" : "off"}><span className={apDown ? "" : "text-apache"}>{tx("Apache ·")} {(i.vhosts || []).length} {tx("vhosts")}</span></Badge>,
+    i.apache && <Badge key="ap" tone={apDown ? "bad" : "off"} title={(i.vhosts_unreadable || []).length ? tx("Vhosts actifs dont la config n'est pas lisible par le compte SSH : {0}. Leurs domaines et ports restent inconnus.", (i.vhosts_unreadable || []).join(", ")) : undefined}>
+      <span className={apDown ? "" : "text-apache"}>{tx("Apache ·")} {(i.vhosts || []).length} {tx("vhosts")}{(i.vhosts_unreadable || []).length > 0 && ` (+${i.vhosts_unreadable!.length} ${tx("illisible(s)")} ⓘ)`}</span></Badge>,
     i.nginx && <Badge key="ng" tone="off">{tx("nginx")}</Badge>,
     i.docker ? <Badge key="dk" tone="off"><span className="text-link">{tx("Docker ·")} {i.docker}</span></Badge> : null,
   ].filter(Boolean);
@@ -46,6 +47,61 @@ function HealthCell({ h }: { h?: HealthHost }) {
   );
 }
 
+/** Clé utilisée par l'alias (chemin et début d'empreinte) */
+function KeyCell({ m }: { m: Machine }) {
+  const s = m.ssh;
+  if (!s) return <Dim>—</Dim>;
+  if (!s.identity) return <Dim>{tx("aucune (accès manuel)")}</Dim>;
+  return <div className="flex flex-col"><code className="break-all text-xs">{s.identity}</code>{s.key_fp && <span className="truncate font-mono text-[11px] text-dim" title={s.key_fp}>{s.key_fp.slice(0, 22)}…</span>}</div>;
+}
+
+/** ✓ vert = sûr, ⚠ orange = à revoir, — = inconnu ; l'explication est au survol */
+function Mark({ tone, title, children }: { tone: "ok" | "warn" | "bad" | "off"; title: string; children: string }) {
+  const c = { ok: "text-ok", warn: "text-warn", bad: "text-bad", off: "text-dim" }[tone];
+  return <span className={`text-base font-bold ${c}`} title={title} aria-label={title}>{children}</span>;
+}
+
+function HostKey({ m }: { m: Machine }) {
+  if (!m.ssh) return <Dim>—</Dim>;
+  return m.ssh.host_key ? <Mark tone="ok" title={tx("Clé d'hôte connue (known_hosts)")}>✓</Mark>
+    : <Mark tone="bad" title={tx("Clé d'hôte absente de known_hosts : 1re connexion non vérifiée")}>✗</Mark>;
+}
+
+/** Root et mot de passe selon sshd : refusé ou clé seule = vert, autorisé = orange */
+function Sshd({ m, what }: { m: Machine; what: "root" | "pwd" }) {
+  if (!m.ssh) return <Dim>—</Dim>;
+  const sd = m.info?.sshd || {};
+  const v = what === "root" ? sd.permitrootlogin
+    : m.ssh.methods ? (m.ssh.methods.some((x) => x === "password" || x === "keyboard-interactive") ? "yes" : "no") : sd.passwordauthentication;
+  if (!v) return <Dim>—</Dim>;
+  const k = v.split(" ")[0];
+  if (k === "yes") return <Mark tone="warn" title={what === "root" ? tx("root peut se connecter en SSH") : tx("sshd accepte le mot de passe")}>⚠</Mark>;
+  if (/prohibit-password|without-password/.test(k)) return <Mark tone="ok" title={tx("Par clé uniquement")}>🔑</Mark>;
+  return <Mark tone="ok" title={what === "root" ? tx("root refusé en SSH") : tx("mot de passe refusé : clé seulement")}>✓</Mark>;
+}
+
+/** Colonnes santé de la v1 : disque le plus rempli, services systemd en échec, mises à jour et redémarrage */
+function DiskCell({ h }: { h?: HealthHost }) {
+  const d = topDisk(h);
+  if (!d) return <Dim>—</Dim>;
+  return <span title={tx("Disque le plus rempli")}><b className={d.critical || d.used_pct >= 90 ? "text-bad" : d.warning || d.used_pct >= 80 ? "text-warn" : "text-ok"}>{d.used_pct} %</b> <code className="text-xs">{d.mount}</code></span>;
+}
+function SystemdCell({ h }: { h?: HealthHost }) {
+  if (!h) return <Dim>—</Dim>;
+  const f = h.systemd?.failed || [];
+  return f.length ? <Mark tone="bad" title={f.map((u) => u.unit).join(", ")}>{String(f.length)}</Mark> : <Mark tone="ok" title={tx("Aucun service en échec")}>✓</Mark>;
+}
+function UpdatesCell({ h }: { h?: HealthHost }) {
+  if (!h) return <Dim>—</Dim>;
+  const n = h.apt?.upgradable || 0;
+  return (
+    <span className="inline-flex items-center gap-1">
+      {n ? <Mark tone="warn" title={tx("{0} paquet(s) à mettre à jour", n)}>{String(n)}</Mark> : <Mark tone="ok" title={tx("À jour")}>✓</Mark>}
+      {h.reboot_required && <Mark tone="warn" title={tx("Redémarrage requis")}>↻</Mark>}
+    </span>
+  );
+}
+
 function Ssh({ m }: { m: Machine }) {
   if (!m.ssh) return <Dim>{m.local ? tx("local") : tx("pas d'accès SSH configuré")}</Dim>;
   const s = m.ssh, sd = m.info?.sshd || {};
@@ -53,7 +109,9 @@ function Ssh({ m }: { m: Machine }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="font-mono text-xs">{s.user || "?"}@{m.ip}:{s.port}</span>
-      <span className="text-xs text-dim">{tx("alias")} {s.alias}{s.identity ? "" : tx(" · sans clé")}</span>
+      <span className="text-xs text-dim">{tx("alias")} {s.alias}{s.identity ? "" : tx(" · sans clé")}{s.port !== 22 && <> · <span className="text-warn" title={tx("Port SSH non standard")}>{tx("port")} {s.port}</span></>}</span>
+      {s.note && <span className="text-xs text-dim" title={tx("Note du script sshlist")}>📝 {s.note}</span>}
+      {!m.info && s.identity && <span className="text-xs text-warn">{tx("connexion refusée ou impossible")}</span>}
       <span className="flex flex-wrap gap-1">
         {!s.host_key && <Badge tone="bad" title={tx("Clé d'hôte absente de known_hosts")}>{tx("clé d'hôte inconnue")}</Badge>}
         {sd.permitrootlogin?.startsWith("yes") && <Badge tone="warn">{tx("root autorisé")}</Badge>}
@@ -102,15 +160,17 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           <Table head={<>
-            <Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("État")}</Th><Th>{tx("SSH")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
-            <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <Th k="health" sort={sort}>{tx("Santé")}</Th>}
+            <Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("État")}</Th><Th>{tx("SSH")}</Th><Th>{tx("Clé utilisée")}</Th><Th>{tx("Hôte")}</Th><Th>{tx("Root")}</Th><Th>{tx("Mot de passe")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
+            <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("Disque")}</Th><Th>{tx("Systemd")}</Th><Th>{tx("Mises à jour")}</Th></>}
           </>}>
             {sort.sorted.map((m) => (
               <tr key={m.ip} className="hover:bg-bg2/60">
                 <Td>{name(m)}</Td><Td>{st(m)}</Td><Td><Ssh m={m} /></Td>
+                <Td><KeyCell m={m} /></Td><Td><HostKey m={m} /></Td><Td><Sshd m={m} what="root" /></Td><Td><Sshd m={m} what="pwd" /></Td>
                 <Td>{m.info?.os ? <>{m.info.os}<span className="block text-xs text-dim">{tx("noyau")} {m.info.kernel || "?"} {tx("· up")} {dur(m.info.uptime_s)}</span></> : <Dim>—</Dim>}</Td>
                 <Td><Servers m={m} snap={snap} /></Td><Td>{svc(m)}</Td>
-                {snap.health && <Td><HealthCell h={hb.get(m.ip)} /></Td>}
+                {snap.health && <><Td><Level level={hb.get(m.ip) ? (hb.get(m.ip)!.reachable === false ? "down" : hb.get(m.ip)!.level) : "na"} /></Td>
+                  <Td><DiskCell h={hb.get(m.ip)} /></Td><Td><SystemdCell h={hb.get(m.ip)} /></Td><Td><UpdatesCell h={hb.get(m.ip)} /></Td></>}
               </tr>
             ))}
           </Table>

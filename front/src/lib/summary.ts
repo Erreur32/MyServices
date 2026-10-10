@@ -3,6 +3,7 @@
 import type { Backups, Data, Event, Events, Health, HealthHost, Level } from "../types";
 import { bytes, splitHostName } from "./format";
 import { CLEANUP, certIssue, checks, dnsDown, dnsSync, hostName, status } from "./status";
+import { mState } from "./machines";
 import { tx } from "./i18n";
 
 export type TabId = "home" | "history" | "machines" | "services" | "health" | "fail2ban" | "dns" | "backups" | "settings";
@@ -61,6 +62,14 @@ export function attention({ data, health, backups, now = Date.now() }: Inputs): 
   const out: Attention[] = [];
   for (const m of data.machine_list)
     if (!m.ping && !m.off) out.push({ level: "crit", text: tx("La machine **{0}** ({1}) ne répond plus au ping", m.name, m.ip), tab: "machines" });
+  // En ligne mais sans accès SSH utilisable : ni conteneurs ni santé lus (box et machines éteintes volontairement exclues)
+  const noSsh = data.machine_list.filter((m) => m.ping && !m.off && !m.gateway && !m.local && ["nossh", "refused"].includes(mState(m)));
+  if (noSsh.length)
+    out.push({ level: "warn", text: tx("{0} sans accès SSH utilisable ({1}) : leurs conteneurs et leur santé ne sont pas lus", plural(noSsh.length, "machine"), names(noSsh.map((m) => m.name))), tab: "machines" });
+  // NPM : entrées actives avec un avertissement (accès, SSL, DNS…), en une seule ligne
+  const npmWarn = data.hosts.filter((r) => r.type !== "local" && r.enabled && !r.paused && status(r)[0] === "warn");
+  if (npmWarn.length)
+    out.push({ level: "warn", text: tx("{0} NPM avec avertissement : {1}", plural(npmWarn.length, "entrée"), names(npmWarn.map(hostName))), tab: "services" });
   for (const r of data.hosts) {
     const [cls, label] = status(r);
     if (cls === "bad") out.push({ level: "crit", text: tx("**{0}** ne répond plus ({1}){2}", hostName(r), label, r.machine ? tx(", sur {0}", r.machine) : ""), tab: "services" });
@@ -80,8 +89,11 @@ export function attention({ data, health, backups, now = Date.now() }: Inputs): 
   }
   for (const i of backups?.issues || [])
     out.push({ level: i.level === "warn" ? "warn" : "crit", text: tx("Sauvegarde **{0}** : {1}", i.set, i.text), tab: "backups" });
+  const dockerOff = (data.connectors || []).filter((c) => c.type === "docker" && !c.ok);
+  if (dockerOff.length)
+    out.push({ level: "warn", text: tx("Docker illisible sur {0} : leurs conteneurs ne sont pas à jour", names(dockerOff.map((c) => c.name))), tab: "machines" });
   for (const c of data.connectors || [])
-    if (!c.ok) out.push({ level: "warn", text: tx("Connecteur **{0}** ({1}) : {2}", c.name, c.type, short(c.message)), tab: "settings" });
+    if (!c.ok && c.type !== "docker") out.push({ level: "warn", text: tx("Connecteur **{0}** ({1}) : {2}", c.name, c.type, short(c.message)), tab: "settings" });
   return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "crit" ? -1 : 1));
 }
 

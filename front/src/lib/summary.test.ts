@@ -15,7 +15,7 @@ function data(hosts: Host[], extra: Partial<Data> = {}): Data {
     generated: "2026-10-10T09:55:00+00:00",
     page: { health_url: "", backups_url: "", stale_min: 75, map: false, links: [] },
     npm_instances: { NPM: "10.0.0.2" }, hosts,
-    machine_list: [{ ip: "10.0.0.2", name: "srv", ping: true, off: false, services: 3, npm: 3, down: 0 },
+    machine_list: [{ ip: "10.0.0.2", name: "srv", ping: true, off: false, services: 3, npm: 3, down: 0, ssh: { alias: "srv", port: 22, identity: "/k" }, info: {} },
                    { ip: "10.0.0.9", name: "PC", ping: false, off: true, services: 0, npm: 0, down: 0 }],
     ...extra,
   };
@@ -77,5 +77,32 @@ describe("accueil", () => {
                { ts: "2026-10-01T11:00:00+02:00", kind: "panne", label: "vieux.lan" }],
     });
     expect(p[0].sentences[0]).toBe("3 événements : 2 × panne (**plex.lan**, **sonarr.lan**) ; 1 × rétabli (**plex.lan**).");
+  });
+});
+
+describe("avertissements de l'accueil", () => {
+  const base = () => data([host({})]);
+  it("machines en ligne sans SSH : une seule ligne orange, sans la box ni l'éteinte", () => {
+    const d = base();
+    d.machine_list.push({ ip: "10.0.0.5", name: "nas", ping: true, off: false, services: 0, npm: 0, down: 0 },
+      { ip: "10.0.0.1", name: "box", ping: true, off: false, gateway: true, services: 0, npm: 0, down: 0 });
+    const a = attention({ data: d, now: NOW }).filter((x) => x.level === "warn" && x.tab === "machines");
+    expect(a).toHaveLength(1);
+    expect(a[0].text).toContain("nas");
+    expect(a[0].text).not.toContain("box");
+  });
+  it("Docker illisible : phrase claire, pas de doublon avec le connecteur", () => {
+    const d = base();
+    d.connectors = [{ type: "docker", name: "srv", ok: false, message: "ssh: connect timed out" } as never];
+    const a = attention({ data: d, now: NOW });
+    expect(a.filter((x) => x.text.includes("Docker illisible"))).toHaveLength(1);
+    expect(a.some((x) => x.text.startsWith("Connecteur"))).toBe(false);
+  });
+  it("entrées NPM avec avertissement : une ligne groupée", () => {
+    const d = data([host({ id: 1, domains: ["a.lan"], public: { err: "gaierror" } }), host({ id: 2, domains: ["b.lan"], public: { err: "gaierror" } }), host({ id: 3 })]);
+    const a = attention({ data: d, now: NOW }).filter((x) => x.text.includes("NPM avec avertissement"));
+    expect(a).toHaveLength(1);
+    expect(a[0].level).toBe("warn");
+    expect(a[0].text).toContain("2 entrées");
   });
 });
