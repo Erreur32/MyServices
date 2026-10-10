@@ -8,7 +8,7 @@ import { tx } from "../lib/i18n";
 /** Retour d'une action : message vert ou rouge sous le formulaire. */
 
 export function NoteLine({ note }: { note: Note }) {
-  if (!note) return null;
+  if (!note || (note.ok && !note.text)) return null;
   return <p role="status" className={`mt-2 text-sm ${note.ok ? "text-ok" : "text-bad"}`}>{note.ok ? "✓" : "⚠"} {note.text}</p>;
 }
 

@@ -90,7 +90,8 @@ function InstanceCard({ inst, type, reload }: { inst: ConnectorInstance; type: C
   );
 }
 
-export function ConnectorForm({ type, inst, prefill, onDone, onCancel }: { type: ConnectorType; inst?: ConnectorInstance; prefill?: Prefill | null; onDone: () => void; onCancel: () => void }) {
+/** quietSave : pas de message vert « enregistré » (l'appelant confirme lui-même, comme dans Premiers pas) */
+export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, onCancel }: { type: ConnectorType; inst?: ConnectorInstance; prefill?: Prefill | null; quietSave?: boolean; onDone: () => void; onCancel: () => void }) {
   const [name, setName] = useState(inst?.name || prefill?.name || type.type);
   const [conf, setConf] = useState<Record<string, string | number | boolean>>(() => {
     const init: Record<string, string | number | boolean> = {};
@@ -113,9 +114,9 @@ export function ConnectorForm({ type, inst, prefill, onDone, onCancel }: { type:
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const ok = await act(() => send("PUT", `connectors/settings/${type.type}`, body()), tx("enregistré : pris en compte au prochain passage de la collecte"), setNote);
+    const ok = await act(() => send("PUT", `connectors/settings/${type.type}`, body()), quietSave ? "" : tx("enregistré : pris en compte au prochain passage de la collecte"), setNote);
     setBusy(false);
-    if (ok) setTimeout(onDone, 900);
+    if (ok) quietSave ? onDone() : setTimeout(onDone, 900);
   };
   return (
     <form onSubmit={submit} className="mt-3 flex flex-col gap-3 rounded-xl border border-line bg-bg2/50 p-3">

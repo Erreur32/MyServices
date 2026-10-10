@@ -403,7 +403,7 @@ function HomeAssistantLink({ host, onLinked }: { host: NetHost; onLinked: () => 
         <p className="mt-2 text-sm text-txt">{tx("Collez le jeton, cliquez sur « Tester » (facultatif), puis sur « Ajouter » pour relier Home Assistant.")}</p>
       )}
       {open && type && (
-        <ConnectorForm type={type} prefill={{ type: "home-assistant", name: "home-assistant", url: `http://${host.ip}:8123` }}
+        <ConnectorForm type={type} quietSave prefill={{ type: "home-assistant", name: "home-assistant", url: `http://${host.ip}:8123` }}
           onDone={() => { setDone(true); onLinked(); void send("POST", "system/tasks/collect/run").catch(() => undefined); pokeScan(); }}
           onCancel={() => setOpen(false)} />
       )}
