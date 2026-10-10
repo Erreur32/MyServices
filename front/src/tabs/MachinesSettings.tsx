@@ -84,7 +84,7 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
         {ips.map((ip) => {
           const lm = live.get(ip);
           // Un PC Windows n'a ni Docker ni services en écoute à lire : pas d'état de connecteur SSH Linux (reste d'un ancien relevé)
-          const stat = st.machines[ip].os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.name === ip || c.name === lm?.name));
+          const stat = st.machines[ip].os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.ip ? c.ip === ip : c.name === ip || c.name === lm?.name));
           return <MachineRow key={ip} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
         })}
       </div>
@@ -285,7 +285,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
   // Ce que l'accès choisi permet de lire (suit le formulaire, avant même l'enregistrement)
   const access = windows ? !!v.health : !!v.ssh, health = access && !v.off && v.health !== false;
   const gives: [string, boolean, string][] = [
-    ["Docker", !windows && access, tx("Conteneurs, images, ports (onglet Services)")],
+    ["Docker", !windows && access && live?.info?.docker_installed !== false,
+      live?.info?.docker_installed === false ? tx("Docker n'est pas installé sur cette machine") : tx("Conteneurs, images, ports (onglet Services)")],
     [tx("Santé"), health, v.off ? tx("Souvent éteinte : la santé ne la lit pas") : tx("Disques, mémoire, CPU, systemd, mises à jour (onglet Santé)")],
     [tx("Système"), !windows && access, tx("Système, noyau, sshd, Apache (onglet Machines)")],
     ...(hasAdguard ? [["AdGuard Home", !windows && access, tx("Réécritures et réponses DNS (onglet DNS)")] as [string, boolean, string]] : []),
@@ -396,7 +397,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
           </div>
         )}
         <p className="mt-1.5 text-xs text-dim">
-          {tx("Un clic sur l'interrupteur prépare l'accès (compte root, port 22) avec la clé de l'app ; cette clé est à autoriser sur la machine : Réglages → Clé SSH.")}
+          {tx("Un clic sur l'interrupteur prépare l'accès (compte root, port 22) avec la clé de l'app.")}
+          <span className="block">{tx("Cette clé est à autoriser sur la machine : Réglages → Clé SSH.")}</span>
         </p>
         </div>}
       </section>

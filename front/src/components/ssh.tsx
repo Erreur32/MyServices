@@ -46,7 +46,7 @@ export function SshDetails({ m, statuses }: { m: Machine; statuses: (Connector |
         {i?.os && <Kv k={tx("Système")}>{i.os}{i.uptime_s ? <Dim> {tx("· en marche depuis")} {dur(i.uptime_s)}</Dim> : null}</Kv>}
         {i && (
           <Kv k={tx("Lu par SSH")}>
-            {[i.docker ? `${i.docker} conteneurs` : null, i.apache ? tx("Apache") : null, i.nginx ? tx("nginx") : null].filter(Boolean).join(" · ") || <Dim>{tx("rien de plus")}</Dim>}
+            {[i.docker ? `${i.docker} conteneurs` : i.docker_installed === false ? tx("pas de Docker") : null, i.apache ? tx("Apache") : null, i.nginx ? tx("nginx") : null].filter(Boolean).join(" · ") || <Dim>{tx("rien de plus")}</Dim>}
           </Kv>
         )}
         {s?.note && <Kv k={tx("Note")}>{s.note}</Kv>}

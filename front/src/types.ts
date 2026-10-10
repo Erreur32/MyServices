@@ -105,7 +105,7 @@ export interface Machine {
   down: number;
   ssh?: { alias: string; port: number; user?: string; identity?: string | null; key_fp?: string | null; host_key?: string | null; methods?: string[] | null; note?: string | null } | null;
   info?: {
-    os?: string; kernel?: string; uptime_s?: number; apache?: boolean; nginx?: boolean; docker?: number;
+    os?: string; kernel?: string; uptime_s?: number; apache?: boolean; nginx?: boolean; docker?: number; docker_installed?: boolean;
     sshd?: { permitrootlogin?: string; passwordauthentication?: string };
     vhosts?: unknown[]; vhosts_unreadable?: string[];
   } | null;
@@ -143,6 +143,7 @@ export interface Connector {
   name: string;
   ok: boolean;
   message: string;
+  ip?: string;  // machine visée (connecteurs SSH : Docker, process, AdGuard)
 }
 
 /** Une machine trouvée par la recherche réseau (netscan.py) */

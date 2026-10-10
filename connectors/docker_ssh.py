@@ -28,8 +28,15 @@ def publish_ports(spec):
     return sorted(out)
 
 
-def docker_containers(alias):
-    """Liste des conteneurs d'une machine (docker ps local ou via SSH). None = inaccessible."""
+def docker_absent(rc: int, stderr: str) -> bool:
+    """Le shell distant n'a pas trouvé la commande docker (code 127) : Docker n'est pas installé, ce n'est pas une panne d'accès."""
+    low = (stderr or "").lower()
+    return rc == 127 or "docker: command not found" in low or "docker: not found" in low
+
+
+def docker_containers(alias, absent: list | None = None):
+    """Liste des conteneurs d'une machine (docker ps local ou via SSH). None = inaccessible ; [] si Docker n'est pas installé
+    (`absent` reçoit alors True : l'appelant le distingue d'une machine Docker sans conteneur)."""
     if alias == "local":
         cmd = ["docker", "ps", "-a", "--format", DOCKER_FMT]
     else:
@@ -39,6 +46,10 @@ def docker_containers(alias):
     except subprocess.TimeoutExpired:
         return None
     if r.returncode != 0:
+        if docker_absent(r.returncode, r.stderr):
+            if absent is not None:
+                absent.append(True)
+            return []
         return None
     out = []
     for line in r.stdout.splitlines():
@@ -80,10 +91,15 @@ class DockerSSH(Connector):
     def collect(self) -> dict:
         """{containers: [...] ou None si docker inaccessible, internal: {ip: conteneur}}. Les adresses de la
         machine (HOST_ADDR) sont lues même sans accès docker : elles servent au rattachement des hosts NPM."""
-        return {"containers": docker_containers(self.conf["ssh"]), "internal": docker_internal_ips(self.conf["ssh"])}
+        absent: list = []
+        got = docker_containers(self.conf["ssh"], absent)
+        return {"containers": got, "internal": {} if absent else docker_internal_ips(self.conf["ssh"]), "absent": bool(absent)}
 
     def test(self) -> Result:
-        got = docker_containers(self.conf["ssh"])
+        absent: list = []
+        got = docker_containers(self.conf["ssh"], absent)
         if got is None:
             return Result(False, "docker inaccessible (SSH, ou compte hors du groupe docker)")
+        if absent:
+            return Result(True, "pas de Docker sur cette machine")
         return Result(True, f"{len(got)} conteneurs")

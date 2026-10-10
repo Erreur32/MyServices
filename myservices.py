@@ -173,7 +173,7 @@ def _process_read(conn):
         ok, msg = True, f"{len(got)} port(s) en écoute"
     except Exception as e:  # SSH coupé, ss absent, bug : machine sans process ce passage, comme avant
         got, ok, msg = {}, False, str(e)
-    CONNECTOR_STATUS.append(cbase.Status(conn.type, conn.conf.get("label") or conn.name, ok, msg,
+    CONNECTOR_STATUS.append(cbase.Status(conn.type, conn.conf.get("label") or conn.name, ok, msg, extra={"ip": conn.conf.get("ip")},
                                          duration_s=round(time.time() - t0, 2)))
     return got
 
@@ -187,8 +187,8 @@ def _docker_read(conn):
         got = {"containers": None, "internal": {}}
         print(f"⚠ docker {conn.conf.get('label')} : erreur interne ({type(e).__name__}: {e})", file=sys.stderr)
     n = got["containers"]
-    CONNECTOR_STATUS.append(cbase.Status(conn.type, conn.conf.get("label") or conn.name, n is not None,
-                                         f"{len(n)} conteneurs" if n is not None else "docker inaccessible (SSH ou groupe docker)",
+    msg = "pas de Docker sur cette machine" if got.get("absent") else f"{len(n)} conteneurs" if n is not None else "docker inaccessible (SSH ou groupe docker)"
+    CONNECTOR_STATUS.append(cbase.Status(conn.type, conn.conf.get("label") or conn.name, n is not None, msg, extra={"ip": conn.conf.get("ip")},
                                          duration_s=round(time.time() - t0, 2)))
     return got
 
@@ -1109,7 +1109,8 @@ def main():
         "docker_unreachable": [MACHINES[ip][0] for ip, c in dock.items() if c is None],
         "machines": {ip: {"name": m[0], "role": m[1], **MACHINE_FLAGS[ip]} for ip, m in MACHINES.items()},
         "npm_instances": NPM_IPS,
-        "connectors": [{k: v for k, v in vars(st).items() if k != "extra"} for st in CONNECTOR_STATUS],
+        "connectors": [{**{k: v for k, v in vars(st).items() if k != "extra"}, **({"ip": st.extra["ip"]} if st.extra.get("ip") else {})}
+                       for st in CONNECTOR_STATUS],  # ip : la machine visée (deux machines peuvent porter le même nom)
         "categories": [n for n, _ in CATEGORIES] + ["Autre"],
         "hosts": rows,
         "proposals": known_apps.propose(rows, connectors.declared(CFG, META_RAW)),

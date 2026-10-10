@@ -24,6 +24,7 @@ echo "##UP $(cut -d. -f1 /proc/uptime)"
 echo "##SVC apache2=$(systemctl is-active apache2 2>/dev/null) nginx=$(systemctl is-active nginx 2>/dev/null)"
 echo "##SSHDR $( [ -r /etc/ssh/sshd_config ] && echo yes || echo no)"
 echo "##SSHD $(grep -h -E -i '^[[:space:]]*(Port|PermitRootLogin|PasswordAuthentication)[[:space:]]' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null | tr -s ' \t' ' ' | paste -sd';')"
+echo "##DOCKERBIN $(command -v docker >/dev/null 2>&1 && echo yes || echo no)"
 echo "##DOCKER $(docker ps -q 2>/dev/null | wc -l)"
 echo "##VIRT $(systemd-detect-virt 2>/dev/null)"
 echo "##NPM $(docker ps --format '{{.Image}}' 2>/dev/null | grep -c nginx-proxy-manager)"
@@ -220,6 +221,7 @@ def host_info(alias: str) -> dict | None:
         "apache": svc.get("apache2") == "active",
         "nginx": svc.get("nginx") == "active",
         "docker": int(tag["DOCKER"]) if tag.get("DOCKER", "").isdigit() else 0,
+        "docker_installed": tag.get("DOCKERBIN") != "no",  # False : pas de Docker sur la machine (jamais une panne d'accès)
         "virt": tag.get("VIRT") if re.fullmatch(r"[a-z0-9-]{2,20}", tag.get("VIRT", "")) and tag.get("VIRT") != "none" else None,  # kvm, vmware, lxc…
         "npm": tag.get("NPM", "").isdigit() and int(tag["NPM"]) > 0,  # conteneur Nginx Proxy Manager présent
         "sshd": sshd,  # vide si /etc/ssh/sshd_config illisible pour ce compte
