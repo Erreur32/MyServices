@@ -54,6 +54,44 @@ def tasks(core) -> list[dict]:
     return out
 
 
+def _update_config(core, change) -> None:
+    """Relit config.json, y applique `change(raw)` et le réécrit (secrets rechiffrés, droits 600, remplacement atomique)."""
+    f = Path(os.environ.get("MYSERVICES_CONFIG") or Path(core.HERE) / "config.json")
+    raw = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    change(raw)
+    out, _ = secrets_store.encrypt_all(raw, f) if secrets_store.key_path(f).exists() else (raw, 0)
+    tmp = f.with_suffix(".tmp")
+    tmp.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp.chmod(0o600)
+    tmp.replace(f)
+
+
+NETSCAN_DEFAULT_H, NETSCAN_MAX_H = 6, 168
+
+
+def netscan_settings(core) -> dict:
+    """Recherche réseau automatique : toutes les `every_h` heures (0 = coupée) ; `fixed` si MYSERVICES_NETSCAN_EVERY l'impose."""
+    return {"every_h": core.CFG["netscan_every"], "default_h": NETSCAN_DEFAULT_H, "max_h": NETSCAN_MAX_H,
+            "fixed": "MYSERVICES_NETSCAN_EVERY" in os.environ}
+
+
+def set_netscan_every(core, hours: int) -> dict:
+    """Nouvelle fréquence (0 à 168 h), écrite dans config.json et appliquée au prochain passage du planificateur."""
+    if "MYSERVICES_NETSCAN_EVERY" in os.environ:
+        raise ValueError("fréquence fixée par MYSERVICES_NETSCAN_EVERY (environnement du conteneur)")
+    if not 0 <= hours <= NETSCAN_MAX_H:
+        raise ValueError(f"entre 0 (coupée) et {NETSCAN_MAX_H} heures")
+
+    def change(raw: dict) -> None:
+        if hours == NETSCAN_DEFAULT_H:
+            raw.pop("netscan_every", None)
+        else:
+            raw["netscan_every"] = hours
+    _update_config(core, change)
+    core.CFG["netscan_every"] = hours
+    return netscan_settings(core)
+
+
 def set_schedule(core, name: str, spec: str | None) -> dict:
     """Nouvel horaire (None ou vide = défaut), écrit dans config.json et appliqué aussitôt."""
     if name not in core.TASKS:
@@ -63,21 +101,16 @@ def set_schedule(core, name: str, spec: str | None) -> dict:
         raise ValueError(f"horaire fixé par MYSERVICES_{name.upper()}_AT (environnement du conteneur)")
     spec = (spec or "").strip() or core.DEFAULTS_AT[name][1]
     mins, hrs = core.parse_at(spec)
-    f = Path(os.environ.get("MYSERVICES_CONFIG") or Path(core.HERE) / "config.json")
-    raw = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
-    sched = dict(raw.get("schedule") or {})
-    if spec == core.DEFAULTS_AT[name][1]:
-        sched.pop(name, None)
-    else:
-        sched[name] = spec
-    raw["schedule"] = sched
-    if not sched:
-        raw.pop("schedule")
-    out, _ = secrets_store.encrypt_all(raw, f) if secrets_store.key_path(f).exists() else (raw, 0)
-    tmp = f.with_suffix(".tmp")
-    tmp.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    tmp.chmod(0o600)
-    tmp.replace(f)
+    def change(raw: dict) -> None:
+        sched = dict(raw.get("schedule") or {})
+        if spec == core.DEFAULTS_AT[name][1]:
+            sched.pop(name, None)
+        else:
+            sched[name] = spec
+        raw["schedule"] = sched
+        if not sched:
+            raw.pop("schedule")
+    _update_config(core, change)
     with core.LOCK:
         t.update(minutes=mins, hours=hrs, at=spec)
     return {"name": name, "at": spec}

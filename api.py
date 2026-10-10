@@ -374,6 +374,29 @@ def network_scan_start(request: Request):
     return machine_call(request, "recherche réseau lancée", "", launch)
 
 
+class NetscanEvery(BaseModel):
+    every_h: int
+
+
+@app.get(API + "/network/settings", tags=["réseau"], summary="Fréquence de la recherche réseau automatique (admin)")
+def network_settings(request: Request):
+    import system
+    return admin_only(request) or system.netscan_settings(core)
+
+
+@app.put(API + "/network/settings", tags=["réseau"], summary="Changer la fréquence de la recherche réseau automatique, 0 = coupée (admin)")
+def network_settings_set(body: NetscanEvery, request: Request):
+    import system
+    if denied := admin_write(request):
+        return denied
+    try:
+        out = system.set_netscan_every(core, body.every_h)
+    except ValueError as e:
+        return deny(400, str(e))
+    store().audit("recherche réseau", request.state.user["username"], ip_of(request), f"automatique : {'coupée' if not body.every_h else f'toutes les {body.every_h} h'}")
+    return {"ok": True, **out}
+
+
 @app.post(API + "/network/scan/stop", tags=["réseau"], summary="Arrêter la recherche en cours (admin)")
 def network_scan_stop(request: Request):
     import netscan

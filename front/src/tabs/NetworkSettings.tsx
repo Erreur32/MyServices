@@ -1,0 +1,85 @@
+// Réglages → Recherche réseau : le scan du réseau local (lecture seule) et sa fréquence automatique ; relancer à la main,
+// refaire le parcours des premiers pas. Le premier scan est toujours manuel : l'automatique ne démarre qu'après lui.
+import { ListChecks, RotateCcw, Search } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { LOGIN, LoginRequired, read, send } from "../api";
+import { NoteLine } from "../components/form";
+import { Badge, Card, Dim } from "../components/ui";
+import { dateTime } from "../lib/format";
+import { reopenFirstSteps } from "../lib/firstSteps";
+import { act, input, primary, quiet, type Note } from "../lib/forms";
+import { tx } from "../lib/i18n";
+import { pokeScan } from "../lib/scan";
+import type { NetScan } from "../types";
+
+interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean }
+
+export function NetworkSettings() {
+  const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
+  const [hours, setHours] = useState(""), [note, setNote] = useState<Note>(null), [error, setError] = useState("");
+  const load = useCallback(() => {
+    Promise.all([read<NetSettings>("network/settings"), read<NetScan>("network/scan")])
+      .then(([c, s]) => { setCfg(c); setScan(s); setHours((h) => (h === "" ? String(c.every_h) : h)); setError(""); })
+      .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
+  }, []);
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 10_000); // une recherche en cours : suivre sa fin
+    return () => clearInterval(id);
+  }, [load]);
+  if (!cfg || !scan) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
+
+  const running = scan.phase === "ping" || scan.phase === "identify";
+  const last = scan.ended ? scan.ended * 1000 : null;
+  const n = Number(hours);
+  const valid = hours !== "" && Number.isInteger(n) && n >= 0 && n <= cfg.max_h;
+  const save = (value: number) => act(() => send("PUT", "network/settings", { every_h: value }), value ? tx("enregistré : toutes les {0} h", value) : tx("enregistré : recherche automatique coupée"), setNote)
+    .then((ok) => { if (ok) { setHours(String(value)); load(); } });
+  const next = last && cfg.every_h ? last + cfg.every_h * 3_600_000 : null;
+  const state = cfg.every_h === 0 ? <Badge tone="off">{tx("automatique coupée")}</Badge>
+    : !last ? <Badge tone="warn">{tx("en attente d'une première recherche à la main")}</Badge>
+    : <Badge tone="ok">{tx("automatique : toutes les {0} h", cfg.every_h)}</Badge>;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card>
+        <h2 className="mb-1 flex items-center gap-2 font-bold"><Search size={16} />{tx("Recherche réseau")}</h2>
+        <p className="mb-3 text-sm text-muted">
+          {tx("Cherche les machines allumées sur votre réseau local (un /24 au plus) : un ping, le nom, quelques ports. Lecture seule, rien n'est ajouté tout seul.")}
+        </p>
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+          {state}
+          {last ? <span className="text-dim">{tx("dernière :")} {dateTime(last)} · {scan.found.length} {tx("appareils")}</span> : <Dim>{tx("aucune recherche faite")}</Dim>}
+          {next && !running && <span className="text-dim">{tx("prochaine à partir de {0}", dateTime(next))}</span>}
+          {running && <Badge tone="info">{tx("en cours")}</Badge>}
+        </div>
+        <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); if (valid) void save(n); }}>
+          <label className="flex flex-col gap-1 text-xs text-dim">{tx("Fréquence automatique (heures, 0 = coupée)")}
+            <input className={`${input} w-40`} type="number" min={0} max={cfg.max_h} step={1} value={hours} disabled={cfg.fixed}
+              onChange={(e) => setHours(e.target.value)} title={cfg.fixed ? tx("fixée par la variable d'environnement du conteneur") : tx("défaut : {0}", cfg.default_h)} />
+          </label>
+          {!cfg.fixed && <button className={quiet} disabled={!valid || n === cfg.every_h}>{tx("Enregistrer")}</button>}
+          {!cfg.fixed && cfg.every_h !== cfg.default_h && (
+            <button type="button" className={quiet} title={tx("défaut : {0}", cfg.default_h)} aria-label={tx("Remettre la valeur par défaut")} onClick={() => void save(cfg.default_h)}><RotateCcw size={14} /></button>
+          )}
+        </form>
+        {cfg.fixed && <p className="mt-1 text-xs text-dim">{tx("Fixée par MYSERVICES_NETSCAN_EVERY dans le compose.")}</p>}
+        {!valid && hours !== "" && <p className="mt-1 text-xs text-warn">{tx("Un nombre entier de 0 à {0}.", cfg.max_h)}</p>}
+        <p className="mt-2 text-xs text-dim">{tx("Le premier scan est toujours lancé à la main ; l'automatique ne démarre qu'après lui.")}</p>
+        <NoteLine note={note} />
+      </Card>
+      <Card>
+        <h2 className="mb-2 font-bold">{tx("Actions")}</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className={primary} disabled={running}
+            onClick={() => void act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setNote).then(() => load())}>
+            <Search size={14} />{running ? tx("Recherche en cours…") : tx("Lancer une recherche maintenant")}
+          </button>
+          <button type="button" className={quiet} onClick={reopenFirstSteps} title={tx("Rouvre la carte et efface vos choix « Passer »")}>
+            <ListChecks size={14} />{tx("Revoir les premiers pas")}
+          </button>
+        </div>
+      </Card>
+    </div>
+  );
+}

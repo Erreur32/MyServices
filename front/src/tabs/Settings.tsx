@@ -1,7 +1,7 @@
 // Réglages (admins) : une section à la fois, menu à gauche (en haut sur mobile). Comptes : son mot de passe,
 // les comptes (ajout, rôle, activation, nouveau mot de passe, suppression) et le journal des actions.
 // Apparence : thème et largeur de la page (« Page width » de GpuViewR), retenus par le navigateur.
-// Alertes : tabs/Alerts.tsx. Les autres sections arrivent une par une (Connecteurs, Machines, API et MCP, Système).
+// Menu en quatre groupes (Données, Surveillance, Accès et sécurité, Application). Autres sections : un fichier chacune dans tabs/.
 import { KeyRound, Moon, MoveHorizontal, Plus, RotateCcw, Sun, Trash2, UserCheck, UserX } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
@@ -15,6 +15,7 @@ import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Alerts } from "./Alerts";
 import { Connectors } from "./Connectors";
 import { MachinesSettings } from "./MachinesSettings";
+import { NetworkSettings } from "./NetworkSettings";
 import { ApiMcp } from "./ApiMcp";
 import { Sources } from "./Sources";
 import { SystemSettings } from "./SystemSettings";
@@ -22,16 +23,16 @@ import { tx } from "../lib/i18n";
 import { checkPassword, okField, PASSWORD_MIN } from "../lib/password";
 import { PasswordRules } from "../components/PasswordRules";
 
-const SECTIONS: { id: string; label: string; ready?: boolean }[] = [
-  { id: "accounts", label: tx("Comptes"), ready: true },
-  { id: "look", label: tx("Apparence"), ready: true },
-  { id: "alerts", label: tx("Alertes"), ready: true },
-  { id: "sources", label: tx("Sources"), ready: true },
-  { id: "connectors", label: tx("Connecteurs"), ready: true },
-  { id: "machines", label: tx("Machines"), ready: true },
-  { id: "api", label: tx("API et MCP"), ready: true },
-  { id: "system", label: tx("Système"), ready: true },
+/** Menu en quatre groupes ; les identifiants restent ceux des liens directs (#settings/<section>) */
+const GROUPS: { label: string; sections: { id: string; label: string }[] }[] = [
+  { label: tx("Données"), sections: [
+    { id: "machines", label: tx("Machines") }, { id: "connectors", label: tx("Connecteurs") }, { id: "sources", label: tx("Sources") },
+  ] },
+  { label: tx("Surveillance"), sections: [{ id: "alerts", label: tx("Alertes") }, { id: "network", label: tx("Recherche réseau") }] },
+  { label: tx("Accès et sécurité"), sections: [{ id: "accounts", label: tx("Comptes") }, { id: "api", label: tx("API et MCP") }] },
+  { label: tx("Application"), sections: [{ id: "look", label: tx("Apparence") }, { id: "system", label: tx("Système") }] },
 ];
+const SECTIONS = GROUPS.flatMap((g) => g.sections);
 
 
 const ROLE: Record<User["role"], string> = { admin: "admin", viewer: tx("lecture seule") };
@@ -52,19 +53,20 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
   return (
     <div className="flex flex-col gap-4 py-4 md:flex-row">
       <nav className="flex shrink-0 gap-1 overflow-x-auto md:w-52 md:flex-col" aria-label={tx("Sections des réglages")}>
-        {SECTIONS.map((s) => (
-          <button key={s.id} type="button" onClick={() => setSection(s.id)} aria-current={s.id === section ? "page" : undefined}
-            className={`shrink-0 rounded-lg px-3 py-2 text-left text-sm font-semibold ${s.id === section ? "bg-card text-txt shadow-[inset_2px_0_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
-            {s.label}{!s.ready && <span className="ml-1.5 text-xs font-normal text-dim">{tx("à venir")}</span>}
-          </button>
+        {GROUPS.map((g, i) => (
+          <div key={g.label} role="group" aria-label={g.label} className="flex shrink-0 gap-1 md:flex-col">
+            <p className={`hidden px-3 pb-0.5 text-xs font-semibold uppercase tracking-wide text-dim md:block ${i ? "pt-3" : ""}`}>{g.label}</p>
+            {g.sections.map((s) => (
+              <button key={s.id} type="button" onClick={() => setSection(s.id)} aria-current={s.id === section ? "page" : undefined}
+                className={`shrink-0 rounded-lg px-3 py-2 text-left text-sm font-semibold ${s.id === section ? "bg-card text-txt shadow-[inset_2px_0_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
+                {s.label}
+              </button>
+            ))}
+          </div>
         ))}
       </nav>
       <div className="min-w-0 flex-1">
-        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors /> : section === "machines" ? <MachinesSettings snap={snap} /> : section === "api" ? <ApiMcp /> : section === "sources" ? <Sources /> : section === "system" ? <SystemSettings /> : (
-          <p className="rounded-2xl border border-dashed border-line p-8 text-center text-muted">
-            {SECTIONS.find((s) => s.id === section)!.label} {tx(": prochaine étape.")}
-          </p>
-        )}
+        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors /> : section === "machines" ? <MachinesSettings snap={snap} /> : section === "api" ? <ApiMcp /> : section === "sources" ? <Sources /> : section === "network" ? <NetworkSettings /> : <SystemSettings />}
       </div>
     </div>
   );

@@ -40,6 +40,7 @@ DEFAULTS = {
     "stale_min": 75,                     # min, data.json plus vieux = collecteur arrêté (alerte du watcher)
     "confirm_runs": 2,                   # passages consécutifs avant d'annoncer une panne / un rétablissement
     "retention_days": 90,                # historique du watcher
+    "netscan_every": 6,                  # h, recherche réseau automatique (après une première faite à la main) ; 0 = coupée
     # Page web : intégrations facultatives (vide = onglet ou lien masqué)
     "health_url": "",                    # dossier health-watcher (stats.json, events.json, index) vu de la page
     "backups_url": "",                   # backups.json vu de la page : "backups.json" (backups.py) ou script externe

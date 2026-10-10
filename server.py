@@ -197,18 +197,17 @@ def build_map() -> None:
             log(f"⚠ carte {out} : non régénérée (Archify) : " + (r.stdout or r.stderr)[-300:])
 
 
-NETSCAN_EVERY_H = float(os.environ.get("MYSERVICES_NETSCAN_EVERY", "6"))  # heures ; 0 = recherche réseau automatique coupée
-
-
 def auto_netscan() -> None:
     """Recherche réseau automatique : seulement après une première recherche faite à la main depuis la page, puis toutes
-    les NETSCAN_EVERY_H heures. Mêmes garanties que le bouton : lecture seule, un /24 au plus, un passage à la fois."""
+    les « netscan_every » heures (config.json, Réglages → Recherche réseau ; 0 = coupée). Mêmes garanties que le bouton :
+    lecture seule, un /24 au plus, un passage à la fois."""
+    every = CFG["netscan_every"]
     f = Path(CFG["state_dir"]) / "network-scan.json"
-    if netscan.due(f, NETSCAN_EVERY_H) and not netscan.summary()["running"]:
+    if netscan.due(f, every) and not netscan.summary()["running"]:
         try:
             import machines_admin
             netscan.start(machines_admin.known_ips(), f)
-            log(f"recherche réseau automatique (toutes les {NETSCAN_EVERY_H:g} h)")
+            log(f"recherche réseau automatique (toutes les {every:g} h)")
         except Exception as e:  # noqa: BLE001 : le planificateur ne s'arrête jamais pour ça
             log(f"recherche réseau automatique impossible : {type(e).__name__}: {e}")
 
