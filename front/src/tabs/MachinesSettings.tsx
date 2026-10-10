@@ -207,7 +207,9 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
   const [proc, setProc] = useState(!!process);
   const [unlock, setUnlock] = useState(false);  // détection incomplète : débloque tous les interrupteurs
   const [hasAdguard] = useState(() => !!m.adguard);  // figé à l'ouverture : vider le champ ne le fait pas disparaître
-  const [options, setOptions] = useState(() => !!m.disabled || detected.length > 0);
+  // Menu ouvert d'office dès qu'il y a quelque chose de détecté ou d'allumé à montrer ; les « non détectés » restent pliés
+  const [options, setOptions] = useState(() => !!m.disabled || detected.length > 0 || (live?.detected?.length ?? 0) > 0 || FLAGS.some((f) => !!m[f.k]));
+  const [missingOpen, setMissingOpen] = useState(false);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const windows = v.os === "windows";
   // Ce que l'accès choisi permet de lire (suit le formulaire, avant même l'enregistrement)
@@ -339,10 +341,20 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
             )}
           </OptionGroup>
           {missingFlags.length > 0 && (
-            <OptionGroup title={tx("Non détectés")} hint={unlock ? undefined : tx("Grisés : la détection ne les confirme pas (elle relit la machine à chaque collecte).")} dim>
-              {missingFlags.map(flagRow)}
-              {!unlock && <button type="button" className="self-start text-xs text-link hover:underline" onClick={() => setUnlock(true)}>{tx("Détection incomplète ? Tout débloquer")}</button>}
-            </OptionGroup>
+            <div className="rounded-lg border border-line/60 bg-bg2/30">
+              <button type="button" onClick={() => setMissingOpen(!missingOpen)} aria-expanded={missingOpen}
+                className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-dim hover:text-txt">
+                {missingOpen ? <ChevronDown size={13} aria-hidden /> : <ChevronRight size={13} aria-hidden />}
+                {tx("Non détectés")} <span className="font-mono normal-case">({missingFlags.length})</span>
+              </button>
+              {missingOpen && (
+                <div className="flex flex-col gap-1.5 border-t border-line/60 p-2.5">
+                  {!unlock && <p className="text-xs text-dim">{tx("Grisés : la détection ne les confirme pas (elle relit la machine à chaque collecte).")}</p>}
+                  {missingFlags.map(flagRow)}
+                  {!unlock && <button type="button" className="self-start text-xs text-link hover:underline" onClick={() => setUnlock(true)}>{tx("Détection incomplète ? Tout débloquer")}</button>}
+                </div>
+              )}
+            </div>
           )}
           </div>
         )}
