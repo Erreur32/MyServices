@@ -713,9 +713,13 @@ async def agent_report(request: Request):
         return deny(400, str(e))
     a = request.state.agent
     before, now = agents_store().store_report(a["id"], report, ip_of(request))
+    first, upgraded = not a["last_seen"], str(report.get("version") or "") != (a.get("version") or "")
     # La santé est relue tout de suite au premier relevé et quand le niveau de la machine change (sinon, au prochain horaire)
-    if (not a["last_seen"] or before != now) and core.enabled("health"):
+    if (first or before != now) and core.enabled("health"):
         core.run_task("health", f"relevé de l'agent {a['name']} : {before or 'premier'} → {now}")
+    # Premier relevé ou agent réinstallé dans une autre version : système, matériel et ports (lus à la collecte) apparaissent sans attendre l'horaire
+    if (first or upgraded) and core.enabled("collect"):
+        core.run_chain(["collect"], f"relevé de l'agent {a['name']} (version {report.get('version')})")
     return {"ok": True, "interval": agents.DEFAULT_INTERVAL}
 
 

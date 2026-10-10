@@ -149,16 +149,17 @@ class Agents(unittest.TestCase):
             self.assertEqual(r.status_code, 400, bad)
 
     def test_premier_releve_lance_la_sante_une_fois(self):
-        calls = []
-        old = (server.run_task, server.enabled)
-        server.run_task, server.enabled = (lambda name, why: calls.append(name) or True), (lambda name: True)
+        calls, chains = [], []
+        old = (server.run_task, server.enabled, server.run_chain)
+        server.run_task, server.enabled, server.run_chain = (lambda name, why: calls.append(name) or True), (lambda name: True), (lambda names, why: chains.append(names))
         try:
             token, _ = self.create()
             self.send(token)
             self.send(token)
         finally:
-            server.run_task, server.enabled = old
+            server.run_task, server.enabled, server.run_chain = old
         self.assertEqual(calls, ["health"])
+        self.assertEqual(chains, [["collect"]])   # le premier relevé lance aussi la collecte (système, matériel, ports), une seule fois
 
     def test_verifier_une_machine_lue_par_son_agent(self):
         import machines_admin
@@ -173,9 +174,9 @@ class Agents(unittest.TestCase):
         self.assertEqual(machines_admin._check_agent("192.168.1.99", m, api.agents_store()), ([], 0))  # pas d'agent pour cette IP
 
     def test_sante_relue_quand_le_niveau_change(self):
-        calls = []
-        old = (server.run_task, server.enabled)
-        server.run_task, server.enabled = (lambda name, why: calls.append(why) or True), (lambda name: True)
+        calls, chains = [], []
+        old = (server.run_task, server.enabled, server.run_chain)
+        server.run_task, server.enabled, server.run_chain = (lambda name, why: calls.append(why) or True), (lambda name: True), (lambda names, why: chains.append(why))
         try:
             token, _ = self.create()
             self.send(token)                       # premier relevé
@@ -184,8 +185,11 @@ class Agents(unittest.TestCase):
             self.send(token, bad)                  # disque à 98 % : critique
             self.send(token, bad)                  # toujours critique : rien
             self.send(token)                       # retour à la normale
+            self.send(token, {**REPORT, "version": "9"})   # agent réinstallé dans une autre version : la collecte est relancée
         finally:
-            server.run_task, server.enabled = old
+            server.run_task, server.enabled, server.run_chain = old
+        self.assertEqual(len(chains), 2)           # premier relevé, puis changement de version (pas à chaque relevé)
+        self.assertIn("version 9", chains[1])
         self.assertEqual(len(calls), 3)
         self.assertIn("ok → crit", calls[1])
         self.assertIn("crit → ok", calls[2])
