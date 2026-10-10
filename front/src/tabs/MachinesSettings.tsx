@@ -562,7 +562,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
         )}
         <p className="text-xs leading-relaxed text-dim">
           {tx("Un clic sur l'interrupteur prépare l'accès (compte root, port 22) avec la clé de l'app.")}
-          <span className="block">{tx("Cette clé est à autoriser sur la machine : Réglages → Clé SSH.")}</span>
+          <span className="block">{tx("Cette clé est à autoriser sur la machine :")} <a className="text-link hover:underline" href="#settings/ssh">{tx("Réglages → Clé SSH")}</a>.</span>
         </p>
         </div>}
       </section>

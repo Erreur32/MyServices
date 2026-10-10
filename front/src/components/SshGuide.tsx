@@ -84,7 +84,7 @@ export function SshGuide({ ip, user: knownUser, guess, onReady, onCancel }: Prop
               </div>
             </li>
             <li>{tx("Sur la machine, connecté avec ce compte, ajoutez la clé de l'app dans")} <code className="font-mono text-xs text-txt">{homeOf(user || "root")}/.ssh/authorized_keys</code> :
-              {authorize ? <Copyable text={authorizeFor(authorize, user)} /> : <span className="block text-warn">{tx("Clé de l'app introuvable : voir Réglages → Clé SSH.")}</span>}</li>
+              {authorize ? <Copyable text={authorizeFor(authorize, user)} /> : <span className="block text-warn">{tx("Clé de l'app introuvable : voir")} <a className="underline hover:text-txt" href="#settings/ssh">{tx("Réglages → Clé SSH")}</a>.</span>}</li>
           </ol>
           <p className="text-xs text-dim">💡 {tx("Astuce : si la connexion est refusée, vérifiez que le serveur SSH est installé et démarré sur la machine.")}</p>
           {error && <p className="text-bad">⚠ {error}</p>}

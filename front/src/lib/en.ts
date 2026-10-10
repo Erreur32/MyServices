@@ -540,7 +540,6 @@ export const EN: Record<string, string> = {
   "Jour :": "Day:",
   "Compte": "Account",
   "Un clic sur l'interrupteur prépare l'accès (compte root, port 22) avec la clé de l'app.": "One click on the switch prepares the access (root account, port 22) with the app key.",
-  "Cette clé est à autoriser sur la machine : Réglages → Clé SSH.": "That key must be authorized on the machine: Settings → SSH key.",
   "pas de Docker": "no Docker",
   "Lu par OpenSSH et PowerShell, en lecture seule : disques, services, processeur, mises à jour Windows, journal Système. Pas de Docker. Accès :": "Read through OpenSSH and PowerShell, read-only: disks, services, processor, Windows updates, System log. No Docker. Access:",
   "Marqué « souvent éteinte » : la santé ne le relève pas tant que cette option est cochée.": "Marked “often switched off”: health does not read it while this option is ticked.",
@@ -568,7 +567,6 @@ export const EN: Record<string, string> = {
   "Tester la connexion": "Test the connection",
   "La connexion échoue ? Voir les commandes": "Connection failing? See the commands",
   "PC Windows": "Windows PC",
-  "Clé de l'app introuvable : voir Réglages → Clé SSH.": "App key not found: see Settings → SSH key.",
   "Icône": "Icon",
   "Matériel réseau (probable)": "Network equipment (probable)",
   "Windows (probable)": "Windows (probable)",
@@ -1182,4 +1180,7 @@ export const EN: Record<string, string> = {
   "suivi": "followed",
   "Tous les jobs sont déjà suivis.": "All jobs are already followed.",
   "Veeam Backup & Replication": "Veeam Backup & Replication",
+  "Cette clé est à autoriser sur la machine :": "This key must be authorized on the machine:",
+  "Réglages → Clé SSH": "Settings → SSH key",
+  "Clé de l'app introuvable : voir": "App key not found: see",
 };
