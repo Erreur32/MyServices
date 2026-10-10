@@ -75,13 +75,13 @@ function TaskRow({ t, reload }: { t: SystemTask; reload: () => void }) {
     <li className="py-3 text-sm">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="min-w-[200px] flex-1">
+          <b>{t.label}</b> {!t.enabled && <Badge tone="off">{t.switch ? tx("coupée") : tx("en attente")}</Badge>}
           {t.switch && (
-            <label className="mb-1 mr-3 inline-flex items-center gap-2 align-middle">
+            <label className="ml-3 inline-flex items-center gap-2 align-middle">
               <Switch on={t.enabled} label={t.enabled ? tx("Couper la santé des machines") : tx("Allumer la santé des machines")}
                 onChange={(on) => void act(() => send("PUT", "system/health", { enabled: on }), on ? tx("santé allumée : lue au prochain horaire, ou tout de suite avec « Lancer »") : tx("santé coupée"), setNote).then((ok) => ok && reload())} />
             </label>
           )}
-          <b>{t.label}</b> {!t.enabled && <Badge tone="off">{t.switch ? tx("coupée") : tx("en attente")}</Badge>}
           {!t.enabled && t.why && <p className="mt-0.5 text-xs text-muted">{t.why}</p>}
           <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-dim">
             {result}

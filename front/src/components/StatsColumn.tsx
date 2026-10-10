@@ -2,6 +2,7 @@
 // de l'accueil ; clic = ouvrir l'onglet.
 import type { Snapshot } from "../api";
 import { CLEANUP, checks, dnsSync, status } from "../lib/status";
+import { mState } from "../lib/machines";
 import type { TabId } from "../lib/summary";
 import { tx } from "../lib/i18n";
 
@@ -35,7 +36,11 @@ export function StatsColumn({ snap, go }: { snap: Snapshot; go: (t: TabId) => vo
   const n = (rows: typeof npm, cls: string) => rows.filter((r) => r.enabled && status(r)[0] === cls).length;
   const hl = (l: string) => (health?.hosts || []).filter((h) => (h.reachable === false ? "down" : h.level) === l).length;
   const dns = data.dns;
+  const ms = data.machine_list || [], ml = (...st: ReturnType<typeof mState>[]) => ms.filter((m) => st.includes(mState(m))).length;
   const groups = [
+    ms.length > 0 && <Group key="mc" title={tx("🖥 Machines")} sub={tx("{0} machines", ms.length)} accent="border-l-muted" tab="machines" go={go} cells={[
+      ["ok", ml("ssh", "manual"), tx("SSH OK")], ["warn", ml("nossh", "refused"), tx("à régler")],
+      ["off", ml("off"), tx("éteintes")], ["bad", ml("down"), tx("injoignables")]]} />,
     npm.length > 0 && <Group key="npm" title={tx("NPM")} sub={tx("{0} entrées", npm.length)} accent="border-l-npm" tab="services" go={go} cells={[
       ["ok", n(npm, "ok"), tx("OK")], ["bad", n(npm, "bad"), tx("en panne")],
       ["warn", npm.filter((r) => checks(r).some((c) => !CLEANUP.includes(c))).length, tx("à corriger")],
