@@ -36,6 +36,8 @@ def explain(e: Exception) -> str:
             return "requête refusée (400) : Home Assistant refuse peut-être cette adresse (réglage http: use_x_forwarded_for / trusted_proxies)"
         if e.code == 404:
             return "adresse incorrecte (404) : ce n'est pas l'API de Home Assistant ; vérifier l'adresse et le port (8123)"
+        if e.code >= 500:
+            return f"erreur interne de Home Assistant (HTTP {e.code}) : voir Paramètres → Système → Journaux dans Home Assistant"
         return f"Home Assistant répond HTTP {e.code}"
     reason = getattr(e, "reason", e)
     if isinstance(reason, ssl.SSLError):
@@ -74,7 +76,7 @@ class HomeAssistantAPI(Connector):
             with urllib.request.urlopen(req, timeout=timeout) as r:  # certificat vérifié (https) : jamais désactivé
                 return json.load(r)
         except (OSError, ValueError) as e:  # HTTPError, URLError, délai, JSON invalide
-            raise ConnectorError(explain(e)) from None
+            raise ConnectorError(f"{explain(e)} [{path}]" if isinstance(e, urllib.error.HTTPError) else explain(e)) from None
 
     def version(self) -> str | None:
         v = self._get("/api/config").get("version")
