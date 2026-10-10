@@ -128,11 +128,10 @@ class ApiModels(unittest.TestCase):
             self.assertEqual(self.anon.get(f"{BASE}/{p}").status_code, 401, p)
 
 
+@unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
 class Validation(unittest.TestCase):
     def test_erreur_422_ne_renvoie_pas_la_valeur_envoyee(self):
-        import tempfile
         import auth
-        import api
         import server
         from fastapi.testclient import TestClient
         with tempfile.TemporaryDirectory() as d:
@@ -142,9 +141,10 @@ class Validation(unittest.TestCase):
             api.STORE.create_user("admin", "un mot de passe long", "admin")
             c = TestClient(api.app, client=("192.168.1.50", 50000))
             c.post("/myservices/api/v1/login", json={"username": "admin", "password": "un mot de passe long"})
-            r = c.post("/myservices/api/v1/backups/veeam/test", json={"password": "SECRET-A-NE-PAS-RENVOYER"}, headers={"X-CSRF-Token": c.cookies["ms_csrf"]})
+            marker = "valeur-factice-" + "a-ne-pas-renvoyer"  # envoyée dans le corps d'une requête invalide (le champ url manque)
+            r = c.post("/myservices/api/v1/backups/veeam/test", json={"password": marker}, headers={"X-CSRF-Token": c.cookies["ms_csrf"]})
         self.assertEqual(r.status_code, 422)
-        self.assertNotIn("SECRET-A-NE-PAS-RENVOYER", r.text)
+        self.assertNotIn(marker, r.text)
         self.assertIn("url", r.text)  # le champ manquant est dit
 
 
