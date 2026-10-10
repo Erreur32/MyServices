@@ -1,7 +1,7 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { HelpCircle, Pencil, Plug, Plus, Trash2 } from "lucide-react";
+import { Ban, HelpCircle, Pencil, Plug, Plus, Server, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
@@ -22,6 +22,11 @@ export function Connectors() {
   const [st, setSt] = useState<ConnectorsState | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
+  const [src, setSrc] = useState<Record<string, boolean>>({}), [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false);
+  const loadSources = useCallback(() => { read<{ sources: Record<string, boolean> }>("sources").then((r) => setSrc(r.sources)).catch(() => undefined); }, []);
+  useEffect(loadSources, [loadSources]);
+  const toggleSource = (id: string, on: boolean) =>
+    void act(() => send("PUT", `sources/${id}`, { enabled: on }), on ? tx("affichage activé") : tx("affichage coupé"), setSrcNote).then((ok) => { if (ok) { setChanged(true); loadSources(); } });
   const reload = useCallback(() => {
     read<ConnectorsState>("connectors/settings")
       .then((s) => { setSt(s); setError(""); })
@@ -46,9 +51,36 @@ export function Connectors() {
         </p>
         {type && <ConnectorForm key={type.type} type={type} prefill={prefill?.type === type.type ? prefill : null} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
       </Card>
-      {st.instances.map((i) => (
-        <InstanceCard key={`${i.type}/${i.name}`} inst={i} type={st.types.find((t) => t.type === i.type)!} reload={reload} />
+      {st.instances.map((i, n) => (
+        <InstanceCard key={`${i.type}/${i.name}`} inst={i} type={st.types.find((t) => t.type === i.type)!} reload={reload}
+          source={i.type in SHOWN && st.instances.findIndex((x) => x.type === i.type) === n && i.type in src ? { label: SHOWN[i.type], on: src[i.type], set: (on) => toggleSource(i.type, on) } : undefined} />
       ))}
+      <Card>
+        <h2 className="mb-1 font-bold">{tx("Lus sans connecteur")}</h2>
+        <p className="mb-2 text-sm text-muted">{tx("Ces sources n'ont pas d'URL ni de jeton à régler ici : leur interrupteur décide seulement si la page les affiche.")}</p>
+        <ul className="flex flex-col divide-y divide-line/60">
+          <li className="flex items-center gap-3 py-2.5">
+            <Switch on={!!src.apache} onChange={(on) => toggleSource("apache", on)} label={`${src.apache ? tx("Couper") : tx("Activer")} Apache`} />
+            <Server size={16} className="text-muted" aria-hidden />
+            <div className="min-w-0 flex-1"><b>Apache</b> <Dim>· {tx("vhosts lus par SSH sur chaque machine, comme services (accès : Réglages → Machines)")}</Dim></div>
+          </li>
+          <li className="flex items-center gap-3 py-2.5 opacity-60">
+            <Switch on={false} disabled onChange={() => undefined} label="Fail2ban" />
+            <Ban size={16} className="text-muted" aria-hidden />
+            <div className="min-w-0 flex-1"><b>Fail2ban</b> <Badge tone="off">{tx("à venir")}</Badge> <Dim>· {tx("bannissements et prisons, par LogviewR (arrive avec son connecteur)")}</Dim></div>
+          </li>
+        </ul>
+        <NoteLine note={srcNote} />
+        {changed && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted">
+            {tx("Pris en compte à la prochaine collecte.")}
+            <button type="button" className={primary}
+              onClick={() => void act(() => send("POST", "system/tasks/collect/run"), tx("collecte lancée : la page se met à jour à la fin"), setSrcNote)}>
+              {tx("Lancer la collecte maintenant")}
+            </button>
+          </div>
+        )}
+      </Card>
       <p className="px-1 text-sm text-muted">
         {tx("Docker, services en écoute et AdGuard sont lus")} <b className="text-txt">{tx("par SSH")}</b> {tx(": leur accès et leur état se règlent avec chaque machine, dans Réglages → Machines.")}
       </p>
@@ -57,7 +89,10 @@ export function Connectors() {
 }
 
 
-function InstanceCard({ inst, type, reload }: { inst: ConnectorInstance; type: ConnectorType; reload: () => void }) {
+/** Connecteurs dont l'affichage sur la page est une source activable (le même interrupteur vaut pour toutes les instances du type) */
+const SHOWN: Record<string, string> = { npm: tx("Afficher les services et compteurs NPM sur la page"), adguard: tx("Afficher l'onglet DNS et les compteurs AdGuard (toutes les instances)") };
+
+function InstanceCard({ inst, type, reload, source }: { inst: ConnectorInstance; type: ConnectorType; reload: () => void; source?: { label: string; on: boolean; set: (on: boolean) => void } }) {
   const [edit, setEdit] = useState(false), [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null);
   const url = inst.config.url as string | undefined;
   const path = `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}`;
@@ -84,6 +119,11 @@ function InstanceCard({ inst, type, reload }: { inst: ConnectorInstance; type: C
           </> : <button type="button" className={danger} onClick={() => setConfirm(true)}><Trash2 size={14} />{tx("Supprimer")}</button>}
         </div>
       </div>
+      {source && (
+        <label className="mt-3 flex items-center gap-2 border-t border-line/60 pt-3 text-sm">
+          <Switch on={source.on} onChange={source.set} label={source.label} /><span className="text-muted">{source.label}</span>
+        </label>
+      )}
       {edit && <ConnectorForm type={type} inst={inst} onDone={() => { setEdit(false); reload(); }} onCancel={() => setEdit(false)} />}
       <NoteLine note={note} />
     </Card>

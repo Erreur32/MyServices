@@ -2,7 +2,7 @@
 // les comptes (ajout, rôle, activation, nouveau mot de passe, suppression) et le journal des actions.
 // Apparence : thème et largeur de la page (« Page width » de GpuViewR), retenus par le navigateur.
 // Menu en quatre groupes (Données, Surveillance, Accès et sécurité, Application). Autres sections : un fichier chacune dans tabs/.
-import { ArrowRight, Bell, KeyRound, Layers, Moon, MoveHorizontal, Palette, Plug, Plus, Radar, RotateCcw, ScrollText, Server, Settings2, Sun, Timer, Trash2, UserCheck, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bell, KeyRound, Moon, MoveHorizontal, Palette, Plug, Plus, Radar, RotateCcw, ScrollText, Server, Settings2, Sun, Timer, Trash2, UserCheck, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { dateTime } from "../lib/format";
@@ -18,7 +18,6 @@ import { MachinesSettings } from "./MachinesSettings";
 import { NetworkSettings } from "./NetworkSettings";
 import { ApiMcp } from "./ApiMcp";
 import { AuditLog } from "./AuditLog";
-import { Sources } from "./Sources";
 import { SystemSettings } from "./SystemSettings";
 import { tx } from "../lib/i18n";
 import { checkPassword, okField, PASSWORD_MIN } from "../lib/password";
@@ -27,7 +26,7 @@ import { PasswordRules } from "../components/PasswordRules";
 /** Menu en quatre groupes ; les identifiants restent ceux des liens directs (#settings/<section>) */
 const GROUPS: { label: string; sections: { id: string; label: string; icon: LucideIcon }[] }[] = [
   { label: tx("Données"), sections: [
-    { id: "machines", label: tx("Machines"), icon: Server }, { id: "connectors", label: tx("Connecteurs"), icon: Plug }, { id: "sources", label: tx("Sources"), icon: Layers },
+    { id: "machines", label: tx("Machines"), icon: Server }, { id: "connectors", label: tx("Connecteurs"), icon: Plug },
   ] },
   { label: tx("Surveillance"), sections: [
     { id: "alerts", label: tx("Alertes"), icon: Bell }, { id: "network", label: tx("Découverte"), icon: Radar }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer },
@@ -54,7 +53,7 @@ export interface Look {
 export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
   const [section, setSection] = useState(() => {
     const s = location.hash.split("/")[1]; // lien direct : #settings/<section> (menu du compte)
-    return SECTIONS.some((x) => x.id === s) ? s : "accounts";
+    return s === "sources" ? "connectors" : SECTIONS.some((x) => x.id === s) ? s : "accounts"; // « sources » : ancien lien, fondu dans Connecteurs
   });
   return (
     <div className="flex flex-col gap-4 py-4 md:flex-row">
@@ -75,7 +74,7 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
         ))}
       </nav>
       <div className="min-w-0 flex-1">
-        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors /> : section === "machines" ? <MachinesSettings snap={snap} /> : section === "api" ? <ApiMcp /> : section === "sources" ? <Sources /> : section === "network" ? <NetworkSettings /> : section === "audit" ? <AuditLog /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} /> : <SystemSettings part="system" />}
+        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors /> : section === "machines" ? <MachinesSettings snap={snap} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings /> : section === "audit" ? <AuditLog /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} /> : <SystemSettings part="system" />}
       </div>
     </div>
   );
