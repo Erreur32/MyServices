@@ -1,13 +1,13 @@
 // Étape « Recherche des autres machines du réseau » de Premiers pas : lancer la recherche, choisir les machines à
 // ajouter, puis, pour celles qui répondent en SSH, préparer l'accès (alias + commande à autoriser + test).
 // Lecture seule sur le réseau ; rien n'est ajouté sans que l'admin le demande.
-import { Check, Circle, KeyRound, Loader2, Plug, RefreshCw, RotateCcw, Search, Square } from "lucide-react";
+import { Check, Circle, KeyRound, Loader2, Plug, RefreshCw, RotateCcw, Search, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { read, send } from "../api";
 import { act, button, input, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { dateTime } from "../lib/format";
-import { ADDED_KEY, DISMISSED_KEY, REOPEN_EVENT } from "../lib/firstSteps";
+import { ADDED_KEY, DISMISSED_KEY, LATER_HIDDEN_KEY, REOPEN_EVENT } from "../lib/firstSteps";
 import { changes, interesting, needsLink, netState, quiet, summarize, tagsOf } from "../lib/netScan";
 import { pokeScan } from "../lib/scan";
 import { ConnectorForm } from "../tabs/Connectors";
@@ -59,13 +59,14 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
 }) {
   const known = machines.map((m) => m.ip);
   const [dismissed, setDismissed] = useState<string[]>(loadDismissed);
+  const [laterHidden, setLaterHidden] = useState(() => localStorage.getItem(LATER_HIDDEN_KEY) === "1");
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   // Machines ajoutées dont les options (SSH, jeton) restent à régler : gardées si la page est rechargée, retirées par « Terminé »
   const [added, setAdded] = useState<Record<string, NetHost>>(loadAdded);
   useEffect(() => { sessionStorage.setItem(ADDED, JSON.stringify(added)); }, [added]);
   useEffect(() => {  // « Revoir les premiers pas » efface la mémoire : la carte déjà affichée la relit
-    const refresh = () => { setDismissed(loadDismissed()); setAdded(loadAdded()); };
+    const refresh = () => { setDismissed(loadDismissed()); setAdded(loadAdded()); setLaterHidden(localStorage.getItem(LATER_HIDDEN_KEY) === "1"); };
     addEventListener(REOPEN_EVENT, refresh);
     return () => removeEventListener(REOPEN_EVENT, refresh);
   }, []);
@@ -252,8 +253,11 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
           {found.length === 0 && <p className="text-sm text-dim">{tx("Toutes les machines trouvées sont ajoutées. « Terminé » ferme un cadre ; « Refaire un scan » relance la recherche.")}</p>}
         </div>
       )}
-      {later.length > 0 && (
-        <section className="rounded-xl border border-warn/50 bg-warn/10 p-3" aria-live="polite">
+      {later.length > 0 && !laterHidden && (
+        <section className="relative rounded-xl border border-warn/50 bg-warn/10 p-3 pr-10" aria-live="polite">
+          <button type="button" aria-label={tx("Masquer ce rappel")} title={tx("Masquer ce rappel : les accès restent listés dans « machines déjà ajoutées »")}
+            onClick={() => { localStorage.setItem(LATER_HIDDEN_KEY, "1"); setLaterHidden(true); }}
+            className="absolute right-2 top-2 rounded-md p-1 text-dim hover:bg-bg2 hover:text-txt"><X size={16} aria-hidden /></button>
           <div className="flex flex-wrap items-center gap-2">
             <RotateCcw size={16} className="text-warn" aria-hidden />
             <b className="text-txt">{later.length > 1 ? tx("{0} accès passés, à régler plus tard", later.length) : tx("1 accès passé, à régler plus tard")}</b>

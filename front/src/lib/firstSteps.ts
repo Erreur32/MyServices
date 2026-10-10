@@ -17,11 +17,13 @@ export const saveState = (fp: string, v: "open" | "closed"): void => localStorag
 /** Accès à régler fermés par « Passer » / « Terminé » (par navigateur) et cadres de machines ajoutées (par onglet) */
 export const DISMISSED_KEY = "myservices-network-dismissed";
 export const ADDED_KEY = "myservices-network-added";
+export const LATER_HIDDEN_KEY = "myservices-network-later-hidden";  // rappel « accès passés » masqué
 
 /** Efface les choix faits dans la carte : étapes passées, accès passés, cadres de machines ouverts */
 export function forgetChoices(): void {
   localStorage.removeItem(SKIPS);
   localStorage.removeItem(DISMISSED_KEY);
+  localStorage.removeItem(LATER_HIDDEN_KEY);
   sessionStorage.removeItem(ADDED_KEY);
 }
 

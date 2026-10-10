@@ -389,6 +389,8 @@ export const EN: Record<string, string> = {
   "hors ligne": "offline",
   "éteinte volontairement": "switched off on purpose",
   "Pour retirer une machine : Réglages → Machines. Pour effacer vos « Passer » : menu du compte → « Revoir les premiers pas ».": "To remove a machine: Settings → Machines. To clear your \"Skip\" choices: account menu → \"Review the first steps\".",
+  "Masquer ce rappel": "Hide this reminder",
+  "Masquer ce rappel : les accès restent listés dans « machines déjà ajoutées »": "Hide this reminder: the accesses stay listed in \"machines already added\"",
   "Premiers pas": "Getting started",
   "MyServices a déjà trouvé des services. Pour être complet, il faudrait une clé SSH. Pas de panique, c'est simple !": "MyServices has already found some services. To be complete, it needs an SSH key. Don't panic, it's easy!",
   "Compte administrateur créé": "Administrator account created",
