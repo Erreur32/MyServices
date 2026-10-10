@@ -97,7 +97,7 @@ export function ConnectorForm({ type, inst, prefill, onDone, onCancel }: { type:
     for (const f of type.fields) if (!f.secret) init[f.name] = inst?.config[f.name] ?? (f.name === "url" ? prefill?.url : undefined) ?? (f.default as string | number | boolean | null) ?? "";
     return init;
   });
-  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [help, setHelp] = useState(!inst);  // aide dépliée à l'ajout, sous les boutons
   const body = () => ({ name, config: conf, original: inst?.name ?? null });
   const tryIt = async () => {
     setBusy(true);
@@ -119,12 +119,6 @@ export function ConnectorForm({ type, inst, prefill, onDone, onCancel }: { type:
   };
   return (
     <form onSubmit={submit} className="mt-3 flex flex-col gap-3 rounded-xl border border-line bg-bg2/50 p-3">
-      {type.guide && type.guide.length > 0 && (
-        <details open={!inst} className="rounded-lg border border-line/70 bg-bg2/60 px-3 py-2 text-sm">
-          <summary className="flex cursor-pointer items-center gap-2 font-semibold text-txt"><HelpCircle size={15} aria-hidden />{tx("Besoin d'aide pour obtenir ces accès ?")}</summary>
-          <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted">{type.guide.map((g) => <li key={g}>{g}</li>)}</ol>
-        </details>
-      )}
       <Field label={tx("Nom de l'instance (unique pour ce type)")}>
         <input className={input} required maxLength={64} value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
@@ -155,8 +149,16 @@ export function ConnectorForm({ type, inst, prefill, onDone, onCancel }: { type:
         <button type="button" className={quiet} disabled={busy} onClick={() => void tryIt()}>{tx("Tester")}</button>
         <button className={primary} disabled={busy}><Plus size={14} />{inst ? tx("Enregistrer") : tx("Ajouter")}</button>
         <button type="button" className={quiet} onClick={onCancel}>{tx("Annuler")}</button>
+        {type.guide && type.guide.length > 0 && (
+          <button type="button" className={`${quiet} ml-auto`} aria-expanded={help} onClick={() => setHelp(!help)}>
+            <HelpCircle size={14} aria-hidden />{tx("Besoin d'aide pour obtenir ces accès ?")}
+          </button>
+        )}
         {busy && <span className="self-center text-sm text-dim">…</span>}
       </div>
+      {help && type.guide && (
+        <ol className="list-decimal space-y-1 rounded-lg border border-line/70 bg-bg2/60 py-2 pl-8 pr-3 text-sm text-muted">{type.guide.map((g) => <li key={g}>{g}</li>)}</ol>
+      )}
       <NoteLine note={note} />
     </form>
   );
