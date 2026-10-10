@@ -192,7 +192,7 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
           skipped={skipped.includes("network")} onResume={() => resume("network")}>
           <NetworkStep net={net} reload={reloadNet} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} onSkip={() => skip("network")} />
         </Step>
-        <Step state={keyDone && proposals.length && !skipped.includes("connectors") ? "now" : "next"} title={tx("Connecteurs proposés d'après ce qui est trouvé")}
+        <Step state={!proposals.length && linked.length ? "done" : keyDone && proposals.length && !skipped.includes("connectors") ? "now" : "next"} title={tx("Connecteurs proposés d'après ce qui est trouvé")}
           onSkip={proposals.length ? () => skip("connectors") : undefined} skipped={skipped.includes("connectors") && proposals.length > 0}
           onResume={() => resume("connectors")}>
           {proposals.length > 0
