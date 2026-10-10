@@ -55,15 +55,19 @@ def _open(ip: str, port: int) -> bool:
 
 
 def _page(ip: str, port: int, timeout: float = 1.5) -> str | None:
-    """Titre de la page d'accueil (GET /, lecture seule, 32 Ko au plus) ; None s'il n'y en a pas ou si la page n'est pas lisible.
+    """Titre de la page d'accueil (GET /, lecture seule, 32 Ko au plus) ; None s'il n'y en a pas, si la page n'est pas lisible ou si la réponse n'est pas 2xx.
     https : certificat vérifié (jamais désactivé) ; un appareil au certificat auto-signé n'a donc pas de titre."""
     cls = http.client.HTTPSConnection if port == 443 else http.client.HTTPConnection
     try:
         conn = cls(ip, port, timeout=timeout)
         conn.request("GET", "/", headers={"User-Agent": "MyServices-netscan", "Accept": "text/html"})
-        body = conn.getresponse().read(32768).decode("utf-8", "replace")
+        resp = conn.getresponse()
+        body = resp.read(32768).decode("utf-8", "replace")
+        status = resp.status
         conn.close()
     except (OSError, ssl.SSLError, http.client.HTTPException):
+        return None
+    if not 200 <= status < 300:  # redirection ou erreur : son titre (« 301 Moved Permanently ») ne dit rien de l'appareil
         return None
     m = re.search(r"<title[^>]*>(.*?)</title>", body, re.I | re.S)
     title = re.sub(r"\s+", " ", html.unescape(m.group(1))).strip() if m else ""

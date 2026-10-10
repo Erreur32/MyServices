@@ -60,6 +60,25 @@ class PageTitle(unittest.TestCase):
         self.assertEqual(netscan._page("127.0.0.1", self.srv.server_port), "Ma & Box")  # port quelconque : http
         self.assertEqual(self.methods, ["GET"])
 
+    def test_redirection_sans_titre(self):
+        import http.server, threading
+        class R(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a): pass
+            def do_GET(self):
+                body = b"<html><head><title>301 Moved Permanently</title></head></html>"
+                self.send_response(301)
+                self.send_header("Location", "https://x/")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), R)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            self.assertIsNone(netscan._page("127.0.0.1", srv.server_port))
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
     def test_port_ferme(self):
         import socket
         with socket.socket() as k:
