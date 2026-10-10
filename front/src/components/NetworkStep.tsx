@@ -389,7 +389,7 @@ function HomeAssistantLink({ host, onLinked }: { host: NetHost; onLinked: () => 
       setType(t);
     }, "", setNote);
   }, []);
-  if (done) return <p className="mt-2 flex items-center gap-2 text-sm text-ok"><Check size={14} aria-hidden />{tx("Home Assistant relié par son API : première lecture en cours")}</p>;
+  if (done) return <p className="mt-2 text-sm text-muted">{tx("Home Assistant relié par son API : première lecture en cours")}</p>;
   return (
     <div className="mt-2">
       <p className="text-sm text-muted">{tx("Home Assistant se relie par son API (adresse + jeton), pas par SSH. Un compte dédié non administrateur est recommandé.")}</p>
