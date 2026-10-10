@@ -7,3 +7,15 @@ bd571939eb4ec943bef64ff8a4fb8d29  web/github-logo.svg
 4b95ac494d4756d579fe2a9df67360d5  web/ssh-logo.svg
 df1a44eac6b36448e3dc918992982d60  chrome-capture-demo.png
 74f07c4700d0870e0099f0996ac447e8  web/chrome-capture-demo.png  (lien vers la capture de démonstration)
+4a65b23ae16bf700f35139e2c10a5f73  front/public/icons/adguard-home.svg
+fc18cdc7440745756e012b5581104952  front/public/icons/apache.svg
+91efe4eceea112acc9ded959c3cb28d2  front/public/icons/beszel.svg
+cd1c2846965e710008aca19eacab1c0c  front/public/icons/dozzle.svg
+8f32897073ee93594ab2339482ef21ca  front/public/icons/grafana.svg
+146b366b8c09502742025c4bca4e029e  front/public/icons/home-assistant.svg
+9add6f0b65996f8f1698f926e3df9f7f  front/public/icons/nginx-proxy-manager.svg
+02a7a0b2028eb5ab7a9259ec0f9e59e8  front/public/icons/plex.svg
+466d1a13608536479c8bda1168dffecc  front/public/icons/proxmox.svg
+94890bac62a8c3a8c608c855103fe4fd  front/public/icons/syncthing.svg
+f2110e7e2a8e8552dc85bb0ead039637  front/public/icons/unifi.svg
+f3caa8a8bac253a77fa2ae7e7bc9b062  front/public/icons/uptime-kuma.svg

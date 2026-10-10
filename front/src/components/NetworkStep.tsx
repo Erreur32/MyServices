@@ -8,6 +8,7 @@ import { act, button, input, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { dateTime } from "../lib/format";
 import { ADDED_KEY, DISMISSED_KEY, LATER_HIDDEN_KEY, REOPEN_EVENT } from "../lib/firstSteps";
+import { appIcon } from "../lib/appIcons";
 import { changes, interesting, needsLink, netState, quiet, summarize, tagsOf, viaMynetwork } from "../lib/netScan";
 import { pokeScan } from "../lib/scan";
 import { ConnectorForm } from "../tabs/Connectors";
@@ -16,12 +17,19 @@ import { Copyable, NoteLine } from "./form";
 import { netPercent } from "./ScanBar";
 import { Badge } from "./ui";
 
+/** Icône de l'appli reconnue (rien si elle n'en a pas) */
+function AppIcon({ apps }: { apps?: readonly string[] }) {
+  const src = appIcon(apps);
+  return src ? <img src={src} alt="" aria-hidden className="h-5 w-5 shrink-0 object-contain" /> : null;
+}
+
 /** Une machine trouvée : nom (ou « sans nom »), adresse une seule fois, une étiquette par information ;
  *  hint : explication de l'étape qui suivra l'ajout (jeton Home Assistant, clé SSH), seulement si la machine est cochée */
 function HostInfo({ h, fresh = false, hint = false }: { h: NetHost; fresh?: boolean; hint?: boolean }) {
   const tags = tagsOf(h);
   return (
     <>
+      <AppIcon apps={h.apps} />
       {h.name ? <b className="text-txt">{h.name}</b> : <i className="text-dim">{tx("sans nom")}</i>}
       <span className="font-mono text-xs text-dim">{h.ip}</span>
       {tags.map((t) => <Badge key={t.label} tone={t.kind === "ssh" ? "ok" : t.kind === "app" ? "info" : "off"}>{t.label}</Badge>)}
@@ -288,6 +296,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
               const link = seen ? needsLink(seen, machines, connected) : null;
               return (
                 <li key={m.ip} className="flex flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2">
+                  <AppIcon apps={seen?.apps} />
                   <b className="text-txt">{m.name || m.ip}</b>
                   <span className="font-mono text-xs text-dim">{m.ip}</span>
                   {m.ssh ? <Badge tone="ok">SSH</Badge> : null}
@@ -341,7 +350,7 @@ function AddedMachine({ host, onDone }: { host: NetHost; onDone: () => void }) {
   return (
     <div className={`rounded-lg border p-3 ${valid ? "border-ok/50 bg-ok/10" : "border-warn/50 bg-warn/10"}`}>
       <p className="flex flex-wrap items-center gap-2">
-        <Check size={14} className={valid ? "text-ok" : "text-warn"} aria-hidden /><b className="text-txt">{label}</b>
+        <Check size={14} className={valid ? "text-ok" : "text-warn"} aria-hidden /><AppIcon apps={host.apps} /><b className="text-txt">{label}</b>
         <span className="font-mono text-xs text-dim">{host.ip}</span><Badge tone={valid ? "ok" : "warn"}>{valid ? tx("ajoutée") : tx("accès à régler")}</Badge>
         {ssh && ok && <Badge tone="ok">{tx("SSH accepté")}</Badge>}
         <button type="button" className={`${quietBtn} ml-auto`} onClick={onDone} title={tx("Passer ou fermer ce cadre : la machine reste ajoutée, ses accès se règlent aussi plus tard (« Reprendre » ici, ou Réglages → Machines et Connecteurs)")}>
