@@ -22,6 +22,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      # Couverture des tests : Python (coverage.xml) et front (lcov), lues par l'analyse ci-dessous
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - run: |
+          pip install --require-hashes --only-binary=:all: -r requirements.txt
+          pip install coverage
+          coverage run -m unittest discover -s tests
+          coverage xml -o coverage.xml
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run test:cov
+        working-directory: front
       - uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

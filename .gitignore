@@ -21,3 +21,5 @@ front/dist/
 
 # Garde-fou commit / push : liste locale de motifs interdits (vos vrais domaines, IP)
 .safety-deny
+coverage.xml
+.coverage

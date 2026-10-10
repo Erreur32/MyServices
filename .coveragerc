@@ -1,0 +1,9 @@
+# Couverture Python envoyée à SonarCloud (coverage.xml) : le code de l'application, pas les tests
+[run]
+source = .
+omit =
+    tests/*
+    front/*
+    deploy/*
+    dev-data/*
+    */__pycache__/*
