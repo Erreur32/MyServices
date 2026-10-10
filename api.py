@@ -421,6 +421,34 @@ def connector_delete(type_: str, name: str, request: Request):
     return connector_call(request, "connecteur supprimé", f"{type_} {name}", lambda s: s.delete(type_, name))
 
 
+class NpmScriptCheck(BaseModel):
+    api: str = Field(max_length=200)
+    ssh: str | None = Field(default=None, max_length=64)
+
+
+class NpmScriptInstall(BaseModel):
+    ssh: str = Field(max_length=64)
+    directory: str = Field(default="npm-api", max_length=120)
+    ip: str = Field(default="127.0.0.1", max_length=120)
+    port: int = 81
+    user: str = Field(max_length=120)
+    password: str = Field(max_length=200)  # écrit dans npm-api.conf de la machine (600), jamais gardé par MyServices
+
+
+@app.post(API + "/connectors/settings/npm/script/check", tags=["connecteurs"], summary="Vérifier le chemin de npm-api.sh sur une machine, sans rien lancer (admin)")
+def npm_script_check(body: NpmScriptCheck, request: Request):
+    return connector_call(request, "", "", lambda s: s.npm_script_check(body.api, body.ssh))
+
+
+@app.post(API + "/connectors/settings/npm/script/install", tags=["connecteurs"],
+          summary="Installer npm-api.sh (version figée, empreinte vérifiée) sur une machine par SSH (admin)")
+def npm_script_install(body: NpmScriptInstall, request: Request):
+    if (request.state.user or {}).get("token"):  # écrit sur une machine : session d'administrateur seulement, jamais un jeton d'API
+        return deny(403, "installation sur une machine : session requise")
+    return connector_call(request, "npm-api.sh installé", f"{body.ssh} : {body.directory}",
+                          lambda s: s.npm_script_install(body.ssh, body.directory, body.ip, body.port, body.user, body.password))
+
+
 @app.post(API + "/connectors/settings/{type_}/test", tags=["connecteurs"], summary="Essayer des réglages sans les enregistrer (admin)")
 def connector_test(type_: str, body: ConnectorConf, request: Request):
     return connector_call(request, "", "", lambda s: s.test(type_, body.name, body.config, body.original))

@@ -8,6 +8,9 @@ Un connecteur déclare :
   images    images Docker qui le révèlent sur une machine (détection : « activer le connecteur ? »)
   tested    versions du service vérifiées (préfixes « 2.16 », « 2 ») : une autre version marche, mais
             est signalée « version non testée » par --check et la page
+  modes     (facultatif) façons de relier le service quand elles demandent des champs différents (NPM : API directe, API par SSH,
+            script npm-api.sh) : [{"id", "label", "help", "fields", "required"}] ; la page ne montre que les champs du mode choisi,
+            marque ceux qui sont requis, et n'envoie que ceux-là
   fields    réglages (Field) : la page Réglages en génère le formulaire ; secret=True = jamais renvoyé
             au navigateur ni écrit dans un journal ; setup_fields : ceux que setup.py demande à la détection
 et implémente :
@@ -162,6 +165,7 @@ class Connector:
     images: tuple[str, ...] = ()
     tested: tuple[str, ...] = ()
     fields: tuple[Field, ...] = ()
+    modes: tuple[dict, ...] = ()
     setup_fields: tuple[str, ...] = ()  # réglages demandés par setup.py à la détection (les autres : page Réglages)
 
     def __init__(self, conf: dict, ctx: Context):

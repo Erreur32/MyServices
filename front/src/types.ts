@@ -382,6 +382,8 @@ export interface ConnectorField {
   help: string;
   choices: string[];
 }
+/** Façon de relier un service quand elle demande d'autres champs (NPM : API directe, API par SSH, script) */
+export interface ConnectorMode { id: string; label: string; help: string; fields: string[]; required: string[] }
 export interface ConnectorType {
   type: string;
   label: string;
@@ -389,7 +391,10 @@ export interface ConnectorType {
   tested: string[];
   guide?: string[];
   fields: ConnectorField[];
+  modes?: ConnectorMode[];
 }
+/** Conseil sur le chemin de npm-api.sh (vert / orange / rouge) */
+export interface ScriptTip { level: "ok" | "warn" | "bad"; text: string }
 export interface ConnectorStatus {
   type: string;
   name: string;

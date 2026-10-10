@@ -19,7 +19,7 @@ export function NoteLine({ note }: { note: Note }) {
   return <p role="status" className={`mt-2 text-sm ${note.ok ? "text-ok" : "text-bad"}`}>{note.ok ? "✓" : "⚠"} {note.text}</p>;
 }
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({ label, children }: { label: ReactNode; children: ReactNode }) {
   return <label className="flex flex-col gap-1 text-sm text-muted">{label}{children}</label>;
 }
 

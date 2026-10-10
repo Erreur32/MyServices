@@ -1,14 +1,15 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { Ban, HelpCircle, MonitorUp, Pencil, Plug, Plus, Server, ToggleRight, Trash2, X, type LucideIcon } from "lucide-react";
+import { Ban, Check, HelpCircle, Loader2, MonitorUp, Pencil, Plug, Plus, Server, ShieldCheck, ToggleRight, Trash2, X, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { StatusLine } from "../components/ssh";
-import type { ConnectorInstance, ConnectorsState, ConnectorType } from "../types";
+import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorType, MachinesSettings, ScriptTip } from "../types";
+import { configFor, modeOf } from "../lib/connectorModes";
 import { takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
 import { appIcon } from "../lib/appIcons";
@@ -25,6 +26,7 @@ export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
   const [part, setPart] = useState<Part>(agentIp ? "agents" : "connectors");  // sous-onglet ouvert (lien « Installer l'agent » : Agents)
+  const [editing, setEditing] = useState("");  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
   const [picking, setPicking] = useState(false);  // mini cartes des connecteurs disponibles, ouvertes par le « + »
   const [src, setSrc] = useState<Record<string, boolean>>({}), [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false);
   const loadSources = useCallback(() => { read<{ sources: Record<string, boolean> }>("sources").then((r) => setSrc(r.sources)).catch(() => undefined); }, []);
@@ -56,7 +58,8 @@ export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Mes connecteurs")} <Dim>· {st.instances.length}</Dim></h2>
-          <button type="button" className={picking ? primary : quiet} aria-expanded={picking} onClick={() => setPicking(!picking)}>
+          <button type="button" className={picking ? primary : quiet} aria-expanded={picking} disabled={!!editing && !picking}
+            title={editing ? tx("Terminez ou annulez la modification en cours avant d'ajouter un connecteur") : undefined} onClick={() => setPicking(!picking)}>
             {picking ? <X size={14} /> : <Plus size={14} />}{picking ? tx("Fermer") : tx("Ajouter un connecteur")}
           </button>
         </div>
@@ -96,7 +99,8 @@ export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string
         <Card><p className="text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p></Card>
       )}
       {st.instances.map((i) => (
-        <InstanceCard key={`${i.type}/${i.name}`} inst={i} type={st.types.find((t) => t.type === i.type)!} reload={reload} />
+        <InstanceCard key={`${i.type}/${i.name}`} inst={i} type={st.types.find((t) => t.type === i.type)!} reload={reload}
+          editing={editing === `${i.type}/${i.name}`} locked={(!!editing && editing !== `${i.type}/${i.name}`) || picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
       ))}
 
       </>}
@@ -186,8 +190,10 @@ const PARTS: [Part, string, string, LucideIcon][] = [
 /** Connecteurs dont l'affichage sur la page est une source activable (le même interrupteur vaut pour toutes les instances du type) */
 const SHOWN: Record<string, string> = { npm: tx("Afficher les services et compteurs NPM sur la page"), adguard: tx("Afficher l'onglet DNS et les compteurs AdGuard (toutes les instances)") };
 
-function InstanceCard({ inst, type, reload }: { inst: ConnectorInstance; type: ConnectorType; reload: () => void }) {
-  const [edit, setEdit] = useState(false), [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null);
+function InstanceCard({ inst, type, reload, editing: edit, locked, setEditing: setEdit }: {
+  inst: ConnectorInstance; type: ConnectorType; reload: () => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
+}) {
+  const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null);
   const url = inst.config.url as string | undefined;
   const path = `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}`;
   return (
@@ -206,7 +212,8 @@ function InstanceCard({ inst, type, reload }: { inst: ConnectorInstance; type: C
           {inst.enabled && <div className="mt-2 text-sm"><StatusLine s={inst.status} /></div>}
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <button type="button" className={quiet} onClick={() => setEdit(!edit)} aria-expanded={edit}><Pencil size={14} />{tx("Modifier / Tester")}</button>
+          <button type="button" className={quiet} disabled={locked} onClick={() => setEdit(!edit)} aria-expanded={edit}
+            title={locked ? tx("Un autre formulaire est ouvert : terminez-le ou annulez-le d'abord") : undefined}><Pencil size={14} />{tx("Modifier / Tester")}</button>
           {confirm ? <>
             <button type="button" className={danger} onClick={() => void act(() => send("DELETE", path), tx("connecteur supprimé"), setNote).then((ok) => ok && reload())}>{tx("Confirmer")}</button>
             <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
@@ -228,7 +235,17 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, 
     return init;
   });
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [help, setHelp] = useState(!inst);  // aide dépliée à l'ajout, sous les boutons
-  const body = () => ({ name, config: conf, original: inst?.name ?? null });
+  // Façon de relier le service (NPM : API directe, par SSH, script) : décide des champs montrés, requis et envoyés
+  const [mode, setMode] = useState(() => modeOf(type, inst?.config));
+  const modeDef: ConnectorMode | undefined = (type.modes ?? []).find((m) => m.id === mode);
+  const shown = modeDef ? type.fields.filter((f) => modeDef.fields.includes(f.name)) : type.fields;
+  const [aliases, setAliases] = useState<MachinesSettings["aliases"]>([]);
+  useEffect(() => { if (type.modes?.length) read<MachinesSettings>("machines/settings").then((m) => setAliases(m.aliases)).catch(() => undefined); }, [type.modes]);
+  const pickMode = (id: string) => {
+    setMode(id);
+    if (id === "ssh" && !conf.url) setConf((c) => ({ ...c, url: "http://127.0.0.1:81" }));  // vu de la machine de NPM
+  };
+  const body = () => ({ name, config: configFor(type, mode, conf), original: inst?.name ?? null });
   const tryIt = async () => {
     setBusy(true);
     try {
@@ -249,17 +266,41 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, 
   };
   return (
     <form onSubmit={submit} className="mt-3 flex flex-col gap-3 rounded-xl border border-line bg-bg2/50 p-3">
+      <div className="flex items-center gap-3 border-b border-line/60 pb-2">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
+          {appIcon([type.label]) ? <img src={appIcon([type.label])!} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
+        </span>
+        <div className="min-w-0"><b className="block truncate">{type.label}</b><span className="text-xs text-dim">{inst ? tx("Modifier ce connecteur") : tx("Nouveau connecteur")}</span></div>
+      </div>
       <Field label={tx("Nom de l'instance (unique pour ce type)")}>
         <input className={input} required maxLength={64} value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
+      {modeDef && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm text-muted">{tx("Comment MyServices lit ce service")}</span>
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={tx("Comment MyServices lit ce service")}>
+            {(type.modes ?? []).map((m) => (
+              <button key={m.id} type="button" role="radio" aria-checked={mode === m.id} onClick={() => pickMode(m.id)}
+                className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${mode === m.id ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`}>{tx(m.label)}</button>
+            ))}
+          </div>
+          <p className="text-xs text-dim">{tx(modeDef.help)}</p>
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
-        {type.fields.map((f) => {
+        {shown.map((f) => {
           const kept = inst && f.secret && inst.set[f.name];
           const v = conf[f.name];
+          const need = modeDef ? modeDef.required.includes(f.name) : f.required;
           return (
-            <Field key={f.name} label={`${f.label}${f.required ? "" : tx(" (facultatif)")}`}>
+            <Field key={f.name} label={<>{tx(f.label)}{need ? <b className="ml-0.5 text-bad" title={tx("requis")} aria-label={tx("requis")}>*</b> : <span className="text-dim">{tx(" (facultatif)")}</span>}</>}>
               {f.kind === "bool" ? (
                 <input type="checkbox" className="h-4 w-4" checked={!!v} onChange={(e) => setConf({ ...conf, [f.name]: e.target.checked })} />
+              ) : f.name === "ssh" && modeDef ? (
+                <select className={input} value={String(v ?? "")} onChange={(e) => setConf({ ...conf, ssh: e.target.value })} required={need}>
+                  <option value="">{need ? tx("Choisir la machine…") : tx("aucune : dans le conteneur")}</option>
+                  {aliases.map((a) => <option key={a.alias} value={a.alias}>{a.alias}{a.user || a.ip || a.host ? ` · ${a.user ? `${a.user}@` : ""}${a.ip || a.host}` : ""}</option>)}
+                </select>
               ) : f.choices.length ? (
                 <select className={input} value={String(v ?? "")} onChange={(e) => setConf({ ...conf, [f.name]: e.target.value })}>
                   {f.choices.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -269,11 +310,12 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, 
                   value={String(v ?? "")} placeholder={kept ? tx("déjà renseigné : laisser vide pour garder") : f.secret ? "" : String(f.default ?? "")}
                   onChange={(e) => setConf({ ...conf, [f.name]: e.target.value })} />
               )}
-              {f.help && <span className="text-xs text-dim">{f.help}</span>}
+              {f.help && <span className="text-xs text-dim">{tx(f.help)}</span>}
             </Field>
           );
         })}
       </div>
+      {type.type === "npm" && mode === "script" && <NpmScript conf={conf} setConf={setConf} />}
       {type.tested.length > 0 && <p className="text-xs text-dim">{tx("Versions testées :")} {type.tested.join(", ")}</p>}
       <div className="flex flex-wrap gap-2">
         <button type="button" className={quiet} disabled={busy} onClick={() => void tryIt()}>{tx("Tester")}</button>
@@ -291,5 +333,73 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, 
       )}
       <NoteLine note={note} />
     </form>
+  );
+}
+
+const TIP = { ok: ["text-ok", "✓"], warn: ["text-warn", "⚠"], bad: ["text-bad", "✗"] } as const;
+
+/** Mode « script npm-api.sh » : conseils sur le chemin (vu de la machine qui l'exécutera) et installation du script sur cette machine */
+function NpmScript({ conf, setConf }: { conf: Record<string, string | number | boolean>; setConf: (c: Record<string, string | number | boolean>) => void }) {
+  const api = String(conf.api ?? ""), ssh = String(conf.ssh ?? "");
+  const [tips, setTips] = useState<ScriptTip[] | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const [install, setInstall] = useState(false), [done, setDone] = useState<string[]>([]);
+  const [f, setF] = useState({ directory: "npm-api", ip: "127.0.0.1", port: "81", user: "", password: "" });
+  const guard = async (fn: () => Promise<void>) => {
+    setBusy(true); setError("");
+    try { await fn(); } catch (e) {
+      if (e instanceof LoginRequired) location.replace(LOGIN); else setError((e as Error).message);
+    }
+    setBusy(false);
+  };
+  const check = () => guard(async () => {
+    setTips((await send<{ tips: ScriptTip[] }>("POST", "connectors/settings/npm/script/check", { api, ssh: ssh || null })).tips);
+  });
+  const run = () => guard(async () => {
+    const r = await send<{ path: string; lines: string[]; tips: ScriptTip[] }>("POST", "connectors/settings/npm/script/install",
+      { ssh, directory: f.directory, ip: f.ip, port: Number(f.port), user: f.user, password: f.password });
+    setDone(r.lines); setTips(r.tips); setConf({ ...conf, api: r.path });
+    setF({ ...f, password: "" }); setInstall(false);
+  });
+  const where = ssh || tx("le conteneur");
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-line/70 bg-bg2/60 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className={quiet} disabled={busy || !api} onClick={() => void check()}>
+          {busy && !install ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <ShieldCheck size={14} aria-hidden />}{tx("Vérifier le chemin")}
+        </button>
+        <button type="button" className={quiet} disabled={busy || !ssh} aria-expanded={install} onClick={() => setInstall(!install)}
+          title={ssh ? undefined : tx("Choisissez d'abord la machine ci-dessus")}>
+          <Plus size={14} aria-hidden />{tx("Installer npm-api.sh sur cette machine")}
+        </button>
+        {!ssh && <span className="text-xs text-dim">{tx("Sans machine, le chemin est cherché dans le conteneur, qui ne contient pas le script.")}</span>}
+      </div>
+      {tips && (
+        <ul className="flex flex-col gap-1 text-sm" aria-label={tx("Résultat de la vérification")}>
+          {tips.map((t, i) => <li key={i} className={TIP[t.level][0]}><b>{TIP[t.level][1]}</b> {t.text}</li>)}
+        </ul>
+      )}
+      {done.length > 0 && <ul className="text-sm text-ok">{done.map((l, i) => <li key={i}>{l}</li>)}</ul>}
+      {install && (
+        <div className="flex flex-col gap-2 rounded-lg border border-link/40 bg-link/5 p-3">
+          <p className="text-sm text-muted">
+            {tx("MyServices va, sur")} <b className="text-txt">{where}</b>{tx(" : télécharger npm-api.sh")} <b className="text-txt">v{"3.6.9"}</b> {tx("(dépôt Erreur32/nginx-proxy-manager-Bash-API, empreinte SHA-256 vérifiée avant installation), l'installer dans le dossier ci-dessous, et écrire à côté un fichier npm-api.conf (droits 600) avec le compte NPM saisi ici. Rien d'autre n'est modifié. Un npm-api.conf déjà présent est conservé. Le mot de passe n'est pas gardé par MyServices.")}
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Field label={<>{tx("Dossier d'installation")}<b className="ml-0.5 text-bad">*</b></>}><input className={input} value={f.directory} onChange={(e) => setF({ ...f, directory: e.target.value })} /></Field>
+            <Field label={<>{tx("Adresse de NPM vue de la machine")}<b className="ml-0.5 text-bad">*</b></>}><input className={input} value={f.ip} onChange={(e) => setF({ ...f, ip: e.target.value })} /></Field>
+            <Field label={<>{tx("Port de NPM")}<b className="ml-0.5 text-bad">*</b></>}><input className={input} inputMode="numeric" value={f.port} onChange={(e) => setF({ ...f, port: e.target.value })} /></Field>
+            <Field label={<>{tx("Compte NPM (e-mail)")}<b className="ml-0.5 text-bad">*</b></>}><input className={input} autoComplete="off" value={f.user} onChange={(e) => setF({ ...f, user: e.target.value })} /></Field>
+            <Field label={<>{tx("Mot de passe NPM")}<b className="ml-0.5 text-bad">*</b></>}><input className={input} type="password" autoComplete="new-password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className={primary} disabled={busy || !f.directory || !f.ip || !f.user || !f.password} onClick={() => void run()}>
+              {busy ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Check size={14} aria-hidden />}{tx("Installer")}
+            </button>
+            <button type="button" className={quiet} onClick={() => setInstall(false)}>{tx("Annuler")}</button>
+          </div>
+        </div>
+      )}
+      {error && <p className="text-sm text-bad">⚠ {error}</p>}
+    </div>
   );
 }

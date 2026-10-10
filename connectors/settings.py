@@ -38,7 +38,7 @@ def editable() -> dict:
 
 def schema() -> list[dict]:
     """Types réglables et leurs champs : la page en génère les formulaires."""
-    return [{"type": t, "label": c.label, "kinds": list(c.kinds), "tested": list(c.tested), "guide": list(getattr(c, "guide", ())),
+    return [{"type": t, "label": c.label, "kinds": list(c.kinds), "tested": list(c.tested), "guide": list(getattr(c, "guide", ())), "modes": list(c.modes),
              "fields": [{"name": f.name, "label": f.label, "kind": f.kind, "required": f.required, "secret": f.secret,
                          "default": f.default, "help": f.help, "choices": list(f.choices)} for f in c.fields]}
             for t, c in editable().items()]
@@ -196,6 +196,37 @@ def resolve(type_: str, name: str, conf: dict, original: str | None = None) -> d
     raw = _raw()
     old = _find(raw, type_, original)[2] if original else None
     return secrets_store.decrypt_all(_merged(type_, name or type_, conf, old), config_file())
+
+
+def _known_alias(alias: str | None) -> str | None:
+    """Alias SSH connu de la config SSH de l'app (ou vide = ici, dans le conteneur) ; sinon refus : jamais d'adresse libre."""
+    if not alias:
+        return None
+    import machines_admin
+    if alias not in {a["alias"] for a in machines_admin.aliases()} | {"local"}:
+        raise SettingsError(f"alias SSH « {alias} » inconnu : l'ajouter dans Réglages → Machines")
+    return None if alias == "local" else alias
+
+
+def npm_script_check(api: str, ssh: str | None) -> dict:
+    """Conseils (vert / orange / rouge) sur le chemin de npm-api.sh, vu de la machine qui l'exécutera ; rien n'est lancé ni écrit."""
+    import npmapi
+    tips = npmapi.check_script((api or "").strip(), _known_alias(ssh))
+    return {"ok": all(t["level"] != "bad" for t in tips), "tips": tips}
+
+
+def npm_script_install(ssh: str, directory: str, ip: str, port: int, user: str, password: str) -> dict:
+    """Installe npm-api.sh (version figée, empreinte vérifiée) sur la machine, avec son npm-api.conf ; rend le chemin et les conseils."""
+    import npmapi
+    alias = _known_alias(ssh)
+    if alias is None and ssh != "local":
+        raise SettingsError("choisir la machine où installer le script")
+    try:
+        got = npmapi.install_script(alias, directory, ip, port, user, password)
+    except npmapi.NPMError as e:
+        raise SettingsError(str(e)) from None
+    got["tips"] = npmapi.check_script(got["path"], alias)
+    return got
 
 
 def test(type_: str, name: str, conf: dict, original: str | None = None) -> dict:

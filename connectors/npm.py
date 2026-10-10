@@ -16,20 +16,35 @@ class NPM(Connector):
     images = ("jc21/nginx-proxy-manager",)
     tested = ("2.12", "2.13", "2.14", "2.15", "2.16")
     fields = (
-        Field("url", "URL de l'admin", "url", help="ex. http://192.168.1.10:81"),
-        Field("user", "Compte (e-mail)"),
-        Field("password", "Mot de passe", "password", secret=True),
-        Field("ssh", "Alias SSH (admin non exposé)", help="l'API est jointe par curl sur cette machine"),
-        Field("ip", "IP de ce NPM vue du LAN", help="contrôle DNS ; déduite de l'URL sinon"),
-        Field("api", "Chemin de npm-api.sh (ancien mode)"),
+        Field("url", "URL de l'admin de NPM", "url", help="ex. http://192.168.1.10:81"),
+        Field("user", "Compte NPM (e-mail)"),
+        Field("password", "Mot de passe NPM", "password", secret=True),
+        Field("ssh", "Machine de NPM (accès SSH)", help="MyServices s'y connecte avec sa clé"),
+        Field("ip", "IP de ce NPM vue du LAN", help="pour le contrôle DNS ; déduite de l'URL ou de la machine si vide"),
+        Field("api", "Chemin de npm-api.sh sur cette machine", help="ex. /home/vous/npm-api/npm-api.sh"),
+    )
+    # Trois façons de lire NPM : la page ne montre que les champs utiles à celle choisie, et marque ceux qui sont requis
+    modes = (
+        {"id": "direct", "label": "API directe", "fields": ["url", "user", "password", "ip"], "required": ["url", "user", "password"],
+         "help": "MyServices joint l'admin de NPM (port 81) depuis le conteneur, avec le compte NPM. Le plus simple si ce port est joignable."},
+        {"id": "ssh", "label": "API par SSH", "fields": ["ssh", "url", "user", "password", "ip"], "required": ["ssh", "url", "user", "password"],
+         "help": "Le port 81 de NPM n'est pas joignable depuis le conteneur : MyServices lance curl sur la machine de NPM (URL vue de cette machine, "
+                 "souvent http://127.0.0.1:81)."},
+        {"id": "script", "label": "Script npm-api.sh", "fields": ["ssh", "api", "ip"], "required": ["api"],
+         "help": "MyServices lance npm-api.sh (--json) sur la machine où il est installé (le script et son npm-api.conf gardent le compte NPM). "
+                 "Le conteneur n'a pas ce script : choisissez la machine, ou installez-le d'ici."},
     )
     setup_fields = ("url", "user", "password")
 
+    @staticmethod
+    def mode_of(conf: dict) -> str:
+        return "script" if conf.get("api") else "ssh" if conf.get("ssh") else "direct"
+
     @classmethod
     def validate(cls, conf: dict) -> list[str]:
-        if conf.get("api") or (conf.get("url") and conf.get("user") and conf.get("password")):
-            return []
-        return ["« url » + « user » + « password » requis (ou « api » : chemin de npm-api.sh)"]
+        mode = next(m for m in cls.modes if m["id"] == cls.mode_of(conf))
+        labels = {f.name: f.label for f in cls.fields}
+        return [f"« {labels[k]} » requis" for k in mode["required"] if not conf.get(k)]
 
     def version(self) -> str | None:
         if self.conf.get("api") or self.conf.get("ssh"):
