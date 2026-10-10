@@ -1,11 +1,11 @@
 // Réglages, trois sections sur le même état : « Clé SSH » (Accès et sécurité : à autoriser sur chaque machine), « Tâches et
 // horaires » (Surveillance : modifiables, lancer maintenant) et « Sauvegarde et informations » (export de la configuration,
 // version de l'image et lien vers la dernière publiée, chemins, tailles).
-import { Download, ExternalLink, KeyRound, Play, RotateCcw, Server, Timer } from "lucide-react";
+import { Download, ExternalLink, KeyRound, Play, RefreshCw, RotateCcw, Server, Timer } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { download, LOGIN, LoginRequired, read, send } from "../api";
 import { Copyable, Field, NoteLine, Switch } from "../components/form";
-import { act, input, primary, quiet, type Note } from "../lib/forms";
+import { act, button, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { bytes, dateTime, dur } from "../lib/format";
 import type { SystemState, SystemTask } from "../types";
@@ -100,10 +100,10 @@ function TaskRow({ t, reload }: { t: SystemTask; reload: () => void }) {
             </button>
           )}
         </form>
-        <button type="button" className={`${primary} ${first ? "nudge" : ""}`} disabled={!t.enabled || t.running}
-          title={first ? tx("Jamais lancée : lancez-la une fois pour voir ses résultats sans attendre l'horaire") : undefined}
+        <button type="button" className={first ? `${primary} nudge` : `${button} border-violet-400/50 bg-violet-500/10 text-txt hover:bg-violet-500/20`} disabled={!t.enabled || t.running}
+          title={first ? tx("Jamais lancée : lancez-la une fois pour voir ses résultats sans attendre l'horaire") : tx("Refait un passage tout de suite, sans attendre l'horaire")}
           onClick={() => void act(() => send("POST", `system/tasks/${t.name}/run`), tx("lancée : son état se met à jour ici"), setNote).then((ok) => ok && reload())}>
-          <Play size={14} />{tx("Lancer")}
+          {first ? <Play size={14} /> : <RefreshCw size={14} />}{first ? tx("Lancer") : tx("Relancer")}
         </button>
       </div>
       {t.fixed && <p className="mt-1 text-xs text-dim">{tx("Fixé par MYSERVICES_")}{t.name.toUpperCase()}{tx("_AT dans le compose.")}</p>}

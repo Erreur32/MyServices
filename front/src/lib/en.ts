@@ -548,6 +548,8 @@ export const EN: Record<string, string> = {
   "Joignable seulement par NPM": "Reachable only through NPM",
   "Jour :": "Day:",
   "Compte": "Account",
+  "Relancer": "Run again",
+  "Refait un passage tout de suite, sans attendre l'horaire": "Runs a pass right now, without waiting for the schedule",
   "Jamais lancée : lancez-la une fois pour voir ses résultats sans attendre l'horaire": "Never run: run it once to see its results without waiting for the schedule",
   "Couper la santé des machines": "Turn machine health off",
   "Allumer la santé des machines": "Turn machine health on",
