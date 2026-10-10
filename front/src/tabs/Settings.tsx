@@ -2,7 +2,7 @@
 // les comptes (ajout, rôle, activation, nouveau mot de passe, suppression) et le journal des actions.
 // Apparence : thème et largeur de la page (« Page width » de GpuViewR), retenus par le navigateur.
 // Menu en quatre groupes (Données, Surveillance, Accès et sécurité, Application). Autres sections : un fichier chacune dans tabs/.
-import { ArrowRight, Bell, HardDrive, KeyRound, MonitorUp, Moon, MoveHorizontal, Palette, Plug, Plus, Radar, RotateCcw, ScrollText, Server, Settings2, Sun, Timer, Trash2, UserCheck, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bell, HardDrive, KeyRound, Moon, MoveHorizontal, Palette, Plug, Plus, Radar, RotateCcw, ScrollText, Server, Settings2, Sun, Timer, Trash2, UserCheck, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { dateTime } from "../lib/format";
@@ -12,7 +12,6 @@ import type { User } from "../types";
 import { Badge, Card, Dim } from "../components/ui";
 import { Field, NoteLine } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
-import { Agents } from "./Agents";
 import { Alerts } from "./Alerts";
 import { Connectors } from "./Connectors";
 import { MachinesSettings } from "./MachinesSettings";
@@ -32,7 +31,7 @@ const GROUPS: { label: string; sections: { id: string; label: string; icon: Luci
     { id: "machines", label: tx("Machines"), icon: Server }, { id: "connectors", label: tx("Connecteurs"), icon: Plug },
   ] },
   { label: tx("Surveillance"), sections: [
-    { id: "alerts", label: tx("Alertes"), icon: Bell }, { id: "agents", label: tx("Agents"), icon: MonitorUp }, { id: "network", label: tx("Découverte"), icon: Radar }, { id: "backups", label: tx("Sauvegardes"), icon: HardDrive }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer },
+    { id: "alerts", label: tx("Alertes"), icon: Bell }, { id: "network", label: tx("Découverte"), icon: Radar }, { id: "backups", label: tx("Sauvegardes"), icon: HardDrive }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer },
   ] },
   { label: tx("Accès et sécurité"), sections: [
     { id: "accounts", label: tx("Comptes"), icon: Users }, { id: "ssh", label: tx("Clé SSH"), icon: KeyRound },
@@ -56,7 +55,7 @@ export interface Look {
 export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
   const [section, setSection] = useState(() => {
     const s = location.hash.split("/")[1]; // lien direct : #settings/<section> (menu du compte)
-    const wanted = s === "sources" ? "connectors" : s || lastSettingsSection(); // « sources » : ancien lien, fondu dans Connecteurs
+    const wanted = s === "sources" || s === "agents" ? "connectors" : s || lastSettingsSection(); // « sources » : ancien lien, fondu dans Connecteurs
     return SECTIONS.some((x) => x.id === wanted) ? wanted : "accounts";
   });
   useEffect(() => rememberSettingsSection(section), [section]);
@@ -79,7 +78,7 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
         ))}
       </nav>
       <div className="min-w-0 flex-1">
-        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors /> : section === "machines" ? <MachinesSettings snap={snap} focusIp={location.hash.split("/")[2]} /> : section === "agents" ? <Agents focusIp={location.hash.split("/")[2]} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings /> : section === "audit" ? <AuditLog /> : section === "backups" ? <BackupsSettings /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} /> : <SystemSettings part="system" />}
+        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors agentIp={location.hash.split("/")[1] === "agents" ? location.hash.split("/")[2] : undefined} /> : section === "machines" ? <MachinesSettings snap={snap} focusIp={location.hash.split("/")[2]} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings /> : section === "audit" ? <AuditLog /> : section === "backups" ? <BackupsSettings /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} /> : <SystemSettings part="system" />}
       </div>
     </div>
   );

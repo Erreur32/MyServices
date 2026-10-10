@@ -1,4 +1,4 @@
-// Réglages → Agents : une machine envoie elle-même sa santé (petit script PowerShell en lecture seule), sans SSH.
+// Réglages → Connecteurs : une machine envoie elle-même sa santé (petit script PowerShell en lecture seule), sans SSH.
 // Un agent = un jeton lié à une machine déclarée ; montré une seule fois, avec la commande à coller sur le PC.
 // Gérés seulement depuis une session admin.
 import { MonitorUp, Plus, Trash2 } from "lucide-react";
@@ -21,7 +21,7 @@ const STATE: Record<AgentInfo["state"], ["ok" | "warn" | "info" | "off", string]
 /** Nom d'agent accepté par le serveur (lettres, chiffres, espace, . _ @ -) tiré du nom de la machine */
 const agentName = (machine: string) => machine.replace(/[^\p{L}\p{N}_ .@-]/gu, "").trim().slice(0, 64) || "agent";
 
-export function Agents({ focusIp }: { focusIp?: string }) {
+export function Agents({ focusIp }: { focusIp?: string }) {  // intégré à Réglages → Connecteurs (partie « Agents »)
   const [st, setSt] = useState<AgentsState | null>(null);
   const [machines, setMachines] = useState<MachinesSettings["machines"]>({});
   const [error, setError] = useState("");
@@ -87,6 +87,7 @@ function NewAgent({ machines, taken, focusIp, onCreated }: {
     try {
       const r = await send<{ info: AgentInfo; command: string }>("POST", "agents", { ip, name: agentName(machines[ip].name), url });
       onCreated(r);
+      setIp("");  // formulaire remis à zéro : la machine qui vient d'avoir son agent n'est plus « déjà » à traiter
     } catch (err) {
       if (err instanceof LoginRequired) location.replace(LOGIN);
       else setNote({ ok: false, text: (err as Error).message });

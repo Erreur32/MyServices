@@ -1,5 +1,5 @@
 // Guide de l'accès d'une machine, en lecture seule : ce qu'il faut faire SUR la machine. Linux : SSH, la clé publique de l'app dans
-// authorized_keys (rien d'autre à coller). Windows : pas de SSH, un agent PowerShell (Réglages → Agents).
+// authorized_keys (rien d'autre à coller). Windows : pas de SSH, un agent PowerShell (Réglages → Connecteurs).
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";

@@ -1,7 +1,7 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { ArrowRight, Ban, HelpCircle, Info, KeyRound, Pencil, Plug, Plus, Server, Trash2, X } from "lucide-react";
+import { ArrowRight, Ban, HelpCircle, Info, KeyRound, MonitorUp, Pencil, Plug, Plus, Server, ToggleRight, Trash2, X, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
@@ -12,17 +12,19 @@ import type { ConnectorInstance, ConnectorsState, ConnectorType, MachinesSetting
 import { takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
 import { appIcon } from "../lib/appIcons";
+import { Agents } from "./Agents";
 
 const KIND: Record<string, string> = {
   services: "services", health: tx("santé"), logs: "journaux", dns: "DNS", inventory: "inventaire", backups: "sauvegardes",
 };
 
 // Proposé depuis « Premiers pas » : lu une seule fois, à l'ouverture de l'onglet
-export function Connectors() {
+export function Connectors({ agentIp }: { agentIp?: string }) {
   const [prefill] = useState(takePrefill);
   const [st, setSt] = useState<ConnectorsState | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
+  const [part, setPart] = useState<Part>(agentIp ? "agents" : "connectors");  // sous-onglet ouvert (lien « Installer l'agent » : Agents)
   const [picking, setPicking] = useState(false);  // mini cartes des connecteurs disponibles, ouvertes par le « + »
   const [src, setSrc] = useState<Record<string, boolean>>({}), [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false);
   const loadSources = useCallback(() => { read<{ sources: Record<string, boolean> }>("sources").then((r) => setSrc(r.sources)).catch(() => undefined); }, []);
@@ -40,7 +42,17 @@ export function Connectors() {
   const type = st.types.find((t) => t.type === adding);
   return (
     <div className="flex flex-col gap-4">
-      <PartTitle n={1} title={tx("Connecteurs")} sub={tx("L'accès à chaque outil : adresse, jeton, test.")} />
+      <nav className="flex gap-1 overflow-x-auto border-b border-line" aria-label={tx("Sous-onglets des connecteurs")}>
+        {PARTS.map(([id, label, hint, Icon]) => (
+          <button key={id} type="button" onClick={() => setPart(id)} aria-current={part === id ? "page" : undefined} title={hint}
+            className={`flex shrink-0 items-center gap-1.5 rounded-t-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
+              part === id ? "bg-card text-txt shadow-[inset_0_-2px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
+            <Icon size={15} strokeWidth={1.75} aria-hidden />{label}
+            {id === "connectors" && <Dim>{st.instances.length}</Dim>}
+          </button>
+        ))}
+      </nav>
+      {part === "connectors" && <>
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Mes connecteurs")} <Dim>· {st.instances.length}</Dim></h2>
@@ -87,7 +99,12 @@ export function Connectors() {
         <InstanceCard key={`${i.type}/${i.name}`} inst={i} type={st.types.find((t) => t.type === i.type)!} reload={reload} />
       ))}
 
-      <PartTitle n={2} title={tx("Activation")} sub={tx("Ce que la collecte lit et ce que la page affiche. Un changement est pris en compte à la prochaine collecte.")} />
+      </>}
+
+      {part === "agents" && <Agents focusIp={agentIp} />}
+
+      {part === "activation" && <>
+      <p className="px-1 text-sm text-muted">{tx("Ce que la collecte lit et ce que la page affiche. Un changement est pris en compte à la prochaine collecte.")}</p>
       <Card>
         <h2 className="mb-1 flex items-center gap-2 font-bold"><Plug size={16} />{tx("Par un connecteur")} <Dim>· {st.instances.length}</Dim></h2>
         <p className="mb-2 text-sm text-muted">{tx("« Collecte » : le connecteur est lu ou non. « Affichage » : la page montre ou non ses services et compteurs (même réglage pour toutes les instances du type).")}</p>
@@ -140,19 +157,17 @@ export function Connectors() {
           </button>
         </div>
       )}
+      </>}
     </div>
   );
 }
 
-/** Titre d'une des deux parties de la page */
-function PartTitle({ n, title, sub }: { n: number; title: string; sub: string }) {
-  return (
-    <div className="flex items-center gap-3 px-1 pt-2">
-      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-link/20 text-sm font-bold text-link" aria-hidden>{n}</span>
-      <div><h2 className="text-lg font-bold leading-tight">{title}</h2><p className="text-xs text-dim">{sub}</p></div>
-    </div>
-  );
-}
+type Part = "connectors" | "agents" | "activation";
+const PARTS: [Part, string, string, LucideIcon][] = [
+  ["connectors", tx("Connecteurs"), tx("L'accès à chaque outil : adresse, jeton, test"), Plug],
+  ["agents", tx("Agents"), tx("Un PC Windows qui envoie lui-même sa santé, sans SSH"), MonitorUp],
+  ["activation", tx("Activation"), tx("Ce que la collecte lit et ce que la page affiche"), ToggleRight],
+];
 
 function Toggle({ on, set, label, title }: { on: boolean; set: (on: boolean) => void; label: string; title?: string }) {
   return (

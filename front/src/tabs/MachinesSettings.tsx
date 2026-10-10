@@ -202,7 +202,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
               onClick={(e) => { e.stopPropagation(); goAuthorize(); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); goAuthorize(); } }}>!</span>
           )}
           {unfinished && <Badge tone="warn" title={unfinished.why === "ha" ? tx("Jeton Home Assistant manquant") : tx("Accès SSH à régler")}>{unfinished.passed ? tx("Non terminé (passé)") : tx("Non terminé")}</Badge>}
-          {agent && <Badge tone={agent.state === "actif" ? "ok" : agent.state === "silencieux" ? "warn" : "info"} title={tx("Santé envoyée par l'agent MyServices (Réglages → Agents)")}>{tx("agent")}</Badge>}
+          {agent && <Badge tone={agent.state === "actif" ? "ok" : agent.state === "silencieux" ? "warn" : "info"} title={tx("Santé envoyée par l'agent MyServices (Réglages → Connecteurs)")}>{tx("agent")}</Badge>}
           {m.off && <Badge tone="off">{tx("souvent éteinte")}</Badge>}
           {live && sshWarn(live) && <Badge tone="warn" title={tx("sshd : root ou mot de passe autorisé")}>{tx("sshd")}</Badge>}
           {statuses.some((c) => !c.ok) && <Badge tone="bad">{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
@@ -237,7 +237,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
               {agent ? (
                 <p className="text-muted">{tx("Lu par l'agent MyServices, en lecture seule : disques, services, processeur, mémoire, mises à jour Windows, journal Système. Pas de Docker.")}{" "}
                   {agent.last_seen ? tx("Dernier relevé {0}.", dateTime(agent.last_seen * 1000)) : tx("Aucun relevé reçu pour l'instant.")}{" "}
-                  <a className="text-link hover:underline" href="#settings/agents">{tx("Réglages → Agents")}</a></p>
+                  <a className="text-link hover:underline" href="#settings/agents">{tx("Réglages → Connecteurs")}</a></p>
               ) : typeof m.health === "string" && m.health ? (
                 <p className="text-muted">{tx("Lu par OpenSSH et PowerShell, en lecture seule : disques, services, processeur, mises à jour Windows, journal Système. Pas de Docker. Accès :")} <code className="font-mono text-xs">{sshWho(st, m.health)}</code>.
                   {m.off ? <span className="block text-dim">{tx("Marqué « souvent éteinte » : la santé ne le relève pas tant que cette option est cochée.")}</span> : null}</p>
