@@ -30,7 +30,7 @@ const GROUPS: { label: string; sections: { id: string; label: string; icon: Luci
     { id: "machines", label: tx("Machines"), icon: Server }, { id: "connectors", label: tx("Connecteurs"), icon: Plug }, { id: "sources", label: tx("Sources"), icon: Layers },
   ] },
   { label: tx("Surveillance"), sections: [
-    { id: "alerts", label: tx("Alertes"), icon: Bell }, { id: "network", label: tx("Recherche réseau"), icon: Radar }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer },
+    { id: "alerts", label: tx("Alertes"), icon: Bell }, { id: "network", label: tx("Découverte"), icon: Radar }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer },
   ] },
   { label: tx("Accès et sécurité"), sections: [
     { id: "accounts", label: tx("Comptes"), icon: Users }, { id: "ssh", label: tx("Clé SSH"), icon: KeyRound },

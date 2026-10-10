@@ -139,13 +139,13 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
           onChange={(e) => setNames((n) => ({ ...n, [h.ip]: e.target.value }))} />
       )}
       <button type="button" className="mr-2 shrink-0 rounded-md p-1.5 text-dim hover:bg-line/40 hover:text-txt" aria-label={tx("Ignorer {0}", h.name || h.ip)}
-        title={tx("Ignorer : ne plus le proposer (à reprendre dans Réglages → Recherche réseau)")} onClick={() => void ignore(h)}><EyeOff size={15} aria-hidden /></button>
+        title={tx("Ignorer : ne plus le proposer (à reprendre dans Réglages → Découverte)")} onClick={() => void ignore(h)}><EyeOff size={15} aria-hidden /></button>
     </li>
   ));
 
   const ignore = async (h: NetHost) => {
     setPicked((p) => { const n = new Set(p); n.delete(h.ip); return n; });
-    await act(() => send("POST", "network/ignored", { ip: h.ip, name: h.name || "" }), tx("{0} ignoré : retrouvez-le dans Réglages → Recherche réseau", h.name || h.ip), setNote);
+    await act(() => send("POST", "network/ignored", { ip: h.ip, name: h.name || "" }), tx("{0} ignoré : retrouvez-le dans Réglages → Découverte", h.name || h.ip), setNote);
     reload();
   };
 
@@ -261,7 +261,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
               {pingOnly.length > 0 && (<><p className="mt-3 text-xs font-semibold text-muted">{tx("Répondent au ping seulement")} ({pingOnly.length})</p><ul className="mt-1 flex flex-col gap-1.5">{renderRows(pingOnly)}</ul></>)}
             </details>
           )}
-          {hiddenCount > 0 && <p className="text-xs text-dim">{tx("{0} appareil(s) ignoré(s) : à reprendre dans Réglages → Recherche réseau.", hiddenCount)}</p>}
+          {hiddenCount > 0 && <p className="text-xs text-dim">{tx("{0} appareil(s) ignoré(s) : à reprendre dans Réglages → Découverte.", hiddenCount)}</p>}
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" className={primary} disabled={busy || picked.size === 0} onClick={() => void addPicked()}>
               <Check size={14} aria-hidden />{tx("Ajouter la sélection")} {picked.size > 0 && `(${picked.size})`}

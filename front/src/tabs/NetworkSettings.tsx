@@ -1,4 +1,4 @@
-// Réglages → Recherche réseau : le scan du réseau local (lecture seule) et sa fréquence automatique ; relancer à la main,
+// Réglages → Découverte : le scan du réseau local (lecture seule) et sa fréquence automatique ; relancer à la main,
 // refaire le parcours des premiers pas. Le premier scan est toujours manuel : l'automatique ne démarre qu'après lui.
 import { EyeOff, ListChecks, RotateCcw, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -7,7 +7,7 @@ import { NoteLine } from "../components/form";
 import { Badge, Card, Dim } from "../components/ui";
 import { dateTime } from "../lib/format";
 import { reopenFirstSteps } from "../lib/firstSteps";
-import { act, input, primary, quiet, type Note } from "../lib/forms";
+import { act, button, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { pokeScan } from "../lib/scan";
 import type { NetScan } from "../types";
@@ -48,7 +48,20 @@ export function NetworkSettings() {
   return (
     <div className="flex flex-col gap-4">
       <Card>
-        <h2 className="mb-1 flex items-center gap-2 font-bold"><Search size={16} />{tx("Recherche réseau")}</h2>
+        <h2 className="mb-2 font-bold">{tx("Actions")}</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className={primary} disabled={running}
+            onClick={() => void act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setNote).then(() => load())}>
+            <Search size={14} />{running ? tx("Recherche en cours…") : tx("Lancer une recherche maintenant")}
+          </button>
+          <button type="button" className={`${button} border-link/60 bg-link/10 text-txt hover:bg-link/20`} onClick={reopenFirstSteps} title={tx("Rouvre la carte et efface vos choix « Passer »")}>
+            <ListChecks size={14} />{tx("Revoir les premiers pas")}
+          </button>
+        </div>
+        <NoteLine note={note} />
+      </Card>
+      <Card>
+        <h2 className="mb-1 flex items-center gap-2 font-bold"><Search size={16} />{tx("Découverte")}</h2>
         <p className="mb-3 text-sm text-muted">
           {tx("Cherche les machines allumées sur votre réseau local (un /24 au plus) : un ping, le nom, quelques ports. Lecture seule, rien n'est ajouté tout seul.")}
         </p>
@@ -103,18 +116,6 @@ export function NetworkSettings() {
             ))}
           </ul>
         )}
-      </Card>
-      <Card>
-        <h2 className="mb-2 font-bold">{tx("Actions")}</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={primary} disabled={running}
-            onClick={() => void act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setNote).then(() => load())}>
-            <Search size={14} />{running ? tx("Recherche en cours…") : tx("Lancer une recherche maintenant")}
-          </button>
-          <button type="button" className={quiet} onClick={reopenFirstSteps} title={tx("Rouvre la carte et efface vos choix « Passer »")}>
-            <ListChecks size={14} />{tx("Revoir les premiers pas")}
-          </button>
-        </div>
       </Card>
     </div>
   );
