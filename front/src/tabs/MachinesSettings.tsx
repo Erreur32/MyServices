@@ -369,7 +369,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
           {tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache.")} <b className="text-txt">{tx("Lecture seule")}</b>{tx(" : rien n'y est modifié.")}
           <span className="block text-dim">{tx("Sans accès : ping et services web seulement.")}</span>
         </p>
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-lg border border-line/60 bg-bg2/70 p-3">
           <label className="flex min-w-[240px] flex-1 items-center gap-3 text-sm">
             <Switch on={sshOn} disabled={pending === "ssh"} onChange={(on) => void toggleSsh(on)} label={tx("Lecture par SSH")} />
             <span><b>{sshOn ? tx("Actif") : tx("Inactif")}</b> <Saved k="ssh" />
