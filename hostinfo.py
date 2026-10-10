@@ -36,6 +36,12 @@ done
 """
 
 
+def ping_ttl(stdout: str) -> int | None:
+    """TTL de la réponse d'un ping (128 : Windows, 64 : Linux / macOS, 255 : matériel réseau), None si absent."""
+    m = re.search(r"ttl=(\d+)", stdout or "", re.I)
+    return int(m.group(1)) if m else None
+
+
 def default_gateway() -> str | None:
     """Adresse de la passerelle par défaut de l'hôte (box ou routeur), d'après sa route par défaut ; None si introuvable."""
     try:

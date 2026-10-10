@@ -219,8 +219,14 @@ def docker_inventory(force=False):
     return data
 
 
+PING_TTL: dict = {}  # IP -> TTL de la dernière réponse au ping (128 Windows, 64 Linux / macOS, 255 matériel réseau)
+
+
 def ping(ip):
-    return subprocess.run(["ping", "-c1", "-W1", ip], capture_output=True).returncode == 0
+    r = subprocess.run(["ping", "-c1", "-W1", ip], capture_output=True, text=True)
+    if (ttl := hostinfo.ping_ttl(r.stdout)) is not None:
+        PING_TTL[ip] = ttl
+    return r.returncode == 0
 
 
 def load_ssh_cache():
@@ -1075,6 +1081,7 @@ def main():
             "ping": pings[ip],
             "off": ip in MACHINES_OFF,
             "disabled": ip in DISABLED,
+            "ttl": PING_TTL.get(ip),  # indice du système pour une machine sans SSH (suggestion, jamais une certitude)
             "detected": hostinfo.detected_flags(ip, info, META_RAW.get("machines", {}).get(ip, {})),
             "local": MACHINES[ip][2] == "local",
             "ssh": {"alias": sc["alias"], "port": sc["port"], "user": sc["user"], "identity": sc["identity"],

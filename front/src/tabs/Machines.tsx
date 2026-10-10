@@ -1,13 +1,14 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
 import { Eye, EyeOff } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
-import type { Snapshot } from "../api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { read, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet } from "../lib/filter";
 import { dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
-import type { HealthHost, Machine } from "../types";
+import type { HealthHost, Machine, NetScan } from "../types";
 import { MSTATE, ORDER, mState, type MState } from "../lib/machines";
 import { AuthorizeKey } from "../components/AuthorizeKey";
+import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, FilterBar, Level, Table, Td, Th } from "../components/ui";
 import { tx } from "../lib/i18n";
 
@@ -130,6 +131,9 @@ function Ssh({ m }: { m: Machine }) {
 
 export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: string) => void }) {
   const hb = useMemo(() => healthByIp(snap.health?.hosts), [snap.health]);
+  // Système et applis vus par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas
+  const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[] }>>({});
+  useEffect(() => { read<NetScan>("network/scan").then((n) => setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [] }])))).catch(() => undefined); }, []);
   const facets = useMemo((): Facet<Machine>[] => [
     { key: "state", label: tx("État"), get: mState, name: (v) => MSTATE[v as MState][1], order: ORDER },
     { key: "health", label: tx("Santé"), get: (m) => { const h = hb.get(m.ip); return h ? (h.reachable === false ? "down" : h.level) : ""; },
@@ -154,9 +158,12 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
   const sort = useSort(f.shown, keyOf, "ip");
 
   const name = (m: Machine) => (
-    <button type="button" onClick={() => onMachine(m.ip)} className="text-left" title={tx("Voir ses services")}>
-      <b className="font-semibold hover:text-link">{m.name}</b>
-      <span className="block text-xs text-dim">{m.ip}{m.role ? ` · ${m.role}` : ""}</span>
+    <button type="button" onClick={() => onMachine(m.ip)} className="flex items-center gap-2 text-left" title={tx("Voir ses services")}>
+      <MachineIcon m={m} scan={scanOs[m.ip]} />
+      <span>
+        <b className="font-semibold hover:text-link">{m.name}</b>
+        <span className="block text-xs text-dim">{m.ip}{m.role ? ` · ${m.role}` : ""}</span>
+      </span>
     </button>
   );
   const svc = (m: Machine) => (

@@ -541,6 +541,8 @@ export const EN: Record<string, string> = {
   "Joignable seulement par NPM": "Reachable only through NPM",
   "Jour :": "Day:",
   "Compte": "Account",
+  "Matériel réseau (probable)": "Network equipment (probable)",
+  "Windows (probable)": "Windows (probable)",
   "{0} dossier(s) suivi(s) : premier relevé en cours, l'onglet Sauvegardes apparaît ensuite": "{0} folder(s) followed: first reading in progress, the Backups tab appears afterwards",
   "Sauvegardes suivies": "Followed backups",
   "MyServices regarde l'âge du fichier le plus récent de chaque dossier et vous prévient s'il est trop vieux. Lecture seule : rien n'est modifié sur les machines.": "MyServices checks the age of the newest file in each folder and warns you when it is too old. Read-only: nothing is changed on the machines.",

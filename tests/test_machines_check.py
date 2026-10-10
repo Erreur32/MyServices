@@ -168,5 +168,14 @@ class ReglagesDetectes(unittest.TestCase):
         self.assertEqual((info["virt"], info["npm"]), (None, False))
 
 
+class PingTtl(unittest.TestCase):
+    def test_ttl_de_la_reponse_au_ping(self):
+        import hostinfo
+        self.assertEqual(hostinfo.ping_ttl("64 bytes from 10.0.0.9: icmp_seq=1 ttl=128 time=0.6 ms\n"), 128)
+        self.assertEqual(hostinfo.ping_ttl("64 bytes from x: TTL=64 time=1 ms"), 64)
+        self.assertIsNone(hostinfo.ping_ttl(""))
+        self.assertIsNone(hostinfo.ping_ttl(None))
+
+
 if __name__ == "__main__":
     unittest.main()

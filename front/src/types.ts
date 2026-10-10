@@ -96,6 +96,7 @@ export interface Machine {
   ping: boolean;
   off: boolean;
   detected?: string[];  // réglages confirmés par la détection (gateway, vm, npm, off) : les autres interrupteurs sont grisés
+  ttl?: number | null;  // TTL du ping : 128 = Windows probable, 255 = matériel réseau
   disabled?: boolean;  // machine non suivie (Réglages → Machines) : ni ping, ni SSH, ni santé
   local?: boolean;
   gateway?: boolean;

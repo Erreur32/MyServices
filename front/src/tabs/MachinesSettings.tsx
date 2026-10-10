@@ -3,7 +3,7 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
-import { Apple, Check, ChevronDown, ChevronRight, Cpu, Loader2, Monitor, Plus, Radar, Router, ShieldCheck, Smartphone, Terminal, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Loader2, Plus, Radar, ShieldCheck, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
@@ -11,8 +11,8 @@ import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { ipNum } from "../lib/format";
 import type { Detection, MachineConf, MachinesSettings as State, NetScan } from "../types";
-import { appIcon, appIconByText } from "../lib/appIcons";
-import { MSTATE, mState, osOfMachine, type OsKind } from "../lib/machines";
+import { MachineIcon } from "../components/MachineIcon";
+import { MSTATE, mState } from "../lib/machines";
 import { SshDetails } from "../components/ssh";
 import { sshBrief, sshWarn } from "../lib/ssh";
 import { tx } from "../lib/i18n";
@@ -24,17 +24,6 @@ const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
   { k: "npm_only", label: tx("Joignable seulement par NPM"), help: tx("pare-feu : ses services sont testés via NPM") },
   { k: "vm", label: tx("Machine virtuelle"), help: tx("la santé n'y lit pas SMART") },
 ];
-
-const OS_ICON: Record<OsKind, typeof Terminal> = { linux: Terminal, windows: Monitor, macos: Apple, ios: Smartphone, network: Router, pi: Cpu };
-
-/** Icône de la machine : l'appli qu'elle héberge si on la reconnaît (Proxmox, Home Assistant, UniFi… d'après le scan ou le nom),
- *  sinon son système (relevé SSH, réglage ou dernier scan) ; rien si on ne sait pas */
-function OsIcon({ os, app }: { os: ReturnType<typeof osOfMachine>; app?: string | null }) {
-  if (app) return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-bg2" title={os?.label}><img src={app} alt="" className="h-4 w-4" /></span>;
-  if (!os) return null;
-  const Icon = OS_ICON[os.kind];
-  return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-bg2 text-muted" title={os.label}><Icon size={14} aria-hidden /></span>;
-}
 
 export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: string }) {
   const [st, setSt] = useState<State | null>(null);
@@ -171,7 +160,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan }: {
   return (
     <div ref={card} className={`rounded-xl border bg-card text-sm ${m.disabled ? "opacity-60" : ""} ${focus ? "border-link shadow-[0_0_0_1px_rgb(var(--link))]" : "border-line"}`}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl p-3 text-left hover:bg-bg2">
-        <Chevron size={14} className="text-dim" /><OsIcon os={osOfMachine({ os: m.os, info: live?.info }, scan?.os)} app={appIcon(scan?.apps) ?? appIconByText(m.name, m.role)} /><b>{m.name}</b><Dim>{ip}</Dim>
+        <Chevron size={14} className="text-dim" /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl }} scan={scan} /><b>{m.name}</b><Dim>{ip}</Dim>
         <span className="ml-auto flex items-center gap-1.5">
           {m.off && <Badge tone="off">{tx("souvent éteinte")}</Badge>}
           {live && sshWarn(live) && <Badge tone="warn" title={tx("sshd : root ou mot de passe autorisé")}>{tx("sshd")}</Badge>}
