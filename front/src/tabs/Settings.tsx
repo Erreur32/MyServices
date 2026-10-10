@@ -3,12 +3,12 @@
 // Apparence : thème et largeur de la page (« Page width » de GpuViewR), retenus par le navigateur.
 // Menu en quatre groupes (Données, Surveillance, Accès et sécurité, Application). Autres sections : un fichier chacune dans tabs/.
 import { KeyRound, Moon, MoveHorizontal, Plus, RotateCcw, Sun, Trash2, UserCheck, UserX } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
-import { dateTime, norm } from "../lib/format";
+import { dateTime } from "../lib/format";
 import { CONTENT_WIDTH, type Theme } from "../theme";
 import { LANG, setLang, type Lang } from "../lib/i18n";
-import type { AuditEntry, User } from "../types";
+import type { User } from "../types";
 import { Badge, Card, Dim } from "../components/ui";
 import { Field, NoteLine } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
@@ -17,6 +17,7 @@ import { Connectors } from "./Connectors";
 import { MachinesSettings } from "./MachinesSettings";
 import { NetworkSettings } from "./NetworkSettings";
 import { ApiMcp } from "./ApiMcp";
+import { AuditLog } from "./AuditLog";
 import { Sources } from "./Sources";
 import { SystemSettings } from "./SystemSettings";
 import { tx } from "../lib/i18n";
@@ -29,7 +30,7 @@ const GROUPS: { label: string; sections: { id: string; label: string }[] }[] = [
     { id: "machines", label: tx("Machines") }, { id: "connectors", label: tx("Connecteurs") }, { id: "sources", label: tx("Sources") },
   ] },
   { label: tx("Surveillance"), sections: [{ id: "alerts", label: tx("Alertes") }, { id: "network", label: tx("Recherche réseau") }, { id: "tasks", label: tx("Tâches et horaires") }] },
-  { label: tx("Accès et sécurité"), sections: [{ id: "accounts", label: tx("Comptes") }, { id: "ssh", label: tx("Clé SSH") }, { id: "api", label: tx("API et MCP") }] },
+  { label: tx("Accès et sécurité"), sections: [{ id: "accounts", label: tx("Comptes") }, { id: "ssh", label: tx("Clé SSH") }, { id: "audit", label: tx("Journal d'audit") }, { id: "api", label: tx("API et MCP") }] },
   { label: tx("Application"), sections: [{ id: "look", label: tx("Apparence") }, { id: "system", label: tx("Système") }] },
 ];
 const SECTIONS = GROUPS.flatMap((g) => g.sections);
@@ -66,7 +67,7 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
         ))}
       </nav>
       <div className="min-w-0 flex-1">
-        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors /> : section === "machines" ? <MachinesSettings snap={snap} /> : section === "api" ? <ApiMcp /> : section === "sources" ? <Sources /> : section === "network" ? <NetworkSettings /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} /> : <SystemSettings part="system" />}
+        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors /> : section === "machines" ? <MachinesSettings snap={snap} /> : section === "api" ? <ApiMcp /> : section === "sources" ? <Sources /> : section === "network" ? <NetworkSettings /> : section === "audit" ? <AuditLog /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} /> : <SystemSettings part="system" />}
       </div>
     </div>
   );
@@ -129,12 +130,11 @@ function Appearance({ look }: { look: Look }) {
 
 function Accounts({ me }: { me: string }) {
   const [users, setUsers] = useState<User[] | null>(null);
-  const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [error, setError] = useState("");
 
   const reload = useCallback(() => {
-    Promise.all([read<{ users: User[] }>("users"), read<{ audit: AuditEntry[] }>("audit?limit=300")])
-      .then(([u, a]) => { setUsers(u.users); setAudit(a.audit); setError(""); })
+    read<{ users: User[] }>("users")
+      .then((u) => { setUsers(u.users); setError(""); })
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
   }, []);
   useEffect(reload, [reload]);
@@ -157,7 +157,6 @@ function Accounts({ me }: { me: string }) {
           </ul>
         )}
       </Card>
-      <Journal entries={audit} />
     </div>
   );
 }
@@ -288,37 +287,5 @@ function UserRow({ u, self, onDone }: { u: User; self: boolean; onDone: () => vo
       )}
       <NoteLine note={note} />
     </li>
-  );
-}
-
-function Journal({ entries }: { entries: AuditEntry[] }) {
-  const [q, setQ] = useState("");
-  const shown = useMemo(() => {
-    const n = norm(q);
-    return n ? entries.filter((a) => norm(`${a.username} ${a.ip} ${a.action} ${a.detail}`).includes(n)) : entries;
-  }, [entries, q]);
-  const tone = (a: string) => (/échou|refus/.test(a) ? "text-bad" : /supprim|désactiv|mot de passe/.test(a) ? "text-warn" : "");
-  return (
-    <Card>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-bold">{tx("Journal des actions")} <Dim>· {shown.length} / {entries.length}</Dim></h2>
-        <input className={`${input} max-w-xs`} type="search" placeholder={tx("Filtrer (compte, IP, action…)")} value={q} onChange={(e) => setQ(e.target.value)} />
-      </div>
-      <p className="mb-2 text-xs text-dim">{tx("Connexions, échecs, passages demandés, changements de comptes ; gardé un an.")}</p>
-      <div className="max-h-[420px] overflow-y-auto">
-        <table className="w-full border-collapse text-sm">
-          <tbody className="[&>tr]:border-b [&>tr]:border-line/60">
-            {shown.map((a, i) => (
-              <tr key={i}>
-                <td className="whitespace-nowrap py-1.5 pr-3 text-dim">{dateTime(a.ts * 1000)}</td>
-                <td className="py-1.5 pr-3 font-medium">{a.username || "—"}</td>
-                <td className={`py-1.5 pr-3 ${tone(a.action)}`}>{a.action}{a.detail && <Dim> · {a.detail}</Dim>}</td>
-                <td className="hidden whitespace-nowrap py-1.5 font-mono text-xs text-dim sm:table-cell">{a.ip || ""}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
   );
 }
