@@ -115,6 +115,12 @@ class Describe(unittest.TestCase):
         self.assertEqual(len(got), len(set(got)), "pas de doublon")
         self.assertEqual(netscan.ssh_ports({}), netscan.SSH_PORTS)
 
+    def test_appli_reconnue_par_le_nom_dns(self):
+        d = netscan._describe("10.0.0.1", probe=lambda ip, p: p == 443, lookup=lambda ip: ("unifi.lan", [], []),
+                              banner=lambda ip, p: p == 22, ssh=(22,), page=lambda ip, p: None)
+        self.assertEqual(d["apps"], ["UniFi"])
+        self.assertEqual(d["ssh_port"], 22)
+
     def test_sans_nom_dns(self):
         def no_name(ip):
             raise OSError

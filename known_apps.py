@@ -28,6 +28,7 @@ class App:
     images: tuple[str, ...] = ()    # images Docker (sans étiquette) ; complétées par celles du connecteur
     ports: tuple[int, ...] = ()     # ports habituels
     title: str = ""                 # regex du titre de la page (insensible à la casse)
+    host: str = ""                  # regex du nom DNS de la machine (« unifi », « proxmox »…)
     connector: str | None = None    # type de connecteur à proposer (connectors.TYPES)
 
 
@@ -52,7 +53,8 @@ APPS: tuple[App, ...] = (
     App("jellyfin", "Jellyfin", "Médias", ports=(8096,), title=r"jellyfin", images=("jellyfin/jellyfin", "linuxserver/jellyfin")),
     App("plex", "Plex", "Médias", ports=(32400,), title=r"^plex", images=("plexinc/pms-docker", "linuxserver/plex")),
     App("homeassistant", "Home Assistant", "Domotique", ports=(8123,), title=r"home assistant", connector="home-assistant"),
-    App("proxmox", "Proxmox VE", "Infra / virtualisation", ports=(8006,), title=r"proxmox"),
+    App("proxmox", "Proxmox VE", "Infra / virtualisation", ports=(8006,), title=r"proxmox", host=r"^proxmox"),
+    App("unifi", "UniFi", "Réseau / DNS", title=r"unifi", host=r"^(unifi|udm|ucg|usg)"),  # lu plus tard par l'API MynetworK, pas par SSH
     App("synology", "Synology DSM", "Fichiers / sync", title=r"synology"),
 )
 
@@ -75,10 +77,13 @@ for _a in APPS:
     for _p in _a.ports:
         _BY_PORT.setdefault(_p, []).append(_a)
 _TITLES = [(a, re.compile(a.title, re.I)) for a in APPS if a.title]
+_HOSTS = [(a, re.compile(a.host, re.I)) for a in APPS if a.host]
 
 
-def identify(image: str | None = None, title: str | None = None, port: int | None = None) -> tuple[App, str] | None:
-    """(appli, confiance) ou None. Image d'abord, puis titre de page, puis port (seulement s'il est sans ambiguïté)."""
+def identify(image: str | None = None, title: str | None = None, port: int | None = None,
+             name: str | None = None) -> tuple[App, str] | None:
+    """(appli, confiance) ou None. Image d'abord, puis titre de page, puis nom DNS de la machine, puis port (seulement
+    s'il est sans ambiguïté)."""
     if image:
         base = _base(image)
         for a in APPS:
@@ -87,6 +92,10 @@ def identify(image: str | None = None, title: str | None = None, port: int | Non
     if title:
         for a, rx in _TITLES:
             if rx.search(title):
+                return a, PROBABLE
+    if name:
+        for a, rx in _HOSTS:
+            if rx.search(name):
                 return a, PROBABLE
     if port is not None and len(_BY_PORT.get(port, [])) == 1:
         return _BY_PORT[port][0], POSSIBLE

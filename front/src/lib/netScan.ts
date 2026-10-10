@@ -55,8 +55,9 @@ export const quiet = (h: { hints: string[]; apps: string[] }): boolean => tagsOf
 
 /** Accès encore à régler sur une machine déjà déclarée : Home Assistant sans connecteur, ou machine en SSH sans accès SSH.
  *  Déduit des données (pas de l'état du navigateur) : revient à chaque chargement jusqu'à ce que ce soit fait. */
-export function needsLink(h: { ip: string; ssh_port?: number | null; apps: string[] },
+export function needsLink(h: { ip: string; name?: string; title?: string | null; ssh_port?: number | null; apps: string[] },
                           machines: { ip: string; ssh?: unknown }[], connected: { connector: string; url?: string | null }[]): "ha" | "ssh" | null {
+  if (viaMynetwork(h)) return null;  // UniFi : lu par l'API MynetworK, rien à régler ici
   if (h.apps.includes("Home Assistant"))
     return connected.some((s) => s.connector === "home-assistant" && (s.url ?? "").includes(h.ip)) ? null : "ha";
   return h.ssh_port && !machines.find((m) => m.ip === h.ip)?.ssh ? "ssh" : null;
@@ -87,4 +88,10 @@ export function summarize(found: Seen[], known: string[]): NetSummary {
     shares: watch.filter((h) => h.hints.some((x) => x === "partage SMB" || x.startsWith("Windows") || x.startsWith("Veeam"))).length,
     webOnly: rest.filter((h) => !quiet(h)).length, pingOnly: rest.filter(quiet).length,
   };
+}
+
+/** Équipement lu plus tard par l'API MynetworK (UniFi) : SSH n'est pas nécessaire à sa surveillance, il reste possible.
+ *  Reconnu par l'appli, ou, pour un ancien résultat de scan, par son nom ou le titre de sa page. */
+export function viaMynetwork(h: { name?: string; title?: string | null; apps: string[] }): boolean {
+  return h.apps.includes("UniFi") || /^(unifi|udm|ucg|usg)/i.test(h.name ?? "") || /unifi/i.test(h.title ?? "");
 }

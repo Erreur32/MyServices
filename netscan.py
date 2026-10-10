@@ -107,7 +107,8 @@ def _describe(ip: str, probe=_open, lookup=socket.gethostbyaddr, banner=_ssh_ban
         hints.insert(0, "SSH" if ssh_port == 22 else f"SSH :{ssh_port}")
         opened = sorted({*opened, ssh_port})
     title = next((x["title"] for x in pages if x["title"]), None)
-    apps = list(dict.fromkeys([*app_of.values(), *(hit[0].label for x in pages if x["title"] and (hit := known_apps.identify(title=x["title"])))]))
+    by_name = [hit[0].label] if name and (hit := known_apps.identify(name=name)) else []  # « unifi », « proxmox »…
+    apps = list(dict.fromkeys([*app_of.values(), *(hit[0].label for x in pages if x["title"] and (hit := known_apps.identify(title=x["title"]))), *by_name]))
     return {"ip": ip, "name": name, "ports": opened, "ssh_port": ssh_port, "hints": hints, "apps": apps,
             "title": title, "pages": pages}
 

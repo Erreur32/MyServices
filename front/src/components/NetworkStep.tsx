@@ -8,7 +8,7 @@ import { act, button, input, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { dateTime } from "../lib/format";
 import { ADDED_KEY, DISMISSED_KEY, LATER_HIDDEN_KEY, REOPEN_EVENT } from "../lib/firstSteps";
-import { changes, interesting, needsLink, netState, quiet, summarize, tagsOf } from "../lib/netScan";
+import { changes, interesting, needsLink, netState, quiet, summarize, tagsOf, viaMynetwork } from "../lib/netScan";
 import { pokeScan } from "../lib/scan";
 import { ConnectorForm } from "../tabs/Connectors";
 import type { ConnectorsState, ConnectorType, NetHost, NetScan, SystemState } from "../types";
@@ -32,7 +32,12 @@ function HostInfo({ h, fresh = false, hint = false }: { h: NetHost; fresh?: bool
           <KeyRound size={12} className="mr-1 inline" aria-hidden />{tx("Après l'ajout, un jeton d'accès vous sera demandé (par son API, pas par SSH) : l'aide vous guide pas à pas.")}
         </span>
       )}
-      {hint && !!h.ssh_port && !h.apps.includes("Home Assistant") && (
+      {hint && viaMynetwork(h) && (
+        <span className="row-in basis-full pl-6 text-xs text-info">
+          <KeyRound size={12} className="mr-1 inline" aria-hidden />{tx("UniFi sera lu par l'API de MynetworK (à venir) : SSH n'est pas nécessaire pour la surveillance, il reste possible si vous voulez l'état système.")}
+        </span>
+      )}
+      {hint && !!h.ssh_port && !viaMynetwork(h) && !h.apps.includes("Home Assistant") && (
         <span className="row-in basis-full pl-6 text-xs text-link">
           <KeyRound size={12} className="mr-1 inline" aria-hidden />{tx("Après l'ajout, une étape guidée prépare l'accès SSH : une commande à lancer sur la machine avec la clé de MyServices, puis un test.")}
         </span>
@@ -304,6 +309,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
 /** Machine ajoutée : si elle répond en SSH, préparer l'accès (alias avec la clé de l'app), puis la commande et le test */
 function AddedMachine({ host, onDone }: { host: NetHost; onDone: () => void }) {
   const ha = host.apps.includes("Home Assistant");
+  const mwk = viaMynetwork(host);  // UniFi : API MynetworK à venir ; SSH facultatif
   const ssh = !!host.ssh_port && !ha;  // Home Assistant se relie par son API : pas de SSH proposé, même s'il répond
   const [user, setUser] = useState("root"), [cmd, setCmd] = useState<string | null>(null);
   const [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null), [ok, setOk] = useState(false);
@@ -341,13 +347,18 @@ function AddedMachine({ host, onDone }: { host: NetHost; onDone: () => void }) {
           {ssh && !ok ? tx("Passer") : tx("Terminé")}
         </button>
       </p>
+      {mwk && (
+        <p className="mt-2 text-sm text-muted">
+          {tx("UniFi sera lu par l'API de MynetworK (à venir) : en ligne / hors ligne, appareils et clients, sans SSH. Le SSH apporte seulement l'état système (disque, charge) : à vous de voir.")}
+        </p>
+      )}
       {ssh && !ok && !cmd && (
         <div className="mt-2 flex flex-wrap items-end gap-2">
           <label className="flex flex-col gap-1 text-xs text-dim">{tx("Compte SSH sur cette machine")}
             <input className={`${input} w-40`} value={user} maxLength={32} onChange={(e) => setUser(e.target.value)} />
           </label>
-          <button type="button" className={primary} disabled={busy || !user} onClick={() => void prepare()}>
-            <KeyRound size={14} aria-hidden />{tx("Lire cette machine par SSH")}
+          <button type="button" className={mwk ? quietBtn : primary} disabled={busy || !user} onClick={() => void prepare()}>
+            <KeyRound size={14} aria-hidden />{mwk ? tx("Lire quand même par SSH") : tx("Lire cette machine par SSH")}
           </button>
         </div>
       )}

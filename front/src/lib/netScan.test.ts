@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changes, interesting, needsLink, quiet, summarize, tagsOf } from "./netScan";
+import { changes, interesting, needsLink, quiet, summarize, tagsOf, viaMynetwork } from "./netScan";
 
 const labels = (h: { hints: string[]; apps: string[] }) => tagsOf(h).map((t) => t.label);
 
@@ -93,5 +93,19 @@ describe("summarize", () => {
   it("tout est replié quand rien n'est intéressant (réseau de caméras)", () => {
     const s = summarize([h("1", ["web :80"]), h("2", ["web :80"])], []);
     expect([s.watch, s.webOnly]).toEqual([0, 2]);
+  });
+});
+
+describe("viaMynetwork (UniFi)", () => {
+  it("reconnu par l'appli, le nom ou le titre de la page (anciens scans compris)", () => {
+    expect(viaMynetwork({ apps: ["UniFi"] })).toBe(true);
+    expect(viaMynetwork({ name: "unifi", apps: [] })).toBe(true);
+    expect(viaMynetwork({ name: "UDM-Pro", apps: [] })).toBe(true);
+    expect(viaMynetwork({ title: "UniFi Network", apps: [] })).toBe(true);
+    expect(viaMynetwork({ name: "gamer32", apps: ["Plex"] })).toBe(false);
+  });
+  it("ne demande aucun accès SSH, même avec un port SSH ouvert", () => {
+    const u = { ip: "10.0.0.1", name: "unifi", ssh_port: 22, apps: [] };
+    expect(needsLink(u, [{ ip: "10.0.0.1", ssh: null }], [])).toBeNull();
   });
 });
