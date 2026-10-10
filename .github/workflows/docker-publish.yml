@@ -4,7 +4,7 @@ name: Tests et image Docker
 # - chaque push et PR : tests lancés dans l'image (amd64) ;
 # - push sur main / docker : image amd64 publiée sous le nom de la branche ;
 # - tag vX.Y.Z : amd64 + arm64 (machines natives, sans émulation), puis manifeste multi-arch
-#   « latest » + version.
+#   « latest » + version ; une préversion (v2.0.0-alpha.1, -beta.N, -rc.N) a sa version mais jamais « latest ».
 # Actions épinglées par empreinte de commit (pas par étiquette modifiable).
 
 on:
@@ -85,7 +85,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
             type=ref,event=branch
             type=semver,pattern={{version}}
       - id: build
@@ -140,7 +140,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
             type=ref,event=branch
             type=semver,pattern={{version}}
       - name: Manifeste multi-arch
