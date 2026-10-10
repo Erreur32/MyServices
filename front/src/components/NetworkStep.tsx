@@ -42,10 +42,17 @@ function HostInfo({ h, fresh = false, hint = false }: { h: NetHost; fresh?: bool
 
 const quietBtn = `${button} border-line text-muted hover:border-link hover:text-txt`;
 
-export function NetworkStep({ net, reload }: { net: NetScan | null; reload: () => void }) {
+const ADDED = "myservices-network-added";
+const loadAdded = (): Record<string, NetHost> => {
+  try { return JSON.parse(sessionStorage.getItem(ADDED) || "{}") as Record<string, NetHost>; } catch { return {}; }
+};
+
+export function NetworkStep({ net, reload, known }: { net: NetScan | null; reload: () => void; known: string[] }) {
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [added, setAdded] = useState<Record<string, NetHost>>({});
+  // Machines ajoutées dont les options (SSH, jeton) restent à régler : gardées si la page est rechargée, retirées par « Terminé »
+  const [added, setAdded] = useState<Record<string, NetHost>>(loadAdded);
+  useEffect(() => { sessionStorage.setItem(ADDED, JSON.stringify(added)); }, [added]);
   const state = netState(net);
   const preselected = useRef<number | null>(null);
   useEffect(() => {  // fin d'une recherche : les machines intéressantes sont cochées d'office (décochables)
@@ -63,7 +70,7 @@ export function NetworkStep({ net, reload }: { net: NetScan | null; reload: () =
   const stop = async () => { await send("POST", "network/scan/stop"); reload(); };
 
   const toggle = (ip: string) => setPicked((p) => { const n = new Set(p); if (n.has(ip)) n.delete(ip); else n.add(ip); return n; });
-  const found = (net?.found ?? []).filter((h) => !added[h.ip]);
+  const found = (net?.found ?? []).filter((h) => !added[h.ip] && !known.includes(h.ip));
   const useful = found.filter((h) => !quiet(h)), silent = found.filter(quiet);
 
   const renderRows = (list: NetHost[]) => list.map((h) => (
@@ -172,7 +179,15 @@ export function NetworkStep({ net, reload }: { net: NetScan | null; reload: () =
           </div>
         </>
       )}
-      {Object.values(added).map((h) => <AddedMachine key={h.ip} host={h} />)}
+      {Object.keys(added).length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-semibold text-txt">{tx("Machines ajoutées : à relier")}</p>
+          {Object.values(added).map((h) => (
+            <AddedMachine key={h.ip} host={h} onDone={() => setAdded((a) => { const n = { ...a }; delete n[h.ip]; return n; })} />
+          ))}
+          {found.length === 0 && <p className="text-sm text-dim">{tx("Toutes les machines trouvées sont ajoutées. « Terminé » ferme un cadre ; « Chercher à nouveau » relance la recherche.")}</p>}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-3 border-t border-line/60 pt-3">
         {net && net.phase === "done" && net.ended ? (
           <>
@@ -195,7 +210,7 @@ export function NetworkStep({ net, reload }: { net: NetScan | null; reload: () =
 }
 
 /** Machine ajoutée : si elle répond en SSH, préparer l'accès (alias avec la clé de l'app), puis la commande et le test */
-function AddedMachine({ host }: { host: NetHost }) {
+function AddedMachine({ host, onDone }: { host: NetHost; onDone: () => void }) {
   const ha = host.apps.includes("Home Assistant");
   const ssh = !!host.ssh_port && !ha;  // Home Assistant se relie par son API : pas de SSH proposé, même s'il répond
   const [user, setUser] = useState("root"), [cmd, setCmd] = useState<string | null>(null);
@@ -230,6 +245,9 @@ function AddedMachine({ host }: { host: NetHost }) {
         <Check size={14} className="text-ok" aria-hidden /><b className="text-txt">{label}</b>
         <span className="font-mono text-xs text-dim">{host.ip}</span><Badge tone="ok">{tx("ajoutée")}</Badge>
         {ssh && ok && <Badge tone="ok">{tx("SSH accepté")}</Badge>}
+        <button type="button" className={`${quietBtn} ml-auto`} onClick={onDone} title={tx("Fermer ce cadre : la machine reste ajoutée, ses accès se règlent aussi dans Réglages → Machines")}>
+          {tx("Terminé")}
+        </button>
       </p>
       {ssh && !ok && !cmd && (
         <div className="mt-2 flex flex-wrap items-end gap-2">

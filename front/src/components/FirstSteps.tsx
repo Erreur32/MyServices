@@ -162,7 +162,7 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
             : tx("Rien à proposer pour l'instant. Cette étape s'allume toute seule quand NPM, AdGuard, Beszel, Uptime Kuma… sont reconnus sur vos machines.")}
         </Step>
         <Step state={netState(net) === "run" ? "run" : netState(net) === "found" ? "now" : "next"} title={tx("Recherche des autres machines du réseau")}>
-          <NetworkStep net={net} reload={reloadNet} />
+          <NetworkStep net={net} reload={reloadNet} known={snap.data.machine_list.map((m) => m.ip)} />
         </Step>
       </ol>
       <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line/70 pt-4">
