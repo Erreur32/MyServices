@@ -28,8 +28,8 @@ const GROUPS: { label: string; sections: { id: string; label: string }[] }[] = [
   { label: tx("Données"), sections: [
     { id: "machines", label: tx("Machines") }, { id: "connectors", label: tx("Connecteurs") }, { id: "sources", label: tx("Sources") },
   ] },
-  { label: tx("Surveillance"), sections: [{ id: "alerts", label: tx("Alertes") }, { id: "network", label: tx("Recherche réseau") }] },
-  { label: tx("Accès et sécurité"), sections: [{ id: "accounts", label: tx("Comptes") }, { id: "api", label: tx("API et MCP") }] },
+  { label: tx("Surveillance"), sections: [{ id: "alerts", label: tx("Alertes") }, { id: "network", label: tx("Recherche réseau") }, { id: "tasks", label: tx("Tâches et horaires") }] },
+  { label: tx("Accès et sécurité"), sections: [{ id: "accounts", label: tx("Comptes") }, { id: "ssh", label: tx("Clé SSH") }, { id: "api", label: tx("API et MCP") }] },
   { label: tx("Application"), sections: [{ id: "look", label: tx("Apparence") }, { id: "system", label: tx("Système") }] },
 ];
 const SECTIONS = GROUPS.flatMap((g) => g.sections);
@@ -66,7 +66,7 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
         ))}
       </nav>
       <div className="min-w-0 flex-1">
-        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors /> : section === "machines" ? <MachinesSettings snap={snap} /> : section === "api" ? <ApiMcp /> : section === "sources" ? <Sources /> : section === "network" ? <NetworkSettings /> : <SystemSettings />}
+        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors /> : section === "machines" ? <MachinesSettings snap={snap} /> : section === "api" ? <ApiMcp /> : section === "sources" ? <Sources /> : section === "network" ? <NetworkSettings /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} /> : <SystemSettings part="system" />}
       </div>
     </div>
   );

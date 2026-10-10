@@ -1,5 +1,5 @@
-// Réglages → Système : clé SSH de l'app (à autoriser sur chaque machine), tâches et horaires (modifiables, lancer
-// maintenant), export de la configuration (mot de passe), informations (version, réseaux autorisés, tailles).
+// Réglages, trois sections sur le même état : « Clé SSH » (Accès et sécurité : à autoriser sur chaque machine), « Tâches et
+// horaires » (Surveillance : modifiables, lancer maintenant) et « Système » (export de la configuration, informations).
 import { Download, KeyRound, Play, RotateCcw, Server, Timer } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { download, LOGIN, LoginRequired, read, send } from "../api";
@@ -10,7 +10,7 @@ import { bytes, dateTime, dur } from "../lib/format";
 import type { SystemState, SystemTask } from "../types";
 import { tx } from "../lib/i18n";
 
-export function SystemSettings() {
+export function SystemSettings({ part }: { part: "system" | "tasks" | "ssh" }) {
   const [st, setSt] = useState<SystemState | null>(null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
@@ -26,10 +26,9 @@ export function SystemSettings() {
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   return (
     <div className="flex flex-col gap-4">
-      <SshKey ssh={st.ssh} />
-      <Tasks tasks={st.tasks} reload={reload} />
-      <Export />
-      <Info info={st.info} />
+      {part === "ssh" && <SshKey ssh={st.ssh} />}
+      {part === "tasks" && <Tasks tasks={st.tasks} reload={reload} />}
+      {part === "system" && <><Export /><Info info={st.info} /></>}
     </div>
   );
 }

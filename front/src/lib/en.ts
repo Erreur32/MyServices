@@ -231,6 +231,7 @@ export const EN: Record<string, string> = {
   "clé d'hôte inconnue": "unknown host key",
   "Clé publique": "Public key",
   "Clé SSH de l'app": "App SSH key",
+  "Clé SSH": "SSH key",
   "collecteur lui-même (local)": "the collector itself (local)",
   "compte « {0} » créé ({1})": "account “{0}” created ({1})",
   "Compte SSH": "SSH account",
