@@ -1,0 +1,59 @@
+// Mise en forme commune (dates, tailles, durées), dans la langue de la page.
+
+import { LANG, LOCALE, tx } from "./i18n";
+
+export function bytes(n: number | null | undefined): string {
+  if (n == null) return "?";
+  const u = LANG === "fr" ? ["o", "Ko", "Mo", "Go", "To"] : ["B", "KB", "MB", "GB", "TB"];
+  let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  const v = n.toFixed(n >= 10 || i === 0 ? 0 : 1);
+  return `${LANG === "fr" ? v.replace(".", ",") : v} ${u[i]}`;
+}
+
+/** Durée en secondes -> « 3 j 4 h » */
+export function dur(sec: number | null | undefined): string {
+  if (sec == null) return "—";
+  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600);
+  return d ? tx("{0} j {1} h", d, h) : tx("{0} h", h);
+}
+
+/** Âge en jours -> « 5 h » ou « 3 j » */
+export function ageDays(a: number | null | undefined): string {
+  if (a == null) return "—";
+  return a < 1 ? tx("{0} h", Math.max(1, Math.round(a * 24))) : tx("{0} j", Math.round(a));
+}
+
+export function hm(d: Date | number): string {
+  return new Date(d).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" });
+}
+
+export function dateTime(d: Date | number | string): string {
+  return new Date(d).toLocaleString(LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+export function longDay(d: Date | number): string {
+  return new Date(d).toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+/** Clé de jour locale « 2026-10-10 » (même découpage que l'API per-day, heure locale). */
+export function dayKey(d: Date | number): string {
+  const x = new Date(d);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+}
+
+export function ipNum(ip: string): number {
+  return ip.split(".").map(Number).reduce((x, n) => x * 256 + (n || 0), 0);
+}
+
+/** Minuscules sans accents, pour la recherche. */
+export function norm(s: unknown): string {
+  return String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+/** Nom d'une machine de la santé, « Dev · Hermes · 192.168.1.20 » -> [« Dev · Hermes », « 192.168.1.20 »]
+ *  (l'IP est après le dernier « · », le nom peut en contenir). */
+export function splitHostName(name: string): [string, string] {
+  const i = name.lastIndexOf(" · ");
+  return i < 0 ? [name, ""] : [name.slice(0, i), name.slice(i + 3)];
+}

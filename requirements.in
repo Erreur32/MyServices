@@ -1,0 +1,8 @@
+# Serveur de la version Docker (server.py, api.py) ; le collecteur et ses scripts restent en bibliothèque standard.
+# Figé avec empreintes dans requirements.txt : uv pip compile requirements.in --generate-hashes
+fastapi==0.143.0
+uvicorn==0.54.0
+argon2-cffi==25.1.0
+cryptography==50.0.2
+# tests (TestClient) : petit, pur Python
+httpx==0.28.1

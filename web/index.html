@@ -1,0 +1,1746 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MyServices — annuaire des services du LAN</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
+<style>
+  :root{
+    --bg:#0c0e14; --bg2:#11141d; --card:#161a26; --line:#232838;
+    --txt:#e6e9f2; --muted:#9aa3b8; --dim:#6b7488;
+    --ok:#4cd07f; --warn:#e8a33d; --bad:#f06a6a; --link:#2496ed; --port:#e0b341; --docker:#2496ed; --apache:#c084fc; --proc:#a978f0; --web:#94a3b8;
+    --npm:#faa42f; --loc:#38bdf8; /* couleurs de source : NPM (orange du logo) / hors NPM, partout sur la page */
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 80% -10%,#1a2030 0%,var(--bg) 55%);
+    color:var(--txt);font:14.5px/1.6 ui-sans-serif,system-ui,"Segoe UI",Roboto,Inter,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:var(--link);text-decoration:none} a:hover{text-decoration:underline}
+  .wrap{width:97%;max-width:2400px;margin:0 auto;padding:42px clamp(16px,3vw,48px) 80px}
+  .kicker{letter-spacing:.18em;text-transform:uppercase;color:var(--dim);font-size:12px;font-weight:600}
+  h1{font-size:clamp(24px,3.4vw,36px);margin:.22em 0 .1em;font-weight:800;letter-spacing:-.4px}
+  .sub{color:var(--muted);font-size:15px;max-width:90ch}
+  .head .sub{max-width:none}
+  .checks{margin:6px 0 0;font-size:12.5px;color:var(--dim);display:flex;flex-wrap:wrap;align-items:center;gap:5px}
+  .checks b{color:var(--muted);font-weight:600;margin-right:3px}
+  .checks span{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:1px 9px;color:var(--muted);white-space:nowrap}  /* une seule ligne quand l'écran est assez large */
+  .live{display:inline-flex;align-items:center;gap:7px;margin-top:12px;font-size:12.5px;color:var(--ok);
+    background:rgba(76,208,127,.1);border:1px solid rgba(76,208,127,.3);padding:5px 12px;border-radius:999px}
+  .kicker-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap} .kicker-row .live{margin-top:0}
+  .live .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  .live.stale{color:var(--warn);background:rgba(232,163,61,.1);border-color:rgba(232,163,61,.3)}
+  .live.stale .dot{background:var(--warn);box-shadow:0 0 8px var(--warn)}
+  code{font:12.3px ui-monospace,Menlo,Consolas,monospace;background:#0a0c12;border:1px solid var(--line);
+    border-radius:5px;padding:1px 5px;color:#cdd6f4;white-space:nowrap}
+
+  /* En-tête : texte à gauche, compteurs à droite */
+  .head{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start;justify-content:space-between}
+  .head .intro{flex:1 1 520px;min-width:0}
+  /* Bandeau de compteurs : un groupe par ligne (NPM, hors NPM, Backups), pastilles « nombre + libellé » */
+  /* Largeur du contenu : chaque groupe sur une seule ligne (« à nettoyer » compris) ; retour à la ligne sur écran étroit */
+  .stats{display:flex;flex-direction:column;gap:8px;flex:0 0 auto;max-width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .sgrp{display:flex;gap:5px;align-items:center}
+  .sgrp .sc{display:flex;flex-wrap:nowrap;gap:5px;flex:1;min-width:0}
+  @media (max-width:1200px){ .stats{flex:1 1 100%} .sgrp .sc{flex-wrap:wrap} }
+  .sgrp .sh{background:none;border:none;color:var(--muted);text-align:left;cursor:pointer;padding:0 2px;font:inherit;width:150px;flex:none}
+  .sgrp .sh b{display:block;font-size:13px;color:var(--txt);letter-spacing:.04em}
+  .sgrp .sh span{font-size:11px;color:var(--dim)}
+  .sgrp .sh.npm b{color:var(--npm)} .sgrp .sh.loc b{color:var(--loc)} .sgrp .sh.bk b{color:#a78bfa}
+  .sgrp .sh.on b{text-decoration:underline;text-underline-offset:4px}
+  .sgrp.npm{border-left:3px solid var(--npm);padding-left:8px} .sgrp.loc{border-left:3px solid var(--loc);padding-left:8px}
+  .sgrp.bk{border-left:3px solid #a78bfa;padding-left:8px}
+  .sgrp.hl{border-left:3px solid #f472b6;padding-left:8px} .sgrp .sh.hl b{color:#f472b6}
+  .sgrp.dg{border-left:3px solid #68bc71;padding-left:8px} .sgrp .sh.dg b{color:#86d993}
+  .sgrp .sh small{display:block;font-size:10.5px;color:var(--dim);line-height:1.4}
+  .sgrp .sh small i{font-style:normal;cursor:pointer} .sgrp .sh small i:hover,.sgrp .sh small i.on{color:var(--link);text-decoration:underline}
+  .nt{display:inline-block;margin:0 0 4px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:0 6px;border-radius:4px;
+    border:1px solid var(--line);color:var(--muted);cursor:pointer;align-items:center;gap:5px} .nt:hover{filter:brightness(1.25)}
+  .nt{display:flex;width:max-content}
+  .nt.npm{color:#faa42f;background:rgba(250,164,47,.12);border-color:rgba(250,164,47,.35)}
+  .nt.npm.redirect{color:#c4a1f5;background:rgba(169,120,240,.12);border-color:rgba(169,120,240,.35)}
+  .nt.npm.dead{color:#f06a6a;background:rgba(240,106,106,.12);border-color:rgba(240,106,106,.35)}
+  .nt.npm.stream{color:#2dd4bf;background:rgba(45,212,191,.12);border-color:rgba(45,212,191,.35)}
+  .nt.loc{color:var(--loc);background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.35)}
+  .nt img{width:12px;height:13px;display:block}
+  .sgrp .sh b img{width:15px;height:17px;vertical-align:-3px;margin-right:6px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:3px 9px;cursor:pointer;text-align:left;color:inherit;font:inherit;white-space:nowrap}
+  .stat:hover{border-color:var(--dim)} .stat.on{border-color:var(--link);background:rgba(36,150,237,.1)}
+  .stat b{font-size:15px;line-height:1.3;margin-right:5px}
+  .stat span{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+  .stats .stat.zero{opacity:.35} .stats .stat.zero b{color:var(--dim)}  /* compteur à 0 : terne, chiffre gris */
+  /* cadre fin seulement sur les alertes et avertissements non nuls */
+  .stats .stat.chk:not(.on){border-color:var(--line)}
+  .stats .stat.warn:not(.zero):not(.on){border-color:rgba(232,163,61,.6)} .stats .stat.bad:not(.zero):not(.on){border-color:rgba(240,106,106,.65)}
+  .stat.ok b{color:var(--ok)} .stat.warn b{color:var(--warn)} .stat.bad b{color:var(--bad)} .stat.off b{color:var(--dim)} .stat.loc b{color:var(--loc)}
+  .stat.chk b{color:#fb923c} .stat.chk{border-color:rgba(251,146,60,.4)} .stat.chk.on{border-color:#fb923c;background:rgba(251,146,60,.12)}
+  .ck{display:inline-block;font-size:10.5px;font-weight:600;color:#fb923c;background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.4);border-radius:4px;padding:0 5px;margin:3px 4px 0 0;cursor:pointer}
+
+  .toolbar{padding:12px 0 0;margin-top:22px}  /* au-dessus des onglets */
+  .row1{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  /* Barre de recherche : largeur bornée, icône, bouton effacer, raccourci / */
+  .search{position:relative;flex:0 1 560px;min-width:260px;display:flex;align-items:center}
+  .search .ico{position:absolute;left:12px;color:var(--dim);font-size:14px;pointer-events:none}
+  #q{width:100%;background:var(--card);border:1px solid var(--line);color:var(--txt);
+    font-size:14px;padding:9px 64px 9px 36px;border-radius:10px;outline:none;transition:border-color .15s,box-shadow .15s}
+  #q::-webkit-search-cancel-button{display:none}
+  #q:focus{border-color:var(--link);box-shadow:0 0 0 3px rgba(36,150,237,.18)}
+  .search .clr{position:absolute;right:34px;background:none;border:none;color:var(--dim);font-size:16px;cursor:pointer;padding:2px 4px;display:none}
+  .search .clr:hover{color:var(--txt)} .search.has .clr{display:block}
+  .search kbd{position:absolute;right:10px;font:11px ui-monospace,Menlo,monospace;color:var(--dim);border:1px solid var(--line);
+    border-radius:4px;padding:0 5px;background:var(--bg2)}
+  .search.has kbd{display:none} .search.has .clr{right:10px}
+  .count{display:inline-flex;align-items:baseline;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:5px 13px;font-size:12.5px;color:var(--muted);white-space:nowrap}
+  .count b{font-size:17px;color:var(--txt);font-weight:800} .count.filtered b{color:var(--link)}
+  .count small{color:var(--dim);font-size:11.5px}
+  /* Filtres en cartes : Service | Accès & TLS sur 2 colonnes égales, À vérifier / Catégorie / Machine sur toute la largeur */
+  .facets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+  @media (max-width:1000px){ .facets{grid-template-columns:1fr} }
+  .fg{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:8px 12px 10px;display:flex;flex-direction:column;gap:6px;min-width:0}
+  .fg.wide{grid-column:1/-1} .fg.chk{border-color:rgba(251,146,60,.4)}
+  .fg h5{margin:0 0 2px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+  .facet{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+  .facet > span{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;min-width:96px}
+  .fcount{font-size:11px;font-weight:700;color:var(--txt);background:rgba(36,150,237,.18);border:1px solid var(--link);border-radius:999px;padding:0 7px;margin-left:6px}
+  td.sc.clk{cursor:pointer} td.sc.clk:hover{background:rgba(36,150,237,.08)}
+  .chip{background:var(--card);border:1px solid var(--line);color:var(--muted);font-size:12px;padding:3px 10px;border-radius:999px;cursor:pointer}
+  .chip.ex{color:var(--bad)!important;border-color:rgba(240,106,106,.6)!important;background:rgba(240,106,106,.1)!important;text-decoration:line-through}
+  .chip:hover{color:var(--txt)} .chip.on{color:var(--txt);border-color:var(--link);background:rgba(36,150,237,.14)}
+  .chip small{color:var(--dim);margin-left:4px}
+  .chip{display:inline-flex;align-items:center}
+  .chip .ci{display:inline-flex;margin-right:5px;font-size:12px;line-height:1}
+  .chip .ci img{width:13px;height:13px}
+  .active{display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex:1 1 300px;min-width:0}  /* pastilles des filtres actifs, à droite du compteur */
+  .active:empty{display:none}
+  .pill{background:rgba(36,150,237,.14);border:1px solid var(--link);color:var(--txt);font-size:12px;padding:2px 6px 2px 10px;border-radius:999px;cursor:pointer}
+  .pill b{color:var(--muted);font-weight:600;margin-left:6px}
+  .pill.ex{background:rgba(240,106,106,.12);border-color:rgba(240,106,106,.6)}
+  .pill.clear{background:none;border-color:var(--line);color:var(--dim)}
+  .pill i{font-style:normal;cursor:pointer;border-radius:999px;padding:0 2px} .pill i:hover{color:#fff;text-decoration:line-through}
+  .pill em{font-style:normal;color:var(--dim);font-size:11px}
+
+  .tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+  .tbl th,.tbl td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  .tbl th{color:var(--dim);text-transform:uppercase;letter-spacing:.05em;font-size:10.5px;font-weight:700;background:var(--bg2);white-space:nowrap}
+  /* En-tête figé en haut au défilement ; la 2e ligne (sous-colonnes Accès/TLS) se cale sous la 1re */
+  .tbl thead th{position:sticky;top:0;z-index:4;box-shadow:0 1px 0 var(--line)}
+  .tbl thead tr:nth-child(2) th{top:var(--h1,33px)}
+  .tbl thead tr:first-child th:first-child{border-top-left-radius:12px} .tbl thead tr:first-child th:last-child{border-top-right-radius:12px}
+  .tbl tbody tr:last-child td{border-bottom:none}
+  .tbl th[data-k],.tbl th[data-mk]{cursor:pointer;user-select:none} .tbl th[data-k]:hover,.tbl th[data-mk]:hover{color:var(--txt)}
+  .tbl th.sorted::after{content:" ▾"} .tbl th.sorted.asc::after{content:" ▴"}
+  .tbl th.grp{text-align:center;border-left:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .tbl th.sc,.tbl td.sc{text-align:center;width:52px;padding-left:4px;padding-right:4px}
+  .tbl th.sc.first,.tbl td.sc.first{border-left:1px solid var(--line)}
+  .tbl tbody tr.row{cursor:pointer}
+  .tbl tbody tr.row:hover td{background:#1a1f2d}
+  .tbl tbody tr.row.disabled td{opacity:.55}
+  .tbl tr.detail td{background:var(--bg2);padding:14px 18px}
+  .dom a{color:var(--txt);font-weight:600}
+  .dom .alt{display:block;color:var(--muted);font-size:12px}
+  .dom .desc{display:block;color:var(--dim);font-size:11.5px;max-width:48ch}
+  .port{font:12px ui-monospace,Menlo,monospace;color:var(--port)}
+  .mut{color:var(--muted)} .dim{color:var(--dim)}
+  .svc b{color:var(--txt)} .svc .img{display:block;font:11.5px ui-monospace,Menlo,monospace;color:var(--dim);word-break:break-all}
+  .svc .state{display:block;font-size:11.5px;color:var(--dim)} .svc .state.healthy{color:var(--ok)} .svc .state.unhealthy{color:var(--bad)}
+  .svc .sname{display:inline-flex;align-items:center;gap:6px}
+  .svc .sname img{width:15px;height:15px;flex-shrink:0}
+  .svc .meta{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+  .hp{font-size:10.5px;font-weight:700;padding:0 6px;border-radius:4px;white-space:nowrap}
+  .hp.healthy{background:rgba(76,208,127,.15);color:var(--ok)} .hp.unhealthy{background:rgba(240,106,106,.15);color:var(--bad)}
+  .hp.starting{background:rgba(232,163,61,.15);color:var(--warn)} .hp.up{background:rgba(107,116,136,.18);color:var(--muted)}
+  .hp.ver{background:rgba(36,150,237,.12);color:#7cc0f5;font-family:ui-monospace,Menlo,monospace;font-weight:600}
+  .hp.cmp{border:1px solid var(--line);color:var(--dim);font-weight:600}
+  .tag img{width:12px;height:12px;display:block}
+  .tag{display:inline-flex;align-items:center;gap:4px;height:19px;line-height:1;font-size:10.5px;font-weight:600;padding:0 7px;border-radius:4px;margin:0 4px 3px 0;cursor:pointer;
+    border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .mtags{margin-top:5px;display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+  .mtags .tag{margin:0}
+  .tag:hover{border-color:var(--link);color:var(--txt)}
+  .tag.docker{background:rgba(36,150,237,.15);color:var(--docker);border-color:rgba(36,150,237,.35)}
+  .tag.process{background:rgba(169,120,240,.15);color:var(--proc);border-color:transparent}
+  .tag.web{background:rgba(148,163,184,.14);color:var(--web);border-color:transparent}
+  .tag.apache{background:rgba(192,132,252,.14);color:var(--apache);border-color:rgba(192,132,252,.45)}
+  .tag.apache.down,.srv.apache.down{background:rgba(240,106,106,.24);color:#ffc2c2;border-color:rgba(240,106,106,.7)}
+  .tag.inconnu{background:rgba(232,163,61,.08);color:#d9a55a;border:1px dashed rgba(232,163,61,.55)}
+  .qi{display:inline-flex;align-items:center;justify-content:center;width:12px;height:12px;border-radius:50%;
+    background:rgba(232,163,61,.85);color:#0c0e14;font-size:9px;font-weight:900;line-height:1}
+  .tag.cat{background:rgba(232,163,61,.12);color:var(--warn);border-color:transparent}
+  .tag.adguard{background:rgba(104,188,113,.14);color:#86d993;border-color:rgba(104,188,113,.4)}
+  .tag.src{background:rgba(107,116,136,.18);color:var(--muted);border-color:transparent}
+  .xp{display:inline-flex;align-items:center;gap:3px;margin-left:6px;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;cursor:pointer;vertical-align:1px;border:1px solid}
+  .xp.prive{color:#7ee2a6;background:rgba(76,208,127,.14);border-color:rgba(76,208,127,.45)}
+  .xp.public{color:#7cc0f5;background:rgba(36,150,237,.14);border-color:rgba(36,150,237,.45)}
+  .xp.ouvert{color:#ff9a9a;background:rgba(240,106,106,.18);border-color:rgba(240,106,106,.6)}
+  .hi{font-size:12px;line-height:1;display:inline-block}  /* icône maison « hors NPM », même partout */
+  .clk{cursor:pointer} .clk:hover{text-decoration:underline dotted}
+  .st{font-weight:700;font-size:11px;padding:2px 8px;border-radius:5px;white-space:nowrap;display:inline-block;border:1px solid transparent}
+  .st.ok{background:rgba(76,208,127,.24);color:#7ee2a6;border-color:rgba(76,208,127,.55)}
+  .st.warn{background:rgba(232,163,61,.26);color:#f5c26b;border-color:rgba(232,163,61,.6)}
+  .st.bad{background:rgba(240,106,106,.28);color:#ff9a9a;border-color:rgba(240,106,106,.65);box-shadow:0 0 10px rgba(240,106,106,.25)}
+  .st.off{background:rgba(107,116,136,.2);color:var(--muted);border-color:rgba(107,116,136,.4)}
+  .why{display:block;font-size:11.5px;color:var(--dim);margin-top:2px}
+  .web{font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;white-space:nowrap;display:inline-block;cursor:pointer}
+  .web.ui{background:rgba(76,208,127,.15);color:var(--ok)} .web.uiout{background:rgba(232,163,61,.15);color:var(--warn)}
+  .web.api{background:rgba(107,116,136,.18);color:var(--muted)} .web.none{color:var(--dim)}
+  .web.unk{display:inline-flex;align-items:center;gap:5px;color:#d9a55a;background:rgba(232,163,61,.08);border:1px dashed rgba(232,163,61,.55)}
+  .y{color:var(--ok);font-weight:700} .n{color:var(--bad);font-weight:700} .na{color:var(--dim)} .i{color:var(--muted)}
+  .kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;font-size:12.5px}
+  .kvb{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-width:0}
+  .kvb{padding:0 14px 8px;overflow:hidden}
+  .kvb h4{margin:0 -14px 6px;padding:7px 14px;background:#0b0d13;border-bottom:1px solid var(--line);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .kvr{display:grid;grid-template-columns:128px minmax(0,1fr);gap:10px;align-items:center;padding:3px 0;border-bottom:1px dashed var(--line)}
+  .kvr:last-child{border-bottom:none}
+  .kvr .k{color:var(--dim);white-space:nowrap}
+  .kvr .v{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;display:flex;align-items:center;gap:6px}
+  .kvr .v > span,.kvr .v > b,.kvr .v > a{overflow:hidden;text-overflow:ellipsis}
+  .kv .dok{color:var(--ok);font-weight:600} .kv .dbad{color:var(--bad);font-weight:600} .kv .dwarn{color:var(--warn);font-weight:600}
+  .kv .dmut{color:var(--dim)} .kv .dstrong{color:var(--txt);font-weight:600}
+  .kv .dmono{font:12px ui-monospace,Menlo,monospace;color:var(--port)} .kv .dver{font:12px ui-monospace,Menlo,monospace;color:#7cc0f5}
+  .kv .dnpm{display:inline-flex;align-items:center;gap:6px;color:var(--npm);font-weight:600} .kv .dnpm img{width:12px;height:13px}
+  .cb{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:4px;border:1.5px solid var(--dim);
+    font-size:11px;font-weight:800;line-height:1;flex-shrink:0;color:#0c0e14}
+  .cb.ok{background:var(--ok);border-color:var(--ok)} .cb.on{background:var(--link);border-color:var(--link)}
+  .cb.warn{background:var(--warn);border-color:var(--warn)} .cb.bad{border-color:var(--bad)} .cb.off{border-color:var(--line)}
+  .cbl{color:var(--muted);font-size:12px}
+  .plink{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border:1px solid var(--line);border-radius:999px;font-size:11.5px;
+    color:var(--txt);background:var(--bg2);text-decoration:none} .plink:hover{border-color:var(--link);text-decoration:none}
+  .plink img{width:13px;height:13px;display:block}
+  .empty{padding:30px;text-align:center;color:var(--dim)}
+  mark{background:rgba(232,163,61,.3);color:inherit;border-radius:2px}
+
+  .tabs{display:flex;gap:6px;margin:16px 0 12px;border-bottom:1px solid var(--line)}
+  .tab[hidden]{display:none}  /* onglets facultatifs (Health, Backups) masqués sans config */
+  .tab{display:inline-flex;align-items:center;gap:7px;background:none;border:1px solid transparent;border-bottom:none;color:var(--muted);
+    font:600 13px inherit;padding:8px 16px;border-radius:9px 9px 0 0;cursor:pointer;margin-bottom:-1px}
+  .tab img{width:15px;height:15px}
+  .tab.on{background:var(--card);border-color:var(--line);color:var(--txt)} .tab:hover{color:var(--txt)}
+  .info{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:4px 0 12px;padding:0 14px}
+  .info summary{cursor:pointer;padding:8px 0;font-size:12.5px;font-weight:600;color:var(--muted);user-select:none}
+  .info summary:hover{color:var(--txt)} .info[open] summary{border-bottom:1px solid var(--line)}
+  .info .sub{max-width:none;font-size:13.5px;margin:10px 0} .info .facets{margin:0 0 12px}
+  .hnext{display:inline-block;margin:0 0 12px;padding:5px 12px;font-size:12.5px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:8px}
+  .hnext b{color:var(--txt)} .hnext .dmut{color:var(--dim)} .hnext .late{color:var(--warn)}
+  .panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:10px;align-items:start;margin-top:10px}
+  .panels > details{margin:0}
+  .panels:has(#dnsbox:not([hidden])) .facets{grid-template-columns:1fr}  /* demi-largeur : facettes sur une colonne */
+  #dnsbox summary{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .dpill{display:inline-block;padding:1px 9px;border-radius:10px;font-size:11.5px;font-weight:700;border:1px solid transparent}
+  .dpill.ok{background:rgba(76,208,127,.16);color:#7ee2a6;border-color:rgba(76,208,127,.45)}
+  .dpill.warn{background:rgba(232,163,61,.16);color:#f5c26b;border-color:rgba(232,163,61,.5)}
+  .dpill.bad{background:rgba(240,106,106,.18);color:#ff9a9a;border-color:rgba(240,106,106,.55)}
+  .dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:12px 0}
+  .dcard{background:var(--bg2);border:1px solid var(--line);border-left:4px solid var(--dim);border-radius:10px;padding:10px 14px}
+  .dcard.ok{border-left-color:var(--ok)} .dcard.warn{border-left-color:var(--warn)} .dcard.bad{border-left-color:var(--bad)}
+  .dcard h6{margin:0 0 4px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--dim)}
+  .dcard .big{font-size:15px;font-weight:700;margin-bottom:6px}
+  .dcard.ok .big{color:var(--ok)} .dcard.warn .big{color:var(--warn)} .dcard.bad .big{color:var(--bad)}
+  .dkv{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--muted);padding:3px 0;border-top:1px dashed var(--line)}
+  .dkv b{color:var(--txt);font-weight:600;text-align:right} .dkv .dok{color:var(--ok)} .dkv .dwarn{color:var(--warn)} .dkv .dbad{color:var(--bad)} .dkv .dmut{color:var(--dim);font-weight:400}
+  .dsec{border-left:3px solid var(--dim);padding:2px 0 2px 12px;margin:10px 0}
+  .dsec.bad{border-left-color:var(--bad)} .dsec.warn{border-left-color:var(--warn)} .dsec.info{border-left-color:var(--line)}
+  .dsec h5{margin:0 0 4px;font-size:12.5px;color:var(--txt)} .dsec h5 small{font-weight:700;color:var(--dim);margin-left:4px}
+  .dsec p{margin:0 0 4px;font-size:12px;color:var(--warn)} .dsec ul{margin:0;padding-left:18px} .dsec li{font-size:12.5px;color:var(--muted);line-height:1.7}
+  .dsec .dmut{color:var(--dim)} .dnote{font-size:12px !important;color:var(--dim)}
+  .tab small{background:rgba(240,106,106,.2);color:var(--bad);border-radius:999px;padding:0 7px;font-size:11px}
+  .tab small.ts.ok{background:rgba(76,208,127,.16);color:var(--ok)} .tab small.ts.warn{background:rgba(232,163,61,.18);color:var(--warn)}
+  /* Onglet Historique : timeline groupée par jour */
+  .tl{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 18px 14px}
+  .tl-day{position:sticky;top:0;background:var(--card);z-index:1;padding:12px 0 6px;font-size:11px;font-weight:700;
+    letter-spacing:.12em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line)}
+  .tl-day small{font-weight:600;letter-spacing:0;text-transform:none;margin-left:8px}
+  .tl-ev{display:grid;grid-template-columns:14px minmax(170px,max-content) 1fr;gap:4px 12px;align-items:baseline;
+    padding:7px 0;border-left:2px solid var(--line);margin-left:57px;padding-left:0;position:relative}
+  .tl-ev > *{min-width:0}
+  .tl-ev .t{position:absolute;left:-66px;top:10px;width:52px;text-align:right;font:12px ui-monospace,Menlo,monospace;color:var(--dim)}
+  .tl-ev .d{width:10px;height:10px;border-radius:50%;margin-left:-6px;align-self:center;background:var(--muted)}
+  .tl-ev.s3 .d{background:var(--bad);box-shadow:0 0 8px var(--bad)} .tl-ev.s2 .d{background:var(--warn)}
+  .tl-ev.s1 .d{background:var(--link)} .tl-ev.s0 .d{background:var(--ok)}
+  .tl-ev .k{font-size:12.5px;font-weight:700;white-space:nowrap}
+  .tl-ev.s3 .k{color:var(--bad)} .tl-ev.s2 .k{color:var(--warn)} .tl-ev.s0 .k{color:var(--ok)}
+  .tl-ev .w b{cursor:pointer} .tl-ev .w b:hover{color:var(--link)}
+  .tl-ev .w .why{display:inline;margin-left:8px}
+  #mtbl td{vertical-align:middle} #mtbl .fp{font:11px ui-monospace,Menlo,monospace;color:var(--muted);display:block;max-width:26ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ic{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;font-size:13px;font-weight:900}
+  .ic.ok{background:rgba(76,208,127,.2);color:var(--ok);border:1px solid rgba(76,208,127,.5)}
+  .ic.bad{background:rgba(240,106,106,.2);color:var(--bad);border:1px solid rgba(240,106,106,.5)}
+  .ic.warn{background:rgba(232,163,61,.2);color:var(--warn);border:1px solid rgba(232,163,61,.5);font-size:11px}
+  .ic.on{background:rgba(36,150,237,.18);color:#7cc0f5;border:1px solid rgba(36,150,237,.45)}
+  .ic.pub{background:rgba(36,150,237,.12);border:1px solid rgba(36,150,237,.4);font-size:11px}
+  .ic.key{background:rgba(224,179,65,.14);border:1px solid rgba(224,179,65,.45);font-size:11px}
+  .sb{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:4px;border:1px solid var(--line)}
+  .sb.user{color:#c4a1f5;background:rgba(169,120,240,.12);border-color:rgba(169,120,240,.4)}
+  .sb.port{color:var(--port);background:rgba(224,179,65,.1);border-color:rgba(224,179,65,.35);font-family:ui-monospace,Menlo,monospace}
+  .sb.port.alt{color:#0c0e14;background:var(--port)}
+  .sshc{display:inline-flex;align-items:center;gap:6px;font:12px ui-monospace,Menlo,monospace;color:var(--txt)} .sshc img{width:14px;height:14px}
+  .srv{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:1px 7px;border-radius:4px;margin:0 4px 3px 0}
+  .srv img{width:12px;height:12px} .srv.apache{background:rgba(192,132,252,.14);color:var(--apache)} .srv.nginx{background:rgba(0,150,57,.16);color:#6fd49a}
+  .srv.docker{background:rgba(36,150,237,.15);color:var(--docker)} .srv.npm{background:rgba(250,164,47,.14);color:#faa42f}
+  .srv{white-space:nowrap} .srv .unread{cursor:help;font-weight:400;opacity:.85;border-bottom:1px dotted currentColor}
+  /* Onglet Backups (données : backups.json) */
+  .tiles{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+  .tiles div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:5px 14px;font-size:12px;color:var(--dim)}
+  .tiles b{display:block;font-size:19px;color:var(--txt)} .tiles .ok b{color:var(--ok)} .tiles .warn b{color:var(--warn)} .tiles .crit b{color:var(--bad)}
+  .bissues{list-style:none;margin:0 0 12px;padding:8px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;font-size:13px}
+  .bissues li{padding:2px 0}
+  .lv{display:inline-block;font-size:10px;font-weight:800;padding:0 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .lv.ok{color:var(--ok);border-color:rgba(76,208,127,.45)} .lv.warn{color:var(--warn);border-color:rgba(232,163,61,.5)}
+  .lv.crit{color:var(--bad);border-color:rgba(240,106,106,.5)} .lv.down{color:var(--apache);border-color:rgba(192,132,252,.5)}
+  #btbl .dk{display:grid;grid-template-columns:90px 80px 70px 76px 46px;gap:7px;align-items:center;font-size:12px;white-space:nowrap}
+  #btbl .dk .m{font:11px ui-monospace,Menlo,monospace;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+  #btbl .dk .f{text-align:right;color:var(--txt);font-weight:600} #btbl .dk .t{text-align:right;color:var(--dim)} #btbl .dk .p{text-align:right;font-weight:600}
+  #btbl .dk.ok .f,#btbl .dk.ok .p{color:var(--ok)} #btbl .dk.warn .f,#btbl .dk.warn .p{color:var(--warn)} #btbl .dk.crit .f,#btbl .dk.crit .p{color:var(--bad)}
+  #btbl .bar{height:6px;border-radius:9px;background:var(--bg2);border:1px solid var(--line);overflow:hidden}
+  #btbl .bar i{display:block;height:100%;background:var(--ok)} #btbl .dk.warn .bar i{background:var(--warn)} #btbl .dk.crit .bar i{background:var(--bad)}
+  #btbl .bs{display:block;margin:0 0 3px;font-size:12.5px} #btbl .bs .dim{font-size:11.5px} #btbl .bs.cp{margin:0 0 7px}
+  .age{display:inline-block;font:700 10.5px ui-monospace,Menlo,monospace;padding:0 6px;border-radius:5px;background:var(--bg2);border:1px solid var(--line);color:var(--txt)}
+  footer{margin-top:46px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12px}
+  footer a{color:var(--dim);text-decoration:underline}
+  footer .pages{display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:8px}
+  footer .pages a.current{color:var(--muted);text-decoration:none;cursor:default}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div class="intro">
+      <div class="kicker-row">
+        <div class="kicker" id="kicker">Docker · process</div>
+        <span class="live" id="live"><span class="dot"></span><span id="live-txt">chargement…</span></span>
+      </div>
+      <h1>MyServices</h1>
+      <p class="sub">Tous les services du LAN, <b>NPM</b> ou <b>hors NPM</b>, avec leur machine.<br>
+      <a href="docker.html">🐳 carte Docker</a> · <a href="guide.html">📖 guide d'installation</a><span id="xlinks"></span></p>
+      <p class="checks"><b>Vérifié à chaque passage</b> (lecture seule, sans LLM) :
+        <span>backend joignable (TCP)</span><span>réponse HTTPS via NPM (code, certificat)</span><span>interface web détectée</span>
+        <span>santé Docker (healthcheck, uptime, version)</span><span>ACL / SSL forcé / exposition</span>
+        <span>vhost Apache servi</span><span>DNS AdGuard (réécritures ↔ NPM)</span><span>SSH : compte, port, clé, clé d'hôte, root et mot de passe autorisés</span>
+        <span>OS, uptime, serveurs web</span></p>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <!-- Barre commune : recherche, compteur, pastilles et filtres de l'onglet affiché -->
+  <div class="toolbar">
+    <div class="row1">
+      <div class="search" id="search"><span class="ico">🔍</span>
+        <input id="q" type="search" autocomplete="off" autofocus
+          placeholder="Nom, IP, port, conteneur…  ou machine:nas  port:8443  cat:médias"
+          title="Filtres possibles : machine:  ip:  port:  cat:  type:  source:  web:ui-hors  npm:404  check:tout  check:dns  source:adguard">
+        <button type="button" class="clr" id="clr" title="Effacer (Échap)">✕</button><kbd>/</kbd></div>
+      <span class="count" id="count"></span>
+      <div class="active" id="active"></div>
+    </div>
+    <!-- Filtres et encadré DNS AdGuard (onglet Services) côte à côte, chacun dans sa colonne -->
+    <div class="panels">
+      <details class="info">
+        <summary id="fsum">🎛️ Filtres</summary>
+        <div class="facets" id="facets" style="margin:10px 0 12px"></div>
+      </details>
+      <details class="info" id="dnsbox" hidden></details>
+    </div>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button class="tab" data-tab="history">🕓 Historique<small id="hbadge" hidden></small></button>
+    <button class="tab on" data-tab="services">🧩 Services</button>
+    <button class="tab" data-tab="machines"><img src="ssh-logo.svg" alt="">Machines</button>
+    <button class="tab" data-tab="backups" hidden>💾 Backups<small id="bbadge" hidden></small></button>
+    <button class="tab" data-tab="health" hidden>🩺 Health<small id="sbadge" hidden></small></button>
+  </div>
+
+  <div id="view-services">
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th rowspan="2" data-k="status">Statut</th>
+        <th rowspan="2" data-k="name" class="sorted asc">Domaine / nom</th>
+        <th rowspan="2" data-k="target">Cible</th>
+        <th rowspan="2" data-k="machine">Machine · tags</th>
+        <th rowspan="2" data-k="service">Service</th>
+        <th rowspan="2" data-k="web" title="Interface web détectée sur le backend">Web</th>
+        <th colspan="5" class="grp">Accès / TLS</th>
+        <th rowspan="2" data-k="id">Réf.</th>
+      </tr>
+      <tr>
+        <th class="sc first" data-k="acl" title="Access list NPM ou garde LAN dans la config avancée">ACL</th>
+        <th class="sc" data-k="ssl" title="HTTPS forcé (● = SSL dispo mais pas forcé)">SSL</th>
+        <th class="sc" data-k="cf" title="Real IP Cloudflare">CF</th>
+        <th class="sc" data-k="hsts" title="HSTS">HSTS</th>
+        <th class="sc" data-k="ws" title="Websocket">WS</th>
+      </tr>
+    </thead>
+    <tbody id="rows"><tr><td colspan="12" class="empty">Chargement de data.json…</td></tr></tbody>
+  </table>
+  </div>
+
+  <div id="view-machines" hidden>
+    <details class="info">
+      <summary>ℹ️ Infos</summary>
+      <p class="sub">Accès SSH depuis la machine collectrice (<code>~/.ssh/config</code> + script <code>sshlist</code> : accès et notes ; chemin de clé et empreintes publiques uniquement), sécurité sshd, système et serveurs web. Lu toutes les 2 h (ou dès qu'une machine change d'état au ping), en lecture seule. « Mot de passe » = méthodes réellement annoncées par le serveur SSH ; « défaut OpenSSH » = option absente de sshd_config. Colonnes Disque, Systemd et Maj : relevé de <a href="../health/">health.py</a> (toutes les 6 h, 6 machines), « — » pour les autres.</p>
+    </details>
+    <table class="tbl" id="mtbl">
+      <thead><tr>
+        <th data-mk="ip" class="sorted asc">Machine</th><th data-mk="state">État</th><th data-mk="ssh">SSH</th><th data-mk="key">Clé utilisée</th>
+        <th class="sc" data-mk="hostkey">Clé d'hôte</th><th class="sc" data-mk="root">Root</th><th class="sc" data-mk="pwd">Mot de passe</th>
+        <th data-mk="os">Système</th><th data-mk="srv">Serveurs</th><th data-mk="svc">Services</th>
+        <th class="hcol" data-mk="hdisk" title="Disque le plus rempli (health.py, toutes les 6 h)">Disque</th><th class="sc hcol" data-mk="hsys" title="Services systemd en échec (health.py)">Systemd</th><th class="sc hcol" data-mk="hapt" title="Paquets apt à mettre à jour (health.py)">Maj</th>
+      </tr></thead>
+      <tbody id="mrows"></tbody>
+    </table>
+  </div>
+
+  <div id="view-history" hidden>
+    <p class="sub" style="margin:4px 0 12px;max-width:none">Changements relevés par la veille <code>myservices-watcher</code> (sans LLM) :
+      pannes et retours confirmés sur 2 passages, machine ou SSH injoignable, services apparus ou disparus, alertes sécurité. Conservé <b id="hret">90</b> jours ·
+      <a href="events.json">events.json</a><span id="hhealth" hidden> · avec les changements de niveau de <code>health.py</code> · <a id="hhealth-a" href="">son events.json</a></span></p>
+    <p class="hnext" id="hnext" hidden></p>
+    <div class="tl" id="hlist"><div class="empty">chargement…</div></div>
+  </div>
+
+  <div id="view-backups" hidden>
+    <p class="sub" style="margin:4px 0 12px;max-width:none">Sauvegardes de chaque machine, copies hors machine et espace disque, lues dans le <code>backups.json</code> d'un script
+      de sauvegardes externe (<code>backups_url</code> dans config.json). <b id="bgen"></b> · <a id="bjson" href="">backups.json</a></p>
+    <div class="tiles" id="btiles"></div>
+    <ul class="bissues" id="bissues"></ul>
+    <table class="tbl" id="btbl">
+      <thead><tr><th>Machine</th><th>État</th><th>Disques (libre / taille / utilisé)</th><th>Dernier backup local</th><th>Copié ailleurs</th><th>Jeux de sauvegarde</th><th>Crons</th></tr></thead>
+      <tbody id="brows"><tr><td colspan="7" class="empty">chargement…</td></tr></tbody>
+    </table>
+    <details class="info" style="margin-top:12px"><summary>🔒 Déchiffrer une sauvegarde chiffrée</summary>
+      <p class="sub" id="bcrypt"></p>
+    </details>
+    <details class="info" style="margin-top:12px"><summary id="blocsum">📁 Dossiers de sauvegarde locaux</summary>
+      <table class="tbl" id="bltbl" style="margin:10px 0 12px">
+        <thead><tr><th>Machine</th><th>Dossier</th><th style="text-align:right">Taille</th><th>Dernier fichier</th><th>Jeux qui le couvrent</th></tr></thead>
+        <tbody id="blrows"></tbody>
+      </table>
+    </details>
+  </div>
+
+  <!-- Onglet Health : page du health.py en iframe (même origine). Son _autorefresh.js se désactive
+       quand elle est intégrée : c'est loadHealth() qui la recharge quand stats.json change. -->
+  <div id="view-health" hidden>
+    <p class="sub" style="margin:4px 0 12px;max-width:none">État des machines relevé par <code>health.py</code> (disques, systemd, Docker, noyau, maj, SSH, SMART) ·
+      <a id="hpage" href="">ouvrir la page seule</a> · <a id="hstats" href="">stats.json</a></p>
+    <iframe id="hframe" title="Health" scrolling="no" style="width:100%;border:1px solid var(--line);border-radius:10px;min-height:600px;background:var(--card)"></iframe>
+  </div>
+
+  <footer>
+    <div class="pages">
+      <a class="current">MyServices</a>
+      <a href="docker.html">Carte Docker</a>
+      <a href="guide.html">Guide d'installation MyServices</a>
+      <span id="flinks"></span>
+    </div>
+    Données : <code>myservices.py</code> (timer systemd ou bouton ⟳ Rafraîchir, lecture seule) → <code>data.json</code> ·
+    catégories/descriptions/services manuels : <code>services-meta.json</code> ·
+    la page relit les données toutes les 60 s.
+  </footer>
+</div>
+
+<script>
+(function(){
+  var DATA = null, sortKey = 'name', sortAsc = true, open = {};
+  // Facettes actives : status (vue compteurs), src, type, cat, machine (ip), port
+  // Chaque facette garde une LISTE de valeurs : OU entre les valeurs d'une facette, ET entre facettes
+  var F = {};
+  var X = {};  // exclusions : 2e clic sur un filtre = masquer ces lignes, 3e clic = retour sans filtre
+  // Barre commune à tous les onglets : une recherche par onglet (Q), filtres et pastilles de l'onglet affiché.
+  // Services garde F / X ; les autres onglets ont les leurs dans TF (mêmes règles de clic)
+  var TAB = 'services', Q = {};
+  var TF = {machines: {F: {}, X: {}}, history: {F: {}, X: {}}, backups: {F: {}, X: {}}, health: {F: {}, X: {}}};
+  var PH = {services: ['Nom, IP, port, conteneur…  ou machine:nas  port:8443  cat:médias',
+      'Filtres possibles : machine:  ip:  port:  cat:  type:  source:  web:ui-hors  npm:404  check:tout  check:dns  acl:aucune  hsts:non'],
+    machines: ['Machine, IP, rôle, compte SSH, système…', "Cherche dans le nom, l'IP, le rôle, l'accès SSH, le système et les serveurs"],
+    history: ['Domaine, machine, cible, détail…', "Cherche dans le nom, la machine, la cible, le détail et le type d'événement"],
+    backups: ['Machine, jeu de sauvegarde, dossier, cron…', 'Cherche dans les machines, jeux de sauvegarde, copies, crons et dossiers locaux'],
+    health: ['Machine, IP…', 'Cherche dans le nom et l\'IP des machines suivies par health.py']};
+  function qv(t){ return TAB === t ? $('q').value : Q[t] || ''; }
+  function hit(t, parts){
+    var h = norm(parts.join(' '));
+    return norm(qv(t)).split(/\s+/).filter(Boolean).every(function(x){ return h.indexOf(x) >= 0; });
+  }
+  function setCount(n, total){
+    $('count').className = 'count' + (n !== total ? ' filtered' : '');
+    $('count').innerHTML = '<b>' + n + '</b> résultat' + (n > 1 ? 's' : '') + ' <small>sur ' + total + '</small>';
+  }
+  function setFsum(nf){ $('fsum').innerHTML = '🎛️ Filtres' + (nf ? ' <b class="fcount">' + nf + ' actif' + (nf > 1 ? 's' : '') + '</b>' : ''); }
+  function group(cls, title, body){ return body ? '<section class="fg ' + cls + '"><h5>' + title + '</h5>' + body + '</section>' : ''; }
+  function byCount(c){ return Object.keys(c).filter(Boolean).sort(function(a, b){ return c[b] - c[a]; }); }
+  // Facettes des onglets hors Services. Élément = {v: {facette: valeur}} ; ligne de puces = [valeur, libellé, nombre, icône]
+  function tPass(t, v, skip){
+    var s = TF[t];
+    return Object.keys(s.F).every(function(k){ return k === skip || has(s.F, k, v[k]); }) &&
+      !Object.keys(s.X).some(function(k){ return k !== skip && has(s.X, k, v[k]); });
+  }
+  function tCount(t, items, k){  // compté sur les résultats des AUTRES filtres
+    var c = {};
+    items.forEach(function(it){ if (tPass(t, it.v, k)) c[it.v[k]] = (c[it.v[k]] || 0) + 1; });
+    return c;
+  }
+  function tChips(t, label, k, entries){
+    if (!entries.length) return '';
+    var s = TF[t];
+    return '<div class="facet">' + (label ? '<span>' + label + '</span>' : '') + entries.map(function(e){
+      var on = has(s.F, k, e[0]), ex = has(s.X, k, e[0]);
+      return '<button class="chip' + (on ? ' on' : ex ? ' ex' : '') + '" title="' +
+        (on ? 'Affiché · clic : masquer' : ex ? 'Masqué · clic : désactiver le filtre' : 'Clic : ajouter au filtre (plusieurs choix possibles)') +
+        '" data-tk="' + k + '" data-tv="' + esc(e[0]) + '">' + (e[3] ? '<span class="ci">' + e[3] + '</span>' : '') + esc(e[1]) + '<small>' + e[2] + '</small></button>'; }).join('') + '</div>';
+  }
+  // Compteur, puces et pastilles d'un onglet ; seulement s'il est affiché. names = {facette: libellé}, label(k, v) = libellé d'une valeur
+  function tBar(t, n, total, facets, names, label){
+    if (TAB !== t) return;
+    var s = TF[t], ks = Object.keys(s.F), kx = Object.keys(s.X);
+    function vals(M, k, attr){ return M[k].map(function(v){
+      return '<i ' + attr + '="' + k + '" data-tv="' + esc(v) + '" title="Retirer « ' + esc(label(k, v)) + ' »">' + esc(label(k, v)) + ' <b>×</b></i>'; }).join('<em> ou </em>'); }
+    setCount(n, total); setFsum(ks.length + kx.length);
+    $('facets').innerHTML = facets;
+    $('active').innerHTML = ks.map(function(k){ return '<span class="pill">' + names[k] + ' : ' + vals(s.F, k, 'data-tp') + '</span>'; }).join('') +
+      kx.map(function(k){ return '<span class="pill ex">' + names[k] + ' ≠ ' + vals(s.X, k, 'data-tx') + '</span>'; }).join('') +
+      (ks.length || kx.length ? '<span class="pill clear" data-clear="1">Tout effacer</span>' : '');
+  }
+  function refresh(){
+    $('search').classList.toggle('has', !!$('q').value);
+    ({services: render, machines: renderMachines, history: renderHistory, backups: renderBackups, health: renderHealth})[TAB]();
+  }
+  function has(M, k, v){ return !!M[k] && M[k].indexOf(v) >= 0; }
+  function addV(M, k, v){ if (!has(M, k, v)) (M[k] = M[k] || []).push(v); }
+  function delV(M, k, v){ if (!M[k]) return; M[k] = M[k].filter(function(x){ return x !== v; }); if (!M[k].length) delete M[k]; }
+  function asF(set){ var o = {}; for (var k in set) o[k] = [set[k]]; return o; }
+  var FACET_LABEL = {chk: 'à vérifier', expo: 'exposition', nt: 'type NPM', status: 'statut', src: 'source', type: 'type', cat: 'catégorie', machine: 'machine', port: 'port', web: 'web', etat: 'état NPM',
+    acl: 'ACL', ssl: 'SSL', cf: 'Cloudflare', hsts: 'HSTS', ws: 'websocket'};
+  var WEB_LABEL = {ui: 'interface web', api: 'API / sans page', none: 'pas de HTTP', inconnu: 'injoignable', 'ui-hors': 'UI hors NPM'};
+  var SRC_LABEL = {npm: 'NPM', 'hors-npm': 'hors NPM', adguard: 'réécriture AdGuard'};  // adguard : en plus de NPM / hors NPM
+  var ETAT_LABEL = {actif: 'actif', desactive: 'désactivé'};
+  function etat(r){ return r.enabled ? 'actif' : 'desactive'; }
+  var NT_LABEL = {proxy: 'Proxy Host', redirect: 'Redirection', dead: '404', stream: 'Stream', local: 'hors NPM'};
+  var $ = function(id){ return document.getElementById(id); };
+
+  /* Web-Check (connecteur, une fois par jour) : badge seulement s'il y a un souci, détail dans la fiche */
+  function wcIssue(w){
+    if (!w) return '';
+    if (w.cert_valid === false) return 'certificat invalide';
+    if (w.cert_days != null && w.cert_days < 21) return 'certificat : ' + w.cert_days + ' j';
+    return '';
+  }
+  function wcText(w){
+    if (!w) return '—';
+    var bits = [];
+    bits.push(w.cert_days == null ? 'certificat : ?' : (w.cert_valid === false ? '<b class="bad">certificat invalide</b>' :
+      'certificat : <span class="' + (w.cert_days < 21 ? 'warn' : 'ok') + '">' + w.cert_days + ' j</span>'));
+    if (w.hsts != null) bits.push('HSTS : ' + (w.hsts ? 'oui' : '<span class="warn">non</span>'));
+    if (w.headers_total) bits.push('en-têtes de sécurité : ' + w.headers_ok + '/' + w.headers_total);
+    if (w.security_txt != null) bits.push('security.txt : ' + (w.security_txt ? 'oui' : 'non'));
+    var errs = Object.keys(w.errors || {});
+    if (errs.length) bits.push('<span class="dmut">illisible : ' + esc(errs.join(', ')) + '</span>');
+    return bits.join(' · ') + ' <span class="dmut">(' + esc(new Date(w.checked * 1000).toLocaleDateString('fr-FR')) + ')</span>';
+  }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function norm(s){ return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+
+  function src(r){ return r.type === 'local' ? 'hors-npm' : 'npm'; }
+  function hasRewrite(r){ return !!(r.dns && r.dns.rewrites && r.dns.rewrites.length); }
+  function isNpmOnly(r){ return r.type === 'redirect' || r.type === 'dead'; } // pas de backend
+  // IP de la machine hôte : pour un conteneur sur réseau docker interne (Anubis 10.0.0.4), c'est celle de l'hôte
+  // Redirection : machine du proxy host visé (target_ip)
+  function hostIp(r){ return r.host_ip || r.ip || r.target_ip; }
+  function kind(r){ return r.service ? r.service.kind : 'inconnu'; }
+  function webv(r){ return isNpmOnly(r) ? '' : r.web || 'inconnu'; }  // redirection / 404 : pas de backend, sans objet
+  function name(r){ return r.domains.length ? r.domains[0] : (r.name || r.ip + ':' + r.port); }
+
+  // Statut combiné : [classe, libellé, explication, rang de tri]
+  function status(r){
+    var p = r.public || {}, b = r.backend || {};
+    if (r.paused) return ['off', 'en pause', r.paused, 4];  // plus de sonde (services-meta.json)
+    if (r.machine_off) return ['off', 'machine éteinte', (r.machine || r.ip) + ' coupée volontairement (services-meta.json : off) · non testé', 4];
+    if (!r.enabled) return ['off', 'désactivé', r.type === 'redirect' ? 'redirection désactivée dans NPM'
+      : r.type === 'dead' ? 'host 404 désactivé dans NPM'
+      : 'désactivé dans NPM · backend ' + (b.up ? 'toujours joignable' : 'éteint'), 4];
+    if (r.type === 'dead') return p.code === 404 ? ['ok', 'OK · 404 voulu', 'NPM répond 404 comme prévu', 0]
+      : ['warn', p.code ? 'HTTP ' + p.code : 'erreur', p.err || '404 attendu', 2];
+    if (r.type === 'stream') return b.up ? ['ok', 'en ligne', 'stream :' + r.incoming_port + ' → backend ' + b.ms + ' ms', 0]
+      : ['bad', 'backend down', r.ip + ':' + r.port + ' injoignable', 3];
+    if (r.type === 'redirect') {
+      var f = r.follow || {}, svc = r.service ? ' · ' + (KIND_LABEL[r.service.kind] || r.service.kind) + ' actif' : '';
+      if (!p.code) return ['bad', 'erreur', p.err || '?', 3];
+      if (f.code >= 500) return ['warn', 'cible ' + f.code, 'HTTP ' + p.code + ' → ' + r.target + ' · page finale en erreur ' + f.code, 2];
+      return ['ok', 'redirige', 'HTTP ' + p.code + ' → ' + r.target + (f.code ? ' · page finale ' + f.code : '') + svc, 0];
+    }
+    if (r.type === 'local' && b.internal && b.up) return ['ok', 'en ligne', 'apache2 actif (vérifié par SSH) · écoute seulement sur ' +
+      (r.listen_addr || '?') + ':' + r.port + ', derrière le NPM de la machine', 0];
+    if (r.type === 'local' && b.internal) return ['off', 'interne', 'écoute seulement sur ' + (r.listen_addr || '?') + ':' + r.port +
+      ' (IP interne de la machine, ex. réseau docker) · non testable depuis le collecteur', 1];
+    if (r.type === 'local') return b.up ? ['ok', 'en ligne', 'TCP ' + b.ms + ' ms · accès LAN direct', 0]
+      : ['bad', 'down', r.ip + ':' + r.port + ' injoignable (' + (b.err || '?') + ')', 3];
+    if (b.internal) return p.code && p.code < 500 ? ['ok', httpLabel(p.code), 'HTTP ' + p.code + ' · backend interne docker, testé via NPM', 0]
+      : ['bad', p.code ? 'HTTP ' + p.code : 'erreur', 'backend interne docker (joignable seulement par NPM)', 3];
+    if (b.up === false) return ['bad', 'backend down', r.ip + ':' + r.port + ' injoignable (' + (b.err || '?') + ')', 3];
+    if (p.code >= 500) return ['bad', 'erreur ' + p.code, p.code === 502 ? 'HTTP 502 : NPM ne joint pas le backend' : 'HTTP ' + p.code + ' : erreur serveur', 3];
+    if (p.err === 'gaierror') return ['warn', 'DNS absent', 'le domaine ne résout pas (aucun enregistrement DNS)', 2];
+    // RemoteDisconnected = TLS validé puis connexion fermée sans réponse HTTP (return 444), pas un souci de certificat
+    if (p.err === 'RemoteDisconnected') return r.closes_root ? ['ok', 'OK · fermé', 'NPM ferme / sans répondre (return 444 voulu dans advanced_config) · certificat valide', 0]
+      : ['warn', 'connexion coupée', 'certificat valide, mais NPM ferme la connexion sans réponse HTTP (return 444 ? backend qui coupe ?)', 2];
+    if (p.err) return ['warn', 'certificat', 'HTTPS refusé par NPM pour ce nom (' + p.err + ') : certificat absent ou invalide', 2];
+    if (p.cert_ok === false) return ['ok', httpLabel(p.code), 'HTTP ' + p.code + ' · certificat ≠ nom (nom LAN servi par un certificat wildcard ?)', 1];
+    return ['ok', httpLabel(p.code), 'HTTP ' + p.code + ' · ' + (b.ms != null ? 'backend ' + b.ms + ' ms · ' : '') + 'NPM ' + p.ms + ' ms', 0];
+  }
+  // Code HTTP renvoyé par le domaine -> libellé lisible (le code exact reste dans l'explication)
+  function httpLabel(c){
+    return c < 300 ? 'OK' : c < 400 ? 'OK · redirige' : c === 401 || c === 403 ? 'OK · protégé' : c === 404 ? 'OK · 404' : 'OK · ' + c;
+  }
+
+  // Entrées NPM qui méritent un coup d'œil : [libellé, explication]. « cert ≠ nom » exclu (voulu pour les noms LAN)
+  var CHECK = {down: ['en panne', 'backend injoignable ou erreur 5xx alors que le host est actif'],
+    cert: ['certificat', 'Web-Check : certificat invalide ou qui expire dans moins de 21 jours (contrôle quotidien)'],
+    kuma: ['Uptime Kuma', 'une sonde Uptime Kuma de ce service est en panne'],
+    dns: ['DNS absent', 'le domaine ne résout pas : enregistrement DNS manquant ou nom obsolète'],
+    tls: ['HTTPS refusé', 'NPM refuse le HTTPS pour ce nom : certificat absent ou invalide'],
+    closed: ['connexion coupée', 'certificat valide, mais NPM ferme la connexion sans réponse HTTP (sans return 444 déclaré sur /)'],
+    dnsname: ['nom DNS invalide', 'nom impossible à résoudre (caractère interdit, ex. « _ ») : alias NPM à corriger ou retirer'],
+    dnsdiff: ['DNS : écart entre AdGuard', 'les AdGuard ne donnent pas la même réponse : synchro adguardhome-sync en retard ?'],
+    dnslan: ['DNS hors LAN', "host à garde LAN dont le nom ne résout pas vers NPM sur les AdGuard : passe par la box ou Internet (réécriture manquante ?)"],
+    dnsblock: ['bloqué par AdGuard', 'AdGuard bloque ce nom (règle perso ou liste de filtrage)'],
+    http: ['404 inattendu', 'host 404 qui ne répond pas 404'],
+    nginx: ['config nginx', 'NPM signale une erreur dans la config nginx de ce host'],
+    open: ['sans ACL', "ni access list ni garde LAN ni déclaration publique : ouvert sur Internet ?"],
+    ssl: ['SSL', 'sans certificat, ou HTTPS non forcé'],
+    ip: ['cible inconnue', "IP cible hors inventaire des machines : host obsolète ?"],
+    unident: ['non identifié', 'backend joignable mais aucun conteneur, process ni page web reconnu'],
+    pause: ['en pause', 'sondes suspendues dans services-meta.json (« à revoir »)'],
+    obsolete: ['désactivé, backend mort', 'host désactivé dans NPM dont le backend ne répond plus : à supprimer ?']};
+  // Deux familles de vérifs pour le bandeau : « à corriger » = hosts actifs, « à nettoyer » = désactivés morts + en pause
+  var CHECK_CLEANUP = ['obsolete', 'pause'];
+  var CHECK_GROUP = {fix: 'à corriger', cleanup: 'à nettoyer'};
+  var DNS_CHECKS = ['dns', 'dnsname', 'dnsdiff', 'dnslan', 'dnsblock'];  // raisons du contrôle AdGuard (filtre chk:dnsall)
+  function inGroup(c, g){
+    return c.some(function(k){ return (CHECK_CLEANUP.indexOf(k) >= 0) === (g === 'cleanup'); });
+  }
+  function checks(r){
+    if (r.type === 'local') return [];
+    var p = r.public || {}, b = r.backend || {}, c = [];
+    if (!r.enabled) return r.type === 'proxy' && b.up === false ? ['obsolete'] : [];
+    if (r.paused) return ['pause'];
+    if (r.machine_off) return [];
+    if (status(r)[0] === 'bad') c.push('down');
+    if (p.err === 'gaierror') c.push('dns'); else if (p.err === 'RemoteDisconnected') { if (!r.closes_root) c.push('closed'); } else if (p.err) c.push('tls');
+    var di = ((r.dns || {}).issues || []).map(function(x){ return x[0]; });
+    if (di.indexOf('absent') >= 0 && c.indexOf('dns') < 0) c.push('dns');
+    [['nom', 'dnsname'], ['ecart', 'dnsdiff'], ['hors_lan', 'dnslan'], ['bloque', 'dnsblock']].forEach(function(m){ if (di.indexOf(m[0]) >= 0) c.push(m[1]); });
+    if (r.type === 'dead' && p.code && p.code !== 404) c.push('http');
+    if (r.nginx_online === false) c.push('nginx');
+    if (expo(r) === 'ouvert') c.push('open');
+    if (r.type === 'proxy' && (!r.ssl || !r.ssl_forced)) c.push('ssl');
+    if (wcIssue(r.webcheck)) c.push('cert');
+    if ((r.uptime || []).some(function(u){ return u.status === 'down'; })) c.push('kuma');
+    if (r.ip && (r.type === 'proxy' || r.type === 'stream') && !r.machine && !r.host_ip) c.push('ip');
+    if (r.type === 'proxy' && !r.service && b.up && !b.internal) c.push('unident');
+    return c;
+  }
+  function checkTags(r){
+    return checks(r).map(function(k){
+      return '<span class="ck" data-fk="chk" data-fv="' + k + '" title="' + esc(CHECK[k][1]) + ' · clic : filtrer">⚑ ' + CHECK[k][0] + '</span>'; }).join('');
+  }
+
+  // Sous-colonnes Accès / TLS : [valeur de tri, html]
+  // Même jeu d'icônes que l'onglet Machines : ✓ vert = bon, ✗ rouge = manque, ● orange = partiel,
+  // ✓ bleu = option activée (info), — = sans objet
+  function ic(cls, sym, tip){ return '<span class="ic ' + cls + '"' + (tip ? ' title="' + esc(tip) + '"' : '') + '>' + sym + '</span>'; }
+  var NA = '<span class="na">—</span>';
+  function access(r){
+    if (r.type === 'local' || r.type === 'stream') return {acl: [0, NA], ssl: [0, NA], cf: [0, NA], hsts: [0, NA], ws: [0, NA]};
+    if (isNpmOnly(r)) return {acl: [0, NA], ssl: [r.ssl_forced ? 2 : 0, r.ssl_forced ? ic('ok', '✓', 'HTTPS forcé') : ic('bad', '✗', 'HTTPS non forcé')],
+      cf: [0, NA], hsts: [0, NA], ws: [0, NA]};
+    var acl = r.acl ? [3, ic('ok', '✓', 'Access list #' + r.acl_id + ' ' + r.acl)]
+      : r.acl_adv ? [2, ic('ok', '✓', 'Garde LAN dans advanced_config')]
+      : r.public_ok ? [1, ic('pub', '🌍', "Site public voulu : pas d'ACL attendue")]
+      : [0, ic('bad', '✗', 'Ni access list ni garde dans advanced_config')];
+    var ssl = !r.ssl ? [0, ic('bad', '✗', 'Sans certificat')]
+      : !r.ssl_forced ? [1, ic('warn', '●', 'SSL disponible, mais HTTP non redirigé vers HTTPS')] : [2, ic('ok', '✓', 'HTTPS forcé')];
+    function opt(v, tip){ return [+v, v ? ic('on', '✓', tip) : NA]; }
+    return {acl: acl, ssl: ssl, cf: opt(r.cloudflare, 'Real IP Cloudflare'), hsts: opt(r.hsts, 'HSTS activé'), ws: opt(r.websocket, 'Websocket autorisé')};
+  }
+
+  // Valeur de filtre des colonnes ACL / SSL / CF / HSTS / WS ; '' = sans objet (hors NPM, stream…)
+  function accessVal(r){
+    if (r.type === 'local' || r.type === 'stream') return {acl: '', ssl: '', cf: '', hsts: '', ws: ''};
+    var ssl = !r.ssl ? 'sans' : r.ssl_forced ? 'force' : 'nonforce';
+    if (isNpmOnly(r)) return {acl: '', ssl: ssl, cf: '', hsts: '', ws: ''};
+    return {acl: r.acl ? 'liste' : r.acl_adv ? 'garde' : r.public_ok ? 'public' : 'aucune', ssl: ssl,
+      cf: r.cloudflare ? 'oui' : 'non', hsts: r.hsts ? 'oui' : 'non', ws: r.websocket ? 'oui' : 'non'};
+  }
+  var ACC_LABEL = {acl: {liste: 'access list', garde: 'garde LAN', public: 'public voulu', aucune: 'aucune'},
+    ssl: {force: 'HTTPS forcé', nonforce: 'non forcé', sans: 'sans certificat'},
+    cf: {oui: 'Real IP', non: 'non'}, hsts: {oui: 'activé', non: 'non'}, ws: {oui: 'autorisé', non: 'non'}};
+  var ACC_ICON = {liste: '🔒', garde: '🛡️', public: '🌍', aucune: '⚠', force: '🔐', nonforce: '●', sans: '✗', oui: '✓', non: '—'};
+  var ACC_KEYS = ['acl', 'ssl', 'cf', 'hsts', 'ws'];
+
+  // Colonne Web : l'interface est-elle derrière NPM ?
+  function webCell(r){
+    var w = webv(r), t = r.page_title ? ' — « ' + esc(r.page_title) + ' »' : '';
+    if (isNpmOnly(r)) return '<span class="web none">—</span>';
+    if (w === 'ui' && r.direct_ok) return '<span class="web api" title="Accès direct normal (marqué dans services-meta.json)' + t + '">🌐 UI · direct ✓</span>';
+    if (w === 'ui') return r.type === 'local'
+      ? '<span class="web uiout" data-fk="web" data-fv="ui-hors" title="Interface web accessible seulement en direct, aucun host NPM' + t + '">🌐 UI · hors NPM</span>'
+      : '<span class="web ui" data-fk="web" data-fv="ui" title="Interface web publiée via NPM' + t + '">🌐 UI · NPM</span>';
+    if (w === 'api') return '<span class="web api" data-fk="web" data-fv="api" title="Répond en HTTP sans page HTML (API, agent, 404 nu)">🔌 API</span>';
+    if (w === 'none') return '<span class="web none" data-fk="web" data-fv="none" title="Port ouvert mais pas du HTTP">⛔ pas de HTTP</span>';
+    return r.paused ? '<span class="web none" title="En pause : plus sondé">⏸ en pause</span>'
+      : '<span class="web unk" data-fk="web" data-fv="inconnu" title="Backend injoignable : impossible de savoir s\'il a une interface web"><span class="qi">?</span> injoignable</span>';
+  }
+
+  // Colonne Service : logo Docker, santé, version, projet compose
+  var KIND_ICON = {apache: '<img src="apache-logo.svg" alt="">', docker: '<img src="docker-logo.svg" alt="">', process: '⚙', web: '🌐', manuel: '✎', npm: '<img src="npm-logo.svg" alt="">', inconnu: '<span class="qi">?</span>'};
+  var NPM_ICON = '<img src="npm-logo.svg" alt="">';
+  var SRC_ICON = {npm: NPM_ICON, 'hors-npm': '<span class="hi">⌂</span>'};
+  var WEB_ICON = {ui: '🌐', api: '🔌', none: '⛔', inconnu: '<span class="qi">?</span>'};
+  var KIND_LABEL = {apache: 'Apache', docker: 'Docker', process: 'process', web: 'web', manuel: 'manuel', npm: 'NPM', inconnu: 'non identifié'};
+  var KIND_TIP = {inconnu: 'Aucun conteneur, process ni page web trouvé derrière ce port (service arrêté, en pause ou natif non lisible). Clic : filtrer'};
+  function typeTag(k, down){
+    return '<span class="tag ' + k + (down ? ' down' : '') + '" data-fk="type" data-fv="' + k + '" title="' + (KIND_TIP[k] || 'Filtrer : type = ' + KIND_LABEL[k]) + '">' +
+      (KIND_ICON[k] || '') + KIND_LABEL[k] + '</span>';
+  }
+  function svcCell(s, terms){
+    var h = '<span class="sname">' + (s.kind === 'docker' ? KIND_ICON.docker : '') + '<b>' + highlight(s.name, terms) + '</b></span>' +
+      (s.match === 'redirection' ? '<span class="img" title="Service du proxy host NPM visé par la redirection">↪ via ' + highlight(s.via, terms) + '</span>' : '');
+    if (s.kind !== 'docker') return h;
+    var st = s.state || '', m = /\((healthy|unhealthy|health: starting)\)/.exec(st), up = /^Up ([^(]+)/.exec(st);
+    var hp = m ? (m[1] === 'health: starting' ? ['starting', 'démarrage'] : [m[1], m[1] === 'healthy' ? 'healthy' : 'unhealthy'])
+      : ['up', 'pas de healthcheck'];
+    var ver = s.version && !/^(latest|main|master)$/i.test(s.version) && s.version.length < 24 ? s.version : '';
+    return h + (s.image ? '<span class="img">' + highlight(s.image, terms) + '</span>' : '') +
+      '<span class="meta"><span class="hp ' + hp[0] + '" title="' + esc(st) + '">' + (hp[0] === 'healthy' ? '♥ ' : hp[0] === 'unhealthy' ? '✗ ' : '') + hp[1] + '</span>' +
+      (up ? '<span class="hp up" title="' + esc(st) + '">↑ ' + esc(up[1].trim().replace(/About an? /, '1 ').replace(/ days?/, ' j').replace(/ hours?/, ' h').replace(/ minutes?/, ' min').replace(/ weeks?/, ' sem').replace(/ months?/, ' mois')) + '</span>' : '') +
+      (ver ? '<span class="hp ver" title="Version (label OCI)">' + esc(ver) + '</span>' : '') +
+      (s.compose ? '<span class="hp cmp" title="Projet docker compose">⧉ ' + esc(s.compose) + '</span>' : '') +
+      (/^https?:\/\//.test(s.logs_url || '') ? '<a class="hp cmp" href="' + esc(s.logs_url) + '" target="_blank" rel="noopener" title="Journaux du conteneur (Dozzle)">📜 journaux</a>' : '') + '</span>';
+  }
+
+  // Exposition DÉCLARÉE (pas encore vérifiée depuis Internet) : privé = ACL NPM ou garde LAN,
+  // public = marqué « public » dans services-meta.json, ouvert = ni l'un ni l'autre
+  function expo(r){
+    if (r.type !== 'proxy' || !r.enabled || r.paused) return null;
+    return r.acl || r.acl_adv ? 'prive' : r.public_ok ? 'public' : 'ouvert';
+  }
+  var EXPO = {prive: ['🔒', 'privé', 'Réservé au LAN / VPN : access list NPM ou garde dans advanced_config (déclaré, non vérifié depuis Internet)'],
+              public: ['🌍', 'public', 'Site public voulu, déclaré dans services-meta.json (non vérifié depuis Internet)'],
+              ouvert: ['⚠', 'ouvert ?', 'Ni ACL ni déclaration publique : accessible depuis Internet sans restriction ?']};
+  function exposure(r){
+    var e = expo(r);
+    return e ? ' <span class="xp ' + e + '" data-fk="expo" data-fv="' + e + '" title="' + esc(EXPO[e][2]) + '">' + EXPO[e][0] + ' ' + EXPO[e][1] + '</span>' : '';
+  }
+
+  // Plusieurs instances NPM (config.json npm) : id « nom/123 » après la 1re, instance affichée dans la référence
+  function multiNpm(){ return Object.keys((DATA && DATA.npm_instances) || {}).length > 1; }
+  function npmId(r){ return String(r.id).split('/').pop(); }
+  function haystack(r){
+    var s = r.service || {};
+    return norm([r.domains.join(' '), r.name, r.ip, r.port, r.ip + ':' + r.port, r.machine, r.machine_role, s.name, s.image,
+      s.compose, s.title, s.description, r.page_title, r.description, r.category, (r.tags || []).join(' '),
+      r.target, r.acl, WEB_LABEL[webv(r)] || '', NT_LABEL[r.type], r.type === 'proxy' ? 'npm#' + r.id : '', r.npm, r.enabled ? 'actif' : 'inactif', status(r)[1]].join(' '));
+  }
+
+  // Tokens clé:valeur dans la recherche -> facettes
+  var TOKEN_KEYS = {check: 'chk', verif: 'chk', npm: 'nt', web: 'web', machine: 'machine', ip: 'machine', port: 'port', cat: 'cat', categorie: 'cat', type: 'type', kind: 'type', source: 'src', src: 'src', etat: 'etat',
+    acl: 'acl', ssl: 'ssl', cf: 'cf', cloudflare: 'cf', hsts: 'hsts', ws: 'ws', websocket: 'ws'};
+  function parseQuery(){
+    var facets = {}, terms = [];
+    qv('services').trim().split(/\s+/).filter(Boolean).forEach(function(t){
+      var m = /^([a-zé]+):(.+)$/i.exec(t), k = m && TOKEN_KEYS[norm(m[1])];
+      if (k) facets[k] = norm(m[2]); else terms.push(norm(t));
+    });
+    return {facets: facets, terms: terms};
+  }
+  function matchFacet(r, k, v, loose){
+    var val;
+    switch (k) {
+      case 'etat': return etat(r) === v || (loose && norm(ETAT_LABEL[etat(r)]).indexOf(v) >= 0);
+      case 'status': var s = status(r)[0];
+        return v === 'all' ? true : v === 'enabled' ? r.enabled : v === 'disabled' ? !r.enabled : r.enabled && s === v;
+      case 'chk': var c = checks(r);
+        if (v === 'dnsall') return c.some(function(k){ return DNS_CHECKS.indexOf(k) >= 0; });
+        if (CHECK_GROUP[v]) return inGroup(c, v);
+        return /^(any|tout|oui|all)$/.test(v) ? c.length > 0 : c.indexOf(v) >= 0 || (loose && c.some(function(k){ return norm(CHECK[k][0]).indexOf(v) >= 0; }));
+      case 'expo': val = expo(r); break;
+      case 'src': if (v === 'adguard') return hasRewrite(r);
+        val = src(r); break;
+      case 'nt': val = r.type; if (loose) return norm(NT_LABEL[val]).indexOf(v) >= 0 || val === v; break;
+      case 'web': if (v === 'ui-hors' || v === 'ui-hors-npm') return r.web === 'ui' && r.type === 'local' && !r.direct_ok;
+        val = webv(r); break;
+      case 'type': val = kind(r); break;
+      case 'cat': val = r.category; break;
+      case 'machine': if (v === 'autres') return !!r.ip && !r.machine;
+        if (!loose) return hostIp(r) === v;
+        return loose ? norm(r.machine).indexOf(v) >= 0 || String(r.ip || '').indexOf(v) === 0 : r.ip === v;
+      case 'port': return String(r.port) === String(v);
+      case 'acl': case 'ssl': case 'cf': case 'hsts': case 'ws': val = accessVal(r)[k];
+        if (loose) return !!val && (val === v || norm(ACC_LABEL[k][val]).indexOf(v) >= 0); break;
+    }
+    return loose ? norm(val).indexOf(v) >= 0 : val === v;
+  }
+
+  // Désactivés dans NPM masqués par défaut (sauf si on les demande via le compteur / filtre)
+  function filtered(){
+    var q = parseQuery();
+    return DATA.hosts.filter(function(r){
+      if (!r.enabled && !has(F, 'etat', 'desactive') && !has(F, 'status', 'disabled') && !F.chk && !/inactif|desactiv/.test(norm(qv('services')))) return false;
+      for (var k in F) if (!F[k].some(function(v){ return matchFacet(r, k, v); })) return false;
+      for (var kx in X) if (X[kx].some(function(v){ return matchFacet(r, kx, v); })) return false;
+      for (var k2 in q.facets) if (!matchFacet(r, k2, q.facets[k2], true)) return false;
+      var h = haystack(r);
+      return q.terms.every(function(t){ return h.indexOf(t) >= 0; });
+    });
+  }
+
+  function sortVal(r, k){
+    var a = access(r);
+    switch (k) {
+      case 'status': return status(r)[3] * 1000 + (r.public && r.public.code || 0);
+      case 'target': return (r.ip || r.target || '').split('.').map(function(n){ return ('000' + n).slice(-3); }).join('.') + ':' + ('00000' + (r.port || '')).slice(-5);
+      case 'machine': return norm(r.machine || 'zzz');
+      case 'service': return norm(r.service && r.service.name || 'zzz');
+      case 'web': return {ui: r.type === 'local' ? 0 : 1, api: 2, none: 3}[r.web] || 4;
+      case 'cat': return norm(r.category);
+      case 'acl': case 'ssl': case 'cf': case 'hsts': case 'ws': return a[k][0];
+      case 'id': return src(r) + ('00000' + r.id).slice(-8);
+      default: return norm(name(r));
+    }
+  }
+
+  function highlight(txt, terms){
+    var h = esc(txt);
+    terms.forEach(function(t){
+      if (!t) return;
+      h = h.replace(new RegExp('(' + esc(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig'), '<mark>$1</mark>');
+    });
+    return h;
+  }
+  // Couleur fixe par catégorie et par source (badges du tableau + puces de filtre)
+  var CAT_COLOR = {'IA': '#a978f0', 'Monitoring': '#38bdf8', 'Médias': '#f472b6', 'Réseau / DNS': '#4cd07f',
+    'Infra / virtualisation': '#e8a33d', 'Fichiers / sync': '#2dd4bf', 'Dev / automatisation': '#818cf8',
+    'Outils': '#a3e635', 'Sécurité': '#f06a6a', 'Domotique': '#facc15', 'Bureau distant': '#fb923c',
+    'Web / perso': '#60a5fa', 'Système': '#94a3b8', 'Jeux': '#e879f9', 'Autre': '#6b7488'};
+  var CAT_ICON = {'IA': '🤖', 'Monitoring': '📈', 'Médias': '🎬', 'Réseau / DNS': '🛰️', 'Infra / virtualisation': '🖥️',
+    'Fichiers / sync': '🗂️', 'Dev / automatisation': '🛠️', 'Outils': '🧰', 'Sécurité': '🛡️', 'Domotique': '🏠',
+    'Bureau distant': '🖱️', 'Web / perso': '📰', 'Système': '⚙️', 'Jeux': '🎮', 'Autre': '❔'};
+  var SRC_COLOR = {npm: '#faa42f', 'hors-npm': '#38bdf8', adguard: '#86d993'};
+  function colorOf(k, v){ return k === 'cat' ? CAT_COLOR[v] || '#6b7488' : k === 'src' ? SRC_COLOR[v] : null; }
+  function tint(c){ return c ? ' style="color:' + c + ';background:' + c + '26;border-color:' + c + '55"' : ''; }
+
+  function ftag(cls, k, v, label, icon){
+    return '<span class="tag ' + cls + '"' + tint(colorOf(k, v)) + ' data-fk="' + k + '" data-fv="' + esc(v) + '" title="Filtrer : ' + FACET_LABEL[k] + ' = ' + esc(label) + '">' + (icon || '') + esc(label) + '</span>';
+  }
+
+  // Panneau de détail en 3 blocs ; ligne = [libellé, valeur, classe]
+  // classe : ok / bad / warn / mut / mono / ver / strong / link / npm / html (valeur déjà en HTML)
+  // Case à cocher : good = true si « oui » est souhaitable, false si « oui » mérite attention, null = neutre
+  function box(v, good){
+    var c = v ? (good === false ? 'warn' : good ? 'ok' : 'on') : (good ? 'bad' : 'off');
+    return '<span class="cb ' + c + '">' + (v ? '✓' : '') + '</span><span class="cbl">' + (v ? 'oui' : 'non') + '</span>';
+  }
+  // Liens du projet : label OCI url, GitHub déduit d'une image ghcr.io, page Docker Hub sinon
+  function projectLinks(s){
+    var links = [], img = (s.image || '').replace(/[:@].*$/, ''), seen = {};
+    var ICON = {GitHub: '<img src="github-logo.svg" alt="">', 'Docker Hub': '<img src="docker-logo.svg" alt="">', site: '🌐', LinuxServer: '📦'};
+    function add(label, url){ var k = label === 'GitHub' ? 'gh' : url.toLowerCase(); if (url && !seen[k]) { seen[k] = 1;
+      links.push('<a class="plink" href="' + esc(url) + '" target="_blank" rel="noopener" title="' + esc(url) + '">' + (ICON[label] || '') + label + '</a>'); } }
+    var gh = /^ghcr\.io\/([^/]+)\/([^/]+)/.exec(img), lbl = s.url || '';
+    if (/github\.com\//.test(lbl)) add('GitHub', lbl.replace(/\/(blob|tree|packages)(\/.*)?$/, ''));
+    if (gh) add('GitHub', 'https://github.com/' + gh[1] + '/' + gh[2]);
+    if (lbl && !/github\.com\//.test(lbl)) add('site', lbl);
+    if (img && !/^(ghcr\.io|lscr\.io|gcr\.io|quay\.io)\//.test(img) && img.indexOf('.') < 0)
+      add('Docker Hub', 'https://hub.docker.com/' + (img.indexOf('/') < 0 ? '_/' + img : 'r/' + img));
+    if (/^lscr\.io\/linuxserver\//.test(img)) add('LinuxServer', 'https://docs.linuxserver.io/images/docker-' + img.split('/').pop());
+    return links.length ? links.join('') : '<span class="dmut">—</span>';
+  }
+  function detail(r){
+    var s = r.service || {}, b = r.backend || {}, p = r.public || {}, hp = /\((unhealthy|healthy|health: starting)\)/.exec(s.state || '');
+    var cc = CAT_COLOR[r.category], sc = SRC_COLOR[src(r)];
+    var ident = [
+      ['Projet', projectLinks(s), 'html'],
+      ['Source', '<b style="color:' + sc + '">' + esc(SRC_LABEL[src(r)]) + '</b>' + (r.manual ? ' <span class="dmut">(manuel)</span>' : ''), 'html'],
+      ['Référence', r.type === 'local' ? r.id : NT_LABEL[r.type] + ' #' + npmId(r) + (multiNpm() ? ' · NPM ' + r.npm : ''), r.type === 'local' ? 'mono' : 'npm'],
+      ['Domaines', r.domains.join(', ') || '—', r.domains.length ? 'strong' : 'mut'],
+      ['Catégorie', '<b style="color:' + (cc || 'inherit') + '">' + esc((CAT_ICON[r.category] ? CAT_ICON[r.category] + ' ' : '') + r.category) + '</b>' +
+        ((r.tags || []).length ? ' <span class="dmut">· ' + esc(r.tags.join(', ')) + '</span>' : ''), 'html'],
+      ['Description', r.description || '—', r.description ? '' : 'mut'],
+      ['Titre de page', r.page_title || '—', r.page_title ? '' : 'mut'],
+      ['Machine', r.machine ? '<b>' + esc(r.machine) + '</b>' + (r.machine_role ? ' <span class="dmut">· ' + esc(r.machine_role) + '</span>' : '') : '<span class="dbad">inconnue</span>', 'html'],
+      r.type === 'redirect' ? ['Cible', r.target, 'mono'] : r.type === 'dead' ? ['Cible', 'aucune (404)', 'mut']
+        : r.type === 'stream' ? ['Cible', ':' + r.incoming_port + ' → ' + r.ip + ':' + r.port, 'mono']
+        : ['Cible', r.scheme + '://' + r.ip + ':' + r.port, 'mono']
+    ];
+    var svc = [
+      ['Service', s.name ? (KIND_LABEL[s.kind] || s.kind) + ' · ' + s.name : 'non identifié', s.name ? 'strong' : 'warn']];
+    if (s.kind === 'apache') svc = svc.concat([
+      ['Vhost', s.vhost || s.note || '—', s.vhost ? 'strong' : 'warn'],
+      ['Alias', (s.aliases || []).join(', ') || '—', (s.aliases || []).length ? '' : 'mut'],
+      ['Fichiers servis', s.docroot || '—', s.docroot ? 'mono' : 'mut'],
+      ['Config', s.conf ? '/etc/apache2/sites-enabled/' + s.conf : '—', s.conf ? 'mono' : 'mut']]);
+    svc = svc.concat([
+      ['Rattachement', s.inner ? 'port interne ' + s.inner : s.match === 'nom' ? 'par nom (réseau host)' : s.match === 'défaut' ? 'vhost par défaut du port (aucun ServerName/ServerAlias ne correspond au domaine)' : s.match === 'IP interne' ? 'réseau docker interne' : s.match === 'redirection' ? 'redirection vers ' + s.via + ' (proxy host NPM #' + r.target_proxy + ')' : '—', s.inner || s.match ? '' : 'mut'],
+      ['Image', s.image || '—', s.image ? 'mono' : 'mut'],
+      ['Version', s.version || '—', s.version ? 'ver' : 'mut'],
+      ['État', s.state || '—', !s.state ? 'mut' : hp && hp[1] === 'unhealthy' ? 'bad' : hp && hp[1] === 'healthy' ? 'ok' : hp ? 'warn' : ''],
+      ['Compose', s.compose || '—', s.compose ? '' : 'mut'],
+      ['Journaux', /^https?:\/\//.test(s.logs_url || '') ? '<a href="' + esc(s.logs_url) + '" target="_blank" rel="noopener">ouvrir dans Dozzle</a>' : '—', s.logs_url ? 'html' : 'mut'],
+      ['Web-Check', wcText(r.webcheck), r.webcheck ? 'html' : 'mut'],
+      ['Uptime Kuma', (r.uptime || []).map(function(u){
+        var lab = {up: '<span class="ok">en ligne</span>', down: '<b class="bad">en panne</b>', pending: 'en attente', maintenance: 'maintenance'}[u.status] || '?';
+        return esc(u.name) + ' : ' + lab + (u.response_ms != null ? ' · ' + u.response_ms + ' ms' : '') + (u.cert_days != null ? ' · certificat ' + u.cert_days + ' j' : '') + (u.stale ? ' <span class="dmut">(dernier relevé)</span>' : '');
+      }).join('<br>') || '—', r.uptime ? 'html' : 'mut'],
+      ['Interface web', (WEB_LABEL[webv(r)] || '—') + (r.web_scheme ? ' (' + r.web_scheme + ')' : ''),
+        r.web === 'ui' ? (r.type === 'local' && !r.direct_ok ? 'warn' : 'ok') : r.web === 'api' ? '' : 'mut']
+    ]);
+    var ck = checks(r);
+    if (ck.length) ident.unshift(['À vérifier', ck.map(function(k){ return '<span class="ck" title="' + esc(CHECK[k][1]) + '">⚑ ' + CHECK[k][0] + '</span> <span class="dmut">' + esc(CHECK[k][1]) + '</span>'; }).join('<br>'), 'html']);
+    var net = [
+      ['Backend TCP', isNpmOnly(r) ? '—' : b.internal ? (r.listen_addr ? 'interne (' + r.listen_addr + '), non testable' : 'interne, testé via NPM') : b.up ? 'joignable · ' + b.ms + ' ms' : 'injoignable · ' + (b.err || '?'),
+        isNpmOnly(r) || b.internal ? 'mut' : b.up ? 'ok' : 'bad']
+    ];
+    if (r.type !== 'local' && r.type !== 'stream') net = net.concat([
+      ['HTTPS via NPM', p.code ? p.code + ' · ' + p.ms + ' ms' + (p.cert_ok === false ? ' · cert ≠ nom' : '') : p.err === 'RemoteDisconnected' && r.closes_root ? 'fermé sans réponse (return 444 voulu)' : (p.err || '—'),
+        !p.code ? (p.err === 'RemoteDisconnected' && r.closes_root ? 'mut' : p.err ? 'bad' : 'mut') : p.code >= 500 ? 'bad' : p.cert_ok === false || p.code >= 400 ? 'warn' : 'ok'],
+      r.type === 'redirect' ? ['Page finale', r.follow ? (r.follow.code ? r.follow.code + ' · ' + r.follow.url : r.follow.err || '?') : '—',
+        !r.follow ? 'mut' : !r.follow.code || r.follow.code >= 500 ? 'bad' : r.follow.code >= 400 ? 'warn' : 'ok'] : null,
+      ['Access list', r.acl ? '#' + r.acl_id + ' ' + r.acl : r.acl_adv ? 'garde advanced_config' : r.public_ok ? '🌍 site public (voulu)' : 'aucune',
+        r.acl || r.acl_adv ? 'ok' : r.public_ok || isNpmOnly(r) ? 'mut' : 'bad'],
+      ['Certificat SSL', box(r.ssl, true), 'html'],
+      ['SSL forcé', box(r.ssl_forced, true), 'html']
+    ].filter(Boolean));
+    if (r.dns) net = net.concat(dnsRows(r), (r.dns.rewrites || []).map(function(x){
+      return ['Réécriture AdGuard', x.domain + ' → ' + x.answer + ' (' + x.on.join(', ') + ')', 'ok']; }));
+    if (r.type === 'proxy') net = net.concat([
+      ['Config nginx', r.nginx_online === false ? 'en erreur : ' + (r.nginx_err || '?') : r.nginx_online ? 'OK' : '—', r.nginx_online === false ? 'bad' : r.nginx_online ? 'ok' : 'mut'],
+      ['HTTP/2', box(r.http2, true), 'html'],
+      ['HSTS', box(r.hsts, null), 'html'],
+      ['Websocket', box(r.websocket, null), 'html'],
+      ['Block exploits', box(r.block_exploits, true), 'html'],
+      ['Cache', box(r.caching, null), 'html'],
+      ['Config avancée', box(r.advanced, null), 'html'],
+      ['Real IP Cloudflare', box(r.cloudflare, null), 'html'],
+      ['Locations custom', r.locations || 0, r.locations ? '' : 'mut'],
+      ['Créé', r.created, 'mut'], ['Modifié', r.modified, 'mut']
+    ]);
+    function block(title, rows){
+      return '<div class="kvb"><h4>' + title + '</h4>' + rows.map(function(x){
+        var c = x[2] || '', raw = c === 'html' ? '' : String(x[1]), v = c === 'html' ? x[1]
+          : c === 'link' ? '<a href="' + esc(raw) + '" target="_blank" rel="noopener">' + esc(raw) + '</a>'
+          : c === 'npm' ? '<span class="dnpm"><img src="npm-logo.svg" alt="">' + esc(raw) + '</span>'
+          : '<span class="d' + c + '">' + esc(raw) + '</span>';
+        return '<div class="kvr"><span class="k">' + esc(x[0]) + '</span><span class="v"' + (raw ? ' title="' + esc(raw) + '"' : '') + '>' + v + '</span></div>';
+      }).join('') + '</div>';
+    }
+    return '<div class="kv">' + block('Identité', ident) + block('Service', svc) + block(r.type === 'local' ? 'Réseau' : 'Réseau & NPM', net) + '</div>';
+  }
+
+
+
+  function render(){
+    if (!DATA) return;
+    var terms = parseQuery().terms;
+    var rows = filtered();
+    rows.sort(function(a, b){
+      var x = sortVal(a, sortKey), y = sortVal(b, sortKey);
+      return (x < y ? -1 : x > y ? 1 : 0) * (sortAsc ? 1 : -1);
+    });
+    if (TAB === 'services') { setCount(rows.length, DATA.hosts.length); renderFacets(); renderActive(); renderDns(); }
+    if (!rows.length) { $('rows').innerHTML = '<tr><td colspan="12" class="empty">Aucun résultat.</td></tr>'; return; }
+    $('rows').innerHTML = rows.map(function(r){
+      var st = status(r), s = r.service, key = r.type + r.id, a = access(r), av = accessVal(r);
+      var url = r.domains.length ? 'https://' + r.domains[0] + '/' : r.ip ? r.scheme + '://' + r.ip + ':' + r.port + '/' : null;
+      // Nom principal seul ; domaines secondaires, description et titre de page sont dans le détail (Identité)
+      var more = r.domains.length > 1 ? ' <span class="dim" title="' + esc(r.domains.slice(1).join(', ')) + '">+' + (r.domains.length - 1) + '</span>' : '';
+      var dom = (url ? '<a href="' + esc(url) + '" target="_blank" rel="noopener">' : '<b>') + highlight(name(r), terms) + (url ? '</a>' : '</b>') + more +
+        exposure(r);
+      var target = r.type === 'redirect' ? '<span class="mut">→ ' + highlight(r.target, terms) + '</span>'
+        : r.type === 'dead' ? '<span class="dim">aucune (404)</span>'
+        : '<span class="dim">' + esc(r.scheme) + '://</span><span class="port clk" data-fk="machine" data-fv="' + esc(r.ip) + '" title="Filtrer sur cette IP">' +
+          highlight(r.ip, terms) + '</span><span class="port">:</span><span class="port clk" data-fk="port" data-fv="' + r.port + '" title="Filtrer sur ce port">' + r.port + '</span>';
+      var svc = s ? svcCell(s, terms) : '<span class="dim">—</span>';
+      // Badges réduits à l'essentiel : IA, Docker / Apache, NPM, AdGuard (réécriture DNS) ; le reste est dans le détail et les filtres
+      var rw = r.dns && r.dns.rewrites || [];
+      var tags = (r.category === 'IA' ? ftag('cat', 'cat', r.category, CAT_ICON.IA + ' IA') : '') +
+        (kind(r) === 'docker' || kind(r) === 'apache' ? typeTag(kind(r), kind(r) === 'apache' && st[0] === 'bad') : '') +
+        (src(r) === 'npm' ? ftag('src', 'src', 'npm', 'NPM', SRC_ICON.npm) : '') +
+        (rw.length ? '<span class="tag adguard" data-fk="src" data-fv="adguard" title="Réécriture AdGuard : ' + esc(rw.map(function(x){ return x.domain + ' → ' + x.answer; }).join(', ')) + ' · clic : filtrer">🧭 AdGuard</span>' : '');
+      // Ligne 1 : machine (rôle au survol) ; ligne 2 : tags catégorie / type / source
+      var mach = (r.machine ? '<b class="clk" data-fk="machine" data-fv="' + esc(hostIp(r)) + '" title="' + esc(r.machine_role + ' · filtrer sur cette machine') + '">' +
+        highlight(r.machine, terms) + '</b>' : '<span class="dim">' + (isNpmOnly(r) ? '—' : 'inconnue') + '</span>') +
+        (tags ? '<div class="mtags">' + tags + '</div>' : '');
+      var ref = {proxy: '#', redirect: 'R#', dead: '404#', stream: 'S#'}[r.type];
+      // Hors NPM : machine (ou IP) à la place d'un numéro NPM
+      ref = ref ? (multiNpm() ? r.npm + ' ' : '') + ref + npmId(r) : (r.machine || r.ip || '?') + (r.manual ? ' · manuel' : '');
+      return '<tr class="row' + (r.enabled ? '' : ' disabled') + '" data-key="' + esc(key) + '">' +
+        // Badge de source en premier, puis statut et explication
+        '<td>' + (r.type === 'local'
+          ? '<span class="nt loc" data-fk="nt" data-fv="local" title="Filtrer : services hors NPM"><span class="hi">⌂</span>Hors NPM</span>'
+          : '<span class="nt npm ' + r.type + '" data-fk="nt" data-fv="' + r.type + '" title="Nginx Proxy Manager · filtrer sur ce type">' +
+            '<img src="npm-logo.svg" alt="NPM">' + NT_LABEL[r.type] + '</span>') +
+        '<span class="st ' + st[0] + '">' + esc(st[1]) + '</span><span class="why">' + esc(st[2]) + '</span>' + (F.chk ? checkTags(r) : '') + '</td>' +
+        '<td class="dom">' + dom + '</td><td>' + target + '</td><td>' + mach + '</td><td class="svc">' + svc + '</td><td>' + webCell(r) + '</td>' +
+        ACC_KEYS.map(function(k, i){ var v = av[k];
+          return '<td class="sc' + (i ? '' : ' first') + (v ? ' clk" data-fk="' + k + '" data-fv="' + v + '" title="Filtrer : ' + FACET_LABEL[k] + ' = ' + ACC_LABEL[k][v] : '') + '">' + a[k][1] + '</td>'; }).join('') +
+        '<td class="dim">' + ref + '</td></tr>' +
+        (open[key] ? '<tr class="detail"><td colspan="12">' + detail(r) + '</td></tr>' : '');
+    }).join('');
+  }
+
+  // DNS AdGuard d'une ligne : une ligne de détail par domaine, réponse de chaque instance (texte complet au survol)
+  function dnsRows(r){
+    var d = r.dns, srv = DATA.dns ? Object.keys(DATA.dns.servers) : [], bad = {};
+    d.issues.forEach(function(x){ bad[x[1]] = 1; });
+    function txt(v){ return v == null ? 'pas de réponse' : v.length ? v.join(', ') : 'aucune'; }
+    return Object.keys(d.answers).map(function(dom){
+      var a = d.answers[dom], vals = srv.map(function(ip){ return txt(a[ip]); });
+      var same = vals.every(function(v){ return v === vals[0]; });
+      return ['DNS AdGuard', dom + ' → ' + (same ? vals[0] + ' (' + srv.map(function(ip){ return '.' + ip.split('.').pop(); }).join(' = ') + ')'
+        : srv.map(function(ip, i){ return '.' + ip.split('.').pop() + ' : ' + vals[i]; }).join(' · ')) +
+        (d.rule && d.rule[dom] ? ' · règle ' + d.rule[dom] : ''), bad[dom] ? 'warn' : 'ok'];
+    });
+  }
+  // État de la synchro AdGuard (bandeau + encadré). Une seule instance : rien à synchroniser. Plusieurs sans
+  // adguardhome-sync : comparaison des contenus seulement. Avec : contenus identiques ET synchro passée dans
+  // l'intervalle relevé dans son journal (+ 25 %), sans avoir à connaître son cron
+  function syncState(g){
+    var srv = Object.keys(g.servers), diff = g.rewrites_diff.length + g.user_rules_diff.length;
+    var sync = Object.keys(g.sync || {}).map(function(k){ return g.sync[k]; })[0];
+    var last = sync && sync.last_done ? Object.keys(sync.last_done).map(function(ip){ return new Date(sync.last_done[ip]); }) : [];
+    var age = last.length ? Math.min.apply(null, last.map(function(t){ return (Date.now() - t) / 60000; })) : null;
+    var every = sync && sync.interval_min, single = srv.length < 2 && !sync;
+    var late = !!sync && (sync.unreadable || age == null || !!every && age > every * 1.25 + 5), errs = sync ? sync.errors_24h || 0 : 0;
+    // Écart avec une synchro à l'heure = modif récente sur l'origine, pas encore recopiée : orange, pas rouge
+    var cls = !diff && !late && !errs ? 'ok' : diff && !late && !errs ? 'warn' : 'bad';
+    var label = single ? 'instance unique' : !sync ? (diff ? diff + ' écart(s)' : 'identiques') :
+      cls === 'ok' ? 'synchro' : errs ? 'synchro en erreur' : late ? 'synchro en retard' : diff + ' à synchroniser';
+    var tip = single ? 'Une seule instance AdGuard : rien à synchroniser' :
+      (diff ? diff + ' réécriture(s) ou règle(s) sur une seule instance' : 'Réécritures et règles perso identiques sur ' + srv.length + ' instances') +
+      (sync ? ' · ' + sync.container + (sync.unreadable ? ' : journal illisible' : age == null ? ' : aucune synchro réussie en 24 h'
+        : ' : dernière synchro réussie il y a ' + Math.round(age) + ' min' + (late ? ' (en retard, une toutes les ' + every + ' min)' : '')) +
+        (errs ? ' · ' + errs + ' erreur(s) en 24 h' : '') : ' · pas d\'adguardhome-sync : comparaison des contenus seulement');
+    var next = every && last.length ? new Date(Math.max.apply(null, last) + every * 60000) : null;
+    return {cls: cls, label: label, tip: tip, diff: diff, sync: sync, single: single, every: every, last: last[0] || null, age: age, late: late, errs: errs, next: next};
+  }
+  function dnsDown(g){ return Object.keys(g.servers).filter(function(ip){ return !g.servers[ip].readable || g.servers[ip].silent; }).length; }
+  function hm(d){ return d.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}); }
+  // Encadré DNS AdGuard : carte synchro colorée + une carte par instance, puis les listes d'écarts
+  function renderDns(){
+    var g = DATA.dns, box = $('dnsbox');
+    if (!g) { box.hidden = true; return; }
+    var srv = Object.keys(g.servers), st = syncState(g), y = st.sync;
+    var down = dnsDown(g);
+    var warn = st.diff + g.orphans.length + g.invalid.length + down;
+    var ICON = {ok: '✓', warn: '⚠', bad: '✗'};
+    function kv(k, v, cls){ return '<div class="dkv"><span>' + k + '</span><b' + (cls ? ' class="d' + cls + '"' : '') + '>' + v + '</b></div>'; }
+    function code(t){ return '<code>' + esc(t) + '</code>'; }
+    function section(cls, title, items, fn, note){
+      return items.length ? '<div class="dsec ' + cls + '"><h5>' + title + ' <small>' + items.length + '</small></h5>' + (note ? '<p>' + note + '</p>' : '') +
+        '<ul>' + items.map(function(x){ return '<li>' + fn(x) + '</li>'; }).join('') + '</ul></div>' : ''; }
+    var origin = y ? (g.servers[y.origin] ? g.servers[y.origin].name : y.origin) : null;
+    var replicas = y && y.last_done ? Object.keys(y.last_done).map(function(ip){ return g.servers[ip] ? g.servers[ip].name : ip; }).join(', ') : '';
+    var syncCard = st.single ? '<div class="dcard ok"><h6>Synchronisation</h6><div class="big">✓ Instance unique</div>' +
+      kv('adguardhome-sync', 'sans objet', 'mut') + '</div>' :
+      '<div class="dcard ' + st.cls + '"><h6>Synchronisation</h6><div class="big">' + ICON[st.cls] + ' ' +
+      (st.cls === 'ok' ? 'Instances identiques' : st.errs ? 'Synchro en erreur' : st.late ? 'Synchro en retard' : st.diff + ' écart(s)' + (y ? ' à synchroniser' : '')) + '</div>' +
+      (y ? kv('Sens', esc(origin || '?') + ' → ' + esc(replicas || '?')) +
+        kv('Dernière synchro', st.last ? hm(st.last) + ' <span class="dmut">(il y a ' + Math.round(st.age) + ' min)</span>' : 'aucune en 24 h', st.late ? 'bad' : '') +
+        (st.next ? kv('Prochaine prévue', hm(st.next) + ' <span class="dmut">(toutes les ' + st.every + ' min)</span>') : '') +
+        kv('Erreurs (24 h)', st.errs, st.errs ? 'bad' : 'ok') : kv('adguardhome-sync', 'absent : contenus comparés seulement', 'mut')) +
+      kv('Contenu', st.diff ? st.diff + ' différence(s)' : 'identique', st.diff ? (st.cls === 'warn' ? 'warn' : 'bad') : 'ok') + '</div>';
+    var srvCards = srv.map(function(ip){ var v = g.servers[ip], ok = v.readable && !v.silent;
+      return '<div class="dcard ' + (ok ? 'ok' : 'bad') + '"><h6>' + esc(v.name) + ' · ' + ip + (y && y.origin === ip ? ' · origine' : '') + '</h6>' +
+        '<div class="big">' + (ok ? '✓ répond' : v.readable ? '⚠ requêtes perdues' : '✗ config illisible') + '</div>' +
+        kv('Réécritures', v.readable ? v.rewrites : '—') + kv('Règles perso', v.readable ? v.user_rules : '—') +
+        kv('Requêtes sans réponse', v.silent, v.silent ? 'bad' : 'ok') + kv('Conteneur', esc(v.container)) + '</div>'; }).join('');
+    var html = '<div class="dgrid">' + syncCard + srvCards + '</div>' +
+      section('bad', '⚑ Présent sur une seule instance', g.rewrites_diff.concat(g.user_rules_diff), function(x){
+        return (x.rule ? 'règle ' + code(x.rule) : code(x.domain + ' → ' + x.answer) + (x.enabled ? '' : ' (désactivée)')) +
+          ' <span class="dmut">seulement sur ' + esc(g.servers[x.only] ? g.servers[x.only].name : x.only) + '</span>'; },
+        y && st.cls === 'warn' ? 'Synchro à l\'heure' + (st.next ? ' : sera recopié à ' + hm(st.next) : '') + '. Toujours modifier sur ' + esc(origin || 'l\'origine') + '.' : '') +
+      section('warn', '⚑ Réécritures vers NPM sans host NPM actif', g.orphans, function(x){ return code(x.domain + ' → ' + x.answer) + ' <span class="dmut">' + esc(x.why) + '</span>'; }) +
+      section('warn', '⚑ Réécritures au nom invalide (jamais résolues)', g.invalid, function(x){ return code(x.domain + ' → ' + x.answer); }) +
+      section('info', 'Réécritures directes, sans NPM', g.direct, function(x){ return code(x.domain + ' → ' + x.answer); }) +
+      '<p class="sub dnote">Chaque domaine des hosts NPM actifs est demandé à chaque AdGuard (8 requêtes/s par instance, sous la limite de 20/s du LAN) ; ' +
+      'réécritures et règles perso lues dans <code>AdGuardHome.yaml</code>.' + (g.npm_ip ? ' NPM = ' + esc(g.npm_ip) + '.' : ' Pas de NPM : seules les réécritures sont contrôlées.') + ' Problèmes par domaine : « ⚑ À vérifier » de chaque ligne.</p>';
+    box.innerHTML = '<summary>🧭 DNS AdGuard · ' + srv.map(function(ip){ return g.servers[ip].name; }).join(' / ') +
+      ' <span class="dpill ' + st.cls + '" title="' + esc(st.tip) + '">' + ICON[st.cls] + ' ' + st.label + (st.last ? ' · ' + hm(st.last) : '') + '</span>' +
+      (warn ? ' <span class="dpill warn">⚑ ' + warn + ' à vérifier</span>' : ' <span class="dpill ok">rien à signaler</span>') + '</summary>' + html;
+    box.hidden = false;
+  }
+
+  // Compteurs d'une facette calculés sur les résultats des AUTRES filtres
+  function counts(k, fn){
+    var saved = F[k], savedX = X[k]; delete F[k]; delete X[k];
+    var c = {};
+    filtered().forEach(function(r){ var v = fn(r); c[v] = (c[v] || 0) + 1; });
+    if (saved !== undefined) F[k] = saved;
+    if (savedX !== undefined) X[k] = savedX;
+    return c;
+  }
+  function chipRow(label, k, entries){
+    if (!entries.length) return '';
+    return '<div class="facet">' + (label ? '<span>' + label + '</span>' : '') + entries.map(function(e){
+      var c = colorOf(k, e[0]);
+      var on = has(F, k, e[0]), ex = has(X, k, e[0]);
+      return '<button class="chip' + (on ? ' on' : ex ? ' ex' : '') + '" title="' +
+        (on ? 'Affiché · clic : masquer' : ex ? 'Masqué · clic : désactiver le filtre' : 'Clic : ajouter au filtre (plusieurs choix possibles)') + '"' + (c ? ' style="color:' + c + (on ? ';border-color:' + c + ';background:' + c + '26' : '') + '"' : '') + ' data-fk="' + k + '" data-fv="' + esc(e[0]) + '">' +
+        (e[3] ? '<span class="ci">' + e[3] + '</span>' : '') + esc(e[1]) + '<small>' + e[2] + '</small></button>'; }).join('') + '</div>';
+  }
+  function renderFacets(){
+    var ck = {}, ckAll = 0;
+    // Une entrée peut avoir plusieurs raisons : compte par raison, sur les résultats des autres filtres
+    (function(){ var saved = F.chk, sx = X.chk; delete X.chk; F.chk = ['any'];
+      filtered().forEach(function(r){ ckAll++; checks(r).forEach(function(k){ ck[k] = (ck[k] || 0) + 1; }); });
+      if (saved === undefined) delete F.chk; else F.chk = saved; if (sx !== undefined) X.chk = sx; })();
+    var cx = counts('expo', function(r){ return expo(r) || ''; }), cn = counts('nt', function(r){ return r.type; }), cs = counts('src', src), cg = counts('src', hasRewrite), ct = counts('type', kind), cc = counts('cat', function(r){ return r.category; }),
+        cm = counts('machine', function(r){ return !hostIp(r) ? '' : r.machine ? hostIp(r) : 'autres'; }), cw = counts('web', webv);
+    var ce = (function(){ var saved = F.etat, sx = X.etat; delete X.etat; F.etat = ['actif', 'desactive']; var c = {};
+      filtered().forEach(function(r){ c[etat(r)] = (c[etat(r)] || 0) + 1; });
+      if (saved === undefined) delete F.etat; else F.etat = saved; if (sx !== undefined) X.etat = sx; return c; })();
+    var ca = {}; ACC_KEYS.forEach(function(k){ ca[k] = counts(k, function(r){ return accessVal(r)[k]; }); });
+    function accRow(label, k){ return chipRow(label, k, Object.keys(ACC_LABEL[k]).filter(function(v){ return ca[k][v]; })
+      .map(function(v){ return [v, ACC_LABEL[k][v], ca[k][v], ACC_ICON[v]]; })); }
+    $('facets').innerHTML =
+      group('wide chk', '⚑ À vérifier', ckAll ? chipRow('Raison', 'chk', [['any', 'tout', ckAll, '⚑']].concat(Object.keys(CHECK).filter(function(k){ return ck[k]; })
+        .map(function(k){ return [k, CHECK[k][0], ck[k]]; }))) : '') +
+      group('', '🧩 Service', chipRow('État NPM', 'etat', ['actif', 'desactive'].filter(function(k){ return ce[k]; })
+        .map(function(k){ return [k, ETAT_LABEL[k] + (k === 'desactive' && !has(F, 'etat', k) ? ' (masqués)' : ''), ce[k], k === 'actif' ? '●' : '○']; })) +
+        chipRow('Source', 'src', ['npm', 'hors-npm'].filter(function(k){ return cs[k]; }).map(function(k){ return [k, SRC_LABEL[k], cs[k], SRC_ICON[k]]; })
+          .concat(cg.true ? [['adguard', SRC_LABEL.adguard, cg.true, '🧭']] : [])) +
+      chipRow('Type NPM', 'nt', ['proxy', 'redirect', 'dead', 'stream'].filter(function(k){ return cn[k]; }).map(function(k){ return [k, NT_LABEL[k], cn[k], NPM_ICON]; })) +
+      chipRow('Type', 'type', byCount(ct).map(function(k){ return [k, KIND_LABEL[k] || k, ct[k], KIND_ICON[k]]; })) +
+      chipRow('Web', 'web', ['ui', 'api', 'none', 'inconnu'].filter(function(k){ return cw[k]; }).map(function(k){ return [k, WEB_LABEL[k], cw[k], WEB_ICON[k]]; }))) +
+      group('', '🔐 Accès &amp; TLS', chipRow('Exposition', 'expo', ['prive', 'public', 'ouvert'].filter(function(k){ return cx[k]; }).map(function(k){ return [k, EXPO[k][1], cx[k], EXPO[k][0]]; })) +
+        accRow('ACL', 'acl') + accRow('SSL', 'ssl') + accRow('Cloudflare', 'cf') + accRow('HSTS', 'hsts') + accRow('Websocket', 'ws')) +
+      group('wide', '🏷️ Catégorie', chipRow('', 'cat', byCount(cc).map(function(k){ return [k, k, cc[k], CAT_ICON[k]]; }))) +
+      group('wide', '🖥️ Machine', chipRow('', 'machine', byCount(cm).map(function(ip){
+        if (ip === 'autres') return [ip, 'Autres IP', cm[ip], '❔'];  // cibles hors inventaire (obsolètes)
+        var m = DATA.machines[ip], short = m && m.gateway ? ip : '.' + ip.split('.').pop();  // passerelle : IP complète
+        return [ip, (m ? m.name + ' ' : '') + short, cm[ip]]; })));
+    setFsum(Object.keys(F).length + Object.keys(X).length);
+  }
+  function renderActive(){
+    var ks = Object.keys(F), kx = Object.keys(X);
+    function lblOf(k, v){ return k === 'machine' && v === 'autres' ? 'Autres IP' : k === 'machine' && DATA.machines[v] ? DATA.machines[v].name + ' (' + v + ')'
+        : k === 'chk' ? (v === 'any' ? 'tout' : v === 'dnsall' ? 'DNS AdGuard' : CHECK_GROUP[v] || CHECK[v][0]) : k === 'expo' ? EXPO[v][1] : k === 'src' ? SRC_LABEL[v] : k === 'nt' ? NT_LABEL[v] : k === 'web' ? WEB_LABEL[v] : k === 'status' ? STATUS_LABEL[v] : k === 'etat' ? ETAT_LABEL[v] : ACC_LABEL[k] ? ACC_LABEL[k][v] || v : v; }
+    // Une pastille par facette : valeurs séparées par « ou », clic sur une valeur = la retirer
+    function vals(M, k, attr){
+      return M[k].map(function(v){
+        return '<i ' + attr + '="' + k + '" data-fv="' + esc(v) + '" title="Retirer « ' + esc(lblOf(k, v)) + ' »">' + esc(lblOf(k, v)) + ' <b>×</b></i>'; }).join('<em> ou </em>');
+    }
+    var exPills = kx.map(function(k){
+      return '<span class="pill ex">' + FACET_LABEL[k] + ' ≠ ' + vals(X, k, 'data-fx') + '</span>'; }).join('');
+    $('active').innerHTML = ks.map(function(k){
+      return '<span class="pill">' + FACET_LABEL[k] + ' : ' + vals(F, k, 'data-fp') + '</span>';
+    }).join('') + exPills + (ks.length || kx.length ? '<span class="pill clear" data-clear="1">Tout effacer</span>' : '');
+  }
+
+  var STATUS_LABEL = {ok: 'OK / en ligne', warn: 'avertissements', bad: 'en panne / down', disabled: 'désactivés'};
+  // Compteurs en 4 groupes (NPM / hors NPM / Backups / Health) ; un clic pose un jeu de filtres complet
+  function renderStats(){
+    var n = {all: 0, ok: 0, warn: 0, bad: 0, off: 0, fix: 0, cleanup: 0, proxy: 0, redirect: 0, dead: 0, stream: 0},
+        l = {all: 0, ok: 0, bad: 0, uiout: 0};
+    DATA.hosts.forEach(function(r){
+      var st = status(r)[0];
+      if (r.type === 'local') {
+        l.all++; l[st === 'ok' ? 'ok' : 'bad']++;
+        if (r.web === 'ui' && !r.direct_ok) l.uiout++;
+        return;
+      }
+      n.all++; n[r.type]++;
+      var c = checks(r);
+      if (inGroup(c, 'fix')) n.fix++;
+      if (inGroup(c, 'cleanup')) n.cleanup++;
+      // « désactivés » = !enabled, comme le filtre status:disabled (pause et machine éteinte n'y sont pas)
+      if (!r.enabled) n.off++; else if (st !== 'off') n[st]++;
+    });
+    // set = nom d'onglet (Backups, Health) : clic = ouvrir cet onglet, pas de filtre sur la liste des services
+    function card(cls, num, label, set, tip){
+      var on = typeof set === 'object' && sameF(set);
+      return '<button class="stat ' + cls + (num ? '' : ' zero') + (on ? ' on' : '') + '" ' + (typeof set === 'string' ? 'data-tabgo="' + set + '"' : 'data-fs="' + esc(JSON.stringify(set)) + '"') +
+        (tip ? ' title="' + esc(tip) + '"' : '') + '><b>' + num + '</b><span>' + label + '</span></button>';
+    }
+    var bs = BK && BK.summary, hs = HS;
+    function hlv(l){ return hs.hosts.filter(function(h){ return (h.reachable === false ? 'down' : h.level || 'ok') === l; }).length; }
+    function sub(k, label){
+      return n[k] ? '<i class="' + (sameF({nt: k}) ? 'on' : '') + '" data-fs="' + esc(JSON.stringify({nt: k})) + '">' + n[k] + ' ' + label + '</i>' : '';
+    }
+    var hasNpm = DATA.hosts.some(function(r){ return r.type !== 'local'; });  // NPM facultatif : groupe masqué sans entrée NPM
+    $('stats').innerHTML = (!hasNpm ? '' :
+      '<div class="sgrp npm"><button class="sh npm' + (sameF({src: 'npm'}) ? ' on' : '') + '" data-fs="' + esc(JSON.stringify({src: 'npm'})) + '"><b><img src="npm-logo.svg" alt="">NPM</b><span>' + n.all + ' entrées</span>' +
+        '<small>' + [sub('proxy', 'proxy'), sub('redirect', 'redir.'), sub('dead', '404'), sub('stream', 'stream')].filter(Boolean).join(' · ') + '</small></button><div class="sc">' +
+        card('ok', n.ok, 'OK', {src: 'npm', status: 'ok'}) +
+        card('warn', n.warn, 'avertissements', {src: 'npm', status: 'warn'}, 'Domaine qui répond mal : DNS, TLS, 404 inattendu') +
+        card('bad', n.bad, 'en panne', {src: 'npm', status: 'bad'}, 'Actif dans NPM mais backend injoignable ou erreur 5xx') +
+        card('off', n.off, 'désactivés', {src: 'npm', status: 'disabled'}, 'Host désactivé dans NPM ; le backend peut tourner encore') +
+        card('bad', n.fix, 'à corriger', {src: 'npm', chk: 'fix'}, 'Hosts actifs avec un défaut : panne, DNS, HTTPS, config nginx, sans ACL, SSL, cible inconnue, service non identifié') +
+        card('chk', n.cleanup, 'à nettoyer', {src: 'npm', chk: 'cleanup'}, 'Pas un problème en cours : hosts désactivés dont le backend est mort (à supprimer de NPM ?) et hosts en pause (à revoir)') + '</div></div>') +
+      '<div class="sgrp loc"><button class="sh loc' + (sameF({src: 'hors-npm'}) ? ' on' : '') + '" data-fs="' + esc(JSON.stringify({src: 'hors-npm'})) + '"><b>Hors NPM</b><span>' + l.all + ' services</span>' +
+        '<small>accès LAN direct</small></button><div class="sc">' +
+        card('ok', l.ok, 'en ligne', {src: 'hors-npm', status: 'ok'}) +
+        card('bad', l.bad, 'down', {src: 'hors-npm', status: 'bad'}) +
+        card('warn', l.uiout, 'UI sans domaine', {src: 'hors-npm', web: 'ui-hors'}, 'Interface web joignable seulement en direct, aucun host NPM') + '</div></div>' +
+      (bs ? '<div class="sgrp bk"><button class="sh bk" data-tabgo="backups" title="Ouvrir l\'onglet Backups"><b>💾 Backups</b><span>' + bs.sets + ' jeux · ' + bs.hosts + ' machines</span>' +
+        '<small>' + bsize(bs.volume) + ' de sources</small></button><div class="sc">' +
+        card('ok', bs.ok, 'OK', 'backups', 'Jeux de sauvegarde à jour') +
+        card('warn', bs.warn, 'WARN', 'backups', 'Jeux en retard ou incomplets') +
+        card('bad', bs.crit, 'CRIT', 'backups', 'Jeux trop vieux ou absents') +
+        card('bad', bs.no_offsite, 'sans copie ailleurs', 'backups', 'Jeux sans aucune copie hors de leur machine') + '</div></div>' : '') +
+      (hs ? '<div class="sgrp hl"><button class="sh hl" data-tabgo="health" title="Ouvrir l\'onglet Health"><b>🩺 Health</b><span>' + hs.hosts.length + ' machines</span>' +
+        '<small>relevé ' + new Date(hs.timestamp).toLocaleString('fr-FR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}) + '</small></button><div class="sc">' +
+        card('ok', hlv('ok'), 'OK', 'health', 'Machines sans alerte') +
+        card('warn', hlv('warn'), 'WARN', 'health', 'Disque, maj, noyau, SSH… à surveiller') +
+        card('bad', hlv('crit'), 'CRIT', 'health', 'Disque plein, service en échec, SMART…') +
+        card('bad', hlv('down'), 'injoignables', 'health', 'Machine non joignable en SSH par health.py') +
+        card('warn', hs.hosts.filter(function(h){ return h.reboot_required; }).length, 'reboot', 'health', 'Redémarrage requis (/var/run/reboot-required)') + '</div></div>' : '') +
+      dnsStats(card);
+  }
+  // Groupe AdGuard du bandeau : domaines NPM testés, puis écarts de l'encadré « DNS AdGuard » (clic = l'ouvrir)
+  function dnsStats(card){
+    var g = DATA.dns;
+    if (!g) return '';
+    var srv = Object.keys(g.servers), rows = DATA.hosts.filter(function(r){ return r.dns && r.enabled; });
+    var bad = rows.filter(function(r){ return r.dns.issues.length; }).length;
+    var rw = srv.map(function(ip){ return g.servers[ip].rewrites; }).filter(function(v, i, a){ return a.indexOf(v) === i; }).join(' / ');  // « 21 / 26 » si les instances diffèrent
+    var down = dnsDown(g), st = syncState(g);
+    function box(cls, num, label, tip){
+      return '<button class="stat ' + cls + (num ? '' : ' zero') + '" data-dnsbox="1" title="' + esc(tip) + ' · clic : ouvrir l\'encadré DNS AdGuard"><b>' + num + '</b><span>' + label + '</span></button>'; }
+    return '<div class="sgrp dg"><button class="sh dg' + (sameF({src: 'adguard'}) ? ' on' : '') + '" data-dnsbox="1" data-fs="' + esc(JSON.stringify({src: 'adguard'})) +
+      '" title="Filtrer la liste sur les services à réécriture AdGuard et ouvrir l\'encadré DNS AdGuard (2e clic : retirer le filtre)"><b>🧭 AdGuard</b><span>' + srv.length + ' instances · ' + rw + ' réécr.</span>' +
+      '<small>' + srv.map(function(ip){ return g.servers[ip].name; }).join(' / ') + (st.last ? ' · synchro ' + hm(st.last) : '') + '</small></button><div class="sc">' +
+      '<button class="stat ' + st.cls + '" data-dnsbox="1" title="' + esc(st.tip) + ' · clic : ouvrir l\'encadré DNS AdGuard"><b>' +
+        (st.cls === 'ok' ? '✓' : '⚠') + '</b><span>' + st.label + '</span></button>' +
+      box('ok', rows.length - bad, 'OK', 'Hosts NPM actifs dont tous les noms résolvent pareil sur chaque AdGuard') +
+      card('warn', bad, 'à vérifier', {src: 'npm', chk: 'dnsall'}, 'Hosts NPM avec un problème DNS : nom invalide ou absent, écart entre AdGuard, hors LAN, bloqué') +
+      box('warn', g.orphans.length, 'orphelines', 'Réécritures vers NPM sans host NPM actif') +
+      box('bad', down, 'injoignables', 'Instance à la config illisible ou qui ne répond pas à des requêtes DNS') + '</div></div>';
+  }
+  function sameF(set){
+    var a = Object.keys(F), b = Object.keys(set);
+    return a.length === b.length && b.every(function(k){ return F[k] && F[k].length === 1 && F[k][0] === set[k]; });
+  }
+
+  // Cycle d'un filtre : 1er clic = afficher seulement, 2e clic = masquer, 3e clic = désactivé
+  function toggle(k, v){
+    if (has(F, k, v)) { delV(F, k, v); addV(X, k, v); }
+    else if (has(X, k, v)) delV(X, k, v);
+    else addV(F, k, v);
+    renderStats(); render();
+  }
+
+  // --- Onglet Machines ---
+  function dur(sec){ if (sec == null) return '—'; var d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600);
+    return d ? d + ' j ' + h + ' h' : h + ' h'; }
+  // Filtres de l'onglet Machines : état (joignable / accès SSH) et compte SSH
+  // Une session SSH réussie prime sur le ping (certains pare-feu bloquent l'ICMP)
+  function mState(m){
+    if (m.info) return 'ssh';
+    if (m.off && !m.ping) return 'off';
+    if (m.ssh && !m.ssh.identity) return 'manual';
+    if (m.ssh) return 'refused';
+    return m.ping ? 'nossh' : 'down';
+  }
+  var MSTATE = {ssh: ['🟢', 'SSH OK'], manual: ['🔵', 'SSH manuel'], refused: ['🟠', 'SSH refusé'],
+                nossh: ['⚪', 'en ligne, pas de SSH'], off: ['⚫', 'éteinte (voulu)'], down: ['🔴', 'injoignable']};
+  var MSTATE_TIP = {ssh: 'Connexion SSH par clé réussie depuis le collecteur',
+    manual: 'Accès déclaré dans sshlist sans clé (mot de passe) : non testé automatiquement',
+    refused: 'Accès SSH configuré, mais la connexion par clé échoue',
+    nossh: 'Répond au ping, aucun accès SSH configuré depuis le collecteur',
+    off: 'Éteinte volontairement (services-meta.json : off), aucune alerte',
+    down: 'Ne répond ni au ping ni en SSH'};
+  function mUser(m){ return m.ssh && m.ssh.user || (m.local ? 'local' : 'aucun'); }
+  function mItems(all){
+    return all.filter(function(m){ var ssh = m.ssh || {}, i = m.info || {};
+      return hit('machines', [m.name, m.ip, m.role, MSTATE[mState(m)][1], ssh.alias, ssh.user, i.os, i.kernel,
+        i.apache ? 'apache' : '', i.nginx ? 'nginx' : '', i.docker ? 'docker' : '']); })
+      .map(function(m){ return {m: m, v: {state: mState(m), user: mUser(m)}}; });
+  }
+  function machinesBar(all, items, n){
+    var cs = tCount('machines', items, 'state'), cu = tCount('machines', items, 'user');
+    tBar('machines', n, all.length, group('wide', '🖥️ Machines',
+      tChips('machines', 'État', 'state', ['ssh', 'manual', 'refused', 'nossh', 'off', 'down'].filter(function(k){ return cs[k]; }).map(function(k){ return [k, MSTATE[k][1], cs[k], MSTATE[k][0]]; })) +
+      tChips('machines', 'Compte', 'user', Object.keys(cu).sort().map(function(u){ return [u, u, cu[u], u === 'aucun' || u === 'local' ? '' : '👤']; }))),
+      {state: 'état', user: 'compte'}, function(k, v){ return k === 'state' ? MSTATE[v][1] : v; });
+  }
+  // Tri du tableau Machines (clic sur un en-tête ; 2e clic = ordre inverse)
+  var mSortKey = 'ip', mSortAsc = true;
+  function ipNum(ip){ return ip.split('.').map(Number).reduce(function(x, n){ return x * 256 + n; }, 0); }
+  function sshRank(v, pwd){ if (v == null) return 9; var k = v.split(' ')[0];
+    return k === 'yes' ? 0 : /prohibit|without/.test(k) ? 1 : 2; }
+  function mSortVal(m, k){
+    var ssh = m.ssh || {}, i = m.info || {}, sd = i.sshd || {};
+    switch (k) {
+      case 'state': return ['ssh', 'manual', 'refused', 'nossh', 'off', 'down'].indexOf(mState(m));
+      case 'ssh': return (ssh.user || '~') + '@' + (ssh.alias || '~');
+      case 'key': return ssh.identity || '~';
+      case 'hostkey': return ssh.host_key ? 0 : m.ssh ? 1 : 2;
+      case 'root': return sshRank(sd.permitrootlogin);
+      case 'pwd': return ssh.methods ? (ssh.methods.indexOf('password') >= 0 ? 0 : 2) : sshRank(sd.passwordauthentication);
+      case 'os': return i.os || '~';
+      case 'srv': return -((i.docker || 0) + (i.apache ? 100 : 0) + (i.nginx ? 50 : 0));
+      case 'svc': return -m.services;
+      case 'hdisk': return HEALTH[m.ip] ? -HEALTH[m.ip].disk.pct : 1;
+      case 'hsys': return HEALTH[m.ip] ? -HEALTH[m.ip].failed.length : 1;
+      case 'hapt': return HEALTH[m.ip] ? -HEALTH[m.ip].apt : 1;
+      default: return ipNum(m.ip);
+    }
+  }
+  document.querySelector('#mtbl thead').addEventListener('click', function(e){
+    var th = e.target.closest('th[data-mk]'); if (!th) return;
+    var k = th.getAttribute('data-mk');
+    mSortAsc = k === mSortKey ? !mSortAsc : true; mSortKey = k;
+    document.querySelectorAll('#mtbl th').forEach(function(x){ x.classList.remove('sorted', 'asc'); });
+    th.classList.add('sorted'); if (mSortAsc) th.classList.add('asc');
+    renderMachines();
+  });
+  // Icône d'état d'un onglet : ✓ vert si tout est OK, sinon nombre en CRIT (rouge) ou en WARN (orange)
+  function tabState(id, crit, warn, what, src){
+    var el = $(id), c = crit ? 'bad' : warn ? 'warn' : 'ok';
+    el.hidden = false; el.className = 'ts ' + c;
+    el.textContent = crit ? '✗ ' + crit : warn ? '⚠ ' + warn : '✓';
+    el.title = crit || warn ? [crit ? crit + ' ' + what + ' en CRIT' : '', warn ? warn + ' ' + what + ' en WARN' : ''].filter(Boolean).join(' · ') + ' (' + src + ')'
+      : 'Tout est OK (' + src + ')';
+  }
+  // Santé système lue dans le stats.json de health.py (toutes les 6 h) : pas de sonde ici.
+  // Machines hors de sa liste : « — ».
+  var HEALTH = {}, HEALTH_AT = null, HS = null;  // HS : dernier stats.json, résumé dans le bandeau
+  function loadHealth(){
+    if (!PAGE.health_url) return;
+    fetch(PAGE.health_url + 'stats.json?t=' + Date.now(), {cache: 'no-store'}).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+      if (!d) return;
+      // Nouveau relevé : recharger l'iframe de l'onglet Health si elle est déjà ouverte
+      if (HEALTH_AT && +HEALTH_AT !== +new Date(d.timestamp) && $('hframe').src) $('hframe').contentWindow.location.reload();
+      HEALTH = {}; HEALTH_AT = new Date(d.timestamp); HS = d;
+      var lv = function(l){ return (d.hosts || []).filter(function(h){ return (h.reachable === false ? 'crit' : h.level || 'ok') === l; }).length; };
+      tabState('sbadge', lv('crit'), lv('warn'), 'machine(s)', 'health.py');
+      renderHealth();
+      (d.hosts || []).forEach(function(h){
+        var ip = (/(\d+\.\d+\.\d+\.\d+)/.exec(h.name) || [])[1];
+        if (!ip || !h.reachable) return;
+        var top = (h.disks || []).reduce(function(a, x){ return !a || x.used_pct > a.used_pct ? x : a; }, null);
+        HEALTH[ip] = {disk: top ? {mount: top.mount, pct: top.used_pct, warn: top.warning} : {mount: '?', pct: 0},
+          failed: (h.systemd || {}).failed || [], apt: (h.apt || {}).upgradable || 0, reboot: h.reboot_required, level: h.level};
+      });
+      renderMachines(); renderStats();
+    }).catch(function(){});
+  }
+  // Onglet Health : la barre commune masque des lignes du tableau de l'iframe (même origine), repérées par l'IP
+  function hState(h){ return h.reachable === false ? 'down' : h.level || 'ok'; }
+  function ipOf(txt){ return (/(\d+\.\d+\.\d+\.\d+)/.exec(txt || '') || [])[1]; }
+  function renderHealth(){
+    if (!HS) return;
+    var hosts = HS.hosts || [];
+    var items = hosts.filter(function(h){ return hit('health', [h.name, BLABEL[hState(h)]]); })
+      .map(function(h){ return {h: h, v: {state: hState(h)}}; });
+    var keep = {}, n = 0;
+    items.forEach(function(it){ if (tPass('health', it.v)) { keep[ipOf(it.h.name)] = 1; n++; } });
+    var cs = tCount('health', items, 'state');
+    tBar('health', n, hosts.length, group('wide', '🩺 Health',
+      tChips('health', 'État', 'state', ['ok', 'warn', 'crit', 'down'].filter(function(k){ return cs[k]; }).map(function(k){ return [k, BLABEL[k], cs[k]]; }))),
+      {state: 'état'}, function(k, v){ return BLABEL[v] || v; });
+    var doc; try { doc = $('hframe').contentDocument; } catch (e) { return; }
+    if (!doc) return;
+    doc.querySelectorAll('.dash-table tbody tr').forEach(function(tr){
+      var td = tr.querySelector('.td-host');
+      if (td) tr.style.display = keep[ipOf(td.textContent)] ? '' : 'none';
+    });
+  }
+  function healthCells(m){
+    if (!PAGE.health_url) return '';
+    var h = HEALTH[m.ip], na = '<td class="dim" title="Machine non suivie par health.py">—</td>';
+    if (!h) return na + '<td class="sc dim">—</td><td class="sc dim">—</td>';
+    var at = HEALTH_AT ? ' · relevé ' + HEALTH_AT.toLocaleString('fr-FR', {dateStyle: 'short', timeStyle: 'short'}) : '';
+    var dc = h.disk.pct >= 90 ? 'var(--bad)' : h.disk.pct >= 80 || h.disk.warn ? 'var(--warn)' : 'var(--ok)';
+    return '<td title="Disque le plus rempli' + at + '"><b style="color:' + dc + '">' + h.disk.pct + ' %</b> <code>' + esc(h.disk.mount) + '</code></td>' +
+      '<td class="sc">' + (h.failed.length ? '<span class="ic bad" title="' + esc(h.failed.map(function(u){ return u.unit; }).join(', ')) + '">' + h.failed.length + '</span>'
+        : '<span class="ic ok" title="Aucun service en échec' + at + '">✓</span>') + '</td>' +
+      '<td class="sc">' + (h.apt ? '<span class="ic warn" title="' + h.apt + ' paquet(s) à mettre à jour' + at + '">' + h.apt + '</span>' : '<span class="ic ok" title="À jour' + at + '">✓</span>') +
+        (h.reboot ? '<span class="ic warn" title="Redémarrage requis">↻</span>' : '') + '</td>';
+  }
+  // Infobulle de la colonne Services : chaque service de la machine avec son statut, les pannes d'abord
+  function svcTip(m, downOnly){
+    var rs = (DATA.hosts || []).filter(function(r){ return (r.host_ip || r.ip) === m.ip; }).filter(function(r){
+      return !downOnly || (r.enabled && !r.paused && (r.backend || {}).up === false); })
+      .map(function(r){ return [status(r), r]; }).sort(function(a, b){ return b[0][3] - a[0][3]; });
+    var ic = {ok: '✓', warn: '●', bad: '✗', off: '○'};
+    return rs.map(function(x){ var st = x[0], r = x[1];
+      return ic[st[0]] + ' ' + name(r) + (r.domains.length ? ' → ' + r.ip + ':' + r.port : '') +
+        ' [' + (r.type === 'local' ? 'hors NPM' : 'NPM') + '] ' + st[1] + ' · ' + st[2]; }).join('\n') || 'aucun service';
+  }
+  function renderMachines(){
+    if (!DATA) return;
+    var all = DATA.machine_list || [], items = mItems(all);
+    var ms = items.filter(function(it){ return tPass('machines', it.v); }).map(function(it){ return it.m; }).sort(function(a, b){
+      var x = mSortVal(a, mSortKey), y = mSortVal(b, mSortKey);
+      return (x < y ? -1 : x > y ? 1 : 0) * (mSortAsc ? 1 : -1); });
+    machinesBar(all, items, ms.length);
+    if (!ms.length) { $('mrows').innerHTML = '<tr><td colspan="13" class="empty">Aucun résultat.</td></tr>'; return; }
+    $('mrows').innerHTML = ms.map(function(m){
+      var ssh = m.ssh || {}, i = m.info || {}, sd = i.sshd || {};
+      // Mot de passe : méthodes réellement annoncées par sshd (fiable), sinon sshd_config
+      var root = sd.permitrootlogin, meth = ssh.methods,
+          pwd = meth ? (meth.indexOf('password') >= 0 || meth.indexOf('keyboard-interactive') >= 0 ? 'yes (annoncé par sshd)' : 'no (annoncé par sshd)') : sd.passwordauthentication;
+      var ms_ = mState(m), reach = '<span class="st ' + {ssh: 'ok', manual: 'off', refused: 'warn', nossh: 'off', off: 'off', down: 'bad'}[ms_] +
+        '" title="' + esc(MSTATE_TIP[ms_]) + '">' + MSTATE[ms_][1] + '</span>';
+      var sshCell = m.ssh ? '<span class="sshc"><img src="ssh-logo.svg" alt="">' + esc(ssh.alias) + '</span> ' +
+        '<span class="dim" style="font:12px ui-monospace,Menlo,monospace">' + esc((ssh.user || '?') + '@' + m.ip + ':' + ssh.port) + '</span><br>' +
+        '<span class="sb user" title="Compte SSH">👤 ' + esc(ssh.user || '?') + '</span><span class="sb port' + (ssh.port !== 22 ? ' alt' : '') +
+        '" title="Port SSH' + (ssh.port !== 22 ? ' (non standard)' : '') + '">:' + ssh.port + '</span>' +
+        (ssh.note ? '<span class="why" title="Note du script sshlist">📝 ' + esc(ssh.note) + '</span>' : '') +
+        (m.info || !ssh.identity ? '' : '<span class="why">connexion refusée ou impossible</span>')
+        : m.local ? '<span class="dim">local</span>' : '<span class="dim">pas d\'accès SSH configuré</span>';
+      var key = m.ssh && !ssh.identity ? '<span class="dim">aucune (accès manuel, sshlist)</span>' : m.ssh ? '<code>' + esc(ssh.identity || '—') + '</code><span class="fp" title="' + esc(ssh.key_fp || '') + '">' + esc(ssh.key_fp || 'empreinte inconnue') + '</span>' : '<span class="dim">—</span>';
+      // Clé d'hôte : juste « connue / inconnue » (présente dans known_hosts), sans afficher l'empreinte
+      var hk = !m.ssh ? '<span class="dim">—</span>' : ssh.host_key
+        ? '<span class="ic ok" title="Clé d\'hôte connue (known_hosts, ' + esc(ssh.host_key.split(' ')[0]) + ')">✓</span>'
+        : '<span class="ic bad" title="Clé d\'hôte absente de known_hosts : 1re connexion non vérifiée">✗</span>';
+      var yn = function(v){ if (v == null) return '<span class="na" title="inconnu">—</span>';
+        // Icône seule, explication au survol : ✓ vert = autorisé, ✗ rouge = refusé, 🔑 = par clé uniquement
+        var k = v.split(' ')[0], tip = esc(v.replace(' (défaut)', '') + (/ \(défaut\)/.test(v) ? ' · valeur par défaut OpenSSH' : ''));
+        return k === 'yes' ? '<span class="ic ok" title="Autorisé · ' + tip + '">✓</span>'
+          : /prohibit-password|without-password/.test(k) ? '<span class="ic key" title="Par clé uniquement · ' + tip + '">🔑</span>'
+          : '<span class="ic bad" title="Refusé · ' + tip + '">✗</span>'; };
+      // NPM tourne en conteneur (invisible pour systemctl) : repéré par l'image d'un service de la machine.
+      // Apache rouge seulement si un de ses vhosts est en panne.
+      var mrows = DATA.hosts.filter(function(r){ return hostIp(r) === m.ip && r.service; });
+      var npmCt = mrows.filter(function(r){ return /nginx-proxy-manager/.test(r.service.image || ''); })[0];
+      var apDown = mrows.filter(function(r){ return r.enabled && r.service.kind === 'apache' && status(r)[0] === 'bad'; });
+      var srv = (npmCt ? '<span class="srv npm" title="' + esc('Nginx Proxy Manager, conteneur ' + npmCt.service.name + ' (' + npmCt.service.image + ')') + '"><img src="npm-logo.svg" alt="">NPM</span>' : '') +
+        (i.apache ? '<span class="srv apache' + (apDown.length ? ' down" title="' + esc('En panne : ' + apDown.map(name).join(', ')) : '') + '"><img src="apache-logo.svg" alt="">Apache · ' + (i.vhosts || []).length + ' vhosts' +
+          ((i.vhosts_unreadable || []).length ? ' <span class="unread" title="' + esc('Vhosts actifs dont le fichier de config ' +
+            'n\'est pas lisible par le compte SSH ' + ((m.ssh && m.ssh.user) || '?') + ' (droits root:root 0750, compte hors groupe root). ' +
+            'Ces sites tournent, mais leurs domaines, ports et docroot restent inconnus de MyServices. ' +
+            'Fichiers : ' + i.vhosts_unreadable.join(', ') + '. ' +
+            'Pour les lire : sudo chmod 644 /etc/apache2/sites-available/<fichier> (s\'il ne contient pas de secret).') +
+            '">(+' + i.vhosts_unreadable.length + ' illisible' + (i.vhosts_unreadable.length > 1 ? 's' : '') + ' ⓘ)</span>' : '') + '</span>' : '') +
+        (i.nginx ? '<span class="srv nginx">nginx</span>' : '') +
+        (i.docker ? '<span class="srv docker"><img src="docker-logo.svg" alt="">' + i.docker + ' conteneurs</span>' : '');
+      return '<tr><td><b class="clk" data-goto="' + esc(m.ip) + '" title="Voir ses services">' + esc(m.name) + '</b><span class="why">' + esc(m.ip) + ' · ' + esc(m.role) + '</span></td>' +
+        '<td>' + reach + '</td><td>' + sshCell + '</td><td>' + key + '</td><td class="sc">' + hk + '</td>' +
+        '<td class="sc">' + yn(root) + '</td><td class="sc">' + yn(pwd) + '</td>' +
+        '<td>' + (i.os ? esc(i.os) + '<span class="why">noyau ' + esc(i.kernel || '?') + ' · up ' + dur(i.uptime_s) + '</span>' : '<span class="dim">—</span>') + '</td>' +
+        '<td>' + (srv || '<span class="dim">—</span>') + '</td>' +
+        '<td title="' + esc(svcTip(m)) + '"><b>' + m.services + '</b> <span class="dim">dont ' + m.npm + ' NPM</span>' +
+          (m.down ? '<span class="why" style="color:var(--bad)" title="' + esc(svcTip(m, true)) + '">' + m.down + ' en panne</span>' : '') + '</td>' +
+        healthCells(m) + '</tr>';
+    }).join('');
+  }
+  // Intégrations facultatives (config.json -> data.json « page ») : onglets Health / Backups, colonnes santé, liens
+  var PAGE = {};
+  function applyPage(){
+    var links = (PAGE.links || []).map(function(l){ return '<a href="' + esc(l.url) + '">' + esc(l.label) + '</a>'; });
+    if (PAGE.map && PAGE.backups_url) links.unshift('<a href="sauvegardes.html" target="_blank" rel="noopener" title="Carte des sauvegardes (Archify) : qui copie vers où, âge des copies">💾 Carte sauvegardes</a>');
+    links.push('<a href="v2/" title="Nouvelle page (maquette v2 : accueil résumé, thème clair / sombre)">✨ Nouvelle page</a>');
+    if (PAGE.map) links.unshift('<a href="carte.html" target="_blank" rel="noopener" title="Carte de l\'infra (Archify) et santé des machines, régénérée à chaque passage">🗺 Carte</a>');
+    $('xlinks').innerHTML = links.length ? ' · ' + links.join(' · ') : '';
+    $('flinks').innerHTML = links.join('');
+    var hu = PAGE.health_url, bu = PAGE.backups_url;
+    document.querySelector('.tab[data-tab="health"]').hidden = !hu;
+    document.querySelector('.tab[data-tab="backups"]').hidden = !bu;
+    document.querySelectorAll('.hcol').forEach(function(th){ th.hidden = !hu; });
+    $('hhealth').hidden = !hu;
+    if (hu) { $('hhealth-a').href = hu + 'events.json'; $('hpage').href = hu; $('hstats').href = hu + 'stats.json'; }
+    if (bu) $('bjson').href = bu;
+    if ((TAB === 'health' && !hu) || (TAB === 'backups' && !bu)) showTab('services');
+    else if (TAB === 'health' && !$('hframe').src) $('hframe').src = hu;
+  }
+  function showTab(t){
+    if (t !== TAB) {  // chaque onglet retrouve sa recherche ; barre vidée en attendant ses données
+      Q[TAB] = $('q').value; TAB = t; $('q').value = Q[t] || '';
+      $('q').placeholder = PH[t][0]; $('q').title = PH[t][1];
+      $('count').innerHTML = ''; $('facets').innerHTML = ''; $('active').innerHTML = ''; setFsum(0);
+    }
+    document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tab') === t); });
+    $('view-services').hidden = t !== 'services'; $('view-machines').hidden = t !== 'machines'; $('view-history').hidden = t !== 'history';
+    $('view-backups').hidden = t !== 'backups'; $('view-health').hidden = t !== 'health';
+    $('dnsbox').hidden = t !== 'services' || !(DATA && DATA.dns);  // encadré propre à l'onglet Services
+    if (t === 'health' && PAGE.health_url && !$('hframe').src) $('hframe').src = PAGE.health_url;  // chargé à la première ouverture
+    try { localStorage.setItem('myservices-tab', t); } catch (e) {}
+    history.replaceState(null, '', t === 'services' ? location.pathname + location.search : '#' + HASH_OF[t]);
+    refresh();
+  }
+  $('tabs').addEventListener('click', function(e){ var b = e.target.closest('.tab'); if (b) showTab(b.getAttribute('data-tab')); });
+  $('mrows').addEventListener('click', function(e){
+    var g = e.target.closest('[data-goto]'); if (!g) return;
+    F = {machine: [g.getAttribute('data-goto')]}; showTab('services'); renderStats();
+  });
+  // Onglet au chargement : #machines / #historique (liens directs, message de la veille), sinon le dernier
+  // ouvert, sinon Historique (premier onglet : ce qui a changé depuis la dernière visite)
+  var HASH_OF = {machines: 'machines', history: 'historique', backups: 'backups', health: 'health'}, TAB_OF = {machines: 'machines', historique: 'history', backups: 'backups', health: 'health'};
+  var t0 = TAB_OF[location.hash.slice(1)];
+  try { t0 = t0 || localStorage.getItem('myservices-tab'); } catch (e) {}
+  t0 = t0 || 'history';
+  if (HASH_OF[t0]) showTab(t0);
+  // Page health intégrée : pas de barres de défilement dans le cadre. Le CSS ajouté annule le tableau
+  // « full-bleed » (100vw + min-width 1000px) qui déborde dans une iframe ; la hauteur suit le contenu.
+  $('hframe').addEventListener('load', function(){
+    var f = this, doc;
+    try { doc = f.contentDocument; } catch (e) { return; }
+    var st = doc.createElement('style');
+    st.textContent = 'html,body{overflow:hidden}body{max-width:none;padding:12px 14px}' +
+      '.full-bleed{width:auto;left:auto;right:auto;margin-left:0;margin-right:0;padding:0;overflow:visible}' +
+      '.dash-table{min-width:0}.dash-table td,.dash-table th{padding:.55rem .6rem}';
+    doc.head.appendChild(st);
+    function fit(){ f.style.height = doc.documentElement.scrollHeight + 'px'; }
+    renderHealth();  // filtres déjà posés : appliqués au (re)chargement de la page
+    fit();
+    if (window.ResizeObserver) new ResizeObserver(fit).observe(doc.body);
+  });
+
+  // Onglet Backups : backups.json écrit par backups.py (myservices-backups.timer, 07:05 et 19:05)
+  var BLABEL = {ok: 'OK', warn: 'WARN', crit: 'CRIT', down: 'INJOIGNABLE', na: 'N/A', archive: 'ARCHIVE'};
+  function bsize(n){ var u = ['o', 'Ko', 'Mo', 'Go', 'To'], i = 0; while (n >= 1024 && i < 4) { n /= 1024; i++; }
+    return (i < 2 ? Math.round(n) : n.toFixed(1).replace('.', ',')) + ' ' + u[i]; }
+  function blv(l, t){ return '<span class="lv ' + l + '">' + esc(t || BLABEL[l]) + '</span>'; }
+  var BK = null;  // dernier backups.json, aussi résumé dans le bandeau de compteurs
+  function loadBackups(){
+    if (!PAGE.backups_url) return;
+    fetch(PAGE.backups_url + '?t=' + Date.now(), {cache: 'no-store'}).then(function(r){
+      if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function(d){
+      BK = d; renderStats();
+      var sm = d.summary, g = new Date(d.generated), age = (Date.now() - g) / 3600000;
+      $('bgen').textContent = 'Relevé du ' + g.toLocaleString('fr-FR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}) + (age > 14 ? ' (en retard ?)' : '');
+      // Machine de stockage des copies (« storage » ou kind stockage / NAS) : son espace libre en tuile
+      var nas = d.hosts.filter(function(h){ return h.storage || /stockage|nas/i.test(h.kind || ''); })[0], nasDisk = nas && nas.disks[0];
+      $('btiles').innerHTML = '<div class="ok"><b>' + sm.ok + '</b>jeux OK</div><div class="warn"><b>' + sm.warn + '</b>jeux WARN</div>' +
+        '<div class="crit"><b>' + sm.crit + '</b>jeux CRIT</div><div class="' + (sm.no_offsite ? 'crit' : 'ok') + '"><b>' + sm.no_offsite + '</b>sans copie hors machine</div>' +
+        '<div><b>' + bsize(sm.volume) + '</b>volume des sources</div>' + (nasDisk ? '<div><b>' + bsize(nasDisk.avail) + '</b>libres sur ' + esc(nas.label) + '</div>' : '');
+      var ch = d.crypt_help;
+      $('bcrypt').innerHTML = ch ? 'Copies hors site <b>chiffrées</b>' + (ch.tool ? ' (' + esc(ch.tool) + ')' : '') + ' dans <code>' + esc(ch.where) +
+        '</code>. Notice : <code>' + esc(ch.readme) + '</code>.<br>Clé : ' + esc(ch.key) +
+        '.<br>Déchiffrer (lecture seule) : <code>mkdir -p /tmp/clair && ' + esc(ch.cmd) + '</code> puis <code>fusermount3 -u /tmp/clair</code>.' : '';
+      var empty = d.hosts.reduce(function(n, h){ return n + h.local.filter(function(x){ return !x.size && !x.covered.length; }).length; }, 0);
+      $('blocsum').textContent = '📁 Dossiers de sauvegarde locaux : ' + sm.local_dirs + ' trouvés, ' + sm.local_unlisted + ' non inventoriés' + (empty ? ', ' + empty + ' vides masqués' : '');
+      tabState('bbadge', sm.crit, sm.warn, 'jeu(x) de sauvegarde', 'backups.py');
+      renderBackups();
+    }).catch(function(e){
+      $('brows').innerHTML = '<tr><td colspan="7" class="empty">backups.json illisible (' + esc(e.message) + ').</td></tr>';
+    });
+  }
+  // Tableau, alertes et dossiers locaux filtrés par la barre commune (état, type de machine, recherche)
+  function bState(h){ return h.reachable ? h.level : 'down'; }
+  function renderBackups(){
+    if (!BK) return;
+    var d = BK, sets = {}; d.sets.forEach(function(s){ sets[s.id] = s; });
+    var items = d.hosts.filter(function(h){
+      return hit('backups', [h.label, h.ip, h.kind, h.note, BLABEL[bState(h)]].concat(
+        h.sets.map(function(id){ return sets[id] ? sets[id].label + ' ' + sets[id].schedule : id; }),
+        h.copies.map(function(c){ return c.label + ' ' + c.vias.join(' '); }),
+        h.crons.map(function(c){ return c.line || ''; }), h.local.map(function(x){ return x.path; })));
+    }).map(function(h){ return {h: h, v: {state: bState(h), kind: h.kind}}; });
+    var shown = items.filter(function(it){ return tPass('backups', it.v); }).map(function(it){ return it.h; });
+    var cs = tCount('backups', items, 'state'), ck = tCount('backups', items, 'kind');
+    tBar('backups', shown.length, d.hosts.length, group('wide', '💾 Backups',
+      tChips('backups', 'État', 'state', ['ok', 'warn', 'crit', 'down', 'na'].filter(function(k){ return cs[k]; }).map(function(k){ return [k, BLABEL[k], cs[k]]; })) +
+      tChips('backups', 'Type', 'kind', byCount(ck).map(function(k){ return [k, k, ck[k]]; }))),
+      {state: 'état', kind: 'type'}, function(k, v){ return k === 'state' ? BLABEL[v] || v : v; });
+    var iss = d.issues.filter(function(i){ return hit('backups', [i.set, i.text, BLABEL[i.level]]); });
+    $('bissues').innerHTML = iss.length ? iss.map(function(i){ return '<li>' + blv(i.level) + ' <b>' + esc(i.set) + '</b> : ' + esc(i.text) + '</li>'; }).join('')
+      : '<li class="dim">' + (d.issues.length ? 'Aucune alerte pour cette recherche.' : 'Rien à signaler.') + '</li>';
+    if (!shown.length) $('brows').innerHTML = '<tr><td colspan="7" class="empty">Aucun résultat.</td></tr>';
+    else $('brows').innerHTML = shown.map(function(h){
+      var disks = h.disks.map(function(x){ return '<div class="dk ' + x.level + '"><span class="m">' + esc(x.mount) + '</span><span class="bar"><i style="width:' +
+        Math.min(x.pct, 100) + '%"></i></span><span class="f">' + bsize(x.avail) + '</span><span class="t">/ ' + bsize(x.size) + '</span><span class="p">' + x.pct + ' %</span></div>'; }).join('') || '<span class="dim">-</span>';
+      var bs = h.sets.map(function(id){ var s = sets[id];
+        return '<span class="bs">' + blv(s.level) + ' ' + esc(s.label.replace(/^[^:]*: /, '')) + ' <span class="dim">· ' + esc(s.schedule) + ' · ' + s.offsite + ' copie' + (s.offsite > 1 ? 's' : '') + ' hors machine</span></span>'; }).join('');
+      var ll = h.last_local, lage = function(a){ return a < 1 ? Math.max(1, Math.round(a * 24)) + ' h' : Math.round(a) + ' j'; };
+      var last = ll ? blv(ll.level, new Date(ll.mtime * 1000).toLocaleString('fr-FR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'})) +
+        ' <span class="age" title="ancienneté">' + lage(ll.age) + '</span><span class="dim" style="display:block">' + esc(ll.set.replace(/^[^:]*: /, '')) + '</span>' : '<span class="dim">aucun</span>';
+      var cps = h.copies.map(function(c){ return '<span class="bs cp">' + blv(c.level, (c.encrypted ? '🔒 ' : '') + c.label) + (c.age != null ? ' <span class="age" title="dernière copie">' + lage(c.age) + '</span>' : '') +
+        '<span class="dim" style="display:block">' + esc(c.vias.join(', ')) + '</span></span>'; }).join('') || (h.sets.length ? blv('crit', 'aucune') : '<span class="dim">-</span>');
+      var copies = d.sets.filter(function(s){ return !s.archived && s.origin !== h.id && s.locations.some(function(l){ return l.host === h.id; }); }).length;
+      // Une seule source hors crontab (gestionnaire de sauvegardes, ex. HA) : sa ligne d'état telle quelle
+      var cron = h.crons.length === 1 && !/^crontab/.test(h.crons[0].src || '') ? '<span class="dim">' + esc((h.crons[0] || {}).line || '') + '</span>' :
+        h.crons.length + ' ligne' + (h.crons.length > 1 ? 's' : '') + (h.cron_root ? '<span class="dim" title="' + esc(h.cron_hint) + '"> · crontab root non lisible</span>' : '');
+      return '<tr><td><b>' + esc(h.label) + '</b><span class="dim" style="display:block">' + esc(h.ip) + ' · ' + esc(h.kind) + '</span></td>' +
+        '<td>' + blv(h.reachable ? h.level : 'down') + '</td><td>' + disks + '</td><td>' + last + '</td><td>' + cps + '</td>' +
+        '<td>' + (bs || '<span class="dim" style="display:block">aucun jeu produit</span>') + (copies ? '<span class="dim" style="display:block">héberge des copies de ' + copies + ' jeu' + (copies > 1 ? 'x' : '') + '</span>' : '') + '</td>' +
+        '<td>' + (h.crons.length ? cron : '<span class="dim">-</span>') + '</td></tr>';
+    }).join('');
+    var lrows = [];
+    shown.forEach(function(h){ h.local.forEach(function(x){
+      if (!x.size && !x.covered.length) return;
+      if (!hit('backups', [h.label, h.ip, x.path, x.covered.join(' ')])) return;
+      var cov = x.covered.length ? x.covered.map(function(c){ return blv('ok', c); }).join(' ') : (x.size ? blv('warn', 'non inventorié') : '<span class="dim">vide</span>');
+      lrows.push('<tr><td>' + esc(h.label) + '</td><td><code>' + esc(x.path) + '</code>' + (x.readable ? '' : ' <span class="dim">(lecture partielle)</span>') + '</td>' +
+        '<td style="text-align:right;white-space:nowrap">' + (x.size == null ? '?' : bsize(x.size)) + '</td><td>' + (x.age == null ? '-' : 'il y a ' + (x.age < 1 ? Math.max(1, Math.round(x.age * 24)) + ' h' : Math.round(x.age) + ' j')) +
+        ' <span class="dim">' + esc(x.newest_name.slice(-60)) + '</span></td><td>' + cov + '</td></tr>'); }); });
+    $('blrows').innerHTML = lrows.join('');
+  }
+
+  // Onglet Historique : events.json écrit par myservices-watcher à chaque passage
+  var HIST = null, HP = '7';
+  var HGROUP = {panne: 'services', retabli: 'services', unhealthy: 'services', hors_ligne: 'machines', en_ligne: 'machines',
+                ssh_down: 'machines', ssh_ok: 'machines', nouveau: 'inventaire', disparu: 'inventaire',
+                securite: 'securite', ui_hors: 'securite', perime: 'veille',
+                health_ok: 'sante', health_warn: 'sante', health_crit: 'sante', health_down: 'sante'};
+  var HGROUP_LABEL = [['services', '🔴 Pannes services'], ['machines', '🔒 Machines / SSH'], ['inventaire', '🆕 Nouveaux / disparus'],
+                      ['securite', '🛡️ Sécurité'], ['sante', '🩺 Santé machines'], ['veille', '⏱️ Veille']];
+  var HPERIOD = [['1', '24 h'], ['7', '7 jours'], ['30', '30 jours'], ['90', '90 jours']];
+  function evTime(e){ return e.ts ? new Date(e.ts) : new Date(e.at.replace(' ', 'T')); }
+  function renderHistory(){
+    if (!HIST) return;
+    var now = Date.now(), inP = HIST.events.filter(function(e){ return now - evTime(e) < HP * 86400000; });
+    var items = inP.filter(function(e){ return hit('history', [e.label, e.machine, e.target, e.detail, HIST.labels[e.kind] || e.kind]); })
+      .map(function(e){ return {e: e, v: {type: HGROUP[e.kind] || 'veille', machine: e.machine || '?'}}; });
+    var evs = items.filter(function(it){ return tPass('history', it.v); }).map(function(it){ return it.e; });
+    var ct = tCount('history', items, 'type'), cm = tCount('history', items, 'machine'), GL = {};
+    HGROUP_LABEL.forEach(function(g){ GL[g[0]] = g[1]; });
+    // Période : choix unique, toujours posé (pas une pastille)
+    tBar('history', evs.length, inP.length, group('wide', '🕓 Historique',
+      '<div class="facet"><span>Période</span>' + HPERIOD.map(function(p){
+        return '<button class="chip' + (HP === p[0] ? ' on' : '') + '" data-hp="' + p[0] + '">' + p[1] + '</button>'; }).join('') + '</div>' +
+      tChips('history', 'Type', 'type', HGROUP_LABEL.filter(function(g){ return ct[g[0]]; }).map(function(g){ return [g[0], g[1], ct[g[0]]]; })) +
+      tChips('history', 'Machine', 'machine', byCount(cm).map(function(m){ return [m, m, cm[m]]; }))),
+      {type: 'type', machine: 'machine'}, function(k, v){ return k === 'type' ? GL[v] || v : v; });
+    if (!evs.length) { $('hlist').innerHTML = '<div class="empty">' + (inP.length ? 'Aucun résultat.' : 'Aucun événement sur cette période.') + '</div>'; return; }
+    var out = '', day = '';
+    evs.forEach(function(e){
+      var t = evTime(e), d = t.toLocaleDateString('fr-FR', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'});
+      if (d !== day) { day = d;
+        var n = evs.filter(function(x){ return evTime(x).toLocaleDateString('fr-FR', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'}) === d; }).length;
+        out += '<div class="tl-day">' + esc(d) + '<small>' + n + ' événement' + (n > 1 ? 's' : '') + '</small></div>'; }
+      out += '<div class="tl-ev s' + (HIST.severity[e.kind] || 0) + '"><span class="t">' + t.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}) +
+        '</span><span class="d"></span><span class="k">' + esc(HIST.labels[e.kind] || e.kind) + '</span><span class="w"><b ' + (HGROUP[e.kind] === 'sante' ? 'data-tabgo="health" title="Voir dans Health"' : 'data-hq="' + esc(e.label) + '" title="Voir dans Services"') + '>' +
+        esc(e.label) + '</b><span class="why">' + esc(e.machine || '?') + ' · <code>' + esc(e.target || '—') + '</code> · ' + esc(e.detail) + '</span></span></div>';
+    });
+    $('hlist').innerHTML = out;
+  }
+  // events.json (myservices-watcher) + events.json de health.py (facultatif) fusionnés.
+  // Dernier passage (events.json réécrit à chaque passage) et prochain, lu par le watcher sur son timer systemd
+  function renderNextRun(h){
+    var el = $('hnext'), now = new Date(), next = h.next_run ? new Date(h.next_run) : null, last = h.generated ? new Date(h.generated) : null;
+    var late = last && now - last > (PAGE.stale_min || 75) * 60000;
+    el.innerHTML = (next && next > now ? '🕓 Prochain passage de la veille : <b>' + hm(next) + '</b> <span class="dmut">(dans ' + Math.round((next - now) / 60000) + ' min)</span> · ' : '🕓 ') +
+      (last ? 'dernier passage : <b' + (late ? ' class="late"' : '') + '>' + hm(last) + '</b>' + (late ? ' <span class="late">en retard ?</span>' : '') : '') +
+      ' <span class="dmut">· le bouton ⟳ ne met pas à jour cet onglet</span>';
+    el.hidden = false;
+  }
+  function loadHistory(){
+    var health = !PAGE.health_url ? Promise.resolve(null) : fetch(PAGE.health_url + 'events.json?t=' + Date.now(), {cache: 'no-store'})
+      .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
+    fetch('events.json?t=' + Date.now(), {cache: 'no-store'}).then(function(r){
+      if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function(h){
+      return health.then(function(hh){
+        if (!hh) return h;
+        Object.assign(h.labels, hh.labels); Object.assign(h.severity, hh.severity);
+        h.events = h.events.concat(hh.events).sort(function(a, b){ return evTime(b) - evTime(a); });
+        return h;
+      });
+    }).then(function(h){
+      HIST = h; $('hret').textContent = h.retention_days; renderNextRun(h);
+      var hot = h.events.filter(function(e){ return Date.now() - evTime(e) < 86400000 && (h.severity[e.kind] || 0) >= 2; }).length;
+      $('hbadge').hidden = !hot; $('hbadge').textContent = hot;
+      $('hbadge').title = hot + ' alerte(s) sur les dernières 24 h';
+      renderHistory();
+    }).catch(function(e){
+      $('hlist').innerHTML = '<div class="empty">Historique pas encore disponible (events.json : ' + esc(e.message) + '). Il est créé au prochain passage de la veille.</div>';
+    });
+  }
+  $('facets').addEventListener('click', function(e){
+    var b = e.target.closest('[data-hp]'); if (!b) return;
+    HP = b.getAttribute('data-hp'); renderHistory();
+  });
+  $('hlist').addEventListener('click', function(e){
+    var b = e.target.closest('[data-hq]'); if (!b) return;
+    F = {}; X = {}; Q.services = b.getAttribute('data-hq'); showTab('services'); renderStats();
+  });
+
+  // Hauteur réelle de la 1re ligne d'en-tête, pour caler la 2e ligne figée juste dessous
+  function syncHead(){
+    var th = document.querySelector('.tbl thead tr:first-child th:not([rowspan])');
+    if (th) document.documentElement.style.setProperty('--h1', th.getBoundingClientRect().height + 'px');
+  }
+  window.addEventListener('resize', syncHead);
+
+  function load(){
+    fetch('data.json?t=' + Date.now(), {cache: 'no-store'}).then(function(r){ return r.json(); }).then(function(d){
+      DATA = d; PAGE = d.page || {}; applyPage();
+      // Sous-titre : réseau de la passerelle et hôte NPM, déclarés dans services-meta.json (gateway / npm)
+      var ips = Object.keys(DATA.machines), gw = ips.filter(function(ip){ return DATA.machines[ip].gateway; })[0],
+        npmIp = ips.filter(function(ip){ return DATA.machines[ip].npm; }).join(' + ');
+      $('kicker').textContent = (gw ? 'LAN ' + gw.split('.').slice(0, 3).join('.') + '.x · ' : '') +
+        (npmIp ? 'NPM ' + npmIp + ' · ' : '') + 'Docker · process';
+      var age = Math.round((Date.now() - new Date(DATA.generated)) / 60000);
+      var miss = (DATA.docker_unreachable || []).length ? ' · Docker inaccessible : ' + DATA.docker_unreachable.join(', ') : '';
+      // « En retard » au-delà de stale_min (config.json), comme l'alerte « données périmées » du watcher
+      var lim = PAGE.stale_min || 75;
+      $('live').classList.toggle('stale', age > lim);
+      // Badge court (tient à droite du kicker) ; le détail est au survol
+      var at = new Date(DATA.generated).toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'});
+      $('live-txt').textContent = 'sondé il y a ' + age + ' min' + (age > lim ? ' · en retard ?' : '') + (miss ? ' · Docker ⚠' : '');
+      $('live').title = 'Statut sondé à ' + at + (age > lim ? ' : cron en retard ?' : '') +
+        '\nMapping Docker et infos machines de ' + Math.round(DATA.docker_cache_age / 60) + ' min (cache 2 h)' + miss +
+        (DATA.next_run ? '\nProchain passage du collecteur : ' + new Date(DATA.next_run).toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}) : '');
+      renderStats(); render(); renderMachines(); syncHead(); loadHistory(); loadHealth(); loadBackups();
+    }).catch(function(e){
+      $('live').classList.add('stale');
+      $('live-txt').textContent = 'data.json illisible : ' + e;
+    });
+  }
+
+  $('q').addEventListener('input', refresh);
+  $('clr').addEventListener('click', function(){ $('q').value = ''; $('q').focus(); refresh(); });
+  document.addEventListener('click', function(e){
+    var dg = e.target.closest('[data-dnsbox]');
+    if (dg) { e.stopPropagation();
+      // En-tête AdGuard : filtre « réécriture AdGuard » sur la liste (comme les en-têtes NPM / Hors NPM), en plus de l'encadré
+      if (dg.hasAttribute('data-fs')) { var ds = JSON.parse(dg.getAttribute('data-fs')); F = sameF(ds) ? {} : asF(ds); }
+      showTab('services'); renderStats(); renderDns(); var bx = $('dnsbox'); bx.open = true; bx.scrollIntoView({behavior: 'smooth', block: 'start'}); return; }
+    var tg = e.target.closest('[data-tabgo]');
+    if (tg) { e.stopPropagation(); showTab(tg.getAttribute('data-tabgo')); return; }
+    var fs = e.target.closest('[data-fs]');
+    if (fs) { e.stopPropagation(); var set = JSON.parse(fs.getAttribute('data-fs'));
+      // Le bandeau est visible depuis tous les onglets : ramener sur Services pour voir la liste filtrée
+      F = sameF(set) ? {} : asF(set); showTab('services'); renderStats(); return; }
+    function pv(a){ var k = a.getAttribute('data-fx') || a.getAttribute('data-fp'), v = a.getAttribute('data-fv'); return [k, k === 'port' ? +v : v]; }
+    var px = e.target.closest('[data-fx]');
+    if (px) { e.stopPropagation(); var x = pv(px); delV(X, x[0], x[1]); renderStats(); render(); return; }
+    var pf = e.target.closest('[data-fp]');
+    if (pf) { e.stopPropagation(); var f = pv(pf); delV(F, f[0], f[1]); renderStats(); render(); return; }
+    var tk = TF[TAB] && e.target.closest('[data-tk],[data-tp],[data-tx]');
+    if (tk) { e.stopPropagation();
+      var ts = TF[TAB], tv = tk.getAttribute('data-tv');
+      if (tk.hasAttribute('data-tp')) delV(ts.F, tk.getAttribute('data-tp'), tv);
+      else if (tk.hasAttribute('data-tx')) delV(ts.X, tk.getAttribute('data-tx'), tv);
+      else { var tkk = tk.getAttribute('data-tk');
+        if (has(ts.F, tkk, tv)) { delV(ts.F, tkk, tv); addV(ts.X, tkk, tv); } else if (has(ts.X, tkk, tv)) delV(ts.X, tkk, tv); else addV(ts.F, tkk, tv); }
+      refresh(); return; }
+    var el = e.target.closest('[data-fk],[data-clear]');
+    if (!el) return;
+    if (el.hasAttribute('data-clear')) {
+      if (TF[TAB]) TF[TAB] = {F: {}, X: {}}; else { F = {}; X = {}; }
+      $('q').value = ''; renderStats(); refresh(); return; }
+    e.stopPropagation();
+    var k = el.getAttribute('data-fk'), v = el.getAttribute('data-fv');
+    toggle(k, k === 'port' ? +v : v);
+  }, true);
+  document.querySelector('thead').addEventListener('click', function(e){
+    var th = e.target.closest('th[data-k]'); if (!th) return;
+    var k = th.getAttribute('data-k');
+    sortAsc = k === sortKey ? !sortAsc : true; sortKey = k;
+    document.querySelectorAll('th').forEach(function(x){ x.classList.remove('sorted', 'asc'); });
+    th.classList.add('sorted'); if (sortAsc) th.classList.add('asc');
+    render();
+  });
+  $('rows').addEventListener('click', function(e){
+    if (e.target.closest('a')) return;
+    var tr = e.target.closest('tr.row'); if (!tr) return;
+    var k = tr.getAttribute('data-key'); open[k] = !open[k]; render();
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === '/' && document.activeElement !== $('q')) { e.preventDefault(); $('q').focus(); $('q').select(); }
+    if (e.key === 'Escape' && document.activeElement === $('q')) { $('q').value = ''; refresh(); }
+  });
+
+  load();
+  setInterval(function(){ if (!document.hidden) load(); }, 60000);
+  // Fin d'un passage lancé par le bouton « Rafraîchir » (refresh.js) : relecture immédiate
+  window.addEventListener('myservices:refreshed', load);
+})();
+</script>
+<script src="refresh.js" defer></script>
+</body>
+</html>

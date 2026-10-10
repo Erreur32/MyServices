@@ -1,0 +1,11 @@
+# Bouton ⟳ : refresh-api.py touche ce fichier, systemd lance le passage du collecteur (root).
+[Unit]
+Description=MyServices : passage demandé depuis la page
+After=myservices-refresh-api.service
+
+[Path]
+PathModified=/var/lib/myservices-refresh/trigger
+Unit=myservices.service
+
+[Install]
+WantedBy=paths.target

@@ -1,0 +1,240 @@
+"""Contrat d'un connecteur MyServices : un service externe (NPM, AdGuard, Beszel, Uptime Kuma…) lu par
+son API ou par SSH, en lecture seule.
+
+Un connecteur déclare :
+  type      identifiant stable ("npm") ; une instance = ce type + un nom unique ("lan", "vps")
+  label     nom affiché ("Nginx Proxy Manager")
+  kinds     ce qu'il apporte : inventory, services, dns, health, backups, logs, alerts
+  images    images Docker qui le révèlent sur une machine (détection : « activer le connecteur ? »)
+  tested    versions du service vérifiées (préfixes « 2.16 », « 2 ») : une autre version marche, mais
+            est signalée « version non testée » par --check et la page
+  fields    réglages (Field) : la page Réglages en génère le formulaire ; secret=True = jamais renvoyé
+            au navigateur ni écrit dans un journal ; setup_fields : ceux que setup.py demande à la détection
+et implémente :
+  test()     connexion et droits, sans rien écrire ; Result(ok, message, version)
+  collect()  données du passage (dict propre au type) ; ConnectorError si illisible
+  version()  version du service, ou None si l'API ne la donne pas (facultatif)
+  discover() réglages proposés d'après un conteneur reconnu (facultatif)
+
+Le cœur fournit le Context (HTTP avec délais, SSH par alias, journal) et isole chaque connecteur
+(run_isolated) : délai maximal, erreur capturée, dernier résultat bon réutilisé et marqué périmé, nombre
+de passages en échec ; un connecteur en panne ne bloque pas les autres.
+"""
+from __future__ import annotations
+
+import json
+import re
+import ssl
+import subprocess
+import threading
+import time
+import urllib.error
+import urllib.request
+from dataclasses import dataclass, field
+from pathlib import Path
+
+KINDS = ("inventory", "services", "dns", "health", "backups", "logs", "alerts")
+
+
+class ConnectorError(Exception):
+    """Lecture impossible : message lisible par l'utilisateur, sans secret."""
+
+
+@dataclass(frozen=True)
+class Field:
+    name: str
+    label: str
+    kind: str = "text"  # text, url, password, number, bool, choice
+    required: bool = False
+    secret: bool = False
+    default: object = None
+    help: str = ""
+    choices: tuple = ()
+
+
+@dataclass
+class Result:
+    ok: bool
+    message: str
+    version: str | None = None
+
+
+@dataclass
+class Status:
+    """État d'une instance après un passage (écrit dans data.json « connectors » et l'état du cœur)."""
+    type: str
+    name: str
+    ok: bool
+    message: str
+    version: str | None = None
+    version_tested: bool | None = None
+    stale: bool = False  # résultat du dernier passage réussi, réutilisé
+    failures: int = 0  # passages consécutifs en échec
+    duration_s: float = 0.0
+    since: float | None = None  # début de la panne (epoch)
+    extra: dict = field(default_factory=dict)
+
+
+class Context:
+    """Ce que le cœur donne aux connecteurs : HTTP (délais, TLS au choix), SSH par alias, journal."""
+
+    def __init__(self, timeout: float = 15, log=print):
+        self.timeout = timeout
+        self.log = log
+
+    def http(self, url: str, *, method: str = "GET", body: dict | None = None, headers: dict | None = None,
+             verify_tls: bool = True, timeout: float | None = None) -> object:
+        """Réponse JSON décodée ; ConnectorError lisible (code HTTP, message de l'API) sinon."""
+        h = {"Accept": "application/json", "User-Agent": "myservices", **(headers or {})}
+        data = None
+        if body is not None:
+            data = json.dumps(body).encode()
+            h["Content-Type"] = "application/json"
+        req = urllib.request.Request(url, data=data, headers=h, method=method)
+        ctx = None if verify_tls else ssl._create_unverified_context()  # certificat auto-signé (box, NAS)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout or self.timeout, context=ctx) as r:
+                raw = r.read()
+        except urllib.error.HTTPError as e:
+            raise ConnectorError(f"HTTP {e.code}{_api_message(e)}") from None
+        except (OSError, ValueError) as e:
+            raise ConnectorError(f"injoignable ({getattr(e, 'reason', e)})") from None
+        try:
+            return json.loads(raw or b"null")
+        except ValueError:
+            raise ConnectorError("réponse qui n'est pas du JSON") from None
+
+    def ssh(self, alias: str, cmd: str, *, stdin: str | None = None, timeout: float | None = None) -> str:
+        """Sortie de la commande sur la machine (BatchMode : jamais de mot de passe demandé). Alias « local »
+        (installation classique : la collectrice elle-même) : commande lancée sur place."""
+        argv = ["bash", "-c", cmd] if alias == "local" else ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", alias, cmd]
+        try:
+            r = subprocess.run(argv, input=stdin, capture_output=True, text=True, timeout=timeout or self.timeout)
+        except subprocess.TimeoutExpired:
+            raise ConnectorError(f"SSH {alias} : délai dépassé") from None
+        if r.returncode != 0:
+            raise ConnectorError(f"SSH {alias} : {(r.stderr.strip() or f'code {r.returncode}')[-200:]}")
+        return r.stdout
+
+
+def _api_message(e: urllib.error.HTTPError) -> str:
+    try:
+        body = json.loads(e.read() or b"{}")
+    except ValueError:
+        return ""
+    if not isinstance(body, dict):
+        return ""
+    err = body.get("error")  # {"error": "texte"} ou {"error": {"message": "texte"}} selon le service
+    msg = body.get("message") or body.get("description") or (err.get("message") if isinstance(err, dict) else err)
+    return f" : {str(msg)[:200]}" if msg else ""
+
+
+class Connector:
+    type = ""
+    label = ""
+    kinds: tuple[str, ...] = ()
+    images: tuple[str, ...] = ()
+    tested: tuple[str, ...] = ()
+    fields: tuple[Field, ...] = ()
+    setup_fields: tuple[str, ...] = ()  # réglages demandés par setup.py à la détection (les autres : page Réglages)
+
+    def __init__(self, conf: dict, ctx: Context):
+        self.conf = conf
+        self.name = conf.get("name") or self.type
+        self.ctx = ctx
+
+    @classmethod
+    def validate(cls, conf: dict) -> list[str]:
+        """Réglages manquants (champs requis), en clair."""
+        return [f"« {f.name} » requis" for f in cls.fields if f.required and conf.get(f.name) in (None, "")]
+
+    @classmethod
+    def public(cls, conf: dict) -> dict:
+        """Réglages montrables (page, journal) : secrets remplacés par « configuré » / vide."""
+        secret = {f.name for f in cls.fields if f.secret}
+        return {k: (("configuré" if v else "") if k in secret else v) for k, v in conf.items()}
+
+    def version(self) -> str | None:
+        return None
+
+    def test(self) -> Result:
+        try:
+            v = self.version()
+            self.collect()
+        except ConnectorError as e:
+            return Result(False, str(e))
+        return Result(True, "lecture OK", v)
+
+    def collect(self) -> dict:
+        raise NotImplementedError
+
+    @classmethod
+    def discover(cls, image: str, ip: str, ports: list) -> dict | None:
+        """Réglages proposés pour un conteneur reconnu (image, IP de la machine, [(port hôte, port conteneur)])."""
+        return None
+
+
+def version_tested(version: str | None, tested: tuple[str, ...]) -> bool | None:
+    """True si la version commence par un préfixe testé (« 2.16 » couvre 2.16.0, 2.16.3) ; None si inconnue."""
+    if not version or not tested:
+        return None
+    return any(version == t or version.startswith(t + ".") for t in tested)
+
+
+def run_isolated(conn: Connector, state: dict, timeout: float) -> tuple[dict | None, Status]:
+    """collect() avec délai maximal et erreur capturée. state : {clé: {"ok", "since", "failures", "last"}}
+    (persisté par l'appelant). En échec, le dernier résultat bon est rendu, marqué périmé."""
+    key = f"{conn.type}/{conn.name}"
+    prev = state.get(key, {})
+    box: dict = {}
+
+    def work():
+        try:
+            box["version"] = conn.version()
+        except ConnectorError:
+            box["version"] = None
+        try:
+            box["data"] = conn.collect()
+        except ConnectorError as e:
+            box["error"] = str(e)
+        except Exception as e:  # bug du connecteur : n'arrête pas le passage
+            box["error"] = f"erreur interne du connecteur ({type(e).__name__}: {e})"
+
+    t0 = time.time()
+    th = threading.Thread(target=work, daemon=True)
+    th.start()
+    th.join(timeout)
+    if th.is_alive():
+        box["error"] = f"délai dépassé ({timeout:.0f} s)"
+    v = box.get("version")
+    st = Status(conn.type, conn.name, "error" not in box, box.get("error") or "OK", v,
+                version_tested(v, conn.tested), duration_s=round(time.time() - t0, 2))
+    if st.ok:
+        state[key] = {"ok": True, "failures": 0, "since": None, "last": box["data"], "version": v}
+        return box["data"], st
+    st.failures = prev.get("failures", 0) + 1
+    st.since = prev.get("since") or t0
+    state[key] = {**prev, "ok": False, "failures": st.failures, "since": st.since}
+    if prev.get("last") is not None:
+        st.stale = True
+        return prev["last"], st
+    return None, st
+
+
+def slug(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+
+
+def load_state(path: Path) -> dict:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def save_state(path: Path, state: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+    tmp.chmod(0o600)
+    tmp.replace(path)

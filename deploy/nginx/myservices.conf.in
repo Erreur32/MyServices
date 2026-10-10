@@ -1,0 +1,35 @@
+# MyServices : page + API du bouton ⟳. Installé dans /etc/nginx/snippets/ par install.sh.
+# À inclure dans le bloc server voulu :  include snippets/myservices.conf;
+location ^~ /myservices/ {
+    alias @WEB_DIR@/;
+    index index.html;
+    allow @LAN_CIDR@;
+    allow 127.0.0.1;
+    deny all;
+    add_header Cache-Control "no-cache, must-revalidate" always;
+}
+
+# POST /refresh limité à 6/min par IP ; le délai de 5 min entre passages est géré par l'API.
+location = /myservices/api/refresh {
+    allow @LAN_CIDR@;
+    allow 127.0.0.1;
+    deny all;
+    limit_except POST { deny all; }
+    limit_req zone=myservices_refresh burst=2 nodelay;
+    limit_req_status 429;
+    proxy_pass http://127.0.0.1:@API_PORT@/refresh;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_read_timeout 15s;
+}
+location = /myservices/api/status {
+    allow @LAN_CIDR@;
+    allow 127.0.0.1;
+    deny all;
+    limit_req zone=myservices_status burst=10 nodelay;
+    limit_req_status 429;
+    proxy_pass http://127.0.0.1:@API_PORT@/status;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_read_timeout 10s;
+}

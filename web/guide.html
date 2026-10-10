@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MyServices · guide d'installation</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2" />
+    <style>
+      :root {
+        --bg: #0c0e14;
+        --bg2: #11141d;
+        --card: #161a26;
+        --line: #232838;
+        --txt: #e6e9f2;
+        --muted: #9aa3b8;
+        --dim: #6b7488;
+        --link: #2496ed;
+        --warn: #e8a33d;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: radial-gradient(
+          1200px 700px at 80% -10%,
+          #1a2030 0%,
+          var(--bg) 55%
+        );
+        color: var(--txt);
+        font:
+          15px/1.7 ui-sans-serif,
+          system-ui,
+          "Segoe UI",
+          Roboto,
+          Inter,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: var(--link);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 260px minmax(0, 1fr);
+        gap: 40px;
+        max-width: 1500px;
+        margin: 0 auto;
+        padding: 36px clamp(16px, 3vw, 48px) 80px;
+      }
+      nav {
+        position: sticky;
+        top: 20px;
+        align-self: start;
+        max-height: calc(100vh - 40px);
+        overflow: auto;
+        font-size: 13px;
+      }
+      nav .kicker {
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--dim);
+        font-size: 11px;
+        font-weight: 600;
+        margin-bottom: 10px;
+      }
+      nav a {
+        display: block;
+        color: var(--muted);
+        padding: 3px 0 3px 10px;
+        border-left: 2px solid var(--line);
+      }
+      nav a.h3 {
+        padding-left: 22px;
+        font-size: 12.5px;
+        color: var(--dim);
+      }
+      nav a:hover,
+      nav a.on {
+        color: var(--txt);
+        border-left-color: var(--link);
+        text-decoration: none;
+      }
+      .tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 22px;
+        flex-wrap: wrap;
+      }
+      .tabs a {
+        border: 1px solid var(--line);
+        background: var(--card);
+        color: var(--muted);
+        padding: 5px 14px;
+        border-radius: 999px;
+        font-size: 13px;
+      }
+      .tabs a.on {
+        color: var(--txt);
+        border-color: var(--link);
+        background: rgba(36, 150, 237, 0.14);
+      }
+      article {
+        min-width: 0;
+      }
+      article h1 {
+        font-size: 30px;
+        margin: 0 0 0.4em;
+        line-height: 1.2;
+      }
+      article h2 {
+        font-size: 21px;
+        margin: 2em 0 0.6em;
+        padding-bottom: 0.3em;
+        border-bottom: 1px solid var(--line);
+      }
+      article h3 {
+        font-size: 16.5px;
+        margin: 1.8em 0 0.5em;
+        color: #cdd6f4;
+      }
+      article h2,
+      article h3 {
+        scroll-margin-top: 16px;
+      }
+      article p,
+      article li {
+        color: #d4d9e6;
+      }
+      article code {
+        font:
+          13px ui-monospace,
+          Menlo,
+          Consolas,
+          monospace;
+        background: var(--bg2);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        padding: 1px 5px;
+        color: #cdd6f4;
+      }
+      article pre {
+        background: var(--bg2);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px 16px;
+        overflow: auto;
+        line-height: 1.5;
+      }
+      article pre code {
+        background: none;
+        border: none;
+        padding: 0;
+        font-size: 12.5px;
+      }
+      /* Tableau enveloppé dans .tw (ajouté au rendu) : pleine largeur + défilement horizontal */
+      article .tw {
+        overflow-x: auto;
+        margin: 1em 0;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+      article table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 13.5px;
+      }
+      article th,
+      article td {
+        text-align: left;
+        padding: 7px 12px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      article th {
+        background: var(--bg2);
+        color: var(--dim);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      article tr:last-child td {
+        border-bottom: none;
+      }
+      article blockquote {
+        margin: 1em 0;
+        padding: 4px 16px;
+        border-left: 3px solid var(--warn);
+        color: var(--muted);
+      }
+      .src {
+        margin-top: 40px;
+        font-size: 12.5px;
+        color: var(--dim);
+      }
+      .err {
+        color: var(--warn);
+      }
+      @media (max-width: 900px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        nav {
+          position: static;
+          max-height: none;
+        }
+      }
+      #doc img { max-width: 100%; height: auto; border: 1px solid var(--line, #333); border-radius: 8px; }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <nav id="toc"><div class="kicker">MyServices</div></nav>
+      <main>
+        <div class="tabs">
+          <a href="./">← MyServices</a>
+          <a href="docker.html">🐳 Carte Docker</a>
+          <a href="?doc=README.md" data-doc="README.md">Guide d'installation</a>
+        </div>
+        <article id="doc">chargement…</article>
+        <div class="src" id="src"></div>
+      </main>
+    </div>
+    <script src="marked.min.js"></script>
+    <script>
+      (function () {
+        // Affiche le README du projet (web/README.md = lien vers ../README.md) en HTML
+        var DOCS = ["README.md"];
+        var doc = new URLSearchParams(location.search).get("doc");
+        if (DOCS.indexOf(doc) < 0) doc = DOCS[0];
+        document.querySelectorAll(".tabs [data-doc]").forEach(function (a) {
+          a.classList.toggle("on", a.getAttribute("data-doc") === doc);
+        });
+        document.getElementById("src").innerHTML =
+          'Source : <a href="' +
+          doc +
+          '">' +
+          doc +
+          "</a> (texte brut) · <code>" +
+          doc +
+          "</code> du dépôt MyServices";
+
+        function slug(s) {
+          return s
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[̀-ͯ]/g, "")
+            .replace(/[^\w\s-]/g, "")
+            .trim()
+            .replace(/\s+/g, "-");
+        }
+
+        fetch(doc + "?t=" + Date.now(), { cache: "no-store" })
+          .then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.text();
+          })
+          .then(function (md) {
+            var el = document.getElementById("doc");
+            el.innerHTML = marked.parse(md);
+            el.querySelectorAll('table').forEach(function (t) { var w = document.createElement('div'); w.className = 'tw'; t.parentNode.insertBefore(w, t); w.appendChild(t); });
+            document.title =
+              (el.querySelector("h1") || {}).textContent + " · MyServices";
+            // Liens vers un autre document de DOCS : restent dans cette page
+            el.querySelectorAll("a[href]").forEach(function (a) {
+              var h = a.getAttribute("href");
+              if (DOCS.indexOf(h) >= 0) a.setAttribute("href", "?doc=" + h);
+            });
+            // Sommaire (h2, h3) avec ancres
+            var toc = document.getElementById("toc"),
+              seen = {};
+            el.querySelectorAll("h2, h3").forEach(function (h) {
+              var id = slug(h.textContent);
+              if (seen[id]) id += "-" + ++seen[id];
+              else seen[id] = 1;
+              h.id = id;
+              var a = document.createElement("a");
+              a.href = "#" + id;
+              a.textContent = h.textContent;
+              if (h.tagName === "H3") a.className = "h3";
+              toc.appendChild(a);
+            });
+            if (location.hash) {
+              var t = document.getElementById(location.hash.slice(1));
+              if (t) t.scrollIntoView();
+            }
+            // Section courante surlignée dans le sommaire
+            var links = toc.querySelectorAll("a"),
+              heads = el.querySelectorAll("h2, h3");
+            window.addEventListener(
+              "scroll",
+              function () {
+                var cur = null;
+                heads.forEach(function (h) {
+                  if (h.getBoundingClientRect().top < 80) cur = h.id;
+                });
+                links.forEach(function (a) {
+                  a.classList.toggle(
+                    "on",
+                    a.getAttribute("href") === "#" + cur,
+                  );
+                });
+              },
+              { passive: true },
+            );
+          })
+          .catch(function (e) {
+            document.getElementById("doc").innerHTML =
+              '<p class="err">Impossible de charger ' +
+              doc +
+              " : " +
+              e.message +
+              "</p>";
+          });
+      })();
+    </script>
+  </body>
+</html>

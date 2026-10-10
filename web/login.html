@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="same-origin">
+  <title>MyServices · connexion</title>
+  <link rel="icon" href="favicon.svg">
+  <link rel="stylesheet" href="login.css">
+</head>
+<body>
+  <main>
+    <!-- Deux usages : connexion, ou création du premier compte admin tant qu'aucun n'existe (login.js) -->
+    <form id="login" autocomplete="on" novalidate>
+      <h1><img src="favicon.svg" alt="" width="28" height="28"> MyServices</h1>
+      <p class="sub" id="sub">Connexion à la page de l'infra.</p>
+      <p class="setup" id="setup" hidden></p>
+      <label for="u">Compte</label>
+      <input id="u" name="username" autocomplete="username" required autofocus maxlength="64">
+      <label for="p">Mot de passe</label>
+      <input id="p" name="password" type="password" autocomplete="current-password" required maxlength="256">
+      <div id="again" hidden>
+        <label for="p2">Mot de passe, encore une fois</label>
+        <input id="p2" name="password2" type="password" autocomplete="new-password" maxlength="256">
+      </div>
+      <p id="msg" role="alert" hidden></p>
+      <button type="submit" id="go">Se connecter</button>
+      <p class="hint" id="hint">Pas de compte ou mot de passe oublié : demande à un administrateur de la page.</p>
+    </form>
+  </main>
+  <script src="login.js"></script>
+</body>
+</html>

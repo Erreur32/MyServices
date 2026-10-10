@@ -1,0 +1,196 @@
+"""Infos machines pour MyServices : accès SSH, sécurité sshd, OS, Docker, vhosts Apache.
+
+Tout est en LECTURE SEULE : une seule commande SSH par machine (mise en cache avec
+l'inventaire docker), plus la lecture locale de ~/.ssh/config et ~/.ssh/known_hosts.
+Jamais de clé privée ni de contenu secret : seulement le chemin de la clé et
+l'empreinte de sa partie publique.
+"""
+from __future__ import annotations
+
+import os
+import re
+import subprocess
+from pathlib import Path
+
+from config import CFG
+
+SSH_DIR = Path.home() / ".ssh"
+
+# Exécuté sur chaque machine (bash) ; chaque ligne commence par un marqueur ##XXX
+REMOTE = r"""
+echo "##OS $(. /etc/os-release 2>/dev/null; echo "$PRETTY_NAME")"
+echo "##KERNEL $(uname -r)"
+echo "##UP $(cut -d. -f1 /proc/uptime)"
+echo "##SVC apache2=$(systemctl is-active apache2 2>/dev/null) nginx=$(systemctl is-active nginx 2>/dev/null)"
+echo "##SSHDR $( [ -r /etc/ssh/sshd_config ] && echo yes || echo no)"
+echo "##SSHD $(grep -h -E -i '^[[:space:]]*(Port|PermitRootLogin|PasswordAuthentication)[[:space:]]' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null | tr -s ' \t' ' ' | paste -sd';')"
+echo "##DOCKER $(docker ps -q 2>/dev/null | wc -l)"
+echo "##LISTEN $(grep -h -E -i '^[[:space:]]*Listen[[:space:]]' /etc/apache2/ports.conf 2>/dev/null | awk '{print $2}' | sort -u | paste -sd' ')"
+for f in /etc/apache2/sites-enabled/*.conf; do
+  [ -e "$f" ] || continue
+  if [ -r "$f" ]; then echo "##F $f"; grep -E -i '^[[:space:]]*(<VirtualHost|ServerName|ServerAlias|DocumentRoot)' "$f"
+  else echo "##U $f"; fi
+done
+"""
+
+
+def ssh_config() -> dict[str, dict]:
+    """{HostName: {alias, port, user, identity}} depuis ~/.ssh/config (1re entrée par IP)."""
+    out, cur = {}, None
+    try:
+        lines = (SSH_DIR / "config").read_text().splitlines()
+    except OSError:
+        return out
+    for line in lines:
+        m = re.match(r"\s*(\w+)\s+(.+?)\s*$", line)
+        if not m:
+            continue
+        k, v = m.group(1).lower(), m.group(2)
+        if k == "host":
+            cur = {"alias": v.split()[0], "port": 22, "user": None, "identity": None}
+        elif cur is not None:
+            if k == "hostname":
+                out.setdefault(v, cur)
+            elif k == "port":
+                cur["port"] = int(v)
+            elif k == "user":
+                cur["user"] = v
+            elif k == "identityfile":
+                cur["identity"] = v
+    return out
+
+
+SSHLIST = Path(CFG["sshlist"]) if CFG["sshlist"] else None
+
+
+def sshlist_entries() -> tuple[dict[str, dict], dict[str, str]]:
+    """Accès SSH et notes déclarés dans le script sshlist de l'utilisateur (source de vérité).
+
+    Retourne ({ip: accès}, {"user@ip:port": note}) : EXTRAS = accès sans entrée ~/.ssh/config
+    (ex. passerelle UniFi), NOTES = libellé libre par cible.
+    """
+    if SSHLIST is None:
+        return {}, {}
+    try:
+        txt = SSHLIST.read_text()
+    except OSError:
+        return {}, {}
+    extras = {}
+    for user, host, note in re.findall(r'^\s*"ssh (?:(\S+)@)?([\w.-]+)\|([^"]*)"', txt, re.M):
+        extras[host] = {"alias": f"ssh {user + '@' if user else ''}{host}", "port": 22, "user": user or None,
+                        "identity": None, "note": note}
+    notes = dict(re.findall(r'^\s*\["([^"]+)"\]="([^"]*)"', txt, re.M))
+    return extras, notes
+
+
+def _run(cmd: list[str], timeout: int = 10) -> str:
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout).stdout
+    except (subprocess.TimeoutExpired, OSError):
+        return ""
+
+
+def key_fingerprint(identity: str | None) -> str | None:
+    """Empreinte de la clé PUBLIQUE associée (fichier .pub), jamais la clé privée."""
+    if not identity:
+        return None
+    pub = Path(os.path.expanduser(identity) + ".pub")
+    m = re.search(r"(SHA256:\S+).*\((\w+)\)", _run(["ssh-keygen", "-lf", str(pub)]))
+    return f"{m.group(2)} {m.group(1)}" if m else None
+
+
+def host_key(ip: str, port: int) -> str | None:
+    """Empreinte de la clé d'hôte connue (known_hosts), de préférence ED25519."""
+    target = ip if port == 22 else f"[{ip}]:{port}"
+    found = re.findall(r"^\S+ (\w+) (SHA256:\S+)", _run(["ssh-keygen", "-l", "-F", target, "-f", str(SSH_DIR / "known_hosts")]), re.M)
+    if not found:
+        return None
+    best = next((f for f in found if f[0] == "ED25519"), found[0])
+    return f"{best[0]} {best[1]}"
+
+
+def auth_methods(ip: str, port: int) -> list[str] | None:
+    """Méthodes d'authentification réellement proposées par sshd (sans se connecter).
+
+    Tentative avec l'utilisateur fictif « nobody » et aucune méthode : le serveur
+    répond « Permission denied (publickey,password) », c'est-à-dire sa config EFFECTIVE.
+    """
+    try:
+        err = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "PreferredAuthentications=none", "-o", "ConnectTimeout=4",
+                              "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+                              "-p", str(port), f"nobody@{ip}", "true"],
+                             capture_output=True, text=True, timeout=10).stderr
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    m = re.search(r"Permission denied \(([^)]*)\)", err)
+    return m.group(1).split(",") if m else None
+
+
+def parse_apache(text: str) -> tuple[list[dict], list[str], list[int], dict]:
+    """(vhosts, fichiers non lisibles, ports Listen, {port: adresse Listen}) depuis la sortie de REMOTE."""
+    vhosts, unreadable, listen, listen_addr, conf, cur = [], [], [], {}, None, None
+    for line in text.splitlines():
+        if line.startswith("##F "):
+            conf, cur = line[4:].strip(), None
+        elif line.startswith("##U "):
+            unreadable.append(os.path.basename(line[4:].strip()))
+        elif line.startswith("##LISTEN"):
+            listen = [int(p.split(":")[-1]) for p in line[8:].split() if p.split(":")[-1].isdigit()]
+            # « Listen 172.30.0.3:8443 » : Apache lié à une seule adresse (souvent un réseau docker)
+            listen_addr = {int(p.rsplit(":", 1)[1]): p.rsplit(":", 1)[0] for p in line[8:].split()
+                           if ":" in p and p.rsplit(":", 1)[1].isdigit()}
+        elif line.startswith("##"):
+            continue
+        elif conf:
+            s = line.strip()
+            m = re.match(r"<VirtualHost\s+[^:>]*:(\d+)", s, re.I)
+            if m:
+                cur = {"port": int(m.group(1)), "names": [], "docroot": None, "conf": os.path.basename(conf)}
+                vhosts.append(cur)
+                continue
+            if cur is None:
+                continue
+            k, _, v = s.partition(" ")
+            v = v.strip().strip('"')
+            if k.lower() in ("servername", "serveralias"):
+                cur["names"] += v.split()
+            elif k.lower() == "documentroot":
+                cur["docroot"] = v
+    return vhosts, unreadable, listen, listen_addr
+
+
+def host_info(alias: str) -> dict | None:
+    """Infos d'une machine : 1 commande SSH (ou locale). None si injoignable."""
+    cmd = ["bash", "-c", REMOTE] if alias == "local" else \
+        ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, REMOTE]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
+    except subprocess.TimeoutExpired:
+        return None
+    if r.returncode == 255 or "##OS" not in r.stdout:
+        return None
+    tag = {m.group(1): m.group(2).strip() for m in re.finditer(r"^##(\w+) ?(.*)$", r.stdout, re.M)}
+    svc = dict(kv.split("=", 1) for kv in tag.get("SVC", "").split() if "=" in kv)
+    sshd = {}
+    for kv in filter(None, tag.get("SSHD", "").split(";")):
+        k, _, v = kv.strip().partition(" ")
+        sshd.setdefault(k.lower(), v)  # 1re occurrence = valeur retenue par sshd
+    if tag.get("SSHDR") == "yes":
+        # Lisible mais option absente = valeur par défaut d'OpenSSH (Debian)
+        for k, v in (("port", "22"), ("permitrootlogin", "prohibit-password"), ("passwordauthentication", "yes")):
+            if k not in sshd:
+                sshd[k] = v + " (défaut)"
+    vhosts, unreadable, listen, listen_addr = parse_apache(r.stdout)
+    return {
+        "os": tag.get("OS") or None,
+        "kernel": tag.get("KERNEL") or None,
+        "uptime_s": int(tag["UP"]) if tag.get("UP", "").isdigit() else None,
+        "apache": svc.get("apache2") == "active",
+        "nginx": svc.get("nginx") == "active",
+        "docker": int(tag["DOCKER"]) if tag.get("DOCKER", "").isdigit() else 0,
+        "sshd": sshd,  # vide si /etc/ssh/sshd_config illisible pour ce compte
+        "vhosts": vhosts,
+        "vhosts_unreadable": unreadable,
+        "apache_listen": listen,
+        "apache_listen_addr": {str(k): v for k, v in listen_addr.items()},
+    }

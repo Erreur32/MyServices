@@ -1,0 +1,103 @@
+import { useCallback, useEffect, useState } from "react";
+import { LOGIN, LoginRequired, NotConfigured, ROOT, loadSnapshot, logout, type Snapshot } from "./api";
+import { Header } from "./components/Header";
+import { Home } from "./components/Home";
+import { Tabs } from "./components/Tabs";
+import { TABS, visible } from "./lib/tabs";
+import type { Selected } from "./lib/filter";
+import { attention, type TabId } from "./lib/summary";
+import { Backups } from "./tabs/Backups";
+import { Dns } from "./tabs/Dns";
+import { Health } from "./tabs/Health";
+import { History } from "./tabs/History";
+import { Machines } from "./tabs/Machines";
+import { Services } from "./tabs/Services";
+import { Settings } from "./tabs/Settings";
+import { useContentWidth, useTheme } from "./theme";
+import { tx } from "./lib/i18n";
+
+const REFRESH_MS = 60_000;
+
+function tabFromHash(): TabId {
+  const h = location.hash.slice(1).split("/")[0] as TabId; // « settings/accounts » : onglet puis section
+  return TABS.some((t) => t.id === h) ? h : "home";
+}
+
+export default function App() {
+  const [theme, toggleTheme, setTheme] = useTheme();
+  const [width, setWidth] = useContentWidth();
+  const [snap, setSnap] = useState<Snapshot | null>(null);
+  const [error, setError] = useState("");
+  const [fresh, setFresh] = useState<NotConfigured | null>(null);
+  const [tab, setTab] = useState<TabId>(tabFromHash);
+  const [hash, setHash] = useState(location.hash); // section des Réglages dans le lien (#settings/api)
+  const [now, setNow] = useState(Date.now());
+  // Filtre posé en ouvrant Services depuis une machine (clic sur son nom) ; la clé recrée l'onglet
+  const [svcFilter, setSvcFilter] = useState<{ sel: Selected; n: number }>({ sel: {}, n: 0 });
+
+  const load = useCallback(() => {
+    loadSnapshot()
+      .then((s) => { setSnap(s); setError(""); setFresh(null); setNow(Date.now()); })
+      .catch((e) => {
+        if (e instanceof LoginRequired) location.replace(LOGIN);
+        else if (e instanceof NotConfigured) setFresh(e);
+        else setError(String(e.message || e));
+      });
+  }, []);
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, REFRESH_MS);
+    const onHash = () => { setTab(tabFromHash()); setHash(location.hash); };
+    addEventListener("hashchange", onHash);
+    return () => { clearInterval(id); removeEventListener("hashchange", onHash); };
+  }, [load]);
+
+  const go = (t: TabId) => { location.hash = t === "home" ? "" : t; setTab(t); scrollTo({ top: 0 }); };
+
+  if (!snap && fresh)
+    return (
+      <main className="mx-auto max-w-xl px-4 py-16">
+        <section className="rounded-2xl border border-line bg-card p-6">
+          <h1 className="text-xl font-bold">{tx("Bienvenue,")} {fresh.me.username}</h1>
+          <p className="mt-3 leading-relaxed text-muted">
+            {tx("Ton compte est prêt. MyServices n'a encore rien collecté : aucune machine n'est configurée.")}
+          </p>
+          <p className="mt-3 leading-relaxed text-muted">
+            {tx("La configuration depuis la page (Réglages → Machines) arrive avec les prochains onglets. Cette page se remplira toute seule après la première collecte.")}
+          </p>
+          <button type="button" onClick={() => void logout()} className="mt-5 text-sm text-link hover:underline">{tx("Se déconnecter")}</button>
+        </section>
+      </main>
+    );
+  if (!snap)
+    return <p className="p-8 text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
+
+  const items = attention({ ...snap, now });
+  const badges: Partial<Record<TabId, "crit" | "warn">> = {};
+  for (const a of items) if (badges[a.tab] !== "crit") badges[a.tab] = a.level;
+  const current = visible(tab, snap) ? tab : "home";
+
+  return (
+    <div className="mx-auto max-w-[var(--content-max)] px-4 pb-10 sm:px-6">
+      <Header snap={snap} theme={theme} toggleTheme={toggleTheme} now={now} />
+      {error && <p className="mb-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">{tx("⚠ Mise à jour impossible :")} {error}</p>}
+      <Tabs tab={current} snap={snap} badges={badges} onSelect={go} />
+      {current === "home" && <Home snap={snap} items={items} go={go} now={now} />}
+      {current === "history" && <History snap={snap} />}
+      {current === "machines" && <Machines snap={snap} onMachine={(ip) => { setSvcFilter((f) => ({ sel: { machine: [ip] }, n: f.n + 1 })); go("services"); }} />}
+      {current === "services" && <Services key={svcFilter.n} snap={snap} initial={svcFilter.sel} />}
+      {current === "health" && <Health snap={snap} />}
+      {current === "dns" && <Dns snap={snap} />}
+      {current === "backups" && <Backups snap={snap} />}
+      {current === "settings" && <Settings key={hash} snap={snap} look={{ theme, setTheme, width, setWidth }} />}
+      {current === "fail2ban" && (
+        <section className="my-6 rounded-2xl border border-dashed border-line p-8 text-center text-muted">
+          <p className="text-lg font-semibold text-txt">{TABS.find((t) => t.id === current)!.label} {tx(": à venir")}</p>
+          <p className="mt-2 text-sm">{tx("Prochaine étape, après les onglets en lecture.")}</p>
+          <a className="mt-4 inline-block text-sm text-link hover:underline" href={ROOT}>{tx("Ancienne page (v1)")}</a>
+        </section>
+      )}
+    </div>
+  );
+}

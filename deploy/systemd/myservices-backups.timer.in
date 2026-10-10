@@ -1,0 +1,10 @@
+[Unit]
+Description=MyServices : veille sauvegardes, passages réguliers
+
+[Timer]
+OnCalendar=@BACKUPS_AT@
+AccuracySec=1min
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

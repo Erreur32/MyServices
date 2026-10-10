@@ -1,0 +1,9 @@
+[Unit]
+Description=MyServices : veille des changements, après chaque passage du collecteur
+
+[Timer]
+OnCalendar=@WATCH_AT@
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,23 @@
+# Config locale (IP, alias SSH, webhook) : seuls les *.example.json sont versionnés
+config.json
+services-meta.json
+backups-meta.json
+# Produits par le collecteur et le watcher
+web/data.json
+web/events.json
+__pycache__/
+# Intégrations locales (liens vers health-watcher, backups.json d'un autre script)
+web/health
+web/backups.json
+# Notes de suivi (IP, machines) : dépôt privé à part (.notes.git -> MyServices-notes sur echosystem), jamais ici
+TODO.md
+PLAN.md
+.notes.git/
+# v2 Docker : volumes de test locaux (/config, /data) ; jamais versionnés (secrets, clés SSH)
+dev-data/
+# Front (front/) : dépendances et compilation
+front/node_modules/
+front/dist/
+
+# Garde-fou commit / push : liste locale de motifs interdits (vos vrais domaines, IP)
+.safety-deny

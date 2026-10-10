@@ -1,0 +1,319 @@
+// Réglages (admins) : une section à la fois, menu à gauche (en haut sur mobile). Comptes : son mot de passe,
+// les comptes (ajout, rôle, activation, nouveau mot de passe, suppression) et le journal des actions.
+// Apparence : thème et largeur de la page (« Page width » de GpuViewR), retenus par le navigateur.
+// Alertes : tabs/Alerts.tsx. Les autres sections arrivent une par une (Connecteurs, Machines, API et MCP, Système).
+import { KeyRound, Moon, MoveHorizontal, Plus, RotateCcw, Sun, Trash2, UserCheck, UserX } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
+import { dateTime, norm } from "../lib/format";
+import { CONTENT_WIDTH, type Theme } from "../theme";
+import { LANG, setLang, type Lang } from "../lib/i18n";
+import type { AuditEntry, User } from "../types";
+import { Badge, Card, Dim } from "../components/ui";
+import { Field, NoteLine } from "../components/form";
+import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
+import { Alerts } from "./Alerts";
+import { Connectors } from "./Connectors";
+import { MachinesSettings } from "./MachinesSettings";
+import { ApiMcp } from "./ApiMcp";
+import { Sources } from "./Sources";
+import { SystemSettings } from "./SystemSettings";
+import { tx } from "../lib/i18n";
+
+const SECTIONS: { id: string; label: string; ready?: boolean }[] = [
+  { id: "accounts", label: tx("Comptes"), ready: true },
+  { id: "look", label: tx("Apparence"), ready: true },
+  { id: "alerts", label: tx("Alertes"), ready: true },
+  { id: "sources", label: tx("Sources"), ready: true },
+  { id: "connectors", label: tx("Connecteurs"), ready: true },
+  { id: "machines", label: tx("Machines"), ready: true },
+  { id: "api", label: tx("API et MCP"), ready: true },
+  { id: "system", label: tx("Système"), ready: true },
+];
+
+const PASSWORD_MIN = 12; // même règle que le serveur (auth.py)
+
+const ROLE: Record<User["role"], string> = { admin: "admin", viewer: tx("lecture seule") };
+
+/** Réglages d'apparence tenus par App (appliqués à toute la page). */
+export interface Look {
+  theme: Theme;
+  setTheme: (t: Theme) => void;
+  width: number;
+  setWidth: (px: number) => void;
+}
+
+export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
+  const [section, setSection] = useState(() => {
+    const s = location.hash.split("/")[1]; // lien direct : #settings/<section> (menu du compte)
+    return SECTIONS.some((x) => x.id === s) ? s : "accounts";
+  });
+  return (
+    <div className="flex flex-col gap-4 py-4 md:flex-row">
+      <nav className="flex shrink-0 gap-1 overflow-x-auto md:w-52 md:flex-col" aria-label={tx("Sections des réglages")}>
+        {SECTIONS.map((s) => (
+          <button key={s.id} type="button" onClick={() => setSection(s.id)} aria-current={s.id === section ? "page" : undefined}
+            className={`shrink-0 rounded-lg px-3 py-2 text-left text-sm font-semibold ${s.id === section ? "bg-card text-txt shadow-[inset_2px_0_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
+            {s.label}{!s.ready && <span className="ml-1.5 text-xs font-normal text-dim">{tx("à venir")}</span>}
+          </button>
+        ))}
+      </nav>
+      <div className="min-w-0 flex-1">
+        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors /> : section === "machines" ? <MachinesSettings snap={snap} /> : section === "api" ? <ApiMcp /> : section === "sources" ? <Sources /> : section === "system" ? <SystemSettings /> : (
+          <p className="rounded-2xl border border-dashed border-line p-8 text-center text-muted">
+            {SECTIONS.find((s) => s.id === section)!.label} {tx(": prochaine étape.")}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Appearance({ look }: { look: Look }) {
+  const themes: { id: Theme; label: string; icon: ReactNode; swatch: string }[] = [
+    { id: "dark", label: tx("Sombre"), icon: <Moon size={16} />, swatch: "bg-[#0c0e14]" },
+    { id: "light", label: tx("Clair"), icon: <Sun size={16} />, swatch: "bg-[#f4f6fa]" },
+  ];
+  // Le dernier cran (max + un pas) = pleine largeur, stockée 0
+  const fullNotch = CONTENT_WIDTH.max + CONTENT_WIDTH.step;
+  const full = look.width === CONTENT_WIDTH.full;
+  return (
+    <div className="flex flex-col gap-4">
+      <Card>
+        <h2 className="mb-3 font-bold">{tx("Thème")}</h2>
+        <div className="flex flex-wrap gap-2">
+          {themes.map((t) => (
+            <button key={t.id} type="button" onClick={() => look.setTheme(t.id)} aria-pressed={look.theme === t.id}
+              className={`flex w-40 items-center gap-3 rounded-xl border p-3 text-left text-sm font-semibold ${look.theme === t.id ? "border-link bg-link/10 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`}>
+              <span className={`h-8 w-8 rounded-lg border border-line ${t.swatch}`} />
+              <span className="inline-flex items-center gap-1.5">{t.icon}{t.label}</span>
+            </button>
+          ))}
+        </div>
+      </Card>
+      <Card>
+        <h2 className="mb-3 font-bold">{tx("Langue")}</h2>
+        <div className="flex flex-wrap gap-2">
+          {([["fr", "Français"], ["en", "English"]] as [Lang, string][]).map(([l, label]) => (
+            <button key={l} type="button" onClick={() => l !== LANG && setLang(l)} aria-pressed={LANG === l}
+              className={`w-40 rounded-xl border p-3 text-left text-sm font-semibold ${LANG === l ? "border-link bg-link/10 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </Card>
+      <Card>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="inline-flex items-center gap-2 font-bold"><MoveHorizontal size={16} />{tx("Largeur de la page")}</h2>
+          <button type="button" className={quiet} onClick={() => look.setWidth(CONTENT_WIDTH.default)} disabled={look.width === CONTENT_WIDTH.default}>
+            <RotateCcw size={14} />{tx("Par défaut")}
+          </button>
+        </div>
+        <p className="mb-3 text-sm text-muted">
+          {tx("Largeur maximale du contenu (en-tête, onglets, pages). Le cran le plus à droite utilise toute la largeur de l'écran.")}
+        </p>
+        <div className="flex items-center gap-4">
+          <input type="range" className="range flex-1" min={CONTENT_WIDTH.min} max={fullNotch} step={CONTENT_WIDTH.step}
+            value={full ? fullNotch : look.width} aria-label={tx("Largeur de la page")}
+            onChange={(e) => { const px = Number(e.target.value); look.setWidth(px >= fullNotch ? CONTENT_WIDTH.full : px); }} />
+          <span className="w-32 whitespace-nowrap text-right font-mono text-sm tabular-nums">{full ? tx("Pleine largeur") : `${look.width} px`}</span>
+        </div>
+      </Card>
+      <p className="text-xs text-dim">{tx("Retenus par ce navigateur seulement.")}</p>
+    </div>
+  );
+}
+
+function Accounts({ me }: { me: string }) {
+  const [users, setUsers] = useState<User[] | null>(null);
+  const [audit, setAudit] = useState<AuditEntry[]>([]);
+  const [error, setError] = useState("");
+
+  const reload = useCallback(() => {
+    Promise.all([read<{ users: User[] }>("users"), read<{ audit: AuditEntry[] }>("audit?limit=300")])
+      .then(([u, a]) => { setUsers(u.users); setAudit(a.audit); setError(""); })
+      .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
+  }, []);
+  useEffect(reload, [reload]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {error && <p className="rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">⚠ {error}</p>}
+      <div className="grid gap-4 xl:grid-cols-2">
+        <MyPassword />
+        <AddUser onDone={reload} />
+      </div>
+      <Card>
+        <h2 className="mb-1 font-bold">{tx("Comptes")} {users && <Dim>· {users.length}</Dim>}</h2>
+        <p className="mb-3 text-sm text-muted">
+          <b className="text-txt">{tx("Admin")}</b> {tx(": tout, réglages compris.")} <b className="text-txt">{tx("Lecture seule")}</b> {tx(": voit la page et peut demander un passage (⟳). Ton propre compte se gère dans « Mon mot de passe » : un admin ne peut pas se retirer ses droits, et il reste toujours au moins un admin actif.")}
+        </p>
+        {users === null ? <p className="text-sm text-muted">{tx("Chargement…")}</p> : (
+          <ul className="flex flex-col divide-y divide-line/60">
+            {users.map((u) => <UserRow key={u.username} u={u} self={u.username.toLowerCase() === me.toLowerCase()} onDone={reload} />)}
+          </ul>
+        )}
+      </Card>
+      <Journal entries={audit} />
+    </div>
+  );
+}
+
+function MyPassword() {
+  const [cur, setCur] = useState(""), [pw, setPw] = useState(""), [pw2, setPw2] = useState("");
+  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (pw !== pw2) return setNote({ ok: false, text: tx("les deux saisies diffèrent") });
+    setBusy(true);
+    const ok = await act(() => send("POST", "me/password", { current: cur, new: pw }), tx("mot de passe changé : reconnexion…"), setNote);
+    setBusy(false);
+    if (ok) setTimeout(() => location.replace(LOGIN), 1500); // toutes ses sessions sont fermées par le serveur
+  };
+  return (
+    <Card>
+      <h2 className="mb-3 font-bold">{tx("Mon mot de passe")}</h2>
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        <Field label={tx("Mot de passe actuel")}>
+          <input className={input} type="password" autoComplete="current-password" required value={cur} onChange={(e) => setCur(e.target.value)} />
+        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={tx("Nouveau ({0} caractères min.)", PASSWORD_MIN)}>
+            <input className={input} type="password" autoComplete="new-password" required minLength={PASSWORD_MIN} value={pw} onChange={(e) => setPw(e.target.value)} />
+          </Field>
+          <Field label={tx("Encore une fois")}>
+            <input className={input} type="password" autoComplete="new-password" required minLength={PASSWORD_MIN} value={pw2} onChange={(e) => setPw2(e.target.value)} />
+          </Field>
+        </div>
+        <div><button className={primary} disabled={busy}><KeyRound size={14} />{tx("Changer")}</button></div>
+        <p className="text-xs text-dim">{tx("Toutes tes sessions (autres navigateurs compris) seront fermées.")}</p>
+      </form>
+      <NoteLine note={note} />
+    </Card>
+  );
+}
+
+function AddUser({ onDone }: { onDone: () => void }) {
+  const [name, setName] = useState(""), [pw, setPw] = useState(""), [role, setRole] = useState<User["role"]>("viewer");
+  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    const ok = await act(() => send("POST", "users", { username: name, password: pw, role }), tx("compte « {0} » créé ({1})", name, ROLE[role]), setNote);
+    setBusy(false);
+    if (ok) { setName(""); setPw(""); setRole("viewer"); onDone(); }
+  };
+  return (
+    <Card>
+      <h2 className="mb-3 font-bold">{tx("Ajouter un compte")}</h2>
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={tx("Nom (lettres, chiffres, . _ @ -)")}>
+            <input className={input} autoComplete="off" required minLength={2} maxLength={64} pattern="[a-zA-Z0-9._@\-]+" value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+          <Field label={tx("Rôle")}>
+            <select className={input} value={role} onChange={(e) => setRole(e.target.value as User["role"])}>
+              <option value="viewer">{tx("lecture seule")}</option>
+              <option value="admin">{tx("admin")}</option>
+            </select>
+          </Field>
+        </div>
+        <Field label={tx("Mot de passe ({0} caractères min., à lui transmettre)", PASSWORD_MIN)}>
+          <input className={input} type="password" autoComplete="new-password" required minLength={PASSWORD_MIN} value={pw} onChange={(e) => setPw(e.target.value)} />
+        </Field>
+        <div><button className={primary} disabled={busy}><Plus size={14} />{tx("Créer")}</button></div>
+      </form>
+      <NoteLine note={note} />
+    </Card>
+  );
+}
+
+function UserRow({ u, self, onDone }: { u: User; self: boolean; onDone: () => void }) {
+  const [note, setNote] = useState<Note>(null);
+  const [pwOpen, setPwOpen] = useState(false), [pw, setPw] = useState("");
+  const [confirm, setConfirm] = useState(false);
+  const run = async (fn: () => Promise<unknown>, done: string) => {
+    if (await act(fn, done, setNote)) onDone();
+  };
+  const path = `users/${encodeURIComponent(u.username)}`;
+  return (
+    <li className="py-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="min-w-[180px] flex-1">
+          <b>{u.username}</b>{self && <Dim> {tx("· toi")}</Dim>}
+          <div className="text-xs text-dim">
+            {tx("dernière connexion :")} {u.last_login ? dateTime(u.last_login * 1000) : tx("jamais")} {tx("· créé le")} {dateTime(u.created * 1000)}
+          </div>
+        </div>
+        <Badge tone={u.role === "admin" ? "info" : "off"}>{ROLE[u.role]}</Badge>
+        {u.disabled ? <Badge tone="warn">{tx("désactivé")}</Badge> : <Badge tone="ok">{tx("actif")}</Badge>}
+        {!self && (
+          <div className="flex flex-wrap gap-1.5">
+            <select className={`${quiet} bg-bg2`} value={u.role} aria-label={tx("Rôle de {0}", u.username)}
+              onChange={(e) => void run(() => send("PATCH", path, { role: e.target.value }), `${u.username} : ${ROLE[e.target.value as User["role"]]}`)}>
+              <option value="viewer">{tx("lecture seule")}</option>
+              <option value="admin">{tx("admin")}</option>
+            </select>
+            <button type="button" className={quiet} onClick={() => void run(() => send("PATCH", path, { disabled: !u.disabled }),
+              u.disabled ? `${u.username} réactivé` : `${u.username} désactivé, ses sessions fermées`)}>
+              {u.disabled ? <><UserCheck size={14} />{tx("Réactiver")}</> : <><UserX size={14} />{tx("Désactiver")}</>}
+            </button>
+            <button type="button" className={quiet} onClick={() => { setPwOpen(!pwOpen); setNote(null); }} aria-expanded={pwOpen}>
+              <KeyRound size={14} />{tx("Mot de passe")}
+            </button>
+            {confirm ? (
+              <>
+                <button type="button" className={danger} onClick={() => void run(() => send("DELETE", path), `${u.username} supprimé`)}>{tx("Confirmer")}</button>
+                <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
+              </>
+            ) : <button type="button" className={danger} onClick={() => setConfirm(true)}><Trash2 size={14} />{tx("Supprimer")}</button>}
+          </div>
+        )}
+      </div>
+      {pwOpen && (
+        <form className="mt-2 flex flex-wrap items-center gap-2" onSubmit={(e) => {
+          e.preventDefault();
+          void act(() => send("POST", `${path}/password`, { password: pw }), `nouveau mot de passe pour ${u.username}, ses sessions fermées`, setNote)
+            .then((ok) => { if (ok) { setPw(""); setPwOpen(false); } });
+        }}>
+          <input className={`${input} max-w-xs`} type="password" autoComplete="new-password" required minLength={PASSWORD_MIN}
+            placeholder={tx("nouveau mot de passe ({0} min.)", PASSWORD_MIN)} value={pw} onChange={(e) => setPw(e.target.value)} />
+          <button className={primary}>{tx("Enregistrer")}</button>
+        </form>
+      )}
+      <NoteLine note={note} />
+    </li>
+  );
+}
+
+function Journal({ entries }: { entries: AuditEntry[] }) {
+  const [q, setQ] = useState("");
+  const shown = useMemo(() => {
+    const n = norm(q);
+    return n ? entries.filter((a) => norm(`${a.username} ${a.ip} ${a.action} ${a.detail}`).includes(n)) : entries;
+  }, [entries, q]);
+  const tone = (a: string) => (/échou|refus/.test(a) ? "text-bad" : /supprim|désactiv|mot de passe/.test(a) ? "text-warn" : "");
+  return (
+    <Card>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-bold">{tx("Journal des actions")} <Dim>· {shown.length} / {entries.length}</Dim></h2>
+        <input className={`${input} max-w-xs`} type="search" placeholder={tx("Filtrer (compte, IP, action…)")} value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <p className="mb-2 text-xs text-dim">{tx("Connexions, échecs, passages demandés, changements de comptes ; gardé un an.")}</p>
+      <div className="max-h-[420px] overflow-y-auto">
+        <table className="w-full border-collapse text-sm">
+          <tbody className="[&>tr]:border-b [&>tr]:border-line/60">
+            {shown.map((a, i) => (
+              <tr key={i}>
+                <td className="whitespace-nowrap py-1.5 pr-3 text-dim">{dateTime(a.ts * 1000)}</td>
+                <td className="py-1.5 pr-3 font-medium">{a.username || "—"}</td>
+                <td className={`py-1.5 pr-3 ${tone(a.action)}`}>{a.action}{a.detail && <Dim> · {a.detail}</Dim>}</td>
+                <td className="hidden whitespace-nowrap py-1.5 font-mono text-xs text-dim sm:table-cell">{a.ip || ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}

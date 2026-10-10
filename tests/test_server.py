@@ -1,0 +1,142 @@
+"""api.py (FastAPI) et server.py : fichiers servis (jamais hors de web/ ni du volume), réseaux autorisés,
+contrôle d'origine, réponses de l'API ⟳ et de l'API v1, horaires.
+
+  docker compose run --rm --entrypoint python3 myservices -m unittest discover -s tests   (dépendances de l'image)
+"""
+import ipaddress
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import server  # noqa: E402
+
+try:
+    from fastapi.testclient import TestClient
+
+    import api
+except ImportError:  # hors image (bibliothèque standard seule) : ces tests sont sautés
+    api = None
+
+
+@unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
+class Files(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.static, self.web = root / "app" / "web", root / "data" / "web"
+        self.static.mkdir(parents=True)
+        self.web.mkdir(parents=True)
+        (self.static / "index.html").write_text("page")
+        (self.web / "data.json").write_text("{}")
+        (root / "app" / "config.py").write_text("secret")
+        (self.static / "lien.md").symlink_to(root / "app" / "config.py")
+        server.STATIC, server.WEB = self.static, self.web
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_page_and_produced_files(self):
+        self.assertEqual(api.find("index.html"), (self.static / "index.html").resolve())
+        self.assertEqual(api.find("data.json"), (self.web / "data.json").resolve())
+
+    def test_never_outside(self):
+        for rel in ("../config.py", "../../app/config.py", "lien.md", "/etc/passwd", "missing.html"):
+            self.assertIsNone(api.find(rel), rel)
+
+
+@unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
+class Http(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        web = Path(cls.tmp.name)
+        (web / "index.html").write_text("<p>page</p>")
+        (web / "data.json").write_text(json.dumps({"generated": "2026-10-10T00:00:00+00:00",
+                                                   "connectors": [{"type": "npm", "name": "lan", "ok": True}]}))
+        server.STATIC = server.WEB = web
+        server.PROGRESS = str(web / "progress.json")
+        api.AUTH = False  # comptes testés à part (test_auth.py)
+        cls.c = TestClient(api.app, client=("192.168.1.20", 50000))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_page(self):
+        r = self.c.get("/myservices/")
+        self.assertEqual((r.status_code, r.text), (200, "<p>page</p>"))
+        self.assertEqual(r.headers["x-content-type-options"], "nosniff")
+        self.assertNotIn("server", {k.lower() for k in r.headers})
+        self.assertEqual(self.c.get("/", follow_redirects=False).headers["location"], "/myservices/")
+
+    def test_csp(self):
+        page = self.c.get("/myservices/").headers["content-security-policy"]
+        self.assertIn("default-src 'self'", page)
+        self.assertIn("object-src 'none'", page)
+        (server.STATIC / "login.html").write_text("<form>")
+        login = self.c.get("/myservices/login.html").headers["content-security-policy"]
+        self.assertNotIn("unsafe-inline", login)  # page de connexion : politique stricte
+        (server.STATIC / "v2").mkdir(exist_ok=True)
+        (server.STATIC / "v2" / "index.html").write_text("<div id=root>")
+        v2 = self.c.get("/myservices/v2/").headers["content-security-policy"]
+        self.assertNotIn("unsafe-inline", v2)  # nouveau front compilé : politique stricte
+        self.assertNotIn("content-security-policy", self.c.get("/myservices/api/v1/status").headers)  # JSON : inutile
+
+    def test_folder_without_slash_and_unknown_page(self):
+        (server.STATIC / "v2").mkdir(exist_ok=True)
+        (server.STATIC / "v2" / "index.html").write_text("<div id=root>")
+        r = self.c.get("/myservices/v2", follow_redirects=False)
+        self.assertEqual((r.status_code, r.headers["location"]), (302, "/myservices/v2/"))
+        r = self.c.get("/myservices/v2login.html")
+        self.assertEqual(r.status_code, 404)
+        self.assertIn('href="/myservices/"', r.text)  # page lisible avec un lien de retour, pas du JSON
+
+    def test_traversal_refused(self):
+        for p in ("/myservices/../server.py", "/myservices/%2e%2e/%2e%2e/etc/passwd", "/myservices/..%2fserver.py"):
+            self.assertEqual(self.c.get(p).status_code, 404, p)
+
+    def test_status_legacy_and_v1(self):
+        for p in ("/myservices/api/status", "/myservices/api/v1/status"):
+            st = self.c.get(p).json()
+            self.assertEqual(st["generated"], "2026-10-10T00:00:00+00:00")
+            for k in ("running", "progress", "started", "ended", "result", "cooldown", "wait", "now"):
+                self.assertIn(k, st)
+
+    def test_refresh_other_origin_refused(self):
+        r = self.c.post("/myservices/api/refresh", headers={"Origin": "http://evil.example"})
+        self.assertEqual(r.status_code, 403)
+
+    def test_refresh_too_soon(self):
+        server.TASKS["collect"]["trigger"] = server.time.time()
+        r = self.c.post("/myservices/api/v1/refresh", headers={"Origin": "http://testserver"})
+        self.assertEqual(r.status_code, 429)
+        self.assertGreater(r.json()["wait"], 0)
+
+    def test_v1_connectors_tasks_docs(self):
+        self.assertEqual(self.c.get("/myservices/api/v1/connectors").json()["connectors"][0]["name"], "lan")
+        tasks = self.c.get("/myservices/api/v1/tasks").json()
+        self.assertEqual(tasks["collect"]["minutes"], [10, 40])
+        self.assertEqual(self.c.get("/myservices/api/v1/openapi.json").json()["info"]["title"], "MyServices")
+
+    def test_network_not_allowed(self):
+        saved = server.ALLOW
+        server.ALLOW = [ipaddress.ip_network("10.99.0.0/16")]
+        try:
+            self.assertEqual(self.c.get("/myservices/").status_code, 403)
+        finally:
+            server.ALLOW = saved
+
+
+class Schedule(unittest.TestCase):
+    def test_default_hours(self):
+        self.assertEqual(server.TASKS["collect"]["minutes"], {10, 40})
+        self.assertIsNone(server.TASKS["collect"]["hours"])
+        self.assertEqual(server.TASKS["health"]["hours"], {0, 6, 12, 18})
+        self.assertEqual(server.TASKS["backups"]["minutes"], {5})
+
+
+if __name__ == "__main__":
+    unittest.main()

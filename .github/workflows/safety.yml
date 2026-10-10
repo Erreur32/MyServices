@@ -1,0 +1,37 @@
+name: Garde-fou (données sensibles)
+
+# Même contrôle que les hooks locaux (scripts/safety.py), côté serveur : un push fait avec --no-verify
+# est quand même vérifié. Aucune action tierce hormis checkout (épinglée par empreinte de commit).
+
+on:
+  push:
+    branches: [main, docker]
+  pull_request:
+    branches: [main, docker]
+
+permissions:
+  contents: read
+
+jobs:
+  safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Données sensibles dans les commits poussés
+        env:
+          BEFORE: ${{ github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ -n "$BASE_SHA" ]; then range="$BASE_SHA..$HEAD_SHA"
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then range="$BEFORE..$HEAD_SHA"
+          else range="$HEAD_SHA"; fi
+          python3 scripts/safety.py --range "$range"
+      - name: Actions épinglées par empreinte de commit
+        run: |
+          if grep -rEn "^[[:space:]]*(- )?uses: " .github/workflows | grep -vE "@[0-9a-f]{40}"; then
+            echo "action non épinglée (supply chain)"; exit 1
+          fi

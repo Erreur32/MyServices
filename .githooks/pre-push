@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Avant push : rien de sensible dans les commits poussés (tous, pas seulement le dernier), puis tests.
+# Contourner (--no-verify) est refusé pour Claude ; la CI refait le contrôle de toute façon.
+set -u
+cd "$(git rev-parse --show-toplevel)" || exit 1
+zero=0000000000000000000000000000000000000000
+echo "━━━ pre-push : garde-fou ━━━"
+while read -r _ local_sha _ remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue                      # suppression de branche
+  if [ "$remote_sha" = "$zero" ]; then   # nouvelle branche : ce que le serveur ne connaît pas encore
+    python3 scripts/safety.py --range "$local_sha" --not --remotes || exit 1
+  else
+    python3 scripts/safety.py --range "$remote_sha..$local_sha" || exit 1
+  fi
+done
+log=$(mktemp)
+trap 'rm -f "$log"' EXIT
+echo "  → tests Python"
+python3 -m unittest discover -s tests >"$log" 2>&1 || { tail -20 "$log"; echo "✗ tests Python en échec"; exit 1; }
+echo "  ✓ tests Python"
+if [ -d front/node_modules ]; then
+  (cd front && npx tsc --noEmit && npx vitest run >"$log" 2>&1) || { tail -20 "$log"; echo "✗ front : types ou tests en échec"; exit 1; }
+  echo "  ✓ front : types et tests"
+else echo "  ⚠ front/node_modules absent : types et tests du front non lancés"; fi
+if grep -rEn "^[[:space:]]*(- )?uses: " .github/workflows 2>/dev/null | grep -vE "@[0-9a-f]{40}"; then
+  echo "✗ action GitHub non épinglée par empreinte de commit (supply chain)"; exit 1
+fi
+echo "━━━ tout est bon ━━━"

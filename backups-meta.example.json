@@ -1,0 +1,93 @@
+{
+  "_doc": "Copier en backups-meta.json puis adapter (fichier local, non versionné). Lu par backups.py. hosts : machines à inspecter. ssh = alias de /root/.ssh/config ; null ou \"local\" = la collectrice. mount = NAS ou partage monté sur la collectrice : seul son espace disque est lu (ni cron ni discover). api: \"ha\" + secrets = Home Assistant lu par son API REST (fichier HA_URL=… / HA_TOKEN=…, mode 600). api: \"veeam\" + url (https://<serveur>:9419, API REST, pas le 9392 de la console) + secrets (fichier VEEAM_USER=… / VEEAM_PASS=…, mode 600) = Veeam Backup & Replication ; api_version facultatif (défaut 1.1-rev0, v12 et suivantes). api: \"none\" = machine sans accès, seulement origine de jeux (ex. poste sauvegardé par Veeam). Emplacement {host, veeam_job: nom exact du job} : âge du dernier passage, Failed = CRIT, Warning = WARN ; compte comme copie hors machine (le dépôt Veeam), sauf \"offsite\": false. cron_via: \"alias:vmid\" = crontab root d'une VM lue par qm guest exec depuis Proxmox. cron_hint : texte affiché quand la crontab root n'est pas lisible. storage: true = machine de stockage (espace libre en tuile). sets : un jeu = une origine + des emplacements, la source d'abord, puis les copies. pattern = motif des archives (fnmatch), depth = profondeur sous path. mode \"each\" = chaque archive à nom fixe doit être récente ; sinon seule la plus récente compte. max_age_days = seuil d'alerte (défaut 8). encrypted = copie chiffrée (taille non comparée). covered_by = jeu dont les copies couvrent celui-ci. archived = jeu arrêté, affiché sans alerte. syncthing : nœuds dont l'API est lue ({host, conf: chemin de config.xml, sudo: compte}) ; emplacement {host, syncthing: id du dossier, from: nœud}. discover : motifs (glob) des dossiers de sauvegarde à repérer sur les disques locaux ; discover_ignore : {id machine: [dossiers]}. cron_ignore : regex de lignes de cron à ne pas lister. crypt_help : notice de déchiffrement affichée dans l'onglet ({tool, where, readme, key, cmd}).",
+  "hosts": [
+    {
+      "id": "collecteur",
+      "label": "Collecteur",
+      "ip": "192.168.1.20",
+      "ssh": "local",
+      "kind": "machine qui lance MyServices",
+      "note": "Archives tar dans /home/backup, copiées sur le NAS chaque nuit."
+    },
+    {
+      "id": "serveur",
+      "label": "Serveur",
+      "ip": "192.168.1.10",
+      "ssh": "serveur",
+      "kind": "serveur principal"
+    },
+    {
+      "id": "nas",
+      "label": "NAS",
+      "ip": "192.168.1.30",
+      "ssh": null,
+      "kind": "stockage",
+      "mount": "/mnt/nas"
+    },
+    {
+      "id": "veeam",
+      "label": "Serveur Veeam",
+      "ip": "192.168.1.50",
+      "kind": "Veeam Backup & Replication (Windows)",
+      "api": "veeam",
+      "url": "https://192.168.1.50:9419",
+      "secrets": "/root/.veeam-secrets"
+    },
+    {
+      "id": "pc",
+      "label": "PC Windows",
+      "ip": "192.168.1.60",
+      "kind": "poste sauvegardé par Veeam",
+      "api": "none"
+    }
+  ],
+  "sets": [
+    {
+      "id": "serveur-etc",
+      "label": "Serveur : /etc",
+      "origin": "serveur",
+      "schedule": "tous les jours 03:00",
+      "retention": "7 archives",
+      "max_age_days": 2,
+      "locations": [
+        {
+          "host": "serveur",
+          "path": "/home/backup",
+          "pattern": "etc-*.tar.gz",
+          "depth": 1,
+          "via": "tar"
+        },
+        {
+          "host": "nas",
+          "path": "/mnt/nas/backup/serveur",
+          "pattern": "etc-*.tar.gz",
+          "depth": 1,
+          "via": "rsync 04:00"
+        }
+      ]
+    },
+    {
+      "id": "pc-veeam",
+      "label": "PC Windows : image complète",
+      "origin": "pc",
+      "schedule": "tous les jours 22:00 (Veeam)",
+      "max_age_days": 2,
+      "locations": [
+        {
+          "host": "veeam",
+          "veeam_job": "Backup PC",
+          "via": "job Veeam"
+        }
+      ]
+    }
+  ],
+  "discover": [
+    "/home/backup*",
+    "/home/*/backup*",
+    "/root/*ackup*",
+    "/mnt/*/backup*"
+  ],
+  "discover_ignore": {},
+  "cron_ignore": [],
+  "syncthing": []
+}

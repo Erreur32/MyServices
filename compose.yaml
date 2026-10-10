@@ -1,0 +1,28 @@
+# MyServices v2 : un conteneur (collecte, veille, santé, sauvegardes, page sur :8090/myservices/).
+#   1. Importer une installation classique : sudo python3 import_install.py --to ./dev-data/config
+#      (ou partir d'un /config vide, puis : docker compose exec myservices python3 setup.py)
+#   2. docker compose up -d --build
+#   3. docker compose exec myservices python3 setup.py --check
+services:
+  myservices:
+    build: .
+    image: myservices:dev
+    container_name: myservices
+    restart: unless-stopped
+    # Réseau de l'hôte : ping et recherche sur le LAN, page sur le port de MYSERVICES_PORT
+    network_mode: host
+    environment:
+      MYSERVICES_PORT: "8090"
+      TZ: Europe/Paris
+      # Réseaux autorisés à ouvrir la page (défaut : réseaux privés et boucle locale)
+      # MYSERVICES_ALLOW: "192.168.1.0/24,127.0.0.0/8"
+    volumes:
+      - ./dev-data/config:/config   # configs, secrets, clés et alias SSH (600, compte 10001)
+      - ./dev-data/data:/data       # page générée, état, caches
+    # Pas de /var/run/docker.sock : la machine hôte est lue par SSH, comme les autres
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true

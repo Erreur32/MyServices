@@ -1,0 +1,24 @@
+# MyServices : un passage du collecteur. Gabarit : variables remplacées par install.sh.
+# Lancé par myservices.timer ou par myservices-refresh.path (bouton ⟳ de la page).
+# Oneshot : systemd ignore une nouvelle demande tant qu'un passage tourne.
+# Root : ss -tlnp (noms des process) et clés SSH de root vers les machines inventoriées.
+[Unit]
+Description=MyServices : collecte NPM / Docker / sondes -> data.json
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+# /run/myservices lisible par l'API du bouton ⟳ (avancement du passage), gardé entre deux passages
+Environment=MYSERVICES_PROGRESS=/run/myservices/progress.json
+RuntimeDirectory=myservices
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+# Pas de __pycache__ root dans le projet ; data.json (recréé par os.replace) rendu au propriétaire
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=@PYTHON@ @DIR@/myservices.py
+ExecStartPost=/bin/chown @OWNER@ @WEB_DIR@/data.json
+TimeoutStartSec=15min
+Nice=5

@@ -1,0 +1,23 @@
+# Seuls *.py et web/ entrent dans l'image (voir Dockerfile) ; le reste ne part pas au démon
+.git
+.notes.git
+dev-data
+deploy
+__pycache__
+*.json
+!web/**
+web/data.json
+web/events.json
+web/health
+web/backups.json
+*.png
+*.md
+!README.md
+!chrome-capture-*.png
+__pycache__
+!deploy/fetch_archify.py
+.github
+# Front : sources seulement (dépendances installées et compilées dans l'image)
+!front/**
+front/node_modules
+front/dist

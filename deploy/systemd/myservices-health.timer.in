@@ -1,0 +1,10 @@
+[Unit]
+Description=MyServices : santé des machines, passages réguliers
+
+[Timer]
+OnCalendar=@HEALTH_AT@
+AccuracySec=1min
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

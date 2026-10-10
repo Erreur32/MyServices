@@ -1,0 +1,3 @@
+# MyServices : limites du bouton ⟳ (contexte http, installé dans /etc/nginx/conf.d/ par install.sh)
+limit_req_zone $binary_remote_addr zone=myservices_refresh:1m rate=6r/m;
+limit_req_zone $binary_remote_addr zone=myservices_status:1m rate=5r/s;

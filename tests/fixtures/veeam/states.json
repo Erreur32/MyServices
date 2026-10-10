@@ -1,0 +1,7 @@
+{"jobs": {"data": [
+  {"name": "PC-Jeu image", "type": "Backup", "status": "Inactive", "lastRun": "2026-10-09T03:00:12.123+02:00", "lastResult": "Success", "nextRun": "2026-10-10T03:00:00+02:00"},
+  {"name": "Serveur fichiers", "type": "BackupCopy", "status": "Running", "lastRun": "2026-10-08T22:00:00Z", "lastResult": "Warning", "nextRun": null},
+  {"name": "Ancien job", "status": "Disabled"}]},
+ "repos": {"data": [
+  {"name": "NAS", "type": "Nfs", "path": "/volume1/veeam", "capacityGB": 3725.3, "freeGB": 1203.9},
+  {"name": "Local", "type": "WinLocal", "capacityGB": 0}]}}

@@ -1,0 +1,1168 @@
+#!/usr/bin/env python3
+"""health.py : santé des machines de services-meta.json (disque, systemd, Docker, maj, noyau,
+charge, échecs SSH, SMART), sans LLM, en LECTURE SEULE.
+
+Machines : celles de services-meta.json qui ont un accès (« ssh » = alias de ~/.ssh/config, ou
+"local"), sauf « off » (éteinte voulue) ou « health »: false. « vm »: true désactive SMART
+(disque virtuel). Une commande SSH par contrôle, avec les clés de l'utilisateur qui lance le
+script (root via myservices-health.service, comme le collecteur).
+
+Sorties dans <web_dir>/health/ : index.html (tableau), stats.json (lu par l'onglet Machines et
+le bandeau de la page MyServices), events.json (changements de niveau, fusionnés dans l'onglet
+Historique). Page activée par health_url = "health/" dans config.json.
+
+Comptes distants : lire le journal (échecs SSH, noyau) demande le groupe adm ou systemd-journal,
+sinon « non lisible », jamais 0. SMART : règle sudoers NOPASSWD pour /usr/sbin/smartctl -H,
+facultative (sans elle : « non accessible »).
+
+Windows (« os »: "windows", accès par « health »: "<alias>" vers OpenSSH Server) : un seul appel
+PowerShell, en lecture, rangé dans les mêmes champs que Linux : volumes (disque), services automatiques
+arrêtés en erreur (systemd), CPU et dernier démarrage (charge), erreurs critiques et disque du journal
+Système (noyau), mises à jour en attente (maj), échecs de connexion 4625 (SSH, compte administrateur),
+Get-PhysicalDisk (SMART), redémarrage en attente.
+
+Alerte Discord (health_webhook, sinon discord_webhook) : envoyée seulement si le résumé change.
+Usage : python3 health.py [--dry-run]
+"""
+from __future__ import annotations
+
+import base64
+import hashlib
+import html as html_lib
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import notify
+from config import CFG, next_timer_run
+
+STATE_FILE = Path(CFG["state_dir"]) / "health.json"
+OUT_DIR = Path(CFG["web_dir"]) / "health"
+INDEX = OUT_DIR / "index.html"
+STATS_JSON = OUT_DIR / "stats.json"
+HASH_FILE = OUT_DIR / ".last-discord-hash"
+# Changements de niveau par machine, même format que events.json du watcher (fusionnés dans l'onglet Historique)
+EVENTS_JSON = OUT_DIR / "events.json"
+EVENTS_RETENTION_DAYS = CFG["retention_days"]
+TIMER = "myservices-health.timer"
+USER_AGENT = "myservices-health/1.0"
+
+# Seuils d'alerte
+DISK_WARN_PCT = 80
+DISK_CRIT_PCT = 90
+INODE_WARN_PCT = 80
+SYSTEMD_WARN_N = 1
+SYSTEMD_CRIT_N = 3
+DOCKER_WARN_N = 1
+DOCKER_CRIT_N = 3
+DOCKER_CPU_WARN_PCT = 50   # % CPU moyen/conteneur — repère un conteneur gourmand
+DOCKER_CPU_CRIT_PCT = 80
+DOCKER_MEM_WARN_PCT = 50   # % mem/conteneur — repere un conteneur gourmand
+DOCKER_MEM_CRIT_PCT = 80
+APT_CRIT_N = 20  # paquets en attente — au-dela, systeme visiblement pas maintenu
+CPU_WARN_PCT = 90   # Windows : % CPU instantané (pas de load average)
+LOAD_WARN_MULT = 1.5   # load avg 1min > mult × ncpu
+LOAD_CRIT_MULT = 3.0
+SSH_AUTH_WARN_N = 20    # tentatives échouées / 24h
+SSH_AUTH_CRIT_N = 100
+# Erreurs noyau connues et bénignes, ignorées (toutes machines).
+# shpchp -16 (EBUSY) : sur les ponts PCI QEMU, acpiphp a déjà pris les slots au boot,
+# shpchp échoue ensuite — sans impact, le hotplug passe par ACPI (vu sur dev, 2026-09-28).
+# AF_VSOCK : VM sans périphérique vsock, systemd-ssh-generator échoue au boot (dev, monitor).
+# snd_hda_intel : carte son virtuelle QEMU sans codec (dev).
+KERNEL_IGNORE_RE = re.compile(
+    r"shpchp [0-9a-f:.]+: (pci_hp_register failed with error -16|Slot initialization failed)"
+    r"|systemd-ssh-generator\[\d+\]: Failed to query local AF_VSOCK CID"
+    r"|system-generators/systemd-ssh-generator failed with exit status 1"
+    r"|snd_hda_intel [0-9a-f:.]+: no codecs found"
+)
+# ───────────── Machines surveillées ─────────────
+
+def load_hosts() -> tuple[list[dict], dict]:
+    """Machines de services-meta.json hors « off » et « health »: false, et le services-meta lu.
+    Accès : « health » (alias dédié), sinon « ssh », sinon l'alias de process_hosts ; sans accès
+    (target None) : relevée seulement si Beszel la connaît."""
+    try:
+        meta = json.loads(Path(CFG["meta"]).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        sys.exit(f"{CFG['meta']} illisible : {e}")
+    hosts = []
+    for ip, m in meta.get("machines", {}).items():
+        alias = m.get("health") if isinstance(m.get("health"), str) else m.get("ssh") or meta.get("process_hosts", {}).get(ip)
+        if m.get("off") or m.get("health") is False:
+            continue
+        hid = re.sub(r"[^a-z0-9]+", "-", m["name"].lower()).strip("-") or ip
+        hosts.append({"id": hid, "name": f"{m['name']} · {ip}",  # « Nom · IP » : l'IP est relue par la page
+                      "mode": "local" if alias == "local" else "ssh", "target": alias, "vm": bool(m.get("vm")),
+                      "os": m.get("os", "linux"), "ip": ip})
+    return hosts, meta
+
+
+LEVEL_RANK = {"ok": 0, "na": 0, "warn": 1, "crit": 2, "down": 3}
+LEVEL_LABEL = {"ok": "OK", "warn": "WARN", "crit": "CRIT", "down": "INJOIGNABLE", "na": "N/A"}
+
+
+def worst(*levels: str) -> str:
+    return max(levels, key=lambda l: LEVEL_RANK[l])
+
+# ───────────── Exécution locale / distante ─────────────
+
+def make_runner(host: dict):
+    """Retourne run(cmd, timeout) -> (rc, stdout) local ou via SSH selon host['mode']."""
+    if host["mode"] == "local":
+        def run(cmd: str, timeout: int = 15) -> tuple[int, str]:
+            try:
+                r = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, timeout=timeout)
+            except subprocess.TimeoutExpired:
+                return 124, f"timeout après {timeout}s"
+            except Exception as e:
+                return 1, str(e)
+            return (0, r.stdout) if r.returncode == 0 else (r.returncode, (r.stdout + r.stderr).strip())
+    else:
+        target = host["target"]
+
+        def run(cmd: str, timeout: int = 15) -> tuple[int, str]:
+            full = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", target, cmd]
+            try:
+                r = subprocess.run(full, capture_output=True, text=True, timeout=timeout)
+            except subprocess.TimeoutExpired:
+                return 124, f"timeout après {timeout}s"
+            except Exception as e:
+                return 1, str(e)
+            return (0, r.stdout) if r.returncode == 0 else (r.returncode, (r.stdout + r.stderr).strip())
+    return run
+
+# ───────────── Collecte ─────────────
+
+def collect_disks(run) -> list[dict]:
+    rc, out = run("df -P -B1M | tail -n +2; echo '---'; df -P -i | tail -n +2")
+    disks = []
+    if rc != 0:
+        return disks
+    parts = out.split("---")
+    sizes_section = parts[0] if parts else ""
+    inodes_section = parts[1] if len(parts) > 1 else ""
+    inode_map = {}
+    for ln in inodes_section.strip().splitlines():
+        cols = ln.split()
+        if len(cols) >= 6:
+            try:
+                inode_map[cols[-1]] = int(cols[4].rstrip("%"))
+            except ValueError:
+                pass
+    skip_fs_prefix = ("tmpfs", "devtmpfs", "udev", "/dev/loop", "//", "overlay", "shm")
+    skip_mount_prefix = ("/sys", "/proc", "/run", "/dev", "/var/lib/docker/overlay", "/snap")
+    for ln in sizes_section.strip().splitlines():
+        cols = ln.split()
+        if len(cols) < 6:
+            continue
+        device, mount = cols[0], cols[-1]
+        if device.startswith(skip_fs_prefix) or mount.startswith(skip_mount_prefix):
+            continue
+        try:
+            size_mb, used_mb, avail_mb = int(cols[1]), int(cols[2]), int(cols[3])
+            pct = int(cols[4].rstrip("%"))
+        except ValueError:
+            continue
+        inode_pct = inode_map.get(mount, 0)
+        disks.append({
+            "device": device, "mount": mount,
+            "size_gb": round(size_mb / 1024, 1), "used_gb": round(used_mb / 1024, 1),
+            "avail_gb": round(avail_mb / 1024, 1), "used_pct": pct, "inode_pct": inode_pct,
+            "critical": pct >= DISK_CRIT_PCT or inode_pct >= DISK_CRIT_PCT,
+            "warning": pct >= DISK_WARN_PCT or inode_pct >= INODE_WARN_PCT,
+        })
+    disks.sort(key=lambda d: d["used_pct"], reverse=True)
+    return disks
+
+
+def collect_systemd(run) -> dict:
+    rc, out = run("systemctl --failed --no-legend --no-pager")
+    info = {"failed": []}
+    if rc != 0:
+        return info
+    for ln in out.strip().splitlines():
+        cols = ln.split(maxsplit=4)
+        if cols and cols[0].endswith(".service"):
+            info["failed"].append({
+                "unit": cols[0],
+                "active": cols[2] if len(cols) > 2 else "",
+                "sub": cols[3] if len(cols) > 3 else "",
+                "desc": cols[4] if len(cols) > 4 else "",
+            })
+    return info
+
+
+def collect_docker(run) -> dict:
+    """Best effort — gracieux si pas d'accès au socket docker (retourne accessible: False)."""
+    rc, out = run("docker ps -a --format '{{.Names}}|{{.Status}}|{{.Image}}' 2>&1", timeout=10)
+    if rc != 0 or "permission denied" in out.lower() or "cannot connect" in out.lower():
+        return {"accessible": False, "reason": out.strip()[:120]}
+    containers, stopped = [], []
+    healthy = unhealthy = restarting = exited = 0
+    for ln in out.strip().splitlines():
+        cols = ln.split("|", 2)
+        if len(cols) < 3:
+            continue
+        name, status, image = cols
+        # Arrêt voulu : jamais démarré (Created) ou arrêté proprement (docker stop / compose down :
+        # code 0, 143 SIGTERM, 137 SIGKILL après délai). Pas une panne, affiché à part.
+        if status.startswith("Created") or re.match(r"Exited \((0|137|143)\)", status):
+            stopped.append({"name": name, "status": status, "image": image})
+            continue
+        if "Restarting" in status:
+            restarting += 1
+        elif "Exited" in status or "Dead" in status:
+            exited += 1
+        elif "unhealthy" in status.lower():
+            unhealthy += 1
+        else:
+            healthy += 1
+        containers.append({"name": name, "status": status, "image": image})
+    issues = [c for c in containers if "Exited" in c["status"] or "Restarting" in c["status"]
+              or "unhealthy" in c["status"].lower()]
+
+    # Stats CPU/mem — un seul échantillon, pour repérer les conteneurs gourmands.
+    cstats = []
+    rc2, out2 = run(
+        "docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}' 2>/dev/null",
+        timeout=25)
+    if rc2 == 0:
+        for ln in out2.strip().splitlines():
+            cols = ln.split("|")
+            if len(cols) < 4:
+                continue
+            try:
+                cpu_v = float(cols[1].rstrip("%").replace(",", "."))
+            except ValueError:
+                cpu_v = 0.0
+            try:
+                mem_v = float(cols[3].rstrip("%").replace(",", "."))
+            except ValueError:
+                mem_v = 0.0
+            cstats.append({"name": cols[0], "cpu": cpu_v, "mem_usage": cols[2].strip(), "mem_pct": mem_v})
+    cstats.sort(key=lambda c: c["cpu"], reverse=True)
+    total_cpu = round(sum(c["cpu"] for c in cstats), 1)
+    avg_cpu = round(total_cpu / len(cstats), 1) if cstats else 0.0
+
+    return {
+        "accessible": True, "total": len(containers),  # hors conteneurs arrêtés volontairement
+        "stopped": len(stopped), "stopped_list": stopped[:10],
+        "healthy": healthy, "unhealthy": unhealthy, "restarting": restarting, "exited": exited,
+        "issues": issues[:10],
+        "total_cpu": total_cpu, "avg_cpu": avg_cpu, "top": cstats[:3],
+    }
+
+
+def collect_apt(run) -> dict:
+    """Compte + échantillon des paquets upgradable en un seul appel `apt list`.
+
+    Ne filtre PAS sur le texte "Listing..." (locale-dépendant — en français apt affiche
+    "En train de lister…", donc `grep -v '^Listing'` ne le voit pas et cette ligne de
+    statut était comptée à tort comme un paquet). On matche directement le format réel
+    d'une ligne de paquet (nom/repo version ...), ce qui exclut naturellement toute ligne
+    de statut/progression quelle que soit la langue du système.
+    """
+    rc, out = run("LC_ALL=C apt list --upgradable 2>/dev/null", timeout=15)
+    info = {"upgradable": 0, "sample": []}
+    if rc != 0:
+        return info
+    for ln in out.splitlines():
+        m = re.match(r"^(\S+)/\S+\s+(\S+)\s+", ln)
+        if not m:
+            continue
+        info["upgradable"] += 1
+        if len(info["sample"]) < 8:
+            info["sample"].append(f"{m.group(1)} → {m.group(2)}")
+    return info
+
+
+def collect_kernel_errors(run) -> dict:
+    # Pas de 2>&1 : le hint "vous ne voyez pas les messages des autres utilisateurs..."
+    # (compte hors groupes adm/systemd-journal) part sur stderr et ne doit pas polluer stdout.
+    rc, out = run("journalctl -k -p err --since '-24h' --no-pager 2>/dev/null | tail -n 50", timeout=15)
+    lines = []
+    if rc == 0:
+        for ln in out.splitlines():
+            ln = ln.strip()
+            if not ln or ln.startswith("--") or "No entries" in ln:
+                continue
+            # Filet de sécurité si le hint arrive quand même (certains systèmes le mettent sur stdout).
+            if ln.startswith(("Hint:", "Users in groups", "Pass -q")):
+                continue
+            if KERNEL_IGNORE_RE.search(ln):
+                continue
+            if len(lines) < 8:
+                lines.append(ln[:200])
+    return {"has_errors": bool(lines), "samples": lines}
+
+
+def collect_reboot_required(run) -> bool:
+    rc, out = run("test -f /var/run/reboot-required && echo yes || echo no", timeout=6)
+    return rc == 0 and out.strip() == "yes"
+
+
+def collect_load(run) -> dict:
+    rc, out = run("cat /proc/loadavg; nproc", timeout=8)
+    if rc != 0:
+        return {"load_1": 0.0, "ncpu": 1, "available": False}
+    lines = out.strip().splitlines()
+    try:
+        load_1 = float(lines[0].split()[0])
+        ncpu = max(int(lines[1].strip()), 1)
+    except (IndexError, ValueError):
+        return {"load_1": 0.0, "ncpu": 1, "available": False}
+    return {"load_1": load_1, "ncpu": ncpu, "available": True}
+
+
+def collect_ssh_auth(run) -> dict:
+    """Tentatives d'auth SSH échouées sur 24h (journalctl, service ssh/sshd).
+
+    Sans droit de lecture du journal système (groupe adm / systemd-journal, ou root),
+    journalctl ne renvoie rien : on le détecte et on rend available=False au lieu d'un faux 0.
+    Les « Invalid user nobody » du test de méthodes SSH de MyServices sont exclus.
+    """
+    rc, out = run(
+        "if [ \"$(id -u)\" = 0 ] || id -nG | grep -qwE 'adm|systemd-journal'; then "
+        "journalctl -u ssh -u sshd --since '-24h' --no-pager 2>/dev/null "
+        "| grep -E 'Failed password|authentication failure|Invalid user' | grep -vc 'Invalid user nobody' || true; "
+        "else echo noaccess; fi",
+        timeout=15)
+    out = (out or "").strip()
+    if rc != 0 or out == "noaccess":
+        return {"failed_24h": 0, "available": False, "reason": "journal non lisible (groupe adm requis)"}
+    try:
+        return {"failed_24h": int(out), "available": True}
+    except ValueError:
+        return {"failed_24h": 0, "available": False, "reason": "sortie inattendue"}
+
+
+
+def collect_smart(run) -> dict:
+    """Santé SMART des disques via `sudo -n /usr/sbin/smartctl -H` (règle NOPASSWD dédiée
+    par host, cf /etc/sudoers.d/*-smart-health). Gracieux si absente (host non provisionné).
+
+    Chemin absolu obligatoire : un SSH non-interactif n'a pas /usr/sbin dans le PATH, et la
+    règle sudoers cible elle-même le chemin absolu. Device NVMe : la règle sudoers vise le
+    contrôleur (/dev/nvme0), pas le namespace bloc listé par lsblk (nvme0n1) → on convertit.
+    """
+    rc, out = run(
+        "test -x /usr/sbin/smartctl && lsblk -dno NAME,TYPE 2>/dev/null | awk '$2==\"disk\"{print $1}'",
+        timeout=8)
+    if rc != 0 or not out.strip():
+        return {"accessible": False, "disks": []}
+    disks = []
+    seen = set()
+    for dev in out.strip().splitlines():
+        dev = dev.strip()
+        if not dev:
+            continue
+        m = re.match(r"^(nvme\d+)n\d+$", dev)
+        target = m.group(1) if m else dev
+        if target in seen:
+            continue
+        seen.add(target)
+        _, out2 = run(f"sudo -n /usr/sbin/smartctl -H /dev/{target} 2>&1", timeout=10)
+        low = out2.lower()
+        # Deux formats selon le type de disque : ATA/NVMe ("overall-health ... PASSED/FAILED")
+        # vs SCSI/virtio ("Health Status: OK/...") — ex. disque virtuel de VM.
+        if "overall-health" not in low and "health status" not in low:
+            # sudo -n refusé (pas de règle NOPASSWD sur ce host) ou device non supporté
+            return {"accessible": False, "disks": []}
+        healthy = "passed" in low or "health status: ok" in low
+        failed = "failed" in low or ("health status" in low and "ok" not in low)
+        disks.append({"device": target, "healthy": healthy, "failed": failed})
+    return {"accessible": True, "disks": disks}
+
+# ───────────── Windows (OpenSSH Server + PowerShell) ─────────────
+
+# Un seul script, en lecture. Erreurs ignorées une à une : un contrôle refusé ne masque pas les autres.
+# 4625 (échecs de connexion) : journal Sécurité, administrateurs seulement ; -1 = non lisible.
+WIN_PS = r"""
+$ErrorActionPreference='SilentlyContinue';$ProgressPreference='SilentlyContinue';$o=@{};$t=(Get-Date).AddHours(-24)
+$o.disks=@(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3'|%{@{m=$_.DeviceID;s=[double]$_.Size;f=[double]$_.FreeSpace}})
+$o.svc=@(Get-CimInstance Win32_Service -Filter "StartMode='Auto' AND State<>'Running'"|?{$_.ExitCode -ne 0}|%{@{n=$_.Name;d=$_.DisplayName;e=$_.ExitCode}})
+$p=@(Get-CimInstance Win32_Processor);$o.cpu=($p|Measure-Object LoadPercentage -Average).Average;$o.ncpu=($p|Measure-Object NumberOfLogicalProcessors -Sum).Sum
+$o.boot=(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().ToString('o')
+$k='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion';$o.reboot=(Test-Path "$k\WindowsUpdate\Auto Update\RebootRequired") -or (Test-Path "$k\Component Based Servicing\RebootPending")
+$o.pd=@(Get-PhysicalDisk|%{@{n=$_.FriendlyName;h=[string]$_.HealthStatus}})
+$o.ev=@(Get-WinEvent -FilterHashtable @{LogName='System';Level=1,2;StartTime=$t} -MaxEvents 300|?{$_.Level -eq 1 -or $_.ProviderName -match 'disk|Ntfs|volmgr|stor|WHEA'}|Select-Object -First 8|%{'{0} {1} {2}' -f $_.TimeCreated.ToString('dd/MM HH:mm'),$_.ProviderName,(($_.Message -split "`n")[0]).Trim()})
+try{$o.fail=@(Get-WinEvent -FilterHashtable @{LogName='Security';Id=4625;StartTime=$t} -ErrorAction Stop).Count}catch{$o.fail=$(if($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*'){0}else{-1})}
+try{$r=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0 and IsHidden=0 and Type='Software'");$o.upd=@($r.Updates|%{$_.Title})}catch{$o.upd=$null}
+ConvertTo-Json -InputObject $o -Depth 4 -Compress
+"""
+
+
+def ps_command(script: str) -> str:
+    """powershell -EncodedCommand : aucun guillemet à protéger, que le shell OpenSSH soit cmd ou PowerShell."""
+    return "powershell -NoProfile -NonInteractive -EncodedCommand " + base64.b64encode(script.encode("utf-16-le")).decode()
+
+
+def parse_windows(raw: dict) -> dict:
+    """Relevé PowerShell -> mêmes champs que la collecte Linux (rendu, niveaux et alertes communs)."""
+    gb = 1024 ** 3
+    disks = []
+    for d in raw.get("disks") or []:
+        size, free = d.get("s") or 0, d.get("f") or 0
+        if not size:
+            continue
+        pct = round((size - free) * 100 / size)
+        disks.append({"device": d["m"], "mount": d["m"], "size_gb": round(size / gb, 1),
+                      "used_gb": round((size - free) / gb, 1), "avail_gb": round(free / gb, 1),
+                      "used_pct": pct, "inode_pct": 0,
+                      "critical": pct >= DISK_CRIT_PCT, "warning": pct >= DISK_WARN_PCT})
+    disks.sort(key=lambda d: d["used_pct"], reverse=True)
+    upd = raw.get("upd")
+    fail = raw.get("fail")
+    pd = raw.get("pd") or []
+    return {
+        "disks": disks,
+        "systemd": {"failed": [{"unit": s.get("n", "?"), "active": "arrêté", "sub": f"code {s.get('e')}",
+                                "desc": s.get("d", "")} for s in raw.get("svc") or []]},
+        "docker": {"accessible": False, "reason": "windows"},
+        "apt": {"upgradable": len(upd), "sample": upd[:8], "available": True} if isinstance(upd, list)
+               else {"upgradable": 0, "sample": [], "available": False},
+        "kernel": {"has_errors": bool(raw.get("ev")), "samples": [str(e)[:200] for e in raw.get("ev") or []]},
+        "reboot_required": bool(raw.get("reboot")),
+        "load": {"load_1": 0.0, "ncpu": raw.get("ncpu") or 1, "available": raw.get("cpu") is not None,
+                 "cpu_pct": raw.get("cpu"), "boot": raw.get("boot")},
+        "ssh_auth": {"failed_24h": fail, "available": True} if isinstance(fail, int) and fail >= 0
+                    else {"failed_24h": 0, "available": False, "reason": "journal Sécurité réservé aux administrateurs"},
+        "smart": {"accessible": bool(pd), "disks": [{"device": d.get("n", "?"), "healthy": d.get("h") == "Healthy",
+                                                     "failed": d.get("h") not in ("Healthy", "", None)} for d in pd]},
+    }
+
+
+def collect_windows(host: dict) -> dict:
+    run = make_runner(host)
+    rc, out = run(ps_command(WIN_PS), timeout=180)  # la recherche Windows Update peut prendre une minute
+    base = {"id": host["id"], "name": host["name"], "os": "windows"}
+    try:
+        raw = json.loads(out.strip().lstrip("\ufeff")) if rc == 0 else None
+    except ValueError:
+        raw = None
+    if not isinstance(raw, dict):
+        return {**base, "reachable": False, "disks": [], "systemd": {"failed": []},
+                "docker": {"accessible": False, "reason": "windows"}, "level": "down", **_EMPTY_HOST_EXTRAS,
+                "error": (out or "")[-200:]}
+    h = {**base, "reachable": True, **parse_windows(raw)}
+    h["level"] = host_level(h)
+    return h
+
+# ───────────── Beszel (connecteur) ─────────────
+
+def parse_beszel(sys_: dict) -> dict:
+    """Système Beszel -> mêmes champs que la collecte SSH. Ce que Beszel ne donne pas (docker, journal
+    noyau, échecs de connexion, titres des mises à jour) reste « non lisible »."""
+    disks = [{"device": d["mount"], "mount": d["mount"], "size_gb": d["size_gb"], "used_gb": d["used_gb"],
+              "avail_gb": round(d["size_gb"] - d["used_gb"], 1), "used_pct": d["used_pct"], "inode_pct": 0,
+              "critical": d["used_pct"] >= DISK_CRIT_PCT, "warning": d["used_pct"] >= DISK_WARN_PCT}
+             for d in sys_.get("disks") or []]
+    disks.sort(key=lambda d: d["used_pct"], reverse=True)
+    la, ncpu = sys_.get("load") or [], sys_.get("cores") or 1
+    if la and any(la):
+        load = {"load_1": float(la[0]), "ncpu": ncpu, "available": True}
+    else:  # agent Windows : pas de load average, % CPU
+        load = {"load_1": 0.0, "ncpu": ncpu, "available": sys_.get("cpu") is not None,
+                "cpu_pct": round(sys_["cpu"]) if sys_.get("cpu") is not None else None, "boot": None}
+    upd = sys_.get("updates")
+    return {
+        "disks": disks,
+        "systemd": {"failed": [{"unit": n, "active": "failed", "sub": "", "desc": ""} for n in sys_.get("failed_services") or []]},
+        "docker": {"accessible": False, "reason": "beszel"},
+        "apt": {"upgradable": upd or 0, "sample": [], "available": upd is not None,
+                "security": sys_.get("updates_security")},
+        "kernel": {"has_errors": False, "samples": [], "available": False},
+        "reboot_required": False,
+        "load": load,
+        "ssh_auth": {"failed_24h": 0, "available": False, "reason": "non relevé par Beszel"},
+        "smart": smart_from_beszel(sys_),
+        "temp": sys_.get("temp"),
+        "source": "beszel",
+    }
+
+
+def smart_from_beszel(sys_: dict) -> dict:
+    devs = sys_.get("smart") or []
+    return {"accessible": bool(devs), "source": "beszel",
+            "disks": [{"device": d.get("name") or "?", "healthy": str(d.get("state")).upper() == "PASSED",
+                       "failed": str(d.get("state")).upper() == "FAILED", "temp": d.get("temp"), "hours": d.get("hours")}
+                      for d in devs]}
+
+
+def beszel_systems(meta: dict) -> tuple[dict, list]:
+    """{IP: système Beszel} des machines de services-meta, et l'état des connecteurs Beszel lus."""
+    import connectors
+    import connectors.base as cbase
+    from connectors.beszel import match
+    try:
+        conns = connectors.instances(CFG, kind="health")
+    except connectors.ConnectorError as e:
+        print(f"⚠ Beszel : {e}", file=sys.stderr)
+        return {}, []
+    state_path = Path(CFG["state_dir"]) / "connectors.json"
+    state, found, statuses = cbase.load_state(state_path), {}, []
+    for c in conns:
+        data, st = cbase.run_isolated(c, state, 120)
+        statuses.append(st)
+        print(("✓" if st.ok else "⚠") + f" {c.label} {c.name} : {st.message}" + (" (dernier relevé bon réutilisé)" if st.stale else ""))
+        for ip, s in match((data or {}).get("systems", []), meta.get("machines", {})).items():
+            found.setdefault(ip, s)
+    cbase.save_state(state_path, state)
+    return found, statuses
+
+
+# ───────────── Scoring par machine ─────────────
+
+def disk_level(disks: list[dict]) -> str:
+    if any(d["critical"] for d in disks):
+        return "crit"
+    if any(d["warning"] for d in disks):
+        return "warn"
+    return "ok"
+
+
+def systemd_level(systemd: dict) -> str:
+    n = len(systemd["failed"])
+    if n >= SYSTEMD_CRIT_N:
+        return "crit"
+    if n >= SYSTEMD_WARN_N:
+        return "warn"
+    return "ok"
+
+
+def docker_level(docker: dict) -> str:
+    if not docker.get("accessible"):
+        return "na"
+    n = docker.get("unhealthy", 0) + docker.get("restarting", 0) + docker.get("exited", 0)
+    if n >= DOCKER_CRIT_N:
+        return "crit"
+    if n >= DOCKER_WARN_N:
+        return "warn"
+    return "ok"
+
+
+def kernel_level(kernel: dict) -> str:
+    return "warn" if kernel.get("has_errors") else "ok"
+
+
+def load_level(load: dict) -> str:
+    if not load.get("available"):
+        return "na"
+    if load.get("cpu_pct") is not None:  # Windows : % CPU instantané
+        return "warn" if load["cpu_pct"] >= CPU_WARN_PCT else "ok"
+    ratio = load["load_1"] / load["ncpu"]
+    if ratio >= LOAD_CRIT_MULT:
+        return "crit"
+    if ratio >= LOAD_WARN_MULT:
+        return "warn"
+    return "ok"
+
+
+def ssh_auth_level(ssh_auth: dict) -> str:
+    if not ssh_auth.get("available"):
+        return "na"
+    n = ssh_auth.get("failed_24h", 0)
+    if n >= SSH_AUTH_CRIT_N:
+        return "crit"
+    if n >= SSH_AUTH_WARN_N:
+        return "warn"
+    return "ok"
+
+
+
+def smart_level(smart: dict) -> str:
+    if not smart.get("accessible"):
+        return "na"
+    return "crit" if any(d["failed"] for d in smart["disks"]) else "ok"
+
+
+def host_level(h: dict) -> str:
+    """Pire niveau des contrôles d'une machine joignable (Linux ou Windows)."""
+    return worst(disk_level(h["disks"]), systemd_level(h["systemd"]), docker_level(h["docker"]),
+                 kernel_level(h["kernel"]), load_level(h["load"]), ssh_auth_level(h["ssh_auth"]),
+                 smart_level(h["smart"]))
+
+
+_EMPTY_HOST_EXTRAS = {
+    "apt": {"upgradable": 0, "sample": []}, "kernel": {"has_errors": False, "samples": []},
+    "reboot_required": False, "load": {"load_1": 0.0, "ncpu": 1, "available": False},
+    "ssh_auth": {"failed_24h": 0, "available": False},
+    "smart": {"accessible": False, "disks": []},
+}
+
+
+def collect_host(host: dict) -> dict:
+    if host.get("os") == "windows":
+        return collect_windows(host)
+    run = make_runner(host)
+    rc, _ = run("echo ok", timeout=6)
+    if rc != 0:
+        return {"id": host["id"], "name": host["name"], "reachable": False,
+                "disks": [], "systemd": {"failed": []}, "docker": {"accessible": False},
+                "level": "down", **_EMPTY_HOST_EXTRAS}
+    disks = collect_disks(run)
+    systemd = collect_systemd(run)
+    docker = collect_docker(run)
+    apt = collect_apt(run)
+    kernel = collect_kernel_errors(run)
+    reboot_required = collect_reboot_required(run)
+    load = collect_load(run)
+    ssh_auth = collect_ssh_auth(run)
+    # SMART non pertinent sur une VM (disque virtualisé, pas de hardware physique dédié)
+    smart = {"accessible": False, "disks": [], "vm": True} if host.get("vm") else collect_smart(run)
+    h = {"id": host["id"], "name": host["name"], "reachable": True,
+         "disks": disks, "systemd": systemd, "docker": docker, "apt": apt, "kernel": kernel,
+         "reboot_required": reboot_required, "load": load, "ssh_auth": ssh_auth, "smart": smart}
+    h["level"] = host_level(h)
+    return h
+
+# ───────────── Secrets / Discord ─────────────
+
+def build_discord_payload(stats: dict) -> dict:
+    overall = stats["overall_level"]
+    color = {"ok": 0x10B981, "warn": 0xF59E0B, "crit": 0xEF4444, "down": 0x71717A}[overall]
+    emoji = {"ok": "🟢", "warn": "🟡", "crit": "🔴", "down": "⚪"}[overall]
+    mark_of = {"ok": "🟢", "warn": "🟡", "crit": "🔴", "down": "⚪", "na": "🟢"}
+
+    lines = []
+    for h in stats["hosts"]:
+        mark = mark_of[h["level"]]
+        if not h["reachable"]:
+            lines.append(f"{mark} **{h['name']}** — injoignable")
+            continue
+        bits = []
+        warn_disks = [d for d in h["disks"] if d["warning"]]
+        if warn_disks:
+            bits.append(", ".join(f"`{d['mount']}` {d['used_pct']}%" for d in warn_disks[:3]))
+        if h["systemd"]["failed"]:
+            bits.append(f"{len(h['systemd']['failed'])} service(s) KO")
+        if h["kernel"]["has_errors"]:
+            bits.append("erreurs kernel")
+        if h["reboot_required"]:
+            bits.append("reboot requis")
+        if load_level(h["load"]) not in ("ok", "na"):
+            bits.append(f"CPU {h['load']['cpu_pct']}%" if h["load"].get("cpu_pct") is not None
+                        else f"load {h['load']['load_1']:.1f}/{h['load']['ncpu']} CPU")
+        if ssh_auth_level(h["ssh_auth"]) != "ok":
+            bits.append(f"{h['ssh_auth']['failed_24h']} échecs SSH (24h)")
+        if smart_level(h["smart"]) == "crit":
+            bits.append("disque SMART en échec")
+        dk = h["docker"]
+        if dk.get("accessible"):
+            n = dk["unhealthy"] + dk["restarting"] + dk["exited"]
+            if n:
+                bits.append(f"{n} conteneur(s) KO")
+        lines.append(f"{mark} **{h['name']}** — " + (" · ".join(bits) if bits else "RAS"))
+
+    embed = {
+        "author": {"name": "MyServices · health"},
+        "title": f"{emoji} Health multi-hosts · {LEVEL_LABEL[overall]}",
+        "description": "\n".join(lines)[:4096],
+        "color": color,
+        "footer": {"text": next_label()},
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    url = CFG["public_url"].rstrip("/") + "/health/" if CFG["public_url"] else ""
+    if url.startswith(("http://", "https://")):
+        embed["url"] = url
+        embed["description"] = (embed["description"] + f"\n\n🔗 **Page complète** : {url}")[:4096]
+    return {"username": "Health", "embeds": [embed]}
+
+
+def post_discord(payload: dict) -> int:
+    webhook = CFG["health_webhook"] or CFG["discord_webhook"]
+    if not webhook:
+        print("pas de webhook Discord (health_webhook / discord_webhook vides)", file=sys.stderr)
+        return 1
+    req = urllib.request.Request(
+        webhook, data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "User-Agent": USER_AGENT}, method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            print(f"✓ Discord posté (HTTP {r.status})")
+            return 0
+    except urllib.error.HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode("utf-8", errors="replace")[:400]
+        except Exception:
+            pass
+        print(f"⚠ Discord POST HTTP {e.code}: {body}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"⚠ Discord POST échoué: {e}", file=sys.stderr)
+        return 1
+
+# ───────────── HTML render ─────────────
+
+CSS = """
+:root{color-scheme:dark}*{box-sizing:border-box}
+body{font:15px/1.55 ui-sans-serif,system-ui,-apple-system,sans-serif;
+     max-width:1700px;margin:0 auto;padding:1.5rem 2.5rem;
+     background:#0a0a0b;color:#e4e4e7}
+header.hero{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;
+  background:linear-gradient(135deg,#0f1626 0%,#161618 62%);border:1px solid #1e3a5f;
+  border-radius:14px;padding:1.1rem 1.4rem;margin-bottom:1.4rem}
+header.hero h1{margin:0;font-size:1.6rem;letter-spacing:-.01em}
+header.hero .sub{color:#8a8a93;font-size:.82em;margin-top:.35rem}
+.health{display:inline-flex;align-items:center;gap:.5rem;padding:.4rem .9rem;
+        border-radius:999px;font-weight:600;font-size:.9em;border:1px solid}
+.health.ok{color:#10b981;border-color:#064e3b;background:#022c22}
+.health.warn{color:#f59e0b;border-color:#78350f;background:#2c1a02}
+.health.crit{color:#ef4444;border-color:#7f1d1d;background:#2a0808}
+.health.down{color:#a1a1aa;border-color:#3f3f46;background:#18181b}
+.mx-wrap{overflow-x:auto;margin-top:.6rem}
+.hostgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:1.1rem;margin-top:.5rem}
+.host-row{display:grid;grid-template-columns:88px 1fr;gap:.5rem;align-items:start;
+  padding:.4rem 0;border-bottom:1px solid #1f1f23;font-size:.88em}
+.host-row:last-child{border-bottom:0}
+.host-row .host-label{margin-bottom:0;font-size:.82em;line-height:1.25}
+.mx-corner{background:transparent}
+.mx-head{background:#18181b;border:1px solid #27272a;border-top:4px solid #3f3f46;
+  border-radius:10px 10px 0 0;padding:.65rem .8rem;font-weight:600;font-size:.95rem;
+  display:flex;align-items:center;flex-wrap:wrap;gap:.5rem}
+.mx-head.ok{border-top-color:#10b981}
+.mx-head.warn{border-top-color:#f59e0b}
+.mx-head.crit{border-top-color:#ef4444}
+.mx-head.down{border-top-color:#52525b}
+.mx-label{display:flex;align-items:center;color:#a1a1aa;font-size:.76rem;font-weight:600;
+  text-transform:uppercase;letter-spacing:.04em;padding:.6rem .4rem;white-space:nowrap}
+.mx-cell{background:#141417;border:1px solid #232326;border-radius:8px;padding:.6rem .8rem;font-size:.9em}
+.mx-label.z-even,.mx-cell.z-even{background:#191a1e}
+.host-card{background:#18181b;border:1px solid #27272a;border-left:4px solid #3f3f46;
+           border-radius:12px;padding:1rem 1.2rem}
+.host-card.ok{border-left-color:#10b981}
+.host-card.warn{border-left-color:#f59e0b}
+.host-card.crit{border-left-color:#ef4444}
+.host-card.down{border-left-color:#52525b}
+.host-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem}
+.host-head h3{margin:0;font-size:1.05rem}
+.badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:.72em;font-weight:700;
+  border:1px solid transparent}
+.badge.ok{background:#0d3d30;color:#34d399;border-color:#10b981}
+.badge.warn{background:#4a2d06;color:#fbbf24;border-color:#f59e0b}
+.badge.crit{background:#4c0f0f;color:#f87171;border-color:#ef4444}
+.badge.na{background:#27272a;color:#a1a1aa;border-color:#3f3f46}
+.badge.down{background:#3f3f46;color:#e4e4e7;border-color:#71717a}
+.val{font-size:1.15em;font-weight:700;font-variant-numeric:tabular-nums}
+.val.ok{color:#34d399}.val.warn{color:#fbbf24}.val.crit{color:#f87171}.val.na{color:#a1a1aa}
+.host-section{margin-top:.7rem}
+.host-label{color:#a1a1aa;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;
+            font-weight:600;margin-bottom:.35rem}
+.disk-row{display:flex;align-items:center;gap:.5rem;font-size:.85em;margin:.25rem 0}
+.disk-row code{flex:0 0 auto;min-width:70px;color:#d4d4d8}
+.disk-row .bar{flex:1;background:#27272a;border-radius:6px;height:6px;overflow:hidden}
+.disk-row .bar>span{display:block;height:100%;border-radius:6px}
+.bar>span.green{background:linear-gradient(90deg,#10b981,#34d399)}
+.bar>span.yellow{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+.bar>span.orange{background:linear-gradient(90deg,#f97316,#fb923c)}
+.bar>span.red{background:linear-gradient(90deg,#ef4444,#f87171)}
+.disk-row .pct{flex:0 0 auto;width:38px;text-align:right;color:#a1a1aa}
+.disk-size{color:#71717a;font-size:.78em;margin:-.05rem 0 .4rem 0}
+.muted{color:#71717a;font-size:.85em}
+.issue-list{list-style:none;margin:0;padding:0;font-size:.85em}
+.issue-list li{padding:.15rem 0;color:#d4d4d8}
+.issue-list li code{color:#fca5a5}
+.top-list{list-style:none;margin:.3rem 0 0;padding:0;font-size:.85em}
+.top-list li{padding:.1rem 0;color:#d4d4d8}
+.top-list li code{color:#93c5fd}
+code{background:#27272a;padding:1px 6px;border-radius:4px;font-size:.85em;color:#d4d4d8;word-break:break-all}
+details{margin-top:.25rem}
+details summary{cursor:pointer;font-size:.78em;color:#71717a}
+.logpre{white-space:pre-wrap;word-break:break-all;font-size:.72em;color:#a1a1aa;margin:.3rem 0 0;
+        background:#0f0f11;border:1px solid #27272a;border-radius:6px;padding:.5rem .7rem;overflow-x:auto}
+.synthesis-band{background:linear-gradient(180deg,#0f1626,#161618);border:1px solid #1e3a5f;
+  border-left:4px solid #3b82f6;border-radius:14px;padding:1.2rem 1.5rem;margin:0 0 1.4rem}
+.synthesis-band h2{margin:0 0 .7rem;font-size:1rem;color:#93c5fd}
+.synthesis-band .tldr{font-size:1.02rem;line-height:1.6;margin:0 0 .8rem;font-style:normal;color:#e8e8ea}
+.bullets{list-style:none;padding:0;margin:0}
+.bullets li{padding:.35rem 0;border-bottom:1px solid #1e293b;font-size:.92rem}
+.bullets li:last-child{border:0}
+.bullets li::before{content:"▸ ";color:#3b82f6;font-weight:bold}
+/* Tableau full-bleed : deborde du body centre pour utiliser toute la largeur ecran */
+.full-bleed{width:100vw;position:relative;left:50%;right:50%;margin-left:-50vw;margin-right:-50vw;
+  padding:0 2rem;box-sizing:border-box;overflow-x:auto;margin-top:.5rem}
+.dash-table{width:100%;min-width:1000px;border-collapse:collapse;background:#141417;
+  border-radius:10px;overflow:hidden}
+.dash-table th{background:#18181b;color:#a1a1aa;text-align:left;padding:.7rem .9rem;
+  font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;
+  border-bottom:2px solid #27272a;white-space:nowrap}
+.dash-table td{padding:.7rem .9rem;border-bottom:1px solid #232326;vertical-align:top;font-size:.86em}
+.dash-table tbody tr:last-child td{border-bottom:0}
+.dash-table tbody tr:nth-child(even){background:#18181b}
+.dash-table tbody tr.ok{box-shadow:inset 4px 0 0 #10b981}
+.dash-table tbody tr.warn{box-shadow:inset 4px 0 0 #f59e0b}
+.dash-table tbody tr.crit{box-shadow:inset 4px 0 0 #ef4444}
+.dash-table tbody tr.down{box-shadow:inset 4px 0 0 #52525b}
+.dash-table td.td-host{font-weight:600;white-space:nowrap;font-size:.92em}
+.dash-table td.td-host .badge{margin-left:.5rem}
+footer{margin-top:2.5rem;padding-top:1rem;border-top:1px solid #27272a;color:#52525b;font-size:.78em;text-align:center}
+a{color:#60a5fa;text-decoration:none}a:hover{text-decoration:underline}
+"""
+
+
+def _bar_class(pct: int) -> str:
+    if pct >= DISK_CRIT_PCT:
+        return "red"
+    if pct >= DISK_WARN_PCT:
+        return "orange"
+    if pct >= 60:
+        return "yellow"
+    return "green"
+
+
+def _pct_badge_class(pct: float, warn: float, crit: float) -> str:
+    if pct >= crit:
+        return "crit"
+    if pct >= warn:
+        return "warn"
+    return "ok"
+
+
+def compute_host_blocks(h: dict) -> dict:
+    """Construit les blocs HTML de chaque catégorie pour un host (grille alignée par ligne)."""
+    if not h["reachable"]:
+        na = "<div class='muted'>—</div>"
+        return {
+            "header": html_lib.escape(h["name"]), "level": "down",
+            "disk": "<div class='muted'>Hôte injoignable en SSH (timeout ou clé refusée)"
+                    + (" ou PowerShell sans réponse" if h.get("os") == "windows" else "") + ".</div>",
+            "systemd": na, "load": na, "kernel": na, "apt": na, "ssh": na, "smart": na,
+            "docker_label": "🐳 Docker", "docker": na,
+        }
+
+    level = h["level"]
+
+    def _disk_row(d: dict) -> str:
+        cls = _bar_class(d["used_pct"])
+        return (
+            f"<div class='disk-row'><code>{html_lib.escape(d['mount'])}</code>"
+            f"<div class='bar'><span class='{cls}' style='width:{d['used_pct']}%'></span></div>"
+            f"<span class='pct'>{d['used_pct']}%</span></div>"
+            f"<div class='disk-size'>{d['used_gb']} / {d['size_gb']} GB</div>"
+        )
+    # Petits volumes (ex. /boot/efi, /etc/pve) caches par defaut, SAUF s'ils ont un vrai
+    # souci (warn/crit) — un petit volume plein reste un probleme a voir tout de suite.
+    DISK_MINOR_GB = 2
+    def _is_minor(d: dict) -> bool:
+        return d["size_gb"] < DISK_MINOR_GB and not d["warning"] and not d["critical"]
+    main_disks = [d for d in h["disks"][:8] if not _is_minor(d)]
+    minor_disks = [d for d in h["disks"][:8] if _is_minor(d)]
+    disk_block = "".join(_disk_row(d) for d in main_disks) or "<div class='muted'>—</div>"
+    if minor_disks:
+        minor_rows = "".join(_disk_row(d) for d in minor_disks)
+        disk_block += (f"<details><summary>+{len(minor_disks)} petit(s) volume(s)</summary>"
+                       f"{minor_rows}</details>")
+
+    failed = h["systemd"]["failed"]
+    if failed:
+        items = "".join(
+            f"<li><code>{html_lib.escape(s['unit'])}</code> "
+            f"<span class='muted'>{html_lib.escape(s['sub'])}</span></li>" for s in failed[:6]
+        )
+        systemd_block = f"<ul class='issue-list'>{items}</ul>"
+    else:
+        systemd_block = ("<div class='muted'>✅ Services automatiques démarrés</div>" if h.get("os") == "windows"
+                         else "<div class='muted'>✅ A jour!</div>")
+
+    kernel = h["kernel"]
+    if kernel["has_errors"]:
+        logs = "".join(f"<div>{html_lib.escape(l)}</div>" for l in kernel["samples"])
+        kernel_block = (f"<span class='badge warn'>{len(kernel['samples'])}</span> erreur(s) récente(s)"
+                        f"<details><summary>voir</summary><div class='logpre'>{logs}</div></details>")
+    elif kernel.get("available") is False:
+        kernel_block = "<div class='muted'>Non relevé (Beszel seul)</div>"
+    else:
+        kernel_block = ("<div class='muted'>✅ Aucune erreur critique ou disque (journal Système, 24h)</div>"
+                        if h.get("os") == "windows" else "<div class='muted'>✅ Aucune erreur kernel (24h)</div>")
+
+    apt = h["apt"]
+    if apt.get("available") is False:
+        apt_block = ("<div class='muted'>Non relevé par Beszel</div>" if h.get("source") == "beszel"
+                     else "<div class='muted'>Non lisible (recherche Windows Update refusée)</div>")
+    elif apt["upgradable"]:
+        apt_cls = "crit" if apt["upgradable"] >= APT_CRIT_N else "warn"
+        sample = "".join(f"<li>{html_lib.escape(s)}</li>" for s in apt["sample"])
+        apt_block = (f"<span class='badge {apt_cls}'>{apt['upgradable']}</span> paquet(s) à mettre à jour"
+                    + (f"<details><summary>voir</summary><ul class='top-list'>{sample}</ul></details>" if sample else ""))
+    else:
+        apt_block = "<div class='muted'>✅ Système à jour</div>"
+
+    dk = h["docker"]
+    if not dk.get("accessible"):
+        docker_label = "🐳 Docker"
+        docker_block = ("<div class='muted'>N/A (Windows)</div>" if dk.get("reason") == "windows"
+                        else "<div class='muted'>Non relevé (Beszel seul)</div>" if dk.get("reason") == "beszel"
+                        else "<div class='muted'>Non accessible (pas d'accès docker)</div>")
+    else:
+        docker_label = f"🐳 Docker<br>({dk['total']} cont.)"
+        count_cls = docker_level(dk)
+        # CPU cumulé compare au nombre de coeurs de l'hote (meme logique que la Charge) :
+        # ex. 250% cumule sur 2 CPU = 1.25x -> ok/warn/crit selon LOAD_WARN/CRIT_MULT.
+        ncpu = h["load"]["ncpu"] if h["load"].get("available") else 1
+        total_ratio = dk["total_cpu"] / 100 / max(ncpu, 1)
+        total_cls = "crit" if total_ratio >= LOAD_CRIT_MULT else "warn" if total_ratio >= LOAD_WARN_MULT else "ok"
+        avg_cls = _pct_badge_class(dk["avg_cpu"], DOCKER_CPU_WARN_PCT, DOCKER_CPU_CRIT_PCT)
+        parts = [
+            f"<div><span class='badge {count_cls}' title='conteneurs en marche / conteneurs censés tourner'>"
+            f"{dk['healthy']}/{dk['total']} OK</span>"
+            + (f" <span class='muted' title='Created ou arrêtés proprement (code 0/137/143) : arrêt voulu, pas une panne'>"
+               f"· {dk['stopped']} arrêté{'s' if dk['stopped'] > 1 else ''}</span>" if dk.get("stopped") else "")
+            + "</div>",
+            f"<div style='margin-top:.35rem'><span class='val {total_cls}'>{dk['total_cpu']}%</span> "
+            f"<span class='muted'>CPU cumulé</span></div>"
+            f"<div><span class='val {avg_cls}'>{dk['avg_cpu']}%</span> <span class='muted'>moyenne/conteneur</span></div>",
+        ]
+        if dk["top"]:
+            titems = "".join(
+                f"<li><code>{html_lib.escape(c['name'])}</code> "
+                f"<span class='val {_pct_badge_class(c['cpu'], DOCKER_CPU_WARN_PCT, DOCKER_CPU_CRIT_PCT)}'>{c['cpu']}%</span> "
+                f"<span class='muted'>cpu</span> "
+                f"<span class='val {_pct_badge_class(c['mem_pct'], DOCKER_MEM_WARN_PCT, DOCKER_MEM_CRIT_PCT)}'>{c['mem_pct']}%</span> "
+                f"<span class='muted'>mem</span></li>"
+                for c in dk["top"]
+            )
+            parts.append(f"<div class='host-label' style='margin-top:.5rem'>Top conso</div><ul class='top-list'>{titems}</ul>")
+        if dk["issues"]:
+            items = "".join(
+                f"<li><code>{html_lib.escape(c['name'])}</code> "
+                f"<span class='muted'>{html_lib.escape(c['status'])}</span></li>" for c in dk["issues"][:6]
+            )
+            parts.append(f"<ul class='issue-list'>{items}</ul>")
+        if dk.get("stopped_list"):
+            items = "".join(
+                f"<li><code>{html_lib.escape(c['name'])}</code> "
+                f"<span class='muted'>{html_lib.escape(c['status'])}</span></li>" for c in dk["stopped_list"]
+            )
+            parts.append(f"<details class='muted' style='margin-top:.35rem'><summary>arrêtés volontairement</summary>"
+                         f"<ul class='top-list'>{items}</ul></details>")
+        docker_block = "".join(parts)
+
+    reboot_chip = " <span class='badge warn'>🔄 reboot</span>" if h["reboot_required"] else ""
+
+    load = h["load"]
+    if not load["available"]:
+        load_block = "<div class='muted'>Non disponible</div>"
+    elif load.get("cpu_pct") is not None:  # Windows
+        try:
+            up = (datetime.now(timezone.utc) - datetime.fromisoformat(load["boot"].replace("Z", "+00:00"))).days
+        except (AttributeError, ValueError):
+            up = None
+        load_block = (f"<div><span class='val {load_level(load)}'>{load['cpu_pct']}%</span> <span class='muted'>CPU</span></div>"
+                      f"<div class='muted'>{load['ncpu']} CPU</div>"
+                      + (f"<div class='muted'>démarré il y a {up} j</div>" if up is not None else ""))
+    else:
+        lcls = load_level(load)
+        ratio_pct = round((load["load_1"] / load["ncpu"]) * 100)
+        # Valeurs en couleur seule (sans badge) : plus lisibles, couleur selon le seuil
+        load_block = (f"<div><span class='val {lcls}'>{load['load_1']:.2f}</span> <span class='muted'>load 1 min</span></div>"
+                      f"<div class='muted'>{load['ncpu']} CPU</div>"
+                      f"<div><span class='val {lcls}'>{ratio_pct}%</span> <span class='muted'>de charge</span></div>")
+
+    ssh_auth = h["ssh_auth"]
+    if not ssh_auth["available"]:
+        ssh_block = f"<div class='muted'>Non lisible ({html_lib.escape(ssh_auth.get('reason', 'journal inaccessible'))})</div>"
+    else:
+        scls = ssh_auth_level(ssh_auth)
+        ssh_block = (f"<div class='muted'><span class='badge {scls}'>{ssh_auth['failed_24h']}</span> "
+                    + ("échec(s) de connexion Windows (24h)" if h.get("os") == "windows" else "tentative(s) échouée(s) (24h)")
+                    + "</div>")
+
+    smart = h["smart"]
+    if smart.get("vm"):
+        smart_block = "<div class='muted'>N/A (machine virtuelle)</div>"
+    elif not smart["accessible"]:
+        smart_block = "<div class='muted'>Non accessible (smartctl absent ou permissions)</div>"
+    else:
+        sitems = "".join(
+            f"<li>Disk {html_lib.escape(d['device'])}: "
+            f"<span class='badge {'crit' if d['failed'] else 'ok'}'>{'FAILED' if d['failed'] else 'PASSED'}</span></li>"
+            for d in smart["disks"]
+        )
+        smart_block = f"<ul class='top-list'>{sitems}</ul>" if sitems else "<div class='muted'>Aucun disque détecté</div>"
+        if smart.get("source") == "beszel":
+            smart_block += "<div class='muted'>lu par Beszel</div>"
+
+    return {
+        "header": f"{html_lib.escape(h['name'])}{reboot_chip}", "level": level,
+        "disk": disk_block, "systemd": systemd_block, "load": load_block, "kernel": kernel_block,
+        "apt": apt_block, "ssh": ssh_block, "smart": smart_block,
+        "docker_label": docker_label, "docker": docker_block,
+    }
+
+
+def next_label() -> str:
+    """« prochaine analyse à HH:MM » d'après le timer systemd, vide sans timer."""
+    nxt = next_timer_run(TIMER)
+    return f"prochaine analyse à {datetime.fromisoformat(nxt).astimezone():%H:%M}" if nxt else ""
+
+
+def render_html(stats: dict) -> str:
+    local_ts = datetime.fromisoformat(stats["timestamp"]).astimezone()
+    now_str = local_ts.strftime("%Y-%m-%d %H:%M ") + local_ts.tzname()
+    hosts = stats["hosts"]
+    blocks = [compute_host_blocks(h) for h in hosts]
+    overall = stats["overall_level"]
+    nxt = next_label()
+
+    columns = [
+        ("💾 Disque", "disk"), ("⚙️ Systemd", "systemd"), ("⚡ Charge", "load"),
+        ("🐧 Kernel", "kernel"), ("📦 Maj", "apt"), ("🔐 SSH", "ssh"),
+        ("🩺 SMART", "smart"), ("🐳 Docker", "docker"),
+    ]
+    thead = "<th>Machine</th>" + "".join(f"<th>{label}</th>" for label, _ in columns)
+    trows = []
+    for b in blocks:
+        tds = "".join(f"<td>{b[key]}</td>" for _, key in columns)
+        trows.append(
+            f"<tr class='{b['level']}'>"
+            f"<td class='td-host'>{b['header']}<br><span class='badge {b['level']}'>{LEVEL_LABEL[b['level']]}</span></td>"
+            f"{tds}</tr>"
+        )
+    table_html = f"""<div class="full-bleed"><table class="dash-table">
+<thead><tr>{thead}</tr></thead>
+<tbody>{''.join(trows)}</tbody>
+</table></div>"""
+    return f"""<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Health · MyServices</title><link rel="icon" type="image/svg+xml" href="../favicon.svg?v=2">
+<style>{CSS}</style></head><body>
+<header class="hero">
+  <div>
+    <h1>🩺 Health Dashboard <span class='muted' style='font-size:.6em;font-weight:400'>· {len(stats['hosts'])} machines</span></h1>
+    <div class="sub">Dernière analyse : <strong>{now_str}</strong>{' · ' + nxt if nxt else ''} · sans LLM, lecture seule · <a href="../#machines" style="color:#60a5fa">voir aussi MyServices › Machines</a></div>
+  </div>
+  <div class="health {overall}">● {LEVEL_LABEL[overall]}</div>
+</header>
+{table_html}
+</body></html>"""
+
+# ───────────── Historique (events.json) ─────────────
+
+EVENT_LABELS = {"health_ok": "🩺 Santé OK", "health_warn": "🩺 Santé WARN",
+                "health_crit": "🩺 Santé CRIT", "health_down": "🩺 Machine injoignable (health)"}
+EVENT_SEVERITY = {"health_ok": 0, "health_warn": 1, "health_crit": 3, "health_down": 3}
+
+
+def host_reasons(h: dict) -> str:
+    """Sous-contrôles non OK d'une machine, ex. « noyau WARN, disque CRIT »."""
+    if not h["reachable"]:
+        return "SSH injoignable"
+    sub = (("disque", disk_level(h["disks"])), ("systemd", systemd_level(h["systemd"])),
+           ("docker", docker_level(h["docker"])), ("noyau", kernel_level(h["kernel"])),
+           ("charge", load_level(h["load"])), ("SSH", ssh_auth_level(h["ssh_auth"])),
+           ("SMART", smart_level(h["smart"])))
+    return ", ".join(f"{name} {LEVEL_LABEL[lvl]}" for name, lvl in sub if lvl in ("warn", "crit"))
+
+
+def record_events(hosts: list[dict], prev_levels: dict, ts: str) -> None:
+    """Ajoute un événement par machine dont le niveau a changé depuis le passage précédent.
+    Premier passage (prev_levels vide) = simple relevé de référence, aucun événement."""
+    try:
+        data = json.loads(EVENTS_JSON.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {"events": []}
+    local = datetime.fromisoformat(ts).astimezone()
+    for h in hosts:
+        old, new = prev_levels.get(h["id"]), h["level"]
+        if old is None or old == new:
+            continue
+        reasons = host_reasons(h)
+        name, ip = h["name"].split(" · ")[0], h["name"].split(" · ")[-1]  # « Nom · IP »
+        data["events"].append({
+            "kind": f"health_{new}", "key": f"health:{h['id']}", "label": name, "machine": name, "target": ip,
+            "detail": f"{LEVEL_LABEL.get(old, old)} → {LEVEL_LABEL[new]}" + (f" · {reasons}" if reasons else ""),
+            "at": local.strftime("%Y-%m-%d %H:%M"), "ts": local.isoformat(timespec="seconds"),
+        })
+    cutoff = local - timedelta(days=EVENTS_RETENTION_DAYS)
+    data["events"] = sorted((e for e in data["events"] if datetime.fromisoformat(e["ts"]) >= cutoff),
+                            key=lambda e: e["ts"], reverse=True)
+    data.update(generated=local.isoformat(timespec="seconds"), retention_days=EVENTS_RETENTION_DAYS,
+                labels=EVENT_LABELS, severity=EVENT_SEVERITY)
+    EVENTS_JSON.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+# ───────────── Main ─────────────
+
+def main() -> int:
+    dry = "--dry-run" in sys.argv
+    ts = datetime.now(timezone.utc).isoformat()
+
+    if OUT_DIR.is_symlink():  # health_url branché sur un health-watcher externe : ne jamais écrire dedans
+        sys.exit(f"{OUT_DIR} est un lien (health externe) : health.py ne tourne pas")
+    hosts = []
+    candidates, meta = load_hosts()
+    besz, _ = beszel_systems(meta)
+    for hc in candidates:
+        b = besz.get(hc["ip"])
+        if not hc["target"]:  # sans SSH : Beszel seulement
+            if not b:
+                continue
+            print(f"▸ {hc['name']} : relevé Beszel")
+            h = {"id": hc["id"], "name": hc["name"], "os": hc["os"], "reachable": b.get("status") == "up", **parse_beszel(b)}
+            h["level"] = host_level(h) if h["reachable"] else "down"
+        else:
+            print(f"▸ Collecte {hc['name']}...")
+            h = collect_host(hc)
+            if b and h["reachable"]:  # Beszel complète ce que SSH n'a pas pu lire
+                if not h["smart"]["accessible"] and not h["smart"].get("vm") and b.get("smart"):
+                    h["smart"] = smart_from_beszel(b)
+                h["temp"] = b.get("temp")
+                h["level"] = host_level(h)
+        print(f"  → {h['level'].upper()}" + ("" if h["reachable"] else " (injoignable)"))
+        hosts.append(h)
+
+    overall = worst(*(h["level"] for h in hosts))
+    stats = {"timestamp": ts, "hosts": hosts, "overall_level": overall}
+    print(f"→ global={overall.upper()}")
+
+    if dry:
+        print(json.dumps(stats, indent=2, ensure_ascii=False, default=str)[:6000])
+        return 0
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    try:  # état du passage précédent : sans lui, 1er passage = référence, aucun événement
+        prev_levels = json.loads(STATE_FILE.read_text(encoding="utf-8")).get("levels", {})
+    except (OSError, ValueError):
+        prev_levels = {}
+    record_events(hosts, prev_levels, ts)
+    STATS_JSON.write_text(json.dumps(stats, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+    INDEX.write_text(render_html(stats), encoding="utf-8")
+    print(f"✓ {INDEX}")
+    print(f"✓ {STATS_JSON}")
+
+    payload = build_discord_payload(stats)
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
+    if os.environ.get("MYSERVICES_ALERTS_ENGINE") == "1":
+        print("= Alertes envoyées par Réglages → Alertes (changements de niveau).")
+    elif HASH_FILE.exists() and HASH_FILE.read_text().strip() == digest:
+        print("= Même contenu, pas d'alerte.")
+    else:
+        # Résumé mémorisé seulement si chaque canal configuré l'a reçu : sinon renvoyé au passage suivant
+        sent = [post_discord(payload) == 0] if CFG["health_webhook"] or CFG["discord_webhook"] else []
+        if notify.telegram_on():
+            e = payload["embeds"][0]
+            ok_, msg = notify.send_telegram(f"{e['title']}\n\n{e['description']}")
+            print(("✓ " if ok_ else "⚠ ") + msg, file=sys.stdout if ok_ else sys.stderr)
+            sent.append(ok_)
+        if not sent:
+            print("pas d'alerte : ni Discord ni Telegram configuré", file=sys.stderr)
+        elif all(sent):
+            HASH_FILE.write_text(digest, encoding="utf-8")
+
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    STATE_FILE.write_text(json.dumps({"last_run": ts, "overall_level": overall,
+                                      "levels": {h["id"]: h["level"] for h in hosts}}, indent=2), encoding="utf-8")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,15 @@
+# MyServices : veille sauvegardes (backups.py), lecture seule, sans LLM.
+# Root : mêmes clés SSH et alias que le collecteur ; backups.json rendu au propriétaire du projet.
+[Unit]
+Description=MyServices : veille sauvegardes -> backups.json
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=@PYTHON@ @DIR@/backups.py
+TimeoutStartSec=15min
+Nice=10

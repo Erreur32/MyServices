@@ -1,0 +1,113 @@
+{
+  "_doc": "Config MyServices éditable à la main. machines : IP -> nom, rôle, alias SSH pour docker (null = pas d'inventaire). process_hosts : machines dont on lit les ports en écoute (ss -tlnp, root requis). categories : [nom, regex] testées dans l'ordre sur domaine + conteneur + image + titre. services : surcharges par domaine / ip:port / nom de conteneur (category, description, tags, web, direct_ok, public, pause). extra : services ajoutés à la main. machines.npm_only : machine joignable seulement depuis NPM (pare-feu), ses backends sont testés via NPM. machines.off : machine éteinte volontairement ; tant qu'elle ne répond pas au ping, ses services sont affichés « machine éteinte » (ni panne, ni alerte). machines.gateway : la passerelle (IP complète dans le filtre, sous-titre de la page). machines.npm : la machine qui héberge NPM (sous-titre de la page). machines.adguard : nom du conteneur AdGuard Home de la machine (lu par docker exec, lecture seule) ; chaque domaine NPM est demandé à chaque AdGuard. machines.adguard_sync : conteneur adguardhome-sync de la machine, détecté seul dans l'inventaire docker (false = l'ignorer) ; journal lu par docker logs : origine, répliques, fréquence, dernière synchro, erreurs. ssh \"local\" : la machine collectrice.",
+  "machines": {
+    "192.168.1.1": {
+      "name": "Routeur",
+      "role": "passerelle · DHCP / firewall",
+      "ssh": null,
+      "gateway": true
+    },
+    "192.168.1.10": {
+      "name": "serveur",
+      "role": "NPM + AdGuard + docker",
+      "ssh": "serveur",
+      "npm": true,
+      "adguard": "adguardhome"
+    },
+    "192.168.1.20": {
+      "name": "collecteur",
+      "role": "machine qui lance MyServices",
+      "ssh": "local"
+    },
+    "192.168.1.30": {
+      "name": "nas",
+      "role": "stockage",
+      "ssh": "nas"
+    },
+    "192.168.1.40": {
+      "name": "vm-test",
+      "role": "VM éteinte (normal)",
+      "ssh": null,
+      "off": true
+    }
+  },
+  "ignored_ips": [],
+  "process_hosts": {
+    "192.168.1.20": "local"
+  },
+  "categories": [
+    [
+      "IA",
+      "ollama|open-?webui|llama|opencode|claude|\\btts|openedai|whisper"
+    ],
+    [
+      "Sécurité",
+      "honeypot|vaultwarden|bitwarden|crowdsec|authelia|authentik|fail2ban|wazuh"
+    ],
+    [
+      "Médias",
+      "plex|jellyfin|emby|sonarr|radarr|lidarr|prowlarr|bazarr|overseerr|jellyseerr|tautulli|tunarr|reiverr|ytdl|youtube|transmission|qbittorrent|navidrome|immich|photoprism"
+    ],
+    [
+      "Monitoring",
+      "glances|btop|netdata|munin|beszel-agent|prometheus-node|prometheus|grafana|uptime|kuma|beszel|patchmon|netalert|portracker|dozzle|scrutiny|unpoller|influx|loki|awstats|pulse|speedtest|dashdot|cadvisor|victoriametrics|vmagent|rybbit"
+    ],
+    [
+      "Réseau / DNS",
+      "adguard|unifi|opnsense|nginx-proxy|wireguard|tailscale|pihole"
+    ],
+    [
+      "Domotique",
+      "home-?assistant|zigbee|mqtt|node-?red|esphome|frigate"
+    ],
+    [
+      "Infra / virtualisation",
+      "proxmox|pveproxy|spiceproxy|casaos|portainer|arcane|dockge|komodo|backrest|backup|duplicati|watchtower|dockhand|hawser"
+    ],
+    [
+      "Fichiers / sync",
+      "syncthing|files|filebrowser|nextcloud|paperless|archive|convertx|stirling|pastebin"
+    ],
+    [
+      "Dev / automatisation",
+      "code-server|vscode|forgejo|gitea|n8n|jenkins|drone|searx"
+    ],
+    [
+      "Bureau distant",
+      "brave|kasm|guacamole|webtop|novnc|sshwifty"
+    ],
+    [
+      "Outils",
+      "it-tools|networking-toolbox|web-check|\\bvert\\b|theme\\.?park|opengist|poznote|organizr"
+    ],
+    [
+      "Système",
+      "^(sshd|smbd|nginx)\\b"
+    ],
+    [
+      "Web / perso",
+      "wallabag|freshrss|miniflux|links|linkding|wiki|homepage|homarr|wordpress"
+    ]
+  ],
+  "services": {
+    "192.168.1.10:80": {
+      "direct_ok": true,
+      "description": "NPM : port HTTP d'entrée, accès direct normal"
+    },
+    "exemple.lan": {
+      "category": "Outils",
+      "description": "description forcée",
+      "tags": [
+        "perso"
+      ]
+    }
+  },
+  "extra": [
+    {
+      "name": "Imprimante",
+      "ip": "192.168.1.50",
+      "port": 80,
+      "scheme": "http"
+    }
+  ]
+}

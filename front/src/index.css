@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Couleurs (canaux RVB, pour l'opacité Tailwind) : sombre = palette de la page actuelle ; clair = mêmes teintes
+   d'état, un peu plus foncées pour rester lisibles sur fond blanc. */
+:root {
+  --bg: 12 14 20; --bg2: 17 20 29; --card: 22 26 38; --line: 35 40 56;
+  --txt: 230 233 242; --muted: 154 163 184; --dim: 107 116 136;
+  --ok: 76 208 127; --warn: 232 163 61; --bad: 240 106 106; --link: 36 150 237;
+  --npm: 250 164 47; --loc: 56 189 248; --apache: 192 132 252;
+  color-scheme: dark;
+  --content-max: 1400px; /* largeur de la page, réglable (Réglages → Apparence) */
+}
+:root.light {
+  --bg: 244 246 250; --bg2: 236 239 245; --card: 255 255 255; --line: 218 223 232;
+  --txt: 22 27 38; --muted: 83 93 114; --dim: 120 129 148;
+  --ok: 22 150 75; --warn: 196 120 10; --bad: 214 54 54; --link: 18 112 196;
+  --npm: 214 128 10; --loc: 8 140 196; --apache: 147 84 220;
+  color-scheme: light;
+}
+
+body {
+  background-image: radial-gradient(1200px 700px at 80% -10%, rgb(var(--card)) 0%, rgb(var(--bg)) 55%);
+  background-attachment: fixed;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* Curseur (Réglages → Apparence) : piste discrète, bouton à la couleur des liens */
+.range { appearance: none; height: 6px; border-radius: 9999px; cursor: pointer; background: rgb(var(--txt) / 0.12); }
+.range::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 9999px; background: rgb(var(--link)); box-shadow: 0 0 0 3px rgb(var(--link) / 0.25); }
+.range::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 9999px; background: rgb(var(--link)); box-shadow: 0 0 0 3px rgb(var(--link) / 0.25); }
+.range:focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(var(--link) / 0.35); }

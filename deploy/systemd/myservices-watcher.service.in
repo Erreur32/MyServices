@@ -1,0 +1,16 @@
+# MyServices : veille des changements (lit data.json, écrit events.json, alerte Discord).
+# Aucun droit root : tourne sous le propriétaire du projet, état dans /var/lib/myservices-watcher.
+# La sortie standard (résumé des changements) va dans le journal : journalctl -u myservices-watcher
+[Unit]
+Description=MyServices : veille des changements -> events.json
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=@OWNER_USER@
+Group=@OWNER_GROUP@
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=MYSERVICES_STATE_DIR=/var/lib/myservices-watcher
+StateDirectory=myservices-watcher
+ExecStart=@PYTHON@ @DIR@/watcher.py
+NoNewPrivileges=true

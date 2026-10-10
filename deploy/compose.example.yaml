@@ -1,0 +1,64 @@
+# MyServices v2 : exemple de docker compose, prêt à l'emploi.
+#
+#   mkdir -p /opt/myservices && cd /opt/myservices
+#   curl -fsSLo compose.yaml https://raw.githubusercontent.com/Erreur32/MyServices/docker/deploy/compose.example.yaml
+#   docker compose up -d
+#   docker compose logs myservices      # clé publique de l'app + commande pour l'autoriser sur l'hôte
+#
+# Puis, dans les 30 minutes : ouvrir http://<IP de l'hôte>:8090/myservices/v2/ et créer le compte admin
+# (passé ce délai : docker compose restart myservices). Le reste se règle dans la page (Réglages).
+#
+# Droits : l'app tourne sous le compte 10001 (jamais root) ; « init » donne ./config et ./data à ce compte
+# avant chaque démarrage (dossiers créés par Docker = root sinon, et l'app ne pourrait rien y écrire).
+# Pas de socket Docker : la machine hôte est lue par SSH comme les autres (alias « hote », créé au démarrage).
+# Importer une installation classique (systemd) : voir import_install.py dans le README.
+
+services:
+  init:
+    image: busybox:1.37
+    user: "0:0"
+    # config : secrets, clés SSH, comptes → 700 / 600 ; data : page produite, état, base SQLite
+    command: >-
+      sh -c 'mkdir -p /config/ssh /data &&
+             chown -R 10001:10001 /config /data &&
+             chmod 700 /config /config/ssh &&
+             find /config -type f -exec chmod 600 {} +'
+    volumes:
+      - ./config:/config
+      - ./data:/data
+    network_mode: none
+    restart: "no"
+
+  myservices:
+    image: ghcr.io/erreur32/myservices:docker     # ou : build: . (depuis le dépôt cloné)
+    container_name: myservices
+    restart: unless-stopped
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    # Réseau de l'hôte : ping et recherche sur le LAN, SSH vers les machines, page sur MYSERVICES_PORT
+    network_mode: host
+    environment:
+      TZ: Europe/Paris
+      MYSERVICES_PORT: "8090"
+      # Réseaux autorisés à ouvrir la page (défaut : réseaux privés et boucle locale)
+      # MYSERVICES_ALLOW: "192.168.1.0/24,127.0.0.0/8"
+      # Compte SSH de l'alias « hote » (machine hôte) ; un compte dédié non root est plus sûr (README)
+      # MYSERVICES_HOST_USER: "root"
+      # Derrière un proxy HTTPS (NPM, Caddy…) : cookies de session marqués Secure
+      # MYSERVICES_COOKIE_SECURE: "1"
+      # Horaires des tâches, « minutes heures » (défauts : collecte 10,40 *, veille 15,45 *, santé 0 0,6,12,18)
+      # MYSERVICES_COLLECT_AT: "10,40 *"
+    volumes:
+      - ./config:/config   # config.json, services-meta.json, secret.key, ssh/ (clé de l'app, alias, known_hosts)
+      - ./data:/data       # page produite, caches, état, myservices.db (comptes, historique, alertes)
+    # Durcissement : système de fichiers en lecture seule, aucun droit noyau, pas d'élévation
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
