@@ -149,8 +149,8 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
           )}
           {docker?.present && (
             <p className="mt-1 flex flex-wrap items-center gap-1.5">
-              <img src={appIcon(["Docker"]) ?? ""} alt="" aria-hidden className="h-5 w-5 object-contain" />
               <Badge tone="info">Docker</Badge>
+              <img src={appIcon(["Docker"]) ?? ""} alt="" aria-hidden className="h-5 w-5 object-contain" />
               <b className="text-txt">{tx("présent sur l'hôte")}</b>
               {!keyDone && <Badge tone="off">≈ {plural(docker.containers, "conteneur")}</Badge>}
               {!keyDone && <Badge tone="off">{plural(docker.networks, "réseau", "réseaux")}</Badge>}
