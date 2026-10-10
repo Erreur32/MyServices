@@ -26,6 +26,7 @@ function problems(h: HealthHost): [("bad" | "warn"), string][] {
   for (const d of h.smart?.disks || []) if (d.failed || !d.healthy) out.push(["bad", tx("SMART : {0} en défaut", d.device)]);
   if (h.load?.available && h.load.load_1 > h.load.ncpu) out.push(["warn", tx("charge {0} pour {1} CPU", h.load.load_1, h.load.ncpu)]);
   if (h.ssh_auth?.available && h.ssh_auth.failed_24h > 20) out.push(["warn", tx("{0} connexions SSH refusées en 24 h", h.ssh_auth.failed_24h)]);
+  if (h.temp?.available && h.temp.celsius! >= 85) out.push([h.temp.celsius! >= 95 ? "bad" : "warn", tx("processeur à {0} °C", h.temp.celsius)]);
   if (h.reboot_required) out.push(["warn", tx("redémarrage requis")]);
   if (h.apt?.upgradable) out.push(["warn", tx("{0} mise(s) à jour en attente", h.apt.upgradable)]);
   return out;
@@ -57,6 +58,7 @@ function HostCard({ h }: { h: HealthHost }) {
           <div className="flex flex-wrap gap-1.5 pt-1">
             {h.docker?.accessible && <Badge tone="off">{tx("Docker ·")} {h.docker.total ?? 0} {tx("conteneurs")}</Badge>}
             {h.load?.available && <Badge tone="off">{tx("charge")} {h.load.load_1} / {h.load.ncpu} {tx("CPU")}</Badge>}
+        {h.temp?.available && <Badge tone={h.temp.celsius! >= 95 ? "bad" : h.temp.celsius! >= 85 ? "warn" : "off"} title={h.temp.source}>{tx("CPU")} {h.temp.celsius} °C</Badge>}
             {h.smart?.accessible && <Badge tone="off">{tx("SMART ·")} {h.smart.disks.length} {tx("disque(s)")}</Badge>}
             {h.ssh_auth?.available && <Badge tone="off">{tx("SSH refusés 24 h :")} {h.ssh_auth.failed_24h}</Badge>}
           </div>

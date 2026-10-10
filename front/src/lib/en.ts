@@ -545,6 +545,7 @@ export const EN: Record<string, string> = {
   "Joignable seulement par NPM": "Reachable only through NPM",
   "Jour :": "Day:",
   "Compte": "Account",
+  "processeur à {0} °C": "processor at {0} °C",
   "Services lus par leur API": "Services read through their API",
   "relevé périmé : dernier état connu": "stale reading: last known state",
   "entités": "entities",

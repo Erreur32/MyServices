@@ -227,6 +227,7 @@ export interface HealthHost {
   apt?: { upgradable: number; sample?: string[] };
   kernel?: { has_errors: boolean; samples?: string[] };
   load?: { load_1: number; ncpu: number; available: boolean };
+  temp?: { available: boolean; celsius?: number; source?: string };  // température du processeur (capteur de la machine ou Beszel)
   ssh_auth?: { failed_24h: number; available: boolean };
   smart?: { accessible: boolean; disks: { device: string; healthy: boolean; failed?: boolean }[]; vm?: boolean };
 }

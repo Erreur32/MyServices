@@ -44,5 +44,31 @@ class AfterBanner(unittest.TestCase):
         self.assertEqual(sent["cmd"], "powershell -c x")
 
 
+class TemperatureCpu(unittest.TestCase):
+    JARVIS = ("hwmon acpitz - 31000\nhwmon nvme Composite 31850\nhwmon nvme Sensor_2 55850\n"
+              "hwmon k10temp Tctl 34000\nhwmon amdgpu edge 31000\nzone acpitz - 31000\n")
+
+    def test_amd_prend_tctl_et_ignore_nvme_gpu_acpi(self):
+        self.assertEqual(health.parse_cpu_temp(self.JARVIS), {"available": True, "celsius": 34.0, "source": "k10temp Tctl"})
+
+    def test_intel_prefere_le_package(self):
+        out = "hwmon coretemp Core_0 61000\nhwmon coretemp Package_id_0 66000\n"
+        self.assertEqual(health.parse_cpu_temp(out)["celsius"], 66.0)
+
+    def test_raspberry_par_la_zone_thermique(self):
+        self.assertEqual(health.parse_cpu_temp("zone cpu-thermal - 48312\n")["celsius"], 48.3)
+
+    def test_vm_sans_capteur_ou_sortie_bizarre(self):
+        self.assertEqual(health.parse_cpu_temp(""), {"available": False})
+        self.assertEqual(health.parse_cpu_temp("hwmon k10temp Tctl abc\nbruit\n"), {"available": False})
+        self.assertEqual(health.parse_cpu_temp("hwmon k10temp Tctl 400000\n"), {"available": False})  # valeur absurde
+
+    def test_niveaux(self):
+        lv = lambda c: health.temp_level({"available": True, "celsius": c})
+        self.assertEqual([lv(50), lv(85), lv(95)], ["ok", "warn", "crit"])
+        self.assertEqual(health.temp_level({"available": False}), "na")
+        self.assertEqual(health.temp_level(None), "na")
+
+
 if __name__ == "__main__":
     unittest.main()

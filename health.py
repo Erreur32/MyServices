@@ -332,6 +332,50 @@ def collect_load(run) -> dict:
     return {"load_1": load_1, "ncpu": ncpu, "available": True}
 
 
+TEMP_WARN_C, TEMP_CRIT_C = 85, 95  # °C du processeur ; au-delà, la machine bride ou s'éteint
+
+# Capteur du processeur : AMD (k10temp), Intel (coretemp), ARM / Raspberry Pi (cpu_thermal, cpu-thermal), x86_pkg_temp.
+# On ignore acpitz, nvme, amdgpu, wifi : ce ne sont pas le CPU.
+CPU_SENSORS = ("k10temp", "coretemp", "zenpower", "cpu_thermal", "cpu-thermal", "x86_pkg_temp")
+_TEMP_CMD = (
+    "for d in /sys/class/hwmon/hwmon*; do n=$(cat $d/name 2>/dev/null); for t in $d/temp*_input; do "
+    "[ -r \"$t\" ] && echo \"hwmon $n $(cat ${t%_input}_label 2>/dev/null | tr ' ' _) $(cat $t)\"; done; done; "
+    "for z in /sys/class/thermal/thermal_zone*; do [ -r \"$z/temp\" ] && echo \"zone $(cat $z/type 2>/dev/null) - $(cat $z/temp)\"; done"
+)
+
+
+def parse_cpu_temp(out: str) -> dict:
+    """Température du CPU d'après les lignes « source capteur étiquette millidegrés » ; la plus parlante :
+    Tctl / Package / Tdie d'abord, sinon le premier capteur CPU. {"available": False} si la machine n'en expose pas (VM…)."""
+    best = None
+    for ln in out.splitlines():
+        cols = ln.split()
+        if len(cols) != 4 or not cols[3].lstrip("-").isdigit():
+            continue
+        kind, name, label, milli = cols
+        if name not in CPU_SENSORS:
+            continue
+        c = round(int(milli) / 1000, 1)
+        if not -20 < c < 150:
+            continue
+        rank = 0 if re.match(r"(Tctl|Tdie|Package|Physical)", label, re.I) or label == "-" else 1
+        if best is None or rank < best[0]:
+            best = (rank, c, name if label in ("-", "") else f"{name} {label.replace('_', ' ')}")
+    return {"available": True, "celsius": best[1], "source": best[2]} if best else {"available": False}
+
+
+def collect_cpu_temp(run) -> dict:
+    rc, out = run(_TEMP_CMD, timeout=8)
+    return parse_cpu_temp(out) if rc == 0 else {"available": False}
+
+
+def temp_level(temp) -> str:
+    c = temp.get("celsius") if isinstance(temp, dict) else None
+    if not isinstance(c, (int, float)):
+        return "na"
+    return "crit" if c >= TEMP_CRIT_C else "warn" if c >= TEMP_WARN_C else "ok"
+
+
 def collect_ssh_auth(run) -> dict:
     """Tentatives d'auth SSH échouées sur 24h (journalctl, service ssh/sshd).
 
@@ -494,7 +538,7 @@ def parse_beszel(sys_: dict) -> dict:
         "load": load,
         "ssh_auth": {"failed_24h": 0, "available": False, "reason": "non relevé par Beszel"},
         "smart": smart_from_beszel(sys_),
-        "temp": sys_.get("temp"),
+        "temp": ({"available": True, "celsius": round(sys_["temp"], 1), "source": "Beszel"} if isinstance(sys_.get("temp"), (int, float)) else {"available": False}),
         "source": "beszel",
     }
 
@@ -598,14 +642,14 @@ def host_level(h: dict) -> str:
     """Pire niveau des contrôles d'une machine joignable (Linux ou Windows)."""
     return worst(disk_level(h["disks"]), systemd_level(h["systemd"]), docker_level(h["docker"]),
                  kernel_level(h["kernel"]), load_level(h["load"]), ssh_auth_level(h["ssh_auth"]),
-                 smart_level(h["smart"]))
+                 smart_level(h["smart"]), temp_level(h.get("temp")))
 
 
 _EMPTY_HOST_EXTRAS = {
     "apt": {"upgradable": 0, "sample": []}, "kernel": {"has_errors": False, "samples": []},
     "reboot_required": False, "load": {"load_1": 0.0, "ncpu": 1, "available": False},
     "ssh_auth": {"failed_24h": 0, "available": False},
-    "smart": {"accessible": False, "disks": []},
+    "smart": {"accessible": False, "disks": []}, "temp": {"available": False},
 }
 
 
@@ -626,11 +670,12 @@ def collect_host(host: dict) -> dict:
     reboot_required = collect_reboot_required(run)
     load = collect_load(run)
     ssh_auth = collect_ssh_auth(run)
+    temp = collect_cpu_temp(run)
     # SMART non pertinent sur une VM (disque virtualisé, pas de hardware physique dédié)
     smart = {"accessible": False, "disks": [], "vm": True} if host.get("vm") else collect_smart(run)
     h = {"id": host["id"], "name": host["name"], "reachable": True,
          "disks": disks, "systemd": systemd, "docker": docker, "apt": apt, "kernel": kernel,
-         "reboot_required": reboot_required, "load": load, "ssh_auth": ssh_auth, "smart": smart}
+         "reboot_required": reboot_required, "load": load, "ssh_auth": ssh_auth, "smart": smart, "temp": temp}
     h["level"] = host_level(h)
     return h
 
@@ -665,6 +710,8 @@ def build_discord_payload(stats: dict) -> dict:
             bits.append(f"{h['ssh_auth']['failed_24h']} échecs SSH (24h)")
         if smart_level(h["smart"]) == "crit":
             bits.append("disque SMART en échec")
+        if temp_level(h.get("temp")) in ("warn", "crit"):
+            bits.append(f"CPU {h['temp']['celsius']:.0f} °C")
         dk = h["docker"]
         if dk.get("accessible"):
             n = dk["unhealthy"] + dk["restarting"] + dk["exited"]
@@ -1070,7 +1117,7 @@ def host_reasons(h: dict) -> str:
     sub = (("disque", disk_level(h["disks"])), ("systemd", systemd_level(h["systemd"])),
            ("docker", docker_level(h["docker"])), ("noyau", kernel_level(h["kernel"])),
            ("charge", load_level(h["load"])), ("SSH", ssh_auth_level(h["ssh_auth"])),
-           ("SMART", smart_level(h["smart"])))
+           ("SMART", smart_level(h["smart"])), ("température", temp_level(h.get("temp"))))
     return ", ".join(f"{name} {LEVEL_LABEL[lvl]}" for name, lvl in sub if lvl in ("warn", "crit"))
 
 
@@ -1126,7 +1173,8 @@ def main() -> int:
             if b and h["reachable"]:  # Beszel complète ce que SSH n'a pas pu lire
                 if not h["smart"]["accessible"] and not h["smart"].get("vm") and b.get("smart"):
                     h["smart"] = smart_from_beszel(b)
-                h["temp"] = b.get("temp")
+                if not h.get("temp", {}).get("available") and isinstance(b.get("temp"), (int, float)):
+                    h["temp"] = {"available": True, "celsius": round(b["temp"], 1), "source": "Beszel"}
                 h["level"] = host_level(h)
         print(f"  → {h['level'].upper()}" + ("" if h["reachable"] else " (injoignable)"))
         hosts.append(h)
