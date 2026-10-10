@@ -11,17 +11,21 @@ import type { SystemState } from "../types";
 const WIN_SETUP = `Start-Service sshd; Set-Service sshd -StartupType Automatic`;
 const LINUX_SETUP = `sudo apt install -y openssh-server && sudo systemctl enable --now ssh`;
 
+type Kind = "windows" | "linux";
+
 interface Props {
   ip: string;
-  os: "windows" | "linux";
-  /** Windows : le compte est demandé, puis la machine est enregistrée. Linux : l'alias existe déjà, le compte est facultatif (root par défaut). */
-  onReady?: (alias: string) => Promise<void>;
+  /** système supposé (TTL, scan, réglage) : le choix reste à l'utilisateur */
+  guess: Kind;
+  /** l'accès est créé avec le compte donné, puis la machine est enregistrée selon son système */
+  onReady: (alias: string, kind: Kind) => Promise<void>;
   onCancel: () => void;
 }
 
-export function SshGuide({ ip, os, onReady, onCancel }: Props) {
-  const win = os === "windows";
-  const [user, setUser] = useState(win ? "" : "root"), [pub, setPub] = useState<string | null>(null), [authorize, setAuthorize] = useState("");
+export function SshGuide({ ip, guess, onReady, onCancel }: Props) {
+  const [kind, setKind] = useState<Kind>(guess);
+  const win = kind === "windows";
+  const [user, setUser] = useState(guess === "windows" ? "" : "root"), [pub, setPub] = useState<string | null>(null), [authorize, setAuthorize] = useState("");
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [lines, setLines] = useState<string[] | null>(null), [applied, setApplied] = useState("");
   useEffect(() => { read<SystemState>("system").then((s) => { setPub(s.ssh.public); setAuthorize(s.ssh.authorize ?? ""); }).catch(() => undefined); }, []);
   const winKey = pub ? `Add-Content C:\\ProgramData\\ssh\\administrators_authorized_keys '${pub}'\nicacls C:\\ProgramData\\ssh\\administrators_authorized_keys /inheritance:r /grant Administrateurs:F /grant SYSTEM:F` : "";
@@ -35,7 +39,8 @@ export function SshGuide({ ip, os, onReady, onCancel }: Props) {
   };
   const prepare = () => guard(async () => {
     const r = await send<{ alias: string }>("POST", "machines/ssh-alias", { ip, user });
-    if (win) await onReady?.(r.alias); else setApplied(user);
+    await onReady(r.alias, kind);
+    if (!win) setApplied(user);  // Linux : le guide reste ouvert pour tester la connexion
   });
   const test = () => guard(async () => {
     setLines(null);
@@ -45,6 +50,16 @@ export function SshGuide({ ip, os, onReady, onCancel }: Props) {
   });
   return (
     <div className="mt-2 flex flex-col gap-3 rounded-xl border border-link/40 bg-link/5 p-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={tx("Système de la machine")}>
+        <span className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("Système de la machine")}</span>
+        {(["linux", "windows"] as Kind[]).map((k) => (
+          <button key={k} type="button" aria-pressed={kind === k} disabled={busy}
+            onClick={() => { setKind(k); setUser(k === "windows" ? "" : "root"); setApplied(""); setError(""); }}
+            className={`rounded-full border px-3 py-1 text-xs font-semibold ${kind === k ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
+            {k === "windows" ? "Windows" : "Linux"}{k === guess && <span className="ml-1 font-normal text-dim">{tx("(détecté)")}</span>}
+          </button>
+        ))}
+      </div>
       <p className="text-muted">
         <b className="text-txt">{win ? tx("PC Windows") : tx("Machine Linux")}</b> {tx(": rien de MyServices à installer, seulement autoriser sa clé sur la machine. Une fois.")}
       </p>
@@ -63,7 +78,7 @@ export function SshGuide({ ip, os, onReady, onCancel }: Props) {
       {error && <p className="text-bad">⚠ {error}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={primary} disabled={!ok || busy || (win && !pub) || (!win && !!applied)} onClick={() => void prepare()}>
-          {busy ? <Loader2 size={14} className="animate-spin" aria-hidden /> : null}{win ? tx("Préparer l'accès Windows") : applied ? tx("Compte appliqué") : tx("Appliquer le compte")}</button>
+          {busy ? <Loader2 size={14} className="animate-spin" aria-hidden /> : null}{win ? tx("Préparer l'accès Windows") : applied ? tx("Accès activé") : tx("Activer l'accès")}</button>
         {!win && <button type="button" className={quiet} disabled={busy} onClick={() => void test()}>{tx("Tester la connexion")}</button>}
         <button type="button" className={quiet} onClick={onCancel}>{tx("Fermer")}</button>
         {win && <span className="text-xs text-dim">{tx("Ensuite, « Vérifier » teste la connexion.")}</span>}

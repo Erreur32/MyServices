@@ -29,6 +29,9 @@ const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
   { k: "vm", label: tx("Machine virtuelle"), help: tx("la santé n'y lit pas SMART") },
 ];
 
+/** Machine Windows déclarée (système ou accès de santé seul) : la commande « authorized_keys » ne la concerne pas */
+const isWindowsConf = (c?: MachineConf) => !!c && (c.os === "windows" || (typeof c.health === "string" && !c.ssh));
+
 export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: string }) {
   const [st, setSt] = useState<State | null>(null);
   const [error, setError] = useState("");
@@ -59,7 +62,7 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
   const ips = Object.keys(st.machines).sort((a, b) => ipNum(a) - ipNum(b));
   return (
     <div className="flex flex-col gap-4">
-      <div id="authorize-key" className="scroll-mt-24"><AuthorizeKey failing={(snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok)} /></div>
+      <div id="authorize-key" className="scroll-mt-24"><AuthorizeKey failing={(snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok && !isWindowsConf(Object.values(st.machines).find((x) => x.name === c.name)))} /></div>
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-bold">{tx("Machines")} <Dim>· {ips.length}</Dim></h2>
@@ -316,18 +319,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
   const sshWho = info ? `${info.user ? `${info.user}@` : ""}${info.ip || info.host}${info.port ? `:${info.port}` : ""}` : String(key || "");
   const toggleSsh = async (on: boolean) => {
     if (!on) { setWinGuide(false); return void autoSave("ssh", { ssh: null, health: undefined }); }
-    if (windows || windowsGuess) return void setWinGuide(true);  // PC Windows : guide (compte Windows, OpenSSH), pas d'accès root par défaut
-    setPending("ssh");
-    try {
-      const r = await send<{ alias: string; created: boolean }>("POST", "machines/ssh-alias", { ip });
-      setPending("");
-      await autoSave("ssh", windows ? { health: r.alias } : { ssh: r.alias });
-      setWinGuide(true);  // Linux : commandes pour autoriser la clé de l'app (utile si l'installation n'avait pas été terminée)
-    } catch (e) {
-      setPending("");
-      if (e instanceof LoginRequired) location.replace(LOGIN);
-      else setNote({ ok: false, text: (e as Error).message });
-    }
+    setWinGuide(true);  // le guide demande le système (Linux / Windows) et le compte, puis crée l'accès : jamais de root « par défaut » pour un Windows
   };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -376,8 +368,11 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
             ))}
           </ul>
         </div>
-        {winGuide && <SshGuide ip={ip} os={windows || windowsGuess ? "windows" : "linux"} onCancel={() => setWinGuide(false)}
-          onReady={async (alias) => { await autoSave("ssh", { os: "windows", health: alias, ssh: null }); setWinGuide(false); }} />}
+        {winGuide && <SshGuide ip={ip} guess={windows || windowsGuess ? "windows" : "linux"} onCancel={() => setWinGuide(false)}
+          onReady={async (alias, kind) => {
+            if (kind === "windows") { await autoSave("ssh", { os: "windows", health: alias, ssh: null }); setWinGuide(false); }
+            else await autoSave("ssh", { os: undefined, ssh: alias, health: undefined });
+          }} />}
         {!windows && v.ssh && hasAdguard && (  // seulement si AdGuard a été trouvé sur la machine (ou déjà réglé) : sinon rien à montrer
           <div className="mt-3 sm:max-w-[50%]">
             <Field label={tx("AdGuard Home trouvé (conteneur ou chemin du .yaml)")}>
