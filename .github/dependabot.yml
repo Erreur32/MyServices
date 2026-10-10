@@ -1,0 +1,32 @@
+# Mises à jour de versions : une demande (PR) groupée par écosystème et par semaine, jamais plus de 5 ouvertes.
+# Les mises à jour de SÉCURITÉ sont à part (réglage du dépôt) et arrivent tout de suite, une par faille.
+# Les actions GitHub sont épinglées par empreinte de commit (voir safety.yml) : Dependabot met à jour l'empreinte et le commentaire de version.
+# Branche visée : docker (travail en cours) ; main la rejoint par avance rapide.
+version: 2
+updates:
+  - package-ecosystem: pip          # requirements.in / requirements.txt (empreintes)
+    directory: /
+    target-branch: docker
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      python: { patterns: ["*"] }
+  - package-ecosystem: npm          # front/ (React, Vite, tests)
+    directory: /front
+    target-branch: docker
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      front: { patterns: ["*"] }
+  - package-ecosystem: docker       # images de base du Dockerfile
+    directory: /
+    target-branch: docker
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: docker
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      actions: { patterns: ["*"] }

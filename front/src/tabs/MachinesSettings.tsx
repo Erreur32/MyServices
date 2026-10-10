@@ -76,10 +76,6 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
           <h2 className="font-bold">{tx("Machines")} <Dim>· {ips.length}</Dim></h2>
           {!detecting && <button type="button" className={primary} onClick={() => setDetecting(true)}><Plus size={14} />{tx("Ajouter une machine")}</button>}
         </div>
-        <p className="mt-1 text-sm text-muted">
-          {tx("Lecture seule sur le réseau, comme la collecte. L'accès SSH passe par un alias de")} <code className="font-mono text-xs">{st.ssh_conf}</code>
-          {" "}({st.aliases.length} {tx("connus) ; la clé publique de l'app doit être dans")} <code className="font-mono text-xs">{tx("authorized_keys")}</code> {tx("du compte visé. Un changement est pris en compte au prochain passage de la collecte.")}
-        </p>
         {detecting && <Detect st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
       </Card>
       <div className="grid items-start gap-3 lg:grid-cols-2">
@@ -120,6 +116,10 @@ function Detect({ st, onDone, onCancel }: { st: State; onDone: () => void; onCan
         <button className={primary} disabled={busy}><Radar size={14} />{busy ? tx("Détection…") : tx("Détecter")}</button>
         <button type="button" className={quiet} onClick={onCancel}>{tx("Annuler")}</button>
       </form>
+      <p className="text-sm text-muted">
+        {tx("Lecture seule sur le réseau, comme la collecte. L'accès SSH passe par un alias de")} <code className="font-mono text-xs">{st.ssh_conf}</code>
+        {" "}({st.aliases.length} {tx("connus) ; la clé publique de l'app doit être dans")} <code className="font-mono text-xs">{tx("authorized_keys")}</code> {tx("du compte visé. Un changement est pris en compte au prochain passage de la collecte.")}
+      </p>
       <p className="text-xs text-dim">{tx("Ping, ports connus, nom DNS, SSH (Linux ou Windows), Docker, AdGuard, VM, services web : quelques secondes. Rien n'est écrit avant « Enregistrer ».")}</p>
       <NoteLine note={note} />
       {d && <Proposal d={d} st={st} onDone={onDone} />}
