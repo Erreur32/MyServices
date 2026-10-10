@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Copyable, Field, NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
-import { osOfMachine } from "../lib/machines";
+import { isWindowsMachine } from "../lib/machines";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { dateTime, ipNum } from "../lib/format";
@@ -58,7 +58,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   const liveBy = new Map(live.map((m) => [m.ip, m]));
   // L'agent est un script PowerShell : il ne concerne que Windows (réglage « windows » ou système probable : TTL, scan). Une machine
   // qui n'est pas Windows se lit par SSH ; sans SSH, il lui faut d'abord un accès (réglage de la machine).
-  const isWindows = (ip: string) => machines[ip].os === "windows" || osOfMachine({ os: machines[ip].os, info: liveBy.get(ip)?.info, ttl: liveBy.get(ip)?.ttl })?.kind === "windows";
+  const isWindows = (ip: string) => isWindowsMachine(machines[ip], liveBy.get(ip), byIp.has(ip));
   const tracked = Object.keys(machines).filter((ip) => !byIp.has(ip) && !machines[ip].disabled);
   const withAgent = sorted([...byIp.keys()]);
   const without = sorted(tracked.filter((ip) => isWindows(ip) && !machines[ip].ssh));          // PC Windows sans agent
