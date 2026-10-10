@@ -194,6 +194,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], onDone }
 }) {
   const [v, setV] = useState<MachineConf>(m);
   const [proc, setProc] = useState(!!process);
+  const [options, setOptions] = useState(() => !!m.disabled || detected.length > 0);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const windows = v.os === "windows";
   const submit = async (e: FormEvent) => {
@@ -228,22 +229,37 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], onDone }
           </Field>
         )}
       </div>
-      <div className="flex flex-col gap-1.5">
-        <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/40 p-2">
-          <Switch on={!v.disabled} onChange={(on) => setV({ ...v, disabled: !on })} label={tx("Machine suivie")} />
-          <span><b>{tx("Machine suivie")}</b> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>
-        </label>
-        {FLAGS.map((f) => (
-          <label key={f.k} className="flex items-start gap-2">
-            <Switch on={!!v[f.k]} onChange={(on) => setV({ ...v, [f.k]: on })} label={f.label} />
-            <span>{f.label} {detected.includes(String(f.k)) && <Badge tone="info" title={tx("Trouvé par la détection : décochez si c'est faux")}>{tx("détecté")}</Badge>} <Dim>· {f.help}</Dim></span>
+      {/* Menu pliant des interrupteurs : replié, sauf à l'ajout avec une détection à confirmer ou si la machine n'est pas suivie */}
+      <div className="rounded-xl border border-line/60 bg-bg2/30">
+        <button type="button" onClick={() => setOptions(!options)} aria-expanded={options}
+          className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-bg2/60">
+          {options ? <ChevronDown size={14} className="text-dim" aria-hidden /> : <ChevronRight size={14} className="text-dim" aria-hidden />}
+          {tx("Options de la machine")}
+          <span className="flex flex-wrap items-center gap-1 font-normal">
+            {v.disabled && <Badge tone="warn">{tx("non suivie")}</Badge>}
+            {FLAGS.filter((f) => v[f.k]).map((f) => <Badge key={String(f.k)} tone={detected.includes(String(f.k)) ? "info" : "off"}>{f.label}</Badge>)}
+            {proc && !windows && !!v.ssh && <Badge tone="off">{tx("services hors Docker")}</Badge>}
+          </span>
+        </button>
+        {options && (
+          <div className="flex flex-col gap-1.5 border-t border-line/60 p-3">
+          <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/40 p-2">
+            <Switch on={!v.disabled} onChange={(on) => setV({ ...v, disabled: !on })} label={tx("Machine suivie")} />
+            <span><b>{tx("Machine suivie")}</b> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>
           </label>
-        ))}
-        {!windows && v.ssh && (
-          <label className="flex items-start gap-2">
-            <Switch on={proc} onChange={setProc} label={tx("Lire les services hors Docker")} />
-            <span>{tx("Lire les services hors Docker")} <Dim>{tx("· ports en écoute (ss -tlnp, root requis sur la machine)")}</Dim></span>
-          </label>
+          {FLAGS.map((f) => (
+            <label key={f.k} className="flex items-start gap-2">
+              <Switch on={!!v[f.k]} onChange={(on) => setV({ ...v, [f.k]: on })} label={f.label} />
+              <span>{f.label} {detected.includes(String(f.k)) && <Badge tone="info" title={tx("Trouvé par la détection : décochez si c'est faux")}>{tx("détecté")}</Badge>} <Dim>· {f.help}</Dim></span>
+            </label>
+          ))}
+          {!windows && v.ssh && (
+            <label className="flex items-start gap-2">
+              <Switch on={proc} onChange={setProc} label={tx("Lire les services hors Docker")} />
+              <span>{tx("Lire les services hors Docker")} <Dim>{tx("· ports en écoute (ss -tlnp, root requis sur la machine)")}</Dim></span>
+            </label>
+          )}
+          </div>
         )}
       </div>
       <div><button className={primary} disabled={busy}>{isNew ? tx("Enregistrer la machine") : tx("Enregistrer")}</button></div>

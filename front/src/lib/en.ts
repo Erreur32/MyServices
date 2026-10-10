@@ -545,6 +545,7 @@ export const EN: Record<string, string> = {
   "Joignable seulement par NPM": "Reachable only through NPM",
   "Jour :": "Day:",
   "Compte": "Account",
+  "Options de la machine": "Machine options",
   "Désactivée dans Réglages → Machines : ni ping, ni SSH, ni santé, aucune alerte": "Disabled in Settings → Machines: no ping, no SSH, no health, no alert",
   "Afficher les désactivées": "Show disabled",
   "Masquer les désactivées": "Hide disabled",
