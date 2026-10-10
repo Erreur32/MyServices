@@ -32,23 +32,27 @@ export function ScanBar({ onFinished }: { onFinished: () => void }) {
       if (was.current && !next?.running) finished.current(); // passage terminé : la page relit ses données
       was.current = !!next?.running;
       setScan(next);
-      timer = setTimeout(() => void tick(), next?.running ? RUN_MS : IDLE_MS);
+      timer = setTimeout(() => void tick(), next?.running || next?.network?.running ? RUN_MS : IDLE_MS);
     };
     void tick();
     const unregister = registerPoller(() => { clearTimeout(timer); void tick(); });
     return () => { stop = true; clearTimeout(timer); unregister(); };
   }, []);
-  if (!st?.running) return null;
-  const p = st.progress, pct = p ? Math.round(fraction(p) * 100) : null;
-  const label = p ? `${p.label}${p.total ? ` (${p.done ?? 0}/${p.total})` : ""}` : tx("démarrage…");
+  const net = st?.network?.running ? st.network : null;
+  if (!st?.running && !net) return null;
+  const p = st?.running ? st.progress : null;
+  const pct = p ? Math.round(fraction(p) * 100) : net ? (net.phase === "identify" ? 100 : Math.round((net.done / Math.max(1, net.total)) * 100)) : null;
+  const title = net && !st?.running ? tx("Recherche réseau") : tx("Scan en cours");
+  const label = p ? `${p.label}${p.total ? ` (${p.done ?? 0}/${p.total})` : ""}`
+    : net ? tx("{0}/{1} adresses testées, {2} machine(s) trouvée(s)", net.done, net.total, net.found) : tx("démarrage…");
   return (
-    <div role="progressbar" aria-label={tx("Scan en cours")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined}
+    <div role="progressbar" aria-label={title} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined}
       aria-valuetext={label} className="pointer-events-none fixed inset-x-0 top-0 z-50">
       <div className="h-[3px] w-full overflow-hidden bg-line/60">
         {pct === null ? <div className="scan-wait h-full" /> : <div className="scan-fill h-full rounded-r-full" style={{ width: `${pct}%` }} />}
       </div>
       <div className="mx-auto mt-1.5 hidden w-fit max-w-[60vw] items-center gap-2 truncate rounded-full border border-line bg-card/90 px-3 py-0.5 text-xs text-muted shadow-sm backdrop-blur sm:flex">
-        <span className="font-semibold text-txt">{tx("Scan en cours")}</span>
+        <span className="font-semibold text-txt">{title}</span>
         {p && <span className="tabular-nums text-dim">{p.step}/{p.steps}</span>}
         <span className="truncate">{label}</span>
       </div>

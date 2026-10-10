@@ -27,6 +27,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import netscan
 from config import CFG
 
 HERE = Path(__file__).resolve().parent
@@ -310,7 +311,8 @@ def status() -> dict:
         generated = None
     ts = (lambda x: int(x) if x else None)
     return {"running": running, "progress": prog, "started": ts(t["start"]), "ended": ts(t["end"]),
-            "result": t["result"], "generated": generated, "cooldown": COOLDOWN, "wait": wait, "now": int(now)}
+            "result": t["result"], "generated": generated, "cooldown": COOLDOWN, "wait": wait, "now": int(now),
+            "network": netscan.summary()}
 
 
 def main() -> int:

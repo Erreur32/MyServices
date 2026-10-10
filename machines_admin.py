@@ -231,3 +231,36 @@ def check(ip: str) -> dict:
     if not setup.FAILED:  # accès SSH qui répond : l'inventaire raté d'avant ne doit pas rester en cache (2 h)
         expire_inventory()
     return {"lines": lines, "failed": len(setup.FAILED)}
+
+
+def known_ips() -> set[str]:
+    """IP des machines déjà déclarées (la recherche réseau ne les ping pas)."""
+    return set(_meta().get("machines", {}))
+
+
+_ALIAS_USER = re.compile(r"^[a-z_][a-z0-9_.-]{0,31}$")
+
+
+def add_alias(ip: str, user: str = "root", port: int = 22) -> dict:
+    """Alias SSH pour une machine trouvée (clé de l'app, version Docker) : écrit un bloc « Host » dans la config SSH
+    de l'app et rend {alias, created}. Déjà un alias qui vise cette IP : il est repris, rien n'est écrit."""
+    if not setup.DOCKER:
+        raise MachineError("disponible dans la version Docker (la config SSH de l'installation classique reste à la main)")
+    try:
+        ip = str(ipaddress.ip_address(ip))
+    except ValueError:
+        raise MachineError("IP invalide") from None
+    if not _ALIAS_USER.match(user or ""):
+        raise MachineError("compte SSH : lettres minuscules, chiffres, . _ - (32 au plus)")
+    if not isinstance(port, int) or not 1 <= port <= 65535:
+        raise MachineError("port SSH invalide")
+    if alias := setup.ssh_aliases().get(ip):
+        return {"alias": alias, "created": False}
+    alias = "m-" + ip.replace(".", "-")
+    conf = Path(setup.SSH_CONF)
+    text = conf.read_text(encoding="utf-8") if conf.exists() else ""
+    block = (f"\n# Machine trouvée par la recherche réseau\nHost {alias}\n    HostName {ip}\n    User {user}\n    Port {port}\n"
+             "    IdentityFile ~/.ssh/myservices\n    IdentitiesOnly yes\n    StrictHostKeyChecking accept-new\n")
+    conf.write_text(text + block, encoding="utf-8")
+    conf.chmod(0o600)
+    return {"alias": alias, "created": True}

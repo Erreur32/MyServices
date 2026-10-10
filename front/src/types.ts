@@ -142,6 +142,21 @@ export interface Connector {
   message: string;
 }
 
+/** Une machine trouvée par la recherche réseau (netscan.py) */
+export interface NetHost { ip: string; name: string; ports: number[]; hints: string[]; apps: string[] }
+
+export interface NetScan {
+  phase: "idle" | "ping" | "identify" | "done";
+  net: string | null;
+  total: number;
+  done: number;
+  found: NetHost[];
+  started: number | null;
+  ended: number | null;
+  error: string | null;
+  stopped: boolean;
+}
+
 /** Connecteur à proposer : appli reconnue sur une machine, pas encore réglée (known_apps.py) */
 export interface Proposal {
   connector: string;

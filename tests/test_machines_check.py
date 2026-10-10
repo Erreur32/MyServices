@@ -55,5 +55,43 @@ class CheckExpiresInventory(unittest.TestCase):
         self.assertEqual(json.loads(self.cache.read_text())["ts"], 1791636409.0)
 
 
+class SshAlias(unittest.TestCase):
+    """Préparer l'accès SSH d'une machine trouvée : bloc « Host » avec la clé de l'app, sans doublon."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.conf = Path(self.tmp.name) / "config"
+        self.aliases = {}
+        for p in (mock.patch.object(machines_admin.setup, "SSH_CONF", str(self.conf)),
+                  mock.patch.object(machines_admin.setup, "DOCKER", True),
+                  mock.patch.object(machines_admin.setup, "ssh_aliases", lambda: self.aliases)):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_cree_un_alias(self):
+        r = machines_admin.add_alias("192.168.1.20", "pi", 2222)
+        self.assertEqual(r, {"alias": "m-192-168-1-20", "created": True})
+        txt = self.conf.read_text()
+        for line in ("Host m-192-168-1-20", "HostName 192.168.1.20", "User pi", "Port 2222", "IdentityFile ~/.ssh/myservices",
+                     "IdentitiesOnly yes", "StrictHostKeyChecking accept-new"):
+            self.assertIn(line, txt)
+        self.assertEqual(self.conf.stat().st_mode & 0o777, 0o600)
+
+    def test_alias_existant_repris(self):
+        self.aliases["192.168.1.20"] = "nas"
+        self.assertEqual(machines_admin.add_alias("192.168.1.20"), {"alias": "nas", "created": False})
+        self.assertFalse(self.conf.exists())
+
+    def test_refus(self):
+        for args in (("pas-une-ip",), ("192.168.1.20", "Root; rm"), ("192.168.1.20", "root", 0), ("192.168.1.20", "root", 70000)):
+            with self.assertRaises(machines_admin.MachineError, msg=args):
+                machines_admin.add_alias(*args)
+
+    def test_hors_docker(self):
+        with mock.patch.object(machines_admin.setup, "DOCKER", False), self.assertRaises(machines_admin.MachineError):
+            machines_admin.add_alias("192.168.1.20")
+
+
 if __name__ == "__main__":
     unittest.main()

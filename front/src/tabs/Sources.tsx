@@ -10,7 +10,7 @@ import { tx } from "../lib/i18n";
 
 const LIST: { id: string; icon: ReactNode; label: string; what: string; soon?: string }[] = [
   { id: "npm", icon: <Globe size={18} />, label: "Nginx Proxy Manager", what: tx("Proxy hosts, redirections, ACL et certificats ; onglet Services et compteurs NPM.") },
-  { id: "apache", icon: <Server size={18} />, label: "Apache", what: tx("Vhosts Apache des machines lues par SSH, comme services hors NPM.") },
+  { id: "apache", icon: <Server size={18} />, label: "Apache", what: tx("Vhosts Apache des machines lues par SSH, comme services directs.") },
   { id: "adguard", icon: <Network size={18} />, label: "AdGuard Home", what: tx("Réécritures et réponses DNS de chaque instance ; onglet DNS et compteurs AdGuard.") },
   { id: "fail2ban", icon: <Ban size={18} />, label: "Fail2ban", what: tx("Bannissements et prisons, par LogviewR ; onglet Fail2ban."), soon: tx("arrive avec le connecteur LogviewR") },
 ];

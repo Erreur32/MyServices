@@ -105,7 +105,7 @@ function servicesParagraph(data: Data): Paragraph {
   }
   if (local.length) {
     const down = by(local, "bad");
-    s.push(tx("Hors NPM, {0} en accès direct sur le réseau local", plural(local.length, "service")) + (down.length ? tx(", dont {0} injoignable{1} ({2}).", down.length, down.length > 1 ? "s" : "", names(down.map(hostName))) : tx(", tous joignables.")));
+    s.push(tx("{0} en accès direct sur le réseau local", plural(local.length, "service")) + (down.length ? tx(", dont {0} injoignable{1} ({2}).", down.length, down.length > 1 ? "s" : "", names(down.map(hostName))) : tx(", tous joignables.")));
   }
   return { tab: "services", title: tx("Services"), sentences: s };
 }

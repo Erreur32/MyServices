@@ -12,7 +12,9 @@ import { tx } from "../lib/i18n";
 import { useScan } from "../lib/scan";
 import { plural } from "../lib/summary";
 import type { Proposal, SystemState } from "../types";
+import { netState, useNetScan } from "../lib/netScan";
 import { AuthorizeKey } from "./AuthorizeKey";
+import { NetworkStep } from "./NetworkStep";
 import { Badge, type Tone } from "./ui";
 import { button, primary } from "../lib/forms";
 
@@ -69,6 +71,7 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
   const [, bump] = useState(0);
   const [acceptedGen, setAcceptedGen] = useState<string | null>(null); // relevé de data.json au moment où la clé a été acceptée
   const scan = useScan();
+  const { net, reload: reloadNet } = useNetScan();
   const admin = snap.me.role === "admin";
   useEffect(() => { if (admin) read<SystemState>("system").then(setSys).catch(() => undefined); }, [admin]);
 
@@ -97,10 +100,11 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
   const readable = (snap.data.connectors || []).filter((c) => c.type === "docker" && c.ok);
   const p = scan?.progress;
 
+  const close = () => { saveState(fp, "closed"); bump((n) => n + 1); };
   return (
     <section className={`relative rounded-2xl border bg-card p-5 transition-colors duration-700 ${finished ? "border-ok/50" : "border-warn/50"}`}>
       <button type="button" aria-label={tx("Fermer")} title={tx("Fermer")}
-        onClick={() => { saveState(fp, "closed"); bump((n) => n + 1); }}
+        onClick={close}
         className="absolute right-3 top-3 rounded-lg p-1.5 text-dim hover:bg-bg2 hover:text-txt focus-visible:outline focus-visible:outline-2 focus-visible:outline-link">
         <X size={18} aria-hidden />
       </button>
@@ -152,14 +156,21 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
             </p>
           )}
         </Step>
-        <Step state={!keyDone ? "next" : proposals.length ? "now" : finished ? "done" : "next"} title={tx("Connecteurs proposés d'après ce qui est trouvé")}>
+        <Step state={keyDone && proposals.length ? "now" : "next"} title={tx("Connecteurs proposés d'après ce qui est trouvé")}>
           {proposals.length > 0
             ? <><p className="mb-2">{tx("MyServices a reconnu des applis qu'il sait lire par leur API. Un connecteur ajoute leurs données (certificats, DNS, santé) sans rien recoder.")}</p><Proposals list={proposals} /></>
-            : finished ? tx("Aucune appli à relier pour l'instant : NPM, AdGuard, Beszel, Uptime Kuma… seront proposés dès qu'ils sont reconnus.")
-            : tx("NPM, AdGuard, Beszel… proposés quand leur image, leur page ou leur port est reconnu.")}
+            : tx("Rien à proposer pour l'instant. Cette étape s'allume toute seule quand NPM, AdGuard, Beszel, Uptime Kuma… sont reconnus sur vos machines.")}
         </Step>
-        <Step state="soon" title={tx("Recherche des autres machines du réseau")}>{tx("Scan du réseau local, à votre demande.")}</Step>
+        <Step state={netState(net) === "run" ? "run" : netState(net) === "found" ? "now" : "next"} title={tx("Recherche des autres machines du réseau")}>
+          <NetworkStep net={net} reload={reloadNet} />
+        </Step>
       </ol>
+      <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line/70 pt-4">
+        <button type="button" className={finished ? primary : `${button} border-line text-muted hover:border-link hover:text-txt`} onClick={close}>
+          <Check size={14} aria-hidden />{tx("Terminer les premiers pas")}
+        </button>
+        <span className="text-sm text-dim">{tx("Cette carte reste ouverte tant que vous ne la fermez pas. Menu du compte -> « Revoir les premiers pas » pour la rouvrir.")}</span>
+      </div>
     </section>
   );
 }

@@ -1,4 +1,4 @@
-// Services : tous les services (NPM et hors NPM) avec leur état, leur machine et leurs accès ; clic sur une ligne
+// Services : tous les services (NPM et directs) avec leur état, leur machine et leurs accès ; clic sur une ligne
 // = fiche détaillée. Sur mobile, une fiche par service.
 import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import { Fragment, useCallback, useMemo, useState } from "react";
@@ -13,7 +13,7 @@ import { tx } from "../lib/i18n";
 
 const ST_TONE: Record<string, Tone> = { ok: "ok", warn: "warn", bad: "bad", off: "off" };
 const ST_NAME: Record<string, string> = { ok: "OK", warn: "avertissement", bad: tx("en panne"), off: tx("désactivé / non testé") };
-const TYPE_NAME: Record<string, string> = { proxy: tx("Proxy NPM"), redirect: "Redirection", dead: "404", stream: "Stream", local: tx("Hors NPM") };
+const TYPE_NAME: Record<string, string> = { proxy: tx("Proxy NPM"), redirect: "Redirection", dead: "404", stream: "Stream", local: tx("Direct") };
 const EXPO: Record<string, [Tone, string, string]> = {
   prive: ["ok", tx("🔒 privé"), tx("Réservé au LAN / VPN : access list NPM ou garde LAN")],
   public: ["info", tx("🌍 public"), tx("Site public voulu")],
@@ -82,7 +82,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const machines = useMemo(() => new Map(snap.data.machine_list.map((m) => [m.ip, m.name])), [snap.data.machine_list]);
   const facets = useMemo((): Facet<Host>[] => [
-    { key: "src", label: tx("Source"), get: (r) => (r.type === "local" ? "local" : "npm"), name: (v) => (v === "npm" ? "NPM" : tx("Hors NPM")), order: ["npm", "local"] },
+    { key: "src", label: tx("Source"), get: (r) => (r.type === "local" ? "local" : "npm"), name: (v) => (v === "npm" ? "NPM" : tx("Direct")), order: ["npm", "local"] },
     { key: "status", label: tx("État"), get: (r) => status(r)[0], name: (v) => ST_NAME[v] || v, order: ["bad", "warn", "ok", "off"] },
     { key: "check", label: tx("À vérifier"), get: (r) => checks(r), name: (v) => CHECK[v as Check]?.[0] || v },
     { key: "machine", label: tx("Machine"), get: (r) => hostIp(r), name: (v) => machines.get(v) || v },

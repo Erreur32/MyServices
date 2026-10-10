@@ -340,6 +340,49 @@ def machines_save(ip: str, body: MachineConf, request: Request):
                                    "message": "enregistrée : prise en compte au prochain passage de la collecte"})
 
 
+class AliasBody(BaseModel):
+    ip: str
+    user: str = "root"
+    port: int = 22
+
+
+@app.post(API + "/machines/ssh-alias", tags=["machines"], summary="Préparer l'accès SSH d'une machine : alias avec la clé de l'app (admin)")
+def machines_ssh_alias(body: AliasBody, request: Request):
+    return machine_call(request, "alias SSH préparé", f"{body.user}@{body.ip}:{body.port}", lambda m: m.add_alias(body.ip, body.user, body.port))
+
+
+# ── Recherche des machines du réseau (étape 4 de « Premiers pas ») ────────────────────────────────
+
+def _netscan_file():
+    return Path(core.CFG["state_dir"]) / "network-scan.json"
+
+
+@app.get(API + "/network/scan", tags=["réseau"], summary="Dernière recherche de machines sur le réseau local (admin)")
+def network_scan_state(request: Request):
+    import netscan
+    return admin_only(request) or JSONResponse(netscan.state(_netscan_file()), headers={"Cache-Control": "no-store"})
+
+
+@app.post(API + "/network/scan", tags=["réseau"], summary="Chercher les machines du réseau local : ping, nom, ports (lecture seule) (admin)")
+def network_scan_start(request: Request):
+    import netscan
+
+    def launch(m):
+        if not netscan.start(m.known_ips(), _netscan_file()):
+            raise m.MachineError("une recherche est déjà en cours")
+        return netscan.state(_netscan_file())
+    return machine_call(request, "recherche réseau lancée", "", launch)
+
+
+@app.post(API + "/network/scan/stop", tags=["réseau"], summary="Arrêter la recherche en cours (admin)")
+def network_scan_stop(request: Request):
+    import netscan
+    if denied := admin_only(request):
+        return denied
+    netscan.stop()
+    return netscan.state(_netscan_file())
+
+
 @app.delete(API + "/machines/settings/{ip}", tags=["machines"], summary="Retirer une machine (admin)")
 def machines_delete(ip: str, request: Request):
     return machine_call(request, "machine retirée", ip, lambda m: (m.delete(ip), {"ok": True})[1])
