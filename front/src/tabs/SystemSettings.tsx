@@ -1,6 +1,7 @@
 // Réglages, trois sections sur le même état : « Clé SSH » (Accès et sécurité : à autoriser sur chaque machine), « Tâches et
-// horaires » (Surveillance : modifiables, lancer maintenant) et « Système » (export de la configuration, informations).
-import { Download, KeyRound, Play, RotateCcw, Server, Timer } from "lucide-react";
+// horaires » (Surveillance : modifiables, lancer maintenant) et « Sauvegarde et informations » (export de la configuration,
+// version de l'image et lien vers la dernière publiée, chemins, tailles).
+import { Download, ExternalLink, KeyRound, Play, RotateCcw, Server, Timer } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { download, LOGIN, LoginRequired, read, send } from "../api";
 import { Copyable, Field, NoteLine } from "../components/form";
@@ -9,6 +10,7 @@ import { Badge, Card, Dim } from "../components/ui";
 import { bytes, dateTime, dur } from "../lib/format";
 import type { SystemState, SystemTask } from "../types";
 import { tx } from "../lib/i18n";
+import { GITHUB, releaseOf } from "../lib/links";
 
 export function SystemSettings({ part }: { part: "system" | "tasks" | "ssh" }) {
   const [st, setSt] = useState<SystemState | null>(null);
@@ -146,6 +148,10 @@ function Info({ info }: { info: SystemState["info"] }) {
       <div className="grid gap-x-8 text-sm md:grid-cols-2">
         <div>
           {row(tx("Version"), <code className="font-mono text-xs">{info.version}</code>)}
+          {row(tx("Dernière publiée"), <span className="flex flex-wrap justify-end gap-x-3">
+            {releaseOf(info.version) && <a className="inline-flex items-center gap-1 text-link hover:underline" href={releaseOf(info.version)!.url} target="_blank" rel="noopener noreferrer">{tx("Notes de {0}", releaseOf(info.version)!.tag)}<ExternalLink size={12} aria-hidden /></a>}
+            <a className="inline-flex items-center gap-1 text-link hover:underline" href={`${GITHUB}/releases/latest`} target="_blank" rel="noopener noreferrer">{tx("Voir la dernière version")}<ExternalLink size={12} aria-hidden /></a>
+          </span>)}
           {row(tx("Démarré"), tx("{0} · depuis {1}", dateTime(info.started * 1000), dur(info.uptime_s)))}
           {row(tx("Python"), info.python)}
           {row(tx("Port"), info.port)}
@@ -154,8 +160,8 @@ function Info({ info }: { info: SystemState["info"] }) {
         </div>
         <div>
           {row(tx("Réseaux autorisés"), <span className="font-mono text-xs">{info.allow.join(", ")}</span>)}
-          {row("/config", `${bytes(info.sizes.config)}`)}
-          {row("/data", `${bytes(info.sizes.data)}`)}
+          {row(info.paths.config, bytes(info.sizes.config))}
+          {row(info.paths.data, bytes(info.sizes.data))}
           {row(tx("Base (comptes, historique, alertes)"), bytes(info.sizes.db))}
         </div>
       </div>

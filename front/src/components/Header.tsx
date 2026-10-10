@@ -4,8 +4,7 @@ import { logout, ROOT, type Snapshot } from "../api";
 import type { Theme } from "../theme";
 import { LOCALE, tx } from "../lib/i18n";
 import { reopenFirstSteps } from "../lib/firstSteps";
-
-const GITHUB = "https://github.com/Erreur32/MyServices";
+import { GITHUB } from "../lib/links";
 
 function ago(iso: string, now: number): string {
   const min = Math.round((now - new Date(iso).getTime()) / 60000);

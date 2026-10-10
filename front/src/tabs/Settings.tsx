@@ -36,7 +36,7 @@ const GROUPS: { label: string; sections: { id: string; label: string; icon: Luci
     { id: "accounts", label: tx("Comptes"), icon: Users }, { id: "ssh", label: tx("Clé SSH"), icon: KeyRound },
     { id: "audit", label: tx("Journal d'audit"), icon: ScrollText }, { id: "api", label: tx("API et MCP"), icon: Webhook },
   ] },
-  { label: tx("Application"), sections: [{ id: "look", label: tx("Apparence"), icon: Palette }, { id: "system", label: tx("Système"), icon: Settings2 }] },
+  { label: tx("Application"), sections: [{ id: "look", label: tx("Apparence"), icon: Palette }, { id: "system", label: tx("Sauvegarde et infos"), icon: Settings2 }] },
 ];
 const SECTIONS = GROUPS.flatMap((g) => g.sections);
 
