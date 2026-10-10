@@ -807,6 +807,8 @@ def main():
     for ip, a in agent_reports().items():
         if a["fresh"]:
             agent_sys[ip] = agents.system_of(a["report"])
+            if agent_sys[ip]:
+                agent_sys[ip]["hardware"] = agents.hardware_of(a["report"])
             if not procs.get(ip):
                 procs[ip] = agents.ports_of(a["report"])
     meta = load_meta()

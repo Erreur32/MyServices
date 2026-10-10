@@ -5,7 +5,7 @@ import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet } from "../lib/filter";
 import { dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
-import type { HealthHost, Machine, MachineConf, MachinesSettings, NetScan } from "../types";
+import type { AgentHardware, HealthHost, Machine, MachineConf, MachinesSettings, NetScan } from "../types";
 import { NoteLine } from "../components/form";
 import type { Note } from "../lib/forms";
 import { MSTATE, ORDER, mState, type MState } from "../lib/machines";
@@ -13,6 +13,10 @@ import { rolesOf } from "../lib/ssh";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, FilterBar, Level, Table, Td, Th } from "../components/ui";
 import { tx } from "../lib/i18n";
+import { hardwareRows } from "../lib/hardware";
+
+/** Ligne courte du matériel (modèle · mémoire) sous le système ; le détail est dans l'info-bulle. */
+const hwLine = (hw?: AgentHardware | null) => [[hw?.maker, hw?.model].filter(Boolean).join(" "), hw?.ram_gb ? `${hw.ram_gb} ${tx("Go")}` : ""].filter(Boolean).join(" · ");
 
 function healthByIp(hosts: HealthHost[] = []): Map<string, HealthHost> {
   return new Map(hosts.map((h) => [splitHostName(h.name)[1], h]));
@@ -220,7 +224,8 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
                 <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td><Td>{name(m)}</Td><Td>{st(m)}</Td><Td><Ssh m={m} /></Td>
                 <Td><KeyCell m={m} /></Td><Td><HostKey m={m} /></Td><Td><Sshd m={m} what="root" /></Td><Td><Sshd m={m} what="pwd" /></Td>
                 <Td>{m.info?.os ? <>{m.info.os}<span className="block text-xs text-dim">{tx("noyau")} {m.info.kernel || "?"} {tx("· up")} {dur(m.info.uptime_s)}</span></>
-                  : m.agent ? <>{m.agent.os}<span className="block text-xs text-dim">{m.agent.kernel ? `${m.agent.kernel} · ` : ""}{tx("par l'agent")}{m.agent.uptime_s ? ` ${tx("· up")} ${dur(m.agent.uptime_s)}` : ""}</span></> : <Dim>—</Dim>}</Td>
+                  : m.agent ? <>{m.agent.os}<span className="block text-xs text-dim">{m.agent.kernel ? `${m.agent.kernel} · ` : ""}{tx("par l'agent")}{m.agent.uptime_s ? ` ${tx("· up")} ${dur(m.agent.uptime_s)}` : ""}</span>
+                    {hwLine(m.agent.hardware) && <span className="block text-xs text-dim" title={hardwareRows(m.agent.hardware).map(([k, v]) => `${k} : ${v}`).join("\n")}>{hwLine(m.agent.hardware)}</span>}</> : <Dim>—</Dim>}</Td>
                 <Td><Servers m={m} snap={snap} /></Td><Td>{svc(m)}</Td>
                 {snap.health && <><Td><Level level={hb.get(m.ip) ? (hb.get(m.ip)!.reachable === false ? "down" : hb.get(m.ip)!.level) : "na"} /></Td>
                   <Td><ResCell h={hb.get(m.ip)} what="cpu" /></Td><Td><ResCell h={hb.get(m.ip)} what="mem" /></Td><Td><DiskCell h={hb.get(m.ip)} /></Td><Td><SystemdCell h={hb.get(m.ip)} /></Td><Td><UpdatesCell h={hb.get(m.ip)} /></Td></>}

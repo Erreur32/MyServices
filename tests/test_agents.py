@@ -207,6 +207,33 @@ class Agents(unittest.TestCase):
         h = health.parse_windows(data)
         self.assertEqual(h["system"]["build"], "26100")
 
+    def test_materiel_du_releve(self):
+        hw = {"m": "Dell Inc.", "mo": "OptiPlex 7090", "bios": "1.12.0", "cpu": "Intel(R) Core(TM) i7", "cc": 8, "cl": 16, "ram": 31.8,
+              "dom": "WORKGROUP: HOME", "wu": "2026-10-01",
+              "gpu": {"n": "NVIDIA GeForce", "r": "1920x1080"},  # un seul élément : objet et non liste
+              "net": [{"n": "Ethernet", "ip": "192.168.1.60"}, {"n": "VPN", "ip": "10.0.0.5"}, {"n": "Mauvaise", "ip": "fe80::1"}]}
+        rep = {**REPORT, "data": {**DATA, "hw": hw}}
+        h = agents.hardware_of(rep)
+        self.assertEqual((h["maker"], h["model"], h["bios"], h["cores"], h["threads"], h["ram_gb"]),
+                         ("Dell Inc.", "OptiPlex 7090", "1.12.0", 8, 16, 31.8))
+        self.assertEqual(h["gpu"], [{"name": "NVIDIA GeForce", "res": "1920x1080"}])
+        self.assertEqual([n["ip"] for n in h["net"]], ["192.168.1.60", "10.0.0.5"])  # IPv6 écartée
+        self.assertEqual(health.parse_windows({**DATA, "hw": hw})["hardware"], h)
+        self.assertEqual(h["last_update"], "2026-10-01")
+
+    def test_materiel_tolerant(self):
+        self.assertIsNone(agents.hardware_of(None))
+        self.assertIsNone(agents.hardware_of({"data": DATA}))
+        self.assertIsNone(agents.hardware_of({"data": {"hw": "n'importe quoi"}}))
+        self.assertIsNone(agents.hardware_of({"data": {"hw": {}}}))
+        h = agents.hardware_of({"data": {"hw": {"mo": "PC", "ram": "x", "cc": -1, "gpu": [1, None, {"r": "1x1"}], "net": ["a", {"n": "x"}]}}})
+        self.assertEqual((h["model"], h["ram_gb"], h["cores"], h["gpu"], h["net"]), ("PC", None, None, [], []))
+        self.assertIsNone(health.parse_windows(DATA)["hardware"])
+
+    def test_script_ascii_et_version(self):
+        self.assertEqual(agents.VERSION, "3")
+        agents.script("agent.ps1").encode("ascii")
+
     def test_fraicheur(self):
         token, info = self.create()
         self.send(token)

@@ -18,7 +18,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "2"
+VERSION = "3"
 SCRIPTS = Path(__file__).resolve().parent / "agent"
 PREFIX = "msv_agent_"
 NAME_RE = re.compile(r"^[\w .@-]{2,64}$")
@@ -160,6 +160,13 @@ def system_of(report: dict | None) -> dict | None:
     except (KeyError, ValueError, TypeError):
         pass
     return {"os": str(o["n"]).strip(), "kernel": f"{o.get('v') or ''} (build {o.get('b')})".strip() if o.get("b") else o.get("v"), "uptime_s": up}
+
+
+def hardware_of(report: dict | None) -> dict | None:
+    """Matériel d'un relevé d'agent (clé « hw » : modèle, BIOS, processeur, mémoire, graphique, réseau...) ou None s'il est absent."""
+    import health
+    data = (report or {}).get("data")
+    return health.hardware_of_raw(data.get("hw")) if isinstance(data, dict) else None
 
 
 def report_level(report: dict) -> str | None:

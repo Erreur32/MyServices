@@ -491,6 +491,8 @@ def collect_smart(run) -> dict:
 # Un seul script, en lecture. Erreurs ignorées une à une : un contrôle refusé ne masque pas les autres.
 # 4625 (échecs de connexion) : journal Sécurité, administrateurs seulement ; -1 = non lisible.
 # MSV_UPD (agent) : titres de la dernière recherche Windows Update, réutilisés pour ne la refaire qu'une fois par heure.
+# Matériel (lecture seule, sans droits particuliers) : m=fabricant, mo=modèle, bios, cpu, cc/cl=cœurs physiques/logiques, ram=Go,
+# gpu=[{n=nom, r=résolution}], net=[{n=carte, ip=IPv4}] (jamais d'adresse MAC), dom=domaine ou groupe de travail, wu=dernière mise à jour installée.
 WIN_PS = r"""
 $ErrorActionPreference='SilentlyContinue';$ProgressPreference='SilentlyContinue';$o=@{};$t=(Get-Date).AddHours(-24)
 $o.disks=@(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3'|%{@{m=$_.DeviceID;s=[double]$_.Size;f=[double]$_.FreeSpace}})
@@ -504,13 +506,48 @@ $o.pd=@(Get-PhysicalDisk|%{@{n=$_.FriendlyName;h=[string]$_.HealthStatus}})
 $o.ev=@(Get-WinEvent -FilterHashtable @{LogName='System';Level=1,2;StartTime=$t} -MaxEvents 300|?{$_.Level -eq 1 -or $_.ProviderName -match 'disk|Ntfs|volmgr|stor|WHEA'}|Select-Object -First 8|%{'{0} {1} {2}' -f $_.TimeCreated.ToString('dd/MM HH:mm'),$_.ProviderName,(($_.Message -split "`n")[0]).Trim()})
 try{$o.fail=@(Get-WinEvent -FilterHashtable @{LogName='Security';Id=4625;StartTime=$t} -ErrorAction Stop).Count}catch{$o.fail=$(if($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*'){0}else{-1})}
 if($env:MSV_UPD){$o.upd=@($env:MSV_UPD|ConvertFrom-Json)}else{try{$r=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0 and IsHidden=0 and Type='Software'");$o.upd=@($r.Updates|%{$_.Title})}catch{$o.upd=$null}}
-ConvertTo-Json -InputObject $o -Depth 4 -Compress
+$h=@{};try{$cs=Get-CimInstance Win32_ComputerSystem;$h.m=[string]$cs.Manufacturer;$h.mo=[string]$cs.Model;$h.ram=[math]::Round($cs.TotalPhysicalMemory/1GB,1);$h.dom=$(if($cs.PartOfDomain){[string]$cs.Domain}else{'WORKGROUP: '+$cs.Workgroup})}catch{}
+try{$h.bios=[string](Get-CimInstance Win32_BIOS|Select-Object -First 1).SMBIOSBIOSVersion}catch{}
+try{$h.cpu=[string]($p|Select-Object -First 1).Name;$h.cc=($p|Measure-Object NumberOfCores -Sum).Sum;$h.cl=$o.ncpu}catch{}
+try{$h.gpu=@(Get-CimInstance Win32_VideoController|?{$_.Name}|Select-Object -First 4|%{@{n=[string]$_.Name;r=$(if($_.CurrentHorizontalResolution){'{0}x{1}' -f $_.CurrentHorizontalResolution,$_.CurrentVerticalResolution}else{''})}})}catch{}
+try{$h.net=@(Get-CimInstance Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=True'|?{$_.IPAddress}|Select-Object -First 8|%{$d=$_.Description;@($_.IPAddress|?{$_ -match '^\d+\.\d+\.\d+\.\d+$'}|%{@{n=[string]$d;ip=[string]$_}})})}catch{}
+try{$q=Get-HotFix|Where-Object{$_.InstalledOn}|Sort-Object InstalledOn -Descending|Select-Object -First 1;if($q){$h.wu=$q.InstalledOn.ToString('yyyy-MM-dd')}}catch{}
+$o.hw=$h
+ConvertTo-Json -InputObject $o -Depth 5 -Compress
 """
 
 
 def ps_command(script: str) -> str:
     """powershell -EncodedCommand : aucun guillemet à protéger, que le shell OpenSSH soit cmd ou PowerShell."""
     return "powershell -NoProfile -NonInteractive -EncodedCommand " + base64.b64encode(script.encode("utf-16-le")).decode()
+
+
+def _txt(d: dict, k: str, n: int = 120):
+    """Texte court d'un champ (texte ou nombre), None s'il est absent, vide ou d'un autre type."""
+    v = d.get(k)
+    return str(v).strip()[:n] if isinstance(v, (str, int, float)) and not isinstance(v, bool) and str(v).strip() else None
+
+
+def _pos(d: dict, k: str):
+    """Nombre strictement positif d'un champ, None sinon."""
+    v = d.get(k)
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0 else None
+
+
+def hardware_of_raw(hw) -> dict | None:
+    """Matériel du relevé PowerShell (clé « hw ») -> dict propre, champs absents tolérés ; None si rien de lisible."""
+    if not isinstance(hw, dict):
+        return None
+    def items(k, limit):  # PowerShell range parfois un seul élément en objet plutôt qu'en liste
+        v = hw.get(k)
+        return [x for x in (v if isinstance(v, list) else [v]) if isinstance(x, dict)][:limit]
+    out = {"maker": _txt(hw, "m"), "model": _txt(hw, "mo"), "bios": _txt(hw, "bios"), "cpu": _txt(hw, "cpu"),
+           "cores": int(_pos(hw, "cc") or 0) or None, "threads": int(_pos(hw, "cl") or 0) or None,
+           "ram_gb": round(_pos(hw, "ram"), 1) if _pos(hw, "ram") else None, "domain": _txt(hw, "dom"), "last_update": _txt(hw, "wu", 20),
+           "gpu": [{"name": _txt(g, "n"), "res": _txt(g, "r", 20)} for g in items("gpu", 4) if _txt(g, "n")],
+           "net": [{"name": _txt(n, "n"), "ip": _txt(n, "ip", 15)} for n in items("net", 8)
+                   if _txt(n, "n") and re.fullmatch(r"\d{1,3}(\.\d{1,3}){3}", _txt(n, "ip") or "")]}
+    return out if any(out.values()) else None
 
 
 def parse_windows(raw: dict) -> dict:
@@ -547,6 +584,7 @@ def parse_windows(raw: dict) -> dict:
                                                      "failed": d.get("h") not in ("Healthy", "", None)} for d in pd]},
         "system": {"os": (raw.get("os") or {}).get("n"), "version": (raw.get("os") or {}).get("v"), "build": (raw.get("os") or {}).get("b"),
                    "boot": raw.get("boot")} if isinstance(raw.get("os"), dict) else None,
+        "hardware": hardware_of_raw(raw.get("hw")),
         "res": ({"available": True, "cpu_pct": round(raw["cpu"], 1), "mem_pct": round(raw["mem"], 1)}
                 if isinstance(raw.get("cpu"), (int, float)) and isinstance(raw.get("mem"), (int, float)) else {"available": False}),
     }

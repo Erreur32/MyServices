@@ -104,7 +104,7 @@ export interface Machine {
   npm: number;
   down: number;
   ssh?: { alias: string; port: number; user?: string; identity?: string | null; key_fp?: string | null; host_key?: string | null; methods?: string[] | null; note?: string | null } | null;
-  agent?: { os: string; kernel?: string | null; uptime_s?: number | null; via: "agent" } | null;  // système lu par l'agent (PC Windows)
+  agent?: { os: string; kernel?: string | null; uptime_s?: number | null; hardware?: AgentHardware | null; via: "agent" } | null;  // système lu par l'agent (PC Windows)
   info?: {
     os?: string; kernel?: string; uptime_s?: number; apache?: boolean; nginx?: boolean; docker?: number; docker_installed?: boolean;
     sshd?: { permitrootlogin?: string; passwordauthentication?: string };
@@ -478,6 +478,13 @@ export interface ApiToken {
 }
 export interface McpTool { name: string; level: string; description: string; enabled: boolean }
 export interface TokensState { tokens: ApiToken[]; tools: McpTool[]; mcp_path: string; api_path: string }
+
+/** Matériel lu par l'agent Windows (champs absents = non lisibles) */
+export interface AgentHardware {
+  maker?: string | null; model?: string | null; bios?: string | null; cpu?: string | null; cores?: number | null; threads?: number | null;
+  ram_gb?: number | null; domain?: string | null; last_update?: string | null;
+  gpu?: { name: string; res?: string | null }[]; net?: { name: string; ip: string }[];
+}
 
 /** Réglages → Agents (api/v1/agents) */
 export interface AgentInfo {
