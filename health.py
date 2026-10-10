@@ -128,15 +128,26 @@ def make_runner(host: dict):
         target = host["target"]
 
         def run(cmd: str, timeout: int = 15) -> tuple[int, str]:
-            full = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", target, cmd]
+            # Repère avant la commande : un bandeau d'accueil (fastfetch, motd dans ~/.bashrc) précède sinon la sortie
+            marked = host.get("os") != "windows"  # PowerShell n'a pas printf : Windows garde sa commande telle quelle
+            full = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", target, f"printf '%s\\n' {SSH_MARK}; {cmd}" if marked else cmd]
             try:
                 r = subprocess.run(full, capture_output=True, text=True, timeout=timeout)
             except subprocess.TimeoutExpired:
                 return 124, f"timeout après {timeout}s"
             except Exception as e:
                 return 1, str(e)
-            return (0, r.stdout) if r.returncode == 0 else (r.returncode, (r.stdout + r.stderr).strip())
+            return (0, after_banner(r.stdout) if marked else r.stdout) if r.returncode == 0 else (r.returncode, ((after_banner(r.stdout) if marked else r.stdout) + r.stderr).strip())
     return run
+
+SSH_MARK = "__MSV_START__"
+
+
+def after_banner(out: str) -> str:
+    """Sortie d'une commande SSH sans ce qui précède le repère (bandeau de connexion, avertissements du shell distant)."""
+    head, sep, tail = out.partition(SSH_MARK + "\n")
+    return tail if sep else out
+
 
 # ───────────── Collecte ─────────────
 
