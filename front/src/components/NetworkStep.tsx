@@ -15,7 +15,8 @@ import { Copyable, NoteLine } from "./form";
 import { netPercent } from "./ScanBar";
 import { Badge } from "./ui";
 
-/** Une machine trouvée : nom (ou « sans nom »), adresse une seule fois, une étiquette par information */
+/** Une machine trouvée : nom (ou « sans nom »), adresse une seule fois, une étiquette par information ;
+ *  hint : explication de l'étape qui suivra l'ajout (jeton Home Assistant, clé SSH), seulement si la machine est cochée */
 function HostInfo({ h, fresh = false, hint = false }: { h: NetHost; fresh?: boolean; hint?: boolean }) {
   const tags = tagsOf(h);
   return (
@@ -26,12 +27,12 @@ function HostInfo({ h, fresh = false, hint = false }: { h: NetHost; fresh?: bool
       {tags.length === 0 && <Badge tone="off">{tx("répond au ping seulement")}</Badge>}
       {fresh && <Badge tone="warn">{tx("nouvelle")}</Badge>}
       {hint && h.apps.includes("Home Assistant") && (
-        <span className="basis-full pl-6 text-xs text-warn">
+        <span className="row-in basis-full pl-6 text-xs text-warn">
           <KeyRound size={12} className="mr-1 inline" aria-hidden />{tx("Après l'ajout, un jeton d'accès vous sera demandé (par son API, pas par SSH) : l'aide vous guide pas à pas.")}
         </span>
       )}
       {hint && !!h.ssh_port && !h.apps.includes("Home Assistant") && (
-        <span className="basis-full pl-6 text-xs text-link">
+        <span className="row-in basis-full pl-6 text-xs text-link">
           <KeyRound size={12} className="mr-1 inline" aria-hidden />{tx("Après l'ajout, une étape guidée prépare l'accès SSH : une commande à lancer sur la machine avec la clé de MyServices, puis un test.")}
         </span>
       )}
@@ -148,7 +149,7 @@ export function NetworkStep({ net, reload }: { net: NetScan | null; reload: () =
               <li key={h.ip}>
                 <label className="flex cursor-pointer flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2 hover:bg-bg2">
                   <input type="checkbox" className="h-4 w-4 accent-[rgb(var(--link))]" checked={picked.has(h.ip)} onChange={() => toggle(h.ip)} />
-                  <HostInfo h={h} fresh={!!diff?.fresh.has(h.ip)} hint />
+                  <HostInfo h={h} fresh={!!diff?.fresh.has(h.ip)} hint={picked.has(h.ip)} />
                 </label>
               </li>
             ))}
