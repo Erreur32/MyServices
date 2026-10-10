@@ -143,18 +143,37 @@ export interface Connector {
 }
 
 /** Une machine trouvée par la recherche réseau (netscan.py) */
-export interface NetHost { ip: string; name: string; ports: number[]; hints: string[]; apps: string[] }
+export interface NetHost { ip: string; name: string; ports: number[]; ssh_port?: number | null; hints: string[]; apps: string[] }
 
 export interface NetScan {
   phase: "idle" | "ping" | "identify" | "done";
   net: string | null;
   total: number;
   done: number;
+  up: number;
+  described: number;
   found: NetHost[];
+  previous?: string[];
+  previous_ended?: number | null;
+  gone?: string[];
   started: number | null;
   ended: number | null;
   error: string | null;
   stopped: boolean;
+}
+
+/** État d'un service lu par son API (connecteur « status » : Home Assistant) */
+export interface ServiceStatus {
+  connector: string;
+  name: string;
+  label: string;
+  ok: boolean;
+  stale: boolean;
+  message: string;
+  version?: string | null;
+  url?: string | null;
+  entities?: number;
+  updates?: { name: string; installed?: string | null; latest?: string | null }[];
 }
 
 /** Connecteur à proposer : appli reconnue sur une machine, pas encore réglée (known_apps.py) */
@@ -175,6 +194,7 @@ export interface Data {
   npm_instances: Record<string, string>;
   connectors?: Connector[];
   proposals?: Proposal[];
+  services_status?: ServiceStatus[];
   hosts: Host[];
   dns?: Dns;
   machine_list: Machine[];
@@ -345,6 +365,7 @@ export interface ConnectorType {
   label: string;
   kinds: string[];
   tested: string[];
+  guide?: string[];
   fields: ConnectorField[];
 }
 export interface ConnectorStatus {

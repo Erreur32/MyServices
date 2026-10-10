@@ -1,7 +1,7 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { Pencil, Plug, Plus, Trash2 } from "lucide-react";
+import { HelpCircle, Pencil, Plug, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
@@ -90,7 +90,7 @@ function InstanceCard({ inst, type, reload }: { inst: ConnectorInstance; type: C
   );
 }
 
-function ConnectorForm({ type, inst, prefill, onDone, onCancel }: { type: ConnectorType; inst?: ConnectorInstance; prefill?: Prefill | null; onDone: () => void; onCancel: () => void }) {
+export function ConnectorForm({ type, inst, prefill, onDone, onCancel }: { type: ConnectorType; inst?: ConnectorInstance; prefill?: Prefill | null; onDone: () => void; onCancel: () => void }) {
   const [name, setName] = useState(inst?.name || prefill?.name || type.type);
   const [conf, setConf] = useState<Record<string, string | number | boolean>>(() => {
     const init: Record<string, string | number | boolean> = {};
@@ -119,6 +119,12 @@ function ConnectorForm({ type, inst, prefill, onDone, onCancel }: { type: Connec
   };
   return (
     <form onSubmit={submit} className="mt-3 flex flex-col gap-3 rounded-xl border border-line bg-bg2/50 p-3">
+      {type.guide && type.guide.length > 0 && (
+        <details open={!inst} className="rounded-lg border border-line/70 bg-bg2/60 px-3 py-2 text-sm">
+          <summary className="flex cursor-pointer items-center gap-2 font-semibold text-txt"><HelpCircle size={15} aria-hidden />{tx("Besoin d'aide pour obtenir ces accès ?")}</summary>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted">{type.guide.map((g) => <li key={g}>{g}</li>)}</ol>
+        </details>
+      )}
       <Field label={tx("Nom de l'instance (unique pour ce type)")}>
         <input className={input} required maxLength={64} value={name} onChange={(e) => setName(e.target.value)} />
       </Field>

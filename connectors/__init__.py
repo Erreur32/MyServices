@@ -15,13 +15,14 @@ from connectors.alerts import Discord, Telegram
 from connectors.base import Connector, ConnectorError, Context
 from connectors.beszel import Beszel
 from connectors.docker_ssh import DockerSSH
+from connectors.home_assistant import HomeAssistantAPI
 from connectors.dozzle import Dozzle
 from connectors.npm import NPM
 from connectors.process import Process
 from connectors.uptime_kuma import UptimeKuma
 from connectors.webcheck import WebCheck
 
-TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, Discord, Telegram)}
+TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Discord, Telegram)}
 
 
 def declared(cfg: dict, meta: dict | None = None) -> list[dict]:

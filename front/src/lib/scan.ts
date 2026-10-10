@@ -2,7 +2,7 @@
 // et les étapes de « Premiers pas » : une seule interrogation, lue par plusieurs composants.
 import { useSyncExternalStore } from "react";
 
-export interface NetworkSummary { running: boolean; phase: string; done: number; total: number; found: number }
+export interface NetworkSummary { running: boolean; phase: string; done: number; total: number; up: number; described: number; found: number }
 
 export interface ScanStatus {
   running: boolean;

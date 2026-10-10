@@ -38,7 +38,7 @@ def editable() -> dict:
 
 def schema() -> list[dict]:
     """Types réglables et leurs champs : la page en génère les formulaires."""
-    return [{"type": t, "label": c.label, "kinds": list(c.kinds), "tested": list(c.tested),
+    return [{"type": t, "label": c.label, "kinds": list(c.kinds), "tested": list(c.tested), "guide": list(getattr(c, "guide", ())),
              "fields": [{"name": f.name, "label": f.label, "kind": f.kind, "required": f.required, "secret": f.secret,
                          "default": f.default, "help": f.help, "choices": list(f.choices)} for f in c.fields]}
             for t, c in editable().items()]

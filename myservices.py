@@ -682,6 +682,24 @@ def uptime_rows(rows):
     cbase.save_state(CONNECTORS_STATE, state)
 
 
+def status_rows() -> list[dict]:
+    """Connecteurs « status » (Home Assistant) : état de chaque instance (version, entités, mises à jour disponibles),
+    dans data.json « services_status » ; une instance injoignable garde son dernier relevé, marqué périmé."""
+    try:
+        insts = connectors.instances(CFG, kind="status")
+    except connectors.ConnectorError:
+        return []  # déjà signalé par read_npm (même registre)
+    out, state = [], cbase.load_state(CONNECTORS_STATE)
+    for c in insts:
+        data, st = cbase.run_isolated(c, state, 60)
+        CONNECTOR_STATUS.append(st)
+        out.append({"connector": c.type, "name": c.name, "label": c.label, "ok": st.ok, "stale": st.stale, "message": st.message,
+                    "version": st.version, "url": c.conf.get("url"), **(data or {})})
+    if insts:
+        cbase.save_state(CONNECTORS_STATE, state)
+    return out
+
+
 def progress(step, label, done=None, total=None):
     """Écrit l'étape en cours (JSON atomique) ; les compteurs de sondes sont limités à 2 écritures/s."""
     if not PROGRESS:
@@ -1077,6 +1095,7 @@ def main():
         "categories": [n for n, _ in CATEGORIES] + ["Autre"],
         "hosts": rows,
         "proposals": known_apps.propose(rows, connectors.declared(CFG, META_RAW)),
+        "services_status": status_rows(),
         "dns": dns,
         "machine_list": machines_out,
     }

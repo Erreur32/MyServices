@@ -51,8 +51,7 @@ APPS: tuple[App, ...] = (
     App("radarr", "Radarr", "Médias", ports=(7878,), title=r"^radarr", images=("linuxserver/radarr", "hotio/radarr")),
     App("jellyfin", "Jellyfin", "Médias", ports=(8096,), title=r"jellyfin", images=("jellyfin/jellyfin", "linuxserver/jellyfin")),
     App("plex", "Plex", "Médias", ports=(32400,), title=r"^plex", images=("plexinc/pms-docker", "linuxserver/plex")),
-    App("homeassistant", "Home Assistant", "Domotique", ports=(8123,), title=r"home assistant",
-        images=("homeassistant/home-assistant", "ghcr.io/home-assistant/home-assistant")),
+    App("homeassistant", "Home Assistant", "Domotique", ports=(8123,), title=r"home assistant", connector="home-assistant"),
     App("proxmox", "Proxmox VE", "Infra / virtualisation", ports=(8006,), title=r"proxmox"),
     App("synology", "Synology DSM", "Fichiers / sync", title=r"synology"),
 )

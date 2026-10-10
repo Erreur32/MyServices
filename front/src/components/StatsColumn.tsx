@@ -40,7 +40,7 @@ export function StatsColumn({ snap, go }: { snap: Snapshot; go: (t: TabId) => vo
       ["ok", n(npm, "ok"), tx("OK")], ["bad", n(npm, "bad"), tx("en panne")],
       ["warn", npm.filter((r) => checks(r).some((c) => !CLEANUP.includes(c))).length, tx("à corriger")],
       ["off", npm.filter((r) => !r.enabled).length, tx("désactivés")]]} />,
-    local.length > 0 && <Group key="loc" title={tx("Directs")} sub={tx("{0} services", local.length)} accent="border-l-loc" tab="services" go={go} cells={[
+    local.length > 0 && <Group key="loc" title={tx("Services")} sub={tx("{0} services", local.length)} accent="border-l-loc" tab="services" go={go} cells={[
       ["ok", n(local, "ok"), tx("en ligne")], ["bad", n(local, "bad"), "down"],
       ["warn", local.filter((r) => r.web === "ui" && !r.direct_ok).length, tx("UI sans domaine")], ["off", n(local, "off"), tx("non testés")]]} />,
     health && <Group key="hl" title={tx("🩺 Santé")} sub={tx("{0} machines", health.hosts.length)} accent="border-l-ok" tab="health" go={go} cells={[

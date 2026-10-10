@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { ROOT } from "../api";
 import { tx } from "../lib/i18n";
-import { registerPoller, setScan, useScan, type ScanStatus } from "../lib/scan";
+import { registerPoller, setScan, useScan, type NetworkSummary, type ScanStatus } from "../lib/scan";
 
 const IDLE_MS = 10_000, RUN_MS = 1_500;
 
@@ -11,6 +11,12 @@ const IDLE_MS = 10_000, RUN_MS = 1_500;
 export function fraction(p: NonNullable<ScanStatus["progress"]>): number {
   const part = p.total ? Math.min(1, (p.done ?? 0) / p.total) : 0;
   return Math.max(0.03, Math.min(1, (p.step - 1 + part) / p.steps));
+}
+
+/** Recherche réseau : la 1re moitié de la barre est le ping, la 2e l'identification des machines trouvées */
+export function netPercent(n: Pick<NetworkSummary, "phase" | "done" | "total" | "up" | "described">): number {
+  if (n.phase === "identify") return Math.min(100, 50 + Math.round((n.described / Math.max(1, n.up)) * 50));
+  return Math.min(50, Math.round((n.done / Math.max(1, n.total)) * 50));
 }
 
 export function ScanBar({ onFinished }: { onFinished: () => void }) {
@@ -41,10 +47,11 @@ export function ScanBar({ onFinished }: { onFinished: () => void }) {
   const net = st?.network?.running ? st.network : null;
   if (!st?.running && !net) return null;
   const p = st?.running ? st.progress : null;
-  const pct = p ? Math.round(fraction(p) * 100) : net ? (net.phase === "identify" ? 100 : Math.round((net.done / Math.max(1, net.total)) * 100)) : null;
+  const pct = p ? Math.round(fraction(p) * 100) : net ? netPercent(net) : null;
   const title = net && !st?.running ? tx("Recherche réseau") : tx("Scan en cours");
   const label = p ? `${p.label}${p.total ? ` (${p.done ?? 0}/${p.total})` : ""}`
-    : net ? tx("{0}/{1} adresses testées, {2} machine(s) trouvée(s)", net.done, net.total, net.found) : tx("démarrage…");
+    : net ? (net.phase === "identify" ? tx("identification : {0}/{1} machines (nom, ports ouverts)", net.described, net.up)
+                                      : tx("recherche des machines allumées : {0}/{1} adresses", net.done, net.total)) : tx("démarrage…");
   return (
     <div role="progressbar" aria-label={title} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined}
       aria-valuetext={label} className="pointer-events-none fixed inset-x-0 top-0 z-50">

@@ -44,3 +44,8 @@ body {
 .step-pop { animation: step-pop .45s cubic-bezier(.2, 1.4, .4, 1); }
 @keyframes step-pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .step-pop { animation: none; } .animate-spin { animation: none; } }
+
+/* Machine qui arrive pendant la recherche réseau */
+.row-in { animation: row-in .4s ease-out; }
+@keyframes row-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .row-in { animation: none; } }

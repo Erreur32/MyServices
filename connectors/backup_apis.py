@@ -93,10 +93,11 @@ class Veeam(Connector):
 
 
 class HomeAssistant(Connector):
-    type = "home-assistant"
+    """Sauvegardes et disque de Home Assistant (module backups.py, fichier de secrets) ; l'état et les mises à jour
+    sont lus par connectors/home_assistant.py (adresse + jeton, réglable dans la page)."""
+    type = "home-assistant-backups"
     label = "Home Assistant"
     kinds = ("backups",)
-    images = ("homeassistant/home-assistant", "ghcr.io/home-assistant/home-assistant")
     fields = (Field("secrets", "Fichier HA_URL= / HA_TOKEN= (mode 600)", required=True),)
 
     def _states(self, env: dict) -> list:

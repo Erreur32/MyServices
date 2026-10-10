@@ -21,3 +21,31 @@ export function useNetScan(): { net: NetScan | null; reload: () => void } {
 export function netState(net: NetScan | null): NetState {
   return net && (net.phase === "ping" || net.phase === "identify") ? "run" : net && net.found.length ? "found" : "idle";
 }
+
+export interface Tag { label: string; kind: "ssh" | "app" | "port" }
+
+/** Étiquettes d'une machine trouvée, sans doublon : l'appli reconnue passe avant l'indice de port qui porte le même
+ *  nom (« Proxmox VE » remplace « Proxmox »), y compris dans un ancien résultat enregistré avant ce correctif. */
+export function tagsOf(h: { hints: string[]; apps: string[] }): Tag[] {
+  const out: Tag[] = [];
+  const known = (l: string) => out.some((t) => {
+    const a = t.label.toLowerCase(), b = l.toLowerCase();
+    return a === b || a.startsWith(b + " ") || b.startsWith(a + " ");
+  });
+  for (const a of h.apps) if (!known(a)) out.push({ label: a, kind: "app" });
+  for (const x of h.hints) if (!known(x)) out.push({ label: x, kind: x === "SSH" ? "ssh" : "port" });
+  return out;
+}
+
+/** Machine à pré-sélectionner : répond en SSH, a une appli reconnue ou un service autre qu'une simple page web
+ *  (partage, bureau à distance, Veeam…). Un objet connecté qui n'a qu'une page web ne l'est pas. */
+export function interesting(h: { ssh_port?: number | null; hints: string[]; apps: string[] }): boolean {
+  return !!h.ssh_port || h.apps.length > 0 || h.hints.some((x) => x !== "web" && !x.startsWith("port "));
+}
+
+/** Changements depuis la recherche d'avant : adresses nouvelles (absentes de la précédente) et disparues */
+export function changes(net: { found: { ip: string }[]; previous?: string[]; gone?: string[] }): { fresh: Set<string>; gone: string[] } | null {
+  if (!net.previous?.length) return null;
+  const before = new Set(net.previous);
+  return { fresh: new Set(net.found.filter((h) => !before.has(h.ip)).map((h) => h.ip)), gone: net.gone ?? [] };
+}
