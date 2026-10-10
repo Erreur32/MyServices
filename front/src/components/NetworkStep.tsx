@@ -337,7 +337,7 @@ function AddedMachine({ host, onDone }: { host: NetHost; onDone: () => void }) {
   };
 
   return (
-    <div className="rounded-lg border border-line bg-bg2/40 p-3">
+    <div className="rounded-lg border border-ok/50 bg-ok/10 p-3">
       <p className="flex flex-wrap items-center gap-2">
         <Check size={14} className="text-ok" aria-hidden /><b className="text-txt">{label}</b>
         <span className="font-mono text-xs text-dim">{host.ip}</span><Badge tone="ok">{tx("ajoutée")}</Badge>
