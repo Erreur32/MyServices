@@ -1210,4 +1210,5 @@ export const EN: Record<string, string> = {
   "Imprimante": "Printer",
   "Domotique": "Home automation",
   "IA / LLM": "AI / LLM",
+  "5180 est le serveur de développement : l'agent cessera d'envoyer quand il s'arrête. Utilisez l'adresse stable de MyServices (le conteneur, ex. http://192.168.1.10:8091).": "5180 is the development server: the agent will stop sending when it stops. Use MyServices' stable address (the container, e.g. http://192.168.1.10:8091).",
 };

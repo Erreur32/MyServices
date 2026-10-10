@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Copyable, Field, NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
-import { installCommand } from "../lib/agentCommand";
+import { cleanAgentUrl, installCommand } from "../lib/agentCommand";
 import { isWindowsMachine } from "../lib/machines";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
@@ -27,13 +27,16 @@ const STATE: Record<AgentInfo["state"], ["ok" | "warn" | "info" | "off", string]
 const EXAMPLE_URL = "http://192.168.1.10:8090"; // NOSONAR
 
 /** Nom d'agent accepté par le serveur (lettres, chiffres, espace, . _ @ -) tiré du nom de la machine */
+const URL_KEY = "ms.agent.url";
 const agentName = (machine: string) => machine.replace(/[^\p{L}\p{N}_ .@-]/gu, "").trim().slice(0, 64) || "agent";
 
 export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] }) {
   const [st, setSt] = useState<AgentsState | null>(null);
   const [machines, setMachines] = useState<MachinesSettings["machines"]>({});
   const [error, setError] = useState("");
-  const [url, setUrl] = useState(location.origin);
+  // Adresse de MyServices vue du PC : celle saisie la dernière fois (retenue par le navigateur), sinon celle de la page
+  const [url, setUrl] = useState(() => { try { return localStorage.getItem(URL_KEY) || location.origin; } catch { return location.origin; } });
+  const changeUrl = (v: string) => { setUrl(v); try { localStorage.setItem(URL_KEY, v); } catch { /* navigation privée : tant pis */ } };
   const [created, setCreated] = useState<{ info: AgentInfo; token: string } | null>(null);  // jeton gardé en mémoire de la page seulement
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState("");
   const command = created ? installCommand(url, created.token) : null;  // suit le champ « Adresse de MyServices » même après la création
@@ -97,9 +100,10 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         </p>
         <div className="mt-3 max-w-md">
           <Field label={tx("Adresse de MyServices, vue du PC")}>
-            <input className={input} value={url} onChange={(e) => setUrl(e.target.value.trim())} placeholder={EXAMPLE_URL} inputMode="url" />
+            <input className={input} value={url} onChange={(e) => changeUrl(e.target.value.trim())} placeholder={EXAMPLE_URL} inputMode="url" />
           </Field>
         </div>
+        {cleanAgentUrl(url)?.endsWith(":5180") && <p className="mt-2 text-sm text-warn">{tx("5180 est le serveur de développement : l'agent cessera d'envoyer quand il s'arrête. Utilisez l'adresse stable de MyServices (le conteneur, ex. http://192.168.1.10:8091).")}</p>}
         {local && <p className="mt-2 text-sm text-warn">{tx("localhost ne marchera pas depuis un autre PC : mettez l'adresse du LAN de MyServices (ex. http://192.168.1.10:8090).")}</p>}
         <NoteLine note={note} />
       </Card>
