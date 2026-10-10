@@ -9,7 +9,7 @@ import { tx } from "../lib/i18n";
 import { dateTime } from "../lib/format";
 import { ADDED_KEY, DISMISSED_KEY, LATER_HIDDEN_KEY, REOPEN_EVENT } from "../lib/firstSteps";
 import { appIcon } from "../lib/appIcons";
-import { changes, interesting, needsLink, netState, quiet, summarize, tagsOf, viaMynetwork } from "../lib/netScan";
+import { changes, interesting, needsLink, netState, osOf, quiet, summarize, tagsOf, viaMynetwork } from "../lib/netScan";
 import { pokeScan } from "../lib/scan";
 import { ConnectorForm } from "../tabs/Connectors";
 import type { ConnectorsState, ConnectorType, NetHost, NetScan, SystemState } from "../types";
@@ -26,13 +26,14 @@ function AppIcon({ apps }: { apps?: readonly string[] }) {
 /** Une machine trouvée : nom (ou « sans nom »), adresse une seule fois, une étiquette par information ;
  *  hint : explication de l'étape qui suivra l'ajout (jeton Home Assistant, clé SSH), seulement si la machine est cochée */
 function HostInfo({ h, fresh = false, hint = false }: { h: NetHost; fresh?: boolean; hint?: boolean }) {
-  const tags = tagsOf(h);
+  const tags = tagsOf(h), os = osOf(h);
   return (
     <>
       <AppIcon apps={h.apps} />
       {h.name ? <b className="text-txt">{h.name}</b> : <i className="text-dim">{tx("sans nom")}</i>}
       <span className="font-mono text-xs text-dim">{h.ip}</span>
       {tags.map((t) => <Badge key={t.label} tone={t.kind === "ssh" ? "ok" : t.kind === "app" ? "info" : "off"}>{t.label}</Badge>)}
+      {os && <Badge tone="off" title={tx("Système probable, d'après : {0}", os.how)}>{os.label}</Badge>}
       {fresh && <Badge tone="warn">{tx("nouvelle")}</Badge>}
       {hint && h.apps.includes("Home Assistant") && (
         <span className="row-in basis-full pl-6 text-xs text-warn">

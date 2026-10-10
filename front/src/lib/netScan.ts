@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read } from "../api";
 import type { NetScan } from "../types";
+import { tx } from "./i18n";
 import { useScan } from "./scan";
 
 export type NetState = "idle" | "run" | "found";
@@ -35,6 +36,16 @@ export function tagsOf(h: { hints: string[]; apps: string[] }): Tag[] {
   for (const a of h.apps) if (!known(a)) out.push({ label: a, kind: "app" });
   for (const x of h.hints) if (!known(x)) out.push({ label: x, kind: x === "SSH" ? "ssh" : "port" });
   return out;
+}
+
+const osLabel = (os: string): string | undefined =>
+  ({ windows: "Windows", linux: "Linux", macos: "macOS", ios: tx("iPhone / iPad"), network: tx("Matériel réseau") } as Record<string, string>)[os];
+
+/** Système probable d'une machine (suggestion du scan) : nom et indice, sans doublon avec une étiquette déjà là (« Windows (RDP) ») */
+export function osOf(h: { os?: string | null; os_how?: string | null; hints: string[] }): { label: string; how: string } | null {
+  const label = h.os ? osLabel(h.os) : undefined;
+  if (!label || h.hints.some((x) => x.toLowerCase().startsWith(label.toLowerCase()))) return null;
+  return { label, how: h.os_how ?? "" };
 }
 
 /** Machine à pré-sélectionner : répond en SSH, a une appli reconnue ou un service autre qu'une simple page web

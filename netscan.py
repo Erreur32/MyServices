@@ -29,6 +29,9 @@ import known_apps
 # Ports regardés sur une machine qui répond : port -> indice affiché (reprend l'assistant d'installation)
 HINT_PORTS = {3389: "Windows (RDP)", 445: "partage SMB", 9419: "Veeam B&R (API 9419)", 8006: "Proxmox",
               5000: "port 5000", 8123: "Home Assistant", 81: "admin NPM", 80: "web", 443: "web", 32400: "Plex"}
+# Ports regardés seulement pour deviner le système (jamais affichés comme indice) : RPC/NetBIOS Windows, AFP et VNC macOS, iPhone / iPad
+OS_PORTS = (135, 139, 548, 5900, 62078)
+RASPBERRY_OUI = ("b8:27:eb", "dc:a6:32", "e4:5f:01", "28:cd:c1", "d8:3a:dd")  # adresses MAC des Raspberry Pi : toujours Linux
 PING_WORKERS, IDENTIFY_WORKERS, PROBE_TIMEOUT = 64, 16, 0.6
 # SSH : le port 22 et les ports hors norme courants ; ceux de ~/.ssh/config (Port …) s'y ajoutent à chaque recherche
 SSH_PORTS = (22, 222, 2200, 2222, 22022, 22222, 22232)
@@ -42,8 +45,54 @@ _file: Path | None = None
 _known: set[str] = set()
 
 
+_ttls: dict[str, int] = {}  # TTL de la réponse au ping, par adresse : 128 Windows, 64 Linux / macOS / Android, 255 matériel réseau
+
+
 def _ping(ip: str) -> bool:
-    return subprocess.run(["ping", "-c1", "-W1", ip], capture_output=True).returncode == 0
+    r = subprocess.run(["ping", "-c1", "-W1", ip], capture_output=True, text=True)
+    if r.returncode:
+        return False
+    if m := re.search(r"ttl=(\d+)", r.stdout, re.I):
+        _ttls[ip] = int(m.group(1))
+    return True
+
+
+def _vendor(ip: str) -> str | None:
+    """Fabricant déduit de l'adresse MAC (table de voisins de l'hôte, même sous-réseau seulement) ; None si inconnu."""
+    try:
+        out = subprocess.run(["ip", "neigh", "show", ip], capture_output=True, text=True, timeout=3).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    m = re.search(r"lladdr (\S+)", out)
+    return "Raspberry Pi" if m and m.group(1).lower().startswith(RASPBERRY_OUI) else None
+
+
+LINUX_TAGS = ("debian", "ubuntu", "raspbian", "fedora", "centos", "red hat", "alpine", "freebsd")
+
+
+def guess_os(banner: str | None, ports: set[int], ttl: int | None, vendor: str | None) -> tuple[str | None, str | None]:
+    """Système probable et l'indice qui le dit : (« windows » | « linux » | « macos » | « ios » | « network », indice) ou (None, None).
+    Une suggestion, jamais une certitude : en cas de doute, rien. Le TTL seul ne sépare pas Linux de macOS."""
+    low = (banner or "").lower()
+    if "windows" in low:
+        return "windows", "SSH"
+    if any(t in low for t in LINUX_TAGS) or re.search(r"\bel\d", low):
+        return "linux", "SSH"
+    if vendor == "Raspberry Pi":
+        return "linux", "MAC"
+    if 62078 in ports:
+        return "ios", "port 62078"
+    if ports & {135, 139, 3389}:
+        return "windows", "ports"
+    if 548 in ports:
+        return "macos", "port 548"
+    if "openssh" in low and 5900 in ports:  # OpenSSH sans étiquette de distribution + Partage d'écran
+        return "macos", "SSH + port 5900"
+    if ttl and ttl > 128:
+        return "network", "TTL"
+    if ttl and 64 < ttl <= 128:
+        return "windows", "TTL"
+    return None, None
 
 
 def _open(ip: str, port: int) -> bool:
@@ -74,14 +123,15 @@ def _page(ip: str, port: int, timeout: float = 1.5) -> str | None:
     return title[:80] or None
 
 
-def _ssh_banner(ip: str, port: int) -> bool:
-    """Vrai si le port répond par une bannière SSH (« SSH-2.0-… ») : un port ouvert ne suffit pas, c'est peut-être autre chose."""
+def _ssh_banner(ip: str, port: int) -> str:
+    """Bannière SSH (« SSH-2.0-OpenSSH_9.2p1 Debian… ») ou "" : un port ouvert ne suffit pas, c'est peut-être autre chose."""
     try:
         with socket.create_connection((ip, port), timeout=PROBE_TIMEOUT) as c:
             c.settimeout(PROBE_TIMEOUT)
-            return c.recv(8).startswith(b"SSH-")
+            data = c.recv(80)
     except OSError:
-        return False
+        return ""
+    return data.split(b"\n")[0].decode("ascii", "replace").strip() if data.startswith(b"SSH-") else ""
 
 
 def ssh_ports(configured: dict | None = None) -> tuple[int, ...]:
@@ -91,17 +141,21 @@ def ssh_ports(configured: dict | None = None) -> tuple[int, ...]:
     return tuple(dict.fromkeys(SSH_PORTS + tuple(sorted(int(v["port"]) for v in cfg.values() if v.get("port")))))
 
 
-def _describe(ip: str, probe=_open, lookup=socket.gethostbyaddr, banner=_ssh_banner, ssh=SSH_PORTS, page=_page) -> dict:
+def _describe(ip: str, probe=_open, lookup=socket.gethostbyaddr, banner=_ssh_banner, ssh=SSH_PORTS, page=_page,
+              ttl=lambda ip: _ttls.get(ip), vendor=_vendor) -> dict:
     """Une machine qui répond : nom DNS court, SSH (port et bannière), ports ouverts parmi HINT_PORTS, applis probables."""
     try:
         name = lookup(ip)[0].split(".")[0].lstrip("_")  # « _gateway » de systemd-resolved
     except OSError:
         name = ""
-    with ThreadPoolExecutor(len(HINT_PORTS) + len(ssh)) as px:
+    with ThreadPoolExecutor(len(HINT_PORTS) + len(OS_PORTS) + len(ssh)) as px:
         probes = [px.submit(probe, ip, p) for p in HINT_PORTS]
+        osf = [px.submit(probe, ip, p) for p in OS_PORTS]
         sshf = [px.submit(banner, ip, p) for p in ssh]
         opened = [p for p, f in zip(HINT_PORTS, probes) if f.result()]
-        ssh_port = next((p for p, f in zip(ssh, sshf) if f.result()), None)
+        os_open = {p for p, f in zip(OS_PORTS, osf) if f.result()}
+        got = {p: f.result() for p, f in zip(ssh, sshf)}
+        ssh_port = next((p for p in ssh if got[p]), None)
     web = [p for p in (80, 443) if p in opened]
     with ThreadPoolExecutor(2) as wx:  # page d'accueil des ports web : le titre dit souvent ce que c'est
         pages = [{"port": p, "scheme": "https" if p == 443 else "http", "title": t} for p, t in zip(web, wx.map(lambda p: page(ip, p), web))]
@@ -113,8 +167,10 @@ def _describe(ip: str, probe=_open, lookup=socket.gethostbyaddr, banner=_ssh_ban
     title = next((x["title"] for x in pages if x["title"]), None)
     by_name = [hit[0].label] if name and (hit := known_apps.identify(name=name)) else []  # « unifi », « proxmox »…
     apps = list(dict.fromkeys([*app_of.values(), *(hit[0].label for x in pages if x["title"] and (hit := known_apps.identify(title=x["title"]))), *by_name]))
+    banner_text = got.get(ssh_port) if ssh_port else None
+    os_name, os_how = guess_os(banner_text if isinstance(banner_text, str) else None, {*opened, *os_open}, ttl(ip), vendor(ip))
     return {"ip": ip, "name": name, "ports": opened, "ssh_port": ssh_port, "hints": hints, "apps": apps,
-            "title": title, "pages": pages}
+            "title": title, "pages": pages, "os": os_name, "os_how": os_how}
 
 
 def local_net() -> str:

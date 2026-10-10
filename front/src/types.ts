@@ -152,6 +152,8 @@ export interface NetHost {
   apps: string[];
   title?: string | null;  // titre de la page web (port 80 ou 443)
   known?: boolean;        // machine déjà déclarée dans MyServices
+  os?: "windows" | "linux" | "macos" | "ios" | "network" | null;  // système probable (suggestion)
+  os_how?: string | null;  // indice qui le dit : SSH, ports, TTL, MAC…
 }
 
 export interface NetScan {

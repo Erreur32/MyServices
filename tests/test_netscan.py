@@ -100,6 +100,37 @@ class Targets(unittest.TestCase):
             netscan.targets("10.0.0.0/16")
 
 
+class GuessOs(unittest.TestCase):
+    def test_banniere_ssh(self):
+        g = netscan.guess_os
+        self.assertEqual(g("SSH-2.0-OpenSSH_for_Windows_9.5", set(), 64, None), ("windows", "SSH"))
+        self.assertEqual(g("SSH-2.0-OpenSSH_9.2p1 Debian-2+deb12u3", set(), 64, None), ("linux", "SSH"))
+        self.assertEqual(g("SSH-2.0-OpenSSH_8.0 el9", set(), None, None), ("linux", "SSH"))
+
+    def test_ports_et_mac(self):
+        g = netscan.guess_os
+        self.assertEqual(g(None, {3389}, None, None)[0], "windows")
+        self.assertEqual(g(None, {548}, 64, None)[0], "macos")
+        self.assertEqual(g(None, {62078}, 64, None)[0], "ios")
+        self.assertEqual(g(None, set(), 64, "Raspberry Pi"), ("linux", "MAC"))
+        self.assertEqual(g("SSH-2.0-OpenSSH_9.6", {5900}, 64, None)[0], "macos")
+
+    def test_ttl_et_doute(self):
+        g = netscan.guess_os
+        self.assertEqual(g(None, set(), 128, None), ("windows", "TTL"))
+        self.assertEqual(g(None, set(), 255, None), ("network", "TTL"))
+        self.assertEqual(g(None, set(), 64, None), (None, None))   # Linux ou macOS : on ne dit rien
+        self.assertEqual(g(None, {445}, None, None), (None, None))  # SMB seul : Windows ou NAS
+        self.assertEqual(g(None, {5900}, 64, None), (None, None))   # VNC seul : n'importe quel système
+
+    def test_describe_remplit_os_sans_changer_les_indices(self):
+        d = netscan._describe("10.0.0.9", probe=lambda ip, p: p in (135, 445), lookup=lambda ip: ("pc", [], []),
+                              banner=lambda ip, p: "", ssh=(22,), ttl=lambda ip: 128, vendor=lambda ip: None)
+        self.assertEqual((d["os"], d["os_how"]), ("windows", "ports"))
+        self.assertEqual(d["hints"], ["partage SMB"])
+        self.assertNotIn(135, d["ports"])
+
+
 class Describe(unittest.TestCase):
     def test_ports_indices_et_applis(self):
         d = netscan._describe("10.0.0.9", probe=lambda ip, p: p in (8006, 443, 80), lookup=lambda ip: ("pve.lan", [], []),

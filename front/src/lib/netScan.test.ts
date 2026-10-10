@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changes, interesting, needsLink, quiet, summarize, tagsOf, viaMynetwork } from "./netScan";
+import { changes, interesting, needsLink, osOf, quiet, summarize, tagsOf, viaMynetwork } from "./netScan";
 
 const labels = (h: { hints: string[]; apps: string[] }) => tagsOf(h).map((t) => t.label);
 
@@ -107,5 +107,15 @@ describe("viaMynetwork (UniFi)", () => {
   it("ne demande aucun accès SSH, même avec un port SSH ouvert", () => {
     const u = { ip: "10.0.0.1", name: "unifi", ssh_port: 22, apps: [] };
     expect(needsLink(u, [{ ip: "10.0.0.1", ssh: null }], [])).toBeNull();
+  });
+});
+
+describe("osOf", () => {
+  it("donne le système probable et l'indice, rien s'il est inconnu", () => {
+    expect(osOf({ os: "linux", os_how: "SSH", hints: ["SSH"] })).toEqual({ label: "Linux", how: "SSH" });
+    expect(osOf({ os: null, hints: [] })).toBeNull();
+  });
+  it("pas de doublon avec « Windows (RDP) »", () => {
+    expect(osOf({ os: "windows", os_how: "ports", hints: ["Windows (RDP)"] })).toBeNull();
   });
 });
