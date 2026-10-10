@@ -281,31 +281,35 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
           {tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache. Rien n'y est modifié.")}
           <span className="block text-dim">{tx("Sans accès : ping et services web seulement.")}</span>
         </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {windows ? (
-            <Field label={tx("Accès SSH de la santé (Windows)")}>
-              <input className={input} value={String(v.health || "")} onChange={(e) => setV({ ...v, health: e.target.value })} list="ssh-aliases-f" />
-            </Field>
-          ) : (
-            <Field label={tx("Accès SSH (alias)")}>
-              <select className={input} value={v.ssh || ""} onChange={(e) => setV({ ...v, ssh: e.target.value || null })}>
-                <option value="">{tx("aucun : ping et services web seulement")}</option>
-                {st.aliases.map((a) => <option key={a.alias} value={a.alias}>{a.alias} · {a.user ? `${a.user}@` : ""}{a.ip || a.host}{a.port ? `:${a.port}` : ""}</option>)}
-              </select>
-            </Field>
-          )}
-          <datalist id="ssh-aliases-f">{st.aliases.map((a) => <option key={a.alias} value={a.alias} />)}</datalist>
-          {!windows && v.ssh && hasAdguard && (  // seulement si AdGuard a été trouvé sur la machine (ou déjà réglé) : sinon rien à montrer
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+          <div className="min-w-[240px] flex-1">
+            {windows ? (
+              <Field label={tx("Accès SSH de la santé (Windows)")}>
+                <input className={input} value={String(v.health || "")} onChange={(e) => setV({ ...v, health: e.target.value })} list="ssh-aliases-f" />
+              </Field>
+            ) : (
+              <Field label={tx("Accès SSH (alias)")}>
+                <select className={input} value={v.ssh || ""} onChange={(e) => setV({ ...v, ssh: e.target.value || null })}>
+                  <option value="">{tx("aucun : ping et services web seulement")}</option>
+                  {st.aliases.map((a) => <option key={a.alias} value={a.alias}>{a.alias} · {a.user ? `${a.user}@` : ""}{a.ip || a.host}{a.port ? `:${a.port}` : ""}</option>)}
+                </select>
+              </Field>
+            )}
+          </div>
+          <ul className="flex flex-wrap items-center justify-end gap-1.5 pb-1.5" aria-label={tx("Ce que cet accès permet de lire")}>
+            {gives.map(([label, on, why]) => (
+              <li key={label} title={why}><Badge tone={on ? "ok" : "off"}>{on ? "✓" : "–"} {label}</Badge></li>
+            ))}
+          </ul>
+        </div>
+        <datalist id="ssh-aliases-f">{st.aliases.map((a) => <option key={a.alias} value={a.alias} />)}</datalist>
+        {!windows && v.ssh && hasAdguard && (  // seulement si AdGuard a été trouvé sur la machine (ou déjà réglé) : sinon rien à montrer
+          <div className="mt-3 sm:max-w-[50%]">
             <Field label={tx("AdGuard Home trouvé (conteneur ou chemin du .yaml)")}>
               <input className={input} maxLength={80} value={v.adguard || ""} placeholder={tx("aucun")} onChange={(e) => setV({ ...v, adguard: e.target.value })} />
             </Field>
-          )}
-        </div>
-        <ul className="mt-2.5 flex flex-wrap gap-1.5" aria-label={tx("Ce que cet accès permet de lire")}>
-          {gives.map(([label, on, why]) => (
-            <li key={label} title={why}><Badge tone={on ? "ok" : "off"}>{on ? "✓" : "–"} {label}</Badge></li>
-          ))}
-        </ul>
+          </div>
+        )}
         <p className="mt-1.5 text-xs text-dim">
           {tx("Pas encore d'alias ? « Lire cette machine par SSH » (Réglages → Découverte) le crée avec la clé de l'app ; la clé est dans Réglages → Clé SSH.")}
         </p>
