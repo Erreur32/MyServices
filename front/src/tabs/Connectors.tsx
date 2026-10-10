@@ -1,7 +1,7 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { Ban, HelpCircle, Pencil, Plug, Plus, Server, Trash2 } from "lucide-react";
+import { Ban, HelpCircle, Pencil, Plug, Plus, Server, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
@@ -11,6 +11,7 @@ import { StatusLine } from "../components/ssh";
 import type { ConnectorInstance, ConnectorsState, ConnectorType } from "../types";
 import { takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
+import { appIcon } from "../lib/appIcons";
 
 const KIND: Record<string, string> = {
   services: "services", health: tx("santé"), logs: "journaux", dns: "DNS", inventory: "inventaire", backups: "sauvegardes",
@@ -22,6 +23,7 @@ export function Connectors() {
   const [st, setSt] = useState<ConnectorsState | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
+  const [picking, setPicking] = useState(false);  // mini cartes des connecteurs disponibles, ouvertes par le « + »
   const [src, setSrc] = useState<Record<string, boolean>>({}), [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false);
   const loadSources = useCallback(() => { read<{ sources: Record<string, boolean> }>("sources").then((r) => setSrc(r.sources)).catch(() => undefined); }, []);
   useEffect(loadSources, [loadSources]);
@@ -41,14 +43,35 @@ export function Connectors() {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Connecteurs")} <Dim>· {st.instances.length}</Dim></h2>
-          <select className={`${input} max-w-[240px]`} value="" onChange={(e) => setAdding(e.target.value)} aria-label={tx("Ajouter un connecteur")}>
-            <option value="">{tx("+ Ajouter un connecteur…")}</option>
-            {st.types.map((t) => <option key={t.type} value={t.type}>{t.label}</option>)}
-          </select>
+          <button type="button" className={picking ? primary : quiet} aria-expanded={picking} onClick={() => setPicking(!picking)}>
+            {picking ? <X size={14} /> : <Plus size={14} />}{picking ? tx("Fermer") : tx("Ajouter un connecteur")}
+          </button>
         </div>
         <p className="mt-1 text-sm text-muted">
           {tx("Services lus par leur API,")} <b className="text-txt">{tx("en lecture seule")}</b> {tx(": prévoir un compte ou une clé lecture seule. « Tester » essaie les réglages sans les enregistrer ; un changement est pris en compte au prochain passage de la collecte.")}
         </p>
+        {picking && (
+          <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label={tx("Connecteurs disponibles")}>
+            {st.types.map((t) => {
+              const icon = appIcon([t.label]), n = st.instances.filter((i) => i.type === t.type).length;
+              return (
+                <li key={t.type}>
+                  <button type="button" onClick={() => { setAdding(t.type); setPicking(false); }}
+                    className="flex h-full w-full items-center gap-3 rounded-xl border border-line bg-bg2/60 p-3 text-left transition-colors hover:border-link hover:bg-link/10">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
+                      {icon ? <img src={icon} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <b className="block truncate text-sm text-txt">{t.label}</b>
+                      <span className="block truncate text-xs text-dim">{t.kinds.map((k) => KIND[k] || k).join(" · ")}{n > 0 && ` · ${tx("{0} déjà", n)}`}</span>
+                    </span>
+                    <Plus size={15} className="shrink-0 text-dim" aria-hidden />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
         {type && <ConnectorForm key={type.type} type={type} prefill={prefill?.type === type.type ? prefill : null} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
       </Card>
       {st.instances.map((i, n) => (
