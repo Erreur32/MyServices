@@ -194,6 +194,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
 }) {
   const [v, setV] = useState<MachineConf>(m);
   const [proc, setProc] = useState(!!process);
+  const [hasAdguard] = useState(() => !!m.adguard);  // figé à l'ouverture : vider le champ ne le fait pas disparaître
   const [options, setOptions] = useState(() => !!m.disabled || detected.length > 0);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const windows = v.os === "windows";
@@ -203,6 +204,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
     ["Docker", !windows && access, tx("Conteneurs, images, ports (onglet Services)")],
     [tx("Santé"), health, v.off ? tx("Souvent éteinte : la santé ne la lit pas") : tx("Disques, mémoire, CPU, systemd, mises à jour (onglet Santé)")],
     [tx("Système"), !windows && access, tx("Système, noyau, sshd, Apache (onglet Machines)")],
+    ...(hasAdguard ? [["AdGuard Home", !windows && access, tx("Réécritures et réponses DNS (onglet DNS)")] as [string, boolean, string]] : []),
     [tx("Services en écoute"), !windows && access && proc, tx("Ports en écoute hors Docker (option ci-dessous)")],
   ];
   const submit = async (e: FormEvent) => {
@@ -244,8 +246,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, on
             </Field>
           )}
           <datalist id="ssh-aliases-f">{st.aliases.map((a) => <option key={a.alias} value={a.alias} />)}</datalist>
-          {!windows && v.ssh && (
-            <Field label={tx("AdGuard Home (conteneur ou chemin du .yaml)")}>
+          {!windows && v.ssh && hasAdguard && (  // seulement si AdGuard a été trouvé sur la machine (ou déjà réglé) : sinon rien à montrer
+            <Field label={tx("AdGuard Home trouvé (conteneur ou chemin du .yaml)")}>
               <input className={input} maxLength={80} value={v.adguard || ""} placeholder={tx("aucun")} onChange={(e) => setV({ ...v, adguard: e.target.value })} />
             </Field>
           )}
