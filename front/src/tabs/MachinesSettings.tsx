@@ -313,7 +313,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
       <section className="rounded-xl border border-line/60 bg-bg2/30 p-3">
         <button type="button" onClick={() => setSshOpen(!sshOpen)} aria-expanded={sshOpen} className="flex w-full flex-wrap items-center gap-2 text-left">
           {sshOpen ? <ChevronDown size={14} className="text-dim" aria-hidden /> : <ChevronRight size={14} className="text-dim" aria-hidden />}
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("Accès SSH (lecture seule)")}</h4>
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("Accès SSH")}</h4>
           {live && <Badge tone={MSTATE[mState(live)][0]} title={MSTATE[mState(live)][2]}>{MSTATE[mState(live)][1]}</Badge>}
           {!sshOpen && <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
             {sshOn && <code className="font-mono text-xs text-muted">{sshWho}</code>}
@@ -322,7 +322,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
         </button>
         {sshOpen && <div className="mt-2">
         <p className="mb-2 text-xs text-muted">
-          {tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache. Rien n'y est modifié.")}
+          {tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache.")} <b className="text-txt">{tx("Lecture seule")}</b>{tx(" : rien n'y est modifié.")}
           <span className="block text-dim">{tx("Sans accès : ping et services web seulement.")}</span>
         </p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

@@ -1,0 +1,27 @@
+name: SonarCloud
+
+# Analyse statique (qualité, sécurité) sur chaque push et PR. Secret requis : SONAR_TOKEN
+# (SonarCloud > My Account > Security). Action épinglée par empreinte de commit (voir safety.yml).
+
+on:
+  push:
+    branches: [main, docker]
+  pull_request:
+    branches: [main, docker]
+
+permissions:
+  contents: read
+
+jobs:
+  sonarcloud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Les PR venant d'un fork n'ont pas accès au secret
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
