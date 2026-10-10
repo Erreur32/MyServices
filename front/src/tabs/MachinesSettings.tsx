@@ -15,6 +15,7 @@ import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
 import { MSTATE, mState, osOfMachine } from "../lib/machines";
+import { AuthorizeKey } from "../components/AuthorizeKey";
 import { SshGuide } from "../components/SshGuide";
 import { SshDetails } from "../components/ssh";
 import { sshBrief, sshWarn } from "../lib/ssh";
@@ -58,6 +59,7 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
   const ips = Object.keys(st.machines).sort((a, b) => ipNum(a) - ipNum(b));
   return (
     <div className="flex flex-col gap-4">
+      <AuthorizeKey failing={(snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok)} />
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-bold">{tx("Machines")} <Dim>· {ips.length}</Dim></h2>

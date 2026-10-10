@@ -7,7 +7,6 @@ import { dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
 import type { HealthHost, Machine, NetScan } from "../types";
 import { MSTATE, ORDER, mState, type MState } from "../lib/machines";
-import { AuthorizeKey } from "../components/AuthorizeKey";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, FilterBar, Level, Table, Td, Th } from "../components/ui";
 import { tx } from "../lib/i18n";
@@ -170,7 +169,6 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
 
   return (
     <div className="py-1">
-      {snap.me.role === "admin" && <AuthorizeKey failing={(snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok)} />}
       <FilterBar f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
         extra={nOff > 0 && (
           <button type="button" onClick={() => setShowOff(!showOff)} aria-pressed={showOff}
