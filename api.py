@@ -609,7 +609,9 @@ def system_health(body: HealthSwitch, request: Request):
     except ValueError as e:
         return deny(400, str(e))
     store().audit("santé des machines " + ("allumée" if body.enabled else "coupée"), request.state.user["username"], ip_of(request))
-    return {"ok": True, **out}
+    if body.enabled:  # premier relevé tout de suite, puis collecte pour que l'onglet Santé apparaisse sans attendre l'horaire
+        core.run_chain(["health", "collect"], "Réglages → Tâches, santé allumée")
+    return {"ok": True, **out, "started": body.enabled}
 
 
 @app.post(API + "/system/tasks/{name}/run", tags=["système"], summary="Lancer une tâche maintenant (admin)")

@@ -79,7 +79,7 @@ function TaskRow({ t, reload }: { t: SystemTask; reload: () => void }) {
           {t.switch && (
             <label className="ml-3 inline-flex items-center gap-2 align-middle">
               <Switch on={t.enabled} label={t.enabled ? tx("Couper la santé des machines") : tx("Allumer la santé des machines")}
-                onChange={(on) => void act(() => send("PUT", "system/health", { enabled: on }), on ? tx("santé allumée : lue au prochain horaire, ou tout de suite avec « Lancer »") : tx("santé coupée"), setNote).then((ok) => ok && reload())} />
+                onChange={(on) => void act(() => send("PUT", "system/health", { enabled: on }), on ? tx("santé allumée : premier relevé en cours, puis la collecte (une minute environ)") : tx("santé coupée"), setNote).then((ok) => ok && reload())} />
             </label>
           )}
           {!t.enabled && t.why && <p className="mt-0.5 text-xs text-muted">{t.why}</p>}

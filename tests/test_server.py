@@ -5,6 +5,9 @@ contrôle d'origine, réponses de l'API ⟳ et de l'API v1, horaires.
 """
 import ipaddress
 import json
+from unittest import mock
+import threading
+import time
 import sys
 import tempfile
 import unittest
@@ -137,6 +140,28 @@ class Schedule(unittest.TestCase):
         self.assertIsNone(server.TASKS["collect"]["hours"])
         self.assertEqual(server.TASKS["health"]["hours"], {0, 6, 12, 18})
         self.assertEqual(server.TASKS["backups"]["minutes"], {5})
+
+
+class Chain(unittest.TestCase):
+    def test_enchaine_sante_puis_collecte_sans_doubler(self):
+        real_sleep = time.sleep
+        calls, busy = [], {"health": 2}  # la santé est déjà en cours pour 2 essais : on l'attend
+
+        def fake_run(name, why):
+            if busy.get(name):
+                busy[name] -= 1
+                return False
+            calls.append(name)
+            server.TASKS[name]["proc"] = object()
+            threading.Timer(0.05, lambda: server.TASKS[name].update(proc=None)).start()
+            return True
+        with mock.patch.object(server, "run_task", fake_run), mock.patch.object(server.time, "sleep", lambda s: real_sleep(0.01)):
+            server.run_chain(["health", "collect"], "test")
+            for _ in range(200):
+                if calls == ["health", "collect"] and server.TASKS["collect"]["proc"] is None:
+                    break
+                real_sleep(0.02)
+        self.assertEqual(calls, ["health", "collect"])
 
 
 if __name__ == "__main__":

@@ -105,6 +105,22 @@ def run_task(name: str, why: str) -> bool:
     return True
 
 
+def run_chain(names: list[str], why: str) -> None:
+    """Lance des tâches l'une après l'autre en arrière-plan (ex. santé puis collecte : la collecte ne publie la santé
+    qu'une fois son relevé écrit). Une tâche déjà en cours est attendue, jamais doublée."""
+    def go() -> None:
+        for name in names:
+            for _ in range(600):
+                if run_task(name, why):
+                    break
+                time.sleep(1)
+            else:
+                continue
+            while TASKS[name]["proc"] is not None:
+                time.sleep(1)
+    threading.Thread(target=go, daemon=True, name="chain").start()
+
+
 def alerts_on() -> bool:
     try:
         return alerts_store().active()
