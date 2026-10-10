@@ -158,12 +158,9 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
   const sort = useSort(f.shown, keyOf, "ip");
 
   const name = (m: Machine) => (
-    <button type="button" onClick={() => onMachine(m.ip)} className="flex items-center gap-2 text-left" title={tx("Voir ses services")}>
-      <MachineIcon m={m} scan={scanOs[m.ip]} />
-      <span>
-        <b className="font-semibold hover:text-link">{m.name}</b>
-        <span className="block text-xs text-dim">{m.ip}{m.role ? ` · ${m.role}` : ""}</span>
-      </span>
+    <button type="button" onClick={() => onMachine(m.ip)} className="text-left" title={tx("Voir ses services")}>
+      <b className="font-semibold hover:text-link">{m.name}</b>
+      <span className="block text-xs text-dim">{m.ip}{m.role ? ` · ${m.role}` : ""}</span>
     </button>
   );
   const svc = (m: Machine) => (
@@ -184,12 +181,12 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           <Table head={<>
-            <Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("État")}</Th><Th>{tx("SSH")}</Th><Th>{tx("Clé utilisée")}</Th><Th>{tx("Hôte")}</Th><Th>{tx("Root")}</Th><Th>{tx("Mot de passe")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
+            <th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("État")}</Th><Th>{tx("SSH")}</Th><Th>{tx("Clé utilisée")}</Th><Th>{tx("Hôte")}</Th><Th>{tx("Root")}</Th><Th>{tx("Mot de passe")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
             <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th>{tx("Systemd")}</Th><Th>{tx("Mises à jour")}</Th></>}
           </>}>
             {sort.sorted.map((m) => (
               <tr key={m.ip} className={`hover:bg-bg2/60 ${m.disabled ? "opacity-50" : ""}`}>
-                <Td>{name(m)}</Td><Td>{st(m)}</Td><Td><Ssh m={m} /></Td>
+                <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td><Td>{name(m)}</Td><Td>{st(m)}</Td><Td><Ssh m={m} /></Td>
                 <Td><KeyCell m={m} /></Td><Td><HostKey m={m} /></Td><Td><Sshd m={m} what="root" /></Td><Td><Sshd m={m} what="pwd" /></Td>
                 <Td>{m.info?.os ? <>{m.info.os}<span className="block text-xs text-dim">{tx("noyau")} {m.info.kernel || "?"} {tx("· up")} {dur(m.info.uptime_s)}</span></> : <Dim>—</Dim>}</Td>
                 <Td><Servers m={m} snap={snap} /></Td><Td>{svc(m)}</Td>
@@ -201,7 +198,7 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
           <Cards>
             {sort.sorted.map((m) => (
               <div key={m.ip} className={`rounded-2xl border border-line bg-card p-3.5 ${m.disabled ? "opacity-50" : ""}`}>
-                <div className="flex items-start justify-between gap-2">{name(m)}{st(m)}</div>
+                <div className="flex items-start justify-between gap-2"><span className="flex items-start gap-2"><MachineIcon m={m} scan={scanOs[m.ip]} reserve />{name(m)}</span>{st(m)}</div>
                 <div className="mt-2 flex flex-col gap-2 text-sm">
                   {m.info?.os && <span className="text-muted">{m.info.os} {tx("· up")} {dur(m.info.uptime_s)}</span>}
                   <Servers m={m} snap={snap} />

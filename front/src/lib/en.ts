@@ -541,6 +541,7 @@ export const EN: Record<string, string> = {
   "Joignable seulement par NPM": "Reachable only through NPM",
   "Jour :": "Day:",
   "Compte": "Account",
+  "Icône": "Icon",
   "Matériel réseau (probable)": "Network equipment (probable)",
   "Windows (probable)": "Windows (probable)",
   "{0} dossier(s) suivi(s) : premier relevé en cours, l'onglet Sauvegardes apparaît ensuite": "{0} folder(s) followed: first reading in progress, the Backups tab appears afterwards",
