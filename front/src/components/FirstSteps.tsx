@@ -176,8 +176,12 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
           )}
           {finished && (
             <p className="flex flex-wrap items-center gap-1.5">
-              {readable.map((c) => <Badge key={c.name} tone="ok">{c.message}</Badge>)}
-              {tx("remplacent les estimations.")}
+              {tx("Docker lu exactement, par machine :")}
+              {readable.map((c) => (
+                <Badge key={c.name} tone="ok" title={tx("{0} : {1}, lus par SSH à la place de l'estimation", c.name, c.message)}>
+                  <img src={appIcon(["Docker"]) ?? ""} alt="" aria-hidden className="h-4 w-4 object-contain" />{c.name} · {c.message}
+                </Badge>
+              ))}
             </p>
           )}
         </Step>
