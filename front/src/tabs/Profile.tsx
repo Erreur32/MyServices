@@ -36,7 +36,7 @@ function Sessions() {
   return (
     <Card>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><MonitorSmartphone size={16} />{tx("Mes sessions")} {list && <Dim>· {list.length}</Dim>}</h2>
-      <p className="mb-3 text-sm text-muted">{tx("Navigateurs et appareils connectés à ce compte. Une session dure {0} jours et se prolonge à l'usage.", days)}</p>
+      {days > 0 && <p className="mb-3 text-sm text-muted">{tx("Navigateurs et appareils connectés à ce compte. Une session dure {0} jours et se prolonge à l'usage.", days)}</p>}
       {error && <p className="text-sm text-bad">⚠ {error}</p>}
       {list === null ? !error && <p className="text-sm text-muted">{tx("Chargement…")}</p> : (
         <ul className="flex flex-col divide-y divide-line/60">
