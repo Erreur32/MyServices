@@ -70,5 +70,13 @@ class TemperatureCpu(unittest.TestCase):
         self.assertEqual(health.temp_level(None), "na")
 
 
+    def test_sans_capteur_dit_si_c_est_une_vm(self):
+        def runner(virt):
+            return lambda cmd, timeout=15: (0, "") if "hwmon" in cmd else (0 if virt != "none" else 1, virt + "\n")
+        self.assertEqual(health.collect_cpu_temp(runner("kvm")), {"available": False, "virt": "kvm"})
+        self.assertEqual(health.collect_cpu_temp(runner("none")), {"available": False})
+        self.assertEqual(health.collect_cpu_temp(runner("none"), vm=True), {"available": False, "virt": "vm"})
+
+
 if __name__ == "__main__":
     unittest.main()

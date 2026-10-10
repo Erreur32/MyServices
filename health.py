@@ -364,9 +364,18 @@ def parse_cpu_temp(out: str) -> dict:
     return {"available": True, "celsius": best[1], "source": best[2]} if best else {"available": False}
 
 
-def collect_cpu_temp(run) -> dict:
+def collect_cpu_temp(run, vm: bool = False) -> dict:
+    """Température du CPU ; sans capteur, `virt` dit pourquoi (kvm, vmware… ou « vm » si la machine est déclarée VM)."""
     rc, out = run(_TEMP_CMD, timeout=8)
-    return parse_cpu_temp(out) if rc == 0 else {"available": False}
+    temp = parse_cpu_temp(out) if rc == 0 else {"available": False}
+    if not temp["available"]:
+        rc, out = run("systemd-detect-virt 2>/dev/null", timeout=6)
+        virt = out.strip().splitlines()[-1].strip() if out.strip() else ""
+        if re.fullmatch(r"[a-z0-9-]{2,20}", virt) and virt != "none":
+            temp["virt"] = virt
+        elif vm:
+            temp["virt"] = "vm"
+    return temp
 
 
 def temp_level(temp) -> str:
@@ -670,7 +679,7 @@ def collect_host(host: dict) -> dict:
     reboot_required = collect_reboot_required(run)
     load = collect_load(run)
     ssh_auth = collect_ssh_auth(run)
-    temp = collect_cpu_temp(run)
+    temp = collect_cpu_temp(run, bool(host.get("vm")))
     # SMART non pertinent sur une VM (disque virtualisé, pas de hardware physique dédié)
     smart = {"accessible": False, "disks": [], "vm": True} if host.get("vm") else collect_smart(run)
     h = {"id": host["id"], "name": host["name"], "reachable": True,
