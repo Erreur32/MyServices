@@ -121,6 +121,26 @@ class Agents(unittest.TestCase):
         a["fresh"] = False
         self.assertEqual(health.host_from_agent(hc, a)["level"], "down")
 
+    def test_scripts_publics_sans_secret_et_en_ascii(self):
+        for name in ("install", "agent"):
+            r = self.anon.get(f"/myservices/agent/{name}.ps1")
+            self.assertEqual(r.status_code, 200, name)
+            self.assertTrue(r.text.isascii(), name)
+            self.assertNotIn("msv_agent_" + "x", r.text)
+        agent = self.anon.get("/myservices/agent/agent.ps1").text
+        self.assertIn("Win32_LogicalDisk", agent)       # le relevé de health.WIN_PS est inclus
+        self.assertNotIn("__VERSION__", agent)
+        self.assertNotIn("#__COLLECT__", agent)
+        self.assertEqual(self.anon.get("/myservices/agent/autre.ps1").status_code, 404)
+
+    def test_commande_d_installation(self):
+        r = self.c.post(BASE + "/agents", json={"ip": "192.168.1.60", "name": "Gamer32"},
+                        headers={**self.h, "X-Forwarded-Proto": "https", "X-Forwarded-Host": "ms.lan"})
+        cmd = r.json()["command"]
+        self.assertIn("$env:MSV_URL = 'https://ms.lan'", cmd)
+        self.assertIn(f"$env:MSV_TOKEN = '{r.json()['token']}'", cmd)
+        self.assertIn("/myservices/agent/install.ps1", cmd)
+
     def test_fraicheur(self):
         token, info = self.create()
         self.send(token)

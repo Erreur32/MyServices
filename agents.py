@@ -18,6 +18,8 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+VERSION = "1"
+SCRIPTS = Path(__file__).resolve().parent / "agent"
 PREFIX = "msv_agent_"
 NAME_RE = re.compile(r"^[\w .@-]{2,64}$")
 MAX_BODY = 256 * 1024     # octets : un relevé fait quelques ko
@@ -151,3 +153,20 @@ def _public(r: sqlite3.Row) -> dict:
 
 def _h(raw: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def script(name: str) -> str:
+    """agent.ps1 (relevé de health.WIN_PS inclus : une seule source pour SSH et agent) ou install.ps1, tels que servis.
+    ASCII seulement : Windows PowerShell 5.1 lit un script sans BOM en ANSI."""
+    text = (SCRIPTS / name).read_text(encoding="utf-8")
+    if name == "agent.ps1":
+        import health
+        text = text.replace("#__COLLECT__", health.WIN_PS.strip()).replace("__VERSION__", VERSION)
+    return text
+
+
+def install_command(base_url: str, token: str) -> str:
+    """Commande à coller dans un PowerShell administrateur de la machine."""
+    return ("Set-ExecutionPolicy Bypass -Scope Process -Force\n"
+            f"$env:MSV_URL = '{base_url}'\n$env:MSV_TOKEN = '{token}'\n"
+            'iex (iwr "$env:MSV_URL/myservices/agent/install.ps1" -UseBasicParsing).Content')

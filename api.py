@@ -62,7 +62,7 @@ def csp_for(path: str) -> str | None:
 AUTH = os.environ.get("MYSERVICES_AUTH", "1") != "0"
 COOKIE, CSRF_COOKIE = "ms_session", "ms_csrf"
 # Accessibles sans session : page de connexion et ce qu'elle charge, connexion, santé du conteneur
-PUBLIC = {"/healthz", PREFIX + "/login.html", PREFIX + "/login.js", PREFIX + "/login.css", PREFIX + "/favicon.svg",
+PUBLIC = {"/healthz", PREFIX + "/agent/install.ps1", PREFIX + "/agent/agent.ps1", PREFIX + "/login.html", PREFIX + "/login.js", PREFIX + "/login.css", PREFIX + "/favicon.svg",
           API + "/login", API + "/setup"}
 # Premier compte depuis la page (comme Uptime Kuma) : seulement tant qu'aucun compte n'existe, et dans les
 # SETUP_WINDOW s après le démarrage (au-delà : redémarrer le conteneur). Réseau local seulement (guard).
@@ -597,6 +597,20 @@ async def agent_report(request: Request):
     return {"ok": True, "interval": agents.DEFAULT_INTERVAL}
 
 
+@app.get(PREFIX + "/agent/{name}.ps1", tags=["agents"], summary="Scripts de l'agent Windows (sans secret, réseau local)")
+def agent_script(name: str):
+    import agents
+    if name not in ("install", "agent"):
+        return deny(404, "introuvable")
+    return Response(agents.script(name + ".ps1"), media_type="text/plain; charset=utf-8")
+
+
+def base_url(request: Request) -> str:
+    """Adresse de MyServices vue par le navigateur (derrière un proxy : en-têtes X-Forwarded-*)."""
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    return f"{proto}://{request.headers.get('x-forwarded-host') or request.headers.get('host')}"
+
+
 @app.get(API + "/agents", tags=["agents"], summary="Agents et leur dernier relevé (session admin)")
 def agents_list(request: Request):
     if denied := admin_only(request):
@@ -617,7 +631,7 @@ def agents_create(body: NewAgent, request: Request):
     except agents.AgentError as e:
         return deny(400, str(e))
     store().audit("agent créé", u["username"], ip, f"« {body.name} » ({info['ip']})")
-    return {"token": raw, "info": info}
+    return {"token": raw, "info": info, "command": agents.install_command(base_url(request), raw)}
 
 
 @app.delete(API + "/agents/{aid}", tags=["agents"], summary="Révoquer un agent (session admin)")

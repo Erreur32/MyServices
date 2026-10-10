@@ -1,0 +1,60 @@
+# MyServices agent for Windows: reads the health of this PC and sends it to the MyServices server.
+# Run by a SYSTEM scheduled task (see install.ps1). Read-only: it changes nothing on the machine.
+# PowerShell 5.1 compatible. Config: %ProgramData%\MyServices-Agent\config.json ({url, token, interval}).
+$ErrorActionPreference = 'Stop'
+$Version = '__VERSION__'
+$Dir = Join-Path $env:ProgramData 'MyServices-Agent'
+$LogPath = Join-Path $Dir 'agent.log'
+$StatePath = Join-Path $Dir 'state.json'
+$UpdateEvery = 3600  # s: the Windows Update search is slow, so it runs at most once per hour
+
+function Log($msg) {
+  $line = '{0} {1}' -f (Get-Date -Format 's'), $msg
+  Write-Host $line
+  try {
+    if ((Test-Path $LogPath) -and (Get-Item $LogPath).Length -gt 200KB) { Move-Item $LogPath "$LogPath.old" -Force }
+    Add-Content -Path $LogPath -Value $line
+  } catch { }
+}
+
+function Json($v) { ConvertTo-Json -InputObject $v -Compress }
+
+try {
+  $cfg = Get-Content (Join-Path $Dir 'config.json') -Raw | ConvertFrom-Json
+  if ($cfg.url -notmatch '^https?://' -or $cfg.token -notmatch '^msv_agent_[A-Za-z0-9_-]+$') { throw 'config.json: bad url or token' }
+  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.ServicePointManager]::SecurityProtocol
+
+  # Windows Update titles: reuse the last search while it is recent
+  $state = $null
+  if (Test-Path $StatePath) { try { $state = Get-Content $StatePath -Raw | ConvertFrom-Json } catch { } }
+  $env:MSV_UPD = ''
+  if ($state -and $state.upd_at -and ((Get-Date) - [datetime]$state.upd_at).TotalSeconds -lt $UpdateEvery -and $null -ne $state.upd) {
+    $env:MSV_UPD = Json @($state.upd)
+  }
+
+  $collect = {
+#__COLLECT__
+  }
+  $data = & $collect | Out-String
+  $data = $data.Trim()
+  if (-not $data.StartsWith('{')) { throw 'collection returned no data' }
+
+  if (-not $env:MSV_UPD) {  # fresh search: keep its titles for the next runs
+    try {
+      $o = $data | ConvertFrom-Json
+      if ($null -ne $o.upd) { @{ upd_at = (Get-Date).ToString('o'); upd = @($o.upd) } | ConvertTo-Json -Depth 3 | Set-Content $StatePath }
+    } catch { }
+  }
+  $env:MSV_UPD = ''
+
+  $os = (Get-CimInstance Win32_OperatingSystem).Caption
+  $body = '{{"version":{0},"os":{1},"host":{2},"interval":{3},"data":{4}}}' -f (Json $Version), (Json $os), (Json [Environment]::MachineName), [int]$cfg.interval, $data
+  $r = Invoke-RestMethod -Uri ($cfg.url.TrimEnd('/') + '/myservices/api/v1/agent/report') -Method Post `
+    -Headers @{ Authorization = "Bearer $($cfg.token)" } -ContentType 'application/json; charset=utf-8' `
+    -Body ([Text.Encoding]::UTF8.GetBytes($body)) -TimeoutSec 30
+  if (-not $r.ok) { throw 'server answered without ok' }
+  Log "report sent to $($cfg.url) (agent $Version)"
+} catch {
+  Log "FAILED: $($_.Exception.Message)"
+  exit 1
+}

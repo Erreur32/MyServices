@@ -489,6 +489,7 @@ def collect_smart(run) -> dict:
 
 # Un seul script, en lecture. Erreurs ignorées une à une : un contrôle refusé ne masque pas les autres.
 # 4625 (échecs de connexion) : journal Sécurité, administrateurs seulement ; -1 = non lisible.
+# MSV_UPD (agent) : titres de la dernière recherche Windows Update, réutilisés pour ne la refaire qu'une fois par heure.
 WIN_PS = r"""
 $ErrorActionPreference='SilentlyContinue';$ProgressPreference='SilentlyContinue';$o=@{};$t=(Get-Date).AddHours(-24)
 $o.disks=@(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3'|%{@{m=$_.DeviceID;s=[double]$_.Size;f=[double]$_.FreeSpace}})
@@ -499,7 +500,7 @@ $k='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion';$o.reboot=(Test-Path "$k\Wi
 $o.pd=@(Get-PhysicalDisk|%{@{n=$_.FriendlyName;h=[string]$_.HealthStatus}})
 $o.ev=@(Get-WinEvent -FilterHashtable @{LogName='System';Level=1,2;StartTime=$t} -MaxEvents 300|?{$_.Level -eq 1 -or $_.ProviderName -match 'disk|Ntfs|volmgr|stor|WHEA'}|Select-Object -First 8|%{'{0} {1} {2}' -f $_.TimeCreated.ToString('dd/MM HH:mm'),$_.ProviderName,(($_.Message -split "`n")[0]).Trim()})
 try{$o.fail=@(Get-WinEvent -FilterHashtable @{LogName='Security';Id=4625;StartTime=$t} -ErrorAction Stop).Count}catch{$o.fail=$(if($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*'){0}else{-1})}
-try{$r=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0 and IsHidden=0 and Type='Software'");$o.upd=@($r.Updates|%{$_.Title})}catch{$o.upd=$null}
+if($env:MSV_UPD){$o.upd=@($env:MSV_UPD|ConvertFrom-Json)}else{try{$r=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0 and IsHidden=0 and Type='Software'");$o.upd=@($r.Updates|%{$_.Title})}catch{$o.upd=$null}}
 ConvertTo-Json -InputObject $o -Depth 4 -Compress
 """
 

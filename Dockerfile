@@ -33,6 +33,7 @@ RUN useradd --uid 10001 --create-home --home-dir /home/myservices --shell /usr/s
 WORKDIR /app
 COPY --chown=root:root *.py /app/
 COPY --chown=root:root connectors/ /app/connectors/
+COPY --chown=root:root agent/ /app/agent/
 COPY --chown=root:root web/ /app/web/
 COPY --from=front --chown=root:root /front/dist/ /app/web/v2/
 
