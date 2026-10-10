@@ -211,6 +211,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
   // Menu ouvert d'office dès qu'il y a quelque chose de détecté ou d'allumé à montrer ; les « non détectés » restent pliés
   const [options, setOptions] = useState(() => !!m.disabled || detected.length > 0 || (live?.detected?.length ?? 0) > 0 || FLAGS.some((f) => !!m[f.k]));
   const [missingOpen, setMissingOpen] = useState(false);
+  const [sshOpen, setSshOpen] = useState(!!isNew);  // replié d'office ; ouvert à l'ajout d'une machine, où il faut choisir l'accès
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const windows = v.os === "windows";
   // Ce que l'accès choisi permet de lire (suit le formulaire, avant même l'enregistrement)
@@ -274,10 +275,16 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
         </div>
       </section>
       <section className="rounded-xl border border-line/60 bg-bg2/30 p-3">
-        <div className="mb-1 flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => setSshOpen(!sshOpen)} aria-expanded={sshOpen} className="flex w-full flex-wrap items-center gap-2 text-left">
+          {sshOpen ? <ChevronDown size={14} className="text-dim" aria-hidden /> : <ChevronRight size={14} className="text-dim" aria-hidden />}
           <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("Accès SSH (lecture seule)")}</h4>
           {live && <Badge tone={MSTATE[mState(live)][0]} title={MSTATE[mState(live)][2]}>{MSTATE[mState(live)][1]}</Badge>}
-        </div>
+          {!sshOpen && <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+            {(windows ? v.health : v.ssh) && <code className="font-mono text-xs text-muted">{String(windows ? v.health : v.ssh)}</code>}
+            {gives.filter(([, on]) => on).map(([label, , why]) => <Badge key={label} tone="ok" title={why}>✓ {label}</Badge>)}
+          </span>}
+        </button>
+        {sshOpen && <div className="mt-2">
         <p className="mb-2 text-xs text-muted">
           {tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache. Rien n'y est modifié.")}
           <span className="block text-dim">{tx("Sans accès : ping et services web seulement.")}</span>
@@ -314,6 +321,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
         <p className="mt-1.5 text-xs text-dim">
           {tx("Pas encore d'alias ? « Lire cette machine par SSH » (Réglages → Découverte) le crée avec la clé de l'app ; la clé est dans Réglages → Clé SSH.")}
         </p>
+        </div>}
       </section>
       {/* Menu pliant des interrupteurs : replié, sauf à l'ajout avec une détection à confirmer ou si la machine n'est pas suivie */}
       <div className="rounded-xl border border-line/60 bg-bg2/30">
