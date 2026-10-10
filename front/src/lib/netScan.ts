@@ -40,7 +40,7 @@ export function tagsOf(h: { hints: string[]; apps: string[] }): Tag[] {
 /** Machine à pré-sélectionner : répond en SSH, a une appli reconnue ou un service autre qu'une simple page web
  *  (partage, bureau à distance, Veeam…). Un objet connecté qui n'a qu'une page web ne l'est pas. */
 export function interesting(h: { ssh_port?: number | null; hints: string[]; apps: string[] }): boolean {
-  return !!h.ssh_port || h.apps.length > 0 || h.hints.some((x) => x !== "web" && !x.startsWith("port "));
+  return !!h.ssh_port || h.apps.length > 0 || h.hints.some((x) => !x.startsWith("web") && !x.startsWith("port "));
 }
 
 /** Changements depuis la recherche d'avant : adresses nouvelles (absentes de la précédente) et disparues */
@@ -49,3 +49,6 @@ export function changes(net: { found: { ip: string }[]; previous?: string[]; gon
   const before = new Set(net.previous);
   return { fresh: new Set(net.found.filter((h) => !before.has(h.ip)).map((h) => h.ip)), gone: net.gone ?? [] };
 }
+
+/** Appareils sans aucune information (ni port reconnu, ni titre de page) : rangés à part, décochés */
+export const quiet = (h: { hints: string[]; apps: string[] }): boolean => tagsOf(h).length === 0;

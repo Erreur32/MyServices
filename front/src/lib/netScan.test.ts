@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changes, interesting, tagsOf } from "./netScan";
+import { changes, interesting, quiet, tagsOf } from "./netScan";
 
 const labels = (h: { hints: string[]; apps: string[] }) => tagsOf(h).map((t) => t.label);
 
@@ -31,6 +31,7 @@ describe("interesting", () => {
   });
   it("un objet connecté (page web seule) ou un port sans nom : non", () => {
     expect(interesting({ hints: ["web"], apps: [] })).toBe(false);
+    expect(interesting({ hints: ["web :80", "web :443"], apps: [] })).toBe(false);
     expect(interesting({ hints: ["port 5000"], apps: [] })).toBe(false);
     expect(interesting({ hints: [], apps: [] })).toBe(false);
   });
@@ -45,5 +46,13 @@ describe("changes", () => {
     const c = changes({ found: [{ ip: "1" }, { ip: "2" }], previous: ["1", "3"], gone: ["3"] });
     expect([...c!.fresh]).toEqual(["2"]);
     expect(c!.gone).toEqual(["3"]);
+  });
+});
+
+describe("quiet", () => {
+  it("sans aucune étiquette : à ranger dans le bloc replié", () => {
+    expect(quiet({ hints: [], apps: [] })).toBe(true);
+    expect(quiet({ hints: ["web :80"], apps: [] })).toBe(false);
+    expect(quiet({ hints: [], apps: ["Plex"] })).toBe(false);
   });
 });

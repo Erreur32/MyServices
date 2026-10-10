@@ -143,7 +143,15 @@ export interface Connector {
 }
 
 /** Une machine trouvée par la recherche réseau (netscan.py) */
-export interface NetHost { ip: string; name: string; ports: number[]; ssh_port?: number | null; hints: string[]; apps: string[] }
+export interface NetHost {
+  ip: string;
+  name: string;
+  ports: number[];
+  ssh_port?: number | null;
+  hints: string[];
+  apps: string[];
+  title?: string | null;  // titre de la page web (port 80 ou 443)
+}
 
 export interface NetScan {
   phase: "idle" | "ping" | "identify" | "done";

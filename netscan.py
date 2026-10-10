@@ -9,9 +9,13 @@ déjà déclarées ne sont ni pinguées ni proposées. Le dernier résultat est 
 """
 from __future__ import annotations
 
+import html
+import http.client
 import ipaddress
 import json
+import re
 import socket
+import ssl
 import subprocess
 import threading
 import time
@@ -48,6 +52,22 @@ def _open(ip: str, port: int) -> bool:
         return False
 
 
+def _page(ip: str, port: int, timeout: float = 1.5) -> str | None:
+    """Titre de la page d'accueil (GET /, lecture seule, 32 Ko au plus) ; None s'il n'y en a pas ou si la page n'est pas lisible.
+    https : certificat vérifié (jamais désactivé) ; un appareil au certificat auto-signé n'a donc pas de titre."""
+    cls = http.client.HTTPSConnection if port == 443 else http.client.HTTPConnection
+    try:
+        conn = cls(ip, port, timeout=timeout)
+        conn.request("GET", "/", headers={"User-Agent": "MyServices-netscan", "Accept": "text/html"})
+        body = conn.getresponse().read(32768).decode("utf-8", "replace")
+        conn.close()
+    except (OSError, ssl.SSLError, http.client.HTTPException):
+        return None
+    m = re.search(r"<title[^>]*>(.*?)</title>", body, re.I | re.S)
+    title = re.sub(r"\s+", " ", html.unescape(m.group(1))).strip() if m else ""
+    return title[:80] or None
+
+
 def _ssh_banner(ip: str, port: int) -> bool:
     """Vrai si le port répond par une bannière SSH (« SSH-2.0-… ») : un port ouvert ne suffit pas, c'est peut-être autre chose."""
     try:
@@ -65,24 +85,29 @@ def ssh_ports(configured: dict | None = None) -> tuple[int, ...]:
     return tuple(dict.fromkeys(SSH_PORTS + tuple(sorted(int(v["port"]) for v in cfg.values() if v.get("port")))))
 
 
-def _describe(ip: str, probe=_open, lookup=socket.gethostbyaddr, banner=_ssh_banner, ssh=SSH_PORTS) -> dict:
+def _describe(ip: str, probe=_open, lookup=socket.gethostbyaddr, banner=_ssh_banner, ssh=SSH_PORTS, page=_page) -> dict:
     """Une machine qui répond : nom DNS court, SSH (port et bannière), ports ouverts parmi HINT_PORTS, applis probables."""
     try:
         name = lookup(ip)[0].split(".")[0].lstrip("_")  # « _gateway » de systemd-resolved
     except OSError:
         name = ""
     with ThreadPoolExecutor(len(HINT_PORTS) + len(ssh)) as px:
-        web = [px.submit(probe, ip, p) for p in HINT_PORTS]
+        probes = [px.submit(probe, ip, p) for p in HINT_PORTS]
         sshf = [px.submit(banner, ip, p) for p in ssh]
-        opened = [p for p, f in zip(HINT_PORTS, web) if f.result()]
+        opened = [p for p, f in zip(HINT_PORTS, probes) if f.result()]
         ssh_port = next((p for p, f in zip(ssh, sshf) if f.result()), None)
+    web = [p for p in (80, 443) if p in opened]
+    with ThreadPoolExecutor(2) as wx:  # page d'accueil des ports web : le titre dit souvent ce que c'est
+        pages = [{"port": p, "scheme": "https" if p == 443 else "http", "title": t} for p, t in zip(web, wx.map(lambda p: page(ip, p), web))]
     app_of = {p: hit[0].label for p in opened if (hit := known_apps.identify(port=p))}
-    hints = list(dict.fromkeys(HINT_PORTS[p] for p in opened if p not in app_of))  # l'appli reconnue remplace l'indice du port
+    hints = list(dict.fromkeys((f"web :{p}" if p in (80, 443) else HINT_PORTS[p]) for p in opened if p not in app_of))
     if ssh_port:
         hints.insert(0, "SSH" if ssh_port == 22 else f"SSH :{ssh_port}")
         opened = sorted({*opened, ssh_port})
-    apps = list(dict.fromkeys(app_of.values()))
-    return {"ip": ip, "name": name, "ports": opened, "ssh_port": ssh_port, "hints": hints, "apps": apps}
+    title = next((x["title"] for x in pages if x["title"]), None)
+    apps = list(dict.fromkeys([*app_of.values(), *(hit[0].label for x in pages if x["title"] and (hit := known_apps.identify(title=x["title"])))]))
+    return {"ip": ip, "name": name, "ports": opened, "ssh_port": ssh_port, "hints": hints, "apps": apps,
+            "title": title, "pages": pages}
 
 
 def local_net() -> str:

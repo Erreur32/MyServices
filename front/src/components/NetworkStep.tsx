@@ -7,7 +7,7 @@ import { read, send } from "../api";
 import { act, button, input, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { dateTime } from "../lib/format";
-import { changes, interesting, netState, tagsOf } from "../lib/netScan";
+import { changes, interesting, netState, quiet, tagsOf } from "../lib/netScan";
 import { pokeScan } from "../lib/scan";
 import { ConnectorForm } from "../tabs/Connectors";
 import type { ConnectorsState, ConnectorType, NetHost, NetScan, SystemState } from "../types";
@@ -23,8 +23,8 @@ function HostInfo({ h, fresh = false, hint = false }: { h: NetHost; fresh?: bool
     <>
       {h.name ? <b className="text-txt">{h.name}</b> : <i className="text-dim">{tx("sans nom")}</i>}
       <span className="font-mono text-xs text-dim">{h.ip}</span>
+      {h.title && <span className="max-w-[28ch] truncate text-xs text-muted" title={h.title}>« {h.title} »</span>}
       {tags.map((t) => <Badge key={t.label} tone={t.kind === "ssh" ? "ok" : t.kind === "app" ? "info" : "off"}>{t.label}</Badge>)}
-      {tags.length === 0 && <Badge tone="off">{tx("répond au ping seulement")}</Badge>}
       {fresh && <Badge tone="warn">{tx("nouvelle")}</Badge>}
       {hint && h.apps.includes("Home Assistant") && (
         <span className="row-in basis-full pl-6 text-xs text-warn">
@@ -64,6 +64,16 @@ export function NetworkStep({ net, reload }: { net: NetScan | null; reload: () =
 
   const toggle = (ip: string) => setPicked((p) => { const n = new Set(p); if (n.has(ip)) n.delete(ip); else n.add(ip); return n; });
   const found = (net?.found ?? []).filter((h) => !added[h.ip]);
+  const useful = found.filter((h) => !quiet(h)), silent = found.filter(quiet);
+
+  const renderRows = (list: NetHost[]) => list.map((h) => (
+    <li key={h.ip}>
+      <label className="flex cursor-pointer flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2 hover:bg-bg2">
+        <input type="checkbox" className="h-4 w-4 accent-[rgb(var(--link))]" checked={picked.has(h.ip)} onChange={() => toggle(h.ip)} />
+        <HostInfo h={h} fresh={!!diff?.fresh.has(h.ip)} hint={picked.has(h.ip)} />
+      </label>
+    </li>
+  ));
 
   const addPicked = async () => {
     setBusy(true);
@@ -144,21 +154,21 @@ export function NetworkStep({ net, reload }: { net: NetScan | null; reload: () =
       {found.length > 0 && (
         <>
           {picked.size > 0 && <p className="text-sm text-dim">{tx("{0} machine(s) pré-sélectionnée(s) : SSH, appli reconnue ou service utile. Décochez ce que vous ne voulez pas.", picked.size)}</p>}
-          <ul className="flex flex-col gap-1.5">
-            {found.map((h) => (
-              <li key={h.ip}>
-                <label className="flex cursor-pointer flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2 hover:bg-bg2">
-                  <input type="checkbox" className="h-4 w-4 accent-[rgb(var(--link))]" checked={picked.has(h.ip)} onChange={() => toggle(h.ip)} />
-                  <HostInfo h={h} fresh={!!diff?.fresh.has(h.ip)} hint={picked.has(h.ip)} />
-                </label>
-              </li>
-            ))}
-          </ul>
+          {useful.length > 0 && <ul className="flex flex-col gap-1.5">{renderRows(useful)}</ul>}
+          {silent.length > 0 && (
+            <details open={silent.some((h) => diff?.fresh.has(h.ip))} className="rounded-lg border border-line/60 px-3 py-2">
+              <summary className="cursor-pointer text-sm text-muted">
+                {tx("{0} appareil(s) sans service reconnu (ils répondent au ping seulement)", silent.length)}
+                {silent.some((h) => diff?.fresh.has(h.ip)) && <> <Badge tone="warn">{tx("nouvelle")}</Badge></>}
+              </summary>
+              <ul className="mt-2 flex flex-col gap-1.5">{renderRows(silent)}</ul>
+            </details>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" className={primary} disabled={busy || picked.size === 0} onClick={() => void addPicked()}>
               <Check size={14} aria-hidden />{tx("Ajouter la sélection")} {picked.size > 0 && `(${picked.size})`}
             </button>
-            <button type="button" className={quietBtn} onClick={() => setPicked(new Set(found.map((h) => h.ip)))}>{tx("Tout sélectionner")}</button>
+            <button type="button" className={quietBtn} onClick={() => setPicked(new Set(useful.map((h) => h.ip)))}>{tx("Tout sélectionner")}</button>
           </div>
         </>
       )}

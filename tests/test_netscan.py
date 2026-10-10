@@ -23,6 +23,51 @@ def wait_done(timeout=5):
     raise AssertionError("le passage ne se termine pas")
 
 
+class PageTitle(unittest.TestCase):
+    """_page lit le titre d'un vrai petit serveur local ; une seule requête GET."""
+
+    @classmethod
+    def setUpClass(cls):
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        cls.methods = []
+        outer = cls
+
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                outer.methods.append("GET")
+                body = b"<html><head><TITLE>\n  Ma  &amp;  Box \n</TITLE></head></html>"
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_POST(self):
+                outer.methods.append("POST")
+                self.send_response(405)
+                self.end_headers()
+        cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        cls.srv.server_close()
+
+    def test_titre_nettoye_et_une_seule_requete_get(self):
+        self.assertEqual(netscan._page("127.0.0.1", self.srv.server_port), "Ma & Box")  # port quelconque : http
+        self.assertEqual(self.methods, ["GET"])
+
+    def test_port_ferme(self):
+        import socket
+        with socket.socket() as k:
+            k.bind(("127.0.0.1", 0))
+            port = k.getsockname()[1]
+        self.assertIsNone(netscan._page("127.0.0.1", port, timeout=0.3))
+
+
 class Targets(unittest.TestCase):
     def test_exclut_les_machines_connues(self):
         got = netscan.targets("192.168.1.0/24", {"192.168.1.5", "192.168.1.1"})
@@ -42,7 +87,7 @@ class Describe(unittest.TestCase):
                               banner=lambda ip, p: p == 22, ssh=(22,))
         self.assertEqual(d["name"], "pve")
         self.assertEqual(sorted(d["ports"]), [22, 80, 443, 8006])
-        self.assertEqual(d["hints"], ["SSH", "web"])  # 80 et 443 : un seul « web » ; 8006 : l'appli remplace l'indice
+        self.assertEqual(d["hints"], ["SSH", "web :80", "web :443"])  # 8006 : l'appli remplace l'indice de port
         self.assertEqual(d["apps"], ["Proxmox VE"])
 
     def test_ssh_hors_norme_reconnu_par_sa_banniere(self):
@@ -76,6 +121,21 @@ class Describe(unittest.TestCase):
         d = netscan._describe("10.0.0.9", probe=lambda ip, p: False, lookup=no_name)
         self.assertEqual((d["name"], d["ports"], d["hints"]), ("", [], []))
 
+
+    def test_titre_de_la_page_et_appli_reconnue_par_son_titre(self):
+        d = netscan._describe("10.0.0.9", probe=lambda ip, p: p in (80, 443), lookup=lambda ip: ("npm", [], []),
+                              banner=lambda ip, p: False, ssh=(22,),
+                              page=lambda ip, p: "Nginx Proxy Manager" if p == 80 else None)
+        self.assertEqual(d["title"], "Nginx Proxy Manager")
+        self.assertEqual(d["pages"], [{"port": 80, "scheme": "http", "title": "Nginx Proxy Manager"},
+                                      {"port": 443, "scheme": "https", "title": None}])
+        self.assertEqual(d["apps"], ["Nginx Proxy Manager"])
+
+    def test_sans_port_web_pas_de_requete_de_page(self):
+        asked = []
+        d = netscan._describe("10.0.0.9", probe=lambda ip, p: p == 445, lookup=lambda ip: ("x", [], []),
+                              banner=lambda ip, p: False, ssh=(22,), page=lambda ip, p: asked.append(p))
+        self.assertEqual((asked, d["pages"], d["title"]), ([], [], None))
 
     def test_appli_reconnue_ne_double_pas_l_indice(self):
         d = netscan._describe("10.0.0.9", probe=lambda ip, p: p in (8123, 32400, 81, 445), lookup=lambda ip: ("ha", [], []))
