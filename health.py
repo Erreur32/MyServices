@@ -84,10 +84,11 @@ KERNEL_IGNORE_RE = re.compile(
 )
 # ───────────── Machines surveillées ─────────────
 
-def load_hosts() -> tuple[list[dict], dict]:
+def load_hosts(agent_ips: frozenset | set = frozenset()) -> tuple[list[dict], dict]:
     """Machines de services-meta.json hors « off » et « health »: false, et le services-meta lu.
     Accès : « health » (alias dédié), sinon « ssh », sinon l'alias de process_hosts ; sans accès
-    (target None) : relevée seulement si Beszel la connaît."""
+    (target None) : relevée seulement si Beszel la connaît ou si un agent lui envoie ses relevés (même « off » :
+    une machine souvent éteinte reste lue quand son agent a parlé, voir main)."""
     try:
         meta = json.loads(Path(CFG["meta"]).read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
@@ -95,12 +96,12 @@ def load_hosts() -> tuple[list[dict], dict]:
     hosts = []
     for ip, m in meta.get("machines", {}).items():
         alias = m.get("health") if isinstance(m.get("health"), str) else m.get("ssh") or meta.get("process_hosts", {}).get(ip)
-        if m.get("off") or m.get("disabled") or m.get("health") is False:
+        if m.get("disabled") or m.get("health") is False or (m.get("off") and ip not in agent_ips):
             continue
         hid = re.sub(r"[^a-z0-9]+", "-", m["name"].lower()).strip("-") or ip
         hosts.append({"id": hid, "name": f"{m['name']} · {ip}",  # « Nom · IP » : l'IP est relue par la page
                       "mode": "local" if alias == "local" else "ssh", "target": alias, "vm": bool(m.get("vm")),
-                      "os": m.get("os", "linux"), "ip": ip})
+                      "os": m.get("os", "linux"), "ip": ip, "off": bool(m.get("off"))})
     return hosts, meta
 
 
@@ -493,7 +494,7 @@ $ErrorActionPreference='SilentlyContinue';$ProgressPreference='SilentlyContinue'
 $o.disks=@(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3'|%{@{m=$_.DeviceID;s=[double]$_.Size;f=[double]$_.FreeSpace}})
 $o.svc=@(Get-CimInstance Win32_Service -Filter "StartMode='Auto' AND State<>'Running'"|?{$_.ExitCode -ne 0}|%{@{n=$_.Name;d=$_.DisplayName;e=$_.ExitCode}})
 $p=@(Get-CimInstance Win32_Processor);$o.cpu=($p|Measure-Object LoadPercentage -Average).Average;$o.ncpu=($p|Measure-Object NumberOfLogicalProcessors -Sum).Sum
-$o.boot=(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().ToString('o')
+$w=Get-CimInstance Win32_OperatingSystem;$o.boot=$w.LastBootUpTime.ToUniversalTime().ToString('o');if($w.TotalVisibleMemorySize){$o.mem=[math]::Round(100*($w.TotalVisibleMemorySize-$w.FreePhysicalMemory)/$w.TotalVisibleMemorySize,1)}
 $k='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion';$o.reboot=(Test-Path "$k\WindowsUpdate\Auto Update\RebootRequired") -or (Test-Path "$k\Component Based Servicing\RebootPending")
 $o.pd=@(Get-PhysicalDisk|%{@{n=$_.FriendlyName;h=[string]$_.HealthStatus}})
 $o.ev=@(Get-WinEvent -FilterHashtable @{LogName='System';Level=1,2;StartTime=$t} -MaxEvents 300|?{$_.Level -eq 1 -or $_.ProviderName -match 'disk|Ntfs|volmgr|stor|WHEA'}|Select-Object -First 8|%{'{0} {1} {2}' -f $_.TimeCreated.ToString('dd/MM HH:mm'),$_.ProviderName,(($_.Message -split "`n")[0]).Trim()})
@@ -540,6 +541,8 @@ def parse_windows(raw: dict) -> dict:
                     else {"failed_24h": 0, "available": False, "reason": "journal Sécurité réservé aux administrateurs"},
         "smart": {"accessible": bool(pd), "disks": [{"device": d.get("n", "?"), "healthy": d.get("h") == "Healthy",
                                                      "failed": d.get("h") not in ("Healthy", "", None)} for d in pd]},
+        "res": ({"available": True, "cpu_pct": round(raw["cpu"], 1), "mem_pct": round(raw["mem"], 1)}
+                if isinstance(raw.get("cpu"), (int, float)) and isinstance(raw.get("mem"), (int, float)) else {"available": False}),
     }
 
 
@@ -558,6 +561,34 @@ def collect_windows(host: dict) -> dict:
     h = {**base, "reachable": True, **parse_windows(raw)}
     h["level"] = host_level(h)
     return h
+
+# ───────────── Agent MyServices (relevé envoyé par la machine) ─────────────
+
+def agent_reports() -> dict:
+    """{IP: {"report", "seen", "fresh"}} des agents actifs ; vide si la base n'existe pas (version sans Docker)."""
+    try:
+        from agents import Agents
+        from auth import db_path
+        return Agents(db_path(CFG)).fresh_reports()
+    except Exception as e:  # base absente ou illisible : la santé continue sans agents
+        print(f"⚠ agents : {e}", file=sys.stderr)
+        return {}
+
+
+def host_from_agent(hc: dict, a: dict) -> dict:
+    """Machine d'après le dernier relevé de son agent (mêmes champs qu'une lecture SSH). Relevé périmé ou jamais
+    reçu : injoignable, comme une machine SSH qui ne répond pas."""
+    base = {"id": hc["id"], "name": hc["name"], "os": hc["os"]}
+    data = (a["report"] or {}).get("data")
+    if not a["fresh"] or not isinstance(data, dict):
+        return {**base, "reachable": False, "disks": [], "systemd": {"failed": []},
+                "docker": {"accessible": False, "reason": "agent"}, "level": "down", **_EMPTY_HOST_EXTRAS,
+                "error": "agent : aucun relevé récent"}
+    h = {**base, "reachable": True, **parse_windows(data), "source": "agent", "agent_seen": a["seen"]}
+    h["docker"] = {"accessible": False, "reason": "agent"}
+    h["level"] = host_level(h)
+    return h
+
 
 # ───────────── Beszel (connecteur) ─────────────
 
@@ -1211,11 +1242,18 @@ def main() -> int:
     if OUT_DIR.is_symlink():  # health_url branché sur un health-watcher externe : ne jamais écrire dedans
         sys.exit(f"{OUT_DIR} est un lien (health externe) : health.py ne tourne pas")
     hosts = []
-    candidates, meta = load_hosts()
+    agents = agent_reports()
+    candidates, meta = load_hosts(set(agents))
     besz, _ = beszel_systems(meta)
     for hc in candidates:
         b = besz.get(hc["ip"])
-        if not hc["target"]:  # sans SSH : Beszel seulement
+        a = agents.get(hc["ip"])
+        if a and (a["fresh"] or (not hc["target"] and not hc["off"])):  # périmé : SSH reprend la main, ou « injoignable »
+            h = host_from_agent(hc, a)
+            print(f"▸ {hc['name']} : relevé de l'agent" + ("" if a["fresh"] else " périmé"))
+        elif hc["off"] and not hc["target"] and not b:  # PC souvent éteint, sans agent : jamais relevé
+            continue
+        elif not hc["target"]:  # sans SSH : Beszel seulement
             if not b:
                 continue
             print(f"▸ {hc['name']} : relevé Beszel")

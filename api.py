@@ -107,7 +107,9 @@ def deny(code: int, error: str) -> JSONResponse:
 
 
 MCP = PREFIX + "/mcp"
+AGENT_REPORT = API + "/agent/report"  # seule route d'un agent : jeton msv_agent_, ni session ni CSRF
 TOKENS = None
+AGENTS = None
 
 
 def tokens_store():
@@ -116,6 +118,24 @@ def tokens_store():
         import tokens
         TOKENS = tokens.Tokens(db_path(core.CFG))
     return TOKENS
+
+
+def agents_store():
+    global AGENTS
+    if AGENTS is None:
+        import agents
+        AGENTS = agents.Agents(db_path(core.CFG))
+    return AGENTS
+
+
+def agent_guard(request: Request, raw: str) -> JSONResponse | None:
+    """Jeton d'agent valable : la fiche est posée dans request.state.agent."""
+    import agents
+    try:
+        request.state.agent = agents_store().check(raw)
+    except agents.AgentError as e:
+        return JSONResponse({"error": str(e), "code": str(e)}, status_code=401, headers=SECURITY_HEADERS)
+    return None
 
 
 def token_guard(request: Request, path: str, raw: str) -> JSONResponse | None:
@@ -150,7 +170,11 @@ async def guard(request: Request, call_next):
     path = request.url.path
     request.state.user = None
     bearer = request.headers.get("authorization", "")
-    if AUTH and bearer.lower().startswith("bearer ") and (path.startswith(API + "/") or path == MCP):
+    if path == AGENT_REPORT:
+        denied = agent_guard(request, bearer[7:].strip() if bearer.lower().startswith("bearer ") else "")
+        if denied is not None:
+            return denied
+    elif AUTH and bearer.lower().startswith("bearer ") and (path.startswith(API + "/") or path == MCP):
         denied = token_guard(request, path, bearer[7:].strip())  # jeton : ni cookie ni CSRF, niveau relu à chaque fois
         if denied is not None:
             return denied
@@ -546,6 +570,66 @@ def tokens_revoke(tid: int, request: Request):
     except tokens.TokenError as e:
         return deny(400, str(e))
     store().audit("jeton révoqué", request.state.user["username"], ip_of(request), str(tid))
+    return {"ok": True}
+
+
+# ── Agents (agents.py) : la machine envoie son relevé, sans SSH ───────────────────────────────────
+
+class NewAgent(BaseModel):
+    ip: str
+    name: str
+
+
+@app.post(AGENT_REPORT, tags=["agents"], summary="Relevé de santé envoyé par un agent (jeton msv_agent_)")
+async def agent_report(request: Request):
+    import agents
+    raw = await request.body()
+    if len(raw) > agents.MAX_BODY:
+        return deny(413, "relevé trop gros")
+    try:
+        report = agents.validate_report(json.loads(raw))
+    except ValueError:
+        return deny(400, "relevé invalide : JSON attendu")
+    except agents.AgentError as e:
+        return deny(400, str(e))
+    a = request.state.agent
+    agents_store().store_report(a["id"], report, ip_of(request))
+    return {"ok": True, "interval": agents.DEFAULT_INTERVAL}
+
+
+@app.get(API + "/agents", tags=["agents"], summary="Agents et leur dernier relevé (session admin)")
+def agents_list(request: Request):
+    if denied := admin_only(request):
+        return denied
+    if (request.state.user or {}).get("token"):
+        return deny(403, "gestion des agents : session requise")
+    return {"agents": agents_store().listing(), "report_path": AGENT_REPORT}
+
+
+@app.post(API + "/agents", tags=["agents"], summary="Créer un agent pour une machine (jeton affiché une seule fois)")
+def agents_create(body: NewAgent, request: Request):
+    import agents
+    if denied := session_admin(request):
+        return denied
+    u, ip = request.state.user, ip_of(request)
+    try:
+        raw, info = agents_store().create(body.ip, body.name, u["username"])
+    except agents.AgentError as e:
+        return deny(400, str(e))
+    store().audit("agent créé", u["username"], ip, f"« {body.name} » ({info['ip']})")
+    return {"token": raw, "info": info}
+
+
+@app.delete(API + "/agents/{aid}", tags=["agents"], summary="Révoquer un agent (session admin)")
+def agents_revoke(aid: int, request: Request):
+    import agents
+    if denied := session_admin(request):
+        return denied
+    try:
+        agents_store().revoke(aid)
+    except agents.AgentError as e:
+        return deny(400, str(e))
+    store().audit("agent révoqué", request.state.user["username"], ip_of(request), str(aid))
     return {"ok": True}
 
 
