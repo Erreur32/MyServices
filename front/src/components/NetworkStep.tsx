@@ -24,7 +24,6 @@ function HostInfo({ h, fresh = false, hint = false }: { h: NetHost; fresh?: bool
     <>
       {h.name ? <b className="text-txt">{h.name}</b> : <i className="text-dim">{tx("sans nom")}</i>}
       <span className="font-mono text-xs text-dim">{h.ip}</span>
-      {h.title && <span className="max-w-[28ch] truncate text-xs text-muted" title={h.title}>« {h.title} »</span>}
       {tags.map((t) => <Badge key={t.label} tone={t.kind === "ssh" ? "ok" : t.kind === "app" ? "info" : "off"}>{t.label}</Badge>)}
       {fresh && <Badge tone="warn">{tx("nouvelle")}</Badge>}
       {hint && h.apps.includes("Home Assistant") && (
