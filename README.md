@@ -6,7 +6,7 @@
 > `config/` et `data/` avant chaque mise à jour, et signalez ce qui ne va pas (issues GitHub).
 > Les versions portent un suffixe `-beta.N` puis `-rc.N` (candidate à la sortie), par exemple l'image
 > `ghcr.io/erreur32/myservices:2.0.0-rc.1` ; l'étiquette `:docker` suit la branche, donc le dernier état, sans promesse de stabilité.
-> L'étiquette `:latest` n'existe qu'à partir de la `2.0.0` finale.
+> L'étiquette `:latest` suit le dernier tag publié, préversion comprise ; pour rester sur une version précise, utilisez son numéro.
 
 Annuaire de tous les services d'un réseau local, avec leur état en direct : `hosts Nginx Proxy Manager`,
 `conteneurs Docker`, `process en écoute`, `services ajoutés à la main`, `contrôle DNS AdGuard Home`.
