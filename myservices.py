@@ -47,6 +47,7 @@ from connectors.uptime_kuma import attach_monitors
 from connectors.docker_ssh import HOST_ADDR
 from connectors.process import host_ports
 import hostinfo
+import known_apps
 import npmapi
 
 from config import CFG, next_timer_run
@@ -1018,6 +1019,7 @@ def main():
         m = r.pop("_meta") or meta_for(r)
         r["category"] = m.get("category") or categorize(" ".join(r["domains"]), r.get("name"), s.get("name"),
                                                          s.get("image"), s.get("title"), r["page_title"])
+        known_apps.annotate(r, keep_category=bool(m.get("category")))
         r["description"] = m.get("description") or s.get("description") or None
         r["tags"] = m.get("tags", [])
         if "web" in m:  # surcharge manuelle : "ui" / "api" / "none"
@@ -1074,6 +1076,7 @@ def main():
         "connectors": [{k: v for k, v in vars(st).items() if k != "extra"} for st in CONNECTOR_STATUS],
         "categories": [n for n, _ in CATEGORIES] + ["Autre"],
         "hosts": rows,
+        "proposals": known_apps.propose(rows, connectors.declared(CFG, META_RAW)),
         "dns": dns,
         "machine_list": machines_out,
     }

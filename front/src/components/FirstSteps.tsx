@@ -6,13 +6,15 @@ import { ArrowRight, Check, Circle, KeyRound, Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { read } from "../api";
 import type { Snapshot } from "../api";
+import { openConnector } from "../lib/connectorPrefill";
 import { REOPEN_EVENT, savedState, saveState, takeReopen } from "../lib/firstSteps";
 import { tx } from "../lib/i18n";
 import { useScan } from "../lib/scan";
 import { plural } from "../lib/summary";
-import type { SystemState } from "../types";
+import type { Proposal, SystemState } from "../types";
 import { AuthorizeKey } from "./AuthorizeKey";
-import { Badge } from "./ui";
+import { Badge, type Tone } from "./ui";
+import { button, primary } from "../lib/forms";
 
 type State = "done" | "now" | "run" | "next" | "soon";
 
@@ -35,6 +37,30 @@ function Step({ state, title, children }: { state: State; title: string; childre
         {children && <div className="mt-1 text-sm text-muted">{children}</div>}
       </div>
     </li>
+  );
+}
+
+const HOW: Record<Proposal["confidence"], Tone> = { sure: "ok", probable: "info", possible: "off" };
+
+function Proposals({ list }: { list: Proposal[] }) {
+  return (
+    <ul className="flex flex-col gap-2">
+      {list.map((p) => {
+        const how = p.confidence === "sure" ? tx("conteneur reconnu") : p.confidence === "probable" ? tx("page reconnue") : tx("à vérifier");
+        return (
+          <li key={`${p.connector}/${p.ip}`} className="flex flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2">
+            <b className="text-txt">{p.label}</b>
+            <Badge tone="info">{p.machine || p.ip}</Badge>
+            <span className="font-mono text-xs text-dim">{p.ip}{p.port ? `:${p.port}` : ""}</span>
+            <Badge tone={HOW[p.confidence]}>{how}</Badge>
+            <button type="button" className={`${p.confidence === "possible" ? button + " border-line text-muted hover:border-link hover:text-txt" : primary} ml-auto`}
+              onClick={() => openConnector({ type: p.connector, name: p.connector, url: p.url })}>
+              {tx("Configurer")}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -65,6 +91,7 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
   const running = !!scan?.running;
   const finished = keyDone && !running && !failing.length;
   const reopened = acceptedGen !== null && !accepted;
+  const proposals = snap.data.proposals ?? [];
   const host = snap.data.machine_list.find((m) => m.local) || snap.data.machine_list[0];
   const docker = sys.host_docker;
   const readable = (snap.data.connectors || []).filter((c) => c.type === "docker" && c.ok);
@@ -125,7 +152,12 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
             </p>
           )}
         </Step>
-        <Step state="soon" title={tx("Connecteurs proposés d'après ce qui est trouvé")}>{tx("NPM, AdGuard, Beszel… proposés quand leur image ou leur port est reconnu.")}</Step>
+        <Step state={!keyDone ? "next" : proposals.length ? "now" : finished ? "done" : "next"} title={tx("Connecteurs proposés d'après ce qui est trouvé")}>
+          {proposals.length > 0
+            ? <><p className="mb-2">{tx("MyServices a reconnu des applis qu'il sait lire par leur API. Un connecteur ajoute leurs données (certificats, DNS, santé) sans rien recoder.")}</p><Proposals list={proposals} /></>
+            : finished ? tx("Aucune appli à relier pour l'instant : NPM, AdGuard, Beszel, Uptime Kuma… seront proposés dès qu'ils sont reconnus.")
+            : tx("NPM, AdGuard, Beszel… proposés quand leur image, leur page ou leur port est reconnu.")}
+        </Step>
         <Step state="soon" title={tx("Recherche des autres machines du réseau")}>{tx("Scan du réseau local, à votre demande.")}</Step>
       </ol>
     </section>

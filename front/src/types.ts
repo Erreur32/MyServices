@@ -43,6 +43,7 @@ export interface Host {
   npm?: string;
   scheme?: string;
   category?: string;
+  app?: { key: string; label: string; confidence: "sure" | "probable" | "possible"; connector: string | null };
   tags?: string[];
   description?: string;
   page_title?: string;
@@ -141,11 +142,24 @@ export interface Connector {
   message: string;
 }
 
+/** Connecteur à proposer : appli reconnue sur une machine, pas encore réglée (known_apps.py) */
+export interface Proposal {
+  connector: string;
+  label: string;
+  confidence: "sure" | "probable" | "possible";
+  ip: string;
+  port: number | null;
+  url: string;
+  machine?: string | null;
+  service?: string | null;
+}
+
 export interface Data {
   generated: string;
   page: { health_url: string; backups_url: string; stale_min: number; map: boolean; sources?: Record<string, boolean>; links: { url: string; label: string }[] };
   npm_instances: Record<string, string>;
   connectors?: Connector[];
+  proposals?: Proposal[];
   hosts: Host[];
   dns?: Dns;
   machine_list: Machine[];

@@ -9,16 +9,19 @@ import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import type { ConnectorInstance, ConnectorsState, ConnectorType } from "../types";
+import { takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
 
 const KIND: Record<string, string> = {
   services: "services", health: tx("santé"), logs: "journaux", dns: "DNS", inventory: "inventaire", backups: "sauvegardes",
 };
 
+// Proposé depuis « Premiers pas » : lu une seule fois, à l'ouverture de l'onglet
 export function Connectors() {
+  const [prefill] = useState(takePrefill);
   const [st, setSt] = useState<ConnectorsState | null>(null);
   const [error, setError] = useState("");
-  const [adding, setAdding] = useState<string>("");
+  const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
   const reload = useCallback(() => {
     read<ConnectorsState>("connectors/settings")
       .then((s) => { setSt(s); setError(""); })
@@ -41,7 +44,7 @@ export function Connectors() {
         <p className="mt-1 text-sm text-muted">
           {tx("Services lus par leur API,")} <b className="text-txt">{tx("en lecture seule")}</b> {tx(": prévoir un compte ou une clé lecture seule. « Tester » essaie les réglages sans les enregistrer ; un changement est pris en compte au prochain passage de la collecte.")}
         </p>
-        {type && <ConnectorForm type={type} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
+        {type && <ConnectorForm key={type.type} type={type} prefill={prefill?.type === type.type ? prefill : null} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
       </Card>
       {st.instances.map((i) => (
         <InstanceCard key={`${i.type}/${i.name}`} inst={i} type={st.types.find((t) => t.type === i.type)!} reload={reload} />
@@ -87,11 +90,11 @@ function InstanceCard({ inst, type, reload }: { inst: ConnectorInstance; type: C
   );
 }
 
-function ConnectorForm({ type, inst, onDone, onCancel }: { type: ConnectorType; inst?: ConnectorInstance; onDone: () => void; onCancel: () => void }) {
-  const [name, setName] = useState(inst?.name || type.type);
+function ConnectorForm({ type, inst, prefill, onDone, onCancel }: { type: ConnectorType; inst?: ConnectorInstance; prefill?: Prefill | null; onDone: () => void; onCancel: () => void }) {
+  const [name, setName] = useState(inst?.name || prefill?.name || type.type);
   const [conf, setConf] = useState<Record<string, string | number | boolean>>(() => {
     const init: Record<string, string | number | boolean> = {};
-    for (const f of type.fields) if (!f.secret) init[f.name] = inst?.config[f.name] ?? (f.default as string | number | boolean | null) ?? "";
+    for (const f of type.fields) if (!f.secret) init[f.name] = inst?.config[f.name] ?? (f.name === "url" ? prefill?.url : undefined) ?? (f.default as string | number | boolean | null) ?? "";
     return init;
   });
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
