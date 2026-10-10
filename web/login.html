@@ -14,14 +14,26 @@
     <form id="login" autocomplete="on" novalidate>
       <h1><img src="favicon.svg" alt="" width="28" height="28"> MyServices</h1>
       <p class="sub" id="sub">Connexion à la page de l'infra.</p>
-      <p class="setup" id="setup" hidden></p>
-      <label for="u">Compte</label>
-      <input id="u" name="username" autocomplete="username" required autofocus maxlength="64">
-      <label for="p">Mot de passe</label>
-      <input id="p" name="password" type="password" autocomplete="current-password" required maxlength="256">
-      <div id="again" hidden>
-        <label for="p2">Mot de passe, encore une fois</label>
-        <input id="p2" name="password2" type="password" autocomplete="new-password" maxlength="256">
+      <div class="setup" id="setup" hidden></div>
+      <div class="cols">
+        <div>
+          <label for="u">Compte</label>
+          <input id="u" name="username" autocomplete="username" required autofocus maxlength="64">
+          <label for="p">Mot de passe</label>
+          <input id="p" name="password" type="password" autocomplete="current-password" required maxlength="256">
+          <div id="again" hidden>
+            <label for="p2">Validation du mot de passe</label>
+            <input id="p2" name="password2" type="password" autocomplete="new-password" maxlength="256">
+          </div>
+        </div>
+        <div id="rulebox" hidden>
+          <p class="rules-title">Le mot de passe doit respecter</p>
+          <ul class="rules" id="rules" aria-live="polite">
+            <li id="r-long">12 caractères minimum <b id="r-count">(0/12)</b></li>
+            <li id="r-same">Les deux mots de passe sont identiques</li>
+            <li id="r-words" class="tip">Conseil : une phrase de plusieurs mots, facile à retenir</li>
+          </ul>
+        </div>
       </div>
       <p id="msg" role="alert" hidden></p>
       <button type="submit" id="go">Se connecter</button>

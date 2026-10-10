@@ -3,7 +3,7 @@
 
 Remplace les unités systemd de l'installation classique :
   myservices.timer / -watcher / -health / -backups  -> planificateur interne (horaires ci-dessous)
-  myservices-refresh-api + myservices-refresh.path  -> POST /myservices/api/refresh (api.py)
+  myservices-refresh-api + myservices-refresh.path  -> POST /myservices/api/v1/refresh (api.py)
   nginx / Apache                                    -> page servie ici (aucune config web à écrire)
 
 Les scripts (myservices.py, watcher.py, health.py, backups.py) tournent inchangés, chacun dans son
@@ -248,9 +248,14 @@ def prepare_ssh() -> None:
         ip = host_ip()
         user = os.environ.get("MYSERVICES_HOST_USER", "root")
         conf.write_text(text + f"\n# Machine hôte du conteneur (ajouté au démarrage)\nHost hote\n    HostName {ip}\n    User {user}\n"
-                        f"    IdentityFile ~/.ssh/myservices\n    IdentitiesOnly yes\n", encoding="utf-8")
+                        f"    IdentityFile ~/.ssh/myservices\n    IdentitiesOnly yes\n"
+                        "    StrictHostKeyChecking accept-new\n", encoding="utf-8")  # 1re connexion : empreinte retenue, puis vérifiée
         conf.chmod(0o600)
         log(f"alias SSH « hote » ajouté : {user}@{ip}")
+    elif "# Machine hôte du conteneur" in text and "StrictHostKeyChecking" not in text:  # alias d'avant : sans known_hosts, SSH échoue
+        conf.write_text(re.sub(r"(?m)^(Host hote\n)", r"\1    StrictHostKeyChecking accept-new\n", text, count=1), encoding="utf-8")
+        conf.chmod(0o600)
+        log("alias SSH « hote » : StrictHostKeyChecking accept-new ajouté")
     pub = (KEY.with_suffix(".pub")).read_text().strip()
     log("clé publique de l'app (à autoriser sur l'hôte et sur chaque machine lue par SSH) :\n"
         f"    {pub}\n  sur l'hôte : echo '{pub}' | sudo tee -a /root/.ssh/authorized_keys")
@@ -286,7 +291,7 @@ def first_runs() -> None:
 
 
 def status() -> dict:
-    """Même réponse que refresh-api.py (lue par web/refresh.js)."""
+    """État du collecteur, lu par la barre de progression du front (GET /myservices/api/v1/status)."""
     t, now = TASKS["collect"], time.time()
     running = t["proc"] is not None
     last = max(filter(None, (t["start"], t["trigger"])), default=None)

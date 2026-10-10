@@ -1,0 +1,133 @@
+// Accueil d'une installation neuve : les étapes du premier démarrage, de ce que MyServices a trouvé sans rien
+// demander (ports de l'hôte, Docker) jusqu'à la clé SSH qui donne le relevé exact. Les étapes se mettent à jour en
+// direct pendant le scan ; la carte reste jusqu'à ce qu'on la ferme (retenu par navigateur et par clé de l'app :
+// une installation remise à zéro la rouvre).
+import { ArrowRight, Check, Circle, KeyRound, Loader2, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { read } from "../api";
+import type { Snapshot } from "../api";
+import { REOPEN_EVENT, savedState, saveState, takeReopen } from "../lib/firstSteps";
+import { tx } from "../lib/i18n";
+import { useScan } from "../lib/scan";
+import { plural } from "../lib/summary";
+import type { SystemState } from "../types";
+import { AuthorizeKey } from "./AuthorizeKey";
+import { Badge } from "./ui";
+
+type State = "done" | "now" | "run" | "next" | "soon";
+
+/** done : acquis ; now : la seule étape qui demande une action (mise en avant) ; run : en cours ;
+ *  next : suite directe ; soon : pas encore codé */
+function Step({ state, title, children }: { state: State; title: string; children?: React.ReactNode }) {
+  const Icon = state === "done" ? Check : state === "now" ? ArrowRight : state === "run" ? Loader2 : Circle;
+  const tone = state === "done" ? "text-ok" : state === "now" ? "text-warn" : state === "run" ? "text-link" : "text-dim";
+  const box = state === "now" ? "border-warn/40 bg-bg2/60 p-3 sm:p-4" : state === "run" ? "border-link/40 bg-bg2/60 p-3 sm:p-4" : "border-transparent";
+  return (
+    <li className={`flex gap-3 rounded-xl border transition-colors duration-500 ${box} ${state === "soon" ? "opacity-70" : ""}`}
+      aria-current={state === "now" || state === "run" ? "step" : undefined}>
+      <span key={state} className={`step-pop mt-0.5 shrink-0 ${tone}`}>
+        <Icon size={18} aria-hidden className={state === "run" ? "animate-spin" : undefined} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <h3 className={`flex flex-wrap items-center gap-2 text-sm font-bold ${state === "next" || state === "soon" ? "text-muted" : ""}`}>
+          {title}{state === "soon" && <Badge tone="off">{tx("À venir")}</Badge>}
+        </h3>
+        {children && <div className="mt-1 text-sm text-muted">{children}</div>}
+      </div>
+    </li>
+  );
+}
+
+export function FirstSteps({ snap }: { snap: Snapshot }) {
+  const [sys, setSys] = useState<SystemState | null>(null);
+  const [, bump] = useState(0);
+  const [acceptedGen, setAcceptedGen] = useState<string | null>(null); // relevé de data.json au moment où la clé a été acceptée
+  const scan = useScan();
+  const admin = snap.me.role === "admin";
+  useEffect(() => { if (admin) read<SystemState>("system").then(setSys).catch(() => undefined); }, [admin]);
+
+  const failing = (snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok);
+  const fp = sys?.ssh.fingerprint || sys?.ssh.public || "app";
+  const saved = savedState(fp);
+  useEffect(() => { if (sys && failing.length && !saved) saveState(fp, "open"); }, [sys, failing.length, saved, fp]);
+  useEffect(() => {
+    const reopen = () => { if (sys && takeReopen()) { saveState(fp, "open"); bump((n) => n + 1); } };
+    reopen();
+    addEventListener(REOPEN_EVENT, reopen);
+    return () => removeEventListener(REOPEN_EVENT, reopen);
+  }, [sys, fp]);
+  if (!admin || !sys || !(saved === "open" || (failing.length > 0 && saved !== "closed"))) return null;
+
+  // Clé acceptée : la carte le montre tout de suite, sans attendre la fin du scan. Si le scan se termine et que
+  // Docker reste illisible, l'étape se rouvre.
+  const accepted = acceptedGen !== null && (snap.data.generated === acceptedGen || !failing.length);
+  const keyDone = !failing.length || accepted;
+  const running = !!scan?.running;
+  const finished = keyDone && !running && !failing.length;
+  const reopened = acceptedGen !== null && !accepted;
+  const host = snap.data.machine_list.find((m) => m.local) || snap.data.machine_list[0];
+  const docker = sys.host_docker;
+  const readable = (snap.data.connectors || []).filter((c) => c.type === "docker" && c.ok);
+  const p = scan?.progress;
+
+  return (
+    <section className={`relative rounded-2xl border bg-card p-5 transition-colors duration-700 ${finished ? "border-ok/50" : "border-warn/50"}`}>
+      <button type="button" aria-label={tx("Fermer")} title={tx("Fermer")}
+        onClick={() => { saveState(fp, "closed"); bump((n) => n + 1); }}
+        className="absolute right-3 top-3 rounded-lg p-1.5 text-dim hover:bg-bg2 hover:text-txt focus-visible:outline focus-visible:outline-2 focus-visible:outline-link">
+        <X size={18} aria-hidden />
+      </button>
+      <h2 className="mb-1 flex items-center gap-2 pr-8 text-lg font-bold"><KeyRound size={18} />{tx("Premiers pas")}</h2>
+      <p className="mb-4 pr-8 text-sm text-muted">
+        {finished
+          ? tx("C'est bon : MyServices lit maintenant vos conteneurs. Les étapes suivantes arrivent avec la détection des applications.")
+          : tx("MyServices a déjà trouvé des services. Pour être complet, il faudrait une clé SSH. Pas de panique, c'est simple !")}
+      </p>
+      <ol className="flex flex-col gap-3">
+        <Step state="done" title={tx("Compte administrateur créé")} />
+        <Step state="done" title={tx("Machine hôte détectée")}>
+          {host && (
+            <p className="flex flex-wrap items-center gap-1.5">
+              <Badge tone="info">{host.name}</Badge>
+              <b className="text-txt">{plural(host.services, "service trouvé", "services trouvés")}</b>
+              {tx("par leurs ports en écoute, nommés d'après leur page web.")}
+            </p>
+          )}
+          {docker?.present && (
+            <p className="mt-1 flex flex-wrap items-center gap-1.5">
+              <Badge tone="info">Docker</Badge>
+              <b className="text-txt">{tx("présent sur l'hôte")}</b>
+              {!keyDone && <Badge tone="off">≈ {plural(docker.containers, "conteneur")}</Badge>}
+              {!keyDone && <Badge tone="off">{plural(docker.networks, "réseau", "réseaux")}</Badge>}
+              {!keyDone && tx("Conteneur ou installation native : à confirmer avec la clé SSH.")}
+            </p>
+          )}
+        </Step>
+        {keyDone ? (
+          <Step state="done" title={tx("Clé SSH de MyServices autorisée")} />
+        ) : (
+          <Step state="now" title={tx("Autoriser la clé SSH de MyServices")}>
+            {reopened && <p className="mb-2 text-warn">{tx("La clé répond, mais Docker reste illisible après le scan : vérifier que le compte est dans le groupe docker.")}</p>}
+            <AuthorizeKey failing={failing} bare onAccepted={() => setAcceptedGen(snap.data.generated)} />
+          </Step>
+        )}
+        <Step state={!keyDone ? "next" : finished ? "done" : "run"} title={tx("Relevé exact de Docker, des process et de la santé")}>
+          {!keyDone && tx("Une fois la clé acceptée, la collecte repart seule et remplace les estimations ci-dessus.")}
+          {keyDone && !finished && (
+            <p aria-live="polite">
+              {p ? <><span className="tabular-nums text-dim">{p.step}/{p.steps}</span> {p.label}{p.total ? ` (${p.done ?? 0}/${p.total})` : ""}</> : tx("démarrage…")}
+            </p>
+          )}
+          {finished && (
+            <p className="flex flex-wrap items-center gap-1.5">
+              {readable.map((c) => <Badge key={c.name} tone="ok">{c.message}</Badge>)}
+              {tx("remplacent les estimations.")}
+            </p>
+          )}
+        </Step>
+        <Step state="soon" title={tx("Connecteurs proposés d'après ce qui est trouvé")}>{tx("NPM, AdGuard, Beszel… proposés quand leur image ou leur port est reconnu.")}</Step>
+        <Step state="soon" title={tx("Recherche des autres machines du réseau")}>{tx("Scan du réseau local, à votre demande.")}</Step>
+      </ol>
+    </section>
+  );
+}

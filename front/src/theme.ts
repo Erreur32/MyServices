@@ -20,7 +20,7 @@ export function useTheme(): [Theme, () => void, (t: Theme) => void] {
 
 /** Largeur maximale du contenu (en-tête, onglets, pages), en px ; 0 = toute la largeur de l'écran
  *  (dernier cran du curseur). Même réglage que « Page width » de GpuViewR. */
-export const CONTENT_WIDTH = { min: 1200, max: 2560, step: 80, default: 1400, full: 0 } as const;
+export const CONTENT_WIDTH = { min: 1200, max: 2560, step: 80, default: 1760, full: 0 } as const;
 
 function clampWidth(px: number): number {
   if (px === CONTENT_WIDTH.full) return px;

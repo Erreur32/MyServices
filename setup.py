@@ -941,10 +941,10 @@ def check() -> int:
             ok(f"dossier des fichiers produits {web} (volume /data)")
         else:
             bad(f"{web} non inscriptible : volume /data appartenant au compte {os.geteuid()} ?")
-    elif (web / "index.html").exists():
+    elif web.is_dir():
         ok(f"dossier web {web}")
     else:
-        bad(f"{web}/index.html absent (web_dir)")
+        bad(f"{web} absent (web_dir)")
     if CFG["public_url"]:  # lien des alertes : doit mener à la page (port, / final)
         try:
             with urllib.request.urlopen(CFG["public_url"].rstrip("/") + "/data.json", timeout=5) as resp:

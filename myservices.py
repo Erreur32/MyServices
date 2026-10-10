@@ -14,7 +14,7 @@ Sources, toutes en LECTURE SEULE :
   - AdGuard Home (machines.adguard) : réécritures et règles perso (AdGuardHome.yaml par
     docker exec), et réponse de chaque AdGuard pour chaque domaine NPM (requête DNS directe).
 
-Écrit <web_dir>/data.json, lu par <web_dir>/index.html. Cron 30 min (état du
+Écrit <web_dir>/data.json, lu par le front (/myservices/v2/). Cron 30 min (état du
 réseau, pas du monitoring : Uptime Kuma s'en charge) ; l'inventaire docker + infos machines
 (session SSH) est mis en cache 2 h, le test des méthodes SSH 30 min. Une machine qui change
 d'état au ping court-circuite ces deux caches.
@@ -203,8 +203,9 @@ def docker_inventory(force=False):
     data["_internal"] = {ip: g["internal"] for ip, g in got.items()}
     data["_hostinfo"] = {ip: j.result() for ip, j in hi.items()}
     os.makedirs(os.path.dirname(DOCKER_CACHE), exist_ok=True)
-    with open(DOCKER_CACHE, "w") as f:
-        json.dump({"ts": time.time(), "data": data}, f)
+    failed = any(v is None for k, v in data.items() if not k.startswith("_"))
+    with open(DOCKER_CACHE, "w") as f:  # lecture ratée (clé pas encore autorisée) : relue au prochain passage, pas dans 2 h
+        json.dump({"ts": time.time() - (DOCKER_CACHE_TTL if failed else 0), "data": data}, f)
     return data
 
 

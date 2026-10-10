@@ -53,7 +53,7 @@ class Accounts(unittest.TestCase):
         cookie = r.headers.get_list("set-cookie")
         self.assertTrue(any(c.startswith("ms_session=") and "HttpOnly" in c and "SameSite=strict" in c for c in cookie))
         self.assertTrue(any(c.startswith("ms_csrf=") and "HttpOnly" not in c for c in cookie))
-        self.assertEqual(self.c.get("/myservices/").text, "<p>page</p>")
+        self.assertEqual(self.c.get("/myservices/index.html").text, "<p>page</p>")
         self.assertEqual(self.c.get("/myservices/api/v1/me").json()["username"], "admin")
 
     def test_wrong_password_and_unknown_user(self):

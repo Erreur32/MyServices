@@ -19,6 +19,8 @@ import { ApiMcp } from "./ApiMcp";
 import { Sources } from "./Sources";
 import { SystemSettings } from "./SystemSettings";
 import { tx } from "../lib/i18n";
+import { checkPassword, okField, PASSWORD_MIN } from "../lib/password";
+import { PasswordRules } from "../components/PasswordRules";
 
 const SECTIONS: { id: string; label: string; ready?: boolean }[] = [
   { id: "accounts", label: tx("Comptes"), ready: true },
@@ -31,7 +33,6 @@ const SECTIONS: { id: string; label: string; ready?: boolean }[] = [
   { id: "system", label: tx("Système"), ready: true },
 ];
 
-const PASSWORD_MIN = 12; // même règle que le serveur (auth.py)
 
 const ROLE: Record<User["role"], string> = { admin: "admin", viewer: tx("lecture seule") };
 
@@ -179,13 +180,14 @@ function MyPassword() {
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={tx("Nouveau ({0} caractères min.)", PASSWORD_MIN)}>
-            <input className={input} type="password" autoComplete="new-password" required minLength={PASSWORD_MIN} value={pw} onChange={(e) => setPw(e.target.value)} />
+            <input className={`${input} ${okField(pw)}`} type="password" autoComplete="new-password" required minLength={PASSWORD_MIN} value={pw} onChange={(e) => setPw(e.target.value)} />
           </Field>
-          <Field label={tx("Encore une fois")}>
-            <input className={input} type="password" autoComplete="new-password" required minLength={PASSWORD_MIN} value={pw2} onChange={(e) => setPw2(e.target.value)} />
+          <Field label={tx("Validation du mot de passe")}>
+            <input className={`${input} ${pw2 && pw2 === pw ? "!border-ok/70" : ""}`} type="password" autoComplete="new-password" required minLength={PASSWORD_MIN} value={pw2} onChange={(e) => setPw2(e.target.value)} />
           </Field>
         </div>
-        <div><button className={primary} disabled={busy}><KeyRound size={14} />{tx("Changer")}</button></div>
+        <PasswordRules pw={pw} again={pw2} />
+        <div><button className={primary} disabled={busy || !checkPassword(pw, pw2).ok}><KeyRound size={14} />{tx("Changer")}</button></div>
         <p className="text-xs text-dim">{tx("Toutes tes sessions (autres navigateurs compris) seront fermées.")}</p>
       </form>
       <NoteLine note={note} />
@@ -219,9 +221,10 @@ function AddUser({ onDone }: { onDone: () => void }) {
           </Field>
         </div>
         <Field label={tx("Mot de passe ({0} caractères min., à lui transmettre)", PASSWORD_MIN)}>
-          <input className={input} type="password" autoComplete="new-password" required minLength={PASSWORD_MIN} value={pw} onChange={(e) => setPw(e.target.value)} />
+          <input className={`${input} ${okField(pw)}`} type="password" autoComplete="new-password" required minLength={PASSWORD_MIN} value={pw} onChange={(e) => setPw(e.target.value)} />
         </Field>
-        <div><button className={primary} disabled={busy}><Plus size={14} />{tx("Créer")}</button></div>
+        <PasswordRules pw={pw} />
+        <div><button className={primary} disabled={busy || !checkPassword(pw).ok}><Plus size={14} />{tx("Créer")}</button></div>
       </form>
       <NoteLine note={note} />
     </Card>

@@ -2,7 +2,6 @@
 
 Sous /myservices/ :
   /                       page (web/ de l'image), fichiers produits pris d'abord dans le volume (data.json…)
-  api/status, api/refresh routes historiques du bouton ⟳ (même réponse que refresh-api.py)
   api/v1/…                API versionnée : état, connecteurs, passages ; doc OpenAPI : api/v1/docs
 /healthz                  santé du conteneur (sans données)
 
@@ -177,7 +176,7 @@ async def guard(request: Request, call_next):
 @app.get("/", include_in_schema=False)
 @app.get(PREFIX, include_in_schema=False)
 def root():
-    return RedirectResponse(PREFIX + "/", status_code=302)
+    return RedirectResponse(PREFIX + "/v2/", status_code=302)  # le nouveau front ; l'ancienne page (v1) reste sur /myservices/
 
 
 @app.get("/healthz", include_in_schema=False)
@@ -185,7 +184,7 @@ def healthz():
     return {"ok": True}
 
 
-# ── Routes historiques du bouton ⟳ (web/refresh.js) ───────────────────────────────────────────────
+# ── Passage de la collecte à la demande ───────────────────────────────────────────────────────────
 
 def refresh_response(who: str) -> JSONResponse:
     st = core.status()
@@ -203,16 +202,6 @@ def refresh_from(request: Request) -> JSONResponse:
     if AUTH and r.status_code == 202:
         store().audit("passage demandé", (request.state.user or {}).get("username"), ip_of(request))
     return r
-
-
-@app.get(PREFIX + "/api/status", include_in_schema=False)
-def status_legacy():
-    return JSONResponse(core.status(), headers={"Cache-Control": "no-store"})
-
-
-@app.post(PREFIX + "/api/refresh", include_in_schema=False)
-def refresh_legacy(request: Request):
-    return refresh_from(request)
 
 
 # ── API v1 ────────────────────────────────────────────────────────────────────────────────────────
@@ -470,7 +459,9 @@ def system_state(request: Request):
     import system
     if denied := admin_only(request):
         return denied
-    return {"ssh": system.ssh_key(core), "tasks": system.tasks(core), "info": system.info(core, sys.modules[__name__])}
+    from connectors.process import host_docker
+    return {"ssh": system.ssh_key(core), "tasks": system.tasks(core), "info": system.info(core, sys.modules[__name__]),
+            "host_docker": host_docker()}
 
 
 class Schedule(BaseModel):
@@ -900,7 +891,9 @@ def find(rel: str) -> Path | None:
 
 @app.get(PREFIX + "/{rel:path}", include_in_schema=False)
 def files(rel: str):
-    if rel == "" or rel.endswith("/"):
+    if rel == "":  # /myservices/ : le front
+        return RedirectResponse(PREFIX + "/v2/", status_code=302)
+    if rel.endswith("/"):
         rel += "index.html"
     f = find(rel)
     if f is None and find(rel + "/index.html"):  # dossier tapé sans « / » final (ex. /myservices/v2)

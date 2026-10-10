@@ -7,6 +7,7 @@ import { LOGIN, LoginRequired, read, ROOT, send } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
+import { copyText } from "../lib/clipboard";
 import { dateTime } from "../lib/format";
 import type { ApiToken, TokensState } from "../types";
 import { tx } from "../lib/i18n";
@@ -114,7 +115,7 @@ function CopyBlock({ text, label }: { text: string; label: string }) {
       <div className="mb-1 flex items-center justify-between text-xs text-dim">
         <span>{label}</span>
         <button type="button" className="inline-flex items-center gap-1 text-link hover:underline"
-          onClick={() => void navigator.clipboard?.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); })}>
+          onClick={() => void copyText(text).then((ok) => { setDone(ok); setTimeout(() => setDone(false), 1500); })}>
           <Copy size={12} />{done ? tx("copié") : tx("copier")}
         </button>
       </div>

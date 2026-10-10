@@ -1,6 +1,8 @@
 // Éléments de formulaire des Réglages (composants) ; classes, type Note et act() : lib/forms.ts.
+import { Check, Copy } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { quiet, type Note } from "../lib/forms";
+import { copyText } from "../lib/clipboard";
+import { button, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 
 /** Retour d'une action : message vert ou rouge sous le formulaire. */
@@ -26,14 +28,23 @@ export function Switch({ on, onChange, label, disabled }: { on: boolean; onChang
 }
 
 /** Texte à copier (clé, commande) avec son bouton */
-export function Copyable({ text }: { text: string }) {
-  const [done, setDone] = useState(false);
+export function Copyable({ text, oneLine = false }: { text: string; oneLine?: boolean }) {
+  const [note, setNote] = useState<Note>(null);
+  const copy = async () => {
+    const ok = await copyText(text);
+    setNote({ ok, text: ok ? tx("Copié dans le presse-papiers") : tx("Copie impossible : sélectionner le texte et le copier à la main") });
+    setTimeout(() => setNote(null), ok ? 2500 : 6000);
+  };
   return (
-    <div className="flex items-start gap-2">
-      <pre className="min-w-0 flex-1 overflow-x-auto whitespace-pre-wrap break-all rounded-lg bg-bg2 p-2.5 font-mono text-xs">{text}</pre>
-      <button type="button" className={quiet} onClick={() => void navigator.clipboard?.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); })}>
-        {done ? tx("copié") : tx("copier")}
-      </button>
+    <div>
+      <div className="flex items-start gap-2">
+        <pre className={`min-w-0 flex-1 overflow-x-auto rounded-lg bg-bg2 p-2.5 font-mono text-xs ${oneLine ? "whitespace-pre" : "whitespace-pre-wrap break-all"}`}>{text}</pre>
+        <button type="button" onClick={() => void copy()}
+          className={note?.ok ? `${button} border-ok bg-ok/15 text-ok` : primary}>
+          {note?.ok ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}{note?.ok ? tx("copié") : tx("copier")}
+        </button>
+      </div>
+      <NoteLine note={note} />
     </div>
   );
 }

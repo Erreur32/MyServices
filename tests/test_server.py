@@ -66,14 +66,16 @@ class Http(unittest.TestCase):
         cls.tmp.cleanup()
 
     def test_page(self):
-        r = self.c.get("/myservices/")
+        r = self.c.get("/myservices/", follow_redirects=False)  # le front est sous /v2/ : /myservices/ y mène
+        self.assertEqual((r.status_code, r.headers["location"]), (302, "/myservices/v2/"))
+        r = self.c.get("/myservices/index.html")
         self.assertEqual((r.status_code, r.text), (200, "<p>page</p>"))
         self.assertEqual(r.headers["x-content-type-options"], "nosniff")
         self.assertNotIn("server", {k.lower() for k in r.headers})
-        self.assertEqual(self.c.get("/", follow_redirects=False).headers["location"], "/myservices/")
+        self.assertEqual(self.c.get("/", follow_redirects=False).headers["location"], "/myservices/v2/")
 
     def test_csp(self):
-        page = self.c.get("/myservices/").headers["content-security-policy"]
+        page = self.c.get("/myservices/index.html").headers["content-security-policy"]
         self.assertIn("default-src 'self'", page)
         self.assertIn("object-src 'none'", page)
         (server.STATIC / "login.html").write_text("<form>")
@@ -98,15 +100,14 @@ class Http(unittest.TestCase):
         for p in ("/myservices/../server.py", "/myservices/%2e%2e/%2e%2e/etc/passwd", "/myservices/..%2fserver.py"):
             self.assertEqual(self.c.get(p).status_code, 404, p)
 
-    def test_status_legacy_and_v1(self):
-        for p in ("/myservices/api/status", "/myservices/api/v1/status"):
-            st = self.c.get(p).json()
-            self.assertEqual(st["generated"], "2026-10-10T00:00:00+00:00")
-            for k in ("running", "progress", "started", "ended", "result", "cooldown", "wait", "now"):
-                self.assertIn(k, st)
+    def test_status_v1(self):
+        st = self.c.get("/myservices/api/v1/status").json()
+        self.assertEqual(st["generated"], "2026-10-10T00:00:00+00:00")
+        for k in ("running", "progress", "started", "ended", "result", "cooldown", "wait", "now"):
+            self.assertIn(k, st)
 
     def test_refresh_other_origin_refused(self):
-        r = self.c.post("/myservices/api/refresh", headers={"Origin": "http://evil.example"})
+        r = self.c.post("/myservices/api/v1/refresh", headers={"Origin": "http://evil.example"})
         self.assertEqual(r.status_code, 403)
 
     def test_refresh_too_soon(self):

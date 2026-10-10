@@ -217,7 +217,10 @@ def delete(ip: str) -> None:
 
 def check(ip: str) -> dict:
     """Vérification de setup.py pour cette machine : lignes affichées et nombre d'échecs."""
-    m = _meta().get("machines", {}).get(ip)
+    machines = _meta().get("machines", {})
+    if ip not in machines:  # la page envoie le nom du connecteur (= nom de la machine) quand elle n'a pas l'IP
+        ip = next((k for k, v in machines.items() if v.get("name") == ip), ip)
+    m = machines.get(ip)
     if m is None:
         raise MachineError("machine inconnue")
     buf = io.StringIO()
@@ -225,4 +228,6 @@ def check(ip: str) -> dict:
     with contextlib.redirect_stdout(buf):
         setup.check_machine(ip, m, setup.ssh_aliases())
     lines = [ln.strip() for ln in buf.getvalue().splitlines() if ln.strip()]
+    if not setup.FAILED:  # accès SSH qui répond : l'inventaire raté d'avant ne doit pas rester en cache (2 h)
+        expire_inventory()
     return {"lines": lines, "failed": len(setup.FAILED)}

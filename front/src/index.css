@@ -10,7 +10,7 @@
   --ok: 76 208 127; --warn: 232 163 61; --bad: 240 106 106; --link: 36 150 237;
   --npm: 250 164 47; --loc: 56 189 248; --apache: 192 132 252;
   color-scheme: dark;
-  --content-max: 1400px; /* largeur de la page, réglable (Réglages → Apparence) */
+  --content-max: 1760px; /* largeur de la page, réglable (Réglages → Apparence) */
 }
 :root.light {
   --bg: 244 246 250; --bg2: 236 239 245; --card: 255 255 255; --line: 218 223 232;
@@ -31,3 +31,16 @@ body {
 .range::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 9999px; background: rgb(var(--link)); box-shadow: 0 0 0 3px rgb(var(--link) / 0.25); }
 .range::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 9999px; background: rgb(var(--link)); box-shadow: 0 0 0 3px rgb(var(--link) / 0.25); }
 .range:focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(var(--link) / 0.35); }
+
+/* Barre de scan (ScanBar) : dégradé lien -> ok, reflet qui avance ; sans progression connue, bloc qui va et vient */
+.scan-fill { background: linear-gradient(90deg, rgb(var(--link)), rgb(var(--ok))); transition: width .6s ease; position: relative; overflow: hidden; }
+.scan-fill::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgb(255 255 255 / .55), transparent); transform: translateX(-100%); animation: scan-shine 1.6s linear infinite; }
+.scan-wait { width: 30%; background: linear-gradient(90deg, transparent, rgb(var(--link)), rgb(var(--ok)), transparent); animation: scan-wait 1.4s ease-in-out infinite alternate; }
+@keyframes scan-shine { to { transform: translateX(100%); } }
+@keyframes scan-wait { from { transform: translateX(-30%); } to { transform: translateX(240%); } }
+@media (prefers-reduced-motion: reduce) { .scan-fill::after, .scan-wait { animation: none; } }
+
+/* Étapes de « Premiers pas » : l'icône d'une étape qui change d'état fait un petit rebond */
+.step-pop { animation: step-pop .45s cubic-bezier(.2, 1.4, .4, 1); }
+@keyframes step-pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .step-pop { animation: none; } .animate-spin { animation: none; } }

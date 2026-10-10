@@ -35,10 +35,6 @@ COPY --chown=root:root *.py /app/
 COPY --chown=root:root connectors/ /app/connectors/
 COPY --chown=root:root web/ /app/web/
 COPY --from=front --chown=root:root /front/dist/ /app/web/v2/
-# Lus par le guide de la page : web/README.md et la capture sont des liens vers la racine du dépôt,
-# remplacés par les fichiers (le serveur ne suit pas un lien qui sort de web/)
-COPY --chown=root:root README.md chrome-capture-*.png /tmp/doc/
-RUN cd /app/web && for f in README.md chrome-capture-*.png; do rm -f "$f" && mv "/tmp/doc/$f" "$f"; done && rmdir /tmp/doc
 
 # Fichiers du volume /config et /data ; chaque clé reste surchargeable (MYSERVICES_<CLÉ>)
 ENV MYSERVICES_CONFIG=/config/config.json \

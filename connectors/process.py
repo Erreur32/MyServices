@@ -5,6 +5,7 @@ Une instance par entrée de services-meta « process_hosts » {IP: alias}.
 """
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 
@@ -57,6 +58,19 @@ def host_ports() -> dict:
                 p = ports.setdefault(port, {"name": f"port {port}", "lan": False})
                 p["lan"] = p["lan"] or not loop
     return ports
+
+
+def host_docker() -> dict:
+    """Docker sur la machine hôte, vu sans SSH ni socket : en réseau host, /sys/class/net liste les interfaces
+    de l'hôte. `docker0` = Docker présent ; un `veth*` par conteneur en réseau bridge ; un `br-*` par réseau
+    compose. C'est une estimation (les conteneurs en réseau host n'y figurent pas) : le relevé exact vient du SSH."""
+    try:
+        names = os.listdir("/sys/class/net")
+    except OSError:
+        return {"present": False, "containers": 0, "networks": 0}
+    bridges = [n for n in names if n.startswith("br-")]
+    return {"present": "docker0" in names or bool(bridges), "containers": sum(n.startswith("veth") for n in names),
+            "networks": len(bridges)}
 
 
 class Process(Connector):

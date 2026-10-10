@@ -3,6 +3,7 @@
 import { ChevronRight } from "lucide-react";
 import type { Snapshot } from "../api";
 import { paragraphs, type Attention, type TabId } from "../lib/summary";
+import { FirstSteps } from "./FirstSteps";
 import { Rich } from "./Rich";
 import { StatsColumn } from "./StatsColumn";
 import { TABS } from "../lib/tabs";
@@ -21,6 +22,7 @@ export function Home({ snap, items, go, now }: { snap: Snapshot; items: Attentio
   return (
     <div className="grid gap-5 py-5 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="flex flex-col gap-5">
+        <FirstSteps snap={snap} />
         <section className={`rounded-2xl border bg-card p-5 ${items.length ? (crit ? "border-bad/50" : "border-warn/50") : "border-ok/40"}`}>
           {items.length === 0 ? (
             <h2 className="text-lg font-bold text-ok">{tx("✅ Rien à signaler")}</h2>
@@ -53,9 +55,14 @@ export function Home({ snap, items, go, now }: { snap: Snapshot; items: Attentio
               <TabIcon tab={p.tab} />{p.title}
               <ChevronRight size={16} className="text-dim group-hover:text-link" />
             </button>
-            <p className="text-[15px] leading-relaxed text-muted">
-              {p.sentences.map((s, i) => <span key={i}>{i > 0 && " "}<Rich text={s} /></span>)}
-            </p>
+            <ul className="flex flex-col gap-1.5 text-[15px] leading-relaxed text-muted">
+              {p.sentences.map((s, i) => (
+                <li key={i} className="flex gap-2.5">
+                  <span aria-hidden className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full bg-dim" />
+                  <span className="min-w-0 flex-1"><Rich text={s} /></span>
+                </li>
+              ))}
+            </ul>
           </section>
         ))}
       </div>

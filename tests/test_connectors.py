@@ -610,3 +610,18 @@ class UptimeAttach(unittest.TestCase):
                                               "instance": "kuma", "stale": True}])
         self.assertEqual(rows[1]["uptime"][0]["status"], "down")
         self.assertNotIn("uptime", rows[2])
+
+
+
+class HostDocker(unittest.TestCase):
+    """Docker de l'hôte estimé sans SSH, d'après les interfaces réseau."""
+
+    def test_interfaces(self):
+        from unittest import mock
+        from connectors import process
+        with mock.patch.object(process.os, "listdir", return_value=["lo", "eth0", "docker0", "br-1a2b", "vethaa", "vethbb"]):
+            self.assertEqual(process.host_docker(), {"present": True, "containers": 2, "networks": 1})
+        with mock.patch.object(process.os, "listdir", return_value=["lo", "eth0"]):
+            self.assertEqual(process.host_docker(), {"present": False, "containers": 0, "networks": 0})
+        with mock.patch.object(process.os, "listdir", side_effect=OSError):
+            self.assertFalse(process.host_docker()["present"])

@@ -1,8 +1,9 @@
-import { ChevronDown, ExternalLink, KeyRound, LayoutTemplate, LogOut, Map, Moon, Settings, Sun, UserRound } from "lucide-react";
+import { ChevronDown, ExternalLink, KeyRound, ListChecks, LogOut, Map, Moon, Settings, Sun, UserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { logout, ROOT, type Snapshot } from "../api";
 import type { Theme } from "../theme";
 import { LOCALE, tx } from "../lib/i18n";
+import { reopenFirstSteps } from "../lib/firstSteps";
 
 const GITHUB = "https://github.com/Erreur32/MyServices";
 
@@ -61,14 +62,12 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
           <div className="my-1 border-t border-line/70" />
           {admin && <button type="button" role="menuitem" className={item} onClick={() => go("settings")}><Settings size={15} />{tx("Réglages")}</button>}
           {admin && <button type="button" role="menuitem" className={item} onClick={() => go("settings/accounts")}><KeyRound size={15} />{tx("Mon mot de passe")}</button>}
+          {admin && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); reopenFirstSteps(); }}><ListChecks size={15} />{tx("Revoir les premiers pas")}</button>}
           <button type="button" role="menuitem" className={item} onClick={toggleTheme}>
             {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}{tx("Thème")} {theme === "dark" ? tx("clair") : tx("sombre")}
           </button>
           <div className="my-1 border-t border-line/70" />
           {snap.data.page.map && <a role="menuitem" className={item} href={`${ROOT}carte.html`} target="_blank" rel="noopener"><Map size={15} />{tx("Carte de l'infra")}</a>}
-          <a role="menuitem" className={item} href={ROOT} title={tx("L'interface d'avant (une seule page), gardée pendant la transition vers celle-ci")}>
-            <LayoutTemplate size={15} />{tx("Ancienne page (v1)")}
-          </a>
           <a role="menuitem" className={item} href={GITHUB} target="_blank" rel="noopener noreferrer">
             <ExternalLink size={15} />{tx("Projet sur GitHub")}
           </a>

@@ -414,6 +414,7 @@ export interface SystemTask {
 export interface SystemState {
   ssh: { public: string | null; fingerprint?: string | null; known_hosts?: number; authorize?: string };
   tasks: SystemTask[];
+  host_docker?: { present: boolean; containers: number; networks: number };
   info: {
     version: string; python: string; started: number; uptime_s: number; port: number; allow: string[]; auth: boolean;
     cookie_secure: boolean; docker: boolean; sizes: { data: number; db: number; config: number }; paths: { config: string; data: string };

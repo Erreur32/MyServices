@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { LOGIN, LoginRequired, NotConfigured, ROOT, loadSnapshot, logout, type Snapshot } from "./api";
+import { LOGIN, LoginRequired, NotConfigured, loadSnapshot, logout, type Snapshot } from "./api";
 import { Header } from "./components/Header";
 import { Home } from "./components/Home";
+import { ScanBar } from "./components/ScanBar";
 import { Tabs } from "./components/Tabs";
 import { TABS, visible } from "./lib/tabs";
 import type { Selected } from "./lib/filter";
@@ -80,6 +81,7 @@ export default function App() {
 
   return (
     <div className="mx-auto max-w-[var(--content-max)] px-4 pb-10 sm:px-6">
+      <ScanBar onFinished={load} />
       <Header snap={snap} theme={theme} toggleTheme={toggleTheme} now={now} />
       {error && <p className="mb-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">{tx("⚠ Mise à jour impossible :")} {error}</p>}
       <Tabs tab={current} snap={snap} badges={badges} onSelect={go} />
@@ -95,7 +97,6 @@ export default function App() {
         <section className="my-6 rounded-2xl border border-dashed border-line p-8 text-center text-muted">
           <p className="text-lg font-semibold text-txt">{TABS.find((t) => t.id === current)!.label} {tx(": à venir")}</p>
           <p className="mt-2 text-sm">{tx("Prochaine étape, après les onglets en lecture.")}</p>
-          <a className="mt-4 inline-block text-sm text-link hover:underline" href={ROOT}>{tx("Ancienne page (v1)")}</a>
         </section>
       )}
     </div>
