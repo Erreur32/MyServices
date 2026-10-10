@@ -16,7 +16,7 @@ import { netPercent } from "./ScanBar";
 import { Badge } from "./ui";
 
 /** Une machine trouvée : nom (ou « sans nom »), adresse une seule fois, une étiquette par information */
-function HostInfo({ h, fresh = false }: { h: NetHost; fresh?: boolean }) {
+function HostInfo({ h, fresh = false, hint = false }: { h: NetHost; fresh?: boolean; hint?: boolean }) {
   const tags = tagsOf(h);
   return (
     <>
@@ -25,6 +25,11 @@ function HostInfo({ h, fresh = false }: { h: NetHost; fresh?: boolean }) {
       {tags.map((t) => <Badge key={t.label} tone={t.kind === "ssh" ? "ok" : t.kind === "app" ? "info" : "off"}>{t.label}</Badge>)}
       {tags.length === 0 && <Badge tone="off">{tx("répond au ping seulement")}</Badge>}
       {fresh && <Badge tone="warn">{tx("nouvelle")}</Badge>}
+      {hint && h.apps.includes("Home Assistant") && (
+        <span className="basis-full pl-6 text-xs text-warn">
+          <KeyRound size={12} className="mr-1 inline" aria-hidden />{tx("Après l'ajout, un jeton d'accès vous sera demandé (par son API, pas par SSH) : l'aide vous guide pas à pas.")}
+        </span>
+      )}
     </>
   );
 }
@@ -138,7 +143,7 @@ export function NetworkStep({ net, reload }: { net: NetScan | null; reload: () =
               <li key={h.ip}>
                 <label className="flex cursor-pointer flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2 hover:bg-bg2">
                   <input type="checkbox" className="h-4 w-4 accent-[rgb(var(--link))]" checked={picked.has(h.ip)} onChange={() => toggle(h.ip)} />
-                  <HostInfo h={h} fresh={!!diff?.fresh.has(h.ip)} />
+                  <HostInfo h={h} fresh={!!diff?.fresh.has(h.ip)} hint />
                 </label>
               </li>
             ))}
@@ -175,8 +180,8 @@ export function NetworkStep({ net, reload }: { net: NetScan | null; reload: () =
 
 /** Machine ajoutée : si elle répond en SSH, préparer l'accès (alias avec la clé de l'app), puis la commande et le test */
 function AddedMachine({ host }: { host: NetHost }) {
-  const ssh = !!host.ssh_port;
   const ha = host.apps.includes("Home Assistant");
+  const ssh = !!host.ssh_port && !ha;  // Home Assistant se relie par son API : pas de SSH proposé, même s'il répond
   const [user, setUser] = useState("root"), [cmd, setCmd] = useState<string | null>(null);
   const [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null), [ok, setOk] = useState(false);
   const label = host.name || host.ip;
@@ -236,24 +241,23 @@ function AddedMachine({ host }: { host: NetHost }) {
 
 /** Home Assistant : pas de SSH, son API avec un jeton (connecteur « home-assistant », formulaire et aide partagés avec Réglages) */
 function HomeAssistantLink({ host }: { host: NetHost }) {
-  const [type, setType] = useState<ConnectorType | null>(null), [open, setOpen] = useState(false), [done, setDone] = useState(false);
+  const [type, setType] = useState<ConnectorType | null>(null), [open, setOpen] = useState(true), [done, setDone] = useState(false);
   const [note, setNote] = useState<Note>(null);
-  const show = async () => {
-    await act(async () => {
+  useEffect(() => {  // le formulaire (et son aide) s'ouvre d'office : c'est la suite logique de l'ajout
+    void act(async () => {
       const st = await read<ConnectorsState>("connectors/settings");
       const t = st.types.find((x) => x.type === "home-assistant");
       if (!t) throw new Error(tx("connecteur Home Assistant introuvable"));
       setType(t);
-      setOpen(true);
     }, "", setNote);
-  };
+  }, []);
   if (done) return <p className="mt-2 flex items-center gap-2 text-sm text-ok"><Check size={14} aria-hidden />{tx("Home Assistant relié par son API : première lecture en cours")}</p>;
   return (
     <div className="mt-2">
       <p className="text-sm text-muted">{tx("Home Assistant se relie par son API (adresse + jeton), pas par SSH. Un compte dédié non administrateur est recommandé.")}</p>
       {!open && (
         <div className="mt-2 flex flex-wrap gap-2">
-          <button type="button" className={primary} onClick={() => void show()}><Plug size={14} aria-hidden />{tx("Relier Home Assistant")}</button>
+          <button type="button" className={primary} onClick={() => setOpen(true)}><Plug size={14} aria-hidden />{tx("Relier Home Assistant")}</button>
           <span className="self-center text-sm text-dim">{tx("ou plus tard : Réglages → Connecteurs")}</span>
         </div>
       )}

@@ -356,6 +356,7 @@ export const EN: Record<string, string> = {
   "relevé périmé": "stale reading",
   "{0} entités": "{0} entities",
   "{0} mise(s) à jour disponible(s)": "{0} update(s) available",
+  "Après l'ajout, un jeton d'accès vous sera demandé (par son API, pas par SSH) : l'aide vous guide pas à pas.": "After adding it, an access token will be requested (through its API, not SSH): the help guides you step by step.",
   "Premiers pas": "Getting started",
   "MyServices a déjà trouvé des services. Pour être complet, il faudrait une clé SSH. Pas de panique, c'est simple !": "MyServices has already found some services. To be complete, it needs an SSH key. Don't panic, it's easy!",
   "Compte administrateur créé": "Administrator account created",
