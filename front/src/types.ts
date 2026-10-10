@@ -189,7 +189,7 @@ export interface ServiceStatus {
   version?: string | null;
   url?: string | null;
   entities?: number;
-  updates?: { name: string; installed?: string | null; latest?: string | null }[];
+  updates?: { name: string; installed?: string | null; latest?: string | null; group?: "core" | "addon" | "other" }[];
 }
 
 /** Connecteur à proposer : appli reconnue sur une machine, pas encore réglée (known_apps.py) */

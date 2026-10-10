@@ -53,6 +53,17 @@ def explain(e: Exception) -> str:
     return f"{reason}"[:160]
 
 
+def update_group(entity_id: str, attrs: dict) -> str:
+    """Famille d'une entité update.* : « core » (Home Assistant lui-même : cœur, Supervisor, système, interface), « addon »
+    (module complémentaire, dont l'icône vient de l'API hassio) ou « other » (appareils et intégrations : Plex, ESPHome,
+    une prise…). Seul le cœur dit si Home Assistant est à jour."""
+    if entity_id.startswith("update.home_assistant_"):
+        return "core"
+    if "/api/hassio/addons/" in str(attrs.get("entity_picture") or ""):
+        return "addon"
+    return "other"
+
+
 class HomeAssistantAPI(Connector):
     type = "home-assistant"
     label = "Home Assistant"
@@ -89,7 +100,8 @@ class HomeAssistantAPI(Connector):
             raise ConnectorError("réponse inattendue : l'adresse ne mène pas à Home Assistant")
         updates = [{"name": (s.get("attributes") or {}).get("friendly_name") or s["entity_id"],
                     "installed": (s.get("attributes") or {}).get("installed_version"),
-                    "latest": (s.get("attributes") or {}).get("latest_version")}
+                    "latest": (s.get("attributes") or {}).get("latest_version"),
+                    "group": update_group(s["entity_id"], s.get("attributes") or {})}
                    for s in states if str(s.get("entity_id", "")).startswith("update.") and s.get("state") == "on"]
         return {"version": cfg.get("version"), "name": cfg.get("location_name"), "state": cfg.get("state"),
                 "entities": len(states), "updates": sorted(updates, key=lambda u: u["name"].lower())}
@@ -99,9 +111,11 @@ class HomeAssistantAPI(Connector):
             d = self.collect()
         except ConnectorError as e:
             return Result(False, str(e))
-        n = len(d["updates"])
+        core = sum(u["group"] == "core" for u in d["updates"])
+        other = len(d["updates"]) - core
         return Result(True, f"{d['name'] or 'Home Assistant'} · {d['entities']} entités · "
-                            + (f"{n} mise(s) à jour disponible(s)" if n else "à jour"), d["version"])
+                            + (f"Home Assistant : {core} mise(s) à jour" if core else "Home Assistant à jour")
+                            + (f" · {other} autre(s) (modules, appareils)" if other else ""), d["version"])
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:

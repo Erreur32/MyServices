@@ -21,6 +21,9 @@ STATES = [
      "attributes": {"friendly_name": "Core", "installed_version": "2026.10.1", "latest_version": "2026.10.2"}},
     {"entity_id": "update.hacs", "state": "off", "attributes": {"friendly_name": "HACS"}},
     {"entity_id": "update.esphome", "state": "on", "attributes": {"friendly_name": "ESPHome", "installed_version": "1", "latest_version": "2"}},
+    {"entity_id": "update.studio_code_server_update", "state": "on",
+     "attributes": {"friendly_name": "Studio Code Server", "entity_picture": "/api/hassio/addons/a0d7b954_vscode/icon"}},
+    {"entity_id": "update.deb13tower_update", "state": "on", "attributes": {"friendly_name": "Deb13tower Update", "installed_version": "1.43.3", "latest_version": "1.43.4"}},
 ]
 
 
@@ -81,17 +84,20 @@ class HomeAssistantTests(unittest.TestCase):
         data, st = run_isolated(self.conn(), {}, 10)
         self.assertTrue(st.ok)
         self.assertEqual((st.version, st.version_tested), ("2026.10.1", True))
-        self.assertEqual((data["name"], data["state"], data["entities"]), ("Maison", "RUNNING", 4))
-        self.assertEqual([u["name"] for u in data["updates"]], ["Core", "ESPHome"])  # « off » exclue, triées
-        self.assertEqual(data["updates"][0], {"name": "Core", "installed": "2026.10.1", "latest": "2026.10.2"})
+        self.assertEqual((data["name"], data["state"], data["entities"]), ("Maison", "RUNNING", 6))
+        self.assertEqual([u["name"] for u in data["updates"]], ["Core", "Deb13tower Update", "ESPHome", "Studio Code Server"])  # « off » exclue, triées
+        self.assertEqual(data["updates"][0], {"name": "Core", "installed": "2026.10.1", "latest": "2026.10.2", "group": "core"})
+        self.assertEqual({u["name"]: u["group"] for u in data["updates"]},
+                         {"Core": "core", "Deb13tower Update": "other", "ESPHome": "other", "Studio Code Server": "addon"})
 
     def test_message_du_test(self):
         r = self.conn().test()
         self.assertTrue(r.ok)
         self.assertEqual(r.version, "2026.10.1")
         self.assertIn("Maison", r.message)
-        self.assertIn("4 entités", r.message)
-        self.assertIn("2 mise(s) à jour", r.message)
+        self.assertIn("6 entités", r.message)
+        self.assertIn("Home Assistant : 1 mise(s) à jour", r.message)
+        self.assertIn("3 autre(s)", r.message)
 
     def test_jeton_refuse(self):
         r = self.conn(token="mauvais").test()

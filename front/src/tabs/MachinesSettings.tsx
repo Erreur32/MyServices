@@ -193,7 +193,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
   return (
     <div ref={card} className={`rounded-xl border bg-card text-sm ${m.disabled ? "opacity-60" : ""} ${focus ? "border-link shadow-[0_0_0_1px_rgb(var(--link))]" : "border-line"}`}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl p-3 text-left hover:bg-bg2">
-        <Chevron size={14} className="text-dim" /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl }} scan={scan} reserve /><b>{m.name}</b><Dim>{ip}</Dim>
+        <Chevron size={14} className="text-txt" /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl }} scan={scan} reserve /><b>{m.name}</b><Dim>{ip}</Dim>
         <span className="ml-auto flex items-center gap-1.5">
           {keyMissing && (
             <span role="button" tabIndex={0} className="grid h-5 w-5 cursor-pointer place-items-center rounded-full bg-warn text-xs font-extrabold text-bg hover:brightness-110"
@@ -376,9 +376,9 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
           <Field label={tx("Rôle (libre)")}><input className={input} maxLength={80} value={v.role || ""} onChange={(e) => setV({ ...v, role: e.target.value })} /></Field>
         </div>
       </section>
-      <section className="rounded-xl border border-line/60 bg-bg2/30 p-4">
+      <section className="rounded-xl border border-muted/60 bg-bg2/30 p-4 shadow-sm">
         <button type="button" onClick={() => setSshOpen(!sshOpen)} aria-expanded={sshOpen} className="flex w-full flex-wrap items-center gap-2 text-left">
-          {sshOpen ? <ChevronDown size={14} className="text-dim" aria-hidden /> : <ChevronRight size={14} className="text-dim" aria-hidden />}
+          {sshOpen ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}
           <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("Accès SSH")}</h4>
           {live && <Badge tone={MSTATE[mState(live)][0]} title={MSTATE[mState(live)][2]}>{MSTATE[mState(live)][1]}</Badge>}
           {!sshOpen && <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
@@ -441,7 +441,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
       <div className="rounded-xl border border-line/60 bg-bg2/30">
         <button type="button" onClick={() => setOptions(!options)} aria-expanded={options}
           className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-bg2/60">
-          {options ? <ChevronDown size={14} className="text-dim" aria-hidden /> : <ChevronRight size={14} className="text-dim" aria-hidden />}
+          {options ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}
           {tx("Options de la machine")}
           <span className="flex flex-wrap items-center gap-1 font-normal">
             {FLAGS.filter((f) => v[f.k]).map((f) => <Badge key={String(f.k)} tone={found.has(String(f.k)) ? "info" : "off"}>{f.label}</Badge>)}
@@ -456,7 +456,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
           <div className="rounded-lg border border-line/60 bg-bg2/70">
             <button type="button" onClick={() => setManualOpen(!manualOpen)} aria-expanded={manualOpen}
               className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-dim hover:text-txt">
-              {manualOpen ? <ChevronDown size={13} aria-hidden /> : <ChevronRight size={13} aria-hidden />}
+              {manualOpen ? <ChevronDown size={13} className="text-txt" aria-hidden /> : <ChevronRight size={13} className="text-txt" aria-hidden />}
               {tx("À changer manuellement")}
               <span className="flex flex-wrap items-center gap-1 normal-case tracking-normal">
                 {manualFlags.filter((f) => v[f.k]).map((f) => <Badge key={String(f.k)} tone="off">{f.label}</Badge>)}
@@ -480,7 +480,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
             <div className="rounded-lg border border-line/60 bg-bg2/50">
               <button type="button" onClick={() => setMissingOpen(!missingOpen)} aria-expanded={missingOpen}
                 className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-dim hover:text-txt">
-                {missingOpen ? <ChevronDown size={13} aria-hidden /> : <ChevronRight size={13} aria-hidden />}
+                {missingOpen ? <ChevronDown size={13} className="text-txt" aria-hidden /> : <ChevronRight size={13} className="text-txt" aria-hidden />}
                 {tx("Non détectés")} <span className="font-mono normal-case">({missingFlags.length})</span>
               </button>
               {missingOpen && (

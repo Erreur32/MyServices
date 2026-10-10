@@ -15,6 +15,9 @@ function Tile({ icon, value, label, tone }: { icon: React.ReactNode; value: stri
   );
 }
 
+/** Mises à jour par famille : le cœur de Home Assistant (dit s'il est à jour), ses modules, puis les autres appareils */
+const GROUPS: ["core" | "addon" | "other", string][] = [["core", tx("Home Assistant")], ["addon", tx("Modules complémentaires")], ["other", tx("Autres appareils et intégrations")]];
+
 export function ServiceStatusCards({ items }: { items: ServiceStatus[] }) {
   if (!items.length) return null;
   return (
@@ -22,7 +25,8 @@ export function ServiceStatusCards({ items }: { items: ServiceStatus[] }) {
       <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted"><Plug size={15} aria-hidden />{tx("Services lus par leur API")}</h2>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {items.map((s) => {
-          const icon = appIcon([s.label]), n = s.updates?.length ?? 0;
+          const icon = appIcon([s.label]), ups = s.updates ?? [], group = (g: string) => ups.filter((u) => (u.group ?? "other") === g);
+          const core = group("core").length, rest = ups.length - core;
           return (
             <article key={`${s.connector}/${s.name}`} className={`rounded-2xl border bg-card p-4 ${s.ok ? "border-line" : "border-bad/40"}`}>
               <header className="flex items-center gap-3">
@@ -41,21 +45,27 @@ export function ServiceStatusCards({ items }: { items: ServiceStatus[] }) {
                 <>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     {s.entities !== undefined && <Tile icon={<Layers size={16} />} value={s.entities} label={tx("entités")} />}
-                    {s.updates && (n ? <Tile icon={<ArrowUpCircle size={16} />} value={n} label={tx("mise(s) à jour")} tone="text-warn" />
-                      : <Tile icon={<CheckCircle2 size={16} />} value="✓" label={tx("à jour")} tone="text-ok" />)}
+                    {s.updates && (core ? <Tile icon={<ArrowUpCircle size={16} />} value={core} label={tx("mise(s) à jour de Home Assistant")} tone="text-warn" />
+                      : <Tile icon={<CheckCircle2 size={16} />} value="✓" label={tx("Home Assistant à jour")} tone="text-ok" />)}
+                    {rest > 0 && <Tile icon={<Layers size={16} />} value={rest} label={tx("autres mises à jour (modules, appareils)")} tone="text-muted" />}
                   </div>
-                  {!!n && (
-                    <details className="mt-2 text-sm">
+                  {ups.length > 0 && (
+                    <details className="mt-2 text-sm" open={core > 0}>
                       <summary className="cursor-pointer text-muted hover:text-txt">{tx("Voir les mises à jour")}</summary>
-                      <ul className="mt-1.5 flex flex-col gap-1 text-muted">
-                        {s.updates!.slice(0, 8).map((u) => (
-                          <li key={u.name} className="flex flex-wrap items-baseline gap-2">
-                            <span className="text-txt">{u.name}</span>
-                            {u.installed && u.latest && <span className="font-mono text-xs text-dim">{u.installed} → {u.latest}</span>}
-                          </li>
-                        ))}
-                        {n > 8 && <li className="text-dim">… +{n - 8}</li>}
-                      </ul>
+                      {GROUPS.map(([g, title]) => group(g).length > 0 && (
+                        <div key={g} className="mt-2">
+                          <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{title} <span className="font-normal">· {group(g).length}</span></h4>
+                          <ul className="mt-1 flex flex-col gap-1 text-muted">
+                            {group(g).slice(0, 8).map((u) => (
+                              <li key={u.name} className="flex flex-wrap items-baseline gap-2">
+                                <span className="text-txt">{u.name}</span>
+                                {u.installed && u.latest && <span className="font-mono text-xs text-dim">{u.installed} → {u.latest}</span>}
+                              </li>
+                            ))}
+                            {group(g).length > 8 && <li className="text-dim">… +{group(g).length - 8}</li>}
+                          </ul>
+                        </div>
+                      ))}
                     </details>
                   )}
                 </>

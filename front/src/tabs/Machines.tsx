@@ -1,11 +1,13 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
 import { Eye, EyeOff } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { read, type Snapshot } from "../api";
+import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet } from "../lib/filter";
 import { dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
-import type { HealthHost, Machine, NetScan } from "../types";
+import type { HealthHost, Machine, MachineConf, MachinesSettings, NetScan } from "../types";
+import { NoteLine } from "../components/form";
+import type { Note } from "../lib/forms";
 import { MSTATE, ORDER, mState, type MState } from "../lib/machines";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, FilterBar, Level, Table, Td, Th } from "../components/ui";
@@ -140,10 +142,39 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
     { key: "user", label: tx("Compte SSH"), get: (m) => m.ssh?.user || "" },
   ], [hb]);
   const text = useCallback((m: Machine) => [m.name, m.ip, m.role, MSTATE[mState(m)][1], m.ssh?.alias, m.ssh?.user, m.info?.os].join(" "), []);
+  // « Ne plus suivre » sur chaque ligne (admin) : la machine passe en « non suivie » (ni ping, ni SSH, ni santé, aucune alerte), elle reste
+  // dans Réglages → Machines pour être réactivée. Effet immédiat ici ; la collecte le reprend à son prochain passage.
+  const admin = snap.me.role === "admin";
+  const [conf, setConf] = useState<Record<string, MachineConf>>({});
+  const [followed, setFollowed] = useState<Record<string, boolean>>({});  // ip -> suivie (réglage fait depuis cet onglet)
+  const [note, setNote] = useState<Note>(null), [pending, setPending] = useState("");
+  useEffect(() => { if (admin) read<MachinesSettings>("machines/settings").then((r) => setConf(r.machines)).catch(() => undefined); }, [admin]);
+  const isOff = useCallback((m: Machine) => (m.ip in followed ? !followed[m.ip] : !!m.disabled), [followed]);
+  const follow = async (m: Machine, on: boolean) => {
+    if (!conf[m.ip]) return;
+    setPending(m.ip); setNote(null);
+    try {
+      await send("PUT", `machines/settings/${m.ip}`, { machine: { ...conf[m.ip], disabled: !on }, process: null, extra: [] });
+      setFollowed((f) => ({ ...f, [m.ip]: on }));
+      setConf((c) => ({ ...c, [m.ip]: { ...c[m.ip], disabled: !on } }));
+      setNote({ ok: true, text: on ? tx("{0} est de nouveau suivie", m.name) : tx("{0} n'est plus suivie : elle reste dans Réglages → Machines", m.name) });
+    } catch (e) {
+      if (e instanceof LoginRequired) location.replace(LOGIN);
+      else setNote({ ok: false, text: (e as Error).message });
+    }
+    setPending("");
+  };
+  const followBtn = (m: Machine) => admin && conf[m.ip] ? (
+    <button type="button" disabled={pending === m.ip} onClick={() => void follow(m, isOff(m))}
+      title={isOff(m) ? tx("Suivre de nouveau cette machine") : tx("Ne plus suivre : ni ping, ni SSH, ni santé, aucune alerte")}
+      className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-muted hover:border-link hover:text-txt disabled:opacity-50">
+      {isOff(m) ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}{isOff(m) ? tx("Suivre") : tx("Ne plus suivre")}
+    </button>
+  ) : null;
   // Machines non suivies : masquées d'office, un bouton les ramène (grisées)
   const [showOff, setShowOff] = useState(false);
-  const nOff = snap.data.machine_list.filter((m) => m.disabled).length;
-  const items = useMemo(() => (showOff ? snap.data.machine_list : snap.data.machine_list.filter((m) => !m.disabled)), [snap.data.machine_list, showOff]);
+  const nOff = snap.data.machine_list.filter(isOff).length;
+  const items = useMemo(() => (showOff ? snap.data.machine_list : snap.data.machine_list.filter((m) => !isOff(m))), [snap.data.machine_list, showOff, isOff]);
   const f = useFilter(items, facets, text);
   const keyOf = useCallback((m: Machine, k: string): string | number => {
     switch (k) {
@@ -176,31 +207,34 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
             {showOff ? <Eye size={14} aria-hidden /> : <EyeOff size={14} aria-hidden />}{showOff ? tx("Masquer les désactivées") : tx("Afficher les désactivées")} <b className="text-dim">({nOff})</b>
           </button>
         )} />
+      <NoteLine note={note} />
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           <Table head={<>
             <th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("État")}</Th><Th>{tx("SSH")}</Th><Th>{tx("Clé utilisée")}</Th><Th>{tx("Hôte")}</Th><Th>{tx("Root")}</Th><Th>{tx("Mot de passe")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
-            <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th>{tx("Systemd")}</Th><Th>{tx("Mises à jour")}</Th></>}
+            <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th>{tx("Systemd")}</Th><Th>{tx("Mises à jour")}</Th></>}{admin && <Th>{tx("Suivi")}</Th>}
           </>}>
             {sort.sorted.map((m) => (
-              <tr key={m.ip} className={`hover:bg-bg2/60 ${m.disabled ? "opacity-50" : ""}`}>
+              <tr key={m.ip} className={`hover:bg-bg2/60 ${isOff(m) ? "opacity-50" : ""}`}>
                 <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td><Td>{name(m)}</Td><Td>{st(m)}</Td><Td><Ssh m={m} /></Td>
                 <Td><KeyCell m={m} /></Td><Td><HostKey m={m} /></Td><Td><Sshd m={m} what="root" /></Td><Td><Sshd m={m} what="pwd" /></Td>
                 <Td>{m.info?.os ? <>{m.info.os}<span className="block text-xs text-dim">{tx("noyau")} {m.info.kernel || "?"} {tx("· up")} {dur(m.info.uptime_s)}</span></> : <Dim>—</Dim>}</Td>
                 <Td><Servers m={m} snap={snap} /></Td><Td>{svc(m)}</Td>
                 {snap.health && <><Td><Level level={hb.get(m.ip) ? (hb.get(m.ip)!.reachable === false ? "down" : hb.get(m.ip)!.level) : "na"} /></Td>
                   <Td><ResCell h={hb.get(m.ip)} what="cpu" /></Td><Td><ResCell h={hb.get(m.ip)} what="mem" /></Td><Td><DiskCell h={hb.get(m.ip)} /></Td><Td><SystemdCell h={hb.get(m.ip)} /></Td><Td><UpdatesCell h={hb.get(m.ip)} /></Td></>}
+                {admin && <Td>{followBtn(m)}</Td>}
               </tr>
             ))}
           </Table>
           <Cards>
             {sort.sorted.map((m) => (
-              <div key={m.ip} className={`rounded-2xl border border-line bg-card p-3.5 ${m.disabled ? "opacity-50" : ""}`}>
+              <div key={m.ip} className={`rounded-2xl border border-line bg-card p-3.5 ${isOff(m) ? "opacity-50" : ""}`}>
                 <div className="flex items-start justify-between gap-2"><span className="flex items-start gap-2"><MachineIcon m={m} scan={scanOs[m.ip]} reserve />{name(m)}</span>{st(m)}</div>
                 <div className="mt-2 flex flex-col gap-2 text-sm">
                   {m.info?.os && <span className="text-muted">{m.info.os} {tx("· up")} {dur(m.info.uptime_s)}</span>}
                   <Servers m={m} snap={snap} />
                   <div className="flex items-start justify-between gap-3">{svc(m)}{snap.health && <HealthCell h={hb.get(m.ip)} />}</div>
+                  {admin && <div>{followBtn(m)}</div>}
                 </div>
               </div>
             ))}
