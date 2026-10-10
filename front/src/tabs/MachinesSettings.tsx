@@ -276,8 +276,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
   const [unlock, setUnlock] = useState(false);  // détection incomplète : débloque tous les interrupteurs
   const [hasAdguard] = useState(() => !!m.adguard);  // figé à l'ouverture : vider le champ ne le fait pas disparaître
   // Menu ouvert d'office dès qu'il y a quelque chose de détecté ou d'allumé à montrer ; les « non détectés » restent pliés
-  const [options, setOptions] = useState(() => !!m.disabled || detected.length > 0 || (live?.detected?.length ?? 0) > 0 || FLAGS.some((f) => !!m[f.k]));
-  const [missingOpen, setMissingOpen] = useState(false);
+  const [options, setOptions] = useState(() => detected.length > 0 || (live?.detected?.length ?? 0) > 0 || FLAGS.some((f) => !!m[f.k]));
+  const [missingOpen, setMissingOpen] = useState(false), [manualOpen, setManualOpen] = useState(false);
   const [sshOpen, setSshOpen] = useState(!!isNew);  // replié d'office ; ouvert à l'ajout d'une machine, où il faut choisir l'accès
   const [localNote, setLocalNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const setNote = report ?? setLocalNote;
@@ -402,6 +402,10 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
         </p>
         </div>}
       </section>
+      <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
+        <Switch on={!v.disabled} disabled={pending === "disabled"} onChange={(on) => void autoSave("disabled", { disabled: !on })} label={tx("Machine suivie")} />
+        <span><b>{tx("Machine suivie")}</b> <Saved k="disabled" /> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>
+      </label>
       {/* Menu pliant des interrupteurs : replié, sauf à l'ajout avec une détection à confirmer ou si la machine n'est pas suivie */}
       <div className="rounded-xl border border-line/60 bg-bg2/30">
         <button type="button" onClick={() => setOptions(!options)} aria-expanded={options}
@@ -409,29 +413,38 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
           {options ? <ChevronDown size={14} className="text-dim" aria-hidden /> : <ChevronRight size={14} className="text-dim" aria-hidden />}
           {tx("Options de la machine")}
           <span className="flex flex-wrap items-center gap-1 font-normal">
-            {v.disabled && <Badge tone="warn">{tx("non suivie")}</Badge>}
             {FLAGS.filter((f) => v[f.k]).map((f) => <Badge key={String(f.k)} tone={found.has(String(f.k)) ? "info" : "off"}>{f.label}</Badge>)}
             {proc && !windows && !!v.ssh && <Badge tone="off">{tx("services hors Docker")}</Badge>}
           </span>
         </button>
         {options && (
           <div className="flex flex-col gap-3 border-t border-line/60 p-3">
-          <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
-            <Switch on={!v.disabled} disabled={pending === "disabled"} onChange={(on) => void autoSave("disabled", { disabled: !on })} label={tx("Machine suivie")} />
-            <span><b>{tx("Machine suivie")}</b> <Saved k="disabled" /> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>
-          </label>
           {detectedFlags.length > 0 && (
             <OptionGroup title={tx("Détectés sur cette machine")} tone="ok">{detectedFlags.map(flagRow)}</OptionGroup>
           )}
-          <OptionGroup title={tx("À changer manuellement")} hint={tx("Non détectables : c'est à vous de choisir.")}>
-            {manualFlags.map(flagRow)}
-            {!windows && v.ssh && (
-              <label className="flex items-start gap-2">
-                <Switch on={proc} disabled={pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Lire les services hors Docker")} />
-                <span>{tx("Lire les services hors Docker")} <Saved k="proc" /> <Dim>{tx("· ports en écoute (ss -tlnp, root requis sur la machine)")}</Dim></span>
-              </label>
+          <div className="rounded-lg border border-line/60 bg-bg2/70">
+            <button type="button" onClick={() => setManualOpen(!manualOpen)} aria-expanded={manualOpen}
+              className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-dim hover:text-txt">
+              {manualOpen ? <ChevronDown size={13} aria-hidden /> : <ChevronRight size={13} aria-hidden />}
+              {tx("À changer manuellement")}
+              <span className="flex flex-wrap items-center gap-1 normal-case tracking-normal">
+                {manualFlags.filter((f) => v[f.k]).map((f) => <Badge key={String(f.k)} tone="off">{f.label}</Badge>)}
+                {proc && !windows && !!v.ssh && <Badge tone="off">{tx("services hors Docker")}</Badge>}
+              </span>
+            </button>
+            {manualOpen && (
+              <div className="flex flex-col gap-2 border-t border-line/60 p-3">
+                <p className="text-xs text-dim">{tx("Non détectables : c'est à vous de choisir.")}</p>
+                {manualFlags.map(flagRow)}
+                {!windows && v.ssh && (
+                  <label className="flex items-start gap-2">
+                    <Switch on={proc} disabled={pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Lire les services hors Docker")} />
+                    <span>{tx("Lire les services hors Docker")} <Saved k="proc" /> <Dim>{tx("· ports en écoute (ss -tlnp, root requis sur la machine)")}</Dim></span>
+                  </label>
+                )}
+              </div>
             )}
-          </OptionGroup>
+          </div>
           {missingFlags.length > 0 && (
             <div className="rounded-lg border border-line/60 bg-bg2/50">
               <button type="button" onClick={() => setMissingOpen(!missingOpen)} aria-expanded={missingOpen}
