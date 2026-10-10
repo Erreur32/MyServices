@@ -6,11 +6,12 @@ import { LOGIN, LoginRequired, read, send } from "../api";
 import { act, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { pokeScan } from "../lib/scan";
+import { authorizeFor } from "../lib/ssh";
 import type { Connector, SystemState } from "../types";
 import { Copyable, NoteLine } from "./form";
 import { Card } from "./ui";
 
-export function AuthorizeKey({ failing, bare = false, onAccepted }: { failing: Connector[]; bare?: boolean; onAccepted?: () => void }) {
+export function AuthorizeKey({ failing, bare = false, onAccepted, user }: { failing: Connector[]; bare?: boolean; onAccepted?: () => void; user?: string }) {  // user : compte SSH commun aux machines visées (chemin complet de authorized_keys)
   const [cmd, setCmd] = useState<string | null>(null), [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null);
   useEffect(() => {
     read<SystemState>("system").then((s) => setCmd(s.ssh.authorize || null))
@@ -48,7 +49,7 @@ export function AuthorizeKey({ failing, bare = false, onAccepted }: { failing: C
         </p>
       </div>
       <div>
-        <Copyable text={cmd} oneLine />
+        <Copyable text={user ? authorizeFor(cmd, user) : cmd} oneLine />
         <div className="mt-2"><button type="button" className={primary} disabled={busy} onClick={() => void test()}>{busy ? tx("Test…") : tx("Tester")}</button></div>
         <NoteLine note={note} />
       </div>

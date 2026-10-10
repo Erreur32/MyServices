@@ -9,6 +9,12 @@ export function sshWarn(m: Machine): boolean {
   return !!d && (risky(d.permitrootlogin) || !!d.passwordauthentication?.startsWith("yes"));
 }
 
+/** Dossier personnel d'un compte Linux : /root pour root, sinon /home/<compte> */
+export const homeOf = (user: string) => (user === "root" ? "/root" : `/home/${user}`);
+
+/** Commande « autoriser la clé » (donnée par le serveur avec ~/.ssh/authorized_keys) avec le chemin complet du compte choisi */
+export const authorizeFor = (cmd: string, user: string) => cmd.replace("~/.ssh/authorized_keys", `${homeOf(user || "root")}/.ssh/authorized_keys`);
+
 /** Une ligne : compte@alias:port · système · conteneurs · Apache */
 export function sshBrief(m: Machine): string {
   const s = m.ssh, i = m.info;

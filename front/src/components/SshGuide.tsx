@@ -3,12 +3,12 @@
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
-import { Copyable, Field } from "./form";
+import { Copyable } from "./form";
 import { input, primary, quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { authorizeFor, homeOf } from "../lib/ssh";
 import type { SystemState } from "../types";
 
-const LINUX_SETUP = `sudo apt install -y openssh-server && sudo systemctl enable --now ssh`;
 
 type Kind = "windows" | "linux";
 
@@ -74,15 +74,17 @@ export function SshGuide({ ip, guess, onReady, onCancel }: Props) {
             <b className="text-txt">{tx("Machine Linux")}</b> {tx(": rien de MyServices à installer, seulement autoriser sa clé sur la machine. Une fois.")}
           </p>
           <ol className="flex list-decimal flex-col gap-2.5 pl-5 text-muted">
-            <li>{tx("Si SSH n'est pas installé sur la machine (sinon, passez à l'étape suivante) :")}
-              <Copyable text={LINUX_SETUP} oneLine /></li>
-            <li>{tx("Sur la machine, connecté avec le compte choisi ci-dessous, autorisez la clé de l'app :")}
-              {authorize ? <Copyable text={authorize} /> : <span className="block text-warn">{tx("Clé de l'app introuvable : voir Réglages → Clé SSH.")}</span>}</li>
-            <li>{tx("Compte utilisé pour se connecter (root par défaut ; un compte dédié du groupe docker est plus sûr) :")}
-              <div className="mt-1.5 max-w-xs"><Field label={tx("Compte")}>
-                <input className={input} value={user} onChange={(e) => { setUser(e.target.value.trim()); setApplied(""); }} placeholder="root" maxLength={32} autoComplete="off" />
-              </Field></div></li>
+            <li>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                <span className="whitespace-nowrap">{tx("Compte utilisé pour se connecter")}</span>
+                <input className={`${input} w-40`} aria-label={tx("Compte")} value={user} onChange={(e) => { setUser(e.target.value.trim()); setApplied(""); }} placeholder="root" maxLength={32} autoComplete="off" />
+                <span className="text-xs text-dim">{tx("root par défaut ; un compte dédié du groupe docker est plus sûr")}</span>
+              </div>
+            </li>
+            <li>{tx("Sur la machine, connecté avec ce compte, ajoutez la clé de l'app dans")} <code className="font-mono text-xs text-txt">{homeOf(user || "root")}/.ssh/authorized_keys</code> :
+              {authorize ? <Copyable text={authorizeFor(authorize, user)} /> : <span className="block text-warn">{tx("Clé de l'app introuvable : voir Réglages → Clé SSH.")}</span>}</li>
           </ol>
+          <p className="text-xs text-dim">💡 {tx("Astuce : si la connexion est refusée, vérifiez que le serveur SSH est installé et démarré sur la machine.")}</p>
           {error && <p className="text-bad">⚠ {error}</p>}
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" className={primary} disabled={!ok || busy || !!applied} onClick={() => void prepare()}>

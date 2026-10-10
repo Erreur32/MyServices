@@ -70,9 +70,13 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
     if (why) unfinished[h.ip] = { why, passed: passed.includes(h.ip) };
   }
   const ips = Object.keys(st.machines).sort((a, b) => ipNum(a) - ipNum(b));
+  // Machines dont la clé n'est pas autorisée ; leur compte SSH, s'il est le même pour toutes, donne le chemin complet de authorized_keys
+  const failingKey = (snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok && !isWindowsConf(Object.values(st.machines).find((x) => x.name === c.name)));
+  const failingUsers = new Set(failingKey.map((c) => { const m = Object.values(st.machines).find((x) => x.name === c.name); return st.aliases.find((al) => al.alias === m?.ssh)?.user ?? "root"; }));
+  const failingUser = failingUsers.size === 1 ? [...failingUsers][0] : undefined;
   return (
     <div className="flex flex-col gap-4">
-      <div id="authorize-key" className="scroll-mt-24"><AuthorizeKey failing={(snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok && !isWindowsConf(Object.values(st.machines).find((x) => x.name === c.name)))} /></div>
+      <div id="authorize-key" className="scroll-mt-24"><AuthorizeKey user={failingUser} failing={failingKey} /></div>
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-bold">{tx("Machines")} <Dim>· {ips.length}</Dim></h2>
@@ -365,8 +369,11 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
     const ok = await act(() => send("PUT", `machines/settings/${ip}`, { machine: v, process: windows ? null : proc, extra: extra || [] }),
       isNew ? tx("machine ajoutée : relevée au prochain passage de la collecte") : tx("enregistrée : prise en compte au prochain passage"), setNote);
     setBusy(false);
+    if (ok && !isNew) setSaved(v);
     if (ok) setTimeout(onDone, 900);
   };
+  // Carte d'une machine déjà enregistrée : l'accès SSH et les interrupteurs s'enregistrent seuls ; ce bouton ne sert qu'aux champs texte
+  const dirty = isNew || ["name", "role", "adguard", "adguard_sync"].some((k) => String(v[k] ?? "") !== String(saved[k] ?? ""));
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
       <section>
@@ -496,7 +503,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
         )}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        <button className={primary} disabled={busy}>{isNew ? tx("Enregistrer la machine") : tx("Enregistrer le nom et l'accès")}</button>
+        <button className={primary} disabled={busy || !dirty} title={dirty ? undefined : tx("Rien à enregistrer : l'accès et les options s'enregistrent tout seuls")}>{isNew ? tx("Enregistrer la machine") : tx("Enregistrer les modifications")}</button>
         {actions}
       </div>
       {!report && <NoteLine note={localNote} />}
