@@ -34,7 +34,7 @@ export function Home({ snap, items, go, now }: { snap: Snapshot; items: Attentio
               <ol className="mt-3 flex flex-col gap-1">
                 {items.slice(0, MAX).map((it, i) => (
                   <li key={i}>
-                    <button type="button" onClick={() => go(it.tab)}
+                    <button type="button" onClick={() => (it.href ? void (location.hash = it.href) : go(it.tab))}
                       className="group flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-muted hover:bg-bg2">
                       <span aria-hidden className="mt-0.5">{it.level === "crit" ? "🔴" : "🟠"}</span>
                       <span className="flex-1"><Rich text={it.text} /></span>

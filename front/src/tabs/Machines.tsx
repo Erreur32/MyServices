@@ -131,8 +131,8 @@ function Ssh({ m }: { m: Machine }) {
 export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: string) => void }) {
   const hb = useMemo(() => healthByIp(snap.health?.hosts), [snap.health]);
   // Système et applis vus par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas
-  const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[] }>>({});
-  useEffect(() => { read<NetScan>("network/scan").then((n) => setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [] }])))).catch(() => undefined); }, []);
+  const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean }>>({});
+  useEffect(() => { read<NetScan>("network/scan").then((n) => setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [], ssh: !!h.ssh_port }])))).catch(() => undefined); }, []);
   const facets = useMemo((): Facet<Machine>[] => [
     { key: "state", label: tx("État"), get: mState, name: (v) => MSTATE[v as MState][1], order: ORDER },
     { key: "health", label: tx("Santé"), get: (m) => { const h = hb.get(m.ip); return h ? (h.reachable === false ? "down" : h.level) : ""; },

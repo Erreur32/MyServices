@@ -34,9 +34,9 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
   const [error, setError] = useState("");
   const [detecting, setDetecting] = useState(false);
   // Système vu par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas (suggestion)
-  const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[] }>>({});
+  const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean }>>({});
   const [hosts, setHosts] = useState<NetHost[]>([]);
-  useEffect(() => { read<NetScan>("network/scan").then((n) => { setHosts(n.found || []); setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [] }]))); }).catch(() => undefined); }, []);
+  useEffect(() => { read<NetScan>("network/scan").then((n) => { setHosts(n.found || []); setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [], ssh: !!h.ssh_port }]))); }).catch(() => undefined); }, []);
   const reload = useCallback(() => {
     read<State>("machines/settings")
       .then((s) => { setSt(s); setError(""); })
@@ -59,7 +59,7 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
   const ips = Object.keys(st.machines).sort((a, b) => ipNum(a) - ipNum(b));
   return (
     <div className="flex flex-col gap-4">
-      <AuthorizeKey failing={(snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok)} />
+      <div id="authorize-key" className="scroll-mt-24"><AuthorizeKey failing={(snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok)} /></div>
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-bold">{tx("Machines")} <Dim>· {ips.length}</Dim></h2>
@@ -150,7 +150,7 @@ function Proposal({ d, st, onDone }: { d: Detection; st: State; onDone: () => vo
 }
 
 function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished }: {
-  unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[] }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
+  unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[]; ssh?: boolean }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
 }) {
   const [open, setOpen] = useState(!!focus), [confirm, setConfirm] = useState(false);  // focus : arrivée depuis un lien (Connecteurs → machine)
   const card = useRef<HTMLDivElement>(null);
@@ -158,6 +158,8 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
   const [note, setNote] = useState<Note>(null), [lines, setLines] = useState<string[] | null>(null), [busy, setBusy] = useState(false);
   const linesTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(linesTimer.current), []);
+  const keyMissing = statuses.some((c) => c.type === "docker" && !c.ok);  // accès SSH activé, mais la clé de l'app n'est pas autorisée
+  const goAuthorize = () => document.getElementById("authorize-key")?.scrollIntoView({ behavior: "smooth", block: "start" });
   const state = live ? MSTATE[mState(live)] : null;
   const verify = async () => {
     setBusy(true); setLines(null);
@@ -179,6 +181,12 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl p-3 text-left hover:bg-bg2">
         <Chevron size={14} className="text-dim" /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl }} scan={scan} reserve /><b>{m.name}</b><Dim>{ip}</Dim>
         <span className="ml-auto flex items-center gap-1.5">
+          {keyMissing && (
+            <span role="button" tabIndex={0} className="grid h-5 w-5 cursor-pointer place-items-center rounded-full bg-warn text-xs font-extrabold text-bg hover:brightness-110"
+              title={tx("Docker illisible sur cette machine : la clé SSH de l'app n'y est pas encore autorisée. Cliquez pour voir la commande à lancer sur la machine.")}
+              aria-label={tx("Action requise : autoriser la clé de l'app sur cette machine")}
+              onClick={(e) => { e.stopPropagation(); goAuthorize(); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); goAuthorize(); } }}>!</span>
+          )}
           {unfinished && <Badge tone="warn" title={unfinished.why === "ha" ? tx("Jeton Home Assistant manquant") : tx("Accès SSH à régler")}>{unfinished.passed ? tx("Non terminé (passé)") : tx("Non terminé")}</Badge>}
           {m.off && <Badge tone="off">{tx("souvent éteinte")}</Badge>}
           {live && sshWarn(live) && <Badge tone="warn" title={tx("sshd : root ou mot de passe autorisé")}>{tx("sshd")}</Badge>}
@@ -189,6 +197,18 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
       </button>
       {open && (
         <div className="flex flex-col gap-3 px-3 pb-3">
+          <NoteLine note={note} />
+          {lines && (
+            <ul className="rounded-lg bg-bg2 p-2 font-mono text-xs">
+              {lines.map((l, i) => <li key={i} className={l.startsWith("✓") ? "text-ok" : l.startsWith("✗") ? "text-bad" : "text-warn"}>{l}</li>)}
+            </ul>
+          )}
+          {keyMissing && (
+            <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
+              <b className="text-warn">!</b> {tx("Action requise : la clé SSH de l'app n'est pas autorisée sur cette machine, donc Docker n'est pas lisible.")}{" "}
+              <button type="button" className="text-link hover:underline" onClick={goAuthorize}>{tx("Voir la commande à lancer")}</button>
+            </p>
+          )}
           {unfinished && (
             <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
               <b className="text-warn">{tx("Non terminé")}</b>{unfinished.passed ? ` · ${tx("vous l'aviez passé dans les premiers pas")}` : ""} {" : "}
@@ -202,7 +222,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
               <SshDetails m={live} statuses={statuses} />
             </section>
           )}
-          <MachineForm ip={ip} m={m} st={st} live={live} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
+          <MachineForm report={setNote} ip={ip} m={m} st={st} live={live} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
             <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
             <span className="ml-auto flex items-center gap-1.5">
               {confirm ? <>
@@ -211,12 +231,6 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
               </> : <button type="button" className={danger} onClick={() => setConfirm(true)}><Trash2 size={14} />{tx("Retirer")}</button>}
             </span>
           </>} />
-          {lines && (
-            <ul className="rounded-lg bg-bg2 p-2 font-mono text-xs">
-              {lines.map((l, i) => <li key={i} className={l.startsWith("✓") ? "text-ok" : l.startsWith("✗") ? "text-bad" : "text-warn"}>{l}</li>)}
-            </ul>
-          )}
-          <NoteLine note={note} />
         </div>
       )}
     </div>
@@ -234,7 +248,8 @@ function OptionGroup({ title, hint, tone, dim, children }: { title: string; hint
   );
 }
 
-function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, actions, windowsGuess, onDone }: {
+function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, actions, windowsGuess, report, onDone }: {
+  report?: (n: Note) => void;  // dans une carte de machine : le message s'affiche en haut de la carte
   windowsGuess?: boolean;
   live?: Snapshot["data"]["machine_list"][number]; actions?: React.ReactNode; detected?: string[]; ip: string; m: MachineConf; st: State; isNew?: boolean; process?: boolean; extra?: Detection["web"]; onDone: () => void;
 }) {
@@ -246,7 +261,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
   const [options, setOptions] = useState(() => !!m.disabled || detected.length > 0 || (live?.detected?.length ?? 0) > 0 || FLAGS.some((f) => !!m[f.k]));
   const [missingOpen, setMissingOpen] = useState(false);
   const [sshOpen, setSshOpen] = useState(!!isNew);  // replié d'office ; ouvert à l'ajout d'une machine, où il faut choisir l'accès
-  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
+  const [localNote, setLocalNote] = useState<Note>(null), [busy, setBusy] = useState(false);
+  const setNote = report ?? setLocalNote;
   const windows = v.os === "windows";
   // Ce que l'accès choisi permet de lire (suit le formulaire, avant même l'enregistrement)
   const access = windows ? !!v.health : !!v.ssh, health = access && !v.off && v.health !== false;
@@ -427,7 +443,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
         <button className={primary} disabled={busy}>{isNew ? tx("Enregistrer la machine") : tx("Enregistrer le nom et l'accès")}</button>
         {actions}
       </div>
-      <NoteLine note={note} />
+      {!report && <NoteLine note={localNote} />}
     </form>
   );
 }

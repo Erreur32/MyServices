@@ -32,14 +32,19 @@ export function AuthorizeKey({ failing, bare = false, onAccepted }: { failing: C
     }, tx("clé acceptée : nouveau passage de la collecte lancé, les conteneurs apparaissent dans un instant"), setNote);
     setBusy(false);
   };
+  const names = failing.map((c) => c.name).join(", ");
   const body = (
     <div className="flex flex-col gap-3">
+      <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm text-muted">
+        <b className="text-warn">{tx("Pourquoi cette carte ?")}</b>{" "}
+        {tx("L'accès SSH de {0} est activé, mais la connexion par clé échoue : la clé de l'app n'est pas encore autorisée sur la machine. Tant que ce n'est pas fait, ses conteneurs, ses services et sa santé ne sont pas lus.", names)}
+      </p>
       <div className="grid gap-x-6 gap-y-2 text-sm text-muted lg:grid-cols-2">
         <p>
           {tx("MyServices lit vos machines par SSH, en lecture seule, sans accès au socket Docker : c'est ce qui garde la main sur Docker hors de la page. Autoriser sa clé sur une machine lui permet de lire ses conteneurs, ses services et sa santé. La clé n'ouvre que le compte visé et se retire en supprimant sa ligne de authorized_keys.")}
         </p>
         <p>
-          {tx("Docker n'est pas lisible sur {0} : la clé SSH de l'app n'y est pas encore autorisée. Lancer cette commande sur la machine, avec le compte visé (membre du groupe docker), puis tester.", failing.map((c) => c.name).join(", "))}
+          {tx("À faire : lancer cette commande sur {0}, avec le compte visé (membre du groupe docker), puis tester.", names)}
         </p>
       </div>
       <div>
@@ -52,7 +57,7 @@ export function AuthorizeKey({ failing, bare = false, onAccepted }: { failing: C
   if (bare) return body;
   return (
     <Card className="border-warn/50">
-      <h2 className="mb-1 flex items-center gap-2 font-bold"><KeyRound size={16} />{tx("Autoriser la clé de MyServices sur cette machine")}</h2>
+      <h2 className="mb-1 flex items-center gap-2 font-bold"><KeyRound size={16} />{tx("Autoriser la clé de MyServices sur {0}", names)}</h2>
       {body}
     </Card>
   );

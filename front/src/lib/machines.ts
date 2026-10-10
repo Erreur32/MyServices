@@ -29,7 +29,7 @@ export type OsKind = "linux" | "windows" | "macos" | "ios" | "network" | "pi";
 
 /** Système d'une machine d'après ce que l'on sait d'elle : réglage « windows », relevé SSH (PRETTY_NAME), sinon le dernier scan
  *  du réseau (suggestion). null = inconnu : pas d'icône plutôt qu'une icône fausse. */
-export function osOfMachine(m: { os?: string; info?: { os?: string | null } | null; name?: string; ttl?: number | null }, scan?: string | null): { kind: OsKind; label: string } | null {
+export function osOfMachine(m: { os?: string; info?: { os?: string | null } | null; name?: string; ttl?: number | null }, scan?: string | null, sshSeen = false): { kind: OsKind; label: string } | null {
   const raw = (m.info?.os || "").toLowerCase();
   if (m.os === "windows" || scan === "windows" || /windows/.test(raw)) return { kind: "windows", label: "Windows" };
   if (/raspbian|raspberry/.test(raw)) return { kind: "pi", label: "Raspberry Pi OS" };
@@ -41,5 +41,7 @@ export function osOfMachine(m: { os?: string; info?: { os?: string | null } | nu
   // Ni SSH ni scan : le TTL du ping suggère Windows (65 à 128) ou un équipement réseau (au-delà) ; 64 ne sépare pas Linux de macOS
   if (m.ttl && m.ttl > 128) return { kind: "network", label: tx("Matériel réseau (probable)") };
   if (m.ttl && m.ttl > 64) return { kind: "windows", label: tx("Windows (probable)") };
+  // TTL 64 + SSH ouvert (vu par le scan) : Linux probable (macOS le fait aussi, mais bien plus rarement)
+  if (m.ttl && m.ttl <= 64 && sshSeen) return { kind: "linux", label: tx("Linux (probable)") };
   return null;
 }

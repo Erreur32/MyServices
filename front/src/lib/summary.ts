@@ -12,6 +12,7 @@ export interface Attention {
   level: "crit" | "warn";
   text: string;
   tab: TabId;
+  href?: string;  // adresse exacte (ex. « settings/machines ») quand l'onglet ne suffit pas
 }
 
 export interface Paragraph {
@@ -91,7 +92,7 @@ export function attention({ data, health, backups, now = Date.now() }: Inputs): 
     out.push({ level: i.level === "warn" ? "warn" : "crit", text: tx("Sauvegarde **{0}** : {1}", i.set, i.text), tab: "backups" });
   const dockerOff = (data.connectors || []).filter((c) => c.type === "docker" && !c.ok);
   if (dockerOff.length)
-    out.push({ level: "warn", text: tx("Docker illisible sur {0} : leurs conteneurs ne sont pas à jour", names(dockerOff.map((c) => c.name))), tab: "machines" });
+    out.push({ level: "warn", text: tx("Docker illisible sur {0} : leurs conteneurs ne sont pas à jour", names(dockerOff.map((c) => c.name))), tab: "settings", href: "settings/machines" });
   for (const c of data.connectors || [])
     if (!c.ok && c.type !== "docker") out.push({ level: "warn", text: tx("Connecteur **{0}** ({1}) : {2}", c.name, c.type, short(c.message)), tab: "settings" });
   return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "crit" ? -1 : 1));
