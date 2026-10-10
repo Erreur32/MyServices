@@ -350,6 +350,7 @@ export const EN: Record<string, string> = {
   "Après l'ajout, un jeton d'accès vous sera demandé (par son API, pas par SSH) : l'aide vous guide pas à pas.": "After adding it, an access token will be requested (through its API, not SSH): the help guides you step by step.",
   "Après l'ajout, une étape guidée prépare l'accès SSH : une commande à lancer sur la machine avec la clé de MyServices, puis un test.": "After adding it, a guided step prepares SSH access: a command to run on the machine with the MyServices key, then a test.",
   "Machines ajoutées : accès à régler": "Added machines: access to set up",
+  "Collez le jeton, cliquez sur « Tester » (facultatif), puis sur « Ajouter » pour relier Home Assistant.": "Paste the token, click \"Test\" (optional), then \"Add\" to link Home Assistant.",
   "accès à régler": "access to set up",
   "{0} autre(s) appareil(s) masqué(s) : ils reviennent quand les accès ci-dessous sont réglés ou passés.": "{0} other device(s) hidden: they come back once the access below is set up or skipped.",
   "Terminé": "Done",
