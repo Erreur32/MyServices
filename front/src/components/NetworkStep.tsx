@@ -30,6 +30,11 @@ function HostInfo({ h, fresh = false, hint = false }: { h: NetHost; fresh?: bool
           <KeyRound size={12} className="mr-1 inline" aria-hidden />{tx("Après l'ajout, un jeton d'accès vous sera demandé (par son API, pas par SSH) : l'aide vous guide pas à pas.")}
         </span>
       )}
+      {hint && !!h.ssh_port && !h.apps.includes("Home Assistant") && (
+        <span className="basis-full pl-6 text-xs text-link">
+          <KeyRound size={12} className="mr-1 inline" aria-hidden />{tx("Après l'ajout, une étape guidée prépare l'accès SSH : une commande à lancer sur la machine avec la clé de MyServices, puis un test.")}
+        </span>
+      )}
     </>
   );
 }

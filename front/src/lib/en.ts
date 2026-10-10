@@ -357,6 +357,7 @@ export const EN: Record<string, string> = {
   "{0} entités": "{0} entities",
   "{0} mise(s) à jour disponible(s)": "{0} update(s) available",
   "Après l'ajout, un jeton d'accès vous sera demandé (par son API, pas par SSH) : l'aide vous guide pas à pas.": "After adding it, an access token will be requested (through its API, not SSH): the help guides you step by step.",
+  "Après l'ajout, une étape guidée prépare l'accès SSH : une commande à lancer sur la machine avec la clé de MyServices, puis un test.": "After adding it, a guided step prepares SSH access: a command to run on the machine with the MyServices key, then a test.",
   "Premiers pas": "Getting started",
   "MyServices a déjà trouvé des services. Pour être complet, il faudrait une clé SSH. Pas de panique, c'est simple !": "MyServices has already found some services. To be complete, it needs an SSH key. Don't panic, it's easy!",
   "Compte administrateur créé": "Administrator account created",
