@@ -13,6 +13,7 @@ import { Health } from "./tabs/Health";
 import { History } from "./tabs/History";
 import { Machines } from "./tabs/Machines";
 import { Services } from "./tabs/Services";
+import { Profile } from "./tabs/Profile";
 import { Settings } from "./tabs/Settings";
 import { useContentWidth, useTheme } from "./theme";
 import { tx } from "./lib/i18n";
@@ -85,7 +86,8 @@ export default function App() {
       <Header snap={snap} theme={theme} toggleTheme={toggleTheme} now={now} />
       {error && <p className="mb-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">{tx("⚠ Mise à jour impossible :")} {error}</p>}
       <Tabs tab={current} snap={snap} badges={badges} onSelect={go} />
-      {current === "home" && <Home snap={snap} items={items} go={go} now={now} />}
+      {hash.startsWith("#profile") && <Profile username={snap.me.username} role={snap.me.role} />}
+      {!hash.startsWith("#profile") && current === "home" && <Home snap={snap} items={items} go={go} now={now} />}
       {current === "history" && <History snap={snap} />}
       {current === "machines" && <Machines snap={snap} onMachine={(ip) => { setSvcFilter((f) => ({ sel: { machine: [ip] }, n: f.n + 1 })); go("services"); }} />}
       {current === "services" && <Services key={svcFilter.n} snap={snap} initial={svcFilter.sel} />}

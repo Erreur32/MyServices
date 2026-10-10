@@ -110,6 +110,37 @@ class Accounts(unittest.TestCase):
         self.assertEqual(self.c.get("/myservices/api/v1/me").status_code, 401)
         self.assertEqual(self.login(pw="nouveau mot de passe").status_code, 200)
 
+    def test_mes_sessions_et_fermeture_des_autres(self):
+        """Un lecteur voit ses sessions (la sienne marquée), ferme les autres appareils sans perdre la sienne."""
+        other = TestClient(api.app, client=("192.168.1.21", 50000))
+        self.assertEqual(self.login("lecteur", c=other).status_code, 200)
+        self.login("lecteur")
+        got = self.c.get("/myservices/api/v1/me/sessions").json()
+        self.assertEqual([x["current"] for x in got["sessions"]].count(True), 1)
+        self.assertEqual(len(got["sessions"]), 2)
+        self.assertNotIn("token_hash", got["sessions"][0])
+        r = self.c.post("/myservices/api/v1/me/sessions/revoke-others", headers={"X-CSRF-Token": self.c.cookies["ms_csrf"]})
+        self.assertEqual((r.status_code, r.json()["closed"]), (200, 1))
+        self.assertEqual(self.c.get("/myservices/api/v1/me").status_code, 200)
+        self.assertEqual(other.get("/myservices/api/v1/me").status_code, 401)
+
+    def test_duree_des_sessions_bornee(self):
+        old = auth.SESSION_DAYS
+        self.addCleanup(setattr, auth, "SESSION_DAYS", old)
+        auth.set_session_days(30)
+        self.assertEqual(auth.SESSION_DAYS, 30)
+        for bad in (0, 91, -1):
+            with self.assertRaises(auth.AuthError):
+                auth.set_session_days(bad)
+        c, h = self.admin()
+        self.assertEqual(c.put("/myservices/api/v1/security/session-days", json={"days": 500}, headers=h).status_code, 400)
+        self.assertEqual(self.login("lecteur", c=TestClient(api.app, client=("192.168.1.22", 1))).status_code, 200)
+
+    def test_viewer_ne_regle_pas_la_duree(self):
+        self.login("lecteur")
+        r = self.c.put("/myservices/api/v1/security/session-days", json={"days": 30}, headers={"X-CSRF-Token": self.c.cookies["ms_csrf"]})
+        self.assertEqual(r.status_code, 403)
+
     def test_password_change_rate_limited(self):
         self.login()
         h = {"X-CSRF-Token": self.c.cookies["ms_csrf"]}

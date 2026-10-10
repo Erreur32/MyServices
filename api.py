@@ -28,6 +28,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from pydantic import BaseModel, Field
 
 import server as core
+import auth as auth_mod
 from auth import AuthError, Store, db_path
 
 PREFIX = "/myservices"
@@ -74,6 +75,10 @@ def store() -> Store:
     global STORE
     if STORE is None:
         STORE = Store(db_path(core.CFG))
+        try:
+            auth_mod.set_session_days(int(core.CFG.get("session_days", 14)))
+        except (AuthError, ValueError, TypeError):
+            pass  # valeur de config.json hors bornes : durée par défaut
     return STORE
 
 
@@ -712,7 +717,7 @@ def session_response(got: tuple[str, str, dict], request: Request) -> JSONRespon
     """Réponse de connexion : cookie de session (HttpOnly) et cookie CSRF (lu par la page)."""
     token, csrf, user = got
     r = JSONResponse({"username": user["username"], "role": user["role"]})
-    opts = {"max_age": 14 * 86400, "path": PREFIX, "samesite": "strict", "secure": cookie_secure(request)}
+    opts = {"max_age": auth_mod.SESSION_DAYS * 86400, "path": PREFIX, "samesite": "strict", "secure": cookie_secure(request)}
     r.set_cookie(COOKIE, token, httponly=True, **opts)
     r.set_cookie(CSRF_COOKIE, csrf, httponly=False, **opts)  # lu par la page pour l'en-tête X-CSRF-Token
     return r
@@ -964,6 +969,41 @@ def audit(request: Request, limit: int = 200):
 class PasswordChange(BaseModel):
     current: str = Field(max_length=256)
     new: str = Field(max_length=256)
+
+
+@app.get(API + "/me/sessions", tags=["comptes"], summary="Mes sessions ouvertes")
+def my_sessions(request: Request):
+    u = request.state.user or {}
+    if not AUTH or not u:
+        return deny(400, "comptes désactivés")
+    return {"sessions": store().sessions_of(u["username"], request.cookies.get(COOKIE)), "days": auth_mod.SESSION_DAYS}
+
+
+@app.post(API + "/me/sessions/revoke-others", tags=["comptes"], summary="Fermer mes autres sessions (autres appareils)")
+def revoke_other_sessions(request: Request):
+    u = request.state.user or {}
+    if not AUTH or not u or not request.cookies.get(COOKIE):
+        return deny(400, "session requise")
+    n = store().revoke_others(u["username"], request.cookies.get(COOKIE))
+    store().audit("autres sessions fermées", u["username"], ip_of(request), f"{n} session(s)")
+    return {"ok": True, "closed": n, "message": f"{n} autre(s) session(s) fermée(s)"}
+
+
+class SessionDays(BaseModel):
+    days: int
+
+
+@app.put(API + "/security/session-days", tags=["comptes"], summary="Durée des sessions, de 1 à 90 jours (admin)")
+def set_session_days(body: SessionDays, request: Request):
+    import system
+    if denied := admin_write(request):
+        return denied
+    try:
+        system.set_session_days(core, body.days)
+    except AuthError as e:
+        return deny(400, str(e))
+    store().audit("durée des sessions changée", request.state.user["username"], ip_of(request), f"{body.days} jours")
+    return {"ok": True, "days": body.days}
 
 
 @app.post(API + "/me/password", tags=["comptes"], summary="Changer son mot de passe")

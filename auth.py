@@ -24,7 +24,8 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
 ROLES = ("admin", "viewer")
-SESSION_DAYS = 14
+SESSION_DAYS = 14                # modifiable (Réglages → Comptes) : set_session_days
+SESSION_DAYS_MAX = 90
 LOGIN_MAX_FAIL = 10
 LOGIN_WINDOW = 15 * 60
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9._@-]{2,64}$")
@@ -200,6 +201,24 @@ class Store:
                 db.execute("UPDATE sessions SET expires = ? WHERE token_hash = ?", (now + SESSION_DAYS * 86400, _h(token)))
         return {"username": row["username"], "role": row["role"], "csrf": row["csrf"]}
 
+    def sessions_of(self, username: str, token: str | None) -> list[dict]:
+        """Sessions ouvertes d'un compte (la plus récente d'abord) ; `current` marque celle du jeton donné. L'empreinte
+        complète n'est jamais rendue : seulement ce qu'il faut pour reconnaître un appareil."""
+        now = time.time()
+        with self._db() as db:
+            rows = db.execute("SELECT s.token_hash, s.created, s.expires, s.ip FROM sessions s JOIN users u ON u.id = s.user_id "
+                              "WHERE u.username = ? AND s.expires >= ? ORDER BY s.created DESC", (username, now)).fetchall()
+        mine = _h(token) if token else None
+        return [{"created": r["created"], "expires": r["expires"], "ip": r["ip"], "current": r["token_hash"] == mine} for r in rows]
+
+    def revoke_others(self, username: str, token: str | None) -> int:
+        """Ferme toutes les sessions du compte sauf celle du jeton donné ; nombre de sessions fermées."""
+        if not token:
+            return 0
+        with self._db() as db:
+            return db.execute("DELETE FROM sessions WHERE token_hash != ? AND user_id = (SELECT id FROM users WHERE username = ?)",
+                              (_h(token), username)).rowcount
+
     def logout(self, token: str | None) -> None:
         if token:
             with self._db() as db:
@@ -216,6 +235,14 @@ class Store:
         with self._db() as db:
             return [dict(r) for r in db.execute("SELECT ts, username, ip, action, detail FROM audit ORDER BY id DESC LIMIT ?",
                                                 (min(max(limit, 1), 1000),))]
+
+
+def set_session_days(days: int) -> None:
+    """Durée des sessions ouvertes à partir de maintenant (celles qui existent déjà gardent leur échéance jusqu'à leur prolongation)."""
+    global SESSION_DAYS
+    if not 1 <= days <= SESSION_DAYS_MAX:
+        raise AuthError(f"durée des sessions : de 1 à {SESSION_DAYS_MAX} jours")
+    SESSION_DAYS = days
 
 
 def check_password(password: str) -> None:

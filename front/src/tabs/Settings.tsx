@@ -151,13 +151,14 @@ function Accounts({ me }: { me: string }) {
     <div className="flex flex-col gap-4">
       {error && <p className="rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">⚠ {error}</p>}
       <div className="grid gap-4 xl:grid-cols-2">
-        <MyPassword />
         <AddUser onDone={reload} />
+        <SessionDays />
+        <SessionDays />
       </div>
       <Card>
         <h2 className="mb-1 font-bold">{tx("Comptes")} {users && <Dim>· {users.length}</Dim>}</h2>
         <p className="mb-3 text-sm text-muted">
-          <b className="text-txt">{tx("Admin")}</b> {tx(": tout, réglages compris.")} <b className="text-txt">{tx("Lecture seule")}</b> {tx(": voit la page et peut demander un passage (⟳). Ton propre compte se gère dans « Mon mot de passe » : un admin ne peut pas se retirer ses droits, et il reste toujours au moins un admin actif.")}
+          <b className="text-txt">{tx("Admin")}</b> {tx(": tout, réglages compris.")} <b className="text-txt">{tx("Lecture seule")}</b> {tx(": voit la page et peut demander un passage (⟳). Ton propre mot de passe et tes sessions : menu du compte → « Profil ». Un admin ne peut pas se retirer ses droits, et il reste toujours au moins un admin actif.")}
         </p>
         {users === null ? <p className="text-sm text-muted">{tx("Chargement…")}</p> : (
           <ul className="flex flex-col divide-y divide-line/60">
@@ -169,35 +170,17 @@ function Accounts({ me }: { me: string }) {
   );
 }
 
-function MyPassword() {
-  const [cur, setCur] = useState(""), [pw, setPw] = useState(""), [pw2, setPw2] = useState("");
-  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (pw !== pw2) return setNote({ ok: false, text: tx("les deux saisies diffèrent") });
-    setBusy(true);
-    const ok = await act(() => send("POST", "me/password", { current: cur, new: pw }), tx("mot de passe changé : reconnexion…"), setNote);
-    setBusy(false);
-    if (ok) setTimeout(() => location.replace(LOGIN), 1500); // toutes ses sessions sont fermées par le serveur
-  };
+function SessionDays() {
+  const [days, setDays] = useState(""), [note, setNote] = useState<Note>(null), [cur, setCur] = useState<number | null>(null);
+  useEffect(() => { read<{ days: number }>("me/sessions").then((r) => { setCur(r.days); setDays(String(r.days)); }).catch(() => undefined); }, []);
+  const n = Number(days), valid = Number.isInteger(n) && n >= 1 && n <= 90;
   return (
     <Card>
-      <h2 className="mb-3 font-bold">{tx("Mon mot de passe")}</h2>
-      <form onSubmit={submit} className="flex flex-col gap-3">
-        <Field label={tx("Mot de passe actuel")}>
-          <input className={input} type="password" autoComplete="current-password" required value={cur} onChange={(e) => setCur(e.target.value)} />
-        </Field>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label={tx("Nouveau ({0} caractères min.)", PASSWORD_MIN)}>
-            <input className={`${input} ${okField(pw)}`} type="password" autoComplete="new-password" required minLength={PASSWORD_MIN} value={pw} onChange={(e) => setPw(e.target.value)} />
-          </Field>
-          <Field label={tx("Validation du mot de passe")}>
-            <input className={`${input} ${pw2 && pw2 === pw ? "!border-ok/70" : ""}`} type="password" autoComplete="new-password" required minLength={PASSWORD_MIN} value={pw2} onChange={(e) => setPw2(e.target.value)} />
-          </Field>
-        </div>
-        <PasswordRules pw={pw} again={pw2} />
-        <div><button className={primary} disabled={busy || !checkPassword(pw, pw2).ok}><KeyRound size={14} />{tx("Changer")}</button></div>
-        <p className="text-xs text-dim">{tx("Toutes tes sessions (autres navigateurs compris) seront fermées.")}</p>
+      <h2 className="mb-1 font-bold">{tx("Durée des sessions")}</h2>
+      <p className="mb-3 text-sm text-muted">{tx("Combien de temps un navigateur reste connecté sans que l'on redemande le mot de passe (de 1 à 90 jours). Vaut pour les prochaines connexions ; les sessions déjà ouvertes gardent leur échéance jusqu'à leur prochaine prolongation.")}</p>
+      <form className="flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); if (valid) void act(() => send("PUT", "security/session-days", { days: n }), tx("enregistré : {0} jours", n), setNote).then((ok) => ok && setCur(n)); }}>
+        <Field label={tx("Jours")}><input className={`${input} w-28`} type="number" min={1} max={90} value={days} onChange={(e) => setDays(e.target.value)} /></Field>
+        <button className={quiet} disabled={!valid || n === cur}>{tx("Enregistrer")}</button>
       </form>
       <NoteLine note={note} />
     </Card>

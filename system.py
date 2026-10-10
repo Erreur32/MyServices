@@ -119,6 +119,21 @@ def set_netscan_nets(core, nets: list[str]) -> dict:
     return netscan_settings(core)
 
 
+def set_session_days(core, days: int) -> int:
+    """Durée des sessions (1 à 90 jours), écrite dans config.json et appliquée aux prochaines connexions."""
+    import auth
+    auth.set_session_days(days)  # refuse hors bornes (AuthError)
+
+    def change(raw: dict) -> None:
+        if days == 14:
+            raw.pop("session_days", None)
+        else:
+            raw["session_days"] = days
+    _update_config(core, change)
+    core.CFG["session_days"] = days
+    return days
+
+
 def set_netscan_ignored(core, ip: str, name: str = "", ignore: bool = True) -> dict:
     """Ajoute (ignore) ou retire (ignore=False) un appareil de la liste de ceux que la recherche ne propose plus."""
     import ipaddress

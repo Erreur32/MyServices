@@ -42,6 +42,7 @@ DEFAULTS = {
     "retention_days": 90,                # historique du watcher
     "netscan_every": 6,                  # h, recherche réseau automatique (après une première faite à la main) ; 0 = coupée
     "netscan_nets": [],                  # recherche réseau : réseaux en CIDR (chacun /24 au plus) ; vide = celui de l'hôte
+    "session_days": 14,                  # j, durée d'une session de la page (Réglages → Comptes), 1 à 90
     "netscan_ignored": [],               # recherche réseau : appareils à ne plus proposer, [{"ip": "…", "name": "…"}] (Réglages → Recherche réseau)
     "netscan_discreet": False,           # recherche réseau : ne lit ni le TTL ni l'adresse MAC (pas de système deviné par là)
     # Page web : intégrations facultatives (vide = onglet ou lien masqué)
