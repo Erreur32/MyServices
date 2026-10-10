@@ -2,8 +2,8 @@
 // Une carte par machine : celles qui ont un agent (actif, silencieux, en attente) d'un côté, celles qui n'en ont pas de l'autre,
 // prêtes à être cliquées. Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller sur le PC.
 // Gérés seulement depuis une session admin.
-import { MonitorUp, Plus, RefreshCw, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { ChevronDown, ChevronRight, MonitorUp, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Copyable, Field, NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
@@ -45,13 +45,19 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   }, []);
   useEffect(reload, [reload]);
   useEffect(() => { read<MachinesSettings>("machines/settings").then((m) => setMachines(m.machines)).catch(() => undefined); }, []);
-  // Tant qu'un agent attend son premier relevé, on regarde toutes les 5 s : l'installation se voit aboutir
+  // Rafraîchissement automatique : toutes les 5 s tant qu'un premier relevé est attendu (l'installation se voit aboutir), sinon toutes les 10 s ;
+  // à l'arrêt quand l'onglet du navigateur est caché. Les cartes « Linux, lus par SSH » suivent l'état de la collecte (snapshot de l'application).
   const waiting = !!st?.agents.some((a) => a.state === "en attente");
   useEffect(() => {
-    if (!waiting) return;
-    const t = setInterval(reload, 5000);
+    const t = setInterval(() => { if (!document.hidden) reload(); }, waiting ? 5000 : 10000);
     return () => clearInterval(t);
   }, [waiting, reload]);
+  // Cadre « Agent créé » : replié tout seul au premier relevé reçu (une fois), dépliable à la demande tant qu'on ne l'a pas fermé
+  const [folded, setFolded] = useState(false), foldedFor = useRef(0);
+  const seenFirst = created ? st?.agents.find((x) => x.id === created.info.id)?.last_seen : null;
+  useEffect(() => {
+    if (created && seenFirst && foldedFor.current !== created.info.id) { foldedFor.current = created.info.id; setFolded(true); }
+  }, [created, seenFirst]);
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 
   const byIp = new Map(st.agents.filter((a) => a.state !== "révoqué").map((a) => [a.ip, a]));
@@ -100,19 +106,27 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
 
       {created && (
         <Card className="border-ok/50">
-          <h2 className="mb-1 font-bold text-ok">{tx("Agent «")} {created.info.name} {tx("» créé")}</h2>
-          <p className="mb-2 text-sm text-warn">{tx("À copier maintenant : le jeton qu'elle contient ne sera plus jamais affiché.")}</p>
-          <p className="mb-2 text-sm text-muted">{tx("Sur le PC, ouvrez PowerShell en administrateur (clic droit → Exécuter en tant qu'administrateur) et collez :")}</p>
-          {command ? <Copyable key={command} text={command} />
-            : <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{tx("Adresse de MyServices invalide : http://hôte:port, sans chemin. Corrigez-la en haut de la page, la commande se met à jour.")}</p>}
-          <p className="mt-2 text-xs text-dim">{tx("L'installation crée une tâche planifiée (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur le PC relancer la commande avec MSV_UNINSTALL = '1'.")}</p>
-          {(() => {  // confirmation côté MyServices : la page relit les agents toutes les 5 s tant qu'un premier relevé est attendu
-            const seen = st.agents.find((x) => x.id === created.info.id);
-            return seen?.last_seen
-              ? <p role="status" className="mt-3 rounded-lg bg-ok/10 px-3 py-2 text-sm text-ok">✓ {tx("Premier relevé reçu")} ({dateTime(seen.last_seen * 1000)}{seen.os ? ` · ${seen.os}` : ""}) : {tx("l'agent est installé et actif.")}</p>
-              : <p role="status" className="mt-3 rounded-lg bg-bg2 px-3 py-2 text-sm text-muted">⏳ {tx("En attente du premier relevé : cette ligne se met à jour toute seule dès que le PC a envoyé le premier, sans rien à recharger.")}</p>;
-          })()}
-          <button type="button" className={`${quiet} mt-3`} onClick={() => setCreated(null)}>{tx("C'est copié, fermer")}</button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setFolded(!folded)} aria-expanded={!folded} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+              {folded ? <ChevronRight size={16} className="shrink-0 text-txt" aria-hidden /> : <ChevronDown size={16} className="shrink-0 text-txt" aria-hidden />}
+              <h2 className="truncate font-bold text-ok">{tx("Agent «")} {created.info.name} {tx("» créé")}</h2>
+              {folded && seenFirst && <Badge tone="ok">✓ {tx("premier relevé reçu")}</Badge>}
+            </button>
+            <button type="button" className={quiet} onClick={() => setCreated(null)}><X size={14} />{tx("Fermer")}</button>
+          </div>
+          {!folded && <div className="mt-2">
+            <p className="mb-2 text-sm text-warn">{tx("À copier maintenant : le jeton qu'elle contient ne sera plus jamais affiché.")}</p>
+            <p className="mb-2 text-sm text-muted">{tx("Sur le PC, ouvrez PowerShell en administrateur (clic droit → Exécuter en tant qu'administrateur) et collez :")}</p>
+            {command ? <Copyable key={command} text={command} />
+              : <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{tx("Adresse de MyServices invalide : http://hôte:port, sans chemin. Corrigez-la en haut de la page, la commande se met à jour.")}</p>}
+            <p className="mt-2 text-xs text-dim">{tx("L'installation crée une tâche planifiée (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur le PC relancer la commande avec MSV_UNINSTALL = '1'.")}</p>
+            {(() => {  // confirmation côté MyServices : la page relit les agents toutes les 5 s tant qu'un premier relevé est attendu
+              const seen = st.agents.find((x) => x.id === created.info.id);
+              return seen?.last_seen
+                ? <p role="status" className="mt-3 rounded-lg bg-ok/10 px-3 py-2 text-sm text-ok">✓ {tx("Premier relevé reçu")} ({dateTime(seen.last_seen * 1000)}{seen.os ? ` · ${seen.os}` : ""}) : {tx("l'agent est installé et actif.")}</p>
+                : <p role="status" className="mt-3 rounded-lg bg-bg2 px-3 py-2 text-sm text-muted">⏳ {tx("En attente du premier relevé : cette ligne se met à jour toute seule dès que le PC a envoyé le premier, sans rien à recharger.")}</p>;
+            })()}
+          </div>}
         </Card>
       )}
 

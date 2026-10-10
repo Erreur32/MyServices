@@ -192,7 +192,6 @@ export const EN: Record<string, string> = {
   "Bienvenue,": "Welcome,",
   "bloqué par AdGuard": "blocked by AdGuard",
   "box / routeur : sous-titre de la page": "box / router: page subtitle",
-  "C'est copié, fermer": "Copied, close",
   "canal ajouté : l'essayer": "channel added: try it",
   "canal coupé": "channel turned off",
   "canal enregistré": "channel saved",
@@ -1193,4 +1192,6 @@ export const EN: Record<string, string> = {
   "Premier relevé reçu": "First report received",
   "l'agent est installé et actif.": "the agent is installed and active.",
   "En attente du premier relevé : cette ligne se met à jour toute seule dès que le PC a envoyé le premier, sans rien à recharger.": "Waiting for the first report: this line updates by itself as soon as the PC has sent it, nothing to reload.",
+  "premier relevé reçu": "first report received",
+  "C'est copié, fermer": "Copied, close",
 };
