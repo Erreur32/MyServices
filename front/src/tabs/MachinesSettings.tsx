@@ -17,7 +17,7 @@ import { sshBrief, sshWarn } from "../lib/ssh";
 import { tx } from "../lib/i18n";
 
 const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
-  { k: "off", label: tx("Souvent éteinte"), help: tx("PC, portable : « machine éteinte » sans alerte tant qu'elle ne répond pas") },
+  { k: "off", label: tx("Souvent éteinte"), help: tx("PC, portable : pas d'alerte si elle ne répond pas") },
   { k: "gateway", label: tx("Passerelle"), help: tx("box / routeur : sous-titre de la page") },
   { k: "npm", label: tx("Héberge NPM"), help: tx("sous-titre de la page") },
   { k: "npm_only", label: tx("Joignable seulement par NPM"), help: tx("pare-feu : ses services sont testés via NPM") },
