@@ -63,3 +63,20 @@ Une nouvelle version du service : enregistrer ses réponses, relancer les tests,
 ```bash
 python3 -m unittest discover -s tests
 ```
+
+## Formes de données communes
+
+Ce qu'un connecteur (ou la santé, la veille, les sauvegardes) produit se plie à `models.py` : `Machine`, `Service`, `Health`,
+`Backup`, `Event`, `Alert` (pydantic). Un champ en plus est gardé ; un champ de base manquant ou mal typé est refusé par
+`models.validate()`, utilisé par les tests. Le front lit les mêmes formes (`front/src/types.ts`).
+
+## Cache
+
+`self.ctx.cached(clé, durée_en_secondes, fonction)` garde le résultat JSON de `fonction()` pour la durée donnée (dossier de
+cache du collecteur) : un service lent ou limité n'est pas interrogé à chaque passage. Une erreur de `fonction()` n'écrase jamais
+la valeur gardée. Les secrets des réglages arrivent déjà déchiffrés : un connecteur ne touche jamais au chiffrement.
+
+## Version non testée
+
+Quand le service passe dans une version absente de `tested`, la veille envoie une alerte « 🔌 Version non testée » une seule
+fois (le connecteur continue de marcher : l'API a pu changer, à surveiller).

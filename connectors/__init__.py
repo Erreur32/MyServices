@@ -54,7 +54,7 @@ def declared(cfg: dict, meta: dict | None = None) -> list[dict]:
 
 def instances(cfg: dict, ctx: Context | None = None, kind: str | None = None, meta: dict | None = None) -> list[Connector]:
     """Instances prêtes, filtrées par apport (kind) ; ConnectorError si un réglage est faux."""
-    ctx = ctx or Context()
+    ctx = ctx or Context(cache_dir=cfg.get("cache_dir"))  # cache : dossier du collecteur
     out, seen = [], set()
     for conf in declared(cfg, meta):
         cls = TYPES.get(conf.get("type", ""))

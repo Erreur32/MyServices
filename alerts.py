@@ -40,6 +40,7 @@ KINDS = {
     "health_down": ("Machine injoignable (santé)", "sante"),
     "securite": ("Sécurité (ACL, SSL)", "securite"), "ui_hors": ("Interface sans domaine", "securite"),
     "dns": ("DNS", "securite"), "connecteur": ("Connecteur en panne", "connecteurs"),
+    "connecteur_version": ("Version de service non testée", "connecteurs"),
     "perime": ("Collecte en retard", "connecteurs"),
     "nouveau": ("Nouveau service", "inventaire"), "disparu": ("Service disparu", "inventaire"),
 }
@@ -58,7 +59,7 @@ PRESETS = [
     {"name": "Machines hors ligne", "kinds": ["hors_ligne", "ssh_down", "health_down"], "resolved": True, "cooldown_min": 60},
     {"name": "Santé critique", "kinds": ["health_crit"], "resolved": True, "cooldown_min": 360},
     {"name": "Sécurité et DNS", "kinds": ["securite", "ui_hors", "dns"], "resolved": False, "cooldown_min": 1440},
-    {"name": "Connecteurs et collecte", "kinds": ["connecteur", "perime"], "resolved": True, "cooldown_min": 120},
+    {"name": "Connecteurs et collecte", "kinds": ["connecteur", "connecteur_version", "perime"], "resolved": True, "cooldown_min": 120},
     {"name": "Inventaire (nouveaux / disparus)", "kinds": ["nouveau", "disparu"], "resolved": False, "cooldown_min": 0},
 ]
 

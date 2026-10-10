@@ -17,7 +17,7 @@ et implémente :
   discover() réglages proposés d'après un conteneur reconnu (facultatif)
   guide     (attribut) étapes d'aide pour obtenir les accès (clé, jeton) : montrées dans la page, facultatif
 
-Le cœur fournit le Context (HTTP avec délais, SSH par alias, journal) et isole chaque connecteur
+Le cœur fournit le Context (HTTP avec délais, SSH par alias, journal, cache à durée de vie) et isole chaque connecteur
 (run_isolated) : délai maximal, erreur capturée, dernier résultat bon réutilisé et marqué périmé, nombre
 de passages en échec ; un connecteur en panne ne bloque pas les autres.
 """
@@ -77,11 +77,36 @@ class Status:
 
 
 class Context:
-    """Ce que le cœur donne aux connecteurs : HTTP (délais, TLS au choix), SSH par alias, journal."""
+    """Ce que le cœur donne aux connecteurs : HTTP (délais, TLS au choix), SSH par alias, journal, cache. Les secrets
+    des réglages arrivent déjà déchiffrés (config.load, secrets_store) : un connecteur ne touche jamais au chiffrement."""
 
-    def __init__(self, timeout: float = 15, log=print):
+    def __init__(self, timeout: float = 15, log=print, cache_dir: str | Path | None = None):
         self.timeout = timeout
         self.log = log
+        self.cache_dir = Path(cache_dir) if cache_dir else None
+
+    def cached(self, key: str, ttl: float, fn):
+        """Résultat de fn() (JSON) gardé ttl secondes sous cache_dir : un service lent ou limité n'est pas interrogé à
+        chaque passage. Sans cache_dir, ou fichier illisible : fn() est appelée sans rien garder. Écriture atomique ;
+        une erreur de fn() n'écrase jamais la valeur gardée."""
+        f = self.cache_dir / ("connectors-" + re.sub(r"[^A-Za-z0-9._-]", "_", key)[:120] + ".json") if self.cache_dir else None
+        if f:
+            try:
+                got = json.loads(f.read_text(encoding="utf-8"))
+                if time.time() - got["at"] < ttl:
+                    return got["value"]
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
+        value = fn()
+        if f:
+            try:
+                f.parent.mkdir(parents=True, exist_ok=True)
+                tmp = f.with_suffix(".tmp")
+                tmp.write_text(json.dumps({"at": time.time(), "value": value}, ensure_ascii=False), encoding="utf-8")
+                tmp.replace(f)
+            except (OSError, TypeError, ValueError):
+                pass  # cache indisponible ou valeur non sérialisable : la lecture reste bonne
+        return value
 
     def http(self, url: str, *, method: str = "GET", body: dict | None = None, headers: dict | None = None,
              verify_tls: bool = True, timeout: float | None = None) -> object:

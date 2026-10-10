@@ -58,12 +58,12 @@ COLLECTOR = CFG["collector_name"] or socket.gethostname()
 
 SEVERITY = {"panne": 3, "unhealthy": 3, "perime": 3, "securite": 2, "ui_hors": 1,
             "nouveau": 1, "disparu": 1, "retabli": 0, "dns": 2,
-            "hors_ligne": 3, "ssh_down": 3, "en_ligne": 0, "ssh_ok": 0, "connecteur": 2, "connecteur_ok": 0}
+            "hors_ligne": 3, "ssh_down": 3, "en_ligne": 0, "ssh_ok": 0, "connecteur": 2, "connecteur_ok": 0, "connecteur_version": 1}
 LABEL = {"panne": "🔴 Panne", "retabli": "🟢 Rétabli", "nouveau": "🆕 Nouveau", "disparu": "➖ Disparu",
          "securite": "🛡️ Sécurité", "ui_hors": "🌐 UI sans domaine", "unhealthy": "💔 Unhealthy",
          "perime": "⏱️ Données périmées", "hors_ligne": "📴 Machine hors ligne",
          "en_ligne": "📶 Machine en ligne", "ssh_down": "🔒 SSH injoignable", "ssh_ok": "🔑 SSH rétabli",
-         "dns": "🧭 DNS", "connecteur": "🔌 Connecteur en panne", "connecteur_ok": "🔌 Connecteur rétabli"}
+         "dns": "🧭 DNS", "connecteur": "🔌 Connecteur en panne", "connecteur_ok": "🔌 Connecteur rétabli", "connecteur_version": "🔌 Version non testée"}
 NPM_TYPES = {"proxy", "redirect", "dead", "stream"}  # entrées lues dans NPM (les autres : « local »)
 DNS_LABEL = {"nom": "nom DNS invalide", "absent": "ne résout sur aucun AdGuard", "ecart": "réponses différentes selon l'AdGuard",
              "hors_lan": "garde LAN mais ne résout pas vers NPM", "bloque": "bloqué par AdGuard"}
@@ -222,7 +222,8 @@ def diff_machines(prev: dict, cur: dict, pending: dict) -> tuple[list[dict], dic
 def connector_snaps(data: dict) -> dict:
     """État de chaque connecteur lu par le collecteur (data.json « connectors ») : True = lu."""
     return {f'connecteur:{c["type"]}/{c["name"]}': {"label": f'{c["type"]} {c["name"]}', "ok": bool(c.get("ok")),
-                                                     "detail": c.get("message", "")}
+                                                     "detail": c.get("message", ""), "version": c.get("version"),
+                                                     "tested": c.get("version_tested")}
             for c in data.get("connectors", [])}
 
 
@@ -232,6 +233,10 @@ def diff_connectors(prev: dict, cur: dict, pending: dict) -> tuple[list[dict], d
     ev, new_pending = [], {}
     for k, c in cur.items():
         p = prev.get(k)
+        # Le service est passé dans une version que MyServices n'a pas testée (son API a pu changer) : à surveiller, une fois
+        if p and c["ok"] and c.get("version") and p.get("version") not in (None, c["version"]) and c.get("tested") is False:
+            ev.append({"kind": "connecteur_version", "key": k, "label": c["label"], "machine": COLLECTOR, "target": None,
+                       "detail": f'version {c["version"]} (avant : {p["version"]}), pas encore testée : à surveiller'})
         if p is None or c["ok"] == p["ok"]:
             continue
         n = pending.get(k, 0) + 1
