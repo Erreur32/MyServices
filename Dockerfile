@@ -4,7 +4,7 @@
 # Nouveau front (front/, React + Vite) : tests, contrôle des types, puis compilation ; seul dist/ passe dans l'image
 FROM node:22-trixie-slim AS front
 WORKDIR /front
-COPY front/package.json front/package-lock.json ./
+COPY front/package.json front/package-lock.json front/.npmrc ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY front/ ./
 RUN npm test && npm run build
