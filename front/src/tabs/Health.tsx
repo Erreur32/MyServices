@@ -77,9 +77,9 @@ export function Health({ snap }: { snap: Snapshot }) {
   if (!snap.health) return services.length ? <div className="py-1"><ServiceStatusCards items={services} /><Empty>{tx("Santé pas encore relevée.")}</Empty></div> : <Empty>{tx("Santé pas encore relevée.")}</Empty>;
   return (
     <div className="py-1">
-      <ServiceStatusCards items={services} />
       <FilterBar f={f} placeholder={tx("Machine, disque, service en échec…")}
         extra={<span className="text-xs text-dim">{tx("relevé du")} {dateTime(snap.health.timestamp)}</span>} />
+      <ServiceStatusCards items={services} />
       {f.shown.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{f.shown.map((h) => <HostCard key={h.id} h={h} />)}</div>
       )}
