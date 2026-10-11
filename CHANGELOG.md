@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+- **Example compose: the port is easy to change.** `MYSERVICES_PORT` now reads `${MYSERVICES_PORT:-8090}`, so a port already taken on the host is fixed with a one-line `.env` file (`MYSERVICES_PORT=8095`) instead of editing the compose file; a comment explains that the container uses the host network, so a `ports:` mapping would not work. Documented in both READMEs.
+- **README: open `http://<IP>:8090/`** (the root redirects to the sign-in page, then to the app) instead of the long `/myservices/v2/` address.
+
 ## v0.10.1 (2026-10-11)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

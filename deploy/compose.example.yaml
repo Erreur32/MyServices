@@ -5,8 +5,13 @@
 #   docker compose up -d
 #   docker compose logs myservices      # clé publique de l'app + commande pour l'autoriser sur l'hôte
 #
-# Puis, dans les 30 minutes : ouvrir http://<IP de l'hôte>:8090/myservices/v2/ et créer le compte admin
+# Puis, dans les 30 minutes : ouvrir http://<IP de l'hôte>:8090/ (la racine mène à la page de connexion puis à l'application) et créer le compte admin
 # (passé ce délai : docker compose restart myservices). Le reste se règle dans la page (Réglages).
+#
+# Port already taken on the host? The container uses the host network, so a `ports:` mapping would be ignored: change the port itself,
+# either here (MYSERVICES_PORT below) or without editing this file, in a `.env` file next to it:
+#     echo 'MYSERVICES_PORT=8095' > .env && docker compose up -d
+# then open http://<host IP>:8095/ . Check first that the port is free: ss -ltnp | grep 8095
 #
 # Droits : l'app tourne sous le compte 10001 (jamais root) ; « init » donne ./config et ./data à ce compte
 # avant chaque démarrage (dossiers créés par Docker = root sinon, et l'app ne pourrait rien y écrire).
@@ -40,7 +45,7 @@ services:
     network_mode: host
     environment:
       TZ: Europe/Paris
-      MYSERVICES_PORT: "8090"
+      MYSERVICES_PORT: "${MYSERVICES_PORT:-8090}"   # 8090 unless MYSERVICES_PORT is set in .env or in the shell
       # Réseaux autorisés à ouvrir la page (défaut : réseaux privés et boucle locale)
       # MYSERVICES_ALLOW: "192.168.1.0/24,127.0.0.0/8"
       # Compte SSH de l'alias « hote » (machine hôte) ; un compte dédié non root est plus sûr (README)
