@@ -725,10 +725,6 @@ def connector_rows(kind: str) -> list[dict]:
     return out
 
 
-def status_rows() -> list[dict]:
-    return connector_rows("status")
-
-
 def progress(step, label, done=None, total=None):
     """Écrit l'étape en cours (JSON atomique) ; les compteurs de sondes sont limités à 2 écritures/s."""
     if not PROGRESS:
@@ -1124,6 +1120,9 @@ def main():
     with open(SSH_CACHE, "w") as f:
         json.dump(ssh_cache, f)
 
+    # Avant « out » : ces lectures ajoutent leur état à CONNECTOR_STATUS, que « connectors » (ci-dessous) recopie ;
+    # lues dans le dictionnaire, après « connectors », leur état manquait et la page disait « pas encore lu »
+    services_status, network, security, containers, virtualization = (connector_rows(k) for k in ("status", "network", "security", "containers", "virtualization"))
     out = {
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "next_run": next_timer_run("myservices.timer"),
@@ -1139,11 +1138,11 @@ def main():
         "categories": [n for n, _ in CATEGORIES] + ["Autre"],
         "hosts": rows,
         "proposals": known_apps.propose(rows, connectors.declared(CFG, META_RAW)),
-        "services_status": status_rows(),
-        "network": connector_rows("network"),
-        "security": connector_rows("security"),
-        "containers": connector_rows("containers"),
-        "virtualization": connector_rows("virtualization"),
+        "services_status": services_status,
+        "network": network,
+        "security": security,
+        "containers": containers,
+        "virtualization": virtualization,
         "dns": dns,
         "machine_list": machines_out,
     }

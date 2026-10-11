@@ -157,11 +157,11 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         </Card>
       )}
 
-      <Group title={tx("Avec un agent")} n={withAgent.length} empty={tx("Aucun agent pour l'instant : cliquez sur une machine ci-dessous.")}>
+      <Group title={tx("Avec un agent")} n={withAgent.length} fold empty={tx("Aucun agent pour l'instant : cliquez sur une machine ci-dessous.")}>
         {withAgent.map((ip) => <ActiveCard key={ip} a={byIp.get(ip)!} conf={machines[ip]} ip={ip} focus={ip === focusIp} busy={busy === ip} onRenew={isWindows(ip) ? () => void create(ip) : undefined} reload={reload} />)}
       </Group>
 
-      <Group title={tx("Sans agent")} n={without.length}
+      <Group title={tx("Sans agent")} fold n={without.length}
         hint={tx("PC Windows seulement. Cliquez sur un PC pour préparer son agent : rien n'est créé avant que vous confirmiez.")}
         empty={Object.keys(machines).length === 0 ? tx("Aucune machine déclarée : ajoutez d'abord le PC dans Réglages → Machines.") : tx("Aucun PC Windows sans agent.")}>
         {without.map((ip) => (
@@ -179,7 +179,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         ))}
       </Group>
 
-      <Group title={tx("Linux, lus par SSH")} n={ssh.length}
+      <Group title={tx("Linux, lus par SSH")} fold n={ssh.length}
         hint={tx("L'accès SSH se règle avec la machine : cliquez sur une carte pour ouvrir ses réglages.")}
         empty={tx("Aucune machine Linux lue par SSH pour l'instant : activez « Lecture par SSH » dans Réglages → Machines.")}>
         {ssh.map((ip) => {
@@ -199,7 +199,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         })}
       </Group>
 
-      <Group title={tx("Sans accès : à régler")} n={noAccess.length}
+      <Group title={tx("Sans accès : à régler")} fold n={noAccess.length}
         hint={tx("Ni agent possible (pas un PC Windows) ni SSH : activez l'accès SSH dans les réglages de la machine.")}
         empty={tx("Toutes les machines ont un accès.")}>
         {noAccess.map((ip) => (
@@ -228,14 +228,23 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   );
 }
 
-/** Groupe de cartes : titre, compte, texte d'aide, grille (ou le texte « vide ») */
-function Group({ title, n, hint, empty, children }: { title: string; n: number; hint?: string; empty: string; children: React.ReactNode }) {
+/** Groupe de cartes : titre, compte, texte d'aide, grille (ou le texte « vide ») ; pliable (chevron, comme « Agent créé ») si fold */
+function Group({ title, n, hint, empty, fold, children }: { title: string; n: number; hint?: string; empty: string; fold?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(true);
+  const shown = !fold || open;
   return (
     <section aria-label={title}>
-      <h3 className="mb-1 flex items-center gap-2 px-1 text-sm font-bold">{title} <Dim>· {n}</Dim></h3>
-      {hint && n > 0 && <p className="mb-2 px-1 text-xs text-dim">{hint}</p>}
-      {n === 0 ? <p className="rounded-xl border border-dashed border-line px-4 py-3 text-sm text-muted">{empty}</p>
-        : <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{children}</ul>}
+      <h3 className="mb-1 px-1 text-sm font-bold">
+        {fold ? (
+          <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex items-center gap-2 text-left">
+            {open ? <ChevronDown size={16} className="shrink-0 text-txt" aria-hidden /> : <ChevronRight size={16} className="shrink-0 text-txt" aria-hidden />}
+            {title} <Dim>· {n}</Dim>
+          </button>
+        ) : <span className="flex items-center gap-2">{title} <Dim>· {n}</Dim></span>}
+      </h3>
+      {shown && hint && n > 0 && <p className="mb-2 px-1 text-xs text-dim">{hint}</p>}
+      {shown && (n === 0 ? <p className="rounded-xl border border-dashed border-line px-4 py-3 text-sm text-muted">{empty}</p>
+        : <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{children}</ul>)}
     </section>
   );
 }
