@@ -3,7 +3,7 @@
 // prêtes à être cliquées. Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller sur le PC.
 // Gérés seulement depuis une session admin.
 import { shortOs } from "../lib/osName";
-import { ArrowUpCircle, ChevronDown, ChevronRight, Monitor, MonitorUp, Plus, RefreshCw, RotateCw, Trash2, X } from "lucide-react";
+import { ArrowUpCircle, Check, ChevronDown, ChevronRight, Monitor, MonitorUp, Plus, RefreshCw, RotateCw, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Copyable, Field, NoteLine } from "../components/form";
@@ -295,7 +295,10 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
           <b className="block truncate">{conf?.name ?? a.name}</b>
           <span className="block truncate text-xs text-dim">{ip}</span>
         </span>
-        {a.outdated && <Badge tone="warn" title={tx("Agent v{0} : la v{1} est disponible", a.version ?? "?", a.latest_version ?? "?")}><ArrowUpCircle size={11} aria-hidden />v{a.version}</Badge>}
+        {a.auto_update && <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-ok/60 bg-ok/15 text-ok" title={tx("Mise à jour automatique activée")}><RotateCw size={13} aria-hidden /></span>}
+        {a.outdated
+          ? <Badge tone="warn" title={a.update_requested ? tx("Mise à jour demandée : l'agent se met à jour à son prochain relevé") : tx("Agent v{0} : la v{1} est disponible", a.version ?? "?", a.latest_version ?? "?")}><ArrowUpCircle size={11} aria-hidden />{a.update_requested ? tx("maj demandée") : tx("pas à jour")} · v{a.version}</Badge>
+          : a.version && <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-line text-ok" title={tx("à jour (v{0})", a.version)}><Check size={13} aria-hidden /></span>}
         <Badge tone={tone}>{label}</Badge>
       </button>
       {!folded && <>
