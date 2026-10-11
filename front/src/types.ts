@@ -271,6 +271,7 @@ export interface BackupSet {
   level: string;
   archived: boolean;
   offsite: number;
+  expect_offsite?: boolean;  // false : jeu décrit depuis la page, aucune copie ailleurs n'est exigée
   locations: BackupLocation[];
 }
 
@@ -292,7 +293,7 @@ export interface BackupHost {
 
 export interface Backups {
   generated: string;
-  summary: { ok: number; warn: number; crit: number; sets: number; hosts: number; volume: number; no_offsite: number; local_dirs?: number; local_unlisted?: number };
+  summary: { ok: number; warn: number; crit: number; sets: number; hosts: number; volume: number; no_offsite: number; offsite_unknown?: number; local_dirs?: number; local_unlisted?: number };
   issues: { level: Level; set: string; text: string }[];
   hosts?: BackupHost[];
   sets?: BackupSet[];

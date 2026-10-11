@@ -1015,6 +1015,21 @@ def backups_ha_follow(body: HaFollow, request: Request):
     return backups_call(request, "sauvegarde Home Assistant suivie", body.connector, go)
 
 
+class BackupSetChange(BaseModel):
+    label: str | None = Field(None, max_length=80)
+    max_age_days: float | None = Field(None, ge=0.1, le=365)
+    expect_offsite: bool | None = None
+
+
+@app.patch(API + "/backups/settings/{set_id}", tags=["sauvegardes"], summary="Modifier un jeu suivi : nom, seuil d'âge, copie hors machine exigée (admin)")
+def backups_set_update(set_id: str, body: BackupSetChange, request: Request):
+    def go(b):
+        b.update_set(set_id, body.label, body.max_age_days, body.expect_offsite)
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes")
+        return {"ok": True}
+    return backups_call(request, "sauvegarde modifiée", set_id, go)
+
+
 @app.delete(API + "/backups/settings/{set_id}", tags=["sauvegardes"], summary="Ne plus suivre un jeu de sauvegarde (admin)")
 def backups_unfollow(set_id: str, request: Request):
     def go(b):

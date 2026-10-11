@@ -415,8 +415,9 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
             if src.get("offsite") and src.get("age") is not None:
                 src["detail"] += f", il y a {hage(src['age'])} (seuil {max_age} j)"
             why.append(f"source {src['label']} : " + (f"{Path(old['name']).name} date de {hage(src['age'])} (seuil {max_age} j)" if old else src["detail"]))
+        expect = s.get("expect_offsite", True)  # False : jeu décrit depuis la page (un dossier) sans copie déclarée ailleurs : rien à exiger
         if not archived:
-            if not offsite:
+            if not offsite and expect:
                 cov = s.get("covered_by")
                 lv = "warn" if cov else "crit"
                 level = max(level, lv, key=RANK.get)
@@ -430,7 +431,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
         sets_out.append({"id": s["id"], "label": s["label"], "origin": s["origin"], "origin_label": hosts[s["origin"]]["label"],
                          "schedule": s.get("schedule", ""), "retention": s.get("retention", ""), "max_age_days": max_age,
                          "mode": "each" if each else "latest", "archived": archived, "level": level,
-                         "offsite": len(offsite), "locations": locs, "why": why, "size": src.get("size", 0)})
+                         "offsite": len(offsite), "expect_offsite": expect, "locations": locs, "why": why, "size": src.get("size", 0)})
         for w in why:
             issues.append({"level": level, "set": s["label"], "text": w})
 
@@ -507,7 +508,8 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
             "summary": {k: sum(1 for x in active if x["level"] == k) for k in ("ok", "warn", "crit")}
                        | {"sets": len(active), "archived": len(sets_out) - len(active), "hosts": len(hosts_out),
                           "volume": sum(x["size"] for x in active),
-                          "no_offsite": sum(1 for x in active if not x["offsite"]),
+                          "no_offsite": sum(1 for x in active if not x["offsite"] and x["expect_offsite"]),
+                          "offsite_unknown": sum(1 for x in active if not x["offsite"] and not x["expect_offsite"]),
                           "local_dirs": sum(len(h["local"]) for h in hosts_out),
                           "local_unlisted": sum(1 for h in hosts_out for x in h["local"] if not x["covered"] and x["size"])},
             "crypt_help": meta.get("crypt_help"),

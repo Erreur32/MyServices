@@ -188,6 +188,26 @@ class VeeamAssistant(Base):
         late = backups.analyse(meta, res, {}, now + 3 * 86400)
         self.assertEqual({s["id"]: s["level"] for s in late["sets"]}["veeam-pc-jeu-image"], "warn")
 
+    def test_jeu_sans_copie_attendue_n_alerte_pas_sur_l_absence_de_copie(self):
+        import backups
+        now = datetime.fromisoformat("2026-10-09T12:00:00+02:00").timestamp()
+        meta = {"hosts": [{"id": "srv", "label": "Serveur", "ip": "10.0.0.2", "kind": "machine"}],
+                "sets": [{"id": "page", "label": "Serveur : /home/backup", "origin": "srv", "max_age_days": 8, "expect_offsite": False,
+                          "locations": [{"host": "srv", "path": "/home/backup", "pattern": "*", "depth": 3}]},
+                         {"id": "ancien", "label": "Ancien jeu", "origin": "srv", "max_age_days": 8,
+                          "locations": [{"host": "srv", "path": "/home/backup", "pattern": "*", "depth": 3}]}]}
+        files = [{"name": "a.tgz", "mtime": now - 6 * 86400, "size": 100}]       # hebdomadaire, vu à 6 jours
+        data = {"exists": True, "count": 1, "size": 100, "files": files}
+        res = {"srv": ({"locs": {"page#0": data, "ancien#0": data}, "disks": [], "crons": [], "cron_root": None}, "")}
+        out = backups.analyse(meta, res, {}, now)
+        by = {x["id"]: x for x in out["sets"]}
+        self.assertEqual((by["page"]["level"], by["page"]["why"], by["page"]["expect_offsite"]), ("ok", [], False))
+        self.assertEqual(by["ancien"]["level"], "crit")                           # jeu écrit à la main : la copie hors machine reste exigée
+        self.assertIn("aucune copie hors machine à jour", by["ancien"]["why"])
+        sm = out["summary"]
+        self.assertEqual((sm["no_offsite"], sm["offsite_unknown"]), (1, 1))        # l'un exigé et absent, l'autre simplement non déclaré
+        self.assertEqual([i["set"] for i in out["issues"]], ["Ancien jeu"])        # une seule alerte, pas deux
+
     def test_hote_sans_connecteur_dit_pourquoi(self):
         import backups
         got, err = backups.api_collect(backups.Veeam, {"id": "veeam", "api": "veeam", "connector": "absent"}, "API Veeam")

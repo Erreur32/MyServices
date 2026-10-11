@@ -51,7 +51,7 @@ export function Backups({ snap }: { snap: Snapshot }) {
   const produced = (h: BackupHost) => h.sets.length ? (
     <ul className="flex flex-col gap-1 text-sm">
       {h.sets.map((id) => { const s = sets.get(id); return s && (
-        <li key={id}><Level level={s.level}>{short(s.label)}</Level> <Dim>{s.schedule} · {s.offsite} {tx("copie(s) hors machine")}</Dim></li>
+        <li key={id}><Level level={s.level}>{short(s.label)}</Level> <Dim>{s.schedule} · {s.offsite || s.expect_offsite !== false ? `${s.offsite} ${tx("copie(s) hors machine")}` : tx("copie ailleurs non déclarée")}</Dim></li>
       ); })}
     </ul>
   ) : <Dim>{tx("aucun jeu produit")}</Dim>;
@@ -73,6 +73,7 @@ export function Backups({ snap }: { snap: Snapshot }) {
         <Tile n={sm.ok} label={tx("jeux à jour")} tone="ok" /><Tile n={sm.warn} label={tx("jeux en retard")} tone={sm.warn ? "warn" : undefined} />
         <Tile n={sm.crit} label={tx("jeux critiques")} tone={sm.crit ? "bad" : undefined} />
         <Tile n={sm.no_offsite} label={tx("sans copie hors machine")} tone={sm.no_offsite ? "bad" : "ok"} />
+        {!!sm.offsite_unknown && <Tile n={sm.offsite_unknown} label={tx("copie ailleurs non déclarée")} />}
         <Tile n={bytes(sm.volume)} label={tx("volume des sources")} /><Tile n={sm.hosts} label={tx("machines")} />
       </div>
       <Card>

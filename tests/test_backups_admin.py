@@ -33,6 +33,12 @@ class Base(unittest.TestCase):
             self.addCleanup(p.stop)
         self.addCleanup(self.tmp.cleanup)
 
+    def scan_with(self, out):
+        import backups
+        state = Path(self.tmp.name) / "state" / "auto.json"
+        with mock.patch.object(backups, "run_py", return_value=out):
+            return ba.auto_default(state), state
+
     def item(self, **kw):
         return {"ip": "10.0.0.2", "path": "/home/backup", "label": "Serveur : /home/backup", "max_age_days": 2, **kw}
 
@@ -74,12 +80,6 @@ class Patterns(Base):
 
 
 class AutoDefault(Base):
-    def scan_with(self, out):
-        import backups
-        state = Path(self.tmp.name) / "state" / "auto.json"
-        with mock.patch.object(backups, "run_py", return_value=out):
-            return ba.auto_default(state), state
-
     def test_suit_home_backup_a_la_premiere_lecture_puis_ne_revient_pas(self):
         added, state = self.scan_with((AGENT_OUT, ""))
         self.assertEqual([(a["ip"], a["path"]) for a in added], [("10.0.0.2", "/home/backup")])
@@ -104,6 +104,41 @@ class AutoDefault(Base):
         unreadable = {"local": [{"path": "/home/backup", "size": 1, "newest": 1, "newest_name": "x", "readable": False}]}
         self.assertEqual(self.scan_with((unreadable, ""))[0], [])
         self.assertFalse(self.meta.exists())                    # rien d'écrit
+
+
+class Seuil(Base):
+    def test_seuil_propose_d_apres_l_age_observe(self):
+        self.assertEqual(ba.suggest_age(0.2), 2.0)          # sauvegarde quotidienne
+        self.assertEqual(ba.suggest_age(1.5), 2.0)
+        self.assertEqual(ba.suggest_age(6.3), 8.0)          # hebdomadaire vue à 6 jours : pas critique d'emblée
+        self.assertEqual(ba.suggest_age(7.0), 15.0)         # marge de 25 % : 7 j * 1,25 > 8
+        self.assertEqual(ba.suggest_age(40), 31.0)          # au-delà du dernier palier
+        self.assertEqual(ba.suggest_age(None), 8.0)         # dossier vide
+
+    def test_auto_prend_le_seuil_observe(self):
+        old = {"local": [{"path": "/home/backup", "size": 1, "newest": time_ago(6.3), "newest_name": "x.tgz", "readable": True}]}
+        added, _ = self.scan_with((old, ""))
+        self.assertEqual(len(added), 1)
+        self.assertEqual(json.loads(self.meta.read_text(encoding="utf-8"))["sets"][0]["max_age_days"], 8.0)
+
+    def test_jeu_depuis_la_page_sans_copie_exigee_et_modifiable(self):
+        ba.follow([self.item()])
+        sid = ba.current()["sets"][0]["id"]
+        self.assertFalse(ba.current()["sets"][0]["expect_offsite"])        # dossier simple : aucune copie ailleurs n'est exigée
+        ba.update_set(sid, label="Mon NAS", max_age_days=15, expect_offsite=True)
+        s = ba.current()["sets"][0]
+        self.assertEqual((s["label"], s["max_age_days"], s["expect_offsite"]), ("Mon NAS", 15.0, True))
+        with self.assertRaises(ba.BackupError):
+            ba.update_set("inconnu", label="x")
+        with self.assertRaises(ba.BackupError):
+            ba.update_set(sid, max_age_days=0)
+        with self.assertRaises(ba.BackupError):
+            ba.update_set(sid, label="  ")
+
+
+def time_ago(days):
+    import time
+    return int(time.time() - days * 86400)
 
 
 class Follow(Base):

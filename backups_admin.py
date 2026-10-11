@@ -34,6 +34,7 @@ from connectors.base import ConnectorError, Context
 AGE_MIN, AGE_MAX = 0.1, 365.0
 AGE_DEFAULT = 2.0
 LABEL_MAX = 80
+AGE_STEPS = (2.0, 8.0, 15.0, 31.0)   # seuils proposés : sauvegarde quotidienne, hebdomadaire, tous les 15 jours, mensuelle
 DEPTH = 3  # un dossier de sauvegarde range souvent ses archives dans des sous-dossiers datés
 
 
@@ -124,7 +125,7 @@ def current() -> dict:
         sets.append({"id": s["id"], "label": s.get("label", s["id"]), "origin": hosts.get(s.get("origin"), {}).get("label", s.get("origin", "")),
                      "path": loc.get("path"), "veeam_job": loc.get("veeam_job"), "max_age_days": s.get("max_age_days", 8),
                      "ha": any(l.get("ha_backup") for l in s.get("locations", [])),
-                     "editable": bool(loc.get("path")) and len(s.get("locations", [])) == 1})
+                     "expect_offsite": s.get("expect_offsite", True), "editable": bool(loc.get("path")) and len(s.get("locations", [])) == 1})
     import config
     return {"sets": sets, "exists": _path().exists(), "tab": bool(config.CFG.get("backups_url")),
             "patterns": patterns_of(meta), "default_path": DEFAULT_PATH, "machines": len(_machines()),
@@ -157,6 +158,14 @@ def discover() -> dict:
     return {"machines": found, "patterns": patterns, "at": time.time()}
 
 
+def suggest_age(age_days: float | None) -> float:
+    """Seuil d'alerte proposé d'après l'âge du fichier le plus récent vu au moment de la découverte : le plus petit palier (2, 8, 15, 31 j)
+    qui laisse une marge de 25 %. Une sauvegarde hebdomadaire vue à 6 jours reçoit 8 j au lieu d'être critique d'emblée ; dossier vide : 8 j."""
+    if age_days is None:
+        return 8.0
+    return next((s for s in AGE_STEPS if s >= age_days * 1.25), AGE_STEPS[-1])
+
+
 def auto_default(state_file: Path) -> list[dict]:
     """Première lecture d'une machine par SSH : si le dossier par défaut (/home/backup) existe et est lisible, il est suivi tout de suite
     (nom et âge par défaut). Chaque machine n'est regardée qu'une fois (liste dans `state_file`) : retirer ensuite le jeu ne le fait pas
@@ -174,7 +183,8 @@ def auto_default(state_file: Path) -> list[dict]:
         checked.add(ip)
         hit = next((f for f in res["folders"] if f["path"] == DEFAULT_PATH and f.get("readable", True)), None)
         if hit:
-            follow([{"ip": ip, "path": DEFAULT_PATH, "label": f"{m['name']} : {DEFAULT_PATH}"[:LABEL_MAX], "max_age_days": AGE_DEFAULT}])
+            age = (time.time() - hit["newest"]) / 86400 if hit.get("newest") else None
+            follow([{"ip": ip, "path": DEFAULT_PATH, "label": f"{m['name']} : {DEFAULT_PATH}"[:LABEL_MAX], "max_age_days": suggest_age(age)}])
             added.append({"ip": ip, "name": m["name"], "path": DEFAULT_PATH})
     state_file.parent.mkdir(parents=True, exist_ok=True)
     tmp = state_file.with_suffix(".tmp")
@@ -233,11 +243,30 @@ def follow(items: list[dict]) -> dict:
         n, base = 2, sid
         while sid in taken:
             sid, n = f"{base}-{n}", n + 1
-        meta["sets"].append({"id": sid, "label": label, "origin": hid, "schedule": "", "max_age_days": age,
+        meta["sets"].append({"id": sid, "label": label, "origin": hid, "schedule": "", "max_age_days": age, "expect_offsite": False,   # copie ailleurs : à déclarer (Réglages) pour qu'elle soit exigée
                              "locations": [{"host": hid, "path": path, "pattern": "*", "depth": DEPTH, "via": "dossier"}]})
         added += 1
     _write(meta)
     return {"added": added, "updated": updated}
+
+
+def update_set(set_id: str, label: str | None = None, max_age_days: float | None = None, expect_offsite: bool | None = None) -> None:
+    """Nom, seuil d'âge (jours) et « copie hors machine exigée » d'un jeu déjà suivi."""
+    meta = _read()
+    s = next((x for x in meta.get("sets", []) if x["id"] == set_id), None)
+    if s is None:
+        raise BackupError("jeu inconnu")
+    if label is not None:
+        if not label.strip() or len(label.strip()) > LABEL_MAX:
+            raise BackupError(f"nom : 1 à {LABEL_MAX} caractères")
+        s["label"] = label.strip()
+    if max_age_days is not None:
+        if not AGE_MIN <= float(max_age_days) <= AGE_MAX:
+            raise BackupError(f"âge maximum : de {AGE_MIN:g} à {AGE_MAX:g} jours")
+        s["max_age_days"] = float(max_age_days)
+    if expect_offsite is not None:
+        s["expect_offsite"] = bool(expect_offsite)
+    _write(meta)
 
 
 def unfollow(set_id: str) -> None:

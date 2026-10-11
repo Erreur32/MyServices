@@ -4,7 +4,7 @@
 import { FolderSearch, HardDrive, Loader2, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
-import { NoteLine, TagInput } from "../components/form";
+import { NoteLine, Switch, TagInput } from "../components/form";
 import { Badge, Card, Dim } from "../components/ui";
 import { bytes, dateTime } from "../lib/format";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
@@ -12,7 +12,8 @@ import { tx } from "../lib/i18n";
 import { BackupsHa, type HaState } from "./BackupsHa";
 import { BackupsVeeam, type VeeamState } from "./BackupsVeeam";
 
-interface SetRow { id: string; label: string; origin: string; path: string | null; veeam_job: string | null; max_age_days: number; ha: boolean; editable: boolean }
+interface SetRow { id: string; label: string; origin: string; path: string | null; veeam_job: string | null; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean }
+const AGES = [2, 8, 15, 31];   // paliers proposés : quotidienne, hebdomadaire, tous les 15 jours, mensuelle
 interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; default_path: string; machines: number; veeam: VeeamState; ha: HaState }
 interface Folder { path: string; size: number | null; newest: number | null; newest_name: string; readable: boolean; followed: boolean; default?: boolean }
 interface Found { ip: string; name: string; ssh: string; ok: boolean; error: string; folders: Folder[] }
@@ -24,7 +25,7 @@ export function BackupsSettings() {
   const [cur, setCur] = useState<Current | null>(null), [error, setError] = useState("");
   const [found, setFound] = useState<Found[] | null>(null), [searching, setSearching] = useState(false);
   const [pick, setPick] = useState<Record<string, Choice>>({});
-  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [confirm, setConfirm] = useState("");
+  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [confirm, setConfirm] = useState(""), [busyId, setBusyId] = useState("");
   const [extra, setExtra] = useState<string | null>(null);  // emplacements cherchés en plus du dossier par défaut (null = ceux du serveur)
   const load = useCallback(() => {
     read<Current>("backups/settings").then((c) => { setCur(c); setError(""); })
@@ -46,6 +47,11 @@ export function BackupsSettings() {
       else setNote({ ok: false, text: (e as Error).message });
     }
     setSearching(false);
+  };
+  const change = async (id: string, body: { max_age_days?: number; expect_offsite?: boolean }) => {
+    setBusyId(id);
+    await act(() => send("PATCH", `backups/settings/${id}`, body), tx("jeu modifié : relevé en cours"), setNote);
+    setBusyId(""); load();
   };
   const chosen = Object.entries(pick).filter(([, c]) => c.on);
   const valid = chosen.length > 0 && chosen.every(([, c]) => c.label.trim() && Number(c.age) >= 0.1 && Number(c.age) <= 365);
@@ -84,7 +90,20 @@ export function BackupsSettings() {
                   <b>{s.label}</b>
                   <div className="font-mono text-xs text-dim">{s.path ?? (s.veeam_job ? `Veeam : ${s.veeam_job}` : s.ha ? "Home Assistant" : "—")}</div>
                 </div>
-                <Badge tone="off">{tx("alerte après {0} j", s.max_age_days)}</Badge>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                  <span className="inline-flex flex-wrap items-center gap-1.5 text-xs text-dim" title={tx("Sauvegarde quotidienne : 2 j ; hebdomadaire : 8 j. Au-delà du double, le jeu devient critique.")}>{tx("alerte après")}
+                    {AGES.map((d) => (
+                      <button key={d} type="button" aria-pressed={s.max_age_days === d} disabled={s.id === busyId} onClick={() => void change(s.id, { max_age_days: d })}
+                        className={`rounded-full border px-2 py-0.5 text-xs font-medium ${s.max_age_days === d ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>{d} {tx("j")}</button>
+                    ))}
+                    {!AGES.includes(s.max_age_days) && <Badge tone="info">{s.max_age_days} {tx("j")}</Badge>}
+                  </span>
+                  {!s.ha && !s.veeam_job && (
+                    <span className="inline-flex items-center gap-1.5 text-xs text-dim" title={tx("Activé : une copie à jour sur une autre machine est exigée (sinon le jeu est critique). Désactivé : seule la source est surveillée.")}>
+                      <Switch on={s.expect_offsite} label={tx("Exiger une copie hors machine")} disabled={s.id === busyId} onChange={(on) => void change(s.id, { expect_offsite: on })} />{tx("copie hors machine exigée")}
+                    </span>
+                  )}
+                </div>
                 {confirm === s.id ? <>
                   <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `backups/settings/${s.id}`), tx("sauvegarde retirée"), setNote).then((ok) => { if (ok) { setConfirm(""); load(); } })}>{tx("Confirmer le retrait")}</button>
                   <button type="button" className={quiet} onClick={() => setConfirm("")}>{tx("Annuler")}</button>

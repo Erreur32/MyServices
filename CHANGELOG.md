@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Testing phase: do not use in production.**
 
+### Fixed
+- **Backups: false alarms on folders followed from the page.** A set followed from Settings -> Backups (or automatically for `/home/backup`) used to be critical with "no up-to-date copy outside the machine" because no copy elsewhere had been declared, and critical on age because the threshold was always 2 days even for weekly backups. Now: a set from the page does not require an off-machine copy (`expect_offsite: false`; a switch per set in Settings -> Backups turns the requirement on), the Backups tab counts them as "copy elsewhere not declared" instead of "without copy", and the age threshold is suggested from the age seen at discovery (2, 8, 15 or 31 days, with a 25 % margin) and editable per set (`PATCH /backups/settings/{id}`). Hand-written sets keep requiring an off-machine copy.
+
 ## v0.9.4 (2026-10-11)
 
 > **Testing phase: do not use in production.** Several items below were checked by tests and type-checking only, not yet by eye in a browser.
