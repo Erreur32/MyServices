@@ -629,8 +629,8 @@ def machines_refresh(ip: str, request: Request):
     """Après un changement d'accès ou de réglage : seule cette machine est relue par SSH (les autres restent en cache), puis la
     santé de cette machine seule. Un passage déjà en cours n'est pas doublé : il reprendra le changement au suivant."""
     def go(m):
-        if ip not in m.known_ips():
-            raise m.MachineError("machine inconnue")
+        nonlocal ip
+        ip = m.resolve(ip)   # l'IP, ou le nom de la machine (la page envoie parfois le nom du connecteur)
         m.expire_inventory(ip)
         started = [t for t, args in (("collect", ()), ("health", ("--only", ip))) if core.enabled(t) and core.run_task(t, f"relecture de {ip} (Réglages → Machines)", args)]
         return {"ok": True, "started": started, "busy": not started}

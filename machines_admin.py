@@ -326,12 +326,8 @@ def delete(ip: str) -> None:
 
 def check(ip: str) -> dict:
     """Vérification de setup.py pour cette machine : lignes affichées et nombre d'échecs."""
-    machines = _meta().get("machines", {})
-    if ip not in machines:  # la page envoie le nom du connecteur (= nom de la machine) quand elle n'a pas l'IP
-        ip = next((k for k, v in machines.items() if v.get("name") == ip), ip)
-    m = machines.get(ip)
-    if m is None:
-        raise MachineError("machine inconnue")
+    ip = resolve(ip)
+    m = _meta().get("machines", {})[ip]
     agent_lines, agent_failed = _check_agent(ip, m)
     has_ssh = bool(m.get("ssh") or isinstance(m.get("health"), str))
     if agent_lines and not has_ssh:  # lu par son agent seulement (PC Windows) : rien à tester en SSH
@@ -341,6 +337,16 @@ def check(ip: str) -> dict:
     with contextlib.redirect_stdout(buf):
         setup.check_machine(ip, m, setup.ssh_aliases())
     lines = agent_lines + [ln.strip() for ln in buf.getvalue().splitlines() if ln.strip()]
+    if any("Connection refused" in ln for ln in lines):   # port fermé : ce n'est pas la clé, souvent un sshd sur un autre port
+        port = scan_ssh_port(ip)
+        alias = setup.ssh_aliases().get(ip)
+        used = _alias_port(alias) if alias else None
+        if port and used and port != used:
+            lines.append(f"✗ Le port SSH de l'alias ({used}) est fermé ; la recherche réseau a vu SSH sur le port {port} : corriger le port, puis tester de nouveau")
+            setup.FAILED.append(lines[-1])
+        else:
+            lines.append(f"✗ Connexion refusée au port {used or 22} : sshd n'écoute pas là (ou un pare-feu bloque)")
+            setup.FAILED.append(lines[-1])
     if not setup.FAILED:  # accès SSH qui répond : l'inventaire raté d'avant ne doit pas rester en cache (2 h)
         expire_inventory(ip)
     return {"lines": lines, "failed": len(setup.FAILED) + agent_failed}
@@ -368,12 +374,47 @@ def _check_agent(ip: str, m: dict, store=None) -> tuple[list[str], int]:
     return [f"⚠ {name} : agent créé, aucun relevé reçu : coller la commande d'installation sur le PC (Réglages → Connecteurs → Agents)"], 1
 
 
+def resolve(key: str) -> str:
+    """IP d'une machine d'après son IP ou son nom (la page envoie parfois le nom du connecteur, qui est celui de la machine) ; MachineError sinon."""
+    machines = _meta().get("machines", {})
+    if key in machines:
+        return key
+    hit = [ip for ip, v in machines.items() if v.get("name") == key]
+    if len(hit) != 1:
+        raise MachineError("machine inconnue" if not hit else f"plusieurs machines s'appellent « {key} » : utiliser leur IP")
+    return hit[0]
+
+
+def scan_ssh_port(ip: str) -> int | None:
+    """Port SSH vu par la dernière recherche réseau pour cette IP (None si inconnu)."""
+    try:
+        import config
+        import netscan
+        f = Path(config.CFG["state_dir"]) / "network-scan.json"
+        found = netscan.state(f).get("found", []) if f.exists() else []
+    except Exception:  # noqa: BLE001 : un détail de diagnostic ne casse jamais la vérification
+        return None
+    port = next((h.get("ssh_port") for h in found if h.get("ip") == ip), None)
+    return int(port) if isinstance(port, int) else None
+
+
 def known_ips() -> set[str]:
     """IP des machines déjà déclarées (la recherche réseau ne les ping pas)."""
     return set(_meta().get("machines", {}))
 
 
 _ALIAS_USER = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]{0,31}$")  # Linux (minuscules) comme Windows (Administrateur, Jean.Dupont)
+
+
+def _alias_port(alias: str) -> int | None:
+    """Port d'un alias de la config SSH de l'app (None si illisible)."""
+    try:
+        text = Path(setup.SSH_CONF).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    block = re.search(rf"^Host\s+{re.escape(alias)}\s*$(.*?)(?=^Host\s|\Z)", text, re.M | re.S)
+    m = re.search(r"^\s*Port\s+(\d+)", block.group(1), re.M) if block else None
+    return int(m.group(1)) if m else 22
 
 
 def _set_alias_user(alias: str, user: str, port: int) -> bool:

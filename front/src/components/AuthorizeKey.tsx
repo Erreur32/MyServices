@@ -11,27 +11,31 @@ import type { Connector, SystemState } from "../types";
 import { Copyable, NoteLine } from "./form";
 import { Card } from "./ui";
 
-export function AuthorizeKey({ failing, bare = false, onAccepted, user }: { failing: Connector[]; bare?: boolean; onAccepted?: () => void; user?: string }) {  // user : compte SSH commun aux machines visées (chemin complet de authorized_keys)
+export function AuthorizeKey({ failing, bare = false, onAccepted, user, userOf }: { failing: Connector[]; bare?: boolean; onAccepted?: () => void; user?: string; userOf?: (c: Connector) => string }) {  // user : compte SSH commun ; userOf : compte de chaque machine (une commande par compte)  // user : compte SSH commun aux machines visées (chemin complet de authorized_keys)
   const [cmd, setCmd] = useState<string | null>(null), [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null);
   useEffect(() => {
     read<SystemState>("system").then((s) => setCmd(s.ssh.authorize || null))
       .catch((e) => { if (e instanceof LoginRequired) location.replace(LOGIN); });
   }, []);
   if (!failing.length || !cmd) return null;
+  const keyOf = (c: Connector) => c.ip ?? c.name;   // l'IP : le nom d'un connecteur est celui de la machine, pas son adresse
   const test = async () => {
     setBusy(true);
     await act(async () => {
       const bad: string[] = [];
       for (const c of failing) {
-        const r = await send<{ lines: string[]; failed: number }>("POST", `machines/settings/${c.name}/check`);
-        if (r.failed) bad.push(c.name);
+        const r = await send<{ lines: string[]; failed: number }>("POST", `machines/settings/${encodeURIComponent(keyOf(c))}/check`);
+        const why = r.lines.find((l) => l.startsWith("✗")) ?? r.lines.find((l) => l.startsWith("⚠"));
+        if (r.failed || r.lines.some((l) => l.startsWith("✗") || l.startsWith("⚠"))) bad.push(why ? `${c.name} (${why.replace(/^[✗⚠]\s*/, "")})` : c.name);
       }
-      if (bad.length) throw new Error(tx("toujours illisible : {0}", bad.join(", ")));
+      if (bad.length) throw new Error(tx("toujours illisible : {0}", bad.join(" ; ")));
       onAccepted?.();
-      await rereadMachines(failing.map((c) => c.name));
+      await rereadMachines(failing.map(keyOf));
     }, tx("clé acceptée : relecture lancée, les conteneurs apparaissent dans un instant"), setNote);
     setBusy(false);
   };
+  const groups = new Map<string, Connector[]>();   // compte SSH -> machines : une commande par compte
+  for (const c of failing) { const u = userOf?.(c) ?? user ?? ""; groups.set(u, [...(groups.get(u) ?? []), c]); }
   const names = failing.map((c) => c.name).join(", ");
   const body = (
     <div className="flex flex-col gap-3">
@@ -47,9 +51,14 @@ export function AuthorizeKey({ failing, bare = false, onAccepted, user }: { fail
           {tx("À faire : lancer cette commande sur {0}, avec le compte visé (membre du groupe docker), puis tester.", names)}
         </p>
       </div>
-      <div>
-        <Copyable text={user ? authorizeFor(cmd, user) : cmd} oneLine />
-        <div className="mt-2"><button type="button" className={primary} disabled={busy} onClick={() => void test()}>{busy ? tx("Test…") : tx("Tester")}</button></div>
+      <div className="flex flex-col gap-3">
+        {[...groups].map(([u, cs]) => (
+          <div key={u}>
+            {groups.size > 1 && <p className="mb-1 text-sm text-muted">{tx("Sur")} <b className="text-txt">{cs.map((c) => c.name).join(", ")}</b>{tx(", connecté en")} <b className="text-txt">{u || "root"}</b> :</p>}
+            <Copyable text={u ? authorizeFor(cmd, u) : cmd} oneLine />
+          </div>
+        ))}
+        <div><button type="button" className={primary} disabled={busy} onClick={() => void test()}>{busy ? tx("Test…") : tx("Tester")}</button></div>
         <NoteLine note={note} />
       </div>
     </div>

@@ -56,6 +56,47 @@ class CheckExpiresInventory(unittest.TestCase):
         self.assertEqual(json.loads(self.cache.read_text())["ts"], 1791636409.0)
 
 
+class PortRefuse(unittest.TestCase):
+    """Connexion refusée : ce n'est pas la clé, c'est le port. La vérification le dit, avec le port vu par la recherche réseau."""
+
+    def check(self, alias_port, scanned):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            conf = Path(d) / "config"
+            conf.write_text(f"Host m-10-0-0-1\n    HostName 10.0.0.1\n    User debian32\n    Port {alias_port}\n", encoding="utf-8")
+
+            def fake_check(ip, m, aliases):
+                print("⚠ Serveur (10.0.0.1) : SSH m-10-0-0-1 : ssh: connect to host 10.0.0.1 port 22: Connection refused")
+            with mock.patch.object(machines_admin, "_meta", return_value={"machines": {"10.0.0.1": {"name": "Serveur", "ssh": "m-10-0-0-1"}}}), \
+                    mock.patch.object(machines_admin.setup, "check_machine", fake_check), \
+                    mock.patch.object(machines_admin.setup, "ssh_aliases", return_value={"10.0.0.1": "m-10-0-0-1"}), \
+                    mock.patch.object(machines_admin.setup, "SSH_CONF", str(conf)), \
+                    mock.patch.object(machines_admin, "scan_ssh_port", return_value=scanned):
+                machines_admin.setup.FAILED.clear()
+                return machines_admin.check("Serveur")
+
+    def test_autre_port_vu_par_la_recherche_reseau(self):
+        r = self.check(22, 22232)
+        self.assertEqual(r["failed"], 1)                       # une connexion refusée n'est plus comptée « ça marche »
+        self.assertIn("22232", r["lines"][-1])
+        self.assertIn("corriger le port", r["lines"][-1])
+
+    def test_meme_port_refuse_pas_de_conseil_de_port(self):
+        r = self.check(22, 22)
+        self.assertEqual(r["failed"], 1)
+        self.assertIn("sshd n'écoute pas là", r["lines"][-1])
+
+    def test_resolve_par_nom_ou_ip(self):
+        meta = {"machines": {"10.0.0.1": {"name": "dev"}, "10.0.0.2": {"name": "twin"}, "10.0.0.3": {"name": "twin"}}}
+        with mock.patch.object(machines_admin, "_meta", return_value=meta):
+            self.assertEqual(machines_admin.resolve("dev"), "10.0.0.1")
+            self.assertEqual(machines_admin.resolve("10.0.0.2"), "10.0.0.2")
+            with self.assertRaises(machines_admin.MachineError):
+                machines_admin.resolve("twin")                  # deux machines du même nom : utiliser l'IP
+            with self.assertRaises(machines_admin.MachineError):
+                machines_admin.resolve("inconnue")
+
+
 class IconField(unittest.TestCase):
     def test_icone_choisie_validee_et_gardee(self):
         self.assertEqual(machines_admin._clean({"name": "pc", "icon": "home-assistant"})["icon"], "home-assistant")

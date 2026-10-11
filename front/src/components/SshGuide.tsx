@@ -18,12 +18,14 @@ interface Props {
   user?: string;
   /** système supposé (TTL, scan, réglage) : le choix reste à l'utilisateur */
   guess: Kind;
+  /** port SSH vu par la recherche réseau (sshd n'écoute pas toujours sur 22) : utilisé pour l'alias */
+  port?: number;
   /** l'accès SSH est créé avec le compte donné, puis la machine est enregistrée */
   onReady: (alias: string) => Promise<void>;
   onCancel: () => void;
 }
 
-export function SshGuide({ ip, user: knownUser, guess, onReady, onCancel }: Props) {
+export function SshGuide({ ip, user: knownUser, guess, port, onReady, onCancel }: Props) {
   const [kind, setKind] = useState<Kind>(guess);
   const win = kind === "windows";
   const [user, setUser] = useState(knownUser || "root"), [authorize, setAuthorize] = useState("");
@@ -38,7 +40,7 @@ export function SshGuide({ ip, user: knownUser, guess, onReady, onCancel }: Prop
     setBusy(false);
   };
   const prepare = () => guard(async () => {
-    const r = await send<{ alias: string }>("POST", "machines/ssh-alias", { ip, user });
+    const r = await send<{ alias: string }>("POST", "machines/ssh-alias", { ip, user, ...(port ? { port } : {}) });
     await onReady(r.alias);
     setApplied(user);  // le guide reste ouvert pour tester la connexion
   });

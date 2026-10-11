@@ -10,7 +10,7 @@ import { Field, NoteLine, Switch, TagInput } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { dateTime, ipNum } from "../lib/format";
-import type { AgentInfo, Detection, MachineConf, MachinesSettings as State, NetHost, NetScan, Redetection, RedetectItem } from "../types";
+import type { AgentInfo, Connector, Detection, MachineConf, MachinesSettings as State, NetHost, NetScan, Redetection, RedetectItem } from "../types";
 import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
@@ -49,11 +49,11 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
   const [detecting, setDetecting] = useState(false);
   const [redetecting, setRedetecting] = useState(false);
   // Système vu par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas (suggestion)
-  const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean }>>({});
+  const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean; sshPort?: number }>>({});
   const [hosts, setHosts] = useState<NetHost[]>([]);
   const [agents, setAgents] = useState<Record<string, AgentInfo>>({});  // agent actif par IP
   useEffect(() => { read<{ agents: AgentInfo[] }>("agents").then((r) => setAgents(Object.fromEntries(r.agents.filter((a) => a.state !== "révoqué").map((a) => [a.ip, a])))).catch(() => undefined); }, []);
-  useEffect(() => { read<NetScan>("network/scan").then((n) => { setHosts(n.found || []); setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [], ssh: !!h.ssh_port }]))); }).catch(() => undefined); }, []);
+  useEffect(() => { read<NetScan>("network/scan").then((n) => { setHosts(n.found || []); setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [], ssh: !!h.ssh_port, sshPort: h.ssh_port ?? undefined }]))); }).catch(() => undefined); }, []);
   const reload = useCallback(() => {
     read<State>("machines/settings")
       .then((s) => { setSt(s); setError(""); })
@@ -74,13 +74,13 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
     if (why) unfinished[h.ip] = { why, passed: passed.includes(h.ip) };
   }
   const ips = Object.keys(st.machines).sort((a, b) => ipNum(a) - ipNum(b));
-  // Machines dont la clé n'est pas autorisée ; leur compte SSH, s'il est le même pour toutes, donne le chemin complet de authorized_keys
-  const failingKey = (snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok && !isWindowsConf(Object.values(st.machines).find((x) => x.name === c.name)));
-  const failingUsers = new Set(failingKey.map((c) => { const m = Object.values(st.machines).find((x) => x.name === c.name); return st.aliases.find((al) => al.alias === m?.ssh)?.user ?? "root"; }));
-  const failingUser = failingUsers.size === 1 ? [...failingUsers][0] : undefined;
+  // Machines dont la clé n'est pas autorisée : retrouvées par leur IP (le nom d'un connecteur est celui de la machine, pas son adresse) ; chacune a son compte SSH
+  const machineOf = (c: Connector) => (c.ip ? st.machines[c.ip] : Object.values(st.machines).find((x) => x.name === c.name));
+  const userOf = (c: Connector) => st.aliases.find((al) => al.alias === machineOf(c)?.ssh)?.user || "root";
+  const failingKey = (snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok && !isWindowsConf(machineOf(c)));
   return (
     <div className="flex flex-col gap-4">
-      <div id="authorize-key" className="scroll-mt-24"><AuthorizeKey user={failingUser} failing={failingKey} /></div>
+      <div id="authorize-key" className="scroll-mt-24"><AuthorizeKey userOf={userOf} failing={failingKey} /></div>
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-bold">{tx("Machines")} <Dim>· {ips.length}</Dim></h2>
@@ -256,7 +256,7 @@ function Proposal({ d, st, onDone }: { d: Detection; st: State; onDone: () => vo
 }
 
 function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished, agent }: {
-  agent?: AgentInfo; unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[]; ssh?: boolean }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
+  agent?: AgentInfo; unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[]; ssh?: boolean; sshPort?: number }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
 }) {
   const [open, setOpen] = useState(!!focus), [confirm, setConfirm] = useState(false);  // focus : arrivée depuis un lien (Connecteurs → machine)
   const [icon, setIcon] = useState(m.icon as string | undefined);  // icône choisie dans le formulaire : l'en-tête de la carte la reprend aussitôt
@@ -269,7 +269,8 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
   const linesTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(linesTimer.current), []);
   const sshUser = st.aliases.find((a) => a.alias === m.ssh)?.user || "root";  // compte de l'accès, pour le chemin de authorized_keys
-  const keyMissing = statuses.some((c) => c.type === "docker" && !c.ok);  // accès SSH activé, mais la clé de l'app n'est pas autorisée
+  const keyMissing = statuses.some((c) => c.type === "docker" && !c.ok);  // accès SSH activé, mais la clé de l'app n'est pas autorisée (ou le port est faux)
+  const wrongPort = !!(scan?.sshPort && live?.ssh && scan.sshPort !== live.ssh.port);   // alias sur un autre port que celui où sshd répond
   const goAuthorize = () => document.getElementById("authorize-key")?.scrollIntoView({ behavior: "smooth", block: "start" });
   const state = live ? MSTATE[mState(live)] : null;
   // Les badges viennent du dernier passage de la collecte : après un test réussi, on en lance un (sans bloquer si un passage est déjà en cours)
@@ -288,6 +289,13 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
       else setNote({ ok: false, text: (e as Error).message });
     }
     setBusy(false);
+  };
+  const fixPort = async () => {   // l'alias garde son compte ; seul le port change
+    setBusy(true);
+    await act(() => send("POST", "machines/ssh-alias", { ip, user: sshUser, port: scan?.sshPort }), tx("port corrigé : test en cours"), setNote);
+    setBusy(false);
+    await verify();
+    reload();
   };
   const access = agent ? tx("agent MyServices") : m.os === "windows" ? (m.health ? tx("Windows · santé par {0}", m.health) : tx("Windows · sans agent")) : m.ssh ? `SSH ${m.ssh}` : tx("sans SSH");
   const Chevron = open ? ChevronDown : ChevronRight;
@@ -339,7 +347,16 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
               {lines.map((l, i) => <li key={i} className={l.startsWith("✓") ? "text-ok" : l.startsWith("✗") ? "text-bad" : "text-warn"}>{l}</li>)}
             </ul>
           )}
-          {keyMissing && (
+          {keyMissing && wrongPort && (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
+              <p className="min-w-[240px] flex-1">
+                <b className="text-warn">!</b> {tx("Ce n'est pas la clé : le port SSH est faux. L'accès utilise le port")} <b className="text-txt">{live?.ssh?.port}</b>
+                {tx(", mais la recherche réseau a vu SSH sur le port")} <b className="text-txt">{scan?.sshPort}</b>.
+              </p>
+              <button type="button" className={primary} disabled={busy} onClick={() => void fixPort()}>{tx("Utiliser le port {0}", scan?.sshPort ?? "")}</button>
+            </div>
+          )}
+          {keyMissing && !wrongPort && (
             <div className="flex flex-col gap-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
               <p>
                 <b className="text-warn">!</b> {tx("Action requise : la clé SSH de l'app est refusée pour le compte")} <b className="text-txt">{sshUser}</b>{tx(" sur cette machine, donc Docker n'est pas lisible. Ce n'est pas la clé qui a changé : elle n'est pas (encore) dans les clés autorisées de ce compte.")}
@@ -385,7 +402,7 @@ function OptionGroup({ title, hint, tone, children }: { title: string; hint?: st
 function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, scan, actions, windowsGuess, report, onDone, onIcon, onFollow, agent, connection }: {
   onFollow?: (followed: boolean) => void;  // « Machine suivie » vient d'être enregistrée : la carte de la machine se dégrise (ou se grise)
   onIcon?: (icon: string | undefined) => void;  // l'icône vient d'être enregistrée : la carte de la machine se met à jour
-  scan?: { os?: string; apps: string[]; ssh?: boolean };  // ce que le dernier scan du réseau a vu : aperçu de l'icône automatique
+  scan?: { os?: string; apps: string[]; ssh?: boolean; sshPort?: number };  // ce que le dernier scan du réseau a vu : aperçu de l'icône automatique
   connection?: React.ReactNode;  // ce qui a été lu de la connexion (SSH ou agent), montré dans le cadre « Accès »
   agent?: AgentInfo;  // agent actif de la machine : c'est son accès (Windows), ou une deuxième source de santé à ordonner (avec SSH)
   report?: (n: Note) => void;  // dans une carte de machine : le message s'affiche en haut de la carte
@@ -566,7 +583,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
             {connection}
           </div>
         )}
-        {winGuide && <SshGuide ip={ip} user={known?.user} guess={windows || windowsGuess ? "windows" : "linux"} onCancel={() => setWinGuide(false)}
+        {winGuide && <SshGuide ip={ip} port={scan?.sshPort} user={known?.user} guess={windows || windowsGuess ? "windows" : "linux"} onCancel={() => setWinGuide(false)}
           onReady={(alias) => autoSave("ssh", { os: undefined, ssh: alias, health: undefined })} />}
         {!windows && v.ssh && hasAdguard && (  // seulement si AdGuard a été trouvé sur la machine (ou déjà réglé) : sinon rien à montrer
           <div className="sm:max-w-[50%]">
