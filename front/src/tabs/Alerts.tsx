@@ -302,9 +302,10 @@ function RuleForm({ st, rule, onDone, onCancel }: { st: AlertsState; rule?: Aler
           <input className={input} maxLength={120} placeholder={tx("ex. nas, plex")} value={r.match} onChange={(e) => setR({ ...r, match: e.target.value })} />
         </Field>
         <Field label={tx("Même alerte, au plus une fois en")}>
-          <select className={input} value={r.cooldown_min} onChange={(e) => setR({ ...r, cooldown_min: Number(e.target.value) })}>
-            {COOLDOWNS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={tx("Même alerte, au plus une fois en")}>
+            {COOLDOWNS.map(([v, l]) => <button key={v} type="button" aria-pressed={r.cooldown_min === v} onClick={() => setR({ ...r, cooldown_min: v })}
+              className={`rounded-full border px-2.5 py-1 text-xs font-medium ${r.cooldown_min === v ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>{l}</button>)}
+          </div>
         </Field>
       </div>
       <fieldset>

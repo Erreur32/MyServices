@@ -24,6 +24,10 @@ describe("à surveiller", () => {
     expect(watchItems(machine({ info: null, ssh: null }), undefined)[0]).toMatchObject({ tone: "info", kind: "access" });
   });
 
+  it("machine lue par son agent : pas « sans accès »", () => {
+    expect(watchItems(machine({ info: null, ssh: null, agent: { os: "Windows 11", via: "agent" } }), health())).toEqual([]);
+  });
+
   it("machine non suivie ou éteinte voulue : rien à surveiller", () => {
     expect(watchItems(machine({ disabled: true }), health({ level: "crit", reboot_required: true }))).toEqual([]);
     expect(watchItems(machine({ off: true, ping: false, info: null, ssh: null }), undefined)).toEqual([]);

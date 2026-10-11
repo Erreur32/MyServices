@@ -134,17 +134,38 @@ const WATCH_ICON: Record<WatchKind, LucideIcon> = {
 const WATCH_STYLE: Record<WatchTone, string> = { bad: "border-bad/60 bg-bad/15 text-bad", warn: "border-warn/60 bg-warn/15 text-warn", info: "border-link/50 bg-link/10 text-link" };
 
 /** « À surveiller » : une pastille-icône par sujet, rouge (grave), orange (à regarder) ou bleue (à savoir) ; le détail est dans l'info-bulle. Rien : une coche discrète. */
-function WatchList({ items, wrap = false }: { items: WatchItem[]; wrap?: boolean }) {
+function WatchList({ items, wrap = false }: { items: WatchItem[]; wrap?: boolean }) {   // wrap : libellé « Rien à surveiller » écrit en toutes lettres (fiches)
   if (!items.length) return <span className="inline-flex items-center gap-1 text-xs text-ok" title={tx("Rien à surveiller")}><Check size={14} aria-hidden />{wrap && tx("Rien à surveiller")}</span>;
-  const shown = wrap ? items : items.slice(0, 5);
   return (
-    <div className={`flex items-center gap-1 ${wrap ? "flex-wrap" : ""}`} role="list" aria-label={tx("À surveiller")}>
-      {shown.map((it, i) => {
+    <div className="flex flex-wrap items-center gap-1" role="list" aria-label={tx("À surveiller")}>   {/* tout est montré, jamais caché : les pastilles passent à la ligne */}
+      {items.map((it, i) => {
         const Icon = WATCH_ICON[it.kind];
         return <span key={i} role="listitem" tabIndex={0} title={it.text} className={`grid h-7 w-7 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`}><Icon size={14} aria-hidden /></span>;
       })}
-      {items.length > shown.length && <span className="text-xs text-dim" title={items.slice(shown.length).map((x) => x.text).join("\n")}>+{items.length - shown.length}</span>}
     </div>
+  );
+}
+
+/** Synthèse de « À surveiller », dépliable : une ligne par sujet avec son icône, sa couleur et sa phrase complète (repliée : le nombre par gravité) */
+function WatchSummary({ items }: { items: WatchItem[] }) {
+  const count = (t: WatchTone) => items.filter((i) => i.tone === t).length;
+  return (
+    <details open={worst(items) >= 2} className="group rounded-lg border border-line/60 bg-card/60 p-3 text-xs sm:col-span-2 xl:col-span-3">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-dim [&::-webkit-details-marker]:hidden">
+        <ChevronRight size={13} className="shrink-0 transition-transform group-open:rotate-90" aria-hidden /><Eye size={13} aria-hidden />{tx("À surveiller")}
+        <span className="ml-auto flex items-center gap-1.5 normal-case tracking-normal">
+          {items.length === 0 ? <Badge tone="ok">{tx("rien")}</Badge> : (["bad", "warn", "info"] as WatchTone[]).filter(count).map((t) => <Badge key={t} tone={t === "info" ? "info" : t}>{count(t)}</Badge>)}
+        </span>
+      </summary>
+      {items.length === 0 ? <p className="mt-2 text-ok">{tx("Rien à surveiller sur cette machine.")}</p> : (
+        <ul className="mt-2 flex flex-col gap-1.5">
+          {items.map((it, i) => {
+            const Icon = WATCH_ICON[it.kind];
+            return <li key={i} className="flex items-start gap-2"><span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`}><Icon size={13} aria-hidden /></span><span className="min-w-0 flex-1 pt-0.5 text-muted">{it.text}</span></li>;
+          })}
+        </ul>
+      )}
+    </details>
   );
 }
 
@@ -226,13 +247,14 @@ function HealthRows({ h }: { h: HealthHost }) {
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, from }: { m: Machine; h?: HealthHost; mac?: string; from: ReturnType<typeof originsOf> }) {
+function Detail({ m, h, mac, from, watch }: { m: Machine; h?: HealthHost; mac?: string; from: ReturnType<typeof originsOf>; watch: WatchItem[] }) {
   const roles = rolesOf(m.role), i = m.info, hw = hardwareRows(m.agent?.hardware), s = m.ssh;
   const [stTone, stLabel, stTip] = MSTATE[mState(m)];
   const vhosts = (i?.vhosts ?? []) as { port?: number; names?: string[] }[];
   const failed = h?.systemd?.failed.length || 0, apt = h?.apt?.upgradable || 0;
   return (
     <div className="grid gap-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
+      <WatchSummary items={watch} />
       <Section icon={IdCard} title={tx("Identité")} from={[...from.role, ...from.mac]}>
         <Row k={tx("Nom")}><b>{m.name}</b></Row>
         <Row k="IP"><span className="font-mono">{m.ip}</span></Row>
@@ -400,7 +422,7 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
                       <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
                     
                   </tr>
-                  {shown && <tr className={`bg-bg2/40 ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} mac={macOf(m)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} /></td></tr>}
+                  {shown && <tr className={`bg-bg2/40 ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} /></td></tr>}
                 </Fragment>
               );
             })}
