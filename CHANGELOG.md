@@ -9,6 +9,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+> **Testing phase: do not use in production.**
+
+## v0.9.4 (2026-10-11)
+
 > **Testing phase: do not use in production.** Several items below were checked by tests and type-checking only, not yet by eye in a browser.
 
 ### Added

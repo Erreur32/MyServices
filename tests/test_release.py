@@ -69,7 +69,8 @@ class Release(unittest.TestCase):
             release.apply(self.root, "0.9.4", dt.date.today())
 
     def test_incoherence_detectee(self):
-        (self.root / "README.md").write_text((self.root / "README.md").read_text(encoding="utf-8").replace("`:0.9.3`", "`:0.9.0`"), encoding="utf-8")
+        cur = release.current(self.root)
+        (self.root / "README.md").write_text((self.root / "README.md").read_text(encoding="utf-8").replace(f"`:{cur}`", "`:0.0.1`"), encoding="utf-8")   # indépendant de la version du moment
         self.assertTrue(any("README.md" in p for p in release.check(self.root)))
 
 

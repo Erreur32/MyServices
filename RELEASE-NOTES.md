@@ -1,36 +1,37 @@
-# Notes de version : MyServices 0.9.3
+# Notes de version : MyServices 0.9.4
 
 > **Phase de test : ne pas mettre en production.** Essayez MyServices sur une machine ou un réseau de test, et gardez une copie de `config/` et `data/` avant de mettre à jour.
 
-**0.9.3** (11 octobre 2026) ajoute cinq nouveaux « connecteurs » (MyServices sait lire cinq outils de plus) et améliore la page des agents.
+**0.9.4** (11 octobre 2026) est une grosse mise à jour : l'historique est refait, de nouveaux écrans (schémas, notifications, À propos) apparaissent, et les pages Machines et Santé deviennent bien plus lisibles. Elle reprend aussi la version 0.9.3, qui n'avait pas été publiée à part (cinq nouveaux connecteurs : Proxmox, Proxmox Backup Server, MynetworK, LogviewR, Dockhand).
 
 ## Pour tout le monde
 
 **Quoi de neuf ?**
-- **Proxmox** : MyServices voit vos machines virtuelles et conteneurs (en marche ou arrêtés), l'état de chaque serveur Proxmox, l'espace des stockages et la dernière sauvegarde. **Proxmox Backup Server** : l'espace de vos magasins de sauvegardes et l'âge de la dernière sauvegarde.
-- **MynetworK** : MyServices reprend l'inventaire de votre réseau (adresse, fabricant, en ligne ou non). Dans l'onglet Machines, chaque machine montre son adresse MAC et son fabricant, et une liste repliable montre les appareils que MynetworK voit mais que vous ne suivez pas encore.
-- **LogviewR** : un nouvel onglet **Fail2ban** apparaît dès que LogviewR est relié : les prisons, les bannissements des dernières 24 heures et les menaces en cours.
-- **Dockhand** : vos environnements Docker, le nombre de conteneurs et les mises à jour d'images en attente.
-- Une section « Virtualisation et conteneurs » dans l'onglet Santé réunit Proxmox, Proxmox Backup Server et Dockhand.
-- **Icônes** pour ces outils, Veeam et Web-Check.
-- **Page des agents** : les groupes et chaque carte d'agent se replient (un agent qui va bien est replié d'office, les groupes vides aussi et passent en bas), plus d'espace entre les groupes ; les **agents révoqués** ont leur groupe avec un bouton « Nouvel agent » et un bouton « Supprimer ».
-- Réglages → Connecteurs : la page se rouvre sur le dernier sous-onglet utilisé ; un connecteur qui marche n'affiche plus qu'une coche verte, un connecteur en panne montre son message.
-- **Version affichée** : le numéro de version apparaît dans l'en-tête, à côté du titre.
-- **Correction** : Home Assistant affichait à tort « pas encore lu » alors qu'il était bien lu.
+- **Historique refait** : choisissez votre graphique, en **points** (un point par événement, à son heure exacte), en **barres**, en **courbe** ou en **carte de chaleur**. Il y a un axe du nombre d'événements avec des repères en pointillés, et chaque ligne dit ce qui l'a détectée (ping, SSH, santé…) et ce qui l'a lue.
+- **Machines et Santé plus lisibles** : une seule ligne par machine (plus de défilement horizontal), un détail qui se déplie, l'icône du système (Debian, Ubuntu, Windows…), un affichage **Cartes ou Tableau** que l'application retient. Chaque information dit d'où elle vient, avec un lien vers le réglage concerné.
+- **Un PC souvent éteint ne disparaît plus** de la Santé : sa fiche reste en grisé (« éteinte (voulu) »), et revient en couleurs dès qu'il se rallume.
+- **Schémas** : un onglet réunit la carte du réseau, « qui lit quoi », l'accès aux machines, la chaîne d'alertes et les sauvegardes. Ils sont générés avec Archify.
+- **Notifications** : en plus des alertes, vous composez vos messages : un **rapport de vos machines** à heure fixe (les capteurs de votre choix) ou les **événements en direct** d'un service ou d'une machine, sur Discord, Telegram ou un webhook. Six exemples prêts à essayer.
+- **À propos** : version installée, dernière version publiée sur GitHub, journal des changements.
+- **Découvertes** : l'application dit enfin ce qui se fait tout seul et ce qui demande un clic. Le dossier `/home/backup` est suivi automatiquement.
+- **Services mieux reconnus** : 34 applications de plus (Pi-hole, Nextcloud, Gitea…), reconnues sans SSH.
+- **Réglages plus clairs** : clé SSH masquée avec un œil pour l'afficher, comptes et journal d'audit en boutons, choix d'icône de machine avec 118 icônes de plus, nouveau logo en grille.
 
 **Ce qu'il faut savoir**
-- Les cinq nouveaux connecteurs n'ont été essayés que contre de faux serveurs : dites-nous si quelque chose ne marche pas avec les vrais.
-- Il faut créer un jeton de lecture dans chaque outil (le formulaire du connecteur explique où). MyServices ne fait que lire.
-- Rien n'est modifié sur vos machines.
+- Une grande partie de ces écrans a été vérifiée par les tests, **pas encore à l'œil** : dites-nous ce qui ne va pas.
+- **L'agent Windows doit être réinstallé** pour profiter de la version 5 (il réessaie après un démarrage, quand le réseau n'est pas prêt).
+- Les connecteurs de la 0.9.3 n'ont été essayés que contre de faux serveurs ; il faut créer un jeton de lecture dans chaque outil.
+- Rien n'est modifié sur vos machines : MyServices ne fait que lire.
 
 **Mettre à jour** : `docker compose pull`, puis `docker compose up -d`. Vos réglages et vos données sont gardés.
 
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.9.3` (amd64 et arm64) ; `:latest` suit le dernier tag.
-- **Connecteurs** (`connectors/`) : `proxmox` et `proxmox-backup` (jeton d'API `PVEAPIToken` / `PBSAPIToken`, rôle d'audit, certificat auto-signé accepté par défaut), `mynetwork` (jeton API `mwk_api_…`, GET seulement), `logviewr` (MCP `POST /mcp`, jeton lecture seule, 5 outils de lecture uniquement), `dockhand` (jeton `dh_…`).
-- **Nouveaux apports** : `network`, `security`, `containers`, `virtualization`, écrits dans `data.json`.
-- **API** : `DELETE /agents/{id}/purge` (agent déjà révoqué seulement).
-- **Correction** : l'état des connecteurs `status` était copié dans `data.json` avant leur lecture.
-- **Tests** : 335 Python, 53 front.
+- **Image** : `ghcr.io/erreur32/myservices:0.9.4` (amd64 et arm64) ; `:latest` suit le dernier tag.
+- **Nouveaux modules** : `notifications.py` (rapports et événements filtrés, sur les canaux des alertes), `discoveries.py`, `about.py` (version GitHub lue côté serveur, gardée 6 h, `update_check: false` pour couper), `diagram_nav.py`, `last_known.py`, `scripts/release.py` (une version, partout).
+- **API** : `/notifications`, `/discoveries`, `/diagrams`, `/about`, `/backups/patterns` ; `GET /tasks` renvoie `label`, `at`, `next`.
+- **Santé** : `stats.json` porte une liste `asleep` (postes souvent éteints) ; un ping ciblé chaque minute et chaque relevé d'agent relisent la machine concernée.
+- **Collecte** : empreinte HTTP (en-têtes, noms de cookies, jamais leurs valeurs) pour reconnaître les applis ; dernière identification connue gardée quand un backend tombe.
+- **Agent Windows v5** : réessais pendant environ 6 minutes après un démarrage, délai de 30 s, déclencheur à l'ouverture de session.
+- **Tests** : 385 Python, 82 front.
 - **Détail complet** (en anglais) : [CHANGELOG.md](CHANGELOG.md).
