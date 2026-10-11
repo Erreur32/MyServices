@@ -1738,4 +1738,12 @@ export const EN: Record<string, string> = {
   "Compte NPM (e-mail)": "NPM account (e-mail)",
   "Mot de passe NPM": "NPM password",
   "Installer": "Install",
+  "Installation": "Setup",
+  "Tableau de bord": "Dashboard",
+  "Les premiers pas sont terminés.": "The first steps are done.",
+  "Aller au tableau de bord": "Go to the dashboard",
+  "Les rouvrir": "Reopen them",
+  "Presque fini : il reste à relier vos outils.": "Almost done: your tools are left to connect.",
+  "L'installation n'est pas terminée.": "Setup is not finished.",
+  "Continuer": "Continue",
 };

@@ -60,3 +60,7 @@ body {
 @keyframes saved-pop { 0% { opacity: 0; transform: scale(.6) translateX(-4px); } 25% { opacity: 1; transform: scale(1.12); } 40% { transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
 .saved-pop { animation: saved-pop 1.8s ease-out forwards; }
 @media (prefers-reduced-motion: reduce) { .saved-pop { animation: none; } }
+
+/* Standalone setup page (#setup): everything a notch bigger than the dashboard */
+.setup-big .text-sm { font-size: 1rem; line-height: 1.5rem; }
+.setup-big .text-xs { font-size: 0.875rem; line-height: 1.25rem; }

@@ -123,7 +123,11 @@ function AllConnectors({ tools }: { tools: { type: string; label: string }[] }) 
   );
 }
 
-export function FirstSteps({ snap }: { snap: Snapshot }) {
+/** Session flag: a fresh install lands on the setup page once; after that the home page only shows a banner */
+const LANDED = "myservices-setup-landed";
+
+/** page = the standalone setup page (#setup); otherwise the home page, where only a banner points to it */
+export function FirstSteps({ snap, page = false }: { snap: Snapshot; page?: boolean }) {
   const [sys, setSys] = useState<SystemState | null>(null);
   const [tools, setTools] = useState<{ type: string; label: string }[]>([]);   // every tool MyServices can read, for the folded list under the connectors step
   const [, bump] = useState(0);
@@ -147,7 +151,24 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
   const skipped = skippedSteps(fp);
   const skip = (id: StepId) => { setSkipped(fp, id, true); bump((n) => n + 1); };
   const resume = (id: StepId) => { setSkipped(fp, id, false); bump((n) => n + 1); };
-  if (!admin || !sys || !(saved === "open" || (failing.length > 0 && saved !== "closed"))) return null;
+  const active = admin && !!sys && (saved === "open" || (failing.length > 0 && saved !== "closed"));
+  useEffect(() => {
+    if (page || !active || sessionStorage.getItem(LANDED)) return;
+    sessionStorage.setItem(LANDED, "1");
+    location.hash = "setup";
+  }, [page, active]);
+  if (!active) {
+    if (!page || !sys) return page ? <p className="p-8 text-muted">{tx("Chargement…")}</p> : null;
+    return (
+      <section className="rounded-2xl border border-line bg-card p-8 text-center">
+        <p className="text-lg font-semibold">{tx("Les premiers pas sont terminés.")}</p>
+        <p className="mt-4 flex flex-wrap items-center justify-center gap-3">
+          <a className={primary} href="#">{tx("Aller au tableau de bord")}</a>
+          <button type="button" className={`${button} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`} onClick={() => { saveState(fp, "open"); bump((n) => n + 1); }}>{tx("Les rouvrir")}</button>
+        </p>
+      </section>
+    );
+  }
 
   // Clé acceptée : la carte le montre tout de suite, sans attendre la fin du scan. Si le scan se termine et que
   // Docker reste illisible, l'étape se rouvre.
@@ -173,7 +194,19 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
   const sConn: State = !proposals.length && linked.length ? "done" : keyDone && proposals.length && !skipped.includes("connectors") ? "now" : "next";
   const doneCount = 2 + (keyDone ? 1 : 0) + (sRelev === "done" ? 1 : 0) + (sConn === "done" ? 1 : 0);   // account and host are always done; the network search is optional
   const total = 6;
-  const close = () => { saveState(fp, "closed"); bump((n) => n + 1); };
+  const close = () => { saveState(fp, "closed"); bump((n) => n + 1); if (page) location.hash = ""; };
+  if (!page)
+    return (
+      <a href="#setup" className={`flex flex-wrap items-center gap-3 rounded-2xl border bg-card px-5 py-3.5 no-underline shadow-sm transition-colors hover:border-link ${finished ? "border-ok/50" : "border-warn/50"}`}>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-bg2"><Rocket size={20} className={finished ? "text-ok" : "text-warn"} aria-hidden /></span>
+        <span className="min-w-0 flex-1">
+          <b className="block text-lg leading-tight text-txt">{tx("Premiers pas")}</b>
+          <span className="text-sm text-muted">{finished ? tx("Presque fini : il reste à relier vos outils.") : tx("L'installation n'est pas terminée.")}</span>
+        </span>
+        <span className="font-mono text-sm font-bold text-txt">{doneCount}/{total}</span>
+        <span className={`${primary} pointer-events-none`}>{tx("Continuer")}<ArrowRight size={14} aria-hidden /></span>
+      </a>
+    );
   return (
     <section className={`relative overflow-hidden rounded-2xl border bg-card shadow-sm transition-colors duration-700 ${finished ? "border-ok/50" : "border-warn/50"}`}>
       <header className={`flex flex-wrap items-center gap-3 px-5 py-3.5 ${finished ? "bg-ok/10" : "bg-warn/10"}`}>
