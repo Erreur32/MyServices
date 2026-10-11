@@ -54,6 +54,7 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
   const [agents, setAgents] = useState<Record<string, AgentInfo>>({});  // agent actif par IP
   useEffect(() => { read<{ agents: AgentInfo[] }>("agents").then((r) => setAgents(Object.fromEntries(r.agents.filter((a) => a.state !== "révoqué").map((a) => [a.ip, a])))).catch(() => undefined); }, []);
   useEffect(() => { read<NetScan>("network/scan").then((n) => { setHosts(n.found || []); setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [], ssh: !!h.ssh_port, sshPort: h.ssh_port ?? undefined }]))); }).catch(() => undefined); }, []);
+  const [accepted, setAccepted] = useState<{ gen: string; ips: string[] }>({ gen: "", ips: [] });   // clés acceptées depuis le dernier passage : la carte se retire sans attendre le suivant
   const reload = useCallback(() => {
     read<State>("machines/settings")
       .then((s) => { setSt(s); setError(""); })
@@ -77,7 +78,6 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
   // Machines dont la clé n'est pas autorisée : retrouvées par leur IP (le nom d'un connecteur est celui de la machine, pas son adresse) ; chacune a son compte SSH
   const machineOf = (c: Connector) => (c.ip ? st.machines[c.ip] : Object.values(st.machines).find((x) => x.name === c.name));
   const userOf = (c: Connector) => st.aliases.find((al) => al.alias === machineOf(c)?.ssh)?.user || "root";
-  const [accepted, setAccepted] = useState<{ gen: string; ips: string[] }>({ gen: "", ips: [] });   // clés acceptées depuis le dernier passage : la carte se retire sans attendre le suivant
   const hidden = accepted.gen === snap.data.generated ? accepted.ips : [];
   const failingKey = (snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok && !isWindowsConf(machineOf(c)) && !hidden.includes(c.ip ?? c.name));
   return (
