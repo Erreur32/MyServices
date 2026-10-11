@@ -51,7 +51,9 @@ l'API des outils que vous utilisez déjà (ou la machine elle-même par SSH), re
 
 ```bash
 mkdir -p /opt/myservices && cd /opt/myservices
-curl -fsSLo compose.yaml https://raw.githubusercontent.com/Erreur32/MyServices/docker/deploy/compose.example.yaml
+curl -fsSLo docker-compose.yaml https://raw.githubusercontent.com/Erreur32/MyServices/docker/deploy/compose.example.yaml
+# facultatif : changer le port (8090 par défaut), voir la note plus bas
+curl -fsSLo .env https://raw.githubusercontent.com/Erreur32/MyServices/docker/deploy/env.example && nano .env      # modifier MYSERVICES_PORT
 docker compose up -d
 docker compose logs myservices        # clé publique de l'app et commande pour l'autoriser sur l'hôte
 ```
@@ -59,7 +61,7 @@ docker compose logs myservices        # clé publique de l'app et commande pour 
 Puis ouvrez **`http://<IP>:8090/`** **dans les 30 minutes** pour créer le compte admin (passé ce délai :
 `docker compose restart myservices`), et suivez la carte **« Premiers pas »**, puis la page **Aide** des Réglages.
 
-> **L'application écoute sur le port `8090`.** C'est un réglage, pas une valeur figée : si le 8090 est déjà pris sur votre machine, mettez **`MYSERVICES_PORT=8095`** (ou un autre port libre) dans un fichier `.env` à côté de `compose.yaml` (un exemple est dans [`deploy/env.example`](deploy/env.example)), puis lancez `docker compose up -d` et ouvrez `http://<IP>:8095/`. Le conteneur utilise le réseau de l'hôte : modifier un `ports:` ne servirait à rien.
+> **L'application écoute sur le port `8090`.** C'est un réglage, pas une valeur figée : si le 8090 est déjà pris sur votre machine, mettez **`MYSERVICES_PORT=8095`** (ou un autre port libre) dans un fichier `.env` à côté de `docker-compose.yaml` (exemple : [`deploy/env.example`](deploy/env.example), téléchargé par le second `curl` ci-dessus), puis lancez `docker compose up -d` et ouvrez `http://<IP>:8095/`. Le conteneur utilise le réseau de l'hôte : modifier un `ports:` ne servirait à rien.
 
 Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.10.1` une version précise, `:docker` le dernier état de la branche.
 Mise à jour : `docker compose pull && docker compose up -d` (réglages et données restent dans les volumes `./config` et `./data`).

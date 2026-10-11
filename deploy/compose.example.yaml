@@ -1,7 +1,8 @@
 # MyServices v2 : exemple de docker compose, prêt à l'emploi.
 #
 #   mkdir -p /opt/myservices && cd /opt/myservices
-#   curl -fsSLo compose.yaml https://raw.githubusercontent.com/Erreur32/MyServices/docker/deploy/compose.example.yaml
+#   curl -fsSLo docker-compose.yaml https://raw.githubusercontent.com/Erreur32/MyServices/docker/deploy/compose.example.yaml
+#   curl -fsSLo .env https://raw.githubusercontent.com/Erreur32/MyServices/docker/deploy/env.example     # optional: to change the port (MYSERVICES_PORT)
 #   docker compose up -d
 #   docker compose logs myservices      # clé publique de l'app + commande pour l'autoriser sur l'hôte
 #
