@@ -4,7 +4,7 @@ import { Bell, BellOff, Boxes, Check, ChevronRight, Hand, HardDrive, Network, Pl
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { dateTime } from "../lib/format";
-import { act, quiet, type Note } from "../lib/forms";
+import { act, button, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { openConnector } from "../lib/connectorPrefill";
 import type { Machine } from "../types";
@@ -52,7 +52,7 @@ function MuteButton({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
   const mute = !x.muted;
   return (
     <>
-      <button type="button" className={quiet} onClick={() => void act(() => send("PUT", "discoveries/muted", { id: x.id, muted: mute }), mute ? tx("rappel coupé : il reste listé ici") : tx("rappel rétabli"), setNote).then(() => reload())}
+      <button type="button" className={`${button} border-line bg-bg2 text-txt hover:border-link`} onClick={() => void act(() => send("PUT", "discoveries/muted", { id: x.id, muted: mute }), mute ? tx("rappel coupé : il reste listé ici") : tx("rappel rétabli"), setNote).then(() => reload())}
         title={mute ? tx("Ne plus compter cette découverte dans la cloche ni sur l'accueil ; elle reste ici, vous pouvez la réafficher") : undefined}>
         {mute ? <BellOff size={13} aria-hidden /> : <Bell size={13} aria-hidden />}{mute ? tx("Ne plus me le rappeler") : tx("Réafficher le rappel")}
       </button>
@@ -63,11 +63,11 @@ function MuteButton({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
 
 function Action({ a, reload }: { a: NonNullable<DiscoveryItem["action"]>; reload: () => void }) {
   const [note, setNote] = useState<Note>(null);
-  if (a.prefill) return <button type="button" className={quiet} onClick={() => openConnector(a.prefill!)}><Settings2 size={13} aria-hidden />{a.label}<ChevronRight size={14} aria-hidden /></button>;   // le connecteur s'ouvre déjà rempli
-  if (a.href) return <a href={a.href} className={`${quiet} no-underline`}>{a.label}<ChevronRight size={14} aria-hidden /></a>;
+  if (a.prefill) return <button type="button" className={primary} onClick={() => openConnector(a.prefill!)}><Settings2 size={13} aria-hidden />{a.label}<ChevronRight size={14} aria-hidden /></button>;   // le connecteur s'ouvre déjà rempli
+  if (a.href) return <a href={a.href} className={`${primary} no-underline`}>{a.label}<ChevronRight size={14} aria-hidden /></a>;
   return (
     <>
-      <button type="button" className={quiet} onClick={() => void act(() => send("POST", `system/tasks/${a.run}/run`), tx("lancé"), setNote).then(() => reload())}><Play size={13} aria-hidden />{a.label}</button>
+      <button type="button" className={primary} onClick={() => void act(() => send("POST", `system/tasks/${a.run}/run`), tx("lancé"), setNote).then(() => reload())}><Play size={13} aria-hidden />{a.label}</button>
       <NoteLine note={note} />
     </>
   );

@@ -10,6 +10,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ## Unreleased (next version, not tagged yet)
 
 ### Changed
+- **Discovery cards**: the action button ("Search now"…) uses the active accent colour and "Stop reminding me" a visible bordered style, instead of the faint grey.
+
+### Changed
 - **Settings → Discovery in three sub-tabs** (Network and machines, Services and apps, Backups), each with its own cards (title, mode, what it does, last / next time, buttons) and a count of what is to do; the sub-tab opens on the first family with something to do. The network settings (found machines, search, networks, ignored devices) sit in the first sub-tab.
 - **"Machines added: access to set" only lists machines whose access is still to set**; the ones that are fine move to "already added".
 
