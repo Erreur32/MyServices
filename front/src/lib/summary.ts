@@ -179,7 +179,7 @@ function historyParagraph(events: Event[], labels: Record<string, string>, now: 
   for (const e of recent) kinds.set(e.kind, [...(kinds.get(e.kind) || []), e.label || e.machine || "?"]);
   const parts = [...kinds].sort((a, b) => b[1].length - a[1].length)
     .map(([k, who]) => `${who.length} × ${(labels[k] || k).replace(/^\S+\s/, "").toLowerCase()} (${names([...new Set(who)])})`);
-  return { tab: "history", title: tx("Dernières 24 h"), sentences: [tx("{0} : {1}.", plural(recent.length, "événement"), parts.join(tx(" ; ")))] };
+  return { tab: "history", title: tx("Dernières 24 h"), sentences: [tx("{0} :", plural(recent.length, "événement")), ...parts] };  // en liste : une ligne par type
 }
 
 /** Paragraphes dans l'ordre des onglets ; un onglet sans données n'en a pas. */

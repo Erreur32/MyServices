@@ -148,25 +148,54 @@ function OsShort({ m }: { m: Machine }) {
   return os ? <span className="block max-w-[15rem] truncate" title={os}>{os}</span> : <Dim>—</Dim>;
 }
 
-/** Ligne dépliée à la demande : tout ce que le tableau garde sur une seule ligne */
-function Detail({ m, mac }: { m: Machine; mac?: string }) {
+/** Origine d'une donnée : le connecteur ou la source qui l'a lue (rouge si en panne) */
+export interface Origin { label: string; ok?: boolean; tip?: string }
+
+/** D'où viennent les données de la machine : SSH, agent, recherche réseau, MynetworK, Beszel et connecteurs visant son IP */
+function originsOf(m: Machine, snap: Snapshot, h: HealthHost | undefined, scanned: boolean, seen: boolean) {
+  const linked = (types: string[]): Origin[] => (snap.data.connectors ?? []).filter((c) => c.ip === m.ip && types.includes(c.type))
+    .map((c) => ({ label: c.type === "docker" ? "Docker (SSH)" : c.type === "process" ? tx("Ports (SSH)") : "AdGuard Home", ok: c.ok, tip: `${c.name} : ${c.message}` }));
+  const health: Origin[] = (h?.sources ?? []).map((x) => ({ label: x === "ssh" ? "SSH" : x === "agent" ? tx("agent MyServices") : x === "beszel" ? "Beszel" : x }));
+  return {
+    role: [{ label: tx("Réglages → Machines") }] as Origin[],
+    mac: seen ? [{ label: "MynetworK" }] : [],
+    ssh: m.ssh ? [{ label: tx("alias SSH de MyServices") }] : [],
+    os: m.info?.os ? [{ label: "SSH" }] : m.agent ? [{ label: tx("agent MyServices") }] : scanned ? [{ label: tx("recherche réseau") }] : [],
+    services: [...(m.npm ? [{ label: "NPM" }] : []), ...linked(["docker", "process", "adguard"])],
+    health,
+  };
+}
+
+function From({ list }: { list: Origin[] }) {
+  if (!list.length) return null;
+  return (
+    <span className="flex flex-wrap items-center gap-1 text-[11px] font-normal normal-case tracking-normal text-dim">
+      {tx("source")} : {list.map((o) => <Badge key={o.label} tone={o.ok === false ? "bad" : "info"} title={o.tip}>{o.label}</Badge>)}
+    </span>
+  );
+}
+
+/** Ligne dépliée à la demande : tout ce que le tableau garde sur une seule ligne, avec l'origine de chaque donnée */
+function Detail({ m, mac, from }: { m: Machine; mac?: string; from: ReturnType<typeof originsOf> }) {
   const roles = rolesOf(m.role);
   const box = "flex flex-col gap-1 text-xs";
   const title = "font-semibold uppercase tracking-wide text-dim";
   return (
     <div className="grid gap-x-6 gap-y-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-4">
       <div className={box}><span className={title}>{tx("Rôle")}</span>
-        <span className="flex flex-wrap gap-1">{roles.length ? roles.map((t) => <Badge key={t} tone="off">{t}</Badge>) : <Dim>—</Dim>}</span>
-        {mac && <span className="font-mono text-[11px] text-dim" title={tx("Vu par MynetworK")}>{mac}</span>}</div>
-      <div className={box}><span className={title}>{tx("SSH")}</span><Ssh m={m} /></div>
-      <div className={box}><span className={title}>{tx("Clé utilisée")}</span><KeyCell m={m} /></div>
+        <span className="flex flex-wrap gap-1">{roles.length ? roles.map((t) => <Badge key={t} tone="off">{t}</Badge>) : <Dim>—</Dim>}</span><From list={from.role} />
+        {mac && <><span className="font-mono text-[11px] text-dim">{mac}</span><From list={from.mac} /></>}</div>
+      <div className={box}><span className={title}>{tx("SSH")}</span><Ssh m={m} /><From list={from.ssh} /></div>
+      <div className={box}><span className={title}>{tx("Clé utilisée")}</span><KeyCell m={m} /><From list={from.ssh} /></div>
       <div className={box}><span className={title}>{tx("Système")}</span>
         {m.info?.os ? <span>{m.info.os}<span className="block text-dim">{tx("noyau")} {m.info.kernel || "?"} {tx("· up")} {dur(m.info.uptime_s)}</span></span>
           : m.agent ? <span>{m.agent.os}<span className="block text-dim">{m.agent.kernel ? `${m.agent.kernel} · ` : ""}{tx("par l'agent")}{m.agent.uptime_s ? ` ${tx("· up")} ${dur(m.agent.uptime_s)}` : ""}</span>
             {hwLine(m.agent.hardware) && <span className="block text-dim" title={hardwareRows(m.agent.hardware).map(([k, v]) => `${k} : ${v}`).join("\n")}>{hwLine(m.agent.hardware)}</span>}</span>
-          : <Dim>—</Dim>}</div>
+          : <Dim>—</Dim>}<From list={from.os} /></div>
       <div className={box}><span className={title}>{tx("Services")}</span>
-        <span>{m.services} <Dim>{tx("dont")} {m.npm} {tx("NPM")}</Dim>{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</span></div>
+        <span>{m.services} <Dim>{tx("dont")} {m.npm} {tx("NPM")}</Dim>{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</span><From list={from.services} /></div>
+      <div className={box}><span className={title}>{tx("Santé")}</span>
+        {from.health.length ? <span className="text-muted">{tx("relevée par")}</span> : <Dim>{tx("non suivie")}</Dim>}<From list={from.health} /></div>
     </div>
   );
 }
@@ -303,7 +332,7 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
                       <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
                     {admin && <Td>{followBtn(m)}</Td>}
                   </tr>
-                  {shown && <tr className={`bg-bg2/40 ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} mac={macOf(m)} /></td></tr>}
+                  {shown && <tr className={`bg-bg2/40 ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} mac={macOf(m)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} /></td></tr>}
                 </Fragment>
               );
             })}

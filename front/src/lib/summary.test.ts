@@ -76,7 +76,7 @@ describe("accueil", () => {
                { ts: "2026-10-10T11:30:00+02:00", kind: "panne", label: "sonarr.lan" },
                { ts: "2026-10-01T11:00:00+02:00", kind: "panne", label: "vieux.lan" }],
     });
-    expect(p[0].sentences[0]).toBe("3 événements : 2 × panne (**plex.lan**, **sonarr.lan**) ; 1 × rétabli (**plex.lan**).");
+    expect(p[0].sentences).toEqual(["3 événements :", "2 × panne (**plex.lan**, **sonarr.lan**)", "1 × rétabli (**plex.lan**)"]);
   });
 });
 
