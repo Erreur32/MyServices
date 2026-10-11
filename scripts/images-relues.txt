@@ -22,3 +22,8 @@ f3caa8a8bac253a77fa2ae7e7bc9b062  front/public/icons/uptime-kuma.svg
 a963b01ac719bcd05cffc4cf75235c72  docs/logo.svg
 5686825675a3710852df0f871dd19843  front/public/favicon.svg
 5686825675a3710852df0f871dd19843  web/favicon.svg
+22febe995878578b4158952a5b44b609  front/public/icons/dockhand.svg
+037ac352bc13a94292c88b7377e841a7  front/public/icons/logviewr.svg
+4bdc7a6a90eecd135a59a525126c746c  front/public/icons/mynetwork.svg
+d2c2e97bfd503d198dfccce5bce9c940  front/public/icons/web-check.svg
+35b365e3c2f14662b1c0c3f26010ea7c  front/public/icons/veeam.svg

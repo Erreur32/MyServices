@@ -12,6 +12,7 @@ export const MACHINE_ICONS: ChosenIcon[] = [
   app("home-assistant", "Home Assistant"), app("proxmox", "Proxmox"), app("plex", "Plex"), app("docker", "Docker"),
   app("nginx-proxy-manager", "Nginx Proxy Manager"), app("adguard-home", "AdGuard Home"), app("beszel", "Beszel"), app("uptime-kuma", "Uptime Kuma"),
   app("dozzle", "Dozzle"), app("nginx", "nginx"), app("apache", "Apache"), app("syncthing", "Syncthing"), app("grafana", "Grafana"), app("unifi", "UniFi"),
+app("dockhand", "Dockhand"), app("logviewr", "LogviewR"), app("mynetwork", "MynetworK"), app("veeam", "Veeam"), app("web-check", "Web-Check"),
   { key: "linux", label: "Linux", family: "system", Icon: Terminal }, { key: "windows", label: "Windows", family: "system", Icon: Monitor },
   { key: "macos", label: "macOS", family: "system", Icon: Apple }, { key: "ios", label: "iOS / Android", family: "system", Icon: Smartphone },
   { key: "network", label: tx("Matériel réseau"), family: "system", Icon: Router }, { key: "pi", label: "Raspberry Pi", family: "system", Icon: Cpu },
