@@ -268,7 +268,7 @@ function UpdateControls({ a, reload, setNote }: { a: AgentInfo; reload: () => vo
       <button type="button" disabled={!live || busy || (!a.outdated && !a.update_requested)}
         title={!a.outdated ? tx("L'agent est déjà à jour") : a.update_requested ? tx("Demandée : l'agent se mettra à jour à son prochain relevé") : tx("Mettre à jour maintenant : l'agent récupère le nouveau script à son prochain relevé (au plus tard dans {0} min)", Math.round(a.interval / 60))}
         onClick={() => void run(() => send("POST", `agents/${a.id}/update`), tx("demandée : l'agent se mettra à jour à son prochain relevé"))}
-        className="inline-flex h-8 items-center gap-2 rounded-lg border border-link/60 bg-link/10 px-2.5 font-semibold leading-none text-txt hover:bg-link/20 disabled:opacity-40">
+        className="inline-flex h-8 items-center gap-2 rounded-lg border border-txt/30 bg-bg2 px-2.5 font-semibold leading-none text-txt hover:border-link hover:bg-link/10 disabled:opacity-40">
         <ArrowUpCircle size={14} className="shrink-0" aria-hidden /><span className="leading-none">{a.update_requested ? tx("Demandée…") : tx("Mettre à jour maintenant")}</span>
       </button>
     </div>

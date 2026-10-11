@@ -140,7 +140,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
   /** Les deux actions de l'étape, ensemble : (re)lancer la recherche, ou la passer (à reprendre plus tard) */
   const actions = (
     <div className="flex flex-wrap items-center gap-2">
-      <button type="button" className={scanned ? `${button} border-link/60 bg-link/10 text-txt hover:bg-link/20` : primary} disabled={busy} onClick={() => void start()}>
+      <button type="button" className={scanned ? quietBtn : primary} disabled={busy} onClick={() => void start()}>
         {scanned ? <RefreshCw size={14} aria-hidden /> : <Search size={14} aria-hidden />}{scanned ? tx("Refaire un scan") : tx("Lancer le scan")}
       </button>
       {onSkip && <button type="button" className={quietBtn} onClick={onSkip}

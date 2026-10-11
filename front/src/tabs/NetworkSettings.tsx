@@ -8,7 +8,7 @@ import { NoteLine } from "../components/form";
 import { Badge, Card, Dim } from "../components/ui";
 import { dateTime } from "../lib/format";
 import { reopenFirstSteps } from "../lib/firstSteps";
-import { act, button, input, primary, quiet, type Note } from "../lib/forms";
+import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { pokeScan } from "../lib/scan";
 import { GROUPS, DiscoveryPanel, todoOf, useDiscoveries } from "../components/DiscoveryCard";
@@ -128,7 +128,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
               onClick={() => void act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setNote).then(() => load())}>
               <Search size={14} />{running ? tx("Recherche en cours…") : tx("Lancer une recherche maintenant")}
             </button>
-            <button type="button" className={`${button} border-link/60 bg-link/10 text-txt hover:bg-link/20`} onClick={reopenFirstSteps} title={tx("Rouvre la carte et efface vos choix « Passer »")}>
+            <button type="button" className={quiet} onClick={reopenFirstSteps} title={tx("Rouvre la carte et efface vos choix « Passer »")}>
               <ListChecks size={14} />{tx("Revoir les premiers pas")}
             </button>
           </div>

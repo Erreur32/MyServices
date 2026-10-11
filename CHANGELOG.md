@@ -10,6 +10,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ## Unreleased (next version, not tagged yet)
 
 ### Changed
+- **Main buttons are now solid** (accent fill, white text) so they are not mistaken for the foldable frames, which keep their accent border and tint. The few buttons that copied the frame look ("Review first steps", "Redo a scan", the agent update button) use the neutral button style.
+
+### Changed
 - **"Machines already added" frame is folded by default.**
 
 ### Changed
