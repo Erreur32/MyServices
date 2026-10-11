@@ -46,7 +46,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   const [tab, setTab] = useState<string | null>(null);
   const current = tab ?? (disc ? openTab((id) => todoOf(disc, GROUPS.find((g) => g.id === id)!)) : "network");
   const group = GROUPS.find((g) => g.id === current) ?? GROUPS[0];
-  const hasHostsItem = !!disc?.items.some((x) => x.id === "hosts" && !x.muted);
+  const hasHostsItem = !!disc?.items.some((x) => x.id === "hosts");   // même coupée, la découverte porte déjà la liste
   const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
   const [hours, setHours] = useState(""), [nets, setNets] = useState<string | null>(null), [note, setNote] = useState<Note>(null), [error, setError] = useState("");
   const load = useCallback(() => {

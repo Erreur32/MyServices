@@ -9,6 +9,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+### Fixed
+- **Found machines list shown twice** in Settings → Discovery when the "machines found" reminder was switched off: the list is now only in its discovery card, and in a card of its own only when there is no such discovery.
+
 ### Changed
 - **Found machines: the selection buttons sit under the list, inside its frame** (not in the card footer mixed with "Stop reminding me"). When the frame is folded, its header shows how many are ticked. The card's own "Choose" button is gone (the frame opens by itself).
 
