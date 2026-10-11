@@ -7,6 +7,7 @@ import type { AsleepHost, HealthHost } from "../types";
 import { Cards, Badge, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
 import { DiskCell, ResCell, SystemdCell, UpdatesCell } from "./Machines";
 import { OsGlyph } from "../components/OsGlyph";
+import { shortOs } from "../lib/osName";
 import { Dot } from "../components/marks";
 import { OS_LABEL, OS_ORDER, osOfMachine, type OsKind } from "../lib/machines";
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
@@ -47,7 +48,7 @@ function HostCard({ h, os }: { h: HealthHost; os?: OsInfo }) {
   return (
     <section className={`rounded-2xl border bg-card p-4 ${lv === "ok" ? "border-line" : lv === "warn" ? "border-warn/50" : "border-bad/50"}`}>
       <div className="flex items-start justify-between gap-2">
-        <div><b>{name}</b><span className="flex items-center gap-1.5 text-xs text-dim">{os?.kind && <OsGlyph kind={os.kind} name={os.name} />}{ip}{os?.name ? ` · ${os.name}` : h.os === "windows" ? tx(" · Windows") : ""}</span></div>
+        <div><b>{name}</b><span className="flex items-center gap-1.5 text-xs text-dim">{os?.kind && <OsGlyph kind={os.kind} name={os.name} />}{ip}{os?.name ? ` · ${shortOs(os.name)}` : h.os === "windows" ? tx(" · Windows") : ""}</span></div>
         <Level level={lv} />
       </div>
       {pb.length > 0 ? (
@@ -112,7 +113,7 @@ function AsleepCard({ a, os }: { a: AsleepHost; os?: OsInfo }) {
   return (
     <section className={`rounded-2xl border border-line bg-card p-4 ${a.ping ? "" : "opacity-60"}`}>
       <div className="flex items-start justify-between gap-2">
-        <div><b>{name}</b><span className="block flex items-center gap-1.5 text-xs text-dim">{os?.kind && <OsGlyph kind={os.kind} name={os.name} />}{ip}{os?.name ? ` · ${os.name}` : a.os === "windows" ? tx(" · Windows") : ""}</span></div>
+        <div><b>{name}</b><span className="block flex items-center gap-1.5 text-xs text-dim">{os?.kind && <OsGlyph kind={os.kind} name={os.name} />}{ip}{os?.name ? ` · ${shortOs(os.name)}` : a.os === "windows" ? tx(" · Windows") : ""}</span></div>
         {a.ping ? <Badge tone="ok" title={tx("Répond au ping : son agent n'a pas encore envoyé de relevé")}>{tx("allumée, agent en attente")}</Badge>
           : <Badge tone="off" title={tx("Éteinte volontairement, aucune alerte")}>{tx("éteinte (voulu)")}</Badge>}
       </div>
@@ -124,7 +125,7 @@ function AsleepCard({ a, os }: { a: AsleepHost; os?: OsInfo }) {
 interface OsInfo { kind?: OsKind; name?: string }
 
 function OsCell({ os }: { os: OsInfo }) {
-  return os.kind ? <span className="inline-flex max-w-[15rem] items-center gap-1.5" title={os.name}><OsGlyph kind={os.kind} name={os.name} /><span className="truncate">{os.name || OS_LABEL[os.kind]}</span></span> : <Dim>—</Dim>;
+  return os.kind ? <span className="inline-flex max-w-[15rem] items-center gap-1.5" title={os.name}><OsGlyph kind={os.kind} name={os.name} /><span className="truncate">{shortOs(os.name) || OS_LABEL[os.kind]}</span></span> : <Dim>—</Dim>;
 }
 
 /** Machines rangées par accès : celles lues par SSH, celles qui envoient un relevé (agent), puis celles lues par Beszel */

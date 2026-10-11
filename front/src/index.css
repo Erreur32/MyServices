@@ -36,9 +36,10 @@ body {
 .scan-fill { background: linear-gradient(90deg, rgb(var(--link)), rgb(var(--ok))); transition: width .6s ease; position: relative; overflow: hidden; }
 .scan-fill::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgb(255 255 255 / .55), transparent); transform: translateX(-100%); animation: scan-shine 1.6s linear infinite; }
 .scan-wait { width: 30%; background: linear-gradient(90deg, transparent, rgb(var(--link)), rgb(var(--ok)), transparent); animation: scan-wait 1.4s ease-in-out infinite alternate; }
+@keyframes tip-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes scan-shine { to { transform: translateX(100%); } }
 @keyframes scan-wait { from { transform: translateX(-30%); } to { transform: translateX(240%); } }
-@media (prefers-reduced-motion: reduce) { .scan-fill::after, .scan-wait { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .scan-fill::after, .scan-wait { animation: none; } [role="tooltip"] { animation: none; } }
 
 /* Étapes de « Premiers pas » : l'icône d'une étape qui change d'état fait un petit rebond */
 .step-pop { animation: step-pop .45s cubic-bezier(.2, 1.4, .4, 1); }

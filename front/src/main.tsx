@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { TooltipLayer } from "./components/TooltipLayer";
 import "./index.css";
 import { applyWidth, savedTheme, savedWidth } from "./theme";
 import { LANG } from "./lib/i18n";
@@ -13,5 +14,6 @@ document.documentElement.lang = LANG;
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <App />
+    <TooltipLayer />
   </StrictMode>,
 );

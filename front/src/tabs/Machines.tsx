@@ -10,6 +10,7 @@ import { NoteLine } from "../components/form";
 import type { Note } from "../lib/forms";
 import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, osOfMachine, type MState, type OsKind } from "../lib/machines";
 import { OsGlyph } from "../components/OsGlyph";
+import { shortOs } from "../lib/osName";
 import { ViewToggle, useStoredView } from "../components/ViewToggle";
 import { Dot } from "../components/marks";
 import { LEVEL } from "../lib/level";
@@ -30,19 +31,28 @@ function topDisk(h?: HealthHost) {
   return (h?.disks || []).reduce<NonNullable<HealthHost["disks"]>[number] | null>((a, d) => (!a || d.used_pct > a.used_pct ? d : a), null);
 }
 
+/** Logiciels de service détectés sur la machine, en icônes ; les nombres (conteneurs, vhosts) sont dans l'info-bulle */
 function Servers({ m, snap }: { m: Machine; snap: Snapshot }) {
   const rows = snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.service);
   const npm = rows.some((r) => /nginx-proxy-manager/.test(r.service!.image || ""));
   const apDown = rows.filter((r) => r.enabled && r.service!.kind === "apache" && status(r)[0] === "bad").length;
-  const i = m.info || {};
-  const tags = [
-    npm && <Badge key="npm" tone="off"><span className="text-npm">{tx("NPM")}</span></Badge>,
-    i.apache && <Badge key="ap" tone={apDown ? "bad" : "off"} title={(i.vhosts_unreadable || []).length ? tx("Vhosts actifs dont la config n'est pas lisible par le compte SSH : {0}. Leurs domaines et ports restent inconnus.", (i.vhosts_unreadable || []).join(", ")) : undefined}>
-      <span className={apDown ? "" : "text-apache"}>{tx("Apache ·")} {(i.vhosts || []).length} {tx("vhosts")}{(i.vhosts_unreadable || []).length > 0 && ` (+${i.vhosts_unreadable!.length} ${tx("illisible(s)")} ⓘ)`}</span></Badge>,
-    i.nginx && <Badge key="ng" tone="off">{tx("nginx")}</Badge>,
-    i.docker ? <Badge key="dk" tone="off"><span className="text-link">{tx("Docker ·")} {i.docker}</span></Badge> : null,
-  ].filter(Boolean);
-  return tags.length ? <div className="flex flex-wrap gap-1">{tags}</div> : <Dim>—</Dim>;
+  const i = m.info || {}, vh = (i.vhosts || []).length, unread = (i.vhosts_unreadable || []).length;
+  const chips: { key: string; icon: string; tip: string; bad?: boolean }[] = [
+    ...(npm ? [{ key: "npm", icon: "nginx-proxy-manager", tip: tx("Nginx Proxy Manager : la machine héberge un NPM") }] : []),
+    ...(i.apache ? [{ key: "apache", icon: "apache", bad: apDown > 0,
+      tip: tx("Apache : {0} vhost(s)", vh) + (unread ? `\n${tx("Vhosts actifs dont la config n'est pas lisible par le compte SSH : {0}. Leurs domaines et ports restent inconnus.", (i.vhosts_unreadable || []).join(", "))}` : "") + (apDown ? `\n${tx("{0} en panne", apDown)}` : "") }] : []),
+    ...(i.nginx ? [{ key: "nginx", icon: "nginx", tip: tx("nginx installé et actif sur la machine (hors conteneur)") }] : []),
+    ...(i.docker ? [{ key: "docker", icon: "docker", tip: tx("Docker : {0} conteneur(s) en cours", i.docker) }] : []),
+  ];
+  return chips.length ? (
+    <div className="flex flex-wrap items-center gap-1">
+      {chips.map((c) => (
+        <span key={c.key} title={c.tip} tabIndex={0} className={`grid h-7 w-7 place-items-center rounded-md border ${c.bad ? "border-bad/60 bg-bad/10" : "border-line bg-bg2"}`}>
+          <img src={`${import.meta.env.BASE_URL}icons/${c.icon}.svg`} alt="" className="h-4 w-4" />
+        </span>
+      ))}
+    </div>
+  ) : <Dim>—</Dim>;
 }
 
 function HealthCell({ h }: { h?: HealthHost }) {
@@ -150,7 +160,7 @@ function SshShort({ m }: { m: Machine }) {
 function OsShort({ m, kind }: { m: Machine; kind: OsKind | null }) {
   const os = m.info?.os || m.agent?.os;
   if (!os && !kind) return <Dim>—</Dim>;
-  return <span className="inline-flex max-w-[11rem] items-center gap-1.5" title={os || (kind ? OS_LABEL[kind] : "")}>{kind && <OsGlyph kind={kind} name={os} />}<span className="truncate">{os || (kind ? OS_LABEL[kind] : "")}</span></span>;
+  return <span className="inline-flex max-w-[11rem] items-center gap-1.5" title={os || (kind ? OS_LABEL[kind] : "")}>{kind && <OsGlyph kind={kind} name={os} />}<span className="truncate">{shortOs(os) || (kind ? OS_LABEL[kind] : "")}</span></span>;
 }
 
 /** Origine d'une donnée : le connecteur ou la source qui l'a lue (rouge si en panne) */
