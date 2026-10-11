@@ -338,9 +338,29 @@ def _fetch(scheme, ip, port, host):
     req = urllib.request.Request(f"{scheme}://{ip}:{port}/", headers=headers)
     try:
         with _opener_title.open(req, timeout=PROBE_TIMEOUT) as r:
-            return r.status, r.headers.get("Content-Type", ""), r.read(65536)
+            return r.status, r.headers, r.read(65536)
     except urllib.error.HTTPError as e:
-        return e.code, e.headers.get("Content-Type", "") if e.headers else "", e.read(65536) if e.fp else b""
+        return e.code, e.headers, e.read(65536) if e.fp else b""
+
+
+GENERATOR_RE = re.compile(rb"<meta[^>]+name=[\"']generator[\"'][^>]*content=[\"']([^\"']{1,80})", re.I)
+FP_HEADERS = ("server", "x-powered-by", "x-generator", "www-authenticate")
+
+
+def fingerprint(headers, body: bytes) -> str:
+    """Empreinte HTTP d'un backend, en minuscules, une information par ligne : en-têtes utiles (Server, X-Powered-By…), noms des en-têtes
+    présents (certaines applis ont les leurs : x-pi-hole, x-transmission-session-id), noms des cookies posés (sans leurs valeurs) et
+    balise meta generator. Rien de la page n'est gardé."""
+    h = headers or {}
+    lines = [f"{k}: {h.get(k, '').strip()[:100]}" for k in FP_HEADERS if h.get(k)]
+    lines.append("headers: " + " ".join(sorted({k.lower() for k in h.keys()})))
+    cookies = [c.split("=", 1)[0].strip() for c in (h.get_all("Set-Cookie") if hasattr(h, "get_all") else []) or []]
+    if cookies:
+        lines.append("cookies: " + " ".join(cookies))
+    m = GENERATOR_RE.search(body[:16384])
+    if m:
+        lines.append("generator: " + html.unescape(m.group(1).decode("utf-8", "replace")).strip())
+    return "\n".join(lines).lower()
 
 
 def probe_web(scheme, ip, port, host=None):
@@ -354,7 +374,8 @@ def probe_web(scheme, ip, port, host=None):
     """
     for sch in (scheme, "https" if scheme == "http" else "http"):
         try:
-            code, ctype, body = _fetch(sch, ip, port, host)
+            code, headers, body = _fetch(sch, ip, port, host)
+            ctype = (headers.get("Content-Type", "") if headers else "")
         except (urllib.error.URLError, http.client.HTTPException, OSError, ValueError):
             continue
         if code == 400 and b"sent to HTTPS port" in body:
@@ -363,7 +384,7 @@ def probe_web(scheme, ip, port, host=None):
         is_html = "html" in ctype.lower() or re.search(rb"<(html|body|!doctype)", body[:4096], re.I)
         # Une page d'erreur HTML sans titre (404 nginx nu, etc.) n'est pas une interface
         ui = is_html and (title or code < 400) and not (code == 404 and (title or "").startswith("404"))
-        return {"web": "ui" if ui else "api", "title": title, "scheme": sch, "code": code}
+        return {"web": "ui" if ui else "api", "title": title, "scheme": sch, "code": code, "fp": fingerprint(headers, body)}
     return None
 
 
@@ -1067,6 +1088,8 @@ def main():
         r["web"] = w["web"] if w else None
         r["web_scheme"] = w.get("scheme") if w else None
         r["page_title"] = w.get("title") if w else (r.get("follow") or {}).get("title")
+        if w and w.get("fp"):
+            r["fingerprint"] = w["fp"]  # lu par known_apps.annotate puis retiré : seule l'appli reconnue est écrite dans data.json
         s = r.get("service") or {}
         if not s and r["page_title"]:
             r["service"] = s = {"kind": "web", "name": r["page_title"]}

@@ -66,6 +66,10 @@ function ServiceLogo({ r }: { r: Host }) {
 
 function Tech({ r }: { r: Host }) {
   const s = r.service;
+  if (!s && r.app) {  // pas d'identification sûre : l'appli devinée par la page, les en-têtes HTTP ou le port, avec son degré de confiance
+    const how = CONFIDENCE[r.app.confidence];
+    return <div className="min-w-0"><span className="font-medium">{r.app.label}</span><span className="block truncate text-xs text-dim" title={how[1]}>{how[0]}</span></div>;
+  }
   if (!s) return <Dim>{noIdentity(r) ?? tx("non identifié")}</Dim>;
   return (
     <div className="min-w-0">
@@ -86,6 +90,11 @@ function Access({ r }: { r: Host }) {
   );
 }
 
+const CONFIDENCE: Record<string, [string, string]> = {
+  sure: [tx("sûr"), tx("Reconnu par son image Docker")],
+  probable: [tx("probable"), tx("Reconnu par le titre de sa page ou ses en-têtes HTTP, sans SSH")],
+  possible: [tx("possible"), tx("Deviné par son port ou son serveur web : à confirmer")],
+};
 const KIND_LOGO = new Set(["docker", "apache", "nginx"]);  // types de service qui ont un logo dans public/icons
 
 export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected }) {

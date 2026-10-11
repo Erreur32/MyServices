@@ -89,7 +89,7 @@ export function checks(r: Host): Check[] {
   if (certIssue(r)) c.push("cert");
   if ((r.uptime || []).some((u) => u.status === "down")) c.push("kuma");
   if (r.ip && (r.type === "proxy" || r.type === "stream") && !r.machine && !r.host_ip) c.push("ip");
-  if (r.type === "proxy" && !r.service && b.up && !b.internal) c.push("unident");
+  if (r.type === "proxy" && !r.service && !r.app && b.up && !b.internal) c.push("unident");  // une appli devinée (en-têtes, port) n'est plus « non identifiée »
   return c;
 }
 
@@ -122,7 +122,7 @@ export const CHECK: Record<Check, [string, string]> = {
   open: [tx("sans ACL"), tx("ni access list ni garde LAN ni déclaration publique : ouvert sur Internet ?")],
   ssl: ["SSL", tx("sans certificat, ou HTTPS non forcé")],
   ip: [tx("cible inconnue"), tx("IP cible hors inventaire des machines : host obsolète ?")],
-  unident: [tx("non identifié"), tx("backend joignable mais aucun conteneur, process ni page web reconnu")],
+  unident: [tx("non identifié"), tx("backend joignable mais aucun conteneur, process, page web ni en-tête HTTP reconnu")],
   pause: [tx("en pause"), tx("sondes suspendues (« à revoir »)")],
   obsolete: [tx("désactivé, backend mort"), tx("host désactivé dans NPM dont le backend ne répond plus : à supprimer ?")],
 };

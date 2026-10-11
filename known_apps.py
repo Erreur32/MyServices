@@ -1,8 +1,10 @@
 """Applis connues : reconnaître un service sans configuration, d'après son image Docker, sa page web ou son port.
 
-Trois indices, du plus fiable au moins fiable :
+Quatre indices, du plus fiable au moins fiable :
   image   (« sure »)     conteneur lu par SSH : jc21/nginx-proxy-manager, adguard/adguardhome…
   page    (« probable ») titre HTML de la page (la sonde de la collecte le lit sans SSH)
+  empreinte (« probable ») en-têtes HTTP (Server, X-Powered-By, cookies, en-têtes propres à l'appli) et balise generator de la page,
+                         lus par la même sonde, sans SSH ; un simple serveur web (nginx, Apache, Caddy…) n'est que « possible »
   port    (« possible »)  port distinctif de l'appli ; les ports courants (80, 3000, 8080, 8090, 9000…) en sont absents
 
 Une appli reconnue donne un nom, une catégorie (celles de services-meta.json), le type d'interface
@@ -28,6 +30,8 @@ class App:
     images: tuple[str, ...] = ()    # images Docker (sans étiquette) ; complétées par celles du connecteur
     ports: tuple[int, ...] = ()     # ports habituels
     title: str = ""                 # regex du titre de la page (insensible à la casse)
+    fp: str = ""                    # regex de l'empreinte HTTP (voir fingerprint() de myservices.py)
+    weak_fp: bool = False           # l'empreinte ne dit que le serveur web, pas l'appli : confiance « possible »
     host: str = ""                  # regex du nom DNS de la machine (« unifi », « proxmox »…)
     connector: str | None = None    # type de connecteur à proposer (connectors.TYPES)
 
@@ -69,6 +73,45 @@ APPS: tuple[App, ...] = (
     App("synology", "Synology DSM", "Fichiers / sync", title=r"synology"),
     App("frigate", "Frigate", "Domotique", title=r"^frigate", images=("ghcr.io/blakeblackshear/frigate", "blakeblackshear/frigate")),  # port 5000 : trop courant pour l'identifier seul
     App("myelectricaldata", "MyElectricalData", "Domotique", title=r"myelectricaldata"),
+    # Reconnues par leur page ou leur empreinte HTTP (en-têtes, cookies), sans SSH
+    App("pihole", "Pi-hole", "Réseau / DNS", title=r"pi-?hole", fp=r"x-pi-hole", images=("pihole/pihole",)),
+    App("nextcloud", "Nextcloud", "Fichiers / sync", title=r"nextcloud", fp=r"oc_sessionpassphrase|x-nextcloud", images=("nextcloud", "linuxserver/nextcloud")),
+    App("vaultwarden", "Vaultwarden", "Outils", title=r"vaultwarden|bitwarden web vault", images=("vaultwarden/server",)),
+    App("gitea", "Gitea", "Outils", title=r"gitea", fp=r"i_like_gitea", images=("gitea/gitea",)),
+    App("gitlab", "GitLab", "Outils", title=r"gitlab", fp=r"_gitlab_session", images=("gitlab/gitlab-ce", "gitlab/gitlab-ee")),
+    App("traefik", "Traefik", "Réseau / DNS", title=r"traefik", images=("traefik",)),
+    App("transmission", "Transmission", "Médias", ports=(9091,), title=r"transmission", fp=r"x-transmission-session-id", images=("linuxserver/transmission",)),
+    App("qbittorrent", "qBittorrent", "Médias", title=r"qbittorrent", images=("linuxserver/qbittorrent", "qbittorrentofficial/qbittorrent-nox")),
+    App("prowlarr", "Prowlarr", "Médias", ports=(9696,), title=r"^prowlarr", images=("linuxserver/prowlarr", "hotio/prowlarr")),
+    App("lidarr", "Lidarr", "Médias", ports=(8686,), title=r"^lidarr", images=("linuxserver/lidarr", "hotio/lidarr")),
+    App("bazarr", "Bazarr", "Médias", ports=(6767,), title=r"^bazarr", images=("linuxserver/bazarr", "hotio/bazarr")),
+    App("overseerr", "Overseerr", "Médias", ports=(5055,), title=r"overseerr|jellyseerr", images=("sctx/overseerr", "fallenbagel/jellyseerr")),
+    App("navidrome", "Navidrome", "Médias", ports=(4533,), title=r"navidrome", images=("deluan/navidrome",)),
+    App("audiobookshelf", "Audiobookshelf", "Médias", ports=(13378,), title=r"audiobookshelf", images=("advplyr/audiobookshelf",)),
+    App("immich", "Immich", "Fichiers / sync", ports=(2283,), title=r"immich", images=("ghcr.io/immich-app/immich-server",)),
+    App("paperless", "Paperless-ngx", "Fichiers / sync", title=r"paperless", images=("ghcr.io/paperless-ngx/paperless-ngx",)),
+    App("nodered", "Node-RED", "Domotique", ports=(1880,), title=r"node-red", images=("nodered/node-red",)),
+    App("esphome", "ESPHome", "Domotique", ports=(6052,), title=r"esphome", images=("esphome/esphome", "ghcr.io/esphome/esphome")),
+    App("homebridge", "Homebridge", "Domotique", ports=(8581,), title=r"homebridge", images=("homebridge/homebridge",)),
+    App("zigbee2mqtt", "Zigbee2MQTT", "Domotique", title=r"zigbee2mqtt", images=("koenkk/zigbee2mqtt",)),
+    App("influxdb", "InfluxDB", "Monitoring", ports=(8086,), title=r"influxdb", images=("influxdb",)),
+    App("alertmanager", "Alertmanager", "Monitoring", ports=(9093,), title=r"alertmanager", images=("prom/alertmanager",)),
+    App("node-exporter", "Node Exporter", "Monitoring", ports=(9100,), ui="api", images=("prom/node-exporter",)),
+    App("kibana", "Kibana", "Monitoring", ports=(5601,), title=r"kibana", images=("kibana", "docker.elastic.co/kibana/kibana")),
+    App("rabbitmq", "RabbitMQ", "Infra / virtualisation", ports=(15672,), title=r"rabbitmq", images=("rabbitmq",)),
+    App("vault", "HashiCorp Vault", "Infra / virtualisation", ports=(8200,), title=r"^vault", images=("hashicorp/vault", "vault")),
+    App("consul", "Consul", "Infra / virtualisation", ports=(8500,), title=r"consul", images=("hashicorp/consul", "consul")),
+    App("cockpit", "Cockpit", "Système", title=r"cockpit|^login - .*\bcockpit", fp=r"cockpit"),
+    App("openwrt", "OpenWrt (LuCI)", "Réseau / DNS", title=r"luci|openwrt", host=r"^openwrt"),
+    App("truenas", "TrueNAS", "Fichiers / sync", title=r"truenas", host=r"^(truenas|freenas)"),
+    App("pfsense", "pfSense", "Réseau / DNS", title=r"pfsense", host=r"^pfsense"),
+    App("opnsense", "OPNsense", "Réseau / DNS", title=r"opnsense", host=r"^opnsense"),
+    # Serveurs web : l'en-tête Server dit ce qui répond, pas l'appli derrière (confiance « possible », jamais prioritaire)
+    App("nginx-web", "nginx", "Web / perso", fp=r"^server: nginx", weak_fp=True),
+    App("caddy-web", "Caddy", "Web / perso", fp=r"^server: caddy", weak_fp=True),
+    App("iis-web", "Microsoft IIS", "Web / perso", fp=r"^server: microsoft-iis", weak_fp=True),
+    App("lighttpd-web", "lighttpd", "Web / perso", fp=r"^server: lighttpd", weak_fp=True),
+    App("kestrel-web", "ASP.NET (Kestrel)", "Web / perso", fp=r"^server: kestrel", weak_fp=True),
 )
 
 
@@ -91,12 +134,13 @@ for _a in APPS:
         _BY_PORT.setdefault(_p, []).append(_a)
 _TITLES = [(a, re.compile(a.title, re.I)) for a in APPS if a.title]
 _HOSTS = [(a, re.compile(a.host, re.I)) for a in APPS if a.host]
+_FPS = [(a, re.compile(a.fp, re.I | re.M)) for a in APPS if a.fp]
 
 
 def identify(image: str | None = None, title: str | None = None, port: int | None = None,
-             name: str | None = None) -> tuple[App, str] | None:
-    """(appli, confiance) ou None. Image d'abord, puis titre de page, puis nom DNS de la machine, puis port (seulement
-    s'il est sans ambiguïté)."""
+             name: str | None = None, fingerprint: str | None = None) -> tuple[App, str] | None:
+    """(appli, confiance) ou None. Image d'abord, puis titre de page, puis empreinte HTTP, puis nom DNS de la machine, puis port
+    (seulement s'il est sans ambiguïté). Un simple serveur web reconnu par son en-tête n'est que « possible » et cède au port."""
     if image:
         base = _base(image)
         for a in APPS:
@@ -106,13 +150,20 @@ def identify(image: str | None = None, title: str | None = None, port: int | Non
         for a, rx in _TITLES:
             if rx.search(title):
                 return a, PROBABLE
+    weak = None
+    if fingerprint:
+        for a, rx in _FPS:
+            if rx.search(fingerprint):
+                if not a.weak_fp:
+                    return a, PROBABLE
+                weak = weak or a
     if name:
         for a, rx in _HOSTS:
             if rx.search(name):
                 return a, PROBABLE
     if port is not None and len(_BY_PORT.get(port, [])) == 1:
         return _BY_PORT[port][0], POSSIBLE
-    return None
+    return (weak, POSSIBLE) if weak else None
 
 
 def annotate(row: dict, keep_category: bool = False) -> None:
@@ -120,7 +171,7 @@ def annotate(row: dict, keep_category: bool = False) -> None:
     nom « port N » -> nom de l'appli, catégorie « Autre » -> celle de l'appli, interface non sondée -> son type.
     Un simple port (« possible ») ne change rien d'autre que row["app"]. keep_category : catégorie réglée à la main."""
     s = row.get("service") or {}
-    hit = identify(image=s.get("image"), title=row.get("page_title"), port=row.get("port"))
+    hit = identify(image=s.get("image"), title=row.get("page_title"), port=row.get("port"), fingerprint=row.pop("fingerprint", None))
     if hit is None:
         return
     app, how = hit

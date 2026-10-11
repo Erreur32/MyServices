@@ -44,6 +44,23 @@ class Identify(unittest.TestCase):
         for port in (80, 443, 3000, 8080, 8090, 9000, 9090):
             self.assertIsNone(self.key(port=port), port)
 
+    def test_empreinte_http_probable_sans_ssh(self):
+        self.assertEqual(self.key(fingerprint="server: nginx\nheaders: content-type x-pi-hole server"), ("pihole", ka.PROBABLE))
+        self.assertEqual(self.key(fingerprint="headers: x-transmission-session-id"), ("transmission", ka.PROBABLE))
+        self.assertEqual(self.key(fingerprint="headers: set-cookie\ncookies: oc_sessionpassphrase"), ("nextcloud", ka.PROBABLE))
+        self.assertEqual(self.key(fingerprint="cookies: i_like_gitea _csrf"), ("gitea", ka.PROBABLE))
+
+    def test_serveur_web_seul_n_est_que_possible_et_cede_au_port(self):
+        self.assertEqual(self.key(fingerprint="server: nginx/1.25.3\nheaders: server"), ("nginx-web", ka.POSSIBLE))
+        self.assertEqual(self.key(fingerprint="server: caddy"), ("caddy-web", ka.POSSIBLE))
+        self.assertEqual(self.key(fingerprint="server: nginx", port=8384), ("syncthing", ka.POSSIBLE))   # le port est plus parlant qu'un serveur web
+        self.assertEqual(self.key(fingerprint="server: nginx", title="Netdata"), ("netdata", ka.PROBABLE))  # un titre prime sur l'empreinte
+        self.assertEqual(self.key(fingerprint="server: nginx\nheaders: x-pi-hole", port=12345), ("pihole", ka.PROBABLE))   # l'appli prime sur le serveur web
+
+    def test_nouveaux_ports_distinctifs(self):
+        for port, key in ((8086, "influxdb"), (1880, "nodered"), (9696, "prowlarr"), (9091, "transmission"), (8200, "vault"), (5601, "kibana")):
+            self.assertEqual(self.key(port=port), (key, ka.POSSIBLE), port)
+
     def test_image_prime_sur_titre_et_titre_sur_port(self):
         self.assertEqual(self.key(image="grafana/grafana", title="Plex", port=8384), ("grafana", ka.SURE))
         self.assertEqual(self.key(title="Netdata", port=8384), ("netdata", ka.PROBABLE))
@@ -73,6 +90,12 @@ class Identify(unittest.TestCase):
 
 
 class Annotate(unittest.TestCase):
+    def test_empreinte_lue_puis_retiree(self):
+        row = {"ip": "10.0.0.5", "port": 8888, "name": "port 8888", "category": "Autre", "web": None, "page_title": None, "service": None, "fingerprint": "headers: x-pi-hole"}
+        ka.annotate(row)
+        self.assertEqual((row["app"]["key"], row["app"]["confidence"], row["category"]), ("pihole", "probable", "Réseau / DNS"))
+        self.assertNotIn("fingerprint", row)   # jamais écrite dans data.json
+
     def row(self, **kw):
         return {"ip": "10.0.0.5", "port": 8384, "name": "port 8384", "category": "Autre", "web": None, "page_title": None,
                 "service": None, **kw}
