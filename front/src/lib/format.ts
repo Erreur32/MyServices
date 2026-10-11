@@ -57,3 +57,12 @@ export function splitHostName(name: string): [string, string] {
   const i = name.lastIndexOf(" · ");
   return i < 0 ? [name, ""] : [name.slice(0, i), name.slice(i + 3)];
 }
+
+/** Version affichée dans l'en-tête : « v0.9.2 » pour une image de tag (« v0.9.2-<commit> »), « docker · abc1234 » pour celle d'une branche, « dev » sinon */
+export function appVersion(v?: string): string {
+  if (!v) return "";
+  const tag = /^(v\d+\.\d+\.\d+(?:-[A-Za-z]+\.\d+)?)-[0-9a-f]{7,40}$/.exec(v);
+  if (tag) return tag[1];
+  const branch = /^(.+)-([0-9a-f]{7,40})$/.exec(v);
+  return branch ? `${branch[1]} · ${branch[2].slice(0, 7)}` : v;
+}

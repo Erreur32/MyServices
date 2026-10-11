@@ -324,6 +324,7 @@ export interface Events {
 export interface Me {
   username: string;
   role: "admin" | "viewer";
+  version?: string;  // version de l'application (tag de l'image, puis empreinte du commit) ; « dev » pour une image construite sur place
 }
 
 /** Compte (api/v1/users) ; dates en secondes. */

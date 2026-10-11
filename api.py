@@ -1174,7 +1174,7 @@ def logout(request: Request):
 @app.get(API + "/me", tags=["comptes"], summary="Compte connecté")
 def me(request: Request):
     u = request.state.user or {}
-    return {"username": u.get("username"), "role": u.get("role"), "auth": AUTH}
+    return {"username": u.get("username"), "role": u.get("role"), "auth": AUTH, "version": os.environ.get("MYSERVICES_VERSION", "dev")}
 
 
 def admin_only(request: Request) -> JSONResponse | None:

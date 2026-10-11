@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { logout, ROOT, type Snapshot } from "../api";
 import type { Theme } from "../theme";
 import { LOCALE, tx } from "../lib/i18n";
+import { appVersion } from "../lib/format";
 import { reopenFirstSteps } from "../lib/firstSteps";
 import { GITHUB } from "../lib/links";
 import { lastSettingsSection } from "../lib/settingsNav";
@@ -23,7 +24,8 @@ export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; them
             {tx("Données")} {ago(snap.data.generated, now)}{stale && tx(" · en retard")}
           </span>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight">{tx("MyServices")}</h1>
+        <h1 className="flex items-baseline gap-2 text-2xl font-bold tracking-tight">{tx("MyServices")}
+          {snap.me.version && <span className="rounded-md border border-line bg-card px-1.5 py-0.5 font-mono text-xs font-semibold tracking-normal text-dim" title={snap.me.version}>{appVersion(snap.me.version)}</span>}</h1>
       </div>
       <UserMenu snap={snap} theme={theme} toggleTheme={toggleTheme} />
     </header>
