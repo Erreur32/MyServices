@@ -181,6 +181,73 @@ class Follow(Base):
         self.assertFalse(self.meta.exists())  # un refus n'écrit rien
 
 
+class Copies(Base):
+    def setUp(self):
+        super().setUp()
+        self.services.write_text(json.dumps({"machines": {
+            "10.0.0.2": {"name": "Serveur", "role": "", "ssh": "srv"},
+            "10.0.0.5": {"name": "NAS", "role": "", "ssh": "nas"}}}), encoding="utf-8")
+        ba.follow([self.item()])
+        self.sid = ba.current()["sets"][0]["id"]
+
+    def test_copie_sur_une_autre_machine_exigee_puis_retiree(self):
+        self.assertEqual(ba.add_copy(self.sid, "10.0.0.5", "/volume1/backup/serveur"), {"offsite": True})
+        s = ba.current()["sets"][0]
+        self.assertTrue(s["expect_offsite"])
+        self.assertEqual(s["copies"], [{"index": 1, "host": "NAS", "path": "/volume1/backup/serveur", "offsite": True}])
+        loc = json.loads(self.meta.read_text(encoding="utf-8"))["sets"][0]["locations"][1]
+        self.assertEqual((loc["via"], loc["depth"]), ("copie", ba.DEPTH))
+        ba.remove_copy(self.sid, 1)
+        s = ba.current()["sets"][0]
+        self.assertEqual((s["copies"], s["expect_offsite"]), ([], False))
+
+    def test_copie_sur_la_meme_machine_n_exige_rien(self):
+        self.assertEqual(ba.add_copy(self.sid, "10.0.0.2", "/mnt/disque2/backup"), {"offsite": False})
+        self.assertFalse(ba.current()["sets"][0]["expect_offsite"])
+
+    def test_refus(self):
+        for args in (("inconnu", "10.0.0.5", "/x"), (self.sid, "10.9.9.9", "/x"), (self.sid, "10.0.0.5", "relatif"),
+                     (self.sid, "10.0.0.2", "/home/backup")):
+            with self.assertRaises(ba.BackupError, msg=args):
+                ba.add_copy(*args)
+        with self.assertRaises(ba.BackupError):
+            ba.remove_copy(self.sid, 0)   # la source ne se retire pas comme une copie
+
+    def test_suggestions(self):
+        ba.follow([self.item(ip="10.0.0.5", path="/home/backup", label="NAS : /home/backup")])
+        meta = json.loads(self.meta.read_text(encoding="utf-8"))
+        nas_sid = ba.current()["sets"][1]["id"]
+        report = {self.sid: {"locations": [{"newest": {"name": "daily/site.tar.gz"}}]}, nas_sid: {"locations": [{}]}}
+        want = ba._wanted(meta, report)
+        self.assertEqual(want, {"site.tar.gz": [(self.sid, "daily/site.tar.gz")]})
+        share = {"dir": "/mnt/freebox/backup/serveur/daily", "network": True}   # archive in daily/ : the copy root is the folder above
+        hits = [{"ip": "10.0.0.2", "name": "Serveur", "found": {"site.tar.gz": [{"dir": "/home/backup/daily", "network": False}, share,
+                                                                                {"dir": "/mnt/disque2/daily", "network": False},
+                                                                                {"dir": "/tmp/ailleurs", "network": False}]}},
+                {"ip": "10.0.0.5", "name": "NAS", "found": {"site.tar.gz": [share]}}]
+        got = ba.copies_from_hits(meta, want, hits)
+        self.assertEqual([(c["name"], c["path"], c["offsite"]) for c in got],
+                         [("NAS", "/mnt/freebox/backup/serveur", True), ("Serveur", "/mnt/disque2", False)])   # source left out, share once via another machine
+        ba.add_copy(self.sid, "10.0.0.5", "/mnt/freebox/backup/serveur")
+        got = ba.copies_from_hits(json.loads(self.meta.read_text(encoding="utf-8")), want, hits)
+        self.assertEqual([c["path"] for c in got], ["/mnt/disque2"])   # already declared
+
+    def test_partage_reseau_sur_la_machine_d_origine_compte_hors_machine(self):
+        self.assertEqual(ba.add_copy(self.sid, "10.0.0.2", "/mnt/nas/serveur", network=True), {"offsite": True})
+        s = ba.current()["sets"][0]
+        self.assertTrue(s["expect_offsite"] and s["copies"][0]["offsite"])
+
+
+class Rythme(unittest.TestCase):
+    def test_rythme_observe(self):
+        import backups
+        day = 86400
+        weekly = [{"mtime": 1_700_000_000 - k * 7 * day + j * 600} for k in range(4) for j in range(3)]   # 3 fichiers par passage
+        self.assertEqual(backups.cadence(weekly), 7.0)
+        self.assertEqual(backups.cadence([{"mtime": 1_700_000_000 - k * day} for k in range(10)]), 1.0)
+        self.assertIsNone(backups.cadence(weekly[:3]))   # un seul passage
+
+
 class Unfollow(Base):
     def test_retire_un_jeu(self):
         ba.follow([self.item(), self.item(path="/root/backups", label="Racine")])

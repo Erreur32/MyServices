@@ -151,6 +151,25 @@ if req.get("discover"):
         out["local"].append({"path": d, "size": size, "newest": int(float(nw[0])) if nw[0] else None,
                              "newest_name": nw[1] if len(nw) > 1 else "", "readable": os.access(d, os.R_OK | os.X_OK)})
 
+if req.get("find"):
+    # Copies of followed archives: folders holding a file with one of these names, network shares included (a NAS mounted in CIFS / NFS
+    # is the usual place of a copy). Bounded: depth, time budget, number of hits.
+    import time
+    want, t0, hits = set(req["find"]["names"]), time.time(), {}
+    net = [l.split()[1] for l in open("/proc/mounts") if l.split()[2] in ("cifs", "smb3", "nfs", "nfs4", "fuse.sshfs")]
+    roots = sorted({r for r in req["find"]["roots"] + net if os.path.isdir(r)})
+    roots = [r for r in roots if not any(r != o and r.startswith(o.rstrip("/") + "/") for o in roots)]
+    for root in roots:
+        bd = root.rstrip("/").count("/")
+        for cur, dirs, fs in os.walk(root, onerror=lambda e: None):
+            if time.time() - t0 > req["find"].get("budget", 60) or len(hits) > 200:
+                dirs[:] = []; break
+            dirs[:] = [x for x in dirs if not x.startswith(".")] if cur.rstrip("/").count("/") - bd < req["find"].get("depth", 5) else []
+            for f in fs:
+                if f in want:
+                    hits.setdefault(f, []).append({"dir": cur, "network": any(cur == m or cur.startswith(m.rstrip("/") + "/") for m in net)})
+    out["found"] = hits
+
 print(json.dumps(out))
 '''
 
@@ -288,6 +307,14 @@ def collect(meta: dict) -> tuple[dict, dict]:
 
 # ───────────── Analyse ─────────────
 
+def cadence(files: list[dict]) -> float | None:
+    """Observed rhythm of a folder, in days: median gap between the days archives were written (several files the same day = one run).
+    None with fewer than 3 runs."""
+    days = sorted({f["mtime"] // 3600 // 6 for f in files}, reverse=True)   # 6-hour slots: one run, even if it writes for a while
+    gaps = sorted((a - b) * 0.25 for a, b in zip(days, days[1:]))
+    return round(gaps[len(gaps) // 2], 1) if len(gaps) >= 2 else None
+
+
 def age_days(ts: int, now: float) -> float:
     return round((now - ts) / 86400, 1)
 
@@ -306,7 +333,8 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
         locs, src_files = [], None
         for i, loc in enumerate(s["locations"]):
             L = {"host": loc["host"], "label": hosts[loc["host"]]["label"], "path": loc.get("path"), "via": loc.get("via", ""),
-                 "role": "source" if i == 0 else "copie", "level": "na", "detail": "", "encrypted": bool(loc.get("encrypted"))}
+                 "role": "source" if i == 0 else "copie", "level": "na", "detail": "", "encrypted": bool(loc.get("encrypted")),
+                 "share": bool(i and loc.get("offsite"))}   # copy on a network share (NAS) mounted on the origin: off the machine all the same
             if loc.get("syncthing"):
                 node = (sres.get(loc["from"]) or (None,))[0]
                 f = next((x for x in (node or {}).get("folders", []) if x["id"] == loc["syncthing"]), None)
@@ -379,6 +407,8 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
             else:
                 files = data["files"]
                 L.update(count=data["count"], size=data["size"], newest=files[0])
+                if i == 0:
+                    L["recent"] = [f["name"] for f in files[:5]]   # names looked for when searching where the set is copied
                 if each:
                     latest = {}
                     for f in files:
@@ -424,7 +454,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
 
         src = locs[0]
         # Copie à jour hors machine ; un job Veeam en Warning compte (son niveau propre est déjà dans celui du jeu)
-        offsite = [l for i, l in enumerate(locs) if l["host"] != s["origin"] and
+        offsite = [l for i, l in enumerate(locs) if (l["host"] != s["origin"] or l.get("share")) and
                    (i and l["level"] == "ok" or not i and l.get("offsite") and l["level"] in ("ok", "warn"))]
         level, why = src["level"], []
         if src["level"] in ("warn", "crit"):
@@ -448,7 +478,8 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
         sets_out.append({"id": s["id"], "label": s["label"], "origin": s["origin"], "origin_label": hosts[s["origin"]]["label"],
                          "schedule": s.get("schedule", ""), "retention": s.get("retention", ""), "max_age_days": max_age,
                          "mode": "each" if each else "latest", "archived": archived, "level": level,
-                         "offsite": len(offsite), "expect_offsite": expect, "locations": locs, "why": why, "size": src.get("size", 0)})
+                         "offsite": len(offsite), "expect_offsite": expect, "locations": locs, "why": why, "size": src.get("size", 0),
+                         "cadence_days": cadence(src_files) if src_files else None})
         for w in why:
             issues.append({"level": level, "set": s["label"], "text": w})
 
@@ -486,9 +517,10 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
             # jeu couvert par un autre (ex. dump de la VM) : ses copies valent aussi pour cette machine
             locs_ = x["locations"][1:] + ([dict(l, via=f"{l['via']} (dump VM)") for l in by_id[cov]["locations"]] if cov in by_id else [])
             for l in locs_:
-                if l["host"] == h["id"]:
+                if l["host"] == h["id"] and not l.get("share"):
                     continue
-                dd = dests.setdefault(l["host"], {"host": l["host"], "label": l["label"], "vias": [], "sets": 0, "level": "ok", "age": None,
+                dk = f"{l['host']}:share" if l.get("share") else l["host"]
+                dd = dests.setdefault(dk, {"host": l["host"], "label": l["label"] + (" · partage réseau" if l.get("share") else ""), "vias": [], "sets": 0, "level": "ok", "age": None,
                                                   "encrypted": bool(l.get("encrypted"))})
                 dd["sets"] += 1
                 if l["via"] not in dd["vias"]:

@@ -1128,6 +1128,35 @@ def backups_set_update(set_id: str, body: BackupSetChange, request: Request):
     return backups_call(request, "sauvegarde modifiée", set_id, go)
 
 
+class BackupCopy(BaseModel):
+    ip: str
+    path: str = Field(max_length=300)
+    network: bool = False   # network share (NAS) seen from the machine: an off-machine copy even on the origin
+
+
+@app.post(API + "/backups/copies/find", tags=["sauvegardes"], summary="Chercher où sont copiées les sauvegardes suivies (partages réseau compris), lecture seule (admin)")
+def backups_copies_find(request: Request):
+    return backups_call(request, "recherche des copies de sauvegarde", "", lambda b: b.find_copies())
+
+
+@app.post(API + "/backups/settings/{set_id}/copies", tags=["sauvegardes"], summary="Déclarer où un dossier suivi est copié : comparé à la source à chaque relevé (admin)")
+def backups_copy_add(set_id: str, body: BackupCopy, request: Request):
+    def go(b):
+        out = b.add_copy(set_id, body.ip, body.path, body.network)
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes")
+        return {"ok": True, **out}
+    return backups_call(request, "copie de sauvegarde déclarée", f"{set_id} -> {body.ip}:{body.path}", go)
+
+
+@app.delete(API + "/backups/settings/{set_id}/copies/{index}", tags=["sauvegardes"], summary="Retirer une copie déclarée d'un jeu (admin)")
+def backups_copy_remove(set_id: str, index: int, request: Request):
+    def go(b):
+        b.remove_copy(set_id, index)
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes")
+        return {"ok": True}
+    return backups_call(request, "copie de sauvegarde retirée", f"{set_id} #{index}", go)
+
+
 @app.delete(API + "/backups/settings/{set_id}", tags=["sauvegardes"], summary="Ne plus suivre un jeu de sauvegarde (admin)")
 def backups_unfollow(set_id: str, request: Request):
     def go(b):

@@ -119,17 +119,32 @@ def _machines() -> dict:
 def current() -> dict:
     meta = _read()
     hosts = {h["id"]: h for h in meta.get("hosts", [])}
+    seen = _last_report()
     sets = []
     for s in meta.get("sets", []):
         loc = (s.get("locations") or [{}])[0]
         sets.append({"id": s["id"], "label": s.get("label", s["id"]), "origin": hosts.get(s.get("origin"), {}).get("label", s.get("origin", "")),
                      "path": loc.get("path"), "veeam_job": loc.get("veeam_job"), "pbs_group": loc.get("pbs_group"), "max_age_days": s.get("max_age_days", 8),
                      "ha": any(l.get("ha_backup") for l in s.get("locations", [])),
-                     "expect_offsite": s.get("expect_offsite", True), "editable": bool(loc.get("path")) and len(s.get("locations", [])) == 1})
+                     "expect_offsite": s.get("expect_offsite", True), "editable": bool(loc.get("path")),
+                     "copies": [{"index": i, "host": hosts.get(l.get("host"), {}).get("label", l.get("host", "")), "path": l.get("path"),
+                                 "offsite": l.get("host") != s.get("origin") or bool(l.get("offsite"))} for i, l in enumerate(s.get("locations", [])) if i and l.get("path")],
+                     "cadence_days": seen.get(s["id"], {}).get("cadence_days")})
     import config
     return {"sets": sets, "exists": _path().exists(), "tab": bool(config.CFG.get("backups_url")),
             "patterns": patterns_of(meta), "default_path": DEFAULT_PATH, "machines": len(_machines()),
+            "ssh_machines": [{"ip": ip, "name": m["name"]} for ip, m in sorted(_machines().items(), key=lambda x: x[1]["name"].lower())],
             "veeam": _veeam_state(), "ha": _ha_state(meta), "pbs": _pbs_state(meta)}
+
+
+def _last_report() -> dict:
+    """{set id: set} of the last backups.json (observed rhythm…), empty when not written yet."""
+    import config
+    try:
+        got = json.loads((Path(config.CFG["web_dir"]) / "backups.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError, KeyError):
+        return {}
+    return {x.get("id"): x for x in got.get("sets", []) if isinstance(x, dict)}
 
 
 def _scan(item: tuple[str, dict], patterns: list[str]) -> dict:
@@ -210,6 +225,20 @@ def _check_item(it: dict, machines: dict) -> tuple[str, str, float, str]:
     return ip, path, age, label
 
 
+def _machine_host(meta: dict, hosts: dict, ip: str, m: dict) -> str:
+    """Id of the machine's host in backups-meta.json, created on first use (SSH alias kept up to date)."""
+    hid = next((h["id"] for h in hosts.values() if h.get("ip") == ip and not h.get("api")), None)
+    if hid is None:
+        hid = _slug(m["name"])
+        while hid in hosts:
+            hid += "-2"
+        hosts[hid] = {"id": hid, "label": m["name"], "ip": ip, "ssh": m["ssh"], "kind": "machine"}
+        meta["hosts"].append(hosts[hid])
+    elif hosts[hid].get("ssh") != m["ssh"]:
+        hosts[hid]["ssh"] = m["ssh"]
+    return hid
+
+
 def follow(items: list[dict]) -> dict:
     """Ajoute un jeu par dossier choisi. Un dossier déjà suivi est repris sans doublon (nom et âge mis à jour)."""
     if not items:
@@ -224,15 +253,7 @@ def follow(items: list[dict]) -> dict:
     for it in items:
         ip, path, age, label = _check_item(it, machines)
         m = machines[ip]
-        hid = next((h["id"] for h in hosts.values() if h.get("ip") == ip and not h.get("api")), None)
-        if hid is None:
-            hid = _slug(m["name"])
-            while hid in hosts:
-                hid += "-2"
-            hosts[hid] = {"id": hid, "label": m["name"], "ip": ip, "ssh": m["ssh"], "kind": "machine"}
-            meta["hosts"].append(hosts[hid])
-        elif hosts[hid].get("ssh") != m["ssh"]:
-            hosts[hid]["ssh"] = m["ssh"]
+        hid = _machine_host(meta, hosts, ip, m)
         existing = next((s for s in meta["sets"] for loc in s.get("locations", []) if loc.get("host") == hid and loc.get("path") == path), None)
         if existing:
             existing["label"], existing["max_age_days"] = label, age
@@ -267,6 +288,120 @@ def update_set(set_id: str, label: str | None = None, max_age_days: float | None
     if expect_offsite is not None:
         s["expect_offsite"] = bool(expect_offsite)
     _write(meta)
+
+
+def add_copy(set_id: str, ip: str, path: str, network: bool = False) -> dict:
+    """Declares where a folder set is copied (another machine, or another disk of the same one). backups.py then checks at each run
+    that the copy keeps up with the source. A copy on another machine turns « off-machine copy required » on."""
+    machines = _machines()
+    _, path, _, _ = _check_item({"ip": ip, "path": path, "label": "x"}, machines)
+    meta = _read()
+    s = next((x for x in meta.get("sets", []) if x["id"] == set_id), None)
+    if s is None:
+        raise BackupError("jeu inconnu")
+    if not (s.get("locations") or [{}])[0].get("path"):
+        raise BackupError("copie déclarable seulement pour un dossier (Veeam, PBS et Home Assistant ont déjà leur copie)")
+    hosts = {h["id"]: h for h in meta.setdefault("hosts", [])}
+    hid = _machine_host(meta, hosts, ip, machines[ip])
+    if any(l.get("host") == hid and l.get("path") == path for l in s["locations"]):
+        raise BackupError("cet emplacement est déjà dans le jeu")
+    if len(s["locations"]) >= 6:
+        raise BackupError("5 copies au plus par jeu")
+    src = s["locations"][0]
+    offsite = hid != s.get("origin") or network
+    s["locations"].append({"host": hid, "path": path, "pattern": src.get("pattern", "*"), "depth": src.get("depth", DEPTH), "via": "copie",
+                           **({"offsite": True} if network else {})})   # network share (NAS) seen from the origin: still off the machine
+    if offsite:
+        s["expect_offsite"] = True
+    _write(meta)
+    return {"offsite": offsite}
+
+
+def remove_copy(set_id: str, index: int) -> None:
+    """Removes copy number `index` (1 = first copy ; 0, the source, cannot be removed this way)."""
+    meta = _read()
+    s = next((x for x in meta.get("sets", []) if x["id"] == set_id), None)
+    if s is None:
+        raise BackupError("jeu inconnu")
+    if not 1 <= index < len(s.get("locations", [])):
+        raise BackupError("copie inconnue")
+    del s["locations"][index]
+    hosts = {h["id"]: h for h in meta.get("hosts", [])}
+    if not any(l.get("host") != s.get("origin") or l.get("offsite") for l in s["locations"][1:]):
+        s["expect_offsite"] = False   # last off-machine copy gone: nothing left to require
+    _write(meta)
+
+
+COPY_ROOTS = ["/mnt", "/media", "/srv", "/home", "/volume1", "/volume2", "/share", "/backup", "/data"]   # + every network share of the machine
+
+
+def _wanted(meta: dict, report: dict) -> dict:
+    """{archive file name: [(set id, path relative to the set's folder)]} : the last archives of each followed folder set, from the last
+    backups.json (several: the newest one may not be copied yet)."""
+    want: dict[str, list[tuple[str, str]]] = {}
+    for s in meta.get("sets", []):
+        if not (s.get("locations") or [{}])[0].get("path"):
+            continue
+        src = ((report.get(s["id"]) or {}).get("locations") or [{}])[0]
+        for rel in src.get("recent") or [(src.get("newest") or {}).get("name")]:
+            if rel and (s["id"], rel) not in want.get(Path(rel).name, []):
+                want.setdefault(Path(rel).name, []).append((s["id"], rel))
+    return want
+
+
+def copies_from_hits(meta: dict, want: dict, hits: list[dict]) -> list[dict]:
+    """Suggested copies from the search results [{ip, name, found: {archive: [{dir, network}]}}]. The source folder itself is left out,
+    and so are places already in a set. One share mounted on several machines (the same NAS) is proposed once, through a machine other
+    than the set's origin when there is one: that way it counts as an off-machine copy."""
+    hosts = {h["id"]: h for h in meta.get("hosts", [])}
+    sets = {s["id"]: s for s in meta.get("sets", [])}
+    taken = {(hosts.get(l.get("host"), {}).get("ip"), (l.get("path") or "").rstrip("/")) for x in sets.values() for l in x.get("locations", [])}
+    best: dict[tuple, dict] = {}
+    for m in hits:
+        for archive, places in (m.get("found") or {}).items():
+            for sid, rel in want.get(archive, []):
+                s = sets[sid]
+                src = s["locations"][0]
+                origin_ip = hosts.get(s.get("origin"), {}).get("ip")
+                sub = str(Path(rel).parent).strip("./")   # archive kept in a subfolder of the set (« ia-config/x.tgz »): the copy root is above it
+                for p in places:
+                    d = p["dir"].rstrip("/")
+                    if sub:
+                        if not d.endswith("/" + sub):
+                            continue
+                        d = d[: -len(sub) - 1] or "/"
+                    # a place already in a set (a network share counts whatever machine it was declared through)
+                    if any((m["ip"] == ip or p.get("network")) and (d + "/").startswith(path + "/") for ip, path in taken if path):
+                        continue
+                    if m["ip"] == origin_ip and (d + "/").startswith(src["path"].rstrip("/") + "/"):
+                        continue
+                    c = {"set_id": sid, "set_label": s.get("label", sid), "ip": m["ip"], "name": m["name"], "path": d, "archive": archive,
+                         "network": bool(p.get("network")), "offsite": m["ip"] != origin_ip or bool(p.get("network"))}
+                    k = (sid, d) if p.get("network") else (sid, m["ip"], d)
+                    if k not in best or (best[k]["ip"] == origin_ip and m["ip"] != origin_ip):
+                        best[k] = c
+    return sorted(best.values(), key=lambda c: (c["set_label"], not c["offsite"], c["path"]))[:40]
+
+
+def find_copies() -> dict:
+    """Looks on every machine read by SSH (network shares included) for the newest archive of each followed folder: where it is found,
+    the folder is probably a copy. Read only ; nothing is linked until the page asks."""
+    import backups
+    meta = _read()
+    want = _wanted(meta, _last_report())
+    if not want:
+        return {"copies": [], "searched": 0, "reason": "aucune archive connue : attendre le premier relevé des sauvegardes"}
+    machines = _machines()
+    req = json.dumps({"locs": {}, "disks": False, "crons": False, "find": {"names": sorted(want), "roots": COPY_ROOTS, "depth": 5, "budget": 60}})
+
+    def one(item):
+        ip, m = item
+        out, err = backups.run_py(m["ssh"], backups.AGENT, req)
+        return {"ip": ip, "name": m["name"], "found": (out or {}).get("found") or {}, "error": err if out is None else ""}
+    with ThreadPoolExecutor(max(1, min(8, len(machines)))) as ex:
+        hits = list(ex.map(one, machines.items()))
+    return {"copies": copies_from_hits(meta, want, hits), "searched": len(hits),
+            "errors": [{"name": h["name"], "error": h["error"]} for h in hits if h["error"]]}
 
 
 def unfollow(set_id: str) -> None:
