@@ -55,7 +55,6 @@ import last_known as last_known_services
 import npmapi
 
 from config import CFG, next_timer_run
-from config import sources as config_sources
 
 OUT = os.path.join(CFG["web_dir"], "data.json")
 META = CFG["meta"]
@@ -772,13 +771,8 @@ def published(url: str, inside: str = "") -> str:
 
 
 def main():
-    enabled_src = config_sources(CFG)  # source coupée dans Réglages → Sources : ni lue, ni affichée
-    if enabled_src["npm"]:
-        progress(1, "lecture NPM (hosts, redirections, ACL)" if CFG["npm"] or CFG["npm_api"] else "pas de NPM configuré")
-        hosts, redirects, dead, streams = read_npm()
-    else:
-        progress(1, "NPM coupé (Réglages → Sources)")
-        hosts, redirects, dead, streams = [], [], [], []
+    progress(1, "lecture NPM (hosts, redirections, ACL)" if CFG["npm"] or CFG["npm_api"] else "pas de NPM configuré")
+    hosts, redirects, dead, streams = read_npm()
     # Ping d'abord : une machine qui change d'état invalide les caches SSH et docker
     progress(2, "ping des machines")
     with ThreadPoolExecutor(8) as ex:
@@ -1010,7 +1004,7 @@ def main():
                 rows.append(row("local", f"{ip}:{port}", ip, port, name=p["name"],
                                 service=None if p.get("port_only") else {"kind": "process", "name": p["name"]}))
     for ip, info in hinfo.items():
-        if not (info and info.get("apache")) or not enabled_src["apache"]:
+        if not (info and info.get("apache")):
             continue
         for port in sorted(set(info.get("apache_listen", [])) | {v["port"] for v in info.get("vhosts", [])}):
             if (ip, port) not in used:
@@ -1119,7 +1113,7 @@ def main():
 
     progress(7, "DNS AdGuard : réécritures et réponses de chaque instance")
     adguard_sync_detect(dock)
-    dns = dns_check(rows) if ADGUARD and enabled_src["adguard"] else None
+    dns = dns_check(rows) if ADGUARD else None
 
     progress(8, "machines : SSH et écriture de data.json")
     sshc = hostinfo.ssh_config()
@@ -1166,7 +1160,7 @@ def main():
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "next_run": next_timer_run("myservices.timer"),
         "page": {"health_url": published(CFG["health_url"], "stats.json"), "backups_url": published(CFG["backups_url"]),
-                 **{k: CFG[k] for k in ("links", "stale_min")}, "sources": enabled_src,
+                 **{k: CFG[k] for k in ("links", "stale_min")},
                  "map": bool(os.environ.get("MYSERVICES_ARCHIFY")) and os.path.exists(os.environ["MYSERVICES_ARCHIFY"])},
         "docker_cache_age": round(time.time() - json.load(open(DOCKER_CACHE))["ts"]),
         "docker_unreachable": [MACHINES[ip][0] for ip, c in dock.items() if c is None],

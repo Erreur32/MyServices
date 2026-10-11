@@ -1108,50 +1108,6 @@ def system_export(body: Confirm, request: Request):
                     headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
 
 
-# ── Sources activables (config.json « sources ») ─────────────────────────────────────────────────
-
-@app.get(API + "/sources", tags=["sources"], summary="Sources de services activées (admin)")
-def sources_state(request: Request):
-    from config import sources
-    if denied := admin_only(request):
-        return denied
-    return {"sources": sources(core.CFG)}
-
-
-class SourceToggle(BaseModel):
-    enabled: bool
-
-
-@app.put(API + "/sources/{name}", tags=["sources"], summary="Activer ou couper une source (admin ; prise en compte à la prochaine collecte)")
-def sources_set(name: str, body: SourceToggle, request: Request):
-    from config import SOURCES
-    import secrets_store
-    if denied := admin_write(request):
-        return denied
-    if name not in SOURCES:
-        return deny(400, "source inconnue")
-    if name == "fail2ban" and body.enabled:
-        return deny(400, "Fail2ban n'a pas d'interrupteur : son onglet apparaît dès qu'un connecteur LogviewR est relié")
-    f = Path(os.environ.get("MYSERVICES_CONFIG") or Path(core.HERE) / "config.json")
-    raw = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
-    src = dict(raw.get("sources") or {})
-    if body.enabled == SOURCES[name]:
-        src.pop(name, None)
-    else:
-        src[name] = body.enabled
-    raw["sources"] = src
-    if not src:
-        raw.pop("sources")
-    out, _ = secrets_store.encrypt_all(raw, f) if secrets_store.key_path(f).exists() else (raw, 0)
-    tmp = f.with_suffix(".tmp")
-    tmp.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    tmp.chmod(0o600)
-    tmp.replace(f)
-    core.CFG["sources"] = src
-    store().audit("source " + ("activée" if body.enabled else "coupée"), request.state.user["username"], ip_of(request), name)
-    return {"ok": True}
-
-
 # ── Historique ────────────────────────────────────────────────────────────────────────────────────
 
 @app.get(API + "/events", tags=["historique"], summary="Événements (pannes, rétablissements, santé…), un an")

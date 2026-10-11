@@ -1,7 +1,7 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { Check, HelpCircle, Loader2, Package, Pencil, Plug, Play, Plus, Server, ShieldCheck, Trash2, X } from "lucide-react";
+import { Check, HelpCircle, Loader2, Package, Pencil, Plug, Play, Plus, ShieldCheck, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
@@ -27,11 +27,7 @@ export function Connectors() {
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
   const [editing, setEditing] = useState("");  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
   const [picking, setPicking] = useState(false);  // mini cartes des connecteurs disponibles, ouvertes par le « + »
-  const [src, setSrc] = useState<Record<string, boolean>>({}), [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false);
-  const loadSources = useCallback(() => { read<{ sources: Record<string, boolean> }>("sources").then((r) => setSrc(r.sources)).catch(() => undefined); }, []);
-  useEffect(loadSources, [loadSources]);
-  const toggleSource = (id: string, on: boolean) =>
-    void act(() => send("PUT", `sources/${id}`, { enabled: on }), on ? tx("affichage activé") : tx("affichage coupé"), setSrcNote).then((ok) => { if (ok) { setChanged(true); loadSources(); } });
+  const [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false);
   const reload = useCallback(() => {
     read<ConnectorsState>("connectors/settings")
       .then((s) => { setSt(s); setError(""); })
@@ -79,27 +75,12 @@ export function Connectors() {
       {st.instances.length === 0 && !type && (
         <Card><p className="text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p></Card>
       )}
-      {st.instances.map((i, n) => (
+      {st.instances.map((i) => (
         <InstanceCard key={`${i.type}/${i.name}`} inst={i} type={st.types.find((t) => t.type === i.type)!} reload={reload}
-          display={i.type in SHOWN && i.type in src ? { on: src[i.type], first: st.instances.findIndex((x) => x.type === i.type) === n, set: (on) => toggleSource(i.type, on) } : null}
           onCollect={(on) => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
             on ? tx("allumé : relu au prochain passage de la collecte") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
           editing={editing === `${i.type}/${i.name}`} locked={(!!editing && editing !== `${i.type}/${i.name}`) || picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
       ))}
-      <Card>
-        <h2 className="flex items-center gap-2 font-bold"><Server size={16} />{tx("Lus directement, sans connecteur")}</h2>
-        <p className="mt-1 text-sm text-muted">{tx("Rien à relier ici : la collecte lit ces sources directement. L'interrupteur décide seulement si la page les affiche.")}</p>
-        <ul className="mt-2 divide-y divide-line/60 text-sm">
-          <li className="flex flex-wrap items-center gap-3 py-2.5">
-            <Switch on={!!src.apache} onChange={(on) => toggleSource("apache", on)} label={`${src.apache ? tx("Couper") : tx("Activer")} Apache`} />
-            <b>Apache</b><Dim>· {tx("vhosts lus par SSH sur chaque machine, comme services")}</Dim>
-          </li>
-          <li className="flex flex-wrap items-center gap-3 py-2.5 opacity-60">
-            <Switch on={false} disabled onChange={() => undefined} label="Fail2ban" />
-            <b>Fail2ban</b><Dim>· {tx("bannissements et prisons : l'onglet apparaît dès que le connecteur LogviewR est relié")}</Dim>
-          </li>
-        </ul>
-      </Card>
       <NoteLine note={srcNote} />
       {changed && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-bg2/40 px-4 py-3 text-sm text-muted">
@@ -115,9 +96,6 @@ export function Connectors() {
     </div>
   );
 }
-
-/** Connecteurs dont l'affichage sur la page est une source activable (le même interrupteur vaut pour toutes les instances du type) */
-const SHOWN: Record<string, string> = { npm: tx("Afficher les services et compteurs NPM sur la page"), adguard: tx("Afficher l'onglet DNS et les compteurs AdGuard (toutes les instances)") };
 
 /** Réponse de l'essai d'un connecteur : message, version et ce que la lecture a rapporté (preuve que le connecteur lit vraiment) */
 interface TestOut { ok: boolean; message: string; version: string | null; version_tested: boolean | null; found?: { name: string; count: number }[] }
@@ -152,8 +130,8 @@ function TestReport({ r, onClose }: { r: TestOut; onClose: () => void }) {
   );
 }
 
-function InstanceCard({ inst, type, reload, display, onCollect, editing: edit, locked, setEditing: setEdit }: {
-  inst: ConnectorInstance; type: ConnectorType; reload: () => void; display: { on: boolean; first: boolean; set: (on: boolean) => void } | null; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
+function InstanceCard({ inst, type, reload, onCollect, editing: edit, locked, setEditing: setEdit }: {
+  inst: ConnectorInstance; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
 }) {
   const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null), [report, setReport] = useState<TestOut | null>(null), [testing, setTesting] = useState(false);
   const url = inst.config.url as string | undefined;
@@ -191,11 +169,6 @@ function InstanceCard({ inst, type, reload, display, onCollect, editing: edit, l
           <span className="flex items-center gap-2" title={tx("Le connecteur est lu à chaque collecte ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
             <Switch on={inst.enabled} label={`${tx("Collecte")} ${inst.label} : ${inst.enabled ? tx("coupé") : tx("activé")}`} onChange={onCollect} />{tx("Collecte")}
           </span>
-          {display && (display.first
-            ? <span className="flex items-center gap-2" title={SHOWN[inst.type]}>
-                <Switch on={display.on} label={`${tx("Affichage")} ${inst.label} : ${display.on ? tx("coupé") : tx("activé")}`} onChange={display.set} />{tx("Affichage")}
-              </span>
-            : <Dim>{tx("affichage : voir la première instance")}</Dim>)}
         </div>
       </div>
       {report && !edit && <TestReport r={report} onClose={() => setReport(null)} />}

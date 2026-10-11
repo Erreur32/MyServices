@@ -53,7 +53,6 @@ DEFAULTS = {
     "backups_url": "",                   # backups.json vu de la page : "backups.json" (backups.py) ou script externe
     "links": [],                         # liens ajoutés en tête et pied de page : [{"label": "…", "url": "…"}]
     "schedule": {},
-    "sources": {},                       # sources de services activables (Réglages → Sources) : {"npm": false} ; absent = activée                      # version Docker : horaires des tâches, {"collect": "10,40 *"} (Réglages → Système)
 }
 PATHS = ("npm_api", "meta", "backups_meta", "web_dir", "cache_dir", "state_dir", "sshlist")
 
@@ -97,14 +96,6 @@ def load() -> dict:
     for k in ("npm", "connectors"):  # coupés dans Réglages (« enabled »: false) : réglages gardés, rien de lu
         cfg[k] = [c for c in cfg[k] if c.get("enabled", True) is not False]
     return cfg
-
-
-SOURCES = {"npm": True, "apache": True, "adguard": True, "fail2ban": False}  # défauts : Fail2ban attend son connecteur
-
-
-def sources(cfg: dict) -> dict:
-    """Sources activées : défauts, remplacés par « sources » de config.json."""
-    return {k: bool((cfg.get("sources") or {}).get(k, v)) for k, v in SOURCES.items()}
 
 
 def next_timer_run(timer: str) -> str | None:

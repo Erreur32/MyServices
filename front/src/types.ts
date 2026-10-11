@@ -213,7 +213,7 @@ export interface Proposal {
 
 export interface Data {
   generated: string;
-  page: { health_url: string; backups_url: string; stale_min: number; map: boolean; sources?: Record<string, boolean>; links: { url: string; label: string }[] };
+  page: { health_url: string; backups_url: string; stale_min: number; map: boolean; links: { url: string; label: string }[] };
   npm_instances: Record<string, string>;
   connectors?: Connector[];
   proposals?: Proposal[];
