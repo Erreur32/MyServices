@@ -521,6 +521,7 @@ export const EN: Record<string, string> = {
   "pas d'horaire": "no schedule",
   "{0} ({1})": "{0} ({1})",
   "Détails": "Details",
+  "Date et tâches planifiées": "Date and scheduled tasks",
   "source": "source",
   "Réglages → Machines": "Settings → Machines",
   "alias SSH de MyServices": "MyServices SSH alias",

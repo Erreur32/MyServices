@@ -7,7 +7,6 @@ import { appVersion } from "../lib/format";
 import { reopenFirstSteps } from "../lib/firstSteps";
 import { GITHUB } from "../lib/links";
 import { lastSettingsSection } from "../lib/settingsNav";
-import { TaskStrip } from "./TaskStrip";
 
 function ago(iso: string, now: number): string {
   const min = Math.round((now - new Date(iso).getTime()) / 60000);
@@ -27,7 +26,6 @@ export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; them
         </div>
         <h1 className="flex items-baseline gap-2 text-2xl font-bold tracking-tight">{tx("MyServices")}
           {snap.me.version && <span className="rounded-md border border-line bg-card px-1.5 py-0.5 font-mono text-xs font-semibold tracking-normal text-dim" title={snap.me.version}>{appVersion(snap.me.version)}</span>}</h1>
-        <TaskStrip />
       </div>
       <UserMenu snap={snap} theme={theme} toggleTheme={toggleTheme} />
     </header>

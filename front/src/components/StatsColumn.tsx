@@ -5,6 +5,7 @@ import { CLEANUP, checks, dnsSync, status } from "../lib/status";
 import { mState } from "../lib/machines";
 import type { TabId } from "../lib/summary";
 import { tx } from "../lib/i18n";
+import { ScheduleCard } from "./ScheduleCard";
 
 type Tone = "ok" | "warn" | "bad" | "off";
 const TONE: Record<Tone, string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad", off: "text-muted" };
@@ -59,5 +60,5 @@ export function StatsColumn({ snap, go }: { snap: Snapshot; go: (t: TabId) => vo
       ["ok", backups.summary.ok, tx("à jour")], ["warn", backups.summary.warn, tx("en retard")],
       ["bad", backups.summary.crit, tx("critiques")], ["bad", backups.summary.no_offsite, tx("sans copie")]]} />,
   ];
-  return <aside className="flex flex-col gap-2.5" aria-label={tx("Compteurs")}>{groups}</aside>;
+  return <aside className="flex flex-col gap-2.5" aria-label={tx("Compteurs")}>{groups}<ScheduleCard /></aside>;
 }
