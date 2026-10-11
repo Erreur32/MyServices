@@ -1,18 +1,19 @@
-# Notes de version : MyServices 0.10.3
+# Notes de version : MyServices 0.10.4
 
 > **Version en ligne, à un stade précoce.** MyServices est utilisable, mais jeune : des écrans et des réglages peuvent encore changer. Gardez une copie de `config/` et `data/` avant de mettre à jour, et laissez-le sur votre réseau local.
 
 
-**0.10.3** (11 octobre 2026) sort les Premiers pas de l'accueil : ils ont maintenant leur propre page, en grand.
+**0.10.4** (12 octobre 2026) sait où vos sauvegardes sont copiées, et relie chaque machine à ce que vos autres outils en voient.
 
 ## Pour tout le monde
 
 **Quoi de neuf ?**
-- **Page d'installation à part** (`http://<IP>:8090/#setup`) : sans onglets ni en-tête, seulement les étapes, en plus gros. Une installation neuve y arrive toute seule, une fois par session ; « Terminer les premiers pas » ramène au tableau de bord.
-- **Accueil plus calme** : la grosse carte est remplacée par une bannière « Premiers pas, n/6 » avec un bouton « Continuer ».
-- **Revoir les premiers pas** (menu du compte) ouvre cette page ; si tout est fini, elle propose de les rouvrir.
-- **Résumé de la recherche réseau** : tous les badges ont le même fond sombre.
-- **Texte plus court** quand tout est lu : « Vos machines et vos conteneurs sont lus. Reste à relier vos outils. »
+- **Sauvegardes, « copié ailleurs »** : dans Réglages → Sauvegardes, chaque dossier suivi peut recevoir ses copies (« Ajouter une copie » : machine, puis dossier). MyServices compare ensuite la copie à la source à chaque relevé et signale une archive manquante ou en retard.
+- **« Trouver les copies »** : un bouton cherche, sur toutes vos machines, **partages réseau (NAS) compris**, où sont copiées les dernières archives de chaque dossier suivi, et les propose. Un clic sur « Relier » suffit ; rien n'est relié tout seul. Une copie sur un NAS compte comme copie hors machine.
+- **Seuil d'alerte** : en plus de 2, 8, 15 et 31 jours, « autre… » accepte n'importe quelle valeur. Si vos archives arrivent moins souvent que le seuil, un bouton propose le bon (« rythme observé ~7 j : passer à 15 j »).
+- **Réglages → Sauvegardes plus lisible** : chaque jeu a un titre foncé avec l'icône du système et l'IP de la machine.
+- **Onglet Machines** : un badge par outil qui voit la machine (MynetworK, UniFi, Beszel, Proxmox, Dockhand), sa MAC, ses autres noms et, pour une VM, son nœud Proxmox. Le cadre « Vus par vos outils, pas suivis ici » liste tout ce que ces outils voient sans que MyServices le suive, par outil.
+- **Plus rapide après une installation** : `/home/backup` trouvé sur plusieurs machines ne lance plus qu'un seul relevé (avant : une collecte complète par machine).
 
 **Ce qu'il faut savoir**
 - Proxmox (schéma), Prometheus, Healthchecks, Netdata, Jellyfin et Proxmox Backup restent essayés seulement contre de faux serveurs.
@@ -22,7 +23,7 @@
 
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.10.3` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
-- **Front** : page `#setup` (composant `FirstSteps` en mode page), bannière sur l'accueil.
-- **Tests** : 459 Python, 92 front.
+- **Image** : `ghcr.io/erreur32/myservices:0.10.4` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
+- **Nouveau** : `matching.py` (rapprochement IP / MAC / nom, `links` et `unlinked` dans `data.json`) ; routes `POST /backups/copies/find`, `POST` et `DELETE /backups/settings/{id}/copies` ; `scripts/dev.sh` pour le développement.
+- **Tests** : 477 Python, 92 front.
 - **Détail complet** (en anglais) : [CHANGELOG.md](CHANGELOG.md).

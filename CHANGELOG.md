@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.4 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 - **Backups, "copied elsewhere"**: a followed folder can now be given its copies from the page (Settings → Backups → each set → "Add a copy": machine, then folder typed or picked from the search). MyServices compares each copy with the source at every run, as it already did for hand-written sets. "Find the copies" looks on every machine read by SSH, **network shares (NAS in CIFS / NFS) included**, for the last five archives of each followed folder and proposes where they are copied, in one click ("Link"); nothing is linked on its own. A copy on a network share counts as off-machine even when it is seen from the machine that makes the backup. A copy on another machine turns "off-machine copy required" on; removing the last one turns it off.
 - **Backups, custom alert threshold**: besides 2 / 8 / 15 / 31 days, an "other…" pill takes any value from 0.1 to 365 days (Enter or leaving the field saves it).
