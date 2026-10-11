@@ -1,7 +1,7 @@
 // Réglages → Alertes, sur le modèle de GpuViewR : canaux (Discord, Telegram, webhook ; bouton Essayer),
 // règles (genres d'événements, machine, texte, canaux, délai, retours à la normale), préréglages ajoutés
 // désactivés, et les derniers envois. Les secrets ne reviennent jamais du serveur : champ vide = inchangé.
-import { Bell, ChevronDown, ChevronUp, Pencil, Plus, Send, Trash2, Webhook } from "lucide-react";
+import { Bell, ChevronDown, ChevronUp, Eye, EyeOff, Pencil, Plus, Send, Trash2, Webhook } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine } from "../components/form";
@@ -33,6 +33,37 @@ export const TYPES: Record<ChannelType, { label: string; fields: { k: string; la
   ] },
 };
 
+const HIDE_KEY = "ms.alerts.status.hidden";
+
+/** État du moteur d'alertes. Le cadre explicatif peut se masquer (choix retenu) : il reste alors une ligne d'état avec « Afficher ». */
+function Status({ active }: { active: boolean }) {
+  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(HIDE_KEY) === "1"; } catch { return false; } });
+  const set = (h: boolean) => { setHidden(h); try { localStorage.setItem(HIDE_KEY, h ? "1" : "0"); } catch { /* stockage refusé : le choix ne dure que cette visite */ } };
+  const badge = <Badge tone={active ? "ok" : "warn"}>{active ? tx("alertes actives") : tx("aucune règle active")}</Badge>;
+  if (hidden) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
+        <Bell size={15} aria-hidden />{badge}
+        <button type="button" className={quiet} onClick={() => set(false)}><Eye size={13} aria-hidden />{tx("Afficher l'explication")}</button>
+      </div>
+    );
+  }
+  return (
+    <Card className={active ? "border-ok/40" : "border-warn/40"}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 font-bold"><Bell size={16} />{tx("Alertes")} {badge}</h2>
+        <button type="button" className={quiet} onClick={() => set(true)} title={tx("Masquer ce cadre ; l'état reste affiché en une ligne")}><EyeOff size={13} aria-hidden />{tx("Masquer")}</button>
+      </div>
+      <p className="mt-1 text-sm text-muted">
+        {active
+          ? tx("Actives : chaque nouvel événement (panne, machine hors ligne, santé…) passe par les règles ci-dessous, après la collecte et la santé.")
+          : tx("Aucune règle active avec un canal actif : les anciens envois de config.json (s'il y en a) continuent tels quels.")}
+        {" "}{tx("Les pannes sont déjà confirmées sur plusieurs passages avant d'arriver ici.")}
+      </p>
+    </Card>
+  );
+}
+
 export function Alerts() {
   const [st, setSt] = useState<AlertsState | null>(null);
   const [error, setError] = useState("");
@@ -46,15 +77,7 @@ export function Alerts() {
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   return (
     <div className="flex flex-col gap-4">
-      <Card className={st.active ? "border-ok/40" : "border-warn/40"}>
-        <h2 className="flex items-center gap-2 font-bold"><Bell size={16} />{tx("Alertes")}</h2>
-        <p className="mt-1 text-sm text-muted">
-          {st.active
-            ? tx("Actives : chaque nouvel événement (panne, machine hors ligne, santé…) passe par les règles ci-dessous, après la collecte et la santé.")
-            : tx("Aucune règle active avec un canal actif : les anciens envois de config.json (s'il y en a) continuent tels quels.")}
-          {" "}{tx("Les pannes sont déjà confirmées sur plusieurs passages avant d'arriver ici.")}
-        </p>
-      </Card>
+      <Status active={st.active} />
       <Channels st={st} reload={reload} />
       <Rules st={st} reload={reload} />
       <Sent st={st} />

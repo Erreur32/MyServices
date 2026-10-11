@@ -54,6 +54,9 @@ ENV MYSERVICES_CONFIG=/config/config.json \
 # Version affichée dans Réglages → Système (CI : étiquette ou branche + commit)
 ARG VERSION=dev
 ENV MYSERVICES_VERSION=$VERSION
+# Image construite sur place : `git describe` du dépôt, montré à côté de « dev » dans l'en-tête (--build-arg GIT_REV=…)
+ARG GIT_REV=
+ENV MYSERVICES_GIT=$GIT_REV
 
 USER myservices
 VOLUME ["/config", "/data"]

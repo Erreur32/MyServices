@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Marque secondaire de MyServices, tirée du favicon : le hub et ses quatre services, sans le carré de fond (lisible sur clair comme sur sombre) -->
+  <g stroke="#3da9fc" stroke-width="4" stroke-linecap="round" opacity=".7">
+    <path d="M32 32 L12 12 M32 32 L52 12 M32 32 L12 52 M32 32 L52 52"/>
+  </g>
+  <path fill="#3da9fc" fill-rule="evenodd" d="M32 19a13 13 0 1 0 0 26 13 13 0 0 0 0-26zm0 9.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7z"/>
+  <circle cx="12" cy="12" r="8" fill="#22c55e"/>
+  <circle cx="52" cy="12" r="8" fill="#22c55e"/>
+  <circle cx="12" cy="52" r="8" fill="#f59e0b"/>
+  <circle cx="52" cy="52" r="8" fill="#ef4444"/>
+</svg>

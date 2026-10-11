@@ -1,4 +1,5 @@
-import { ChevronDown, ExternalLink, ListChecks, LogOut, Map, Moon, Settings, Sun, UserRound } from "lucide-react";
+import { ChevronDown, ExternalLink, ListChecks, LogOut, Map, Moon, Settings, Sun, UserRound, Workflow } from "lucide-react";
+import { useDiagrams } from "./Diagrams";
 import { useEffect, useRef, useState } from "react";
 import { logout, ROOT, type Snapshot } from "../api";
 import type { Theme } from "../theme";
@@ -24,8 +25,15 @@ export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; them
             {tx("Données")} {ago(snap.data.generated, now)}{stale && tx(" · en retard")}
           </span>
         </div>
-        <h1 className="flex items-baseline gap-2 text-2xl font-bold tracking-tight">{tx("MyServices")}
-          {snap.me.version && <span className="rounded-md border border-line bg-card px-1.5 py-0.5 font-mono text-xs font-semibold tracking-normal text-dim" title={snap.me.version}>{appVersion(snap.me.version)}</span>}</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+          <img src={`${import.meta.env.BASE_URL}mark.svg`} alt="" width={30} height={30} className="shrink-0" />{tx("MyServices")}
+          {snap.me.version && <span className="rounded-md border border-line bg-card px-1.5 py-0.5 font-mono text-xs font-semibold tracking-normal text-dim" title={snap.me.version}>{appVersion(snap.me.version)}</span>}
+          {snap.me.version === "dev" && (snap.me.git || snap.me.planned) && (
+            <span className="text-xs font-normal tracking-normal text-dim" title={tx("Image de développement : état git d'où elle vient, et version prévue d'après le journal des changements")}>
+              {snap.me.git && <>git <code className="font-mono text-muted">{snap.me.git}</code></>}{snap.me.git && snap.me.planned && " · "}{snap.me.planned && <>{tx("prévue")} <code className="font-mono text-link">{snap.me.planned}</code></>}
+            </span>
+          )}
+        </h1>
       </div>
       <UserMenu snap={snap} theme={theme} toggleTheme={toggleTheme} />
     </header>
@@ -45,6 +53,7 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
     return () => { removeEventListener("mousedown", away); removeEventListener("keydown", esc); };
   }, [open]);
   const admin = snap.me.role === "admin";
+  const [diagrams] = useDiagrams(open);  // chargés à l'ouverture du menu
   const item = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-muted hover:bg-bg2 hover:text-txt";
   const go = (hash: string) => { location.hash = hash; setOpen(false); };
   return (
@@ -69,7 +78,10 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
             {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}{tx("Thème")} {theme === "dark" ? tx("clair") : tx("sombre")}
           </button>
           <div className="my-1 border-t border-line/70" />
-          {snap.data.page.map && <a role="menuitem" className={item} href={`${ROOT}carte.html`} target="_blank" rel="noopener"><Map size={15} />{tx("Carte de l'infra")}</a>}
+          <button type="button" role="menuitem" className={item} onClick={() => go("diagrams")}><Workflow size={15} />{tx("Tous les schémas")}</button>
+          {(diagrams?.diagrams ?? []).filter((d) => d.exists && d.available).map((d) => (
+            <a key={d.id} role="menuitem" className={`${item} pl-9`} href={`${ROOT}${d.file}`} target="_blank" rel="noopener" title={d.what}><Map size={14} aria-hidden />{d.title}</a>
+          ))}
           <a role="menuitem" className={item} href={GITHUB} target="_blank" rel="noopener noreferrer">
             <ExternalLink size={15} />{tx("Projet sur GitHub")}
           </a>

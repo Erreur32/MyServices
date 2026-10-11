@@ -2,7 +2,7 @@
 // les comptes (ajout, rôle, activation, nouveau mot de passe, suppression) et le journal des actions.
 // Apparence : thème et largeur de la page (« Page width » de GpuViewR), retenus par le navigateur.
 // Menu en quatre groupes (Données, Surveillance, Accès et sécurité, Application). Autres sections : un fichier chacune dans tabs/.
-import { ArrowRight, Bell, HardDrive, Info, KeyRound, Moon, MoveHorizontal, Palette, Plug, Plus, Radar, RotateCcw, ScrollText, Server, Settings2, Sun, Timer, Trash2, UserCheck, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bell, Eye, HardDrive, Info, KeyRound, Moon, MoveHorizontal, Palette, Plug, Plus, Radar, RotateCcw, ScrollText, Server, Settings2, Sun, Timer, Trash2, ShieldCheck, UserCheck, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { dateTime } from "../lib/format";
@@ -12,10 +12,11 @@ import type { User } from "../types";
 import { Badge, Card, Dim } from "../components/ui";
 import { Field, NoteLine } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
-import { Alerts } from "./Alerts";
+import { NotificationsHub } from "./NotificationsHub";
 import { Connectors } from "./Connectors";
 import { MachinesSettings } from "./MachinesSettings";
 import { NetworkSettings } from "./NetworkSettings";
+import { IconChoice, type IconOption } from "../components/IconChoice";
 import { AboutSettings } from "./About";
 import { ApiMcp } from "./ApiMcp";
 import { AuditLog } from "./AuditLog";
@@ -32,7 +33,7 @@ const GROUPS: { label: string; sections: { id: string; label: string; icon: Luci
     { id: "machines", label: tx("Machines"), icon: Server }, { id: "connectors", label: tx("Connecteurs"), icon: Plug },
   ] },
   { label: tx("Surveillance"), sections: [
-    { id: "alerts", label: tx("Alertes"), icon: Bell }, { id: "network", label: tx("Découverte"), icon: Radar }, { id: "backups", label: tx("Sauvegardes"), icon: HardDrive }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer },
+    { id: "alerts", label: tx("Notifications"), icon: Bell }, { id: "network", label: tx("Découverte"), icon: Radar }, { id: "backups", label: tx("Sauvegardes"), icon: HardDrive }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer },
   ] },
   { label: tx("Accès et sécurité"), sections: [
     { id: "accounts", label: tx("Comptes"), icon: Users }, { id: "ssh", label: tx("Clé SSH"), icon: KeyRound },
@@ -45,6 +46,10 @@ const SECTIONS = GROUPS.flatMap((g) => g.sections);
 
 
 const ROLE: Record<User["role"], string> = { admin: "admin", viewer: tx("lecture seule") };
+const ROLE_CHOICE: IconOption<User["role"]>[] = [
+  { value: "viewer", label: tx("Lecture seule"), hint: tx("Voit la page et peut demander un passage (⟳)"), icon: <Eye size={26} className="text-ok" aria-hidden /> },
+  { value: "admin", label: tx("Admin"), hint: tx("Tout, réglages compris"), icon: <ShieldCheck size={26} className="text-link" aria-hidden /> },
+];
 
 /** Réglages d'apparence tenus par App (appliqués à toute la page). */
 export interface Look {
@@ -80,7 +85,7 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
         ))}
       </nav>
       <div className="min-w-0 flex-1">
-        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <Alerts /> : section === "connectors" ? <Connectors snap={snap} agentIp={location.hash.split("/")[1] === "agents" ? location.hash.split("/")[2] : undefined} /> : section === "machines" ? <MachinesSettings snap={snap} focusIp={location.hash.split("/")[2]} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings /> : section === "about" ? <AboutSettings /> : section === "audit" ? <AuditLog /> : section === "backups" ? <BackupsSettings /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} snap={snap} /> : <SystemSettings part="system" snap={snap} />}
+        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <NotificationsHub /> : section === "connectors" ? <Connectors snap={snap} agentIp={location.hash.split("/")[1] === "agents" ? location.hash.split("/")[2] : undefined} /> : section === "machines" ? <MachinesSettings snap={snap} focusIp={location.hash.split("/")[2]} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings /> : section === "about" ? <AboutSettings /> : section === "audit" ? <AuditLog /> : section === "backups" ? <BackupsSettings /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} snap={snap} /> : <SystemSettings part="system" snap={snap} />}
       </div>
     </div>
   );
@@ -166,13 +171,19 @@ function Accounts({ me }: { me: string }) {
       <div className="grid gap-4 xl:grid-cols-2">
         <AddUser onDone={reload} />
         <SessionDays />
-        <SessionDays />
       </div>
       <Card>
         <h2 className="mb-1 font-bold">{tx("Comptes")} {users && <Dim>· {users.length}</Dim>}</h2>
         <p className="mb-3 text-sm text-muted">
           <b className="text-txt">{tx("Admin")}</b> {tx(": tout, réglages compris.")} <b className="text-txt">{tx("Lecture seule")}</b> {tx(": voit la page et peut demander un passage (⟳). Ton propre mot de passe et tes sessions : menu du compte → « Profil ». Un admin ne peut pas se retirer ses droits, et il reste toujours au moins un admin actif.")}
         </p>
+        {users && (
+          <div className="mb-3 flex flex-wrap gap-2 text-xs">
+            <Badge tone="info"><ShieldCheck size={11} aria-hidden />{tx("{0} admin", users.filter((u) => u.role === "admin" && !u.disabled).length)}</Badge>
+            <Badge tone="off"><Eye size={11} aria-hidden />{tx("{0} en lecture seule", users.filter((u) => u.role === "viewer" && !u.disabled).length)}</Badge>
+            {users.some((u) => u.disabled) && <Badge tone="warn">{tx("{0} désactivé(s)", users.filter((u) => u.disabled).length)}</Badge>}
+          </div>
+        )}
         {users === null ? <p className="text-sm text-muted">{tx("Chargement…")}</p> : (
           <ul className="flex flex-col divide-y divide-line/60">
             {users.map((u) => <UserRow key={u.username} u={u} self={u.username.toLowerCase() === me.toLowerCase()} onDone={reload} />)}
@@ -192,7 +203,13 @@ function SessionDays() {
       <h2 className="mb-1 font-bold">{tx("Durée des sessions")}</h2>
       <p className="mb-3 text-sm text-muted">{tx("Combien de temps un navigateur reste connecté sans que l'on redemande le mot de passe (de 1 à 90 jours). Vaut pour les prochaines connexions ; les sessions déjà ouvertes gardent leur échéance jusqu'à leur prochaine prolongation.")}</p>
       <form className="flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); if (valid) void act(() => send("PUT", "security/session-days", { days: n }), tx("enregistré : {0} jours", n), setNote).then((ok) => ok && setCur(n)); }}>
-        <Field label={tx("Jours")}><input className={`${input} w-28`} type="number" min={1} max={90} value={days} onChange={(e) => setDays(e.target.value)} /></Field>
+        <div className="flex flex-col gap-1 text-sm text-muted">{tx("Jours")}
+          <span className="flex flex-wrap items-center gap-1.5">
+            {[1, 7, 14, 30, 90].map((d) => <button key={d} type="button" aria-pressed={n === d} onClick={() => setDays(String(d))}
+              className={`rounded-full border px-2.5 py-1 text-xs font-medium ${n === d ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>{d}</button>)}
+            <input className={`${input} w-20 py-1`} type="number" min={1} max={90} value={days} onChange={(e) => setDays(e.target.value)} aria-label={tx("Jours")} />
+          </span>
+        </div>
         <button className={quiet} disabled={!valid || n === cur}>{tx("Enregistrer")}</button>
       </form>
       <NoteLine note={note} />
@@ -218,13 +235,10 @@ function AddUser({ onDone }: { onDone: () => void }) {
           <Field label={tx("Nom (lettres, chiffres, . _ @ -)")}>
             <input className={input} autoComplete="off" required minLength={2} maxLength={64} pattern="[a-zA-Z0-9._@\-]+" value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
-          <Field label={tx("Rôle")}>
-            <select className={input} value={role} onChange={(e) => setRole(e.target.value as User["role"])}>
-              <option value="viewer">{tx("lecture seule")}</option>
-              <option value="admin">{tx("admin")}</option>
-            </select>
-          </Field>
         </div>
+        <Field label={tx("Rôle")}>
+          <IconChoice label={tx("Rôle")} value={role} onPick={setRole} options={ROLE_CHOICE} />
+        </Field>
         <Field label={tx("Mot de passe ({0} caractères min., à lui transmettre)", PASSWORD_MIN)}>
           <input className={`${input} ${okField(pw)}`} type="password" autoComplete="new-password" required minLength={PASSWORD_MIN} value={pw} onChange={(e) => setPw(e.target.value)} />
         </Field>
@@ -247,21 +261,26 @@ function UserRow({ u, self, onDone }: { u: User; self: boolean; onDone: () => vo
   return (
     <li className="py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span aria-hidden className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold uppercase ${u.disabled ? "bg-bg2 text-dim" : u.role === "admin" ? "bg-link/20 text-link" : "bg-ok/15 text-ok"}`}>{u.username.slice(0, 1)}</span>
         <div className="min-w-[180px] flex-1">
-          <b>{u.username}</b>{self && <Dim> {tx("· toi")}</Dim>}
+          <b className={u.disabled ? "text-dim line-through" : ""}>{u.username}</b>{self && <Dim> {tx("· toi")}</Dim>}
           <div className="text-xs text-dim">
             {tx("dernière connexion :")} {u.last_login ? dateTime(u.last_login * 1000) : tx("jamais")} {tx("· créé le")} {dateTime(u.created * 1000)}
           </div>
         </div>
-        <Badge tone={u.role === "admin" ? "info" : "off"}>{ROLE[u.role]}</Badge>
+        <Badge tone={u.role === "admin" ? "info" : "off"}>{u.role === "admin" ? <ShieldCheck size={11} aria-hidden /> : <Eye size={11} aria-hidden />}{ROLE[u.role]}</Badge>
         {u.disabled ? <Badge tone="warn">{tx("désactivé")}</Badge> : <Badge tone="ok">{tx("actif")}</Badge>}
         {!self && (
           <div className="flex flex-wrap gap-1.5">
-            <select className={`${quiet} bg-bg2`} value={u.role} aria-label={tx("Rôle de {0}", u.username)}
-              onChange={(e) => void run(() => send("PATCH", path, { role: e.target.value }), `${u.username} : ${ROLE[e.target.value as User["role"]]}`)}>
-              <option value="viewer">{tx("lecture seule")}</option>
-              <option value="admin">{tx("admin")}</option>
-            </select>
+            <span className="inline-flex rounded-lg border border-line bg-bg2 p-0.5" role="radiogroup" aria-label={tx("Rôle de {0}", u.username)}>
+              {ROLE_CHOICE.map((o) => (
+                <button key={o.value} type="button" role="radio" aria-checked={u.role === o.value} title={o.hint} disabled={u.role === o.value}
+                  onClick={() => void run(() => send("PATCH", path, { role: o.value }), `${u.username} : ${ROLE[o.value]}`)}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${u.role === o.value ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}>
+                  <span className="grid h-4 w-4 place-items-center [&>svg]:h-3.5 [&>svg]:w-3.5">{o.icon}</span>{o.label}
+                </button>
+              ))}
+            </span>
             <button type="button" className={quiet} onClick={() => void run(() => send("PATCH", path, { disabled: !u.disabled }),
               u.disabled ? `${u.username} réactivé` : `${u.username} désactivé, ses sessions fermées`)}>
               {u.disabled ? <><UserCheck size={14} />{tx("Réactiver")}</> : <><UserX size={14} />{tx("Désactiver")}</>}

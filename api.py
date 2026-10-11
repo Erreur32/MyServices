@@ -1197,7 +1197,10 @@ def logout(request: Request):
 @app.get(API + "/me", tags=["comptes"], summary="Compte connecté")
 def me(request: Request):
     u = request.state.user or {}
-    return {"username": u.get("username"), "role": u.get("role"), "auth": AUTH, "version": os.environ.get("MYSERVICES_VERSION", "dev")}
+    import about
+    return {"username": u.get("username"), "role": u.get("role"), "auth": AUTH, "version": os.environ.get("MYSERVICES_VERSION", "dev"),
+            # image de développement : le dépôt git d'où elle vient (describe) et la version prévue d'après le journal des changements
+            "git": os.environ.get("MYSERVICES_GIT", ""), "planned": about.planned(about.changelog(Path(core.HERE) / "CHANGELOG.md"))}
 
 
 def admin_only(request: Request) -> JSONResponse | None:
@@ -1516,7 +1519,8 @@ def notifications_state(request: Request):
     n = core.notifications_store()
     stats, data = n._data()
     names = {m["ip"]: m["name"] for m in data.get("machine_list") or [] if not m.get("disabled")}
-    return {"notifications": n.list(), "channels": core.alerts_store().channels(),
+    sent = [x for x in core.alerts_store().sent(200) if (x.get("rule") or "").startswith("🔔")][:30]
+    return {"notifications": n.list(), "channels": core.alerts_store().channels(), "sent": sent,
             "sensors": [{"id": k, "label": v[0], "icon": v[1]} for k, v in notifications.SENSORS.items()],
             "machines": [{"ip": ip, "name": nm} for ip, nm in names.items()],
             "kinds": [{"id": k, "label": v[0], "group": v[1]} for k, v in alerts.KINDS.items()], "groups": alerts.GROUPS,

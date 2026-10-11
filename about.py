@@ -30,6 +30,14 @@ def core_version(v: str | None) -> str | None:
     return m[1] if m else None
 
 
+def planned(changelog: str) -> str | None:
+    """Version prévue : la dernière publiée du journal + 1 (patch) quand une section « Unreleased » est en cours ; None sans travail en cours."""
+    if not re.search(r"^## Unreleased", changelog, re.M):
+        return None
+    m = re.search(r"^## v(\d+)\.(\d+)\.(\d+)\b", changelog, re.M)
+    return f"{m[1]}.{m[2]}.{int(m[3]) + 1}" if m else None
+
+
 def newer(latest: str | None, current: str | None) -> bool:
     """Vrai seulement si `latest` est strictement plus récent : une version locale en avance sur son étiquette (« dev », commit local) n'est pas
     présentée comme « plus ancienne que la dernière »."""

@@ -329,6 +329,8 @@ export interface Events {
 export interface Me {
   username: string;
   role: "admin" | "viewer";
+  git?: string;      // image de développement : `git describe` du dépôt (build-arg GIT_REV)
+  planned?: string | null;  // version prévue (journal des changements : section Unreleased + dernière publiée + 1)
   version?: string;  // version de l'application (tag de l'image, puis empreinte du commit) ; « dev » pour une image construite sur place
 }
 
@@ -579,4 +581,17 @@ export interface VirtualizationConnector extends InfraConnector {
   totals?: { vm: number; lxc: number; running: number; stopped: number };
   backups?: { last: number; ok: boolean; failed_recent: number } | null;
   datastores?: { name: string; used_pct?: number | null; last_backup?: number | null; groups: number; age_h?: number | null }[];
+}
+
+/** Réglages → Notifications (api/v1/notifications) */
+export interface NotificationReport { machines: string[]; sensors: string[]; at: string[]; days: number[] }
+export interface NotificationEvents { kinds: string[]; machine: string; match: string; resolved: boolean; cooldown_min: number }
+export interface NotificationItem {
+  id: number; name: string; kind: "report" | "events"; enabled: boolean; channels: number[]; last_sent: number | null;
+  config: NotificationReport & NotificationEvents;
+}
+export interface NotificationsState {
+  notifications: NotificationItem[]; channels: AlertChannel[]; sent: AlertSent[];
+  sensors: { id: string; label: string; icon: string }[]; machines: { ip: string; name: string }[];
+  kinds: { id: string; label: string; group: string }[]; groups: Record<string, string>; examples: { name: string; kind: "report" | "events" }[];
 }

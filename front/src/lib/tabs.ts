@@ -1,5 +1,5 @@
 // Onglets : ordre, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Ban, ClipboardClock, Globe, HardDrive, House, Monitor, Network, Settings, Stethoscope, type LucideIcon } from "lucide-react";
+import { Ban, ClipboardClock, Globe, HardDrive, House, Monitor, Network, Settings, Stethoscope, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -14,6 +14,7 @@ export const TABS: { id: TabId; icon: LucideIcon; label: string }[] = [
   { id: "fail2ban", icon: Ban, label: tx("Fail2ban") },
   { id: "dns", icon: Network, label: tx("DNS") },
   { id: "backups", icon: HardDrive, label: tx("Sauvegardes") },
+  { id: "diagrams", icon: Workflow, label: tx("Schémas") },
   { id: "settings", icon: Settings, label: tx("Réglages") },
 ];
 

@@ -17,6 +17,7 @@ import { Machines } from "./tabs/Machines";
 import { Services } from "./tabs/Services";
 import { Profile } from "./tabs/Profile";
 import { Settings } from "./tabs/Settings";
+import { DiagramsTab } from "./tabs/DiagramsTab";
 import { useContentWidth, useTheme } from "./theme";
 import { tx } from "./lib/i18n";
 
@@ -105,6 +106,7 @@ export default function App() {
       {current === "health" && <Health snap={snap} />}
       {current === "dns" && <Dns snap={snap} />}
       {current === "backups" && <Backups snap={snap} />}
+      {current === "diagrams" && <DiagramsTab admin={snap.me.role === "admin"} />}
       {current === "settings" && <Settings key={hash} snap={snap} look={{ theme, setTheme, width, setWidth }} />}
       {current === "fail2ban" && <Fail2ban snap={snap} />}
     </div>

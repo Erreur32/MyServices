@@ -33,6 +33,12 @@ class Versions(unittest.TestCase):
         self.assertTrue(about.newer("v0.9.4", "v0.9.3-0123456789abcdef0123456789abcdef01234567"))
         self.assertFalse(about.newer("v0.9.3", "v0.9.3-0123456789abcdef0123456789abcdef01234567"))
 
+    def test_version_prevue(self):
+        self.assertEqual(about.planned("## Unreleased (next)\n- x\n\n## v0.9.3 (2026-10-11)\n"), "0.9.4")
+        self.assertEqual(about.planned("## Unreleased\n\n## v0.9.9 (d)\n## v0.9.8 (d)\n"), "0.9.10")
+        self.assertIsNone(about.planned("## v0.9.3 (2026-10-11)\n"))          # rien en cours : pas de version prévue
+        self.assertIsNone(about.planned("## Unreleased\n"))                     # pas de version publiée de référence
+
     def test_comparaison(self):
         self.assertTrue(about.newer("v0.9.4", "0.9.3"))
         self.assertFalse(about.newer("v0.9.3", "0.9.3"))
