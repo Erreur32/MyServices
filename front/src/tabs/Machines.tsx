@@ -1,6 +1,6 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { Eye, EyeOff } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Eye, EyeOff } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet } from "../lib/filter";
 import { dur, ipNum, splitHostName } from "../lib/format";
@@ -10,6 +10,7 @@ import { NoteLine } from "../components/form";
 import type { Note } from "../lib/forms";
 import { MSTATE, ORDER, mState, type MState } from "../lib/machines";
 import { rolesOf } from "../lib/ssh";
+import { connectorsOf } from "../lib/machineConnectors";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, FilterBar, Level, Table, Td, Th } from "../components/ui";
 import { tx } from "../lib/i18n";
@@ -38,7 +39,7 @@ function Servers({ m, snap }: { m: Machine; snap: Snapshot }) {
     i.nginx && <Badge key="ng" tone="off">{tx("nginx")}</Badge>,
     i.docker ? <Badge key="dk" tone="off"><span className="text-link">{tx("Docker ·")} {i.docker}</span></Badge> : null,
   ].filter(Boolean);
-  return tags.length ? <div className="flex flex-wrap gap-1">{tags}</div> : <Dim>—</Dim>;
+  return tags.length ? <div className="flex flex-wrap gap-1 md:flex-nowrap">{tags}</div> : <Dim>—</Dim>;
 }
 
 function HealthCell({ h }: { h?: HealthHost }) {
@@ -135,6 +136,50 @@ function Ssh({ m }: { m: Machine }) {
   );
 }
 
+/** Connecteurs qui lisent la machine : un badge chacun (rouge s'il est en panne), le message au survol */
+function ConnectorBadges({ list }: { list: ReturnType<typeof connectorsOf> }) {
+  if (!list.length) return <Dim>—</Dim>;
+  return <div className="flex flex-wrap gap-1 md:flex-nowrap">{list.map((c) => <Badge key={c.label} tone={c.ok ? "info" : "bad"} title={c.title}>{c.label}</Badge>)}</div>;
+}
+
+/** Accès SSH sur une ligne ; l'alias, la note et les alertes sont dans le détail déplié */
+function SshShort({ m }: { m: Machine }) {
+  if (!m.ssh) return <Dim>{m.local ? tx("local") : "—"}</Dim>;
+  return <span className="inline-flex items-center gap-1.5"><span className="font-mono text-xs">{m.ssh.user || "?"}@{m.ip}:{m.ssh.port}</span>
+    {!m.info && m.ssh.identity && <Badge tone="warn" title={tx("connexion refusée ou impossible")}>{tx("refusée")}</Badge>}</span>;
+}
+
+/** Système sur une ligne (coupé, entier au survol) */
+function OsShort({ m }: { m: Machine }) {
+  const os = m.info?.os || m.agent?.os;
+  return os ? <span className="block max-w-[15rem] truncate" title={os}>{os}</span> : <Dim>—</Dim>;
+}
+
+/** Ligne dépliée à la demande : tout ce que le tableau garde sur une seule ligne */
+function Detail({ m, list, mac }: { m: Machine; list: ReturnType<typeof connectorsOf>; mac?: string }) {
+  const roles = rolesOf(m.role);
+  const box = "flex flex-col gap-1 text-xs";
+  const title = "font-semibold uppercase tracking-wide text-dim";
+  return (
+    <div className="grid gap-x-6 gap-y-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className={box}><span className={title}>{tx("Rôle")}</span>
+        <span className="flex flex-wrap gap-1">{roles.length ? roles.map((t) => <Badge key={t} tone="off">{t}</Badge>) : <Dim>—</Dim>}</span>
+        {mac && <span className="font-mono text-[11px] text-dim" title={tx("Vu par MynetworK")}>{mac}</span>}</div>
+      <div className={box}><span className={title}>{tx("SSH")}</span><Ssh m={m} /></div>
+      <div className={box}><span className={title}>{tx("Clé utilisée")}</span><KeyCell m={m} /></div>
+      <div className={box}><span className={title}>{tx("Système")}</span>
+        {m.info?.os ? <span>{m.info.os}<span className="block text-dim">{tx("noyau")} {m.info.kernel || "?"} {tx("· up")} {dur(m.info.uptime_s)}</span></span>
+          : m.agent ? <span>{m.agent.os}<span className="block text-dim">{m.agent.kernel ? `${m.agent.kernel} · ` : ""}{tx("par l'agent")}{m.agent.uptime_s ? ` ${tx("· up")} ${dur(m.agent.uptime_s)}` : ""}</span>
+            {hwLine(m.agent.hardware) && <span className="block text-dim" title={hardwareRows(m.agent.hardware).map(([k, v]) => `${k} : ${v}`).join("\n")}>{hwLine(m.agent.hardware)}</span>}</span>
+          : <Dim>—</Dim>}</div>
+      <div className={box}><span className={title}>{tx("Services")}</span>
+        <span>{m.services} <Dim>{tx("dont")} {m.npm} {tx("NPM")}</Dim>{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</span></div>
+      <div className={`${box} sm:col-span-2 xl:col-span-3`}><span className={title}>{tx("Connecteurs")}</span>
+        {list.length ? <ul className="flex flex-col gap-0.5">{list.map((c) => <li key={c.label} className={c.ok ? "" : "text-bad"}><b>{c.label}</b> <Dim>{c.title.replaceAll("\n", " · ")}</Dim></li>)}</ul> : <Dim>—</Dim>}</div>
+    </div>
+  );
+}
+
 export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: string) => void }) {
   const hb = useMemo(() => healthByIp(snap.health?.hosts), [snap.health]);
   // Système et applis vus par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas
@@ -191,10 +236,16 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
     }
   }, [hb]);
   const sort = useSort(f.shown, keyOf, "ip");
+  // Tableau sur une seule ligne par machine ; un clic sur le chevron (ou « Tout déplier ») montre le détail
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggleOpen = (ip: string) => setOpen((o) => { const n = new Set(o); if (!n.delete(ip)) n.add(ip); return n; });
+  const allOpen = sort.sorted.length > 0 && sort.sorted.every((m) => open.has(m.ip));
 
   // Inventaire de MynetworK (connecteur « network ») : MAC et fabricant sous l'IP, et les appareils vus mais pas suivis
   const seen = useMemo(() => new Map((snap.data.network ?? []).flatMap((c) => c.devices ?? []).map((d) => [d.ip, d])), [snap.data.network]);
   const untracked = useMemo(() => [...seen.values()].filter((d) => !snap.data.machine_list.some((m) => m.ip === d.ip)).sort((a, b) => ipNum(a.ip) - ipNum(b.ip)), [seen, snap.data.machine_list]);
+  const linksOf = (m: Machine) => connectorsOf(m.ip, snap.data.connectors ?? [], seen.has(m.ip), hb.get(m.ip)?.sources);
+  const macOf = (m: Machine) => { const d = seen.get(m.ip); return d ? [d.mac, d.vendor].filter(Boolean).join(" · ") : undefined; };
   const name = (m: Machine) => (
     <button type="button" onClick={() => onMachine(m.ip)} className="text-left" title={tx("Voir ses services")}>
       <b className="font-semibold hover:text-link">{m.name}</b>
@@ -210,12 +261,18 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
   return (
     <div className="py-1">
       <FilterBar f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
-        extra={nOff > 0 && (
-          <button type="button" onClick={() => setShowOff(!showOff)} aria-pressed={showOff}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm ${showOff ? "border-link text-txt" : "border-line text-muted hover:text-txt"}`}>
-            {showOff ? <Eye size={14} aria-hidden /> : <EyeOff size={14} aria-hidden />}{showOff ? tx("Masquer les désactivées") : tx("Afficher les désactivées")} <b className="text-dim">({nOff})</b>
+        extra={<>
+          <button type="button" onClick={() => setOpen(allOpen ? new Set() : new Set(sort.sorted.map((m) => m.ip)))} aria-pressed={allOpen}
+            className="hidden items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-sm text-muted hover:text-txt md:inline-flex">
+            {allOpen ? <ChevronsDownUp size={14} aria-hidden /> : <ChevronsUpDown size={14} aria-hidden />}{allOpen ? tx("Tout replier") : tx("Tout déplier")}
           </button>
-        )} />
+          {nOff > 0 && (
+            <button type="button" onClick={() => setShowOff(!showOff)} aria-pressed={showOff}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm ${showOff ? "border-link text-txt" : "border-line text-muted hover:text-txt"}`}>
+              {showOff ? <Eye size={14} aria-hidden /> : <EyeOff size={14} aria-hidden />}{showOff ? tx("Masquer les désactivées") : tx("Afficher les désactivées")} <b className="text-dim">({nOff})</b>
+            </button>
+          )}
+        </>} />
       <NoteLine note={note} />
       {untracked.length > 0 && (
         <details className="mb-3 rounded-xl border border-line bg-bg2/40 px-4 py-2 text-sm">
@@ -232,22 +289,34 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           <Table head={<>
-            <th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("État")}</Th><Th>{tx("SSH")}</Th><Th>{tx("Clé utilisée")}</Th><Th>{tx("Hôte")}</Th><Th>{tx("Root")}</Th><Th>{tx("Mot de passe")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
+            <th className="w-8 px-1" aria-label={tx("Détails")} /><th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("État")}</Th><Th>{tx("Connecteurs")}</Th><Th>{tx("SSH")}</Th><Th>{tx("Clé utilisée")}</Th><Th>{tx("Hôte")}</Th><Th>{tx("Root")}</Th><Th>{tx("Mot de passe")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
             <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th>{tx("Systemd")}</Th><Th>{tx("Mises à jour")}</Th></>}{admin && <Th>{tx("Suivi")}</Th>}
           </>}>
-            {sort.sorted.map((m) => (
-              <tr key={m.ip} className={`hover:bg-bg2/60 ${isOff(m) ? "opacity-50" : ""}`}>
-                <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td><Td>{name(m)}</Td><Td>{st(m)}</Td><Td><Ssh m={m} /></Td>
-                <Td><KeyCell m={m} /></Td><Td><HostKey m={m} /></Td><Td><Sshd m={m} what="root" /></Td><Td><Sshd m={m} what="pwd" /></Td>
-                <Td>{m.info?.os ? <>{m.info.os}<span className="block text-xs text-dim">{tx("noyau")} {m.info.kernel || "?"} {tx("· up")} {dur(m.info.uptime_s)}</span></>
-                  : m.agent ? <>{m.agent.os}<span className="block text-xs text-dim">{m.agent.kernel ? `${m.agent.kernel} · ` : ""}{tx("par l'agent")}{m.agent.uptime_s ? ` ${tx("· up")} ${dur(m.agent.uptime_s)}` : ""}</span>
-                    {hwLine(m.agent.hardware) && <span className="block text-xs text-dim" title={hardwareRows(m.agent.hardware).map(([k, v]) => `${k} : ${v}`).join("\n")}>{hwLine(m.agent.hardware)}</span>}</> : <Dim>—</Dim>}</Td>
-                <Td><Servers m={m} snap={snap} /></Td><Td>{svc(m)}</Td>
-                {snap.health && <><Td><Level level={hb.get(m.ip) ? (hb.get(m.ip)!.reachable === false ? "down" : hb.get(m.ip)!.level) : "na"} /></Td>
-                  <Td><ResCell h={hb.get(m.ip)} what="cpu" /></Td><Td><ResCell h={hb.get(m.ip)} what="mem" /></Td><Td><DiskCell h={hb.get(m.ip)} /></Td><Td><SystemdCell h={hb.get(m.ip)} /></Td><Td><UpdatesCell h={hb.get(m.ip)} /></Td></>}
-                {admin && <Td>{followBtn(m)}</Td>}
-              </tr>
-            ))}
+            {sort.sorted.map((m) => {
+              const links = linksOf(m), shown = open.has(m.ip), h = hb.get(m.ip), cols = 13 + (snap.health ? 6 : 0) + (admin ? 1 : 0);
+              return (
+                <Fragment key={m.ip}>
+                  <tr className={`hover:bg-bg2/60 [&>td]:whitespace-nowrap ${isOff(m) ? "opacity-50" : ""}`}>
+                    <td className="w-8 px-1 py-2 align-middle">
+                      <button type="button" onClick={() => toggleOpen(m.ip)} aria-expanded={shown} aria-label={tx("Détails de {0}", m.name)} title={shown ? tx("Replier") : tx("Déplier le détail")}
+                        className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt">{shown ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button>
+                    </td>
+                    <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td>
+                    <Td><button type="button" onClick={() => onMachine(m.ip)} className="flex items-baseline gap-2 text-left" title={tx("Voir ses services")}>
+                      <b className="font-semibold hover:text-link">{m.name}</b><span className="text-xs text-dim">{m.ip}</span></button></Td>
+                    <Td>{st(m)}</Td><Td><ConnectorBadges list={links} /></Td><Td><SshShort m={m} /></Td>
+                    <Td>{m.ssh?.identity ? <code className="text-xs" title={`${m.ssh.identity}\n${m.ssh.key_fp ?? ""}`}>{m.ssh.identity.split("/").pop()}</code> : <Dim>—</Dim>}</Td>
+                    <Td><HostKey m={m} /></Td><Td><Sshd m={m} what="root" /></Td><Td><Sshd m={m} what="pwd" /></Td>
+                    <Td><OsShort m={m} /></Td><Td><Servers m={m} snap={snap} /></Td>
+                    <Td><b>{m.services}</b>{m.down > 0 && <span className="text-xs text-bad"> · {m.down} {tx("en panne")}</span>}</Td>
+                    {snap.health && <><Td><Level level={h ? (h.reachable === false ? "down" : h.level) : "na"} /></Td>
+                      <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
+                    {admin && <Td>{followBtn(m)}</Td>}
+                  </tr>
+                  {shown && <tr className={`bg-bg2/40 ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} list={links} mac={macOf(m)} /></td></tr>}
+                </Fragment>
+              );
+            })}
           </Table>
           <Cards>
             {sort.sorted.map((m) => (
@@ -257,6 +326,7 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
                   {m.info?.os ? <span className="text-muted">{m.info.os} {tx("· up")} {dur(m.info.uptime_s)}</span>
                     : m.agent && <span className="text-muted">{m.agent.os}{m.agent.uptime_s ? ` ${tx("· up")} ${dur(m.agent.uptime_s)}` : ""} <Dim>({tx("par l'agent")})</Dim></span>}
                   <Servers m={m} snap={snap} />
+                  <ConnectorBadges list={linksOf(m)} />
                   <div className="flex items-start justify-between gap-3">{svc(m)}{snap.health && <HealthCell h={hb.get(m.ip)} />}</div>
                   {admin && <div>{followBtn(m)}</div>}
                 </div>

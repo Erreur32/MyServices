@@ -26,6 +26,7 @@ de passages en échec ; un connecteur en panne ne bloque pas les autres.
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import re
 import ssl
@@ -34,6 +35,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -238,7 +240,7 @@ def run_isolated(conn: Connector, state: dict, timeout: float) -> tuple[dict | N
         box["error"] = f"délai dépassé ({timeout:.0f} s)"
     v = box.get("version")
     st = Status(conn.type, conn.name, "error" not in box, box.get("error") or "OK", v,
-                version_tested(v, conn.tested), duration_s=round(time.time() - t0, 2))
+                version_tested(v, conn.tested), duration_s=round(time.time() - t0, 2), extra={"ip": target_ip(conn.conf)})
     if st.ok:
         state[key] = {"ok": True, "failures": 0, "since": None, "last": box["data"], "version": v}
         return box["data"], st
@@ -249,6 +251,17 @@ def run_isolated(conn: Connector, state: dict, timeout: float) -> tuple[dict | N
         st.stale = True
         return prev["last"], st
     return None, st
+
+
+def target_ip(conf: dict) -> str | None:
+    """Machine visée par un connecteur : son champ « ip », sinon l'hôte de son URL quand c'est une adresse IP (un nom n'est pas résolu :
+    la collecte ne fait pas de DNS pour ça)."""
+    if conf.get("ip"):
+        return str(conf["ip"])
+    try:
+        return str(ipaddress.ip_address(urlsplit(str(conf.get("url") or "")).hostname or ""))
+    except ValueError:
+        return None
 
 
 def slug(s: str) -> str:
