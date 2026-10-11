@@ -1,11 +1,11 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Eye, EyeOff } from "lucide-react";
+import { Boxes, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Cpu, Eye, EyeOff, HeartPulse, IdCard, Info, KeyRound } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet } from "../lib/filter";
 import { dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
-import type { AgentHardware, HealthHost, Machine, MachineConf, MachinesSettings, NetScan } from "../types";
+import type { HealthHost, Machine, MachineConf, MachinesSettings, NetScan } from "../types";
 import { NoteLine } from "../components/form";
 import type { Note } from "../lib/forms";
 import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, osOfMachine, type MState, type OsKind } from "../lib/machines";
@@ -16,12 +16,10 @@ import { Dot } from "../components/marks";
 import { LEVEL } from "../lib/level";
 import { rolesOf } from "../lib/ssh";
 import { MachineIcon } from "../components/MachineIcon";
-import { Badge, Cards, Dim, Empty, FilterBar, Level, Table, Td, Th } from "../components/ui";
+import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
 import { tx } from "../lib/i18n";
 import { hardwareRows } from "../lib/hardware";
 
-/** Ligne courte du matériel (modèle · mémoire) sous le système ; le détail est dans l'info-bulle. */
-const hwLine = (hw?: AgentHardware | null) => [[hw?.maker, hw?.model].filter(Boolean).join(" "), hw?.ram_gb ? `${hw.ram_gb} ${tx("Go")}` : ""].filter(Boolean).join(" · ");
 
 function healthByIp(hosts: HealthHost[] = []): Map<string, HealthHost> {
   return new Map(hosts.map((h) => [splitHostName(h.name)[1], h]));
@@ -130,25 +128,6 @@ export function UpdatesCell({ h }: { h?: HealthHost }) {
   );
 }
 
-function Ssh({ m }: { m: Machine }) {
-  if (!m.ssh) return <Dim>{m.local ? tx("local") : tx("pas d'accès SSH configuré")}</Dim>;
-  const s = m.ssh, sd = m.info?.sshd || {};
-  const pwd = s.methods ? s.methods.some((x) => x === "password" || x === "keyboard-interactive") : sd.passwordauthentication?.startsWith("yes");
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="font-mono text-xs">{s.user || "?"}@{m.ip}:{s.port}</span>
-      <span className="text-xs text-dim">{tx("alias")} {s.alias}{s.identity ? "" : tx(" · sans clé")}{s.port !== 22 && <> · <span className="text-warn" title={tx("Port SSH non standard")}>{tx("port")} {s.port}</span></>}</span>
-      {s.note && <span className="text-xs text-dim" title={tx("Note du script sshlist")}>📝 {s.note}</span>}
-      {!m.info && s.identity && <span className="text-xs text-warn">{tx("connexion refusée ou impossible")}</span>}
-      <span className="flex flex-wrap gap-1">
-        {!s.host_key && <Badge tone="bad" title={tx("Clé d'hôte absente de known_hosts")}>{tx("clé d'hôte inconnue")}</Badge>}
-        {sd.permitrootlogin?.startsWith("yes") && <Badge tone="warn">{tx("root autorisé")}</Badge>}
-        {pwd && <Badge tone="warn">{tx("mot de passe accepté")}</Badge>}
-      </span>
-    </div>
-  );
-}
-
 /** Accès SSH sur une ligne ; l'alias, la note et les alertes sont dans le détail déplié */
 function SshShort({ m }: { m: Machine }) {
   if (!m.ssh) return <Dim>{m.local ? tx("local") : "—"}</Dim>;
@@ -164,19 +143,21 @@ function OsShort({ m, kind }: { m: Machine; kind: OsKind | null }) {
 }
 
 /** Origine d'une donnée : le connecteur ou la source qui l'a lue (rouge si en panne) */
-export interface Origin { label: string; ok?: boolean; tip?: string }
+export interface Origin { label: string; ok?: boolean; tip?: string; href?: string }  // href : où régler cette source (Réglages)
 
 /** D'où viennent les données de la machine : SSH, agent, recherche réseau, MynetworK, Beszel et connecteurs visant son IP */
 function originsOf(m: Machine, snap: Snapshot, h: HealthHost | undefined, scanned: boolean, seen: boolean) {
   const linked = (types: string[]): Origin[] => (snap.data.connectors ?? []).filter((c) => c.ip === m.ip && types.includes(c.type))
-    .map((c) => ({ label: c.type === "docker" ? "Docker (SSH)" : c.type === "process" ? tx("Ports (SSH)") : "AdGuard Home", ok: c.ok, tip: `${c.name} : ${c.message}` }));
-  const health: Origin[] = (h?.sources ?? []).map((x) => ({ label: x === "ssh" ? "SSH" : x === "agent" ? tx("agent MyServices") : x === "beszel" ? "Beszel" : x }));
+    .map((c) => ({ label: c.type === "docker" ? "Docker (SSH)" : c.type === "process" ? tx("Ports (SSH)") : "AdGuard Home", ok: c.ok, tip: `${c.name} : ${c.message}`, href: `#settings/machines/${m.ip}` }));
+  const here = `#settings/machines/${m.ip}`, connectors = "#settings/connectors";
+  const health: Origin[] = (h?.sources ?? []).map((x) => ({ label: x === "ssh" ? "SSH" : x === "agent" ? tx("agent MyServices") : x === "beszel" ? "Beszel" : x,
+    href: x === "agent" ? `#settings/agents/${m.ip}` : x === "beszel" ? connectors : here }));
   return {
-    role: [{ label: tx("Réglages → Machines") }] as Origin[],
-    mac: seen ? [{ label: "MynetworK" }] : [],
-    ssh: m.ssh ? [{ label: tx("alias SSH de MyServices") }] : [],
-    os: m.info?.os ? [{ label: "SSH" }] : m.agent ? [{ label: tx("agent MyServices") }] : scanned ? [{ label: tx("recherche réseau") }] : [],
-    services: [...(m.npm ? [{ label: "NPM" }] : []), ...linked(["docker", "process", "adguard"])],
+    role: [{ label: tx("Réglages → Machines"), href: here }] as Origin[],
+    mac: seen ? [{ label: "MynetworK", href: connectors }] : [],
+    ssh: m.ssh ? [{ label: tx("alias SSH de MyServices"), href: here }] : [],
+    os: m.info?.os ? [{ label: "SSH", href: here }] : m.agent ? [{ label: tx("agent MyServices"), href: `#settings/agents/${m.ip}` }] : scanned ? [{ label: tx("recherche réseau"), href: "#settings/network" }] : [],
+    services: [...(m.npm ? [{ label: "NPM", href: connectors }] : []), ...linked(["docker", "process", "adguard"])],
     health,
   };
 }
@@ -185,38 +166,104 @@ function From({ list }: { list: Origin[] }) {
   if (!list.length) return null;
   return (
     <span className="flex flex-wrap items-center gap-1 text-[11px] font-normal normal-case tracking-normal text-dim">
-      {tx("source")} : {list.map((o) => <Badge key={o.label} tone={o.ok === false ? "bad" : "info"} title={o.tip}>{o.label}</Badge>)}
+      {tx("source")} : {list.map((o) => {
+        const badge = <Badge tone={o.ok === false ? "bad" : "info"} title={o.tip ?? (o.href ? tx("Ouvrir les réglages de cette source") : undefined)}>{o.label}</Badge>;
+        return o.href ? <a key={o.label} href={o.href} className="rounded-md outline-offset-2 hover:brightness-125 focus-visible:outline focus-visible:outline-2 focus-visible:outline-link">{badge}</a> : <span key={o.label}>{badge}</span>;
+      })}
     </span>
   );
 }
 
-/** Ligne dépliée à la demande : tout ce que le tableau garde sur une seule ligne, avec l'origine de chaque donnée */
-function Detail({ m, mac, from }: { m: Machine; mac?: string; from: ReturnType<typeof originsOf> }) {
-  const roles = rolesOf(m.role);
-  const box = "flex flex-col gap-1 text-xs";
-  const title = "font-semibold uppercase tracking-wide text-dim";
+/** Rubrique du détail : titre avec icône, lignes « libellé / valeur », puis d'où viennent les données */
+function Section({ icon: Icon, title, from, children }: { icon: typeof Info; title: string; from?: Origin[]; children: React.ReactNode }) {
   return (
-    <div className="grid gap-x-6 gap-y-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-4">
-      <div className={box}><span className={title}>{tx("Rôle")}</span>
-        <span className="flex flex-wrap gap-1">{roles.length ? roles.map((t) => <Badge key={t} tone="off">{t}</Badge>) : <Dim>—</Dim>}</span><From list={from.role} />
-        {mac && <><span className="font-mono text-[11px] text-dim">{mac}</span><From list={from.mac} /></>}</div>
-      <div className={box}><span className={title}>{tx("SSH")}</span><Ssh m={m} /><From list={from.ssh} /></div>
-      <div className={box}><span className={title}>{tx("Clé utilisée")}</span><KeyCell m={m} /><From list={from.ssh} /></div>
-      <div className={box}><span className={title}>{tx("Sécurité SSH")}</span>
-        {m.ssh ? <span className="flex flex-col gap-0.5">
-          <span className="inline-flex items-center gap-1.5"><HostKey m={m} />{tx("Clé d'hôte")}</span>
-          <span className="inline-flex items-center gap-1.5"><Sshd m={m} what="root" />{tx("Root")}</span>
-          <span className="inline-flex items-center gap-1.5"><Sshd m={m} what="pwd" />{tx("Mot de passe")}</span>
-        </span> : <Dim>—</Dim>}</div>
-      <div className={box}><span className={title}>{tx("Système")}</span>
-        {m.info?.os ? <span>{m.info.os}<span className="block text-dim">{tx("noyau")} {m.info.kernel || "?"} {tx("· up")} {dur(m.info.uptime_s)}</span></span>
-          : m.agent ? <span>{m.agent.os}<span className="block text-dim">{m.agent.kernel ? `${m.agent.kernel} · ` : ""}{tx("par l'agent")}{m.agent.uptime_s ? ` ${tx("· up")} ${dur(m.agent.uptime_s)}` : ""}</span>
-            {hwLine(m.agent.hardware) && <span className="block text-dim" title={hardwareRows(m.agent.hardware).map(([k, v]) => `${k} : ${v}`).join("\n")}>{hwLine(m.agent.hardware)}</span>}</span>
-          : <Dim>—</Dim>}<From list={from.os} /></div>
-      <div className={box}><span className={title}>{tx("Services")}</span>
-        <span>{m.services} <Dim>{tx("dont")} {m.npm} {tx("NPM")}</Dim>{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</span><From list={from.services} /></div>
-      <div className={box}><span className={title}>{tx("Santé")}</span>
-        {from.health.length ? <span className="text-muted">{tx("relevée par")}</span> : <Dim>{tx("non suivie")}</Dim>}<From list={from.health} /></div>
+    <section className="flex flex-col gap-1.5 rounded-lg border border-line/60 bg-card/60 p-3 text-xs">
+      <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim"><Icon size={13} aria-hidden />{title}</h4>
+      <dl className="flex flex-col gap-1">{children}</dl>
+      {!!from?.length && <From list={from} />}
+    </section>
+  );
+}
+
+function Row({ k, children }: { k: string; children?: React.ReactNode }) {
+  if (children === undefined || children === null || children === false || children === "") return null;
+  return <div className="flex gap-2"><dt className="w-20 shrink-0 text-dim">{k}</dt><dd className="min-w-0 flex-1 break-words">{children}</dd></div>;
+}
+
+/** Disques, processeur et mémoire de la dernière santé, en barres */
+function HealthRows({ h }: { h: HealthHost }) {
+  const bar = (label: string, pct: number | undefined, tone: "ok" | "warn" | "bad", extra?: string) => pct == null ? null : (
+    <div key={label} className="flex items-center gap-2"><span className="w-20 shrink-0 truncate text-dim" title={label}>{label}</span><Fill pct={pct} tone={tone} /><span className="tabular-nums">{Math.round(pct)} %</span>{extra && <Dim>{extra}</Dim>}</div>
+  );
+  return (
+    <>
+      {h.res?.available && bar(tx("CPU"), h.res.cpu_pct, (h.res.cpu_pct ?? 0) >= 90 ? "warn" : "ok")}
+      {h.res?.available && bar(tx("Mémoire"), h.res.mem_pct, (h.res.mem_pct ?? 0) >= 97 ? "bad" : (h.res.mem_pct ?? 0) >= 90 ? "warn" : "ok",
+        h.res.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} ${tx("Go")}` : undefined)}
+      {(h.disks || []).filter((d) => (d.size_gb ?? 1) >= 1).map((d) => bar(d.mount, d.used_pct, d.critical ? "bad" : d.warning ? "warn" : "ok", d.avail_gb != null ? `${d.avail_gb.toFixed(0)} ${tx("Go libres")}` : undefined))}
+    </>
+  );
+}
+
+/** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
+function Detail({ m, h, mac, from }: { m: Machine; h?: HealthHost; mac?: string; from: ReturnType<typeof originsOf> }) {
+  const roles = rolesOf(m.role), i = m.info, hw = hardwareRows(m.agent?.hardware), s = m.ssh;
+  const [stTone, stLabel, stTip] = MSTATE[mState(m)];
+  const vhosts = (i?.vhosts ?? []) as { port?: number; names?: string[] }[];
+  const failed = h?.systemd?.failed.length || 0, apt = h?.apt?.upgradable || 0;
+  return (
+    <div className="grid gap-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
+      <Section icon={IdCard} title={tx("Identité")} from={[...from.role, ...from.mac]}>
+        <Row k={tx("Nom")}><b>{m.name}</b></Row>
+        <Row k="IP"><span className="font-mono">{m.ip}</span></Row>
+        <Row k={tx("État")}><Badge tone={stTone} title={stTip}>{stLabel}</Badge></Row>
+        <Row k={tx("Rôle")}>{roles.length ? <span className="flex flex-wrap gap-1">{roles.map((t) => <Badge key={t} tone="off">{t}</Badge>)}</span> : undefined}</Row>
+        <Row k="MAC">{mac && <span className="font-mono">{mac}</span>}</Row>
+        <Row k="TTL">{m.ttl ? <span title={tx("Durée de vie des paquets du ping : 64 Linux, 128 Windows")}>{m.ttl}</span> : undefined}</Row>
+      </Section>
+
+      <Section icon={Cpu} title={tx("Système")} from={from.os}>
+        <Row k={tx("Système")}>{i?.os || m.agent?.os || undefined}</Row>
+        <Row k={tx("Noyau")}>{i?.kernel || m.agent?.kernel || undefined}</Row>
+        <Row k={tx("En marche")}>{(i?.uptime_s ?? m.agent?.uptime_s) ? dur(i?.uptime_s ?? m.agent?.uptime_s) : undefined}</Row>
+        {hw.map(([k, v]) => <Row key={k} k={k}>{v}</Row>)}
+        {!i && !m.agent && <Dim>—</Dim>}
+      </Section>
+
+      <Section icon={KeyRound} title={tx("Accès")} from={from.ssh}>
+        {s ? <>
+          <Row k={tx("Connexion")}><span className="font-mono">{s.user || "?"}@{m.ip}:{s.port}</span>{s.port !== 22 && <Badge tone="warn">{tx("port non standard")}</Badge>}</Row>
+          <Row k={tx("Alias")}>{s.alias}{s.identity ? "" : tx(" · sans clé")}</Row>
+          <Row k={tx("Clé")}><KeyCell m={m} /></Row>
+          <Row k={tx("Note")}>{s.note ?? undefined}</Row>
+          <Row k={tx("Sécurité")}>
+            <span className="flex flex-wrap gap-x-3 gap-y-0.5">
+              <span className="inline-flex items-center gap-1"><HostKey m={m} />{tx("clé d'hôte")}</span>
+              <span className="inline-flex items-center gap-1"><Sshd m={m} what="root" />root</span>
+              <span className="inline-flex items-center gap-1"><Sshd m={m} what="pwd" />{tx("mot de passe")}</span>
+            </span>
+          </Row>
+        </> : <Row k={tx("SSH")}>{m.local ? tx("local") : <Dim>{tx("pas d'accès SSH configuré")}</Dim>}</Row>}
+        {m.agent && <Row k={tx("Agent")}>{tx("relevé par l'agent MyServices")}</Row>}
+      </Section>
+
+      <Section icon={Boxes} title={tx("Logiciels et services")} from={from.services}>
+        <Row k={tx("Services")}>{m.services}{m.npm > 0 && <Dim> · {m.npm} NPM</Dim>}{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</Row>
+        <Row k="Docker">{i?.docker ? tx("{0} conteneur(s) en cours", i.docker) : i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined}</Row>
+        <Row k="Apache">{i?.apache ? <>{tx("{0} vhost(s)", vhosts.length)}{!!i.vhosts_unreadable?.length && <span className="text-warn"> · {i.vhosts_unreadable.length} {tx("illisible(s)")}</span>}</> : undefined}</Row>
+        {i?.apache && vhosts.slice(0, 6).map((v, n) => <Row key={n} k=""><span className="font-mono text-[11px] text-muted">:{v.port} {(v.names ?? []).join(", ") || "—"}</span></Row>)}
+        <Row k="nginx">{i?.nginx ? tx("actif sur la machine (hors conteneur)") : undefined}</Row>
+        {!m.services && !i?.docker && !i?.apache && !i?.nginx && <Dim>—</Dim>}
+      </Section>
+
+      <Section icon={HeartPulse} title={tx("Santé")} from={from.health}>
+        {h ? <>
+          <Row k={tx("Niveau")}><Level level={h.reachable === false ? "down" : h.level} /></Row>
+          <HealthRows h={h} />
+          <Row k="Systemd">{failed ? <span className="text-bad">{tx("{0} service(s) en échec", failed)}</span> : undefined}</Row>
+          <Row k={tx("Mises à jour")}>{apt ? tx("{0} paquet(s) à mettre à jour", apt) : undefined}{h.reboot_required && <span className="text-warn"> · {tx("redémarrage requis")}</span>}</Row>
+        </> : <Dim>{tx("non suivie")}</Dim>}
+      </Section>
     </div>
   );
 }
@@ -358,7 +405,7 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
                       <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
                     {admin && <Td>{followBtn(m)}</Td>}
                   </tr>
-                  {shown && <tr className={`bg-bg2/40 ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} mac={macOf(m)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} /></td></tr>}
+                  {shown && <tr className={`bg-bg2/40 ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} mac={macOf(m)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} /></td></tr>}
                 </Fragment>
               );
             })}

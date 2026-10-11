@@ -20,3 +20,14 @@ it("connaît Docker et Nginx", () => {
     expect(appIcon(undefined)).toBeNull();
   });
 });
+
+describe("logo d'un service", () => {
+  it("appli reconnue, nom ou image, puis type", async () => {
+    const { serviceIcon } = await import("./appIcons");
+    expect(serviceIcon({ app: { label: "Home Assistant" } })).toMatch(/home-assistant\.svg$/);
+    expect(serviceIcon({ service: { name: "npm", image: "jc21/nginx-proxy-manager:latest", kind: "docker" } })).toMatch(/nginx-proxy-manager\.svg$/);
+    expect(serviceIcon({ service: { name: "monappli", image: "x/y", kind: "docker" } })).toMatch(/docker\.svg$/);
+    expect(serviceIcon({ service: { name: "site", kind: "web" } })).toBeNull();
+    expect(serviceIcon({})).toBeNull();
+  });
+});

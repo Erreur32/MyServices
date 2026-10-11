@@ -6,7 +6,7 @@ import type { Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { ipNum } from "../lib/format";
 import { Dot, Logo } from "../components/marks";
-import { appIcon } from "../lib/appIcons";
+import { appIcon, serviceIcon } from "../lib/appIcons";
 import { CHECK, CLEANUP, KIND_NAME, checks, exposure, hostName, noIdentity, status, type Check } from "../lib/status";
 import type { Host } from "../types";
 import { Badge, Cards, Dim, Empty, FilterBar, Table, Td, Th, type Tone } from "../components/ui";
@@ -56,6 +56,12 @@ function State({ r, ck }: { r: Host; ck: Check[] }) {
       {ck.filter((k) => !CLEANUP.includes(k)).map((k) => <span key={k} className="text-xs text-warn" title={CHECK[k][1]}>⚑ {CHECK[k][0]}</span>)}
     </div>
   );
+}
+
+/** Logo du service, dans sa propre colonne pour ne pas déformer le nom ; la place est gardée quand il n'y en a pas */
+function ServiceLogo({ r }: { r: Host }) {
+  const src = serviceIcon(r);
+  return src ? <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-bg2" title={r.app?.label || r.service?.name}><img src={src} alt="" className="h-4 w-4" /></span> : <span className="block h-7 w-7 shrink-0" aria-hidden />;
 }
 
 function Tech({ r }: { r: Host }) {
@@ -118,7 +124,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
       {sort.sorted.length === 0 ? <Empty>{tx("Aucun service pour ce filtre.")}</Empty> : (
         <>
           <Table head={<>
-            <Th className="w-6" /><Th k="status" sort={sort}>{tx("État")}</Th><Th k="name" sort={sort}>{tx("Service")}</Th><Th k="target" sort={sort}>{tx("Cible")}</Th>
+            <Th className="w-6" /><Th className="w-10" /><Th k="status" sort={sort}>{tx("État")}</Th><Th k="name" sort={sort}>{tx("Service")}</Th><Th k="target" sort={sort}>{tx("Cible")}</Th>
             <Th k="machine" sort={sort}>{tx("Machine")}</Th><Th k="kind" sort={sort}>{tx("Logiciel")}</Th><Th>{tx("Accès")}</Th>
           </>}>
             {sort.sorted.map((r) => {
@@ -127,6 +133,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
                 <Fragment key={k}>
                   <tr onClick={() => toggle(k)} className={`cursor-pointer hover:bg-bg2/60 ${r.enabled ? "" : "opacity-60"}`}>
                     <Td className="text-dim">{open[k] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</Td>
+                    <td className="w-10 px-1 py-2.5 align-middle"><ServiceLogo r={r} /></td>
                     <Td className="w-[230px]"><State r={r} ck={ck} /></Td>
                     <Td className="max-w-[320px]"><Name r={r} /></Td>
                     <Td className="whitespace-nowrap font-mono text-xs text-muted">
@@ -136,7 +143,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
                     <Td className="max-w-[260px]"><Tech r={r} /></Td>
                     <Td><Access r={r} /></Td>
                   </tr>
-                  {open[k] && <tr className="bg-bg/40"><td colSpan={7} className="p-3"><ServiceDetail r={r} /></td></tr>}
+                  {open[k] && <tr className="bg-bg/40"><td colSpan={8} className="p-3"><ServiceDetail r={r} /></td></tr>}
                 </Fragment>
               );
             })}
@@ -147,6 +154,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
               return (
                 <div key={k} className={`rounded-2xl border border-line bg-card p-3.5 ${r.enabled ? "" : "opacity-70"}`}>
                   <button type="button" onClick={() => toggle(k)} className="flex w-full items-start justify-between gap-2 text-left">
+                    <ServiceLogo r={r} />
                     <span className="min-w-0 flex-1">
                       <b className="block truncate">{hostName(r)}</b>
                       <span className="block text-xs text-dim">{r.machine || tx("machine inconnue")} · {r.ip ? `${r.ip}:${r.port}` : r.target || ""}</span>

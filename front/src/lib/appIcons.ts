@@ -26,3 +26,12 @@ export function appIconByText(...texts: (string | undefined | null)[]): string |
   for (const [name, file] of Object.entries(FILES)) if (hay.includes(squash(name))) return `${import.meta.env.BASE_URL}icons/${file}.svg`;
   return null;
 }
+
+const KIND_ICON: Record<string, string> = { docker: "docker", apache: "apache", nginx: "nginx" };
+
+/** Logo du service d'une ligne : l'appli reconnue, sinon d'après le nom ou l'image (« jc21/nginx-proxy-manager »), sinon le type (Docker, Apache) ; null si aucun */
+export function serviceIcon(r: { app?: { label: string } | null; service?: { name?: string; image?: string; kind?: string } | null }): string | null {
+  const s = r.service;
+  const kind = s?.kind && KIND_ICON[s.kind] ? `${import.meta.env.BASE_URL}icons/${KIND_ICON[s.kind]}.svg` : null;
+  return appIcon(r.app ? [r.app.label] : undefined) ?? appIconByText(s?.name, s?.image) ?? kind;
+}
