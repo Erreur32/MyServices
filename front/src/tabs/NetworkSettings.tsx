@@ -9,6 +9,7 @@ import { Badge, Card, Dim } from "../components/ui";
 import { dateTime } from "../lib/format";
 import { reopenFirstSteps } from "../lib/firstSteps";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
+import { usePoll } from "../lib/polling";
 import { tx } from "../lib/i18n";
 import { pokeScan } from "../lib/scan";
 import { GROUPS, DiscoveryPanel, todoOf, useDiscoveries } from "../components/DiscoveryCard";
@@ -54,11 +55,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
       .then(([c, s]) => { setCfg(c); setScan(s); setHours((h) => (h === "" ? String(c.every_h) : h)); setError(""); })
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
   }, []);
-  useEffect(() => {
-    load();
-    const id = setInterval(load, 10_000); // une recherche en cours : suivre sa fin
-    return () => clearInterval(id);
-  }, [load]);
+  usePoll(load, scan && (scan.phase === "ping" || scan.phase === "identify") ? 10_000 : 60_000);   // 10 s seulement pour suivre une recherche en cours
   useScrollToPart(!!cfg && !!scan && current === "network");
   if (!cfg || !scan) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 

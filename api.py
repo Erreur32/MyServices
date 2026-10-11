@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import quote
 
+from starlette.middleware.gzip import GZipMiddleware
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -39,6 +40,7 @@ API = PREFIX + "/api/v1"
 
 app = FastAPI(title="MyServices", version="2", docs_url=API + "/docs", redoc_url=None,
               openapi_url=API + "/openapi.json")
+app.add_middleware(GZipMiddleware, minimum_size=1000)   # data.json (~200 Ko) et les longues listes : 5 à 10 fois moins d'octets sur le réseau
 
 @app.exception_handler(RequestValidationError)
 async def invalid_request(request: Request, exc: RequestValidationError):

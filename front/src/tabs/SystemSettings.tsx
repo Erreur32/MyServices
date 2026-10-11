@@ -2,7 +2,7 @@
 // horaires » (Surveillance : modifiables, lancer maintenant) et « Sauvegarde et informations » (export de la configuration,
 // version de l'image et lien vers la dernière publiée, chemins, tailles).
 import { Check, Copy, Download, ExternalLink, Eye, EyeOff, KeyRound, Play, RefreshCw, RotateCcw, Server, Timer } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { download, LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { copyText } from "../lib/clipboard";
 import { MSTATE, mState } from "../lib/machines";
@@ -11,6 +11,7 @@ import { act, button, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { bytes, dateTime, dur } from "../lib/format";
 import type { SystemState, SystemTask } from "../types";
+import { usePoll } from "../lib/polling";
 import { tx } from "../lib/i18n";
 import { GITHUB, releaseOf } from "../lib/links";
 
@@ -22,11 +23,7 @@ export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh
       .then((s) => { setSt(s); setError(""); })
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
   }, []);
-  useEffect(() => {
-    reload();
-    const id = setInterval(reload, 10_000); // tâche lancée : suivre sa fin
-    return () => clearInterval(id);
-  }, [reload]);
+  usePoll(reload, st?.tasks.some((t) => t.running) ? 10_000 : 60_000);   // 10 s seulement pour suivre une tâche lancée
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   return (
     <div className="flex flex-col gap-4">

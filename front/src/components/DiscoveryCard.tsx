@@ -1,7 +1,7 @@
 // « Découvertes » : ce que MyServices cherche tout seul, ce qui demande un clic, et ce qui reste à faire (GET /discoveries).
 // Liste complète en haut de Réglages → Découverte ; rappel court sur l'accueil quand quelque chose est à faire.
 import { Bell, BellOff, Boxes, Check, ChevronRight, Hand, HardDrive, Network, Play, RefreshCw, Repeat, Settings2 } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { dateTime } from "../lib/format";
 import { act, button, primary, type Note } from "../lib/forms";
@@ -20,11 +20,29 @@ export interface DiscoveryItem {
   state: "ok" | "todo" | "info"; note: string; action: { label: string; href?: string; run?: string; prefill?: { type: string; name: string; url: string } } | null;
 }
 
+// Un seul chargement partagé (cloche, accueil, menu Réglages, page Découverte) : une lecture toutes les 30 s quel que soit le nombre
+// de composants qui l'affichent, à l'arrêt quand l'onglet est masqué.
+let shared: { items: DiscoveryItem[]; todo: number } | null = null;
+const listeners = new Set<(d: NonNullable<typeof shared>) => void>();
+let timer: ReturnType<typeof setInterval> | undefined, inflight = false;
+const loadShared = () => {
+  if (inflight) return;
+  inflight = true;
+  read<NonNullable<typeof shared>>("discoveries")
+    .then((d) => { shared = d; listeners.forEach((f) => f(d)); })
+    .catch((e) => { if (e instanceof LoginRequired) location.replace(LOGIN); })
+    .finally(() => { inflight = false; });
+};
+
 export function useDiscoveries() {
-  const [d, setD] = useState<{ items: DiscoveryItem[]; todo: number } | null>(null);
-  const load = useCallback(() => { read<{ items: DiscoveryItem[]; todo: number }>("discoveries").then(setD).catch((e) => { if (e instanceof LoginRequired) location.replace(LOGIN); }); }, []);
-  useEffect(() => { load(); const id = setInterval(load, 30_000); return () => clearInterval(id); }, [load]);
-  return [d, load] as const;
+  const [d, setD] = useState(shared);
+  useEffect(() => {
+    listeners.add(setD);
+    if (listeners.size === 1) timer = setInterval(() => { if (!document.hidden) loadShared(); }, 30_000);
+    loadShared();
+    return () => { listeners.delete(setD); if (!listeners.size) clearInterval(timer); };
+  }, []);
+  return [d, loadShared] as const;
 }
 
 const MODE: Record<DiscoveryItem["mode"], { label: string; hint: string; tone: "ok" | "warn" | "info"; Icon: typeof Repeat }> = {

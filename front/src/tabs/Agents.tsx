@@ -15,6 +15,7 @@ import { Badge, Card, Dim } from "../components/ui";
 import { dateTime, ipNum } from "../lib/format";
 import type { AgentInfo, AgentsState, Machine, MachineConf, MachinesSettings } from "../types";
 import { MSTATE, mState } from "../lib/machines";
+import { usePoll } from "../lib/polling";
 import { tx } from "../lib/i18n";
 
 const STATE: Record<AgentInfo["state"], ["ok" | "warn" | "info" | "off", string]> = {
@@ -51,10 +52,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   // Rafraîchissement automatique : toutes les 5 s tant qu'un premier relevé est attendu (l'installation se voit aboutir), sinon toutes les 10 s ;
   // à l'arrêt quand l'onglet du navigateur est caché. Les cartes « Linux, lus par SSH » suivent l'état de la collecte (snapshot de l'application).
   const waiting = !!st?.agents.some((a) => a.state === "en attente");
-  useEffect(() => {
-    const t = setInterval(() => { if (!document.hidden) reload(); }, waiting ? 5000 : 10000);
-    return () => clearInterval(t);
-  }, [waiting, reload]);
+  usePoll(reload, waiting ? 5000 : 30_000, false);
   // Cadre « Agent créé » : replié tout seul au premier relevé reçu (une fois), dépliable à la demande tant qu'on ne l'a pas fermé
   const [folded, setFolded] = useState(false), foldedFor = useRef(0);
   const seenFirst = created ? st?.agents.find((x) => x.id === created.info.id)?.last_seen : null;

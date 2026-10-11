@@ -54,7 +54,7 @@ export default function App() {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, REFRESH_MS);
+    const id = setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);   // rien quand l'onglet est masqué
     const onHash = () => { setTab(tabFromHash()); setHash(location.hash); };
     addEventListener("hashchange", onHash);
     return () => { clearInterval(id); removeEventListener("hashchange", onHash); };
