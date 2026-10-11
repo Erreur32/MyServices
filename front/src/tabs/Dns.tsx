@@ -6,6 +6,7 @@ import { hm } from "../lib/format";
 import { dnsSync, hostName } from "../lib/status";
 import type { Rewrite } from "../types";
 import { Badge, Card, Dim, Empty } from "../components/ui";
+import { appIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
 
 function Kv({ k, children, tone }: { k: string; children: ReactNode; tone?: "ok" | "warn" | "bad" }) {
@@ -42,6 +43,12 @@ export function Dns({ snap }: { snap: Snapshot }) {
   const diff = [...g.rewrites_diff, ...g.user_rules_diff];
   return (
     <div className="flex flex-col gap-4 py-4">
+      <header className="flex items-center gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-card">
+          {appIcon(["AdGuard Home"]) && <img src={appIcon(["AdGuard Home"])!} alt="" className="h-7 w-7" />}
+        </span>
+        <div><h2 className="text-lg font-bold leading-tight">AdGuard Home</h2><p className="text-sm text-muted">{tx("DNS du réseau : synchronisation, réécritures et domaines à vérifier")}</p></div>
+      </header>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Card className={st.cls === "ok" ? "" : st.cls === "warn" ? "border-warn/50" : "border-bad/50"}>
           <h3 className="mb-2 font-bold">{tx("Synchronisation")}</h3>
