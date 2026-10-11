@@ -75,8 +75,8 @@ export function FilterBar<T>({ f, placeholder, extra }: {
         )}
         {groups.length > 0 && (
           <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm ${active.length ? "border-link text-txt" : "border-line text-muted hover:text-txt"}`}>
-            <SlidersHorizontal size={14} />{tx("Filtres")}{active.length > 0 && <b className="text-link">{active.length}</b>}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold text-link transition-colors hover:bg-link/10 ${open || active.length ? "border-link bg-link/10" : "border-link/50"}`}>
+            <SlidersHorizontal size={14} />{tx("Filtres")}{active.length > 0 && <b className="grid h-5 min-w-5 place-items-center rounded-full bg-link px-1 text-[11px] leading-none text-white">{active.length}</b>}
             {open ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
           </button>
         )}
