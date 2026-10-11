@@ -83,9 +83,12 @@ function NewToken({ onCreated }: { onCreated: (c: { token: string; info: ApiToke
             <input className={input} required minLength={2} maxLength={64} placeholder={tx("ex. Claude Code portable")} value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
           <Field label={tx("Durée de validité")}>
-            <select className={input} value={String(days)} onChange={(e) => setDays(e.target.value === "null" ? null : Number(e.target.value))}>
-              {DAYS.filter(([d]) => !(admin && d === null)).map(([d, l]) => <option key={String(d)} value={String(d)}>{l}</option>)}
-            </select>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label={tx("Durée de validité")}>
+              {DAYS.filter(([d]) => !(admin && d === null)).map(([d, l]) => (
+                <button key={String(d)} type="button" aria-pressed={days === d} onClick={() => setDays(d)}
+                  className={`rounded-full border px-3 py-1.5 text-sm font-medium ${days === d ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>{l}</button>
+              ))}
+            </div>
           </Field>
         </div>
         <fieldset className="flex flex-col gap-1.5">

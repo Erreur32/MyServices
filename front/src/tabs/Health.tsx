@@ -8,6 +8,7 @@ import { Cards, Badge, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from 
 import { DiskCell, ResCell, SystemdCell, UpdatesCell } from "./Machines";
 import { OsGlyph } from "../components/OsGlyph";
 import { shortOs } from "../lib/osName";
+import { healthItems } from "../lib/machineWatch";
 import { Dot } from "../components/marks";
 import { OS_LABEL, OS_ORDER, osOfMachine, type OsKind } from "../lib/machines";
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
@@ -21,25 +22,9 @@ const gb = (mb?: number) => ((mb ?? 0) / 1024).toFixed(1);
 const levelOf = (h: HealthHost) => (h.reachable === false ? "down" : h.level || "ok");
 const RANK: Record<string, number> = { down: 0, crit: 1, warn: 2, ok: 3, na: 4 };
 
-/** Ce qui ne va pas sur une machine, en phrases courtes (vide = rien à signaler). */
+/** Ce qui ne va pas sur une machine, en phrases courtes (vide = rien à signaler) : la même liste que la colonne « À surveiller » de l'onglet Machines. */
 function problems(h: HealthHost): [("bad" | "warn"), string][] {
-  if (h.reachable === false) return [["bad", tx("injoignable : ni SSH ni Beszel")]];
-  const out: [("bad" | "warn"), string][] = [];
-  for (const d of h.disks || []) if (d.critical || d.warning) out.push([d.critical ? "bad" : "warn", tx("disque {0} rempli à {1} %", d.mount, d.used_pct)]);
-  const failed = h.systemd?.failed || [];
-  if (failed.length) out.push(["bad", tx("{0} service(s) systemd en échec : {1}", failed.length, failed.map((u) => u.unit).join(", "))]);
-  const dk = h.docker;
-  if (dk?.accessible && (dk.unhealthy || dk.restarting)) out.push(["warn", tx("Docker : {0} unhealthy, {1} en redémarrage", dk.unhealthy || 0, dk.restarting || 0)]);
-  if ((dk?.issues || []).length) out.push(["warn", tx("Docker : {0}", dk!.issues!.join(", "))]);
-  if (h.kernel?.has_errors) out.push(["warn", tx("erreurs noyau récentes")]);
-  for (const d of h.smart?.disks || []) if (d.failed || !d.healthy) out.push(["bad", tx("SMART : {0} en défaut", d.device)]);
-  if (h.load?.available && h.load.load_1 > h.load.ncpu) out.push(["warn", tx("charge {0} pour {1} CPU", h.load.load_1, h.load.ncpu)]);
-  if (h.ssh_auth?.available && h.ssh_auth.failed_24h > 20) out.push(["warn", tx("{0} connexions SSH refusées en 24 h", h.ssh_auth.failed_24h)]);
-  if (h.res?.available && (h.res.mem_pct ?? 0) >= 90) out.push([h.res.mem_pct! >= 97 ? "bad" : "warn", tx("mémoire utilisée à {0} %", Math.round(h.res.mem_pct!))]);
-  if (h.temp?.available && h.temp.celsius! >= 85) out.push([h.temp.celsius! >= 95 ? "bad" : "warn", tx("processeur à {0} °C", h.temp.celsius)]);
-  if (h.reboot_required) out.push(["warn", tx("redémarrage requis")]);
-  if (h.apt?.upgradable) out.push(["warn", tx("{0} mise(s) à jour en attente", h.apt.upgradable)]);
-  return out;
+  return healthItems(h).map((i) => [i.tone === "bad" ? "bad" : "warn", i.text]);
 }
 
 function HostCard({ h, os }: { h: HealthHost; os?: OsInfo }) {

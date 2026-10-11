@@ -1,13 +1,11 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { Boxes, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Cpu, Eye, EyeOff, HeartPulse, IdCard, Info, KeyRound } from "lucide-react";
+import { ArrowUpCircle, Boxes, Bug, Check, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
+import { read, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet } from "../lib/filter";
 import { dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
-import type { HealthHost, Machine, MachineConf, MachinesSettings, NetScan } from "../types";
-import { NoteLine } from "../components/form";
-import type { Note } from "../lib/forms";
+import type { HealthHost, Machine, NetScan } from "../types";
 import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, osOfMachine, type MState, type OsKind } from "../lib/machines";
 import { OsGlyph } from "../components/OsGlyph";
 import { shortOs } from "../lib/osName";
@@ -15,6 +13,7 @@ import { ViewToggle, useStoredView } from "../components/ViewToggle";
 import { Dot } from "../components/marks";
 import { LEVEL } from "../lib/level";
 import { rolesOf } from "../lib/ssh";
+import { watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
 import { tx } from "../lib/i18n";
@@ -125,6 +124,27 @@ export function UpdatesCell({ h }: { h?: HealthHost }) {
       {n ? <Mark tone="warn" title={tx("{0} paquet(s) à mettre à jour", n)}>{String(n)}</Mark> : <Mark tone="ok" title={tx("À jour")}>✓</Mark>}
       {h.reboot_required && <Mark tone="warn" title={tx("Redémarrage requis")}>↻</Mark>}
     </span>
+  );
+}
+
+const WATCH_ICON: Record<WatchKind, LucideIcon> = {
+  down: WifiOff, ssh: KeyRound, disk: HardDrive, systemd: ServerCrash, docker: Container, kernel: Bug, smart: ScanSearch, load: Gauge, ssh_auth: ShieldAlert,
+  mem: MemoryStick, temp: Thermometer, reboot: RotateCw, updates: ArrowUpCircle, services: Globe, connector: Plug, access: Unplug,
+};
+const WATCH_STYLE: Record<WatchTone, string> = { bad: "border-bad/60 bg-bad/15 text-bad", warn: "border-warn/60 bg-warn/15 text-warn", info: "border-link/50 bg-link/10 text-link" };
+
+/** « À surveiller » : une pastille-icône par sujet, rouge (grave), orange (à regarder) ou bleue (à savoir) ; le détail est dans l'info-bulle. Rien : une coche discrète. */
+function WatchList({ items, wrap = false }: { items: WatchItem[]; wrap?: boolean }) {
+  if (!items.length) return <span className="inline-flex items-center gap-1 text-xs text-ok" title={tx("Rien à surveiller")}><Check size={14} aria-hidden />{wrap && tx("Rien à surveiller")}</span>;
+  const shown = wrap ? items : items.slice(0, 5);
+  return (
+    <div className={`flex items-center gap-1 ${wrap ? "flex-wrap" : ""}`} role="list" aria-label={tx("À surveiller")}>
+      {shown.map((it, i) => {
+        const Icon = WATCH_ICON[it.kind];
+        return <span key={i} role="listitem" tabIndex={0} title={it.text} className={`grid h-7 w-7 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`}><Icon size={14} aria-hidden /></span>;
+      })}
+      {items.length > shown.length && <span className="text-xs text-dim" title={items.slice(shown.length).map((x) => x.text).join("\n")}>+{items.length - shown.length}</span>}
+    </div>
   );
 }
 
@@ -286,35 +306,8 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
     { key: "user", label: tx("Compte SSH"), get: (m) => m.ssh?.user || "" },
   ], [hb, osOf]);
   const text = useCallback((m: Machine) => [m.name, m.ip, m.role, MSTATE[mState(m)][1], m.ssh?.alias, m.ssh?.user, m.info?.os].join(" "), []);
-  // « Ne plus suivre » sur chaque ligne (admin) : la machine passe en « non suivie » (ni ping, ni SSH, ni santé, aucune alerte), elle reste
-  // dans Réglages → Machines pour être réactivée. Effet immédiat ici ; la collecte le reprend à son prochain passage.
-  const admin = snap.me.role === "admin";
-  const [conf, setConf] = useState<Record<string, MachineConf>>({});
-  const [followed, setFollowed] = useState<Record<string, boolean>>({});  // ip -> suivie (réglage fait depuis cet onglet)
-  const [note, setNote] = useState<Note>(null), [pending, setPending] = useState("");
-  useEffect(() => { if (admin) read<MachinesSettings>("machines/settings").then((r) => setConf(r.machines)).catch(() => undefined); }, [admin]);
-  const isOff = useCallback((m: Machine) => (m.ip in followed ? !followed[m.ip] : !!m.disabled), [followed]);
-  const follow = async (m: Machine, on: boolean) => {
-    if (!conf[m.ip]) return;
-    setPending(m.ip); setNote(null);
-    try {
-      await send("PUT", `machines/settings/${m.ip}`, { machine: { ...conf[m.ip], disabled: !on }, process: null, extra: [] });
-      setFollowed((f) => ({ ...f, [m.ip]: on }));
-      setConf((c) => ({ ...c, [m.ip]: { ...c[m.ip], disabled: !on } }));
-      setNote({ ok: true, text: on ? tx("{0} est de nouveau suivie", m.name) : tx("{0} n'est plus suivie : elle reste dans Réglages → Machines", m.name) });
-    } catch (e) {
-      if (e instanceof LoginRequired) location.replace(LOGIN);
-      else setNote({ ok: false, text: (e as Error).message });
-    }
-    setPending("");
-  };
-  const followBtn = (m: Machine) => admin && conf[m.ip] ? (
-    <button type="button" disabled={pending === m.ip} onClick={() => void follow(m, isOff(m))}
-      title={isOff(m) ? tx("Suivre de nouveau cette machine") : tx("Ne plus suivre : ni ping, ni SSH, ni santé, aucune alerte")}
-      className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-muted hover:border-link hover:text-txt disabled:opacity-50">
-      {isOff(m) ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}{isOff(m) ? tx("Suivre") : tx("Ne plus suivre")}
-    </button>
-  ) : null;
+  // « Ne plus suivre » se règle uniquement dans Réglages → Machines (interrupteur « Machine suivie ») ; ici, les machines non suivies restent masquées d'office.
+  const isOff = (m: Machine) => !!m.disabled;
   // Machines non suivies : masquées d'office, un bouton les ramène (grisées)
   const [showOff, setShowOff] = useState(false);
   const nOff = snap.data.machine_list.filter(isOff).length;
@@ -326,10 +319,12 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
       case "os": return m.info?.os || "~";
       case "svc": return -m.services;
       case "health": return -(topDisk(hb.get(m.ip))?.used_pct ?? -1);
+      case "watch": { const it = watchItems(m, hb.get(m.ip), snap.data.connectors ?? []); return -(worst(it) * 100 + it.length); }   // le plus grave d'abord
       default: return ipNum(m.ip);
     }
-  }, [hb]);
+  }, [hb, snap.data.connectors]);
   const sort = useSort(f.shown, keyOf, "ip");
+  const watchOf = (m: Machine) => watchItems(m, hb.get(m.ip), snap.data.connectors ?? []);
   // Tableau sur une seule ligne par machine ; un clic sur le chevron (ou « Tout déplier ») montre le détail
   const [open, setOpen] = useState<Set<string>>(new Set());
   const toggleOpen = (ip: string) => setOpen((o) => { const n = new Set(o); if (!n.delete(ip)) n.add(ip); return n; });
@@ -368,7 +363,6 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
             </button>
           )}
         </>} />
-      <NoteLine note={note} />
       {untracked.length > 0 && (
         <details className="mb-3 rounded-xl border border-line bg-bg2/40 px-4 py-2 text-sm">
           <summary className="cursor-pointer text-muted hover:text-txt">{tx("Vus par MynetworK, pas suivis ici")} <b className="text-dim">({untracked.length})</b></summary>
@@ -384,11 +378,11 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           {view === "table" && <Table fit head={<>
-            <th className="w-8 px-1" aria-label={tx("Détails")} /><th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("État")}</Th><Th>{tx("SSH")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
-            <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th>{tx("Systemd")}</Th><Th>{tx("Mises à jour")}</Th></>}{admin && <Th>{tx("Suivi")}</Th>}
+            <th className="w-8 px-1" aria-label={tx("Détails")} /><th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("État")}</Th><Th k="watch" sort={sort}>{tx("À surveiller")}</Th><Th>{tx("SSH")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
+            <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th>{tx("Systemd")}</Th><Th>{tx("Mises à jour")}</Th></>}
           </>}>
             {sort.sorted.map((m) => {
-              const shown = open.has(m.ip), h = hb.get(m.ip), cols = 8 + (snap.health ? 6 : 0) + (admin ? 1 : 0);
+              const shown = open.has(m.ip), h = hb.get(m.ip), cols = 9 + (snap.health ? 6 : 0);
               return (
                 <Fragment key={m.ip}>
                   <tr className={`hover:bg-bg2/60 ${isOff(m) ? "opacity-50" : ""}`}>
@@ -399,12 +393,12 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
                     <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td>
                     <Td><button type="button" onClick={() => onMachine(m.ip)} className="flex items-baseline gap-2 text-left" title={tx("Voir ses services")}>
                       <b className="font-semibold hover:text-link">{m.name}</b><span className="text-xs text-dim">{m.ip}</span></button></Td>
-                    <Td>{st(m)}</Td><Td><SshShort m={m} /></Td>
+                    <Td>{st(m)}</Td><Td><WatchList items={watchOf(m)} /></Td><Td><SshShort m={m} /></Td>
                     <Td><OsShort m={m} kind={osOf(m)} /></Td><Td><Servers m={m} snap={snap} /></Td>
                     <Td><b>{m.services}</b>{m.down > 0 && <span className="text-xs text-bad"> · {m.down} {tx("en panne")}</span>}</Td>
                     {snap.health && <><Td><Level level={h ? (h.reachable === false ? "down" : h.level) : "na"} /></Td>
                       <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
-                    {admin && <Td>{followBtn(m)}</Td>}
+                    
                   </tr>
                   {shown && <tr className={`bg-bg2/40 ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} mac={macOf(m)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} /></td></tr>}
                 </Fragment>
@@ -420,7 +414,7 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
                     : m.agent && <span className="text-muted">{m.agent.os}{m.agent.uptime_s ? ` ${tx("· up")} ${dur(m.agent.uptime_s)}` : ""} <Dim>({tx("par l'agent")})</Dim></span>}
                   <Servers m={m} snap={snap} />
                   <div className="flex items-start justify-between gap-3">{svc(m)}{snap.health && <HealthCell h={hb.get(m.ip)} />}</div>
-                  {admin && <div>{followBtn(m)}</div>}
+                  <WatchList items={watchOf(m)} wrap />
                 </div>
               </div>
             ))}
