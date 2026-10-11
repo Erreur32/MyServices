@@ -15,7 +15,7 @@ import { ConnectorForm } from "../tabs/Connectors";
 import type { ConnectorsState, ConnectorType, NetHost, NetScan, SystemState } from "../types";
 import { Copyable, NoteLine } from "./form";
 import { netPercent } from "./ScanBar";
-import { Badge } from "./ui";
+import { Badge, Count } from "./ui";
 
 /** Icône de l'appli reconnue (rien si elle n'en a pas) */
 function AppIcon({ apps }: { apps?: readonly string[] }) {
@@ -182,7 +182,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
   /** Un groupe de lignes : titre en petites capitales avec son nombre, puis la liste */
   const group = (title: string, list: NetHost[], Icon: LucideIcon, tone: string) => list.length > 0 && (
     <section className="flex flex-col gap-1.5" key={title}>
-      <h3 className={`flex items-center gap-2 rounded-md border-l-4 bg-bg2 px-3 py-1.5 text-sm font-semibold text-txt ${tone}`}><Icon size={15} className="shrink-0 text-muted" aria-hidden />{title}<Badge tone="info">{list.length}</Badge></h3>
+      <h3 className={`flex items-center gap-2 rounded-md border-l-4 bg-bg2 px-3 py-1.5 text-sm font-semibold text-txt ${tone}`}><Icon size={15} className="shrink-0 text-muted" aria-hidden />{title}<Count n={list.length} /></h3>
       <ul className="flex flex-col gap-1.5">{renderRows(list)}</ul>
     </section>
   );

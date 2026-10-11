@@ -8,7 +8,7 @@ import { Overlay } from "../components/Overlay";
 import { Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
-import { Badge, Card, Dim } from "../components/ui";
+import { Badge, Card, Count, Dim } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorType, MachinesSettings, Proposal, ScriptTip } from "../types";
 import { configFor, modeOf } from "../lib/connectorModes";
@@ -43,7 +43,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
     <div className="flex flex-col gap-4">
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Mes connecteurs")} <Dim>· {st.instances.length}</Dim></h2>
+          <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Mes connecteurs")} <Count n={st.instances.length} /></h2>
           <button type="button" className={`${primary} disabled:opacity-50`} aria-expanded={picking} disabled={!!editing && !picking}
             title={editing ? tx("Terminez ou annulez la modification en cours avant d'ajouter un connecteur") : undefined} onClick={() => setPicking(!picking)}>
             {picking ? <X size={14} /> : <Plus size={14} />}{picking ? tx("Fermer") : tx("Ajouter un connecteur")}
@@ -146,7 +146,7 @@ function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Prop
   if (!rows.length) return null;
   return (
     <Card className="border-warn/60">
-      <h2 className="flex items-center gap-2 font-bold"><ScanSearch size={16} />{tx("Services détectés non configurés")} <Badge tone="warn">{rows.length}</Badge></h2>
+      <h2 className="flex items-center gap-2 font-bold"><ScanSearch size={16} />{tx("Services détectés non configurés")} <Count n={rows.length} tone="warn" /></h2>
       <p className="mt-1 text-sm text-muted">{tx("MyServices a reconnu ces applis mais ne les lit pas encore. Cliquez sur l'une d'elles pour renseigner son accès en lecture.")}</p>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full min-w-[480px] text-sm">

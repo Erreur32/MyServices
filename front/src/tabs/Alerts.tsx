@@ -7,7 +7,7 @@ import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
-import { Badge, Card, Dim } from "../components/ui";
+import { Badge, Card, Count, Dim } from "../components/ui";
 import { dateTime } from "../lib/format";
 import type { AlertChannel, AlertRule, AlertsState, ChannelType } from "../types";
 import { tx } from "../lib/i18n";
@@ -92,7 +92,7 @@ function Channels({ st, reload }: { st: AlertsState; reload: () => void }) {
   return (
     <Card>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-bold">{tx("Canaux")} <Dim>· {st.channels.length}</Dim></h2>
+        <h2 className="font-bold">{tx("Canaux")} <Count n={st.channels.length} /></h2>
         {!adding && <button type="button" className={quiet} onClick={() => setAdding(true)}><Plus size={14} />{tx("Ajouter un canal")}</button>}
       </div>
       {st.channels.length === 0 && <p className="mb-3 text-sm text-muted">{tx("Aucun canal : en ajouter un pour recevoir les alertes.")}</p>}
@@ -196,7 +196,7 @@ function Rules({ st, reload }: { st: AlertsState; reload: () => void }) {
   return (
     <Card>
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-bold">{tx("Règles")} <Dim>· {st.rules.length}</Dim></h2>
+        <h2 className="font-bold">{tx("Règles")} <Count n={st.rules.length} /></h2>
         <div className="flex gap-1.5">
           <button type="button" className={quiet} onClick={() => setPresets(!presets)} aria-expanded={presets}>{tx("Préréglages")}</button>
           {!adding && <button type="button" className={quiet} onClick={() => setAdding(true)} disabled={!st.channels.length}><Plus size={14} />{tx("Nouvelle règle")}</button>}
@@ -360,7 +360,7 @@ function Sent({ st }: { st: AlertsState }) {
   const [open, setOpen] = useState<number | null>(null), [doc, setDoc] = useState(false);
   return (
     <Card>
-      <h2 className="mb-2 font-bold">{tx("Derniers envois")} <Dim>· {st.sent.length}</Dim></h2>
+      <h2 className="mb-2 font-bold">{tx("Derniers envois")} <Count n={st.sent.length} /></h2>
       {st.sent.length === 0 ? <p className="text-sm text-muted">{tx("Rien envoyé pour l'instant.")}</p> : (
         <ul className="flex max-h-[420px] flex-col divide-y divide-line/60 overflow-y-auto text-sm">
           {st.sent.map((s, i) => (

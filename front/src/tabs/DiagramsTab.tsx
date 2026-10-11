@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ROOT, send } from "../api";
 import { NoteLine } from "../components/form";
 import { useDiagrams, type Diagram } from "../components/Diagrams";
-import { Badge, Card, Dim, Empty } from "../components/ui";
+import { Badge, Card, Count, Empty } from "../components/ui";
 import { dateTime } from "../lib/format";
 import { act, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
@@ -44,7 +44,7 @@ export function DiagramsTab({ admin }: { admin: boolean }) {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h2 className="font-bold">{tx("Schémas de l'infrastructure")} <Dim>· {list.filter((x) => x.exists).length}/{list.length}</Dim></h2>
+            <h2 className="font-bold">{tx("Schémas de l'infrastructure")} <Count n={`${list.filter((x) => x.exists).length}/${list.length}`} /></h2>
             <p className="text-sm text-muted">{tx("Tous les schémas générés à partir de ce que MyServices sait de votre infra. Ils se mettent à jour après chaque collecte quand les données changent.")}</p>
           </div>
           {admin && d.archify && <button type="button" className={quiet} disabled={busy} onClick={() => void rebuild()}>{busy ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <RefreshCw size={14} aria-hidden />}{tx("Regénérer maintenant")}</button>}

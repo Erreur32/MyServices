@@ -8,7 +8,7 @@ import { dayKey, hm, longDay, splitHostName } from "../lib/format";
 import { localVia, originOf } from "../lib/eventOrigin";
 import type { StoredEvent } from "../types";
 import { AreaChart, BarsChart, HeatChart, PointsChart, type Range } from "../components/HistoryCharts";
-import { Badge, Empty, FilterBar } from "../components/ui";
+import { Badge, Count, Empty, FilterBar } from "../components/ui";
 import { Square } from "../components/marks";
 import { tx } from "../lib/i18n";
 import { EVENT_LIMIT, GROUPS, GROUP_COLOR, GROUP_NAME, STYLES, buckets, dayBuckets, groupOf, stepFor, type ChartStyle } from "../lib/historyChart";
@@ -99,7 +99,7 @@ export function History({ snap }: { snap: Snapshot }) {
 
       <div className="rounded-2xl border border-line bg-card p-4">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-bold">{f.shown.length} {tx("événement")}{f.shown.length > 1 ? "s" : ""} {tx("sur la période")}</h2>
+          <h2 className="flex items-center gap-2 font-bold"><Count n={f.shown.length} />{tx("événement")}{f.shown.length > 1 ? "s" : ""} {tx("sur la période")}</h2>
           <div className="flex flex-wrap gap-3 text-xs text-muted">
             {GROUPS.filter(([k]) => counts[k]).map(([k, l, c]) => <span key={k} className="inline-flex items-center gap-1.5"><span className={`h-2.5 w-2.5 rounded-sm ${c}`} />{l} <b className="text-dim">{counts[k]}</b></span>)}
           </div>

@@ -7,7 +7,7 @@ import { LOGIN, LoginRequired, read, ROOT, send } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
-import { Badge, Card, Dim } from "../components/ui";
+import { Badge, Card, Count, Dim } from "../components/ui";
 import { copyText } from "../lib/clipboard";
 import { dateTime } from "../lib/format";
 import type { ApiToken, TokensState } from "../types";
@@ -152,7 +152,7 @@ function Created({ c, origin, mcpPath, onClose }: { c: { token: string; info: Ap
 function TokenList({ tokens, reload }: { tokens: ApiToken[]; reload: () => void }) {
   return (
     <Card>
-      <h2 className="mb-2 font-bold">{tx("Jetons")} <Dim>· {tokens.filter((t) => t.state === "actif").length} {tx("actifs")}</Dim></h2>
+      <h2 className="mb-2 font-bold">{tx("Jetons")} <Count n={tokens.filter((t) => t.state === "actif").length} tone="ok" /> <Dim>{tx("actifs")}</Dim></h2>
       {tokens.length === 0 ? <p className="text-sm text-muted">{tx("Aucun jeton.")}</p> : (
         <ul className="flex flex-col divide-y divide-line/60">{tokens.map((t) => <TokenRow key={t.id} t={t} reload={reload} />)}</ul>
       )}

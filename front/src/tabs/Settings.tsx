@@ -10,7 +10,7 @@ import { CONTENT_WIDTH, setHeaderLogo, useHeaderLogo, type HeaderLogo, type Them
 import { LANG, setLang, type Lang } from "../lib/i18n";
 import { Flag } from "../components/Flag";
 import type { User } from "../types";
-import { Badge, Card, Dim } from "../components/ui";
+import { Badge, Card, Count, Dim } from "../components/ui";
 import { Field, NoteLine } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { NotificationsHub } from "./NotificationsHub";
@@ -188,7 +188,7 @@ function Accounts({ me }: { me: string }) {
         <SessionDays />
       </div>
       <Card>
-        <h2 className="mb-1 font-bold">{tx("Comptes")} {users && <Dim>· {users.length}</Dim>}</h2>
+        <h2 className="mb-1 font-bold">{tx("Comptes")} {users && <Count n={users.length} />}</h2>
         <p className="mb-3 text-sm text-muted">
           <b className="text-txt">{tx("Admin")}</b> {tx(": tout, réglages compris.")} <b className="text-txt">{tx("Lecture seule")}</b> {tx(": voit la page et peut demander un passage (⟳). Ton propre mot de passe et tes sessions : menu du compte → « Profil ». Un admin ne peut pas se retirer ses droits, et il reste toujours au moins un admin actif.")}
         </p>

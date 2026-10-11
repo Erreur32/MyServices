@@ -11,7 +11,7 @@ import { MachineIcon } from "../components/MachineIcon";
 import { cleanAgentUrl, installCommand } from "../lib/agentCommand";
 import { isWindowsMachine } from "../lib/machines";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
-import { Badge, Card, Dim } from "../components/ui";
+import { Badge, Card, Count, Dim } from "../components/ui";
 import { dateTime, ipNum } from "../lib/format";
 import type { AgentInfo, AgentsState, Machine, MachineConf, MachinesSettings } from "../types";
 import { MSTATE, mState } from "../lib/machines";
@@ -103,7 +103,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   return (
     <div className="flex flex-col gap-7">
       <Card>
-        <h2 className="flex items-center gap-2 font-bold"><MonitorUp size={16} />{tx("Accès aux machines")} <Dim>· {withAgent.length} {tx("agents")} · {ssh.length} SSH</Dim></h2>
+        <h2 className="flex items-center gap-2 font-bold"><MonitorUp size={16} />{tx("Accès aux machines")} <Count n={withAgent.length} /><Dim>{tx("agents")}</Dim><Count n={ssh.length} /><Dim>SSH</Dim></h2>
         <p className="mt-1 text-sm text-muted">
           {tx("Deux façons de lire la santé d'une machine, toujours en lecture seule.")} <b className="text-txt">{tx("Agent")}</b> {tx(": un petit script PowerShell installé sur un PC Windows, qui envoie lui-même sa santé à MyServices (disques, services, processeur, mémoire, mises à jour, journal) ; pas de SSH à ouvrir, et un PC souvent éteint se signale dès qu'il se rallume.")}{" "}
           <b className="text-txt">SSH</b> {tx(": pour les machines Linux, MyServices s'y connecte avec sa clé (santé, Docker, services en écoute).")}

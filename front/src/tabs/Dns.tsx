@@ -6,7 +6,7 @@ import { hm } from "../lib/format";
 import { dnsSync, hostName } from "../lib/status";
 import type { Rewrite } from "../types";
 import type { Selected } from "../lib/filter";
-import { Badge, Card, Dim, Empty } from "../components/ui";
+import { Badge, Card, Count, Dim, Empty } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
 
@@ -103,7 +103,7 @@ export function Dns({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
         render={(x) => code(`${x.domain} → ${x.answer}`)} />
 
       <Anchor id="domains" lit={lit}><Card>
-        <h3 className="mb-2 font-bold">{tx("Domaines NPM à vérifier")} <Badge tone={rows.length ? "warn" : "ok"}>{rows.length}</Badge></h3>
+        <h3 className="mb-2 font-bold">{tx("Domaines NPM à vérifier")} <Count n={rows.length} tone={rows.length ? "warn" : "ok"} /></h3>
         {rows.length ? (
           <ul className="flex flex-col gap-1 text-sm">
             {rows.map((r) => <li key={`${r.type}${r.id}`}><b>{hostName(r)}</b> <Dim>· {r.dns!.issues.map((x) => String(x[0]).replace("_", " ")).join(", ")}</Dim></li>)}

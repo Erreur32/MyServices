@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, Database, DatabaseBackup, FolderSearch, Hard
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { NoteLine, Switch, TagInput } from "../components/form";
-import { Badge, Card, Dim } from "../components/ui";
+import { Badge, Card, Count, Dim } from "../components/ui";
 import { bytes, dateTime } from "../lib/format";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
@@ -171,7 +171,7 @@ export function BackupsSettings() {
   return (
     <div className="flex flex-col gap-4">
       <Card>
-        <h2 className="mb-1 flex items-center gap-2 font-bold"><HardDrive size={16} />{tx("Sauvegardes suivies")} <Dim>· {cur.sets.length}</Dim></h2>
+        <h2 className="mb-1 flex items-center gap-2 font-bold"><HardDrive size={16} />{tx("Sauvegardes suivies")} <Count n={cur.sets.length} /></h2>
         <p className="mb-3 text-sm text-muted">
           {tx("MyServices regarde l'âge du fichier le plus récent de chaque dossier et vous prévient s'il est trop vieux. Lecture seule : rien n'est modifié sur les machines.")}
         </p>

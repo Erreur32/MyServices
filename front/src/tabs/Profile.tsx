@@ -3,7 +3,7 @@
 import { KeyRound, LogOut, MonitorSmartphone } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
-import { Badge, Card, Dim } from "../components/ui";
+import { Badge, Card, Count, Dim } from "../components/ui";
 import { Field, NoteLine } from "../components/form";
 import { PasswordRules } from "../components/PasswordRules";
 import { dateTime } from "../lib/format";
@@ -41,7 +41,7 @@ function Sessions() {
   const others = (list ?? []).filter((x) => !x.current).length;
   return (
     <Card>
-      <h2 className="mb-1 flex items-center gap-2 font-bold"><MonitorSmartphone size={16} />{tx("Mes sessions")} {list && <Dim>· {list.length}</Dim>}</h2>
+      <h2 className="mb-1 flex items-center gap-2 font-bold"><MonitorSmartphone size={16} />{tx("Mes sessions")} {list && <Count n={list.length} />}</h2>
       {days > 0 && <p className="mb-3 text-sm text-muted">{tx("Navigateurs et appareils connectés à ce compte. Une session dure {0} jours et se prolonge à l'usage.", days)}</p>}
       {error && <p className="text-sm text-bad">⚠ {error}</p>}
       {list === null ? !error && <p className="text-sm text-muted">{tx("Chargement…")}</p> : (

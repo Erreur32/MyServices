@@ -4,7 +4,7 @@ import type { Snapshot } from "../api";
 import { useFilter, type Facet, type Selected } from "../lib/filter";
 import { dateTime, splitHostName } from "../lib/format";
 import type { AsleepHost, HealthHost } from "../types";
-import { Cards, Badge, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
+import { Badge, Cards, Count, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
 import { DiskCell, ResCell, SystemdCell, UpdatesCell } from "./Machines";
 import { OsGlyph } from "../components/OsGlyph";
 import { shortOs } from "../lib/osName";
@@ -216,7 +216,7 @@ export function Health({ snap, initial }: { snap: Snapshot; initial?: Selected }
         );
         return (
           <section key={key} className="mb-5" aria-label={title}>
-            <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted">{title} <span className="font-normal text-dim">· {list.length + sleeping.length}</span></h2>
+            <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted">{title} <Count n={list.length + sleeping.length} tone="off" /></h2>
             {view === "table" ? <><HealthTable hosts={list} asleep={sleeping} osOf={osOf} open={open} toggle={toggleOpen} /><Cards>{cards}</Cards></> : cards}
           </section>
         );

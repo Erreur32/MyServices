@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
-import { Badge, Card, Dim } from "../components/ui";
+import { Badge, Card, Count, Dim } from "../components/ui";
 import { dateTime } from "../lib/format";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
@@ -61,7 +61,7 @@ function List({ st, reload }: { st: NotificationsState; reload: () => void }) {
   return (
     <Card>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-bold">{tx("Mes notifications")} <Dim>· {st.notifications.length}</Dim></h2>
+        <h2 className="font-bold">{tx("Mes notifications")} <Count n={st.notifications.length} /></h2>
         {!editing && <button type="button" className={quiet} onClick={() => setEditing("new")}><Plus size={14} />{tx("Nouvelle notification")}</button>}
       </div>
       {st.notifications.length === 0 && !editing && <p className="text-sm text-muted">{tx("Aucune notification. Ajoutez un exemple ci-dessous ou créez la vôtre.")}</p>}
@@ -229,7 +229,7 @@ function Sent({ st }: { st: NotificationsState }) {
   if (!st.sent.length) return null;
   return (
     <Card>
-      <h2 className="mb-2 font-bold">{tx("Derniers envois")} <Dim>· {st.sent.length}</Dim></h2>
+      <h2 className="mb-2 font-bold">{tx("Derniers envois")} <Count n={st.sent.length} /></h2>
       <ul className="flex flex-col divide-y divide-line/60 text-sm">
         {st.sent.map((s, i) => (
           <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">

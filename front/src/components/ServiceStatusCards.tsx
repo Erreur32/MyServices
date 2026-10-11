@@ -4,7 +4,7 @@ import { ArrowUpCircle, CheckCircle2, Layers, Plug } from "lucide-react";
 import type { ServiceStatus } from "../types";
 import { appIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
-import { Badge } from "./ui";
+import { Badge, Count } from "./ui";
 
 function Tile({ icon, value, label, tone }: { icon: React.ReactNode; value: string | number; label: string; tone?: string }) {
   return (
@@ -64,7 +64,7 @@ export function ServiceStatusCards({ items }: { items: ServiceStatus[] }) {
                       <summary className="cursor-pointer text-muted hover:text-txt">{tx("Voir les mises à jour")}</summary>
                       {GROUPS.map(([g, title]) => group(g).length > 0 && (
                         <div key={g} className="mt-2">
-                          <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{title} <span className="font-normal">· {group(g).length}</span></h4>
+                          <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{title} <Count n={group(g).length} tone="off" /></h4>
                           <ul className="mt-1 flex flex-col gap-1 text-muted">
                             {group(g).slice(0, 8).map((u) => (
                               <li key={u.name} className="flex flex-wrap items-baseline gap-2">

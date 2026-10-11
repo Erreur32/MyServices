@@ -8,7 +8,7 @@ import { copyText } from "../lib/clipboard";
 import { MSTATE, mState } from "../lib/machines";
 import { Field, NoteLine, Switch } from "../components/form";
 import { act, button, input, primary, quiet, type Note } from "../lib/forms";
-import { Badge, Card, Dim } from "../components/ui";
+import { Badge, Card, Count, Dim } from "../components/ui";
 import { bytes, dateTime, dur } from "../lib/format";
 import type { SystemState, SystemTask } from "../types";
 import { usePoll } from "../lib/polling";
@@ -110,7 +110,7 @@ function SshKey({ ssh, snap }: { ssh: SystemState["ssh"]; snap: Snapshot }) {
       )}
 
       <Card>
-        <h2 className="mb-1 flex items-center gap-2 font-bold"><Server size={16} />{tx("Machines qui utilisent cette clé")} <Dim>· {users.length}</Dim></h2>
+        <h2 className="mb-1 flex items-center gap-2 font-bold"><Server size={16} />{tx("Machines qui utilisent cette clé")} <Count n={users.length} /></h2>
         {users.length === 0 ? <Dim>{tx("Aucune machine n'est lue par SSH pour l'instant.")}</Dim> : (
           <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[520px] text-sm">

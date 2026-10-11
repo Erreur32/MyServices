@@ -30,6 +30,12 @@ export function Level({ level, children }: { level: string; children?: ReactNode
   return <Badge tone={tone}>{children ?? label}</Badge>;
 }
 
+/** Nombre d'un titre de carte, dans une bulle ronde (teinte au choix : info par défaut) */
+export function Count({ n, tone = "info" }: { n: ReactNode; tone?: "info" | "ok" | "warn" | "bad" | "off" }) {
+  const c = { info: "bg-link/15 text-link", ok: "bg-ok/15 text-ok", warn: "bg-warn text-bg", bad: "bg-bad text-bg", off: "bg-bg2 text-muted" }[tone];
+  return <span className={`inline-grid h-[22px] min-w-[22px] shrink-0 place-items-center rounded-full px-1.5 align-middle font-mono text-xs font-bold leading-none ${c}`}>{n}</span>;
+}
+
 export function Dim({ children }: { children: ReactNode }) {
   return <span className="text-dim">{children}</span>;
 }
