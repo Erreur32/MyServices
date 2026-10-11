@@ -114,3 +114,4 @@ dcca1779f01b7ccee555fd7bc31a0e27  front/public/icons/wikijs.svg
 93d43050c48728864f89220a172405e1  front/public/logo-grid.svg
 73f515499dfb0b9a18c464213ac0990e  web/favicon.svg
 74bc2a56421702c882c5fb735bec5ff1  docs/logo.svg
+a7b49eed8eb296914b44f25747b7f539  front/public/logo-grid-4x4.svg
