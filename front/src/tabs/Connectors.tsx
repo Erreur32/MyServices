@@ -74,12 +74,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
         )}
         {type && <ConnectorForm key={type.type} type={type} prefill={prefill?.type === type.type ? prefill : null} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
       </Card>
-      <DetectedServices apps={snap.data.detected_apps ?? []} onOpen={(p) => {
-        const mine = st.instances.find((i) => i.type === p.connector && Object.values(i.config).some((v) => typeof v === "string" && v.includes(p.ip)));
-        if (!p.linked || !mine) { setOverlay(p); return; }
-        setEditing(`${mine.type}/${mine.name}`);   // déjà relié : on ouvre la modification de sa carte
-        setTimeout(() => document.getElementById(`connector-${mine.type}-${mine.name}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
-      }} />
+      <DetectedServices apps={snap.data.detected_apps ?? []} onOpen={setOverlay} />
       {overlay && st.types.find((t) => t.type === overlay.connector) && (
         <Overlay title={<>{appIcon([overlay.label]) && <img src={appIcon([overlay.label])!} alt="" className="h-6 w-6" />}{tx("Activer")} {overlay.label} <Dim>· {overlay.machine || overlay.ip}</Dim></>} onClose={() => setOverlay(null)}>
           <ConnectorForm key={overlay.connector} type={st.types.find((t) => t.type === overlay.connector)!} prefill={{ type: overlay.connector, name: overlay.connector, url: overlay.url }}
@@ -144,14 +139,15 @@ function TestReport({ r, onClose }: { r: TestOut; onClose: () => void }) {
   );
 }
 
-/** Les applis reconnues sur le réseau qui ont un connecteur : activé (vert) ou à activer (orange, avec le bouton qui ouvre le connecteur déjà rempli) */
+/** Les applis reconnues qui ont un connecteur mais pas encore d'accès réglé : une ligne orange chacune, le clic ouvre le formulaire déjà rempli.
+ *  Celles déjà reliées n'y sont pas (c'est fait) ; rien à montrer, rien d'affiché. */
 function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Proposal) => void }) {
-  if (!apps.length) return null;
-  const todo = apps.filter((p) => !p.linked).length, rows = [...apps].sort((a, b) => Number(!!a.linked) - Number(!!b.linked));
+  const rows = apps.filter((p) => !p.linked);
+  if (!rows.length) return null;
   return (
-    <Card className={todo ? "border-warn/60" : ""}>
-      <h2 className="flex items-center gap-2 font-bold"><ScanSearch size={16} />{tx("Services détectés")} <Dim>· {apps.length}</Dim>
-        {todo > 0 && <Badge tone="warn">{tx("{0} à activer", todo)}</Badge>}</h2>
+    <Card className="border-warn/60">
+      <h2 className="flex items-center gap-2 font-bold"><ScanSearch size={16} />{tx("Services détectés non configurés")} <Badge tone="warn">{rows.length}</Badge></h2>
+      <p className="mt-1 text-sm text-muted">{tx("MyServices a reconnu ces applis mais ne les lit pas encore. Cliquez sur l'une d'elles pour renseigner son accès en lecture.")}</p>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full min-w-[480px] text-sm">
           <thead>
@@ -161,10 +157,9 @@ function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Prop
           </thead>
           <tbody className="divide-y divide-line/60">
             {rows.map((p) => (
-              <tr key={`${p.connector}@${p.ip}`} className={p.linked ? "" : "bg-warn/10"}>
+              <tr key={`${p.connector}@${p.ip}`} className="bg-warn/10">
                 <td className="py-1 pr-3">
-                  <button type="button" onClick={() => onOpen(p)} title={p.linked ? tx("Modifier ce connecteur") : tx("Renseigner l'accès et activer")}
-                    className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left hover:bg-link/10">
+                  <button type="button" onClick={() => onOpen(p)} title={tx("Renseigner l'accès et activer")} className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left hover:bg-warn/20">
                     <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-bg2">
                       {appIcon([p.label]) ? <img src={appIcon([p.label])!} alt="" className="h-4 w-4" /> : <Plug size={14} className="text-muted" aria-hidden />}
                     </span>
@@ -173,12 +168,10 @@ function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Prop
                 </td>
                 <td className="px-3 py-2.5"><b className="font-semibold">{p.machine || p.ip}</b>{p.machine && <Dim> · {p.ip}</Dim>}</td>
                 <td className="px-3 py-2.5 text-right">
-                  {p.linked
-                    ? <Badge tone="ok"><Check size={12} className="mr-1 inline" aria-hidden />{tx("Activé")}</Badge>
-                    : <span className="inline-flex items-center gap-2">
-                        <Badge tone="warn"><CircleAlert size={12} className="mr-1 inline" aria-hidden />{tx("À activer")}</Badge>
-                        <button type="button" className={primary} onClick={() => onOpen(p)}><Plus size={14} />{tx("Activer")}</button>
-                      </span>}
+                  <span className="inline-flex items-center gap-2">
+                    <Badge tone="warn"><CircleAlert size={12} className="mr-1 inline" aria-hidden />{tx("À activer")}</Badge>
+                    <button type="button" className={primary} onClick={() => onOpen(p)}><Plus size={14} />{tx("Activer")}</button>
+                  </span>
                 </td>
               </tr>
             ))}
