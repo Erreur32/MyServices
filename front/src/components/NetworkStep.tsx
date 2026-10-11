@@ -1,6 +1,7 @@
 // Étape « Recherche des autres machines du réseau » de Premiers pas : lancer la recherche, choisir les machines à
 // ajouter, puis, pour celles qui répondent en SSH, préparer l'accès (alias + commande à autoriser + test).
 // Lecture seule sur le réseau ; rien n'est ajouté sans que l'admin le demande.
+import { createPortal } from "react-dom";
 import { Check, ChevronRight, Circle, EyeOff, Globe, KeyRound, Loader2, Plug, RefreshCw, RotateCcw, Search, Square, Wifi, X, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { read, send } from "../api";
@@ -62,8 +63,8 @@ function HostHint({ h }: { h: NetHost }) {
 }
 
 /** Cadre dépliable (« machines déjà ajoutées », « autres appareils ») : bordure et fond à la couleur d'accent pour qu'on voie qu'on peut l'ouvrir */
-const FOLD = "group rounded-xl border border-link/50 bg-link/5 open:bg-link/[0.03] hover:border-link";
-const FOLD_HEAD = "flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2.5 text-sm font-semibold text-txt [&::-webkit-details-marker]:hidden";
+export const FOLD = "group rounded-xl border border-link/50 bg-link/5 open:bg-link/[0.03] hover:border-link";
+export const FOLD_HEAD = "flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2.5 text-sm font-semibold text-txt [&::-webkit-details-marker]:hidden";
 
 /** Une ligne de machine trouvée : cadre net, case + infos à gauche, actions à droite ; la ligne cochée prend l'accent */
 const ROW = "flex flex-wrap items-start rounded-lg border";
@@ -81,7 +82,8 @@ const loadDismissed = (): string[] => {
   try { return JSON.parse(localStorage.getItem(DISMISSED) || "[]") as string[]; } catch { return []; }
 };
 
-export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredList }: {
+export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredList, barSlot }: {
+  barSlot?: HTMLElement | null;  // où poser les boutons de sélection (pied de la carte « machines trouvées » des découvertes) ; absent : sous la liste
   net: NetScan | null; reload: () => void; onSkip?: () => void;
   ignoredList?: { ip: string; name: string }[];  // appareils ignorés à la main, avec « Reprendre » (Réglages → Découverte)  // sans onSkip : pas de bouton « Passer » (Réglages → Découverte)
   machines: { ip: string; name?: string; ping?: boolean; local?: boolean; off?: boolean; ssh?: unknown }[]; connected: { connector: string; url?: string | null }[];
@@ -182,6 +184,19 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
       <ul className="flex flex-col gap-1.5">{renderRows(list)}</ul>
     </section>
   );
+
+  // Boutons de la sélection : seulement quand quelque chose est coché, dans le pied de la découverte si on connaît sa place
+  const selectionBar = picked.size > 0 && (() => {
+    const bar = (
+      <div className={`row-in flex flex-wrap items-center gap-2 ${barSlot ? "" : "rounded-xl border border-link bg-card/95 p-2.5"}`}>
+        <button type="button" className={primary} disabled={busy} onClick={() => void addPicked()}>
+          <Check size={14} aria-hidden />{tx("Ajouter la sélection")} ({picked.size})
+        </button>
+        <button type="button" className={quietBtn} onClick={() => setPicked(new Set())}>{tx("Tout désélectionner")}</button>
+      </div>
+    );
+    return barSlot ? createPortal(bar, barSlot) : bar;
+  })();
 
   const ignore = async (h: NetHost) => {
     setPicked((p) => { const n = new Set(p); n.delete(h.ip); return n; });
@@ -322,14 +337,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
               </div>
             </details>
           )}
-          {picked.size > 0 && (   // rien à valider sans sélection : les boutons n'apparaissent qu'avec elle
-            <div className="row-in sticky bottom-2 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-link bg-card/95 p-2.5 shadow-lg backdrop-blur">
-              <button type="button" className={primary} disabled={busy} onClick={() => void addPicked()}>
-                <Check size={14} aria-hidden />{tx("Ajouter la sélection")} ({picked.size})
-              </button>
-              <button type="button" className={quietBtn} onClick={() => setPicked(new Set())}>{tx("Tout désélectionner")}</button>
-            </div>
-          )}
+          {selectionBar}
         </>
       )}
       {toLink.length > 0 && (

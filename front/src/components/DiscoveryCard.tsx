@@ -1,7 +1,7 @@
 // « Découvertes » : ce que MyServices cherche tout seul, ce qui demande un clic, et ce qui reste à faire (GET /discoveries).
 // Liste complète en haut de Réglages → Découverte ; rappel court sur l'accueil quand quelque chose est à faire.
 import { Bell, BellOff, Boxes, Check, ChevronRight, Hand, HardDrive, Network, Play, RefreshCw, Repeat, Settings2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { dateTime } from "../lib/format";
 import { act, button, primary, type Note } from "../lib/forms";
@@ -9,6 +9,7 @@ import { tx } from "../lib/i18n";
 import { openConnector } from "../lib/connectorPrefill";
 import type { Machine } from "../types";
 import { MachineIcon } from "./MachineIcon";
+import { FOLD, FOLD_HEAD } from "./NetworkStep";
 import { NoteLine } from "./form";
 import { Badge } from "./ui";
 
@@ -82,10 +83,18 @@ export const GROUPS: { id: string; title: string; Icon: typeof Boxes; has: (id: 
 export const groupOf = (x: DiscoveryItem) => GROUPS.find((g) => g.has(x.id)) ?? GROUPS[1];
 
 /** Une découverte en carte : titre, mode, ce qu'elle fait, dernière / prochaine fois, puis ses boutons */
-function Item({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; machines?: Machine[] }) {
+function Item({ x, reload, machines, extra }: { x: DiscoveryItem; reload: () => void; machines?: Machine[]; extra?: (slot: HTMLElement | null) => ReactNode }) {
+  const [slot, setSlot] = useState<HTMLElement | null>(null);   // pied de la carte : les boutons de sélection de la liste y sont posés
   const m = MODE[x.mode], todo = x.state === "todo";
+  const wanted = () => location.hash.split("/")[2] === x.id;   // lien #settings/network/hosts : le cadre s'ouvre
+  const [open, setOpen] = useState(wanted);
+  useEffect(() => {
+    const on = () => { if (wanted()) setOpen(true); };
+    addEventListener("hashchange", on);
+    return () => removeEventListener("hashchange", on);
+  }, [x.id]);
   return (
-    <li className={`flex flex-col gap-2 rounded-xl border bg-card p-4 ${todo ? "border-warn/50" : x.muted ? "border-line/60 opacity-75" : "border-line"}`}>
+    <li id={`net-${x.id}`} className={`scroll-mt-20 flex flex-col gap-2 rounded-xl border bg-card p-4 ${extra ? "lg:col-span-2 " : ""}${todo ? "border-warn/50" : x.muted ? "border-line/60 opacity-75" : "border-line"}`}>
       <div className="flex items-start gap-2">
         <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${todo ? "bg-warn/15 text-warn" : "bg-bg2 text-muted"}`} title={m.hint}><m.Icon size={15} aria-hidden /></span>
         <div className="min-w-0 flex-1"><Title x={x} machines={machines} /></div>
@@ -97,7 +106,13 @@ function Item({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; m
         {when(x.last) ? <Badge tone="off">{tx("dernière fois")} {when(x.last)}</Badge> : x.mode !== "auto" && <Badge tone="warn">{tx("jamais lancée")}</Badge>}
         {when(x.next) && <Badge tone="info">{tx("prochaine")} {when(x.next)}</Badge>}
       </div>
-      {(x.action || x.mutable) && <div className="mt-auto flex flex-wrap items-center gap-1.5 border-t border-line/60 pt-2.5">{x.action && <Action a={x.action} reload={reload} />}<MuteButton x={x} reload={reload} /></div>}
+      {extra && (
+        <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
+          <summary className={FOLD_HEAD}><ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />{tx("Voir et choisir les machines trouvées")}</summary>
+          <div className="flex flex-col gap-3">{extra(slot)}</div>
+        </details>
+      )}
+      {(x.action || x.mutable || extra) && <div className="mt-auto flex flex-wrap items-center gap-1.5 border-t border-line/60 pt-2.5"><div ref={setSlot} className="contents" />{x.action && <Action a={x.action} reload={reload} />}<MuteButton x={x} reload={reload} /></div>}
     </li>
   );
 }
@@ -106,7 +121,7 @@ export type DiscoveryData = { items: DiscoveryItem[]; todo: number };
 export const todoOf = (d: DiscoveryData | null, g: (typeof GROUPS)[number]) => (d?.items ?? []).filter((x) => x.state === "todo" && groupOf(x) === g).length;
 
 /** Les découvertes d'une famille : ce qui est à faire d'abord, puis le reste, en cartes */
-export function DiscoveryPanel({ d, group, reload, machines }: { d: DiscoveryData | null; group: (typeof GROUPS)[number]; reload: () => void; machines?: Machine[] }) {
+export function DiscoveryPanel({ d, group, reload, machines, extra }: { d: DiscoveryData | null; group: (typeof GROUPS)[number]; reload: () => void; machines?: Machine[]; extra?: (x: DiscoveryItem, slot: HTMLElement | null) => ReactNode }) {
   if (!d) return null;
   const items = d.items.filter((x) => groupOf(x) === group).sort((a, b) => Number(b.state === "todo") - Number(a.state === "todo"));
   const todo = items.filter((x) => x.state === "todo").length;
@@ -115,7 +130,7 @@ export function DiscoveryPanel({ d, group, reload, machines }: { d: DiscoveryDat
       <p className={`flex items-center gap-2 text-sm ${todo ? "text-warn" : "text-ok"}`}>
         {todo ? <><Bell size={15} aria-hidden />{tx("{0} à faire dans cette famille", todo)}</> : <><Check size={15} aria-hidden />{tx("Rien à faire ici : tout est en ordre.")}</>}
       </p>
-      <ul className="grid items-stretch gap-3 lg:grid-cols-2">{items.map((x) => <Item key={x.id} x={x} reload={reload} machines={machines} />)}</ul>
+      <ul className="grid items-stretch gap-3 lg:grid-cols-2">{items.map((x) => <Item key={x.id} x={x} reload={reload} machines={machines} extra={extra && extra(x, null) !== null ? (slot) => extra(x, slot) : undefined} />)}</ul>
     </section>
   );
 }

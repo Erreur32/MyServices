@@ -46,6 +46,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   const [tab, setTab] = useState<string | null>(null);
   const current = tab ?? (disc ? openTab((id) => todoOf(disc, GROUPS.find((g) => g.id === id)!)) : "network");
   const group = GROUPS.find((g) => g.id === current) ?? GROUPS[0];
+  const hasHostsItem = !!disc?.items.some((x) => x.id === "hosts" && !x.muted);
   const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
   const [hours, setHours] = useState(""), [nets, setNets] = useState<string | null>(null), [note, setNote] = useState<Note>(null), [error, setError] = useState("");
   const load = useCallback(() => {
@@ -61,6 +62,12 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   useScrollToPart(!!cfg && !!scan && current === "network");
   if (!cfg || !scan) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 
+  const hostsList = (slot?: HTMLElement | null) => (
+    <>
+      <p className="text-sm text-muted">{tx("Cochez celles à suivre puis ajoutez-les, ou ignorez-les. MyServices ne les ajoute jamais seul.")}</p>
+      <NetworkStep net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} barSlot={slot} />
+    </>
+  );
   const running = scan.phase === "ping" || scan.phase === "identify";
   const last = scan.ended ? scan.ended * 1000 : null;
   const n = Number(hours);
@@ -92,17 +99,18 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
           );
         })}
       </nav>
-      <DiscoveryPanel d={disc} group={group} reload={reloadDisc} machines={snap.data.machine_list} />
+      <DiscoveryPanel d={disc} group={group} reload={reloadDisc} machines={snap.data.machine_list} extra={(x, slot) => (x.id === "hosts" ? hostsList(slot) : null)} />
       {current === "services" && <Card><p className="text-sm text-muted">{tx("Les applis reconnues se relient dans")} <a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a>.</p></Card>}
       {current === "backups" && <Card><p className="text-sm text-muted">{tx("Les dossiers et jeux de sauvegarde se règlent dans")} <a className="text-link hover:underline" href="#settings/backups">{tx("Réglages → Sauvegardes")}</a>.</p></Card>}
       {current === "network" && <>
-      <div id="net-hosts" className="scroll-mt-20">
-        <Card>
-          <h2 className="mb-1 flex items-center gap-2 font-bold"><Radar size={16} />{tx("Machines trouvées sur le réseau")}</h2>
-          <p className="mb-3 text-sm text-muted">{tx("Cochez celles à suivre puis ajoutez-les, ou ignorez-les. MyServices ne les ajoute jamais seul.")}</p>
-          <NetworkStep net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} />
-        </Card>
-      </div>
+      {!hasHostsItem && (   // aucune machine à choisir dans les découvertes : la liste (scan, déjà ajoutées, ignorées) reste ici
+        <div id="net-hosts" className="scroll-mt-20">
+          <Card>
+            <h2 className="mb-1 flex items-center gap-2 font-bold"><Radar size={16} />{tx("Machines trouvées sur le réseau")}</h2>
+            {hostsList()}
+          </Card>
+        </div>
+      )}
       <div id="net-scan" className="grid scroll-mt-20 items-start gap-4 lg:grid-cols-2">
         <Card className="scroll-mt-20">
           <h2 className="mb-1 flex items-center gap-2 font-bold"><Search size={16} />{tx("Recherche sur le réseau")}</h2>
