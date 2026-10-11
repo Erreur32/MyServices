@@ -109,7 +109,7 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
           return <MachineRow key={ip} agent={agents[ip]} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
         });
         return wide
-          ? <div className="grid grid-cols-2 items-start gap-3">{[0, 1].map((c) => <div key={c} className="flex flex-col gap-3">{cards.filter((_, i) => i % 2 === c)}</div>)}</div>
+          ? <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start gap-3">{[0, 1].map((c) => <div key={c} className="flex min-w-0 flex-col gap-3">{cards.filter((_, i) => i % 2 === c)}</div>)}</div>
           : <div className="flex flex-col gap-3">{cards}</div>;
       })()}
       <ReadBySsh snap={snap} />
@@ -336,7 +336,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
     </div>
   ) : live ? <SshDetails m={live} statuses={statuses} /> : null;
   return (
-    <div ref={card} className={`flex flex-col rounded-xl border bg-card text-sm transition-colors self-start ${off ? "opacity-60" : ""} ${focus ? "border-link" : open ? "border-link/60" : "border-line"}`}>
+    <div ref={card} className={`flex w-full min-w-0 flex-col rounded-xl border bg-card text-sm transition-colors self-start ${off ? "opacity-60" : ""} ${focus ? "border-link" : open ? "border-link/60" : "border-line"}`}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className={`flex w-full flex-wrap content-start items-center gap-x-2 gap-y-1 rounded-xl p-3 text-left hover:bg-bg2 ${open ? "" : "h-[5.5rem] overflow-hidden"}`}>
         <Chevron size={14} className="text-txt" /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon }} scan={scan} reserve /><b className="max-w-[10rem] truncate">{m.name}</b><Dim>{ip}</Dim>
         <span className={`ml-auto flex min-w-0 items-center justify-end gap-1.5 ${open ? "flex-wrap" : "flex-nowrap overflow-hidden"}`}>
