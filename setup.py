@@ -106,6 +106,15 @@ def run(alias: str, cmd: str, timeout: int = 20) -> subprocess.CompletedProcess 
         return None
 
 
+MARK = "__MSV_START__"  # repère avant une commande SSH dont on lit la sortie : un bandeau de connexion (fastfetch, motd) le précède sinon
+
+
+def after_mark(out: str) -> str:
+    """Sortie d'une commande lancée après « printf '%s\\n' MARK », sans le bandeau d'accueil qui la précède."""
+    head, sep, tail = out.partition(MARK + "\n")
+    return tail if sep else out
+
+
 def ssh_why(alias: str, r: subprocess.CompletedProcess | None) -> str:
     """Cause d'un échec SSH en BatchMode (r : résultat de run(alias, "true")), avec la commande qui le règle."""
     if r is None:
@@ -824,11 +833,11 @@ def check_health(alias: str, label: str, m: dict) -> None:
     if m.get("vm"):
         return
     # Compte et disques réels (NVMe : le contrôleur nvme0, comme health.py), pour donner la règle exacte
-    r = run(alias, "test -x /usr/sbin/smartctl && whoami && lsblk -dno NAME,TYPE | awk '$2==\"disk\"{print $1}'")
+    r = run(alias, f"printf '%s\\n' {MARK}; test -x /usr/sbin/smartctl && whoami && lsblk -dno NAME,TYPE | awk '$2==\"disk\"{{print $1}}'")
     if not (r and r.returncode == 0):
         warn(f"{label} : smartctl absent (sudo apt install smartmontools), ou \"vm\": true si c'est une VM")
         return
-    user, *disks = r.stdout.split()
+    user, *disks = after_mark(r.stdout).split()
     devs = sorted({"/dev/" + re.sub(r"^(nvme\d+)n\d+$", r"\1", d) for d in disks})
     if all((x := run(alias, f"sudo -n -l /usr/sbin/smartctl -H {d}")) and x.returncode == 0 for d in devs):
         return
@@ -899,6 +908,19 @@ def check_machine(mip: str, m: dict, aliases: dict[str, str]) -> None:
         check_health(alias, label, m)
 
 
+def check_last_pass() -> None:
+    """État des connecteurs au dernier passage de la collecte (data.json « connectors ») : en échec ou périmés, ce que la page affiche."""
+    try:
+        states = json.loads((Path(CFG["web_dir"]) / "data.json").read_text(encoding="utf-8")).get("connectors") or []
+    except (OSError, ValueError):
+        return  # pas encore de collecte : rien à comparer
+    for st in states:
+        if not st.get("ok"):
+            warn(f"{st.get('type')} {st.get('name')} : en échec au dernier passage ({st.get('message')})")
+        elif st.get("stale"):
+            warn(f"{st.get('type')} {st.get('name')} : relevé périmé au dernier passage (dernier état connu réutilisé)")
+
+
 def check() -> int:
     print("== Vérification")
     if sys.version_info < (3, 9):
@@ -920,12 +942,14 @@ def check() -> int:
     triples = {mip: (m.get("name"), m.get("role"), m.get("ssh"))
                for mip, m in json.loads(META.read_text(encoding="utf-8")).get("machines", {}).items()}
     seen_ip = {}
+    readable = 0
     for c in conns:  # chaque connecteur : connexion, lecture et version du service
         r = c.test()
         label = f"{c.label} {c.name}" if c.type != "npm" else f"NPM {c.name}"
         if not r.ok:
             bad(f"{label} illisible : {r.message}")
             continue
+        readable += 1
         tested = cbase.version_tested(r.version, c.tested)
         ok(f"{label} : {r.message}" + (f" (version {r.version})" if r.version else ""))
         if tested is False:
@@ -937,6 +961,9 @@ def check() -> int:
                 bad(f"NPM {c.name} = NPM {seen_ip[ip]} ({ip}) : même NPM déclaré deux fois, chaque host serait en double. "
                     f"Retirer l'entrée « {c.name} » de « npm » dans config.json")
             seen_ip.setdefault(ip, c.name)
+    if conns:  # bilan : tous lus, ou combien manquent (chacun a déjà sa ligne ci-dessus)
+        (ok if readable == len(conns) else warn)(f"connecteurs : {readable}/{len(conns)} lus")
+    check_last_pass()
     web = Path(CFG["web_dir"])
     if DOCKER:  # page dans l'image, fichiers produits dans le volume
         if os.access(web, os.W_OK) or (not web.exists() and os.access(web.parent, os.W_OK)):

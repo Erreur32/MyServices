@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Testing phase: do not use in production.**
 
+### Changed
+- `setup.py --check` ends the connector tests with a summary ("connectors: N/M read") and reports connectors that failed or were stale at the last collection pass (read from `data.json`).
+- `setup.py --check`: the SMART sudoers advice no longer breaks when a login banner (fastfetch in `~/.bashrc`) precedes the command output.
+
 ### Added
 - The header shows the app version next to the title (e.g. `v0.9.2`; `dev` for a local build); `/me` returns it.
 
