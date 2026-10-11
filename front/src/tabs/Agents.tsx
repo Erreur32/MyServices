@@ -2,7 +2,7 @@
 // Une carte par machine : celles qui ont un agent (actif, silencieux, en attente) d'un côté, celles qui n'en ont pas de l'autre,
 // prêtes à être cliquées. Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller sur le PC.
 // Gérés seulement depuis une session admin.
-import { ChevronDown, ChevronRight, Monitor, MonitorUp, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { ArrowUpCircle, ChevronDown, ChevronRight, Monitor, MonitorUp, Plus, RefreshCw, RotateCw, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Copyable, Field, NoteLine } from "../components/form";
@@ -247,6 +247,32 @@ function Group({ title, n, hint, empty, fold, folded, children }: { title: strin
   );
 }
 
+/** Mises à jour de l'agent, comme dans GpuViewR : un interrupteur-icône « automatique » et un bouton « maintenant ». L'agent vient chercher le nouveau
+ *  script au prochain relevé (au plus tard dans son intervalle) : rien n'est poussé vers le PC. */
+function UpdateControls({ a, reload, setNote }: { a: AgentInfo; reload: () => void; setNote: (n: Note) => void }) {
+  const [busy, setBusy] = useState(false);
+  const live = a.state !== "révoqué";
+  const run = async (fn: () => Promise<unknown>, done: string) => { setBusy(true); const ok = await act(fn, done, setNote); setBusy(false); if (ok) reload(); };
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg bg-bg2/50 px-2.5 py-1.5 text-xs text-muted">
+      <span className="inline-flex items-center gap-1.5 font-semibold text-txt"><ArrowUpCircle size={14} className={a.outdated ? "text-warn" : "text-ok"} aria-hidden />
+        {a.outdated ? tx("v{0} → v{1} disponible", a.version ?? "?", a.latest_version ?? "?") : tx("à jour (v{0})", a.version ?? a.latest_version ?? "?")}</span>
+      <button type="button" disabled={!live || busy} aria-pressed={!!a.auto_update}
+        title={a.auto_update ? tx("Mise à jour automatique activée : l'agent prend le nouveau script dès qu'il est plus ancien. Cliquer pour couper.") : tx("Activer la mise à jour automatique de cet agent")}
+        onClick={() => void run(() => send("PATCH", `agents/${a.id}`, { auto_update: !a.auto_update }), a.auto_update ? tx("mise à jour automatique coupée") : tx("mise à jour automatique activée"))}
+        className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 font-semibold disabled:opacity-50 ${a.auto_update ? "border-ok/60 bg-ok/15 text-ok" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
+        <RotateCw size={14} aria-hidden />{tx("Automatique")}<span className="font-mono text-[10px]">{a.auto_update ? tx("oui") : tx("non")}</span>
+      </button>
+      <button type="button" disabled={!live || busy || (!a.outdated && !a.update_requested)}
+        title={!a.outdated ? tx("L'agent est déjà à jour") : a.update_requested ? tx("Demandée : l'agent se mettra à jour à son prochain relevé") : tx("Mettre à jour maintenant : l'agent récupère le nouveau script à son prochain relevé (au plus tard dans {0} min)", Math.round(a.interval / 60))}
+        onClick={() => void run(() => send("POST", `agents/${a.id}/update`), tx("demandée : l'agent se mettra à jour à son prochain relevé"))}
+        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-link/60 bg-link/10 px-2.5 font-semibold text-txt hover:bg-link/20 disabled:opacity-40">
+        <ArrowUpCircle size={14} aria-hidden />{a.update_requested ? tx("Demandée…") : tx("Mettre à jour maintenant")}
+      </button>
+    </div>
+  );
+}
+
 /** Carte d'une machine qui a un agent : état, dernier relevé, nouvelle commande, révocation */
 function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
   a: AgentInfo; conf?: MachineConf; ip: string; focus: boolean; busy: boolean; onRenew?: () => void; reload: () => void;  // onRenew : seulement pour un PC Windows (la commande est PowerShell)
@@ -267,6 +293,7 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
           <b className="block truncate">{conf?.name ?? a.name}</b>
           <span className="block truncate text-xs text-dim">{ip}</span>
         </span>
+        {a.outdated && <Badge tone="warn" title={tx("Agent v{0} : la v{1} est disponible", a.version ?? "?", a.latest_version ?? "?")}><ArrowUpCircle size={11} aria-hidden />v{a.version}</Badge>}
         <Badge tone={tone}>{label}</Badge>
       </button>
       {!folded && <>
@@ -275,6 +302,7 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
         {a.os && ` · ${a.os}`}{a.version && ` · ${tx("agent")} ${a.version}`} · {tx("toutes les {0} min", Math.round(a.interval / 60))}
         {" · "}<code className="font-mono">{tx("msv_")}agent_…{a.hint}</code>
       </p>
+      <UpdateControls a={a} reload={reload} setNote={setNote} />
       <div className="flex flex-wrap items-center gap-1.5">
         {confirm === "" && <>
           {onRenew && <button type="button" className={quiet} disabled={busy} title={tx("Crée un nouveau jeton et révoque l'ancien : à refaire sur le PC avec la nouvelle commande")} onClick={() => setConfirm("renew")}><RefreshCw size={14} />{tx("Nouvelle commande")}</button>}

@@ -72,6 +72,22 @@ try {
     }
   }
   Log "report sent to $($cfg.url) (agent $Version)"
+  # Self-update, only when the server asks for it (automatic update on, or "update now" clicked in MyServices): download the script from the
+  # server that already receives the reports, check its SHA-256 and its syntax, then replace this very file. The next run uses it.
+  if ($r.update -and $r.update.sha256 -and $r.update.path -like '/myservices/agent/*') {
+    try {
+      $new = (Invoke-WebRequest -Uri ($cfg.url.TrimEnd('/') + $r.update.path) -UseBasicParsing -TimeoutSec 30).Content
+      if ($new -is [byte[]]) { $new = [Text.Encoding]::UTF8.GetString($new) }
+      $sha = -join ((New-Object Security.Cryptography.SHA256Managed).ComputeHash([Text.Encoding]::UTF8.GetBytes($new)) | ForEach-Object { $_.ToString('x2') })
+      if ($sha -ne [string]$r.update.sha256) { throw 'downloaded script does not match the announced SHA-256' }
+      $tmp = "$PSCommandPath.new"
+      [IO.File]::WriteAllText($tmp, $new, (New-Object Text.UTF8Encoding($true)))
+      $perr = $null; [void][Management.Automation.Language.Parser]::ParseFile($tmp, [ref]$null, [ref]$perr)
+      if ($perr -and $perr.Count) { Remove-Item $tmp -Force; throw 'downloaded script has syntax errors' }
+      Move-Item $tmp $PSCommandPath -Force
+      Log "agent updated to version $($r.update.version)"
+    } catch { Log "UPDATE FAILED: $($_.Exception.Message)" }
+  }
 } catch {
   Log "FAILED: $($_.Exception.Message)"
   exit 1

@@ -753,7 +753,10 @@ async def agent_report(request: Request):
     # Premier relevé ou agent réinstallé dans une autre version : système, matériel et ports (lus à la collecte) apparaissent sans attendre l'horaire
     if (first or upgraded) and core.enabled("collect"):
         core.run_chain(["collect"], f"relevé de l'agent {a['name']} (version {report.get('version')})")
-    return {"ok": True, "interval": agents.DEFAULT_INTERVAL}
+    out = {"ok": True, "interval": agents.DEFAULT_INTERVAL}
+    if upd := agents_store().update_for(a["id"], str(report.get("version") or "")):   # mise à jour automatique ou demandée : l'agent s'en charge
+        out["update"] = upd
+    return out
 
 
 @app.get(PREFIX + "/agent/{name}.ps1", tags=["agents"], summary="Scripts de l'agent Windows (sans secret, réseau local)")
@@ -792,6 +795,36 @@ def agents_create(body: NewAgent, request: Request):
         return deny(400, str(e))
     store().audit("agent créé", u["username"], ip, f"« {body.name} » ({info['ip']})")
     return {"token": raw, "info": info, "url": url, "command": agents.install_command(url, raw)}
+
+
+class AgentChange(BaseModel):
+    auto_update: bool
+
+
+@app.patch(API + "/agents/{aid}", tags=["agents"], summary="Mise à jour automatique d'un agent : activer ou couper (session admin)")
+def agents_change(aid: int, body: AgentChange, request: Request):
+    import agents
+    if denied := session_admin(request):
+        return denied
+    try:
+        agents_store().set_auto_update(aid, body.auto_update)
+    except agents.AgentError as e:
+        return deny(400, str(e))
+    store().audit("mise à jour automatique de l'agent " + ("activée" if body.auto_update else "coupée"), request.state.user["username"], ip_of(request), str(aid))
+    return {"ok": True}
+
+
+@app.post(API + "/agents/{aid}/update", tags=["agents"], summary="Mettre à jour un agent maintenant : il récupère le script à son prochain relevé (session admin)")
+def agents_update(aid: int, request: Request):
+    import agents
+    if denied := session_admin(request):
+        return denied
+    try:
+        agents_store().request_update(aid)
+    except agents.AgentError as e:
+        return deny(400, str(e))
+    store().audit("mise à jour d'agent demandée", request.state.user["username"], ip_of(request), str(aid))
+    return {"ok": True, "message": "l'agent se mettra à jour à son prochain relevé"}
 
 
 @app.delete(API + "/agents/{aid}", tags=["agents"], summary="Révoquer un agent (session admin)")

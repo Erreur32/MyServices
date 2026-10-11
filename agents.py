@@ -44,6 +44,10 @@ class Agents:
         self.path = str(path)
         with self._db() as db:
             db.executescript(SCHEMA)
+            have = {r["name"] for r in db.execute("PRAGMA table_info(agents)")}
+            for col, ddl in (("auto_update", "INTEGER NOT NULL DEFAULT 0"), ("update_requested", "REAL")):   # bases créées avant la mise à jour des agents
+                if col not in have:
+                    db.execute(f"ALTER TABLE agents ADD COLUMN {col} {ddl}")
 
     @contextmanager
     def _db(self):
@@ -82,6 +86,35 @@ class Agents:
     def listing(self) -> list[dict]:
         with self._db() as db:
             return [_public(r) for r in db.execute("SELECT * FROM agents ORDER BY revoked IS NOT NULL, created DESC")]
+
+    def set_auto_update(self, aid: int, on: bool) -> None:
+        """Mise à jour automatique d'un agent : à son prochain relevé, il récupère le script du serveur s'il est plus ancien."""
+        with self._db() as db:
+            if not db.execute("UPDATE agents SET auto_update = ? WHERE id = ? AND revoked IS NULL", (int(bool(on)), aid)).rowcount:
+                raise AgentError("agent inconnu ou révoqué")
+
+    def request_update(self, aid: int) -> None:
+        """« Mettre à jour maintenant » : au prochain relevé l'agent récupère le script, même sans mise à jour automatique."""
+        a = self.get(aid)
+        if a["revoked"]:
+            raise AgentError("agent révoqué")
+        with self._db() as db:
+            db.execute("UPDATE agents SET update_requested = ? WHERE id = ?", (time.time(), aid))
+
+    def update_for(self, aid: int, version: str | None) -> dict | None:
+        """Ce que le serveur répond à un relevé de version `version` : la mise à jour (version, chemin, empreinte du script servi) si l'agent est
+        plus ancien et que la mise à jour est automatique ou demandée ; None sinon. Une demande dont l'agent est à jour est classée."""
+        with self._db() as db:
+            r = db.execute("SELECT auto_update, update_requested FROM agents WHERE id = ? AND revoked IS NULL", (aid,)).fetchone()
+            if r is None:
+                return None
+            if not older(version, VERSION):
+                if r["update_requested"]:
+                    db.execute("UPDATE agents SET update_requested = NULL WHERE id = ?", (aid,))
+                return None
+        if not (r["auto_update"] or r["update_requested"]):
+            return None
+        return {"version": VERSION, "path": "/myservices/agent/agent.ps1", "sha256": script_sha256()}
 
     def revoke(self, aid: int) -> None:
         with self._db() as db:
@@ -221,6 +254,19 @@ def validate_report(body) -> dict:
     return body
 
 
+def older(version: str | None, latest: str) -> bool:
+    """Vrai si `version` (numéro d'un agent, « 5 ») est strictement plus ancienne que `latest` ; une version illisible ou absente est « plus ancienne »."""
+    try:
+        return int(str(version).strip()) < int(latest)
+    except ValueError:
+        return True
+
+
+def script_sha256() -> str:
+    """Empreinte du script d'agent tel que servi (ASCII) : l'agent la contrôle avant de remplacer son propre fichier."""
+    return hashlib.sha256(script("agent.ps1").encode("utf-8")).hexdigest()
+
+
 def _public(r: sqlite3.Row) -> dict:
     now = time.time()
     interval = r["interval"] or DEFAULT_INTERVAL
@@ -232,7 +278,9 @@ def _public(r: sqlite3.Row) -> dict:
         state = "actif"
     else:
         state = "silencieux"
-    return {"id": r["id"], "ip": r["ip"], "name": r["name"], "hint": r["hint"], "created": r["created"],
+    return {"auto_update": bool(r["auto_update"]), "update_requested": bool(r["update_requested"]), "latest_version": VERSION,
+            "outdated": bool(r["version"]) and older(r["version"], VERSION),
+            "id": r["id"], "ip": r["ip"], "name": r["name"], "hint": r["hint"], "created": r["created"],
             "created_by": r["created_by"], "revoked": r["revoked"], "last_seen": r["last_seen"], "last_ip": r["last_ip"],
             "interval": interval, "version": r["version"], "os": r["os_name"], "state": state}
 

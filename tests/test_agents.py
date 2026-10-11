@@ -247,6 +247,37 @@ class Agents(unittest.TestCase):
         self.assertEqual((h["model"], h["ram_gb"], h["cores"], h["gpu"], h["net"]), ("PC", None, None, [], []))
         self.assertIsNone(health.parse_windows(DATA)["hardware"])
 
+    def test_mise_a_jour_de_l_agent_automatique_ou_demandee(self):
+        token, info = self.create()
+        old = {**REPORT, "version": "1"}
+        self.assertNotIn("update", self.send(token, old).json())                                   # rien demandé : jamais de mise à jour d'office
+        self.assertFalse(info["auto_update"])
+        self.assertTrue(self.c.post(BASE + f"/agents/{info['id']}/update", headers=self.h).json()["ok"])   # « Mettre à jour maintenant »
+        upd = self.send(token, old).json()["update"]
+        self.assertEqual((upd["version"], upd["path"]), (agents.VERSION, "/myservices/agent/agent.ps1"))
+        self.assertEqual(upd["sha256"], agents.script_sha256())                                    # l'agent contrôlera l'empreinte avant de remplacer son fichier
+        self.assertIn("update", self.send(token, old).json())                                      # demande gardée tant que l'agent est ancien
+        self.assertNotIn("update", self.send(token, {**REPORT, "version": agents.VERSION}).json())  # à jour : rien, et la demande est classée
+        self.assertNotIn("update", self.send(token, old).json())
+        self.assertEqual(self.c.patch(BASE + f"/agents/{info['id']}", json={"auto_update": True}, headers=self.h).status_code, 200)
+        self.assertIn("update", self.send(token, old).json())                                      # automatique : à chaque relevé d'un agent ancien
+        self.assertNotIn("update", self.send(token, {**REPORT, "version": agents.VERSION}).json())
+        self.assertTrue(next(a for a in self.c.get(BASE + "/agents", headers=self.h).json()["agents"] if a["id"] == info["id"])["auto_update"])
+
+    def test_mise_a_jour_reservee_a_une_session_admin_et_aux_agents_actifs(self):
+        token, info = self.create()
+        self.assertEqual(self.anon.post(BASE + f"/agents/{info['id']}/update").status_code, 401)
+        self.assertEqual(self.anon.patch(BASE + f"/agents/{info['id']}", json={"auto_update": True}).status_code, 401)
+        self.c.delete(BASE + f"/agents/{info['id']}", headers=self.h)
+        self.assertEqual(self.c.post(BASE + f"/agents/{info['id']}/update", headers=self.h).status_code, 400)   # révoqué : rien à mettre à jour
+        self.assertEqual(self.c.patch(BASE + f"/agents/{info['id']}", json={"auto_update": True}, headers=self.h).status_code, 400)
+
+    def test_version_ancienne_signalee(self):
+        token, info = self.create()
+        self.send(token, {**REPORT, "version": "1"})
+        a = next(x for x in self.c.get(BASE + "/agents", headers=self.h).json()["agents"] if x["id"] == info["id"])
+        self.assertEqual((a["outdated"], a["latest_version"]), (True, agents.VERSION))
+
     def test_docker_et_services_du_pc(self):
         rep = {"data": {"dk": ["plex|plexinc/pms-docker|0.0.0.0:32400->32400/tcp, :::32400->32400/tcp|Up 2 hours|bridge", "|sans nom"],
                          "sv": [{"n": "AdGuardHome", "d": "AdGuard Home"}, {"n": "", "d": "x"}, "pas un objet"]}}
