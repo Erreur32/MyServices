@@ -17,14 +17,20 @@ const PERIODS: [number, string][] = [[1, tx("24 h")], [7, tx("7 jours")], [30, t
 const STYLE_ICON: Record<ChartStyle, typeof BarChart3> = { points: ScatterChart, bars: BarChart3, area: LineChart, heat: Flame };
 const STYLE_KEY = "ms.history.style";
 
+const DAYS_KEY = "ms.history.days";
+
+// Par défaut : les dernières 24 h, en barres ; le dernier choix de la personne est gardé
 const savedStyle = (): ChartStyle => {
-  try { const v = localStorage.getItem(STYLE_KEY); return STYLES.some(([k]) => k === v) ? (v as ChartStyle) : "points"; } catch { return "points"; }
+  try { const v = localStorage.getItem(STYLE_KEY); return STYLES.some(([k]) => k === v) ? (v as ChartStyle) : "bars"; } catch { return "bars"; }
+};
+const savedDays = (): number => {
+  try { const v = Number(localStorage.getItem(DAYS_KEY)); return PERIODS.some(([d]) => d === v) ? v : 1; } catch { return 1; }
 };
 
 type Loaded = Awaited<ReturnType<typeof loadHistory>> & { days: number; at: number };
 
 export function History({ snap }: { snap: Snapshot }) {
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useState(savedDays);
   const [style, setStyle] = useState<ChartStyle>(savedStyle);
   const [range, setRange] = useState<Range | null>(null);
   const [hist, setHist] = useState<Loaded | null>(null);
@@ -34,6 +40,7 @@ export function History({ snap }: { snap: Snapshot }) {
   useEffect(() => {
     loadHistory(days).then((h) => { setHist({ ...h, days, at: Date.now() }); setError(""); }).catch((e) => setError(String(e.message || e)));
   }, [days, snap.data.generated]);
+  const pickDays = (d: number) => { setDays(d); try { localStorage.setItem(DAYS_KEY, String(d)); } catch { /* idem */ } };
   const pick = (k: ChartStyle) => { setStyle(k); try { localStorage.setItem(STYLE_KEY, k); } catch { /* stockage refusé : le choix ne dure que cette visite */ } };
 
   const label = useCallback((k: string) => (snap.labels[k] || k), [snap.labels]);
@@ -76,7 +83,7 @@ export function History({ snap }: { snap: Snapshot }) {
     <div className="py-4">
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
         {PERIODS.map(([d, l]) => (
-          <button key={d} type="button" onClick={() => { setDays(d); setRange(null); }}
+          <button key={d} type="button" onClick={() => { pickDays(d); setRange(null); }}
             className={`rounded-full border px-3 py-1 text-sm ${days === d ? "border-link bg-link/15 text-txt" : "border-line bg-card text-muted hover:text-txt"}`}>{l}</button>
         ))}
         <span className="ml-auto inline-flex rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Style du graphique")}>
