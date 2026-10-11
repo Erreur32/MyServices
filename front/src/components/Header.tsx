@@ -1,5 +1,6 @@
 import { ChevronDown, ExternalLink, ListChecks, LogOut, Map, Moon, Settings, Sun, UserRound, Workflow } from "lucide-react";
 import { useDiagrams } from "./Diagrams";
+import { DiscoveryBell } from "./DiscoveryCard";
 import { useEffect, useRef, useState } from "react";
 import { logout, ROOT, type Snapshot } from "../api";
 import { HEADER_LOGOS, useHeaderLogo, type Theme } from "../theme";
@@ -36,7 +37,10 @@ export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; them
           )}
         </h1>
       </div>
-      <UserMenu snap={snap} theme={theme} toggleTheme={toggleTheme} />
+      <div className="flex items-center gap-3">
+        {snap.me.role === "admin" && <DiscoveryBell />}
+        <UserMenu snap={snap} theme={theme} toggleTheme={toggleTheme} />
+      </div>
     </header>
   );
 }

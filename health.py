@@ -512,6 +512,8 @@ try{$h.cpu=[string]($p|Select-Object -First 1).Name;$h.cc=($p|Measure-Object Num
 try{$h.gpu=@(Get-CimInstance Win32_VideoController|?{$_.Name}|Select-Object -First 4|%{@{n=[string]$_.Name;r=$(if($_.CurrentHorizontalResolution){'{0}x{1}' -f $_.CurrentHorizontalResolution,$_.CurrentVerticalResolution}else{''})}})}catch{}
 try{$h.net=@(Get-CimInstance Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=True'|?{$_.IPAddress}|Select-Object -First 8|%{$d=$_.Description;@($_.IPAddress|?{$_ -match '^\d+\.\d+\.\d+\.\d+$'}|%{@{n=[string]$d;ip=[string]$_}})})}catch{}
 try{$q=Get-HotFix|Where-Object{$_.InstalledOn}|Sort-Object InstalledOn -Descending|Select-Object -First 1;if($q){$h.wu=$q.InstalledOn.ToString('yyyy-MM-dd')}}catch{}
+try{$o.sv=@(Get-CimInstance Win32_Service -Filter "State='Running'"|Select-Object -First 300|%{@{n=[string]$_.Name;d=[string]$_.DisplayName}})}catch{}
+try{if(Get-Command docker.exe -ErrorAction Stop){$l=@(& docker.exe ps -a --format '{{.Names}}|{{.Image}}|{{.Ports}}|{{.Status}}|{{.Networks}}' 2>$null);if($LASTEXITCODE -eq 0){$o.dk=@($l|Select-Object -First 200|%{[string]$_})}}}catch{}
 $o.hw=$h
 ConvertTo-Json -InputObject $o -Depth 5 -Compress
 """

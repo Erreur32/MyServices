@@ -58,9 +58,29 @@ def build(i: dict) -> list[dict]:
         if i.get("backups_enabled") else "Lues à chaque passage des sauvegardes, une fois l'onglet Sauvegardes activé (suivre un premier dossier).",
         i.get("backups_last"), i.get("backups_next") if i.get("backups_enabled") else None, "ok" if i.get("backups_enabled") else "info", "")
 
-    p = i.get("proposals", 0)
-    add("connectors", "Connecteurs à relier", AUTO,
-        "Après chaque collecte, les applis reconnues sans connecteur sont proposées : MyServices ne les relie pas sans votre accord (jeton ou compte à fournir).",
-        i.get("collect_last"), i.get("collect_next"), "todo" if p else "ok", f"{p} connecteur(s) proposé(s)" if p else "",
-        {"label": "Voir Réglages → Connecteurs", "href": "#settings/connectors"})
+    unknown = i.get("unknown_hosts") or 0
+    if unknown:
+        add("hosts", f"{unknown} machine(s) trouvée(s) sur le réseau, pas encore suivie(s)", FIRST,
+            "La recherche réseau les a vues. Choisissez celles à suivre (ou à ignorer) : MyServices ne les ajoute jamais seul.", i.get("net_last"), None, "todo",
+            "à choisir", {"label": "Choisir", "href": "#settings/network"})
+    for k in i.get("key_refused") or []:   # accès SSH activé mais la clé de l'app n'est pas autorisée (ou port faux)
+        add(f"ssh:{k['ip']}", f"Clé SSH à autoriser sur {k.get('name') or k['ip']}", AUTO,
+            "L'accès SSH est activé, mais la connexion échoue : la clé de l'app n'est pas autorisée sur cette machine (ou le port est faux). Ses conteneurs et sa santé ne sont pas lus tant que ce n'est pas fait.",
+            None, None, "todo", "action sur la machine", {"label": "Régler", "href": f"#settings/machines/{k['ip']}"})
+    for a in i.get("agents_waiting") or []:   # agent créé mais jamais installé / jamais parlé
+        add(f"agent:{a['ip']}", f"Agent à installer sur {a.get('name') or a['ip']}", MANUAL,
+            "Un agent a été créé pour ce PC mais il n'a encore envoyé aucun relevé : lancez la commande d'installation (PowerShell, en administrateur) sur le PC.",
+            None, None, "todo", "en attente de son premier relevé", {"label": "Voir la commande", "href": f"#settings/agents/{a['ip']}"})
+    props = i.get("proposals") or []
+    if not props:
+        add("connectors", "Connecteurs à relier", AUTO,
+            "Après chaque collecte, les applis reconnues sans connecteur sont proposées : MyServices ne les relie pas sans votre accord (jeton ou compte à fournir). Rien à relier pour l'instant.",
+            i.get("collect_last"), i.get("collect_next"), "ok", "", {"label": "Voir Réglages → Connecteurs", "href": "#settings/connectors"})
+    for p in props:   # une entrée par appli reconnue : la notification dit quoi, où, et ouvre le connecteur déjà rempli
+        where = f" sur {p['machine']}" if p.get("machine") else f" ({p.get('ip')})" if p.get("ip") else ""
+        how = f" (vu par {p['via']})" if p.get("via") else ""
+        add(f"connector:{p['connector']}@{p.get('ip')}", f"{p['label']} trouvé{where}", AUTO,
+            f"MyServices a reconnu cette appli{how} mais ne la lit pas encore : il faut lui donner un accès en lecture (compte, clé ou jeton). Il ne le fait jamais sans votre accord.",
+            None, None, "todo", "connecteur à configurer",
+            {"label": "Configurer", "prefill": {"type": p["connector"], "name": p["connector"], "url": p.get("url") or ""}})
     return out

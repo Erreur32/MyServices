@@ -1,20 +1,21 @@
 // « Découvertes » : ce que MyServices cherche tout seul, ce qui demande un clic, et ce qui reste à faire (GET /discoveries).
 // Liste complète en haut de Réglages → Découverte ; rappel court sur l'accueil quand quelque chose est à faire.
-import { ChevronRight, Hand, Play, RefreshCw, Repeat } from "lucide-react";
+import { Bell, ChevronRight, Hand, Play, RefreshCw, Repeat, Settings2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { dateTime } from "../lib/format";
 import { act, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { openConnector } from "../lib/connectorPrefill";
 import { NoteLine } from "./form";
 import { Badge, Card, Dim } from "./ui";
 
 export interface DiscoveryItem {
   id: string; title: string; mode: "auto" | "first" | "manual"; what: string; last: number | null; next: number | null;
-  state: "ok" | "todo" | "info"; note: string; action: { label: string; href?: string; run?: string } | null;
+  state: "ok" | "todo" | "info"; note: string; action: { label: string; href?: string; run?: string; prefill?: { type: string; name: string; url: string } } | null;
 }
 
-function useDiscoveries() {
+export function useDiscoveries() {
   const [d, setD] = useState<{ items: DiscoveryItem[]; todo: number } | null>(null);
   const load = useCallback(() => { read<{ items: DiscoveryItem[]; todo: number }>("discoveries").then(setD).catch((e) => { if (e instanceof LoginRequired) location.replace(LOGIN); }); }, []);
   useEffect(() => { load(); const id = setInterval(load, 30_000); return () => clearInterval(id); }, [load]);
@@ -31,6 +32,7 @@ const when = (ts: number | null) => (ts ? dateTime(ts * 1000) : null);
 
 function Action({ a, reload }: { a: NonNullable<DiscoveryItem["action"]>; reload: () => void }) {
   const [note, setNote] = useState<Note>(null);
+  if (a.prefill) return <button type="button" className={quiet} onClick={() => openConnector(a.prefill!)}><Settings2 size={13} aria-hidden />{a.label}<ChevronRight size={14} aria-hidden /></button>;   // le connecteur s'ouvre déjà rempli
   if (a.href) return <a href={a.href} className={`${quiet} no-underline`}>{a.label}<ChevronRight size={14} aria-hidden /></a>;
   return (
     <>
@@ -87,10 +89,25 @@ export function DiscoveryReminder() {
         {todo.map((x) => (
           <li key={x.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="min-w-0 flex-1"><b>{x.title}</b> <span className="text-dim">· {x.note || MODE[x.mode].label}</span></span>
+            {x.action?.prefill && <button type="button" onClick={() => openConnector(x.action!.prefill!)} className="inline-flex items-center gap-1 text-link hover:underline">{x.action.label}<ChevronRight size={14} aria-hidden /></button>}
             {x.action?.href && <a href={x.action.href} className="inline-flex items-center gap-1 text-link hover:underline">{x.action.label}<ChevronRight size={14} aria-hidden /></a>}
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+/** Cloche de l'en-tête (admin) : nombre de choses à faire (connecteurs à configurer, recherches jamais lancées…) ; un clic ouvre la liste sur l'accueil */
+export function DiscoveryBell() {
+  const [d] = useDiscoveries();
+  const n = d?.todo ?? 0;
+  if (!n) return null;
+  return (
+    <a href="#home" className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-warn/50 bg-warn/10 text-warn hover:bg-warn/20"
+      title={tx("{0} chose(s) à faire pour compléter la découverte", n)} aria-label={tx("{0} chose(s) à faire pour compléter la découverte", n)}>
+      <Bell size={16} aria-hidden />
+      <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-warn px-1 text-[10px] font-bold leading-none text-bg">{n}</span>
+    </a>
   );
 }

@@ -249,11 +249,12 @@ function Detail({ m, h, mac, from }: { m: Machine; h?: HealthHost; mac?: string;
 
       <Section icon={Boxes} title={tx("Logiciels et services")} from={from.services}>
         <Row k={tx("Services")}>{m.services}{m.npm > 0 && <Dim> · {m.npm} NPM</Dim>}{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</Row>
-        <Row k="Docker">{i?.docker ? tx("{0} conteneur(s) en cours", i.docker) : i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined}</Row>
+        <Row k="Docker">{i?.docker ? tx("{0} conteneur(s) en cours", i.docker) : m.agent?.docker != null ? (m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>) : i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined}</Row>
+        <Row k={tx("Applis")}>{m.agent?.apps?.length ? <span className="flex flex-wrap gap-1">{m.agent.apps.map((a) => <Badge key={a.key} tone="info" title={tx("Vue par les services Windows du PC")}>{a.label}</Badge>)}</span> : undefined}</Row>
         <Row k="Apache">{i?.apache ? <>{tx("{0} vhost(s)", vhosts.length)}{!!i.vhosts_unreadable?.length && <span className="text-warn"> · {i.vhosts_unreadable.length} {tx("illisible(s)")}</span>}</> : undefined}</Row>
         {i?.apache && vhosts.slice(0, 6).map((v, n) => <Row key={n} k=""><span className="font-mono text-[11px] text-muted">:{v.port} {(v.names ?? []).join(", ") || "—"}</span></Row>)}
         <Row k="nginx">{i?.nginx ? tx("actif sur la machine (hors conteneur)") : undefined}</Row>
-        {!m.services && !i?.docker && !i?.apache && !i?.nginx && <Dim>—</Dim>}
+        {!m.services && !i?.docker && !i?.apache && !i?.nginx && !m.agent?.docker && !m.agent?.apps?.length && <Dim>—</Dim>}
       </Section>
 
       <Section icon={HeartPulse} title={tx("Santé")} from={from.health}>

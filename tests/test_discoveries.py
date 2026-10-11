@@ -33,13 +33,29 @@ class Discoveries(unittest.TestCase):
         self.assertEqual(m["cron"]["mode"], d.AUTO)
 
     def test_sauvegardes_a_chercher_et_connecteurs_proposes(self):
-        m = by(d.build({"ssh_machines": 2, "proposals": 3, "backups_search_last": None}))
+        props = [{"connector": "adguard", "label": "AdGuard Home", "ip": "10.0.0.8", "machine": "PC", "url": "http://10.0.0.8:3000", "via": "service Windows"},
+                 {"connector": "frigate", "label": "Frigate", "ip": "10.0.0.9", "url": "http://10.0.0.9:5000"}]
+        m = by(d.build({"ssh_machines": 2, "proposals": props, "backups_search_last": None}))
         self.assertEqual(m["backups-other"]["state"], "todo")
-        self.assertEqual(m["connectors"]["state"], "todo")
-        self.assertIn("3 connecteur", m["connectors"]["note"])
-        m = by(d.build({"ssh_machines": 2, "proposals": 0, "backups_search_last": 5.0}))
+        one = m["connector:adguard@10.0.0.8"]
+        self.assertEqual((one["state"], one["title"]), ("todo", "AdGuard Home trouvé sur PC"))                  # une notification par appli reconnue
+        self.assertIn("service Windows", one["what"])
+        self.assertEqual(one["action"]["prefill"], {"type": "adguard", "name": "adguard", "url": "http://10.0.0.8:3000"})   # le connecteur s'ouvre déjà rempli
+        self.assertEqual(m["connector:frigate@10.0.0.9"]["title"], "Frigate trouvé (10.0.0.9)")
+        self.assertNotIn("connectors", m)
+        m = by(d.build({"ssh_machines": 2, "proposals": [], "backups_search_last": 5.0}))
         self.assertEqual((m["backups-other"]["state"], m["connectors"]["state"]), ("info", "ok"))
         self.assertEqual(by(d.build({"ssh_machines": 0}))["backups-other"]["state"], "info")   # aucune machine SSH : rien à chercher
+
+    def test_autres_notifications_a_faire(self):
+        m = by(d.build({"unknown_hosts": 3, "net_has_run": True, "net_last": 5.0, "net_every_h": 6,
+                        "key_refused": [{"ip": "10.0.0.7", "name": "Serveur"}], "agents_waiting": [{"ip": "10.0.0.50", "name": "Gamer32"}]}))
+        self.assertEqual((m["hosts"]["state"], m["hosts"]["action"]["href"]), ("todo", "#settings/network"))
+        self.assertEqual(m["ssh:10.0.0.7"]["title"], "Clé SSH à autoriser sur Serveur")
+        self.assertEqual(m["ssh:10.0.0.7"]["action"]["href"], "#settings/machines/10.0.0.7")
+        self.assertEqual(m["agent:10.0.0.50"]["title"], "Agent à installer sur Gamer32")
+        quiet = by(d.build({"net_has_run": True, "net_last": 5.0, "net_every_h": 6}))
+        self.assertFalse([k for k in quiet if k.startswith(("ssh:", "agent:", "hosts"))])        # rien à faire : rien de ces trois notifications
 
     def test_collecte_en_retard(self):
         x = by(d.build({"collect_ok": False}))["services"]

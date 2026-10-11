@@ -18,7 +18,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "5"
+VERSION = "6"
 SCRIPTS = Path(__file__).resolve().parent / "agent"
 PREFIX = "msv_agent_"
 NAME_RE = re.compile(r"^[\w .@-]{2,64}$")
@@ -150,6 +150,31 @@ def ports_of(report: dict | None) -> dict[int, dict]:
         lan = not addr.startswith(("127.", "::1"))
         cur = out.setdefault(port, {"name": name or f"port {port}", "lan": lan})
         cur["lan"] = cur["lan"] or lan
+    return out
+
+
+def docker_of(report: dict | None) -> list[dict] | None:
+    """Conteneurs Docker d'un relevé d'agent (docker.exe présent sur le PC), même forme que connectors.docker_ssh ; None si le relevé n'en
+    parle pas (agent ancien, Docker absent ou inaccessible pour le compte SYSTEM). Texte du PC : jamais fait confiance aux champs."""
+    from connectors.docker_ssh import publish_ports
+    lines = ((report or {}).get("data") or {}).get("dk")
+    if lines is None:
+        return None
+    out = []
+    for ln in (lines if isinstance(lines, list) else [lines])[:200]:
+        f = (str(ln).split("|") + [""] * 5)[:5]
+        if f[0].strip():
+            out.append({"name": f[0].strip()[:80], "image": f[1].strip()[:200], "status": f[3].strip()[:80], "compose": "", "title": "",
+                        "description": "", "version": "", "url": "", "network": f[4].strip()[:80], "ports": publish_ports(f[2])})
+    return out
+
+
+def services_of(report: dict | None) -> list[dict]:
+    """Services Windows en marche d'un relevé d'agent : [{"name", "display"}] (300 au plus), vide pour un agent ancien."""
+    out = []
+    for it in (((report or {}).get("data") or {}).get("sv") or [])[:300]:
+        if isinstance(it, dict) and it.get("n"):
+            out.append({"name": str(it["n"]).strip()[:80], "display": str(it.get("d") or "").strip()[:120]})
     return out
 
 

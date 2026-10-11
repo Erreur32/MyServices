@@ -1481,12 +1481,22 @@ def discoveries(request: Request):
     ssh = backups_admin._machines()
     last = col["end"] or None
     stale = bool(data.get("generated")) and (time.time() - datetime.fromisoformat(data["generated"]).timestamp()) > 90 * 60
+    ignored = {x.get("ip") for x in core.CFG.get("netscan_ignored") or []}
+    known = {m["ip"] for m in data.get("machine_list") or []}
+    names = {m["ip"]: m["name"] for m in data.get("machine_list") or []}
+    try:
+        waiting = [{"ip": a["ip"], "name": a["name"]} for a in agents_store().listing() if a["state"] == "en attente"]
+    except Exception:  # noqa: BLE001 : base d'agents absente : rien à rappeler
+        waiting = []
     items = disc.build({
+        "unknown_hosts": sum(1 for h in net.get("found") or [] if h["ip"] not in known and h["ip"] not in ignored and not h.get("known")),
+        "key_refused": [{"ip": c["ip"], "name": names.get(c["ip"])} for c in data.get("connectors") or [] if c.get("type") == "docker" and not c.get("ok") and c.get("ip")],
+        "agents_waiting": waiting,
         "collect_last": last, "collect_next": core.next_run("collect"), "collect_ok": not stale,
         "net_has_run": bool(net.get("ended") or net.get("started")), "net_last": net.get("ended") or net.get("started"), "net_every_h": core.CFG["netscan_every"],
         "backups_auto": core.CFG.get("backups_auto", True), "ssh_machines": len(ssh), "auto_checked": sum(1 for ip in ssh if ip in _read_list(state / "backups-auto.json")) if checked else 0,
         "backups_search_last": stamp("backups-discover.json"), "backups_enabled": bool(core.CFG.get("backups_url")),
-        "backups_last": bk["end"] or None, "backups_next": core.next_run("backups"), "proposals": len(data.get("proposals") or []),
+        "backups_last": bk["end"] or None, "backups_next": core.next_run("backups"), "proposals": data.get("proposals") or [],
     })
     return {"items": items, "todo": sum(1 for x in items if x["state"] == "todo")}
 

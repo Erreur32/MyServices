@@ -826,7 +826,7 @@ def main():
                               if c.type == "process")}
     procs = {ip: j.result() for ip, j in jobs.items()}
     # PC Windows lus par leur agent : ports à l'écoute et système viennent de son dernier relevé frais (rien lu par SSH)
-    agent_sys = {}
+    agent_sys, agent_apps = {}, {}
     for ip, a in agent_reports().items():
         if a["fresh"]:
             agent_sys[ip] = agents.system_of(a["report"])
@@ -834,6 +834,13 @@ def main():
                 agent_sys[ip]["hardware"] = agents.hardware_of(a["report"])
             if not procs.get(ip):
                 procs[ip] = agents.ports_of(a["report"])
+            wdock = agents.docker_of(a["report"])           # Docker du PC (docker.exe) : même forme que la lecture par SSH
+            if wdock is not None and not dock.get(ip):
+                dock[ip] = wdock
+            apps = known_apps.apps_from_services(agents.services_of(a["report"]))
+            agent_apps[ip] = apps
+            if agent_sys[ip]:
+                agent_sys[ip].update(docker=len(wdock) if wdock is not None else None, apps=[{"key": x.key, "label": x.label} for x in apps])
     meta = load_meta()
     # Machine hôte de MyServices (« host » : true) sans process lus par SSH : ses ports en écoute, lus sur place
     # (premier démarrage : de quoi remplir la page avant toute clé SSH ; les conteneurs reconnus passent devant)
@@ -1164,7 +1171,9 @@ def main():
                        for st in CONNECTOR_STATUS],  # ip : la machine visée (deux machines peuvent porter le même nom)
         "categories": [n for n, _ in CATEGORIES] + ["Autre"],
         "hosts": rows,
-        "proposals": known_apps.propose(rows, connectors.declared(CFG, META_RAW)),
+        "proposals": known_apps.propose(rows, connectors.declared(CFG, META_RAW)) + [
+            p for ip, apps in agent_apps.items()
+            for p in known_apps.propose_windows(ip, (MACHINES.get(ip) or [None])[0], apps, procs.get(ip) or {}, connectors.declared(CFG, META_RAW))],
         "services_status": services_status,
         "network": network,
         "security": security,

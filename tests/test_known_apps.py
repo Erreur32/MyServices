@@ -89,6 +89,27 @@ class Identify(unittest.TestCase):
             self.assertIn(a.ui, ("ui", "api"))
 
 
+class Windows(unittest.TestCase):
+    SVC = [{"name": "PlexUpdateService", "display": "Plex Update Service"}, {"name": "AdGuardHome", "display": "AdGuard Home"},
+           {"name": "Spooler", "display": "Print Spooler"}, {"name": "Sonarr", "display": ""}, {"name": "Tailscale", "display": "Tailscale"}]
+
+    def test_applis_reconnues_par_leurs_services(self):
+        apps = ka.apps_from_services(self.SVC)
+        self.assertEqual([a.key for a in apps], ["plex", "adguard", "sonarr"])        # le spooler et Tailscale ne désignent rien ici
+        self.assertEqual(ka.apps_from_services([]), [])
+        self.assertEqual(len(ka.apps_from_services(self.SVC + self.SVC)), 3)           # sans doublon
+
+    def test_propositions_pour_un_pc(self):
+        apps = ka.apps_from_services(self.SVC)
+        got = {p["connector"]: p for p in ka.propose_windows("10.0.0.8", "PC", apps, {3000: {"name": "AdGuardHome", "lan": True}}, [])}
+        self.assertEqual(got["adguard"]["url"], "http://10.0.0.8:3000")
+        self.assertEqual((got["adguard"]["via"], got["adguard"]["machine"]), ("service Windows", "PC"))
+        self.assertEqual(got["arr"]["url"], "http://10.0.0.8:8989")                    # port par défaut de Sonarr, même s'il n'écoute pas encore
+        self.assertNotIn("plex", got)                                                  # Plex n'a pas de connecteur : reconnu, pas proposé
+        declared = [{"type": "adguard", "name": "x", "url": "http://10.0.0.8:3000"}]
+        self.assertNotIn("adguard", {p["connector"] for p in ka.propose_windows("10.0.0.8", "PC", apps, {}, declared)})   # déjà relié
+
+
 class Annotate(unittest.TestCase):
     def test_empreinte_lue_puis_retiree(self):
         row = {"ip": "10.0.0.5", "port": 8888, "name": "port 8888", "category": "Autre", "web": None, "page_title": None, "service": None, "fingerprint": "headers: x-pi-hole"}

@@ -247,8 +247,19 @@ class Agents(unittest.TestCase):
         self.assertEqual((h["model"], h["ram_gb"], h["cores"], h["gpu"], h["net"]), ("PC", None, None, [], []))
         self.assertIsNone(health.parse_windows(DATA)["hardware"])
 
+    def test_docker_et_services_du_pc(self):
+        rep = {"data": {"dk": ["plex|plexinc/pms-docker|0.0.0.0:32400->32400/tcp, :::32400->32400/tcp|Up 2 hours|bridge", "|sans nom"],
+                         "sv": [{"n": "AdGuardHome", "d": "AdGuard Home"}, {"n": "", "d": "x"}, "pas un objet"]}}
+        c = agents.docker_of(rep)
+        self.assertEqual([(x["name"], x["image"], x["ports"], x["network"]) for x in c], [("plex", "plexinc/pms-docker", [(32400, 32400)], "bridge")])
+        self.assertEqual(agents.services_of(rep), [{"name": "AdGuardHome", "display": "AdGuard Home"}])
+        self.assertIsNone(agents.docker_of({"data": {}}))                  # agent ancien ou Docker absent : on ne dit rien
+        self.assertEqual(agents.docker_of({"data": {"dk": []}}), [])       # Docker présent, sans conteneur
+        self.assertEqual(agents.services_of({"data": {}}), [])
+        self.assertEqual(agents.docker_of({"data": {"dk": "seule|ligne|0.0.0.0:80->80/tcp|Up|bridge"}})[0]["ports"], [(80, 80)])   # PowerShell : un seul élément = texte
+
     def test_script_ascii_et_version(self):
-        self.assertEqual(agents.VERSION, "5")
+        self.assertEqual(agents.VERSION, "6")
         agents.script("agent.ps1").encode("ascii")
 
     def test_titres_de_mises_a_jour_au_format_powershell_5_1(self):

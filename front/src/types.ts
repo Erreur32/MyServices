@@ -106,7 +106,7 @@ export interface Machine {
   npm: number;
   down: number;
   ssh?: { alias: string; port: number; user?: string; identity?: string | null; key_fp?: string | null; host_key?: string | null; methods?: string[] | null; note?: string | null } | null;
-  agent?: { os: string; kernel?: string | null; uptime_s?: number | null; hardware?: AgentHardware | null; via: "agent" } | null;  // système lu par l'agent (PC Windows)
+  agent?: { os: string; kernel?: string | null; uptime_s?: number | null; hardware?: AgentHardware | null; docker?: number | null; apps?: { key: string; label: string }[]; via: "agent" } | null;  // système lu par l'agent (PC Windows)
   info?: {
     os?: string; kernel?: string; uptime_s?: number; apache?: boolean; nginx?: boolean; docker?: number; docker_installed?: boolean;
     sshd?: { permitrootlogin?: string; passwordauthentication?: string };

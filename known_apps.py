@@ -190,6 +190,44 @@ def annotate(row: dict, keep_category: bool = False) -> None:
         row["name"] = app.label
 
 
+# Services Windows (nom ou nom affiché) qui révèlent une appli installée sur un PC lu par l'agent : (regex, clé de l'appli)
+WINDOWS_SERVICES: tuple[tuple[str, str], ...] = (
+    (r"plex media server|plexupdateservice", "plex"), (r"adguard ?home", "adguard"), (r"jellyfin", "jellyfin"), (r"^sonarr|\bsonarr\b", "sonarr"),
+    (r"^radarr|\bradarr\b", "radarr"), (r"^prowlarr", "prowlarr"), (r"^lidarr", "lidarr"), (r"syncthing", "syncthing"), (r"^grafana", "grafana"),
+    (r"^prometheus", "prometheus"), (r"netdata", "netdata"), (r"home ?assistant", "homeassistant"), (r"veeam backup service|veeamdeploymentservice", "veeam"),
+    (r"portainer", "portainer"), (r"uptime ?kuma", "uptime-kuma"), (r"frigate", "frigate"), (r"crowdsec", "crowdsec"),
+)
+WEB_PORTS = {"adguard": 3000, "plex": 32400, "jellyfin": 8096, "grafana": 3000, "prometheus": 9090, "sonarr": 8989, "radarr": 7878, "uptime-kuma": 3001}   # port web par défaut quand l'appli n'en déclare pas
+_WIN = [(re.compile(rx, re.I), key) for rx, key in WINDOWS_SERVICES]
+_BY_KEY = {a.key: a for a in APPS}
+
+
+def apps_from_services(services: list[dict]) -> list[App]:
+    """Applis reconnues d'après les services Windows en marche ([{"name", "display"}]), sans doublon, dans l'ordre de la liste."""
+    found: dict[str, App] = {}
+    for s in services or []:
+        text = f"{s.get('name', '')} {s.get('display', '')}"
+        for rx, key in _WIN:
+            if key not in found and key in _BY_KEY and rx.search(text):
+                found[key] = _BY_KEY[key]
+    return list(found.values())
+
+
+def propose_windows(ip: str, machine: str | None, apps: list[App], ports: dict, declared: list[dict]) -> list[dict]:
+    """Connecteurs à proposer pour les applis vues par les services d'un PC Windows : la même forme que propose(). L'adresse est celle du port
+    web connu de l'appli, ou son port par défaut ; une appli qui n'écoute pas là reste proposée (l'utilisateur corrige l'adresse)."""
+    out = []
+    for a in apps:
+        if not a.connector:
+            continue
+        if any(c.get("type") == a.connector and ip in " ".join(v for v in c.values() if isinstance(v, str)) for c in declared):
+            continue
+        port = next((p for p in a.ports if p in ports), None) or WEB_PORTS.get(a.key) or (a.ports[0] if a.ports else None)
+        out.append({"connector": a.connector, "label": a.label, "confidence": SURE, "ip": ip, "port": port,
+                    "url": f"http://{ip}:{port}" if port else f"http://{ip}", "machine": machine, "service": f"windows:{a.key}", "via": "service Windows"})
+    return out
+
+
 def propose(rows: list[dict], declared: list[dict]) -> list[dict]:
     """Un connecteur à proposer par appli reconnue sur une machine, sauf s'il est déjà réglé pour cette
     machine (une instance du même type dont un réglage texte contient son IP). Les plus sûres d'abord."""
