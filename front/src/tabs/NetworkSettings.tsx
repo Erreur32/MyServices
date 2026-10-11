@@ -1,7 +1,7 @@
 // Réglages → Découverte, en trois sous-onglets (Réseau et machines, Services et applis, Sauvegardes) : les découvertes de chaque famille
 // en cartes, et pour le réseau le scan du réseau local (lecture seule) et sa fréquence automatique ; relancer à la main,
 // refaire le parcours des premiers pas. Le premier scan est toujours manuel : l'automatique ne démarre qu'après lui.
-import { EyeOff, ListChecks, Radar, RotateCcw, Search } from "lucide-react";
+import { ListChecks, Radar, RotateCcw, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { NoteLine } from "../components/form";
@@ -100,7 +100,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
         <Card>
           <h2 className="mb-1 flex items-center gap-2 font-bold"><Radar size={16} />{tx("Machines trouvées sur le réseau")}</h2>
           <p className="mb-3 text-sm text-muted">{tx("Cochez celles à suivre puis ajoutez-les, ou ignorez-les. MyServices ne les ajoute jamais seul.")}</p>
-          <NetworkStep net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} />
+          <NetworkStep net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} />
         </Card>
       </div>
       <div id="net-scan" className="grid scroll-mt-20 items-start gap-4 lg:grid-cols-2">
@@ -154,21 +154,6 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
               <input type="checkbox" className="mt-1" checked={cfg.discreet} onChange={(e) => void saveDiscreet(e.target.checked)} />
               <span><b>{tx("Mode discret")}</b> <Dim>{tx("— ne lit ni le TTL du ping ni l'adresse MAC : le système des machines n'est alors plus deviné par là.")}</Dim></span>
             </label>
-          </Card>
-          <Card>
-            <h2 className="mb-1 flex items-center gap-2 font-bold"><EyeOff size={16} />{tx("Appareils ignorés")} <Dim>· {cfg.ignored.length}</Dim></h2>
-            <p className="mb-3 text-sm text-muted">{tx("Ces appareils ne sont plus proposés par la recherche (bouton « Ignorer » dans les premiers pas). Reprenez-en un pour qu'il soit de nouveau proposé.")}</p>
-            {cfg.ignored.length === 0 ? <Dim>{tx("Aucun appareil ignoré.")}</Dim> : (
-              <ul className="flex flex-col divide-y divide-line/60">
-                {cfg.ignored.map((e) => (
-                  <li key={e.ip} className="flex items-center gap-3 py-2 text-sm">
-                    <b className="min-w-0 flex-1 truncate">{e.name || e.ip}</b>
-                    <code className="font-mono text-xs text-dim">{e.ip}</code>
-                    <button type="button" className={quiet} onClick={() => void act(() => send("DELETE", `network/ignored/${e.ip}`), tx("{0} sera de nouveau proposé", e.name || e.ip), setNote).then(() => load())}>{tx("Reprendre")}</button>
-                  </li>
-                ))}
-              </ul>
-            )}
           </Card>
         </div>
       </div>

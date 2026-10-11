@@ -9,6 +9,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+### Added
+- **Ignored devices listed inside "Machines found on the network"** (Settings → Discovery): a folded "Ignored devices" list with a "Take back" button per device, replacing the separate card.
+
 ### Fixed
 - **Found machines list no longer jumps when a box is ticked**: the name field and the "what happens after adding" hint now sit on their own line under the row (ticked rows get a light frame) instead of squeezing the row.
 

@@ -73,8 +73,9 @@ const loadDismissed = (): string[] => {
   try { return JSON.parse(localStorage.getItem(DISMISSED) || "[]") as string[]; } catch { return []; }
 };
 
-export function NetworkStep({ net, reload, machines, connected, onSkip }: {
-  net: NetScan | null; reload: () => void; onSkip?: () => void;  // sans onSkip : pas de bouton « Passer » (Réglages → Découverte)
+export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredList }: {
+  net: NetScan | null; reload: () => void; onSkip?: () => void;
+  ignoredList?: { ip: string; name: string }[];  // appareils ignorés à la main, avec « Reprendre » (Réglages → Découverte)  // sans onSkip : pas de bouton « Passer » (Réglages → Découverte)
   machines: { ip: string; name?: string; ping?: boolean; local?: boolean; off?: boolean; ssh?: unknown }[]; connected: { connector: string; url?: string | null }[];
 }) {
   const known = machines.map((m) => m.ip);
@@ -333,6 +334,23 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
             })}
           </ul>
           <p className="mt-2 text-xs text-dim">{tx("Pour retirer une machine : Réglages → Machines. Pour effacer vos « Passer » : menu du compte → « Revoir les premiers pas ».")}</p>
+        </details>
+      )}
+      {!!ignoredList?.length && (
+        <details className="rounded-lg border border-line/60 px-3 py-2">
+          <summary className="cursor-pointer text-sm font-semibold text-txt">
+            <EyeOff size={14} className="mr-1.5 inline" aria-hidden />{tx("Appareils ignorés")} <span className="font-normal text-dim">({ignoredList.length}) · {tx("ignorés à la main")}</span>
+          </summary>
+          <p className="mt-2 text-xs text-dim">{tx("Ces appareils ne sont plus proposés par la recherche. Reprenez-en un pour qu'il soit de nouveau proposé.")}</p>
+          <ul className="mt-2 flex flex-col gap-1.5">
+            {ignoredList.map((e) => (
+              <li key={e.ip} className="flex flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2 text-sm">
+                <b className="min-w-0 flex-1 truncate text-txt">{e.name || e.ip}</b>
+                <code className="font-mono text-xs text-dim">{e.ip}</code>
+                <button type="button" className={quietBtn} onClick={() => void act(() => send("DELETE", `network/ignored/${e.ip}`), tx("{0} sera de nouveau proposé", e.name || e.ip), setNote).then(() => reload())}>{tx("Reprendre")}</button>
+              </li>
+            ))}
+          </ul>
         </details>
       )}
       <NoteLine note={note} />
