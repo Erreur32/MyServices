@@ -336,7 +336,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
     </div>
   ) : live ? <SshDetails m={live} statuses={statuses} /> : null;
   return (
-    <div ref={card} className={`flex flex-col rounded-xl border bg-card text-sm transition-colors ${open ? "self-start" : "self-stretch"} ${off ? "opacity-60" : ""} ${focus ? "border-link shadow-[0_0_0_1px_rgb(var(--link))]" : open ? "border-link/60 shadow-[0_0_0_1px_rgb(var(--link)/0.35)]" : "border-line"}`}>
+    <div ref={card} className={`flex flex-col rounded-xl border bg-card text-sm transition-colors ${open ? "self-start" : "self-stretch"} ${off ? "opacity-60" : ""} ${focus ? "border-link" : open ? "border-link/60" : "border-line"}`}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className={`flex w-full flex-wrap content-start items-center gap-x-2 gap-y-1 rounded-xl p-3 text-left hover:bg-bg2 ${open ? "" : "min-h-[5.25rem] flex-1"}`}>
         <Chevron size={14} className="text-txt" /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon }} scan={scan} reserve /><b>{m.name}</b><Dim>{ip}</Dim>
         <span className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5">
@@ -555,7 +555,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   const dirty = isNew || ["name", "adguard", "adguard_sync"].some((k) => String(v[k] ?? "") !== String(saved[k] ?? ""));
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
-      <section className="rounded-2xl border border-line border-l-4 border-l-link bg-bg2/30 p-4 shadow-sm">
+      <section className="rounded-2xl border border-line border-l-2 border-l-link bg-bg2/30 p-4 shadow-sm">
         <button type="button" onClick={() => setSshOpen(!sshOpen)} aria-expanded={sshOpen} className="flex w-full flex-wrap items-center gap-2 text-left">
           {sshOpen ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}
           <h4 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><KeyRound size={13} className="text-link" aria-hidden />{agentMode ? tx("Accès par l'agent") : tx("Accès SSH")}</h4>
@@ -620,7 +620,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
         </div>
         </div>}
       </section>
-      <section className="rounded-2xl border border-line border-l-4 border-l-ok bg-bg2/30 p-4">
+      <section className="rounded-2xl border border-line border-l-2 border-l-ok bg-bg2/30 p-4">
         <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><IdCard size={13} className="text-ok" aria-hidden />{tx("Identité")}</h4>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={tx("Nom")}><input className={input} required maxLength={80} value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>

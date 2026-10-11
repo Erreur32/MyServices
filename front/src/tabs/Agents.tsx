@@ -285,7 +285,7 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
   const setFolded = (v: boolean) => setChoice(v);
   const [tone, label] = STATE[a.state];
   return (
-    <li className={`flex flex-col gap-2 rounded-xl border bg-card p-3 text-sm ${focus ? "border-link" : "border-line"}`}>
+    <li className={`flex flex-col gap-2 rounded-xl border bg-card p-3 text-sm ${focus ? "border-link" : folded ? "border-line" : "border-link/60"}`}>
       <button type="button" onClick={() => setFolded(!folded)} aria-expanded={!folded} className="flex items-center gap-3 text-left">
         {folded ? <ChevronRight size={16} className="shrink-0 text-txt" aria-hidden /> : <ChevronDown size={16} className="shrink-0 text-txt" aria-hidden />}
         <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? "windows", osName: a.os }} reserve />
