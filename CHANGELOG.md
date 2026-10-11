@@ -7,6 +7,30 @@ Versioning: the first pre-releases were called `2.0.0-alpha.N`, `-beta.N` and `-
 numbering restarts **below 2.0.0** with **0.9.0** (2.0.0 is reserved for a version judged stable). The `:latest` image tag follows the
 latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
+## Unreleased (next version, not tagged yet)
+
+> **Testing phase: do not use in production.** Several items below were checked by tests and type-checking only, not yet by eye in a browser.
+
+### Added
+- **History page rebuilt**: four chart styles, remembered between visits: **Dots** (one dot per event at its exact time, one lane per family), **Bars** (stacked by family; step from 30 minutes on 24 h up to 3 days on one year; a click limits the list to that range), **Curve** (stacked area) and **Heat map** (weekday × hour). Vertical axis with round integer values and dashed guide lines (horizontal and vertical), same chart height for every style, a new 24 h period, search and filter chips also apply to the chart. Every entry carries badges: event type, detection method (ping, SSH, health, connector, HTTP probe…) and what read it (collection, NPM, Docker, AdGuard, a connector, health sources).
+- **Home**: a card with the live date and clock plus the scheduled tasks (collect, watch, health, backups, automatic network search) with the running time or the next run and a countdown (`GET /tasks` now returns `label`, `at`, `next`); the counters are also repeated under each category paragraph (the right-hand column is kept for now); "Last 24 h" is a list, one line per event type.
+- **Health page**: Cards or Table view (remembered), machines grouped by access (SSH, Agent, Beszel), a light one-line table with expandable rows ("Expand all"), a foldable "Details" sub-frame on cards, an OS icon and a filter by system and by access. The "Services read through their API" title becomes "Service via API".
+- **Machines page**: one line per machine with no horizontal scrolling and an expandable detail in five sections (Identity, System, Access, Software and services, Health), each ending with its **source** (clickable badges linking to the matching setting). Cards or Table view (remembered); OS icon (distribution logo, or the family icon) and abbreviated OS name in the System column (full name in the tooltip); the Servers column shows icons (NPM, Apache, nginx, Docker) with counts in the tooltip; new filters (System, Access, Role).
+- **Themed tooltips everywhere**: one component takes over every `title` attribute (hover and keyboard), dark or light with the theme, no duplicate native tooltip.
+- **Filter chips** carry a colour dot, a logo or the family colour square (State, System, Source, App, Type…); new filters on Services (App) and History (Method, Read by).
+- **Settings → Machines**: the icon choice shows only the icon in use (the auto-detected one when none is chosen); a click opens a panel with search and three families. **118 more icons**: 78 brand logos (systems and services, simple-icons, CC0, brand colour or a neutral grey when unreadable) and 40 object icons, plus five Windows styles (11, 10, classic, Server, monochrome). The machine card header updates as soon as an icon is picked.
+- **Backups**: the default folder `/home/backup` is always searched and ticked by default when it exists; "Other locations" (absolute paths or `*` patterns, `PUT /backups/patterns`) to add more.
+- **Services**: a dedicated icon column (recognised app, name or image, then Docker/Apache/nginx type).
+
+### Changed
+- **Health keeps "often off" PCs**: a PC flagged as often switched off with no fresh report stays in Health as a greyed card ("off (intended)", or "on, waiting for the agent" when it answers ping) with the time of its last agent report, instead of disappearing; no alert and no event. A targeted ping every minute re-reads that machine as soon as its answer changes; every agent report refreshes that machine's card.
+- Adding a machine (First steps, SSH test, key authorisation) now reads only that machine's collection and health right away instead of starting a full collection pass (several machines still start a full pass).
+- **Windows agent v5**: retries the report for about 6 minutes after a boot (network not ready yet), scheduled task with a 30 s start delay, an extra trigger at logon, and a restart by Windows on failure. Re-install it on the PC to benefit.
+- **Unidentified services**: a disabled, paused, switched-off-machine or unreachable-backend row shows its reason instead of "not identified"; when an enabled row's backend stops answering, the **last known identification** is kept and marked "last known".
+
+### Fixed
+- The OS name abbreviation handles accented editions ("Édition Familiale" → "Home").
+
 ## v0.9.3 (2026-10-11)
 
 > **Testing phase: do not use in production.**
