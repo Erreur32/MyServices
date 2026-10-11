@@ -21,6 +21,12 @@ interface Folder { path: string; size: number | null; newest: number | null; new
 interface Found { ip: string; name: string; ssh: string; ok: boolean; error: string; folders: Folder[] }
 interface Choice { on: boolean; label: string; age: string }
 
+/** Origine d'un jeu suivi : icône (logo ou pictogramme) et nom court */
+const SRC: Record<"folder" | "veeam" | "pbs" | "ha", { icon: string; Icon: LucideIcon; label: string }> = {
+  folder: { icon: "", Icon: FolderSearch, label: tx("Dossier") }, veeam: { icon: "Veeam", Icon: ServerCog, label: "Veeam" },
+  pbs: { icon: "Proxmox Backup Server", Icon: DatabaseBackup, label: "Proxmox Backup" }, ha: { icon: "Home Assistant", Icon: Home, label: "Home Assistant" },
+};
+
 const keyOf = (ip: string, path: string) => `${ip}${path}`;
 
 export function BackupsSettings() {
@@ -170,33 +176,42 @@ export function BackupsSettings() {
           {tx("MyServices regarde l'âge du fichier le plus récent de chaque dossier et vous prévient s'il est trop vieux. Lecture seule : rien n'est modifié sur les machines.")}
         </p>
         {cur.sets.length === 0 ? <Dim>{tx("Aucune sauvegarde suivie pour l'instant.")}</Dim> : (
-          <ul className="flex flex-col divide-y divide-line/60">
-            {cur.sets.map((s) => (
-              <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-sm">
-                <div className="min-w-[200px] flex-1">
-                  <b>{s.label}</b>
-                  <div className="font-mono text-xs text-dim">{s.path ?? (s.veeam_job ? `Veeam : ${s.veeam_job}` : s.pbs_group ? `Proxmox Backup : ${s.pbs_group}` : s.ha ? "Home Assistant" : "—")}</div>
-                </div>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                  <span className="inline-flex flex-wrap items-center gap-1.5 text-xs text-dim" title={tx("Sauvegarde quotidienne : 2 j ; hebdomadaire : 8 j. Au-delà du double, le jeu devient critique.")}>{tx("alerte après")}
-                    {AGES.map((d) => (
-                      <button key={d} type="button" aria-pressed={s.max_age_days === d} disabled={s.id === busyId} onClick={() => void change(s.id, { max_age_days: d })}
-                        className={`rounded-full border px-2 py-0.5 text-xs font-medium ${s.max_age_days === d ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>{d} {tx("j")}</button>
-                    ))}
-                    {!AGES.includes(s.max_age_days) && <Badge tone="info">{s.max_age_days} {tx("j")}</Badge>}
-                  </span>
-                  {!s.ha && !s.veeam_job && !s.pbs_group && (
-                    <span className="inline-flex items-center gap-1.5 text-xs text-dim" title={tx("Activé : une copie à jour sur une autre machine est exigée (sinon le jeu est critique). Désactivé : seule la source est surveillée.")}>
-                      <Switch on={s.expect_offsite} label={tx("Exiger une copie hors machine")} disabled={s.id === busyId} onChange={(on) => void change(s.id, { expect_offsite: on })} />{tx("copie hors machine exigée")}
+          <ul className="flex flex-col gap-2">
+            {cur.sets.map((s) => {
+              const kind = s.veeam_job ? SRC.veeam : s.pbs_group ? SRC.pbs : s.ha ? SRC.ha : SRC.folder;
+              return (
+                <li key={s.id} className="rounded-xl border border-line bg-bg2/30 px-3 py-2.5 text-sm">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">
+                      {appIcon([kind.icon]) ? <img src={appIcon([kind.icon])!} alt="" className="h-5 w-5" /> : <kind.Icon size={16} className="text-muted" aria-hidden />}
                     </span>
-                  )}
-                </div>
-                {confirm === s.id ? <>
-                  <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `backups/settings/${s.id}`), tx("sauvegarde retirée"), setNote).then((ok) => { if (ok) { setConfirm(""); load(); } })}>{tx("Confirmer le retrait")}</button>
-                  <button type="button" className={quiet} onClick={() => setConfirm("")}>{tx("Annuler")}</button>
-                </> : <button type="button" className={quiet} onClick={() => setConfirm(s.id)} aria-label={tx("Ne plus suivre {0}", s.label)}><Trash2 size={14} />{tx("Retirer")}</button>}
-              </li>
-            ))}
+                    <div className="min-w-[200px] flex-1">
+                      <b className="block truncate">{s.label}</b>
+                      <span className="block truncate font-mono text-xs text-dim">{s.path ?? s.veeam_job ?? s.pbs_group ?? (s.ha ? tx("sauvegarde automatique") : "—")}</span>
+                    </div>
+                    <Badge tone="info">{kind.label}</Badge>
+                    {confirm === s.id ? <>
+                      <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `backups/settings/${s.id}`), tx("sauvegarde retirée"), setNote).then((ok) => { if (ok) { setConfirm(""); load(); } })}>{tx("Confirmer le retrait")}</button>
+                      <button type="button" className={quiet} onClick={() => setConfirm("")}>{tx("Annuler")}</button>
+                    </> : <button type="button" className={quiet} onClick={() => setConfirm(s.id)} aria-label={tx("Ne plus suivre {0}", s.label)}><Trash2 size={14} />{tx("Retirer")}</button>}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-line/60 pt-2">
+                    <span className="inline-flex flex-wrap items-center gap-1.5 text-xs text-dim" title={tx("Sauvegarde quotidienne : 2 j ; hebdomadaire : 8 j. Au-delà du double, le jeu devient critique.")}>{tx("alerte après")}
+                      {AGES.map((d) => (
+                        <button key={d} type="button" aria-pressed={s.max_age_days === d} disabled={s.id === busyId} onClick={() => void change(s.id, { max_age_days: d })}
+                          className={`rounded-full border px-2 py-0.5 text-xs font-medium ${s.max_age_days === d ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>{d} {tx("j")}</button>
+                      ))}
+                      {!AGES.includes(s.max_age_days) && <Badge tone="info">{s.max_age_days} {tx("j")}</Badge>}
+                    </span>
+                    {!s.ha && !s.veeam_job && !s.pbs_group && (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-dim" title={tx("Activé : une copie à jour sur une autre machine est exigée (sinon le jeu est critique). Désactivé : seule la source est surveillée.")}>
+                        <Switch on={s.expect_offsite} label={tx("Exiger une copie hors machine")} disabled={s.id === busyId} onChange={(on) => void change(s.id, { expect_offsite: on })} />{tx("copie hors machine exigée")}
+                      </span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </Card>
