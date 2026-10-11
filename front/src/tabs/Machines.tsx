@@ -5,7 +5,7 @@ import { read, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
-import type { HealthHost, Machine, NetScan } from "../types";
+import type { HealthHost, Machine, MachineLinks, NetScan, Unlinked } from "../types";
 import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, osOfMachine, type MState, type OsKind } from "../lib/machines";
 import { OsGlyph } from "../components/OsGlyph";
 import { shortOs } from "../lib/osName";
@@ -216,6 +216,35 @@ function From({ list }: { list: Origin[] }) {
   );
 }
 
+const HOW: Record<string, string> = { ip: tx("reliée par son adresse IP"), mac: tx("reliée par son adresse MAC"), name: tx("reliée par son nom (à vérifier)") };
+
+/** Matching layer: one badge per tool that sees the machine ; a name match is dashed (weaker than an address) */
+function SeenBy({ links }: { links?: MachineLinks | null }) {
+  const list = links?.sources ?? [];
+  if (!list.length) return null;
+  return (
+    <span className="flex flex-wrap gap-1">
+      {list.map((x) => (
+        <span key={`${x.source}/${x.instance}`} title={`${x.label}${x.instance ? ` (${x.instance})` : ""} : ${HOW[x.by]}${x.ok ? "" : ` · ${tx("hors ligne")}`}`}
+          className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border bg-bg2 px-1.5 py-0.5 text-[11px] font-semibold ${x.ok ? "text-muted" : "text-bad"} ${x.by === "name" ? "border-dashed border-txt/30" : "border-line"}`}>
+          {x.label}{x.source === "proxmox" && x.vmid != null ? ` · ${x.vmid}` : ""}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Names the other tools give the machine, minus its own (« dev.lan » is not another name for « dev ») */
+const otherNames = (m: Machine) => (m.links?.names ?? []).filter((n) => n.split(".")[0].toLowerCase() !== m.name.toLowerCase());
+
+/** « VM 101 sur pve » / « nœud Proxmox pve » */
+function Virt({ links }: { links?: MachineLinks | null }) {
+  const g = links?.guest, n = links?.hypervisor;
+  if (g) return <>{g.type === "lxc" ? tx("conteneur LXC") : "VM"} {g.vmid} {tx("sur")} <b>{g.node}</b>{g.status && g.status !== "running" && <Dim> · {g.status}</Dim>}</>;
+  if (n) return <>{tx("nœud Proxmox")} <b>{n.node}</b></>;
+  return null;
+}
+
 /** Rubrique du détail : titre avec icône, lignes « libellé / valeur », puis d'où viennent les données */
 function Section({ icon: Icon, title, from, children }: { icon: typeof Info; title: string; from?: Origin[]; children: React.ReactNode }) {
   return (
@@ -262,6 +291,9 @@ function Detail({ m, h, mac, from, watch }: { m: Machine; h?: HealthHost; mac?: 
         <Row k={tx("État")}><Badge tone={stTone} title={stTip}>{stLabel}</Badge></Row>
         <Row k={tx("Rôle")}>{roles.length ? <span className="flex flex-wrap gap-1">{roles.map((t) => <Badge key={t} tone="off">{t}</Badge>)}</span> : undefined}</Row>
         <Row k="MAC">{mac && <span className="font-mono">{mac}</span>}</Row>
+        <Row k={tx("Autres noms")}>{otherNames(m).join(", ") || undefined}</Row>
+        <Row k="Proxmox">{m.links?.guest || m.links?.hypervisor ? <Virt links={m.links} /> : undefined}</Row>
+        <Row k={tx("Vue par")}>{m.links?.sources.length ? <SeenBy links={m.links} /> : undefined}</Row>
         <Row k="TTL">{m.ttl ? <span title={tx("Durée de vie des paquets du ping : 64 Linux, 128 Windows")}>{m.ttl}</span> : undefined}</Row>
       </Section>
 
@@ -357,13 +389,24 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
 
   // Inventaire de MynetworK (connecteur « network ») : MAC et fabricant sous l'IP, et les appareils vus mais pas suivis
   const seen = useMemo(() => new Map((snap.data.network ?? []).flatMap((c) => c.devices ?? []).map((d) => [d.ip, d])), [snap.data.network]);
-  const untracked = useMemo(() => [...seen.values()].filter((d) => !snap.data.machine_list.some((m) => m.ip === d.ip)).sort((a, b) => ipNum(a.ip) - ipNum(b.ip)), [seen, snap.data.machine_list]);
-  const macOf = (m: Machine) => { const d = seen.get(m.ip); return d ? [d.mac, d.vendor].filter(Boolean).join(" · ") : undefined; };
+  // Seen by a tool but not followed here: the matching layer's list (all tools), or MynetworK alone for an older data.json
+  const untracked: Unlinked[] = useMemo(() => snap.data.unlinked
+    ?? [...seen.values()].filter((d) => !snap.data.machine_list.some((m) => m.ip === d.ip))
+      .map((d) => ({ source: "mynetwork", label: "MynetworK", instance: "", ip: d.ip, mac: d.mac ?? undefined, name: d.hostname || d.vendor || undefined, online: d.status === "online" })),
+  [seen, snap.data.unlinked, snap.data.machine_list]);
+  const bySource = useMemo(() => {
+    const g = new Map<string, Unlinked[]>();
+    for (const u of untracked) g.set(u.label, [...(g.get(u.label) ?? []), u]);
+    for (const l of g.values()) l.sort((a, b) => (a.ip && b.ip ? ipNum(a.ip) - ipNum(b.ip) : (a.name ?? "").localeCompare(b.name ?? "")));
+    return [...g.entries()];
+  }, [untracked]);
+  const macOf = (m: Machine) => { const d = seen.get(m.ip); const mac = d?.mac || m.links?.mac, vendor = d?.vendor || m.links?.vendor; return mac || vendor ? [mac, vendor].filter(Boolean).join(" · ") : undefined; };
   const name = (m: Machine) => (
     <button type="button" onClick={() => onMachine(m.ip)} className="text-left" title={tx("Voir ses services")}>
       <b className="font-semibold hover:text-link">{m.name}</b>
       <span className="flex flex-wrap items-center gap-1 text-xs text-dim">{m.ip}{rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}</span>
       {seen.get(m.ip) && <span className="block font-mono text-[11px] text-dim" title={tx("Vu par MynetworK")}>{[seen.get(m.ip)!.mac, seen.get(m.ip)!.vendor].filter(Boolean).join(" · ")}</span>}
+      {!!m.links?.sources.length && <span className="mt-1 block"><SeenBy links={m.links} /></span>}
     </button>
   );
   const svc = (m: Machine) => (
@@ -384,13 +427,22 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
         </>} />
       {untracked.length > 0 && (
         <details className="mb-3 rounded-xl border border-line bg-bg2/40 px-4 py-2 text-sm">
-          <summary className="cursor-pointer text-muted hover:text-txt">{tx("Vus par MynetworK, pas suivis ici")} <b className="text-dim">({untracked.length})</b></summary>
-          <ul className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">
-            {untracked.slice(0, 120).map((d) => (
-              <li key={d.ip} className="flex flex-wrap items-baseline gap-2"><Badge tone={d.status === "online" ? "ok" : "off"}>{d.status === "online" ? tx("en ligne") : tx("hors ligne")}</Badge>
-                <span className="font-mono text-xs">{d.ip}</span><span>{d.hostname || d.vendor || ""}</span>{d.mac && <Dim>{d.mac}</Dim>}</li>
-            ))}
-          </ul>
+          <summary className="cursor-pointer text-muted hover:text-txt">{tx("Vus par vos outils, pas suivis ici")} <b className="text-dim">({untracked.length})</b></summary>
+          {bySource.map(([label, list]) => (
+            <div key={label} className="mt-2">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{label} <span className="font-normal">({list.length})</span></h4>
+              <ul className="mt-1 grid gap-x-6 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">
+                {list.slice(0, 120).map((d, n) => (
+                  <li key={`${d.ip ?? d.name}-${n}`} className="flex min-w-0 items-baseline gap-2 whitespace-nowrap" title={[d.ip, d.name, d.mac].filter(Boolean).join(" · ")}>
+                    {d.online != null && <Badge tone={d.online ? "ok" : "off"}>{d.online ? tx("en ligne") : tx("hors ligne")}</Badge>}
+                    {d.ip && <span className="shrink-0 font-mono text-xs">{d.ip}</span>}<span className="min-w-0 truncate">{d.name ?? ""}</span>
+                    {d.vmid != null && <Dim>{d.type === "lxc" ? "LXC" : "VM"} {d.vmid}{d.node ? ` · ${d.node}` : ""}</Dim>}
+                    {d.mac && <span className="hidden shrink-0 font-mono text-[11px] text-dim 2xl:inline">{d.mac}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
           <p className="mt-2 text-xs text-dim">{tx("Pour en suivre un : Réglages → Machines, ou refaites une recherche réseau.")}</p>
         </details>
       )}
@@ -411,7 +463,8 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                     </td>
                     <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td>
                     <Td><button type="button" onClick={() => onMachine(m.ip)} className="flex items-baseline gap-2 text-left" title={tx("Voir ses services")}>
-                      <b className="font-semibold hover:text-link">{m.name}</b><span className="text-xs text-dim">{m.ip}</span></button></Td>
+                      <b className="font-semibold hover:text-link">{m.name}</b><span className="text-xs text-dim">{m.ip}</span></button>
+                      {!!m.links?.sources.length && <span className="mt-1 block"><SeenBy links={m.links} /></span>}</Td>
                     <Td>{st(m)}</Td><Td><WatchList items={watchOf(m)} /></Td><Td><SshShort m={m} /></Td>
                     <Td><OsShort m={m} kind={osOf(m)} /></Td><Td><Servers m={m} snap={snap} /></Td>
                     <Td><b>{m.services}</b>{m.down > 0 && <span className="text-xs text-bad"> · {m.down} {tx("en panne")}</span>}</Td>

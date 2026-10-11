@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+- **Matching layer (`matching.py`)**: each collection ties a machine to what the other tools say about it: MynetworK and UniFi (by IP, then MAC when the IP changed), Beszel, Proxmox VE nodes and guests, Proxmox Backup and Dockhand environments (by address, or by short name when exactly one machine has it, flagged as weaker). Each machine of `data.json` gets `links` (MAC, vendor, other names, one entry per tool with how it was matched, the Proxmox guest or node); `unlinked` lists what the tools see but MyServices does not follow. Beszel is read from the connectors' last result: no extra call. 12 tests.
+- **Machines tab**: one badge per tool that sees the machine, under its name and in its detail ("Seen by", dashed when matched by name only), its other names and its Proxmox VM / node. The "Seen by MynetworK, not followed here" box becomes "Seen by your tools, not followed here", grouped by tool (MynetworK, Proxmox, Dockhand, Beszel).
+
 ## v0.10.3 (2026-10-11)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

@@ -106,6 +106,7 @@ export interface Machine {
   npm: number;
   down: number;
   ssh?: { alias: string; port: number; user?: string; identity?: string | null; key_fp?: string | null; host_key?: string | null; methods?: string[] | null; note?: string | null } | null;
+  links?: MachineLinks | null;   // matching layer: MAC, other names, one badge per tool that sees it
   api?: { type: string; name: string; label: string; ok: boolean; stale?: boolean; version?: string | null; message?: string; host?: { cpu?: number; mem_pct?: number; temp?: number; boot?: string } | null }[];   // connecteurs API (Home Assistant…) qui lisent cette machine
   agent?: { os: string; kernel?: string | null; uptime_s?: number | null; hardware?: AgentHardware | null; docker?: number | null; apps?: { key: string; label: string }[]; via: "agent" } | null;  // système lu par l'agent (PC Windows)
   info?: {
@@ -227,7 +228,18 @@ export interface Data {
   hosts: Host[];
   dns?: Dns;
   machine_list: Machine[];
+  unlinked?: Unlinked[];   // seen by a tool (MynetworK, Proxmox, Dockhand, Beszel), not followed here
 }
+
+/** One tool that sees a machine, and how it was tied to it (address is sure, name is a guess) */
+export interface LinkSource { source: string; label: string; instance: string; by: "ip" | "mac" | "name"; ok: boolean; vmid?: number; node?: string; environment?: string; containers?: number; kind?: string }
+/** Matching layer (matching.py): the same machine as seen by the other tools */
+export interface MachineLinks {
+  mac: string | null; vendor: string | null; names: string[]; sources: LinkSource[];
+  guest: { vmid?: number; type?: string; node?: string; status?: string; instance: string } | null;
+  hypervisor: { node?: string; instance: string } | null;
+}
+export interface Unlinked { source: string; label: string; instance: string; ip?: string; mac?: string; name?: string; online?: boolean; vmid?: number; type?: string; node?: string }
 
 export type Level = "ok" | "warn" | "crit" | "down";
 

@@ -52,6 +52,7 @@ import inventory_cache
 import api_link
 import known_apps
 import last_known as last_known_services
+import matching
 import npmapi
 
 from config import CFG, next_timer_run
@@ -1156,6 +1157,13 @@ def main():
     for m in machines_out:   # machine lue par l'API d'un connecteur (Home Assistant…) : la page le sait, elle ne dit plus « sans SSH »
         if m["ip"] in linked:
             m["api"] = linked[m["ip"]]
+    # Matching layer: the same machine as seen by MynetworK / UniFi, Beszel, Proxmox and Dockhand (Beszel: its last result, no new call)
+    cstate = cbase.load_state(CONNECTORS_STATE)
+    beszel = [{"name": k.split("/", 1)[1], "systems": (v.get("last") or {}).get("systems", [])}
+              for k, v in cstate.items() if k.startswith("beszel/") and isinstance(v, dict)]
+    links = matching.link(machines_out, network, virtualization, containers, beszel)
+    for m in machines_out:
+        m["links"] = links["machines"].get(m["ip"])
     declared_now = connectors.declared(CFG, META_RAW)
     detected_apps = known_apps.propose(rows, declared_now, with_linked=True) + [   # applis reconnues, reliées ou non : « proposals » garde les non reliées
         p for ip, apps in agent_apps.items()
@@ -1183,6 +1191,7 @@ def main():
         "virtualization": virtualization,
         "dns": dns,
         "machine_list": machines_out,
+        "unlinked": links["unlinked"],   # seen by a tool (MynetworK, Proxmox, Dockhand, Beszel), not followed here
     }
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     tmp = f"{OUT}.{os.getpid()}.tmp"
