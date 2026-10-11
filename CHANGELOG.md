@@ -21,6 +21,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   (`PVEAPIToken`, role PVEAuditor, read-only). **Proxmox Backup Server connector** (`proxmox-backup`): datastores, usage and age of the last backup
   (`PBSAPIToken`). Self-signed certificates are the default case ("Verify certificate" is off by default).
 - Settings → Connectors → Agents and SSH: the four groups (With an agent, Without an agent, Linux read over SSH, No access) fold with a chevron, like the "Agent created" card.
+- Settings → Connectors: a connector that was read shows only the green check (no "OK" text); stale or failed shows its icon and message.
 - Fix: connectors of kind `status` (Home Assistant) showed "pas encore lu" (not read yet) in Settings → Connectors although they were read: their state was added to `data.json` after the `connectors` list was copied. They are now read first.
 - Icons for MynetworK, LogviewR, Dockhand, Veeam and Web-Check (Proxmox Backup Server reuses the Proxmox one), also selectable as machine icons.
 - All of them are proposed when their Docker image, page or port is recognised, and tested against fake servers (`tests/test_connectors_reseau.py`).

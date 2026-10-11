@@ -1,5 +1,5 @@
 // Accès SSH d'une machine (relevé par la collecte) : ligne de résumé, alerte sshd, détail ; état d'un connecteur.
-import { KeyRound } from "lucide-react";
+import { AlertTriangle, CheckCircle2, KeyRound, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { dur } from "../lib/format";
 import type { Connector, ConnectorStatus, Machine } from "../types";
@@ -10,11 +10,15 @@ const SSH_KIND: Record<string, string> = { docker: tx("conteneurs Docker"), proc
 
 export function StatusLine({ s }: { s: (Partial<ConnectorStatus> & Connector) | null }) {
   if (!s) return <Dim>{tx("pas encore lu (prochain passage de la collecte)")}</Dim>;
+  const version = s.version && <Badge tone={s.version_tested === false ? "warn" : "off"} title={s.version_tested === false ? tx("version non testée") : undefined}>v{s.version}</Badge>;
+  // Lu : la coche verte suffit (pas de texte « OK »). Périmé ou en échec : l'icône et le message
+  if (s.ok && !s.stale) return <span className="flex flex-wrap items-center gap-2"><CheckCircle2 size={16} className="shrink-0 text-ok" aria-label={tx("lu")} />{version}</span>;
+  const bad = !s.ok;
   return (
     <span className="flex flex-wrap items-center gap-2">
-      <Badge tone={!s.ok ? "bad" : s.stale ? "warn" : "ok"}>{!s.ok ? tx("en échec{0}", (s.failures || 0) > 1 ? tx(" ({0} passages)", s.failures) : "") : s.stale ? tx("périmé") : tx("lu")}</Badge>
-      <span className="text-muted">{s.message}</span>
-      {s.version && <Badge tone={s.version_tested === false ? "warn" : "off"} title={s.version_tested === false ? tx("version non testée") : undefined}>v{s.version}</Badge>}
+      {bad ? <XCircle size={16} className="shrink-0 text-bad" aria-label={tx("en échec{0}", "")} /> : <AlertTriangle size={16} className="shrink-0 text-warn" aria-label={tx("périmé")} />}
+      <span className={bad ? "text-bad" : "text-warn"}>{bad ? s.message : `${tx("périmé")} : ${s.message}`}{bad && (s.failures || 0) > 1 ? tx(" ({0} passages)", s.failures) : ""}</span>
+      {version}
     </span>
   );
 }
