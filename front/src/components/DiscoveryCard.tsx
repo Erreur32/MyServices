@@ -10,7 +10,7 @@ import { openConnector } from "../lib/connectorPrefill";
 import type { Machine } from "../types";
 import { MachineIcon } from "./MachineIcon";
 import { NoteLine } from "./form";
-import { Badge, Card, Dim } from "./ui";
+import { Badge } from "./ui";
 
 export interface DiscoveryItem {
   id: string; title: string; mode: "auto" | "first" | "manual"; what: string; last: number | null; next: number | null;
@@ -74,76 +74,49 @@ function Action({ a, reload }: { a: NonNullable<DiscoveryItem["action"]>; reload
 }
 
 /** Familles de découvertes : rangées d'après l'identifiant (les entrées « ssh:ip », « agent:ip », « connector:… » ont un suffixe) */
-const GROUPS: { id: string; title: string; Icon: typeof Boxes; has: (id: string) => boolean }[] = [
+export const GROUPS: { id: string; title: string; Icon: typeof Boxes; has: (id: string) => boolean }[] = [
   { id: "network", title: tx("Réseau et machines"), Icon: Network, has: (id) => ["network", "redetect", "hosts"].includes(id) || id.startsWith("ssh:") || id.startsWith("agent:") },
   { id: "services", title: tx("Services et applis"), Icon: Boxes, has: (id) => ["services", "new", "connectors"].includes(id) || id.startsWith("connector:") },
   { id: "backups", title: tx("Sauvegardes"), Icon: HardDrive, has: (id) => id.startsWith("backups") || id === "cron" },
 ];
-const groupOf = (x: DiscoveryItem) => GROUPS.find((g) => g.has(x.id)) ?? GROUPS[1];
+export const groupOf = (x: DiscoveryItem) => GROUPS.find((g) => g.has(x.id)) ?? GROUPS[1];
 
-/** Une découverte : titre, mode, ce qu'elle fait, dernière / prochaine fois, et son action */
+/** Une découverte en carte : titre, mode, ce qu'elle fait, dernière / prochaine fois, puis ses boutons */
 function Item({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; machines?: Machine[] }) {
-  const m = MODE[x.mode];
+  const m = MODE[x.mode], todo = x.state === "todo";
   return (
-    <li className="flex flex-col gap-1.5 py-3">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <Title x={x} machines={machines} />
-        <Badge tone={m.tone} title={m.hint}><m.Icon size={11} aria-hidden />{m.label}</Badge>
+    <li className={`flex flex-col gap-2 rounded-xl border bg-card p-4 ${todo ? "border-warn/50" : x.muted ? "border-line/60 opacity-75" : "border-line"}`}>
+      <div className="flex items-start gap-2">
+        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${todo ? "bg-warn/15 text-warn" : "bg-bg2 text-muted"}`} title={m.hint}><m.Icon size={15} aria-hidden /></span>
+        <div className="min-w-0 flex-1"><Title x={x} machines={machines} /></div>
+        <Badge tone={todo ? "warn" : m.tone} title={m.hint}>{todo ? tx("à faire") : m.label}</Badge>
       </div>
       <p className="text-sm text-muted">{x.what}</p>
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-dim">
-          {x.muted ? <Badge tone="off">{tx("rappel coupé")}</Badge> : x.note && <span className={x.state === "todo" ? "text-warn" : ""}>{x.note}</span>}
-          {when(x.last) ? <Badge tone="off">{tx("dernière fois")} {when(x.last)}</Badge> : x.mode !== "auto" && <Badge tone="warn">{tx("jamais lancée")}</Badge>}
-          {when(x.next) && <Badge tone="info">{tx("prochaine")} {when(x.next)}</Badge>}
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">{x.action && <Action a={x.action} reload={reload} />}<MuteButton x={x} reload={reload} /></div>
+      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        {x.muted ? <Badge tone="off">{tx("rappel coupé")}</Badge> : x.note && <span className={todo ? "text-warn" : "text-dim"}>{x.note}</span>}
+        {when(x.last) ? <Badge tone="off">{tx("dernière fois")} {when(x.last)}</Badge> : x.mode !== "auto" && <Badge tone="warn">{tx("jamais lancée")}</Badge>}
+        {when(x.next) && <Badge tone="info">{tx("prochaine")} {when(x.next)}</Badge>}
       </div>
+      {(x.action || x.mutable) && <div className="mt-auto flex flex-wrap items-center gap-1.5 border-t border-line/60 pt-2.5">{x.action && <Action a={x.action} reload={reload} />}<MuteButton x={x} reload={reload} /></div>}
     </li>
   );
 }
 
-/** Réglages → Découverte : d'abord ce qui est à faire (actions importantes), puis tout le reste rangé par famille */
-export function DiscoveryCard({ machines }: { machines?: Machine[] }) {
-  const [d, load] = useDiscoveries();
+export type DiscoveryData = { items: DiscoveryItem[]; todo: number };
+export const todoOf = (d: DiscoveryData | null, g: (typeof GROUPS)[number]) => (d?.items ?? []).filter((x) => x.state === "todo" && groupOf(x) === g).length;
+
+/** Les découvertes d'une famille : ce qui est à faire d'abord, puis le reste, en cartes */
+export function DiscoveryPanel({ d, group, reload, machines }: { d: DiscoveryData | null; group: (typeof GROUPS)[number]; reload: () => void; machines?: Machine[] }) {
   if (!d) return null;
-  const todo = d.items.filter((x) => x.state === "todo"), rest = d.items.filter((x) => x.state !== "todo");
+  const items = d.items.filter((x) => groupOf(x) === group).sort((a, b) => Number(b.state === "todo") - Number(a.state === "todo"));
+  const todo = items.filter((x) => x.state === "todo").length;
   return (
-    <div className="flex flex-col gap-4">
-      <section className={`rounded-2xl border bg-card p-5 ${todo.length ? "border-warn/50" : "border-ok/40"}`} aria-label={tx("Actions importantes")}>
-        <h2 className="mb-1 flex flex-wrap items-center gap-2 font-bold"><Bell size={16} aria-hidden />{tx("Actions importantes")} {todo.length > 0 && <Badge tone="warn">{tx("{0} à faire", todo.length)}</Badge>}</h2>
-        {todo.length === 0 ? <p className="flex items-center gap-2 text-sm text-ok"><Check size={15} aria-hidden />{tx("Rien à faire : tout ce que MyServices a trouvé est en ordre.")}</p> : (
-          <>
-            <p className="mb-1 text-sm text-muted">{tx("Ces recherches ne se lancent pas toutes seules, ou demandent votre accord.")}</p>
-            <ul className="flex flex-col divide-y divide-line/60">
-              {todo.map((x) => { const G = groupOf(x); return (
-                <li key={x.id} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-3">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-warn/15 text-warn" title={G.title}><G.Icon size={16} aria-hidden /></span>
-                  <div className="min-w-[240px] flex-1">
-                    <Title x={x} machines={machines} />
-                    <p className="text-sm text-muted">{x.what}</p>
-                    <p className="text-xs text-warn">{x.note}</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5">{x.action && <Action a={x.action} reload={load} />}<MuteButton x={x} reload={load} /></div>
-                </li>
-              ); })}
-            </ul>
-          </>
-        )}
-      </section>
-      <div className="grid items-start gap-4 xl:grid-cols-3">
-        {GROUPS.map((g) => {
-          const items = rest.filter((x) => groupOf(x) === g);
-          if (!items.length) return null;
-          return (
-            <Card key={g.id}>
-              <h2 className="flex items-center gap-2 font-bold"><g.Icon size={16} aria-hidden />{g.title} <Dim>· {items.length}</Dim></h2>
-              <ul className="mt-1 flex flex-col divide-y divide-line/60">{items.map((x) => <Item key={x.id} x={x} reload={load} machines={machines} />)}</ul>
-            </Card>
-          );
-        })}
-      </div>
-    </div>
+    <section aria-label={group.title} className="flex flex-col gap-3">
+      <p className={`flex items-center gap-2 text-sm ${todo ? "text-warn" : "text-ok"}`}>
+        {todo ? <><Bell size={15} aria-hidden />{tx("{0} à faire dans cette famille", todo)}</> : <><Check size={15} aria-hidden />{tx("Rien à faire ici : tout est en ordre.")}</>}
+      </p>
+      <ul className="grid items-stretch gap-3 lg:grid-cols-2">{items.map((x) => <Item key={x.id} x={x} reload={reload} machines={machines} />)}</ul>
+    </section>
   );
 }
 

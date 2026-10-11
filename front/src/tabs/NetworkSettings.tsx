@@ -1,4 +1,5 @@
-// Réglages → Découverte : le scan du réseau local (lecture seule) et sa fréquence automatique ; relancer à la main,
+// Réglages → Découverte, en trois sous-onglets (Réseau et machines, Services et applis, Sauvegardes) : les découvertes de chaque famille
+// en cartes, et pour le réseau le scan du réseau local (lecture seule) et sa fréquence automatique ; relancer à la main,
 // refaire le parcours des premiers pas. Le premier scan est toujours manuel : l'automatique ne démarre qu'après lui.
 import { EyeOff, ListChecks, Radar, RotateCcw, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -10,7 +11,7 @@ import { reopenFirstSteps } from "../lib/firstSteps";
 import { act, button, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { pokeScan } from "../lib/scan";
-import { DiscoveryCard } from "../components/DiscoveryCard";
+import { GROUPS, DiscoveryPanel, todoOf, useDiscoveries } from "../components/DiscoveryCard";
 import type { Snapshot } from "../api";
 import { NetworkStep } from "../components/NetworkStep";
 import type { NetScan } from "../types";
@@ -32,7 +33,19 @@ function useScrollToPart(ready: boolean) {
   }, [ready]);
 }
 
+/** Sous-onglet d'ouverture : celui du lien (#settings/network/<hosts|scan|services|backups>), sinon le premier qui a quelque chose à faire */
+const openTab = (todo: (id: string) => number) => {
+  const part = location.hash.split("/")[2];
+  if (part === "services" || part === "backups") return part;
+  if (part === "hosts" || part === "scan") return "network";
+  return GROUPS.find((g) => todo(g.id))?.id ?? "network";
+};
+
 export function NetworkSettings({ snap }: { snap: Snapshot }) {
+  const [disc, reloadDisc] = useDiscoveries();
+  const [tab, setTab] = useState<string | null>(null);
+  const current = tab ?? (disc ? openTab((id) => todoOf(disc, GROUPS.find((g) => g.id === id)!)) : "network");
+  const group = GROUPS.find((g) => g.id === current) ?? GROUPS[0];
   const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
   const [hours, setHours] = useState(""), [nets, setNets] = useState<string | null>(null), [note, setNote] = useState<Note>(null), [error, setError] = useState("");
   const load = useCallback(() => {
@@ -45,7 +58,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
     const id = setInterval(load, 10_000); // une recherche en cours : suivre sa fin
     return () => clearInterval(id);
   }, [load]);
-  useScrollToPart(!!cfg && !!scan);
+  useScrollToPart(!!cfg && !!scan && current === "network");
   if (!cfg || !scan) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 
   const running = scan.phase === "ping" || scan.phase === "identify";
@@ -66,7 +79,23 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <DiscoveryCard machines={snap.data.machine_list} />
+      <nav className="flex gap-1 overflow-x-auto border-b border-line" aria-label={tx("Familles de découvertes")}>
+        {GROUPS.map((g) => {
+          const n = todoOf(disc, g);
+          return (
+            <button key={g.id} type="button" onClick={() => setTab(g.id)} aria-current={current === g.id ? "page" : undefined}
+              className={`flex shrink-0 items-center gap-1.5 rounded-t-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
+                current === g.id ? "bg-card text-txt shadow-[inset_0_-2px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
+              <g.Icon size={15} strokeWidth={1.75} aria-hidden />{g.title}
+              {n > 0 && <Badge tone="warn">{n}</Badge>}
+            </button>
+          );
+        })}
+      </nav>
+      <DiscoveryPanel d={disc} group={group} reload={reloadDisc} machines={snap.data.machine_list} />
+      {current === "services" && <Card><p className="text-sm text-muted">{tx("Les applis reconnues se relient dans")} <a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a>.</p></Card>}
+      {current === "backups" && <Card><p className="text-sm text-muted">{tx("Les dossiers et jeux de sauvegarde se règlent dans")} <a className="text-link hover:underline" href="#settings/backups">{tx("Réglages → Sauvegardes")}</a>.</p></Card>}
+      {current === "network" && <>
       <div id="net-hosts" className="scroll-mt-20">
         <Card>
           <h2 className="mb-1 flex items-center gap-2 font-bold"><Radar size={16} />{tx("Machines trouvées sur le réseau")}</h2>
@@ -143,6 +172,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
           </Card>
         </div>
       </div>
+      </>}
     </div>
   );
 }

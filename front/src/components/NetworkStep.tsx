@@ -110,7 +110,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
   const sum = net && net.phase === "done" ? summarize(net.found, known) : null;
   // Accès à régler : machines ajoutées à l'instant, plus celles déjà déclarées dont le SSH ou le jeton Home Assistant manque
   const pending = (net?.found ?? []).filter((h) => known.includes(h.ip) && !added[h.ip] && !dismissed.includes(h.ip) && needsLink(h, machines, connected));
-  const toLink = [...Object.values(added), ...pending];
+  const toLink = [...Object.values(added), ...pending].filter((h) => needsLink(h, machines, connected));   // seulement ce qui reste à régler : le reste est dans « déjà ajoutées »
   const later = (net?.found ?? []).filter((h) => known.includes(h.ip) && dismissed.includes(h.ip) && needsLink(h, machines, connected));
   const resumeLater = () => setDismissed((d) => { const n = d.filter((ip) => !later.some((h) => h.ip === ip)); localStorage.setItem(DISMISSED, JSON.stringify(n)); return n; });
 
