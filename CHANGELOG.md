@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Testing phase: do not use in production.**
 
+### Fixed
+- **A machine read through a connector's API (Home Assistant, Proxmox…) was still shown as "online, without SSH"**, and nothing from the connector reached the Machines page. Now a machine whose connector URL (or announced address) points at it shows state **API**, its detail lists the connector with its version, and a failing connector is flagged in "To watch".
+- **Home Assistant now brings sensors for its host machine** (System Monitor integration and Supervisor sensors): processor, memory, disk, temperature. They feed the Health tab as a source named "Home Assistant" (group "API"), so the machine gets CPU / memory / disk columns and alerts like any other. The connector also counts unavailable entities and low batteries.
+
 ### Changed
 - **Folded agent card** (Settings -> Connectors -> Agents and SSH): the header now shows a green icon when automatic update is on, an "out of date · vN" badge (or "update requested") when the agent is older than the served script, and a check mark when it is up to date, so you see it without unfolding.
 - **Machines: agent state and summary.** A PC read by its agent now shows "Agent active" in the State column instead of "online, without SSH" (it is also filtered and sorted as such). The "To watch" column always shows every pill (they wrap, nothing is hidden), and each machine's detail starts with a foldable "To watch" summary: one line per subject with its icon, colour and full sentence, open when something is serious. The alert delay in Settings -> Notifications -> Alerts is now a row of buttons.

@@ -24,6 +24,8 @@ describe("mState", () => {
     expect(mState({ ...base, agent: { os: "Windows 11", via: "agent" } })).toBe("agent");
     expect(mState({ ...base, off: true, agent: { os: "Windows 11", via: "agent" } })).toBe("agent");   // éteint « voulu » mais l'agent parle : il est allumé
     expect(mState({ ...base, off: true, ping: false })).toBe("off");
+    expect(mState({ ...base, api: [{ type: "home-assistant", name: "Home", label: "Home Assistant", ok: true }] })).toBe("api");     // machine lue par l'API d'un connecteur
+    expect(mState({ ...base, api: [{ type: "home-assistant", name: "Home", label: "Home Assistant", ok: false }] })).toBe("nossh");  // connecteur en échec : pas lue
     expect(mState({ ...base, disabled: true, agent: { os: "x", via: "agent" } })).toBe("disabled");
   });
 });

@@ -657,13 +657,13 @@ def host_from_agent(hc: dict, a: dict) -> dict:
 
 # ───────────── Fusion des sources (SSH, agent, Beszel) ─────────────
 
-SOURCES = ("ssh", "agent", "beszel")
+SOURCES = ("ssh", "agent", "beszel", "ha")   # ha : l'API d'un connecteur (Home Assistant : capteurs de la machine hôte)
 
 
 def source_order(hc: dict) -> list[str]:
     """Priorité de lecture de la santé d'une machine : « health_sources » de services-meta, puis l'ordre par défaut pour
     les sources non citées. Par défaut SSH, agent, Beszel ; Windows : agent d'abord (c'est son accès recommandé)."""
-    default = ["agent", "ssh", "beszel"] if hc.get("os") == "windows" else ["ssh", "agent", "beszel"]
+    default = ["agent", "ssh", "beszel", "ha"] if hc.get("os") == "windows" else ["ssh", "agent", "beszel", "ha"]
     wanted = [x for x in hc.get("sources") or [] if x in SOURCES]
     return list(dict.fromkeys(wanted + default))
 
@@ -705,14 +705,15 @@ def asleep_entry(hc: dict, agent: dict | None) -> dict:
     return {"id": hc["id"], "name": hc["name"], "ip": hc["ip"], "os": hc["os"], "last_seen": (agent or {}).get("seen"), "ping": ping(hc["ip"])}
 
 
-def read_host(hc: dict, agent: dict | None, beszel: dict | None, ssh=None) -> dict | None:
+def read_host(hc: dict, agent: dict | None, beszel: dict | None, ssh=None, api: dict | None = None) -> dict | None:
     """Santé d'une machine d'après ses sources, dans l'ordre de priorité : la première qui répond fait foi, les suivantes
     ne complètent que ce qu'elle n'a pas pu lire. Aucune ne répond : la première muette (« injoignable »), sauf pour un
     poste « souvent éteint » (rien, pas d'alerte). None : machine sans aucune source (ni SSH, ni agent, ni Beszel)."""
     ssh = ssh or collect_host
     readers = {"ssh": lambda: ssh(hc) if hc["target"] else None,
                "agent": lambda: host_from_agent(hc, agent) if agent else None,
-               "beszel": lambda: host_from_beszel(hc, beszel) if beszel else None}
+               "beszel": lambda: host_from_beszel(hc, beszel) if beszel else None,
+               "ha": lambda: host_from_api(hc, api) if api else None}
     silent, primary = None, None
     for name in source_order(hc):
         h = readers[name]()
@@ -734,6 +735,8 @@ def read_host(hc: dict, agent: dict | None, beszel: dict | None, ssh=None) -> di
             cheap[name] = parse_windows(agent["report"]["data"])
         elif name == "beszel" and beszel and beszel.get("status") == "up":
             cheap[name] = parse_beszel(beszel)
+        elif name == "ha" and api:
+            cheap[name] = parse_beszel(api)
     complement(primary, cheap)
     return primary
 
@@ -779,6 +782,37 @@ def smart_from_beszel(sys_: dict) -> dict:
             "disks": [{"device": d.get("name") or "?", "healthy": str(d.get("state")).upper() == "PASSED",
                        "failed": str(d.get("state")).upper() == "FAILED", "temp": d.get("temp"), "hours": d.get("hours")}
                       for d in devs]}
+
+
+def host_from_api(hc: dict, b: dict) -> dict:
+    """Machine lue par l'API d'un service (Home Assistant) : mêmes champs qu'avec Beszel, source « ha » ; ce que l'API ne dit pas reste « non relevé »."""
+    h = host_from_beszel(hc, b)
+    h["docker"] = {"accessible": False, "reason": "api"}
+    h["ssh_auth"] = {"failed_24h": 0, "available": False, "reason": "non relevé par l'API"}
+    h["source"] = "ha"
+    return h
+
+
+def api_systems(meta: dict) -> dict:
+    """{IP: système au format Beszel} des machines hébergeant un Home Assistant relié (capteurs System Monitor / Supervisor)."""
+    import connectors
+    import connectors.base as cbase
+    from api_link import host_ip
+    try:
+        conns = [c for c in connectors.instances(CFG, kind="status") if c.type == "home-assistant"]
+    except connectors.ConnectorError:
+        return {}
+    machines, found = meta.get("machines", {}), {}
+    state = cbase.load_state(Path(CFG["state_dir"]) / "connectors.json")
+    for c in conns:
+        data, st = cbase.run_isolated(c, state, 60)
+        host = (data or {}).get("host")
+        if not (st.ok or st.stale) or not host:
+            continue
+        ip = next((i for i in [host_ip(c.conf.get("url")), *host.get("ips", [])] if i in machines), None)
+        if ip:
+            found.setdefault(ip, {k: v for k, v in host.items() if k not in ("ips", "boot")})
+    return found
 
 
 def beszel_systems(meta: dict) -> tuple[dict, list]:
@@ -1402,10 +1436,11 @@ def main() -> int:
             pass
         candidates = [hc for hc in candidates if hc["ip"] == only]
     asleep = []
+    apis = api_systems(meta)
     besz, _ = beszel_systems(meta) if (not only or any(hc["target"] is None or "beszel" in source_order(hc) for hc in candidates)) else ({}, [])
     for hc in candidates:
         print(f"▸ {hc['name']}...")
-        h = read_host(hc, agents.get(hc["ip"]), besz.get(hc["ip"]))
+        h = read_host(hc, agents.get(hc["ip"]), besz.get(hc["ip"]), api=apis.get(hc["ip"]))
         if h is None:
             if hc["off"]:  # poste « souvent éteint » sans relevé : sa fiche reste, grisée, sans alerte ni événement
                 asleep.append(asleep_entry(hc, agents.get(hc["ip"])))

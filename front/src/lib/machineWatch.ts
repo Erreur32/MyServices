@@ -44,6 +44,7 @@ export function watchItems(m: Machine, h: HealthHost | undefined, connectors: Co
   if (h && !(st === "down" && h.reachable === false)) out.push(...healthItems(h));
   if (m.down > 0) out.push({ tone: "bad", kind: "services", text: tx("{0} service(s) en panne", m.down) });
   for (const c of connectors) if (c.ip === m.ip && !c.ok && c.type !== "docker") out.push({ tone: "warn", kind: "connector", text: `${c.type} ${c.name} : ${c.message}` });
+  for (const a of m.api ?? []) if (!a.ok && !a.stale) out.push({ tone: "warn", kind: "connector", text: `${a.label} ${a.name} : ${a.message ?? tx("illisible")}` });   // connecteur API de cette machine en échec
   return out.sort((a, b) => RANK[b.tone] - RANK[a.tone]);
 }
 

@@ -49,6 +49,7 @@ from connectors.process import host_ports
 import agents
 import hostinfo
 import inventory_cache
+import api_link
 import known_apps
 import last_known as last_known_services
 import npmapi
@@ -1157,6 +1158,10 @@ def main():
     # Avant « out » : ces lectures ajoutent leur état à CONNECTOR_STATUS, que « connectors » (ci-dessous) recopie ;
     # lues dans le dictionnaire, après « connectors », leur état manquait et la page disait « pas encore lu »
     services_status, network, security, containers, virtualization = (connector_rows(k) for k in ("status", "network", "security", "containers", "virtualization"))
+    linked = api_link.by_machine([*services_status, *network, *security, *containers, *virtualization], {m["ip"] for m in machines_out})
+    for m in machines_out:   # machine lue par l'API d'un connecteur (Home Assistant…) : la page le sait, elle ne dit plus « sans SSH »
+        if m["ip"] in linked:
+            m["api"] = linked[m["ip"]]
     out = {
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "next_run": next_timer_run("myservices.timer"),

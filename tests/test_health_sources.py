@@ -50,10 +50,10 @@ def ssh_down(host):
 @unittest.skipIf(health is None, "dépendances absentes : tests à lancer dans l'image")
 class Sources(unittest.TestCase):
     def test_ordre_par_defaut_et_reglage(self):
-        self.assertEqual(health.source_order(hc()), ["ssh", "agent", "beszel"])
-        self.assertEqual(health.source_order(hc(os="windows")), ["agent", "ssh", "beszel"])
-        self.assertEqual(health.source_order(hc(sources=["beszel"])), ["beszel", "ssh", "agent"])
-        self.assertEqual(health.source_order(hc(sources=["agent", "agent", "nimporte"])), ["agent", "ssh", "beszel"])
+        self.assertEqual(health.source_order(hc()), ["ssh", "agent", "beszel", "ha"])
+        self.assertEqual(health.source_order(hc(os="windows")), ["agent", "ssh", "beszel", "ha"])
+        self.assertEqual(health.source_order(hc(sources=["beszel"])), ["beszel", "ssh", "agent", "ha"])
+        self.assertEqual(health.source_order(hc(sources=["agent", "agent", "nimporte"])), ["agent", "ssh", "beszel", "ha"])
 
     def test_la_premiere_source_qui_repond_fait_foi(self):
         h = health.read_host(hc(), agent(), beszel(), ssh=ssh_ok)

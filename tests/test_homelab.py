@@ -312,3 +312,43 @@ class Portainer(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HomeAssistantHote(unittest.TestCase):
+    """La machine qui héberge Home Assistant est lue par ses capteurs : source de santé « API », rattachée à la machine."""
+    STATES = [{"entity_id": "sensor.system_monitor_processor_use", "state": "3"}, {"entity_id": "sensor.system_monitor_memory_usage", "state": "17.5"},
+              {"entity_id": "sensor.system_monitor_processor_temperature", "state": "52"}, {"entity_id": "sensor.home_assistant_host_disk_total", "state": "400"},
+              {"entity_id": "sensor.home_assistant_host_disk_used", "state": "380"}, {"entity_id": "sensor.system_monitor_ipv4_address_enp3s0", "state": "10.0.0.7"},
+              {"entity_id": "sensor.system_monitor_ipv4_address_docker0", "state": "172.30.232.1"}, {"entity_id": "sensor.pile", "state": "9",
+                                                                                                     "attributes": {"device_class": "battery", "friendly_name": "Capteur porte"}},
+              {"entity_id": "light.x", "state": "unavailable"}]
+
+    def test_capteurs_de_la_machine_hote(self):
+        from connectors.home_assistant import host_sensors
+        h = host_sensors(self.STATES)
+        self.assertEqual((h["cpu"], h["mem_pct"], h["temp"], h["ips"]), (3.0, 17.5, 52.0, ["10.0.0.7"]))        # l'adresse du pont docker n'est pas la machine
+        self.assertEqual(h["disks"], [{"mount": "/", "size_gb": 400.0, "used_gb": 380.0, "used_pct": 95}])
+        self.assertIsNone(host_sensors([{"entity_id": "sensor.autre", "state": "1"}]))                           # Core seul : pas de bloc machine
+
+    def test_sante_lue_par_l_api(self):
+        import health
+        hc = {"id": "ha", "name": "homeassistant · 10.0.0.7", "os": "linux", "ip": "10.0.0.7", "target": None, "off": False, "sources": []}
+        api = {"status": "up", "cpu": 3.0, "mem_pct": 17.5, "temp": 52.0, "disks": [{"mount": "/", "size_gb": 400.0, "used_gb": 380.0, "used_pct": 95}]}
+        h = health.read_host(hc, None, None, api=api)
+        self.assertEqual((h["source"], h["reachable"], h["res"]["cpu_pct"], h["temp"]["celsius"]), ("ha", True, 3.0, 52.0))
+        self.assertTrue(h["disks"][0]["critical"])                       # disque à 95 % : critique, comme pour toute source
+        self.assertEqual(h["level"], "crit")
+        self.assertIsNone(health.read_host(hc, None, None))             # sans API : toujours rien (pas de source)
+
+    def test_rattachement_a_la_machine(self):
+        import api_link
+        rows = [{"connector": "home-assistant", "name": "Home", "label": "Home Assistant", "ok": True, "version": "2026.10.1", "url": "http://10.0.0.7:8123", "message": "OK",
+                 "host": {"cpu": 3.0, "ips": ["10.0.0.7"], "secret": "x"}},
+                {"connector": "dockhand", "name": "d", "label": "Dockhand", "ok": False, "url": "http://machine.lan:3000"},        # un nom n'est pas résolu
+                {"connector": "proxmox", "name": "p", "label": "Proxmox VE", "ok": True, "url": "https://10.0.0.99:8006"}]           # machine inconnue
+        got = api_link.by_machine(rows, {"10.0.0.7", "10.0.0.8"})
+        self.assertEqual(list(got), ["10.0.0.7"])
+        self.assertEqual(len(got["10.0.0.7"]), 1)                                                                                  # URL et adresse annoncée : une seule entrée
+        self.assertEqual((got["10.0.0.7"][0]["version"], got["10.0.0.7"][0]["host"]), ("2026.10.1", {"cpu": 3.0}))                # rien d'autre que les chiffres utiles
+        self.assertEqual(api_link.host_ip("https://10.0.0.5:8006/x"), "10.0.0.5")
+        self.assertIsNone(api_link.host_ip("http://nas.lan"))

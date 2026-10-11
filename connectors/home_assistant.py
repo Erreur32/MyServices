@@ -64,6 +64,43 @@ def update_group(entity_id: str, attrs: dict) -> str:
     return "other"
 
 
+def _num(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def host_sensors(states: list) -> dict | None:
+    """Machine qui héberge Home Assistant, d'après ses capteurs : intégration « System Monitor » (processeur, mémoire, disque, température,
+    démarrage, adresses IP) et capteurs du Supervisor (disque de l'hôte). Même forme qu'un système Beszel (voir health.parse_beszel) pour être lu
+    comme une source de santé. None si aucun de ces capteurs n'existe (Home Assistant Core seul, intégration non installée)."""
+    by = {s.get("entity_id"): s for s in states if isinstance(s, dict)}
+
+    def val(*ids):
+        for i in ids:
+            s = by.get(i)
+            if s and str(s.get("state")) not in ("unavailable", "unknown", "none", ""):
+                return s["state"]
+        return None
+    cpu, mem = _num(val("sensor.system_monitor_processor_use", "sensor.processor_use")), _num(val("sensor.system_monitor_memory_usage", "sensor.memory_use_percent"))
+    temp = _num(val("sensor.system_monitor_processor_temperature", "sensor.processor_temperature", "sensor.hwmon_temperatures_package_id_0"))
+    total, used = _num(val("sensor.home_assistant_host_disk_total")), _num(val("sensor.home_assistant_host_disk_used"))
+    pct = _num(val("sensor.system_monitor_disk_usage", "sensor.disk_use_percent"))
+    disks = []
+    if total and used is not None:      # Go, d'après le Supervisor
+        disks.append({"mount": "/", "size_gb": round(total, 1), "used_gb": round(used, 1), "used_pct": round(100 * used / total)})
+    elif pct is not None:               # seulement un pourcentage : taille inconnue
+        disks.append({"mount": "/", "size_gb": 100.0, "used_gb": round(pct, 1), "used_pct": round(pct)})
+    ips = sorted({str(s["state"]) for e, s in by.items() if str(e).startswith("sensor.system_monitor_ipv4_address_") and str(s.get("state", "")).count(".") == 3
+                  and not str(s["state"]).startswith(("127.", "172.30.", "172.17."))})
+    boot = val("sensor.system_monitor_last_boot")
+    if cpu is None and mem is None and temp is None and not disks:
+        return None
+    out = {"status": "up", "cpu": cpu, "mem_pct": mem, "temp": temp, "disks": disks, "ips": ips, "boot": boot}
+    return {k: v for k, v in out.items() if v is not None}
+
+
 class HomeAssistantAPI(Connector):
     type = "home-assistant"
     label = "Home Assistant"
@@ -103,8 +140,16 @@ class HomeAssistantAPI(Connector):
                     "latest": (s.get("attributes") or {}).get("latest_version"),
                     "group": update_group(s["entity_id"], s.get("attributes") or {})}
                    for s in states if str(s.get("entity_id", "")).startswith("update.") and s.get("state") == "on"]
-        return {"version": cfg.get("version"), "name": cfg.get("location_name"), "state": cfg.get("state"),
-                "entities": len(states), "updates": sorted(updates, key=lambda u: u["name"].lower())}
+        unavailable = sum(1 for s in states if s.get("state") == "unavailable")
+        low = [(s.get("attributes") or {}).get("friendly_name") or s["entity_id"] for s in states
+               if s.get("entity_id", "").startswith("sensor.") and (s.get("attributes") or {}).get("device_class") == "battery"
+               and (_num(s.get("state")) is not None and _num(s["state"]) <= 20)]
+        out = {"version": cfg.get("version"), "name": cfg.get("location_name"), "state": cfg.get("state"),
+               "entities": len(states), "unavailable": unavailable, "batteries_low": sorted(low)[:10],
+               "updates": sorted(updates, key=lambda u: u["name"].lower())}
+        if host := host_sensors(states):
+            out["host"] = host
+        return out
 
     def test(self) -> Result:
         try:

@@ -512,6 +512,8 @@ export const EN: Record<string, string> = {
   "pas d'horaire": "no schedule",
   "{0} ({1})": "{0} ({1})",
   "Détails": "Details",
+  "Lue par l'API d'un connecteur (Home Assistant, Proxmox…) : pas de SSH nécessaire": "Read through a connector's API (Home Assistant, Proxmox…): no SSH needed",
+  "API": "API",
   "Mise à jour automatique activée": "Automatic update on",
   "Mise à jour demandée : l'agent se met à jour à son prochain relevé": "Update requested: the agent updates at its next report",
   "maj demandée": "update requested",

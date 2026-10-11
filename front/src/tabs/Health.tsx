@@ -114,7 +114,7 @@ function OsCell({ os }: { os: OsInfo }) {
 }
 
 /** Machines rangées par accès : celles lues par SSH, celles qui envoient un relevé (agent), puis celles lues par Beszel */
-const ACCESS: [string, string][] = [["ssh", "SSH"], ["agent", tx("Agent")], ["beszel", "Beszel"]];
+const ACCESS: [string, string][] = [["ssh", "SSH"], ["agent", tx("Agent")], ["beszel", "Beszel"], ["ha", tx("API")]];
 const accessOf = (h: HealthHost) => (h.source && ACCESS.some(([k]) => k === h.source) ? h.source : "ssh");
 
 /** Tableau : une ligne légère par machine ; le chevron déplie ce qui est à signaler et le détail (disques, Docker, charge, SMART…) */
@@ -165,7 +165,7 @@ function HealthTable({ hosts, asleep, osOf, open, toggle }: {
   );
 }
 
-const SOURCE_LABEL: Record<string, string> = { ssh: "SSH", agent: tx("agent"), beszel: "Beszel" };
+const SOURCE_LABEL: Record<string, string> = { ssh: "SSH", agent: tx("agent"), beszel: "Beszel", ha: "Home Assistant" };
 
 export function Health({ snap }: { snap: Snapshot }) {
   const hosts = useMemo(() => [...(snap.health?.hosts || [])].sort((a, b) => RANK[levelOf(a)] - RANK[levelOf(b)]), [snap.health]);
