@@ -1,7 +1,7 @@
 // Étape « Recherche des autres machines du réseau » de Premiers pas : lancer la recherche, choisir les machines à
 // ajouter, puis, pour celles qui répondent en SSH, préparer l'accès (alias + commande à autoriser + test).
 // Lecture seule sur le réseau ; rien n'est ajouté sans que l'admin le demande.
-import { Check, ChevronRight, Circle, EyeOff, KeyRound, Loader2, Plug, RefreshCw, RotateCcw, Search, Square, X } from "lucide-react";
+import { Check, ChevronRight, Circle, EyeOff, Globe, KeyRound, Loader2, Plug, RefreshCw, RotateCcw, Search, Square, Wifi, X, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { read, send } from "../api";
 import { act, button, input, primary, type Note } from "../lib/forms";
@@ -65,6 +65,10 @@ function HostHint({ h }: { h: NetHost }) {
 const FOLD = "group rounded-xl border border-link/50 bg-link/5 open:bg-link/[0.03] hover:border-link";
 const FOLD_HEAD = "flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2.5 text-sm font-semibold text-txt [&::-webkit-details-marker]:hidden";
 
+/** Une ligne de machine trouvée : cadre net, case + infos à gauche, actions à droite ; la ligne cochée prend l'accent */
+const ROW = "flex flex-wrap items-start rounded-lg border";
+const ROW_BODY = "flex min-w-0 flex-1 basis-64 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2";
+
 const quietBtn = `${button} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`;
 
 const ADDED = ADDED_KEY;
@@ -120,11 +124,8 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
   const watch = found.filter(interesting);                              // liste principale : SSH, appli reconnue, service utile
   const webOnly = found.filter((h) => !interesting(h) && !quiet(h));    // repliés : caméras, box, objets connectés…
   const pingOnly = found.filter((h) => !interesting(h) && quiet(h));
-  // Affichées dans les mêmes listes, avec la pastille « ignoré » et « Reprendre » (pas de liste à part)
-  const showWatch = [...watch, ...ignoredSeen.filter(interesting)];
-  const showWeb = [...webOnly, ...ignoredSeen.filter((h) => !interesting(h) && !quiet(h))];
-  const showPing = [...pingOnly, ...ignoredSeen.filter((h) => !interesting(h) && quiet(h)), ...ignoredGone];
-  const rest = showWeb.length + showPing.length;
+  const ignoredAll = [...ignoredSeen, ...ignoredGone];                    // rangés dans « autres appareils », avec « Reprendre »
+  const rest = webOnly.length + pingOnly.length + ignoredAll.length;
   const sum = net && net.phase === "done" ? summarize(net.found, known) : null;
   // Accès à régler : machines ajoutées à l'instant, plus celles déjà déclarées dont le SSH ou le jeton Home Assistant manque
   const pending = (net?.found ?? []).filter((h) => known.includes(h.ip) && !added[h.ip] && !dismissed.includes(h.ip) && needsLink(h, machines, connected));
@@ -146,16 +147,18 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
   );
 
   const unignore = (h: NetHost) => void act(() => send("DELETE", `network/ignored/${h.ip}`), tx("{0} sera de nouveau proposé", h.name || h.ip), setNote).then(() => reload());
-  const renderRows = (list: NetHost[]) => list.map((h) => ignoredIps.includes(h.ip) || ignoredGone.includes(h) ? (
-    <li key={h.ip} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-dashed border-line bg-bg2/30 px-3 py-2 opacity-80">
-      <EyeOff size={15} className="shrink-0 text-muted" aria-hidden />
-      <HostInfo h={h} />
-      <Badge tone="off">{tx("ignoré")}{ignoredGone.includes(h) ? ` · ${tx("pas revu à ce scan")}` : ""}</Badge>
-      <button type="button" className={`${quietBtn} ml-auto`} onClick={() => unignore(h)}>{tx("Reprendre")}</button>
+  const renderRows = (list: NetHost[]) => list.map((h) => ignoredAll.includes(h) ? (
+    <li key={h.ip} className={`${ROW} border-dashed bg-bg2/30 opacity-80`}>
+      <EyeOff size={15} className="ml-3 mt-3 shrink-0 text-muted" aria-hidden />
+      <div className={ROW_BODY}>
+        <HostInfo h={h} />
+        <Badge tone="off">{tx("ignoré")}{ignoredGone.includes(h) ? ` · ${tx("pas revu à ce scan")}` : ""}</Badge>
+      </div>
+      <button type="button" className={`${quietBtn} m-1.5 shrink-0`} onClick={() => unignore(h)}>{tx("Reprendre")}</button>
     </li>
   ) : (
-    <li key={h.ip} className={`flex flex-wrap items-start rounded-lg border ${picked.has(h.ip) ? "border-link/50 bg-link/5" : "border-transparent bg-bg2/60 hover:bg-bg2"}`}>
-      <label className="flex min-w-0 flex-1 basis-64 cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2">
+    <li key={h.ip} className={`${ROW} ${picked.has(h.ip) ? "border-link/50 bg-link/5" : "border-transparent bg-bg2/60 hover:bg-bg2"}`}>
+      <label className={`${ROW_BODY} cursor-pointer`}>
         <input type="checkbox" className="h-4 w-4 shrink-0 accent-[rgb(var(--link))]" checked={picked.has(h.ip)} onChange={() => toggle(h.ip)} />
         <HostInfo h={h} fresh={!!diff?.fresh.has(h.ip)} />
       </label>
@@ -171,6 +174,14 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
       )}
     </li>
   ));
+
+  /** Un groupe de lignes : titre en petites capitales avec son nombre, puis la liste */
+  const group = (title: string, list: NetHost[], Icon: LucideIcon, tone: string) => list.length > 0 && (
+    <section className="flex flex-col gap-1.5" key={title}>
+      <h3 className={`flex items-center gap-2 rounded-md border-l-4 bg-bg2 px-3 py-1.5 text-sm font-semibold text-txt ${tone}`}><Icon size={15} className="shrink-0 text-muted" aria-hidden />{title}<Badge tone="info">{list.length}</Badge></h3>
+      <ul className="flex flex-col gap-1.5">{renderRows(list)}</ul>
+    </section>
+  );
 
   const ignore = async (h: NetHost) => {
     setPicked((p) => { const n = new Set(p); n.delete(h.ip); return n; });
@@ -265,26 +276,29 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
           )}
         </section>
       )}
-      {(found.length > 0 || ignoredSeen.length > 0 || ignoredGone.length > 0) && toLink.length === 0 && (
+      {(found.length > 0 || ignoredAll.length > 0) && toLink.length === 0 && (
         <>
-          {showWatch.length > 0 && (
-            <>
+          {watch.length > 0 && (
+            <section className="flex flex-col gap-1.5">
               <p className="text-sm font-semibold text-txt">
                 {tx("À regarder")} <span className="font-normal text-dim">({watch.length}) · {tx("cochées d'office : SSH, appli reconnue ou service utile ; décochez ce que vous ne voulez pas")}</span>
               </p>
-              <ul className="flex flex-col gap-1.5">{renderRows(showWatch)}</ul>
-            </>
+              <ul className="flex flex-col gap-1.5">{renderRows(watch)}</ul>
+            </section>
           )}
           {watch.length === 0 && rest > 0 && <p className="text-sm text-dim">{tx("Rien d'évident à ajouter dans ce scan : les appareils trouvés sont repliés ci-dessous.")}</p>}
           {rest > 0 && (
             <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
               <summary className={FOLD_HEAD}><ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
-                {tx("{0} autre(s) appareil(s) : pages web seules, caméras, objets connectés, ping seulement", rest)}
+                {tx("{0} autre(s) appareil(s) : pages web seules, caméras, objets connectés, ping seulement, ignorés", rest)}
                 {[...webOnly, ...pingOnly].some((h) => diff?.fresh.has(h.ip)) && <> <Badge tone="warn">{tx("nouvelle")}</Badge></>}
               </summary>
-              <p className="mt-2 text-xs text-dim">{tx("On n'y touche pas : décochés. Cochez-en un si vous voulez le suivre quand même.")}</p>
-              {showWeb.length > 0 && (<><p className="mt-2 text-xs font-semibold text-muted">{tx("Pages web seules")} ({showWeb.length})</p><ul className="mt-1 flex flex-col gap-1.5">{renderRows(showWeb)}</ul></>)}
-              {showPing.length > 0 && (<><p className="mt-3 text-xs font-semibold text-muted">{tx("Répondent au ping seulement")} ({showPing.length})</p><ul className="mt-1 flex flex-col gap-1.5">{renderRows(showPing)}</ul></>)}
+              <p className="text-xs text-dim">{tx("On n'y touche pas : décochés. Cochez-en un si vous voulez le suivre quand même.")}</p>
+              <div className="flex flex-col gap-3">
+                {group(tx("Pages web seules"), webOnly, Globe, "border-link")}
+                {group(tx("Répondent au ping seulement"), pingOnly, Wifi, "border-warn")}
+                {group(tx("Ignorés à la main"), ignoredAll, EyeOff, "border-dim")}
+              </div>
             </details>
           )}
           <div className="flex flex-wrap items-center gap-2">
