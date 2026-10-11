@@ -1044,9 +1044,9 @@ def main():
     def tick(_f):
         with _progress_lock:
             done[0] += 1
-        progress(5, "sondes TCP, HTTPS et web", done[0], total)
+        progress(5, "sondes TCP, HTTPS et web (1er passage)", done[0], total)
 
-    progress(5, "sondes TCP, HTTPS et web", 0, total)
+    progress(5, "sondes TCP, HTTPS et web (1er passage)", 0, total)
     with ThreadPoolExecutor(48) as ex:
         backend = {i: ex.submit(probe_tcp, rows[i]["ip"], rows[i]["port"]) for i in direct}
         public = {i: ex.submit(probe_https, rows[i]["domains"][0]) for i in named}
@@ -1059,7 +1059,7 @@ def main():
     public = {i: f.result() for i, f in public.items()}
     web = {i: f.result() for i, f in web.items()}
     follow = {i: f.result() for i, f in follow.items()}
-    progress(6, "2e essai des sondes en échec")
+    progress(6, "confirmation des sondes lentes (2e passage, évite les fausses alertes)")
     # 2e essai, peu parallèle : à 48 sondes simultanées, DNS et sites derrière
     # Cloudflare/Anubis dépassent le délai et donnent de fausses erreurs
     with ThreadPoolExecutor(4) as ex:

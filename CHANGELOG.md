@@ -12,6 +12,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Changed
+- **Less alarming progress text during a collection**: step 6 of 8 no longer reads "2nd try of the failed probes" (which sounded like something was broken). It is a normal confirmation pass that always runs (slow or failed probes are asked again, less in parallel, to avoid false alerts) and now says so; step 5 says "1st pass". The "Skip" buttons of the Getting started steps are bordered pills with an icon, and "Resume" is a pill too.
+- **Getting started, "Host machine detected"**: the machine, the number of services found, the apps and Docker (logo and name, no more "present on the host" text) all sit on one line.
 - **Sign-in and first admin account page**: an **eye button** on each password field shows or hides what you typed. When the second password differs from the first, the **second field gets a red frame** with the message "The two passwords are not the same" and the matching rule turns red (nothing red while it is still empty). The disabled "Create the admin account" button is now clearly unavailable (flat grey, dashed edge, "not allowed" cursor) with a line saying when it becomes active, and the enabled button is a clear blue with a light shadow.
 
 ### Changed

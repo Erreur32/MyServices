@@ -2,7 +2,7 @@
 // demander (ports de l'hôte, Docker) jusqu'à la clé SSH qui donne le relevé exact. Les étapes se mettent à jour en
 // direct pendant le scan ; la carte reste jusqu'à ce qu'on la ferme (retenu par navigateur et par clé de l'app :
 // une installation remise à zéro la rouvre).
-import { ArrowRight, Check, Circle, LifeBuoy, Loader2, Plug, Rocket, X } from "lucide-react";
+import { ArrowRight, Check, Circle, LifeBuoy, Loader2, Plug, RotateCcw, Rocket, SkipForward, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { read } from "../api";
 import type { Snapshot } from "../api";
@@ -42,10 +42,17 @@ function Step({ state, title, children, onSkip, skipped, onResume }: {
         <h3 className={`flex min-h-[1.5rem] flex-wrap items-center gap-2 text-sm font-bold ${state === "next" || state === "soon" || skipped ? "text-muted" : ""}`}>
           {title}{state === "soon" && <Badge tone="off">{tx("À venir")}</Badge>}
           {skipped && <Badge tone="off">{tx("passée")}</Badge>}
-          {skipped && onResume && <button type="button" className="text-xs font-normal text-link hover:underline" onClick={onResume}>{tx("Reprendre")}</button>}
+          {skipped && onResume && (
+            <button type="button" className="inline-flex items-center gap-1 rounded-full border border-link/60 bg-link/10 px-2.5 py-0.5 text-xs font-semibold text-link hover:bg-link/20" onClick={onResume}>
+              <RotateCcw size={12} aria-hidden />{tx("Reprendre")}
+            </button>
+          )}
           {!skipped && onSkip && (
-            <button type="button" className="ml-auto rounded-md px-2 py-0.5 text-xs font-normal text-dim hover:bg-bg2 hover:text-txt" onClick={onSkip}
-              title={tx("Passer cette étape : vous pourrez la refaire plus tard, ici ou dans les Réglages")}>{tx("Passer")}</button>
+            <button type="button" onClick={onSkip}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-txt/50 bg-bg2 px-3 py-1 text-xs font-semibold text-txt shadow-sm transition-colors hover:border-link hover:bg-link/10 hover:text-link"
+              title={tx("Passer cette étape : vous pourrez la refaire plus tard, ici ou dans les Réglages")}>
+              <SkipForward size={12} aria-hidden />{tx("Passer")}
+            </button>
           )}
         </h3>
         {children && !skipped && <div className="mt-1 text-sm text-muted">{children}</div>}
@@ -157,25 +164,24 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
         <Step state="done" title={tx("Compte administrateur créé")} />
         <Step state="done" title={tx("Machine hôte détectée")}>
           {host && (
-            <p className="flex flex-wrap items-center gap-1.5">
+            // The machine, what was found on it and Docker (logo + name) all sit on one line, wrapping only when the screen is narrow
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
               <Badge tone="info">{host.name}</Badge>
               <b className="text-txt">{plural(host.services, "service trouvé", "services trouvés")}</b>
               {onHost.map((a) => {
                 const src = appIcon([a]);
                 return <span key={a} title={a} className="inline-flex items-center gap-1 text-xs text-muted">{src && <img src={src} alt="" aria-hidden className="h-5 w-5 object-contain" />}{a}</span>;
               })}
+              {docker?.present && (
+                <Badge tone="info" title={tx("Docker est présent sur l'hôte")}>
+                  {appIcon(["Docker"]) && <img src={appIcon(["Docker"])!} alt="" aria-hidden className="mr-1 h-4 w-4 object-contain" />}Docker
+                </Badge>
+              )}
+              {docker?.present && !keyDone && <Badge tone="off">≈ {plural(docker.containers, "conteneur")}</Badge>}
+              {docker?.present && !keyDone && <Badge tone="off">{plural(docker.networks, "réseau", "réseaux")}</Badge>}
             </p>
           )}
-          {docker?.present && (
-            <p className="mt-1 flex flex-wrap items-center gap-1.5">
-              <Badge tone="info">Docker</Badge>
-              <img src={appIcon(["Docker"]) ?? ""} alt="" aria-hidden className="h-5 w-5 object-contain" />
-              <b className="text-txt">{tx("présent sur l'hôte")}</b>
-              {!keyDone && <Badge tone="off">≈ {plural(docker.containers, "conteneur")}</Badge>}
-              {!keyDone && <Badge tone="off">{plural(docker.networks, "réseau", "réseaux")}</Badge>}
-              {!keyDone && tx("Conteneur ou installation native : à confirmer avec la clé SSH.")}
-            </p>
-          )}
+          {docker?.present && !keyDone && <p className="mt-1 text-xs text-dim">{tx("Conteneur ou installation native : à confirmer avec la clé SSH.")}</p>}
         </Step>
         {keyDone ? (
           <Step state="done" title={tx("Clé SSH de MyServices autorisée")} />
