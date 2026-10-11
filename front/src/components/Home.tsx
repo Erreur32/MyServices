@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react";
 import type { Snapshot } from "../api";
 import { paragraphs, type Attention, type TabId } from "../lib/summary";
 import { FirstSteps } from "./FirstSteps";
+import { DiscoveryReminder } from "./DiscoveryCard";
 import { Rich } from "./Rich";
 import { StatsColumn, statGroups } from "./StatsColumn";
 import { TABS } from "../lib/tabs";
@@ -24,6 +25,7 @@ export function Home({ snap, items, go, now }: { snap: Snapshot; items: Attentio
     <div className="grid gap-5 py-5 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="flex flex-col gap-5">
         <FirstSteps snap={snap} />
+        {snap.me.role === "admin" && <DiscoveryReminder />}
         <section className={`rounded-2xl border bg-card p-5 ${items.length ? (crit ? "border-bad/50" : "border-warn/50") : "border-ok/40"}`}>
           {items.length === 0 ? (
             <h2 className="text-lg font-bold text-ok">{tx("✅ Rien à signaler")}</h2>

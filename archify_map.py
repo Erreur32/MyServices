@@ -7,6 +7,10 @@
 carte.archify.json (data.json, + health/stats.json s'il existe) : Internet, chaque instance NPM et AdGuard,
 chaque machine (en ligne ou non, niveau de santé en icône et en étiquette). Liaisons : NPM -> machines qu'il
 publie (nombre de hosts), AdGuard -> NPM (réécritures DNS). Encadré : machines dont la santé n'est pas OK.
+connecteurs.archify.json : « qui lit quoi » (MyServices et chaque connecteur, par SSH ou API, en pointillé s'il est en panne).
+acces.archify.json : comment chaque machine est lue (SSH avec compte et port, agent, ou aucun accès).
+alertes.archify.json (si alerts-summary.json existe, écrit par server.py) : collecte -> historique -> alertes / notifications -> canaux.
+Un schéma dont la spécification n'a pas changé n'est pas listé (donc pas regénéré).
 sauvegardes.archify.json (seulement si backups.json existe) : machines de backups-meta.json, liaisons
 origine -> machine qui garde une copie (nombre de jeux, âge de la plus récente). Encadré : points d'attention.
 Placement en grille sans croisement. Aucune donnée secrète : noms, IP, niveaux et comptes seulement.
@@ -174,6 +178,119 @@ def build_backups(bk: dict) -> dict:
     return spec
 
 
+MAX_KINDS = 8                                # types de connecteurs montrés sur la ligne ; les autres vont dans un encadré
+SSH_TYPES = {"docker", "process"}           # connecteurs lus par SSH ; les autres par une API
+CONNECTOR_LABEL = {"docker": "Docker", "process": "Ports", "npm": "NPM", "adguard": "AdGuard", "beszel": "Beszel", "uptime-kuma": "Uptime Kuma",
+                   "dozzle": "Dozzle", "web-check": "Web-Check", "home-assistant": "Home Assistant", "mynetwork": "MynetworK", "logviewr": "LogviewR",
+                   "dockhand": "Dockhand", "proxmox": "Proxmox VE", "proxmox-backup": "Proxmox Backup", "veeam": "Veeam", "discord": "Discord", "telegram": "Telegram"}
+
+
+def grid(comps: list[dict], first_row: int, cols: int) -> int:
+    """Range les composants (sans position) en lignes de `cols` colonnes à partir de `first_row`, centrés ; rend la ligne suivante."""
+    for i in range(0, len(comps), cols):
+        row = comps[i:i + cols]
+        start = (cols - len(row)) // 2
+        for j, c in enumerate(row):
+            c.update(row=first_row + i // cols, col=start + j, size=[W, H])
+    return first_row + -(-len(comps) // cols)
+
+
+def build_connectors(data: dict) -> dict:
+    """« Qui lit quoi » : MyServices au centre, un bloc par type de connecteur (NPM, AdGuard, Docker, Beszel, Home Assistant, Proxmox…) sur une
+    seule ligne dessous, lié par SSH ou par API ; en pointillé et en rouge si l'un de ses connecteurs ne répond pas. Les noms des instances sont
+    dans un encadré (un schéma à une ligne évite les liaisons qui se croisent)."""
+    by: dict[str, list[dict]] = {}
+    for c in data.get("connectors") or []:
+        by.setdefault(c["type"], []).append(c)
+    types = sorted(by, key=lambda t: (t in SSH_TYPES, t))
+    shown, rest = types[:MAX_KINDS], types[MAX_KINDS:]
+    comps, conns = [], []
+    for n, t in enumerate(shown):
+        items = by[t]
+        down = [c for c in items if not c.get("ok")]
+        names = ", ".join(c["name"] for c in items)
+        comps.append({"id": f"k_{n}", "type": "database" if t in SSH_TYPES else "cloud", "label": CONNECTOR_LABEL.get(t, t)[:24],
+                      "sublabel": (f"{len(items)} instance(s) · {names}" if len(items) > 1 else names)[:36], "row": 1, "col": n, "size": [W, H],
+                      "icon": "failure" if down else "success", "tag": f"{len(down)} en panne" if down else "lit"})
+        conns.append({"from": "ms", "to": f"k_{n}", "label": "SSH" if t in SSH_TYPES else "API", "route": "orthogonal-v", **({"variant": "dashed"} if down else {})})
+    cols = max(len(comps), 3)
+    hub = {"id": "ms", "type": "backend", "label": "MyServices", "sublabel": f"{len(data.get('connectors') or [])} connecteur(s)", "row": 0, "col": cols // 2, "size": [W, H]}
+    for k, c in enumerate(comps):                     # centrés si la ligne est courte
+        c["col"] += (cols - len(comps)) // 2
+    spec = diagram("Qui lit quoi (connecteurs)", data.get("generated", ""), "connecteurs.html", cols, [hub, *comps], conns)
+    cards = []
+    down = [c for t in types for c in by[t] if not c.get("ok")]
+    if down:
+        cards.append(alert_card("Connecteurs en panne", ["crit"], [f"{CONNECTOR_LABEL.get(c['type'], c['type'])} {c['name']} : {(c.get('message') or '')[:80]}" for c in down]))
+    if rest:
+        cards.append({"dot": "amber", "title": "Autres connecteurs", "items": [f"{CONNECTOR_LABEL.get(t, t)} : {', '.join(c['name'] for c in by[t])}" for t in rest]})
+    if cards:
+        spec["cards"] = cards
+    return spec
+
+
+def build_access(data: dict, health: dict | None = None) -> dict:
+    """« Accès aux machines » : MyServices et trois blocs (lues par SSH, lues par l'agent, sans accès) avec leur nombre ; le détail de chaque
+    machine (compte, port, IP) est dans les encadrés dessous."""
+    hb = health_by_ip(health)
+    groups: dict[str, list[str]] = {"ssh": [], "agent": [], "none": []}
+    for m in sorted((m for m in data.get("machine_list", []) if not m.get("disabled")), key=lambda m: ipaddress.ip_address(m["ip"])):
+        s, a = m.get("ssh"), m.get("agent")
+        lvl = hb.get(m["ip"], {}).get("level")
+        mark = f" · {WORD[lvl]}" if lvl in WORD and lvl != "ok" else ""
+        if s:
+            groups["ssh"].append(f"{m['name']} · {s.get('user') or '?'}@{m['ip']}:{s.get('port', 22)}{mark}")
+        elif a:
+            groups["agent"].append(f"{m['name']} · {m['ip']} · agent{mark}")
+        else:
+            groups["none"].append(f"{m['name']} · {m['ip']} · ping seulement")
+    spec_g = [("ssh", "Lues par SSH", "database", "SSH", "success"), ("agent", "Lues par l'agent", "backend", "agent", "success"), ("none", "Sans accès", "external", "", "waiting")]
+    present = [g for g in spec_g if groups[g[0]]]
+    cols = max(len(present), 3)
+    start = (cols - len(present)) // 2
+    comps = [{"id": "ms", "type": "security", "label": "MyServices", "sublabel": "clé SSH de l'app · agents", "row": 0, "col": cols // 2, "size": [W, H]}]
+    conns = []
+    for n, (key, label, typ, via, icon) in enumerate(present):
+        comps.append({"id": f"g_{key}", "type": typ, "label": label, "sublabel": f"{len(groups[key])} machine(s)", "row": 1, "col": start + n, "size": [W, H], "icon": icon})
+        if via:
+            conns.append({"from": "ms", "to": f"g_{key}", "label": via, "route": "orthogonal-v"})
+    spec = diagram("Accès aux machines", data.get("generated", ""), "acces.html", cols, comps, conns)
+    spec["cards"] = [{"dot": "amber" if key == "none" else "emerald", "title": label, "items": groups[key][:12] + ([f"… et {len(groups[key]) - 12} autre(s)"] if len(groups[key]) > 12 else [])}
+                     for key, label, *_ in present]
+    return spec
+
+
+def build_alert_chain(info: dict, generated: str) -> dict:
+    """« Chaîne d'alertes et de notifications » : de la collecte jusqu'aux canaux (Discord, Telegram, webhook), avec les nombres du moment."""
+    ch = info.get("channels") or []
+    comps = [
+        {"id": "collect", "type": "backend", "label": "Collecte", "sublabel": "data.json · " + info.get("collect_at", ""), "row": 0, "col": 0},
+        {"id": "watch", "type": "backend", "label": "Veille et santé", "sublabel": "événements · " + info.get("watch_at", ""), "row": 0, "col": 1},
+        {"id": "history", "type": "database", "label": "Historique", "sublabel": "un an, SQLite", "row": 0, "col": 2},
+        {"id": "rules", "type": "security", "label": "Alertes", "sublabel": f"{info.get('rules', 0)} règle(s) active(s)", "row": 1, "col": 1},
+        {"id": "notifs", "type": "cloud", "label": "Notifications", "sublabel": f"{info.get('reports', 0)} rapport(s) · {info.get('live', 0)} en direct", "row": 1, "col": 3},
+    ]
+    conns = [{"from": "collect", "to": "watch"}, {"from": "watch", "to": "history"},
+             {"from": "history", "to": "rules", "label": "nouveaux", "route": "orthogonal-v"}, {"from": "history", "to": "notifs", "label": "en direct", "route": "orthogonal-v"}]
+    cols = max(4, len(ch))
+    start = (cols - len(ch)) // 2
+    for i, c in enumerate(ch):
+        cid = f"ch_{i}"
+        comps.append({"id": cid, "type": "external", "label": f"{CONNECTOR_LABEL.get(c['type'], c['type'])} · {c['name']}"[:24],
+                      "sublabel": "actif" if c.get("enabled") else "coupé", "row": 2, "col": start + i,
+                      "icon": "success" if c.get("enabled") else "waiting"})
+        conns.append({"from": "rules", "to": cid, "route": "orthogonal-v", **({} if c.get("enabled") else {"variant": "dashed"})})
+        conns.append({"from": "notifs", "to": cid, "route": "orthogonal-v", **({} if c.get("enabled") else {"variant": "dashed"})})
+    for c in comps:
+        c["size"] = [W, H]
+    return diagram("Chaîne d'alertes et de notifications", generated, "alertes.html", cols, comps, conns)
+
+
+def stable(spec: dict) -> str:
+    """Spécification sans l'horodatage du sous-titre : sert à ne regénérer un schéma que s'il a vraiment changé."""
+    return json.dumps({**spec, "meta": {k: v for k, v in spec["meta"].items() if k != "subtitle"}}, sort_keys=True)
+
+
 def read(path: Path) -> dict | None:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -188,13 +305,19 @@ def main() -> int:
     data = read(web / "data.json")
     if data is None:
         sys.exit(f"{web / 'data.json'} illisible")
-    specs = {"carte": build(data, read(web / "health" / "stats.json"))}
+    health = read(web / "health" / "stats.json")
+    specs = {"carte": build(data, health), "connecteurs": build_connectors(data), "acces": build_access(data, health)}
     if (bk := read(web / "backups.json")) is not None:
         specs["sauvegardes"] = build_backups(bk)
+    if (chain := read(out / "alerts-summary.json")) is not None:
+        specs["alertes"] = build_alert_chain(chain, data.get("generated", ""))
     for name, spec in specs.items():
         f = out / f"{name}.archify.json"
+        old = read(f)
+        changed = old is None or stable(old) != stable(spec) or not (web / f"{name}.html").exists()
         f.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        print(f)
+        if changed:   # un schéma inchangé n'est pas regénéré (Archify prend du temps)
+            print(f)
     return 0
 
 

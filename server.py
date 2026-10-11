@@ -140,6 +140,8 @@ def _wait(name: str) -> None:
     code = proc.wait()
     timer.cancel()
     result = "success" if code == 0 else "timeout" if code == -9 else f"exit-code {code}"
+    if name == "collect" and code == 0:
+        threading.Thread(target=auto_backup_default, daemon=True, name="auto-backup").start()
     if name in ("collect", "health", "backups") and code == 0:
         build_map()  # avant de libérer la tâche : les cartes suivent toujours les fichiers qu'elles montrent
     if name in ("watch", "health") and code == 0:
@@ -147,6 +149,28 @@ def _wait(name: str) -> None:
     with LOCK:
         t.update(proc=None, end=time.time(), result=result)
     log(f"{name} : terminé, {result} ({t['end'] - t['start']:.0f} s)")
+
+
+_AUTO_BACKUP = threading.Lock()
+
+
+def auto_backup_default() -> None:
+    """Après une collecte : /home/backup trouvé sur une machine lue par SSH pour la première fois = sauvegarde suivie tout de suite
+    (config « backups_auto »). Un seul passage à la fois ; rien ne bloque la collecte."""
+    if not CFG.get("backups_auto", True) or not _AUTO_BACKUP.acquire(blocking=False):
+        return
+    try:
+        import backups_admin
+        import system
+        for a in backups_admin.auto_default(Path(CFG["state_dir"]) / "backups-auto.json"):
+            log(f"sauvegardes : {a['path']} trouvé sur {a['name']}, suivi automatiquement (Réglages → Sauvegardes pour le retirer)")
+            if not CFG.get("backups_url"):
+                system.set_backups_url(sys.modules[__name__], "backups.json")
+            run_chain(["backups", "collect"], f"sauvegarde automatique de {a['name']}")
+    except Exception as e:  # noqa: BLE001 : jamais bloquant
+        log(f"⚠ sauvegardes automatiques : {type(e).__name__}: {e}")
+    finally:
+        _AUTO_BACKUP.release()
 
 
 def keep_history(name: str, alert: bool = False) -> None:
@@ -169,9 +193,24 @@ def keep_history(name: str, alert: bool = False) -> None:
                 log(f"alerte : {msg}")
         except Exception as e:  # une alerte ratée ne bloque pas les tâches
             log(f"⚠ alertes : {e}")
+        try:
+            for msg in notifications_store().dispatch(added):
+                log(f"notification : {msg}")
+        except Exception as e:
+            log(f"⚠ notifications : {e}")
 
 
 _ALERTS = None
+_NOTIFS = None
+
+
+def notifications_store():
+    """Notifications personnalisées (notifications.py), sur les canaux et la base des alertes."""
+    global _NOTIFS
+    if _NOTIFS is None:
+        import notifications
+        _NOTIFS = notifications.Notifications(alerts_store(), WEB)
+    return _NOTIFS
 
 
 def alerts_store():
@@ -187,11 +226,44 @@ def alerts_store():
 ARCHIFY = os.environ.get("MYSERVICES_ARCHIFY", "")
 
 
+def refresh_nav() -> None:
+    """Bandeau « ← MyServices · Généré avec Archify » au bas de chaque schéma existant (idempotent) : aussi sur ceux qui n'ont pas été regénérés,
+    et la liste des autres schémas suit ceux qui existent."""
+    import diagram_nav
+    have = [k for k, *_ in diagram_nav.DIAGRAMS if (WEB / f"{k}.html").exists()]
+    for k in have:
+        page = WEB / f"{k}.html"
+        try:
+            old = page.read_text(encoding="utf-8")
+            new = diagram_nav.inject(old, k, have)
+            if new != old:
+                tmp = page.with_suffix(".tmp")
+                tmp.write_text(new, encoding="utf-8")
+                tmp.replace(page)
+        except OSError as e:
+            log(f"⚠ schéma {k} : bandeau non ajouté ({e})")
+
+
+def write_alerts_summary() -> None:
+    """Chiffres du schéma « chaîne d'alertes » (canaux, règles actives, notifications) dans state_dir/alerts-summary.json ; sans secret."""
+    try:
+        a, n = alerts_store(), notifications_store().list()
+        out = {"channels": [{"type": c["type"], "name": c["name"], "enabled": c["enabled"]} for c in a.channels()],
+               "rules": sum(1 for r in a.rules() if r["enabled"]),
+               "reports": sum(1 for x in n if x["kind"] == "report" and x["enabled"]), "live": sum(1 for x in n if x["kind"] == "events" and x["enabled"]),
+               "collect_at": TASKS["collect"]["at"], "watch_at": TASKS["watch"]["at"]}
+        f = Path(CFG["state_dir"]) / "alerts-summary.json"
+        f.write_text(json.dumps(out), encoding="utf-8")
+    except Exception as e:  # noqa: BLE001 : facultatif, le schéma d'alertes manquera simplement
+        log(f"⚠ schéma des alertes : {type(e).__name__}: {e}")
+
+
 def build_map() -> None:
     """Cartes de l'infra (carte.html, sauvegardes.html ; Archify) depuis les fichiers de la page. Facultatif :
     sans Archify ou en échec, la carte précédente reste, les tâches n'en dépendent pas."""
     if not (ARCHIFY and Path(ARCHIFY).exists()):
         return
+    write_alerts_summary()
     try:
         specs = subprocess.run([sys.executable, str(HERE / "archify_map.py"), str(WEB), CFG["state_dir"]],
                                check=True, capture_output=True, text=True, timeout=60).stdout.split()
@@ -212,6 +284,7 @@ def build_map() -> None:
             log(f"carte : régénérée ({out})")
         elif r is not None:
             log(f"⚠ carte {out} : non régénérée (Archify) : " + (r.stdout or r.stderr)[-300:])
+    refresh_nav()
 
 
 def auto_netscan() -> None:
@@ -254,6 +327,15 @@ def next_run(name: str, now: datetime | None = None) -> float | None:
     return None
 
 
+def notifications_tick() -> None:
+    """Chaque minute : les rapports de notification dont l'heure est venue partent."""
+    try:
+        for msg in notifications_store().tick():
+            log(f"notification : {msg}")
+    except Exception as e:  # noqa: BLE001 : le planificateur ne s'arrête jamais pour ça
+        log(f"⚠ notifications : {type(e).__name__}: {e}")
+
+
 def wake_check() -> None:
     """Postes « souvent éteints » dont la fiche est grisée dans Santé : un ping ciblé chaque minute ; si la réponse change (le PC
     s'allume ou s'éteint), la santé de cette seule machine est relue, la fiche passe de « éteinte » à « allumée, agent en attente »."""
@@ -287,6 +369,7 @@ def scheduler() -> None:
                         log(f"{name} : passage précédent encore en cours, horaire sauté")
             auto_netscan()
             wake_check()
+            notifications_tick()
         time.sleep(5)
 
 

@@ -19,6 +19,7 @@ import mimetypes
 import os
 import secrets
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 from urllib.parse import quote
@@ -921,7 +922,16 @@ def backups_settings(request: Request):
 
 @app.post(API + "/backups/discover", tags=["sauvegardes"], summary="Chercher les dossiers de sauvegarde des machines lues par SSH, lecture seule (admin)")
 def backups_discover(request: Request):
-    return backups_call(request, "recherche de sauvegardes", "", lambda b: b.discover())
+    def go(b):
+        out = b.discover()
+        try:  # date de la dernière recherche à la main, montrée dans « Découvertes » (Réglages → Découverte)
+            f = Path(core.CFG["state_dir"]) / "backups-discover.json"
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(json.dumps({"at": time.time()}), encoding="utf-8")
+        except OSError:
+            pass
+        return out
+    return backups_call(request, "recherche de sauvegardes", "", go)
 
 
 @app.put(API + "/backups/patterns", tags=["sauvegardes"], summary="Emplacements cherchés en plus de /home/backup, motifs glob permis (admin)")
@@ -1378,6 +1388,164 @@ def alerts_rule_delete(rid: int, request: Request):
 def alerts_presets(body: Presets, request: Request):
     return alerts_call(request, "préréglages d'alerte ajoutés", ", ".join(body.names)[:200],
                        lambda a: {"added": a.add_presets(body.names)})
+
+
+from diagram_nav import ARCHIFY_URL, DIAGRAMS  # noqa: E402
+
+
+def about_payload(force: bool) -> dict:
+    import about
+    version = os.environ.get("MYSERVICES_VERSION", "dev")
+    got = about.latest(Path(core.CFG["state_dir"]), force=force, enabled=bool(core.CFG.get("update_check", True)))
+    tag = (got.get("release") or {}).get("tag")
+    return {"version": version, "latest": got.get("release"), "checked_at": got.get("checked_at"), "error": got.get("error"), "enabled": got.get("enabled", True),
+            "update_available": about.newer(tag, version), "running": about.core_version(version),
+            "changelog": about.changelog(Path(core.HERE) / "CHANGELOG.md"), "repo": f"https://github.com/{about.REPO}"}
+
+
+@app.get(API + "/about", tags=["système"], summary="Version installée, dernière version publiée, journal des changements")
+def about_info(request: Request):
+    return about_payload(False)
+
+
+@app.post(API + "/about/check", tags=["système"], summary="Vérifier maintenant la dernière version publiée (admin)")
+def about_check(request: Request):
+    if denied := admin_write(request):
+        return denied
+    return about_payload(True)
+
+
+@app.get(API + "/diagrams", tags=["schémas"], summary="Schémas de l'infra (Archify) : titre, fichier, date")
+def diagrams(request: Request):
+    out = []
+    for key, title, what, needs in DIAGRAMS:
+        f = core.WEB / f"{key}.html"
+        out.append({"id": key, "title": title, "what": what, "file": f"{key}.html", "exists": f.exists(), "updated": f.stat().st_mtime if f.exists() else None,
+                    "bytes": f.stat().st_size if f.exists() else 0, "needs": needs, "available": needs != "backups" or bool(core.CFG.get("backups_url"))})
+    return {"diagrams": out, "archify": bool(core.ARCHIFY and Path(core.ARCHIFY).exists()), "archify_url": ARCHIFY_URL}
+
+
+@app.post(API + "/diagrams/rebuild", tags=["schémas"], summary="Regénérer les schémas maintenant (admin)")
+def diagrams_rebuild(request: Request):
+    if denied := admin_write(request):
+        return denied
+    if not (core.ARCHIFY and Path(core.ARCHIFY).exists()):
+        return deny(409, "Archify n'est pas installé dans cette image")
+    threading.Thread(target=core.build_map, daemon=True, name="diagrams").start()
+    store().audit("schémas regénérés", request.state.user["username"], ip_of(request), "")
+    return {"ok": True}
+
+
+@app.get(API + "/discoveries", tags=["système"], summary="Qui découvre quoi : automatique, à la main, à faire (admin)")
+def discoveries(request: Request):
+    import backups_admin
+    import discoveries as disc
+    import netscan
+    if denied := admin_only(request):
+        return denied
+    state = Path(core.CFG["state_dir"])
+
+    def stamp(name: str, key: str = "at"):
+        try:
+            return json.loads((state / name).read_text(encoding="utf-8")).get(key)
+        except (OSError, ValueError, AttributeError):
+            return None
+    try:
+        data = json.loads((core.WEB / "data.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    col, bk = core.TASKS["collect"], core.TASKS["backups"]
+    net = netscan.state(state / "network-scan.json") if (state / "network-scan.json").exists() else {}
+    try:
+        checked = len(json.loads((state / "backups-auto.json").read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        checked = 0
+    ssh = backups_admin._machines()
+    last = col["end"] or None
+    stale = bool(data.get("generated")) and (time.time() - datetime.fromisoformat(data["generated"]).timestamp()) > 90 * 60
+    items = disc.build({
+        "collect_last": last, "collect_next": core.next_run("collect"), "collect_ok": not stale,
+        "net_has_run": bool(net.get("ended") or net.get("started")), "net_last": net.get("ended") or net.get("started"), "net_every_h": core.CFG["netscan_every"],
+        "backups_auto": core.CFG.get("backups_auto", True), "ssh_machines": len(ssh), "auto_checked": sum(1 for ip in ssh if ip in _read_list(state / "backups-auto.json")) if checked else 0,
+        "backups_search_last": stamp("backups-discover.json"), "backups_enabled": bool(core.CFG.get("backups_url")),
+        "backups_last": bk["end"] or None, "backups_next": core.next_run("backups"), "proposals": len(data.get("proposals") or []),
+    })
+    return {"items": items, "todo": sum(1 for x in items if x["state"] == "todo")}
+
+
+def _read_list(f: Path) -> list:
+    try:
+        return json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+
+
+# ── Notifications personnalisées (notifications.py) ─────────────────────────────────────────────
+
+class NotificationBody(BaseModel):
+    name: str | None = Field(None, max_length=80)
+    kind: Literal["report", "events"] | None = None
+    config: dict | None = None
+    channels: list[int] | None = None
+    enabled: bool | None = None
+
+
+class ExampleNames(BaseModel):
+    names: list[str]
+
+
+def notif_call(request: Request, action: str, detail: str, fn) -> JSONResponse | dict:
+    import alerts
+    import notifications
+    if denied := admin_write(request):
+        return denied
+    try:
+        out = fn(core.notifications_store())
+    except (notifications.NotificationError, alerts.AlertError, ValueError, TypeError) as e:
+        return deny(400, str(e))
+    store().audit(action, request.state.user["username"], ip_of(request), detail)
+    return {"ok": True, **(out if isinstance(out, dict) else {})}
+
+
+@app.get(API + "/notifications", tags=["notifications"], summary="Notifications personnalisées, capteurs, machines, exemples (admin)")
+def notifications_state(request: Request):
+    import alerts
+    import notifications
+    if denied := admin_only(request):
+        return denied
+    n = core.notifications_store()
+    stats, data = n._data()
+    names = {m["ip"]: m["name"] for m in data.get("machine_list") or [] if not m.get("disabled")}
+    return {"notifications": n.list(), "channels": core.alerts_store().channels(),
+            "sensors": [{"id": k, "label": v[0], "icon": v[1]} for k, v in notifications.SENSORS.items()],
+            "machines": [{"ip": ip, "name": nm} for ip, nm in names.items()],
+            "kinds": [{"id": k, "label": v[0], "group": v[1]} for k, v in alerts.KINDS.items()], "groups": alerts.GROUPS,
+            "examples": [{"name": e["name"], "kind": e["kind"]} for e in notifications.EXAMPLES]}
+
+
+@app.post(API + "/notifications", tags=["notifications"], summary="Ajouter une notification (admin)")
+def notifications_add(body: NotificationBody, request: Request):
+    return notif_call(request, "notification ajoutée", body.name or "", lambda n: {"id": n.add(body.model_dump(exclude_none=True))})
+
+
+@app.patch(API + "/notifications/{nid}", tags=["notifications"], summary="Modifier une notification (admin)")
+def notifications_update(nid: int, body: NotificationBody, request: Request):
+    return notif_call(request, "notification modifiée", str(nid), lambda n: n.update(nid, body.model_dump(exclude_none=True)))
+
+
+@app.delete(API + "/notifications/{nid}", tags=["notifications"], summary="Supprimer une notification (admin)")
+def notifications_delete(nid: int, request: Request):
+    return notif_call(request, "notification supprimée", str(nid), lambda n: n.delete(nid))
+
+
+@app.post(API + "/notifications/{nid}/send", tags=["notifications"], summary="Envoyer maintenant un vrai message de cette notification (admin)")
+def notifications_send(nid: int, request: Request):
+    return notif_call(request, "notification envoyée maintenant", str(nid), lambda n: {"results": n.send_now(nid)})
+
+
+@app.post(API + "/notifications/examples", tags=["notifications"], summary="Ajouter des exemples, désactivés (admin)")
+def notifications_examples(body: ExampleNames, request: Request):
+    return notif_call(request, "exemples de notification ajoutés", ", ".join(body.names)[:200], lambda n: {"added": n.add_examples(body.names)})
 
 
 @app.get(API + "/audit", tags=["comptes"], summary="Journal des actions (admin)")

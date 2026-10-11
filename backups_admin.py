@@ -157,6 +157,32 @@ def discover() -> dict:
     return {"machines": found, "patterns": patterns, "at": time.time()}
 
 
+def auto_default(state_file: Path) -> list[dict]:
+    """Première lecture d'une machine par SSH : si le dossier par défaut (/home/backup) existe et est lisible, il est suivi tout de suite
+    (nom et âge par défaut). Chaque machine n'est regardée qu'une fois (liste dans `state_file`) : retirer ensuite le jeu ne le fait pas
+    revenir. Une machine qui ne répond pas est retentée au passage suivant. Retourne les jeux ajoutés [{ip, name, path}]."""
+    try:
+        checked = set(json.loads(state_file.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        checked = set()
+    machines = {ip: m for ip, m in _machines().items() if ip not in checked}
+    added: list[dict] = []
+    for ip, m in machines.items():
+        res = _scan((ip, m), [DEFAULT_PATH])
+        if not res["ok"]:
+            continue                                           # injoignable pour l'instant : on réessaiera
+        checked.add(ip)
+        hit = next((f for f in res["folders"] if f["path"] == DEFAULT_PATH and f.get("readable", True)), None)
+        if hit:
+            follow([{"ip": ip, "path": DEFAULT_PATH, "label": f"{m['name']} : {DEFAULT_PATH}"[:LABEL_MAX], "max_age_days": AGE_DEFAULT}])
+            added.append({"ip": ip, "name": m["name"], "path": DEFAULT_PATH})
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    tmp = state_file.with_suffix(".tmp")
+    tmp.write_text(json.dumps(sorted(checked)), encoding="utf-8")
+    tmp.replace(state_file)
+    return added
+
+
 def _check_item(it: dict, machines: dict) -> tuple[str, str, float, str]:
     ip, path, label = str(it.get("ip", "")), str(it.get("path", "")), str(it.get("label", "")).strip()
     if ip not in machines:

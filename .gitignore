@@ -26,3 +26,4 @@ coverage.xml
 
 # Réglages locaux de Claude Code : jamais versionnés ni poussés
 .claude/
+secret.key

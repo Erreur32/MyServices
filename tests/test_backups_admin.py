@@ -73,6 +73,39 @@ class Patterns(Base):
             ba.set_patterns([f"/d{i}" for i in range(ba.PATTERNS_MAX + 1)])
 
 
+class AutoDefault(Base):
+    def scan_with(self, out):
+        import backups
+        state = Path(self.tmp.name) / "state" / "auto.json"
+        with mock.patch.object(backups, "run_py", return_value=out):
+            return ba.auto_default(state), state
+
+    def test_suit_home_backup_a_la_premiere_lecture_puis_ne_revient_pas(self):
+        added, state = self.scan_with((AGENT_OUT, ""))
+        self.assertEqual([(a["ip"], a["path"]) for a in added], [("10.0.0.2", "/home/backup")])
+        meta = json.loads(self.meta.read_text(encoding="utf-8"))
+        self.assertEqual(meta["sets"][0]["locations"][0]["path"], "/home/backup")
+        self.assertEqual(json.loads(state.read_text(encoding="utf-8")), ["10.0.0.2"])
+        ba.unfollow(meta["sets"][0]["id"])                      # l'auteur le retire...
+        again, _ = self.scan_with((AGENT_OUT, ""))
+        self.assertEqual(again, [])                             # ... et il ne revient pas
+        self.assertEqual(json.loads(self.meta.read_text(encoding="utf-8"))["sets"], [])
+
+    def test_machine_injoignable_retentee_plus_tard(self):
+        added, state = self.scan_with((None, "timeout"))
+        self.assertEqual(added, [])
+        self.assertEqual(json.loads(state.read_text(encoding="utf-8")), [])      # pas marquée : prochain passage
+        added, _ = self.scan_with((AGENT_OUT, ""))
+        self.assertEqual(len(added), 1)
+
+    def test_autre_dossier_ou_illisible_ne_suit_rien(self):
+        other = {"local": [{"path": "/srv/autre", "size": 1, "newest": 1, "newest_name": "x", "readable": True}]}
+        self.assertEqual(self.scan_with((other, ""))[0], [])
+        unreadable = {"local": [{"path": "/home/backup", "size": 1, "newest": 1, "newest_name": "x", "readable": False}]}
+        self.assertEqual(self.scan_with((unreadable, ""))[0], [])
+        self.assertFalse(self.meta.exists())                    # rien d'écrit
+
+
 class Follow(Base):
     def test_ecrit_les_machines_et_les_jeux(self):
         self.assertEqual(ba.follow([self.item()]), {"added": 1, "updated": 0})

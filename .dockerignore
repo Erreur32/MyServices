@@ -13,6 +13,7 @@ web/backups.json
 *.png
 *.md
 !README.md
+!CHANGELOG.md
 __pycache__
 !deploy/fetch_archify.py
 .github

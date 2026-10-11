@@ -10,6 +10,7 @@ import { reopenFirstSteps } from "../lib/firstSteps";
 import { act, button, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { pokeScan } from "../lib/scan";
+import { DiscoveryCard } from "../components/DiscoveryCard";
 import type { NetScan } from "../types";
 
 interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean; ignored: { ip: string; name: string }[] }
@@ -47,6 +48,7 @@ export function NetworkSettings() {
 
   return (
     <div className="flex flex-col gap-4">
+      <DiscoveryCard />
       <Card>
         <h2 className="mb-2 font-bold">{tx("Actions")}</h2>
         <div className="flex flex-wrap items-center gap-2">

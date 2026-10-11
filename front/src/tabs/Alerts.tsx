@@ -1,17 +1,25 @@
 // Réglages → Alertes, sur le modèle de GpuViewR : canaux (Discord, Telegram, webhook ; bouton Essayer),
 // règles (genres d'événements, machine, texte, canaux, délai, retours à la normale), préréglages ajoutés
 // désactivés, et les derniers envois. Les secrets ne reviennent jamais du serveur : champ vide = inchangé.
-import { Bell, ChevronDown, ChevronUp, Pencil, Plus, Send, Trash2 } from "lucide-react";
+import { Bell, ChevronDown, ChevronUp, Pencil, Plus, Send, Trash2, Webhook } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine } from "../components/form";
+import { IconChoice } from "../components/IconChoice";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { dateTime } from "../lib/format";
 import type { AlertChannel, AlertRule, AlertsState, ChannelType } from "../types";
 import { tx } from "../lib/i18n";
 
-const TYPES: Record<ChannelType, { label: string; fields: { k: string; label: string; secret?: boolean; hint: string }[] }> = {
+/** Logo de chaque type de canal (public/icons, simple-icons) ; le webhook générique n'a pas de marque : icône d'objet */
+export const CHANNEL_ICON: Record<ChannelType, React.ReactNode> = {
+  discord: <img src={`${import.meta.env.BASE_URL}icons/discord.svg`} alt="" className="h-7 w-7" />,
+  telegram: <img src={`${import.meta.env.BASE_URL}icons/telegram.svg`} alt="" className="h-7 w-7" />,
+  webhook: <Webhook size={26} className="text-muted" aria-hidden />,
+};
+
+export const TYPES: Record<ChannelType, { label: string; fields: { k: string; label: string; secret?: boolean; hint: string }[] }> = {
   discord: { label: tx("Discord"), fields: [
     { k: "url", label: tx("URL du webhook"), secret: true, hint: tx("Salon → Modifier → Intégrations → Webhooks → Copier l'URL") },
   ] },
@@ -127,14 +135,13 @@ function ChannelForm({ channel, onDone, onCancel }: { channel?: AlertChannel; on
   };
   return (
     <form onSubmit={submit} className="mt-3 flex flex-col gap-3 rounded-xl border border-line bg-bg2/50 p-3">
+      {!channel && (
+        <Field label={tx("Type")}>
+          <IconChoice label={tx("Type de canal")} value={type} onPick={(v) => { setType(v); setConf({}); }}
+            options={(Object.keys(TYPES) as ChannelType[]).map((k) => ({ value: k, label: TYPES[k].label, icon: CHANNEL_ICON[k] }))} />
+        </Field>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
-        {!channel && (
-          <Field label={tx("Type")}>
-            <select className={input} value={type} onChange={(e) => { setType(e.target.value as ChannelType); setConf({}); }}>
-              {Object.entries(TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
-          </Field>
-        )}
         <Field label={tx("Nom")}>
           <input className={input} maxLength={80} placeholder={TYPES[type].label} value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
