@@ -3,7 +3,7 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
-import { Check, ChevronDown, ChevronRight, Loader2, Plus, Radar, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, IdCard, KeyRound, Loader2, Plus, Radar, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -374,8 +374,8 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
 /** Groupe d'interrupteurs : titre, éventuel rappel, interrupteurs en dessous */
 function OptionGroup({ title, hint, tone, children }: { title: string; hint?: string; tone?: "ok"; children: React.ReactNode }) {
   return (
-    <fieldset className={`flex flex-col gap-2 rounded-lg border p-3 ${tone === "ok" ? "border-ok/40 bg-ok/10" : "border-line/60 bg-bg2/70"}`}>
-      <legend className="px-1 text-[11px] font-semibold uppercase tracking-wide text-dim">{title}</legend>
+    <fieldset className={`flex flex-col gap-2 rounded-xl border p-3 ${tone === "ok" ? "border-ok/40 bg-ok/10" : "border-line/60 bg-bg2/70"}`}>
+      <legend className="inline-flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-dim"><span aria-hidden className={`h-1.5 w-1.5 rounded-full ${tone === "ok" ? "bg-ok" : "bg-dim"}`} />{title}</legend>
       {hint && <p className="text-xs text-dim">{hint}</p>}
       {children}
     </fieldset>
@@ -522,10 +522,10 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   const dirty = isNew || ["name", "adguard", "adguard_sync"].some((k) => String(v[k] ?? "") !== String(saved[k] ?? ""));
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
-      <section className="rounded-xl border border-muted/60 bg-bg2/30 p-4 shadow-sm">
+      <section className="rounded-2xl border border-line border-l-4 border-l-link bg-bg2/30 p-4 shadow-sm">
         <button type="button" onClick={() => setSshOpen(!sshOpen)} aria-expanded={sshOpen} className="flex w-full flex-wrap items-center gap-2 text-left">
           {sshOpen ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{agentMode ? tx("Accès par l'agent") : tx("Accès SSH")}</h4>
+          <h4 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><KeyRound size={13} className="text-link" aria-hidden />{agentMode ? tx("Accès par l'agent") : tx("Accès SSH")}</h4>
           {agentMode ? <Badge tone={agent ? (agent.state === "actif" ? "ok" : agent.state === "silencieux" ? "warn" : "info") : "off"}>{agent ? agent.state : tx("pas d'agent")}</Badge>
           : live && <Badge tone={MSTATE[mState(live)][0]} title={MSTATE[mState(live)][2]}>{MSTATE[mState(live)][1]}</Badge>}
           {!sshOpen && <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
@@ -575,14 +575,20 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
             </Field>
           </div>
         )}
-        <p className="text-xs leading-relaxed text-dim">
-          {tx("Un clic sur l'interrupteur prépare l'accès (compte root, port 22) avec la clé de l'app.")}
-          <span className="block">{tx("Cette clé est à autoriser sur la machine :")} <a className="text-link hover:underline" href="#settings/ssh">{tx("Réglages → Clé SSH")}</a>.</span>
-        </p>
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line/70 bg-bg2/50 p-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-link/15 text-link"><KeyRound size={17} aria-hidden /></span>
+          <div className="min-w-[220px] flex-1">
+            <b className="block text-sm text-txt">{tx("La clé de l'app doit être autorisée sur cette machine")}</b>
+            <span className="block text-xs leading-relaxed text-dim">{tx("L'interrupteur prépare l'accès (compte root, port 22) ; il reste à ajouter la clé publique de l'app dans authorized_keys de la machine.")}</span>
+          </div>
+          <a href="#settings/ssh" className={`${quiet} no-underline`} title={tx("Ouvre la clé publique et la commande à copier")}>
+            <KeyRound size={14} aria-hidden />{tx("Voir la clé SSH")}<ArrowRight size={14} aria-hidden />
+          </a>
+        </div>
         </div>}
       </section>
-      <section className="rounded-xl border border-line bg-bg2/30 p-4">
-        <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("Identité")}</h4>
+      <section className="rounded-2xl border border-line border-l-4 border-l-ok bg-bg2/30 p-4">
+        <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><IdCard size={13} className="text-ok" aria-hidden />{tx("Identité")}</h4>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={tx("Nom")}><input className={input} required maxLength={80} value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>
           <div>
