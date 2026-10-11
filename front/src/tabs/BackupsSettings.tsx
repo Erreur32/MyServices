@@ -1,14 +1,15 @@
 // Réglages → Sauvegardes : choisir, depuis la page, les dossiers de sauvegarde à surveiller. La recherche passe par SSH, en lecture
 // seule, dans les emplacements habituels de chaque machine ; on coche, on nomme, on fixe l'âge maximum du dernier fichier.
 // Veeam (BackupsVeeam.tsx) et Home Assistant (BackupsHa.tsx) ont leur assistant plus bas ; Proxmox… viendra ensuite.
-import { FolderSearch, HardDrive, Loader2, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { ChevronDown, ChevronRight, Database, DatabaseBackup, FolderSearch, HardDrive, Home, Loader2, ServerCog, Trash2, type LucideIcon } from "lucide-react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { NoteLine, Switch, TagInput } from "../components/form";
 import { Badge, Card, Dim } from "../components/ui";
 import { bytes, dateTime } from "../lib/format";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { appIcon } from "../lib/appIcons";
 import { BackupsHa, type HaState } from "./BackupsHa";
 import { BackupsVeeam, type VeeamState } from "./BackupsVeeam";
 import { BackupsPbs, type PbsState } from "./BackupsPbs";
@@ -27,6 +28,7 @@ export function BackupsSettings() {
   const [found, setFound] = useState<Found[] | null>(null), [searching, setSearching] = useState(false);
   const [pick, setPick] = useState<Record<string, Choice>>({});
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [confirm, setConfirm] = useState(""), [busyId, setBusyId] = useState("");
+  const [open, setOpen] = useState("");   // source dépliée (un seul cadre à la fois)
   const [extra, setExtra] = useState<string | null>(null);  // emplacements cherchés en plus du dossier par défaut (null = ceux du serveur)
   const load = useCallback(() => {
     read<Current>("backups/settings").then((c) => { setCur(c); setError(""); })
@@ -76,6 +78,90 @@ export function BackupsSettings() {
   };
 
   if (!cur) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
+  const SEARCH = (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 font-bold"><FolderSearch size={16} />{tx("Chercher sur mes machines")}</h2>
+        <button type="button" className={primary} disabled={searching || cur.machines === 0} onClick={() => void search()}>
+          {searching ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <FolderSearch size={14} aria-hidden />}{searching ? tx("Recherche…") : tx("Chercher")}
+        </button>
+      </div>
+      <p className="mt-1 text-sm text-muted">
+        {cur.machines === 0 ? tx("Aucune machine n'est lue par SSH : activez l'accès SSH d'une machine (Réglages → Machines) pour y chercher des sauvegardes.")
+          : tx("Cherche, sur les {0} machine(s) lues par SSH, les dossiers de sauvegarde habituels :", cur.machines)} {cur.machines > 0 && <code className="font-mono text-xs">{cur.patterns.join("  ")}</code>}
+      </p>
+      <div className="mt-3 rounded-lg bg-bg2/50 p-3">
+        <div className="mb-1 flex flex-wrap items-center gap-2 text-sm"><b>{tx("Dossier par défaut")}</b><code className="font-mono text-xs">{cur.default_path}</code>
+          <Dim>{tx("toujours cherché ; s'il existe sur une machine, il est coché d'office.")}</Dim></div>
+        <TagInput label={tx("Autres emplacements")} value={extras} onChange={setExtra} max={800} placeholder={tx("ex. /srv/sauvegardes, /mnt/*/save*")} />
+        <p className="mt-1 text-xs text-dim">{tx("Un chemin absolu ; * permis (un motif). Entrée ou virgule pour en ajouter.")}</p>
+        {extra !== null && <button type="button" className={`${primary} mt-2`} disabled={busy} onClick={() => void savePatterns()}>{tx("Enregistrer les emplacements")}</button>}
+      </div>
+      {searching && <p className="mt-2 text-sm text-dim">{tx("Lecture des dossiers en cours (taille et fichier le plus récent) : jusqu'à une minute.")}</p>}
+      {found && (
+        <div className="mt-3 flex flex-col gap-3">
+          {found.every((m) => m.ok && m.folders.length === 0) && (
+            <p className="rounded-lg bg-bg2/60 px-3 py-2 text-sm text-muted">{tx("Aucun dossier de sauvegarde trouvé dans ces emplacements. Si vos sauvegardes sont ailleurs, ajoutez leur dossier dans « Autres emplacements » puis relancez la recherche.")}</p>
+          )}
+          {found.map((m) => (
+            <section key={m.ip} className="rounded-xl border border-line/60 p-3">
+              <h3 className="mb-1.5 flex items-center gap-2 text-sm font-semibold">{m.name} <Dim>{m.ip}</Dim>
+                {!m.ok && <Badge tone="bad">{tx("illisible")}</Badge>}</h3>
+              {!m.ok && <p className="text-xs text-bad">{m.error}</p>}
+              {m.ok && m.folders.length === 0 && <Dim>{tx("aucun dossier trouvé")}</Dim>}
+              <ul className="flex flex-col gap-2">
+                {m.folders.map((f) => {
+                  const k = keyOf(m.ip, f.path), c = pick[k];
+                  return (
+                    <li key={k} className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-bg2/50 px-3 py-2 text-sm ${f.followed ? "opacity-60" : ""}`}>
+                      <label className="flex min-w-[220px] flex-1 items-start gap-2">
+                        <input type="checkbox" className="mt-1 h-4 w-4 accent-[rgb(var(--link))]" disabled={f.followed || !f.readable} checked={!!c?.on}
+                          onChange={(e) => setPick({ ...pick, [k]: { ...c, on: e.target.checked } })} />
+                        <span className="min-w-0">
+                          <code className="break-all font-mono text-xs">{f.path}</code>
+                          <span className="block text-xs text-dim">
+                            {f.size != null ? bytes(f.size) : "?"}
+                            {f.newest ? ` · ${tx("dernier fichier")} ${dateTime(f.newest * 1000)}${f.newest_name ? ` (${f.newest_name})` : ""}` : ` · ${tx("aucun fichier")}`}
+                          </span>
+                        </span>
+                      </label>
+                      {f.default && !f.followed && f.readable && <Badge tone="info" title={tx("Dossier de sauvegarde par défaut")}>{tx("chemin par défaut")}</Badge>}
+                      {f.followed ? <Badge tone="ok">{tx("déjà suivi")}</Badge> : !f.readable ? <Badge tone="warn">{tx("illisible par le compte SSH")}</Badge> : c?.on && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input className={`${input} w-56 py-1 text-xs`} value={c.label} maxLength={80} aria-label={tx("Nom")}
+                            onChange={(e) => setPick({ ...pick, [k]: { ...c, label: e.target.value } })} />
+                          <label className="flex items-center gap-1 text-xs text-dim">{tx("alerte après")}
+                            <input className={`${input} w-16 py-1 text-xs`} type="number" min={0.1} max={365} step="any" value={c.age} aria-label={tx("Âge maximum en jours")}
+                              onChange={(e) => setPick({ ...pick, [k]: { ...c, age: e.target.value } })} />{tx("j")}
+                          </label>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+          {Object.keys(pick).length > 0 && (
+            <div><button type="button" className={primary} disabled={!valid || busy} onClick={() => void follow()}>
+              {busy ? <Loader2 size={14} className="animate-spin" aria-hidden /> : null}{tx("Suivre la sélection")} {chosen.length > 0 && `(${chosen.length})`}</button></div>
+          )}
+        </div>
+      )}
+      <NoteLine note={note} />
+    </Card>
+  );
+  const veeamSets = cur.sets.filter((x) => x.veeam_job).length, folderSets = cur.sets.filter((x) => x.path).length;
+  const sources: { id: string; label: string; icon: string; Icon: LucideIcon; hint: string; state: string; tone: "ok" | "warn"; panel: ReactNode }[] = [
+    { id: "folders", label: tx("Dossiers sur mes machines"), icon: "", Icon: FolderSearch, tone: folderSets ? "ok" : "warn", state: folderSets ? tx("{0} suivi(s)", folderSets) : tx("À chercher"),
+      hint: tx("Lus par SSH : dossiers de sauvegarde, tâches cron"), panel: SEARCH },
+    { id: "veeam", label: "Veeam Backup & Replication", icon: "Veeam", Icon: ServerCog, tone: veeamSets ? "ok" : "warn", state: veeamSets ? tx("{0} job(s) suivi(s)", veeamSets) : cur.veeam.configured ? tx("Aucun job suivi") : tx("À configurer"),
+      hint: tx("API REST, compte en lecture seule"), panel: <BackupsVeeam key={`${cur.veeam.url}|${cur.veeam.user}`} state={cur.veeam} reload={load} /> },
+    { id: "pbs", label: "Proxmox Backup Server", icon: "Proxmox Backup Server", Icon: DatabaseBackup, tone: cur.pbs.followed ? "ok" : "warn", state: cur.pbs.followed ? tx("{0} groupe(s) suivi(s)", cur.pbs.followed) : cur.pbs.connectors.length ? tx("Aucun groupe suivi") : tx("Connecteur à ajouter"),
+      hint: tx("Groupes de sauvegarde, par le connecteur"), panel: <BackupsPbs state={cur.pbs} reload={load} /> },
+    { id: "ha", label: "Home Assistant", icon: "Home Assistant", Icon: Home, tone: cur.ha.followed ? "ok" : "warn", state: cur.ha.followed ? tx("Suivi") : cur.ha.connectors.length ? tx("Pas suivi") : tx("Connecteur à ajouter"),
+      hint: tx("Sauvegarde automatique, par le connecteur"), panel: <BackupsHa key={`${cur.ha.connector}|${cur.ha.connectors.join()}`} state={cur.ha} reload={load} /> },
+  ];
   return (
     <div className="flex flex-col gap-4">
       <Card>
@@ -116,80 +202,28 @@ export function BackupsSettings() {
       </Card>
 
       <Card>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-bold"><FolderSearch size={16} />{tx("Chercher sur mes machines")}</h2>
-          <button type="button" className={primary} disabled={searching || cur.machines === 0} onClick={() => void search()}>
-            {searching ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <FolderSearch size={14} aria-hidden />}{searching ? tx("Recherche…") : tx("Chercher")}
-          </button>
-        </div>
-        <p className="mt-1 text-sm text-muted">
-          {cur.machines === 0 ? tx("Aucune machine n'est lue par SSH : activez l'accès SSH d'une machine (Réglages → Machines) pour y chercher des sauvegardes.")
-            : tx("Cherche, sur les {0} machine(s) lues par SSH, les dossiers de sauvegarde habituels :", cur.machines)} {cur.machines > 0 && <code className="font-mono text-xs">{cur.patterns.join("  ")}</code>}
-        </p>
-        <div className="mt-3 rounded-lg bg-bg2/50 p-3">
-          <div className="mb-1 flex flex-wrap items-center gap-2 text-sm"><b>{tx("Dossier par défaut")}</b><code className="font-mono text-xs">{cur.default_path}</code>
-            <Dim>{tx("toujours cherché ; s'il existe sur une machine, il est coché d'office.")}</Dim></div>
-          <TagInput label={tx("Autres emplacements")} value={extras} onChange={setExtra} max={800} placeholder={tx("ex. /srv/sauvegardes, /mnt/*/save*")} />
-          <p className="mt-1 text-xs text-dim">{tx("Un chemin absolu ; * permis (un motif). Entrée ou virgule pour en ajouter.")}</p>
-          {extra !== null && <button type="button" className={`${primary} mt-2`} disabled={busy} onClick={() => void savePatterns()}>{tx("Enregistrer les emplacements")}</button>}
-        </div>
-        {searching && <p className="mt-2 text-sm text-dim">{tx("Lecture des dossiers en cours (taille et fichier le plus récent) : jusqu'à une minute.")}</p>}
-        {found && (
-          <div className="mt-3 flex flex-col gap-3">
-            {found.every((m) => m.ok && m.folders.length === 0) && (
-              <p className="rounded-lg bg-bg2/60 px-3 py-2 text-sm text-muted">{tx("Aucun dossier de sauvegarde trouvé dans ces emplacements. Si vos sauvegardes sont ailleurs, ajoutez leur dossier dans « Autres emplacements » puis relancez la recherche.")}</p>
-            )}
-            {found.map((m) => (
-              <section key={m.ip} className="rounded-xl border border-line/60 p-3">
-                <h3 className="mb-1.5 flex items-center gap-2 text-sm font-semibold">{m.name} <Dim>{m.ip}</Dim>
-                  {!m.ok && <Badge tone="bad">{tx("illisible")}</Badge>}</h3>
-                {!m.ok && <p className="text-xs text-bad">{m.error}</p>}
-                {m.ok && m.folders.length === 0 && <Dim>{tx("aucun dossier trouvé")}</Dim>}
-                <ul className="flex flex-col gap-2">
-                  {m.folders.map((f) => {
-                    const k = keyOf(m.ip, f.path), c = pick[k];
-                    return (
-                      <li key={k} className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-bg2/50 px-3 py-2 text-sm ${f.followed ? "opacity-60" : ""}`}>
-                        <label className="flex min-w-[220px] flex-1 items-start gap-2">
-                          <input type="checkbox" className="mt-1 h-4 w-4 accent-[rgb(var(--link))]" disabled={f.followed || !f.readable} checked={!!c?.on}
-                            onChange={(e) => setPick({ ...pick, [k]: { ...c, on: e.target.checked } })} />
-                          <span className="min-w-0">
-                            <code className="break-all font-mono text-xs">{f.path}</code>
-                            <span className="block text-xs text-dim">
-                              {f.size != null ? bytes(f.size) : "?"}
-                              {f.newest ? ` · ${tx("dernier fichier")} ${dateTime(f.newest * 1000)}${f.newest_name ? ` (${f.newest_name})` : ""}` : ` · ${tx("aucun fichier")}`}
-                            </span>
-                          </span>
-                        </label>
-                        {f.default && !f.followed && f.readable && <Badge tone="info" title={tx("Dossier de sauvegarde par défaut")}>{tx("chemin par défaut")}</Badge>}
-                        {f.followed ? <Badge tone="ok">{tx("déjà suivi")}</Badge> : !f.readable ? <Badge tone="warn">{tx("illisible par le compte SSH")}</Badge> : c?.on && (
-                          <div className="flex flex-wrap items-center gap-2">
-                            <input className={`${input} w-56 py-1 text-xs`} value={c.label} maxLength={80} aria-label={tx("Nom")}
-                              onChange={(e) => setPick({ ...pick, [k]: { ...c, label: e.target.value } })} />
-                            <label className="flex items-center gap-1 text-xs text-dim">{tx("alerte après")}
-                              <input className={`${input} w-16 py-1 text-xs`} type="number" min={0.1} max={365} step="any" value={c.age} aria-label={tx("Âge maximum en jours")}
-                                onChange={(e) => setPick({ ...pick, [k]: { ...c, age: e.target.value } })} />{tx("j")}
-                            </label>
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ))}
-            {Object.keys(pick).length > 0 && (
-              <div><button type="button" className={primary} disabled={!valid || busy} onClick={() => void follow()}>
-                {busy ? <Loader2 size={14} className="animate-spin" aria-hidden /> : null}{tx("Suivre la sélection")} {chosen.length > 0 && `(${chosen.length})`}</button></div>
-            )}
-          </div>
-        )}
-        <NoteLine note={note} />
+        <h2 className="mb-1 flex items-center gap-2 font-bold"><Database size={16} />{tx("Sources de sauvegarde")}</h2>
+        <p className="mb-3 text-sm text-muted">{tx("D'où viennent les sauvegardes à surveiller. Cliquez sur une source : ses champs à remplir se déplient.")}</p>
+        <ul className="flex flex-col gap-2">
+          {sources.map((x) => {
+            const on = open === x.id;
+            return (
+              <li key={x.id} className={`rounded-xl border bg-bg2/30 ${on ? "border-link/60" : x.tone === "warn" ? "border-warn/60 bg-warn/10" : "border-line"}`}>
+                <button type="button" onClick={() => setOpen(on ? "" : x.id)} aria-expanded={on} className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 text-left">
+                  {on ? <ChevronDown size={16} className="shrink-0 text-txt" aria-hidden /> : <ChevronRight size={16} className="shrink-0 text-txt" aria-hidden />}
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-bg2">
+                    {appIcon([x.icon]) ? <img src={appIcon([x.icon])!} alt="" className="h-4 w-4" /> : <x.Icon size={14} className="text-muted" aria-hidden />}
+                  </span>
+                  <b className="min-w-[160px]">{x.label}</b>
+                  <span className="min-w-0 flex-1 text-xs text-dim">{x.hint}</span>
+                  <Badge tone={x.tone}>{x.state}</Badge>
+                </button>
+                {on && <div className="px-3 pb-3 [&_h2]:hidden [&>section]:border-0 [&>section]:bg-transparent [&>section]:p-0 [&>section]:shadow-none">{x.panel}</div>}
+              </li>
+            );
+          })}
+        </ul>
       </Card>
-
-      <BackupsVeeam key={`${cur.veeam.url}|${cur.veeam.user}`} state={cur.veeam} reload={load} />
-      <BackupsPbs state={cur.pbs} reload={load} />
-      <BackupsHa key={`${cur.ha.connector}|${cur.ha.connectors.join()}`} state={cur.ha} reload={load} />
     </div>
   );
 }
