@@ -1,29 +1,28 @@
-# Notes de version : MyServices 0.9.6
+# Notes de version : MyServices 0.9.7
 
 > **Phase de test : ne pas mettre en production.** Essayez MyServices sur une machine ou un réseau de test, et gardez une copie de `config/` et `data/` avant de mettre à jour.
 
-**0.9.6** (11 octobre 2026) prend en compte les connecteurs d'API (Home Assistant en tête) sur la page Machines, ajoute un bouton « Tester » direct sur chaque connecteur et rend l'interface plus lisible.
+**0.9.7** (11 octobre 2026) refait la page Réglages → Découverte, montre sur chaque connecteur ce qu'il lit vraiment, et ajoute des logos à l'accueil et à la page DNS.
 
 ## Pour tout le monde
 
 **Quoi de neuf ?**
-- **Home Assistant et les connecteurs d'API comptent enfin pour les machines** : une machine lue par l'API d'un connecteur n'est plus « en ligne sans SSH » mais « API », sa fiche indique le connecteur et sa version. Home Assistant remonte aussi les capteurs de sa machine (processeur, mémoire, disque, température) : ils alimentent l'onglet Santé comme source « Home Assistant ».
-- **Bouton « Tester » sur chaque connecteur**, sans ouvrir le formulaire : cadre vert ou rouge, version, et une pastille par type d'information lue (entités, hôtes, conteneurs…), ce qui prouve que le connecteur lit vraiment quelque chose. Le bouton de la carte ne dit plus que « Modifier ».
-- **Onglet Machines** : colonne « À surveiller » (icônes selon la gravité, synthèse dépliable), état « Agent actif ».
-- **Agents** : la carte repliée montre la mise à jour automatique et si l'agent n'est pas à jour ; détails sur plusieurs lignes ; logo du système.
-- **Boutons-icônes** à la place de plusieurs menus déroulants (type de jeton, durées, délais des alertes…).
-- **Réglages → Machines** : cartes de même hauteur, les pastilles passent à la ligne.
+- **Réglages → Découverte refaite** : les « actions importantes » (ce qui reste à faire) en haut, puis les découvertes rangées par famille (Réseau et machines, Services et applis, Sauvegardes). « Jamais lancée » et « prochaine » sont des pastilles de couleur. La recherche réseau, sa fréquence et ses boutons tiennent dans une seule carte.
+- **Ce que lit chaque connecteur** : les cartes de Réglages → Connecteurs affichent, après chaque collecte, des pastilles comme `entities : 4593`, preuve que la lecture fonctionne. Le bouton « Tester » reste sur la carte.
+- **Lectures par SSH ou par l'agent** (AdGuard, Docker, processus) : un bloc en lecture seule les liste dans Réglages → Connecteurs, avec un lien vers la machine pour les régler. AdGuard lu par SSH n'y avait aucune carte.
+- **Page DNS** : logo et titre AdGuard Home, pastille « AdGuard » sur chaque carte (l'onglet pourra accueillir d'autres sources DNS plus tard : UniFi, box de l'opérateur…).
+- **Accueil** : les compteurs de droite montrent le vrai logo de l'appli (Nginx Proxy Manager, Docker, AdGuard Home) ou une icône du thème ; le cœur de Santé est vert.
 
 **Ce qu'il faut savoir**
-- Le décompte du bouton « Tester » prouve que la lecture fonctionne, pas que chaque route de l'API est juste.
-- Les connecteurs de la 0.9.5 restent **essayés seulement contre de faux serveurs** (sauf Home Assistant et Dockhand).
+- Les pastilles de lecture prouvent que le connecteur lit quelque chose, pas que chaque route de l'API est juste.
+- Les connecteurs de la 0.9.5 restent essayés surtout contre de faux serveurs : dites-nous ce qui ne va pas avec les vrais services.
 - Rien n'est modifié sur vos machines : MyServices ne fait que lire.
 
 **Mettre à jour** : `docker compose pull`, puis `docker compose up -d`. Vos réglages et vos données sont gardés.
 
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.9.6` (amd64 et arm64) ; `:latest` suit le dernier tag.
-- **Nouveau** : `api_link.py` (lien connecteur ↔ machine par l'adresse), source de santé `ha` (`health.py`), `connectors/settings.tally()` et champ `found` de `POST /connectors/settings/{type}/test`.
+- **Image** : `ghcr.io/erreur32/myservices:0.9.7` (amd64 et arm64) ; `:latest` suit le dernier tag.
+- **Connecteurs** : `Status.found` et `base.tally()` (décompte de la lecture), repris par `POST /connectors/settings/{type}/test` (champ `found`).
 - **Tests** : 431 Python, 91 front.
 - **Détail complet** (en anglais) : [CHANGELOG.md](CHANGELOG.md).

@@ -9,6 +9,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+> **Testing phase: do not use in production.**
+
+## v0.9.7 (2026-10-11)
+
 ### Added
 - **Home counters (right column)**: each group shows the real app logo (Nginx Proxy Manager, Docker, AdGuard Home) or a theme icon (Machines, Health, Backups) instead of an emoji.
 - **DNS tab header**: AdGuard Home logo and title above the cards, and an "AdGuard" badge on each card (the tab may later host other DNS sources: UniFi, ISP box…).
