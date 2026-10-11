@@ -69,11 +69,7 @@ export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string
             {picking ? <X size={14} /> : <Plus size={14} />}{picking ? tx("Fermer") : tx("Ajouter un connecteur")}
           </button>
         </div>
-        <div className="mt-1 space-y-0.5 text-sm text-muted">
-          <p>{tx("Un connecteur relie MyServices à un outil que vous utilisez déjà (Nginx Proxy Manager, AdGuard Home, Beszel…).")}</p>
-          <p>{tx("Par son API, MyServices y lit les services et leur état, pour les afficher ici.")}</p>
-          <p><b className="text-txt">{tx("Lecture seule")}</b> {tx("— donnez-lui un compte ou une clé sans droit de modification.")}</p>
-        </div>
+        <p className="mt-1 text-sm text-muted">{tx("Un connecteur lit par son API, en lecture seule, les services d'un outil que vous utilisez déjà (Nginx Proxy Manager, AdGuard Home, Beszel…) : une clé ou un compte sans droit de modification suffit.")}</p>
         {picking && (
           <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label={tx("Connecteurs disponibles")}>
             {st.types.map((t) => {
@@ -232,17 +228,6 @@ function InstanceCard({ inst, type, reload, display, onCollect, editing: edit, l
             {type.kinds.map((k) => <Badge key={k} tone="info">{KIND[k] || k}</Badge>)}
           </div>
           {url && <a className="mt-1 inline-block break-all font-mono text-xs text-dim hover:text-link hover:underline" href={url} target="_blank" rel="noopener noreferrer">{url}</a>}
-          {inst.enabled && <div className="mt-2 text-sm"><StatusLine s={inst.status} /></div>}
-          <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted">
-            <span className="flex items-center gap-2" title={tx("Le connecteur est lu à chaque collecte ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
-              <Switch on={inst.enabled} label={`${tx("Collecte")} ${inst.label} : ${inst.enabled ? tx("coupé") : tx("activé")}`} onChange={onCollect} />{tx("Collecte")}
-            </span>
-            {display && (display.first
-              ? <span className="flex items-center gap-2" title={SHOWN[inst.type]}>
-                  <Switch on={display.on} label={`${tx("Affichage")} ${inst.label} : ${display.on ? tx("coupé") : tx("activé")}`} onChange={display.set} />{tx("Affichage")}
-                </span>
-              : <Dim>{tx("affichage : voir la première instance")}</Dim>)}
-          </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
           <button type="button" className={quiet} disabled={testing || edit} onClick={async () => {
@@ -256,6 +241,19 @@ function InstanceCard({ inst, type, reload, display, onCollect, editing: edit, l
             <button type="button" className={danger} onClick={() => void act(() => send("DELETE", path), tx("connecteur supprimé"), setNote).then((ok) => ok && reload())}>{tx("Confirmer")}</button>
             <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
           </> : <button type="button" className={danger} onClick={() => setConfirm(true)}><Trash2 size={14} />{tx("Supprimer")}</button>}
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+        {inst.enabled ? <StatusLine s={inst.status} /> : <Badge tone="off">{tx("collecte coupée")}</Badge>}
+        <div className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted">
+          <span className="flex items-center gap-2" title={tx("Le connecteur est lu à chaque collecte ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
+            <Switch on={inst.enabled} label={`${tx("Collecte")} ${inst.label} : ${inst.enabled ? tx("coupé") : tx("activé")}`} onChange={onCollect} />{tx("Collecte")}
+          </span>
+          {display && (display.first
+            ? <span className="flex items-center gap-2" title={SHOWN[inst.type]}>
+                <Switch on={display.on} label={`${tx("Affichage")} ${inst.label} : ${display.on ? tx("coupé") : tx("activé")}`} onChange={display.set} />{tx("Affichage")}
+              </span>
+            : <Dim>{tx("affichage : voir la première instance")}</Dim>)}
         </div>
       </div>
       {report && !edit && <TestReport r={report} onClose={() => setReport(null)} />}
