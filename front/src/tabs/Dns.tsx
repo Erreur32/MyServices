@@ -51,7 +51,7 @@ export function Dns({ snap }: { snap: Snapshot }) {
       </header>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Card className={st.cls === "ok" ? "" : st.cls === "warn" ? "border-warn/50" : "border-bad/50"}>
-          <h3 className="mb-2 font-bold">{tx("Synchronisation")}</h3>
+          <h3 className="mb-2 flex flex-wrap items-center gap-x-2 font-bold">{tx("Synchronisation")} <Badge tone="info">AdGuard</Badge></h3>
           <p className={`mb-3 text-lg font-bold ${st.cls === "ok" ? "text-ok" : st.cls === "warn" ? "text-warn" : "text-bad"}`}>{st.label}</p>
           {sync ? <>
             <Kv k={tx("Sens")}>{name(sync.origin)} → {Object.keys(sync.last_done || {}).map(name).join(", ") || "?"}</Kv>
@@ -65,7 +65,7 @@ export function Dns({ snap }: { snap: Snapshot }) {
           const ok = v.readable && !v.silent;
           return (
             <Card key={ip} className={ok ? "" : "border-bad/50"}>
-              <h3 className="mb-2 font-bold">{v.name} <Dim>· {ip}{sync?.origin === ip ? tx(" · origine") : ""}</Dim></h3>
+              <h3 className="mb-2 flex flex-wrap items-center gap-x-2 font-bold">{v.name} <Badge tone="info">AdGuard</Badge><Dim>· {ip}{sync?.origin === ip ? tx(" · origine") : ""}</Dim></h3>
               <p className={`mb-3 text-lg font-bold ${ok ? "text-ok" : "text-bad"}`}>{ok ? tx("répond") : v.readable ? tx("requêtes perdues") : tx("config illisible")}</p>
               <Kv k={tx("Réécritures")}>{v.readable ? v.rewrites : "—"}</Kv>
               <Kv k={tx("Règles perso")}>{v.readable ? v.user_rules ?? "—" : "—"}</Kv>

@@ -43,6 +43,8 @@ Familles d'apport (`kinds`) déjà là : `inventory`, `services`, `dns`, `health
 
 ## DNS
 
+L'onglet DNS ne montre aujourd'hui qu'AdGuard Home (étiqueté comme tel). À prévoir plus tard : UniFi, la box de l'opérateur et d'autres appareils réseau qui gèrent aussi du DNS, chacun avec sa propre carte étiquetée.
+
 | Service | Ce qu'on lirait | Accès | Certitude |
 |---|---|---|---|
 | **Pi-hole v6** | requêtes du jour, % bloqué, état du blocage, listes | session par mot de passe d'application | bonne |
