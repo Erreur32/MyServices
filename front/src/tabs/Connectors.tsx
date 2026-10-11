@@ -69,10 +69,11 @@ export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string
             {picking ? <X size={14} /> : <Plus size={14} />}{picking ? tx("Fermer") : tx("Ajouter un connecteur")}
           </button>
         </div>
-        <p className="mt-1 text-sm text-muted">
-          {tx("Un connecteur permet à MyServices de lire les services et l'état d'un outil que vous utilisez déjà (Nginx Proxy Manager, AdGuard Home, Beszel…), à travers son API.")}{" "}
-          <b className="text-txt">{tx("Il ne fait que lire")}</b> {tx(": donnez-lui un compte ou une clé sans droit de modification.")}
-        </p>
+        <div className="mt-1 space-y-0.5 text-sm text-muted">
+          <p>{tx("Un connecteur relie MyServices à un outil que vous utilisez déjà (Nginx Proxy Manager, AdGuard Home, Beszel…).")}</p>
+          <p>{tx("Par son API, MyServices y lit les services et leur état, pour les afficher ici.")}</p>
+          <p><b className="text-txt">{tx("Lecture seule")}</b> {tx("— donnez-lui un compte ou une clé sans droit de modification.")}</p>
+        </div>
         {picking && (
           <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label={tx("Connecteurs disponibles")}>
             {st.types.map((t) => {
