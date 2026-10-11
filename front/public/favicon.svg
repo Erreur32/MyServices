@@ -1,13 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- MyServices : grille de services, un en panne (rouge), un à vérifier (orange) -->
+  <!-- Essai : grille 4x4 de services (16), un en panne (rouge), un à vérifier (orange) ; autres logos inchangés -->
   <rect width="64" height="64" rx="14" fill="#0f1720"/>
-  <rect x="10" y="10" width="12" height="12" rx="3" fill="#22c55e"/>
-  <rect x="26" y="10" width="12" height="12" rx="3" fill="#22c55e"/>
-  <rect x="42" y="10" width="12" height="12" rx="3" fill="#3da9fc"/>
-  <rect x="10" y="26" width="12" height="12" rx="3" fill="#3da9fc"/>
-  <rect x="26" y="26" width="12" height="12" rx="3" fill="#22c55e"/>
-  <rect x="42" y="26" width="12" height="12" rx="3" fill="#f59e0b"/>
-  <rect x="10" y="42" width="12" height="12" rx="3" fill="#22c55e"/>
-  <rect x="26" y="42" width="12" height="12" rx="3" fill="#ef4444"/>
-  <rect x="42" y="42" width="12" height="12" rx="3" fill="#22c55e"/>
+  <rect x="8" y="8" width="9" height="9" rx="2.5" fill="#22c55e"/>
+  <rect x="21" y="8" width="9" height="9" rx="2.5" fill="#22c55e"/>
+  <rect x="34" y="8" width="9" height="9" rx="2.5" fill="#22c55e"/>
+  <rect x="47" y="8" width="9" height="9" rx="2.5" fill="#3da9fc"/>
+  <rect x="8" y="21" width="9" height="9" rx="2.5" fill="#3da9fc"/>
+  <rect x="21" y="21" width="9" height="9" rx="2.5" fill="#22c55e"/>
+  <rect x="34" y="21" width="9" height="9" rx="2.5" fill="#22c55e"/>
+  <rect x="47" y="21" width="9" height="9" rx="2.5" fill="#22c55e"/>
+  <rect x="8" y="34" width="9" height="9" rx="2.5" fill="#22c55e"/>
+  <rect x="21" y="34" width="9" height="9" rx="2.5" fill="#22c55e"/>
+  <rect x="34" y="34" width="9" height="9" rx="2.5" fill="#f59e0b"/>
+  <rect x="47" y="34" width="9" height="9" rx="2.5" fill="#22c55e"/>
+  <rect x="8" y="47" width="9" height="9" rx="2.5" fill="#22c55e"/>
+  <rect x="21" y="47" width="9" height="9" rx="2.5" fill="#ef4444"/>
+  <rect x="34" y="47" width="9" height="9" rx="2.5" fill="#22c55e"/>
+  <rect x="47" y="47" width="9" height="9" rx="2.5" fill="#22c55e"/>
 </svg>
