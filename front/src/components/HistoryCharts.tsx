@@ -49,13 +49,13 @@ export function PointsChart({ events, from, to, days, onRange }: { events: Store
   const x = (ts: number) => `${Math.min(100, Math.max(0, ((ts * 1000 - from) / (to - from)) * 100))}%`;
   return (
     <div className="flex gap-3">
-      <div className="flex w-32 shrink-0 flex-col text-xs text-muted sm:w-40">
-        {lanes.map(([k, l, c]) => <span key={k} className="flex h-8 items-center gap-1.5 truncate" title={l}><span className={`h-2.5 w-2.5 shrink-0 rounded-sm ${c}`} />{l}</span>)}
+      <div className="flex h-40 w-32 shrink-0 flex-col text-xs text-muted sm:w-40">
+        {lanes.map(([k, l, c]) => <span key={k} className="flex flex-1 items-center gap-1.5 truncate" title={l}><span className={`h-2.5 w-2.5 shrink-0 rounded-sm ${c}`} />{l}</span>)}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="relative rounded-lg bg-bg2/50" style={{ height: lanes.length * 32 }}>
+        <div className="relative h-40 rounded-lg bg-bg2/50">
           {ticks(from, to).map((t, i) => <span key={t} className="absolute inset-y-0 border-l border-dashed border-line/70" style={{ left: `${(i / 6) * 100}%` }} />)}
-          {lanes.map(([k], i) => <span key={k} className="absolute inset-x-0 border-t border-dashed border-line/60" style={{ top: i * 32 }} />)}
+          {lanes.map(([k], i) => <span key={k} className="absolute inset-x-0 border-t border-dashed border-line/60" style={{ top: `${(i / lanes.length) * 100}%` }} />)}
           {events.map((e, i) => {
             const lane = lanes.findIndex(([k]) => k === groupOf(e.kind));
             if (lane < 0 || e.ts * 1000 < from) return null;
@@ -63,8 +63,8 @@ export function PointsChart({ events, from, to, days, onRange }: { events: Store
             return (
               <button key={`${e.ts}-${e.key}-${i}`} type="button" onClick={() => onRange({ from: sec(day0), to: sec(day0 + 86400e3), label: longDay(d) })}
                 title={`${dateTime(e.ts * 1000)}:${String(d.getSeconds()).padStart(2, "0")} · ${e.label || "?"}${e.machine ? ` · ${e.machine}` : ""}${e.detail ? `\n${e.detail}` : ""}`}
-                className={`absolute h-2.5 w-2.5 -translate-x-1/2 rounded-full opacity-80 ring-1 ring-card hover:z-10 hover:scale-150 hover:opacity-100 ${GROUP_COLOR[GROUPS[lane][0]]}`}
-                style={{ left: x(e.ts), top: lane * 32 + 11 }} />
+                className={`absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-80 ring-1 ring-card hover:z-10 hover:scale-150 hover:opacity-100 ${GROUP_COLOR[GROUPS[lane][0]]}`}
+                style={{ left: x(e.ts), top: `${((lane + 0.5) / lanes.length) * 100}%` }} />
             );
           })}
         </div>
@@ -127,17 +127,19 @@ export function HeatChart({ events }: { events: StoredEvent[] }) {
   const grid = heat(events), max = Math.max(1, ...grid.flat());
   const days = [...Array(7)].map((_, i) => new Date(2026, 9, 12 + i).toLocaleDateString(LOCALE, { weekday: "short" }));  // lundi → dimanche
   return (
-    <div className="flex flex-col gap-[3px] text-[11px] text-dim" role="img" aria-label={tx("Événements par jour de la semaine et par heure")}>
-      <div className="flex gap-[3px] pl-10">{[...Array(24)].map((_, h) => <span key={h} className="flex-1 text-center">{h % 3 === 0 ? `${h} h` : ""}</span>)}</div>
+    <div className="text-[11px] text-dim" role="img" aria-label={tx("Événements par jour de la semaine et par heure")}>
+      <div className="flex h-40 flex-col gap-[3px]">
       {grid.map((row, d) => (
-        <div key={d} className="flex items-center gap-[3px]">
+        <div key={d} className="flex min-h-0 flex-1 items-center gap-[3px]">
           <span className="w-10 shrink-0 capitalize">{days[d]}</span>
           {row.map((n, h) => (
             <span key={h} title={tx("{0} {1} h : {2} événement{3}", days[d], h, n, n > 1 ? "s" : "")}
-              className="h-6 flex-1 rounded-sm bg-link" style={{ opacity: n ? 0.15 + 0.85 * (n / max) : 0.05 }} />
+              className="h-full flex-1 rounded-sm bg-link" style={{ opacity: n ? 0.15 + 0.85 * (n / max) : 0.05 }} />
           ))}
         </div>
       ))}
+      </div>
+      <div className="mt-1 flex h-4 gap-[3px] pl-10">{[...Array(24)].map((_, h) => <span key={h} className="flex-1 whitespace-nowrap text-center">{h % 3 === 0 ? `${h} h` : ""}</span>)}</div>
     </div>
   );
 }

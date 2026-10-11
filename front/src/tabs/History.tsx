@@ -84,7 +84,7 @@ export function History({ snap }: { snap: Snapshot }) {
             {GROUPS.filter(([k]) => counts[k]).map(([k, l, c]) => <span key={k} className="inline-flex items-center gap-1.5"><span className={`h-2.5 w-2.5 rounded-sm ${c}`} />{l} <b className="text-dim">{counts[k]}</b></span>)}
           </div>
         </div>
-        {f.shown.length === 0 ? <p className="py-6 text-center text-sm text-muted">{tx("Aucun événement sur cette période.")}</p>
+        {f.shown.length === 0 ? <p className="flex h-[180px] items-center justify-center text-sm text-muted">{tx("Aucun événement sur cette période.")}</p>
           : style === "points" ? <PointsChart events={f.shown} from={from} to={to} days={days} onRange={setRange} />
           : style === "bars" ? <BarsChart data={bars} days={days} active={range} onRange={setRange} />
           : style === "area" ? <AreaChart data={bars} days={days} />
