@@ -182,8 +182,8 @@ export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string
 
 type Part = "connectors" | "agents" | "activation";
 const PARTS: [Part, string, string, LucideIcon][] = [
-  ["connectors", tx("Connecteurs"), tx("L'accès à chaque outil : adresse, jeton, test"), Plug],
   ["agents", tx("Agents et SSH"), tx("Comment chaque machine est lue : agent PowerShell (Windows) ou SSH (Linux)"), MonitorUp],
+  ["connectors", tx("Connecteurs"), tx("L'accès à chaque outil : adresse, jeton, test"), Plug],
   ["activation", tx("Activation"), tx("Ce que la collecte lit et ce que la page affiche"), ToggleRight],
 ];
 

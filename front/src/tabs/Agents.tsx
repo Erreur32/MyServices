@@ -27,16 +27,15 @@ const STATE: Record<AgentInfo["state"], ["ok" | "warn" | "info" | "off", string]
 const EXAMPLE_URL = "http://192.168.1.10:8090"; // NOSONAR
 
 /** Nom d'agent accepté par le serveur (lettres, chiffres, espace, . _ @ -) tiré du nom de la machine */
-const URL_KEY = "ms.agent.url";
 const agentName = (machine: string) => machine.replace(/[^\p{L}\p{N}_ .@-]/gu, "").trim().slice(0, 64) || "agent";
 
 export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] }) {
   const [st, setSt] = useState<AgentsState | null>(null);
   const [machines, setMachines] = useState<MachinesSettings["machines"]>({});
   const [error, setError] = useState("");
-  // Adresse de MyServices vue du PC : celle saisie la dernière fois (retenue par le navigateur), sinon celle de la page
-  const [url, setUrl] = useState(() => { try { return localStorage.getItem(URL_KEY) || location.origin; } catch { return location.origin; } });
-  const changeUrl = (v: string) => { setUrl(v); try { localStorage.setItem(URL_KEY, v); } catch { /* navigation privée : tant pis */ } };
+  // Adresse de MyServices vue du PC : par défaut celle de la page (l'adresse par laquelle le PC joindra aussi MyServices) ;
+  // le champ n'apparaît qu'à une nouvelle demande d'agent, pour la corriger au besoin
+  const [url, setUrl] = useState(location.origin);
   const [created, setCreated] = useState<{ info: AgentInfo; token: string } | null>(null);  // jeton gardé en mémoire de la page seulement
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState("");
   const command = created ? installCommand(url, created.token) : null;  // suit le champ « Adresse de MyServices » même après la création
@@ -77,6 +76,18 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   const noAccess = sorted(tracked.filter((ip) => !isWindows(ip) && !machines[ip].ssh));       // ni agent possible ni SSH
   const local = /^https?:\/\/(localhost|127\.|\[::1\])/i.test(url);
 
+  const addressField = (
+    <div className="mt-3">
+      <div className="max-w-md">
+        <Field label={tx("Adresse de MyServices, vue du PC")}>
+          <input className={input} value={url} onChange={(e) => setUrl(e.target.value.trim())} placeholder={EXAMPLE_URL} inputMode="url" />
+        </Field>
+      </div>
+      {cleanAgentUrl(url)?.endsWith(":5180") && <p className="mt-2 text-sm text-warn">{tx("5180 est le serveur de développement : l'agent cessera d'envoyer quand il s'arrête. Utilisez l'adresse stable de MyServices (le conteneur, ex. http://192.168.1.10:8091).")}</p>}
+      {local && <p className="mt-2 text-sm text-warn">{tx("localhost ne marchera pas depuis un autre PC : mettez l'adresse du LAN de MyServices (ex. http://192.168.1.10:8090).")}</p>}
+    </div>
+  );
+
   const create = async (ip: string) => {
     setBusy(ip); setNote(null);
     try {
@@ -98,13 +109,6 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
           {tx("Deux façons de lire la santé d'une machine, toujours en lecture seule.")} <b className="text-txt">{tx("Agent")}</b> {tx(": un petit script PowerShell installé sur un PC Windows, qui envoie lui-même sa santé à MyServices (disques, services, processeur, mémoire, mises à jour, journal) ; pas de SSH à ouvrir, et un PC souvent éteint se signale dès qu'il se rallume.")}{" "}
           <b className="text-txt">SSH</b> {tx(": pour les machines Linux, MyServices s'y connecte avec sa clé (santé, Docker, services en écoute).")}
         </p>
-        <div className="mt-3 max-w-md">
-          <Field label={tx("Adresse de MyServices, vue du PC")}>
-            <input className={input} value={url} onChange={(e) => changeUrl(e.target.value.trim())} placeholder={EXAMPLE_URL} inputMode="url" />
-          </Field>
-        </div>
-        {cleanAgentUrl(url)?.endsWith(":5180") && <p className="mt-2 text-sm text-warn">{tx("5180 est le serveur de développement : l'agent cessera d'envoyer quand il s'arrête. Utilisez l'adresse stable de MyServices (le conteneur, ex. http://192.168.1.10:8091).")}</p>}
-        {local && <p className="mt-2 text-sm text-warn">{tx("localhost ne marchera pas depuis un autre PC : mettez l'adresse du LAN de MyServices (ex. http://192.168.1.10:8090).")}</p>}
         <NoteLine note={note} />
       </Card>
 
@@ -122,7 +126,8 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
             <p className="mb-2 text-sm text-warn">{tx("À copier maintenant : le jeton qu'elle contient ne sera plus jamais affiché.")}</p>
             <p className="mb-2 text-sm text-muted">{tx("Sur le PC, ouvrez PowerShell en administrateur (clic droit → Exécuter en tant qu'administrateur) et collez :")}</p>
             {command ? <Copyable key={command} text={command} />
-              : <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{tx("Adresse de MyServices invalide : http://hôte:port, sans chemin. Corrigez-la en haut de la page, la commande se met à jour.")}</p>}
+              : <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{tx("Adresse de MyServices invalide : http://hôte:port, sans chemin. Corrigez-la ci-dessous, la commande se met à jour.")}</p>}
+            {!command && addressField}
             <p className="mt-2 text-xs text-dim">{tx("L'installation crée une tâche planifiée (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur le PC relancer la commande avec MSV_UNINSTALL = '1'.")}</p>
             {(() => {  // confirmation côté MyServices : la page relit les agents toutes les 5 s tant qu'un premier relevé est attendu
               const seen = st.agents.find((x) => x.id === created.info.id);
@@ -144,7 +149,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         <Card className="border-link/60">
           <h2 className="mb-1 font-bold">{tx("Installer l'agent sur")} {machines[pick].name} <Dim>· {pick}</Dim></h2>
           <p className="text-sm text-muted">{tx("L'agent est un script PowerShell pour Windows, en lecture seule. « Créer l'agent » génère son jeton (montré une seule fois) et la commande à coller dans un PowerShell administrateur du PC.")}</p>
-          {local && <p className="mt-2 text-sm text-warn">{tx("L'adresse de MyServices ci-dessus contient localhost : le PC ne pourra pas la joindre.")}</p>}
+          {addressField}
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" className={primary} disabled={!!busy || !url} onClick={() => void create(pick)}><Plus size={14} />{tx("Créer l'agent")}</button>
             <button type="button" className={quiet} onClick={() => setPick("")}>{tx("Annuler")}</button>
