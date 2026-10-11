@@ -8,10 +8,11 @@
 ## Pour tout le monde
 
 **Quoi de neuf ?**
-- **Services détectés** : en haut de Réglages → Connecteurs, un tableau des applis reconnues (Home Assistant, NPM, AdGuard, Frigate…) avec leur machine. La colonne Activation est verte si un connecteur est réglé, orange sinon ; un clic ouvre une fenêtre avec le formulaire déjà rempli.
+- **Services détectés non configurés** : en haut de Réglages → Connecteurs, un tableau des applis reconnues (Home Assistant, NPM, AdGuard, Frigate…) qui n'ont pas encore d'accès réglé, en orange ; un clic ouvre une fenêtre avec le formulaire déjà rempli. Celles déjà reliées n'y figurent pas.
 - **Connecteurs plus simples** : chaque carte a son interrupteur « Collecte » (à droite, sur la ligne de la version). L'onglet « Activation » et les interrupteurs « Affichage » (NPM, AdGuard, Apache) disparaissent : ce qui est détecté ou relié est toujours lu et affiché.
 - **Réglages → Machines en deux sous-onglets** : « Machines » et « SSH & Agents ». Le dernier sous-onglet ouvert est retenu, et les cartes sont en deux colonnes indépendantes (ouvrir l'une ne déforme plus l'autre). Le bloc « SSH Agent Actif » est plié par défaut, en bas.
 - **Proxmox Backup Server dans les sauvegardes** : les groupes de sauvegarde (une VM, un conteneur ou un hôte par magasin) se suivent comme des jobs Veeam, avec le jeton du connecteur. L'assistant Veeam reprend lui aussi le compte du connecteur sans le redemander.
+- **Sauvegardes et notifications refaites** : Réglages → Sauvegardes a un tableau des sources (dossiers, Veeam, Proxmox Backup, Home Assistant) dont les champs se déplient au clic, et des sauvegardes suivies en cartes ; Notifications a des sous-onglets et des cartes alignées.
 - **Quatre connecteurs en plus** : Prometheus (cibles hors ligne, alertes), Healthchecks (tâches en échec ou en retard), Netdata (alarmes) et Jellyfin (lectures en cours, mise à jour).
 - **Page Aide** (Réglages, au-dessus de « À propos ») : par où commencer en six étapes, comment MyServices lit le réseau, bons réflexes, dépannage.
 - **Historique** : s'ouvre sur les dernières 24 h en barres ; la période et le style choisis sont retenus.
