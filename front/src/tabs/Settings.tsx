@@ -14,7 +14,7 @@ import { Field, NoteLine } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { NotificationsHub } from "./NotificationsHub";
 import { Connectors } from "./Connectors";
-import { MachinesSettings } from "./MachinesSettings";
+import { MachinesSection } from "./MachinesSection";
 import { useDiscoveries } from "../components/DiscoveryCard";
 import { NetworkSettings } from "./NetworkSettings";
 import { IconChoice, type IconOption } from "../components/IconChoice";
@@ -68,7 +68,7 @@ export interface Look {
 export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
   const [section, setSection] = useState(() => {
     const s = location.hash.split("/")[1]; // lien direct : #settings/<section> (menu du compte)
-    const wanted = s === "sources" || s === "agents" ? "connectors" : s || lastSettingsSection(); // « sources » : ancien lien, fondu dans Connecteurs
+    const wanted = s === "sources" ? "connectors" : s === "agents" ? "machines" : s || lastSettingsSection(); // « sources » : ancien lien, fondu dans Connecteurs
     return SECTIONS.some((x) => x.id === wanted) ? wanted : "accounts";
   });
   useEffect(() => rememberSettingsSection(section), [section]);
@@ -93,7 +93,7 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
         ))}
       </nav>
       <div className="min-w-0 flex-1">
-        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <NotificationsHub /> : section === "connectors" ? <Connectors snap={snap} agentIp={location.hash.split("/")[1] === "agents" ? location.hash.split("/")[2] : undefined} /> : section === "machines" ? <MachinesSettings snap={snap} focusIp={location.hash.split("/")[2]} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings snap={snap} /> : section === "about" ? <AboutSettings /> : section === "audit" ? <AuditLog /> : section === "backups" ? <BackupsSettings /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} snap={snap} /> : <SystemSettings part="system" snap={snap} />}
+        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <NotificationsHub /> : section === "connectors" ? <Connectors /> : section === "machines" ? <MachinesSection snap={snap} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings snap={snap} /> : section === "about" ? <AboutSettings /> : section === "audit" ? <AuditLog /> : section === "backups" ? <BackupsSettings /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} snap={snap} /> : <SystemSettings part="system" snap={snap} />}
       </div>
     </div>
   );

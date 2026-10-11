@@ -1,9 +1,9 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { Check, HelpCircle, Loader2, MonitorUp, Package, Pencil, Plug, Play, Plus, Server, ShieldCheck, Trash2, X, type LucideIcon } from "lucide-react";
+import { Check, HelpCircle, Loader2, Package, Pencil, Plug, Play, Plus, Server, ShieldCheck, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
+import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
@@ -14,24 +14,17 @@ import { configFor, modeOf } from "../lib/connectorModes";
 import { takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
 import { appIcon } from "../lib/appIcons";
-import { Agents } from "./Agents";
-import { lastConnectorsPart, rememberConnectorsPart } from "../lib/settingsNav";
 
 const KIND: Record<string, string> = {
   services: "services", health: tx("santé"), logs: "journaux", dns: "DNS", inventory: "inventaire", backups: "sauvegardes", network: tx("réseau"), security: tx("sécurité"), containers: "Docker",
 };
 
 // Proposé depuis « Premiers pas » : lu une seule fois, à l'ouverture de l'onglet
-export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string }) {
+export function Connectors() {
   const [prefill] = useState(takePrefill);
   const [st, setSt] = useState<ConnectorsState | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
-  const [part, setPart] = useState<Part>(() => {  // sous-onglet ouvert : lien « Installer l'agent » (Agents), sinon le dernier ouvert, sinon SSH & Agents
-    const last = lastConnectorsPart();
-    return agentIp ? "agents" : PARTS.some(([id]) => id === last) ? (last as Part) : "agents";
-  });
-  useEffect(() => rememberConnectorsPart(part), [part]);
   const [editing, setEditing] = useState("");  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
   const [picking, setPicking] = useState(false);  // mini cartes des connecteurs disponibles, ouvertes par le « + »
   const [src, setSrc] = useState<Record<string, boolean>>({}), [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false);
@@ -50,17 +43,6 @@ export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string
   const type = st.types.find((t) => t.type === adding);
   return (
     <div className="flex flex-col gap-4">
-      <nav className="flex gap-1 overflow-x-auto border-b border-line" aria-label={tx("Sous-onglets des connecteurs")}>
-        {PARTS.map(([id, label, hint, Icon]) => (
-          <button key={id} type="button" onClick={() => setPart(id)} aria-current={part === id ? "page" : undefined} title={hint}
-            className={`flex shrink-0 items-center gap-1.5 rounded-t-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
-              part === id ? "bg-card text-txt shadow-[inset_0_-2px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
-            <Icon size={15} strokeWidth={1.75} aria-hidden />{label}
-            {id === "connectors" && <Dim>{st.instances.length}</Dim>}
-          </button>
-        ))}
-      </nav>
-      {part === "connectors" && <>
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Mes connecteurs")} <Dim>· {st.instances.length}</Dim></h2>
@@ -129,22 +111,10 @@ export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string
         </div>
       )}
 
-      </>}
-
-      {part === "agents" && <>
-        <Agents focusIp={agentIp} live={snap.data.machine_list || []} />
-        <ReadBySsh snap={snap} instances={st.instances} />
-      </>}
 
     </div>
   );
 }
-
-type Part = "connectors" | "agents";
-const PARTS: [Part, string, string, LucideIcon][] = [
-  ["agents", tx("SSH & Agents"), tx("Comment chaque machine est lue : agent PowerShell (Windows) ou SSH (Linux)"), MonitorUp],
-  ["connectors", tx("Connecteurs"), tx("L'accès à chaque outil : adresse, jeton, test"), Plug],
-];
 
 /** Connecteurs dont l'affichage sur la page est une source activable (le même interrupteur vaut pour toutes les instances du type) */
 const SHOWN: Record<string, string> = { npm: tx("Afficher les services et compteurs NPM sur la page"), adguard: tx("Afficher l'onglet DNS et les compteurs AdGuard (toutes les instances)") };
@@ -179,34 +149,6 @@ function TestReport({ r, onClose }: { r: TestOut; onClose: () => void }) {
         </div>
       )}
     </div>
-  );
-}
-
-/** Ce que la collecte lit par SSH (AdGuard, Docker, process…) : pas de formulaire ici, le réglage est celui de la machine */
-function ReadBySsh({ snap, instances }: { snap: Snapshot; instances: ConnectorInstance[] }) {
-  const rows = (snap.data.connectors ?? []).filter((c) => !instances.some((i) => i.type === c.type && i.name === c.name));
-  if (!rows.length) return null;
-  const machines = snap.data.machine_list ?? [];
-  return (
-    <Card>
-      <h2 className="mb-1 flex items-center gap-2 font-bold"><Server size={16} />{tx("Lus par SSH ou par l'agent")} <Dim>· {rows.length}</Dim></h2>
-      <p className="mb-3 text-sm text-muted">{tx("Pas de formulaire ici : ces lectures se règlent sur la machine (AdGuard, Docker, processus). Elles sont trouvées toutes seules quand la machine est lue par SSH.")}</p>
-      <ul className="flex flex-col divide-y divide-line/60">
-        {rows.map((c) => {
-          const ip = c.ip || c.name, m = machines.find((x) => x.ip === ip);
-          return (
-            <li key={`${c.type}/${c.name}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 text-sm">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">
-                {appIcon([c.type]) ? <img src={appIcon([c.type])!} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}
-              </span>
-              <b className="capitalize">{c.type}</b><Dim>· {m?.name ?? c.name}</Dim>
-              <span className="min-w-0 flex-1"><StatusLine s={c} /></span>
-              {m && <a className={`${quiet} no-underline`} href={`#settings/machines/${m.ip}`}>{tx("Régler sur la machine")}</a>}
-            </li>
-          );
-        })}
-      </ul>
-    </Card>
   );
 }
 
