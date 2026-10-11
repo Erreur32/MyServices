@@ -30,7 +30,7 @@
 > lire vos machines** : l'essayer présente peu de risque, mais laissez-lui du temps avant de vous y fier pour quelque chose de critique :
 > gardez une copie de `config/` et `data/` avant chaque mise à jour, et laissez-le sur votre réseau local (jamais directement sur Internet).
 >
-> Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.10.0`, `0.10.1`…).
+> Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.10.1`, `0.10.2`…).
 > Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 ## En bref
@@ -59,7 +59,7 @@ docker compose logs myservices        # clé publique de l'app et commande pour 
 Puis ouvrez `http://<IP>:8090/myservices/v2/` **dans les 30 minutes** pour créer le compte admin (passé ce délai :
 `docker compose restart myservices`), et suivez la carte **« Premiers pas »**, puis la page **Aide** des Réglages.
 
-Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.10.0` une version précise, `:docker` le dernier état de la branche.
+Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.10.1` une version précise, `:docker` le dernier état de la branche.
 Mise à jour : `docker compose pull && docker compose up -d` (réglages et données restent dans les volumes `./config` et `./data`).
 
 ---

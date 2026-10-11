@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.1 (2026-10-11)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Changed
 - **One card style across the app** (Settings and the other tabs): every card title that opens a card, alone or on a row with its buttons, is now a header strip across the card (same look as the new table cards, card grids and DNS cards), instead of a title with a blue bar; cards that need attention (detected services not configured, alerts off, authorise the key) tint the strip and the frame orange, finished ones green. Cards get a light shadow.
 - **Every card title now has an icon** (Theme, Language, Accounts, Session duration, Add an account, My password, Authorise the key, Machines, Channels, Rules, My notifications, Latest sends, Audit log, Tokens, MCP tools, Updates, Changelog, Network search…), so the header strips read the same everywhere.

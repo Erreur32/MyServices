@@ -30,7 +30,7 @@
 > but give it time before relying on it for something critical: keep a copy of `config/` and `data/` before every update, and keep it on
 > your local network (never straight on the Internet).
 >
-> Version numbers stay **below 2.0.0** until it is declared stable (`0.10.0`, `0.10.1`…).
+> Version numbers stay **below 2.0.0** until it is declared stable (`0.10.1`, `0.10.2`…).
 > Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in French).
 
 ## At a glance
@@ -59,7 +59,7 @@ docker compose logs myservices        # the app's public key and the command to 
 Then open `http://<IP>:8090/myservices/v2/` **within 30 minutes** to create the admin account (after that delay:
 `docker compose restart myservices`) and follow the **"Premiers pas"** (getting started) card, then the **Help** page in Settings.
 
-Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.10.0` pins a version, `:docker` tracks the branch head.
+Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.10.1` pins a version, `:docker` tracks the branch head.
 Update: `docker compose pull && docker compose up -d` (settings and data live in the `./config` and `./data` volumes).
 
 ---

@@ -1,31 +1,31 @@
-# Notes de version : MyServices 0.10.0
+# Notes de version : MyServices 0.10.1
 
 > **Version en ligne, à un stade précoce.** MyServices est utilisable, mais jeune : des écrans et des réglages peuvent encore changer. Gardez une copie de `config/` et `data/` avant de mettre à jour, et laissez-le sur votre réseau local.
 
 
-**0.10.0** (11 octobre 2026) refait l'accueil et les filtres, ajoute des schémas à créer d'un clic (réseau, services par machine, domaines, machines virtuelles) et enrichit le schéma « Accès aux machines ».
+**0.10.1** (11 octobre 2026) corrige la création d'un schéma, uniformise l'apparence des cartes dans toute l'appli et refait les pages Santé, DNS et Sauvegardes.
 
 ## Pour tout le monde
 
 **Quoi de neuf ?**
-- **Accueil refait** : chaque section est une carte avec un en-tête et un lien « Ouvrir → ». Les compteurs ne sont plus répétés dans le corps : ils sont à droite, et **un clic sur un compteur ouvre l'onglet déjà filtré** (par exemple NPM « à corriger », Santé « critiques », Machines « à régler »). AdGuard défile jusqu'au bon bloc.
-- **Cartes repliables** : « N points demandent ton attention » (12 lignes par défaut, au choix 25, 50 ou toutes) et « À faire pour compléter la découverte » (avec un badge du nombre) se replient, et le choix est retenu.
-- **Filtres sur toutes les pages** : un filtre se désactive d'un clic et se réactive d'un autre, plusieurs peuvent être actifs ensemble, toutes les pastilles sont visibles (plus de « +2 autres »), rangées en colonnes par catégorie. Le bouton « Filtres » est toujours le plus à droite, « Désactivées » de Machines est rangé dedans, et **Services s'ouvre sur « OK »**.
-- **Schémas à créer d'un clic** (onglet Schémas) : équipements et appareils du réseau (passerelle, switchs, bornes Wi-Fi et ce qui est branché dessus, lu par MynetworK et UniFi), services par machine, domaines et leur chemin (NPM et Apache), machines virtuelles et conteneurs (Proxmox). Un schéma sans données est grisé.
-- **« Accès aux machines » enrichi** : chaque machine est dessinée sous sa façon d'être lue (SSH, agent, connecteur, aucun accès), avec son état de santé, son compte et son port. **« Qui lit quoi (connecteurs) » est retiré** : trop léger pour servir.
-- **Finitions des réglages** : les nombres des titres sont dans des bulles rondes, les cartes de Réglages → Machines ont la même taille et sont alignées, les titres de cartes sont plus visibles, les repères bleus des onglets actifs sont plus fins.
+- **Correction** : créer ou régénérer un schéma dans l'onglet Schémas donnait une erreur « HTTP 500 ». C'est réparé, et l'onglet montre maintenant l'avancement (« Création en cours · depuis N s », durée de la dernière génération).
+- **Un seul style de carte partout** : chaque titre de carte devient un bandeau d'en-tête avec son icône, les cartes qui demandent une action sont teintées orange (vertes quand tout va bien), et tous les titres ont maintenant une icône.
+- **Santé** : SSH, agent, Beszel et API sont dans **un seul tableau**, séparés par une ligne légère par catégorie. Virtualisation, conteneurs (Dockhand) et services lus par API sont dans **une seule grille de cartes uniformes** ; la carte Dockhand liste ses environnements dans un tableau.
+- **DNS** : les cartes de synchronisation et des serveurs AdGuard ont un nouveau bandeau, et chaque liste (écarts entre instances, réécritures sans host NPM, noms invalides, réécritures directes, domaines à vérifier) est un tableau aux colonnes alignées.
+- **Sauvegardes** : les tuiles de chiffres tiennent sur une seule ligne, et la carte « À regarder » est un tableau (état, jeu de sauvegarde, ce qui ne va pas).
+- **README et logo** : le README (français et anglais) est refait, avec des sections pliantes pour les gros blocs et un logo bâti sur la grille 3×3 du favicon (variantes claire et sombre, en SVG et en PNG).
+- **Ton du projet** : MyServices est présenté comme « en ligne, mais à un stade précoce » et non plus comme « phase de test, ne pas utiliser ».
 
 **Ce qu'il faut savoir**
-- Le schéma « Machines virtuelles et conteneurs » (Proxmox) et les connecteurs Prometheus, Healthchecks, Netdata, Jellyfin et Proxmox Backup sont écrits d'après la documentation de chaque service et **essayés seulement contre de faux serveurs** : dites-nous ce qui ne va pas avec les vrais.
-- Les schémas se créent depuis ce que MyServices a déjà lu : si une donnée manque (pas de MynetworK, pas de Proxmox), le schéma correspondant reste grisé.
+- Proxmox (schéma), Prometheus, Healthchecks, Netdata, Jellyfin et Proxmox Backup restent essayés seulement contre de faux serveurs : dites-nous ce qui ne va pas avec les vrais.
 - Rien n'est modifié sur vos machines : MyServices ne fait que lire.
 
 **Mettre à jour** : `docker compose pull`, puis `docker compose up -d`. Vos réglages et vos données sont gardés.
 
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.10.0` (amd64 et arm64) ; `:latest` suit le dernier tag.
-- **API** : `PUT /diagrams/{id}` (créer ou retirer un schéma proposé) ; `GET /diagrams` ajoute `optional` et `enabled` ; réglage `diagrams_extra`.
-- **Schémas** : assemblage commun (`archify_map.grouped`), nouveaux schémas dans `archify_extra.py`, `connecteurs.html` supprimé.
-- **Tests** : 455 Python, 91 front.
+- **Image** : `ghcr.io/erreur32/myservices:0.10.1` (amd64 et arm64) ; `:latest` suit le dernier tag.
+- **API** : `GET /diagrams` renvoie aussi l'état de la génération (`build`) ; `PUT /diagrams/{id}` corrigé (import manquant).
+- **Front** : composant commun `TableCard`, prop `tone` sur `Card`, titres de carte en bandeau.
+- **Tests** : 456 Python, 91 front.
 - **Détail complet** (en anglais) : [CHANGELOG.md](CHANGELOG.md).
