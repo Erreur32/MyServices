@@ -1,7 +1,7 @@
 // Santé des machines (health.py / Beszel) : une fiche par machine, avec ce qui ne va pas en premier.
 import { Fragment, useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
-import { useFilter, type Facet } from "../lib/filter";
+import { useFilter, type Facet, type Selected } from "../lib/filter";
 import { dateTime, splitHostName } from "../lib/format";
 import type { AsleepHost, HealthHost } from "../types";
 import { Cards, Badge, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
@@ -167,7 +167,7 @@ function HealthTable({ hosts, asleep, osOf, open, toggle }: {
 
 const SOURCE_LABEL: Record<string, string> = { ssh: "SSH", agent: tx("agent"), beszel: "Beszel", ha: "Home Assistant" };
 
-export function Health({ snap }: { snap: Snapshot }) {
+export function Health({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
   const hosts = useMemo(() => [...(snap.health?.hosts || [])].sort((a, b) => RANK[levelOf(a)] - RANK[levelOf(b)]), [snap.health]);
   // Système d'une machine : logo de la distribution quand on la connaît (relevé SSH ou agent), sinon la famille (Linux, Windows…)
   const byIp = useMemo(() => new Map(snap.data.machine_list.map((m) => [m.ip, m])), [snap.data.machine_list]);
@@ -182,7 +182,7 @@ export function Health({ snap }: { snap: Snapshot }) {
     { key: "access", label: tx("Accès"), get: accessOf, name: (v) => ACCESS.find(([k]) => k === v)?.[1] ?? v, order: ACCESS.map(([k]) => k) },
   ], [osOf]);
   const text = useCallback((h: HealthHost) => [h.name, ...problems(h).map((p) => p[1])].join(" "), []);
-  const f = useFilter(hosts, facets, text);
+  const f = useFilter(hosts, facets, text, initial);
   const [view, pickView] = useStoredView("ms.health.view", "cards");
   const [open, setOpen] = useState<Set<string>>(new Set());  // lignes du tableau dépliées
   const toggleOpen = (id: string) => setOpen((o) => { const n = new Set(o); if (!n.delete(id)) n.add(id); return n; });

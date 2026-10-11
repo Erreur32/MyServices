@@ -9,6 +9,7 @@ import { Rich } from "./Rich";
 import { StatsColumn } from "./StatsColumn";
 import { TABS } from "../lib/tabs";
 import { tx } from "../lib/i18n";
+import type { Selected } from "../lib/filter";
 
 const MAX = 8;
 
@@ -21,7 +22,7 @@ function TabIcon({ tab }: { tab: TabId }) {
 /** Lien-bouton discret : texte + flèche qui avance au survol (ouvre l'onglet) */
 const GO = "group/go inline-flex items-center gap-1 rounded-full border border-line bg-bg2/60 px-2.5 py-1 text-xs font-semibold text-muted transition-colors hover:border-link hover:bg-link/10 hover:text-link";
 
-export function Home({ snap, items, go, now }: { snap: Snapshot; items: Attention[]; go: (t: TabId) => void; now: number }) {
+export function Home({ snap, items, go, goFilter, now }: { snap: Snapshot; items: Attention[]; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void; now: number }) {
   const crit = items.filter((i) => i.level === "crit").length;
   const tone = items.length ? (crit ? "bad" : "warn") : "ok";
   const frame = { bad: "border-bad/50", warn: "border-warn/50", ok: "border-ok/40" }[tone];
@@ -83,7 +84,7 @@ export function Home({ snap, items, go, now }: { snap: Snapshot; items: Attentio
           </section>
         ))}
       </div>
-      <StatsColumn snap={snap} go={go} />
+      <StatsColumn snap={snap} go={go} goFilter={goFilter} />
     </div>
   );
 }

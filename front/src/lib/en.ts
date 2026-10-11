@@ -1475,6 +1475,8 @@ export const EN: Record<string, string> = {
   "La machine n'enverra plus rien.": "The machine will stop sending anything.",
   "Adresse de MyServices, vue du PC": "MyServices address, as seen from the PC",
   "SSH & Agents": "SSH & Agents",
+  "Ouvrir l'onglet": "Open the tab",
+  "Afficher seulement : {0}": "Show only: {0}",
   "Modifier ce connecteur": "Edit this connector",
   "Services détectés non configurés": "Detected services not configured",
   "MyServices a reconnu ces applis mais ne les lit pas encore. Cliquez sur l'une d'elles pour renseigner son accès en lecture.": "MyServices recognised these apps but does not read them yet. Click one to enter its read-only access.",

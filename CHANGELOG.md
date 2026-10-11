@@ -10,6 +10,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ## Unreleased (next version, not tagged yet)
 
 ### Changed
+- **Home counters open the tab already filtered**: a click on a counter in the right-hand column (e.g. NPM "to fix", Health "critical", Machines "to set up") opens the right tab with only what that counter counts (Services, Machines, Health); the title still opens the tab unfiltered. The filter is applied once and cleared when you change tab by hand. Backups and AdGuard counters just open their tab (their counts are per backup set / per domain, which those tabs do not filter on).
 - **Home notification frame redone**: the "to do to complete the discovery" frame is now a notification card with a bell and a **count badge**, then one row per item (system logo, **App** found on **Machine**, why) with its button and "Stop reminding me". The attention card shows its count in a coloured badge too.
 - **Home page body redone** (the right-hand counters and schedule column are untouched): the counters are no longer repeated inside each card, so they only live on the right. Each section is a card with a header strip (icon tile, title, an "Open" link-pill whose arrow moves on hover), the attention card has a coloured status strip with dot-marked rows, and sentences get a soft bullet.
 

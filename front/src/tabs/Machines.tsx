@@ -2,7 +2,7 @@
 import { ArrowUpCircle, Boxes, Bug, Check, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { read, type Snapshot } from "../api";
-import { useFilter, useSort, type Facet } from "../lib/filter";
+import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
 import type { HealthHost, Machine, NetScan } from "../types";
@@ -313,7 +313,7 @@ function Detail({ m, h, mac, from, watch }: { m: Machine; h?: HealthHost; mac?: 
   );
 }
 
-export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: string) => void }) {
+export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachine: (ip: string) => void; initial?: Selected }) {
   const hb = useMemo(() => healthByIp(snap.health?.hosts), [snap.health]);
   // Système et applis vus par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas
   const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean }>>({});
@@ -336,7 +336,7 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
   const [showOff, setShowOff] = useState(false);
   const nOff = snap.data.machine_list.filter(isOff).length;
   const items = useMemo(() => (showOff ? snap.data.machine_list : snap.data.machine_list.filter((m) => !isOff(m))), [snap.data.machine_list, showOff, isOff]);
-  const f = useFilter(items, facets, text);
+  const f = useFilter(items, facets, text, initial);
   const keyOf = useCallback((m: Machine, k: string): string | number => {
     switch (k) {
       case "state": return ORDER.indexOf(mState(m));

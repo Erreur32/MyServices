@@ -38,7 +38,8 @@ export default function App() {
   const [hash, setHash] = useState(location.hash); // section des Réglages dans le lien (#settings/api)
   const [now, setNow] = useState(Date.now());
   // Filtre posé en ouvrant Services depuis une machine (clic sur son nom) ; la clé recrée l'onglet
-  const [svcFilter, setSvcFilter] = useState<{ sel: Selected; n: number }>({ sel: {}, n: 0 });
+  // Filtre demandé à l'ouverture d'un onglet (clic sur un compteur, sur une machine…) : lu une fois à l'affichage, effacé dès qu'on change d'onglet à la main
+  const [pending, setPending] = useState<{ tab: TabId; sel: Selected; n: number }>({ tab: "home", sel: {}, n: 0 });
 
   const retry = useRef<ReturnType<typeof setTimeout>>(undefined);
   const load = useCallback(() => {
@@ -60,7 +61,9 @@ export default function App() {
     return () => { clearInterval(id); removeEventListener("hashchange", onHash); };
   }, [load]);
 
-  const go = (t: TabId) => { location.hash = t === "home" ? "" : t; setTab(t); scrollTo({ top: 0 }); };
+  const go = (t: TabId) => { location.hash = t === "home" ? "" : t; setTab(t); setPending((f) => ({ tab: "home", sel: {}, n: f.n })); scrollTo({ top: 0 }); };
+  const goFilter = (t: TabId, sel: Selected) => { go(t); setPending((f) => ({ tab: t, sel, n: f.n + 1 })); };
+  const initialFor = (t: TabId): Selected => (pending.tab === t ? pending.sel : {});
 
   if (!snap && fresh)
     return (
@@ -99,11 +102,11 @@ export default function App() {
           <Profile username={snap.me.username} role={snap.me.role} />
         </>
       ) : <Tabs tab={current} snap={snap} badges={badges} onSelect={go} />}
-      {!profile && current === "home" && <Home snap={snap} items={items} go={go} now={now} />}
+      {!profile && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} />}
       {current === "history" && <History snap={snap} />}
-      {current === "machines" && <Machines snap={snap} onMachine={(ip) => { setSvcFilter((f) => ({ sel: { machine: [ip] }, n: f.n + 1 })); go("services"); }} />}
-      {current === "services" && <Services key={svcFilter.n} snap={snap} initial={svcFilter.sel} />}
-      {current === "health" && <Health snap={snap} />}
+      {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
+      {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} />}
+      {current === "health" && <Health key={pending.tab === "health" ? pending.n : 0} snap={snap} initial={initialFor("health")} />}
       {current === "dns" && <Dns snap={snap} />}
       {current === "backups" && <Backups snap={snap} />}
       {current === "diagrams" && <DiagramsTab admin={snap.me.role === "admin"} />}
