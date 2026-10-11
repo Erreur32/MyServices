@@ -1,7 +1,7 @@
 // Réglages → Découverte, en trois sous-onglets (Réseau et machines, Services et applis, Sauvegardes) : les découvertes de chaque famille
 // en cartes, et pour le réseau le scan du réseau local (lecture seule) et sa fréquence automatique ; relancer à la main,
 // refaire le parcours des premiers pas. Le premier scan est toujours manuel : l'automatique ne démarre qu'après lui.
-import { ListChecks, Radar, RotateCcw, Search } from "lucide-react";
+import { ListChecks, Radar, RotateCcw, Search, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { NoteLine } from "../components/form";
@@ -146,7 +146,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
         </Card>
         <div className="flex flex-col gap-4">
           <Card>
-            <h2 className="mb-1 font-bold">{tx("Réseaux et discrétion")}</h2>
+            <h2 className="mb-1 flex items-center gap-2 font-bold"><ShieldCheck size={16} aria-hidden />{tx("Réseaux et discrétion")}</h2>
             <p className="mb-3 text-sm text-muted">{tx("Par défaut, le réseau de la machine hôte. Vous pouvez en indiquer plusieurs (un /24 au plus chacun), séparés par une virgule.")}</p>
             <form className="mb-4 flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void saveNets(); }}>
               <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-dim">{tx("Réseaux à parcourir")}

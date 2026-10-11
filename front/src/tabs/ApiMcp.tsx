@@ -1,7 +1,7 @@
 // Réglages → API et MCP, sur le modèle de MynetworK : jetons d'API (REST) et MCP (assistants IA), séparés.
 // Trois niveaux (lecture, lecture + passages, admin) ; jeton montré une seule fois avec la configuration à copier ;
 // révocation ; outils MCP activables un par un. Gérés seulement depuis une session admin.
-import { Bot, Copy, KeyRound, Plus, Trash2, Webhook } from "lucide-react";
+import { Bot, Copy, KeyRound, Plus, Trash2, Webhook, Wrench } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, ROOT, send } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
@@ -70,7 +70,7 @@ function NewToken({ onCreated }: { onCreated: (c: { token: string; info: ApiToke
   };
   return (
     <Card>
-      <h2 className="mb-3 font-bold">{tx("Nouveau jeton")}</h2>
+      <h2 className="mb-3 flex items-center gap-2 font-bold"><KeyRound size={16} aria-hidden />{tx("Nouveau jeton")}</h2>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label={tx("Sorte")}>
@@ -132,7 +132,7 @@ function Created({ c, origin, mcpPath, onClose }: { c: { token: string; info: Ap
   const url = `${origin}${mcpPath}`;
   return (
     <Card tone="ok">
-      <h2 className="mb-1 font-bold text-ok">{tx("Jeton «")} {c.info.name} {tx("» créé")}</h2>
+      <h2 className="mb-1 flex items-center gap-2 font-bold text-ok"><KeyRound size={16} aria-hidden />{tx("Jeton «")} {c.info.name} {tx("» créé")}</h2>
       <p className="mb-3 text-sm text-warn">{tx("À copier maintenant : il ne sera plus jamais affiché.")}</p>
       <div className="flex flex-col gap-3">
         <CopyBlock label={tx("Jeton")} text={c.token} />
@@ -152,7 +152,7 @@ function Created({ c, origin, mcpPath, onClose }: { c: { token: string; info: Ap
 function TokenList({ tokens, reload }: { tokens: ApiToken[]; reload: () => void }) {
   return (
     <Card>
-      <h2 className="mb-2 font-bold">{tx("Jetons")} <Count n={tokens.filter((t) => t.state === "actif").length} tone="ok" /> <Dim>{tx("actifs")}</Dim></h2>
+      <h2 className="mb-2 flex items-center gap-2 font-bold"><KeyRound size={16} aria-hidden />{tx("Jetons")} <Count n={tokens.filter((t) => t.state === "actif").length} tone="ok" /> <Dim>{tx("actifs")}</Dim></h2>
       {tokens.length === 0 ? <p className="text-sm text-muted">{tx("Aucun jeton.")}</p> : (
         <ul className="flex flex-col divide-y divide-line/60">{tokens.map((t) => <TokenRow key={t.id} t={t} reload={reload} />)}</ul>
       )}
@@ -192,7 +192,7 @@ function Tools({ st, reload }: { st: TokensState; reload: () => void }) {
   const [note, setNote] = useState<Note>(null);
   return (
     <Card>
-      <h2 className="mb-1 font-bold">{tx("Outils MCP")}</h2>
+      <h2 className="mb-1 flex items-center gap-2 font-bold"><Wrench size={16} aria-hidden />{tx("Outils MCP")}</h2>
       <p className="mb-3 text-sm text-muted">{tx("Ce qu'un assistant peut faire avec un jeton MCP. Un outil coupé n'est plus proposé ni accepté, quel que soit le jeton.")}</p>
       <ul className="flex flex-col gap-2">
         {st.tools.map((t) => (

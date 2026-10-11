@@ -2,7 +2,7 @@
 // les comptes (ajout, rôle, activation, nouveau mot de passe, suppression) et le journal des actions.
 // Apparence : thème et largeur de la page (« Page width » de GpuViewR), retenus par le navigateur.
 // Menu en quatre groupes (Données, Surveillance, Accès et sécurité, Application). Autres sections : un fichier chacune dans tabs/.
-import { ArrowRight, Bell, Eye, LifeBuoy, HardDrive, Info, KeyRound, Moon, MoveHorizontal, Palette, Plug, Plus, Radar, RotateCcw, ScrollText, Server, Settings2, Sun, Timer, Trash2, ShieldCheck, UserCheck, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bell, Eye, HardDrive, Image, Info, KeyRound, Languages, LifeBuoy, type LucideIcon, Moon, MoveHorizontal, Palette, Plug, Plus, Radar, RotateCcw, ScrollText, Server, Settings2, ShieldCheck, Sun, Timer, Trash2, UserCheck, UserPlus, UserRound, Users, UserX, Webhook } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { dateTime } from "../lib/format";
@@ -112,7 +112,7 @@ function Appearance({ look }: { look: Look }) {
   return (
     <div className="flex flex-col gap-4">
       <Card>
-        <h2 className="mb-3 font-bold">{tx("Thème")}</h2>
+        <h2 className="mb-3 flex items-center gap-2 font-bold"><Palette size={16} aria-hidden />{tx("Thème")}</h2>
         <div className="flex flex-wrap gap-2">
           {themes.map((t) => (
             <button key={t.id} type="button" onClick={() => look.setTheme(t.id)} aria-pressed={look.theme === t.id}
@@ -124,12 +124,12 @@ function Appearance({ look }: { look: Look }) {
         </div>
       </Card>
       <Card>
-        <h2 className="mb-1 font-bold">{tx("Logo de l'en-tête")}</h2>
+        <h2 className="mb-1 flex items-center gap-2 font-bold"><Image size={16} aria-hidden />{tx("Logo de l'en-tête")}</h2>
         <p className="mb-3 text-sm text-muted">{tx("L'icône affichée avant le titre. Le changement est immédiat. Le favicon de l'onglet du navigateur ne change pas.")}</p>
         <IconChoice label={tx("Logo de l'en-tête")} value={useHeaderLogo()} onPick={setHeaderLogo} options={LOGO_OPTIONS} />
       </Card>
       <Card>
-        <h2 className="mb-3 font-bold">{tx("Langue")}</h2>
+        <h2 className="mb-3 flex items-center gap-2 font-bold"><Languages size={16} aria-hidden />{tx("Langue")}</h2>
         <div className="flex flex-wrap gap-2">
           {([["fr", "Français"], ["en", "English"]] as [Lang, string][]).map(([l, label]) => (
             <button key={l} type="button" onClick={() => l !== LANG && setLang(l)} aria-pressed={LANG === l}
@@ -188,7 +188,7 @@ function Accounts({ me }: { me: string }) {
         <SessionDays />
       </div>
       <Card>
-        <h2 className="mb-1 font-bold">{tx("Comptes")} {users && <Count n={users.length} />}</h2>
+        <h2 className="mb-1 flex items-center gap-2 font-bold"><Users size={16} aria-hidden />{tx("Comptes")} {users && <Count n={users.length} />}</h2>
         <p className="mb-3 text-sm text-muted">
           <b className="text-txt">{tx("Admin")}</b> {tx(": tout, réglages compris.")} <b className="text-txt">{tx("Lecture seule")}</b> {tx(": voit la page et peut demander un passage (⟳). Ton propre mot de passe et tes sessions : menu du compte → « Profil ». Un admin ne peut pas se retirer ses droits, et il reste toujours au moins un admin actif.")}
         </p>
@@ -215,7 +215,7 @@ function SessionDays() {
   const n = Number(days), valid = Number.isInteger(n) && n >= 1 && n <= 90;
   return (
     <Card>
-      <h2 className="mb-1 font-bold">{tx("Durée des sessions")}</h2>
+      <h2 className="mb-1 flex items-center gap-2 font-bold"><Timer size={16} aria-hidden />{tx("Durée des sessions")}</h2>
       <p className="mb-3 text-sm text-muted">{tx("Combien de temps un navigateur reste connecté sans que l'on redemande le mot de passe (de 1 à 90 jours). Vaut pour les prochaines connexions ; les sessions déjà ouvertes gardent leur échéance jusqu'à leur prochaine prolongation.")}</p>
       <form className="flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); if (valid) void act(() => send("PUT", "security/session-days", { days: n }), tx("enregistré : {0} jours", n), setNote).then((ok) => ok && setCur(n)); }}>
         <div className="flex flex-col gap-1 text-sm text-muted">{tx("Jours")}
@@ -244,7 +244,7 @@ function AddUser({ onDone }: { onDone: () => void }) {
   };
   return (
     <Card>
-      <h2 className="mb-3 font-bold">{tx("Ajouter un compte")}</h2>
+      <h2 className="mb-3 flex items-center gap-2 font-bold"><UserPlus size={16} aria-hidden />{tx("Ajouter un compte")}</h2>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={tx("Nom (lettres, chiffres, . _ @ -)")}>

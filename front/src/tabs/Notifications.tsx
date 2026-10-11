@@ -1,6 +1,6 @@
 // Réglages → Notifications : des messages que l'on compose soi-même (rapports de machines à heure fixe, événements en direct filtrés),
 // envoyés sur les mêmes canaux que les alertes. Des exemples fonctionnels s'ajoutent d'un clic ; « Envoyer maintenant » envoie un vrai message.
-import { BarChart3, CalendarClock, Pencil, Plus, Radio, Send, Sparkles, Trash2 } from "lucide-react";
+import { BarChart3, Bell, CalendarClock, History, Pencil, Plus, Radio, Send, Sparkles, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
@@ -61,7 +61,7 @@ function List({ st, reload }: { st: NotificationsState; reload: () => void }) {
   return (
     <Card>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-bold">{tx("Mes notifications")} <Count n={st.notifications.length} /></h2>
+        <h2 className="flex items-center gap-2 font-bold"><Bell size={16} aria-hidden />{tx("Mes notifications")} <Count n={st.notifications.length} /></h2>
         {!editing && <button type="button" className={quiet} onClick={() => setEditing("new")}><Plus size={14} />{tx("Nouvelle notification")}</button>}
       </div>
       {st.notifications.length === 0 && !editing && <p className="text-sm text-muted">{tx("Aucune notification. Ajoutez un exemple ci-dessous ou créez la vôtre.")}</p>}
@@ -229,7 +229,7 @@ function Sent({ st }: { st: NotificationsState }) {
   if (!st.sent.length) return null;
   return (
     <Card>
-      <h2 className="mb-2 font-bold">{tx("Derniers envois")} <Count n={st.sent.length} /></h2>
+      <h2 className="mb-2 flex items-center gap-2 font-bold"><History size={16} aria-hidden />{tx("Derniers envois")} <Count n={st.sent.length} /></h2>
       <ul className="flex flex-col divide-y divide-line/60 text-sm">
         {st.sent.map((s, i) => (
           <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">

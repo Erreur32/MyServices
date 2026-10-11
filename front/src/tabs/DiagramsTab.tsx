@@ -1,5 +1,5 @@
 // Onglet Schémas : tous les schémas de l'infra (Archify) au même endroit, avec aperçu, ouverture dans un onglet et régénération.
-import { Eye, EyeOff, ExternalLink, Loader2, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { ExternalLink, Eye, EyeOff, Loader2, Plus, RefreshCw, Sparkles, Trash2, Workflow } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ROOT, send } from "../api";
 import { NoteLine } from "../components/form";
@@ -57,7 +57,7 @@ export function DiagramsTab({ admin }: { admin: boolean }) {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h2 className="font-bold">{tx("Schémas de l'infrastructure")} <Count n={`${list.filter((x) => x.exists).length}/${list.length}`} /></h2>
+            <h2 className="flex items-center gap-2 font-bold"><Workflow size={16} aria-hidden />{tx("Schémas de l'infrastructure")} <Count n={`${list.filter((x) => x.exists).length}/${list.length}`} /></h2>
             <p className="text-sm text-muted">{tx("Tous les schémas générés à partir de ce que MyServices sait de votre infra. Ils se mettent à jour après chaque collecte quand les données changent.")}</p>
           </div>
           {admin && d.archify && <button type="button" className={quiet} disabled={busy} onClick={() => void rebuild()}>{busy ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <RefreshCw size={14} aria-hidden />}{tx("Regénérer maintenant")}</button>}

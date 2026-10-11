@@ -1,6 +1,6 @@
 // Réglages → À propos, sur le modèle de GpuViewR : identité du projet, version installée et dernière version publiée sur GitHub,
 // puis le journal des changements (une version à la fois, choisie par un bouton).
-import { ExternalLink, Github, RefreshCw } from "lucide-react";
+import { ExternalLink, Github, RefreshCw, ScrollText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Markdown } from "../components/Markdown";
@@ -64,7 +64,7 @@ export function AboutSettings() {
       </Card>
 
       <Card className={a.update_available ? "border-link/50" : ""}>
-        <h2 className="mb-2 font-bold">{tx("Mises à jour")}</h2>
+        <h2 className="mb-2 flex items-center gap-2 font-bold"><RefreshCw size={16} aria-hidden />{tx("Mises à jour")}</h2>
         {!a.enabled ? <p className="text-sm text-muted">{tx("La vérification des mises à jour est coupée (configuration « update_check »). Aucune requête n'est envoyée à GitHub.")}</p>
           : !latest ? <p className="text-sm text-muted">{a.error ?? tx("Pas encore vérifié.")}</p> : (
             <div className="flex flex-col gap-2 text-sm">
@@ -87,7 +87,7 @@ export function AboutSettings() {
       </Card>
 
       <Card>
-        <h2 className="mb-1 font-bold">{tx("Journal des changements")}</h2>
+        <h2 className="mb-1 flex items-center gap-2 font-bold"><ScrollText size={16} aria-hidden />{tx("Journal des changements")}</h2>
         {sections.length === 0 ? <Dim>{tx("Journal indisponible dans cette image.")}</Dim> : (
           <>
             <div className="mb-3 flex flex-wrap gap-1.5" role="tablist" aria-label={tx("Version")}>

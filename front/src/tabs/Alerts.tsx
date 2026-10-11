@@ -1,7 +1,7 @@
 // Réglages → Alertes, sur le modèle de GpuViewR : canaux (Discord, Telegram, webhook ; bouton Essayer),
 // règles (genres d'événements, machine, texte, canaux, délai, retours à la normale), préréglages ajoutés
 // désactivés, et les derniers envois. Les secrets ne reviennent jamais du serveur : champ vide = inchangé.
-import { Bell, ChevronDown, ChevronUp, Eye, EyeOff, Pencil, Plus, Send, Trash2, Webhook } from "lucide-react";
+import { Bell, ChevronDown, ChevronUp, Eye, EyeOff, History, ListChecks, Pencil, Plus, Radio, Send, Trash2, Webhook } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine } from "../components/form";
@@ -92,7 +92,7 @@ function Channels({ st, reload }: { st: AlertsState; reload: () => void }) {
   return (
     <Card>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-bold">{tx("Canaux")} <Count n={st.channels.length} /></h2>
+        <h2 className="flex items-center gap-2 font-bold"><Radio size={16} aria-hidden />{tx("Canaux")} <Count n={st.channels.length} /></h2>
         {!adding && <button type="button" className={quiet} onClick={() => setAdding(true)}><Plus size={14} />{tx("Ajouter un canal")}</button>}
       </div>
       {st.channels.length === 0 && <p className="mb-3 text-sm text-muted">{tx("Aucun canal : en ajouter un pour recevoir les alertes.")}</p>}
@@ -196,7 +196,7 @@ function Rules({ st, reload }: { st: AlertsState; reload: () => void }) {
   return (
     <Card>
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-bold">{tx("Règles")} <Count n={st.rules.length} /></h2>
+        <h2 className="flex items-center gap-2 font-bold"><ListChecks size={16} aria-hidden />{tx("Règles")} <Count n={st.rules.length} /></h2>
         <div className="flex gap-1.5">
           <button type="button" className={quiet} onClick={() => setPresets(!presets)} aria-expanded={presets}>{tx("Préréglages")}</button>
           {!adding && <button type="button" className={quiet} onClick={() => setAdding(true)} disabled={!st.channels.length}><Plus size={14} />{tx("Nouvelle règle")}</button>}
@@ -360,7 +360,7 @@ function Sent({ st }: { st: AlertsState }) {
   const [open, setOpen] = useState<number | null>(null), [doc, setDoc] = useState(false);
   return (
     <Card>
-      <h2 className="mb-2 font-bold">{tx("Derniers envois")} <Count n={st.sent.length} /></h2>
+      <h2 className="mb-2 flex items-center gap-2 font-bold"><History size={16} aria-hidden />{tx("Derniers envois")} <Count n={st.sent.length} /></h2>
       {st.sent.length === 0 ? <p className="text-sm text-muted">{tx("Rien envoyé pour l'instant.")}</p> : (
         <ul className="flex max-h-[420px] flex-col divide-y divide-line/60 overflow-y-auto text-sm">
           {st.sent.map((s, i) => (

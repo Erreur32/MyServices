@@ -3,7 +3,7 @@
 // prêtes à être cliquées. Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller sur le PC.
 // Gérés seulement depuis une session admin.
 import { shortOs } from "../lib/osName";
-import { ArrowUpCircle, Check, ChevronDown, ChevronRight, Monitor, MonitorUp, Plus, RefreshCw, RotateCw, Trash2, X } from "lucide-react";
+import { ArrowUpCircle, Check, ChevronDown, ChevronRight, Download, Monitor, MonitorUp, Plus, RefreshCw, RotateCw, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Copyable, Field, NoteLine } from "../components/form";
@@ -146,7 +146,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
 
       {pick && machines[pick] && (
         <Card className="border-link/60">
-          <h2 className="mb-1 font-bold">{tx("Installer l'agent sur")} {machines[pick].name} <Dim>· {pick}</Dim></h2>
+          <h2 className="mb-1 flex items-center gap-2 font-bold"><Download size={16} aria-hidden />{tx("Installer l'agent sur")} {machines[pick].name} <Dim>· {pick}</Dim></h2>
           <p className="text-sm text-muted">{tx("L'agent est un script PowerShell pour Windows, en lecture seule. « Créer l'agent » génère son jeton (montré une seule fois) et la commande à coller dans un PowerShell administrateur du PC.")}</p>
           {addressField}
           <div className="mt-3 flex flex-wrap gap-2">

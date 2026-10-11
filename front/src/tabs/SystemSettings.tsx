@@ -1,7 +1,7 @@
 // Réglages, trois sections sur le même état : « Clé SSH » (Accès et sécurité : à autoriser sur chaque machine), « Tâches et
 // horaires » (Surveillance : modifiables, lancer maintenant) et « Sauvegarde et informations » (export de la configuration,
 // version de l'image et lien vers la dernière publiée, chemins, tailles).
-import { Check, Copy, Download, ExternalLink, Eye, EyeOff, KeyRound, Play, RefreshCw, RotateCcw, Server, Timer } from "lucide-react";
+import { Check, Copy, Download, ExternalLink, Eye, EyeOff, KeyRound, Play, RefreshCw, RotateCcw, Server, ShieldCheck, Timer } from "lucide-react";
 import { useCallback, useState, type ReactNode } from "react";
 import { download, LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { copyText } from "../lib/clipboard";
@@ -99,7 +99,7 @@ function SshKey({ ssh, snap }: { ssh: SystemState["ssh"]; snap: Snapshot }) {
 
       {ssh.public && (
         <Card>
-          <h2 className="mb-2 font-bold">{tx("Autoriser la clé sur une machine")}</h2>
+          <h2 className="mb-2 flex items-center gap-2 font-bold"><ShieldCheck size={16} aria-hidden />{tx("Autoriser la clé sur une machine")}</h2>
           <ol className="flex flex-col gap-2.5">
             <li className={step}><span className={num}>1</span><span>{tx("Copiez la commande ci-dessus (le bouton « copier » fonctionne même clé masquée).")}</span></li>
             <li className={step}><span className={num}>2</span><span>{tx("Collez-la dans un terminal de la machine, connecté avec le compte que MyServices doit utiliser. Elle ajoute la clé à")} <code className="font-mono text-xs">~/.ssh/authorized_keys</code>.</span></li>

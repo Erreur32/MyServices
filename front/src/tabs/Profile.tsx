@@ -79,7 +79,7 @@ function MyPassword() {
   };
   return (
     <Card>
-      <h2 className="mb-3 font-bold">{tx("Mon mot de passe")}</h2>
+      <h2 className="mb-3 flex items-center gap-2 font-bold"><KeyRound size={16} aria-hidden />{tx("Mon mot de passe")}</h2>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <Field label={tx("Mot de passe actuel")}>
           <input className={input} type="password" autoComplete="current-password" required value={cur} onChange={(e) => setCur(e.target.value)} />

@@ -1,5 +1,5 @@
 // Réglages → Journal d'audit : les actions (connexions, échecs, changements), filtrées par type, compte et texte, exportables en CSV.
-import { Download, Search } from "lucide-react";
+import { Download, ScrollText, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { LOGIN, LoginRequired, read } from "../api";
 import { Badge, Card, Count, Dim } from "../components/ui";
@@ -50,7 +50,7 @@ export function AuditLog() {
     <div className="flex flex-col gap-4">
       <Card>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-bold">{tx("Journal d'audit")} <Count n={`${shown.length} / ${entries.length}`} /></h2>
+          <h2 className="flex items-center gap-2 font-bold"><ScrollText size={16} aria-hidden />{tx("Journal d'audit")} <Count n={`${shown.length} / ${entries.length}`} /></h2>
           <button type="button" className={quiet} disabled={!shown.length} onClick={exportCsv}><Download size={14} />{tx("Exporter (CSV)")}</button>
         </div>
         <p className="mb-3 text-sm text-muted">{tx("Connexions, échecs, passages demandés, changements de comptes ; gardé un an.")}</p>
