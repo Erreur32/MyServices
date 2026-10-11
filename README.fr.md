@@ -93,12 +93,41 @@ Chaque filtre est un interrupteur : un clic le coupe, un autre le rallume ; plus
 <details>
 <summary><b>🖥️ Comment les machines sont lues</b></summary>
 
-Une machine peut être lue de plusieurs façons à la fois ; la première source qui répond fait foi et les suivantes complètent (l'ordre se règle machine par machine).
+Il y a trois façons de suivre une machine, qui peuvent se combiner. La première source qui répond fait foi et les suivantes complètent (l'ordre se règle machine par machine).
 
-- **SSH** (Linux) : MyServices se connecte avec **sa propre clé** (montrée dans Réglages -> Clé SSH) et lit la santé, Docker, les services en écoute et les serveurs web. Vous l'autorisez sur chaque machine avec une commande. Un compte dédié non root, dans les groupes `docker` et `adm`, est le plus sûr.
-- **Agent** (Windows) : un petit script PowerShell installé en tâche planifiée envoie la santé du PC, ses conteneurs Docker et ses services Windows. Rien à ouvrir côté PC.
-- **Connecteur** : les outils qui ont une API donnent leur propre vue (capteurs Home Assistant, nœuds Proxmox, Beszel…).
-- **Recherche réseau** : un balayage discret du réseau local trouve les machines et leurs applis. Elle se lance une fois à la main, puis se répète toute seule. Vous choisissez les machines à suivre ; elle n'en ajoute jamais seule.
+1. **MyServices lui-même**, rien d'autre à installer :
+   - **SSH** (Linux) : MyServices se connecte avec **sa propre clé** (montrée dans Réglages -> Clé SSH) et lit la santé, Docker, les services en écoute et les serveurs web. Vous l'autorisez sur chaque machine avec une commande. Un compte dédié non root, dans les groupes `docker` et `adm`, est le plus sûr.
+   - **Agent** (Windows) : un petit script PowerShell en lecture seule, installé en tâche planifiée, envoie la santé du PC, ses disques, ses ports, ses services, son matériel et ses conteneurs Docker. Rien à ouvrir côté PC.
+2. **Services externes déjà installés sur le réseau** (connecteurs) : si vous faites déjà tourner Beszel, Proxmox, Uptime Kuma, MynetworK… MyServices lit leur API avec une clé en lecture seule. Rien n'est installé sur la machine.
+3. **Ping et recherche réseau** : indiquent seulement si une machine est allumée et à quelles applis elle répond. Un balayage discret du réseau local se lance une fois à la main, puis se répète seul. Vous choisissez les machines à suivre ; il n'en ajoute jamais seul.
+
+<details>
+<summary><b>🆚 Agent ou services externes ? Ce que l'agent lit déjà</b></summary>
+
+L'agent Windows est un seul petit script. Le tableau montre ce qu'il lit sur un PC et les outils externes qu'il faudrait pour obtenir la même chose. La colonne externe indique ce que ces outils couvrent en général pour cette liste, pas toutes leurs fonctions ; vérifiez leur documentation.
+
+| Ce qui est lu | Agent MyServices (Windows) | Outils externes qui le remplaceraient |
+|---|---|---|
+| Charge CPU et mémoire | ✅ | Beszel, windows_exporter (Prometheus), Netdata |
+| Occupation des disques, par lecteur | ✅ | Beszel, windows_exporter, Netdata |
+| Santé des disques physiques | ✅ | Beszel (SMART), windows_exporter |
+| Durée de fonctionnement et dernier démarrage | ✅ | Beszel, windows_exporter |
+| Ports TCP en écoute et leur programme | ✅ | Peu par défaut ; TCPView à la main |
+| Services automatiques arrêtés en erreur | ✅ | windows_exporter, agent Zabbix |
+| Erreurs système graves (disque, NTFS, WHEA), 24 h | ✅ | Graylog, Loki avec Alloy, Wazuh |
+| Échecs de connexion (nombre, 24 h) | ✅ (compte administrateur) | Wazuh, Graylog, transfert des journaux Windows |
+| Mises à jour Windows en attente | ✅ | WSUS, Intune, PDQ Deploy, Lansweeper |
+| Redémarrage nécessaire | ✅ | Gestionnaires de correctifs |
+| Matériel : fabricant, modèle, BIOS, CPU, cœurs, RAM, GPU | ✅ | GLPI avec FusionInventory, Lansweeper, Snipe-IT |
+| Cartes réseau et adresse IPv4 | ✅ (pas d'adresse MAC) | GLPI, Lansweeper ; MynetworK pour la MAC et le fabricant |
+| Services en cours | ✅ (jusqu'à 300) | windows_exporter, agent Zabbix |
+| Conteneurs Docker du PC : nom, image, ports, état | ✅ | Dockhand ou Portainer (API Docker exposée), Dozzle |
+| Présence : allumé, en veille ou muet | ✅ (l'agent se signale lui-même) | Uptime Kuma (ping ou port), MynetworK |
+| Installation | Un script, une tâche planifiée, une seule connexion sortante vers MyServices | Un service par outil, son propre compte ou sa clé, un port à ouvrir sur le réseau |
+
+Pour les machines Linux, les mêmes informations viennent de SSH, sans rien installer sur la machine.
+
+</details>
 
 Les machines trouvées mais pas suivies, les clés SSH à autoriser et les agents pas encore installés sont listés dans **Réglages -> Découverte** et comptés dans la cloche de l'en-tête.
 

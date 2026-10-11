@@ -93,12 +93,41 @@ Every filter is a toggle: click to turn it off, click again to turn it back on; 
 <details>
 <summary><b>🖥️ How machines are read</b></summary>
 
-A machine can be read several ways at once; the first source that answers is trusted and the next ones complete it (the order is set per machine).
+There are three ways to follow a machine, and they can be combined. The first source that answers is trusted and the next ones complete it (the order is set per machine).
 
-- **SSH** (Linux): MyServices connects with its **own key** (shown in Settings -> SSH key) and reads health, Docker, listening services and web servers. The key is never sent anywhere; you authorize it on each machine with one command. A dedicated non-root account in the `docker` and `adm` groups is the safest.
-- **Agent** (Windows): a small PowerShell script installed as a scheduled task sends the PC's own health, Docker containers and Windows services. Nothing to open on the PC.
-- **Connector**: tools with an API give their own view (Home Assistant sensors, Proxmox nodes, Beszel…).
-- **Network search**: a discreet scan of your local network finds machines and their apps. It is run once by hand, then repeats on its own. You choose which machines to follow; it never adds one alone.
+1. **MyServices itself**, nothing else to install:
+   - **SSH** (Linux): MyServices connects with its **own key** (shown in Settings -> SSH key) and reads health, Docker, listening services and web servers. The key is never sent anywhere; you authorize it on each machine with one command. A dedicated non-root account in the `docker` and `adm` groups is the safest.
+   - **Agent** (Windows): a small read-only PowerShell script, installed as a scheduled task, sends the PC's own health, disks, ports, services, hardware and Docker containers. Nothing to open on the PC.
+2. **External services already on your network** (connectors): if you already run Beszel, Proxmox, Uptime Kuma, MynetworK… MyServices reads their API with a read-only key. Nothing is installed on the machine.
+3. **Ping and network scan**: only tell whether a machine is on and which apps it answers on. A discreet scan of your local network is run once by hand, then repeats on its own. You choose which machines to follow; it never adds one alone.
+
+<details>
+<summary><b>🆚 Agent or external services? What the agent already reads</b></summary>
+
+The Windows agent is one small script. The table lists what it reads on a PC and which external tools you would need to get the same thing. The external column shows what those tools usually cover for this list, not all their features; check their documentation.
+
+| What is read | MyServices agent (Windows) | External tools that would replace it |
+|---|---|---|
+| CPU load and memory | ✅ | Beszel, windows_exporter (Prometheus), Netdata |
+| Disk usage, per drive | ✅ | Beszel, windows_exporter, Netdata |
+| Physical disk health | ✅ | Beszel (SMART), windows_exporter |
+| Uptime and last boot | ✅ | Beszel, windows_exporter |
+| Listening TCP ports and their program | ✅ | Little by default; TCPView by hand |
+| Automatic services stopped in error | ✅ | windows_exporter, Zabbix agent |
+| Critical system errors (disk, NTFS, WHEA), last 24 h | ✅ | Graylog, Loki with Alloy, Wazuh |
+| Failed logons (count, last 24 h) | ✅ (administrator account) | Wazuh, Graylog, Windows event forwarding |
+| Pending Windows updates | ✅ | WSUS, Intune, PDQ Deploy, Lansweeper |
+| Reboot required | ✅ | Patch managers |
+| Hardware: maker, model, BIOS, CPU, cores, RAM, GPU | ✅ | GLPI with FusionInventory, Lansweeper, Snipe-IT |
+| Network cards and IPv4 address | ✅ (no MAC address) | GLPI, Lansweeper; MynetworK for the MAC and vendor |
+| Running services | ✅ (up to 300) | windows_exporter, Zabbix agent |
+| Docker containers on the PC: name, image, ports, state | ✅ | Dockhand or Portainer (Docker API exposed), Dozzle |
+| Presence: on, asleep or silent | ✅ (the agent reports itself) | Uptime Kuma (ping or port), MynetworK |
+| Installation | One script, one scheduled task, one outgoing connection to MyServices | One service per tool, its own account or key, a port to open on the network |
+
+For Linux machines, the same information comes from SSH, with nothing to install on the machine.
+
+</details>
 
 Machines found but not yet followed, SSH keys to authorize and agents not yet installed are listed under **Settings -> Discovery** and counted in the bell of the header.
 
