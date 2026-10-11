@@ -29,7 +29,7 @@ export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; them
         </div>
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
           <img src={`${import.meta.env.BASE_URL}${HEADER_LOGOS.find((l) => l.id === logo)!.file}`} alt="" width={30} height={30} className="shrink-0" />{tx("MyServices")}
-          {snap.me.version && <span className="rounded-md border border-line bg-card px-1.5 py-0.5 font-mono text-xs font-semibold tracking-normal text-dim" title={snap.me.version}>{appVersion(snap.me.version)}</span>}
+          {snap.me.version && <span className="rounded-md border border-line bg-card px-1.5 py-0.5 font-mono text-xs font-semibold tracking-normal text-dim" title={snap.me.released && snap.me.version !== "dev" && !/^v\d+\.\d+\.\d+/.test(snap.me.version) ? tx("Image construite depuis une branche, après la version {0} : {1}", snap.me.released, snap.me.version) : snap.me.version}>{appVersion(snap.me.version, snap.me.released)}</span>}
           {snap.me.version === "dev" && (snap.me.git || snap.me.planned) && (
             <span className="text-xs font-normal tracking-normal text-dim" title={tx("Image de développement : état git d'où elle vient, et version prévue d'après le journal des changements")}>
               {snap.me.git && <>git <code className="font-mono text-muted">{snap.me.git}</code></>}{snap.me.git && snap.me.planned && " · "}{snap.me.planned && <>{tx("prévue")} <code className="font-mono text-link">{snap.me.planned}</code></>}

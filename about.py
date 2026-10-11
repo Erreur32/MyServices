@@ -38,6 +38,13 @@ def planned(changelog: str) -> str | None:
     return f"{m[1]}.{m[2]}.{int(m[3]) + 1}" if m else None
 
 
+def released(changelog: str) -> str | None:
+    """Last version published in the changelog of this build (« ## v0.10.1 (...) » -> « 0.10.1 »), None without one. An image built from a branch
+    carries the changelog of its commit, so this is the release it sits on or just after."""
+    m = re.search(r"^## v(\d+\.\d+\.\d+)\b", changelog, re.M)
+    return m[1] if m else None
+
+
 def newer(latest: str | None, current: str | None) -> bool:
     """Vrai seulement si `latest` est strictement plus récent : une version locale en avance sur son étiquette (« dev », commit local) n'est pas
     présentée comme « plus ancienne que la dernière »."""

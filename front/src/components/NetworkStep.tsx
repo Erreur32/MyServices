@@ -15,6 +15,7 @@ import { ConnectorForm } from "../tabs/Connectors";
 import type { ConnectorsState, ConnectorType, NetHost, NetScan, SystemState } from "../types";
 import { Copyable, NoteLine } from "./form";
 import { netPercent } from "./ScanBar";
+import { SkipButton } from "./SkipButton";
 import { Badge, Count } from "./ui";
 
 /** Icône de l'appli reconnue (rien si elle n'en a pas) */
@@ -145,8 +146,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
       <button type="button" className={scanned ? quietBtn : primary} disabled={busy} onClick={() => void start()}>
         {scanned ? <RefreshCw size={14} aria-hidden /> : <Search size={14} aria-hidden />}{scanned ? tx("Refaire un scan") : tx("Lancer le scan")}
       </button>
-      {onSkip && <button type="button" className={quietBtn} onClick={onSkip}
-        title={tx("Passer cette étape : vous pourrez la refaire plus tard, ici ou dans les Réglages")}>{tx("Passer")}</button>}
+      {onSkip && <SkipButton onClick={onSkip} onDark />}
     </div>
   );
 
@@ -425,9 +425,8 @@ function AddedMachine({ host, linked, onDone }: { host: NetHost; linked: boolean
         <Check size={14} className={valid ? "text-ok" : "text-warn"} aria-hidden /><AppIcon apps={host.apps} /><b className="text-txt">{label}</b>
         <span className="font-mono text-xs text-dim">{host.ip}</span><Badge tone={valid ? "ok" : "warn"}>{valid ? tx("ajoutée") : tx("accès à régler")}</Badge>
         {ssh && ok && <Badge tone="ok">{tx("SSH accepté")}</Badge>}
-        <button type="button" className={`${quietBtn} ml-auto`} onClick={onDone} title={tx("Passer ou fermer ce cadre : la machine reste ajoutée, ses accès se règlent aussi plus tard (« Reprendre » ici, ou Réglages → Machines et Connecteurs)")}>
-          {ssh && !ok ? tx("Passer") : tx("Terminé")}
-        </button>
+        <SkipButton onClick={onDone} onDark className="ml-auto" label={ssh && !ok ? tx("Passer") : tx("Terminé")}
+          title={tx("Passer ou fermer ce cadre : la machine reste ajoutée, ses accès se règlent aussi plus tard (« Reprendre » ici, ou Réglages → Machines et Connecteurs)")} />
       </p>
       {mwk && (
         <p className="mt-2 text-sm text-muted">

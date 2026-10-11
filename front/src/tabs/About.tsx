@@ -14,7 +14,7 @@ import { GITHUB } from "../lib/links";
 
 interface Release { tag: string; name: string; url: string; published: string | null; prerelease: boolean; notes: string }
 interface About {
-  version: string; running: string | null; latest: Release | null; checked_at: number | null; error: string | null; enabled: boolean;
+  version: string; released?: string | null; running: string | null; latest: Release | null; checked_at: number | null; error: string | null; enabled: boolean;
   update_available: boolean; changelog: string; repo: string;
 }
 
@@ -45,7 +45,7 @@ export function AboutSettings() {
             <h2 className="text-2xl font-bold leading-tight">MyServices</h2>
             <p className="text-sm text-muted">{tx("L'état de vos services et de vos machines, au même endroit, en lecture seule.")}</p>
             <p className="mt-1 text-xs text-dim">
-              {tx("Version installée")} : <code className="font-mono text-txt">{appVersion(a.version) || a.version}</code>
+              {tx("Version installée")} : <code className="font-mono text-txt">{appVersion(a.version, a.released) || a.version}</code>
               {a.update_available && latest && <> · {tx("Dernière publiée")} : <code className="font-mono font-semibold text-link">{latest.tag}</code></>}
             </p>
           </div>

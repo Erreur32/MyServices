@@ -337,6 +337,7 @@ export interface Me {
   username: string;
   role: "admin" | "viewer";
   git?: string;      // image de développement : `git describe` du dépôt (build-arg GIT_REV)
+  released?: string | null;  // last release written in this build's changelog (shown for images built from a branch)
   planned?: string | null;  // version prévue (journal des changements : section Unreleased + dernière publiée + 1)
   version?: string;  // version de l'application (tag de l'image, puis empreinte du commit) ; « dev » pour une image construite sur place
 }

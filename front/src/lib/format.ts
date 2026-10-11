@@ -58,11 +58,14 @@ export function splitHostName(name: string): [string, string] {
   return i < 0 ? [name, ""] : [name.slice(0, i), name.slice(i + 3)];
 }
 
-/** Version affichée dans l'en-tête : « v0.9.2 » pour une image de tag (« v0.9.2-<commit> »), « docker · abc1234 » pour celle d'une branche, « dev » sinon */
-export function appVersion(v?: string): string {
+/** Version shown in the header: « v0.9.2 » for a release image (« v0.9.2-<commit> »); for a branch image « v0.10.1+ · main abc1234 » when the last
+ *  release of its changelog is known (« + » = built from the branch after that release), else « main · abc1234 »; « dev » otherwise. */
+export function appVersion(v?: string, released?: string | null): string {
   if (!v) return "";
   const tag = /^(v\d+\.\d+\.\d+(?:-[A-Za-z]+\.\d+)?)-[0-9a-f]{7,40}$/.exec(v);
   if (tag) return tag[1];
   const branch = /^(.+)-([0-9a-f]{7,40})$/.exec(v);
-  return branch ? `${branch[1]} · ${branch[2].slice(0, 7)}` : v;
+  if (!branch) return v;
+  const where = `${branch[1]} · ${branch[2].slice(0, 7)}`;
+  return released ? `v${released}+ · ${where}` : where;
 }

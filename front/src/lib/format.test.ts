@@ -10,6 +10,11 @@ describe("appVersion", () => {
   it("montre la branche et le début du commit pour une image de branche", () => {
     expect(appVersion(`docker-${sha}`)).toBe("docker · 8bb46cc");
   });
+  it("ajoute la dernière version publiée du journal à une image de branche", () => {
+    expect(appVersion(`main-${sha}`, "0.10.1")).toBe("v0.10.1+ · main · 8bb46cc");
+    expect(appVersion(`v0.10.1-${sha}`, "0.10.1")).toBe("v0.10.1");           // an image of a tag is already exact
+    expect(appVersion("dev", "0.10.1")).toBe("dev");                          // development is untouched
+  });
   it("laisse « dev » et le vide", () => {
     expect(appVersion("dev")).toBe("dev");
     expect(appVersion(undefined)).toBe("");

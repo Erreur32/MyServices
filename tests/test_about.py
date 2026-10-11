@@ -39,6 +39,12 @@ class Versions(unittest.TestCase):
         self.assertIsNone(about.planned("## v0.9.3 (2026-10-11)\n"))          # rien en cours : pas de version prévue
         self.assertIsNone(about.planned("## Unreleased\n"))                     # pas de version publiée de référence
 
+    def test_released_is_the_last_published_version_of_the_changelog(self):
+        self.assertEqual(about.released("## Unreleased\n\n## v0.10.1 (2026-10-11)\n## v0.10.0 (d)\n"), "0.10.1")
+        self.assertEqual(about.released("## v0.9.3 (2026-10-11)\n"), "0.9.3")
+        self.assertIsNone(about.released("## Unreleased\n"))
+        self.assertIsNone(about.released(""))
+
     def test_comparaison(self):
         self.assertTrue(about.newer("v0.9.4", "0.9.3"))
         self.assertFalse(about.newer("v0.9.3", "0.9.3"))

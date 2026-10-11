@@ -2,7 +2,7 @@
 // demander (ports de l'hôte, Docker) jusqu'à la clé SSH qui donne le relevé exact. Les étapes se mettent à jour en
 // direct pendant le scan ; la carte reste jusqu'à ce qu'on la ferme (retenu par navigateur et par clé de l'app :
 // une installation remise à zéro la rouvre).
-import { ArrowRight, Check, Circle, LifeBuoy, Loader2, Plug, RotateCcw, Rocket, SkipForward, X } from "lucide-react";
+import { ArrowRight, Check, Circle, LifeBuoy, Loader2, Plug, RotateCcw, Rocket, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { read } from "../api";
 import type { Snapshot } from "../api";
@@ -15,6 +15,7 @@ import { plural } from "../lib/summary";
 import type { ConnectorsState, Proposal, SystemState } from "../types";
 import { netState, useNetScan } from "../lib/netScan";
 import { AuthorizeKey } from "./AuthorizeKey";
+import { SkipButton } from "./SkipButton";
 import { NetworkStep } from "./NetworkStep";
 import { Badge, type Tone } from "./ui";
 import { button, primary } from "../lib/forms";
@@ -47,13 +48,7 @@ function Step({ state, title, children, onSkip, skipped, onResume }: {
               <RotateCcw size={12} aria-hidden />{tx("Reprendre")}
             </button>
           )}
-          {!skipped && onSkip && (
-            <button type="button" onClick={onSkip}
-              className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-txt/50 bg-bg2 px-3 py-1 text-xs font-semibold text-txt shadow-sm transition-colors hover:border-link hover:bg-link/10 hover:text-link"
-              title={tx("Passer cette étape : vous pourrez la refaire plus tard, ici ou dans les Réglages")}>
-              <SkipForward size={12} aria-hidden />{tx("Passer")}
-            </button>
-          )}
+          {!skipped && onSkip && <SkipButton onClick={onSkip} onDark={state === "now" || state === "run"} className="ml-auto" />}
         </h3>
         {children && !skipped && <div className="mt-1 text-sm text-muted">{children}</div>}
       </div>

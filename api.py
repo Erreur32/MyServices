@@ -1239,7 +1239,9 @@ def me(request: Request):
     import about
     return {"username": u.get("username"), "role": u.get("role"), "auth": AUTH, "version": os.environ.get("MYSERVICES_VERSION", "dev"),
             # image de développement : le dépôt git d'où elle vient (describe) et la version prévue d'après le journal des changements
-            "git": os.environ.get("MYSERVICES_GIT", ""), "planned": about.planned(about.changelog(Path(core.HERE) / "CHANGELOG.md"))}
+            "git": os.environ.get("MYSERVICES_GIT", ""), "planned": about.planned(about.changelog(Path(core.HERE) / "CHANGELOG.md")),
+            # last release written in this build's changelog: an image built from a branch shows it (« 0.10.1+ · main abc1234 »)
+            "released": about.released(about.changelog(Path(core.HERE) / "CHANGELOG.md"))}
 
 
 def admin_only(request: Request) -> JSONResponse | None:
@@ -1442,6 +1444,7 @@ def about_payload(force: bool) -> dict:
     tag = (got.get("release") or {}).get("tag")
     return {"version": version, "latest": got.get("release"), "checked_at": got.get("checked_at"), "error": got.get("error"), "enabled": got.get("enabled", True),
             "update_available": about.newer(tag, version), "running": about.core_version(version),
+            "released": about.released(about.changelog(Path(core.HERE) / "CHANGELOG.md")),
             "changelog": about.changelog(Path(core.HERE) / "CHANGELOG.md"), "repo": f"https://github.com/{about.REPO}"}
 
 

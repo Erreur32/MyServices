@@ -1465,6 +1465,7 @@ export const EN: Record<string, string> = {
   "La machine n'enverra plus rien.": "The machine will stop sending anything.",
   "Adresse de MyServices, vue du PC": "MyServices address, as seen from the PC",
   "SSH & Agents": "SSH & Agents",
+  "Image construite depuis une branche, après la version {0} : {1}": "Image built from a branch, after version {0}: {1}",
   "Docker est présent sur l'hôte": "Docker is present on the host",
   "C'est bon : MyServices lit vos conteneurs et vos machines. Il reste à relier vos outils, puis à régler alertes et sauvegardes.": "All good: MyServices reads your containers and machines. What is left is linking your tools, then setting up alerts and backups.",
   "{0} étapes sur {1} faites": "{0} of {1} steps done",
