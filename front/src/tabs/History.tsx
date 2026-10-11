@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { loadHistory, type Snapshot } from "../api";
 import { useFilter, type Facet } from "../lib/filter";
 import { dayKey, hm, longDay, splitHostName } from "../lib/format";
-import { originOf } from "../lib/eventOrigin";
+import { localVia, originOf } from "../lib/eventOrigin";
 import type { StoredEvent } from "../types";
 import { AreaChart, BarsChart, HeatChart, PointsChart, type Range } from "../components/HistoryCharts";
 import { Badge, Empty, FilterBar } from "../components/ui";
@@ -57,6 +57,14 @@ export function History({ snap }: { snap: Snapshot }) {
   const bars = truncated && !f.active ? dayBuckets(ready.perDay, days, to) : buckets(f.shown, from, to, stepFor(days));
 
   const sources = new Map((snap.health?.hosts ?? []).map((h) => [splitHostName(h.name)[1], h.sources ?? []]));  // IP -> sources de la santé
+  // Services locaux d'aujourd'hui : ce qui les lit (Docker, ports par SSH ou par l'agent) ; une ligne disparue n'y est plus
+  const localRows = new Map(snap.data.hosts.filter((r) => r.type === "local").map((r) => [`local:${r.id}`, r]));
+  const agentIps = new Set(snap.data.machine_list.filter((m) => m.agent).map((m) => m.ip));
+  const viaOf = (e: StoredEvent) => {
+    if (!e.key.startsWith("local:")) return undefined;
+    const r = localRows.get(e.key);
+    return r ? localVia(r.service?.kind, agentIps.has(r.host_ip || r.ip || "")) : undefined;
+  };
   const byDay: [string, StoredEvent[]][] = [];
   for (const e of listed) {
     const k = dayKey(e.ts * 1000);
@@ -111,16 +119,18 @@ export function History({ snap }: { snap: Snapshot }) {
               <ol className="overflow-hidden rounded-2xl border border-line bg-card">
                 {evs.map((e, i) => {
                   const sev = snap.severity[e.kind] || 0;
-                  const o = originOf(e, e.kind.startsWith("health_") ? sources.get(e.target ?? "") : undefined);
+                  const o = originOf(e, e.kind.startsWith("health_") ? sources.get(e.target ?? "") : undefined, viaOf(e));
                   return (
                     <li key={`${e.ts}-${e.key}-${i}`} className="flex gap-3 border-b border-line/60 px-4 py-2.5 last:border-0">
                       <span className="w-12 shrink-0 font-mono text-xs text-dim">{hm(e.ts * 1000)}</span>
+                      <span className="flex w-52 shrink-0 flex-wrap content-start items-start gap-1" aria-label={tx("Type et méthode")}>
+                        <Badge tone={sev >= 3 ? "bad" : sev === 2 ? "warn" : groupOf(e.kind) === "retours" ? "ok" : "off"} title={tx("Type d'événement")}>{label(e.kind)}</Badge>
+                        <Badge tone="info" title={tx("Méthode de détection")}>{o.method}</Badge>
+                      </span>
                       <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${GROUP_COLOR[groupOf(e.kind)]}`} />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                           <b className="font-semibold">{e.label || "?"}</b>
-                          <Badge tone={sev >= 3 ? "bad" : sev === 2 ? "warn" : groupOf(e.kind) === "retours" ? "ok" : "off"} title={tx("Type d'événement")}>{label(e.kind)}</Badge>
-                          <Badge tone="info" title={tx("Méthode de détection")}>{o.method}</Badge>
                           {o.via.map((v) => <Badge key={v} tone="off" title={tx("Lu par")}>{v}</Badge>)}
                         </div>
                         <div className="truncate text-xs text-dim" title={[e.machine, e.target, e.detail].filter(Boolean).join(" · ")}>

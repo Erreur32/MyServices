@@ -27,6 +27,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 - **Unidentified services, HTTP fingerprint and port guess**: the web probe now keeps a fingerprint of each backend (Server / X-Powered-By headers, header and cookie *names* only, generator meta tag) and 34 more apps are recognised without SSH (Pi-hole, Nextcloud, Gitea, GitLab, Vaultwarden, Traefik, Transmission, Prowlarr, Node-RED, ESPHome, InfluxDB, Vault, Cockpit, OpenWrt, TrueNAS, pfSense…), plus nginx / Caddy / IIS / lighttpd / Kestrel by their `Server` header ("possible" only). A guessed app is no longer counted as unidentified and is shown with its confidence (sure / probable / possible). The favicon is not used.
 
+- **History**: the event type and detection method badges now sit right of the time, before the dot and the service name; the "read by" badge no longer says Docker + Ports for every local service: it follows what really reads the row (Docker, ports over SSH, the agent for a Windows PC, Apache…), and "Collection" when the row has since disappeared.
+
 ### Changed
 - **Health keeps "often off" PCs**: a PC flagged as often switched off with no fresh report stays in Health as a greyed card ("off (intended)", or "on, waiting for the agent" when it answers ping) with the time of its last agent report, instead of disappearing; no alert and no event. A targeted ping every minute re-reads that machine as soon as its answer changes; every agent report refreshes that machine's card.
 - Adding a machine (First steps, SSH test, key authorisation) now reads only that machine's collection and health right away instead of starting a full collection pass (several machines still start a full pass).
