@@ -1,37 +1,35 @@
-# Notes de version : MyServices 0.9.4
+# Notes de version : MyServices 0.9.5
 
 > **Phase de test : ne pas mettre en production.** Essayez MyServices sur une machine ou un réseau de test, et gardez une copie de `config/` et `data/` avant de mettre à jour.
 
-**0.9.4** (11 octobre 2026) est une grosse mise à jour : l'historique est refait, de nouveaux écrans (schémas, notifications, À propos) apparaissent, et les pages Machines et Santé deviennent bien plus lisibles. Elle reprend aussi la version 0.9.3, qui n'avait pas été publiée à part (cinq nouveaux connecteurs : Proxmox, Proxmox Backup Server, MynetworK, LogviewR, Dockhand).
+**0.9.5** (11 octobre 2026) ajoute douze connecteurs pour les services de homelab, branche AdGuard Home tout seul, apprend à l'agent Windows à lire Docker et les services du PC, et corrige les fausses alertes de sauvegardes.
 
 ## Pour tout le monde
 
 **Quoi de neuf ?**
-- **Historique refait** : choisissez votre graphique, en **points** (un point par événement, à son heure exacte), en **barres**, en **courbe** ou en **carte de chaleur**. Il y a un axe du nombre d'événements avec des repères en pointillés, et chaque ligne dit ce qui l'a détectée (ping, SSH, santé…) et ce qui l'a lue.
-- **Machines et Santé plus lisibles** : une seule ligne par machine (plus de défilement horizontal), un détail qui se déplie, l'icône du système (Debian, Ubuntu, Windows…), un affichage **Cartes ou Tableau** que l'application retient. Chaque information dit d'où elle vient, avec un lien vers le réglage concerné.
-- **Un PC souvent éteint ne disparaît plus** de la Santé : sa fiche reste en grisé (« éteinte (voulu) »), et revient en couleurs dès qu'il se rallume.
-- **Schémas** : un onglet réunit la carte du réseau, « qui lit quoi », l'accès aux machines, la chaîne d'alertes et les sauvegardes. Ils sont générés avec Archify.
-- **Notifications** : en plus des alertes, vous composez vos messages : un **rapport de vos machines** à heure fixe (les capteurs de votre choix) ou les **événements en direct** d'un service ou d'une machine, sur Discord, Telegram ou un webhook. Six exemples prêts à essayer.
-- **À propos** : version installée, dernière version publiée sur GitHub, journal des changements.
-- **Découvertes** : l'application dit enfin ce qui se fait tout seul et ce qui demande un clic. Le dossier `/home/backup` est suivi automatiquement.
-- **Services mieux reconnus** : 34 applications de plus (Pi-hole, Nextcloud, Gitea…), reconnues sans SSH.
-- **Réglages plus clairs** : clé SSH masquée avec un œil pour l'afficher, comptes et journal d'audit en boutons, choix d'icône de machine avec 118 icônes de plus, nouveau logo en grille.
+- **Douze connecteurs de plus** : Frigate (caméras), Sonarr / Radarr / Lidarr / Prowlarr, OPNsense, CrowdSec, Pi-hole, Technitium, TrueNAS, Synology, UniFi, Tailscale / Headscale, un onduleur (NUT) et Portainer. Ils s'affichent dans Santé, « Service via API ».
+- **AdGuard Home branché tout seul** quand MyServices le voit dans les conteneurs d'une machine lue par SSH : l'onglet DNS apparaît sans rien faire.
+- **Des notifications « à faire »** : quand MyServices reconnaît une appli qu'il ne peut lire qu'avec votre accès (AdGuard sur un PC Windows, Frigate…), une notification vous le dit et un bouton ouvre le connecteur déjà rempli. Une cloche dans l'en-tête compte ce qui reste à faire (aussi : clé SSH à autoriser, machines trouvées pas encore suivies, agent à installer).
+- **Agent Windows version 6** : il remonte aussi le Docker du PC et ses services Windows (Plex, AdGuard, Jellyfin…). **Réinstallez-le** pour en profiter.
+- **Mise à jour des agents depuis la page** : chaque agent affiche sa version, avec un interrupteur « Automatique » et un bouton « Mettre à jour maintenant » (l'agent contrôle l'empreinte du script avant de se remplacer).
+- **Sauvegardes sans fausses alertes** : un dossier suivi depuis la page n'exige plus de copie ailleurs, et l'âge d'alerte (2, 8, 15 ou 31 jours) est choisi d'après la sauvegarde observée, réglable par jeu.
+- **Port SSH faux reconnu** : si la clé semble refusée alors que le port est mauvais, la fiche de la machine le dit et propose « Utiliser le port … ».
+- **Corrections** : page Réglages → Machines blanche, carte qui restait grisée après « Machine suivie », avertissements qui revenaient après une correction, test « machine inconnue » de la clé SSH.
 
 **Ce qu'il faut savoir**
-- Une grande partie de ces écrans a été vérifiée par les tests, **pas encore à l'œil** : dites-nous ce qui ne va pas.
-- **L'agent Windows doit être réinstallé** pour profiter de la version 5 (il réessaie après un démarrage, quand le réseau n'est pas prêt).
-- Les connecteurs de la 0.9.3 n'ont été essayés que contre de faux serveurs ; il faut créer un jeton de lecture dans chaque outil.
+- Les douze connecteurs ont été écrits d'après la documentation de chaque service et **essayés seulement contre de faux serveurs** : dites-nous ce qui ne marche pas avec les vrais.
+- Les agents Windows en version 5 ou plus ancienne **ne savent pas se mettre à jour seuls** : une réinstallation (« Nouvelle commande » dans la carte de l'agent) est nécessaire une fois ; ensuite les mises à jour se font depuis la page.
+- Il n'y a pas d'agent Linux ni macOS : SSH reste la voie pour Linux. C'est dans la feuille de route.
 - Rien n'est modifié sur vos machines : MyServices ne fait que lire.
 
 **Mettre à jour** : `docker compose pull`, puis `docker compose up -d`. Vos réglages et vos données sont gardés.
 
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.9.4` (amd64 et arm64) ; `:latest` suit le dernier tag.
-- **Nouveaux modules** : `notifications.py` (rapports et événements filtrés, sur les canaux des alertes), `discoveries.py`, `about.py` (version GitHub lue côté serveur, gardée 6 h, `update_check: false` pour couper), `diagram_nav.py`, `last_known.py`, `scripts/release.py` (une version, partout).
-- **API** : `/notifications`, `/discoveries`, `/diagrams`, `/about`, `/backups/patterns` ; `GET /tasks` renvoie `label`, `at`, `next`.
-- **Santé** : `stats.json` porte une liste `asleep` (postes souvent éteints) ; un ping ciblé chaque minute et chaque relevé d'agent relisent la machine concernée.
-- **Collecte** : empreinte HTTP (en-têtes, noms de cookies, jamais leurs valeurs) pour reconnaître les applis ; dernière identification connue gardée quand un backend tombe.
-- **Agent Windows v5** : réessais pendant environ 6 minutes après un démarrage, délai de 30 s, déclencheur à l'ouverture de session.
-- **Tests** : 385 Python, 82 front.
+- **Image** : `ghcr.io/erreur32/myservices:0.9.5` (amd64 et arm64) ; `:latest` suit le dernier tag.
+- **Connecteurs** (`connectors/homelab_infra.py`, `homelab_media.py`, `status_kit.py`) : type `status`, lecture seule ; secrets en en-tête ou en corps POST, jamais dans l'adresse ; 23 tests contre de faux serveurs.
+- **Nouveaux modules** : `autodetect.py` (AdGuard), `discoveries.py` (notifications à faire, `GET /discoveries`), `known_apps.py` (services Windows, empreinte HTTP).
+- **Agent** : version 6 ; relevé `dk` (docker.exe) et `sv` (services) ; `PATCH /agents/{id}` (automatique), `POST /agents/{id}/update`, réponse du relevé avec `update` (version, chemin, SHA-256).
+- **Sauvegardes** : `expect_offsite` par jeu, `PATCH /backups/settings/{id}`, seuil d'âge déduit.
+- **Tests** : 425 Python, 83 front (dont un contre les hooks React après un `return`).
 - **Détail complet** (en anglais) : [CHANGELOG.md](CHANGELOG.md).

@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Testing phase: do not use in production.**
 
+## v0.9.5 (2026-10-11)
+
+> **Testing phase: do not use in production.**
+
 ### Added
 - **Agent updates from the page** (Settings -> Connectors -> Agents and SSH), modelled on GpuViewR: each agent card shows its version ("v5 -> v6 available"), an **Automatic** icon switch and an **Update now** button. The agent still pulls: at its next report the server tells it to fetch the new script (only when automatic update is on or an update was requested); the agent checks the script's SHA-256 and syntax, then replaces its own file. `PATCH /agents/{id}`, `POST /agents/{id}/update`. Nothing is pushed to the PC; Linux and macOS agents are not written (SSH stays the way to read them).
 - **Windows agent v6: Docker and services.** The PowerShell agent now also reports the PC's Docker containers (when `docker.exe` is installed and reachable by the SYSTEM account) and its running Windows services. Containers appear like those read over SSH (ports, Services tab); services are matched against known apps (Plex, AdGuard Home, Jellyfin, Sonarr, Radarr, Syncthing, Grafana, Prometheus, Veeam, Portainer, Uptime Kuma, Frigate, CrowdSec…) and shown in the machine detail ("Apps"). Re-install the agent to benefit.
