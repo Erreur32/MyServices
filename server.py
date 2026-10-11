@@ -3,13 +3,13 @@
 
 Remplace les unités systemd de l'installation classique :
   myservices.timer / -watcher / -health / -backups  -> planificateur interne (horaires ci-dessous)
-  myservices-refresh-api + myservices-refresh.path  -> POST /myservices/api/v1/refresh (api.py)
+  myservices-refresh-api + myservices-refresh.path  -> POST /api/v1/refresh (api.py)
   nginx / Apache                                    -> page servie ici (aucune config web à écrire)
 
 Les scripts (myservices.py, watcher.py, health.py, backups.py) tournent inchangés, chacun dans son
 processus, un seul passage à la fois par tâche, avec un délai maximal.
 
-Page : /myservices/ ; fichiers produits (data.json, events.json, health/, backups.json) lus dans
+Page: / (the old /myservices/ addresses are still understood) ; fichiers produits (data.json, events.json, health/, backups.json) lus dans
 MYSERVICES_WEB_DIR (volume /data), le reste (index.html, js, logos) dans web/ de l'image.
 Accès : réseaux de MYSERVICES_ALLOW seulement (défaut : réseaux privés, Tailscale 100.64.0.0/10, boucle locale).
 """
@@ -33,7 +33,7 @@ from config import CFG
 HERE = Path(__file__).resolve().parent
 STATIC = HERE / "web"
 WEB = Path(CFG["web_dir"])
-PREFIX = "/myservices/"
+PREFIX = "/"
 PORT = int(os.environ.get("MYSERVICES_PORT", "8090"))
 COOLDOWN = int(os.environ.get("MYSERVICES_REFRESH_COOLDOWN", "300"))
 PROGRESS = os.environ.get("MYSERVICES_PROGRESS") or str(Path(CFG["state_dir"]) / "progress.json")
@@ -508,7 +508,7 @@ def first_runs() -> None:
 
 
 def status() -> dict:
-    """État du collecteur, lu par la barre de progression du front (GET /myservices/api/v1/status)."""
+    """État du collecteur, lu par la barre de progression du front (GET /api/v1/status)."""
     t, now = TASKS["collect"], time.time()
     running = t["proc"] is not None
     last = max(filter(None, (t["start"], t["trigger"])), default=None)

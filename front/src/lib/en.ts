@@ -1483,7 +1483,7 @@ export const EN: Record<string, string> = {
   "Avancement des premiers pas": "Getting started progress",
   "Tout voir dans Réglages → Connecteurs": "See everything in Settings → Connectors",
   "Relier mes outils": "Link my tools",
-  "Suivre mes sauvegardes": "Follow my backups",
+  "Mes sauvegardes": "My backups",
   "Lire l'aide": "Read the help",
   "Jeu de sauvegarde": "Backup set",
   "Ce qui ne va pas": "What is wrong",

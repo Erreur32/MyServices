@@ -11,5 +11,5 @@ export function cleanAgentUrl(raw: string): string | null {
 export function installCommand(url: string, token: string): string | null {
   const base = cleanAgentUrl(url);
   if (!base) return null;
-  return `Set-ExecutionPolicy Bypass -Scope Process -Force\n$env:MSV_URL = '${base}'\n$env:MSV_TOKEN = '${token}'\niex (iwr "$env:MSV_URL/myservices/agent/install.ps1" -UseBasicParsing).Content`;
+  return `Set-ExecutionPolicy Bypass -Scope Process -Force\n$env:MSV_URL = '${base}'\n$env:MSV_TOKEN = '${token}'\niex (iwr "$env:MSV_URL/agent/install.ps1" -UseBasicParsing).Content`;
 }

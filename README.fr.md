@@ -30,7 +30,7 @@
 > lire vos machines** : l'essayer présente peu de risque, mais laissez-lui du temps avant de vous y fier pour quelque chose de critique :
 > gardez une copie de `config/` et `data/` avant chaque mise à jour, et laissez-le sur votre réseau local (jamais directement sur Internet).
 >
-> Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.10.1`, `0.10.2`…).
+> Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.10.2`, `0.10.3`…).
 > Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 ## En bref
@@ -58,12 +58,12 @@ docker compose up -d
 docker compose logs myservices        # clé publique de l'app et commande pour l'autoriser sur l'hôte
 ```
 
-Puis ouvrez **`http://<IP>:8090/`** **dans les 30 minutes** pour créer le compte admin (passé ce délai :
+Puis ouvrez **`http://<IP>:8090/`** (l'appli est à la racine du site ; les anciennes adresses `/myservices/…` marchent toujours et redirigent) **dans les 30 minutes** pour créer le compte admin (passé ce délai :
 `docker compose restart myservices`), et suivez la carte **« Premiers pas »**, puis la page **Aide** des Réglages.
 
 > **L'application écoute sur le port `8090`.** C'est un réglage, pas une valeur figée : si le 8090 est déjà pris sur votre machine, mettez **`MYSERVICES_PORT=8095`** (ou un autre port libre) dans un fichier `.env` à côté de `docker-compose.yaml` (exemple : [`deploy/env.example`](deploy/env.example), téléchargé par le second `curl` ci-dessus), puis lancez `docker compose up -d` et ouvrez `http://<IP>:8095/`. Le conteneur utilise le réseau de l'hôte : modifier un `ports:` ne servirait à rien.
 
-Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.10.1` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
+Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.10.2` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
 Mise à jour : `docker compose pull && docker compose up -d` (réglages et données restent dans les volumes `./config` et `./data`).
 
 ---
@@ -224,7 +224,7 @@ Les horaires se modifient aussi à chaud dans Réglages -> Tâches et horaires. 
 <details>
 <summary><b>🤖 API et MCP</b></summary>
 
-Une API REST (`/myservices/api/v1/…`, documentation OpenAPI à `/myservices/api/v1/docs`) et un **serveur MCP** (`/myservices/mcp`, jeton `msv_mcp_`) laissent vos outils et assistants IA lire les mêmes données. Créez des jetons dans Réglages -> API et MCP, avec la durée de validité de votre choix : **read** (par défaut), **runs** (lecture + demander une collecte) ou **admin** (réglages compris ; une durée est obligatoire et votre mot de passe est demandé). Chaque outil MCP a son interrupteur.
+Une API REST (`/api/v1/…`, documentation OpenAPI à `/api/v1/docs`) et un **serveur MCP** (`/mcp`, jeton `msv_mcp_`) laissent vos outils et assistants IA lire les mêmes données. Créez des jetons dans Réglages -> API et MCP, avec la durée de validité de votre choix : **read** (par défaut), **runs** (lecture + demander une collecte) ou **admin** (réglages compris ; une durée est obligatoire et votre mot de passe est demandé). Chaque outil MCP a son interrupteur.
 
 </details>
 

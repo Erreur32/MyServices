@@ -14,7 +14,7 @@ Sources, toutes en LECTURE SEULE :
   - AdGuard Home (machines.adguard) : réécritures et règles perso (AdGuardHome.yaml par
     docker exec), et réponse de chaque AdGuard pour chaque domaine NPM (requête DNS directe).
 
-Écrit <web_dir>/data.json, lu par le front (/myservices/v2/). Cron 30 min (état du
+Écrit <web_dir>/data.json, lu par le front (/). Cron 30 min (état du
 réseau, pas du monitoring : Uptime Kuma s'en charge) ; l'inventaire docker + infos machines
 (session SSH) est mis en cache 2 h, le test des méthodes SSH 30 min. Une machine qui change
 d'état au ping court-circuite ces deux caches.

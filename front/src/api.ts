@@ -2,8 +2,8 @@
 import type { Backups, Data, Event, Events, Health, Me, StoredEvent } from "./types";
 import { tx } from "./lib/i18n";
 
-export const ROOT = "/myservices/";
-export const LOGIN = `${ROOT}login.html?next=${encodeURIComponent(`${ROOT}v2/`)}`;
+export const ROOT = "/";   // the app is served at the root of the site (before 0.10.2: /myservices/)
+export const LOGIN = `${ROOT}login.html?next=${encodeURIComponent(ROOT)}`;
 
 export class LoginRequired extends Error {}
 

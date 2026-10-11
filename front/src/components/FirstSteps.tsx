@@ -60,7 +60,7 @@ function Step({ state, title, children, onSkip, skipped, onResume }: {
 const NEXT: { href: string; Icon: LucideIcon; title: string; text: string }[] = [
   { href: "#settings/connectors", Icon: Plug, title: tx("Relier mes outils"), text: tx("Nginx Proxy Manager, AdGuard, Home Assistant, Proxmox… : leurs données (certificats, DNS, sauvegardes) s'ajoutent à la page. Une clé ou un compte en lecture seule suffit.") },
   { href: "#settings/alerts", Icon: Bell, title: tx("Être prévenu"), text: tx("Un message Discord, Telegram ou un webhook quand une machine tombe, qu'une sauvegarde est en retard ou qu'un service disparaît.") },
-  { href: "#settings/backups", Icon: HardDrive, title: tx("Suivre mes sauvegardes"), text: tx("Dossiers de sauvegarde, jobs Veeam, groupes Proxmox Backup : vous fixez l'âge au-delà duquel une alerte part.") },
+  { href: "#settings/backups", Icon: HardDrive, title: tx("Mes sauvegardes"), text: tx("Dossiers de sauvegarde, jobs Veeam, groupes Proxmox Backup : vous fixez l'âge au-delà duquel une alerte part.") },
   { href: "#settings/help", Icon: LifeBuoy, title: tx("Lire l'aide"), text: tx("Comment MyServices lit votre réseau, les bons réflexes, et quoi faire quand quelque chose ne marche pas.") },
 ];
 

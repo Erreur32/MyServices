@@ -1,7 +1,7 @@
 """Jetons d'API et MCP (version Docker), dans SQLite (/data/myservices.db), sur le modèle de MynetworK.
 
-- Deux sortes, chacune refusée chez l'autre : « api » (REST, /myservices/api/v1/…) et « mcp » (serveur MCP,
-  /myservices/mcp). Préfixes msv_api_ / msv_mcp_ : repérables par les scanners de secrets.
+- Deux sortes, chacune refusée chez l'autre : « api » (REST, /api/v1/…) et « mcp » (serveur MCP,
+  /mcp). Préfixes msv_api_ / msv_mcp_ : repérables par les scanners de secrets.
 - Trois niveaux : « read » (lecture), « runs » (lecture + demander un passage), « admin » (réglages compris).
   Un jeton ne gère jamais les jetons ni les comptes (pas d'escalade) : ces routes demandent une session.
 - Affiché une seule fois à la création ; la base ne garde que son empreinte SHA-256 et ses 4 derniers caractères.

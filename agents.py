@@ -311,4 +311,4 @@ def install_command(base_url: str, token: str) -> str:
     """Commande à coller dans un PowerShell administrateur de la machine."""
     return ("Set-ExecutionPolicy Bypass -Scope Process -Force\n"
             f"$env:MSV_URL = '{base_url}'\n$env:MSV_TOKEN = '{token}'\n"
-            'iex (iwr "$env:MSV_URL/myservices/agent/install.ps1" -UseBasicParsing).Content')
+            'iex (iwr "$env:MSV_URL/agent/install.ps1" -UseBasicParsing).Content')

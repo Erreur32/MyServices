@@ -12,7 +12,7 @@ PAGE = "<html><body><svg></svg></body></html>"
 class Nav(unittest.TestCase):
     def test_bandeau_avec_retour_autres_schemas_et_origine(self):
         out = dn.inject(PAGE, "carte", ["carte", "acces"])
-        self.assertIn('href="v2/"', out)                              # retour à l'application
+        self.assertIn('href="./"', out)                              # back to the app (the root, relative to /carte.html)
         self.assertIn('href="acces.html"', out)                       # autre schéma
         self.assertNotIn('href="carte.html"', out)                    # celui qu'on regarde n'est pas un lien
         self.assertIn("Généré avec", out)

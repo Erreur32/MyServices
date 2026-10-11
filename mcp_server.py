@@ -1,7 +1,7 @@
-"""Serveur MCP de MyServices (/myservices/mcp) : transport « Streamable HTTP » en mode sans état, réponses JSON.
+"""Serveur MCP de MyServices (/mcp) : transport « Streamable HTTP » en mode sans état, réponses JSON.
 
 Un assistant IA (Claude Code, Claude Desktop, Cursor…) s'y branche avec un jeton msv_mcp_ :
-  claude mcp add --transport http myservices http://<hôte>:8090/myservices/mcp \\
+  claude mcp add --transport http myservices http://<hôte>:8090/mcp \\
     --header "Authorization: Bearer msv_mcp_…"
 
 Chaque requête est authentifiée et son niveau relu (tokens.check) : rien n'est gardé entre deux appels, un jeton

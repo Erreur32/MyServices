@@ -5,11 +5,12 @@
   var form = document.getElementById("login"), msg = document.getElementById("msg");
   var next = new URLSearchParams(location.search).get("next") || "";
   var setup = false;
-  // Retour seulement vers une page de ce site, sous /myservices/ (jamais une adresse externe)
-  if (!/^\/myservices\/[^\\]*$/.test(next) || next.indexOf("//") >= 0) next = "v2/";  // page par défaut : le nouveau front (/myservices/v2/)
-  // Destination relue comme une adresse : même site, dans /myservices/ seulement (jamais un autre site ni javascript:)
+  // Back only to a page of this site (never an external address); the old /myservices/ and /myservices/v2/ addresses lead to the root
+  next = next.replace(/^\/myservices\/v2(?=\/|$)/, "").replace(/^\/myservices(?=\/|$)/, "") || "/";
+  if (!/^\/[^\\]*$/.test(next) || next.indexOf("//") >= 0) next = "/";
+  // Destination read again as an address: same site only (never another site nor javascript:)
   var dest = new URL(next, location.href);
-  if (dest.origin !== location.origin || dest.pathname.indexOf("/myservices/") !== 0) dest = new URL("/myservices/v2/", location.origin);
+  if (dest.origin !== location.origin) dest = new URL("/", location.origin);
   next = dest.pathname + dest.search + dest.hash;
 
   function $(id) { return document.getElementById(id); }
@@ -55,7 +56,7 @@
   });
 
   // Première installation : passe le formulaire en « création du compte admin »
-  fetch("api/v1/setup", { cache: "no-store" })
+  fetch("/api/v1/setup", { cache: "no-store" })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (s) {
       if (!s || !s.needed) return;
@@ -99,7 +100,7 @@
     show("");
     if (setup && !rules()) return;
     b.disabled = true;
-    fetch(setup ? "api/v1/setup" : "api/v1/login", {
+    fetch(setup ? "/api/v1/setup" : "/api/v1/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: form.username.value.trim(), password: form.password.value }),

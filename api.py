@@ -36,8 +36,12 @@ import server as core
 import auth as auth_mod
 from auth import AuthError, Store, db_path
 
-PREFIX = "/myservices"
-API = PREFIX + "/api/v1"
+# The app lives at the root of the site: http://<host>:8090/ (page), /api/v1/ (API), /mcp, /agent/… Before 0.10.2 everything sat under /myservices/
+# (and the page under /myservices/v2/): that old prefix is still understood, see LegacyPrefix below, so bookmarks, agents already installed on
+# Windows PCs, API tokens and MCP clients keep working.
+PREFIX = ""
+LEGACY = "/myservices"
+API = "/api/v1"
 
 app = FastAPI(title="MyServices", version="2", docs_url=API + "/docs", redoc_url=None,
               openapi_url=API + "/openapi.json")
@@ -68,7 +72,7 @@ CSP = {"page": _CSP_BASE + "script-src 'self' 'unsafe-inline'; style-src 'self' 
 def csp_for(path: str) -> str | None:
     if path.startswith(API + "/docs"):
         return None
-    if path.startswith(PREFIX + "/login.") or path.startswith(PREFIX + "/v2/"):
+    if path in ("/", "/index.html") or path.startswith("/login."):   # the React front and the sign-in page: strict policy
         return CSP["login"]
     if path.endswith("/carte.html"):
         return CSP["map"]
@@ -76,7 +80,7 @@ def csp_for(path: str) -> str | None:
 AUTH = os.environ.get("MYSERVICES_AUTH", "1") != "0"
 COOKIE, CSRF_COOKIE = "ms_session", "ms_csrf"
 # Accessibles sans session : page de connexion et ce qu'elle charge, connexion, santé du conteneur
-PUBLIC = {"/healthz", PREFIX + "/agent/install.ps1", PREFIX + "/agent/agent.ps1", PREFIX + "/login.html", PREFIX + "/login.js", PREFIX + "/login.css", PREFIX + "/favicon.svg",
+PUBLIC = {"/healthz", "/agent/install.ps1", "/agent/agent.ps1", "/login.html", "/login.js", "/login.css", "/favicon.svg",
           API + "/login", API + "/setup"}
 # Premier compte depuis la page (comme Uptime Kuma) : seulement tant qu'aucun compte n'existe, et dans les
 # SETUP_WINDOW s après le démarrage (au-delà : redémarrer le conteneur). Réseau local seulement (guard).
@@ -120,7 +124,7 @@ def deny(code: int, error: str) -> JSONResponse:
     return JSONResponse({"error": error}, status_code=code, headers=SECURITY_HEADERS)
 
 
-MCP = PREFIX + "/mcp"
+MCP = "/mcp"
 AGENT_REPORT = API + "/agent/report"  # seule route d'un agent : jeton msv_agent_, ni session ni CSRF
 TOKENS = None
 AGENTS = None
@@ -199,7 +203,7 @@ async def guard(request: Request, call_next):
         if user is None:
             if "/api/" in path:
                 return deny(401, "connexion requise")
-            return RedirectResponse(f"{PREFIX}/login.html?next={quote(path)}", status_code=302, headers=SECURITY_HEADERS)
+            return RedirectResponse(f"/login.html?next={quote(path)}", status_code=302, headers=SECURITY_HEADERS)
         # Écriture : jeton CSRF de la session dans l'en-tête (le cookie seul ne suffit pas)
         if write and not secrets.compare_digest(request.headers.get("x-csrf-token", ""), user["csrf"]):
             return deny(403, "jeton CSRF absent ou faux : recharger la page")
@@ -216,10 +220,36 @@ async def guard(request: Request, call_next):
     return response
 
 
-@app.get("/", include_in_schema=False)
-@app.get(PREFIX, include_in_schema=False)
-def root():
-    return RedirectResponse(PREFIX + "/v2/", status_code=302)  # le nouveau front ; l'ancienne page (v1) reste sur /myservices/
+class LegacyPrefix:
+    """Understands the old /myservices/… addresses (before 0.10.2 the whole app sat under /myservices/, the page under /myservices/v2/).
+    - API, MCP and agent paths, and any write: answered as if asked at the root (the path is rewritten, no redirect), so agents installed on
+      Windows PCs, API tokens, MCP clients and scripts keep working untouched; the guard then sees the root path, so access rules do not change.
+    - Pages and files (GET / HEAD): redirected to the same address at the root (« /myservices/v2/ » -> « / »), so bookmarks lead to the new URLs.
+    Runs before the guard, as the outermost middleware."""
+    ALIASED = ("/api/", "/mcp", "/agent/")
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        path = scope.get("path", "") if scope["type"] == "http" else ""
+        if scope["type"] != "http" or not (path == LEGACY or path.startswith(LEGACY + "/")):
+            return await self.app(scope, receive, send)
+        rest = path[len(LEGACY):] or "/"
+        if rest.startswith(self.ALIASED) or scope["method"] not in ("GET", "HEAD"):
+            scope = dict(scope, path=rest, raw_path=rest.encode())
+            return await self.app(scope, receive, send)
+        if rest == "/v2" or rest.startswith("/v2/"):
+            rest = rest[3:] or "/"
+        # One single leading slash and no backslash: a « //host » or « /\host » target would send the visitor to another site
+        target = "/" + quote(rest.lstrip("/\\"), safe="/%:@!$&'()*+,;=~-._")
+        qs = scope.get("query_string", b"")
+        if qs:
+            target += "?" + qs.decode("latin-1")
+        await RedirectResponse(target, status_code=302, headers=SECURITY_HEADERS)(scope, receive, send)
+
+
+app.add_middleware(LegacyPrefix)
 
 
 @app.get("/healthz", include_in_schema=False)
@@ -762,7 +792,7 @@ async def agent_report(request: Request):
     return out
 
 
-@app.get(PREFIX + "/agent/{name}.ps1", tags=["agents"], summary="Scripts de l'agent Windows (sans secret, réseau local)")
+@app.get("/agent/{name}.ps1", tags=["agents"], summary="Scripts de l'agent Windows (sans secret, réseau local)")
 def agent_script(name: str):
     import agents
     if name not in ("install", "agent"):
@@ -1185,7 +1215,7 @@ def session_response(got: tuple[str, str, dict], request: Request) -> JSONRespon
     """Réponse de connexion : cookie de session (HttpOnly) et cookie CSRF (lu par la page)."""
     token, csrf, user = got
     r = JSONResponse({"username": user["username"], "role": user["role"]})
-    opts = {"max_age": auth_mod.SESSION_DAYS * 86400, "path": PREFIX, "samesite": "strict", "secure": cookie_secure(request)}
+    opts = {"max_age": auth_mod.SESSION_DAYS * 86400, "path": "/", "samesite": "strict", "secure": cookie_secure(request)}
     r.set_cookie(COOKIE, token, httponly=True, **opts)
     r.set_cookie(CSRF_COOKIE, csrf, httponly=False, **opts)  # lu par la page pour l'en-tête X-CSRF-Token
     return r
@@ -1229,7 +1259,8 @@ def logout(request: Request):
     store().audit("déconnexion", (request.state.user or {}).get("username"), ip_of(request))
     r = JSONResponse({"ok": True})
     for c in (COOKIE, CSRF_COOKIE):
-        r.delete_cookie(c, path=PREFIX)
+        r.delete_cookie(c, path="/")
+        r.delete_cookie(c, path=LEGACY)   # cookie set before 0.10.2, when the cookie path was /myservices
     return r
 
 
@@ -1726,8 +1757,8 @@ def change_password(body: PasswordChange, request: Request):
 # ── Page et fichiers produits ─────────────────────────────────────────────────────────────────────
 
 def find(rel: str) -> Path | None:
-    """Fichier produit (volume) d'abord, sinon fichier de la page ; jamais hors de ces dossiers."""
-    for root in (core.WEB, core.STATIC):
+    """Produced file (volume) first, then a file of the page, then the compiled front (assets/, icons/…); never outside these folders."""
+    for root in (core.WEB, core.STATIC, core.STATIC / "v2"):
         try:
             f = (root / rel).resolve()
             base = root.resolve()
@@ -1738,19 +1769,28 @@ def find(rel: str) -> Path | None:
     return None
 
 
-@app.get(PREFIX + "/{rel:path}", include_in_schema=False)
+def not_found() -> HTMLResponse:
+    return HTMLResponse('<!doctype html><meta charset="utf-8"><title>MyServices</title>'
+                        '<p style="font:16px system-ui;padding:2em">Page introuvable. <a href="/">Retour à MyServices</a></p>', status_code=404)
+
+
+@app.get("/{rel:path}", include_in_schema=False)
 def files(rel: str, request: Request):
-    if rel == "":  # /myservices/ : le front
-        return RedirectResponse(PREFIX + "/v2/", status_code=302)
-    if rel.endswith("/"):
-        rel += "index.html"
-    f = find(rel)
-    if f is None and find(rel + "/index.html"):  # dossier tapé sans « / » final (ex. /myservices/v2)
-        return RedirectResponse(f"{PREFIX}/{quote(rel.strip('/'))}/", status_code=302)  # toujours sous /myservices/, jamais un autre site
+    if rel in ("v2", "v2/") or rel.startswith("v2/"):   # the front used to live under /v2/: it is the root now
+        return RedirectResponse("/" + quote(rel[3:].lstrip("/")), status_code=302)
+    if rel.startswith(("api/", "mcp", "agent/")):        # unknown API route: JSON, not the HTML « page not found »
+        return deny(404, "introuvable")
+    if rel in ("", "index.html"):                        # the React front (an old index.html left in the volume must not shadow it)
+        f = core.STATIC / "v2" / "index.html"
+        f = f if f.is_file() else None
+    else:
+        if rel.endswith("/"):
+            rel += "index.html"
+        f = find(rel)
+        if f is None and find(rel + "/index.html"):      # folder typed without the final « / »
+            return RedirectResponse("/" + quote(rel.strip("/")) + "/", status_code=302)   # always on this site, never another one
     if f is None:
-        return HTMLResponse(f'<!doctype html><meta charset="utf-8"><title>MyServices</title>'
-                            f'<p style="font:16px system-ui;padding:2em">Page introuvable. '
-                            f'<a href="{PREFIX}/">Retour à MyServices</a></p>', status_code=404)
+        return not_found()
     ctype = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
     if ctype.startswith("text/") or ctype in ("application/json", "application/javascript", "image/svg+xml"):
         ctype += "; charset=utf-8"

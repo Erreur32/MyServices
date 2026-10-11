@@ -42,8 +42,8 @@ def nav_html(current: str, available: list[str]) -> str:
         if k not in available:
             continue
         sib.append(f'<b style="color:#fff">{t}</b>' if k == current else f'<a style="{_LINK}" href="{k}.html">{t}</a>')
-    return (f'{MARK}<div id="ms-nav" style="{_BAR}"><a style="{_LINK};font-weight:600" href="v2/">← MyServices</a>'
-            f'<a style="{_LINK}" href="v2/#diagrams">Tous les schémas</a><span style="opacity:.5">|</span>{" · ".join(sib)}'
+    return (f'{MARK}<div id="ms-nav" style="{_BAR}"><a style="{_LINK};font-weight:600" href="./">← MyServices</a>'
+            f'<a style="{_LINK}" href="./#diagrams">Tous les schémas</a><span style="opacity:.5">|</span>{" · ".join(sib)}'
             f'<span style="margin-left:auto;opacity:.85">Généré avec <a style="{_LINK}" href="{ARCHIFY_URL}" target="_blank" rel="noopener noreferrer">Archify</a>'
             f' · schéma « {titles.get(current, current)} » · MyServices</span></div>'
             '<style>body{padding-bottom:44px}</style>')

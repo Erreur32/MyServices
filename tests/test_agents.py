@@ -149,7 +149,7 @@ class Agents(unittest.TestCase):
         cmd = r.json()["command"]
         self.assertIn("$env:MSV_URL = 'https://ms.lan'", cmd)
         self.assertIn(f"$env:MSV_TOKEN = '{r.json()['token']}'", cmd)
-        self.assertIn("/myservices/agent/install.ps1", cmd)
+        self.assertIn("$env:MSV_URL/agent/install.ps1", cmd)          # root address; the old /myservices/agent/… one still works (test above)
 
     def test_adresse_corrigee_a_la_main(self):
         ok = self.c.post(BASE + "/agents", json={"ip": "192.168.1.60", "name": "Gamer32", "url": "http://192.168.1.10:8090/"}, headers=self.h)

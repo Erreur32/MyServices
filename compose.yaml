@@ -1,4 +1,4 @@
-# MyServices v2 : un conteneur (collecte, veille, santé, sauvegardes, page sur :8090/myservices/).
+# MyServices v2 : un conteneur (collecte, veille, santé, sauvegardes, page sur :8090/).
 #   1. Importer une installation classique : sudo python3 import_install.py --to ./dev-data/config
 #      (ou partir d'un /config vide, puis : docker compose exec myservices python3 setup.py)
 #   2. docker compose up -d --build

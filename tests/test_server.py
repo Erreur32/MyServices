@@ -57,6 +57,8 @@ class Http(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         web = Path(cls.tmp.name)
         (web / "index.html").write_text("<p>page</p>")
+        (web / "v2").mkdir(exist_ok=True)
+        (web / "v2" / "index.html").write_text("<p>page</p>")        # the compiled front, served at the root
         (web / "data.json").write_text(json.dumps({"generated": "2026-10-10T00:00:00+00:00",
                                                    "connectors": [{"type": "npm", "name": "lan", "ok": True}]}))
         server.STATIC = server.WEB = web
@@ -69,13 +71,14 @@ class Http(unittest.TestCase):
         cls.tmp.cleanup()
 
     def test_page(self):
-        r = self.c.get("/myservices/", follow_redirects=False)  # le front est sous /v2/ : /myservices/ y mène
-        self.assertEqual((r.status_code, r.headers["location"]), (302, "/myservices/v2/"))
-        r = self.c.get("/myservices/index.html")
+        r = self.c.get("/myservices/", follow_redirects=False)  # the old address leads to the root, where the front now lives
+        self.assertEqual((r.status_code, r.headers["location"]), (302, "/"))
+        (server.STATIC / "v2" / "index.html").write_text("<p>page</p>")   # other tests write their own front: set ours here
+        r = self.c.get("/myservices/index.html")                          # the old address redirects to /index.html, the front
         self.assertEqual((r.status_code, r.text), (200, "<p>page</p>"))
         self.assertEqual(r.headers["x-content-type-options"], "nosniff")
         self.assertNotIn("server", {k.lower() for k in r.headers})
-        self.assertEqual(self.c.get("/", follow_redirects=False).headers["location"], "/myservices/v2/")
+        self.assertEqual(self.c.get("/index.html").status_code, 200)
 
     def test_etag_304_si_inchange(self):
         r = self.c.get("/myservices/data.json")
@@ -108,6 +111,32 @@ class Http(unittest.TestCase):
         self.assertEqual(set(listing["build"]), {"running", "started", "last_seconds", "next_run"})
         self.assertTrue(any(d["id"] == "domaines" and d["optional"] and d["available"] for d in listing["diagrams"]))
 
+    def test_front_is_served_at_the_root_and_old_addresses_still_work(self):
+        (server.STATIC / "v2").mkdir(exist_ok=True)
+        (server.STATIC / "v2" / "index.html").write_text("<div id=root>")
+        (server.STATIC / "v2" / "assets").mkdir(exist_ok=True)
+        (server.STATIC / "v2" / "assets" / "app.js").write_text("console.log(1)")
+        self.assertEqual(self.c.get("/").text, "<div id=root>")                              # the front, at the root
+        self.assertEqual(self.c.get("/assets/app.js").status_code, 200)                      # its assets
+        self.assertEqual(self.c.get("/data.json").status_code, 200)                          # produced files
+        self.assertEqual(self.c.get("/api/v1/status").status_code, 200)                      # API at the root
+        self.assertEqual(self.c.get("/api/v1/inconnue").json()["error"], "introuvable")      # JSON 404 for an unknown API route
+        for old, new in (("/myservices/v2/", "/"), ("/myservices/", "/"), ("/myservices/v2/assets/app.js", "/assets/app.js"),
+                         ("/myservices/data.json?x=1", "/data.json?x=1"), ("/myservices/login.html", "/login.html")):
+            r = self.c.get(old, follow_redirects=False)
+            self.assertEqual((r.status_code, r.headers["location"]), (302, new), old)       # pages and files: redirected to the root
+        self.assertEqual(self.c.get("/myservices/api/v1/status").status_code, 200)           # API: answered in place (agents, tokens, scripts)
+        self.assertEqual(self.c.post("/myservices/api/v1/refresh", headers={"Origin": "http://testserver"}).status_code, self.c.post("/api/v1/refresh").status_code)
+
+    def test_old_prefix_redirect_never_leaves_the_site(self):
+        """/myservices//evil.com or /myservices/\\evil.com must not become a redirect to another host."""
+        for bad in ("/myservices//evil.com", "/myservices///evil.com/x", "/myservices/\\evil.com", "/myservices/v2//evil.com"):
+            r = self.c.get(bad, follow_redirects=False)
+            loc = r.headers.get("location", "")
+            self.assertTrue(r.status_code in (302, 404), bad)
+            self.assertFalse(loc.startswith("//") or "\\" in loc or "://" in loc, f"{bad} -> {loc}")
+            self.assertTrue(loc == "" or loc.startswith("/"), f"{bad} -> {loc}")
+
     def test_csp(self):
         page = self.c.get("/myservices/index.html").headers["content-security-policy"]
         self.assertIn("default-src 'self'", page)
@@ -117,18 +146,18 @@ class Http(unittest.TestCase):
         self.assertNotIn("unsafe-inline", login)  # page de connexion : politique stricte
         (server.STATIC / "v2").mkdir(exist_ok=True)
         (server.STATIC / "v2" / "index.html").write_text("<div id=root>")
-        v2 = self.c.get("/myservices/v2/").headers["content-security-policy"]
-        self.assertNotIn("unsafe-inline", v2)  # nouveau front compilé : politique stricte
+        root = self.c.get("/").headers["content-security-policy"]
+        self.assertNotIn("unsafe-inline", root)  # the compiled front at the root: strict policy
         self.assertNotIn("content-security-policy", self.c.get("/myservices/api/v1/status").headers)  # JSON : inutile
 
     def test_folder_without_slash_and_unknown_page(self):
         (server.STATIC / "v2").mkdir(exist_ok=True)
         (server.STATIC / "v2" / "index.html").write_text("<div id=root>")
-        r = self.c.get("/myservices/v2", follow_redirects=False)
-        self.assertEqual((r.status_code, r.headers["location"]), (302, "/myservices/v2/"))
-        r = self.c.get("/myservices/v2login.html")
+        r = self.c.get("/v2", follow_redirects=False)           # the front used to live under /v2/: it is the root now
+        self.assertEqual((r.status_code, r.headers["location"]), (302, "/"))
+        r = self.c.get("/v2login.html")
         self.assertEqual(r.status_code, 404)
-        self.assertIn('href="/myservices/"', r.text)  # page lisible avec un lien de retour, pas du JSON
+        self.assertIn('href="/"', r.text)  # readable page with a link back, not JSON
 
     def test_traversal_refused(self):
         for p in ("/myservices/../server.py", "/myservices/%2e%2e/%2e%2e/etc/passwd", "/myservices/..%2fserver.py"):

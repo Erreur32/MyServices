@@ -30,7 +30,7 @@
 > but give it time before relying on it for something critical: keep a copy of `config/` and `data/` before every update, and keep it on
 > your local network (never straight on the Internet).
 >
-> Version numbers stay **below 2.0.0** until it is declared stable (`0.10.1`, `0.10.2`…).
+> Version numbers stay **below 2.0.0** until it is declared stable (`0.10.2`, `0.10.3`…).
 > Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in French).
 
 ## At a glance
@@ -58,12 +58,12 @@ docker compose up -d
 docker compose logs myservices        # the app's public key and the command to authorize it on the host
 ```
 
-Then open **`http://<IP>:8090/`** **within 30 minutes** to create the admin account (after that delay:
+Then open **`http://<IP>:8090/`** (the app is at the root of the site; the old `/myservices/…` addresses still work and redirect) **within 30 minutes** to create the admin account (after that delay:
 `docker compose restart myservices`) and follow the **"Premiers pas"** (getting started) card, then the **Help** page in Settings.
 
 > **The app listens on port `8090`.** It is a setting, not a fixed value: if 8090 is already taken on your machine, put **`MYSERVICES_PORT=8095`** (or any free port) in a `.env` file next to `docker-compose.yaml` (example: [`deploy/env.example`](deploy/env.example), downloaded by the second `curl` above), then run `docker compose up -d` and open `http://<IP>:8095/`. The container uses the host network, so editing a `ports:` mapping would do nothing.
 
-Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.10.1` pins a version, `:main` tracks the latest commit of the `main` branch (the header then shows e.g. `v0.10.1+ · main · abc1234`).
+Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.10.2` pins a version, `:main` tracks the latest commit of the `main` branch (the header then shows e.g. `v0.10.1+ · main · abc1234`).
 Update: `docker compose pull && docker compose up -d` (settings and data live in the `./config` and `./data` volumes).
 
 ---
@@ -224,7 +224,7 @@ Schedules can also be edited live in Settings -> Tasks and schedules. A full exa
 <details>
 <summary><b>🤖 API and MCP</b></summary>
 
-A REST API (`/myservices/api/v1/…`, OpenAPI documentation at `/myservices/api/v1/docs`) and an **MCP server** (`/myservices/mcp`, `msv_mcp_` token) let your tools and AI assistants read the same data. Create tokens in Settings -> API and MCP, with a validity you choose: **read** (the default), **runs** (read + ask for a collection) or **admin** (settings included; a duration is required and your password is asked). Each MCP tool has its own switch.
+A REST API (`/api/v1/…`, OpenAPI documentation at `/api/v1/docs`) and an **MCP server** (`/mcp`, `msv_mcp_` token) let your tools and AI assistants read the same data. Create tokens in Settings -> API and MCP, with a validity you choose: **read** (the default), **runs** (read + ask for a collection) or **admin** (settings included; a duration is required and your password is asked). Each MCP tool has its own switch.
 
 </details>
 

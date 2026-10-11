@@ -28,6 +28,8 @@ class Accounts(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         d = Path(self.tmp.name)
         (d / "index.html").write_text("<p>page</p>")
+        (d / "v2").mkdir(exist_ok=True)
+        (d / "v2" / "index.html").write_text("<p>page</p>")   # the compiled front, served at the root
         (d / "login.html").write_text("<form>")
         server.STATIC = server.WEB = d
         server.PROGRESS = str(d / "progress.json")
@@ -44,10 +46,13 @@ class Accounts(unittest.TestCase):
         return (c or self.c).post("/myservices/api/v1/login", json={"username": user, "password": pw})
 
     def test_redirect_then_login(self):
-        r = self.c.get("/myservices/", follow_redirects=False)
-        self.assertEqual((r.status_code, r.headers["location"]), (302, "/myservices/login.html?next=/myservices/"))
-        self.assertEqual(self.c.get("/myservices/api/v1/status").status_code, 401)
-        self.assertEqual(self.c.get("/myservices/login.html").status_code, 200)  # page publique
+        r = self.c.get("/", follow_redirects=False)
+        self.assertEqual((r.status_code, r.headers["location"]), (302, "/login.html?next=/"))
+        self.assertEqual(self.c.get("/api/v1/status").status_code, 401)
+        self.assertEqual(self.c.get("/myservices/api/v1/status").status_code, 401)   # the old address answers the same, through the alias
+        self.assertEqual(self.c.get("/login.html").status_code, 200)  # public page
+        r = self.c.get("/myservices/v2/", follow_redirects=False)                    # an old bookmark leads to the root, then to the sign-in page
+        self.assertEqual((r.status_code, r.headers["location"]), (302, "/"))
         r = self.login()
         self.assertEqual((r.status_code, r.json()["role"]), (200, "admin"))
         cookie = r.headers.get_list("set-cookie")
@@ -225,6 +230,8 @@ class FirstAccount(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         d = Path(self.tmp.name)
         (d / "index.html").write_text("<p>page</p>")
+        (d / "v2").mkdir(exist_ok=True)
+        (d / "v2" / "index.html").write_text("<p>page</p>")   # the compiled front, served at the root
         server.STATIC = server.WEB = d
         api.AUTH = True
         api.STORE = auth.Store(d / "myservices.db")

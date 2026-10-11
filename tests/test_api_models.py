@@ -110,7 +110,7 @@ class ApiModels(unittest.TestCase):
     def test_openapi(self):
         paths = self.c.get(BASE + "/openapi.json").json()["paths"]
         for p in ("machines", "services", "health", "backups"):
-            self.assertIn(f"{BASE}/{p}", paths)
+            self.assertIn(f"/api/v1/{p}", paths)     # documented at the root; BASE (/myservices/api/v1) is the old address, still answered
 
     def test_read_token(self):
         self.full()
