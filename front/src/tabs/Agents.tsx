@@ -169,7 +169,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
           <li key={ip}>
             <button type="button" disabled={!!busy} onClick={() => setPick(pick === ip ? "" : ip)} aria-pressed={pick === ip}
               className={`flex h-full w-full items-center gap-3 rounded-xl border bg-bg2/60 p-3 text-left transition-colors hover:border-link hover:bg-link/10 disabled:opacity-60 ${pick === ip || ip === focusIp ? "border-link bg-link/10" : "border-line"}`}>
-              <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os }} reserve />
+              <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, osName: liveBy.get(ip)?.agent?.os }} reserve />
               <span className="min-w-0 flex-1">
                 <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
                 <span className="block truncate text-xs text-dim">{ip}{machines[ip].off ? ` · ${tx("souvent éteinte")}` : ""}</span>
@@ -188,7 +188,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
           return (
             <li key={ip}>
               <a href={`#settings/machines/${ip}`} className="flex h-full items-center gap-3 rounded-xl border border-line bg-bg2/60 p-3 transition-colors hover:border-link hover:bg-link/10">
-                <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl }} reserve />
+                <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
                 <span className="min-w-0 flex-1">
                   <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
                   <span className="block truncate text-xs text-dim">{ip} · SSH {machines[ip].ssh}</span>
@@ -206,7 +206,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         {noAccess.map((ip) => (
           <li key={ip}>
             <a href={`#settings/machines/${ip}`} className="flex h-full items-center gap-3 rounded-xl border border-line bg-bg2/60 p-3 transition-colors hover:border-link hover:bg-link/10">
-              <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, info: liveBy.get(ip)?.info, ttl: liveBy.get(ip)?.ttl }} reserve />
+              <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, info: liveBy.get(ip)?.info, ttl: liveBy.get(ip)?.ttl, osName: liveBy.get(ip)?.info?.os ?? liveBy.get(ip)?.agent?.os }} reserve />
               <span className="min-w-0 flex-1">
                 <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
                 <span className="block truncate text-xs text-dim">{ip}{machines[ip].off ? ` · ${tx("souvent éteinte")}` : ""}</span>
@@ -261,14 +261,15 @@ function UpdateControls({ a, reload, setNote }: { a: AgentInfo; reload: () => vo
       <button type="button" disabled={!live || busy} aria-pressed={!!a.auto_update}
         title={a.auto_update ? tx("Mise à jour automatique activée : l'agent prend le nouveau script dès qu'il est plus ancien. Cliquer pour couper.") : tx("Activer la mise à jour automatique de cet agent")}
         onClick={() => void run(() => send("PATCH", `agents/${a.id}`, { auto_update: !a.auto_update }), a.auto_update ? tx("mise à jour automatique coupée") : tx("mise à jour automatique activée"))}
-        className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 font-semibold disabled:opacity-50 ${a.auto_update ? "border-ok/60 bg-ok/15 text-ok" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
-        <RotateCw size={14} aria-hidden />{tx("Automatique")}<span className="font-mono text-[10px]">{a.auto_update ? tx("oui") : tx("non")}</span>
+        className={`inline-flex h-8 items-center gap-2 rounded-lg border px-2.5 font-semibold leading-none disabled:opacity-50 ${a.auto_update ? "border-ok/60 bg-ok/15 text-ok" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
+        <RotateCw size={14} className="shrink-0" aria-hidden /><span className="leading-none">{tx("Automatique")}</span>
+        <span className={`rounded px-1.5 py-1 text-[10px] font-bold uppercase leading-none ${a.auto_update ? "bg-ok/25 text-ok" : "bg-bg2 text-dim"}`}>{a.auto_update ? tx("oui") : tx("non")}</span>
       </button>
       <button type="button" disabled={!live || busy || (!a.outdated && !a.update_requested)}
         title={!a.outdated ? tx("L'agent est déjà à jour") : a.update_requested ? tx("Demandée : l'agent se mettra à jour à son prochain relevé") : tx("Mettre à jour maintenant : l'agent récupère le nouveau script à son prochain relevé (au plus tard dans {0} min)", Math.round(a.interval / 60))}
         onClick={() => void run(() => send("POST", `agents/${a.id}/update`), tx("demandée : l'agent se mettra à jour à son prochain relevé"))}
-        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-link/60 bg-link/10 px-2.5 font-semibold text-txt hover:bg-link/20 disabled:opacity-40">
-        <ArrowUpCircle size={14} aria-hidden />{a.update_requested ? tx("Demandée…") : tx("Mettre à jour maintenant")}
+        className="inline-flex h-8 items-center gap-2 rounded-lg border border-link/60 bg-link/10 px-2.5 font-semibold leading-none text-txt hover:bg-link/20 disabled:opacity-40">
+        <ArrowUpCircle size={14} className="shrink-0" aria-hidden /><span className="leading-none">{a.update_requested ? tx("Demandée…") : tx("Mettre à jour maintenant")}</span>
       </button>
     </div>
   );
@@ -289,7 +290,7 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
     <li className={`flex flex-col gap-2 rounded-xl border bg-card p-3 text-sm ${focus ? "border-link" : "border-line"}`}>
       <button type="button" onClick={() => setFolded(!folded)} aria-expanded={!folded} className="flex items-center gap-3 text-left">
         {folded ? <ChevronRight size={16} className="shrink-0 text-txt" aria-hidden /> : <ChevronDown size={16} className="shrink-0 text-txt" aria-hidden />}
-        <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? "windows" }} reserve />
+        <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? "windows", osName: a.os }} reserve />
         <span className="min-w-0 flex-1">
           <b className="block truncate">{conf?.name ?? a.name}</b>
           <span className="block truncate text-xs text-dim">{ip}</span>
@@ -334,7 +335,7 @@ function RevokedCard({ a, conf, ip, busy, onNew, reload }: { a: AgentInfo; conf?
   return (
     <li className="flex flex-col gap-2 rounded-xl border border-line/60 bg-card/60 p-3 text-sm">
       <div className="flex items-center gap-3">
-        <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? "windows" }} reserve />
+        <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? "windows", osName: a.os }} reserve />
         <span className="min-w-0 flex-1">
           <b className="block truncate">{conf?.name ?? a.name}</b>
           <span className="block truncate text-xs text-dim">{ip}</span>
