@@ -1,7 +1,7 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { Ban, Check, HelpCircle, Loader2, MonitorUp, Package, Pencil, Plug, Plus, Server, ShieldCheck, ToggleRight, Trash2, X, type LucideIcon } from "lucide-react";
+import { Ban, Check, HelpCircle, Loader2, MonitorUp, Package, Pencil, Plug, Play, Plus, Server, ShieldCheck, ToggleRight, Trash2, X, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
@@ -192,10 +192,43 @@ const PARTS: [Part, string, string, LucideIcon][] = [
 /** Connecteurs dont l'affichage sur la page est une source activable (le même interrupteur vaut pour toutes les instances du type) */
 const SHOWN: Record<string, string> = { npm: tx("Afficher les services et compteurs NPM sur la page"), adguard: tx("Afficher l'onglet DNS et les compteurs AdGuard (toutes les instances)") };
 
+/** Réponse de l'essai d'un connecteur : message, version et ce que la lecture a rapporté (preuve que le connecteur lit vraiment) */
+interface TestOut { ok: boolean; message: string; version: string | null; version_tested: boolean | null; found?: { name: string; count: number }[] }
+
+async function runTest(type: string, body: unknown): Promise<TestOut> {
+  try {
+    return await send<TestOut>("POST", `connectors/settings/${type}/test`, body);
+  } catch (e) {
+    if (e instanceof LoginRequired) location.replace(LOGIN);
+    return { ok: false, message: (e as Error).message, version: null, version_tested: null };
+  }
+}
+
+/** Résultat d'un essai : cadre vert ou rouge, version, puis une pastille par type d'information lue */
+function TestReport({ r, onClose }: { r: TestOut; onClose: () => void }) {
+  const total = (r.found ?? []).reduce((n, f) => n + f.count, 0);
+  return (
+    <div role="status" className={`mt-3 rounded-xl border px-3 py-2 text-sm ${r.ok ? "border-ok/40 bg-ok/5" : "border-bad/40 bg-bad/5"}`}>
+      <div className="flex flex-wrap items-start gap-2">
+        <span className={`min-w-0 flex-1 break-words ${r.ok ? "text-ok" : "text-bad"}`}>{r.ok ? "✓" : "⚠"} {r.ok ? tx("Lecture réussie") : tx("Échec")} · <span className="text-muted">{r.message}</span></span>
+        <button type="button" className="text-xs text-dim hover:text-text" onClick={onClose} aria-label={tx("Fermer")}>✕</button>
+      </div>
+      {r.ok && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          {r.version && <Badge tone={r.version_tested === false ? "warn" : "info"} title={r.version_tested === false ? tx("Version non testée : l'API a pu changer") : undefined}>{tx("version {0}", r.version)}{r.version_tested === false ? ` · ${tx("non testée")}` : ""}</Badge>}
+          {(r.found ?? []).map((f) => <Badge key={f.name} tone={f.count ? "ok" : "off"}>{f.name} : {f.count}</Badge>)}
+          {!(r.found ?? []).length && <Dim>{tx("connexion réussie, aucun détail renvoyé")}</Dim>}
+          {total === 0 && (r.found ?? []).length > 0 && <Dim>{tx("connexion réussie mais rien à lire pour l'instant")}</Dim>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InstanceCard({ inst, type, reload, editing: edit, locked, setEditing: setEdit }: {
   inst: ConnectorInstance; type: ConnectorType; reload: () => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
 }) {
-  const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null);
+  const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null), [report, setReport] = useState<TestOut | null>(null), [testing, setTesting] = useState(false);
   const url = inst.config.url as string | undefined;
   const path = `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}`;
   return (
@@ -214,14 +247,20 @@ function InstanceCard({ inst, type, reload, editing: edit, locked, setEditing: s
           {inst.enabled && <div className="mt-2 text-sm"><StatusLine s={inst.status} /></div>}
         </div>
         <div className="flex flex-wrap gap-1.5">
+          <button type="button" className={quiet} disabled={testing || edit} onClick={async () => {
+            setTesting(true); setReport(null);
+            setReport(await runTest(inst.type, { name: inst.name, config: configFor(type, modeOf(type, inst.config), inst.config as Record<string, string | number | boolean>), original: inst.name }));
+            setTesting(false);
+          }} title={tx("Essayer la lecture avec les réglages enregistrés, sans ouvrir le formulaire")}><Play size={14} />{testing ? tx("Essai…") : tx("Tester")}</button>
           <button type="button" className={quiet} disabled={locked} onClick={() => setEdit(!edit)} aria-expanded={edit}
-            title={locked ? tx("Un autre formulaire est ouvert : terminez-le ou annulez-le d'abord") : undefined}><Pencil size={14} />{tx("Modifier / Tester")}</button>
+            title={locked ? tx("Un autre formulaire est ouvert : terminez-le ou annulez-le d'abord") : undefined}><Pencil size={14} />{tx("Modifier")}</button>
           {confirm ? <>
             <button type="button" className={danger} onClick={() => void act(() => send("DELETE", path), tx("connecteur supprimé"), setNote).then((ok) => ok && reload())}>{tx("Confirmer")}</button>
             <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
           </> : <button type="button" className={danger} onClick={() => setConfirm(true)}><Trash2 size={14} />{tx("Supprimer")}</button>}
         </div>
       </div>
+      {report && !edit && <TestReport r={report} onClose={() => setReport(null)} />}
       {edit && <ConnectorForm type={type} inst={inst} onDone={() => { setEdit(false); reload(); }} onCancel={() => setEdit(false)} />}
       <NoteLine note={note} />
     </Card>
@@ -248,15 +287,10 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, 
     if (id === "ssh" && !conf.url) setConf((c) => ({ ...c, url: "http://127.0.0.1:81" }));  // vu de la machine de NPM
   };
   const body = () => ({ name, config: configFor(type, mode, conf), original: inst?.name ?? null });
+  const [report, setReport] = useState<TestOut | null>(null);
   const tryIt = async () => {
-    setBusy(true);
-    try {
-      const r = await send<{ ok: boolean; message: string; version: string | null; version_tested: boolean | null }>("POST", `connectors/settings/${type.type}/test`, body());
-      setNote({ ok: r.ok, text: `${r.message}${r.version ? tx(" · version {0}{1}", r.version, r.version_tested === false ? tx(" (non testée)") : "") : ""}` });
-    } catch (e) {
-      if (e instanceof LoginRequired) location.replace(LOGIN);
-      else setNote({ ok: false, text: (e as Error).message });
-    }
+    setBusy(true); setNote(null);
+    setReport(await runTest(type.type, body()));
     setBusy(false);
   };
   const submit = async (e: FormEvent) => {
@@ -336,6 +370,7 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, 
       {help && type.guide && (
         <ol className="list-decimal space-y-1 rounded-lg border border-line/70 bg-bg2/60 py-2 pl-8 pr-3 text-sm text-muted">{type.guide.map((g) => <li key={g}>{g}</li>)}</ol>
       )}
+      {report && <TestReport r={report} onClose={() => setReport(null)} />}
       <NoteLine note={note} />
     </form>
   );

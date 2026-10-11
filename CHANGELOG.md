@@ -11,7 +11,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Testing phase: do not use in production.**
 
+### Added
+- **"Test" button on every connector card**, without opening the form: it reads with the saved settings and shows a green or red frame with the version and a badge per kind of information read (entities, hosts, containers…), proving the connector really reads something. The form's test shows the same report. The card button now only says "Edit".
+
 ### Fixed
+- **Settings → Machines cards have the same height** in a row, and many badges wrap onto several lines instead of stretching the card.
 - **A machine read through a connector's API (Home Assistant, Proxmox…) was still shown as "online, without SSH"**, and nothing from the connector reached the Machines page. Now a machine whose connector URL (or announced address) points at it shows state **API**, its detail lists the connector with its version, and a failing connector is flagged in "To watch".
 - **Home Assistant now brings sensors for its host machine** (System Monitor integration and Supervisor sensors): processor, memory, disk, temperature. They feed the Health tab as a source named "Home Assistant" (group "API"), so the machine gets CPU / memory / disk columns and alerts like any other. The connector also counts unavailable entities and low batteries.
 

@@ -229,6 +229,22 @@ def npm_script_install(ssh: str, directory: str, ip: str, port: int, user: str, 
     return got
 
 
+def tally(data: object) -> list[dict]:
+    """Ce qu'une lecture a rapporté : pour chaque clé, le nombre d'éléments d'une liste ou d'un dictionnaire, ou la valeur d'un entier.
+    Sert de preuve que le connecteur lit vraiment quelque chose (et pas seulement qu'il se connecte)."""
+    if not isinstance(data, dict):
+        return []
+    out = []
+    for k, v in data.items():
+        if str(k).startswith("_") or isinstance(v, bool):
+            continue
+        if isinstance(v, (list, dict)):
+            out.append({"name": str(k), "count": len(v)})
+        elif isinstance(v, int):
+            out.append({"name": str(k), "count": v})
+    return out[:12]
+
+
 def test(type_: str, name: str, conf: dict, original: str | None = None) -> dict:
     """Essai des réglages du formulaire, sans enregistrer (secrets vides = ceux déjà enregistrés)."""
     conn = TYPES[type_](resolve(type_, name, conf, original), Context(timeout=TEST_TIMEOUT))
@@ -239,5 +255,11 @@ def test(type_: str, name: str, conf: dict, original: str | None = None) -> dict
     except Exception as e:  # bug du connecteur : message lisible plutôt qu'une erreur 500
         return {"ok": False, "message": f"erreur du connecteur : {type(e).__name__}", "version": None}
     from connectors.base import version_tested
+    found: list[dict] = []
+    if r.ok:
+        try:
+            found = tally(conn.collect())
+        except Exception:  # la lecture a répondu au test : un détail manquant ne doit pas le faire échouer
+            found = []
     return {"ok": r.ok, "message": r.message, "version": r.version,
-            "version_tested": version_tested(r.version, TYPES[type_].tested)}
+            "version_tested": version_tested(r.version, TYPES[type_].tested), "found": found}
