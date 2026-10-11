@@ -10,6 +10,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ## Unreleased (next version, not tagged yet)
 
 ### Added
+- **Home counters (right column)**: each group shows the real app logo (Nginx Proxy Manager, Docker, AdGuard Home) or a theme icon (Machines, Health, Backups) instead of an emoji.
 - **DNS tab header**: AdGuard Home logo and title above the cards, and an "AdGuard" badge on each card (the tab may later host other DNS sources: UniFi, ISP box…).
 - **Settings → Connectors lists what is read over SSH or by the agent** (AdGuard, Docker, processes) in a read-only block "Read over SSH or by the agent", with the same read-count badges and a link to the machine settings. AdGuard read over SSH had no card there.
 - **Each connector card shows what its last collection read** (badges such as `entities : 4593`), not only after pressing "Test".

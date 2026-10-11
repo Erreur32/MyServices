@@ -1,24 +1,32 @@
 // Compteurs de l'en-tête de la page actuelle (NPM, directs, santé, sauvegardes, AdGuard), en colonne à droite
 // de l'accueil ; clic = ouvrir l'onglet.
+import { Boxes, HardDrive, HeartPulse, Monitor, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Snapshot } from "../api";
 import { CLEANUP, checks, dnsSync, status } from "../lib/status";
 import { mState } from "../lib/machines";
 import type { TabId } from "../lib/summary";
+import { appIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
 import { ScheduleCard } from "./ScheduleCard";
 
 type Tone = "ok" | "warn" | "bad" | "off";
 const TONE: Record<Tone, string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad", off: "text-muted" };
 
-function Group({ title, sub, accent, tab, go, cells }: {
-  title: string; sub: string; accent: string; tab: TabId; go: (t: TabId) => void; cells: [Tone, number, string][];
+/** Vrai logo de l'appli quand il existe, sinon une icône du thème */
+function Mark({ app, Icon }: { app?: string; Icon: LucideIcon }) {
+  const src = app ? appIcon([app]) : null;
+  return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-bg2">{src ? <img src={src} alt="" className="h-4 w-4" /> : <Icon size={14} className="text-muted" aria-hidden />}</span>;
+}
+
+function Group({ title, sub, accent, tab, go, cells, mark }: {
+  mark: ReactNode; title: string; sub: string; accent: string; tab: TabId; go: (t: TabId) => void; cells: [Tone, number, string][];
 }) {
   return (
     <button type="button" onClick={() => go(tab)}
       className={`w-full rounded-xl border border-line border-l-4 ${accent} bg-card p-3 text-left hover:border-link`}>
-      <div className="flex items-baseline justify-between gap-2">
-        <b className="text-sm">{title}</b><span className="text-xs text-dim">{sub}</span>
+      <div className="flex items-center justify-between gap-2">
+        <b className="flex min-w-0 items-center gap-2 text-sm">{mark}<span className="truncate">{title.replace(/^\p{Extended_Pictographic}\s*/u, "")}</span></b><span className="shrink-0 text-xs text-dim">{sub}</span>
       </div>
       <div className="mt-2 grid grid-cols-4 gap-1.5">
         {cells.map(([tone, n, label]) => (
@@ -41,24 +49,24 @@ export function statGroups(snap: Snapshot, go: (t: TabId) => void): Partial<Reco
   const dns = data.dns;
   const ms = (data.machine_list || []).filter((m) => !m.disabled), ml = (...st: ReturnType<typeof mState>[]) => ms.filter((m) => st.includes(mState(m))).length;
   const groups = [
-    ms.length > 0 && <Group key="mc" title={tx("🖥 Machines")} sub={tx("{0} machines", ms.length)} accent="border-l-muted" tab="machines" go={go} cells={[
+    ms.length > 0 && <Group key="mc" mark={<Mark Icon={Monitor} />} title={tx("🖥 Machines")} sub={tx("{0} machines", ms.length)} accent="border-l-muted" tab="machines" go={go} cells={[
       ["ok", ml("ssh", "manual"), tx("SSH OK")], ["warn", ml("nossh", "refused"), tx("à régler")],
       ["off", ml("off"), tx("éteintes")], ["bad", ml("down"), tx("injoignables")]]} />,
-    npm.length > 0 && <Group key="npm" title={tx("NPM")} sub={tx("{0} entrées", npm.length)} accent="border-l-npm" tab="services" go={go} cells={[
+    npm.length > 0 && <Group key="npm" mark={<Mark app="Nginx Proxy Manager" Icon={Boxes} />} title={tx("NPM")} sub={tx("{0} entrées", npm.length)} accent="border-l-npm" tab="services" go={go} cells={[
       ["ok", n(npm, "ok"), tx("OK")], ["bad", n(npm, "bad"), tx("en panne")],
       ["warn", npm.filter((r) => checks(r).some((c) => !CLEANUP.includes(c))).length, tx("à corriger")],
       ["off", npm.filter((r) => !r.enabled).length, tx("désactivés")]]} />,
-    local.length > 0 && <Group key="loc" title={tx("Services")} sub={tx("{0} services", local.length)} accent="border-l-loc" tab="services" go={go} cells={[
+    local.length > 0 && <Group key="loc" mark={<Mark app="Docker" Icon={Boxes} />} title={tx("Services")} sub={tx("{0} services", local.length)} accent="border-l-loc" tab="services" go={go} cells={[
       ["ok", n(local, "ok"), tx("en ligne")], ["bad", n(local, "bad"), "down"],
       ["warn", local.filter((r) => r.web === "ui" && !r.direct_ok).length, tx("UI sans domaine")], ["off", n(local, "off"), tx("non testés")]]} />,
-    health && <Group key="hl" title={tx("🩺 Santé")} sub={tx("{0} machines", health.hosts.length)} accent="border-l-ok" tab="health" go={go} cells={[
+    health && <Group key="hl" mark={<Mark Icon={HeartPulse} />} title={tx("🩺 Santé")} sub={tx("{0} machines", health.hosts.length)} accent="border-l-ok" tab="health" go={go} cells={[
       ["ok", hl("ok"), tx("OK")], ["warn", hl("warn"), tx("à surveiller")], ["bad", hl("crit"), tx("critiques")], ["bad", hl("down"), tx("injoignables")]]} />,
-    dns && <Group key="dns" title={tx("🌍 AdGuard")} sub={dnsSync(dns).label} accent="border-l-link" tab="dns" go={go} cells={[
+    dns && <Group key="dns" mark={<Mark app="AdGuard Home" Icon={Boxes} />} title={tx("🌍 AdGuard")} sub={dnsSync(dns).label} accent="border-l-link" tab="dns" go={go} cells={[
       ["ok", data.hosts.filter((r) => r.dns && r.enabled && !r.dns.issues.length).length, tx("domaines OK")],
       ["warn", data.hosts.filter((r) => r.dns && r.enabled && r.dns.issues.length).length, tx("à vérifier")],
       ["warn", dns.orphans.length, tx("orphelines")],
       ["bad", Object.values(dns.servers).filter((s) => !s.readable || s.silent).length, tx("injoignables")]]} />,
-    backups && <Group key="bk" title={tx("💾 Sauvegardes")} sub={tx("{0} jeux", backups.summary.sets)} accent="border-l-apache" tab="backups" go={go} cells={[
+    backups && <Group key="bk" mark={<Mark Icon={HardDrive} />} title={tx("💾 Sauvegardes")} sub={tx("{0} jeux", backups.summary.sets)} accent="border-l-apache" tab="backups" go={go} cells={[
       ["ok", backups.summary.ok, tx("à jour")], ["warn", backups.summary.warn, tx("en retard")],
       ["bad", backups.summary.crit, tx("critiques")], ["bad", backups.summary.no_offsite, tx("sans copie")]]} />,
   ];
