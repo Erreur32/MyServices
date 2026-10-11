@@ -153,21 +153,39 @@ export function DiscoveryPanel({ d, group, reload, machines, extra }: { d: Disco
   );
 }
 
-/** Accueil : seulement ce qui est à faire (rien d'affiché quand tout est en ordre) */
-export function DiscoveryReminder() {
-  const [d] = useDiscoveries();
+/** Accueil : seulement ce qui est à faire (rien d'affiché quand tout est en ordre). Un cadre « notifications » : en-tête avec un badge du nombre,
+ *  puis une ligne par chose à faire (logo, « Appli trouvée sur Machine », pourquoi) avec son bouton, et « Ne plus me le rappeler » quand c'est permis. */
+export function DiscoveryReminder({ machines }: { machines?: Machine[] }) {
+  const [d, reload] = useDiscoveries();
   const todo = d?.items.filter((x) => x.state === "todo") ?? [];
   if (!todo.length) return null;
   return (
-    <section className="rounded-2xl border border-warn/40 bg-card p-5" aria-label={tx("Découvertes à faire")}>
-      <h2 className="mb-1 text-base font-bold">{tx("À faire pour compléter la découverte")}</h2>
-      <p className="mb-2 text-sm text-muted">{tx("Ces recherches ne se lancent pas toutes seules.")} <a className="text-link hover:underline" href="#settings/network">{tx("Tout voir")}</a></p>
-      <ul className="flex flex-col gap-1.5 text-sm">
+    <section className="overflow-hidden rounded-2xl border border-warn/50 bg-card shadow-sm" aria-label={tx("Découvertes à faire")}>
+      <div className="flex flex-wrap items-center gap-3 bg-warn/10 px-5 py-3.5">
+        <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-warn/20 text-warn">
+          <Bell size={18} aria-hidden />
+          <span className="absolute -right-2 -top-2 grid h-5 min-w-5 place-items-center rounded-full bg-warn px-1 text-[11px] font-bold leading-none text-bg shadow"
+            title={tx("{0} chose(s) à faire pour compléter la découverte", todo.length)}>{todo.length}</span>
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-bold">{tx("À faire pour compléter la découverte")}</h2>
+          <p className="text-xs text-muted">{tx("Ces recherches ne se lancent pas toutes seules.")}</p>
+        </div>
+        <a href="#settings/network" className="group/go inline-flex items-center gap-1 rounded-full border border-warn/40 bg-bg2/60 px-2.5 py-1 text-xs font-semibold text-muted no-underline transition-colors hover:border-warn hover:text-txt">
+          {tx("Tout voir")}<ChevronRight size={13} className="transition-transform group-hover/go:translate-x-0.5" aria-hidden />
+        </a>
+      </div>
+      <ul className="flex flex-col divide-y divide-line/60">
         {todo.map((x) => (
-          <li key={x.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="min-w-0 flex-1"><b>{x.title}</b> <span className="text-dim">· {x.note || MODE[x.mode].label}</span></span>
-            {x.action?.prefill && <button type="button" onClick={() => openConnector(x.action!.prefill!)} className="inline-flex items-center gap-1 text-link hover:underline">{x.action.label}<ChevronRight size={14} aria-hidden /></button>}
-            {x.action?.href && <a href={x.action.href} className="inline-flex items-center gap-1 text-link hover:underline">{x.action.label}<ChevronRight size={14} aria-hidden /></a>}
+          <li key={x.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 text-sm">
+            <div className="min-w-[220px] flex-1">
+              <Title x={x} machines={machines} />
+              <p className="mt-0.5 text-xs text-dim">{x.note || MODE[x.mode].label}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {x.action && <Action a={x.action} reload={reload} />}
+              <MuteButton x={x} reload={reload} />
+            </div>
           </li>
         ))}
       </ul>

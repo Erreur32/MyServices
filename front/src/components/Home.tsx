@@ -30,10 +30,12 @@ export function Home({ snap, items, go, now }: { snap: Snapshot; items: Attentio
     <div className="grid gap-5 py-5 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="flex flex-col gap-5">
         <FirstSteps snap={snap} />
-        {snap.me.role === "admin" && <DiscoveryReminder />}
+        {snap.me.role === "admin" && <DiscoveryReminder machines={snap.data.machine_list} />}
         <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${frame}`}>
           <div className={`flex items-center gap-3 px-5 py-3.5 ${strip}`}>
-            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${{ bad: "bg-bad", warn: "bg-warn", ok: "bg-ok" }[tone]}`} aria-hidden />
+            {items.length > 0
+              ? <span className={`grid h-7 min-w-7 shrink-0 place-items-center rounded-full px-2 text-sm font-bold leading-none text-bg ${crit ? "bg-bad" : "bg-warn"}`}>{items.length}</span>
+              : <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-ok" aria-hidden />}
             {items.length === 0 ? (
               <h2 className="text-lg font-bold text-ok">{tx("✅ Rien à signaler")}</h2>
             ) : (
