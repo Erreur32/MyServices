@@ -1479,7 +1479,7 @@ export const EN: Record<string, string> = {
   "Lignes à afficher": "Rows to show",
   "Lignes": "Rows",
   "Ouvrir l'onglet": "Open the tab",
-  "Afficher seulement : {0}": "Show only: {0}",
+  "Afficher : {0}": "Show: {0}",
   "Modifier ce connecteur": "Edit this connector",
   "Services détectés non configurés": "Detected services not configured",
   "MyServices a reconnu ces applis mais ne les lit pas encore. Cliquez sur l'une d'elles pour renseigner son accès en lecture.": "MyServices recognised these apps but does not read them yet. Click one to enter its read-only access.",

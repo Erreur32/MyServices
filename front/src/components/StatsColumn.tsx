@@ -41,7 +41,7 @@ function Group({ title, sub, accent, tab, nav, cells, mark }: {
             </>
           );
           return n && filter
-            ? <button key={label} type="button" onClick={() => nav.goFilter(tab, filter)} title={tx("Afficher seulement : {0}", label)}
+            ? <button key={label} type="button" onClick={() => nav.goFilter(tab, filter)} title={tx("Afficher : {0}", label)}
                 className="rounded-lg bg-bg2 px-1.5 py-1 text-center transition-colors hover:bg-link/15 hover:ring-1 hover:ring-link">{body}</button>
             : <div key={label} className={`rounded-lg bg-bg2 px-1.5 py-1 text-center ${n ? "" : "opacity-40"}`}>{body}</div>;
         })}
