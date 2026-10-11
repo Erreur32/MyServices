@@ -15,6 +15,7 @@ import type { Selected } from "../lib/filter";
 /** Lignes affichées dans la carte d'attention : 12 par défaut, au choix 25, 50 ou toutes (0) ; le choix est retenu par le navigateur */
 const SIZES = [12, 25, 50, 0];
 const SIZE_KEY = "ms.home.attention.rows";
+const FOLD_KEY = "ms.home.attention.folded";
 const savedSize = (): number => { try { const v = Number(localStorage.getItem(SIZE_KEY)); return SIZES.includes(v) && localStorage.getItem(SIZE_KEY) !== null ? v : 12; } catch { return 12; } };
 
 /** Même icône que l'onglet (lucide, monochrome) */
@@ -27,6 +28,8 @@ function TabIcon({ tab }: { tab: TabId }) {
 const GO = "group/go inline-flex items-center gap-1 rounded-full border border-line bg-bg2/60 px-2.5 py-1 text-xs font-semibold text-muted transition-colors hover:border-link hover:bg-link/10 hover:text-link";
 
 export function Home({ snap, items, go, goFilter, now }: { snap: Snapshot; items: Attention[]; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void; now: number }) {
+  const [folded, setFolded] = useState(() => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; } });
+  const fold = (v: boolean) => { setFolded(v); try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch { /* stockage refusé : le choix ne dure que cette visite */ } };
   const [size, setSize] = useState(savedSize);
   const pickSize = (n: number) => { setSize(n); try { localStorage.setItem(SIZE_KEY, String(n)); } catch { /* stockage refusé : le choix ne dure que cette visite */ } };
   const shown = size ? items.slice(0, size) : items;
@@ -40,7 +43,23 @@ export function Home({ snap, items, go, goFilter, now }: { snap: Snapshot; items
         <FirstSteps snap={snap} />
         {snap.me.role === "admin" && <DiscoveryReminder machines={snap.data.machine_list} />}
         <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${frame}`}>
-          <div className={`flex items-center gap-3 px-5 py-3.5 ${strip}`}>
+          {items.length > 0 ? (
+            <button type="button" onClick={() => fold(!folded)} aria-expanded={!folded} title={folded ? tx("Déplier") : tx("Replier")}
+              className={`flex w-full items-center gap-3 px-5 py-3.5 text-left ${strip}`}>
+              {items.length > 0
+                ? <span className={`grid h-7 min-w-7 shrink-0 place-items-center rounded-full px-2 text-sm font-bold leading-none text-bg ${crit ? "bg-bad" : "bg-warn"}`}>{items.length}</span>
+                : <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-ok" aria-hidden />}
+              {items.length === 0 ? (
+                <h2 className="text-lg font-bold text-ok">{tx("✅ Rien à signaler")}</h2>
+              ) : (
+                <h2 className="text-lg font-bold">
+                  {items.length} {tx("point")}{items.length > 1 ? "s" : ""} {tx("demande")}{items.length > 1 ? tx("nt") : ""} {tx("ton attention")}
+                </h2>
+              )}
+              <ChevronRight size={18} className={`ml-auto shrink-0 text-txt transition-transform ${folded ? "" : "rotate-90"}`} aria-hidden />
+            </button>
+          ) : (
+            <div className={`flex items-center gap-3 px-5 py-3.5 ${strip}`}>
             {items.length > 0
               ? <span className={`grid h-7 min-w-7 shrink-0 place-items-center rounded-full px-2 text-sm font-bold leading-none text-bg ${crit ? "bg-bad" : "bg-warn"}`}>{items.length}</span>
               : <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-ok" aria-hidden />}
@@ -51,8 +70,9 @@ export function Home({ snap, items, go, goFilter, now }: { snap: Snapshot; items
                 {items.length} {tx("point")}{items.length > 1 ? "s" : ""} {tx("demande")}{items.length > 1 ? tx("nt") : ""} {tx("ton attention")}
               </h2>
             )}
-          </div>
-          {items.length > 0 && (
+            </div>
+          )}
+          {items.length > 0 && !folded && (
             <div className="px-3 py-2.5">
               <ol className="flex flex-col gap-0.5">
                 {shown.map((it, i) => (
