@@ -1,40 +1,35 @@
-# Notes de version : MyServices 0.9.1
+# Notes de version : MyServices 0.9.2
 
-**0.9.1** (11 octobre 2026) est la première version numérotée de MyServices v2 (Docker), encore en BETA : les numéros restent sous la 2.0.0 tant que
-ce n'est pas jugé stable. Elle reprend les préversions `2.0.0-alpha`, `beta` et `rc.1` à `rc.3`. Gardez une copie de vos dossiers `config/` et `data/` avant de mettre à jour.
+> **Phase de test : ne pas mettre en production.** Essayez MyServices sur une machine ou un réseau de test, et gardez une copie de `config/` et `data/` avant de mettre à jour.
 
-> **Phase de test : ne pas mettre en production.** Essayez MyServices sur une machine ou un réseau de test.
+**0.9.2** (11 octobre 2026) ajoute cinq nouveaux « connecteurs » (MyServices sait lire cinq outils de plus) et améliore la page des agents.
 
 ## Pour tout le monde
 
-**Quoi de neuf depuis la dernière préversion (rc.3) ?**
-- **Nginx Proxy Manager se branche plus facilement.** Si vous utilisez NPM pour vos adresses web, MyServices peut maintenant le lire de
-  trois façons. Choisissez celle qui convient à votre installation : en le contactant directement, en passant par une machine
-  accessible en SSH, ou avec le petit script `npm-api.sh`. Chaque formulaire n'affiche que ce dont il a besoin et marque ce qui est
-  obligatoire.
-- **Le script `npm-api.sh` s'installe en un clic.** MyServices le télécharge, vérifie qu'il n'a pas été modifié en route, puis le met en
-  place sur la bonne machine. Votre mot de passe NPM n'est jamais visible dans une commande.
-- **Les messages sont plus clairs.** MyServices vérifie le chemin du script et vous donne des conseils en vert quand tout va bien.
-
-**Aussi dans cette version** (ajouts après rc.3) :
-- Dans Réglages → Connecteurs, l'onglet **Agents et SSH** passe en premier.
-- Pour installer l'agent sur un PC Windows, la case « Adresse de MyServices » n'est plus affichée en permanence : elle apparaît
-  seulement quand vous créez un nouvel agent, déjà remplie avec l'adresse de la page que vous regardez. Dans presque tous les cas,
-  vous n'avez rien à taper.
+**Quoi de neuf ?**
+- **Proxmox** : MyServices voit vos machines virtuelles et conteneurs (en marche ou arrêtés), l'état de chaque serveur Proxmox, l'espace des stockages et la dernière sauvegarde. **Proxmox Backup Server** : l'espace de vos magasins de sauvegardes et l'âge de la dernière sauvegarde.
+- **MynetworK** : MyServices reprend l'inventaire de votre réseau (adresse, fabricant, en ligne ou non). Dans l'onglet Machines, chaque machine montre son adresse MAC et son fabricant, et une liste repliable montre les appareils que MynetworK voit mais que vous ne suivez pas encore.
+- **LogviewR** : un nouvel onglet **Fail2ban** apparaît dès que LogviewR est relié : les prisons, les bannissements des dernières 24 heures et les menaces en cours.
+- **Dockhand** : vos environnements Docker, le nombre de conteneurs et les mises à jour d'images en attente.
+- Une section « Virtualisation et conteneurs » dans l'onglet Santé réunit Proxmox, Proxmox Backup Server et Dockhand.
+- **Icônes** pour ces outils, Veeam et Web-Check.
+- **Page des agents** : les groupes et chaque carte d'agent se replient (un agent qui va bien est replié d'office, les groupes vides aussi et passent en bas), plus d'espace entre les groupes ; les **agents révoqués** ont leur groupe avec un bouton « Nouvel agent » et un bouton « Supprimer ».
+- Réglages → Connecteurs : la page se rouvre sur le dernier sous-onglet utilisé ; un connecteur qui marche n'affiche plus qu'une coche verte, un connecteur en panne montre son message.
+- **Correction** : Home Assistant affichait à tort « pas encore lu » alors qu'il était bien lu.
 
 **Ce qu'il faut savoir**
-- Les trois façons de lire NPM n'ont pas encore été essayées avec un vrai NPM : si quelque chose ne marche pas, dites-le-nous.
-- Rien n'est modifié sur vos machines : MyServices ne fait que lire.
+- Les cinq nouveaux connecteurs n'ont été essayés que contre de faux serveurs : dites-nous si quelque chose ne marche pas avec les vrais.
+- Il faut créer un jeton de lecture dans chaque outil (le formulaire du connecteur explique où). MyServices ne fait que lire.
+- Rien n'est modifié sur vos machines.
 
-**Mettre à jour** : tirez la nouvelle image (`docker compose pull`, puis `docker compose up -d`). Vos réglages et vos données sont gardés.
+**Mettre à jour** : `docker compose pull`, puis `docker compose up -d`. Vos réglages et vos données sont gardés.
 
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.9.1` (amd64 et arm64), publiée à la poussée du tag ; `:latest` suit le dernier tag.
-- **Connecteur NPM** : modes `api` (direct), `ssh` (API appelée depuis la machine) et `script` (`npm-api.sh`). Module `npmapi.py`.
-- **`npm-api.sh` v3.6.9** : installé par MyServices avec vérification SHA-256 (`SCRIPT_SHA256`), `npm-api.conf` en 600, mot de passe
-  transmis par stdin, exécution par SSH. À mettre à jour dans `npmapi.py` quand le dépôt du script publie un nouveau tag.
-- **Front** : sous-onglets Agents et SSH / Connecteurs / Activation (ordre inversé) ; champ d'adresse de l'agent déplacé dans
-  le cadre « Installer l'agent sur… » (valeur par défaut `location.origin`, plus de `localStorage`).
-- **Tests** : 327 Python, 52 front. CI verte, 0 alerte Code scanning.
-- **Détail complet** : voir [CHANGELOG.md](CHANGELOG.md).
+- **Image** : `ghcr.io/erreur32/myservices:0.9.2` (amd64 et arm64) ; `:latest` suit le dernier tag.
+- **Connecteurs** (`connectors/`) : `proxmox` et `proxmox-backup` (jeton d'API `PVEAPIToken` / `PBSAPIToken`, rôle d'audit, certificat auto-signé accepté par défaut), `mynetwork` (jeton API `mwk_api_…`, GET seulement), `logviewr` (MCP `POST /mcp`, jeton lecture seule, 5 outils de lecture uniquement), `dockhand` (jeton `dh_…`).
+- **Nouveaux apports** : `network`, `security`, `containers`, `virtualization`, écrits dans `data.json`.
+- **API** : `DELETE /agents/{id}/purge` (agent déjà révoqué seulement).
+- **Correction** : l'état des connecteurs `status` était copié dans `data.json` avant leur lecture.
+- **Tests** : 335 Python, 53 front.
+- **Détail complet** (en anglais) : [CHANGELOG.md](CHANGELOG.md).

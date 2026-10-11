@@ -7,7 +7,9 @@ Versioning: the first pre-releases were called `2.0.0-alpha.N`, `-beta.N` and `-
 numbering restarts **below 2.0.0** with **0.9.0** (2.0.0 is reserved for a version judged stable). The `:latest` image tag follows the
 latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
-## Unreleased
+## v0.9.2 (2026-10-11)
+
+> **Testing phase: do not use in production.** The new connectors have only been tried against fake servers.
 
 ### Added
 - **MynetworK connector** (`mynetwork`, kind `network`): reads the LAN inventory (IP, MAC, hostname, vendor, online/offline, ping, open
