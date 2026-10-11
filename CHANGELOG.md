@@ -21,6 +21,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   (`PVEAPIToken`, role PVEAuditor, read-only). **Proxmox Backup Server connector** (`proxmox-backup`): datastores, usage and age of the last backup
   (`PBSAPIToken`). Self-signed certificates are the default case ("Verify certificate" is off by default).
 - Settings → Connectors → Agents and SSH: the four groups (With an agent, Without an agent, Linux read over SSH, No access) fold with a chevron, like the "Agent created" card; empty groups start folded and move to the bottom.
+- Agents and SSH: more space between the groups.
 - Agents and SSH: each agent card (Gamer32…) folds with a chevron, keeping its header (machine, IP, state); it starts folded when the agent is fine (active) and open when something needs attention (silent, waiting for its first report).
 - Settings → Connectors: the open sub-tab (Agents and SSH, Connectors, Activation) is remembered across page reloads (it defaults to Agents and SSH).
 - Settings → Connectors: a connector that was read shows only the green check (no "OK" text); stale or failed shows its icon and message.

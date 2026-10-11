@@ -102,7 +102,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-7">
       <Card>
         <h2 className="flex items-center gap-2 font-bold"><MonitorUp size={16} />{tx("Accès aux machines")} <Dim>· {withAgent.length} {tx("agents")} · {ssh.length} SSH</Dim></h2>
         <p className="mt-1 text-sm text-muted">
@@ -235,7 +235,7 @@ function Group({ title, n, hint, empty, fold, children }: { title: string; n: nu
   const shown = !fold || open;
   return (
     <section aria-label={title} className={n === 0 ? "order-1" : ""}>  {/* groupes vides en bas (après les pleins) */}
-      <h3 className="mb-1 px-1 text-sm font-bold">
+      <h3 className="mb-2 px-1 text-sm font-bold">
         {fold ? (
           <button type="button" onClick={() => setChoice(!open)} aria-expanded={open} className="flex items-center gap-2 text-left">
             {open ? <ChevronDown size={16} className="shrink-0 text-txt" aria-hidden /> : <ChevronRight size={16} className="shrink-0 text-txt" aria-hidden />}
