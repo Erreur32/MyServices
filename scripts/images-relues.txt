@@ -1,7 +1,6 @@
 # Images relues à l'œil (aucune IP, domaine, jeton visible) : « empreinte (32 car. du sha256)  chemin ». Une capture d'écran n'y va qu'après anonymisation.
 d15ad0d7c94ad6736de4e8982be42027  web/apache-logo.svg
 91e377406c14b2ffc5d2aded82fd54aa  web/docker-logo.svg
-73f515499dfb0b9a18c464213ac0990e  web/favicon.svg
 bd571939eb4ec943bef64ff8a4fb8d29  web/github-logo.svg
 261e9cf65e60fb5e802ebf0a4e7d65b4  web/npm-logo.svg
 4b95ac494d4756d579fe2a9df67360d5  web/ssh-logo.svg
@@ -19,3 +18,7 @@ f2110e7e2a8e8552dc85bb0ead039637  front/public/icons/unifi.svg
 f3caa8a8bac253a77fa2ae7e7bc9b062  front/public/icons/uptime-kuma.svg
 7de45e1ea203da32a040c257f47cd39a  front/public/icons/docker.svg
 3860f0d399e48fcaa30f2b21d3cd5e0d  front/public/icons/nginx.svg
+5686825675a3710852df0f871dd19843  docs/icon.svg
+a963b01ac719bcd05cffc4cf75235c72  docs/logo.svg
+5686825675a3710852df0f871dd19843  front/public/favicon.svg
+5686825675a3710852df0f871dd19843  web/favicon.svg
