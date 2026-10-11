@@ -19,6 +19,7 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
   const [url, setUrl] = useState(state.url), [user, setUser] = useState(state.user), [password, setPassword] = useState("");
   const [jobs, setJobs] = useState<Job[] | null>(null), [repos, setRepos] = useState<Repo[]>([]);
   const [pick, setPick] = useState<Record<string, Choice>>({});
+  const [change, setChange] = useState(false);   // compte déjà réglé (ici ou dans Connecteurs) : repris tel quel, formulaire seulement à la demande
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState<"" | "test" | "search" | "follow">("");
   const account = { url: url.trim(), user: user.trim(), password };
   const filled = account.url !== "" && account.user !== "" && (password !== "" || state.password_set);
@@ -59,18 +60,26 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
       <p className="mb-3 text-sm text-muted">
         {tx("MyServices lit l'API REST de Veeam (port 9419, pas 9392) avec un compte au seul rôle « Veeam Backup Viewer » : il ne peut ni lancer ni modifier un job. Le mot de passe est chiffré et n'est jamais réaffiché.")}
       </p>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Field label={tx("Adresse du serveur Veeam")}>
-          <input className={input} value={url} placeholder="https://192.168.1.50:9419" onChange={(e) => setUrl(e.target.value)} autoComplete="off" />
-        </Field>
-        <Field label={tx("Compte (lecture seule)")}>
-          <input className={input} value={user} placeholder="DOMAINE\myservices" onChange={(e) => setUser(e.target.value)} autoComplete="off" />
-        </Field>
-        <Field label={tx("Mot de passe")}>
-          <input className={input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password"
-            placeholder={state.password_set ? tx("enregistré : laisser vide pour le garder") : ""} />
-        </Field>
-      </div>
+      {state.configured && state.password_set && !change ? (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          <span className="text-dim">{tx("Compte du connecteur :")}</span><b>{state.user}</b><Dim>· {state.url}</Dim>
+          <button type="button" className={quiet} onClick={() => setChange(true)}>{tx("Changer le compte")}</button>
+          <a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a>
+        </p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label={tx("Adresse du serveur Veeam")}>
+            <input className={input} value={url} placeholder="https://192.168.1.50:9419" onChange={(e) => setUrl(e.target.value)} autoComplete="off" />
+          </Field>
+          <Field label={tx("Compte (lecture seule)")}>
+            <input className={input} value={user} placeholder="DOMAINE\myservices" onChange={(e) => setUser(e.target.value)} autoComplete="off" />
+          </Field>
+          <Field label={tx("Mot de passe")}>
+            <input className={input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password"
+              placeholder={state.password_set ? tx("enregistré : laisser vide pour le garder") : ""} />
+          </Field>
+        </div>
+      )}
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" className={quiet} disabled={!filled || busy !== ""} onClick={() => void test()}>
           {busy === "test" ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <PlugZap size={14} aria-hidden />}{tx("Tester la connexion")}

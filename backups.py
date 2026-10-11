@@ -31,10 +31,10 @@ from datetime import datetime
 from pathlib import Path
 
 from config import CFG, HERE
-from connectors.backup_apis import HomeAssistant, Veeam
+from connectors.backup_apis import HomeAssistant, PbsBackups, Veeam
 from connectors.base import ConnectorError, Context
 
-CONNECTOR_OF = {Veeam: ("veeam",), HomeAssistant: ("home-assistant",)}  # types de config.json dont un hôte « connector » reprend les réglages
+CONNECTOR_OF = {Veeam: ("veeam",), HomeAssistant: ("home-assistant",), PbsBackups: ("proxmox-backup",)}  # types de config.json dont un hôte « connector » reprend les réglages
 META = Path(CFG["backups_meta"])
 OUT_JSON = Path(CFG["web_dir"]) / "backups.json"
 SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=15"]
@@ -238,7 +238,7 @@ def api_collect(cls, h: dict, prefix: str) -> tuple[dict | None, str]:
         c = next((c for c in CFG.get("connectors") or [] if c.get("name") == h["connector"] and c.get("type") in CONNECTOR_OF[cls]), None)
         if c is None:
             return None, f"{prefix} : connecteur « {h['connector']} » absent de config.json (ou coupé dans Réglages)"
-        conf.update({k: c[k] for k in ("url", "user", "password", "token", "api_version") if c.get(k)})
+        conf.update({k: c[k] for k in ("url", "user", "password", "token", "api_version", "secret", "verify_tls") if c.get(k)})
     try:
         return cls(conf, Context()).collect(), ""
     except ConnectorError as e:
@@ -275,6 +275,8 @@ def collect(meta: dict) -> tuple[dict, dict]:
             res[hid] = api_collect(HomeAssistant, h, "API HA")
         elif h.get("api") == "veeam":
             res[hid] = api_collect(Veeam, h, "API Veeam")
+        elif h.get("api") == "pbs":
+            res[hid] = api_collect(PbsBackups, h, "API Proxmox Backup")
         elif h.get("api") == "none":  # origine sans accès (poste sauvegardé par Veeam) : rien à lire, pas « injoignable »
             res[hid] = ({"user": None, "locs": {}, "disks": [], "crons": [], "cron_root": None}, "")
     for hid, h in hosts.items():
@@ -335,6 +337,21 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                         max(level_for_age(L["age"], max_age), "warn" if j["result"] == "Warning" else "ok", key=RANK.get)
                     L["detail"] = f"dernier passage : {j['result']}" + (f" ({j['status']})" if j["status"] not in (None, "Inactive") else "")
                 # Le job écrit dans un dépôt Veeam (NAS, autre serveur) : copie hors machine, sauf "offsite": false
+                L["offsite"] = loc.get("offsite", True)
+                locs.append(L)
+                continue
+            if loc.get("pbs_group") and r:
+                # Groupe Proxmox Backup (magasin/type/id) : âge de la dernière sauvegarde
+                g = r["pbs_groups"].get(loc["pbs_group"])
+                if not g:
+                    L["level"], L["detail"] = "crit", f"groupe « {loc['pbs_group']} » absent de Proxmox Backup"
+                elif not g["last_run"]:
+                    L["level"], L["detail"] = "crit", "aucune sauvegarde"
+                else:
+                    L["age"] = age_days(g["last_run"], now)
+                    L["newest"] = {"name": loc["pbs_group"], "mtime": g["last_run"], "size": 0}
+                    L["level"] = level_for_age(L["age"], max_age)
+                    L["detail"] = f"{g['count']} sauvegarde(s) gardée(s)"
                 L["offsite"] = loc.get("offsite", True)
                 locs.append(L)
                 continue

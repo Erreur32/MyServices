@@ -28,7 +28,7 @@ from pathlib import Path
 
 import setup
 from connectors import settings
-from connectors.backup_apis import HomeAssistant, Veeam
+from connectors.backup_apis import HomeAssistant, PbsBackups, Veeam
 from connectors.base import ConnectorError, Context
 
 AGE_MIN, AGE_MAX = 0.1, 365.0
@@ -41,7 +41,7 @@ DEPTH = 3  # un dossier de sauvegarde range souvent ses archives dans des sous-d
 DEFAULT_PATH = "/home/backup"  # dossier de sauvegarde par défaut : toujours cherché, et proposé coché quand il existe
 PATTERNS_MAX = 20
 
-VEEAM_NAME = "veeam"  # nom de l'instance « veeam » de config.json (une seule, gérée ici)
+VEEAM_NAME = "veeam"  # nom donné à l'instance si aucune n'existe encore ; sinon celle de Réglages → Connecteurs est reprise (_veeam_name)
 VEEAM_HOST, VEEAM_SOURCES = "veeam", "veeam-sources"
 HA_HOST, HA_SOURCE, HA_SET = "home-assistant", "home-assistant-source", "home-assistant-sauvegardes"
 TEST_TIMEOUT = 20
@@ -123,13 +123,13 @@ def current() -> dict:
     for s in meta.get("sets", []):
         loc = (s.get("locations") or [{}])[0]
         sets.append({"id": s["id"], "label": s.get("label", s["id"]), "origin": hosts.get(s.get("origin"), {}).get("label", s.get("origin", "")),
-                     "path": loc.get("path"), "veeam_job": loc.get("veeam_job"), "max_age_days": s.get("max_age_days", 8),
+                     "path": loc.get("path"), "veeam_job": loc.get("veeam_job"), "pbs_group": loc.get("pbs_group"), "max_age_days": s.get("max_age_days", 8),
                      "ha": any(l.get("ha_backup") for l in s.get("locations", [])),
                      "expect_offsite": s.get("expect_offsite", True), "editable": bool(loc.get("path")) and len(s.get("locations", [])) == 1})
     import config
     return {"sets": sets, "exists": _path().exists(), "tab": bool(config.CFG.get("backups_url")),
             "patterns": patterns_of(meta), "default_path": DEFAULT_PATH, "machines": len(_machines()),
-            "veeam": _veeam_state(), "ha": _ha_state(meta)}
+            "veeam": _veeam_state(), "ha": _ha_state(meta), "pbs": _pbs_state(meta)}
 
 
 def _scan(item: tuple[str, dict], patterns: list[str]) -> dict:
@@ -280,21 +280,27 @@ def unfollow(set_id: str) -> None:
 
 # ───────────── Veeam Backup & Replication ─────────────
 
+def _veeam_name() -> str:
+    """Instance « veeam » de config.json : la première (réglée dans Connecteurs ou ici), sinon le nom par défaut."""
+    return next(iter(settings.names("veeam")), VEEAM_NAME)
+
+
 def _veeam_state() -> dict:
     """Compte Veeam enregistré, sans le mot de passe (seulement s'il existe)."""
-    c = settings.get("veeam", VEEAM_NAME)
+    c = settings.get("veeam", _veeam_name())
     return {"configured": c is not None, "url": (c or {}).get("url", ""), "user": (c or {}).get("user", ""),
             "password_set": bool((c or {}).get("password"))}
 
 
 def _veeam_conn(conf: dict) -> Veeam:
     """Connecteur prêt d'après le formulaire (mot de passe vide = celui déjà enregistré). Rien n'est écrit."""
-    exists = settings.get("veeam", VEEAM_NAME) is not None
+    name = _veeam_name()
+    exists = settings.get("veeam", name) is not None
     fields = {k: str(conf.get(k) or "").strip() for k in ("url", "user")} | {"password": str(conf.get("password") or "")}
     if len(fields["user"]) > 200 or len(fields["password"]) > 500:
         raise BackupError("compte ou mot de passe trop long")
     try:
-        plain = settings.resolve("veeam", VEEAM_NAME, fields, VEEAM_NAME if exists else None)
+        plain = settings.resolve("veeam", name, fields, name if exists else None)
     except settings.SettingsError as e:
         raise BackupError(str(e)) from None
     return Veeam(plain, Context(timeout=TEST_TIMEOUT))
@@ -376,10 +382,11 @@ def veeam_follow(conf: dict, jobs: list[dict]) -> dict:
         if name not in known:
             raise BackupError(f"job « {name[:80]} » absent de Veeam")
         todo.append((name, *_check_age_label(it, f"Veeam : {name}")))
-    exists = settings.get("veeam", VEEAM_NAME) is not None
+    name = _veeam_name()
+    exists = settings.get("veeam", name) is not None
     try:
-        settings.save("veeam", VEEAM_NAME, {"url": conn.conf["url"], "user": conn.conf["user"], "password": conn.conf["password"]},
-                      VEEAM_NAME if exists else None)
+        settings.save("veeam", name, {"url": conn.conf["url"], "user": conn.conf["user"], "password": conn.conf["password"]},
+                      name if exists else None)
     except settings.SettingsError as e:
         raise BackupError(str(e)) from None
     meta = _read()
@@ -388,7 +395,7 @@ def veeam_follow(conf: dict, jobs: list[dict]) -> dict:
     old = next((h for h in meta["hosts"] if h["id"] == VEEAM_HOST), {})
     old.pop("secrets", None)  # l'ancien fichier de secrets cède la place au compte réglé ici
     _ensure_host(meta, {**old, "id": VEEAM_HOST, "label": old.get("label", "Serveur Veeam"), "kind": "Veeam Backup & Replication",
-                        "api": "veeam", "url": conn.conf["url"], "connector": VEEAM_NAME})
+                        "api": "veeam", "url": conn.conf["url"], "connector": name})
     _ensure_host(meta, {"id": VEEAM_SOURCES, "label": "Machines sauvegardées par Veeam", "kind": "origine des jobs Veeam", "api": "none"})
     added = updated = 0
     for name, label, age in todo:
@@ -404,6 +411,71 @@ def veeam_follow(conf: dict, jobs: list[dict]) -> dict:
             sid, n = f"{base}-{n}", n + 1
         meta["sets"].append({"id": sid, "label": label, "origin": VEEAM_SOURCES, "schedule": "", "max_age_days": age,
                              "locations": [{"host": VEEAM_HOST, "veeam_job": name, "via": "job Veeam"}]})
+        added += 1
+    _write(meta)
+    return {"added": added, "updated": updated}
+
+
+# ───────────── Proxmox Backup Server ─────────────
+
+PBS_HOST, PBS_SOURCES = "pbs", "pbs-sources"
+
+
+def _pbs_state(meta: dict) -> dict:
+    """Connecteurs « proxmox-backup » réglés dans Connecteurs (compte déjà géré là) et groupes déjà suivis."""
+    return {"connectors": settings.names("proxmox-backup"),
+            "followed": sum(1 for s in meta.get("sets", []) for l in s.get("locations", []) if l.get("pbs_group"))}
+
+
+def _pbs_conn(name: str) -> PbsBackups:
+    if name not in settings.names("proxmox-backup"):
+        raise BackupError(f"connecteur « {name[:64]} » absent ou coupé : le régler dans Réglages → Connecteurs")
+    plain = settings.get("proxmox-backup", name, plain=True) or {}
+    return PbsBackups({"name": name, **plain}, Context(timeout=TEST_TIMEOUT))
+
+
+def pbs_discover(name: str) -> dict:
+    """Groupes de sauvegarde du serveur (lecture seule, rien n'est enregistré) ; « followed » : déjà suivis."""
+    try:
+        groups = _pbs_conn(name).groups()
+    except ConnectorError as e:
+        raise BackupError(str(e)) from None
+    followed = {loc.get("pbs_group") for s in _read().get("sets", []) for loc in s.get("locations", [])}
+    return {"groups": [{**g, "key": f"{g['store']}/{g['type']}/{g['id']}", "followed": f"{g['store']}/{g['type']}/{g['id']}" in followed} for g in groups]}
+
+
+def pbs_follow(name: str, groups: list[dict]) -> dict:
+    """Un jeu par groupe choisi ; le serveur est relu avant d'écrire (groupe inconnu = rien n'est enregistré)."""
+    if not groups:
+        raise BackupError("aucun groupe choisi")
+    if len(groups) > 100:
+        raise BackupError("100 groupes au plus à la fois")
+    known = {g["key"] for g in pbs_discover(name)["groups"]}
+    todo = []
+    for it in groups:
+        key = str(it.get("key") or "")
+        if key not in known:
+            raise BackupError(f"groupe « {key[:80]} » absent de Proxmox Backup")
+        todo.append((key, *_check_age_label(it, f"Proxmox Backup : {key}")))
+    meta = _read()
+    meta.setdefault("hosts", [])
+    meta.setdefault("sets", [])
+    _ensure_host(meta, {"id": PBS_HOST, "label": "Proxmox Backup Server", "kind": "Proxmox Backup Server", "api": "pbs", "connector": name})
+    _ensure_host(meta, {"id": PBS_SOURCES, "label": "Machines sauvegardées par Proxmox Backup", "kind": "origine des groupes Proxmox Backup", "api": "none"})
+    added = updated = 0
+    for key, label, age in todo:
+        existing = next((s for s in meta["sets"] for loc in s.get("locations", []) if loc.get("pbs_group") == key), None)
+        if existing:
+            existing["label"], existing["max_age_days"] = label, age
+            updated += 1
+            continue
+        taken = {s["id"] for s in meta["sets"]}
+        base = sid = _slug(f"pbs-{key}")
+        n = 2
+        while sid in taken:
+            sid, n = f"{base}-{n}", n + 1
+        meta["sets"].append({"id": sid, "label": label, "origin": PBS_SOURCES, "schedule": "", "max_age_days": age,
+                             "locations": [{"host": PBS_HOST, "pbs_group": key, "via": "Proxmox Backup"}]})
         added += 1
     _write(meta)
     return {"added": added, "updated": updated}

@@ -11,10 +11,11 @@ import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { BackupsHa, type HaState } from "./BackupsHa";
 import { BackupsVeeam, type VeeamState } from "./BackupsVeeam";
+import { BackupsPbs, type PbsState } from "./BackupsPbs";
 
-interface SetRow { id: string; label: string; origin: string; path: string | null; veeam_job: string | null; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean }
+interface SetRow { id: string; label: string; origin: string; path: string | null; veeam_job: string | null; pbs_group: string | null; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean }
 const AGES = [2, 8, 15, 31];   // paliers proposés : quotidienne, hebdomadaire, tous les 15 jours, mensuelle
-interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; default_path: string; machines: number; veeam: VeeamState; ha: HaState }
+interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; default_path: string; machines: number; veeam: VeeamState; ha: HaState; pbs: PbsState }
 interface Folder { path: string; size: number | null; newest: number | null; newest_name: string; readable: boolean; followed: boolean; default?: boolean }
 interface Found { ip: string; name: string; ssh: string; ok: boolean; error: string; folders: Folder[] }
 interface Choice { on: boolean; label: string; age: string }
@@ -88,7 +89,7 @@ export function BackupsSettings() {
               <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-sm">
                 <div className="min-w-[200px] flex-1">
                   <b>{s.label}</b>
-                  <div className="font-mono text-xs text-dim">{s.path ?? (s.veeam_job ? `Veeam : ${s.veeam_job}` : s.ha ? "Home Assistant" : "—")}</div>
+                  <div className="font-mono text-xs text-dim">{s.path ?? (s.veeam_job ? `Veeam : ${s.veeam_job}` : s.pbs_group ? `Proxmox Backup : ${s.pbs_group}` : s.ha ? "Home Assistant" : "—")}</div>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
                   <span className="inline-flex flex-wrap items-center gap-1.5 text-xs text-dim" title={tx("Sauvegarde quotidienne : 2 j ; hebdomadaire : 8 j. Au-delà du double, le jeu devient critique.")}>{tx("alerte après")}
@@ -98,7 +99,7 @@ export function BackupsSettings() {
                     ))}
                     {!AGES.includes(s.max_age_days) && <Badge tone="info">{s.max_age_days} {tx("j")}</Badge>}
                   </span>
-                  {!s.ha && !s.veeam_job && (
+                  {!s.ha && !s.veeam_job && !s.pbs_group && (
                     <span className="inline-flex items-center gap-1.5 text-xs text-dim" title={tx("Activé : une copie à jour sur une autre machine est exigée (sinon le jeu est critique). Désactivé : seule la source est surveillée.")}>
                       <Switch on={s.expect_offsite} label={tx("Exiger une copie hors machine")} disabled={s.id === busyId} onChange={(on) => void change(s.id, { expect_offsite: on })} />{tx("copie hors machine exigée")}
                     </span>
@@ -187,6 +188,7 @@ export function BackupsSettings() {
       </Card>
 
       <BackupsVeeam key={`${cur.veeam.url}|${cur.veeam.user}`} state={cur.veeam} reload={load} />
+      <BackupsPbs state={cur.pbs} reload={load} />
       <BackupsHa key={`${cur.ha.connector}|${cur.ha.connectors.join()}`} state={cur.ha} reload={load} />
     </div>
   );

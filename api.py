@@ -1032,6 +1032,38 @@ def backups_veeam_follow(body: VeeamFollow, request: Request):
     return backups_call(request, "jobs Veeam suivis", f"{body.url} : {len(body.jobs)} job(s)", go)
 
 
+class PbsChoice(BaseModel):
+    connector: str
+
+
+class PbsGroup(BaseModel):
+    key: str
+    label: str = ""
+    max_age_days: float = 2.0
+
+
+class PbsFollow(PbsChoice):
+    groups: list[PbsGroup]
+
+
+@app.post(API + "/backups/pbs/discover", tags=["sauvegardes"], summary="Lister les groupes de sauvegarde d'un Proxmox Backup Server par son connecteur, lecture seule (admin)")
+def backups_pbs_discover(body: PbsChoice, request: Request):
+    return backups_call(request, "", "", lambda b: b.pbs_discover(body.connector))
+
+
+@app.put(API + "/backups/pbs", tags=["sauvegardes"], summary="Suivre des groupes de sauvegarde de Proxmox Backup Server (admin)")
+def backups_pbs_follow(body: PbsFollow, request: Request):
+    import system
+
+    def go(b):
+        out = b.pbs_follow(body.connector, [g.model_dump() for g in body.groups])
+        if not core.CFG.get("backups_url"):
+            system.set_backups_url(core, "backups.json")
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (Proxmox Backup)")
+        return {"ok": True, **out}
+    return backups_call(request, "groupes Proxmox Backup suivis", f"{body.connector} : {len(body.groups)} groupe(s)", go)
+
+
 @app.post(API + "/backups/ha/check", tags=["sauvegardes"], summary="Lire les sauvegardes de Home Assistant par son connecteur, sans rien enregistrer (admin)")
 def backups_ha_check(body: HaFollow, request: Request):
     return backups_call(request, "", "", lambda b: b.ha_check(body.connector))

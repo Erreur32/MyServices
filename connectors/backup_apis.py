@@ -19,6 +19,7 @@ import urllib.request
 from datetime import datetime
 
 from connectors.base import Connector, ConnectorError, Field, Result
+from connectors.proxmox import ProxmoxBackup
 
 
 def read_secrets(path: str) -> dict:
@@ -182,3 +183,46 @@ class HomeAssistant(Connector):
                            "line": f"auto : dernière réussie {_fmt(ok)}, dernier essai {_fmt(tried)}, prochaine {_fmt(nxt)} "
                                    f"(état {val('sensor.backup_backup_manager_state')})"}],
                 "ha_backup": {"last_ok": ok, "last_attempt": tried, "next": nxt}}
+
+
+class PbsBackups(ProxmoxBackup):
+    """Sauvegardes d'un Proxmox Backup Server : dernier passage de chaque groupe (une VM, un conteneur ou un hôte) de chaque magasin.
+    Mêmes réglages que le connecteur « proxmox-backup » (jeton DatastoreAudit). Forme rendue : celle de backups.py (pbs_groups, disques)."""
+    type = "proxmox-backup-backups"
+
+    def groups(self) -> list[dict]:
+        """Groupes de tous les magasins : {store, type, id, last (epoch), count, comment}. Lecture seule (GET)."""
+        stores = self._get("/admin/datastore")
+        if not isinstance(stores, list):
+            raise ConnectorError("réponse sans magasins (URL de Proxmox Backup Server ? droits DatastoreAudit ?)")
+        out = []
+        for st in stores:
+            name = st.get("store") if isinstance(st, dict) else None
+            if not name:
+                continue
+            for g in self._get(f"/admin/datastore/{name}/groups", optional=True) or []:
+                if isinstance(g, dict) and g.get("backup-id"):
+                    out.append({"store": name, "type": g.get("backup-type") or "?", "id": str(g["backup-id"]),
+                                "last": g.get("last-backup") if isinstance(g.get("last-backup"), int) else None,
+                                "count": g.get("backup-count") if isinstance(g.get("backup-count"), int) else 0,
+                                "comment": str(g.get("comment") or "")})
+        return out
+
+    def collect(self) -> dict:
+        disks = []
+        for u in self._get("/status/datastore-usage") or []:
+            if isinstance(u, dict) and u.get("store") and u.get("total"):
+                total, used = int(u["total"]), int(u.get("used") or 0)
+                disks.append({"dev": u["store"], "fs": "pbs", "mount": u["store"], "size": total, "used": used, "avail": max(total - used, 0),
+                              "pct": round(used * 100 / total, 1)})
+        out = {"user": "API Proxmox Backup", "locs": {}, "cron_root": None, "disks": disks, "crons": [], "pbs_groups": {}}
+        for g in self.groups():
+            key = f"{g['store']}/{g['type']}/{g['id']}"
+            out["pbs_groups"][key] = {"last_run": g["last"], "count": g["count"]}
+            out["crons"].append({"src": "Proxmox Backup " + g["type"],
+                                 "line": f"{g['store']} · {g['id']} : dernier {_fmt(g['last'])}, {g['count']} sauvegarde(s)"})
+        return out
+
+    def test(self) -> Result:
+        n = len(self.groups())
+        return Result(True, f"connecté : {n} groupe(s) de sauvegarde lus", self.version())
