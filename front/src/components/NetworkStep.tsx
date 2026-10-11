@@ -290,9 +290,9 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
             {net.ended && <span className="text-dim"> · {tx("scan du {0}", dateTime(net.ended * 1000))}</span>}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <Badge tone={sum.watch ? "ok" : "off"}>{tx("{0} à regarder", sum.watch)}</Badge>
-            {sum.ssh > 0 && <Badge tone="ok">SSH {sum.ssh}</Badge>}
-            {sum.apps > 0 && <Badge tone="info">{tx("{0} applis reconnues", sum.apps)}</Badge>}
+            <Badge tone="off">{tx("{0} à regarder", sum.watch)}</Badge>
+            {sum.ssh > 0 && <Badge tone="off">SSH {sum.ssh}</Badge>}
+            {sum.apps > 0 && <Badge tone="off">{tx("{0} applis reconnues", sum.apps)}</Badge>}
             {sum.shares > 0 && <Badge tone="off">{tx("{0} partages / bureau à distance", sum.shares)}</Badge>}
             {sum.webOnly > 0 && <Badge tone="off">{tx("{0} pages web seules (repliées)", sum.webOnly)}</Badge>}
             {sum.pingOnly > 0 && <Badge tone="off">{tx("{0} ping seulement (repliés)", sum.pingOnly)}</Badge>}
