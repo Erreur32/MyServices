@@ -52,11 +52,10 @@ export function FilterBar<T>({ f, placeholder, extra, options = [] }: {
 }) {
   // Filtres repliés d'office (sur tous les écrans) : la barre de recherche suffit le plus souvent ; ce qui est actif
   // reste visible en pastilles retirables, et le bouton « Filtres » déplie le reste.
-  const [open, setOpen] = useState(false), [more, setMore] = useState<Record<string, boolean>>({});
+  const [open, setOpen] = useState(false);
   const groups = f.chips.filter((g) => g.chips.length > 1 || g.chips.some((c) => c.on));
   const active = f.chips.flatMap((g) => g.chips.filter((c) => c.on).map((c) => ({ facet: g.facet, chip: c })));
   const nActive = active.length + options.filter((o) => o.on).length;
-  const LIMIT = 12;
   // Les filtres déjà actifs un jour sur cette page restent affichés en pastilles, même retirés : un clic les désactive, un autre clic les réactive
   const keyOf = (facet: Facet<T>, chip: Chip) => `${facet.key}\u0000${chip.value}`;
   const [seen, setSeen] = useState<string[]>([]);
@@ -104,33 +103,38 @@ export function FilterBar<T>({ f, placeholder, extra, options = [] }: {
           ))}
         </div>
       )}
-      {open && options.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-dim">{tx("Affichage")}</span>
-          {options.map((o) => (
-            <button key={o.id} type="button" onClick={o.toggle} aria-pressed={o.on}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${o.on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
-              {o.mark}{o.label}{o.count != null && <span className="font-mono text-[11px] text-dim">{o.count}</span>}
-            </button>
+      {open && (
+        // Une colonne par catégorie de filtre, de largeur fixe : toutes les pastilles sont visibles (rien n'est replié derrière un « +N »)
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {options.length > 0 && (
+            <div className="flex flex-col gap-1.5 rounded-xl border border-line/60 bg-bg2/40 p-2.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("Affichage")}</span>
+              <div className="flex flex-wrap gap-1.5">
+                {options.map((o) => (
+                  <button key={o.id} type="button" onClick={o.toggle} aria-pressed={o.on}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${o.on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
+                    {o.mark}{o.label}{o.count != null && <span className="font-mono text-[11px] text-dim">{o.count}</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {groups.map(({ facet, chips }) => (
+            <div key={facet.key} className="flex flex-col gap-1.5 rounded-xl border border-line/60 bg-bg2/40 p-2.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-dim">{facet.label}</span>
+              <div className="flex flex-wrap gap-1.5">
+                {chips.map((c) => (
+                  <button key={c.value} type="button" onClick={() => f.toggle(facet.key, c.value)} aria-pressed={c.on}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${c.on
+                      ? "border-link bg-link/15 text-txt" : c.count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60"}`}>
+                    {facet.mark?.(c.value)}{c.label}<span className="font-mono text-[11px] text-dim">{c.count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
-      {open && groups.map(({ facet, chips }) => {
-        const all = more[facet.key] || chips.length <= LIMIT, list = all ? chips : chips.filter((c, i) => i < LIMIT || c.on);
-        return (
-          <div key={facet.key} className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-dim">{facet.label}</span>
-            {list.map((c) => (
-              <button key={c.value} type="button" onClick={() => f.toggle(facet.key, c.value)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${c.on
-                  ? "border-link bg-link/15 text-txt" : c.count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60"}`}>
-                {facet.mark?.(c.value)}{c.label}<span className="font-mono text-[11px] text-dim">{c.count}</span>
-              </button>
-            ))}
-            {!all && <button type="button" onClick={() => setMore({ ...more, [facet.key]: true })} className="text-xs text-link hover:underline">+{chips.length - list.length} {tx("autres")}</button>}
-          </div>
-        );
-      })}
     </div>
   );
 }
