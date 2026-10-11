@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """Cartes de l'infra au format Archify (diagrammes d'architecture), générées depuis les fichiers de la page.
 
-  python3 archify_map.py [web_dir] [dossier de sortie]
+  python3 archify_map.py [web_dir] [dossier de sortie] [schémas proposés à créer, séparés par des virgules]
   node <archify>/bin/archify.mjs deliver architecture <dossier>/carte.archify.json carte.html --json
 
 carte.archify.json (data.json, + health/stats.json s'il existe) : Internet, chaque instance NPM et AdGuard,
 chaque machine (en ligne ou non, niveau de santé en icône et en étiquette). Liaisons : NPM -> machines qu'il
 publie (nombre de hosts), AdGuard -> NPM (réécritures DNS). Encadré : machines dont la santé n'est pas OK.
-connecteurs.archify.json : « qui lit quoi » (MyServices et chaque connecteur, par SSH ou API, en pointillé s'il est en panne).
 acces.archify.json : comment chaque machine est lue (SSH avec compte et port, agent, ou aucun accès).
 alertes.archify.json (si alerts-summary.json existe, écrit par server.py) : collecte -> historique -> alertes / notifications -> canaux.
 Un schéma dont la spécification n'a pas changé n'est pas listé (donc pas regénéré).
@@ -178,8 +177,6 @@ def build_backups(bk: dict) -> dict:
     return spec
 
 
-MAX_KINDS = 8                                # types de connecteurs montrés sur la ligne ; les autres vont dans un encadré
-SSH_TYPES = {"docker", "process"}           # connecteurs lus par SSH ; les autres par une API
 CONNECTOR_LABEL = {"docker": "Docker", "process": "Ports", "npm": "NPM", "adguard": "AdGuard", "beszel": "Beszel", "uptime-kuma": "Uptime Kuma",
                    "dozzle": "Dozzle", "web-check": "Web-Check", "home-assistant": "Home Assistant", "mynetwork": "MynetworK", "logviewr": "LogviewR",
                    "dockhand": "Dockhand", "proxmox": "Proxmox VE", "proxmox-backup": "Proxmox Backup", "veeam": "Veeam", "discord": "Discord", "telegram": "Telegram"}
@@ -195,43 +192,65 @@ def grid(comps: list[dict], first_row: int, cols: int) -> int:
     return first_row + -(-len(comps) // cols)
 
 
-def build_connectors(data: dict) -> dict:
-    """« Qui lit quoi » : MyServices au centre, un bloc par type de connecteur (NPM, AdGuard, Docker, Beszel, Home Assistant, Proxmox…) sur une
-    seule ligne dessous, lié par SSH ou par API ; en pointillé et en rouge si l'un de ses connecteurs ne répond pas. Les noms des instances sont
-    dans un encadré (un schéma à une ligne évite les liaisons qui se croisent)."""
-    by: dict[str, list[dict]] = {}
-    for c in data.get("connectors") or []:
-        by.setdefault(c["type"], []).append(c)
-    types = sorted(by, key=lambda t: (t in SSH_TYPES, t))
-    shown, rest = types[:MAX_KINDS], types[MAX_KINDS:]
-    comps, conns = [], []
-    for n, t in enumerate(shown):
-        items = by[t]
-        down = [c for c in items if not c.get("ok")]
-        names = ", ".join(c["name"] for c in items)
-        comps.append({"id": f"k_{n}", "type": "database" if t in SSH_TYPES else "cloud", "label": CONNECTOR_LABEL.get(t, t)[:24],
-                      "sublabel": (f"{len(items)} instance(s) · {names}" if len(items) > 1 else names)[:36], "row": 1, "col": n, "size": [W, H],
-                      "icon": "failure" if down else "success", "tag": f"{len(down)} en panne" if down else "lit"})
-        conns.append({"from": "ms", "to": f"k_{n}", "label": "SSH" if t in SSH_TYPES else "API", "route": "orthogonal-v", **({"variant": "dashed"} if down else {})})
-    cols = max(len(comps), 3)
-    hub = {"id": "ms", "type": "backend", "label": "MyServices", "sublabel": f"{len(data.get('connectors') or [])} connecteur(s)", "row": 0, "col": cols // 2, "size": [W, H]}
-    for k, c in enumerate(comps):                     # centrés si la ligne est courte
-        c["col"] += (cols - len(comps)) // 2
-    spec = diagram("Qui lit quoi (connecteurs)", data.get("generated", ""), "connecteurs.html", cols, [hub, *comps], conns)
+PER_GROUP = 12                                # éléments dessinés par groupe (le reste est dans un encadré du dessous)
+CARD_MAX = 30                                 # lignes d'un encadré « suite »
+
+
+def grouped(title: str, generated: str, output: str, hub: dict | None, groups: list[dict], per_group: int = PER_GROUP) -> dict:
+    """Schéma « groupes sous un point central » : un bloc par groupe sur une ligne, dessous ses éléments dans un cadre, sans croisement de liaisons.
+    hub : {label, sublabel, type} ou None. groupe : {key, label, type, via, items: [{id, label, sublabel, level?, type?}], link?}. Au plus 12 colonnes
+    (limite d'Archify) : les groupes en trop et les éléments au-delà de `per_group` vont dans des encadrés de suite."""
+    present = [g for g in groups if g["items"]]
+    spare, present = present[MAX_COLS:], present[:MAX_COLS]
+    widths = {g["key"]: min(len(g["items"][:per_group]), 3) for g in present}
+    while sum(widths.values()) > MAX_COLS:
+        widths[max(widths, key=widths.get)] -= 1
+    cols = max(sum(widths.values()), 3)
+    top = 1 if hub else 0
+    comps, conns, bounds, centres = [], [], [], []
+    col0 = (cols - sum(widths.values())) // 2
+    n_items = 0
+    for g in present:
+        w, shown = widths[g["key"]], g["items"][:per_group]
+        centre = col0 + (w - 1) // 2
+        centres.append(centre)
+        gid = f"g_{slug(g['key'])}"[:50]
+        comps.append({"id": gid, "type": g.get("type", "backend"), "label": g["label"][:24], "sublabel": f"{len(g['items'])} élément(s)" if not g.get("sub") else g["sub"][:36],
+                      "row": top, "col": centre, "size": [W, H]})
+        ids = [gid]
+        for i, it in enumerate(shown):
+            cid = f"i{n_items}_{slug(it['id'])}"[:60]   # commence par une lettre (règle d'Archify) ; le rang rend l'identifiant unique
+            c = {"id": cid, "type": it.get("type", "backend"), "label": it["label"][:24], "sublabel": it.get("sublabel", "")[:36], "row": top + 1 + i // w, "col": col0 + i % w, "size": [W, H]}
+            comps.append(with_level(c, it.get("level"), ""))
+            ids.append(cid)
+            n_items += 1
+            if i < w:                                    # liaison seulement vers la première ligne : les suivantes sont dans le cadre
+                conns.append({"from": gid, "to": cid, "route": "orthogonal-v"})
+        bounds.append({"kind": "region", "label": f"{g['label']} · {len(g['items'])}"[:48], "wraps": ids, "pad": 12})
+        col0 += w
+    if hub:
+        hub_col = (centres[0] + centres[-1]) // 2 if centres else cols // 2
+        comps.insert(0, {"id": "hub", "type": hub.get("type", "security"), "label": hub["label"][:24], "sublabel": hub.get("sublabel", "")[:36], "row": 0, "col": hub_col, "size": [W, H]})
+        for g in present:
+            if g.get("via"):
+                conns.insert(0, {"from": "hub", "to": f"g_{slug(g['key'])}"[:50], "label": g["via"], "route": "orthogonal-v", **({"variant": g["link"]} if g.get("link") else {})})
+    spec = diagram(title, generated, output, cols, comps, conns)
+    spec["boundaries"] = bounds
     cards = []
-    down = [c for t in types for c in by[t] if not c.get("ok")]
-    if down:
-        cards.append(alert_card("Connecteurs en panne", ["crit"], [f"{CONNECTOR_LABEL.get(c['type'], c['type'])} {c['name']} : {(c.get('message') or '')[:80]}" for c in down]))
-    if rest:
-        cards.append({"dot": "amber", "title": "Autres connecteurs", "items": [f"{CONNECTOR_LABEL.get(t, t)} : {', '.join(c['name'] for c in by[t])}" for t in rest]})
+    for g in present:
+        extra = g["items"][per_group:]
+        if extra:
+            cards.append({"dot": g.get("dot", "emerald"), "title": f"{g['label']} (suite)", "items": [f"{x['label']} · {x.get('sublabel', '')}".rstrip(" ·") for x in extra[:CARD_MAX]]
+                          + ([f"… et {len(extra) - CARD_MAX} autre(s)"] if len(extra) > CARD_MAX else [])})
+    if spare:
+        cards.append({"dot": "amber", "title": "Autres groupes non dessinés", "items": [f"{g['label']} : {len(g['items'])}" for g in spare[:CARD_MAX]]})
     if cards:
         spec["cards"] = cards
     return spec
 
 
-ACCESS_GROUPS = [("ssh", "Lues par SSH", "database", "SSH", "success"), ("agent", "Lues par l'agent", "backend", "agent", "success"),
-                 ("api", "Lues par un connecteur", "cloud", "API", "success"), ("none", "Sans accès", "external", "", "waiting")]
-PER_GROUP = 12                                # machines dessinées par méthode (le reste est dans l'encadré du dessous)
+ACCESS_GROUPS = [("ssh", "Lues par SSH", "database", "SSH"), ("agent", "Lues par l'agent", "backend", "agent"),
+                 ("api", "Lues par un connecteur", "cloud", "API"), ("none", "Sans accès", "external", "")]
 
 
 def access_of(m: dict) -> tuple[str, str]:
@@ -256,52 +275,13 @@ def build_access(data: dict, health: dict | None = None) -> dict:
     """« Accès aux machines » : MyServices, un bloc par façon de lire (SSH, agent, connecteur, sans accès), et dessous chaque machine dans un cadre
     avec son niveau de santé, son compte et son port. Une machine apparaît sous sa méthode principale ; les autres sont dans son détail."""
     hb = health_by_ip(health)
-    groups: dict[str, list[dict]] = {k: [] for k, *_ in ACCESS_GROUPS}
+    items: dict[str, list[dict]] = {k: [] for k, *_ in ACCESS_GROUPS}
     for m in sorted((m for m in data.get("machine_list", []) if not m.get("disabled")), key=lambda m: ipaddress.ip_address(m["ip"])):
         main, detail = access_of(m)
-        groups[main].append({"m": m, "detail": detail, "level": hb.get(m["ip"], {}).get("level")})
-    present = [g for g in ACCESS_GROUPS if groups[g[0]]]
-    # Colonnes par méthode : au plus 3, 12 en tout (limite du schéma) ; chaque méthode occupe ses colonnes, ses machines se rangent dessous
-    widths = {g[0]: min(len(groups[g[0]][:PER_GROUP]), 3) for g in present}
-    while sum(widths.values()) > MAX_COLS:
-        widths[max(widths, key=widths.get)] -= 1
-    cols = max(sum(widths.values()), 3)
-    comps, conns, bounds = [], [], []
-    col0 = (cols - sum(widths.values())) // 2
-    centres = []
-    for key, label, typ, via, icon in present:
-        w, rows = widths[key], groups[key][:PER_GROUP]
-        centre = col0 + (w - 1) // 2
-        centres.append(centre)
-        gid = f"g_{key}"
-        comps.append({"id": gid, "type": typ, "label": label, "sublabel": f"{len(groups[key])} machine(s)", "row": 1, "col": centre, "size": [W, H], "icon": icon})
-        ids = [gid]
-        for i, r in enumerate(rows):
-            m = r["m"]
-            mid = f"a_{slug(m['ip'])}"
-            c = {"id": mid, "type": "backend", "label": m["name"][:24], "sublabel": r["detail"][:36], "row": 2 + i // w, "col": col0 + i % w, "size": [W, H]}
-            comps.append(with_level(c, r["level"], ""))
-            ids.append(mid)
-            if i < w:                                   # liaison seulement vers la première ligne : les suivantes sont dans le cadre
-                conns.append({"from": gid, "to": mid, "route": "orthogonal-v"})
-        bounds.append({"kind": "region", "label": f"{label} · {len(groups[key])}", "wraps": ids, "pad": 12})
-        col0 += w
-    hub_col = (centres[0] + centres[-1]) // 2 if centres else cols // 2
-    comps.insert(0, {"id": "ms", "type": "security", "label": "MyServices", "sublabel": "clé SSH de l'app · agents · connecteurs", "row": 0, "col": hub_col, "size": [W, H]})
-    for key, label, typ, via, icon in present:
-        if via:
-            conns.insert(0, {"from": "ms", "to": f"g_{key}", "label": via, "route": "orthogonal-v"})
-    spec = diagram("Accès aux machines", data.get("generated", ""), "acces.html", cols, comps, conns)
-    spec["boundaries"] = bounds
-    cards = []
-    for key, label, *_ in present:
-        extra = groups[key][PER_GROUP:]
-        if extra:
-            cards.append({"dot": "amber" if key == "none" else "emerald", "title": f"{label} (suite)", "items": [f"{r['m']['name']} · {r['detail']}" for r in extra[:12]]
-                          + ([f"… et {len(extra) - 12} autre(s)"] if len(extra) > 12 else [])})
-    if cards:
-        spec["cards"] = cards
-    return spec
+        items[main].append({"id": slug(m["ip"]), "label": m["name"], "sublabel": detail, "level": hb.get(m["ip"], {}).get("level")})
+    groups = [{"key": k, "label": label, "type": typ, "via": via, "items": items[k], "dot": "amber" if k == "none" else "emerald"} for k, label, typ, via in ACCESS_GROUPS]
+    hub = {"label": "MyServices", "sublabel": "clé SSH de l'app · agents · connecteurs", "type": "security"}
+    return grouped("Accès aux machines", data.get("generated", ""), "acces.html", hub, groups)
 
 
 def build_alert_chain(info: dict, generated: str) -> dict:
@@ -350,11 +330,18 @@ def main() -> int:
     if data is None:
         sys.exit(f"{web / 'data.json'} illisible")
     health = read(web / "health" / "stats.json")
-    specs = {"carte": build(data, health), "connecteurs": build_connectors(data), "acces": build_access(data, health)}
+    specs = {"carte": build(data, health), "acces": build_access(data, health)}
     if (bk := read(web / "backups.json")) is not None:
         specs["sauvegardes"] = build_backups(bk)
     if (chain := read(out / "alerts-summary.json")) is not None:
         specs["alertes"] = build_alert_chain(chain, data.get("generated", ""))
+    wanted = [x for x in (sys.argv[3] if len(sys.argv) > 3 else "").split(",") if x]   # schémas proposés que l'on a demandé de créer
+    if wanted:
+        import archify_extra
+        for key in wanted:
+            if key in archify_extra.BUILD and archify_extra.available(key, data):
+                specs[key] = archify_extra.BUILD[key](data)
+    (out / "connecteurs.archify.json").unlink(missing_ok=True)   # ancien schéma « Qui lit quoi », retiré
     for name, spec in specs.items():
         f = out / f"{name}.archify.json"
         old = read(f)

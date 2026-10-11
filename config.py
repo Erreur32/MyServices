@@ -46,6 +46,7 @@ DEFAULTS = {
     "netscan_nets": [],                  # recherche réseau : réseaux en CIDR (chacun /24 au plus) ; vide = celui de l'hôte
     "session_days": 14,                  # j, durée d'une session de la page (Réglages → Comptes), 1 à 90
     "netscan_ignored": [],               # recherche réseau : appareils à ne plus proposer, [{"ip": "…", "name": "…"}] (Réglages → Recherche réseau)
+    "diagrams_extra": [],                # schémas proposés que l'on a demandé de créer (Schémas → « Créer »), ex. ["reseau", "domaines"]
     "discoveries_muted": [],             # découvertes « à faire » dont le rappel est coupé (identifiants), à réafficher dans Réglages → Découverte
     "netscan_discreet": False,           # recherche réseau : ne lit ni le TTL ni l'adresse MAC (pas de système deviné par là)
     # Page web : intégrations facultatives (vide = onglet ou lien masqué)

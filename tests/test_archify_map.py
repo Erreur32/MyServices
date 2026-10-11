@@ -103,12 +103,11 @@ class Backups(unittest.TestCase):
             (web / "data.json").write_text(json.dumps(DATA))
             sys.argv = ["archify_map.py", str(web), str(out)]
             archify_map.main()
-            self.assertEqual(sorted(f.name for f in out.iterdir()), ["acces.archify.json", "carte.archify.json", "connecteurs.archify.json"])  # sans backups.json ni alertes
+            self.assertEqual(sorted(f.name for f in out.iterdir()), ["acces.archify.json", "carte.archify.json"])  # sans backups.json ni alertes
             (web / "backups.json").write_text(json.dumps(BACKUPS))
             (out / "alerts-summary.json").write_text(json.dumps({"channels": [{"type": "discord", "name": "D", "enabled": True}], "rules": 1, "reports": 0, "live": 1}))
             archify_map.main()
-            self.assertEqual(sorted(f.name for f in out.iterdir()), ["acces.archify.json", "alertes.archify.json", "alerts-summary.json", "carte.archify.json",
-                                                                     "connecteurs.archify.json", "sauvegardes.archify.json"])
+            self.assertEqual(sorted(f.name for f in out.iterdir()),  ["acces.archify.json", "alertes.archify.json", "alerts-summary.json", "carte.archify.json", "sauvegardes.archify.json"])
 
     def test_schema_inchange_pas_regenere(self):
         import contextlib
@@ -125,18 +124,16 @@ class Backups(unittest.TestCase):
                 with contextlib.redirect_stdout(buf):
                     archify_map.main()
                 return buf.getvalue().split()
-            self.assertEqual(len(run()), 3)                          # premier passage : tout est à produire
-            for n in ("carte", "connecteurs", "acces"):
+            self.assertEqual(len(run()), 2)                          # premier passage : tout est à produire
+            for n in ("carte", "acces"):
                 (web / f"{n}.html").write_text("<html></html>")      # pages produites par Archify
             self.assertEqual(run(), [])                              # rien n'a changé : rien à regénérer
-            (web / "data.json").write_text(json.dumps({**DATA, "connectors": [{"type": "npm", "name": "npm", "ok": False, "message": "x"}]}))
+            (web / "data.json").write_text(json.dumps({**DATA, "machine_list": DATA["machine_list"] + [{"ip": "10.0.0.50", "name": "neuve", "ping": True}]}))
             changed = [Path(x).name for x in run()]
-            self.assertIn("connecteurs.archify.json", changed)
+            self.assertIn("acces.archify.json", changed)
 
     def test_nouveaux_schemas_coherents(self):
-        for spec in (archify_map.build_connectors({**DATA, "connectors": [{"type": "docker", "name": "srv", "ok": True, "message": "3 conteneurs"},
-                                                                         {"type": "npm", "name": "npm", "ok": False, "message": "refusé"}]}),
-                     archify_map.build_access(DATA, None),
+        for spec in (archify_map.build_access(DATA, None),
                      archify_map.build_alert_chain({"channels": [{"type": "telegram", "name": "T", "enabled": False}], "rules": 2, "reports": 1, "live": 0}, "2026-10-11T10:00")):
             ids = {c["id"] for c in spec["components"]}
             self.assertEqual(len(ids), len(spec["components"]), "identifiants en double")
@@ -151,15 +148,16 @@ class Backups(unittest.TestCase):
               {"ip": "10.0.0.5", "name": "box"}]
         spec = archify_map.build_access({"generated": "2026-10-11T10:00:00+00:00", "machine_list": ml}, None)
         by = {c["id"]: c for c in spec["components"]}
+        lab = {c["label"]: c for c in spec["components"]}
         self.assertEqual({k for k in by if k.startswith("g_")}, {"g_ssh", "g_agent", "g_api", "g_none"})
-        self.assertEqual(by["a_10_0_0_2"]["sublabel"], "root@10.0.0.2:22 · + agent, Beszel")   # SSH d'abord, les autres accès en détail
-        self.assertEqual(by["a_10_0_0_4"]["sublabel"], "10.0.0.4 · Home Assistant")
-        self.assertEqual(by["a_10_0_0_5"]["sublabel"], "10.0.0.5 · ping seulement")
+        self.assertEqual(lab["srv"]["sublabel"], "root@10.0.0.2:22 · + agent, Beszel")   # SSH d'abord, les autres accès en détail
+        self.assertEqual(lab["ha"]["sublabel"], "10.0.0.4 · Home Assistant")
+        self.assertEqual(lab["box"]["sublabel"], "10.0.0.5 · ping seulement")
         self.assertEqual(len(spec["boundaries"]), 4)
         self.assertTrue(all(set(b["wraps"]) <= set(by) for b in spec["boundaries"]))
         many = [{"ip": f"10.1.0.{i}", "name": f"s{i}", "ssh": {"user": "u", "port": 22}} for i in range(1, 31)]
         big = archify_map.build_access({"generated": "x", "machine_list": many}, None)
-        self.assertEqual(sum(1 for c in big["components"] if c["id"].startswith("a_")), archify_map.PER_GROUP)
+        self.assertEqual(sum(1 for c in big["components"] if c["label"].startswith("s")), archify_map.PER_GROUP)
         self.assertIn("(suite)", big["cards"][0]["title"])                                     # le reste est dans l'encadré
         self.assertLessEqual(big["layout"]["cols"], archify_map.MAX_COLS)
 

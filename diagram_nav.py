@@ -14,11 +14,20 @@ MARK = "<!-- myservices-nav -->"
 # (id = nom du fichier sans .html, titre, ce que le schéma montre, source nécessaire ou None)
 DIAGRAMS = [
     ("carte", "Carte du réseau", "Internet, vos NPM et AdGuard, et chaque machine avec son niveau de santé : qui publie quoi, vers quelles machines.", None),
-    ("connecteurs", "Qui lit quoi (connecteurs)", "MyServices au centre et chaque connecteur en dessous, lu par SSH ou par API ; en pointillé quand il ne répond plus.", None),
     ("acces", "Accès aux machines", "Comment chaque machine est lue : SSH (compte et port), agent, ou aucun accès. Montre d'un coup d'œil ce qui reste à relier.", None),
     ("alertes", "Chaîne d'alertes et de notifications", "De la collecte à l'historique, puis aux alertes et aux notifications, jusqu'aux canaux Discord, Telegram et webhook.", None),
     ("sauvegardes", "Carte des sauvegardes", "Qui sauvegarde sur quoi : machines d'origine, stockages, nombre de jeux et âge de la copie la plus récente.", "backups"),
 ]
+
+
+def optional() -> list[tuple[str, str, str, str]]:
+    """Schémas proposés, à créer d'un clic : (id, titre, ce qu'il montre, besoin). Voir archify_extra.py."""
+    from archify_extra import CATALOG
+    return [(k, t, w, n) for k, (t, w, n) in CATALOG.items()]
+
+
+def all_diagrams() -> list[tuple[str, str, str, str | None]]:
+    return [*DIAGRAMS, *optional()]
 
 _BAR = ("position:fixed;left:0;right:0;bottom:0;z-index:2147483000;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:7px 14px;"
         "background:rgba(15,18,28,.94);color:#cfd6e6;font:12px/1.4 system-ui,sans-serif;border-top:1px solid rgba(255,255,255,.14)")
@@ -27,9 +36,9 @@ _LINK = "color:#7cc4ff;text-decoration:none"
 
 def nav_html(current: str, available: list[str]) -> str:
     """Le bandeau : ← MyServices, autres schémas (celui qu'on regarde est en gras, sans lien), puis l'origine du schéma."""
-    titles = {k: t for k, t, _, _ in DIAGRAMS}
+    titles = {k: t for k, t, _, _ in all_diagrams()}
     sib = []
-    for k, t, _, _ in DIAGRAMS:
+    for k, t, _, _ in all_diagrams():
         if k not in available:
             continue
         sib.append(f'<b style="color:#fff">{t}</b>' if k == current else f'<a style="{_LINK}" href="{k}.html">{t}</a>')

@@ -260,7 +260,7 @@ def refresh_nav() -> None:
     """Bandeau « ← MyServices · Généré avec Archify » au bas de chaque schéma existant (idempotent) : aussi sur ceux qui n'ont pas été regénérés,
     et la liste des autres schémas suit ceux qui existent."""
     import diagram_nav
-    have = [k for k, *_ in diagram_nav.DIAGRAMS if (WEB / f"{k}.html").exists()]
+    have = [k for k, *_ in diagram_nav.all_diagrams() if (WEB / f"{k}.html").exists()]
     for k in have:
         page = WEB / f"{k}.html"
         try:
@@ -294,8 +294,13 @@ def build_map() -> None:
     if not (ARCHIFY and Path(ARCHIFY).exists()):
         return
     write_alerts_summary()
+    import archify_extra
+    wanted = [k for k in CFG.get("diagrams_extra") or [] if k in archify_extra.CATALOG]
+    for stale in ["connecteurs", *[k for k in archify_extra.CATALOG if k not in wanted]]:   # ancien schéma retiré, schémas proposés qu'on n'a pas (ou plus) demandés
+        for suffix in (".html", ".delivery.json"):
+            (WEB / f"{stale}{suffix}").unlink(missing_ok=True)
     try:
-        specs = subprocess.run([sys.executable, str(HERE / "archify_map.py"), str(WEB), CFG["state_dir"]],
+        specs = subprocess.run([sys.executable, str(HERE / "archify_map.py"), str(WEB), CFG["state_dir"], ",".join(wanted)],
                                check=True, capture_output=True, text=True, timeout=60).stdout.split()
     except (OSError, subprocess.SubprocessError) as e:
         log(f"⚠ carte : {e}")

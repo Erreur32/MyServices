@@ -214,6 +214,25 @@ def set_discovery_muted(core, did: str, muted: bool) -> list[str]:
     return kept
 
 
+def set_diagram_extra(core, key: str, on: bool) -> list[str]:
+    """Demande (on) ou retire un schéma proposé : la liste est gardée dans config.json (« diagrams_extra »)."""
+    from archify_extra import CATALOG
+    if key not in CATALOG:
+        raise ValueError("schéma inconnu")
+    kept = [k for k in core.CFG.get("diagrams_extra") or [] if k != key]
+    if on:
+        kept.append(key)
+
+    def change(raw: dict) -> None:
+        if kept:
+            raw["diagrams_extra"] = kept
+        else:
+            raw.pop("diagrams_extra", None)
+    _update_config(core, change)
+    core.CFG["diagrams_extra"] = kept
+    return kept
+
+
 def set_netscan_discreet(core, on: bool) -> dict:
     """Mode discret : la recherche ne lit ni le TTL ni l'adresse MAC."""
     def change(raw: dict) -> None:

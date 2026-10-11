@@ -1456,14 +1456,50 @@ def about_check(request: Request):
     return about_payload(True)
 
 
-@app.get(API + "/diagrams", tags=["schémas"], summary="Schémas de l'infra (Archify) : titre, fichier, date")
+@app.get(API + "/diagrams", tags=["schémas"], summary="Schémas de l'infra (Archify) : titre, fichier, date ; ceux à créer d'un clic")
 def diagrams(request: Request):
+    import archify_extra
+    from diagram_nav import optional
+    data = None
+    try:
+        data = json.loads((core.WEB / "data.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    asked = set(core.CFG.get("diagrams_extra") or [])
     out = []
-    for key, title, what, needs in DIAGRAMS:
+    for key, title, what, needs in [*DIAGRAMS, *optional()]:
         f = core.WEB / f"{key}.html"
+        opt = key in archify_extra.CATALOG
         out.append({"id": key, "title": title, "what": what, "file": f"{key}.html", "exists": f.exists(), "updated": f.stat().st_mtime if f.exists() else None,
-                    "bytes": f.stat().st_size if f.exists() else 0, "needs": needs, "available": needs != "backups" or bool(core.CFG.get("backups_url"))})
+                    "bytes": f.stat().st_size if f.exists() else 0, "needs": needs, "optional": opt, "enabled": key in asked,
+                    "available": archify_extra.available(key, data) if opt else needs != "backups" or bool(core.CFG.get("backups_url"))})
     return {"diagrams": out, "archify": bool(core.ARCHIFY and Path(core.ARCHIFY).exists()), "archify_url": ARCHIFY_URL}
+
+
+class DiagramAsk(BaseModel):
+    enabled: bool
+
+
+@app.put(API + "/diagrams/{key}", tags=["schémas"], summary="Créer (ou retirer) un schéma proposé : réseau, services, domaines, virtualisation (admin)")
+def diagram_set(key: str, body: DiagramAsk, request: Request):
+    import archify_extra
+    import system
+    if denied := admin_write(request):
+        return denied
+    if key not in archify_extra.CATALOG:
+        return deny(404, "schéma inconnu")
+    if body.enabled and not (core.ARCHIFY and Path(core.ARCHIFY).exists()):
+        return deny(409, "Archify n'est pas installé dans cette image")
+    try:
+        data = json.loads((core.WEB / "data.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = None
+    if body.enabled and not archify_extra.available(key, data):
+        return deny(409, "rien à montrer pour l'instant : " + archify_extra.CATALOG[key][1])
+    system.set_diagram_extra(core, key, body.enabled)
+    threading.Thread(target=core.build_map, daemon=True, name="diagrams").start()
+    store().audit("schéma " + ("créé" if body.enabled else "retiré"), request.state.user["username"], ip_of(request), key)
+    return {"ok": True}
 
 
 @app.post(API + "/diagrams/rebuild", tags=["schémas"], summary="Regénérer les schémas maintenant (admin)")
