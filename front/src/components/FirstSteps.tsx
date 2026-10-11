@@ -2,7 +2,7 @@
 // demander (ports de l'hôte, Docker) jusqu'à la clé SSH qui donne le relevé exact. Les étapes se mettent à jour en
 // direct pendant le scan ; la carte reste jusqu'à ce qu'on la ferme (retenu par navigateur et par clé de l'app :
 // une installation remise à zéro la rouvre).
-import { ArrowRight, Check, Circle, KeyRound, Loader2, X } from "lucide-react";
+import { ArrowRight, Check, Circle, LifeBuoy, Loader2, Plug, Rocket, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { read } from "../api";
 import type { Snapshot } from "../api";
@@ -12,7 +12,7 @@ import { REOPEN_EVENT, savedState, saveState, setSkipped, skippedSteps, takeReop
 import { tx } from "../lib/i18n";
 import { useScan } from "../lib/scan";
 import { plural } from "../lib/summary";
-import type { Proposal, SystemState } from "../types";
+import type { ConnectorsState, Proposal, SystemState } from "../types";
 import { netState, useNetScan } from "../lib/netScan";
 import { AuthorizeKey } from "./AuthorizeKey";
 import { NetworkStep } from "./NetworkStep";
@@ -25,21 +25,21 @@ type State = "done" | "now" | "run" | "next" | "soon";
  *  next : suite directe ; soon : pas encore codé */
 function Step({ state, title, children, onSkip, skipped, onResume }: {
   state: State; title: string; children?: React.ReactNode;
-  onSkip?: () => void;      // bouton « Passer » : l'étape reste faisable plus tard
-  skipped?: boolean;        // étape passée : repliée, avec « Reprendre »
+  onSkip?: () => void;      // « Passer » button: the step stays doable later
+  skipped?: boolean;        // skipped step: folded, with « Reprendre »
   onResume?: () => void;
 }) {
   const Icon = state === "done" ? Check : state === "now" ? ArrowRight : state === "run" ? Loader2 : Circle;
-  const tone = state === "done" ? "text-ok" : state === "now" ? "text-warn" : state === "run" ? "text-link" : "text-dim";
-  const box = state === "now" ? "border-warn/40 bg-bg2/60 p-3 sm:p-4" : state === "run" ? "border-link/40 bg-bg2/60 p-3 sm:p-4" : "border-transparent";
+  const dot = state === "done" ? "border-ok/50 bg-ok/15 text-ok" : state === "now" ? "border-warn/60 bg-warn/15 text-warn" : state === "run" ? "border-link/60 bg-link/15 text-link" : "border-line bg-bg2 text-dim";
+  const card = state === "now" ? "border-warn/40 bg-warn/5 p-3 sm:p-4" : state === "run" ? "border-link/40 bg-link/5 p-3 sm:p-4" : "border-transparent py-1.5";
   return (
-    <li className={`flex gap-3 rounded-xl border transition-colors duration-500 ${box} ${state === "soon" ? "opacity-70" : ""}`}
-      aria-current={state === "now" || state === "run" ? "step" : undefined}>
-      <span key={state} className={`step-pop mt-0.5 shrink-0 ${tone}`}>
-        <Icon size={18} aria-hidden className={state === "run" ? "animate-spin" : undefined} />
+    <li className="group relative flex gap-3" aria-current={state === "now" || state === "run" ? "step" : undefined}>
+      <span aria-hidden className="absolute bottom-[-0.75rem] left-[17px] top-9 w-px bg-line group-last:hidden" />
+      <span key={state} className={`step-pop z-[1] grid h-9 w-9 shrink-0 place-items-center rounded-full border ${dot}`}>
+        <Icon size={17} aria-hidden className={state === "run" ? "animate-spin" : undefined} />
       </span>
-      <div className="min-w-0 flex-1">
-        <h3 className={`flex flex-wrap items-center gap-2 text-sm font-bold ${state === "next" || state === "soon" || skipped ? "text-muted" : ""}`}>
+      <div className={`min-w-0 flex-1 rounded-xl border transition-colors duration-500 ${card} ${state === "soon" ? "opacity-70" : ""}`}>
+        <h3 className={`flex min-h-[1.5rem] flex-wrap items-center gap-2 text-sm font-bold ${state === "next" || state === "soon" || skipped ? "text-muted" : ""}`}>
           {title}{state === "soon" && <Badge tone="off">{tx("À venir")}</Badge>}
           {skipped && <Badge tone="off">{tx("passée")}</Badge>}
           {skipped && onResume && <button type="button" className="text-xs font-normal text-link hover:underline" onClick={onResume}>{tx("Reprendre")}</button>}
@@ -80,12 +80,14 @@ function Proposals({ list }: { list: Proposal[] }) {
 
 export function FirstSteps({ snap }: { snap: Snapshot }) {
   const [sys, setSys] = useState<SystemState | null>(null);
+  const [tools, setTools] = useState<string[]>([]);   // every tool MyServices can read (connector labels), for the last step
   const [, bump] = useState(0);
   const [acceptedGen, setAcceptedGen] = useState<string | null>(null); // relevé de data.json au moment où la clé a été acceptée
   const scan = useScan();
   const { net, reload: reloadNet } = useNetScan();
   const admin = snap.me.role === "admin";
   useEffect(() => { if (admin) read<SystemState>("system").then(setSys).catch(() => undefined); }, [admin]);
+  useEffect(() => { if (admin) read<ConnectorsState>("connectors/settings").then((c) => setTools(c.types.map((t) => t.label))).catch(() => undefined); }, [admin]);
 
   const failing = (snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok);
   const fp = sys?.ssh.fingerprint || sys?.ssh.public || "app";
@@ -122,20 +124,35 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
   const containers = readable.reduce((n, c) => n + (Number(/\d+/.exec(c.message)?.[0]) || 0), 0);  // « 47 conteneurs » -> 47
   const linked = [...new Set((snap.data.services_status ?? []).map((s) => s.label))];
 
+  const sRelev: State = !keyDone ? "next" : finished ? "done" : "run";
+  const sConn: State = !proposals.length && linked.length ? "done" : keyDone && proposals.length && !skipped.includes("connectors") ? "now" : "next";
+  const doneCount = 2 + (keyDone ? 1 : 0) + (sRelev === "done" ? 1 : 0) + (sConn === "done" ? 1 : 0);   // account and host are always done; the network search is optional
+  const total = 6;
   const close = () => { saveState(fp, "closed"); bump((n) => n + 1); };
   return (
-    <section className={`relative rounded-2xl border bg-card p-5 transition-colors duration-700 ${finished ? "border-ok/50" : "border-warn/50"}`}>
-      <button type="button" aria-label={tx("Fermer")} title={tx("Fermer")}
-        onClick={close}
-        className="absolute right-3 top-3 rounded-lg p-1.5 text-dim hover:bg-bg2 hover:text-txt focus-visible:outline focus-visible:outline-2 focus-visible:outline-link">
-        <X size={18} aria-hidden />
-      </button>
-      <h2 className="mb-1 flex items-center gap-2 pr-8 text-lg font-bold"><KeyRound size={18} />{tx("Premiers pas")}</h2>
-      <p className="mb-4 pr-8 text-sm text-muted">
-        {finished
-          ? tx("C'est bon : MyServices lit maintenant vos conteneurs. Les étapes suivantes arrivent avec la détection des applications.")
-          : tx("MyServices a déjà trouvé des services. Pour être complet, il faudrait une clé SSH. Pas de panique, c'est simple !")}
-      </p>
+    <section className={`relative overflow-hidden rounded-2xl border bg-card shadow-sm transition-colors duration-700 ${finished ? "border-ok/50" : "border-warn/50"}`}>
+      <header className={`flex flex-wrap items-center gap-3 px-5 py-3.5 ${finished ? "bg-ok/10" : "bg-warn/10"}`}>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-bg2"><Rocket size={20} className={finished ? "text-ok" : "text-warn"} aria-hidden /></span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-lg font-bold leading-tight">{tx("Premiers pas")}</h2>
+          <p className="text-sm text-muted">
+            {finished
+              ? tx("C'est bon : MyServices lit vos conteneurs et vos machines. Il reste à relier vos outils, puis à régler alertes et sauvegardes.")
+              : tx("MyServices a déjà trouvé des services. Pour être complet, il faudrait une clé SSH. Pas de panique, c'est simple !")}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2" title={tx("{0} étapes sur {1} faites", doneCount, total)}>
+          <span className="font-mono text-sm font-bold text-txt">{doneCount}/{total}</span>
+          <span className="h-2 w-24 overflow-hidden rounded-full bg-bg2" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={doneCount} aria-label={tx("Avancement des premiers pas")}>
+            <span className={`block h-full rounded-full transition-all duration-700 ${finished ? "bg-ok" : "bg-warn"}`} style={{ width: `${(100 * doneCount) / total}%` }} />
+          </span>
+          <button type="button" aria-label={tx("Fermer")} title={tx("Fermer")} onClick={close}
+            className="rounded-lg p-1.5 text-dim hover:bg-bg2 hover:text-txt focus-visible:outline focus-visible:outline-2 focus-visible:outline-link">
+            <X size={18} aria-hidden />
+          </button>
+        </div>
+      </header>
+      <div className="p-5">
       <ol className="flex flex-col gap-3">
         <Step state="done" title={tx("Compte administrateur créé")} />
         <Step state="done" title={tx("Machine hôte détectée")}>
@@ -169,7 +186,7 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
             <AuthorizeKey failing={failing} bare onAccepted={() => setAcceptedGen(snap.data.generated)} />
           </Step>
         )}
-        <Step state={!keyDone ? "next" : finished ? "done" : "run"} title={tx("Relevé exact de Docker, des process et de la santé")}>
+        <Step state={sRelev} title={tx("Relevé exact de Docker, des process et de la santé")}>
           {!keyDone && tx("Une fois la clé acceptée, la collecte repart seule et remplace les estimations ci-dessus.")}
           {keyDone && !finished && (
             <p aria-live="polite">
@@ -192,26 +209,39 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
           skipped={skipped.includes("network")} onResume={() => resume("network")}>
           <NetworkStep net={net} reload={reloadNet} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} onSkip={() => skip("network")} />
         </Step>
-        <Step state={!proposals.length && linked.length ? "done" : keyDone && proposals.length && !skipped.includes("connectors") ? "now" : "next"} title={tx("Connecteurs proposés d'après ce qui est trouvé")}
+        <Step state={sConn} title={tx("Connecteurs proposés d'après ce qui est trouvé")}
           onSkip={proposals.length ? () => skip("connectors") : undefined} skipped={skipped.includes("connectors") && proposals.length > 0}
           onResume={() => resume("connectors")}>
           {proposals.length > 0
-            ? <><p className="mb-2">{tx("MyServices a reconnu des applis qu'il sait lire par leur API. Un connecteur ajoute leurs données (certificats, DNS, santé) sans rien recoder.")}</p><Proposals list={proposals} /></>
+            ? <><p className="mb-2">{tx("MyServices a reconnu des applis qu'il sait lire par leur API. Un connecteur ajoute leurs données (certificats, DNS, santé) sans rien recoder.")}</p><Proposals list={proposals} /><p className="mt-2"><a className="font-semibold text-link hover:underline" href="#settings/connectors">{tx("Tout voir dans Réglages → Connecteurs")}</a></p></>
             : <>
                 <p>
                   {tx("Aucune autre appli à relier")}{containers > 0 && ` ${tx("({0} conteneurs examinés)", containers)}`}.
                 </p>
                 {linked.length > 0 && <p className="mt-1 text-ok">{tx("Déjà reliés : {0}.", linked.join(", "))}</p>}
-                <p className="mt-1 text-dim">{tx("Applis que MyServices sait lire : NPM, AdGuard, Beszel, Uptime Kuma, Dozzle, Web-Check, Home Assistant.")}</p>
+                {tools.length > 0 && (
+                  <p className="mt-1 text-dim">
+                    {tx("MyServices sait lire {0} outils, par exemple :", tools.length)} {tools.slice(0, 8).join(", ")}…{" "}
+                    <a className="font-semibold text-link hover:underline" href="#settings/connectors">{tx("Voir tous les connecteurs")}</a>
+                  </p>
+                )}
                 <p className="mt-1 font-semibold text-ok">{tx("Rien à faire pour l'instant : tout est en ordre.")}</p>
               </>}
         </Step>
       </ol>
-      <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line/70 pt-4">
+      <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line/70 pt-4">
+        <span className="mr-1 text-xs font-bold uppercase tracking-wider text-dim">{tx("Ensuite")}</span>
+        <a className={`${button} border-txt/30 bg-bg2 text-txt no-underline hover:border-link hover:bg-link/10`} href="#settings/connectors"><Plug size={14} aria-hidden />{tx("Relier mes outils")}</a>
+        <a className={`${button} border-txt/30 bg-bg2 text-txt no-underline hover:border-link hover:bg-link/10`} href="#settings/alerts"><ArrowRight size={14} aria-hidden />{tx("Être prévenu")}</a>
+        <a className={`${button} border-txt/30 bg-bg2 text-txt no-underline hover:border-link hover:bg-link/10`} href="#settings/backups"><ArrowRight size={14} aria-hidden />{tx("Suivre mes sauvegardes")}</a>
+        <a className={`${button} border-txt/30 bg-bg2 text-txt no-underline hover:border-link hover:bg-link/10`} href="#settings/help"><LifeBuoy size={14} aria-hidden />{tx("Lire l'aide")}</a>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <button type="button" className={finished ? primary : `${button} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`} onClick={close}>
           <Check size={14} aria-hidden />{tx("Terminer les premiers pas")}
         </button>
         <span className="text-sm text-dim">{tx("Cette carte reste ouverte tant que vous ne la fermez pas. Menu du compte -> « Revoir les premiers pas » pour la rouvrir.")}</span>
+      </div>
       </div>
     </section>
   );

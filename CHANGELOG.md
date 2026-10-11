@@ -12,6 +12,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Changed
+- **"Getting started" card redone** (look and logic): a header strip with a rocket icon, a **progress bar and counter** (steps done out of 6), and a vertical timeline where each step has a round state marker (done, to do now, running, later) and an orange or blue tinted card for the active one. The texts are brought up to date: the "all good" message no longer promises steps "coming with application detection", the hard-coded list of 7 readable apps is replaced by the real count and the first connectors read from the connector list (with a link to all of them), a "See everything in Settings -> Connectors" link sits under the proposed connectors, and a new **"Next" row** links to linking tools, alerts, backups and the Help page.
 - **Example compose: the port is easy to change.** `MYSERVICES_PORT` now reads `${MYSERVICES_PORT:-8090}`, so a port already taken on the host is fixed with a one-line `.env` file (`MYSERVICES_PORT=8095`) instead of editing the compose file; a comment explains that the container uses the host network, so a `ports:` mapping would not work. Documented in both READMEs.
 - **README: open `http://<IP>:8090/`** (the root redirects to the sign-in page, then to the app) instead of the long `/myservices/v2/` address.
 
