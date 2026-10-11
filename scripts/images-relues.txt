@@ -118,3 +118,6 @@ dcca1779f01b7ccee555fd7bc31a0e27  front/public/icons/wikijs.svg
 c300efa05d65a11a789092d0c4869bf5  docs/logo-light.png
 d7edf5957b987c482297e29d2d96a217  docs/logo-dark.png
 7f86574868d86c7ddf726d6cd9ad9f4c  docs/icon.png
+74bc2a56421702c882c5fb735bec5ff1  docs/logo.svg
+a7b49eed8eb296914b44f25747b7f539  front/public/logo-grid-4x4.svg
+a7b49eed8eb296914b44f25747b7f539  front/public/favicon.svg
