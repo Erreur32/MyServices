@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Plug, Server } from "lucide-react";
+import { ChevronRight, Plug } from "lucide-react";
 import { read, type Snapshot } from "../api";
-import { Card, Dim } from "./ui";
+import { Dim } from "./ui";
+import { FOLD, FOLD_HEAD } from "./NetworkStep";
 import { StatusLine } from "./ssh";
 import { quiet } from "../lib/forms";
 import { appIcon } from "../lib/appIcons";
@@ -16,9 +17,12 @@ export function ReadBySsh({ snap }: { snap: Snapshot }) {
   if (!rows.length) return null;
   const machines = snap.data.machine_list ?? [];
   return (
-    <Card>
-      <h2 className="mb-1 flex items-center gap-2 font-bold"><Server size={16} />{tx("SSH Agent Actif")} <Dim>· {rows.length}</Dim></h2>
-      <p className="mb-3 text-sm text-muted">{tx("Pas de formulaire ici : ces lectures se règlent sur la machine (AdGuard, Docker, processus). Elles sont trouvées toutes seules quand la machine est lue par SSH.")}</p>
+    <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
+      <summary className={FOLD_HEAD}>
+        <ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
+        {tx("SSH Agent Actif")} <Dim>· {rows.length}</Dim>
+      </summary>
+      <p className="mb-3 mt-2 text-sm text-muted">{tx("Pas de formulaire ici : ces lectures se règlent sur la machine (AdGuard, Docker, processus). Elles sont trouvées toutes seules quand la machine est lue par SSH.")}</p>
       <ul className="flex flex-col divide-y divide-line/60">
         {rows.map((c) => {
           const ip = c.ip || c.name, m = machines.find((x) => x.ip === ip);
@@ -34,6 +38,6 @@ export function ReadBySsh({ snap }: { snap: Snapshot }) {
           );
         })}
       </ul>
-    </Card>
+    </details>
   );
 }
