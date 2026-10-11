@@ -229,6 +229,18 @@ def auto_netscan() -> None:
             log(f"recherche réseau automatique impossible : {type(e).__name__}: {e}")
 
 
+def netscan_task() -> dict:
+    """La recherche réseau automatique, présentée comme une tâche (en-tête) : prochaine échéance = dernière recherche + « netscan_every » h
+    (vérifiée chaque minute par le planificateur) ; coupée tant qu'aucune recherche manuelle n'a eu lieu ou si netscan_every = 0."""
+    every, f = CFG["netscan_every"], Path(CFG["state_dir"]) / "network-scan.json"
+    on = every > 0 and f.exists()
+    st = netscan.state(f) if f.exists() else {}
+    last = st.get("ended") or st.get("started")
+    return {"label": "Recherche réseau", "every_h": every, "enabled": on, "running": netscan.summary()["running"],
+            "next": max(last + every * 3600, time.time()) if on and last else None,
+            "started": st.get("started"), "ended": st.get("ended"), "result": None}
+
+
 def next_run(name: str, now: datetime | None = None) -> float | None:
     """Prochain horaire de la tâche (epoch, heure locale comme le planificateur) ; None si coupée ou sans créneau."""
     t = TASKS[name]

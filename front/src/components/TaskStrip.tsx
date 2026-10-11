@@ -31,9 +31,9 @@ export function TaskStrip() {
   if (!tasks) return null;
   return (
     <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted" aria-label="tâches planifiées">
-      {Object.entries(tasks).map(([name, t]) => (
+      {Object.entries(tasks).filter(([, t]) => t.enabled).map(([name, t]) => (
         <li key={name} className="flex items-center gap-1.5" title={detail(t)}>
-          <span className={`h-1.5 w-1.5 rounded-full ${t.running ? "animate-pulse bg-link" : t.enabled ? "bg-ok" : "bg-dim"}`} />
+          <span className={`h-1.5 w-1.5 rounded-full ${t.running ? "animate-pulse bg-link" : "bg-ok"}`} />
           <b className="font-semibold text-txt">{shortName(name, t)}</b>
           <span className="tabular-nums">{liveText(t, now)}</span>
         </li>

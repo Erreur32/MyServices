@@ -264,7 +264,7 @@ def tasks_v1():
                    "minutes": sorted(t["minutes"]),
                    "hours": None if t["hours"] is None else sorted(t["hours"]), "enabled": core.enabled(name),
                    "running": t["proc"] is not None, "started": t["start"], "ended": t["end"], "result": t["result"]}
-            for name, t in core.TASKS.items()}
+            for name, t in core.TASKS.items()} | {"netscan": core.netscan_task()}
 
 
 @app.get(API + "/connectors", tags=["connecteurs"], summary="État des connecteurs au dernier passage")

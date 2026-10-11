@@ -3,11 +3,11 @@ import { hm } from "./format";
 import { tx } from "./i18n";
 
 export interface TaskInfo {
-  label: string; at: string; next: number | null; minutes: number[]; hours: number[] | null; enabled: boolean;
+  label: string; at?: string; next: number | null; minutes?: number[]; hours?: number[] | null; every_h?: number; enabled: boolean;
   running: boolean; started: number | null; ended: number | null; result: string | null;
 }
 
-const SHORT: Record<string, string> = { collect: "Collecte", watch: "Veille", health: "Santé", backups: "Sauvegardes" };
+const SHORT: Record<string, string> = { collect: "Collecte", watch: "Veille", health: "Santé", backups: "Sauvegardes", netscan: "Réseau" };
 const pad = (n: number) => String(n).padStart(2, "0");
 
 const elapsed = (s: number) => (s < 60 ? tx("{0} s", s) : tx("{0} min {1} s", Math.floor(s / 60), pad(s % 60)));
@@ -16,17 +16,18 @@ export const shortName = (name: string, t: TaskInfo): string => (SHORT[name] ? t
 
 /** Période en clair : « toutes les heures, à :10 et :40 » ou « à 07:05, 19:05 » */
 export function period(t: TaskInfo): string {
-  if (t.hours === null) return tx("toutes les heures, à {0}", t.minutes.map((m) => `:${pad(m)}`).join(", "));
-  return tx("à {0}", t.hours.flatMap((h) => t.minutes.map((m) => `${pad(h)}:${pad(m)}`)).join(", "));
+  const minutes = t.minutes ?? [];
+  if (t.every_h !== undefined) return tx("toutes les {0} h", t.every_h);
+  if (!t.hours) return tx("toutes les heures, à {0}", minutes.map((m) => `:${pad(m)}`).join(", "));
+  return tx("à {0}", t.hours.flatMap((h) => minutes.map((m) => `${pad(h)}:${pad(m)}`)).join(", "));
 }
 
-/** Ligne vivante d'une tâche : en cours depuis…, ou prochain passage (heure et compte à rebours) ; `now` en millisecondes */
+/** Ligne vivante d'une tâche active : en cours depuis…, ou heure du prochain passage et compte à rebours ; `now` en millisecondes */
 export function liveText(t: TaskInfo, now: number): string {
   if (t.running) return tx("en cours depuis {0}", elapsed(Math.max(0, Math.round(now / 1000 - (t.started ?? now / 1000)))));
-  if (!t.enabled) return tx("coupée");
   if (t.next === null) return tx("pas d'horaire");
   const min = Math.ceil((t.next * 1000 - now) / 60000);
-  return tx("prochain {0} ({1})", hm(t.next * 1000), min <= 1 ? tx("dans moins d'une minute") : tx("dans {0} min", min));
+  return tx("{0} ({1})", hm(t.next * 1000), min <= 1 ? tx("dans moins d'une minute") : tx("dans {0} min", min));
 }
 
 /** Détail au survol : période et dernier passage */

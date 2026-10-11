@@ -11,15 +11,18 @@ describe("tâches planifiées", () => {
     expect(period(task({ minutes: [5], hours: [7, 19] }))).toContain("07:05, 19:05");
   });
 
+  it("période de la recherche réseau automatique", () => {
+    expect(period(task({ every_h: 6, minutes: undefined, hours: undefined }))).toContain("6");
+  });
+
   it("montre la durée d'un passage en cours", () => {
     expect(liveText(task({ running: true, started: 1000 }), 1_012_000)).toContain("12");
     expect(liveText(task({ running: true, started: 1000 }), 1_125_000)).toContain("2");
   });
 
-  it("compte à rebours avant le prochain passage, ou tâche coupée", () => {
+  it("compte à rebours avant le prochain passage", () => {
     const now = 1_000_000;
     expect(liveText(task({ next: now / 1000 + 7 * 60 }), now)).toContain("7");
     expect(liveText(task({ next: now / 1000 + 20 }), now)).not.toContain("NaN");
-    expect(liveText(task({ enabled: false }), now)).toBe("coupée");
   });
 });
