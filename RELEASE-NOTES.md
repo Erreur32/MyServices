@@ -1,8 +1,8 @@
-# Notes de version : MyServices 0.9.2
+# Notes de version : MyServices 0.9.3
 
 > **Phase de test : ne pas mettre en production.** Essayez MyServices sur une machine ou un réseau de test, et gardez une copie de `config/` et `data/` avant de mettre à jour.
 
-**0.9.2** (11 octobre 2026) ajoute cinq nouveaux « connecteurs » (MyServices sait lire cinq outils de plus) et améliore la page des agents.
+**0.9.3** (11 octobre 2026) ajoute cinq nouveaux « connecteurs » (MyServices sait lire cinq outils de plus) et améliore la page des agents.
 
 ## Pour tout le monde
 
@@ -15,6 +15,7 @@
 - **Icônes** pour ces outils, Veeam et Web-Check.
 - **Page des agents** : les groupes et chaque carte d'agent se replient (un agent qui va bien est replié d'office, les groupes vides aussi et passent en bas), plus d'espace entre les groupes ; les **agents révoqués** ont leur groupe avec un bouton « Nouvel agent » et un bouton « Supprimer ».
 - Réglages → Connecteurs : la page se rouvre sur le dernier sous-onglet utilisé ; un connecteur qui marche n'affiche plus qu'une coche verte, un connecteur en panne montre son message.
+- **Version affichée** : le numéro de version apparaît dans l'en-tête, à côté du titre.
 - **Correction** : Home Assistant affichait à tort « pas encore lu » alors qu'il était bien lu.
 
 **Ce qu'il faut savoir**
@@ -26,7 +27,7 @@
 
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.9.2` (amd64 et arm64) ; `:latest` suit le dernier tag.
+- **Image** : `ghcr.io/erreur32/myservices:0.9.3` (amd64 et arm64) ; `:latest` suit le dernier tag.
 - **Connecteurs** (`connectors/`) : `proxmox` et `proxmox-backup` (jeton d'API `PVEAPIToken` / `PBSAPIToken`, rôle d'audit, certificat auto-signé accepté par défaut), `mynetwork` (jeton API `mwk_api_…`, GET seulement), `logviewr` (MCP `POST /mcp`, jeton lecture seule, 5 outils de lecture uniquement), `dockhand` (jeton `dh_…`).
 - **Nouveaux apports** : `network`, `security`, `containers`, `virtualization`, écrits dans `data.json`.
 - **API** : `DELETE /agents/{id}/purge` (agent déjà révoqué seulement).

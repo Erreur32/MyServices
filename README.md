@@ -26,7 +26,7 @@
 > it on a production server**: try it on a test machine or a network you can afford to break, and keep a copy of `config/` and `data/`
 > before every update. It only reads your machines, but that is no reason to rely on it until it is declared stable.
 >
-> Version numbers stay **below 2.0.0** until then (`0.9.2`, `0.9.3`…); 2.0.0 will be the first version announced as stable.
+> Version numbers stay **below 2.0.0** until then (`0.9.3`, `0.9.4`…); 2.0.0 will be the first version announced as stable.
 > Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in French).
 
 ## At a glance
@@ -52,7 +52,7 @@ docker compose logs myservices        # the app's public key and the command to 
 
 Then open `http://<IP>:8090/myservices/v2/` **within 30 minutes** to create the admin account (after that delay:
 `docker compose restart myservices`) and follow the "Premiers pas" (getting started) card. Image: `ghcr.io/erreur32/myservices`
-(amd64 and arm64); `:latest` follows the latest tag, `:0.9.2` pins a version, `:docker` tracks the branch head.
+(amd64 and arm64); `:latest` follows the latest tag, `:0.9.3` pins a version, `:docker` tracks the branch head.
 
 Update: `docker compose pull && docker compose up -d` (settings and data live in the `./config` and `./data` volumes).
 

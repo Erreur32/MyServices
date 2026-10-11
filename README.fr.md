@@ -27,7 +27,7 @@
 > pouvez casser, et gardez une copie de `config/` et `data/` avant chaque mise à jour.
 > Il ne fait que lire vos machines, mais ce n'est pas une raison pour s'y fier tant qu'il n'est pas déclaré stable.
 >
-> Les numéros de version restent **sous la 2.0.0** tant que c'est le cas (`0.9.2`, `0.9.3`…) ; la 2.0.0 sera la première version
+> Les numéros de version restent **sous la 2.0.0** tant que c'est le cas (`0.9.3`, `0.9.4`…) ; la 2.0.0 sera la première version
 > annoncée stable. Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 ## En bref
@@ -53,7 +53,7 @@ docker compose logs myservices        # clé publique de l'app et commande pour 
 
 Puis ouvrez `http://<IP>:8090/myservices/v2/` **dans les 30 minutes** pour créer le compte admin (passé ce délai :
 `docker compose restart myservices`), et suivez la carte « Premiers pas ». Image : `ghcr.io/erreur32/myservices` (amd64 et arm64) ;
-`:latest` suit le dernier tag, `:0.9.2` une version précise, `:docker` le dernier état de la branche.
+`:latest` suit le dernier tag, `:0.9.3` une version précise, `:docker` le dernier état de la branche.
 
 Mise à jour : `docker compose pull && docker compose up -d` (réglages et données sont dans les volumes `./config` et `./data`).
 
