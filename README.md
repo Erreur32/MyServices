@@ -1,51 +1,53 @@
 <p align="center"><b>English</b> · <a href="README.fr.md">Français</a></p>
 
 <p align="center">
-  <img src="docs/logo.svg" alt="MyServices" width="360">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.svg">
+    <img src="docs/logo-light.svg" alt="MyServices" width="380">
+  </picture>
 </p>
 
 <p align="center">
-  <b>The state of your services and machines, in one place, read-only.</b>
+  <b>The state of your services and machines, in one place, read-only.</b><br>
+  <sub>It builds on the tools you already run. It never replaces them and never writes to them.</sub>
 </p>
 
 <p align="center">
   <a href="https://github.com/Erreur32/MyServices/releases/latest"><img alt="Version" src="https://img.shields.io/github/v/release/Erreur32/MyServices?label=version&color=3da9fc"></a>
-  <img alt="Testing phase" src="https://img.shields.io/badge/statut-BETA%20%C2%B7%20testing%20phase-orange">
-  <img alt="Not for production" src="https://img.shields.io/badge/production-NO-ef4444">
+  <img alt="Stage" src="https://img.shields.io/badge/stage-live%20%C2%B7%20early-f59e0b">
+  <img alt="Read-only" src="https://img.shields.io/badge/access-read--only-22c55e">
   <a href="https://github.com/Erreur32/MyServices/pkgs/container/myservices"><img alt="Docker image" src="https://img.shields.io/badge/image-ghcr.io%2Ferreur32%2Fmyservices-2496ED?logo=docker&logoColor=white"></a>
   <img alt="Architectures" src="https://img.shields.io/badge/arch-amd64%20%7C%20arm64-555">
   <a href="https://github.com/Erreur32/MyServices/actions/workflows/docker-publish.yml"><img alt="Tests and Docker image" src="https://github.com/Erreur32/MyServices/actions/workflows/docker-publish.yml/badge.svg"></a>
   <a href="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml"><img alt="Safety guard" src="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml/badge.svg"></a>
-  <img alt="Read-only" src="https://img.shields.io/badge/access-read--only-22c55e">
 </p>
 
-> ## ⚠️ Still in testing: do not use in production
+> ## 🚧 Live, but still young
 >
-> MyServices v2 (Docker) is a **BETA**. Screens, settings and data may still change from one version to the next, and several parts have
-> only been tried on a single PC or against fake servers (Windows agent, Veeam, Home Assistant backups, NPM connector). **Do not install
-> it on a production server**: try it on a test machine or a network you can afford to break, and keep a copy of `config/` and `data/`
-> before every update. It only reads your machines, but that is no reason to rely on it until it is declared stable.
+> MyServices is **published and usable**, but it is an **early-stage** project (`0.x`). Screens, settings and stored data can still change from
+> one version to the next, and several parts have so far only been tried on a single PC or against fake servers (Windows agent, Veeam,
+> Proxmox, Prometheus, Healthchecks, Netdata, Jellyfin, Home Assistant backups). **It only reads your machines**, so trying it is low-risk,
+> but give it time before relying on it for something critical: keep a copy of `config/` and `data/` before every update, and keep it on
+> your local network (never straight on the Internet).
 >
-> Version numbers stay **below 2.0.0** until then (`0.10.0`, `0.10.1`…); 2.0.0 will be the first version announced as stable.
+> Version numbers stay **below 2.0.0** until it is declared stable (`0.10.0`, `0.10.1`…).
 > Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in French).
 
 ## At a glance
 
-MyServices gathers the services of all your machines and of your local network and shows their live state. It **builds on the tools you
-already run** (Nginx Proxy Manager, AdGuard Home, Beszel, Uptime Kuma, Home Assistant, Veeam…) without replacing them: it reads their
-API, or the machine over SSH, cross-checks the information and presents it on one page.
+MyServices gathers the services of all your machines and of your local network and shows their live state **on one page**. It reads the
+API of the tools you already use (or the machine itself over SSH), cross-checks the answers and tells you what needs attention.
 
-- **Read-only**: nothing is ever written to what it observes.
-- **A single container**: collection, watcher, health, backups, accounts, API and web page.
-- **Tabs**: Home, History, Machines, Services, Health, Fail2ban, DNS, Backups, Diagrams, Settings.
-- **Machines are read** over SSH (Linux), by a PowerShell agent (Windows), through an API, or by ping; a PC that is often switched off keeps a greyed card instead of disappearing.
-- **History** as dots at the exact time, bars, curve or heat map; every entry says what detected it and what read it.
-- **Diagrams** generated with [Archify](https://github.com/tt-a1i/archify): network map, who reads what, machine access, alert chain, backups.
-- **Alerts and notifications** on Discord, Telegram and webhook: alert rules, plus your own reports (chosen machines and sensors at fixed times) and filtered live events, with ready-to-use examples.
-- **Discoveries** that tell you what runs by itself and what needs a click; `/home/backup` is followed automatically.
-- A **REST API** and an **MCP server** for your tools and AI assistants.
+- 🔒 **Read-only**: nothing is ever written to what it observes.
+- 📦 **One container**: collection, watcher, health, backups, accounts, API and web page.
+- 🖥️ **Machines** read over SSH (Linux), by a PowerShell agent (Windows), through an API, or by ping.
+- 🔌 **29 connectors**: Nginx Proxy Manager, AdGuard Home, Home Assistant, Proxmox, Veeam, UniFi, MynetworK, Beszel…
+- 🕘 **History** of every event, with what detected it and what read it.
+- 🗺️ **Diagrams** generated for you (network, machine access, backups, alerts, and more on a click).
+- 🔔 **Alerts and notifications** on Discord, Telegram and webhook.
+- 🤖 A **REST API** and an **MCP server** for your tools and AI assistants.
 
-## Try it (on a test machine)
+## Quick start (on a test machine)
 
 ```bash
 mkdir -p /opt/myservices && cd /opt/myservices
@@ -55,12 +57,146 @@ docker compose logs myservices        # the app's public key and the command to 
 ```
 
 Then open `http://<IP>:8090/myservices/v2/` **within 30 minutes** to create the admin account (after that delay:
-`docker compose restart myservices`) and follow the "Premiers pas" (getting started) card. Image: `ghcr.io/erreur32/myservices`
-(amd64 and arm64); `:latest` follows the latest tag, `:0.10.0` pins a version, `:docker` tracks the branch head.
+`docker compose restart myservices`) and follow the **"Premiers pas"** (getting started) card, then the **Help** page in Settings.
 
+Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.10.0` pins a version, `:docker` tracks the branch head.
 Update: `docker compose pull && docker compose up -d` (settings and data live in the `./config` and `./data` volumes).
 
-## Develop
+---
+
+## Learn more
+
+<details>
+<summary><b>🔭 What you see: the tabs</b></summary>
+
+| Tab | What it shows |
+|---|---|
+| **Home** | What needs your attention (12 rows by default), a paragraph per tab, and counters on the right that open the tab already filtered |
+| **History** | Events of the last 24 h to one year, as dots, bars, curve or heat map; each says what detected it and what read it |
+| **Machines** | Every machine with its state, system, access (SSH, agent, API), roles and details; a PC often switched off keeps a greyed card |
+| **Services** | NPM hosts and local services (Docker, Apache, ports), status, what to check, filters |
+| **Health** | CPU, memory, disks, SMART, temperature, failed services, per machine |
+| **Fail2ban** | Bans and jails, once a LogviewR connector is linked |
+| **DNS** | AdGuard Home: synchronisation, rewrites, domains to check |
+| **Backups** | Which backup sets exist, how old the latest copy is, where the copies live |
+| **Diagrams** | Generated diagrams, plus ones you create with a click |
+| **Settings** | Machines, connectors, discovery, notifications, backups, accounts, SSH key, schedules, API and MCP, help |
+
+Every filter is a toggle: click to turn it off, click again to turn it back on; several can be on together.
+
+</details>
+
+<details>
+<summary><b>🖥️ How machines are read</b></summary>
+
+A machine can be read several ways at once; the first source that answers is trusted and the next ones complete it (the order is set per machine).
+
+- **SSH** (Linux): MyServices connects with its **own key** (shown in Settings -> SSH key) and reads health, Docker, listening services and web servers. The key is never sent anywhere; you authorize it on each machine with one command. A dedicated non-root account in the `docker` and `adm` groups is the safest.
+- **Agent** (Windows): a small PowerShell script installed as a scheduled task sends the PC's own health, Docker containers and Windows services. Nothing to open on the PC.
+- **Connector**: tools with an API give their own view (Home Assistant sensors, Proxmox nodes, Beszel…).
+- **Network search**: a discreet scan of your local network finds machines and their apps. It is run once by hand, then repeats on its own. You choose which machines to follow; it never adds one alone.
+
+Machines found but not yet followed, SSH keys to authorize and agents not yet installed are listed under **Settings -> Discovery** and counted in the bell of the header.
+
+</details>
+
+<details>
+<summary><b>🔌 Connectors (29)</b></summary>
+
+A connector lets MyServices read a tool through its API, **read-only**: give it a key or account that cannot change anything. Settings -> Connectors lists them, tests each (button **Test**), and shows what the last collection read. A **"Detected services not configured"** table at the top proposes the ones it recognised on your network, with the form already filled.
+
+| Family | Connectors |
+|---|---|
+| **Web and proxies** | Nginx Proxy Manager, Web-Check |
+| **DNS** | AdGuard Home, Pi-hole, Technitium DNS |
+| **Monitoring** | Beszel, Uptime Kuma, Dozzle, Prometheus, Healthchecks, Netdata, LogviewR |
+| **Home and media** | Home Assistant, Jellyfin, Sonarr / Radarr / Prowlarr…, Frigate |
+| **Network** | MynetworK, UniFi Network, Tailscale / Headscale, OPNsense |
+| **Security** | CrowdSec |
+| **Virtualization and containers** | Proxmox VE, Dockhand, Portainer |
+| **Storage and backups** | Proxmox Backup Server, Veeam Backup & Replication, TrueNAS, Synology DSM |
+| **Power** | UPS (NUT) |
+| **Channels** | Discord, Telegram, webhook |
+
+> The newest ones were written from each service's documentation and **tried against fake servers only**. MynetworK is the one used on a real network so far. Please report what does not match your real services.
+
+Writing a connector: [docs/CONNECTEURS.md](docs/CONNECTEURS.md) (in French). Ideas for more: [docs/IDEES-CONNECTEURS.md](docs/IDEES-CONNECTEURS.md).
+
+</details>
+
+<details>
+<summary><b>💾 Backups</b></summary>
+
+Settings -> Backups shows a table of **sources** (click one to unfold its fields):
+
+- **Folders on my machines**: found over SSH in the usual places (`/home/backup` is followed automatically); you tick the ones to watch.
+- **Veeam Backup & Replication**: REST API (port 9419) with a read-only account (role *Veeam Backup Viewer*); pick the jobs to follow.
+- **Proxmox Backup Server**: backup groups (a VM, container or host per datastore) read with the existing connector's token (role *DatastoreAudit*).
+- **Home Assistant**: its automatic backup, through the existing connector's token.
+
+For each followed backup you set the age after which an alert fires, and whether a copy on another machine is required. Cron jobs and timers that look like backups are listed on their own.
+
+</details>
+
+<details>
+<summary><b>🔔 Alerts and notifications</b></summary>
+
+- **Channels**: Discord, Telegram, webhook.
+- **Alerts**: rules choose which events (machine down, critical health, late backup, new service…) go to which channel, with a delay so the same alert is not repeated. Presets get you started.
+- **Notifications**: messages you compose: a **report** of chosen machines and sensors at fixed times, or **live events** filtered by kind, machine or text. Ready-to-use examples can be added in one click, and "Send now" sends a real message.
+
+Failures are confirmed over several passes before an alert is sent.
+
+</details>
+
+<details>
+<summary><b>🗺️ Diagrams</b></summary>
+
+Generated with [Archify](https://github.com/tt-a1i/archify) after each collection: the **network map**, **machine access** (every machine under SSH, agent, connector or no access), **backups** and the **alert chain**.
+
+The **Diagrams** tab also proposes ones you create with a click, built from what MyServices already knows: **network equipment and devices** (gateway, switches, Wi-Fi access points and what is plugged into each, read by MynetworK and UniFi), **services per machine**, **domains and their path** (under each NPM and each Apache) and **virtual machines and containers** (Proxmox).
+
+</details>
+
+<details>
+<summary><b>🔐 Security and access</b></summary>
+
+- **Read-only by design**: connectors only send GET requests (or read commands over SSH). Passwords and tokens are stored encrypted (`enc:v1`) and never sent back to the page; the private SSH key stays in `config/ssh` (mode 600) and is never shown.
+- **Accounts**: local accounts (admin or read-only), password rules, session list, an audit log (filterable, CSV export).
+- **Network**: the page only answers private networks and the loopback by default (`MYSERVICES_ALLOW` to change). Do not expose it to the Internet; put it behind a VPN or an authenticating proxy if you need remote access (`MYSERVICES_COOKIE_SECURE=1` behind HTTPS).
+- **The container**: runs as user `10001` (never root), read-only file system, no capabilities, `no-new-privileges`, no Docker socket (the host is read over SSH like the others).
+- **Guard before commit and push**: `bash scripts/install-hooks.sh` refuses tokens, passwords, keys, `config.json`, `.env`, databases and unreviewed images.
+
+</details>
+
+<details>
+<summary><b>⚙️ Configuration</b></summary>
+
+Almost everything is set in the page (Settings). Files and variables, for reference:
+
+| | |
+|---|---|
+| `./config` | `config.json`, `services-meta.json`, `secret.key`, `ssh/` (the app's key, aliases, `known_hosts`) |
+| `./data` | the produced page, caches, state, `myservices.db` (accounts, history, alerts) |
+| `MYSERVICES_PORT` | port of the page (default `8090`) |
+| `MYSERVICES_ALLOW` | networks allowed to open the page (default: private networks and loopback) |
+| `MYSERVICES_HOST_USER` | SSH account of the `hote` alias (the host machine) |
+| `MYSERVICES_COLLECT_AT` | schedule of the collection, `minutes hours` (default `10,40 *`); same for the watcher and health |
+| `TZ` | time zone |
+
+Schedules can also be edited live in Settings -> Tasks and schedules. A full example is in [`deploy/compose.example.yaml`](deploy/compose.example.yaml).
+
+</details>
+
+<details>
+<summary><b>🤖 API and MCP</b></summary>
+
+A REST API (`/myservices/api/v1/…`, OpenAPI documentation at `/myservices/api/v1/docs`) and an **MCP server** (`/myservices/mcp`, `msv_mcp_` token) let your tools and AI assistants read the same data. Create tokens in Settings -> API and MCP, with a validity you choose: **read** (the default), **runs** (read + ask for a collection) or **admin** (settings included; a duration is required and your password is asked). Each MCP tool has its own switch.
+
+</details>
+
+<details>
+<summary><b>🧪 Develop</b></summary>
 
 ```bash
 docker build -t myservices:dev .
@@ -68,11 +204,9 @@ docker run --rm --entrypoint python -v $PWD:/src:ro -w /src myservices:dev -m un
 cd front && npm ci && npm test && npm run dev      # :5180
 ```
 
-Versions: `python3 scripts/release.py` checks that the version, both READMEs, the changelog and the release notes agree;
-`release.py patch|minor|X.Y.Z` applies a new one everywhere (it commits, tags and pushes nothing).
+Versions: `python3 scripts/release.py` checks that the version, both READMEs, the changelog and the release notes agree; `release.py patch|minor|X.Y.Z` applies a new one everywhere (it commits, tags and pushes nothing).
+`.claude/` is never versioned.
 
-Guard before commit and push: `bash scripts/install-hooks.sh` (refuses tokens, passwords, keys, `config.json`, `.env`, databases,
-unreviewed images). `.claude/` is never versioned. Writing a connector: [docs/CONNECTEURS.md](docs/CONNECTEURS.md) (in French).
+</details>
 
-> Full documentation (detailed installation, machines, connectors, API and MCP, security) will be written once the version is stable;
-> the old documentation for the classic install was out of date and has been removed.
+> Full documentation (detailed installation, every connector, API and MCP) will be written as the project matures; the **Help** page in Settings covers the first steps today.

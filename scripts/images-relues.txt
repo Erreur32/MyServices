@@ -19,7 +19,6 @@ f3caa8a8bac253a77fa2ae7e7bc9b062  front/public/icons/uptime-kuma.svg
 7de45e1ea203da32a040c257f47cd39a  front/public/icons/docker.svg
 3860f0d399e48fcaa30f2b21d3cd5e0d  front/public/icons/nginx.svg
 5686825675a3710852df0f871dd19843  docs/icon.svg
-a963b01ac719bcd05cffc4cf75235c72  docs/logo.svg
 5686825675a3710852df0f871dd19843  front/public/favicon.svg
 5686825675a3710852df0f871dd19843  web/favicon.svg
 22febe995878578b4158952a5b44b609  front/public/icons/dockhand.svg
@@ -111,7 +110,8 @@ dcca1779f01b7ccee555fd7bc31a0e27  front/public/icons/wikijs.svg
 15b619662a669c85f21439613f20cd9b  front/public/icons/windows-mono.svg
 370e206d1d04f6e4e6fd10f532d27eca  front/public/icons/windows-server.svg
 93d43050c48728864f89220a172405e1  front/public/logo-grid.svg
-74bc2a56421702c882c5fb735bec5ff1  docs/logo.svg
 0fdca7a49891f6d0a98580481d6de9ca  front/public/mark.svg
 73f515499dfb0b9a18c464213ac0990e  front/public/favicon.svg
 73f515499dfb0b9a18c464213ac0990e  web/favicon.svg
+730591a7039dd77314148cdf74f458b9  docs/logo-dark.svg
+527c66c4757a40c883dc5250553d51e1  docs/logo-light.svg

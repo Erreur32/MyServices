@@ -27,7 +27,7 @@ const READ_WAYS: { title: string; text: string }[] = [
 const HABITS = [
   tx("Un compte ou un jeton dédié et en lecture seule pour chaque outil : MyServices ne modifie rien et n'en a pas besoin."),
   tx("Ne l'exposez pas sur Internet : gardez-le sur votre réseau local ou derrière un VPN ou un proxy avec authentification."),
-  tx("Phase de test : gardez une copie des dossiers config/ et data/ avant chaque mise à jour."),
+  tx("Stade précoce : gardez une copie des dossiers config/ et data/ avant chaque mise à jour."),
   tx("Un rappel qui revient trop ? « Ne plus me le rappeler » le coupe, et vous pouvez le réafficher dans Réglages → Découverte."),
   tx("Pour ne plus lire un connecteur sans le supprimer, coupez son interrupteur « Collecte » : ses réglages sont gardés."),
   tx("L'onglet Historique garde les événements un an : choisissez la période et le style de graphique, votre choix est mémorisé."),

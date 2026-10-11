@@ -136,8 +136,7 @@ def allows(level: str, needed: str) -> bool:
 API_ROUTES: list[tuple[str, re.Pattern, str]] = [
     ("GET", re.compile(r"^(status|tasks|connectors|events|events/per-day|me|machines|services|health|backups)$"), "read"),
     ("POST", re.compile(r"^refresh$"), "runs"),
-    ("GET", re.compile(r"^(audit|alerts|connectors/settings|machines/settings|system|sources)$"), "admin"),
-    ("PUT", re.compile(r"^sources/.+$"), "admin"),
+    ("GET", re.compile(r"^(audit|alerts|connectors/settings|machines/settings|system)$"), "admin"),
     ("*", re.compile(r"^system/tasks/.+$"), "admin"),
     ("*", re.compile(r"^(alerts/.+|connectors/settings/.+|machines/.+)$"), "admin"),
 ]

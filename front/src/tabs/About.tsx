@@ -55,7 +55,7 @@ export function AboutSettings() {
           </button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <Badge tone="warn" title={tx("Phase de test : ne pas mettre en production")}>BETA</Badge>
+          <Badge tone="warn" title={tx("Version en ligne, à un stade précoce : des écrans et des réglages peuvent encore changer")}>BETA</Badge>
           <Badge tone="ok">{tx("lecture seule")}</Badge>
           <Badge tone="info">Docker · amd64 · arm64</Badge>
           <Badge tone="off">{tx("licence MIT")}</Badge>

@@ -1,6 +1,6 @@
 # Notes de version : MyServices 0.10.0
 
-> **Phase de test : ne pas mettre en production.** Essayez MyServices sur une machine ou un réseau de test, et gardez une copie de `config/` et `data/` avant de mettre à jour.
+> **Version en ligne, à un stade précoce.** MyServices est utilisable, mais jeune : des écrans et des réglages peuvent encore changer. Gardez une copie de `config/` et `data/` avant de mettre à jour, et laissez-le sur votre réseau local.
 
 
 **0.10.0** (11 octobre 2026) refait l'accueil et les filtres, ajoute des schémas à créer d'un clic (réseau, services par machine, domaines, machines virtuelles) et enrichit le schéma « Accès aux machines ».

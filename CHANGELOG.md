@@ -9,7 +9,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
-> **Testing phase: do not use in production.**
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Changed
+- **README rewritten**: new logo (a dark and a light variant, picked by the reader's theme), a short "At a glance" and quick start, then **collapsible sections** for the big blocks (tabs, how machines are read, the 29 connectors, backups, alerts, diagrams, security, configuration, API and MCP, develop). English and French.
+- **Wording follows the real stage of the project**: MyServices is *live but early-stage* (`0.x`), no longer presented as "testing phase, do not use in production". README badges and banner, release notes, the About page and the Help page now say so; the safety advice stays (keep a copy of `config/` and `data/`, keep it on your local network).
 
 ## v0.10.0 (2026-10-11)
 
