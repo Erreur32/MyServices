@@ -14,7 +14,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Changed
 - **Settings -> Connectors**: the "Activation" sub-tab is gone. Each connector card now has its own **Collection** and **Display** switches (right of the version line), and Apache (read directly, no connector) sits in a card below them. The Connectors tab only shows connectors.
-- **Settings -> Machines has two sub-tabs**: "Machines" and **"SSH & Agents"** (how each machine is read); "SSH Agent Actifs" (was "Read by SSH or by the agent") now sits at the bottom of the "Machines" sub-tab, moved out of Connectors because it is about machines. Old `#settings/agents/<ip>` links open it.
+- **Settings -> Machines has two sub-tabs**: "Machines" and **"SSH & Agents"** (how each machine is read); "SSH Agent Actif" (was "Read by SSH or by the agent") now sits at the bottom of the "Machines" sub-tab, moved out of Connectors because it is about machines. Old `#settings/agents/<ip>` links open it.
 - **History opens on the last 24 h, as bars**; the period and chart style you pick last are remembered in the browser.
 - **Fewer duplicate calls from the page**: the discoveries list is fetched once and shared by the bell, the home reminder, the Settings menu and the Discovery page (one call every 30 s instead of four); Settings → Discovery and Tasks re-read every 10 s only while a scan or task runs, every 60 s otherwise; Agents every 30 s (5 s while waiting for a first report); nothing is re-read while the browser tab is hidden, and the tab re-reads when you come back.
 - **Responses are gzip-compressed** (above 1 KB): `data.json` is about 200 KB.
