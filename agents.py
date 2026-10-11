@@ -88,6 +88,12 @@ class Agents:
             if not db.execute("UPDATE agents SET revoked = ? WHERE id = ? AND revoked IS NULL", (time.time(), aid)).rowcount:
                 raise AgentError("agent inconnu ou déjà révoqué")
 
+    def purge(self, aid: int) -> None:
+        """Efface un agent déjà révoqué (sa ligne seulement : son jeton ne marchait plus de toute façon). Un agent actif ne s'efface pas."""
+        with self._db() as db:
+            if not db.execute("DELETE FROM agents WHERE id = ? AND revoked IS NOT NULL", (aid,)).rowcount:
+                raise AgentError("agent inconnu ou pas révoqué (révoquez-le d'abord)")
+
     def check(self, raw: str | None) -> dict:
         """Fiche de l'agent si le jeton est valable ; AgentError(code) sinon."""
         if not raw:

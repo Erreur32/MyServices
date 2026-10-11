@@ -65,6 +65,16 @@ class Agents(unittest.TestCase):
         self.assertNotIn(token, str(self.c.get(BASE + "/agents").json()))  # le clair n'est jamais relu
         self.assertEqual(self.c.post(BASE + "/agents", json={"ip": "pas-une-ip", "name": "Gamer32"}, headers=self.h).status_code, 400)
 
+    def test_effacer_un_agent_revoque_seulement(self):
+        _, info = self.create()
+        url = BASE + f"/agents/{info['id']}"
+        self.assertEqual(self.c.delete(url + "/purge", headers=self.h).status_code, 400)  # actif : pas effaçable
+        self.assertEqual(self.c.delete(url, headers=self.h).status_code, 200)             # révoqué
+        self.assertEqual(self.anon.delete(url + "/purge").status_code, 401)
+        self.assertEqual(self.c.delete(url + "/purge", headers=self.h).status_code, 200)
+        self.assertEqual(self.c.get(BASE + "/agents").json()["agents"], [])
+        self.assertEqual(self.c.delete(url + "/purge", headers=self.h).status_code, 400)  # déjà parti
+
     def test_releve_accepte_puis_etat_actif(self):
         token, info = self.create()
         self.assertEqual(self.send(token).status_code, 200)

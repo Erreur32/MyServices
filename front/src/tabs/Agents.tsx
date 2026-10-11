@@ -216,22 +216,19 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         ))}
       </Group>
 
-      {revoked.length > 0 && (
-        <details className="order-2 rounded-xl border border-line/60 bg-card/50 px-4 py-2 text-sm">
-          <summary className="cursor-pointer text-muted">{tx("Agents révoqués")} <Dim>· {revoked.length}</Dim></summary>
-          <ul className="mt-2 flex flex-col gap-1 text-xs text-dim">
-            {revoked.map((a) => <li key={a.id}>{machines[a.ip]?.name || a.name} · {a.ip} · <code className="font-mono">{tx("msv_")}agent_…{a.hint}</code> · {tx(" · révoqué le {0}", dateTime((a.revoked ?? 0) * 1000))}</li>)}
-          </ul>
-        </details>
-      )}
+      <Group title={tx("Agents révoqués")} n={revoked.length} fold folded empty={tx("Aucun agent révoqué.")}
+        hint={tx("Leur jeton ne marche plus. « Nouvel agent » en crée un autre pour ce PC ; « Supprimer » les retire de la liste pour de bon.")}>
+        {revoked.map((a) => <RevokedCard key={a.id} a={a} conf={machines[a.ip]} ip={a.ip} busy={busy === a.ip}
+          onNew={isWindows(a.ip) ? () => void create(a.ip) : undefined} reload={reload} />)}
+      </Group>
     </div>
   );
 }
 
 /** Groupe de cartes : titre, compte, texte d'aide, grille (ou le texte « vide ») ; pliable (chevron, comme « Agent créé ») si fold */
-function Group({ title, n, hint, empty, fold, children }: { title: string; n: number; hint?: string; empty: string; fold?: boolean; children: React.ReactNode }) {
+function Group({ title, n, hint, empty, fold, folded, children }: { title: string; n: number; hint?: string; empty: string; fold?: boolean; folded?: boolean; children: React.ReactNode }) {
   const [choice, setChoice] = useState<boolean | null>(null);  // null : pas touché, donc ouvert s'il y a des cartes, replié s'il est vide
-  const open = choice ?? n > 0;
+  const open = choice ?? (n > 0 && !folded);  // folded : replié d'office même s'il a des cartes (agents révoqués)
   const shown = !fold || open;
   return (
     <section aria-label={title} className={n === 0 ? "order-1" : ""}>  {/* groupes vides en bas (après les pleins) */}
@@ -294,6 +291,39 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
       </div>
       <NoteLine note={note} />
       </>}
+    </li>
+  );
+}
+
+/** Carte d'un agent révoqué : qui, quand, et deux gestes : en recréer un pour ce PC, ou l'effacer de la liste (confirmation) */
+function RevokedCard({ a, conf, ip, busy, onNew, reload }: { a: AgentInfo; conf?: MachineConf; ip: string; busy: boolean; onNew?: () => void; reload: () => void }) {
+  const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null);
+  return (
+    <li className="flex flex-col gap-2 rounded-xl border border-line/60 bg-card/60 p-3 text-sm">
+      <div className="flex items-center gap-3">
+        <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? "windows" }} reserve />
+        <span className="min-w-0 flex-1">
+          <b className="block truncate">{conf?.name ?? a.name}</b>
+          <span className="block truncate text-xs text-dim">{ip}</span>
+        </span>
+        <Badge tone="off">{tx("révoqué")}</Badge>
+      </div>
+      <p className="text-xs text-dim">
+        {tx("révoqué le {0}", dateTime((a.revoked ?? 0) * 1000))}{a.last_seen ? ` · ${tx("dernier relevé {0}", dateTime(a.last_seen * 1000))}` : ""}
+        {" · "}<code className="font-mono">{tx("msv_")}agent_…{a.hint}</code>
+      </p>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {!confirm && <>
+          {onNew && <button type="button" className={quiet} disabled={busy} onClick={onNew}><Plus size={14} />{tx("Nouvel agent")}</button>}
+          <button type="button" className={`${danger} ml-auto`} onClick={() => setConfirm(true)}><Trash2 size={14} />{tx("Supprimer")}</button>
+        </>}
+        {confirm && <>
+          <span className="text-xs text-muted">{tx("Retiré de la liste pour de bon.")}</span>
+          <button type="button" className={`${danger} ml-auto`} onClick={() => void act(() => send("DELETE", `agents/${a.id}/purge`), tx("supprimé"), setNote).then((ok) => ok && reload())}>{tx("Confirmer")}</button>
+          <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
+        </>}
+      </div>
+      <NoteLine note={note} />
     </li>
   );
 }

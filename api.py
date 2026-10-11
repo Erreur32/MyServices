@@ -802,6 +802,19 @@ def agents_revoke(aid: int, request: Request):
     return {"ok": True}
 
 
+@app.delete(API + "/agents/{aid}/purge", tags=["agents"], summary="Effacer un agent déjà révoqué de la liste (session admin)")
+def agents_purge(aid: int, request: Request):
+    import agents
+    if denied := session_admin(request):
+        return denied
+    try:
+        agents_store().purge(aid)
+    except agents.AgentError as e:
+        return deny(400, str(e))
+    store().audit("agent révoqué effacé", request.state.user["username"], ip_of(request), str(aid))
+    return {"ok": True}
+
+
 class ToolToggle(BaseModel):
     enabled: bool
 
