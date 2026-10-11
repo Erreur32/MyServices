@@ -229,34 +229,78 @@ def build_connectors(data: dict) -> dict:
     return spec
 
 
+ACCESS_GROUPS = [("ssh", "Lues par SSH", "database", "SSH", "success"), ("agent", "Lues par l'agent", "backend", "agent", "success"),
+                 ("api", "Lues par un connecteur", "cloud", "API", "success"), ("none", "Sans accès", "external", "", "waiting")]
+PER_GROUP = 12                                # machines dessinées par méthode (le reste est dans l'encadré du dessous)
+
+
+def access_of(m: dict) -> tuple[str, str]:
+    """(méthode principale, détail) d'une machine : SSH d'abord, puis l'agent, puis un connecteur (Home Assistant, Proxmox…), sinon ping seulement.
+    Les autres façons de la lire sont ajoutées au détail (« + agent », « + Beszel »)."""
+    s, a = m.get("ssh"), m.get("agent")
+    api = [x.get("label") or x.get("type") for x in (m.get("api") or []) if x.get("label") or x.get("type")]
+    extra = ([] if not s or not a else ["agent"]) + ([] if not api or not (s or a) else api)
+    if s:
+        main, base = "ssh", f"{s.get('user') or '?'}@{m['ip']}:{s.get('port', 22)}"
+    elif a:
+        main, base = "agent", f"{m['ip']} · agent"
+    elif api:
+        main, base = "api", f"{m['ip']} · {', '.join(api)}"
+        extra = []
+    else:
+        main, base = "none", f"{m['ip']} · ping seulement"
+    return main, base + (" · + " + ", ".join(extra) if extra else "")
+
+
 def build_access(data: dict, health: dict | None = None) -> dict:
-    """« Accès aux machines » : MyServices et trois blocs (lues par SSH, lues par l'agent, sans accès) avec leur nombre ; le détail de chaque
-    machine (compte, port, IP) est dans les encadrés dessous."""
+    """« Accès aux machines » : MyServices, un bloc par façon de lire (SSH, agent, connecteur, sans accès), et dessous chaque machine dans un cadre
+    avec son niveau de santé, son compte et son port. Une machine apparaît sous sa méthode principale ; les autres sont dans son détail."""
     hb = health_by_ip(health)
-    groups: dict[str, list[str]] = {"ssh": [], "agent": [], "none": []}
+    groups: dict[str, list[dict]] = {k: [] for k, *_ in ACCESS_GROUPS}
     for m in sorted((m for m in data.get("machine_list", []) if not m.get("disabled")), key=lambda m: ipaddress.ip_address(m["ip"])):
-        s, a = m.get("ssh"), m.get("agent")
-        lvl = hb.get(m["ip"], {}).get("level")
-        mark = f" · {WORD[lvl]}" if lvl in WORD and lvl != "ok" else ""
-        if s:
-            groups["ssh"].append(f"{m['name']} · {s.get('user') or '?'}@{m['ip']}:{s.get('port', 22)}{mark}")
-        elif a:
-            groups["agent"].append(f"{m['name']} · {m['ip']} · agent{mark}")
-        else:
-            groups["none"].append(f"{m['name']} · {m['ip']} · ping seulement")
-    spec_g = [("ssh", "Lues par SSH", "database", "SSH", "success"), ("agent", "Lues par l'agent", "backend", "agent", "success"), ("none", "Sans accès", "external", "", "waiting")]
-    present = [g for g in spec_g if groups[g[0]]]
-    cols = max(len(present), 3)
-    start = (cols - len(present)) // 2
-    comps = [{"id": "ms", "type": "security", "label": "MyServices", "sublabel": "clé SSH de l'app · agents", "row": 0, "col": cols // 2, "size": [W, H]}]
-    conns = []
-    for n, (key, label, typ, via, icon) in enumerate(present):
-        comps.append({"id": f"g_{key}", "type": typ, "label": label, "sublabel": f"{len(groups[key])} machine(s)", "row": 1, "col": start + n, "size": [W, H], "icon": icon})
+        main, detail = access_of(m)
+        groups[main].append({"m": m, "detail": detail, "level": hb.get(m["ip"], {}).get("level")})
+    present = [g for g in ACCESS_GROUPS if groups[g[0]]]
+    # Colonnes par méthode : au plus 3, 12 en tout (limite du schéma) ; chaque méthode occupe ses colonnes, ses machines se rangent dessous
+    widths = {g[0]: min(len(groups[g[0]][:PER_GROUP]), 3) for g in present}
+    while sum(widths.values()) > MAX_COLS:
+        widths[max(widths, key=widths.get)] -= 1
+    cols = max(sum(widths.values()), 3)
+    comps, conns, bounds = [], [], []
+    col0 = (cols - sum(widths.values())) // 2
+    centres = []
+    for key, label, typ, via, icon in present:
+        w, rows = widths[key], groups[key][:PER_GROUP]
+        centre = col0 + (w - 1) // 2
+        centres.append(centre)
+        gid = f"g_{key}"
+        comps.append({"id": gid, "type": typ, "label": label, "sublabel": f"{len(groups[key])} machine(s)", "row": 1, "col": centre, "size": [W, H], "icon": icon})
+        ids = [gid]
+        for i, r in enumerate(rows):
+            m = r["m"]
+            mid = f"a_{slug(m['ip'])}"
+            c = {"id": mid, "type": "backend", "label": m["name"][:24], "sublabel": r["detail"][:36], "row": 2 + i // w, "col": col0 + i % w, "size": [W, H]}
+            comps.append(with_level(c, r["level"], ""))
+            ids.append(mid)
+            if i < w:                                   # liaison seulement vers la première ligne : les suivantes sont dans le cadre
+                conns.append({"from": gid, "to": mid, "route": "orthogonal-v"})
+        bounds.append({"kind": "region", "label": f"{label} · {len(groups[key])}", "wraps": ids, "pad": 12})
+        col0 += w
+    hub_col = (centres[0] + centres[-1]) // 2 if centres else cols // 2
+    comps.insert(0, {"id": "ms", "type": "security", "label": "MyServices", "sublabel": "clé SSH de l'app · agents · connecteurs", "row": 0, "col": hub_col, "size": [W, H]})
+    for key, label, typ, via, icon in present:
         if via:
-            conns.append({"from": "ms", "to": f"g_{key}", "label": via, "route": "orthogonal-v"})
+            conns.insert(0, {"from": "ms", "to": f"g_{key}", "label": via, "route": "orthogonal-v"})
     spec = diagram("Accès aux machines", data.get("generated", ""), "acces.html", cols, comps, conns)
-    spec["cards"] = [{"dot": "amber" if key == "none" else "emerald", "title": label, "items": groups[key][:12] + ([f"… et {len(groups[key]) - 12} autre(s)"] if len(groups[key]) > 12 else [])}
-                     for key, label, *_ in present]
+    spec["boundaries"] = bounds
+    cards = []
+    for key, label, *_ in present:
+        extra = groups[key][PER_GROUP:]
+        if extra:
+            cards.append({"dot": "amber" if key == "none" else "emerald", "title": f"{label} (suite)", "items": [f"{r['m']['name']} · {r['detail']}" for r in extra[:12]]
+                          + ([f"… et {len(extra) - 12} autre(s)"] if len(extra) > 12 else [])})
+    if cards:
+        spec["cards"] = cards
     return spec
 
 

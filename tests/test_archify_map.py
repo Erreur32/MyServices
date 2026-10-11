@@ -144,5 +144,25 @@ class Backups(unittest.TestCase):
             self.assertLessEqual(spec["layout"]["cols"], archify_map.MAX_COLS)
             self.assertTrue(all("row" in c and "col" in c for c in spec["components"]))
 
+    def test_acces_chaque_machine_sous_sa_methode(self):
+        ml = [{"ip": "10.0.0.2", "name": "srv", "ssh": {"user": "root", "port": 22}, "agent": {"state": "actif"}, "api": [{"label": "Beszel"}]},
+              {"ip": "10.0.0.3", "name": "PC", "agent": {"state": "actif"}},
+              {"ip": "10.0.0.4", "name": "ha", "api": [{"label": "Home Assistant"}]},
+              {"ip": "10.0.0.5", "name": "box"}]
+        spec = archify_map.build_access({"generated": "2026-10-11T10:00:00+00:00", "machine_list": ml}, None)
+        by = {c["id"]: c for c in spec["components"]}
+        self.assertEqual({k for k in by if k.startswith("g_")}, {"g_ssh", "g_agent", "g_api", "g_none"})
+        self.assertEqual(by["a_10_0_0_2"]["sublabel"], "root@10.0.0.2:22 · + agent, Beszel")   # SSH d'abord, les autres accès en détail
+        self.assertEqual(by["a_10_0_0_4"]["sublabel"], "10.0.0.4 · Home Assistant")
+        self.assertEqual(by["a_10_0_0_5"]["sublabel"], "10.0.0.5 · ping seulement")
+        self.assertEqual(len(spec["boundaries"]), 4)
+        self.assertTrue(all(set(b["wraps"]) <= set(by) for b in spec["boundaries"]))
+        many = [{"ip": f"10.1.0.{i}", "name": f"s{i}", "ssh": {"user": "u", "port": 22}} for i in range(1, 31)]
+        big = archify_map.build_access({"generated": "x", "machine_list": many}, None)
+        self.assertEqual(sum(1 for c in big["components"] if c["id"].startswith("a_")), archify_map.PER_GROUP)
+        self.assertIn("(suite)", big["cards"][0]["title"])                                     # le reste est dans l'encadré
+        self.assertLessEqual(big["layout"]["cols"], archify_map.MAX_COLS)
+
+
 if __name__ == "__main__":
     unittest.main()
