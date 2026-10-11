@@ -2,11 +2,11 @@
 
 Toutes les évolutions notables de MyServices v2 (Docker). Une section par version publiée, la plus récente en haut.
 Numérotation : les premières préversions s'appelaient `2.0.0-alpha.N`, `-beta.N` puis `-rc.N` ; comme le projet est encore en BETA,
-la numérotation repart **sous la 2.0.0** avec la **0.0.1** (la 2.0.0 sera réservée à une version jugée stable). L'étiquette d'image
+la numérotation repart **sous la 2.0.0** avec la **0.9.0** (la 2.0.0 sera réservée à une version jugée stable). L'étiquette d'image
 `:latest` suit le dernier tag publié. Images : `ghcr.io/erreur32/myservices`
 (amd64 et arm64). Voir aussi [RELEASE-NOTES.md](RELEASE-NOTES.md) pour la dernière mise à jour expliquée simplement.
 
-## v0.0.1 (2026-10-11) : première version numérotée (BETA)
+## v0.9.0 (2026-10-11) : première version numérotée (BETA)
 
 Reprend tout ce qui est dans les préversions ci-dessous (alpha, beta, rc.1 à rc.3) et ajoute :
 

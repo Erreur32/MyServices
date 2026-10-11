@@ -4,8 +4,8 @@
 > les écrans et les réglages peuvent encore changer d'une version à l'autre, l'agent Windows (PowerShell) n'a été validé que sur un PC,
 > et l'assistant Veeam comme les sauvegardes de Home Assistant n'ont été essayés que sur de faux serveurs. Gardez une copie de
 > `config/` et `data/` avant chaque mise à jour, et signalez ce qui ne va pas (issues GitHub).
-> Numérotation : tant que le projet est en BETA, les versions restent **sous la 2.0.0** (`0.0.1`, `0.1.0`…) ; la **2.0.0** ne sortira
-> que lorsque MyServices v2 sera jugé stable. Exemple d'image : `ghcr.io/erreur32/myservices:0.0.1`. L'étiquette `:latest` suit le dernier
+> Numérotation : tant que le projet est en BETA, les versions restent **sous la 2.0.0** (`0.9.0`, `0.10.0`…) ; la **2.0.0** ne sortira
+> que lorsque MyServices v2 sera jugé stable. Exemple d'image : `ghcr.io/erreur32/myservices:0.9.0`. L'étiquette `:latest` suit le dernier
 > tag publié ; pour rester sur une version précise, utilisez son numéro. L'étiquette `:docker` suit la branche, donc le dernier état,
 > sans promesse de stabilité. Les anciennes préversions `2.0.0-alpha.N`, `-beta.N` et `-rc.N` restent disponibles mais ne sont plus suivies.
 > Détail des versions : [CHANGELOG.md](CHANGELOG.md) ; dernière mise à jour expliquée simplement : [RELEASE-NOTES.md](RELEASE-NOTES.md).

@@ -1,6 +1,6 @@
-# Notes de version : MyServices 0.0.1
+# Notes de version : MyServices 0.9.0
 
-**0.0.1** (11 octobre 2026) est la première version numérotée de MyServices v2 (Docker), encore en BETA : les numéros restent sous la 2.0.0 tant que
+**0.9.0** (11 octobre 2026) est la première version numérotée de MyServices v2 (Docker), encore en BETA : les numéros restent sous la 2.0.0 tant que
 ce n'est pas jugé stable. Elle reprend les préversions `2.0.0-alpha`, `beta` et `rc.1` à `rc.3`. Gardez une copie de vos dossiers `config/` et `data/` avant de mettre à jour.
 
 ## Pour tout le monde
@@ -28,7 +28,7 @@ ce n'est pas jugé stable. Elle reprend les préversions `2.0.0-alpha`, `beta` e
 
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.0.1` (amd64 et arm64), publiée à la poussée du tag ; `:latest` suit le dernier tag.
+- **Image** : `ghcr.io/erreur32/myservices:0.9.0` (amd64 et arm64), publiée à la poussée du tag ; `:latest` suit le dernier tag.
 - **Connecteur NPM** : modes `api` (direct), `ssh` (API appelée depuis la machine) et `script` (`npm-api.sh`). Module `npmapi.py`.
 - **`npm-api.sh` v3.6.9** : installé par MyServices avec vérification SHA-256 (`SCRIPT_SHA256`), `npm-api.conf` en 600, mot de passe
   transmis par stdin, exécution par SSH. À mettre à jour dans `npmapi.py` quand le dépôt du script publie un nouveau tag.
