@@ -23,3 +23,6 @@ front/dist/
 .safety-deny
 coverage.xml
 .coverage
+
+# Réglages locaux de Claude Code : jamais versionnés ni poussés
+.claude/
