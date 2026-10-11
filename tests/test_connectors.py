@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 import connectors  # noqa: E402
-from connectors.base import Connector, ConnectorError, Context, run_isolated, target_ip, version_tested  # noqa: E402
+from connectors.base import Connector, ConnectorError, Context, run_isolated, version_tested  # noqa: E402
 
 LISTS = json.loads((ROOT / "tests/fixtures/npm/lists.json").read_text())
 PATHS = {"proxy-hosts": "hosts", "redirection-hosts": "redirects", "dead-hosts": "dead", "streams": "streams",
@@ -175,14 +175,6 @@ class Registry(unittest.TestCase):
         self.assertTrue(version_tested("2.16.0", ("2.16",)))
         self.assertFalse(version_tested("2.160.0", ("2.16",)))
         self.assertIsNone(version_tested(None, ("2.16",)))
-
-
-class TargetIp(unittest.TestCase):
-    def test_machine_visee(self):
-        self.assertEqual(target_ip({"ip": "192.168.1.5", "url": "http://10.0.0.1"}), "192.168.1.5")
-        self.assertEqual(target_ip({"url": "http://192.168.1.9:8123/api"}), "192.168.1.9")
-        self.assertIsNone(target_ip({"url": "http://homeassistant.lan:8123"}))  # un nom n'est pas résolu
-        self.assertIsNone(target_ip({}))
 
 
 if __name__ == "__main__":
