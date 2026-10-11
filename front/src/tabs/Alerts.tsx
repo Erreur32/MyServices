@@ -49,7 +49,7 @@ function Status({ active }: { active: boolean }) {
     );
   }
   return (
-    <Card className={active ? "border-ok/40" : "border-warn/40"}>
+    <Card tone={active ? "ok" : "warn"}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 font-bold"><Bell size={16} />{tx("Alertes")} {badge}</h2>
         <button type="button" className={quiet} onClick={() => set(true)} title={tx("Masquer ce cadre ; l'état reste affiché en une ligne")}><EyeOff size={13} aria-hidden />{tx("Masquer")}</button>

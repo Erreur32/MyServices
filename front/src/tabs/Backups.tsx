@@ -5,7 +5,7 @@ import { ROOT, type Snapshot } from "../api";
 import { useFilter, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime } from "../lib/format";
 import type { BackupHost } from "../types";
-import { Badge, Card, Cards, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
+import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, TableCard, Td, Th } from "../components/ui";
 import { LEVEL } from "../lib/level";
 import { Dot } from "../components/marks";
 import { tx } from "../lib/i18n";
@@ -76,15 +76,10 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
         {!!sm.offsite_unknown && <Tile n={sm.offsite_unknown} label={tx("copie ailleurs non déclarée")} />}
         <Tile n={bytes(sm.volume)} label={tx("volume des sources")} /><Tile n={sm.hosts} label={tx("machines")} />
       </div>
-      <Card>
-        <h3 className="mb-2 font-bold">{tx("À regarder")}</h3>
-        {b.issues.length ? (
-          <ul className="flex flex-col gap-1 text-sm">
-            {b.issues.map((i, k) => <li key={k}><Level level={i.level} /> <b>{i.set}</b> : {i.text}</li>)}
-          </ul>
-        ) : <p className="text-sm text-ok">{tx("Rien à signaler.")}</p>}
-        <p className="mt-3 text-xs text-dim">{tx("Relevé du")} {dateTime(b.generated)}{snap.data.page.map && <> · <a className="text-link hover:underline" href={`${ROOT}sauvegardes.html`} target="_blank" rel="noopener">{tx("carte des sauvegardes")}</a></>}</p>
-      </Card>
+      <TableCard title={tx("À regarder")} tone={b.issues.some((i) => i.level === "crit" || i.level === "down") ? "bad" : b.issues.length ? "warn" : "ok"}
+        cols={[{ label: tx("État"), className: "w-[7.5rem]" }, { label: tx("Jeu de sauvegarde"), className: "w-[34%]" }, { label: tx("Ce qui ne va pas") }]}
+        rows={b.issues.map((i) => [<Level level={i.level} />, <b className="font-semibold">{i.set}</b>, <span className="text-muted">{i.text}</span>])}
+        empty={tx("Rien à signaler.")} footer={<>{tx("Relevé du")} {dateTime(b.generated)}{snap.data.page.map && <> · <a className="text-link hover:underline" href={`${ROOT}sauvegardes.html`} target="_blank" rel="noopener">{tx("carte des sauvegardes")}</a></>}</>} />
       <FilterBar f={f} placeholder={tx("Machine, jeu, dossier…")} />
       {f.shown.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>

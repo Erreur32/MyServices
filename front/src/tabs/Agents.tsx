@@ -112,7 +112,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
       </Card>
 
       {created && (
-        <Card className="border-ok/50">
+        <Card tone="ok">
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => setFolded(!folded)} aria-expanded={!folded} className="flex min-w-0 flex-1 items-center gap-2 text-left">
               {folded ? <ChevronRight size={16} className="shrink-0 text-txt" aria-hidden /> : <ChevronDown size={16} className="shrink-0 text-txt" aria-hidden />}

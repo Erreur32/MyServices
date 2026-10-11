@@ -30,6 +30,47 @@ export function Level({ level, children }: { level: string; children?: ReactNode
   return <Badge tone={tone}>{children ?? label}</Badge>;
 }
 
+export type CardTone = "bad" | "warn" | "info" | "ok";
+const FRAME: Record<CardTone, string> = { bad: "border-bad/50", warn: "border-warn/50", info: "border-line", ok: "border-ok/40" };
+const STRIP: Record<CardTone, string> = { bad: "bg-bad/10", warn: "bg-warn/10", info: "bg-bg2/60", ok: "bg-ok/10" };
+const BUBBLE: Record<CardTone, "bad" | "warn" | "off" | "ok"> = { bad: "bad", warn: "warn", info: "off", ok: "ok" };
+
+/** Card with a coloured header strip (title, count in a round bubble) over a table with fixed columns and headers. Nothing is shown without a row,
+ *  unless `empty` (the "all good" message) is given. `footer` goes under the table. */
+export function TableCard({ title, tone, count, cols, rows, note, empty, footer, className = "" }: {
+  title: ReactNode; tone: CardTone; count?: number; cols: { label: string; className?: string }[]; rows: ReactNode[][]; note?: ReactNode; empty?: ReactNode; footer?: ReactNode; className?: string;
+}) {
+  const n = count ?? rows.length;
+  if (!n && !empty) return null;
+  return (
+    <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${FRAME[tone]} ${className}`}>
+      <div className={`flex flex-wrap items-center gap-3 px-4 py-3 ${STRIP[tone]}`}>
+        <h3 className="font-bold">{title}</h3><Count n={n} tone={BUBBLE[tone]} />
+      </div>
+      {note && <p className="border-b border-line/60 px-4 py-2 text-sm text-muted">{note}</p>}
+      {rows.length ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] table-fixed border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
+                {cols.map((c) => <th key={c.label} className={`px-4 py-2 ${c.className ?? ""}`}>{c.label}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line/60">
+              {rows.map((r, i) => (
+                <tr key={i} className="hover:bg-bg2/40">
+                  {r.map((cell, j) => <td key={j} className={`break-words px-4 py-2 align-top ${cols[j]?.className ?? ""}`}>{cell}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : <p className="px-4 py-3 text-sm text-ok">{empty}</p>}
+      {footer && <div className="border-t border-line/60 px-4 py-2 text-xs text-dim">{footer}</div>}
+    </section>
+  );
+}
+
 /** Nombre d'un titre de carte, dans une bulle ronde (teinte au choix : info par défaut) */
 export function Count({ n, tone = "info" }: { n: ReactNode; tone?: "info" | "ok" | "warn" | "bad" | "off" }) {
   const c = { info: "bg-link/15 text-link", ok: "bg-ok/15 text-ok", warn: "bg-warn text-bg", bad: "bg-bad text-bg", off: "bg-bg2 text-muted" }[tone];
@@ -40,11 +81,22 @@ export function Dim({ children }: { children: ReactNode }) {
   return <span className="text-dim">{children}</span>;
 }
 
-/** Titre de carte (h2) : plus grand, barre d'accent à gauche, icône à la couleur du lien ; une couleur de texte déjà posée (text-ok…) est gardée */
-const TITLE = "[&_h2]:border-l-2 [&_h2]:border-link [&_h2]:pl-2.5 [&_h2]:text-[1.0625rem] [&_h2]:font-extrabold [&_h2]:leading-snug [&_h2]:tracking-tight [&_h2_svg]:text-link";
+/** Card title (h2): when it opens the card, directly or inside a row that also holds buttons, it becomes a header strip across the card (same look as
+ *  TableCard and the card grids); otherwise it is just a larger bold title. The icon takes the link colour; a text colour already set (text-ok…) is kept. */
+// Written out in full: Tailwind only generates classes it finds as complete strings in the source.
+const TITLE =
+  "[&_h2]:text-[1.0625rem] [&_h2]:font-extrabold [&_h2]:leading-snug [&_h2]:tracking-tight [&_h2_svg]:text-link " +
+  "[&>h2:first-child]:-mx-4 [&>div:first-child:has(>h2)]:-mx-4 [&>h2:first-child]:-mt-4 [&>div:first-child:has(>h2)]:-mt-4 [&>h2:first-child]:mb-3 [&>div:first-child:has(>h2)]:mb-3 [&>h2:first-child]:border-b [&>div:first-child:has(>h2)]:border-b [&>h2:first-child]:border-line/60 [&>div:first-child:has(>h2)]:border-line/60 [&>h2:first-child]:bg-bg2/60 [&>div:first-child:has(>h2)]:bg-bg2/60 [&>h2:first-child]:px-4 [&>div:first-child:has(>h2)]:px-4 [&>h2:first-child]:py-3 [&>div:first-child:has(>h2)]:py-3 [&>h2:first-child]:rounded-t-[15px] [&>div:first-child:has(>h2)]:rounded-t-[15px] [&>div:first-child>h2]:mb-0";
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-2xl border border-line bg-card p-4 ${TITLE} ${className}`}>{children}</section>;
+// Tint of the header strip and of the frame (written in full for Tailwind).
+const CARD_TONE: Record<"ok" | "warn" | "bad", string> = {
+  ok: "border-ok/40 [&>h2:first-child]:bg-ok/10 [&>div:first-child:has(>h2)]:bg-ok/10",
+  warn: "border-warn/50 [&>h2:first-child]:bg-warn/10 [&>div:first-child:has(>h2)]:bg-warn/10",
+  bad: "border-bad/50 [&>h2:first-child]:bg-bad/10 [&>div:first-child:has(>h2)]:bg-bad/10",
+};
+
+export function Card({ children, className = "", tone }: { children: ReactNode; className?: string; tone?: "ok" | "warn" | "bad" }) {
+  return <section className={`rounded-2xl border ${tone ? "" : "border-line"} bg-card p-4 shadow-sm ${TITLE} ${tone ? CARD_TONE[tone] : ""} ${className}`}>{children}</section>;
 }
 
 /** Barre d'un onglet : recherche, compteur, pastilles de filtre. */

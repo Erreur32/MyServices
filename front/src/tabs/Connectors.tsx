@@ -145,7 +145,7 @@ function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Prop
   const rows = apps.filter((p) => !p.linked);
   if (!rows.length) return null;
   return (
-    <Card className="border-warn/60">
+    <Card tone="warn">
       <h2 className="flex items-center gap-2 font-bold"><ScanSearch size={16} />{tx("Services détectés non configurés")} <Count n={rows.length} tone="warn" /></h2>
       <p className="mt-1 text-sm text-muted">{tx("MyServices a reconnu ces applis mais ne les lit pas encore. Cliquez sur l'une d'elles pour renseigner son accès en lecture.")}</p>
       <div className="mt-2 overflow-x-auto">

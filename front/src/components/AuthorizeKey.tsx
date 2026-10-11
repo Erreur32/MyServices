@@ -65,7 +65,7 @@ export function AuthorizeKey({ failing, bare = false, onAccepted, user, userOf }
   );
   if (bare) return body;
   return (
-    <Card className="border-warn/50">
+    <Card tone="warn">
       <h2 className="mb-1 flex items-center gap-2 font-bold"><KeyRound size={16} />{tx("Autoriser la clé de MyServices sur {0}", names)}</h2>
       {body}
     </Card>

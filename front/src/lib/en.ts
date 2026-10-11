@@ -1468,6 +1468,8 @@ export const EN: Record<string, string> = {
   "La machine n'enverra plus rien.": "The machine will stop sending anything.",
   "Adresse de MyServices, vue du PC": "MyServices address, as seen from the PC",
   "SSH & Agents": "SSH & Agents",
+  "Jeu de sauvegarde": "Backup set",
+  "Ce qui ne va pas": "What is wrong",
   "Actifs": "Running",
   "Virtualisation": "Virtualization",
   "Environnement": "Environment",

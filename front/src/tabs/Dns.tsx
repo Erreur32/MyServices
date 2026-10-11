@@ -6,7 +6,7 @@ import type { Snapshot } from "../api";
 import { hm } from "../lib/format";
 import { dnsSync, hostName } from "../lib/status";
 import type { Selected } from "../lib/filter";
-import { Badge, Count, Empty } from "../components/ui";
+import { Badge, Empty, TableCard } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
 
@@ -39,46 +39,9 @@ function InfoCard({ icon, title, sub, tone, state, rows }: { icon: ReactNode; ti
   );
 }
 
-type Tone = "bad" | "warn" | "info" | "ok";
-const FRAME: Record<Tone, string> = { bad: "border-bad/50", warn: "border-warn/50", info: "border-line", ok: "border-ok/40" };
-const STRIP: Record<Tone, string> = { bad: "bg-bad/10", warn: "bg-warn/10", info: "bg-bg2/60", ok: "bg-ok/10" };
-const BUBBLE: Record<Tone, "bad" | "warn" | "off" | "ok"> = { bad: "bad", warn: "warn", info: "off", ok: "ok" };
-
-/** Cadre d'une liste de la page : bandeau coloré (titre, nombre en bulle), puis un tableau aux colonnes alignées. Rien n'est affiché sans ligne
- *  (sauf `empty`, le message « tout va bien »). */
-function DataCard({ title, tone, count, cols, rows, note, id, lit, empty }: {
-  title: string; tone: Tone; count?: number; cols: { label: string; className?: string }[]; rows: ReactNode[][]; note?: string; id?: string; lit?: string; empty?: string;
-}) {
-  const n = count ?? rows.length;
-  if (!n && !empty) return null;
-  return (
-    <Anchor id={id} lit={lit}>
-      <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${FRAME[tone]}`}>
-        <div className={`flex flex-wrap items-center gap-3 px-4 py-3 ${STRIP[tone]}`}>
-          <h3 className="font-bold">{title}</h3><Count n={n} tone={BUBBLE[tone]} />
-        </div>
-        {note && <p className="border-b border-line/60 px-4 py-2 text-sm text-muted">{note}</p>}
-        {rows.length ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px] table-fixed border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-                  {cols.map((c) => <th key={c.label} className={`px-4 py-2 ${c.className ?? ""}`}>{c.label}</th>)}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line/60">
-                {rows.map((r, i) => (
-                  <tr key={i} className="hover:bg-bg2/40">
-                    {r.map((cell, j) => <td key={j} className={`break-words px-4 py-2 align-top ${cols[j]?.className ?? ""}`}>{cell}</td>)}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : <p className="px-4 py-3 text-sm text-ok">{empty}</p>}
-      </section>
-    </Anchor>
-  );
+/** TableCard that the home page can aim at (click on a counter): the page scrolls to it and it is outlined in blue for a moment. */
+function DataCard({ id, lit, ...rest }: { id?: string; lit?: string } & Parameters<typeof TableCard>[0]) {
+  return <Anchor id={id} lit={lit}><TableCard {...rest} /></Anchor>;
 }
 
 /** Bloc que l'accueil peut viser (clic sur un compteur) : la page défile jusqu'à lui et il s'entoure de bleu un instant */

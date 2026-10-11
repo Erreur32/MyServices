@@ -131,7 +131,7 @@ function CopyBlock({ text, label }: { text: string; label: string }) {
 function Created({ c, origin, mcpPath, onClose }: { c: { token: string; info: ApiToken }; origin: string; mcpPath: string; onClose: () => void }) {
   const url = `${origin}${mcpPath}`;
   return (
-    <Card className="border-ok/50">
+    <Card tone="ok">
       <h2 className="mb-1 font-bold text-ok">{tx("Jeton «")} {c.info.name} {tx("» créé")}</h2>
       <p className="mb-3 text-sm text-warn">{tx("À copier maintenant : il ne sera plus jamais affiché.")}</p>
       <div className="flex flex-col gap-3">
