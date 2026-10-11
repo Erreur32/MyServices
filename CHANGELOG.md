@@ -9,6 +9,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+### Changed
+- **Home page body redone** (the right-hand counters and schedule column are untouched): the counters are no longer repeated inside each card, so they only live on the right. Each section is a card with a header strip (icon tile, title, an "Open" link-pill whose arrow moves on hover), the attention card has a coloured status strip with dot-marked rows, and sentences get a soft bullet.
+
 > **Testing phase: do not use in production.**
 
 ## v0.9.9 (2026-10-11)
