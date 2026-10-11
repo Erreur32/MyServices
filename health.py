@@ -690,9 +690,17 @@ def complement(h: dict, parts: dict[str, dict]) -> None:
     h["level"] = host_level(h)
 
 
+def ping(ip: str) -> bool:
+    try:
+        return subprocess.run(["ping", "-c1", "-W1", ip], capture_output=True, timeout=5).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def asleep_entry(hc: dict, agent: dict | None) -> dict:
-    """Fiche d'un poste « souvent éteint » qui ne répond pas : nom, IP et dernier relevé de son agent (epoch, None si jamais)."""
-    return {"id": hc["id"], "name": hc["name"], "ip": hc["ip"], "os": hc["os"], "last_seen": (agent or {}).get("seen")}
+    """Fiche d'un poste « souvent éteint » sans relevé frais : nom, IP, dernier relevé de son agent (epoch, None si jamais) et
+    réponse au ping (allumé mais agent muet, ou vraiment éteint)."""
+    return {"id": hc["id"], "name": hc["name"], "ip": hc["ip"], "os": hc["os"], "last_seen": (agent or {}).get("seen"), "ping": ping(hc["ip"])}
 
 
 def read_host(hc: dict, agent: dict | None, beszel: dict | None, ssh=None) -> dict | None:

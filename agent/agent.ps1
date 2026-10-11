@@ -54,10 +54,23 @@ try {
 
   $os = (Get-CimInstance Win32_OperatingSystem).Caption
   $body = '{{"version":{0},"os":{1},"host":{2},"interval":{3},"data":{4}}}' -f (Json $Version), (Json $os), (Json [Environment]::MachineName), [int]$cfg.interval, $data
-  $r = Invoke-RestMethod -Uri ($cfg.url.TrimEnd('/') + '/myservices/api/v1/agent/report') -Method Post `
-    -Headers @{ Authorization = "Bearer $($cfg.token)" } -ContentType 'application/json; charset=utf-8' `
-    -Body ([Text.Encoding]::UTF8.GetBytes($body)) -TimeoutSec 30
-  if (-not $r.ok) { throw 'server answered without ok' }
+  # Right after a boot the network (DNS, DHCP) is often not ready yet: retry instead of waiting for the next scheduled run
+  $uptime = ((Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime).TotalMinutes
+  $tries = if ($uptime -lt 15) { 24 } else { 3 }  # just booted: up to ~6 min (24 x 15 s); otherwise 3 tries
+  $sent = $false
+  for ($i = 1; $i -le $tries -and -not $sent; $i++) {
+    try {
+      $r = Invoke-RestMethod -Uri ($cfg.url.TrimEnd('/') + '/myservices/api/v1/agent/report') -Method Post `
+        -Headers @{ Authorization = "Bearer $($cfg.token)" } -ContentType 'application/json; charset=utf-8' `
+        -Body ([Text.Encoding]::UTF8.GetBytes($body)) -TimeoutSec 30
+      if (-not $r.ok) { throw 'server answered without ok' }
+      $sent = $true
+    } catch {
+      if ($i -ge $tries) { throw }
+      Log "try $i/$tries failed ($($_.Exception.Message)), new try in 15 s"
+      Start-Sleep -Seconds 15
+    }
+  }
   Log "report sent to $($cfg.url) (agent $Version)"
 } catch {
   Log "FAILED: $($_.Exception.Message)"

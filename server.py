@@ -254,6 +254,19 @@ def next_run(name: str, now: datetime | None = None) -> float | None:
     return None
 
 
+def wake_check() -> None:
+    """Postes « souvent éteints » dont la fiche est grisée dans Santé : un ping ciblé chaque minute ; si la réponse change (le PC
+    s'allume ou s'éteint), la santé de cette seule machine est relue, la fiche passe de « éteinte » à « allumée, agent en attente »."""
+    try:
+        asleep = json.loads((WEB / "health" / "stats.json").read_text(encoding="utf-8")).get("asleep", [])
+    except (OSError, ValueError):
+        return
+    for a in asleep:
+        up = subprocess.run(["ping", "-c1", "-W1", a["ip"]], capture_output=True).returncode == 0
+        if up != bool(a.get("ping")) and enabled("health"):
+            run_task("health", f"{a['name']} {'répond' if up else 'ne répond plus'} au ping", ("--only", a["ip"]))
+
+
 def scheduler() -> None:
     last = None
     while True:
@@ -266,6 +279,7 @@ def scheduler() -> None:
                     if not run_task(name, "horaire"):
                         log(f"{name} : passage précédent encore en cours, horaire sauté")
             auto_netscan()
+            wake_check()
         time.sleep(5)
 
 

@@ -45,8 +45,9 @@ class Discover(Base):
         self.assertEqual([m["ip"] for m in out["machines"]], ["10.0.0.2"])  # ni le PC sans SSH, ni la machine non suivie
         self.assertEqual(run.call_args.args[0], "srv")
         req = json.loads(run.call_args.args[2])
-        self.assertEqual((req["discover"], req["disks"], req["crons"]), (["/home/backup*"], False, False))  # lecture seule, rien d'autre
-        self.assertEqual(out["machines"][0]["folders"][0]["path"], "/home/backup")
+        self.assertEqual((req["discover"], req["disks"], req["crons"]), (["/home/backup", "/home/backup*"], False, False))  # dossier par défaut d'abord ; lecture seule, rien d'autre
+        folder = out["machines"][0]["folders"][0]
+        self.assertEqual((folder["path"], folder["default"]), ("/home/backup", True))  # au chemin par défaut : la page le coche
 
     def test_machine_injoignable_dite_sans_planter(self):
         import backups
@@ -54,6 +55,22 @@ class Discover(Base):
             m = ba.discover()["machines"][0]
         self.assertFalse(m["ok"])
         self.assertEqual((m["error"], m["folders"]), ("timeout après 240s", []))
+
+
+class Patterns(Base):
+    def test_dossier_par_defaut_toujours_cherche_et_autres_chemins_possibles(self):
+        self.assertEqual(ba.current()["patterns"], ["/home/backup", "/home/backup*"])
+        out = ba.set_patterns(["/srv/sauvegardes", "/mnt/*/save*", "/home/backup", "/srv/sauvegardes/"])
+        self.assertEqual(out["patterns"], ["/home/backup", "/srv/sauvegardes", "/mnt/*/save*"])  # défaut en tête, sans doublon
+        self.assertEqual(ba.current()["default_path"], "/home/backup")
+        self.assertEqual(ba.set_patterns([])["patterns"], ["/home/backup"])  # le défaut ne se retire pas
+
+    def test_chemins_refuses(self):
+        for bad in ("relatif/dossier", "/", "/a/../etc", "/a\nb", "x" * 301):
+            with self.assertRaises(ba.BackupError, msg=bad):
+                ba.set_patterns([bad])
+        with self.assertRaises(ba.BackupError):
+            ba.set_patterns([f"/d{i}" for i in range(ba.PATTERNS_MAX + 1)])
 
 
 class Follow(Base):

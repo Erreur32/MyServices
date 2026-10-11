@@ -161,14 +161,15 @@ class Agents(unittest.TestCase):
     def test_premier_releve_lance_la_sante_une_fois(self):
         calls, chains = [], []
         old = (server.run_task, server.enabled, server.run_chain)
-        server.run_task, server.enabled, server.run_chain = (lambda name, why: calls.append(name) or True), (lambda name: True), (lambda names, why: chains.append(names))
+        server.run_task, server.enabled, server.run_chain = (lambda name, why, args=(): calls.append((name, args)) or True), (lambda name: True), (lambda names, why: chains.append(names))
         try:
             token, _ = self.create()
             self.send(token)
             self.send(token)
         finally:
             server.run_task, server.enabled, server.run_chain = old
-        self.assertEqual(calls, ["health"])
+        # 1er relevé : passage complet de la santé ; relevés suivants : seulement la fiche de cette machine (--only)
+        self.assertEqual(calls, [("health", ()), ("health", ("--only", "192.168.1.60"))])
         self.assertEqual(chains, [["collect"]])   # le premier relevé lance aussi la collecte (système, matériel, ports), une seule fois
 
     def test_verifier_une_machine_lue_par_son_agent(self):
@@ -186,7 +187,7 @@ class Agents(unittest.TestCase):
     def test_sante_relue_quand_le_niveau_change(self):
         calls, chains = [], []
         old = (server.run_task, server.enabled, server.run_chain)
-        server.run_task, server.enabled, server.run_chain = (lambda name, why: calls.append(why) or True), (lambda name: True), (lambda names, why: chains.append(why))
+        server.run_task, server.enabled, server.run_chain = (lambda name, why, args=(): calls.append((why, args)) or True), (lambda name: True), (lambda names, why: chains.append(why))
         try:
             token, _ = self.create()
             self.send(token)                       # premier relevé
@@ -200,9 +201,11 @@ class Agents(unittest.TestCase):
             server.run_task, server.enabled, server.run_chain = old
         self.assertEqual(len(chains), 2)           # premier relevé, puis changement de version (pas à chaque relevé)
         self.assertIn("version 9", chains[1])
-        self.assertEqual(len(calls), 3)
-        self.assertIn("ok → crit", calls[1])
-        self.assertIn("crit → ok", calls[2])
+        full = [why for why, args in calls if not args]
+        self.assertEqual(len(full), 3)             # passage complet : 1er relevé et chaque changement de niveau
+        self.assertIn("ok → crit", full[1])
+        self.assertIn("crit → ok", full[2])
+        self.assertEqual(len(calls) - len(full), 3)  # les autres relevés rafraîchissent seulement la fiche de la machine
 
     def test_systeme_et_ports_du_releve(self):
         data = {**DATA, "os": {"n": "Microsoft Windows 11 Professionnel", "v": "10.0.26100", "b": "26100", "h": "GAMER32"},
@@ -245,7 +248,7 @@ class Agents(unittest.TestCase):
         self.assertIsNone(health.parse_windows(DATA)["hardware"])
 
     def test_script_ascii_et_version(self):
-        self.assertEqual(agents.VERSION, "4")
+        self.assertEqual(agents.VERSION, "5")
         agents.script("agent.ps1").encode("ascii")
 
     def test_titres_de_mises_a_jour_au_format_powershell_5_1(self):

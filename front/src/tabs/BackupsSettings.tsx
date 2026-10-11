@@ -4,7 +4,7 @@
 import { FolderSearch, HardDrive, Loader2, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
-import { NoteLine } from "../components/form";
+import { NoteLine, TagInput } from "../components/form";
 import { Badge, Card, Dim } from "../components/ui";
 import { bytes, dateTime } from "../lib/format";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
@@ -13,8 +13,8 @@ import { BackupsHa, type HaState } from "./BackupsHa";
 import { BackupsVeeam, type VeeamState } from "./BackupsVeeam";
 
 interface SetRow { id: string; label: string; origin: string; path: string | null; veeam_job: string | null; max_age_days: number; ha: boolean; editable: boolean }
-interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; machines: number; veeam: VeeamState; ha: HaState }
-interface Folder { path: string; size: number | null; newest: number | null; newest_name: string; readable: boolean; followed: boolean }
+interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; default_path: string; machines: number; veeam: VeeamState; ha: HaState }
+interface Folder { path: string; size: number | null; newest: number | null; newest_name: string; readable: boolean; followed: boolean; default?: boolean }
 interface Found { ip: string; name: string; ssh: string; ok: boolean; error: string; folders: Folder[] }
 interface Choice { on: boolean; label: string; age: string }
 
@@ -25,6 +25,7 @@ export function BackupsSettings() {
   const [found, setFound] = useState<Found[] | null>(null), [searching, setSearching] = useState(false);
   const [pick, setPick] = useState<Record<string, Choice>>({});
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [confirm, setConfirm] = useState("");
+  const [extra, setExtra] = useState<string | null>(null);  // emplacements cherchés en plus du dossier par défaut (null = ceux du serveur)
   const load = useCallback(() => {
     read<Current>("backups/settings").then((c) => { setCur(c); setError(""); })
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
@@ -38,7 +39,7 @@ export function BackupsSettings() {
       setFound(r.machines);
       const next: Record<string, Choice> = {};
       for (const m of r.machines) for (const f of m.folders)
-        if (!f.followed) next[keyOf(m.ip, f.path)] = { on: false, label: `${m.name} : ${f.path}`, age: "2" };
+        if (!f.followed) next[keyOf(m.ip, f.path)] = { on: !!f.default && f.readable, label: `${m.name} : ${f.path}`, age: "2" };  // trouvé au chemin par défaut : déjà coché, il reste à valider
       setPick(next);
     } catch (e) {
       if (e instanceof LoginRequired) location.replace(LOGIN);
@@ -57,6 +58,14 @@ export function BackupsSettings() {
     const ok = await act(() => send("PUT", "backups/settings", { items }), tx("{0} dossier(s) suivi(s) : premier relevé en cours, l'onglet Sauvegardes apparaît ensuite", items.length), setNote);
     setBusy(false);
     if (ok) { setFound(null); setPick({}); load(); }
+  };
+
+  const extras = extra ?? (cur?.patterns ?? []).filter((p) => p !== cur?.default_path).join(", ");
+  const savePatterns = async () => {
+    setBusy(true);
+    const ok = await act(() => send("PUT", "backups/patterns", { patterns: extras.split(",").map((p) => p.trim()).filter(Boolean) }), tx("emplacements enregistrés"), setNote);
+    setBusy(false);
+    if (ok) { setExtra(null); setFound(null); load(); }
   };
 
   if (!cur) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
@@ -97,11 +106,18 @@ export function BackupsSettings() {
           {cur.machines === 0 ? tx("Aucune machine n'est lue par SSH : activez l'accès SSH d'une machine (Réglages → Machines) pour y chercher des sauvegardes.")
             : tx("Cherche, sur les {0} machine(s) lues par SSH, les dossiers de sauvegarde habituels :", cur.machines)} {cur.machines > 0 && <code className="font-mono text-xs">{cur.patterns.join("  ")}</code>}
         </p>
+        <div className="mt-3 rounded-lg bg-bg2/50 p-3">
+          <div className="mb-1 flex flex-wrap items-center gap-2 text-sm"><b>{tx("Dossier par défaut")}</b><code className="font-mono text-xs">{cur.default_path}</code>
+            <Dim>{tx("toujours cherché ; s'il existe sur une machine, il est coché d'office.")}</Dim></div>
+          <TagInput label={tx("Autres emplacements")} value={extras} onChange={setExtra} max={800} placeholder={tx("ex. /srv/sauvegardes, /mnt/*/save*")} />
+          <p className="mt-1 text-xs text-dim">{tx("Un chemin absolu ; * permis (un motif). Entrée ou virgule pour en ajouter.")}</p>
+          {extra !== null && <button type="button" className={`${primary} mt-2`} disabled={busy} onClick={() => void savePatterns()}>{tx("Enregistrer les emplacements")}</button>}
+        </div>
         {searching && <p className="mt-2 text-sm text-dim">{tx("Lecture des dossiers en cours (taille et fichier le plus récent) : jusqu'à une minute.")}</p>}
         {found && (
           <div className="mt-3 flex flex-col gap-3">
             {found.every((m) => m.ok && m.folders.length === 0) && (
-              <p className="rounded-lg bg-bg2/60 px-3 py-2 text-sm text-muted">{tx("Aucun dossier de sauvegarde trouvé dans ces emplacements. Si vos sauvegardes sont ailleurs, un prochain réglage permettra d'indiquer le dossier.")}</p>
+              <p className="rounded-lg bg-bg2/60 px-3 py-2 text-sm text-muted">{tx("Aucun dossier de sauvegarde trouvé dans ces emplacements. Si vos sauvegardes sont ailleurs, ajoutez leur dossier dans « Autres emplacements » puis relancez la recherche.")}</p>
             )}
             {found.map((m) => (
               <section key={m.ip} className="rounded-xl border border-line/60 p-3">
@@ -125,6 +141,7 @@ export function BackupsSettings() {
                             </span>
                           </span>
                         </label>
+                        {f.default && !f.followed && f.readable && <Badge tone="info" title={tx("Dossier de sauvegarde par défaut")}>{tx("chemin par défaut")}</Badge>}
                         {f.followed ? <Badge tone="ok">{tx("déjà suivi")}</Badge> : !f.readable ? <Badge tone="warn">{tx("illisible par le compte SSH")}</Badge> : c?.on && (
                           <div className="flex flex-wrap items-center gap-2">
                             <input className={`${input} w-56 py-1 text-xs`} value={c.label} maxLength={80} aria-label={tx("Nom")}

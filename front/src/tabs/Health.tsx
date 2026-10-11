@@ -90,10 +90,11 @@ function HostCard({ h }: { h: HealthHost }) {
 function AsleepCard({ a }: { a: AsleepHost }) {
   const [name, ip] = splitHostName(a.name);
   return (
-    <section className="rounded-2xl border border-line bg-card p-4 opacity-60">
+    <section className={`rounded-2xl border border-line bg-card p-4 ${a.ping ? "" : "opacity-60"}`}>
       <div className="flex items-start justify-between gap-2">
         <div><b>{name}</b><span className="block text-xs text-dim">{ip}{a.os === "windows" ? tx(" · Windows") : ""}</span></div>
-        <Badge tone="off" title={tx("Éteinte volontairement, aucune alerte")}>{tx("éteinte (voulu)")}</Badge>
+        {a.ping ? <Badge tone="ok" title={tx("Répond au ping : son agent n'a pas encore envoyé de relevé")}>{tx("allumée, agent en attente")}</Badge>
+          : <Badge tone="off" title={tx("Éteinte volontairement, aucune alerte")}>{tx("éteinte (voulu)")}</Badge>}
       </div>
       <p className="mt-3 text-sm text-muted">{a.last_seen ? tx("Dernier relevé de l'agent : {0}", dateTime(a.last_seen * 1000)) : tx("Pas encore de relevé.")}</p>
     </section>

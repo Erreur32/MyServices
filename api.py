@@ -747,8 +747,8 @@ async def agent_report(request: Request):
     # La santé est relue tout de suite au premier relevé et quand le niveau de la machine change (sinon, au prochain horaire)
     if (first or before != now) and core.enabled("health"):
         core.run_task("health", f"relevé de l'agent {a['name']} : {before or 'premier'} → {now}")
-    elif a.get("state") == "silencieux" and core.enabled("health"):  # poste rallumé : sa fiche grisée redevient vivante tout de suite
-        core.run_task("health", f"{a['name']} parle de nouveau", ("--only", a["ip"]))
+    elif core.enabled("health"):  # chaque relevé rafraîchit la fiche de cette machine seule (lecture du relevé, sans SSH) : un poste rallumé réapparaît tout de suite
+        core.run_task("health", f"relevé de l'agent {a['name']}", ("--only", a["ip"]))
     # Premier relevé ou agent réinstallé dans une autre version : système, matériel et ports (lus à la collecte) apparaissent sans attendre l'horaire
     if (first or upgraded) and core.enabled("collect"):
         core.run_chain(["collect"], f"relevé de l'agent {a['name']} (version {report.get('version')})")
@@ -910,6 +910,10 @@ class BackupFollow(BaseModel):
     items: list[BackupItem]
 
 
+class BackupPatterns(BaseModel):
+    patterns: list[str] = Field(max_length=40)
+
+
 @app.get(API + "/backups/settings", tags=["sauvegardes"], summary="Jeux de sauvegarde suivis et état de l'onglet (admin)")
 def backups_settings(request: Request):
     return backups_call(request, "", "", lambda b: b.current(), write=False)
@@ -918,6 +922,11 @@ def backups_settings(request: Request):
 @app.post(API + "/backups/discover", tags=["sauvegardes"], summary="Chercher les dossiers de sauvegarde des machines lues par SSH, lecture seule (admin)")
 def backups_discover(request: Request):
     return backups_call(request, "recherche de sauvegardes", "", lambda b: b.discover())
+
+
+@app.put(API + "/backups/patterns", tags=["sauvegardes"], summary="Emplacements cherchés en plus de /home/backup, motifs glob permis (admin)")
+def backups_patterns(body: BackupPatterns, request: Request):
+    return backups_call(request, "emplacements de sauvegarde", f"{len(body.patterns)} emplacement(s)", lambda b: b.set_patterns(body.patterns))
 
 
 @app.put(API + "/backups/settings", tags=["sauvegardes"], summary="Suivre des dossiers de sauvegarde : écrit l'inventaire, active l'onglet (admin)")

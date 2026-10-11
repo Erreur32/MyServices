@@ -54,15 +54,19 @@ Ok "Agent installed in $Dir"
 
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
   -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$AgentPath`""
+$startup = New-ScheduledTaskTrigger -AtStartup
+$startup.Delay = 'PT30S'  # let the network come up before the first report after a boot
 $triggers = @(
-  (New-ScheduledTaskTrigger -AtStartup),
+  $startup,
+  (New-ScheduledTaskTrigger -AtLogOn),  # a session opening is a second chance when the startup run failed
   (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes $Minutes))
 )
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
-  -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+  -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 15) `
+  -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 2)  # a failed run is retried by Windows
 $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $triggers -Settings $settings -Principal $principal -Force | Out-Null
-Ok "Scheduled task '$TaskName' created (every $Minutes min and at startup)"
+Ok "Scheduled task '$TaskName' created (every $Minutes min, at startup and at logon)"
 
 Write-Host '  First report (the Windows Update search can take a minute)...'
 & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $AgentPath

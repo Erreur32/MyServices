@@ -37,6 +37,9 @@ LABEL_MAX = 80
 DEPTH = 3  # un dossier de sauvegarde range souvent ses archives dans des sous-dossiers datés
 
 
+DEFAULT_PATH = "/home/backup"  # dossier de sauvegarde par défaut : toujours cherché, et proposé coché quand il existe
+PATTERNS_MAX = 20
+
 VEEAM_NAME = "veeam"  # nom de l'instance « veeam » de config.json (une seule, gérée ici)
 VEEAM_HOST, VEEAM_SOURCES = "veeam", "veeam-sources"
 HA_HOST, HA_SOURCE, HA_SET = "home-assistant", "home-assistant-source", "home-assistant-sauvegardes"
@@ -71,6 +74,29 @@ def _read() -> dict:
     return {"hosts": [], "sets": [], "discover": patterns, "discover_ignore": {}, "cron_ignore": [], "syncthing": []}
 
 
+def patterns_of(meta: dict) -> list[str]:
+    """Emplacements cherchés : le dossier par défaut d'abord, puis ceux de backups-meta.json (motifs glob acceptés)."""
+    return [DEFAULT_PATH] + [p for p in meta.get("discover", []) if p != DEFAULT_PATH]
+
+
+def set_patterns(extra: list[str]) -> dict:
+    """Remplace les emplacements cherchés en plus du dossier par défaut (qui reste toujours). Un chemin absolu, motif glob permis."""
+    out: list[str] = []
+    for raw in extra:
+        p = str(raw).strip().rstrip("/") if str(raw).strip() != "/" else "/"
+        if p == DEFAULT_PATH or p in out:
+            continue
+        if not p.startswith("/") or p == "/" or ".." in p.split("/") or len(p) > 300 or any(c in p for c in "\n\r\0"):
+            raise BackupError(f"chemin invalide : {raw!s:.80}")
+        out.append(p)
+    if len(out) > PATTERNS_MAX:
+        raise BackupError(f"{PATTERNS_MAX} emplacements au plus")
+    meta = _read()
+    meta["discover"] = out
+    _write(meta)
+    return {"patterns": patterns_of(meta)}
+
+
 def _write(meta: dict) -> None:
     p = _path()
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -101,7 +127,7 @@ def current() -> dict:
                      "editable": bool(loc.get("path")) and len(s.get("locations", [])) == 1})
     import config
     return {"sets": sets, "exists": _path().exists(), "tab": bool(config.CFG.get("backups_url")),
-            "patterns": meta.get("discover", []), "machines": len(_machines()),
+            "patterns": patterns_of(meta), "default_path": DEFAULT_PATH, "machines": len(_machines()),
             "veeam": _veeam_state(), "ha": _ha_state(meta)}
 
 
@@ -118,7 +144,7 @@ def _scan(item: tuple[str, dict], patterns: list[str]) -> dict:
 def discover() -> dict:
     """Dossiers de sauvegarde trouvés sur chaque machine lue par SSH (lecture seule, quelques secondes à une minute)."""
     meta = _read()
-    patterns = meta.get("discover") or []
+    patterns = patterns_of(meta)
     machines = _machines()
     with ThreadPoolExecutor(max(1, min(8, len(machines)))) as ex:
         found = list(ex.map(lambda it: _scan(it, patterns), machines.items()))
@@ -127,6 +153,7 @@ def discover() -> dict:
     for m in found:
         for f in m["folders"]:
             f["followed"] = (hosts.get(m["ip"]), f["path"]) in followed
+            f["default"] = f["path"] == DEFAULT_PATH  # trouvé au chemin par défaut : la page le coche d'office
     return {"machines": found, "patterns": patterns, "at": time.time()}
 
 
