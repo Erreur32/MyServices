@@ -1,6 +1,6 @@
 // « Découvertes » : ce que MyServices cherche tout seul, ce qui demande un clic, et ce qui reste à faire (GET /discoveries).
 // Liste complète en haut de Réglages → Découverte ; rappel court sur l'accueil quand quelque chose est à faire.
-import { Bell, ChevronRight, Hand, Play, RefreshCw, Repeat, Settings2 } from "lucide-react";
+import { Bell, Boxes, Check, ChevronRight, Hand, HardDrive, Network, Play, RefreshCw, Repeat, Settings2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { dateTime } from "../lib/format";
@@ -42,37 +42,77 @@ function Action({ a, reload }: { a: NonNullable<DiscoveryItem["action"]>; reload
   );
 }
 
+/** Familles de découvertes : rangées d'après l'identifiant (les entrées « ssh:ip », « agent:ip », « connector:… » ont un suffixe) */
+const GROUPS: { id: string; title: string; Icon: typeof Boxes; has: (id: string) => boolean }[] = [
+  { id: "network", title: tx("Réseau et machines"), Icon: Network, has: (id) => ["network", "redetect", "hosts"].includes(id) || id.startsWith("ssh:") || id.startsWith("agent:") },
+  { id: "services", title: tx("Services et applis"), Icon: Boxes, has: (id) => ["services", "new", "connectors"].includes(id) || id.startsWith("connector:") },
+  { id: "backups", title: tx("Sauvegardes"), Icon: HardDrive, has: (id) => id.startsWith("backups") || id === "cron" },
+];
+const groupOf = (x: DiscoveryItem) => GROUPS.find((g) => g.has(x.id)) ?? GROUPS[1];
+
+/** Une découverte : titre, mode, ce qu'elle fait, dernière / prochaine fois, et son action */
+function Item({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
+  const m = MODE[x.mode];
+  return (
+    <li className="flex flex-col gap-1.5 py-3">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <b className="min-w-0 break-words">{x.title}</b>
+        <Badge tone={m.tone} title={m.hint}><m.Icon size={11} aria-hidden />{m.label}</Badge>
+      </div>
+      <p className="text-sm text-muted">{x.what}</p>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-dim">
+          {x.note && <span className={x.state === "todo" ? "text-warn" : ""}>{x.note}</span>}
+          {when(x.last) ? <Badge tone="off">{tx("dernière fois")} {when(x.last)}</Badge> : x.mode !== "auto" && <Badge tone="warn">{tx("jamais lancée")}</Badge>}
+          {when(x.next) && <Badge tone="info">{tx("prochaine")} {when(x.next)}</Badge>}
+        </div>
+        {x.action && <div className="flex flex-col items-start gap-1"><Action a={x.action} reload={reload} /></div>}
+      </div>
+    </li>
+  );
+}
+
+/** Réglages → Découverte : d'abord ce qui est à faire (actions importantes), puis tout le reste rangé par famille */
 export function DiscoveryCard() {
   const [d, load] = useDiscoveries();
   if (!d) return null;
+  const todo = d.items.filter((x) => x.state === "todo"), rest = d.items.filter((x) => x.state !== "todo");
   return (
-    <Card>
-      <h2 className="mb-1 font-bold">{tx("Découvertes : qui fait quoi")} {d.todo > 0 && <Badge tone="warn">{tx("{0} à faire", d.todo)}</Badge>}</h2>
-      <p className="mb-3 text-sm text-muted">{tx("Ce que MyServices cherche tout seul, ce qui attend un clic de votre part, et quand cela a été fait pour la dernière fois.")}</p>
-      <ul className="flex flex-col divide-y divide-line/60">
-        {d.items.map((x) => {
-          const m = MODE[x.mode];
+    <div className="flex flex-col gap-4">
+      <section className={`rounded-2xl border bg-card p-5 ${todo.length ? "border-warn/50" : "border-ok/40"}`} aria-label={tx("Actions importantes")}>
+        <h2 className="mb-1 flex flex-wrap items-center gap-2 font-bold"><Bell size={16} aria-hidden />{tx("Actions importantes")} {todo.length > 0 && <Badge tone="warn">{tx("{0} à faire", todo.length)}</Badge>}</h2>
+        {todo.length === 0 ? <p className="flex items-center gap-2 text-sm text-ok"><Check size={15} aria-hidden />{tx("Rien à faire : tout ce que MyServices a trouvé est en ordre.")}</p> : (
+          <>
+            <p className="mb-1 text-sm text-muted">{tx("Ces recherches ne se lancent pas toutes seules, ou demandent votre accord.")}</p>
+            <ul className="flex flex-col divide-y divide-line/60">
+              {todo.map((x) => { const G = groupOf(x); return (
+                <li key={x.id} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-3">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-warn/15 text-warn" title={G.title}><G.Icon size={16} aria-hidden /></span>
+                  <div className="min-w-[240px] flex-1">
+                    <b>{x.title}</b>
+                    <p className="text-sm text-muted">{x.what}</p>
+                    <p className="text-xs text-warn">{x.note}</p>
+                  </div>
+                  {x.action && <div className="flex flex-col items-start gap-1"><Action a={x.action} reload={load} /></div>}
+                </li>
+              ); })}
+            </ul>
+          </>
+        )}
+      </section>
+      <div className="grid items-start gap-4 xl:grid-cols-3">
+        {GROUPS.map((g) => {
+          const items = rest.filter((x) => groupOf(x) === g);
+          if (!items.length) return null;
           return (
-            <li key={x.id} className="flex flex-wrap items-start gap-x-4 gap-y-1.5 py-3">
-              <div className="min-w-[260px] flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <b>{x.title}</b>
-                  <Badge tone={m.tone} title={m.hint}><m.Icon size={11} aria-hidden />{m.label}</Badge>
-                  {x.state === "todo" && <Badge tone="warn">{tx("à faire")}</Badge>}
-                </div>
-                <p className="mt-0.5 text-sm text-muted">{x.what}</p>
-                <p className="mt-0.5 text-xs text-dim">
-                  {x.note && <span className={x.state === "todo" ? "text-warn" : ""}>{x.note} · </span>}
-                  {when(x.last) ? <>{tx("dernière fois")} {when(x.last)}</> : x.mode === "auto" ? null : <Dim>{tx("jamais lancée")}</Dim>}
-                  {when(x.next) && <> · {tx("prochaine")} {when(x.next)}</>}
-                </p>
-              </div>
-              {x.action && <div className="flex flex-col items-start gap-1"><Action a={x.action} reload={load} /></div>}
-            </li>
+            <Card key={g.id}>
+              <h2 className="flex items-center gap-2 font-bold"><g.Icon size={16} aria-hidden />{g.title} <Dim>· {items.length}</Dim></h2>
+              <ul className="mt-1 flex flex-col divide-y divide-line/60">{items.map((x) => <Item key={x.id} x={x} reload={load} />)}</ul>
+            </Card>
           );
         })}
-      </ul>
-    </Card>
+      </div>
+    </div>
   );
 }
 

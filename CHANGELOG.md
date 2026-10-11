@@ -9,6 +9,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+### Added
+- **Each connector card shows what its last collection read** (badges such as `entities : 4593`), not only after pressing "Test".
+- **Settings → Discovery redesigned**: "Important actions" first (everything still to do, with its button), then the other discoveries grouped by family (Network and machines, Services and apps, Backups); the network search, its frequency and the manual actions share one card, networks / discreet mode / ignored devices sit beside it.
+- **Discovery items**: "never run" and "next" are now coloured badges (orange / blue).
+
 > **Testing phase: do not use in production.**
 
 ## v0.9.6 (2026-10-11)

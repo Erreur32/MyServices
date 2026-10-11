@@ -77,6 +77,7 @@ class Status:
     duration_s: float = 0.0
     since: float | None = None  # début de la panne (epoch)
     extra: dict = field(default_factory=dict)
+    found: list = field(default_factory=list)  # ce que la lecture a rapporté : [{name, count}]
 
 
 class Context:
@@ -211,6 +212,22 @@ def version_tested(version: str | None, tested: tuple[str, ...]) -> bool | None:
     return any(version == t or version.startswith(t + ".") for t in tested)
 
 
+def tally(data: object) -> list[dict]:
+    """Ce qu'une lecture a rapporté : pour chaque clé, le nombre d'éléments d'une liste ou d'un dictionnaire, ou la valeur d'un entier.
+    Sert de preuve que le connecteur lit vraiment quelque chose (et pas seulement qu'il se connecte)."""
+    if not isinstance(data, dict):
+        return []
+    out = []
+    for k, v in data.items():
+        if str(k).startswith("_") or isinstance(v, bool):
+            continue
+        if isinstance(v, (list, dict)):
+            out.append({"name": str(k), "count": len(v)})
+        elif isinstance(v, int):
+            out.append({"name": str(k), "count": v})
+    return out[:12]
+
+
 def run_isolated(conn: Connector, state: dict, timeout: float) -> tuple[dict | None, Status]:
     """collect() avec délai maximal et erreur capturée. state : {clé: {"ok", "since", "failures", "last"}}
     (persisté par l'appelant). En échec, le dernier résultat bon est rendu, marqué périmé."""
@@ -240,6 +257,7 @@ def run_isolated(conn: Connector, state: dict, timeout: float) -> tuple[dict | N
     st = Status(conn.type, conn.name, "error" not in box, box.get("error") or "OK", v,
                 version_tested(v, conn.tested), duration_s=round(time.time() - t0, 2))
     if st.ok:
+        st.found = tally(box["data"])
         state[key] = {"ok": True, "failures": 0, "since": None, "last": box["data"], "version": v}
         return box["data"], st
     st.failures = prev.get("failures", 0) + 1
@@ -247,6 +265,7 @@ def run_isolated(conn: Connector, state: dict, timeout: float) -> tuple[dict | N
     state[key] = {**prev, "ok": False, "failures": st.failures, "since": st.since}
     if prev.get("last") is not None:
         st.stale = True
+        st.found = tally(prev["last"])
         return prev["last"], st
     return None, st
 

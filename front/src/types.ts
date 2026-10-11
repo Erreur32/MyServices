@@ -420,6 +420,7 @@ export interface ConnectorStatus {
   version_tested: boolean | null;
   stale: boolean;
   failures: number;
+  found?: { name: string; count: number }[];
 }
 export interface ConnectorInstance {
   type: string;

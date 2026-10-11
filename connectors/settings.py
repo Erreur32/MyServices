@@ -17,7 +17,7 @@ from pathlib import Path
 
 import secrets_store
 from connectors import TYPES
-from connectors.base import ConnectorError, Context
+from connectors.base import ConnectorError, Context, tally
 
 SSH_TYPES = {"docker", "process", "adguard"}  # découlent des machines
 ALERT_TYPES = {"discord", "telegram"}  # section Alertes
@@ -227,22 +227,6 @@ def npm_script_install(ssh: str, directory: str, ip: str, port: int, user: str, 
         raise SettingsError(str(e)) from None
     got["tips"] = npmapi.check_script(got["path"], alias)
     return got
-
-
-def tally(data: object) -> list[dict]:
-    """Ce qu'une lecture a rapporté : pour chaque clé, le nombre d'éléments d'une liste ou d'un dictionnaire, ou la valeur d'un entier.
-    Sert de preuve que le connecteur lit vraiment quelque chose (et pas seulement qu'il se connecte)."""
-    if not isinstance(data, dict):
-        return []
-    out = []
-    for k, v in data.items():
-        if str(k).startswith("_") or isinstance(v, bool):
-            continue
-        if isinstance(v, (list, dict)):
-            out.append({"name": str(k), "count": len(v)})
-        elif isinstance(v, int):
-            out.append({"name": str(k), "count": v})
-    return out[:12]
 
 
 def test(type_: str, name: str, conf: dict, original: str | None = None) -> dict:
