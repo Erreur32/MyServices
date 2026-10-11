@@ -5,7 +5,7 @@ Les routes des API sont décrites dans chaque connecteur (`connectors/*.py`) ; c
 
 ## Où en est le projet
 
-- Version publiée : 0.10.0 (`docker`, tag `v0.10.0`).
+- Version publiée : 0.10.3 (`main`, tag `v0.10.3`).
 - Stats historiques : agent, SSH, ping. Depuis la session 6, des connecteurs lisent aussi d'autres outils, en lecture seule.
 - Connecteurs ajoutés : MynetworK, LogviewR, Dockhand, Proxmox VE et Proxmox Backup Server.
 - Seul Dockhand a été lu sur une vraie instance. MynetworK est branché sur un vrai service ; LogviewR et Proxmox restent à essayer.
@@ -85,3 +85,40 @@ On affiche et on renvoie vers l'outil source plutôt que de le recréer.
 - Ordre des pages : d'accord ?
 - Nouvel onglet ou section de Santé pour chacune ?
 - La couche de rapprochement (IP, MAC, hôte) sert-elle de base à ces pages ?
+
+## Avis de Claude (2026-10-11, à discuter)
+
+Le fond est bon : recouper les sources sur une même machine est ce qui donne de la valeur aux connecteurs.
+**Désaccord principal : trop d'onglets.** Il y en a déjà 9 ; le plan en ajoute 4 ou 5. Proposition : enrichir l'existant et ne créer
+**qu'un seul onglet**.
+
+| Proposé plus haut | Proposition |
+|---|---|
+| Réseau (nouveau) | **Dans l'onglet Machines** : filtre « suivie / vue seulement » (la section « Vus par MynetworK, pas suivis » existe déjà) |
+| Virtualisation + Conteneurs | **Un seul nouvel onglet « Virtualisation »** : nœuds Proxmox, VM / LXC et conteneurs Dockhand, rangés par hôte |
+| Sécurité (remplace Fail2ban) | D'accord, **sans score d'exposition** au début (difficile à justifier) |
+| Disponibilité | **Dans l'onglet Historique** (axes et courbes déjà en place) |
+| Stockage et disques | **Section de Santé** (SMART, occupation) |
+| Sauvegardes enrichies | D'accord : peu coûteux, PBS et vzdump sont déjà lus |
+
+Comme Fail2ban aujourd'hui, un onglet n'apparaît **que si son connecteur est relié** : sans Proxmox, pas d'onglet Virtualisation.
+
+### Ordre proposé
+
+1. **Couche de rapprochement d'abord** (IP, MAC, nom d'hôte ; une fiche par machine, un badge par source). Base de tout le reste ;
+   testable avec de faux serveurs, sans attendre les jetons.
+2. **Machines enrichies** par MynetworK.
+3. **Sauvegardes** : PBS et vzdump dans la même table.
+4. **Onglet Virtualisation.**
+5. **Sécurité** refaite.
+6. **Disponibilité** dans Historique, avec la purge de SQLite.
+
+Les **alertes viennent avec chaque page**, pas toutes à la fin (« nouvel appareil » avec l'étape 2, « sauvegarde PBS en échec » avec l'étape 3…).
+
+**Dépend de l'auteur** : créer les jetons MynetworK, LogviewR et Proxmox pour l'essai réel. L'étape 1 peut commencer sans eux.
+
+### À trancher
+
+- [ ] Un seul nouvel onglet (Virtualisation), le reste dans l'existant ?
+- [ ] Commencer par la couche de rapprochement ?
+- [ ] Score d'exposition : gardé ou laissé de côté ?
