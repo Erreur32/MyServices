@@ -77,10 +77,12 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
   // Machines dont la clé n'est pas autorisée : retrouvées par leur IP (le nom d'un connecteur est celui de la machine, pas son adresse) ; chacune a son compte SSH
   const machineOf = (c: Connector) => (c.ip ? st.machines[c.ip] : Object.values(st.machines).find((x) => x.name === c.name));
   const userOf = (c: Connector) => st.aliases.find((al) => al.alias === machineOf(c)?.ssh)?.user || "root";
-  const failingKey = (snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok && !isWindowsConf(machineOf(c)));
+  const [accepted, setAccepted] = useState<{ gen: string; ips: string[] }>({ gen: "", ips: [] });   // clés acceptées depuis le dernier passage : la carte se retire sans attendre le suivant
+  const hidden = accepted.gen === snap.data.generated ? accepted.ips : [];
+  const failingKey = (snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok && !isWindowsConf(machineOf(c)) && !hidden.includes(c.ip ?? c.name));
   return (
     <div className="flex flex-col gap-4">
-      <div id="authorize-key" className="scroll-mt-24"><AuthorizeKey userOf={userOf} failing={failingKey} /></div>
+      <div id="authorize-key" className="scroll-mt-24"><AuthorizeKey userOf={userOf} failing={failingKey} onAccepted={() => setAccepted({ gen: snap.data.generated, ips: [...hidden, ...failingKey.map((c) => c.ip ?? c.name)] })} /></div>
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-bold">{tx("Machines")} <Dim>· {ips.length}</Dim></h2>
@@ -269,8 +271,13 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
   const linesTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(linesTimer.current), []);
   const sshUser = st.aliases.find((a) => a.alias === m.ssh)?.user || "root";  // compte de l'accès, pour le chemin de authorized_keys
-  const keyMissing = statuses.some((c) => c.type === "docker" && !c.ok);  // accès SSH activé, mais la clé de l'app n'est pas autorisée (ou le port est faux)
-  const wrongPort = !!(scan?.sshPort && live?.ssh && scan.sshPort !== live.ssh.port);   // alias sur un autre port que celui où sshd répond
+  // Un test réussi lève les avertissements tout de suite : les badges viennent du dernier passage de la collecte (une minute ou plus), sans cela
+  // la carte « port faux » ou « clé refusée » resterait affichée et reviendrait « en boucle » après chaque correction.
+  const [accepted, setAccepted] = useState(false);
+  const stamp = `${statuses.map((c) => c.ok).join()}|${live?.ssh?.port}`;
+  useEffect(() => setAccepted(false), [stamp]);   // nouveau passage : on retrouve l'état réel
+  const keyMissing = !accepted && statuses.some((c) => c.type === "docker" && !c.ok);  // accès SSH activé, mais la clé de l'app n'est pas autorisée (ou le port est faux)
+  const wrongPort = !accepted && !!(scan?.sshPort && live?.ssh && scan.sshPort !== live.ssh.port);   // alias sur un autre port que celui où sshd répond
   const goAuthorize = () => document.getElementById("authorize-key")?.scrollIntoView({ behavior: "smooth", block: "start" });
   const state = live ? MSTATE[mState(live)] : null;
   // Les badges viennent du dernier passage de la collecte : après un test réussi, on en lance un (sans bloquer si un passage est déjà en cours)
@@ -281,7 +288,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
     try {
       const r = await send<{ lines: string[]; failed: number }>("POST", `machines/settings/${ip}/check`);
       setLines(r.lines);
-      if (!r.failed) refreshState();  // l'accès répond : le badge (état du dernier passage) est remis à jour
+      if (!r.failed) { setAccepted(true); refreshState(); }  // l'accès répond : avertissements levés, le badge (état du dernier passage) est remis à jour
       clearTimeout(linesTimer.current);
       linesTimer.current = setTimeout(() => setLines(null), 15_000);  // résultat visible 15 s, puis il disparaît
     } catch (e) {

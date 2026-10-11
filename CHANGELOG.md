@@ -12,6 +12,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Testing phase: do not use in production.**
 
 ### Fixed
+- **Warnings coming back after a fix**: after fixing the SSH port or authorising the key, the "wrong port" / "key refused" cards stayed (and came back "in a loop") until the next collection pass finished, because they read the last pass. A successful test now clears them at once; the next pass confirms.
 - **Authorize-the-key card**: "Test" showed "unknown machine" because the card sent the connector name instead of the machine address; it now uses the IP everywhere, and one command per SSH account when several machines fail with different accounts (it no longer falls back to "root" when the machine was not found by name).
 - **Wrong SSH port is no longer reported as a missing key**: a "Connection refused" is shown as such, the check counts it as a failure (it used to say the key was accepted), and when the network search saw sshd on another port than the alias uses (e.g. 22232 instead of 22), the machine card offers "Use port 22232". New SSH accesses prepared from a machine card use the port seen by the network search.
 - **Settings -> Machines**: switching "Machine followed" back on left the machine card greyed ("not followed") until the page was reloaded; the card now follows the switch at once.
