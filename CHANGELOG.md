@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Testing phase: do not use in production.**
 
+## v0.9.6 (2026-10-11)
+
+> **Testing phase: do not use in production.**
+
 ### Added
 - **"Test" button on every connector card**, without opening the form: it reads with the saved settings and shows a green or red frame with the version and a badge per kind of information read (entities, hosts, containers…), proving the connector really reads something. The form's test shows the same report. The card button now only says "Edit".
 
