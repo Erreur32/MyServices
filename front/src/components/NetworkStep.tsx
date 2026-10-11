@@ -354,7 +354,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
         </div>
       )}
       {scanned && declared.length > 0 && (
-        <details open={watch.length === 0} className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
+        <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
           <summary className={FOLD_HEAD}><ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
             {tx("{0} machine(s) déjà ajoutée(s)", declared.length)}
             <span className="font-normal text-dim"> · {tx("vos choix précédents")}</span>
