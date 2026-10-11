@@ -298,9 +298,12 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
         <>
           {watch.length > 0 && (
             <section className="flex flex-col gap-1.5">
-              <p className="text-sm font-semibold text-txt">
-                {tx("À regarder")} <span className="font-normal text-dim">({watch.length}) · {tx("cochées d'office : SSH, appli reconnue ou service utile ; décochez ce que vous ne voulez pas")}</span>
-              </p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <p className="min-w-0 flex-1 basis-64 text-sm font-semibold text-txt">
+                  {tx("À regarder")} <span className="font-normal text-dim">({watch.length}) · {tx("cochées d'office : SSH, appli reconnue ou service utile ; décochez ce que vous ne voulez pas")}</span>
+                </p>
+                {watch.some((h) => !picked.has(h.ip)) && <button type="button" className={quietBtn} onClick={() => setPicked(new Set(watch.map((h) => h.ip)))}>{tx("Tout sélectionner")}</button>}
+              </div>
               <ul className="flex flex-col gap-1.5">{renderRows(watch)}</ul>
             </section>
           )}
@@ -319,13 +322,14 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
               </div>
             </details>
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className={primary} disabled={busy || picked.size === 0} onClick={() => void addPicked()}>
-              <Check size={14} aria-hidden />{tx("Ajouter la sélection")} {picked.size > 0 && `(${picked.size})`}
-            </button>
-            <button type="button" className={quietBtn} onClick={() => setPicked(new Set(watch.map((h) => h.ip)))}>{tx("Tout sélectionner")}</button>
-            <button type="button" className={quietBtn} disabled={picked.size === 0} onClick={() => setPicked(new Set())}>{tx("Tout désélectionner")}</button>
-          </div>
+          {picked.size > 0 && (   // rien à valider sans sélection : les boutons n'apparaissent qu'avec elle
+            <div className="row-in sticky bottom-2 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-link bg-card/95 p-2.5 shadow-lg backdrop-blur">
+              <button type="button" className={primary} disabled={busy} onClick={() => void addPicked()}>
+                <Check size={14} aria-hidden />{tx("Ajouter la sélection")} ({picked.size})
+              </button>
+              <button type="button" className={quietBtn} onClick={() => setPicked(new Set())}>{tx("Tout désélectionner")}</button>
+            </div>
+          )}
         </>
       )}
       {toLink.length > 0 && (

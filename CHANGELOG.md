@@ -10,6 +10,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ## Unreleased (next version, not tagged yet)
 
 ### Changed
+- **Found machines: selection buttons only when needed**: "Add the selection (n)" and "Deselect all" appear in a bar only while something is ticked (also when the frames are folded); "Select all" moved next to the "To look at" heading and hides once all are ticked.
+
+### Changed
 - **"Access passed, to set later" notice moved to the top** of "Machines found on the network", right under the search buttons.
 
 ### Changed
