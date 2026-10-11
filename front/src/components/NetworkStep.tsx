@@ -92,6 +92,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
   const [laterHidden, setLaterHidden] = useState(() => localStorage.getItem(LATER_HIDDEN_KEY) === "1");
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [othersOpen, setOthersOpen] = useState(false);  // cadre « autres appareils » ouvert : ses cases ne comptent que s'il l'est
   const [names, setNames] = useState<Record<string, string>>({});  // nom choisi avant l'ajout (sinon : nom DNS, sinon l'IP)
   // Machines ajoutées dont les options (SSH, jeton) restent à régler : gardées si la page est rechargée, retirées par « Terminé »
   const [added, setAdded] = useState<Record<string, NetHost>>(loadAdded);
@@ -184,12 +185,14 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
     </section>
   );
 
-  useEffect(() => { onCount?.(picked.size); }, [picked.size, onCount]);
+  // Cochées ET visibles : une machine ignorée, déjà ajoutée ou cachée dans un cadre plié ne compte pas (sinon des boutons sans rien à l'écran)
+  const chosen = found.filter((h) => picked.has(h.ip) && (watch.includes(h) || othersOpen));
+  useEffect(() => { onCount?.(chosen.length); }, [chosen.length, onCount]);
   // Boutons de la sélection : sous la liste, dans son cadre, seulement quand quelque chose est coché
-  const selectionBar = picked.size > 0 && (
+  const selectionBar = chosen.length > 0 && (
     <div className="row-in sticky bottom-2 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-card p-2.5 shadow-lg">
       <button type="button" className={primary} disabled={busy} onClick={() => void addPicked()}>
-        <Check size={14} aria-hidden />{tx("Ajouter la sélection")} ({picked.size})
+        <Check size={14} aria-hidden />{tx("Ajouter la sélection")} ({chosen.length})
       </button>
       <button type="button" className={quietBtn} onClick={() => setPicked(new Set())}>{tx("Tout désélectionner")}</button>
     </div>
@@ -205,7 +208,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
     setBusy(true);
     const done: Record<string, NetHost> = {};
     await act(async () => {
-      for (const h of found.filter((x) => picked.has(x.ip))) {
+      for (const h of chosen) {
         await send("PUT", `machines/settings/${h.ip}`, { machine: { name: (names[h.ip] ?? h.name ?? "").trim() || h.ip, role: roleOf(h) }, extra: [] });
         done[h.ip] = h;
       }
@@ -321,7 +324,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
           )}
           {watch.length === 0 && rest > 0 && <p className="text-sm text-dim">{tx("Rien d'évident à ajouter dans ce scan : les appareils trouvés sont repliés ci-dessous.")}</p>}
           {rest > 0 && (
-            <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
+            <details open={othersOpen} onToggle={(e) => setOthersOpen(e.currentTarget.open)} className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
               <summary className={FOLD_HEAD}><ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
                 {tx("{0} autre(s) appareil(s) : pages web seules, caméras, objets connectés, ping seulement, ignorés", rest)}
                 {[...webOnly, ...pingOnly].some((h) => diff?.fresh.has(h.ip)) && <> <Badge tone="warn">{tx("nouvelle")}</Badge></>}
