@@ -14,6 +14,7 @@ import { takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
 import { appIcon } from "../lib/appIcons";
 import { Agents } from "./Agents";
+import { lastConnectorsPart, rememberConnectorsPart } from "../lib/settingsNav";
 
 const KIND: Record<string, string> = {
   services: "services", health: tx("santé"), logs: "journaux", dns: "DNS", inventory: "inventaire", backups: "sauvegardes", network: tx("réseau"), security: tx("sécurité"), containers: "Docker",
@@ -25,7 +26,11 @@ export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string
   const [st, setSt] = useState<ConnectorsState | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
-  const [part, setPart] = useState<Part>(agentIp ? "agents" : "connectors");  // sous-onglet ouvert (lien « Installer l'agent » : Agents)
+  const [part, setPart] = useState<Part>(() => {  // sous-onglet ouvert : lien « Installer l'agent » (Agents), sinon le dernier ouvert, sinon Agents et SSH
+    const last = lastConnectorsPart();
+    return agentIp ? "agents" : PARTS.some(([id]) => id === last) ? (last as Part) : "agents";
+  });
+  useEffect(() => rememberConnectorsPart(part), [part]);
   const [editing, setEditing] = useState("");  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
   const [picking, setPicking] = useState(false);  // mini cartes des connecteurs disponibles, ouvertes par le « + »
   const [src, setSrc] = useState<Record<string, boolean>>({}), [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false);
