@@ -87,7 +87,7 @@ function Item({ x, reload, machines, extra }: { x: DiscoveryItem; reload: () => 
   const [picked, setPicked] = useState(0);   // machines cochées dans la liste repliée : montré sur l'en-tête du cadre
   const m = MODE[x.mode], todo = x.state === "todo";
   const wanted = () => location.hash.split("/")[2] === x.id;   // lien #settings/network/hosts : le cadre s'ouvre
-  const [open, setOpen] = useState(wanted);
+  const [open, setOpen] = useState(false);   // plié par défaut, même si le lien du rappel est encore dans l'adresse ; un clic sur le lien l'ouvre
   useEffect(() => {
     const on = () => { if (wanted()) setOpen(true); };
     addEventListener("hashchange", on);

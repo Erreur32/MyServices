@@ -9,6 +9,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+### Changed
+- **"View and choose the machines found" is folded by default** (it only opens when you follow its link, not on every page load).
+
 ### Fixed
 - **Selection buttons showed "Add the selection (10)" with nothing ticked on screen**: the count included machines already added, ignored or hidden in a folded frame. Only ticked machines that are visible now count (and are added); the "other devices" frame must be open for its boxes to count.
 
