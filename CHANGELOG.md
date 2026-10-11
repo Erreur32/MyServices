@@ -10,6 +10,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ## Unreleased (next version, not tagged yet)
 
 ### Added
+- **Settings → Connectors lists what is read over SSH or by the agent** (AdGuard, Docker, processes) in a read-only block "Read over SSH or by the agent", with the same read-count badges and a link to the machine settings. AdGuard read over SSH had no card there.
 - **Each connector card shows what its last collection read** (badges such as `entities : 4593`), not only after pressing "Test".
 - **Settings → Discovery redesigned**: "Important actions" first (everything still to do, with its button), then the other discoveries grouped by family (Network and machines, Services and apps, Backups); the network search, its frequency and the manual actions share one card, networks / discreet mode / ignored devices sit beside it.
 - **Discovery items**: "never run" and "next" are now coloured badges (orange / blue).

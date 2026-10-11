@@ -148,6 +148,7 @@ export interface Connector {
   ok: boolean;
   message: string;
   ip?: string;  // machine visée (connecteurs SSH : Docker, process, AdGuard)
+  found?: { name: string; count: number }[];
 }
 
 /** Une machine trouvée par la recherche réseau (netscan.py) */
