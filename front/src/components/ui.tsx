@@ -1,5 +1,5 @@
 // Éléments communs des onglets : barre de recherche et pastilles, en-têtes triables, badges d'état.
-import { ChevronDown, ChevronUp, Search, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import type { Chip, Facet } from "../lib/filter";
 
@@ -53,6 +53,12 @@ export function FilterBar<T>({ f, placeholder, extra }: {
   const groups = f.chips.filter((g) => g.chips.length > 1 || g.chips.some((c) => c.on));
   const active = f.chips.flatMap((g) => g.chips.filter((c) => c.on).map((c) => ({ facet: g.facet, chip: c })));
   const LIMIT = 12;
+  // Les filtres déjà actifs un jour sur cette page restent affichés en pastilles, même retirés : un clic les désactive, un autre clic les réactive
+  const keyOf = (facet: Facet<T>, chip: Chip) => `${facet.key}\u0000${chip.value}`;
+  const [seen, setSeen] = useState<string[]>([]);
+  const fresh = active.map((a) => keyOf(a.facet, a.chip)).filter((k) => !seen.includes(k));
+  if (fresh.length) setSeen([...seen, ...fresh]);   // mise à jour pendant le rendu : autorisée pour un état de ce composant
+  const toggles = seen.flatMap((k) => f.chips.flatMap((g) => g.chips.filter((c) => keyOf(g.facet, c) === k).map((c) => ({ facet: g.facet, chip: c }))));
   return (
     <div className="my-4 flex flex-col gap-3 rounded-2xl border border-line bg-card/70 p-3">
       <div className="flex flex-wrap items-center gap-3">
@@ -76,12 +82,14 @@ export function FilterBar<T>({ f, placeholder, extra }: {
         )}
         {extra}
       </div>
-      {!open && active.length > 0 && (
+      {!open && toggles.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          {active.map(({ facet, chip }) => (
-            <button key={`${facet.key}/${chip.value}`} type="button" onClick={() => f.toggle(facet.key, chip.value)} title={tx("Retirer ce filtre")}
-              className="inline-flex items-center gap-1 rounded-full border border-link bg-link/15 px-2.5 py-1 text-xs font-medium text-txt hover:bg-link/25">
-              <span className="text-dim">{facet.label} :</span>{facet.mark?.(chip.value)}{chip.label}<X size={11} aria-hidden />
+          {toggles.map(({ facet, chip }) => (
+            <button key={`${facet.key}/${chip.value}`} type="button" onClick={() => f.toggle(facet.key, chip.value)} aria-pressed={chip.on}
+              title={chip.on ? tx("Désactiver ce filtre") : tx("Réactiver ce filtre")}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${chip.on
+                ? "border-link bg-link/15 text-txt hover:bg-link/25" : "border-line bg-bg2 text-dim line-through decoration-dim/60 hover:border-link hover:text-txt hover:no-underline"}`}>
+              <span className="text-dim">{facet.label} :</span>{facet.mark?.(chip.value)}{chip.label}{chip.on ? <X size={11} aria-hidden /> : <Plus size={11} aria-hidden />}
             </button>
           ))}
         </div>

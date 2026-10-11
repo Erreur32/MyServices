@@ -114,7 +114,8 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
   const text = useCallback((r: Host) => [
     ...r.domains, r.name, r.ip, r.port, r.target, r.machine, r.category, r.service?.name, r.service?.image, r.service?.title, r.description,
   ].join(" "), []);
-  const f = useFilter(snap.data.hosts, facets, text, initial);
+  // Par défaut seuls les services en ligne s'affichent (le filtre « État : OK » se retire d'un clic) ; un filtre demandé ailleurs (compteur de l'accueil, machine) est gardé tel quel
+  const f = useFilter(snap.data.hosts, facets, text, initial && Object.keys(initial).length ? initial : { status: ["ok"] });
   const keyOf = useCallback((r: Host, k: string): string | number => {
     switch (k) {
       case "status": return ["bad", "warn", "ok", "off"].indexOf(status(r)[0]);
