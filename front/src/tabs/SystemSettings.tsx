@@ -1,10 +1,12 @@
 // Réglages, trois sections sur le même état : « Clé SSH » (Accès et sécurité : à autoriser sur chaque machine), « Tâches et
 // horaires » (Surveillance : modifiables, lancer maintenant) et « Sauvegarde et informations » (export de la configuration,
 // version de l'image et lien vers la dernière publiée, chemins, tailles).
-import { Download, ExternalLink, KeyRound, Play, RefreshCw, RotateCcw, Server, Timer } from "lucide-react";
+import { Check, Copy, Download, ExternalLink, Eye, EyeOff, KeyRound, Play, RefreshCw, RotateCcw, Server, Timer } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { download, LOGIN, LoginRequired, read, send } from "../api";
-import { Copyable, Field, NoteLine, Switch } from "../components/form";
+import { download, LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
+import { copyText } from "../lib/clipboard";
+import { MSTATE, mState } from "../lib/machines";
+import { Field, NoteLine, Switch } from "../components/form";
 import { act, button, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { bytes, dateTime, dur } from "../lib/format";
@@ -12,7 +14,7 @@ import type { SystemState, SystemTask } from "../types";
 import { tx } from "../lib/i18n";
 import { GITHUB, releaseOf } from "../lib/links";
 
-export function SystemSettings({ part }: { part: "system" | "tasks" | "ssh" }) {
+export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh"; snap: Snapshot }) {
   const [st, setSt] = useState<SystemState | null>(null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
@@ -28,28 +30,105 @@ export function SystemSettings({ part }: { part: "system" | "tasks" | "ssh" }) {
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   return (
     <div className="flex flex-col gap-4">
-      {part === "ssh" && <SshKey ssh={st.ssh} />}
+      {part === "ssh" && <SshKey ssh={st.ssh} snap={snap} />}
       {part === "tasks" && <Tasks tasks={st.tasks} reload={reload} />}
       {part === "system" && <><Export /><Info info={st.info} /></>}
     </div>
   );
 }
 
-function SshKey({ ssh }: { ssh: SystemState["ssh"] }) {
+/** Clé publique avec un début et une fin lisibles et le milieu masqué : « ssh-ed25519 AAAAC3Nz…kSLsU myservices » */
+function maskKey(key: string): string {
+  const [type, body, ...comment] = key.trim().split(/\s+/);
+  if (!body) return "•".repeat(24);
+  return `${type} ${body.slice(0, 8)}${"•".repeat(24)}${body.slice(-5)}${comment.length ? ` ${comment.join(" ")}` : ""}`;
+}
+
+/** Texte à copier, masqué par défaut : l'œil le montre, le bouton « copier » marche dans les deux cas */
+function Secretish({ text, label, shown, mask }: { text: string; label: string; shown: boolean; mask: (t: string) => string }) {
+  const [note, setNote] = useState<Note>(null);
+  const copy = async () => {
+    const ok = await copyText(text);
+    setNote({ ok, text: ok ? tx("Copié dans le presse-papiers") : tx("Copie impossible : sélectionner le texte et le copier à la main") });
+    setTimeout(() => setNote(null), ok ? 2500 : 6000);
+  };
   return (
-    <Card>
-      <h2 className="mb-1 flex items-center gap-2 font-bold"><KeyRound size={16} />{tx("Clé SSH de l'app")}</h2>
-      {!ssh.public ? <p className="text-sm text-warn">{tx("Pas encore créée : elle l'est au démarrage du conteneur.")}</p> : <>
-        <p className="mb-3 text-sm text-muted">
-          {tx("La collecte lit chaque machine avec cette clé, en lecture seule. À ajouter dans")} <code className="font-mono text-xs">{tx("~/.ssh/authorized_keys")}</code>
-          {" "}{tx("du compte visé sur chaque machine (un compte dédié, dans les groupes docker et adm, est le plus sûr : README). Empreinte")} <code className="font-mono text-xs">{ssh.fingerprint}</code> · {ssh.known_hosts} {tx("machine(s) connue(s).")}
-        </p>
-        <div className="flex flex-col gap-2">
-          <Dim>{tx("Clé publique")}</Dim><Copyable text={ssh.public} />
-          <Dim>{tx("Sur la machine, avec le compte visé")}</Dim><Copyable text={ssh.authorize!} />
+    <div>
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-dim">{label}</div>
+      <div className="flex items-start gap-2">
+        <pre className="min-w-0 flex-1 overflow-x-auto whitespace-pre-wrap break-all rounded-lg bg-bg2 p-2.5 font-mono text-xs" aria-label={shown ? label : tx("{0} (masquée)", label)}>{shown ? text : mask(text)}</pre>
+        <button type="button" onClick={() => void copy()} className={note?.ok ? `${button} border-ok bg-ok/15 text-ok` : primary}>
+          {note?.ok ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}{note?.ok ? tx("copié") : tx("copier")}
+        </button>
+      </div>
+      <NoteLine note={note} />
+    </div>
+  );
+}
+
+function SshKey({ ssh, snap }: { ssh: SystemState["ssh"]; snap: Snapshot }) {
+  const [shown, setShown] = useState(false);
+  const users = snap.data.machine_list.filter((m) => m.ssh?.identity && !m.disabled);
+  const algo = ssh.public?.split(/\s+/)[0]?.replace(/^ssh-/, "").toUpperCase();
+  const step = "flex gap-3 text-sm text-muted";
+  const num = "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-link/15 text-xs font-bold text-link";
+  return (
+    <>
+      <Card>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 font-bold"><KeyRound size={16} />{tx("Clé SSH de l'app")}</h2>
+          {ssh.public && (
+            <button type="button" className={quiet} onClick={() => setShown(!shown)} aria-pressed={shown}
+              title={shown ? tx("Masquer la clé") : tx("Afficher la clé")}>
+              {shown ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}{shown ? tx("Masquer") : tx("Afficher")}
+            </button>
+          )}
         </div>
-      </>}
-    </Card>
+        {!ssh.public ? <p className="text-sm text-warn">{tx("Pas encore créée : elle l'est au démarrage du conteneur.")}</p> : <>
+          <p className="mb-3 text-sm text-muted">{tx("La collecte lit chaque machine avec cette clé, en lecture seule. Seule la clé publique est montrée ici : la clé privée reste dans /config/ssh et ne quitte jamais le conteneur.")}</p>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            {algo && <Badge tone="info" title={tx("Type de clé")}>{algo}</Badge>}
+            <Badge tone="off" title={tx("Empreinte (SHA256) : sert à reconnaître la clé sans la montrer")}><span className="font-mono">{ssh.fingerprint}</span></Badge>
+            <Badge tone="off">{ssh.known_hosts} {tx("machine(s) connue(s)")}</Badge>
+          </div>
+          <div className="flex flex-col gap-3">
+            <Secretish text={ssh.public} label={tx("Clé publique")} shown={shown} mask={maskKey} />
+            <Secretish text={ssh.authorize!} label={tx("Commande à lancer sur la machine, avec le compte visé")} shown={shown}
+              mask={(t) => t.replace(/'([^']*)'/, (_, k: string) => `'${maskKey(k)}'`)} />
+          </div>
+        </>}
+      </Card>
+
+      {ssh.public && (
+        <Card>
+          <h2 className="mb-2 font-bold">{tx("Autoriser la clé sur une machine")}</h2>
+          <ol className="flex flex-col gap-2.5">
+            <li className={step}><span className={num}>1</span><span>{tx("Copiez la commande ci-dessus (le bouton « copier » fonctionne même clé masquée).")}</span></li>
+            <li className={step}><span className={num}>2</span><span>{tx("Collez-la dans un terminal de la machine, connecté avec le compte que MyServices doit utiliser. Elle ajoute la clé à")} <code className="font-mono text-xs">~/.ssh/authorized_keys</code>.</span></li>
+            <li className={step}><span className={num}>3</span><span>{tx("Dans")} <a className="text-link hover:underline" href="#settings/machines">{tx("Réglages → Machines")}</a>, {tx("ouvrez la machine : « Autoriser la clé » vérifie la connexion.")}</span></li>
+          </ol>
+          <p className="mt-3 rounded-lg bg-bg2/60 px-3 py-2 text-xs text-muted">{tx("Le plus sûr : un compte dédié, dans les groupes docker et adm, plutôt que root (voir le README). Pour retirer l'accès, supprimez cette ligne de authorized_keys sur la machine.")}</p>
+        </Card>
+      )}
+
+      <Card>
+        <h2 className="mb-1 flex items-center gap-2 font-bold"><Server size={16} />{tx("Machines qui utilisent cette clé")} <Dim>· {users.length}</Dim></h2>
+        {users.length === 0 ? <Dim>{tx("Aucune machine n'est lue par SSH pour l'instant.")}</Dim> : (
+          <ul className="flex flex-col divide-y divide-line/60">
+            {users.map((m) => {
+              const [tone, label, tip] = MSTATE[mState(m)];
+              return (
+                <li key={m.ip} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+                  <a href={`#settings/machines/${m.ip}`} className="min-w-[160px] flex-1 hover:text-link" title={tx("Ouvrir les réglages de cette machine")}><b>{m.name}</b> <Dim>{m.ip}</Dim></a>
+                  <span className="font-mono text-xs text-muted">{m.ssh!.user || "?"}@{m.ip}:{m.ssh!.port}</span>
+                  <Badge tone={tone} title={tip}>{label}</Badge>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
+    </>
   );
 }
 

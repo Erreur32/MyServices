@@ -22,6 +22,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Backups**: the default folder `/home/backup` is always searched and ticked by default when it exists; "Other locations" (absolute paths or `*` patterns, `PUT /backups/patterns`) to add more.
 - **Services**: a dedicated icon column (recognised app, name or image, then Docker/Apache/nginx type).
 
+- **Settings → SSH key** rebuilt: the public key and the authorisation command are **hidden by default** (an eye button shows them; "copy" works while hidden), badges for key type, fingerprint and known machines, a 3-step guide, and the list of machines using the key with their state.
+- `scripts/release.py`: one command keeps the version consistent everywhere (`package.json`, lock file, both READMEs, CHANGELOG, release notes). `release.py` alone checks consistency; `release.py patch|minor|X.Y.Z [--dry-run]` applies a version, turns "Unreleased" into the dated section and reopens an empty one. It commits, tags and pushes nothing.
+
 ### Changed
 - **Health keeps "often off" PCs**: a PC flagged as often switched off with no fresh report stays in Health as a greyed card ("off (intended)", or "on, waiting for the agent" when it answers ping) with the time of its last agent report, instead of disappearing; no alert and no event. A targeted ping every minute re-reads that machine as soon as its answer changes; every agent report refreshes that machine's card.
 - Adding a machine (First steps, SSH test, key authorisation) now reads only that machine's collection and health right away instead of starting a full collection pass (several machines still start a full pass).
