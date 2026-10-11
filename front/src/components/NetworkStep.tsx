@@ -243,6 +243,24 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
   return (
     <div className="flex flex-col gap-3">
       {actions}
+      {later.length > 0 && !laterHidden && (
+        <section className="relative rounded-xl border border-warn/50 bg-warn/10 p-3 pr-10" aria-live="polite">
+          <button type="button" aria-label={tx("Masquer ce rappel")} title={tx("Masquer ce rappel : les accès restent listés dans « machines déjà ajoutées »")}
+            onClick={() => { localStorage.setItem(LATER_HIDDEN_KEY, "1"); setLaterHidden(true); }}
+            className="absolute right-2 top-2 rounded-md p-1 text-dim hover:bg-bg2 hover:text-txt"><X size={16} aria-hidden /></button>
+          <div className="flex flex-wrap items-center gap-2">
+            <RotateCcw size={16} className="text-warn" aria-hidden />
+            <b className="text-txt">{later.length > 1 ? tx("{0} accès passés, à régler plus tard", later.length) : tx("1 accès passé, à régler plus tard")}</b>
+            <button type="button" className={`${primary} ml-auto`} onClick={resumeLater}>
+              <RotateCcw size={14} aria-hidden />{later.length > 1 ? tx("Tout reprendre") : tx("Reprendre")}
+            </button>
+          </div>
+          <p className="mt-1 text-sm text-muted">{tx("Ces machines sont ajoutées, mais leur accès (SSH ou jeton Home Assistant) n'est pas réglé : MyServices ne lit pas leurs conteneurs ni leur état.")}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {later.map((h) => <Badge key={h.ip} tone="warn" title={h.ip}>{h.name || h.ip}</Badge>)}
+          </div>
+        </section>
+      )}
       {toLink.length === 0 && found.length === 0 && (
         <p>{tx("Cherche les machines allumées sur votre réseau local (un seul sous-réseau /24, en lecture seule : ping, nom et quelques ports). Vous choisissez ensuite lesquelles ajouter ; rien n'est ajouté tout seul.")}</p>
       )}
@@ -322,24 +340,6 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
           ))}
           {found.length === 0 && <p className="text-sm text-dim">{tx("Toutes les machines trouvées sont ajoutées. « Terminé » ferme un cadre ; « Refaire un scan » relance la recherche.")}</p>}
         </div>
-      )}
-      {later.length > 0 && !laterHidden && (
-        <section className="relative rounded-xl border border-warn/50 bg-warn/10 p-3 pr-10" aria-live="polite">
-          <button type="button" aria-label={tx("Masquer ce rappel")} title={tx("Masquer ce rappel : les accès restent listés dans « machines déjà ajoutées »")}
-            onClick={() => { localStorage.setItem(LATER_HIDDEN_KEY, "1"); setLaterHidden(true); }}
-            className="absolute right-2 top-2 rounded-md p-1 text-dim hover:bg-bg2 hover:text-txt"><X size={16} aria-hidden /></button>
-          <div className="flex flex-wrap items-center gap-2">
-            <RotateCcw size={16} className="text-warn" aria-hidden />
-            <b className="text-txt">{later.length > 1 ? tx("{0} accès passés, à régler plus tard", later.length) : tx("1 accès passé, à régler plus tard")}</b>
-            <button type="button" className={`${primary} ml-auto`} onClick={resumeLater}>
-              <RotateCcw size={14} aria-hidden />{later.length > 1 ? tx("Tout reprendre") : tx("Reprendre")}
-            </button>
-          </div>
-          <p className="mt-1 text-sm text-muted">{tx("Ces machines sont ajoutées, mais leur accès (SSH ou jeton Home Assistant) n'est pas réglé : MyServices ne lit pas leurs conteneurs ni leur état.")}</p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {later.map((h) => <Badge key={h.ip} tone="warn" title={h.ip}>{h.name || h.ip}</Badge>)}
-          </div>
-        </section>
       )}
       {scanned && declared.length > 0 && (
         <details open={watch.length === 0} className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>

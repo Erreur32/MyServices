@@ -10,6 +10,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ## Unreleased (next version, not tagged yet)
 
 ### Changed
+- **"Access passed, to set later" notice moved to the top** of "Machines found on the network", right under the search buttons.
+
+### Changed
 - **Foldable frames in the network step** ("machines already added", "other devices"): accent-coloured border and background, a chevron that turns when open, a larger header, so it is clear they open.
 
 ### Added
