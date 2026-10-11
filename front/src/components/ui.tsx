@@ -34,8 +34,11 @@ export function Dim({ children }: { children: ReactNode }) {
   return <span className="text-dim">{children}</span>;
 }
 
+/** Titre de carte (h2) : plus grand, barre d'accent à gauche, icône à la couleur du lien ; une couleur de texte déjà posée (text-ok…) est gardée */
+const TITLE = "[&_h2]:border-l-[3px] [&_h2]:border-link [&_h2]:pl-2.5 [&_h2]:text-[1.0625rem] [&_h2]:font-extrabold [&_h2]:leading-snug [&_h2]:tracking-tight [&_h2_svg]:text-link";
+
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-2xl border border-line bg-card p-4 ${className}`}>{children}</section>;
+  return <section className={`rounded-2xl border border-line bg-card p-4 ${TITLE} ${className}`}>{children}</section>;
 }
 
 /** Barre d'un onglet : recherche, compteur, pastilles de filtre. */

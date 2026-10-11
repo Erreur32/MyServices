@@ -129,6 +129,9 @@ function SshKey({ ssh, snap }: { ssh: SystemState["ssh"]; snap: Snapshot }) {
   );
 }
 
+/** Colonnes alignées d'une ligne à l'autre : tâche, horaire modifiable, bouton */
+const ROW_COLS = "md:grid md:grid-cols-[minmax(0,1fr)_21rem_7.5rem]";
+
 function Tasks({ tasks, reload }: { tasks: SystemTask[]; reload: () => void }) {
   return (
     <Card>
@@ -137,6 +140,9 @@ function Tasks({ tasks, reload }: { tasks: SystemTask[]; reload: () => void }) {
         {tx("Horaire :")} <code className="font-mono text-xs">{tx("minutes heures")}</code>{tx(", ex.")} <code className="font-mono text-xs">10,40 *</code> {tx("(deux fois par heure),")}
         {" "}<code className="font-mono text-xs">5 7,19</code> {tx("(7 h 05 et 19 h 05). Appliqué tout de suite, gardé dans config.json.")}
       </p>
+      <div className={`mb-1 hidden items-center gap-x-4 border-b border-line px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-dim ${ROW_COLS}`}>
+        <span>{tx("Tâche")}</span><span>{tx("Horaire")}</span><span aria-hidden />
+      </div>
       <ul className="flex flex-col divide-y divide-line/60">{tasks.map((t) => <TaskRow key={t.name} t={t} reload={reload} />)}</ul>
     </Card>
   );
@@ -148,9 +154,9 @@ function TaskRow({ t, reload }: { t: SystemTask; reload: () => void }) {
   const result = t.running ? <Badge tone="info">{tx("en cours")}</Badge> : t.result === "success" ? <Badge tone="ok">{tx("réussi")}</Badge>
     : t.result ? <Badge tone="bad">{t.result}</Badge> : <Dim>{tx("pas encore lancé")}</Dim>;
   return (
-    <li className="py-3 text-sm">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <div className="min-w-[200px] flex-1">
+    <li className="px-1 py-3 text-sm">
+      <div className={`flex flex-wrap items-center gap-x-4 gap-y-2 ${ROW_COLS}`}>
+        <div className="min-w-[200px]">
           <b>{t.label}</b> {!t.enabled && <Badge tone="off">{t.switch ? tx("coupée") : tx("en attente")}</Badge>}
           {t.switch && (
             <label className="ml-3 inline-flex items-center gap-2 align-middle">
@@ -165,18 +171,18 @@ function TaskRow({ t, reload }: { t: SystemTask; reload: () => void }) {
             <span>{tx("délai max")} {Math.round(t.timeout_s / 60)} {tx("min")}</span>
           </div>
         </div>
-        <form className="flex items-center gap-1.5" onSubmit={(e) => { e.preventDefault(); void act(() => send("PUT", `system/tasks/${t.name}/schedule`, { at }), tx("horaire enregistré"), setNote).then((ok) => ok && reload()); }}>
-          <input className={`${input} w-36 font-mono`} value={at} disabled={t.fixed} onChange={(e) => setAt(e.target.value)} aria-label={`Horaire ${t.label}`}
+        <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); void act(() => send("PUT", `system/tasks/${t.name}/schedule`, { at }), tx("horaire enregistré"), setNote).then((ok) => ok && reload()); }}>
+          <input className={`${input} h-9 w-36 font-mono`} value={at} disabled={t.fixed} onChange={(e) => setAt(e.target.value)} aria-label={`Horaire ${t.label}`}
             title={t.fixed ? tx("fixé par la variable d'environnement du conteneur") : tx("défaut : {0}", t.default)} />
-          {!t.fixed && <button className={quiet} disabled={at === t.at}>{tx("Enregistrer")}</button>}
+          {!t.fixed && <button className={`${quiet} h-9`} disabled={at === t.at}>{tx("Enregistrer")}</button>}
           {!t.fixed && t.at !== t.default && (
-            <button type="button" className={quiet} title={tx("défaut : {0}", t.default)}
+            <button type="button" className={`${quiet} h-9`} title={tx("défaut : {0}", t.default)}
               onClick={() => void act(() => send("PUT", `system/tasks/${t.name}/schedule`, { at: "" }), tx("horaire par défaut"), setNote).then((ok) => { if (ok) { setAt(t.default); reload(); } })}>
               <RotateCcw size={14} />
             </button>
           )}
         </form>
-        <button type="button" className={first ? `${primary} nudge` : `${button} border-violet-400/50 bg-violet-500/10 text-txt hover:bg-violet-500/20`} disabled={!t.enabled || t.running}
+        <button type="button" className={`h-9 justify-center ${first ? `${primary} nudge` : `${button} border-violet-400/50 bg-violet-500/10 text-txt hover:bg-violet-500/20`}`} disabled={!t.enabled || t.running}
           title={first ? tx("Jamais lancée : lancez-la une fois pour voir ses résultats sans attendre l'horaire") : tx("Refait un passage tout de suite, sans attendre l'horaire")}
           onClick={() => void act(() => send("POST", `system/tasks/${t.name}/run`), tx("lancée : son état se met à jour ici"), setNote).then((ok) => ok && reload())}>
           {first ? <Play size={14} /> : <RefreshCw size={14} />}{first ? tx("Lancer") : tx("Relancer")}

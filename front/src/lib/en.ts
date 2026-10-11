@@ -1475,6 +1475,8 @@ export const EN: Record<string, string> = {
   "La machine n'enverra plus rien.": "The machine will stop sending anything.",
   "Adresse de MyServices, vue du PC": "MyServices address, as seen from the PC",
   "SSH & Agents": "SSH & Agents",
+  "Tâche": "Task",
+  "Horaire": "Schedule",
   "Services détectés": "Detected services",
   "{0} à activer": "{0} to activate",
   "Activation": "Activation",
