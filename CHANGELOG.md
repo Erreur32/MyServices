@@ -20,7 +20,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Proxmox VE connector** (`proxmox`, kind `virtualization`): nodes, VMs, LXC containers, storage usage and last vzdump backup through an API token
   (`PVEAPIToken`, role PVEAuditor, read-only). **Proxmox Backup Server connector** (`proxmox-backup`): datastores, usage and age of the last backup
   (`PBSAPIToken`). Self-signed certificates are the default case ("Verify certificate" is off by default).
-- Settings → Connectors → Agents and SSH: the four groups (With an agent, Without an agent, Linux read over SSH, No access) fold with a chevron, like the "Agent created" card.
+- Settings → Connectors → Agents and SSH: the four groups (With an agent, Without an agent, Linux read over SSH, No access) fold with a chevron, like the "Agent created" card; empty groups start folded and move to the bottom.
 - Settings → Connectors: a connector that was read shows only the green check (no "OK" text); stale or failed shows its icon and message.
 - Fix: connectors of kind `status` (Home Assistant) showed "pas encore lu" (not read yet) in Settings → Connectors although they were read: their state was added to `data.json` after the `connectors` list was copied. They are now read first.
 - Icons for MynetworK, LogviewR, Dockhand, Veeam and Web-Check (Proxmox Backup Server reuses the Proxmox one), also selectable as machine icons.

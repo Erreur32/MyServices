@@ -217,7 +217,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
       </Group>
 
       {revoked.length > 0 && (
-        <details className="rounded-xl border border-line/60 bg-card/50 px-4 py-2 text-sm">
+        <details className="order-2 rounded-xl border border-line/60 bg-card/50 px-4 py-2 text-sm">
           <summary className="cursor-pointer text-muted">{tx("Agents révoqués")} <Dim>· {revoked.length}</Dim></summary>
           <ul className="mt-2 flex flex-col gap-1 text-xs text-dim">
             {revoked.map((a) => <li key={a.id}>{machines[a.ip]?.name || a.name} · {a.ip} · <code className="font-mono">{tx("msv_")}agent_…{a.hint}</code> · {tx(" · révoqué le {0}", dateTime((a.revoked ?? 0) * 1000))}</li>)}
@@ -230,13 +230,14 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
 
 /** Groupe de cartes : titre, compte, texte d'aide, grille (ou le texte « vide ») ; pliable (chevron, comme « Agent créé ») si fold */
 function Group({ title, n, hint, empty, fold, children }: { title: string; n: number; hint?: string; empty: string; fold?: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = useState(true);
+  const [choice, setChoice] = useState<boolean | null>(null);  // null : pas touché, donc ouvert s'il y a des cartes, replié s'il est vide
+  const open = choice ?? n > 0;
   const shown = !fold || open;
   return (
-    <section aria-label={title}>
+    <section aria-label={title} className={n === 0 ? "order-1" : ""}>  {/* groupes vides en bas (après les pleins) */}
       <h3 className="mb-1 px-1 text-sm font-bold">
         {fold ? (
-          <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex items-center gap-2 text-left">
+          <button type="button" onClick={() => setChoice(!open)} aria-expanded={open} className="flex items-center gap-2 text-left">
             {open ? <ChevronDown size={16} className="shrink-0 text-txt" aria-hidden /> : <ChevronRight size={16} className="shrink-0 text-txt" aria-hidden />}
             {title} <Dim>· {n}</Dim>
           </button>
