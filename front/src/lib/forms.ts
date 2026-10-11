@@ -5,7 +5,7 @@ import { LOGIN, LoginRequired } from "../api";
 export const input = "w-full rounded-lg border border-line bg-bg2 px-3 py-2 text-sm text-txt outline-none placeholder:text-dim focus:border-link";
 export const button = "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold disabled:opacity-50";
 export const primary = `${button} border-link bg-link/15 text-txt hover:bg-link/25`;
-export const quiet = `${button} border-line text-muted hover:border-link hover:text-txt`;
+export const quiet = `${button} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`;
 export const danger = `${button} border-bad/50 text-bad hover:bg-bad/10`;
 
 /** Retour d'une action : message vert ou rouge sous le formulaire. */

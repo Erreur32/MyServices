@@ -212,7 +212,7 @@ function TestReport({ r, onClose }: { r: TestOut; onClose: () => void }) {
     <div role="status" className={`mt-3 rounded-xl border px-3 py-2 text-sm ${r.ok ? "border-ok/40 bg-ok/5" : "border-bad/40 bg-bad/5"}`}>
       <div className="flex flex-wrap items-start gap-2">
         <span className={`min-w-0 flex-1 break-words ${r.ok ? "text-ok" : "text-bad"}`}>{r.ok ? "✓" : "⚠"} {r.ok ? tx("Lecture réussie") : tx("Échec")} · <span className="text-muted">{r.message}</span></span>
-        <button type="button" className="text-xs text-dim hover:text-text" onClick={onClose} aria-label={tx("Fermer")}>✕</button>
+        <button type="button" className="rounded-md p-1 text-sm text-muted hover:bg-bg2 hover:text-txt" onClick={onClose} aria-label={tx("Fermer")}>✕</button>
       </div>
       {r.ok && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">

@@ -10,6 +10,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ## Unreleased (next version, not tagged yet)
 
 ### Changed
+- **Active secondary buttons are readable everywhere** (dark and light themes): text in the main colour, a visible border and a light background instead of faint grey; disabled ones stay faded. One shared style (`quiet`) covers all pages, plus the first-steps and network buttons and the connector test report's close button.
+
+### Changed
 - **Discovery cards**: the action button ("Search now"…) uses the active accent colour and "Stop reminding me" a visible bordered style, instead of the faint grey.
 
 ### Changed

@@ -54,7 +54,7 @@ function HostInfo({ h, fresh = false, hint = false }: { h: NetHost; fresh?: bool
   );
 }
 
-const quietBtn = `${button} border-line text-muted hover:border-link hover:text-txt`;
+const quietBtn = `${button} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`;
 
 const ADDED = ADDED_KEY;
 const loadAdded = (): Record<string, NetHost> => {
@@ -138,7 +138,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
           aria-label={tx("Nom de {0}", h.ip)} title={tx("Nom donné à la machine une fois ajoutée (modifiable ici avant l'ajout)")}
           onChange={(e) => setNames((n) => ({ ...n, [h.ip]: e.target.value }))} />
       )}
-      <button type="button" className="mr-2 shrink-0 rounded-md p-1.5 text-dim hover:bg-line/40 hover:text-txt" aria-label={tx("Ignorer {0}", h.name || h.ip)}
+      <button type="button" className="mr-2 shrink-0 rounded-md p-1.5 text-muted hover:bg-line/40 hover:text-txt" aria-label={tx("Ignorer {0}", h.name || h.ip)}
         title={tx("Ignorer : ne plus le proposer (à reprendre dans Réglages → Découverte)")} onClick={() => void ignore(h)}><EyeOff size={15} aria-hidden /></button>
     </li>
   ));

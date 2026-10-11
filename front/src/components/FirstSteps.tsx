@@ -67,7 +67,7 @@ function Proposals({ list }: { list: Proposal[] }) {
             <Badge tone="info">{p.machine || p.ip}</Badge>
             <span className="font-mono text-xs text-dim">{p.ip}{p.port ? `:${p.port}` : ""}</span>
             <Badge tone={HOW[p.confidence]}>{how}</Badge>
-            <button type="button" className={`${p.confidence === "possible" ? button + " border-line text-muted hover:border-link hover:text-txt" : primary} ml-auto`}
+            <button type="button" className={`${p.confidence === "possible" ? button + " border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10" : primary} ml-auto`}
               onClick={() => openConnector({ type: p.connector, name: p.connector, url: p.url })}>
               {tx("Configurer")}
             </button>
@@ -208,7 +208,7 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
         </Step>
       </ol>
       <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line/70 pt-4">
-        <button type="button" className={finished ? primary : `${button} border-line text-muted hover:border-link hover:text-txt`} onClick={close}>
+        <button type="button" className={finished ? primary : `${button} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`} onClick={close}>
           <Check size={14} aria-hidden />{tx("Terminer les premiers pas")}
         </button>
         <span className="text-sm text-dim">{tx("Cette carte reste ouverte tant que vous ne la fermez pas. Menu du compte -> « Revoir les premiers pas » pour la rouvrir.")}</span>
