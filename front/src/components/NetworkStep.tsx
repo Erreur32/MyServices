@@ -10,7 +10,7 @@ import { dateTime } from "../lib/format";
 import { ADDED_KEY, DISMISSED_KEY, LATER_HIDDEN_KEY, REOPEN_EVENT } from "../lib/firstSteps";
 import { appIcon } from "../lib/appIcons";
 import { changes, interesting, needsLink, netState, osOf, quiet, roleOf, summarize, tagsOf, viaMynetwork } from "../lib/netScan";
-import { pokeScan } from "../lib/scan";
+import { pokeScan, rereadMachines } from "../lib/scan";
 import { ConnectorForm } from "../tabs/Connectors";
 import type { ConnectorsState, ConnectorType, NetHost, NetScan, SystemState } from "../types";
 import { Copyable, NoteLine } from "./form";
@@ -157,14 +157,11 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
         await send("PUT", `machines/settings/${h.ip}`, { machine: { name: (names[h.ip] ?? h.name ?? "").trim() || h.ip, role: roleOf(h) }, extra: [] });
         done[h.ip] = h;
       }
-    }, tx("machines ajoutées : prises en compte au prochain passage de la collecte"), setNote);
+    }, tx("machines ajoutées : relevé et santé lancés"), setNote);
     setAdded((a) => ({ ...a, ...done }));
     setPicked(new Set());
     setNames({});
-    if (Object.keys(done).length) {  // les machines ajoutées apparaissent après un passage de la collecte
-      await send("POST", "system/tasks/collect/run").catch(() => undefined);
-      pokeScan();
-    }
+    await rereadMachines(Object.keys(done)).catch(() => undefined);  // relevé et santé des seules machines ajoutées
     setBusy(false);
   };
 
@@ -360,9 +357,8 @@ function AddedMachine({ host, linked, onDone }: { host: NetHost; linked: boolean
     const good = await act(async () => {
       const r = await send<{ failed: number }>("POST", `machines/settings/${host.ip}/check`);
       if (r.failed) throw new Error(tx("toujours illisible : {0}", label));
-      await send("POST", "system/tasks/collect/run");
-      pokeScan();
-    }, tx("accès SSH accepté : nouveau passage de la collecte lancé"), setNote);
+      await rereadMachines([host.ip]);
+    }, tx("accès SSH accepté : cette machine est relue (collecte et santé)"), setNote);
     setTested(good);
     setBusy(false);
   };

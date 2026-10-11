@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { act, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
-import { pokeScan } from "../lib/scan";
+import { rereadMachines } from "../lib/scan";
 import { authorizeFor } from "../lib/ssh";
 import type { Connector, SystemState } from "../types";
 import { Copyable, NoteLine } from "./form";
@@ -28,9 +28,8 @@ export function AuthorizeKey({ failing, bare = false, onAccepted, user }: { fail
       }
       if (bad.length) throw new Error(tx("toujours illisible : {0}", bad.join(", ")));
       onAccepted?.();
-      await send("POST", "system/tasks/collect/run");
-      pokeScan();
-    }, tx("clé acceptée : nouveau passage de la collecte lancé, les conteneurs apparaissent dans un instant"), setNote);
+      await rereadMachines(failing.map((c) => c.name));
+    }, tx("clé acceptée : relecture lancée, les conteneurs apparaissent dans un instant"), setNote);
     setBusy(false);
   };
   const names = failing.map((c) => c.name).join(", ");

@@ -503,7 +503,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
     e.preventDefault();
     setBusy(true);
     const ok = await act(() => send("PUT", `machines/settings/${ip}`, { machine: v, process: windows ? null : proc, extra: extra || [] }),
-      isNew ? tx("machine ajoutée : relevée au prochain passage de la collecte") : tx("enregistrée : prise en compte au prochain passage"), setNote);
+      isNew ? tx("machine ajoutée : relevé et santé lancés") : tx("enregistrée : prise en compte au prochain passage"), setNote);
     setBusy(false);
     if (ok && !isNew) setSaved(v);
     if (ok) refreshState();  // ajout ou modification : cette machine est relue tout de suite
