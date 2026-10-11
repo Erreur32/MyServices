@@ -7,11 +7,14 @@ import { dateTime } from "../lib/format";
 import { act, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { openConnector } from "../lib/connectorPrefill";
+import type { Machine } from "../types";
+import { MachineIcon } from "./MachineIcon";
 import { NoteLine } from "./form";
 import { Badge, Card, Dim } from "./ui";
 
 export interface DiscoveryItem {
   id: string; title: string; mode: "auto" | "first" | "manual"; what: string; last: number | null; next: number | null;
+  app?: string | null; machine?: { ip: string; name: string } | null;  // appli trouvée et machine visée : titre mis en forme
   state: "ok" | "todo" | "info"; note: string; action: { label: string; href?: string; run?: string; prefill?: { type: string; name: string; url: string } } | null;
 }
 
@@ -27,6 +30,17 @@ const MODE: Record<DiscoveryItem["mode"], { label: string; hint: string; tone: "
   first: { label: tx("Une fois, puis automatique"), hint: tx("À lancer une première fois ; ensuite MyServices s'en occupe"), tone: "info", Icon: Repeat },
   manual: { label: tx("À la main"), hint: tx("Ne se fait jamais tout seul : à lancer quand c'est utile"), tone: "warn", Icon: Hand },
 };
+
+/** Titre d'une découverte : logo du système de la machine, puis « **Appli** trouvé sur **Machine** (ip) » (gras : l'appli et la machine seulement) */
+export function Title({ x, machines }: { x: DiscoveryItem; machines?: Machine[] }) {
+  const m = x.machine, live = m && machines?.find((y) => y.ip === m.ip);
+  const icon = live && <MachineIcon m={{ os: live.agent ? "windows" : undefined, osName: live.info?.os ?? live.agent?.os, info: live.info, ttl: live.ttl }} />;   // pas le nom ni le rôle : le logo est celui du système
+  if (x.app && m) {
+    return <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1.5">{icon}<b>{x.app}</b>{tx("trouvé sur")}<b>{m.name || m.ip}</b>{m.name && m.ip && <span className="font-normal text-dim">({m.ip})</span>}</span>;
+  }
+  if (m) return <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1.5">{icon}<b>{x.title}</b></span>;
+  return <b>{x.title}</b>;
+}
 
 const when = (ts: number | null) => (ts ? dateTime(ts * 1000) : null);
 
@@ -51,12 +65,12 @@ const GROUPS: { id: string; title: string; Icon: typeof Boxes; has: (id: string)
 const groupOf = (x: DiscoveryItem) => GROUPS.find((g) => g.has(x.id)) ?? GROUPS[1];
 
 /** Une découverte : titre, mode, ce qu'elle fait, dernière / prochaine fois, et son action */
-function Item({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
+function Item({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; machines?: Machine[] }) {
   const m = MODE[x.mode];
   return (
     <li className="flex flex-col gap-1.5 py-3">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <b className="min-w-0 break-words">{x.title}</b>
+        <Title x={x} machines={machines} />
         <Badge tone={m.tone} title={m.hint}><m.Icon size={11} aria-hidden />{m.label}</Badge>
       </div>
       <p className="text-sm text-muted">{x.what}</p>
@@ -73,7 +87,7 @@ function Item({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
 }
 
 /** Réglages → Découverte : d'abord ce qui est à faire (actions importantes), puis tout le reste rangé par famille */
-export function DiscoveryCard() {
+export function DiscoveryCard({ machines }: { machines?: Machine[] }) {
   const [d, load] = useDiscoveries();
   if (!d) return null;
   const todo = d.items.filter((x) => x.state === "todo"), rest = d.items.filter((x) => x.state !== "todo");
@@ -89,7 +103,7 @@ export function DiscoveryCard() {
                 <li key={x.id} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 py-3">
                   <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-warn/15 text-warn" title={G.title}><G.Icon size={16} aria-hidden /></span>
                   <div className="min-w-[240px] flex-1">
-                    <b>{x.title}</b>
+                    <Title x={x} machines={machines} />
                     <p className="text-sm text-muted">{x.what}</p>
                     <p className="text-xs text-warn">{x.note}</p>
                   </div>
@@ -107,7 +121,7 @@ export function DiscoveryCard() {
           return (
             <Card key={g.id}>
               <h2 className="flex items-center gap-2 font-bold"><g.Icon size={16} aria-hidden />{g.title} <Dim>· {items.length}</Dim></h2>
-              <ul className="mt-1 flex flex-col divide-y divide-line/60">{items.map((x) => <Item key={x.id} x={x} reload={load} />)}</ul>
+              <ul className="mt-1 flex flex-col divide-y divide-line/60">{items.map((x) => <Item key={x.id} x={x} reload={load} machines={machines} />)}</ul>
             </Card>
           );
         })}

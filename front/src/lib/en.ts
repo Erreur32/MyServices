@@ -1352,6 +1352,7 @@ export const EN: Record<string, string> = {
   "TCP {0} ms · accès LAN direct": "TCP {0} ms · direct LAN access",
   "Télécharger": "Download",
   "Tester": "Test",
+  "trouvé sur": "found on",
   "Machines trouvées sur le réseau": "Machines found on the network",
   "Cochez celles à suivre puis ajoutez-les, ou ignorez-les. MyServices ne les ajoute jamais seul.": "Tick the ones to follow then add them, or ignore them. MyServices never adds them on its own.",
   "DNS du réseau : synchronisation, réécritures et domaines à vérifier": "Network DNS: synchronisation, rewrites and domains to check",

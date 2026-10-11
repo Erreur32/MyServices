@@ -64,7 +64,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <DiscoveryCard />
+      <DiscoveryCard machines={snap.data.machine_list} />
       <div id="net-hosts" className="scroll-mt-20">
         <Card>
           <h2 className="mb-1 flex items-center gap-2 font-bold"><Radar size={16} />{tx("Machines trouvées sur le réseau")}</h2>

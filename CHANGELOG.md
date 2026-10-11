@@ -9,6 +9,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+### Changed
+- **Discovery titles**: the machine's system logo, then "**App** found on **Machine** (ip)" with only the app and the machine in bold (`app` and `machine` fields added to `GET /discoveries`).
+
 ### Fixed
 - **Settings → Discovery: the "Choose" / "Search" buttons did nothing** (they linked to the page already open). "Machines found on the network" is now a card on that page (tick, name, add or ignore) and the buttons scroll to it or to the search card.
 

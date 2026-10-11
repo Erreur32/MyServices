@@ -15,8 +15,10 @@ def build(i: dict) -> list[dict]:
     proposals, redetect_hint (nombre de machines), has_ssh_machines."""
     out: list[dict] = []
 
-    def add(id_, title, mode, what, last=None, next_=None, state="ok", note="", action=None):
-        out.append({"id": id_, "title": title, "mode": mode, "what": what, "last": last, "next": next_, "state": state, "note": note, "action": action})
+    def add(id_, title, mode, what, last=None, next_=None, state="ok", note="", action=None, app=None, machine=None):
+        """app / machine ({ip, name}) : l'appli trouvée et la machine visée, que la page met en forme (gras, logo du système)."""
+        out.append({"id": id_, "title": title, "mode": mode, "what": what, "last": last, "next": next_, "state": state, "note": note, "action": action,
+                    "app": app, "machine": machine})
 
     add("services", "Services, conteneurs et ports", AUTO,
         "Relus à chaque collecte : conteneurs Docker, ports en écoute, pages web, applis reconnues. Rien à faire.",
@@ -66,11 +68,13 @@ def build(i: dict) -> list[dict]:
     for k in i.get("key_refused") or []:   # accès SSH activé mais la clé de l'app n'est pas autorisée (ou port faux)
         add(f"ssh:{k['ip']}", f"Clé SSH à autoriser sur {k.get('name') or k['ip']}", AUTO,
             "L'accès SSH est activé, mais la connexion échoue : la clé de l'app n'est pas autorisée sur cette machine (ou le port est faux). Ses conteneurs et sa santé ne sont pas lus tant que ce n'est pas fait.",
-            None, None, "todo", "action sur la machine", {"label": "Régler", "href": f"#settings/machines/{k['ip']}"})
+            None, None, "todo", "action sur la machine", {"label": "Régler", "href": f"#settings/machines/{k['ip']}"},
+            machine={"ip": k["ip"], "name": k.get("name") or ""})
     for a in i.get("agents_waiting") or []:   # agent créé mais jamais installé / jamais parlé
         add(f"agent:{a['ip']}", f"Agent à installer sur {a.get('name') or a['ip']}", MANUAL,
             "Un agent a été créé pour ce PC mais il n'a encore envoyé aucun relevé : lancez la commande d'installation (PowerShell, en administrateur) sur le PC.",
-            None, None, "todo", "en attente de son premier relevé", {"label": "Voir la commande", "href": f"#settings/agents/{a['ip']}"})
+            None, None, "todo", "en attente de son premier relevé", {"label": "Voir la commande", "href": f"#settings/agents/{a['ip']}"},
+            machine={"ip": a["ip"], "name": a.get("name") or ""})
     props = i.get("proposals") or []
     if not props:
         add("connectors", "Connecteurs à relier", AUTO,
@@ -82,5 +86,6 @@ def build(i: dict) -> list[dict]:
         add(f"connector:{p['connector']}@{p.get('ip')}", f"{p['label']} trouvé{where}", AUTO,
             f"MyServices a reconnu cette appli{how} mais ne la lit pas encore : il faut lui donner un accès en lecture (compte, clé ou jeton). Il ne le fait jamais sans votre accord.",
             None, None, "todo", "connecteur à configurer",
-            {"label": "Configurer", "prefill": {"type": p["connector"], "name": p["connector"], "url": p.get("url") or ""}})
+            {"label": "Configurer", "prefill": {"type": p["connector"], "name": p["connector"], "url": p.get("url") or ""}},
+            app=p["label"], machine={"ip": p.get("ip") or "", "name": p.get("machine") or ""} if p.get("ip") or p.get("machine") else None)
     return out
