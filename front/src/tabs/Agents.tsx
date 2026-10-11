@@ -255,17 +255,20 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
   a: AgentInfo; conf?: MachineConf; ip: string; focus: boolean; busy: boolean; onRenew?: () => void; reload: () => void;  // onRenew : seulement pour un PC Windows (la commande est PowerShell)
 }) {
   const [confirm, setConfirm] = useState<"" | "renew" | "revoke">(""), [note, setNote] = useState<Note>(null);
+  const [folded, setFolded] = useState(false);  // carte repliable : l'en-tête reste, le détail et les boutons se replient
   const [tone, label] = STATE[a.state];
   return (
     <li className={`flex flex-col gap-2 rounded-xl border bg-card p-3 text-sm ${focus ? "border-link" : "border-line"}`}>
-      <div className="flex items-center gap-3">
+      <button type="button" onClick={() => setFolded(!folded)} aria-expanded={!folded} className="flex items-center gap-3 text-left">
+        {folded ? <ChevronRight size={16} className="shrink-0 text-txt" aria-hidden /> : <ChevronDown size={16} className="shrink-0 text-txt" aria-hidden />}
         <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? "windows" }} reserve />
         <span className="min-w-0 flex-1">
           <b className="block truncate">{conf?.name ?? a.name}</b>
           <span className="block truncate text-xs text-dim">{ip}</span>
         </span>
         <Badge tone={tone}>{label}</Badge>
-      </div>
+      </button>
+      {!folded && <>
       <p className="text-xs text-dim">
         {a.last_seen ? tx("dernier relevé {0} ({1})", dateTime(a.last_seen * 1000), a.last_ip) : tx("aucun relevé reçu")}
         {a.os && ` · ${a.os}`}{a.version && ` · ${tx("agent")} ${a.version}`} · {tx("toutes les {0} min", Math.round(a.interval / 60))}
@@ -286,6 +289,7 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
         </>}
       </div>
       <NoteLine note={note} />
+      </>}
     </li>
   );
 }
