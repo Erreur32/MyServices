@@ -40,6 +40,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Icon choices instead of drop-down lists** for new screens (`IconChoice`): channel type (Discord, Telegram, webhook logos), notification type and account role. **Accounts**: avatars, role as two buttons (no menu), counters, session length presets, and a duplicated "Session length" card removed. **Audit log**: period, action type and account as buttons with counts and colour dots, summary tiles.
 - **Header**: a secondary mark drawn from the favicon (`mark.svg`, readable on light and dark) before the title; on a development image ("dev") the git state it was built from (`--build-arg GIT_REV`) and the planned version (latest published + 1 when an "Unreleased" section exists) are shown next to it.
 
+- **Logo choice**: the favicon is the original service **grid** again (kept as is); Settings -> Appearance -> "Header logo" lets you compare three icons before the title, with an immediate preview: the favicon as is, the same grid without its dark square, or the hub linked to four services.
+
 ### Changed
 - **Health keeps "often off" PCs**: a PC flagged as often switched off with no fresh report stays in Health as a greyed card ("off (intended)", or "on, waiting for the agent" when it answers ping) with the time of its last agent report, instead of disappearing; no alert and no event. A targeted ping every minute re-reads that machine as soon as its answer changes; every agent report refreshes that machine's card.
 - Adding a machine (First steps, SSH test, key authorisation) now reads only that machine's collection and health right away instead of starting a full collection pass (several machines still start a full pass).

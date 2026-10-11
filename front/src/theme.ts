@@ -1,5 +1,5 @@
 // Apparence retenue par le navigateur : thème (sombre par défaut) et largeur de la page.
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 export type Theme = "dark" | "light";
 const KEY = "myservices-theme";
@@ -44,4 +44,26 @@ export function useContentWidth(): [number, (px: number) => void] {
     localStorage.setItem(WIDTH_KEY, String(width));
   }, [width]);
   return [width, (px) => setWidth(clampWidth(px))];
+}
+
+/** Logo avant le titre de l'en-tête : le favicon tel quel (grille sur carré sombre), la même grille sans fond, ou le hub relié à ses services. */
+export type HeaderLogo = "favicon" | "grid" | "hub";
+export const HEADER_LOGOS: { id: HeaderLogo; file: string }[] = [
+  { id: "favicon", file: "favicon.svg" }, { id: "grid", file: "logo-grid.svg" }, { id: "hub", file: "mark.svg" },
+];
+const LOGO_KEY = "myservices-header-logo";
+const logoSubs = new Set<() => void>();
+
+export function savedLogo(): HeaderLogo {
+  const v = localStorage.getItem(LOGO_KEY);
+  return HEADER_LOGOS.some((l) => l.id === v) ? (v as HeaderLogo) : "favicon";
+}
+
+export function setHeaderLogo(id: HeaderLogo): void {
+  localStorage.setItem(LOGO_KEY, id);
+  logoSubs.forEach((f) => f());
+}
+
+export function useHeaderLogo(): HeaderLogo {
+  return useSyncExternalStore((f) => { logoSubs.add(f); return () => { logoSubs.delete(f); }; }, savedLogo);
 }

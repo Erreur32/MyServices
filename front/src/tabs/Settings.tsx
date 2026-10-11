@@ -6,7 +6,7 @@ import { ArrowRight, Bell, Eye, HardDrive, Info, KeyRound, Moon, MoveHorizontal,
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { dateTime } from "../lib/format";
-import { CONTENT_WIDTH, type Theme } from "../theme";
+import { CONTENT_WIDTH, setHeaderLogo, useHeaderLogo, type HeaderLogo, type Theme } from "../theme";
 import { LANG, setLang, type Lang } from "../lib/i18n";
 import type { User } from "../types";
 import { Badge, Card, Dim } from "../components/ui";
@@ -44,6 +44,12 @@ const GROUPS: { label: string; sections: { id: string; label: string; icon: Luci
 ];
 const SECTIONS = GROUPS.flatMap((g) => g.sections);
 
+
+const LOGO_OPTIONS: IconOption<HeaderLogo>[] = [
+  { value: "favicon", label: tx("Favicon (grille sur fond)"), hint: tx("Le favicon tel quel : grille de services sur un carré sombre"), icon: <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-9 w-9" /> },
+  { value: "grid", label: tx("Grille sans fond"), hint: tx("La même grille, sans le carré sombre : lisible sur clair comme sur sombre"), icon: <img src={`${import.meta.env.BASE_URL}logo-grid.svg`} alt="" className="h-9 w-9" /> },
+  { value: "hub", label: tx("Hub et services"), hint: tx("Un hub relié à ses quatre services"), icon: <img src={`${import.meta.env.BASE_URL}mark.svg`} alt="" className="h-9 w-9" /> },
+];
 
 const ROLE: Record<User["role"], string> = { admin: "admin", viewer: tx("lecture seule") };
 const ROLE_CHOICE: IconOption<User["role"]>[] = [
@@ -112,6 +118,11 @@ function Appearance({ look }: { look: Look }) {
             </button>
           ))}
         </div>
+      </Card>
+      <Card>
+        <h2 className="mb-1 font-bold">{tx("Logo de l'en-tête")}</h2>
+        <p className="mb-3 text-sm text-muted">{tx("L'icône affichée avant le titre. Essayez-les : le changement est immédiat. Le favicon de l'onglet du navigateur ne change pas.")}</p>
+        <IconChoice label={tx("Logo de l'en-tête")} value={useHeaderLogo()} onPick={setHeaderLogo} options={LOGO_OPTIONS} />
       </Card>
       <Card>
         <h2 className="mb-3 font-bold">{tx("Langue")}</h2>

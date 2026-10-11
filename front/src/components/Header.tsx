@@ -2,7 +2,7 @@ import { ChevronDown, ExternalLink, ListChecks, LogOut, Map, Moon, Settings, Sun
 import { useDiagrams } from "./Diagrams";
 import { useEffect, useRef, useState } from "react";
 import { logout, ROOT, type Snapshot } from "../api";
-import type { Theme } from "../theme";
+import { HEADER_LOGOS, useHeaderLogo, type Theme } from "../theme";
 import { LOCALE, tx } from "../lib/i18n";
 import { appVersion } from "../lib/format";
 import { reopenFirstSteps } from "../lib/firstSteps";
@@ -16,6 +16,7 @@ function ago(iso: string, now: number): string {
 
 export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; theme: Theme; toggleTheme: () => void; now: number }) {
   const stale = (now - new Date(snap.data.generated).getTime()) / 60000 > snap.data.page.stale_min;
+  const logo = useHeaderLogo();
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 py-4">
       <div>
@@ -26,7 +27,7 @@ export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; them
           </span>
         </div>
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-          <img src={`${import.meta.env.BASE_URL}mark.svg`} alt="" width={30} height={30} className="shrink-0" />{tx("MyServices")}
+          <img src={`${import.meta.env.BASE_URL}${HEADER_LOGOS.find((l) => l.id === logo)!.file}`} alt="" width={30} height={30} className="shrink-0" />{tx("MyServices")}
           {snap.me.version && <span className="rounded-md border border-line bg-card px-1.5 py-0.5 font-mono text-xs font-semibold tracking-normal text-dim" title={snap.me.version}>{appVersion(snap.me.version)}</span>}
           {snap.me.version === "dev" && (snap.me.git || snap.me.planned) && (
             <span className="text-xs font-normal tracking-normal text-dim" title={tx("Image de développement : état git d'où elle vient, et version prévue d'après le journal des changements")}>
