@@ -218,7 +218,7 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
                           {appIcon([kind.icon]) ? <img src={appIcon([kind.icon])!} alt="" className="h-4 w-4" /> : <kind.Icon size={14} className="text-muted" aria-hidden />}
                         </span>}
                     <div className="min-w-[200px] flex-1">
-                      <b className="block truncate">{s.label}</b>
+                      <span className="flex min-w-0 items-baseline gap-2"><b className="truncate">{s.label}</b>{s.origin_ip && <span className="shrink-0 font-mono text-xs text-dim">{s.origin_ip}</span>}</span>
                       {(() => {   // what is followed, unless the name already says it (« Dev : /home/backup »)
                         const what = s.path ?? s.veeam_job ?? s.pbs_group ?? (s.ha ? tx("sauvegarde automatique") : "—");
                         return s.label.includes(what) ? null : <span className="block truncate font-mono text-xs text-dim">{what}</span>;
