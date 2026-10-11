@@ -1,7 +1,7 @@
 # Notes de version : MyServices 0.0.1
 
-**0.0.1** (11 octobre 2026) est la première version stable de MyServices v2 (Docker). Elle reprend les préversions `2.0.0-alpha`,
-`beta` et `rc.1` à `rc.3`. Gardez une copie de vos dossiers `config/` et `data/` avant de mettre à jour.
+**0.0.1** (11 octobre 2026) est la première version numérotée de MyServices v2 (Docker), encore en BETA : les numéros restent sous la 2.0.0 tant que
+ce n'est pas jugé stable. Elle reprend les préversions `2.0.0-alpha`, `beta` et `rc.1` à `rc.3`. Gardez une copie de vos dossiers `config/` et `data/` avant de mettre à jour.
 
 ## Pour tout le monde
 

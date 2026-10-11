@@ -4,8 +4,8 @@ name: Tests et image Docker
 # - chaque push et PR : tests lancés dans l'image (amd64) ;
 # - push sur main / docker : image amd64 publiée sous le nom de la branche ;
 # - tag vX.Y.Z : amd64 + arm64 (machines natives, sans émulation), puis manifeste multi-arch
-#   « latest » + version. « latest » suit le DERNIER tag poussé, préversion comprise (-beta.N, -rc.N) : tant que le projet est en bêta,
-#   `docker pull …:latest` doit marcher ; une version figée reste disponible sous son numéro (2.0.0-rc.1).
+#   « latest » + version. « latest » suit le DERNIER tag poussé, préversion comprise (-beta.N, -rc.N) : tant que le projet est en bêta (versions 0.x),
+#   `docker pull …:latest` doit marcher ; une version figée reste disponible sous son numéro (0.0.1).
 # Actions épinglées par empreinte de commit (pas par étiquette modifiable).
 
 on:
