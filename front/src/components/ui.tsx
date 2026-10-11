@@ -78,7 +78,7 @@ export function FilterBar<T>({ f, placeholder, extra }: {
           {active.map(({ facet, chip }) => (
             <button key={`${facet.key}/${chip.value}`} type="button" onClick={() => f.toggle(facet.key, chip.value)} title={tx("Retirer ce filtre")}
               className="inline-flex items-center gap-1 rounded-full border border-link bg-link/15 px-2.5 py-1 text-xs font-medium text-txt hover:bg-link/25">
-              <span className="text-dim">{facet.label} :</span>{chip.label}<X size={11} aria-hidden />
+              <span className="text-dim">{facet.label} :</span>{facet.mark?.(chip.value)}{chip.label}<X size={11} aria-hidden />
             </button>
           ))}
         </div>
@@ -90,9 +90,9 @@ export function FilterBar<T>({ f, placeholder, extra }: {
             <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-dim">{facet.label}</span>
             {list.map((c) => (
               <button key={c.value} type="button" onClick={() => f.toggle(facet.key, c.value)}
-                className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${c.on
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${c.on
                   ? "border-link bg-link/15 text-txt" : c.count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60"}`}>
-                {c.label}<span className="ml-1.5 font-mono text-[11px] text-dim">{c.count}</span>
+                {facet.mark?.(c.value)}{c.label}<span className="font-mono text-[11px] text-dim">{c.count}</span>
               </button>
             ))}
             {!all && <button type="button" onClick={() => setMore({ ...more, [facet.key]: true })} className="text-xs text-link hover:underline">+{chips.length - list.length} {tx("autres")}</button>}
@@ -119,9 +119,9 @@ export function Th({ k, sort, children, className = "" }: {
   );
 }
 
-export function Table({ head, children }: { head: ReactNode; children: ReactNode }) {
+export function Table({ head, children, fit = false }: { head: ReactNode; children: ReactNode; fit?: boolean }) {  // fit : jamais de défilement horizontal (les colonnes se serrent)
   return (
-    <div className="hidden overflow-x-auto rounded-2xl border border-line bg-card md:block">
+    <div className={`hidden rounded-2xl border border-line bg-card md:block ${fit ? "overflow-hidden" : "overflow-x-auto"}`}>
       <table className="w-full border-collapse text-sm">
         <thead><tr>{head}</tr></thead>
         <tbody className="[&>tr]:border-b [&>tr]:border-line/60">{children}</tbody>
@@ -131,8 +131,8 @@ export function Table({ head, children }: { head: ReactNode; children: ReactNode
 }
 
 /** Version mobile d'un tableau : une fiche par ligne */
-export function Cards({ children }: { children: ReactNode }) {
-  return <div className="flex flex-col gap-2.5 md:hidden">{children}</div>;
+export function Cards({ children, always = false }: { children: ReactNode; always?: boolean }) {  // always : aussi sur grand écran (choix « Cartes »)
+  return <div className={always ? "grid gap-2.5 md:grid-cols-2 xl:grid-cols-3" : "flex flex-col gap-2.5 md:hidden"}>{children}</div>;
 }
 
 export function Empty({ children }: { children: ReactNode }) {

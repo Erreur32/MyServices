@@ -8,7 +8,11 @@ import { status } from "../lib/status";
 import type { AgentHardware, HealthHost, Machine, MachineConf, MachinesSettings, NetScan } from "../types";
 import { NoteLine } from "../components/form";
 import type { Note } from "../lib/forms";
-import { MSTATE, ORDER, mState, type MState } from "../lib/machines";
+import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, osOfMachine, type MState, type OsKind } from "../lib/machines";
+import { OsGlyph } from "../components/OsGlyph";
+import { ViewToggle, useStoredView } from "../components/ViewToggle";
+import { Dot } from "../components/marks";
+import { LEVEL } from "../lib/level";
 import { rolesOf } from "../lib/ssh";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, FilterBar, Level, Table, Td, Th } from "../components/ui";
@@ -38,7 +42,7 @@ function Servers({ m, snap }: { m: Machine; snap: Snapshot }) {
     i.nginx && <Badge key="ng" tone="off">{tx("nginx")}</Badge>,
     i.docker ? <Badge key="dk" tone="off"><span className="text-link">{tx("Docker ·")} {i.docker}</span></Badge> : null,
   ].filter(Boolean);
-  return tags.length ? <div className="flex flex-wrap gap-1 md:flex-nowrap">{tags}</div> : <Dim>—</Dim>;
+  return tags.length ? <div className="flex flex-wrap gap-1">{tags}</div> : <Dim>—</Dim>;
 }
 
 function HealthCell({ h }: { h?: HealthHost }) {
@@ -89,23 +93,23 @@ function Sshd({ m, what }: { m: Machine; what: "root" | "pwd" }) {
 }
 
 /** Colonnes santé de la v1 : disque le plus rempli, services systemd en échec, mises à jour et redémarrage */
-function DiskCell({ h }: { h?: HealthHost }) {
+export function DiskCell({ h }: { h?: HealthHost }) {
   const d = topDisk(h);
   if (!d) return <Dim>—</Dim>;
   return <span title={tx("Disque le plus rempli")}><b className={d.critical || d.used_pct >= 90 ? "text-bad" : d.warning || d.used_pct >= 80 ? "text-warn" : "text-ok"}>{d.used_pct} %</b> <code className="text-xs">{d.mount}</code></span>;
 }
-function ResCell({ h, what }: { h?: HealthHost; what: "cpu" | "mem" }) {
+export function ResCell({ h, what }: { h?: HealthHost; what: "cpu" | "mem" }) {
   const v = what === "cpu" ? h?.res?.cpu_pct : h?.res?.mem_pct;
   if (!h?.res?.available || v == null) return <Dim>—</Dim>;
   const tone = what === "mem" && v >= 97 ? "text-bad" : (what === "mem" && v >= 90) || (what === "cpu" && v >= 90) ? "text-warn" : "text-ok";
   return <b className={tone} title={what === "mem" && h.res?.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} Go` : undefined}>{Math.round(v)} %</b>;
 }
-function SystemdCell({ h }: { h?: HealthHost }) {
+export function SystemdCell({ h }: { h?: HealthHost }) {
   if (!h) return <Dim>—</Dim>;
   const f = h.systemd?.failed || [];
   return f.length ? <Mark tone="bad" title={f.map((u) => u.unit).join(", ")}>{String(f.length)}</Mark> : <Mark tone="ok" title={tx("Aucun service en échec")}>✓</Mark>;
 }
-function UpdatesCell({ h }: { h?: HealthHost }) {
+export function UpdatesCell({ h }: { h?: HealthHost }) {
   if (!h) return <Dim>—</Dim>;
   const n = h.apt?.upgradable || 0;
   return (
@@ -142,10 +146,11 @@ function SshShort({ m }: { m: Machine }) {
     {!m.info && m.ssh.identity && <Badge tone="warn" title={tx("connexion refusée ou impossible")}>{tx("refusée")}</Badge>}</span>;
 }
 
-/** Système sur une ligne (coupé, entier au survol) */
-function OsShort({ m }: { m: Machine }) {
+/** Système sur une ligne : logo de la distribution (ou icône de la famille) puis le nom, coupé, entier au survol */
+function OsShort({ m, kind }: { m: Machine; kind: OsKind | null }) {
   const os = m.info?.os || m.agent?.os;
-  return os ? <span className="block max-w-[15rem] truncate" title={os}>{os}</span> : <Dim>—</Dim>;
+  if (!os && !kind) return <Dim>—</Dim>;
+  return <span className="inline-flex max-w-[11rem] items-center gap-1.5" title={os || (kind ? OS_LABEL[kind] : "")}>{kind && <OsGlyph kind={kind} name={os} />}<span className="truncate">{os || (kind ? OS_LABEL[kind] : "")}</span></span>;
 }
 
 /** Origine d'une donnée : le connecteur ou la source qui l'a lue (rouge si en panne) */
@@ -187,6 +192,12 @@ function Detail({ m, mac, from }: { m: Machine; mac?: string; from: ReturnType<t
         {mac && <><span className="font-mono text-[11px] text-dim">{mac}</span><From list={from.mac} /></>}</div>
       <div className={box}><span className={title}>{tx("SSH")}</span><Ssh m={m} /><From list={from.ssh} /></div>
       <div className={box}><span className={title}>{tx("Clé utilisée")}</span><KeyCell m={m} /><From list={from.ssh} /></div>
+      <div className={box}><span className={title}>{tx("Sécurité SSH")}</span>
+        {m.ssh ? <span className="flex flex-col gap-0.5">
+          <span className="inline-flex items-center gap-1.5"><HostKey m={m} />{tx("Clé d'hôte")}</span>
+          <span className="inline-flex items-center gap-1.5"><Sshd m={m} what="root" />{tx("Root")}</span>
+          <span className="inline-flex items-center gap-1.5"><Sshd m={m} what="pwd" />{tx("Mot de passe")}</span>
+        </span> : <Dim>—</Dim>}</div>
       <div className={box}><span className={title}>{tx("Système")}</span>
         {m.info?.os ? <span>{m.info.os}<span className="block text-dim">{tx("noyau")} {m.info.kernel || "?"} {tx("· up")} {dur(m.info.uptime_s)}</span></span>
           : m.agent ? <span>{m.agent.os}<span className="block text-dim">{m.agent.kernel ? `${m.agent.kernel} · ` : ""}{tx("par l'agent")}{m.agent.uptime_s ? ` ${tx("· up")} ${dur(m.agent.uptime_s)}` : ""}</span>
@@ -205,12 +216,17 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
   // Système et applis vus par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas
   const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean }>>({});
   useEffect(() => { read<NetScan>("network/scan").then((n) => setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [], ssh: !!h.ssh_port }])))).catch(() => undefined); }, []);
+  const osOf = useCallback((m: Machine): OsKind | null => osOfMachine({ os: m.agent ? "windows" : undefined, info: m.info, ttl: m.ttl, name: m.name }, scanOs[m.ip]?.os, scanOs[m.ip]?.ssh)?.kind ?? null, [scanOs]);
   const facets = useMemo((): Facet<Machine>[] => [
-    { key: "state", label: tx("État"), get: mState, name: (v) => MSTATE[v as MState][1], order: ORDER },
+    { key: "state", label: tx("État"), get: mState, name: (v) => MSTATE[v as MState][1], order: ORDER, mark: (v) => <Dot tone={MSTATE[v as MState][0]} /> },
     { key: "health", label: tx("Santé"), get: (m) => { const h = hb.get(m.ip); return h ? (h.reachable === false ? "down" : h.level) : ""; },
-      name: (v) => ({ ok: "OK", warn: tx("à surveiller"), crit: "critique", down: "injoignable" } as Record<string, string>)[v] || v, order: ["ok", "warn", "crit", "down"] },
+      name: (v) => ({ ok: "OK", warn: tx("à surveiller"), crit: "critique", down: "injoignable" } as Record<string, string>)[v] || v, order: ["ok", "warn", "crit", "down"], mark: (v) => <Dot tone={LEVEL[v]?.[0] ?? "off"} /> },
+    { key: "os", label: tx("Système"), get: (m) => osOf(m) ?? "", name: (v) => OS_LABEL[v as OsKind], order: OS_ORDER, mark: (v) => <OsGlyph kind={v as OsKind} size={13} /> },
+    { key: "access", label: tx("Accès"), get: (m) => (m.ssh ? "ssh" : m.agent ? "agent" : "none"), name: (v) => ({ ssh: "SSH", agent: tx("Agent"), none: tx("aucun") } as Record<string, string>)[v], order: ["ssh", "agent", "none"],
+      mark: (v) => <Dot tone={v === "none" ? "off" : "ok"} /> },
+    { key: "role", label: tx("Rôle"), get: (m) => rolesOf(m.role) },
     { key: "user", label: tx("Compte SSH"), get: (m) => m.ssh?.user || "" },
-  ], [hb]);
+  ], [hb, osOf]);
   const text = useCallback((m: Machine) => [m.name, m.ip, m.role, MSTATE[mState(m)][1], m.ssh?.alias, m.ssh?.user, m.info?.os].join(" "), []);
   // « Ne plus suivre » sur chaque ligne (admin) : la machine passe en « non suivie » (ni ping, ni SSH, ni santé, aucune alerte), elle reste
   // dans Réglages → Machines pour être réactivée. Effet immédiat ici ; la collecte le reprend à son prochain passage.
@@ -259,6 +275,7 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
   // Tableau sur une seule ligne par machine ; un clic sur le chevron (ou « Tout déplier ») montre le détail
   const [open, setOpen] = useState<Set<string>>(new Set());
   const toggleOpen = (ip: string) => setOpen((o) => { const n = new Set(o); if (!n.delete(ip)) n.add(ip); return n; });
+  const [view, pickView] = useStoredView("ms.machines.view", "table");  // Tableau ou Cartes, retenu
   const allOpen = sort.sorted.length > 0 && sort.sorted.every((m) => open.has(m.ip));
 
   // Inventaire de MynetworK (connecteur « network ») : MAC et fabricant sous l'IP, et les appareils vus mais pas suivis
@@ -281,8 +298,9 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
     <div className="py-1">
       <FilterBar f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
         extra={<>
+          <ViewToggle view={view} onPick={pickView} />
           <button type="button" onClick={() => setOpen(allOpen ? new Set() : new Set(sort.sorted.map((m) => m.ip)))} aria-pressed={allOpen}
-            className="hidden items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-sm text-muted hover:text-txt md:inline-flex">
+            className={`${view === "table" ? "hidden md:inline-flex" : "hidden"} items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-sm text-muted hover:text-txt`}>
             {allOpen ? <ChevronsDownUp size={14} aria-hidden /> : <ChevronsUpDown size={14} aria-hidden />}{allOpen ? tx("Tout replier") : tx("Tout déplier")}
           </button>
           {nOff > 0 && (
@@ -307,15 +325,15 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
       )}
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
-          <Table head={<>
-            <th className="w-8 px-1" aria-label={tx("Détails")} /><th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("État")}</Th><Th>{tx("SSH")}</Th><Th>{tx("Clé utilisée")}</Th><Th>{tx("Hôte")}</Th><Th>{tx("Root")}</Th><Th>{tx("Mot de passe")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
+          {view === "table" && <Table fit head={<>
+            <th className="w-8 px-1" aria-label={tx("Détails")} /><th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("État")}</Th><Th>{tx("SSH")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
             <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th>{tx("Systemd")}</Th><Th>{tx("Mises à jour")}</Th></>}{admin && <Th>{tx("Suivi")}</Th>}
           </>}>
             {sort.sorted.map((m) => {
-              const shown = open.has(m.ip), h = hb.get(m.ip), cols = 12 + (snap.health ? 6 : 0) + (admin ? 1 : 0);
+              const shown = open.has(m.ip), h = hb.get(m.ip), cols = 8 + (snap.health ? 6 : 0) + (admin ? 1 : 0);
               return (
                 <Fragment key={m.ip}>
-                  <tr className={`hover:bg-bg2/60 [&>td]:whitespace-nowrap ${isOff(m) ? "opacity-50" : ""}`}>
+                  <tr className={`hover:bg-bg2/60 ${isOff(m) ? "opacity-50" : ""}`}>
                     <td className="w-8 px-1 py-2 align-middle">
                       <button type="button" onClick={() => toggleOpen(m.ip)} aria-expanded={shown} aria-label={tx("Détails de {0}", m.name)} title={shown ? tx("Replier") : tx("Déplier le détail")}
                         className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt">{shown ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button>
@@ -324,9 +342,7 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
                     <Td><button type="button" onClick={() => onMachine(m.ip)} className="flex items-baseline gap-2 text-left" title={tx("Voir ses services")}>
                       <b className="font-semibold hover:text-link">{m.name}</b><span className="text-xs text-dim">{m.ip}</span></button></Td>
                     <Td>{st(m)}</Td><Td><SshShort m={m} /></Td>
-                    <Td>{m.ssh?.identity ? <code className="text-xs" title={`${m.ssh.identity}\n${m.ssh.key_fp ?? ""}`}>{m.ssh.identity.split("/").pop()}</code> : <Dim>—</Dim>}</Td>
-                    <Td><HostKey m={m} /></Td><Td><Sshd m={m} what="root" /></Td><Td><Sshd m={m} what="pwd" /></Td>
-                    <Td><OsShort m={m} /></Td><Td><Servers m={m} snap={snap} /></Td>
+                    <Td><OsShort m={m} kind={osOf(m)} /></Td><Td><Servers m={m} snap={snap} /></Td>
                     <Td><b>{m.services}</b>{m.down > 0 && <span className="text-xs text-bad"> · {m.down} {tx("en panne")}</span>}</Td>
                     {snap.health && <><Td><Level level={h ? (h.reachable === false ? "down" : h.level) : "na"} /></Td>
                       <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
@@ -336,8 +352,8 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
                 </Fragment>
               );
             })}
-          </Table>
-          <Cards>
+          </Table>}
+          <Cards always={view === "cards"}>
             {sort.sorted.map((m) => (
               <div key={m.ip} className={`rounded-2xl border border-line bg-card p-3.5 ${isOff(m) ? "opacity-50" : ""}`}>
                 <div className="flex items-start justify-between gap-2"><span className="flex items-start gap-2"><MachineIcon m={m} scan={scanOs[m.ip]} reserve />{name(m)}</span>{st(m)}</div>

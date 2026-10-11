@@ -24,6 +24,9 @@ app("dockhand", "Dockhand"), app("logviewr", "LogviewR"), app("mynetwork", "Myne
   { key: "camera", label: tx("Caméra"), family: "object", Icon: Camera }, { key: "game", label: tx("Console de jeu"), family: "object", Icon: Gamepad2 },
   { key: "printer", label: tx("Imprimante"), family: "object", Icon: Printer }, { key: "home", label: tx("Domotique"), family: "object", Icon: Home },
   { key: "ai", label: tx("IA / LLM"), family: "object", Icon: Bot },
+  // Windows, plusieurs styles (dessins génériques : fenêtre à quatre carreaux)
+  brand("windows-11", "Windows 11", "system"), brand("windows-10", "Windows 10", "system"), brand("windows-classic", tx("Windows classique"), "system"),
+  brand("windows-server", "Windows Server", "system"), brand("windows-mono", tx("Windows (monochrome)"), "system"),
   // Plus de systèmes
   brand("ubuntu", "Ubuntu", "system"), brand("debian", "Debian", "system"), brand("fedora", "Fedora", "system"),
   brand("archlinux", "Arch Linux", "system"), brand("centos", "CentOS", "system"), brand("redhat", "Red Hat", "system"),

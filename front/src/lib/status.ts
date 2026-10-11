@@ -93,6 +93,16 @@ export function checks(r: Host): Check[] {
   return c;
 }
 
+/** Pourquoi une ligne sans service n'a rien à identifier (désactivée, en pause, machine éteinte, backend muet) ; null = elle devrait l'être */
+export function noIdentity(r: Host): string | null {
+  if (r.type === "redirect" || r.type === "dead") return "—";
+  if (!r.enabled) return tx("désactivé");
+  if (r.paused) return tx("en pause");
+  if (r.machine_off) return tx("machine éteinte");
+  if (status(r)[0] === "bad") return tx("backend injoignable");
+  return null;
+}
+
 export const CLEANUP: Check[] = ["obsolete", "pause"];
 
 /** [libellé court, explication] de chaque point à vérifier (page actuelle : CHECK) */

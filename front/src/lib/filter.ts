@@ -1,6 +1,7 @@
 // Recherche et filtres en pastilles, communs à tous les onglets. Une facette = une question (« État »,
 // « Machine »…) ; plusieurs pastilles d'une même facette = OU, facettes entre elles = ET. Le compte de
 // chaque pastille est calculé sur les résultats des AUTRES filtres (on voit ce qu'un clic donnerait).
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { norm } from "./format";
 
@@ -13,6 +14,8 @@ export interface Facet<T> {
   name?: (v: string) => string;
   /** Ordre fixe des valeurs ; sinon par nombre décroissant */
   order?: string[];
+  /** Repère visuel devant la pastille d'une valeur : point de couleur, logo ou icône du service */
+  mark?: (v: string) => ReactNode;
 }
 
 export interface Chip {

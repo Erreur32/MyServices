@@ -105,3 +105,8 @@ dcca1779f01b7ccee555fd7bc31a0e27  front/public/icons/wikijs.svg
 85f8d87501f84440ae8338f8e6f4196d  front/public/icons/wireguard.svg
 5a0c7a259ed2566939f78a522bbc6c3a  front/public/icons/wordpress.svg
 4fe454c7650098c3462308f9e8bb0706  front/public/icons/zigbee2mqtt.svg
+2218fb7dcd75feda682d480e87391719  front/public/icons/windows-10.svg
+6c30ec4b765f1de7bf79d6a22b948967  front/public/icons/windows-11.svg
+68a58d3bc03132d0d09690f634212970  front/public/icons/windows-classic.svg
+15b619662a669c85f21439613f20cd9b  front/public/icons/windows-mono.svg
+370e206d1d04f6e4e6fd10f532d27eca  front/public/icons/windows-server.svg

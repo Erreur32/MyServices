@@ -22,6 +22,7 @@ export interface WebCheck {
 
 export interface Service {
   kind: string;
+  stale?: boolean;  // identification gardée du passage précédent : le backend ne répond plus
   name?: string;
   image?: string;
   version?: string;

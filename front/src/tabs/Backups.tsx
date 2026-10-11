@@ -7,6 +7,7 @@ import { ageDays, bytes, dateTime } from "../lib/format";
 import type { BackupHost } from "../types";
 import { Badge, Card, Cards, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
 import { LEVEL } from "../lib/level";
+import { Dot } from "../components/marks";
 import { tx } from "../lib/i18n";
 
 const stateOf = (h: BackupHost) => (h.reachable ? h.level : "down");
@@ -25,7 +26,7 @@ export function Backups({ snap }: { snap: Snapshot }) {
   const b = snap.backups;
   const sets = useMemo(() => new Map((b?.sets || []).map((s) => [s.id, s])), [b]);
   const facets = useMemo((): Facet<BackupHost>[] => [
-    { key: "state", label: tx("État"), get: stateOf, name: (v) => LEVEL[v]?.[1] || v, order: ["crit", "down", "warn", "ok", "na"] },
+    { key: "state", label: tx("État"), get: stateOf, name: (v) => LEVEL[v]?.[1] || v, order: ["crit", "down", "warn", "ok", "na"], mark: (v) => <Dot tone={LEVEL[v]?.[0] ?? "off"} /> },
     { key: "kind", label: tx("Type"), get: (h) => h.kind || "" },
   ], []);
   const text = useCallback((h: BackupHost) => [h.label, h.ip, h.kind, ...h.sets.map((id) => sets.get(id)?.label), ...h.copies.map((c) => c.label), ...h.local.map((x) => x.path)].join(" "), [sets]);

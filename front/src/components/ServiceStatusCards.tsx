@@ -21,8 +21,8 @@ const GROUPS: ["core" | "addon" | "other", string][] = [["core", tx("Home Assist
 export function ServiceStatusCards({ items }: { items: ServiceStatus[] }) {
   if (!items.length) return null;
   return (
-    <section className="mb-4" aria-label={tx("Services lus par leur API")}>
-      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted"><Plug size={15} aria-hidden />{tx("Services lus par leur API")}</h2>
+    <section className="mb-4" aria-label={tx("Service via API")}>
+      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted"><Plug size={15} aria-hidden />{tx("Service via API")}</h2>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {items.map((s) => {
           const icon = appIcon([s.label]), ups = s.updates ?? [], group = (g: string) => ups.filter((u) => (u.group ?? "other") === g);

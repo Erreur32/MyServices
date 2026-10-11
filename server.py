@@ -263,8 +263,15 @@ def wake_check() -> None:
         return
     for a in asleep:
         up = subprocess.run(["ping", "-c1", "-W1", a["ip"]], capture_output=True).returncode == 0
-        if up != bool(a.get("ping")) and enabled("health"):
-            run_task("health", f"{a['name']} {'répond' if up else 'ne répond plus'} au ping", ("--only", a["ip"]))
+        if up == bool(a.get("ping")):
+            continue
+        why = f"{a['name']} {'répond' if up else 'ne répond plus'} au ping"
+        if not (enabled("health") and run_task("health", why, ("--only", a["ip"]))):
+            continue  # santé occupée : on réessaie à la minute suivante (la fiche garde l'ancien état de ping)
+        if enabled("collect"):  # l'onglet Machines (ping, SSH, Docker) se met à jour tout de suite, sans attendre l'horaire de la collecte
+            import machines_admin
+            machines_admin.expire_inventory(a["ip"])
+            run_chain(["collect"], why)
 
 
 def scheduler() -> None:

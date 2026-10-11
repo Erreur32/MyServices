@@ -1,6 +1,6 @@
 // Fiche d'un service (ligne dépliée) : identité, service, réseau & NPM.
 import type { ReactNode } from "react";
-import { CHECK, KIND_NAME, checks } from "../lib/status";
+import { CHECK, KIND_NAME, checks, noIdentity } from "../lib/status";
 import type { Host } from "../types";
 import { tx } from "../lib/i18n";
 
@@ -48,7 +48,7 @@ export function ServiceDetail({ r }: { r: Host }) {
     [tx("Référence"), r.type === "local" ? String(r.id) : tx("NPM #{0}{1}", String(r.id).split("/").pop(), r.npm ? ` · ${r.npm}` : ""), "mono"],
   ];
   const svc: Row[] = [
-    ["Service", s?.name ? `${KIND_NAME[s.kind] || s.kind} · ${s.name}` : tx("non identifié"), s?.name ? undefined : "warn"],
+    ["Service", s?.name ? `${KIND_NAME[s.kind] || s.kind} · ${s.name}${s.stale ? ` (${tx("dernière identification connue")})` : ""}` : noIdentity(r) ?? tx("non identifié"), s?.name ? (s.stale ? "mut" : undefined) : noIdentity(r) ? "mut" : "warn"],
     ...(s?.kind === "apache" ? [["Vhost", s.vhost || "—"], [tx("Fichiers servis"), s.docroot || "—", "mono"], ["Config", s.conf || "—", "mono"]] as Row[] : []),
     ["Image", s?.image || "—", s?.image ? "mono" : "mut"],
     ["Version", s?.version || "—", s?.version ? undefined : "mut"],

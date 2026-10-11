@@ -1,12 +1,11 @@
 // Icône d'une machine : l'appli qu'elle héberge si on la reconnaît (Proxmox, Home Assistant, UniFi… d'après le scan ou le nom),
 // sinon son système (relevé SSH, réglage « windows », scan, TTL du ping) ; rien si on ne sait pas.
-import { Apple, Cpu, Monitor, Router, Smartphone, Terminal } from "lucide-react";
 import { appIcon, appIconByText } from "../lib/appIcons";
-import { osOfMachine, type OsKind } from "../lib/machines";
+import { osOfMachine } from "../lib/machines";
 import type { Machine } from "../types";
 import { chosenIcon } from "../lib/machineIcons";
 
-const OS_ICON: Record<OsKind, typeof Terminal> = { linux: Terminal, windows: Monitor, macos: Apple, ios: Smartphone, network: Router, pi: Cpu };
+import { OS_ICON } from "./OsGlyph";
 
 interface Props {
   m: { name?: string; role?: string; os?: string; info?: Machine["info"]; ttl?: number | null; icon?: string | null };  // icon : choisie à la main

@@ -52,3 +52,7 @@ export function osOfMachine(m: { os?: string; info?: { os?: string | null } | nu
   if (m.ttl && m.ttl <= 64 && sshSeen) return { kind: "linux", label: tx("Linux (probable)") };
   return null;
 }
+
+/** Familles de systèmes pour les filtres : libellé et ordre d'affichage */
+export const OS_LABEL: Record<OsKind, string> = { linux: "Linux", windows: "Windows", macos: "macOS", pi: "Raspberry Pi", network: tx("Matériel réseau"), ios: "iOS / Android" };
+export const OS_ORDER: OsKind[] = ["linux", "windows", "macos", "pi", "network", "ios"];

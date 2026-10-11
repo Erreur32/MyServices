@@ -50,6 +50,7 @@ import agents
 import hostinfo
 import inventory_cache
 import known_apps
+import last_known as last_known_services
 import npmapi
 
 from config import CFG, next_timer_run
@@ -1048,6 +1049,7 @@ def main():
     for src, dst in ((rb, backend), (rp, public), (rw, web), (rf, follow)):
         for i, f in src.items():
             dst[i] = f.result()
+    last_known = last_known_services.previous_services(OUT)
     for i, r in enumerate(rows):
         if i in backend:
             r["backend"] = backend[i]
@@ -1068,6 +1070,8 @@ def main():
         s = r.get("service") or {}
         if not s and r["page_title"]:
             r["service"] = s = {"kind": "web", "name": r["page_title"]}
+        if not s and r["enabled"] and not r.get("backend", {}).get("up") and (r["type"], str(r["id"])) in last_known:
+            r["service"] = s = {**last_known[(r["type"], str(r["id"]))], "stale": True}  # backend muet : dernière identification connue
         m = r.pop("_meta") or meta_for(r)
         r["category"] = m.get("category") or categorize(" ".join(r["domains"]), r.get("name"), s.get("name"),
                                                          s.get("image"), s.get("title"), r["page_title"])

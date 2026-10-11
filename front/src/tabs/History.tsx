@@ -9,6 +9,7 @@ import { originOf } from "../lib/eventOrigin";
 import type { StoredEvent } from "../types";
 import { AreaChart, BarsChart, HeatChart, PointsChart, type Range } from "../components/HistoryCharts";
 import { Badge, Empty, FilterBar } from "../components/ui";
+import { Square } from "../components/marks";
 import { tx } from "../lib/i18n";
 import { EVENT_LIMIT, GROUPS, GROUP_COLOR, GROUP_NAME, STYLES, buckets, dayBuckets, groupOf, stepFor, type ChartStyle } from "../lib/historyChart";
 
@@ -39,7 +40,9 @@ export function History({ snap }: { snap: Snapshot }) {
   const ready = hist && hist.days === days ? hist : null;
   const all = useMemo(() => ready?.events ?? [], [ready]);
   const facets = useMemo((): Facet<StoredEvent>[] => [
-    { key: "group", label: tx("Type"), get: (e) => groupOf(e.kind), name: (v) => GROUP_NAME[v] || v, order: GROUPS.map(([k]) => k) },
+    { key: "group", label: tx("Type"), get: (e) => groupOf(e.kind), name: (v) => GROUP_NAME[v] || v, order: GROUPS.map(([k]) => k), mark: (v) => <Square cls={GROUP_COLOR[v] ?? "bg-dim"} /> },
+    { key: "method", label: tx("Méthode"), get: (e) => originOf(e).method },
+    { key: "via", label: tx("Lu par"), get: (e) => originOf(e).via },
     { key: "machine", label: tx("Machine"), get: (e) => e.machine || "" },
   ], []);
   const text = useCallback((e: StoredEvent) => [e.label, e.machine, e.target, e.detail, label(e.kind)].join(" "), [label]);
