@@ -124,6 +124,7 @@ def current() -> dict:
     for s in meta.get("sets", []):
         loc = (s.get("locations") or [{}])[0]
         sets.append({"id": s["id"], "label": s.get("label", s["id"]), "origin": hosts.get(s.get("origin"), {}).get("label", s.get("origin", "")),
+                     "origin_ip": hosts.get(s.get("origin"), {}).get("ip"),
                      "path": loc.get("path"), "veeam_job": loc.get("veeam_job"), "pbs_group": loc.get("pbs_group"), "max_age_days": s.get("max_age_days", 8),
                      "ha": any(l.get("ha_backup") for l in s.get("locations", [])),
                      "expect_offsite": s.get("expect_offsite", True), "editable": bool(loc.get("path")),

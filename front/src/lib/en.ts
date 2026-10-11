@@ -1779,4 +1779,7 @@ export const EN: Record<string, string> = {
   "Non lues : {0}": "Not read: {0}",
   "partage réseau": "network share",
   "contient {0}": "holds {0}",
+  "Seuil d'alerte en jours": "Alert threshold in days",
+  "Seuil personnalisé, en jours": "Custom threshold, in days",
+  "autre…": "other…",
 };
