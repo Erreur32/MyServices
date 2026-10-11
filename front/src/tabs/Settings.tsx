@@ -8,6 +8,7 @@ import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { dateTime } from "../lib/format";
 import { CONTENT_WIDTH, setHeaderLogo, useHeaderLogo, type HeaderLogo, type Theme } from "../theme";
 import { LANG, setLang, type Lang } from "../lib/i18n";
+import { Flag } from "../components/Flag";
 import type { User } from "../types";
 import { Badge, Card, Dim } from "../components/ui";
 import { Field, NoteLine } from "../components/form";
@@ -131,8 +132,8 @@ function Appearance({ look }: { look: Look }) {
         <div className="flex flex-wrap gap-2">
           {([["fr", "Français"], ["en", "English"]] as [Lang, string][]).map(([l, label]) => (
             <button key={l} type="button" onClick={() => l !== LANG && setLang(l)} aria-pressed={LANG === l}
-              className={`w-40 rounded-xl border p-3 text-left text-sm font-semibold ${LANG === l ? "border-link bg-link/10 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`}>
-              {label}
+              className={`flex w-44 items-center gap-3 rounded-xl border p-3 text-left text-sm font-semibold ${LANG === l ? "border-link bg-link/10 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`}>
+              <Flag lang={l} className="h-6 w-9" />{label}
             </button>
           ))}
         </div>

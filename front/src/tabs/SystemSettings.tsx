@@ -13,6 +13,7 @@ import { bytes, dateTime, dur } from "../lib/format";
 import type { SystemState, SystemTask } from "../types";
 import { usePoll } from "../lib/polling";
 import { tx } from "../lib/i18n";
+import { MachineIcon } from "../components/MachineIcon";
 import { GITHUB, releaseOf } from "../lib/links";
 
 export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh"; snap: Snapshot }) {
@@ -111,18 +112,34 @@ function SshKey({ ssh, snap }: { ssh: SystemState["ssh"]; snap: Snapshot }) {
       <Card>
         <h2 className="mb-1 flex items-center gap-2 font-bold"><Server size={16} />{tx("Machines qui utilisent cette clé")} <Dim>· {users.length}</Dim></h2>
         {users.length === 0 ? <Dim>{tx("Aucune machine n'est lue par SSH pour l'instant.")}</Dim> : (
-          <ul className="flex flex-col divide-y divide-line/60">
-            {users.map((m) => {
-              const [tone, label, tip] = MSTATE[mState(m)];
-              return (
-                <li key={m.ip} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
-                  <a href={`#settings/machines/${m.ip}`} className="min-w-[160px] flex-1 hover:text-link" title={tx("Ouvrir les réglages de cette machine")}><b>{m.name}</b> <Dim>{m.ip}</Dim></a>
-                  <span className="font-mono text-xs text-muted">{m.ssh!.user || "?"}@{m.ip}:{m.ssh!.port}</span>
-                  <Badge tone={tone} title={tip}>{label}</Badge>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full min-w-[520px] text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-dim">
+                  <th className="py-2 pr-3 font-semibold">{tx("Machine")}</th><th className="px-3 py-2 font-semibold">{tx("Compte")}</th>
+                  <th className="px-3 py-2 font-semibold">Port</th><th className="py-2 pl-3 text-right font-semibold">{tx("État")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line/60">
+                {users.map((m) => {
+                  const [tone, label, tip] = MSTATE[mState(m)];
+                  return (
+                    <tr key={m.ip} className="hover:bg-bg2/40">
+                      <td className="py-2 pr-3">
+                        <a href={`#settings/machines/${m.ip}`} className="flex items-center gap-2.5 hover:text-link" title={tx("Ouvrir les réglages de cette machine")}>
+                          <MachineIcon m={{ name: m.name, info: m.info, ttl: m.ttl, osName: m.info?.os ?? m.agent?.os }} reserve />
+                          <span className="min-w-0"><b className="block truncate">{m.name}</b><span className="block font-mono text-xs text-dim">{m.ip}</span></span>
+                        </a>
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs text-muted">{m.ssh!.user || "?"}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-muted">{m.ssh!.port}</td>
+                      <td className="py-2 pl-3 text-right"><Badge tone={tone} title={tip}>{label}</Badge></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
     </>

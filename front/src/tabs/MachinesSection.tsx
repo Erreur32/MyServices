@@ -14,8 +14,9 @@ const PARTS: [Part, string, string, LucideIcon][] = [
 ];
 
 export function MachinesSection({ snap }: { snap: Snapshot }) {
-  const [, section, ip] = location.hash.split("/");   // #settings/agents/<ip> : « Installer l'agent » ; #settings/machines/<ip> : une machine
-  const [part, setPart] = useState<Part>(() => section === "agents" ? "agents" : section === "machines" && ip ? "machines" : (PARTS.find(([id]) => id === lastMachinesPart())?.[0] ?? "machines"));
+  const [, section, ip] = location.hash.split("/");   // #settings/agents/<ip> : « Installer l'agent » ; #settings/machines/<ip> : une machine ; sans adresse, on reprend le dernier sous-onglet
+  const [part, setPart] = useState<Part>(() => ip && (section === "agents" || section === "machines") ? section
+    : (PARTS.find(([id]) => id === lastMachinesPart())?.[0] ?? "machines"));
   useEffect(() => rememberMachinesPart(part), [part]);
   return (
     <div className="flex flex-col gap-4">

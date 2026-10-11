@@ -21,6 +21,7 @@ import { AuthorizeKey } from "../components/AuthorizeKey";
 import { SshGuide } from "../components/SshGuide";
 import { SshDetails } from "../components/ssh";
 import { ReadBySsh } from "../components/ReadBySsh";
+import { useWide } from "../lib/useWide";
 import { rolesOf, sshBrief, sshWarn } from "../lib/ssh";
 import { pokeScan } from "../lib/scan";
 import { hardwareRows } from "../lib/hardware";
@@ -63,6 +64,7 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
   }, []);
   useEffect(reload, [reload]);
+  const wide = useWide();
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   const live = new Map((snap.data.machine_list || []).map((m) => [m.ip, m]));
   // « Non terminé » : accès encore à régler (SSH absent alors que la machine l'offre, jeton Home Assistant manquant). Ceux que l'on
@@ -98,14 +100,18 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
         {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
         {detecting && <Detect st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
       </Card>
-      <div className="grid items-start gap-3 lg:grid-cols-2">
-        {ips.map((ip) => {
+      {/* Deux colonnes indépendantes (une ligne sur deux dans chacune) : ouvrir un cadre ne déplace ni n'étire l'autre colonne */}
+      {(() => {
+        const cards = ips.map((ip) => {
           const lm = live.get(ip);
           // Un PC Windows n'a ni Docker ni services en écoute à lire : pas d'état de connecteur SSH Linux (reste d'un ancien relevé)
           const stat = st.machines[ip].os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.ip ? c.ip === ip : c.name === ip || c.name === lm?.name));
           return <MachineRow key={ip} agent={agents[ip]} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
-        })}
-      </div>
+        });
+        return wide
+          ? <div className="grid grid-cols-2 items-start gap-3">{[0, 1].map((c) => <div key={c} className="flex flex-col gap-3">{cards.filter((_, i) => i % 2 === c)}</div>)}</div>
+          : <div className="flex flex-col gap-3">{cards}</div>;
+      })()}
       <ReadBySsh snap={snap} />
     </div>
   );
