@@ -2,9 +2,9 @@
 // entités, mises à jour disponibles (information, sans alerte). Affiché sous la barre de recherche de l'onglet Santé.
 import { ArrowUpCircle, CheckCircle2, Layers, Plug } from "lucide-react";
 import type { ServiceStatus } from "../types";
-import { appIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
-import { Badge, Count } from "./ui";
+import { Count } from "./ui";
+import { CardHead } from "./InfraCards";
 
 function Tile({ icon, value, label, tone }: { icon: React.ReactNode; value: string | number; label: string; tone?: string }) {
   return (
@@ -18,31 +18,14 @@ function Tile({ icon, value, label, tone }: { icon: React.ReactNode; value: stri
 /** Mises à jour par famille : le cœur de Home Assistant (dit s'il est à jour), ses modules, puis les autres appareils */
 const GROUPS: ["core" | "addon" | "other", string][] = [["core", tx("Home Assistant")], ["addon", tx("Modules complémentaires")], ["other", tx("Autres appareils et intégrations")]];
 
-export function ServiceStatusCards({ items }: { items: ServiceStatus[] }) {
-  if (!items.length) return null;
+export function ServiceCard({ s }: { s: ServiceStatus }) {
+  const ups = s.updates ?? [], group = (g: string) => ups.filter((u) => (u.group ?? "other") === g);
+  const core = group("core").length, rest = ups.length - core;
   return (
-    <section className="mb-4" aria-label={tx("Service via API")}>
-      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted"><Plug size={15} aria-hidden />{tx("Service via API")}</h2>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {items.map((s) => {
-          const icon = appIcon([s.label]), ups = s.updates ?? [], group = (g: string) => ups.filter((u) => (u.group ?? "other") === g);
-          const core = group("core").length, rest = ups.length - core;
-          return (
-            <article key={`${s.connector}/${s.name}`} className={`rounded-2xl border bg-card p-4 ${s.ok ? "border-line" : "border-bad/40"}`}>
-              <header className="flex items-center gap-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-bg2">{icon ? <img src={icon} alt="" className="h-6 w-6" /> : <Plug size={20} className="text-muted" aria-hidden />}</span>
-                <div className="min-w-0 flex-1">
-                  <h3 className="truncate font-bold leading-tight">{s.label}</h3>
-                  {s.url && <a href={s.url} target="_blank" rel="noopener noreferrer" className="block truncate font-mono text-xs text-dim hover:text-link hover:underline">{s.url}</a>}
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <Badge tone={s.ok ? "ok" : "bad"}>{s.ok ? tx("en ligne") : tx("illisible")}</Badge>
-                  {s.version && <span className="font-mono text-xs text-dim">{s.version}</span>}
-                </div>
-              </header>
-              {s.stale && <p className="mt-2 text-xs text-warn">{tx("relevé périmé : dernier état connu")}</p>}
-              {!s.ok && !s.stale ? <p className="mt-3 rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{s.message}</p> : (
-                <>
+            <article className={`flex flex-col overflow-hidden rounded-2xl border bg-card pb-3 shadow-sm ${s.ok ? "border-line" : "border-bad/40"}`}>
+              <CardHead c={s} kind={tx("Service via API")} icon={<Plug size={20} className="text-muted" aria-hidden />} />
+              {!s.ok && !s.stale ? <p className="mx-4 mt-3 rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{s.message}</p> : (
+                <div className="px-4">
                   {(s.facts?.length || s.problems) && (
                     <>
                       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -78,12 +61,8 @@ export function ServiceStatusCards({ items }: { items: ServiceStatus[] }) {
                       ))}
                     </details>
                   )}
-                </>
+                </div>
               )}
             </article>
           );
-        })}
-      </div>
-    </section>
-  );
 }

@@ -14,7 +14,6 @@ import { OS_LABEL, OS_ORDER, osOfMachine, type OsKind } from "../lib/machines";
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { ViewToggle, useStoredView } from "../components/ViewToggle";
 import { InfraCards } from "../components/InfraCards";
-import { ServiceStatusCards } from "../components/ServiceStatusCards";
 import { LEVEL } from "../lib/level";
 import { tx } from "../lib/i18n";
 
@@ -118,49 +117,56 @@ const ACCESS: [string, string][] = [["ssh", "SSH"], ["agent", tx("Agent")], ["be
 const accessOf = (h: HealthHost) => (h.source && ACCESS.some(([k]) => k === h.source) ? h.source : "ssh");
 
 /** Tableau : une ligne légère par machine ; le chevron déplie ce qui est à signaler et le détail (disques, Docker, charge, SMART…) */
-function HealthTable({ hosts, asleep, osOf, open, toggle }: {
-  hosts: HealthHost[]; asleep: AsleepHost[]; osOf: (ip: string, fallback?: string) => OsInfo; open: Set<string>; toggle: (id: string) => void;
+type TableGroup = { key: string; title: string; hosts: HealthHost[]; asleep: AsleepHost[] };
+
+function HealthTable({ groups, osOf, open, toggle }: {
+  groups: TableGroup[]; osOf: (ip: string, fallback?: string) => OsInfo; open: Set<string>; toggle: (id: string) => void;
 }) {
   return (
     <Table fit head={<><th className="w-8 px-1" aria-label={tx("Détails")} /><Th>{tx("Machine")}</Th><Th>{tx("Système")}</Th><Th>{tx("État")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th>{tx("Systemd")}</Th><Th>{tx("Mises à jour")}</Th></>}>
-      {hosts.map((h) => {
-        const [name, ip] = splitHostName(h.name), pb = problems(h), shown = open.has(h.id);
-        return (
-          <Fragment key={h.id}>
-            <tr className="hover:bg-bg2/60">
-              <td className="w-8 px-1 py-2 align-middle">
-                <button type="button" onClick={() => toggle(h.id)} aria-expanded={shown} aria-label={tx("Détails de {0}", name)} title={shown ? tx("Replier") : tx("Déplier le détail")}
-                  className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt">{shown ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button>
-              </td>
-              <Td><b>{name}</b> <span className="text-xs text-dim">{ip}</span>{pb.length > 0 && <span className={`ml-2 text-xs ${pb.some(([t]) => t === "bad") ? "text-bad" : "text-warn"}`} title={pb.map((x) => x[1]).join("\n")}>⚑ {pb.length}</span>}</Td>
-              <Td><OsCell os={osOf(ip, h.os)} /></Td><Td><Level level={levelOf(h)} /></Td>
-              <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td>
-            </tr>
-            {shown && (
-              <tr className="bg-bg2/40"><td colSpan={9} className="p-0">
-                <div className="grid gap-x-8 gap-y-3 px-4 py-3 lg:grid-cols-2">
-                  <div className="flex flex-col gap-1 text-sm">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("À signaler")}</span>
-                    {pb.length ? pb.map(([t, x], i) => <span key={i} className={t === "bad" ? "text-bad" : "text-warn"}>• {x}</span>) : <span className="text-ok">{tx("Rien à signaler.")}</span>}
-                  </div>
-                  {h.reachable !== false && <HostDetails h={h} />}
-                </div>
-              </td></tr>
-            )}
-          </Fragment>
-        );
-      })}
-      {asleep.map((a) => {
-        const [name, ip] = splitHostName(a.name);
-        return (
-          <tr key={a.id} className={a.ping ? "" : "opacity-60"}>
-            <td className="w-8 px-1" /><Td><b>{name}</b> <span className="text-xs text-dim">{ip}</span></Td><Td><OsCell os={osOf(ip, a.os)} /></Td>
-            <Td>{a.ping ? <Badge tone="ok">{tx("allumée, agent en attente")}</Badge> : <Badge tone="off">{tx("éteinte (voulu)")}</Badge>}</Td>
-            <Td className="!whitespace-normal text-xs text-muted">{a.last_seen ? tx("Dernier relevé de l'agent : {0}", dateTime(a.last_seen * 1000)) : tx("Pas encore de relevé.")}</Td>
-            <Td /><Td /><Td /><Td />
-          </tr>
-        );
-      })}
+      {groups.map(({ key, title, hosts, asleep }) => (
+        <Fragment key={key}>
+          <tr className="border-0 bg-bg2/50"><td colSpan={9} className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-dim">{title} <Count n={hosts.length + asleep.length} tone="off" /></td></tr>
+          {hosts.map((h) => {
+            const [name, ip] = splitHostName(h.name), pb = problems(h), shown = open.has(h.id);
+            return (
+              <Fragment key={h.id}>
+                <tr className="hover:bg-bg2/60">
+                  <td className="w-8 px-1 py-2 align-middle">
+                    <button type="button" onClick={() => toggle(h.id)} aria-expanded={shown} aria-label={tx("Détails de {0}", name)} title={shown ? tx("Replier") : tx("Déplier le détail")}
+                      className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt">{shown ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button>
+                  </td>
+                  <Td><b>{name}</b> <span className="text-xs text-dim">{ip}</span>{pb.length > 0 && <span className={`ml-2 text-xs ${pb.some(([t]) => t === "bad") ? "text-bad" : "text-warn"}`} title={pb.map((x) => x[1]).join("\n")}>⚑ {pb.length}</span>}</Td>
+                  <Td><OsCell os={osOf(ip, h.os)} /></Td><Td><Level level={levelOf(h)} /></Td>
+                  <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td>
+                </tr>
+                {shown && (
+                  <tr className="bg-bg2/40"><td colSpan={9} className="p-0">
+                    <div className="grid gap-x-8 gap-y-3 px-4 py-3 lg:grid-cols-2">
+                      <div className="flex flex-col gap-1 text-sm">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("À signaler")}</span>
+                        {pb.length ? pb.map(([t, x], i) => <span key={i} className={t === "bad" ? "text-bad" : "text-warn"}>• {x}</span>) : <span className="text-ok">{tx("Rien à signaler.")}</span>}
+                      </div>
+                      {h.reachable !== false && <HostDetails h={h} />}
+                    </div>
+                  </td></tr>
+                )}
+              </Fragment>
+            );
+          })}
+          {asleep.map((a) => {
+            const [name, ip] = splitHostName(a.name);
+            return (
+              <tr key={a.id} className={a.ping ? "" : "opacity-60"}>
+                <td className="w-8 px-1" /><Td><b>{name}</b> <span className="text-xs text-dim">{ip}</span></Td><Td><OsCell os={osOf(ip, a.os)} /></Td>
+                <Td>{a.ping ? <Badge tone="ok">{tx("allumée, agent en attente")}</Badge> : <Badge tone="off">{tx("éteinte (voulu)")}</Badge>}</Td>
+                <Td className="!whitespace-normal text-xs text-muted">{a.last_seen ? tx("Dernier relevé de l'agent : {0}", dateTime(a.last_seen * 1000)) : tx("Pas encore de relevé.")}</Td>
+                <Td /><Td /><Td /><Td />
+              </tr>
+            );
+          })}
+        </Fragment>
+      ))}
     </Table>
   );
 }
@@ -183,13 +189,13 @@ export function Health({ snap, initial }: { snap: Snapshot; initial?: Selected }
   ], [osOf]);
   const text = useCallback((h: HealthHost) => [h.name, ...problems(h).map((p) => p[1])].join(" "), []);
   const f = useFilter(hosts, facets, text, initial);
-  const [view, pickView] = useStoredView("ms.health.view", "cards");
+  const [view, pickView] = useStoredView("ms.health.view", "table");
   const [open, setOpen] = useState<Set<string>>(new Set());  // lignes du tableau dépliées
   const toggleOpen = (id: string) => setOpen((o) => { const n = new Set(o); if (!n.delete(id)) n.add(id); return n; });
   const allOpen = f.shown.length > 0 && f.shown.every((h) => open.has(h.id));
   const asleep = (snap.health?.asleep ?? []).filter((a) => !Object.keys(f.sel).length && a.name.toLowerCase().includes(f.query.trim().toLowerCase()));
   const services = snap.data.services_status ?? [], virt = snap.data.virtualization ?? [], docker = snap.data.containers ?? [];
-  if (!snap.health) return services.length || virt.length || docker.length ? <div className="py-1"><InfraCards virt={virt} docker={docker} /><ServiceStatusCards items={services} /><Empty>{tx("Santé pas encore relevée.")}</Empty></div> : <Empty>{tx("Santé pas encore relevée.")}</Empty>;
+  if (!snap.health) return services.length || virt.length || docker.length ? <div className="py-1"><InfraCards virt={virt} docker={docker} services={services} /><Empty>{tx("Santé pas encore relevée.")}</Empty></div> : <Empty>{tx("Santé pas encore relevée.")}</Empty>;
   return (
     <div className="py-1">
       <FilterBar f={f} placeholder={tx("Machine, disque, service en échec…")}
@@ -203,24 +209,21 @@ export function Health({ snap, initial }: { snap: Snapshot; initial?: Selected }
           )}
           <span className="text-xs text-dim">{tx("relevé du")} {dateTime(snap.health.timestamp)}</span>
         </>} />
-      <InfraCards virt={virt} docker={docker} />
-      <ServiceStatusCards items={services} />
-      {f.shown.length === 0 && !asleep.length ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : ACCESS.map(([key, title]) => {
-        const list = f.shown.filter((h) => accessOf(h) === key), sleeping = key === "agent" ? asleep : [];  // un poste éteint est connu par son agent
-        if (!list.length && !sleeping.length) return null;
-        const cards = (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {list.map((h) => <HostCard key={h.id} h={h} os={osOf(splitHostName(h.name)[1], h.os)} />)}
-            {sleeping.map((a) => <AsleepCard key={a.id} a={a} os={osOf(splitHostName(a.name)[1], a.os)} />)}
-          </div>
-        );
-        return (
-          <section key={key} className="mb-5" aria-label={title}>
-            <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted">{title} <Count n={list.length + sleeping.length} tone="off" /></h2>
-            {view === "table" ? <><HealthTable hosts={list} asleep={sleeping} osOf={osOf} open={open} toggle={toggleOpen} /><Cards>{cards}</Cards></> : cards}
+      <InfraCards virt={virt} docker={docker} services={services} />
+      {f.shown.length === 0 && !asleep.length ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (() => {
+        const groups = ACCESS.map(([key, title]) => ({ key, title, hosts: f.shown.filter((h) => accessOf(h) === key), asleep: key === "agent" ? asleep : [] }))   // a PC that is off is known by its agent
+          .filter((g) => g.hosts.length || g.asleep.length);
+        const cards = groups.map((g) => (
+          <section key={g.key} className="mb-4" aria-label={g.title}>
+            <h2 className="mb-2 flex items-center gap-2 border-b border-line/60 pb-1 text-xs font-bold uppercase tracking-wider text-dim">{g.title} <Count n={g.hosts.length + g.asleep.length} tone="off" /></h2>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {g.hosts.map((h) => <HostCard key={h.id} h={h} os={osOf(splitHostName(h.name)[1], h.os)} />)}
+              {g.asleep.map((a) => <AsleepCard key={a.id} a={a} os={osOf(splitHostName(a.name)[1], a.os)} />)}
+            </div>
           </section>
-        );
-      })}
+        ));
+        return view === "table" ? <><HealthTable groups={groups} osOf={osOf} open={open} toggle={toggleOpen} /><Cards>{cards}</Cards></> : <>{cards}</>;
+      })()}
     </div>
   );
 }

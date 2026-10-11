@@ -1,20 +1,41 @@
 // DNS AdGuard : synchro entre instances, état de chaque instance, écarts et réécritures à revoir, puis les
 // domaines NPM dont la résolution pose problème.
+import { RefreshCw } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Snapshot } from "../api";
 import { hm } from "../lib/format";
 import { dnsSync, hostName } from "../lib/status";
 import type { Selected } from "../lib/filter";
-import { Badge, Card, Count, Dim, Empty } from "../components/ui";
+import { Badge, Count, Empty } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
 
-function Kv({ k, children, tone }: { k: string; children: ReactNode; tone?: "ok" | "warn" | "bad" }) {
+type Row = [label: string, value: string, tone?: "ok" | "warn" | "bad"];
+const TEXT: Record<"ok" | "warn" | "bad", string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad" };
+
+/** Card of the page header (synchronisation, one per AdGuard server): coloured strip with icon, title, address and state, then label/value rows
+ *  in two aligned columns separated by thin lines. */
+function InfoCard({ icon, title, sub, tone, state, rows }: { icon: ReactNode; title: string; sub?: string; tone: "ok" | "warn" | "bad"; state: string; rows: Row[] }) {
+  const strip = { ok: "bg-ok/10", warn: "bg-warn/10", bad: "bg-bad/10" }[tone], frame = { ok: "border-line", warn: "border-warn/50", bad: "border-bad/50" }[tone];
   return (
-    <div className="flex justify-between gap-3 text-sm">
-      <span className="text-muted">{k}</span>
-      <b className={`text-right font-medium ${tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : tone === "bad" ? "text-bad" : ""}`}>{children}</b>
-    </div>
+    <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${frame}`}>
+      <div className={`flex items-center gap-3 px-4 py-3 ${strip}`}>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-bg2">{icon}</span>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate font-bold leading-tight">{title}</h3>
+          {sub && <span className="block truncate font-mono text-xs text-dim">{sub}</span>}
+        </div>
+        <Badge tone={tone}>{state}</Badge>
+      </div>
+      <dl className="divide-y divide-line/60 text-sm">
+        {rows.map(([k, v, t]) => (
+          <div key={k} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 px-4 py-2">
+            <dt className="text-muted">{k}</dt>
+            <dd className={`text-right font-semibold ${t ? TEXT[t] : "text-txt"}`}>{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
@@ -91,29 +112,27 @@ export function Dns({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
         </span>
         <div><h2 className="text-lg font-bold leading-tight">AdGuard Home</h2><p className="text-sm text-muted">{tx("DNS du réseau : synchronisation, réécritures et domaines à vérifier")}</p></div>
       </header>
-      <Anchor id="servers" lit={lit}><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <Card className={st.cls === "ok" ? "" : st.cls === "warn" ? "border-warn/50" : "border-bad/50"}>
-          <h3 className="mb-2 flex flex-wrap items-center gap-x-2 font-bold">{tx("Synchronisation")} <Badge tone="info">AdGuard</Badge></h3>
-          <p className={`mb-3 text-lg font-bold ${st.cls === "ok" ? "text-ok" : st.cls === "warn" ? "text-warn" : "text-bad"}`}>{st.label}</p>
-          {sync ? <>
-            <Kv k={tx("Sens")}>{name(sync.origin)} → {Object.keys(sync.last_done || {}).map(name).join(", ") || "?"}</Kv>
-            <Kv k={tx("Dernière synchro")} tone={st.cls === "bad" ? "bad" : undefined}>{last ? hm(last) : tx("aucune en 24 h")}</Kv>
-            {sync.interval_min && <Kv k={tx("Fréquence")}>{tx("toutes les")} {sync.interval_min} {tx("min")}</Kv>}
-            <Kv k={tx("Erreurs (24 h)")} tone={sync.errors_24h ? "bad" : "ok"}>{sync.errors_24h || 0}</Kv>
-          </> : <Kv k="adguardhome-sync">{Object.keys(g.servers).length > 1 ? tx("absent : contenus comparés") : tx("sans objet")}</Kv>}
-          <Kv k={tx("Contenu")} tone={diff.length ? "warn" : "ok"}>{diff.length ? tx("{0} différence(s)", diff.length) : tx("identique")}</Kv>
-        </Card>
+      <Anchor id="servers" lit={lit}><div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <InfoCard icon={<RefreshCw size={18} className="text-muted" aria-hidden />} title={tx("Synchronisation")} sub={sync ? `${name(sync.origin)} → ${Object.keys(sync.last_done || {}).map(name).join(", ") || "?"}` : undefined}
+          tone={st.cls} state={st.label}
+          rows={[
+            ...(sync ? [[tx("Dernière synchro"), last ? hm(last) : tx("aucune en 24 h"), st.cls === "bad" ? "bad" : undefined] as Row,
+                        ...(sync.interval_min ? [[tx("Fréquence"), `${tx("toutes les")} ${sync.interval_min} ${tx("min")}`] as Row] : []),
+                        [tx("Erreurs (24 h)"), String(sync.errors_24h || 0), sync.errors_24h ? "bad" : "ok"] as Row]
+                    : [["adguardhome-sync", Object.keys(g.servers).length > 1 ? tx("absent : contenus comparés") : tx("sans objet")] as Row]),
+            [tx("Contenu"), diff.length ? tx("{0} différence(s)", diff.length) : tx("identique"), diff.length ? "warn" : "ok"] as Row,
+          ]} />
         {Object.entries(g.servers).map(([ip, v]) => {
           const ok = v.readable && !v.silent;
           return (
-            <Card key={ip} className={ok ? "" : "border-bad/50"}>
-              <h3 className="mb-2 flex flex-wrap items-center gap-x-2 font-bold">{v.name} <Badge tone="info">AdGuard</Badge><Dim>· {ip}{sync?.origin === ip ? tx(" · origine") : ""}</Dim></h3>
-              <p className={`mb-3 text-lg font-bold ${ok ? "text-ok" : "text-bad"}`}>{ok ? tx("répond") : v.readable ? tx("requêtes perdues") : tx("config illisible")}</p>
-              <Kv k={tx("Réécritures")}>{v.readable ? v.rewrites : "—"}</Kv>
-              <Kv k={tx("Règles perso")}>{v.readable ? v.user_rules ?? "—" : "—"}</Kv>
-              <Kv k={tx("Requêtes sans réponse")} tone={v.silent ? "bad" : "ok"}>{v.silent}</Kv>
-              {v.container && <Kv k={tx("Conteneur")}>{v.container}</Kv>}
-            </Card>
+            <InfoCard key={ip} icon={<img src={appIcon(["AdGuard Home"])!} alt="" className="h-5 w-5" />} title={v.name} sub={`${ip}${sync?.origin === ip ? tx(" · origine") : ""}`}
+              tone={ok ? "ok" : "bad"} state={ok ? tx("répond") : v.readable ? tx("requêtes perdues") : tx("config illisible")}
+              rows={[
+                [tx("Réécritures"), v.readable ? String(v.rewrites) : "—"],
+                [tx("Règles perso"), v.readable ? String(v.user_rules ?? "—") : "—"],
+                [tx("Requêtes sans réponse"), String(v.silent), v.silent ? "bad" : "ok"],
+                ...(v.container ? [[tx("Conteneur"), v.container] as Row] : []),
+              ]} />
           );
         })}
       </div></Anchor>
