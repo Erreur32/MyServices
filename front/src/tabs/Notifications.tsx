@@ -65,10 +65,13 @@ function List({ st, reload }: { st: NotificationsState; reload: () => void }) {
         {!editing && <button type="button" className={quiet} onClick={() => setEditing("new")}><Plus size={14} />{tx("Nouvelle notification")}</button>}
       </div>
       {st.notifications.length === 0 && !editing && <p className="text-sm text-muted">{tx("Aucune notification. Ajoutez un exemple ci-dessous ou créez la vôtre.")}</p>}
-      <ul className="flex flex-col divide-y divide-line/60">
+      <ul className="flex flex-col gap-2">
         {st.notifications.map((n) => (
-          <li key={n.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3">
+          <li key={n.id} className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-bg2/30 px-3 py-2.5 ${n.enabled ? "border-line" : "border-line/60 opacity-75"}`}>
             <Switch on={n.enabled} label={n.enabled ? tx("Désactiver") : tx("Activer")} onChange={(on) => void act(() => send("PATCH", `notifications/${n.id}`, { enabled: on }), on ? tx("activée") : tx("désactivée"), setNote).then(reload)} />
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-bg2">
+              {n.kind === "report" ? <CalendarClock size={17} className="text-link" aria-hidden /> : <Radio size={17} className="text-warn" aria-hidden />}
+            </span>
             <div className="min-w-[220px] flex-1">
               <div className="flex flex-wrap items-center gap-2"><b>{n.name}</b>
                 <Badge tone={n.kind === "report" ? "info" : "warn"}>{n.kind === "report" ? <CalendarClock size={11} aria-hidden /> : <Radio size={11} aria-hidden />}{n.kind === "report" ? tx("rapport") : tx("en direct")}</Badge>
@@ -77,13 +80,15 @@ function List({ st, reload }: { st: NotificationsState; reload: () => void }) {
               </div>
               <p className="text-xs text-dim">{describe(n, st)}{n.last_sent && <> · {tx("dernier envoi")} {dateTime(n.last_sent * 1000)}</>}</p>
             </div>
-            <button type="button" className={quiet} disabled={busy === n.id} onClick={() => { setBusy(n.id); void act(async () => { const r = await send<{ results: string[] }>("POST", `notifications/${n.id}/send`); return r; }, tx("message envoyé : vérifiez le canal"), setNote).then(() => { setBusy(0); reload(); }); }}
-              title={tx("Envoie un vrai message de cette notification, avec les valeurs du moment")}><Send size={13} aria-hidden />{tx("Envoyer maintenant")}</button>
-            <button type="button" className={quiet} onClick={() => setEditing(n)}><Pencil size={13} aria-hidden />{tx("Modifier")}</button>
-            {confirm === n.id ? <>
-              <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `notifications/${n.id}`), tx("notification supprimée"), setNote).then(() => { setConfirm(0); reload(); })}>{tx("Confirmer")}</button>
-              <button type="button" className={quiet} onClick={() => setConfirm(0)}>{tx("Annuler")}</button>
-            </> : <button type="button" className={quiet} onClick={() => setConfirm(n.id)} aria-label={tx("Supprimer {0}", n.name)}><Trash2 size={13} aria-hidden /></button>}
+            <div className="ml-auto flex flex-wrap items-center gap-1.5">
+              <button type="button" className={quiet} disabled={busy === n.id} onClick={() => { setBusy(n.id); void act(async () => { const r = await send<{ results: string[] }>("POST", `notifications/${n.id}/send`); return r; }, tx("message envoyé : vérifiez le canal"), setNote).then(() => { setBusy(0); reload(); }); }}
+                title={tx("Envoie un vrai message de cette notification, avec les valeurs du moment")}><Send size={13} aria-hidden />{tx("Envoyer maintenant")}</button>
+              <button type="button" className={quiet} onClick={() => setEditing(n)}><Pencil size={13} aria-hidden />{tx("Modifier")}</button>
+              {confirm === n.id ? <>
+                <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `notifications/${n.id}`), tx("notification supprimée"), setNote).then(() => { setConfirm(0); reload(); })}>{tx("Confirmer")}</button>
+                <button type="button" className={quiet} onClick={() => setConfirm(0)}>{tx("Annuler")}</button>
+              </> : <button type="button" className={quiet} onClick={() => setConfirm(n.id)} aria-label={tx("Supprimer {0}", n.name)}><Trash2 size={13} aria-hidden /></button>}
+            </div>
           </li>
         ))}
       </ul>

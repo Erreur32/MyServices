@@ -18,14 +18,15 @@ export function NotificationsHub() {
   const pick = (p: Part) => { setPart(p); try { localStorage.setItem(KEY, p); } catch { /* stockage refusé : le choix ne dure que cette visite */ } };
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label={tx("Catégorie")}>
+      <nav className="flex gap-1 overflow-x-auto border-b border-line" aria-label={tx("Catégorie")}>
         {PARTS.map(([id, label, Icon, hint]) => (
-          <button key={id} type="button" role="tab" aria-selected={part === id} title={hint} onClick={() => pick(id)}
-            className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold ${part === id ? "border-link bg-link/15 text-txt" : "border-line bg-card text-muted hover:border-link hover:text-txt"}`}>
-            <Icon size={16} aria-hidden />{label}
+          <button key={id} type="button" onClick={() => pick(id)} aria-current={part === id ? "page" : undefined} title={hint}
+            className={`flex shrink-0 items-center gap-1.5 rounded-t-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
+              part === id ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
+            <Icon size={15} strokeWidth={1.75} aria-hidden />{label}
           </button>
         ))}
-      </div>
+      </nav>
       {part === "alerts" ? <Alerts /> : <Notifications />}
     </div>
   );

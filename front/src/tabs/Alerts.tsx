@@ -96,7 +96,7 @@ function Channels({ st, reload }: { st: AlertsState; reload: () => void }) {
         {!adding && <button type="button" className={quiet} onClick={() => setAdding(true)}><Plus size={14} />{tx("Ajouter un canal")}</button>}
       </div>
       {st.channels.length === 0 && <p className="mb-3 text-sm text-muted">{tx("Aucun canal : en ajouter un pour recevoir les alertes.")}</p>}
-      <ul className="flex flex-col divide-y divide-line/60">
+      <ul className="flex flex-col gap-2">
         {st.channels.map((c) => <ChannelRow key={c.id} c={c} reload={reload} />)}
       </ul>
       {adding && <ChannelForm onDone={() => { setAdding(false); reload(); }} onCancel={() => setAdding(false)} />}
@@ -113,15 +113,16 @@ function ChannelRow({ c, reload }: { c: AlertChannel; reload: () => void }) {
     setBusy(false);
   };
   return (
-    <li className="py-3">
+    <li className="rounded-xl border border-line bg-bg2/30 px-3 py-2.5">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-bg2 [&>*]:h-5 [&>*]:w-5">{CHANNEL_ICON[c.type]}</span>
         <div className="min-w-[160px] flex-1">
           <b>{c.name}</b>
           <div className="text-xs text-dim">{c.type === "telegram" ? `conversation ${c.config.chat_id}` : c.set.url ? tx("URL renseignée") : tx("URL manquante")}</div>
         </div>
         <Badge tone="info">{TYPES[c.type].label}</Badge>
         <Badge tone={c.enabled ? "ok" : "off"}>{c.enabled ? tx("actif") : tx("coupé")}</Badge>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <button type="button" className={primary} disabled={busy} onClick={() => void run(() => send("POST", `alerts/channels/${c.id}/test`), tx("message d'essai envoyé : vérifier qu'il est arrivé"), false)}>
             <Send size={14} />{tx("Essayer")}
           </button>
@@ -206,7 +207,7 @@ function Rules({ st, reload }: { st: AlertsState; reload: () => void }) {
       </p>
       {presets && <PresetPicker st={st} onDone={() => { setPresets(false); reload(); }} />}
       {st.rules.length === 0 && !adding && <p className="text-sm text-muted">{tx("Aucune règle : partir des préréglages, ou en créer une.")}</p>}
-      <ul className="flex flex-col divide-y divide-line/60">
+      <ul className="flex flex-col gap-2">
         {st.rules.map((r) => <RuleRow key={r.id} r={r} st={st} reload={reload} />)}
       </ul>
       {adding && <RuleForm st={st} onDone={() => { setAdding(false); reload(); }} onCancel={() => setAdding(false)} />}
@@ -221,8 +222,9 @@ function RuleRow({ r, st, reload }: { r: AlertRule; st: AlertsState; reload: () 
   const run = async (fn: () => Promise<unknown>, done: string) => { if (await act(fn, done, setNote)) reload(); };
   const names = r.channels.map((id) => st.channels.find((c) => c.id === id)?.name).filter(Boolean);
   return (
-    <li className="py-3">
-      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+    <li className={`rounded-xl border bg-bg2/30 px-3 py-2.5 ${r.enabled ? "border-line" : "border-line/60 opacity-75"}`}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-bg2"><Bell size={17} className={r.enabled ? "text-link" : "text-dim"} aria-hidden /></span>
         <div className="min-w-[220px] flex-1">
           <b>{r.name}</b>
           <div className="mt-0.5 text-xs text-muted">{r.kinds.map((k) => kindLabel(st, k)).join(" · ")}</div>
@@ -234,7 +236,7 @@ function RuleRow({ r, st, reload }: { r: AlertRule; st: AlertsState; reload: () 
           </div>
         </div>
         <Badge tone={r.enabled ? "ok" : "off"}>{r.enabled ? tx("active") : tx("désactivée")}</Badge>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <button type="button" className={quiet} onClick={() => void run(() => send("PATCH", `alerts/rules/${r.id}`, { enabled: !r.enabled }), r.enabled ? tx("règle désactivée") : tx("règle activée"))}>
             {r.enabled ? tx("Désactiver") : tx("Activer")}
           </button>
