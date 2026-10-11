@@ -1,6 +1,7 @@
 // Accueil : à gauche, ce qui demande l'attention puis un paragraphe par onglet ; à droite, les compteurs (StatsColumn, dessous sur mobile).
 // Les compteurs ne sont qu'à droite. Chaque carte et chaque lien ouvre son onglet.
 import { ArrowRight, ChevronRight } from "lucide-react";
+import { useState } from "react";
 import type { Snapshot } from "../api";
 import { paragraphs, type Attention, type TabId } from "../lib/summary";
 import { FirstSteps } from "./FirstSteps";
@@ -11,7 +12,10 @@ import { TABS } from "../lib/tabs";
 import { tx } from "../lib/i18n";
 import type { Selected } from "../lib/filter";
 
-const MAX = 8;
+/** Lignes affichées dans la carte d'attention : 12 par défaut, au choix 25, 50 ou toutes (0) ; le choix est retenu par le navigateur */
+const SIZES = [12, 25, 50, 0];
+const SIZE_KEY = "ms.home.attention.rows";
+const savedSize = (): number => { try { const v = Number(localStorage.getItem(SIZE_KEY)); return SIZES.includes(v) && localStorage.getItem(SIZE_KEY) !== null ? v : 12; } catch { return 12; } };
 
 /** Même icône que l'onglet (lucide, monochrome) */
 function TabIcon({ tab }: { tab: TabId }) {
@@ -23,6 +27,9 @@ function TabIcon({ tab }: { tab: TabId }) {
 const GO = "group/go inline-flex items-center gap-1 rounded-full border border-line bg-bg2/60 px-2.5 py-1 text-xs font-semibold text-muted transition-colors hover:border-link hover:bg-link/10 hover:text-link";
 
 export function Home({ snap, items, go, goFilter, now }: { snap: Snapshot; items: Attention[]; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void; now: number }) {
+  const [size, setSize] = useState(savedSize);
+  const pickSize = (n: number) => { setSize(n); try { localStorage.setItem(SIZE_KEY, String(n)); } catch { /* stockage refusé : le choix ne dure que cette visite */ } };
+  const shown = size ? items.slice(0, size) : items;
   const crit = items.filter((i) => i.level === "crit").length;
   const tone = items.length ? (crit ? "bad" : "warn") : "ok";
   const frame = { bad: "border-bad/50", warn: "border-warn/50", ok: "border-ok/40" }[tone];
@@ -48,7 +55,7 @@ export function Home({ snap, items, go, goFilter, now }: { snap: Snapshot; items
           {items.length > 0 && (
             <div className="px-3 py-2.5">
               <ol className="flex flex-col gap-0.5">
-                {items.slice(0, MAX).map((it, i) => (
+                {shown.map((it, i) => (
                   <li key={i}>
                     <button type="button" onClick={() => (it.href ? void (location.hash = it.href) : go(it.tab))}
                       className="group flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left text-sm text-muted transition-colors hover:bg-bg2">
@@ -59,7 +66,20 @@ export function Home({ snap, items, go, goFilter, now }: { snap: Snapshot; items
                   </li>
                 ))}
               </ol>
-              {items.length > MAX && <p className="mt-1 px-3 pb-1 text-sm text-dim">{tx("… et")} {items.length - MAX} {tx("autres, dans leurs onglets.")}</p>}
+              {items.length > SIZES[0] && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-line/60 px-3 pt-2.5 pb-1 text-xs text-dim">
+                  <span>{shown.length < items.length ? tx("{0} sur {1} affichés", shown.length, items.length) : tx("Tout est affiché ({0})", items.length)}</span>
+                  <span className="ml-auto inline-flex items-center gap-1.5" role="group" aria-label={tx("Lignes à afficher")}>
+                    {tx("Lignes")}
+                    {SIZES.map((n) => (
+                      <button key={n} type="button" aria-pressed={size === n} onClick={() => pickSize(n)}
+                        className={`rounded-full border px-2.5 py-0.5 font-medium transition-colors ${size === n ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
+                        {n || tx("Toutes")}
+                      </button>
+                    ))}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </section>
