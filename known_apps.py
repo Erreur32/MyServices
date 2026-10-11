@@ -50,14 +50,15 @@ APPS: tuple[App, ...] = (
     # Reconnues pour le nom et la catégorie, sans connecteur
     App("apache", "Apache", "Web / perso", title=r"apache2? .*default page"),  # pas « Index of / » : nginx et Python l'affichent aussi
     App("syncthing", "Syncthing", "Fichiers / sync", ports=(8384,), title=r"syncthing", images=("syncthing/syncthing", "linuxserver/syncthing")),
-    App("netdata", "Netdata", "Monitoring", ports=(19999,), title=r"netdata", images=("netdata/netdata",)),
+    App("netdata", "Netdata", "Monitoring", ports=(19999,), title=r"netdata", images=("netdata/netdata",), connector="netdata"),
     App("portainer", "Portainer", "Infra / virtualisation", ports=(9443,), title=r"portainer", images=("portainer/portainer-ce", "portainer/portainer-ee"), connector="portainer"),
-    App("prometheus", "Prometheus", "Monitoring", title=r"prometheus", images=("prom/prometheus",)),
+    App("healthchecks", "Healthchecks", "Monitoring", ports=(8000,), title=r"^healthchecks", images=("healthchecks/healthchecks", "linuxserver/healthchecks"), connector="healthchecks"),
+    App("prometheus", "Prometheus", "Monitoring", title=r"prometheus", images=("prom/prometheus",), connector="prometheus"),
     App("grafana", "Grafana", "Monitoring", title=r"^grafana", images=("grafana/grafana", "grafana/grafana-oss")),
     App("webmin", "Webmin", "Système", ports=(10000,), title=r"webmin"),
     App("sonarr", "Sonarr", "Médias", ports=(8989,), title=r"^sonarr", images=("linuxserver/sonarr", "hotio/sonarr"), connector="arr"),
     App("radarr", "Radarr", "Médias", ports=(7878,), title=r"^radarr", images=("linuxserver/radarr", "hotio/radarr"), connector="arr"),
-    App("jellyfin", "Jellyfin", "Médias", ports=(8096,), title=r"jellyfin", images=("jellyfin/jellyfin", "linuxserver/jellyfin")),
+    App("jellyfin", "Jellyfin", "Médias", ports=(8096,), title=r"jellyfin", images=("jellyfin/jellyfin", "linuxserver/jellyfin"), connector="jellyfin"),
     App("plex", "Plex", "Médias", ports=(32400,), title=r"^plex", images=("plexinc/pms-docker", "linuxserver/plex")),
     App("homeassistant", "Home Assistant", "Domotique", ports=(8123, 4357), title=r"home assistant", connector="home-assistant"),
     App("proxmox", "Proxmox VE", "Infra / virtualisation", ports=(8006,), title=r"proxmox virtual environment|^proxmox", host=r"^(proxmox|pve)", connector="proxmox"),

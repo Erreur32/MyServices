@@ -9,6 +9,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+### Added
+- **4 more connectors** (kind "status", read-only, written from each service's documentation, **tried against fake servers only**): **Prometheus** (targets down, firing alerts), **Healthchecks** (failed and late jobs, read-only API key), **Netdata** (critical and warning alarms) and **Jellyfin** (playbacks, devices, pending restart or update). Detected containers propose them; logos for Prometheus, Netdata and Jellyfin.
+
 ### Changed
 - **Fewer duplicate calls from the page**: the discoveries list is fetched once and shared by the bell, the home reminder, the Settings menu and the Discovery page (one call every 30 s instead of four); Settings → Discovery and Tasks re-read every 10 s only while a scan or task runs, every 60 s otherwise; Agents every 30 s (5 s while waiting for a first report); nothing is re-read while the browser tab is hidden, and the tab re-reads when you come back.
 - **Responses are gzip-compressed** (above 1 KB): `data.json` is about 200 KB.

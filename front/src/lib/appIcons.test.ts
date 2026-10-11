@@ -15,8 +15,8 @@ it("connaît Docker et Nginx", () => {
     expect(appIcon(["Nginx"])).toMatch(/icons\/nginx\.svg$/);
   });
   it("prend la première appli qui a une icône ; rien sinon", () => {
-    expect(appIcon(["Netdata", "UniFi"])).toMatch(/icons\/unifi\.svg$/);
-    expect(appIcon(["Netdata"])).toBeNull();
+    expect(appIcon(["Healthchecks", "UniFi"])).toMatch(/icons\/unifi\.svg$/);
+    expect(appIcon(["Healthchecks"])).toBeNull();
     expect(appIcon(undefined)).toBeNull();
   });
 });

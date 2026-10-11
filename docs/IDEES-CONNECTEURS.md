@@ -11,6 +11,8 @@ Familles d'apport (`kinds`) déjà là : `inventory`, `services`, `dns`, `health
 `security`, `containers`, `virtualization`. Nouvelles familles à prévoir : **`cameras`**, **`power`** (onduleurs), **`storage`**
 (NAS, pools), **`media`** (médiathèque, téléchargements).
 
+> Écrits depuis (2026-10-11, essai contre de faux serveurs seulement) : Prometheus, Healthchecks, Netdata, Jellyfin, en plus de la liste ci-dessous.
+
 ## Par où commencer (ma proposition, dans cet ordre)
 
 | # | Connecteur | Pourquoi |
