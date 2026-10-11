@@ -107,8 +107,8 @@ export default function App() {
       {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
       {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} />}
       {current === "health" && <Health key={pending.tab === "health" ? pending.n : 0} snap={snap} initial={initialFor("health")} />}
-      {current === "dns" && <Dns snap={snap} />}
-      {current === "backups" && <Backups snap={snap} />}
+      {current === "dns" && <Dns key={pending.tab === "dns" ? pending.n : 0} snap={snap} initial={initialFor("dns")} />}
+      {current === "backups" && <Backups key={pending.tab === "backups" ? pending.n : 0} snap={snap} initial={initialFor("backups")} />}
       {current === "diagrams" && <DiagramsTab admin={snap.me.role === "admin"} />}
       {current === "settings" && <Settings key={hash} snap={snap} look={{ theme, setTheme, width, setWidth }} />}
       {current === "fail2ban" && <Fail2ban snap={snap} />}

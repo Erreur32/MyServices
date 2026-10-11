@@ -2,7 +2,7 @@
 // copies ailleurs, jeux produits) et les dossiers de sauvegarde trouvés sur les disques.
 import { useCallback, useMemo } from "react";
 import { ROOT, type Snapshot } from "../api";
-import { useFilter, type Facet } from "../lib/filter";
+import { useFilter, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime } from "../lib/format";
 import type { BackupHost } from "../types";
 import { Badge, Card, Cards, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
@@ -22,7 +22,7 @@ function Tile({ n, label, tone }: { n: string | number; label: string; tone?: "o
   );
 }
 
-export function Backups({ snap }: { snap: Snapshot }) {
+export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
   const b = snap.backups;
   const sets = useMemo(() => new Map((b?.sets || []).map((s) => [s.id, s])), [b]);
   const facets = useMemo((): Facet<BackupHost>[] => [
@@ -30,7 +30,7 @@ export function Backups({ snap }: { snap: Snapshot }) {
     { key: "kind", label: tx("Type"), get: (h) => h.kind || "" },
   ], []);
   const text = useCallback((h: BackupHost) => [h.label, h.ip, h.kind, ...h.sets.map((id) => sets.get(id)?.label), ...h.copies.map((c) => c.label), ...h.local.map((x) => x.path)].join(" "), [sets]);
-  const f = useFilter(b?.hosts || [], facets, text);
+  const f = useFilter(b?.hosts || [], facets, text, initial);
   if (!b) return <Empty>{tx("Sauvegardes pas encore relevées.")}</Empty>;
   const sm = b.summary;
   const local = f.shown.flatMap((h) => h.local.filter((x) => x.size || x.covered.length).map((x) => ({ h, x })));

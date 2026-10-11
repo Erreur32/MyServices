@@ -72,13 +72,13 @@ export function statGroups(snap: Snapshot, nav: Open): Partial<Record<TabId, Rea
     health && <Group key="hl" mark={<Mark Icon={HeartPulse} tone="text-ok" />} title={tx("🩺 Santé")} sub={tx("{0} machines", health.hosts.length)} accent="border-l-ok" tab="health" nav={nav} cells={[
       ["ok", hl("ok"), tx("OK"), { level: ["ok"] }], ["warn", hl("warn"), tx("à surveiller"), { level: ["warn"] }], ["bad", hl("crit"), tx("critiques"), { level: ["crit"] }], ["bad", hl("down"), tx("injoignables"), { level: ["down"] }]]} />,
     dns && <Group key="dns" mark={<Mark app="AdGuard Home" Icon={Boxes} />} title={tx("🌍 AdGuard")} sub={dnsSync(dns).label} accent="border-l-link" tab="dns" nav={nav} cells={[
-      ["ok", data.hosts.filter((r) => r.dns && r.enabled && !r.dns.issues.length).length, tx("domaines OK")],
-      ["warn", data.hosts.filter((r) => r.dns && r.enabled && r.dns.issues.length).length, tx("à vérifier")],
-      ["warn", dns.orphans.length, tx("orphelines")],
-      ["bad", Object.values(dns.servers).filter((s) => !s.readable || s.silent).length, tx("injoignables")]]} />,
+      ["ok", data.hosts.filter((r) => r.dns && r.enabled && !r.dns.issues.length).length, tx("domaines OK"), { anchor: ["domains"] }],
+      ["warn", data.hosts.filter((r) => r.dns && r.enabled && r.dns.issues.length).length, tx("à vérifier"), { anchor: ["domains"] }],
+      ["warn", dns.orphans.length, tx("orphelines"), { anchor: ["orphans"] }],
+      ["bad", Object.values(dns.servers).filter((s) => !s.readable || s.silent).length, tx("injoignables"), { anchor: ["servers"] }]]} />,
     backups && <Group key="bk" mark={<Mark Icon={HardDrive} />} title={tx("💾 Sauvegardes")} sub={tx("{0} jeux", backups.summary.sets)} accent="border-l-apache" tab="backups" nav={nav} cells={[
-      ["ok", backups.summary.ok, tx("à jour")], ["warn", backups.summary.warn, tx("en retard")],
-      ["bad", backups.summary.crit, tx("critiques")], ["bad", backups.summary.no_offsite, tx("sans copie")]]} />,
+      ["ok", backups.summary.ok, tx("à jour"), { state: ["ok"] }], ["warn", backups.summary.warn, tx("en retard"), { state: ["warn"] }],
+      ["bad", backups.summary.crit, tx("critiques"), { state: ["crit", "down"] }], ["bad", backups.summary.no_offsite, tx("sans copie")]]} />,
   ];
   const byTab: Partial<Record<TabId, ReactNode[]>> = {};
   for (const g of groups) if (g && typeof g === "object" && "props" in g) (byTab[g.props.tab as TabId] ??= []).push(g);
