@@ -13,10 +13,13 @@ import { appIcon } from "../lib/appIcons";
 import { BackupsHa, type HaState } from "./BackupsHa";
 import { BackupsVeeam, type VeeamState } from "./BackupsVeeam";
 import { BackupsPbs, type PbsState } from "./BackupsPbs";
+import { MachineIcon } from "../components/MachineIcon";
+import type { Machine } from "../types";
+import { CopyGuesses, SetCopies, type CopyRow, type SshMachine } from "./BackupsCopies";
 
-interface SetRow { id: string; label: string; origin: string; path: string | null; veeam_job: string | null; pbs_group: string | null; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean }
+interface SetRow { id: string; label: string; origin: string; origin_ip?: string | null; path: string | null; veeam_job: string | null; pbs_group: string | null; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean; copies?: CopyRow[]; cadence_days?: number | null }
 const AGES = [2, 8, 15, 31];   // paliers proposés : quotidienne, hebdomadaire, tous les 15 jours, mensuelle
-interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; default_path: string; machines: number; veeam: VeeamState; ha: HaState; pbs: PbsState }
+interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; default_path: string; machines: number; ssh_machines?: SshMachine[]; veeam: VeeamState; ha: HaState; pbs: PbsState }
 interface Folder { path: string; size: number | null; newest: number | null; newest_name: string; readable: boolean; followed: boolean; default?: boolean }
 interface Found { ip: string; name: string; ssh: string; ok: boolean; error: string; folders: Folder[] }
 interface Choice { on: boolean; label: string; age: string }
@@ -29,7 +32,30 @@ const SRC: Record<"folder" | "veeam" | "pbs" | "ha", { icon: string; Icon: Lucid
 
 const keyOf = (ip: string, path: string) => `${ip}${path}`;
 
-export function BackupsSettings() {
+/** Custom threshold: a « … j » pill that opens a number field (0.1 to 365 days), saved on Enter or when leaving the field */
+function CustomAge({ value, disabled, onSave }: { value: number; disabled: boolean; onSave: (d: number) => void }) {
+  const custom = !AGES.includes(value);
+  const [edit, setEdit] = useState(false), [v, setV] = useState(String(value));
+  const ok = Number(v) >= 0.1 && Number(v) <= 365;
+  const save = () => { setEdit(false); if (ok && Number(v) !== value) onSave(Number(v)); };
+  if (edit)
+    return (
+      <span className="inline-flex items-center gap-1">
+        <input autoFocus type="number" min={0.1} max={365} step="any" value={v} aria-label={tx("Seuil d'alerte en jours")}
+          className={`${input.replace("w-full", "w-20")} py-0.5 text-xs ${ok ? "" : "border-bad"}`} onChange={(e) => setV(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { setEdit(false); setV(String(value)); } }} onBlur={save} />{tx("j")}
+      </span>
+    );
+  return (
+    <button type="button" disabled={disabled} aria-pressed={custom} onClick={() => { setV(String(value)); setEdit(true); }} title={tx("Seuil personnalisé, en jours")}
+      className={`rounded-full border px-2 py-0.5 text-xs font-medium ${custom ? "border-link bg-link/15 text-txt" : "border-dashed border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
+      {custom ? `${value} ${tx("j")}` : tx("autre…")}
+    </button>
+  );
+}
+
+export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
+  const machineOf = (ip?: string | null) => machines.find((m) => m.ip === ip);
   const [cur, setCur] = useState<Current | null>(null), [error, setError] = useState("");
   const [found, setFound] = useState<Found[] | null>(null), [searching, setSearching] = useState(false);
   const [pick, setPick] = useState<Record<string, Choice>>({});
@@ -110,9 +136,11 @@ export function BackupsSettings() {
             <p className="rounded-lg bg-bg2/60 px-3 py-2 text-sm text-muted">{tx("Aucun dossier de sauvegarde trouvé dans ces emplacements. Si vos sauvegardes sont ailleurs, ajoutez leur dossier dans « Autres emplacements » puis relancez la recherche.")}</p>
           )}
           {found.map((m) => (
-            <section key={m.ip} className="rounded-xl border border-line/60 p-3">
-              <h3 className="mb-1.5 flex items-center gap-2 text-sm font-semibold">{m.name} <Dim>{m.ip}</Dim>
+            <section key={m.ip} className="overflow-hidden rounded-xl border border-line">
+              <h3 className="flex items-center gap-2 border-b border-line bg-bg px-3 py-2 text-sm font-semibold">
+                {machineOf(m.ip) && <MachineIcon m={machineOf(m.ip)!} reserve />}{m.name} <Dim>{m.ip}</Dim>
                 {!m.ok && <Badge tone="bad">{tx("illisible")}</Badge>}</h3>
+              <div className="p-3">
               {!m.ok && <p className="text-xs text-bad">{m.error}</p>}
               {m.ok && m.folders.length === 0 && <Dim>{tx("aucun dossier trouvé")}</Dim>}
               <ul className="flex flex-col gap-2">
@@ -146,6 +174,7 @@ export function BackupsSettings() {
                   );
                 })}
               </ul>
+              </div>
             </section>
           ))}
           {Object.keys(pick).length > 0 && (
@@ -175,19 +204,25 @@ export function BackupsSettings() {
         <p className="mb-3 text-sm text-muted">
           {tx("MyServices regarde l'âge du fichier le plus récent de chaque dossier et vous prévient s'il est trop vieux. Lecture seule : rien n'est modifié sur les machines.")}
         </p>
+        {folderSets > 0 && cur.machines > 0 && <CopyGuesses onDone={load} setNote={setNote} />}
         {cur.sets.length === 0 ? <Dim>{tx("Aucune sauvegarde suivie pour l'instant.")}</Dim> : (
           <ul className="flex flex-col gap-2">
             {cur.sets.map((s) => {
               const kind = s.veeam_job ? SRC.veeam : s.pbs_group ? SRC.pbs : s.ha ? SRC.ha : SRC.folder;
               return (
-                <li key={s.id} className="rounded-xl border border-line bg-bg2/30 px-3 py-2.5 text-sm">
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">
-                      {appIcon([kind.icon]) ? <img src={appIcon([kind.icon])!} alt="" className="h-5 w-5" /> : <kind.Icon size={16} className="text-muted" aria-hidden />}
-                    </span>
+                <li key={s.id} className="overflow-hidden rounded-xl border border-line bg-bg2/30 text-sm">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line bg-bg px-3 py-2">
+                    {machineOf(s.origin_ip)
+                      ? <MachineIcon m={machineOf(s.origin_ip)!} reserve empty={<span className="grid h-6 w-6 place-items-center rounded-md bg-bg2"><kind.Icon size={14} className="text-muted" aria-hidden /></span>} />
+                      : <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-bg2">
+                          {appIcon([kind.icon]) ? <img src={appIcon([kind.icon])!} alt="" className="h-4 w-4" /> : <kind.Icon size={14} className="text-muted" aria-hidden />}
+                        </span>}
                     <div className="min-w-[200px] flex-1">
-                      <b className="block truncate">{s.label}</b>
-                      <span className="block truncate font-mono text-xs text-dim">{s.path ?? s.veeam_job ?? s.pbs_group ?? (s.ha ? tx("sauvegarde automatique") : "—")}</span>
+                      <span className="flex min-w-0 items-baseline gap-2"><b className="truncate">{s.label}</b>{s.origin_ip && <span className="shrink-0 font-mono text-xs text-dim">{s.origin_ip}</span>}</span>
+                      {(() => {   // what is followed, unless the name already says it (« Dev : /home/backup »)
+                        const what = s.path ?? s.veeam_job ?? s.pbs_group ?? (s.ha ? tx("sauvegarde automatique") : "—");
+                        return s.label.includes(what) ? null : <span className="block truncate font-mono text-xs text-dim">{what}</span>;
+                      })()}
                     </div>
                     <Badge tone="info">{kind.label}</Badge>
                     {confirm === s.id ? <>
@@ -195,13 +230,23 @@ export function BackupsSettings() {
                       <button type="button" className={quiet} onClick={() => setConfirm("")}>{tx("Annuler")}</button>
                     </> : <button type="button" className={quiet} onClick={() => setConfirm(s.id)} aria-label={tx("Ne plus suivre {0}", s.label)}><Trash2 size={14} />{tx("Retirer")}</button>}
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-line/60 pt-2">
+                  <div className="px-3 pb-2.5">
+                  <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5">
                     <span className="inline-flex flex-wrap items-center gap-1.5 text-xs text-dim" title={tx("Sauvegarde quotidienne : 2 j ; hebdomadaire : 8 j. Au-delà du double, le jeu devient critique.")}>{tx("alerte après")}
                       {AGES.map((d) => (
                         <button key={d} type="button" aria-pressed={s.max_age_days === d} disabled={s.id === busyId} onClick={() => void change(s.id, { max_age_days: d })}
                           className={`rounded-full border px-2 py-0.5 text-xs font-medium ${s.max_age_days === d ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>{d} {tx("j")}</button>
                       ))}
-                      {!AGES.includes(s.max_age_days) && <Badge tone="info">{s.max_age_days} {tx("j")}</Badge>}
+                      <CustomAge value={s.max_age_days} disabled={s.id === busyId} onSave={(d) => void change(s.id, { max_age_days: d })} />
+                      {(() => {   // observed rhythm slower than the threshold: one click sets the advised one
+                        const advised = s.cadence_days ? AGES.find((d) => d >= s.cadence_days! * 1.25) ?? AGES[AGES.length - 1] : null;
+                        return advised && advised > s.max_age_days ? (
+                          <button type="button" disabled={s.id === busyId} onClick={() => void change(s.id, { max_age_days: advised })}
+                            className="rounded-full border border-warn/60 bg-warn/10 px-2 py-0.5 text-xs font-medium text-warn hover:bg-warn/20"
+                            title={tx("Les archives arrivent environ tous les {0} j : avec un seuil de {1} j, le jeu est en alerte entre deux passages.", s.cadence_days, s.max_age_days)}>
+                            {tx("rythme observé ~{0} j : passer à {1} j", s.cadence_days, advised)}</button>
+                        ) : null;
+                      })()}
                     </span>
                     {!s.ha && !s.veeam_job && !s.pbs_group && (
                       <span className="inline-flex items-center gap-1.5 text-xs text-dim" title={tx("Activé : une copie à jour sur une autre machine est exigée (sinon le jeu est critique). Désactivé : seule la source est surveillée.")}>
@@ -209,11 +254,14 @@ export function BackupsSettings() {
                       </span>
                     )}
                   </div>
+                  </div>
+                  {s.path && <div className="px-3 pb-2.5"><SetCopies setId={s.id} origin={s.origin} copies={s.copies ?? []} machines={cur.ssh_machines ?? []} found={found} busy={s.id === busyId} onDone={load} setNote={setNote} /></div>}
                 </li>
               );
             })}
           </ul>
         )}
+        <NoteLine note={note} />
       </Card>
 
       <Card>

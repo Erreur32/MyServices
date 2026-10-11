@@ -12,6 +12,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Added
+- **Backups, "copied elsewhere"**: a followed folder can now be given its copies from the page (Settings → Backups → each set → "Add a copy": machine, then folder typed or picked from the search). MyServices compares each copy with the source at every run, as it already did for hand-written sets. "Find the copies" looks on every machine read by SSH, **network shares (NAS in CIFS / NFS) included**, for the last five archives of each followed folder and proposes where they are copied, in one click ("Link"); nothing is linked on its own. A copy on a network share counts as off-machine even when it is seen from the machine that makes the backup. A copy on another machine turns "off-machine copy required" on; removing the last one turns it off.
+- **Backups, custom alert threshold**: besides 2 / 8 / 15 / 31 days, an "other…" pill takes any value from 0.1 to 365 days (Enter or leaving the field saves it).
+- **Settings → Backups**: each followed set and each machine of the folder search has a darker title strip with the machine's system or app icon; the folder is no longer repeated under a name that already says it.
+- **Backups, observed rhythm**: when archives arrive about every N days and the alert threshold is shorter, the set shows "observed rhythm ~N d: switch to X d" (one click).
+- **One dev launcher (`scripts/dev.sh`, or `npm run dev:all`)**: starts the backend container if needed, waits for it, then the front with hot reload; Ctrl+C stops both (`--keep` leaves the backend, `--build` rebuilds the image first, `--stop` stops it). Local settings in `.dev.env` (ignored by git).
+
+### Added
 - **Matching layer (`matching.py`)**: each collection ties a machine to what the other tools say about it: MynetworK and UniFi (by IP, then MAC when the IP changed), Beszel, Proxmox VE nodes and guests, Proxmox Backup and Dockhand environments (by address, or by short name when exactly one machine has it, flagged as weaker). Each machine of `data.json` gets `links` (MAC, vendor, other names, one entry per tool with how it was matched, the Proxmox guest or node); `unlinked` lists what the tools see but MyServices does not follow. Beszel is read from the connectors' last result: no extra call. 12 tests.
 - **Machines tab**: one badge per tool that sees the machine, under its name and in its detail ("Seen by", dashed when matched by name only), its other names and its Proxmox VM / node. The "Seen by MynetworK, not followed here" box becomes "Seen by your tools, not followed here", grouped by tool (MynetworK, Proxmox, Dockhand, Beszel).
 
