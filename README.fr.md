@@ -53,7 +53,7 @@ docker compose logs myservices        # clé publique de l'app et commande pour 
 
 Puis ouvrez `http://<IP>:8090/myservices/v2/` **dans les 30 minutes** pour créer le compte admin (passé ce délai :
 `docker compose restart myservices`), et suivez la carte « Premiers pas ». Image : `ghcr.io/erreur32/myservices` (amd64 et arm64) ;
-`:latest` suit le dernier tag, `:0.9.0` une version précise, `:docker` le dernier état de la branche.
+`:latest` suit le dernier tag, `:0.9.1` une version précise, `:docker` le dernier état de la branche.
 
 Mise à jour : `docker compose pull && docker compose up -d` (réglages et données sont dans les volumes `./config` et `./data`).
 

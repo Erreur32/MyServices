@@ -52,7 +52,7 @@ docker compose logs myservices        # the app's public key and the command to 
 
 Then open `http://<IP>:8090/myservices/v2/` **within 30 minutes** to create the admin account (after that delay:
 `docker compose restart myservices`) and follow the "Premiers pas" (getting started) card. Image: `ghcr.io/erreur32/myservices`
-(amd64 and arm64); `:latest` follows the latest tag, `:0.9.0` pins a version, `:docker` tracks the branch head.
+(amd64 and arm64); `:latest` follows the latest tag, `:0.9.1` pins a version, `:docker` tracks the branch head.
 
 Update: `docker compose pull && docker compose up -d` (settings and data live in the `./config` and `./data` volumes).
 

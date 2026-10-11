@@ -7,6 +7,15 @@ Versioning: the first pre-releases were called `2.0.0-alpha.N`, `-beta.N` and `-
 numbering restarts **below 2.0.0** with **0.9.0** (2.0.0 is reserved for a version judged stable). The `:latest` image tag follows the
 latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
+## v0.9.1 (2026-10-11)
+
+> **Testing phase: do not use in production.**
+
+### Changed
+- README rewritten short and in English (French version in `README.fr.md`), with badges and a prominent "do not use in production" notice.
+- New logo and icon (`docs/logo.svg`, `docs/icon.svg`, favicon). The outdated classic-install documentation was removed.
+- `.claude/` is no longer tracked by git.
+
 ## v0.9.0 (2026-10-11): first numbered version (BETA)
 
 > **Testing phase: do not use in production.**
@@ -18,8 +27,6 @@ Includes everything from the pre-releases below (alpha, beta, rc.1 to rc.3) and 
 - Agents: the "MyServices address, as seen from the PC" field is no longer shown at the top of the page. It only appears when
   requesting a new agent ("Install the agent on…" card), prefilled with the address of the page; the browser no longer remembers it. It
   shows again in the "Agent created" card only if the typed address is invalid.
-- README rewritten short and in English (French version in `README.fr.md`), with badges and a prominent "do not use in production" notice.
-- New logo and icon (`docs/logo.svg`, `docs/icon.svg`, favicon). `.claude/` is no longer tracked.
 
 ## v2.0.0-rc.3 (2026-10-11)
 
