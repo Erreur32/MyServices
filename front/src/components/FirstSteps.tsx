@@ -215,7 +215,7 @@ export function FirstSteps({ snap, page = false }: { snap: Snapshot; page?: bool
           <h2 className="text-lg font-bold leading-tight">{tx("Premiers pas")}</h2>
           <p className="text-sm text-muted">
             {finished
-              ? tx("C'est bon : MyServices lit vos conteneurs et vos machines. Il reste à relier vos outils, puis à régler alertes et sauvegardes.")
+              ? tx("Vos machines et vos conteneurs sont lus. Reste à relier vos outils.")
               : tx("MyServices a déjà trouvé des services. Pour être complet, il faudrait une clé SSH. Pas de panique, c'est simple !")}
           </p>
         </div>
