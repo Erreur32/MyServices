@@ -926,6 +926,7 @@ export const EN: Record<string, string> = {
   "sans SSH": "no SSH",
   "sans SSL": "no SSL",
   "santé": "health",
+  "sécurité": "security",
   "Santé": "Health",
   "Santé : **{0}** est à surveiller{1}": "Health: **{0}** needs watching{1}",
   "Santé : **{0}** est en état critique{1}": "Health: **{0}** is critical{1}",

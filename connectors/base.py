@@ -4,7 +4,7 @@ son API ou par SSH, en lecture seule.
 Un connecteur déclare :
   type      identifiant stable ("npm") ; une instance = ce type + un nom unique ("lan", "vps")
   label     nom affiché ("Nginx Proxy Manager")
-  kinds     ce qu'il apporte : inventory, services, dns, health, backups, logs, alerts, status (état d'un service : version, mises à jour)
+  kinds     ce qu'il apporte : inventory, services, dns, health, backups, logs, alerts, status (état d'un service : version, mises à jour), network (inventaire du réseau), security (fail2ban, menaces), containers (gestionnaire Docker : environnements, mises à jour d'images)
   images    images Docker qui le révèlent sur une machine (détection : « activer le connecteur ? »)
   tested    versions du service vérifiées (préfixes « 2.16 », « 2 ») : une autre version marche, mais
             est signalée « version non testée » par --check et la page
@@ -37,7 +37,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
-KINDS = ("inventory", "services", "dns", "health", "backups", "logs", "alerts", "status")
+KINDS = ("inventory", "services", "dns", "health", "backups", "logs", "alerts", "status", "network", "security", "containers")
 
 
 class ConnectorError(Exception):

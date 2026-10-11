@@ -39,6 +39,9 @@ APPS: tuple[App, ...] = (
     App("beszel", "Beszel", "Monitoring", title=r"^beszel\b", connector="beszel"),
     App("uptime-kuma", "Uptime Kuma", "Monitoring", ports=(3001,), title=r"uptime kuma", connector="uptime-kuma"),
     App("dozzle", "Dozzle", "Monitoring", title=r"^dozzle\b", connector="dozzle"),
+    App("mynetwork", "MynetworK", "Réseau / DNS", title=r"mynetwork", connector="mynetwork"),
+    App("logviewr", "LogviewR", "Monitoring", title=r"logviewr", connector="logviewr"),
+    App("dockhand", "Dockhand", "Infra / virtualisation", title=r"dockhand", connector="dockhand"),
     App("web-check", "Web-Check", "Outils", title=r"web[ -]check", connector="web-check"),
     # Reconnues pour le nom et la catégorie, sans connecteur
     App("apache", "Apache", "Web / perso", title=r"apache2? .*default page"),  # pas « Index of / » : nginx et Python l'affichent aussi

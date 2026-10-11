@@ -7,6 +7,19 @@ Versioning: the first pre-releases were called `2.0.0-alpha.N`, `-beta.N` and `-
 numbering restarts **below 2.0.0** with **0.9.0** (2.0.0 is reserved for a version judged stable). The `:latest` image tag follows the
 latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
+## Unreleased
+
+### Added
+- **MynetworK connector** (`mynetwork`, kind `network`): reads the LAN inventory (IP, MAC, hostname, vendor, online/offline, ping, open
+  ports) and optional UniFi clients and devices through MynetworK's read-only REST API token (`mwk_api_…`, GET only). Routes that MynetworK
+  does not expose (UniFi not linked) are skipped, not errors.
+- **LogviewR connector** (`logviewr`, kind `security`): fail2ban jails, bans over 24 h, active threats, metrics and log sources through
+  LogviewR's MCP endpoint (`POST /mcp`) with a read-only token. Only read tools are ever called; no free text from logs is kept.
+- **Dockhand connector** (`dockhand`, kind `containers`): environments, container counters and pending image updates through Dockhand's
+  REST API (`dh_…` token, or none when authentication is off).
+- The three are proposed when their Docker image or page is recognised, and tested against fake servers (`tests/test_connectors_reseau.py`).
+  Showing their data on the pages (machines, Fail2ban tab) comes next.
+
 ## v0.9.1 (2026-10-11)
 
 > **Testing phase: do not use in production.**

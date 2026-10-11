@@ -16,7 +16,7 @@ import { appIcon } from "../lib/appIcons";
 import { Agents } from "./Agents";
 
 const KIND: Record<string, string> = {
-  services: "services", health: tx("santé"), logs: "journaux", dns: "DNS", inventory: "inventaire", backups: "sauvegardes",
+  services: "services", health: tx("santé"), logs: "journaux", dns: "DNS", inventory: "inventaire", backups: "sauvegardes", network: tx("réseau"), security: tx("sécurité"), containers: "Docker",
 };
 
 // Proposé depuis « Premiers pas » : lu une seule fois, à l'ouverture de l'onglet
