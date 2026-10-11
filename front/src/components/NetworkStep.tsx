@@ -23,9 +23,8 @@ function AppIcon({ apps }: { apps?: readonly string[] }) {
   return src ? <img src={src} alt="" aria-hidden className="h-5 w-5 shrink-0 object-contain" /> : null;
 }
 
-/** Une machine trouvée : nom (ou « sans nom »), adresse une seule fois, une étiquette par information ;
- *  hint : explication de l'étape qui suivra l'ajout (jeton Home Assistant, clé SSH), seulement si la machine est cochée */
-function HostInfo({ h, fresh = false, hint = false }: { h: NetHost; fresh?: boolean; hint?: boolean }) {
+/** Une machine trouvée : nom (ou « sans nom »), adresse une seule fois, une étiquette par information */
+function HostInfo({ h, fresh = false }: { h: NetHost; fresh?: boolean }) {
   const tags = tagsOf(h), os = osOf(h);
   return (
     <>
@@ -35,18 +34,26 @@ function HostInfo({ h, fresh = false, hint = false }: { h: NetHost; fresh?: bool
       {tags.map((t) => <Badge key={t.label} tone={t.kind === "ssh" ? "ok" : t.kind === "app" ? "info" : "off"}>{t.label}</Badge>)}
       {os && <Badge tone="off" title={tx("Système probable, d'après : {0}", os.how)}>{os.label}</Badge>}
       {fresh && <Badge tone="warn">{tx("nouvelle")}</Badge>}
-      {hint && h.apps.includes("Home Assistant") && (
-        <span className="row-in basis-full pl-6 text-xs text-warn">
+    </>
+  );
+}
+
+/** Ce qui suivra l'ajout d'une machine cochée (jeton Home Assistant, API MynetworK, clé SSH) : sous sa ligne, pas dedans */
+function HostHint({ h }: { h: NetHost }) {
+  return (
+    <>
+      {h.apps.includes("Home Assistant") && (
+        <span className="text-xs text-warn">
           <KeyRound size={12} className="mr-1 inline" aria-hidden />{tx("Après l'ajout, un jeton d'accès vous sera demandé (par son API, pas par SSH) : l'aide vous guide pas à pas.")}
         </span>
       )}
-      {hint && viaMynetwork(h) && (
-        <span className="row-in basis-full pl-6 text-xs text-info">
+      {viaMynetwork(h) && (
+        <span className="text-xs text-info">
           <KeyRound size={12} className="mr-1 inline" aria-hidden />{tx("UniFi sera lu par l'API de MynetworK (à venir) : SSH n'est pas nécessaire pour la surveillance, il reste possible si vous voulez l'état système.")}
         </span>
       )}
-      {hint && !!h.ssh_port && !viaMynetwork(h) && !h.apps.includes("Home Assistant") && (
-        <span className="row-in basis-full pl-6 text-xs text-link">
+      {!!h.ssh_port && !viaMynetwork(h) && !h.apps.includes("Home Assistant") && (
+        <span className="text-xs text-link">
           <KeyRound size={12} className="mr-1 inline" aria-hidden />{tx("Après l'ajout, une étape guidée prépare l'accès SSH : une commande à lancer sur la machine avec la clé de MyServices, puis un test.")}
         </span>
       )}
@@ -128,18 +135,21 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
   );
 
   const renderRows = (list: NetHost[]) => list.map((h) => (
-    <li key={h.ip} className="flex items-center gap-1 rounded-lg bg-bg2/60 hover:bg-bg2">
-      <label className="flex min-w-0 flex-1 cursor-pointer flex-wrap items-center gap-2 px-3 py-2">
-        <input type="checkbox" className="h-4 w-4 accent-[rgb(var(--link))]" checked={picked.has(h.ip)} onChange={() => toggle(h.ip)} />
-        <HostInfo h={h} fresh={!!diff?.fresh.has(h.ip)} hint={picked.has(h.ip)} />
+    <li key={h.ip} className={`flex flex-wrap items-start rounded-lg border ${picked.has(h.ip) ? "border-link/50 bg-link/5" : "border-transparent bg-bg2/60 hover:bg-bg2"}`}>
+      <label className="flex min-w-0 flex-1 basis-64 cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2">
+        <input type="checkbox" className="h-4 w-4 shrink-0 accent-[rgb(var(--link))]" checked={picked.has(h.ip)} onChange={() => toggle(h.ip)} />
+        <HostInfo h={h} fresh={!!diff?.fresh.has(h.ip)} />
       </label>
-      {picked.has(h.ip) && (
-        <input className={`${input} w-40 shrink-0 py-1 text-xs`} value={names[h.ip] ?? h.name ?? ""} maxLength={60} placeholder={h.ip}
-          aria-label={tx("Nom de {0}", h.ip)} title={tx("Nom donné à la machine une fois ajoutée (modifiable ici avant l'ajout)")}
-          onChange={(e) => setNames((n) => ({ ...n, [h.ip]: e.target.value }))} />
-      )}
-      <button type="button" className="mr-2 shrink-0 rounded-md p-1.5 text-muted hover:bg-line/40 hover:text-txt" aria-label={tx("Ignorer {0}", h.name || h.ip)}
+      <button type="button" className="m-1.5 shrink-0 rounded-md p-1.5 text-muted hover:bg-line/40 hover:text-txt" aria-label={tx("Ignorer {0}", h.name || h.ip)}
         title={tx("Ignorer : ne plus le proposer (à reprendre dans Réglages → Découverte)")} onClick={() => void ignore(h)}><EyeOff size={15} aria-hidden /></button>
+      {picked.has(h.ip) && (
+        <div className="row-in flex basis-full flex-col gap-1.5 px-3 pb-2.5 pl-9">
+          <input className={`${input} max-w-xs py-1 text-xs`} value={names[h.ip] ?? h.name ?? ""} maxLength={60} placeholder={h.ip}
+            aria-label={tx("Nom de {0}", h.ip)} title={tx("Nom donné à la machine une fois ajoutée (modifiable ici avant l'ajout)")}
+            onChange={(e) => setNames((n) => ({ ...n, [h.ip]: e.target.value }))} />
+          <HostHint h={h} />
+        </div>
+      )}
     </li>
   ));
 

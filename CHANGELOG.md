@@ -9,6 +9,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+### Fixed
+- **Found machines list no longer jumps when a box is ticked**: the name field and the "what happens after adding" hint now sit on their own line under the row (ticked rows get a light frame) instead of squeezing the row.
+
 ### Changed
 - **Active secondary buttons are readable everywhere** (dark and light themes): text in the main colour, a visible border and a light background instead of faint grey; disabled ones stay faded. One shared style (`quiet`) covers all pages, plus the first-steps and network buttons and the connector test report's close button.
 
