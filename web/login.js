@@ -27,11 +27,32 @@
     var set = function (id, ok) { $(id).className = ($(id).className.replace(/\bok\b/, "").trim() + (ok ? " ok" : "")).trim(); };
     set("r-long", long); set("r-same", same); set("r-words", words);
     $("r-count").textContent = "(" + pw.length + "/" + MIN + ")";
+    // Second field typed but different from the first: red frame, message and red rule (nothing red while it is still empty)
+    var mismatch = again.length > 0 && !same;
     $("p").classList.toggle("ok", long);
     $("p2").classList.toggle("ok", same);
-    if (setup) $("go").disabled = !(long && same);
+    $("p2").classList.toggle("bad", mismatch);
+    $("p2-err").hidden = !mismatch;
+    $("r-same").classList.toggle("bad", mismatch);
+    if (setup) {
+      $("go").disabled = !(long && same);
+      $("why-off").hidden = long && same;
+    }
     return long && same;
   }
+
+  // Eye buttons: show or hide the password typed in the field next to them
+  document.querySelectorAll(".pw .eye").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var input = btn.parentNode.querySelector("input"), show = input.type === "password";
+      input.type = show ? "text" : "password";
+      btn.setAttribute("aria-pressed", show ? "true" : "false");
+      var label = show ? "Masquer le mot de passe" : "Afficher le mot de passe";
+      btn.setAttribute("aria-label", label);
+      btn.title = label;
+      input.focus();
+    });
+  });
 
   // Première installation : passe le formulaire en « création du compte admin »
   fetch("api/v1/setup", { cache: "no-store" })
