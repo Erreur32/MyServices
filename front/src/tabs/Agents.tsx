@@ -255,7 +255,11 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
   a: AgentInfo; conf?: MachineConf; ip: string; focus: boolean; busy: boolean; onRenew?: () => void; reload: () => void;  // onRenew : seulement pour un PC Windows (la commande est PowerShell)
 }) {
   const [confirm, setConfirm] = useState<"" | "renew" | "revoke">(""), [note, setNote] = useState<Note>(null);
-  const [folded, setFolded] = useState(false);  // carte repliable : l'en-tête reste, le détail et les boutons se replient
+  // Carte repliable : l'en-tête reste, le détail et les boutons se replient. Repliée d'office quand l'agent va bien (actif) ;
+  // dépliée s'il y a quelque chose à voir (silencieux, en attente du premier relevé). Un clic de l'utilisateur l'emporte ensuite.
+  const [choice, setChoice] = useState<boolean | null>(null);
+  const folded = choice ?? a.state === "actif";
+  const setFolded = (v: boolean) => setChoice(v);
   const [tone, label] = STATE[a.state];
   return (
     <li className={`flex flex-col gap-2 rounded-xl border bg-card p-3 text-sm ${focus ? "border-link" : "border-line"}`}>
