@@ -56,10 +56,10 @@ docker compose up -d
 docker compose logs myservices        # clé publique de l'app et commande pour l'autoriser sur l'hôte
 ```
 
-Puis ouvrez `http://<IP>:8090/` **dans les 30 minutes** pour créer le compte admin (passé ce délai :
+Puis ouvrez **`http://<IP>:8090/`** **dans les 30 minutes** pour créer le compte admin (passé ce délai :
 `docker compose restart myservices`), et suivez la carte **« Premiers pas »**, puis la page **Aide** des Réglages.
 
-Port 8090 déjà pris ? Mettez `MYSERVICES_PORT=8095` dans un fichier `.env` à côté de `compose.yaml` (le conteneur utilise le réseau de l'hôte : modifier un `ports:` ne servirait à rien), puis `docker compose up -d`.
+> **L'application écoute sur le port `8090`.** C'est un réglage, pas une valeur figée : si le 8090 est déjà pris sur votre machine, mettez **`MYSERVICES_PORT=8095`** (ou un autre port libre) dans un fichier `.env` à côté de `compose.yaml` (un exemple est dans [`deploy/env.example`](deploy/env.example)), puis lancez `docker compose up -d` et ouvrez `http://<IP>:8095/`. Le conteneur utilise le réseau de l'hôte : modifier un `ports:` ne servirait à rien.
 
 Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.10.1` une version précise, `:docker` le dernier état de la branche.
 Mise à jour : `docker compose pull && docker compose up -d` (réglages et données restent dans les volumes `./config` et `./data`).
