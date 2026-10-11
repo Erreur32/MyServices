@@ -7,8 +7,11 @@ export const LOGIN = `${ROOT}login.html?next=${encodeURIComponent(`${ROOT}v2/`)}
 
 export class LoginRequired extends Error {}
 
+/** Fichiers produits : revalidés (ETag, 304 sans corps si rien n'a changé) ; API : jamais en cache. */
 async function get<T>(path: string, optional = false): Promise<T | null> {
-  const r = await fetch(ROOT + path + (path.includes("?") ? "&" : "?") + `t=${Date.now()}`, { cache: "no-store" });
+  const live = path.startsWith("api/");
+  const url = ROOT + path + (live ? (path.includes("?") ? "&" : "?") + `t=${Date.now()}` : "");
+  const r = await fetch(url, { cache: live ? "no-store" : "no-cache" });
   if (r.status === 401) throw new LoginRequired();
   if (!r.ok) {
     if (optional) return null;

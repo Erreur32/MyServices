@@ -77,6 +77,13 @@ class Http(unittest.TestCase):
         self.assertNotIn("server", {k.lower() for k in r.headers})
         self.assertEqual(self.c.get("/", follow_redirects=False).headers["location"], "/myservices/v2/")
 
+    def test_etag_304_si_inchange(self):
+        r = self.c.get("/myservices/data.json")
+        tag = r.headers["etag"]
+        r2 = self.c.get("/myservices/data.json", headers={"If-None-Match": tag})
+        self.assertEqual((r2.status_code, r2.content, r2.headers["etag"]), (304, b"", tag))
+        self.assertEqual(self.c.get("/myservices/data.json", headers={"If-None-Match": '"autre"'}).status_code, 200)
+
     def test_csp(self):
         page = self.c.get("/myservices/index.html").headers["content-security-policy"]
         self.assertIn("default-src 'self'", page)

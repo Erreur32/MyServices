@@ -1709,7 +1709,7 @@ def find(rel: str) -> Path | None:
 
 
 @app.get(PREFIX + "/{rel:path}", include_in_schema=False)
-def files(rel: str):
+def files(rel: str, request: Request):
     if rel == "":  # /myservices/ : le front
         return RedirectResponse(PREFIX + "/v2/", status_code=302)
     if rel.endswith("/"):
@@ -1724,4 +1724,9 @@ def files(rel: str):
     ctype = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
     if ctype.startswith("text/") or ctype in ("application/json", "application/javascript", "image/svg+xml"):
         ctype += "; charset=utf-8"
-    return FileResponse(f, media_type=ctype, headers={"Cache-Control": "no-cache, must-revalidate"})
+    resp = FileResponse(f, media_type=ctype, headers={"Cache-Control": "no-cache, must-revalidate"})
+    resp.set_stat_headers(f.stat())  # l'ETag n'est posé qu'à l'envoi : on le veut avant, pour comparer
+    tags = {t.strip().removeprefix("W/") for t in request.headers.get("if-none-match", "").split(",")}
+    if resp.headers.get("etag") in tags:  # inchangé depuis la dernière lecture : pas de corps (data.json pèse ~200 Ko)
+        return Response(status_code=304, headers={k: v for k, v in resp.headers.items() if k in ("etag", "cache-control", "last-modified")})
+    return resp

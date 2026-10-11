@@ -12,6 +12,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### Changed
 - **Fewer duplicate calls from the page**: the discoveries list is fetched once and shared by the bell, the home reminder, the Settings menu and the Discovery page (one call every 30 s instead of four); Settings → Discovery and Tasks re-read every 10 s only while a scan or task runs, every 60 s otherwise; Agents every 30 s (5 s while waiting for a first report); nothing is re-read while the browser tab is hidden, and the tab re-reads when you come back.
 - **Responses are gzip-compressed** (above 1 KB): `data.json` is about 200 KB.
+- **Unchanged files cost no body**: produced files (`data.json`, health, backups, events) are revalidated with their ETag and answer `304 Not Modified` when nothing changed; the page no longer adds a random `?t=` to them nor bypasses the browser cache.
 
 > **Testing phase: do not use in production.**
 
