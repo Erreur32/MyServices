@@ -374,18 +374,13 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
   return (
     <div className="py-1">
       <FilterBar f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
+        options={nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []}
         extra={<>
           <ViewToggle view={view} onPick={pickView} />
           <button type="button" onClick={() => setOpen(allOpen ? new Set() : new Set(sort.sorted.map((m) => m.ip)))} aria-pressed={allOpen}
             className={`${view === "table" ? "hidden md:inline-flex" : "hidden"} items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-sm text-muted hover:text-txt`}>
             {allOpen ? <ChevronsDownUp size={14} aria-hidden /> : <ChevronsUpDown size={14} aria-hidden />}{allOpen ? tx("Tout replier") : tx("Tout déplier")}
           </button>
-          {nOff > 0 && (
-            <button type="button" onClick={() => setShowOff(!showOff)} aria-pressed={showOff}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm ${showOff ? "border-link text-txt" : "border-line text-muted hover:text-txt"}`}>
-              {showOff ? <Eye size={14} aria-hidden /> : <EyeOff size={14} aria-hidden />}{showOff ? tx("Masquer les désactivées") : tx("Afficher les désactivées")} <b className="text-dim">({nOff})</b>
-            </button>
-          )}
         </>} />
       {untracked.length > 0 && (
         <details className="mb-3 rounded-xl border border-line bg-bg2/40 px-4 py-2 text-sm">

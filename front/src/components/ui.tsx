@@ -42,16 +42,20 @@ export function Card({ children, className = "" }: { children: ReactNode; classN
 }
 
 /** Barre d'un onglet : recherche, compteur, pastilles de filtre. */
-export function FilterBar<T>({ f, placeholder, extra }: {
+/** Réglage d'affichage rangé avec les filtres (ex. « Désactivées ») : une pastille qui s'allume et s'éteint, comptée dans le bouton « Filtres » */
+export interface FilterOption { id: string; label: string; on: boolean; toggle: () => void; mark?: ReactNode; count?: number }
+
+export function FilterBar<T>({ f, placeholder, extra, options = [] }: {
   f: { query: string; setQuery: (q: string) => void; shown: unknown[]; total: number; active: number; reset: () => void;
        chips: { facet: Facet<T>; chips: Chip[] }[]; toggle: (k: string, v: string) => void };
-  placeholder: string; extra?: ReactNode;
+  placeholder: string; extra?: ReactNode; options?: FilterOption[];
 }) {
   // Filtres repliés d'office (sur tous les écrans) : la barre de recherche suffit le plus souvent ; ce qui est actif
   // reste visible en pastilles retirables, et le bouton « Filtres » déplie le reste.
   const [open, setOpen] = useState(false), [more, setMore] = useState<Record<string, boolean>>({});
   const groups = f.chips.filter((g) => g.chips.length > 1 || g.chips.some((c) => c.on));
   const active = f.chips.flatMap((g) => g.chips.filter((c) => c.on).map((c) => ({ facet: g.facet, chip: c })));
+  const nActive = active.length + options.filter((o) => o.on).length;
   const LIMIT = 12;
   // Les filtres déjà actifs un jour sur cette page restent affichés en pastilles, même retirés : un clic les désactive, un autre clic les réactive
   const keyOf = (facet: Facet<T>, chip: Chip) => `${facet.key}\u0000${chip.value}`;
@@ -73,23 +77,40 @@ export function FilterBar<T>({ f, placeholder, extra }: {
             <X size={14} />{tx("Tout effacer")}
           </button>
         )}
-        {groups.length > 0 && (
+        {extra}
+        {(groups.length > 0 || options.length > 0) && (
           <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold text-link transition-colors hover:bg-link/10 ${open || active.length ? "border-link bg-link/10" : "border-link/50"}`}>
-            <SlidersHorizontal size={14} />{tx("Filtres")}{active.length > 0 && <b className="grid h-5 min-w-5 place-items-center rounded-full bg-link px-1 text-[11px] leading-none text-white">{active.length}</b>}
+            className={`ml-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold text-link transition-colors hover:bg-link/10 ${open || nActive ? "border-link bg-link/10" : "border-link/50"}`}>
+            <SlidersHorizontal size={14} />{tx("Filtres")}{nActive > 0 && <b className="grid h-5 min-w-5 place-items-center rounded-full bg-link px-1 text-[11px] leading-none text-white">{nActive}</b>}
             {open ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
           </button>
         )}
-        {extra}
       </div>
-      {!open && toggles.length > 0 && (
+      {!open && (toggles.length > 0 || options.some((o) => o.on)) && (
         <div className="flex flex-wrap items-center gap-1.5">
+          {options.filter((o) => o.on).map((o) => (
+            <button key={o.id} type="button" onClick={o.toggle} aria-pressed title={tx("Désactiver ce filtre")}
+              className="inline-flex items-center gap-1 rounded-full border border-link bg-link/15 px-2.5 py-1 text-xs font-medium text-txt hover:bg-link/25">
+              <span className="text-dim">{tx("Affichage")} :</span>{o.mark}{o.label}<X size={11} aria-hidden />
+            </button>
+          ))}
           {toggles.map(({ facet, chip }) => (
             <button key={`${facet.key}/${chip.value}`} type="button" onClick={() => f.toggle(facet.key, chip.value)} aria-pressed={chip.on}
               title={chip.on ? tx("Désactiver ce filtre") : tx("Réactiver ce filtre")}
               className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${chip.on
                 ? "border-link bg-link/15 text-txt hover:bg-link/25" : "border-line bg-bg2 text-dim line-through decoration-dim/60 hover:border-link hover:text-txt hover:no-underline"}`}>
               <span className="text-dim">{facet.label} :</span>{facet.mark?.(chip.value)}{chip.label}{chip.on ? <X size={11} aria-hidden /> : <Plus size={11} aria-hidden />}
+            </button>
+          ))}
+        </div>
+      )}
+      {open && options.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-dim">{tx("Affichage")}</span>
+          {options.map((o) => (
+            <button key={o.id} type="button" onClick={o.toggle} aria-pressed={o.on}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${o.on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
+              {o.mark}{o.label}{o.count != null && <span className="font-mono text-[11px] text-dim">{o.count}</span>}
             </button>
           ))}
         </div>
