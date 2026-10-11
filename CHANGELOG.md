@@ -9,6 +9,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+> **Testing phase: do not use in production.**
+
+## v0.10.0 (2026-10-11)
+
 ### Changed
 - **Home**: the attention card ("N points need your attention") shows **12 rows by default** with a row selector (12, 25, 50, All) remembered in the browser; the attention card and the "To do to complete the discovery" frame can both be **folded** (click its header; the badge keeps the count, the choice is remembered).
 - **"Machine access" diagram redone**: besides the access methods (SSH, agent, **connector**, no access), every machine is now drawn under its method, inside a frame, with its health level, account and port (extra ways to read it are added to the detail, e.g. "+ agent, Beszel"). Up to 12 machines per method are drawn; the rest is listed in a card below. Checked with Archify 3.0.1 (no crossings) up to 35 machines.
