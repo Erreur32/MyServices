@@ -14,9 +14,9 @@ type Tone = "ok" | "warn" | "bad" | "off";
 const TONE: Record<Tone, string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad", off: "text-muted" };
 
 /** Vrai logo de l'appli quand il existe, sinon une icône du thème */
-function Mark({ app, Icon }: { app?: string; Icon: LucideIcon }) {
+function Mark({ app, Icon, tone = "text-muted" }: { app?: string; Icon: LucideIcon; tone?: string }) {
   const src = app ? appIcon([app]) : null;
-  return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-bg2">{src ? <img src={src} alt="" className="h-4 w-4" /> : <Icon size={14} className="text-muted" aria-hidden />}</span>;
+  return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-bg2">{src ? <img src={src} alt="" className="h-4 w-4" /> : <Icon size={14} className={tone} aria-hidden />}</span>;
 }
 
 function Group({ title, sub, accent, tab, go, cells, mark }: {
@@ -59,7 +59,7 @@ export function statGroups(snap: Snapshot, go: (t: TabId) => void): Partial<Reco
     local.length > 0 && <Group key="loc" mark={<Mark app="Docker" Icon={Boxes} />} title={tx("Services")} sub={tx("{0} services", local.length)} accent="border-l-loc" tab="services" go={go} cells={[
       ["ok", n(local, "ok"), tx("en ligne")], ["bad", n(local, "bad"), "down"],
       ["warn", local.filter((r) => r.web === "ui" && !r.direct_ok).length, tx("UI sans domaine")], ["off", n(local, "off"), tx("non testés")]]} />,
-    health && <Group key="hl" mark={<Mark Icon={HeartPulse} />} title={tx("🩺 Santé")} sub={tx("{0} machines", health.hosts.length)} accent="border-l-ok" tab="health" go={go} cells={[
+    health && <Group key="hl" mark={<Mark Icon={HeartPulse} tone="text-ok" />} title={tx("🩺 Santé")} sub={tx("{0} machines", health.hosts.length)} accent="border-l-ok" tab="health" go={go} cells={[
       ["ok", hl("ok"), tx("OK")], ["warn", hl("warn"), tx("à surveiller")], ["bad", hl("crit"), tx("critiques")], ["bad", hl("down"), tx("injoignables")]]} />,
     dns && <Group key="dns" mark={<Mark app="AdGuard Home" Icon={Boxes} />} title={tx("🌍 AdGuard")} sub={dnsSync(dns).label} accent="border-l-link" tab="dns" go={go} cells={[
       ["ok", data.hosts.filter((r) => r.dns && r.enabled && !r.dns.issues.length).length, tx("domaines OK")],
