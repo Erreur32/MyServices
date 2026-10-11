@@ -24,7 +24,7 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import netscan
@@ -227,6 +227,19 @@ def auto_netscan() -> None:
             log(f"recherche réseau automatique (toutes les {every:g} h)")
         except Exception as e:  # noqa: BLE001 : le planificateur ne s'arrête jamais pour ça
             log(f"recherche réseau automatique impossible : {type(e).__name__}: {e}")
+
+
+def next_run(name: str, now: datetime | None = None) -> float | None:
+    """Prochain horaire de la tâche (epoch, heure locale comme le planificateur) ; None si coupée ou sans créneau."""
+    t = TASKS[name]
+    if not enabled(name):
+        return None
+    slot = (now or datetime.now()).replace(second=0, microsecond=0)
+    for _ in range(24 * 60):
+        slot += timedelta(minutes=1)
+        if slot.minute in t["minutes"] and (t["hours"] is None or slot.hour in t["hours"]):
+            return slot.timestamp()
+    return None
 
 
 def scheduler() -> None:

@@ -78,6 +78,12 @@ class Sources(unittest.TestCase):
         self.assertIsNone(health.read_host(hc(off=True), None, None, ssh=ssh_down))
         self.assertIsNone(health.read_host(hc(off=True, target=None), agent(fresh=False), None))
 
+    def test_poste_eteint_garde_sa_fiche_grisee(self):
+        a = health.asleep_entry(hc(off=True), agent(fresh=False))
+        self.assertEqual((a["id"], a["ip"], a["os"]), ("pc", "192.168.1.60", "linux"))
+        self.assertIsNotNone(a["last_seen"])
+        self.assertIsNone(health.asleep_entry(hc(off=True), None)["last_seen"])
+
     def test_machine_sans_aucune_source(self):
         self.assertIsNone(health.read_host(hc(target=None), None, None))
 

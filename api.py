@@ -259,7 +259,9 @@ def refresh_v1(request: Request):
 
 @app.get(API + "/tasks", tags=["passages"], summary="Tâches planifiées : horaires, dernier passage, résultat")
 def tasks_v1():
-    return {name: {"script": t["script"], "minutes": sorted(t["minutes"]),
+    import system
+    return {name: {"script": t["script"], "label": system.LABELS.get(name, name), "at": t["at"], "next": core.next_run(name),
+                   "minutes": sorted(t["minutes"]),
                    "hours": None if t["hours"] is None else sorted(t["hours"]), "enabled": core.enabled(name),
                    "running": t["proc"] is not None, "started": t["start"], "ended": t["end"], "result": t["result"]}
             for name, t in core.TASKS.items()}
@@ -745,6 +747,8 @@ async def agent_report(request: Request):
     # La santé est relue tout de suite au premier relevé et quand le niveau de la machine change (sinon, au prochain horaire)
     if (first or before != now) and core.enabled("health"):
         core.run_task("health", f"relevé de l'agent {a['name']} : {before or 'premier'} → {now}")
+    elif a.get("state") == "silencieux" and core.enabled("health"):  # poste rallumé : sa fiche grisée redevient vivante tout de suite
+        core.run_task("health", f"{a['name']} parle de nouveau", ("--only", a["ip"]))
     # Premier relevé ou agent réinstallé dans une autre version : système, matériel et ports (lus à la collecte) apparaissent sans attendre l'horaire
     if (first or upgraded) and core.enabled("collect"):
         core.run_chain(["collect"], f"relevé de l'agent {a['name']} (version {report.get('version')})")

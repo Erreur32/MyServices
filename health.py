@@ -690,6 +690,11 @@ def complement(h: dict, parts: dict[str, dict]) -> None:
     h["level"] = host_level(h)
 
 
+def asleep_entry(hc: dict, agent: dict | None) -> dict:
+    """Fiche d'un poste « souvent éteint » qui ne répond pas : nom, IP et dernier relevé de son agent (epoch, None si jamais)."""
+    return {"id": hc["id"], "name": hc["name"], "ip": hc["ip"], "os": hc["os"], "last_seen": (agent or {}).get("seen")}
+
+
 def read_host(hc: dict, agent: dict | None, beszel: dict | None, ssh=None) -> dict | None:
     """Santé d'une machine d'après ses sources, dans l'ordre de priorité : la première qui répond fait foi, les suivantes
     ne complètent que ce qu'elle n'a pas pu lire. Aucune ne répond : la première muette (« injoignable »), sauf pour un
@@ -1378,18 +1383,22 @@ def main() -> int:
     agents = agent_reports()
     candidates, meta = load_hosts(set(agents))
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv[:-1] else None  # une seule machine (IP) : les autres gardent leur dernier relevé
-    previous = []
+    previous, previous_asleep = [], []
     if only:
         try:
-            previous = json.loads(STATS_JSON.read_text(encoding="utf-8")).get("hosts", [])
+            last = json.loads(STATS_JSON.read_text(encoding="utf-8"))
+            previous, previous_asleep = last.get("hosts", []), last.get("asleep", [])
         except (OSError, ValueError):
-            previous = []
+            pass
         candidates = [hc for hc in candidates if hc["ip"] == only]
+    asleep = []
     besz, _ = beszel_systems(meta) if (not only or any(hc["target"] is None or "beszel" in source_order(hc) for hc in candidates)) else ({}, [])
     for hc in candidates:
         print(f"▸ {hc['name']}...")
         h = read_host(hc, agents.get(hc["ip"]), besz.get(hc["ip"]))
         if h is None:
+            if hc["off"]:  # poste « souvent éteint » sans relevé : sa fiche reste, grisée, sans alerte ni événement
+                asleep.append(asleep_entry(hc, agents.get(hc["ip"])))
             continue
         if h.get("sources"):
             print("  sources : " + " + ".join(h["sources"]))
@@ -1397,10 +1406,11 @@ def main() -> int:
         hosts.append(h)
 
     if only:  # relevé d'une machine : elle remplace son ancienne ligne (ou s'ajoute), les autres restent telles quelles
-        fresh = {h["id"] for h in hosts}
+        fresh = {h["id"] for h in hosts} | {a["id"] for a in asleep}
         hosts = [h for h in previous if h["id"] not in fresh] + hosts
+        asleep += [a for a in previous_asleep if a["id"] not in fresh]
     overall = worst(*(h["level"] for h in hosts))
-    stats = {"timestamp": ts, "hosts": hosts, "overall_level": overall}
+    stats = {"timestamp": ts, "hosts": hosts, "asleep": asleep, "overall_level": overall}
     print(f"→ global={overall.upper()}")
 
     if dry:

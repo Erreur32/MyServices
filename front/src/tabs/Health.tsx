@@ -3,7 +3,7 @@ import { useCallback, useMemo } from "react";
 import type { Snapshot } from "../api";
 import { useFilter, type Facet } from "../lib/filter";
 import { dateTime, splitHostName } from "../lib/format";
-import type { HealthHost } from "../types";
+import type { AsleepHost, HealthHost } from "../types";
 import { Badge, Dim, Empty, Fill, FilterBar, Level } from "../components/ui";
 import { InfraCards } from "../components/InfraCards";
 import { ServiceStatusCards } from "../components/ServiceStatusCards";
@@ -87,6 +87,19 @@ function HostCard({ h }: { h: HealthHost }) {
   );
 }
 
+function AsleepCard({ a }: { a: AsleepHost }) {
+  const [name, ip] = splitHostName(a.name);
+  return (
+    <section className="rounded-2xl border border-line bg-card p-4 opacity-60">
+      <div className="flex items-start justify-between gap-2">
+        <div><b>{name}</b><span className="block text-xs text-dim">{ip}{a.os === "windows" ? tx(" · Windows") : ""}</span></div>
+        <Badge tone="off" title={tx("Éteinte volontairement, aucune alerte")}>{tx("éteinte (voulu)")}</Badge>
+      </div>
+      <p className="mt-3 text-sm text-muted">{a.last_seen ? tx("Dernier relevé de l'agent : {0}", dateTime(a.last_seen * 1000)) : tx("Pas encore de relevé.")}</p>
+    </section>
+  );
+}
+
 const SOURCE_LABEL: Record<string, string> = { ssh: "SSH", agent: tx("agent"), beszel: "Beszel" };
 
 export function Health({ snap }: { snap: Snapshot }) {
@@ -96,6 +109,7 @@ export function Health({ snap }: { snap: Snapshot }) {
   ], []);
   const text = useCallback((h: HealthHost) => [h.name, ...problems(h).map((p) => p[1])].join(" "), []);
   const f = useFilter(hosts, facets, text);
+  const asleep = (snap.health?.asleep ?? []).filter((a) => !Object.keys(f.sel).length && a.name.toLowerCase().includes(f.query.trim().toLowerCase()));
   const services = snap.data.services_status ?? [], virt = snap.data.virtualization ?? [], docker = snap.data.containers ?? [];
   if (!snap.health) return services.length || virt.length || docker.length ? <div className="py-1"><InfraCards virt={virt} docker={docker} /><ServiceStatusCards items={services} /><Empty>{tx("Santé pas encore relevée.")}</Empty></div> : <Empty>{tx("Santé pas encore relevée.")}</Empty>;
   return (
@@ -104,8 +118,11 @@ export function Health({ snap }: { snap: Snapshot }) {
         extra={<span className="text-xs text-dim">{tx("relevé du")} {dateTime(snap.health.timestamp)}</span>} />
       <InfraCards virt={virt} docker={docker} />
       <ServiceStatusCards items={services} />
-      {f.shown.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{f.shown.map((h) => <HostCard key={h.id} h={h} />)}</div>
+      {f.shown.length === 0 && !asleep.length ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {f.shown.map((h) => <HostCard key={h.id} h={h} />)}
+          {asleep.map((a) => <AsleepCard key={a.id} a={a} />)}
+        </div>
       )}
     </div>
   );

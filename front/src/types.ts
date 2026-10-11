@@ -245,9 +245,13 @@ export interface HealthHost {
   sources?: string[];                    // toutes celles qui ont servi (la retenue, puis celles qui ont complété)
 }
 
+/** Poste « souvent éteint » qui ne répond pas : fiche grisée, sans alerte (last_seen : dernier relevé de son agent, en secondes) */
+export interface AsleepHost { id: string; name: string; ip: string; os?: string; last_seen: number | null }
+
 export interface Health {
   timestamp: string;
   hosts: HealthHost[];
+  asleep?: AsleepHost[];
 }
 
 export interface BackupLocation {
