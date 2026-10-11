@@ -90,7 +90,7 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
         ))}
       </nav>
       <div className="min-w-0 flex-1">
-        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <NotificationsHub /> : section === "connectors" ? <Connectors snap={snap} agentIp={location.hash.split("/")[1] === "agents" ? location.hash.split("/")[2] : undefined} /> : section === "machines" ? <MachinesSettings snap={snap} focusIp={location.hash.split("/")[2]} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings /> : section === "about" ? <AboutSettings /> : section === "audit" ? <AuditLog /> : section === "backups" ? <BackupsSettings /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} snap={snap} /> : <SystemSettings part="system" snap={snap} />}
+        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <NotificationsHub /> : section === "connectors" ? <Connectors snap={snap} agentIp={location.hash.split("/")[1] === "agents" ? location.hash.split("/")[2] : undefined} /> : section === "machines" ? <MachinesSettings snap={snap} focusIp={location.hash.split("/")[2]} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings snap={snap} /> : section === "about" ? <AboutSettings /> : section === "audit" ? <AuditLog /> : section === "backups" ? <BackupsSettings /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} snap={snap} /> : <SystemSettings part="system" snap={snap} />}
       </div>
     </div>
   );

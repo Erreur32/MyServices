@@ -67,7 +67,7 @@ const loadDismissed = (): string[] => {
 };
 
 export function NetworkStep({ net, reload, machines, connected, onSkip }: {
-  net: NetScan | null; reload: () => void; onSkip: () => void;
+  net: NetScan | null; reload: () => void; onSkip?: () => void;  // sans onSkip : pas de bouton « Passer » (Réglages → Découverte)
   machines: { ip: string; name?: string; ping?: boolean; local?: boolean; off?: boolean; ssh?: unknown }[]; connected: { connector: string; url?: string | null }[];
 }) {
   const known = machines.map((m) => m.ip);
@@ -122,8 +122,8 @@ export function NetworkStep({ net, reload, machines, connected, onSkip }: {
       <button type="button" className={scanned ? `${button} border-link/60 bg-link/10 text-txt hover:bg-link/20` : primary} disabled={busy} onClick={() => void start()}>
         {scanned ? <RefreshCw size={14} aria-hidden /> : <Search size={14} aria-hidden />}{scanned ? tx("Refaire un scan") : tx("Lancer le scan")}
       </button>
-      <button type="button" className={quietBtn} onClick={onSkip}
-        title={tx("Passer cette étape : vous pourrez la refaire plus tard, ici ou dans les Réglages")}>{tx("Passer")}</button>
+      {onSkip && <button type="button" className={quietBtn} onClick={onSkip}
+        title={tx("Passer cette étape : vous pourrez la refaire plus tard, ici ou dans les Réglages")}>{tx("Passer")}</button>}
     </div>
   );
 

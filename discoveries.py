@@ -30,12 +30,12 @@ def build(i: dict) -> list[dict]:
     if not i.get("net_has_run"):
         add("network", "Machines du réseau (recherche réseau)", FIRST,
             "À lancer UNE FOIS à la main : ensuite elle se répète toute seule" + (f" toutes les {net_every:g} h." if net_every else " (coupée dans Réglages → Découverte : elle restera à la main)."),
-            None, None, "todo", "jamais lancée", {"label": "Lancer la recherche", "href": "#settings/network"})
+            None, None, "todo", "jamais lancée", {"label": "Lancer la recherche", "href": "#settings/network/scan"})
     else:
         nxt = (i["net_last"] + net_every * 3600) if net_every and i.get("net_last") else None
         add("network", "Machines du réseau (recherche réseau)", FIRST if net_every else MANUAL,
             f"Se répète toute seule toutes les {net_every:g} h (lecture seule, un /24 au plus)." if net_every else "Répétition automatique coupée : à relancer à la main.",
-            i.get("net_last"), nxt, "ok" if net_every else "info", "", {"label": "Chercher maintenant", "href": "#settings/network"})
+            i.get("net_last"), nxt, "ok" if net_every else "info", "", {"label": "Chercher maintenant", "href": "#settings/network/scan"})
 
     add("redetect", "Réglages des machines déjà enregistrées (rôle, système, applis)", MANUAL,
         "Ne se met pas à jour tout seul : après un changement (nouvelle appli, passage à Windows, nouveau port), cliquer sur « Redétecter » dans Réglages → Machines.",
@@ -62,7 +62,7 @@ def build(i: dict) -> list[dict]:
     if unknown:
         add("hosts", f"{unknown} machine(s) trouvée(s) sur le réseau, pas encore suivie(s)", FIRST,
             "La recherche réseau les a vues. Choisissez celles à suivre (ou à ignorer) : MyServices ne les ajoute jamais seul.", i.get("net_last"), None, "todo",
-            "à choisir", {"label": "Choisir", "href": "#settings/network"})
+            "à choisir", {"label": "Choisir", "href": "#settings/network/hosts"})
     for k in i.get("key_refused") or []:   # accès SSH activé mais la clé de l'app n'est pas autorisée (ou port faux)
         add(f"ssh:{k['ip']}", f"Clé SSH à autoriser sur {k.get('name') or k['ip']}", AUTO,
             "L'accès SSH est activé, mais la connexion échoue : la clé de l'app n'est pas autorisée sur cette machine (ou le port est faux). Ses conteneurs et sa santé ne sont pas lus tant que ce n'est pas fait.",

@@ -1352,6 +1352,8 @@ export const EN: Record<string, string> = {
   "TCP {0} ms · accès LAN direct": "TCP {0} ms · direct LAN access",
   "Télécharger": "Download",
   "Tester": "Test",
+  "Machines trouvées sur le réseau": "Machines found on the network",
+  "Cochez celles à suivre puis ajoutez-les, ou ignorez-les. MyServices ne les ajoute jamais seul.": "Tick the ones to follow then add them, or ignore them. MyServices never adds them on its own.",
   "DNS du réseau : synchronisation, réécritures et domaines à vérifier": "Network DNS: synchronisation, rewrites and domains to check",
   "Lus par SSH ou par l'agent": "Read over SSH or by the agent",
   "Pas de formulaire ici : ces lectures se règlent sur la machine (AdGuard, Docker, processus). Elles sont trouvées toutes seules quand la machine est lue par SSH.": "No form here: these readings are set on the machine (AdGuard, Docker, processes). They are found automatically when the machine is read over SSH.",

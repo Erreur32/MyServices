@@ -9,6 +9,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+### Fixed
+- **Settings → Discovery: the "Choose" / "Search" buttons did nothing** (they linked to the page already open). "Machines found on the network" is now a card on that page (tick, name, add or ignore) and the buttons scroll to it or to the search card.
+
 > **Testing phase: do not use in production.**
 
 ## v0.9.7 (2026-10-11)

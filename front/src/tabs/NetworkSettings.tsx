@@ -1,6 +1,6 @@
 // Réglages → Découverte : le scan du réseau local (lecture seule) et sa fréquence automatique ; relancer à la main,
 // refaire le parcours des premiers pas. Le premier scan est toujours manuel : l'automatique ne démarre qu'après lui.
-import { EyeOff, ListChecks, RotateCcw, Search } from "lucide-react";
+import { EyeOff, ListChecks, Radar, RotateCcw, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { NoteLine } from "../components/form";
@@ -11,11 +11,27 @@ import { act, button, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { pokeScan } from "../lib/scan";
 import { DiscoveryCard } from "../components/DiscoveryCard";
+import type { Snapshot } from "../api";
+import { NetworkStep } from "../components/NetworkStep";
 import type { NetScan } from "../types";
 
 interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean; ignored: { ip: string; name: string }[] }
 
-export function NetworkSettings() {
+/** Lien #settings/network/<hosts|scan> (depuis une découverte à faire) : fait défiler jusqu'à la carte, même si l'on est déjà sur la page */
+function useScrollToPart() {
+  useEffect(() => {
+    const go = () => {
+      const part = location.hash.split("/")[2];
+      if (part) setTimeout(() => document.getElementById(`net-${part}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+    };
+    go();
+    addEventListener("hashchange", go);
+    return () => removeEventListener("hashchange", go);
+  }, []);
+}
+
+export function NetworkSettings({ snap }: { snap: Snapshot }) {
+  useScrollToPart();
   const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
   const [hours, setHours] = useState(""), [nets, setNets] = useState<string | null>(null), [note, setNote] = useState<Note>(null), [error, setError] = useState("");
   const load = useCallback(() => {
@@ -49,8 +65,15 @@ export function NetworkSettings() {
   return (
     <div className="flex flex-col gap-4">
       <DiscoveryCard />
-      <div className="grid items-start gap-4 lg:grid-cols-2">
+      <div id="net-hosts" className="scroll-mt-20">
         <Card>
+          <h2 className="mb-1 flex items-center gap-2 font-bold"><Radar size={16} />{tx("Machines trouvées sur le réseau")}</h2>
+          <p className="mb-3 text-sm text-muted">{tx("Cochez celles à suivre puis ajoutez-les, ou ignorez-les. MyServices ne les ajoute jamais seul.")}</p>
+          <NetworkStep net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} />
+        </Card>
+      </div>
+      <div id="net-scan" className="grid scroll-mt-20 items-start gap-4 lg:grid-cols-2">
+        <Card className="scroll-mt-20">
           <h2 className="mb-1 flex items-center gap-2 font-bold"><Search size={16} />{tx("Recherche sur le réseau")}</h2>
           <p className="mb-3 text-sm text-muted">
             {tx("Cherche les machines allumées sur votre réseau local (un /24 au plus) : un ping, le nom, quelques ports. Lecture seule, rien n'est ajouté tout seul.")}
