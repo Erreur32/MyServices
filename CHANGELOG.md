@@ -9,6 +9,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+> **Testing phase: do not use in production.**
+
+## v0.9.9 (2026-10-11)
+
 ### Added
 - **4 more connectors** (kind "status", read-only, written from each service's documentation, **tried against fake servers only**): **Prometheus** (targets down, firing alerts), **Healthchecks** (failed and late jobs, read-only API key), **Netdata** (critical and warning alarms) and **Jellyfin** (playbacks, devices, pending restart or update). Detected containers propose them; logos for Prometheus, Netdata and Jellyfin.
 
@@ -17,7 +21,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Removed the "display" switches** (NPM, AdGuard, Apache) and the `sources` setting with its `GET /sources` / `PUT /sources/{name}` routes: what is detected or connected is always read and shown. An old `sources` key in `config.json` is ignored. To stop reading a connector, switch its Collection off.
 - **Settings -> Machines has two sub-tabs**: "Machines" and **"SSH & Agents"** (how each machine is read); "SSH Agent Actif" (was "Read by SSH or by the agent") now sits at the bottom of the "Machines" sub-tab, folded by default, moved out of Connectors because it is about machines. Old `#settings/agents/<ip>` links open it.
 - **"Detected services" table** at the top of Settings -> Connectors: every recognised app that has a connector (Home Assistant, NPM, AdGuard, Frigate…), with its machine and an **Activation** column: green "Active" when a connector is set for that machine, orange "To activate" otherwise. Click the service: if not active, an **overlay** opens with the connector form already filled (address found); if active, the connector's card opens in edit mode. `data.json` gets `detected_apps` (same shape as `proposals`, plus `linked`).
-- **Card titles stand out everywhere** (larger, extra bold, accent bar on the left, icon in the link colour) and **Settings -> Tasks and schedules is aligned like a table**: task, editable schedule (field, Save and reset buttons at the same height) and the run button in fixed columns.
+- **Card titles stand out everywhere** (larger, extra bold, thin accent bar on the left, icon in the link colour; the blue mark of the active menu entry and sub-tab is thinner too) and **Settings -> Tasks and schedules is aligned like a table**: task, editable schedule (field, Save and reset buttons at the same height) and the run button in fixed columns.
 - **Proxmox Backup Server joins the Backups tab**: Settings -> Backups -> "Proxmox Backup Server" lists the backup groups (a VM, container or host per datastore) read with the existing `proxmox-backup` connector's token (no account re-entered), you tick the ones to follow and set the alert age, like Veeam jobs. Datastore usage appears as disks. Read-only, written from the API documentation and **tried against a fake server only**.
 - **Veeam wizard reuses the connector**: when a Veeam connector exists (set in Connectors, whatever its name), the wizard shows its account and only asks for it again on "Change the account".
 - **Language buttons show a flag** (French, British), drawn as SVG so they also show on Windows.

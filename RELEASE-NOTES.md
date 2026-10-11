@@ -1,34 +1,34 @@
-# Notes de version : MyServices 0.9.8
+# Notes de version : MyServices 0.9.9
 
 > **Phase de test : ne pas mettre en production.** Essayez MyServices sur une machine ou un réseau de test, et gardez une copie de `config/` et `data/` avant de mettre à jour.
 
-**0.9.8** (11 octobre 2026) rend la page Réglages → Découverte utilisable : sous-onglets, cartes colorées quand il y a une action à faire, liste des machines trouvées claire, et des boutons plus lisibles partout.
+
+**0.9.9** (11 octobre 2026) simplifie Réglages → Connecteurs, ajoute Proxmox Backup aux sauvegardes, quatre nouveaux connecteurs et une page Aide, et allège les échanges de la page.
 
 ## Pour tout le monde
 
 **Quoi de neuf ?**
-- **Découverte en trois sous-onglets** : Réseau et machines, Services et applis, Sauvegardes. Chaque découverte est une carte (ce qu'elle fait, dernière et prochaine fois, boutons). Ce qui reste à faire a un cadre orange, un compteur sur l'onglet et sur l'entrée « Découverte » du menu.
-- **Les boutons « Choisir » et « Chercher » marchent** : ils ne renvoyaient qu'à la page déjà ouverte. La liste des machines trouvées est maintenant dans sa carte, dans un cadre plié.
-- **Liste des machines trouvées** : la case cochée ne déforme plus la ligne ; les boutons « Ajouter la sélection » et « Tout désélectionner » n'apparaissent que s'il y a une sélection visible ; les appareils ignorés sont rangés dans « autres appareils » avec « Reprendre » ; le rappel « accès passés » est en haut.
-- **Ne plus me le rappeler** : on peut couper le rappel d'une découverte (machines trouvées, recherche jamais lancée…) et le réafficher. Une clé SSH refusée ou un agent absent ne se coupe pas.
-- **Titres des découvertes** : logo du système, puis **Appli** trouvé sur **Machine** (ip).
-- **Connecteurs** : un bouton « Tester » sur chaque carte, et des pastilles de ce que la dernière collecte a lu (par exemple `entities : 4593`). Un bloc « Lus par SSH ou par l'agent » liste AdGuard, Docker et les processus.
-- **Home Assistant et les API** comptent pour les machines : état « API », capteurs de l'hôte comme source de santé.
-- **Boutons** : les boutons principaux sont pleins, les secondaires lisibles en thème sombre et clair, et on ne les confond plus avec les cadres dépliables.
-- **Page DNS** : logo et titre AdGuard Home, pastille « AdGuard » sur chaque carte. **Accueil** : vrais logos dans les compteurs, cœur de Santé en vert.
-- **Favicon et logo** : la grille 3x3 est gardée (l'essai 4x4 est retiré).
+- **Services détectés** : en haut de Réglages → Connecteurs, un tableau des applis reconnues (Home Assistant, NPM, AdGuard, Frigate…) avec leur machine. La colonne Activation est verte si un connecteur est réglé, orange sinon ; un clic ouvre une fenêtre avec le formulaire déjà rempli.
+- **Connecteurs plus simples** : chaque carte a son interrupteur « Collecte » (à droite, sur la ligne de la version). L'onglet « Activation » et les interrupteurs « Affichage » (NPM, AdGuard, Apache) disparaissent : ce qui est détecté ou relié est toujours lu et affiché.
+- **Réglages → Machines en deux sous-onglets** : « Machines » et « SSH & Agents ». Le dernier sous-onglet ouvert est retenu, et les cartes sont en deux colonnes indépendantes (ouvrir l'une ne déforme plus l'autre). Le bloc « SSH Agent Actif » est plié par défaut, en bas.
+- **Proxmox Backup Server dans les sauvegardes** : les groupes de sauvegarde (une VM, un conteneur ou un hôte par magasin) se suivent comme des jobs Veeam, avec le jeton du connecteur. L'assistant Veeam reprend lui aussi le compte du connecteur sans le redemander.
+- **Quatre connecteurs en plus** : Prometheus (cibles hors ligne, alertes), Healthchecks (tâches en échec ou en retard), Netdata (alarmes) et Jellyfin (lectures en cours, mise à jour).
+- **Page Aide** (Réglages, au-dessus de « À propos ») : par où commencer en six étapes, comment MyServices lit le réseau, bons réflexes, dépannage.
+- **Historique** : s'ouvre sur les dernières 24 h en barres ; la période et le style choisis sont retenus.
+- **Finitions** : titres de cartes plus visibles, tâches et horaires alignés en colonnes, clé SSH avec ses machines en tableau, drapeaux sur les boutons de langue, introduction des connecteurs en une phrase.
+- **Moins d'appels et de données** : la liste des découvertes est lue une seule fois pour toute la page, rien n'est relu quand l'onglet est masqué, les réponses sont compressées (gzip) et un fichier inchangé n'est plus renvoyé (ETag).
 
 **Ce qu'il faut savoir**
-- Les pastilles de lecture prouvent que le connecteur lit quelque chose, pas que chaque route de l'API est juste.
-- Les connecteurs de la 0.9.5 restent essayés surtout contre de faux serveurs : dites-nous ce qui ne va pas avec les vrais services.
+- Les nouveaux connecteurs (Prometheus, Healthchecks, Netdata, Jellyfin) et Proxmox Backup sont écrits d'après la documentation de chaque service et **essayés seulement contre de faux serveurs** : dites-nous ce qui ne va pas avec les vrais.
+- Le réglage `sources` et ses routes `GET/PUT /sources` sont retirés ; une ancienne clé `sources` dans `config.json` est ignorée.
 - Rien n'est modifié sur vos machines : MyServices ne fait que lire.
 
 **Mettre à jour** : `docker compose pull`, puis `docker compose up -d`. Vos réglages et vos données sont gardés.
 
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.9.8` (amd64 et arm64) ; `:latest` suit le dernier tag.
-- **API** : `PUT /discoveries/muted` ; `GET /discoveries` renvoie `app`, `machine`, `mutable`, `muted` ; réglage `discoveries_muted`.
-- **Connecteurs** : `Status.found` et `base.tally()`.
-- **Tests** : 432 Python, 91 front.
+- **Image** : `ghcr.io/erreur32/myservices:0.9.9` (amd64 et arm64) ; `:latest` suit le dernier tag.
+- **API** : `data.json` gagne `detected_apps` ; `POST /backups/pbs/discover` et `PUT /backups/pbs` ; `GET/PUT /sources` supprimés.
+- **Sauvegardes** : hôte `api: "pbs"`, emplacement `pbs_group` (magasin/type/id).
+- **Tests** : 447 Python, 91 front.
 - **Détail complet** (en anglais) : [CHANGELOG.md](CHANGELOG.md).

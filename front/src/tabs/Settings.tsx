@@ -85,7 +85,7 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
               const on = s.id === section, todo = s.id === "network" && !!disc && disc.todo > 0;
               return (
                 <button key={s.id} type="button" onClick={() => setSection(s.id)} aria-current={on ? "page" : undefined}
-                  className={`flex shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors ${on ? "bg-link/15 text-txt shadow-[inset_3px_0_0_rgb(var(--link))]" : todo ? "bg-warn/10 text-warn hover:bg-warn/20" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
+                  className={`flex shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors ${on ? "bg-link/15 text-txt shadow-[inset_2px_0_0_rgb(var(--link))]" : todo ? "bg-warn/10 text-warn hover:bg-warn/20" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
                   <s.icon size={16} className={on ? "text-link" : todo ? "text-warn" : "text-dim"} aria-hidden />{s.label}
                   {todo && <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-warn px-1 text-[11px] font-bold leading-none text-bg" title={tx("{0} chose(s) à faire pour compléter la découverte", disc!.todo)}>{disc!.todo}</span>}
                 </button>

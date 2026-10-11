@@ -89,7 +89,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
           return (
             <button key={g.id} type="button" onClick={() => setTab(g.id)} aria-current={current === g.id ? "page" : undefined}
               className={`flex shrink-0 items-center gap-1.5 rounded-t-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
-                current === g.id ? "bg-card text-txt shadow-[inset_0_-2px_0_rgb(var(--link))]" : n > 0 ? "text-warn hover:bg-warn/10" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
+                current === g.id ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : n > 0 ? "text-warn hover:bg-warn/10" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
               <g.Icon size={15} strokeWidth={1.75} className={n > 0 ? "text-warn" : ""} aria-hidden />{g.title}
               {n > 0 && <Badge tone="warn">{n}</Badge>}
             </button>
