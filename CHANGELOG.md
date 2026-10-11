@@ -9,6 +9,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+> **Testing phase: do not use in production.**
+
+## v0.9.8 (2026-10-11)
+
+### Changed
+- **Favicon and logo: the 3x3 grid is kept** (decided). The 4x4 test favicon and `logo-grid-4x4.svg` are removed.
+
 ### Changed
 - **Discovery pages: coloured frames wherever an action is to do**: a card with something to do gets an orange frame, tint and left bar, and so does its foldable list; a family sub-tab with something to do is orange; the Settings menu entry "Discovery" is orange with the count.
 
