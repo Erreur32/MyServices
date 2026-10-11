@@ -3,7 +3,7 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
-import { ArrowRight, Check, ChevronDown, ChevronRight, IdCard, KeyRound, Loader2, Plus, Radar, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, IdCard, KeyRound, Loader2, Monitor, Plus, Radar, RefreshCw, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -14,6 +14,7 @@ import type { AgentInfo, Connector, Detection, MachineConf, MachinesSettings as 
 import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
+import { IconChoice } from "../components/IconChoice";
 import { IconPicker } from "../components/IconPicker";
 import { MSTATE, mState, osOfMachine } from "../lib/machines";
 import { AuthorizeKey } from "../components/AuthorizeKey";
@@ -629,16 +630,17 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
         </div>
       </section>
       {agent && sshAccess && (
-        <label className="flex flex-wrap items-center gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
-          <b>{tx("Santé lue d'abord par")}</b> <Saved k="health_sources" />
-          <select className={`${input} w-auto`} disabled={pending === "health_sources"} value={(v.health_sources as string[] | undefined)?.[0] ?? ""}
-            onChange={(e) => void autoSave("health_sources", { health_sources: e.target.value ? [e.target.value] : undefined })}>
-            <option value="">{windows ? tx("Automatique (l'agent, puis SSH)") : tx("Automatique (SSH, puis l'agent)")}</option>
-            <option value="ssh">SSH</option>
-            <option value="agent">{tx("L'agent")}</option>
-          </select>
-          <Dim>· {tx("la première source qui répond fait foi, l'autre prend le relais si elle se tait et complète ce qui manque")}</Dim>
-        </label>
+        <div className="flex flex-col gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
+          <div className="flex flex-wrap items-center gap-2"><b>{tx("Santé lue d'abord par")}</b> <Saved k="health_sources" /></div>
+          <IconChoice label={tx("Santé lue d'abord par")} disabled={pending === "health_sources"} value={((v.health_sources as string[] | undefined)?.[0] ?? "") as "" | "ssh" | "agent"}
+            onPick={(src) => void autoSave("health_sources", { health_sources: src ? [src] : undefined })}
+            options={[
+              { value: "", label: tx("Automatique"), hint: windows ? tx("Automatique (l'agent, puis SSH)") : tx("Automatique (SSH, puis l'agent)"), icon: <Sparkles size={24} className="text-link" aria-hidden /> },
+              { value: "ssh", label: "SSH", hint: tx("Lire d'abord par SSH"), icon: <KeyRound size={24} className="text-ok" aria-hidden /> },
+              { value: "agent", label: tx("L'agent"), hint: tx("Lire d'abord par l'agent MyServices"), icon: <Monitor size={24} className="text-warn" aria-hidden /> },
+            ]} />
+          <Dim>{tx("la première source qui répond fait foi, l'autre prend le relais si elle se tait et complète ce qui manque")}</Dim>
+        </div>
       )}
       <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
         <Switch on={!v.disabled} disabled={pending === "disabled"} onChange={(on) => void autoSave("disabled", { disabled: !on })} label={tx("Machine suivie")} />

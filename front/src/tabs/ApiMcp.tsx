@@ -1,10 +1,11 @@
 // Réglages → API et MCP, sur le modèle de MynetworK : jetons d'API (REST) et MCP (assistants IA), séparés.
 // Trois niveaux (lecture, lecture + passages, admin) ; jeton montré une seule fois avec la configuration à copier ;
 // révocation ; outils MCP activables un par un. Gérés seulement depuis une session admin.
-import { Bot, Copy, KeyRound, Plus, Trash2 } from "lucide-react";
+import { Bot, Copy, KeyRound, Plus, Trash2, Webhook } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, ROOT, send } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
+import { IconChoice } from "../components/IconChoice";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { copyText } from "../lib/clipboard";
@@ -73,10 +74,10 @@ function NewToken({ onCreated }: { onCreated: (c: { token: string; info: ApiToke
       <form onSubmit={submit} className="flex flex-col gap-3">
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label={tx("Sorte")}>
-            <select className={input} value={kind} onChange={(e) => setKind(e.target.value as "api" | "mcp")}>
-              <option value="mcp">{tx("MCP (assistant IA)")}</option>
-              <option value="api">{tx("API (REST)")}</option>
-            </select>
+            <IconChoice label={tx("Sorte")} value={kind} onPick={setKind} options={[
+              { value: "mcp", label: "MCP", hint: tx("MCP (assistant IA)"), icon: <Bot size={24} className="text-link" aria-hidden /> },
+              { value: "api", label: "API", hint: tx("API (REST)"), icon: <Webhook size={24} className="text-ok" aria-hidden /> },
+            ]} />
           </Field>
           <Field label={tx("Nom (qui l'utilise)")}>
             <input className={input} required minLength={2} maxLength={64} placeholder={tx("ex. Claude Code portable")} value={name} onChange={(e) => setName(e.target.value)} />

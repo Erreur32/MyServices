@@ -4,6 +4,8 @@ import { Home, Loader2, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { LOGIN, LoginRequired, send } from "../api";
 import { NoteLine } from "../components/form";
+import { IconChoice } from "../components/IconChoice";
+import { appIcon } from "../lib/appIcons";
 import { Badge, Card, Dim } from "../components/ui";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
@@ -47,11 +49,10 @@ export function BackupsHa({ state, reload }: { state: HaState; reload: () => voi
           </p>
           <div className="flex flex-wrap items-end gap-3">
             {state.connectors.length > 1 && (
-              <label className="flex flex-col gap-1 text-sm text-muted">{tx("Connecteur")}
-                <select className={input} value={name} onChange={(e) => setName(e.target.value)}>
-                  {state.connectors.map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </label>
+              <div className="flex flex-col gap-1 text-sm text-muted">{tx("Connecteur")}
+                <IconChoice label={tx("Connecteur")} value={name} onPick={setName}
+                  options={state.connectors.map((n) => ({ value: n, label: n, icon: <img src={appIcon(["Home Assistant"]) ?? ""} alt="" className="h-7 w-7" /> }))} />
+              </div>
             )}
             <label className="flex items-center gap-1 text-sm text-muted">{tx("alerte après")}
               <input className={`${input} w-16 py-1 text-sm`} type="number" min={0.1} max={365} step="any" value={age} aria-label={tx("Âge maximum en jours")}

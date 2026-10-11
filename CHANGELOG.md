@@ -12,6 +12,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Testing phase: do not use in production.**
 
 ### Changed
+- **Icon buttons instead of drop-down lists** where an icon makes sense: the token kind (MCP / API), the Home Assistant connector choice in Backups, and "Health read first by" (Automatic / SSH / Agent) in a machine's settings. Drop-down lists with many values or no meaningful icon (SSH alias, durations) are kept.
 - **Agent and SSH cards**: the system logo (Windows 11, Debian, Ubuntu…) shows next to each machine; the "Automatic yes/no" switch and the "Update now" button are aligned, the state is a small pill.
 - **Agent card** (Settings -> Connectors -> Agents and SSH): the details that were squeezed into one long line (last report, system, agent version, frequency, token) are now a small list that wraps on several lines; the system name is shortened ("Windows 11 Pro") and an outdated version is flagged.
 

@@ -512,6 +512,8 @@ export const EN: Record<string, string> = {
   "pas d'horaire": "no schedule",
   "{0} ({1})": "{0} ({1})",
   "Détails": "Details",
+  "Lire d'abord par SSH": "Read by SSH first",
+  "Lire d'abord par l'agent MyServices": "Read by the MyServices agent first",
   "Détails de l'agent": "Agent details",
   "Dernier relevé": "Last report",
   "v{0} disponible": "v{0} available",
