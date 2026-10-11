@@ -110,11 +110,17 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
 
   const toggle = (ip: string) => setPicked((p) => { const n = new Set(p); if (n.has(ip)) n.delete(ip); else n.add(ip); return n; });
   const found = (net?.found ?? []).filter((h) => !added[h.ip] && !known.includes(h.ip) && !net?.ignored?.includes(h.ip));
-  const hiddenCount = (net?.found ?? []).filter((h) => !known.includes(h.ip) && net?.ignored?.includes(h.ip)).length;
+  const ignoredIps = net?.ignored ?? [];
+  const ignoredSeen = (net?.found ?? []).filter((h) => !known.includes(h.ip) && ignoredIps.includes(h.ip));
+  const ignoredGone = (ignoredList ?? []).filter((e) => !(net?.found ?? []).some((h) => h.ip === e.ip)).map((e): NetHost => ({ ip: e.ip, name: e.name, ports: [], hints: [], apps: [] }));  // pas revus à ce scan
   const watch = found.filter(interesting);                              // liste principale : SSH, appli reconnue, service utile
   const webOnly = found.filter((h) => !interesting(h) && !quiet(h));    // repliés : caméras, box, objets connectés…
   const pingOnly = found.filter((h) => !interesting(h) && quiet(h));
-  const rest = webOnly.length + pingOnly.length;
+  // Affichées dans les mêmes listes, avec la pastille « ignoré » et « Reprendre » (pas de liste à part)
+  const showWatch = [...watch, ...ignoredSeen.filter(interesting)];
+  const showWeb = [...webOnly, ...ignoredSeen.filter((h) => !interesting(h) && !quiet(h))];
+  const showPing = [...pingOnly, ...ignoredSeen.filter((h) => !interesting(h) && quiet(h)), ...ignoredGone];
+  const rest = showWeb.length + showPing.length;
   const sum = net && net.phase === "done" ? summarize(net.found, known) : null;
   // Accès à régler : machines ajoutées à l'instant, plus celles déjà déclarées dont le SSH ou le jeton Home Assistant manque
   const pending = (net?.found ?? []).filter((h) => known.includes(h.ip) && !added[h.ip] && !dismissed.includes(h.ip) && needsLink(h, machines, connected));
@@ -135,7 +141,15 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
     </div>
   );
 
-  const renderRows = (list: NetHost[]) => list.map((h) => (
+  const unignore = (h: NetHost) => void act(() => send("DELETE", `network/ignored/${h.ip}`), tx("{0} sera de nouveau proposé", h.name || h.ip), setNote).then(() => reload());
+  const renderRows = (list: NetHost[]) => list.map((h) => ignoredIps.includes(h.ip) || ignoredGone.includes(h) ? (
+    <li key={h.ip} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-dashed border-line bg-bg2/30 px-3 py-2 opacity-80">
+      <EyeOff size={15} className="shrink-0 text-muted" aria-hidden />
+      <HostInfo h={h} />
+      <Badge tone="off">{tx("ignoré")}{ignoredGone.includes(h) ? ` · ${tx("pas revu à ce scan")}` : ""}</Badge>
+      <button type="button" className={`${quietBtn} ml-auto`} onClick={() => unignore(h)}>{tx("Reprendre")}</button>
+    </li>
+  ) : (
     <li key={h.ip} className={`flex flex-wrap items-start rounded-lg border ${picked.has(h.ip) ? "border-link/50 bg-link/5" : "border-transparent bg-bg2/60 hover:bg-bg2"}`}>
       <label className="flex min-w-0 flex-1 basis-64 cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2">
         <input type="checkbox" className="h-4 w-4 shrink-0 accent-[rgb(var(--link))]" checked={picked.has(h.ip)} onChange={() => toggle(h.ip)} />
@@ -247,14 +261,14 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
           )}
         </section>
       )}
-      {found.length > 0 && toLink.length === 0 && (
+      {(found.length > 0 || ignoredSeen.length > 0 || ignoredGone.length > 0) && toLink.length === 0 && (
         <>
-          {watch.length > 0 && (
+          {showWatch.length > 0 && (
             <>
               <p className="text-sm font-semibold text-txt">
                 {tx("À regarder")} <span className="font-normal text-dim">({watch.length}) · {tx("cochées d'office : SSH, appli reconnue ou service utile ; décochez ce que vous ne voulez pas")}</span>
               </p>
-              <ul className="flex flex-col gap-1.5">{renderRows(watch)}</ul>
+              <ul className="flex flex-col gap-1.5">{renderRows(showWatch)}</ul>
             </>
           )}
           {watch.length === 0 && rest > 0 && <p className="text-sm text-dim">{tx("Rien d'évident à ajouter dans ce scan : les appareils trouvés sont repliés ci-dessous.")}</p>}
@@ -265,11 +279,10 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
                 {[...webOnly, ...pingOnly].some((h) => diff?.fresh.has(h.ip)) && <> <Badge tone="warn">{tx("nouvelle")}</Badge></>}
               </summary>
               <p className="mt-2 text-xs text-dim">{tx("On n'y touche pas : décochés. Cochez-en un si vous voulez le suivre quand même.")}</p>
-              {webOnly.length > 0 && (<><p className="mt-2 text-xs font-semibold text-muted">{tx("Pages web seules")} ({webOnly.length})</p><ul className="mt-1 flex flex-col gap-1.5">{renderRows(webOnly)}</ul></>)}
-              {pingOnly.length > 0 && (<><p className="mt-3 text-xs font-semibold text-muted">{tx("Répondent au ping seulement")} ({pingOnly.length})</p><ul className="mt-1 flex flex-col gap-1.5">{renderRows(pingOnly)}</ul></>)}
+              {showWeb.length > 0 && (<><p className="mt-2 text-xs font-semibold text-muted">{tx("Pages web seules")} ({showWeb.length})</p><ul className="mt-1 flex flex-col gap-1.5">{renderRows(showWeb)}</ul></>)}
+              {showPing.length > 0 && (<><p className="mt-3 text-xs font-semibold text-muted">{tx("Répondent au ping seulement")} ({showPing.length})</p><ul className="mt-1 flex flex-col gap-1.5">{renderRows(showPing)}</ul></>)}
             </details>
           )}
-          {hiddenCount > 0 && <p className="text-xs text-dim">{tx("{0} appareil(s) ignoré(s) : à reprendre dans Réglages → Découverte.", hiddenCount)}</p>}
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" className={primary} disabled={busy || picked.size === 0} onClick={() => void addPicked()}>
               <Check size={14} aria-hidden />{tx("Ajouter la sélection")} {picked.size > 0 && `(${picked.size})`}
@@ -334,23 +347,6 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
             })}
           </ul>
           <p className="mt-2 text-xs text-dim">{tx("Pour retirer une machine : Réglages → Machines. Pour effacer vos « Passer » : menu du compte → « Revoir les premiers pas ».")}</p>
-        </details>
-      )}
-      {!!ignoredList?.length && (
-        <details className="rounded-lg border border-line/60 px-3 py-2">
-          <summary className="cursor-pointer text-sm font-semibold text-txt">
-            <EyeOff size={14} className="mr-1.5 inline" aria-hidden />{tx("Appareils ignorés")} <span className="font-normal text-dim">({ignoredList.length}) · {tx("ignorés à la main")}</span>
-          </summary>
-          <p className="mt-2 text-xs text-dim">{tx("Ces appareils ne sont plus proposés par la recherche. Reprenez-en un pour qu'il soit de nouveau proposé.")}</p>
-          <ul className="mt-2 flex flex-col gap-1.5">
-            {ignoredList.map((e) => (
-              <li key={e.ip} className="flex flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2 text-sm">
-                <b className="min-w-0 flex-1 truncate text-txt">{e.name || e.ip}</b>
-                <code className="font-mono text-xs text-dim">{e.ip}</code>
-                <button type="button" className={quietBtn} onClick={() => void act(() => send("DELETE", `network/ignored/${e.ip}`), tx("{0} sera de nouveau proposé", e.name || e.ip), setNote).then(() => reload())}>{tx("Reprendre")}</button>
-              </li>
-            ))}
-          </ul>
         </details>
       )}
       <NoteLine note={note} />
