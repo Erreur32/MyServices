@@ -209,6 +209,7 @@ export interface Proposal {
   url: string;
   machine?: string | null;
   service?: string | null;
+  linked?: boolean;                      // detected_apps seulement : un connecteur est déjà réglé pour cette machine
 }
 
 export interface Data {
@@ -217,6 +218,7 @@ export interface Data {
   npm_instances: Record<string, string>;
   connectors?: Connector[];
   proposals?: Proposal[];
+  detected_apps?: Proposal[];
   services_status?: ServiceStatus[];
   network?: NetworkConnector[];
   security?: SecurityConnector[];

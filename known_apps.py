@@ -214,24 +214,27 @@ def apps_from_services(services: list[dict]) -> list[App]:
     return list(found.values())
 
 
-def propose_windows(ip: str, machine: str | None, apps: list[App], ports: dict, declared: list[dict]) -> list[dict]:
+def propose_windows(ip: str, machine: str | None, apps: list[App], ports: dict, declared: list[dict], with_linked: bool = False) -> list[dict]:
     """Connecteurs à proposer pour les applis vues par les services d'un PC Windows : la même forme que propose(). L'adresse est celle du port
     web connu de l'appli, ou son port par défaut ; une appli qui n'écoute pas là reste proposée (l'utilisateur corrige l'adresse)."""
     out = []
     for a in apps:
         if not a.connector:
             continue
-        if any(c.get("type") == a.connector and ip in " ".join(v for v in c.values() if isinstance(v, str)) for c in declared):
+        linked = any(c.get("type") == a.connector and ip in " ".join(v for v in c.values() if isinstance(v, str)) for c in declared)
+        if linked and not with_linked:
             continue
         port = next((p for p in a.ports if p in ports), None) or WEB_PORTS.get(a.key) or (a.ports[0] if a.ports else None)
         out.append({"connector": a.connector, "label": a.label, "confidence": SURE, "ip": ip, "port": port,
-                    "url": f"http://{ip}:{port}" if port else f"http://{ip}", "machine": machine, "service": f"windows:{a.key}", "via": "service Windows"})
+                    "url": f"http://{ip}:{port}" if port else f"http://{ip}", "machine": machine, "service": f"windows:{a.key}", "via": "service Windows",
+                    **({"linked": linked} if with_linked else {})})
     return out
 
 
-def propose(rows: list[dict], declared: list[dict]) -> list[dict]:
+def propose(rows: list[dict], declared: list[dict], with_linked: bool = False) -> list[dict]:
     """Un connecteur à proposer par appli reconnue sur une machine, sauf s'il est déjà réglé pour cette
-    machine (une instance du même type dont un réglage texte contient son IP). Les plus sûres d'abord."""
+    machine (une instance du même type dont un réglage texte contient son IP). Les plus sûres d'abord.
+    with_linked : garde aussi celles déjà reliées, avec « linked » (le tableau des services détectés)."""
     order = {SURE: 0, PROBABLE: 1, POSSIBLE: 2}
     out, seen = [], set()
     for r in sorted((r for r in rows if (r.get("app") or {}).get("connector")), key=lambda r: order[r["app"]["confidence"]]):
@@ -239,10 +242,12 @@ def propose(rows: list[dict], declared: list[dict]) -> list[dict]:
         if not ip or (ctype, ip) in seen:
             continue
         seen.add((ctype, ip))
-        if any(c.get("type") == ctype and ip in " ".join(v for v in c.values() if isinstance(v, str)) for c in declared):
+        linked = any(c.get("type") == ctype and ip in " ".join(v for v in c.values() if isinstance(v, str)) for c in declared)
+        if linked and not with_linked:
             continue
         scheme = r.get("web_scheme") or r.get("scheme") or "http"
         out.append({"connector": ctype, "label": r["app"]["label"], "confidence": r["app"]["confidence"],
                     "ip": ip, "port": r.get("port"), "url": f"{scheme}://{ip}:{r.get('port')}",
-                    "machine": r.get("machine"), "service": r.get("id")})
+                    "machine": r.get("machine"), "service": r.get("id"),
+                    **({"linked": linked} if with_linked else {})})
     return out

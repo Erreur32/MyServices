@@ -1,15 +1,16 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { Check, HelpCircle, Loader2, Package, Pencil, Plug, Play, Plus, ShieldCheck, Trash2, X } from "lucide-react";
+import { Check, CircleAlert, HelpCircle, Loader2, Package, Pencil, Plug, Play, Plus, ScanSearch, ShieldCheck, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { LOGIN, LoginRequired, read, send } from "../api";
+import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
+import { Overlay } from "../components/Overlay";
 import { Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { StatusLine } from "../components/ssh";
-import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorType, MachinesSettings, ScriptTip } from "../types";
+import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorType, MachinesSettings, Proposal, ScriptTip } from "../types";
 import { configFor, modeOf } from "../lib/connectorModes";
 import { takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
@@ -20,12 +21,13 @@ const KIND: Record<string, string> = {
 };
 
 // Proposé depuis « Premiers pas » : lu une seule fois, à l'ouverture de l'onglet
-export function Connectors() {
+export function Connectors({ snap }: { snap: Snapshot }) {
   const [prefill] = useState(takePrefill);
   const [st, setSt] = useState<ConnectorsState | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
   const [editing, setEditing] = useState("");  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
+  const [overlay, setOverlay] = useState<Proposal | null>(null);   // service détecté à activer : son formulaire s'ouvre par-dessus
   const [picking, setPicking] = useState(false);  // mini cartes des connecteurs disponibles, ouvertes par le « + »
   const [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false);
   const reload = useCallback(() => {
@@ -72,6 +74,18 @@ export function Connectors() {
         )}
         {type && <ConnectorForm key={type.type} type={type} prefill={prefill?.type === type.type ? prefill : null} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
       </Card>
+      <DetectedServices apps={snap.data.detected_apps ?? []} onOpen={(p) => {
+        const mine = st.instances.find((i) => i.type === p.connector && Object.values(i.config).some((v) => typeof v === "string" && v.includes(p.ip)));
+        if (!p.linked || !mine) { setOverlay(p); return; }
+        setEditing(`${mine.type}/${mine.name}`);   // déjà relié : on ouvre la modification de sa carte
+        setTimeout(() => document.getElementById(`connector-${mine.type}-${mine.name}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+      }} />
+      {overlay && st.types.find((t) => t.type === overlay.connector) && (
+        <Overlay title={<>{appIcon([overlay.label]) && <img src={appIcon([overlay.label])!} alt="" className="h-6 w-6" />}{tx("Activer")} {overlay.label} <Dim>· {overlay.machine || overlay.ip}</Dim></>} onClose={() => setOverlay(null)}>
+          <ConnectorForm key={overlay.connector} type={st.types.find((t) => t.type === overlay.connector)!} prefill={{ type: overlay.connector, name: overlay.connector, url: overlay.url }}
+            onDone={() => { setOverlay(null); reload(); }} onCancel={() => setOverlay(null)} />
+        </Overlay>
+      )}
       {st.instances.length === 0 && !type && (
         <Card><p className="text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p></Card>
       )}
@@ -130,6 +144,51 @@ function TestReport({ r, onClose }: { r: TestOut; onClose: () => void }) {
   );
 }
 
+/** Les applis reconnues sur le réseau qui ont un connecteur : activé (vert) ou à activer (orange, avec le bouton qui ouvre le connecteur déjà rempli) */
+function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Proposal) => void }) {
+  if (!apps.length) return null;
+  const todo = apps.filter((p) => !p.linked).length, rows = [...apps].sort((a, b) => Number(!!a.linked) - Number(!!b.linked));
+  return (
+    <Card className={todo ? "border-warn/60" : ""}>
+      <h2 className="flex items-center gap-2 font-bold"><ScanSearch size={16} />{tx("Services détectés")} <Dim>· {apps.length}</Dim>
+        {todo > 0 && <Badge tone="warn">{tx("{0} à activer", todo)}</Badge>}</h2>
+      <div className="mt-2 overflow-x-auto">
+        <table className="w-full min-w-[480px] text-sm">
+          <thead>
+            <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-dim">
+              <th className="py-2 pr-3 font-semibold">{tx("Service")}</th><th className="px-3 py-2 font-semibold">{tx("Machine")}</th><th className="px-3 py-2 text-right font-semibold">{tx("Activation")}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line/60">
+            {rows.map((p) => (
+              <tr key={`${p.connector}@${p.ip}`} className={p.linked ? "" : "bg-warn/10"}>
+                <td className="py-1 pr-3">
+                  <button type="button" onClick={() => onOpen(p)} title={p.linked ? tx("Modifier ce connecteur") : tx("Renseigner l'accès et activer")}
+                    className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left hover:bg-link/10">
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-bg2">
+                      {appIcon([p.label]) ? <img src={appIcon([p.label])!} alt="" className="h-4 w-4" /> : <Plug size={14} className="text-muted" aria-hidden />}
+                    </span>
+                    <b className="underline decoration-dotted underline-offset-2">{p.label}</b>
+                  </button>
+                </td>
+                <td className="px-3 py-2.5"><b className="font-semibold">{p.machine || p.ip}</b>{p.machine && <Dim> · {p.ip}</Dim>}</td>
+                <td className="px-3 py-2.5 text-right">
+                  {p.linked
+                    ? <Badge tone="ok"><Check size={12} className="mr-1 inline" aria-hidden />{tx("Activé")}</Badge>
+                    : <span className="inline-flex items-center gap-2">
+                        <Badge tone="warn"><CircleAlert size={12} className="mr-1 inline" aria-hidden />{tx("À activer")}</Badge>
+                        <button type="button" className={primary} onClick={() => onOpen(p)}><Plus size={14} />{tx("Activer")}</button>
+                      </span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
 function InstanceCard({ inst, type, reload, onCollect, editing: edit, locked, setEditing: setEdit }: {
   inst: ConnectorInstance; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
 }) {
@@ -137,7 +196,7 @@ function InstanceCard({ inst, type, reload, onCollect, editing: edit, locked, se
   const url = inst.config.url as string | undefined;
   const path = `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}`;
   return (
-    <Card className={inst.enabled ? "" : "opacity-80"}>
+    <div id={`connector-${inst.type}-${inst.name}`} className="scroll-mt-24"><Card className={inst.enabled ? "" : "opacity-80"}>
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         <div className="min-w-[220px] flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -174,7 +233,7 @@ function InstanceCard({ inst, type, reload, onCollect, editing: edit, locked, se
       {report && !edit && <TestReport r={report} onClose={() => setReport(null)} />}
       {edit && <ConnectorForm type={type} inst={inst} onDone={() => { setEdit(false); reload(); }} onCancel={() => setEdit(false)} />}
       <NoteLine note={note} />
-    </Card>
+    </Card></div>
   );
 }
 

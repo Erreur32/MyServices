@@ -168,6 +168,11 @@ class Propose(unittest.TestCase):
         got = ka.propose(self.rows(), [{"type": "npm", "name": "lan", "api": "http://10.0.0.5:81"}])
         self.assertEqual([p["ip"] for p in got], ["10.0.0.6"])
 
+    def test_avec_les_deja_reliees_pour_le_tableau(self):
+        got = ka.propose(self.rows(), [{"type": "npm", "name": "lan", "api": "http://10.0.0.5:81"}], with_linked=True)
+        self.assertEqual([(p["ip"], p["linked"]) for p in got], [("10.0.0.5", True), ("10.0.0.6", False)])
+        self.assertNotIn("linked", ka.propose(self.rows(), [])[0])
+
     def test_autre_type_ou_autre_machine_ne_masque_pas(self):
         got = ka.propose(self.rows(), [{"type": "adguard", "url": "http://10.0.0.5:3000"}, {"type": "npm", "api": "http://10.0.0.9:81"}])
         self.assertEqual(len(got), 2)

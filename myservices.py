@@ -1156,6 +1156,10 @@ def main():
     for m in machines_out:   # machine lue par l'API d'un connecteur (Home Assistant…) : la page le sait, elle ne dit plus « sans SSH »
         if m["ip"] in linked:
             m["api"] = linked[m["ip"]]
+    declared_now = connectors.declared(CFG, META_RAW)
+    detected_apps = known_apps.propose(rows, declared_now, with_linked=True) + [   # applis reconnues, reliées ou non : « proposals » garde les non reliées
+        p for ip, apps in agent_apps.items()
+        for p in known_apps.propose_windows(ip, (MACHINES.get(ip) or [None])[0], apps, procs.get(ip) or {}, declared_now, with_linked=True)]
     out = {
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "next_run": next_timer_run("myservices.timer"),
@@ -1170,9 +1174,8 @@ def main():
                        for st in CONNECTOR_STATUS],  # ip : la machine visée (deux machines peuvent porter le même nom)
         "categories": [n for n, _ in CATEGORIES] + ["Autre"],
         "hosts": rows,
-        "proposals": known_apps.propose(rows, connectors.declared(CFG, META_RAW)) + [
-            p for ip, apps in agent_apps.items()
-            for p in known_apps.propose_windows(ip, (MACHINES.get(ip) or [None])[0], apps, procs.get(ip) or {}, connectors.declared(CFG, META_RAW))],
+        "proposals": [p for p in detected_apps if not p["linked"]],
+        "detected_apps": detected_apps,
         "services_status": services_status,
         "network": network,
         "security": security,
