@@ -63,6 +63,8 @@ function HostHint({ h }: { h: NetHost }) {
 
 /** Cadre dépliable (« machines déjà ajoutées », « autres appareils ») : bordure et fond à la couleur d'accent pour qu'on voie qu'on peut l'ouvrir */
 export const FOLD = "group rounded-xl border border-link/50 bg-link/5 open:bg-link/[0.03] hover:border-link";
+/** Même cadre dépliable quand il y a une action à faire : couleur d'alerte */
+export const FOLD_WARN = "group rounded-xl border border-warn/60 bg-warn/10 hover:border-warn";
 export const FOLD_HEAD = "flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2.5 text-sm font-semibold text-txt [&::-webkit-details-marker]:hidden";
 
 /** Une ligne de machine trouvée : cadre net, case + infos à gauche, actions à droite ; la ligne cochée prend l'accent */

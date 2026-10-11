@@ -10,6 +10,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ## Unreleased (next version, not tagged yet)
 
 ### Changed
+- **Discovery pages: coloured frames wherever an action is to do**: a card with something to do gets an orange frame, tint and left bar, and so does its foldable list; a family sub-tab with something to do is orange; the Settings menu entry "Discovery" is orange with the count.
+
+### Changed
 - **"View and choose the machines found" is folded by default** (it only opens when you follow its link, not on every page load).
 
 ### Fixed

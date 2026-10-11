@@ -9,7 +9,7 @@ import { tx } from "../lib/i18n";
 import { openConnector } from "../lib/connectorPrefill";
 import type { Machine } from "../types";
 import { MachineIcon } from "./MachineIcon";
-import { FOLD, FOLD_HEAD } from "./NetworkStep";
+import { FOLD, FOLD_HEAD, FOLD_WARN } from "./NetworkStep";
 import { NoteLine } from "./form";
 import { Badge } from "./ui";
 
@@ -94,7 +94,7 @@ function Item({ x, reload, machines, extra }: { x: DiscoveryItem; reload: () => 
     return () => removeEventListener("hashchange", on);
   }, [x.id]);
   return (
-    <li id={`net-${x.id}`} className={`scroll-mt-20 flex flex-col gap-2 rounded-xl border bg-card p-4 ${extra ? "lg:col-span-2 " : ""}${todo ? "border-warn/50" : x.muted ? "border-line/60 opacity-75" : "border-line"}`}>
+    <li id={`net-${x.id}`} className={`scroll-mt-20 flex flex-col gap-2 rounded-xl border bg-card p-4 ${extra ? "lg:col-span-2 " : ""}${todo ? "border-warn bg-warn/5 shadow-[inset_4px_0_0_rgb(var(--warn))]" : x.muted ? "border-line/60 opacity-75" : "border-line"}`}>
       <div className="flex items-start gap-2">
         <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${todo ? "bg-warn/15 text-warn" : "bg-bg2 text-muted"}`} title={m.hint}><m.Icon size={15} aria-hidden /></span>
         <div className="min-w-0 flex-1"><Title x={x} machines={machines} /></div>
@@ -107,8 +107,8 @@ function Item({ x, reload, machines, extra }: { x: DiscoveryItem; reload: () => 
         {when(x.next) && <Badge tone="info">{tx("prochaine")} {when(x.next)}</Badge>}
       </div>
       {extra && (
-        <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
-          <summary className={FOLD_HEAD}><ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />{tx("Voir et choisir les machines trouvées")}{picked > 0 && <Badge tone="info">{tx("{0} cochée(s)", picked)}</Badge>}</summary>
+        <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className={`${todo ? FOLD_WARN : FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
+          <summary className={FOLD_HEAD}><ChevronRight size={16} className={`shrink-0 ${todo ? "text-warn" : "text-link"} transition-transform group-open:rotate-90`} aria-hidden />{tx("Voir et choisir les machines trouvées")}{picked > 0 && <Badge tone="info">{tx("{0} cochée(s)", picked)}</Badge>}</summary>
           <div className="flex flex-col gap-3">{extra(setPicked)}</div>
         </details>
       )}

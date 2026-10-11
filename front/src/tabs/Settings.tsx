@@ -15,6 +15,7 @@ import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { NotificationsHub } from "./NotificationsHub";
 import { Connectors } from "./Connectors";
 import { MachinesSettings } from "./MachinesSettings";
+import { useDiscoveries } from "../components/DiscoveryCard";
 import { NetworkSettings } from "./NetworkSettings";
 import { IconChoice, type IconOption } from "../components/IconChoice";
 import { AboutSettings } from "./About";
@@ -71,6 +72,7 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
     return SECTIONS.some((x) => x.id === wanted) ? wanted : "accounts";
   });
   useEffect(() => rememberSettingsSection(section), [section]);
+  const [disc] = useDiscoveries();   // « Découverte » est colorée quand il y a quelque chose à faire
   return (
     <div className="flex flex-col gap-4 py-4 md:flex-row">
       <nav className="flex shrink-0 gap-3 overflow-x-auto md:w-60 md:flex-col md:overflow-visible" aria-label={tx("Sections des réglages")}>
@@ -78,11 +80,12 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
           <div key={g.label} role="group" aria-label={g.label} className="flex shrink-0 gap-1 rounded-xl border border-line bg-card/60 p-1.5 md:flex-col">
             <p className="hidden px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-widest text-dim md:block">{g.label}</p>
             {g.sections.map((s) => {
-              const on = s.id === section;
+              const on = s.id === section, todo = s.id === "network" && !!disc && disc.todo > 0;
               return (
                 <button key={s.id} type="button" onClick={() => setSection(s.id)} aria-current={on ? "page" : undefined}
-                  className={`flex shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors ${on ? "bg-link/15 text-txt shadow-[inset_3px_0_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
-                  <s.icon size={16} className={on ? "text-link" : "text-dim"} aria-hidden />{s.label}
+                  className={`flex shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors ${on ? "bg-link/15 text-txt shadow-[inset_3px_0_0_rgb(var(--link))]" : todo ? "bg-warn/10 text-warn hover:bg-warn/20" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
+                  <s.icon size={16} className={on ? "text-link" : todo ? "text-warn" : "text-dim"} aria-hidden />{s.label}
+                  {todo && <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-warn px-1 text-[11px] font-bold leading-none text-bg" title={tx("{0} chose(s) à faire pour compléter la découverte", disc!.todo)}>{disc!.todo}</span>}
                 </button>
               );
             })}
