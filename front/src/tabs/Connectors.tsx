@@ -106,10 +106,12 @@ export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string
           editing={editing === `${i.type}/${i.name}`} locked={(!!editing && editing !== `${i.type}/${i.name}`) || picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
       ))}
 
-      <ReadBySsh snap={snap} instances={st.instances} />
       </>}
 
-      {part === "agents" && <Agents focusIp={agentIp} live={snap.data.machine_list || []} />}
+      {part === "agents" && <>
+        <Agents focusIp={agentIp} live={snap.data.machine_list || []} />
+        <ReadBySsh snap={snap} instances={st.instances} />
+      </>}
 
       {part === "activation" && <>
       <p className="px-1 text-sm text-muted">{tx("Ce que la collecte lit et ce que la page affiche. Un changement est pris en compte à la prochaine collecte.")}</p>
