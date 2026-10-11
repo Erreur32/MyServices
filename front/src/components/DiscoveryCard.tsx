@@ -1,6 +1,6 @@
 // « Découvertes » : ce que MyServices cherche tout seul, ce qui demande un clic, et ce qui reste à faire (GET /discoveries).
 // Liste complète en haut de Réglages → Découverte ; rappel court sur l'accueil quand quelque chose est à faire.
-import { Bell, Boxes, Check, ChevronRight, Hand, HardDrive, Network, Play, RefreshCw, Repeat, Settings2 } from "lucide-react";
+import { Bell, BellOff, Boxes, Check, ChevronRight, Hand, HardDrive, Network, Play, RefreshCw, Repeat, Settings2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { dateTime } from "../lib/format";
@@ -15,6 +15,7 @@ import { Badge, Card, Dim } from "./ui";
 export interface DiscoveryItem {
   id: string; title: string; mode: "auto" | "first" | "manual"; what: string; last: number | null; next: number | null;
   app?: string | null; machine?: { ip: string; name: string } | null;  // appli trouvée et machine visée : titre mis en forme
+  mutable?: boolean; muted?: boolean;  // rappel qu'on peut couper (et rétablir) ; coupé
   state: "ok" | "todo" | "info"; note: string; action: { label: string; href?: string; run?: string; prefill?: { type: string; name: string; url: string } } | null;
 }
 
@@ -43,6 +44,22 @@ export function Title({ x, machines }: { x: DiscoveryItem; machines?: Machine[] 
 }
 
 const when = (ts: number | null) => (ts ? dateTime(ts * 1000) : null);
+
+/** Couper le rappel d'une découverte (plus de cloche ni de rappel sur l'accueil) ou le rétablir ; elle reste listée dans Réglages → Découverte */
+function MuteButton({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
+  const [note, setNote] = useState<Note>(null);
+  if (!x.mutable) return null;
+  const mute = !x.muted;
+  return (
+    <>
+      <button type="button" className={quiet} onClick={() => void act(() => send("PUT", "discoveries/muted", { id: x.id, muted: mute }), mute ? tx("rappel coupé : il reste listé ici") : tx("rappel rétabli"), setNote).then(() => reload())}
+        title={mute ? tx("Ne plus compter cette découverte dans la cloche ni sur l'accueil ; elle reste ici, vous pouvez la réafficher") : undefined}>
+        {mute ? <BellOff size={13} aria-hidden /> : <Bell size={13} aria-hidden />}{mute ? tx("Ne plus me le rappeler") : tx("Réafficher le rappel")}
+      </button>
+      <NoteLine note={note} />
+    </>
+  );
+}
 
 function Action({ a, reload }: { a: NonNullable<DiscoveryItem["action"]>; reload: () => void }) {
   const [note, setNote] = useState<Note>(null);
@@ -76,11 +93,11 @@ function Item({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; m
       <p className="text-sm text-muted">{x.what}</p>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-dim">
-          {x.note && <span className={x.state === "todo" ? "text-warn" : ""}>{x.note}</span>}
+          {x.muted ? <Badge tone="off">{tx("rappel coupé")}</Badge> : x.note && <span className={x.state === "todo" ? "text-warn" : ""}>{x.note}</span>}
           {when(x.last) ? <Badge tone="off">{tx("dernière fois")} {when(x.last)}</Badge> : x.mode !== "auto" && <Badge tone="warn">{tx("jamais lancée")}</Badge>}
           {when(x.next) && <Badge tone="info">{tx("prochaine")} {when(x.next)}</Badge>}
         </div>
-        {x.action && <div className="flex flex-col items-start gap-1"><Action a={x.action} reload={reload} /></div>}
+        <div className="flex flex-wrap items-center gap-1.5">{x.action && <Action a={x.action} reload={reload} />}<MuteButton x={x} reload={reload} /></div>
       </div>
     </li>
   );
@@ -107,7 +124,7 @@ export function DiscoveryCard({ machines }: { machines?: Machine[] }) {
                     <p className="text-sm text-muted">{x.what}</p>
                     <p className="text-xs text-warn">{x.note}</p>
                   </div>
-                  {x.action && <div className="flex flex-col items-start gap-1"><Action a={x.action} reload={load} /></div>}
+                  <div className="flex flex-wrap items-center gap-1.5">{x.action && <Action a={x.action} reload={load} />}<MuteButton x={x} reload={load} /></div>
                 </li>
               ); })}
             </ul>

@@ -88,4 +88,10 @@ def build(i: dict) -> list[dict]:
             None, None, "todo", "connecteur à configurer",
             {"label": "Configurer", "prefill": {"type": p["connector"], "name": p["connector"], "url": p.get("url") or ""}},
             app=p["label"], machine={"ip": p.get("ip") or "", "name": p.get("machine") or ""} if p.get("ip") or p.get("machine") else None)
+    muted = set(i.get("muted") or [])
+    for x in out:   # un rappel qui revient sans cesse peut être coupé (et rétabli) ; une clé SSH refusée ou un agent absent, non
+        x["mutable"] = x["id"] in ("hosts", "network", "backups-other") or x["id"].startswith("connector:")
+        x["muted"] = x["mutable"] and x["id"] in muted
+        if x["muted"] and x["state"] == "todo":
+            x["state"], x["note"] = "info", "rappel coupé"
     return out

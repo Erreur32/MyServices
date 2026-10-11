@@ -1530,8 +1530,27 @@ def discoveries(request: Request):
         "backups_auto": core.CFG.get("backups_auto", True), "ssh_machines": len(ssh), "auto_checked": sum(1 for ip in ssh if ip in _read_list(state / "backups-auto.json")) if checked else 0,
         "backups_search_last": stamp("backups-discover.json"), "backups_enabled": bool(core.CFG.get("backups_url")),
         "backups_last": bk["end"] or None, "backups_next": core.next_run("backups"), "proposals": data.get("proposals") or [],
+        "muted": core.CFG.get("discoveries_muted") or [],
     })
     return {"items": items, "todo": sum(1 for x in items if x["state"] == "todo")}
+
+
+class MuteBody(BaseModel):
+    id: str
+    muted: bool = True
+
+
+@app.put(API + "/discoveries/muted", tags=["découvertes"], summary="Couper ou rétablir le rappel d'une découverte à faire (admin)")
+def discovery_mute(body: MuteBody, request: Request):
+    import system
+    if denied := admin_write(request):
+        return denied
+    try:
+        out = system.set_discovery_muted(core, body.id, body.muted)
+    except ValueError as e:
+        return deny(400, str(e))
+    store().audit("rappel de découverte " + ("coupé" if body.muted else "rétabli"), request.state.user["username"], ip_of(request), body.id)
+    return {"ok": True, "muted": out}
 
 
 def _read_list(f: Path) -> list:

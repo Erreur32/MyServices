@@ -17,9 +17,11 @@ import type { NetScan } from "../types";
 
 interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean; ignored: { ip: string; name: string }[] }
 
-/** Lien #settings/network/<hosts|scan> (depuis une découverte à faire) : fait défiler jusqu'à la carte, même si l'on est déjà sur la page */
-function useScrollToPart() {
+/** Lien #settings/network/<hosts|scan> (depuis une découverte à faire) : fait défiler jusqu'à la carte, même si l'on est déjà sur la page ;
+ *  `ready` : la page est chargée (sinon la carte n'existe pas encore au moment du clic) */
+function useScrollToPart(ready: boolean) {
   useEffect(() => {
+    if (!ready) return;
     const go = () => {
       const part = location.hash.split("/")[2];
       if (part) setTimeout(() => document.getElementById(`net-${part}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
@@ -27,11 +29,10 @@ function useScrollToPart() {
     go();
     addEventListener("hashchange", go);
     return () => removeEventListener("hashchange", go);
-  }, []);
+  }, [ready]);
 }
 
 export function NetworkSettings({ snap }: { snap: Snapshot }) {
-  useScrollToPart();
   const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
   const [hours, setHours] = useState(""), [nets, setNets] = useState<string | null>(null), [note, setNote] = useState<Note>(null), [error, setError] = useState("");
   const load = useCallback(() => {
@@ -44,6 +45,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
     const id = setInterval(load, 10_000); // une recherche en cours : suivre sa fin
     return () => clearInterval(id);
   }, [load]);
+  useScrollToPart(!!cfg && !!scan);
   if (!cfg || !scan) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 
   const running = scan.phase === "ping" || scan.phase === "identify";

@@ -193,6 +193,27 @@ def set_netscan_ignored(core, ip: str, name: str = "", ignore: bool = True) -> d
     return netscan_settings(core)
 
 
+def set_discovery_muted(core, did: str, muted: bool) -> list[str]:
+    """Coupe (muted) ou rétablit le rappel d'une découverte « à faire » : elle reste listée, mais ne compte plus dans la cloche ni sur l'accueil."""
+    did = did.strip()
+    if not did or len(did) > 120:
+        raise ValueError("identifiant de découverte invalide")
+    kept = [d for d in core.CFG.get("discoveries_muted") or [] if d != did]
+    if muted:
+        if len(kept) >= 200:
+            raise ValueError("200 rappels coupés au plus")
+        kept.append(did)
+
+    def change(raw: dict) -> None:
+        if kept:
+            raw["discoveries_muted"] = kept
+        else:
+            raw.pop("discoveries_muted", None)
+    _update_config(core, change)
+    core.CFG["discoveries_muted"] = kept
+    return kept
+
+
 def set_netscan_discreet(core, on: bool) -> dict:
     """Mode discret : la recherche ne lit ni le TTL ni l'adresse MAC."""
     def change(raw: dict) -> None:

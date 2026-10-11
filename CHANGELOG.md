@@ -9,6 +9,12 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+### Added
+- **"Stop reminding me" on a discovery to do** (machines found, network search never run, backup search, apps to connect): it stops counting in the bell and on the home page but stays listed in Settings → Discovery with a "Show the reminder again" button (`discoveries_muted`, `PUT /discoveries/muted`). A refused SSH key or a missing agent cannot be muted.
+
+### Fixed
+- **The Discovery buttons still did nothing when arriving from another page**: the scroll ran before the page had loaded its data.
+
 ### Changed
 - **Discovery titles**: the machine's system logo, then "**App** found on **Machine** (ip)" with only the app and the machine in bold (`app` and `machine` fields added to `GET /discoveries`).
 

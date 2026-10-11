@@ -24,6 +24,15 @@ class Discoveries(unittest.TestCase):
         off = by(d.build({"net_has_run": True, "net_last": 1000.0, "net_every_h": 0}))["network"]
         self.assertEqual((off["mode"], off["next"]), (d.MANUAL, None))        # répétition coupée : à la main
 
+    def test_rappel_coupe_ne_compte_plus_mais_reste_liste(self):
+        base = {"unknown_hosts": 32, "net_has_run": True, "net_every_h": 6}
+        on = by(d.build(base))["hosts"]
+        self.assertEqual((on["state"], on["mutable"], on["muted"]), ("todo", True, False))
+        off = by(d.build({**base, "muted": ["hosts"]}))["hosts"]
+        self.assertEqual((off["state"], off["muted"], off["note"]), ("info", True, "rappel coupé"))
+        key = by(d.build({"key_refused": [{"ip": "10.0.0.2", "name": "x"}], "muted": ["ssh:10.0.0.2"]}))["ssh:10.0.0.2"]
+        self.assertEqual((key["mutable"], key["state"]), (False, "todo"))     # une vraie panne ne se coupe pas
+
     def test_les_modes_sont_dits_clairement(self):
         m = by(d.build({"ssh_machines": 2, "auto_checked": 2}))
         self.assertEqual(m["services"]["mode"], d.AUTO)
