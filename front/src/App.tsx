@@ -2,6 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LOGIN, LoginRequired, NotConfigured, loadSnapshot, logout, type Snapshot } from "./api";
 import { Header } from "./components/Header";
+import { FirstSteps } from "./components/FirstSteps";
 import { Home } from "./components/Home";
 import { ScanBar } from "./components/ScanBar";
 import { Tabs } from "./components/Tabs";
@@ -87,6 +88,19 @@ export default function App() {
   const badges: Partial<Record<TabId, "crit" | "warn">> = {};
   for (const a of items) if (badges[a.tab] !== "crit") badges[a.tab] = a.level;
   const current = visible(tab, snap) ? tab : "home";
+  if (hash.startsWith("#setup") && snap.me.role === "admin")
+    return (
+      <div className="setup-big mx-auto max-w-4xl px-4 pb-16 sm:px-6">
+        <ScanBar onFinished={load} />
+        <header className="flex items-center justify-between gap-3 py-6">
+          <h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight">{tx("MyServices")} <span className="text-xl font-semibold text-dim">{tx("Installation")}</span></h1>
+          <a href="#" className="group inline-flex items-center gap-2 rounded-full border border-line bg-card py-1.5 pl-2.5 pr-4 text-sm font-semibold text-muted hover:border-link hover:text-txt">
+            <ArrowLeft size={16} aria-hidden className="transition-transform group-hover:-translate-x-0.5" />{tx("Tableau de bord")}
+          </a>
+        </header>
+        <FirstSteps snap={snap} page />
+      </div>
+    );
   const profile = hash.startsWith("#profile"); // page à part (tout compte), indépendante des Réglages et de la gestion des comptes
 
   return (

@@ -27,12 +27,12 @@ export function forgetChoices(): void {
   sessionStorage.removeItem(ADDED_KEY);
 }
 
-/** Menu du compte -> « Revoir les premiers pas » : la carte s'ouvre à l'accueil, même si elle avait été fermée,
+/** Menu du compte -> « Revoir les premiers pas » : la page d'installation s'ouvre, même si elle avait été fermée,
  *  et repart de zéro (plus aucune étape ni aucun accès « passé ») */
 export function reopenFirstSteps(): void {
   forgetChoices();
   localStorage.setItem(REOPEN, "1");
-  location.hash = "";
+  location.hash = "setup";
   dispatchEvent(new Event(REOPEN_EVENT));
 }
 

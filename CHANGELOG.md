@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+- **Getting started is now a standalone full-size page (`/#setup`)**: no tabs or dashboard header, only the steps, a bigger type size and a "Dashboard" link. The home page shows a single "Getting started n/6 — Continue" banner instead of the whole card; a fresh install lands on the setup page once per session; "Review the first steps" opens it again.
+- **Getting started**: the badges of the network scan summary all share the same dark look.
+
 ## v0.10.2 (2026-10-11)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
