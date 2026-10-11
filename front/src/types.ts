@@ -192,6 +192,8 @@ export interface ServiceStatus {
   version?: string | null;
   url?: string | null;
   entities?: number;
+  facts?: { label: string; value: string; tone?: "ok" | "warn" | "bad" }[];  // connecteurs « état d'un service » : chiffres clés
+  problems?: string[];                                                       // et ce qui est à regarder
   updates?: { name: string; installed?: string | null; latest?: string | null; group?: "core" | "addon" | "other" }[];
 }
 

@@ -19,6 +19,8 @@ from connectors.docker_ssh import DockerSSH
 from connectors.home_assistant import HomeAssistantAPI
 from connectors.dockhand import Dockhand
 from connectors.dozzle import Dozzle
+from connectors.homelab_infra import NUT, CrowdSec, OPNsense, PiHole, Portainer, Synology, Tailscale, Technitium, TrueNAS, UniFi
+from connectors.homelab_media import Arr, Frigate
 from connectors.logviewr import LogviewR
 from connectors.mynetwork import MynetworK
 from connectors.npm import NPM
@@ -27,7 +29,7 @@ from connectors.proxmox import ProxmoxBackup, ProxmoxVE
 from connectors.uptime_kuma import UptimeKuma
 from connectors.webcheck import WebCheck
 
-TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, MynetworK, LogviewR, Dockhand, ProxmoxVE, ProxmoxBackup, Discord, Telegram)}
+TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, MynetworK, LogviewR, Dockhand, ProxmoxVE, ProxmoxBackup, Frigate, Arr, OPNsense, CrowdSec, PiHole, Technitium, TrueNAS, Synology, UniFi, Tailscale, NUT, Portainer, Discord, Telegram)}
 
 
 def declared(cfg: dict, meta: dict | None = None) -> list[dict]:

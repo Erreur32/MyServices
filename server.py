@@ -142,6 +142,7 @@ def _wait(name: str) -> None:
     result = "success" if code == 0 else "timeout" if code == -9 else f"exit-code {code}"
     if name == "collect" and code == 0:
         threading.Thread(target=auto_backup_default, daemon=True, name="auto-backup").start()
+        threading.Thread(target=auto_adguard, daemon=True, name="auto-adguard").start()
     if name in ("collect", "health", "backups") and code == 0:
         build_map()  # avant de libérer la tâche : les cartes suivent toujours les fichiers qu'elles montrent
     if name in ("watch", "health") and code == 0:
@@ -149,6 +150,35 @@ def _wait(name: str) -> None:
     with LOCK:
         t.update(proc=None, end=time.time(), result=result)
     log(f"{name} : terminé, {result} ({t['end'] - t['start']:.0f} s)")
+
+
+_AUTO_ADGUARD = threading.Lock()
+
+
+def auto_adguard() -> None:
+    """Après une collecte : AdGuard Home vu dans les conteneurs d'une machine lue par SSH = connecteur AdGuard branché (« adguard » posé dans
+    services-meta.json), une seule fois par machine ; la collecte suivante le lit et active l'onglet DNS."""
+    if not _AUTO_ADGUARD.acquire(blocking=False):
+        return
+    try:
+        import autodetect
+        import setup
+        meta = json.loads(setup.META.read_text(encoding="utf-8")) if setup.META.exists() else {}
+        dock = json.loads((Path(CFG["cache_dir"]) / "docker.json").read_text(encoding="utf-8")).get("data", {})
+        found = autodetect.adguard(meta.get("machines", {}), dock, Path(CFG["state_dir"]) / "adguard-auto.json")
+        if found:
+            for ip, name in found.items():
+                meta["machines"][ip]["adguard"] = name
+                log(f"AdGuard Home trouvé sur {meta['machines'][ip].get('name', ip)} ({name}) : connecteur branché automatiquement (Réglages → Machines pour le retirer)")
+            import contextlib
+            import io
+            with contextlib.redirect_stdout(io.StringIO()):
+                setup.save(setup.META, meta)
+            run_chain(["collect"], "AdGuard Home trouvé")
+    except (OSError, ValueError, KeyError) as e:
+        log(f"⚠ détection d'AdGuard : {type(e).__name__}: {e}")
+    finally:
+        _AUTO_ADGUARD.release()
 
 
 _AUTO_BACKUP = threading.Lock()

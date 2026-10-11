@@ -71,7 +71,7 @@ class Identify(unittest.TestCase):
         self.assertEqual(self.key(name="proxmox"), ("proxmox", ka.PROBABLE))
         self.assertIsNone(self.key(name="gamer32"))
         self.assertEqual(self.key(title="UniFi Network"), ("unifi", ka.PROBABLE))
-        self.assertIsNone(ka.APPS[[a.key for a in ka.APPS].index("unifi")].connector)  # pas de connecteur : MynetworK plus tard
+        self.assertEqual(ka.APPS[[a.key for a in ka.APPS].index("unifi")].connector, "unifi")
 
     def test_liste_de_fichiers_generique_n_est_pas_apache(self):
         self.assertIsNone(self.key(title="Index of /"))

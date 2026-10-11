@@ -1,10 +1,11 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { Ban, Check, HelpCircle, Loader2, MonitorUp, Pencil, Plug, Plus, Server, ShieldCheck, ToggleRight, Trash2, X, type LucideIcon } from "lucide-react";
+import { Ban, Check, HelpCircle, Loader2, MonitorUp, Package, Pencil, Plug, Plus, Server, ShieldCheck, ToggleRight, Trash2, X, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
+import { IconChoice } from "../components/IconChoice";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Dim } from "../components/ui";
 import { StatusLine } from "../components/ssh";
@@ -63,19 +64,15 @@ export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Mes connecteurs")} <Dim>· {st.instances.length}</Dim></h2>
-          <button type="button" className={picking ? primary : quiet} aria-expanded={picking} disabled={!!editing && !picking}
+          <button type="button" className={`${primary} disabled:opacity-50`} aria-expanded={picking} disabled={!!editing && !picking}
             title={editing ? tx("Terminez ou annulez la modification en cours avant d'ajouter un connecteur") : undefined} onClick={() => setPicking(!picking)}>
             {picking ? <X size={14} /> : <Plus size={14} />}{picking ? tx("Fermer") : tx("Ajouter un connecteur")}
           </button>
         </div>
         <p className="mt-1 text-sm text-muted">
-          {tx("Un connecteur relie MyServices à un outil par son API (NPM, AdGuard, Beszel…) pour en lire les services et l'état.")}{" "}
-          <b className="text-txt">{tx("Lecture seule")}</b> {tx(": donnez-lui un compte ou une clé qui ne peut rien modifier.")}
+          {tx("Un connecteur permet à MyServices de lire les services et l'état d'un outil que vous utilisez déjà (Nginx Proxy Manager, AdGuard Home, Beszel…), à travers son API.")}{" "}
+          <b className="text-txt">{tx("Il ne fait que lire")}</b> {tx(": donnez-lui un compte ou une clé sans droit de modification.")}
         </p>
-        <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-dim">
-          <li>• {tx("« Tester » vérifie les réglages sans les enregistrer")}</li>
-          <li>• {tx("Un changement est pris en compte à la prochaine collecte")}</li>
-        </ul>
         {picking && (
           <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label={tx("Connecteurs disponibles")}>
             {st.types.map((t) => {
@@ -306,6 +303,9 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, 
                   <option value="">{need ? tx("Choisir la machine…") : tx("aucune : dans le conteneur")}</option>
                   {aliases.map((a) => <option key={a.alias} value={a.alias}>{a.alias}{a.user || a.ip || a.host ? ` · ${a.user ? `${a.user}@` : ""}${a.ip || a.host}` : ""}</option>)}
                 </select>
+              ) : f.choices.length && f.choices.some((c) => appIcon([c])) ? (   // choix dont les valeurs ont un logo (Sonarr, Tailscale…) : boutons-icônes, pas de menu
+                <IconChoice label={tx(f.label)} value={String(v ?? f.default ?? "")} onPick={(c) => setConf({ ...conf, [f.name]: c })}
+                  options={f.choices.map((c) => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1), icon: appIcon([c]) ? <img src={appIcon([c])!} alt="" className="h-7 w-7" /> : <Package size={24} className="text-muted" aria-hidden /> }))} />
               ) : f.choices.length ? (
                 <select className={input} value={String(v ?? "")} onChange={(e) => setConf({ ...conf, [f.name]: e.target.value })}>
                   {f.choices.map((c) => <option key={c} value={c}>{c}</option>)}

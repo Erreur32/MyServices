@@ -43,6 +43,16 @@ export function ServiceStatusCards({ items }: { items: ServiceStatus[] }) {
               {s.stale && <p className="mt-2 text-xs text-warn">{tx("relevé périmé : dernier état connu")}</p>}
               {!s.ok && !s.stale ? <p className="mt-3 rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{s.message}</p> : (
                 <>
+                  {(s.facts?.length || s.problems) && (
+                    <>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        {(s.facts ?? []).map((f) => <Tile key={f.label} icon={<Layers size={16} />} value={f.value} label={f.label} tone={f.tone === "bad" ? "text-bad" : f.tone === "warn" ? "text-warn" : f.tone === "ok" ? "text-ok" : undefined} />)}
+                      </div>
+                      {(s.problems ?? []).length > 0
+                        ? <ul className="mt-2 flex flex-col gap-1 rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{(s.problems ?? []).map((p, i) => <li key={i}>• {p}</li>)}</ul>
+                        : <p className="mt-2 text-xs text-ok">{tx("Rien à signaler.")}</p>}
+                    </>
+                  )}
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     {s.entities !== undefined && <Tile icon={<Layers size={16} />} value={s.entities} label={tx("entités")} />}
                     {s.updates && (core ? <Tile icon={<ArrowUpCircle size={16} />} value={core} label={tx("mise(s) à jour de Home Assistant")} tone="text-warn" />

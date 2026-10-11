@@ -33,7 +33,6 @@ class Frigate(StatusConnector):
         down = sorted(k for k, v in cams.items() if num(v.get("camera_fps"), 0) == 0)
         dets = [v for v in (stats.get("detectors") or {}).values() if isinstance(v, dict)]
         speeds = [num(d.get("inference_speed")) for d in dets if num(d.get("inference_speed")) is not None]
-        stores = [v for k, v in (service.get("storage") or {}).items() if isinstance(v, dict) and "/media/frigate" in k or "recordings" in str(k)]
         free = None
         for v in (service.get("storage") or {}).values():
             if isinstance(v, dict) and num(v.get("total")) and num(v.get("free")) is not None:   # Mo
@@ -54,7 +53,6 @@ class Frigate(StatusConnector):
             facts.append(fact("Événements 24 h", f"{events}{'+' if events >= 100 else ''}"))
         if service.get("uptime") is not None:
             facts.append(fact("En marche", duration(num(service.get("uptime")))))
-        del stores
         return self.out(service.get("version"), facts, [f"caméra « {c} » sans image (0 image/s)" for c in down])
 
     @classmethod
