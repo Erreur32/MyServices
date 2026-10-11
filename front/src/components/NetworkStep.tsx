@@ -1,7 +1,7 @@
 // Étape « Recherche des autres machines du réseau » de Premiers pas : lancer la recherche, choisir les machines à
 // ajouter, puis, pour celles qui répondent en SSH, préparer l'accès (alias + commande à autoriser + test).
 // Lecture seule sur le réseau ; rien n'est ajouté sans que l'admin le demande.
-import { Check, Circle, EyeOff, KeyRound, Loader2, Plug, RefreshCw, RotateCcw, Search, Square, X } from "lucide-react";
+import { Check, ChevronRight, Circle, EyeOff, KeyRound, Loader2, Plug, RefreshCw, RotateCcw, Search, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { read, send } from "../api";
 import { act, button, input, primary, type Note } from "../lib/forms";
@@ -60,6 +60,10 @@ function HostHint({ h }: { h: NetHost }) {
     </>
   );
 }
+
+/** Cadre dépliable (« machines déjà ajoutées », « autres appareils ») : bordure et fond à la couleur d'accent pour qu'on voie qu'on peut l'ouvrir */
+const FOLD = "group rounded-xl border border-link/50 bg-link/5 open:bg-link/[0.03] hover:border-link";
+const FOLD_HEAD = "flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2.5 text-sm font-semibold text-txt [&::-webkit-details-marker]:hidden";
 
 const quietBtn = `${button} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`;
 
@@ -273,8 +277,8 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
           )}
           {watch.length === 0 && rest > 0 && <p className="text-sm text-dim">{tx("Rien d'évident à ajouter dans ce scan : les appareils trouvés sont repliés ci-dessous.")}</p>}
           {rest > 0 && (
-            <details className="rounded-lg border border-line/60 px-3 py-2">
-              <summary className="cursor-pointer text-sm text-muted">
+            <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
+              <summary className={FOLD_HEAD}><ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
                 {tx("{0} autre(s) appareil(s) : pages web seules, caméras, objets connectés, ping seulement", rest)}
                 {[...webOnly, ...pingOnly].some((h) => diff?.fresh.has(h.ip)) && <> <Badge tone="warn">{tx("nouvelle")}</Badge></>}
               </summary>
@@ -324,8 +328,8 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
         </section>
       )}
       {scanned && declared.length > 0 && (
-        <details open={watch.length === 0} className="rounded-lg border border-line/60 px-3 py-2">
-          <summary className="cursor-pointer text-sm font-semibold text-txt">
+        <details open={watch.length === 0} className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
+          <summary className={FOLD_HEAD}><ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
             {tx("{0} machine(s) déjà ajoutée(s)", declared.length)}
             <span className="font-normal text-dim"> · {tx("vos choix précédents")}</span>
           </summary>

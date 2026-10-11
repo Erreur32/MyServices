@@ -9,6 +9,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
 
+### Changed
+- **Foldable frames in the network step** ("machines already added", "other devices"): accent-coloured border and background, a chevron that turns when open, a larger header, so it is clear they open.
+
 ### Added
 - **Ignored devices appear in the scan list itself** (Settings → Discovery → "Machines found on the network"): dashed row with an "ignored" badge and a "Take back" button, in the group matching the device (a device not seen in this scan goes with "ping only"). No separate list.
 
