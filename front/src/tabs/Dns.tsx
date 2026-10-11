@@ -4,7 +4,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { Snapshot } from "../api";
 import { hm } from "../lib/format";
 import { dnsSync, hostName } from "../lib/status";
-import type { Rewrite } from "../types";
 import type { Selected } from "../lib/filter";
 import { Badge, Card, Count, Dim, Empty } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
@@ -19,17 +18,44 @@ function Kv({ k, children, tone }: { k: string; children: ReactNode; tone?: "ok"
   );
 }
 
-function List({ title, tone, items, render, note, id, lit }: { title: string; tone: "bad" | "warn" | "info"; items: Rewrite[]; render: (x: Rewrite) => ReactNode; note?: string; id?: string; lit?: string }) {
-  if (!items.length) return null;
+type Tone = "bad" | "warn" | "info" | "ok";
+const FRAME: Record<Tone, string> = { bad: "border-bad/50", warn: "border-warn/50", info: "border-line", ok: "border-ok/40" };
+const STRIP: Record<Tone, string> = { bad: "bg-bad/10", warn: "bg-warn/10", info: "bg-bg2/60", ok: "bg-ok/10" };
+const BUBBLE: Record<Tone, "bad" | "warn" | "off" | "ok"> = { bad: "bad", warn: "warn", info: "off", ok: "ok" };
+
+/** Cadre d'une liste de la page : bandeau coloré (titre, nombre en bulle), puis un tableau aux colonnes alignées. Rien n'est affiché sans ligne
+ *  (sauf `empty`, le message « tout va bien »). */
+function DataCard({ title, tone, count, cols, rows, note, id, lit, empty }: {
+  title: string; tone: Tone; count?: number; cols: { label: string; className?: string }[]; rows: ReactNode[][]; note?: string; id?: string; lit?: string; empty?: string;
+}) {
+  const n = count ?? rows.length;
+  if (!n && !empty) return null;
   return (
     <Anchor id={id} lit={lit}>
-    <Card>
-      <h3 className="mb-2 flex items-center gap-2 font-bold">
-        {title}<Badge tone={tone === "info" ? "off" : tone}>{items.length}</Badge>
-      </h3>
-      {note && <p className="mb-2 text-sm text-muted">{note}</p>}
-      <ul className="flex flex-col gap-1 text-sm">{items.map((x, i) => <li key={i}>{render(x)}</li>)}</ul>
-    </Card>
+      <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${FRAME[tone]}`}>
+        <div className={`flex flex-wrap items-center gap-3 px-4 py-3 ${STRIP[tone]}`}>
+          <h3 className="font-bold">{title}</h3><Count n={n} tone={BUBBLE[tone]} />
+        </div>
+        {note && <p className="border-b border-line/60 px-4 py-2 text-sm text-muted">{note}</p>}
+        {rows.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[420px] table-fixed border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
+                  {cols.map((c) => <th key={c.label} className={`px-4 py-2 ${c.className ?? ""}`}>{c.label}</th>)}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line/60">
+                {rows.map((r, i) => (
+                  <tr key={i} className="hover:bg-bg2/40">
+                    {r.map((cell, j) => <td key={j} className={`break-words px-4 py-2 align-top ${cols[j]?.className ?? ""}`}>{cell}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="px-4 py-3 text-sm text-ok">{empty}</p>}
+      </section>
     </Anchor>
   );
 }
@@ -92,27 +118,19 @@ export function Dns({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
         })}
       </div></Anchor>
 
-      <List title={tx("Présent sur une seule instance")} tone="bad" items={diff}
-        render={(x) => <>{x.rule ? <>{tx("règle")} {code(x.rule)}</> : code(`${x.domain} → ${x.answer}`)} <Dim>{tx("seulement sur")} {name(x.only)}</Dim></>}
+      <DataCard title={tx("Présent sur une seule instance")} tone="bad" cols={[{ label: tx("Entrée"), className: "w-[55%]" }, { label: tx("Seulement sur") }]}
+        rows={diff.map((x) => [x.rule ? <>{tx("règle")} {code(x.rule)}</> : code(`${x.domain} → ${x.answer}`), <b className="font-medium">{name(x.only)}</b>])}
         note={sync && st.cls === "warn" ? `Synchro à l'heure : sera recopié au prochain passage. Toujours modifier sur ${name(sync.origin)}.` : undefined} />
-      <List id="orphans" lit={lit} title={tx("Réécritures vers NPM sans host NPM actif")} tone="warn" items={g.orphans}
-        render={(x) => <>{code(`${x.domain} → ${x.answer}`)} <Dim>{x.why}</Dim></>} />
-      <List title={tx("Réécritures au nom invalide (jamais résolues)")} tone="warn" items={g.invalid || []}
-        render={(x) => code(`${x.domain} → ${x.answer}`)} />
-      <List title={tx("Réécritures directes, sans NPM")} tone="info" items={g.direct || []}
-        render={(x) => code(`${x.domain} → ${x.answer}`)} />
-
-      <Anchor id="domains" lit={lit}><Card>
-        <h3 className="mb-2 font-bold">{tx("Domaines NPM à vérifier")} <Count n={rows.length} tone={rows.length ? "warn" : "ok"} /></h3>
-        {rows.length ? (
-          <ul className="flex flex-col gap-1 text-sm">
-            {rows.map((r) => <li key={`${r.type}${r.id}`}><b>{hostName(r)}</b> <Dim>· {r.dns!.issues.map((x) => String(x[0]).replace("_", " ")).join(", ")}</Dim></li>)}
-          </ul>
-        ) : <p className="text-sm text-ok">{tx("Tous les domaines NPM actifs résolvent pareil sur chaque AdGuard.")}</p>}
-        <p className="mt-3 text-xs text-dim">
-          {tx("Chaque domaine des hosts NPM actifs est demandé à chaque AdGuard ; réécritures et règles perso lues dans AdGuardHome.yaml.")}{g.npm_ip ? ` NPM = ${g.npm_ip}.` : ""}
-        </p>
-      </Card></Anchor>
+      <DataCard id="orphans" lit={lit} title={tx("Réécritures vers NPM sans host NPM actif")} tone="warn" cols={[{ label: tx("Domaine"), className: "w-[38%]" }, { label: tx("Réponse"), className: "w-[22%]" }, { label: tx("Pourquoi") }]}
+        rows={g.orphans.map((x) => [<b className="font-medium">{x.domain}</b>, code(x.answer), <span className="text-muted">{x.why}</span>])} />
+      <DataCard title={tx("Réécritures au nom invalide (jamais résolues)")} tone="warn" cols={[{ label: tx("Domaine"), className: "w-[55%]" }, { label: tx("Réponse") }]}
+        rows={(g.invalid || []).map((x) => [<b className="font-medium">{x.domain}</b>, code(x.answer)])} />
+      <DataCard title={tx("Réécritures directes, sans NPM")} tone="info" cols={[{ label: tx("Domaine"), className: "w-[55%]" }, { label: tx("Réponse") }]}
+        rows={(g.direct || []).map((x) => [<b className="font-medium">{x.domain}</b>, code(x.answer)])} />
+      <DataCard id="domains" lit={lit} title={tx("Domaines NPM à vérifier")} tone={rows.length ? "warn" : "ok"} cols={[{ label: tx("Domaine"), className: "w-[45%]" }, { label: tx("À vérifier") }]}
+        rows={rows.map((r) => [<b className="font-medium">{hostName(r)}</b>, <span className="flex flex-wrap gap-1">{r.dns!.issues.map((x) => <Badge key={String(x[0])} tone="warn">{String(x[0]).replace("_", " ")}</Badge>)}</span>])}
+        empty={tx("Tous les domaines NPM actifs résolvent pareil sur chaque AdGuard.")}
+        note={`${tx("Chaque domaine des hosts NPM actifs est demandé à chaque AdGuard ; réécritures et règles perso lues dans AdGuardHome.yaml.")}${g.npm_ip ? ` NPM = ${g.npm_ip}.` : ""}`} />
     </div>
   );
 }

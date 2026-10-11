@@ -84,6 +84,30 @@ class Http(unittest.TestCase):
         self.assertEqual((r2.status_code, r2.content, r2.headers["etag"]), (304, b"", tag))
         self.assertEqual(self.c.get("/myservices/data.json", headers={"If-None-Match": '"autre"'}).status_code, 200)
 
+    def test_creating_a_diagram_starts_a_build_and_reports_it(self):
+        """Regression: PUT /diagrams/{id} answered HTTP 500 because `threading` was not imported in api.py."""
+        built = threading.Event()
+        data = {"generated": "2026-10-11T10:00:00+00:00", "services_status": [],
+                "hosts": [{"type": "proxy", "npm": "n", "domains": ["a.lan"], "machine": "m", "ip": "10.0.0.2", "port": 80, "enabled": True}], "machine_list": []}
+        f = server.WEB / "data.json"
+        before = f.read_text()
+        f.write_text(json.dumps(data))
+        self.addCleanup(f.write_text, before)            # data.json is shared with the other tests of this class
+        asked = []
+        user = mock.Mock(state=mock.Mock(user={"username": "admin"}))
+        with mock.patch.object(api.core, "ARCHIFY", __file__), mock.patch.object(api.core, "build_map", built.set), \
+                mock.patch.object(api, "admin_write", lambda request: None), mock.patch.object(api, "store", lambda: mock.Mock()), \
+                mock.patch.object(api, "ip_of", lambda request: "127.0.0.1"), \
+                mock.patch("system.set_diagram_extra", lambda core, key, on: asked.append((key, on))):
+            r = api.diagram_set("domaines", api.DiagramAsk(enabled=True), user)
+            self.assertEqual(r, {"ok": True})
+            self.assertTrue(built.wait(5), "the build was not started")
+            self.assertEqual(asked, [("domaines", True)])
+            self.assertEqual(api.diagram_set("inconnu", api.DiagramAsk(enabled=True), user).status_code, 404)
+            listing = api.diagrams(user)
+        self.assertEqual(set(listing["build"]), {"running", "started", "last_seconds", "next_run"})
+        self.assertTrue(any(d["id"] == "domaines" and d["optional"] and d["available"] for d in listing["diagrams"]))
+
     def test_csp(self):
         page = self.c.get("/myservices/index.html").headers["content-security-policy"]
         self.assertIn("default-src 'self'", page)

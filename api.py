@@ -18,6 +18,7 @@ import json
 import mimetypes
 import os
 import secrets
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -1473,7 +1474,9 @@ def diagrams(request: Request):
         out.append({"id": key, "title": title, "what": what, "file": f"{key}.html", "exists": f.exists(), "updated": f.stat().st_mtime if f.exists() else None,
                     "bytes": f.stat().st_size if f.exists() else 0, "needs": needs, "optional": opt, "enabled": key in asked,
                     "available": archify_extra.available(key, data) if opt else needs != "backups" or bool(core.CFG.get("backups_url"))})
-    return {"diagrams": out, "archify": bool(core.ARCHIFY and Path(core.ARCHIFY).exists()), "archify_url": ARCHIFY_URL}
+    return {"diagrams": out, "archify": bool(core.ARCHIFY and Path(core.ARCHIFY).exists()), "archify_url": ARCHIFY_URL,
+            "build": {"running": core.MAP_STATE["running"], "started": core.MAP_STATE["started"], "last_seconds": core.MAP_STATE["last_seconds"],
+                      "next_run": core.next_run("collect")}}
 
 
 class DiagramAsk(BaseModel):

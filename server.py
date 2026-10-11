@@ -288,7 +288,26 @@ def write_alerts_summary() -> None:
         log(f"⚠ schéma des alertes : {type(e).__name__}: {e}")
 
 
+MAP_STATE: dict = {"running": False, "started": None, "last_seconds": None, "last_end": None}   # state of the diagram build, shown by the Diagrams tab
+
+
 def build_map() -> None:
+    """Build the diagrams, recording when it started and how long it took (MAP_STATE). A request that arrives while a build runs
+    asks for one more pass afterwards, so a diagram created in the meantime is not missed."""
+    if MAP_STATE["running"]:
+        MAP_STATE["again"] = True
+        return
+    while True:
+        MAP_STATE.update(running=True, started=time.time(), again=False)
+        try:
+            _build_map()
+        finally:
+            MAP_STATE.update(running=False, last_seconds=round(time.time() - MAP_STATE["started"], 1), last_end=time.time())
+        if not MAP_STATE["again"]:
+            return
+
+
+def _build_map() -> None:
     """Cartes de l'infra (carte.html, sauvegardes.html ; Archify) depuis les fichiers de la page. Facultatif :
     sans Archify ou en échec, la carte précédente reste, les tâches n'en dépendent pas."""
     if not (ARCHIFY and Path(ARCHIFY).exists()):

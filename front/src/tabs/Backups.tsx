@@ -15,9 +15,9 @@ const short = (label: string) => label.replace(/^[^:]*: /, "");
 
 function Tile({ n, label, tone }: { n: string | number; label: string; tone?: "ok" | "warn" | "bad" }) {
   return (
-    <div className="rounded-xl border border-line bg-card px-4 py-3">
-      <div className={`font-mono text-2xl font-bold ${tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : tone === "bad" ? "text-bad" : ""}`}>{n}</div>
-      <div className="text-xs text-muted">{label}</div>
+    <div className="min-w-[7.5rem] flex-1 rounded-xl border border-line bg-card px-3 py-2.5">
+      <div className={`font-mono text-xl font-bold ${tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : tone === "bad" ? "text-bad" : ""}`}>{n}</div>
+      <div className="text-xs leading-tight text-muted">{label}</div>
     </div>
   );
 }
@@ -69,7 +69,7 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
 
   return (
     <div className="flex flex-col gap-4 py-4">
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="flex gap-2.5 overflow-x-auto pb-1">   {/* one single row; scrolls sideways on a narrow screen instead of wrapping */}
         <Tile n={sm.ok} label={tx("jeux à jour")} tone="ok" /><Tile n={sm.warn} label={tx("jeux en retard")} tone={sm.warn ? "warn" : undefined} />
         <Tile n={sm.crit} label={tx("jeux critiques")} tone={sm.crit ? "bad" : undefined} />
         <Tile n={sm.no_offsite} label={tx("sans copie hors machine")} tone={sm.no_offsite ? "bad" : "ok"} />

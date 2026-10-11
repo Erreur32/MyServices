@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { LoginRequired, read } from "../api";
 
 export interface Diagram { id: string; title: string; what: string; file: string; exists: boolean; updated: number | null; bytes: number; available: boolean; optional: boolean; enabled: boolean }
-export interface DiagramList { diagrams: Diagram[]; archify: boolean; archify_url: string }
+export interface DiagramBuild { running: boolean; started: number | null; last_seconds: number | null; next_run: number | null }
+export interface DiagramList { diagrams: Diagram[]; archify: boolean; archify_url: string; build?: DiagramBuild }
 
 export function useDiagrams(enabled = true): [DiagramList | null, () => void] {
   const [d, setD] = useState<DiagramList | null>(null);
