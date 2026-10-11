@@ -1,7 +1,7 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { Ban, Check, HelpCircle, Loader2, MonitorUp, Package, Pencil, Plug, Play, Plus, Server, ShieldCheck, ToggleRight, Trash2, X, type LucideIcon } from "lucide-react";
+import { Check, HelpCircle, Loader2, MonitorUp, Package, Pencil, Plug, Play, Plus, Server, ShieldCheck, Trash2, X, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch } from "../components/form";
@@ -27,7 +27,7 @@ export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string
   const [st, setSt] = useState<ConnectorsState | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
-  const [part, setPart] = useState<Part>(() => {  // sous-onglet ouvert : lien « Installer l'agent » (Agents), sinon le dernier ouvert, sinon Agents et SSH
+  const [part, setPart] = useState<Part>(() => {  // sous-onglet ouvert : lien « Installer l'agent » (Agents), sinon le dernier ouvert, sinon SSH & Agents
     const last = lastConnectorsPart();
     return agentIp ? "agents" : PARTS.some(([id]) => id === last) ? (last as Part) : "agents";
   });
@@ -101,75 +101,26 @@ export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string
       {st.instances.length === 0 && !type && (
         <Card><p className="text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p></Card>
       )}
-      {st.instances.map((i) => (
+      {st.instances.map((i, n) => (
         <InstanceCard key={`${i.type}/${i.name}`} inst={i} type={st.types.find((t) => t.type === i.type)!} reload={reload}
+          display={i.type in SHOWN && i.type in src ? { on: src[i.type], first: st.instances.findIndex((x) => x.type === i.type) === n, set: (on) => toggleSource(i.type, on) } : null}
+          onCollect={(on) => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
+            on ? tx("allumé : relu au prochain passage de la collecte") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
           editing={editing === `${i.type}/${i.name}`} locked={(!!editing && editing !== `${i.type}/${i.name}`) || picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
       ))}
-
-      </>}
-
-      {part === "agents" && <>
-        <Agents focusIp={agentIp} live={snap.data.machine_list || []} />
-        <ReadBySsh snap={snap} instances={st.instances} />
-      </>}
-
-      {part === "activation" && <>
-      <p className="px-1 text-sm text-muted">{tx("Ce que la collecte lit et ce que la page affiche. Un changement est pris en compte à la prochaine collecte.")}</p>
       <Card>
-        <p className="mb-3 text-sm text-muted">{tx("« Collecte » : le connecteur est lu ou non. « Affichage » : la page montre ou non ses services et compteurs (même réglage pour toutes les instances du type).")}</p>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px] text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-dim">
-                <th className="py-2 pr-3 font-semibold">{tx("Service")}</th>
-                <th className="w-28 px-3 py-2 text-center font-semibold">{tx("Collecte")}</th>
-                <th className="w-28 px-3 py-2 text-center font-semibold">{tx("Affichage")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line/60">
-              <tr><th colSpan={3} className="pb-1 pt-3 text-left text-xs font-semibold text-muted"><Plug size={13} className="mr-1.5 inline" aria-hidden />{tx("Par un connecteur")} <Dim>· {st.instances.length}</Dim></th></tr>
-              {st.instances.length === 0 && <tr><td colSpan={3} className="py-2"><Dim>{tx("Aucun connecteur.")}</Dim></td></tr>}
-              {st.instances.map((i, n) => {
-                const first = st.instances.findIndex((x) => x.type === i.type) === n, shown = i.type in SHOWN && i.type in src;
-                return (
-                  <tr key={`${i.type}/${i.name}`}>
-                    <td className="py-2.5 pr-3">
-                      <span className="flex items-center gap-2">
-                        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-bg2">
-                          {appIcon([i.label]) ? <img src={appIcon([i.label])!} alt="" className="h-4 w-4" /> : <Plug size={14} className="text-muted" aria-hidden />}
-                        </span>
-                        <b className="truncate">{i.label}</b><Dim>· {i.name}</Dim>
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      <Switch on={i.enabled} label={`${tx("Collecte")} ${i.label} : ${i.enabled ? tx("coupé") : tx("activé")}`}
-                        onChange={(on) => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
-                          on ? tx("allumé : relu au prochain passage de la collecte") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })} />
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      {shown && first ? <span title={SHOWN[i.type]}><Switch on={src[i.type]} label={`${tx("Affichage")} ${i.label} : ${src[i.type] ? tx("coupé") : tx("activé")}`} onChange={(on) => toggleSource(i.type, on)} /></span>
-                        : shown ? <span className="text-xs text-dim">{tx("affichage : voir ci-dessus")}</span> : <span className="text-dim" aria-hidden>–</span>}
-                    </td>
-                  </tr>
-                );
-              })}
-              <tr><th colSpan={3} className="pb-1 pt-4 text-left text-xs font-semibold text-muted"><Server size={13} className="mr-1.5 inline" aria-hidden />{tx("Natifs, sans connecteur")}
-                <span className="ml-2 font-normal text-dim">{tx("Rien à relier ici : la collecte lit ces sources directement. L'interrupteur décide seulement si la page les affiche.")}</span></th></tr>
-              <tr>
-                <td className="py-2.5 pr-3"><span className="flex items-center gap-2"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-bg2"><Server size={14} className="text-muted" aria-hidden /></span>
-                  <b>Apache</b><Dim>· {tx("vhosts lus par SSH sur chaque machine, comme services")}</Dim></span></td>
-                <td className="px-3 py-2.5 text-center text-dim" aria-hidden>–</td>
-                <td className="px-3 py-2.5 text-center"><Switch on={!!src.apache} onChange={(on) => toggleSource("apache", on)} label={`${src.apache ? tx("Couper") : tx("Activer")} Apache`} /></td>
-              </tr>
-              <tr className="opacity-60">
-                <td className="py-2.5 pr-3"><span className="flex flex-wrap items-center gap-2"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-bg2"><Ban size={14} className="text-muted" aria-hidden /></span>
-                  <b>Fail2ban</b><Dim>· {tx("bannissements et prisons : l'onglet apparaît dès que le connecteur LogviewR est relié")}</Dim></span></td>
-                <td className="px-3 py-2.5 text-center text-dim" aria-hidden>–</td>
-                <td className="px-3 py-2.5 text-center"><Switch on={false} disabled onChange={() => undefined} label="Fail2ban" /></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <h2 className="flex items-center gap-2 font-bold"><Server size={16} />{tx("Lus directement, sans connecteur")}</h2>
+        <p className="mt-1 text-sm text-muted">{tx("Rien à relier ici : la collecte lit ces sources directement. L'interrupteur décide seulement si la page les affiche.")}</p>
+        <ul className="mt-2 divide-y divide-line/60 text-sm">
+          <li className="flex flex-wrap items-center gap-3 py-2.5">
+            <Switch on={!!src.apache} onChange={(on) => toggleSource("apache", on)} label={`${src.apache ? tx("Couper") : tx("Activer")} Apache`} />
+            <b>Apache</b><Dim>· {tx("vhosts lus par SSH sur chaque machine, comme services")}</Dim>
+          </li>
+          <li className="flex flex-wrap items-center gap-3 py-2.5 opacity-60">
+            <Switch on={false} disabled onChange={() => undefined} label="Fail2ban" />
+            <b>Fail2ban</b><Dim>· {tx("bannissements et prisons : l'onglet apparaît dès que le connecteur LogviewR est relié")}</Dim>
+          </li>
+        </ul>
       </Card>
       <NoteLine note={srcNote} />
       {changed && (
@@ -181,16 +132,22 @@ export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string
           </button>
         </div>
       )}
+
       </>}
+
+      {part === "agents" && <>
+        <Agents focusIp={agentIp} live={snap.data.machine_list || []} />
+        <ReadBySsh snap={snap} instances={st.instances} />
+      </>}
+
     </div>
   );
 }
 
-type Part = "connectors" | "agents" | "activation";
+type Part = "connectors" | "agents";
 const PARTS: [Part, string, string, LucideIcon][] = [
-  ["agents", tx("Agents et SSH"), tx("Comment chaque machine est lue : agent PowerShell (Windows) ou SSH (Linux)"), MonitorUp],
+  ["agents", tx("SSH & Agents"), tx("Comment chaque machine est lue : agent PowerShell (Windows) ou SSH (Linux)"), MonitorUp],
   ["connectors", tx("Connecteurs"), tx("L'accès à chaque outil : adresse, jeton, test"), Plug],
-  ["activation", tx("Activation"), tx("Ce que la collecte lit et ce que la page affiche"), ToggleRight],
 ];
 
 /** Connecteurs dont l'affichage sur la page est une source activable (le même interrupteur vaut pour toutes les instances du type) */
@@ -257,8 +214,8 @@ function ReadBySsh({ snap, instances }: { snap: Snapshot; instances: ConnectorIn
   );
 }
 
-function InstanceCard({ inst, type, reload, editing: edit, locked, setEditing: setEdit }: {
-  inst: ConnectorInstance; type: ConnectorType; reload: () => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
+function InstanceCard({ inst, type, reload, display, onCollect, editing: edit, locked, setEditing: setEdit }: {
+  inst: ConnectorInstance; type: ConnectorType; reload: () => void; display: { on: boolean; first: boolean; set: (on: boolean) => void } | null; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
 }) {
   const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null), [report, setReport] = useState<TestOut | null>(null), [testing, setTesting] = useState(false);
   const url = inst.config.url as string | undefined;
@@ -275,8 +232,17 @@ function InstanceCard({ inst, type, reload, editing: edit, locked, setEditing: s
             {type.kinds.map((k) => <Badge key={k} tone="info">{KIND[k] || k}</Badge>)}
           </div>
           {url && <a className="mt-1 inline-block break-all font-mono text-xs text-dim hover:text-link hover:underline" href={url} target="_blank" rel="noopener noreferrer">{url}</a>}
-          {!inst.enabled && <div className="mt-1"><Badge tone="off">{tx("collecte coupée (partie 2)")}</Badge></div>}
           {inst.enabled && <div className="mt-2 text-sm"><StatusLine s={inst.status} /></div>}
+          <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted">
+            <span className="flex items-center gap-2" title={tx("Le connecteur est lu à chaque collecte ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
+              <Switch on={inst.enabled} label={`${tx("Collecte")} ${inst.label} : ${inst.enabled ? tx("coupé") : tx("activé")}`} onChange={onCollect} />{tx("Collecte")}
+            </span>
+            {display && (display.first
+              ? <span className="flex items-center gap-2" title={SHOWN[inst.type]}>
+                  <Switch on={display.on} label={`${tx("Affichage")} ${inst.label} : ${display.on ? tx("coupé") : tx("activé")}`} onChange={display.set} />{tx("Affichage")}
+                </span>
+              : <Dim>{tx("affichage : voir la première instance")}</Dim>)}
+          </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
           <button type="button" className={quiet} disabled={testing || edit} onClick={async () => {

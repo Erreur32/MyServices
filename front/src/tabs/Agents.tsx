@@ -1,4 +1,4 @@
-// Réglages → Connecteurs → Agents et SSH : comment chaque machine est lue. Agent : une machine envoie elle-même sa santé (petit script PowerShell en lecture seule), sans SSH.
+// Réglages → Connecteurs → SSH & Agents : comment chaque machine est lue. Agent : une machine envoie elle-même sa santé (petit script PowerShell en lecture seule), sans SSH.
 // Une carte par machine : celles qui ont un agent (actif, silencieux, en attente) d'un côté, celles qui n'en ont pas de l'autre,
 // prêtes à être cliquées. Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller sur le PC.
 // Gérés seulement depuis une session admin.

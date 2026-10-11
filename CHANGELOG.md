@@ -13,6 +13,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **4 more connectors** (kind "status", read-only, written from each service's documentation, **tried against fake servers only**): **Prometheus** (targets down, firing alerts), **Healthchecks** (failed and late jobs, read-only API key), **Netdata** (critical and warning alarms) and **Jellyfin** (playbacks, devices, pending restart or update). Detected containers propose them; logos for Prometheus, Netdata and Jellyfin.
 
 ### Changed
+- **Settings -> Connectors**: the "Activation" sub-tab is gone. Each connector card now has its own **Collection** and **Display** switches, and Apache (read directly, no connector) sits in a card below them. "Read by SSH or by the agent" moved to the renamed **SSH & Agents** sub-tab, so the Connectors tab only shows connectors.
 - **History opens on the last 24 h, as bars**; the period and chart style you pick last are remembered in the browser.
 - **Fewer duplicate calls from the page**: the discoveries list is fetched once and shared by the bell, the home reminder, the Settings menu and the Discovery page (one call every 30 s instead of four); Settings → Discovery and Tasks re-read every 10 s only while a scan or task runs, every 60 s otherwise; Agents every 30 s (5 s while waiting for a first report); nothing is re-read while the browser tab is hidden, and the tab re-reads when you come back.
 - **Responses are gzip-compressed** (above 1 KB): `data.json` is about 200 KB.
