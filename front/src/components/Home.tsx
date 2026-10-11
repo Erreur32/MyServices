@@ -5,7 +5,7 @@ import type { Snapshot } from "../api";
 import { paragraphs, type Attention, type TabId } from "../lib/summary";
 import { FirstSteps } from "./FirstSteps";
 import { Rich } from "./Rich";
-import { StatsColumn } from "./StatsColumn";
+import { StatsColumn, statGroups } from "./StatsColumn";
 import { TABS } from "../lib/tabs";
 import { tx } from "../lib/i18n";
 
@@ -19,6 +19,7 @@ function TabIcon({ tab }: { tab: TabId }) {
 
 export function Home({ snap, items, go, now }: { snap: Snapshot; items: Attention[]; go: (t: TabId) => void; now: number }) {
   const crit = items.filter((i) => i.level === "crit").length;
+  const counters = statGroups(snap, go);  // mêmes compteurs que la colonne de droite, rangés sous leur catégorie
   return (
     <div className="grid gap-5 py-5 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="flex flex-col gap-5">
@@ -63,6 +64,7 @@ export function Home({ snap, items, go, now }: { snap: Snapshot; items: Attentio
                 </li>
               ))}
             </ul>
+            {!!counters[p.tab]?.length && <div className="mt-4 grid gap-2.5 sm:grid-cols-2">{counters[p.tab]}</div>}
           </section>
         ))}
       </div>

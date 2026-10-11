@@ -1,5 +1,6 @@
 // Compteurs de l'en-tête de la page actuelle (NPM, directs, santé, sauvegardes, AdGuard), en colonne à droite
 // de l'accueil ; clic = ouvrir l'onglet.
+import type { ReactNode } from "react";
 import type { Snapshot } from "../api";
 import { CLEANUP, checks, dnsSync, status } from "../lib/status";
 import { mState } from "../lib/machines";
@@ -31,7 +32,8 @@ function Group({ title, sub, accent, tab, go, cells }: {
   );
 }
 
-export function StatsColumn({ snap, go }: { snap: Snapshot; go: (t: TabId) => void }) {
+/** Groupes de compteurs, par onglet : la colonne de droite les empile tous, l'accueil range chacun sous son paragraphe */
+export function statGroups(snap: Snapshot, go: (t: TabId) => void): Partial<Record<TabId, ReactNode[]>> {
   const { data, health, backups } = snap;
   const npm = data.hosts.filter((r) => r.type !== "local"), local = data.hosts.filter((r) => r.type === "local");
   const n = (rows: typeof npm, cls: string) => rows.filter((r) => r.enabled && status(r)[0] === cls).length;
@@ -60,5 +62,11 @@ export function StatsColumn({ snap, go }: { snap: Snapshot; go: (t: TabId) => vo
       ["ok", backups.summary.ok, tx("à jour")], ["warn", backups.summary.warn, tx("en retard")],
       ["bad", backups.summary.crit, tx("critiques")], ["bad", backups.summary.no_offsite, tx("sans copie")]]} />,
   ];
-  return <aside className="flex flex-col gap-2.5" aria-label={tx("Compteurs")}>{groups}<ScheduleCard /></aside>;
+  const byTab: Partial<Record<TabId, ReactNode[]>> = {};
+  for (const g of groups) if (g && typeof g === "object" && "props" in g) (byTab[g.props.tab as TabId] ??= []).push(g);
+  return byTab;
+}
+
+export function StatsColumn({ snap, go }: { snap: Snapshot; go: (t: TabId) => void }) {
+  return <aside className="flex flex-col gap-2.5" aria-label={tx("Compteurs")}>{Object.values(statGroups(snap, go)).flat()}<ScheduleCard /></aside>;
 }
