@@ -1,101 +1,59 @@
-// Historique : graphe en barres par jour (une couleur par famille d'événement ; clic = filtrer la liste sur ce
-// jour), puis la liste. Source : historique SQLite d'un an (API v1).
+// Historique : un graphique au choix (points à l'heure exacte, barres, courbe, chaleur) au-dessus de la liste des événements. Un clic sur
+// un point ou une barre limite la liste à ce jour ou à cette plage. Source : historique SQLite d'un an (API v1).
+import { BarChart3, Flame, LineChart, ScatterChart } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { loadHistory, type Snapshot } from "../api";
 import { useFilter, type Facet } from "../lib/filter";
 import { dayKey, hm, longDay } from "../lib/format";
 import type { StoredEvent } from "../types";
+import { AreaChart, BarsChart, HeatChart, PointsChart, type Range } from "../components/HistoryCharts";
 import { Empty, FilterBar } from "../components/ui";
-import { LOCALE, tx } from "../lib/i18n";
+import { tx } from "../lib/i18n";
+import { EVENT_LIMIT, GROUPS, GROUP_COLOR, GROUP_NAME, STYLES, buckets, dayBuckets, groupOf, stepFor, type ChartStyle } from "../lib/historyChart";
 
-// Familles d'événements (même regroupement que la page actuelle) et leur couleur dans le graphe
-const GROUP: Record<string, string> = {
-  panne: "services", retabli: "retours", unhealthy: "services", connecteur: "services", connecteur_version: "services", connecteur_ok: "retours",
-  hors_ligne: "machines", en_ligne: "retours", ssh_down: "machines", ssh_ok: "retours",
-  nouveau: "inventaire", disparu: "inventaire", securite: "securite", ui_hors: "securite", dns: "securite", perime: "veille",
-  health_ok: "retours", health_warn: "sante", health_crit: "sante", health_down: "sante",
+const PERIODS: [number, string][] = [[1, tx("24 h")], [7, tx("7 jours")], [30, tx("30 jours")], [90, tx("90 jours")], [365, tx("1 an")]];
+const STYLE_ICON: Record<ChartStyle, typeof BarChart3> = { points: ScatterChart, bars: BarChart3, area: LineChart, heat: Flame };
+const STYLE_KEY = "ms.history.style";
+
+const savedStyle = (): ChartStyle => {
+  try { const v = localStorage.getItem(STYLE_KEY); return STYLES.some(([k]) => k === v) ? (v as ChartStyle) : "points"; } catch { return "points"; }
 };
-const GROUPS: [string, string, string][] = [
-  ["services", tx("Pannes de services"), "bg-bad"], ["machines", tx("Machines / SSH"), "bg-warn"], ["sante", tx("Santé des machines"), "bg-apache"],
-  ["securite", tx("Sécurité / DNS"), "bg-npm"], ["inventaire", tx("Nouveaux / disparus"), "bg-loc"], ["retours", tx("Retours à la normale"), "bg-ok"],
-  ["veille", "Veille", "bg-dim"],
-];
-const GROUP_NAME = Object.fromEntries(GROUPS.map(([k, l]) => [k, l]));
-const GROUP_COLOR = Object.fromEntries(GROUPS.map(([k, , c]) => [k, c]));
-const PERIODS: [number, string][] = [[7, tx("7 jours")], [30, tx("30 jours")], [90, tx("90 jours")], [365, tx("1 an")]];
 
-const groupOf = (kind: string) => GROUP[kind] || "veille";
-
-/** Barres empilées par jour, jours sans événement compris. */
-function bars(perDay: { day: string; kind: string; n: number }[], days: number, now = Date.now()) {
-  const out: { day: string; total: number; parts: Record<string, number> }[] = [];
-  for (let i = days - 1; i >= 0; i--) out.push({ day: dayKey(now - i * 86400e3), total: 0, parts: {} });
-  const at = new Map(out.map((b) => [b.day, b]));
-  for (const r of perDay) {
-    const b = at.get(r.day);
-    if (!b) continue;
-    const g = groupOf(r.kind);
-    b.parts[g] = (b.parts[g] || 0) + r.n;
-    b.total += r.n;
-  }
-  return out;
-}
-
-function Chart({ data, day, onDay }: { data: ReturnType<typeof bars>; day: string; onDay: (d: string) => void }) {
-  const max = Math.max(1, ...data.map((b) => b.total));
-  const total = data.reduce((n, b) => n + b.total, 0);
-  return (
-    <div className="rounded-2xl border border-line bg-card p-4">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-bold">{total} {tx("événement")}{total > 1 ? "s" : ""} {tx("sur la période")}</h2>
-        <div className="flex flex-wrap gap-3 text-xs text-muted">
-          {GROUPS.map(([k, l, c]) => <span key={k} className="inline-flex items-center gap-1.5"><span className={`h-2.5 w-2.5 rounded-sm ${c}`} />{l}</span>)}
-        </div>
-      </div>
-      <div className="flex h-40 items-end gap-[2px]" role="img" aria-label={tx("Événements par jour")}>
-        {data.map((b) => (
-          <button key={b.day} type="button" onClick={() => b.total && onDay(b.day === day ? "" : b.day)}
-            title={tx("{0} : {1} événement{2}", longDay(new Date(b.day + "T12:00")), b.total, b.total > 1 ? "s" : "")}
-            className={`flex h-full min-w-[3px] flex-1 flex-col-reverse rounded-sm ${b.total ? "cursor-pointer hover:bg-bg2" : "cursor-default"} ${day === b.day ? "bg-link/15 ring-1 ring-link" : ""}`}>
-            {GROUPS.filter(([k]) => b.parts[k]).map(([k, , c]) => (
-              <span key={k} className={`block w-full ${c}`} style={{ height: `${(b.parts[k] / max) * 100}%` }} />
-            ))}
-          </button>
-        ))}
-      </div>
-      <div className="mt-1 flex justify-between text-[11px] text-dim">
-        <span>{new Date(data[0].day + "T12:00").toLocaleDateString(LOCALE, { day: "numeric", month: "short" })}</span>
-        <span>{tx("aujourd'hui")}</span>
-      </div>
-    </div>
-  );
-}
+type Loaded = Awaited<ReturnType<typeof loadHistory>> & { days: number; at: number };
 
 export function History({ snap }: { snap: Snapshot }) {
-  const [days, setDays] = useState(30);
-  const [day, setDay] = useState("");
-  const [hist, setHist] = useState<Awaited<ReturnType<typeof loadHistory>> | null>(null);
+  const [days, setDays] = useState(7);
+  const [style, setStyle] = useState<ChartStyle>(savedStyle);
+  const [range, setRange] = useState<Range | null>(null);
+  const [hist, setHist] = useState<Loaded | null>(null);
   const [error, setError] = useState("");
 
+  // Relu à chaque passage de la collecte (sans effacer le graphique pendant la lecture)
   useEffect(() => {
-    setHist(null);
-    loadHistory(days).then(setHist).catch((e) => setError(String(e.message || e)));
-  }, [days]);
+    loadHistory(days).then((h) => { setHist({ ...h, days, at: Date.now() }); setError(""); }).catch((e) => setError(String(e.message || e)));
+  }, [days, snap.data.generated]);
+  const pick = (k: ChartStyle) => { setStyle(k); try { localStorage.setItem(STYLE_KEY, k); } catch { /* stockage refusé : le choix ne dure que cette visite */ } };
 
   const label = useCallback((k: string) => (snap.labels[k] || k), [snap.labels]);
-  const events = useMemo(() => (hist?.events || []).filter((e) => !day || dayKey(e.ts * 1000) === day), [hist, day]);
+  const ready = hist && hist.days === days ? hist : null;
+  const all = useMemo(() => ready?.events ?? [], [ready]);
   const facets = useMemo((): Facet<StoredEvent>[] => [
     { key: "group", label: tx("Type"), get: (e) => groupOf(e.kind), name: (v) => GROUP_NAME[v] || v, order: GROUPS.map(([k]) => k) },
     { key: "machine", label: tx("Machine"), get: (e) => e.machine || "" },
   ], []);
   const text = useCallback((e: StoredEvent) => [e.label, e.machine, e.target, e.detail, label(e.kind)].join(" "), [label]);
-  const f = useFilter(events, facets, text);
+  const f = useFilter(all, facets, text);  // les graphiques suivent la recherche et les pastilles
+  const listed = useMemo(() => (range ? f.shown.filter((e) => e.ts >= range.from && e.ts < range.to) : f.shown), [f.shown, range]);
 
-  if (error) return <Empty>{tx("Historique illisible :")} {error}</Empty>;
-  if (!hist) return <p className="py-8 text-muted">{tx("Chargement de l'historique…")}</p>;
+  if (error && !ready) return <Empty>{tx("Historique illisible :")} {error}</Empty>;
+  if (!ready) return <p className="py-8 text-muted">{tx("Chargement de l'historique…")}</p>;
+
+  const to = ready.at, from = to - days * 86400e3, truncated = ready.events.length >= EVENT_LIMIT;
+  const counts = Object.fromEntries(GROUPS.map(([k]) => [k, f.shown.filter((e) => groupOf(e.kind) === k).length]));
+  const bars = truncated && !f.active ? dayBuckets(ready.perDay, days, to) : buckets(f.shown, from, to, stepFor(days));
 
   const byDay: [string, StoredEvent[]][] = [];
-  for (const e of f.shown) {
+  for (const e of listed) {
     const k = dayKey(e.ts * 1000);
     if (byDay.at(-1)?.[0] !== k) byDay.push([k, []]);
     byDay.at(-1)![1].push(e);
@@ -105,19 +63,39 @@ export function History({ snap }: { snap: Snapshot }) {
     <div className="py-4">
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
         {PERIODS.map(([d, l]) => (
-          <button key={d} type="button" onClick={() => { setDays(d); setDay(""); }}
+          <button key={d} type="button" onClick={() => { setDays(d); setRange(null); }}
             className={`rounded-full border px-3 py-1 text-sm ${days === d ? "border-link bg-link/15 text-txt" : "border-line bg-card text-muted hover:text-txt"}`}>{l}</button>
         ))}
-        {day && (
-          <button type="button" onClick={() => setDay("")} className="ml-2 text-sm text-link hover:underline">
-            {tx("Jour :")} {longDay(new Date(day + "T12:00"))} ✕
-          </button>
-        )}
+        <span className="ml-auto inline-flex rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Style du graphique")}>
+          {STYLES.map(([k, l]) => {
+            const Icon = STYLE_ICON[k];
+            return (
+              <button key={k} type="button" onClick={() => pick(k)} aria-pressed={style === k} title={l}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm ${style === k ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{l}</button>
+            );
+          })}
+        </span>
       </div>
-      <Chart data={bars(hist.perDay, days)} day={day} onDay={setDay} />
-      <FilterBar f={f} placeholder={tx("Service, machine, détail…")} />
-      {f.shown.length === 0 ? (
-        <Empty>{hist.events.length ? tx("Aucun événement pour ce filtre.") : tx("Aucun événement sur cette période : rien n'est tombé, rien n'a changé.")}</Empty>
+
+      <div className="rounded-2xl border border-line bg-card p-4">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-bold">{f.shown.length} {tx("événement")}{f.shown.length > 1 ? "s" : ""} {tx("sur la période")}</h2>
+          <div className="flex flex-wrap gap-3 text-xs text-muted">
+            {GROUPS.filter(([k]) => counts[k]).map(([k, l, c]) => <span key={k} className="inline-flex items-center gap-1.5"><span className={`h-2.5 w-2.5 rounded-sm ${c}`} />{l} <b className="text-dim">{counts[k]}</b></span>)}
+          </div>
+        </div>
+        {f.shown.length === 0 ? <p className="py-6 text-center text-sm text-muted">{tx("Aucun événement sur cette période.")}</p>
+          : style === "points" ? <PointsChart events={f.shown} from={from} to={to} days={days} onRange={setRange} />
+          : style === "bars" ? <BarsChart data={bars} days={days} active={range} onRange={setRange} />
+          : style === "area" ? <AreaChart data={bars} days={days} />
+          : <HeatChart events={f.shown} />}
+        {truncated && style !== "bars" && <p className="mt-2 text-xs text-warn">{tx("Les {0} événements les plus récents seulement : choisissez une période plus courte pour tout voir.", EVENT_LIMIT)}</p>}
+      </div>
+
+      <FilterBar f={f} placeholder={tx("Service, machine, détail…")}
+        extra={range && <button type="button" onClick={() => setRange(null)} className="rounded-lg border border-link px-2.5 py-1.5 text-sm text-txt">{range.label} ✕</button>} />
+      {listed.length === 0 ? (
+        <Empty>{ready.events.length ? tx("Aucun événement pour ce filtre.") : tx("Aucun événement sur cette période : rien n'est tombé, rien n'a changé.")}</Empty>
       ) : (
         <div className="flex flex-col gap-4">
           {byDay.map(([k, evs]) => (
