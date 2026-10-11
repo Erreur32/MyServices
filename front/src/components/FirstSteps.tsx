@@ -2,7 +2,7 @@
 // demander (ports de l'hôte, Docker) jusqu'à la clé SSH qui donne le relevé exact. Les étapes se mettent à jour en
 // direct pendant le scan ; la carte reste jusqu'à ce qu'on la ferme (retenu par navigateur et par clé de l'app :
 // une installation remise à zéro la rouvre).
-import { ArrowRight, Check, Circle, LifeBuoy, Loader2, Plug, RotateCcw, Rocket, X } from "lucide-react";
+import { ArrowRight, Bell, Check, ChevronRight, Circle, Compass, HardDrive, LifeBuoy, Loader2, Plug, Plus, RotateCcw, Rocket, X, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { read } from "../api";
 import type { Snapshot } from "../api";
@@ -16,8 +16,8 @@ import type { ConnectorsState, Proposal, SystemState } from "../types";
 import { netState, useNetScan } from "../lib/netScan";
 import { AuthorizeKey } from "./AuthorizeKey";
 import { SkipButton } from "./SkipButton";
-import { NetworkStep } from "./NetworkStep";
-import { Badge, type Tone } from "./ui";
+import { FOLD, FOLD_HEAD, NetworkStep } from "./NetworkStep";
+import { Badge, Count, type Tone } from "./ui";
 import { button, primary } from "../lib/forms";
 
 type State = "done" | "now" | "run" | "next" | "soon";
@@ -56,6 +56,14 @@ function Step({ state, title, children, onSkip, skipped, onResume }: {
   );
 }
 
+/** "What next" cards: where to go, and in one line what it brings and what to expect there */
+const NEXT: { href: string; Icon: LucideIcon; title: string; text: string }[] = [
+  { href: "#settings/connectors", Icon: Plug, title: tx("Relier mes outils"), text: tx("Nginx Proxy Manager, AdGuard, Home Assistant, Proxmox… : leurs données (certificats, DNS, sauvegardes) s'ajoutent à la page. Une clé ou un compte en lecture seule suffit.") },
+  { href: "#settings/alerts", Icon: Bell, title: tx("Être prévenu"), text: tx("Un message Discord, Telegram ou un webhook quand une machine tombe, qu'une sauvegarde est en retard ou qu'un service disparaît.") },
+  { href: "#settings/backups", Icon: HardDrive, title: tx("Suivre mes sauvegardes"), text: tx("Dossiers de sauvegarde, jobs Veeam, groupes Proxmox Backup : vous fixez l'âge au-delà duquel une alerte part.") },
+  { href: "#settings/help", Icon: LifeBuoy, title: tx("Lire l'aide"), text: tx("Comment MyServices lit votre réseau, les bons réflexes, et quoi faire quand quelque chose ne marche pas.") },
+];
+
 const HOW: Record<Proposal["confidence"], Tone> = { sure: "ok", probable: "info", possible: "off" };
 
 function Proposals({ list }: { list: Proposal[] }) {
@@ -80,16 +88,51 @@ function Proposals({ list }: { list: Proposal[] }) {
   );
 }
 
+/** Folded frame under the proposed connectors: every tool MyServices can read, one click opens its form. Folded by default and says so, because a tool
+ *  may well run on another machine than this one, so nothing proposed above does not mean nothing to link. */
+function AllConnectors({ tools }: { tools: { type: string; label: string }[] }) {
+  if (!tools.length) return null;
+  return (
+    <details className={`${FOLD} mt-3 [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
+      <summary className={FOLD_HEAD}>
+        <ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
+        <Plug size={15} className="shrink-0 text-link" aria-hidden />
+        {tx("Tous les connecteurs disponibles")} <Count n={tools.length} tone="off" />
+        <span className="font-normal text-dim">· {tx("replié : cliquez pour ouvrir ou refermer la liste")}</span>
+      </summary>
+      <p className="text-xs text-dim">
+        {tx("Un outil peut tourner sur une autre machine que celle-ci : MyServices ne l'a alors pas reconnu ici. Choisissez-le dans cette liste pour le relier quand même (son adresse et un jeton ou un compte en lecture seule suffisent).")}{" "}
+        <b className="text-muted">{tx("Rien n'est obligatoire maintenant : vous pourrez le faire plus tard, à tout moment, dans Réglages → Connecteurs.")}</b>
+      </p>
+      <ul className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+        {tools.map((t) => {
+          const logo = appIcon([t.label]);
+          return (
+            <li key={t.type}>
+              <button type="button" onClick={() => openConnector({ type: t.type, name: t.type, url: "" })} title={tx("Relier {0}", t.label)}
+                className="flex w-full items-center gap-2 rounded-lg border border-line bg-bg2/60 px-2.5 py-1.5 text-left text-sm text-txt transition-colors hover:border-link hover:bg-link/10">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-card">{logo ? <img src={logo} alt="" className="h-4 w-4" /> : <Plug size={13} className="text-muted" aria-hidden />}</span>
+                <span className="min-w-0 flex-1 truncate">{t.label}</span>
+                <Plus size={13} className="shrink-0 text-dim" aria-hidden />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
+  );
+}
+
 export function FirstSteps({ snap }: { snap: Snapshot }) {
   const [sys, setSys] = useState<SystemState | null>(null);
-  const [tools, setTools] = useState<string[]>([]);   // every tool MyServices can read (connector labels), for the last step
+  const [tools, setTools] = useState<{ type: string; label: string }[]>([]);   // every tool MyServices can read, for the folded list under the connectors step
   const [, bump] = useState(0);
   const [acceptedGen, setAcceptedGen] = useState<string | null>(null); // relevé de data.json au moment où la clé a été acceptée
   const scan = useScan();
   const { net, reload: reloadNet } = useNetScan();
   const admin = snap.me.role === "admin";
   useEffect(() => { if (admin) read<SystemState>("system").then(setSys).catch(() => undefined); }, [admin]);
-  useEffect(() => { if (admin) read<ConnectorsState>("connectors/settings").then((c) => setTools(c.types.map((t) => t.label))).catch(() => undefined); }, [admin]);
+  useEffect(() => { if (admin) read<ConnectorsState>("connectors/settings").then((c) => setTools(c.types.filter((t) => !t.kinds.includes("alerts")).map((t) => ({ type: t.type, label: t.label })))).catch(() => undefined); }, [admin]);
 
   const failing = (snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok);
   const fp = sys?.ssh.fingerprint || sys?.ssh.public || "app";
@@ -220,22 +263,27 @@ export function FirstSteps({ snap }: { snap: Snapshot }) {
                   {tx("Aucune autre appli à relier")}{containers > 0 && ` ${tx("({0} conteneurs examinés)", containers)}`}.
                 </p>
                 {linked.length > 0 && <p className="mt-1 text-ok">{tx("Déjà reliés : {0}.", linked.join(", "))}</p>}
-                {tools.length > 0 && (
-                  <p className="mt-1 text-dim">
-                    {tx("MyServices sait lire {0} outils, par exemple :", tools.length)} {tools.slice(0, 8).join(", ")}…{" "}
-                    <a className="font-semibold text-link hover:underline" href="#settings/connectors">{tx("Voir tous les connecteurs")}</a>
-                  </p>
-                )}
                 <p className="mt-1 font-semibold text-ok">{tx("Rien à faire pour l'instant : tout est en ordre.")}</p>
               </>}
+          <AllConnectors tools={tools} />
         </Step>
       </ol>
-      <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line/70 pt-4">
-        <span className="mr-1 text-xs font-bold uppercase tracking-wider text-dim">{tx("Ensuite")}</span>
-        <a className={`${button} border-txt/30 bg-bg2 text-txt no-underline hover:border-link hover:bg-link/10`} href="#settings/connectors"><Plug size={14} aria-hidden />{tx("Relier mes outils")}</a>
-        <a className={`${button} border-txt/30 bg-bg2 text-txt no-underline hover:border-link hover:bg-link/10`} href="#settings/alerts"><ArrowRight size={14} aria-hidden />{tx("Être prévenu")}</a>
-        <a className={`${button} border-txt/30 bg-bg2 text-txt no-underline hover:border-link hover:bg-link/10`} href="#settings/backups"><ArrowRight size={14} aria-hidden />{tx("Suivre mes sauvegardes")}</a>
-        <a className={`${button} border-txt/30 bg-bg2 text-txt no-underline hover:border-link hover:bg-link/10`} href="#settings/help"><LifeBuoy size={14} aria-hidden />{tx("Lire l'aide")}</a>
+      <div className="mt-5 border-t border-line/70 pt-4">
+        <h3 className="flex flex-wrap items-center gap-2 text-sm font-bold"><Compass size={15} className="text-link" aria-hidden />{tx("Et ensuite ?")}
+          <span className="text-xs font-normal text-dim">{tx("Rien d'obligatoire : chaque point se fait quand vous voulez, ici ou plus tard dans les Réglages.")}</span></h3>
+        <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {NEXT.map(({ href, Icon, title, text }) => (
+            <li key={href}>
+              <a href={href} className="group/n flex h-full flex-col gap-1 rounded-xl border border-line bg-bg2/50 p-3 no-underline transition-colors hover:border-link hover:bg-link/10">
+                <span className="flex items-center gap-2 text-sm font-semibold text-txt">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-link/10 text-link"><Icon size={15} aria-hidden /></span>{title}
+                  <ArrowRight size={13} className="ml-auto shrink-0 text-dim transition-transform group-hover/n:translate-x-0.5 group-hover/n:text-link" aria-hidden />
+                </span>
+                <span className="text-xs leading-snug text-muted">{text}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button type="button" className={finished ? primary : `${button} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`} onClick={close}>
