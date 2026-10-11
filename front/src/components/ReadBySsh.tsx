@@ -17,7 +17,7 @@ export function ReadBySsh({ snap }: { snap: Snapshot }) {
   const machines = snap.data.machine_list ?? [];
   return (
     <Card>
-      <h2 className="mb-1 flex items-center gap-2 font-bold"><Server size={16} />{tx("Lus par SSH ou par l'agent")} <Dim>· {rows.length}</Dim></h2>
+      <h2 className="mb-1 flex items-center gap-2 font-bold"><Server size={16} />{tx("SSH Agent Actifs")} <Dim>· {rows.length}</Dim></h2>
       <p className="mb-3 text-sm text-muted">{tx("Pas de formulaire ici : ces lectures se règlent sur la machine (AdGuard, Docker, processus). Elles sont trouvées toutes seules quand la machine est lue par SSH.")}</p>
       <ul className="flex flex-col divide-y divide-line/60">
         {rows.map((c) => {
