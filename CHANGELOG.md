@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Testing phase: do not use in production.**
 
+### Changed
+- **Agent card** (Settings -> Connectors -> Agents and SSH): the details that were squeezed into one long line (last report, system, agent version, frequency, token) are now a small list that wraps on several lines; the system name is shortened ("Windows 11 Pro") and an outdated version is flagged.
+
 ## v0.9.5 (2026-10-11)
 
 > **Testing phase: do not use in production.**

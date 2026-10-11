@@ -2,6 +2,7 @@
 // Une carte par machine : celles qui ont un agent (actif, silencieux, en attente) d'un côté, celles qui n'en ont pas de l'autre,
 // prêtes à être cliquées. Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller sur le PC.
 // Gérés seulement depuis une session admin.
+import { shortOs } from "../lib/osName";
 import { ArrowUpCircle, ChevronDown, ChevronRight, Monitor, MonitorUp, Plus, RefreshCw, RotateCw, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
@@ -297,11 +298,15 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
         <Badge tone={tone}>{label}</Badge>
       </button>
       {!folded && <>
-      <p className="text-xs text-dim">
-        {a.last_seen ? tx("dernier relevé {0} ({1})", dateTime(a.last_seen * 1000), a.last_ip) : tx("aucun relevé reçu")}
-        {a.os && ` · ${a.os}`}{a.version && ` · ${tx("agent")} ${a.version}`} · {tx("toutes les {0} min", Math.round(a.interval / 60))}
-        {" · "}<code className="font-mono">{tx("msv_")}agent_…{a.hint}</code>
-      </p>
+      <dl className="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2" aria-label={tx("Détails de l'agent")}>
+        <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Dernier relevé")}</dt>
+          <dd className="min-w-0">{a.last_seen ? <>{dateTime(a.last_seen * 1000)} <span className="text-dim">({a.last_ip})</span></> : <span className="text-warn">{tx("aucun relevé reçu")}</span>}</dd></div>
+        <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Système")}</dt><dd className="min-w-0 break-words" title={a.os ?? undefined}>{a.os ? shortOs(a.os) : "—"}</dd></div>
+        <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Version")}</dt>
+          <dd className="min-w-0">{a.version ? <>v{a.version}{a.outdated && <span className="text-warn"> · {tx("v{0} disponible", a.latest_version ?? "?")}</span>}</> : "—"}</dd></div>
+        <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Fréquence")}</dt><dd className="min-w-0">{tx("toutes les {0} min", Math.round(a.interval / 60))}</dd></div>
+        <div className="flex gap-2 sm:col-span-2"><dt className="w-24 shrink-0 text-dim">{tx("Jeton")}</dt><dd className="min-w-0"><code className="font-mono">{tx("msv_")}agent_…{a.hint}</code></dd></div>
+      </dl>
       <UpdateControls a={a} reload={reload} setNote={setNote} />
       <div className="flex flex-wrap items-center gap-1.5">
         {confirm === "" && <>
