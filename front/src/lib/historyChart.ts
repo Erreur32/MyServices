@@ -82,6 +82,14 @@ export function heat(at: Point[]): number[][] {
   return grid;
 }
 
+/** Sommet « rond » de l'axe vertical (1, 2, 5 × 10ⁿ) au moins égal au plus grand nombre d'événements, et ses repères (0 compris) */
+export function yScale(max: number, parts = 4): { top: number; ticks: number[] } {
+  const m = Math.max(1, max), pow = Math.max(1, 10 ** Math.floor(Math.log10(m / parts)));  // des nombres entiers d'événements
+  const unit = [1, 2, 5, 10].map((k) => k * pow).find((u) => u * parts >= m)!;
+  const top = Math.ceil(m / unit) * unit;
+  return { top, ticks: Array.from({ length: top / unit + 1 }, (_, i) => i * unit) };
+}
+
 /** Repères réguliers de l'axe du temps : n+1 instants de `from` à `to` */
 export function ticks(from: number, to: number, n = 6): number[] {
   return Array.from({ length: n + 1 }, (_, i) => from + ((to - from) * i) / n);

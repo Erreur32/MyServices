@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buckets, dayBuckets, groupOf, heat, stepFor, ticks } from "./historyChart";
+import { buckets, dayBuckets, groupOf, heat, stepFor, ticks, yScale } from "./historyChart";
 
 describe("graphiques de l'historique", () => {
   it("classe les types d'événements en familles", () => {
@@ -32,6 +32,14 @@ describe("graphiques de l'historique", () => {
     const b = dayBuckets([{ day: "2026-10-12", kind: "panne", n: 3 }, { day: "2026-10-01", kind: "retabli", n: 9 }], 3, now);
     expect(b).toHaveLength(3);
     expect(b.at(-1)!.total).toBe(3);
+  });
+
+  it("axe vertical aux valeurs rondes", () => {
+    expect(yScale(0)).toEqual({ top: 1, ticks: [0, 1] });
+    expect(yScale(7).ticks).toEqual([0, 2, 4, 6, 8]);
+    expect(yScale(23).top).toBeGreaterThanOrEqual(23);
+    expect(yScale(120).ticks.every((t) => t % 10 === 0 || t % 25 === 0 || t % 20 === 0 || t % 50 === 0)).toBe(true);
+    expect(yScale(3).ticks).toEqual([0, 1, 2, 3]);
   });
 
   it("repères de l'axe", () => {

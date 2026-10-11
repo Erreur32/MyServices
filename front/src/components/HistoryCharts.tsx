@@ -2,7 +2,7 @@
 // Tout est dessiné en HTML / SVG sans bibliothèque ; les textes restent en HTML pour ne pas être déformés.
 import { dateTime, hm, longDay } from "../lib/format";
 import { LOCALE, tx } from "../lib/i18n";
-import { GROUPS, GROUP_COLOR, GROUP_FILL, GROUP_NAME, groupOf, heat, ticks, type Bucket } from "../lib/historyChart";
+import { GROUPS, GROUP_COLOR, GROUP_FILL, GROUP_NAME, groupOf, heat, ticks, yScale, type Bucket } from "../lib/historyChart";
 import type { StoredEvent } from "../types";
 
 /** Sélection d'une plage de temps (secondes) qui filtre la liste sous le graphique */
@@ -24,6 +24,24 @@ function Axis({ from, to, days }: { from: number; to: number; days: number }) {
   );
 }
 
+/** Axe vertical du nombre d'événements : repères chiffrés à gauche, traits fins en pointillés derrière le graphique */
+function YAxis({ ticks: t, top, children }: { ticks: number[]; top: number; children: React.ReactNode }) {
+  return (
+    <div className="flex gap-2">
+      <div className="relative h-40 w-8 shrink-0 text-right text-[11px] tabular-nums text-dim" aria-hidden>
+        {t.map((v) => <span key={v} className="absolute right-0 -translate-y-1/2" style={{ bottom: `${(v / top) * 100}%` }}>{v}</span>)}
+      </div>
+      <div className="relative min-w-0 flex-1">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-40" aria-hidden>
+          {t.map((v) => <span key={v} className={`absolute inset-x-0 border-t ${v === 0 ? "border-line" : "border-dashed border-line/80"}`} style={{ bottom: `${(v / top) * 100}%` }} />)}
+          {[1, 2, 3, 4, 5].map((i) => <span key={i} className="absolute inset-y-0 border-l border-dashed border-line/60" style={{ left: `${(i / 6) * 100}%` }} />)}  {/* repères verticaux alignés sur l'axe du temps */}
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /** Un point par événement, à son heure exacte ; une ligne par famille. Clic = la liste se limite à ce jour. */
 export function PointsChart({ events, from, to, days, onRange }: { events: StoredEvent[]; from: number; to: number; days: number; onRange: (r: Range) => void }) {
   const lanes = GROUPS.filter(([k]) => events.some((e) => groupOf(e.kind) === k));
@@ -36,8 +54,8 @@ export function PointsChart({ events, from, to, days, onRange }: { events: Store
       </div>
       <div className="min-w-0 flex-1">
         <div className="relative rounded-lg bg-bg2/50" style={{ height: lanes.length * 32 }}>
-          {ticks(from, to).map((t, i) => <span key={t} className="absolute inset-y-0 border-l border-line/50" style={{ left: `${(i / 6) * 100}%` }} />)}
-          {lanes.map(([k], i) => <span key={k} className="absolute inset-x-0 border-t border-line/40" style={{ top: i * 32 }} />)}
+          {ticks(from, to).map((t, i) => <span key={t} className="absolute inset-y-0 border-l border-dashed border-line/70" style={{ left: `${(i / 6) * 100}%` }} />)}
+          {lanes.map(([k], i) => <span key={k} className="absolute inset-x-0 border-t border-dashed border-line/60" style={{ top: i * 32 }} />)}
           {events.map((e, i) => {
             const lane = lanes.findIndex(([k]) => k === groupOf(e.kind));
             if (lane < 0 || e.ts * 1000 < from) return null;
@@ -58,32 +76,33 @@ export function PointsChart({ events, from, to, days, onRange }: { events: Store
 
 /** Barres empilées par famille ; clic sur une barre = la liste se limite à cette plage */
 export function BarsChart({ data, days, active, onRange }: { data: Bucket[]; days: number; active: Range | null; onRange: (r: Range | null) => void }) {
-  const max = Math.max(1, ...data.map((b) => b.total));
+  const { top, ticks: yt } = yScale(Math.max(0, ...data.map((b) => b.total)));
   const span = data[0] ? data[0].end - data[0].start : 0;
   const name = (b: Bucket) => (span >= 86400e3 ? longDay(b.start) : `${dateTime(b.start)} – ${hm(b.end)}`);
   return (
-    <div>
-      <div className="flex h-40 items-end gap-[2px]" role="img" aria-label={tx("Événements par période")}>
+    <YAxis ticks={yt} top={top}>
+      <div className="relative flex h-40 items-end gap-[2px]" role="img" aria-label={tx("Événements par période")}>
         {data.map((b) => {
           const on = active?.from === sec(b.start);
           return (
             <button key={b.start} type="button" onClick={() => b.total && onRange(on ? null : { from: sec(b.start), to: sec(b.end), label: name(b) })}
               title={tx("{0} : {1} événement{2}", name(b), b.total, b.total > 1 ? "s" : "")}
               className={`flex h-full min-w-[3px] flex-1 flex-col-reverse rounded-sm ${b.total ? "cursor-pointer hover:bg-bg2" : "cursor-default"} ${on ? "bg-link/15 ring-1 ring-link" : ""}`}>
-              {GROUPS.filter(([k]) => b.parts[k]).map(([k, , c]) => <span key={k} className={`block w-full ${c}`} style={{ height: `${(b.parts[k] / max) * 100}%` }} />)}
+              {GROUPS.filter(([k]) => b.parts[k]).map(([k, , c]) => <span key={k} className={`block w-full ${c}`} style={{ height: `${(b.parts[k] / top) * 100}%` }} />)}
             </button>
           );
         })}
       </div>
       {data[0] && <Axis from={data[0].start} to={data.at(-1)!.end} days={days} />}
-    </div>
+    </YAxis>
   );
 }
 
 /** Courbe empilée par famille (l'épaisseur de chaque couleur = le nombre d'événements du barreau) */
 export function AreaChart({ data, days }: { data: Bucket[]; days: number }) {
   if (data.length < 2) return null;
-  const max = Math.max(1, ...data.map((b) => b.total)), W = 1000, H = 160, step = W / (data.length - 1);
+  const { top: max, ticks: yt } = yScale(Math.max(0, ...data.map((b) => b.total)));
+  const W = 1000, H = 160, step = W / (data.length - 1);
   const keys = GROUPS.map(([k]) => k).filter((k) => data.some((b) => b.parts[k]));
   const below = data.map(() => 0);  // sommet de la pile en dessous, par barreau
   const layers = keys.map((k) => {
@@ -94,13 +113,12 @@ export function AreaChart({ data, days }: { data: Bucket[]; days: number }) {
     return { k, path };
   });
   return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-40 w-full" role="img" aria-label={tx("Événements au fil du temps")}>
-        {[0.25, 0.5, 0.75].map((f) => <line key={f} x1="0" x2={W} y1={H * f} y2={H * f} stroke="rgb(var(--line))" strokeWidth="1" vectorEffect="non-scaling-stroke" />)}
+    <YAxis ticks={yt} top={max}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="relative h-40 w-full" role="img" aria-label={tx("Événements au fil du temps")}>
         {layers.map((l) => <path key={l.k} d={l.path} fill={GROUP_FILL[l.k]} fillOpacity="0.75"><title>{GROUP_NAME[l.k]}</title></path>)}
       </svg>
       <Axis from={data[0].start} to={data.at(-1)!.end} days={days} />
-    </div>
+    </YAxis>
   );
 }
 

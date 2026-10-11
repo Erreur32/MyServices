@@ -14,7 +14,7 @@ import type { AgentInfo, Detection, MachineConf, MachinesSettings as State, NetH
 import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
-import { MACHINE_ICONS } from "../lib/machineIcons";
+import { IconPicker } from "../components/IconPicker";
 import { MSTATE, mState, osOfMachine } from "../lib/machines";
 import { AuthorizeKey } from "../components/AuthorizeKey";
 import { SshGuide } from "../components/SshGuide";
@@ -352,7 +352,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
                 : tx("cette machine offre SSH mais MyServices n'y a pas d'accès : activez « Lecture par SSH » ci-dessous.")}
             </p>
           )}
-          <MachineForm agent={agent} connection={connection} report={setNote} ip={ip} m={m} st={st} live={live} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
+          <MachineForm agent={agent} connection={connection} report={setNote} ip={ip} m={m} st={st} live={live} scan={scan} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
             <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
             <span className="ml-auto flex items-center gap-1.5">
               {confirm ? <>
@@ -378,7 +378,8 @@ function OptionGroup({ title, hint, tone, children }: { title: string; hint?: st
   );
 }
 
-function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, actions, windowsGuess, report, onDone, agent, connection }: {
+function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, scan, actions, windowsGuess, report, onDone, agent, connection }: {
+  scan?: { os?: string; apps: string[]; ssh?: boolean };  // ce que le dernier scan du réseau a vu : aperçu de l'icône automatique
   connection?: React.ReactNode;  // ce qui a été lu de la connexion (SSH ou agent), montré dans le cadre « Accès »
   agent?: AgentInfo;  // agent actif de la machine : c'est son accès (Windows), ou une deuxième source de santé à ordonner (avec SSH)
   report?: (n: Note) => void;  // dans une carte de machine : le message s'affiche en haut de la carte
@@ -583,19 +584,10 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, ac
           </div>
         </div>
         <div className="mt-3">
-          <div className="mb-1 flex items-center gap-2 text-sm text-muted">{tx("Icône")} <Saved k="icon" /><Dim>· {v.icon ? (MACHINE_ICONS.find((i) => i.key === v.icon)?.label ?? "") : tx("automatique (appli reconnue, sinon système)")}</Dim></div>
-          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={tx("Icône de la machine")}>
-            <button type="button" role="radio" aria-checked={!v.icon} disabled={pending === "icon"} title={tx("Automatique")}
-              onClick={() => (isNew ? setV({ ...v, icon: undefined }) : void autoSave("icon", { icon: undefined }))}
-              className={`inline-flex h-9 items-center rounded-lg border px-2.5 text-xs font-semibold ${!v.icon ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`}>{tx("Auto")}</button>
-            {MACHINE_ICONS.map((i) => (
-              <button key={i.key} type="button" role="radio" aria-checked={v.icon === i.key} aria-label={i.label} title={i.label} disabled={pending === "icon"}
-                onClick={() => (isNew ? setV({ ...v, icon: i.key }) : void autoSave("icon", { icon: i.key }))}
-                className={`grid h-9 w-9 place-items-center rounded-lg border ${v.icon === i.key ? "border-link bg-link/15" : "border-line hover:border-link"}`}>
-                {"file" in i ? <img src={`${import.meta.env.BASE_URL}icons/${i.file}.svg`} alt="" className="h-5 w-5" /> : <i.Icon size={17} className="text-muted" aria-hidden />}
-              </button>
-            ))}
-          </div>
+          <div className="mb-1 flex items-center gap-2 text-sm text-muted">{tx("Icône")} <Saved k="icon" /></div>
+          <IconPicker value={v.icon as string | undefined} disabled={pending === "icon"} autoHint={tx("appli reconnue, sinon système")}
+            auto={<MachineIcon large m={{ name: v.name, role: v.role, os: v.os as string | undefined, info: live?.info, ttl: live?.ttl }} scan={scan} empty={<span className="text-xs font-semibold text-dim">{tx("Auto")}</span>} />}
+            onPick={(icon) => (isNew ? setV({ ...v, icon }) : void autoSave("icon", { icon }))} />
         </div>
       </section>
       {agent && sshAccess && (
