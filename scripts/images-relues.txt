@@ -110,7 +110,7 @@ dcca1779f01b7ccee555fd7bc31a0e27  front/public/icons/wikijs.svg
 68a58d3bc03132d0d09690f634212970  front/public/icons/windows-classic.svg
 15b619662a669c85f21439613f20cd9b  front/public/icons/windows-mono.svg
 370e206d1d04f6e4e6fd10f532d27eca  front/public/icons/windows-server.svg
-0fdca7a49891f6d0a98580481d6de9ca  front/public/mark.svg
 73f515499dfb0b9a18c464213ac0990e  front/public/favicon.svg
 93d43050c48728864f89220a172405e1  front/public/logo-grid.svg
 73f515499dfb0b9a18c464213ac0990e  web/favicon.svg
+74bc2a56421702c882c5fb735bec5ff1  docs/logo.svg

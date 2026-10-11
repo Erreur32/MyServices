@@ -46,10 +46,10 @@ export function useContentWidth(): [number, (px: number) => void] {
   return [width, (px) => setWidth(clampWidth(px))];
 }
 
-/** Logo avant le titre de l'en-tête : le favicon tel quel (grille sur carré sombre), la même grille sans fond, ou le hub relié à ses services. */
-export type HeaderLogo = "favicon" | "grid" | "hub";
+/** Logo avant le titre de l'en-tête : le favicon tel quel (grille sur carré sombre) ou la même grille sans fond. */
+export type HeaderLogo = "favicon" | "grid";
 export const HEADER_LOGOS: { id: HeaderLogo; file: string }[] = [
-  { id: "favicon", file: "favicon.svg" }, { id: "grid", file: "logo-grid.svg" }, { id: "hub", file: "mark.svg" },
+  { id: "favicon", file: "favicon.svg" }, { id: "grid", file: "logo-grid.svg" },
 ];
 const LOGO_KEY = "myservices-header-logo";
 const logoSubs = new Set<() => void>();

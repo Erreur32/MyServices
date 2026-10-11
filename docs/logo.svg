@@ -1,21 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 72" role="img" aria-label="MyServices">
   <svg x="4" y="4" width="64" height="64" viewBox="0 0 64 64">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#16263a"/>
-      <stop offset="1" stop-color="#0b121b"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
-  <g stroke="#3da9fc" stroke-width="2.4" stroke-linecap="round" opacity=".55">
-    <path d="M32 32 L15 15 M32 32 L49 15 M32 32 L15 49 M32 32 L49 49"/>
-  </g>
-  <circle cx="32" cy="32" r="9" fill="#3da9fc"/>
-  <circle cx="32" cy="32" r="3.6" fill="#0b121b"/>
-  <circle cx="15" cy="15" r="6" fill="#22c55e"/>
-  <circle cx="49" cy="15" r="6" fill="#22c55e"/>
-  <circle cx="15" cy="49" r="6" fill="#f59e0b"/>
-  <circle cx="49" cy="49" r="6" fill="#ef4444"/>
+  <rect width="64" height="64" rx="14" fill="#0f1720"/>
+  <rect x="10" y="10" width="12" height="12" rx="3" fill="#22c55e"/>
+  <rect x="26" y="10" width="12" height="12" rx="3" fill="#22c55e"/>
+  <rect x="42" y="10" width="12" height="12" rx="3" fill="#3da9fc"/>
+  <rect x="10" y="26" width="12" height="12" rx="3" fill="#3da9fc"/>
+  <rect x="26" y="26" width="12" height="12" rx="3" fill="#22c55e"/>
+  <rect x="42" y="26" width="12" height="12" rx="3" fill="#f59e0b"/>
+  <rect x="10" y="42" width="12" height="12" rx="3" fill="#22c55e"/>
+  <rect x="26" y="42" width="12" height="12" rx="3" fill="#ef4444"/>
+  <rect x="42" y="42" width="12" height="12" rx="3" fill="#22c55e"/>
   </svg>
   <text x="84" y="46" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="34" font-weight="700" fill="#3da9fc">My<tspan fill="#8b98a9">Services</tspan></text>
 </svg>

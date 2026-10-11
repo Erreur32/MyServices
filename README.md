@@ -37,9 +37,13 @@ API, or the machine over SSH, cross-checks the information and presents it on on
 
 - **Read-only**: nothing is ever written to what it observes.
 - **A single container**: collection, watcher, health, backups, accounts, API and web page.
-- **Tabs**: Home, History, Machines, Services, Health, Fail2ban, DNS, Backups, Settings.
-- **Machines are read** over SSH (Linux), by a PowerShell agent (Windows), through an API, or by ping.
-- **Alerts** on Discord and Telegram; a **REST API** and an **MCP server** for your tools and AI assistants.
+- **Tabs**: Home, History, Machines, Services, Health, Fail2ban, DNS, Backups, Diagrams, Settings.
+- **Machines are read** over SSH (Linux), by a PowerShell agent (Windows), through an API, or by ping; a PC that is often switched off keeps a greyed card instead of disappearing.
+- **History** as dots at the exact time, bars, curve or heat map; every entry says what detected it and what read it.
+- **Diagrams** generated with [Archify](https://github.com/tt-a1i/archify): network map, who reads what, machine access, alert chain, backups.
+- **Alerts and notifications** on Discord, Telegram and webhook: alert rules, plus your own reports (chosen machines and sensors at fixed times) and filtered live events, with ready-to-use examples.
+- **Discoveries** that tell you what runs by itself and what needs a click; `/home/backup` is followed automatically.
+- A **REST API** and an **MCP server** for your tools and AI assistants.
 
 ## Try it (on a test machine)
 
@@ -63,6 +67,9 @@ docker build -t myservices:dev .
 docker run --rm --entrypoint python -v $PWD:/src:ro -w /src myservices:dev -m unittest discover -s tests
 cd front && npm ci && npm test && npm run dev      # :5180
 ```
+
+Versions: `python3 scripts/release.py` checks that the version, both READMEs, the changelog and the release notes agree;
+`release.py patch|minor|X.Y.Z` applies a new one everywhere (it commits, tags and pushes nothing).
 
 Guard before commit and push: `bash scripts/install-hooks.sh` (refuses tokens, passwords, keys, `config.json`, `.env`, databases,
 unreviewed images). `.claude/` is never versioned. Writing a connector: [docs/CONNECTEURS.md](docs/CONNECTEURS.md) (in French).

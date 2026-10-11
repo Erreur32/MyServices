@@ -38,9 +38,13 @@ leur API ou la machine par SSH, rapproche les informations et les présente sur 
 
 - **Lecture seule** : rien n'est écrit sur ce qu'il observe.
 - **Un seul conteneur** : collecte, veille, santé, sauvegardes, comptes, API et page web.
-- **Onglets** : Accueil, Historique, Machines, Services, Santé, Fail2ban, DNS, Sauvegardes, Réglages.
-- **Machines lues** par SSH (Linux), par un agent PowerShell (Windows), par API ou par ping.
-- **Alertes** Discord et Telegram ; **API REST** et **serveur MCP** pour vos outils et assistants IA.
+- **Onglets** : Accueil, Historique, Machines, Services, Santé, Fail2ban, DNS, Sauvegardes, Schémas, Réglages.
+- **Machines lues** par SSH (Linux), par un agent PowerShell (Windows), par API ou par ping ; un PC souvent éteint garde une fiche grisée au lieu de disparaître.
+- **Historique** en points à l'heure exacte, barres, courbe ou carte de chaleur ; chaque entrée dit ce qui l'a détectée et ce qui l'a lue.
+- **Schémas** générés avec [Archify](https://github.com/tt-a1i/archify) : carte du réseau, qui lit quoi, accès aux machines, chaîne d'alertes, sauvegardes.
+- **Alertes et notifications** Discord, Telegram et webhook : règles d'alerte, plus vos propres rapports (machines et capteurs au choix, à heure fixe) et événements en direct filtrés, avec des exemples prêts à l'emploi.
+- **Découvertes** : l'application dit ce qui se fait tout seul et ce qui demande un clic ; `/home/backup` est suivi automatiquement.
+- **API REST** et **serveur MCP** pour vos outils et assistants IA.
 
 ## Essayer (sur une machine de test)
 
@@ -64,6 +68,9 @@ docker build -t myservices:dev .
 docker run --rm --entrypoint python -v $PWD:/src:ro -w /src myservices:dev -m unittest discover -s tests
 cd front && npm ci && npm test && npm run dev      # :5180
 ```
+
+Versions : `python3 scripts/release.py` vérifie que la version, les deux README, le changelog et les notes de version sont d'accord ;
+`release.py patch|minor|X.Y.Z` applique une nouvelle version partout (il ne committe, ne tague et ne pousse rien).
 
 Garde-fou avant commit et push : `bash scripts/install-hooks.sh` (refuse jetons, mots de passe, clés, `config.json`, `.env`, bases,
 images non relues). `.claude/` n'est jamais versionné. Écrire un connecteur : [docs/CONNECTEURS.md](docs/CONNECTEURS.md).
