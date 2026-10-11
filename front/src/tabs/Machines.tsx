@@ -192,10 +192,14 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
   }, [hb]);
   const sort = useSort(f.shown, keyOf, "ip");
 
+  // Inventaire de MynetworK (connecteur « network ») : MAC et fabricant sous l'IP, et les appareils vus mais pas suivis
+  const seen = useMemo(() => new Map((snap.data.network ?? []).flatMap((c) => c.devices ?? []).map((d) => [d.ip, d])), [snap.data.network]);
+  const untracked = useMemo(() => [...seen.values()].filter((d) => !snap.data.machine_list.some((m) => m.ip === d.ip)).sort((a, b) => ipNum(a.ip) - ipNum(b.ip)), [seen, snap.data.machine_list]);
   const name = (m: Machine) => (
     <button type="button" onClick={() => onMachine(m.ip)} className="text-left" title={tx("Voir ses services")}>
       <b className="font-semibold hover:text-link">{m.name}</b>
       <span className="flex flex-wrap items-center gap-1 text-xs text-dim">{m.ip}{rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}</span>
+      {seen.get(m.ip) && <span className="block font-mono text-[11px] text-dim" title={tx("Vu par MynetworK")}>{[seen.get(m.ip)!.mac, seen.get(m.ip)!.vendor].filter(Boolean).join(" · ")}</span>}
     </button>
   );
   const svc = (m: Machine) => (
@@ -213,6 +217,18 @@ export function Machines({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: 
           </button>
         )} />
       <NoteLine note={note} />
+      {untracked.length > 0 && (
+        <details className="mb-3 rounded-xl border border-line bg-bg2/40 px-4 py-2 text-sm">
+          <summary className="cursor-pointer text-muted hover:text-txt">{tx("Vus par MynetworK, pas suivis ici")} <b className="text-dim">({untracked.length})</b></summary>
+          <ul className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">
+            {untracked.slice(0, 120).map((d) => (
+              <li key={d.ip} className="flex flex-wrap items-baseline gap-2"><Badge tone={d.status === "online" ? "ok" : "off"}>{d.status === "online" ? tx("en ligne") : tx("hors ligne")}</Badge>
+                <span className="font-mono text-xs">{d.ip}</span><span>{d.hostname || d.vendor || ""}</span>{d.mac && <Dim>{d.mac}</Dim>}</li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-dim">{tx("Pour en suivre un : Réglages → Machines, ou refaites une recherche réseau.")}</p>
+        </details>
+      )}
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           <Table head={<>

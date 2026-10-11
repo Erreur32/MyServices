@@ -10,6 +10,7 @@ import type { Selected } from "./lib/filter";
 import { attention, type TabId } from "./lib/summary";
 import { Backups } from "./tabs/Backups";
 import { Dns } from "./tabs/Dns";
+import { Fail2ban } from "./tabs/Fail2ban";
 import { Health } from "./tabs/Health";
 import { History } from "./tabs/History";
 import { Machines } from "./tabs/Machines";
@@ -105,12 +106,7 @@ export default function App() {
       {current === "dns" && <Dns snap={snap} />}
       {current === "backups" && <Backups snap={snap} />}
       {current === "settings" && <Settings key={hash} snap={snap} look={{ theme, setTheme, width, setWidth }} />}
-      {current === "fail2ban" && (
-        <section className="my-6 rounded-2xl border border-dashed border-line p-8 text-center text-muted">
-          <p className="text-lg font-semibold text-txt">{TABS.find((t) => t.id === current)!.label} {tx(": à venir")}</p>
-          <p className="mt-2 text-sm">{tx("Prochaine étape, après les onglets en lecture.")}</p>
-        </section>
-      )}
+      {current === "fail2ban" && <Fail2ban snap={snap} />}
     </div>
   );
 }

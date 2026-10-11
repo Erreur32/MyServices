@@ -56,8 +56,8 @@ APPS: tuple[App, ...] = (
     App("jellyfin", "Jellyfin", "Médias", ports=(8096,), title=r"jellyfin", images=("jellyfin/jellyfin", "linuxserver/jellyfin")),
     App("plex", "Plex", "Médias", ports=(32400,), title=r"^plex", images=("plexinc/pms-docker", "linuxserver/plex")),
     App("homeassistant", "Home Assistant", "Domotique", ports=(8123, 4357), title=r"home assistant", connector="home-assistant"),
-    App("proxmox", "Proxmox VE", "Infra / virtualisation", ports=(8006,), title=r"proxmox virtual environment|^proxmox", host=r"^(proxmox|pve)"),
-    App("pbs", "Proxmox Backup Server", "Sauvegardes", ports=(8007,), title=r"proxmox backup server", host=r"^(pbs|proxmox-?backup)"),
+    App("proxmox", "Proxmox VE", "Infra / virtualisation", ports=(8006,), title=r"proxmox virtual environment|^proxmox", host=r"^(proxmox|pve)", connector="proxmox"),
+    App("pbs", "Proxmox Backup Server", "Sauvegardes", ports=(8007,), title=r"proxmox backup server", host=r"^(pbs|proxmox-?backup)", connector="proxmox-backup"),
     # IA locale : Ollama et LM Studio ont un port à eux ; llama.cpp (8080) et Open WebUI (3000 / 8080) partagent des ports trop courants, d'où le titre de la page
     App("ollama", "Ollama", "IA / LLM", ports=(11434,), images=("ollama/ollama",)),
     App("lmstudio", "LM Studio", "IA / LLM", ports=(1234,)),

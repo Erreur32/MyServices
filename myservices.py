@@ -706,11 +706,12 @@ def uptime_rows(rows):
     cbase.save_state(CONNECTORS_STATE, state)
 
 
-def status_rows() -> list[dict]:
-    """Connecteurs « status » (Home Assistant) : état de chaque instance (version, entités, mises à jour disponibles),
-    dans data.json « services_status » ; une instance injoignable garde son dernier relevé, marqué périmé."""
+def connector_rows(kind: str) -> list[dict]:
+    """Connecteurs d'un apport (status : Home Assistant ; network : MynetworK ; security : LogviewR ; containers : Dockhand ;
+    virtualization : Proxmox) : état de chaque instance et ses données, pour data.json ; une instance injoignable garde son
+    dernier relevé, marqué périmé."""
     try:
-        insts = connectors.instances(CFG, kind="status")
+        insts = connectors.instances(CFG, kind=kind)
     except connectors.ConnectorError:
         return []  # déjà signalé par read_npm (même registre)
     out, state = [], cbase.load_state(CONNECTORS_STATE)
@@ -722,6 +723,10 @@ def status_rows() -> list[dict]:
     if insts:
         cbase.save_state(CONNECTORS_STATE, state)
     return out
+
+
+def status_rows() -> list[dict]:
+    return connector_rows("status")
 
 
 def progress(step, label, done=None, total=None):
@@ -1135,6 +1140,10 @@ def main():
         "hosts": rows,
         "proposals": known_apps.propose(rows, connectors.declared(CFG, META_RAW)),
         "services_status": status_rows(),
+        "network": connector_rows("network"),
+        "security": connector_rows("security"),
+        "containers": connector_rows("containers"),
+        "virtualization": connector_rows("virtualization"),
         "dns": dns,
         "machine_list": machines_out,
     }

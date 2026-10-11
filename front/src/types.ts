@@ -213,6 +213,10 @@ export interface Data {
   connectors?: Connector[];
   proposals?: Proposal[];
   services_status?: ServiceStatus[];
+  network?: NetworkConnector[];
+  security?: SecurityConnector[];
+  containers?: ContainersConnector[];
+  virtualization?: VirtualizationConnector[];
   hosts: Host[];
   dns?: Dns;
   machine_list: Machine[];
@@ -541,4 +545,32 @@ export interface SystemState {
     version: string; python: string; started: number; uptime_s: number; port: number; allow: string[]; auth: boolean;
     cookie_secure: boolean; docker: boolean; sizes: { data: number; db: number; config: number }; paths: { config: string; data: string };
   };
+}
+
+/** Connecteurs d'infrastructure : état de l'instance, puis les données propres à chaque type (data.json) */
+export interface InfraConnector { connector: string; name: string; label: string; ok: boolean; stale: boolean; message: string; version?: string | null; url?: string | null }
+export interface NetDevice { ip: string; mac?: string | null; hostname?: string | null; vendor?: string | null; status: string; ping_ms?: number | null; last_seen?: string | null; ports: number[] }
+/** MynetworK : inventaire du réseau (scanner, UniFi) */
+export interface NetworkConnector extends InfraConnector {
+  devices?: NetDevice[]; online?: number;
+  unifi?: { clients: { name?: string; ip?: string; mac?: string; wired?: boolean; essid?: string }[]; devices: { name?: string; model?: string; type?: string; state?: string; clients?: number }[] } | null;
+}
+/** LogviewR : fail2ban */
+export interface SecurityConnector extends InfraConnector {
+  jails?: string[]; bans_24h?: number; bans?: { ip: string; jail: string; time: number; failures?: number }[]; threat_count?: number; log_sources?: number;
+}
+/** Dockhand : environnements Docker */
+export interface ContainersConnector extends InfraConnector {
+  environments?: { id: number | string; name?: string; host?: string | null; agent?: string | null;
+    containers: { total?: number; running?: number; stopped?: number; paused?: number; unhealthy?: number }; updates: { container?: string; image?: string; newer?: string | null }[] }[];
+  updates?: number;
+}
+/** Proxmox VE (nœuds, VM, conteneurs, stockages) et Proxmox Backup Server (magasins) */
+export interface VirtualizationConnector extends InfraConnector {
+  nodes?: { name: string; online: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null }[];
+  guests?: { vmid: number; name?: string; type: "qemu" | "lxc"; node?: string; status?: string; template: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null }[];
+  storage?: { name: string; node?: string; used_pct?: number | null; status?: string }[];
+  totals?: { vm: number; lxc: number; running: number; stopped: number };
+  backups?: { last: number; ok: boolean; failed_recent: number } | null;
+  datastores?: { name: string; used_pct?: number | null; last_backup?: number | null; groups: number; age_h?: number | null }[];
 }

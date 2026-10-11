@@ -15,6 +15,7 @@ from connectors.base import Context, ConnectorError  # noqa: E402
 from connectors.dockhand import Dockhand  # noqa: E402
 from connectors.logviewr import LogviewR  # noqa: E402
 from connectors.mynetwork import MynetworK  # noqa: E402
+from connectors.proxmox import ProxmoxBackup, ProxmoxVE  # noqa: E402
 
 GOOD = "tok-" + "x" * 8  # valeur construite : le garde-fou refuse les jetons en dur
 
@@ -37,7 +38,8 @@ class Fake(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?")[0]
         Fake.seen.append(("GET", self.path))
-        if path != "/api/health" and path != "/health" and self.headers.get("Authorization") != f"Bearer {GOOD}" and path != "/api/host-open":
+        auth = self.headers.get("Authorization")
+        if path != "/api/health" and path != "/health" and auth not in (f"Bearer {GOOD}", "PVEAPIToken=u@pve!t=s", "PBSAPIToken=u@pbs!t:s"):
             return self._send(401, {"success": False, "error": {"code": "API_TOKEN_INVALID", "message": "no"}})
         r = Fake.routes.get(path)
         self._send(*(r if r else (404, {})))
@@ -86,7 +88,7 @@ class Reseau(unittest.TestCase):
         Fake.routes = {}
 
     def test_registre(self):
-        for t in ("mynetwork", "logviewr", "dockhand"):
+        for t in ("mynetwork", "logviewr", "dockhand", "proxmox", "proxmox-backup"):
             self.assertIn(t, connectors.TYPES)
         self.assertEqual(connectors.TYPES["mynetwork"].kinds, ("network",))
 
@@ -130,6 +132,32 @@ class Reseau(unittest.TestCase):
         with self.assertRaises(ConnectorError):
             c._tool("f2b_ban_ip", {"ip": "1.2.3.4"})
         self.assertFalse(inst(LogviewR, self.url, token="autre-" + "y" * 6).test().ok)
+
+    def test_proxmox_ve(self):
+        res = [{"type": "node", "node": "pve", "status": "online", "cpu": 0.1, "mem": 4, "maxmem": 8, "uptime": 99},
+               {"type": "qemu", "vmid": 100, "name": "web", "node": "pve", "status": "running", "cpu": 0.2, "mem": 1, "maxmem": 2},
+               {"type": "lxc", "vmid": 101, "name": "db", "node": "pve", "status": "stopped"},
+               {"type": "qemu", "vmid": 9000, "name": "modele", "node": "pve", "status": "stopped", "template": 1},
+               {"type": "storage", "storage": "local", "node": "pve", "disk": 50, "maxdisk": 100}]
+        Fake.routes = {"/api2/json/version": (200, {"data": {"version": "8.2.4"}}), "/api2/json/cluster/resources": (200, {"data": res}),
+                       "/api2/json/cluster/tasks": (200, {"data": [{"type": "vzdump", "status": "OK", "endtime": 1760000000}]})}
+        c = ProxmoxVE({"type": "proxmox", "name": "t", "url": self.url, "user": "u@pve!t", "secret": "s", "verify_tls": False}, Context(timeout=5))
+        d = c.collect()
+        self.assertEqual(d["totals"], {"vm": 1, "lxc": 1, "running": 1, "stopped": 1})  # le modèle n'est pas compté
+        self.assertEqual(d["storage"][0]["used_pct"], 50.0)
+        self.assertTrue(d["backups"]["ok"])
+        self.assertTrue(all(s[0] == "GET" for s in Fake.seen))
+        self.assertEqual(c.test().version, "8.2.4")
+        self.assertEqual(c._auth(), {"Authorization": "PVEAPIToken=u@pve!t=s"})
+
+    def test_proxmox_backup(self):
+        Fake.routes = {"/api2/json/version": (200, {"data": {"version": "3.2"}}),
+                       "/api2/json/status/datastore-usage": (200, {"data": [{"store": "main", "total": 100, "used": 25}]}),
+                       "/api2/json/admin/datastore/main/snapshots": (200, {"data": [{"backup-type": "vm", "backup-id": "100", "backup-time": 1760000000}]})}
+        c = ProxmoxBackup({"type": "proxmox-backup", "name": "t", "url": self.url, "user": "u@pbs!t", "secret": "s"}, Context(timeout=5))
+        d = c.collect()["datastores"][0]
+        self.assertEqual((d["name"], d["used_pct"], d["groups"]), ("main", 25.0, 1))
+        self.assertEqual(c._auth(), {"Authorization": "PBSAPIToken=u@pbs!t:s"})  # deux-points chez PBS
 
     def test_dockhand(self):
         Fake.routes = {"/api/host": (200, {"hostname": "h"}),

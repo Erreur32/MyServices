@@ -17,8 +17,14 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   LogviewR's MCP endpoint (`POST /mcp`) with a read-only token. Only read tools are ever called; no free text from logs is kept.
 - **Dockhand connector** (`dockhand`, kind `containers`): environments, container counters and pending image updates through Dockhand's
   REST API (`dh_…` token, or none when authentication is off).
-- The three are proposed when their Docker image or page is recognised, and tested against fake servers (`tests/test_connectors_reseau.py`).
-  Showing their data on the pages (machines, Fail2ban tab) comes next.
+- **Proxmox VE connector** (`proxmox`, kind `virtualization`): nodes, VMs, LXC containers, storage usage and last vzdump backup through an API token
+  (`PVEAPIToken`, role PVEAuditor, read-only). **Proxmox Backup Server connector** (`proxmox-backup`): datastores, usage and age of the last backup
+  (`PBSAPIToken`). Self-signed certificates are the default case ("Verify certificate" is off by default).
+- All of them are proposed when their Docker image, page or port is recognised, and tested against fake servers (`tests/test_connectors_reseau.py`).
+- **Where the data shows**: the **Fail2ban tab** now exists and appears as soon as a LogviewR connector is linked (jails, bans in 24 h, active threats,
+  latest bans); the **Health tab** gets a "Virtualization and containers" section (Proxmox, Proxmox Backup Server, Dockhand); the **Machines tab**
+  shows MAC and vendor under each IP and lists devices seen by MynetworK but not followed. `data.json` gains `network`, `security`, `containers`
+  and `virtualization`.
 
 ## v0.9.1 (2026-10-11)
 

@@ -157,7 +157,7 @@ export function Connectors({ snap, agentIp }: { snap: Snapshot; agentIp?: string
               </tr>
               <tr className="opacity-60">
                 <td className="py-2.5 pr-3"><span className="flex flex-wrap items-center gap-2"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-bg2"><Ban size={14} className="text-muted" aria-hidden /></span>
-                  <b>Fail2ban</b><Badge tone="off">{tx("à venir")}</Badge><Dim>· {tx("bannissements et prisons, par LogviewR (arrive avec son connecteur)")}</Dim></span></td>
+                  <b>Fail2ban</b><Dim>· {tx("bannissements et prisons : l'onglet apparaît dès que le connecteur LogviewR est relié")}</Dim></span></td>
                 <td className="px-3 py-2.5 text-center text-dim" aria-hidden>–</td>
                 <td className="px-3 py-2.5 text-center"><Switch on={false} disabled onChange={() => undefined} label="Fail2ban" /></td>
               </tr>

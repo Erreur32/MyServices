@@ -23,10 +23,11 @@ from connectors.logviewr import LogviewR
 from connectors.mynetwork import MynetworK
 from connectors.npm import NPM
 from connectors.process import Process
+from connectors.proxmox import ProxmoxBackup, ProxmoxVE
 from connectors.uptime_kuma import UptimeKuma
 from connectors.webcheck import WebCheck
 
-TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, MynetworK, LogviewR, Dockhand, Discord, Telegram)}
+TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, MynetworK, LogviewR, Dockhand, ProxmoxVE, ProxmoxBackup, Discord, Telegram)}
 
 
 def declared(cfg: dict, meta: dict | None = None) -> list[dict]:

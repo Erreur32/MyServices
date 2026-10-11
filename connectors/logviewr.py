@@ -104,8 +104,9 @@ class LogviewR(Connector):
         sources = (self._tool("log_list_sources") or {}).get("sources") or []
         bans = [{"ip": e.get("ip"), "jail": e.get("jail"), "time": e.get("timeofban"), "failures": e.get("failures")}
                 for e in events if isinstance(e, dict)]
+        lists = threats if isinstance(threats, list) else [v for v in (threats or {}).values() if isinstance(v, list)] if isinstance(threats, dict) else []
         return {"jails": [n for n in names if n], "bans_24h": len(bans), "bans": bans[:200],
-                "threats": threats if isinstance(threats, (dict, list)) else None,
+                "threat_count": len(lists if lists and isinstance(threats, list) else lists[0]) if lists else 0,
                 "metrics": metrics if isinstance(metrics, dict) else None,
                 "log_sources": len(sources)}
 

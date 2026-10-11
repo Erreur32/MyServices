@@ -1045,7 +1045,7 @@ def sources_set(name: str, body: SourceToggle, request: Request):
     if name not in SOURCES:
         return deny(400, "source inconnue")
     if name == "fail2ban" and body.enabled:
-        return deny(400, "Fail2ban arrive avec le connecteur LogviewR")
+        return deny(400, "Fail2ban n'a pas d'interrupteur : son onglet apparaît dès qu'un connecteur LogviewR est relié")
     f = Path(os.environ.get("MYSERVICES_CONFIG") or Path(core.HERE) / "config.json")
     raw = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
     src = dict(raw.get("sources") or {})

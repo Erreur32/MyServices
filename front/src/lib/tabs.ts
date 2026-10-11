@@ -23,7 +23,7 @@ export function visible(id: TabId, s: Snapshot): boolean {
     case "health": return !!s.health; // activée et déjà relevée
     case "backups": return !!s.backups;
     case "dns": return !!s.data.dns;
-    case "fail2ban": return false; // source activable quand le connecteur LogviewR existera (Réglages → Connecteurs)
+    case "fail2ban": return (s.data.security ?? []).length > 0; // affiché dès qu'un connecteur LogviewR est relié
     case "settings": return s.me.role === "admin";
     default: return true;
   }
