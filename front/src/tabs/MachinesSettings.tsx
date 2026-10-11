@@ -20,6 +20,7 @@ import { MSTATE, mState, osOfMachine } from "../lib/machines";
 import { AuthorizeKey } from "../components/AuthorizeKey";
 import { SshGuide } from "../components/SshGuide";
 import { SshDetails } from "../components/ssh";
+import { ReadBySsh } from "../components/ReadBySsh";
 import { rolesOf, sshBrief, sshWarn } from "../lib/ssh";
 import { pokeScan } from "../lib/scan";
 import { hardwareRows } from "../lib/hardware";
@@ -105,6 +106,7 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
           return <MachineRow key={ip} agent={agents[ip]} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
         })}
       </div>
+      <ReadBySsh snap={snap} />
     </div>
   );
 }
