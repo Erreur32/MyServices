@@ -261,6 +261,8 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
   const [open, setOpen] = useState(!!focus), [confirm, setConfirm] = useState(false);  // focus : arrivée depuis un lien (Connecteurs → machine)
   const [icon, setIcon] = useState(m.icon as string | undefined);  // icône choisie dans le formulaire : l'en-tête de la carte la reprend aussitôt
   useEffect(() => setIcon(m.icon as string | undefined), [m.icon]);
+  const [off, setOff] = useState(!!m.disabled);  // « Machine suivie » basculée dans le formulaire : la carte (grisée ou non) suit aussitôt
+  useEffect(() => setOff(!!m.disabled), [m.disabled]);
   const card = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) card.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focus]);
   const [note, setNote] = useState<Note>(null), [lines, setLines] = useState<string[] | null>(null), [busy, setBusy] = useState(false);
@@ -310,7 +312,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
     </div>
   ) : live ? <SshDetails m={live} statuses={statuses} /> : null;
   return (
-    <div ref={card} className={`rounded-xl border bg-card text-sm transition-colors ${m.disabled ? "opacity-60" : ""} ${focus ? "border-link shadow-[0_0_0_1px_rgb(var(--link))]" : open ? "border-link/60 shadow-[0_0_0_1px_rgb(var(--link)/0.35)]" : "border-line"}`}>
+    <div ref={card} className={`rounded-xl border bg-card text-sm transition-colors ${off ? "opacity-60" : ""} ${focus ? "border-link shadow-[0_0_0_1px_rgb(var(--link))]" : open ? "border-link/60 shadow-[0_0_0_1px_rgb(var(--link)/0.35)]" : "border-line"}`}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl p-3 text-left hover:bg-bg2">
         <Chevron size={14} className="text-txt" /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon }} scan={scan} reserve /><b>{m.name}</b><Dim>{ip}</Dim>
         <span className="ml-auto flex items-center gap-1.5">
@@ -325,7 +327,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
           {m.off && <Badge tone="off">{tx("souvent éteinte")}</Badge>}
           {live && sshWarn(live) && <Badge tone="warn" title={tx("sshd : root ou mot de passe autorisé")}>{tx("sshd")}</Badge>}
           {statuses.some((c) => !c.ok) && <Badge tone="bad">{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
-          {m.disabled ? <Badge tone="off">{tx("non suivie")}</Badge> : state && <Badge tone={state[0]} title={state[2]}>{state[1]}</Badge>}
+          {off ? <Badge tone="off">{tx("non suivie")}</Badge> : state && <Badge tone={state[0]} title={state[2]}>{state[1]}</Badge>}
         </span>
         {!open && <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">{rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}<span className="truncate">{[(live && sshBrief(live)) || access, st.process_hosts[ip] ? tx("process lus") : null].filter(Boolean).join(" · ")}</span></span>}
       </button>
@@ -354,7 +356,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
                 : tx("cette machine offre SSH mais MyServices n'y a pas d'accès : activez « Lecture par SSH » ci-dessous.")}
             </p>
           )}
-          <MachineForm agent={agent} connection={connection} report={setNote} onIcon={setIcon} ip={ip} m={m} st={st} live={live} scan={scan} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
+          <MachineForm agent={agent} connection={connection} report={setNote} onIcon={setIcon} onFollow={(on) => setOff(!on)} ip={ip} m={m} st={st} live={live} scan={scan} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
             <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
             <span className="ml-auto flex items-center gap-1.5">
               {confirm ? <>
@@ -380,7 +382,8 @@ function OptionGroup({ title, hint, tone, children }: { title: string; hint?: st
   );
 }
 
-function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, scan, actions, windowsGuess, report, onDone, onIcon, agent, connection }: {
+function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, scan, actions, windowsGuess, report, onDone, onIcon, onFollow, agent, connection }: {
+  onFollow?: (followed: boolean) => void;  // « Machine suivie » vient d'être enregistrée : la carte de la machine se dégrise (ou se grise)
   onIcon?: (icon: string | undefined) => void;  // l'icône vient d'être enregistrée : la carte de la machine se met à jour
   scan?: { os?: string; apps: string[]; ssh?: boolean };  // ce que le dernier scan du réseau a vu : aperçu de l'icône automatique
   connection?: React.ReactNode;  // ce qui a été lu de la connexion (SSH ou agent), montré dans le cadre « Accès »
@@ -446,6 +449,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
     if (!ok) return;
     setSaved(machine); setSavedProc(nextProc);
     if (key === "icon") onIcon?.(next.icon as string | undefined);
+    if (key === "disabled") onFollow?.(!next.disabled);
     setV((x) => ({ ...x, ...next })); if (key === "proc") setProc(nextProc);
     if (refresh) refreshState();  // un réglage changé (accès, options) : cette machine est relue tout de suite, pas au prochain horaire
     setFlash(key); setTimeout(() => setFlash((f) => (f === key ? "" : f)), 1800);
