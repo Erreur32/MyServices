@@ -192,11 +192,14 @@ def auto_backup_default() -> None:
     try:
         import backups_admin
         import system
-        for a in backups_admin.auto_default(Path(CFG["state_dir"]) / "backups-auto.json"):
+        added = backups_admin.auto_default(Path(CFG["state_dir"]) / "backups-auto.json")
+        for a in added:
             log(f"sauvegardes : {a['path']} trouvé sur {a['name']}, suivi automatiquement (Réglages → Sauvegardes pour le retirer)")
+        if added:
             if not CFG.get("backups_url"):
                 system.set_backups_url(sys.modules[__name__], "backups.json")
-            run_chain(["backups", "collect"], f"sauvegarde automatique de {a['name']}")
+            # one run for all the machines found (one per machine queued a full collection each, two minutes apiece)
+            run_chain(["backups", "collect"], "sauvegarde automatique de " + ", ".join(a["name"] for a in added))
     except Exception as e:  # noqa: BLE001 : jamais bloquant
         log(f"⚠ sauvegardes automatiques : {type(e).__name__}: {e}")
     finally:
