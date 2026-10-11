@@ -1346,6 +1346,7 @@ export const EN: Record<string, string> = {
   "TCP {0} ms · accès LAN direct": "TCP {0} ms · direct LAN access",
   "Télécharger": "Download",
   "Tester": "Test",
+  "{0} cochée(s)": "{0} ticked",
   "Voir et choisir les machines trouvées": "View and choose the machines found",
   "{0} autre(s) appareil(s) : pages web seules, caméras, objets connectés, ping seulement, ignorés": "{0} other device(s): web pages only, cameras, connected objects, ping only, ignored",
   "Ignorés à la main": "Ignored by hand",

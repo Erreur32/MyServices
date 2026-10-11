@@ -83,8 +83,8 @@ export const GROUPS: { id: string; title: string; Icon: typeof Boxes; has: (id: 
 export const groupOf = (x: DiscoveryItem) => GROUPS.find((g) => g.has(x.id)) ?? GROUPS[1];
 
 /** Une découverte en carte : titre, mode, ce qu'elle fait, dernière / prochaine fois, puis ses boutons */
-function Item({ x, reload, machines, extra }: { x: DiscoveryItem; reload: () => void; machines?: Machine[]; extra?: (slot: HTMLElement | null) => ReactNode }) {
-  const [slot, setSlot] = useState<HTMLElement | null>(null);   // pied de la carte : les boutons de sélection de la liste y sont posés
+function Item({ x, reload, machines, extra }: { x: DiscoveryItem; reload: () => void; machines?: Machine[]; extra?: (onCount: (n: number) => void) => ReactNode }) {
+  const [picked, setPicked] = useState(0);   // machines cochées dans la liste repliée : montré sur l'en-tête du cadre
   const m = MODE[x.mode], todo = x.state === "todo";
   const wanted = () => location.hash.split("/")[2] === x.id;   // lien #settings/network/hosts : le cadre s'ouvre
   const [open, setOpen] = useState(wanted);
@@ -108,11 +108,11 @@ function Item({ x, reload, machines, extra }: { x: DiscoveryItem; reload: () => 
       </div>
       {extra && (
         <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
-          <summary className={FOLD_HEAD}><ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />{tx("Voir et choisir les machines trouvées")}</summary>
-          <div className="flex flex-col gap-3">{extra(slot)}</div>
+          <summary className={FOLD_HEAD}><ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />{tx("Voir et choisir les machines trouvées")}{picked > 0 && <Badge tone="info">{tx("{0} cochée(s)", picked)}</Badge>}</summary>
+          <div className="flex flex-col gap-3">{extra(setPicked)}</div>
         </details>
       )}
-      {(x.action || x.mutable || extra) && <div className="mt-auto flex flex-wrap items-center gap-1.5 border-t border-line/60 pt-2.5"><div ref={setSlot} className="contents" />{x.action && <Action a={x.action} reload={reload} />}<MuteButton x={x} reload={reload} /></div>}
+      {((x.action && !extra) || x.mutable) && <div className="mt-auto flex flex-wrap items-center gap-1.5 border-t border-line/60 pt-2.5">{x.action && !extra && <Action a={x.action} reload={reload} />}<MuteButton x={x} reload={reload} /></div>}
     </li>
   );
 }
@@ -121,7 +121,7 @@ export type DiscoveryData = { items: DiscoveryItem[]; todo: number };
 export const todoOf = (d: DiscoveryData | null, g: (typeof GROUPS)[number]) => (d?.items ?? []).filter((x) => x.state === "todo" && groupOf(x) === g).length;
 
 /** Les découvertes d'une famille : ce qui est à faire d'abord, puis le reste, en cartes */
-export function DiscoveryPanel({ d, group, reload, machines, extra }: { d: DiscoveryData | null; group: (typeof GROUPS)[number]; reload: () => void; machines?: Machine[]; extra?: (x: DiscoveryItem, slot: HTMLElement | null) => ReactNode }) {
+export function DiscoveryPanel({ d, group, reload, machines, extra }: { d: DiscoveryData | null; group: (typeof GROUPS)[number]; reload: () => void; machines?: Machine[]; extra?: (x: DiscoveryItem, onCount: (n: number) => void) => ReactNode }) {
   if (!d) return null;
   const items = d.items.filter((x) => groupOf(x) === group).sort((a, b) => Number(b.state === "todo") - Number(a.state === "todo"));
   const todo = items.filter((x) => x.state === "todo").length;
@@ -130,7 +130,7 @@ export function DiscoveryPanel({ d, group, reload, machines, extra }: { d: Disco
       <p className={`flex items-center gap-2 text-sm ${todo ? "text-warn" : "text-ok"}`}>
         {todo ? <><Bell size={15} aria-hidden />{tx("{0} à faire dans cette famille", todo)}</> : <><Check size={15} aria-hidden />{tx("Rien à faire ici : tout est en ordre.")}</>}
       </p>
-      <ul className="grid items-stretch gap-3 lg:grid-cols-2">{items.map((x) => <Item key={x.id} x={x} reload={reload} machines={machines} extra={extra && extra(x, null) !== null ? (slot) => extra(x, slot) : undefined} />)}</ul>
+      <ul className="grid items-stretch gap-3 lg:grid-cols-2">{items.map((x) => <Item key={x.id} x={x} reload={reload} machines={machines} extra={extra && extra(x, () => undefined) !== null ? (onCount) => extra(x, onCount) : undefined} />)}</ul>
     </section>
   );
 }

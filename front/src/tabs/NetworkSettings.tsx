@@ -62,10 +62,10 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   useScrollToPart(!!cfg && !!scan && current === "network");
   if (!cfg || !scan) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 
-  const hostsList = (slot?: HTMLElement | null) => (
+  const hostsList = (onCount?: (n: number) => void) => (
     <>
       <p className="text-sm text-muted">{tx("Cochez celles à suivre puis ajoutez-les, ou ignorez-les. MyServices ne les ajoute jamais seul.")}</p>
-      <NetworkStep net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} barSlot={slot} />
+      <NetworkStep net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} onCount={onCount} />
     </>
   );
   const running = scan.phase === "ping" || scan.phase === "identify";
@@ -99,7 +99,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
           );
         })}
       </nav>
-      <DiscoveryPanel d={disc} group={group} reload={reloadDisc} machines={snap.data.machine_list} extra={(x, slot) => (x.id === "hosts" ? hostsList(slot) : null)} />
+      <DiscoveryPanel d={disc} group={group} reload={reloadDisc} machines={snap.data.machine_list} extra={(x, onCount) => (x.id === "hosts" ? hostsList(onCount) : null)} />
       {current === "services" && <Card><p className="text-sm text-muted">{tx("Les applis reconnues se relient dans")} <a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a>.</p></Card>}
       {current === "backups" && <Card><p className="text-sm text-muted">{tx("Les dossiers et jeux de sauvegarde se règlent dans")} <a className="text-link hover:underline" href="#settings/backups">{tx("Réglages → Sauvegardes")}</a>.</p></Card>}
       {current === "network" && <>
