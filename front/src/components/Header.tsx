@@ -38,7 +38,7 @@ export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; them
         </h1>
       </div>
       <div className="flex items-center gap-3">
-        {snap.me.role === "admin" && <DiscoveryBell />}
+        {snap.me.role === "admin" && <DiscoveryBell machines={snap.data.machine_list} />}
         <UserMenu snap={snap} theme={theme} toggleTheme={toggleTheme} />
       </div>
     </header>

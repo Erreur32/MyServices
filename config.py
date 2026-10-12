@@ -42,7 +42,7 @@ DEFAULTS = {
     "retention_days": 90,                # historique du watcher
     "update_check": True,                # Réglages → À propos : lit la dernière version publiée sur GitHub (une requête anonyme, gardée 6 h) ; false = jamais
     "backups_auto": True,                # sauvegardes : /home/backup suivi tout seul à la 1re lecture SSH d'une machine qui l'a ; false = jamais
-    "netscan_every": 6,                  # h, recherche réseau automatique (après une première faite à la main) ; 0 = coupée
+    "netscan_every": 6,                  # h, recherche réseau automatique (la première dès le démarrage) ; 0 = coupée
     "netscan_nets": [],                  # recherche réseau : réseaux en CIDR (chacun /24 au plus) ; vide = celui de l'hôte
     "session_days": 14,                  # j, durée d'une session de la page (Réglages → Comptes), 1 à 90
     "netscan_ignored": [],               # recherche réseau : appareils à ne plus proposer, [{"ip": "…", "name": "…"}] (Réglages → Recherche réseau)

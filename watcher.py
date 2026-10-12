@@ -277,7 +277,7 @@ def message(events: list[dict], now: str) -> str:
     """Résumé court (≤ 1900 car.) : sortie standard (planificateur) et/ou webhook."""
     lines = [f"**MyServices** · {len(events)} changement(s) · {now}"]
     for e in events[:15]:
-        lines.append(f'{LABEL[e["kind"]]} `{e["label"]}` ({e.get("machine") or "?"}) — {e["detail"]}')
+        lines.append(f'{LABEL[e["kind"]]} `{e["label"]}` ({e.get("machine") or "?"}) : {e["detail"]}')
     if len(events) > 15:
         lines.append(f"… et {len(events) - 15} autre(s)")
     if CFG["public_url"]:

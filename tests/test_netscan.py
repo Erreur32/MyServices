@@ -204,7 +204,7 @@ class Describe(unittest.TestCase):
 
 
 class Auto(unittest.TestCase):
-    """Recherche automatique : seulement après une première recherche manuelle, puis à intervalle régulier."""
+    """Recherche automatique : la première tout de suite, puis à intervalle régulier."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -212,8 +212,13 @@ class Auto(unittest.TestCase):
         self.file = Path(self.tmp.name) / "network-scan.json"
         netscan._state.update(phase="idle", found=[], ended=None, started=None)
 
-    def test_jamais_sans_premiere_recherche(self):
-        self.assertFalse(netscan.due(self.file, 6, now=10 ** 9))
+    def test_premiere_recherche_tout_de_suite(self):
+        self.assertTrue(netscan.due(self.file, 6, now=10 ** 9))
+
+    def test_tentative_sans_resultat_attend_l_intervalle(self):   # ex. réseau introuvable : aucun fichier écrit, pas de relance chaque minute
+        netscan._state.update(started=1000.0, ended=1000.0)
+        self.assertFalse(netscan.due(self.file, 6, now=1000 + 60))
+        self.assertTrue(netscan.due(self.file, 6, now=1000 + 6 * 3600))
 
     def test_due_apres_l_intervalle(self):
         self.file.write_text(json.dumps({"phase": "done", "ended": 1000.0, "started": 990.0, "found": []}))

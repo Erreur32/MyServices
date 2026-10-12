@@ -91,8 +91,8 @@ export function Dns({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
             <InfoCard key={ip} icon={<img src={appIcon(["AdGuard Home"])!} alt="" className="h-5 w-5" />} title={v.name} sub={`${ip}${sync?.origin === ip ? tx(" · origine") : ""}`}
               tone={ok ? "ok" : "bad"} state={ok ? tx("répond") : v.readable ? tx("requêtes perdues") : tx("config illisible")}
               rows={[
-                [tx("Réécritures"), v.readable ? String(v.rewrites) : "—"],
-                [tx("Règles perso"), v.readable ? String(v.user_rules ?? "—") : "—"],
+                [tx("Réécritures"), v.readable ? String(v.rewrites) : "-"],
+                [tx("Règles perso"), v.readable ? String(v.user_rules ?? "-") : "-"],
                 [tx("Requêtes sans réponse"), String(v.silent), v.silent ? "bad" : "ok"],
                 ...(v.container ? [[tx("Conteneur"), v.container] as Row] : []),
               ]} />

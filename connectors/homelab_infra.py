@@ -65,7 +65,7 @@ class CrowdSec(StatusConnector):
         VERIFY,
     )
     setup_fields = ("url", "api_key")
-    guide = ("Sur la machine de CrowdSec : cscli bouncers add myservices — la clé n'est montrée qu'une fois.",
+    guide = ("Sur la machine de CrowdSec : cscli bouncers add myservices (la clé n'est montrée qu'une fois).",
              "Cette clé ne peut que lire les décisions (bannissements) ; MyServices n'en crée ni n'en supprime.")
 
     def collect(self) -> dict:

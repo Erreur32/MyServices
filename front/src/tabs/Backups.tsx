@@ -43,7 +43,7 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
         </span>
       ))}
     </div>
-  ) : h.sets.length ? <Badge tone="bad">{tx("aucune copie ailleurs")}</Badge> : <Dim>—</Dim>;
+  ) : h.sets.length ? <Badge tone="bad">{tx("aucune copie ailleurs")}</Badge> : <Dim>-</Dim>;
   const last = (h: BackupHost) => h.last_local ? (
     <span className="text-sm"><Level level={h.last_local.level}>{ageDays(h.last_local.age)}</Level>
       <span className="block text-xs text-dim">{dateTime(h.last_local.mtime * 1000)} · {short(h.last_local.set)}</span></span>
@@ -65,7 +65,7 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
         </span>
       ))}
     </div>
-  ) : <Dim>—</Dim>;
+  ) : <Dim>-</Dim>;
 
   return (
     <div className="flex flex-col gap-4 py-4">
@@ -108,7 +108,7 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
           <ul className="mt-3 flex flex-col gap-1 text-sm">
             {local.map(({ h, x }) => (
               <li key={h.id + x.path} className="flex flex-wrap items-center gap-2">
-                <b>{h.label}</b><code className="font-mono text-xs">{x.path}</code><Dim>{bytes(x.size)} · {x.age == null ? "—" : tx("il y a {0}", ageDays(x.age))}</Dim>
+                <b>{h.label}</b><code className="font-mono text-xs">{x.path}</code><Dim>{bytes(x.size)} · {x.age == null ? "-" : tx("il y a {0}", ageDays(x.age))}</Dim>
                 {x.covered.length ? <Badge tone="ok">{x.covered.join(", ")}</Badge> : <Badge tone="warn">{tx("non inventorié")}</Badge>}
               </li>
             ))}

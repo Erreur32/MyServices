@@ -109,7 +109,7 @@ export function AuditLog() {
                   return (
                     <tr key={i}>
                       <td className="whitespace-nowrap py-1.5 pr-3 text-dim">{dateTime(a.ts * 1000)}</td>
-                      <td className="py-1.5 pr-3 font-medium">{a.username || "—"}</td>
+                      <td className="py-1.5 pr-3 font-medium">{a.username || "-"}</td>
                       <td className={`py-1.5 pr-3 ${TEXT[t]}`}><span aria-hidden className={`mr-2 inline-block h-2 w-2 rounded-full ${DOT[t]}`} />{a.action}{a.detail && <Dim> · {a.detail}</Dim>}</td>
                       <td className="hidden whitespace-nowrap py-1.5 font-mono text-xs text-dim sm:table-cell">{a.ip ? <Badge tone="off">{a.ip}</Badge> : ""}</td>
                     </tr>

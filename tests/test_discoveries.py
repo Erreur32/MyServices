@@ -12,11 +12,12 @@ def by(items):
 
 
 class Discoveries(unittest.TestCase):
-    def test_recherche_reseau_jamais_lancee_est_a_faire(self):
+    def test_recherche_reseau_jamais_lancee_part_seule(self):
         x = by(d.build({"net_has_run": False, "net_every_h": 6}))["network"]
-        self.assertEqual((x["mode"], x["state"]), (d.FIRST, "todo"))
-        self.assertIn("UNE FOIS", x["what"])
-        self.assertEqual(x["action"]["href"], "#settings/network/scan")
+        self.assertEqual((x["mode"], x["state"]), (d.AUTO, "ok"))              # la première se lance toute seule : rien à faire
+        off = by(d.build({"net_has_run": False, "net_every_h": 0}))["network"]
+        self.assertEqual((off["mode"], off["state"]), (d.MANUAL, "info"))
+        self.assertEqual((x["action"]["run"], x["action"]["href"]), ("netscan", "#settings/network/scan"))   # launches, then shows the scan card
 
     def test_recherche_reseau_deja_faite_se_repete_seule(self):
         x = by(d.build({"net_has_run": True, "net_last": 1000.0, "net_every_h": 6}))["network"]

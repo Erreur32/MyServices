@@ -1,12 +1,13 @@
 // « Découvertes » : ce que MyServices cherche tout seul, ce qui demande un clic, et ce qui reste à faire (GET /discoveries).
 // Liste complète en haut de Réglages → Découverte ; rappel court sur l'accueil quand quelque chose est à faire.
 import { Bell, BellOff, Boxes, Check, ChevronRight, Hand, HardDrive, Lightbulb, Network, Play, RefreshCw, Repeat, Settings2 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { dateTime } from "../lib/format";
 import { act, button, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { openConnector } from "../lib/connectorPrefill";
+import { pokeScan } from "../lib/scan";
 import type { Machine } from "../types";
 import { MachineIcon } from "./MachineIcon";
 import { FOLD, FOLD_HEAD, FOLD_WARN } from "./NetworkStep";
@@ -83,9 +84,20 @@ function MuteButton({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
 
 function Action({ a, reload }: { a: NonNullable<DiscoveryItem["action"]>; reload: () => void }) {
   const [note, setNote] = useState<Note>(null);
+  const go = (href: string) => {   // déjà à cette adresse : l'adresse ne change pas, on prévient quand même la page (défilement, cadre allumé)
+    if (location.hash === href) dispatchEvent(new HashChangeEvent("hashchange"));
+    else location.hash = href;
+  };
+  if (a.run === "netscan") return (   // la recherche réseau : lancée par la route du cadre « Recherche sur le réseau », puis ce cadre est montré (avancement)
+    <>
+      <button type="button" className={primary} onClick={() => void act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setNote)
+        .then((ok) => { reload(); if (ok && a.href) go(a.href); })}><Play size={13} aria-hidden />{a.label}</button>
+      <NoteLine note={note} />
+    </>
+  );
   if (a.prefill) return <button type="button" className={primary} onClick={() => openConnector(a.prefill!)}><Settings2 size={13} aria-hidden />{a.label}<ChevronRight size={14} aria-hidden /></button>;   // le connecteur s'ouvre déjà rempli
-  if (a.href) return (   // déjà à cette adresse : l'adresse ne change pas, on prévient quand même la page (défilement, cadre allumé)
-    <a href={a.href} className={`${primary} no-underline`} onClick={() => { if (location.hash === a.href) dispatchEvent(new HashChangeEvent("hashchange")); }}>
+  if (a.href) return (
+    <a href={a.href} className={`${primary} no-underline`} onClick={(e) => { e.preventDefault(); go(a.href!); }}>
       {a.label}<ChevronRight size={14} aria-hidden />
     </a>
   );
@@ -250,16 +262,58 @@ export function DiscoveryReminder({ machines }: { machines?: Machine[] }) {
   );
 }
 
-/** Cloche de l'en-tête (admin) : nombre de choses à faire (connecteurs à configurer, recherches jamais lancées…) ; un clic ouvre la liste sur l'accueil */
-export function DiscoveryBell() {
-  const [d] = useDiscoveries();
-  const n = d?.todo ?? 0;
-  if (!n) return null;
+/** Cloche de l'en-tête (admin) : ce qu'il reste à faire, dans un panneau qui s'ouvre au clic (chaque chose avec son bouton), puis le nombre
+ *  de suggestions facultatives et un lien vers Réglages → Découverte. Pastille orange = choses à faire ; cloche grise s'il n'y a que des suggestions. */
+export function DiscoveryBell({ machines }: { machines?: Machine[] }) {
+  const [d, reload] = useDiscoveries();
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const moved = () => setOpen(false);   // un bouton du panneau mène ailleurs : le panneau se ferme
+    addEventListener("mousedown", away);
+    addEventListener("keydown", esc);
+    addEventListener("hashchange", moved);
+    return () => { removeEventListener("mousedown", away); removeEventListener("keydown", esc); removeEventListener("hashchange", moved); };
+  }, [open]);
+  const n = d?.todo ?? 0, sug = d?.suggest ?? 0;
+  if (!n && !sug) return null;
+  const todo = d!.items.filter((x) => x.state === "todo");
+  const label = n ? tx("{0} chose(s) à faire pour compléter la découverte", n) : tx("{0} suggestion(s) facultative(s)", sug);
   return (
-    <a href="#home" className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-warn/50 bg-warn/10 text-warn hover:bg-warn/20"
-      title={tx("{0} chose(s) à faire pour compléter la découverte", n)} aria-label={tx("{0} chose(s) à faire pour compléter la découverte", n)}>
-      <Bell size={16} aria-hidden />
-      <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-warn px-1 text-[10px] font-bold leading-none text-bg">{n}</span>
-    </a>
+    <div ref={box} className="relative">
+      <button type="button" onClick={() => setOpen(!open)} aria-haspopup="dialog" aria-expanded={open} title={label} aria-label={label}
+        className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border ${n ? "border-warn/50 bg-warn/10 text-warn hover:bg-warn/20" : "border-line bg-card text-muted hover:border-link hover:text-txt"}`}>
+        <Bell size={16} aria-hidden />
+        {n > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-warn px-1 text-[10px] font-bold leading-none text-bg">{n}</span>}
+      </button>
+      {open && (
+        <div role="dialog" aria-label={tx("Notifications")} className="absolute right-0 z-30 mt-2 w-[min(26rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-line bg-card shadow-xl shadow-black/30">
+          <p className={`flex items-center gap-2 px-4 py-3 text-sm font-bold ${n ? "bg-warn/10 text-warn" : "text-ok"}`}>
+            {n ? <><Bell size={15} aria-hidden />{tx("À faire ({0})", n)}</> : <><Check size={15} aria-hidden />{tx("Rien d'obligatoire à faire")}</>}
+          </p>
+          {todo.length > 0 && (
+            <ul className="flex max-h-[60vh] flex-col divide-y divide-line/60 overflow-y-auto">
+              {todo.map((x) => (
+                <li key={x.id} className="flex flex-col gap-2 px-4 py-3 text-sm">
+                  <div title={x.what}>
+                    <Title x={x} machines={machines} />
+                    {x.note && <p className="mt-0.5 text-xs text-warn">{x.note}</p>}
+                  </div>
+                  {x.action && <div className="flex flex-wrap items-center gap-1.5"><Action a={x.action} reload={reload} /></div>}
+                </li>
+              ))}
+            </ul>
+          )}
+          <a href="#settings/network" onClick={() => setOpen(false)}
+            className="flex items-center gap-2 border-t border-line/70 px-4 py-2.5 text-sm text-muted no-underline hover:bg-bg2 hover:text-txt">
+            {sug > 0 ? <><Lightbulb size={14} className="text-link" aria-hidden />{tx("{0} suggestion(s) facultative(s)", sug)}</> : tx("Tout voir")}
+            <ChevronRight size={14} className="ml-auto" aria-hidden />
+          </a>
+        </div>
+      )}
+    </div>
   );
 }

@@ -52,7 +52,7 @@ L'onglet DNS ne montre aujourd'hui qu'AdGuard Home (étiqueté comme tel). À pr
 | **Pi-hole v6** | requêtes du jour, % bloqué, état du blocage, listes | session par mot de passe d'application | bonne |
 | **Technitium DNS** | requêtes, zones, domaines bloqués | jeton d'API | bonne |
 | **Blocky** | requêtes, blocage, cache | API HTTP, sans jeton par défaut | moyenne |
-| **Unbound / CoreDNS** | pas d'API de lecture utile (métriques Prometheus seulement) | — | à éviter pour l'instant |
+| **Unbound / CoreDNS** | pas d'API de lecture utile (métriques Prometheus seulement) | - | à éviter pour l'instant |
 
 ## Sécurité
 
@@ -60,7 +60,7 @@ L'onglet DNS ne montre aujourd'hui qu'AdGuard Home (étiqueté comme tel). À pr
 |---|---|---|---|
 | **CrowdSec** | décisions actives (bannissements), alertes récentes, scénarios | clé d'API locale (LAPI) | bonne |
 | **Authentik** | échecs de connexion, événements, utilisateurs actifs | jeton d'API | bonne |
-| **Authelia** | santé du service seulement (peu d'API publique) | — | faible |
+| **Authelia** | santé du service seulement (peu d'API publique) | - | faible |
 | **Wazuh** | alertes par gravité, agents déconnectés | API REST par jeton | moyenne |
 | **Vaultwarden** | simple vérification de vie (`/alive`) | aucun | bonne mais maigre |
 

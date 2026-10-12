@@ -1,6 +1,6 @@
 // Réglages → Découverte, en trois sous-onglets (Réseau et machines, Services et applis, Sauvegardes) : les découvertes de chaque famille
 // en cartes, et pour le réseau le scan du réseau local (lecture seule) et sa fréquence automatique ; relancer à la main,
-// refaire le parcours des premiers pas. Le premier scan est toujours manuel : l'automatique ne démarre qu'après lui.
+// refaire le parcours des premiers pas. La première recherche se lance toute seule, puis à la fréquence choisie.
 import { Bell, Check, ListChecks, Radar, RotateCcw, Search, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
@@ -21,12 +21,14 @@ interface NetSettings { every_h: number; default_h: number; max_h: number; fixed
 
 /** Lien #settings/network/<hosts|scan> (depuis une découverte à faire) : fait défiler jusqu'à la carte et l'allume, même si l'on est
  *  déjà sur la page ; `ready` : la page est chargée (sinon la carte n'existe pas encore au moment du clic) */
-function useScrollToPart(ready: boolean) {
+function useScrollToPart(ready: boolean, reload: () => void) {
   useEffect(() => {
     if (!ready) return;
     const go = () => {
       const part = location.hash.split("/")[2];
-      if (part) setTimeout(() => {
+      if (!part) return;
+      reload();   // une recherche peut venir d'être lancée depuis une découverte : l'état « en cours » tout de suite
+      setTimeout(() => {
         const el = document.getElementById(`net-${part}`);
         el?.scrollIntoView({ behavior: "smooth", block: "start" });
         const card = el?.firstElementChild;   // la carte elle-même (le conteneur peut en porter deux)
@@ -36,7 +38,7 @@ function useScrollToPart(ready: boolean) {
     go();
     addEventListener("hashchange", go);
     return () => removeEventListener("hashchange", go);
-  }, [ready]);
+  }, [ready, reload]);
 }
 
 /** Sous-onglet d'ouverture : celui du lien (#settings/network/<hosts|scan|services|backups>), sinon le premier qui a quelque chose à faire,
@@ -62,7 +64,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
   }, []);
   usePoll(load, scan && (scan.phase === "ping" || scan.phase === "identify") ? 10_000 : 60_000);   // 10 s seulement pour suivre une recherche en cours
-  useScrollToPart(!!cfg && !!scan && current === "network");
+  useScrollToPart(!!cfg && !!scan && current === "network", load);
   if (!cfg || !scan) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 
   const hostsList = (onCount?: (n: number) => void) => (
@@ -84,7 +86,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   const saveDiscreet = (on: boolean) => act(() => send("PUT", "network/settings", { discreet: on }), on ? tx("mode discret activé") : tx("mode discret coupé"), setNote).then(() => load());
   const next = last && cfg.every_h ? last + cfg.every_h * 3_600_000 : null;
   const state = cfg.every_h === 0 ? <Badge tone="off">{tx("automatique coupée")}</Badge>
-    : !last ? <Badge tone="warn">{tx("en attente d'une première recherche à la main")}</Badge>
+    : !last ? <Badge tone="info">{tx("première recherche dans la minute")}</Badge>
     : <Badge tone="ok">{tx("automatique : toutes les {0} h", cfg.every_h)}</Badge>;
 
   return (
@@ -153,7 +155,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
           </form>
           {cfg.fixed && <p className="mt-1 text-xs text-dim">{tx("Fixée par MYSERVICES_NETSCAN_EVERY dans le compose.")}</p>}
           {!valid && hours !== "" && <p className="mt-1 text-xs text-warn">{tx("Un nombre entier de 0 à {0}.", cfg.max_h)}</p>}
-          <p className="mt-2 text-xs text-dim">{tx("Le premier scan est toujours lancé à la main ; l'automatique ne démarre qu'après lui.")}</p>
+          <p className="mt-2 text-xs text-dim">{tx("La première recherche se lance toute seule ; ensuite à la fréquence ci-dessus.")}</p>
           <NoteLine note={note} />
         </Card>
         <div className="flex flex-col gap-4">
@@ -169,7 +171,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
             </form>
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" className="mt-1" checked={cfg.discreet} onChange={(e) => void saveDiscreet(e.target.checked)} />
-              <span><b>{tx("Mode discret")}</b> <Dim>{tx("— ne lit ni le TTL du ping ni l'adresse MAC : le système des machines n'est alors plus deviné par là.")}</Dim></span>
+              <span><b>{tx("Mode discret")}</b> <Dim>{tx("(ne lit ni le TTL du ping ni l'adresse MAC : le système des machines n'est alors plus deviné par là)")}</Dim></span>
             </label>
           </Card>
         </div>

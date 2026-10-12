@@ -220,7 +220,7 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
                     <div className="min-w-[200px] flex-1">
                       <span className="flex min-w-0 items-baseline gap-2"><b className="truncate">{s.label}</b>{s.origin_ip && <span className="shrink-0 font-mono text-xs text-dim">{s.origin_ip}</span>}</span>
                       {(() => {   // what is followed, unless the name already says it (« Dev : /home/backup »)
-                        const what = s.path ?? s.veeam_job ?? s.pbs_group ?? (s.ha ? tx("sauvegarde automatique") : "—");
+                        const what = s.path ?? s.veeam_job ?? s.pbs_group ?? (s.ha ? tx("sauvegarde automatique") : "-");
                         return s.label.includes(what) ? null : <span className="block truncate font-mono text-xs text-dim">{what}</span>;
                       })()}
                     </div>

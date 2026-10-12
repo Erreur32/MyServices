@@ -303,9 +303,9 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
       <dl className="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2" aria-label={tx("Détails de l'agent")}>
         <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Dernier relevé")}</dt>
           <dd className="min-w-0">{a.last_seen ? <>{dateTime(a.last_seen * 1000)} <span className="text-dim">({a.last_ip})</span></> : <span className="text-warn">{tx("aucun relevé reçu")}</span>}</dd></div>
-        <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Système")}</dt><dd className="min-w-0 break-words" title={a.os ?? undefined}>{a.os ? shortOs(a.os) : "—"}</dd></div>
+        <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Système")}</dt><dd className="min-w-0 break-words" title={a.os ?? undefined}>{a.os ? shortOs(a.os) : "-"}</dd></div>
         <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Version")}</dt>
-          <dd className="min-w-0">{a.version ? <>v{a.version}{a.outdated && <span className="text-warn"> · {tx("v{0} disponible", a.latest_version ?? "?")}</span>}</> : "—"}</dd></div>
+          <dd className="min-w-0">{a.version ? <>v{a.version}{a.outdated && <span className="text-warn"> · {tx("v{0} disponible", a.latest_version ?? "?")}</span>}</> : "-"}</dd></div>
         <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Fréquence")}</dt><dd className="min-w-0">{tx("toutes les {0} min", Math.round(a.interval / 60))}</dd></div>
         <div className="flex gap-2 sm:col-span-2"><dt className="w-24 shrink-0 text-dim">{tx("Jeton")}</dt><dd className="min-w-0"><code className="font-mono">{tx("msv_")}agent_…{a.hint}</code></dd></div>
       </dl>

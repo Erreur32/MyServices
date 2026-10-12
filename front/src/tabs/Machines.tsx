@@ -49,7 +49,7 @@ function Servers({ m, snap }: { m: Machine; snap: Snapshot }) {
         </span>
       ))}
     </div>
-  ) : <Dim>—</Dim>;
+  ) : <Dim>-</Dim>;
 }
 
 function HealthCell({ h }: { h?: HealthHost }) {
@@ -69,30 +69,30 @@ function HealthCell({ h }: { h?: HealthHost }) {
 /** Clé utilisée par l'alias (chemin et début d'empreinte) */
 function KeyCell({ m }: { m: Machine }) {
   const s = m.ssh;
-  if (!s) return <Dim>—</Dim>;
+  if (!s) return <Dim>-</Dim>;
   if (!s.identity) return <Dim>{tx("aucune (accès manuel)")}</Dim>;
   return <div className="flex flex-col"><code className="break-all text-xs">{s.identity}</code>{s.key_fp && <span className="truncate font-mono text-[11px] text-dim" title={s.key_fp}>{s.key_fp.slice(0, 22)}…</span>}</div>;
 }
 
-/** ✓ vert = sûr, ⚠ orange = à revoir, — = inconnu ; l'explication est au survol */
+/** ✓ vert = sûr, ⚠ orange = à revoir, - = inconnu ; l'explication est au survol */
 function Mark({ tone, title, children }: { tone: "ok" | "warn" | "bad" | "off"; title: string; children: string }) {
   const c = { ok: "text-ok", warn: "text-warn", bad: "text-bad", off: "text-dim" }[tone];
   return <span className={`text-base font-bold ${c}`} title={title} aria-label={title}>{children}</span>;
 }
 
 function HostKey({ m }: { m: Machine }) {
-  if (!m.ssh) return <Dim>—</Dim>;
+  if (!m.ssh) return <Dim>-</Dim>;
   return m.ssh.host_key ? <Mark tone="ok" title={tx("Clé d'hôte connue (known_hosts)")}>✓</Mark>
     : <Mark tone="bad" title={tx("Clé d'hôte absente de known_hosts : 1re connexion non vérifiée")}>✗</Mark>;
 }
 
 /** Root et mot de passe selon sshd : refusé ou clé seule = vert, autorisé = orange */
 function Sshd({ m, what }: { m: Machine; what: "root" | "pwd" }) {
-  if (!m.ssh) return <Dim>—</Dim>;
+  if (!m.ssh) return <Dim>-</Dim>;
   const sd = m.info?.sshd || {};
   const v = what === "root" ? sd.permitrootlogin
     : m.ssh.methods ? (m.ssh.methods.some((x) => x === "password" || x === "keyboard-interactive") ? "yes" : "no") : sd.passwordauthentication;
-  if (!v) return <Dim>—</Dim>;
+  if (!v) return <Dim>-</Dim>;
   const k = v.split(" ")[0];
   if (k === "yes") return <Mark tone="warn" title={what === "root" ? tx("root peut se connecter en SSH") : tx("sshd accepte le mot de passe")}>⚠</Mark>;
   if (/prohibit-password|without-password/.test(k)) return <Mark tone="ok" title={tx("Par clé uniquement")}>🔑</Mark>;
@@ -102,22 +102,22 @@ function Sshd({ m, what }: { m: Machine; what: "root" | "pwd" }) {
 /** Colonnes santé de la v1 : disque le plus rempli, services systemd en échec, mises à jour et redémarrage */
 export function DiskCell({ h }: { h?: HealthHost }) {
   const d = topDisk(h);
-  if (!d) return <Dim>—</Dim>;
+  if (!d) return <Dim>-</Dim>;
   return <span title={tx("Disque le plus rempli")}><b className={d.critical || d.used_pct >= 90 ? "text-bad" : d.warning || d.used_pct >= 80 ? "text-warn" : "text-ok"}>{d.used_pct} %</b> <code className="text-xs">{d.mount}</code></span>;
 }
 export function ResCell({ h, what }: { h?: HealthHost; what: "cpu" | "mem" }) {
   const v = what === "cpu" ? h?.res?.cpu_pct : h?.res?.mem_pct;
-  if (!h?.res?.available || v == null) return <Dim>—</Dim>;
+  if (!h?.res?.available || v == null) return <Dim>-</Dim>;
   const tone = what === "mem" && v >= 97 ? "text-bad" : (what === "mem" && v >= 90) || (what === "cpu" && v >= 90) ? "text-warn" : "text-ok";
   return <b className={tone} title={what === "mem" && h.res?.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} Go` : undefined}>{Math.round(v)} %</b>;
 }
 export function SystemdCell({ h }: { h?: HealthHost }) {
-  if (!h) return <Dim>—</Dim>;
+  if (!h) return <Dim>-</Dim>;
   const f = h.systemd?.failed || [];
   return f.length ? <Mark tone="bad" title={f.map((u) => u.unit).join(", ")}>{String(f.length)}</Mark> : <Mark tone="ok" title={tx("Aucun service en échec")}>✓</Mark>;
 }
 export function UpdatesCell({ h }: { h?: HealthHost }) {
-  if (!h) return <Dim>—</Dim>;
+  if (!h) return <Dim>-</Dim>;
   const n = h.apt?.upgradable || 0;
   return (
     <span className="inline-flex items-center gap-1">
@@ -171,7 +171,7 @@ function WatchSummary({ items }: { items: WatchItem[] }) {
 
 /** Accès SSH sur une ligne ; l'alias, la note et les alertes sont dans le détail déplié */
 function SshShort({ m }: { m: Machine }) {
-  if (!m.ssh) return <Dim>{m.local ? tx("local") : "—"}</Dim>;
+  if (!m.ssh) return <Dim>{m.local ? tx("local") : "-"}</Dim>;
   return <span className="inline-flex items-center gap-1.5"><span className="font-mono text-xs">{m.ssh.user || "?"}@{m.ip}:{m.ssh.port}</span>
     {!m.info && m.ssh.identity && <Badge tone="warn" title={tx("connexion refusée ou impossible")}>{tx("refusée")}</Badge>}</span>;
 }
@@ -179,7 +179,7 @@ function SshShort({ m }: { m: Machine }) {
 /** Système sur une ligne : logo de la distribution (ou icône de la famille) puis le nom, coupé, entier au survol */
 function OsShort({ m, kind }: { m: Machine; kind: OsKind | null }) {
   const os = m.info?.os || m.agent?.os;
-  if (!os && !kind) return <Dim>—</Dim>;
+  if (!os && !kind) return <Dim>-</Dim>;
   return <span className="inline-flex max-w-[11rem] items-center gap-1.5" title={os || (kind ? OS_LABEL[kind] : "")}>{kind && <OsGlyph kind={kind} name={os} />}<span className="truncate">{shortOs(os) || (kind ? OS_LABEL[kind] : "")}</span></span>;
 }
 
@@ -302,7 +302,7 @@ function Detail({ m, h, mac, from, watch }: { m: Machine; h?: HealthHost; mac?: 
         <Row k={tx("Noyau")}>{i?.kernel || m.agent?.kernel || undefined}</Row>
         <Row k={tx("En marche")}>{(i?.uptime_s ?? m.agent?.uptime_s) ? dur(i?.uptime_s ?? m.agent?.uptime_s) : undefined}</Row>
         {hw.map(([k, v]) => <Row key={k} k={k}>{v}</Row>)}
-        {!i && !m.agent && <Dim>—</Dim>}
+        {!i && !m.agent && <Dim>-</Dim>}
       </Section>
 
       <Section icon={KeyRound} title={tx("Accès")} from={from.ssh}>
@@ -328,9 +328,9 @@ function Detail({ m, h, mac, from, watch }: { m: Machine; h?: HealthHost; mac?: 
         <Row k="API">{m.api?.length ? <span className="flex flex-wrap gap-1">{m.api.map((a) => <Badge key={`${a.type}/${a.name}`} tone={a.ok ? "ok" : a.stale ? "warn" : "bad"} title={`${a.name} : ${a.message ?? ""}`}>{a.label}{a.version ? ` ${a.version}` : ""}</Badge>)}</span> : undefined}</Row>
         <Row k={tx("Applis")}>{m.agent?.apps?.length ? <span className="flex flex-wrap gap-1">{m.agent.apps.map((a) => <Badge key={a.key} tone="info" title={tx("Vue par les services Windows du PC")}>{a.label}</Badge>)}</span> : undefined}</Row>
         <Row k="Apache">{i?.apache ? <>{tx("{0} vhost(s)", vhosts.length)}{!!i.vhosts_unreadable?.length && <span className="text-warn"> · {i.vhosts_unreadable.length} {tx("illisible(s)")}</span>}</> : undefined}</Row>
-        {i?.apache && vhosts.slice(0, 6).map((v, n) => <Row key={n} k=""><span className="font-mono text-[11px] text-muted">:{v.port} {(v.names ?? []).join(", ") || "—"}</span></Row>)}
+        {i?.apache && vhosts.slice(0, 6).map((v, n) => <Row key={n} k=""><span className="font-mono text-[11px] text-muted">:{v.port} {(v.names ?? []).join(", ") || "-"}</span></Row>)}
         <Row k="nginx">{i?.nginx ? tx("actif sur la machine (hors conteneur)") : undefined}</Row>
-        {!m.services && !i?.docker && !i?.apache && !i?.nginx && !m.agent?.docker && !m.agent?.apps?.length && !m.api?.length && <Dim>—</Dim>}
+        {!m.services && !i?.docker && !i?.apache && !i?.nginx && !m.agent?.docker && !m.agent?.apps?.length && !m.api?.length && <Dim>-</Dim>}
       </Section>
 
       <Section icon={HeartPulse} title={tx("Santé")} from={from.health}>

@@ -358,11 +358,12 @@ def start(known: set[str], state_file: Path | None = None, ping=_ping, describe=
 
 
 def due(state_file: Path, every_h: float, now: float | None = None) -> bool:
-    """Vrai si une recherche automatique est due : seulement une fois qu'une recherche a été lancée à la main (le
-    fichier de résultat existe), et si la dernière date de plus de `every_h` heures. every_h = 0 : jamais."""
-    if every_h <= 0 or not state_file.exists():
+    """Vrai si une recherche automatique est due : la toute première tout de suite, puis quand la dernière (enregistrée, ou tentée
+    depuis le démarrage sans résultat, ex. réseau introuvable) date de plus de `every_h` heures. every_h <= 0 : jamais."""
+    if every_h <= 0:
         return False
-    last = state(state_file).get("ended") or state(state_file).get("started") or 0
+    st = state(state_file) if state_file.exists() else _state
+    last = st.get("ended") or st.get("started") or 0
     return (now if now is not None else time.time()) - last >= every_h * 3600
 
 

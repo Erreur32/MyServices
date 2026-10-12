@@ -109,7 +109,7 @@ function AsleepCard({ a, os }: { a: AsleepHost; os?: OsInfo }) {
 interface OsInfo { kind?: OsKind; name?: string }
 
 function OsCell({ os }: { os: OsInfo }) {
-  return os.kind ? <span className="inline-flex max-w-[15rem] items-center gap-1.5" title={os.name}><OsGlyph kind={os.kind} name={os.name} /><span className="truncate">{shortOs(os.name) || OS_LABEL[os.kind]}</span></span> : <Dim>—</Dim>;
+  return os.kind ? <span className="inline-flex max-w-[15rem] items-center gap-1.5" title={os.name}><OsGlyph kind={os.kind} name={os.name} /><span className="truncate">{shortOs(os.name) || OS_LABEL[os.kind]}</span></span> : <Dim>-</Dim>;
 }
 
 /** Machines rangées par accès : celles lues par SSH, celles qui envoient un relevé (agent), puis celles lues par Beszel */

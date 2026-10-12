@@ -80,7 +80,7 @@ function Tech({ r }: { r: Host }) {
 }
 
 function Access({ r }: { r: Host }) {
-  if (r.type === "local" || r.type === "stream") return <Dim>—</Dim>;
+  if (r.type === "local" || r.type === "stream") return <Dim>-</Dim>;
   return (
     <span className="flex flex-wrap gap-1">
       {r.type === "proxy" && (r.acl || r.acl_adv ? <Badge tone="ok" title={r.acl || tx("garde LAN")}>{tx("ACL")}</Badge> : r.public_ok ? <Badge tone="info">{tx("public")}</Badge> : <Badge tone="bad">{tx("sans ACL")}</Badge>)}
@@ -149,7 +149,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
                     <Td className="whitespace-nowrap font-mono text-xs text-muted">
                       {r.type === "redirect" ? `→ ${r.target}` : r.type === "dead" ? tx("aucune (404)") : `${r.ip}:${r.port}`}
                     </Td>
-                    <Td>{r.machine ? <><b className="font-medium">{r.machine}</b>{r.category && <span className="block text-xs text-dim">{r.category}</span>}</> : <Dim>—</Dim>}</Td>
+                    <Td>{r.machine ? <><b className="font-medium">{r.machine}</b>{r.category && <span className="block text-xs text-dim">{r.category}</span>}</> : <Dim>-</Dim>}</Td>
                     <Td className="max-w-[260px]"><Tech r={r} /></Td>
                     <Td><Access r={r} /></Td>
                   </tr>

@@ -30,7 +30,7 @@ export function mState(m: Machine): MState {
 }
 
 /** Un PC Windows (l'agent est un script PowerShell) : réglage « windows » ou système probable (relevé, TTL du ping). Machine inconnue
- *  (liste pas encore chargée, machine retirée) : on se fie à `hasAgent` — seul un PC Windows envoie un relevé d'agent. */
+ *  (liste pas encore chargée, machine retirée) : on se fie à `hasAgent` : seul un PC Windows envoie un relevé d'agent. */
 export function isWindowsMachine(conf: { os?: string } | undefined, live?: { info?: { os?: string | null } | null; ttl?: number | null }, hasAgent = false): boolean {
   if (!conf) return hasAgent;
   return conf.os === "windows" || osOfMachine({ os: conf.os, info: live?.info, ttl: live?.ttl })?.kind === "windows";

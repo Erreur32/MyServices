@@ -13,14 +13,14 @@ export function bytes(n: number | null | undefined): string {
 
 /** Durée en secondes -> « 3 j 4 h » */
 export function dur(sec: number | null | undefined): string {
-  if (sec == null) return "—";
+  if (sec == null) return "-";
   const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600);
   return d ? tx("{0} j {1} h", d, h) : tx("{0} h", h);
 }
 
 /** Âge en jours -> « 5 h » ou « 3 j » */
 export function ageDays(a: number | null | undefined): string {
-  if (a == null) return "—";
+  if (a == null) return "-";
   return a < 1 ? tx("{0} h", Math.max(1, Math.round(a * 24))) : tx("{0} j", Math.round(a));
 }
 

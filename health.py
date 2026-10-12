@@ -61,11 +61,11 @@ SYSTEMD_WARN_N = 1
 SYSTEMD_CRIT_N = 3
 DOCKER_WARN_N = 1
 DOCKER_CRIT_N = 3
-DOCKER_CPU_WARN_PCT = 50   # % CPU moyen/conteneur — repère un conteneur gourmand
+DOCKER_CPU_WARN_PCT = 50   # % CPU moyen/conteneur : repère un conteneur gourmand
 DOCKER_CPU_CRIT_PCT = 80
-DOCKER_MEM_WARN_PCT = 50   # % mem/conteneur — repere un conteneur gourmand
+DOCKER_MEM_WARN_PCT = 50   # % mem/conteneur : repere un conteneur gourmand
 DOCKER_MEM_CRIT_PCT = 80
-APT_CRIT_N = 20  # paquets en attente — au-dela, systeme visiblement pas maintenu
+APT_CRIT_N = 20  # paquets en attente : au-dela, systeme visiblement pas maintenu
 CPU_WARN_PCT = 90   # Windows : % CPU instantané (pas de load average)
 LOAD_WARN_MULT = 1.5   # load avg 1min > mult × ncpu
 LOAD_CRIT_MULT = 3.0
@@ -73,7 +73,7 @@ SSH_AUTH_WARN_N = 20    # tentatives échouées / 24h
 SSH_AUTH_CRIT_N = 100
 # Erreurs noyau connues et bénignes, ignorées (toutes machines).
 # shpchp -16 (EBUSY) : sur les ponts PCI QEMU, acpiphp a déjà pris les slots au boot,
-# shpchp échoue ensuite — sans impact, le hotplug passe par ACPI (vu sur dev, 2026-09-28).
+# shpchp échoue ensuite : sans impact, le hotplug passe par ACPI (vu sur dev, 2026-09-28).
 # AF_VSOCK : VM sans périphérique vsock, systemd-ssh-generator échoue au boot (dev, monitor).
 # snd_hda_intel : carte son virtuelle QEMU sans codec (dev).
 KERNEL_IGNORE_RE = re.compile(
@@ -213,7 +213,7 @@ def collect_systemd(run) -> dict:
 
 
 def collect_docker(run) -> dict:
-    """Best effort — gracieux si pas d'accès au socket docker (retourne accessible: False)."""
+    """Best effort : gracieux si pas d'accès au socket docker (retourne accessible: False)."""
     rc, out = run("docker ps -a --format '{{.Names}}|{{.Status}}|{{.Image}}' 2>&1", timeout=10)
     if rc != 0 or "permission denied" in out.lower() or "cannot connect" in out.lower():
         return {"accessible": False, "reason": out.strip()[:120]}
@@ -241,7 +241,7 @@ def collect_docker(run) -> dict:
     issues = [c for c in containers if "Exited" in c["status"] or "Restarting" in c["status"]
               or "unhealthy" in c["status"].lower()]
 
-    # Stats CPU/mem — un seul échantillon, pour repérer les conteneurs gourmands.
+    # Stats CPU/mem : un seul échantillon, pour repérer les conteneurs gourmands.
     cstats = []
     rc2, out2 = run(
         "docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}' 2>/dev/null",
@@ -276,7 +276,7 @@ def collect_docker(run) -> dict:
 def collect_apt(run) -> dict:
     """Compte + échantillon des paquets upgradable en un seul appel `apt list`.
 
-    Ne filtre PAS sur le texte "Listing..." (locale-dépendant — en français apt affiche
+    Ne filtre PAS sur le texte "Listing..." (locale-dépendant : en français apt affiche
     "En train de lister…", donc `grep -v '^Listing'` ne le voit pas et cette ligne de
     statut était comptée à tort comme un paquet). On matche directement le format réel
     d'une ligne de paquet (nom/repo version ...), ce qui exclut naturellement toute ligne
@@ -477,7 +477,7 @@ def collect_smart(run) -> dict:
         _, out2 = run(f"sudo -n /usr/sbin/smartctl -H /dev/{target} 2>&1", timeout=10)
         low = out2.lower()
         # Deux formats selon le type de disque : ATA/NVMe ("overall-health ... PASSED/FAILED")
-        # vs SCSI/virtio ("Health Status: OK/...") — ex. disque virtuel de VM.
+        # vs SCSI/virtio ("Health Status: OK/...") : ex. disque virtuel de VM.
         if "overall-health" not in low and "health status" not in low:
             # sudo -n refusé (pas de règle NOPASSWD sur ce host) ou device non supporté
             return {"accessible": False, "disks": []}
@@ -956,7 +956,7 @@ def build_discord_payload(stats: dict) -> dict:
     for h in stats["hosts"]:
         mark = mark_of[h["level"]]
         if not h["reachable"]:
-            lines.append(f"{mark} **{h['name']}** — injoignable")
+            lines.append(f"{mark} **{h['name']}** : injoignable")
             continue
         bits = []
         warn_disks = [d for d in h["disks"] if d["warning"]]
@@ -984,7 +984,7 @@ def build_discord_payload(stats: dict) -> dict:
             n = dk["unhealthy"] + dk["restarting"] + dk["exited"]
             if n:
                 bits.append(f"{n} conteneur(s) KO")
-        lines.append(f"{mark} **{h['name']}** — " + (" · ".join(bits) if bits else "RAS"))
+        lines.append(f"{mark} **{h['name']}** : " + (" · ".join(bits) if bits else "RAS"))
 
     embed = {
         "author": {"name": "MyServices · health"},
@@ -1155,7 +1155,7 @@ def _pct_badge_class(pct: float, warn: float, crit: float) -> str:
 def compute_host_blocks(h: dict) -> dict:
     """Construit les blocs HTML de chaque catégorie pour un host (grille alignée par ligne)."""
     if not h["reachable"]:
-        na = "<div class='muted'>—</div>"
+        na = "<div class='muted'>-</div>"
         return {
             "header": html_lib.escape(h["name"]), "level": "down",
             "disk": "<div class='muted'>Hôte injoignable en SSH (timeout ou clé refusée)"
@@ -1175,13 +1175,13 @@ def compute_host_blocks(h: dict) -> dict:
             f"<div class='disk-size'>{d['used_gb']} / {d['size_gb']} GB</div>"
         )
     # Petits volumes (ex. /boot/efi, /etc/pve) caches par defaut, SAUF s'ils ont un vrai
-    # souci (warn/crit) — un petit volume plein reste un probleme a voir tout de suite.
+    # souci (warn/crit) : un petit volume plein reste un probleme a voir tout de suite.
     DISK_MINOR_GB = 2
     def _is_minor(d: dict) -> bool:
         return d["size_gb"] < DISK_MINOR_GB and not d["warning"] and not d["critical"]
     main_disks = [d for d in h["disks"][:8] if not _is_minor(d)]
     minor_disks = [d for d in h["disks"][:8] if _is_minor(d)]
-    disk_block = "".join(_disk_row(d) for d in main_disks) or "<div class='muted'>—</div>"
+    disk_block = "".join(_disk_row(d) for d in main_disks) or "<div class='muted'>-</div>"
     if minor_disks:
         minor_rows = "".join(_disk_row(d) for d in minor_disks)
         disk_block += (f"<details><summary>+{len(minor_disks)} petit(s) volume(s)</summary>"

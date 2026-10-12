@@ -345,7 +345,7 @@ def _build_map() -> None:
 
 
 def auto_netscan() -> None:
-    """Recherche réseau automatique : seulement après une première recherche faite à la main depuis la page, puis toutes
+    """Recherche réseau automatique : la première dès le démarrage, puis toutes
     les « netscan_every » heures (config.json, Réglages → Recherche réseau ; 0 = coupée). Mêmes garanties que le bouton :
     lecture seule, un /24 au plus, un passage à la fois."""
     every = CFG["netscan_every"]
@@ -361,13 +361,13 @@ def auto_netscan() -> None:
 
 def netscan_task() -> dict:
     """La recherche réseau automatique, présentée comme une tâche (en-tête) : prochaine échéance = dernière recherche + « netscan_every » h
-    (vérifiée chaque minute par le planificateur) ; coupée tant qu'aucune recherche manuelle n'a eu lieu ou si netscan_every = 0."""
+    (vérifiée chaque minute par le planificateur ; tout de suite s'il n'y en a jamais eu) ; coupée si netscan_every = 0."""
     every, f = CFG["netscan_every"], Path(CFG["state_dir"]) / "network-scan.json"
-    on = every > 0 and f.exists()
+    on = every > 0
     st = netscan.state(f) if f.exists() else {}
     last = st.get("ended") or st.get("started")
     return {"label": "Recherche réseau", "every_h": every, "enabled": on, "running": netscan.summary()["running"],
-            "next": max(last + every * 3600, time.time()) if on and last else None,
+            "next": (max(last + every * 3600, time.time()) if last else time.time()) if on else None,
             "started": st.get("started"), "ended": st.get("ended"), "result": None}
 
 

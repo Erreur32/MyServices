@@ -102,7 +102,7 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
                     <span className="min-w-0">
                       <b className="break-all">{j.name}</b>
                       <span className="block text-xs text-dim">
-                        {j.type || "—"} · {j.last_run ? `${tx("dernier passage")} ${dateTime(j.last_run * 1000)} (${j.last_result || "?"})` : tx("jamais lancé")}
+                        {j.type || "-"} · {j.last_run ? `${tx("dernier passage")} ${dateTime(j.last_run * 1000)} (${j.last_result || "?"})` : tx("jamais lancé")}
                       </span>
                     </span>
                   </label>
