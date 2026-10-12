@@ -58,13 +58,16 @@ COLLECTOR = CFG["collector_name"] or socket.gethostname()
 
 SEVERITY = {"panne": 3, "unhealthy": 3, "perime": 3, "securite": 2, "ui_hors": 1,
             "nouveau": 1, "disparu": 1, "retabli": 0, "dns": 2,
-            "hors_ligne": 3, "ssh_down": 3, "en_ligne": 0, "ssh_ok": 0, "connecteur": 2, "connecteur_ok": 0, "connecteur_version": 1, "appareil": 1}
+            "hors_ligne": 3, "ssh_down": 3, "en_ligne": 0, "ssh_ok": 0, "connecteur": 2, "connecteur_ok": 0, "connecteur_version": 1, "appareil": 1,
+            "vm_arret": 2, "vm_marche": 0, "stockage": 2, "stockage_ok": 0}
 LABEL = {"panne": "🔴 Panne", "retabli": "🟢 Rétabli", "nouveau": "🆕 Nouveau", "disparu": "➖ Disparu",
          "securite": "🛡️ Sécurité", "ui_hors": "🌐 UI sans domaine", "unhealthy": "💔 Unhealthy",
          "perime": "⏱️ Données périmées", "hors_ligne": "📴 Machine hors ligne",
          "en_ligne": "📶 Machine en ligne", "ssh_down": "🔒 SSH injoignable", "ssh_ok": "🔑 SSH rétabli",
          "dns": "🧭 DNS", "connecteur": "🔌 Connecteur en panne", "connecteur_ok": "🔌 Connecteur rétabli", "connecteur_version": "🔌 Version non testée",
-         "appareil": "📡 Nouvel appareil"}
+         "appareil": "📡 Nouvel appareil", "vm_arret": "⏹️ VM arrêtée", "vm_marche": "▶️ VM en marche",
+         "stockage": "💽 Stockage presque plein", "stockage_ok": "💽 Stockage dégagé"}
+STORAGE_FULL = 90   # % used of a Proxmox storage
 NPM_TYPES = {"proxy", "redirect", "dead", "stream"}  # entrées lues dans NPM (les autres : « local »)
 DNS_LABEL = {"nom": "nom DNS invalide", "absent": "ne résout sur aucun AdGuard", "ecart": "réponses différentes selon l'AdGuard",
              "hors_lan": "garde LAN mais ne résout pas vers NPM", "bloque": "bloqué par AdGuard"}
@@ -242,6 +245,43 @@ def network_snaps(data: dict) -> dict:
     return out
 
 
+def virt_snaps(data: dict) -> dict:
+    """Proxmox guests (running or not) and storages (full or not), from data.json « virtualization » (connector or SSH)."""
+    out = {}
+    for c in data.get("virtualization") or []:
+        if c.get("connector") != "proxmox" or not c.get("ok") or c.get("stale"):
+            continue   # host not read this time: no « stopped » for all its guests
+        for g in c.get("guests") or []:
+            if not g.get("template") and g.get("vmid") is not None:
+                out[f'vm:{g.get("node")}/{g["vmid"]}'] = {"label": g.get("name") or str(g["vmid"]), "machine": g.get("node"),
+                                                          "target": f'{"CT" if g.get("type") == "lxc" else "VM"} {g["vmid"]}', "up": g.get("status") == "running"}
+        for st in c.get("storage") or []:
+            if st.get("used_pct") is not None:
+                out[f'stockage:{st.get("node")}/{st.get("name")}'] = {"label": st.get("name"), "machine": st.get("node"), "target": None,
+                                                                      "up": st["used_pct"] < STORAGE_FULL, "pct": st["used_pct"]}
+    return out
+
+
+def diff_virt(prev: dict, cur: dict, pending: dict) -> tuple[list[dict], dict]:
+    """Guest stopped / started again and storage filling past STORAGE_FULL % / freed, confirmed on CONFIRM_RUNS runs. A guest that
+    appears or goes away (created, deleted, host not read) is not an event."""
+    ev, new_pending = [], {}
+    for k, c in cur.items():
+        p = prev.get(k)
+        if p is None or c["up"] == p["up"]:
+            continue
+        n = pending.get(k, 0) + 1
+        if n < CONFIRM_RUNS:
+            new_pending[k] = n
+            c["up"] = p["up"]
+            continue
+        vm = k.startswith("vm:")
+        kind = ("vm_marche" if c["up"] else "vm_arret") if vm else ("stockage_ok" if c["up"] else "stockage")
+        detail = ("de nouveau en marche" if c["up"] else "arrêtée alors qu'elle tournait") if vm else f'rempli à {c["pct"]:g} %'
+        ev.append({"kind": kind, "key": k, "label": c["label"], "machine": c["machine"], "target": c["target"], "detail": detail})
+    return ev, new_pending
+
+
 def diff_network(prev: dict | None, cur: dict | None) -> tuple[list[dict], dict | None]:
     """« New device » events and the devices to remember. cur None: no network tool read this time (cut or failing), what was known
     is kept. prev None: first reading of a network tool, taken as the reference (no flood of « new »). Devices are never forgotten:
@@ -365,6 +405,13 @@ def main() -> int:
         events += [{"kind": "dns", "key": "_dns", "label": "AdGuard", "machine": None, "target": k, "detail": v}
                    for k, v in dcur.items() if k not in state["dns"]]
         events.sort(key=lambda e: -SEVERITY[e["kind"]])
+    vcur = virt_snaps(data)
+    if "virt" in state:   # reference on the first run, like the machines
+        vev, vpending = diff_virt(state["virt"], vcur, state.get("vpending", {}))
+        events = sorted(vev + events, key=lambda e: -SEVERITY[e["kind"]])
+    else:
+        vpending = {}
+    vcur = {**(state.get("virt") or {}), **vcur}   # a host not read this time keeps the last known state of its guests
     nev, ncur = diff_network(state.get("network"), network_snaps(data) if data.get("network") else None)
     events = sorted(nev + events, key=lambda e: -SEVERITY[e["kind"]])
     age = (datetime.now(timezone.utc) - datetime.fromisoformat(data["generated"])).total_seconds() / 60
@@ -402,7 +449,7 @@ def main() -> int:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps({"snap": cur, "pending": pending, "history": history,
                                       "machines": mcur, "mpending": mpending, "dns": dcur,
-                                      "connectors": ccur, "cpending": cpending, "network": ncur,
+                                      "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending,
                                       "stale_reported": age > STALE_MIN, "last_run": now},
                                      ensure_ascii=False), encoding="utf-8")
     print(f"✓ {EVENTS} · {info} · " + " · ".join(f"{v} {k}" for k, v in counts.items()), file=sys.stderr)

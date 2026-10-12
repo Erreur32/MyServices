@@ -279,6 +279,7 @@ export interface BackupLocation {
   level: string;
   age?: number | null;
   via?: string;
+  vzdump?: string | null;   // « qemu/101 »: dump of this Proxmox guest
 }
 
 export interface BackupSet {
@@ -600,9 +601,11 @@ export interface ContainersConnector extends InfraConnector {
 }
 /** Proxmox VE (nœuds, VM, conteneurs, stockages) et Proxmox Backup Server (magasins) */
 export interface VirtualizationConnector extends InfraConnector {
-  nodes?: { name: string; online: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null }[];
-  guests?: { vmid: number; name?: string; type: "qemu" | "lxc"; node?: string; status?: string; template: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null }[];
-  storage?: { name: string; node?: string; used_pct?: number | null; status?: string }[];
+  via?: "ssh"; ip?: string;   // ssh: read on the host by pvesh, without a connector
+  nodes?: { name: string; online: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null; cpus?: number | null; mem?: number | null; maxmem?: number | null }[];
+  guests?: { vmid: number; name?: string; type: "qemu" | "lxc"; node?: string; status?: string; template: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null;
+    cpus?: number | null; mem?: number | null; maxmem?: number | null; maxdisk?: number | null; tags?: string[] }[];
+  storage?: { name: string; node?: string; used_pct?: number | null; status?: string; used?: number | null; total?: number | null }[];
   totals?: { vm: number; lxc: number; running: number; stopped: number };
   backups?: { last: number; ok: boolean; failed_recent: number } | null;
   datastores?: { name: string; used_pct?: number | null; last_backup?: number | null; groups: number; age_h?: number | null }[];

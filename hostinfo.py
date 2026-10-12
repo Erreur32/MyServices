@@ -27,6 +27,7 @@ echo "##SSHD $(grep -h -E -i '^[[:space:]]*(Port|PermitRootLogin|PasswordAuthent
 echo "##DOCKERBIN $(command -v docker >/dev/null 2>&1 && echo yes || echo no)"
 echo "##DOCKER $(docker ps -q 2>/dev/null | wc -l)"
 echo "##VIRT $(systemd-detect-virt 2>/dev/null)"
+echo "##PVE $( [ -d /etc/pve ] && command -v pvesh >/dev/null 2>&1 && echo yes || echo no)"
 echo "##NPM $(docker ps --format '{{.Image}}' 2>/dev/null | grep -c nginx-proxy-manager)"
 echo "##LISTEN $(grep -h -E -i '^[[:space:]]*Listen[[:space:]]' /etc/apache2/ports.conf 2>/dev/null | awk '{print $2}' | sort -u | paste -sd' ')"
 for f in /etc/apache2/sites-enabled/*.conf; do
@@ -224,6 +225,7 @@ def host_info(alias: str) -> dict | None:
         "docker_installed": tag.get("DOCKERBIN") != "no",  # False : pas de Docker sur la machine (jamais une panne d'accès)
         "virt": tag.get("VIRT") if re.fullmatch(r"[a-z0-9-]{2,20}", tag.get("VIRT", "")) and tag.get("VIRT") != "none" else None,  # kvm, vmware, lxc…
         "npm": tag.get("NPM", "").isdigit() and int(tag["NPM"]) > 0,  # conteneur Nginx Proxy Manager présent
+        "proxmox": tag.get("PVE") == "yes",  # Proxmox VE host: its guests and storages are read by pvesh at each collection
         "sshd": sshd,  # vide si /etc/ssh/sshd_config illisible pour ce compte
         "vhosts": vhosts,
         "vhosts_unreadable": unreadable,

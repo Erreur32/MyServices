@@ -35,6 +35,7 @@ export function originOf(e: { kind: string; key: string }, healthSources: string
   }
   if (k === "dns") return { method: "DNS", via: ["AdGuard Home"] };
   if (k === "appareil") return { method: tx("Inventaire"), via: ["MynetworK"] };
+  if (k.startsWith("vm_") || k.startsWith("stockage")) return { method: "Proxmox", via: [tx("Virtualisation")] };
   if (k === "perime") return { method: tx("Données"), via: [tx("Collecte")] };
   const isLocal = e.key.startsWith("local:");
   const via = isLocal ? (local ?? [tx("Collecte")]) : ["NPM"];

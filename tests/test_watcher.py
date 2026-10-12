@@ -65,5 +65,37 @@ class Network(unittest.TestCase):
         self.assertIn("appareil", __import__("alerts").KINDS)
 
 
+class Virt(unittest.TestCase):
+    """Proxmox guest stopped / started and storage nearly full, confirmed on two runs."""
+
+    @staticmethod
+    def data(status="running", pct=50.0, ok=True):
+        return {"virtualization": [{"connector": "proxmox", "ok": ok, "stale": False,
+                                    "guests": [{"vmid": 101, "name": "Monitor", "type": "qemu", "node": "pve", "status": status, "template": False}],
+                                    "storage": [{"name": "nvme1", "node": "pve", "used_pct": pct}]}]}
+
+    def run_seq(self, seq):
+        prev, pending, out = watcher.virt_snaps(seq[0]), {}, []
+        for d in seq[1:]:
+            cur = watcher.virt_snaps(d)
+            ev, pending = watcher.diff_virt(prev, cur, pending)
+            out.append([(e["kind"], e["label"]) for e in ev])
+            prev = {**prev, **cur}
+        return out
+
+    def test_vm_arretee_puis_relancee(self):
+        d = self.data
+        self.assertEqual(self.run_seq([d(), d("stopped"), d("stopped"), d(), d()]),
+                         [[], [("vm_arret", "Monitor")], [], [("vm_marche", "Monitor")]])
+
+    def test_stockage_plein_et_hote_illisible(self):
+        d = self.data
+        self.assertEqual(self.run_seq([d(), d(pct=95), d(pct=95)]), [[], [("stockage", "nvme1")]])
+        self.assertEqual(watcher.virt_snaps(d("stopped", ok=False)), {})   # host not read: nothing to compare
+        for k in ("vm_arret", "stockage"):
+            self.assertIn(k, watcher.LABEL)
+            self.assertIn(k, __import__("alerts").KINDS)
+
+
 if __name__ == "__main__":
     unittest.main()

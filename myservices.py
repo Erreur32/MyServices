@@ -46,6 +46,7 @@ import connectors.base as cbase
 from connectors.uptime_kuma import attach_monitors
 from connectors.docker_ssh import HOST_ADDR
 from connectors.process import host_ports
+import pve_ssh
 import agents
 import hostinfo
 import inventory_cache
@@ -1174,6 +1175,8 @@ def main():
     # lues dans le dictionnaire, après « connectors », leur état manquait et la page disait « pas encore lu »
     services_status, network, security, containers, virtualization = (connector_rows(k) for k in ("status", "network", "security", "containers", "virtualization"))
     linked = api_link.by_machine([*services_status, *network, *security, *containers, *virtualization], {m["ip"] for m in machines_out})
+    # Proxmox hosts read by SSH (after api_link: SSH is not an API badge), unless a connector already reads them
+    virtualization += pve_ssh.rows(machines_out, sshc, {api_link.host_ip(c.get("url")) for c in virtualization if c.get("connector") == "proxmox"})
     for m in machines_out:   # machine lue par l'API d'un connecteur (Home Assistant…) : la page le sait, elle ne dit plus « sans SSH »
         if m["ip"] in linked:
             m["api"] = linked[m["ip"]]

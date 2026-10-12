@@ -12,6 +12,7 @@ import { attention, type TabId } from "./lib/summary";
 import { Backups } from "./tabs/Backups";
 import { Dns } from "./tabs/Dns";
 import { Fail2ban } from "./tabs/Fail2ban";
+import { Virtualization } from "./tabs/Virtualization";
 import { Health } from "./tabs/Health";
 import { History } from "./tabs/History";
 import { Machines } from "./tabs/Machines";
@@ -128,6 +129,7 @@ export default function App() {
       {current === "diagrams" && <DiagramsTab admin={snap.me.role === "admin"} />}
       {current === "settings" && <Settings key={hash} snap={snap} look={{ theme, setTheme, width, setWidth }} />}
       {current === "fail2ban" && <Fail2ban snap={snap} />}
+      {current === "virtualization" && <Virtualization snap={snap} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
       </div>
     </div>
   );

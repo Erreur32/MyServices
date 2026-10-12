@@ -2,6 +2,7 @@
 // propres, chemins) : à lister dans SAME, sinon le test i18n.test.ts échoue. Les {0}, {1}… sont des paramètres.
 
 export const SAME = new Set([
+  "RAM",
   "./config", "/config", "/data/myservices.db", "~/.ssh/authorized_keys", "authorized_keys", "ACL", "Access list", "admin",
   "Admin", "AdGuard", "Apache", "Apache ·", "API", "API (REST)", "Block exploits", "Claude Code", "CPU", "Discord", "DNS",
   "Docker ·", "Fail2ban", "HSTS", "MCP", "msv_", "MyServices", "nginx", "NPM", "nt", "OK", "OpenAPI", "Port", "Python",
@@ -1619,6 +1620,17 @@ export const EN: Record<string, string> = {
   "gardée(s)": "kept",
   "Tous les groupes sont déjà suivis.": "All groups are already followed.",
   "Fermer la liste": "Close the list",
+  "arrêtée": "stopped",
+  "pas suivie": "not followed",
+  "aucune": "none",
+  "Suivre ses sauvegardes vzdump dans Réglages → Sauvegardes": "Follow its vzdump backups in Settings → Backups",
+  "lu par SSH (pvesh)": "read by SSH (pvesh)",
+  "lu par l'API (jeton)": "read by the API (token)",
+  "Nœud": "Node",
+  "Invité": "Guest",
+  "Sauvegarde": "Backup",
+  "Aucun hôte Proxmox trouvé : un Proxmox VE lu par SSH apparaît ici tout seul.": "No Proxmox host found: a Proxmox VE read by SSH shows up here by itself.",
+  "Sauvegardes Proxmox et conteneurs": "Proxmox backups and containers",
   "Ports ouverts": "Open ports",
   "Vus par le scanner de MynetworK": "Seen by the MynetworK scanner",
   "Sur le réseau": "On the network",

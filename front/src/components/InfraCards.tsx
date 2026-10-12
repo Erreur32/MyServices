@@ -74,7 +74,7 @@ function Pve({ c }: { c: VirtualizationConnector }) {
   );
 }
 
-function Pbs({ c }: { c: VirtualizationConnector }) {
+export function PbsCard({ c }: { c: VirtualizationConnector }) {
   return (
     <article className={`flex flex-col overflow-hidden rounded-2xl border bg-card pb-3 shadow-sm ${c.ok ? "border-line" : "border-bad/40"}`}>
       <CardHead c={c} kind={tx("Sauvegardes")} icon={<HardDrive size={20} className="text-muted" aria-hidden />} />
@@ -93,7 +93,7 @@ function Pbs({ c }: { c: VirtualizationConnector }) {
   );
 }
 
-function Dockhand({ c }: { c: ContainersConnector }) {
+export function DockhandCard({ c }: { c: ContainersConnector }) {
   const envs = c.environments ?? [], updates = envs.flatMap((e) => e.updates.map((u) => ({ env: e.name || String(e.id), ...u })));
   return (
     <article className={`flex flex-col overflow-hidden rounded-2xl border bg-card pb-3 shadow-sm ${c.ok ? "border-line" : "border-bad/40"}`}>
@@ -149,8 +149,8 @@ export function InfraCards({ virt, docker, services }: { virt: VirtualizationCon
     <section className="mb-5" aria-label={tx("Services et infrastructure")}>
       <h2 className="mb-2 flex items-center gap-2 border-b border-line/60 pb-1 text-xs font-bold uppercase tracking-wider text-dim"><Boxes size={14} aria-hidden />{tx("Services et infrastructure")} <Count n={n} tone="off" /></h2>
       <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {virt.map((c) => c.connector === "proxmox-backup" ? <Pbs key={`${c.connector}/${c.name}`} c={c} /> : <Pve key={`${c.connector}/${c.name}`} c={c} />)}
-        {docker.map((c) => <Dockhand key={`${c.connector}/${c.name}`} c={c} />)}
+        {virt.map((c) => c.connector === "proxmox-backup" ? <PbsCard key={`${c.connector}/${c.name}`} c={c} /> : <Pve key={`${c.connector}/${c.name}`} c={c} />)}
+        {docker.map((c) => <DockhandCard key={`${c.connector}/${c.name}`} c={c} />)}
         {services.map((x) => <ServiceCard key={`${x.connector}/${x.name}`} s={x} />)}
       </div>
     </section>

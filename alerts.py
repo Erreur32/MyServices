@@ -44,10 +44,11 @@ KINDS = {
     "perime": ("Collecte en retard", "connecteurs"),
     "nouveau": ("Nouveau service", "inventaire"), "disparu": ("Service disparu", "inventaire"),
     "appareil": ("Nouvel appareil sur le réseau", "inventaire"),
+    "vm_arret": ("VM ou conteneur arrêté", "machines"), "stockage": ("Stockage Proxmox presque plein", "machines"),
 }
 GROUPS = {"services": "Services", "machines": "Machines", "sante": "Santé", "securite": "Sécurité / DNS",
           "connecteurs": "Connecteurs et collecte", "inventaire": "Inventaire"}
-RESOLVES = {"retabli": "panne", "en_ligne": "hors_ligne", "ssh_ok": "ssh_down", "connecteur_ok": "connecteur",
+RESOLVES = {"retabli": "panne", "en_ligne": "hors_ligne", "ssh_ok": "ssh_down", "connecteur_ok": "connecteur", "vm_marche": "vm_arret", "stockage_ok": "stockage",
             "health_ok": ("health_crit", "health_warn", "health_down")}
 CHANNELS = {"discord": ("url",), "telegram": ("token", "chat_id"), "webhook": ("url", "token")}
 SECRET_FIELDS = {"url", "token"}  # chat_id n'est pas un secret
@@ -57,7 +58,7 @@ SENT_KEEP_DAYS = 90
 # Préréglages : ajoutés désactivés, à relire avant de les activer (comme GpuViewR)
 PRESETS = [
     {"name": "Pannes de services", "kinds": ["panne", "unhealthy"], "resolved": True, "cooldown_min": 60},
-    {"name": "Machines hors ligne", "kinds": ["hors_ligne", "ssh_down", "health_down"], "resolved": True, "cooldown_min": 60},
+    {"name": "Machines hors ligne", "kinds": ["hors_ligne", "ssh_down", "health_down", "vm_arret"], "resolved": True, "cooldown_min": 60},
     {"name": "Santé critique", "kinds": ["health_crit"], "resolved": True, "cooldown_min": 360},
     {"name": "Sécurité et DNS", "kinds": ["securite", "ui_hors", "dns"], "resolved": False, "cooldown_min": 1440},
     {"name": "Connecteurs et collecte", "kinds": ["connecteur", "connecteur_version", "perime"], "resolved": True, "cooldown_min": 120},
@@ -329,7 +330,7 @@ def label(kind: str) -> str:
     if kind in KINDS:
         return KINDS[kind][0]
     return {"retabli": "Service rétabli", "en_ligne": "Machine en ligne", "ssh_ok": "SSH rétabli",
-            "connecteur_ok": "Connecteur rétabli", "health_ok": "Santé OK", "essai": "Essai"}.get(kind, kind)
+            "connecteur_ok": "Connecteur rétabli", "health_ok": "Santé OK", "vm_marche": "VM en marche", "stockage_ok": "Stockage dégagé", "essai": "Essai"}.get(kind, kind)
 
 
 def line(e: dict) -> str:

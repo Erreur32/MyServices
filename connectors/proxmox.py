@@ -23,6 +23,36 @@ def _pct(used, total):
     return None
 
 
+def resources(res: list) -> dict:
+    """Nodes, guests and storages of /cluster/resources (API or « pvesh get /cluster/resources » on the host, same rows)."""
+    nodes, guests, storage = [], [], []
+    for r in res:
+        if not isinstance(r, dict):
+            continue
+        t = r.get("type")
+        if t == "node":
+            nodes.append({"name": r.get("node"), "online": r.get("status") == "online", "cpu_pct": _pct(r.get("cpu"), 1),
+                          "mem_pct": _pct(r.get("mem"), r.get("maxmem")), "uptime": r.get("uptime"),
+                          "cpus": r.get("maxcpu"), "mem": r.get("mem"), "maxmem": r.get("maxmem")})
+        elif t in ("qemu", "lxc"):
+            guests.append({"vmid": r.get("vmid"), "name": r.get("name"), "type": t, "node": r.get("node"),
+                           "status": r.get("status"), "template": bool(r.get("template")),
+                           "cpu_pct": _pct(r.get("cpu"), 1), "mem_pct": _pct(r.get("mem"), r.get("maxmem")),
+                           "disk_pct": _pct(r.get("disk"), r.get("maxdisk")), "uptime": r.get("uptime"),
+                           "cpus": r.get("maxcpu"), "mem": r.get("mem"), "maxmem": r.get("maxmem"), "maxdisk": r.get("maxdisk"),
+                           "tags": [t for t in str(r.get("tags") or "").split(";") if t][:10]})
+        elif t == "storage":
+            storage.append({"name": r.get("storage"), "node": r.get("node"), "shared": bool(r.get("shared")),
+                            "status": r.get("status"), "used_pct": _pct(r.get("disk"), r.get("maxdisk")),
+                            "used": r.get("disk"), "total": r.get("maxdisk")})
+    live = [g for g in guests if not g["template"]]
+    return {"nodes": nodes, "guests": guests[:MAX_GUESTS], "storage": storage,
+            "totals": {"vm": sum(1 for g in live if g["type"] == "qemu"), "lxc": sum(1 for g in live if g["type"] == "lxc"),
+                       "running": sum(1 for g in live if g["status"] == "running"),
+                       "stopped": sum(1 for g in live if g["status"] != "running")},
+            "backups": None}
+
+
 def _data(got: object):
     return got.get("data") if isinstance(got, dict) else None
 
@@ -80,29 +110,7 @@ class ProxmoxVE(_Base):
         res = self._get("/cluster/resources")
         if not isinstance(res, list):
             raise ConnectorError("réponse sans ressources (URL de Proxmox ? droits PVEAuditor ?)")
-        nodes, guests, storage = [], [], []
-        for r in res:
-            if not isinstance(r, dict):
-                continue
-            t = r.get("type")
-            if t == "node":
-                nodes.append({"name": r.get("node"), "online": r.get("status") == "online", "cpu_pct": _pct(r.get("cpu"), 1),
-                              "mem_pct": _pct(r.get("mem"), r.get("maxmem")), "uptime": r.get("uptime")})
-            elif t in ("qemu", "lxc"):
-                guests.append({"vmid": r.get("vmid"), "name": r.get("name"), "type": t, "node": r.get("node"),
-                               "status": r.get("status"), "template": bool(r.get("template")),
-                               "cpu_pct": _pct(r.get("cpu"), 1), "mem_pct": _pct(r.get("mem"), r.get("maxmem")),
-                               "disk_pct": _pct(r.get("disk"), r.get("maxdisk")), "uptime": r.get("uptime")})
-            elif t == "storage":
-                storage.append({"name": r.get("storage"), "node": r.get("node"), "shared": bool(r.get("shared")),
-                                "status": r.get("status"), "used_pct": _pct(r.get("disk"), r.get("maxdisk")),
-                                "total": r.get("maxdisk")})
-        live = [g for g in guests if not g["template"]]
-        out = {"nodes": nodes, "guests": guests[:MAX_GUESTS], "storage": storage,
-               "totals": {"vm": sum(1 for g in live if g["type"] == "qemu"), "lxc": sum(1 for g in live if g["type"] == "lxc"),
-                          "running": sum(1 for g in live if g["status"] == "running"),
-                          "stopped": sum(1 for g in live if g["status"] != "running")},
-               "backups": None}
+        out = resources(res)
         tasks = self._get("/cluster/tasks", optional=True)
         if isinstance(tasks, list):
             dump = sorted((t for t in tasks if isinstance(t, dict) and t.get("type") == "vzdump" and t.get("endtime")),

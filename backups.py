@@ -384,7 +384,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
         locs, src_files = [], None
         for i, loc in enumerate(s["locations"]):
             L = {"host": loc["host"], "label": hosts[loc["host"]]["label"], "path": loc.get("path"), "via": loc.get("via", ""),
-                 "role": "source" if i == 0 else "copie", "level": "na", "detail": "", "encrypted": bool(loc.get("encrypted")),
+                 "role": "source" if i == 0 else "copie", "level": "na", "detail": "", "encrypted": bool(loc.get("encrypted")), "vzdump": loc.get("vzdump"),
                  "share": bool((i or loc.get("vzdump")) and loc.get("offsite"))}   # copy (or Proxmox dump) on a network share (NAS) mounted on the origin: off the machine all the same
             if loc.get("syncthing"):
                 node = (sres.get(loc["from"]) or (None,))[0]

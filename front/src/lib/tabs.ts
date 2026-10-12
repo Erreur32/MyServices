@@ -1,5 +1,5 @@
 // Onglets : ordre, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Ban, ClipboardClock, Globe, HardDrive, House, Monitor, Network, Settings, Stethoscope, Workflow, type LucideIcon } from "lucide-react";
+import { Ban, ClipboardClock, Server, Globe, HardDrive, House, Monitor, Network, Settings, Stethoscope, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -11,6 +11,7 @@ export const TABS: { id: TabId; icon: LucideIcon; label: string }[] = [
   { id: "machines", icon: Monitor, label: tx("Machines") },
   { id: "services", icon: Globe, label: tx("Services") },
   { id: "health", icon: Stethoscope, label: tx("Santé") },
+  { id: "virtualization", icon: Server, label: tx("Virtualisation") },
   { id: "fail2ban", icon: Ban, label: tx("Fail2ban") },
   { id: "dns", icon: Network, label: tx("DNS") },
   { id: "backups", icon: HardDrive, label: tx("Sauvegardes") },
@@ -24,6 +25,7 @@ export function visible(id: TabId, s: Snapshot): boolean {
     case "health": return !!s.health; // activée et déjà relevée
     case "backups": return !!s.backups;
     case "dns": return !!s.data.dns;
+    case "virtualization": return (s.data.virtualization ?? []).length > 0 || (s.data.containers ?? []).length > 0; // a Proxmox (SSH or connector) or a Dockhand
     case "fail2ban": return (s.data.security ?? []).length > 0; // affiché dès qu'un connecteur LogviewR est relié
     case "settings": return s.me.role === "admin";
     default: return true;
