@@ -73,10 +73,12 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   // Même état que l'onglet Machines (mState) : « api » = déjà lue par l'API d'un connecteur (Home Assistant…), sans SSH, rien à régler
   const stateOf = (ip: string) => { const lm = liveBy.get(ip); return lm ? mState(lm) : null; };
   const badge = (ip: string) => { const st = stateOf(ip); if (!st) return null; const [tone, label, tip] = MSTATE[st]; return <Badge tone={tone} title={tip}>{label}</Badge>; };
-  const byApi = sorted(tracked.filter((ip) => !machines[ip].ssh && stateOf(ip) === "api"));   // lues par une API, sans SSH
-  const without = sorted(tracked.filter((ip) => isWindows(ip) && !machines[ip].ssh && !byApi.includes(ip)));   // PC Windows sans agent
-  const ssh = sorted(tracked.filter((ip) => !isWindows(ip) && !!machines[ip].ssh));           // Linux lus par SSH
-  const noAccess = sorted(tracked.filter((ip) => !isWindows(ip) && !machines[ip].ssh && !byApi.includes(ip)));   // ni agent possible, ni SSH, ni API
+  // SSH réel : réglé sur la machine, ou trouvé par la collecte (alias de ~/.ssh/config pour cette adresse), comme le badge « SSH OK »
+  const sshAlias = (ip: string) => machines[ip].ssh || liveBy.get(ip)?.ssh?.alias || "";
+  const byApi = sorted(tracked.filter((ip) => !sshAlias(ip) && stateOf(ip) === "api"));      // lues par une API, sans SSH
+  const without = sorted(tracked.filter((ip) => isWindows(ip) && !sshAlias(ip) && !byApi.includes(ip)));   // PC Windows sans agent
+  const ssh = sorted(tracked.filter((ip) => !isWindows(ip) && !!sshAlias(ip)));               // Linux lus par SSH
+  const noAccess = sorted(tracked.filter((ip) => !isWindows(ip) && !sshAlias(ip) && !byApi.includes(ip)));   // ni agent possible, ni SSH, ni API
   const local = /^https?:\/\/(localhost|127\.|\[::1\])/i.test(url);
 
   const addressField = (
@@ -192,7 +194,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
                 <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
                 <span className="min-w-0 flex-1">
                   <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
-                  <span className="block truncate text-xs text-dim">{ip} · SSH {machines[ip].ssh}</span>
+                  <span className="block truncate text-xs text-dim">{ip} · SSH {sshAlias(ip)}{!machines[ip].ssh && ` · ${tx("trouvé, pas activé dans la machine")}`}</span>
                 </span>
                 {badge(ip)}
               </a>

@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Fixed
+- **SSH & Agents put a machine read over SSH under "No access: to set"** when its SSH switch was off but the collection still read it with an alias of the SSH configuration (badge "SSH OK"). Groups now follow what the collection really does, like the badge; such a machine is listed with SSH and marked "found, not turned on in the machine".
+- **Machine settings, SSH switch**: in that same case it said "Off · ping and web services only" next to "SSH OK". It now explains that the collection already reads the machine with the access found in the SSH configuration, and offers "Enable" to save it (the key already works, nothing to redo).
+
 ## v0.10.9 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

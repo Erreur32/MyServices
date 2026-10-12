@@ -11,6 +11,9 @@ export const SAME = new Set([
 ]);
 
 export const EN: Record<string, string> = {
+  "pas encore activé ici": "not turned on here yet",
+  "La collecte lit déjà cette machine par SSH, avec l'accès « {0} » trouvé dans la configuration SSH (d'où « SSH OK »). L'interrupteur, lui, est encore sur Inactif : activez-le pour enregistrer cet accès dans les réglages de la machine. Rien à refaire, la clé marche déjà.": "The collection already reads this machine over SSH, with the access “{0}” found in the SSH configuration (hence “SSH OK”). The switch is still Off: turn it on to save this access in the machine's settings. Nothing to redo, the key already works.",
+  "trouvé, pas activé dans la machine": "found, not turned on in the machine",
   "facultatif : à relier quand vous voulez": "optional: link them whenever you want",
   "Lues par leur API, sans SSH": "Read by their API, without SSH",
   "Déjà connectées par l'API d'un connecteur (Home Assistant…) : rien à régler. Le SSH n'y est pas nécessaire, et souvent pas possible.": "Already connected through a connector's API (Home Assistant…): nothing to set. SSH is not needed there, and often not possible.",

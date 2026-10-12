@@ -524,6 +524,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   // Réactivation : si un accès existe déjà pour cette IP (la config SSH garde l'alias quand on coupe l'interrupteur), on le reprend et on
   // teste la clé tout de suite ; le guide ne s'ouvre que si la connexion échoue (ou s'il n'y a encore aucun accès).
   const known = st.aliases.find((a) => a.ip === ip);
+  // Interrupteur coupé, mais la collecte lit déjà la machine par SSH (alias de ~/.ssh/config pour cette adresse) : à dire clairement
+  const foundSsh = !agentMode && !sshOn && !!live?.ssh?.alias && !!live.info;
   const [reuse, setReuse] = useState<Note>(null);
   const toggleSsh = async (on: boolean) => {
     if (!on) { setWinGuide(false); setReuse(null); return void autoSave("ssh", { ssh: null, health: undefined }); }
@@ -580,9 +582,15 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
             </> : <>
               <Switch on={sshOn} disabled={pending === "ssh"} onChange={(on) => void toggleSsh(on)} label={tx("Lecture par SSH")} />
               <span><b>{sshOn ? tx("Actif") : tx("Inactif")}</b> <Saved k="ssh" />
-                <Dim> · {sshOn ? sshWho : tx("ping et services web seulement")}</Dim></span>
+                <Dim> · {sshOn ? sshWho : foundSsh ? tx("pas encore activé ici") : tx("ping et services web seulement")}</Dim></span>
             </>}
           </label>
+          {foundSsh && (
+            <p className="basis-full rounded-lg border border-link/40 bg-link/5 px-3 py-2 text-sm text-muted">
+              {tx("La collecte lit déjà cette machine par SSH, avec l'accès « {0} » trouvé dans la configuration SSH (d'où « SSH OK »). L'interrupteur, lui, est encore sur Inactif : activez-le pour enregistrer cet accès dans les réglages de la machine. Rien à refaire, la clé marche déjà.", live!.ssh!.alias)}
+              {" "}<button type="button" className="font-semibold text-link hover:underline" disabled={pending === "ssh"} onClick={() => void toggleSsh(true)}>{tx("Activer")}</button>
+            </p>
+          )}
           {!agentMode && sshOn && !winGuide && live && ["refused", "nossh"].includes(mState(live)) && (
             <button type="button" className="text-xs text-link hover:underline" onClick={() => setWinGuide(true)}>{tx("La connexion échoue ? Voir les commandes")}</button>
           )}
