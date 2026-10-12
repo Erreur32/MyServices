@@ -11,6 +11,18 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.17 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- nextcloud connector, read only, through the monitoring route of the serverinfo app shipped with Nextcloud, with the token of
+  that app (`occ config:app:set serverinfo token --value <token>`, sent as NC-Token): no account is given to MyServices. Status
+  card in Health: version and the newer one, active users over 24 h, files, free space, database, PHP, apps and their updates,
+  public links. To look at: Nextcloud or app updates, public links without password, free space under 10 GiB, debug mode. A
+  Nextcloud container found on a machine proposes the connector. Tested against a fake server only.
+
 ## v0.10.16 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
