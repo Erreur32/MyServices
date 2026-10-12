@@ -172,7 +172,7 @@ function Redetect({ st, onDone }: { st: State; onDone: () => void }) {
     else onDone();
   };
   return (
-    <div className="mt-3 flex flex-col gap-3 rounded-xl border border-line bg-bg2/50 p-3">
+    <div className="mt-3 flex flex-col gap-3 rounded-xl border-2 border-link bg-link/5 p-3">
       {!res && !note && <p className="flex items-center gap-2 text-sm text-muted"><Loader2 size={14} className="animate-spin" />{tx("Détection de toutes les machines…")}</p>}
       {res && withChanges.length === 0 && <p className="text-sm text-ok">{tx("Rien à changer")}</p>}
       {withChanges.map((r) => (
@@ -212,7 +212,7 @@ function Detect({ st, onDone, onCancel }: { st: State; onDone: () => void; onCan
     setBusy(false);
   };
   return (
-    <div className="mt-3 flex flex-col gap-3 rounded-xl border border-line bg-bg2/50 p-3">
+    <div className="mt-3 flex flex-col gap-3 rounded-xl border-2 border-link bg-link/5 p-3">
       <form onSubmit={run} className="flex flex-wrap items-end gap-2">
         <Field label={tx("IP, nom ou alias SSH")}>
           <input className={`${input} min-w-[260px]`} list="ssh-aliases" required value={target} onChange={(e) => setTarget(e.target.value)} placeholder={tx("ex. 192.168.1.20 ou nas")} />
@@ -336,7 +336,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
     </div>
   ) : live ? <SshDetails m={live} statuses={statuses} /> : null;
   return (
-    <div ref={card} className={`flex w-full min-w-0 flex-col rounded-xl border bg-card text-sm transition-colors self-start ${off ? "opacity-60" : ""} ${focus ? "border-link" : open ? "border-link/60" : "border-line"}`}>
+    <div ref={card} className={`flex w-full min-w-0 flex-col rounded-xl border bg-card text-sm transition-colors self-start ${off ? "opacity-60" : ""} ${focus || open ? "border-link ring-1 ring-link" : "border-dim/50"}`}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className={`flex w-full flex-wrap content-start items-center gap-x-2 gap-y-1 rounded-xl p-3 text-left hover:bg-bg2 ${open ? "" : "h-[5.5rem] overflow-hidden"}`}>
         <Chevron size={14} className="text-txt" /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon }} scan={scan} reserve /><b className="max-w-[10rem] truncate">{m.name}</b><Dim>{ip}</Dim>
         <span className={`ml-auto flex min-w-0 items-center justify-end gap-1.5 ${open ? "flex-wrap" : "flex-nowrap overflow-hidden"}`}>
