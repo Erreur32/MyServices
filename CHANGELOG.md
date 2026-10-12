@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+- **Settings → Connectors**: the form being filled (new connector or edit) has a blue frame, and so does the card being edited; the cards of the "Add a connector" list get a grey border and a darker background for contrast.
+
 ## v0.10.8 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

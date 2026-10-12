@@ -59,7 +59,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
               return (
                 <li key={t.type}>
                   <button type="button" onClick={() => { setAdding(t.type); setPicking(false); }}
-                    className="flex h-full w-full items-center gap-3 rounded-xl border border-line bg-bg2/60 p-3 text-left transition-colors hover:border-link hover:bg-link/10">
+                    className="flex h-full w-full items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 text-left transition-colors hover:border-link hover:bg-link/10">
                     <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
                       {icon ? <img src={icon} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
                     </span>
@@ -195,7 +195,7 @@ function InstanceCard({ inst, type, reload, onCollect, editing: edit, locked, se
   const url = inst.config.url as string | undefined;
   const path = `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}`;
   return (
-    <div id={`connector-${inst.type}-${inst.name}`} className="scroll-mt-24"><Card className={inst.enabled ? "" : "opacity-80"}>
+    <div id={`connector-${inst.type}-${inst.name}`} className="scroll-mt-24"><Card className={`${inst.enabled ? "" : "opacity-80"} ${edit ? "!border-link ring-1 ring-link" : ""}`}>
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         <div className="min-w-[220px] flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -270,7 +270,7 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, 
     if (ok) quietSave ? onDone() : setTimeout(onDone, 900);
   };
   return (
-    <form onSubmit={submit} className="mt-3 flex flex-col gap-3 rounded-xl border border-line bg-bg2/50 p-3">
+    <form onSubmit={submit} className="mt-3 flex flex-col gap-3 rounded-xl border-2 border-link bg-link/5 p-3">
       <div className="flex items-center gap-3 border-b border-line/60 pb-2">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
           {appIcon([type.label]) ? <img src={appIcon([type.label])!} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
