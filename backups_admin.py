@@ -10,6 +10,8 @@ Un « jeu » de sauvegarde = un dossier d'une machine dont le fichier le plus r�
   veeam_test / veeam_discover / veeam_follow   assistant Veeam B&R : essai de connexion sans rien enregistrer, jobs et dépôts
                    lus par l'API REST (lecture seule), puis compte (connecteur « veeam » de config.json, mot de passe chiffré)
                    et un jeu par job coché
+  vzdump_discover / vzdump_follow   dumps of Proxmox VE (vzdump, without Proxmox Backup) read by SSH on the Proxmox host: one set
+                   per guest (VM or container) and dump folder ; copies (rsync to a NAS…) are then declared or found like any folder
   ha_check / ha_follow   sauvegardes de Home Assistant, lues avec l'adresse et le jeton du connecteur « home-assistant »
                    (déjà réglé dans Connecteurs) : un jeu « sauvegarde automatique » rapproché de l'âge de la dernière réussie
 
@@ -125,7 +127,7 @@ def current() -> dict:
         loc = (s.get("locations") or [{}])[0]
         sets.append({"id": s["id"], "label": s.get("label", s["id"]), "origin": hosts.get(s.get("origin"), {}).get("label", s.get("origin", "")),
                      "origin_ip": hosts.get(s.get("origin"), {}).get("ip"),
-                     "path": loc.get("path"), "veeam_job": loc.get("veeam_job"), "pbs_group": loc.get("pbs_group"), "max_age_days": s.get("max_age_days", 8),
+                     "path": loc.get("path"), "veeam_job": loc.get("veeam_job"), "pbs_group": loc.get("pbs_group"), "vzdump": loc.get("vzdump"), "max_age_days": s.get("max_age_days", 8),
                      "ha": any(l.get("ha_backup") for l in s.get("locations", [])),
                      "expect_offsite": s.get("expect_offsite", True), "editable": bool(loc.get("path")),
                      "copies": [{"index": i, "host": hosts.get(l.get("host"), {}).get("label", l.get("host", "")), "path": l.get("path"),
@@ -135,7 +137,8 @@ def current() -> dict:
     return {"sets": sets, "exists": _path().exists(), "tab": bool(config.CFG.get("backups_url")),
             "patterns": patterns_of(meta), "default_path": DEFAULT_PATH, "machines": len(_machines()),
             "ssh_machines": [{"ip": ip, "name": m["name"]} for ip, m in sorted(_machines().items(), key=lambda x: x[1]["name"].lower())],
-            "veeam": _veeam_state(), "ha": _ha_state(meta), "pbs": _pbs_state(meta)}
+            "veeam": _veeam_state(), "ha": _ha_state(meta), "pbs": _pbs_state(meta),
+            "vzdump": {"followed": sum(1 for s in meta.get("sets", []) if (s.get("locations") or [{}])[0].get("vzdump"))}}
 
 
 def _last_report() -> dict:
@@ -165,7 +168,7 @@ def discover() -> dict:
     machines = _machines()
     with ThreadPoolExecutor(max(1, min(8, len(machines)))) as ex:
         found = list(ex.map(lambda it: _scan(it, patterns), machines.items()))
-    followed = {(loc.get("host"), loc.get("path")) for s in meta.get("sets", []) for loc in s.get("locations", []) if loc.get("path")}
+    followed = {(loc.get("host"), loc.get("path")) for s in meta.get("sets", []) for loc in s.get("locations", []) if loc.get("path") and not loc.get("vzdump")}
     hosts = {h.get("ip"): h["id"] for h in meta.get("hosts", [])}
     for m in found:
         for f in m["folders"]:
@@ -255,7 +258,8 @@ def follow(items: list[dict]) -> dict:
         ip, path, age, label = _check_item(it, machines)
         m = machines[ip]
         hid = _machine_host(meta, hosts, ip, m)
-        existing = next((s for s in meta["sets"] for loc in s.get("locations", []) if loc.get("host") == hid and loc.get("path") == path), None)
+        existing = next((s for s in meta["sets"] for loc in s.get("locations", [])
+                         if loc.get("host") == hid and loc.get("path") == path and not loc.get("vzdump")), None)
         if existing:
             existing["label"], existing["max_age_days"] = label, age
             updated += 1
@@ -311,6 +315,7 @@ def add_copy(set_id: str, ip: str, path: str, network: bool = False) -> dict:
     src = s["locations"][0]
     offsite = hid != s.get("origin") or network
     s["locations"].append({"host": hid, "path": path, "pattern": src.get("pattern", "*"), "depth": src.get("depth", DEPTH), "via": "copie",
+                           **({"exclude": src["exclude"]} if src.get("exclude") else {}),
                            **({"offsite": True} if network else {})})   # network share (NAS) seen from the origin: still off the machine
     if offsite:
         s["expect_offsite"] = True
@@ -356,7 +361,9 @@ def copies_from_hits(meta: dict, want: dict, hits: list[dict]) -> list[dict]:
     than the set's origin when there is one: that way it counts as an off-machine copy."""
     hosts = {h["id"]: h for h in meta.get("hosts", [])}
     sets = {s["id"]: s for s in meta.get("sets", [])}
-    taken = {(hosts.get(l.get("host"), {}).get("ip"), (l.get("path") or "").rstrip("/")) for x in sets.values() for l in x.get("locations", [])}
+    # (ip, folder, file pattern): one dump folder holds the sets of several guests (vzdump), each with its own pattern
+    taken = {(hosts.get(l.get("host"), {}).get("ip"), (l.get("path") or "").rstrip("/"), l.get("pattern", "*"))
+             for x in sets.values() for l in x.get("locations", [])}
     best: dict[tuple, dict] = {}
     for m in hits:
         for archive, places in (m.get("found") or {}).items():
@@ -372,7 +379,8 @@ def copies_from_hits(meta: dict, want: dict, hits: list[dict]) -> list[dict]:
                             continue
                         d = d[: -len(sub) - 1] or "/"
                     # a place already in a set (a network share counts whatever machine it was declared through)
-                    if any((m["ip"] == ip or p.get("network")) and (d + "/").startswith(path + "/") for ip, path in taken if path):
+                    if any((m["ip"] == ip or p.get("network")) and (d + "/").startswith(path + "/") and pat in ("*", src.get("pattern", "*"))
+                           for ip, path, pat in taken if path):
                         continue
                     if m["ip"] == origin_ip and (d + "/").startswith(src["path"].rstrip("/") + "/"):
                         continue
@@ -612,6 +620,73 @@ def pbs_follow(name: str, groups: list[dict]) -> dict:
             sid, n = f"{base}-{n}", n + 1
         meta["sets"].append({"id": sid, "label": label, "origin": PBS_SOURCES, "schedule": "", "max_age_days": age,
                              "locations": [{"host": PBS_HOST, "pbs_group": key, "via": "Proxmox Backup"}]})
+        added += 1
+    _write(meta)
+    return {"added": added, "updated": updated}
+
+
+# ───────────── Proxmox VE dumps (vzdump) ─────────────
+
+VZDUMP_KINDS = ("qemu", "lxc", "openvz")
+VZDUMP_SIDE = ["*.log", "*.notes", "*.protected"]   # written next to each dump: not an archive
+
+
+def _vzdump_scan(item: tuple[str, dict]) -> dict:
+    import backups
+    ip, m = item
+    out, err = backups.run_py(m["ssh"], backups.AGENT, json.dumps({"locs": {}, "disks": False, "crons": False, "vzdump": True}))
+    return {"ip": ip, "name": m["name"], "ok": out is not None, "error": err or (out or {}).get("vzdump_error", ""),
+            "groups": (out or {}).get("vzdump", []), "proxmox": out is not None and "vzdump" in out}
+
+
+def vzdump_discover() -> dict:
+    """Dumps found on each machine read by SSH that is a Proxmox VE host (read only, nothing written) ; « followed » : already a set."""
+    machines = _machines()
+    with ThreadPoolExecutor(max(1, min(8, len(machines)))) as ex:
+        found = list(ex.map(_vzdump_scan, machines.items()))
+    meta = _read()
+    hosts = {h["id"]: h.get("ip") for h in meta.get("hosts", [])}
+    followed = {(hosts.get(l.get("host")), l.get("path"), l.get("vzdump")) for s in meta.get("sets", []) for l in s.get("locations", [])[:1] if l.get("vzdump")}
+    for m in found:
+        for g in m["groups"]:
+            g["followed"] = (m["ip"], g["dir"], f"{g['kind']}/{g['vmid']}") in followed
+            g["suggested_age"] = suggest_age((time.time() - g["newest"]) / 86400)
+    return {"machines": [m for m in found if m["proxmox"] or not m["ok"]], "at": time.time()}
+
+
+def vzdump_follow(items: list[dict]) -> dict:
+    """One set per chosen guest dump: the folder of the dumps, files of that guest only (logs and notes left aside). A dump on a network
+    storage (NFS, CIFS) is already off the Proxmox host. Already followed = name and age updated."""
+    if not items:
+        raise BackupError("aucune sauvegarde choisie")
+    if len(items) > 100:
+        raise BackupError("100 sauvegardes au plus à la fois")
+    machines = _machines()
+    meta = _read()
+    hosts = {h["id"]: h for h in meta.setdefault("hosts", [])}
+    meta.setdefault("sets", [])
+    added = updated = 0
+    for it in items:
+        kind, vmid = str(it.get("kind", "")), str(it.get("vmid", ""))
+        if kind not in VZDUMP_KINDS or not vmid.isdigit() or len(vmid) > 9:
+            raise BackupError(f"machine invitée invalide : {kind[:10]}/{vmid[:10]}")
+        ip, path, age, label = _check_item({**it, "path": it.get("dir", "")}, machines)
+        hid = _machine_host(meta, hosts, ip, machines[ip])
+        key = f"{kind}/{vmid}"
+        existing = next((s for s in meta["sets"] for l in s.get("locations", [])[:1] if l.get("host") == hid and l.get("path") == path and l.get("vzdump") == key), None)
+        if existing:
+            existing["label"], existing["max_age_days"] = label, age
+            updated += 1
+            continue
+        network = bool(it.get("network"))
+        taken = {s["id"] for s in meta["sets"]}
+        base = sid = _slug(f"{machines[ip]['name']}-vzdump-{vmid}")
+        n = 2
+        while sid in taken:
+            sid, n = f"{base}-{n}", n + 1
+        meta["sets"].append({"id": sid, "label": label, "origin": hid, "schedule": "", "max_age_days": age, "expect_offsite": network,
+                             "locations": [{"host": hid, "path": path, "pattern": f"vzdump-{kind}-{vmid}-*", "exclude": VZDUMP_SIDE, "depth": 1,
+                                            "via": "vzdump", "vzdump": key, **({"offsite": True} if network else {})}]})
         added += 1
     _write(meta)
     return {"added": added, "updated": updated}

@@ -64,12 +64,13 @@ for key, loc in req.get("locs", {}).items():
     except OSError as e:
         out["locs"][key] = {"exists": False, "error": str(e)}; continue
     depth, pat, files, err = loc.get("depth", 1), loc.get("pattern", "*"), [], None
+    skip = loc.get("exclude", [])
     bd = base.count("/")
     for root, dirs, fs in os.walk(base, onerror=lambda e: None):
         d = root.rstrip("/").count("/") - bd
         dirs[:] = [x for x in dirs if not x.startswith(".st")] if d + 1 < depth else []
         for f in fs:
-            if f.startswith(".") or not fnmatch.fnmatch(f, pat):
+            if f.startswith(".") or not fnmatch.fnmatch(f, pat) or any(fnmatch.fnmatch(f, x) for x in skip):
                 continue
             p = os.path.join(root, f)
             try:
@@ -150,6 +151,56 @@ if req.get("discover"):
         nw = nw.strip().split(" ", 1)
         out["local"].append({"path": d, "size": size, "newest": int(float(nw[0])) if nw[0] else None,
                              "newest_name": nw[1] if len(nw) > 1 else "", "readable": os.access(d, os.R_OK | os.X_OK)})
+
+if req.get("vzdump") and os.path.isdir("/etc/pve"):
+    # Proxmox VE dumps (vzdump without Proxmox Backup): every storage holding backups keeps them in <path>/dump,
+    # one group per guest (vzdump-qemu-100-2026_10_12-03_00_02.vma.zst, .log and .notes beside it)
+    import glob
+    stores, cur = {}, None
+    try:
+        for l in open("/etc/pve/storage.cfg"):
+            if l.strip() and not l[0].isspace() and ":" in l:
+                t, sid = l.split(":", 1)
+                cur = stores.setdefault(sid.strip(), {"type": t.strip(), "content": "", "path": "/var/lib/vz" if sid.strip() == "local" else ""})
+            elif cur is not None and len(l.split(None, 1)) == 2:
+                k, v = l.split(None, 1)
+                cur[k] = v.strip()
+    except OSError:
+        out["vzdump_error"] = "/etc/pve/storage.cfg non lisible"
+    dirs = {"/var/lib/vz/dump": ("local", False)} if os.path.isdir("/var/lib/vz/dump") else {}
+    for sid, s in stores.items():
+        if "backup" in s["content"].split(",") and s["path"]:
+            dirs[s["path"].rstrip("/") + "/dump"] = (sid, s["type"] in ("nfs", "cifs", "cephfs", "glusterfs"))
+    names = {}
+    for kind, sub, key in (("qemu", "qemu-server", "name"), ("lxc", "lxc", "hostname")):
+        for f in glob.glob("/etc/pve/nodes/*/%s/*.conf" % sub):
+            try:
+                m = re.search(r"^%s:\s*(\S+)" % key, open(f).read().split("\n[")[0], re.M)
+            except OSError:
+                continue
+            if m:
+                names[(kind, os.path.basename(f)[:-5])] = m.group(1)
+    rx = re.compile(r"^vzdump-(qemu|lxc|openvz)-(\d+)-\d{4}_\d\d_\d\d-\d\d_\d\d_\d\d\.(vma|tar|tgz)(\.(zst|gz|lzo))?$")
+    groups = {}
+    for d, (sid, network) in dirs.items():
+        try:
+            fs = os.listdir(d)
+        except OSError:
+            continue
+        for f in fs:
+            m = rx.match(f)
+            if not m:
+                continue
+            try:
+                st = os.stat(os.path.join(d, f))
+            except OSError:
+                continue
+            g = groups.setdefault((d, m.group(1), m.group(2)), {"dir": d, "storage": sid, "network": network, "kind": m.group(1), "vmid": m.group(2),
+                                                               "name": names.get((m.group(1), m.group(2)), ""), "count": 0, "newest": 0, "newest_name": "", "size": 0})
+            g["count"] += 1
+            if st.st_mtime > g["newest"]:
+                g.update(newest=int(st.st_mtime), newest_name=f, size=st.st_size)
+    out["vzdump"] = sorted(groups.values(), key=lambda g: (g["dir"], int(g["vmid"])))
 
 if req.get("find"):
     # Copies of followed archives: folders holding a file with one of these names, network shares included (a NAS mounted in CIFS / NFS
@@ -278,7 +329,7 @@ def collect(meta: dict) -> tuple[dict, dict]:
     for s in meta["sets"]:
         for i, loc in enumerate(s["locations"]):
             if loc.get("path") and not loc.get("syncthing") and loc["host"] in reqs:
-                reqs[loc["host"]]["locs"][f"{s['id']}#{i}"] = {k: loc[k] for k in ("path", "pattern", "depth") if k in loc}
+                reqs[loc["host"]]["locs"][f"{s['id']}#{i}"] = {k: loc[k] for k in ("path", "pattern", "depth", "exclude") if k in loc}
 
     def one(hid):
         return hid, run_py(hosts[hid].get("ssh"), AGENT, json.dumps(reqs[hid]))
@@ -334,7 +385,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
         for i, loc in enumerate(s["locations"]):
             L = {"host": loc["host"], "label": hosts[loc["host"]]["label"], "path": loc.get("path"), "via": loc.get("via", ""),
                  "role": "source" if i == 0 else "copie", "level": "na", "detail": "", "encrypted": bool(loc.get("encrypted")),
-                 "share": bool(i and loc.get("offsite"))}   # copy on a network share (NAS) mounted on the origin: off the machine all the same
+                 "share": bool((i or loc.get("vzdump")) and loc.get("offsite"))}   # copy (or Proxmox dump) on a network share (NAS) mounted on the origin: off the machine all the same
             if loc.get("syncthing"):
                 node = (sres.get(loc["from"]) or (None,))[0]
                 f = next((x for x in (node or {}).get("folders", []) if x["id"] == loc["syncthing"]), None)
@@ -455,7 +506,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
         src = locs[0]
         # Copie à jour hors machine ; un job Veeam en Warning compte (son niveau propre est déjà dans celui du jeu)
         offsite = [l for i, l in enumerate(locs) if (l["host"] != s["origin"] or l.get("share")) and
-                   (i and l["level"] == "ok" or not i and l.get("offsite") and l["level"] in ("ok", "warn"))]
+                   (i and l["level"] == "ok" or not i and (l.get("offsite") or l.get("share")) and l["level"] in ("ok", "warn"))]
         level, why = src["level"], []
         if src["level"] in ("warn", "crit"):
             old = None if src.get("offsite") else src.get("oldest") or src.get("newest")  # job Veeam : son résultat

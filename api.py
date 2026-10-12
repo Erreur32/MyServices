@@ -1123,6 +1123,38 @@ def backups_pbs_follow(body: PbsFollow, request: Request):
     return backups_call(request, "groupes Proxmox Backup suivis", f"{body.connector} : {len(body.groups)} groupe(s)", go)
 
 
+class VzdumpGroup(BaseModel):
+    ip: str
+    dir: str
+    kind: str
+    vmid: str
+    network: bool = False
+    label: str = ""
+    max_age_days: float = 2.0
+
+
+class VzdumpFollow(BaseModel):
+    groups: list[VzdumpGroup]
+
+
+@app.post(API + "/backups/vzdump/discover", tags=["sauvegardes"], summary="Lister les sauvegardes vzdump des hôtes Proxmox VE lus par SSH, lecture seule (admin)")
+def backups_vzdump_discover(request: Request):
+    return backups_call(request, "", "", lambda b: b.vzdump_discover())
+
+
+@app.put(API + "/backups/vzdump", tags=["sauvegardes"], summary="Suivre les sauvegardes vzdump de machines invitées Proxmox VE (admin)")
+def backups_vzdump_follow(body: VzdumpFollow, request: Request):
+    import system
+
+    def go(b):
+        out = b.vzdump_follow([g.model_dump() for g in body.groups])
+        if not core.CFG.get("backups_url"):
+            system.set_backups_url(core, "backups.json")
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (vzdump)")
+        return {"ok": True, **out}
+    return backups_call(request, "sauvegardes vzdump suivies", f"{len(body.groups)} machine(s) invitée(s)", go)
+
+
 @app.post(API + "/backups/ha/check", tags=["sauvegardes"], summary="Lire les sauvegardes de Home Assistant par son connecteur, sans rien enregistrer (admin)")
 def backups_ha_check(body: HaFollow, request: Request):
     return backups_call(request, "", "", lambda b: b.ha_check(body.connector))

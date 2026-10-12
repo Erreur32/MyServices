@@ -1,7 +1,7 @@
 // Réglages → Sauvegardes : choisir, depuis la page, les dossiers de sauvegarde à surveiller. La recherche passe par SSH, en lecture
 // seule, dans les emplacements habituels de chaque machine ; on coche, on nomme, on fixe l'âge maximum du dernier fichier.
 // Veeam (BackupsVeeam.tsx) et Home Assistant (BackupsHa.tsx) ont leur assistant plus bas ; Proxmox… viendra ensuite.
-import { ChevronDown, ChevronRight, Database, DatabaseBackup, FolderSearch, HardDrive, Home, Loader2, ServerCog, Trash2, type LucideIcon } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, Database, DatabaseBackup, FolderSearch, HardDrive, Home, Loader2, ServerCog, Trash2, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { NoteLine, Switch, TagInput } from "../components/form";
@@ -13,21 +13,23 @@ import { appIcon } from "../lib/appIcons";
 import { BackupsHa, type HaState } from "./BackupsHa";
 import { BackupsVeeam, type VeeamState } from "./BackupsVeeam";
 import { BackupsPbs, type PbsState } from "./BackupsPbs";
+import { BackupsVzdump, type VzdumpState } from "./BackupsVzdump";
 import { MachineIcon } from "../components/MachineIcon";
 import type { Machine } from "../types";
 import { CopyGuesses, SetCopies, type CopyRow, type SshMachine } from "./BackupsCopies";
 
-interface SetRow { id: string; label: string; origin: string; origin_ip?: string | null; path: string | null; veeam_job: string | null; pbs_group: string | null; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean; copies?: CopyRow[]; cadence_days?: number | null }
+interface SetRow { id: string; label: string; origin: string; origin_ip?: string | null; path: string | null; veeam_job: string | null; pbs_group: string | null; vzdump?: string | null; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean; copies?: CopyRow[]; cadence_days?: number | null }
 const AGES = [2, 8, 15, 31];   // paliers proposés : quotidienne, hebdomadaire, tous les 15 jours, mensuelle
-interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; default_path: string; machines: number; ssh_machines?: SshMachine[]; veeam: VeeamState; ha: HaState; pbs: PbsState }
+interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; default_path: string; machines: number; ssh_machines?: SshMachine[]; veeam: VeeamState; ha: HaState; pbs: PbsState; vzdump: VzdumpState }
 interface Folder { path: string; size: number | null; newest: number | null; newest_name: string; readable: boolean; followed: boolean; default?: boolean }
 interface Found { ip: string; name: string; ssh: string; ok: boolean; error: string; folders: Folder[] }
 interface Choice { on: boolean; label: string; age: string }
 
 /** Origine d'un jeu suivi : icône (logo ou pictogramme) et nom court */
-const SRC: Record<"folder" | "veeam" | "pbs" | "ha", { icon: string; Icon: LucideIcon; label: string }> = {
+const SRC: Record<"folder" | "veeam" | "pbs" | "vzdump" | "ha", { icon: string; Icon: LucideIcon; label: string }> = {
   folder: { icon: "", Icon: FolderSearch, label: tx("Dossier") }, veeam: { icon: "Veeam", Icon: ServerCog, label: "Veeam" },
-  pbs: { icon: "Proxmox Backup Server", Icon: DatabaseBackup, label: "Proxmox Backup" }, ha: { icon: "Home Assistant", Icon: Home, label: "Home Assistant" },
+  pbs: { icon: "Proxmox Backup Server", Icon: DatabaseBackup, label: "Proxmox Backup" },
+  vzdump: { icon: "Proxmox VE", Icon: Archive, label: "vzdump" }, ha: { icon: "Home Assistant", Icon: Home, label: "Home Assistant" },
 };
 
 const keyOf = (ip: string, path: string) => `${ip}${path}`;
@@ -186,7 +188,7 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
       <NoteLine note={note} />
     </Card>
   );
-  const veeamSets = cur.sets.filter((x) => x.veeam_job).length, folderSets = cur.sets.filter((x) => x.path).length;
+  const veeamSets = cur.sets.filter((x) => x.veeam_job).length, folderSets = cur.sets.filter((x) => x.path && !x.vzdump).length;
   const sources: { id: string; label: string; icon: string; Icon: LucideIcon; hint: string; state: string; tone: "ok" | "warn"; panel: ReactNode }[] = [
     { id: "folders", label: tx("Dossiers sur mes machines"), icon: "", Icon: FolderSearch, tone: folderSets ? "ok" : "warn", state: folderSets ? tx("{0} suivi(s)", folderSets) : tx("À chercher"),
       hint: tx("Lus par SSH : dossiers de sauvegarde, tâches cron"), panel: SEARCH },
@@ -194,6 +196,8 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
       hint: tx("API REST, compte en lecture seule"), panel: <BackupsVeeam key={`${cur.veeam.url}|${cur.veeam.user}`} state={cur.veeam} reload={load} /> },
     { id: "pbs", label: "Proxmox Backup Server", icon: "Proxmox Backup Server", Icon: DatabaseBackup, tone: cur.pbs.followed ? "ok" : "warn", state: cur.pbs.followed ? tx("{0} groupe(s) suivi(s)", cur.pbs.followed) : cur.pbs.connectors.length ? tx("Aucun groupe suivi") : tx("Connecteur à ajouter"),
       hint: tx("Groupes de sauvegarde, par le connecteur"), panel: <BackupsPbs state={cur.pbs} reload={load} /> },
+    { id: "vzdump", label: tx("Proxmox VE (vzdump)"), icon: "Proxmox VE", Icon: Archive, tone: cur.vzdump.followed ? "ok" : "warn", state: cur.vzdump.followed ? tx("{0} machine(s) invitée(s) suivie(s)", cur.vzdump.followed) : tx("À chercher"),
+      hint: tx("Dumps de VM et conteneurs, lus par SSH sur l'hôte"), panel: <BackupsVzdump state={cur.vzdump} reload={load} /> },
     { id: "ha", label: "Home Assistant", icon: "Home Assistant", Icon: Home, tone: cur.ha.followed ? "ok" : "warn", state: cur.ha.followed ? tx("Suivi") : cur.ha.connectors.length ? tx("Pas suivi") : tx("Connecteur à ajouter"),
       hint: tx("Sauvegarde automatique, par le connecteur"), panel: <BackupsHa key={`${cur.ha.connector}|${cur.ha.connectors.join()}`} state={cur.ha} reload={load} /> },
   ];
@@ -204,11 +208,11 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
         <p className="mb-3 text-sm text-muted">
           {tx("MyServices regarde l'âge du fichier le plus récent de chaque dossier et vous prévient s'il est trop vieux. Lecture seule : rien n'est modifié sur les machines.")}
         </p>
-        {folderSets > 0 && cur.machines > 0 && <CopyGuesses onDone={load} setNote={setNote} />}
+        {cur.sets.some((x) => x.path) && cur.machines > 0 && <CopyGuesses onDone={load} setNote={setNote} />}
         {cur.sets.length === 0 ? <Dim>{tx("Aucune sauvegarde suivie pour l'instant.")}</Dim> : (
           <ul className="flex flex-col gap-2">
             {cur.sets.map((s) => {
-              const kind = s.veeam_job ? SRC.veeam : s.pbs_group ? SRC.pbs : s.ha ? SRC.ha : SRC.folder;
+              const kind = s.veeam_job ? SRC.veeam : s.pbs_group ? SRC.pbs : s.vzdump ? SRC.vzdump : s.ha ? SRC.ha : SRC.folder;
               return (
                 <li key={s.id} className="overflow-hidden rounded-xl border border-line bg-bg2/30 text-sm">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line bg-bg px-3 py-2">
