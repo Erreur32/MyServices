@@ -96,7 +96,8 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
           </div>
         ))}
       </nav>
-      <div className="min-w-0 flex-1">
+      {/* Toute carte sans couleur propre (bordure neutre « line ») a une bordure grise plus visible ; au survol, sa couleur de survol reprend */}
+      <div className="min-w-0 flex-1 [&_.rounded-xl.border-line:not(:hover)]:border-dim/50 [&_.rounded-2xl.border-line:not(:hover)]:border-dim/50">
         {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <NotificationsHub /> : section === "connectors" ? <Connectors snap={snap} /> : section === "machines" ? <MachinesSection snap={snap} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings snap={snap} /> : section === "help" ? <Help /> : section === "about" ? <AboutSettings /> : section === "audit" ? <AuditLog /> : section === "logs" ? <Logs /> : section === "backups" ? <BackupsSettings machines={snap.data.machine_list} /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} snap={snap} /> : <SystemSettings part="system" snap={snap} />}
       </div>
     </div>

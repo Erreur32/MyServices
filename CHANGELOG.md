@@ -15,6 +15,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Settings → Connectors**: the form being filled (new connector or edit) has a blue frame, and so does the card being edited; the cards of the "Add a connector" list get a grey border and a darker background for contrast, and the cards of the connectors already set get the same grey border.
 - **Settings → Machines**: same look: each machine card has a grey border, and a blue frame while it is open; the forms to add machines have the blue frame of the connector form. The frames inside a machine (SSH access, identity, option groups) and the cards of SSH & Agents get the same grey border; the card being opened is framed in blue.
 - **Settings → Machines → SSH & Agents**: empty categories are no longer shown.
+- **Settings, every page**: each card or frame without a colour of its own (neutral border) now has the same grey border, for contrast; coloured ones (ok, warning, error, blue) are unchanged, and the hover colour still applies.
 
 ## v0.10.8 (2026-10-12)
 
