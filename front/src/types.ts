@@ -592,6 +592,7 @@ export interface NetworkConnector extends InfraConnector {
 /** LogviewR : fail2ban */
 export interface SecurityConnector extends InfraConnector {
   jails?: string[]; bans_24h?: number; bans?: { ip: string; jail: string; time: number; failures?: number }[]; threat_count?: number; log_sources?: number;
+  threats?: { key: string; kind: "ip_escalation" | "asn_campaign" | "autre"; ips: string[]; ip_count: number; jails: string[]; bans: number | null; first: number | null; last: number | null; severity: number | null; asn: string | null }[];
 }
 /** Dockhand : environnements Docker */
 export interface ContainersConnector extends InfraConnector {

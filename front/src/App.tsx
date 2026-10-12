@@ -11,7 +11,7 @@ import type { Selected } from "./lib/filter";
 import { attention, type TabId } from "./lib/summary";
 import { Backups } from "./tabs/Backups";
 import { Dns } from "./tabs/Dns";
-import { Fail2ban } from "./tabs/Fail2ban";
+import { Security } from "./tabs/Security";
 import { Virtualization } from "./tabs/Virtualization";
 import { Health } from "./tabs/Health";
 import { History } from "./tabs/History";
@@ -27,7 +27,8 @@ import { GREY_CARDS } from "./lib/forms";
 const REFRESH_MS = 60_000;
 
 function tabFromHash(): TabId {
-  const h = location.hash.slice(1).split("/")[0] as TabId; // « settings/accounts » : onglet puis section
+  const raw = location.hash.slice(1).split("/")[0];
+  const h = (raw === "fail2ban" ? "security" : raw) as TabId; // « settings/accounts » : onglet puis section ; #fail2ban : ancien onglet, dans Sécurité
   return TABS.some((t) => t.id === h) ? h : "home";
 }
 
@@ -129,7 +130,7 @@ export default function App() {
       {current === "backups" && <Backups key={pending.tab === "backups" ? pending.n : 0} snap={snap} initial={initialFor("backups")} />}
       {current === "diagrams" && <DiagramsTab admin={snap.me.role === "admin"} />}
       {current === "settings" && <Settings key={hash} snap={snap} />}
-      {current === "fail2ban" && <Fail2ban snap={snap} />}
+      {current === "security" && <Security snap={snap} />}
       {current === "virtualization" && <Virtualization snap={snap} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
       </div>
     </div>

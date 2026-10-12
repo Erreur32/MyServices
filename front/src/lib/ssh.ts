@@ -1,7 +1,7 @@
 // Accès SSH d'une machine : alerte sshd, ligne de résumé (hors composants, voir lib/forms.ts).
 import type { Machine } from "../types";
 
-export const risky = (v?: string) => !!v && !/^(no|prohibit-password)$/.test(v);
+export const risky = (v?: string) => !!v && !/^(no|prohibit-password|forced-commands-only)$/.test(v.replace(/ \(.*\)$/, ""));   // « prohibit-password (défaut) » : the default, safe
 
 /** sshd autorise root ou le mot de passe */
 export function sshWarn(m: Machine): boolean {

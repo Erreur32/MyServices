@@ -1,5 +1,5 @@
 // Onglets : ordre, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Ban, ClipboardClock, Server, Globe, HardDrive, House, Monitor, Network, Settings, Stethoscope, Workflow, type LucideIcon } from "lucide-react";
+import { ClipboardClock, Server, Shield, Globe, HardDrive, House, Monitor, Network, Settings, Stethoscope, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -12,7 +12,7 @@ export const TABS: { id: TabId; icon: LucideIcon; label: string }[] = [
   { id: "services", icon: Globe, label: tx("Services") },
   { id: "health", icon: Stethoscope, label: tx("Santé") },
   { id: "virtualization", icon: Server, label: tx("Virtualisation") },
-  { id: "fail2ban", icon: Ban, label: tx("Fail2ban") },
+  { id: "security", icon: Shield, label: tx("Sécurité") },
   { id: "dns", icon: Network, label: tx("DNS") },
   { id: "backups", icon: HardDrive, label: tx("Sauvegardes") },
   { id: "diagrams", icon: Workflow, label: tx("Schémas") },
@@ -26,7 +26,7 @@ export function visible(id: TabId, s: Snapshot): boolean {
     case "backups": return !!s.backups;
     case "dns": return !!s.data.dns;
     case "virtualization": return (s.data.virtualization ?? []).length > 0; // a hypervisor (Proxmox, ESXi, vCenter) or a Proxmox Backup Server ; Dockhand stays in Health
-    case "fail2ban": return (s.data.security ?? []).length > 0; // affiché dès qu'un connecteur LogviewR est relié
+    case "security": return (s.data.security ?? []).length > 0 || s.data.hosts.some((r) => r.type === "proxy") || s.data.machine_list.some((m) => !!m.info?.sshd);
     case "settings": return s.me.role === "admin";
     default: return true;
   }

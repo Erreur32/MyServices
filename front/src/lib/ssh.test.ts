@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authorizeFor } from "./ssh";
+import { authorizeFor, risky } from "./ssh";
 
 const CMD = "echo 'ssh-ed25519 AAAAkey myservices' >> ~/.ssh/authorized_keys";
 
@@ -21,5 +21,13 @@ describe("autoriser la clé", () => {
   });
   it("commande sans clé : rendue telle quelle", () => {
     expect(authorizeFor("rien", "x")).toBe("rien");
+  });
+});
+
+describe("sshd risqué", () => {
+  it("root par mot de passe permis : risqué ; défaut prohibit-password ou no : non", () => {
+    expect(risky("yes")).toBe(true);
+    expect(risky("yes (défaut)")).toBe(true);
+    for (const v of ["no", "prohibit-password", "prohibit-password (défaut)", "forced-commands-only", undefined]) expect(risky(v)).toBe(false);
   });
 });

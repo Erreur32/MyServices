@@ -35,6 +35,7 @@ Usage : python3 watcher.py [--dry-run]
 from __future__ import annotations
 
 import json
+import time
 import os
 import socket
 import sys
@@ -59,14 +60,14 @@ COLLECTOR = CFG["collector_name"] or socket.gethostname()
 SEVERITY = {"panne": 3, "unhealthy": 3, "perime": 3, "securite": 2, "ui_hors": 1,
             "nouveau": 1, "disparu": 1, "retabli": 0, "dns": 2,
             "hors_ligne": 3, "ssh_down": 3, "en_ligne": 0, "ssh_ok": 0, "connecteur": 2, "connecteur_ok": 0, "connecteur_version": 1, "appareil": 1,
-            "vm_arret": 2, "vm_marche": 0, "stockage": 2, "stockage_ok": 0}
+            "vm_arret": 2, "vm_marche": 0, "stockage": 2, "stockage_ok": 0, "menace": 2}
 LABEL = {"panne": "🔴 Panne", "retabli": "🟢 Rétabli", "nouveau": "🆕 Nouveau", "disparu": "➖ Disparu",
          "securite": "🛡️ Sécurité", "ui_hors": "🌐 UI sans domaine", "unhealthy": "💔 Unhealthy",
          "perime": "⏱️ Données périmées", "hors_ligne": "📴 Machine hors ligne",
          "en_ligne": "📶 Machine en ligne", "ssh_down": "🔒 SSH injoignable", "ssh_ok": "🔑 SSH rétabli",
          "dns": "🧭 DNS", "connecteur": "🔌 Connecteur en panne", "connecteur_ok": "🔌 Connecteur rétabli", "connecteur_version": "🔌 Version non testée",
          "appareil": "📡 Nouvel appareil", "vm_arret": "⏹️ VM arrêtée", "vm_marche": "▶️ VM en marche",
-         "stockage": "💽 Stockage presque plein", "stockage_ok": "💽 Stockage dégagé"}
+         "stockage": "💽 Stockage presque plein", "stockage_ok": "💽 Stockage dégagé", "menace": "🚨 Nouvelle menace"}
 STORAGE_FULL = 90   # % used of a Proxmox storage
 NPM_TYPES = {"proxy", "redirect", "dead", "stream"}  # entrées lues dans NPM (les autres : « local »)
 DNS_LABEL = {"nom": "nom DNS invalide", "absent": "ne résout sur aucun AdGuard", "ecart": "réponses différentes selon l'AdGuard",
@@ -282,6 +283,36 @@ def diff_virt(prev: dict, cur: dict, pending: dict) -> tuple[list[dict], dict]:
     return ev, new_pending
 
 
+def threat_snaps(data: dict) -> dict | None:
+    """Active threats read by LogviewR (attack correlation: one IP across jails, or a campaign from one AS). None: no LogviewR read
+    this time (cut or failing), the known ones are kept."""
+    rows = [c for c in data.get("security") or [] if c.get("ok") and not c.get("stale")]
+    if not rows:
+        return None
+    out = {}
+    for c in rows:
+        for t in c.get("threats") or []:
+            what = "IP qui passe d'une prison à l'autre" if t.get("kind") == "ip_escalation" else f"campagne depuis {t.get('asn') or 'un même réseau'}"
+            out[f'menace:{c.get("name")}:{t.get("key")}'] = {
+                "label": ", ".join(t.get("ips") or [])[:80] or "?", "target": ", ".join(t.get("jails") or []) or None,
+                "detail": f'{what} : {t.get("ip_count")} IP, {t.get("bans") or "?"} bannissement(s) (LogviewR)'}
+    return out
+
+
+def diff_threats(prev: dict | None, cur: dict | None) -> tuple[list[dict], dict | None]:
+    """« New threat » once per cluster ; the first reading of LogviewR is the reference. A threat no longer active is forgotten after
+    a week (kept meanwhile so that it does not come back as new)."""
+    if cur is None:
+        return [], prev
+    if prev is None:
+        return [], {k: {**v, "seen": time.time()} for k, v in cur.items()}
+    now = time.time()
+    ev = [{"kind": "menace", "key": k, "label": v["label"], "machine": None, "target": v["target"], "detail": v["detail"]}
+          for k, v in cur.items() if k not in prev]
+    keep = {k: v for k, v in prev.items() if now - v.get("seen", now) < 7 * 86400}
+    return ev, {**keep, **{k: {**v, "seen": now} for k, v in cur.items()}}
+
+
 def diff_network(prev: dict | None, cur: dict | None) -> tuple[list[dict], dict | None]:
     """« New device » events and the devices to remember. cur None: no network tool read this time (cut or failing), what was known
     is kept. prev None: first reading of a network tool, taken as the reference (no flood of « new »). Devices are never forgotten:
@@ -412,6 +443,8 @@ def main() -> int:
     else:
         vpending = {}
     vcur = {**(state.get("virt") or {}), **vcur}   # a host not read this time keeps the last known state of its guests
+    tev, tcur = diff_threats(state.get("threats"), threat_snaps(data))
+    events = sorted(tev + events, key=lambda e: -SEVERITY[e["kind"]])
     nev, ncur = diff_network(state.get("network"), network_snaps(data) if data.get("network") else None)
     events = sorted(nev + events, key=lambda e: -SEVERITY[e["kind"]])
     age = (datetime.now(timezone.utc) - datetime.fromisoformat(data["generated"])).total_seconds() / 60
@@ -449,7 +482,7 @@ def main() -> int:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps({"snap": cur, "pending": pending, "history": history,
                                       "machines": mcur, "mpending": mpending, "dns": dcur,
-                                      "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending,
+                                      "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending, "threats": tcur,
                                       "stale_reported": age > STALE_MIN, "last_run": now},
                                      ensure_ascii=False), encoding="utf-8")
     print(f"✓ {EVENTS} · {info} · " + " · ".join(f"{v} {k}" for k, v in counts.items()), file=sys.stderr)

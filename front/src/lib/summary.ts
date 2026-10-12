@@ -6,7 +6,7 @@ import { CLEANUP, certIssue, checks, dnsDown, dnsSync, hostName, status } from "
 import { mState } from "./machines";
 import { tx } from "./i18n";
 
-export type TabId = "home" | "history" | "machines" | "services" | "health" | "fail2ban" | "virtualization" | "dns" | "backups" | "diagrams" | "settings";
+export type TabId = "home" | "history" | "machines" | "services" | "health" | "security" | "virtualization" | "dns" | "backups" | "diagrams" | "settings";
 
 export interface Attention {
   level: "crit" | "warn";

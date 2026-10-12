@@ -9,6 +9,7 @@ Les textes des journaux viennent d'attaquants : seuls des nombres, des IP et des
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 
@@ -31,6 +32,19 @@ def _body(raw: bytes, ctype: str) -> dict:
     if not isinstance(got, dict):
         raise ConnectorError("réponse MCP inattendue")
     return got
+
+
+def cluster(c: dict) -> dict:
+    """An active threat (LogviewR ThreatCluster) reduced to safe fields: kind, IPs, jails, numbers and the AS number. The whois
+    organisation name is left out: free text written by third parties."""
+    ips = [str(i) for i in c.get("ips") or [] if isinstance(i, str) and re.fullmatch(r"[0-9a-fA-F:.]{3,45}", i)]
+    return {"key": str(c.get("clusterKey") or "")[:80], "kind": c.get("kind") if c.get("kind") in ("ip_escalation", "asn_campaign") else "autre",
+            "ips": ips[:20], "ip_count": len(ips), "jails": [str(j)[:40] for j in c.get("jails") or [] if isinstance(j, str)][:10],
+            "bans": c.get("totalBans") if isinstance(c.get("totalBans"), int) else None,
+            "first": c.get("firstSeen") if isinstance(c.get("firstSeen"), (int, float)) else None,
+            "last": c.get("lastSeen") if isinstance(c.get("lastSeen"), (int, float)) else None,
+            "severity": c.get("severity") if isinstance(c.get("severity"), (int, float)) else None,
+            "asn": str(c["asn"])[:20] if isinstance(c.get("asn"), (str, int)) and re.fullmatch(r"(AS)?\d{1,10}", str(c["asn"])) else None}
 
 
 class LogviewR(Connector):
@@ -109,8 +123,9 @@ class LogviewR(Connector):
         bans = [{"ip": e.get("ip"), "jail": e.get("jail"), "time": e.get("timeofban"), "failures": e.get("failures")}
                 for e in events if isinstance(e, dict)]
         lists = threats if isinstance(threats, list) else [v for v in (threats or {}).values() if isinstance(v, list)] if isinstance(threats, dict) else []
+        raw = lists if lists and isinstance(threats, list) else lists[0] if lists else []
         return {"jails": [n for n in names if n], "bans_24h": len(bans), "bans": bans[:200],
-                "threat_count": len(lists if lists and isinstance(threats, list) else lists[0]) if lists else 0,
+                "threat_count": len(raw), "threats": [cluster(c) for c in raw if isinstance(c, dict)][:50],
                 "metrics": metrics if isinstance(metrics, dict) else None,
                 "log_sources": len(sources)}
 

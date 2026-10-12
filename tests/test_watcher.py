@@ -97,5 +97,25 @@ class Virt(unittest.TestCase):
             self.assertIn(k, __import__("alerts").KINDS)
 
 
+class Threats(unittest.TestCase):
+    """« New threat » (LogviewR): the first reading is the reference, then one event per new cluster."""
+
+    @staticmethod
+    def data(*keys, ok=True):
+        return {"security": [{"name": "lv", "ok": ok, "threats": [{"key": k, "kind": "ip_escalation", "ips": ["203.0.113.5"], "ip_count": 1,
+                                                                    "jails": ["sshd", "nginx"], "bans": 4} for k in keys]}]}
+
+    def test_reference_puis_nouvelle(self):
+        ev, known = watcher.diff_threats(None, watcher.threat_snaps(self.data("a")))
+        self.assertEqual(ev, [])
+        ev, known = watcher.diff_threats(known, watcher.threat_snaps(self.data("a", "b")))
+        self.assertEqual([(e["kind"], e["label"], e["target"]) for e in ev], [("menace", "203.0.113.5", "sshd, nginx")])
+        self.assertIn("4 bannissement(s)", ev[0]["detail"])
+        self.assertEqual(watcher.diff_threats(known, watcher.threat_snaps(self.data("b")))[0], [])
+        self.assertIsNone(watcher.threat_snaps(self.data("c", ok=False)))   # LogviewR not read: known threats kept
+        self.assertEqual(watcher.diff_threats(known, None), ([], known))
+        self.assertIn("menace", __import__("alerts").KINDS)
+
+
 if __name__ == "__main__":
     unittest.main()
