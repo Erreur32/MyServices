@@ -232,39 +232,30 @@ class Synology(StatusConnector):
 
 
 class UniFi(StatusConnector):
-    """UniFi Network (API d'intégration 9.x) sur une console UniFi OS (UCG, UDM, Cloud Key) ou en Docker (Network Application, port 8443) :
-    appareils en ligne ou non, mises à jour, nombre de clients. Clé d'API (en-tête X-API-KEY)."""
+    """UniFi Network sur une console UniFi OS (UCG, UDM, UX, Cloud Key, UniFi OS Server) : API d'intégration, clé d'API (en-tête X-API-KEY).
+    Appareils en ligne ou non, mises à jour, clients. La Network Application seule (Docker, port 8443) n'a pas de clé d'API : non gérée ici."""
     type = "unifi"
     label = "UniFi Network"
     images = ("linuxserver/unifi-network-application", "jacobalberty/unifi")
     fields = (
-        Field("url", "Adresse du contrôleur", "url", required=True, help="https://<IP> (console UniFi OS) ou https://<IP>:8443 (Docker)"),
-        Field("api_key", "Clé d'API", "password", required=True, secret=True, help="UniFi Network → Paramètres → Intégrations → créer une clé d'API"),
+        Field("url", "Adresse de la console UniFi OS", "url", required=True, help="https://<IP> (UniFi OS Server : https://<IP>:11443)"),
+        Field("api_key", "Clé d'API", "password", required=True, secret=True, help="Console UniFi OS → Paramètres → Control Plane → Intégrations → créer une clé d'API"),
         VERIFY,
     )
     setup_fields = ("url", "api_key")
-    guide = ("UniFi Network 9.0 ou plus. Console UniFi OS (UCG, UDM) : Paramètres → Control Plane → Intégrations ; Docker : Paramètres → Intégrations. « Create API Key ».",
-             "Adresse : https://<IP> pour une console, https://<IP>:8443 pour le Docker. Certificat auto-signé : décocher « Vérifier le certificat ».",
-             "Pour la lecture par MynetworK (clients, appareils), le connecteur MynetworK reste à privilégier s'il est déjà relié.")
-    BASES = ("/proxy/network/integration/v1", "/integration/v1")   # console UniFi OS, puis Network Application seule (Docker)
+    guide = ("Console UniFi OS (UCG, UDM…) : Paramètres → Control Plane → Intégrations → « Create API Key ». La clé a les droits de l'administrateur qui la crée : la créer avec un compte en lecture seule.",
+             "Certificat auto-signé : décocher « Vérifier le certificat ».",
+             "Contrôleur UniFi en Docker (Network Application seule) : pas de clé d'API, seulement un compte et un mot de passe ; pas encore géré par ce connecteur.")
+    BASE = "/proxy/network/integration/v1"
     DOWN = ("OFFLINE", "CONNECTION_INTERRUPTED", "ISOLATED")
     CLIENT_PAGES = 5   # 200 clients per page
 
-    def _info(self, h: dict) -> tuple[str, dict]:
-        for base in self.BASES:
-            try:
-                info = self.get(f"{base}/info", h)
-            except ConnectorError as e:
-                if str(e).startswith("HTTP 404"):
-                    continue
-                raise
-            if isinstance(info, dict):
-                return base, info
-        raise ConnectorError("API d'intégration introuvable : UniFi Network 9.0 ou plus requis (https://<IP> pour une console, :8443 pour le Docker)")
-
     def collect(self) -> dict:
         h = {"X-API-KEY": str(self.conf.get("api_key", ""))}
-        base, info = self._info(h)
+        base = self.BASE
+        info = self.get(f"{base}/info", h)
+        if not isinstance(info, dict):
+            raise ConnectorError("réponse inattendue : l'adresse ne mène pas à une console UniFi OS (API d'intégration de UniFi Network 9.0 ou plus)")
         sites = rows(self.get(f"{base}/sites", h))
         devs, clients, off, upd = 0, 0, [], []
         seen = {"clients": [], "devices": []}   # for the matching layer (IP / MAC), like MynetworK's UniFi lists
@@ -292,11 +283,6 @@ class UniFi(StatusConnector):
             facts.append(fact("Mises à jour", len(upd), "warn"))
         return {**self.out(info.get("applicationVersion"), facts, [f"appareil « {n} » hors ligne" for n in off] + [f"appareil « {n} » : mise à jour disponible" for n in upd]),
                 "unifi": seen}
-
-    @classmethod
-    def discover(cls, image: str, ip: str, ports: list) -> dict | None:
-        port = next((h for h, c in ports if c == 8443), None)
-        return {"url": f"https://{ip}:{port}", "verify_tls": False} if port else None
 
 
 class Tailscale(StatusConnector):
