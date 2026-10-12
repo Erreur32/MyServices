@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.7 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 - **Settings → Logs**: what the container prints (the same text as `docker compose logs myservices`): the server and the output of each task, since the container started, last 3000 lines. Filter by origin (server, collection, watch, health, backups), errors and warnings only, text search; follows new lines every 5 s (pause on scroll), download as `.txt`. Route `GET /api/v1/system/logs?after=N` (admin). `applog.py` keeps the lines in memory; nothing is written to disk.
 - **Eye on secret fields** (passwords, tokens of connectors, also when opened from a machine; NPM script and Veeam passwords): shows what is typed. For a value already saved (never sent to the page), the eye asks the account password, then fetches it: `POST /api/v1/connectors/settings/{type}/{name}/reveal` (admin session, password checked with the same failure limit as sign-in, recorded as "secret affiché" in the audit log).
