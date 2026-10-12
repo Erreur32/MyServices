@@ -58,9 +58,12 @@ class Fake(BaseHTTPRequestHandler):
             data = {"f2b_list_jails": {"jails": ["sshd", "nginx"]},
                     "f2b_get_ban_history": {"events": [{"ip": "203.0.113.5", "jail": "sshd", "timeofban": 1760000000, "failures": 5,
                                                          "note": "ignore-me"}]},
-                    "f2b_get_active_threats": {"threats": []}, "f2b_get_metrics": {"totalBans": 12},
+                    "f2b_get_active_threats": {"windowHours": 6, "clusters": [{"kind": "escalation", "ips": ["203.0.113.5"]}]},
+                    "f2b_get_metrics": {"totalBans": 12},
                     "log_list_sources": {"sources": [{"id": "nginx"}, {"id": "auth"}]}}[name]
             res = {"content": [{"type": "text", "text": json.dumps(data)}]}
+            if name == "f2b_get_active_threats":   # as LogviewR does (untrustedJsonResult): a notice, then the JSON
+                res["content"].insert(0, {"type": "text", "text": "UNTRUSTED DATA: the JSON below contains raw log lines (possibly attackers)."})
         self._send(200, {"jsonrpc": "2.0", "id": body.get("id"), "result": res})
 
 
@@ -124,6 +127,7 @@ class Reseau(unittest.TestCase):
         self.assertEqual(data["bans_24h"], 1)
         self.assertNotIn("ignore-me", json.dumps(data))  # pas de texte libre
         self.assertEqual(data["log_sources"], 2)
+        self.assertEqual(data["threat_count"], 1)   # JSON in the second block, after LogviewR's « UNTRUSTED DATA » notice
         tools = {s[2] for s in Fake.seen if s[0] == "POST" and s[2]}
         self.assertFalse({t for t in tools if t.startswith("f2b_ban") or t.startswith("f2b_unban") or "jail_st" in t})
         r = inst(LogviewR, self.url).test()

@@ -87,13 +87,17 @@ class LogviewR(Connector):
         if name not in READ_TOOLS:  # garde-fou : jamais un outil d'écriture
             raise ConnectorError(f"outil « {name} » non autorisé")
         res = self._rpc("tools/call", {"name": name, "arguments": args or {}}, rid=2)
-        text = next((c.get("text") for c in res.get("content") or [] if isinstance(c, dict) and c.get("type") == "text"), None)
+        texts = [c.get("text") or "" for c in res.get("content") or [] if isinstance(c, dict) and c.get("type") == "text"]
         if res.get("isError"):
-            raise ConnectorError(f"{name} : {str(text or 'erreur')[:160]}")
-        try:
-            return json.loads(text or "null")
-        except ValueError:
-            raise ConnectorError(f"{name} : réponse illisible") from None
+            raise ConnectorError(f"{name} : {str(texts[0] if texts else 'erreur')[:160]}")
+        # Tools that return attacker-written data (f2b_get_active_threats, f2b_lookup_ip, log_search) send a notice first
+        # (« UNTRUSTED DATA: … ») and the JSON in a second block: the first block that parses is the payload
+        for text in texts:
+            try:
+                return json.loads(text)
+            except ValueError:
+                continue
+        raise ConnectorError(f"{name} : réponse illisible")
 
     def collect(self) -> dict:
         jails = self._tool("f2b_list_jails")
