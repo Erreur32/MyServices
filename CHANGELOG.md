@@ -11,6 +11,16 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.19 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Changed
+
+- Appearance (theme, header logo, language, page width) moved from Settings -> Application to the user profile, so read-only
+  accounts can set it too; the old #settings/look link opens the profile. Wider profile page: password and sessions on the
+  left, appearance on the right on large screens.
+
 ## v0.10.18 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
