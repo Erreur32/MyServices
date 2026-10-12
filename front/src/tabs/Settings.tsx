@@ -1,14 +1,10 @@
 // Réglages (admins) : une section à la fois, menu à gauche (en haut sur mobile). Comptes : son mot de passe,
 // les comptes (ajout, rôle, activation, nouveau mot de passe, suppression) et le journal des actions.
-// Apparence : thème et largeur de la page (« Page width » de GpuViewR), retenus par le navigateur.
 // Menu en quatre groupes (Données, Surveillance, Accès et sécurité, Application). Autres sections : un fichier chacune dans tabs/.
-import { ArrowRight, Bell, Eye, FileText, HardDrive, Image, Info, KeyRound, Languages, LifeBuoy, Moon, MoveHorizontal, Palette, Plug, Plus, Radar, RotateCcw, ScrollText, Server, Settings2, ShieldCheck, Sun, Timer, Trash2, type LucideIcon, UserCheck, UserPlus, UserRound, Users, UserX, Webhook } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowRight, Bell, Eye, FileText, HardDrive, Info, KeyRound, LifeBuoy, Plug, Plus, Radar, ScrollText, Server, Settings2, ShieldCheck, Timer, Trash2, type LucideIcon, UserCheck, UserPlus, UserRound, Users, UserX, Webhook } from "lucide-react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { dateTime } from "../lib/format";
-import { CONTENT_WIDTH, setHeaderLogo, useHeaderLogo, type HeaderLogo, type Theme } from "../theme";
-import { LANG, setLang, type Lang } from "../lib/i18n";
-import { Flag } from "../components/Flag";
 import type { User } from "../types";
 import { Badge, Card, Count, Dim } from "../components/ui";
 import { Field, NoteLine } from "../components/form";
@@ -43,17 +39,13 @@ const GROUPS: { label: string; sections: { id: string; label: string; icon: Luci
     { id: "accounts", label: tx("Comptes"), icon: Users }, { id: "ssh", label: tx("Clé SSH"), icon: KeyRound },
     { id: "audit", label: tx("Journal d'audit"), icon: ScrollText }, { id: "api", label: tx("API et MCP"), icon: Webhook },
   ] },
-  { label: tx("Application"), sections: [{ id: "look", label: tx("Apparence"), icon: Palette }, { id: "system", label: tx("Sauvegarde et infos"), icon: Settings2 },
+  { label: tx("Application"), sections: [{ id: "system", label: tx("Sauvegarde et infos"), icon: Settings2 },
     { id: "logs", label: tx("Journaux"), icon: FileText },
     { id: "help", label: tx("Aide"), icon: LifeBuoy }, { id: "about", label: tx("À propos"), icon: Info }] },
 ];
 const SECTIONS = GROUPS.flatMap((g) => g.sections);
 
 
-const LOGO_OPTIONS: IconOption<HeaderLogo>[] = [
-  { value: "favicon", label: tx("Favicon (grille sur fond)"), hint: tx("Le favicon tel quel : grille de services sur un carré sombre"), icon: <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="h-9 w-9" /> },
-  { value: "grid", label: tx("Grille sans fond"), hint: tx("La même grille, sans le carré sombre : lisible sur clair comme sur sombre"), icon: <img src={`${import.meta.env.BASE_URL}logo-grid.svg`} alt="" className="h-9 w-9" /> },
-];
 
 const ROLE: Record<User["role"], string> = { admin: "admin", viewer: tx("lecture seule") };
 const ROLE_CHOICE: IconOption<User["role"]>[] = [
@@ -61,17 +53,10 @@ const ROLE_CHOICE: IconOption<User["role"]>[] = [
   { value: "admin", label: tx("Admin"), hint: tx("Tout, réglages compris"), icon: <ShieldCheck size={26} className="text-link" aria-hidden /> },
 ];
 
-/** Réglages d'apparence tenus par App (appliqués à toute la page). */
-export interface Look {
-  theme: Theme;
-  setTheme: (t: Theme) => void;
-  width: number;
-  setWidth: (px: number) => void;
-}
-
-export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
+export function Settings({ snap }: { snap: Snapshot }) {
   const [section, setSection] = useState(() => {
     const s = location.hash.split("/")[1]; // lien direct : #settings/<section> (menu du compte)
+    if (s === "look") { location.hash = "profile"; }   // Appearance moved to the profile (old link)
     const wanted = s === "sources" ? "connectors" : s === "agents" ? "machines" : s || lastSettingsSection(); // « sources » : ancien lien, fondu dans Connecteurs
     return SECTIONS.some((x) => x.id === wanted) ? wanted : "accounts";
   });
@@ -97,68 +82,8 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
         ))}
       </nav>
       <div className="min-w-0 flex-1">
-        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <NotificationsHub /> : section === "connectors" ? <Connectors snap={snap} /> : section === "machines" ? <MachinesSection snap={snap} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings snap={snap} /> : section === "help" ? <Help /> : section === "about" ? <AboutSettings /> : section === "audit" ? <AuditLog /> : section === "logs" ? <Logs /> : section === "backups" ? <BackupsSettings machines={snap.data.machine_list} /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} snap={snap} /> : <SystemSettings part="system" snap={snap} />}
+        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "alerts" ? <NotificationsHub /> : section === "connectors" ? <Connectors snap={snap} /> : section === "machines" ? <MachinesSection snap={snap} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings snap={snap} /> : section === "help" ? <Help /> : section === "about" ? <AboutSettings /> : section === "audit" ? <AuditLog /> : section === "logs" ? <Logs /> : section === "backups" ? <BackupsSettings machines={snap.data.machine_list} /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} snap={snap} /> : <SystemSettings part="system" snap={snap} />}
       </div>
-    </div>
-  );
-}
-
-function Appearance({ look }: { look: Look }) {
-  const themes: { id: Theme; label: string; icon: ReactNode; swatch: string }[] = [
-    { id: "dark", label: tx("Sombre"), icon: <Moon size={16} />, swatch: "bg-[#0c0e14]" },
-    { id: "light", label: tx("Clair"), icon: <Sun size={16} />, swatch: "bg-[#f4f6fa]" },
-  ];
-  // Le dernier cran (max + un pas) = pleine largeur, stockée 0
-  const fullNotch = CONTENT_WIDTH.max + CONTENT_WIDTH.step;
-  const full = look.width === CONTENT_WIDTH.full;
-  return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <h2 className="mb-3 flex items-center gap-2 font-bold"><Palette size={16} aria-hidden />{tx("Thème")}</h2>
-        <div className="flex flex-wrap gap-2">
-          {themes.map((t) => (
-            <button key={t.id} type="button" onClick={() => look.setTheme(t.id)} aria-pressed={look.theme === t.id}
-              className={`flex w-40 items-center gap-3 rounded-xl border p-3 text-left text-sm font-semibold ${look.theme === t.id ? "border-link bg-link/10 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`}>
-              <span className={`h-8 w-8 rounded-lg border border-line ${t.swatch}`} />
-              <span className="inline-flex items-center gap-1.5">{t.icon}{t.label}</span>
-            </button>
-          ))}
-        </div>
-      </Card>
-      <Card>
-        <h2 className="mb-1 flex items-center gap-2 font-bold"><Image size={16} aria-hidden />{tx("Logo de l'en-tête")}</h2>
-        <p className="mb-3 text-sm text-muted">{tx("L'icône affichée avant le titre. Le changement est immédiat. Le favicon de l'onglet du navigateur ne change pas.")}</p>
-        <IconChoice label={tx("Logo de l'en-tête")} value={useHeaderLogo()} onPick={setHeaderLogo} options={LOGO_OPTIONS} />
-      </Card>
-      <Card>
-        <h2 className="mb-3 flex items-center gap-2 font-bold"><Languages size={16} aria-hidden />{tx("Langue")}</h2>
-        <div className="flex flex-wrap gap-2">
-          {([["fr", "Français"], ["en", "English"]] as [Lang, string][]).map(([l, label]) => (
-            <button key={l} type="button" onClick={() => l !== LANG && setLang(l)} aria-pressed={LANG === l}
-              className={`flex w-44 items-center gap-3 rounded-xl border p-3 text-left text-sm font-semibold ${LANG === l ? "border-link bg-link/10 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`}>
-              <Flag lang={l} className="h-6 w-9" />{label}
-            </button>
-          ))}
-        </div>
-      </Card>
-      <Card>
-        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="inline-flex items-center gap-2 font-bold"><MoveHorizontal size={16} />{tx("Largeur de la page")}</h2>
-          <button type="button" className={quiet} onClick={() => look.setWidth(CONTENT_WIDTH.default)} disabled={look.width === CONTENT_WIDTH.default}>
-            <RotateCcw size={14} />{tx("Par défaut")}
-          </button>
-        </div>
-        <p className="mb-3 text-sm text-muted">
-          {tx("Largeur maximale du contenu (en-tête, onglets, pages). Le cran le plus à droite utilise toute la largeur de l'écran.")}
-        </p>
-        <div className="flex items-center gap-4">
-          <input type="range" className="range flex-1" min={CONTENT_WIDTH.min} max={fullNotch} step={CONTENT_WIDTH.step}
-            value={full ? fullNotch : look.width} aria-label={tx("Largeur de la page")}
-            onChange={(e) => { const px = Number(e.target.value); look.setWidth(px >= fullNotch ? CONTENT_WIDTH.full : px); }} />
-          <span className="w-32 whitespace-nowrap text-right font-mono text-sm tabular-nums">{full ? tx("Pleine largeur") : `${look.width} px`}</span>
-        </div>
-      </Card>
-      <p className="text-xs text-dim">{tx("Retenus par ce navigateur seulement.")}</p>
     </div>
   );
 }

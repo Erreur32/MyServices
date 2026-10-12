@@ -1,9 +1,10 @@
-// Profil (tout compte, admin ou lecture seule) : changer son mot de passe, voir ses sessions ouvertes, fermer celles des autres appareils.
+// Profil (tout compte, admin ou lecture seule) : apparence de la page, changer son mot de passe, voir ses sessions ouvertes, fermer celles des autres appareils.
 // Affiché par #profile (menu du compte), hors des onglets et des Réglages : un compte en lecture seule n'a pas accès aux Réglages.
 import { KeyRound, LogOut, MonitorSmartphone } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Badge, Card, Count, Dim } from "../components/ui";
+import { Appearance, type Look } from "../components/Appearance";
 import { Field, NoteLine } from "../components/form";
 import { PasswordRules } from "../components/PasswordRules";
 import { dateTime } from "../lib/format";
@@ -13,9 +14,9 @@ import { checkPassword, okField, PASSWORD_MIN } from "../lib/password";
 
 interface MySession { created: number; expires: number; ip: string | null; current: boolean }
 
-export function Profile({ username, role }: { username: string; role: "admin" | "viewer" }) {
+export function Profile({ username, role, look }: { username: string; role: "admin" | "viewer"; look: Look }) {
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4 py-4">
+    <div className="mx-auto flex max-w-6xl flex-col gap-4 py-4">
       <header className="flex items-center gap-4 rounded-2xl border border-line bg-card p-4">
         <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-link/20 text-xl font-bold uppercase text-link" aria-hidden>{username.slice(0, 1)}</span>
         <div className="min-w-0">
@@ -23,8 +24,10 @@ export function Profile({ username, role }: { username: string; role: "admin" | 
           <div className="mt-0.5 flex items-center gap-2 text-sm text-dim"><Badge tone="off">{role === "admin" ? "admin" : tx("lecture seule")}</Badge>{tx("Mon profil")}</div>
         </div>
       </header>
-      <MyPassword />
-      <Sessions />
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <div className="flex flex-col gap-4"><MyPassword /><Sessions /></div>
+        <section aria-label={tx("Apparence")}><h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-widest text-dim">{tx("Apparence")}</h2><Appearance look={look} /></section>
+      </div>
     </div>
   );
 }

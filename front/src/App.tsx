@@ -117,7 +117,7 @@ export default function App() {
           <a href="#" className="group mt-4 inline-flex items-center gap-2 rounded-full border border-line bg-card py-1.5 pl-2.5 pr-4 text-sm font-semibold text-muted transition-colors hover:border-link hover:text-txt">
             <ArrowLeft size={16} aria-hidden className="transition-transform group-hover:-translate-x-0.5" />{tx("Retour")}
           </a>
-          <Profile username={snap.me.username} role={snap.me.role} />
+          <Profile username={snap.me.username} role={snap.me.role} look={{ theme, setTheme, width, setWidth }} />
         </>
       ) : <Tabs tab={current} snap={snap} badges={badges} onSelect={go} />}
       {!profile && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} />}
@@ -128,7 +128,7 @@ export default function App() {
       {current === "dns" && <Dns key={pending.tab === "dns" ? pending.n : 0} snap={snap} initial={initialFor("dns")} />}
       {current === "backups" && <Backups key={pending.tab === "backups" ? pending.n : 0} snap={snap} initial={initialFor("backups")} />}
       {current === "diagrams" && <DiagramsTab admin={snap.me.role === "admin"} />}
-      {current === "settings" && <Settings key={hash} snap={snap} look={{ theme, setTheme, width, setWidth }} />}
+      {current === "settings" && <Settings key={hash} snap={snap} />}
       {current === "fail2ban" && <Fail2ban snap={snap} />}
       {current === "virtualization" && <Virtualization snap={snap} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
       </div>
