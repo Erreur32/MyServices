@@ -43,6 +43,7 @@ KINDS = {
     "connecteur_version": ("Version de service non testée", "connecteurs"),
     "perime": ("Collecte en retard", "connecteurs"),
     "nouveau": ("Nouveau service", "inventaire"), "disparu": ("Service disparu", "inventaire"),
+    "appareil": ("Nouvel appareil sur le réseau", "inventaire"),
 }
 GROUPS = {"services": "Services", "machines": "Machines", "sante": "Santé", "securite": "Sécurité / DNS",
           "connecteurs": "Connecteurs et collecte", "inventaire": "Inventaire"}
@@ -60,7 +61,7 @@ PRESETS = [
     {"name": "Santé critique", "kinds": ["health_crit"], "resolved": True, "cooldown_min": 360},
     {"name": "Sécurité et DNS", "kinds": ["securite", "ui_hors", "dns"], "resolved": False, "cooldown_min": 1440},
     {"name": "Connecteurs et collecte", "kinds": ["connecteur", "connecteur_version", "perime"], "resolved": True, "cooldown_min": 120},
-    {"name": "Inventaire (nouveaux / disparus)", "kinds": ["nouveau", "disparu"], "resolved": False, "cooldown_min": 0},
+    {"name": "Inventaire (nouveaux / disparus)", "kinds": ["nouveau", "disparu", "appareil"], "resolved": False, "cooldown_min": 0},
 ]
 
 SCHEMA = """

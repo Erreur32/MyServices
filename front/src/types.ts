@@ -582,7 +582,7 @@ export interface SystemState {
 
 /** Connecteurs d'infrastructure : état de l'instance, puis les données propres à chaque type (data.json) */
 export interface InfraConnector { connector: string; name: string; label: string; ok: boolean; stale: boolean; message: string; version?: string | null; url?: string | null }
-export interface NetDevice { ip: string; mac?: string | null; hostname?: string | null; vendor?: string | null; status: string; ping_ms?: number | null; last_seen?: string | null; ports: number[] }
+export interface NetDevice { ip: string; mac?: string | null; hostname?: string | null; vendor?: string | null; status: string; ping_ms?: number | null; first_seen?: string | null; last_seen?: string | null; ports: number[] }
 /** MynetworK : inventaire du réseau (scanner, UniFi) */
 export interface NetworkConnector extends InfraConnector {
   devices?: NetDevice[]; online?: number;

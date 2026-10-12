@@ -1,11 +1,11 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { ArrowUpCircle, Boxes, Bug, Check, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
+import { ArrowUpCircle, Boxes, Plus, Bug, Check, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { read, type Snapshot } from "../api";
+import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
-import { dur, ipNum, splitHostName } from "../lib/format";
+import { dateTime, dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
-import type { HealthHost, Machine, MachineLinks, NetScan, Unlinked } from "../types";
+import type { HealthHost, Machine, MachineLinks, NetDevice, NetScan, Unlinked } from "../types";
 import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, osOfMachine, type MState, type OsKind } from "../lib/machines";
 import { OsGlyph } from "../components/OsGlyph";
 import { shortOs } from "../lib/osName";
@@ -15,7 +15,8 @@ import { LEVEL } from "../lib/level";
 import { rolesOf } from "../lib/ssh";
 import { SshAccess } from "../components/ssh";
 import { DetailRow, DetailSection } from "../components/DetailSection";
-import { OPEN_DETAIL, OPEN_ROW } from "../lib/forms";
+import { OPEN_DETAIL, OPEN_ROW, quiet } from "../lib/forms";
+import { rereadMachines } from "../lib/scan";
 import { watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
@@ -273,7 +274,7 @@ function HealthRows({ h }: { h: HealthHost }) {
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, from, watch, servers }: { m: Machine; h?: HealthHost; mac?: string; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode }) {
+function Detail({ m, h, mac, net, from, watch, servers }: { m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode }) {
   const roles = rolesOf(m.role), i = m.info, hw = hardwareRows(m.agent?.hardware), s = m.ssh;
   const [stTone, stLabel, stTip] = MSTATE[mState(m)];
   const vhosts = (i?.vhosts ?? []) as { port?: number; names?: string[] }[];
@@ -287,6 +288,8 @@ function Detail({ m, h, mac, from, watch, servers }: { m: Machine; h?: HealthHos
         <Row k={tx("État")}><Badge tone={stTone} title={stTip}>{stLabel}</Badge></Row>
         <Row k={tx("Rôle")}>{roles.length ? <span className="flex flex-wrap gap-1">{roles.map((t) => <Badge key={t} tone="off">{t}</Badge>)}</span> : undefined}</Row>
         <Row k="MAC">{mac && <span className="font-mono">{mac}</span>}</Row>
+        <Row k={tx("Ports ouverts")}>{net?.ports.length ? <span className="font-mono" title={tx("Vus par le scanner de MynetworK")}>{net.ports.join(", ")}</span> : undefined}</Row>
+        <Row k={tx("Sur le réseau")}>{net?.first_seen ? <span title={tx("Vue par MynetworK")}>{tx("depuis le {0}", dateTime(net.first_seen))}{net.last_seen && <Dim> · {tx("vue le {0}", dateTime(net.last_seen))}</Dim>}{net.ping_ms != null && <Dim> · {Math.round(net.ping_ms)} ms</Dim>}</span> : undefined}</Row>
         <Row k={tx("Autres noms")}>{otherNames(m).join(", ") || undefined}</Row>
         <Row k="Proxmox">{m.links?.guest || m.links?.hypervisor ? <Virt links={m.links} /> : undefined}</Row>
         <Row k={tx("Vue par")}>{m.links?.sources.length ? <SeenBy links={m.links} /> : undefined}</Row>
@@ -396,6 +399,21 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
     for (const l of g.values()) l.sort((a, b) => (a.ip && b.ip ? ipNum(a.ip) - ipNum(b.ip) : (a.name ?? "").localeCompare(b.name ?? "")));
     return [...g.entries()];
   }, [untracked]);
+  // « Suivre » an untracked device: added like a machine found by the network search, then read and checked (admin only)
+  const [following, setFollowing] = useState<Record<string, "busy" | "done" | string>>({});
+  const follow = async (d: Unlinked) => {
+    if (!d.ip) return;
+    const ip = d.ip;
+    setFollowing((f) => ({ ...f, [ip]: "busy" }));
+    try {
+      await send("PUT", `machines/settings/${ip}`, { machine: { name: (d.name || ip).slice(0, 60), role: "" }, extra: [] });
+      setFollowing((f) => ({ ...f, [ip]: "done" }));
+      await rereadMachines([ip]).catch(() => undefined);
+    } catch (e) {
+      if (e instanceof LoginRequired) location.replace(LOGIN);
+      else setFollowing((f) => ({ ...f, [ip]: (e as Error).message }));
+    }
+  };
   const macOf = (m: Machine) => { const d = seen.get(m.ip); const mac = d?.mac || m.links?.mac, vendor = d?.vendor || m.links?.vendor; return mac || vendor ? [mac, vendor].filter(Boolean).join(" · ") : undefined; };
   const name = (m: Machine) => (
     <button type="button" onClick={() => onMachine(m.ip)} className="text-left" title={tx("Voir ses services")}>
@@ -434,12 +452,16 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                     {d.ip && <span className="shrink-0 font-mono text-xs">{d.ip}</span>}<span className="min-w-0 truncate">{d.name ?? ""}</span>
                     {d.vmid != null && <Dim>{d.type === "lxc" ? "LXC" : "VM"} {d.vmid}{d.node ? ` · ${d.node}` : ""}</Dim>}
                     {d.mac && <span className="hidden shrink-0 font-mono text-[11px] text-dim 2xl:inline">{d.mac}</span>}
+                    {d.ip && (following[d.ip] === "done" ? <Badge tone="ok">{tx("suivie")}</Badge>
+                      : <button type="button" className={`${quiet} ml-auto shrink-0 px-2 py-0.5 text-xs`} disabled={following[d.ip] === "busy"} onClick={() => void follow(d)}
+                          title={following[d.ip] && following[d.ip] !== "busy" ? following[d.ip] : tx("Ajouter aux machines suivies (relevé et santé lancés)")}>
+                          <Plus size={12} aria-hidden />{following[d.ip] && following[d.ip] !== "busy" ? <span className="text-bad">{tx("refusé")}</span> : tx("Suivre")}</button>)}
                   </li>
                 ))}
               </ul>
             </div>
           ))}
-          <p className="mt-2 text-xs text-dim">{tx("Pour en suivre un : Réglages → Machines, ou refaites une recherche réseau.")}</p>
+          <p className="mt-2 text-xs text-dim">{tx("« Suivre » l'ajoute aux machines (son accès SSH se règle ensuite dans Réglages → Machines).")}</p>
         </details>
       )}
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
@@ -468,7 +490,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                       <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
                     
                   </tr>
-                  {shown && <tr className={`bg-bg2/40 ${OPEN_DETAIL} ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} /></td></tr>}
+                  {shown && <tr className={`bg-bg2/40 ${OPEN_DETAIL} ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} /></td></tr>}
                 </Fragment>
               );
             })}

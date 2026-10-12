@@ -50,7 +50,7 @@ EXAMPLES = [
     {"name": "Pannes de services en direct", "kind": "events",
      "config": {"kinds": ["panne", "unhealthy", "hors_ligne", "ssh_down"], "machine": "", "match": "", "resolved": True, "cooldown_min": 0}},
     {"name": "Nouveaux et disparus (inventaire)", "kind": "events",
-     "config": {"kinds": ["nouveau", "disparu"], "machine": "", "match": "", "resolved": False, "cooldown_min": 0}},
+     "config": {"kinds": ["nouveau", "disparu", "appareil"], "machine": "", "match": "", "resolved": False, "cooldown_min": 0}},
     {"name": "Une machine : tous ses événements", "kind": "events",
      "config": {"kinds": [], "machine": "@first", "match": "", "resolved": True, "cooldown_min": 0}},   # @first : la première machine connue, à changer
 ]

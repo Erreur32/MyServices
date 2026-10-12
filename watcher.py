@@ -58,12 +58,13 @@ COLLECTOR = CFG["collector_name"] or socket.gethostname()
 
 SEVERITY = {"panne": 3, "unhealthy": 3, "perime": 3, "securite": 2, "ui_hors": 1,
             "nouveau": 1, "disparu": 1, "retabli": 0, "dns": 2,
-            "hors_ligne": 3, "ssh_down": 3, "en_ligne": 0, "ssh_ok": 0, "connecteur": 2, "connecteur_ok": 0, "connecteur_version": 1}
+            "hors_ligne": 3, "ssh_down": 3, "en_ligne": 0, "ssh_ok": 0, "connecteur": 2, "connecteur_ok": 0, "connecteur_version": 1, "appareil": 1}
 LABEL = {"panne": "🔴 Panne", "retabli": "🟢 Rétabli", "nouveau": "🆕 Nouveau", "disparu": "➖ Disparu",
          "securite": "🛡️ Sécurité", "ui_hors": "🌐 UI sans domaine", "unhealthy": "💔 Unhealthy",
          "perime": "⏱️ Données périmées", "hors_ligne": "📴 Machine hors ligne",
          "en_ligne": "📶 Machine en ligne", "ssh_down": "🔒 SSH injoignable", "ssh_ok": "🔑 SSH rétabli",
-         "dns": "🧭 DNS", "connecteur": "🔌 Connecteur en panne", "connecteur_ok": "🔌 Connecteur rétabli", "connecteur_version": "🔌 Version non testée"}
+         "dns": "🧭 DNS", "connecteur": "🔌 Connecteur en panne", "connecteur_ok": "🔌 Connecteur rétabli", "connecteur_version": "🔌 Version non testée",
+         "appareil": "📡 Nouvel appareil"}
 NPM_TYPES = {"proxy", "redirect", "dead", "stream"}  # entrées lues dans NPM (les autres : « local »)
 DNS_LABEL = {"nom": "nom DNS invalide", "absent": "ne résout sur aucun AdGuard", "ecart": "réponses différentes selon l'AdGuard",
              "hors_lan": "garde LAN mais ne résout pas vers NPM", "bloque": "bloqué par AdGuard"}
@@ -227,6 +228,33 @@ def connector_snaps(data: dict) -> dict:
             for c in data.get("connectors", [])}
 
 
+def network_snaps(data: dict) -> dict:
+    """Devices seen by the network tools (MynetworK) and not followed here, keyed by MAC (an IP handed out again by DHCP is not a new
+    device), else by IP."""
+    followed = {m["ip"] for m in data.get("machine_list", [])}
+    out = {}
+    for c in data.get("network") or []:
+        for d in c.get("devices") or []:
+            if not d.get("ip") or d["ip"] in followed:
+                continue
+            out[f'appareil:{d.get("mac") or d["ip"]}'] = {"label": d.get("hostname") or d.get("vendor") or d["ip"], "target": d["ip"],
+                                                          "detail": " · ".join(x for x in (d["ip"], d.get("mac"), d.get("vendor")) if x)}
+    return out
+
+
+def diff_network(prev: dict | None, cur: dict | None) -> tuple[list[dict], dict | None]:
+    """« New device » events and the devices to remember. cur None: no network tool read this time (cut or failing), what was known
+    is kept. prev None: first reading of a network tool, taken as the reference (no flood of « new »). Devices are never forgotten:
+    one gone from the list then back is not new again."""
+    if cur is None:
+        return [], prev
+    if prev is None:
+        return [], cur
+    ev = [{"kind": "appareil", "key": k, "label": v["label"], "machine": None, "target": v["target"],
+           "detail": f'vu par MynetworK : {v["detail"]}'} for k, v in cur.items() if k not in prev]
+    return ev, {**prev, **cur}
+
+
 def diff_connectors(prev: dict, cur: dict, pending: dict) -> tuple[list[dict], dict]:
     """Connecteur qui ne lit plus son service (API changée, compte refusé, injoignable) et retour,
     confirmés sur CONFIRM_RUNS runs. Un connecteur ajouté ou retiré n'est pas un événement."""
@@ -337,6 +365,8 @@ def main() -> int:
         events += [{"kind": "dns", "key": "_dns", "label": "AdGuard", "machine": None, "target": k, "detail": v}
                    for k, v in dcur.items() if k not in state["dns"]]
         events.sort(key=lambda e: -SEVERITY[e["kind"]])
+    nev, ncur = diff_network(state.get("network"), network_snaps(data) if data.get("network") else None)
+    events = sorted(nev + events, key=lambda e: -SEVERITY[e["kind"]])
     age = (datetime.now(timezone.utc) - datetime.fromisoformat(data["generated"])).total_seconds() / 60
     if age > STALE_MIN and not state.get("stale_reported"):
         events.insert(0, {"kind": "perime", "key": "_data", "label": "data.json", "machine": COLLECTOR,
@@ -372,7 +402,7 @@ def main() -> int:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps({"snap": cur, "pending": pending, "history": history,
                                       "machines": mcur, "mpending": mpending, "dns": dcur,
-                                      "connectors": ccur, "cpending": cpending,
+                                      "connectors": ccur, "cpending": cpending, "network": ncur,
                                       "stale_reported": age > STALE_MIN, "last_run": now},
                                      ensure_ascii=False), encoding="utf-8")
     print(f"✓ {EVENTS} · {info} · " + " · ".join(f"{v} {k}" for k, v in counts.items()), file=sys.stderr)
