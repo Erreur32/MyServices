@@ -25,7 +25,7 @@ export function visible(id: TabId, s: Snapshot): boolean {
     case "health": return !!s.health; // activée et déjà relevée
     case "backups": return !!s.backups;
     case "dns": return !!s.data.dns;
-    case "virtualization": return (s.data.virtualization ?? []).length > 0 || (s.data.containers ?? []).length > 0; // a Proxmox (SSH or connector) or a Dockhand
+    case "virtualization": return (s.data.virtualization ?? []).length > 0; // a hypervisor (Proxmox, ESXi, vCenter) or a Proxmox Backup Server ; Dockhand stays in Health
     case "fail2ban": return (s.data.security ?? []).length > 0; // affiché dès qu'un connecteur LogviewR est relié
     case "settings": return s.me.role === "admin";
     default: return true;

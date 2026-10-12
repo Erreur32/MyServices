@@ -1659,7 +1659,6 @@ export const EN: Record<string, string> = {
   "Nœud": "Node",
   "Invité": "Guest",
   "Sauvegarde": "Backup",
-  "Sauvegardes Proxmox et conteneurs": "Proxmox backups and containers",
   "Ports ouverts": "Open ports",
   "Vus par le scanner de MynetworK": "Seen by the MynetworK scanner",
   "Sur le réseau": "On the network",

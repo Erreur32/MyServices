@@ -1,13 +1,13 @@
 // Virtualisation : chaque hôte Proxmox VE (pvesh par SSH, ou connecteur), VMware ESXi (vim-cmd par SSH) ou vCenter (API) avec ses VM,
 // reliés à leur fiche Machine (couche de rapprochement), à leur sauvegarde vzdump suivie et à leurs conteneurs Docker (SSH, Dockhand).
-// Plus bas : Proxmox Backup Server et Dockhand, s'ils sont reliés. Lecture seule.
+// Plus bas : Proxmox Backup Server, s'il est relié. Dockhand (Docker seulement) reste dans Santé. Lecture seule.
 import { Box, Container, HardDrive, Monitor, Server } from "lucide-react";
 import type { Snapshot } from "../api";
 import { bytes, dur } from "../lib/format";
 import { tx } from "../lib/i18n";
 import type { BackupSet, Machine, VirtualizationConnector } from "../types";
 import { Badge, Card, Count, Dim, Empty, Fill } from "../components/ui";
-import { DockhandCard, PbsCard } from "../components/InfraCards";
+import { PbsCard } from "../components/InfraCards";
 
 const HYPERVISORS = ["proxmox", "esxi", "vcenter"];
 type Guest = NonNullable<VirtualizationConnector["guests"]>[number];
@@ -123,17 +123,15 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
 export function Virtualization({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: string) => void }) {
   const virt = snap.data.virtualization ?? [];
   const pve = virt.filter((c) => HYPERVISORS.includes(c.connector)), pbs = virt.filter((c) => c.connector === "proxmox-backup");
-  const docker = snap.data.containers ?? [];
-  if (!pve.length && !pbs.length && !docker.length) return <Empty>{tx("Aucun hyperviseur trouvé : un Proxmox VE ou un VMware ESXi lu par SSH apparaît ici tout seul, un vCenter par son connecteur.")}</Empty>;
+  if (!pve.length && !pbs.length) return <Empty>{tx("Aucun hyperviseur trouvé : un Proxmox VE ou un VMware ESXi lu par SSH apparaît ici tout seul, un vCenter par son connecteur.")}</Empty>;
   return (
     <div className="flex flex-col gap-4 py-1">
       {pve.map((c) => <Host key={`${c.via ?? "api"}/${c.name}`} c={c} snap={snap} onMachine={onMachine} />)}
-      {(pbs.length > 0 || docker.length > 0) && (
+      {pbs.length > 0 && (
         <section>
-          <h2 className="mb-2 flex items-center gap-2 border-b border-line/60 pb-1 text-xs font-bold uppercase tracking-wider text-dim"><Box size={14} aria-hidden />{tx("Sauvegardes Proxmox et conteneurs")} <Count n={pbs.length + docker.length} tone="off" /></h2>
+          <h2 className="mb-2 flex items-center gap-2 border-b border-line/60 pb-1 text-xs font-bold uppercase tracking-wider text-dim"><Box size={14} aria-hidden />{tx("Proxmox Backup Server")} <Count n={pbs.length} tone="off" /></h2>
           <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
             {pbs.map((c) => <PbsCard key={`${c.connector}/${c.name}`} c={c} />)}
-            {docker.map((c) => <DockhandCard key={`${c.connector}/${c.name}`} c={c} />)}
           </div>
         </section>
       )}
