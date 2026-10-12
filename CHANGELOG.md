@@ -11,6 +11,31 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.15 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- History tab, Availability view (switch Events / Availability, choice kept): uptime of each service (backend answers),
+  followed machine (ping) and Uptime Kuma monitor, sampled at each collection; 24 h, 7, 30 or 90 days, one coloured cell per
+  hour or per day, mean response time, worst first, filters by type, uptime band and machine, average per type. Below, the
+  certificates read by Web-Check and Uptime Kuma, closest to expiry first. Things off on purpose (disabled, paused, machine
+  off, Kuma maintenance) are not counted as downtime; a service whose machine is down is counted once, on the machine.
+- availability.py and GET /api/v1/availability?days=N: samples kept 14 days, a daily roll-up kept a year, older rows purged at
+  each collection.
+
+### Changed
+
+- Machines table: the badges of the tools that see a machine are no longer in the folded Machine column (there can be many);
+  they stay in the unfolded detail ("Seen by").
+
+### Fixed
+
+- The command to authorize the app's key for root now works on VMware ESXi: ESXi ignores ~/.ssh/authorized_keys and reads
+  /etc/ssh/keys-root/authorized_keys. The single command detects ESXi, writes there without touching the file's mode (what keeps
+  it across reboots) and saves it at once with auto-backup.sh; elsewhere it writes /root/.ssh as before.
+
 ## v0.10.14 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
