@@ -11,6 +11,16 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.20 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+
+- Virtualization tab: Dockhand cards were shown under "Proxmox backups and containers" (and the tab appeared with Dockhand
+  alone), meaningless on a setup with a vCenter and no Proxmox. Dockhand manages Docker only: its cards stay in Health. The tab
+  shows only with a hypervisor (Proxmox, ESXi, vCenter) or a Proxmox Backup Server; a VM's own Docker containers stay in its row.
+
 ## v0.10.19 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
