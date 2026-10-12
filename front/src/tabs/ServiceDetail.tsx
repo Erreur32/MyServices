@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { CHECK, KIND_NAME, checks, noIdentity } from "../lib/status";
 import type { Host } from "../types";
 import { tx } from "../lib/i18n";
+import { TONES } from "../lib/tones";
 
 type Row = [string, ReactNode, ("ok" | "warn" | "bad" | "mut" | "mono")?];
 
@@ -13,19 +14,20 @@ function yes(v: boolean | undefined, good: boolean | null): Row[2] {
 }
 const yn = (v: boolean | undefined) => (v ? "oui" : "non");
 
-function Block({ title, rows }: { title: string; rows: Row[] }) {
+function Block({ title, tone, rows }: { title: string; tone: keyof typeof TONES; rows: Row[] }) {
+  const t = TONES[tone];
   return (
-    <div className="min-w-0 rounded-xl border border-line bg-bg2/60 p-3">
-      <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-dim">{title}</h4>
-      <dl className="grid grid-cols-[minmax(90px,auto)_1fr] gap-x-3 gap-y-1 text-sm">
+    <section className={`min-w-0 overflow-hidden rounded-lg border border-line/60 border-l-4 ${t.box}`}>
+      <h4 className={`px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ${t.head}`}>{title}</h4>
+      <dl className="mx-3 mb-3 mt-2 grid grid-cols-[minmax(90px,auto)_1fr] overflow-hidden rounded-md text-sm">
         {rows.map(([k, v, c], i) => (
           <div key={i} className="contents">
-            <dt className="text-muted">{k}</dt>
-            <dd className={`min-w-0 break-words ${c ? CLS[c] : ""}`}>{v ?? "-"}</dd>
+            <dt className="px-2 py-1 font-semibold text-muted">{k}</dt>
+            <dd className={`min-w-0 break-words px-3 py-1 ${c ? CLS[c] : ""}`}>{v ?? "-"}</dd>
           </div>
         ))}
       </dl>
-    </div>
+    </section>
   );
 }
 
@@ -83,9 +85,9 @@ export function ServiceDetail({ r }: { r: Host }) {
   );
   return (
     <div className="grid gap-3 lg:grid-cols-3">
-      <Block title={tx("Identité")} rows={ident} />
-      <Block title={tx("Service")} rows={svc} />
-      <Block title={r.type === "local" ? tx("Réseau") : tx("Réseau & NPM")} rows={net} />
+      <Block title={tx("Identité")} tone="link" rows={ident} />
+      <Block title={tx("Service")} tone="violet" rows={svc} />
+      <Block title={r.type === "local" ? tx("Réseau") : tx("Réseau & NPM")} tone="ok" rows={net} />
     </div>
   );
 }

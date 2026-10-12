@@ -11,6 +11,7 @@ import { CHECK, CLEANUP, KIND_NAME, checks, exposure, hostName, noIdentity, stat
 import type { Host } from "../types";
 import { Badge, Cards, Dim, Empty, FilterBar, Table, Td, Th, type Tone } from "../components/ui";
 import { ServiceDetail } from "./ServiceDetail";
+import { OPEN_CARD, OPEN_DETAIL, OPEN_ROW } from "../lib/forms";
 import { tx } from "../lib/i18n";
 
 const ST_TONE: Record<string, Tone> = { ok: "ok", warn: "warn", bad: "bad", off: "off" };
@@ -141,7 +142,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
               const k = keyOfRow(r), ck = checks(r);
               return (
                 <Fragment key={k}>
-                  <tr onClick={() => toggle(k)} className={`cursor-pointer hover:bg-bg2/60 ${r.enabled ? "" : "opacity-60"}`}>
+                  <tr onClick={() => toggle(k)} className={`cursor-pointer ${open[k] ? OPEN_ROW : "hover:bg-bg2/60"} ${r.enabled ? "" : "opacity-60"}`}>
                     <Td className="text-dim">{open[k] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</Td>
                     <td className="w-10 px-1 py-2.5 align-middle"><ServiceLogo r={r} /></td>
                     <Td className="w-[230px]"><State r={r} ck={ck} /></Td>
@@ -153,7 +154,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
                     <Td className="max-w-[260px]"><Tech r={r} /></Td>
                     <Td><Access r={r} /></Td>
                   </tr>
-                  {open[k] && <tr className="bg-bg/40"><td colSpan={8} className="p-3"><ServiceDetail r={r} /></td></tr>}
+                  {open[k] && <tr className={`bg-bg/40 ${OPEN_DETAIL}`}><td colSpan={8} className="p-3"><ServiceDetail r={r} /></td></tr>}
                 </Fragment>
               );
             })}
@@ -162,7 +163,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
             {sort.sorted.map((r) => {
               const k = keyOfRow(r), [cls, label] = status(r);
               return (
-                <div key={k} className={`rounded-2xl border border-line bg-card p-3.5 ${r.enabled ? "" : "opacity-70"}`}>
+                <div key={k} className={`rounded-2xl border border-line bg-card p-3.5 ${open[k] ? OPEN_CARD : ""} ${r.enabled ? "" : "opacity-70"}`}>
                   <button type="button" onClick={() => toggle(k)} className="flex w-full items-start justify-between gap-2 text-left">
                     <ServiceLogo r={r} />
                     <span className="min-w-0 flex-1">

@@ -28,6 +28,12 @@ function Kv({ k, children }: { k: string; children: ReactNode }) {
   return <div className="flex justify-between gap-3"><span className="text-dim">{k}</span><span className="min-w-0 truncate text-right">{children}</span></div>;
 }
 
+/** IP pill (blue) and port pill (yellow, filled when `odd`) */
+const IpPill = ({ ip }: { ip: string }) =>
+  <span title={tx("Adresse IP")} className="inline-flex items-center rounded-full border border-link/35 bg-link/10 px-1.5 font-mono text-[10.5px] font-bold text-link">{ip}</span>;
+const PortPill = ({ port, odd, title }: { port: number | string; odd?: boolean; title?: string }) =>
+  <span title={title} className={`inline-flex items-center rounded-full border px-1.5 font-mono text-[10.5px] font-bold ${odd ? "border-warn bg-warn text-bg" : "border-warn/35 bg-warn/10 text-warn"}`}>:{port}</span>;
+
 const SSH_ICON = `${import.meta.env.BASE_URL}icons/ssh.svg`;
 
 /** SSH access as in the first version of the page, on one line: SSH logo and alias, then the account, IP and port pills
@@ -41,9 +47,8 @@ export function SshAccess({ alias, user, ip, port, refused, noIp, noAlias }: {
     <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap">
       <span className="inline-flex items-center gap-1 font-mono text-xs text-txt"><img src={SSH_ICON} alt="" aria-hidden={!noAlias} title={noAlias ? alias : undefined} className="h-3.5 w-3.5" />{!noAlias && alias}</span>
       <span title={tx("Compte SSH")} className="inline-flex items-center rounded-full border border-violet-400/40 bg-violet-400/10 px-1.5 text-[10.5px] font-bold text-violet-400">👤 {user || "?"}</span>
-      {!noIp && ip && <span title={tx("Adresse IP")} className="inline-flex items-center rounded-full border border-link/35 bg-link/10 px-1.5 font-mono text-[10.5px] font-bold text-link">{ip}</span>}
-      <span title={p !== 22 ? tx("Port SSH (non standard)") : tx("Port SSH")}
-        className={`inline-flex items-center rounded-full border px-1.5 font-mono text-[10.5px] font-bold ${p !== 22 ? "border-warn bg-warn text-bg" : "border-warn/35 bg-warn/10 text-warn"}`}>:{p}</span>
+      {!noIp && ip && <IpPill ip={ip} />}
+      <PortPill port={p} odd={p !== 22} title={p !== 22 ? tx("Port SSH (non standard)") : tx("Port SSH")} />
       {refused && <Badge tone="warn" title={tx("connexion refusée ou impossible")}>{tx("refusée")}</Badge>}
     </span>
   );

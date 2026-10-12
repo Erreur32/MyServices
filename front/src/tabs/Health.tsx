@@ -11,7 +11,9 @@ import { shortOs } from "../lib/osName";
 import { healthItems } from "../lib/machineWatch";
 import { Dot } from "../components/marks";
 import { OS_LABEL, OS_ORDER, osOfMachine, type OsKind } from "../lib/machines";
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Gauge } from "lucide-react";
+import { DetailRow, DetailSection } from "../components/DetailSection";
+import { OPEN_DETAIL, OPEN_ROW } from "../lib/forms";
 import { ViewToggle, useStoredView } from "../components/ViewToggle";
 import { InfraCards } from "../components/InfraCards";
 import { LEVEL } from "../lib/level";
@@ -30,7 +32,7 @@ function HostCard({ h, os }: { h: HealthHost; os?: OsInfo }) {
   const lv = levelOf(h), pb = problems(h);
   const [name, ip] = splitHostName(h.name);
   return (
-    <section className={`rounded-2xl border bg-card p-4 ${lv === "ok" ? "border-line" : lv === "warn" ? "border-warn/50" : "border-bad/50"}`}>
+    <section className={`rounded-2xl border bg-card p-4 has-[details[open]]:!border-link has-[details[open]]:ring-1 has-[details[open]]:ring-link ${lv === "ok" ? "border-line" : lv === "warn" ? "border-warn/50" : "border-bad/50"}`}>
       <div className="flex items-start justify-between gap-2">
         <div><b>{name}</b><span className="flex items-center gap-1.5 text-xs text-dim">{os?.kind && <OsGlyph kind={os.kind} name={os.name} />}{ip}{os?.name ? ` · ${shortOs(os.name)}` : h.os === "windows" ? tx(" · Windows") : ""}</span></div>
         <Level level={lv} />
@@ -47,48 +49,55 @@ function HostCard({ h, os }: { h: HealthHost; os?: OsInfo }) {
             <span className="font-semibold">{tx("Détails")}</span>
             <span className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-0.5"><ResCell h={h} what="cpu" /><ResCell h={h} what="mem" /><DiskCell h={h} /></span>
           </summary>
-          <div className="px-3 pb-3 pt-1"><HostDetails h={h} /></div>
+          <div className="px-2 pb-2 pt-1"><HostDetails h={h} /></div>
         </details>
       )}
     </section>
   );
 }
 
-/** Tout ce que la fiche d'une machine garde replié : CPU, mémoire, disques, et les repères (source, Docker, charge, température, SMART, SSH refusés) */
-function HostDetails({ h }: { h: HealthHost }) {
+/** Ce qui est à signaler, en rubrique colorée selon la gravité */
+function Problems({ h }: { h: HealthHost }) {
+  const pb = problems(h);
   return (
-    <div className="flex flex-col gap-1.5 text-xs text-muted">
-          {h.res?.available && (
-            <>
-              <div className="flex items-center gap-2">
-                <span className="w-24 truncate">{tx("CPU")}</span>
-                <Fill pct={h.res.cpu_pct ?? 0} tone={(h.res.cpu_pct ?? 0) >= 90 ? "warn" : "ok"} /><span>{Math.round(h.res.cpu_pct ?? 0)} %</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-24 truncate">{tx("Mémoire")}</span>
-                <Fill pct={h.res.mem_pct ?? 0} tone={(h.res.mem_pct ?? 0) >= 97 ? "bad" : (h.res.mem_pct ?? 0) >= 90 ? "warn" : "ok"} /><span>{Math.round(h.res.mem_pct ?? 0)} %</span>
-                {h.res.mem_total_mb != null && <Dim>· {gb(h.res.mem_used_mb)} / {gb(h.res.mem_total_mb)} {tx("Go")}</Dim>}
-              </div>
-              {!!h.res.swap_total_mb && (h.res.swap_used_mb ?? 0) > 0 && <Dim>{tx("swap")} {gb(h.res.swap_used_mb)} / {gb(h.res.swap_total_mb)} {tx("Go")}</Dim>}
-            </>
-          )}
-          {(h.disks || []).filter((d) => (d.size_gb ?? 1) >= 1).map((d) => (
-            <div key={d.mount} className="flex items-center gap-2">
-              <span className="w-24 truncate font-mono" title={d.mount}>{d.mount}</span>
-              <Fill pct={d.used_pct} tone={d.critical ? "bad" : d.warning ? "warn" : "ok"} />
-              <span>{d.used_pct} %</span>{d.avail_gb != null && <Dim>· {d.avail_gb.toFixed(0)} {tx("Go libres")}</Dim>}
-            </div>
-          ))}
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {!!h.sources?.length && <Badge tone="off" title={tx("Source de la santé : la première de la liste répond, les suivantes complètent ce qu'elle n'a pas lu")}>{tx("lu par")} {h.sources.map((s) => SOURCE_LABEL[s] ?? s).join(" + ")}</Badge>}
-            {h.docker?.accessible && <Badge tone="off">{tx("Docker ·")} {h.docker.total ?? 0} {tx("conteneurs")}</Badge>}
-            {h.load?.available && <Badge tone="off">{tx("charge")} {h.load.load_1} / {h.load.ncpu} {tx("CPU")}</Badge>}
-        {!h.temp?.available && h.temp?.virt && <Badge tone="off" title={tx("Machine virtuelle ({0}) : pas de capteur de température", h.temp.virt)}>{tx("VM")}</Badge>}
-        {h.temp?.available && <Badge tone={h.temp.celsius! >= 95 ? "bad" : h.temp.celsius! >= 85 ? "warn" : "off"} title={h.temp.source}>{tx("CPU")} {h.temp.celsius} °C</Badge>}
-            {h.smart?.accessible && <Badge tone="off">{tx("SMART ·")} {h.smart.disks.length} {tx("disque(s)")}</Badge>}
-            {h.ssh_auth?.available && <Badge tone="off">{tx("SSH refusés 24 h :")} {h.ssh_auth.failed_24h}</Badge>}
-          </div>
-    </div>
+    <DetailSection icon={pb.length ? AlertTriangle : CheckCircle2} title={tx("À signaler")} tone={pb.some(([t]) => t === "bad") ? "bad" : pb.length ? "warn" : "ok"}>
+      <div className="flex flex-col gap-1 px-2 py-1 text-sm">
+        {pb.length ? pb.map(([t, x], i) => <span key={i} className={t === "bad" ? "text-bad" : "text-warn"}>• {x}</span>) : <span className="text-ok">{tx("Rien à signaler.")}</span>}
+      </div>
+    </DetailSection>
+  );
+}
+
+/** Tout ce que la fiche d'une machine garde replié : CPU, mémoire, disques, et les repères (Docker, charge, température, SMART, SSH refusés) ;
+ *  la source de la santé à droite de la bande de titre */
+function HostDetails({ h }: { h: HealthHost }) {
+  const marks = [
+    h.docker?.accessible && <Badge key="docker" tone="off">{tx("Docker ·")} {h.docker.total ?? 0} {tx("conteneurs")}</Badge>,
+    h.load?.available && <Badge key="load" tone="off">{tx("charge")} {h.load.load_1} / {h.load.ncpu} {tx("CPU")}</Badge>,
+    !h.temp?.available && h.temp?.virt && <Badge key="vm" tone="off" title={tx("Machine virtuelle ({0}) : pas de capteur de température", h.temp.virt)}>{tx("VM")}</Badge>,
+    h.temp?.available && <Badge key="temp" tone={h.temp.celsius! >= 95 ? "bad" : h.temp.celsius! >= 85 ? "warn" : "off"} title={h.temp.source}>{tx("CPU")} {h.temp.celsius} °C</Badge>,
+    h.smart?.accessible && <Badge key="smart" tone="off">{tx("SMART ·")} {h.smart.disks.length} {tx("disque(s)")}</Badge>,
+    h.ssh_auth?.available && <Badge key="ssh" tone="off">{tx("SSH refusés 24 h :")} {h.ssh_auth.failed_24h}</Badge>,
+  ].filter(Boolean);
+  const source = !!h.sources?.length && <Badge tone="info" title={tx("Source de la santé : la première de la liste répond, les suivantes complètent ce qu'elle n'a pas lu")}>{tx("lu par")} {h.sources.map((s) => SOURCE_LABEL[s] ?? s).join(" + ")}</Badge>;
+  return (
+    <DetailSection icon={Gauge} title={tx("Ressources")} tone="link" right={source || undefined}>
+      {h.res?.available && <>
+        <DetailRow k={tx("CPU")}><Fill pct={h.res.cpu_pct ?? 0} tone={(h.res.cpu_pct ?? 0) >= 90 ? "warn" : "ok"} /><span>{Math.round(h.res.cpu_pct ?? 0)} %</span></DetailRow>
+        <DetailRow k={tx("Mémoire")}>
+          <Fill pct={h.res.mem_pct ?? 0} tone={(h.res.mem_pct ?? 0) >= 97 ? "bad" : (h.res.mem_pct ?? 0) >= 90 ? "warn" : "ok"} /><span>{Math.round(h.res.mem_pct ?? 0)} %</span>
+          {h.res.mem_total_mb != null && <Dim>· {gb(h.res.mem_used_mb)} / {gb(h.res.mem_total_mb)} {tx("Go")}</Dim>}
+        </DetailRow>
+        {!!h.res.swap_total_mb && (h.res.swap_used_mb ?? 0) > 0 && <DetailRow k={tx("swap")}>{gb(h.res.swap_used_mb)} / {gb(h.res.swap_total_mb)} {tx("Go")}</DetailRow>}
+      </>}
+      {(h.disks || []).filter((d) => (d.size_gb ?? 1) >= 1).map((d) => (
+        <DetailRow key={d.mount} k={d.mount} title={d.mount}>
+          <Fill pct={d.used_pct} tone={d.critical ? "bad" : d.warning ? "warn" : "ok"} />
+          <span>{d.used_pct} %</span>{d.avail_gb != null && <Dim>· {d.avail_gb.toFixed(0)} {tx("Go libres")}</Dim>}
+        </DetailRow>
+      ))}
+      <DetailRow k={tx("Repères")}>{marks.length ? marks : undefined}</DetailRow>
+    </DetailSection>
   );
 }
 
@@ -131,7 +140,7 @@ function HealthTable({ groups, osOf, open, toggle }: {
             const [name, ip] = splitHostName(h.name), pb = problems(h), shown = open.has(h.id);
             return (
               <Fragment key={h.id}>
-                <tr className="hover:bg-bg2/60">
+                <tr className={shown ? OPEN_ROW : "hover:bg-bg2/60"}>
                   <td className="w-8 px-1 py-2 align-middle">
                     <button type="button" onClick={() => toggle(h.id)} aria-expanded={shown} aria-label={tx("Détails de {0}", name)} title={shown ? tx("Replier") : tx("Déplier le détail")}
                       className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt">{shown ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button>
@@ -141,12 +150,9 @@ function HealthTable({ groups, osOf, open, toggle }: {
                   <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td>
                 </tr>
                 {shown && (
-                  <tr className="bg-bg2/40"><td colSpan={9} className="p-0">
-                    <div className="grid gap-x-8 gap-y-3 px-4 py-3 lg:grid-cols-2">
-                      <div className="flex flex-col gap-1 text-sm">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("À signaler")}</span>
-                        {pb.length ? pb.map(([t, x], i) => <span key={i} className={t === "bad" ? "text-bad" : "text-warn"}>• {x}</span>) : <span className="text-ok">{tx("Rien à signaler.")}</span>}
-                      </div>
+                  <tr className={`bg-bg2/40 ${OPEN_DETAIL}`}><td colSpan={9} className="p-0">
+                    <div className="grid items-start gap-3 px-3 py-3 lg:grid-cols-2">
+                      <Problems h={h} />
                       {h.reachable !== false && <HostDetails h={h} />}
                     </div>
                   </td></tr>

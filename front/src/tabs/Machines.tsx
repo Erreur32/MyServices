@@ -14,6 +14,8 @@ import { Dot } from "../components/marks";
 import { LEVEL } from "../lib/level";
 import { rolesOf } from "../lib/ssh";
 import { SshAccess } from "../components/ssh";
+import { DetailRow, DetailSection } from "../components/DetailSection";
+import { OPEN_DETAIL, OPEN_ROW } from "../lib/forms";
 import { watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
@@ -248,37 +250,17 @@ function Virt({ links }: { links?: MachineLinks | null }) {
   return null;
 }
 
-/** Teinte de chaque rubrique : bande de titre, liseré gauche, fond léger et fond de la colonne des libellés (classes écrites en entier pour Tailwind) */
-const TONES = {
-  link: { box: "border-l-link bg-link/[0.06] [&_dt]:bg-link/15", head: "bg-link/15 text-link" },
-  violet: { box: "border-l-violet-400 bg-violet-400/[0.06] [&_dt]:bg-violet-400/15", head: "bg-violet-400/15 text-violet-400" },
-  ok: { box: "border-l-ok bg-ok/[0.06] [&_dt]:bg-ok/15", head: "bg-ok/15 text-ok" },
-  warn: { box: "border-l-warn bg-warn/[0.06] [&_dt]:bg-warn/15", head: "bg-warn/15 text-warn" },
-  bad: { box: "border-l-bad bg-bad/[0.06] [&_dt]:bg-bad/15", head: "bg-bad/15 text-bad" },
-} as const;
 
-/** Rubrique du détail : bande de titre colorée avec icône et, à droite, d'où viennent les données ; puis les lignes « libellé / valeur » */
-function Section({ icon: Icon, title, tone, from, children }: { icon: typeof Info; title: string; tone: keyof typeof TONES; from?: Origin[]; children: React.ReactNode }) {
-  const t = TONES[tone];
-  return (
-    <section className={`flex flex-col overflow-hidden rounded-lg border border-line/60 border-l-4 text-xs ${t.box}`}>
-      <h4 className={`flex flex-wrap items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ${t.head}`}>
-        <Icon size={13} aria-hidden />{title}{!!from?.length && <span className="ml-auto"><From list={from} /></span>}
-      </h4>
-      <dl className="mx-3 mb-3 mt-2 flex flex-col overflow-hidden rounded-md">{children}</dl>
-    </section>
-  );
+/** Rubrique du détail, avec d'où viennent ses données à droite de la bande de titre */
+function Section({ icon, title, tone, from, children }: { icon: typeof Info; title: string; tone: "link" | "violet" | "ok" | "warn" | "bad"; from?: Origin[]; children: React.ReactNode }) {
+  return <DetailSection icon={icon} title={title} tone={tone} right={from?.length ? <From list={from} /> : undefined}>{children}</DetailSection>;
 }
-
-function Row({ k, children }: { k: string; children?: React.ReactNode }) {
-  if (children === undefined || children === null || children === false || children === "") return null;
-  return <div className="flex gap-2"><dt className="w-24 shrink-0 px-2 py-1 font-semibold text-muted">{k}</dt><dd className="min-w-0 flex-1 break-words py-1">{children}</dd></div>;
-}
+const Row = DetailRow;
 
 /** Disques, processeur et mémoire de la dernière santé, en barres */
 function HealthRows({ h }: { h: HealthHost }) {
   const bar = (label: string, pct: number | undefined, tone: "ok" | "warn" | "bad", extra?: string) => pct == null ? null : (
-    <div key={label} className="flex gap-2"><dt className="w-24 shrink-0 truncate px-2 py-1 font-semibold text-muted" title={label}>{label}</dt><dd className="flex min-w-0 flex-1 items-center gap-2 py-1"><Fill pct={pct} tone={tone} /><span className="tabular-nums">{Math.round(pct)} %</span>{extra && <Dim>{extra}</Dim>}</dd></div>
+    <DetailRow key={label} k={label} title={label}><Fill pct={pct} tone={tone} /><span className="tabular-nums">{Math.round(pct)} %</span>{extra && <Dim>{extra}</Dim>}</DetailRow>
   );
   return (
     <>
@@ -470,7 +452,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
               const shown = open.has(m.ip), h = hb.get(m.ip), cols = 9 + (snap.health ? 6 : 0);
               return (
                 <Fragment key={m.ip}>
-                  <tr className={`hover:bg-bg2/60 ${isOff(m) ? "opacity-50" : ""}`}>
+                  <tr className={`${shown ? OPEN_ROW : "hover:bg-bg2/60"} ${isOff(m) ? "opacity-50" : ""}`}>
                     <td className="w-8 px-1 py-2 align-middle">
                       <button type="button" onClick={() => toggleOpen(m.ip)} aria-expanded={shown} aria-label={tx("Détails de {0}", m.name)} title={shown ? tx("Replier") : tx("Déplier le détail")}
                         className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt">{shown ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button>
@@ -486,7 +468,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                       <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
                     
                   </tr>
-                  {shown && <tr className={`bg-bg2/40 ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} /></td></tr>}
+                  {shown && <tr className={`bg-bg2/40 ${OPEN_DETAIL} ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} /></td></tr>}
                 </Fragment>
               );
             })}

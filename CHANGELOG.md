@@ -24,6 +24,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   22). Machines tab column (alias in the unfolded detail), machine card and its SSH frame in Settings -> Machines.
 - Machines tab, unfolded detail: each section (identity, system, access, software, health) has its own colour band, tint and
   tinted label column.
+- Services and Health, unfolded detail: the same coloured sections as Machines (shared component), the health source in the
+  title band.
+- Machines, Services and Health: an unfolded row or card gets a full blue frame.
 - Machines tab, Servers column: two icons at most, then a "+N" pill; all of them in the unfolded detail.
 - Settings -> Machines: a refused save shows its reason next to the field instead of only at the bottom of the card.
 
