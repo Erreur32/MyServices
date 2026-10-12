@@ -2,6 +2,7 @@
 
 Quatre indices, du plus fiable au moins fiable :
   image   (« sure »)     conteneur lu par SSH : jc21/nginx-proxy-manager, adguard/adguardhome…
+  process (« probable ») process lu par SSH hors Docker : beszel-agent, glances, sshd…
   page    (« probable ») titre HTML de la page (la sonde de la collecte le lit sans SSH)
   empreinte (« probable ») en-têtes HTTP (Server, X-Powered-By, cookies, en-têtes propres à l'appli) et balise generator de la page,
                          lus par la même sonde, sans SSH ; un simple serveur web (nginx, Apache, Caddy…) n'est que « possible »
@@ -34,6 +35,9 @@ class App:
     weak_fp: bool = False           # l'empreinte ne dit que le serveur web, pas l'appli : confiance « possible »
     host: str = ""                  # regex du nom DNS de la machine (« unifi », « proxmox »…)
     connector: str | None = None    # type de connecteur à proposer (connectors.TYPES)
+    proc: str = ""                  # regex of the process name (service read by SSH outside Docker)
+    inner: tuple[int, ...] = ()     # container port that tells this app apart when its image is shared (Dozzle agent: same image, 7007)
+    agent_of: str = ""              # key of the hub this agent reports to; an agent has no page and never proposes a connector
 
 
 APPS: tuple[App, ...] = (
@@ -62,14 +66,14 @@ APPS: tuple[App, ...] = (
     App("plex", "Plex", "Médias", ports=(32400,), title=r"^plex", images=("plexinc/pms-docker", "linuxserver/plex")),
     App("homeassistant", "Home Assistant", "Domotique", ports=(8123, 4357), title=r"home assistant", connector="home-assistant"),
     App("proxmox", "Proxmox VE", "Infra / virtualisation", ports=(8006,), title=r"proxmox virtual environment|^proxmox", host=r"^(proxmox|pve)", connector="proxmox"),
-    App("pbs", "Proxmox Backup Server", "Sauvegardes", ports=(8007,), title=r"proxmox backup server", host=r"^(pbs|proxmox-?backup)", connector="proxmox-backup"),
+    App("pbs", "Proxmox Backup Server", "Infra / virtualisation", ports=(8007,), title=r"proxmox backup server", host=r"^(pbs|proxmox-?backup)", connector="proxmox-backup"),
     # IA locale : Ollama et LM Studio ont un port à eux ; llama.cpp (8080) et Open WebUI (3000 / 8080) partagent des ports trop courants, d'où le titre de la page
-    App("ollama", "Ollama", "IA / LLM", ports=(11434,), images=("ollama/ollama",)),
-    App("lmstudio", "LM Studio", "IA / LLM", ports=(1234,)),
-    App("llamacpp", "llama.cpp", "IA / LLM", title=r"^llama\.cpp", images=("ghcr.io/ggml-org/llama.cpp", "ghcr.io/ggerganov/llama.cpp")),
-    App("open-webui", "Open WebUI", "IA / LLM", title=r"open webui", images=("ghcr.io/open-webui/open-webui",)),
+    App("ollama", "Ollama", "IA", ports=(11434,), images=("ollama/ollama",)),
+    App("lmstudio", "LM Studio", "IA", ports=(1234,)),
+    App("llamacpp", "llama.cpp", "IA", title=r"^llama\.cpp", images=("ghcr.io/ggml-org/llama.cpp", "ghcr.io/ggerganov/llama.cpp")),
+    App("open-webui", "Open WebUI", "IA", title=r"open webui", images=("ghcr.io/open-webui/open-webui",)),
     # Veeam Backup & Replication : API REST 9419 (lue par Sauvegardes), service 9392, serveur de montage 9401. Ports d'après la doc Veeam, à confirmer sur un vrai serveur
-    App("veeam", "Veeam Backup & Replication", "Sauvegardes", ports=(9419, 9392, 9401)),
+    App("veeam", "Veeam Backup & Replication", "Infra / virtualisation", ports=(9419, 9392, 9401)),
     App("unifi", "UniFi", "Réseau / DNS", title=r"unifi", host=r"^(unifi|udm|ucg|usg)", images=("linuxserver/unifi-network-application", "jacobalberty/unifi"), connector="unifi"),  # MynetworK lit aussi UniFi
     App("synology", "Synology DSM", "Fichiers / sync", title=r"synology"),
     App("frigate", "Frigate", "Domotique", title=r"^frigate", images=("ghcr.io/blakeblackshear/frigate", "blakeblackshear/frigate"), connector="frigate"),  # port 5000 : trop courant pour l'identifier seul
@@ -111,6 +115,31 @@ APPS: tuple[App, ...] = (
     App("truenas", "TrueNAS", "Fichiers / sync", title=r"truenas", host=r"^(truenas|freenas)", connector="truenas"),
     App("pfsense", "pfSense", "Réseau / DNS", title=r"pfsense", host=r"^pfsense"),
     App("opnsense", "OPNsense", "Réseau / DNS", title=r"opnsense", host=r"^opnsense", connector="opnsense"),
+    # Agents: they report to a hub and answer on a port without a page; seen by their image, process or port
+    App("dozzle-agent", "Dozzle (agent)", "Monitoring", ui="none", ports=(7007,), images=("amir20/dozzle",), inner=(7007,), agent_of="dozzle"),
+    App("beszel-agent", "Beszel (agent)", "Monitoring", ui="none", ports=(45876,), images=("henrygd/beszel-agent",), proc=r"^beszel-agent", agent_of="beszel"),
+    App("arcane-agent", "Arcane (agent)", "Infra / virtualisation", ui="none", ports=(3553,), images=("ghcr.io/getarcaneapp/agent",), agent_of="arcane"),
+    App("hawser", "Hawser (agent Dockhand)", "Infra / virtualisation", ui="none", images=("ghcr.io/finsys/hawser",), proc=r"^hawser", agent_of="dockhand"),  # 2376 is Docker's TLS port: not distinctive
+    App("portainer-agent", "Portainer (agent)", "Infra / virtualisation", ui="none", images=("portainer/agent",), agent_of="portainer"),  # 9001 is also MinIO's console
+    App("munin-node", "Munin (node)", "Monitoring", ui="none", ports=(4949,), proc=r"munin"),   # reports to a Munin master, which MyServices does not read
+    App("vmagent", "vmagent", "Monitoring", ui="api", ports=(8429,), images=("victoriametrics/vmagent",)),
+    # Seen on real installs, without a connector
+    App("arcane", "Arcane", "Infra / virtualisation", ports=(3552,), title=r"^arcane", images=("ghcr.io/getarcaneapp/manager", "ghcr.io/getarcaneapp/arcane")),
+    App("glances", "Glances", "Monitoring", ports=(61208,), title=r"^glances", images=("nicolargo/glances",), proc=r"^glances"),
+    App("cadvisor", "cAdvisor", "Monitoring", title=r"^cadvisor", images=("gcr.io/cadvisor/cadvisor",)),
+    App("victoriametrics", "VictoriaMetrics", "Monitoring", ports=(8428,), title=r"victoriametrics", images=("victoriametrics/victoria-metrics",)),
+    App("tautulli", "Tautulli", "Médias", ports=(8181,), title=r"^tautulli", images=("tautulli/tautulli", "linuxserver/tautulli")),
+    App("searxng", "SearXNG", "Dev / automatisation", title=r"searxng", images=("searxng/searxng",)),
+    App("opengist", "Opengist", "Outils", ports=(6157,), title=r"opengist", images=("ghcr.io/thomiceli/opengist",)),
+    App("sshwifty", "Sshwifty", "Bureau distant", title=r"sshwifty", images=("niruix/sshwifty",)),
+    App("wallabag", "wallabag", "Web / perso", title=r"wallabag", images=("wallabag/wallabag",)),
+    App("convertx", "ConvertX", "Fichiers / sync", title=r"^convertx", images=("ghcr.io/c4illin/convertx",)),
+    App("wazuh", "Wazuh", "Sécurité", title=r"wazuh", images=("wazuh/wazuh-dashboard", "wazuh/wazuh-manager", "wazuh/wazuh-indexer")),
+    App("anubis", "Anubis", "Sécurité", title=r"making sure you're not a bot", images=("ghcr.io/techarohq/anubis",)),
+    App("adguardhome-sync", "AdGuard Home Sync", "Réseau / DNS", ui="api", images=("ghcr.io/bakito/adguardhome-sync",)),
+    App("mcpo", "mcpo (MCP to OpenAPI)", "IA", ui="api", images=("ghcr.io/open-webui/mcpo",)),
+    App("openssh", "OpenSSH", "Système", ui="none", proc=r"^sshd\b"),
+    App("samba", "Samba", "Système", ui="none", proc=r"^smbd\b"),   # 139 / 445 are Windows too: process only
     # Serveurs web : l'en-tête Server dit ce qui répond, pas l'appli derrière (confiance « possible », jamais prioritaire)
     App("nginx-web", "nginx", "Web / perso", fp=r"^server: nginx", weak_fp=True),
     App("caddy-web", "Caddy", "Web / perso", fp=r"^server: caddy", weak_fp=True),
@@ -140,17 +169,28 @@ for _a in APPS:
 _TITLES = [(a, re.compile(a.title, re.I)) for a in APPS if a.title]
 _HOSTS = [(a, re.compile(a.host, re.I)) for a in APPS if a.host]
 _FPS = [(a, re.compile(a.fp, re.I | re.M)) for a in APPS if a.fp]
+_PROCS = [(a, re.compile(a.proc, re.I)) for a in APPS if a.proc]
+# Apps told apart by their container port come first: the Dozzle agent shares the Dozzle image
+_BY_IMAGE = sorted(APPS, key=lambda a: not a.inner)
 
 
 def identify(image: str | None = None, title: str | None = None, port: int | None = None,
-             name: str | None = None, fingerprint: str | None = None) -> tuple[App, str] | None:
-    """(appli, confiance) ou None. Image d'abord, puis titre de page, puis empreinte HTTP, puis nom DNS de la machine, puis port
-    (seulement s'il est sans ambiguïté). Un simple serveur web reconnu par son en-tête n'est que « possible » et cède au port."""
+             name: str | None = None, fingerprint: str | None = None,
+             proc: str | None = None, inner: int | None = None) -> tuple[App, str] | None:
+    """(appli, confiance) ou None. Image d'abord (avec le port du conteneur), puis nom du process, puis titre de page, puis empreinte HTTP,
+    puis nom DNS de la machine, puis port (seulement s'il est sans ambiguïté). Un simple serveur web reconnu par son en-tête n'est que
+    « possible » et cède au port."""
     if image:
         base = _base(image)
-        for a in APPS:
+        for a in _BY_IMAGE:
+            if a.inner and inner not in a.inner:
+                continue
             if any(base == i or base.endswith("/" + i) for i in images_of(a)):
                 return a, SURE
+    if proc:
+        for a, rx in _PROCS:
+            if rx.search(proc):
+                return a, PROBABLE
     if title:
         for a, rx in _TITLES:
             if rx.search(title):
@@ -176,11 +216,13 @@ def annotate(row: dict, keep_category: bool = False) -> None:
     nom « port N » -> nom de l'appli, catégorie « Autre » -> celle de l'appli, interface non sondée -> son type.
     Un simple port (« possible ») ne change rien d'autre que row["app"]. keep_category : catégorie réglée à la main."""
     s = row.get("service") or {}
-    hit = identify(image=s.get("image"), title=row.get("page_title"), port=row.get("port"), fingerprint=row.pop("fingerprint", None))
+    hit = identify(image=s.get("image"), title=row.get("page_title"), port=row.get("port"), fingerprint=row.pop("fingerprint", None),
+                   proc=s.get("name") if s.get("kind") == "process" else None, inner=s.get("inner"))
     if hit is None:
         return
     app, how = hit
-    row["app"] = {"key": app.key, "label": app.label, "confidence": how, "connector": app.connector}
+    row["app"] = {"key": app.key, "label": app.label, "confidence": how, "connector": app.connector,
+                  **({"agent_of": _BY_KEY[app.agent_of].label} if app.agent_of else {})}
     if how == POSSIBLE:
         return
     if not keep_category and row.get("category") == "Autre":

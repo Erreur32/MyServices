@@ -52,6 +52,7 @@ export function ServiceDetail({ r }: { r: Host }) {
   const svc: Row[] = [
     ...(!s?.name && r.app ? [["Appli devinée", `${r.app.label} (${r.app.confidence === "possible" ? tx("possible : port ou serveur web") : tx("probable : page ou en-têtes HTTP")})`, "mut"] as Row] : []),
     ["Service", s?.name ? `${KIND_NAME[s.kind] || s.kind} · ${s.name}${s.stale ? ` (${tx("dernière identification connue")})` : ""}` : noIdentity(r) ?? tx("non identifié"), s?.name ? (s.stale ? "mut" : undefined) : noIdentity(r) ? "mut" : "warn"],
+    ...(r.app?.agent_of ? [[tx("Agent de"), tx("{0} (pas de page, envoie ses données au serveur central)", r.app.agent_of)] as Row] : []),
     ...(s?.kind === "apache" ? [["Vhost", s.vhost || "-"], [tx("Fichiers servis"), s.docroot || "-", "mono"], ["Config", s.conf || "-", "mono"]] as Row[] : []),
     ["Image", s?.image || "-", s?.image ? "mono" : "mut"],
     ["Version", s?.version || "-", s?.version ? undefined : "mut"],

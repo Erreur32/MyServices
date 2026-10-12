@@ -791,6 +791,8 @@ export const EN: Record<string, string> = {
   "dernière connue": "last known",
   "Le backend ne répond plus : identification du dernier passage où il répondait": "The backend no longer answers: identification from the last pass where it did",
   "dernière identification connue": "last known identification",
+  "Agent de": "Agent of",
+  "{0} (pas de page, envoie ses données au serveur central)": "{0} (no page, sends its data to the central server)",
   "emplacements enregistrés": "locations saved",
   "Dossier par défaut": "Default folder",
   "toujours cherché ; s'il existe sur une machine, il est coché d'office.": "always searched; if it exists on a machine, it is ticked by default.",

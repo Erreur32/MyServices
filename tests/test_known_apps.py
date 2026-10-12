@@ -76,6 +76,53 @@ class Identify(unittest.TestCase):
     def test_liste_de_fichiers_generique_n_est_pas_apache(self):
         self.assertIsNone(self.key(title="Index of /"))
 
+    def test_agent_dozzle_meme_image_autre_port(self):
+        """Same image as Dozzle: the container port 7007 makes it the agent, which has no page and proposes no connector."""
+        self.assertEqual(self.key(image="amir20/dozzle:latest", inner=8080), ("dozzle", ka.SURE))
+        self.assertEqual(self.key(image="amir20/dozzle:latest"), ("dozzle", ka.SURE))
+        self.assertEqual(self.key(image="amir20/dozzle:latest", inner=7007), ("dozzle-agent", ka.SURE))
+        self.assertEqual(self.key(port=7007), ("dozzle-agent", ka.POSSIBLE))   # open port seen by the network scan, without SSH
+
+    def test_agents_par_image_process_ou_port(self):
+        self.assertEqual(self.key(image="henrygd/beszel-agent:latest"), ("beszel-agent", ka.SURE))
+        self.assertEqual(self.key(image="henrygd/beszel:latest"), ("beszel", ka.SURE))
+        self.assertEqual(self.key(proc="beszel-agent"), ("beszel-agent", ka.PROBABLE))
+        self.assertEqual(self.key(port=45876), ("beszel-agent", ka.POSSIBLE))
+        self.assertEqual(self.key(image="ghcr.io/finsys/hawser:latest"), ("hawser", ka.SURE))
+        self.assertEqual(self.key(proc="hawser"), ("hawser", ka.PROBABLE))
+        self.assertEqual(self.key(image="ghcr.io/getarcaneapp/agent:latest"), ("arcane-agent", ka.SURE))
+        self.assertIsNone(self.key(port=2376))   # Docker TLS: not Hawser on its own
+        for a in ka.APPS:
+            if a.agent_of:
+                self.assertEqual(a.ui, "none", a.key)
+                self.assertIsNone(a.connector, a.key)
+                self.assertIn(a.agent_of, {b.key for b in ka.APPS}, a.key)   # the hub's label is shown on the agent
+
+    def test_annotate_agent(self):
+        row = {"port": 7007, "category": "Autre", "web": None, "name": "dozzle-agent",
+               "service": {"kind": "docker", "name": "dozzle-agent", "image": "amir20/dozzle:latest", "inner": 7007}}
+        ka.annotate(row)
+        self.assertEqual(row["app"]["key"], "dozzle-agent")
+        self.assertEqual(row["app"]["agent_of"], "Dozzle")
+        self.assertIsNone(row["app"]["connector"])
+        self.assertEqual((row["category"], row["web"]), ("Monitoring", "none"))
+        self.assertEqual(ka.propose([{**row, "ip": "10.0.0.5", "id": 1}], []), [])   # never proposed as a Dozzle server
+
+    def test_process_lu_par_ssh(self):
+        row = {"port": 45876, "category": "Autre", "web": None, "service": {"kind": "process", "name": "beszel-agent"}}
+        ka.annotate(row)
+        self.assertEqual((row["app"]["key"], row["app"]["confidence"]), ("beszel-agent", ka.PROBABLE))
+        self.assertEqual(self.key(proc="sshd"), ("openssh", ka.PROBABLE))
+        self.assertEqual(self.key(proc="glances"), ("glances", ka.PROBABLE))
+        self.assertIsNone(self.key(proc="python3"))
+
+    def test_categories_connues(self):
+        """Every app category exists in the default list, otherwise the row lands in a category nobody filters on."""
+        import json
+        with open(Path(__file__).resolve().parent.parent / "services-meta.example.json", encoding="utf-8") as f:
+            cats = {name for name, _ in json.load(f)["categories"]}
+        self.assertEqual({a.category for a in ka.APPS} - cats, set())
+
     def test_inconnu(self):
         self.assertIsNone(self.key(image="postgres:16", title="Mon appli", port=12345))
         self.assertIsNone(self.key())
@@ -86,7 +133,7 @@ class Identify(unittest.TestCase):
         for a in ka.APPS:
             if a.connector:
                 self.assertIn(a.connector, connectors.TYPES, a.key)
-            self.assertIn(a.ui, ("ui", "api"))
+            self.assertIn(a.ui, ("ui", "api", "none"))
 
 
 class Windows(unittest.TestCase):

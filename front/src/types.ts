@@ -44,7 +44,7 @@ export interface Host {
   npm?: string;
   scheme?: string;
   category?: string;
-  app?: { key: string; label: string; confidence: "sure" | "probable" | "possible"; connector: string | null };
+  app?: { key: string; label: string; confidence: "sure" | "probable" | "possible"; connector: string | null; agent_of?: string };
   tags?: string[];
   description?: string;
   page_title?: string;
