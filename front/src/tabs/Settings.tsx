@@ -41,9 +41,10 @@ const GROUPS: { label: string; sections: { id: string; label: string; icon: Luci
   ] },
   { label: tx("Accès et sécurité"), sections: [
     { id: "accounts", label: tx("Comptes"), icon: Users }, { id: "ssh", label: tx("Clé SSH"), icon: KeyRound },
-    { id: "audit", label: tx("Journal d'audit"), icon: ScrollText }, { id: "logs", label: tx("Journaux"), icon: FileText }, { id: "api", label: tx("API et MCP"), icon: Webhook },
+    { id: "audit", label: tx("Journal d'audit"), icon: ScrollText }, { id: "api", label: tx("API et MCP"), icon: Webhook },
   ] },
   { label: tx("Application"), sections: [{ id: "look", label: tx("Apparence"), icon: Palette }, { id: "system", label: tx("Sauvegarde et infos"), icon: Settings2 },
+    { id: "logs", label: tx("Journaux"), icon: FileText },
     { id: "help", label: tx("Aide"), icon: LifeBuoy }, { id: "about", label: tx("À propos"), icon: Info }] },
 ];
 const SECTIONS = GROUPS.flatMap((g) => g.sections);
