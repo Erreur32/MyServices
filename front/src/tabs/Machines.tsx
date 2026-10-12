@@ -29,8 +29,9 @@ function topDisk(h?: HealthHost) {
   return (h?.disks || []).reduce<NonNullable<HealthHost["disks"]>[number] | null>((a, d) => (!a || d.used_pct > a.used_pct ? d : a), null);
 }
 
-/** Logiciels de service détectés sur la machine, en icônes ; les nombres (conteneurs, vhosts) sont dans l'info-bulle */
-function Servers({ m, snap }: { m: Machine; snap: Snapshot }) {
+/** Logiciels de service détectés sur la machine, en icônes ; les nombres (conteneurs, vhosts) sont dans l'info-bulle.
+ *  max : au-delà, une pastille « +N » (la liste complète est dans le détail déplié) */
+function Servers({ m, snap, max }: { m: Machine; snap: Snapshot; max?: number }) {
   const rows = snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.service);
   const npm = rows.some((r) => /nginx-proxy-manager/.test(r.service!.image || ""));
   const apDown = rows.filter((r) => r.enabled && r.service!.kind === "apache" && status(r)[0] === "bad").length;
@@ -42,13 +43,15 @@ function Servers({ m, snap }: { m: Machine; snap: Snapshot }) {
     ...(i.nginx ? [{ key: "nginx", icon: "nginx", tip: tx("nginx installé et actif sur la machine (hors conteneur)") }] : []),
     ...(i.docker ? [{ key: "docker", icon: "docker", tip: tx("Docker : {0} conteneur(s) en cours", i.docker) }] : []),
   ];
+  const shown = max && chips.length > max ? chips.slice(0, max) : chips, more = chips.slice(shown.length);
   return chips.length ? (
-    <div className="flex flex-wrap items-center gap-1">
-      {chips.map((c) => (
+    <div className={`flex items-center gap-1 ${max ? "flex-nowrap" : "flex-wrap"}`}>
+      {shown.map((c) => (
         <span key={c.key} title={c.tip} tabIndex={0} className={`grid h-7 w-7 place-items-center rounded-md border ${c.bad ? "border-bad/60 bg-bad/10" : "border-line bg-bg2"}`}>
           <img src={`${import.meta.env.BASE_URL}icons/${c.icon}.svg`} alt="" className="h-4 w-4" />
         </span>
       ))}
+      {more.length > 0 && <span title={tx("Aussi : {0} (détail déplié)", more.map((c) => c.key).join(", "))} className="grid h-7 min-w-7 place-items-center rounded-md border border-line bg-bg2 px-1 text-[11px] font-bold text-muted">+{more.length}</span>}
     </div>
   ) : <Dim>-</Dim>;
 }
@@ -287,7 +290,7 @@ function HealthRows({ h }: { h: HealthHost }) {
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, from, watch }: { m: Machine; h?: HealthHost; mac?: string; from: ReturnType<typeof originsOf>; watch: WatchItem[] }) {
+function Detail({ m, h, mac, from, watch, servers }: { m: Machine; h?: HealthHost; mac?: string; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode }) {
   const roles = rolesOf(m.role), i = m.info, hw = hardwareRows(m.agent?.hardware), s = m.ssh;
   const [stTone, stLabel, stTip] = MSTATE[mState(m)];
   const vhosts = (i?.vhosts ?? []) as { port?: number; names?: string[] }[];
@@ -332,6 +335,7 @@ function Detail({ m, h, mac, from, watch }: { m: Machine; h?: HealthHost; mac?: 
       </Section>
 
       <Section icon={Boxes} title={tx("Logiciels et services")} tone="warn" from={from.services}>
+        <Row k={tx("Serveurs")}>{servers}</Row>
         <Row k={tx("Services")}>{m.services}{m.npm > 0 && <Dim> · {m.npm} NPM</Dim>}{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</Row>
         <Row k="Docker">{i?.docker ? tx("{0} conteneur(s) en cours", i.docker) : m.agent?.docker != null ? (m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>) : i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined}</Row>
         <Row k="API">{m.api?.length ? <span className="flex flex-wrap gap-1">{m.api.map((a) => <Badge key={`${a.type}/${a.name}`} tone={a.ok ? "ok" : a.stale ? "warn" : "bad"} title={`${a.name} : ${a.message ?? ""}`}>{a.label}{a.version ? ` ${a.version}` : ""}</Badge>)}</span> : undefined}</Row>
@@ -475,13 +479,13 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                       <b className="font-semibold hover:text-link">{m.name}</b><span className="text-xs text-dim">{m.ip}</span></button>
                       {!!m.links?.sources.length && <span className="mt-1 block"><SeenBy links={m.links} /></span>}</Td>
                     <Td>{st(m)}</Td><Td><WatchList items={watchOf(m)} /></Td><Td><SshShort m={m} /></Td>
-                    <Td><OsShort m={m} kind={osOf(m)} /></Td><Td><Servers m={m} snap={snap} /></Td>
+                    <Td><OsShort m={m} kind={osOf(m)} /></Td><Td><Servers m={m} snap={snap} max={2} /></Td>
                     <Td><b>{m.services}</b>{m.down > 0 && <span className="text-xs text-bad"> · {m.down} {tx("en panne")}</span>}</Td>
                     {snap.health && <><Td><Level level={h ? (h.reachable === false ? "down" : h.level) : "na"} /></Td>
                       <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
                     
                   </tr>
-                  {shown && <tr className={`bg-bg2/40 ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} /></td></tr>}
+                  {shown && <tr className={`bg-bg2/40 ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} /></td></tr>}
                 </Fragment>
               );
             })}

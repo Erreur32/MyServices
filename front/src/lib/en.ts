@@ -1817,4 +1817,5 @@ export const EN: Record<string, string> = {
   "Cochez celles à suivre puis ajoutez-les, ou ignorez-les. En mode manuel, MyServices ne les ajoute jamais seul.": "Tick those to follow then add them, or ignore them. In manual mode, MyServices never adds them by itself.",
   "Cherche les machines allumées sur votre réseau local (un /24 au plus) : un ping, le nom, quelques ports. Lecture seule.": "Looks for the machines switched on in your local network (a /24 at most): a ping, the name, a few ports. Read only.",
   "Adresse IP": "IP address",
+  "Aussi : {0} (détail déplié)": "Also: {0} (unfolded detail)",
 };
