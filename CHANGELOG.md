@@ -11,6 +11,19 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.18 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+
+- Check (Settings -> Machines) warned "docker inaccessible ... usermod -aG docker" on VMware ESXi and on hosts without Docker,
+  while the collection showed them fine. When SSH works but docker ps fails, the check now asks the host: ESXi is said as such
+  (no Docker is normal, its VMs are read by vim-cmd), a host without Docker is fine, and only a refused docker gets the group
+  advice. The machine card shows "no Docker" in grey instead of a green tick.
+- SSH errors name their cause: connection refused (SSH server off, with where to turn it on for ESXi), host unreachable, too
+  many keys tried, no common algorithm, connection closed by the host.
+
 ## v0.10.17 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
