@@ -11,6 +11,25 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.22 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- Security tab, replacing the Fail2ban tab (the old #fail2ban link opens it), read only, no exposure score: summary tiles (bans
+  over 24 h, active threats, public sites to harden, machines with SSH root or password login, devices with a sensitive port);
+  Fail2ban with LogviewR's active threats in detail (one IP across jails, or a campaign from one AS: IPs, jails, bans); sites
+  exposed to the Internet (active NPM hosts without an access list) with what is missing (HTTPS not forced, no HSTS, Block
+  exploits off, certificate soon expired, weak security headers); certificates (moved here from History -> Availability); SSH
+  access of each machine (PermitRootLogin, PasswordAuthentication, refused logins over 24 h); sensitive ports seen by MynetworK.
+- Alert "new threat" (LogviewR), once per cluster, the first reading taken as the reference; in the security example rules.
+  LogviewR's threats are kept with safe fields only (IPs, jails, numbers, AS number; no whois text).
+
+### Fixed
+
+- sshd values read with "(défaut)" appended ("prohibit-password (défaut)", the safe default) were shown as risky.
+
 ## v0.10.21 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

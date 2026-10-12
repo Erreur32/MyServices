@@ -1,24 +1,34 @@
-# Notes de version : MyServices 0.10.21
+# Notes de version : MyServices 0.10.22
 
 > **Version en ligne, à un stade précoce.** MyServices est utilisable, mais jeune : des écrans et des réglages peuvent encore changer. Gardez une copie de `config/` et `data/` avant de mettre à jour, et laissez-le sur votre réseau local.
 
 
-**0.10.21** (12 octobre 2026) : LogviewR se relie enfin, les machines retirées ne reviennent plus.
+**0.10.22** (12 octobre 2026) : nouvel onglet Sécurité.
 
 ## Pour tout le monde
 
-**Corrigé**
-- **LogviewR** : relier le connecteur avec son jeton échouait (« f2b_get_active_threats : réponse illisible »). LogviewR met un avertissement avant les données venues des attaquants ; MyServices le lit maintenant correctement. Les prisons, bannissements et menaces s'affichent dans l'onglet Fail2ban.
-- **Mode automatique** : une machine retirée à la main dans Réglages → Machines revenait à la recherche réseau suivante. La retirer la range maintenant aussi dans les appareils ignorés (Réglages → Découverte) : elle ne revient plus, un clic l'y fait revenir.
+**Quoi de neuf ?**
+- **Onglet Sécurité** (il remplace l'onglet Fail2ban), en lecture seule, sans score : des faits.
+  - **Résumé** : bannissements sur 24 h, menaces actives, sites publics à renforcer, machines qui acceptent root ou les mots de passe en SSH, appareils avec un port sensible.
+  - **Fail2ban** (LogviewR) : prisons, derniers bannissements, et le détail des **menaces actives** (une IP qui passe d'une prison à l'autre, ou une campagne venue d'un même réseau) avec leurs IP et leurs prisons.
+  - **Sites exposés à Internet** : les hôtes NPM sans liste d'accès, avec ce qui leur manque (HTTPS non forcé, pas de HSTS, « Block exploits » coupé, certificat bientôt expiré, en-têtes faibles).
+  - **Certificats** (déplacés ici depuis Historique → Disponibilité).
+  - **Accès SSH des machines** : root et mot de passe autorisés ou non, connexions refusées sur 24 h.
+  - **Ports sensibles** vus par MynetworK : Telnet, FTP, SMB, bureau à distance, VNC, bases de données, API Docker sans TLS.
+- **Nouvelle alerte « Nouvelle menace »** (LogviewR) : une fois par menace, la première lecture sert de référence.
 
-**Changé**
-- **Réglages → Machines** cache les machines non suivies (interrupteur « Machine suivie » coupé), comme l'onglet Machines ; le bouton « Non suivies (N) » les montre.
+**Corrigé**
+- Le réglage SSH par défaut « prohibit-password », sûr, était affiché comme risqué.
 
 **Mettre à jour** : `docker compose pull`, puis `docker compose up -d` (avec l'image `:latest`). Rien à changer dans le compose.
 
+**Ce qu'il faut savoir**
+- Sur une installation existante, la nouvelle alerte n'est pas cochée toute seule : Réglages → Alertes.
+
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.10.21` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
-- **Corrigé** : `connectors/logviewr.py` `_tool()` lit le premier bloc texte qui est du JSON (réponse `untrustedJsonResult` de LogviewR) ; `DELETE /machines/settings/{ip}` appelle `system.set_netscan_ignored()`.
-- **Tests** : 524 Python, 97 front.
+- **Image** : `ghcr.io/erreur32/myservices:0.10.22` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
+- **Ajouté** : `tabs/Security.tsx` (remplace `Fail2ban.tsx`), `components/Certificates.tsx` ; `connectors/logviewr.cluster()` (champs sûrs des menaces) ; genre d'alerte `menace` (`watcher.threat_snaps` / `diff_threats`).
+- **Corrigé** : `lib/ssh.risky()` ignore la mention « (défaut) ».
+- **Tests** : 525 Python, 98 front.
 - **Détail complet** (en anglais) : [CHANGELOG.md](CHANGELOG.md).
