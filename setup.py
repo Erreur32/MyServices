@@ -134,6 +134,17 @@ def ssh_why(alias: str, r: subprocess.CompletedProcess | None) -> str:
                 f"SSH {alias} : clé refusée (ssh-copy-id fait pour root de cette machine ? clé sans phrase de passe ?)")
     if "could not resolve" in err:
         return f"SSH {alias} : alias ou HostName inconnu de {SSH_CONF}"
+    if "connection refused" in err:
+        return (f"SSH {alias} : connexion refusée, le serveur SSH ne tourne pas sur ce port (Linux : systemctl start ssh ; "
+                "VMware ESXi : Hôte → Actions → Services → Activer Secure Shell)")
+    if "connection timed out" in err or "no route to host" in err or "network is unreachable" in err:
+        return f"SSH {alias} : machine injoignable (éteinte, mauvaise IP, ou pare-feu qui bloque le port SSH)"
+    if "too many authentication failures" in err:
+        return f"SSH {alias} : trop de clés essayées, refusé par la machine (MaxAuthTries) : réessayer, ou n'y laisser que la clé de MyServices"
+    if "no matching" in err or "unable to negotiate" in err:
+        return f"SSH {alias} : aucun algorithme commun avec la machine (SSH trop ancien ou trop restreint) : {r.stderr.strip()[-160:]}"
+    if "connection closed" in err or "connection reset" in err:
+        return f"SSH {alias} : connexion coupée par la machine (fail2ban, AllowUsers, ou compte root interdit : PermitRootLogin)"
     return f"SSH {alias} : {(r.stderr.strip() or 'code ' + str(r.returncode))[-200:]}"
 
 
@@ -884,8 +895,17 @@ def check_machine(mip: str, m: dict, aliases: dict[str, str]) -> None:
         warn(f"{label} : {ssh_why(alias, r)}")
         return
     else:
-        warn(f"{label} : docker inaccessible (absent, ou compte hors du groupe docker : usermod -aG docker <compte>, "
-             "puis nouvelle session)")
+        # SSH works but docker ps failed: no Docker at all (VMware ESXi, a NAS, a plain server) is normal, not an access problem
+        r = run(alias, "vmware -v 2>/dev/null; command -v docker >/dev/null 2>&1 && echo has-docker || echo no-docker", timeout=10)
+        out = r.stdout if r is not None and r.returncode == 0 else ""
+        esxi = next((ln.strip() for ln in out.splitlines() if ln.startswith("VMware ESXi")), None)
+        if esxi:
+            ok(f"{label} : SSH ✓, {esxi} : pas de Docker (normal), VM et datastores lus par vim-cmd (onglet Virtualisation)")
+            return
+        if "no-docker" in out:
+            ok(f"{label} : SSH ✓, pas de Docker sur cette machine (rien à lire de ce côté)")
+        else:
+            warn(f"{label} : SSH ✓, mais docker refusé à ce compte : usermod -aG docker <compte> sur la machine, puis nouvelle session")
     names = {c[0] for c in conts or []}
     for k in ("adguard", "adguard_sync"):
         if m.get(k) and not str(m[k]).startswith("/") and conts is not None and m[k] not in names:

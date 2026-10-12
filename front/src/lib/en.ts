@@ -1620,6 +1620,7 @@ export const EN: Record<string, string> = {
   "gardée(s)": "kept",
   "Tous les groupes sont déjà suivis.": "All groups are already followed.",
   "Fermer la liste": "Close the list",
+  "pas de Docker sur cette machine (rien à lire)": "no Docker on this machine (nothing to read)",
   "Sur un VMware ESXi, la commande met la clé ECDSA de l'app dans /etc/ssh/keys-root/authorized_keys (ESXi ignore ~/.ssh et refuse les clés ed25519).": "On a VMware ESXi, the command puts the app's ECDSA key in /etc/ssh/keys-root/authorized_keys (ESXi ignores ~/.ssh and refuses ed25519 keys).",
   "Clé publique ECDSA, pour VMware ESXi (à mettre dans /etc/ssh/keys-root/authorized_keys)": "ECDSA public key, for VMware ESXi (to put in /etc/ssh/keys-root/authorized_keys)",
   "pas de relevé": "no reading",

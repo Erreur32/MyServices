@@ -13,6 +13,8 @@ export function StatusLine({ s }: { s: (Partial<ConnectorStatus> & Connector) | 
   const version = s.version && <Badge tone={s.version_tested === false ? "warn" : "off"} title={s.version_tested === false ? tx("version non testée") : undefined}>v{s.version}</Badge>;
   // Lu : la coche verte suffit (pas de texte « OK »). Périmé ou en échec : l'icône et le message
   const found = (s.found ?? []).map((f) => <Badge key={f.name} tone={f.count ? "ok" : "off"} title={tx("Lu à la dernière collecte")}>{f.name} : {f.count}</Badge>);
+  // Docker read fine but not installed (VMware ESXi, a NAS…): nothing to read, said in grey, not a green tick
+  if (s.ok && s.type === "docker" && s.message?.startsWith("pas de Docker")) return <Dim>{tx("pas de Docker sur cette machine (rien à lire)")}</Dim>;
   if (s.ok && !s.stale) return <span className="flex flex-wrap items-center gap-2"><CheckCircle2 size={16} className="shrink-0 text-ok" aria-label={tx("lu")} />{version}{found}</span>;
   const bad = !s.ok;
   return (
