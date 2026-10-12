@@ -11,9 +11,6 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
-### Changed
-- **Settings → Connectors, connector form**: a close icon (✕) in the form header closes it without saving, for a new connector as for an edit; while a new one is being added, the "Add a connector" button turns into "Close" too.
-
 ## v0.10.8 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

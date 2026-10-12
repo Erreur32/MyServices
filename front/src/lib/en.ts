@@ -11,7 +11,6 @@ export const SAME = new Set([
 ]);
 
 export const EN: Record<string, string> = {
-  "Fermer sans enregistrer": "Close without saving",
   "facultatif : à relier quand vous voulez": "optional: link them whenever you want",
   "Lues par leur API, sans SSH": "Read by their API, without SSH",
   "Déjà connectées par l'API d'un connecteur (Home Assistant…) : rien à régler. Le SSH n'y est pas nécessaire, et souvent pas possible.": "Already connected through a connector's API (Home Assistant…): nothing to set. SSH is not needed there, and often not possible.",

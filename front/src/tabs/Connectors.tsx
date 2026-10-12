@@ -46,10 +46,9 @@ export function Connectors({ snap }: { snap: Snapshot }) {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Mes connecteurs")} <Count n={st.instances.length} /></h2>
-          <button type="button" className={`${primary} disabled:opacity-50`} aria-expanded={picking || !!adding} disabled={!!editing && !picking}
-            title={editing ? tx("Terminez ou annulez la modification en cours avant d'ajouter un connecteur") : undefined}
-            onClick={() => (adding ? setAdding("") : setPicking(!picking))}>   {/* ajout en cours : le même bouton le ferme */}
-            {picking || adding ? <X size={14} /> : <Plus size={14} />}{picking || adding ? tx("Fermer") : tx("Ajouter un connecteur")}
+          <button type="button" className={`${primary} disabled:opacity-50`} aria-expanded={picking} disabled={!!editing && !picking}
+            title={editing ? tx("Terminez ou annulez la modification en cours avant d'ajouter un connecteur") : undefined} onClick={() => setPicking(!picking)}>
+            {picking ? <X size={14} /> : <Plus size={14} />}{picking ? tx("Fermer") : tx("Ajouter un connecteur")}
           </button>
         </div>
         <p className="mt-1 text-sm text-muted">{tx("Un connecteur lit par son API, en lecture seule, les services d'un outil que vous utilisez déjà (Nginx Proxy Manager, AdGuard Home, Beszel…) : une clé ou un compte sans droit de modification suffit.")}</p>
@@ -276,9 +275,7 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, 
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
           {appIcon([type.label]) ? <img src={appIcon([type.label])!} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
         </span>
-        <div className="min-w-0 flex-1"><b className="block truncate">{type.label}</b><span className="text-xs text-dim">{inst ? tx("Modifier ce connecteur") : tx("Nouveau connecteur")}</span></div>
-        <button type="button" onClick={onCancel} title={tx("Fermer sans enregistrer")} aria-label={tx("Fermer sans enregistrer")}
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-bad/15 hover:text-bad"><X size={16} aria-hidden /></button>
+        <div className="min-w-0"><b className="block truncate">{type.label}</b><span className="text-xs text-dim">{inst ? tx("Modifier ce connecteur") : tx("Nouveau connecteur")}</span></div>
       </div>
       <Field label={tx("Nom de l'instance (unique pour ce type)")}>
         <input className={input} required maxLength={64} value={name} onChange={(e) => setName(e.target.value)} />
