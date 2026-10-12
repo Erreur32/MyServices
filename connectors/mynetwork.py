@@ -7,11 +7,16 @@ Routes lues (enveloppe {"success": true, "result": …}) :
   GET /api/network-scan/history         inventaire du scanner, paginé (limit 1000) : ip, mac, hostname, vendor, status, pingLatency…
   GET /api/plugins/unifi/clients        clients UniFi (facultatif : 403 / 404 si UniFi n'est pas branché)
   GET /api/plugins/unifi/devices        bornes, switches, passerelles UniFi (facultatif)
+  GET /api/lan/devices                  hôtes vus par la Freebox (facultatif)
+  GET /api/connection/summary           ligne et santé de la Freebox, sans IP ni numéro de série (facultatif, MynetworK 0.10.66+)
 Les routes facultatives qui répondent 403 ou 404 ne sont pas une erreur : MynetworK n'a simplement pas cette source.
 """
 from __future__ import annotations
 
 from connectors.base import Connector, ConnectorError, Field, Result
+from connectors.status_kit import duration, fact
+
+FREEBOX_HOT = (75, 85)   # °C : warn, bad
 
 PAGE = 1000   # maximum accepté par MynetworK
 MAX_ITEMS = 5000  # garde-fou : un réseau plus grand n'est pas lu en entier
@@ -91,6 +96,25 @@ class MynetworK(Connector):
                             for c in clients or [] if isinstance(c, dict)],
                 "devices": [{k: d.get(k) for k in ("name", "model", "type", "mac", "ip", "state", "version", "clients", "uptime")}
                             for d in gear or [] if isinstance(d, dict)]}
+        out["freebox"] = self._freebox()
+        return out
+
+    def _freebox(self) -> dict | None:
+        """Freebox relayée par MynetworK : None si MynetworK n'a pas de Freebox (ou une version sans ces routes)."""
+        def opt(path):
+            try:
+                return self._get(path, optional=True)
+            except ConnectorError:   # Freebox non appairée : enveloppe {"success": false} de la Freebox
+                return None
+        summary, hosts = opt("/api/connection/summary"), opt("/api/lan/devices")
+        if not isinstance(summary, dict) and not isinstance(hosts, list):
+            return None
+        out = {"connection": None, "system": None, "hosts": None, "hosts_active": None}
+        if isinstance(summary, dict):
+            out["connection"], out["system"] = summary.get("connection"), summary.get("system")
+        if isinstance(hosts, list):
+            out["hosts"] = len(hosts)
+            out["hosts_active"] = sum(1 for h in hosts if isinstance(h, dict) and h.get("active"))
         return out
 
     def test(self) -> Result:
@@ -102,11 +126,48 @@ class MynetworK(Connector):
             data = self.collect()
         except ConnectorError as e:
             return Result(False, str(e))
-        u = data["unifi"]
+        u, fb = data["unifi"], data["freebox"]
         return Result(True, f"{len(data['devices'])} appareil(s), {data['online']} en ligne" +
-                      (f", UniFi : {len(u['clients'])} client(s)" if u else ""))
+                      (f", UniFi : {len(u['clients'])} client(s)" if u else "") +
+                      (", Freebox : " + ("ligne " + str(fb["connection"].get("state")) if fb.get("connection") else f"{fb['hosts']} hôte(s)") if fb else ""))
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
         web = next((h for h, c in ports if c in (7505, 3000)), None)
         return {"url": f"http://{ip}:{web}"} if web else None
+
+
+def _rate(bits) -> str:
+    return f"{bits / 1e9:.1f} Gb/s".replace(".", ",") if bits >= 1e9 else f"{bits / 1e6:.0f} Mb/s"
+
+
+def freebox_status(row: dict) -> dict | None:
+    """Carte « Service via API » de la Freebox lue par MynetworK (même forme que les connecteurs status), None sans Freebox."""
+    fb = row.get("freebox")
+    if not isinstance(fb, dict):
+        return None
+    c, s = fb.get("connection") or {}, fb.get("system") or {}
+    facts, problems = [], []
+    if c.get("state"):
+        up = c["state"] == "up"
+        facts.append(fact("Ligne", ("en ligne" if up else c["state"]) + (f" ({c['media'].upper()})" if c.get("media") else ""), "ok" if up else "bad"))
+        if not up:
+            problems.append(f"ligne Internet : {c['state']}")
+    if c.get("bandwidth_down"):
+        facts.append(fact("Débit max", _rate(c["bandwidth_down"]) + (f" / {_rate(c['bandwidth_up'])}" if c.get("bandwidth_up") else "")))
+    if c.get("rate_down") is not None:
+        facts.append(fact("Débit actuel", _rate(8 * c["rate_down"]) + (f" / {_rate(8 * (c.get('rate_up') or 0))}" if c.get("rate_up") is not None else "")))
+    temps = [x for x in s.get("sensors") or [] if isinstance(x, dict) and isinstance(x.get("value"), (int, float))]
+    if temps:
+        hot = max(temps, key=lambda x: x["value"])
+        tone = "bad" if hot["value"] >= FREEBOX_HOT[1] else "warn" if hot["value"] >= FREEBOX_HOT[0] else "ok"
+        facts.append(fact("Température max", f"{hot['value']:.0f} °C ({hot.get('name') or hot.get('id')})", tone))
+        if tone != "ok":
+            problems.append(f"Freebox chaude : {hot.get('name') or hot.get('id')} à {hot['value']:.0f} °C")
+    if s.get("uptime") is not None:
+        facts.append(fact("Allumée depuis", duration(s["uptime"])))
+    if fb.get("hosts") is not None:
+        facts.append(fact("Appareils actifs", f"{fb['hosts_active']}/{fb['hosts']}"))
+    return {"connector": "freebox", "name": row.get("name") or "", "label": f"{s.get('model') or 'Freebox'} (via MynetworK)",
+            "ok": bool(row.get("ok")), "stale": row.get("stale"), "message": row.get("message"), "version": s.get("firmware"),
+            "url": row.get("url"), "facts": facts[:8], "problems": problems}

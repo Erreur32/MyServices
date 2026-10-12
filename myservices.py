@@ -55,6 +55,7 @@ import api_link
 import known_apps
 import last_known as last_known_services
 import matching
+from connectors import mynetwork as mynetwork_conn
 import npmapi
 
 from config import CFG, next_timer_run
@@ -1176,6 +1177,7 @@ def main():
     # lues dans le dictionnaire, après « connectors », leur état manquait et la page disait « pas encore lu »
     services_status, network, security, containers, virtualization = (connector_rows(k) for k in ("status", "network", "security", "containers", "virtualization"))
     linked = api_link.by_machine([*services_status, *network, *security, *containers, *virtualization], {m["ip"] for m in machines_out})
+    services_status += [fb for row in network if row.get("connector") == "mynetwork" and (fb := mynetwork_conn.freebox_status(row))]   # Freebox read through MynetworK
     # Proxmox hosts read by SSH (after api_link: SSH is not an API badge), unless a connector already reads them
     virtualization += pve_ssh.rows(machines_out, sshc, {api_link.host_ip(c.get("url")) for c in virtualization if c.get("connector") == "proxmox"})
     # ESXi hosts read by SSH, unless a vCenter connector already lists them (by IP or by name)

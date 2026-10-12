@@ -14,7 +14,7 @@ import connectors  # noqa: E402
 from connectors.base import Context, ConnectorError  # noqa: E402
 from connectors.dockhand import Dockhand  # noqa: E402
 from connectors.logviewr import LogviewR  # noqa: E402
-from connectors.mynetwork import MynetworK  # noqa: E402
+from connectors.mynetwork import MynetworK, freebox_status  # noqa: E402
 from connectors.proxmox import ProxmoxBackup, ProxmoxVE  # noqa: E402
 
 GOOD = "tok-" + "x" * 8  # valeur construite : le garde-fou refuse les jetons en dur
@@ -113,10 +113,34 @@ class Reseau(unittest.TestCase):
         self.assertTrue(all(s[0] == "GET" for s in Fake.seen))  # lecture seule
         self.assertTrue(inst(MynetworK, self.url).test().ok)
 
+    def test_mynetwork_freebox(self):
+        Fake.routes = {"/api/network-scan/history": (200, {"success": True, "result": {"items": [], "total": 0}}),
+                       "/api/connection/summary": (200, {"success": True, "result": {
+                           "connection": {"state": "up", "media": "ftth", "rate_down": 1_250_000, "rate_up": 125_000, "bandwidth_down": 8e9, "bandwidth_up": 7e8},
+                           "system": {"model": "Freebox Ultra", "firmware": "4.9.4", "uptime": 90000, "sensors": [{"id": "t1", "name": "CPU", "value": 78}]}}}),
+                       "/api/lan/devices": (200, {"success": True, "result": [{"active": True}, {"active": False}]})}
+        data = inst(MynetworK, self.url).collect()
+        card = freebox_status({"name": "lan", "ok": True, **data})
+        facts = {f["label"]: f["value"] for f in card["facts"]}
+        self.assertEqual((card["label"], card["version"]), ("Freebox Ultra (via MynetworK)", "4.9.4"))
+        self.assertEqual(facts["Débit max"], "8,0 Gb/s / 700 Mb/s")
+        self.assertEqual(facts["Débit actuel"], "10 Mb/s / 1 Mb/s")
+        self.assertEqual(facts["Appareils actifs"], "1/2")
+        self.assertEqual(card["problems"], ["Freebox chaude : CPU à 78 °C"])
+
+    def test_mynetwork_freebox_non_appairee(self):
+        Fake.routes = {"/api/network-scan/history": (200, {"success": True, "result": {"items": [], "total": 0}}),
+                       "/api/lan/devices": (200, {"success": False, "msg": "Freebox non appairée"}),
+                       "/api/connection/summary": (403, {"success": False})}
+        self.assertIsNone(inst(MynetworK, self.url).collect()["freebox"])
+        self.assertIsNone(freebox_status({"freebox": None}))
+
     def test_mynetwork_sans_unifi_et_jeton_refuse(self):
         Fake.routes = {"/api/health": (200, {}), "/api/network-scan/history": (200, {"success": True, "result": {"items": [], "total": 0}}),
                        "/api/plugins/unifi/clients": (404, {}), "/api/plugins/unifi/devices": (404, {})}
-        self.assertIsNone(inst(MynetworK, self.url).collect()["unifi"])
+        data = inst(MynetworK, self.url).collect()
+        self.assertIsNone(data["unifi"])
+        self.assertIsNone(data["freebox"])   # older MynetworK or no Freebox: no card
         bad = inst(MynetworK, self.url, token="autre-" + "y" * 6).test()
         self.assertFalse(bad.ok)
         self.assertIn("jeton refusé", bad.message)
