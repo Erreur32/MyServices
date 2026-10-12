@@ -22,7 +22,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 - SSH access shown as in the first version of the page, on one line: SSH logo, account, IP and port pills (port filled when not
   22). Machines tab column (alias in the unfolded detail), machine card and its SSH frame in Settings -> Machines.
-- Machines tab, unfolded detail: each section (identity, system, access, software, health) has its own colour band and tint.
+- Machines tab, unfolded detail: each section (identity, system, access, software, health) has its own colour band, tint and
+  tinted label column.
 - Machines tab, Servers column: two icons at most, then a "+N" pill; all of them in the unfolded detail.
 - Settings -> Machines: a refused save shows its reason next to the field instead of only at the bottom of the card.
 

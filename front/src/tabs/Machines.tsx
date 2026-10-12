@@ -248,13 +248,13 @@ function Virt({ links }: { links?: MachineLinks | null }) {
   return null;
 }
 
-/** Teinte de chaque rubrique : bande de titre, liseré gauche et fond léger (classes écrites en entier pour Tailwind) */
+/** Teinte de chaque rubrique : bande de titre, liseré gauche, fond léger et fond de la colonne des libellés (classes écrites en entier pour Tailwind) */
 const TONES = {
-  link: { box: "border-l-link bg-link/[0.06]", head: "bg-link/15 text-link" },
-  violet: { box: "border-l-violet-400 bg-violet-400/[0.06]", head: "bg-violet-400/15 text-violet-400" },
-  ok: { box: "border-l-ok bg-ok/[0.06]", head: "bg-ok/15 text-ok" },
-  warn: { box: "border-l-warn bg-warn/[0.06]", head: "bg-warn/15 text-warn" },
-  bad: { box: "border-l-bad bg-bad/[0.06]", head: "bg-bad/15 text-bad" },
+  link: { box: "border-l-link bg-link/[0.06] [&_dt]:bg-link/15", head: "bg-link/15 text-link" },
+  violet: { box: "border-l-violet-400 bg-violet-400/[0.06] [&_dt]:bg-violet-400/15", head: "bg-violet-400/15 text-violet-400" },
+  ok: { box: "border-l-ok bg-ok/[0.06] [&_dt]:bg-ok/15", head: "bg-ok/15 text-ok" },
+  warn: { box: "border-l-warn bg-warn/[0.06] [&_dt]:bg-warn/15", head: "bg-warn/15 text-warn" },
+  bad: { box: "border-l-bad bg-bad/[0.06] [&_dt]:bg-bad/15", head: "bg-bad/15 text-bad" },
 } as const;
 
 /** Rubrique du détail : bande de titre colorée avec icône, lignes « libellé / valeur », puis d'où viennent les données */
@@ -263,7 +263,7 @@ function Section({ icon: Icon, title, tone, from, children }: { icon: typeof Inf
   return (
     <section className={`flex flex-col overflow-hidden rounded-lg border border-line/60 border-l-4 text-xs ${t.box}`}>
       <h4 className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ${t.head}`}><Icon size={13} aria-hidden />{title}</h4>
-      <dl className="flex flex-col gap-1 px-3 pb-3 pt-2">{children}</dl>
+      <dl className="mx-3 mb-3 mt-2 flex flex-col overflow-hidden rounded-md">{children}</dl>
       {!!from?.length && <div className="px-3 pb-3">{<From list={from} />}</div>}
     </section>
   );
@@ -271,13 +271,13 @@ function Section({ icon: Icon, title, tone, from, children }: { icon: typeof Inf
 
 function Row({ k, children }: { k: string; children?: React.ReactNode }) {
   if (children === undefined || children === null || children === false || children === "") return null;
-  return <div className="flex gap-2"><dt className="w-20 shrink-0 text-dim">{k}</dt><dd className="min-w-0 flex-1 break-words">{children}</dd></div>;
+  return <div className="flex gap-2"><dt className="w-24 shrink-0 px-2 py-1 font-semibold text-muted">{k}</dt><dd className="min-w-0 flex-1 break-words py-1">{children}</dd></div>;
 }
 
 /** Disques, processeur et mémoire de la dernière santé, en barres */
 function HealthRows({ h }: { h: HealthHost }) {
   const bar = (label: string, pct: number | undefined, tone: "ok" | "warn" | "bad", extra?: string) => pct == null ? null : (
-    <div key={label} className="flex items-center gap-2"><span className="w-20 shrink-0 truncate text-dim" title={label}>{label}</span><Fill pct={pct} tone={tone} /><span className="tabular-nums">{Math.round(pct)} %</span>{extra && <Dim>{extra}</Dim>}</div>
+    <div key={label} className="flex gap-2"><dt className="w-24 shrink-0 truncate px-2 py-1 font-semibold text-muted" title={label}>{label}</dt><dd className="flex min-w-0 flex-1 items-center gap-2 py-1"><Fill pct={pct} tone={tone} /><span className="tabular-nums">{Math.round(pct)} %</span>{extra && <Dim>{extra}</Dim>}</dd></div>
   );
   return (
     <>
