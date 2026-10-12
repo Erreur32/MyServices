@@ -76,7 +76,7 @@ APPS: tuple[App, ...] = (
     App("myelectricaldata", "MyElectricalData", "Domotique", title=r"myelectricaldata"),
     # Reconnues par leur page ou leur empreinte HTTP (en-têtes, cookies), sans SSH
     App("pihole", "Pi-hole", "Réseau / DNS", title=r"pi-?hole", fp=r"x-pi-hole", images=("pihole/pihole",), connector="pihole"),
-    App("nextcloud", "Nextcloud", "Fichiers / sync", title=r"nextcloud", fp=r"oc_sessionpassphrase|x-nextcloud", images=("nextcloud", "linuxserver/nextcloud")),
+    App("nextcloud", "Nextcloud", "Fichiers / sync", title=r"nextcloud", fp=r"oc_sessionpassphrase|x-nextcloud", images=("nextcloud", "linuxserver/nextcloud"), connector="nextcloud"),
     App("vaultwarden", "Vaultwarden", "Outils", title=r"vaultwarden|bitwarden web vault", images=("vaultwarden/server",)),
     App("gitea", "Gitea", "Outils", title=r"gitea", fp=r"i_like_gitea", images=("gitea/gitea",)),
     App("gitlab", "GitLab", "Outils", title=r"gitlab", fp=r"_gitlab_session", images=("gitlab/gitlab-ce", "gitlab/gitlab-ee")),
