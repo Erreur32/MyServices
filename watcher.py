@@ -380,4 +380,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    import app_user
+    app_user.drop_root()   # docker compose exec : root -> compte 10001 (sa config SSH, fichiers de /data restés à lui)
     sys.exit(main())

@@ -8,6 +8,7 @@ import type { BackupHost } from "../types";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, TableCard, Td, Th } from "../components/ui";
 import { LEVEL } from "../lib/level";
 import { Dot } from "../components/marks";
+import { GREY_CARDS } from "../lib/forms";
 import { tx } from "../lib/i18n";
 
 const stateOf = (h: BackupHost) => (h.reachable ? h.level : "down");
@@ -68,7 +69,7 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
   ) : <Dim>-</Dim>;
 
   return (
-    <div className="flex flex-col gap-4 py-4">
+    <div className={`flex flex-col gap-4 py-4 ${GREY_CARDS}`}>
       <div className="flex gap-2.5 overflow-x-auto pb-1">   {/* one single row; scrolls sideways on a narrow screen instead of wrapping */}
         <Tile n={sm.ok} label={tx("jeux à jour")} tone="ok" /><Tile n={sm.warn} label={tx("jeux en retard")} tone={sm.warn ? "warn" : undefined} />
         <Tile n={sm.crit} label={tx("jeux critiques")} tone={sm.crit ? "bad" : undefined} />

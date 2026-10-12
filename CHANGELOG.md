@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+- **Task scripts run by hand switch to the app account**: `myservices.py`, `health.py`, `watcher.py` and `backups.py` started with `docker compose exec` (as root since 0.10.6) now drop to the account 10001 like `setup.py` and `manage.py`, so they use the app's SSH configuration and leave no root-owned file in `/data`.
+- **Grey border on cards without a colour of their own**, as in Settings, now also on the Diagrams and Backups pages (one shared rule, `GREY_CARDS`).
+
 ## v0.10.10 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

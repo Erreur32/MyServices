@@ -1220,6 +1220,8 @@ def main():
 
 
 if __name__ == "__main__":
+    import app_user
+    app_user.drop_root()   # docker compose exec : root -> compte 10001 (sa config SSH, fichiers de /data restés à lui)
     # Un seul passage à la fois (cron + lancement manuel) : sinon on sort sans rien faire
     lock = open(os.path.join(os.path.dirname(DOCKER_CACHE), "run.lock"), "w") \
         if os.makedirs(os.path.dirname(DOCKER_CACHE), exist_ok=True) is None else None

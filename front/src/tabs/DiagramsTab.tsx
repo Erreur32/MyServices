@@ -7,7 +7,7 @@ import { useDiagrams, type Diagram } from "../components/Diagrams";
 import { Badge, Card, Count, Empty } from "../components/ui";
 import { dateTime } from "../lib/format";
 import { usePoll } from "../lib/polling";
-import { act, primary, quiet, type Note } from "../lib/forms";
+import { act, primary, quiet, type Note, GREY_CARDS } from "../lib/forms";
 import { tx } from "../lib/i18n";
 
 function DiagramCard({ d, open, toggle, onRemove }: { d: Diagram; open: boolean; toggle: () => void; onRemove?: () => void }) {
@@ -53,7 +53,7 @@ export function DiagramsTab({ admin }: { admin: boolean }) {
   const list = d.diagrams.filter((x) => x.available && (!x.optional || x.enabled));
   const proposals = d.diagrams.filter((x) => x.optional && !x.enabled);
   return (
-    <div className="flex flex-col gap-4 py-4">
+    <div className={`flex flex-col gap-4 py-4 ${GREY_CARDS}`}>
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
