@@ -67,6 +67,15 @@ class Link(unittest.TestCase):
     def test_unifi_client_found_by_mac_after_ip_change(self):
         self.assertEqual(self.src("192.168.1.30", "unifi")[0]["by"], "mac")
 
+    def test_unifi_read_directly_one_badge_with_mynetwork(self):
+        direct = {"connector": "unifi", "name": "ucg", "label": "UniFi Network",
+                  "unifi": {"clients": [{"name": "nas", "mac": "aa:bb:cc:dd:ee:02", "ip": "192.168.1.30"}],
+                            "devices": [{"name": "USW", "mac": "aa:bb:cc:dd:ee:41", "ip": "192.168.1.40"}]}}
+        m = matching.link(MACHINES, NET + [direct])["machines"]
+        self.assertEqual(len([s for s in m["192.168.1.30"]["sources"] if s["source"] == "unifi"]), 1)
+        self.assertEqual([s["by"] for s in m["192.168.1.40"]["sources"] if s["source"] == "unifi"], ["ip"])
+        self.assertEqual(m["192.168.1.40"]["mac"], "AA:BB:CC:DD:EE:41")
+
     def test_proxmox_node_and_guest(self):
         self.assertEqual(self.m["192.168.1.10"]["hypervisor"]["node"], "pve")
         g = self.m["192.168.1.20"]["guest"]

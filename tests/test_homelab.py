@@ -254,8 +254,12 @@ class UniFi(Base):
         self.route(f"{base}/info", {"applicationVersion": "9.0.114"})
         self.route(f"{base}/sites", {"data": [{"id": "s1", "name": "Default"}]})
         self.route(f"{base}/sites/s1/devices", {"data": [{"name": "AP salon", "state": "ONLINE"}, {"name": "Switch", "state": "OFFLINE"}]})
-        self.route(f"{base}/sites/s1/clients", {"totalCount": 31, "data": []})
+        self.route(f"{base}/sites/s1/clients", {"totalCount": 31, "data": [
+            {"name": "pc", "type": "WIRELESS", "ipAddress": "10.0.0.9", "macAddress": "m9", "uplinkDeviceId": "d1"}]})
+        self.route(f"{base}/sites/s1/devices", {"data": [{"id": "d1", "name": "AP salon", "macAddress": "ap", "state": "ONLINE"}, {"name": "Switch", "state": "OFFLINE"}]})
         d = self.conn("unifi", api_key="K").collect()
+        self.assertEqual(d["unifi"]["clients"], [{"name": "pc", "mac": "m9", "ip": "10.0.0.9", "wired": False, "ap_mac": "ap"}])
+        self.assertEqual(len(d["unifi"]["devices"]), 2)
         self.assertEqual(SEEN[0][2].get("X-Api-Key") or SEEN[0][2].get("X-API-KEY"), "K")
         self.assertEqual(d["problems"], ["appareil « Switch » hors ligne"])
         self.assertEqual({f["label"]: f["value"] for f in d["facts"]}["Clients"], "31")

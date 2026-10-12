@@ -102,7 +102,7 @@ def link(machines: list[dict], network: list[dict] | None = None, virtualization
 
     def seen(ip: str, source: str, label: str, inst: str, by: str, ok: bool = True, **ref) -> None:
         e = out[ip]
-        if not any(s["source"] == source and s["instance"] == inst for s in e["sources"]):
+        if not any(s["source"] == source and (s["instance"] == inst or source == "unifi") for s in e["sources"]):   # UniFi via MynetworK and direct: one badge
             e["sources"].append({"source": source, "label": label, "instance": inst, "by": by, "ok": ok, **{k: v for k, v in ref.items() if v is not None}})
 
     def lost(source: str, label: str, inst: str, **ref) -> None:

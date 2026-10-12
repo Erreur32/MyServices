@@ -248,6 +248,7 @@ class UniFi(StatusConnector):
              "Pour la lecture par MynetworK (clients, appareils), le connecteur MynetworK reste à privilégier s'il est déjà relié.")
     BASES = ("/proxy/network/integration/v1", "/integration/v1")   # console UniFi OS, puis Network Application seule (Docker)
     DOWN = ("OFFLINE", "CONNECTION_INTERRUPTED", "ISOLATED")
+    CLIENT_PAGES = 5   # 200 clients per page
 
     def _info(self, h: dict) -> tuple[str, dict]:
         for base in self.BASES:
@@ -266,18 +267,31 @@ class UniFi(StatusConnector):
         base, info = self._info(h)
         sites = rows(self.get(f"{base}/sites", h))
         devs, clients, off, upd = 0, 0, [], []
+        seen = {"clients": [], "devices": []}   # for the matching layer (IP / MAC), like MynetworK's UniFi lists
         for s in sites[:5]:
             sid = urllib.parse.quote(str(s.get("id")), safe="")
             ds = rows(self.get(f"{base}/sites/{sid}/devices?limit=200", h))
             devs += len(ds)
             off += [d.get("name") or d.get("macAddress") for d in ds if str(d.get("state", "ONLINE")).upper() in self.DOWN]
             upd += [d.get("name") or d.get("macAddress") for d in ds if d.get("firmwareUpdatable") is True]
-            cl = self.get(f"{base}/sites/{sid}/clients?limit=1", h)
-            clients += int(num((cl or {}).get("totalCount"), 0)) if isinstance(cl, dict) else 0
+            mac_of = {d.get("id"): d.get("macAddress") for d in ds}
+            seen["devices"] += [{"name": d.get("name"), "model": d.get("model"), "mac": d.get("macAddress"), "ip": d.get("ipAddress"), "state": d.get("state")} for d in ds]
+            for page in range(self.CLIENT_PAGES):
+                cl = self.get(f"{base}/sites/{sid}/clients?offset={page * 200}&limit=200", h)
+                got = rows(cl)
+                if page == 0:
+                    clients += int(num((cl or {}).get("totalCount"), len(got))) if isinstance(cl, dict) else len(got)
+                for c in got:
+                    wired = str(c.get("type")).upper() == "WIRED"
+                    seen["clients"].append({"name": c.get("name"), "mac": c.get("macAddress"), "ip": c.get("ipAddress"), "wired": wired,
+                                            "switch_mac" if wired else "ap_mac": mac_of.get(c.get("uplinkDeviceId"))})
+                if len(got) < 200:
+                    break
         facts = [fact("Appareils", f"{devs - len(off)}/{devs} en ligne", "bad" if off else "ok"), fact("Clients", clients), fact("Sites", len(sites))]
         if upd:
             facts.append(fact("Mises à jour", len(upd), "warn"))
-        return self.out(info.get("applicationVersion"), facts, [f"appareil « {n} » hors ligne" for n in off] + [f"appareil « {n} » : mise à jour disponible" for n in upd])
+        return {**self.out(info.get("applicationVersion"), facts, [f"appareil « {n} » hors ligne" for n in off] + [f"appareil « {n} » : mise à jour disponible" for n in upd]),
+                "unifi": seen}
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
