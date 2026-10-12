@@ -160,13 +160,12 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         </Card>
       )}
 
-      <Group title={tx("Avec un agent")} n={withAgent.length} fold empty={tx("Aucun agent pour l'instant : cliquez sur une machine ci-dessous.")}>
+      <Group title={tx("Avec un agent")} n={withAgent.length} fold>
         {withAgent.map((ip) => <ActiveCard key={ip} a={byIp.get(ip)!} conf={machines[ip]} ip={ip} focus={ip === focusIp} busy={busy === ip} onRenew={isWindows(ip) ? () => void create(ip) : undefined} reload={reload} />)}
       </Group>
 
       <Group title={tx("Sans agent")} fold n={without.length}
-        hint={tx("PC Windows seulement. Cliquez sur un PC pour préparer son agent : rien n'est créé avant que vous confirmiez.")}
-        empty={Object.keys(machines).length === 0 ? tx("Aucune machine déclarée : ajoutez d'abord le PC dans Réglages → Machines.") : tx("Aucun PC Windows sans agent.")}>
+        hint={tx("PC Windows seulement. Cliquez sur un PC pour préparer son agent : rien n'est créé avant que vous confirmiez.")}>
         {without.map((ip) => (
           <li key={ip}>
             <button type="button" disabled={!!busy} onClick={() => setPick(pick === ip ? "" : ip)} aria-pressed={pick === ip}
@@ -184,8 +183,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
       </Group>
 
       <Group title={tx("Linux, lus par SSH")} fold n={ssh.length}
-        hint={tx("L'accès SSH se règle avec la machine : cliquez sur une carte pour ouvrir ses réglages.")}
-        empty={tx("Aucune machine Linux lue par SSH pour l'instant : activez « Lecture par SSH » dans Réglages → Machines.")}>
+        hint={tx("L'accès SSH se règle avec la machine : cliquez sur une carte pour ouvrir ses réglages.")}>
         {ssh.map((ip) => {
           const lm = liveBy.get(ip);
           return (
@@ -204,8 +202,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
       </Group>
 
       <Group title={tx("Lues par leur API, sans SSH")} fold n={byApi.length}
-        hint={tx("Déjà connectées par l'API d'un connecteur (Home Assistant…) : rien à régler. Le SSH n'y est pas nécessaire, et souvent pas possible.")}
-        empty={tx("Aucune machine lue seulement par une API.")}>
+        hint={tx("Déjà connectées par l'API d'un connecteur (Home Assistant…) : rien à régler. Le SSH n'y est pas nécessaire, et souvent pas possible.")}>
         {byApi.map((ip) => {
           const lm = liveBy.get(ip), list = lm?.api ?? [];
           return (
@@ -225,8 +222,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
       </Group>
 
       <Group title={tx("Sans accès : à régler")} fold n={noAccess.length}
-        hint={tx("Ni agent possible (pas un PC Windows), ni SSH, ni API : activez l'accès SSH dans les réglages de la machine.")}
-        empty={tx("Toutes les machines ont un accès.")}>
+        hint={tx("Ni agent possible (pas un PC Windows), ni SSH, ni API : activez l'accès SSH dans les réglages de la machine.")}>
         {noAccess.map((ip) => (
           <li key={ip}>
             <a href={`#settings/machines/${ip}`} className="flex h-full items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 transition-colors hover:border-link hover:bg-link/10">
@@ -241,7 +237,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         ))}
       </Group>
 
-      <Group title={tx("Agents révoqués")} n={revoked.length} fold folded empty={tx("Aucun agent révoqué.")}
+      <Group title={tx("Agents révoqués")} n={revoked.length} fold folded
         hint={tx("Leur jeton ne marche plus. « Nouvel agent » en crée un autre pour ce PC ; « Supprimer » les retire de la liste pour de bon.")}>
         {revoked.map((a) => <RevokedCard key={a.id} a={a} conf={machines[a.ip]} ip={a.ip} busy={busy === a.ip}
           onNew={isWindows(a.ip) ? () => void create(a.ip) : undefined} reload={reload} />)}
@@ -251,12 +247,13 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
 }
 
 /** Groupe de cartes : titre, compte, texte d'aide, grille (ou le texte « vide ») ; pliable (chevron, comme « Agent créé ») si fold */
-function Group({ title, n, hint, empty, fold, folded, children }: { title: string; n: number; hint?: string; empty: string; fold?: boolean; folded?: boolean; children: React.ReactNode }) {
+function Group({ title, n, hint, fold, folded, children }: { title: string; n: number; hint?: string; fold?: boolean; folded?: boolean; children: React.ReactNode }) {
   const [choice, setChoice] = useState<boolean | null>(null);  // null : pas touché, donc ouvert s'il y a des cartes, replié s'il est vide
   const open = choice ?? (n > 0 && !folded);  // folded : replié d'office même s'il a des cartes (agents révoqués)
   const shown = !fold || open;
+  if (n === 0) return null;   // catégorie vide : pas affichée
   return (
-    <section aria-label={title} className={n === 0 ? "order-1" : ""}>  {/* groupes vides en bas (après les pleins) */}
+    <section aria-label={title}>
       <h3 className="mb-2 px-1 text-sm font-bold">
         {fold ? (
           <button type="button" onClick={() => setChoice(!open)} aria-expanded={open} className="flex items-center gap-2 text-left">
@@ -266,8 +263,7 @@ function Group({ title, n, hint, empty, fold, folded, children }: { title: strin
         ) : <span className="flex items-center gap-2">{title} <Dim>· {n}</Dim></span>}
       </h3>
       {shown && hint && n > 0 && <p className="mb-2 px-1 text-xs text-dim">{hint}</p>}
-      {shown && (n === 0 ? <p className="rounded-xl border border-dashed border-line px-4 py-3 text-sm text-muted">{empty}</p>
-        : <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{children}</ul>)}
+      {shown && <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{children}</ul>}
     </section>
   );
 }
