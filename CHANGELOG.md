@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.8 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Fixed
 - **"Authorize the key" command** (Getting started, Discovery, Settings -> Machines, adding a machine): it now targets the real folder of the chosen account (`/root/.ssh` or `/home/<account>/.ssh`), creates `.ssh` when missing, adds the key only once, and gives `.ssh` back to the account with modes 700 / 600. It can be run as root for another account: before, a key written by root was left owned by root, and sshd refused it.
 - **Settings → Machines → SSH & Agents**: a machine already read by a connector's API (Home Assistant…) is no longer listed under "No access: to set" with an SSH warning; it has its own group, "Read by their API, without SSH". Every card now shows the same access badge as the Machines tab (SSH OK, Agent active, API, SSH refused, online without SSH…).
