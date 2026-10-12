@@ -141,6 +141,7 @@ def _wait(name: str) -> None:
     timer.cancel()
     result = "success" if code == 0 else "timeout" if code == -9 else f"exit-code {code}"
     if name == "collect" and code == 0:
+        keep_availability()
         threading.Thread(target=auto_backup_default, daemon=True, name="auto-backup").start()
         threading.Thread(target=auto_adguard, daemon=True, name="auto-adguard").start()
     if name in ("collect", "health", "backups") and code == 0:
@@ -204,6 +205,19 @@ def auto_backup_default() -> None:
         log(f"⚠ sauvegardes automatiques : {type(e).__name__}: {e}")
     finally:
         _AUTO_BACKUP.release()
+
+
+def keep_availability() -> None:
+    """Availability of each service, machine and Kuma monitor after a collection (Historique → Disponibilité)."""
+    import availability
+    from auth import db_path
+    try:
+        n = availability.sample(db_path(CFG), WEB / "data.json")
+    except Exception as e:  # base unavailable: only the availability history misses a point
+        log(f"⚠ disponibilité : {e}")
+        return
+    if n:
+        log(f"disponibilité : {n} point(s)")
 
 
 def keep_history(name: str, alert: bool = False) -> None:

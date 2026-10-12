@@ -1283,6 +1283,12 @@ def events_per_day(days: int = 30):
     return {"days": history.per_day(db_path(core.CFG), days)}
 
 
+@app.get(API + "/availability", tags=["historique"], summary="Disponibilité des services, machines et sondes Uptime Kuma sur une période (taux, temps de réponse, une case par jour ou par heure)")
+def availability_report(days: int = 30):
+    import availability
+    return availability.report(db_path(core.CFG), days)
+
+
 # ── Comptes et sessions ───────────────────────────────────────────────────────────────────────────
 
 class Login(BaseModel):

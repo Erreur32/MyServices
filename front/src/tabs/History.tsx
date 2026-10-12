@@ -1,6 +1,7 @@
 // Historique : un graphique au choix (points à l'heure exacte, barres, courbe, chaleur) au-dessus de la liste des événements. Un clic sur
 // un point ou une barre limite la liste à ce jour ou à cette plage. Source : historique SQLite d'un an (API v1).
-import { BarChart3, Flame, LineChart, ScatterChart } from "lucide-react";
+import { Activity, BarChart3, Flame, LineChart, ListOrdered, ScatterChart } from "lucide-react";
+import { Availability } from "./Availability";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { loadHistory, type Snapshot } from "../api";
 import { useFilter, type Facet } from "../lib/filter";
@@ -29,7 +30,26 @@ const savedDays = (): number => {
 
 type Loaded = Awaited<ReturnType<typeof loadHistory>> & { days: number; at: number };
 
+const VIEW_KEY = "ms.history.view";
+
+/** Historique : les événements, ou la disponibilité dans le temps (choix gardé) */
 export function History({ snap }: { snap: Snapshot }) {
+  const [view, setView] = useState<"events" | "availability">(() => { try { return localStorage.getItem(VIEW_KEY) === "availability" ? "availability" : "events"; } catch { return "events"; } });
+  const pickView = (v: typeof view) => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* stockage refusé */ } };
+  return (
+    <>
+      <div className="mt-4 inline-flex rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Vue de l'historique")}>
+        {([["events", tx("Événements"), ListOrdered], ["availability", tx("Disponibilité"), Activity]] as const).map(([k, l, Icon]) => (
+          <button key={k} type="button" onClick={() => pickView(k)} aria-pressed={view === k}
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm ${view === k ? "bg-link/15 font-semibold text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{l}</button>
+        ))}
+      </div>
+      {view === "events" ? <Events snap={snap} /> : <Availability snap={snap} />}
+    </>
+  );
+}
+
+function Events({ snap }: { snap: Snapshot }) {
   const [days, setDays] = useState(savedDays);
   const [style, setStyle] = useState<ChartStyle>(savedStyle);
   const [range, setRange] = useState<Range | null>(null);
