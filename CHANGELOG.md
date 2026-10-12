@@ -11,6 +11,20 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.25 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- UniFi Network connector, two ways in: an API key on a UniFi OS console (UCG, UDM, UX, Cloud Key, UniFi OS Server), or a
+  read-only local account on the self-hosted controller (Docker, port 8443), which has no API key. It reports devices online or
+  not, devices with a firmware update and the client count. A detected UniFi container proposes the local account mode.
+- UniFi clients and devices read by this connector feed the matching layer (IP, MAC), without MynetworK; a machine seen by both
+  keeps a single UniFi badge.
+- "Freebox (via MynetworK)" card in Health: the MynetworK connector also reads the Freebox it relays (active LAN hosts; line
+  state, rates, temperature and uptime once MynetworK serves `/api/connection/summary`). No card when MynetworK has no Freebox.
+
 ## v0.10.24 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
