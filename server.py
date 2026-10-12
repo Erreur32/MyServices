@@ -359,6 +359,37 @@ def auto_netscan() -> None:
             log(f"recherche réseau automatique impossible : {type(e).__name__}: {e}")
 
 
+def auto_adopt() -> None:
+    """Auto mode (Settings -> Discovery): once per finished network search, the machines worth following are added (machines_admin
+    .adopt_found), then a collection reads them. An IP added this way and removed by hand later is never added again (auto-mode.json)."""
+    f, mark = Path(CFG["state_dir"]) / "network-scan.json", Path(CFG["state_dir"]) / "auto-mode.json"
+    if not CFG["auto_mode"] or not f.exists():
+        return
+    st = netscan.state(f)
+    if st.get("phase") != "done" or st.get("error") or st.get("stopped") or not st.get("ended"):
+        return
+    try:
+        seen = json.loads(mark.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        seen = {}
+    if seen.get("scan") == st["ended"]:
+        return
+    added: list[str] = seen.get("added", [])
+    try:
+        import machines_admin
+        new = machines_admin.adopt_found(st.get("found") or [], set(added) | {x.get("ip") for x in CFG["netscan_ignored"]})
+    except Exception as e:  # noqa: BLE001 : the scheduler never stops for it; tried again after the next search
+        log(f"mode automatique : ajout des machines impossible : {type(e).__name__}: {e}")
+        new = []
+    tmp = mark.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"scan": st["ended"], "added": added + new}), encoding="utf-8")
+    tmp.replace(mark)
+    if new:
+        log(f"mode automatique : {len(new)} machine(s) ajoutée(s) d'après la recherche réseau : {', '.join(new)}")
+        if enabled("collect"):
+            run_chain(["collect"], "machines ajoutées par le mode automatique")
+
+
 def netscan_task() -> dict:
     """La recherche réseau automatique, présentée comme une tâche (en-tête) : prochaine échéance = dernière recherche + « netscan_every » h
     (vérifiée chaque minute par le planificateur ; tout de suite s'il n'y en a jamais eu) ; coupée si netscan_every = 0."""
@@ -425,6 +456,7 @@ def scheduler() -> None:
                     if not run_task(name, "horaire"):
                         log(f"{name} : passage précédent encore en cours, horaire sauté")
             auto_netscan()
+            auto_adopt()
             wake_check()
             notifications_tick()
         time.sleep(5)

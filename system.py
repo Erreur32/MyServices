@@ -109,7 +109,8 @@ def netscan_settings(core) -> dict:
     """Recherche réseau automatique : toutes les `every_h` heures (0 = coupée) ; `fixed` si MYSERVICES_NETSCAN_EVERY l'impose."""
     return {"every_h": core.CFG["netscan_every"], "default_h": NETSCAN_DEFAULT_H, "max_h": NETSCAN_MAX_H,
             "fixed": "MYSERVICES_NETSCAN_EVERY" in os.environ,
-            "nets": core.CFG["netscan_nets"], "ignored": core.CFG["netscan_ignored"], "discreet": core.CFG["netscan_discreet"]}
+            "nets": core.CFG["netscan_nets"], "ignored": core.CFG["netscan_ignored"], "discreet": core.CFG["netscan_discreet"],
+            "auto": core.CFG.get("auto_mode", True)}
 
 
 def set_netscan_every(core, hours: int) -> dict:
@@ -231,6 +232,28 @@ def set_diagram_extra(core, key: str, on: bool) -> list[str]:
     _update_config(core, change)
     core.CFG["diagrams_extra"] = kept
     return kept
+
+
+def set_auto_mode(core, on: bool) -> dict:
+    """Auto mode (default): found machines added and SSH turned on by themselves. Turning it on also turns back on the automatic
+    network search (unless fixed by MYSERVICES_NETSCAN_EVERY) and the /home/backup follow-up; off: nothing is added by itself."""
+    fixed = "MYSERVICES_NETSCAN_EVERY" in os.environ
+
+    def change(raw: dict) -> None:
+        if on:
+            raw.pop("auto_mode", None)
+            raw.pop("backups_auto", None)
+            if not fixed and raw.get("netscan_every") == 0:
+                raw.pop("netscan_every")
+        else:
+            raw["auto_mode"] = False
+    _update_config(core, change)
+    core.CFG["auto_mode"] = on
+    if on:
+        core.CFG["backups_auto"] = True
+        if not fixed and not core.CFG["netscan_every"]:
+            core.CFG["netscan_every"] = NETSCAN_DEFAULT_H
+    return netscan_settings(core)
 
 
 def set_netscan_discreet(core, on: bool) -> dict:

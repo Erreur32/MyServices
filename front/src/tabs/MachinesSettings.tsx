@@ -19,7 +19,7 @@ import { IconPicker } from "../components/IconPicker";
 import { MSTATE, mState, osOfMachine } from "../lib/machines";
 import { AuthorizeKey } from "../components/AuthorizeKey";
 import { SshGuide } from "../components/SshGuide";
-import { SshDetails } from "../components/ssh";
+import { SshAccess, SshDetails } from "../components/ssh";
 import { ReadBySsh } from "../components/ReadBySsh";
 import { useWide } from "../lib/useWide";
 import { rolesOf, sshBrief, sshWarn } from "../lib/ssh";
@@ -353,7 +353,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
           {statuses.some((c) => !c.ok) && <Badge tone="bad">{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
           {off ? <Badge tone="off">{tx("non suivie")}</Badge> : state && <Badge tone={state[0]} title={state[2]}>{state[1]}</Badge>}
         </span>
-        {!open && <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">{rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}<span className="truncate">{[(live && sshBrief(live)) || access, st.process_hosts[ip] ? tx("process lus") : null].filter(Boolean).join(" · ")}</span></span>}
+        {!open && <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">{rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}{live?.ssh && <SshAccess noIp alias={live.ssh.alias} user={live.ssh.user} ip={ip} port={live.ssh.port} refused={!live.info && !!live.ssh.identity} />}<span className="truncate">{[(live && sshBrief(live)) || (live?.ssh ? null : access), st.process_hosts[ip] ? tx("process lus") : null].filter(Boolean).join(" · ")}</span></span>}
       </button>
       {open && (
         <div className="flex flex-col gap-3 px-3 pb-3">
@@ -470,14 +470,16 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   // Machine déjà enregistrée : un interrupteur se sauvegarde tout seul (sans toucher aux champs texte en cours de saisie) ;
   // une coche « ✓ enregistré » s'anime à côté. À l'ajout (isNew), tout part avec « Enregistrer ».
   const [saved, setSaved] = useState<MachineConf>(m), [savedProc, setSavedProc] = useState(!!process);
-  const [flash, setFlash] = useState(""), [pending, setPending] = useState("");
+  const [flash, setFlash] = useState(""), [pending, setPending] = useState(""), [failed, setFailed] = useState<{ k: string; text: string } | null>(null);
   // Seule cette machine est relue (SSH, Docker, santé) : les autres restent en cache, le passage est court.
   const refreshState = () => { void send("POST", `machines/settings/${ip}/refresh`).then(pokeScan, () => undefined); };
   const autoSave = async (key: string, next: Partial<MachineConf>, nextProc = savedProc, refresh = true) => {
     if (isNew) { setV((x) => ({ ...x, ...next })); if (key === "proc") setProc(nextProc); return; }
-    setPending(key);
+    setPending(key); setFailed(null);
     const machine = { ...saved, ...next };
-    const ok = await act(() => send("PUT", `machines/settings/${ip}`, { machine, process: windows ? null : nextProc, extra: [] }), tx("enregistré"), (n) => setNote(n && !n.ok ? n : null));  // succès : seulement la coche animée ; erreur : message
+    // Refused: the reason shows next to the field itself (not only at the bottom of the card), the old value stays on screen
+    const ok = await act(() => send("PUT", `machines/settings/${ip}`, { machine, process: windows ? null : nextProc, extra: [] }), tx("enregistré"),
+      (n) => { setNote(n && !n.ok ? n : null); if (n && !n.ok) setFailed({ k: key, text: n.text }); });  // succès : seulement la coche animée ; erreur : message
     setPending("");
     if (!ok) return;
     setSaved(machine); setSavedProc(nextProc);
@@ -499,6 +501,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live?.detected?.join(), isNew]);
   const Saved = ({ k }: { k: string }) => (pending === k ? <Loader2 size={13} className="animate-spin text-dim" aria-label={tx("enregistrement…")} />
+    : failed?.k === k ? <span className="text-xs font-semibold text-bad" role="alert">⚠ {tx("non enregistré :")} {failed.text}</span>
     : flash === k ? <span className="saved-pop inline-flex items-center gap-1 text-xs font-semibold text-ok"><Check size={13} aria-hidden />{tx("enregistré")}</span> : null);
   // Étiquettes proposées en un clic d'après ce que la machine est réellement : Docker (conteneurs lus), Apache, nginx, SSH, Windows, VM, passerelle, NPM
   const i = live?.info;
@@ -520,7 +523,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   const key = (windows ? v.health : v.ssh) as string | null | undefined | false;
   const sshOn = typeof key === "string" && key !== "";
   const info = st.aliases.find((a) => a.alias === key);
-  const sshWho = info ? `${info.user ? `${info.user}@` : ""}${info.ip || info.host}${info.port ? `:${info.port}` : ""}` : String(key || "");
+  const sshPills = <SshAccess alias={String(key || "")} user={info?.user} ip={info ? info.ip || info.host : null} port={info?.port} />;
   // Réactivation : si un accès existe déjà pour cette IP (la config SSH garde l'alias quand on coupe l'interrupteur), on le reprend et on
   // teste la clé tout de suite ; le guide ne s'ouvre que si la connexion échoue (ou s'il n'y a encore aucun accès).
   const known = st.aliases.find((a) => a.ip === ip);
@@ -564,7 +567,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
           {agentMode ? <Badge tone={agent ? (agent.state === "actif" ? "ok" : agent.state === "silencieux" ? "warn" : "info") : "off"}>{agent ? agent.state : tx("pas d'agent")}</Badge>
           : live && <Badge tone={MSTATE[mState(live)][0]} title={MSTATE[mState(live)][2]}>{MSTATE[mState(live)][1]}</Badge>}
           {!sshOpen && <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-            {!agentMode && sshOn && <code className="font-mono text-xs text-muted">{sshWho}</code>}
+            {!agentMode && sshOn && sshPills}
             {gives.filter(([, on]) => on).map(([label, , why]) => <Badge key={label} tone="ok" title={why}>✓ {label}</Badge>)}
           </span>}
         </button>
@@ -582,7 +585,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
             </> : <>
               <Switch on={sshOn} disabled={pending === "ssh"} onChange={(on) => void toggleSsh(on)} label={tx("Lecture par SSH")} />
               <span><b>{sshOn ? tx("Actif") : tx("Inactif")}</b> <Saved k="ssh" />
-                <Dim> · {sshOn ? sshWho : foundSsh ? tx("activé tout seul au prochain passage") : v.ssh === false ? tx("coupé : ping et services web seulement") : tx("ping et services web seulement")}</Dim></span>
+                {sshOn ? <> <Dim>·</Dim> {sshPills}</> : <Dim> · {foundSsh ? tx("activé tout seul au prochain passage") : v.ssh === false ? tx("coupé : ping et services web seulement") : tx("ping et services web seulement")}</Dim>}</span>
             </>}
           </label>
           {foundSsh && (

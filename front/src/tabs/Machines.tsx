@@ -13,6 +13,7 @@ import { ViewToggle, useStoredView } from "../components/ViewToggle";
 import { Dot } from "../components/marks";
 import { LEVEL } from "../lib/level";
 import { rolesOf } from "../lib/ssh";
+import { SshAccess } from "../components/ssh";
 import { watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
@@ -169,11 +170,10 @@ function WatchSummary({ items }: { items: WatchItem[] }) {
   );
 }
 
-/** Accès SSH sur une ligne ; l'alias, la note et les alertes sont dans le détail déplié */
+/** Accès SSH comme dans la première version, sur une ligne : logo, pastilles compte, IP et port ; l'alias, la note et les alertes sont dans le détail déplié */
 function SshShort({ m }: { m: Machine }) {
   if (!m.ssh) return <Dim>{m.local ? tx("local") : "-"}</Dim>;
-  return <span className="inline-flex items-center gap-1.5"><span className="font-mono text-xs">{m.ssh.user || "?"}@{m.ip}:{m.ssh.port}</span>
-    {!m.info && m.ssh.identity && <Badge tone="warn" title={tx("connexion refusée ou impossible")}>{tx("refusée")}</Badge>}</span>;
+  return <SshAccess noAlias alias={m.ssh.alias} user={m.ssh.user} ip={m.ip} port={m.ssh.port} refused={!m.info && !!m.ssh.identity} />;
 }
 
 /** Système sur une ligne : logo de la distribution (ou icône de la famille) puis le nom, coupé, entier au survol */
@@ -245,13 +245,23 @@ function Virt({ links }: { links?: MachineLinks | null }) {
   return null;
 }
 
-/** Rubrique du détail : titre avec icône, lignes « libellé / valeur », puis d'où viennent les données */
-function Section({ icon: Icon, title, from, children }: { icon: typeof Info; title: string; from?: Origin[]; children: React.ReactNode }) {
+/** Teinte de chaque rubrique : bande de titre, liseré gauche et fond léger (classes écrites en entier pour Tailwind) */
+const TONES = {
+  link: { box: "border-l-link bg-link/[0.06]", head: "bg-link/15 text-link" },
+  violet: { box: "border-l-violet-400 bg-violet-400/[0.06]", head: "bg-violet-400/15 text-violet-400" },
+  ok: { box: "border-l-ok bg-ok/[0.06]", head: "bg-ok/15 text-ok" },
+  warn: { box: "border-l-warn bg-warn/[0.06]", head: "bg-warn/15 text-warn" },
+  bad: { box: "border-l-bad bg-bad/[0.06]", head: "bg-bad/15 text-bad" },
+} as const;
+
+/** Rubrique du détail : bande de titre colorée avec icône, lignes « libellé / valeur », puis d'où viennent les données */
+function Section({ icon: Icon, title, tone, from, children }: { icon: typeof Info; title: string; tone: keyof typeof TONES; from?: Origin[]; children: React.ReactNode }) {
+  const t = TONES[tone];
   return (
-    <section className="flex flex-col gap-1.5 rounded-lg border border-line/60 bg-card/60 p-3 text-xs">
-      <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim"><Icon size={13} aria-hidden />{title}</h4>
-      <dl className="flex flex-col gap-1">{children}</dl>
-      {!!from?.length && <From list={from} />}
+    <section className={`flex flex-col overflow-hidden rounded-lg border border-line/60 border-l-4 text-xs ${t.box}`}>
+      <h4 className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ${t.head}`}><Icon size={13} aria-hidden />{title}</h4>
+      <dl className="flex flex-col gap-1 px-3 pb-3 pt-2">{children}</dl>
+      {!!from?.length && <div className="px-3 pb-3">{<From list={from} />}</div>}
     </section>
   );
 }
@@ -285,7 +295,7 @@ function Detail({ m, h, mac, from, watch }: { m: Machine; h?: HealthHost; mac?: 
   return (
     <div className="grid gap-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
       <WatchSummary items={watch} />
-      <Section icon={IdCard} title={tx("Identité")} from={[...from.role, ...from.mac]}>
+      <Section icon={IdCard} title={tx("Identité")} tone="link" from={[...from.role, ...from.mac]}>
         <Row k={tx("Nom")}><b>{m.name}</b></Row>
         <Row k="IP"><span className="font-mono">{m.ip}</span></Row>
         <Row k={tx("État")}><Badge tone={stTone} title={stTip}>{stLabel}</Badge></Row>
@@ -297,7 +307,7 @@ function Detail({ m, h, mac, from, watch }: { m: Machine; h?: HealthHost; mac?: 
         <Row k="TTL">{m.ttl ? <span title={tx("Durée de vie des paquets du ping : 64 Linux, 128 Windows")}>{m.ttl}</span> : undefined}</Row>
       </Section>
 
-      <Section icon={Cpu} title={tx("Système")} from={from.os}>
+      <Section icon={Cpu} title={tx("Système")} tone="violet" from={from.os}>
         <Row k={tx("Système")}>{i?.os || m.agent?.os || undefined}</Row>
         <Row k={tx("Noyau")}>{i?.kernel || m.agent?.kernel || undefined}</Row>
         <Row k={tx("En marche")}>{(i?.uptime_s ?? m.agent?.uptime_s) ? dur(i?.uptime_s ?? m.agent?.uptime_s) : undefined}</Row>
@@ -305,10 +315,9 @@ function Detail({ m, h, mac, from, watch }: { m: Machine; h?: HealthHost; mac?: 
         {!i && !m.agent && <Dim>-</Dim>}
       </Section>
 
-      <Section icon={KeyRound} title={tx("Accès")} from={from.ssh}>
+      <Section icon={KeyRound} title={tx("Accès")} tone="ok" from={from.ssh}>
         {s ? <>
-          <Row k={tx("Connexion")}><span className="font-mono">{s.user || "?"}@{m.ip}:{s.port}</span>{s.port !== 22 && <Badge tone="warn">{tx("port non standard")}</Badge>}</Row>
-          <Row k={tx("Alias")}>{s.alias}{s.identity ? "" : tx(" · sans clé")}</Row>
+          <Row k={tx("Connexion")}><SshAccess alias={s.alias} user={s.user} ip={m.ip} port={s.port} refused={!i && !!s.identity} /></Row>
           <Row k={tx("Clé")}><KeyCell m={m} /></Row>
           <Row k={tx("Note")}>{s.note ?? undefined}</Row>
           <Row k={tx("Sécurité")}>
@@ -322,7 +331,7 @@ function Detail({ m, h, mac, from, watch }: { m: Machine; h?: HealthHost; mac?: 
         {m.agent && <Row k={tx("Agent")}>{tx("relevé par l'agent MyServices")}</Row>}
       </Section>
 
-      <Section icon={Boxes} title={tx("Logiciels et services")} from={from.services}>
+      <Section icon={Boxes} title={tx("Logiciels et services")} tone="warn" from={from.services}>
         <Row k={tx("Services")}>{m.services}{m.npm > 0 && <Dim> · {m.npm} NPM</Dim>}{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</Row>
         <Row k="Docker">{i?.docker ? tx("{0} conteneur(s) en cours", i.docker) : m.agent?.docker != null ? (m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>) : i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined}</Row>
         <Row k="API">{m.api?.length ? <span className="flex flex-wrap gap-1">{m.api.map((a) => <Badge key={`${a.type}/${a.name}`} tone={a.ok ? "ok" : a.stale ? "warn" : "bad"} title={`${a.name} : ${a.message ?? ""}`}>{a.label}{a.version ? ` ${a.version}` : ""}</Badge>)}</span> : undefined}</Row>
@@ -333,7 +342,7 @@ function Detail({ m, h, mac, from, watch }: { m: Machine; h?: HealthHost; mac?: 
         {!m.services && !i?.docker && !i?.apache && !i?.nginx && !m.agent?.docker && !m.agent?.apps?.length && !m.api?.length && <Dim>-</Dim>}
       </Section>
 
-      <Section icon={HeartPulse} title={tx("Santé")} from={from.health}>
+      <Section icon={HeartPulse} title={tx("Santé")} tone="bad" from={from.health}>
         {h ? <>
           <Row k={tx("Niveau")}><Level level={h.reachable === false ? "down" : h.level} /></Row>
           <HealthRows h={h} />

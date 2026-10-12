@@ -69,7 +69,10 @@ def build(i: dict) -> list[dict]:
     unknown = i.get("unknown_hosts") or 0
     if unknown:
         add("hosts", f"{unknown} machine(s) trouvée(s) sur le réseau, pas encore suivie(s)", FIRST,
-            "La recherche réseau les a vues. Choisissez celles à suivre (ou à ignorer) : MyServices ne les ajoute jamais seul.", i.get("net_last"), None, SUGGEST,
+            "La recherche réseau les a vues, sans SSH, appli reconnue ni service utile (téléphones, objets connectés…) : le mode automatique "
+            "ne les ajoute pas. Choisissez celles à suivre (ou à ignorer)." if i.get("auto_mode")
+            else "La recherche réseau les a vues. Choisissez celles à suivre (ou à ignorer) : en mode manuel, MyServices ne les ajoute jamais seul.",
+            i.get("net_last"), None, SUGGEST,
             "à choisir", {"label": "Choisir", "href": "#settings/network/hosts"})
     for k in i.get("key_refused") or []:   # accès SSH activé mais la clé de l'app n'est pas autorisée (ou port faux)
         add(f"ssh:{k['ip']}", f"Clé SSH à autoriser sur {k.get('name') or k['ip']}", AUTO,

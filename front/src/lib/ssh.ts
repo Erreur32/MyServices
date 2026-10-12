@@ -28,9 +28,9 @@ export function authorizeFor(cmd: string, user: string): string {
 
 /** Une ligne : compte@alias:port · système · conteneurs · Apache */
 export function sshBrief(m: Machine): string {
-  const s = m.ssh, i = m.info;
+  const i = m.info;
   return [
-    s ? `${s.user || "?"}@${s.alias}:${s.port}` : m.local ? "local" : null,
+    m.ssh ? null : m.local ? "local" : null,   // the SSH access itself is shown by <SshAccess>
     i?.os?.replace(/ GNU\/Linux/, "").replace(/ \(.*\)/, ""),
     i?.docker ? `${i.docker} conteneurs` : null,
     i?.apache ? "Apache" : null,

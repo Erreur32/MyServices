@@ -28,6 +28,27 @@ function Kv({ k, children }: { k: string; children: ReactNode }) {
   return <div className="flex justify-between gap-3"><span className="text-dim">{k}</span><span className="min-w-0 truncate text-right">{children}</span></div>;
 }
 
+const SSH_ICON = `${import.meta.env.BASE_URL}icons/ssh.svg`;
+
+/** SSH access as in the first version of the page, on one line: SSH logo and alias, then the account, IP and port pills
+ *  (port filled when it is not 22). noIp: without the IP pill, where the IP is already shown (machine card header);
+ *  noAlias: logo only, the alias being in the unfolded detail (Machines table column). */
+export function SshAccess({ alias, user, ip, port, refused, noIp, noAlias }: {
+  alias: string; user?: string | null; ip?: string | null; port?: number | null; refused?: boolean; noIp?: boolean; noAlias?: boolean;
+}) {
+  const p = port || 22;
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap">
+      <span className="inline-flex items-center gap-1 font-mono text-xs text-txt"><img src={SSH_ICON} alt="" aria-hidden={!noAlias} title={noAlias ? alias : undefined} className="h-3.5 w-3.5" />{!noAlias && alias}</span>
+      <span title={tx("Compte SSH")} className="inline-flex items-center rounded-full border border-violet-400/40 bg-violet-400/10 px-1.5 text-[10.5px] font-bold text-violet-400">👤 {user || "?"}</span>
+      {!noIp && ip && <span title={tx("Adresse IP")} className="inline-flex items-center rounded-full border border-link/35 bg-link/10 px-1.5 font-mono text-[10.5px] font-bold text-link">{ip}</span>}
+      <span title={p !== 22 ? tx("Port SSH (non standard)") : tx("Port SSH")}
+        className={`inline-flex items-center rounded-full border px-1.5 font-mono text-[10.5px] font-bold ${p !== 22 ? "border-warn bg-warn text-bg" : "border-warn/35 bg-warn/10 text-warn"}`}>:{p}</span>
+      {refused && <Badge tone="warn" title={tx("connexion refusée ou impossible")}>{tx("refusée")}</Badge>}
+    </span>
+  );
+}
+
 const risky = (v?: string) => !!v && !/^(no|prohibit-password)$/.test(v);
 
 /** Détail SSH : accès, clé, empreintes, sshd, système, ce qui est lu, état des connecteurs SSH de la machine. */
@@ -37,7 +58,7 @@ export function SshDetails({ m, statuses }: { m: Machine; statuses: (Connector |
   return (
     <div>
       <div className="flex flex-col gap-0.5">
-        {s ? <Kv k={tx("Accès")}><code className="font-mono text-xs">{s.user || "?"}@{s.alias}:{s.port}</code></Kv> : <Kv k={tx("Accès")}>{tx("collecteur lui-même (local)")}</Kv>}
+        {s ? <Kv k={tx("Accès")}><SshAccess alias={s.alias} user={s.user} ip={m.ip} port={s.port} refused={!i && !!s.identity} /></Kv> : <Kv k={tx("Accès")}>{tx("collecteur lui-même (local)")}</Kv>}
         {s && <Kv k={tx("Clé")}><span className="inline-flex items-center gap-1 font-mono text-xs"><KeyRound size={12} />{s.identity || tx("aucune (mot de passe)")}</span></Kv>}
         {s?.key_fp && <Kv k={tx("Empreinte clé")}><span className="font-mono text-xs" title={s.key_fp}>{s.key_fp}</span></Kv>}
         {s?.host_key && <Kv k={tx("Clé d'hôte")}><span className="font-mono text-xs" title={s.host_key}>{s.host_key}</span></Kv>}

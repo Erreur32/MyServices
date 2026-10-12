@@ -292,6 +292,26 @@ def adopt_ssh(found: dict[str, str]) -> list[str]:
     return done
 
 
+def interesting(h: dict) -> bool:
+    """Same rule as the page (front lib/netScan.ts interesting()): answers SSH, has a recognised app or a service other than a plain
+    web page (share, remote desktop, Veeam...). A connected object with only a web page is not."""
+    return bool(h.get("ssh_port")) or bool(h.get("apps")) or any(not x.startswith(("web", "port ")) for x in h.get("hints") or [])
+
+
+def adopt_found(found: list[dict], skip: set[str]) -> list[str]:
+    """Auto mode: machines of the last network search worth following (interesting()), not declared yet and not in `skip`
+    (ignored, or already added once by the auto mode and removed by hand since: never added again). Returns the IPs added."""
+    known = known_ips()
+    done = []
+    for h in found:
+        if h["ip"] in known or h["ip"] in skip or not interesting(h):
+            continue
+        role = ", ".join(dict.fromkeys([*(h.get("apps") or []), *(h.get("hints") or [])]))[:ROLE_MAX]
+        save(h["ip"], {"name": (h.get("name") or h["ip"])[:NAME_MAX], "role": role})
+        done.append(h["ip"])
+    return done
+
+
 def save(ip: str, m: dict, process: bool | None = None, extra: list[dict] | None = None) -> dict:
     """Machine écrite (réglages hors page gardés : « health » objet, notes…). process : lire aussi ses
     ports en écoute (process_hosts, root requis sur la machine). extra : services web à suivre."""

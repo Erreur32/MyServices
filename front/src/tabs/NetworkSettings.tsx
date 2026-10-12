@@ -15,9 +15,10 @@ import { pokeScan } from "../lib/scan";
 import { GROUPS, DiscoveryPanel, suggestOf, todoOf, useDiscoveries } from "../components/DiscoveryCard";
 import type { Snapshot } from "../api";
 import { NetworkStep } from "../components/NetworkStep";
+import { AutoMode } from "../components/AutoMode";
 import type { NetScan } from "../types";
 
-interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean; ignored: { ip: string; name: string }[] }
+interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean; auto: boolean; ignored: { ip: string; name: string }[] }
 
 /** Lien #settings/network/<hosts|scan> (depuis une découverte à faire) : fait défiler jusqu'à la carte et l'allume, même si l'on est
  *  déjà sur la page ; `ready` : la page est chargée (sinon la carte n'existe pas encore au moment du clic) */
@@ -69,7 +70,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
 
   const hostsList = (onCount?: (n: number) => void) => (
     <>
-      <p className="text-sm text-muted">{tx("Cochez celles à suivre puis ajoutez-les, ou ignorez-les. MyServices ne les ajoute jamais seul.")}</p>
+      <p className="text-sm text-muted">{cfg.auto ? tx("Le mode automatique ajoute seul celles avec SSH, appli ou service utile ; cochez les autres à suivre, ou ignorez-les.") : tx("Cochez celles à suivre puis ajoutez-les, ou ignorez-les. En mode manuel, MyServices ne les ajoute jamais seul.")}</p>
       <NetworkStep net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} onCount={onCount} />
     </>
   );
@@ -91,6 +92,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
 
   return (
     <div className="flex flex-col gap-4">
+      <AutoMode onChange={() => { load(); reloadDisc(); }} />
       {disc && (   // en une phrase, pour toutes les familles : ce qu'il faut faire, ce qui est seulement proposé
         <p className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border px-4 py-3 text-sm ${disc.todo ? "border-warn/50 bg-warn/10" : "border-ok/40 bg-ok/5"}`}>
           {disc.todo ? <><Bell size={16} className="text-warn" aria-hidden /><b>{tx("{0} chose(s) à faire", disc.todo)}</b></> : <><Check size={16} className="text-ok" aria-hidden /><b>{tx("Rien d'obligatoire à faire")}</b></>}
@@ -126,7 +128,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
         <Card className="scroll-mt-20">
           <h2 className="mb-1 flex items-center gap-2 font-bold"><Search size={16} />{tx("Recherche sur le réseau")}</h2>
           <p className="mb-3 text-sm text-muted">
-            {tx("Cherche les machines allumées sur votre réseau local (un /24 au plus) : un ping, le nom, quelques ports. Lecture seule, rien n'est ajouté tout seul.")}
+            {tx("Cherche les machines allumées sur votre réseau local (un /24 au plus) : un ping, le nom, quelques ports. Lecture seule.")}
           </p>
           <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
             {state}

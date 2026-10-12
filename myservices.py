@@ -103,7 +103,7 @@ def _load_config():
     if off_ips:
         cfg = {**cfg, "machines": {ip: ({**m, "ssh": None, "health": False} if ip in off_ips else m) for ip, m in cfg["machines"].items()},
                "process_hosts": {ip: v for ip, v in cfg.get("process_hosts", {}).items() if ip not in off_ips}}
-    machines = {ip: (m["name"], m["role"], m.get("ssh")) for ip, m in cfg.get("machines", {}).items()}
+    machines = {ip: (m["name"], m.get("role", ""), m.get("ssh")) for ip, m in cfg.get("machines", {}).items()}
     global DISABLED, SSH_OFF
     DISABLED = off_ips
     SSH_OFF = {ip for ip, m in cfg.get("machines", {}).items() if m.get("ssh") is False}   # SSH coupé à la main : jamais lu par SSH
@@ -211,7 +211,9 @@ def _docker_read(conn):
 
 def adopt_ssh(hinfo: dict) -> None:
     """Machines lues par SSH à ce passage (clé testée : relevé obtenu) sans interrupteur réglé : l'accès est enregistré tout seul
-    (machines_admin.adopt_ssh), l'utilisateur peut le couper ensuite. Effet au prochain passage (Docker, santé)."""
+    (machines_admin.adopt_ssh), l'utilisateur peut le couper ensuite. Effet au prochain passage (Docker, santé). Mode manuel : rien."""
+    if not CFG["auto_mode"]:
+        return
     sshc = hostinfo.ssh_config()
     found = {ip: sshc[ip]["alias"] for ip, info in hinfo.items() if info and ip in sshc and MACHINES.get(ip, (0, 0, None))[2] is None}
     if not found:

@@ -601,6 +601,7 @@ class NetscanEvery(BaseModel):
     every_h: int | None = None
     nets: list[str] | None = None
     discreet: bool | None = None
+    auto: bool | None = None
 
 
 @app.get(API + "/network/settings", tags=["réseau"], summary="Fréquence de la recherche réseau automatique (admin)")
@@ -625,6 +626,9 @@ def network_settings_set(body: NetscanEvery, request: Request):
         if body.discreet is not None:
             out = system.set_netscan_discreet(core, body.discreet)
             what.append("mode discret " + ("activé" if body.discreet else "coupé"))
+        if body.auto is not None:
+            out = system.set_auto_mode(core, body.auto)
+            what.append("mode " + ("automatique" if body.auto else "manuel"))
     except ValueError as e:
         return deny(400, str(e))
     store().audit("recherche réseau", request.state.user["username"], ip_of(request), " ; ".join(what))
@@ -1652,9 +1656,9 @@ def discoveries(request: Request):
         "backups_auto": core.CFG.get("backups_auto", True), "ssh_machines": len(ssh), "auto_checked": sum(1 for ip in ssh if ip in _read_list(state / "backups-auto.json")) if checked else 0,
         "backups_search_last": stamp("backups-discover.json"), "backups_enabled": bool(core.CFG.get("backups_url")),
         "backups_last": bk["end"] or None, "backups_next": core.next_run("backups"), "proposals": data.get("proposals") or [],
-        "muted": core.CFG.get("discoveries_muted") or [],
+        "muted": core.CFG.get("discoveries_muted") or [], "auto_mode": core.CFG["auto_mode"],
     })
-    return {"items": items, "todo": sum(1 for x in items if x["state"] == disc.TODO), "suggest": sum(1 for x in items if x["state"] == disc.SUGGEST)}
+    return {"auto": core.CFG["auto_mode"], "items": items, "todo": sum(1 for x in items if x["state"] == disc.TODO), "suggest": sum(1 for x in items if x["state"] == disc.SUGGEST)}
 
 
 class MuteBody(BaseModel):

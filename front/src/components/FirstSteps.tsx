@@ -2,6 +2,7 @@
 // demander (ports de l'hôte, Docker) jusqu'à la clé SSH qui donne le relevé exact. Les étapes se mettent à jour en
 // direct pendant le scan ; la carte reste jusqu'à ce qu'on la ferme (retenu par navigateur et par clé de l'app :
 // une installation remise à zéro la rouvre).
+import { AutoMode } from "./AutoMode";
 import { ArrowRight, Bell, Check, ChevronRight, Circle, Compass, HardDrive, LifeBuoy, Loader2, Plug, Plus, RotateCcw, Rocket, X, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { read } from "../api";
@@ -301,6 +302,7 @@ export function FirstSteps({ snap, page = false }: { snap: Snapshot; page?: bool
           <AllConnectors tools={tools} />
         </Step>
       </ol>
+      {keyDone && <div className="mt-5"><AutoMode /></div>}
       <div className="mt-5 border-t border-line/70 pt-4">
         <h3 className="flex flex-wrap items-center gap-2 text-sm font-bold"><Compass size={15} className="text-link" aria-hidden />{tx("Et ensuite ?")}
           <span className="text-xs font-normal text-dim">{tx("Rien d'obligatoire : chaque point se fait quand vous voulez, ici ou plus tard dans les Réglages.")}</span></h3>

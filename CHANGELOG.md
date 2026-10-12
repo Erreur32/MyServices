@@ -11,6 +11,24 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+
+- Auto mode (on by default), one switch in Settings -> Discovery and at the end of the first steps: after each network search,
+  machines worth following (SSH, recognised app or useful service) are added by themselves, then collected; SSH turns on by
+  itself when the key works. A machine added this way and removed by hand is never added again. Manual mode adds nothing.
+  Turning it on also turns the automatic network search and the /home/backup follow-up back on.
+
+### Changed
+
+- SSH access shown as in the first version of the page, on one line: SSH logo, account, IP and port pills (port filled when not
+  22). Machines tab column (alias in the unfolded detail), machine card and its SSH frame in Settings -> Machines.
+- Machines tab, unfolded detail: each section (identity, system, access, software, health) has its own colour band and tint.
+- Settings -> Machines: a refused save shows its reason next to the field instead of only at the bottom of the card.
+
+### Fixed
+
+- A machine left without any role tag made the collection fail.
+
 ## v0.10.12 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

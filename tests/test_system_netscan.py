@@ -34,7 +34,16 @@ class NetscanEvery(unittest.TestCase):
         return json.loads(self.f.read_text(encoding="utf-8"))
 
     def test_defaut(self):
-        self.assertEqual(system.netscan_settings(self.core), {"every_h": 6, "default_h": 6, "max_h": 168, "fixed": False, "nets": [], "ignored": [], "discreet": False})
+        self.assertEqual(system.netscan_settings(self.core), {"every_h": 6, "default_h": 6, "max_h": 168, "fixed": False, "nets": [], "ignored": [], "discreet": False, "auto": True})
+
+    def test_auto_mode_off_then_on_turns_the_search_back_on(self):
+        system.set_netscan_every(self.core, 0)
+        self.assertFalse(system.set_auto_mode(self.core, False)["auto"])
+        self.assertIs(self.raw()["auto_mode"], False)
+        out = system.set_auto_mode(self.core, True)
+        self.assertEqual((out["auto"], out["every_h"]), (True, 6))
+        self.assertNotIn("auto_mode", self.raw())
+        self.assertNotIn("netscan_every", self.raw())
 
     def test_change_et_applique_tout_de_suite(self):
         out = system.set_netscan_every(self.core, 12)
