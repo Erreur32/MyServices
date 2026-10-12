@@ -257,14 +257,15 @@ const TONES = {
   bad: { box: "border-l-bad bg-bad/[0.06] [&_dt]:bg-bad/15", head: "bg-bad/15 text-bad" },
 } as const;
 
-/** Rubrique du détail : bande de titre colorée avec icône, lignes « libellé / valeur », puis d'où viennent les données */
+/** Rubrique du détail : bande de titre colorée avec icône et, à droite, d'où viennent les données ; puis les lignes « libellé / valeur » */
 function Section({ icon: Icon, title, tone, from, children }: { icon: typeof Info; title: string; tone: keyof typeof TONES; from?: Origin[]; children: React.ReactNode }) {
   const t = TONES[tone];
   return (
     <section className={`flex flex-col overflow-hidden rounded-lg border border-line/60 border-l-4 text-xs ${t.box}`}>
-      <h4 className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ${t.head}`}><Icon size={13} aria-hidden />{title}</h4>
+      <h4 className={`flex flex-wrap items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ${t.head}`}>
+        <Icon size={13} aria-hidden />{title}{!!from?.length && <span className="ml-auto"><From list={from} /></span>}
+      </h4>
       <dl className="mx-3 mb-3 mt-2 flex flex-col overflow-hidden rounded-md">{children}</dl>
-      {!!from?.length && <div className="px-3 pb-3">{<From list={from} />}</div>}
     </section>
   );
 }
