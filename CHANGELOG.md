@@ -11,6 +11,23 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.21 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+
+- LogviewR: connecting with a token failed with "f2b_get_active_threats : unreadable answer". That tool answers with an
+  "UNTRUSTED DATA" notice, then the JSON in a second block; the connector read only the first. It now takes the first block
+  that parses as JSON.
+- Auto mode: a machine removed by hand in Settings -> Machines came back at the next network search unless the auto mode had
+  added it. Removing a machine now also puts it in the ignored list of Settings -> Discovery (one click brings it back).
+
+### Changed
+
+- Settings -> Machines hides the machines whose "Followed machine" switch is off, like the Machines tab; a "Not followed (N)"
+  button shows them.
+
 ## v0.10.20 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
