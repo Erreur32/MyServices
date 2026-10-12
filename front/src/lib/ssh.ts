@@ -22,16 +22,15 @@ export function authorizeFor(cmd: string, user: string): string {
   const key = /'([^']+)'/.exec(cmd)?.[1];
   if (!key) return cmd;
   const u = user.trim() || "root", dir = `${homeOf(u)}/.ssh`, file = `${dir}/authorized_keys`;
+  if (u === "root") {
+    // VMware ESXi ignores ~/.ssh: root's keys are in /etc/ssh/keys-root/authorized_keys. Its mode (1600, sticky) is what keeps the file
+    // across reboots, so it is left alone, and auto-backup.sh saves it at once. Anywhere else: /root/.ssh as usual.
+    const esxi = "/etc/ssh/keys-root/authorized_keys";
+    return `if [ -d /etc/ssh/keys-root ]; then F=${esxi}; else F=${file}; mkdir -p ${dir} && chmod 700 ${dir} && touch $F && chmod 600 $F; fi; `
+      + `(grep -qxF '${key}' $F || echo '${key}' >> $F); [ -x /sbin/auto-backup.sh ] && /sbin/auto-backup.sh >/dev/null 2>&1; true`;
+  }
   return [`mkdir -p ${dir}`, `touch ${file}`, `(grep -qxF '${key}' ${file} || echo '${key}' >> ${file})`,
     ...(u === "root" ? [] : [`chown -R ${u}: ${dir}`]), `chmod 700 ${dir}`, `chmod 600 ${file}`].join(" && ");
-}
-
-/** Same command for a VMware ESXi host: root's keys are in /etc/ssh/keys-root/authorized_keys (not in ~/.ssh) */
-export function authorizeEsxi(cmd: string): string {
-  const key = /'([^']+)'/.exec(cmd)?.[1];
-  if (!key) return cmd;
-  const file = "/etc/ssh/keys-root/authorized_keys";
-  return `(grep -qxF '${key}' ${file} || echo '${key}' >> ${file})`;
 }
 
 /** Une ligne : compte@alias:port · système · conteneurs · Apache */

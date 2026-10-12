@@ -10,10 +10,11 @@ describe("autoriser la clé", () => {
       + " && (grep -qxF 'ssh-ed25519 AAAAkey myservices' /home/erreur32/.ssh/authorized_keys || echo 'ssh-ed25519 AAAAkey myservices' >> /home/erreur32/.ssh/authorized_keys)"
       + " && chown -R erreur32: /home/erreur32/.ssh && chmod 700 /home/erreur32/.ssh && chmod 600 /home/erreur32/.ssh/authorized_keys");
   });
-  it("root, ou compte vide : /root, sans chown", () => {
+  it("root, ou compte vide : /root, sans chown ; sur un ESXi, /etc/ssh/keys-root sans toucher à ses droits", () => {
     for (const u of ["root", "", " "]) {
       const c = authorizeFor(CMD, u);
       expect(c).toContain("/root/.ssh/authorized_keys");
+      expect(c).toContain("if [ -d /etc/ssh/keys-root ]; then F=/etc/ssh/keys-root/authorized_keys; else");
       expect(c).not.toContain("chown");
     }
   });

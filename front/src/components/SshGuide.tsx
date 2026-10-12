@@ -6,7 +6,7 @@ import { LOGIN, LoginRequired, read, send } from "../api";
 import { Copyable } from "./form";
 import { input, primary, quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
-import { authorizeEsxi, authorizeFor, homeOf } from "../lib/ssh";
+import { authorizeFor, homeOf } from "../lib/ssh";
 import type { SystemState } from "../types";
 
 
@@ -87,7 +87,7 @@ export function SshGuide({ ip, user: knownUser, guess, port, onReady, onCancel }
             </li>
             <li>{tx("Sur la machine, en root ou connecté avec ce compte, ajoutez la clé de l'app dans")} <code className="font-mono text-xs text-txt">{homeOf(user || "root")}/.ssh/authorized_keys</code> :
               {authorize ? <Copyable text={authorizeFor(authorize, user)} /> : <span className="block text-warn">{tx("Clé de l'app introuvable : voir")} <a className="underline hover:text-txt" href="#settings/ssh">{tx("Réglages → Clé SSH")}</a>.</span>}
-              {authorize && (user || "root") === "root" && <details className="mt-1.5 text-xs"><summary className="cursor-pointer text-dim hover:text-txt">{tx("Sur un VMware ESXi (compte root), la clé va ailleurs :")}</summary><Copyable text={authorizeEsxi(authorize)} /></details>}</li>
+              {(user || "root") === "root" && <span className="mt-1 block text-xs text-dim">{tx("Sur un VMware ESXi, la commande met la clé dans /etc/ssh/keys-root/authorized_keys (ESXi ignore ~/.ssh).")}</span>}</li>
           </ol>
           <p className="text-xs text-dim">💡 {tx("Astuce : si la connexion est refusée, vérifiez que le serveur SSH est installé et démarré sur la machine.")}</p>
           {error && <p className="text-bad">⚠ {error}</p>}
