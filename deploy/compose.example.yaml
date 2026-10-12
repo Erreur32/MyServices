@@ -1,56 +1,53 @@
-# MyServices v2 : exemple de docker compose, prêt à l'emploi.
+# MyServices: example docker compose, ready to use. Still in a test phase: do not rely on it for production.
 #
 #   mkdir -p /opt/myservices && cd /opt/myservices
 #   curl -fsSLo docker-compose.yaml https://raw.githubusercontent.com/Erreur32/MyServices/main/deploy/compose.example.yaml
-#   curl -fsSLo .env https://raw.githubusercontent.com/Erreur32/MyServices/main/deploy/env.example     # optional: to change the port (MYSERVICES_PORT)
+#   curl -fsSLo .env https://raw.githubusercontent.com/Erreur32/MyServices/main/deploy/env.example   # optional: change the port
 #   docker compose up -d
-#   docker compose logs myservices      # clé publique de l'app + commande pour l'autoriser sur l'hôte
+#   docker compose logs myservices   # the app's public SSH key, and the command to allow it on the host
 #
-# Puis, dans les 30 minutes : ouvrir http://<IP de l'hôte>:8090/ (ou le port choisi, voir PORT ci-dessous ; la racine mène à la page de connexion puis à l'application) et créer le compte admin
-# (passé ce délai : docker compose restart myservices). Le reste se règle dans la page (Réglages).
+# Then, within 30 minutes, open http://<host IP>:8090/ and create the admin account (later: docker compose restart myservices).
+# Everything else is set in the page (Settings).
 #
-# PORT: the app listens on 8090 by default. To change it (port already taken on the host), set MYSERVICES_PORT, in a ".env" file next to
-# this one (see deploy/env.example) or in the shell: `echo 'MYSERVICES_PORT=8095' > .env && docker compose up -d`, then open
-# http://<host IP>:8095/ . The container uses the host network, so a `ports:` mapping would be ignored: this variable is the only thing to change.
-# Check first that the port is free: ss -ltnp | grep 8095
+# Port: 8090 by default. The container uses the host network, so a "ports:" mapping would do nothing: set MYSERVICES_PORT
+# instead, in a ".env" file next to this one (echo 'MYSERVICES_PORT=8095' > .env). Check first that it is free: ss -ltnp | grep 8095
 #
-# Droits : l'app tourne sous le compte 10001 (jamais root). Le conteneur démarre en root le temps de donner ./config et
-# ./data à ce compte (dossiers créés par Docker = root sinon, et l'app ne pourrait rien y écrire), puis passe sur 10001.
-# Ancien compose avec un service « init » (busybox) : le retirer, puis docker compose up -d --remove-orphans.
-# Pas de socket Docker : la machine hôte est lue par SSH comme les autres (alias « hote », créé au démarrage).
-# Importer une installation classique (systemd) : voir import_install.py dans le README.
+# Rights: the app always runs as the account 10001, never root. The container starts as root only to give ./config and ./data
+# to that account (folders created by Docker belong to root otherwise), then drops to it with no capability left.
+# One container only: no "init" service. Coming from a compose that had one: docker compose up -d --remove-orphans.
+#
+# No Docker socket: the host machine is read over SSH like the others (alias "hote", created at startup).
 
 services:
   myservices:
-    image: ghcr.io/erreur32/myservices:latest     # latest = last release (shows its version, e.g. v0.10.2) ; pin one with :0.10.2 ; :main = latest commit of the main branch (shows « v0.10.2+ · main · abc1234 »)
+    image: ghcr.io/erreur32/myservices:latest   # latest release; pin one with :0.10.6, or :main for the latest commit
     container_name: myservices
     restart: unless-stopped
-    # Démarre en root seulement pour régler les droits de ./config et ./data, puis passe sur le compte 10001 (entrypoint de l'image)
-    user: "0:0"
-    # Réseau de l'hôte : ping et recherche sur le LAN, SSH vers les machines, page sur MYSERVICES_PORT
-    network_mode: host
+    user: "0:0"                # start only: rights of ./config and ./data, then the app runs as 10001
+    network_mode: host         # ping and network search on the LAN, SSH to the machines, page on MYSERVICES_PORT
     environment:
       TZ: Europe/Paris
-      # >>> PORT: the app listens here. Port 8090 already taken on the host? Change the 8090 below (or set MYSERVICES_PORT in a .env file).
       MYSERVICES_PORT: "${MYSERVICES_PORT:-8090}"
-      # Réseaux autorisés à ouvrir la page (défaut : réseaux privés et boucle locale)
+      # Networks allowed to open the page (default: private networks and loopback)
       # MYSERVICES_ALLOW: "192.168.1.0/24,127.0.0.0/8"
-      # Compte SSH de l'alias « hote » (machine hôte) ; un compte dédié non root est plus sûr (README)
+      # SSH account of the "hote" alias (the host machine); a dedicated non-root account is safer (README)
       # MYSERVICES_HOST_USER: "root"
-      # Derrière un proxy HTTPS (NPM, Caddy…) : cookies de session marqués Secure
+      # Behind an HTTPS proxy (NPM, Caddy...): session cookies marked Secure
       # MYSERVICES_COOKIE_SECURE: "1"
-      # Horaires des tâches, « minutes heures » (défauts : collecte 10,40 *, veille 15,45 *, santé 0 0,6,12,18)
+      # Task schedules, "minutes hours" (defaults: collect "10,40 *", watch "15,45 *", health "0 0,6,12,18", backups "5 7,19").
+      # Set here, they can no longer be changed in the page (Settings -> Tasks and schedules).
       # MYSERVICES_COLLECT_AT: "10,40 *"
+      # Automatic network search, every N hours (default 6, 0 = off)
+      # MYSERVICES_NETSCAN_EVERY: "6"
     volumes:
-      - ./config:/config   # config.json, services-meta.json, secret.key, ssh/ (clé de l'app, alias, known_hosts)
-      - ./data:/data       # page produite, caches, état, myservices.db (comptes, historique, alertes)
-    # Durcissement : système de fichiers en lecture seule, aucun droit noyau, pas d'élévation
+      - ./config:/config   # config.json, services-meta.json, secret.key, ssh/ (the app's key, aliases, known_hosts)
+      - ./data:/data       # produced page, caches, state, myservices.db (accounts, history, alerts)
+    # Hardening: read-only file system, no privilege escalation, only the capabilities needed at start
     read_only: true
     tmpfs:
       - /tmp
     cap_drop: [ALL]
-    # Seulement pour le démarrage (droits des dossiers, puis passage sur 10001) ; l'app, elle, n'en garde aucun
-    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]   # used by the start only; the app keeps none
     security_opt:
       - no-new-privileges:true
     logging:
