@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.9 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Changed
 - **Settings → Connectors**: the form being filled (new connector or edit) has a blue frame, and so does the card being edited; the cards of the "Add a connector" list get a grey border and a darker background for contrast, and the cards of the connectors already set get the same grey border.
 - **Settings → Machines**: same look: each machine card has a grey border, and a blue frame while it is open; the forms to add machines have the blue frame of the connector form. The frames inside a machine (SSH access, identity, option groups) and the cards of SSH & Agents get the same grey border; the card being opened is framed in blue.
