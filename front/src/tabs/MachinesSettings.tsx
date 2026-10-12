@@ -407,7 +407,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
 /** Groupe d'interrupteurs : titre, éventuel rappel, interrupteurs en dessous */
 function OptionGroup({ title, hint, tone, children }: { title: string; hint?: string; tone?: "ok"; children: React.ReactNode }) {
   return (
-    <fieldset className={`flex flex-col gap-2 rounded-xl border p-3 ${tone === "ok" ? "border-ok/40 bg-ok/10" : "border-line/60 bg-bg2/70"}`}>
+    <fieldset className={`flex flex-col gap-2 rounded-xl border p-3 ${tone === "ok" ? "border-ok/40 bg-ok/10" : "border-dim/50 bg-bg2/70"}`}>
       <legend className="inline-flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-dim"><span aria-hidden className={`h-1.5 w-1.5 rounded-full ${tone === "ok" ? "bg-ok" : "bg-dim"}`} />{title}</legend>
       {hint && <p className="text-xs text-dim">{hint}</p>}
       {children}
@@ -555,7 +555,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   const dirty = isNew || ["name", "adguard", "adguard_sync"].some((k) => String(v[k] ?? "") !== String(saved[k] ?? ""));
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
-      <section className="rounded-2xl border border-line border-l-2 border-l-link bg-bg2/30 p-4 shadow-sm">
+      <section className="rounded-2xl border border-dim/50 border-l-2 border-l-link bg-bg2/30 p-4 shadow-sm">
         <button type="button" onClick={() => setSshOpen(!sshOpen)} aria-expanded={sshOpen} className="flex w-full flex-wrap items-center gap-2 text-left">
           {sshOpen ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}
           <h4 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><KeyRound size={13} className="text-link" aria-hidden />{agentMode ? tx("Accès par l'agent") : tx("Accès SSH")}</h4>
@@ -608,7 +608,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
             </Field>
           </div>
         )}
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line/70 bg-bg2/50 p-3">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dim/50 bg-bg2/50 p-3">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-link/15 text-link"><KeyRound size={17} aria-hidden /></span>
           <div className="min-w-[220px] flex-1">
             <b className="block text-sm text-txt">{tx("La clé de l'app doit être autorisée sur cette machine")}</b>
@@ -620,7 +620,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
         </div>
         </div>}
       </section>
-      <section className="rounded-2xl border border-line border-l-2 border-l-ok bg-bg2/30 p-4">
+      <section className="rounded-2xl border border-dim/50 border-l-2 border-l-ok bg-bg2/30 p-4">
         <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><IdCard size={13} className="text-ok" aria-hidden />{tx("Identité")}</h4>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={tx("Nom")}><input className={input} required maxLength={80} value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>
@@ -661,7 +661,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
         </OptionGroup>
       )}
       {/* Menu pliant des autres interrupteurs : replié, sauf à l'ajout d'une machine dont la détection est à confirmer */}
-      <div className="rounded-xl border border-line/60 bg-bg2/30">
+      <div className="rounded-xl border border-dim/50 bg-bg2/30">
         <button type="button" onClick={() => setOptions(!options)} aria-expanded={options}
           className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-bg2/60">
           {options ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}

@@ -170,7 +170,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         {without.map((ip) => (
           <li key={ip}>
             <button type="button" disabled={!!busy} onClick={() => setPick(pick === ip ? "" : ip)} aria-pressed={pick === ip}
-              className={`flex h-full w-full items-center gap-3 rounded-xl border bg-bg2/60 p-3 text-left transition-colors hover:border-link hover:bg-link/10 disabled:opacity-60 ${pick === ip || ip === focusIp ? "border-link bg-link/10" : "border-line"}`}>
+              className={`flex h-full w-full items-center gap-3 rounded-xl border bg-bg2 p-3 text-left transition-colors hover:border-link hover:bg-link/10 disabled:opacity-60 ${pick === ip || ip === focusIp ? "border-link bg-link/10 ring-1 ring-link" : "border-dim/50"}`}>
               <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, osName: liveBy.get(ip)?.agent?.os }} reserve />
               <span className="min-w-0 flex-1">
                 <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
@@ -190,7 +190,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
           const lm = liveBy.get(ip);
           return (
             <li key={ip}>
-              <a href={`#settings/machines/${ip}`} className="flex h-full items-center gap-3 rounded-xl border border-line bg-bg2/60 p-3 transition-colors hover:border-link hover:bg-link/10">
+              <a href={`#settings/machines/${ip}`} className="flex h-full items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 transition-colors hover:border-link hover:bg-link/10">
                 <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
                 <span className="min-w-0 flex-1">
                   <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
@@ -210,7 +210,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
           const lm = liveBy.get(ip), list = lm?.api ?? [];
           return (
             <li key={ip}>
-              <a href="#settings/connectors" className="flex h-full items-center gap-3 rounded-xl border border-line bg-bg2/60 p-3 transition-colors hover:border-link hover:bg-link/10"
+              <a href="#settings/connectors" className="flex h-full items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 transition-colors hover:border-link hover:bg-link/10"
                 title={list.map((a) => `${a.label} (${a.name}) : ${a.message ?? ""}`).join("\n")}>
                 <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
                 <span className="min-w-0 flex-1">
@@ -229,7 +229,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         empty={tx("Toutes les machines ont un accès.")}>
         {noAccess.map((ip) => (
           <li key={ip}>
-            <a href={`#settings/machines/${ip}`} className="flex h-full items-center gap-3 rounded-xl border border-line bg-bg2/60 p-3 transition-colors hover:border-link hover:bg-link/10">
+            <a href={`#settings/machines/${ip}`} className="flex h-full items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 transition-colors hover:border-link hover:bg-link/10">
               <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, info: liveBy.get(ip)?.info, ttl: liveBy.get(ip)?.ttl, osName: liveBy.get(ip)?.info?.os ?? liveBy.get(ip)?.agent?.os }} reserve />
               <span className="min-w-0 flex-1">
                 <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
@@ -311,7 +311,7 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
   const setFolded = (v: boolean) => setChoice(v);
   const [tone, label] = STATE[a.state];
   return (
-    <li className={`flex flex-col gap-2 rounded-xl border bg-card p-3 text-sm ${focus ? "border-link" : folded ? "border-line" : "border-link/60"}`}>
+    <li className={`flex flex-col gap-2 rounded-xl border bg-card p-3 text-sm ${focus || !folded ? "border-link ring-1 ring-link" : "border-dim/50"}`}>
       <button type="button" onClick={() => setFolded(!folded)} aria-expanded={!folded} className="flex items-center gap-3 text-left">
         {folded ? <ChevronRight size={16} className="shrink-0 text-txt" aria-hidden /> : <ChevronDown size={16} className="shrink-0 text-txt" aria-hidden />}
         <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? "windows", osName: a.os }} reserve />
@@ -360,7 +360,7 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
 function RevokedCard({ a, conf, ip, busy, onNew, reload }: { a: AgentInfo; conf?: MachineConf; ip: string; busy: boolean; onNew?: () => void; reload: () => void }) {
   const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null);
   return (
-    <li className="flex flex-col gap-2 rounded-xl border border-line/60 bg-card/60 p-3 text-sm">
+    <li className="flex flex-col gap-2 rounded-xl border border-dim/50 bg-card/60 p-3 text-sm">
       <div className="flex items-center gap-3">
         <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? "windows", osName: a.os }} reserve />
         <span className="min-w-0 flex-1">
