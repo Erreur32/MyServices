@@ -39,6 +39,10 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
+import app_user
+
+app_user.drop_root()   # docker compose exec : root -> compte 10001 (clés SSH, config.json lisibles par l'app)
+
 import connectors
 import connectors.base as cbase
 import hostinfo

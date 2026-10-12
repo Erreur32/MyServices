@@ -197,7 +197,7 @@ The **Diagrams** tab also proposes ones you create with a click, built from what
 - **Read-only by design**: connectors only send GET requests (or read commands over SSH). Passwords and tokens are stored encrypted (`enc:v1`) and never sent back to the page; the private SSH key stays in `config/ssh` (mode 600) and is never shown.
 - **Accounts**: local accounts (admin or read-only), password rules, session list, an audit log (filterable, CSV export).
 - **Network**: the page only answers private networks and the loopback by default (`MYSERVICES_ALLOW` to change). Do not expose it to the Internet; put it behind a VPN or an authenticating proxy if you need remote access (`MYSERVICES_COOKIE_SECURE=1` behind HTTPS).
-- **The container**: runs as user `10001` (never root), read-only file system, no capabilities, `no-new-privileges`, no Docker socket (the host is read over SSH like the others).
+- **The container**: the app runs as user `10001` (never root). The container starts as root only to give `./config` and `./data` to that user, then drops to it with no capabilities left; read-only file system, `no-new-privileges`, no Docker socket (the host is read over SSH like the others).
 - **Guard before commit and push**: `bash scripts/install-hooks.sh` refuses tokens, passwords, keys, `config.json`, `.env`, databases and unreviewed images.
 
 </details>

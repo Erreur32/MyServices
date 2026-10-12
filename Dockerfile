@@ -36,6 +36,7 @@ COPY --chown=root:root CHANGELOG.md /app/CHANGELOG.md
 COPY --chown=root:root connectors/ /app/connectors/
 COPY --chown=root:root agent/ /app/agent/
 COPY --chown=root:root web/ /app/web/
+COPY --chown=root:root --chmod=755 deploy/entrypoint.sh /app/entrypoint.sh
 COPY --from=front --chown=root:root /front/dist/ /app/web/v2/
 
 # Fichiers du volume /config et /data ; chaque clé reste surchargeable (MYSERVICES_<CLÉ>)
@@ -58,9 +59,12 @@ ENV MYSERVICES_VERSION=$VERSION
 ARG GIT_REV=
 ENV MYSERVICES_GIT=$GIT_REV
 
+# Compte par défaut : 10001. Le compose d'exemple démarre en root (user "0:0") : entrypoint.sh règle alors les droits de
+# /config et /data puis lance l'app sous 10001 (plus de conteneur « init » à côté)
 USER myservices
 VOLUME ["/config", "/data"]
 EXPOSE 8090
 HEALTHCHECK --interval=60s --timeout=5s --start-period=20s \
   CMD python3 -c "import urllib.request,os; urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"MYSERVICES_PORT\"]}/healthz', timeout=4)"
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["python3", "/app/server.py"]

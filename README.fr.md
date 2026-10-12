@@ -197,7 +197,7 @@ L'onglet **Schémas** en propose aussi que vous créez en un clic, construits av
 - **Lecture seule par construction** : les connecteurs n'envoient que des requêtes GET (ou des commandes de lecture par SSH). Mots de passe et jetons sont stockés chiffrés (`enc:v1`) et jamais renvoyés à la page ; la clé SSH privée reste dans `config/ssh` (mode 600) et n'est jamais montrée.
 - **Comptes** : comptes locaux (admin ou lecture seule), règles de mot de passe, liste des sessions, journal d'audit (filtrable, export CSV).
 - **Réseau** : la page ne répond par défaut qu'aux réseaux privés et à la boucle locale (`MYSERVICES_ALLOW` pour changer). Ne l'exposez pas sur Internet ; passez par un VPN ou un proxy avec authentification pour un accès à distance (`MYSERVICES_COOKIE_SECURE=1` derrière HTTPS).
-- **Le conteneur** : tourne sous l'utilisateur `10001` (jamais root), système de fichiers en lecture seule, aucune capacité noyau, `no-new-privileges`, pas de socket Docker (l'hôte est lu par SSH comme les autres).
+- **Le conteneur** : l'app tourne sous l'utilisateur `10001` (jamais root). Le conteneur démarre en root seulement le temps de donner `./config` et `./data` à ce compte, puis passe dessus sans plus aucune capacité noyau ; système de fichiers en lecture seule, `no-new-privileges`, pas de socket Docker (l'hôte est lu par SSH comme les autres).
 - **Garde-fou avant commit et push** : `bash scripts/install-hooks.sh` refuse jetons, mots de passe, clés, `config.json`, `.env`, bases de données et images non relues.
 
 </details>

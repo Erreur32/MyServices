@@ -14,34 +14,19 @@
 # http://<host IP>:8095/ . The container uses the host network, so a `ports:` mapping would be ignored: this variable is the only thing to change.
 # Check first that the port is free: ss -ltnp | grep 8095
 #
-# Droits : l'app tourne sous le compte 10001 (jamais root) ; « init » donne ./config et ./data à ce compte
-# avant chaque démarrage (dossiers créés par Docker = root sinon, et l'app ne pourrait rien y écrire).
+# Droits : l'app tourne sous le compte 10001 (jamais root). Le conteneur démarre en root le temps de donner ./config et
+# ./data à ce compte (dossiers créés par Docker = root sinon, et l'app ne pourrait rien y écrire), puis passe sur 10001.
+# Ancien compose avec un service « init » (busybox) : le retirer, puis docker compose up -d --remove-orphans.
 # Pas de socket Docker : la machine hôte est lue par SSH comme les autres (alias « hote », créé au démarrage).
 # Importer une installation classique (systemd) : voir import_install.py dans le README.
 
 services:
-  init:
-    image: busybox:1.37
-    user: "0:0"
-    # config : secrets, clés SSH, comptes → 700 / 600 ; data : page produite, état, base SQLite
-    command: >-
-      sh -c 'mkdir -p /config/ssh /data &&
-             chown -R 10001:10001 /config /data &&
-             chmod 700 /config /config/ssh &&
-             find /config -type f -exec chmod 600 {} +'
-    volumes:
-      - ./config:/config
-      - ./data:/data
-    network_mode: none
-    restart: "no"
-
   myservices:
     image: ghcr.io/erreur32/myservices:latest     # latest = last release (shows its version, e.g. v0.10.2) ; pin one with :0.10.2 ; :main = latest commit of the main branch (shows « v0.10.2+ · main · abc1234 »)
     container_name: myservices
     restart: unless-stopped
-    depends_on:
-      init:
-        condition: service_completed_successfully
+    # Démarre en root seulement pour régler les droits de ./config et ./data, puis passe sur le compte 10001 (entrypoint de l'image)
+    user: "0:0"
     # Réseau de l'hôte : ping et recherche sur le LAN, SSH vers les machines, page sur MYSERVICES_PORT
     network_mode: host
     environment:
@@ -64,6 +49,8 @@ services:
     tmpfs:
       - /tmp
     cap_drop: [ALL]
+    # Seulement pour le démarrage (droits des dossiers, puis passage sur 10001) ; l'app, elle, n'en garde aucun
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
     security_opt:
       - no-new-privileges:true
     logging:

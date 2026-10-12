@@ -16,6 +16,7 @@ web/backups.json
 !CHANGELOG.md
 __pycache__
 !deploy/fetch_archify.py
+!deploy/entrypoint.sh
 .github
 # Front : sources seulement (dépendances installées et compilées dans l'image)
 !front/**

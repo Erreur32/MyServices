@@ -17,6 +17,10 @@ import getpass
 import sys
 from datetime import datetime
 
+import app_user
+
+app_user.drop_root()   # docker compose exec : root -> compte 10001, sinon la base et les secrets écrits seraient à root
+
 from auth import AuthError, Store, db_path
 from config import CFG
 
