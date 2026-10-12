@@ -195,7 +195,7 @@ function InstanceCard({ inst, type, reload, onCollect, editing: edit, locked, se
   const url = inst.config.url as string | undefined;
   const path = `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}`;
   return (
-    <div id={`connector-${inst.type}-${inst.name}`} className="scroll-mt-24"><Card className={`${inst.enabled ? "" : "opacity-80"} ${edit ? "!border-link ring-1 ring-link" : ""}`}>
+    <div id={`connector-${inst.type}-${inst.name}`} className="scroll-mt-24"><Card className={`${inst.enabled ? "" : "opacity-80"} ${edit ? "!border-link ring-1 ring-link" : "!border-dim/50"}`}>
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         <div className="min-w-[220px] flex-1">
           <div className="flex flex-wrap items-center gap-2">
