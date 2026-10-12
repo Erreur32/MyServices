@@ -12,7 +12,7 @@ import { Flag } from "../components/Flag";
 import type { User } from "../types";
 import { Badge, Card, Count, Dim } from "../components/ui";
 import { Field, NoteLine } from "../components/form";
-import { act, danger, input, primary, quiet, type Note, GREY_CARDS } from "../lib/forms";
+import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { NotificationsHub } from "./NotificationsHub";
 import { Connectors } from "./Connectors";
 import { MachinesSection } from "./MachinesSection";
@@ -96,7 +96,7 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
           </div>
         ))}
       </nav>
-      <div className={`min-w-0 flex-1 ${GREY_CARDS}`}>
+      <div className="min-w-0 flex-1">
         {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "look" ? <Appearance look={look} /> : section === "alerts" ? <NotificationsHub /> : section === "connectors" ? <Connectors snap={snap} /> : section === "machines" ? <MachinesSection snap={snap} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings snap={snap} /> : section === "help" ? <Help /> : section === "about" ? <AboutSettings /> : section === "audit" ? <AuditLog /> : section === "logs" ? <Logs /> : section === "backups" ? <BackupsSettings machines={snap.data.machine_list} /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} snap={snap} /> : <SystemSettings part="system" snap={snap} />}
       </div>
     </div>

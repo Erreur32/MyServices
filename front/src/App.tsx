@@ -21,6 +21,7 @@ import { Settings } from "./tabs/Settings";
 import { DiagramsTab } from "./tabs/DiagramsTab";
 import { useContentWidth, useTheme } from "./theme";
 import { tx } from "./lib/i18n";
+import { GREY_CARDS } from "./lib/forms";
 
 const REFRESH_MS = 60_000;
 
@@ -108,6 +109,7 @@ export default function App() {
       <ScanBar onFinished={load} />
       <Header snap={snap} theme={theme} toggleTheme={toggleTheme} now={now} />
       {error && <p className="mb-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">{tx("⚠ Mise à jour impossible :")} {error}</p>}
+      <div className={GREY_CARDS}>
       {profile ? (
         <>
           <a href="#" className="group mt-4 inline-flex items-center gap-2 rounded-full border border-line bg-card py-1.5 pl-2.5 pr-4 text-sm font-semibold text-muted transition-colors hover:border-link hover:text-txt">
@@ -126,6 +128,7 @@ export default function App() {
       {current === "diagrams" && <DiagramsTab admin={snap.me.role === "admin"} />}
       {current === "settings" && <Settings key={hash} snap={snap} look={{ theme, setTheme, width, setWidth }} />}
       {current === "fail2ban" && <Fail2ban snap={snap} />}
+      </div>
     </div>
   );
 }

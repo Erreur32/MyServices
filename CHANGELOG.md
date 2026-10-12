@@ -11,6 +11,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+
+- Grey border on uncoloured cards on every page (Home, Machines, Services, Health, DNS, History, Fail2ban, Profile), set once
+  for the whole app; cards with a coloured status stripe keep their colour.
+
 ## v0.10.11 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

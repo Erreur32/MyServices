@@ -25,6 +25,6 @@ export async function act(fn: () => Promise<unknown>, done: string, setNote: (n:
   }
 }
 
-/** Sur le conteneur d'une page : toute carte arrondie sans couleur propre (bordure neutre « line ») prend une bordure grise plus
- *  visible ; au survol, sa couleur de survol reprend. Réglages, Schémas, Sauvegardes. */
-export const GREY_CARDS = "[&_.rounded-xl.border-line:not(:hover)]:border-dim/50 [&_.rounded-2xl.border-line:not(:hover)]:border-dim/50";
+/** On the container of every page (App): any rounded card without a colour of its own (neutral "line" border) gets a more
+ *  visible grey border; on hover its hover colour comes back. Cards with a coloured left stripe (status) are left alone. */
+export const GREY_CARDS = "[&_.rounded-xl.border-line:not(:hover):not(.border-l-4)]:border-dim/50 [&_.rounded-2xl.border-line:not(:hover):not(.border-l-4)]:border-dim/50";
