@@ -466,7 +466,7 @@ export interface AuditEntry {
 export interface MachineConf {
   name: string;
   role?: string;
-  ssh?: string | null;
+  ssh?: string | null | false;   // false : SSH coupé à la main (jamais réactivé seul) ; null / absent : jamais réglé
   os?: string;
   health?: string | boolean | Record<string, unknown>;
   off?: boolean;

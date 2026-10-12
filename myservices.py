@@ -73,6 +73,7 @@ _progress_last = [0.0]
 
 NPM_ONLY: set = set()  # machines joignables seulement depuis NPM (pare-feu) : sondées via NPM
 DISABLED: set = set()  # machines non suivies (services-meta.json : disabled)
+SSH_OFF: set = set()  # machines dont l'interrupteur SSH est coupé à la main (ssh: false) : jamais lues par SSH
 MACHINES_OFF: set = set()  # machines éteintes volontairement : services « machine éteinte » tant que le ping échoue
 MACHINE_FLAGS: dict = {}
 ADGUARD: dict = {}  # IP du serveur DNS -> connecteur AdGuard Home
@@ -103,8 +104,9 @@ def _load_config():
         cfg = {**cfg, "machines": {ip: ({**m, "ssh": None, "health": False} if ip in off_ips else m) for ip, m in cfg["machines"].items()},
                "process_hosts": {ip: v for ip, v in cfg.get("process_hosts", {}).items() if ip not in off_ips}}
     machines = {ip: (m["name"], m["role"], m.get("ssh")) for ip, m in cfg.get("machines", {}).items()}
-    global DISABLED
+    global DISABLED, SSH_OFF
     DISABLED = off_ips
+    SSH_OFF = {ip for ip, m in cfg.get("machines", {}).items() if m.get("ssh") is False}   # SSH coupé à la main : jamais lu par SSH
     global META_RAW, NPM_ONLY, MACHINES_OFF, MACHINE_FLAGS, ADGUARD, ADGUARD_SYNC
     META_RAW = cfg
     MACHINE_FLAGS = {ip: {k: True for k in ROLE_FLAGS if m.get(k)} for ip, m in cfg.get("machines", {}).items()}
@@ -207,6 +209,21 @@ def _docker_read(conn):
     return got
 
 
+def adopt_ssh(hinfo: dict) -> None:
+    """Machines lues par SSH à ce passage (clé testée : relevé obtenu) sans interrupteur réglé : l'accès est enregistré tout seul
+    (machines_admin.adopt_ssh), l'utilisateur peut le couper ensuite. Effet au prochain passage (Docker, santé)."""
+    sshc = hostinfo.ssh_config()
+    found = {ip: sshc[ip]["alias"] for ip, info in hinfo.items() if info and ip in sshc and MACHINES.get(ip, (0, 0, None))[2] is None}
+    if not found:
+        return
+    try:
+        import machines_admin
+        for ip in machines_admin.adopt_ssh(found):
+            print(f"SSH activé tout seul pour {MACHINES[ip][0]} ({ip}) : accès « {found[ip]} », clé testée", flush=True)
+    except Exception as e:  # noqa: BLE001 : la collecte continue, l'interrupteur reste à activer à la main
+        print(f"⚠ activation automatique du SSH impossible : {type(e).__name__}: {e}", flush=True)
+
+
 def _read_inventory(only: set | None = None) -> dict:
     """Lit par SSH l'inventaire Docker et les infos machines ; only : seulement ces IP (relecture d'une machine)."""
     want = lambda ip: only is None or ip in only  # noqa: E731
@@ -216,7 +233,7 @@ def _read_inventory(only: set | None = None) -> dict:
         # Infos machines (SSH, OS, Apache…) : toute IP connue ayant une entrée ~/.ssh/config, plus la machine collectrice en local
         sshc = hostinfo.ssh_config()
         hi = {ip: ex.submit(hostinfo.host_info, "local" if MACHINES.get(ip, (0, 0, None))[2] == "local" else sshc[ip]["alias"])
-              for ip in MACHINES if want(ip) and ip not in DISABLED and (ip in sshc or MACHINES[ip][2] == "local")}
+              for ip in MACHINES if want(ip) and ip not in DISABLED | SSH_OFF and (ip in sshc or MACHINES[ip][2] == "local")}
     got = {ip: job.result() for ip, job in jobs.items()}
     data = {ip: g["containers"] for ip, g in got.items()}
     data["_internal"] = {ip: g["internal"] for ip, g in got.items()}
@@ -788,6 +805,7 @@ def main():
     # machine (172.x se répètent d'une machine à l'autre), d'où une recherche par hôte d'instance
     internal = dock.pop("_internal", {})
     hinfo = dock.pop("_hostinfo", {})
+    adopt_ssh(hinfo)
     # Vhosts Apache : (ip, port, nom) -> vhost ; Apache sert des fichiers locaux derrière NPM
     vhost_by = {}
     for ip, info in hinfo.items():
@@ -1137,7 +1155,7 @@ def main():
             "ssh": {"alias": sc["alias"], "port": sc["port"], "user": sc["user"], "identity": sc["identity"],
                     "key_fp": hostinfo.key_fingerprint(sc["identity"]), "host_key": hostinfo.host_key(ip, sc["port"]),
                     "methods": ssh_methods(ssh_cache, ip, sc["port"], ip in changed),
-                    "note": notes.get(f'{sc["user"]}@{ip}:{sc["port"]}') or sc.get("note")} if sc and ip not in DISABLED else None,
+                    "note": notes.get(f'{sc["user"]}@{ip}:{sc["port"]}') or sc.get("note")} if sc and ip not in DISABLED | SSH_OFF else None,
             "info": info,
             "agent": ({**agent_sys[ip], "via": "agent"} if agent_sys.get(ip) else None),  # système lu par l'agent (info = lu par SSH)
             "services": len(rs), "npm": sum(1 for r in rs if r["type"] != "local"),

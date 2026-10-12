@@ -525,10 +525,10 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   // teste la clé tout de suite ; le guide ne s'ouvre que si la connexion échoue (ou s'il n'y a encore aucun accès).
   const known = st.aliases.find((a) => a.ip === ip);
   // Interrupteur coupé, mais la collecte lit déjà la machine par SSH (alias de ~/.ssh/config pour cette adresse) : à dire clairement
-  const foundSsh = !agentMode && !sshOn && !!live?.ssh?.alias && !!live.info;
+  const foundSsh = !agentMode && !sshOn && v.ssh !== false && !!live?.ssh?.alias && !!live.info;
   const [reuse, setReuse] = useState<Note>(null);
   const toggleSsh = async (on: boolean) => {
-    if (!on) { setWinGuide(false); setReuse(null); return void autoSave("ssh", { ssh: null, health: undefined }); }
+    if (!on) { setWinGuide(false); setReuse(null); return void autoSave("ssh", { ssh: false, health: undefined }); }   // coupé à la main : plus lu par SSH, jamais réactivé seul
     if (!known) return setWinGuide(true);  // premier accès : le guide demande le compte et crée l'alias
     await autoSave("ssh", { ssh: known.alias, health: undefined });
     try {
@@ -582,13 +582,13 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
             </> : <>
               <Switch on={sshOn} disabled={pending === "ssh"} onChange={(on) => void toggleSsh(on)} label={tx("Lecture par SSH")} />
               <span><b>{sshOn ? tx("Actif") : tx("Inactif")}</b> <Saved k="ssh" />
-                <Dim> · {sshOn ? sshWho : foundSsh ? tx("pas encore activé ici") : tx("ping et services web seulement")}</Dim></span>
+                <Dim> · {sshOn ? sshWho : foundSsh ? tx("activé tout seul au prochain passage") : v.ssh === false ? tx("coupé : ping et services web seulement") : tx("ping et services web seulement")}</Dim></span>
             </>}
           </label>
           {foundSsh && (
             <p className="basis-full rounded-lg border border-link/40 bg-link/5 px-3 py-2 text-sm text-muted">
-              {tx("La collecte lit déjà cette machine par SSH, avec l'accès « {0} » trouvé dans la configuration SSH (d'où « SSH OK »). L'interrupteur, lui, est encore sur Inactif : activez-le pour enregistrer cet accès dans les réglages de la machine. Rien à refaire, la clé marche déjà.", live!.ssh!.alias)}
-              {" "}<button type="button" className="font-semibold text-link hover:underline" disabled={pending === "ssh"} onClick={() => void toggleSsh(true)}>{tx("Activer")}</button>
+              {tx("La clé marche déjà avec l'accès « {0} » trouvé dans la configuration SSH (d'où « SSH OK ») : l'interrupteur passe tout seul sur Actif au prochain passage de la collecte. Pour ne pas lire cette machine par SSH, coupez-le ensuite : il ne sera plus réactivé.", live!.ssh!.alias)}
+              {" "}<button type="button" className="font-semibold text-link hover:underline" disabled={pending === "ssh"} onClick={() => void toggleSsh(true)}>{tx("Activer maintenant")}</button>
             </p>
           )}
           {!agentMode && sshOn && !winGuide && live && ["refused", "nossh"].includes(mState(live)) && (

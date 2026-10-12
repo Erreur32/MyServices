@@ -246,7 +246,7 @@ def _clean(m: dict) -> dict:
     out = {}
     for k in TEXT:
         v = m.get(k)
-        if v in (None, ""):
+        if v in (None, "") or (k == "ssh" and v is False):
             continue
         limit = ROLE_MAX if k == "role" else NAME_MAX
         if not isinstance(v, str) or len(v) > limit:
@@ -270,8 +270,26 @@ def _clean(m: dict) -> dict:
     for k in ("ssh",) + (("health",) if out.get("os") == "windows" else ()):
         if isinstance(out.get(k), str) and out[k] not in known:
             raise MachineError(f"alias SSH « {out[k]} » absent de {setup.SSH_CONF}")
-    out.setdefault("ssh", None)
+    out.setdefault("ssh", False if m.get("ssh") is False else None)   # False : coupé à la main, jamais réactivé seul (adopt_ssh)
     return out
+
+
+def adopt_ssh(found: dict[str, str]) -> list[str]:
+    """Interrupteur SSH jamais réglé (absent ou None), accès trouvé dans la config SSH pour cette IP et connexion par clé réussie
+    (`found` : {ip: alias}, d'après le passage) : l'accès est enregistré tout seul. Jamais une machine coupée à la main (False),
+    désactivée ou Windows (lue par l'agent). Rend les IP activées."""
+    meta = _meta()
+    done = []
+    for ip, alias in found.items():
+        m = meta.get("machines", {}).get(ip)
+        if not m or m.get("ssh") is False or m.get("ssh") or m.get("disabled") or m.get("os") == "windows":
+            continue
+        m["ssh"] = alias
+        done.append(ip)
+    if done:
+        with contextlib.redirect_stdout(io.StringIO()):
+            setup.save(setup.META, meta)
+    return done
 
 
 def save(ip: str, m: dict, process: bool | None = None, extra: list[dict] | None = None) -> dict:
