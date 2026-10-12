@@ -48,14 +48,14 @@ export function AuthorizeKey({ failing, bare = false, onAccepted, user, userOf }
           {tx("MyServices lit vos machines par SSH, en lecture seule, sans accès au socket Docker : c'est ce qui garde la main sur Docker hors de la page. Autoriser sa clé sur une machine lui permet de lire ses conteneurs, ses services et sa santé. La clé n'ouvre que le compte visé et se retire en supprimant sa ligne de authorized_keys.")}
         </p>
         <p>
-          {tx("À faire : lancer cette commande sur {0}, avec le compte visé (membre du groupe docker), puis tester.", names)}
+          {tx("À faire : lancer cette commande sur {0}, en root ou connecté avec le compte visé (membre du groupe docker), puis tester.", names)}
         </p>
       </div>
       <div className="flex flex-col gap-3">
         {[...groups].map(([u, cs]) => (
           <div key={u}>
             {groups.size > 1 && <p className="mb-1 text-sm text-muted">{tx("Sur")} <b className="text-txt">{cs.map((c) => c.name).join(", ")}</b>{tx(", connecté en")} <b className="text-txt">{u || "root"}</b> :</p>}
-            <Copyable text={u ? authorizeFor(cmd, u) : cmd} oneLine />
+            <Copyable text={authorizeFor(cmd, u)} oneLine />
           </div>
         ))}
         <div><button type="button" className={primary} disabled={busy} onClick={() => void test()}>{busy ? tx("Test…") : tx("Tester")}</button></div>

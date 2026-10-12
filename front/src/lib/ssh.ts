@@ -15,8 +15,16 @@ export const rolesOf = (role?: string | null): string[] => (role ?? "").split(",
 /** Dossier personnel d'un compte Linux : /root pour root, sinon /home/<compte> */
 export const homeOf = (user: string) => (user === "root" ? "/root" : `/home/${user}`);
 
-/** Commande « autoriser la clé » (donnée par le serveur avec ~/.ssh/authorized_keys) avec le chemin complet du compte choisi */
-export const authorizeFor = (cmd: string, user: string) => cmd.replace("~/.ssh/authorized_keys", `${homeOf(user || "root")}/.ssh/authorized_keys`);
+/** Commande « autoriser la clé » pour un compte, à lancer en root ou connecté avec ce compte : le vrai dossier (/root ou /home/<compte>),
+ *  .ssh créé s'il manque, clé ajoutée une seule fois, puis propriétaire et droits remis (sinon sshd refuse une clé posée par root).
+ *  `cmd` : la commande du serveur (« echo '<clé>' >> ~/.ssh/authorized_keys »), d'où la clé est reprise. */
+export function authorizeFor(cmd: string, user: string): string {
+  const key = /'([^']+)'/.exec(cmd)?.[1];
+  if (!key) return cmd;
+  const u = user.trim() || "root", dir = `${homeOf(u)}/.ssh`, file = `${dir}/authorized_keys`;
+  return [`mkdir -p ${dir}`, `touch ${file}`, `(grep -qxF '${key}' ${file} || echo '${key}' >> ${file})`,
+    ...(u === "root" ? [] : [`chown -R ${u}: ${dir}`]), `chmod 700 ${dir}`, `chmod 600 ${file}`].join(" && ");
+}
 
 /** Une ligne : compte@alias:port · système · conteneurs · Apache */
 export function sshBrief(m: Machine): string {

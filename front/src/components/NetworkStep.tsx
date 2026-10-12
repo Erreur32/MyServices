@@ -4,6 +4,7 @@
 import { Check, ChevronRight, Circle, EyeOff, Globe, KeyRound, Loader2, Plug, RefreshCw, RotateCcw, Search, Square, Wifi, X, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { read, send } from "../api";
+import { authorizeFor } from "../lib/ssh";
 import { act, button, input, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { dateTime } from "../lib/format";
@@ -445,8 +446,8 @@ function AddedMachine({ host, linked, onDone }: { host: NetHost; linked: boolean
       )}
       {cmd && !ok && (
         <div className="mt-2 flex flex-col gap-2">
-          <p className="text-sm text-muted">{tx("Sur {0}, avec le compte {1} :", label, user)}</p>
-          <Copyable text={cmd} oneLine />
+          <p className="text-sm text-muted">{tx("Sur {0}, en root (ou connecté avec le compte {1}) :", label, user)}</p>
+          <Copyable text={authorizeFor(cmd, user)} oneLine />
           <div><button type="button" className={primary} disabled={busy} onClick={() => void test()}>{busy ? tx("Test…") : tx("Tester")}</button></div>
         </div>
       )}
