@@ -11,6 +11,15 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.24 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- Icons for the Healthchecks, CrowdSec, Technitium DNS and NUT (UPS) connectors (Settings -> Connectors, Health cards), also
+  offered for machines, with Nextcloud.
+
 ## v0.10.23 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
