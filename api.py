@@ -1624,7 +1624,7 @@ def discoveries(request: Request):
         "backups_last": bk["end"] or None, "backups_next": core.next_run("backups"), "proposals": data.get("proposals") or [],
         "muted": core.CFG.get("discoveries_muted") or [],
     })
-    return {"items": items, "todo": sum(1 for x in items if x["state"] == "todo")}
+    return {"items": items, "todo": sum(1 for x in items if x["state"] == disc.TODO), "suggest": sum(1 for x in items if x["state"] == disc.SUGGEST)}
 
 
 class MuteBody(BaseModel):

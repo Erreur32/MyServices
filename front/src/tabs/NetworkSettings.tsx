@@ -1,7 +1,7 @@
 // Réglages → Découverte, en trois sous-onglets (Réseau et machines, Services et applis, Sauvegardes) : les découvertes de chaque famille
 // en cartes, et pour le réseau le scan du réseau local (lecture seule) et sa fréquence automatique ; relancer à la main,
 // refaire le parcours des premiers pas. Le premier scan est toujours manuel : l'automatique ne démarre qu'après lui.
-import { ListChecks, Radar, RotateCcw, Search, ShieldCheck } from "lucide-react";
+import { Bell, Check, ListChecks, Radar, RotateCcw, Search, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { NoteLine } from "../components/form";
@@ -12,21 +12,26 @@ import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { usePoll } from "../lib/polling";
 import { tx } from "../lib/i18n";
 import { pokeScan } from "../lib/scan";
-import { GROUPS, DiscoveryPanel, todoOf, useDiscoveries } from "../components/DiscoveryCard";
+import { GROUPS, DiscoveryPanel, suggestOf, todoOf, useDiscoveries } from "../components/DiscoveryCard";
 import type { Snapshot } from "../api";
 import { NetworkStep } from "../components/NetworkStep";
 import type { NetScan } from "../types";
 
 interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean; ignored: { ip: string; name: string }[] }
 
-/** Lien #settings/network/<hosts|scan> (depuis une découverte à faire) : fait défiler jusqu'à la carte, même si l'on est déjà sur la page ;
- *  `ready` : la page est chargée (sinon la carte n'existe pas encore au moment du clic) */
+/** Lien #settings/network/<hosts|scan> (depuis une découverte à faire) : fait défiler jusqu'à la carte et l'allume, même si l'on est
+ *  déjà sur la page ; `ready` : la page est chargée (sinon la carte n'existe pas encore au moment du clic) */
 function useScrollToPart(ready: boolean) {
   useEffect(() => {
     if (!ready) return;
     const go = () => {
       const part = location.hash.split("/")[2];
-      if (part) setTimeout(() => document.getElementById(`net-${part}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+      if (part) setTimeout(() => {
+        const el = document.getElementById(`net-${part}`);
+        el?.scrollIntoView({ behavior: "smooth", block: "start" });
+        const card = el?.firstElementChild;   // la carte elle-même (le conteneur peut en porter deux)
+        if (card) { card.classList.remove("flash"); void (card as HTMLElement).offsetWidth; card.classList.add("flash"); }   // relancée à chaque clic
+      }, 50);
     };
     go();
     addEventListener("hashchange", go);
@@ -34,18 +39,19 @@ function useScrollToPart(ready: boolean) {
   }, [ready]);
 }
 
-/** Sous-onglet d'ouverture : celui du lien (#settings/network/<hosts|scan|services|backups>), sinon le premier qui a quelque chose à faire */
-const openTab = (todo: (id: string) => number) => {
+/** Sous-onglet d'ouverture : celui du lien (#settings/network/<hosts|scan|services|backups>), sinon le premier qui a quelque chose à faire,
+ *  sinon le premier qui a une suggestion */
+const openTab = (todo: (g: (typeof GROUPS)[number]) => number, suggest: (g: (typeof GROUPS)[number]) => number) => {
   const part = location.hash.split("/")[2];
   if (part === "services" || part === "backups") return part;
   if (part === "hosts" || part === "scan") return "network";
-  return GROUPS.find((g) => todo(g.id))?.id ?? "network";
+  return (GROUPS.find((g) => todo(g)) ?? GROUPS.find((g) => suggest(g)))?.id ?? "network";
 };
 
 export function NetworkSettings({ snap }: { snap: Snapshot }) {
   const [disc, reloadDisc] = useDiscoveries();
   const [tab, setTab] = useState<string | null>(null);
-  const current = tab ?? (disc ? openTab((id) => todoOf(disc, GROUPS.find((g) => g.id === id)!)) : "network");
+  const current = tab ?? (disc ? openTab((g) => todoOf(disc, g), (g) => suggestOf(disc, g)) : "network");
   const group = GROUPS.find((g) => g.id === current) ?? GROUPS[0];
   const hasHostsItem = !!disc?.items.some((x) => x.id === "hosts");   // même coupée, la découverte porte déjà la liste
   const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
@@ -83,15 +89,21 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {disc && (   // en une phrase, pour toutes les familles : ce qu'il faut faire, ce qui est seulement proposé
+        <p className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border px-4 py-3 text-sm ${disc.todo ? "border-warn/50 bg-warn/10" : "border-ok/40 bg-ok/5"}`}>
+          {disc.todo ? <><Bell size={16} className="text-warn" aria-hidden /><b>{tx("{0} chose(s) à faire", disc.todo)}</b></> : <><Check size={16} className="text-ok" aria-hidden /><b>{tx("Rien d'obligatoire à faire")}</b></>}
+          <span className="text-muted">{disc.suggest ? tx("· {0} suggestion(s) facultative(s) · le reste se fait tout seul", disc.suggest) : tx("· le reste se fait tout seul")}</span>
+        </p>
+      )}
       <nav className="flex gap-1 overflow-x-auto border-b border-line" aria-label={tx("Familles de découvertes")}>
         {GROUPS.map((g) => {
-          const n = todoOf(disc, g);
+          const n = todoOf(disc, g), s = suggestOf(disc, g);
           return (
             <button key={g.id} type="button" onClick={() => setTab(g.id)} aria-current={current === g.id ? "page" : undefined}
               className={`flex shrink-0 items-center gap-1.5 rounded-t-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
                 current === g.id ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : n > 0 ? "text-warn hover:bg-warn/10" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
               <g.Icon size={15} strokeWidth={1.75} className={n > 0 ? "text-warn" : ""} aria-hidden />{g.title}
-              {n > 0 && <Badge tone="warn">{n}</Badge>}
+              {n > 0 ? <Badge tone="warn" title={tx("{0} chose(s) à faire", n)}>{n}</Badge> : s > 0 && <Badge tone="info" title={tx("{0} suggestion(s) facultative(s)", s)}>{s}</Badge>}
             </button>
           );
         })}

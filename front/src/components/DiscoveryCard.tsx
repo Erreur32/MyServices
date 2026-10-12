@@ -1,6 +1,6 @@
 // « Découvertes » : ce que MyServices cherche tout seul, ce qui demande un clic, et ce qui reste à faire (GET /discoveries).
 // Liste complète en haut de Réglages → Découverte ; rappel court sur l'accueil quand quelque chose est à faire.
-import { Bell, BellOff, Boxes, Check, ChevronRight, Hand, HardDrive, Network, Play, RefreshCw, Repeat, Settings2 } from "lucide-react";
+import { Bell, BellOff, Boxes, Check, ChevronRight, Hand, HardDrive, Lightbulb, Network, Play, RefreshCw, Repeat, Settings2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { dateTime } from "../lib/format";
@@ -17,12 +17,13 @@ export interface DiscoveryItem {
   id: string; title: string; mode: "auto" | "first" | "manual"; what: string; last: number | null; next: number | null;
   app?: string | null; machine?: { ip: string; name: string } | null;  // appli trouvée et machine visée : titre mis en forme
   mutable?: boolean; muted?: boolean;  // rappel qu'on peut couper (et rétablir) ; coupé
-  state: "ok" | "todo" | "info"; note: string; action: { label: string; href?: string; run?: string; prefill?: { type: string; name: string; url: string } } | null;
+  // state : todo = nécessaire , suggest = facultatif, ok / info = rien à faire
+  state: "ok" | "todo" | "suggest" | "info"; note: string; action: { label: string; href?: string; run?: string; prefill?: { type: string; name: string; url: string } } | null;
 }
 
 // Un seul chargement partagé (cloche, accueil, menu Réglages, page Découverte) : une lecture toutes les 30 s quel que soit le nombre
 // de composants qui l'affichent, à l'arrêt quand l'onglet est masqué.
-let shared: { items: DiscoveryItem[]; todo: number } | null = null;
+let shared: { items: DiscoveryItem[]; todo: number; suggest: number } | null = null;
 const listeners = new Set<(d: NonNullable<typeof shared>) => void>();
 let timer: ReturnType<typeof setInterval> | undefined, inflight = false;
 const loadShared = () => {
@@ -83,7 +84,11 @@ function MuteButton({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
 function Action({ a, reload }: { a: NonNullable<DiscoveryItem["action"]>; reload: () => void }) {
   const [note, setNote] = useState<Note>(null);
   if (a.prefill) return <button type="button" className={primary} onClick={() => openConnector(a.prefill!)}><Settings2 size={13} aria-hidden />{a.label}<ChevronRight size={14} aria-hidden /></button>;   // le connecteur s'ouvre déjà rempli
-  if (a.href) return <a href={a.href} className={`${primary} no-underline`}>{a.label}<ChevronRight size={14} aria-hidden /></a>;
+  if (a.href) return (   // déjà à cette adresse : l'adresse ne change pas, on prévient quand même la page (défilement, cadre allumé)
+    <a href={a.href} className={`${primary} no-underline`} onClick={() => { if (location.hash === a.href) dispatchEvent(new HashChangeEvent("hashchange")); }}>
+      {a.label}<ChevronRight size={14} aria-hidden />
+    </a>
+  );
   return (
     <>
       <button type="button" className={primary} onClick={() => void act(() => send("POST", `system/tasks/${a.run}/run`), tx("lancé"), setNote).then(() => reload())}><Play size={13} aria-hidden />{a.label}</button>
@@ -103,7 +108,7 @@ export const groupOf = (x: DiscoveryItem) => GROUPS.find((g) => g.has(x.id)) ?? 
 /** Une découverte en carte : titre, mode, ce qu'elle fait, dernière / prochaine fois, puis ses boutons */
 function Item({ x, reload, machines, extra }: { x: DiscoveryItem; reload: () => void; machines?: Machine[]; extra?: (onCount: (n: number) => void) => ReactNode }) {
   const [picked, setPicked] = useState(0);   // machines cochées dans la liste repliée : montré sur l'en-tête du cadre
-  const m = MODE[x.mode], todo = x.state === "todo";
+  const m = MODE[x.mode], todo = x.state === "todo", suggest = x.state === "suggest";
   const wanted = () => location.hash.split("/")[2] === x.id;   // lien #settings/network/hosts : le cadre s'ouvre
   const [open, setOpen] = useState(false);   // plié par défaut, même si le lien du rappel est encore dans l'adresse ; un clic sur le lien l'ouvre
   useEffect(() => {
@@ -112,11 +117,13 @@ function Item({ x, reload, machines, extra }: { x: DiscoveryItem; reload: () => 
     return () => removeEventListener("hashchange", on);
   }, [x.id]);
   return (
-    <li id={`net-${x.id}`} className={`scroll-mt-20 flex flex-col gap-2 rounded-xl border bg-card p-4 ${extra ? "lg:col-span-2 " : ""}${todo ? "border-warn bg-warn/5 shadow-[inset_4px_0_0_rgb(var(--warn))]" : x.muted ? "border-line/60 opacity-75" : "border-line"}`}>
+    <li id={`net-${x.id}`} className={`scroll-mt-20 flex flex-col gap-2 rounded-xl border bg-card p-4 ${extra ? "lg:col-span-2 " : ""}${todo ? "border-warn bg-warn/5 shadow-[inset_4px_0_0_rgb(var(--warn))]" : suggest ? "border-link/40" : x.muted ? "border-line/60 opacity-75" : "border-line"}`}>
       <div className="flex items-start gap-2">
         <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${todo ? "bg-warn/15 text-warn" : "bg-bg2 text-muted"}`} title={m.hint}><m.Icon size={15} aria-hidden /></span>
         <div className="min-w-0 flex-1"><Title x={x} machines={machines} /></div>
-        <Badge tone={todo ? "warn" : m.tone} title={m.hint}>{todo ? tx("à faire") : m.label}</Badge>
+        {todo ? <Badge tone="warn" title={tx("Nécessaire : sans ça, MyServices ne voit pas tout")}>{tx("à faire")}</Badge>
+          : suggest ? <Badge tone="info" title={tx("Facultatif : rien ne casse si vous le laissez")}>{tx("facultatif")}</Badge>
+          : <Badge tone={m.tone} title={m.hint}>{m.label}</Badge>}
       </div>
       <p className="text-sm text-muted">{x.what}</p>
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
@@ -135,20 +142,62 @@ function Item({ x, reload, machines, extra }: { x: DiscoveryItem; reload: () => 
   );
 }
 
-export type DiscoveryData = { items: DiscoveryItem[]; todo: number };
-export const todoOf = (d: DiscoveryData | null, g: (typeof GROUPS)[number]) => (d?.items ?? []).filter((x) => x.state === "todo" && groupOf(x) === g).length;
+export type DiscoveryData = { items: DiscoveryItem[]; todo: number; suggest: number };
+const countOf = (d: DiscoveryData | null, g: (typeof GROUPS)[number], state: DiscoveryItem["state"]) => (d?.items ?? []).filter((x) => x.state === state && groupOf(x) === g).length;
+export const todoOf = (d: DiscoveryData | null, g: (typeof GROUPS)[number]) => countOf(d, g, "todo");
+export const suggestOf = (d: DiscoveryData | null, g: (typeof GROUPS)[number]) => countOf(d, g, "suggest");
 
-/** Les découvertes d'une famille : ce qui est à faire d'abord, puis le reste, en cartes */
+/** Suggestion en une ligne (appli reconnue, dossiers à chercher…) : elles peuvent être nombreuses, une carte chacune noierait ce qui compte */
+function SuggestRow({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; machines?: Machine[] }) {
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 text-sm">
+      <div className="min-w-[220px] flex-1" title={x.what}>
+        <Title x={x} machines={machines} />
+        {x.note && <p className="mt-0.5 text-xs text-dim">{x.note}</p>}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {x.action && <Action a={x.action} reload={reload} />}
+        <MuteButton x={x} reload={reload} />
+      </div>
+    </li>
+  );
+}
+
+/** Les découvertes d'une famille, en trois temps : ce qu'il faut faire, ce qui est proposé (facultatif), puis, replié, ce qui tourne seul */
 export function DiscoveryPanel({ d, group, reload, machines, extra }: { d: DiscoveryData | null; group: (typeof GROUPS)[number]; reload: () => void; machines?: Machine[]; extra?: (x: DiscoveryItem, onCount: (n: number) => void) => ReactNode }) {
   if (!d) return null;
-  const items = d.items.filter((x) => groupOf(x) === group).sort((a, b) => Number(b.state === "todo") - Number(a.state === "todo"));
-  const todo = items.filter((x) => x.state === "todo").length;
+  const items = d.items.filter((x) => groupOf(x) === group);
+  const todo = items.filter((x) => x.state === "todo"), suggest = items.filter((x) => x.state === "suggest");
+  const rest = items.filter((x) => x.state !== "todo" && x.state !== "suggest");
+  const extraOf = (x: DiscoveryItem) => (extra && extra(x, () => undefined) !== null ? (onCount: (n: number) => void) => extra(x, onCount) : undefined);
+  const card = (x: DiscoveryItem) => <Item key={x.id} x={x} reload={reload} machines={machines} extra={extraOf(x)} />;
+  const rows = suggest.filter((x) => !extraOf(x)), cards = suggest.filter((x) => extraOf(x));   // une suggestion avec sa liste (machines trouvées) garde sa carte
   return (
-    <section aria-label={group.title} className="flex flex-col gap-3">
-      <p className={`flex items-center gap-2 text-sm ${todo ? "text-warn" : "text-ok"}`}>
-        {todo ? <><Bell size={15} aria-hidden />{tx("{0} à faire dans cette famille", todo)}</> : <><Check size={15} aria-hidden />{tx("Rien à faire ici : tout est en ordre.")}</>}
-      </p>
-      <ul className="grid items-stretch gap-3 lg:grid-cols-2">{items.map((x) => <Item key={x.id} x={x} reload={reload} machines={machines} extra={extra && extra(x, () => undefined) !== null ? (onCount) => extra(x, onCount) : undefined} />)}</ul>
+    <section aria-label={group.title} className="flex flex-col gap-4">
+      {todo.length ? (
+        <div className="flex flex-col gap-2">
+          <h3 className="flex items-center gap-2 text-sm font-bold text-warn"><Bell size={15} aria-hidden />{tx("À faire ({0})", todo.length)}
+            <span className="font-normal text-muted">{tx("nécessaire : sans ça, MyServices ne voit pas tout")}</span></h3>
+          <ul className="grid items-stretch gap-3 lg:grid-cols-2">{todo.map(card)}</ul>
+        </div>
+      ) : (
+        <p className="flex items-center gap-2 text-sm font-semibold text-ok"><Check size={15} aria-hidden />{tx("Rien d'obligatoire à faire ici.")}</p>
+      )}
+      {suggest.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <h3 className="flex flex-wrap items-center gap-x-2 text-sm font-bold text-link"><Lightbulb size={15} aria-hidden />{tx("Suggestions ({0})", suggest.length)}
+            <span className="font-normal text-muted">{tx("facultatif : pour en voir davantage ; « Ne plus me le rappeler » range celles qui ne vous servent pas")}</span></h3>
+          {cards.length > 0 && <ul className="grid items-stretch gap-3 lg:grid-cols-2">{cards.map(card)}</ul>}
+          {rows.length > 0 && <ul className="flex flex-col divide-y divide-line/60 rounded-xl border border-link/30 bg-card">{rows.map((x) => <SuggestRow key={x.id} x={x} reload={reload} machines={machines} />)}</ul>}
+        </div>
+      )}
+      {rest.length > 0 && (
+        <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
+          <summary className={FOLD_HEAD}><ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
+            {tx("Automatique ou déjà en ordre ({0})", rest.length)}<span className="font-normal text-muted">{tx("rien à faire, pour information")}</span></summary>
+          <ul className="grid items-stretch gap-3 lg:grid-cols-2">{rest.map(card)}</ul>
+        </details>
+      )}
     </section>
   );
 }

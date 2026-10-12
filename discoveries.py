@@ -3,10 +3,14 @@
 Une « découverte » est une recherche que MyServices fait pour compléter ce qu'il sait (services, machines, sauvegardes, cron…). Certaines
 tournent seules à chaque passage, d'autres une seule fois puis seules, d'autres seulement quand on les lance. Cette liste le dit en clair,
 avec la dernière fois, la prochaine fois et l'action à faire s'il y en a une. Voir GET /api/v1/discoveries.
+
+État d'une entrée : « todo » = nécessaire (sans ça, MyServices ne voit pas tout ou une machine n'est plus lue), compté dans la cloche ;
+« suggest » = facultatif (relier une appli, suivre une machine trouvée…), proposé sans insister ; « ok » / « info » = rien à faire.
 """
 from __future__ import annotations
 
 AUTO, FIRST, MANUAL = "auto", "first", "manual"      # mode : toute seule / une fois à la main puis seule / à la main seulement
+TODO, SUGGEST = "todo", "suggest"                    # nécessaire / facultatif
 
 
 def build(i: dict) -> list[dict]:
@@ -22,7 +26,7 @@ def build(i: dict) -> list[dict]:
 
     add("services", "Services, conteneurs et ports", AUTO,
         "Relus à chaque collecte : conteneurs Docker, ports en écoute, pages web, applis reconnues. Rien à faire.",
-        i.get("collect_last"), i.get("collect_next"), "ok" if i.get("collect_ok", True) else "todo",
+        i.get("collect_last"), i.get("collect_next"), "ok" if i.get("collect_ok", True) else TODO,
         "" if i.get("collect_ok", True) else "la collecte est en retard : voir Réglages → Tâches et horaires",
         {"label": "Lancer maintenant", "run": "collect"})
     add("new", "Nouveaux services et services disparus", AUTO,
@@ -32,7 +36,7 @@ def build(i: dict) -> list[dict]:
     if not i.get("net_has_run"):
         add("network", "Machines du réseau (recherche réseau)", FIRST,
             "À lancer UNE FOIS à la main : ensuite elle se répète toute seule" + (f" toutes les {net_every:g} h." if net_every else " (coupée dans Réglages → Découverte : elle restera à la main)."),
-            None, None, "todo", "jamais lancée", {"label": "Lancer la recherche", "href": "#settings/network/scan"})
+            None, None, TODO, "jamais lancée", {"label": "Lancer la recherche", "href": "#settings/network/scan"})
     else:
         nxt = (i["net_last"] + net_every * 3600) if net_every and i.get("net_last") else None
         add("network", "Machines du réseau (recherche réseau)", FIRST if net_every else MANUAL,
@@ -53,7 +57,7 @@ def build(i: dict) -> list[dict]:
             {"label": "Voir Réglages → Sauvegardes", "href": "#settings/backups"})
     add("backups-other", "Autres dossiers de sauvegarde", MANUAL,
         "Jamais automatique : cliquer sur « Chercher » dans Réglages → Sauvegardes (ajoutez vos emplacements dans « Autres emplacements »), puis cocher et suivre.",
-        i.get("backups_search_last"), None, "todo" if n and not i.get("backups_search_last") else "info",
+        i.get("backups_search_last"), None, SUGGEST if n and not i.get("backups_search_last") else "info",
         "pas encore cherché" if n and not i.get("backups_search_last") else "", {"label": "Chercher des sauvegardes", "href": "#settings/backups"})
     add("cron", "Tâches planifiées de sauvegarde (cron, timers)", AUTO,
         "Lues par SSH à chaque passage des sauvegardes ; les nouvelles apparaissent dans l'onglet Sauvegardes. Rien à faire."
@@ -63,17 +67,17 @@ def build(i: dict) -> list[dict]:
     unknown = i.get("unknown_hosts") or 0
     if unknown:
         add("hosts", f"{unknown} machine(s) trouvée(s) sur le réseau, pas encore suivie(s)", FIRST,
-            "La recherche réseau les a vues. Choisissez celles à suivre (ou à ignorer) : MyServices ne les ajoute jamais seul.", i.get("net_last"), None, "todo",
+            "La recherche réseau les a vues. Choisissez celles à suivre (ou à ignorer) : MyServices ne les ajoute jamais seul.", i.get("net_last"), None, SUGGEST,
             "à choisir", {"label": "Choisir", "href": "#settings/network/hosts"})
     for k in i.get("key_refused") or []:   # accès SSH activé mais la clé de l'app n'est pas autorisée (ou port faux)
         add(f"ssh:{k['ip']}", f"Clé SSH à autoriser sur {k.get('name') or k['ip']}", AUTO,
             "L'accès SSH est activé, mais la connexion échoue : la clé de l'app n'est pas autorisée sur cette machine (ou le port est faux). Ses conteneurs et sa santé ne sont pas lus tant que ce n'est pas fait.",
-            None, None, "todo", "action sur la machine", {"label": "Régler", "href": f"#settings/machines/{k['ip']}"},
+            None, None, TODO, "action sur la machine", {"label": "Régler", "href": f"#settings/machines/{k['ip']}"},
             machine={"ip": k["ip"], "name": k.get("name") or ""})
     for a in i.get("agents_waiting") or []:   # agent créé mais jamais installé / jamais parlé
         add(f"agent:{a['ip']}", f"Agent à installer sur {a.get('name') or a['ip']}", MANUAL,
             "Un agent a été créé pour ce PC mais il n'a encore envoyé aucun relevé : lancez la commande d'installation (PowerShell, en administrateur) sur le PC.",
-            None, None, "todo", "en attente de son premier relevé", {"label": "Voir la commande", "href": f"#settings/agents/{a['ip']}"},
+            None, None, TODO, "en attente de son premier relevé", {"label": "Voir la commande", "href": f"#settings/agents/{a['ip']}"},
             machine={"ip": a["ip"], "name": a.get("name") or ""})
     props = i.get("proposals") or []
     if not props:
@@ -85,13 +89,13 @@ def build(i: dict) -> list[dict]:
         how = f" (vu par {p['via']})" if p.get("via") else ""
         add(f"connector:{p['connector']}@{p.get('ip')}", f"{p['label']} trouvé{where}", AUTO,
             f"MyServices a reconnu cette appli{how} mais ne la lit pas encore : il faut lui donner un accès en lecture (compte, clé ou jeton). Il ne le fait jamais sans votre accord.",
-            None, None, "todo", "connecteur à configurer",
+            None, None, SUGGEST, "connecteur à configurer",
             {"label": "Configurer", "prefill": {"type": p["connector"], "name": p["connector"], "url": p.get("url") or ""}},
             app=p["label"], machine={"ip": p.get("ip") or "", "name": p.get("machine") or ""} if p.get("ip") or p.get("machine") else None)
     muted = set(i.get("muted") or [])
     for x in out:   # un rappel qui revient sans cesse peut être coupé (et rétabli) ; une clé SSH refusée ou un agent absent, non
         x["mutable"] = x["id"] in ("hosts", "network", "backups-other") or x["id"].startswith("connector:")
         x["muted"] = x["mutable"] and x["id"] in muted
-        if x["muted"] and x["state"] == "todo":
+        if x["muted"] and x["state"] in (TODO, SUGGEST):
             x["state"], x["note"] = "info", "rappel coupé"
     return out

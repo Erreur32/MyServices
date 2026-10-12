@@ -27,7 +27,7 @@ class Discoveries(unittest.TestCase):
     def test_rappel_coupe_ne_compte_plus_mais_reste_liste(self):
         base = {"unknown_hosts": 32, "net_has_run": True, "net_every_h": 6}
         on = by(d.build(base))["hosts"]
-        self.assertEqual((on["state"], on["mutable"], on["muted"]), ("todo", True, False))
+        self.assertEqual((on["state"], on["mutable"], on["muted"]), ("suggest", True, False))   # facultatif : proposé, pas exigé
         off = by(d.build({**base, "muted": ["hosts"]}))["hosts"]
         self.assertEqual((off["state"], off["muted"], off["note"]), ("info", True, "rappel coupé"))
         key = by(d.build({"key_refused": [{"ip": "10.0.0.2", "name": "x"}], "muted": ["ssh:10.0.0.2"]}))["ssh:10.0.0.2"]
@@ -45,9 +45,9 @@ class Discoveries(unittest.TestCase):
         props = [{"connector": "adguard", "label": "AdGuard Home", "ip": "10.0.0.8", "machine": "PC", "url": "http://10.0.0.8:3000", "via": "service Windows"},
                  {"connector": "frigate", "label": "Frigate", "ip": "10.0.0.9", "url": "http://10.0.0.9:5000"}]
         m = by(d.build({"ssh_machines": 2, "proposals": props, "backups_search_last": None}))
-        self.assertEqual(m["backups-other"]["state"], "todo")
+        self.assertEqual(m["backups-other"]["state"], "suggest")
         one = m["connector:adguard@10.0.0.8"]
-        self.assertEqual((one["state"], one["title"]), ("todo", "AdGuard Home trouvé sur PC"))                  # une notification par appli reconnue
+        self.assertEqual((one["state"], one["title"]), ("suggest", "AdGuard Home trouvé sur PC"))                  # une notification par appli reconnue
         self.assertIn("service Windows", one["what"])
         self.assertEqual(one["action"]["prefill"], {"type": "adguard", "name": "adguard", "url": "http://10.0.0.8:3000"})   # le connecteur s'ouvre déjà rempli
         self.assertEqual(m["connector:frigate@10.0.0.9"]["title"], "Frigate trouvé (10.0.0.9)")
@@ -59,7 +59,8 @@ class Discoveries(unittest.TestCase):
     def test_autres_notifications_a_faire(self):
         m = by(d.build({"unknown_hosts": 3, "net_has_run": True, "net_last": 5.0, "net_every_h": 6,
                         "key_refused": [{"ip": "10.0.0.7", "name": "Serveur"}], "agents_waiting": [{"ip": "10.0.0.50", "name": "Gamer32"}]}))
-        self.assertEqual((m["hosts"]["state"], m["hosts"]["action"]["href"]), ("todo", "#settings/network/hosts"))
+        self.assertEqual((m["hosts"]["state"], m["hosts"]["action"]["href"]), ("suggest", "#settings/network/hosts"))
+        self.assertEqual((m["ssh:10.0.0.7"]["state"], m["agent:10.0.0.50"]["state"]), ("todo", "todo"))        # une machine qui n'est plus lue : nécessaire
         self.assertEqual(m["ssh:10.0.0.7"]["title"], "Clé SSH à autoriser sur Serveur")
         self.assertEqual(m["ssh:10.0.0.7"]["action"]["href"], "#settings/machines/10.0.0.7")
         self.assertEqual(m["agent:10.0.0.50"]["title"], "Agent à installer sur Gamer32")
