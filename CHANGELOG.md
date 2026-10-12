@@ -11,8 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.6 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Changed
 - **No more exited `init` container**: the image now has an entrypoint (`deploy/entrypoint.sh`). Started as root (`user: "0:0"` in the example compose), it gives `/config` and `/data` to the account 10001, locks `/config` (700 / 600), then runs the app as 10001 through `setpriv`, with no capability left. The example compose drops the `init` (busybox) service and adds only `CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID` for that start. `setup.py` and `manage.py` run through `docker compose exec` switch to 10001 the same way, so what they write stays readable by the app. **To update an existing install**: remove the `init` service and its `depends_on`, add `user: "0:0"` and the `cap_add` line from `deploy/compose.example.yaml`, then `docker compose up -d --remove-orphans`. An unchanged compose keeps working (the image still defaults to 10001).
+- **Example compose rewritten** (`deploy/compose.example.yaml`): English only, one service, shorter comments, the test-phase warning on top, and the `MYSERVICES_NETSCAN_EVERY` setting listed.
 
 ## v0.10.5 (2026-10-12)
 
