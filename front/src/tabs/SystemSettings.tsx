@@ -93,6 +93,7 @@ function SshKey({ ssh, snap }: { ssh: SystemState["ssh"]; snap: Snapshot }) {
             <Secretish text={ssh.public} label={tx("Clé publique")} shown={shown} mask={maskKey} />
             <Secretish text={ssh.authorize!} label={tx("Commande à lancer sur la machine, avec le compte visé")} shown={shown}
               mask={(t) => t.replace(/'([^']*)'/g, (_, k: string) => `'${maskKey(k)}'`)} />
+            {ssh.public_esxi && <Secretish text={ssh.public_esxi} label={tx("Clé publique ECDSA, pour VMware ESXi (à mettre dans /etc/ssh/keys-root/authorized_keys)")} shown={shown} mask={maskKey} />}
           </div>
         </>}
       </Card>

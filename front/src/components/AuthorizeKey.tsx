@@ -12,9 +12,9 @@ import { Copyable, NoteLine } from "./form";
 import { Card } from "./ui";
 
 export function AuthorizeKey({ failing, bare = false, onAccepted, user, userOf }: { failing: Connector[]; bare?: boolean; onAccepted?: () => void; user?: string; userOf?: (c: Connector) => string }) {  // user : compte SSH commun ; userOf : compte de chaque machine (une commande par compte)  // user : compte SSH commun aux machines visées (chemin complet de authorized_keys)
-  const [cmd, setCmd] = useState<string | null>(null), [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null);
+  const [cmd, setCmd] = useState<string | null>(null), [esxiKey, setEsxiKey] = useState<string | null>(null), [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null);
   useEffect(() => {
-    read<SystemState>("system").then((s) => setCmd(s.ssh.authorize || null))
+    read<SystemState>("system").then((s) => { setCmd(s.ssh.authorize || null); setEsxiKey(s.ssh.public_esxi ?? null); })
       .catch((e) => { if (e instanceof LoginRequired) location.replace(LOGIN); });
   }, []);
   if (!failing.length || !cmd) return null;
@@ -55,7 +55,7 @@ export function AuthorizeKey({ failing, bare = false, onAccepted, user, userOf }
         {[...groups].map(([u, cs]) => (
           <div key={u}>
             {groups.size > 1 && <p className="mb-1 text-sm text-muted">{tx("Sur")} <b className="text-txt">{cs.map((c) => c.name).join(", ")}</b>{tx(", connecté en")} <b className="text-txt">{u || "root"}</b> :</p>}
-            <Copyable text={authorizeFor(cmd, u)} oneLine />
+            <Copyable text={authorizeFor(cmd, u, esxiKey)} oneLine />
           </div>
         ))}
         <div><button type="button" className={primary} disabled={busy} onClick={() => void test()}>{busy ? tx("Test…") : tx("Tester")}</button></div>

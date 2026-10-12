@@ -393,7 +393,7 @@ function AddedMachine({ host, linked, onDone }: { host: NetHost; linked: boolean
   const ha = host.apps.includes("Home Assistant");
   const mwk = viaMynetwork(host);  // UniFi : API MynetworK à venir ; SSH facultatif
   const ssh = !!host.ssh_port && !ha;  // Home Assistant se relie par son API : pas de SSH proposé, même s'il répond
-  const [user, setUser] = useState("root"), [cmd, setCmd] = useState<string | null>(null);
+  const [user, setUser] = useState("root"), [cmd, setCmd] = useState<string | null>(null), [esxiKey, setEsxiKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null), [tested, setTested] = useState(false), [haOk, setHaOk] = useState(false);
   const ok = tested || linked;
   const valid = ok || haOk || (!ssh && !ha);  // vert seulement une fois l'accès validé (ou s'il n'y en a aucun à régler)
@@ -406,6 +406,7 @@ function AddedMachine({ host, linked, onDone }: { host: NetHost; linked: boolean
       await send("PUT", `machines/settings/${host.ip}`, { machine: { name: label, role: roleOf(host), ssh: alias }, extra: [] });
       const sys = await read<SystemState>("system");
       setCmd(sys.ssh.authorize ?? null);
+      setEsxiKey(sys.ssh.public_esxi ?? null);
     }, tx("accès SSH préparé : lancer la commande sur la machine, puis tester"), setNote);
     setBusy(false);
   };
@@ -447,7 +448,7 @@ function AddedMachine({ host, linked, onDone }: { host: NetHost; linked: boolean
       {cmd && !ok && (
         <div className="mt-2 flex flex-col gap-2">
           <p className="text-sm text-muted">{tx("Sur {0}, en root (ou connecté avec le compte {1}) :", label, user)}</p>
-          <Copyable text={authorizeFor(cmd, user)} oneLine />
+          <Copyable text={authorizeFor(cmd, user, esxiKey)} oneLine />
           <div><button type="button" className={primary} disabled={busy} onClick={() => void test()}>{busy ? tx("Test…") : tx("Tester")}</button></div>
         </div>
       )}

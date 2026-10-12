@@ -28,9 +28,9 @@ interface Props {
 export function SshGuide({ ip, user: knownUser, guess, port, onReady, onCancel }: Props) {
   const [kind, setKind] = useState<Kind>(guess);
   const win = kind === "windows";
-  const [user, setUser] = useState(knownUser || "root"), [authorize, setAuthorize] = useState("");
+  const [user, setUser] = useState(knownUser || "root"), [authorize, setAuthorize] = useState(""), [esxiKey, setEsxiKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [lines, setLines] = useState<string[] | null>(null), [applied, setApplied] = useState("");
-  useEffect(() => { read<SystemState>("system").then((s) => setAuthorize(s.ssh.authorize ?? "")).catch(() => undefined); }, []);
+  useEffect(() => { read<SystemState>("system").then((s) => { setAuthorize(s.ssh.authorize ?? ""); setEsxiKey(s.ssh.public_esxi ?? null); }).catch(() => undefined); }, []);
   const ok = /^[A-Za-z_][A-Za-z0-9_.-]{0,31}$/.test(user);
   const guard = async (fn: () => Promise<void>) => {
     setBusy(true); setError("");
@@ -86,8 +86,8 @@ export function SshGuide({ ip, user: knownUser, guess, port, onReady, onCancel }
               </div>
             </li>
             <li>{tx("Sur la machine, en root ou connecté avec ce compte, ajoutez la clé de l'app dans")} <code className="font-mono text-xs text-txt">{homeOf(user || "root")}/.ssh/authorized_keys</code> :
-              {authorize ? <Copyable text={authorizeFor(authorize, user)} /> : <span className="block text-warn">{tx("Clé de l'app introuvable : voir")} <a className="underline hover:text-txt" href="#settings/ssh">{tx("Réglages → Clé SSH")}</a>.</span>}
-              {(user || "root") === "root" && <span className="mt-1 block text-xs text-dim">{tx("Sur un VMware ESXi, la commande met la clé dans /etc/ssh/keys-root/authorized_keys (ESXi ignore ~/.ssh).")}</span>}</li>
+              {authorize ? <Copyable text={authorizeFor(authorize, user, esxiKey)} /> : <span className="block text-warn">{tx("Clé de l'app introuvable : voir")} <a className="underline hover:text-txt" href="#settings/ssh">{tx("Réglages → Clé SSH")}</a>.</span>}
+              {(user || "root") === "root" && <span className="mt-1 block text-xs text-dim">{tx("Sur un VMware ESXi, la commande met la clé ECDSA de l'app dans /etc/ssh/keys-root/authorized_keys (ESXi ignore ~/.ssh et refuse les clés ed25519).")}</span>}</li>
           </ol>
           <p className="text-xs text-dim">💡 {tx("Astuce : si la connexion est refusée, vérifiez que le serveur SSH est installé et démarré sur la machine.")}</p>
           {error && <p className="text-bad">⚠ {error}</p>}

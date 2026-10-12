@@ -526,7 +526,7 @@ def add_alias(ip: str, user: str = "root", port: int = 22) -> dict:
     conf = Path(setup.SSH_CONF)
     text = conf.read_text(encoding="utf-8") if conf.exists() else ""
     block = (f"\n# Machine trouvée par la recherche réseau\nHost {alias}\n    HostName {ip}\n    User {user}\n    Port {port}\n"
-             "    IdentityFile ~/.ssh/myservices\n    IdentitiesOnly yes\n    StrictHostKeyChecking accept-new\n")
+             "    IdentityFile ~/.ssh/myservices\n    IdentityFile ~/.ssh/myservices_ecdsa\n    IdentitiesOnly yes\n    StrictHostKeyChecking accept-new\n")
     conf.write_text(text + block, encoding="utf-8")
     conf.chmod(0o600)
     return {"alias": alias, "created": True}

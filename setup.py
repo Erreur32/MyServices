@@ -129,7 +129,8 @@ def ssh_why(alias: str, r: subprocess.CompletedProcess | None) -> str:
     if "remote host identification has changed" in err:
         return f"SSH {alias} : clé d'hôte changée (réinstallation ?) : sudo ssh-keygen -R <hôte>, puis sudo ssh {alias} true"
     if "permission denied" in err:
-        return (f"SSH {alias} : clé refusée (clé publique de /config/ssh dans authorized_keys du compte visé ?)" if DOCKER else
+        return (f"SSH {alias} : clé refusée (clé publique de /config/ssh dans authorized_keys du compte visé ? VMware ESXi : "
+                "clé ECDSA dans /etc/ssh/keys-root/authorized_keys)" if DOCKER else
                 f"SSH {alias} : clé refusée (ssh-copy-id fait pour root de cette machine ? clé sans phrase de passe ?)")
     if "could not resolve" in err:
         return f"SSH {alias} : alias ou HostName inconnu de {SSH_CONF}"

@@ -233,5 +233,18 @@ class Chain(unittest.TestCase):
         self.assertEqual(calls, ["health", "collect"])
 
 
+class EcdsaKey(unittest.TestCase):
+    """with_ecdsa: the app's aliases also offer the ECDSA key (VMware ESXi refuses ed25519), once, others untouched."""
+
+    def test_ajout_une_fois(self):
+        conf = ("Host m-1\n    HostName 10.0.0.1\n    IdentityFile ~/.ssh/myservices\n    IdentitiesOnly yes\n"
+                "Host perso\n    IdentityFile ~/.ssh/id_ed25519_perso\n")
+        got = server.with_ecdsa(conf)
+        self.assertIn("    IdentityFile ~/.ssh/myservices\n    IdentityFile ~/.ssh/myservices_ecdsa\n    IdentitiesOnly yes", got)
+        self.assertIn("IdentityFile ~/.ssh/id_ed25519_perso\n", got)
+        self.assertEqual(server.with_ecdsa(got), got)
+        self.assertEqual(got.count("myservices_ecdsa"), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

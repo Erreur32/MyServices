@@ -572,7 +572,7 @@ export interface SystemTask {
   why?: string | null;  // pourquoi la tâche est coupée et comment l'allumer
 }
 export interface SystemState {
-  ssh: { public: string | null; fingerprint?: string | null; known_hosts?: number; authorize?: string };
+  ssh: { public: string | null; fingerprint?: string | null; known_hosts?: number; authorize?: string; public_esxi?: string | null };
   tasks: SystemTask[];
   host_docker?: { present: boolean; containers: number; networks: number };
   info: {

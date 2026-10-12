@@ -479,6 +479,7 @@ def scheduler() -> None:
 SSH_DIR = Path.home() / ".ssh"  # lien vers /config/ssh dans l'image
 CONFIG_DIR = Path(os.environ.get("MYSERVICES_CONFIG", "/config/config.json")).parent
 KEY = SSH_DIR / "myservices"
+KEY_ECDSA = SSH_DIR / "myservices_ecdsa"  # second key, ECDSA P-256: VMware ESXi (sshd in FIPS mode) refuses ed25519
 
 
 def host_ip() -> str:
@@ -500,6 +501,13 @@ def lock_config() -> None:
             pass
 
 
+def with_ecdsa(text: str) -> str:
+    """SSH config where every « IdentityFile ~/.ssh/myservices » line (aliases written by the app) is followed by the ECDSA key:
+    ssh offers ed25519 first, then ECDSA to a host that refuses it (VMware ESXi in FIPS mode). Aliases of other keys are left alone."""
+    return re.sub(r"(?m)^([ \t]*)IdentityFile ~/\.ssh/myservices[ \t]*\n(?![ \t]*IdentityFile ~/\.ssh/myservices_ecdsa)",
+                  r"\g<0>\1IdentityFile ~/.ssh/myservices_ecdsa\n", text)
+
+
 def prepare_ssh() -> None:
     """Clé de l'app (créée une fois) et alias « hote » vers la machine hôte : le conteneur n'a pas le
     socket Docker, il lit sa machine hôte par SSH. Affiche la commande qui autorise la clé sur l'hôte."""
@@ -507,14 +515,22 @@ def prepare_ssh() -> None:
     if not KEY.exists():
         subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "myservices", "-f", str(KEY)], check=True)
         log(f"clé SSH de l'app créée : {KEY}")
+    if not KEY_ECDSA.exists():
+        subprocess.run(["ssh-keygen", "-q", "-t", "ecdsa", "-b", "256", "-N", "", "-C", "myservices-esxi", "-f", str(KEY_ECDSA)], check=True)
+        log(f"clé SSH ECDSA de l'app créée (VMware ESXi) : {KEY_ECDSA}")
     lock_config()
     conf = SSH_DIR / "config"
     text = conf.read_text(encoding="utf-8") if conf.exists() else ""
+    if (both := with_ecdsa(text)) != text:   # aliases written before the ECDSA key: it is offered after the ed25519 one
+        conf.write_text(both, encoding="utf-8")
+        conf.chmod(0o600)
+        text = both
+        log("config SSH : clé ECDSA ajoutée aux alias de l'app (VMware ESXi)")
     if not re.search(r"(?im)^\s*Host\s+(.*\s)?hote(\s|$)", text):
         ip = host_ip()
         user = os.environ.get("MYSERVICES_HOST_USER", "root")
         conf.write_text(text + f"\n# Machine hôte du conteneur (ajouté au démarrage)\nHost hote\n    HostName {ip}\n    User {user}\n"
-                        f"    IdentityFile ~/.ssh/myservices\n    IdentitiesOnly yes\n"
+                        f"    IdentityFile ~/.ssh/myservices\n    IdentityFile ~/.ssh/myservices_ecdsa\n    IdentitiesOnly yes\n"
                         "    StrictHostKeyChecking accept-new\n", encoding="utf-8")  # 1re connexion : empreinte retenue, puis vérifiée
         conf.chmod(0o600)
         log(f"alias SSH « hote » ajouté : {user}@{ip}")

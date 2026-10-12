@@ -40,8 +40,12 @@ def ssh_key(core) -> dict:
         hosts = sum(1 for ln in known.read_text(encoding="utf-8").splitlines() if ln.strip() and not ln.startswith("#"))
     except OSError:
         hosts = 0
+    try:   # ECDSA key, the one VMware ESXi accepts (its sshd in FIPS mode refuses ed25519)
+        esxi = core.KEY.with_name(core.KEY.name + "_ecdsa.pub").read_text(encoding="utf-8").strip()
+    except OSError:
+        esxi = None
     return {"public": text, "fingerprint": fp[1] if len(fp) > 1 else None, "known_hosts": hosts,
-            "authorize": f"echo '{text}' >> ~/.ssh/authorized_keys"}
+            "authorize": f"echo '{text}' >> ~/.ssh/authorized_keys", "public_esxi": esxi}
 
 
 def tasks(core) -> list[dict]:

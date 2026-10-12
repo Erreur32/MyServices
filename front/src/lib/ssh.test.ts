@@ -14,7 +14,8 @@ describe("autoriser la clé", () => {
     for (const u of ["root", "", " "]) {
       const c = authorizeFor(CMD, u);
       expect(c).toContain("/root/.ssh/authorized_keys");
-      expect(c).toContain("if [ -d /etc/ssh/keys-root ]; then F=/etc/ssh/keys-root/authorized_keys; else");
+      expect(c).toContain("if [ -d /etc/ssh/keys-root ]; then F=/etc/ssh/keys-root/authorized_keys; K='ssh-ed25519 AAAAkey myservices'; else");
+      expect(authorizeFor(CMD, u, "ecdsa-sha2-nistp256 AAAAe myservices-esxi")).toContain("K='ecdsa-sha2-nistp256 AAAAe myservices-esxi'; else");
       expect(c).not.toContain("chown");
     }
   });
