@@ -402,10 +402,46 @@ class ConnectorConf(BaseModel):
 
 
 def last_statuses() -> list[dict]:
+    """Connector states of the last collection; an instance saved (or switched on) since then is marked « pending »: the page says it is
+    being read again instead of showing the error of the old settings."""
     try:
-        return json.loads((core.WEB / "data.json").read_text(encoding="utf-8")).get("connectors", [])
+        data = json.loads((core.WEB / "data.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
+    try:
+        at = datetime.fromisoformat(str(data.get("generated"))).timestamp()
+    except ValueError:
+        at = 0
+    saved = {k: v for k, v in _saved().items() if v > at}
+    return [{**st, "pending": True} if f"{st.get('type')}/{st.get('name')}" in saved else st for st in data.get("connectors", [])]
+
+
+def _saved_file() -> Path:
+    return Path(core.CFG["state_dir"]) / "connectors-saved.json"
+
+
+def _saved() -> dict[str, float]:
+    try:
+        got = json.loads(_saved_file().read_text(encoding="utf-8"))
+        return got if isinstance(got, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def reread_connector(type_: str, name: str, why: str) -> None:
+    """Settings changed: remember when (see last_statuses) and run the collection now rather than at its next hour."""
+    marks = {k: v for k, v in _saved().items() if time.time() - v < 86400}
+    marks[f"{type_}/{name}"] = time.time()
+    try:
+        f = _saved_file()
+        f.parent.mkdir(parents=True, exist_ok=True)
+        tmp = f.with_suffix(".tmp")
+        tmp.write_text(json.dumps(marks), encoding="utf-8")
+        tmp.replace(f)
+    except OSError:
+        pass   # no mark: the page shows the old state until the collection, as before
+    if core.enabled("collect"):
+        core.run_chain(["collect"], why)
 
 
 @app.get(API + "/connectors/settings", tags=["connecteurs"], summary="Connecteurs réglables : types, champs, instances (admin)")
@@ -438,8 +474,12 @@ def connector_call(request: Request, action: str, detail: str, fn) -> JSONRespon
 
 @app.put(API + "/connectors/settings/{type_}", tags=["connecteurs"], summary="Ajouter ou modifier une instance (admin ; secret vide = gardé)")
 def connector_save(type_: str, body: ConnectorConf, request: Request):
-    return connector_call(request, "connecteur enregistré", f"{type_} {body.name}",
-                          lambda s: s.save(type_, body.name, body.config, body.original))
+    out = connector_call(request, "connecteur enregistré", f"{type_} {body.name}",
+                         lambda s: s.save(type_, body.name, body.config, body.original))
+    if isinstance(out, dict) and out.get("ok"):
+        reread_connector(type_, body.name, f"connecteur {type_} « {body.name} » enregistré")
+        out = {**out, "message": "enregistré : relecture lancée, l'état se met à jour dans une minute"}
+    return out
 
 
 class Reveal(BaseModel):
@@ -472,8 +512,11 @@ class Toggle(BaseModel):
 
 @app.patch(API + "/connectors/settings/{type_}/{name}", tags=["connecteurs"], summary="Allumer ou couper un connecteur (admin)")
 def connector_toggle(type_: str, name: str, body: Toggle, request: Request):
-    return connector_call(request, "connecteur allumé" if body.enabled else "connecteur coupé", f"{type_} {name}",
-                          lambda s: s.set_enabled(type_, name, body.enabled))
+    out = connector_call(request, "connecteur allumé" if body.enabled else "connecteur coupé", f"{type_} {name}",
+                         lambda s: s.set_enabled(type_, name, body.enabled))
+    if body.enabled and isinstance(out, dict) and out.get("ok"):
+        reread_connector(type_, name, f"connecteur {type_} « {name} » rallumé")
+    return out
 
 
 @app.delete(API + "/connectors/settings/{type_}/{name}", tags=["connecteurs"], summary="Supprimer une instance (admin)")

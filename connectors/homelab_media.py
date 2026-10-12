@@ -60,7 +60,8 @@ class Frigate(StatusConnector):
         return {"url": f"http://{ip}:5000"}
 
 
-ARR_APPS = {"sonarr": ("Sonarr", "v3"), "radarr": ("Radarr", "v3"), "lidarr": ("Lidarr", "v1"), "prowlarr": ("Prowlarr", "v1"), "readarr": ("Readarr", "v1")}
+ARR_APPS = {"sonarr": ("Sonarr", "v3"), "radarr": ("Radarr", "v3"), "lidarr": ("Lidarr", "v1"), "prowlarr": ("Prowlarr", "v1"), "readarr": ("Readarr", "v1"),
+            "whisparr": ("Whisparr", "v3")}   # Whisparr v2 is a Sonarr fork: same v3 API
 
 
 class Arr(StatusConnector):

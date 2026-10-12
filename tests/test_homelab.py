@@ -216,7 +216,10 @@ class Synology(Base):
             return {"SYNO.DSM.Info": {"success": True, "data": {"version_string": "DSM 7.2.1", "temperature": 48}},
                     "SYNO.Storage.CGI.Storage": {"success": True, "data": {"volumes": [{"id": "volume_1", "status": "normal", "size": {"total": "1000", "used": "950"}}],
                                                                            "disks": [{"name": "Disque 1", "status": "normal", "smart_status": "normal"},
-                                                                                     {"name": "Disque 2", "status": "crashed", "smart_status": "normal"}]}}}[method_api]
+                                                                                     {"name": "Disque 2", "status": "crashed", "smart_status": "normal"}]}},
+                    "SYNO.Backup.Task": {"success": True, "data": {"task_list": [{"name": "Vers C2", "last_bkp_result": "done"},
+                                                                                {"name": "Vers USB", "last_bkp_result": "failed"}]}}}.get(
+                        method_api, {"success": False, "error": {"code": 102}})   # package absent: DSM answers « API does not exist »
         orig = Fake._go
 
         def go(handler, method):
@@ -235,8 +238,10 @@ class Synology(Base):
         self.addCleanup(setattr, Fake, "_go", orig)
         d = self.conn("synology", user="u", password="pw").collect()
         self.assertEqual(d["version"], "DSM 7.2.1")
-        self.assertEqual(calls, ["SYNO.DSM.Info", "SYNO.Storage.CGI.Storage"])
+        self.assertEqual(calls, ["SYNO.DSM.Info", "SYNO.Storage.CGI.Storage", "SYNO.Backup.Task", "SYNO.Virtualization.API.Guest"])
         self.assertIn("disque Disque 2 : crashed (SMART normal)", d["problems"])
+        self.assertIn("Hyper Backup « Vers USB » : failed", d["problems"])
+        self.assertNotIn("VM (VMM)", {f["label"] for f in d["facts"]})                       # Virtual Machine Manager absent: nothing shown
         self.assertIn("passwd=pw", SEEN[0][3])
         self.assertNotIn("pw", SEEN[0][1])                                                   # identifiants en POST seulement
         self.assertIn("logout", SEEN[-1][3])                                                 # session fermée

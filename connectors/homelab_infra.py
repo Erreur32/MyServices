@@ -155,7 +155,7 @@ class Technitium(StatusConnector):
 
 
 class TrueNAS(StatusConnector):
-    """TrueNAS : pools (santé, espace), alertes actives. Clé d'API (Bearer), API REST v2.0 (obsolète dans les très récentes versions)."""
+    """TrueNAS : pools (santé, espace), alertes actives, réplications et synchro cloud, VM et applis (SCALE). Clé d'API (Bearer), API REST v2.0 (obsolète dans les très récentes versions)."""
     type = "truenas"
     label = "TrueNAS"
     images = ()
@@ -185,11 +185,30 @@ class TrueNAS(StatusConnector):
         facts.append(fact("Alertes", len(alerts), "bad" if crit else "warn" if alerts else "ok"))
         if info.get("uptime_seconds"):
             facts.append(fact("En marche", duration(num(info.get("uptime_seconds")))))
-        return self.out(info.get("version"), facts, [f"pool « {p.get('name')} » : {p.get('status')}" for p in bad_pools] + [str(a.get("formatted") or a.get("klass"))[:140] for a in alerts[:6]])
+        problems = [f"pool « {p.get('name')} » : {p.get('status')}" for p in bad_pools] + [str(a.get("formatted") or a.get("klass"))[:140] for a in alerts[:6]]
+        # Backups (replications, cloud sync) and guests (VMs, apps of SCALE): optional, missing on older versions or without the right
+        state = lambda x: str(((x.get("state") or {}) if isinstance(x.get("state"), dict) else {}).get("state") or ((x.get("job") or {}) if isinstance(x.get("job"), dict) else {}).get("state") or "").upper()   # noqa: E731
+        jobs = [(f"réplication « {r.get('name', '?')} »", state(r)) for r in rows(self.get_opt("/api/v2.0/replication", h)) if r.get("enabled") is not False]
+        jobs += [(f"synchro cloud « {c.get('description') or c.get('id', '?')} »", state(c)) for c in rows(self.get_opt("/api/v2.0/cloudsync", h)) if c.get("enabled") is not False]
+        if jobs:
+            failed = [n for n, st in jobs if st in ("ERROR", "FAILED", "ABORTED")]
+            facts.append(fact("Sauvegardes", f"{len(jobs) - len(failed)}/{len(jobs)} réussies", "bad" if failed else "ok"))
+            problems += [f"{n} en échec" for n in failed]
+        vms = rows(self.get_opt("/api/v2.0/vm", h))
+        apps = rows(self.get_opt("/api/v2.0/app", h))
+        if vms:
+            on = sum(1 for v in vms if str((v.get("status") or {}).get("state") if isinstance(v.get("status"), dict) else "").upper() == "RUNNING")
+            facts.append(fact("VM", f"{on}/{len(vms)} en marche"))
+        if apps:
+            crashed = [a for a in apps if str(a.get("state", "")).upper() in ("CRASHED", "FAILED")]
+            upd = [a for a in apps if a.get("upgrade_available") is True]
+            facts.append(fact("Applis", f"{len(apps)}" + (f", {len(upd)} à mettre à jour" if upd else ""), "bad" if crashed else "warn" if upd else None))
+            problems += [f"appli « {a.get('name', '?')} » : {str(a.get('state')).lower()}" for a in crashed]
+        return self.out(info.get("version"), facts, problems)
 
 
 class Synology(StatusConnector):
-    """Synology DSM : volumes (état, espace), disques (état, SMART, température), version. Compte dédié ; identifiants envoyés en POST."""
+    """Synology DSM : volumes (état, espace), disques (état, SMART, température), version, tâches Hyper Backup et VM de Virtual Machine Manager. Compte dédié ; identifiants envoyés en POST."""
     type = "synology"
     label = "Synology DSM"
     images = ()
@@ -219,6 +238,9 @@ class Synology(StatusConnector):
         try:
             info = self._call(sid, "SYNO.DSM.Info", "getinfo", 2) or {}
             sto = self._call(sid, "SYNO.Storage.CGI.Storage", "load_info") or {}
+            # Optional packages: Hyper Backup tasks and Virtual Machine Manager guests (None when the package is missing or the account may not see it)
+            hb = self._call(sid, "SYNO.Backup.Task", "list", 1, {"additional": '["last_bkp_time","last_bkp_result"]'}) or {}
+            vmm = self._call(sid, "SYNO.Virtualization.API.Guest", "list", 1) or {}
         finally:
             post_form(self.base_url() + "/webapi/auth.cgi", {"api": "SYNO.API.Auth", "version": 6, "method": "logout", "session": "myservices", "_sid": sid}, self.tls())
         vols, disks = rows(sto.get("volumes")), rows(sto.get("disks"))
@@ -233,6 +255,15 @@ class Synology(StatusConnector):
         if info.get("temperature") is not None:
             facts.append(fact("Température", f"{info['temperature']} °C", "warn" if num(info.get("temperature"), 0) >= 70 else None))
         problems = [f"volume {v.get('id')} : {v.get('status')}" for v in bad_v] + [f"disque {x.get('name') or x.get('id')} : {x.get('status')} (SMART {x.get('smart_status')})" for x in bad_d]
+        tasks = rows(hb.get("task_list"))
+        if tasks:
+            last = lambda t: str(t.get("last_bkp_result") or ((t.get("additional") or {}).get("last_bkp_result") if isinstance(t.get("additional"), dict) else "") or "")   # noqa: E731
+            failed = [t for t in tasks if last(t).lower() in ("failed", "error", "partial")]
+            facts.append(fact("Hyper Backup", f"{len(tasks) - len(failed)}/{len(tasks)} réussies", "bad" if failed else "ok"))
+            problems += [f"Hyper Backup « {t.get('name', '?')} » : {last(t)}" for t in failed]
+        guests = rows(vmm.get("guests"))
+        if guests:
+            facts.append(fact("VM (VMM)", f"{sum(1 for g in guests if str(g.get('status')).lower() == 'running')}/{len(guests)} en marche"))
         return self.out(info.get("version_string"), facts, problems)
 
 
@@ -270,8 +301,8 @@ class UniFi(StatusConnector):
 
     def collect(self) -> dict:
         version, sites, devices, clients, total = (self._account if self.conf.get("auth") == "account" else self._api_key)()
-        off = [d["name"] or d["mac"] for d in devices if not d.pop("online")]
-        upd = [d["name"] or d["mac"] for d in devices if d.pop("updatable")]
+        off = [d["name"] or d["mac"] for d in devices if not d.get("online")]
+        upd = [d["name"] or d["mac"] for d in devices if d.get("updatable")]   # both kept on the rows: the Network tab shows them
         facts = [fact("Appareils", f"{len(devices) - len(off)}/{len(devices)} en ligne", "bad" if off else "ok"), fact("Clients", total), fact("Sites", sites)]
         if upd:
             facts.append(fact("Mises à jour", len(upd), "warn"))

@@ -1,5 +1,5 @@
 // Accès SSH d'une machine (relevé par la collecte) : ligne de résumé, alerte sshd, détail ; état d'un connecteur.
-import { AlertTriangle, CheckCircle2, KeyRound, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, KeyRound, RefreshCw, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { dur } from "../lib/format";
 import type { Connector, ConnectorStatus, Machine } from "../types";
@@ -10,6 +10,8 @@ const SSH_KIND: Record<string, string> = { docker: tx("conteneurs Docker"), proc
 
 export function StatusLine({ s }: { s: (Partial<ConnectorStatus> & Connector) | null }) {
   if (!s) return <Dim>{tx("pas encore lu (prochain passage de la collecte)")}</Dim>;
+  // Saved (or switched on) after the last collection: its old error belongs to the old settings, the collection is reading it again
+  if (s.pending) return <span className="flex items-center gap-2 text-link"><RefreshCw size={15} className="shrink-0 animate-spin" aria-hidden />{tx("enregistré : relecture en cours…")}</span>;
   const version = s.version && <Badge tone={s.version_tested === false ? "warn" : "off"} title={s.version_tested === false ? tx("version non testée") : undefined}>v{s.version}</Badge>;
   // Lu : la coche verte suffit (pas de texte « OK »). Périmé ou en échec : l'icône et le message
   const found = (s.found ?? []).map((f) => <Badge key={f.name} tone={f.count ? "ok" : "off"} title={tx("Lu à la dernière collecte")}>{f.name} : {f.count}</Badge>);

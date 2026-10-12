@@ -18,7 +18,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "6"
+VERSION = "7"
 SCRIPTS = Path(__file__).resolve().parent / "agent"
 PREFIX = "msv_agent_"
 NAME_RE = re.compile(r"^[\w .@-]{2,64}$")
@@ -231,6 +231,66 @@ def hardware_of(report: dict | None) -> dict | None:
     import health
     data = (report or {}).get("data")
     return health.hardware_of_raw(data.get("hw")) if isinstance(data, dict) else None
+
+
+def _dt(v) -> float | None:
+    import datetime
+    try:
+        return datetime.datetime.fromisoformat(str(v).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        return None
+
+
+def hyperv_of(report: dict | None, node: str) -> dict | None:
+    """Hyper-V VMs of an agent report (key « hv », Get-VM), in the shape of the virtualization rows; None if the PC has no Hyper-V."""
+    vms = ((report or {}).get("data") or {}).get("hv")
+    if not isinstance(vms, list):
+        return None
+    guests = []
+    for v in vms[:300]:
+        if not isinstance(v, dict) or not v.get("n"):
+            continue
+        on = str(v.get("s")).lower() == "running" or v.get("s") == 2   # State is text, or its enum number (2 = Running) on some hosts
+        mem = v.get("m") if isinstance(v.get("m"), (int, float)) and v["m"] > 0 else None
+        guests.append({"vmid": str(v["n"])[:80], "name": str(v["n"])[:80], "type": "vm", "node": node, "status": "running" if on else "stopped",
+                       "template": False, "tags": [], "cpus": v.get("c") if isinstance(v.get("c"), int) else None,
+                       "mem": mem if on else None, "maxmem": mem or (v.get("x") if isinstance(v.get("x"), (int, float)) and v["x"] > 0 else None),
+                       "uptime": v.get("u") if on and isinstance(v.get("u"), int) and v["u"] > 0 else None})
+    return {"nodes": [{"name": node, "online": True}], "guests": guests, "storage": [], "backups": None,
+            "totals": {"vm": len(guests), "lxc": 0, "running": sum(1 for g in guests if g["status"] == "running"),
+                       "stopped": sum(1 for g in guests if g["status"] != "running")}}
+
+
+def windows_backups_of(report: dict | None) -> list[dict]:
+    """Last Veeam Agent job (event 190 of the « Veeam Agent » log) and last Windows Server Backup (Microsoft-Windows-Backup: event 4 = success,
+    level error otherwise) of an agent report: [{"tool", "at" (epoch), "ok", "warn", "message"}]. Event levels: 2 error, 3 warning."""
+    data = (report or {}).get("data") or {}
+    out = []
+    for key, tool in (("va", "Veeam Agent"), ("wb", "Sauvegarde Windows Server")):
+        e = data.get(key)
+        if not isinstance(e, dict):
+            continue
+        msg = str(e.get("m") or "")[:200]
+        failed = e.get("l") in (1, 2) or (key == "va" and re.search(r"\bfailed\b", msg, re.I) is not None)
+        warn = e.get("l") == 3 or (key == "va" and re.search(r"\bwarning\b", msg, re.I) is not None)
+        out.append({"tool": tool, "at": _dt(e.get("t")), "ok": not failed, "warn": warn and not failed, "message": msg})
+    return out
+
+
+def windows_backup_card(b: dict, machine: str) -> dict:
+    """Status card (Health, « service via API ») for the last Veeam Agent or Windows Server Backup run seen by a Windows agent."""
+    age = time.time() - b["at"] if b.get("at") else None
+    late = age is None or age > 26 * 3600
+    when = "jamais" if age is None else f"il y a {int(age // 86400)} j" if age >= 86400 else f"il y a {max(1, int(age // 3600))} h"
+    problems = ([] if b["ok"] else [f"dernière sauvegarde en échec : {b['message']}"]) + ([f"terminée avec avertissements : {b['message']}"] if b["warn"] else [])
+    if late and b["ok"]:
+        problems.append(f"aucune sauvegarde réussie depuis plus de 26 h ({when})")
+    return {"connector": "veeam-agent" if b["tool"] == "Veeam Agent" else "wbadmin", "name": machine, "label": b["tool"], "ok": True, "stale": False,
+            "message": "lu par l'agent Windows", "version": None, "url": None, "via": "agent",
+            "facts": [{"label": "Dernière sauvegarde", "value": when, "tone": "bad" if not b["ok"] else "warn" if late or b["warn"] else "ok"},
+                      {"label": "Résultat", "value": "échec" if not b["ok"] else "avertissements" if b["warn"] else "réussie",
+                       "tone": "bad" if not b["ok"] else "warn" if b["warn"] else "ok"}],
+            "problems": problems}
 
 
 def report_level(report: dict) -> str | None:

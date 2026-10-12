@@ -25,12 +25,14 @@ it("connaît Docker et Nginx", () => {
 describe("icon files", () => {
   it("every name points to a file of public/icons, and the new connectors have one", async () => {
     const { readdirSync } = await import("node:fs");
-    const files = new Set(readdirSync(new URL("../../public/icons", import.meta.url)).map((f) => f.replace(/\.svg$/, "")));
-    const names = ["Pulse", "Arcane", "Glances", "GpuViewR", "NetAlertX", "Speedtest Tracker", "OpenSpeedTest", "Umami", "Rybbit", "Wazuh", "Webmin", "Tautulli", "Dozzle (agent)"];
+    const files = new Set(readdirSync(new URL("../../public/icons", import.meta.url)));
+    const names = ["Pulse", "Arcane", "Glances", "GpuViewR", "NetAlertX", "Speedtest Tracker", "OpenSpeedTest", "Umami", "Rybbit", "Wazuh", "Webmin", "Tautulli", "Dozzle (agent)",
+      "Bazarr", "Overseerr / Jellyseerr", "qBittorrent", "Transmission", "Backrest", "borgmatic (Borg)", "UrBackup", "Veeam Backup for Microsoft 365", "Veeam Agent",
+      "Unraid", "Proxmox Datacenter Manager", "KVM / libvirt", "Incus", "LXD", "VirtualBox", "Hyper-V", "Whisparr"];
     for (const n of names) {
       const src = appIcon([n]);
       expect(src, n).not.toBeNull();
-      expect(files.has(src!.split("/").pop()!.replace(/\.svg$/, "")), n).toBe(true);
+      expect(files.has(src!.split("/").pop()!), n).toBe(true);
     }
   });
 });

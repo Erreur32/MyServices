@@ -13,6 +13,7 @@ import { Backups } from "./tabs/Backups";
 import { Dns } from "./tabs/Dns";
 import { Security } from "./tabs/Security";
 import { Virtualization } from "./tabs/Virtualization";
+import { Network } from "./tabs/Network";
 import { Health } from "./tabs/Health";
 import { History } from "./tabs/History";
 import { Machines } from "./tabs/Machines";
@@ -132,6 +133,7 @@ export default function App() {
       {current === "settings" && <Settings key={hash} snap={snap} />}
       {current === "security" && <Security snap={snap} />}
       {current === "virtualization" && <Virtualization snap={snap} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
+      {current === "network" && <Network snap={snap} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
       </div>
     </div>
   );

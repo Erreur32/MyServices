@@ -12,6 +12,7 @@ import { AreaChart, BarsChart, HeatChart, PointsChart, type Range } from "../com
 import { Badge, Count, Empty, FilterBar } from "../components/ui";
 import { Square } from "../components/marks";
 import { tx } from "../lib/i18n";
+import { NOISE, collapse, saveHidden, savedHidden, unmasked, type NoiseId } from "../lib/historyNoise";
 import { EVENT_LIMIT, GROUPS, GROUP_COLOR, GROUP_NAME, STYLES, buckets, dayBuckets, groupOf, stepFor, type ChartStyle } from "../lib/historyChart";
 
 const PERIODS: [number, string][] = [[1, tx("24 h")], [7, tx("7 jours")], [30, tx("30 jours")], [90, tx("90 jours")], [365, tx("1 an")]];
@@ -65,13 +66,19 @@ function Events({ snap }: { snap: Snapshot }) {
 
   const label = useCallback((k: string) => (snap.labels[k] || k), [snap.labels]);
   const ready = hist && hist.days === days ? hist : null;
-  const all = useMemo(() => ready?.events ?? [], [ready]);
+  // Noise hidden by default (fail2ban threats, connectors back within an hour, devices found by the scan): display only, one click shows them
+  const [hidden, setHidden] = useState<NoiseId[]>(savedHidden);
+  const setHide = (v: NoiseId[]) => { setHidden(v); saveHidden(v); };
+  const masked = useMemo(() => unmasked(ready?.events ?? [], hidden), [ready, hidden]);
+  const all = masked.shown;
+  const nHidden = hidden.reduce((n, k) => n + masked.counts[k], 0);
   const facets = useMemo((): Facet<StoredEvent>[] => [
     { key: "group", label: tx("Type"), get: (e) => groupOf(e.kind), name: (v) => GROUP_NAME[v] || v, order: GROUPS.map(([k]) => k), mark: (v) => <Square cls={GROUP_COLOR[v] ?? "bg-dim"} /> },
+    { key: "kind", label: tx("Événement"), get: (e) => e.kind, name: (v) => label(v), mark: (v) => <Square cls={GROUP_COLOR[groupOf(v)] ?? "bg-dim"} /> },
     { key: "method", label: tx("Méthode"), get: (e) => originOf(e).method },
     { key: "via", label: tx("Lu par"), get: (e) => originOf(e).via },
     { key: "machine", label: tx("Machine"), get: (e) => e.machine || "" },
-  ], []);
+  ], [label]);
   const text = useCallback((e: StoredEvent) => [e.label, e.machine, e.target, e.detail, label(e.kind)].join(" "), [label]);
   const f = useFilter(all, facets, text);  // les graphiques suivent la recherche et les pastilles
   const listed = useMemo(() => (range ? f.shown.filter((e) => e.ts >= range.from && e.ts < range.to) : f.shown), [f.shown, range]);
@@ -133,7 +140,13 @@ function Events({ snap }: { snap: Snapshot }) {
       </div>
 
       <FilterBar f={f} placeholder={tx("Service, machine, détail…")}
-        extra={range && <button type="button" onClick={() => setRange(null)} className="rounded-lg border border-link px-2.5 py-1.5 text-sm text-txt">{range.label} ✕</button>} />
+        options={NOISE.map(([k, l]) => ({ id: k, label: tx("Masquer les {0}", l), on: hidden.includes(k), count: masked.counts[k],
+          toggle: () => setHide(hidden.includes(k) ? hidden.filter((x) => x !== k) : [...hidden, k]) }))}
+        extra={<>
+          {range && <button type="button" onClick={() => setRange(null)} className="rounded-lg border border-link px-2.5 py-1.5 text-sm text-txt">{range.label} ✕</button>}
+          {nHidden > 0 && <button type="button" onClick={() => setHide([])} className="text-sm text-link hover:underline" title={tx("Les menaces fail2ban, les connecteurs revenus vite et les appareils du scan sont masqués")}>
+            {tx("{0} masqué(s) : tout afficher", nHidden)}</button>}
+        </>} />
       {listed.length === 0 ? (
         <Empty>{ready.events.length ? tx("Aucun événement pour ce filtre.") : tx("Aucun événement sur cette période : rien n'est tombé, rien n'a changé.")}</Empty>
       ) : (
@@ -144,7 +157,22 @@ function Events({ snap }: { snap: Snapshot }) {
                 {longDay(new Date(k + "T12:00"))} <span className="font-normal text-dim">· {evs.length} {tx("événement")}{evs.length > 1 ? "s" : ""}</span>
               </h3>
               <ol className="overflow-hidden rounded-2xl border border-line bg-card">
-                {evs.map((e, i) => {
+                {collapse(evs).map((it, i) => "events" in it ? (
+                  <li key={`g-${it.ts}-${i}`} className="border-b border-line/60 last:border-0">
+                    <details className="group">
+                      <summary className="flex cursor-pointer gap-3 px-4 py-2.5 hover:bg-bg2/50">
+                        <span className="w-12 shrink-0 font-mono text-xs text-dim">{hm(it.ts * 1000)}</span>
+                        <span className="flex w-52 shrink-0 flex-wrap content-start items-start gap-1"><Badge tone={(snap.severity[it.kind] || 0) >= 2 ? "warn" : it.kind === "connecteur_ok" ? "ok" : "off"}>{label(it.kind)}</Badge><Badge tone="off">×{it.events.length}</Badge></span>
+                        <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${GROUP_COLOR[groupOf(it.kind)]}`} />
+                        <span className="min-w-0 flex-1 text-sm"><b className="font-semibold">{it.title}</b><span className="block truncate text-xs text-dim">{it.detail} · {tx("cliquer pour le détail")}</span></span>
+                      </summary>
+                      <ul className="border-t border-line/40 bg-bg2/30 px-4 py-1.5 text-xs">
+                        {it.events.map((e, j) => <li key={`${e.ts}-${j}`} className="flex gap-3 py-0.5"><span className="w-12 shrink-0 font-mono text-dim">{hm(e.ts * 1000)}</span><span className="text-txt">{e.label || "?"}</span><span className="truncate text-dim">{[e.target, e.detail].filter(Boolean).join(" · ")}</span></li>)}
+                      </ul>
+                    </details>
+                  </li>
+                ) : (() => {
+                  const e = it.one;
                   const sev = snap.severity[e.kind] || 0;
                   const o = originOf(e, e.kind.startsWith("health_") ? sources.get(e.target ?? "") : undefined, viaOf(e));
                   return (
@@ -166,7 +194,7 @@ function Events({ snap }: { snap: Snapshot }) {
                       </div>
                     </li>
                   );
-                })}
+                })())}
               </ol>
             </section>
           ))}

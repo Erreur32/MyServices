@@ -12,19 +12,28 @@ const FILES: Record<string, string> = {
   "vmware vcenter": "vcenter", vcenter: "vcenter", "vmware esxi": "vmware-esxi", esxi: "vmware-esxi", vmware: "vmware-esxi",
   nextcloud: "nextcloud", freebox: "freebox", healthchecks: "healthchecks", crowdsec: "crowdsec", "technitium dns": "technitium", technitium: "technitium",
   "onduleur (nut)": "nut", nut: "nut", "network ups tools": "nut", "western digital": "wd", "wd my cloud": "wd", mycloud: "wd",
-  pulse: "pulse", "pulse (agent)": "pulse", arcane: "arcane", "arcane (agent)": "arcane", glances: "glances", gpuviewr: "gpuviewr", "gpuviewr (agent)": "gpuviewr",
+  pulse: "pulse", "pulse (agent)": "pulse", arcane: "arcane", "arcane (agent)": "arcane", glances: "glances", gpuviewr: "gpuviewr.png", "gpuviewr (agent)": "gpuviewr.png",   // GpuViewR's own favicon
   netalertx: "netalertx", "speedtest tracker": "speedtest-tracker", openspeedtest: "openspeedtest", umami: "umami", rybbit: "rybbit",
   wazuh: "wazuh", "wazuh (agent)": "wazuh", "wazuh (tableau de bord)": "wazuh", webmin: "webmin", tautulli: "tautulli", scrutiny: "scrutiny",
   zabbix: "zabbix", "zabbix (agent)": "zabbix", checkmk: "checkmk", "checkmk (agent)": "checkmk", searxng: "searxng", victoriametrics: "victoriametrics",
   wallabag: "wallabag", ntfy: "ntfy", myspeed: "myspeed", "dozzle (agent)": "dozzle", "beszel (agent)": "beszel", "portainer (agent)": "portainer",
   "hawser (agent dockhand)": "dockhand", "crowdsec (bouncer)": "crowdsec", "netdata (enfant)": "netdata",
+  qbittorrent: "qbittorrent", transmission: "transmission", bazarr: "bazarr", "overseerr / jellyseerr": "overseerr", overseerr: "overseerr", jellyseerr: "jellyseerr", lidarr: "lidarr", prowlarr: "prowlarr",
+  readarr: "readarr", whisparr: "whisparr", deluge: "deluge", sabnzbd: "sabnzbd", nzbget: "nzbget",
+  backrest: "backrest", "borgmatic (borg)": "borg", borgmatic: "borg", borg: "borg", urbackup: "urbackup", duplicati: "duplicati", kopia: "kopia",
+  "veeam backup for microsoft 365": "veeam", "veeam agent": "veeam", "sauvegarde windows server": "hyper-v",
+  unraid: "unraid", "proxmox datacenter manager": "proxmox", "xen orchestra": "xen-orchestra", "kvm / libvirt": "kvm", libvirt: "kvm",
+  incus: "incus", lxd: "lxd", virtualbox: "virtualbox", "hyper-v": "hyper-v",
 };
+
+/** File of public/icons: SVG by default, or the given name when it has its own extension (a PNG favicon) */
+const iconUrl = (f: string) => `${import.meta.env.BASE_URL}icons/${f.includes(".") ? f : `${f}.svg`}`;
 
 /** Adresse de l'icône de la première appli reconnue qui en a une, sinon null */
 export function appIcon(apps: readonly string[] | undefined): string | null {
   for (const a of apps ?? []) {
     const f = FILES[a.toLowerCase()];
-    if (f) return `${import.meta.env.BASE_URL}icons/${f}.svg`;
+    if (f) return iconUrl(f);
   }
   return null;
 }
@@ -35,7 +44,7 @@ const squash = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "");
 export function appIconByText(...texts: (string | undefined | null)[]): string | null {
   const hay = texts.filter(Boolean).map((t) => squash(t!)).join(" ");
   if (!hay) return null;
-  for (const [name, file] of Object.entries(FILES)) if (hay.includes(squash(name))) return `${import.meta.env.BASE_URL}icons/${file}.svg`;
+  for (const [name, file] of Object.entries(FILES)) if (hay.includes(squash(name))) return iconUrl(file);
   return null;
 }
 

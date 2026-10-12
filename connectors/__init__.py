@@ -20,8 +20,11 @@ from connectors.home_assistant import HomeAssistantAPI
 from connectors.dockhand import Dockhand
 from connectors.dozzle import Dozzle
 from connectors.homelab_infra import NUT, CrowdSec, OPNsense, PiHole, Portainer, Synology, Tailscale, Technitium, TrueNAS, UniFi
+from connectors.homelab_backups import Backrest, Borgmatic, UrBackup, Veeam365
+from connectors.homelab_downloads import Bazarr, Overseerr, QBittorrent, Transmission
 from connectors.homelab_media import Arr, Frigate
 from connectors.homelab_more import Arcane, Glances, GpuViewR, NetAlertX, Pulse, Rybbit, SpeedtestTracker, Tautulli, Umami, Wazuh, Webmin
+from connectors.homelab_virt import ProxmoxDatacenter, Unraid
 from connectors.homelab_monitoring import Healthchecks, Jellyfin, Netdata, Prometheus
 from connectors.logviewr import LogviewR
 from connectors.mynetwork import MynetworK
@@ -33,7 +36,7 @@ from connectors.nextcloud import Nextcloud
 from connectors.uptime_kuma import UptimeKuma
 from connectors.webcheck import WebCheck
 
-TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, MynetworK, LogviewR, Dockhand, ProxmoxVE, ProxmoxBackup, VCenter, Nextcloud, Frigate, Arr, OPNsense, CrowdSec, PiHole, Technitium, TrueNAS, Synology, UniFi, Tailscale, NUT, Portainer, Prometheus, Healthchecks, Netdata, Jellyfin, Pulse, Arcane, Glances, GpuViewR, SpeedtestTracker, NetAlertX, Wazuh, Umami, Rybbit, Tautulli, Webmin, Discord, Telegram)}
+TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, MynetworK, LogviewR, Dockhand, ProxmoxVE, ProxmoxBackup, VCenter, Nextcloud, Frigate, Arr, OPNsense, CrowdSec, PiHole, Technitium, TrueNAS, Synology, UniFi, Tailscale, NUT, Portainer, Prometheus, Healthchecks, Netdata, Jellyfin, Pulse, Arcane, Glances, GpuViewR, SpeedtestTracker, NetAlertX, Wazuh, Umami, Rybbit, Tautulli, Webmin, Bazarr, Overseerr, QBittorrent, Transmission, Backrest, Borgmatic, UrBackup, Veeam365, Unraid, ProxmoxDatacenter, Discord, Telegram)}
 
 
 def declared(cfg: dict, meta: dict | None = None) -> list[dict]:

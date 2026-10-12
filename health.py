@@ -514,6 +514,10 @@ try{$h.net=@(Get-CimInstance Win32_NetworkAdapterConfiguration -Filter 'IPEnable
 try{$q=Get-HotFix|Where-Object{$_.InstalledOn}|Sort-Object InstalledOn -Descending|Select-Object -First 1;if($q){$h.wu=$q.InstalledOn.ToString('yyyy-MM-dd')}}catch{}
 try{$o.sv=@(Get-CimInstance Win32_Service -Filter "State='Running'"|Select-Object -First 300|%{@{n=[string]$_.Name;d=[string]$_.DisplayName}})}catch{}
 try{if(Get-Command docker.exe -ErrorAction Stop){$l=@(& docker.exe ps -a --format '{{.Names}}|{{.Image}}|{{.Ports}}|{{.Status}}|{{.Networks}}' 2>$null);if($LASTEXITCODE -eq 0){$o.dk=@($l|Select-Object -First 200|%{[string]$_})}}}catch{}
+try{if(Get-Command Get-VM -ErrorAction Stop){$o.hv=@(Get-VM|Select-Object -First 200|%{@{n=[string]$_.Name;s=[string]$_.State;c=[int]$_.ProcessorCount;m=[double]$_.MemoryAssigned;x=[double]$_.MemoryStartup;u=[int]$_.Uptime.TotalSeconds}})}}catch{}
+$ev={param($l,$f)try{Get-WinEvent -FilterHashtable @{LogName=$l} -MaxEvents 50 -ErrorAction Stop|?{& $f $_}|Select-Object -First 1|%{@{t=$_.TimeCreated.ToUniversalTime().ToString('o');i=$_.Id;l=$_.Level;m=(($_.Message -split "`n")[0]).Trim()}}}catch{}}
+$o.va=& $ev 'Veeam Agent' {param($e)$e.Id -eq 190}
+$o.wb=& $ev 'Microsoft-Windows-Backup' {param($e)$e.Id -eq 4 -or $e.Level -le 2}
 $o.hw=$h
 ConvertTo-Json -InputObject $o -Depth 5 -Compress
 """

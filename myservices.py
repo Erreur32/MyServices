@@ -47,6 +47,7 @@ from connectors.uptime_kuma import attach_monitors
 from connectors.docker_ssh import HOST_ADDR
 from connectors.process import host_ports
 import esxi_ssh
+import virt_ssh
 import pve_ssh
 import agents
 import hostinfo
@@ -845,9 +846,10 @@ def main():
                               if c.type == "process")}
     procs = {ip: j.result() for ip, j in jobs.items()}
     # PC Windows lus par leur agent : ports à l'écoute et système viennent de son dernier relevé frais (rien lu par SSH)
-    agent_sys, agent_apps = {}, {}
+    agent_sys, agent_apps, agent_fresh = {}, {}, {}
     for ip, a in agent_reports().items():
         if a["fresh"]:
+            agent_fresh[ip] = a["report"]
             agent_sys[ip] = agents.system_of(a["report"])
             if agent_sys[ip]:
                 agent_sys[ip]["hardware"] = agents.hardware_of(a["report"])
@@ -1183,6 +1185,13 @@ def main():
     # ESXi hosts read by SSH, unless a vCenter connector already lists them (by IP or by name)
     vc_hosts = {x for c in virtualization if c.get("connector") == "vcenter" for n in c.get("nodes") or [] for x in (n.get("ip"), n.get("name"))}
     virtualization += esxi_ssh.rows(machines_out, sshc, {m["ip"] for m in machines_out if m["ip"] in vc_hosts or m["name"] in vc_hosts})
+    virtualization += virt_ssh.rows(machines_out, sshc)   # KVM / libvirt, Incus / LXD, VirtualBox read by SSH
+    names = {m["ip"]: m["name"] for m in machines_out}
+    for ip, rep in agent_fresh.items():   # Windows PCs read by their agent: Hyper-V VMs, last Veeam Agent and Windows Server Backup
+        if (hv := agents.hyperv_of(rep, names.get(ip, ip))) is not None:
+            virtualization.append({"connector": "hyperv", "name": names.get(ip, ip), "label": "Hyper-V", "ok": True, "stale": False,
+                                   "message": "lu par l'agent Windows", "version": None, "url": None, "via": "agent", "ip": ip, **hv})
+        services_status += [agents.windows_backup_card(b, names.get(ip, ip)) for b in agents.windows_backups_of(rep)]
     for m in machines_out:   # machine lue par l'API d'un connecteur (Home Assistant…) : la page le sait, elle ne dit plus « sans SSH »
         if m["ip"] in linked:
             m["api"] = linked[m["ip"]]

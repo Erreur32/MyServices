@@ -49,6 +49,11 @@ def num(v, default=None):
         return default
 
 
+def host_port(ports: list, inner: int) -> int | None:
+    """Host port published for a container port ([(host, container)]), for discover()."""
+    return next((h for h, c in ports if c == inner), None)
+
+
 def rows(v) -> list[dict]:
     """Liste d'objets, qu'elle soit nue ou rangée sous une clé courante (data, items, result, rows…)."""
     if isinstance(v, dict):
@@ -79,6 +84,15 @@ class StatusConnector(Connector):
             if str(e).startswith(("HTTP 401", "HTTP 403")):
                 raise ConnectorError("accès refusé : clé, jeton ou compte à vérifier (droits de lecture)") from None
             raise
+
+    def get_opt(self, path: str, headers: dict | None = None, **kw):
+        """Like get(), but None when the route is missing or unreadable (feature absent, older version); a refused key still raises."""
+        try:
+            return self.get(path, headers, **kw)
+        except ConnectorError as e:
+            if str(e).startswith("accès refusé"):
+                raise
+            return None
 
     def test(self) -> Result:
         try:

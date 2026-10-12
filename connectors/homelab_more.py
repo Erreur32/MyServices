@@ -17,15 +17,11 @@ import urllib.request
 from datetime import datetime, timezone
 
 from connectors.base import ConnectorError, Field
-from connectors.status_kit import StatusConnector, duration, fact, num, rows, size
+from connectors.status_kit import StatusConnector, duration, fact, host_port, num, rows, size
 
 VERIFY = Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=True, help="à décocher pour un certificat auto-signé")
 DAY_MS = 86_400_000
 
-
-def _host_port(ports: list, inner: int) -> int | None:
-    """Host port published for a container port ([(host, container)])."""
-    return next((h for h, c in ports if c == inner), None)
 
 
 def _data(v):
@@ -72,7 +68,7 @@ class Pulse(StatusConnector):
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
-        return {"url": f"http://{ip}:{_host_port(ports, 7655) or 7655}"}
+        return {"url": f"http://{ip}:{host_port(ports, 7655) or 7655}"}
 
 
 class Arcane(StatusConnector):
@@ -126,7 +122,7 @@ class Arcane(StatusConnector):
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
-        return {"url": f"http://{ip}:{_host_port(ports, 3552) or 3552}"}
+        return {"url": f"http://{ip}:{host_port(ports, 3552) or 3552}"}
 
 
 class Glances(StatusConnector):
@@ -190,7 +186,7 @@ class Glances(StatusConnector):
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
-        return {"url": f"http://{ip}:{_host_port(ports, 61208) or 61208}"}
+        return {"url": f"http://{ip}:{host_port(ports, 61208) or 61208}"}
 
 
 class GpuViewR(StatusConnector):
@@ -293,8 +289,8 @@ class SpeedtestTracker(StatusConnector):
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
-        port = _host_port(ports, 80)
-        https = _host_port(ports, 443)
+        port = host_port(ports, 80)
+        https = host_port(ports, 443)
         return {"url": f"http://{ip}:{port}"} if port else {"url": f"https://{ip}:{https}", "verify_tls": False} if https else None
 
 
@@ -335,7 +331,7 @@ class NetAlertX(StatusConnector):
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
-        return {"url": f"http://{ip}:{_host_port(ports, 20212) or 20212}"}
+        return {"url": f"http://{ip}:{host_port(ports, 20212) or 20212}"}
 
 
 class Wazuh(StatusConnector):
@@ -385,7 +381,7 @@ class Wazuh(StatusConnector):
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
-        return {"url": f"https://{ip}:{_host_port(ports, 55000) or 55000}", "verify_tls": False}
+        return {"url": f"https://{ip}:{host_port(ports, 55000) or 55000}", "verify_tls": False}
 
 
 class _Analytics(StatusConnector):
@@ -443,7 +439,7 @@ class Umami(_Analytics):
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
-        return {"url": f"http://{ip}:{_host_port(ports, 3000) or 3000}"}
+        return {"url": f"http://{ip}:{host_port(ports, 3000) or 3000}"}
 
 
 class Rybbit(_Analytics):
@@ -526,7 +522,7 @@ class Tautulli(StatusConnector):
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
-        return {"url": f"http://{ip}:{_host_port(ports, 8181) or 8181}"}
+        return {"url": f"http://{ip}:{host_port(ports, 8181) or 8181}"}
 
 
 class Webmin(StatusConnector):

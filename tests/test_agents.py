@@ -290,7 +290,7 @@ class Agents(unittest.TestCase):
         self.assertEqual(agents.docker_of({"data": {"dk": "seule|ligne|0.0.0.0:80->80/tcp|Up|bridge"}})[0]["ports"], [(80, 80)])   # PowerShell : un seul élément = texte
 
     def test_script_ascii_et_version(self):
-        self.assertEqual(agents.VERSION, "6")
+        self.assertEqual(agents.VERSION, "7")
         agents.script("agent.ps1").encode("ascii")
 
     def test_titres_de_mises_a_jour_au_format_powershell_5_1(self):

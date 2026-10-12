@@ -76,6 +76,7 @@ APPS: tuple[App, ...] = (
     App("open-webui", "Open WebUI", "IA", title=r"open webui", images=("ghcr.io/open-webui/open-webui",)),
     # Veeam Backup & Replication : API REST 9419 (lue par Sauvegardes), service 9392, serveur de montage 9401. Ports d'après la doc Veeam, à confirmer sur un vrai serveur
     App("veeam", "Veeam Backup & Replication", "Infra / virtualisation", ports=(9419, 9392, 9401)),
+    App("veeam-m365", "Veeam Backup for Microsoft 365", "Infra / virtualisation", connector="veeam-m365"),   # 4443 is too common to name it
     App("unifi", "UniFi", "Réseau / DNS", title=r"unifi", host=r"^(unifi|udm|ucg|usg)", images=("linuxserver/unifi-network-application", "jacobalberty/unifi"), connector="unifi"),  # MynetworK lit aussi UniFi
     App("synology", "Synology DSM", "Fichiers / sync", title=r"synology"),
     App("frigate", "Frigate", "Domotique", title=r"^frigate", images=("ghcr.io/blakeblackshear/frigate", "blakeblackshear/frigate"), connector="frigate"),  # port 5000 : trop courant pour l'identifier seul
@@ -87,12 +88,12 @@ APPS: tuple[App, ...] = (
     App("gitea", "Gitea", "Outils", title=r"gitea", fp=r"i_like_gitea", images=("gitea/gitea",)),
     App("gitlab", "GitLab", "Outils", title=r"gitlab", fp=r"_gitlab_session", images=("gitlab/gitlab-ce", "gitlab/gitlab-ee")),
     App("traefik", "Traefik", "Réseau / DNS", title=r"traefik", images=("traefik",)),
-    App("transmission", "Transmission", "Médias", ports=(9091,), title=r"transmission", fp=r"x-transmission-session-id", images=("linuxserver/transmission",)),
-    App("qbittorrent", "qBittorrent", "Médias", title=r"qbittorrent", images=("linuxserver/qbittorrent", "qbittorrentofficial/qbittorrent-nox")),
+    App("transmission", "Transmission", "Médias", ports=(9091,), title=r"transmission", fp=r"x-transmission-session-id", connector="transmission"),
+    App("qbittorrent", "qBittorrent", "Médias", title=r"qbittorrent", connector="qbittorrent"),
     App("prowlarr", "Prowlarr", "Médias", ports=(9696,), title=r"^prowlarr", images=("linuxserver/prowlarr", "hotio/prowlarr"), connector="arr"),
     App("lidarr", "Lidarr", "Médias", ports=(8686,), title=r"^lidarr", images=("linuxserver/lidarr", "hotio/lidarr"), connector="arr"),
-    App("bazarr", "Bazarr", "Médias", ports=(6767,), title=r"^bazarr", images=("linuxserver/bazarr", "hotio/bazarr")),
-    App("overseerr", "Overseerr", "Médias", ports=(5055,), title=r"overseerr|jellyseerr", images=("sctx/overseerr", "fallenbagel/jellyseerr")),
+    App("bazarr", "Bazarr", "Médias", ports=(6767,), title=r"^bazarr", connector="bazarr"),
+    App("overseerr", "Overseerr / Jellyseerr", "Médias", ports=(5055,), title=r"overseerr|jellyseerr", connector="overseerr"),
     App("navidrome", "Navidrome", "Médias", ports=(4533,), title=r"navidrome", images=("deluan/navidrome",)),
     App("audiobookshelf", "Audiobookshelf", "Médias", ports=(13378,), title=r"audiobookshelf", images=("advplyr/audiobookshelf",)),
     App("immich", "Immich", "Fichiers / sync", ports=(2283,), title=r"immich", images=("ghcr.io/immich-app/immich-server",)),
@@ -167,6 +168,22 @@ APPS: tuple[App, ...] = (
     App("ntfy", "ntfy", "Outils", title=r"^ntfy", images=("binwiederhier/ntfy",)),
     App("gotify", "Gotify", "Outils", title=r"^gotify", images=("gotify/server",)),
     App("myspeed", "MySpeed", "Réseau / DNS", ports=(5216,), title=r"^myspeed", images=("germannewsmaker/myspeed",)),
+    App("readarr", "Readarr", "Médias", title=r"^readarr", images=("linuxserver/readarr", "hotio/readarr"), connector="arr"),
+    App("whisparr", "Whisparr", "Médias", ports=(6969,), title=r"^whisparr", images=("hotio/whisparr", "ghcr.io/hotio/whisparr"), connector="arr"),
+    App("deluge", "Deluge", "Médias", ports=(8112,), title=r"^deluge", images=("linuxserver/deluge",)),
+    App("sabnzbd", "SABnzbd", "Médias", title=r"sabnzbd", images=("linuxserver/sabnzbd", "hotio/sabnzbd")),
+    App("nzbget", "NZBGet", "Médias", ports=(6789,), title=r"nzbget", images=("linuxserver/nzbget", "nzbgetcom/nzbget")),
+    App("backrest", "Backrest", "Infra / virtualisation", ports=(9898,), title=r"^backrest", connector="backrest"),
+    App("borgmatic", "borgmatic (Borg)", "Infra / virtualisation", ui="none", proc=r"^borgmatic", connector="borgmatic"),
+    App("duplicati", "Duplicati", "Infra / virtualisation", title=r"duplicati", images=("linuxserver/duplicati", "duplicati/duplicati")),
+    App("kopia", "Kopia", "Infra / virtualisation", ports=(51515,), title=r"^kopia", images=("kopia/kopia",)),
+    App("urbackup", "UrBackup", "Infra / virtualisation", ports=(55414,), title=r"urbackup", connector="urbackup"),
+    App("unraid", "Unraid", "Infra / virtualisation", title=r"^unraid|unraid webgui", host=r"^unraid", connector="unraid"),
+    App("pdm", "Proxmox Datacenter Manager", "Infra / virtualisation", title=r"proxmox datacenter manager", connector="pdm"),
+    App("xen-orchestra", "Xen Orchestra", "Infra / virtualisation", title=r"xen orchestra", images=("ronivay/xen-orchestra", "ezka77/xen-orchestra-ce")),
+    App("libvirt", "KVM / libvirt", "Infra / virtualisation", ui="none", proc=r"^libvirtd|^virtqemud"),
+    App("incus", "Incus", "Infra / virtualisation", ui="api", proc=r"^incusd"),
+    App("lxd", "LXD", "Infra / virtualisation", ui="api", proc=r"^lxd\b"),
     App("openssh", "OpenSSH", "Système", ui="none", proc=r"^sshd\b"),
     App("samba", "Samba", "Système", ui="none", proc=r"^smbd\b"),   # 139 / 445 are Windows too: process only
     # Serveurs web : l'en-tête Server dit ce qui répond, pas l'appli derrière (confiance « possible », jamais prioritaire)

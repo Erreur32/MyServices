@@ -1,4 +1,5 @@
-// Virtualisation : chaque hôte Proxmox VE (pvesh par SSH, ou connecteur), VMware ESXi (vim-cmd par SSH) ou vCenter (API) avec ses VM,
+// Virtualisation : chaque hôte Proxmox VE (pvesh par SSH, ou connecteur), VMware ESXi (vim-cmd par SSH), vCenter, Unraid ou Proxmox Datacenter Manager
+// (API), KVM / libvirt, Incus / LXD ou VirtualBox (SSH) et Hyper-V (agent Windows) avec ses VM,
 // reliés à leur fiche Machine (couche de rapprochement), à leur sauvegarde vzdump suivie et à leurs conteneurs Docker (SSH, Dockhand).
 // Plus bas : Proxmox Backup Server, s'il est relié. Dockhand (Docker seulement) reste dans Santé. Lecture seule.
 import { Box, Container, HardDrive, Monitor, Server } from "lucide-react";
@@ -9,7 +10,9 @@ import type { BackupSet, Machine, VirtualizationConnector } from "../types";
 import { Badge, Card, Count, Dim, Empty, Fill } from "../components/ui";
 import { PbsCard } from "../components/InfraCards";
 
-const HYPERVISORS = ["proxmox", "esxi", "vcenter"];
+const HYPERVISORS = ["proxmox", "esxi", "vcenter", "pdm", "unraid", "libvirt", "incus", "lxd", "virtualbox", "hyperv"];
+/** How a host was read, shown as a badge */
+const VIA: Record<string, string> = { esxi: "vim-cmd", proxmox: "pvesh", libvirt: "virsh", incus: "incus", lxd: "lxc", virtualbox: "VBoxManage" };
 type Guest = NonNullable<VirtualizationConnector["guests"]>[number];
 const tone = (p?: number | null, warn = 80, bad = 90) => (p == null ? "off" : p >= bad ? "bad" : p >= warn ? "warn" : "ok") as "ok" | "warn" | "bad" | "off";
 const LEVEL_TONE: Record<string, "ok" | "warn" | "bad" | "off"> = { ok: "ok", warn: "warn", crit: "bad", down: "bad" };
@@ -72,8 +75,8 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
   const hostIds = new Set((snap.backups?.hosts ?? []).filter((h) => h.ip === c.ip).map((h) => h.id));
   const envs = (snap.data.containers ?? []).flatMap((x) => x.environments ?? []);
   const machineOf = (g: Guest) => machines.find((m) => m.links?.guest?.vmid === g.vmid && m.links.guest.node === g.node && m.links.guest.instance === c.name);
-  const via = c.via === "ssh" ? (c.connector === "esxi" ? tx("lu par SSH (vim-cmd)") : tx("lu par SSH (pvesh)")) : tx("lu par l'API");
-  const vmware = c.connector !== "proxmox";
+  const via = c.via === "ssh" ? tx("lu par SSH ({0})", VIA[c.connector] ?? "ssh") : c.via === "agent" ? tx("lu par l'agent Windows") : tx("lu par l'API");
+  const vmware = c.connector !== "proxmox" && c.connector !== "pdm";   // vzdump backups and « node » wording are Proxmox's only
   return (
     <Card className={c.ok ? "" : "border-bad/40"}>
       <h2 className="flex flex-wrap items-center gap-2 font-bold"><Server size={16} aria-hidden />{c.name}
@@ -82,6 +85,7 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
         <Badge tone="info">{via}</Badge>{c.stale && <Badge tone="warn">{tx("relevé périmé")}</Badge>}</h2>
       {!c.ok && !c.stale ? <p className="mt-3 rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{c.message}</p> : (
         <>
+          {!!c.problems?.length && <ul className="mt-3 flex flex-col gap-0.5 rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{c.problems.map((p) => <li key={p}>⚑ {p}</li>)}</ul>}
           {(c.nodes ?? []).map((n) => (
             <div key={n.name} className="mt-3 flex flex-wrap items-start gap-x-6 gap-y-2 rounded-lg bg-bg2/50 px-3 py-2">
               <span className="text-sm"><b>{vmware ? tx("Hôte") : tx("Nœud")} {n.name}</b>{n.model && <Dim> · {n.model}</Dim>}{c.connector === "vcenter" && <Badge tone={n.online ? "ok" : "bad"}>{n.online ? tx("connecté") : tx("injoignable")}</Badge>}{n.cpus ? <Dim> · {n.cpus} {tx("CPU")}</Dim> : null}{n.uptime ? <Dim> · {tx("en marche depuis")} {dur(n.uptime)}</Dim> : null}</span>
@@ -94,7 +98,7 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
               {c.storage!.map((s) => <span key={`${s.node}/${s.name}`} className="inline-flex items-start gap-1.5"><HardDrive size={13} className="mt-0.5 text-dim" aria-hidden /><Gauge label={s.name} pct={s.used_pct} used={s.used} total={s.total} /></span>)}
             </div>
           )}
-          {c.totals && <p className="mt-3 text-sm text-muted">{c.totals.vm} {tx("VM")} · {c.totals.lxc} {tx("conteneurs LXC")} · <b className="text-ok">{c.totals.running} {tx("en marche")}</b>{c.totals.stopped > 0 && <> · {c.totals.stopped} {tx("arrêtés")}</>}</p>}
+          {c.totals && <p className="mt-3 text-sm text-muted">{c.totals.vm} {tx("VM")}{c.totals.lxc > 0 || c.connector === "proxmox" ? <> · {c.totals.lxc} {tx("conteneurs LXC")}</> : null} · <b className="text-ok">{c.totals.running} {tx("en marche")}</b>{c.totals.stopped > 0 && <> · {c.totals.stopped} {tx("arrêtés")}</>}</p>}
           {guests.length > 0 && (
             <div className="mt-2 overflow-x-auto">
               <table className="w-full border-collapse text-sm">
@@ -123,7 +127,7 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
 export function Virtualization({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: string) => void }) {
   const virt = snap.data.virtualization ?? [];
   const pve = virt.filter((c) => HYPERVISORS.includes(c.connector)), pbs = virt.filter((c) => c.connector === "proxmox-backup");
-  if (!pve.length && !pbs.length) return <Empty>{tx("Aucun hyperviseur trouvé : un Proxmox VE ou un VMware ESXi lu par SSH apparaît ici tout seul, un vCenter par son connecteur.")}</Empty>;
+  if (!pve.length && !pbs.length) return <Empty>{tx("Aucun hyperviseur trouvé : Proxmox VE, VMware ESXi, KVM / libvirt, Incus / LXD ou VirtualBox lus par SSH apparaissent ici tout seuls, Hyper-V par l'agent Windows, vCenter, Unraid et Proxmox Datacenter Manager par leur connecteur.")}</Empty>;
   return (
     <div className="flex flex-col gap-4 py-1">
       {pve.map((c) => <Host key={`${c.via ?? "api"}/${c.name}`} c={c} snap={snap} onMachine={onMachine} />)}

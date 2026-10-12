@@ -438,6 +438,7 @@ export interface ConnectorStatus {
   stale: boolean;
   failures: number;
   found?: { name: string; count: number }[];
+  pending?: boolean;   // saved or switched on after the last collection: being read again
 }
 export interface ConnectorInstance {
   type: string;
@@ -602,7 +603,8 @@ export interface ContainersConnector extends InfraConnector {
 }
 /** Proxmox VE (nœuds, VM, conteneurs, stockages) et Proxmox Backup Server (magasins) */
 export interface VirtualizationConnector extends InfraConnector {
-  via?: "ssh"; ip?: string;   // ssh: read on the host by pvesh, without a connector
+  via?: "ssh" | "agent"; ip?: string;   // ssh: read on the host (pvesh, vim-cmd, virsh…), agent: Hyper-V by the Windows agent
+  problems?: string[];   // Unraid, Datacenter Manager: what needs a look
   nodes?: { name: string; online: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null; cpus?: number | null; mem?: number | null; maxmem?: number | null; model?: string | null }[];
   guests?: { name?: string; type: "qemu" | "lxc" | "vm"; node?: string; status?: string; template: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null;
     cpus?: number | null; mem?: number | null; maxmem?: number | null; maxdisk?: number | null; tags?: string[]; vmid: number | string; os?: string | null; ip?: string | null; hostname?: string | null }[];

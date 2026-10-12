@@ -29,6 +29,7 @@ echo "##DOCKER $(docker ps -q 2>/dev/null | wc -l)"
 echo "##VIRT $(systemd-detect-virt 2>/dev/null)"
 echo "##ESXI $(vmware -v 2>/dev/null)"
 echo "##PVE $( [ -d /etc/pve ] && command -v pvesh >/dev/null 2>&1 && echo yes || echo no)"
+echo "##HV $(for t in virsh incus lxc VBoxManage; do command -v $t >/dev/null 2>&1 && printf '%s ' $t; done)"
 echo "##NPM $(docker ps --format '{{.Image}}' 2>/dev/null | grep -c nginx-proxy-manager)"
 echo "##LISTEN $(grep -h -E -i '^[[:space:]]*Listen[[:space:]]' /etc/apache2/ports.conf 2>/dev/null | awk '{print $2}' | sort -u | paste -sd' ')"
 for f in /etc/apache2/sites-enabled/*.conf; do
@@ -228,6 +229,7 @@ def host_info(alias: str) -> dict | None:
         "npm": tag.get("NPM", "").isdigit() and int(tag["NPM"]) > 0,  # conteneur Nginx Proxy Manager présent
         "proxmox": tag.get("PVE") == "yes",
         "esxi": tag.get("ESXI", "").startswith("VMware ESXi"),  # VMware ESXi host: its VMs and datastores are read by vim-cmd  # Proxmox VE host: its guests and storages are read by pvesh at each collection
+        "hypervisors": [t for t in tag.get("HV", "").split() if t in ("virsh", "incus", "lxc", "VBoxManage")],  # other hypervisors read by virt_ssh.py
         "sshd": sshd,  # vide si /etc/ssh/sshd_config illisible pour ce compte
         "vhosts": vhosts,
         "vhosts_unreadable": unreadable,
