@@ -11,6 +11,19 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.5 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Changed
+- **Discovery page (Settings → Discovery)**: what is needed is now kept apart from what is optional. "To do" only lists what MyServices needs to see everything (a refused SSH key, an agent never installed, a late collection); connectors to link, hosts found but not followed and backup folders never searched become "Suggestions (optional)", shown as compact rows; automatic items are folded at the bottom. A one-line summary sits at the top, and family tabs show the to-do count in orange or the suggestion count in blue. The API returns a `suggest` count next to `todo`.
+- **Header bell**: opens a panel listing what is still to do, each with its button, then the number of optional suggestions and a link to the Discovery page. Its badge only counts what is needed; the bell turns grey when only suggestions are left.
+- **First network scan is automatic**: it starts within a minute of startup, then every `netscan_every` hours (0 still turns it off). A try without a result (no local network found) waits for the interval instead of retrying every minute.
+- No em dash left in the interface or the code; empty values show "-".
+
+### Fixed
+- **"Run the search" on the network discovery did nothing** when the Discovery page was already open: it now launches the scan (the same route as the scan card), then scrolls to that card, highlights it and shows the scan running.
+
 ## v0.10.4 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
