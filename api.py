@@ -679,7 +679,20 @@ def network_scan_stop(request: Request):
 
 @app.delete(API + "/machines/settings/{ip}", tags=["machines"], summary="Retirer une machine (admin)")
 def machines_delete(ip: str, request: Request):
-    return machine_call(request, "machine retirée", ip, lambda m: (m.delete(ip), {"ok": True})[1])
+    import system
+
+    def go(m):
+        name = (m._meta().get("machines", {}).get(ip) or {}).get("name") or ""
+        m.delete(ip)
+        # Removed by hand = not wanted: neither proposed by the network search nor added back by the auto mode (Settings -> Discovery
+        # lists it, one click brings it back). An IPv6 or a name is not in the network search: nothing to remember.
+        try:
+            system.set_netscan_ignored(core, ip, name, True)
+            ignored = True
+        except ValueError:
+            ignored = False
+        return {"ok": True, "ignored": ignored}
+    return machine_call(request, "machine retirée", ip, go)
 
 
 @app.post(API + "/machines/settings/{ip}/check", tags=["machines"], summary="Vérifier une machine (SSH, Docker, AdGuard, santé) (admin)")

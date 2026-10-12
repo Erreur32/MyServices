@@ -233,6 +233,22 @@ class Chain(unittest.TestCase):
         self.assertEqual(calls, ["health", "collect"])
 
 
+@unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
+class RemoveMachine(unittest.TestCase):
+    def test_retiree_puis_ignoree_par_la_recherche(self):
+        """A machine removed by hand goes to the ignored list: the auto mode never adds it back."""
+        seen = []
+        m = mock.Mock()
+        m._meta.return_value = {"machines": {"10.0.0.9": {"name": "nas"}}}
+        user = mock.Mock(state=mock.Mock(user={"username": "admin"}))
+        with mock.patch.object(api, "admin_write", lambda request: None), mock.patch.object(api, "store", lambda: mock.Mock()), \
+                mock.patch.object(api, "ip_of", lambda request: "127.0.0.1"), mock.patch.dict(sys.modules, {"machines_admin": m}), \
+                mock.patch("system.set_netscan_ignored", lambda core, ip, name, on: seen.append((ip, name, on))):
+            self.assertEqual(api.machines_delete("10.0.0.9", user), {"ok": True, "ignored": True})
+        m.delete.assert_called_once_with("10.0.0.9")
+        self.assertEqual(seen, [("10.0.0.9", "nas", True)])
+
+
 class EcdsaKey(unittest.TestCase):
     """with_ecdsa: the app's aliases also offer the ECDSA key (VMware ESXi refuses ed25519), once, others untouched."""
 
