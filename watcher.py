@@ -249,7 +249,7 @@ def virt_snaps(data: dict) -> dict:
     """Proxmox guests (running or not) and storages (full or not), from data.json « virtualization » (connector or SSH)."""
     out = {}
     for c in data.get("virtualization") or []:
-        if c.get("connector") != "proxmox" or not c.get("ok") or c.get("stale"):
+        if c.get("connector") not in ("proxmox", "esxi", "vcenter") or not c.get("ok") or c.get("stale"):
             continue   # host not read this time: no « stopped » for all its guests
         for g in c.get("guests") or []:
             if not g.get("template") and g.get("vmid") is not None:

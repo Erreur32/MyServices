@@ -233,7 +233,7 @@ function SeenBy({ links }: { links?: MachineLinks | null }) {
       {list.map((x) => (
         <span key={`${x.source}/${x.instance}`} title={`${x.label}${x.instance ? ` (${x.instance})` : ""} : ${HOW[x.by]}${x.ok ? "" : ` · ${tx("hors ligne")}`}`}
           className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border bg-bg2 px-1.5 py-0.5 text-[11px] font-semibold ${x.ok ? "text-muted" : "text-bad"} ${x.by === "name" ? "border-dashed border-txt/30" : "border-line"}`}>
-          {x.label}{x.source === "proxmox" && x.vmid != null ? ` · ${x.vmid}` : ""}
+          {x.label}{x.vmid != null ? ` · ${x.vmid}` : ""}
         </span>
       ))}
     </span>
@@ -247,7 +247,7 @@ const otherNames = (m: Machine) => (m.links?.names ?? []).filter((n) => n.split(
 function Virt({ links }: { links?: MachineLinks | null }) {
   const g = links?.guest, n = links?.hypervisor;
   if (g) return <>{g.type === "lxc" ? tx("conteneur LXC") : "VM"} {g.vmid} {tx("sur")} <b>{g.node}</b>{g.status && g.status !== "running" && <Dim> · {g.status}</Dim>}</>;
-  if (n) return <>{tx("nœud Proxmox")} <b>{n.node}</b></>;
+  if (n) return <>{n.source === "proxmox" || !n.source ? tx("nœud Proxmox") : tx("hôte VMware ESXi")} <b>{n.node}</b></>;
   return null;
 }
 
@@ -291,7 +291,7 @@ function Detail({ m, h, mac, net, from, watch, servers }: { m: Machine; h?: Heal
         <Row k={tx("Ports ouverts")}>{net?.ports.length ? <span className="font-mono" title={tx("Vus par le scanner de MynetworK")}>{net.ports.join(", ")}</span> : undefined}</Row>
         <Row k={tx("Sur le réseau")}>{net?.first_seen ? <span title={tx("Vue par MynetworK")}>{tx("depuis le {0}", dateTime(net.first_seen))}{net.last_seen && <Dim> · {tx("vue le {0}", dateTime(net.last_seen))}</Dim>}{net.ping_ms != null && <Dim> · {Math.round(net.ping_ms)} ms</Dim>}</span> : undefined}</Row>
         <Row k={tx("Autres noms")}>{otherNames(m).join(", ") || undefined}</Row>
-        <Row k="Proxmox">{m.links?.guest || m.links?.hypervisor ? <Virt links={m.links} /> : undefined}</Row>
+        <Row k={tx("Virtualisation")}>{m.links?.guest || m.links?.hypervisor ? <Virt links={m.links} /> : undefined}</Row>
         <Row k={tx("Vue par")}>{m.links?.sources.length ? <SeenBy links={m.links} /> : undefined}</Row>
         <Row k="TTL">{m.ttl ? <span title={tx("Durée de vie des paquets du ping : 64 Linux, 128 Windows")}>{m.ttl}</span> : undefined}</Row>
       </Section>

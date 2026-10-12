@@ -926,6 +926,11 @@ def collect_host(host: dict) -> dict:
         return {"id": host["id"], "name": host["name"], "reachable": False,
                 "disks": [], "systemd": {"failed": []}, "docker": {"accessible": False},
                 "level": "down", **_EMPTY_HOST_EXTRAS}
+    rc, esxi = run("vmware -v 2>/dev/null", timeout=6)
+    if rc == 0 and esxi.startswith("VMware ESXi"):
+        # ESXi: no apt, systemd nor Docker; its VMs and datastores are read by the collection (esxi_ssh.py, Virtualization tab)
+        return {"id": host["id"], "name": host["name"], "reachable": True, "os": "esxi", "esxi": esxi.strip()[:80],
+                "disks": [], "systemd": {"failed": []}, "docker": {"accessible": False, "reason": "esxi"}, "level": "ok", **_EMPTY_HOST_EXTRAS}
     disks = collect_disks(run)
     systemd = collect_systemd(run)
     docker = collect_docker(run)

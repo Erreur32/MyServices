@@ -46,6 +46,7 @@ import connectors.base as cbase
 from connectors.uptime_kuma import attach_monitors
 from connectors.docker_ssh import HOST_ADDR
 from connectors.process import host_ports
+import esxi_ssh
 import pve_ssh
 import agents
 import hostinfo
@@ -1177,6 +1178,9 @@ def main():
     linked = api_link.by_machine([*services_status, *network, *security, *containers, *virtualization], {m["ip"] for m in machines_out})
     # Proxmox hosts read by SSH (after api_link: SSH is not an API badge), unless a connector already reads them
     virtualization += pve_ssh.rows(machines_out, sshc, {api_link.host_ip(c.get("url")) for c in virtualization if c.get("connector") == "proxmox"})
+    # ESXi hosts read by SSH, unless a vCenter connector already lists them (by IP or by name)
+    vc_hosts = {x for c in virtualization if c.get("connector") == "vcenter" for n in c.get("nodes") or [] for x in (n.get("ip"), n.get("name"))}
+    virtualization += esxi_ssh.rows(machines_out, sshc, {m["ip"] for m in machines_out if m["ip"] in vc_hosts or m["name"] in vc_hosts})
     for m in machines_out:   # machine lue par l'API d'un connecteur (Home Assistant…) : la page le sait, elle ne dit plus « sans SSH »
         if m["ip"] in linked:
             m["api"] = linked[m["ip"]]

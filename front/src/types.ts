@@ -232,14 +232,14 @@ export interface Data {
 }
 
 /** One tool that sees a machine, and how it was tied to it (address is sure, name is a guess) */
-export interface LinkSource { source: string; label: string; instance: string; by: "ip" | "mac" | "name"; ok: boolean; vmid?: number; node?: string; environment?: string; containers?: number; kind?: string }
+export interface LinkSource { source: string; label: string; instance: string; by: "ip" | "mac" | "name"; ok: boolean; vmid?: number | string; node?: string; environment?: string; containers?: number; kind?: string }
 /** Matching layer (matching.py): the same machine as seen by the other tools */
 export interface MachineLinks {
   mac: string | null; vendor: string | null; names: string[]; sources: LinkSource[];
-  guest: { vmid?: number; type?: string; node?: string; status?: string; instance: string } | null;
-  hypervisor: { node?: string; instance: string } | null;
+  guest: { vmid?: number | string; type?: string; node?: string; status?: string; instance: string; source?: string } | null;
+  hypervisor: { node?: string; instance: string; source?: string } | null;
 }
-export interface Unlinked { source: string; label: string; instance: string; ip?: string; mac?: string; name?: string; online?: boolean; vmid?: number; type?: string; node?: string }
+export interface Unlinked { source: string; label: string; instance: string; ip?: string; mac?: string; name?: string; online?: boolean; vmid?: number | string; type?: string; node?: string }
 
 export type Level = "ok" | "warn" | "crit" | "down";
 
@@ -602,9 +602,9 @@ export interface ContainersConnector extends InfraConnector {
 /** Proxmox VE (nœuds, VM, conteneurs, stockages) et Proxmox Backup Server (magasins) */
 export interface VirtualizationConnector extends InfraConnector {
   via?: "ssh"; ip?: string;   // ssh: read on the host by pvesh, without a connector
-  nodes?: { name: string; online: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null; cpus?: number | null; mem?: number | null; maxmem?: number | null }[];
-  guests?: { vmid: number; name?: string; type: "qemu" | "lxc"; node?: string; status?: string; template: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null;
-    cpus?: number | null; mem?: number | null; maxmem?: number | null; maxdisk?: number | null; tags?: string[] }[];
+  nodes?: { name: string; online: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null; cpus?: number | null; mem?: number | null; maxmem?: number | null; model?: string | null }[];
+  guests?: { name?: string; type: "qemu" | "lxc" | "vm"; node?: string; status?: string; template: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null;
+    cpus?: number | null; mem?: number | null; maxmem?: number | null; maxdisk?: number | null; tags?: string[]; vmid: number | string; os?: string | null; ip?: string | null; hostname?: string | null }[];
   storage?: { name: string; node?: string; used_pct?: number | null; status?: string; used?: number | null; total?: number | null }[];
   totals?: { vm: number; lxc: number; running: number; stopped: number };
   backups?: { last: number; ok: boolean; failed_recent: number } | null;

@@ -121,3 +121,10 @@ d7edf5957b987c482297e29d2d96a217  docs/logo-dark.png
 74bc2a56421702c882c5fb735bec5ff1  docs/logo.svg
 a7b49eed8eb296914b44f25747b7f539  front/public/logo-grid-4x4.svg
 a7b49eed8eb296914b44f25747b7f539  front/public/favicon.svg
+15ada47db3034d0be90d575ba61ce46e  front/public/icons/freebox.svg
+2f283a3e9b5e5d7375b93133a99490d7  front/public/icons/wd.svg
+32a19dc94d139a44e713768ab49d2572  front/public/icons/vcenter.svg
+91eba2d9cb6934037a49e47216d04336  front/public/icons/vmware-esxi.svg
+a6b2be085da7cce27a1955ba6e0f895e  front/public/icons/plex.svg
+c5ff2174a296f582fdf694bbd577857d  front/public/icons/free.svg
+ed2ffc7328dc47e837f16c7355740026  front/public/icons/nas.svg

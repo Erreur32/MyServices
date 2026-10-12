@@ -26,6 +26,14 @@ export function authorizeFor(cmd: string, user: string): string {
     ...(u === "root" ? [] : [`chown -R ${u}: ${dir}`]), `chmod 700 ${dir}`, `chmod 600 ${file}`].join(" && ");
 }
 
+/** Same command for a VMware ESXi host: root's keys are in /etc/ssh/keys-root/authorized_keys (not in ~/.ssh) */
+export function authorizeEsxi(cmd: string): string {
+  const key = /'([^']+)'/.exec(cmd)?.[1];
+  if (!key) return cmd;
+  const file = "/etc/ssh/keys-root/authorized_keys";
+  return `(grep -qxF '${key}' ${file} || echo '${key}' >> ${file})`;
+}
+
 /** Une ligne : compte@alias:port · système · conteneurs · Apache */
 export function sshBrief(m: Machine): string {
   const i = m.info;

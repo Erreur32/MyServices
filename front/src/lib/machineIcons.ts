@@ -1,7 +1,7 @@
 // Icônes qu'on peut attribuer à une machine (Réglages → Machines → Identité). Clé enregistrée dans services-meta.json (« icon ») ;
 // sans clé, l'icône reste automatique (appli reconnue, sinon système). Trois familles : applis (images de public/icons), systèmes,
 // et quelques objets courants.
-import { Antenna, Apple, Bot, Boxes, Cable, Camera, Car, Cctv, Cloud, Container, Cpu, Database, Droplets, Fan, Film, Flame, Gamepad2, Globe, HardDrive, HardDriveDownload, Headphones, Home, Lamp, Laptop, Lightbulb, Lock, Mail, MemoryStick, Mic, Monitor, MonitorSmartphone, Music, Network, Plug, Printer, Projector, Radio, Router, Satellite, Server, ServerCog, Shield, Smartphone, Speaker, Tablet, Terminal, Thermometer, Tv, Usb, Watch, Webcam, Wifi, Workflow, Wrench, Zap, type LucideIcon } from "lucide-react";
+import { Antenna, Apple, Bot, Boxes, Cable, Camera, Car, Cctv, Cloud, Container, Cpu, Database, Droplets, Fan, Film, Flame, Gamepad2, Globe, HardDriveDownload, Headphones, Home, Lamp, Laptop, Lightbulb, Lock, Mail, MemoryStick, Mic, Monitor, MonitorSmartphone, Music, Network, Plug, Printer, Projector, Radio, Router, Satellite, Server, ServerCog, Shield, Smartphone, Speaker, Tablet, Terminal, Thermometer, Tv, Usb, Watch, Webcam, Wifi, Workflow, Wrench, Zap, type LucideIcon } from "lucide-react";
 import { tx } from "./i18n";
 
 export type ChosenIcon = { key: string; label: string; family: "app" | "system" | "object" } & ({ file: string } | { Icon: LucideIcon });
@@ -15,11 +15,11 @@ export const MACHINE_ICONS: ChosenIcon[] = [
   app("home-assistant", "Home Assistant"), app("proxmox", "Proxmox"), app("plex", "Plex"), app("docker", "Docker"),
   app("nginx-proxy-manager", "Nginx Proxy Manager"), app("adguard-home", "AdGuard Home"), app("beszel", "Beszel"), app("uptime-kuma", "Uptime Kuma"),
   app("dozzle", "Dozzle"), app("nginx", "nginx"), app("apache", "Apache"), app("syncthing", "Syncthing"), app("grafana", "Grafana"), app("unifi", "UniFi"),
-app("dockhand", "Dockhand"), app("logviewr", "LogviewR"), app("mynetwork", "MynetworK"), app("veeam", "Veeam"), app("web-check", "Web-Check"),
+app("dockhand", "Dockhand"), app("freebox", "Freebox"), app("free", tx("Free (opérateur)")), app("wd", "Western Digital"), app("logviewr", "LogviewR"), app("mynetwork", "MynetworK"), app("veeam", "Veeam"), app("web-check", "Web-Check"),
   { key: "linux", label: "Linux", family: "system", Icon: Terminal }, { key: "windows", label: "Windows", family: "system", Icon: Monitor },
   { key: "macos", label: "macOS", family: "system", Icon: Apple }, { key: "ios", label: "iOS / Android", family: "system", Icon: Smartphone },
   { key: "network", label: tx("Matériel réseau"), family: "system", Icon: Router }, { key: "pi", label: "Raspberry Pi", family: "system", Icon: Cpu },
-  { key: "server", label: tx("Serveur"), family: "object", Icon: Server }, { key: "nas", label: "NAS", family: "object", Icon: HardDrive },
+  { key: "server", label: tx("Serveur"), family: "object", Icon: Server }, { key: "nas", label: "NAS", family: "object", file: "nas" },
   { key: "laptop", label: tx("Portable"), family: "object", Icon: Laptop }, { key: "tv", label: tx("Télévision"), family: "object", Icon: Tv },
   { key: "camera", label: tx("Caméra"), family: "object", Icon: Camera }, { key: "game", label: tx("Console de jeu"), family: "object", Icon: Gamepad2 },
   { key: "printer", label: tx("Imprimante"), family: "object", Icon: Printer }, { key: "home", label: tx("Domotique"), family: "object", Icon: Home },
@@ -35,7 +35,7 @@ app("dockhand", "Dockhand"), app("logviewr", "LogviewR"), app("mynetwork", "Myne
   brand("gentoo", "Gentoo", "system"), brand("kalilinux", "Kali Linux", "system"), brand("android", "Android", "system"),
   brand("raspberrypi", "Raspberry Pi OS", "system"), brand("truenas", "TrueNAS", "system"), brand("synology", "Synology", "system"),
   brand("qnap", "QNAP", "system"), brand("unraid", "Unraid", "system"), brand("openwrt", "OpenWrt", "system"),
-  brand("pfsense", "pfSense", "system"), brand("opnsense", "OPNsense", "system"), brand("vmware", "VMware / ESXi", "system"),
+  brand("pfsense", "pfSense", "system"), brand("opnsense", "OPNsense", "system"), brand("vmware-esxi", "VMware ESXi", "system"), brand("vcenter", "VMware vCenter", "system"), brand("vmware", tx("VMware (logo texte)"), "system"),
   brand("ubiquiti", "Ubiquiti", "system"), brand("mikrotik", "MikroTik", "system"), brand("tp-link", "TP-Link", "system"),
   // Plus de services
   brand("portainer", "Portainer", "app"), brand("traefik", "Traefik", "app"), brand("caddy", "Caddy", "app"),

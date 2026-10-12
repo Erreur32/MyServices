@@ -17,6 +17,7 @@ import urllib.parse
 
 MAC_RE = re.compile(r"^[0-9a-f]{2}([:-]?[0-9a-f]{2}){5}$")
 MAX_UNLINKED = 500   # a big network is not listed in full
+HYPERVISORS = ("proxmox", "esxi", "vcenter")   # virtualization rows with nodes and guests (PBS has neither)
 
 
 def norm_mac(v) -> str | None:
@@ -144,31 +145,32 @@ def link(machines: list[dict], network: list[dict] | None = None, virtualization
             else:
                 lost("beszel", "Beszel", b.get("name") or "", ip=_ip(h), name=s.get("name"), online=s.get("status") == "up")
 
-    # 3. Proxmox: nodes (hypervisors) and guests by name ; a matched guest says which node it runs on
+    # 3. Hypervisors (Proxmox VE, VMware ESXi / vCenter): nodes and guests ; a matched guest says which node it runs on. VMware Tools
+    #    give a guest's IP and hostname (sure link) ; Proxmox only its name
     for c in virtualization or []:
-        inst, label = c.get("name") or "", c.get("label") or "Proxmox"
-        if c.get("connector") != "proxmox":
+        inst, label, src = c.get("name") or "", c.get("label") or "Proxmox", c.get("connector") or ""
+        if src not in HYPERVISORS:
             ip = _ip(host_of(c.get("url")))
             if ip in out:
                 seen(ip, c.get("connector") or "", label, inst, "ip", ok=bool(c.get("ok")))
             continue
         for n in c.get("nodes") or []:
-            ip, by = idx.find(None, None, (n.get("name"),))
+            ip, by = idx.find(_ip(n.get("ip")), None, (n.get("name"),))
             target = _ip(host_of(c.get("url")))
-            if not ip and len(c.get("nodes") or []) == 1 and target in out:   # single node: it is the machine the connector points at
+            if not ip and src != "vcenter" and len(c.get("nodes") or []) == 1 and target in out:   # single node: the machine read (vCenter is another machine)
                 ip, by = target, "ip"
             if ip:
-                out[ip]["hypervisor"] = {"node": n.get("name"), "instance": inst}
-                seen(ip, "proxmox", label, inst, by, ok=bool(n.get("online")), node=n.get("name"))
+                out[ip]["hypervisor"] = {"node": n.get("name"), "instance": inst, "source": src}
+                seen(ip, src, label, inst, by, ok=bool(n.get("online")), node=n.get("name"))
         for g in c.get("guests") or []:
             if g.get("template"):
                 continue
-            ip, by = idx.find(None, None, (g.get("name"),))
+            ip, by = idx.find(_ip(g.get("ip")), None, (g.get("hostname"), g.get("name")))
             if ip:
-                out[ip]["guest"] = {"vmid": g.get("vmid"), "type": g.get("type"), "node": g.get("node"), "status": g.get("status"), "instance": inst}
-                seen(ip, "proxmox", label, inst, by, ok=g.get("status") == "running", vmid=g.get("vmid"), node=g.get("node"))
+                out[ip]["guest"] = {"vmid": g.get("vmid"), "type": g.get("type"), "node": g.get("node"), "status": g.get("status"), "instance": inst, "source": src}
+                seen(ip, src, label, inst, by, ok=g.get("status") == "running", vmid=g.get("vmid"), node=g.get("node"))
             else:
-                lost("proxmox", label, inst, name=g.get("name"), vmid=g.get("vmid"), type=g.get("type"), node=g.get("node"),
+                lost(src, label, inst, ip=_ip(g.get("ip")), name=g.get("name"), vmid=g.get("vmid"), type=g.get("type"), node=g.get("node"),
                      online=g.get("status") == "running")
 
     # 4. Dockhand: one environment per Docker host (local, or a remote / Hawser agent)
