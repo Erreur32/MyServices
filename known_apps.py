@@ -15,6 +15,7 @@ la classe du connecteur (connectors/*.py, `images`) : une seule liste à tenir �
 from __future__ import annotations
 
 import re
+import urllib.parse
 from dataclasses import dataclass
 
 import connectors
@@ -38,6 +39,7 @@ class App:
     proc: str = ""                  # regex of the process name (service read by SSH outside Docker)
     inner: tuple[int, ...] = ()     # container port that tells this app apart when its image is shared (Dozzle agent: same image, 7007)
     agent_of: str = ""              # key of the hub this agent reports to; an agent has no page and never proposes a connector
+    api: str = ""                   # address of the API when it is not the page's ("http://{ip}:20212"): used by the connector proposal
 
 
 APPS: tuple[App, ...] = (
@@ -59,7 +61,7 @@ APPS: tuple[App, ...] = (
     App("healthchecks", "Healthchecks", "Monitoring", ports=(8000,), title=r"^healthchecks", images=("healthchecks/healthchecks", "linuxserver/healthchecks"), connector="healthchecks"),
     App("prometheus", "Prometheus", "Monitoring", title=r"prometheus", images=("prom/prometheus",), connector="prometheus"),
     App("grafana", "Grafana", "Monitoring", title=r"^grafana", images=("grafana/grafana", "grafana/grafana-oss")),
-    App("webmin", "Webmin", "Système", ports=(10000,), title=r"webmin"),
+    App("webmin", "Webmin", "Système", ports=(10000,), title=r"webmin", fp=r"^server: miniserv", connector="webmin"),
     App("sonarr", "Sonarr", "Médias", ports=(8989,), title=r"^sonarr", images=("linuxserver/sonarr", "hotio/sonarr"), connector="arr"),
     App("radarr", "Radarr", "Médias", ports=(7878,), title=r"^radarr", images=("linuxserver/radarr", "hotio/radarr"), connector="arr"),
     App("jellyfin", "Jellyfin", "Médias", ports=(8096,), title=r"jellyfin", images=("jellyfin/jellyfin", "linuxserver/jellyfin"), connector="jellyfin"),
@@ -124,20 +126,47 @@ APPS: tuple[App, ...] = (
     App("munin-node", "Munin (node)", "Monitoring", ui="none", ports=(4949,), proc=r"munin"),   # reports to a Munin master, which MyServices does not read
     App("vmagent", "vmagent", "Monitoring", ui="api", ports=(8429,), images=("victoriametrics/vmagent",)),
     # Seen on real installs, without a connector
-    App("arcane", "Arcane", "Infra / virtualisation", ports=(3552,), title=r"^arcane", images=("ghcr.io/getarcaneapp/manager", "ghcr.io/getarcaneapp/arcane")),
-    App("glances", "Glances", "Monitoring", ports=(61208,), title=r"^glances", images=("nicolargo/glances",), proc=r"^glances"),
+    App("arcane", "Arcane", "Infra / virtualisation", ports=(3552,), title=r"^arcane", connector="arcane"),
+    App("glances", "Glances", "Monitoring", ports=(61208,), title=r"^glances", proc=r"^glances", connector="glances"),
     App("cadvisor", "cAdvisor", "Monitoring", title=r"^cadvisor", images=("gcr.io/cadvisor/cadvisor",)),
     App("victoriametrics", "VictoriaMetrics", "Monitoring", ports=(8428,), title=r"victoriametrics", images=("victoriametrics/victoria-metrics",)),
-    App("tautulli", "Tautulli", "Médias", ports=(8181,), title=r"^tautulli", images=("tautulli/tautulli", "linuxserver/tautulli")),
+    App("tautulli", "Tautulli", "Médias", ports=(8181,), title=r"^tautulli", connector="tautulli"),
     App("searxng", "SearXNG", "Dev / automatisation", title=r"searxng", images=("searxng/searxng",)),
     App("opengist", "Opengist", "Outils", ports=(6157,), title=r"opengist", images=("ghcr.io/thomiceli/opengist",)),
     App("sshwifty", "Sshwifty", "Bureau distant", title=r"sshwifty", images=("niruix/sshwifty",)),
     App("wallabag", "wallabag", "Web / perso", title=r"wallabag", images=("wallabag/wallabag",)),
     App("convertx", "ConvertX", "Fichiers / sync", title=r"^convertx", images=("ghcr.io/c4illin/convertx",)),
-    App("wazuh", "Wazuh", "Sécurité", title=r"wazuh", images=("wazuh/wazuh-dashboard", "wazuh/wazuh-manager", "wazuh/wazuh-indexer")),
+    App("wazuh", "Wazuh", "Sécurité", ports=(55000,), title=r"wazuh", connector="wazuh", api="https://{ip}:55000"),
+    App("wazuh-dashboard", "Wazuh (tableau de bord)", "Sécurité", images=("wazuh/wazuh-dashboard", "wazuh/wazuh-indexer")),
     App("anubis", "Anubis", "Sécurité", title=r"making sure you're not a bot", images=("ghcr.io/techarohq/anubis",)),
     App("adguardhome-sync", "AdGuard Home Sync", "Réseau / DNS", ui="api", images=("ghcr.io/bakito/adguardhome-sync",)),
     App("mcpo", "mcpo (MCP to OpenAPI)", "IA", ui="api", images=("ghcr.io/open-webui/mcpo",)),
+    App("pulse", "Pulse", "Monitoring", ports=(7655,), title=r"^pulse\b", connector="pulse"),
+    App("pulse-agent", "Pulse (agent)", "Monitoring", ui="none", images=("rcourtman/pulse-docker-agent", "ghcr.io/rcourtman/pulse-agent"),
+        proc=r"^pulse-(agent|docker-agent|host-agent|sensor-proxy)", agent_of="pulse"),
+    App("gpuviewr", "GpuViewR", "IA", title=r"^gpuviewr", connector="gpuviewr"),
+    App("gpuviewr-agent", "GpuViewR (agent)", "IA", ui="none", images=("ghcr.io/erreur32/gpuviewr-agent",), agent_of="gpuviewr"),   # outbound WebSocket: no port
+    App("netalertx", "NetAlertX", "Réseau / DNS", ports=(20211, 20212), title=r"netalert", connector="netalertx", api="http://{ip}:20212"),
+    App("speedtest-tracker", "Speedtest Tracker", "Réseau / DNS", title=r"speedtest tracker", connector="speedtest-tracker"),
+    App("openspeedtest", "OpenSpeedTest", "Réseau / DNS", title=r"openspeedtest", images=("openspeedtest/latest",)),   # static page, nothing to read
+    App("umami", "Umami", "Web / perso", title=r"^umami\b", connector="umami"),
+    App("rybbit", "Rybbit", "Monitoring", title=r"rybbit", connector="rybbit"),
+    App("wazuh-agent", "Wazuh (agent)", "Sécurité", ui="none", images=("wazuh/wazuh-agent",), proc=r"^wazuh-(agentd|agent|modulesd|execd|logcollector)", agent_of="wazuh"),
+    App("crowdsec-bouncer", "CrowdSec (bouncer)", "Sécurité", ui="none", images=("fbonalair/traefik-crowdsec-bouncer",), proc=r"^crowdsec-\w+-bouncer", agent_of="crowdsec"),
+    App("scrutiny", "Scrutiny", "Monitoring", title=r"^scrutiny", images=("ghcr.io/analogj/scrutiny",)),
+    App("komodo", "Komodo", "Infra / virtualisation", ports=(9120,), title=r"^komodo", images=("ghcr.io/moghtech/komodo-core", "ghcr.io/moghtech/komodo")),
+    App("komodo-periphery", "Komodo (periphery)", "Infra / virtualisation", ui="api", ports=(8120,), images=("ghcr.io/moghtech/komodo-periphery",), proc=r"^periphery", agent_of="komodo"),
+    App("zabbix", "Zabbix", "Monitoring", title=r"zabbix", images=("zabbix/zabbix-web-nginx-mysql", "zabbix/zabbix-web-nginx-pgsql", "zabbix/zabbix-server-mysql", "zabbix/zabbix-server-pgsql")),
+    App("zabbix-agent", "Zabbix (agent)", "Monitoring", ui="none", ports=(10050,), images=("zabbix/zabbix-agent2", "zabbix/zabbix-agent"), proc=r"^zabbix_agent", agent_of="zabbix"),
+    App("checkmk", "Checkmk", "Monitoring", title=r"checkmk", images=("checkmk/check-mk-raw", "checkmk/check-mk-cloud")),
+    App("checkmk-agent", "Checkmk (agent)", "Monitoring", ui="none", ports=(6556,), proc=r"^cmk-agent-ctl|^check_mk_agent", agent_of="checkmk"),
+    App("netdata-child", "Netdata (enfant)", "Monitoring", ui="none", proc=r"^netdata\b"),   # a child streams to a parent; the parent page is Netdata itself
+    App("telegraf", "Telegraf", "Monitoring", ui="api", images=("telegraf",), proc=r"^telegraf\b"),
+    App("promtail", "Promtail", "Monitoring", ui="api", ports=(9080,), images=("grafana/promtail",), proc=r"^promtail"),
+    App("alloy", "Grafana Alloy", "Monitoring", images=("grafana/alloy",), proc=r"^alloy\b"),
+    App("ntfy", "ntfy", "Outils", title=r"^ntfy", images=("binwiederhier/ntfy",)),
+    App("gotify", "Gotify", "Outils", title=r"^gotify", images=("gotify/server",)),
+    App("myspeed", "MySpeed", "Réseau / DNS", ports=(5216,), title=r"^myspeed", images=("germannewsmaker/myspeed",)),
     App("openssh", "OpenSSH", "Système", ui="none", proc=r"^sshd\b"),
     App("samba", "Samba", "Système", ui="none", proc=r"^smbd\b"),   # 139 / 445 are Windows too: process only
     # Serveurs web : l'en-tête Server dit ce qui répond, pas l'appli derrière (confiance « possible », jamais prioritaire)
@@ -288,8 +317,10 @@ def propose(rows: list[dict], declared: list[dict], with_linked: bool = False) -
         if linked and not with_linked:
             continue
         scheme = r.get("web_scheme") or r.get("scheme") or "http"
+        api = _BY_KEY[r["app"]["key"]].api.format(ip=ip) if r["app"]["key"] in _BY_KEY else ""
+        url = api or f"{scheme}://{ip}:{r.get('port')}"
         out.append({"connector": ctype, "label": r["app"]["label"], "confidence": r["app"]["confidence"],
-                    "ip": ip, "port": r.get("port"), "url": f"{scheme}://{ip}:{r.get('port')}",
+                    "ip": ip, "port": urllib.parse.urlsplit(url).port, "url": url,
                     "machine": r.get("machine"), "service": r.get("id"),
                     **({"linked": linked} if with_linked else {})})
     return out

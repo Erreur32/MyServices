@@ -22,6 +22,19 @@ it("connaît Docker et Nginx", () => {
   });
 });
 
+describe("icon files", () => {
+  it("every name points to a file of public/icons, and the new connectors have one", async () => {
+    const { readdirSync } = await import("node:fs");
+    const files = new Set(readdirSync(new URL("../../public/icons", import.meta.url)).map((f) => f.replace(/\.svg$/, "")));
+    const names = ["Pulse", "Arcane", "Glances", "GpuViewR", "NetAlertX", "Speedtest Tracker", "OpenSpeedTest", "Umami", "Rybbit", "Wazuh", "Webmin", "Tautulli", "Dozzle (agent)"];
+    for (const n of names) {
+      const src = appIcon([n]);
+      expect(src, n).not.toBeNull();
+      expect(files.has(src!.split("/").pop()!.replace(/\.svg$/, "")), n).toBe(true);
+    }
+  });
+});
+
 describe("logo d'un service", () => {
   it("appli reconnue, nom ou image, puis type", async () => {
     const { serviceIcon } = await import("./appIcons");

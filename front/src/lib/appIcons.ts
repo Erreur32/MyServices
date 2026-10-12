@@ -12,6 +12,12 @@ const FILES: Record<string, string> = {
   "vmware vcenter": "vcenter", vcenter: "vcenter", "vmware esxi": "vmware-esxi", esxi: "vmware-esxi", vmware: "vmware-esxi",
   nextcloud: "nextcloud", freebox: "freebox", healthchecks: "healthchecks", crowdsec: "crowdsec", "technitium dns": "technitium", technitium: "technitium",
   "onduleur (nut)": "nut", nut: "nut", "network ups tools": "nut", "western digital": "wd", "wd my cloud": "wd", mycloud: "wd",
+  pulse: "pulse", "pulse (agent)": "pulse", arcane: "arcane", "arcane (agent)": "arcane", glances: "glances", gpuviewr: "gpuviewr", "gpuviewr (agent)": "gpuviewr",
+  netalertx: "netalertx", "speedtest tracker": "speedtest-tracker", openspeedtest: "openspeedtest", umami: "umami", rybbit: "rybbit",
+  wazuh: "wazuh", "wazuh (agent)": "wazuh", "wazuh (tableau de bord)": "wazuh", webmin: "webmin", tautulli: "tautulli", scrutiny: "scrutiny",
+  zabbix: "zabbix", "zabbix (agent)": "zabbix", checkmk: "checkmk", "checkmk (agent)": "checkmk", searxng: "searxng", victoriametrics: "victoriametrics",
+  wallabag: "wallabag", ntfy: "ntfy", myspeed: "myspeed", "dozzle (agent)": "dozzle", "beszel (agent)": "beszel", "portainer (agent)": "portainer",
+  "hawser (agent dockhand)": "dockhand", "crowdsec (bouncer)": "crowdsec", "netdata (enfant)": "netdata",
 };
 
 /** Adresse de l'icône de la première appli reconnue qui en a une, sinon null */

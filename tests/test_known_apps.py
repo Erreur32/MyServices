@@ -94,7 +94,7 @@ class Identify(unittest.TestCase):
         self.assertIsNone(self.key(port=2376))   # Docker TLS: not Hawser on its own
         for a in ka.APPS:
             if a.agent_of:
-                self.assertEqual(a.ui, "none", a.key)
+                self.assertIn(a.ui, ("none", "api"), a.key)   # no page of its own
                 self.assertIsNone(a.connector, a.key)
                 self.assertIn(a.agent_of, {b.key for b in ka.APPS}, a.key)   # the hub's label is shown on the agent
 
