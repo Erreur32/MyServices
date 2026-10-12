@@ -60,14 +60,14 @@ COLLECTOR = CFG["collector_name"] or socket.gethostname()
 SEVERITY = {"panne": 3, "unhealthy": 3, "perime": 3, "securite": 2, "ui_hors": 1,
             "nouveau": 1, "disparu": 1, "retabli": 0, "dns": 2,
             "hors_ligne": 3, "ssh_down": 3, "en_ligne": 0, "ssh_ok": 0, "connecteur": 2, "connecteur_ok": 0, "connecteur_version": 1, "appareil": 1,
-            "vm_arret": 2, "vm_marche": 0, "stockage": 2, "stockage_ok": 0, "menace": 2}
+            "vm_arret": 2, "vm_marche": 0, "stockage": 2, "stockage_ok": 0, "menace": 2, "nextcloud": 1}
 LABEL = {"panne": "🔴 Panne", "retabli": "🟢 Rétabli", "nouveau": "🆕 Nouveau", "disparu": "➖ Disparu",
          "securite": "🛡️ Sécurité", "ui_hors": "🌐 UI sans domaine", "unhealthy": "💔 Unhealthy",
          "perime": "⏱️ Données périmées", "hors_ligne": "📴 Machine hors ligne",
          "en_ligne": "📶 Machine en ligne", "ssh_down": "🔒 SSH injoignable", "ssh_ok": "🔑 SSH rétabli",
          "dns": "🧭 DNS", "connecteur": "🔌 Connecteur en panne", "connecteur_ok": "🔌 Connecteur rétabli", "connecteur_version": "🔌 Version non testée",
          "appareil": "📡 Nouvel appareil", "vm_arret": "⏹️ VM arrêtée", "vm_marche": "▶️ VM en marche",
-         "stockage": "💽 Stockage presque plein", "stockage_ok": "💽 Stockage dégagé", "menace": "🚨 Nouvelle menace"}
+         "stockage": "💽 Stockage presque plein", "stockage_ok": "💽 Stockage dégagé", "menace": "🚨 Nouvelle menace", "nextcloud": "☁️ Nextcloud à regarder"}
 STORAGE_FULL = 90   # % used of a Proxmox storage
 NPM_TYPES = {"proxy", "redirect", "dead", "stream"}  # entrées lues dans NPM (les autres : « local »)
 DNS_LABEL = {"nom": "nom DNS invalide", "absent": "ne résout sur aucun AdGuard", "ecart": "réponses différentes selon l'AdGuard",
@@ -299,6 +299,26 @@ def threat_snaps(data: dict) -> dict | None:
     return out
 
 
+def nextcloud_snaps(data: dict) -> dict | None:
+    """Points to look at of each Nextcloud (update, app update, public links without password, low space, debug), by stable key.
+    None: no Nextcloud read this time (cut or failing), the known points are kept."""
+    rows = [c for c in data.get("services_status") or [] if c.get("connector") == "nextcloud" and c.get("ok") and not c.get("stale")]
+    if not rows:
+        return None
+    return {f'nextcloud:{c.get("name")}:{x["key"]}': {"label": c.get("name") or "Nextcloud", "text": x.get("text") or ""}
+            for c in rows for x in c.get("checks") or [] if isinstance(x, dict) and x.get("key")}
+
+
+def diff_nextcloud(prev: dict | None, cur: dict | None) -> tuple[list[dict], dict | None]:
+    """One event when a point appears; none while it stays, none when it goes. The first reading is the reference."""
+    if cur is None:
+        return [], prev
+    if prev is None:
+        return [], cur
+    return [{"kind": "nextcloud", "key": k, "label": v["label"], "machine": None, "target": None, "detail": v["text"]}
+            for k, v in cur.items() if k not in prev], cur
+
+
 def diff_threats(prev: dict | None, cur: dict | None) -> tuple[list[dict], dict | None]:
     """« New threat » once per cluster ; the first reading of LogviewR is the reference. A threat no longer active is forgotten after
     a week (kept meanwhile so that it does not come back as new)."""
@@ -444,7 +464,8 @@ def main() -> int:
         vpending = {}
     vcur = {**(state.get("virt") or {}), **vcur}   # a host not read this time keeps the last known state of its guests
     tev, tcur = diff_threats(state.get("threats"), threat_snaps(data))
-    events = sorted(tev + events, key=lambda e: -SEVERITY[e["kind"]])
+    xev, xcur = diff_nextcloud(state.get("nextcloud"), nextcloud_snaps(data))
+    events = sorted(tev + xev + events, key=lambda e: -SEVERITY[e["kind"]])
     nev, ncur = diff_network(state.get("network"), network_snaps(data) if data.get("network") else None)
     events = sorted(nev + events, key=lambda e: -SEVERITY[e["kind"]])
     age = (datetime.now(timezone.utc) - datetime.fromisoformat(data["generated"])).total_seconds() / 60
@@ -482,7 +503,7 @@ def main() -> int:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps({"snap": cur, "pending": pending, "history": history,
                                       "machines": mcur, "mpending": mpending, "dns": dcur,
-                                      "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending, "threats": tcur,
+                                      "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending, "threats": tcur, "nextcloud": xcur,
                                       "stale_reported": age > STALE_MIN, "last_run": now},
                                      ensure_ascii=False), encoding="utf-8")
     print(f"✓ {EVENTS} · {info} · " + " · ".join(f"{v} {k}" for k, v in counts.items()), file=sys.stderr)

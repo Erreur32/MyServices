@@ -40,6 +40,7 @@ KINDS = {
     "health_down": ("Machine injoignable (santé)", "sante"),
     "securite": ("Sécurité (ACL, SSL)", "securite"), "ui_hors": ("Interface sans domaine", "securite"),
     "menace": ("Nouvelle menace (LogviewR)", "securite"),
+    "nextcloud": ("Nextcloud : point à regarder", "connecteurs"),
     "dns": ("DNS", "securite"), "connecteur": ("Connecteur en panne", "connecteurs"),
     "connecteur_version": ("Version de service non testée", "connecteurs"),
     "perime": ("Collecte en retard", "connecteurs"),
@@ -63,6 +64,7 @@ PRESETS = [
     {"name": "Santé critique", "kinds": ["health_crit"], "resolved": True, "cooldown_min": 360},
     {"name": "Sécurité et DNS", "kinds": ["securite", "ui_hors", "dns", "menace"], "resolved": False, "cooldown_min": 1440},
     {"name": "Connecteurs et collecte", "kinds": ["connecteur", "connecteur_version", "perime"], "resolved": True, "cooldown_min": 120},
+    {"name": "Nextcloud (mises à jour, liens publics, espace)", "kinds": ["nextcloud"], "resolved": False, "cooldown_min": 0},
     {"name": "Inventaire (nouveaux / disparus)", "kinds": ["nouveau", "disparu", "appareil"], "resolved": False, "cooldown_min": 0},
 ]
 

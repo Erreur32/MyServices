@@ -117,5 +117,26 @@ class Threats(unittest.TestCase):
         self.assertIn("menace", __import__("alerts").KINDS)
 
 
+class NextcloudPoints(unittest.TestCase):
+    """« Nextcloud to look at »: once per point (stable key), the first reading is the reference."""
+
+    @staticmethod
+    def data(*checks, ok=True):
+        return {"services_status": [{"connector": "nextcloud", "name": "cloud", "ok": ok,
+                                     "checks": [{"key": k, "text": t} for k, t in checks]},
+                                    {"connector": "prometheus", "name": "p", "ok": True, "checks": [{"key": "x", "text": "y"}]}]}
+
+    def test_une_fois_par_point(self):
+        ev, known = watcher.diff_nextcloud(None, watcher.nextcloud_snaps(self.data(("links", "1 lien(s) public(s) sans mot de passe"))))
+        self.assertEqual(ev, [])
+        ev, known = watcher.diff_nextcloud(known, watcher.nextcloud_snaps(self.data(("links", "3 lien(s) public(s) sans mot de passe"),
+                                                                                    ("update", "mise à jour de Nextcloud disponible : 30.0.2"))))
+        self.assertEqual([(e["kind"], e["label"], e["detail"]) for e in ev], [("nextcloud", "cloud", "mise à jour de Nextcloud disponible : 30.0.2")])
+        self.assertEqual(watcher.diff_nextcloud(known, None), ([], known))   # Nextcloud not read: points kept
+        self.assertIsNone(watcher.nextcloud_snaps(self.data(("debug", "x"), ok=False)))
+        self.assertNotIn("nextcloud:p:x", watcher.nextcloud_snaps(self.data()))   # other status connectors: not here
+        self.assertIn("nextcloud", __import__("alerts").KINDS)
+
+
 if __name__ == "__main__":
     unittest.main()

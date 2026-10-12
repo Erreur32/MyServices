@@ -68,17 +68,19 @@ class Nextcloud(StatusConnector):
             facts.append(fact("Liens publics", f"{int(num(shares['num_shares_link'], 0))}" + (f", {links_open} sans mot de passe" if links_open else ""),
                               "warn" if links_open else "ok"))
 
-        problems = []
+        # Each point to look at has a stable key: the watcher alerts once when a key appears (« nextcloud » events), not when its
+        # figures change (one more public link, a little less free space)
+        checks = []
         if has_update:
-            problems.append(f"mise à jour de Nextcloud disponible{f' : {newer}' if newer else ''}")
-        problems += [f"appli « {k} » : mise à jour {v}" for k, v in list(app_updates.items())[:6]]
+            checks.append(("update", f"mise à jour de Nextcloud disponible{f' : {newer}' if newer else ''}"))
+        checks += [(f"app:{k}", f"appli « {k} » : mise à jour {v}") for k, v in list(app_updates.items())[:6]]
         if links_open:
-            problems.append(f"{links_open} lien(s) public(s) sans mot de passe")
+            checks.append(("links", f"{links_open} lien(s) public(s) sans mot de passe"))
         if free is not None and free < FREE_LOW:
-            problems.append(f"espace libre bas : {size(free)}")
+            checks.append(("space", f"espace libre bas : {size(free)}"))
         if sysi.get("debug") == "yes":
-            problems.append("mode debug actif (à couper en production)")
-        return self.out(version, facts, problems)
+            checks.append(("debug", "mode debug actif (à couper en production)"))
+        return {**self.out(version, facts, [t for _, t in checks]), "checks": [{"key": k, "text": t} for k, t in checks]}
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:

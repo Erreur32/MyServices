@@ -49,6 +49,7 @@ class Nextcloud(Base):
                                          "2 lien(s) public(s) sans mot de passe", "espace libre bas : 2,0 Go", "mode debug actif (à couper en production)"])
         facts = {f["label"]: f for f in d["facts"]}
         self.assertEqual((facts["Version"]["value"], facts["Version"]["tone"]), ("30.0.0.1 → 30.0.2", "warn"))
+        self.assertEqual([c["key"] for c in d["checks"]], ["update", "app:files_antivirus", "links", "space", "debug"])
 
     def test_jeton_refuse_et_pas_nextcloud(self):
         self.route(ROUTE, {"ocs": {"meta": {"statuscode": 401}}}, code=401)

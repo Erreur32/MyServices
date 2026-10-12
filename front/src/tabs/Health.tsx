@@ -200,8 +200,8 @@ export function Health({ snap, initial }: { snap: Snapshot; initial?: Selected }
   const toggleOpen = (id: string) => setOpen((o) => { const n = new Set(o); if (!n.delete(id)) n.add(id); return n; });
   const allOpen = f.shown.length > 0 && f.shown.every((h) => open.has(h.id));
   const asleep = (snap.health?.asleep ?? []).filter((a) => !Object.keys(f.sel).length && a.name.toLowerCase().includes(f.query.trim().toLowerCase()));
-  const services = snap.data.services_status ?? [], virt = snap.data.virtualization ?? [], docker = snap.data.containers ?? [];
-  if (!snap.health) return services.length || virt.length || docker.length ? <div className="py-1"><InfraCards virt={virt} docker={docker} services={services} /><Empty>{tx("Santé pas encore relevée.")}</Empty></div> : <Empty>{tx("Santé pas encore relevée.")}</Empty>;
+  const services = snap.data.services_status ?? [], docker = snap.data.containers ?? [];   // hypervisors and PBS: Virtualization tab
+  if (!snap.health) return services.length || docker.length ? <div className="py-1"><InfraCards docker={docker} services={services} /><Empty>{tx("Santé pas encore relevée.")}</Empty></div> : <Empty>{tx("Santé pas encore relevée.")}</Empty>;
   return (
     <div className="py-1">
       <FilterBar f={f} placeholder={tx("Machine, disque, service en échec…")}
@@ -215,7 +215,7 @@ export function Health({ snap, initial }: { snap: Snapshot; initial?: Selected }
           )}
           <span className="text-xs text-dim">{tx("relevé du")} {dateTime(snap.health.timestamp)}</span>
         </>} />
-      <InfraCards virt={virt} docker={docker} services={services} />
+      <InfraCards docker={docker} services={services} />
       {f.shown.length === 0 && !asleep.length ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (() => {
         const groups = ACCESS.map(([key, title]) => ({ key, title, hosts: f.shown.filter((h) => accessOf(h) === key), asleep: key === "agent" ? asleep : [] }))   // a PC that is off is known by its agent
           .filter((g) => g.hosts.length || g.asleep.length);

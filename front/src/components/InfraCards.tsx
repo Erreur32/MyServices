@@ -1,8 +1,8 @@
-// Proxmox (VE et Backup Server) et Dockhand : ce que chaque connecteur lit, en cartes sous la barre de recherche de l'onglet Santé.
-import { Boxes, Container, HardDrive, Server } from "lucide-react";
+// Dockhand et les services lus par leur API : cartes sous la barre de recherche de l'onglet Santé. PbsCard sert à l'onglet Virtualisation
+// (les hyperviseurs y sont aussi, plus dans Santé).
+import { Boxes, Container, HardDrive } from "lucide-react";
 import type { ContainersConnector, ServiceStatus, VirtualizationConnector } from "../types";
 import { appIcon } from "../lib/appIcons";
-import { dateTime, dur } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { Badge, Count, Dim, Fill } from "./ui";
 import { ServiceCard } from "./ServiceStatusCards";
@@ -28,49 +28,6 @@ export function CardHead({ c, icon, kind }: { c: { label: string; url?: string |
       </header>
       {c.stale && <p className="mx-4 mt-2 text-xs text-warn">{tx("relevé périmé : dernier état connu")}</p>}
     </>
-  );
-}
-
-function Pve({ c }: { c: VirtualizationConnector }) {
-  const t = c.totals, guests = (c.guests ?? []).filter((g) => !g.template);
-  return (
-    <article className={`flex flex-col overflow-hidden rounded-2xl border bg-card pb-3 shadow-sm ${c.ok ? "border-line" : "border-bad/40"}`}>
-      <CardHead c={c} kind={tx("Virtualisation")} icon={<Server size={20} className="text-muted" aria-hidden />} />
-      {!c.ok && !c.stale ? <p className="mx-4 mt-3 rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{c.message}</p> : (
-        <div className="px-4">
-          {t && <p className="mt-3 text-sm text-muted">{t.vm} {tx("VM")} · {t.lxc} {tx("conteneurs LXC")} · <b className="text-ok">{t.running} {tx("en marche")}</b>{t.stopped > 0 && <> · {t.stopped} {tx("arrêtés")}</>}</p>}
-          {(c.nodes ?? []).length > 0 && (
-            <ul className="mt-2 flex flex-col gap-1.5 text-sm">
-              {c.nodes!.map((n) => (
-                <li key={n.name} className="flex flex-wrap items-center gap-2">
-                  <Badge tone={n.online ? "ok" : "bad"}>{n.online ? tx("en ligne") : tx("hors ligne")}</Badge><b>{n.name}</b>
-                  {n.cpu_pct != null && <Dim>{tx("CPU")} {Math.round(n.cpu_pct)} %</Dim>}{n.mem_pct != null && <Dim>· {tx("mémoire")} {Math.round(n.mem_pct)} %</Dim>}
-                  {n.uptime ? <Dim>· {tx("en marche depuis")} {dur(n.uptime)}</Dim> : null}
-                </li>
-              ))}
-            </ul>
-          )}
-          {(c.storage ?? []).filter((s) => s.used_pct != null).length > 0 && (
-            <div className="mt-3 flex flex-col gap-1.5">
-              {c.storage!.filter((s) => s.used_pct != null).map((s) => (
-                <div key={`${s.node}/${s.name}`} className="text-xs"><div className="flex justify-between text-muted"><span><HardDrive size={11} className="mr-1 inline" aria-hidden />{s.name}{s.node && <Dim> · {s.node}</Dim>}</span><span>{s.used_pct} %</span></div><Fill pct={s.used_pct!} tone={tone(s.used_pct)} /></div>
-              ))}
-            </div>
-          )}
-          {c.backups && <p className={`mt-3 text-sm ${c.backups.ok ? "text-muted" : "text-warn"}`}>{tx("Dernière sauvegarde :")} {dateTime(c.backups.last * 1000)} · {c.backups.ok ? tx("réussie") : tx("en échec")}{c.backups.failed_recent > 0 && ` · ${c.backups.failed_recent} ${tx("échec(s) récents")}`}</p>}
-          {guests.length > 0 && (
-            <details className="mt-2 text-sm">
-              <summary className="cursor-pointer text-muted hover:text-txt">{tx("Voir les VM et conteneurs")} · {guests.length}</summary>
-              <ul className="mt-1 flex flex-col gap-0.5 text-muted">
-                {guests.slice(0, 60).map((g) => (
-                  <li key={g.vmid} className="flex flex-wrap items-baseline gap-2"><Badge tone={g.status === "running" ? "ok" : "off"}>{g.status === "running" ? tx("en marche") : tx("arrêté")}</Badge><span className="text-txt">{g.name || g.vmid}</span><Dim>{g.type === "lxc" ? "LXC" : "VM"} {g.vmid}{g.node && ` · ${g.node}`}</Dim></li>
-                ))}
-              </ul>
-            </details>
-          )}
-        </div>
-      )}
-    </article>
   );
 }
 
@@ -141,15 +98,14 @@ export function DockhandCard({ c }: { c: ContainersConnector }) {
   );
 }
 
-/** One section, one grid, one card shape: virtualisation, containers and the services read through their API (Home Assistant, Frigate, Prometheus…). */
-export function InfraCards({ virt, docker, services }: { virt: VirtualizationConnector[]; docker: ContainersConnector[]; services: ServiceStatus[] }) {
-  const n = virt.length + docker.length + services.length;
+/** One section, one grid, one card shape: containers (Dockhand) and the services read through their API (Home Assistant, Nextcloud…). */
+export function InfraCards({ docker, services }: { docker: ContainersConnector[]; services: ServiceStatus[] }) {
+  const n = docker.length + services.length;
   if (!n) return null;
   return (
     <section className="mb-5" aria-label={tx("Services et infrastructure")}>
       <h2 className="mb-2 flex items-center gap-2 border-b border-line/60 pb-1 text-xs font-bold uppercase tracking-wider text-dim"><Boxes size={14} aria-hidden />{tx("Services et infrastructure")} <Count n={n} tone="off" /></h2>
       <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {virt.map((c) => c.connector === "proxmox-backup" ? <PbsCard key={`${c.connector}/${c.name}`} c={c} /> : <Pve key={`${c.connector}/${c.name}`} c={c} />)}
         {docker.map((c) => <DockhandCard key={`${c.connector}/${c.name}`} c={c} />)}
         {services.map((x) => <ServiceCard key={`${x.connector}/${x.name}`} s={x} />)}
       </div>
