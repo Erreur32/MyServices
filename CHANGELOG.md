@@ -11,6 +11,37 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.11.0 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- **Network tab**, shown only when a network source answers: summary tiles; Internet access and gateways (Freebox card and a
+  UniFi card: gateway, version, uptime, equipment online, Wi-Fi and wired clients, updates, built from MynetworK alone or from
+  the UniFi connector); network equipment; clients per access point or switch; devices of the network. Same search and filters
+  as the other tabs (type, state, followed, access point or switch, vendor, source). Freebox and UniFi cards move there from Health.
+- Status connectors: Pulse, Arcane, Glances, GpuViewR (its read-only API, `gvk_` token; its favicon as logo), Speedtest Tracker,
+  NetAlertX, Wazuh, Umami, Rybbit, Tautulli, Webmin (version only), qBittorrent, Transmission, Bazarr, Overseerr / Jellyseerr;
+  Whisparr in the *arr connector.
+- Backups shown as status cards: Backrest, borgmatic (over SSH), UrBackup, Veeam Backup for Microsoft 365; Synology Hyper Backup;
+  TrueNAS replications and cloud sync. The Windows agent (version 7) reads Veeam Agent and Windows Server Backup.
+- Virtualization: Unraid and Proxmox Datacenter Manager connectors; KVM / libvirt, Incus / LXD and VirtualBox read over SSH when
+  found on a machine; Hyper-V read by the Windows agent; TrueNAS SCALE VMs and apps; Synology Virtual Machine Manager.
+- Known apps: agents (Dozzle, Beszel, Arcane, Hawser, Portainer, Pulse, GpuViewR, Wazuh, Zabbix, Checkmk, Komodo…) have no page
+  and never propose a connector; the service sheet says which hub they report to. The Dozzle agent shares the Dozzle image and is
+  told apart by its container port. Processes read over SSH are recognized by name. About forty more apps and their icons.
+- History: an "Event" filter; fail2ban threats, connectors back within an hour and devices found by the scan are hidden by default
+  (kept in the browser, one click shows them); the list groups the threats of a day per jail and the outages of a connector.
+
+### Changed
+
+- Home Assistant card in Health redone: state and core update at the top, gauges of the host machine (System Monitor), entities,
+  unavailable entities and automations on, folded lists of low batteries, unavailable entities and updates.
+- Saving or switching on a connector runs the collection at once; the page says "being read again" instead of keeping the error
+  of the old settings until the next run (a saved token looked refused for up to 30 minutes).
+- App categories all exist in the default list (`IA / LLM` and `Sauvegardes` did not).
+
 ## v0.10.25 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

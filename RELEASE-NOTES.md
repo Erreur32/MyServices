@@ -1,26 +1,33 @@
-# Notes de version : MyServices 0.10.25
+# Notes de version : MyServices 0.11.0
 
 > **Version en ligne, à un stade précoce.** MyServices est utilisable, mais jeune : des écrans et des réglages peuvent encore changer. Gardez une copie de `config/` et `data/` avant de mettre à jour, et laissez-le sur votre réseau local.
 
 
-**0.10.25** (12 octobre 2026) : UniFi relié en direct, Freebox par MynetworK.
+**0.11.0** (12 octobre 2026) : onglet Réseau, une trentaine de connecteurs, Historique plus calme, carte Home Assistant refaite.
 
 ## Pour tout le monde
 
 **Quoi de neuf ?**
-- **UniFi Network en direct**, sans passer par MynetworK. Deux façons de le relier (Réglages → Connecteurs → UniFi Network) :
-  - **console UniFi OS** (UCG, UDM, UX, Cloud Key) : une clé d'API, créée dans Paramètres → Control Plane → Intégrations ;
-  - **contrôleur UniFi en Docker** : il n'a pas de clé d'API, donc un **compte local en lecture seule** (rôle « View Only », sans double authentification), adresse `https://<IP>:8443`, accès « account ».
-  
-  On y voit les appareils en ligne ou non, ceux qui ont une mise à jour, et le nombre de clients. Les clients et appareils UniFi aident aussi à reconnaître vos machines (IP, MAC).
-- **Carte « Freebox (via MynetworK) »** dans Santé : les appareils actifs vus par la Freebox. La ligne, les débits, la température et la durée depuis le dernier redémarrage s'afficheront quand MynetworK proposera cette lecture (à venir de son côté).
+- **Onglet Réseau** (il n'apparaît que si MynetworK, UniFi, la Freebox, OPNsense ou NetAlertX répondent) : la Freebox et UniFi côte à côte en haut (passerelle, version, équipements en ligne, clients, mises à jour), puis les équipements réseau, les clients rangés par borne ou par switch, et tous les appareils vus sur le réseau. Recherche et filtres comme dans les autres onglets.
+- **Nouveaux connecteurs** (Réglages → Connecteurs), proposés tout seuls quand le service est trouvé :
+  - supervision : Pulse, Arcane, Glances, GpuViewR, Wazuh, Webmin, Speedtest Tracker, NetAlertX ;
+  - statistiques web : Umami, Rybbit ;
+  - médias et téléchargement : Tautulli, qBittorrent, Transmission, Bazarr, Overseerr / Jellyseerr, Whisparr ;
+  - sauvegardes : Backrest, borgmatic, UrBackup, Veeam pour Microsoft 365, Hyper Backup (Synology), réplications TrueNAS ;
+  - virtualisation : Unraid, Proxmox Datacenter Manager ; KVM, Incus / LXD et VirtualBox sont lus par SSH sans rien régler.
+- **Agent Windows (version 7)** : il lit aussi Hyper-V, Veeam Agent et la sauvegarde Windows Server. Il se met à jour tout seul si la mise à jour automatique est cochée.
+- **Agents reconnus** : un agent (Dozzle, Beszel, Arcane…) n'est plus pris pour un serveur à relier ; sa fiche dit à quel serveur il envoie ses données.
+- **Historique plus calme** : les menaces fail2ban, les connecteurs revenus en moins d'une heure et les appareils trouvés par le scan sont masqués par défaut (un clic les réaffiche), et les répétitions sont regroupées.
+- **Carte Home Assistant** refaite dans Santé : état et mise à jour en haut, jauges de la machine hôte, entités indisponibles, automatisations, piles faibles.
+- **Corrigé** : après avoir enregistré un connecteur (un nouveau jeton par exemple), la page affichait encore l'ancienne erreur jusqu'à 30 minutes. Le connecteur est maintenant relu tout de suite.
 
 **Mettre à jour** : `docker compose pull`, puis `docker compose up -d` (avec l'image `:latest`). Rien à changer dans le compose.
 
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.10.25` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
-- **Modifié** : `connectors/homelab_infra.py` (UniFi : clé d'API ou compte local), `connectors/mynetwork.py` (Freebox), `matching.py`, `myservices.py`.
-- **Essais** : contre de faux serveurs seulement ; console UniFi OS, contrôleur Docker et Freebox complète restent à essayer en vrai.
-- **Tests** : 534 Python, 98 front.
+- **Image** : `ghcr.io/erreur32/myservices:0.11.0` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
+- **Nouveau** : `connectors/homelab_more.py`, `homelab_downloads.py`, `homelab_backups.py`, `homelab_virt.py`, `virt_ssh.py`, `front/src/tabs/Network.tsx`, `front/src/lib/historyNoise.ts`.
+- **Modifié** : `known_apps.py` (agents, process, ~40 applis), `agents.py` et `health.py` (agent v7), `api.py` (relecture à l'enregistrement), `connectors/home_assistant.py`, `homelab_infra.py` (TrueNAS, Synology).
+- **Essais** : Glances essayé en vrai ; tous les autres contre de faux serveurs construits d'après leur documentation.
+- **Tests** : 578 Python, 105 front.
 - **Détail complet** (en anglais) : [CHANGELOG.md](CHANGELOG.md).

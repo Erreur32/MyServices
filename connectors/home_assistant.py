@@ -144,8 +144,12 @@ class HomeAssistantAPI(Connector):
         low = [(s.get("attributes") or {}).get("friendly_name") or s["entity_id"] for s in states
                if s.get("entity_id", "").startswith("sensor.") and (s.get("attributes") or {}).get("device_class") == "battery"
                and (_num(s.get("state")) is not None and _num(s["state"]) <= 20)]
+        name_of = lambda st: (st.get("attributes") or {}).get("friendly_name") or st["entity_id"]   # noqa: E731
+        autos = [st for st in states if str(st.get("entity_id", "")).startswith("automation.")]
+        gone = sorted(name_of(st) for st in states if st.get("state") == "unavailable" and not str(st.get("entity_id", "")).startswith("update."))
         out = {"version": cfg.get("version"), "name": cfg.get("location_name"), "state": cfg.get("state"),
-               "entities": len(states), "unavailable": unavailable, "batteries_low": sorted(low)[:10],
+               "entities": len(states), "unavailable": unavailable, "unavailable_names": gone[:12], "batteries_low": sorted(low)[:10],
+               "automations": {"on": sum(1 for st in autos if st.get("state") == "on"), "total": len(autos)},
                "updates": sorted(updates, key=lambda u: u["name"].lower())}
         if host := host_sensors(states):
             out["host"] = host

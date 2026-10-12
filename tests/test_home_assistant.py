@@ -85,10 +85,20 @@ class HomeAssistantTests(unittest.TestCase):
         self.assertTrue(st.ok)
         self.assertEqual((st.version, st.version_tested), ("2026.10.1", True))
         self.assertEqual((data["name"], data["state"], data["entities"]), ("Maison", "RUNNING", 6))
+        self.assertEqual((data["automations"], data["unavailable_names"]), ({"on": 0, "total": 0}, []))
         self.assertEqual([u["name"] for u in data["updates"]], ["Core", "Deb13tower Update", "ESPHome", "Studio Code Server"])  # « off » exclue, triées
         self.assertEqual(data["updates"][0], {"name": "Core", "installed": "2026.10.1", "latest": "2026.10.2", "group": "core"})
         self.assertEqual({u["name"]: u["group"] for u in data["updates"]},
                          {"Core": "core", "Deb13tower Update": "other", "ESPHome": "other", "Studio Code Server": "addon"})
+
+    def test_automatisations_et_indisponibles(self):
+        extra = [{"entity_id": "automation.a", "state": "on", "attributes": {}}, {"entity_id": "automation.b", "state": "off", "attributes": {}},
+                 {"entity_id": "sensor.cave", "state": "unavailable", "attributes": {"friendly_name": "Cave"}},
+                 {"entity_id": "update.vieux", "state": "unavailable", "attributes": {}}]
+        STATES.extend(extra)
+        self.addCleanup(lambda: [STATES.remove(x) for x in extra])
+        data, _ = run_isolated(self.conn(), {}, 10)
+        self.assertEqual((data["automations"], data["unavailable"], data["unavailable_names"]), ({"on": 1, "total": 2}, 2, ["Cave"]))   # an update entity is not a lost device
 
     def test_message_du_test(self):
         r = self.conn().test()

@@ -198,6 +198,11 @@ export interface ServiceStatus {
   facts?: { label: string; value: string; tone?: "ok" | "warn" | "bad" }[];  // connecteurs « état d'un service » : chiffres clés
   problems?: string[];                                                       // et ce qui est à regarder
   updates?: { name: string; installed?: string | null; latest?: string | null; group?: "core" | "addon" | "other" }[];
+  // Home Assistant only
+  state?: string | null;                 // RUNNING, NOT_RUNNING, STARTING
+  unavailable?: number; unavailable_names?: string[]; batteries_low?: string[];
+  automations?: { on: number; total: number };
+  host?: { cpu?: number | null; mem_pct?: number | null; temp?: number | null; disks?: { mount: string; used_pct: number; size_gb?: number; used_gb?: number }[]; ips?: string[]; boot?: string | null };
 }
 
 /** Connecteur à proposer : appli reconnue sur une machine, pas encore réglée (known_apps.py) */
