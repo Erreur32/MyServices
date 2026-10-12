@@ -11,6 +11,37 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.14 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- Virtualization tab (shown when a hypervisor or Dockhand is there): each host with its CPU, memory and storages, and a table of
+  its VMs and containers: state, resources, uptime, the followed machine they are, the age of their followed vzdump backup and
+  their Docker containers (SSH count, Dockhand environment and pending image updates). Proxmox Backup Server and Dockhand cards
+  below.
+- Proxmox VE read by SSH (pvesh, read only) at each collection, without an API token; a host already read by the proxmox
+  connector is left to it.
+- VMware ESXi read by SSH (vim-cmd and esxcli, read only): host CPU and memory, datastores, each VM with its guest OS and the IP
+  and hostname given by VMware Tools. Its health skips the Linux checks. The SSH guide gives the command for root's key on ESXi.
+- vcenter connector (REST API, Read-only account; vCenter 7 U2+ and the older /rest API of 6.7 / 7.0): hosts, VMs per host,
+  guest identity, datastores. The session is closed after each reading. An ESXi already listed by a vCenter is not read twice.
+- Backups: Proxmox VE dumps (vzdump without Proxmox Backup Server) followed per VM or container, in Settings -> Backups. The
+  dump folders of the backup storages are found by SSH; .log and .notes files are left aside; a dump on a network storage
+  counts as off the machine; copies made by rsync to a NAS are declared or found with "Find the copies".
+- Machines tab: a Follow button on each device seen by MynetworK and not followed; the detail shows its open ports, first and
+  last sighting and ping.
+- Alerts: "new device on the network" (MynetworK, keyed by MAC, the first reading taken as the reference), "VM or container
+  stopped" / started again and "storage nearly full" (90 %), confirmed on two runs. Added to the inventory and offline
+  example rules of new installs.
+- Icons: VMware ESXi, vCenter, Free, Freebox, Western Digital, a NAS icon (instead of a plain drive), Plex redrawn.
+
+### Fixed
+
+- Settings -> Machines: a role tag added or removed showed again the old tags after closing the card or changing tab, until the
+  next collection or a page reload. The server now publishes the name and tags at once and the page re-reads them.
+
 ## v0.10.13 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
