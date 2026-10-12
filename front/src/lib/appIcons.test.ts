@@ -15,8 +15,9 @@ it("connaît Docker et Nginx", () => {
     expect(appIcon(["Nginx"])).toMatch(/icons\/nginx\.svg$/);
   });
   it("prend la première appli qui a une icône ; rien sinon", () => {
-    expect(appIcon(["Healthchecks", "UniFi"])).toMatch(/icons\/unifi\.svg$/);
-    expect(appIcon(["Healthchecks"])).toBeNull();
+    expect(appIcon(["Gotify", "UniFi"])).toMatch(/icons\/unifi\.svg$/);
+    expect(appIcon(["Gotify"])).toBeNull();
+    for (const [n, f] of [["Healthchecks", "healthchecks"], ["CrowdSec", "crowdsec"], ["Technitium DNS", "technitium"], ["Onduleur (NUT)", "nut"], ["Nextcloud", "nextcloud"]]) expect(appIcon([n])).toMatch(new RegExp(`icons/${f.replace(/[()]/g, "")}\\.svg$`));
     expect(appIcon(undefined)).toBeNull();
   });
 });

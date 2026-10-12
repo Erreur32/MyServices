@@ -10,7 +10,8 @@ const FILES: Record<string, string> = {
   jellyfin: "jellyfin", netdata: "netdata", prometheus: "prometheus",
   "web-check": "web-check", webcheck: "web-check", veeam: "veeam", "veeam backup & replication": "veeam",
   "vmware vcenter": "vcenter", vcenter: "vcenter", "vmware esxi": "vmware-esxi", esxi: "vmware-esxi", vmware: "vmware-esxi",
-  nextcloud: "nextcloud", freebox: "freebox", "western digital": "wd", "wd my cloud": "wd", mycloud: "wd",
+  nextcloud: "nextcloud", freebox: "freebox", healthchecks: "healthchecks", crowdsec: "crowdsec", "technitium dns": "technitium", technitium: "technitium",
+  "onduleur (nut)": "nut", nut: "nut", "network ups tools": "nut", "western digital": "wd", "wd my cloud": "wd", mycloud: "wd",
 };
 
 /** Adresse de l'icône de la première appli reconnue qui en a une, sinon null */

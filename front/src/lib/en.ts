@@ -1611,6 +1611,7 @@ export const EN: Record<string, string> = {
   "gardée(s)": "kept",
   "Tous les groupes sont déjà suivis.": "All groups are already followed.",
   "Fermer la liste": "Close the list",
+  "Onduleur (NUT)": "UPS (NUT)",
   "Bureau à distance (RDP)": "Remote desktop (RDP)",
   "API Docker sans TLS": "Docker API without TLS",
   "MQTT sans TLS": "MQTT without TLS",

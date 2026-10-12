@@ -128,3 +128,7 @@ a7b49eed8eb296914b44f25747b7f539  front/public/favicon.svg
 a6b2be085da7cce27a1955ba6e0f895e  front/public/icons/plex.svg
 c5ff2174a296f582fdf694bbd577857d  front/public/icons/free.svg
 ed2ffc7328dc47e837f16c7355740026  front/public/icons/nas.svg
+05eba98bd3ebbd7dc8a9c99b471d9061  front/public/icons/technitium.svg
+5b4a46732e9b05545379ef2653f671fc  front/public/icons/healthchecks.svg
+c2eabe5828399d3bc8a0ee13975294c1  front/public/icons/nut.svg
+c7c4c99264d4849f2e2d6bbc7cf73eeb  front/public/icons/crowdsec.svg
