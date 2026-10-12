@@ -1,6 +1,6 @@
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LOGIN, LoginRequired, NotConfigured, loadSnapshot, logout, type Snapshot } from "./api";
+import { LOGIN, LoginRequired, NotConfigured, RELOAD_EVENT, loadSnapshot, logout, type Snapshot } from "./api";
 import { Header } from "./components/Header";
 import { FirstSteps } from "./components/FirstSteps";
 import { Home } from "./components/Home";
@@ -61,7 +61,8 @@ export default function App() {
     const id = setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);   // rien quand l'onglet est masqué
     const onHash = () => { setTab(tabFromHash()); setHash(location.hash); };
     addEventListener("hashchange", onHash);
-    return () => { clearInterval(id); removeEventListener("hashchange", onHash); };
+    addEventListener(RELOAD_EVENT, load);
+    return () => { clearInterval(id); removeEventListener("hashchange", onHash); removeEventListener(RELOAD_EVENT, load); };
   }, [load]);
 
   const go = (t: TabId) => { location.hash = t === "home" ? "" : t; setTab(t); setPending((f) => ({ tab: "home", sel: {}, n: f.n })); scrollTo({ top: 0 }); };

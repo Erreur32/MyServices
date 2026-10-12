@@ -557,9 +557,11 @@ def machines_redetect(request: Request, body: RedetectBody | None = None):
 
 @app.put(API + "/machines/settings/{ip}", tags=["machines"], summary="Ajouter ou modifier une machine (admin)")
 def machines_save(ip: str, body: MachineConf, request: Request):
-    return machine_call(request, "machine enregistrée", ip,
-                        lambda m: {"ok": True, "machine": m.save(ip, body.machine, body.process, body.extra),
-                                   "message": "enregistrée : prise en compte au prochain passage de la collecte"})
+    def go(m):
+        saved = m.save(ip, body.machine, body.process, body.extra)
+        m.publish(ip, saved)   # name and tags shown by the pages right away, not after the next collection
+        return {"ok": True, "machine": saved, "message": "enregistrée : prise en compte au prochain passage de la collecte"}
+    return machine_call(request, "machine enregistrée", ip, go)
 
 
 class AliasBody(BaseModel):

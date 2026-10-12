@@ -5,7 +5,7 @@
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
 import { ArrowRight, Check, ChevronDown, ChevronRight, IdCard, KeyRound, Loader2, Monitor, Plus, Radar, RefreshCw, Server, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
+import { LOGIN, LoginRequired, read, refreshSnapshot, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch, TagInput } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
@@ -487,6 +487,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
     if (key === "disabled") onFollow?.(!next.disabled);
     setV((x) => ({ ...x, ...next })); if (key === "proc") setProc(nextProc);
     if (refresh) refreshState();  // un réglage changé (accès, options) : cette machine est relue tout de suite, pas au prochain horaire
+    onDone();            // the card list re-reads the saved settings: a tag added or removed stays after closing and reopening the card
+    refreshSnapshot();   // name and tags already published by the server: the other tabs show them now
     setFlash(key); setTimeout(() => setFlash((f) => (f === key ? "" : f)), 1800);
   };
   // Machine virtuelle détectée sur une machine déjà enregistrée : « Machine virtuelle » se coche toute seule, une fois par machine

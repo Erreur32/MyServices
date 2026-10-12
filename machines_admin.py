@@ -17,6 +17,7 @@ import io
 import time
 import ipaddress
 import json
+import os
 import re
 import socket
 import subprocess
@@ -341,6 +342,30 @@ def save(ip: str, m: dict, process: bool | None = None, extra: list[dict] | None
     with contextlib.redirect_stdout(io.StringIO()):
         setup.save(setup.META, meta)
     return machines[ip]
+
+
+def publish(ip: str, m: dict) -> None:
+    """Name and role tags written into the published data.json at once, so the pages show them without waiting for the next
+    collection (which rewrites the whole file from services-meta.json anyway). Nothing to do before the first collection."""
+    import config
+    p = Path(config.CFG["web_dir"]) / "data.json"
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    hit = False
+    for x in data.get("machine_list") or []:
+        if x.get("ip") == ip:
+            x["name"], x["role"], hit = m.get("name") or x.get("name"), m.get("role") or "", True
+    if ip in (data.get("machines") or {}):
+        data["machines"][ip].update(name=m.get("name") or data["machines"][ip].get("name"), role=m.get("role") or "")
+        hit = True
+    if not hit:
+        return
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    os.chmod(tmp, p.stat().st_mode & 0o777)
+    tmp.replace(p)
 
 
 def expire_inventory(ip: str | None = None) -> None:

@@ -99,6 +99,12 @@ export async function read<T>(path: string): Promise<T> {
   return (await get<T>(`api/v1/${path}`))!;
 }
 
+/** Asks the page to read data.json again now (after a change the server already published), instead of at the next minute */
+export const RELOAD_EVENT = "ms-reload";
+export function refreshSnapshot(): void {
+  dispatchEvent(new Event(RELOAD_EVENT));
+}
+
 export async function logout(): Promise<void> {
   await fetch(`${ROOT}api/v1/logout`, { method: "POST", headers: { "X-CSRF-Token": csrf() } }).catch(() => undefined);
   location.href = LOGIN;
