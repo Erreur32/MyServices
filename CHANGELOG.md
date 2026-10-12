@@ -31,6 +31,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Services and Health, unfolded detail: the same coloured sections as Machines (shared component), the health source in the
   title band.
 - Machines, Services and Health: an unfolded row or card gets a full blue frame.
+- Settings menu: a category frame glows blue on hover instead of losing its border; the grey card border no longer
+  vanishes on hover for frames without a hover colour of their own.
 - Machines tab, Servers column: two icons at most, then a "+N" pill; all of them in the unfolded detail.
 - Settings -> Machines: a refused save shows its reason next to the field instead of only at the bottom of the card.
 

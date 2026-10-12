@@ -12,6 +12,7 @@
 - **Accès SSH comme dans la première version**, sur une ligne : logo SSH, compte, IP et port (en plein s'il n'est pas 22). Dans l'onglet Machines, et dans Réglages → Machines (carte et cadre « Accès SSH »).
 - **Détails dépliés en couleur** sur Machines, Services et Santé : une couleur par rubrique, la colonne des libellés sur fond teinté, la source dans la bande de titre.
 - **Cadre bleu** autour de la ligne ou de la carte ouverte.
+- **Menu des Réglages** : au survol, le cadre de la catégorie s'illumine en bleu au lieu de perdre sa bordure.
 - **Colonne Serveurs** (Machines) : deux icônes au plus, puis « +N » ; toutes dans le détail.
 - Réglages → Machines : si un enregistrement est refusé, la raison s'affiche à côté du champ.
 

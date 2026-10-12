@@ -81,7 +81,7 @@ export function Settings({ snap, look }: { snap: Snapshot; look: Look }) {
     <div className="flex flex-col gap-4 py-4 md:flex-row">
       <nav className="flex shrink-0 gap-3 overflow-x-auto md:w-60 md:flex-col md:overflow-visible" aria-label={tx("Sections des réglages")}>
         {GROUPS.map((g) => (
-          <div key={g.label} role="group" aria-label={g.label} className="flex shrink-0 gap-1 rounded-xl border border-line bg-card/60 p-1.5 md:flex-col">
+          <div key={g.label} role="group" aria-label={g.label} className="flex shrink-0 gap-1 rounded-xl border border-line bg-card/60 p-1.5 transition-[border-color,box-shadow] duration-200 hover:border-link/70 hover:shadow-[0_0_12px_rgb(var(--link)/0.35)] md:flex-col">
             <p className="hidden px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-widest text-dim md:block">{g.label}</p>
             {g.sections.map((s) => {
               const on = s.id === section, todo = s.id === "network" && !!disc && disc.todo > 0;

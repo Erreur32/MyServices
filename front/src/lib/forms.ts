@@ -34,4 +34,4 @@ export const OPEN_DETAIL = "[&>td]:shadow-[inset_2px_-2px_0_rgb(var(--link)),ins
 /** Unfolded card: full blue frame (wins over GREY_CARDS) */
 export const OPEN_CARD = "!border-link ring-1 ring-link";
 
-export const GREY_CARDS = "[&_.rounded-xl.border-line:not(:hover):not(.border-l-4)]:border-dim/50 [&_.rounded-2xl.border-line:not(:hover):not(.border-l-4)]:border-dim/50";
+export const GREY_CARDS = "[&_:where(.rounded-xl.border-line:not(.border-l-4))]:border-dim/50 [&_:where(.rounded-2xl.border-line:not(.border-l-4))]:border-dim/50";
