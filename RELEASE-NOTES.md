@@ -1,34 +1,27 @@
-# Notes de version : MyServices 0.10.22
+# Notes de version : MyServices 0.10.23
 
 > **Version en ligne, à un stade précoce.** MyServices est utilisable, mais jeune : des écrans et des réglages peuvent encore changer. Gardez une copie de `config/` et `data/` avant de mettre à jour, et laissez-le sur votre réseau local.
 
 
-**0.10.22** (12 octobre 2026) : nouvel onglet Sécurité.
+**0.10.23** (12 octobre 2026) : alertes Nextcloud, Santé sans les cartes de virtualisation.
 
 ## Pour tout le monde
 
 **Quoi de neuf ?**
-- **Onglet Sécurité** (il remplace l'onglet Fail2ban), en lecture seule, sans score : des faits.
-  - **Résumé** : bannissements sur 24 h, menaces actives, sites publics à renforcer, machines qui acceptent root ou les mots de passe en SSH, appareils avec un port sensible.
-  - **Fail2ban** (LogviewR) : prisons, derniers bannissements, et le détail des **menaces actives** (une IP qui passe d'une prison à l'autre, ou une campagne venue d'un même réseau) avec leurs IP et leurs prisons.
-  - **Sites exposés à Internet** : les hôtes NPM sans liste d'accès, avec ce qui leur manque (HTTPS non forcé, pas de HSTS, « Block exploits » coupé, certificat bientôt expiré, en-têtes faibles).
-  - **Certificats** (déplacés ici depuis Historique → Disponibilité).
-  - **Accès SSH des machines** : root et mot de passe autorisés ou non, connexions refusées sur 24 h.
-  - **Ports sensibles** vus par MynetworK : Telnet, FTP, SMB, bureau à distance, VNC, bases de données, API Docker sans TLS.
-- **Nouvelle alerte « Nouvelle menace »** (LogviewR) : une fois par menace, la première lecture sert de référence.
+- **Alertes Nextcloud** : une alerte quand un point à regarder apparaît (mise à jour de Nextcloud ou d'une appli, liens publics sans mot de passe, moins de 10 Go libres, mode debug), une seule fois, pas à chaque changement de chiffre. Nouvelle règle d'exemple « Nextcloud (mises à jour, liens publics, espace) ».
 
-**Corrigé**
-- Le réglage SSH par défaut « prohibit-password », sûr, était affiché comme risqué.
+**Changé**
+- **Santé** n'affiche plus les cartes Proxmox, ESXi, vCenter et Proxmox Backup : elles étaient en double avec l'onglet Virtualisation. Santé garde Dockhand et les services lus par leur API (Home Assistant, Nextcloud…).
 
 **Mettre à jour** : `docker compose pull`, puis `docker compose up -d` (avec l'image `:latest`). Rien à changer dans le compose.
 
 **Ce qu'il faut savoir**
-- Sur une installation existante, la nouvelle alerte n'est pas cochée toute seule : Réglages → Alertes.
+- Sur une installation existante, l'alerte Nextcloud n'est pas cochée toute seule : Réglages → Alertes (ou ajoutez la règle d'exemple).
 
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.10.22` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
-- **Ajouté** : `tabs/Security.tsx` (remplace `Fail2ban.tsx`), `components/Certificates.tsx` ; `connectors/logviewr.cluster()` (champs sûrs des menaces) ; genre d'alerte `menace` (`watcher.threat_snaps` / `diff_threats`).
-- **Corrigé** : `lib/ssh.risky()` ignore la mention « (défaut) ».
-- **Tests** : 525 Python, 98 front.
+- **Image** : `ghcr.io/erreur32/myservices:0.10.23` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
+- **Ajouté** : `checks` [{key, text}] dans la réponse du connecteur Nextcloud ; genre d'alerte `nextcloud` (`watcher.nextcloud_snaps` / `diff_nextcloud`).
+- **Front** : `InfraCards` ne prend plus les lignes de virtualisation.
+- **Tests** : 526 Python, 98 front.
 - **Détail complet** (en anglais) : [CHANGELOG.md](CHANGELOG.md).

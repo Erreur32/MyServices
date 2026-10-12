@@ -11,6 +11,21 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.23 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- Alert "Nextcloud to look at": once when a point appears (Nextcloud or app update, public links without password, free space
+  under 10 GiB, debug mode), not when its figures change; the first reading is the reference. New example rule "Nextcloud
+  (updates, public links, space)".
+
+### Changed
+
+- Health no longer shows the Proxmox, ESXi, vCenter and Proxmox Backup cards: they are in the Virtualization tab. Health keeps
+  Dockhand and the services read through their API.
+
 ## v0.10.22 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
