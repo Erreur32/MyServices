@@ -19,4 +19,14 @@ def drop_root() -> None:
     os.environ.update(HOME=HOME, USER="myservices")
     with open("/proc/self/cmdline", "rb") as f:   # the exact command line (sys.argv loses the code of « python3 -c »)
         argv = [x.decode() for x in f.read().split(b"\0") if x]
-    os.execvp("setpriv", ["setpriv", f"--reuid={UID}", f"--regid={UID}", "--clear-groups", "--inh-caps=-all", *argv])
+    caps = "-all,+net_raw" if _has_net_raw() else "-all"   # as the app (entrypoint.sh): ping needs it on some hosts
+    os.execvp("setpriv", ["setpriv", f"--reuid={UID}", f"--regid={UID}", "--clear-groups", f"--inh-caps={caps}", f"--ambient-caps={caps}", *argv])
+
+
+def _has_net_raw() -> bool:
+    try:
+        with open("/proc/self/status") as f:
+            prm = next(line.split()[1] for line in f if line.startswith("CapPrm:"))
+    except (OSError, StopIteration):
+        return False
+    return bool(int(prm, 16) >> 13 & 1)

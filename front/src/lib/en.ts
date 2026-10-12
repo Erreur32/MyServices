@@ -11,6 +11,18 @@ export const SAME = new Set([
 ]);
 
 export const EN: Record<string, string> = {
+  "Veille": "Watch",
+  "Journaux du conteneur": "Container logs",
+  "Arrêter de suivre les nouvelles lignes": "Stop following new lines",
+  "Suivre les nouvelles lignes (relu toutes les 5 s)": "Follow new lines (read every 5 s)",
+  "Pause": "Pause",
+  "Télécharger (.txt)": "Download (.txt)",
+  "Le même texte que « docker compose logs myservices » : le serveur et la sortie de chaque tâche, depuis le démarrage du conteneur ({0}), {1} dernières lignes au plus.": "The same text as “docker compose logs myservices”: the server and the output of each task, since the container started ({0}), last {1} lines at most.",
+  "Les actions des comptes sont dans le Journal d'audit.": "Account actions are in the Audit log.",
+  "Erreurs et avertissements ({0})": "Errors and warnings ({0})",
+  "Chercher dans les journaux": "Search the logs",
+  "Aucune ligne.": "No line.",
+  "Journaux": "Logs",
   " ; à nettoyer : {0} (désactivées dont le service est mort, ou en pause).": "; to clean up: {0} (disabled with a dead service, or paused).",
   " ; à vérifier : {0}.": "; to check: {0}.",
   " · {0} actif": " · {0} running",

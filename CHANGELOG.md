@@ -11,6 +11,12 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+- **Settings → Logs**: what the container prints (the same text as `docker compose logs myservices`): the server and the output of each task, since the container started, last 3000 lines. Filter by origin (server, collection, watch, health, backups), errors and warnings only, text search; follows new lines every 5 s (pause on scroll), download as `.txt`. Route `GET /api/v1/system/logs?after=N` (admin). `applog.py` keeps the lines in memory; nothing is written to disk.
+
+### Fixed
+- **Network search found 0 device on some hosts**: where unprivileged ping is turned off (`net.ipv4.ping_group_range` = `1 0`, the kernel default kept by some NAS and distributions), ping was refused to the app and every address looked down, with no message. The app now keeps `NET_RAW` alone (and nothing else) when the compose gives it: add `NET_RAW` to `cap_add` (done in `deploy/compose.example.yaml`). Without it, the search now says why instead of showing 0 device.
+
 ## v0.10.6 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

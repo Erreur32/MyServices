@@ -1166,6 +1166,12 @@ def backups_unfollow(set_id: str, request: Request):
     return backups_call(request, "sauvegarde retirée", set_id, go)
 
 
+@app.get(API + "/system/logs", tags=["système"], summary="Journal du conteneur depuis son démarrage, comme docker logs (admin)")
+def system_logs(request: Request, after: int = 0):
+    import applog
+    return admin_only(request) or JSONResponse(applog.lines(max(after, 0)), headers={"Cache-Control": "no-store"})
+
+
 @app.post(API + "/system/tasks/{name}/run", tags=["système"], summary="Lancer une tâche maintenant (admin)")
 def system_run(name: str, request: Request):
     if denied := admin_write(request):

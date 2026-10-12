@@ -13,7 +13,8 @@
 # instead, in a ".env" file next to this one (echo 'MYSERVICES_PORT=8095' > .env). Check first that it is free: ss -ltnp | grep 8095
 #
 # Rights: the app always runs as the account 10001, never root. The container starts as root only to give ./config and ./data
-# to that account (folders created by Docker belong to root otherwise), then drops to it with no capability left.
+# to that account (folders created by Docker belong to root otherwise), then drops to it, keeping NET_RAW alone so that ping
+# works on every host (without it, hosts where unprivileged ping is off would show 0 device in the network search).
 # One container only: no "init" service. Coming from a compose that had one: docker compose up -d --remove-orphans.
 #
 # No Docker socket: the host machine is read over SSH like the others (alias "hote", created at startup).
@@ -47,7 +48,7 @@ services:
     tmpfs:
       - /tmp
     cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]   # used by the start only; the app keeps none
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID, NET_RAW]   # the start uses them; the app keeps NET_RAW only (ping)
     security_opt:
       - no-new-privileges:true
     logging:

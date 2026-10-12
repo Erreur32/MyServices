@@ -535,6 +535,8 @@ def status() -> dict:
 
 
 def main() -> int:
+    import applog
+    applog.install()   # ce que montre docker logs, gardé aussi pour Réglages → Journaux
     WEB.mkdir(parents=True, exist_ok=True)
     Path(PROGRESS).parent.mkdir(parents=True, exist_ok=True)
     try:

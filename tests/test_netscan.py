@@ -230,6 +230,20 @@ class Auto(unittest.TestCase):
         self.assertFalse(netscan.due(self.file, 0, now=10 ** 9))
 
 
+class Denied(unittest.TestCase):
+    """ping refused by the system: a clear error, not « 0 device »."""
+
+    def test_ping_refuse_donne_une_erreur(self):
+        from unittest import mock
+        refused = mock.Mock(returncode=2, stdout="", stderr="ping: socket: Operation not permitted\n")
+        with mock.patch.object(netscan.subprocess, "run", return_value=refused):
+            with self.assertRaises(netscan.PingDenied):
+                netscan._ping("10.0.0.1")
+        down = mock.Mock(returncode=1, stdout="", stderr="")
+        with mock.patch.object(netscan.subprocess, "run", return_value=down):
+            self.assertFalse(netscan._ping("10.0.0.1"))       # simply no answer: down, no error
+
+
 class Run(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

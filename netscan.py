@@ -51,9 +51,19 @@ _known: set[str] = set()
 _ttls: dict[str, int] = {}  # TTL de la réponse au ping, par adresse : 128 Windows, 64 Linux / macOS / Android, 255 matériel réseau
 
 
+class PingDenied(Exception):
+    """ping refusé par le système (ni droit NET_RAW ni ping_group_range) : toutes les adresses sembleraient éteintes."""
+
+
+PING_DENIED = ("ping refusé dans le conteneur : ajouter NET_RAW à cap_add dans le compose (voir deploy/compose.example.yaml), "
+               "ou autoriser le ping sans droits sur l'hôte (sysctl net.ipv4.ping_group_range=\"0 2147483647\")")
+
+
 def _ping(ip: str) -> bool:
     r = subprocess.run(["ping", "-c1", "-W1", ip], capture_output=True, text=True)
     if r.returncode:
+        if "not permitted" in r.stderr or "cap_net_raw" in r.stderr:
+            raise PingDenied(PING_DENIED)
         return False
     if m := re.search(r"ttl=(\d+)", r.stdout, re.I):
         _ttls[ip] = int(m.group(1))
@@ -322,6 +332,9 @@ def _run(hosts: list[str], net: str, ping=_ping, describe=None, discreet: bool =
     quiet = {"ttl": lambda ip: None, "vendor": lambda ip: None} if discreet else {}  # mode discret : ni TTL ni MAC
     try:
         _scan(hosts, ping, describe or (lambda ip, ports=ssh_ports(): _describe(ip, ssh=ports, **quiet)))
+    except PingDenied as e:
+        with _lock:
+            _state["error"] = str(e)
     except Exception as e:  # noqa: BLE001 : le passage ne doit jamais faire tomber le serveur
         with _lock:
             _state["error"] = f"{type(e).__name__}: {e}"
