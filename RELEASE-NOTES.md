@@ -1,17 +1,16 @@
-# Notes de version : MyServices 0.10.9
+# Notes de version : MyServices 0.10.10
 
 > **Version en ligne, à un stade précoce.** MyServices est utilisable, mais jeune : des écrans et des réglages peuvent encore changer. Gardez une copie de `config/` et `data/` avant de mettre à jour, et laissez-le sur votre réseau local.
 
 
-**0.10.9** (12 octobre 2026) : des Réglages plus lisibles.
+**0.10.10** (12 octobre 2026) : l'accès SSH s'active tout seul quand la clé marche.
 
 ## Pour tout le monde
 
 **Quoi de neuf ?**
-- **Cartes mieux délimitées dans tous les Réglages** : chaque carte ou cadre sans couleur propre a une bordure grise bien visible ; les cartes colorées (vert, orange, rouge) ne changent pas.
-- **Ce que vous modifiez est encadré en bleu** : le formulaire d'un connecteur (ajout ou modification), la carte du connecteur ou de la machine ouverte, les formulaires d'ajout de machines.
-- **Liste « Ajouter un connecteur » plus contrastée** : bordure grise et fond plus foncé sur chaque carte.
-- **SSH & Agents** : les catégories vides ne s'affichent plus.
+- **Interrupteur SSH activé tout seul** : si une machine a un accès dans la configuration SSH et que la connexion par clé réussit pendant la collecte, son interrupteur « Lecture par SSH » passe tout seul sur Actif (une ligne « SSH activé tout seul… » apparaît dans Réglages → Journaux). Une machine dont la clé est refusée n'est pas touchée.
+- **Couper l'interrupteur est respecté** : la machine n'est alors plus du tout lue par SSH (avant, la collecte continuait avec l'accès trouvé), et elle n'est jamais réactivée toute seule.
+- **SSH & Agents** : une machine déjà lue par SSH n'est plus rangée dans « Sans accès : à régler ».
 
 **Mettre à jour** : `docker compose pull`, puis `docker compose up -d` (avec l'image `:latest`). Rien à changer dans le compose.
 
@@ -20,7 +19,7 @@
 
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.10.9` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
-- **Changé** : seulement le front. Une règle sur la zone des Réglages donne la bordure `dim/50` à toute carte arrondie à bordure neutre (`line`), hors survol.
-- **Tests** : 483 Python, 97 front.
+- **Image** : `ghcr.io/erreur32/myservices:0.10.10` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
+- **Changé** : `machines_admin.adopt_ssh()` appelé par la collecte (`myservices.py`) ; `ssh: false` dans `services-meta.json` = SSH coupé à la main (`SSH_OFF` : ni relevé SSH ni alias affiché).
+- **Tests** : 485 Python, 97 front.
 - **Détail complet** (en anglais) : [CHANGELOG.md](CHANGELOG.md).
