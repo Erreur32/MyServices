@@ -11,6 +11,17 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.10.16 (2026-10-12)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+
+- VMware ESXi refused the app's SSH key even at the right place: ESXi 8 runs sshd in FIPS mode and refuses ed25519 keys. The app
+  now also has an ECDSA P-256 key (created once at start-up), offered after the ed25519 one by every SSH alias it writes (older
+  aliases updated at start-up, others untouched). The command to authorize the key for root puts the ECDSA key in
+  /etc/ssh/keys-root/authorized_keys on ESXi; Settings -> SSH key shows it too.
+
 ## v0.10.15 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
