@@ -70,9 +70,13 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   const isWindows = (ip: string) => isWindowsMachine(machines[ip], liveBy.get(ip), byIp.has(ip));
   const tracked = Object.keys(machines).filter((ip) => !byIp.has(ip) && !machines[ip].disabled);
   const withAgent = sorted([...byIp.keys()]);
-  const without = sorted(tracked.filter((ip) => isWindows(ip) && !machines[ip].ssh));          // PC Windows sans agent
+  // Même état que l'onglet Machines (mState) : « api » = déjà lue par l'API d'un connecteur (Home Assistant…), sans SSH, rien à régler
+  const stateOf = (ip: string) => { const lm = liveBy.get(ip); return lm ? mState(lm) : null; };
+  const badge = (ip: string) => { const st = stateOf(ip); if (!st) return null; const [tone, label, tip] = MSTATE[st]; return <Badge tone={tone} title={tip}>{label}</Badge>; };
+  const byApi = sorted(tracked.filter((ip) => !machines[ip].ssh && stateOf(ip) === "api"));   // lues par une API, sans SSH
+  const without = sorted(tracked.filter((ip) => isWindows(ip) && !machines[ip].ssh && !byApi.includes(ip)));   // PC Windows sans agent
   const ssh = sorted(tracked.filter((ip) => !isWindows(ip) && !!machines[ip].ssh));           // Linux lus par SSH
-  const noAccess = sorted(tracked.filter((ip) => !isWindows(ip) && !machines[ip].ssh));       // ni agent possible ni SSH
+  const noAccess = sorted(tracked.filter((ip) => !isWindows(ip) && !machines[ip].ssh && !byApi.includes(ip)));   // ni agent possible, ni SSH, ni API
   const local = /^https?:\/\/(localhost|127\.|\[::1\])/i.test(url);
 
   const addressField = (
@@ -172,6 +176,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
                 <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
                 <span className="block truncate text-xs text-dim">{ip}{machines[ip].off ? ` · ${tx("souvent éteinte")}` : ""}</span>
               </span>
+              {badge(ip)}
               <Plus size={15} className="shrink-0 text-dim" aria-hidden />
             </button>
           </li>
@@ -182,7 +187,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         hint={tx("L'accès SSH se règle avec la machine : cliquez sur une carte pour ouvrir ses réglages.")}
         empty={tx("Aucune machine Linux lue par SSH pour l'instant : activez « Lecture par SSH » dans Réglages → Machines.")}>
         {ssh.map((ip) => {
-          const lm = liveBy.get(ip), s = lm ? MSTATE[mState(lm)] : null;
+          const lm = liveBy.get(ip);
           return (
             <li key={ip}>
               <a href={`#settings/machines/${ip}`} className="flex h-full items-center gap-3 rounded-xl border border-line bg-bg2/60 p-3 transition-colors hover:border-link hover:bg-link/10">
@@ -191,7 +196,28 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
                   <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
                   <span className="block truncate text-xs text-dim">{ip} · SSH {machines[ip].ssh}</span>
                 </span>
-                {s && <Badge tone={s[0]} title={s[2]}>{s[1]}</Badge>}
+                {badge(ip)}
+              </a>
+            </li>
+          );
+        })}
+      </Group>
+
+      <Group title={tx("Lues par leur API, sans SSH")} fold n={byApi.length}
+        hint={tx("Déjà connectées par l'API d'un connecteur (Home Assistant…) : rien à régler. Le SSH n'y est pas nécessaire, et souvent pas possible.")}
+        empty={tx("Aucune machine lue seulement par une API.")}>
+        {byApi.map((ip) => {
+          const lm = liveBy.get(ip), list = lm?.api ?? [];
+          return (
+            <li key={ip}>
+              <a href="#settings/connectors" className="flex h-full items-center gap-3 rounded-xl border border-line bg-bg2/60 p-3 transition-colors hover:border-link hover:bg-link/10"
+                title={list.map((a) => `${a.label} (${a.name}) : ${a.message ?? ""}`).join("\n")}>
+                <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
+                <span className="min-w-0 flex-1">
+                  <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
+                  <span className="block truncate text-xs text-dim">{ip} · {list.map((a) => a.label).join(", ")}</span>
+                </span>
+                {badge(ip)}
               </a>
             </li>
           );
@@ -199,7 +225,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
       </Group>
 
       <Group title={tx("Sans accès : à régler")} fold n={noAccess.length}
-        hint={tx("Ni agent possible (pas un PC Windows) ni SSH : activez l'accès SSH dans les réglages de la machine.")}
+        hint={tx("Ni agent possible (pas un PC Windows), ni SSH, ni API : activez l'accès SSH dans les réglages de la machine.")}
         empty={tx("Toutes les machines ont un accès.")}>
         {noAccess.map((ip) => (
           <li key={ip}>
@@ -209,7 +235,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
                 <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
                 <span className="block truncate text-xs text-dim">{ip}{machines[ip].off ? ` · ${tx("souvent éteinte")}` : ""}</span>
               </span>
-              <Badge tone="warn">{tx("Régler l'accès SSH")}</Badge>
+              {badge(ip) ?? <Badge tone="warn">{tx("Régler l'accès SSH")}</Badge>}
             </a>
           </li>
         ))}

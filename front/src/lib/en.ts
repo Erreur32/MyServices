@@ -11,6 +11,9 @@ export const SAME = new Set([
 ]);
 
 export const EN: Record<string, string> = {
+  "Lues par leur API, sans SSH": "Read by their API, without SSH",
+  "Déjà connectées par l'API d'un connecteur (Home Assistant…) : rien à régler. Le SSH n'y est pas nécessaire, et souvent pas possible.": "Already connected through a connector's API (Home Assistant…): nothing to set. SSH is not needed there, and often not possible.",
+  "Aucune machine lue seulement par une API.": "No machine read by an API only.",
   "Afficher la valeur enregistrée (mot de passe du compte demandé)": "Show the saved value (your account password is asked)",
   "Votre mot de passe, pour afficher la valeur enregistrée :": "Your password, to show the saved value:",
   "Veille": "Watch",
@@ -1717,7 +1720,7 @@ export const EN: Record<string, string> = {
   "L'agent est un script PowerShell pour Windows, en lecture seule. « Créer l'agent » génère son jeton (montré une seule fois) et la commande à coller dans un PowerShell administrateur du PC.": "The agent is a read-only PowerShell script for Windows. \"Create the agent\" generates its token (shown once) and the command to paste into an administrator PowerShell on the PC.",
   "Créer l'agent": "Create the agent",
   "Sans accès : à régler": "No access: to set up",
-  "Ni agent possible (pas un PC Windows) ni SSH : activez l'accès SSH dans les réglages de la machine.": "No agent possible (not a Windows PC) and no SSH: turn on SSH access in the machine's settings.",
+  "Ni agent possible (pas un PC Windows), ni SSH, ni API : activez l'accès SSH dans les réglages de la machine.": "No agent possible (not a Windows PC), no SSH, no API: turn SSH access on in the machine's settings.",
   "Toutes les machines ont un accès.": "Every machine has access.",
   "Régler l'accès SSH": "Set up SSH access",
   "Adresse de MyServices invalide : http://hôte:port, sans chemin. Corrigez-la ci-dessous, la commande se met à jour.": "Invalid MyServices address: http://host:port, no path. Fix it below, the command updates.",
