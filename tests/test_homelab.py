@@ -276,6 +276,39 @@ class UniFi(Base):
         self.assertEqual(d["problems"], ["appareil « AP » : mise à jour disponible"])
         self.assertEqual({f["label"]: f["value"] for f in d["facts"]}["Appareils"], "2/2 en ligne")
 
+    def test_compte_local_docker(self):
+        self.route("/api/login", {"meta": {"rc": "ok"}, "data": []}, "POST")
+        self.route("/api/logout", {"meta": {"rc": "ok"}, "data": []}, "POST")
+        self.route("/api/self/sites", {"data": [{"name": "default", "desc": "Default"}]})
+        self.route("/api/s/default/stat/sysinfo", {"data": [{"version": "9.0.114"}]})
+        self.route("/api/s/default/stat/device", {"data": [{"name": "AP", "mac": "ap", "ip": "10.0.0.2", "state": 1, "upgradable": True},
+                                                           {"name": "USW", "mac": "sw", "state": 0}]})
+        self.route("/api/s/default/stat/sta", {"data": [{"hostname": "pc", "mac": "m1", "ip": "10.0.0.9", "is_wired": False, "ap_mac": "ap"},
+                                                        {"name": "nas", "mac": "m2", "ip": "10.0.0.10", "is_wired": True, "sw_mac": "sw"}]})
+        pw = "p" * 8
+        d = self.conn("unifi", auth="account", user="ro", password=pw).collect()
+        self.assertEqual(d["version"], "9.0.114")
+        self.assertEqual(d["problems"], ["appareil « USW » hors ligne", "appareil « AP » : mise à jour disponible"])
+        self.assertEqual(d["unifi"]["clients"][0], {"name": "pc", "mac": "m1", "ip": "10.0.0.9", "wired": False, "ap_mac": "ap"})
+        self.assertEqual(d["unifi"]["clients"][1]["switch_mac"], "sw")
+        login = next(x for x in SEEN if x[1] == "/api/login")
+        self.assertEqual(json.loads(login[3])["username"], "ro")
+        self.assertEqual(SEEN[-1][1], "/api/logout")   # session closed
+        self.assertTrue(all(m == "GET" for m, path, *_ in SEEN if path not in ("/api/login", "/api/logout")))
+
+    def test_compte_refuse(self):
+        self.route("/api/login", {"meta": {"rc": "error", "msg": "api.err.Invalid"}}, "POST", code=400)
+        with self.assertRaises(ConnectorError) as e:
+            self.conn("unifi", auth="account", user="ro", password="x" * 4).collect()
+        self.assertIn("compte refusé", str(e.exception))
+
+    def test_reglages_selon_acces(self):
+        v = connectors.TYPES["unifi"].validate
+        self.assertEqual(v({"auth": "account", "url": "https://x:8443", "user": "ro"}), ["« password » requis"])
+        self.assertEqual(v({"url": "https://x"}), ["« api_key » requis"])
+        self.assertEqual(connectors.TYPES["unifi"].discover("jacobalberty/unifi", "10.0.0.5", [(8443, 8443)]),
+                         {"auth": "account", "url": "https://10.0.0.5:8443", "verify_tls": False})
+
     def test_pas_une_console_unifi_os(self):
         with self.assertRaises(ConnectorError):
             self.conn("unifi", api_key="K").collect()

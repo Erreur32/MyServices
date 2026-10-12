@@ -7,8 +7,13 @@ Lecture tolérante champ par champ ; aucun secret dans les messages d'erreur.
 from __future__ import annotations
 
 import base64
+import http.cookiejar
+import json
+import ssl
 import time
+import urllib.error
 import urllib.parse
+import urllib.request
 
 from connectors.base import ConnectorError, Field
 from connectors.status_kit import StatusConnector, fact, num, post_form, raw_tcp, rows, size, duration
@@ -232,57 +237,121 @@ class Synology(StatusConnector):
 
 
 class UniFi(StatusConnector):
-    """UniFi Network sur une console UniFi OS (UCG, UDM, UX, Cloud Key, UniFi OS Server) : API d'intégration, clé d'API (en-tête X-API-KEY).
-    Appareils en ligne ou non, mises à jour, clients. La Network Application seule (Docker, port 8443) n'a pas de clé d'API : non gérée ici."""
+    """UniFi Network : appareils en ligne ou non, mises à jour, clients (IP / MAC pour le rapprochement). Deux accès :
+    - « api_key » : console UniFi OS (UCG, UDM, UX, Cloud Key, UniFi OS Server), API d'intégration officielle, en-tête X-API-KEY ;
+    - « account » : Network Application seule (Docker, port 8443), qui n'a pas de clé d'API : compte local en lecture seule, ancienne API
+      (POST /api/login, cookie de session, GET /api/s/<site>/stat/…). Non documentée officiellement mais stable depuis des années."""
     type = "unifi"
     label = "UniFi Network"
     images = ("linuxserver/unifi-network-application", "jacobalberty/unifi")
     fields = (
-        Field("url", "Adresse de la console UniFi OS", "url", required=True, help="https://<IP> (UniFi OS Server : https://<IP>:11443)"),
-        Field("api_key", "Clé d'API", "password", required=True, secret=True, help="Console UniFi OS → Paramètres → Control Plane → Intégrations → créer une clé d'API"),
+        Field("auth", "Accès", "choice", default="api_key", choices=("api_key", "account"),
+              help="api_key : console UniFi OS ; account : contrôleur en Docker (compte local)"),
+        Field("url", "Adresse", "url", required=True, help="console UniFi OS : https://<IP> ; Docker : https://<IP>:8443"),
+        Field("api_key", "Clé d'API (console UniFi OS)", "password", secret=True, help="Paramètres → Control Plane → Intégrations → créer une clé d'API"),
+        Field("user", "Compte local (Docker)", "text", help="un administrateur local en lecture seule (« View Only »), sans double authentification"),
+        Field("password", "Mot de passe (Docker)", "password", secret=True),
         VERIFY,
     )
-    setup_fields = ("url", "api_key")
+    setup_fields = ("auth", "url", "api_key", "user", "password")
     guide = ("Console UniFi OS (UCG, UDM…) : Paramètres → Control Plane → Intégrations → « Create API Key ». La clé a les droits de l'administrateur qui la crée : la créer avec un compte en lecture seule.",
-             "Certificat auto-signé : décocher « Vérifier le certificat ».",
-             "Contrôleur UniFi en Docker (Network Application seule) : pas de clé d'API, seulement un compte et un mot de passe ; pas encore géré par ce connecteur.")
+             "Contrôleur en Docker (pas de clé d'API) : Paramètres → Administrateurs → ajouter un administrateur local, rôle « View Only », accès local seulement, sans double authentification ; choisir l'accès « account », adresse https://<IP>:8443.",
+             "Certificat auto-signé : décocher « Vérifier le certificat ».")
     BASE = "/proxy/network/integration/v1"
     DOWN = ("OFFLINE", "CONNECTION_INTERRUPTED", "ISOLATED")
+    DOWN_CODES = (0, 6, 11)   # ancienne API : déconnecté, battement de cœur perdu, isolé
     CLIENT_PAGES = 5   # 200 clients per page
 
+    @classmethod
+    def validate(cls, conf: dict) -> list[str]:
+        missing = super().validate(conf)
+        need = ("user", "password") if conf.get("auth") == "account" else ("api_key",)
+        return missing + [f"« {n} » requis" for n in need if conf.get(n) in (None, "")]
+
     def collect(self) -> dict:
+        version, sites, devices, clients, total = (self._account if self.conf.get("auth") == "account" else self._api_key)()
+        off = [d["name"] or d["mac"] for d in devices if not d.pop("online")]
+        upd = [d["name"] or d["mac"] for d in devices if d.pop("updatable")]
+        facts = [fact("Appareils", f"{len(devices) - len(off)}/{len(devices)} en ligne", "bad" if off else "ok"), fact("Clients", total), fact("Sites", sites)]
+        if upd:
+            facts.append(fact("Mises à jour", len(upd), "warn"))
+        return {**self.out(version, facts, [f"appareil « {n} » hors ligne" for n in off] + [f"appareil « {n} » : mise à jour disponible" for n in upd]),
+                "unifi": {"clients": clients, "devices": devices}}   # for the matching layer (IP / MAC), like MynetworK's UniFi lists
+
+    def _api_key(self) -> tuple:
         h = {"X-API-KEY": str(self.conf.get("api_key", ""))}
         base = self.BASE
         info = self.get(f"{base}/info", h)
         if not isinstance(info, dict):
             raise ConnectorError("réponse inattendue : l'adresse ne mène pas à une console UniFi OS (API d'intégration de UniFi Network 9.0 ou plus)")
         sites = rows(self.get(f"{base}/sites", h))
-        devs, clients, off, upd = 0, 0, [], []
-        seen = {"clients": [], "devices": []}   # for the matching layer (IP / MAC), like MynetworK's UniFi lists
+        devices, clients, total = [], [], 0
         for s in sites[:5]:
             sid = urllib.parse.quote(str(s.get("id")), safe="")
             ds = rows(self.get(f"{base}/sites/{sid}/devices?limit=200", h))
-            devs += len(ds)
-            off += [d.get("name") or d.get("macAddress") for d in ds if str(d.get("state", "ONLINE")).upper() in self.DOWN]
-            upd += [d.get("name") or d.get("macAddress") for d in ds if d.get("firmwareUpdatable") is True]
             mac_of = {d.get("id"): d.get("macAddress") for d in ds}
-            seen["devices"] += [{"name": d.get("name"), "model": d.get("model"), "mac": d.get("macAddress"), "ip": d.get("ipAddress"), "state": d.get("state")} for d in ds]
+            devices += [{"name": d.get("name"), "model": d.get("model"), "mac": d.get("macAddress"), "ip": d.get("ipAddress"), "state": d.get("state"),
+                         "online": str(d.get("state", "ONLINE")).upper() not in self.DOWN, "updatable": d.get("firmwareUpdatable") is True} for d in ds]
             for page in range(self.CLIENT_PAGES):
                 cl = self.get(f"{base}/sites/{sid}/clients?offset={page * 200}&limit=200", h)
                 got = rows(cl)
                 if page == 0:
-                    clients += int(num((cl or {}).get("totalCount"), len(got))) if isinstance(cl, dict) else len(got)
+                    total += int(num((cl or {}).get("totalCount"), len(got))) if isinstance(cl, dict) else len(got)
                 for c in got:
                     wired = str(c.get("type")).upper() == "WIRED"
-                    seen["clients"].append({"name": c.get("name"), "mac": c.get("macAddress"), "ip": c.get("ipAddress"), "wired": wired,
-                                            "switch_mac" if wired else "ap_mac": mac_of.get(c.get("uplinkDeviceId"))})
+                    clients.append({"name": c.get("name"), "mac": c.get("macAddress"), "ip": c.get("ipAddress"), "wired": wired,
+                                    "switch_mac" if wired else "ap_mac": mac_of.get(c.get("uplinkDeviceId"))})
                 if len(got) < 200:
                     break
-        facts = [fact("Appareils", f"{devs - len(off)}/{devs} en ligne", "bad" if off else "ok"), fact("Clients", clients), fact("Sites", len(sites))]
-        if upd:
-            facts.append(fact("Mises à jour", len(upd), "warn"))
-        return {**self.out(info.get("applicationVersion"), facts, [f"appareil « {n} » hors ligne" for n in off] + [f"appareil « {n} » : mise à jour disponible" for n in upd]),
-                "unifi": seen}
+        return info.get("applicationVersion"), len(sites), devices, clients, total
+
+    def _account(self) -> tuple:
+        jar = http.cookiejar.CookieJar()
+        ctx = None if self.tls() else ssl._create_unverified_context()
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar), urllib.request.HTTPSHandler(context=ctx))
+        base = self.base_url()
+
+        def call(path: str, body: dict | None = None):
+            req = urllib.request.Request(base + path, data=json.dumps(body).encode() if body is not None else None, method="POST" if body is not None else "GET",
+                                         headers={"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "myservices"})
+            try:
+                with opener.open(req, timeout=self.ctx.timeout) as r:
+                    d = json.loads(r.read() or b"null")
+            except urllib.error.HTTPError as e:
+                if path == "/api/login" and e.code in (400, 401, 403):
+                    raise ConnectorError("compte refusé : identifiant ou mot de passe faux, ou double authentification activée sur ce compte") from None
+                if path == "/api/login" and e.code == 404:
+                    raise ConnectorError("pas de connexion par compte ici : console UniFi OS ? choisir l'accès « api_key »") from None
+                raise ConnectorError(f"HTTP {e.code}") from None
+            except (OSError, ValueError) as e:
+                raise ConnectorError(f"injoignable ({getattr(e, 'reason', e.__class__.__name__)})") from None
+            return d.get("data") if isinstance(d, dict) else None
+
+        call("/api/login", {"username": str(self.conf.get("user", "")), "password": str(self.conf.get("password", "")), "remember": False})
+        try:
+            sites = rows(call("/api/self/sites"))
+            version, devices, clients = None, [], []
+            for s in sites[:5]:
+                site = urllib.parse.quote(str(s.get("name") or "default"), safe="")
+                info = rows(call(f"/api/s/{site}/stat/sysinfo"))
+                version = version or (info[0].get("version") if info else None)
+                ds = rows(call(f"/api/s/{site}/stat/device"))
+                devices += [{"name": d.get("name"), "model": d.get("model"), "mac": d.get("mac"), "ip": d.get("ip"), "state": d.get("state"),
+                             "online": num(d.get("state"), 1) not in self.DOWN_CODES, "updatable": d.get("upgradable") is True} for d in ds]
+                clients += [{"name": c.get("name") or c.get("hostname"), "mac": c.get("mac"), "ip": c.get("ip"), "wired": c.get("is_wired") is True,
+                             "switch_mac" if c.get("is_wired") else "ap_mac": c.get("sw_mac") if c.get("is_wired") else c.get("ap_mac")}
+                            for c in rows(call(f"/api/s/{site}/stat/sta"))[:self.CLIENT_PAGES * 200]]
+        finally:
+            try:
+                call("/api/logout", {})   # session closed: no session left open on the controller
+            except ConnectorError:
+                pass
+        return version, len(sites), devices, clients, len(clients)
+
+    @classmethod
+    def discover(cls, image: str, ip: str, ports: list) -> dict | None:
+        port = next((h for h, c in ports if c == 8443), None)
+        return {"auth": "account", "url": f"https://{ip}:{port}", "verify_tls": False} if port else None
 
 
 class Tailscale(StatusConnector):
