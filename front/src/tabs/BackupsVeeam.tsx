@@ -9,6 +9,7 @@ import { Badge, Card, Dim } from "../components/ui";
 import { dateTime } from "../lib/format";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { SecretInput } from "../components/SecretInput";
 
 export interface VeeamState { configured: boolean; url: string; user: string; password_set: boolean }
 interface Job { name: string; type: string; status: string; last_result: string; last_run: number | null; disabled: boolean; followed: boolean }
@@ -75,7 +76,7 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
             <input className={input} value={user} placeholder="DOMAINE\myservices" onChange={(e) => setUser(e.target.value)} autoComplete="off" />
           </Field>
           <Field label={tx("Mot de passe")}>
-            <input className={input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password"
+            <SecretInput value={password} onChange={setPassword} autoComplete="new-password"
               placeholder={state.password_set ? tx("enregistré : laisser vide pour le garder") : ""} />
           </Field>
         </div>

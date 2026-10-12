@@ -442,6 +442,30 @@ def connector_save(type_: str, body: ConnectorConf, request: Request):
                           lambda s: s.save(type_, body.name, body.config, body.original))
 
 
+class Reveal(BaseModel):
+    field: str = Field(max_length=64)
+    password: str = Field(max_length=256)
+
+
+@app.post(API + "/connectors/settings/{type_}/{name}/reveal", tags=["connecteurs"],
+          summary="Afficher un secret enregistré (session admin + mot de passe, noté dans le journal d'audit)")
+def connector_reveal(type_: str, name: str, body: Reveal, request: Request):
+    from connectors import settings
+    if denied := session_admin(request):
+        return denied
+    u, ip = request.state.user, ip_of(request)
+    if store().too_many_failures(ip):
+        return deny(429, "trop d'échecs : réessayer dans 15 minutes")
+    if store().verify(u["username"], body.password, ip) is None:
+        return deny(403, "mot de passe incorrect")   # pas 401 : la page renverrait vers la connexion
+    try:
+        value = settings.reveal(type_, name, body.field)
+    except settings.SettingsError as e:
+        return deny(400, str(e))
+    store().audit("secret affiché", u["username"], ip, f"{type_} {name} : {body.field}")
+    return JSONResponse({"value": value}, headers={"Cache-Control": "no-store"})
+
+
 class Toggle(BaseModel):
     enabled: bool
 

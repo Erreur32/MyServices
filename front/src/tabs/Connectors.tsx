@@ -7,6 +7,7 @@ import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Overlay } from "../components/Overlay";
 import { Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
+import { SecretInput } from "../components/SecretInput";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
 import { StatusLine } from "../components/ssh";
@@ -307,9 +308,13 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, 
                 <select className={input} value={String(v ?? "")} onChange={(e) => setConf({ ...conf, [f.name]: e.target.value })}>
                   {f.choices.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
+              ) : f.secret ? (
+                <SecretInput value={String(v ?? "")} onChange={(x) => setConf({ ...conf, [f.name]: x })} kept={!!kept}
+                  placeholder={kept ? tx("déjà renseigné : laisser vide pour garder") : ""}
+                  reveal={inst ? (password) => send<{ value: string }>("POST", `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}/reveal`, { field: f.name, password }).then((r) => r.value) : undefined} />
               ) : (
-                <input className={input} type={f.secret ? "password" : f.kind === "number" ? "number" : "text"} autoComplete="off"
-                  value={String(v ?? "")} placeholder={kept ? tx("déjà renseigné : laisser vide pour garder") : f.secret ? "" : String(f.default ?? "")}
+                <input className={input} type={f.kind === "number" ? "number" : "text"} autoComplete="off"
+                  value={String(v ?? "")} placeholder={String(f.default ?? "")}
                   onChange={(e) => setConf({ ...conf, [f.name]: e.target.value })} />
               )}
               {f.help && <span className="text-xs text-dim">{tx(f.help)}</span>}
@@ -392,7 +397,7 @@ function NpmScript({ conf, setConf }: { conf: Record<string, string | number | b
             <Field label={<>{tx("Adresse de NPM vue de la machine")}<b className="ml-0.5 text-bad">*</b></>}><input className={input} value={f.ip} onChange={(e) => setF({ ...f, ip: e.target.value })} /></Field>
             <Field label={<>{tx("Port de NPM")}<b className="ml-0.5 text-bad">*</b></>}><input className={input} inputMode="numeric" value={f.port} onChange={(e) => setF({ ...f, port: e.target.value })} /></Field>
             <Field label={<>{tx("Compte NPM (e-mail)")}<b className="ml-0.5 text-bad">*</b></>}><input className={input} autoComplete="off" value={f.user} onChange={(e) => setF({ ...f, user: e.target.value })} /></Field>
-            <Field label={<>{tx("Mot de passe NPM")}<b className="ml-0.5 text-bad">*</b></>}><input className={input} type="password" autoComplete="new-password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
+            <Field label={<>{tx("Mot de passe NPM")}<b className="ml-0.5 text-bad">*</b></>}><SecretInput value={f.password} autoComplete="new-password" onChange={(x) => setF({ ...f, password: x })} /></Field>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" className={primary} disabled={busy || !f.directory || !f.ip || !f.user || !f.password} onClick={() => void run()}>

@@ -186,6 +186,16 @@ def get(type_: str, name: str, plain: bool = False) -> dict | None:
     return None
 
 
+def reveal(type_: str, name: str, field: str) -> str:
+    """Un secret enregistré, en clair (l'œil du formulaire, après le mot de passe du compte) ; seulement un champ secret de ce type."""
+    if type_ not in TYPES or field not in _secret_names(type_):
+        raise SettingsError("champ secret inconnu")
+    conf = get(type_, name, plain=True)
+    if conf is None:
+        raise SettingsError(f"connecteur {type_} « {name} » introuvable")
+    return str(conf.get(field) or "")
+
+
 def names(type_: str) -> list[str]:
     """Noms des instances actives (non coupées) de ce type."""
     return [c.get("name") or type_ for _, _, c in _entries(_raw()) if c["type"] == type_ and c.get("enabled", True) is not False]

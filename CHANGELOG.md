@@ -13,6 +13,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 - **Settings → Logs**: what the container prints (the same text as `docker compose logs myservices`): the server and the output of each task, since the container started, last 3000 lines. Filter by origin (server, collection, watch, health, backups), errors and warnings only, text search; follows new lines every 5 s (pause on scroll), download as `.txt`. Route `GET /api/v1/system/logs?after=N` (admin). `applog.py` keeps the lines in memory; nothing is written to disk.
+- **Eye on secret fields** (passwords, tokens of connectors, also when opened from a machine; NPM script and Veeam passwords): shows what is typed. For a value already saved (never sent to the page), the eye asks the account password, then fetches it: `POST /api/v1/connectors/settings/{type}/{name}/reveal` (admin session, password checked with the same failure limit as sign-in, recorded as "secret affiché" in the audit log).
 
 ### Fixed
 - **Network search found 0 device on some hosts**: where unprivileged ping is turned off (`net.ipv4.ping_group_range` = `1 0`, the kernel default kept by some NAS and distributions), ping was refused to the app and every address looked down, with no message. The app now keeps `NET_RAW` alone (and nothing else) when the compose gives it: add `NET_RAW` to `cap_add` (done in `deploy/compose.example.yaml`). Without it, the search now says why instead of showing 0 device.

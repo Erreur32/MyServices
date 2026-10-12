@@ -11,6 +11,8 @@ export const SAME = new Set([
 ]);
 
 export const EN: Record<string, string> = {
+  "Afficher la valeur enregistrée (mot de passe du compte demandé)": "Show the saved value (your account password is asked)",
+  "Votre mot de passe, pour afficher la valeur enregistrée :": "Your password, to show the saved value:",
   "Veille": "Watch",
   "Journaux du conteneur": "Container logs",
   "Arrêter de suivre les nouvelles lignes": "Stop following new lines",
