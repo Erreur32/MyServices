@@ -11,6 +11,7 @@ export const SAME = new Set([
 ]);
 
 export const EN: Record<string, string> = {
+  "facultatif : à relier quand vous voulez": "optional: link them whenever you want",
   "Lues par leur API, sans SSH": "Read by their API, without SSH",
   "Déjà connectées par l'API d'un connecteur (Home Assistant…) : rien à régler. Le SSH n'y est pas nécessaire, et souvent pas possible.": "Already connected through a connector's API (Home Assistant…): nothing to set. SSH is not needed there, and often not possible.",
   "Aucune machine lue seulement par une API.": "No machine read by an API only.",
@@ -1630,7 +1631,6 @@ export const EN: Record<string, string> = {
   "Horaire": "Schedule",
   "Activation": "Activation",
   "Renseigner l'accès et activer": "Enter the access and activate",
-  "À activer": "To activate",
   "Les machines suivies et leurs réglages": "The tracked machines and their settings",
   "Sous-onglets des machines": "Machine sub-tabs",
   "Comment chaque machine est lue : agent PowerShell (Windows) ou SSH (Linux)": "How each machine is read: PowerShell agent (Windows) or SSH (Linux)",

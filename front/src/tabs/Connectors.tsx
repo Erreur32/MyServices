@@ -1,13 +1,14 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { Check, CircleAlert, HelpCircle, Loader2, Package, Pencil, Plug, Play, Plus, ScanSearch, ShieldCheck, Trash2, X } from "lucide-react";
+import { Check, ChevronRight, HelpCircle, Loader2, Package, Pencil, Play, Plug, Plus, ScanSearch, ShieldCheck, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Overlay } from "../components/Overlay";
 import { Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { SecretInput } from "../components/SecretInput";
+import { FOLD, FOLD_HEAD } from "../components/NetworkStep";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
 import { StatusLine } from "../components/ssh";
@@ -140,14 +141,18 @@ function TestReport({ r, onClose }: { r: TestOut; onClose: () => void }) {
   );
 }
 
-/** Les applis reconnues qui ont un connecteur mais pas encore d'accès réglé : une ligne orange chacune, le clic ouvre le formulaire déjà rempli.
- *  Celles déjà reliées n'y sont pas (c'est fait) ; rien à montrer, rien d'affiché. */
+/** Les applis reconnues qui ont un connecteur mais pas encore d'accès réglé : une ligne chacune, le clic ouvre le formulaire déjà rempli.
+ *  Facultatif (comme les suggestions de Découverte) : cadre replié, à ouvrir quand on veut. Celles déjà reliées n'y sont pas ; rien à montrer, rien d'affiché. */
 function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Proposal) => void }) {
   const rows = apps.filter((p) => !p.linked);
   if (!rows.length) return null;
   return (
-    <Card tone="warn">
-      <h2 className="flex items-center gap-2 font-bold"><ScanSearch size={16} />{tx("Services détectés non configurés")} <Count n={rows.length} tone="warn" /></h2>
+    <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
+      <summary className={FOLD_HEAD}>
+        <ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
+        <ScanSearch size={16} aria-hidden />{tx("Services détectés non configurés")} <Count n={rows.length} />
+        <span className="font-normal text-muted">{tx("facultatif : à relier quand vous voulez")}</span>
+      </summary>
       <p className="mt-1 text-sm text-muted">{tx("MyServices a reconnu ces applis mais ne les lit pas encore. Cliquez sur l'une d'elles pour renseigner son accès en lecture.")}</p>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full min-w-[480px] text-sm">
@@ -158,9 +163,9 @@ function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Prop
           </thead>
           <tbody className="divide-y divide-line/60">
             {rows.map((p) => (
-              <tr key={`${p.connector}@${p.ip}`} className="bg-warn/10">
+              <tr key={`${p.connector}@${p.ip}`}>
                 <td className="py-1 pr-3">
-                  <button type="button" onClick={() => onOpen(p)} title={tx("Renseigner l'accès et activer")} className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left hover:bg-warn/20">
+                  <button type="button" onClick={() => onOpen(p)} title={tx("Renseigner l'accès et activer")} className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left hover:bg-link/10">
                     <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-bg2">
                       {appIcon([p.label]) ? <img src={appIcon([p.label])!} alt="" className="h-4 w-4" /> : <Plug size={14} className="text-muted" aria-hidden />}
                     </span>
@@ -170,7 +175,7 @@ function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Prop
                 <td className="px-3 py-2.5"><b className="font-semibold">{p.machine || p.ip}</b>{p.machine && <Dim> · {p.ip}</Dim>}</td>
                 <td className="px-3 py-2.5 text-right">
                   <span className="inline-flex items-center gap-2">
-                    <Badge tone="warn"><CircleAlert size={12} className="mr-1 inline" aria-hidden />{tx("À activer")}</Badge>
+                    <Badge tone="info">{tx("facultatif")}</Badge>
                     <button type="button" className={primary} onClick={() => onOpen(p)}><Plus size={14} />{tx("Activer")}</button>
                   </span>
                 </td>
@@ -179,7 +184,7 @@ function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Prop
           </tbody>
         </table>
       </div>
-    </Card>
+    </details>
   );
 }
 
