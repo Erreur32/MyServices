@@ -232,36 +232,57 @@ class Synology(StatusConnector):
 
 
 class UniFi(StatusConnector):
-    """UniFi Network (contrôleur local, API d'intégration 9.x) : appareils en ligne ou non, nombre de clients. Clé d'API (en-tête X-API-KEY)."""
+    """UniFi Network (API d'intégration 9.x) sur une console UniFi OS (UCG, UDM, Cloud Key) ou en Docker (Network Application, port 8443) :
+    appareils en ligne ou non, mises à jour, nombre de clients. Clé d'API (en-tête X-API-KEY)."""
     type = "unifi"
     label = "UniFi Network"
     images = ("linuxserver/unifi-network-application", "jacobalberty/unifi")
     fields = (
-        Field("url", "Adresse du contrôleur", "url", required=True, help="https://<IP>"),
+        Field("url", "Adresse du contrôleur", "url", required=True, help="https://<IP> (console UniFi OS) ou https://<IP>:8443 (Docker)"),
         Field("api_key", "Clé d'API", "password", required=True, secret=True, help="UniFi Network → Paramètres → Intégrations → créer une clé d'API"),
         VERIFY,
     )
     setup_fields = ("url", "api_key")
-    guide = ("Dans UniFi Network 9 ou plus : Paramètres → Système → Intégrations → « Create API Key ». Lecture seule.",
+    guide = ("UniFi Network 9.0 ou plus. Console UniFi OS (UCG, UDM) : Paramètres → Control Plane → Intégrations ; Docker : Paramètres → Intégrations. « Create API Key ».",
+             "Adresse : https://<IP> pour une console, https://<IP>:8443 pour le Docker. Certificat auto-signé : décocher « Vérifier le certificat ».",
              "Pour la lecture par MynetworK (clients, appareils), le connecteur MynetworK reste à privilégier s'il est déjà relié.")
+    BASES = ("/proxy/network/integration/v1", "/integration/v1")   # console UniFi OS, puis Network Application seule (Docker)
+    DOWN = ("OFFLINE", "CONNECTION_INTERRUPTED", "ISOLATED")
+
+    def _info(self, h: dict) -> tuple[str, dict]:
+        for base in self.BASES:
+            try:
+                info = self.get(f"{base}/info", h)
+            except ConnectorError as e:
+                if str(e).startswith("HTTP 404"):
+                    continue
+                raise
+            if isinstance(info, dict):
+                return base, info
+        raise ConnectorError("API d'intégration introuvable : UniFi Network 9.0 ou plus requis (https://<IP> pour une console, :8443 pour le Docker)")
 
     def collect(self) -> dict:
         h = {"X-API-KEY": str(self.conf.get("api_key", ""))}
-        base = "/proxy/network/integration/v1"
-        info = self.get(f"{base}/info", h)
+        base, info = self._info(h)
         sites = rows(self.get(f"{base}/sites", h))
-        if not isinstance(info, dict):
-            raise ConnectorError("réponse inattendue : l'adresse ne mène pas à UniFi Network")
-        devs, clients, off = 0, 0, []
+        devs, clients, off, upd = 0, 0, [], []
         for s in sites[:5]:
             sid = urllib.parse.quote(str(s.get("id")), safe="")
             ds = rows(self.get(f"{base}/sites/{sid}/devices?limit=200", h))
             devs += len(ds)
-            off += [d.get("name") or d.get("macAddress") for d in ds if str(d.get("state", "ONLINE")).upper() not in ("ONLINE", "UPDATING")]
+            off += [d.get("name") or d.get("macAddress") for d in ds if str(d.get("state", "ONLINE")).upper() in self.DOWN]
+            upd += [d.get("name") or d.get("macAddress") for d in ds if d.get("firmwareUpdatable") is True]
             cl = self.get(f"{base}/sites/{sid}/clients?limit=1", h)
             clients += int(num((cl or {}).get("totalCount"), 0)) if isinstance(cl, dict) else 0
         facts = [fact("Appareils", f"{devs - len(off)}/{devs} en ligne", "bad" if off else "ok"), fact("Clients", clients), fact("Sites", len(sites))]
-        return self.out(info.get("applicationVersion"), facts, [f"appareil « {n} » hors ligne" for n in off])
+        if upd:
+            facts.append(fact("Mises à jour", len(upd), "warn"))
+        return self.out(info.get("applicationVersion"), facts, [f"appareil « {n} » hors ligne" for n in off] + [f"appareil « {n} » : mise à jour disponible" for n in upd])
+
+    @classmethod
+    def discover(cls, image: str, ip: str, ports: list) -> dict | None:
+        port = next((h for h, c in ports if c == 8443), None)
+        return {"url": f"https://{ip}:{port}", "verify_tls": False} if port else None
 
 
 class Tailscale(StatusConnector):

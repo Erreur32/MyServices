@@ -261,6 +261,26 @@ class UniFi(Base):
         self.assertEqual({f["label"]: f["value"] for f in d["facts"]}["Clients"], "31")
 
 
+    def test_docker_sans_proxy_et_mises_a_jour(self):
+        base = "/integration/v1"   # Network Application en Docker : pas de /proxy/network
+        self.route(f"{base}/info", {"applicationVersion": "9.4.19"})
+        self.route(f"{base}/sites", {"data": [{"id": "s1"}]})
+        self.route(f"{base}/sites/s1/devices", {"data": [{"name": "AP", "state": "ONLINE", "firmwareUpdatable": True}, {"name": "USW", "state": "PENDING_ADOPTION"}]})
+        self.route(f"{base}/sites/s1/clients", {"totalCount": 4})
+        d = self.conn("unifi", api_key="K").collect()
+        self.assertEqual(d["version"], "9.4.19")
+        self.assertEqual(d["problems"], ["appareil « AP » : mise à jour disponible"])
+        self.assertEqual({f["label"]: f["value"] for f in d["facts"]}["Appareils"], "2/2 en ligne")
+
+    def test_sans_api_integration(self):
+        with self.assertRaises(ConnectorError) as e:
+            self.conn("unifi", api_key="K").collect()
+        self.assertIn("9.0", str(e.exception))
+
+    def test_decouverte_docker(self):
+        self.assertEqual(connectors.TYPES["unifi"].discover("linuxserver/unifi-network-application", "10.0.0.5", [(8443, 8443), (8080, 8080)]),
+                         {"url": "https://10.0.0.5:8443", "verify_tls": False})
+
 class Tailscale(Base):
     def test_headscale(self):
         self.route("/api/v1/node", {"nodes": [{"givenName": "nas", "online": True}, {"givenName": "pc", "online": False}]})
