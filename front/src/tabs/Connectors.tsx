@@ -270,13 +270,16 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, 
     if (ok) quietSave ? onDone() : setTimeout(onDone, 900);
   };
   return (
-    <form onSubmit={submit} className="mt-3 flex flex-col gap-3 rounded-xl border-2 border-link bg-link/5 p-3">
-      <div className="flex items-center gap-3 border-b border-line/60 pb-2">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
-          {appIcon([type.label]) ? <img src={appIcon([type.label])!} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
-        </span>
-        <div className="min-w-0"><b className="block truncate">{type.label}</b><span className="text-xs text-dim">{inst ? tx("Modifier ce connecteur") : tx("Nouveau connecteur")}</span></div>
-      </div>
+    // Editing happens inside the instance card (already outlined in blue, with its logo and title): no inner frame nor header there
+    <form onSubmit={submit} className={`mt-3 flex flex-col gap-3 ${inst ? "border-t border-line/60 pt-3" : "rounded-xl border-2 border-link bg-link/5 p-3"}`}>
+      {!inst && (
+        <div className="flex items-center gap-3 border-b border-line/60 pb-2">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
+            {appIcon([type.label]) ? <img src={appIcon([type.label])!} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
+          </span>
+          <div className="min-w-0"><b className="block truncate">{type.label}</b><span className="text-xs text-dim">{tx("Nouveau connecteur")}</span></div>
+        </div>
+      )}
       <Field label={tx("Nom de l'instance (unique pour ce type)")}>
         <input className={input} required maxLength={64} value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
