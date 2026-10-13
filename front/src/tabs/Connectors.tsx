@@ -67,8 +67,26 @@ export function Connectors({ snap }: { snap: Snapshot }) {
         {picking && <CategoryChips types={st.types} cat={cat} setCat={setCat} />}
         {picking && (
           <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label={tx("Connecteurs disponibles")}>
-            {st.types.filter((t) => (!cat || t.category === cat) && hits(query, t.label, t.type, catName(t.category ?? ""), ...t.kinds.map((k) => KIND[k] || k)))
-              .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })).map((t) => {
+            {[
+              ...st.types.filter((t) => (!cat || t.category === cat) && hits(query, t.label, t.type, catName(t.category ?? ""), ...t.kinds.map((k) => KIND[k] || k)))
+                .map((t) => ({ label: t.label, t, m: undefined })),
+              ...VIA_MACHINES.filter((m) => (!cat || m.category === cat) && hits(query, m.label, m.category)).map((m) => ({ label: m.label, t: undefined, m })),
+            ].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })).map(({ t, m }) => {   // one alphabetical list, AdGuard included
+              if (m) return (
+              <li key={m.label}>
+                <a href="#settings/machines" title={m.how}
+                  className="flex h-full w-full items-center gap-3 rounded-xl border border-dashed border-dim/50 bg-bg2 p-3 text-left no-underline transition-colors hover:border-link hover:bg-link/10">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
+                    {appIcon([m.label]) ? <img src={appIcon([m.label])!} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <b className="block truncate text-sm text-txt">{m.label}</b>
+                    <span className="block truncate text-xs text-dim">{tx("par SSH : Réglages → Machines")}</span>
+                  </span>
+                  <ChevronRight size={15} className="shrink-0 text-dim" aria-hidden />
+                </a>
+              </li>);
+              t = t!;
               const icon = appIcon([t.label]), n = st.instances.filter((i) => i.type === t.type).length;
               return (
                 <li key={t.type}>
@@ -86,21 +104,6 @@ export function Connectors({ snap }: { snap: Snapshot }) {
                 </li>
               );
             })}
-            {VIA_MACHINES.filter((m) => (!cat || m.category === cat) && hits(query, m.label, m.category)).map((m) => (
-              <li key={m.label}>
-                <a href="#settings/machines" title={m.how}
-                  className="flex h-full w-full items-center gap-3 rounded-xl border border-dashed border-dim/50 bg-bg2 p-3 text-left no-underline transition-colors hover:border-link hover:bg-link/10">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
-                    {appIcon([m.label]) ? <img src={appIcon([m.label])!} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <b className="block truncate text-sm text-txt">{m.label}</b>
-                    <span className="block truncate text-xs text-dim">{tx("par SSH : Réglages → Machines")}</span>
-                  </span>
-                  <ChevronRight size={15} className="shrink-0 text-dim" aria-hidden />
-                </a>
-              </li>
-            ))}
           </ul>
         )}
         {type && <ConnectorForm key={type.type} type={type} prefill={prefill?.type === type.type ? prefill : null} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
@@ -157,13 +160,13 @@ const catName = (c: string) => CATEGORY[c] ?? c;
 /** Picker filter: one chip per category, with its count, alphabetical */
 function CategoryChips({ types, cat, setCat }: { types: ConnectorType[]; cat: string; setCat: (c: string) => void }) {
   const counts = new Map<string, number>();
-  for (const t of types) if (t.category) counts.set(t.category, (counts.get(t.category) ?? 0) + 1);
+  for (const c of [...types.map((t) => t.category), ...VIA_MACHINES.map((m) => m.category)]) if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
   const cats = [...counts.keys()].sort((a, b) => catName(a).localeCompare(catName(b)));
   if (cats.length < 2) return null;
   const chip = (on: boolean) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${on ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`;
   return (
     <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label={tx("Catégorie")}>
-      <button type="button" className={chip(!cat)} aria-pressed={!cat} onClick={() => setCat("")}>{tx("Toutes")} <b className="text-dim">{types.length}</b></button>
+      <button type="button" className={chip(!cat)} aria-pressed={!cat} onClick={() => setCat("")}>{tx("Toutes")} <b className="text-dim">{types.length + VIA_MACHINES.length}</b></button>
       {cats.map((c) => <button key={c} type="button" className={chip(cat === c)} aria-pressed={cat === c} onClick={() => setCat(cat === c ? "" : c)}>{catName(c)} <b className="text-dim">{counts.get(c)}</b></button>)}
     </div>
   );
