@@ -96,6 +96,16 @@ function AppTile({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
   );
 }
 
+/** One category inside « Stopped and forgotten »: a small title with its count and what it holds */
+function AsideGroup({ title, n, hint, children }: Readonly<{ title: string; n: number; hint: string; children: React.ReactNode }>) {
+  return (
+    <section>
+      <h3 className="mb-2 flex flex-wrap items-baseline gap-2 border-b border-line/60 pb-1 text-sm font-semibold">{title} <Count n={n} /><span className="font-normal text-muted">{hint}</span></h3>
+      {children}
+    </section>
+  );
+}
+
 /** Lien direct #settings/network/<part> : défile jusqu'à la section, même si la page est déjà ouverte */
 function usePart(ready: boolean, onPart: (part: string) => void) {
   useEffect(() => {
@@ -130,10 +140,13 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
 
   const items = disc?.items ?? [];
   const todo = items.filter((x) => x.state === "todo" && x.id !== "hosts").sort(byLabel);
-  const apps = items.filter((x) => x.state === "suggest" && x.id.startsWith("connector:")).sort(byLabel);
+  const apps = items.filter((x) => x.state === "suggest" && x.id.startsWith("connector:") && x.running !== false).sort(byLabel);
   const stopped = items.filter((x) => x.running === false && !x.muted && x.id.startsWith("connector:")).sort(byLabel);   // container not running
   const others = items.filter((x) => x.state === "suggest" && !x.id.startsWith("connector:") && x.id !== "hosts").sort(byLabel);
   const forgotten = items.filter((x) => x.muted).sort(byLabel);   // « Forget »: out of every list above, back with « Recall »
+  // put aside, one frame by category: stopped containers, forgotten apps, other forgotten suggestions
+  const forgotApps = forgotten.filter((x) => x.id.startsWith("connector:")), forgotOthers = forgotten.filter((x) => !x.id.startsWith("connector:"));
+  const aside = stopped.length + forgotten.length;
   const hostsItem = items.find((x) => x.id === "hosts");
 
   const last = scan.ended ? scan.ended * 1000 : null;
@@ -189,22 +202,12 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
         <NetworkStep net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} onCount={setPicked} />
       </Fold>
 
-      {/* 4. Applis à relier */}
-      {apps.length + stopped.length > 0 && (
+      {/* 4. Applis à relier : only those that run (stopped and forgotten ones are put aside, below) */}
+      {apps.length > 0 && (
         <Fold id="net-services" icon={<Boxes size={16} aria-hidden />} title={tx("Applis à relier")} n={apps.length}
           hint={tx("Applis reconnues sur vos machines, qu'un connecteur peut lire. Facultatif : « Oublier » range celles qui ne vous servent pas, « Rappeler » les fait revenir.")}
           open={appsOpen} onToggle={setAppsOpen}>
           <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{apps.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul>
-          {stopped.length > 0 && (
-            <details className="group mt-3 border-t border-line/60 pt-3">
-              <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-                <ChevronRight size={15} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
-                {tx("Conteneurs arrêtés")} <Count n={stopped.length} />
-                <span className="font-normal text-muted">{tx("vus par docker ps -a mais pas lancés : rien à relier tant qu'ils ne tournent pas")}</span>
-              </summary>
-              <ul className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{stopped.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul>
-            </details>
-          )}
         </Fold>
       )}
 
@@ -215,10 +218,27 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
         </Section>
       )}
 
-      {/* 6. Oubliés : ce qu'on a choisi de ne plus voir proposé, à rappeler d'un clic */}
-      {forgotten.length > 0 && (
-        <Fold id="net-forgotten" icon={<EyeOff size={16} className="text-muted" aria-hidden />} title={tx("Oubliés")} n={forgotten.length} hint={tx("plus proposés ; « Rappeler » les fait revenir")} open={forgotOpen} onToggle={setForgotOpen}>
-          <ul className="flex flex-col divide-y divide-line/60">{forgotten.map((x) => <Row key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} />)}</ul>
+      {/* 6. Mis de côté : stopped containers and what was forgotten, grouped by category, each with its button */}
+      {aside > 0 && (
+        <Fold id="net-forgotten" icon={<EyeOff size={16} className="text-muted" aria-hidden />} title={tx("Arrêtés et oubliés")} n={aside}
+          hint={tx("mis de côté : rien à relier tant qu'un conteneur est arrêté ; « Rappeler » fait revenir ce qui a été oublié")} open={forgotOpen} onToggle={setForgotOpen}>
+          <div className="flex flex-col gap-4">
+            {stopped.length > 0 && (
+              <AsideGroup title={tx("Conteneurs arrêtés")} n={stopped.length} hint={tx("vus par docker ps -a mais pas lancés")}>
+                <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{stopped.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul>
+              </AsideGroup>
+            )}
+            {forgotApps.length > 0 && (
+              <AsideGroup title={tx("Applis oubliées")} n={forgotApps.length} hint={tx("plus proposées à relier")}>
+                <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{forgotApps.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul>
+              </AsideGroup>
+            )}
+            {forgotOthers.length > 0 && (
+              <AsideGroup title={tx("Autres suggestions oubliées")} n={forgotOthers.length} hint={tx("plus rappelées dans la cloche ni sur l'accueil")}>
+                <ul className="flex flex-col divide-y divide-line/60">{forgotOthers.map((x) => <Row key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} />)}</ul>
+              </AsideGroup>
+            )}
+          </div>
         </Fold>
       )}
 
