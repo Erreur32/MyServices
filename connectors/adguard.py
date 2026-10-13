@@ -11,6 +11,7 @@ Deux accès :
 from __future__ import annotations
 
 import base64
+import shlex
 import re
 
 from connectors.base import Connector, ConnectorError, Field
@@ -87,7 +88,15 @@ class AdGuard(Connector):
 
     def version(self) -> str | None:
         if not self.conf.get("url"):
-            return None  # accès SSH : la version n'est pas dans AdGuardHome.yaml
+            # SSH: not in AdGuardHome.yaml; a container says it in its image label (docker inspect, read only), an install on the host does not
+            t = str(self.conf.get("target") or "")
+            if t.startswith("/") or not t:
+                return None
+            try:
+                v = self.ctx.ssh(self.conf["ssh"], f"docker inspect -f '{{{{index .Config.Labels \"org.opencontainers.image.version\"}}}}' {shlex.quote(t)}", timeout=15).strip()
+            except ConnectorError:
+                return None
+            return v.lstrip("v") if v and v != "<no value>" else None
         return (self._api("status") or {}).get("version")
 
     def collect(self) -> dict:

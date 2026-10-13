@@ -11,6 +11,23 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+
+- Connectors for AI services: Hermes Agent (version, gateway and its platforms, no key), Ollama (version, installed and loaded
+  models, GPU memory) and llama.cpp (build, model, context, slots); recognized on the machines, with their icons.
+- Connector picker: a search field; an AdGuard Home card that leads to Settings → Machines, where it is set (read over SSH).
+
+### Changed
+
+- « My connectors » sorted alphabetically, like the picker.
+- The machine's own SSH (OpenSSH) is no longer proposed in « New services on the machines »: it is followed with the machine.
+- Icons drawn only in black (Hermes Agent, Rybbit, Umami, VictoriaMetrics, Wallabag) turn white on the dark theme.
+
+### Fixed
+
+- AdGuard Home read over SSH shows its version (label of its container image).
+- Dozzle card shows how many containers got a « logs » link.
+
 ### Fixed
 
 - App version on more connector cards: when the API gives none, the version of the container behind the connector address

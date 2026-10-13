@@ -70,9 +70,10 @@ APPS: tuple[App, ...] = (
     App("proxmox", "Proxmox VE", "Infra / virtualisation", ports=(8006,), title=r"proxmox virtual environment|^proxmox", host=r"^(proxmox|pve)", connector="proxmox"),
     App("pbs", "Proxmox Backup Server", "Infra / virtualisation", ports=(8007,), title=r"proxmox backup server", host=r"^(pbs|proxmox-?backup)", connector="proxmox-backup"),
     # IA locale : Ollama et LM Studio ont un port à eux ; llama.cpp (8080) et Open WebUI (3000 / 8080) partagent des ports trop courants, d'où le titre de la page
-    App("ollama", "Ollama", "IA", ports=(11434,), images=("ollama/ollama",)),
+    App("ollama", "Ollama", "IA", ui="api", ports=(11434,), images=("ollama/ollama",), proc=r"^ollama\b", connector="ollama"),
     App("lmstudio", "LM Studio", "IA", ports=(1234,)),
-    App("llamacpp", "llama.cpp", "IA", title=r"^llama\.cpp", images=("ghcr.io/ggml-org/llama.cpp", "ghcr.io/ggerganov/llama.cpp")),
+    App("llamacpp", "llama.cpp", "IA", title=r"^llama\.cpp", images=("ghcr.io/ggml-org/llama.cpp", "ghcr.io/ggerganov/llama.cpp"), proc=r"^llama-server\b", connector="llamacpp"),
+    App("hermes", "Hermes Agent", "IA", ports=(8642, 19119), proc=r"^hermes\b", connector="hermes"),
     App("open-webui", "Open WebUI", "IA", title=r"open webui", images=("ghcr.io/open-webui/open-webui",)),
     # Veeam Backup & Replication : API REST 9419 (lue par Sauvegardes), service 9392, serveur de montage 9401. Ports d'après la doc Veeam, à confirmer sur un vrai serveur
     App("veeam", "Veeam Backup & Replication", "Infra / virtualisation", ports=(9419, 9392, 9401)),

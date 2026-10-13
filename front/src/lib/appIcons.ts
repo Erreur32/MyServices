@@ -24,6 +24,7 @@ const FILES: Record<string, string> = {
   "veeam backup for microsoft 365": "veeam", "veeam agent": "veeam", "sauvegarde windows server": "hyper-v",
   unraid: "unraid", "proxmox datacenter manager": "proxmox", "xen orchestra": "xen-orchestra", "kvm / libvirt": "kvm", libvirt: "kvm",
   incus: "incus", lxd: "lxd", virtualbox: "virtualbox", "hyper-v": "hyper-v",
+  ollama: "ollama", "llama.cpp": "llama-cpp", "hermes agent": "hermes-agent", hermes: "hermes-agent",
 };
 
 /** File of public/icons: SVG by default, or the given name when it has its own extension (a PNG favicon) */

@@ -1188,6 +1188,8 @@ def main():
         if not card.get("version"):
             card["version"] = api_link.app_version(card.get("url"), rows)
     for st in CONNECTOR_STATUS:
+        if st.type == "dozzle" and st.ok:   # its own reading returns no figure: the containers given a « logs » link are its badge
+            st.found = [{"name": "conteneurs reliés", "count": sum(1 for r in rows if (r.get("service") or {}).get("logs_url"))}]
         if not st.version and (v := api_link.app_version(urls.get((st.type, st.name)), rows)):
             st.version, st.version_tested = v, None   # not read by the API: no « untested » warning
     linked = api_link.by_machine([*services_status, *network, *security, *containers, *virtualization], {m["ip"] for m in machines_out})

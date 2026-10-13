@@ -174,3 +174,5 @@ cd7736bcef6550ad853e59d4d7205f96  front/public/icons/prowlarr.svg
 fd15e1ba8fce943caa7a1c4b9b3b28ac  front/public/icons/virtualbox.svg
 bade8700a5fbed646994197cf4a93533  front/public/icons/whisparr.svg
 ab8ea2fbbbf8eb0509acac3c8813219e  front/public/icons/xen-orchestra.svg
+6fb2bad073b382c5e8023564608908de  front/public/icons/hermes-agent.svg
+bb2049460fee1e06a75f9aa15e5b0350  front/public/icons/llama-cpp.svg

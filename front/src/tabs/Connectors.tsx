@@ -1,7 +1,7 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { Check, ChevronRight, HelpCircle, Loader2, Package, Pencil, Play, Plug, Plus, ScanSearch, ShieldCheck, Trash2, X } from "lucide-react";
+import { Check, ChevronRight, HelpCircle, Loader2, Package, Pencil, Play, Plug, Plus, ScanSearch, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Overlay } from "../components/Overlay";
@@ -32,7 +32,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
   const [edited, setEditing] = useState("");  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
   const [overlay, setOverlay] = useState<Proposal | null>(null);   // service détecté à activer : son formulaire s'ouvre par-dessus
   const [picking, setPicking] = useState(false);  // mini cartes des connecteurs disponibles, ouvertes par le « + »
-  const [cat, setCat] = useState("");   // category shown in the picker (empty: all)
+  const [cat, setCat] = useState(""), [query, setQuery] = useState("");   // category and search of the picker (empty: all)
   const [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false);
   const collect = useCollectTask();
   const reload = useCallback(() => {
@@ -57,10 +57,18 @@ export function Connectors({ snap }: { snap: Snapshot }) {
           </button>
         </div>
         <p className="mt-1 text-sm text-muted">{tx("Un connecteur lit par son API, en lecture seule, les services d'un outil que vous utilisez déjà (Nginx Proxy Manager, AdGuard Home, Beszel…) : une clé ou un compte sans droit de modification suffit.")}</p>
+        {picking && (
+          <label className="mt-3 flex max-w-md items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-2 focus-within:border-link">
+            <Search size={16} className="text-dim" aria-hidden />
+            <input type="search" autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tx("Chercher un connecteur (nom, catégorie…)")}
+              className="w-full bg-transparent text-sm text-txt outline-none placeholder:text-dim" />
+          </label>
+        )}
         {picking && <CategoryChips types={st.types} cat={cat} setCat={setCat} />}
         {picking && (
           <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label={tx("Connecteurs disponibles")}>
-            {st.types.filter((t) => !cat || t.category === cat).sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })).map((t) => {
+            {st.types.filter((t) => (!cat || t.category === cat) && hits(query, t.label, t.type, catName(t.category ?? ""), ...t.kinds.map((k) => KIND[k] || k)))
+              .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })).map((t) => {
               const icon = appIcon([t.label]), n = st.instances.filter((i) => i.type === t.type).length;
               return (
                 <li key={t.type}>
@@ -78,6 +86,21 @@ export function Connectors({ snap }: { snap: Snapshot }) {
                 </li>
               );
             })}
+            {VIA_MACHINES.filter((m) => (!cat || m.category === cat) && hits(query, m.label, m.category)).map((m) => (
+              <li key={m.label}>
+                <a href="#settings/machines" title={m.how}
+                  className="flex h-full w-full items-center gap-3 rounded-xl border border-dashed border-dim/50 bg-bg2 p-3 text-left no-underline transition-colors hover:border-link hover:bg-link/10">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
+                    {appIcon([m.label]) ? <img src={appIcon([m.label])!} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <b className="block truncate text-sm text-txt">{m.label}</b>
+                    <span className="block truncate text-xs text-dim">{tx("par SSH : Réglages → Machines")}</span>
+                  </span>
+                  <ChevronRight size={15} className="shrink-0 text-dim" aria-hidden />
+                </a>
+              </li>
+            ))}
           </ul>
         )}
         {type && <ConnectorForm key={type.type} type={type} prefill={prefill?.type === type.type ? prefill : null} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
@@ -92,7 +115,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
       {st.instances.length === 0 && !type && (
         <Card><p className="text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p></Card>
       )}
-      {st.instances.map((i) => (
+      {[...st.instances].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name)).map((i) => (   // alphabetical, like the picker
         <InstanceCard key={`${i.type}/${i.name}`} inst={i} collect={collect} type={st.types.find((t) => t.type === i.type)!} reload={reload}
           onCollect={(on) => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
             on ? tx("allumé : relecture lancée") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
@@ -113,6 +136,15 @@ export function Connectors({ snap }: { snap: Snapshot }) {
     </div>
   );
 }
+
+/** Read over SSH from the machine settings, not added here: a card in the picker leads there */
+const VIA_MACHINES = [
+  { label: "AdGuard Home", category: "Réseau / DNS", how: tx("Lu par SSH sur sa machine : Réglages → Machines, champ « conteneur AdGuard » de la machine (rempli tout seul quand il est trouvé)") },
+];
+
+/** Every word of the search found in one of the texts (accents and case ignored) */
+const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const hits = (q: string, ...texts: string[]) => { const all = fold(texts.join(" ")); return fold(q).split(/\s+/).every((w) => all.includes(w)); };
 
 // Categories sent by the server (connectors/settings.py: category), translated here
 const CATEGORY: Record<string, string> = {

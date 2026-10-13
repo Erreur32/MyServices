@@ -20,6 +20,10 @@
   color-scheme: light;
 }
 
+/* App icons drawn only in black: white on the dark theme, kept black on the light one (one line per file of public/icons) */
+:root:not(.light) img:is([src$="/icons/hermes-agent.svg"], [src$="/icons/rybbit.svg"], [src$="/icons/umami.svg"],
+  [src$="/icons/victoriametrics.svg"], [src$="/icons/wallabag.svg"]) { filter: invert(1); }
+
 body {
   background-image: radial-gradient(1200px 700px at 80% -10%, rgb(var(--card)) 0%, rgb(var(--bg)) 55%);
   background-attachment: fixed;

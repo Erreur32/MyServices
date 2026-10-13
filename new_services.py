@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 WINDOW_DAYS = 7
+MACHINE_OWN = {"openssh"}   # the machine's own SSH: already followed with the machine (SSH access, « SSH refused » alerts), never proposed
 PAUSE_REASON = "not followed ({0})"
 
 
@@ -47,7 +48,7 @@ def pending(data: dict, events: list[dict], state_dir: str | Path) -> list[dict]
     decided, out, seen = _decided(state_dir), [], set()
     for e in events:
         k, r = e.get("key"), rows.get(e.get("key"))
-        if not r or k in seen or k in decided or r.get("paused"):
+        if not r or k in seen or k in decided or r.get("paused") or (r.get("app") or {}).get("key") in MACHINE_OWN:
             continue
         seen.add(k)
         s = r.get("service") or {}

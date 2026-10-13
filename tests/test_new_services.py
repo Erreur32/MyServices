@@ -54,6 +54,12 @@ class NewServices(unittest.TestCase):
         self.assertEqual(json.loads(self.meta.read_text())["services"]["10.0.0.2:8080"], {"description": "kept"})
         self.assertNotIn("paused", json.loads((self.d / "data.json").read_text())["hosts"][0])
 
+    def test_machine_ssh_never_proposed(self):
+        data = {"hosts": self.data["hosts"] + [{"type": "local", "id": "10.0.0.3:22", "ip": "10.0.0.3", "port": 22, "app": {"key": "openssh"},
+                                                "service": {"kind": "process", "name": "sshd"}}]}
+        got = new_services.pending(data, [{"ts": 400.0, "key": "local:10.0.0.3:22"}, *EVENTS], self.d)
+        self.assertNotIn("local:10.0.0.3:22", [x["key"] for x in got])
+
     def test_ignore_unknown_service(self):
         with self.assertRaises(LookupError):
             new_services.ignore("local:10.0.0.9:22", self.data, self.meta, self.d, self.d)
