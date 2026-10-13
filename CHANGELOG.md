@@ -28,6 +28,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - SonarCloud: each analysis now carries the project version, so the Quality Gate judges the code changed since the last release
   instead of the whole project counted as new; the Windows agent (PowerShell) and the old static page are left out of coverage.
   Command-line tools (import, map) marked for the paths their operator types; `scripts/dev.sh` uses `[[`.
+- SonarCloud coverage: the React screens (tabs, components) are left out of coverage on purpose, the logic (Python, `front/src/lib`)
+  stays measured; new tests for the import command end to end, the Proxmox crontab guards and the commit guard placeholders. Plain
+  http to the apps of the LAN is declared once, for the connectors and install tools (rule S5332), instead of 104 findings.
 
 ## v0.11.7 (2026-10-13)
 
