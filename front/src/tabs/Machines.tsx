@@ -1,12 +1,12 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { ArrowUpCircle, Boxes, Plus, Bug, Check, ChevronDown, ChevronRight, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
+import { ArrowRight, ArrowUpCircle, Boxes, Plus, Bug, Check, ChevronDown, ChevronRight, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { dateTime, dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
 import type { HealthHost, Machine, MachineLinks, NetDevice, NetScan, ServiceStatus, Unlinked } from "../types";
-import { HaAddons } from "../components/ServiceStatusCards";
+import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, osOfMachine, type MState, type OsKind } from "../lib/machines";
 import { OsGlyph } from "../components/OsGlyph";
 import { shortOs } from "../lib/osName";
@@ -298,10 +298,14 @@ function HealthRows({ h }: { h: HealthHost }) {
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, servers, ha }: Readonly<{ m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus }>) {
+function Detail({ m, h, mac, net, from, watch, servers, ha, onServices }: Readonly<{ m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; onServices: () => void }>) {
   const i = m.info, hw = hardwareRows(m.agent?.hardware);
   return (
     <div className="grid gap-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-2 xl:col-span-3">
+        <span className="text-sm text-muted">{tx("{0} service(s) sur cette machine", m.services)}{m.down > 0 && <span className="text-bad"> · {tx("{0} en panne", m.down)}</span>}</span>
+        <button type="button" onClick={onServices} className={`${quiet} py-1 text-sm`}>{tx("Voir ses services")}<ArrowRight size={14} aria-hidden /></button>
+      </div>
       <WatchSummary items={watch} />
       <IdentitySection m={m} mac={mac} net={net} from={[...from.role, ...from.mac]} />
 
@@ -397,6 +401,43 @@ function HealthSection({ h, from }: Readonly<{ h?: HealthHost; from: Origin[] }>
           <Row k={tx("Mises à jour")}>{apt ? tx("{0} paquet(s) à mettre à jour", apt) : undefined}{h.reboot_required && <span className="text-warn"> · {tx("redémarrage requis")}</span>}</Row>
         </> : <Dim>{tx("non suivie")}</Dim>}
       </Section>
+  );
+}
+
+/** Compact machine card: who, state, system, figures, servers and what to watch; « Details » unfolds the same detail as the table,
+ *  the card then taking the whole row. A Home Assistant machine shows its add-on icons. */
+function MachineCard({ m, h, snap, scan, os, watch, ha, off, state, shown, onToggle, onMachine, detail }: Readonly<{
+  m: Machine; h?: HealthHost; snap: Snapshot; scan?: { os?: string; apps: string[]; ssh?: boolean }; os: OsKind | null; watch: WatchItem[]; ha?: ServiceStatus;
+  off: boolean; state: React.ReactNode; shown: boolean; onToggle: () => void; onMachine: (ip: string) => void; detail: React.ReactNode;
+}>) {
+  const up = m.info?.uptime_s ?? m.agent?.uptime_s;
+  const edge = LEVEL_EDGE[levelKey(h)] ?? "";
+  return (
+    <div className={`flex flex-col gap-2.5 overflow-hidden rounded-xl border border-l-[3px] border-line bg-card p-3 transition-colors hover:border-link/50 ${edge} ${shown ? "col-span-full" : ""} ${off ? "opacity-50" : ""}`}>
+      <div className="flex items-center gap-2.5">
+        <MachineIcon m={m} scan={scan} reserve />
+        <button type="button" onClick={() => onMachine(m.ip)} className="min-w-0 flex-1 text-left" title={tx("Voir ses services")}>
+          <b className="block truncate font-semibold hover:text-link">{m.name}</b>
+          <span className="block truncate font-mono text-[11px] text-dim">{m.ip}</span>
+        </button>
+        {state}
+      </div>
+      <div className="flex min-w-0 items-center gap-2 text-xs text-muted">
+        <OsShort m={m} kind={os} />
+        {up ? <span className="shrink-0 text-dim">· {tx("up")} {dur(up)}</span> : null}
+        {rolesOf(m.role).slice(0, 1).map((t) => <span key={t} className="ml-auto min-w-0 truncate rounded border border-line px-1.5 py-px text-[11px] text-dim" title={m.role}>{t}</span>)}
+      </div>
+      <ResStrip h={h} first={<Stat label={tx("Services")} title={m.down ? tx("{0} en panne", m.down) : undefined}><b>{m.services}</b>{m.down > 0 && <span className="text-xs text-bad"> ·{m.down}</span>}</Stat>} />
+      <div className="flex min-h-7 items-center justify-between gap-2">
+        <Servers m={m} snap={snap} max={4} />
+        <WatchList items={watch} />
+      </div>
+      {ha && <AddonStrip s={ha} max={8} />}
+      <button type="button" onClick={onToggle} aria-expanded={shown} className="flex items-center gap-1.5 border-t border-line/60 pt-2 text-xs text-muted hover:text-txt">
+        <ChevronRight size={13} className={`transition-transform ${shown ? "rotate-90" : ""}`} aria-hidden />{shown ? tx("Replier") : tx("Détails")}
+      </button>
+      {shown && <div className="-mx-3 -mb-3 border-t border-line/60 bg-bg2/40">{detail}</div>}
+    </div>
   );
 }
 
@@ -531,36 +572,18 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                       <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
                     
                   </tr>
-                  {shown && <tr className={`bg-bg2/40 ${OPEN_DETAIL} ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} /></td></tr>}
+                  {shown && <tr className={`bg-bg2/40 ${OPEN_DETAIL} ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} onServices={() => onMachine(m.ip)} /></td></tr>}
                 </Fragment>
               );
             })}
           </Table>}
           <Cards always={view === "cards"} dense>
-            {sort.sorted.map((m) => {   // compact card: who, state, system, figures, then servers and what to watch
-              const h = hb.get(m.ip), up = m.info?.uptime_s ?? m.agent?.uptime_s;
+            {sort.sorted.map((m) => {
+              const h = hb.get(m.ip), shown = open.has(m.ip);
               return (
-                <div key={m.ip} className={`flex flex-col gap-2.5 rounded-xl border border-l-[3px] border-line bg-card p-3 transition-colors hover:border-link/50 ${LEVEL_EDGE[levelKey(h)] ?? ""} ${isOff(m) ? "opacity-50" : ""}`}>
-                  <div className="flex items-center gap-2.5">
-                    <MachineIcon m={m} scan={scanOs[m.ip]} reserve />
-                    <button type="button" onClick={() => onMachine(m.ip)} className="min-w-0 flex-1 text-left" title={tx("Voir ses services")}>
-                      <b className="block truncate font-semibold hover:text-link">{m.name}</b>
-                      <span className="block truncate font-mono text-[11px] text-dim">{m.ip}</span>
-                    </button>
-                    {st(m)}
-                  </div>
-                  <div className="flex min-w-0 items-center gap-2 text-xs text-muted">
-                    <OsShort m={m} kind={osOf(m)} />
-                    {up ? <span className="shrink-0 text-dim">· {tx("up")} {dur(up)}</span> : null}
-                    {rolesOf(m.role).slice(0, 1).map((t) => <span key={t} className="ml-auto min-w-0 truncate rounded border border-line px-1.5 py-px text-[11px] text-dim" title={m.role}>{t}</span>)}
-                  </div>
-                  <ResStrip h={snap.health ? h : undefined} first={
-                    <Stat label={tx("Services")} title={m.down ? tx("{0} en panne", m.down) : undefined}><b>{m.services}</b>{m.down > 0 && <span className="text-xs text-bad"> ·{m.down}</span>}</Stat>} />
-                  <div className="flex min-h-7 items-center justify-between gap-2">
-                    <Servers m={m} snap={snap} max={4} />
-                    <WatchList items={watchOf(m)} />
-                  </div>
-                </div>
+                <MachineCard key={m.ip} m={m} h={snap.health ? h : undefined} snap={snap} scan={scanOs[m.ip]} os={osOf(m)} watch={watchOf(m)} ha={haOf(m)} off={isOff(m)}
+                  state={st(m)} shown={shown} onToggle={() => toggleOpen(m.ip)} onMachine={onMachine}
+                  detail={shown && <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} onServices={() => onMachine(m.ip)} />} />
               );
             })}
           </Cards>

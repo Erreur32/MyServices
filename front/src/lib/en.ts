@@ -1484,6 +1484,7 @@ export const EN: Record<string, string> = {
   "LXC": "LXC",
   "en marche depuis {0}": "up for {0}",
   "{0} invité(s)": "{0} guest(s)",
+  "{0} service(s) sur cette machine": "{0} service(s) on this machine",
   "Tâches et horaires": "Tasks and schedules",
   "TCP {0} ms · accès LAN direct": "TCP {0} ms · direct LAN access",
   "Télécharger": "Download",

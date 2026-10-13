@@ -21,6 +21,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   the unfolded detail of its machine. Read from the update entities, so no admin right is needed; the icons are read by the server
   with the token (`GET /api/v1/ha/<instance>/addon-icon/<slug>`) and kept a week in the cache.
   Folded, the list shows its first seven icons and « +N » for the others.
+- Machines, card view: « Details » unfolds a card on the same full detail as the table (identity, system, access, software, health),
+  the card then taking the whole row; both details start with « See its services » (the Services tab filtered on the machine). The
+  card of the Home Assistant machine shows its add-on icons and « +N ».
 - Machines, table view: the « Expand all » button is gone.
 - Virtualization: each node is its own section with its gauges (CPU, RAM) on a fixed grid, its storage gauges in aligned columns
   and its own guests under it (a host without nodes, or ESXi datastores, get one section); the totals moved to the title line,

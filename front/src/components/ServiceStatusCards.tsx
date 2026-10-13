@@ -51,18 +51,14 @@ function Fold({ title, tone, items, open }: { title: string; tone: "warn" | "off
 export function HaAddons({ s }: Readonly<{ s: ServiceStatus }>) {
   const list = s.addons ?? [];
   if (!list.length) return null;
-  const inst = encodeURIComponent(s.instance ?? s.name);
-  const iconUrl = (slug: string) => `${ROOT}api/v1/ha/${inst}/addon-icon/${slug}`;
+  const iconUrl = (slug: string) => addonIconUrl(s, slug);
   return (
     <details className="group rounded-lg border border-line/60">
       <summary className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-bg2/50">
         <ChevronRight size={14} className="text-dim transition-transform group-open:rotate-90" aria-hidden />
         <span className="text-muted">{tx("Modules installés")}</span><Count n={list.length} tone="off" />
         {/* folded: the first icons, then « +N » for the others; open: the full list below */}
-        <span className="ml-auto flex items-center gap-1 group-open:hidden">
-          {list.slice(0, PREVIEW).map((a) => <AddonIcon key={a.slug} src={iconUrl(a.slug)} title={a.name} small />)}
-          {list.length > PREVIEW && <span className="rounded-md bg-bg2 px-1.5 py-0.5 text-[11px] font-semibold text-muted" title={list.slice(PREVIEW).map((a) => a.name).join(", ")}>+{list.length - PREVIEW}</span>}
-        </span>
+        <span className="ml-auto group-open:hidden"><AddonStrip s={s} /></span>
       </summary>
       <ul className="grid max-h-72 grid-cols-1 gap-1 overflow-y-auto border-t border-line/40 p-2 sm:grid-cols-2">
         {list.map((a) => (
@@ -79,6 +75,19 @@ export function HaAddons({ s }: Readonly<{ s: ServiceStatus }>) {
 }
 
 const PREVIEW = 7;   // icons shown on the folded list
+const addonIconUrl = (s: ServiceStatus, slug: string) => `${ROOT}api/v1/ha/${encodeURIComponent(s.instance ?? s.name)}/addon-icon/${slug}`;
+
+/** The first add-on icons of a Home Assistant, then « +N » for the others (names on hover): folded lists and machine cards */
+export function AddonStrip({ s, max = PREVIEW }: Readonly<{ s: ServiceStatus; max?: number }>) {
+  const list = s.addons ?? [];
+  if (!list.length) return null;
+  return (
+    <span className="flex items-center gap-1" title={tx("Modules installés")}>
+      {list.slice(0, max).map((a) => <AddonIcon key={a.slug} src={addonIconUrl(s, a.slug)} title={a.name} small />)}
+      {list.length > max && <span className="rounded-md bg-bg2 px-1.5 py-0.5 text-[11px] font-semibold text-muted" title={list.slice(max).map((a) => a.name).join(", ")}>+{list.length - max}</span>}
+    </span>
+  );
+}
 
 /** Icon of an add-on; a puzzle piece when Home Assistant gives none. `small`: in the folded title */
 function AddonIcon({ src, title, small = false }: Readonly<{ src: string; title?: string; small?: boolean }>) {
