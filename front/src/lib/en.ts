@@ -809,6 +809,7 @@ export const EN: Record<string, string> = {
   "Masquer les {0}": "Hide {0}",
   "Événement": "Event",
   "{0} masqué(s) : tout afficher": "{0} hidden: show all",
+  "rien à ajouter pour eux": "nothing to add for them",
   "Docker · journaux": "Docker · logs",
   "déjà lu par SSH ({0})": "already read over SSH ({0})",
   "Déjà lu par SSH sur sa machine : un connecteur ferait doublon, sauf pour un autre serveur": "Already read over SSH on its machine: a connector would duplicate it, unless for another server",

@@ -94,6 +94,29 @@ export function Connectors({ snap }: { snap: Snapshot }) {
         {type && <ConnectorForm key={type.type} type={type} prefill={prefill?.type === type.type ? prefill : null} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
       </Card>
       <DetectedServices apps={snap.data.detected_apps ?? []} onOpen={setOverlay} />
+      {bySsh.length > 0 && (   // folded by default, like the detected services above
+        <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
+          <summary className={FOLD_HEAD}>
+            <ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
+            <Plug size={16} aria-hidden />{tx("Déjà lus par SSH")} <Count n={bySsh.length} />
+            <span className="font-normal text-muted">{tx("rien à ajouter pour eux")}</span>
+          </summary>
+          <p className="mt-1 text-sm text-muted">{tx("Trouvés sur une machine suivie et lus par SSH (AdGuard, Proxmox, ESXi, KVM…) : inutile de les ajouter ici. Un connecteur n'apporte quelque chose que s'il lit une API que SSH ne voit pas.")}</p>
+          <ul className="mt-2 flex flex-col divide-y divide-line/60">
+            {bySsh.map((o) => {
+              const label = st.types.find((t) => t.type === o.type)?.label ?? o.label ?? o.type, icon = appIcon([label]);
+              return (
+                <li key={`${o.type}/${o.name}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 text-sm">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">{icon ? <img src={icon} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}</span>
+                  <b>{label}</b><Dim>· {o.name}</Dim><Badge tone="off">SSH</Badge>
+                  <span className="ml-auto"><StatusLine s={o} collect={collect} /></span>
+                  <a href="#settings/machines" className="text-xs text-link hover:underline">{tx("Réglages → Machines")}</a>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      )}
       {overlay && st.types.find((t) => t.type === overlay.connector) && (
         <Overlay title={<>{appIcon([overlay.label]) && <img src={appIcon([overlay.label])!} alt="" className="h-6 w-6" />}{tx("Activer")} {overlay.label} <Dim>· {overlay.machine || overlay.ip}</Dim></>} onClose={() => setOverlay(null)}>
           <ConnectorForm key={overlay.connector} type={st.types.find((t) => t.type === overlay.connector)!} prefill={{ type: overlay.connector, name: overlay.connector, url: overlay.url }}
@@ -109,25 +132,6 @@ export function Connectors({ snap }: { snap: Snapshot }) {
             on ? tx("allumé : relecture lancée") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
           editing={editing === `${i.type}/${i.name}`} locked={(!!editing && editing !== `${i.type}/${i.name}`) || picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
       ))}
-      {bySsh.length > 0 && (
-        <Card>
-          <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Déjà lus par SSH")} <Count n={bySsh.length} /></h2>
-          <p className="mt-1 text-sm text-muted">{tx("Trouvés sur une machine suivie et lus par SSH (AdGuard, Proxmox, ESXi, KVM…) : inutile de les ajouter ici. Un connecteur n'apporte quelque chose que s'il lit une API que SSH ne voit pas.")}</p>
-          <ul className="mt-3 flex flex-col divide-y divide-line/60">
-            {bySsh.map((o) => {
-              const label = st.types.find((t) => t.type === o.type)?.label ?? o.label ?? o.type, icon = appIcon([label]);
-              return (
-                <li key={`${o.type}/${o.name}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 text-sm">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">{icon ? <img src={icon} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}</span>
-                  <b>{label}</b><Dim>· {o.name}</Dim><Badge tone="off">SSH</Badge>
-                  <span className="ml-auto"><StatusLine s={o} collect={collect} /></span>
-                  <a href="#settings/machines" className="text-xs text-link hover:underline">{tx("Réglages → Machines")}</a>
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-      )}
       <NoteLine note={srcNote} />
       {changed && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-bg2/40 px-4 py-3 text-sm text-muted">
