@@ -22,6 +22,17 @@ from connectors.base import ConnectorError, Context, tally
 SSH_TYPES = {"docker", "process", "adguard"}  # découlent des machines
 ALERT_TYPES = {"discord", "telegram"}  # section Alertes
 TEST_TIMEOUT = 20
+# Category of a connector in the « add » picker: the one of its known app (known_apps), except the backup tools grouped apart and
+# the connectors without a known app
+BACKUP_TYPES = {"backrest", "borgmatic", "urbackup", "veeam", "veeam-m365", "proxmox-backup"}
+CATEGORY = {"vcenter": "Infra / virtualisation", "synology": "Fichiers / sync"}
+
+
+def category(type_: str) -> str:
+    if type_ in BACKUP_TYPES:
+        return "Sauvegardes"
+    import known_apps
+    return CATEGORY.get(type_) or next((a.category for a in known_apps.APPS if a.connector == type_), "Autre")
 
 
 class SettingsError(Exception):
@@ -38,7 +49,7 @@ def editable() -> dict:
 
 def schema() -> list[dict]:
     """Types réglables et leurs champs : la page en génère les formulaires."""
-    return [{"type": t, "label": c.label, "kinds": list(c.kinds), "tested": list(c.tested), "guide": list(getattr(c, "guide", ())), "modes": list(c.modes),
+    return [{"type": t, "label": c.label, "category": category(t), "kinds": list(c.kinds), "tested": list(c.tested), "guide": list(getattr(c, "guide", ())), "modes": list(c.modes),
              "fields": [{"name": f.name, "label": f.label, "kind": f.kind, "required": f.required, "secret": f.secret,
                          "default": f.default, "help": f.help, "choices": list(f.choices)} for f in c.fields]}
             for t, c in editable().items()]

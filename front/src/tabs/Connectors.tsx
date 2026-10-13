@@ -31,6 +31,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
   const [edited, setEditing] = useState("");  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
   const [overlay, setOverlay] = useState<Proposal | null>(null);   // service détecté à activer : son formulaire s'ouvre par-dessus
   const [picking, setPicking] = useState(false);  // mini cartes des connecteurs disponibles, ouvertes par le « + »
+  const [cat, setCat] = useState("");   // category shown in the picker (empty: all)
   const [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false);
   const reload = useCallback(() => {
     read<ConnectorsState>("connectors/settings")
@@ -54,9 +55,10 @@ export function Connectors({ snap }: { snap: Snapshot }) {
           </button>
         </div>
         <p className="mt-1 text-sm text-muted">{tx("Un connecteur lit par son API, en lecture seule, les services d'un outil que vous utilisez déjà (Nginx Proxy Manager, AdGuard Home, Beszel…) : une clé ou un compte sans droit de modification suffit.")}</p>
+        {picking && <CategoryChips types={st.types} cat={cat} setCat={setCat} />}
         {picking && (
           <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label={tx("Connecteurs disponibles")}>
-            {st.types.map((t) => {
+            {st.types.filter((t) => !cat || t.category === cat).sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })).map((t) => {
               const icon = appIcon([t.label]), n = st.instances.filter((i) => i.type === t.type).length;
               return (
                 <li key={t.type}>
@@ -106,6 +108,29 @@ export function Connectors({ snap }: { snap: Snapshot }) {
       )}
 
 
+    </div>
+  );
+}
+
+// Categories sent by the server (connectors/settings.py: category), translated here
+const CATEGORY: Record<string, string> = {
+  "Infra / virtualisation": tx("Infra / virtualisation"), Monitoring: tx("Monitoring"), "Réseau / DNS": tx("Réseau / DNS"), Médias: tx("Médias"),
+  Sauvegardes: tx("Sauvegardes"), Domotique: tx("Domotique"), "Fichiers / sync": tx("Fichiers / sync"), IA: tx("IA"), Outils: tx("Outils"),
+  Système: tx("Système"), Sécurité: tx("Sécurité"), "Web / perso": tx("Web / perso"), Autre: tx("Autre"),
+};
+const catName = (c: string) => CATEGORY[c] ?? c;
+
+/** Picker filter: one chip per category, with its count, alphabetical */
+function CategoryChips({ types, cat, setCat }: { types: ConnectorType[]; cat: string; setCat: (c: string) => void }) {
+  const counts = new Map<string, number>();
+  for (const t of types) if (t.category) counts.set(t.category, (counts.get(t.category) ?? 0) + 1);
+  const cats = [...counts.keys()].sort((a, b) => catName(a).localeCompare(catName(b)));
+  if (cats.length < 2) return null;
+  const chip = (on: boolean) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${on ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`;
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label={tx("Catégorie")}>
+      <button type="button" className={chip(!cat)} aria-pressed={!cat} onClick={() => setCat("")}>{tx("Toutes")} <b className="text-dim">{types.length}</b></button>
+      {cats.map((c) => <button key={c} type="button" className={chip(cat === c)} aria-pressed={cat === c} onClick={() => setCat(cat === c ? "" : c)}>{catName(c)} <b className="text-dim">{counts.get(c)}</b></button>)}
     </div>
   );
 }

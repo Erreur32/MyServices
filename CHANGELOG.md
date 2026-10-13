@@ -13,6 +13,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 
+- Connectors: the « add » picker is sorted alphabetically, with one filter chip per category (Monitoring, Media, Network / DNS,
+  Backups…) and its count.
 - Home page: « New services on the machines ». Containers and processes that appeared in the last 7 days are proposed:
   Follow (nothing changes, no longer proposed) or Don't follow (paused: no probe, no alert). A paused service shows why in its
   detail in Services, with a « Resume following » button.

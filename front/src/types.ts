@@ -425,6 +425,7 @@ export interface ConnectorMode { id: string; label: string; help: string; fields
 export interface ConnectorType {
   type: string;
   label: string;
+  category?: string;   // grouping in the « add » picker (Monitoring, Médias…)
   kinds: string[];
   tested: string[];
   guide?: string[];
