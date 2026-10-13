@@ -4,8 +4,8 @@ API PocketBase du hub, avec un compte Beszel au rôle « readonly » (systèmes 
 SHARE_ALL_SYSTEMS=true sur le hub) :
   POST /api/collections/users/auth-with-password   connexion -> jeton
   GET  /api/beszel/info                            version du hub (« v »)
-  GET  /api/collections/<c>/records                systems, system_details, smart_devices, systemd_services,
-                                                   system_stats (dernier relevé 1 min : taille des disques)
+  GET  /api/collections/<c>/records                systems, system_details, smart_devices, systemd_services, containers,
+                                                   system_stats (dernier relevé 1 min : taille des disques, sondes, swap)
 Champs lus d'après le code source de Beszel v0.21.0 (internal/entities/system, migrations) : son API
 « peut changer en version mineure », d'où une lecture tolérante champ par champ.
 """
@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from connectors.base import Connector, ConnectorError, Field, Result
 
 SERVICE_FAILED = 2  # systemd_services.state : 0 actif, 1 inactif, 2 en échec, 3-5 transitions
+HEALTH = {1: "starting", 2: "healthy", 3: "unhealthy"}  # containers.health ; 0 : no health check
 
 
 def _num(v):
@@ -90,7 +91,17 @@ class Beszel(Connector):
                  "hours": _num(d.get("hours")), "cycles": _num(d.get("cycles")), "capacity": _num(d.get("capacity"))})
         for s in self._records("systemd_services", f"state={SERVICE_FAILED}"):
             failed.setdefault(s.get("system"), []).append(s.get("name"))
-        disks = self._disks()
+        last = self._last_stats()
+        disks = _disks(last)
+        docker = {}
+        try:
+            running = self._records("containers")   # running containers only, as the agent sees them
+        except ConnectorError:
+            running = []   # older hub without this collection
+        for c in running:
+            docker.setdefault(c.get("system"), []).append(
+                {"name": c.get("name"), "image": c.get("image"), "status": c.get("status"), "health": HEALTH.get(c.get("health")),
+                 "cpu": _num(c.get("cpu")), "memory_mb": _num(c.get("memory")), "updatable": c.get("updatable") is True})
         out = []
         for s in systems:
             info, det = s.get("info") or {}, details.get(s.get("id")) or {}
@@ -106,26 +117,19 @@ class Beszel(Connector):
                 "cpu_model": det.get("cpu"), "cores": _num(det.get("cores")), "memory": _num(det.get("memory")),
                 "smart": smart.get(s.get("id"), []), "failed_services": sorted(failed.get(s.get("id"), [])),
                 "disks": disks.get(s.get("id"), []),
+                "containers": sorted(docker.get(s.get("id"), []), key=lambda c: str(c["name"])),
+                "sensors": _sensors(last.get(s.get("id"))), **_swap(last.get(s.get("id"))),
             })
         return {"systems": out}
 
-    def _disks(self) -> dict:
-        """{système: [{mount, size_gb, used_gb, used_pct}]} d'après le dernier relevé 1 min de chaque système
-        (10 dernières minutes) : disque racine (« / », ou son nom FILESYSTEM) et disques en plus (efs)."""
+    def _last_stats(self) -> dict:
+        """{system: its last 1 min record (10 last minutes)}: disks, sensors and swap all come from it, one read."""
         since = (datetime.now(timezone.utc) - timedelta(minutes=10)).strftime("%Y-%m-%d %H:%M:%S")
         last = {}
         for r in self._records("system_stats", f'type="1m" && created>="{since}"'):
             if r.get("system") not in last or str(r.get("created")) > str(last[r["system"]].get("created")):
                 last[r.get("system")] = r
-        out = {}
-        for sid, r in last.items():
-            st = r.get("stats") or {}
-            vols = [("/", st)] + sorted((k, v) for k, v in (st.get("efs") or {}).items() if isinstance(v, dict))
-            out[sid] = [{"mount": name, "size_gb": round(v["d"], 1), "used_gb": round(_num(v.get("du")) or 0, 1),
-                         "used_pct": round(_num(v.get("dp")) if _num(v.get("dp")) is not None
-                                           else (_num(v.get("du")) or 0) * 100 / v["d"])}
-                        for name, v in vols if _num(v.get("d"))]
-        return out
+        return last
 
     def test(self) -> Result:
         try:
@@ -140,6 +144,33 @@ class Beszel(Connector):
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
         hub = next((h for h, c in ports if c == 8090), None)
         return {"url": f"http://{ip}:{hub}"} if hub else None
+
+
+def _disks(last: dict) -> dict:
+    """{système: [{mount, size_gb, used_gb, used_pct}]} : disque racine (« / », ou son nom FILESYSTEM) et disques en plus (efs)."""
+    out = {}
+    for sid, r in last.items():
+        st = r.get("stats") or {}
+        vols = [("/", st)] + sorted((k, v) for k, v in (st.get("efs") or {}).items() if isinstance(v, dict))
+        out[sid] = [{"mount": name, "size_gb": round(v["d"], 1), "used_gb": round(_num(v.get("du")) or 0, 1),
+                     "used_pct": round(_num(v.get("dp")) if _num(v.get("dp")) is not None
+                                       else (_num(v.get("du")) or 0) * 100 / v["d"])}
+                    for name, v in vols if _num(v.get("d"))]
+    return out
+
+
+def _sensors(r: dict | None) -> list[dict]:
+    """Every temperature sensor of the last record (stats « t »), hottest first."""
+    t = ((r or {}).get("stats") or {}).get("t")
+    got = [{"name": str(k), "celsius": round(v, 1)} for k, v in (t.items() if isinstance(t, dict) else ()) if _num(v) is not None]
+    return sorted(got, key=lambda x: -x["celsius"])
+
+
+def _swap(r: dict | None) -> dict:
+    """Swap size and use in GB (stats « s », « su »), when the machine has some."""
+    st = (r or {}).get("stats") or {}
+    size, used = _num(st.get("s")), _num(st.get("su"))
+    return {"swap_gb": round(size, 2), "swap_used_gb": round(used or 0, 2)} if size else {}
 
 
 def match(systems: list[dict], machines: dict) -> dict:

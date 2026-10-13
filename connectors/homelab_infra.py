@@ -15,8 +15,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from connectors.base import ConnectorError, Field
-from connectors.status_kit import StatusConnector, fact, num, post_form, raw_tcp, rows, size, duration
+from connectors.base import ConnectorError, Field, Result
+from connectors.status_kit import StatusConnector, container_env, fact, num, post_form, raw_tcp, rows, size, duration
 
 VERIFY = Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=True, help="à décocher pour un certificat auto-signé")
 
@@ -484,9 +484,12 @@ class NUT(StatusConnector):
 
 
 class Portainer(StatusConnector):
-    """Portainer : environnements (en ligne ou non), conteneurs en marche, arrêtés, en mauvaise santé. Jeton d'accès (X-API-KEY)."""
+    """Portainer : ses environnements comme source de conteneurs (comme Dockhand) : en ligne ou non, conteneurs en marche, arrêtés,
+    en mauvaise santé, d'après l'instantané que Portainer tient déjà (un seul appel, rien par conteneur). Jeton d'accès (X-API-KEY).
+    Routes (GET) : /api/system/status, /api/endpoints (URL, Status 1 = en ligne, Snapshots[0])."""
     type = "portainer"
     label = "Portainer"
+    kinds = ("containers",)
     images = ("portainer/portainer-ce", "portainer/portainer-ee")
     fields = (
         Field("url", "Adresse de Portainer", "url", required=True, help="https://<IP>:9443 (ou http://<IP>:9000)"),
@@ -496,22 +499,36 @@ class Portainer(StatusConnector):
     setup_fields = ("url", "api_key")
     guide = ("Dans Portainer : Mon compte → Access tokens → « Add access token ». Un compte non administrateur avec accès en lecture suffit.",)
 
-    def collect(self) -> dict:
-        h = {"X-API-KEY": str(self.conf.get("api_key", ""))}
-        st = self.get("/api/system/status", h)
-        envs = rows(self.get("/api/endpoints", h))
+    def _h(self) -> dict:
+        return {"X-API-KEY": str(self.conf.get("api_key", ""))}
+
+    def version(self) -> str | None:
+        st = self.get("/api/system/status", self._h())
         if not isinstance(st, dict):
             raise ConnectorError("réponse inattendue : l'adresse ne mène pas à Portainer")
-        down = [e for e in envs if num(e.get("Status"), 1) != 1]
-        run = stop = unhealthy = 0
-        for e in envs:
-            sn = (e.get("Snapshots") or [{}])[0] if isinstance(e.get("Snapshots"), list) and e.get("Snapshots") else {}
-            run += int(num(sn.get("RunningContainerCount"), 0))
-            stop += int(num(sn.get("StoppedContainerCount"), 0))
-            unhealthy += int(num(sn.get("UnhealthyContainerCount"), 0))
-        facts = [fact("Environnements", f"{len(envs) - len(down)}/{len(envs)} en ligne", "bad" if down else "ok"), fact("Conteneurs", f"{run} en marche"),
-                 fact("Arrêtés", stop, "warn" if stop else None), fact("Unhealthy", unhealthy, "bad" if unhealthy else "ok")]
-        return self.out(st.get("Version"), facts, [f"environnement « {e.get('Name')} » hors ligne" for e in down] + ([f"{unhealthy} conteneur(s) unhealthy"] if unhealthy else []))
+        return st.get("Version")
+
+    def collect(self) -> dict:
+        envs = []
+        for e in rows(self.get("/api/endpoints", self._h())):
+            sn = e["Snapshots"][0] if isinstance(e.get("Snapshots"), list) and e["Snapshots"] and isinstance(e["Snapshots"][0], dict) else {}
+            url = str(e.get("URL") or "")
+            env = container_env(e.get("Id", e.get("Name")), e.get("Name"), None if not url or url.startswith("unix:") else url, [],
+                                available=num(e.get("Status"), 1) == 1)
+            run, stop = int(num(sn.get("RunningContainerCount"), 0)), int(num(sn.get("StoppedContainerCount"), 0))
+            env["containers"].update({"total": int(num(sn.get("ContainerCount"), run + stop)), "running": run, "stopped": stop,
+                                      "unhealthy": int(num(sn.get("UnhealthyContainerCount"), 0))})
+            envs.append(env)
+        return {"environments": envs, "updates": 0}
+
+    def test(self) -> Result:
+        try:
+            v = self.version()
+            envs = self.collect()["environments"]
+        except ConnectorError as e:
+            return Result(False, str(e))
+        up = sum(1 for e in envs if e["available"])
+        return Result(True, f"Environnements {up}/{len(envs)} en ligne, {sum(e['containers']['total'] for e in envs)} conteneur(s)", v)
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:

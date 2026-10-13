@@ -18,6 +18,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   unhealthy) and image updates, matched to its machine; an offline environment is flagged « offline » on the card.
 - Glances connector also reads the machine it runs on for the Health tab (processor, memory, load, real disks, hottest core): a
   machine without SSH, agent or Beszel gets a health reading « read by Glances ». A Glances in a container names a disk after its device.
+- Portainer connector is now a container source too (environments online or not, containers running, stopped, unhealthy), from the
+  snapshot Portainer already keeps: one call, nothing per container.
+- Beszel connector reads more of what its agents send: running containers per machine (health check, image update), every
+  temperature sensor and the swap. In the Health tab, a machine read by Beszel gets its Docker part (containers, unhealthy ones,
+  busiest, image updates) and its sensors on the temperature badge.
 - The health task reuses a connector result read less than 10 minutes ago (Glances, Home Assistant) instead of calling it again.
 - AdGuard Home (API mode), Uptime Kuma and Web-Check connectors: « Verify HTTPS certificate » setting, for a self-signed certificate.
 - Connectors: « Save without collection » button, to set up a service that is down or not ready yet: settings kept, no test,

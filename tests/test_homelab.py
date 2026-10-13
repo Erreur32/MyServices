@@ -81,7 +81,7 @@ class Registre(unittest.TestCase):
     def test_tous_enregistres_avec_champs_et_aide(self):
         for t in ("frigate", "arr", "opnsense", "crowdsec", "pihole", "technitium", "truenas", "synology", "unifi", "tailscale", "nut", "portainer"):
             cls = connectors.TYPES[t]
-            self.assertIn("status", cls.kinds, t)
+            self.assertIn("containers" if t == "portainer" else "status", cls.kinds, t)
             self.assertTrue(cls.label and cls.fields and cls.guide, t)
             secrets = {f.name for f in cls.fields if f.secret}
             self.assertTrue(secrets or t in ("frigate", "nut"), f"{t} : aucun secret déclaré ?")
@@ -352,12 +352,14 @@ class NUTTest(unittest.TestCase):
 class Portainer(Base):
     def test_environnements_et_conteneurs(self):
         self.route("/api/system/status", {"Version": "2.21.0"})
-        self.route("/api/endpoints", [{"Name": "local", "Status": 1, "Snapshots": [{"RunningContainerCount": 10, "StoppedContainerCount": 2, "UnhealthyContainerCount": 1}]},
-                                      {"Name": "vps", "Status": 2}])
-        d = self.conn("portainer", api_key="K").collect()
+        self.route("/api/endpoints", [{"Id": 1, "Name": "local", "URL": "unix:///var/run/docker.sock", "Status": 1,
+                                       "Snapshots": [{"RunningContainerCount": 10, "StoppedContainerCount": 2, "UnhealthyContainerCount": 1, "ContainerCount": 12}]},
+                                      {"Id": 2, "Name": "vps", "URL": "tcp://10.0.0.5:9001", "Status": 2}])
+        local, vps = self.conn("portainer", api_key="K").collect()["environments"]
         self.assertEqual(SEEN[0][2].get("X-Api-Key") or SEEN[0][2].get("X-API-KEY"), "K")
-        self.assertEqual(d["problems"], ["environnement « vps » hors ligne", "1 conteneur(s) unhealthy"])
-        self.assertEqual({f["label"]: f["value"] for f in d["facts"]}["Conteneurs"], "10 en marche")
+        self.assertEqual((local["host"], local["available"], local["containers"]),
+                         (None, True, {"total": 12, "running": 10, "stopped": 2, "paused": 0, "unhealthy": 1}))
+        self.assertEqual((vps["host"], vps["available"], vps["containers"]["total"]), ("tcp://10.0.0.5:9001", False, 0))
 
     def test_test_donne_une_ligne_lisible(self):
         self.route("/api/system/status", {"Version": "2.21.0"})
@@ -366,6 +368,10 @@ class Portainer(Base):
         self.assertTrue(r.ok)
         self.assertEqual(r.version, "2.21.0")
         self.assertIn("Environnements 1/1", r.message)
+
+    def test_pas_portainer(self):
+        self.route("/api/system/status", ["autre"])
+        self.assertFalse(self.conn("portainer", api_key="K").test().ok)
 
 
 if __name__ == "__main__":

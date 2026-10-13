@@ -766,7 +766,7 @@ def parse_beszel(sys_: dict) -> dict:
     return {
         "disks": disks,
         "systemd": {"failed": [{"unit": n, "active": "failed", "sub": "", "desc": ""} for n in sys_.get("failed_services") or []]},
-        "docker": {"accessible": False, "reason": "beszel"},
+        "docker": docker_from_beszel(sys_.get("containers")),
         "apt": {"upgradable": upd or 0, "sample": [], "available": upd is not None,
                 "security": sys_.get("updates_security")},
         "kernel": {"has_errors": False, "samples": [], "available": False},
@@ -774,11 +774,29 @@ def parse_beszel(sys_: dict) -> dict:
         "load": load,
         "ssh_auth": {"failed_24h": 0, "available": False, "reason": "non relevé par Beszel"},
         "smart": smart_from_beszel(sys_),
-        "temp": ({"available": True, "celsius": round(sys_["temp"], 1), "source": "Beszel"} if isinstance(sys_.get("temp"), (int, float)) else {"available": False}),
+        "temp": ({"available": True, "celsius": round(sys_["temp"], 1), "source": "Beszel", "sensors": (sys_.get("sensors") or [])[:12]}
+                 if isinstance(sys_.get("temp"), (int, float)) else {"available": False}),
         "res": ({"available": True, "cpu_pct": round(sys_["cpu"], 1), "mem_pct": round(sys_["mem_pct"], 1)}
                 if isinstance(sys_.get("cpu"), (int, float)) and isinstance(sys_.get("mem_pct"), (int, float)) else {"available": False}),
         "source": "beszel",
     }
+
+
+def docker_from_beszel(containers) -> dict:
+    """Running containers seen by the Beszel agent -> the Docker part of the SSH reading (it lists no stopped container)."""
+    if not containers:
+        return {"accessible": False, "reason": "beszel"}
+    unhealthy = [c for c in containers if c.get("health") == "unhealthy"]
+    restarting = [c for c in containers if "restarting" in str(c.get("status") or "").lower()]
+    top = sorted((c for c in containers if isinstance(c.get("cpu"), (int, float))), key=lambda c: -c["cpu"])[:3]
+    total_cpu = round(sum(c.get("cpu") or 0 for c in containers), 1)
+    return {"accessible": True, "source": "beszel", "total": len(containers), "stopped": 0, "stopped_list": [],
+            "healthy": len(containers) - len(unhealthy) - len(restarting), "unhealthy": len(unhealthy), "restarting": len(restarting), "exited": 0,
+            "issues": [{"name": c.get("name"), "status": f"{c.get('status')} (unhealthy)" if c in unhealthy else c.get("status"), "image": c.get("image")}
+                       for c in unhealthy + restarting][:10],
+            "image_updates": sorted(str(c.get("name")) for c in containers if c.get("updatable")),
+            "total_cpu": total_cpu, "avg_cpu": round(total_cpu / len(containers), 1),
+            "top": [{"name": c.get("name"), "cpu": c["cpu"], "mem_usage": f"{c.get('memory_mb') or 0:.0f} Mo", "mem_pct": None} for c in top]}
 
 
 def smart_from_beszel(sys_: dict) -> dict:

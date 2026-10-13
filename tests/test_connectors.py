@@ -277,7 +277,10 @@ BESZEL = {
     "smart_devices": [{"system": "s1", "name": "/dev/sda", "model": "WD", "state": "PASSED", "temp": 35, "hours": 1000, "cycles": 9}],
     "systemd_services": [{"system": "s1", "name": "nginx.service", "state": 2}, {"system": "s1", "name": "ok.service", "state": 0}],
     "system_stats": [{"system": "s1", "type": "1m", "created": "2026-10-10 00:00:00.000Z",
-                      "stats": {"d": 100.0, "du": 81.0, "dp": 81.0, "efs": {"data": {"d": 1000.0, "du": 550.0}}}}],
+                      "stats": {"d": 100.0, "du": 81.0, "dp": 81.0, "efs": {"data": {"d": 1000.0, "du": 550.0}},
+                                "t": {"acpitz": 27.8, "coretemp_core_0": 52, "nvme": "?"}, "s": 2.0, "su": 0.5}}],
+    "containers": [{"system": "s1", "name": "web", "image": "nginx", "status": "Up 2 days", "health": 3, "cpu": 1.5, "memory": 60.0, "updatable": True},
+                   {"system": "s1", "name": "db", "image": "postgres", "status": "Up 2 days", "health": 0, "cpu": 0.2, "memory": 300.0, "updatable": False}],
 }
 
 
@@ -335,6 +338,9 @@ class BeszelTests(unittest.TestCase):
         self.assertEqual((s1["disk_pct"], s1["extra_disks_pct"], s1["services_failed"], s1["updates_security"]), (81.0, {"data": 55.0}, 1, 2))
         self.assertEqual((s1["os"], s1["cores"], s1["failed_services"]), ("Debian 13", 8, ["nginx.service"]))
         self.assertEqual(s1["smart"][0]["state"], "PASSED")
+        self.assertEqual([(c["name"], c["health"], c["updatable"]) for c in s1["containers"]], [("db", None, False), ("web", "unhealthy", True)])
+        self.assertEqual(s1["sensors"], [{"name": "coretemp_core_0", "celsius": 52}, {"name": "acpitz", "celsius": 27.8}])
+        self.assertEqual((s1["swap_gb"], s1["swap_used_gb"], s2["containers"], s2["sensors"]), (2.0, 0.5, [], []))
         self.assertEqual(s1["disks"], [{"mount": "/", "size_gb": 100.0, "used_gb": 81.0, "used_pct": 81},
                                        {"mount": "data", "size_gb": 1000.0, "used_gb": 550.0, "used_pct": 55}])
         # champ illisible : None, sans faire échouer le connecteur

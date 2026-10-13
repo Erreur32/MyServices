@@ -84,7 +84,7 @@ function HostDetails({ h }: { h: HealthHost }) {
     h.docker?.accessible && <Badge key="docker" tone="off">{tx("Docker ·")} {h.docker.total ?? 0} {tx("conteneurs")}</Badge>,
     h.load?.available && <Badge key="load" tone="off">{tx("charge")} {h.load.load_1} / {h.load.ncpu} {tx("CPU")}</Badge>,
     !h.temp?.available && h.temp?.virt && <Badge key="vm" tone="off" title={tx("Machine virtuelle ({0}) : pas de capteur de température", h.temp.virt)}>{tx("VM")}</Badge>,
-    h.temp?.available && <Badge key="temp" tone={h.temp.celsius! >= 95 ? "bad" : h.temp.celsius! >= 85 ? "warn" : "off"} title={h.temp.source}>{tx("CPU")} {h.temp.celsius} °C</Badge>,
+    h.temp?.available && <Badge key="temp" tone={h.temp.celsius! >= 95 ? "bad" : h.temp.celsius! >= 85 ? "warn" : "off"} title={h.temp.sensors?.length ? h.temp.sensors.map((x) => `${x.name} ${x.celsius} °C`).join("\n") : h.temp.source}>{tx("CPU")} {h.temp.celsius} °C</Badge>,
     h.smart?.accessible && <Badge key="smart" tone="off">{tx("SMART ·")} {h.smart.disks.length} {tx("disque(s)")}</Badge>,
     h.ssh_auth?.available && <Badge key="ssh" tone="off">{tx("SSH refusés 24 h :")} {h.ssh_auth.failed_24h}</Badge>,
   ].filter(Boolean);

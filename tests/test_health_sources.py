@@ -174,3 +174,21 @@ class ApiSource(unittest.TestCase):
     def test_home_assistant_by_default(self):
         h = health.read_host(hc(target=None), None, None, api=beszel())
         self.assertEqual(h["api_name"], "Home Assistant")
+
+
+@unittest.skipIf(health is None, "dépendances absentes : tests à lancer dans l'image")
+class BeszelExtras(unittest.TestCase):
+    """Beszel's containers fill the Docker part of the health, its sensors the temperature."""
+
+    def test_containers_and_sensors(self):
+        sys_ = {**beszel(), "sensors": [{"name": "core", "celsius": 51.0}],
+                "containers": [{"name": "web", "image": "nginx", "status": "Up 2 days", "health": "unhealthy", "cpu": 2.0, "memory_mb": 60, "updatable": True},
+                               {"name": "db", "image": "pg", "status": "Up 2 days", "health": None, "cpu": 1.0, "memory_mb": 300, "updatable": False}]}
+        h = health.read_host(hc(target=None), None, sys_)
+        d = h["docker"]
+        self.assertEqual((d["accessible"], d["total"], d["unhealthy"], d["healthy"], d["image_updates"]), (True, 2, 1, 1, ["web"]))
+        self.assertEqual((d["top"][0]["name"], d["total_cpu"], d["issues"][0]["name"]), ("web", 3.0, "web"))
+        self.assertEqual(h["temp"]["sensors"], [{"name": "core", "celsius": 51.0}])
+
+    def test_no_docker(self):
+        self.assertFalse(health.read_host(hc(target=None), None, beszel())["docker"]["accessible"])
