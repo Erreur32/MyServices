@@ -28,7 +28,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
   const [st, setSt] = useState<ConnectorsState | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
-  const [editing, setEditing] = useState("");  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
+  const [edited, setEditing] = useState("");  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
   const [overlay, setOverlay] = useState<Proposal | null>(null);   // service détecté à activer : son formulaire s'ouvre par-dessus
   const [picking, setPicking] = useState(false);  // mini cartes des connecteurs disponibles, ouvertes par le « + »
   const [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false);
@@ -37,10 +37,12 @@ export function Connectors({ snap }: { snap: Snapshot }) {
       .then((s) => { setSt(s); setError(""); })
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
   }, []);
-  useEffect(reload, [reload]);
+  useEffect(reload, [reload, snap.data.generated]);   // read again when a collection ends: states and versions up to date without F5
 
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   const type = st.types.find((t) => t.type === adding);
+  // An instance deleted (or renamed) while its form was open no longer locks the other buttons
+  const editing = st.instances.some((i) => `${i.type}/${i.name}` === edited) ? edited : "";
   return (
     <div className="flex flex-col gap-4">
       <Card>
@@ -216,7 +218,7 @@ function InstanceCard({ inst, type, reload, onCollect, editing: edit, locked, se
           <button type="button" className={quiet} disabled={locked} onClick={() => setEdit(!edit)} aria-expanded={edit}
             title={locked ? tx("Un autre formulaire est ouvert : terminez-le ou annulez-le d'abord") : undefined}><Pencil size={14} />{tx("Modifier")}</button>
           {confirm ? <>
-            <button type="button" className={danger} onClick={() => void act(() => send("DELETE", path), tx("connecteur supprimé"), setNote).then((ok) => ok && reload())}>{tx("Confirmer")}</button>
+            <button type="button" className={danger} onClick={() => void act(() => send("DELETE", path), tx("connecteur supprimé"), setNote).then((ok) => { if (ok) { setEdit(false); reload(); } })}>{tx("Confirmer")}</button>
             <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
           </> : <button type="button" className={danger} onClick={() => setConfirm(true)}><Trash2 size={14} />{tx("Supprimer")}</button>}
         </div>

@@ -26,6 +26,7 @@ import { tx } from "./lib/i18n";
 import { GREY_CARDS } from "./lib/forms";
 
 const REFRESH_MS = 60_000;
+const FAST_MS = 5_000, FAST_FOR_MS = 150_000;   // after a change: data.json read every 5 s for 2 min 30 (304 when unchanged)
 
 function tabFromHash(): TabId {
   const raw = location.hash.slice(1).split("/")[0];
@@ -63,8 +64,15 @@ export default function App() {
     const id = setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);   // rien quand l'onglet est masqué
     const onHash = () => { setTab(tabFromHash()); setHash(location.hash); };
     addEventListener("hashchange", onHash);
-    addEventListener(RELOAD_EVENT, load);
-    return () => { clearInterval(id); removeEventListener("hashchange", onHash); removeEventListener(RELOAD_EVENT, load); };
+    let fast: ReturnType<typeof setInterval> | undefined, stop: ReturnType<typeof setTimeout> | undefined;
+    const changed = () => {
+      load();
+      clearInterval(fast); clearTimeout(stop);
+      fast = setInterval(() => { if (!document.hidden) load(); }, FAST_MS);
+      stop = setTimeout(() => clearInterval(fast), FAST_FOR_MS);
+    };
+    addEventListener(RELOAD_EVENT, changed);
+    return () => { clearInterval(id); clearInterval(fast); clearTimeout(stop); removeEventListener("hashchange", onHash); removeEventListener(RELOAD_EVENT, changed); };
   }, [load]);
 
   const go = (t: TabId) => { location.hash = t === "home" ? "" : t; setTab(t); setPending((f) => ({ tab: "home", sel: {}, n: f.n })); scrollTo({ top: 0 }); };

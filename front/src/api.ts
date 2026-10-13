@@ -78,8 +78,12 @@ export async function send<T = { ok: boolean }>(method: "POST" | "PATCH" | "PUT"
   if (r.status === 401 && !path.endsWith("password")) throw new LoginRequired();
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(typeof j.error === "string" ? j.error : `HTTP ${r.status}`);
+  if (!READ_ONLY.test(path)) refreshSnapshot();   // a change: every tab shows it now, and follows the collection it may start
   return j as T;
 }
+
+/** POST routes that change nothing (try, check, show a secret, sign in): no reload after them */
+const READ_ONLY = /(\/test|\/check|\/reveal|^login|^logout|password)$/;
 
 /** Téléchargement d'un fichier produit par une écriture (export) : renvoie le Blob et son nom. */
 export async function download(path: string, body: unknown): Promise<{ blob: Blob; name: string }> {
@@ -99,7 +103,8 @@ export async function read<T>(path: string): Promise<T> {
   return (await get<T>(`api/v1/${path}`))!;
 }
 
-/** Asks the page to read data.json again now (after a change the server already published), instead of at the next minute */
+/** Asks the page to read data.json again now (after a change the server already published), instead of at the next minute; the page
+ *  then reads it every few seconds for a while, so a collection started by the change shows up when it ends */
 export const RELOAD_EVENT = "ms-reload";
 export function refreshSnapshot(): void {
   dispatchEvent(new Event(RELOAD_EVENT));
