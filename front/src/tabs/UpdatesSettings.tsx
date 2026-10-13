@@ -33,9 +33,12 @@ export function UpdatesSettings() {
     await act(async () => { setA(await send<About>("POST", "about/check")); }, tx("vérifié"), setNote);
     setBusy(false);
   };
-  const save = (body: { auto?: boolean; header?: boolean }, done: string) => void act(() => send("PUT", "about/settings", body), done, setNote).then((ok) => {
-    if (ok) { if (body.header) forgetDismissed(); load(); }
-  });
+  const saved = (header?: boolean) => {
+    if (header) forgetDismissed();   // turned back on: show the notice even for a version hidden before
+    load();
+  };
+  const save = (body: { auto?: boolean; header?: boolean }, done: string) => void act(() => send("PUT", "about/settings", body), done, setNote)
+    .then((ok) => ok && saved(body.header));
   const latest = a.latest;
   return (
     <div className="flex flex-col gap-4">

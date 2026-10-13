@@ -211,6 +211,33 @@ class Schedule(unittest.TestCase):
             self.assertIsNone(server.next_run("watch", at(10, 12)))  # tâche coupée
 
 
+class UpdateCheck(unittest.TestCase):
+    """The scheduler asks for the latest version only when the automatic check is on (about.latest keeps the answer 6 h)"""
+    def test_runs_only_when_on(self):
+        with mock.patch.object(server.threading, "Thread") as thread, mock.patch.dict(server.CFG, {"update_check": False}):
+            server.update_check()
+            thread.assert_not_called()
+        with mock.patch.object(server.threading, "Thread") as thread, mock.patch.dict(server.CFG, {"update_check": True}):
+            server.update_check()
+            thread.return_value.start.assert_called_once()
+
+
+@unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
+class UpdateSettingsRoute(unittest.TestCase):
+    def test_settings_and_header_notice(self):
+        req = mock.Mock()
+        req.state.user = {"username": "admin", "role": "admin"}
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(api, "admin_write", return_value=None), mock.patch.object(api, "store"), \
+                mock.patch.object(api, "ip_of", return_value="10.0.0.9"), mock.patch("system.set_update_settings", return_value={"auto": True, "header": False}) as setter, \
+                mock.patch.dict(api.core.CFG, {"state_dir": tmp, "update_header": True}), mock.patch.dict(api.os.environ, {"MYSERVICES_VERSION": "v0.11.9"}):
+            self.assertEqual(api.about_settings(api.UpdateSettings(header=False), req), {"auto": True, "header": False})
+            setter.assert_called_once_with(api.core, auto=None, header=False)
+            (Path(tmp) / "update-check.json").write_text(json.dumps({"release": {"tag": "v99.0.0", "url": "u"}}))
+            self.assertEqual(api.me(req)["update"], {"available": True, "tag": "v99.0.0", "url": "u"})
+            with mock.patch.dict(api.core.CFG, {"update_header": False}):
+                self.assertIsNone(api.me(req)["update"])   # notice off: nothing for the header
+
+
 class Chain(unittest.TestCase):
     def test_enchaine_sante_puis_collecte_sans_doubler(self):
         real_sleep = time.sleep

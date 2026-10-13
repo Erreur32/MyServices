@@ -45,6 +45,15 @@ class NetscanEvery(unittest.TestCase):
         self.assertNotIn("auto_mode", self.raw())
         self.assertNotIn("netscan_every", self.raw())
 
+    def test_update_settings_written_and_applied(self):
+        out = system.set_update_settings(self.core, auto=False, header=False)
+        self.assertEqual(out, {"auto": False, "header": False})
+        self.assertEqual((self.raw()["update_check"], self.raw()["update_header"]), (False, False))
+        self.assertEqual(system.set_update_settings(self.core, header=True), {"auto": False, "header": True})   # only what is given changes
+        self.assertNotIn("update_header", self.raw())                                                          # on is the default
+        self.assertEqual(system.set_update_settings(self.core, auto=True)["auto"], True)
+        self.assertNotIn("update_check", self.raw())
+
     def test_change_et_applique_tout_de_suite(self):
         out = system.set_netscan_every(self.core, 12)
         self.assertEqual(out["every_h"], 12)

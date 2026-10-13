@@ -54,6 +54,18 @@ const ROLE_CHOICE: IconOption<User["role"]>[] = [
   { value: "admin", label: tx("Admin"), hint: tx("Tout, réglages compris"), icon: <ShieldCheck size={26} className="text-link" aria-hidden /> },
 ];
 
+/** The panel of the open section; Settings → System is the fallback (an unknown or old section id) */
+function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snapshot }>) {
+  const panels: Record<string, () => React.ReactNode> = {
+    accounts: () => <Accounts me={snap.me.username} />, alerts: () => <NotificationsHub />, connectors: () => <Connectors snap={snap} />,
+    machines: () => <MachinesSection snap={snap} />, api: () => <ApiMcp />, network: () => <NetworkSettings snap={snap} />, help: () => <Help />,
+    about: () => <AboutSettings />, updates: () => <UpdatesSettings />, audit: () => <AuditLog />, logs: () => <Logs />,
+    backups: () => <BackupsSettings machines={snap.data.machine_list} />, tasks: () => <SystemSettings part="tasks" snap={snap} />,
+    ssh: () => <SystemSettings part="ssh" snap={snap} />,
+  };
+  return <>{(panels[section] ?? (() => <SystemSettings part="system" snap={snap} />))()}</>;
+}
+
 export function Settings({ snap }: { snap: Snapshot }) {
   const [section, setSection] = useState(() => {
     const s = location.hash.split("/")[1]; // lien direct : #settings/<section> (menu du compte)
@@ -98,7 +110,7 @@ export function Settings({ snap }: { snap: Snapshot }) {
         ))}
       </nav>
       <div className="min-w-0 flex-1">
-        {section === "accounts" ? <Accounts me={snap.me.username} /> : section === "alerts" ? <NotificationsHub /> : section === "connectors" ? <Connectors snap={snap} /> : section === "machines" ? <MachinesSection snap={snap} /> : section === "api" ? <ApiMcp /> : section === "network" ? <NetworkSettings snap={snap} /> : section === "help" ? <Help /> : section === "about" ? <AboutSettings /> : section === "updates" ? <UpdatesSettings /> : section === "audit" ? <AuditLog /> : section === "logs" ? <Logs /> : section === "backups" ? <BackupsSettings machines={snap.data.machine_list} /> : section === "tasks" || section === "ssh" ? <SystemSettings part={section} snap={snap} /> : <SystemSettings part="system" snap={snap} />}
+        <SectionPanel section={section} snap={snap} />
       </div>
     </div>
   );

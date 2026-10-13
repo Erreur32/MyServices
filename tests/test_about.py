@@ -86,7 +86,7 @@ class Latest(unittest.TestCase):
         self.assertEqual((f.calls, r["enabled"]), (0, False))
 
     def test_cached_reads_without_asking(self):
-        self.assertEqual(about.cached(self.d, "v0.9.3")["available"], False)   # never checked: nothing to announce
+        self.assertFalse(about.cached(self.d, "v0.9.3")["available"])   # never checked: nothing to announce
         about.latest(self.d, opener=Fake(), now=1000.0)
         self.assertEqual(about.cached(self.d, "v0.9.3"), {"available": True, "tag": "v0.9.4", "url": RELEASE["html_url"]})
         self.assertFalse(about.cached(self.d, "v0.9.4")["available"])
