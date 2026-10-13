@@ -3,7 +3,7 @@
 Jeton « API » en lecture seule (Administration → API tokens, préfixe mwk_api_) : GET uniquement, réseaux privés seulement, routes
 sur liste blanche, aucun secret dans les réponses (docs/API-TOKENS.md de MynetworK). Un jeton MCP y est refusé (401).
 Routes lues (enveloppe {"success": true, "result": …}) :
-  GET /api/health                       sans jeton (test d'accès)
+  GET /api/health                       sans jeton (test d'accès ; version de l'appli depuis MynetworK 0.10.67)
   GET /api/network-scan/history         inventaire du scanner, paginé (limit 1000) : ip, mac, hostname, vendor, status, pingLatency…
   GET /api/plugins/unifi/clients        clients UniFi (facultatif : 403 / 404 si UniFi n'est pas branché)
   GET /api/plugins/unifi/devices        bornes, switches, passerelles UniFi (facultatif)
@@ -73,7 +73,13 @@ class MynetworK(Connector):
         return _result(got)
 
     def version(self) -> str | None:
-        return None  # /api/health ne donne que l'état
+        """App version from /api/health (public, no token), given since MynetworK 0.10.67; None before."""
+        try:
+            got = self.ctx.http(self.conf["url"].rstrip("/") + "/api/health", verify_tls=self.conf.get("verify_tls", True) is not False, timeout=10)
+        except ConnectorError:
+            return None
+        v = got.get("version") if isinstance(got, dict) else None
+        return str(v).lstrip("v") if v else None
 
     def collect(self) -> dict:
         devices, offset, total = [], 0, None

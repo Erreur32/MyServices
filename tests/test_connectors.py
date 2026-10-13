@@ -181,6 +181,7 @@ class Registry(unittest.TestCase):
         self.assertTrue(version_tested("2.16.0", ("2.16",)))
         self.assertFalse(version_tested("2.160.0", ("2.16",)))
         self.assertIsNone(version_tested(None, ("2.16",)))
+        self.assertTrue(version_tested("0.15.3", ("0.",)))   # a prefix ending with a dot (LogviewR) still matches
 
 
 if __name__ == "__main__":

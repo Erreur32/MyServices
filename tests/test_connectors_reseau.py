@@ -110,6 +110,9 @@ class Reseau(unittest.TestCase):
         self.assertNotIn("secret", json.dumps(data))
         self.assertEqual(len(data["unifi"]["clients"]), 1)
         self.assertEqual(data["unifi"]["devices"], [])
+        self.assertIsNone(inst(MynetworK, self.url).version())   # before MynetworK 0.10.67: no version in /api/health
+        Fake.routes["/api/health"] = (200, {"status": "ok", "version": "0.10.67"})
+        self.assertEqual(inst(MynetworK, self.url).version(), "0.10.67")
         self.assertTrue(all(s[0] == "GET" for s in Fake.seen))  # lecture seule
         self.assertTrue(inst(MynetworK, self.url).test().ok)
 

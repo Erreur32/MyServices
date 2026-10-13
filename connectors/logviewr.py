@@ -52,7 +52,7 @@ class LogviewR(Connector):
     label = "LogviewR"
     kinds = ("security",)
     images = ("ghcr.io/erreur32/logviewr", "erreur32/logviewr")
-    tested = ("0.",)
+    tested = ("0",)
     fields = (
         Field("url", "URL de LogviewR", "url", required=True, help="ex. http://192.168.1.10:3000 (sans /mcp)"),
         Field("token", "Jeton MCP en lecture seule", "password", required=True, secret=True,

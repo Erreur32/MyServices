@@ -207,6 +207,7 @@ class Connector:
 
 def version_tested(version: str | None, tested: tuple[str, ...]) -> bool | None:
     """True si la version commence par un préfixe testé (« 2.16 » couvre 2.16.0, 2.16.3) ; None si inconnue."""
+    tested = tuple(t.rstrip(".") for t in tested)   # « 0. » would never match: same as « 0 »
     if not version or not tested:
         return None
     return any(version == t or version.startswith(t + ".") for t in tested)
