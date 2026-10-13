@@ -18,6 +18,7 @@ export interface DiscoveryItem {
   id: string; title: string; mode: "auto" | "first" | "manual"; what: string; last: number | null; next: number | null;
   app?: string | null; machine?: { ip: string; name: string } | null;  // appli trouvée et machine visée : titre mis en forme
   mutable?: boolean; muted?: boolean;  // rappel qu'on peut couper (et rétablir) ; coupé
+  running?: boolean;                   // app to link: its container runs (false = stopped, shown apart)
   // state : todo = nécessaire , suggest = facultatif, ok / info = rien à faire
   state: "ok" | "todo" | "suggest" | "info"; note: string; action: { label: string; href?: string; run?: string; prefill?: { type: string; name: string; url: string } } | null;
 }
@@ -26,14 +27,14 @@ export interface DiscoveryItem {
 // de composants qui l'affichent, à l'arrêt quand l'onglet est masqué.
 let shared: { items: DiscoveryItem[]; muted?: string[]; todo: number; suggest: number } | null = null;
 const listeners = new Set<(d: NonNullable<typeof shared>) => void>();
-let timer: ReturnType<typeof setInterval> | undefined, inflight = false;
+let timer: ReturnType<typeof setInterval> | undefined, inflight = false, again = false;
 const loadShared = () => {
-  if (inflight) return;
+  if (inflight) { again = true; return; }   // asked during a read (after a change): read once more when it ends, or the change is missed
   inflight = true;
   read<NonNullable<typeof shared>>("discoveries")
     .then((d) => { shared = d; listeners.forEach((f) => f(d)); })
     .catch((e) => { if (e instanceof LoginRequired) location.replace(LOGIN); })
-    .finally(() => { inflight = false; });
+    .finally(() => { inflight = false; if (again) { again = false; loadShared(); } });
 };
 
 export function useDiscoveries() {

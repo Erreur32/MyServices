@@ -320,13 +320,27 @@ def propose_windows(ip: str, machine: str | None, apps: list[App], ports: dict, 
     return out
 
 
+def run_state(r: dict) -> tuple[bool | None, str]:
+    """Is the app behind this row running? Docker: from `docker ps -a` (« Up 2 days » runs; « Exited (0) 3 weeks ago », « Created »
+    do not); a process seen listening runs; else the NPM backend check if any. (None, "") when nothing tells."""
+    svc = r.get("service") or {}
+    if svc.get("kind") == "docker" and svc.get("state"):
+        st = str(svc["state"])
+        return st.startswith("Up") and "(Paused)" not in st, st
+    if svc.get("kind") == "process":
+        return True, ""
+    up = (r.get("backend") or {}).get("up")
+    return (bool(up), "") if up is not None else (None, "")
+
+
 def propose(rows: list[dict], declared: list[dict], with_linked: bool = False) -> list[dict]:
     """Un connecteur à proposer par appli reconnue sur une machine, sauf s'il est déjà réglé pour cette
     machine (une instance du même type dont un réglage texte contient son IP). Les plus sûres d'abord.
     with_linked : garde aussi celles déjà reliées, avec « linked » (le tableau des services détectés)."""
     order = {SURE: 0, PROBABLE: 1, POSSIBLE: 2}
     out, seen = [], set()
-    for r in sorted((r for r in rows if (r.get("app") or {}).get("connector")), key=lambda r: order[r["app"]["confidence"]]):
+    # surest first, and for one app on one machine a running container before a stopped one (docker ps -a lists both)
+    for r in sorted((r for r in rows if (r.get("app") or {}).get("connector")), key=lambda r: (order[r["app"]["confidence"]], run_state(r)[0] is False)):
         ctype, ip = r["app"]["connector"], r.get("ip")
         if not ip or (ctype, ip) in seen:
             continue
@@ -337,8 +351,9 @@ def propose(rows: list[dict], declared: list[dict], with_linked: bool = False) -
         scheme = r.get("web_scheme") or r.get("scheme") or "http"
         api = _BY_KEY[r["app"]["key"]].api.format(ip=ip) if r["app"]["key"] in _BY_KEY else ""
         url = api or f"{scheme}://{ip}:{r.get('port')}"
+        running, state = run_state(r)
         out.append({"connector": ctype, "label": r["app"]["label"], "confidence": r["app"]["confidence"],
                     "ip": ip, "port": urllib.parse.urlsplit(url).port, "url": url,
-                    "machine": r.get("machine"), "service": r.get("id"),
+                    "machine": r.get("machine"), "service": r.get("id"), "running": running, "state": state,
                     **({"linked": linked} if with_linked else {})})
     return out

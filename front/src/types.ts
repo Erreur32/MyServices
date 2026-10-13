@@ -216,6 +216,8 @@ export interface Proposal {
   machine?: string | null;
   service?: string | null;
   linked?: boolean;                      // detected_apps seulement : un connecteur est déjà réglé pour cette machine
+  running?: boolean | null;              // its container (or process) runs; false = stopped (docker ps -a), null = unknown
+  state?: string;                        // docker state as read: « Up 2 days », « Exited (0) 3 weeks ago »
 }
 
 export interface Data {

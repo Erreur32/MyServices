@@ -219,7 +219,8 @@ function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Prop
   const [note, setNote] = useState<Note>(null);
   const muted = new Set((disc?.items ?? []).filter((x) => x.muted).map((x) => x.id));
   const all = apps.filter((p) => !p.linked);
-  const rows = all.filter((p) => !muted.has(discoveryId(p))), forgotten = all.filter((p) => muted.has(discoveryId(p)));
+  // running containers first: docker ps -a also lists stopped ones, which have nothing to read until they run again
+  const rows = all.filter((p) => !muted.has(discoveryId(p))).sort((a, b) => Number(a.running === false) - Number(b.running === false)), forgotten = all.filter((p) => muted.has(discoveryId(p)));
   const forget = (p: Proposal, on: boolean) => void act(() => send("PUT", "discoveries/muted", { id: discoveryId(p), muted: on }),
     on ? tx("{0} oublié : plus proposé", p.label) : tx("{0} rappelé : de nouveau proposé", p.label), setNote).then(() => reloadDisc());
   if (!all.length) return null;
@@ -235,12 +236,12 @@ function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Prop
         <table className="w-full min-w-[480px] text-sm">
           <thead>
             <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-dim">
-              <th className="py-2 pr-3 font-semibold">{tx("Service")}</th><th className="px-3 py-2 font-semibold">{tx("Machine")}</th><th className="px-3 py-2 text-right font-semibold">{tx("Activation")}</th>
+              <th className="py-2 pr-3 font-semibold">{tx("Service")}</th><th className="px-3 py-2 font-semibold">{tx("Machine")}</th><th className="px-3 py-2 font-semibold">{tx("État")}</th><th className="px-3 py-2 text-right font-semibold">{tx("Activation")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line/60">
             {rows.map((p) => (
-              <tr key={`${p.connector}@${p.ip}`}>
+              <tr key={`${p.connector}@${p.ip}`} className={p.running === false ? "opacity-70" : ""}>
                 <td className="py-1 pr-3">
                   <button type="button" onClick={() => onOpen(p)} title={tx("Renseigner l'accès et activer")} className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left hover:bg-link/10">
                     <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-bg2">
@@ -250,6 +251,8 @@ function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Prop
                   </button>
                 </td>
                 <td className="px-3 py-2.5"><b className="font-semibold">{p.machine || p.ip}</b>{p.machine && <Dim> · {p.ip}</Dim>}</td>
+                <td className="px-3 py-2.5">{p.running === true ? <Badge tone="ok" title={p.state || undefined}>{tx("actif")}</Badge>
+                  : p.running === false ? <Badge tone="off" title={p.state || undefined}>{tx("arrêté")}</Badge> : <Dim>-</Dim>}</td>
                 <td className="px-3 py-2.5 text-right">
                   <span className="inline-flex items-center gap-2">
                     <Badge tone="info">{tx("facultatif")}</Badge>

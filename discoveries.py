@@ -19,10 +19,10 @@ def build(i: dict) -> list[dict]:
     proposals, redetect_hint (nombre de machines), has_ssh_machines."""
     out: list[dict] = []
 
-    def add(id_, title, mode, what, last=None, next_=None, state="ok", note="", action=None, app=None, machine=None):
+    def add(id_, title, mode, what, last=None, next_=None, state="ok", note="", action=None, app=None, machine=None, running=None):
         """app / machine ({ip, name}) : l'appli trouvée et la machine visée, que la page met en forme (gras, logo du système)."""
         out.append({"id": id_, "title": title, "mode": mode, "what": what, "last": last, "next": next_, "state": state, "note": note, "action": action,
-                    "app": app, "machine": machine})
+                    "app": app, "machine": machine, **({"running": running} if running is not None else {})})
 
     add("services", "Services, conteneurs et ports", AUTO,
         "Relus à chaque collecte : conteneurs Docker, ports en écoute, pages web, applis reconnues. Rien à faire.",
@@ -92,11 +92,12 @@ def build(i: dict) -> list[dict]:
     for p in props:   # une entrée par appli reconnue : la notification dit quoi, où, et ouvre le connecteur déjà rempli
         where = f" sur {p['machine']}" if p.get("machine") else f" ({p.get('ip')})" if p.get("ip") else ""
         how = f" (vu par {p['via']})" if p.get("via") else ""
+        stopped = p.get("running") is False   # container listed by docker ps -a but not running: shown apart, not suggested
         add(f"connector:{p['connector']}@{p.get('ip')}", f"{p['label']} trouvé{where}", AUTO,
             f"MyServices a reconnu cette appli{how} mais ne la lit pas encore : il faut lui donner un accès en lecture (compte, clé ou jeton). Il ne le fait jamais sans votre accord.",
-            None, None, SUGGEST, "connecteur à configurer",
+            None, None, "info" if stopped else SUGGEST, f"conteneur arrêté ({p.get('state')})" if stopped else "connecteur à configurer",
             {"label": "Configurer", "prefill": {"type": p["connector"], "name": p["connector"], "url": p.get("url") or ""}},
-            app=p["label"], machine={"ip": p.get("ip") or "", "name": p.get("machine") or ""} if p.get("ip") or p.get("machine") else None)
+            app=p["label"], machine={"ip": p.get("ip") or "", "name": p.get("machine") or ""} if p.get("ip") or p.get("machine") else None, running=p.get("running"))
     muted = set(i.get("muted") or [])
     for x in out:   # a reminder can be forgotten (and recalled); a machine access forgotten in Discovery (« access:<ip> ») hides its key reminder too
         x["mutable"] = x["id"] in ("hosts", "network", "backups-other") or x["id"].startswith(("connector:", "ssh:", "agent:"))

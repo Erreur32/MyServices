@@ -96,7 +96,8 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
   const [dismissed, setDismissed] = useState<string[]>(loadDismissed);
   const [disc, reloadDisc] = useDiscoveries();
   // Accesses forgotten with « Forget »: kept on the server (« access:<ip> »), plus the older « Skip » choices of this browser
-  const forgot = new Set([...dismissed, ...(disc?.muted ?? []).filter((id) => id.startsWith("access:")).map((id) => id.slice(7))]);
+  const [justForgot, setJustForgot] = useState<string[]>([]);   // hidden at the click, before the server answer comes back
+  const forgot = new Set([...dismissed, ...justForgot, ...(disc?.muted ?? []).filter((id) => id.startsWith("access:")).map((id) => id.slice(7))]);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [othersOpen, setOthersOpen] = useState(false);  // cadre « autres appareils » ouvert : ses cases ne comptent que s'il l'est
@@ -139,7 +140,8 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
   // Accès à régler : machines ajoutées à l'instant, plus celles déjà déclarées dont le SSH ou le jeton Home Assistant manque
   const pending = (net?.found ?? []).filter((h) => known.includes(h.ip) && !added[h.ip] && !forgot.has(h.ip) && needsLink(h, machines, connected));
   const toLink = [...Object.values(added), ...pending].filter((h) => !forgot.has(h.ip) && needsLink(h, machines, connected));   // seulement ce qui reste à régler : le reste est dans « déjà ajoutées »
-  const recall = (ip: string) => void act(async () => {   // the access asks again: off the server list and the old browser one
+  const recall = (ip: string) => void act(async () => {
+    setJustForgot((f) => f.filter((x) => x !== ip));   // the access asks again: off the server list and the old browser one
     await send("PUT", "discoveries/muted", { id: `access:${ip}`, muted: false });
     setDismissed((d) => { const n = d.filter((x) => x !== ip); localStorage.setItem(DISMISSED, JSON.stringify(n)); return n; });
   }, tx("rappelé : de nouveau proposé"), setNote).then(() => reloadDisc());
@@ -337,9 +339,9 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
           {toLink.map((h) => (
             <AddedMachine key={h.ip} host={h} linked={!viaMynetwork(h) && !needsLink(h, machines, connected)}
               onDone={() => setAdded((a) => { const n = { ...a }; delete n[h.ip]; return n; })}
-              onForget={() => void act(() => send("PUT", "discoveries/muted", { id: `access:${h.ip}`, muted: true }),
+              onForget={() => { setJustForgot((f) => [...f, h.ip]); void act(() => send("PUT", "discoveries/muted", { id: `access:${h.ip}`, muted: true }),
                 tx("{0} oublié : il reste dans « machines déjà ajoutées », pour le rappeler", h.name || h.ip), setNote)
-                .then((ok) => { if (ok) { setAdded((a) => { const n = { ...a }; delete n[h.ip]; return n; }); reloadDisc(); } })} />
+                .then((ok) => { if (ok) { setAdded((a) => { const n = { ...a }; delete n[h.ip]; return n; }); reloadDisc(); } else setJustForgot((f) => f.filter((x) => x !== h.ip)); }); }} />
           ))}
           {found.length === 0 && <p className="text-sm text-dim">{tx("Toutes les machines trouvées sont ajoutées. « Terminé » ferme un cadre ; « Refaire un scan » relance la recherche.")}</p>}
         </div>

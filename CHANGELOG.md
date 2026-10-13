@@ -23,6 +23,14 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   the browser only): the frame goes away for good, its « SSH key to authorise » reminder too, and « Recall » in « machines already
   added » brings it back. The orange « accesses skipped » banner is gone.
 - Discovery → « What runs by itself »: one aligned row per item (icon, what it is, mode, last and next time, button).
+- Apps found in Docker over SSH carry their container state (`docker ps -a` lists stopped ones too): a running container wins over
+  a stopped one for the same app on a machine, a stopped one is no longer suggested (Discovery shows it folded under « Stopped
+  containers »), and the detected services in Connectors have a « State » column (running first, stopped dimmed).
+
+### Fixed
+
+- Discovery: « Forget » (and « Recall ») now shows at once, without reloading the page. A reload asked while another one was under
+  way was dropped, so the page kept the old answer.
 
 ## v0.11.6 (2026-10-13)
 

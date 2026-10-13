@@ -225,5 +225,16 @@ class Propose(unittest.TestCase):
         self.assertEqual(len(got), 2)
 
 
+
+class RunState(unittest.TestCase):
+    def test_running_container_proposed_first_stopped_kept_apart(self):
+        app = {"key": "glances", "label": "Glances", "confidence": "sure", "connector": "glances"}
+        rows = [{"type": "local", "id": "old", "ip": "10.0.0.1", "port": 80, "service": {"kind": "docker", "state": "Exited (0) 2 weeks ago"}, "app": app},
+                {"type": "local", "id": "new", "ip": "10.0.0.1", "port": 81, "service": {"kind": "docker", "state": "Up 2 days (healthy)"}, "app": app},
+                {"type": "local", "id": "off", "ip": "10.0.0.2", "port": 81, "service": {"kind": "docker", "state": "Created"}, "app": app}]
+        got = {p["ip"]: p for p in ka.propose(rows, [])}
+        self.assertEqual((got["10.0.0.1"]["service"], got["10.0.0.1"]["running"]), ("new", True))   # the running one wins
+        self.assertEqual((got["10.0.0.2"]["running"], got["10.0.0.2"]["state"]), (False, "Created"))
+
 if __name__ == "__main__":
     unittest.main()

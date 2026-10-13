@@ -36,6 +36,14 @@ class Discoveries(unittest.TestCase):
         key = by(d.build({**refused, "muted": ["access:10.0.0.2"]}))["ssh:10.0.0.2"]   # access forgotten in Discovery → machines
         self.assertEqual((key["mutable"], key["muted"], key["state"]), (True, True, "info"))
 
+    def test_stopped_container_is_not_suggested(self):
+        props = [{"connector": "glances", "label": "Glances", "ip": "10.0.0.1", "running": True, "state": "Up 2 days"},
+                 {"connector": "glances", "label": "Glances", "ip": "10.0.0.2", "running": False, "state": "Exited (0) 2 weeks ago"}]
+        m = by(d.build({"proposals": props}))
+        self.assertEqual((m["connector:glances@10.0.0.1"]["state"], m["connector:glances@10.0.0.1"]["running"]), ("suggest", True))
+        off = m["connector:glances@10.0.0.2"]
+        self.assertEqual((off["state"], off["running"], off["note"]), ("info", False, "conteneur arrêté (Exited (0) 2 weeks ago)"))
+
     def test_les_modes_sont_dits_clairement(self):
         m = by(d.build({"ssh_machines": 2, "auto_checked": 2}))
         self.assertEqual(m["services"]["mode"], d.AUTO)

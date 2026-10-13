@@ -100,11 +100,13 @@ function AutoRow({ x, reload, machines }: { x: DiscoveryItem; reload: () => void
 function AppTile({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
   const icon = x.app ? appIcon([x.app]) : null;
   return (
-    <li className={`flex flex-col gap-2 rounded-xl border border-line bg-bg2/40 p-3 ${x.muted ? "opacity-70" : ""}`}>
+    <li className={`flex flex-col gap-2 rounded-xl border border-line bg-bg2/40 p-3 ${x.muted || x.running === false ? "opacity-70" : ""}`}>
       <div className="flex items-center gap-3">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">{icon ? <img src={icon} alt="" className="h-6 w-6" /> : <Boxes size={18} className="text-muted" aria-hidden />}</span>
         <span className="min-w-0 flex-1">
-          <b className="block truncate text-sm">{x.app || x.title}</b>
+          <span className="flex min-w-0 items-center gap-1.5"><b className="truncate text-sm">{x.app || x.title}</b>
+            {x.running === true && <Badge tone="ok">{tx("actif")}</Badge>}
+            {x.running === false && <Badge tone="off" title={x.note}>{tx("arrêté")}</Badge>}</span>
           <span className="block truncate text-xs text-dim">{x.machine ? `${x.machine.name || x.machine.ip}${x.machine.name ? ` · ${x.machine.ip}` : ""}` : x.note}</span>
         </span>
       </div>
@@ -148,8 +150,9 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   const items = disc?.items ?? [];
   const todo = items.filter((x) => x.state === "todo" && x.id !== "hosts").sort(byLabel);
   const apps = items.filter((x) => x.state === "suggest" && x.id.startsWith("connector:")).sort(byLabel);
+  const stopped = items.filter((x) => x.running === false && !x.muted && x.id.startsWith("connector:")).sort(byLabel);   // container not running
   const others = items.filter((x) => x.state === "suggest" && !x.id.startsWith("connector:") && x.id !== "hosts").sort(byLabel);
-  const quiet_ = items.filter((x) => x.state !== "todo" && x.state !== "suggest" && x.id !== "hosts" && !x.muted);
+  const quiet_ = items.filter((x) => x.state !== "todo" && x.state !== "suggest" && x.id !== "hosts" && !x.muted && x.running !== false);
   const forgotten = items.filter((x) => x.muted).sort(byLabel);   // « Forget »: out of every list above, back with « Recall »
   const hostsItem = items.find((x) => x.id === "hosts");
 
@@ -215,11 +218,21 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
       </Fold>
 
       {/* 4. Applis à relier */}
-      {apps.length > 0 && (
+      {apps.length + stopped.length > 0 && (
         <Section id="net-services" icon={<Boxes size={16} aria-hidden />} title={tx("Applis à relier")} n={apps.length}
           hint={tx("Applis reconnues sur vos machines, qu'un connecteur peut lire. Facultatif : « Oublier » range celles qui ne vous servent pas, « Rappeler » les fait revenir.")}
           right={<a href="#settings/connectors" className="text-sm text-link hover:underline">{tx("Réglages → Connecteurs")}</a>}>
           <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{apps.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul>
+          {stopped.length > 0 && (
+            <details className="group mt-3 border-t border-line/60 pt-3">
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                <ChevronRight size={15} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
+                {tx("Conteneurs arrêtés")} <Count n={stopped.length} />
+                <span className="font-normal text-muted">{tx("vus par docker ps -a mais pas lancés : rien à relier tant qu'ils ne tournent pas")}</span>
+              </summary>
+              <ul className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{stopped.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul>
+            </details>
+          )}
         </Section>
       )}
 
