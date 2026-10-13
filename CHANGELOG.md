@@ -18,6 +18,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Nextcloud help, when the install is known (found by the scan, or the app at the address typed): its exact command comes first,
   with the container's name and the right form for its image, or the site's folder and the owner of `config.php` for an install
   without Docker; the other installs stay folded below.
+- Connector forms: « Need help getting this access? » is folded by default, also when adding; one click opens it.
 - Command blocks (SSH key, connector help…): the copy button is an icon inside the block, top right; the command gets the whole width.
 - Security (code scanning): SVG avatars are read with `defusedxml` (no DTD, entity or outside file); saving a connector whose test
   fails no longer puts the error text in its answer, the page asks the test route for the reason.

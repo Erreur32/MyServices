@@ -352,7 +352,7 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = f
   });  // the install is known (found by the scan, or the app at the address typed): its exact command comes first in the help
   const setup = setupCommand(type.type, found ?? serviceAt(conf.url, hosts ?? [], type.type));
 
-  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [help, setHelp] = useState(!inst);  // aide dépliée à l'ajout, sous les boutons
+  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [help, setHelp] = useState(false);  // help folded: opened by its button, under the buttons
   // Façon de relier le service (NPM : API directe, par SSH, script) : décide des champs montrés, requis et envoyés
   const [mode, setMode] = useState(() => modeOf(type, inst?.config));
   const modeDef: ConnectorMode | undefined = (type.modes ?? []).find((m) => m.id === mode);
