@@ -49,7 +49,9 @@ class Modes(unittest.TestCase):
         from connectors import settings
         npm = next(t for t in settings.schema() if t["type"] == "npm")
         self.assertEqual([m["id"] for m in npm["modes"]], ["direct", "ssh", "script"])
-        self.assertTrue(all(not t["modes"] for t in settings.schema() if t["type"] != "npm"))
+        adguard = next(t for t in settings.schema() if t["type"] == "adguard")   # its API, or AdGuardHome.yaml over SSH
+        self.assertEqual([m["id"] for m in adguard["modes"]], ["direct", "ssh"])
+        self.assertTrue(all(not t["modes"] for t in settings.schema() if t["type"] not in ("npm", "adguard")))
 
 
 class ScriptParSsh(unittest.TestCase):

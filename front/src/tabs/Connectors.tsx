@@ -44,6 +44,8 @@ export function Connectors({ snap }: { snap: Snapshot }) {
 
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   const type = st.types.find((t) => t.type === adding);
+  // Read over SSH because a machine declares it (AdGuard): shown with « My connectors », nothing to add for them
+  const bySsh = st.others.filter((o) => st.types.some((t) => t.type === o.type));
   // An instance deleted (or renamed) while its form was open no longer locks the other buttons
   const editing = st.instances.some((i) => `${i.type}/${i.name}` === edited) ? edited : "";
   return (
@@ -67,27 +69,9 @@ export function Connectors({ snap }: { snap: Snapshot }) {
         {picking && <CategoryChips types={st.types} cat={cat} setCat={setCat} />}
         {picking && (
           <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label={tx("Connecteurs disponibles")}>
-            {[
-              ...st.types.filter((t) => (!cat || t.category === cat) && hits(query, t.label, t.type, catName(t.category ?? ""), ...t.kinds.map((k) => KIND[k] || k)))
-                .map((t) => ({ label: t.label, t, m: undefined })),
-              ...VIA_MACHINES.filter((m) => (!cat || m.category === cat) && hits(query, m.label, m.category)).map((m) => ({ label: m.label, t: undefined, m })),
-            ].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })).map(({ t, m }) => {   // one alphabetical list, AdGuard included
-              if (m) return (
-              <li key={m.label}>
-                <a href="#settings/machines" title={m.how}
-                  className="flex h-full w-full items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 text-left no-underline transition-colors hover:border-link hover:bg-link/10">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
-                    {appIcon([m.label]) ? <img src={appIcon([m.label])!} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <b className="block truncate text-sm text-txt">{m.label}</b>
-                    <span className="block truncate text-xs text-dim">{tx("par SSH : Réglages → Machines")}</span>
-                  </span>
-                  <Plus size={15} className="shrink-0 text-dim" aria-hidden />
-                </a>
-              </li>);
-              t = t!;
-              const icon = appIcon([t.label]), n = st.instances.filter((i) => i.type === t.type).length;
+            {st.types.filter((t) => (!cat || t.category === cat) && hits(query, t.label, t.type, catName(t.category ?? ""), ...t.kinds.map((k) => KIND[k] || k)))
+              .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })).map((t) => {
+              const icon = appIcon([t.label]), n = st.instances.filter((i) => i.type === t.type).length + bySsh.filter((o) => o.type === t.type).length;
               return (
                 <li key={t.type}>
                   <button type="button" onClick={() => { setAdding(t.type); setPicking(false); }}
@@ -124,6 +108,25 @@ export function Connectors({ snap }: { snap: Snapshot }) {
             on ? tx("allumé : relecture lancée") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
           editing={editing === `${i.type}/${i.name}`} locked={(!!editing && editing !== `${i.type}/${i.name}`) || picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
       ))}
+      {bySsh.length > 0 && (
+        <Card>
+          <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Déjà lus par SSH")} <Count n={bySsh.length} /></h2>
+          <p className="mt-1 text-sm text-muted">{tx("Déclarés par leur machine (Réglages → Machines) et lus par SSH : inutile de les ajouter ici.")}</p>
+          <ul className="mt-3 flex flex-col divide-y divide-line/60">
+            {bySsh.map((o) => {
+              const label = st.types.find((t) => t.type === o.type)!.label, icon = appIcon([label]);
+              return (
+                <li key={`${o.type}/${o.name}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 text-sm">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">{icon ? <img src={icon} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}</span>
+                  <b>{label}</b><Dim>· {o.name}</Dim><Badge tone="off">SSH</Badge>
+                  <span className="ml-auto"><StatusLine s={o} collect={collect} /></span>
+                  <a href="#settings/machines" className="text-xs text-link hover:underline">{tx("Réglages → Machines")}</a>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
       <NoteLine note={srcNote} />
       {changed && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-bg2/40 px-4 py-3 text-sm text-muted">
@@ -140,11 +143,6 @@ export function Connectors({ snap }: { snap: Snapshot }) {
   );
 }
 
-/** Read over SSH from the machine settings, not added here: a card in the picker leads there */
-const VIA_MACHINES = [
-  { label: "AdGuard Home", category: "Réseau / DNS", how: tx("Lu par SSH sur sa machine : Réglages → Machines, champ « conteneur AdGuard » de la machine (rempli tout seul quand il est trouvé)") },
-];
-
 /** Every word of the search found in one of the texts (accents and case ignored) */
 const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const hits = (q: string, ...texts: string[]) => { const all = fold(texts.join(" ")); return fold(q).split(/\s+/).every((w) => all.includes(w)); };
@@ -160,13 +158,13 @@ const catName = (c: string) => CATEGORY[c] ?? c;
 /** Picker filter: one chip per category, with its count, alphabetical */
 function CategoryChips({ types, cat, setCat }: { types: ConnectorType[]; cat: string; setCat: (c: string) => void }) {
   const counts = new Map<string, number>();
-  for (const c of [...types.map((t) => t.category), ...VIA_MACHINES.map((m) => m.category)]) if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
+  for (const t of types) if (t.category) counts.set(t.category, (counts.get(t.category) ?? 0) + 1);
   const cats = [...counts.keys()].sort((a, b) => catName(a).localeCompare(catName(b)));
   if (cats.length < 2) return null;
   const chip = (on: boolean) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${on ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`;
   return (
     <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label={tx("Catégorie")}>
-      <button type="button" className={chip(!cat)} aria-pressed={!cat} onClick={() => setCat("")}>{tx("Toutes")} <b className="text-dim">{types.length + VIA_MACHINES.length}</b></button>
+      <button type="button" className={chip(!cat)} aria-pressed={!cat} onClick={() => setCat("")}>{tx("Toutes")} <b className="text-dim">{types.length}</b></button>
       {cats.map((c) => <button key={c} type="button" className={chip(cat === c)} aria-pressed={cat === c} onClick={() => setCat(cat === c ? "" : c)}>{catName(c)} <b className="text-dim">{counts.get(c)}</b></button>)}
     </div>
   );

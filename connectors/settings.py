@@ -13,13 +13,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 import secrets_store
 from connectors import TYPES
 from connectors.base import ConnectorError, Context, tally
 
-SSH_TYPES = {"docker", "process", "adguard"}  # découlent des machines
+SSH_TYPES = {"docker", "process"}  # découlent des machines (AdGuard : aussi déclaré par une machine, ou ici par son API ou SSH)
 ALERT_TYPES = {"discord", "telegram"}  # section Alertes
 TEST_TIMEOUT = 20
 # Category of a connector in the « add » picker: the one of its known app (known_apps), except the backup tools grouped apart and
@@ -155,6 +156,8 @@ def save(type_: str, name: str, conf: dict, original: str | None = None) -> None
     old = _find(raw, type_, original)[2] if original else None
     if name != original and any(c["type"] == type_ and c.get("name") == name for _, _, c in _entries(raw)):
         raise SettingsError(f"{TYPES[type_].label} « {name} » existe déjà : choisir un autre nom")
+    if type_ == "adguard" and re.fullmatch(r"[\d.]+", name or ""):   # the AdGuards declared by a machine are named by its IP
+        raise SettingsError("nom : pas une adresse IP (réservé aux AdGuard déclarés par une machine), par exemple « adguard-box »")
     new = _merged(type_, name, conf, old)
     if old is not None and old.get("enabled") is False:
         new["enabled"] = False  # modifier ses réglages ne rallume pas un connecteur coupé

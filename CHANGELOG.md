@@ -15,7 +15,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 - Connectors for AI services: Hermes Agent (version, gateway and its platforms, no key), Ollama (version, installed and loaded
   models, GPU memory) and llama.cpp (build, model, context, slots); recognized on the machines, with their icons.
-- Connector picker: a search field; an AdGuard Home card that leads to Settings → Machines, where it is set (read over SSH).
+- Connector picker: a search field.
+- AdGuard Home is a full connector: added from the Connectors page, read by its API (account of its web interface) or over SSH
+  (AdGuardHome.yaml), the DNS server address taken from the interface address. The AdGuards a machine already declares are listed
+  under « Already read over SSH », with their state and version: nothing to add for them.
 
 ### Changed
 

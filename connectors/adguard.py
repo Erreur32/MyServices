@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import shlex
+import urllib.parse
 import re
 
 from connectors.base import Connector, ConnectorError, Field
@@ -66,20 +67,36 @@ class AdGuard(Connector):
     images = ("adguard/adguardhome",)
     tested = ("v0.107",)
     fields = (
-        Field("url", "URL de l'interface (accès API)", "url", help="ex. http://192.168.1.1:3000, sans SSH"),
-        Field("user", "Compte (accès API)"),
-        Field("password", "Mot de passe (accès API)", "password", secret=True),
-        Field("ssh", "Alias SSH de la machine (accès SSH)"),
-        Field("target", "Conteneur, ou chemin de AdGuardHome.yaml (accès SSH)"),
-        Field("ip", "IP du serveur DNS", required=True, help="IP interrogée pour le contrôle DNS"),
+        Field("url", "Adresse de l'interface d'AdGuard Home", "url", help="ex. http://192.168.1.1:3000"),
+        Field("user", "Compte AdGuard Home"),
+        Field("password", "Mot de passe", "password", secret=True),
+        Field("ssh", "Machine d'AdGuard Home (accès SSH)", help="MyServices s'y connecte avec sa clé"),
+        Field("target", "Conteneur, ou chemin de AdGuardHome.yaml", help="ex. adguardhome, ou /opt/AdGuardHome/AdGuardHome.yaml"),
+        Field("ip", "IP du serveur DNS", help="interrogée pour le contrôle DNS ; déduite de l'adresse si vide"),
+    )
+    # Two ways to read it: the page shows only the fields of the one chosen (same rule as mode_of)
+    modes = (
+        {"id": "direct", "label": "API d'AdGuard Home", "fields": ["url", "user", "password", "ip"], "required": ["url", "user", "password"],
+         "help": "MyServices lit l'API d'AdGuard Home (compte de l'interface web), en lecture seule : réécritures DNS et règles perso. Sans SSH."},
+        {"id": "ssh", "label": "Par SSH", "fields": ["ssh", "target", "ip"], "required": ["ssh", "target", "ip"],
+         "help": "MyServices lit AdGuardHome.yaml sur la machine (docker exec, ou le fichier d'une installation native), sans compte AdGuard. "
+                 "Une machine suivie dans Réglages → Machines peut aussi le déclarer elle-même (champ « conteneur AdGuard »)."},
     )
     setup_fields = ("url", "user", "password")
+
+    def __init__(self, conf: dict, ctx):
+        if not conf.get("ip") and conf.get("url"):   # the DNS server is usually the interface's own address
+            host = urllib.parse.urlsplit(str(conf["url"])).hostname
+            conf = {**conf, "ip": host} if host else conf
+        super().__init__(conf, ctx)
 
     @classmethod
     def validate(cls, conf: dict) -> list[str]:
         missing = super().validate(conf)
         if not ((conf.get("ssh") and conf.get("target")) or (conf.get("url") and conf.get("user") and conf.get("password"))):
             missing.append("« ssh » + « target », ou « url » + « user » + « password » requis")
+        if not conf.get("ip") and not (conf.get("url") and urllib.parse.urlsplit(str(conf["url"])).hostname):
+            missing.append("« IP du serveur DNS » requise")
         return missing
 
     def _api(self, path: str) -> object:
