@@ -24,6 +24,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   when it fails.
 - Beszel connector: the account field asks for the e-mail (the hub signs in by e-mail only); a user name gets a clear message.
 - Forms: the red « * » (required field) stays on the same line as its label.
+- Dozzle connector: the URL help says no login is needed here (links only; with Dozzle's login on, the browser signs in).
 
 ## v0.11.10 (2026-10-13)
 

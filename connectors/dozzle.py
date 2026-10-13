@@ -21,7 +21,8 @@ class Dozzle(Connector):
     kinds = ("logs",)
     images = ("amir20/dozzle",)
     tested = ()  # aucune API lue : seulement un lien
-    fields = (Field("url", "URL de Dozzle", "url", required=True, help="ex. https://dozzle.lan, celle ouverte dans le navigateur"),)
+    fields = (Field("url", "URL de Dozzle", "url", required=True, help="ex. https://dozzle.lan, celle ouverte dans le navigateur ; "
+                    "connexion Dozzle activée ou non : rien à saisir ici, on se connecte dans son navigateur en suivant le lien"),)
     setup_fields = ("url",)
 
     def link(self, container: str) -> str:
