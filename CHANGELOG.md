@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+
+- Security (code scanning): SVG avatars are read with `defusedxml` (no DTD, entity or outside file); saving a connector whose test
+  fails no longer puts the error text in its answer, the page asks the test route for the reason.
+- SonarCloud: tests for mail sending and the mail routes; simpler connector functions (Arcane, Pulse, Netdata, Dozzle); e-mail
+  addresses checked without a regular expression; the bell panel is a `<dialog>`, menu separators are `<hr>`.
+
 ## v0.11.11 (2026-10-13)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

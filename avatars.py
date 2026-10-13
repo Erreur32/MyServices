@@ -10,7 +10,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import re
-import xml.etree.ElementTree as ET
 
 MAX_BYTES = 512 * 1024
 SERVE_CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox"
@@ -59,11 +58,13 @@ def check(raw: bytes) -> str:
 
 
 def _check_svg(raw: bytes) -> None:
-    if re.search(r"<!DOCTYPE|<!ENTITY", raw.decode("utf-8", "replace"), re.I):
-        raise AvatarError("SVG refusé : DOCTYPE ou entité")
+    from defusedxml import DefusedXmlException
+    from defusedxml.ElementTree import ParseError, fromstring
     try:
-        root = ET.fromstring(raw)   # no DTD left (refused above): no entity to expand, nothing outside to read
-    except ET.ParseError:
+        root = fromstring(raw, forbid_dtd=True, forbid_entities=True, forbid_external=True)   # no DTD, entity or outside file
+    except DefusedXmlException:
+        raise AvatarError("SVG refusé : DOCTYPE ou entité") from None
+    except ParseError:
         raise AvatarError("SVG illisible") from None
     if _local(root.tag) != "svg":
         raise AvatarError("SVG attendu")

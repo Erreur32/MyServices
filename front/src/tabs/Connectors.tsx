@@ -364,8 +364,14 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onSaved,
   const save = async (collect: boolean) => {
     setBusy(true);
     let off = "";   // saved with the collection off (test failed, or asked): server message
-    const ok = await act(async () => { const r = await send<{ enabled?: boolean; message?: string }>("PUT", `connectors/settings/${type.type}`, body(collect)); if (r?.enabled === false) off = r.message ?? ""; },
-      quietSave ? "" : tx("enregistré : relecture lancée, l'état se met à jour dans une minute"), setNote);
+    const ok = await act(async () => {
+      const r = await send<{ enabled?: boolean; failed?: boolean; message?: string }>("PUT", `connectors/settings/${type.type}`, body(collect));
+      if (r?.enabled === false) off = r.message ?? "";
+      if (r?.failed) {   // the reason comes from the test route (the saved settings: secrets left empty are the saved ones)
+        const why = await runTest(type.type, { ...body(collect), original: name });
+        if (why.message) off = `${off} (${why.message})`;
+      }
+    }, quietSave ? "" : tx("enregistré : relecture lancée, l'état se met à jour dans une minute"), setNote);
     setBusy(false);
     if (ok) onSaved?.();   // saved: the lists update now, without waiting for the form to close
     if (ok && off) { setNote({ ok: !collect, text: off }); setTimeout(onDone, 4000); }

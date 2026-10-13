@@ -89,8 +89,8 @@ class SaveAndSwitch(unittest.TestCase):
 
     def test_failing_test_saves_switched_off(self):
         out, _ = self.save((False, "HTTP 400"))
-        self.assertFalse(out["enabled"])
-        self.assertIn("HTTP 400", out["message"])
+        self.assertEqual((out["enabled"], out["failed"]), (False, True))
+        self.assertNotIn("HTTP 400", out["message"])   # no error text here: the page asks the test route
         self.assertEqual(settings.names("beszel"), [])
         self.assertIsNotNone(settings.get("beszel", "hub"))
         self.reread.assert_not_called()

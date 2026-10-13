@@ -7,11 +7,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import avatars  # noqa: E402
 
+try:
+    import defusedxml  # noqa: F401
+except ImportError:
+    defusedxml = None
+
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
 OK_SVG = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><defs><linearGradient id="g"><stop offset="0"/></linearGradient></defs>' \
          b'<circle cx="5" cy="5" r="4" fill="url(#g)"/><use href="#g"/></svg>'
 
 
+@unittest.skipIf(defusedxml is None, "defusedxml absent : tests à lancer dans l'image")
 class Check(unittest.TestCase):
     def test_raster_by_content(self):
         self.assertEqual(avatars.check(PNG), "image/png")

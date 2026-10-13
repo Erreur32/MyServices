@@ -547,11 +547,12 @@ def connector_save(type_: str, body: ConnectorConf, request: Request):
     if not body.collect:
         settings.set_enabled(type_, body.name, False)
         return {"ok": True, "enabled": False, "message": "enregistré sans collecte : l'allumer quand le service répond (un test passe d'abord)"}
-    ok, msg = settings.check_saved(type_, body.name)
+    ok, _ = settings.check_saved(type_, body.name)
     if not ok:   # never collect untested settings: saved, but the collection stays off until a test passes
         settings.set_enabled(type_, body.name, False)
         store().audit("connecteur coupé", request.state.user["username"], ip_of(request), f"{type_} {body.name} : test en échec")
-        return {"ok": True, "enabled": False, "message": f"enregistré, collecte coupée : le test a échoué ({msg})"}
+        # the reason is shown by the page through the test route: no error text in this answer
+        return {"ok": True, "enabled": False, "failed": True, "message": "enregistré, collecte coupée : le test a échoué"}
     reread_connector(type_, body.name, f"connecteur {type_} « {body.name} » enregistré")
     return {**out, "enabled": True, "message": "enregistré : relecture lancée, l'état se met à jour dans une minute"}
 
