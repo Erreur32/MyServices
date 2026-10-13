@@ -367,15 +367,28 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, fre
 
 /** GPUs read by GpuViewR (matched by the machine's name): model, temperature, load, memory, power */
 function GpuRows({ m }: Readonly<{ m: Machine }>) {
-  const gpus = m.links?.sources.find((x) => x.source === "gpuviewr")?.gpus ?? [];
-  return <>{gpus.map((g, n) => (
-    <Row key={`${g.name}-${n}`} k={gpus.length > 1 ? `GPU ${n + 1}` : "GPU"}>
-      <span title={tx("Lu par GpuViewR")}>{g.name || "?"}
-        <Dim>{[g.temp != null && `${Math.round(g.temp)} °C`, g.util != null && `${Math.round(g.util)} %`,
-          g.mem_total ? `${((g.mem_used ?? 0) / 1024).toFixed(1)} / ${(g.mem_total / 1024).toFixed(0)} Go` : null,
-          g.power != null && `${Math.round(g.power)} W`].filter(Boolean).map((x) => ` · ${x}`).join("")}</Dim></span>
-    </Row>
-  ))}</>;
+  const src = m.links?.sources.find((x) => x.source === "gpuviewr"), gpus = src?.gpus ?? [], models = src?.models ?? [];
+  const go = (mb: number) => `${(mb / 1024).toFixed(1)} Go`;
+  return <>
+    {gpus.map((g, n) => (
+      <Row key={`${g.name}-${n}`} k={gpus.length > 1 ? `GPU ${n + 1}` : "GPU"}>
+        <span title={tx("Lu par GpuViewR")}>{g.name || "?"}
+          <Dim>{[g.temp != null && `${Math.round(g.temp)} °C`, g.util != null && `${Math.round(g.util)} %`,
+            g.mem_total ? `${go(g.mem_used ?? 0)} / ${(g.mem_total / 1024).toFixed(0)} Go` : null,
+            g.power != null && `${Math.round(g.power)} W`].filter(Boolean).map((x) => ` · ${x}`).join("")}</Dim>
+          {g.day && <span className="block text-xs text-dim">{tx("24 h :")} {[g.day.temp_max != null && tx("max {0} °C", Math.round(g.day.temp_max)),
+            g.day.util_avg != null && tx("charge moy. {0} %, max {1} %", Math.round(g.day.util_avg), Math.round(g.day.util_max ?? 0)),
+            g.day.mem_max != null && tx("mémoire max {0}", go(g.day.mem_max)), g.day.pow_avg != null && tx("{0} W en moyenne", Math.round(g.day.pow_avg))].filter(Boolean).join(" · ")}</span>}
+        </span>
+      </Row>
+    ))}
+    {models.map((x, n) => (
+      <Row key={`${x.model}-${n}`} k={models.length > 1 ? tx("Modèle {0}", n + 1) : tx("Modèle IA")}>
+        <span title={tx("Lu par GpuViewR")}>{x.model || "?"}<Dim>{[x.runtime, x.state === "idle" ? tx("au repos") : x.state, x.mem_mb ? go(x.mem_mb) : null,
+          gpus.length > 1 && x.gpu != null ? `GPU ${x.gpu + 1}` : null].filter(Boolean).map((v) => ` · ${v}`).join("")}</Dim></span>
+      </Row>
+    ))}
+  </>;
 }
 
 /** « Home Assistant OS 18.3 »: the system of a machine read only through Home Assistant (no SSH, no agent) */

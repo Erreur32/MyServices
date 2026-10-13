@@ -195,7 +195,7 @@ def link(machines: list[dict], network: list[dict] | None = None, virtualization
         for g in c.get("machines") or []:
             ip, by = idx.find(None, None, (g.get("name"), g.get("hostname")))
             if ip:
-                seen(ip, "gpuviewr", "GpuViewR", inst, by, ok=bool(g.get("online")), gpus=g.get("gpus") or None)
+                seen(ip, "gpuviewr", "GpuViewR", inst, by, ok=bool(g.get("online")), gpus=g.get("gpus") or None, models=g.get("models") or None)
             else:
                 lost("gpuviewr", "GpuViewR", inst, name=g.get("name"), online=g.get("online"))
 

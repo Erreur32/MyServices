@@ -146,6 +146,18 @@ class GpuViewR(Base):
         jarvis, tower = d["machines"]
         self.assertEqual((jarvis["name"], jarvis["hostname"], jarvis["online"], tower["online"], tower["gpus"]), ("Jarvis", "0ec0f7233a3a", True, False, []))
         self.assertEqual(jarvis["gpus"], [{"name": "RTX 3090", "temp": 88.0, "util": 97.0, "mem_used": None, "mem_total": None, "power": None}])
+        self.assertEqual(jarvis["models"], [])   # GpuViewR without /llm: no model, no failure
+
+    def test_models_and_day_stats(self):
+        self.route("/api/v1/health", {"version": "0.12.1", "gpu_count": 1, "hosts_total": 1, "hosts_online": 1})
+        self.route("/api/v1/hosts", {"hosts": [{"id": "local", "label": "Jarvis", "status": "online"}]})
+        self.route("/api/v1/gpus", {"gpus": [{"host_id": "local", "gpu_index": 0, "name": "Radeon", "temperature": 31, "utilization": 0}]})
+        self.route("/api/v1/gpus/stats?host=local&gpu=0&range=24h", {"stats": {"temp_max": 58, "util_avg": 0.16, "util_max": 97, "mem_max": 23864, "pow_avg": 7.46, "fan_max": None}})
+        self.route("/api/v1/llm", {"processes": [{"host_id": "local", "gpu_index": 0, "llm_model": "Qwen3-Coder-30B", "llm_runtime": "llamacpp",
+                                                  "llm_state": "idle", "used_memory": 1, "gtt_memory": 2}, {"host_id": "other", "llm_model": "x"}]})
+        m = self.conn("gpuviewr", token=KEY).collect()["machines"][0]
+        self.assertEqual(m["gpus"][0]["day"], {"temp_max": 58.0, "util_avg": 0.2, "util_max": 97.0, "mem_max": 23864.0, "pow_avg": 7.5})
+        self.assertEqual(m["models"], [{"model": "Qwen3-Coder-30B", "runtime": "llamacpp", "state": "idle", "gpu": 0, "mem_mb": 3.0}])
 
     def test_api_off(self):
         self.route("/api/v1/health", {"error": "API access is disabled (Settings > API)"}, code=403)

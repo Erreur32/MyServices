@@ -300,11 +300,21 @@ class GpuViewR(StatusConnector):
                      for g in gpus if num(g.get("temperature"), 0) >= 85]
         out = self.out(health.get("version"), facts, problems)
         # each machine with its GPUs, for its detail in the Machines tab (matching.py: by its name, GpuViewR gives no address)
+        llm = rows((self.get_opt("/api/v1/llm", h) or {}).get("processes"))   # AI models running, whole fleet in one call
         out["machines"] = [{"name": names[x.get("id")], "hostname": x.get("hostname"), "online": x.get("status") != "offline",
-                            "gpus": [{"name": g.get("name"), "temp": num(g.get("temperature")), "util": num(g.get("utilization")),
-                                      "mem_used": num(g.get("memory_used")), "mem_total": num(g.get("memory_total")), "power": num(g.get("power"))}
-                                     for g in gpus if g.get("host_id") == x.get("id")]} for x in hosts]
+                            "gpus": [self._gpu(g, h) for g in gpus if g.get("host_id") == x.get("id")],
+                            "models": [{"model": p.get("llm_model") or p.get("process_name"), "runtime": p.get("llm_runtime"), "state": p.get("llm_state"),
+                                        "gpu": p.get("gpu_index"), "mem_mb": num(p.get("used_memory"), 0) + num(p.get("gtt_memory"), 0)}
+                                       for p in llm if p.get("host_id") == x.get("id")]} for x in hosts]
         return out
+
+    def _gpu(self, g: dict, h: dict) -> dict:
+        """Latest reading of one GPU and its last 24 h (min / average / max, one call per GPU)."""
+        q = urllib.parse.urlencode({"host": g.get("host_id"), "gpu": g.get("gpu_index", 0), "range": "24h"})
+        st = (self.get_opt(f"/api/v1/gpus/stats?{q}", h) or {}).get("stats") or {}
+        day = {k: round(num(st.get(k)), 1) for k in ("temp_max", "util_avg", "util_max", "mem_max", "pow_avg") if num(st.get(k)) is not None}
+        return {"name": g.get("name"), "temp": num(g.get("temperature")), "util": num(g.get("utilization")),
+                "mem_used": num(g.get("memory_used")), "mem_total": num(g.get("memory_total")), "power": num(g.get("power")), **({"day": day} if day else {})}
 
 
 class SpeedtestTracker(StatusConnector):

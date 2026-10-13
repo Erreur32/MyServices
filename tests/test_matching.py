@@ -40,11 +40,11 @@ BESZEL = [{"name": "hub", "systems": [{"name": "storage.lan", "host": "nas.home"
 class Gpus(unittest.TestCase):
     def test_gpuviewr_by_name(self):
         gpu = [{"connector": "gpuviewr", "name": "gv", "machines": [
-            {"name": "docker1", "hostname": "x", "online": True, "gpus": [{"name": "RTX", "temp": 41}]},
+            {"name": "docker1", "hostname": "x", "online": True, "gpus": [{"name": "RTX", "temp": 41}], "models": [{"model": "qwen"}]},
             {"name": "ghost", "online": False, "gpus": []}]}]
         r = matching.link(MACHINES, services=gpu)
         s = [x for x in r["machines"]["192.168.1.20"]["sources"] if x["source"] == "gpuviewr"][0]
-        self.assertEqual((s["by"], s["gpus"]), ("name", [{"name": "RTX", "temp": 41}]))
+        self.assertEqual((s["by"], s["gpus"], s["models"]), ("name", [{"name": "RTX", "temp": 41}], [{"model": "qwen"}]))
         self.assertEqual([u["name"] for u in r["unlinked"] if u["source"] == "gpuviewr"], ["ghost"])
 
 
