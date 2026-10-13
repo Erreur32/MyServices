@@ -2,7 +2,7 @@
 import { Check, Copy, Plus, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { copyText } from "../lib/clipboard";
-import { button, primary, type Note } from "../lib/forms";
+import { type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 
 /** Retour d'une action : message vert ou rouge sous le formulaire. */
@@ -91,14 +91,15 @@ export function Copyable({ text, oneLine = false }: { text: string; oneLine?: bo
   };
   return (
     <div>
-      <div className="flex items-start gap-2">
-        <pre className={`min-w-0 flex-1 overflow-x-auto rounded-lg bg-bg2 p-2.5 font-mono text-xs ${oneLine ? "whitespace-pre" : "whitespace-pre-wrap break-all"}`}>{text}</pre>
-        <button type="button" onClick={() => void copy()}
-          className={note?.ok ? `${button} border-ok bg-ok/15 text-ok` : primary}>
-          {note?.ok ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}{note?.ok ? tx("copié") : tx("copier")}
+      {/* copy icon inside the block, top right: the command gets the whole width */}
+      <div className="relative">
+        <pre className={`overflow-x-auto rounded-lg bg-bg2 py-2.5 pl-2.5 pr-11 font-mono text-xs ${oneLine ? "whitespace-pre" : "whitespace-pre-wrap break-all"}`}>{text}</pre>
+        <button type="button" onClick={() => void copy()} title={note?.ok ? tx("copié") : tx("copier")} aria-label={note?.ok ? tx("copié") : tx("copier")}
+          className={`absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-md border transition-colors ${note?.ok ? "border-ok/60 bg-ok/15 text-ok" : "border-line bg-card text-muted hover:border-link hover:text-txt"}`}>
+          {note?.ok ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
         </button>
       </div>
-      <NoteLine note={note} />
+      {note && !note.ok && <NoteLine note={note} />}
     </div>
   );
 }
