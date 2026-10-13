@@ -1,26 +1,24 @@
-# Notes de version : MyServices 0.11.6
+# Notes de version : MyServices 0.11.7
 
 > **Version en ligne, à un stade précoce.** MyServices est utilisable, mais jeune : des écrans et des réglages peuvent encore changer. Gardez une copie de `config/` et `data/` avant de mettre à jour, et laissez-le sur votre réseau local.
 
 
-**0.11.6** (13 octobre 2026) : page Découverte refaite, Tâches et horaires plus claires, planificateur réparé, sauvegardes repliées.
+**0.11.7** (13 octobre 2026) : « Oublier » partout, conteneurs arrêtés écartés, tous les réglages des tâches au même endroit.
 
 ## Pour tout le monde
 
 **Quoi de neuf ?**
-- **Planificateur réparé** : la page des tâches lisait une autre copie du serveur que celle qui lance les tâches à l'heure. Elle ne voyait donc ni les passages ni le planificateur (« pas encore passé depuis le démarrage » à tort). C'est corrigé, et un badge dit maintenant si le planificateur tourne, avec la marche à suivre s'il s'arrête.
-- **Tâches et horaires refaits** : une ligne par tâche avec son icône et ce qu'elle fait, l'horaire vérifié pendant la frappe et écrit en clair, une colonne « Prochain passage » (heure et compte à rebours) et un bouton « Exécuter maintenant ». La recherche réseau y figure aussi : sa fréquence se règle ici comme dans Découverte (même réglage).
-- **Dernier passage gardé** : un redémarrage du conteneur n'efface plus le résultat du dernier passage de chaque tâche.
-- **Découverte en une seule page** : l'état et le mode automatique en haut, puis ce qu'il y a à faire, les machines trouvées (repliées), les applis à relier en tuiles, les autres suggestions, ce qui tourne tout seul et les réglages de la recherche. Plus de cadres colorés imbriqués.
-- **Réglages → Sauvegardes** : chaque sauvegarde suivie est repliée, son titre garde le seuil, l'interrupteur « copie hors machine exigée » et « Retirer ». Après « Chercher sur mes machines », chaque machine trouvée est repliée avec ses compteurs.
-- **Connecteurs** : « Déjà lus par SSH » se place juste sous les services détectés, replié.
-- **SSH & Agents** : les icônes de machine suivent le rôle et l'icône choisie (la passerelle UniFi avait perdu son logo).
+- **Oublier / Rappeler** partout où MyServices propose quelque chose : applis à relier et suggestions de Découverte (rangées dans un cadre « Oubliés »), services détectés des Connecteurs (même choix que dans Découverte), machines trouvées sur le réseau, et accès à régler d'une machine ajoutée (« Passer » devient « Oublier », gardé sur le serveur : la carte ne revient plus, son rappel de clé SSH non plus). « Rappeler » fait tout revenir.
+- **Conteneurs arrêtés** : une appli vue dans un conteneur qui ne tourne pas (`docker ps -a`) n'est plus proposée. Découverte la range à part, et les services détectés des Connecteurs ont une colonne « État » (actif / arrêté).
+- **Tâches et horaires, seul endroit des réglages** : la fréquence, les réseaux à parcourir et le mode discret de la recherche réseau y sont réunis. Chaque tâche dit aussi ce qu'elle découvre ; seules les recherches sans horaire gardent leur cadre « À la main ou une seule fois ». Découverte garde un bouton « Réglages de la recherche ».
+- **Découverte** : « Applis à relier » se replie, le résumé du scan tient en deux lignes, et « Oublier » s'affiche tout de suite (il fallait recharger la page).
+- **Liens entre réglages** : un lien d'une section des Réglages vers une autre (Découverte vers Tâches) fonctionne maintenant.
+- **Aide des horaires** : format et exemples en une ligne, valeurs en blocs de code.
 
 **Mettre à jour** : `docker compose pull`, puis `docker compose up -d` (avec l'image `:latest`). Rien à changer dans le compose.
 
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.11.6` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
-- **Corrigé** : `server.py` s'enregistre aussi sous le nom `server` quand il est lancé comme script, pour que `api.py` n'en charge pas une seconde copie.
-- **Nouveau** : `tasks-last.json` dans le dossier d'état (dernier passage de chaque tâche) ; `GET /api/system` donne aussi `next` par tâche, `netscan` et `scheduler.beat`.
-- **Modifié** : `front/src/tabs/SystemSettings.tsx`, `front/src/tabs/NetworkSettings.tsx`, `front/src/tabs/BackupsSettings.tsx`, `front/src/tabs/Connectors.tsx`, `front/src/tabs/Agents.tsx`, `front/src/lib/tasks.ts` (`parseAt`), `system.py`, `api.py`.
+- **Image** : `ghcr.io/erreur32/myservices:0.11.7` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
+- **Nouveau** : `known_apps.run_state()` (état du conteneur derrière une appli), `running` et `state` dans les propositions, `front/src/components/AutoDiscoveries.tsx`, identifiants `access:<ip>` dans `discoveries_muted` (accès oublié, lié au rappel `ssh:<ip>`), `muted` dans `GET /api/v1/discoveries`.
+- **Modifié** : `discoveries.py`, `system.py`, `front/src/components/NetworkStep.tsx`, `front/src/components/DiscoveryCard.tsx` (relecture demandée pendant une autre : refaite), `front/src/tabs/NetworkSettings.tsx`, `front/src/tabs/SystemSettings.tsx`, `front/src/tabs/Connectors.tsx`, `front/src/tabs/Settings.tsx`.
