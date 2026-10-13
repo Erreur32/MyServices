@@ -70,6 +70,24 @@ for name, (script, at, timeout) in DEFAULTS_AT.items():
     TASKS[name] = {"script": script, "minutes": mins, "hours": hrs, "at": spec, "fixed": bool(env),
                    "timeout": timeout, "proc": None, "start": None, "end": None, "result": None, "trigger": None}
 LOCK = threading.Lock()
+# Last run of each task, kept on disk: a restart of the container no longer shows them as « not run yet »
+LAST_RUNS = Path(CFG["state_dir"]) / "tasks-last.json"
+try:
+    for _name, _last in json.loads(LAST_RUNS.read_text(encoding="utf-8")).items():
+        if _name in TASKS:
+            TASKS[_name].update(start=_last.get("start"), end=_last.get("end"), result=_last.get("result"))
+except (OSError, ValueError, AttributeError):
+    pass
+
+
+def save_last_runs() -> None:
+    last = {n: {"start": t["start"], "end": t["end"], "result": t["result"]} for n, t in TASKS.items() if t["end"]}
+    try:
+        tmp = LAST_RUNS.with_suffix(".tmp")
+        tmp.write_text(json.dumps(last), encoding="utf-8")
+        tmp.replace(LAST_RUNS)
+    except OSError as e:
+        log(f"⚠ dernier passage des tâches non gardé : {e}")
 
 
 def log(msg: str) -> None:
@@ -150,6 +168,7 @@ def _wait(name: str) -> None:
         keep_history(name, alert=True)
     with LOCK:
         t.update(proc=None, end=time.time(), result=result)
+    save_last_runs()
     log(f"{name} : terminé, {result} ({t['end'] - t['start']:.0f} s)")
 
 
@@ -458,10 +477,14 @@ def wake_check() -> None:
             run_chain(["collect"], why)
 
 
+SCHED_BEAT = {"ts": None}   # last turn of the scheduler loop: the tasks page shows whether the schedule is alive
+
+
 def scheduler() -> None:
     last = None
     while True:
         now = datetime.now()
+        SCHED_BEAT["ts"] = time.time()
         slot = now.replace(second=0, microsecond=0)
         if slot != last:
             last = slot

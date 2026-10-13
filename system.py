@@ -54,7 +54,7 @@ def tasks(core) -> list[dict]:
         out.append({"name": name, "label": LABELS.get(name, name), "at": t["at"], "fixed": t["fixed"],
                     "enabled": core.enabled(name), "running": t["proc"] is not None, "started": t["start"],
                     "ended": t["end"], "result": t["result"], "timeout_s": t["timeout"],
-                    "default": core.DEFAULTS_AT[name][1], **_why_off(core, name)})
+                    "default": core.DEFAULTS_AT[name][1], "next": core.next_run(name), **_why_off(core, name)})
     return out
 
 

@@ -22,6 +22,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   followed and those ticked.
 - Settings → Backups: each followed backup is folded by default; its title keeps the alert threshold, the « off-machine copy
   required » switch and « Remove », so the common changes need no unfolding.
+- Settings → Tasks and schedules redone: one row per task with its icon and what it does, the schedule checked while typing and
+  written in plain words (« every hour, at :10, :40 »), a « Next run » column (time and countdown), and « Run now » instead of
+  « Run » / « Run again ». The network search is listed too, its frequency editable here (the same setting as Discovery) and
+  runnable. The header tells whether the scheduler is alive (like a crontab: last turn under 90 s), how many tasks are active
+  and how many failed. The health switch now says « on » or « off ».
+- Tasks: the last run of each task is kept in `tasks-last.json` (state folder), so a restart of the container no longer shows
+  every task as « not run yet ».
 
 ### Fixed
 

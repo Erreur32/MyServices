@@ -576,12 +576,15 @@ export interface AgentsState { agents: AgentInfo[]; report_path: string }
 export interface SystemTask {
   name: string; label: string; at: string; default: string; fixed: boolean; enabled: boolean; running: boolean;
   started: number | null; ended: number | null; result: string | null; timeout_s: number;
+  next?: number | null;  // prochain passage (epoch), null si coupée
   switch?: boolean;     // la page propose un interrupteur pour allumer / couper la tâche (santé)
   why?: string | null;  // pourquoi la tâche est coupée et comment l'allumer
 }
 export interface SystemState {
   ssh: { public: string | null; fingerprint?: string | null; known_hosts?: number; authorize?: string; public_esxi?: string | null };
   tasks: SystemTask[];
+  scheduler?: { beat: number | null };  // dernier tour du planificateur (epoch) : vivant s'il est récent
+  netscan?: { every_h: number; enabled: boolean; running: boolean; next: number | null; started: number | null; ended: number | null };
   host_docker?: { present: boolean; containers: number; networks: number };
   info: {
     version: string; python: string; started: number; uptime_s: number; port: number; allow: string[]; auth: boolean;

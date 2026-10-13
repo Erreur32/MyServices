@@ -1062,7 +1062,7 @@ def system_state(request: Request):
         return denied
     from connectors.process import host_docker
     return {"ssh": system.ssh_key(core), "tasks": system.tasks(core), "info": system.info(core, sys.modules[__name__]),
-            "host_docker": host_docker()}
+            "netscan": core.netscan_task(), "scheduler": {"beat": core.SCHED_BEAT["ts"]}, "host_docker": host_docker()}
 
 
 class Schedule(BaseModel):
