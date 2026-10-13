@@ -177,10 +177,15 @@ function Tasks({ tasks, netscan, beat, reload }: { tasks: SystemTask[]; netscan?
         <h2 className="flex items-center gap-2 font-bold"><Timer size={16} />{tx("Tâches et horaires")}</h2>
         <Badge tone={alive ? "ok" : "bad"} title={alive ? tx("Vérifié il y a {0} s. Il lance chaque tâche à son horaire, comme une crontab.", ago) : tx("Plus aucun tour depuis {0} s : redémarrez le conteneur.", ago ?? "?")}>
           {alive ? tx("planificateur actif") : tx("planificateur arrêté")}</Badge>
-        <Badge tone="info">{tx("{0} active(s)", tasks.filter((t) => t.enabled).length + (netscan?.enabled ? 1 : 0))}</Badge>
+        <Badge tone="info">{tx("{0} tâche(s) programmée(s)", tasks.filter((t) => t.enabled).length + (netscan?.enabled ? 1 : 0))}</Badge>
         {failed > 0 && <Badge tone="bad">{tx("{0} en échec", failed)}</Badge>}
         {tasks.some((t) => t.running) && <Badge tone="info">{tx("en cours")}</Badge>}
       </div>
+      {!alive && (
+        <p className="mb-3 rounded-lg border border-bad/50 bg-bad/10 px-3 py-2 text-sm">
+          <b>{tx("Les horaires ne sont pas appliqués :")}</b> {tx("le planificateur intégré au conteneur (l'équivalent d'une crontab) ne tourne plus, aucune tâche ne part à son heure. Rien à activer : redémarrez le conteneur MyServices. Si le message revient, regardez Réglages → Journaux. En attendant, « Exécuter maintenant » marche toujours.")}
+        </p>
+      )}
       <p className="mb-3 text-sm text-muted">
         {tx("Horaire :")} <code className="font-mono text-xs">{tx("minutes heures")}</code>{tx(", ex.")} <code className="font-mono text-xs">10,40 *</code> {tx("(deux fois par heure),")}
         {" "}<code className="font-mono text-xs">5 7,19</code> {tx("(7 h 05 et 19 h 05). Appliqué tout de suite, gardé dans config.json.")}

@@ -32,6 +32,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Fixed
 
+- The server module was loaded twice (once as the started script, once by `import server` in the API): the scheduler ran in one
+  copy and the pages read the other, so the tasks page never saw the scheduled runs, and a run started from the page did not share
+  the scheduler lock. One module now, under both names. When the scheduler is really stopped, the tasks page says so in a red
+  note with what to do (restart the container, then look at the logs).
+
+### Fixed
+
 - Settings → Machines → SSH & Agents: machine icons now use the machine's role and chosen icon, like the Machines tab (the UniFi
   gateway had no logo there).
 

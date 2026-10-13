@@ -27,6 +27,11 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
+# Started as a script, this module is « __main__ »: api.py then does `import server` and would get a second copy, with its own
+# TASKS and lock, which the scheduler never touches (the tasks page saw no run and no scheduler). One module under both names.
+if __name__ == "__main__":
+    sys.modules.setdefault("server", sys.modules[__name__])
+
 import netscan
 from config import CFG
 
