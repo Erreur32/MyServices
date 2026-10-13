@@ -1818,7 +1818,7 @@ def discoveries(request: Request):
         "backups_last": bk["end"] or None, "backups_next": core.next_run("backups"), "proposals": data.get("proposals") or [],
         "muted": core.CFG.get("discoveries_muted") or [], "auto_mode": core.CFG["auto_mode"],
     })
-    return {"auto": core.CFG["auto_mode"], "items": items, "todo": sum(1 for x in items if x["state"] == disc.TODO), "suggest": sum(1 for x in items if x["state"] == disc.SUGGEST)}
+    return {"auto": core.CFG["auto_mode"], "items": items, "muted": core.CFG.get("discoveries_muted") or [], "todo": sum(1 for x in items if x["state"] == disc.TODO), "suggest": sum(1 for x in items if x["state"] == disc.SUGGEST)}
 
 
 class MuteBody(BaseModel):

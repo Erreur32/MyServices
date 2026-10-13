@@ -30,9 +30,11 @@ class Discoveries(unittest.TestCase):
         on = by(d.build(base))["hosts"]
         self.assertEqual((on["state"], on["mutable"], on["muted"]), ("suggest", True, False))   # facultatif : proposé, pas exigé
         off = by(d.build({**base, "muted": ["hosts"]}))["hosts"]
-        self.assertEqual((off["state"], off["muted"], off["note"]), ("info", True, "rappel coupé"))
-        key = by(d.build({"key_refused": [{"ip": "10.0.0.2", "name": "x"}], "muted": ["ssh:10.0.0.2"]}))["ssh:10.0.0.2"]
-        self.assertEqual((key["mutable"], key["state"]), (False, "todo"))     # une vraie panne ne se coupe pas
+        self.assertEqual((off["state"], off["muted"], off["note"]), ("info", True, "oublié"))
+        refused = {"key_refused": [{"ip": "10.0.0.2", "name": "x"}]}
+        self.assertEqual(by(d.build(refused))["ssh:10.0.0.2"]["state"], "todo")
+        key = by(d.build({**refused, "muted": ["access:10.0.0.2"]}))["ssh:10.0.0.2"]   # access forgotten in Discovery → machines
+        self.assertEqual((key["mutable"], key["muted"], key["state"]), (True, True, "info"))
 
     def test_les_modes_sont_dits_clairement(self):
         m = by(d.build({"ssh_machines": 2, "auto_checked": 2}))

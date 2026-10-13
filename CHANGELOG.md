@@ -19,6 +19,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   leave every list for a folded « Forgotten » frame at the bottom, with « Recall »), detected services in Connectors (« Forget »
   next to « Activate », a « Forgotten » line with « Recall »; one choice shared with Discovery), and the machines found on the
   network (« Forget » / « Recall » instead of an eye icon and « Resume »). Replaces « Don't remind me again ».
+- Discovery → machines found: « Skip » on a machine whose access is not set becomes « Forget », kept on the server (no longer in
+  the browser only): the frame goes away for good, its « SSH key to authorise » reminder too, and « Recall » in « machines already
+  added » brings it back. The orange « accesses skipped » banner is gone.
+- Discovery → « What runs by itself »: one aligned row per item (icon, what it is, mode, last and next time, button).
 
 ## v0.11.6 (2026-10-13)
 

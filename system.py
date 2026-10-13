@@ -203,7 +203,8 @@ def set_discovery_muted(core, did: str, muted: bool) -> list[str]:
     did = did.strip()
     if not did or len(did) > 120:
         raise ValueError("identifiant de découverte invalide")
-    kept = [d for d in core.CFG.get("discoveries_muted") or [] if d != did]
+    same = {did} | ({"access:" + did[4:]} if did.startswith("ssh:") else {"ssh:" + did[7:]} if did.startswith("access:") else set())
+    kept = [d for d in core.CFG.get("discoveries_muted") or [] if d not in same]   # recall: both names of a machine access go
     if muted:
         if len(kept) >= 200:
             raise ValueError("200 rappels coupés au plus")

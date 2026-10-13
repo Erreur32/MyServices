@@ -1,14 +1,14 @@
 // Étape « Recherche des autres machines du réseau » de Premiers pas : lancer la recherche, choisir les machines à
 // ajouter, puis, pour celles qui répondent en SSH, préparer l'accès (alias + commande à autoriser + test).
 // Lecture seule sur le réseau ; rien n'est ajouté sans que l'admin le demande.
-import { Check, ChevronRight, Circle, EyeOff, Globe, KeyRound, Loader2, Plug, RefreshCw, RotateCcw, Search, Square, Wifi, X, type LucideIcon } from "lucide-react";
+import { Check, ChevronRight, Circle, EyeOff, Globe, KeyRound, Loader2, Plug, RefreshCw, RotateCcw, Search, Square, Wifi, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { read, send } from "../api";
 import { authorizeFor } from "../lib/ssh";
 import { act, button, input, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { dateTime } from "../lib/format";
-import { ADDED_KEY, DISMISSED_KEY, LATER_HIDDEN_KEY, REOPEN_EVENT } from "../lib/firstSteps";
+import { ADDED_KEY, DISMISSED_KEY, REOPEN_EVENT } from "../lib/firstSteps";
 import { appIcon } from "../lib/appIcons";
 import { changes, interesting, needsLink, netState, osOf, quiet, roleOf, summarize, tagsOf, viaMynetwork } from "../lib/netScan";
 import { pokeScan, rereadMachines } from "../lib/scan";
@@ -17,6 +17,7 @@ import type { ConnectorsState, ConnectorType, NetHost, NetScan, SystemState } fr
 import { Copyable, NoteLine } from "./form";
 import { netPercent } from "./ScanBar";
 import { SkipButton } from "./SkipButton";
+import { useDiscoveries } from "./DiscoveryCard";
 import { Badge, Count } from "./ui";
 
 /** Icône de l'appli reconnue (rien si elle n'en a pas) */
@@ -93,7 +94,9 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
 }) {
   const known = machines.map((m) => m.ip);
   const [dismissed, setDismissed] = useState<string[]>(loadDismissed);
-  const [laterHidden, setLaterHidden] = useState(() => localStorage.getItem(LATER_HIDDEN_KEY) === "1");
+  const [disc, reloadDisc] = useDiscoveries();
+  // Accesses forgotten with « Forget »: kept on the server (« access:<ip> »), plus the older « Skip » choices of this browser
+  const forgot = new Set([...dismissed, ...(disc?.muted ?? []).filter((id) => id.startsWith("access:")).map((id) => id.slice(7))]);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [othersOpen, setOthersOpen] = useState(false);  // cadre « autres appareils » ouvert : ses cases ne comptent que s'il l'est
@@ -102,7 +105,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
   const [added, setAdded] = useState<Record<string, NetHost>>(loadAdded);
   useEffect(() => { sessionStorage.setItem(ADDED, JSON.stringify(added)); }, [added]);
   useEffect(() => {  // « Revoir les premiers pas » efface la mémoire : la carte déjà affichée la relit
-    const refresh = () => { setDismissed(loadDismissed()); setAdded(loadAdded()); setLaterHidden(localStorage.getItem(LATER_HIDDEN_KEY) === "1"); };
+    const refresh = () => { setDismissed(loadDismissed()); setAdded(loadAdded()); };
     addEventListener(REOPEN_EVENT, refresh);
     return () => removeEventListener(REOPEN_EVENT, refresh);
   }, []);
@@ -134,10 +137,12 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
   const rest = webOnly.length + pingOnly.length + ignoredAll.length;
   const sum = net && net.phase === "done" ? summarize(net.found, known) : null;
   // Accès à régler : machines ajoutées à l'instant, plus celles déjà déclarées dont le SSH ou le jeton Home Assistant manque
-  const pending = (net?.found ?? []).filter((h) => known.includes(h.ip) && !added[h.ip] && !dismissed.includes(h.ip) && needsLink(h, machines, connected));
-  const toLink = [...Object.values(added), ...pending].filter((h) => needsLink(h, machines, connected));   // seulement ce qui reste à régler : le reste est dans « déjà ajoutées »
-  const later = (net?.found ?? []).filter((h) => known.includes(h.ip) && dismissed.includes(h.ip) && needsLink(h, machines, connected));
-  const resumeLater = () => setDismissed((d) => { const n = d.filter((ip) => !later.some((h) => h.ip === ip)); localStorage.setItem(DISMISSED, JSON.stringify(n)); return n; });
+  const pending = (net?.found ?? []).filter((h) => known.includes(h.ip) && !added[h.ip] && !forgot.has(h.ip) && needsLink(h, machines, connected));
+  const toLink = [...Object.values(added), ...pending].filter((h) => !forgot.has(h.ip) && needsLink(h, machines, connected));   // seulement ce qui reste à régler : le reste est dans « déjà ajoutées »
+  const recall = (ip: string) => void act(async () => {   // the access asks again: off the server list and the old browser one
+    await send("PUT", "discoveries/muted", { id: `access:${ip}`, muted: false });
+    setDismissed((d) => { const n = d.filter((x) => x !== ip); localStorage.setItem(DISMISSED, JSON.stringify(n)); return n; });
+  }, tx("rappelé : de nouveau proposé"), setNote).then(() => reloadDisc());
 
   const scanned = !!net && net.phase === "done" && !!net.ended;
   const declared = machines.filter((m) => !m.local);  // machines déjà ajoutées (hors la machine hôte)
@@ -261,24 +266,6 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
   return (
     <div className="flex flex-col gap-3">
       {actions}
-      {later.length > 0 && !laterHidden && (
-        <section className="relative rounded-xl border border-warn/50 bg-warn/10 p-3 pr-10" aria-live="polite">
-          <button type="button" aria-label={tx("Masquer ce rappel")} title={tx("Masquer ce rappel : les accès restent listés dans « machines déjà ajoutées »")}
-            onClick={() => { localStorage.setItem(LATER_HIDDEN_KEY, "1"); setLaterHidden(true); }}
-            className="absolute right-2 top-2 rounded-md p-1 text-dim hover:bg-bg2 hover:text-txt"><X size={16} aria-hidden /></button>
-          <div className="flex flex-wrap items-center gap-2">
-            <RotateCcw size={16} className="text-warn" aria-hidden />
-            <b className="text-txt">{later.length > 1 ? tx("{0} accès passés, à régler plus tard", later.length) : tx("1 accès passé, à régler plus tard")}</b>
-            <button type="button" className={`${primary} ml-auto`} onClick={resumeLater}>
-              <RotateCcw size={14} aria-hidden />{later.length > 1 ? tx("Tout reprendre") : tx("Reprendre")}
-            </button>
-          </div>
-          <p className="mt-1 text-sm text-muted">{tx("Ces machines sont ajoutées, mais leur accès (SSH ou jeton Home Assistant) n'est pas réglé : MyServices ne lit pas leurs conteneurs ni leur état.")}</p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {later.map((h) => <Badge key={h.ip} tone="warn" title={h.ip}>{h.name || h.ip}</Badge>)}
-          </div>
-        </section>
-      )}
       {toLink.length === 0 && found.length === 0 && (
         <p>{tx("Cherche les machines allumées sur votre réseau local (un seul sous-réseau /24, en lecture seule : ping, nom et quelques ports). Vous choisissez ensuite lesquelles ajouter ; rien n'est ajouté tout seul.")}</p>
       )}
@@ -345,13 +332,14 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
       )}
       {toLink.length > 0 && (
         <div className="flex flex-col gap-2">
-          {found.length > 0 && <p className="text-xs text-dim">{tx("{0} autre(s) appareil(s) masqué(s) : ils reviennent quand les accès ci-dessous sont réglés ou passés.", found.length)}</p>}
+          {found.length > 0 && <p className="text-xs text-dim">{tx("{0} autre(s) appareil(s) masqué(s) : ils reviennent quand les accès ci-dessous sont réglés ou oubliés.", found.length)}</p>}
           <p className="text-sm font-semibold text-txt">{tx("Machines ajoutées : accès à régler")}</p>
           {toLink.map((h) => (
-            <AddedMachine key={h.ip} host={h} linked={!viaMynetwork(h) && !needsLink(h, machines, connected)} onDone={() => {
-              setAdded((a) => { const n = { ...a }; delete n[h.ip]; return n; });
-              setDismissed((d) => { const n = [...new Set([...d, h.ip])]; localStorage.setItem(DISMISSED, JSON.stringify(n)); return n; });
-            }} />
+            <AddedMachine key={h.ip} host={h} linked={!viaMynetwork(h) && !needsLink(h, machines, connected)}
+              onDone={() => setAdded((a) => { const n = { ...a }; delete n[h.ip]; return n; })}
+              onForget={() => void act(() => send("PUT", "discoveries/muted", { id: `access:${h.ip}`, muted: true }),
+                tx("{0} oublié : il reste dans « machines déjà ajoutées », pour le rappeler", h.name || h.ip), setNote)
+                .then((ok) => { if (ok) { setAdded((a) => { const n = { ...a }; delete n[h.ip]; return n; }); reloadDisc(); } })} />
           ))}
           {found.length === 0 && <p className="text-sm text-dim">{tx("Toutes les machines trouvées sont ajoutées. « Terminé » ferme un cadre ; « Refaire un scan » relance la recherche.")}</p>}
         </div>
@@ -372,14 +360,18 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
                   <b className="text-txt">{m.name || m.ip}</b>
                   <span className="font-mono text-xs text-dim">{m.ip}</span>
                   {m.ssh ? <Badge tone="ok">SSH</Badge> : null}
-                  {link && <Badge tone="warn">{link === "ha" ? tx("jeton à régler") : tx("accès SSH à régler")}</Badge>}
+                  {link && (forgot.has(m.ip) ? <>
+                    <Badge tone="off">{tx("accès oublié")}</Badge>
+                    <button type="button" className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs text-link hover:bg-link/10" onClick={() => recall(m.ip)}>
+                      <RotateCcw size={12} aria-hidden />{tx("Rappeler")}</button>
+                  </> : <Badge tone="warn">{link === "ha" ? tx("jeton à régler") : tx("accès SSH à régler")}</Badge>)}
                   {!m.off && m.ping === false && <Badge tone="bad">{tx("hors ligne")}</Badge>}
                   {m.off && <Badge tone="off">{tx("éteinte volontairement")}</Badge>}
                 </li>
               );
             })}
           </ul>
-          <p className="mt-2 text-xs text-dim">{tx("Pour retirer une machine : Réglages → Machines. Pour effacer vos « Passer » : menu du compte → « Revoir les premiers pas ».")}</p>
+          <p className="mt-2 text-xs text-dim">{tx("Pour retirer une machine : Réglages → Machines. Un accès oublié revient avec « Rappeler ».")}</p>
         </details>
       )}
       <NoteLine note={note} />
@@ -389,7 +381,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
 
 /** Machine ajoutée : si elle répond en SSH, préparer l'accès (alias avec la clé de l'app), puis la commande et le test */
 /** linked : l'accès marche déjà d'après les données du serveur (cadre rouvert après un rechargement de la page) */
-function AddedMachine({ host, linked, onDone }: { host: NetHost; linked: boolean; onDone: () => void }) {
+function AddedMachine({ host, linked, onDone, onForget }: { host: NetHost; linked: boolean; onDone: () => void; onForget: () => void }) {
   const ha = host.apps.includes("Home Assistant");
   const mwk = viaMynetwork(host);  // UniFi : API MynetworK à venir ; SSH facultatif
   const ssh = !!host.ssh_port && !ha;  // Home Assistant se relie par son API : pas de SSH proposé, même s'il répond
@@ -427,8 +419,9 @@ function AddedMachine({ host, linked, onDone }: { host: NetHost; linked: boolean
         <Check size={14} className={valid ? "text-ok" : "text-warn"} aria-hidden /><AppIcon apps={host.apps} /><b className="text-txt">{label}</b>
         <span className="font-mono text-xs text-dim">{host.ip}</span><Badge tone={valid ? "ok" : "warn"}>{valid ? tx("ajoutée") : tx("accès à régler")}</Badge>
         {ssh && ok && <Badge tone="ok">{tx("SSH accepté")}</Badge>}
-        <SkipButton onClick={onDone} onDark className="ml-auto" label={ssh && !ok ? tx("Passer") : tx("Terminé")}
-          title={tx("Passer ou fermer ce cadre : la machine reste ajoutée, ses accès se règlent aussi plus tard (« Reprendre » ici, ou Réglages → Machines et Connecteurs)")} />
+        {valid ? <SkipButton onClick={onDone} onDark className="ml-auto" label={tx("Terminé")} title={tx("Fermer ce cadre : la machine est ajoutée")} />
+          : <button type="button" className="ml-auto inline-flex items-center gap-1 rounded-md border border-line bg-bg2 px-2.5 py-1 text-xs text-muted hover:border-link hover:text-txt" onClick={onForget}
+              title={tx("Ne plus demander cet accès : la machine reste ajoutée. « Rappeler » dans « machines déjà ajoutées » le fait revenir.")}><EyeOff size={13} aria-hidden />{tx("Oublier")}</button>}
       </p>
       {mwk && (
         <p className="mt-2 text-sm text-muted">

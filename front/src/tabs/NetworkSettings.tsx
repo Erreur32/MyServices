@@ -49,19 +49,19 @@ function Fold({ id, icon, title, n, hint, open, onToggle, children }: { id: stri
         <h2 className="flex items-center gap-2 font-bold">{icon}{title}{n !== undefined && <Count n={n} />}</h2>
         {hint && <span className="text-sm text-muted">{hint}</span>}
       </summary>
-      <div className="mt-3">{children}</div>
+      <div className="mt-3 border-t border-line/60 pt-1">{children}</div>
     </details>
   );
 }
 
 /** Une découverte en ligne : titre, note, dernière / prochaine fois, puis ses boutons */
-function Row({ x, reload, machines, auto }: { x: DiscoveryItem; reload: () => void; machines: Snapshot["data"]["machine_list"]; auto?: boolean }) {
+function Row({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; machines: Snapshot["data"]["machine_list"] }) {
   const m = MODE[x.mode];
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2 text-muted" title={m.hint}><m.Icon size={15} aria-hidden /></span>
       <div className="min-w-[220px] flex-1">
-        <div className="flex flex-wrap items-center gap-2"><Title x={x} machines={machines} />{auto && <Badge tone={m.tone} title={m.hint}>{m.label}</Badge>}</div>
+        <div className="flex flex-wrap items-center gap-2"><Title x={x} machines={machines} /></div>
         <p className="mt-0.5 text-sm text-muted">{x.what}</p>
         {(x.note || x.last || x.next) && (
           <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-dim">
@@ -70,6 +70,28 @@ function Row({ x, reload, machines, auto }: { x: DiscoveryItem; reload: () => vo
         )}
       </div>
       {(x.action || x.mutable) && <div className="flex flex-wrap items-center gap-1.5">{x.action && <Action a={x.action} reload={reload} />}<MuteButton x={x} reload={reload} /></div>}
+    </li>
+  );
+}
+
+/** Something that runs by itself: aligned columns (icon, what it is, mode, last and next time, button), so the list reads as a table */
+function AutoRow({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; machines: Snapshot["data"]["machine_list"] }) {
+  const m = MODE[x.mode], last = when(x.last), next = when(x.next);
+  const sub = "col-start-2 md:col-start-auto";
+  return (
+    <li className="grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 py-3 md:grid-cols-[2rem_minmax(0,1fr)_8.5rem_12.5rem_10rem] md:items-center">
+      <span className={`grid h-8 w-8 place-items-center rounded-lg ${m.tone === "ok" ? "bg-ok/10 text-ok" : "bg-bg2 text-muted"}`} title={m.hint}><m.Icon size={15} aria-hidden /></span>
+      <div className="min-w-0">
+        <div className="text-sm"><Title x={x} machines={machines} /></div>
+        <p className="mt-0.5 text-xs text-muted">{x.what}</p>
+        {x.note && <p className="mt-0.5 text-xs text-dim">{x.note}</p>}
+      </div>
+      <span className={sub}><Badge tone={m.tone} title={m.hint}>{m.label}</Badge></span>
+      <dl className={`${sub} grid grid-cols-[auto_1fr] gap-x-2 text-xs tabular-nums`}>
+        <dt className="text-dim">{tx("dernière")}</dt><dd className="text-muted">{last ?? "-"}</dd>
+        <dt className="text-dim">{tx("prochaine")}</dt><dd className="text-muted">{next ?? "-"}</dd>
+      </dl>
+      <div className={`${sub} flex flex-wrap gap-1.5 md:justify-end`}>{x.action && <Action a={x.action} reload={reload} />}</div>
     </li>
   );
 }
@@ -211,7 +233,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
       {/* 6. Ce qui tourne tout seul */}
       {quiet_.length > 0 && (
         <Fold id="net-auto" icon={<Check size={16} className="text-ok" aria-hidden />} title={tx("Ce qui tourne tout seul")} n={quiet_.length} hint={tx("rien à faire, pour information")} open={autoOpen} onToggle={setAutoOpen}>
-          <ul className="flex flex-col divide-y divide-line/60">{quiet_.map((x) => <Row key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} auto />)}</ul>
+          <ul className="flex flex-col divide-y divide-line/60">{quiet_.map((x) => <AutoRow key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} />)}</ul>
         </Fold>
       )}
 

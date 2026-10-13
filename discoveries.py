@@ -98,9 +98,9 @@ def build(i: dict) -> list[dict]:
             {"label": "Configurer", "prefill": {"type": p["connector"], "name": p["connector"], "url": p.get("url") or ""}},
             app=p["label"], machine={"ip": p.get("ip") or "", "name": p.get("machine") or ""} if p.get("ip") or p.get("machine") else None)
     muted = set(i.get("muted") or [])
-    for x in out:   # un rappel qui revient sans cesse peut être coupé (et rétabli) ; une clé SSH refusée ou un agent absent, non
-        x["mutable"] = x["id"] in ("hosts", "network", "backups-other") or x["id"].startswith("connector:")
-        x["muted"] = x["mutable"] and x["id"] in muted
+    for x in out:   # a reminder can be forgotten (and recalled); a machine access forgotten in Discovery (« access:<ip> ») hides its key reminder too
+        x["mutable"] = x["id"] in ("hosts", "network", "backups-other") or x["id"].startswith(("connector:", "ssh:", "agent:"))
+        x["muted"] = x["mutable"] and (x["id"] in muted or (x["id"].startswith("ssh:") and "access:" + x["id"][4:] in muted))
         if x["muted"] and x["state"] in (TODO, SUGGEST):
-            x["state"], x["note"] = "info", "rappel coupé"
+            x["state"], x["note"] = "info", "oublié"
     return out

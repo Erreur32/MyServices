@@ -24,7 +24,7 @@ export interface DiscoveryItem {
 
 // Un seul chargement partagé (cloche, accueil, menu Réglages, page Découverte) : une lecture toutes les 30 s quel que soit le nombre
 // de composants qui l'affichent, à l'arrêt quand l'onglet est masqué.
-let shared: { items: DiscoveryItem[]; todo: number; suggest: number } | null = null;
+let shared: { items: DiscoveryItem[]; muted?: string[]; todo: number; suggest: number } | null = null;
 const listeners = new Set<(d: NonNullable<typeof shared>) => void>();
 let timer: ReturnType<typeof setInterval> | undefined, inflight = false;
 const loadShared = () => {
@@ -154,7 +154,7 @@ function Item({ x, reload, machines, extra }: { x: DiscoveryItem; reload: () => 
   );
 }
 
-export type DiscoveryData = { items: DiscoveryItem[]; todo: number; suggest: number };
+export type DiscoveryData = { items: DiscoveryItem[]; muted?: string[]; todo: number; suggest: number };
 const countOf = (d: DiscoveryData | null, g: (typeof GROUPS)[number], state: DiscoveryItem["state"]) => (d?.items ?? []).filter((x) => x.state === state && groupOf(x) === g).length;
 export const todoOf = (d: DiscoveryData | null, g: (typeof GROUPS)[number]) => countOf(d, g, "todo");
 export const suggestOf = (d: DiscoveryData | null, g: (typeof GROUPS)[number]) => countOf(d, g, "suggest");
