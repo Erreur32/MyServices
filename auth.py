@@ -70,8 +70,12 @@ class Store:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         with self._db() as db:
             db.executescript(SCHEMA)
-            if "email" not in {r["name"] for r in db.execute("PRAGMA table_info(users)")}:   # added in 0.11.11
+            cols = {r["name"] for r in db.execute("PRAGMA table_info(users)")}
+            if "email" not in cols:   # added in 0.11.11
                 db.execute("ALTER TABLE users ADD COLUMN email TEXT")
+            if "avatar" not in cols:   # added in 0.11.11 (avatars.py: checked image, its type)
+                db.execute("ALTER TABLE users ADD COLUMN avatar BLOB")
+                db.execute("ALTER TABLE users ADD COLUMN avatar_type TEXT")
         try:
             Path(self.path).chmod(0o600)
         except OSError:
@@ -149,6 +153,17 @@ class Store:
                 raise AuthError("adresse déjà utilisée par un autre compte")
             db.execute("UPDATE users SET email = ? WHERE id = ?", (email or None, row["id"]))
         return email or None
+
+    def avatar(self, username: str) -> tuple[bytes, str] | None:
+        with self._db() as db:
+            row = db.execute("SELECT avatar, avatar_type FROM users WHERE username = ?", (username,)).fetchone()
+        return (row["avatar"], row["avatar_type"]) if row and row["avatar"] else None
+
+    def set_avatar(self, username: str, raw: bytes | None, mime: str | None) -> None:
+        """Image already checked by avatars.check; None: removed."""
+        with _lock, self._db() as db:
+            row = _user_row(db, username)
+            db.execute("UPDATE users SET avatar = ?, avatar_type = ? WHERE id = ?", (raw, mime if raw else None, row["id"]))
 
     # ── mot de passe oublié ──
     def reset_target(self, identity: str) -> sqlite3.Row | None:

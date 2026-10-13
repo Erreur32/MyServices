@@ -1,6 +1,7 @@
 // Profil (tout compte, admin ou lecture seule) : apparence de la page, changer son mot de passe, voir ses sessions ouvertes, fermer celles des autres appareils.
 // Affiché par #profile (menu du compte), hors des onglets et des Réglages : un compte en lecture seule n'a pas accès aux Réglages.
-import { KeyRound, LogOut, Mail, MonitorSmartphone } from "lucide-react";
+import { ImagePlus, KeyRound, LogOut, Mail, MonitorSmartphone, Trash2 } from "lucide-react";
+import { Avatar, setAvatarVersion } from "../components/Avatar";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Badge, Card, Count, Dim } from "../components/ui";
@@ -8,24 +9,24 @@ import { Appearance, type Look } from "../components/Appearance";
 import { Field, NoteLine } from "../components/form";
 import { PasswordRules } from "../components/PasswordRules";
 import { dateTime } from "../lib/format";
-import { act, input, primary, quiet, type Note } from "../lib/forms";
+import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { checkPassword, okField, PASSWORD_MIN } from "../lib/password";
 
 interface MySession { created: number; expires: number; ip: string | null; current: boolean }
 
-export function Profile({ username, role, email, look }: { username: string; role: "admin" | "viewer"; email: string; look: Look }) {
+export function Profile({ username, role, email, avatar, look }: { username: string; role: "admin" | "viewer"; email: string; avatar: string | null; look: Look }) {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 py-4">
       <header className="flex items-center gap-4 rounded-2xl border border-line bg-card p-4">
-        <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-link/20 text-xl font-bold uppercase text-link" aria-hidden>{username.slice(0, 1)}</span>
+        <Avatar username={username} version={avatar} size={56} />
         <div className="min-w-0">
           <h1 className="truncate text-xl font-bold">{username}</h1>
           <div className="mt-0.5 flex items-center gap-2 text-sm text-dim"><Badge tone="off">{role === "admin" ? "admin" : tx("lecture seule")}</Badge>{tx("Mon profil")}</div>
         </div>
       </header>
       <div className="grid items-start gap-4 lg:grid-cols-2">
-        <div className="flex flex-col gap-4"><MyEmail initial={email} /><MyPassword /><Sessions /></div>
+        <div className="flex flex-col gap-4"><MyAvatar username={username} initial={avatar} /><MyEmail initial={email} /><MyPassword /><Sessions /></div>
         <section aria-label={tx("Apparence")}><h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-widest text-dim">{tx("Apparence")}</h2><Appearance look={look} /></section>
       </div>
     </div>
@@ -64,6 +65,60 @@ function Sessions() {
           <LogOut size={14} />{tx("Fermer les autres sessions")}
         </button>
       </div>
+      <NoteLine note={note} />
+    </Card>
+  );
+}
+
+const AVATAR_TYPES = "image/png,image/jpeg,image/webp,image/gif,image/svg+xml";
+const AVATAR_MAX = 512 * 1024;
+
+/** A photo is cut square and shrunk to 256 px here (lighter, and its EXIF data, place and device, goes); a GIF or an SVG is sent as is */
+async function avatarData(file: File): Promise<string> {
+  const asUrl = (b: Blob) => new Promise<string>((ok, ko) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = () => ko(r.error); r.readAsDataURL(b); });
+  if (file.type === "image/svg+xml" || file.type === "image/gif") return asUrl(file);
+  const img = await createImageBitmap(file);
+  const side = Math.min(img.width, img.height), out = Math.min(256, side);
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = out;
+  canvas.getContext("2d")!.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, out, out);
+  const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, "image/webp", 0.9));
+  return asUrl(blob ?? file);
+}
+
+/** Picture shown in the header and the menu: PNG, JPEG, WebP, GIF or SVG */
+function MyAvatar({ username, initial }: Readonly<{ username: string; initial: string | null }>) {
+  const [version, setVersion] = useState(initial), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
+  const pick = async (file?: File) => {
+    if (!file) return;
+    if (file.size > AVATAR_MAX && (file.type === "image/svg+xml" || file.type === "image/gif")) return setNote({ ok: false, text: tx("image trop lourde : 512 Ko au plus") });
+    setBusy(true);
+    await act(async () => {
+      const r = await send<{ avatar: string }>("PUT", "me/avatar", { image: await avatarData(file) });
+      setVersion(r.avatar); setAvatarVersion(username, r.avatar);
+    }, tx("avatar enregistré"), setNote);
+    setBusy(false);
+  };
+  const remove = async () => {
+    setBusy(true);
+    const ok = await act(() => send("DELETE", "me/avatar"), tx("avatar retiré"), setNote);
+    if (ok) { setVersion(null); setAvatarVersion(username, null); }
+    setBusy(false);
+  };
+  return (
+    <Card>
+      <h2 className="mb-3 flex items-center gap-2 font-bold"><ImagePlus size={16} aria-hidden />{tx("Mon avatar")}</h2>
+      <div className="flex flex-wrap items-center gap-4">
+        <Avatar username={username} version={version} size={64} />
+        <div className="flex flex-wrap gap-2">
+          <label className={`${primary} cursor-pointer ${busy ? "pointer-events-none opacity-50" : ""}`}>
+            <ImagePlus size={14} />{version ? tx("Changer") : tx("Ajouter une image")}
+            <input type="file" accept={AVATAR_TYPES} className="sr-only" disabled={busy} onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ""; }} />
+          </label>
+          {version && <button type="button" className={danger} disabled={busy} onClick={() => void remove()}><Trash2 size={14} />{tx("Retirer")}</button>}
+        </div>
+      </div>
+      <p className="mt-3 text-xs text-dim">{tx("PNG, JPEG, WebP, GIF ou SVG, 512 Ko au plus. Une photo est recadrée en carré ; un SVG doit être un simple dessin (sans script ni lien vers l'extérieur).")}</p>
       <NoteLine note={note} />
     </Card>
   );

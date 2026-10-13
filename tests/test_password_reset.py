@@ -103,5 +103,21 @@ class Reset(unittest.TestCase):
                 system.set_mail_settings(server, "h", 25, "ssl", "", None, "ms@example.test", "javascript:alert(1)")
 
 
+    def test_avatar_routes(self):
+        import base64
+        self.c.post(BASE + "/login", json={"username": "admin", "password": self.pw})
+        h = {"X-CSRF-Token": self.c.cookies["ms_csrf"]}
+        png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
+        bad = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>'
+        self.assertEqual(self.c.put(BASE + "/me/avatar", json={"image": "data:image/svg+xml;base64," + base64.b64encode(bad.encode()).decode()}, headers=h).status_code, 400)
+        r = self.c.put(BASE + "/me/avatar", json={"image": "data:image/png;base64," + base64.b64encode(png).decode()}, headers=h)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.c.get(BASE + "/me").json()["avatar"], r.json()["avatar"])
+        img = self.c.get(BASE + "/users/admin/avatar")
+        self.assertEqual((img.status_code, img.headers["content-type"], img.content), (200, "image/png", png))
+        self.assertIn("sandbox", img.headers["content-security-policy"])
+        self.assertEqual(self.c.delete(BASE + "/me/avatar", headers=h).status_code, 200)
+        self.assertEqual(self.c.get(BASE + "/users/admin/avatar").status_code, 404)
+
 if __name__ == "__main__":
     unittest.main()

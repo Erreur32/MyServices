@@ -1,4 +1,5 @@
 import { ArrowUpCircle, ChevronDown, ExternalLink, ListChecks, LogOut, Moon, Settings, Sun, UserRound, X } from "lucide-react";
+import { Avatar } from "./Avatar";
 import { DiscoveryBell } from "./DiscoveryCard";
 import { DropItem, DROP_PANEL, DropSep, useDropdown } from "./Dropdown";
 import { useState } from "react";
@@ -90,14 +91,14 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
     <div ref={box} className="relative">
       <button type="button" onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open}
         className="inline-flex items-center gap-2 rounded-full border border-line bg-card py-1 pl-1 pr-3 text-sm font-semibold text-txt hover:border-link">
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-link/20 text-xs font-bold uppercase text-link" aria-hidden>{snap.me.username.slice(0, 1)}</span>
+        <Avatar username={snap.me.username} version={snap.me.avatar} />
         {snap.me.username}
         <ChevronDown size={14} className={`text-dim transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
         <div role="menu" className={`${DROP_PANEL} w-64 p-1.5`}>
           <div className="flex items-center gap-3 px-3 py-2">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-link/20 font-bold uppercase text-link" aria-hidden>{snap.me.username.slice(0, 1)}</span>
+            <Avatar username={snap.me.username} version={snap.me.avatar} size={36} />
             <span className="min-w-0">
               <b className="block truncate">{snap.me.username}</b>
               <span className="block truncate text-xs text-dim">{snap.me.email || (admin ? tx("admin : tout, réglages compris") : tx("lecture seule"))}</span>

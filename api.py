@@ -1507,12 +1507,19 @@ def logout(request: Request):
     return r
 
 
+def _avatar_version(username: str) -> str | None:
+    import avatars
+    got = store().avatar(username)
+    return avatars.version(got[0]) if got else None
+
+
 @app.get(API + "/me", tags=["comptes"], summary="Compte connecté")
 def me(request: Request):
     u = request.state.user or {}
     import about
     return {"username": u.get("username"), "role": u.get("role"), "auth": AUTH, "version": os.environ.get("MYSERVICES_VERSION", "dev"),
             "email": store().email_of(u["username"]) if AUTH and u.get("username") and not u.get("token") else None,
+            "avatar": _avatar_version(u.get("username")) if AUTH and u.get("username") and not u.get("token") else None,
             # image de développement : le dépôt git d'où elle vient (describe) et la version prévue d'après le journal des changements
             "git": os.environ.get("MYSERVICES_GIT", ""), "planned": about.planned(about.changelog(Path(core.HERE) / "CHANGELOG.md")),
             # last release written in this build's changelog: an image built from a branch shows it (« 0.10.1+ · main abc1234 »)
@@ -2047,6 +2054,49 @@ def set_my_email(body: EmailBody, request: Request):
         return deny(400, str(e))
     store().audit("adresse e-mail changée", u["username"], ip_of(request))
     return {"ok": True, "email": email}
+
+
+class AvatarBody(BaseModel):
+    image: str = Field(max_length=720_000)   # data URL, base64 of 512 KB at most
+
+
+@app.put(API + "/me/avatar", tags=["comptes"], summary="Mon avatar : PNG, JPEG, WebP, GIF ou SVG (512 Ko au plus, SVG nettoyé)")
+def set_my_avatar(body: AvatarBody, request: Request):
+    import avatars
+    u = request.state.user or {}
+    if not AUTH or not u or u.get("token"):
+        return deny(400, "comptes désactivés" if not AUTH else "session requise")
+    try:
+        raw, mime = avatars.from_data_url(body.image)
+    except avatars.AvatarError as e:
+        return deny(400, str(e))
+    store().set_avatar(u["username"], raw, mime)
+    store().audit("avatar changé", u["username"], ip_of(request), mime)
+    return {"ok": True, "avatar": avatars.version(raw)}
+
+
+@app.delete(API + "/me/avatar", tags=["comptes"], summary="Retirer mon avatar")
+def delete_my_avatar(request: Request):
+    u = request.state.user or {}
+    if not AUTH or not u or u.get("token"):
+        return deny(400, "comptes désactivés" if not AUTH else "session requise")
+    store().set_avatar(u["username"], None, None)
+    store().audit("avatar retiré", u["username"], ip_of(request))
+    return {"ok": True, "avatar": None}
+
+
+@app.get(API + "/users/{name}/avatar", tags=["comptes"], summary="Avatar d'un compte (image ; 404 sans avatar)")
+def user_avatar(name: str, request: Request):
+    import avatars
+    if not AUTH or not request.state.user:
+        return deny(404, "aucun avatar")
+    got = store().avatar(name)
+    if got is None:
+        return deny(404, "aucun avatar")
+    raw, mime = got
+    # an SVG opened on its own runs nothing (sandbox), and the browser never guesses another type
+    return Response(raw, media_type=mime, headers={"Content-Security-Policy": avatars.SERVE_CSP, "X-Content-Type-Options": "nosniff",
+                                                    "Cache-Control": "private, max-age=86400", "Content-Disposition": "inline"})
 
 
 class Forgot(BaseModel):

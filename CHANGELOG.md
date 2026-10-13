@@ -18,6 +18,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   requests are limited). The link opens « choose a new password » with the usual rules; every session of the account is closed.
   Only a hash of the link is kept.
 - **E-mail address** in Profile, used only for that link.
+- **Avatar** in Profile: PNG, JPEG, WebP, GIF (animated kept) or SVG, 512 KB at most, shown in the header, the account menu and
+  Profile. A photo is cropped square and shrunk to 256 px in the browser (its EXIF data goes). An SVG is kept only when it is
+  plain drawing (no script, entity, `on…` attribute or outside link) and is served with a sandbox policy; formats are recognised
+  by their content, never by the name.
 - **Settings → System → E-mail**: SMTP server (STARTTLS, SSL or none), account, password (encrypted at rest), sender and the page
   address put in the links (never taken from the request), with « Send a test e-mail » to one's own address.
 
