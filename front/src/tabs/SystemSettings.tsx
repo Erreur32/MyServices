@@ -151,6 +151,7 @@ function SshKey({ ssh, snap }: { ssh: SystemState["ssh"]; snap: Snapshot }) {
 
 /** Aligned columns from one row to the next: task, editable schedule, next run, button */
 const ROW_COLS = "lg:grid lg:grid-cols-[minmax(0,1fr)_18rem_9rem_11rem]";
+const CODE = "rounded border border-line bg-bg px-1.5 py-0.5 font-mono text-[11px] text-txt";
 const ICON: Record<string, LucideIcon> = { collect: RefreshCw, watch: Bell, health: HeartPulse, backups: HardDrive, netscan: Radar };
 const DESC: Record<string, string> = {
   collect: tx("Lit les machines, Docker, NPM et les connecteurs, puis met les pages à jour."),
@@ -186,10 +187,13 @@ function Tasks({ tasks, netscan, beat, reload }: { tasks: SystemTask[]; netscan?
           <b>{tx("Les horaires ne sont pas appliqués :")}</b> {tx("le planificateur intégré au conteneur (l'équivalent d'une crontab) ne tourne plus, aucune tâche ne part à son heure. Rien à activer : redémarrez le conteneur MyServices. Si le message revient, regardez Réglages → Journaux. En attendant, « Exécuter maintenant » marche toujours.")}
         </p>
       )}
-      <p className="mb-3 text-sm text-muted">
-        {tx("Horaire :")} <code className="font-mono text-xs">{tx("minutes heures")}</code>{tx(", ex.")} <code className="font-mono text-xs">10,40 *</code> {tx("(deux fois par heure),")}
-        {" "}<code className="font-mono text-xs">5 7,19</code> {tx("(7 h 05 et 19 h 05). Appliqué tout de suite, gardé dans config.json.")}
-      </p>
+      {/* how to write a schedule: the format, two examples, where it is kept */}
+      <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg bg-bg2/50 px-3 py-2 text-xs text-muted">
+        <span className="inline-flex items-center gap-1.5">{tx("Format")} <code className={CODE}>{tx("minutes heures")}</code></span>
+        <span className="inline-flex items-center gap-1.5"><code className={CODE}>10,40 *</code>{tx("deux fois par heure")}</span>
+        <span className="inline-flex items-center gap-1.5"><code className={CODE}>5 7,19</code>{tx("à 7 h 05 et 19 h 05")}</span>
+        <span className="inline-flex items-center gap-1.5 lg:ml-auto">{tx("Appliqué tout de suite, gardé dans")} <code className={CODE}>config.json</code></span>
+      </div>
       <div className={`mb-1 hidden items-center gap-x-4 border-b border-line px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-dim ${ROW_COLS}`}>
         <span>{tx("Tâche")}</span><span>{tx("Horaire")}</span><span>{tx("Prochain passage")}</span><span aria-hidden />
       </div>
