@@ -14,6 +14,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### Added
 
 - Beszel connector: « Verify HTTPS certificate » setting (on by default), to reach a hub behind a self-signed certificate.
+- AdGuard Home (API mode), Uptime Kuma and Web-Check connectors: « Verify HTTPS certificate » setting, for a self-signed certificate.
 - Connectors: « Save without collection » button, to set up a service that is down or not ready yet: settings kept, no test,
   collection off.
 

@@ -73,10 +73,11 @@ class AdGuard(Connector):
         Field("ssh", "Machine d'AdGuard Home (accès SSH)", help="MyServices s'y connecte avec sa clé"),
         Field("target", "Conteneur, ou chemin de AdGuardHome.yaml", help="ex. adguardhome, ou /opt/AdGuardHome/AdGuardHome.yaml"),
         Field("ip", "IP du serveur DNS", help="interrogée pour le contrôle DNS ; déduite de l'adresse si vide"),
+        Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=True, help="à décocher pour un certificat auto-signé"),
     )
     # Two ways to read it: the page shows only the fields of the one chosen (same rule as mode_of)
     modes = (
-        {"id": "direct", "label": "API d'AdGuard Home", "fields": ["url", "user", "password", "ip"], "required": ["url", "user", "password"],
+        {"id": "direct", "label": "API d'AdGuard Home", "fields": ["url", "user", "password", "ip", "verify_tls"], "required": ["url", "user", "password"],
          "help": "MyServices lit l'API d'AdGuard Home (compte de l'interface web), en lecture seule : réécritures DNS et règles perso. Sans SSH."},
         {"id": "ssh", "label": "Par SSH", "fields": ["ssh", "target", "ip"], "required": ["ssh", "target", "ip"],
          "help": "MyServices lit AdGuardHome.yaml sur la machine (docker exec, ou le fichier d'une installation native), sans compte AdGuard. "
@@ -101,7 +102,8 @@ class AdGuard(Connector):
 
     def _api(self, path: str) -> object:
         auth = base64.b64encode(f"{self.conf['user']}:{self.conf['password']}".encode()).decode()
-        return self.ctx.http(self.conf["url"].rstrip("/") + "/control/" + path, headers={"Authorization": f"Basic {auth}"})
+        return self.ctx.http(self.conf["url"].rstrip("/") + "/control/" + path, headers={"Authorization": f"Basic {auth}"},
+                             verify_tls=self.conf.get("verify_tls", True) is not False)
 
     def version(self) -> str | None:
         if not self.conf.get("url"):

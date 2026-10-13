@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import re
+import ssl
 import urllib.parse
 import urllib.error
 import urllib.request
@@ -64,6 +65,7 @@ class UptimeKuma(Connector):
     fields = (
         Field("url", "URL d'Uptime Kuma", "url", required=True, help="ex. http://192.168.1.10:3001"),
         Field("api_key", "Clé d'API (Paramètres → Clés d'API)", "password", required=True, secret=True),
+        Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=True, help="à décocher pour un certificat auto-signé"),
     )
     setup_fields = ("url", "api_key")
 
@@ -73,7 +75,8 @@ class UptimeKuma(Connector):
             req = urllib.request.Request(self.conf["url"].rstrip("/") + "/metrics",
                                          headers={"Authorization": f"Basic {auth}", "User-Agent": "myservices"})
             try:
-                with urllib.request.urlopen(req, timeout=self.ctx.timeout) as r:
+                tls = None if self.conf.get("verify_tls", True) is not False else ssl._create_unverified_context()  # NOSONAR S5527 ; certificat auto-signé
+                with urllib.request.urlopen(req, timeout=self.ctx.timeout, context=tls) as r:
                     text = r.read().decode("utf-8", "replace")
             except urllib.error.HTTPError as e:
                 raise ConnectorError(f"HTTP {e.code}" + (" : clé d'API refusée" if e.code == 401 else "")) from None

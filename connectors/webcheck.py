@@ -51,6 +51,7 @@ class WebCheck(Connector):
     tested = ("2.3",)
     fields = (
         Field("url", "URL de Web-Check", "url", required=True, help="ex. http://192.168.1.10:3000"),
+        Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=True, help="à décocher pour un certificat auto-signé"),
         Field("per_run", "Sites contrôlés par passage", "number", default=10,
               help="chaque site au plus une fois par jour ; étale la charge"),
     )
@@ -62,7 +63,7 @@ class WebCheck(Connector):
         for c in CHECKS:
             q = urllib.parse.urlencode({"url": site})
             try:
-                raw[c] = self.ctx.http(f"{self.conf['url'].rstrip('/')}/api/{c}?{q}", timeout=45)
+                raw[c] = self.ctx.http(f"{self.conf['url'].rstrip('/')}/api/{c}?{q}", timeout=45, verify_tls=self._tls())
             except ConnectorError as e:
                 raw[c] = {"error": str(e)}
         if all(isinstance(v, dict) and v.get("error") and "injoignable" in str(v["error"]) for v in raw.values()):
@@ -72,8 +73,11 @@ class WebCheck(Connector):
     def collect(self) -> dict:
         return {}  # le collecteur appelle check_site() site par site (cache d'un jour)
 
+    def _tls(self) -> bool:
+        return self.conf.get("verify_tls", True) is not False
+
     def version(self) -> str | None:
-        return (self.ctx.http(self.conf["url"].rstrip("/") + "/healthz", timeout=10) or {}).get("version")
+        return (self.ctx.http(self.conf["url"].rstrip("/") + "/healthz", timeout=10, verify_tls=self._tls()) or {}).get("version")
 
     def test(self) -> Result:
         try:
