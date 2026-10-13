@@ -93,9 +93,17 @@ function MyAvatar({ username, initial }: Readonly<{ username: string; initial: s
     if (!file) return;
     if (file.size > AVATAR_MAX && (file.type === "image/svg+xml" || file.type === "image/gif")) return setNote({ ok: false, text: tx("image trop lourde : 512 Ko au plus") });
     setBusy(true);
+    const before = version;
     await act(async () => {
-      const r = await send<{ avatar: string }>("PUT", "me/avatar", { image: await avatarData(file) });
-      setVersion(r.avatar); setAvatarVersion(username, r.avatar);
+      const image = await avatarData(file);
+      setVersion("new"); setAvatarVersion(username, "new", image);   // shown everywhere now; the server's answer only confirms
+      try {
+        const r = await send<{ avatar: string }>("PUT", "me/avatar", { image });
+        setVersion(r.avatar); setAvatarVersion(username, r.avatar, image);
+      } catch (e) {
+        setVersion(before); setAvatarVersion(username, before);   // refused (format, size): the previous picture comes back
+        throw e;
+      }
     }, tx("avatar enregistré"), setNote);
     setBusy(false);
   };
