@@ -120,7 +120,8 @@ class Reseau(unittest.TestCase):
         Fake.routes = {"/api/network-scan/history": (200, {"success": True, "result": {"items": [], "total": 0}}),
                        "/api/connection/summary": (200, {"success": True, "result": {
                            "connection": {"state": "up", "media": "ftth", "rate_down": 1_250_000, "rate_up": 125_000, "bandwidth_down": 8e9, "bandwidth_up": 7e8},
-                           "system": {"model": "Freebox Ultra", "firmware": "4.9.4", "uptime": 90000, "sensors": [{"id": "t1", "name": "CPU", "value": 78}]}}}),
+                           "system": {"model": "Freebox Ultra", "firmware": "4.9.4", "uptime": 90000, "sensors": [{"id": "t1", "name": "CPU", "value": 78}],
+                                      "fans": [{"id": "fan0_speed", "name": "Ventilateur 1", "value": 570}], "disk_status": "active"}}}),
                        "/api/lan/devices": (200, {"success": True, "result": [{"active": True}, {"active": False}]})}
         data = inst(MynetworK, self.url).collect()
         card = freebox_status({"name": "lan", "ok": True, **data})
@@ -128,8 +129,10 @@ class Reseau(unittest.TestCase):
         self.assertEqual((card["label"], card["version"]), ("Freebox Ultra (via MynetworK)", "4.9.4"))
         self.assertEqual(facts["Débit max"], "8,0 Gb/s / 700 Mb/s")
         self.assertEqual(facts["Débit actuel"], "10 Mb/s / 1 Mb/s")
-        self.assertEqual(facts["Appareils actifs"], "1/2")
+        self.assertEqual(facts["Appareils actifs"], "1 (+1 dans l'historique)")
         self.assertEqual(card["problems"], ["Freebox chaude : CPU à 78 °C"])
+        self.assertEqual(facts["Ventilateur"], "570 tr/min")
+        self.assertNotIn("Disque interne", facts)   # « active » is the normal state
 
     def test_mynetwork_freebox_non_appairee(self):
         Fake.routes = {"/api/network-scan/history": (200, {"success": True, "result": {"items": [], "total": 0}}),

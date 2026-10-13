@@ -174,8 +174,14 @@ def freebox_status(row: dict) -> dict | None:
             problems.append(f"Freebox chaude : {hot.get('name') or hot.get('id')} à {hot['value']:.0f} °C")
     if s.get("uptime") is not None:
         facts.append(fact("Allumée depuis", duration(s["uptime"])))
+    fans = [x for x in s.get("fans") or [] if isinstance(x, dict) and isinstance(x.get("value"), (int, float))]
+    if fans:
+        facts.append(fact("Ventilateur", " / ".join(f"{x['value']:.0f} tr/min" for x in fans)))
+    if s.get("disk_status") and s["disk_status"] != "active":
+        facts.append(fact("Disque interne", s["disk_status"], "warn"))
     if fb.get("hosts") is not None:
-        facts.append(fact("Appareils actifs", f"{fb['hosts_active']}/{fb['hosts']}"))
+        # the Freebox keeps every device it ever saw: behind another router (UniFi…) only that router is active, the rest is history
+        facts.append(fact("Appareils actifs", f"{fb['hosts_active']}" + (f" (+{fb['hosts'] - fb['hosts_active']} dans l'historique)" if fb["hosts"] > fb["hosts_active"] else "")))
     return {"connector": "freebox", "name": row.get("name") or "", "label": f"{s.get('model') or 'Freebox'} (via MynetworK)",
             "ok": bool(row.get("ok")), "stale": row.get("stale"), "message": row.get("message"), "version": s.get("firmware"),
             "url": row.get("url"), "facts": facts[:8], "problems": problems}  # NOSONAR S6466: a slice never raises IndexError
