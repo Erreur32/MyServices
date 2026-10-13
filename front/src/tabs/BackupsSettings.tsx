@@ -63,6 +63,8 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
   const [pick, setPick] = useState<Record<string, Choice>>({});
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [confirm, setConfirm] = useState(""), [busyId, setBusyId] = useState("");
   const [open, setOpen] = useState("");   // source dépliée (un seul cadre à la fois)
+  const [opened, setOpened] = useState<Set<string>>(new Set());   // followed backups unfolded (all folded by default)
+  const toggleSet = (id: string) => setOpened((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const [extra, setExtra] = useState<string | null>(null);  // emplacements cherchés en plus du dossier par défaut (null = ceux du serveur)
   const load = useCallback(() => {
     read<Current>("backups/settings").then((c) => { setCur(c); setError(""); })
@@ -222,25 +224,27 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
               const kind = s.veeam_job ? SRC.veeam : s.pbs_group ? SRC.pbs : s.vzdump ? SRC.vzdump : s.ha ? SRC.ha : SRC.folder;
               return (
                 <li key={s.id} className="text-sm">
-                <details className="group overflow-hidden rounded-xl border border-line bg-bg2/30">
-                  <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1.5 bg-bg px-3 py-2 group-open:border-b group-open:border-line [&::-webkit-details-marker]:hidden">
-                    <ChevronRight size={15} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
+                <div className="overflow-hidden rounded-xl border border-line bg-bg2/30">
+                  <div className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 bg-bg px-3 py-2 ${opened.has(s.id) ? "border-b border-line" : ""}`}>
+                    <button type="button" onClick={() => toggleSet(s.id)} aria-expanded={opened.has(s.id)} className="flex min-w-[200px] flex-1 items-center gap-x-3 text-left">
+                    <ChevronRight size={15} className={`shrink-0 text-link transition-transform ${opened.has(s.id) ? "rotate-90" : ""}`} aria-hidden />
                     {machineOf(s.origin_ip)
                       ? <MachineIcon m={machineOf(s.origin_ip)!} reserve empty={<span className="grid h-6 w-6 place-items-center rounded-md bg-bg2"><kind.Icon size={14} className="text-muted" aria-hidden /></span>} />
                       : <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-bg2">
                           {appIcon([kind.icon]) ? <img src={appIcon([kind.icon])!} alt="" className="h-4 w-4" /> : <kind.Icon size={14} className="text-muted" aria-hidden />}
                         </span>}
-                    <div className="min-w-[200px] flex-1">
+                    <span className="block min-w-0 flex-1">
                       <span className="flex min-w-0 items-baseline gap-2"><b className="truncate">{s.label}</b>{s.origin_ip && <span className="shrink-0 font-mono text-xs text-dim">{s.origin_ip}</span>}</span>
                       {(() => {   // what is followed, unless the name already says it (« Dev : /home/backup »)
                         const what = s.path ?? s.veeam_job ?? s.pbs_group ?? (s.ha ? tx("sauvegarde automatique") : "-");
                         return s.label.includes(what) ? null : <span className="block truncate font-mono text-xs text-dim">{what}</span>;
                       })()}
-                    </div>
+                    </span>
+                    </button>
                     <Badge tone="info">{kind.label}</Badge>
                     <Badge tone="off">{tx("alerte après")} {s.max_age_days} {tx("j")}</Badge>
-                    {/* the switch and buttons work from the folded title: clicking them must not fold or unfold */}
-                    <span role="presentation" className="flex flex-wrap items-center gap-2" onClick={(e) => e.preventDefault()} onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") e.stopPropagation(); }}>
+                    {/* the switch and buttons work from the folded title: outside the fold button, so they never fold or unfold */}
+                    <span className="flex flex-wrap items-center gap-2">
                     {!s.ha && !s.veeam_job && !s.pbs_group && (
                       <span className="inline-flex items-center gap-1.5 text-xs text-dim" title={tx("Activé : une copie à jour sur une autre machine est exigée (sinon le jeu est critique). Désactivé : seule la source est surveillée.")}>
                         <Switch on={s.expect_offsite} label={tx("Exiger une copie hors machine")} disabled={s.id === busyId} onChange={(on) => void change(s.id, { expect_offsite: on })} />{tx("copie hors machine exigée")}
@@ -251,7 +255,8 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
                       <button type="button" className={quiet} onClick={() => setConfirm("")}>{tx("Annuler")}</button>
                     </> : <button type="button" className={quiet} onClick={() => setConfirm(s.id)} aria-label={tx("Ne plus suivre {0}", s.label)}><Trash2 size={14} />{tx("Retirer")}</button>}
                     </span>
-                  </summary>
+                  </div>
+                  {opened.has(s.id) && <>
                   <div className="px-3 pb-2.5">
                   <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5">
                     <span className="inline-flex flex-wrap items-center gap-1.5 text-xs text-dim" title={tx("Sauvegarde quotidienne : 2 j ; hebdomadaire : 8 j. Au-delà du double, le jeu devient critique.")}>{tx("alerte après")}
@@ -273,7 +278,8 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
                   </div>
                   </div>
                   {s.path && <div className="px-3 pb-2.5"><SetCopies setId={s.id} origin={s.origin} copies={s.copies ?? []} machines={cur.ssh_machines ?? []} found={found} busy={s.id === busyId} onDone={load} setNote={setNote} /></div>}
-                </details>
+                </>}
+                </div>
                 </li>
               );
             })}

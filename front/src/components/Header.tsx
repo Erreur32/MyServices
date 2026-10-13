@@ -17,7 +17,7 @@ function ago(iso: string, now: number): string {
 
 /** Dev image only: the release in prod, the git state it was built from (branch, commit, commits since the tag, uncommitted
  *  changes) and the planned version. GIT_REV from scripts/git-rev.sh: « branch|commit|ahead|tag|dirty »; an older plain value is shown as is */
-function DevState({ git, released, planned }: { git?: string; released?: string | null; planned?: string | null }) {
+function DevState({ git, released, planned }: Readonly<{ git?: string; released?: string | null; planned?: string | null }>) {
   const [branch, sha, ahead, tag, dirty] = (git ?? "").split("|");
   const parts = git?.includes("|");
   const pill = "rounded border border-line bg-bg2/60 px-1.5 py-0.5 font-mono";
