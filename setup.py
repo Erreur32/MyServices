@@ -729,7 +729,7 @@ def _slug(text: str) -> str:
 
 def _veeam_secrets(path: Path) -> bool:
     """Compte en lecture (rôle Veeam Backup Viewer) écrit en 600 ; False si rien n'est saisi."""
-    if path.exists() and yes(f"  Identifiants Veeam déjà dans {path} : les garder ?"):
+    if path.exists() and yes(f"  Identifiants Veeam déjà dans {path} : les garder ?"):  # NOSONAR S6549: interactive setup, the path is the app's own secrets file
         return True
     user = ask("  Compte Veeam en lecture seule (rôle « Veeam Backup Viewer »), ex. NOMDUPC\\compte")
     if not user:

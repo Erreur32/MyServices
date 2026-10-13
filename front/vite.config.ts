@@ -9,7 +9,7 @@ import { createLogger, defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 const BACKEND = process.env.MYSERVICES_BACKEND || "http://127.0.0.1:8090";
-const PORT = parseInt(process.env.VITE_PORT || "5180", 10);
+const PORT = Number.parseInt(process.env.VITE_PORT || "5180", 10);
 
 // Backend qui redémarre (docker compose up, nouvelle image) : Vite journalise une erreur par requête de la page. Une seule
 // ligne d'avertissement par tranche de 30 s la remplace ; la page, elle, reçoit toujours le 503 JSON du relais ci-dessous.

@@ -2011,7 +2011,7 @@ def files(rel: str, request: Request):
             rel += "index.html"
         f = find(rel)
         if f is None and find(rel + "/index.html"):      # folder typed without the final « / »
-            return RedirectResponse("/" + quote(rel.strip("/")) + "/", status_code=302)   # always on this site, never another one ; NOSONAR S5146
+            return RedirectResponse("/" + quote(rel.strip("/")) + "/", status_code=302)   # NOSONAR S5146 ; always on this site, never another one
     if f is None:
         return not_found()
     ctype = mimetypes.guess_type(f.name)[0] or "application/octet-stream"

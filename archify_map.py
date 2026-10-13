@@ -341,7 +341,7 @@ def main() -> int:
         for key in wanted:
             if key in archify_extra.BUILD and archify_extra.available(key, data):
                 specs[key] = archify_extra.BUILD[key](data)
-    (out / "connecteurs.archify.json").unlink(missing_ok=True)   # ancien schéma « Qui lit quoi », retiré ; NOSONAR S8707: command-line tool, the paths are the ones its operator typed
+    (out / "connecteurs.archify.json").unlink(missing_ok=True)   # NOSONAR S8707: command-line tool, the paths are the ones its operator typed ; ancien schéma « Qui lit quoi », retiré
     for name, spec in specs.items():
         f = out / f"{name}.archify.json"
         old = read(f)

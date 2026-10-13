@@ -121,7 +121,7 @@ class Context:
             data = json.dumps(body).encode()
             h["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=data, headers=h, method=method)
-        ctx = None if verify_tls else ssl._create_unverified_context()  # certificat auto-signé (box, NAS) ; NOSONAR S5527
+        ctx = None if verify_tls else ssl._create_unverified_context()  # NOSONAR S5527 ; certificat auto-signé (box, NAS)
         try:
             with urllib.request.urlopen(req, timeout=timeout or self.timeout, context=ctx) as r:
                 raw = r.read()

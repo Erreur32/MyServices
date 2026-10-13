@@ -169,7 +169,7 @@ function backupsParagraph(b: Backups): Paragraph {
 
 function eventTime(e: Event): number {
   if (e.ts) return new Date(e.ts).getTime();
-  return e.at ? new Date(e.at.replace(" ", "T")).getTime() : NaN;
+  return e.at ? new Date(e.at.replace(" ", "T")).getTime() : Number.NaN;
 }
 
 function historyParagraph(events: Event[], labels: Record<string, string>, now: number): Paragraph {

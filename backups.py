@@ -294,7 +294,7 @@ def qm_crontab(spec: str) -> list[dict]:
     if not vmid.isdigit() or alias.startswith("-"):   # VM id put in a remote command: digits only; an alias is never an ssh option
         return []
     try:
-        r = subprocess.run(["ssh", *SSH_OPTS, alias, f"qm guest exec {vmid} -- crontab -l"],
+        r = subprocess.run(["ssh", *SSH_OPTS, alias, f"qm guest exec {vmid} -- crontab -l"],  # NOSONAR S6350: vmid checked as digits and alias never an option, just above
                            capture_output=True, text=True, timeout=60)
         txt = json.loads(r.stdout).get("out-data", "")
     except Exception:
