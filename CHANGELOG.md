@@ -20,6 +20,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   suggestions, what runs by itself (folded), and the search settings (frequency, networks, discreet mode) in one frame.
 - Settings → Backups: after « Search my machines », each machine is folded, its summary giving the folders found, those already
   followed and those ticked.
+- Settings → Backups: each followed backup is folded by default; its title keeps the alert threshold, the « off-machine copy
+  required » switch and « Remove », so the common changes need no unfolding.
 
 ### Fixed
 

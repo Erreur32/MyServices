@@ -221,8 +221,10 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
             {cur.sets.map((s) => {
               const kind = s.veeam_job ? SRC.veeam : s.pbs_group ? SRC.pbs : s.vzdump ? SRC.vzdump : s.ha ? SRC.ha : SRC.folder;
               return (
-                <li key={s.id} className="overflow-hidden rounded-xl border border-line bg-bg2/30 text-sm">
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line bg-bg px-3 py-2">
+                <li key={s.id} className="text-sm">
+                <details className="group overflow-hidden rounded-xl border border-line bg-bg2/30">
+                  <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1.5 bg-bg px-3 py-2 group-open:border-b group-open:border-line [&::-webkit-details-marker]:hidden">
+                    <ChevronRight size={15} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
                     {machineOf(s.origin_ip)
                       ? <MachineIcon m={machineOf(s.origin_ip)!} reserve empty={<span className="grid h-6 w-6 place-items-center rounded-md bg-bg2"><kind.Icon size={14} className="text-muted" aria-hidden /></span>} />
                       : <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-bg2">
@@ -236,11 +238,20 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
                       })()}
                     </div>
                     <Badge tone="info">{kind.label}</Badge>
+                    <Badge tone="off">{tx("alerte après")} {s.max_age_days} {tx("j")}</Badge>
+                    {/* the switch and buttons work from the folded title: clicking them must not fold or unfold */}
+                    <span className="flex flex-wrap items-center gap-2" onClick={(e) => e.preventDefault()}>
+                    {!s.ha && !s.veeam_job && !s.pbs_group && (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-dim" title={tx("Activé : une copie à jour sur une autre machine est exigée (sinon le jeu est critique). Désactivé : seule la source est surveillée.")}>
+                        <Switch on={s.expect_offsite} label={tx("Exiger une copie hors machine")} disabled={s.id === busyId} onChange={(on) => void change(s.id, { expect_offsite: on })} />{tx("copie hors machine exigée")}
+                      </span>
+                    )}
                     {confirm === s.id ? <>
                       <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `backups/settings/${s.id}`), tx("sauvegarde retirée"), setNote).then((ok) => { if (ok) { setConfirm(""); load(); } })}>{tx("Confirmer le retrait")}</button>
                       <button type="button" className={quiet} onClick={() => setConfirm("")}>{tx("Annuler")}</button>
                     </> : <button type="button" className={quiet} onClick={() => setConfirm(s.id)} aria-label={tx("Ne plus suivre {0}", s.label)}><Trash2 size={14} />{tx("Retirer")}</button>}
-                  </div>
+                    </span>
+                  </summary>
                   <div className="px-3 pb-2.5">
                   <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5">
                     <span className="inline-flex flex-wrap items-center gap-1.5 text-xs text-dim" title={tx("Sauvegarde quotidienne : 2 j ; hebdomadaire : 8 j. Au-delà du double, le jeu devient critique.")}>{tx("alerte après")}
@@ -259,14 +270,10 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
                         ) : null;
                       })()}
                     </span>
-                    {!s.ha && !s.veeam_job && !s.pbs_group && (
-                      <span className="inline-flex items-center gap-1.5 text-xs text-dim" title={tx("Activé : une copie à jour sur une autre machine est exigée (sinon le jeu est critique). Désactivé : seule la source est surveillée.")}>
-                        <Switch on={s.expect_offsite} label={tx("Exiger une copie hors machine")} disabled={s.id === busyId} onChange={(on) => void change(s.id, { expect_offsite: on })} />{tx("copie hors machine exigée")}
-                      </span>
-                    )}
                   </div>
                   </div>
                   {s.path && <div className="px-3 pb-2.5"><SetCopies setId={s.id} origin={s.origin} copies={s.copies ?? []} machines={cur.ssh_machines ?? []} found={found} busy={s.id === busyId} onDone={load} setNote={setNote} /></div>}
+                </details>
                 </li>
               );
             })}
