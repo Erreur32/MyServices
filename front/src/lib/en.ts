@@ -809,6 +809,8 @@ export const EN: Record<string, string> = {
   "Masquer les {0}": "Hide {0}",
   "Événement": "Event",
   "{0} masqué(s) : tout afficher": "{0} hidden: show all",
+  "pas encore lu : collecte en cours…": "not read yet: collection running…",
+  "pas encore lu : prochaine collecte à {0}": "not read yet: next collection at {0}",
   "Infra / virtualisation": "Infrastructure / virtualization",
   "Monitoring": "Monitoring",
   "Réseau / DNS": "Network / DNS",

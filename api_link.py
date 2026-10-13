@@ -29,3 +29,18 @@ def by_machine(rows: list[dict], machines: set[str]) -> dict[str, list[dict]]:
                                            "stale": bool(r.get("stale")), "version": r.get("version"), "message": r.get("message"),
                                            "host": ({k: v for k, v in (r.get("host") or {}).items() if k in ("cpu", "mem_pct", "temp", "boot")} or None)})
     return out
+
+
+def app_version(url: str | None, rows: list[dict]) -> str | None:
+    """Version of the app behind a connector URL, read from its container (image label, found by SSH): the service row at the
+    same « ip:port », or the NPM host serving that name. For connectors whose API gives no version (Dockhand, older MynetworK)."""
+    u = urllib.parse.urlsplit(str(url or ""))
+    host = (u.hostname or "").lower()
+    if not host:
+        return None
+    port = u.port or (443 if u.scheme == "https" else 80)
+    for r in rows:
+        hit = (r.get("ip") == host and r.get("port") == port) if host_ip(url) else host in [d.lower() for d in r.get("domains") or []]
+        if hit and (v := (r.get("service") or {}).get("version")):
+            return str(v).lstrip("v")
+    return None

@@ -6,6 +6,8 @@ fusionnée). test() : GET /healthcheck (200 si Dozzle voit au moins un hôte Doc
 """
 from __future__ import annotations
 
+import json
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -26,7 +28,24 @@ class Dozzle(Connector):
         return f"{self.conf['url'].rstrip('/')}/show?{urllib.parse.urlencode({'name': container})}"
 
     def collect(self) -> dict:
+        r = self.test()
+        if not r.ok:
+            raise ConnectorError(r.message)
         return {"url": self.conf["url"].rstrip("/")}
+
+    def version(self) -> str | None:
+        """App version written by Dozzle in its page (<script id="config__json">: « version »)."""
+        try:
+            with urllib.request.urlopen(self.conf["url"].rstrip("/") + "/", timeout=self.ctx.timeout) as r:
+                page = r.read(500_000).decode("utf-8", "replace")
+        except (OSError, ValueError):
+            return None
+        m = re.search(r'id="config__json"[^>]*>(.*?)</script>', page, re.S)
+        try:
+            v = json.loads(m.group(1)).get("version") if m else None
+        except ValueError:
+            return None
+        return str(v).lstrip("v") if v else None
 
     def test(self) -> Result:
         try:

@@ -9,6 +9,18 @@ import { detail, liveText, shortName, type TaskInfo } from "../lib/tasks";
 
 const IDLE_MS = 5_000, RUN_MS = 1_500;
 
+/** The collection task (next run, running), read every 30 s, with a clock for its countdown: for « not read yet » states */
+export function useCollectTask(): { task: TaskInfo | null; now: number } {
+  const [task, setTask] = useState<TaskInfo | null>(null), [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const load = () => { if (!document.hidden) read<Record<string, TaskInfo>>("tasks").then((t) => setTask(t.collect ?? null)).catch(() => undefined); };
+    load();
+    const poll = setInterval(load, 30_000), clock = setInterval(() => setNow(Date.now()), 15_000);
+    return () => { clearInterval(poll); clearInterval(clock); };
+  }, []);
+  return { task, now };
+}
+
 export function ScheduleCard() {
   const [tasks, setTasks] = useState<Record<string, TaskInfo> | null>(null);
   const [now, setNow] = useState(Date.now());

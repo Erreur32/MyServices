@@ -2,14 +2,20 @@
 import { AlertTriangle, CheckCircle2, KeyRound, RefreshCw, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { dur } from "../lib/format";
+import { liveText, type TaskInfo } from "../lib/tasks";
 import type { Connector, ConnectorStatus, Machine } from "../types";
 import { Badge, Dim } from "./ui";
 import { tx } from "../lib/i18n";
 
 const SSH_KIND: Record<string, string> = { docker: tx("conteneurs Docker"), process: tx("services hors Docker"), adguard: "AdGuard" };
 
-export function StatusLine({ s }: { s: (Partial<ConnectorStatus> & Connector) | null }) {
-  if (!s) return <Dim>{tx("pas encore lu (prochain passage de la collecte)")}</Dim>;
+export function StatusLine({ s, collect }: { s: (Partial<ConnectorStatus> & Connector) | null; collect?: { task: TaskInfo | null; now: number } }) {
+  if (!s) {
+    const t = collect?.task;   // when the collection runs next, or that it is running now
+    if (!t?.enabled) return <Dim>{tx("pas encore lu (prochain passage de la collecte)")}</Dim>;
+    return <span className="flex items-center gap-2 text-dim">{t.running && <RefreshCw size={14} className="shrink-0 animate-spin text-link" aria-hidden />}
+      {t.running ? tx("pas encore lu : collecte en cours…") : tx("pas encore lu : prochaine collecte à {0}", liveText(t, collect!.now))}</span>;
+  }
   // Saved (or switched on) after the last collection: its old error belongs to the old settings, the collection is reading it again
   if (s.pending) return <span className="flex items-center gap-2 text-link"><RefreshCw size={15} className="shrink-0 animate-spin" aria-hidden />{tx("enregistré : relecture en cours…")}</span>;
   const version = s.version && <Badge tone={s.version_tested === false ? "warn" : "off"} title={s.version_tested === false ? tx("version non testée") : undefined}>v{s.version}</Badge>;

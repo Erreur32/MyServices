@@ -24,6 +24,7 @@ drapeaux dérivés (garde ACL, Cloudflare) sont exportés.
 import fcntl
 import html
 import http.client
+import contextlib
 import json
 import os
 import re
@@ -1178,6 +1179,17 @@ def main():
     # Avant « out » : ces lectures ajoutent leur état à CONNECTOR_STATUS, que « connectors » (ci-dessous) recopie ;
     # lues dans le dictionnaire, après « connectors », leur état manquait et la page disait « pas encore lu »
     services_status, network, security, containers, virtualization = (connector_rows(k) for k in ("status", "network", "security", "containers", "virtualization"))
+    connector_rows("logs")   # Dozzle: only its state and version for the connector card (its links are added to the containers)
+    # An API without version (Dockhand…): the one of the container behind the connector URL, when its image says it
+    urls = {}
+    with contextlib.suppress(connectors.ConnectorError):
+        urls = {(c.type, c.name): c.conf.get("url") for c in connectors.instances(CFG)}
+    for card in (*services_status, *network, *security, *containers, *virtualization):
+        if not card.get("version"):
+            card["version"] = api_link.app_version(card.get("url"), rows)
+    for st in CONNECTOR_STATUS:
+        if not st.version and (v := api_link.app_version(urls.get((st.type, st.name)), rows)):
+            st.version, st.version_tested = v, None   # not read by the API: no « untested » warning
     linked = api_link.by_machine([*services_status, *network, *security, *containers, *virtualization], {m["ip"] for m in machines_out})
     services_status += [fb for row in network if row.get("connector") == "mynetwork" and (fb := mynetwork_conn.freebox_status(row))]   # Freebox read through MynetworK
     # Proxmox hosts read by SSH (after api_link: SSH is not an API badge), unless a connector already reads them
