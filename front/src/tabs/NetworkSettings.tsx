@@ -16,7 +16,8 @@ import { NetworkStep } from "../components/NetworkStep";
 import { appIcon } from "../lib/appIcons";
 import { dateTime } from "../lib/format";
 import { reopenFirstSteps } from "../lib/firstSteps";
-import { act, quiet, type Note } from "../lib/forms";
+import { act, primary, quiet, type Note } from "../lib/forms";
+import { pokeScan } from "../lib/scan";
 import { usePoll } from "../lib/polling";
 import { tx } from "../lib/i18n";
 import { runningTip, stoppedTip } from "../lib/runState";
@@ -133,6 +134,8 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   }, []);
   const running = scan?.phase === "ping" || scan?.phase === "identify";
   usePoll(load, running ? 10_000 : 60_000);   // 10 s seulement pour suivre une recherche en cours
+  const [searchNote, setSearchNote] = useState<Note>(null);   // shown under the search line, next to its button
+  const scanNow = () => act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setSearchNote).then(() => load());
   const onPart = useCallback((part: string) => { if (part === "hosts" || part === "network") setHostsOpen(true); if (part === "forgotten") setForgotOpen(true); if (part === "services") setAppsOpen(true); load(); }, [load]);
   usePart(!!cfg && !!scan && !!disc, onPart);
   if (!cfg || !scan) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
@@ -196,9 +199,14 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
             : <Badge tone="ok">{tx("toutes les {0} h", cfg.every_h)}</Badge>}
           {last ? <span className="text-dim">{tx("dernière :")} {dateTime(last)} · {scan.found.length} {tx("appareils")}</span> : <Dim>{tx("aucune recherche faite")}</Dim>}
           {next && !running && <span className="text-dim">{tx("prochaine à partir de {0}", dateTime(next))}</span>}
-          <a href="#settings/tasks" className={`${quiet} ml-auto no-underline`} title={tx("Fréquence, réseaux à parcourir et mode discret : dans Tâches et horaires")}><Timer size={14} aria-hidden />{tx("Réglages de la recherche")}</a>
+          <span className="ml-auto flex flex-wrap gap-2">
+            <button type="button" className={primary} disabled={running} onClick={() => void scanNow()}>
+              {last ? <RefreshCw size={14} aria-hidden /> : <Search size={14} aria-hidden />}{last ? tx("Relancer la recherche") : tx("Chercher maintenant")}</button>
+            <a href="#settings/tasks" className={`${quiet} no-underline`} title={tx("Fréquence, réseaux à parcourir et mode discret : dans Tâches et horaires")}><Timer size={14} aria-hidden />{tx("Réglages de la recherche")}</a>
+          </span>
         </div>
-        <NetworkStep net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} onCount={setPicked} />
+        <NoteLine note={searchNote} />
+        <NetworkStep noButton net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} onCount={setPicked} />
       </Fold>
 
       {/* 4. Applis à activer : only those that run (stopped and forgotten ones are put aside, below) */}

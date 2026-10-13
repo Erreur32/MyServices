@@ -86,7 +86,8 @@ const loadDismissed = (): string[] => {
   try { return JSON.parse(localStorage.getItem(DISMISSED) || "[]") as string[]; } catch { return []; }
 };
 
-export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredList, onCount }: {
+export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredList, onCount, noButton = false }: {
+  noButton?: boolean;   // the page shows the search button itself (Discovery: next to the search settings)
   onCount?: (n: number) => void;  // nombre de machines cochées, pour l'afficher sur l'en-tête du cadre quand il est plié
   net: NetScan | null; reload: () => void; onSkip?: () => void;
   ignoredList?: { ip: string; name: string }[];  // appareils ignorés à la main, avec « Reprendre » (Réglages → Découverte)  // sans onSkip : pas de bouton « Passer » (Réglages → Découverte)
@@ -267,7 +268,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
 
   return (
     <div className="flex flex-col gap-3">
-      {actions}
+      {!noButton && actions}
       {toLink.length === 0 && found.length === 0 && (
         <p>{tx("Cherche les machines allumées sur votre réseau local (un seul sous-réseau /24, en lecture seule : ping, nom et quelques ports). Vous choisissez ensuite lesquelles ajouter ; rien n'est ajouté tout seul.")}</p>
       )}
