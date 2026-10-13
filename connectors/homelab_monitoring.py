@@ -133,26 +133,31 @@ def _netdata_host(m, info: dict) -> dict | None:
     disks (disk_space.*, GiB), hottest temperature sensor."""
     if not isinstance(m, dict) or not m:
         return None
-    cpu = _dims(m.get("system.cpu"))
-    ram = _dims(m.get("system.ram"))
-    load = _dims(m.get("system.load"))
+    cpu, ram, load = _dims(m.get("system.cpu")), _dims(m.get("system.ram")), _dims(m.get("system.load"))
+    disks = _netdata_disks(m)
+    if not (cpu or ram or disks):
+        return None
+    temps = [v for c in m.values() if isinstance(c, dict) and str(c.get("units", "")).lower() in ("celsius", "°c")
+             for v in _dims(c).values() if 0 < v < 150]
+    total = sum(ram.values())
+    out = {"status": "up", "via": "Netdata", "cpu": round(sum(cpu.values()), 1) if cpu else None,
+           "mem_pct": round(100 * ram["used"] / total, 1) if ram.get("used") is not None and total else None,
+           "load": [load.get("load1", 0), load.get("load5", 0), load.get("load15", 0)] if load else None,
+           "cores": int(num(info.get("cores_total"), 0)) or None, "disks": disks, "temp": max(temps) if temps else None}
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def _netdata_disks(m: dict) -> list[dict]:
     disks = []
     for key, chart in sorted(m.items()):
         if not key.startswith("disk_space.") or not isinstance(chart, dict):
             continue
         d = _dims(chart)
-        total = sum(d.values())
-        mount = str(chart.get("family") or key[len("disk_space."):])
+        total, mount = sum(d.values()), str(chart.get("family") or key[len("disk_space."):])
         if total and not mount.startswith(("/dev", "/run", "/sys", "/proc", "/snap", "/boot/efi")):
             used = d.get("used", 0) + d.get("reserved_for_root", 0)
             disks.append({"mount": mount, "size_gb": round(total, 1), "used_gb": round(used, 1), "used_pct": round(100 * used / total)})
-    temps = [v for k, c in m.items() if isinstance(c, dict) and str(c.get("units", "")).lower() in ("celsius", "°c")
-             for v in _dims(c).values() if 0 < v < 150]
-    out = {"status": "up", "via": "Netdata", "cpu": round(sum(cpu.values()), 1) if cpu else None,
-           "mem_pct": round(100 * ram["used"] / sum(ram.values()), 1) if ram.get("used") is not None and sum(ram.values()) else None,
-           "load": [load.get("load1", 0), load.get("load5", 0), load.get("load15", 0)] if load else None,
-           "cores": int(num(info.get("cores_total"), 0)) or None, "disks": disks, "temp": max(temps) if temps else None}
-    return {k: v for k, v in out.items() if v is not None} if cpu or ram or disks else None
+    return disks
 
 
 class Jellyfin(StatusConnector):

@@ -119,5 +119,48 @@ class Reset(unittest.TestCase):
         self.assertEqual(self.c.delete(BASE + "/me/avatar", headers=h).status_code, 200)
         self.assertEqual(self.c.get(BASE + "/users/admin/avatar").status_code, 404)
 
+    def admin(self):
+        self.c.post(BASE + "/login", json={"username": "admin", "password": self.pw})
+        return {"X-CSRF-Token": self.c.cookies["ms_csrf"]}
+
+    def test_my_email_route(self):
+        h = self.admin()
+        self.assertEqual(self.c.put(BASE + "/me/email", json={"email": "pas-une-adresse"}, headers=h).status_code, 400)
+        self.assertEqual(self.c.put(BASE + "/me/email", json={"email": "new@example.test"}, headers=h).json()["email"], "new@example.test")
+        self.assertEqual(self.c.get(BASE + "/me").json()["email"], "new@example.test")
+
+    def test_mail_routes(self):
+        h = self.admin()
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict("os.environ", {"MYSERVICES_CONFIG": str(Path(d) / "config.json")}):
+            got = self.c.get(BASE + "/system/mail").json()
+            self.assertEqual((got["host"], got["ready"]), ("smtp.example.test", True))
+            self.assertNotIn("password", got)
+            bad = self.c.put(BASE + "/system/mail", json={"host": "h", "security": "rot13", "sender": "ms@example.test"}, headers=h)
+            self.assertEqual(bad.status_code, 400)
+            ok = self.c.put(BASE + "/system/mail", json={"host": "smtp2.example.test", "port": 465, "security": "ssl", "sender": "ms@example.test",
+                                                         "page_url": "https://ms.example.test"}, headers=h)
+            self.assertEqual((ok.status_code, ok.json()["host"]), (200, "smtp2.example.test"))
+        r = self.c.post(BASE + "/system/mail/test", headers=h)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.sent[-1][0], "admin@example.test")
+        api.STORE.set_email("admin", "")
+        self.assertEqual(self.c.post(BASE + "/system/mail/test", headers=h).status_code, 400)
+
+    def test_mail_test_failure(self):
+        h = self.admin()
+        def boom(*a):
+            raise mailer.MailError("envoi impossible (test)")
+        with mock.patch.object(mailer, "send", boom):
+            self.assertEqual(self.c.post(BASE + "/system/mail/test", headers=h).status_code, 502)
+
+    def test_forgot_limited_and_viewer_denied(self):
+        for _ in range(12):
+            self.c.post(BASE + "/password/forgot", json={"identity": "x"})
+        self.assertEqual(self.c.post(BASE + "/password/forgot", json={"identity": "x"}).status_code, 429)
+        api.STORE.create_user("viewer1", self.pw, "viewer")
+        v = TestClient(api.app, client=("192.168.1.71", 50000))
+        v.post(BASE + "/login", json={"username": "viewer1", "password": self.pw})
+        self.assertEqual(v.get(BASE + "/system/mail").status_code, 403)
+
 if __name__ == "__main__":
     unittest.main()

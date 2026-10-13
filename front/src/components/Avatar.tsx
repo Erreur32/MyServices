@@ -1,5 +1,5 @@
 // Avatar of an account (Profile → My avatar), or its initial when it has none; one shared version, so a new image shows everywhere at once
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { ROOT } from "../api";
 
 let current: Record<string, string | null> = {};
@@ -15,10 +15,10 @@ export function setAvatarVersion(username: string, version: string | null, shown
 }
 
 export function Avatar({ username, version, size = 28 }: Readonly<{ username: string; version?: string | null; size?: number }>) {
-  const [, tick] = useState(0);
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
   const [broken, setBroken] = useState(false);
   useEffect(() => {
-    const f = () => { tick((n) => n + 1); setBroken(false); };
+    const f = () => { rerender(); setBroken(false); };
     listeners.add(f);
     return () => { listeners.delete(f); };
   }, []);

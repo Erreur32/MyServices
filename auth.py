@@ -30,7 +30,13 @@ LOGIN_MAX_FAIL = 10
 LOGIN_WINDOW = 15 * 60
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9._@-]{2,64}$")
 PASSWORD_MIN = 12
-EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$")
+
+
+def email_ok(email: str) -> bool:
+    """name@domain.tld: one « @ », no space, a dot in the domain (no regular expression: nothing to backtrack)."""
+    local, at, domain = email.partition("@")
+    return (bool(at) and 0 < len(local) <= 64 and "@" not in domain and not any(c.isspace() for c in email)
+            and "." in domain.strip(".") and len(domain.rsplit(".", 1)[-1]) >= 2)
 RESET_MIN = 30   # a reset link lasts 30 minutes, once
 
 _ph = PasswordHasher()
@@ -145,7 +151,7 @@ class Store:
     def set_email(self, username: str, email: str) -> str | None:
         """Address used to send a reset link; empty: removed. One address for one account only."""
         email = (email or "").strip()
-        if email and (len(email) > 254 or not EMAIL_RE.match(email)):
+        if email and (len(email) > 254 or not email_ok(email)):
             raise AuthError("adresse e-mail invalide")
         with _lock, self._db() as db:
             row = _user_row(db, username)

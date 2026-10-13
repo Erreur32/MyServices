@@ -95,24 +95,14 @@ class Dozzle(Connector):
 
     def _snapshot(self) -> tuple[list, set]:
         """(containers, ids of the hosts said unavailable) from the start of the event stream, read until the first snapshot."""
-        down, event, data = set(), "", []
+        down: set = set()
         deadline = time.monotonic() + self.ctx.timeout
         with self._open("/api/events/stream", "text/event-stream") as r:
-            for raw in r:
-                line = raw.decode("utf-8", "replace").rstrip("\r\n")
-                if line.startswith("event:"):
-                    event = line[6:].strip()
-                elif line.startswith("data:"):
-                    data.append(line[5:].strip())
-                elif not line:   # end of one event
-                    payload = _json(data)
-                    if event == "update-host" and isinstance(payload, dict) and payload.get("available") is False:
-                        down.add(str(payload.get("id")))
-                    if event == "containers-changed":
-                        return (payload if isinstance(payload, list) else []), down
-                    event, data = "", []
-                if time.monotonic() > deadline:
-                    break
+            for event, payload in _events(r, deadline):
+                if event == "update-host" and isinstance(payload, dict) and payload.get("available") is False:
+                    down.add(str(payload.get("id")))
+                if event == "containers-changed":
+                    return (payload if isinstance(payload, list) else []), down
         raise ConnectorError("flux d'événements sans liste de conteneurs")
 
     def _updates(self) -> dict:
@@ -181,6 +171,22 @@ class Dozzle(Connector):
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
         web = next((h for h, c in ports if c == 8080), None)
         return {"url": f"http://{ip}:{web}"} if web else None
+
+
+def _events(stream, deadline: float):
+    """(event name, JSON data) of a server-sent event stream, until the deadline."""
+    event, data = "", []
+    for raw in stream:
+        line = raw.decode("utf-8", "replace").rstrip("\r\n")
+        if line.startswith("event:"):
+            event = line[6:].strip()
+        elif line.startswith("data:"):
+            data.append(line[5:].strip())
+        elif not line:   # end of one event
+            yield event, _json(data)
+            event, data = "", []
+        if time.monotonic() > deadline:
+            return
 
 
 def _json(lines: list[str]):

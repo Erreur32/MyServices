@@ -1,6 +1,6 @@
 // Réglages → Système → E-mail : the SMTP server that sends the « Forgot your password? » links, and a test sent to one's own address
 import { Mail, Send } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { read, send } from "../api";
 import { Field, NoteLine } from "./form";
 import { SecretInput } from "./SecretInput";
@@ -19,7 +19,7 @@ export function MailSettings() {
   useEffect(() => { read<MailState>("system/mail").then((s) => setSt({ ...s, page_url: s.page_url || location.origin })).catch(() => undefined); }, []);
   if (!st) return null;
   const set = (k: Partial<MailState>) => setSt({ ...st, ...k });
-  const save = async (e: FormEvent) => {
+  const save = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
     setBusy(true);
     await act(async () => {

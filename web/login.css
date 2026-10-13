@@ -62,5 +62,6 @@ input.ok { box-shadow: 0 0 0 3px rgba(76, 208, 127, .18); }
 .links a { color: #5cb4f5; font-weight: 600; text-decoration: none; border-bottom: 1px dashed rgba(92, 180, 245, .5); padding-bottom: 1px; }
 .links a:hover { color: #8fcbf8; border-bottom-style: solid; }
 .links a:focus-visible { outline: 2px solid #2496ed; outline-offset: 3px; border-radius: 3px; }
-#fmsg { margin: 14px 0 0; padding: 9px 12px; border-radius: 8px; color: #4cd07f; background: rgba(76, 208, 127, .1); }
-#fmsg.bad { color: #f06a6a; background: rgba(240, 106, 106, .1); }
+#fmsg { display: block; margin: 14px 0 0; padding: 9px 12px; border-radius: 8px; color: #4cd07f; background: #1b2c2f; }
+#fmsg[hidden] { display: none; }
+#fmsg.bad { color: #f06a6a; background: #2c222d; }

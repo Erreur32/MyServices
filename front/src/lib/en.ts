@@ -890,6 +890,7 @@ export const EN: Record<string, string> = {
   "adresse enregistrée": "address saved",
   "image trop lourde : 512 Ko au plus": "image too heavy: 512 KB at most",
   "avatar enregistré": "avatar saved",
+  "image illisible": "unreadable image",
   "avatar retiré": "avatar removed",
   "Mon avatar": "My avatar",
   "Ajouter une image": "Add a picture",

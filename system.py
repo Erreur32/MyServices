@@ -204,7 +204,11 @@ def set_discovery_muted(core, did: str, muted: bool) -> list[str]:
     did = did.strip()
     if not did or len(did) > 120:
         raise ValueError("identifiant de découverte invalide")
-    same = {did} | ({"access:" + did[4:]} if did.startswith("ssh:") else {"ssh:" + did[7:]} if did.startswith("access:") else set())
+    same = {did}   # a machine access has two names (ssh:, access:): recalling it removes both
+    if did.startswith("ssh:"):
+        same.add("access:" + did[4:])
+    elif did.startswith("access:"):
+        same.add("ssh:" + did[7:])
     kept = [d for d in core.CFG.get("discoveries_muted") or [] if d not in same]   # recall: both names of a machine access go
     if muted:
         if len(kept) >= 200:
@@ -352,30 +356,32 @@ def mail_settings(core) -> dict:
             "page_url": c.get("page_url") or "", "ready": mailer.ready(c)}
 
 
-def set_mail_settings(core, host: str, port: int, security: str, user: str, password: str | None, sender: str, page_url: str) -> dict:
-    """Saves the sending server; password None or empty: the saved one is kept, « - » clears it."""
+def _check_mail(security: str, port: int, page_url: str, sender: str) -> None:
     import urllib.parse
     import mailer
     if security not in mailer.SECURITY:
         raise ValueError("sécurité : starttls, ssl ou none")
     if not 1 <= int(port) <= 65535:
         raise ValueError("port entre 1 et 65535")
-    page_url = page_url.strip().rstrip("/")
     if page_url and urllib.parse.urlsplit(page_url).scheme not in ("http", "https"):
         raise ValueError("adresse de la page : http://… ou https://…")
-    sender = sender.strip()
     if sender and "@" not in sender:
         raise ValueError("expéditeur : une adresse e-mail")
+
+
+def set_mail_settings(core, host: str, port: int, security: str, user: str, password: str | None, sender: str, page_url: str) -> dict:
+    """Saves the sending server; password None or empty: the saved one is kept, « - » clears it."""
+    page_url, sender = page_url.strip().rstrip("/"), sender.strip()
+    _check_mail(security, port, page_url, sender)
     vals = {"smtp_host": host.strip(), "smtp_port": int(port), "smtp_security": security, "smtp_user": user.strip(),
             "smtp_from": sender, "page_url": page_url}
-    if password == "-":
-        vals["smtp_password"] = ""
-    elif password:
-        vals["smtp_password"] = password
+    if password:
+        vals["smtp_password"] = "" if password == "-" else password
+    defaults = {"smtp_port": 587, "smtp_security": "starttls"}
 
     def change(raw: dict) -> None:
         for k, v in vals.items():
-            if v in ("", None) or (k == "smtp_port" and v == 587) or (k == "smtp_security" and v == "starttls"):
+            if v in ("", None) or defaults.get(k) == v:
                 raw.pop(k, None)   # default: not written
             else:
                 raw[k] = v

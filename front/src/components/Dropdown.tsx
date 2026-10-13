@@ -23,7 +23,7 @@ export function useDropdown(): { open: boolean; setOpen: (v: boolean) => void; b
 }
 
 export function DropSep() {
-  return <div className="my-1 border-t border-line/70" role="separator" />;
+  return <hr className="my-1 border-0 border-t border-line/70" />;
 }
 
 export function DropItem({ icon, children, onClick, href, danger, title }: Readonly<{

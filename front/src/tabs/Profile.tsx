@@ -2,7 +2,7 @@
 // Affiché par #profile (menu du compte), hors des onglets et des Réglages : un compte en lecture seule n'a pas accès aux Réglages.
 import { ImagePlus, KeyRound, LogOut, Mail, MonitorSmartphone, Trash2 } from "lucide-react";
 import { Avatar, setAvatarVersion } from "../components/Avatar";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Badge, Card, Count, Dim } from "../components/ui";
 import { Appearance, type Look } from "../components/Appearance";
@@ -15,7 +15,7 @@ import { checkPassword, okField, PASSWORD_MIN } from "../lib/password";
 
 interface MySession { created: number; expires: number; ip: string | null; current: boolean }
 
-export function Profile({ username, role, email, avatar, look }: { username: string; role: "admin" | "viewer"; email: string; avatar: string | null; look: Look }) {
+export function Profile({ username, role, email, avatar, look }: Readonly<{ username: string; role: "admin" | "viewer"; email: string; avatar: string | null; look: Look }>) {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 py-4">
       <header className="flex items-center gap-4 rounded-2xl border border-line bg-card p-4">
@@ -75,7 +75,12 @@ const AVATAR_MAX = 512 * 1024;
 
 /** A photo is cut square and shrunk to 256 px here (lighter, and its EXIF data, place and device, goes); a GIF or an SVG is sent as is */
 async function avatarData(file: File): Promise<string> {
-  const asUrl = (b: Blob) => new Promise<string>((ok, ko) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = () => ko(r.error); r.readAsDataURL(b); });
+  const asUrl = (b: Blob) => new Promise<string>((ok, ko) => {
+    const r = new FileReader();
+    r.onload = () => ok(typeof r.result === "string" ? r.result : "");
+    r.onerror = () => ko(r.error ?? new Error(tx("image illisible")));
+    r.readAsDataURL(b);
+  });
   if (file.type === "image/svg+xml" || file.type === "image/gif") return asUrl(file);
   const img = await createImageBitmap(file);
   const side = Math.min(img.width, img.height), out = Math.min(256, side);
@@ -136,7 +141,7 @@ function MyAvatar({ username, initial }: Readonly<{ username: string; initial: s
 function MyEmail({ initial }: Readonly<{ initial: string }>) {
   const [email, setEmail] = useState(initial), [saved, setSaved] = useState(initial);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
-  const submit = async (e: FormEvent) => {
+  const submit = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
     setBusy(true);
     const ok = await act(() => send("PUT", "me/email", { email: email.trim() }), email.trim() ? tx("adresse enregistrée") : tx("adresse retirée"), setNote);
@@ -161,7 +166,7 @@ function MyEmail({ initial }: Readonly<{ initial: string }>) {
 function MyPassword() {
   const [cur, setCur] = useState(""), [pw, setPw] = useState(""), [pw2, setPw2] = useState("");
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
-  const submit = async (e: FormEvent) => {
+  const submit = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
     if (pw !== pw2) return setNote({ ok: false, text: tx("les deux saisies diffèrent") });
     setBusy(true);

@@ -281,7 +281,7 @@ export function DiscoveryBell({ machines }: { machines?: Machine[] }) {
         {n > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-warn px-1 text-[10px] font-bold leading-none text-bg">{n}</span>}
       </button>
       {open && (
-        <div role="dialog" aria-label={tx("Notifications")} className={`${DROP_PANEL} w-[min(26rem,calc(100vw-2rem))]`}>
+        <dialog open aria-label={tx("Notifications")} className={`${DROP_PANEL} left-auto m-0 mt-2 w-[min(26rem,calc(100vw-2rem))] p-0 text-txt`}>
           <p className={`flex items-center gap-2 px-4 py-3 text-sm font-bold ${n ? "bg-warn/10 text-warn" : "text-ok"}`}>
             {n ? <><Bell size={15} aria-hidden />{tx("À faire ({0})", n)}</> : <><Check size={15} aria-hidden />{tx("Rien d'obligatoire à faire")}</>}
           </p>
@@ -303,7 +303,7 @@ export function DiscoveryBell({ machines }: { machines?: Machine[] }) {
             {sug > 0 ? <><Lightbulb size={14} className="text-link" aria-hidden />{tx("{0} suggestion(s) facultative(s)", sug)}</> : tx("Tout voir")}
             <ChevronRight size={14} className="ml-auto" aria-hidden />
           </a>
-        </div>
+        </dialog>
       )}
     </div>
   );

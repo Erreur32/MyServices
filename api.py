@@ -2016,7 +2016,7 @@ def my_sessions(request: Request):
 def revoke_other_sessions(request: Request):
     u = request.state.user or {}
     if not AUTH or not u or not request.cookies.get(COOKIE):
-        return deny(400, "session requise")
+        return deny(400, SESSION_NEEDED)
     n = store().revoke_others(u["username"], request.cookies.get(COOKIE))
     store().audit("autres sessions fermées", u["username"], ip_of(request), f"{n} session(s)")
     return {"ok": True, "closed": n, "message": f"{n} autre(s) session(s) fermée(s)"}
@@ -2039,6 +2039,9 @@ def set_session_days(body: SessionDays, request: Request):
     return {"ok": True, "days": body.days}
 
 
+SESSION_NEEDED = "session requise"   # account changes (e-mail, avatar): a signed-in person, never an API token
+
+
 class EmailBody(BaseModel):
     email: str = Field(max_length=254)
 
@@ -2047,7 +2050,7 @@ class EmailBody(BaseModel):
 def set_my_email(body: EmailBody, request: Request):
     u = request.state.user or {}
     if not AUTH or not u or u.get("token"):
-        return deny(400, "comptes désactivés" if not AUTH else "session requise")
+        return deny(400, "comptes désactivés" if not AUTH else SESSION_NEEDED)
     try:
         email = store().set_email(u["username"], body.email)
     except AuthError as e:
@@ -2065,7 +2068,7 @@ def set_my_avatar(body: AvatarBody, request: Request):
     import avatars
     u = request.state.user or {}
     if not AUTH or not u or u.get("token"):
-        return deny(400, "comptes désactivés" if not AUTH else "session requise")
+        return deny(400, "comptes désactivés" if not AUTH else SESSION_NEEDED)
     try:
         raw, mime = avatars.from_data_url(body.image)
     except avatars.AvatarError as e:
@@ -2079,7 +2082,7 @@ def set_my_avatar(body: AvatarBody, request: Request):
 def delete_my_avatar(request: Request):
     u = request.state.user or {}
     if not AUTH or not u or u.get("token"):
-        return deny(400, "comptes désactivés" if not AUTH else "session requise")
+        return deny(400, "comptes désactivés" if not AUTH else SESSION_NEEDED)
     store().set_avatar(u["username"], None, None)
     store().audit("avatar retiré", u["username"], ip_of(request))
     return {"ok": True, "avatar": None}

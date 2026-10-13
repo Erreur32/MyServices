@@ -19,6 +19,8 @@ _SVG_TAGS = {"svg", "g", "defs", "title", "desc", "symbol", "use", "path", "rect
              "text", "tspan", "textPath", "linearGradient", "radialGradient", "stop", "clipPath", "mask", "pattern", "image",
              "filter", "feGaussianBlur", "feOffset", "feBlend", "feColorMatrix", "feMerge", "feMergeNode", "feFlood", "feComposite",
              "feDropShadow", "metadata", "style"}
+_OUTSIDE_CSS = re.compile(r"@import|url\s*\(\s*['\"]?(?!#)|expression\s*\(", re.I)
+_OUTSIDE_VALUE = re.compile(r"javascript:|url\s*\(\s*['\"]?(?!#)", re.I)
 _SAFE_DATA = re.compile(r"^data:image/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=\s]+$")
 
 
@@ -57,29 +59,35 @@ def check(raw: bytes) -> str:
 
 
 def _check_svg(raw: bytes) -> None:
-    text = raw.decode("utf-8", "replace")
-    if re.search(r"<!DOCTYPE|<!ENTITY", text, re.I):
+    if re.search(r"<!DOCTYPE|<!ENTITY", raw.decode("utf-8", "replace"), re.I):
         raise AvatarError("SVG refusé : DOCTYPE ou entité")
     try:
-        root = ET.fromstring(raw)
+        root = ET.fromstring(raw)   # no DTD left (refused above): no entity to expand, nothing outside to read
     except ET.ParseError:
         raise AvatarError("SVG illisible") from None
     if _local(root.tag) != "svg":
         raise AvatarError("SVG attendu")
     for el in root.iter():
-        tag = _local(el.tag)
-        if tag not in _SVG_TAGS:
-            raise AvatarError(f"SVG refusé : élément « {tag} » non permis")
-        if tag == "style" and re.search(r"@import|url\s*\(\s*['\"]?(?!#)|expression\s*\(", el.text or "", re.I):
-            raise AvatarError("SVG refusé : style qui charge autre chose")
-        for name, value in el.attrib.items():
-            n, v = _local(name).lower(), (value or "").strip()
-            if n.startswith("on"):
-                raise AvatarError("SVG refusé : script dans un attribut")
-            if n == "href" and not (v.startswith("#") or _SAFE_DATA.match(v)):
-                raise AvatarError("SVG refusé : lien vers l'extérieur")
-            if re.search(r"javascript:|url\s*\(\s*['\"]?(?!#)", v, re.I):
-                raise AvatarError("SVG refusé : lien vers l'extérieur")
+        _check_element(el)
+
+
+def _check_element(el) -> None:
+    tag = _local(el.tag)
+    if tag not in _SVG_TAGS:
+        raise AvatarError(f"SVG refusé : élément « {tag} » non permis")
+    if tag == "style" and _OUTSIDE_CSS.search(el.text or ""):
+        raise AvatarError("SVG refusé : style qui charge autre chose")
+    for name, value in el.attrib.items():
+        _check_attribute(_local(name).lower(), (value or "").strip())
+
+
+def _check_attribute(name: str, value: str) -> None:
+    if name.startswith("on"):
+        raise AvatarError("SVG refusé : script dans un attribut")
+    if name == "href" and not (value.startswith("#") or _SAFE_DATA.match(value)):
+        raise AvatarError("SVG refusé : lien vers l'extérieur")
+    if _OUTSIDE_VALUE.search(value):
+        raise AvatarError("SVG refusé : lien vers l'extérieur")
 
 
 def _local(tag: str) -> str:

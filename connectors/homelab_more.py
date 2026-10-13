@@ -93,6 +93,19 @@ class Pulse(StatusConnector):
         return {"url": f"http://{ip}:{host_port(ports, 7655) or 7655}"}
 
 
+def _arcane_container(c: dict) -> dict:
+    upd = c.get("updateInfo") if isinstance(c.get("updateInfo"), dict) else {}
+    names = c.get("names") if isinstance(c.get("names"), list) else []
+    return {"name": str(names[0]).lstrip("/") if names else c.get("id"), "state": c.get("state"),
+            "health": "unhealthy" if "unhealthy" in str(c.get("status") or "").lower() else None,
+            "update": upd.get("hasUpdate") is True, "image": c.get("image"), "newer": upd.get("latestVersion") or None}
+
+
+def _last_page(got, page: list, start: int, size: int) -> bool:
+    total = (got.get("pagination") or {}).get("totalItems") if isinstance(got, dict) else None
+    return not page or len(page) < size or (isinstance(total, int) and start >= total)
+
+
 def _metric(r: dict, key: str) -> dict:
     m = (r.get("metrics") or {}).get(key) if isinstance(r.get("metrics"), dict) else None
     return m if isinstance(m, dict) else {}
@@ -102,20 +115,29 @@ def _pulse_row(r: dict) -> dict | None:
     """One Pulse resource as a row of Proxmox VE's /cluster/resources (cpu as a fraction, memory and disk in bytes). A missing
     reading stays missing, never 0 (Pulse: « do not replace an absent metric with zero »)."""
     px = r.get("proxmox") if isinstance(r.get("proxmox"), dict) else {}
-    cpu, mem, disk = _metric(r, "cpu"), _metric(r, "memory"), _metric(r, "disk")
-    pct = num(cpu.get("percent"), num(cpu.get("value")))
-    row = {"cpu": pct / 100 if pct is not None else None, "mem": num(mem.get("used")), "maxmem": num(mem.get("total")),
-           "disk": num(disk.get("used")), "maxdisk": num(disk.get("total")), "uptime": r.get("uptime") or px.get("uptime"), "maxcpu": px.get("cpus")}
     t = r.get("type")
     if t == "agent":
-        if not px.get("nodeName") and "proxmox" not in (r.get("sources") or []):
-            return None   # a host agent outside Proxmox
-        return {**row, "type": "node", "node": px.get("nodeName") or r.get("name"), "status": "online" if r.get("status") in ("online", "warning") else "offline"}
+        return _pulse_node(r, px)
     if t not in ("vm", "system-container"):
         return None
     status = px.get("runtimeStatus") or ("running" if r.get("status") in ("online", "warning") else "stopped")
-    return {**row, "type": "qemu" if t == "vm" else "lxc", "vmid": px.get("vmid"), "name": r.get("name"), "node": px.get("nodeName") or r.get("parentName"),
-            "status": status, "template": 1 if px.get("template") else 0, "tags": ";".join(r.get("tags") or [])}
+    return {**_pulse_load(r, px), "type": "qemu" if t == "vm" else "lxc", "vmid": px.get("vmid"), "name": r.get("name"),
+            "node": px.get("nodeName") or r.get("parentName"), "status": status, "template": 1 if px.get("template") else 0,
+            "tags": ";".join(r.get("tags") or [])}
+
+
+def _pulse_node(r: dict, px: dict) -> dict | None:
+    if not px.get("nodeName") and "proxmox" not in (r.get("sources") or []):
+        return None   # a host agent outside Proxmox
+    return {**_pulse_load(r, px), "type": "node", "node": px.get("nodeName") or r.get("name"),
+            "status": "online" if r.get("status") in ("online", "warning") else "offline"}
+
+
+def _pulse_load(r: dict, px: dict) -> dict:
+    cpu, mem, disk = _metric(r, "cpu"), _metric(r, "memory"), _metric(r, "disk")
+    pct = num(cpu.get("percent"), num(cpu.get("value")))
+    return {"cpu": pct / 100 if pct is not None else None, "mem": num(mem.get("used")), "maxmem": num(mem.get("total")),
+            "disk": num(disk.get("used")), "maxdisk": num(disk.get("total")), "uptime": r.get("uptime") or px.get("uptime"), "maxcpu": px.get("cpus")}
 
 
 class Arcane(StatusConnector):
@@ -159,15 +181,9 @@ class Arcane(StatusConnector):
             if got is None:
                 return None
             page = rows(got)
-            for c in page:
-                upd = c.get("updateInfo") if isinstance(c.get("updateInfo"), dict) else {}
-                names = c.get("names") if isinstance(c.get("names"), list) else []
-                out.append({"name": str(names[0]).lstrip("/") if names else c.get("id"), "state": c.get("state"),
-                            "health": "unhealthy" if "unhealthy" in str(c.get("status") or "").lower() else None,
-                            "update": upd.get("hasUpdate") is True, "image": c.get("image"), "newer": upd.get("latestVersion") or None})
-            total = (got.get("pagination") or {}).get("totalItems") if isinstance(got, dict) else None
+            out += [_arcane_container(c) for c in page]
             start += len(page)
-            if not page or len(page) < self.PAGE or (isinstance(total, int) and start >= total):
+            if _last_page(got, page, start, self.PAGE):
                 return out
 
     def collect(self) -> dict:

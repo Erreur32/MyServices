@@ -17,6 +17,11 @@
   next = dest.pathname + dest.search + dest.hash;
 
   function $(id) { return document.getElementById(id); }
+  // [HTTP status, JSON body] of an answer (an empty or non-JSON body gives {})
+  function answer(r) {
+    var status = r.status;
+    return r.json().catch(function () { return {}; }).then(function (d) { return [status, d]; });
+  }
   function show(t) {
     msg.textContent = t;
     msg.hidden = !t;
@@ -62,8 +67,8 @@
   fetch("/api/v1/setup", { cache: "no-store" })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (s) {
-      if (s && !s.needed && !s.mail) $("forgot-sub").textContent = "L'envoi d'e-mails n'est pas encore réglé sur cette page : demande à un administrateur un nouveau mot de passe.";
-      if (s && !s.mail) $("fgo").disabled = true;
+      if (s?.needed === false && !s.mail) $("forgot-sub").textContent = "L'envoi d'e-mails n'est pas encore réglé sur cette page : demande à un administrateur un nouveau mot de passe.";
+      if (s?.mail === false) $("fgo").disabled = true;
       if (!s || !s.needed || reset) return;
       setup = true;
       $("links").hidden = true;
@@ -120,7 +125,7 @@
     if (!who) return $("fi").focus();
     b.disabled = true;
     fetch("/api/v1/password/forgot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identity: who }) })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return [r.status, d]; }); })
+      .then(answer)
       .then(function (x) {
         m.className = x[0] === 200 ? "" : "bad";
         m.textContent = x[0] === 200 ? "C'est envoyé : " + x[1].message + "." : (x[1].error || "Demande impossible (HTTP " + x[0] + ")");
@@ -150,7 +155,7 @@
     fetch("/api/v1/password/reset?token=" + encodeURIComponent(resetToken), { cache: "no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (v) {
-        if (v && v.valid) return;
+        if (v?.valid) return;
         show("Ce lien a expiré ou a déjà servi. Demande un nouveau lien (« Mot de passe oublié ? » sur la page de connexion).");
         form.querySelectorAll("input, button[type=submit]").forEach(function (el) { el.disabled = true; });
       })
@@ -166,7 +171,7 @@
       b.disabled = true;
       fetch("/api/v1/password/reset", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: resetToken, password: form.password.value }) })
-        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return [r.status, d]; }); })
+        .then(answer)
         .then(function (x) {
           if (x[0] === 200) {
             $("sub").textContent = "Mot de passe changé : connecte-toi avec le nouveau.";
@@ -186,9 +191,7 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: form.username.value.trim(), password: form.password.value }),
     })
-      .then(function (r) {
-        return r.json().catch(function () { return {}; }).then(function (d) { return [r.status, d]; });
-      })
+      .then(answer)
       .then(function (x) {
         if (x[0] === 200) return location.replace(next);
         if (x[0] === 409) return location.reload();  // compte créé entre-temps (autre onglet) : connexion
