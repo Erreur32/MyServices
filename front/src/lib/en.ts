@@ -1489,6 +1489,7 @@ export const EN: Record<string, string> = {
   "{0} de sécurité": "{0} security",
   "Core ou Container": "Core or Container",
   "Lu par Home Assistant": "Read by Home Assistant",
+  "Redémarrage": "Reboot",
   "Tâches et horaires": "Tasks and schedules",
   "TCP {0} ms · accès LAN direct": "TCP {0} ms · direct LAN access",
   "Télécharger": "Download",

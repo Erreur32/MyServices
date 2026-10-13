@@ -24,9 +24,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Machines, card view: « Details » unfolds a card on the same full detail as the table (identity, system, access, software, health),
   the card then taking the whole row; both details start with « See its services » (the Services tab filtered on the machine). The
   card of the Home Assistant machine shows its add-on icons and « +N » on its servers line (instead of a lone « - »).
-- Machines: the updates waiting are listed in the detail (card or table), folded by default: the apt packages with their new
+- Machines: the updates waiting have their own « Updates » part in the detail (card or table), the list folded by default: the apt packages with their new
   version on Linux, the Windows updates for a PC with the agent, up to 30 named (the count stays exact beyond). A folded card
   shows an orange arrow with their number (and the reboot sign), names on hover.
+- Machines, card view: opening a card closes the one open before.
 - Home Assistant machine: its system is read from Home Assistant (installation method, Core, Supervisor and Operating System
   versions) and shown in « System » and on its card, where it was empty.
 - Machines, table view: the « Expand all » button is gone.

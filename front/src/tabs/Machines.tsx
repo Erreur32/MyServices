@@ -322,7 +322,8 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, onServices }: Readon
 
       <SoftwareSection m={m} servers={servers} ha={ha} from={from.services} />
 
-      <HealthSection h={h} from={from.health} windows={!!m.agent || h?.os === "windows"} />
+      <HealthSection h={h} from={from.health} />
+      <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} />
     </div>
   );
 }
@@ -443,17 +444,28 @@ function UpdatesChip({ h }: Readonly<{ h?: HealthHost }>) {
   );
 }
 
+/** Detail, « Updates »: up to date, or the packages / Windows updates waiting (folded list), and a reboot required */
+function UpdatesSection({ h, windows, from }: Readonly<{ h?: HealthHost; windows: boolean; from: Origin[] }>) {
+  if (!h) return null;
+  const n = h.apt?.upgradable ?? 0;
+  return (
+    <Section icon={ArrowUpCircle} title={tx("Mises à jour")} tone={n || h.reboot_required ? "warn" : "ok"} from={from}>
+      {!n && <Row k={tx("État")}><span className="text-ok">{tx("à jour")}</span></Row>}
+      {h.reboot_required && <Row k={tx("Redémarrage")}><span className="text-warn">{tx("redémarrage requis")}</span></Row>}
+      <UpdatesFold h={h} windows={windows} />
+    </Section>
+  );
+}
+
 /** Detail, « Health »: level, resources, failed systemd units, updates */
-function HealthSection({ h, from, windows }: Readonly<{ h?: HealthHost; from: Origin[]; windows: boolean }>) {
-  const failed = h?.systemd?.failed.length || 0, apt = h?.apt?.upgradable || 0;
+function HealthSection({ h, from }: Readonly<{ h?: HealthHost; from: Origin[] }>) {
+  const failed = h?.systemd?.failed.length || 0;
   return (
       <Section icon={HeartPulse} title={tx("Santé")} tone="bad" from={from}>
         {h ? <>
           <Row k={tx("Niveau")}><Level level={h.reachable === false ? "down" : h.level} /></Row>
           <HealthRows h={h} />
           <Row k="Systemd">{failed ? <span className="text-bad">{tx("{0} service(s) en échec", failed)}</span> : undefined}</Row>
-          <Row k={tx("Mises à jour")}>{apt ? undefined : <span className="text-ok">{tx("à jour")}</span>}{h.reboot_required && <span className="text-warn">{apt ? "" : " · "}{tx("redémarrage requis")}</span>}</Row>
-          <UpdatesFold h={h} windows={windows} />
         </> : <Dim>{tx("non suivie")}</Dim>}
       </Section>
   );
@@ -637,7 +649,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
               const h = hb.get(m.ip), shown = open.has(m.ip);
               return (
                 <MachineCard key={m.ip} m={m} h={snap.health ? h : undefined} snap={snap} scan={scanOs[m.ip]} os={osOf(m)} watch={watchOf(m)} ha={haOf(m)} off={isOff(m)}
-                  state={st(m)} shown={shown} onToggle={() => toggleOpen(m.ip)} onMachine={onMachine}
+                  state={st(m)} shown={shown} onToggle={() => setOpen((o) => (o.has(m.ip) ? new Set() : new Set([m.ip])))} onMachine={onMachine}
                   detail={shown && <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} onServices={() => onMachine(m.ip)} />} />
               );
             })}
