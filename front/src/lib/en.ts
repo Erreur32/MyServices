@@ -805,6 +805,8 @@ export const EN: Record<string, string> = {
   "Masquer les {0}": "Hide {0}",
   "Événement": "Event",
   "{0} masqué(s) : tout afficher": "{0} hidden: show all",
+  "{0} dossier(s)": "{0} folder(s)",
+  "{0} déjà suivi(s)": "{0} already followed",
   "rien d'obligatoire à faire": "nothing required to do",
   "Automatique : après chaque recherche, les machines avec SSH, une appli reconnue ou un service utile sont ajoutées toutes seules, et leur SSH s'active dès que la clé marche. Une machine retirée à la main ne revient pas.": "Automatic: after each search, machines with SSH, a recognized app or a useful service are added by themselves, and their SSH switches on once the key works. A machine removed by hand does not come back.",
   "Manuel : rien n'est ajouté ni activé tout seul ; vous choisissez les machines trouvées. La recherche réseau garde sa fréquence.": "Manual: nothing is added or switched on by itself; you pick the machines found. The network search keeps its frequency.",

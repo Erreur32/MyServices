@@ -18,6 +18,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   a header (state in one line, automatic mode switch, network search with its last and next run and « Search now »), « To do »
   when there is something, the machines found on the network (folded), the apps to link as tiles in alphabetical order, other
   suggestions, what runs by itself (folded), and the search settings (frequency, networks, discreet mode) in one frame.
+- Settings → Backups: after « Search my machines », each machine is folded, its summary giving the folders found, those already
+  followed and those ticked.
 
 ### Fixed
 

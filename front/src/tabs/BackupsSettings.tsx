@@ -137,11 +137,17 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
           {found.every((m) => m.ok && m.folders.length === 0) && (
             <p className="rounded-lg bg-bg2/60 px-3 py-2 text-sm text-muted">{tx("Aucun dossier de sauvegarde trouvé dans ces emplacements. Si vos sauvegardes sont ailleurs, ajoutez leur dossier dans « Autres emplacements » puis relancez la recherche.")}</p>
           )}
-          {found.map((m) => (
-            <section key={m.ip} className="overflow-hidden rounded-xl border border-line">
-              <h3 className="flex items-center gap-2 border-b border-line bg-bg px-3 py-2 text-sm font-semibold">
+          {found.map((m) => {   // one folded frame per machine: the summary says what was found and what is ticked
+            const ticked = m.folders.filter((f) => pick[keyOf(m.ip, f.path)]?.on).length, followed = m.folders.filter((f) => f.followed).length;
+            return (
+            <details key={m.ip} className="group overflow-hidden rounded-xl border border-line">
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 bg-bg px-3 py-2 text-sm font-semibold group-open:border-b group-open:border-line [&::-webkit-details-marker]:hidden">
+                <ChevronRight size={15} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
                 {machineOf(m.ip) && <MachineIcon m={machineOf(m.ip)!} reserve />}{m.name} <Dim>{m.ip}</Dim>
-                {!m.ok && <Badge tone="bad">{tx("illisible")}</Badge>}</h3>
+                {!m.ok ? <Badge tone="bad">{tx("illisible")}</Badge> : <Badge tone={m.folders.length ? "info" : "off"}>{tx("{0} dossier(s)", m.folders.length)}</Badge>}
+                {followed > 0 && <Badge tone="ok">{tx("{0} déjà suivi(s)", followed)}</Badge>}
+                {ticked > 0 && <Badge tone="info">{tx("{0} cochée(s)", ticked)}</Badge>}
+              </summary>
               <div className="p-3">
               {!m.ok && <p className="text-xs text-bad">{m.error}</p>}
               {m.ok && m.folders.length === 0 && <Dim>{tx("aucun dossier trouvé")}</Dim>}
@@ -177,8 +183,9 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
                 })}
               </ul>
               </div>
-            </section>
-          ))}
+            </details>
+            );
+          })}
           {Object.keys(pick).length > 0 && (
             <div><button type="button" className={primary} disabled={!valid || busy} onClick={() => void follow()}>
               {busy ? <Loader2 size={14} className="animate-spin" aria-hidden /> : null}{tx("Suivre la sélection")} {chosen.length > 0 && `(${chosen.length})`}</button></div>
