@@ -1,4 +1,4 @@
-// Dockhand et les services lus par leur API : cartes sous la barre de recherche de l'onglet Santé. PbsCard sert à l'onglet Virtualisation
+// Dockhand, Dozzle, Arcane (conteneurs) et les services lus par leur API : cartes sous la barre de recherche de l'onglet Santé. PbsCard sert à l'onglet Virtualisation
 // (les hyperviseurs y sont aussi, plus dans Santé).
 import { Boxes, Container, HardDrive } from "lucide-react";
 import type { ContainersConnector, ServiceStatus, VirtualizationConnector } from "../types";
@@ -73,9 +73,10 @@ export function DockhandCard({ c }: { c: ContainersConnector }) {
                       <td className="px-2 py-2 text-right font-mono"><span className={k.total != null && (k.running ?? 0) < k.total ? "text-warn" : "text-ok"}>{k.running ?? 0}</span><span className="text-dim"> / {k.total ?? "?"}</span></td>
                       <td className="py-2 pl-2 pr-4 text-right">
                         <span className="inline-flex flex-wrap justify-end gap-1">
+                          {e.available === false && <Badge tone="bad">{tx("hors ligne")}</Badge>}
                           {bad > 0 && <Badge tone="bad">{bad} {tx("en mauvaise santé")}</Badge>}
                           {upd > 0 && <Badge tone="warn">{upd} {tx("mise(s) à jour d'image")}</Badge>}
-                          {!bad && !upd && <Badge tone="ok">{tx("rien")}</Badge>}
+                          {!bad && !upd && e.available !== false && <Badge tone="ok">{tx("rien")}</Badge>}
                         </span>
                       </td>
                     </tr>

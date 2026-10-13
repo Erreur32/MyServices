@@ -88,7 +88,7 @@ function HostDetails({ h }: { h: HealthHost }) {
     h.smart?.accessible && <Badge key="smart" tone="off">{tx("SMART ·")} {h.smart.disks.length} {tx("disque(s)")}</Badge>,
     h.ssh_auth?.available && <Badge key="ssh" tone="off">{tx("SSH refusés 24 h :")} {h.ssh_auth.failed_24h}</Badge>,
   ].filter(Boolean);
-  const source = !!h.sources?.length && <Badge tone="info" title={tx("Source de la santé : la première de la liste répond, les suivantes complètent ce qu'elle n'a pas lu")}>{tx("lu par")} {h.sources.map((s) => SOURCE_LABEL[s] ?? s).join(" + ")}</Badge>;
+  const source = !!h.sources?.length && <Badge tone="info" title={tx("Source de la santé : la première de la liste répond, les suivantes complètent ce qu'elle n'a pas lu")}>{tx("lu par")} {h.sources.map((s) => (s === "ha" && h.api_name) || SOURCE_LABEL[s] || s).join(" + ")}</Badge>;
   return (
     <DetailSection icon={Gauge} title={tx("Ressources")} tone="link" right={source || undefined}>
       {h.res?.available && <>

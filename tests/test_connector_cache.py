@@ -85,5 +85,21 @@ class Version(unittest.TestCase):
         self.assertIn("connecteur_version", watcher.LABEL)
 
 
+
+class Recent(unittest.TestCase):
+    """cbase.recent: a result read a moment ago (by the collection) is reused by another task instead of a second call."""
+
+    def test_reuse_window(self):
+        import time as _t
+        from connectors.base import recent
+        conn = type("C", (), {"type": "glances", "name": "g"})()
+        now = _t.time()
+        self.assertEqual(recent(conn, {"glances/g": {"ok": True, "last": {"x": 1}, "at": now - 60}}, 600), {"x": 1})
+        self.assertIsNone(recent(conn, {"glances/g": {"ok": True, "last": {"x": 1}, "at": now - 900}}, 600))
+        self.assertIsNone(recent(conn, {"glances/g": {"ok": False, "last": {"x": 1}, "at": now}}, 600))
+        self.assertIsNone(recent(conn, {"glances/g": {"ok": True, "last": {"x": 1}}}, 600))   # older state, no time: read again
+        self.assertIsNone(recent(conn, {}, 600))
+
+
 if __name__ == "__main__":
     unittest.main()

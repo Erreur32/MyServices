@@ -160,3 +160,17 @@ class Sources(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipIf(health is None, "dépendances absentes : tests à lancer dans l'image")
+class ApiSource(unittest.TestCase):
+    """A machine read through a service's API (Glances on the machine, Home Assistant's host): named after that service."""
+
+    def test_glances_named(self):
+        h = health.read_host(hc(target=None), None, None, api={**beszel(), "via": "Glances"})
+        self.assertEqual((h["source"], h["api_name"], h["reachable"]), ("ha", "Glances", True))
+        self.assertEqual(h["disks"][0]["mount"], "/")
+
+    def test_home_assistant_by_default(self):
+        h = health.read_host(hc(target=None), None, None, api=beszel())
+        self.assertEqual(h["api_name"], "Home Assistant")

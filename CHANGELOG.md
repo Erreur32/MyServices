@@ -14,6 +14,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### Added
 
 - Beszel connector: « Verify HTTPS certificate » setting (on by default), to reach a hub behind a self-signed certificate.
+- Arcane connector is now a container source, like Dockhand and Dozzle: each environment with its containers (running, stopped,
+  unhealthy) and image updates, matched to its machine; an offline environment is flagged « offline » on the card.
+- Glances connector also reads the machine it runs on for the Health tab (processor, memory, load, real disks, hottest core): a
+  machine without SSH, agent or Beszel gets a health reading « read by Glances ». A Glances in a container names a disk after its device.
+- The health task reuses a connector result read less than 10 minutes ago (Glances, Home Assistant) instead of calling it again.
 - AdGuard Home (API mode), Uptime Kuma and Web-Check connectors: « Verify HTTPS certificate » setting, for a self-signed certificate.
 - Connectors: « Save without collection » button, to set up a service that is down or not ready yet: settings kept, no test,
   collection off.

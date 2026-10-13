@@ -64,6 +64,16 @@ def rows(v) -> list[dict]:
     return [x for x in v if isinstance(x, dict)] if isinstance(v, list) else []
 
 
+def container_env(id_, name, host, containers: list[dict], agent: str | None = None, available: bool = True) -> dict:
+    """One Docker host in the shape of a Dockhand environment (Health card, matching.py, Virtualization), from its containers
+    given as {name, state, health, update, image, newer}: state running / exited / paused…, health « unhealthy » when it is."""
+    states = [str(c.get("state") or "").lower() for c in containers]
+    return {"id": id_, "name": name, "host": host, "agent": agent, "available": available,
+            "containers": {"total": len(containers), "running": states.count("running"), "stopped": states.count("exited") + states.count("dead"),
+                           "paused": states.count("paused"), "unhealthy": sum(1 for c in containers if c.get("health") == "unhealthy")},
+            "updates": [{"container": c.get("name"), "image": c.get("image"), "newer": c.get("newer")} for c in containers if c.get("update")]}
+
+
 class StatusConnector(Connector):
     """Base des connecteurs `status` : sous-classe = champs, `collect()`, et un `guide` ; `test()` en tire une ligne lisible."""
     kinds = ("status",)

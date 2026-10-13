@@ -270,8 +270,9 @@ export interface HealthHost {
   temp?: { available: boolean; celsius?: number; source?: string; virt?: string };  // température du processeur (capteur de la machine ou Beszel)
   ssh_auth?: { failed_24h: number; available: boolean };
   smart?: { accessible: boolean; disks: { device: string; healthy: boolean; failed?: boolean }[]; vm?: boolean };
-  source?: "ssh" | "agent" | "beszel";  // source retenue pour la santé de la machine
+  source?: "ssh" | "agent" | "beszel" | "ha";  // source retenue pour la santé de la machine
   sources?: string[];                    // toutes celles qui ont servi (la retenue, puis celles qui ont complété)
+  api_name?: string;                     // source « ha » : the service whose API was read (Glances, Home Assistant)
 }
 
 /** Poste « souvent éteint » qui ne répond pas : fiche grisée, sans alerte (last_seen : dernier relevé de son agent, en secondes) */
@@ -620,7 +621,7 @@ export interface SecurityConnector extends InfraConnector {
 }
 /** Dockhand, Dozzle : environnements Docker (hôtes, agents) */
 export interface ContainersConnector extends InfraConnector {
-  environments?: { id: number | string; name?: string; host?: string | null; agent?: string | null;
+  environments?: { id: number | string; name?: string; host?: string | null; agent?: string | null; available?: boolean;
     containers: { total?: number; running?: number; stopped?: number; paused?: number; unhealthy?: number }; updates: { container?: string; image?: string; newer?: string | null }[] }[];
   updates?: number;
   links_only?: boolean;   // Dozzle behind its login without an account here: links only, no card

@@ -16,8 +16,8 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-from connectors.base import ConnectorError, Field
-from connectors.status_kit import StatusConnector, duration, fact, host_port, num, rows, size
+from connectors.base import ConnectorError, Field, Result
+from connectors.status_kit import StatusConnector, container_env, duration, fact, host_port, num, rows, size
 
 VERIFY = Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=True, help="à décocher pour un certificat auto-signé")
 DAY_MS = 86_400_000
@@ -72,11 +72,13 @@ class Pulse(StatusConnector):
 
 
 class Arcane(StatusConnector):
-    """Arcane (Docker manager): version and update, environments, running and stopped containers, image updates.
-    API key (X-Api-Key). Routes (GET): /api/version (public), /api/environments, /api/environments/<id>/containers/counts,
-    /api/environments/<id>/image-updates/summary."""
+    """Arcane (Docker manager): its environments (local Docker, remote agents) as a container source, like Dockhand: containers
+    running, stopped, unhealthy, image updates found by Arcane. API key (X-Api-Key). Routes (GET): /api/version (public),
+    /api/environments, /api/environments/<id>/containers (paged list: state, status « (unhealthy) », updateInfo.hasUpdate),
+    /api/environments/<id>/containers/counts when the list is unreadable."""
     type = "arcane"
     label = "Arcane"
+    kinds = ("containers",)
     images = ("ghcr.io/getarcaneapp/manager", "ghcr.io/getarcaneapp/arcane", "ghcr.io/ofkm/arcane")
     fields = (
         Field("url", "Adresse d'Arcane", "url", required=True, help="http://<IP>:3552"),
@@ -85,40 +87,76 @@ class Arcane(StatusConnector):
     )
     setup_fields = ("url", "api_key")
     guide = ("Dans Arcane : Settings → API Keys → nouvelle clé « MyServices ».",
-             "MyServices ne fait que des GET (version, environnements, compteurs de conteneurs, résumé des mises à jour d'images).")
+             "MyServices ne fait que des GET (version, environnements, liste des conteneurs et leurs mises à jour d'image).")
+    PAGE = 200
+
+    def _h(self) -> dict:
+        return {"X-Api-Key": str(self.conf.get("api_key", ""))}
+
+    def _version(self) -> dict:
+        if getattr(self, "_ver", None) is None:
+            ver = self.get("/api/version")
+            if not isinstance(ver, dict) or "currentVersion" not in ver:
+                raise ConnectorError("réponse inattendue : l'adresse ne mène pas à Arcane")
+            self._ver = ver
+        return self._ver
+
+    def version(self) -> str | None:
+        return str(self._version()["currentVersion"]).lstrip("v")
+
+    def _containers(self, eid) -> list[dict] | None:
+        """Every container of one environment ({name, state, health, update, image, newer}), None when the list is unreadable."""
+        out, start = [], 0
+        while True:
+            got = self.get_opt(f"/api/environments/{eid}/containers?start={start}&limit={self.PAGE}&includeInternal=true", self._h())
+            if got is None:
+                return None
+            page = rows(got)
+            for c in page:
+                upd = c.get("updateInfo") if isinstance(c.get("updateInfo"), dict) else {}
+                names = c.get("names") if isinstance(c.get("names"), list) else []
+                out.append({"name": str(names[0]).lstrip("/") if names else c.get("id"), "state": c.get("state"),
+                            "health": "unhealthy" if "unhealthy" in str(c.get("status") or "").lower() else None,
+                            "update": upd.get("hasUpdate") is True, "image": c.get("image"), "newer": upd.get("latestVersion") or None})
+            total = (got.get("pagination") or {}).get("totalItems") if isinstance(got, dict) else None
+            start += len(page)
+            if not page or len(page) < self.PAGE or (isinstance(total, int) and start >= total):
+                return out
 
     def collect(self) -> dict:
-        ver = self.get("/api/version")
-        if not isinstance(ver, dict) or "currentVersion" not in ver:
-            raise ConnectorError("réponse inattendue : l'adresse ne mène pas à Arcane")
-        h = {"X-Api-Key": str(self.conf.get("api_key", ""))}
-        envs = rows(self.get("/api/environments", h))
-        running = stopped = updates = 0
-        problems = []
-        for e in envs[:20]:
+        ver = self._version()
+        envs = []
+        for e in rows(self.get("/api/environments", self._h()))[:50]:
             eid, name = e.get("id"), e.get("name") or e.get("id") or "?"
+            api = str(e.get("apiUrl") or "")
+            host = None if not api or "localhost" in api or "127.0.0.1" in api else api   # local Docker: Arcane's own machine (matching.py)
             if str(e.get("status", "online")).lower() not in ("online", "connected", "ok", ""):
-                problems.append(f"environnement « {name} » : {e.get('status')}")
+                envs.append(container_env(eid, name, host, [], available=False))
                 continue
-            try:
-                c = _data(self.get(f"/api/environments/{eid}/containers/counts", h)) or {}
-                running += int(num(c.get("runningContainers"), 0))
-                stopped += int(num(c.get("stoppedContainers"), 0))
-                u = _data(self.get(f"/api/environments/{eid}/image-updates/summary", h))
-                n = next((int(num(v, 0)) for k, v in (u.items() if isinstance(u, dict) else ()) if re.search(r"with_?updates?|updates?_?available|has_?update", k, re.I)), 0)
-                updates += n
-                if n:
-                    problems.append(f"« {name} » : {n} image(s) à mettre à jour")
-            except ConnectorError as err:
-                if str(err).startswith("accès refusé"):
-                    raise
-                problems.append(f"environnement « {name} » illisible ({err})")
-        facts = [fact("Environnements", len(envs)), fact("Conteneurs", f"{running} en marche, {stopped} arrêté(s)"),
-                 fact("Images à mettre à jour", updates, "warn" if updates else "ok")]
+            got = self._containers(eid)
+            if got is None:   # list unreadable (older Arcane): counts only
+                c = _data(self.get_opt(f"/api/environments/{eid}/containers/counts", self._h())) or {}
+                env = container_env(eid, name, host, [])
+                env["containers"].update({"total": int(num(c.get("totalContainers"), 0)), "running": int(num(c.get("runningContainers"), 0)),
+                                          "stopped": int(num(c.get("stoppedContainers"), 0))})
+                envs.append(env)
+            else:
+                envs.append(container_env(eid, name, host, got))
+        out = {"environments": envs, "updates": sum(len(e["updates"]) for e in envs)}
         if ver.get("updateAvailable") is True:
-            facts.append(fact("Mise à jour", ver.get("newestVersion") or "disponible", "warn"))
-            problems.append(f"mise à jour d'Arcane disponible : {ver.get('newestVersion') or '?'}")
-        return self.out(str(ver["currentVersion"]).lstrip("v"), facts, problems)
+            out["app_update"] = ver.get("newestVersion") or "?"
+        return out
+
+    def test(self) -> Result:
+        try:
+            d = self.collect()
+        except ConnectorError as e:
+            return Result(False, str(e))
+        total = sum(e["containers"]["total"] for e in d["environments"])
+        msg = f"{len(d['environments'])} environnement(s), {total} conteneur(s)" + (f", {d['updates']} mise(s) à jour d'image" if d["updates"] else "")
+        if d.get("app_update"):
+            msg += f" ; mise à jour d'Arcane disponible : {d['app_update']}"
+        return Result(True, msg, self.version())
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
@@ -155,11 +193,11 @@ class Glances(StatusConnector):
         ql = self.get(f"{api}/quicklook", h)
         if not isinstance(ql, dict) or "cpu" not in ql:
             raise ConnectorError("réponse inattendue : l'adresse ne mène pas à Glances")
-        def opt(plugin: str):   # a plugin can be switched off in Glances (--disable-plugin): its route answers 404
+        def opt(plugin: str):   # a plugin can be switched off in Glances (--disable-plugin): its route answers 404, or 400 « Unknown plugin »
             try:
                 return self.get(f"{api}/{plugin}", h)
             except ConnectorError as e:
-                if not str(e).startswith("HTTP 404"):
+                if not str(e).startswith(("HTTP 404", "HTTP 400")):
                     raise
                 return None
         load = opt("load") or {}
@@ -182,11 +220,41 @@ class Glances(StatusConnector):
             a = a if isinstance(a, dict) else dict(zip(("begin", "end", "state", "type"), a)) if isinstance(a, list) else {}
             if a.get("end") in (-1, None) and str(a.get("state", "")).upper() in ("WARNING", "CRITICAL"):
                 problems.append(f"alerte Glances {a.get('type', '?')} : {str(a['state']).lower()}")
-        return self.out((st or {}).get("version") if isinstance(st, dict) else None, facts, problems)
+        out = self.out((st or {}).get("version") if isinstance(st, dict) else None, facts, problems)
+        out["host"] = _glances_host(cpu, mem, load, fs, opt("sensors"))
+        return out
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
         return {"url": f"http://{ip}:{host_port(ports, 61208) or 61208}"}
+
+
+SKIP_MOUNTS = ("/snap/", "/var/lib/docker/", "/run/", "/boot/efi", "/dev/", "/proc/", "/sys/")
+# Glances in a container sees the host disks through the files mounted into it: the disk is then named after its device
+NOT_A_DISK = ("/etc/", "/usr/", "/glances", "/app/", "/config", "/var/run/")
+
+
+def _glances_host(cpu, mem, load, fs: list[dict], sensors) -> dict:
+    """The machine Glances runs on, in the shape of a Beszel system (health.py, source « API »): processor, memory, load,
+    real disks (bind mounts and snaps left out), hottest processor sensor."""
+    gb = 1024 ** 3
+    best: dict = {}   # device -> its shortest real mount (the same disk is often mounted several times)
+    for f in fs:
+        mnt, dev = str(f.get("mnt_point") or ""), f.get("device_name") or f.get("mnt_point")
+        if num(f.get("size")) and not mnt.startswith(SKIP_MOUNTS) and (dev not in best or len(mnt) < len(str(best[dev].get("mnt_point")))):
+            best[dev] = f
+    disks = []
+    for dev, f in best.items():
+        mnt, total = str(f.get("mnt_point")), num(f.get("size"))
+        used = num(f.get("used"), total * num(f.get("percent"), 0) / 100)
+        disks.append({"mount": str(dev) if mnt.startswith(NOT_A_DISK) else mnt, "size_gb": round(total / gb, 1), "used_gb": round(used / gb, 1),
+                      "used_pct": round(num(f.get("percent"), 0))})
+    temps = [num(t.get("value")) for t in rows(sensors) if t.get("type") == "temperature_core" and num(t.get("value")) is not None]
+    load = load if isinstance(load, dict) else {}
+    out = {"status": "up", "via": "Glances", "cpu": cpu, "mem_pct": mem, "disks": disks,
+           "load": [num(load.get(k), 0) for k in ("min1", "min5", "min15")] if num(load.get("min1")) is not None else None,
+           "cores": int(num(load.get("cpucore"), 0)) or None, "temp": max(temps) if temps else None}
+    return {k: v for k, v in out.items() if v is not None}
 
 
 class GpuViewR(StatusConnector):

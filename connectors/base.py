@@ -260,7 +260,7 @@ def run_isolated(conn: Connector, state: dict, timeout: float) -> tuple[dict | N
                 version_tested(v, conn.tested), duration_s=round(time.time() - t0, 2))
     if st.ok:
         st.found = tally(box["data"])
-        state[key] = {"ok": True, "failures": 0, "since": None, "last": box["data"], "version": v}
+        state[key] = {"ok": True, "failures": 0, "since": None, "last": box["data"], "version": v, "at": t0}
         return box["data"], st
     st.failures = prev.get("failures", 0) + 1
     st.since = prev.get("since") or t0
@@ -274,6 +274,14 @@ def run_isolated(conn: Connector, state: dict, timeout: float) -> tuple[dict | N
 
 def slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+
+
+def recent(conn: Connector, state: dict, max_age: float) -> dict | None:
+    """Last good result of this connector when read less than max_age seconds ago (by the collection or another task):
+    reused instead of calling the service again for the same data."""
+    prev = state.get(f"{conn.type}/{conn.name}") or {}
+    at = prev.get("at")
+    return prev["last"] if prev.get("ok") and prev.get("last") is not None and isinstance(at, (int, float)) and time.time() - at < max_age else None
 
 
 def load_state(path: Path) -> dict:

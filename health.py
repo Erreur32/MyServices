@@ -795,28 +795,37 @@ def host_from_api(hc: dict, b: dict) -> dict:
     h["docker"] = {"accessible": False, "reason": "api"}
     h["ssh_auth"] = {"failed_24h": 0, "available": False, "reason": "non relevé par l'API"}
     h["source"] = "ha"
+    h["api_name"] = b.get("via") or "Home Assistant"
     return h
 
 
+API_REUSE_S = 600   # a service's API read less than 10 minutes ago is not read again for the health
+
+
 def api_systems(meta: dict) -> dict:
-    """{IP: système au format Beszel} des machines hébergeant un Home Assistant relié (capteurs System Monitor / Supervisor)."""
+    """{IP: système au format Beszel} des machines lues par l'API d'un service relié : Glances (sur la machine même), puis
+    Home Assistant (capteurs System Monitor / Supervisor de la machine hôte)."""
     import connectors
     import connectors.base as cbase
     from api_link import host_ip
     try:
-        conns = [c for c in connectors.instances(CFG, kind="status") if c.type == "home-assistant"]
+        conns = sorted((c for c in connectors.instances(CFG, kind="status") if c.type in ("glances", "home-assistant")), key=lambda c: c.type != "glances")
     except connectors.ConnectorError:
         return {}
     machines, found = meta.get("machines", {}), {}
     state = cbase.load_state(Path(CFG["state_dir"]) / "connectors.json")
     for c in conns:
-        data, st = cbase.run_isolated(c, state, 60)
+        data = cbase.recent(c, state, API_REUSE_S)   # read by the collection a moment ago: no second call for the same data
+        if data is None:
+            data, st = cbase.run_isolated(c, state, 60)
+            if not (st.ok or st.stale):
+                continue
         host = (data or {}).get("host")
-        if not (st.ok or st.stale) or not host:
+        if not host:
             continue
         ip = next((i for i in [host_ip(c.conf.get("url")), *host.get("ips", [])] if i in machines), None)
         if ip:
-            found.setdefault(ip, {k: v for k, v in host.items() if k not in ("ips", "boot")})
+            found.setdefault(ip, {k: v for k, v in host.items() if k not in ("ips", "boot")})   # Glances first: read on the machine itself
     return found
 
 

@@ -30,7 +30,7 @@ class Registry(unittest.TestCase):
         apps = {a.connector for a in known_apps.APPS}
         for t in NEW:
             cls = connectors.TYPES[t]
-            self.assertEqual(cls.kinds, ("status",), t)
+            self.assertEqual(cls.kinds, ("containers",) if t == "arcane" else ("status",), t)
             self.assertTrue(cls.label and cls.fields and cls.guide, t)
             self.assertIn(t, apps, f"{t}: no known app proposes it")
 
@@ -63,19 +63,33 @@ class Pulse(Base):
 
 
 class Arcane(Base):
-    def test_environments_counts_updates(self):
-        self.route("/api/version", {"currentVersion": "v2.15.1", "newestVersion": "v2.15.1", "updateAvailable": False})
-        self.route("/api/environments", {"success": True, "data": [{"id": "0", "name": "local", "status": "online"},
-                                                                   {"id": "2", "name": "nas", "status": "offline"}]})
-        self.route("/api/environments/0/containers/counts", {"success": True, "data": {"runningContainers": 20, "stoppedContainers": 2, "totalContainers": 22}})
-        self.route("/api/environments/0/image-updates/summary", {"success": True, "data": {"totalImages": 30, "imagesWithUpdates": 3}})
+    def test_environments_containers_updates(self):
+        self.route("/api/version", {"currentVersion": "v2.15.1", "newestVersion": "v2.16.0", "updateAvailable": True})
+        self.route("/api/environments", {"success": True, "data": [{"id": "0", "name": "local", "status": "online", "apiUrl": "http://localhost:3552"},
+                                                                   {"id": "2", "name": "nas", "status": "online", "apiUrl": "http://10.0.0.7:3553"},
+                                                                   {"id": "3", "name": "off", "status": "offline", "apiUrl": "http://10.0.0.8:3553"}]})
+        self.route("/api/environments/0/containers?start=0&limit=200&includeInternal=true", {"success": True, "data": [
+            {"id": "a", "names": ["/web"], "image": "nginx:latest", "state": "running", "status": "Up 2 days (healthy)",
+             "updateInfo": {"hasUpdate": True, "latestVersion": "1.29"}},
+            {"id": "b", "names": ["/db"], "image": "postgres:16", "state": "running", "status": "Up 1 hour (unhealthy)"},
+            {"id": "c", "names": ["/old"], "image": "x", "state": "exited", "status": "Exited (0)"}], "pagination": {"totalItems": 3}})
+        self.route("/api/environments/2/containers/counts", {"success": True, "data": {"runningContainers": 5, "stoppedContainers": 1, "totalContainers": 6}})
         d = self.conn("arcane", api_key=KEY).collect()
-        f = facts(d)
-        self.assertEqual(d["version"], "2.15.1")
-        self.assertEqual((f["Conteneurs"]["value"], f["Images à mettre à jour"]["value"]), ("20 en marche, 2 arrêté(s)", "3"))
-        self.assertEqual(d["problems"], ["« local » : 3 image(s) à mettre à jour", "environnement « nas » : offline"])
+        local, nas, off = d["environments"]
+        self.assertEqual(local["containers"], {"total": 3, "running": 2, "stopped": 1, "paused": 0, "unhealthy": 1})
+        self.assertEqual((local["host"], local["updates"]), (None, [{"container": "web", "image": "nginx:latest", "newer": "1.29"}]))
+        self.assertEqual((nas["host"], nas["containers"]["total"], nas["containers"]["running"]), ("http://10.0.0.7:3553", 6, 5))
+        self.assertFalse(off["available"])
+        self.assertEqual((d["updates"], d["app_update"]), (1, "v2.16.0"))
         self.assertEqual({k.lower(): v for k, v in SEEN[-1][2].items()}.get("x-api-key"), KEY)
+        r = self.conn("arcane", api_key=KEY).test()
+        self.assertTrue(r.ok, r.message)
+        self.assertEqual(r.version, "2.15.1")
+        self.assertIn("3 environnement(s), 9 conteneur(s), 1 mise(s) à jour d'image ; mise à jour d'Arcane disponible", r.message)
 
+    def test_not_arcane(self):
+        self.route("/api/version", {"autre": 1})
+        self.assertFalse(self.conn("arcane", api_key=KEY).test().ok)
 
 class Glances(Base):
     def test_v4(self):
@@ -90,6 +104,25 @@ class Glances(Base):
         self.assertEqual(d["version"], "4.5.8")
         self.assertEqual((f["Mémoire"]["tone"], f["Charge (5 min)"]["value"], f["Disque le plus plein"]["tone"]), ("warn", "0.71 / 16 cœurs", "warn"))
         self.assertEqual(d["problems"], ["disque /data plein à 93 %", "alerte Glances MEM : critical"])
+
+    def test_host_for_health(self):
+        """The machine itself, for the Health tab: real disks only (bind mounts, snaps and the same device twice left out), hottest core."""
+        gb = 1024 ** 3
+        self.route("/api/4/status", {"version": "4.5.8"})
+        self.route("/api/4/quicklook", {"cpu": 12.5, "mem": 41.0})
+        self.route("/api/4/load", {"min1": 0.4, "min5": 0.5, "min15": 0.6, "cpucore": 8})
+        self.route("/api/4/fs", [{"mnt_point": "/", "device_name": "/dev/sda1", "size": 100 * gb, "used": 40 * gb, "percent": 40.0},
+                                 {"mnt_point": "/etc/hosts", "device_name": "/dev/sda1", "size": 100 * gb, "used": 40 * gb, "percent": 40.0},
+                                 {"mnt_point": "/glances/conf", "device_name": "/dev/sdc1", "size": 50 * gb, "used": 5 * gb, "percent": 10.0},
+                                 {"mnt_point": "/data", "device_name": "/dev/sdb1", "size": 1000 * gb, "used": 900 * gb, "percent": 90.0},
+                                 {"mnt_point": "/mnt/again", "device_name": "/dev/sdb1", "size": 1000 * gb, "used": 900 * gb, "percent": 90.0}])
+        self.route("/api/4/sensors", [{"label": "Core 0", "type": "temperature_core", "value": 48},
+                                      {"label": "Package id 0", "type": "temperature_core", "value": 55}, {"label": "fan", "type": "fan_speed", "value": 900}])
+        h = self.conn("glances").collect()["host"]
+        self.assertEqual((h["via"], h["cpu"], h["mem_pct"], h["cores"], h["load"], h["temp"]), ("Glances", 12.5, 41.0, 8, [0.4, 0.5, 0.6], 55))
+        self.assertEqual(h["disks"], [{"mount": "/", "size_gb": 100.0, "used_gb": 40.0, "used_pct": 40},
+                                      {"mount": "/dev/sdc1", "size_gb": 50.0, "used_gb": 5.0, "used_pct": 10},
+                                      {"mount": "/data", "size_gb": 1000.0, "used_gb": 900.0, "used_pct": 90}])
 
     def test_v3_fallback(self):
         self.route("/api/3/quicklook", {"cpu": 5, "mem": 20})
