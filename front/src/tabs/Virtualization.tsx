@@ -17,16 +17,22 @@ type Guest = NonNullable<VirtualizationConnector["guests"]>[number];
 const tone = (p?: number | null, warn = 80, bad = 90) => (p == null ? "off" : p >= bad ? "bad" : p >= warn ? "warn" : "ok") as "ok" | "warn" | "bad" | "off";
 const LEVEL_TONE: Record<string, "ok" | "warn" | "bad" | "off"> = { ok: "ok", warn: "warn", crit: "bad", down: "bad" };
 
-/** Gauge with its value, « 40 / 64 Go » under it when the totals are known */
-function Gauge({ label, pct, used, total }: { label: string; pct?: number | null; used?: number | null; total?: number | null }) {
+/** Gauge with its value, « 40 / 64 Go » under it when the totals are known; it fills the width its grid cell gives, so gauges line up */
+function Gauge({ label, pct, used, total, icon }: Readonly<{ label: string; pct?: number | null; used?: number | null; total?: number | null; icon?: React.ReactNode }>) {
   if (pct == null) return null;
   return (
-    <div className="min-w-[9rem] text-xs">
-      <div className="flex justify-between gap-2 text-muted"><span>{label}</span><span className="tabular-nums">{Math.round(pct)} %</span></div>
+    <div className="min-w-0 text-xs">
+      <div className="flex items-center justify-between gap-2 text-muted"><span className="flex min-w-0 items-center gap-1 truncate">{icon}{label}</span><b className="tabular-nums text-txt">{Math.round(pct)} %</b></div>
       <Fill pct={pct} tone={tone(pct)} />
-      {total ? <div className="text-dim">{bytes(used)} / {bytes(total)}</div> : null}
+      {total ? <div className="truncate text-[11px] text-dim">{bytes(used)} / {bytes(total)}</div> : null}
     </div>
   );
+}
+
+/** A guest's CPU or memory: a gauge while it runs, else what it is given (« 6 CPU », « 16 Go ») */
+function GuestLoad({ on, pct, label, used, total, idle }: Readonly<{ on: boolean; pct?: number | null; label: string; used?: number | null; total?: number | null; idle?: string }>) {
+  if (on && pct != null) return <Gauge label={label} pct={pct} used={used} total={total} />;
+  return <Dim>{idle ?? "-"}</Dim>;
 }
 
 /** Last vzdump of the guest among the followed sets (Sauvegardes) of this Proxmox host: the freshest one wins */
@@ -51,8 +57,8 @@ function GuestRow({ g, m, set, backups, docker, dockhand, onMachine }: { g: Gues
           <span className="inline-flex items-center gap-1.5"><Monitor size={13} aria-hidden /><b>{m.name}</b></span><span className="block text-xs text-dim">{m.ip}</span></button>
           : <Dim>{tx("pas suivie")}</Dim>}
       </td>
-      <td className="px-3 py-2 align-top tabular-nums">{g.cpus ? <>{g.cpus} {tx("CPU")}{on && g.cpu_pct != null && <Dim> · {Math.round(g.cpu_pct)} %</Dim>}</> : "-"}</td>
-      <td className="px-3 py-2 align-top">{on && g.mem_pct != null ? <Gauge label={tx("RAM")} pct={g.mem_pct} used={g.mem} total={g.maxmem} /> : g.maxmem ? <Dim>{bytes(g.maxmem)}</Dim> : "-"}</td>
+      <td className="w-36 px-3 py-2 align-top"><GuestLoad on={on} pct={g.cpu_pct} label={g.cpus ? tx("{0} CPU", g.cpus) : tx("CPU")} idle={g.cpus ? tx("{0} CPU", g.cpus) : undefined} /></td>
+      <td className="w-40 px-3 py-2 align-top"><GuestLoad on={on} pct={g.mem_pct} label={tx("RAM")} used={g.mem} total={g.maxmem} idle={g.maxmem ? bytes(g.maxmem) : undefined} /></td>
       <td className="px-3 py-2 align-top tabular-nums">{g.maxdisk ? bytes(g.maxdisk) : "-"}</td>
       <td className="px-3 py-2 align-top tabular-nums">{on && g.uptime ? dur(g.uptime) : <Dim>-</Dim>}</td>
       <td className="px-3 py-2 align-top">
@@ -77,47 +83,62 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
   const machineOf = (g: Guest) => machines.find((m) => m.links?.guest?.vmid === g.vmid && m.links.guest.node === g.node && m.links.guest.instance === c.name);
   const via = c.via === "ssh" ? tx("lu par SSH ({0})", VIA[c.connector] ?? "ssh") : c.via === "agent" ? tx("lu par l'agent Windows") : tx("lu par l'API");
   const vmware = c.connector !== "proxmox" && c.connector !== "pdm";   // vzdump backups and « node » wording are Proxmox's only
+  // One section per node with its own guests and storage; a host without nodes (or guests on an unknown node) gets a section of its own
+  const nodes = c.nodes ?? [];
+  const storageOf = (node?: string) => (c.storage ?? []).filter((st) => (node ? st.node === node : !nodes.some((n) => n.name === st.node)));
+  const orphan = !nodes.length || guests.some((g) => !nodes.some((n) => n.name === g.node)) || storageOf().length > 0;   // guests or storage on no known node (ESXi datastores)
+  const byNode = [...nodes.map((n) => ({ node: n as typeof nodes[number] | undefined, list: guests.filter((g) => g.node === n.name) })),
+    ...(orphan ? [{ node: undefined, list: guests.filter((g) => !nodes.some((n) => n.name === g.node)) }] : [])];
   return (
     <Card className={c.ok ? "" : "border-bad/40"}>
       <h2 className="flex flex-wrap items-center gap-2 font-bold"><Server size={16} aria-hidden />{c.name}
         <Badge tone={c.ok ? "ok" : "bad"}>{c.ok ? tx("en ligne") : tx("illisible")}</Badge>
         {c.version && <span className="font-mono text-xs text-dim">{c.label} {c.version}</span>}
-        <Badge tone="info">{via}</Badge>{c.stale && <Badge tone="warn">{tx("relevé périmé")}</Badge>}</h2>
+        <Badge tone="info">{via}</Badge>{c.stale && <Badge tone="warn">{tx("relevé périmé")}</Badge>}
+        {c.totals && <span className="ml-auto text-sm font-normal text-muted">{c.totals.vm} {tx("VM")}{c.totals.lxc > 0 || c.connector === "proxmox" ? <> · {c.totals.lxc} {tx("LXC")}</> : null} · <b className="text-ok">{c.totals.running} {tx("en marche")}</b>{c.totals.stopped > 0 && <> · {c.totals.stopped} {tx("arrêtés")}</>}</span>}</h2>
       {!c.ok && !c.stale ? <p className="mt-3 rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{c.message}</p> : (
         <>
           {!!c.problems?.length && <ul className="mt-3 flex flex-col gap-0.5 rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{c.problems.map((p) => <li key={p}>⚑ {p}</li>)}</ul>}
-          {(c.nodes ?? []).map((n) => (
-            <div key={n.name} className="mt-3 flex flex-wrap items-start gap-x-6 gap-y-2 rounded-lg bg-bg2/50 px-3 py-2">
-              <span className="text-sm"><b>{vmware ? tx("Hôte") : tx("Nœud")} {n.name}</b>{n.model && <Dim> · {n.model}</Dim>}{c.connector === "vcenter" && <Badge tone={n.online ? "ok" : "bad"}>{n.online ? tx("connecté") : tx("injoignable")}</Badge>}{n.cpus ? <Dim> · {n.cpus} {tx("CPU")}</Dim> : null}{n.uptime ? <Dim> · {tx("en marche depuis")} {dur(n.uptime)}</Dim> : null}</span>
-              <Gauge label={tx("CPU")} pct={n.cpu_pct} />
-              <Gauge label={tx("RAM")} pct={n.mem_pct} used={n.mem} total={n.maxmem} />
-            </div>
+          {byNode.map(({ node: n, list }) => (
+            <section key={n?.name ?? "-"} className="mt-3 overflow-hidden rounded-xl border border-line">
+              {n && (
+                <div className="grid items-center gap-x-6 gap-y-2 bg-bg2/50 px-3 py-2.5 md:grid-cols-[minmax(0,1fr)_11rem_11rem]">
+                  <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <Server size={14} className="text-dim" aria-hidden /><b>{vmware ? tx("Hôte") : tx("Nœud")} {n.name}</b>
+                    {c.connector === "vcenter" && <Badge tone={n.online ? "ok" : "bad"}>{n.online ? tx("connecté") : tx("injoignable")}</Badge>}
+                    <span className="text-xs text-dim">{[n.model, n.cpus ? tx("{0} CPU", n.cpus) : "", n.uptime ? tx("en marche depuis {0}", dur(n.uptime)) : ""].filter(Boolean).join(" · ")}</span>
+                    <Badge tone="off">{tx("{0} invité(s)", list.length)}</Badge>
+                  </span>
+                  <Gauge label={tx("CPU")} pct={n.cpu_pct} />
+                  <Gauge label={tx("RAM")} pct={n.mem_pct} used={n.mem} total={n.maxmem} />
+                </div>
+              )}
+              {storageOf(n?.name).length > 0 && (
+                <div className="grid gap-x-6 gap-y-2 border-t border-line/60 px-3 py-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                  {storageOf(n?.name).map((st) => <Gauge key={`${st.node}/${st.name}`} label={st.name} pct={st.used_pct} used={st.used} total={st.total} icon={<HardDrive size={12} className="shrink-0 text-dim" aria-hidden />} />)}
+                </div>
+              )}
+              {list.length > 0 && (
+                <div className="overflow-x-auto border-t border-line/60">
+                  <table className="w-full border-collapse text-sm">
+                    <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
+                      <th className="px-3 py-2">{tx("État")}</th><th className="px-3 py-2">{tx("Invité")}</th><th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("CPU")}</th>
+                      <th className="px-3 py-2">{tx("Mémoire")}</th><th className="px-3 py-2">{tx("Disque")}</th><th className="px-3 py-2">{tx("En marche")}</th><th className="px-3 py-2">{tx("Sauvegarde")}</th><th className="px-3 py-2">Docker</th>
+                    </tr></thead>
+                    <tbody className="divide-y divide-line/60">
+                      {list.map((g) => {
+                        const m = machineOf(g);
+                        const dh = m?.links?.sources.find((x) => x.source === "dockhand");
+                        const env = dh && envs.find((e) => e.name === dh.environment);
+                        return <GuestRow key={`${g.node}/${g.vmid}`} g={g} m={m} set={vmware ? undefined : backupOf(g, sets, hostIds)} backups={!vmware} onMachine={onMachine}
+                          docker={m?.info?.docker || undefined} dockhand={dh ? { containers: dh.containers, updates: env?.updates.length ?? 0 } : undefined} />;
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           ))}
-          {(c.storage ?? []).length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
-              {c.storage!.map((s) => <span key={`${s.node}/${s.name}`} className="inline-flex items-start gap-1.5"><HardDrive size={13} className="mt-0.5 text-dim" aria-hidden /><Gauge label={s.name} pct={s.used_pct} used={s.used} total={s.total} /></span>)}
-            </div>
-          )}
-          {c.totals && <p className="mt-3 text-sm text-muted">{c.totals.vm} {tx("VM")}{c.totals.lxc > 0 || c.connector === "proxmox" ? <> · {c.totals.lxc} {tx("conteneurs LXC")}</> : null} · <b className="text-ok">{c.totals.running} {tx("en marche")}</b>{c.totals.stopped > 0 && <> · {c.totals.stopped} {tx("arrêtés")}</>}</p>}
-          {guests.length > 0 && (
-            <div className="mt-2 overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-                  <th className="px-3 py-2">{tx("État")}</th><th className="px-3 py-2">{tx("Invité")}</th><th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("CPU")}</th>
-                  <th className="px-3 py-2">{tx("Mémoire")}</th><th className="px-3 py-2">{tx("Disque")}</th><th className="px-3 py-2">{tx("En marche")}</th><th className="px-3 py-2">{tx("Sauvegarde")}</th><th className="px-3 py-2">Docker</th>
-                </tr></thead>
-                <tbody className="divide-y divide-line/60">
-                  {guests.map((g) => {
-                    const m = machineOf(g);
-                    const dh = m?.links?.sources.find((x) => x.source === "dockhand");
-                    const env = dh && envs.find((e) => e.name === dh.environment);
-                    return <GuestRow key={`${g.node}/${g.vmid}`} g={g} m={m} set={vmware ? undefined : backupOf(g, sets, hostIds)} backups={!vmware} onMachine={onMachine}
-                      docker={m?.info?.docker || undefined} dockhand={dh ? { containers: dh.containers, updates: env?.updates.length ?? 0 } : undefined} />;
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
         </>
       )}
     </Card>

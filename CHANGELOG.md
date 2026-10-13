@@ -21,6 +21,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   the unfolded detail of its machine. Read from the update entities, so no admin right is needed; the icons are read by the server
   with the token (`GET /api/v1/ha/<instance>/addon-icon/<slug>`) and kept a week in the cache.
 - Machines, table view: the « Expand all » button is gone.
+- Virtualization: each node is its own section with its gauges (CPU, RAM) on a fixed grid, its storage gauges in aligned columns
+  and its own guests under it (a host without nodes, or ESXi datastores, get one section); the totals moved to the title line,
+  and a running guest shows its CPU as a gauge like its memory.
 
 ### Fixed
 
