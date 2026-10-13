@@ -37,8 +37,6 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   the scheduler lock. One module now, under both names. When the scheduler is really stopped, the tasks page says so in a red
   note with what to do (restart the container, then look at the logs).
 
-### Fixed
-
 - Settings → Machines → SSH & Agents: machine icons now use the machine's role and chosen icon, like the Machines tab (the UniFi
   gateway had no logo there).
 
