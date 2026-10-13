@@ -172,7 +172,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
           <li key={ip}>
             <button type="button" disabled={!!busy} onClick={() => setPick(pick === ip ? "" : ip)} aria-pressed={pick === ip}
               className={`flex h-full w-full items-center gap-3 rounded-xl border bg-bg2 p-3 text-left transition-colors hover:border-link hover:bg-link/10 disabled:opacity-60 ${pick === ip || ip === focusIp ? "border-link bg-link/10 ring-1 ring-link" : "border-dim/50"}`}>
-              <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, osName: liveBy.get(ip)?.agent?.os }} reserve />
+              <MachineIcon m={{ role: liveBy.get(ip)?.role, icon: liveBy.get(ip)?.icon, name: machines[ip].name, os: machines[ip].os, osName: liveBy.get(ip)?.agent?.os }} reserve />
               <span className="min-w-0 flex-1">
                 <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
                 <span className="block truncate text-xs text-dim">{ip}{machines[ip].off ? ` · ${tx("souvent éteinte")}` : ""}</span>
@@ -191,7 +191,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
           return (
             <li key={ip}>
               <a href={`#settings/machines/${ip}`} className="flex h-full items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 transition-colors hover:border-link hover:bg-link/10">
-                <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
+                <MachineIcon m={{ role: liveBy.get(ip)?.role, icon: liveBy.get(ip)?.icon, name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
                 <span className="min-w-0 flex-1">
                   <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
                   <span className="block truncate text-xs text-dim">{ip} · SSH {sshAlias(ip)}{!machines[ip].ssh && ` · ${tx("activé tout seul au prochain passage")}`}</span>
@@ -211,7 +211,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
             <li key={ip}>
               <a href="#settings/connectors" className="flex h-full items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 transition-colors hover:border-link hover:bg-link/10"
                 title={list.map((a) => `${a.label} (${a.name}) : ${a.message ?? ""}`).join("\n")}>
-                <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
+                <MachineIcon m={{ role: liveBy.get(ip)?.role, icon: liveBy.get(ip)?.icon, name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
                 <span className="min-w-0 flex-1">
                   <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
                   <span className="block truncate text-xs text-dim">{ip} · {list.map((a) => a.label).join(", ")}</span>
@@ -228,7 +228,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         {noAccess.map((ip) => (
           <li key={ip}>
             <a href={`#settings/machines/${ip}`} className="flex h-full items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 transition-colors hover:border-link hover:bg-link/10">
-              <MachineIcon m={{ name: machines[ip].name, os: machines[ip].os, info: liveBy.get(ip)?.info, ttl: liveBy.get(ip)?.ttl, osName: liveBy.get(ip)?.info?.os ?? liveBy.get(ip)?.agent?.os }} reserve />
+              <MachineIcon m={{ role: liveBy.get(ip)?.role, icon: liveBy.get(ip)?.icon, name: machines[ip].name, os: machines[ip].os, info: liveBy.get(ip)?.info, ttl: liveBy.get(ip)?.ttl, osName: liveBy.get(ip)?.info?.os ?? liveBy.get(ip)?.agent?.os }} reserve />
               <span className="min-w-0 flex-1">
                 <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
                 <span className="block truncate text-xs text-dim">{ip}{machines[ip].off ? ` · ${tx("souvent éteinte")}` : ""}</span>

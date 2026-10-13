@@ -15,6 +15,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 - Connectors: « Already read over SSH » moved just under « Detected services not set up », folded by default.
 
+### Fixed
+
+- Settings → Machines → SSH & Agents: machine icons now use the machine's role and chosen icon, like the Machines tab (the UniFi
+  gateway had no logo there).
+
 ## v0.11.5 (2026-10-13)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
