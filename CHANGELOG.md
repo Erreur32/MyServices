@@ -11,6 +11,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+
+- Freebox through MynetworK: « Active devices » no longer reads « 1/127 » behind another router (the Freebox keeps every device it
+  ever saw): it shows the active ones and the rest as history. The fan speed is shown, and the internal disk when it is not active.
+
 ## v0.11.9 (2026-10-13)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
