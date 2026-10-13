@@ -368,6 +368,7 @@ export interface Me {
   update?: { available: boolean; tag?: string | null; url?: string | null } | null;   // newer release published (last check kept); null: header notice off
   planned?: string | null;  // version prévue (journal des changements : section Unreleased + dernière publiée + 1)
   version?: string;  // version de l'application (tag de l'image, puis empreinte du commit) ; « dev » pour une image construite sur place
+  email?: string | null;  // address for a forgotten password link (Profile)
 }
 
 /** Compte (api/v1/users) ; dates en secondes. */

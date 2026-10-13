@@ -51,6 +51,9 @@ DEFAULTS = {
     "diagrams_extra": [],                # schémas proposés que l'on a demandé de créer (Schémas → « Créer »), ex. ["reseau", "domaines"]
     "discoveries_muted": [],             # découvertes « à faire » dont le rappel est coupé (identifiants), à réafficher dans Réglages → Découverte
     "netscan_discreet": False,           # recherche réseau : ne lit ni le TTL ni l'adresse MAC (pas de système deviné par là)
+    # E-mails (mot de passe oublié) : Réglages → Système → E-mail ; smtp_password chiffré au repos
+    "smtp_host": "", "smtp_port": 587, "smtp_security": "starttls", "smtp_user": "", "smtp_password": "", "smtp_from": "",
+    "page_url": "",                      # adresse de la page mise dans les liens des e-mails (jamais prise de la requête)
     # Page web : intégrations facultatives (vide = onglet ou lien masqué)
     "health_url": "",                    # dossier health-watcher (stats.json, events.json, index) vu de la page
     "backups_url": "",                   # backups.json vu de la page : "backups.json" (backups.py) ou script externe

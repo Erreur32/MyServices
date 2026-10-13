@@ -127,7 +127,7 @@ export default function App() {
           <a href="#" className="group mt-4 inline-flex items-center gap-2 rounded-full border border-line bg-card py-1.5 pl-2.5 pr-4 text-sm font-semibold text-muted transition-colors hover:border-link hover:text-txt">
             <ArrowLeft size={16} aria-hidden className="transition-transform group-hover:-translate-x-0.5" />{tx("Retour")}
           </a>
-          <Profile username={snap.me.username} role={snap.me.role} look={{ theme, setTheme, width, setWidth }} />
+          <Profile username={snap.me.username} role={snap.me.role} email={snap.me.email ?? ""} look={{ theme, setTheme, width, setWidth }} />
         </>
       ) : <Tabs tab={current} snap={snap} badges={badges} onSelect={go} />}
       {!profile && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} />}

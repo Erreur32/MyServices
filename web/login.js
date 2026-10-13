@@ -5,6 +5,9 @@
   var form = document.getElementById("login"), msg = document.getElementById("msg");
   var next = new URLSearchParams(location.search).get("next") || "";
   var setup = false;
+  // Lien reçu par e-mail (login.html?reset=<jeton>) : le formulaire choisit un nouveau mot de passe
+  var resetToken = new URLSearchParams(location.search).get("reset") || "";
+  var reset = /^[A-Za-z0-9_-]{20,128}$/.test(resetToken);
   // Back only to a page of this site (never an external address); the old /myservices/ and /myservices/v2/ addresses lead to the root
   next = next.replace(/^\/myservices\/v2(?=\/|$)/, "").replace(/^\/myservices(?=\/|$)/, "") || "/";
   if (!/^\/[^\\]*$/.test(next) || next.indexOf("//") >= 0) next = "/";
@@ -35,7 +38,7 @@
     $("p2").classList.toggle("bad", mismatch);
     $("p2-err").hidden = !mismatch;
     $("r-same").classList.toggle("bad", mismatch);
-    if (setup) {
+    if (setup || reset) {
       $("go").disabled = !(long && same);
       $("why-off").hidden = long && same;
     }
@@ -59,8 +62,11 @@
   fetch("/api/v1/setup", { cache: "no-store" })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (s) {
-      if (!s || !s.needed) return;
+      if (s && !s.needed && !s.mail) $("forgot-sub").textContent = "L'envoi d'e-mails n'est pas encore réglé sur cette page : demande à un administrateur un nouveau mot de passe.";
+      if (s && !s.mail) $("fgo").disabled = true;
+      if (!s || !s.needed || reset) return;
       setup = true;
+      $("links").hidden = true;
       $("sub").textContent = "Première installation : aucun compte n'existe encore.";
       $("hint").hidden = true;
       var box = $("setup");
@@ -94,10 +100,87 @@
     })
     .catch(function () {});
 
+  // Mot de passe oublié : bascule vers le petit formulaire, et retour
+  var forgot = $("forgot");
+  $("forgot-link").addEventListener("click", function (e) {
+    e.preventDefault();
+    form.hidden = true;
+    forgot.hidden = false;
+    $("fi").value = form.username.value.trim();
+    $("fi").focus();
+  });
+  $("back-link").addEventListener("click", function (e) {
+    if (reset) return;   // from a reset link: the plain sign-in page
+    e.preventDefault();
+    forgot.hidden = true;
+    form.hidden = false;
+  });
+  forgot.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var b = $("fgo"), m = $("fmsg"), who = $("fi").value.trim();
+    if (!who) return $("fi").focus();
+    b.disabled = true;
+    fetch("/api/v1/password/forgot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identity: who }) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return [r.status, d]; }); })
+      .then(function (x) {
+        m.className = x[0] === 200 ? "" : "bad";
+        m.textContent = x[0] === 200 ? "C'est envoyé : " + x[1].message + "." : (x[1].error || "Demande impossible (HTTP " + x[0] + ")");
+        m.hidden = false;
+      })
+      .catch(function () { m.className = "bad"; m.textContent = "Serveur injoignable"; m.hidden = false; })
+      .finally(function () { setTimeout(function () { b.disabled = false; }, 5000); });
+  });
+
+  // Lien reçu par e-mail : « choisir un nouveau mot de passe », mêmes règles qu'à la création du compte
+  if (reset) {
+    $("sub").textContent = "Choisis un nouveau mot de passe.";
+    $("u").parentNode.querySelector("label[for=u]").hidden = true;
+    $("u").hidden = true;
+    $("u").required = false;
+    $("p").autocomplete = "new-password";
+    $("again").hidden = false;
+    $("rulebox").hidden = false;
+    $("hint").hidden = true;
+    $("forgot-link").textContent = "← Retour à la connexion";
+    $("forgot-link").setAttribute("href", "login.html");
+    $("forgot-link").replaceWith($("forgot-link").cloneNode(true));   // plain link, no forgot form
+    $("go").textContent = "Enregistrer le mot de passe";
+    $("go").disabled = true;
+    ["p", "p2"].forEach(function (id) { $(id).addEventListener("input", rules); });
+    rules();
+    $("p").focus();
+    fetch("/api/v1/password/reset?token=" + encodeURIComponent(resetToken), { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (v) {
+        if (v && v.valid) return;
+        show("Ce lien a expiré ou a déjà servi. Demande un nouveau lien (« Mot de passe oublié ? » sur la page de connexion).");
+        form.querySelectorAll("input, button[type=submit]").forEach(function (el) { el.disabled = true; });
+      })
+      .catch(function () {});
+  }
+
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     var b = $("go");
     show("");
+    if (reset) {
+      if (!rules()) return;
+      b.disabled = true;
+      fetch("/api/v1/password/reset", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: resetToken, password: form.password.value }) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return [r.status, d]; }); })
+        .then(function (x) {
+          if (x[0] === 200) {
+            $("sub").textContent = "Mot de passe changé : connecte-toi avec le nouveau.";
+            setTimeout(function () { location.replace("login.html"); }, 2500);
+            return;
+          }
+          show(x[1].error || "Changement impossible (HTTP " + x[0] + ")");
+          b.disabled = false;
+        })
+        .catch(function () { show("Serveur injoignable"); b.disabled = false; });
+      return;
+    }
     if (setup && !rules()) return;
     b.disabled = true;
     fetch(setup ? "/api/v1/setup" : "/api/v1/login", {

@@ -81,7 +81,7 @@ AUTH = os.environ.get("MYSERVICES_AUTH", "1") != "0"
 COOKIE, CSRF_COOKIE = "ms_session", "ms_csrf"
 # Accessibles sans session : page de connexion et ce qu'elle charge, connexion, santé du conteneur
 PUBLIC = {"/healthz", "/agent/install.ps1", "/agent/agent.ps1", "/login.html", "/login.js", "/login.css", "/favicon.svg",
-          API + "/login", API + "/setup"}
+          API + "/login", API + "/setup", API + "/password/forgot", API + "/password/reset"}
 # Premier compte depuis la page (comme Uptime Kuma) : seulement tant qu'aucun compte n'existe, et dans les
 # SETUP_WINDOW s après le démarrage (au-delà : redémarrer le conteneur). Réseau local seulement (guard).
 SETUP_WINDOW = 30 * 60
@@ -1471,8 +1471,10 @@ def setup_left() -> int:
 
 @app.get(API + "/setup", tags=["comptes"], summary="Premier compte à créer ? (page de connexion)")
 def setup_state():
+    import mailer
     needed = not store().has_users()
-    return {"needed": needed, "seconds_left": setup_left() if needed else 0, "window_min": SETUP_WINDOW // 60}
+    return {"needed": needed, "seconds_left": setup_left() if needed else 0, "window_min": SETUP_WINDOW // 60,
+            "mail": mailer.ready(core.CFG)}   # « Forgot your password? » sends a link only when e-mails are set up
 
 
 @app.post(API + "/setup", tags=["comptes"], summary="Créer le premier compte admin (aucun compte encore)")
@@ -1510,6 +1512,7 @@ def me(request: Request):
     u = request.state.user or {}
     import about
     return {"username": u.get("username"), "role": u.get("role"), "auth": AUTH, "version": os.environ.get("MYSERVICES_VERSION", "dev"),
+            "email": store().email_of(u["username"]) if AUTH and u.get("username") and not u.get("token") else None,
             # image de développement : le dépôt git d'où elle vient (describe) et la version prévue d'après le journal des changements
             "git": os.environ.get("MYSERVICES_GIT", ""), "planned": about.planned(about.changelog(Path(core.HERE) / "CHANGELOG.md")),
             # last release written in this build's changelog: an image built from a branch shows it (« 0.10.1+ · main abc1234 »)
@@ -2027,6 +2030,127 @@ def set_session_days(body: SessionDays, request: Request):
         return deny(400, str(e))
     store().audit("durée des sessions changée", request.state.user["username"], ip_of(request), f"{body.days} jours")
     return {"ok": True, "days": body.days}
+
+
+class EmailBody(BaseModel):
+    email: str = Field(max_length=254)
+
+
+@app.put(API + "/me/email", tags=["comptes"], summary="Mon adresse e-mail (lien de mot de passe oublié)")
+def set_my_email(body: EmailBody, request: Request):
+    u = request.state.user or {}
+    if not AUTH or not u or u.get("token"):
+        return deny(400, "comptes désactivés" if not AUTH else "session requise")
+    try:
+        email = store().set_email(u["username"], body.email)
+    except AuthError as e:
+        return deny(400, str(e))
+    store().audit("adresse e-mail changée", u["username"], ip_of(request))
+    return {"ok": True, "email": email}
+
+
+class Forgot(BaseModel):
+    identity: str = Field(max_length=254)
+
+
+FORGOT_ANSWER = "si un compte correspond et a une adresse e-mail, un lien vient d'y être envoyé (valable 30 minutes)"
+
+
+@app.post(API + "/password/forgot", tags=["comptes"], summary="Mot de passe oublié : lien envoyé par e-mail (même réponse, compte connu ou non)")
+def password_forgot(body: Forgot, request: Request):
+    import mailer
+    ip = ip_of(request)
+    if not AUTH:
+        return deny(400, "comptes désactivés")
+    if not mailer.ready(core.CFG):
+        return deny(503, "envoi d'e-mails non réglé : demander à un administrateur")
+    if store().too_many_failures(ip):
+        return deny(429, "trop de demandes : réessayer dans 15 minutes")
+    store().note_failure(ip)   # every request counts: no guessing of names or addresses
+    row = store().reset_target(body.identity)
+    token = store().create_reset(row["id"], ip) if row else None
+    if token:
+        subject, text = mailer.reset_text(core.CFG["page_url"], token, row["username"], auth_mod.RESET_MIN)
+        def go(to=row["email"], name=row["username"]):   # sent aside: the answer takes the same time, account known or not
+            try:
+                mailer.send(core.CFG, to, subject, text)
+                store().audit("lien de mot de passe envoyé", name, ip)
+            except mailer.MailError as e:
+                store().audit("lien de mot de passe non envoyé", name, ip, str(e))
+        threading.Thread(target=go, daemon=True).start()
+    store().audit("mot de passe oublié demandé", (body.identity or "")[:64], ip)
+    return {"ok": True, "message": FORGOT_ANSWER}
+
+
+class Reset(BaseModel):
+    token: str = Field(max_length=128)
+    password: str = Field(max_length=256)
+
+
+@app.get(API + "/password/reset", tags=["comptes"], summary="Lien de réinitialisation encore valable ?")
+def password_reset_state(token: str = ""):
+    return {"valid": store().reset_valid(token)}
+
+
+@app.post(API + "/password/reset", tags=["comptes"], summary="Nouveau mot de passe par un lien reçu par e-mail (une fois, 30 min)")
+def password_reset(body: Reset, request: Request):
+    ip = ip_of(request)
+    if store().too_many_failures(ip):
+        return deny(429, "trop d'échecs : réessayer dans 15 minutes")
+    try:
+        name = store().use_reset(body.token, body.password)
+    except AuthError as e:
+        if not store().reset_valid(body.token):
+            store().note_failure(ip)   # a wrong or old link counts as a failed sign-in
+        return deny(400, str(e))
+    store().audit("mot de passe réinitialisé (lien e-mail)", name, ip)
+    return {"ok": True, "message": "mot de passe changé : se connecter"}
+
+
+@app.get(API + "/system/mail", tags=["système"], summary="Envoi d'e-mails : réglages, sans le mot de passe (admin)")
+def mail_get(request: Request):
+    import system
+    return admin_only(request) or system.mail_settings(core)
+
+
+class MailConf(BaseModel):
+    host: str = Field("", max_length=253)
+    port: int = 587
+    security: str = Field("starttls", max_length=10)
+    user: str = Field("", max_length=254)
+    password: str | None = Field(None, max_length=256)   # empty: kept ; « - »: cleared
+    sender: str = Field("", max_length=254)
+    page_url: str = Field("", max_length=300)
+
+
+@app.put(API + "/system/mail", tags=["système"], summary="Envoi d'e-mails : serveur SMTP, expéditeur, adresse de la page (admin)")
+def mail_put(body: MailConf, request: Request):
+    import system
+    if denied := admin_write(request):
+        return denied
+    try:
+        out = system.set_mail_settings(core, body.host, body.port, body.security, body.user, body.password, body.sender, body.page_url)
+    except ValueError as e:
+        return deny(400, str(e))
+    store().audit("envoi d'e-mails réglé", request.state.user["username"], ip_of(request), body.host)
+    return out
+
+
+@app.post(API + "/system/mail/test", tags=["système"], summary="Envoyer un e-mail de test à sa propre adresse (admin)")
+def mail_test(request: Request):
+    import mailer
+    if denied := admin_write(request):
+        return denied
+    to = store().email_of(request.state.user["username"])
+    if not to:
+        return deny(400, "votre compte n'a pas d'adresse e-mail : l'ajouter dans Profil")
+    try:
+        mailer.send(core.CFG, to, "MyServices : e-mail de test",
+                    f"Bonjour,\n\nL'envoi d'e-mails de MyServices fonctionne.\nAdresse de la page : {core.CFG.get('page_url')}\n\n-- MyServices\n")
+    except mailer.MailError as e:
+        return deny(502, str(e))
+    store().audit("e-mail de test envoyé", request.state.user["username"], ip_of(request), to)
+    return {"ok": True, "message": f"e-mail de test envoyé à {to}"}
 
 
 @app.post(API + "/me/password", tags=["comptes"], summary="Changer son mot de passe")

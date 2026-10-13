@@ -1,6 +1,6 @@
 // Profil (tout compte, admin ou lecture seule) : apparence de la page, changer son mot de passe, voir ses sessions ouvertes, fermer celles des autres appareils.
 // Affiché par #profile (menu du compte), hors des onglets et des Réglages : un compte en lecture seule n'a pas accès aux Réglages.
-import { KeyRound, LogOut, MonitorSmartphone } from "lucide-react";
+import { KeyRound, LogOut, Mail, MonitorSmartphone } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Badge, Card, Count, Dim } from "../components/ui";
@@ -14,7 +14,7 @@ import { checkPassword, okField, PASSWORD_MIN } from "../lib/password";
 
 interface MySession { created: number; expires: number; ip: string | null; current: boolean }
 
-export function Profile({ username, role, look }: { username: string; role: "admin" | "viewer"; look: Look }) {
+export function Profile({ username, role, email, look }: { username: string; role: "admin" | "viewer"; email: string; look: Look }) {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 py-4">
       <header className="flex items-center gap-4 rounded-2xl border border-line bg-card p-4">
@@ -25,7 +25,7 @@ export function Profile({ username, role, look }: { username: string; role: "adm
         </div>
       </header>
       <div className="grid items-start gap-4 lg:grid-cols-2">
-        <div className="flex flex-col gap-4"><MyPassword /><Sessions /></div>
+        <div className="flex flex-col gap-4"><MyEmail initial={email} /><MyPassword /><Sessions /></div>
         <section aria-label={tx("Apparence")}><h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-widest text-dim">{tx("Apparence")}</h2><Appearance look={look} /></section>
       </div>
     </div>
@@ -64,6 +64,32 @@ function Sessions() {
           <LogOut size={14} />{tx("Fermer les autres sessions")}
         </button>
       </div>
+      <NoteLine note={note} />
+    </Card>
+  );
+}
+
+/** Address that receives the link of « Forgot your password? » on the sign-in page */
+function MyEmail({ initial }: Readonly<{ initial: string }>) {
+  const [email, setEmail] = useState(initial), [saved, setSaved] = useState(initial);
+  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    const ok = await act(() => send("PUT", "me/email", { email: email.trim() }), email.trim() ? tx("adresse enregistrée") : tx("adresse retirée"), setNote);
+    setBusy(false);
+    if (ok) setSaved(email.trim());
+  };
+  return (
+    <Card>
+      <h2 className="mb-3 flex items-center gap-2 font-bold"><Mail size={16} aria-hidden />{tx("Mon adresse e-mail")}</h2>
+      <form onSubmit={submit} className="flex flex-col gap-3">
+        <Field label={tx("Adresse e-mail")}>
+          <input className={input} type="email" autoComplete="email" maxLength={254} value={email} placeholder="nom@exemple.fr" onChange={(e) => setEmail(e.target.value)} />
+        </Field>
+        <div><button type="submit" className={primary} disabled={busy || email.trim() === saved}><Mail size={14} />{tx("Enregistrer")}</button></div>
+        <p className="text-xs text-dim">{tx("Sert seulement à recevoir un lien si vous oubliez votre mot de passe (« Mot de passe oublié ? » sur la page de connexion).")}</p>
+      </form>
       <NoteLine note={note} />
     </Card>
   );

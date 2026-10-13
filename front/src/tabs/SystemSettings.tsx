@@ -19,6 +19,7 @@ import { liveText, parseAt, period } from "../lib/tasks";
 import { pokeScan } from "../lib/scan";
 import { AutoDiscoveries, DISCOVERED_BY } from "../components/AutoDiscoveries";
 import { useDiscoveries } from "../components/DiscoveryCard";
+import { MailSettings } from "../components/MailSettings";
 
 export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh"; snap: Snapshot }) {
   const [st, setSt] = useState<SystemState | null>(null);
@@ -34,7 +35,7 @@ export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh
     <div className="flex flex-col gap-4">
       {part === "ssh" && <SshKey ssh={st.ssh} snap={snap} />}
       {part === "tasks" && <><Tasks tasks={st.tasks} netscan={st.netscan} beat={st.scheduler?.beat ?? null} reload={reload} /><AutoDiscoveries machines={snap.data.machine_list} /></>}
-      {part === "system" && <><Export /><Info info={st.info} /></>}
+      {part === "system" && <><MailSettings /><Export /><Info info={st.info} /></>}
     </div>
   );
 }

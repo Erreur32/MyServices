@@ -39,7 +39,20 @@
       <p id="msg" role="alert" hidden></p>
       <button type="submit" id="go">Se connecter</button>
       <p class="why-off" id="why-off" hidden>Le bouton s'active quand les deux conditions ci-dessus sont remplies.</p>
-      <p class="hint" id="hint">Pas de compte ou mot de passe oublié : demande à un administrateur de la page.</p>
+      <p class="links" id="links"><a href="#" id="forgot-link">Mot de passe oublié ?</a></p>
+      <p class="hint" id="hint">Pas de compte : demande à un administrateur de la page.</p>
+    </form>
+    <!-- Mot de passe oublié : lien envoyé par e-mail (login.js) -->
+    <form id="forgot" hidden novalidate>
+      <h1><img src="favicon.svg" alt="" width="28" height="28"> Mot de passe oublié</h1>
+      <p class="sub" id="forgot-sub">Indique ton compte ou ton adresse e-mail : un lien pour choisir un nouveau mot de passe t'est envoyé.</p>
+      <label for="fi">Compte ou adresse e-mail</label>
+      <input id="fi" name="identity" autocomplete="username" maxlength="254">
+      <p id="fmsg" role="status" hidden></p>
+      <button type="submit" id="fgo">Recevoir le lien</button>
+      <p class="links"><a href="login.html" id="back-link">← Retour à la connexion</a></p>
+      <p class="hint" id="fhint">Pas d'adresse e-mail sur ton compte ? Demande à un administrateur. Administrateur seul et bloqué : sur le
+        serveur, <code>docker compose exec myservices python3 manage.py password &lt;compte&gt;</code>.</p>
     </form>
   </main>
   <script src="login.js"></script>

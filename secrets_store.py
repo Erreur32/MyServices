@@ -13,7 +13,7 @@ from pathlib import Path
 
 PREFIX = "enc:v1:"
 # Clés secrètes de config.json, et champs secrets des connecteurs (Field.secret) dans « npm » / « connectors »
-TOP = ("discord_webhook", "health_webhook", "telegram_token")
+TOP = ("discord_webhook", "health_webhook", "telegram_token", "smtp_password")
 NESTED = ("password", "token", "api_key", "webhook")
 
 

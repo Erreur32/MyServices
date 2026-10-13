@@ -13,6 +13,14 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 
+- **Forgotten password by e-mail**: a « Forgot your password? » link on the sign-in page sends a one-time link, valid 30 minutes,
+  to the address of the account (by its name or its address; the answer is the same whether the account exists or not, and
+  requests are limited). The link opens « choose a new password » with the usual rules; every session of the account is closed.
+  Only a hash of the link is kept.
+- **E-mail address** in Profile, used only for that link.
+- **Settings → System → E-mail**: SMTP server (STARTTLS, SSL or none), account, password (encrypted at rest), sender and the page
+  address put in the links (never taken from the request), with « Send a test e-mail » to one's own address.
+
 - Beszel connector: « Verify HTTPS certificate » setting (on by default), to reach a hub behind a self-signed certificate.
 - Arcane connector is now a container source, like Dockhand and Dozzle: each environment with its containers (running, stopped,
   unhealthy) and image updates, matched to its machine; an offline environment is flagged « offline » on the card.

@@ -94,12 +94,13 @@ def set_health(core, on: bool) -> dict:
     return {"enabled": on}
 
 
-def _update_config(core, change) -> None:
-    """Relit config.json, y applique `change(raw)` et le réécrit (secrets rechiffrés, droits 600, remplacement atomique)."""
+def _update_config(core, change, secret: bool = False) -> None:
+    """Relit config.json, y applique `change(raw)` et le réécrit (secrets rechiffrés, droits 600, remplacement atomique).
+    secret : a secret is written, encrypted even when no key exists yet (it is created)."""
     f = Path(os.environ.get("MYSERVICES_CONFIG") or Path(core.HERE) / "config.json")
     raw = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
     change(raw)
-    out, _ = secrets_store.encrypt_all(raw, f) if secrets_store.key_path(f).exists() else (raw, 0)
+    out, _ = secrets_store.encrypt_all(raw, f) if secret or secrets_store.key_path(f).exists() else (raw, 0)
     tmp = f.with_suffix(".tmp")
     tmp.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     tmp.chmod(0o600)
@@ -340,3 +341,44 @@ def export_config() -> bytes:
             if f.is_file() and not f.name.endswith((".tmp", ".lock")):
                 tar.add(f, arcname=f"config/{f.relative_to(root)}")
     return buf.getvalue()
+
+
+def mail_settings(core) -> dict:
+    """Settings → System → E-mail, without the password (only whether it is set)."""
+    import mailer
+    c = core.CFG
+    return {"host": c.get("smtp_host") or "", "port": int(c.get("smtp_port") or 587), "security": c.get("smtp_security") or "starttls",
+            "user": c.get("smtp_user") or "", "password_set": bool(c.get("smtp_password")), "from": c.get("smtp_from") or "",
+            "page_url": c.get("page_url") or "", "ready": mailer.ready(c)}
+
+
+def set_mail_settings(core, host: str, port: int, security: str, user: str, password: str | None, sender: str, page_url: str) -> dict:
+    """Saves the sending server; password None or empty: the saved one is kept, « - » clears it."""
+    import urllib.parse
+    import mailer
+    if security not in mailer.SECURITY:
+        raise ValueError("sécurité : starttls, ssl ou none")
+    if not 1 <= int(port) <= 65535:
+        raise ValueError("port entre 1 et 65535")
+    page_url = page_url.strip().rstrip("/")
+    if page_url and urllib.parse.urlsplit(page_url).scheme not in ("http", "https"):
+        raise ValueError("adresse de la page : http://… ou https://…")
+    sender = sender.strip()
+    if sender and "@" not in sender:
+        raise ValueError("expéditeur : une adresse e-mail")
+    vals = {"smtp_host": host.strip(), "smtp_port": int(port), "smtp_security": security, "smtp_user": user.strip(),
+            "smtp_from": sender, "page_url": page_url}
+    if password == "-":
+        vals["smtp_password"] = ""
+    elif password:
+        vals["smtp_password"] = password
+
+    def change(raw: dict) -> None:
+        for k, v in vals.items():
+            if v in ("", None) or (k == "smtp_port" and v == 587) or (k == "smtp_security" and v == "starttls"):
+                raw.pop(k, None)   # default: not written
+            else:
+                raw[k] = v
+    _update_config(core, change, secret=bool(vals.get("smtp_password")))
+    core.CFG.update(vals)
+    return mail_settings(core)

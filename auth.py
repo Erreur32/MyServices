@@ -30,6 +30,8 @@ LOGIN_MAX_FAIL = 10
 LOGIN_WINDOW = 15 * 60
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9._@-]{2,64}$")
 PASSWORD_MIN = 12
+EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$")
+RESET_MIN = 30   # a reset link lasts 30 minutes, once
 
 _ph = PasswordHasher()
 _lock = threading.Lock()
@@ -44,6 +46,9 @@ CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   csrf TEXT NOT NULL, created REAL NOT NULL, expires REAL NOT NULL, ip TEXT);
 CREATE TABLE IF NOT EXISTS login_failures (ip TEXT NOT NULL, ts REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS resets (
+  token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created REAL NOT NULL, expires REAL NOT NULL, ip TEXT);
 CREATE TABLE IF NOT EXISTS audit (
   id INTEGER PRIMARY KEY, ts REAL NOT NULL, username TEXT, ip TEXT, action TEXT NOT NULL, detail TEXT);
 CREATE INDEX IF NOT EXISTS audit_ts ON audit(ts);
@@ -65,6 +70,8 @@ class Store:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         with self._db() as db:
             db.executescript(SCHEMA)
+            if "email" not in {r["name"] for r in db.execute("PRAGMA table_info(users)")}:   # added in 0.11.11
+                db.execute("ALTER TABLE users ADD COLUMN email TEXT")
         try:
             Path(self.path).chmod(0o600)
         except OSError:
@@ -86,7 +93,7 @@ class Store:
     def users(self) -> list[dict]:
         with self._db() as db:
             return [dict(r) for r in db.execute(
-                "SELECT id, username, role, created, last_login, disabled FROM users ORDER BY username")]
+                "SELECT id, username, role, created, last_login, disabled, email FROM users ORDER BY username")]
 
     def has_users(self) -> bool:
         with self._db() as db:
@@ -125,6 +132,70 @@ class Store:
             db.execute("DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE username = ?)", (username,))
         if not n:
             raise AuthError(f"compte « {username} » inconnu")
+
+    def email_of(self, username: str) -> str | None:
+        with self._db() as db:
+            row = db.execute("SELECT email FROM users WHERE username = ?", (username,)).fetchone()
+        return row["email"] if row and row["email"] else None
+
+    def set_email(self, username: str, email: str) -> str | None:
+        """Address used to send a reset link; empty: removed. One address for one account only."""
+        email = (email or "").strip()
+        if email and (len(email) > 254 or not EMAIL_RE.match(email)):
+            raise AuthError("adresse e-mail invalide")
+        with _lock, self._db() as db:
+            row = _user_row(db, username)
+            if email and db.execute("SELECT 1 FROM users WHERE email = ? COLLATE NOCASE AND id != ?", (email, row["id"])).fetchone():
+                raise AuthError("adresse déjà utilisée par un autre compte")
+            db.execute("UPDATE users SET email = ? WHERE id = ?", (email or None, row["id"]))
+        return email or None
+
+    # ── mot de passe oublié ──
+    def reset_target(self, identity: str) -> sqlite3.Row | None:
+        """Active account named by its name or its e-mail, with an address to write to; None otherwise."""
+        identity = (identity or "").strip()
+        if not identity:
+            return None
+        with self._db() as db:
+            return db.execute("SELECT id, username, email FROM users WHERE disabled = 0 AND email IS NOT NULL AND email != '' "
+                              "AND (username = ? OR email = ? COLLATE NOCASE)", (identity, identity)).fetchone()
+
+    def create_reset(self, user_id: int, ip: str) -> str | None:
+        """New one-time link token (only its hash is kept), the older ones of that account dropped; None when one was
+        made less than a minute ago (no mailbox flooding)."""
+        now = time.time()
+        with _lock, self._db() as db:
+            db.execute("DELETE FROM resets WHERE expires < ?", (now,))
+            if db.execute("SELECT 1 FROM resets WHERE user_id = ? AND created > ?", (user_id, now - 60)).fetchone():
+                return None
+            db.execute("DELETE FROM resets WHERE user_id = ?", (user_id,))
+            token = secrets.token_urlsafe(32)
+            db.execute("INSERT INTO resets (token_hash, user_id, created, expires, ip) VALUES (?, ?, ?, ?, ?)",
+                       (_h(token), user_id, now, now + RESET_MIN * 60, ip))
+        return token
+
+    def reset_valid(self, token: str) -> bool:
+        with self._db() as db:
+            return db.execute("SELECT 1 FROM resets r JOIN users u ON u.id = r.user_id WHERE r.token_hash = ? AND r.expires > ? AND u.disabled = 0",
+                              (_h(token or ""), time.time())).fetchone() is not None
+
+    def use_reset(self, token: str, password: str) -> str:
+        """New password through a reset link: used once, every session of the account closed. Returns the account name."""
+        check_password(password)
+        with _lock, self._db() as db:
+            row = db.execute("SELECT u.id, u.username FROM resets r JOIN users u ON u.id = r.user_id "
+                             "WHERE r.token_hash = ? AND r.expires > ? AND u.disabled = 0", (_h(token or ""), time.time())).fetchone()
+            if row is None:
+                raise AuthError("lien expiré ou déjà utilisé : en demander un nouveau")
+            db.execute("UPDATE users SET password = ? WHERE id = ?", (_ph.hash(password), row["id"]))
+            db.execute("DELETE FROM resets WHERE user_id = ?", (row["id"],))
+            db.execute("DELETE FROM sessions WHERE user_id = ?", (row["id"],))
+        return row["username"]
+
+    def note_failure(self, ip: str) -> None:
+        """Counts a request against the same limit as a failed sign-in (forgotten password asked)."""
+        with self._db() as db:
+            db.execute("INSERT INTO login_failures (ip, ts) VALUES (?, ?)", (ip, time.time()))
 
     def delete_user(self, username: str) -> None:
         with _lock, self._db() as db:
