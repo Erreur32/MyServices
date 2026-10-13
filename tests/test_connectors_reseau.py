@@ -199,6 +199,9 @@ class Reseau(unittest.TestCase):
                        "/api/containers/pending-updates": (200, [{"containerName": "web", "image": "nginx:1", "hasUpdate": True, "newerVersion": "1.27"}])}
         d = inst(Dockhand, self.url).collect()
         self.assertEqual([e["name"] for e in d["environments"]], ["local", "nas"])
+        self.assertIsNone(inst(Dockhand, self.url).version())   # no changelog route: no version, no error
+        Fake.routes["/api/changelog"] = (200, [{"version": "1.0.53", "date": "2026-10-10"}, {"version": "1.0.52"}])
+        self.assertEqual(inst(Dockhand, self.url).version(), "1.0.53")
         self.assertEqual(d["environments"][0]["containers"]["running"], 4)
         self.assertEqual(d["updates"], 2)
         self.assertTrue(all(s[0] == "GET" for s in Fake.seen))

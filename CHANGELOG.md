@@ -15,6 +15,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 - App version on more connector cards: when the API gives none, the version of the container behind the connector address
   (image label, found over SSH) is shown (Web-Check, Dozzle…). Dozzle also reads its version from its own page.
+- Dockhand card shows its version, taken from the changelog bundled with each Dockhand build (`/api/changelog`, first entry):
+  Dockhand has no version route.
 - Dozzle connector card had no state: Dozzle is now checked at each collection (reachable, version).
 - A connector not read yet shows when the next collection runs (« next collection at 09:10 (in 4 min) »), or that it is running.
 

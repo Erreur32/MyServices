@@ -6,6 +6,7 @@ Routes lues (GET seulement), d'après l'intégration Home Assistant de Dockhand 
   GET /api/environments                           environnements Docker (local, agents Hawser…)
   GET /api/dashboard/stats                        compteurs par environnement (conteneurs, piles, images, volumes…)
   GET /api/containers/pending-updates?env=<id>    conteneurs dont l'image a une mise à jour
+  GET /api/changelog                              journal des versions, intégré au build : la 1re entrée est la version qui tourne
 L'API de Dockhand n'est pas figée : lecture tolérante champ par champ.
 """
 from __future__ import annotations
@@ -40,6 +41,16 @@ class Dockhand(Connector):
         "Dans Dockhand : Profil → API tokens → créer un jeton nommé « MyServices ».",
         "Copier le jeton (dh_…) tout de suite. Sans authentification activée dans Dockhand, laisser le champ vide.",
     )
+
+    def version(self) -> str | None:
+        """No version route: the changelog is bundled with each build, its first entry is the running version."""
+        try:
+            log = self._get("/api/changelog")
+        except ConnectorError:
+            return None
+        first = log[0] if isinstance(log, list) and log and isinstance(log[0], dict) else {}
+        v = first.get("version")
+        return str(v).lstrip("v") if v else None
 
     def _get(self, path: str):
         h = {"Authorization": f"Bearer {self.conf['token']}"} if self.conf.get("token") else {}
