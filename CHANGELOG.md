@@ -20,6 +20,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   memory size and firmware update, and the versions of UniFi OS and of the UniFi Network application with its update waiting
   (« System » of the gateway; both updates in its updates list and arrow). Only the fields named are kept. The Freebox card shows
   the firmware update it offers (`latest_firmware`, `update_available`).
+- Freebox as a machine: a followed machine whose name contains « Freebox » (no SSH) takes the Freebox read by MynetworK, which gives
+  no address for it: its health (line up, temperatures), model, line and firmware, and the firmware update it offers. The
+  « Freebox Player » is never matched.
 
 ### Fixed
 

@@ -1519,6 +1519,8 @@ export const EN: Record<string, string> = {
   "annonce affichée": "notice shown",
   "annonce masquée": "notice hidden",
   "mise à jour disponible": "update available",
+  "Lu par MynetworK (Freebox)": "Read by MynetworK (Freebox)",
+  "Ligne": "Line",
   "Tâches et horaires": "Tasks and schedules",
   "TCP {0} ms · accès LAN direct": "TCP {0} ms · direct LAN access",
   "Télécharger": "Download",

@@ -605,6 +605,13 @@ export interface NetDevice { ip: string; mac?: string | null; hostname?: string 
 export interface NetworkConnector extends InfraConnector {
   devices?: NetDevice[]; online?: number;
   unifi?: { clients: { name?: string; ip?: string; mac?: string; wired?: boolean; essid?: string }[]; devices: UnifiDevice[]; system?: UnifiSystem | null } | null;
+  freebox?: FreeboxInfo | null;
+}
+/** The Freebox as MynetworK relays it (no address given: matched to the machine whose name contains « Freebox ») */
+export interface FreeboxInfo {
+  connection?: { state?: string; media?: string } | null;
+  system?: { model?: string; firmware?: string; latest_firmware?: string | null; update_available?: boolean | null; uptime?: number;
+    sensors?: { id?: string; name?: string; value: number }[] } | null;
 }
 /** LogviewR : fail2ban */
 export interface SecurityConnector extends InfraConnector {
