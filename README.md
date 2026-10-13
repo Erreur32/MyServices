@@ -8,9 +8,9 @@
 </p>
 
 <p align="center">
-  <b>The state of your services and machines, in one place, read-only.</b><br>
-  <sub>It builds on the tools you already run. It never replaces them and never writes to them.<br>
-  Where no tool covers a machine, it reads it itself: over SSH, with its Windows agent, or through an app's own API.</sub>
+  <b>Every service and machine on your network, on one read-only page.</b><br>
+  <sub>It builds on the tools you already run, without replacing them or ever writing to them.<br>
+  Where none of them covers a machine, MyServices reads it directly: over SSH, through its Windows agent, or via the app's own API.</sub>
 </p>
 
 <p align="center">
@@ -25,26 +25,27 @@
 
 > ## 🚧 Live, but still young
 >
-> MyServices is **published and usable**, but it is an **early-stage** project (`0.x`). Screens, settings and stored data can still change from
-> one version to the next, and several parts have so far only been tried on a single PC or against fake servers (Windows agent, Veeam,
-> Proxmox, Prometheus, Healthchecks, Netdata, Jellyfin, Home Assistant backups). **It only reads your machines**, so trying it is low-risk,
-> but give it time before relying on it for something critical: keep a copy of `config/` and `data/` before every update, and keep it on
-> your local network (never straight on the Internet).
+> MyServices is **released and usable**, but still **early-stage** (`0.x`). Screens, settings and stored data may change between versions,
+> and several parts have only been tested on a single PC or against mock servers so far (Windows agent, Veeam, Proxmox, Prometheus,
+> Healthchecks, Netdata, Jellyfin, Home Assistant backups). **It only ever reads your machines**, so trying it carries little risk, but
+> give it time before relying on it for anything critical: back up `config/` and `data/` before each update, and keep it on your local
+> network (never exposed directly to the Internet).
 >
 > Version numbers stay **below 2.0.0** until it is declared stable (`0.11.9`, `0.11.10`…).
 > Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in French).
 
 ## At a glance
 
-MyServices gathers the services of all your machines and of your local network and shows their live state **on one page**. It reads the
-API of the tools you already use (or the machine itself over SSH), cross-checks the answers and tells you what needs attention.
+MyServices brings together the services of every machine on your local network and shows their live state **on a single page**. It
+queries the APIs of the tools you already use (or the machine itself, over SSH or its Windows agent), cross-checks what they report, and
+tells you what needs your attention.
 
 - 🔒 **Read-only**: nothing is ever written to what it observes.
-- 📦 **One container**: collection, watcher, health, backups, accounts, API and web page.
-- 🖥️ **Machines** read over SSH (Linux), by a PowerShell agent (Windows), through an API, or by ping.
-- 🔌 **29 connectors**: Nginx Proxy Manager, AdGuard Home, Home Assistant, Proxmox, Veeam, UniFi, MynetworK, Beszel…
-- 🕘 **History** of every event, with what detected it and what read it.
-- 🗺️ **Diagrams** generated for you (network, machine access, backups, alerts, and more on a click).
+- 📦 **A single container**: collection, watcher, health checks, backups, accounts, API and web page.
+- 🖥️ **Machines** read over SSH (Linux), through a PowerShell agent (Windows), through an app's API, or simply by ping.
+- 🔌 **More than 50 connectors**: Nginx Proxy Manager, AdGuard Home, Home Assistant, Proxmox, Veeam, UniFi, MynetworK, Beszel, Ollama…
+- 🕘 **A history** of every event, with what detected it and where the data came from.
+- 🗺️ **Diagrams** drawn for you (network, machine access, backups, alerts, and more in one click).
 - 🔔 **Alerts and notifications** on Discord, Telegram and webhook.
 - 🤖 A **REST API** and an **MCP server** for your tools and AI assistants.
 
@@ -94,13 +95,13 @@ Every filter is a toggle: click to turn it off, click again to turn it back on; 
 <details>
 <summary><b>🖥️ How machines are read</b></summary>
 
-There are three ways to follow a machine, and they can be combined. The first source that answers is trusted and the next ones complete it (the order is set per machine).
+A machine can be followed in three ways, which can be combined. The first source that answers is used, and the next ones fill in what it could not read (the order is set per machine).
 
 1. **MyServices itself**, nothing else to install:
    - **SSH** (Linux): MyServices connects with its **own key** (shown in Settings -> SSH key) and reads health, Docker, listening services and web servers. The key is never sent anywhere; you authorize it on each machine with one command. A dedicated non-root account in the `docker` and `adm` groups is the safest.
    - **Agent** (Windows): a small read-only PowerShell script, installed as a scheduled task, sends the PC's own health, disks, ports, services, hardware and Docker containers. Nothing to open on the PC.
 2. **External services already on your network** (connectors): if you already run Beszel, Proxmox, Uptime Kuma, MynetworK… MyServices reads their API with a read-only key. Nothing is installed on the machine.
-3. **Ping and network scan**: only tell whether a machine is on and which apps it answers on. A discreet scan of your local network is run once by hand, then repeats on its own. You choose which machines to follow; it never adds one alone.
+3. **Ping and network scan**: only tell whether a machine is up and which apps answer on it. The first scan of your local network runs on its own, then repeats at the frequency you set. In manual mode you choose which machines to follow; in automatic mode the useful ones are added for you.
 
 <details>
 <summary><b>🆚 Agent or external services? What the agent already reads</b></summary>
@@ -135,7 +136,7 @@ Machines found but not yet followed, SSH keys to authorize and agents not yet in
 </details>
 
 <details>
-<summary><b>🔌 Connectors (29)</b></summary>
+<summary><b>🔌 Connectors (more than 50)</b></summary>
 
 A connector lets MyServices read a tool through its API, **read-only**: give it a key or account that cannot change anything. Settings -> Connectors lists them, tests each (button **Test**), and shows what the last collection read. A **"Detected services not configured"** table at the top proposes the ones it recognised on your network, with the form already filled.
 

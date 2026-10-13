@@ -8,9 +8,9 @@
 </p>
 
 <p align="center">
-  <b>L'état de vos services et de vos machines, au même endroit, en lecture seule.</b><br>
-  <sub>Il s'appuie sur les outils que vous utilisez déjà. Il ne les remplace pas et n'y écrit jamais.<br>
-  Là où aucun outil ne couvre une machine, il la lit lui-même : par SSH, avec son agent Windows, ou par l'API de l'appli.</sub>
+  <b>Tous les services et toutes les machines de votre réseau, sur une seule page, en lecture seule.</b><br>
+  <sub>Il s'appuie sur les outils que vous utilisez déjà, sans les remplacer et sans jamais y écrire.<br>
+  Là où aucun d'eux ne couvre une machine, MyServices la lit lui-même : par SSH, par son agent Windows ou par l'API de l'appli.</sub>
 </p>
 
 <p align="center">
@@ -25,25 +25,26 @@
 
 > ## 🚧 En ligne, mais encore jeune
 >
-> MyServices est **publié et utilisable**, mais c'est un projet **à un stade précoce** (`0.x`). Les écrans, les réglages et les données
-> enregistrées peuvent encore changer d'une version à l'autre, et plusieurs parties n'ont été essayées jusqu'ici que sur un seul PC ou contre
-> de faux serveurs (agent Windows, Veeam, Proxmox, Prometheus, Healthchecks, Netdata, Jellyfin, sauvegardes de Home Assistant). **Il ne fait que
-> lire vos machines** : l'essayer présente peu de risque, mais laissez-lui du temps avant de vous y fier pour quelque chose de critique :
-> gardez une copie de `config/` et `data/` avant chaque mise à jour, et laissez-le sur votre réseau local (jamais directement sur Internet).
+> MyServices est **publié et utilisable**, mais encore **jeune** (`0.x`). Les écrans, les réglages et les données enregistrées peuvent changer
+> d'une version à l'autre, et plusieurs parties n'ont été essayées que sur un seul PC ou contre des serveurs simulés (agent Windows, Veeam,
+> Proxmox, Prometheus, Healthchecks, Netdata, Jellyfin, sauvegardes de Home Assistant). **Il ne fait que lire vos machines** : l'essayer
+> présente peu de risque, mais attendez un peu avant de vous y fier pour quelque chose de critique. Gardez une copie de `config/` et `data/`
+> avant chaque mise à jour, et laissez-le sur votre réseau local (jamais exposé directement sur Internet).
 >
 > Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.11.9`, `0.11.10`…).
 > Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 ## En bref
 
-MyServices rassemble les services de toutes vos machines et de votre réseau local et en montre l'état en direct, **sur une seule page**. Il lit
-l'API des outils que vous utilisez déjà (ou la machine elle-même par SSH), recoupe les réponses et vous dit ce qui demande votre attention.
+MyServices rassemble les services de toutes les machines de votre réseau local et en montre l'état en direct, **sur une seule page**. Il
+interroge l'API des outils que vous utilisez déjà (ou la machine elle-même, par SSH ou par son agent Windows), recoupe leurs réponses et vous
+signale ce qui demande votre attention.
 
 - 🔒 **Lecture seule** : rien n'est écrit sur ce qu'il observe.
 - 📦 **Un seul conteneur** : collecte, veille, santé, sauvegardes, comptes, API et page web.
-- 🖥️ **Machines** lues par SSH (Linux), par un agent PowerShell (Windows), par une API ou par ping.
-- 🔌 **29 connecteurs** : Nginx Proxy Manager, AdGuard Home, Home Assistant, Proxmox, Veeam, UniFi, MynetworK, Beszel…
-- 🕘 **Historique** de chaque événement, avec ce qui l'a détecté et ce qui l'a lu.
+- 🖥️ **Machines** lues par SSH (Linux), par un agent PowerShell (Windows), par l'API d'une appli, ou simplement par ping.
+- 🔌 **Plus de 50 connecteurs** : Nginx Proxy Manager, AdGuard Home, Home Assistant, Proxmox, Veeam, UniFi, MynetworK, Beszel, Ollama…
+- 🕘 **Un historique** de chaque événement, avec ce qui l'a détecté et d'où vient l'information.
 - 🗺️ **Schémas** générés pour vous (réseau, accès aux machines, sauvegardes, alertes, et d'autres en un clic).
 - 🔔 **Alertes et notifications** sur Discord, Telegram et webhook.
 - 🤖 Une **API REST** et un **serveur MCP** pour vos outils et assistants IA.
@@ -94,13 +95,13 @@ Chaque filtre est un interrupteur : un clic le coupe, un autre le rallume ; plus
 <details>
 <summary><b>🖥️ Comment les machines sont lues</b></summary>
 
-Il y a trois façons de suivre une machine, qui peuvent se combiner. La première source qui répond fait foi et les suivantes complètent (l'ordre se règle machine par machine).
+Une machine peut être suivie de trois façons, qui se combinent. La première source qui répond fait foi, les suivantes complètent ce qu'elle n'a pas lu (l'ordre se règle machine par machine).
 
 1. **MyServices lui-même**, rien d'autre à installer :
    - **SSH** (Linux) : MyServices se connecte avec **sa propre clé** (montrée dans Réglages -> Clé SSH) et lit la santé, Docker, les services en écoute et les serveurs web. Vous l'autorisez sur chaque machine avec une commande. Un compte dédié non root, dans les groupes `docker` et `adm`, est le plus sûr.
    - **Agent** (Windows) : un petit script PowerShell en lecture seule, installé en tâche planifiée, envoie la santé du PC, ses disques, ses ports, ses services, son matériel et ses conteneurs Docker. Rien à ouvrir côté PC.
 2. **Services externes déjà installés sur le réseau** (connecteurs) : si vous faites déjà tourner Beszel, Proxmox, Uptime Kuma, MynetworK… MyServices lit leur API avec une clé en lecture seule. Rien n'est installé sur la machine.
-3. **Ping et recherche réseau** : indiquent seulement si une machine est allumée et à quelles applis elle répond. Un balayage discret du réseau local se lance une fois à la main, puis se répète seul. Vous choisissez les machines à suivre ; il n'en ajoute jamais seul.
+3. **Ping et recherche réseau** : indiquent seulement si une machine est allumée et quelles applis y répondent. La première recherche sur le réseau local se lance toute seule, puis se répète à la fréquence choisie. En mode manuel, vous choisissez les machines à suivre ; en mode automatique, les plus utiles sont ajoutées pour vous.
 
 <details>
 <summary><b>🆚 Agent ou services externes ? Ce que l'agent lit déjà</b></summary>
@@ -135,7 +136,7 @@ Les machines trouvées mais pas suivies, les clés SSH à autoriser et les agent
 </details>
 
 <details>
-<summary><b>🔌 Connecteurs (29)</b></summary>
+<summary><b>🔌 Connecteurs (plus de 50)</b></summary>
 
 Un connecteur laisse MyServices lire un outil par son API, **en lecture seule** : donnez-lui une clé ou un compte qui ne peut rien modifier. Réglages -> Connecteurs les liste, teste chacun (bouton **Tester**) et montre ce que la dernière collecte a lu. Un tableau **« Services détectés non configurés »** en haut propose ceux qu'il a reconnus sur votre réseau, avec le formulaire déjà rempli.
 
