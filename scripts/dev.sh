@@ -15,7 +15,7 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-[ -f "$ROOT/.dev.env" ] && set -a && . "$ROOT/.dev.env" && set +a
+[[ -f "$ROOT/.dev.env" ]] && set -a && . "$ROOT/.dev.env" && set +a
 
 COMPOSE=${MS_DEV_COMPOSE:-$ROOT/compose.yaml}
 BACKEND=${MS_DEV_BACKEND:-http://127.0.0.1:8090}
@@ -33,7 +33,7 @@ for a in "$@"; do
   esac
 done
 
-if [ "$build" = 1 ]; then
+if [[ "$build" = 1 ]]; then
   echo "▸ building myservices:dev…"
   docker build -q -t myservices:dev --build-arg GIT_REV="$("$ROOT/scripts/git-rev.sh")" "$ROOT" >/dev/null   # git state shown in the header
   dc up -d --force-recreate
@@ -49,9 +49,9 @@ done
 curl -sf "$BACKEND/healthz" >/dev/null || { echo " not answering: docker compose logs" >&2; exit 1; }
 echo " ok"
 
-if [ "$keep" = 0 ]; then
+if [[ "$keep" = 0 ]]; then
   trap 'echo; echo "▸ stopping the backend…"; dc stop >/dev/null 2>&1 || true' EXIT
 fi
-echo "▸ front with hot reload: http://${HOSTS:-localhost}:${VITE_PORT:-5180}/  (Ctrl+C stops$([ "$keep" = 0 ] && echo " both"))"
+echo "▸ front with hot reload: http://${HOSTS:-localhost}:${VITE_PORT:-5180}/  (Ctrl+C stops$([[ "$keep" = 0 ]] && echo " both"))"
 cd "$ROOT/front"
 MYSERVICES_BACKEND="$BACKEND" MS_DEV_HOSTS="$HOSTS" npm run dev

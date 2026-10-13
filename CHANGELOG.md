@@ -25,6 +25,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   environment (never from a request), the self-signed certificate option chosen per connector, the container listening on all
   interfaces, a same-site redirect, a JSON answer seen as HTML, a slice seen as an index.
 - Front: buttons get an explicit `type`, the alert days are sorted as numbers.
+- SonarCloud: each analysis now carries the project version, so the Quality Gate judges the code changed since the last release
+  instead of the whole project counted as new; the Windows agent (PowerShell) and the old static page are left out of coverage.
+  Command-line tools (import, map) marked for the paths their operator types; `scripts/dev.sh` uses `[[`.
 
 ## v0.11.7 (2026-10-13)
 

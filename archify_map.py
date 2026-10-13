@@ -317,7 +317,7 @@ def stable(spec: dict) -> str:
 
 def read(path: Path) -> dict | None:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
     except (OSError, ValueError):
         return None
 
@@ -341,12 +341,12 @@ def main() -> int:
         for key in wanted:
             if key in archify_extra.BUILD and archify_extra.available(key, data):
                 specs[key] = archify_extra.BUILD[key](data)
-    (out / "connecteurs.archify.json").unlink(missing_ok=True)   # ancien schéma « Qui lit quoi », retiré
+    (out / "connecteurs.archify.json").unlink(missing_ok=True)   # ancien schéma « Qui lit quoi », retiré ; NOSONAR S8707: command-line tool, the paths are the ones its operator typed
     for name, spec in specs.items():
         f = out / f"{name}.archify.json"
         old = read(f)
         changed = old is None or stable(old) != stable(spec) or not (web / f"{name}.html").exists()
-        f.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        f.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
         if changed:   # un schéma inchangé n'est pas regénéré (Archify prend du temps)
             print(f)
     return 0

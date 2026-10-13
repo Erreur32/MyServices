@@ -134,9 +134,9 @@ def convert_ssh(src: Path, dest: Path, host: str, host_user: str, host_key: str 
     """Recopie ~/.ssh/config (clés réécrites vers ~/.ssh/<nom>, recopiées), known_hosts, et ajoute
     l'alias de la machine hôte. Renvoie les noms des clés copiées."""
     sshd = dest / "ssh"
-    sshd.mkdir(mode=0o700, exist_ok=True)
+    sshd.mkdir(mode=0o700, exist_ok=True)  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
     keys = []
-    text = (src / "config").read_text(encoding="utf-8") if (src / "config").exists() else ""
+    text = (src / "config").read_text(encoding="utf-8") if (src / "config").exists() else ""  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
 
     def key(m: re.Match) -> str:
         v = m.group(2).strip().strip('"')
@@ -164,11 +164,11 @@ def lock_down(dest: Path, uid: int) -> None:
     """Dossiers 700, fichiers 600 (clés publiques 644), propriétaire = compte de l'image. ACL retirées :
     une ACL par défaut du dossier parent serait héritée par les fichiers créés ensuite (secrets lisibles)."""
     if shutil.which("setfacl"):
-        subprocess.run(["setfacl", "-R", "-b", str(dest)], capture_output=True)
+        subprocess.run(["setfacl", "-R", "-b", str(dest)], capture_output=True)  # NOSONAR S8705: command-line tool, the paths are the ones its operator typed
     for p in [dest, *dest.rglob("*")]:
         p.chmod(0o700 if p.is_dir() else 0o644 if p.name.endswith(".pub") else 0o600)
         if os.geteuid() == 0:
-            os.chown(p, uid, uid)
+            os.chown(p, uid, uid)  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
 
 
 def main() -> int:
@@ -197,19 +197,19 @@ def main() -> int:
         ipaddress.ip_address(host)
     except ValueError:
         sys.exit("IP de la machine hôte introuvable : --host-ip")
-    dest.mkdir(parents=True, exist_ok=True)
+    dest.mkdir(parents=True, exist_ok=True)  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
     print(f"== Import {src} -> {dest} (machine hôte {host}, alias SSH « {HOST_ALIAS} »)")
 
-    cfg = convert_config(json.loads((src / "config.json").read_text(encoding="utf-8")), host, a.public_url, a.no_alerts)
-    (dest / "config.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    meta = json.loads((src / "services-meta.json").read_text(encoding="utf-8"))
+    cfg = convert_config(json.loads((src / "config.json").read_text(encoding="utf-8")), host, a.public_url, a.no_alerts)  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
+    (dest / "config.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
+    meta = json.loads((src / "services-meta.json").read_text(encoding="utf-8"))  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
     n = convert_meta(meta)
-    (dest / "services-meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
+    (dest / "services-meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S2083,S8707: command-line tool, the paths are the ones its operator typed
     say(f"✓ services-meta.json : {len(meta.get('machines', {}))} machines, {n} accès « local » -> « {HOST_ALIAS} »")
     if (src / "backups-meta.json").exists():
-        bm = json.loads((src / "backups-meta.json").read_text(encoding="utf-8"))
+        bm = json.loads((src / "backups-meta.json").read_text(encoding="utf-8"))  # NOSONAR S8707: command-line tool, the paths are the ones its operator typed
         convert_backups(bm, dest)
-        (dest / "backups-meta.json").write_text(json.dumps(bm, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
+        (dest / "backups-meta.json").write_text(json.dumps(bm, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S2083,S8707: command-line tool, the paths are the ones its operator typed
         say(f"✓ backups-meta.json : {len(bm.get('sets', []))} jeux")
     if sshd.is_dir():
         keys = convert_ssh(sshd, dest, host, a.host_user, a.host_key or None)
