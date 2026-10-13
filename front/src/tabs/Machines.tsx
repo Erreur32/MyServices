@@ -384,7 +384,8 @@ function GpuRows({ m }: Readonly<{ m: Machine }>) {
     ))}
     {models.map((x, n) => (
       <Row key={`${x.model}-${n}`} k={models.length > 1 ? tx("Modèle {0}", n + 1) : tx("Modèle IA")}>
-        <span title={tx("Lu par GpuViewR")}>{x.model || "?"}<Dim>{[x.runtime, x.state === "idle" ? tx("au repos") : x.state, x.mem_mb ? go(x.mem_mb) : null,
+        <span title={x.alias ? `${x.alias} · ${tx("Lu par GpuViewR")}` : tx("Lu par GpuViewR")}>{x.model || "?"}<Dim>{[x.runtime, x.port ? tx("port {0}", x.port) : null,
+          x.state === "idle" ? tx("au repos") : x.state, x.mem_mb ? go(x.mem_mb) : null,
           gpus.length > 1 && x.gpu != null ? `GPU ${x.gpu + 1}` : null].filter(Boolean).map((v) => ` · ${v}`).join("")}</Dim></span>
       </Row>
     ))}

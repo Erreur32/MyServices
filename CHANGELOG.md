@@ -28,6 +28,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   current values in one call (`allmetrics`).
 - GpuViewR connector: each machine's GPUs (model, temperature, load, memory, power) shown in its detail in the Machines tab,
   matched by the machine's name (GpuViewR gives no address). Offline machines are named again in its card.
+- GpuViewR 0.13: machines matched by the LAN addresses its agents send (by name only with an older GpuViewR), every GPU's 24 h in
+  one call (one per GPU before 0.13), each AI model's port and alias, and GpuViewR's own update shown when one is out.
 - Pulse connector is now a source of the Virtualization tab: Proxmox nodes, VMs and LXC containers with their load (a reading
   Pulse does not have stays empty, never 0), plus what Pulse says needs attention. Not tried against a real Pulse yet.
 - GpuViewR: the AI models running on each machine (model, runtime, idle or busy, memory) and each GPU's last 24 h (max temperature,

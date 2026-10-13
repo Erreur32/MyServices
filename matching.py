@@ -187,17 +187,19 @@ def link(machines: list[dict], network: list[dict] | None = None, virtualization
             else:
                 lost(src, label, inst, ip=_ip(h), name=e.get("name"))
 
-    # 5. GpuViewR: its machines and their GPUs, by name only (it gives no address)
+    # 5. GpuViewR: its machines and their GPUs, by the addresses its agent sends (0.13+), else by name
     for c in services or []:
         if c.get("connector") != "gpuviewr":
             continue
         inst = c.get("name") or ""
         for g in c.get("machines") or []:
-            ip, by = idx.find(None, None, (g.get("name"), g.get("hostname")))
+            ip, by = next(((a, "ip") for a in g.get("ips") or [] if _ip(a) in idx.ips), (None, None))
+            if not ip:
+                ip, by = idx.find(None, None, (g.get("hostname"), g.get("name")))
             if ip:
                 seen(ip, "gpuviewr", "GpuViewR", inst, by, ok=bool(g.get("online")), gpus=g.get("gpus") or None, models=g.get("models") or None)
             else:
-                lost("gpuviewr", "GpuViewR", inst, name=g.get("name"), online=g.get("online"))
+                lost("gpuviewr", "GpuViewR", inst, ip=next(iter(g.get("ips") or []), None), name=g.get("name"), online=g.get("online"))
 
     for e in out.values():
         e["names"] = sorted(set(e["names"]))

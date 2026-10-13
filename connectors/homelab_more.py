@@ -306,7 +306,8 @@ def _glances_host(cpu, mem, load, fs: list[dict], sensors) -> dict:
 
 class GpuViewR(StatusConnector):
     """GpuViewR (our own GPU monitor): hub version, machines online, GPUs, hottest and busiest GPU. Read-only API token (gvk_…, Bearer),
-    switched on in GpuViewR (Settings → API). Routes (GET): /api/v1/health, /api/v1/hosts, /api/v1/gpus (see Docs/API.md of GpuViewR)."""
+    switched on in GpuViewR (Settings → API). Routes (GET): /api/v1/health, /api/v1/hosts (ips, hostname since 0.13), /api/v1/gpus,
+    /api/v1/llm (models, port, alias), /api/v1/gpus/stats/all (0.13; else /gpus/stats per GPU). See Docs/API.md of GpuViewR."""
     type = "gpuviewr"
     label = "GpuViewR"
     images = ("ghcr.io/erreur32/gpuviewr", "erreur32/gpuviewr")
@@ -348,17 +349,28 @@ class GpuViewR(StatusConnector):
         out = self.out(health.get("version"), facts, problems)
         # each machine with its GPUs, for its detail in the Machines tab (matching.py: by its name, GpuViewR gives no address)
         llm = rows((self.get_opt("/api/v1/llm", h) or {}).get("processes"))   # AI models running, whole fleet in one call
+        fleet = self.get_opt("/api/v1/gpus/stats/all?range=24h", h)           # every GPU's 24 h in one call (GpuViewR 0.13+)
+        day = {(str(x.get("host_id")), x.get("gpu_index", 0)): x for x in rows((fleet or {}).get("stats") if isinstance(fleet, dict) else None)} if fleet else None
         out["machines"] = [{"name": names[x.get("id")], "hostname": x.get("hostname"), "online": x.get("status") != "offline",
-                            "gpus": [self._gpu(g, h) for g in gpus if g.get("host_id") == x.get("id")],
-                            "models": [{"model": p.get("llm_model") or p.get("process_name"), "runtime": p.get("llm_runtime"), "state": p.get("llm_state"),
+                            # LAN addresses sent by the agent (0.13+), then the one it connects from: the machine is found by address
+                            "ips": [i for i in [*(x.get("ips") or []), x.get("remote_addr")] if isinstance(i, str) and i],
+                            "gpus": [self._gpu(g, h, day) for g in gpus if g.get("host_id") == x.get("id")],
+                            "models": [{"model": p.get("llm_model") or p.get("process_name"), "alias": p.get("llm_alias"), "port": p.get("llm_port"),
+                                        "runtime": p.get("llm_runtime"), "state": p.get("llm_state"),
                                         "gpu": p.get("gpu_index"), "mem_mb": num(p.get("used_memory"), 0) + num(p.get("gtt_memory"), 0)}
                                        for p in llm if p.get("host_id") == x.get("id")]} for x in hosts]
+        if health.get("update_available") is True:
+            out["app_update"] = health.get("latest_version") or "?"
+            out["problems"].append(f"mise à jour de GpuViewR disponible : {health.get('latest_version') or '?'}")
         return out
 
-    def _gpu(self, g: dict, h: dict) -> dict:
-        """Latest reading of one GPU and its last 24 h (min / average / max, one call per GPU)."""
-        q = urllib.parse.urlencode({"host": g.get("host_id"), "gpu": g.get("gpu_index", 0), "range": "24h"})
-        st = (self.get_opt(f"/api/v1/gpus/stats?{q}", h) or {}).get("stats") or {}
+    def _gpu(self, g: dict, h: dict, fleet: dict | None) -> dict:
+        """Latest reading of one GPU and its last 24 h (min / average / max): from the fleet call, else one call for this GPU (older GpuViewR)."""
+        if fleet is not None:
+            st = fleet.get((str(g.get("host_id")), g.get("gpu_index", 0))) or {}
+        else:
+            q = urllib.parse.urlencode({"host": g.get("host_id"), "gpu": g.get("gpu_index", 0), "range": "24h"})
+            st = (self.get_opt(f"/api/v1/gpus/stats?{q}", h) or {}).get("stats") or {}
         day = {k: round(num(st.get(k)), 1) for k in ("temp_max", "util_avg", "util_max", "mem_max", "pow_avg") if num(st.get(k)) is not None}
         return {"name": g.get("name"), "temp": num(g.get("temperature")), "util": num(g.get("utilization")),
                 "mem_used": num(g.get("memory_used")), "mem_total": num(g.get("memory_total")), "power": num(g.get("power")), **({"day": day} if day else {})}

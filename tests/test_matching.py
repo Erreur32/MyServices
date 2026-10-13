@@ -47,6 +47,11 @@ class Gpus(unittest.TestCase):
         self.assertEqual((s["by"], s["gpus"], s["models"]), ("name", [{"name": "RTX", "temp": 41}], [{"model": "qwen"}]))
         self.assertEqual([u["name"] for u in r["unlinked"] if u["source"] == "gpuviewr"], ["ghost"])
 
+    def test_gpuviewr_by_ip_first(self):
+        gpu = [{"connector": "gpuviewr", "name": "gv", "machines": [{"name": "Deb13", "hostname": "deb13tower", "ips": ["192.168.1.40"], "online": True}]}]
+        s = matching.link(MACHINES, services=gpu)["machines"]["192.168.1.40"]["sources"][0]
+        self.assertEqual((s["source"], s["by"]), ("gpuviewr", "ip"))
+
 
 class Normalise(unittest.TestCase):
     def test_mac(self):

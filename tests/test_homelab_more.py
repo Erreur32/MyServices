@@ -175,9 +175,24 @@ class GpuViewR(Base):
         self.route("/api/v1/gpus/stats?host=local&gpu=0&range=24h", {"stats": {"temp_max": 58, "util_avg": 0.16, "util_max": 97, "mem_max": 23864, "pow_avg": 7.46, "fan_max": None}})
         self.route("/api/v1/llm", {"processes": [{"host_id": "local", "gpu_index": 0, "llm_model": "Qwen3-Coder-30B", "llm_runtime": "llamacpp",
                                                   "llm_state": "idle", "used_memory": 1, "gtt_memory": 2}, {"host_id": "other", "llm_model": "x"}]})
-        m = self.conn("gpuviewr", token=KEY).collect()["machines"][0]
+        m = self.conn("gpuviewr", token=KEY).collect()["machines"][0]   # older GpuViewR: no fleet route, one call per GPU
         self.assertEqual(m["gpus"][0]["day"], {"temp_max": 58.0, "util_avg": 0.2, "util_max": 97.0, "mem_max": 23864.0, "pow_avg": 7.5})
-        self.assertEqual(m["models"], [{"model": "Qwen3-Coder-30B", "runtime": "llamacpp", "state": "idle", "gpu": 0, "mem_mb": 3.0}])
+        self.assertEqual(m["models"], [{"model": "Qwen3-Coder-30B", "alias": None, "port": None, "runtime": "llamacpp", "state": "idle", "gpu": 0, "mem_mb": 3.0}])
+        self.assertEqual(m["ips"], [])
+
+    def test_v013_ips_fleet_stats_port_update(self):
+        self.route("/api/v1/health", {"version": "0.13.0", "gpu_count": 1, "hosts_total": 1, "hosts_online": 1, "update_available": True, "latest_version": "0.14.0"})
+        self.route("/api/v1/hosts", {"hosts": [{"id": "a1", "label": "Deb13", "hostname": "deb13tower", "status": "online", "ips": ["10.0.0.9"], "remote_addr": "10.0.0.9"}]})
+        self.route("/api/v1/gpus", {"gpus": [{"host_id": "a1", "gpu_index": 0, "name": "RTX", "temperature": 41}]})
+        self.route("/api/v1/gpus/stats/all?range=24h", {"stats": [{"host_id": "a1", "gpu_index": 0, "temp_max": 43, "util_avg": 6.44}]})
+        self.route("/api/v1/llm", {"processes": [{"host_id": "a1", "llm_model": "qwen", "llm_alias": "q", "llm_port": 8080}]})
+        d = self.conn("gpuviewr", token=KEY).collect()
+        m = d["machines"][0]
+        self.assertEqual((m["ips"], m["hostname"], m["gpus"][0]["day"]), (["10.0.0.9", "10.0.0.9"], "deb13tower", {"temp_max": 43.0, "util_avg": 6.4}))
+        self.assertEqual((m["models"][0]["alias"], m["models"][0]["port"]), ("q", 8080))
+        self.assertNotIn("/api/v1/gpus/stats?", " ".join(x[1] for x in SEEN))   # the fleet call only
+        self.assertEqual(d["app_update"], "0.14.0")
+        self.assertIn("mise à jour de GpuViewR disponible : 0.14.0", d["problems"])
 
     def test_api_off(self):
         self.route("/api/v1/health", {"error": "API access is disabled (Settings > API)"}, code=403)
