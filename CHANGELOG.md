@@ -14,6 +14,16 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### Added
 
 - Beszel connector: « Verify HTTPS certificate » setting (on by default), to reach a hub behind a self-signed certificate.
+- Connectors: « Save without collection » button, to set up a service that is down or not ready yet: settings kept, no test,
+  collection off.
+
+### Changed
+
+- Connectors: the collection is never switched on with untested settings. Saving tests the saved settings first: when the test
+  fails, they are kept but the collection stays off, with the reason. Switching the collection on runs the same test and is refused
+  when it fails.
+- Beszel connector: the account field asks for the e-mail (the hub signs in by e-mail only); a user name gets a clear message.
+- Forms: the red « * » (required field) stays on the same line as its label.
 
 ## v0.11.10 (2026-10-13)
 

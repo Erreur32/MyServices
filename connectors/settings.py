@@ -253,6 +253,20 @@ def npm_script_install(ssh: str, directory: str, ip: str, port: int, user: str, 
     return got
 
 
+def check_saved(type_: str, name: str) -> tuple[bool, str]:
+    """Test of the saved settings, before the collection reads them: (ok, message)."""
+    conf = get(type_, name, plain=True)
+    if conf is None:
+        raise SettingsError(f"connecteur {type_} « {name} » introuvable")
+    try:
+        r = TYPES[type_](conf, Context(timeout=TEST_TIMEOUT)).test()
+    except ConnectorError as e:
+        return False, str(e)
+    except Exception as e:  # connector bug: readable message, never a 500
+        return False, f"erreur du connecteur : {type(e).__name__}"
+    return r.ok, r.message
+
+
 def test(type_: str, name: str, conf: dict, original: str | None = None) -> dict:
     """Essai des réglages du formulaire, sans enregistrer (secrets vides = ceux déjà enregistrés)."""
     conn = TYPES[type_](resolve(type_, name, conf, original), Context(timeout=TEST_TIMEOUT))

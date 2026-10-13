@@ -345,6 +345,12 @@ class BeszelTests(unittest.TestCase):
         self.assertFalse(r.ok)
         self.assertIn("400", r.message)
 
+    def test_user_name_instead_of_email(self):
+        cfg = {"connectors": [{"type": "beszel", "name": "hub", "url": self.url, "user": "readonly", "password": "bon"}]}
+        r = connectors.instances(cfg, kind="health")[0].test()
+        self.assertFalse(r.ok)
+        self.assertIn("l'e-mail du compte", r.message)
+
     def test_match_by_ip_then_name(self):
         from connectors.beszel import match
         systems = [{"name": "srv-main", "host": "10.0.0.2"}, {"name": "PC-Jeu", "host": "pc.lan"}, {"name": "x", "host": "9.9.9.9"}]

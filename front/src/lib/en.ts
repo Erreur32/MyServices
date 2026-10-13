@@ -886,6 +886,8 @@ export const EN: Record<string, string> = {
   "Résolution des noms (AdGuard, Pi-hole…) :": "Name resolution (AdGuard, Pi-hole…):",
   "onglet DNS": "DNS tab",
   "enregistré : relecture en cours…": "saved: reading it again…",
+  "Enregistrer sans collecte": "Save without collection",
+  "Service arrêté ou pas encore prêt : réglages gardés, sans test ni collecte ; l'allumer plus tard": "Service down or not ready yet: settings kept, no test nor collection; switch it on later",
   "enregistré : relecture lancée, l'état se met à jour dans une minute": "saved: read again now, the state updates within a minute",
   "lu par SSH ({0})": "read over SSH ({0})",
   "lu par l'agent Windows": "read by the Windows agent",

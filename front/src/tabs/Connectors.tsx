@@ -349,20 +349,24 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, 
     setMode(id);
     if (id === "ssh" && !conf.url) setConf((c) => ({ ...c, url: "http://127.0.0.1:81" }));  // vu de la machine de NPM
   };
-  const body = () => ({ name, config: configFor(type, mode, conf), original: inst?.name ?? null });
+  const body = (collect = true) => ({ name, config: configFor(type, mode, conf), original: inst?.name ?? null, collect });
   const [report, setReport] = useState<TestOut | null>(null);
   const tryIt = async () => {
     setBusy(true); setNote(null);
     setReport(await runTest(type.type, body()));
     setBusy(false);
   };
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  // collect false: « Save without collection » (service down, set up ahead): no test, the collection stays off
+  const save = async (collect: boolean) => {
     setBusy(true);
-    const ok = await act(() => send("PUT", `connectors/settings/${type.type}`, body()), quietSave ? "" : tx("enregistré : relecture lancée, l'état se met à jour dans une minute"), setNote);
+    let off = "";   // saved with the collection off (test failed, or asked): server message
+    const ok = await act(async () => { const r = await send<{ enabled?: boolean; message?: string }>("PUT", `connectors/settings/${type.type}`, body(collect)); if (r?.enabled === false) off = r.message ?? ""; },
+      quietSave ? "" : tx("enregistré : relecture lancée, l'état se met à jour dans une minute"), setNote);
     setBusy(false);
-    if (ok) quietSave ? onDone() : setTimeout(onDone, 900);
+    if (ok && off) { setNote({ ok: !collect, text: off }); setTimeout(onDone, 4000); }
+    else if (ok) quietSave ? onDone() : setTimeout(onDone, 900);
   };
+  const submit = (e: FormEvent) => { e.preventDefault(); void save(true); };
   return (
     // Editing happens inside the instance card (already outlined in blue, with its logo and title): no inner frame nor header there
     <form onSubmit={submit} className={`mt-3 flex flex-col gap-3 ${inst ? "border-t border-line/60 pt-3" : "rounded-xl border-2 border-link bg-link/5 p-3"}`}>
@@ -429,6 +433,8 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, 
       <div className="flex flex-wrap gap-2">
         <button type="button" className={quiet} disabled={busy} onClick={() => void tryIt()}>{tx("Tester")}</button>
         <button type="submit" className={primary} disabled={busy}><Plus size={14} />{inst ? tx("Enregistrer") : tx("Ajouter")}</button>
+        <button type="button" className={quiet} disabled={busy} title={tx("Service arrêté ou pas encore prêt : réglages gardés, sans test ni collecte ; l'allumer plus tard")}
+          onClick={() => void save(false)}>{tx("Enregistrer sans collecte")}</button>
         <button type="button" className={quiet} onClick={onCancel}>{tx("Annuler")}</button>
         {type.guide && type.guide.length > 0 && (
           <button type="button" className={`${quiet} ml-auto`} aria-expanded={help} onClick={() => setHelp(!help)}>

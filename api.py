@@ -459,6 +459,7 @@ class ConnectorConf(BaseModel):
     name: str = Field(max_length=64)
     config: dict[str, str | int | bool | None] = {}
     original: str | None = Field(None, max_length=64)  # nom actuel, pour modifier (et renommer) une instance
+    collect: bool = True  # False: save only (service down, set up ahead), collection off and no test
 
 
 def last_statuses() -> list[dict]:
@@ -538,12 +539,21 @@ def connector_call(request: Request, action: str, detail: str, fn) -> JSONRespon
 
 @app.put(API + "/connectors/settings/{type_}", tags=["connecteurs"], summary="Ajouter ou modifier une instance (admin ; secret vide = gardé)")
 def connector_save(type_: str, body: ConnectorConf, request: Request):
+    from connectors import settings
     out = connector_call(request, "connecteur enregistré", f"{type_} {body.name}",
                          lambda s: s.save(type_, body.name, body.config, body.original))
-    if isinstance(out, dict) and out.get("ok"):
-        reread_connector(type_, body.name, f"connecteur {type_} « {body.name} » enregistré")
-        out = {**out, "message": "enregistré : relecture lancée, l'état se met à jour dans une minute"}
-    return out
+    if not (isinstance(out, dict) and out.get("ok")) or body.name not in settings.names(type_):
+        return out   # refused, or saved while switched off: nothing to read
+    if not body.collect:
+        settings.set_enabled(type_, body.name, False)
+        return {"ok": True, "enabled": False, "message": "enregistré sans collecte : l'allumer quand le service répond (un test passe d'abord)"}
+    ok, msg = settings.check_saved(type_, body.name)
+    if not ok:   # never collect untested settings: saved, but the collection stays off until a test passes
+        settings.set_enabled(type_, body.name, False)
+        store().audit("connecteur coupé", request.state.user["username"], ip_of(request), f"{type_} {body.name} : test en échec")
+        return {"ok": True, "enabled": False, "message": f"enregistré, collecte coupée : le test a échoué ({msg})"}
+    reread_connector(type_, body.name, f"connecteur {type_} « {body.name} » enregistré")
+    return {**out, "enabled": True, "message": "enregistré : relecture lancée, l'état se met à jour dans une minute"}
 
 
 class Reveal(BaseModel):
@@ -576,6 +586,14 @@ class Toggle(BaseModel):
 
 @app.patch(API + "/connectors/settings/{type_}/{name}", tags=["connecteurs"], summary="Allumer ou couper un connecteur (admin)")
 def connector_toggle(type_: str, name: str, body: Toggle, request: Request):
+    from connectors import settings
+    if body.enabled and not admin_write(request) and type_ in settings.TYPES:
+        try:
+            ok, msg = settings.check_saved(type_, name)
+        except settings.SettingsError as e:
+            return deny(400, str(e))
+        if not ok:   # never collect untested settings
+            return deny(409, f"collecte non allumée : le test a échoué ({msg})")
     out = connector_call(request, "connecteur allumé" if body.enabled else "connecteur coupé", f"{type_} {name}",
                          lambda s: s.set_enabled(type_, name, body.enabled))
     if body.enabled and isinstance(out, dict) and out.get("ok"):

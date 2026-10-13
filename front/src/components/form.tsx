@@ -20,7 +20,8 @@ export function NoteLine({ note }: { note: Note }) {
 }
 
 export function Field({ label, children }: { label: ReactNode; children: ReactNode }) {
-  return <label className="flex flex-col gap-1 text-sm text-muted">{label}{children}</label>;
+  // label in one span: its parts (text, red « * », « (optional) ») stay on one line instead of one flex row each
+  return <label className="flex flex-col gap-1 text-sm text-muted"><span>{label}</span>{children}</label>;
 }
 
 

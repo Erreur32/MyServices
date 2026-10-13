@@ -35,7 +35,8 @@ class Beszel(Connector):
     tested = ("0.20", "0.21")
     fields = (
         Field("url", "URL du hub", "url", required=True, help="ex. http://192.168.1.10:8090"),
-        Field("user", "Compte Beszel (e-mail), rôle readonly", required=True),
+        Field("user", "E-mail du compte Beszel (pas son nom), rôle readonly", required=True,
+              help="Beszel n'accepte que l'e-mail pour se connecter ; compte au rôle readonly, systèmes partagés avec lui"),
         Field("password", "Mot de passe", "password", required=True, secret=True),
         Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=True, help="à décocher pour un certificat auto-signé"),
     )
@@ -49,8 +50,13 @@ class Beszel(Connector):
 
     def _token(self) -> str:
         if not getattr(self, "_tok", None):
-            got = self._http("/api/collections/users/auth-with-password", method="POST",
-                             body={"identity": self.conf["user"], "password": self.conf["password"]})
+            try:
+                got = self._http("/api/collections/users/auth-with-password", method="POST",
+                                 body={"identity": self.conf["user"], "password": self.conf["password"]})
+            except ConnectorError as e:
+                if "@" not in self.conf["user"]:   # the hub signs in by e-mail only, never by the user name
+                    raise ConnectorError(f"{e} : mettre l'e-mail du compte, pas son nom") from None
+                raise
             self._tok = (got or {}).get("token")
             if not self._tok:
                 raise ConnectorError("connexion refusée (compte ou mot de passe ?)")
