@@ -11,6 +11,15 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## Unreleased (next version, not tagged yet)
+
+### Changed
+
+- « Forget » and « Recall » everywhere something is suggested: apps to link and other suggestions in Discovery (forgotten ones
+  leave every list for a folded « Forgotten » frame at the bottom, with « Recall »), detected services in Connectors (« Forget »
+  next to « Activate », a « Forgotten » line with « Recall »; one choice shared with Discovery), and the machines found on the
+  network (« Forget » / « Recall » instead of an eye icon and « Resume »). Replaces « Don't remind me again ».
+
 ## v0.11.6 (2026-10-13)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
