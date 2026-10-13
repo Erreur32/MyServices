@@ -11,6 +11,22 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.11.1 (2026-10-13)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+
+- Connectors: editing a connector could send an old token back. Browsers filled the token field with a remembered value;
+  secret fields now refuse browser and password manager autofill.
+- Connector cards show the app version for every connector that reports one (most status connectors found it but never
+  showed it). LogviewR no longer shows « 1.0.0 », the fixed version of its MCP server, and NUT no longer shows the UPS model
+  as a version (now a « Model » line).
+
+### Changed
+
+- Editing a connector happens inside its card: no inner blue frame, no second logo and title.
+
 ## v0.11.0 (2026-10-12)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
