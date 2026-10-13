@@ -37,23 +37,27 @@ class Beszel(Connector):
         Field("url", "URL du hub", "url", required=True, help="ex. http://192.168.1.10:8090"),
         Field("user", "Compte Beszel (e-mail), rôle readonly", required=True),
         Field("password", "Mot de passe", "password", required=True, secret=True),
+        Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=True, help="à décocher pour un certificat auto-signé"),
     )
     setup_fields = ("url", "user", "password")
 
     def _base(self) -> str:
         return self.conf["url"].rstrip("/")
 
+    def _http(self, path: str, **kw) -> object:
+        return self.ctx.http(self._base() + path, verify_tls=self.conf.get("verify_tls", True) is not False, **kw)
+
     def _token(self) -> str:
         if not getattr(self, "_tok", None):
-            got = self.ctx.http(self._base() + "/api/collections/users/auth-with-password", method="POST",
-                                body={"identity": self.conf["user"], "password": self.conf["password"]})
+            got = self._http("/api/collections/users/auth-with-password", method="POST",
+                             body={"identity": self.conf["user"], "password": self.conf["password"]})
             self._tok = (got or {}).get("token")
             if not self._tok:
                 raise ConnectorError("connexion refusée (compte ou mot de passe ?)")
         return self._tok
 
     def _get(self, path: str) -> object:
-        return self.ctx.http(self._base() + path, headers={"Authorization": self._token()})
+        return self._http(path, headers={"Authorization": self._token()})
 
     def _records(self, coll: str, flt: str | None = None) -> list[dict]:
         out, page = [], 1
