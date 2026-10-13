@@ -3,7 +3,7 @@
 import { Clock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { LoginRequired, read } from "../api";
-import { longDay } from "../lib/format";
+import { hm, longDay } from "../lib/format";
 import { LOCALE, tx } from "../lib/i18n";
 import { detail, liveText, shortName, type TaskInfo } from "../lib/tasks";
 
@@ -44,24 +44,47 @@ export function ScheduleCard() {
     const clock = setInterval(() => setNow(Date.now()), 1000);
     return () => { stop = true; clearTimeout(timer); clearInterval(clock); };
   }, []);
-  const active = Object.entries(tasks ?? {}).filter(([, t]) => t.enabled);
+  // soonest first; a task running stays on top
+  const active = Object.entries(tasks ?? {}).filter(([, t]) => t.enabled)
+    .sort(([, a], [, b]) => Number(b.running) - Number(a.running) || (a.next ?? Infinity) - (b.next ?? Infinity));
   return (
     <section className="rounded-xl border border-line border-l-4 border-l-muted bg-card p-3" aria-label={tx("Date et tâches planifiées")}>
-      <div className="flex items-baseline justify-between gap-2">
-        <b className="text-sm capitalize">{longDay(now)}</b>
-        <span className="inline-flex items-center gap-1 font-mono text-sm tabular-nums text-muted"><Clock size={13} aria-hidden />{new Date(now).toLocaleTimeString(LOCALE)}</span>
-      </div>
+      <a href="#settings/tasks" className="flex items-center justify-between gap-2 text-txt no-underline hover:text-link" title={tx("Ouvrir Tâches et horaires")}>
+        <b className="flex min-w-0 items-center gap-2 text-sm">
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-bg2"><Clock size={14} className="text-muted" aria-hidden /></span>
+          <span className="truncate capitalize">{longDay(now)}</span>
+        </b>
+        <span className="shrink-0 font-mono text-sm tabular-nums text-muted">{new Date(now).toLocaleTimeString(LOCALE)}</span>
+      </a>
       {active.length > 0 && (
-        <ul className="mt-2 flex flex-col gap-1 border-t border-line/60 pt-2 text-xs text-muted">
+        <ul className="mt-2 flex flex-col gap-1">
           {active.map(([name, t]) => (
-            <li key={name} className="flex items-center gap-1.5" title={detail(t)}>
-              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${t.running ? "animate-pulse bg-link" : "bg-ok"}`} />
-              <b className="font-semibold text-txt">{shortName(name, t)}</b>
-              <span className="ml-auto tabular-nums">{liveText(t, now)}</span>
+            <li key={name} className="grid grid-cols-[0.5rem_minmax(0,1fr)_auto_5.5rem] items-center gap-2 rounded-lg bg-bg2 px-2 py-1 text-xs" title={detail(t)}>
+              <span className={`h-1.5 w-1.5 rounded-full ${t.running ? "animate-pulse bg-link" : "bg-ok"}`} />
+              <b className="truncate font-semibold text-txt">{shortName(name, t)}</b>
+              <When t={t} now={now} />
             </li>
           ))}
         </ul>
       )}
     </section>
   );
+}
+
+/** Time of the next run and how long until it, in two aligned columns; a running task says since when */
+function When({ t, now }: Readonly<{ t: TaskInfo; now: number }>) {
+  if (t.running) return <span className="col-span-2 text-right tabular-nums text-link">{liveText(t, now)}</span>;
+  if (t.next === null) return <span className="col-span-2 text-right text-dim">{tx("pas d'horaire")}</span>;
+  return <>
+    <span className="font-mono tabular-nums text-txt">{hm(t.next * 1000)}</span>
+    <span className="text-right tabular-nums text-dim">{until(t.next * 1000 - now)}</span>
+  </>;
+}
+
+/** « dans 8 min », « dans 2 h 58 », « dans moins d'une minute » */
+function until(ms: number): string {
+  const min = Math.ceil(ms / 60000);
+  if (min <= 1) return tx("dans moins d'une minute");
+  if (min < 60) return tx("dans {0} min", min);
+  return tx("dans {0} h {1}", Math.floor(min / 60), String(min % 60).padStart(2, "0"));
 }
