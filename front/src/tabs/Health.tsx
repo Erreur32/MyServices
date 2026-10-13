@@ -18,6 +18,7 @@ import { OPEN_DETAIL, OPEN_ROW } from "../lib/forms";
 import { ViewToggle, useStoredView } from "../components/ViewToggle";
 import { InfraCards } from "../components/InfraCards";
 import { LEVEL } from "../lib/level";
+import { saveCalm, savedCalm, worrying } from "../lib/healthCalm";
 import { tx } from "../lib/i18n";
 
 const gb = (mb?: number) => ((mb ?? 0) / 1024).toFixed(1);
@@ -178,6 +179,29 @@ function HealthTable({ groups, osOf, open, toggle }: {
   );
 }
 
+/** One line on top: all fine, or which machines need a look (first problem of each); the button shows or hides the healthy ones */
+function Summary({ hosts, asleep, calm, onCalm, filtering }: { hosts: HealthHost[]; asleep: number; calm: boolean; onCalm: (on: boolean) => void; filtering: boolean }) {
+  const bad = hosts.filter((h) => worrying(levelOf(h))), others = hosts.length - bad.length + asleep;
+  const tone = !bad.length ? "border-ok/40 bg-ok/5" : bad.some((h) => levelOf(h) !== "warn") ? "border-bad/40 bg-bad/5" : "border-warn/40 bg-warn/5";
+  return (
+    <div role="status" className={`mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border px-4 py-2.5 text-sm ${tone}`}>
+      {bad.length ? <AlertTriangle size={16} className="shrink-0 text-warn" aria-hidden /> : <CheckCircle2 size={16} className="shrink-0 text-ok" aria-hidden />}
+      <span className="min-w-0 flex-1">
+        {bad.length ? <>
+          <b>{tx("{0} machine(s) à regarder", bad.length)}</b>{" : "}
+          {bad.slice(0, 4).map((h) => `${splitHostName(h.name)[0]} (${problems(h)[0]?.[1] ?? LEVEL[levelOf(h)][1]})`).join(", ")}{bad.length > 4 ? ", …" : ""}
+        </> : <b>{tx("{0} machine(s), toutes en bonne santé", hosts.length)}</b>}
+        {asleep > 0 && <Dim> · {tx("{0} éteinte(s)", asleep)}</Dim>}
+      </span>
+      {!filtering && others > 0 && (
+        <button type="button" onClick={() => onCalm(!calm)} aria-pressed={!calm} className="text-sm text-link hover:underline">
+          {calm ? tx("Afficher les {0} autres", others) : tx("Masquer les machines sans souci")}
+        </button>
+      )}
+    </div>
+  );
+}
+
 const SOURCE_LABEL: Record<string, string> = { ssh: "SSH", agent: tx("agent"), beszel: "Beszel", ha: "Home Assistant" };
 
 export function Health({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
@@ -199,17 +223,22 @@ export function Health({ snap, initial }: { snap: Snapshot; initial?: Selected }
   const [view, pickView] = useStoredView("ms.health.view", "table");
   const [open, setOpen] = useState<Set<string>>(new Set());  // lignes du tableau dépliées
   const toggleOpen = (id: string) => setOpen((o) => { const n = new Set(o); if (!n.delete(id)) n.add(id); return n; });
-  const allOpen = f.shown.length > 0 && f.shown.every((h) => open.has(h.id));
-  const asleep = (snap.health?.asleep ?? []).filter((a) => !Object.keys(f.sel).length && a.name.toLowerCase().includes(f.query.trim().toLowerCase()));
+  const [calm, setCalm] = useState(savedCalm);
+  const pickCalm = (on: boolean) => { setCalm(on); saveCalm(on); };
+  const hideFine = calm && f.active === 0;   // a search or a filter always shows everything it finds
+  const listed = hideFine ? f.shown.filter((h) => worrying(levelOf(h))) : f.shown;
+  const allOpen = listed.length > 0 && listed.every((h) => open.has(h.id));
+  const asleep = hideFine ? [] : (snap.health?.asleep ?? []).filter((a) => !Object.keys(f.sel).length && a.name.toLowerCase().includes(f.query.trim().toLowerCase()));
   const services = (snap.data.services_status ?? []).filter((c) => !NETWORK_CARDS.includes(c.connector)), docker = snap.data.containers ?? [];   // hypervisors and PBS: Virtualization tab; Freebox, UniFi…: Network tab
   if (!snap.health) return services.length || docker.length ? <div className="py-1"><InfraCards docker={docker} services={services} /><Empty>{tx("Santé pas encore relevée.")}</Empty></div> : <Empty>{tx("Santé pas encore relevée.")}</Empty>;
   return (
     <div className="py-1">
+      <Summary hosts={hosts} asleep={snap.health.asleep?.length ?? 0} calm={calm} onCalm={pickCalm} filtering={f.active > 0} />
       <FilterBar f={f} placeholder={tx("Machine, disque, service en échec…")}
         extra={<>
           <ViewToggle view={view} onPick={pickView} />
-          {view === "table" && f.shown.length > 0 && (
-            <button type="button" onClick={() => setOpen(allOpen ? new Set() : new Set(f.shown.map((h) => h.id)))} aria-pressed={allOpen}
+          {view === "table" && listed.length > 0 && (
+            <button type="button" onClick={() => setOpen(allOpen ? new Set() : new Set(listed.map((h) => h.id)))} aria-pressed={allOpen}
               className="hidden items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-sm text-muted hover:text-txt md:inline-flex">
               {allOpen ? <ChevronsDownUp size={14} aria-hidden /> : <ChevronsUpDown size={14} aria-hidden />}{allOpen ? tx("Tout replier") : tx("Tout déplier")}
             </button>
@@ -217,8 +246,8 @@ export function Health({ snap, initial }: { snap: Snapshot; initial?: Selected }
           <span className="text-xs text-dim">{tx("relevé du")} {dateTime(snap.health.timestamp)}</span>
         </>} />
       <InfraCards docker={docker} services={services} />
-      {f.shown.length === 0 && !asleep.length ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (() => {
-        const groups = ACCESS.map(([key, title]) => ({ key, title, hosts: f.shown.filter((h) => accessOf(h) === key), asleep: key === "agent" ? asleep : [] }))   // a PC that is off is known by its agent
+      {listed.length === 0 && !asleep.length ? (hideFine ? null : <Empty>{tx("Aucune machine pour ce filtre.")}</Empty>) : (() => {
+        const groups = ACCESS.map(([key, title]) => ({ key, title, hosts: listed.filter((h) => accessOf(h) === key), asleep: key === "agent" ? asleep : [] }))   // a PC that is off is known by its agent
           .filter((g) => g.hosts.length || g.asleep.length);
         const cards = groups.map((g) => (
           <section key={g.key} className="mb-4" aria-label={g.title}>

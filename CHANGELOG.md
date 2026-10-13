@@ -11,6 +11,12 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+
+- Health tab shows only the machines that need a look, under a one-line summary (« 2 machine(s) to look at: nas (disk /data
+  91 % full), … » or « 12 machine(s), all healthy »). One click shows the healthy ones too (choice kept in the browser); a search
+  or a filter always shows everything it finds.
+
 ## v0.11.1 (2026-10-13)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
