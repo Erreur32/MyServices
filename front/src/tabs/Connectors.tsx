@@ -20,7 +20,7 @@ import { tx } from "../lib/i18n";
 import { appIcon } from "../lib/appIcons";
 
 const KIND: Record<string, string> = {
-  services: "services", health: tx("santé"), logs: "journaux", dns: "DNS", inventory: "inventaire", backups: "sauvegardes", network: tx("réseau"), security: tx("sécurité"), containers: "Docker",
+  services: "services", health: tx("santé"), logs: tx("Docker · journaux"), dns: "DNS", inventory: "inventaire", backups: "sauvegardes", network: tx("réseau"), security: tx("sécurité"), containers: "Docker",
 };
 
 // Proposé depuis « Premiers pas » : lu une seule fois, à l'ouverture de l'onglet
@@ -45,7 +45,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   const type = st.types.find((t) => t.type === adding);
   // Read over SSH because a machine declares it (AdGuard): shown with « My connectors », nothing to add for them
-  const bySsh = st.others.filter((o) => st.types.some((t) => t.type === o.type));
+  const bySsh = st.others.filter((o) => o.via === "ssh" || st.types.some((t) => t.type === o.type));
   // An instance deleted (or renamed) while its form was open no longer locks the other buttons
   const editing = st.instances.some((i) => `${i.type}/${i.name}` === edited) ? edited : "";
   return (
@@ -71,7 +71,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
           <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label={tx("Connecteurs disponibles")}>
             {st.types.filter((t) => (!cat || t.category === cat) && hits(query, t.label, t.type, catName(t.category ?? ""), ...t.kinds.map((k) => KIND[k] || k)))
               .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })).map((t) => {
-              const icon = appIcon([t.label]), n = st.instances.filter((i) => i.type === t.type).length + bySsh.filter((o) => o.type === t.type).length;
+              const icon = appIcon([t.label]), n = st.instances.filter((i) => i.type === t.type).length, ssh = bySsh.filter((o) => o.type === t.type).length;
               return (
                 <li key={t.type}>
                   <button type="button" onClick={() => { setAdding(t.type); setPicking(false); }}
@@ -82,6 +82,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
                     <span className="min-w-0 flex-1">
                       <b className="block truncate text-sm text-txt">{t.label}</b>
                       <span className="block truncate text-xs text-dim">{t.kinds.map((k) => KIND[k] || k).join(" · ")}{n > 0 && ` · ${tx("{0} déjà", n)}`}</span>
+                      {ssh > 0 && <span className="block truncate text-xs font-semibold text-ok" title={tx("Déjà lu par SSH sur sa machine : un connecteur ferait doublon, sauf pour un autre serveur")}>{tx("déjà lu par SSH ({0})", ssh)}</span>}
                     </span>
                     <Plus size={15} className="shrink-0 text-dim" aria-hidden />
                   </button>
@@ -111,10 +112,10 @@ export function Connectors({ snap }: { snap: Snapshot }) {
       {bySsh.length > 0 && (
         <Card>
           <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Déjà lus par SSH")} <Count n={bySsh.length} /></h2>
-          <p className="mt-1 text-sm text-muted">{tx("Déclarés par leur machine (Réglages → Machines) et lus par SSH : inutile de les ajouter ici.")}</p>
+          <p className="mt-1 text-sm text-muted">{tx("Trouvés sur une machine suivie et lus par SSH (AdGuard, Proxmox, ESXi, KVM…) : inutile de les ajouter ici. Un connecteur n'apporte quelque chose que s'il lit une API que SSH ne voit pas.")}</p>
           <ul className="mt-3 flex flex-col divide-y divide-line/60">
             {bySsh.map((o) => {
-              const label = st.types.find((t) => t.type === o.type)!.label, icon = appIcon([label]);
+              const label = st.types.find((t) => t.type === o.type)?.label ?? o.label ?? o.type, icon = appIcon([label]);
               return (
                 <li key={`${o.type}/${o.name}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 text-sm">
                   <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">{icon ? <img src={icon} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}</span>

@@ -435,6 +435,7 @@ export interface ConnectorType {
 /** Conseil sur le chemin de npm-api.sh (vert / orange / rouge) */
 export interface ScriptTip { level: "ok" | "warn" | "bad"; text: string }
 export interface ConnectorStatus {
+  via?: string; label?: string;   // read over SSH without a connector (Proxmox by pvesh…): « Already read over SSH »
   type: string;
   name: string;
   ok: boolean;

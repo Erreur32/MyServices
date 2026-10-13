@@ -515,8 +515,12 @@ def connectors_settings(request: Request):
     except settings.SettingsError as e:
         return deny(500, str(e))
     shown = {(i["type"], i["name"]) for i in items}
+    # Read over SSH without a connector (Proxmox by pvesh, ESXi, KVM, Incus, VirtualBox): listed with the others, nothing to add for them
+    virt = [{"type": v.get("connector"), "name": v.get("name"), "label": v.get("label"), "ok": v.get("ok"), "stale": v.get("stale"),
+             "message": v.get("message"), "version": v.get("version"), "ip": v.get("ip"), "via": "ssh"}
+            for v in (read_produced("data.json") or {}).get("virtualization") or [] if v.get("via") == "ssh"]
     return {"types": settings.schema(), "instances": items,
-            "others": [s for s in statuses if (s.get("type"), s.get("name")) not in shown]}
+            "others": [s for s in statuses if (s.get("type"), s.get("name")) not in shown] + virt}
 
 
 def connector_call(request: Request, action: str, detail: str, fn) -> JSONResponse | dict:

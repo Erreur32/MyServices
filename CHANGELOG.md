@@ -18,7 +18,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Connector picker: a search field.
 - AdGuard Home is a full connector: added from the Connectors page, read by its API (account of its web interface) or over SSH
   (AdGuardHome.yaml), the DNS server address taken from the interface address. The AdGuards a machine already declares are listed
-  under « Already read over SSH », with their state and version: nothing to add for them.
+  under « Already read over SSH », with their state and version: nothing to add for them. Hypervisors read over SSH (Proxmox
+  by pvesh, ESXi, KVM, Incus, VirtualBox) are listed there too, and the picker says « already read over SSH » on their card.
+- Dozzle tagged « Docker · logs ».
 
 ### Changed
 
