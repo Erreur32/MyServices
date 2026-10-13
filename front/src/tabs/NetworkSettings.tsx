@@ -166,12 +166,25 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
           {apps.length + others.length > 0 && <Badge tone="info">{tx("{0} suggestion(s) facultative(s)", apps.length + others.length)}</Badge>}
           <span className="ml-auto flex items-center gap-2 text-sm font-semibold">{tx("Mode automatique")}<Switch on={cfg.auto} onChange={(on) => void saveAuto(on)} label={tx("Mode automatique")} /></span>
         </div>
-        <p className="mt-2 text-sm text-muted">
-          {cfg.auto
-            ? tx("Automatique : après chaque recherche, les machines avec SSH, une appli reconnue ou un service utile sont ajoutées toutes seules, et leur SSH s'active dès que la clé marche. Une machine retirée à la main ne revient pas.")
-            : tx("Manuel : rien n'est ajouté ni activé tout seul ; vous choisissez les machines trouvées. La recherche réseau garde sa fréquence.")}
-          {" "}<span className="text-dim">{tx("Toujours à faire vous-même : autoriser la clé SSH, donner un jeton aux connecteurs, installer l'agent Windows.")}</span>
-        </p>
+        {/* what the mode does by itself, then what is always left to do by hand */}
+        <div className="mt-2 grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <b className="text-txt">{cfg.auto ? tx("Automatique") : tx("Manuel")}</b>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted">
+              {(cfg.auto
+                ? [tx("Après chaque recherche, ajout des machines avec SSH, une appli reconnue ou un service utile"), tx("Activation du SSH dès que la clé fonctionne"),
+                  tx("Une machine retirée manuellement n'est plus réajoutée")]
+                : [tx("Rien n'est ajouté ni activé tout seul"), tx("Vous choisissez les machines trouvées"), tx("La recherche réseau garde sa fréquence")]
+              ).map((t) => <li key={t}>{t}</li>)}
+            </ul>
+          </div>
+          <div>
+            <b className="text-txt">{tx("À faire vous-même")}</b>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted">
+              {[tx("Autoriser la clé SSH"), tx("Fournir un jeton aux connecteurs"), tx("Installer l'agent Windows")].map((t) => <li key={t}>{t}</li>)}
+            </ul>
+          </div>
+        </div>
         <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-line/60 pt-3">
           <button type="button" className={quiet} onClick={reopenFirstSteps} title={tx("Rouvre la carte et efface vos choix « Passer »")}><ListChecks size={14} aria-hidden />{tx("Revoir les premiers pas")}</button>
         </div>
