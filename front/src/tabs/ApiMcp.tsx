@@ -95,7 +95,7 @@ function NewToken({ onCreated }: { onCreated: (c: { token: string; info: ApiToke
           <legend className="mb-1 text-sm text-muted">{tx("Niveau")}</legend>
           {(Object.keys(LEVEL) as ApiToken["level"][]).map((l) => (
             <label key={l} className="flex items-start gap-2 text-sm">
-              <input type="radio" name="level" className="mt-1" checked={level === l} onChange={() => setLevel(l)} />
+              <input type="radio" name="level" className="mt-1" checked={level === l} onChange={() => setLevel(l)} aria-label={LEVEL[l][0]} />
               <span><b>{LEVEL[l][0]}</b> <Dim>· {LEVEL[l][1]}</Dim></span>
             </label>
           ))}

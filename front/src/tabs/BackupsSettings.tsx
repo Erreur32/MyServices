@@ -157,7 +157,7 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
                   return (
                     <li key={k} className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-bg2/50 px-3 py-2 text-sm ${f.followed ? "opacity-60" : ""}`}>
                       <label className="flex min-w-[220px] flex-1 items-start gap-2">
-                        <input type="checkbox" className="mt-1 h-4 w-4 accent-[rgb(var(--link))]" disabled={f.followed || !f.readable} checked={!!c?.on}
+                        <input type="checkbox" className="mt-1 h-4 w-4 accent-[rgb(var(--link))]" disabled={f.followed || !f.readable} checked={!!c?.on} aria-label={f.path}
                           onChange={(e) => setPick({ ...pick, [k]: { ...c, on: e.target.checked } })} />
                         <span className="min-w-0">
                           <code className="break-all font-mono text-xs">{f.path}</code>
@@ -240,7 +240,7 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
                     <Badge tone="info">{kind.label}</Badge>
                     <Badge tone="off">{tx("alerte après")} {s.max_age_days} {tx("j")}</Badge>
                     {/* the switch and buttons work from the folded title: clicking them must not fold or unfold */}
-                    <span className="flex flex-wrap items-center gap-2" onClick={(e) => e.preventDefault()}>
+                    <span role="presentation" className="flex flex-wrap items-center gap-2" onClick={(e) => e.preventDefault()} onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") e.stopPropagation(); }}>
                     {!s.ha && !s.veeam_job && !s.pbs_group && (
                       <span className="inline-flex items-center gap-1.5 text-xs text-dim" title={tx("Activé : une copie à jour sur une autre machine est exigée (sinon le jeu est critique). Désactivé : seule la source est surveillée.")}>
                         <Switch on={s.expect_offsite} label={tx("Exiger une copie hors machine")} disabled={s.id === busyId} onChange={(on) => void change(s.id, { expect_offsite: on })} />{tx("copie hors machine exigée")}

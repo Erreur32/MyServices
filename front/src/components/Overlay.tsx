@@ -11,7 +11,7 @@ export function Overlay({ title, onClose, children }: { title: ReactNode; onClos
     return () => removeEventListener("keydown", key);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 grid place-items-start overflow-y-auto bg-black/60 p-4 sm:place-items-center" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div role="presentation" className="fixed inset-0 z-50 grid place-items-start overflow-y-auto bg-black/60 p-4 sm:place-items-center" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div role="dialog" aria-modal="true" className="w-full max-w-2xl rounded-2xl border border-line bg-card p-4 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
           <h2 className="flex items-center gap-2 text-lg font-bold">{title}</h2>

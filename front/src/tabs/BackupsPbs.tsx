@@ -76,7 +76,7 @@ export function BackupsPbs({ state, reload }: { state: PbsState; reload: () => v
                   return (
                     <li key={g.key} className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-bg2/50 px-3 py-2 text-sm ${g.followed ? "opacity-60" : ""}`}>
                       <label className="flex min-w-[220px] flex-1 items-start gap-2">
-                        <input type="checkbox" className="mt-1 h-4 w-4 accent-[rgb(var(--link))]" disabled={g.followed} checked={!!c?.on}
+                        <input type="checkbox" className="mt-1 h-4 w-4 accent-[rgb(var(--link))]" disabled={g.followed} checked={!!c?.on} aria-label={`${g.type}/${g.id}`}
                           onChange={(e) => setPick({ ...pick, [g.key]: { ...c, on: e.target.checked } })} />
                         <span className="min-w-0">
                           <b className="break-all">{g.type}/{g.id}</b> <Dim>· {g.store}</Dim>

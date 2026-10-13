@@ -98,7 +98,7 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
               return (
                 <li key={j.name} className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-bg2/50 px-3 py-2 text-sm ${j.followed ? "opacity-60" : ""}`}>
                   <label className="flex min-w-[220px] flex-1 items-start gap-2">
-                    <input type="checkbox" className="mt-1 h-4 w-4 accent-[rgb(var(--link))]" disabled={j.followed} checked={!!c?.on}
+                    <input type="checkbox" className="mt-1 h-4 w-4 accent-[rgb(var(--link))]" disabled={j.followed} checked={!!c?.on} aria-label={j.name}
                       onChange={(e) => setPick({ ...pick, [j.name]: { ...c, on: e.target.checked } })} />
                     <span className="min-w-0">
                       <b className="break-all">{j.name}</b>
