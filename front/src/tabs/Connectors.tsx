@@ -32,6 +32,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
   const [edited, setEditing] = useState("");  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
   const [overlay, setOverlay] = useState<Proposal | null>(null);   // service détecté à activer : son formulaire s'ouvre par-dessus
+  const [saved, setSaved] = useState<string[]>([]);   // detected services just activated: hidden at once, before any reload
   const [picking, setPicking] = useState(false);  // mini cartes des connecteurs disponibles, ouvertes par le « + »
   const [cat, setCat] = useState(""), [query, setQuery] = useState("");   // category and search of the picker (empty: all)
   const [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false);
@@ -92,9 +93,9 @@ export function Connectors({ snap }: { snap: Snapshot }) {
             })}
           </ul>
         )}
-        {type && <ConnectorForm key={type.type} type={type} prefill={prefill?.type === type.type ? prefill : null} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
+        {type && <ConnectorForm key={type.type} type={type} prefill={prefill?.type === type.type ? prefill : null} onSaved={reload} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
       </Card>
-      <DetectedServices apps={snap.data.detected_apps ?? []} onOpen={setOverlay} />
+      <DetectedServices apps={(snap.data.detected_apps ?? []).filter((p) => !saved.includes(discoveryId(p)))} instances={st.instances} onOpen={setOverlay} />
       {bySsh.length > 0 && (   // folded by default, like the detected services above
         <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
           <summary className={FOLD_HEAD}>
@@ -121,6 +122,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
       {overlay && st.types.find((t) => t.type === overlay.connector) && (
         <Overlay title={<>{appIcon([overlay.label]) && <img src={appIcon([overlay.label])!} alt="" className="h-6 w-6" />}{tx("Activer")} {overlay.label} <Dim>· {overlay.machine || overlay.ip}</Dim></>} onClose={() => setOverlay(null)}>
           <ConnectorForm key={overlay.connector} type={st.types.find((t) => t.type === overlay.connector)!} prefill={{ type: overlay.connector, name: overlay.connector, url: overlay.url }}
+            onSaved={() => { setSaved((x) => [...x, discoveryId(overlay)]); reload(); }}
             onDone={() => { setOverlay(null); reload(); }} onCancel={() => setOverlay(null)} />
         </Overlay>
       )}
@@ -214,11 +216,16 @@ function TestReport({ r, onClose }: { r: TestOut; onClose: () => void }) {
 /** Same id as the discovery of this app (discoveries.py: « connector:<type>@<ip> »), so « Forget » here and in Discovery is one choice */
 const discoveryId = (p: Proposal) => `connector:${p.connector}@${p.ip ?? "None"}`;
 
-function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Proposal) => void }) {
+/** Same rule as the server (known_apps.propose): an instance of that type whose settings name the address */
+export const savedFor = (p: Proposal, instances: ConnectorInstance[]) =>
+  !!p.ip && instances.some((i) => i.type === p.connector && Object.values(i.config).some((v) => typeof v === "string" && v.includes(p.ip!)));
+
+function DetectedServices({ apps, instances, onOpen }: { apps: Proposal[]; instances: ConnectorInstance[]; onOpen: (p: Proposal) => void }) {
   const [disc, reloadDisc] = useDiscoveries();
   const [note, setNote] = useState<Note>(null);
   const muted = new Set((disc?.items ?? []).filter((x) => x.muted).map((x) => x.id));
-  const all = apps.filter((p) => !p.linked);
+  // « linked » comes with the next collection (a minute or two): a connector saved a moment ago already hides its row
+  const all = apps.filter((p) => !p.linked && !savedFor(p, instances));
   // running containers first: docker ps -a also lists stopped ones, which have nothing to read until they run again
   const rows = all.filter((p) => !muted.has(discoveryId(p))).sort((a, b) => Number(a.running === false) - Number(b.running === false)), forgotten = all.filter((p) => muted.has(discoveryId(p)));
   const forget = (p: Proposal, on: boolean) => void act(() => send("PUT", "discoveries/muted", { id: discoveryId(p), muted: on }),
@@ -324,14 +331,14 @@ function InstanceCard({ inst, collect, type, reload, onCollect, editing: edit, l
         </div>
       </div>
       {report && !edit && <TestReport r={report} onClose={() => setReport(null)} />}
-      {edit && <ConnectorForm type={type} inst={inst} onDone={() => { setEdit(false); reload(); }} onCancel={() => setEdit(false)} />}
+      {edit && <ConnectorForm type={type} inst={inst} onSaved={reload} onDone={() => { setEdit(false); reload(); }} onCancel={() => setEdit(false)} />}
       <NoteLine note={note} />
     </Card></div>
   );
 }
 
 /** quietSave : pas de message vert « enregistré » (l'appelant confirme lui-même, comme dans Premiers pas) */
-export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, onCancel }: { type: ConnectorType; inst?: ConnectorInstance; prefill?: Prefill | null; quietSave?: boolean; onDone: () => void; onCancel: () => void }) {
+export function ConnectorForm({ type, inst, prefill, quietSave = false, onSaved, onDone, onCancel }: { type: ConnectorType; inst?: ConnectorInstance; prefill?: Prefill | null; quietSave?: boolean; onSaved?: () => void; onDone: () => void; onCancel: () => void }) {
   const [name, setName] = useState(inst?.name || prefill?.name || type.type);
   const [conf, setConf] = useState<Record<string, string | number | boolean>>(() => {
     const init: Record<string, string | number | boolean> = {};
@@ -363,6 +370,7 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, 
     const ok = await act(async () => { const r = await send<{ enabled?: boolean; message?: string }>("PUT", `connectors/settings/${type.type}`, body(collect)); if (r?.enabled === false) off = r.message ?? ""; },
       quietSave ? "" : tx("enregistré : relecture lancée, l'état se met à jour dans une minute"), setNote);
     setBusy(false);
+    if (ok) onSaved?.();   // saved: the lists update now, without waiting for the form to close
     if (ok && off) { setNote({ ok: !collect, text: off }); setTimeout(onDone, 4000); }
     else if (ok) quietSave ? onDone() : setTimeout(onDone, 900);
   };
