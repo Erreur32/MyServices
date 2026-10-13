@@ -59,20 +59,6 @@ function Servers({ m, snap, max }: { m: Machine; snap: Snapshot; max?: number })
   ) : <Dim>-</Dim>;
 }
 
-function HealthCell({ h }: { h?: HealthHost }) {
-  if (!h) return <Dim>{tx("non suivie")}</Dim>;
-  const d = topDisk(h), failed = h.systemd?.failed.length || 0, apt = h.apt?.upgradable || 0;
-  return (
-    <div className="flex flex-col items-start gap-1">
-      <Level level={h.reachable === false ? "down" : h.level} />
-      {d && <span className={`text-xs ${d.critical ? "text-bad" : d.warning ? "text-warn" : "text-muted"}`}>{tx("disque")} {d.mount} {d.used_pct} %</span>}
-      {(failed > 0 || apt > 0 || h.reboot_required) && (
-        <span className="text-xs text-warn">{[failed && tx("{0} service(s) en échec", failed), apt && tx("{0} mise(s) à jour", apt), h.reboot_required && tx("redémarrage requis")].filter(Boolean).join(" · ")}</span>
-      )}
-    </div>
-  );
-}
-
 /** Clé utilisée par l'alias (chemin et début d'empreinte) */
 function KeyCell({ m }: { m: Machine }) {
   const s = m.ssh;
@@ -133,6 +119,35 @@ export function UpdatesCell({ h }: { h?: HealthHost }) {
     </span>
   );
 }
+
+/** Compact cards: a strip of small figures (label on top, value under), shared by the Machines and Health cards */
+export function Stat({ label, children, title }: { label: string; children: React.ReactNode; title?: string }) {
+  return (
+    <div className="flex min-w-0 flex-col items-center px-1" title={title}>
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-dim">{label}</span>
+      <span className="truncate text-sm tabular-nums">{children}</span>
+    </div>
+  );
+}
+function DiskPct({ h }: { h?: HealthHost }) {
+  const d = topDisk(h);
+  if (!d) return <Dim>-</Dim>;
+  return <b className={d.critical || d.used_pct >= 90 ? "text-bad" : d.warning || d.used_pct >= 80 ? "text-warn" : "text-ok"}>{d.used_pct} %</b>;
+}
+/** CPU, memory and fullest disk in one strip; `first`: one more figure on the left (services on a machine card) */
+export function ResStrip({ h, first }: { h?: HealthHost; first?: React.ReactNode }) {
+  const d = topDisk(h);
+  return (
+    <div className={`grid ${first ? "grid-cols-4" : "grid-cols-3"} divide-x divide-line/60 rounded-lg bg-bg2/50 py-1.5`}>
+      {first}
+      <Stat label={tx("CPU")}><ResCell h={h} what="cpu" /></Stat>
+      <Stat label={tx("Mém.")} title={tx("Mémoire")}><ResCell h={h} what="mem" /></Stat>
+      <Stat label={tx("Disque")} title={d ? tx("Disque le plus rempli : {0}", d.mount) : undefined}><DiskPct h={h} /></Stat>
+    </div>
+  );
+}
+
+const LEVEL_EDGE: Record<string, string> = { crit: "border-l-bad", down: "border-l-bad", warn: "border-l-warn" };
 
 const WATCH_ICON: Record<WatchKind, LucideIcon> = {
   down: WifiOff, ssh: KeyRound, disk: HardDrive, systemd: ServerCrash, docker: Container, kernel: Bug, smart: ScanSearch, load: Gauge, ssh_auth: ShieldAlert,
@@ -415,17 +430,6 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
     }
   };
   const macOf = (m: Machine) => { const d = seen.get(m.ip); const mac = d?.mac || m.links?.mac, vendor = d?.vendor || m.links?.vendor; return mac || vendor ? [mac, vendor].filter(Boolean).join(" · ") : undefined; };
-  const name = (m: Machine) => (
-    <button type="button" onClick={() => onMachine(m.ip)} className="text-left" title={tx("Voir ses services")}>
-      <b className="font-semibold hover:text-link">{m.name}</b>
-      <span className="flex flex-wrap items-center gap-1 text-xs text-dim">{m.ip}{rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}</span>
-      {seen.get(m.ip) && <span className="block font-mono text-[11px] text-dim" title={tx("Vu par MynetworK")}>{[seen.get(m.ip)!.mac, seen.get(m.ip)!.vendor].filter(Boolean).join(" · ")}</span>}
-      {!!m.links?.sources.length && <span className="mt-1 block"><SeenBy links={m.links} /></span>}
-    </button>
-  );
-  const svc = (m: Machine) => (
-    <span><b>{m.services}</b> <Dim>{tx("dont")} {m.npm} {tx("NPM")}</Dim>{m.down > 0 && <span className="block text-xs text-bad">{m.down} {tx("en panne")}</span>}</span>
-  );
   const st = (m: Machine) => { const [tone, label, tip] = MSTATE[mState(m)]; return <Badge tone={tone} title={tip}>{label}</Badge>; };
 
   return (
@@ -494,19 +498,33 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
               );
             })}
           </Table>}
-          <Cards always={view === "cards"}>
-            {sort.sorted.map((m) => (
-              <div key={m.ip} className={`rounded-2xl border border-line bg-card p-3.5 ${isOff(m) ? "opacity-50" : ""}`}>
-                <div className="flex items-start justify-between gap-2"><span className="flex items-start gap-2"><MachineIcon m={m} scan={scanOs[m.ip]} reserve />{name(m)}</span>{st(m)}</div>
-                <div className="mt-2 flex flex-col gap-2 text-sm">
-                  {m.info?.os ? <span className="text-muted">{m.info.os} {tx("· up")} {dur(m.info.uptime_s)}</span>
-                    : m.agent && <span className="text-muted">{m.agent.os}{m.agent.uptime_s ? ` ${tx("· up")} ${dur(m.agent.uptime_s)}` : ""} <Dim>({tx("par l'agent")})</Dim></span>}
-                  <Servers m={m} snap={snap} />
-                  <div className="flex items-start justify-between gap-3">{svc(m)}{snap.health && <HealthCell h={hb.get(m.ip)} />}</div>
-                  <WatchList items={watchOf(m)} wrap />
+          <Cards always={view === "cards"} dense>
+            {sort.sorted.map((m) => {   // compact card: who, state, system, figures, then servers and what to watch
+              const h = hb.get(m.ip), up = m.info?.uptime_s ?? m.agent?.uptime_s;
+              return (
+                <div key={m.ip} className={`flex flex-col gap-2.5 rounded-xl border border-l-[3px] border-line bg-card p-3 transition-colors hover:border-link/50 ${LEVEL_EDGE[h ? (h.reachable === false ? "down" : h.level) : ""] ?? ""} ${isOff(m) ? "opacity-50" : ""}`}>
+                  <div className="flex items-center gap-2.5">
+                    <MachineIcon m={m} scan={scanOs[m.ip]} reserve />
+                    <button type="button" onClick={() => onMachine(m.ip)} className="min-w-0 flex-1 text-left" title={tx("Voir ses services")}>
+                      <b className="block truncate font-semibold hover:text-link">{m.name}</b>
+                      <span className="block truncate font-mono text-[11px] text-dim">{m.ip}</span>
+                    </button>
+                    {st(m)}
+                  </div>
+                  <div className="flex min-w-0 items-center gap-2 text-xs text-muted">
+                    <OsShort m={m} kind={osOf(m)} />
+                    {up ? <span className="shrink-0 text-dim">· {tx("up")} {dur(up)}</span> : null}
+                    {rolesOf(m.role).slice(0, 1).map((t) => <span key={t} className="ml-auto min-w-0 truncate rounded border border-line px-1.5 py-px text-[11px] text-dim" title={m.role}>{t}</span>)}
+                  </div>
+                  <ResStrip h={snap.health ? h : undefined} first={
+                    <Stat label={tx("Services")} title={m.down ? tx("{0} en panne", m.down) : undefined}><b>{m.services}</b>{m.down > 0 && <span className="text-xs text-bad"> ·{m.down}</span>}</Stat>} />
+                  <div className="flex min-h-7 items-center justify-between gap-2">
+                    <Servers m={m} snap={snap} max={4} />
+                    <WatchList items={watchOf(m)} />
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </Cards>
         </>
       )}

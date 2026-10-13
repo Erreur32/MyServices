@@ -11,6 +11,17 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+
+- Machines and Health in card view: compact cards, one more column on wide screens. Each card shows who it is (icon, name, IP,
+  state), the system and uptime, a strip of figures (services, CPU, memory, fullest disk) and, for machines, the servers and what to
+  watch; a coloured left edge marks a machine to look at. Health cards list the first three problems, the rest under « Details ».
+
+### Fixed
+
+- Health: the machines that are off follow the search like the others (accents and case ignored) and the « System » and « Access »
+  filters, instead of disappearing as soon as any filter was on.
+
 ## v0.11.8 (2026-10-13)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

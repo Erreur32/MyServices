@@ -225,8 +225,8 @@ export function Table({ head, children, fit = false }: { head: ReactNode; childr
 }
 
 /** Version mobile d'un tableau : une fiche par ligne */
-export function Cards({ children, always = false }: { children: ReactNode; always?: boolean }) {  // always : aussi sur grand écran (choix « Cartes »)
-  return <div className={always ? "grid gap-2.5 md:grid-cols-2 xl:grid-cols-3" : "flex flex-col gap-2.5 md:hidden"}>{children}</div>;
+export function Cards({ children, always = false, dense = false }: { children: ReactNode; always?: boolean; dense?: boolean }) {  // always : aussi sur grand écran (choix « Cartes ») ; dense : cartes compactes, une colonne de plus
+  return <div className={always ? `grid gap-2.5 md:grid-cols-2 ${dense ? "lg:grid-cols-3 2xl:grid-cols-4" : "xl:grid-cols-3"}` : "flex flex-col gap-2.5 md:hidden"}>{children}</div>;
 }
 
 export function Empty({ children }: { children: ReactNode }) {

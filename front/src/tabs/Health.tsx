@@ -2,11 +2,11 @@
 import { NETWORK_CARDS } from "../lib/network";
 import { Fragment, useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
-import { useFilter, type Facet, type Selected } from "../lib/filter";
+import { searchHit, useFilter, type Facet, type Selected } from "../lib/filter";
 import { dateTime, splitHostName } from "../lib/format";
 import type { AsleepHost, HealthHost } from "../types";
 import { Badge, Cards, Count, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
-import { DiskCell, ResCell, SystemdCell, UpdatesCell } from "./Machines";
+import { DiskCell, ResCell, ResStrip, SystemdCell, UpdatesCell } from "./Machines";
 import { OsGlyph } from "../components/OsGlyph";
 import { shortOs } from "../lib/osName";
 import { healthItems } from "../lib/machineWatch";
@@ -30,28 +30,33 @@ function problems(h: HealthHost): [("bad" | "warn"), string][] {
   return healthItems(h).map((i) => [i.tone === "bad" ? "bad" : "warn", i.text]);
 }
 
+/** Compact card: who and how it goes, the CPU / memory / disk strip, the first problems; the rest folded under « Détails » */
 function HostCard({ h, os }: { h: HealthHost; os?: OsInfo }) {
   const lv = levelOf(h), pb = problems(h);
   const [name, ip] = splitHostName(h.name);
   return (
-    <section className={`rounded-2xl border bg-card p-4 has-[details[open]]:!border-link has-[details[open]]:ring-1 has-[details[open]]:ring-link ${lv === "ok" ? "border-line" : lv === "warn" ? "border-warn/50" : "border-bad/50"}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div><b>{name}</b><span className="flex items-center gap-1.5 text-xs text-dim">{os?.kind && <OsGlyph kind={os.kind} name={os.name} />}{ip}{os?.name ? ` · ${shortOs(os.name)}` : h.os === "windows" ? tx(" · Windows") : ""}</span></div>
+    <section className={`flex flex-col gap-2.5 rounded-xl border border-l-[3px] border-line bg-card p-3 has-[details[open]]:!border-link ${lv === "ok" ? "" : lv === "warn" ? "border-l-warn" : "border-l-bad"}`}>
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">{os?.kind ? <OsGlyph kind={os.kind} name={os.name} /> : <Gauge size={15} className="text-muted" aria-hidden />}</span>
+        <span className="min-w-0 flex-1">
+          <b className="block truncate">{name}</b>
+          <span className="block truncate text-[11px] text-dim"><span className="font-mono">{ip}</span>{os?.name ? ` · ${shortOs(os.name)}` : h.os === "windows" ? tx(" · Windows") : ""}</span>
+        </span>
         <Level level={lv} />
       </div>
+      {h.reachable !== false && <ResStrip h={h} />}
       {pb.length > 0 ? (
-        <ul className="mt-3 flex flex-col gap-1 text-sm">
-          {pb.map(([t, s], i) => <li key={i} className={t === "bad" ? "text-bad" : "text-warn"}>• {s}</li>)}
+        <ul className="flex flex-col gap-0.5 text-xs">
+          {pb.slice(0, 3).map(([t, x], i) => <li key={i} className={`truncate ${t === "bad" ? "text-bad" : "text-warn"}`} title={x}>• {x}</li>)}
+          {pb.length > 3 && <li className="text-dim">{tx("+{0} autre(s), dans les détails", pb.length - 3)}</li>}
         </ul>
-      ) : h.reachable !== false && <p className="mt-3 text-sm text-ok">{tx("Rien à signaler.")}</p>}
+      ) : h.reachable !== false && <p className="text-xs text-ok">{tx("Rien à signaler.")}</p>}
       {h.reachable !== false && (
-        <details className="group mt-3 rounded-lg border border-line/60 bg-bg2/40">
-          <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs text-muted hover:text-txt [&::-webkit-details-marker]:hidden">
-            <ChevronRight size={13} className="shrink-0 transition-transform group-open:rotate-90" aria-hidden />
-            <span className="font-semibold">{tx("Détails")}</span>
-            <span className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-0.5"><ResCell h={h} what="cpu" /><ResCell h={h} what="mem" /><DiskCell h={h} /></span>
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs text-muted hover:text-txt [&::-webkit-details-marker]:hidden">
+            <ChevronRight size={13} className="shrink-0 transition-transform group-open:rotate-90" aria-hidden />{tx("Détails")}
           </summary>
-          <div className="px-2 pb-2 pt-1"><HostDetails h={h} /></div>
+          <div className="mt-2 flex flex-col gap-2">{pb.length > 3 && <Problems h={h} />}<HostDetails h={h} /></div>
         </details>
       )}
     </section>
@@ -106,13 +111,14 @@ function HostDetails({ h }: { h: HealthHost }) {
 function AsleepCard({ a, os }: { a: AsleepHost; os?: OsInfo }) {
   const [name, ip] = splitHostName(a.name);
   return (
-    <section className={`rounded-2xl border border-line bg-card p-4 ${a.ping ? "" : "opacity-60"}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div><b>{name}</b><span className="block flex items-center gap-1.5 text-xs text-dim">{os?.kind && <OsGlyph kind={os.kind} name={os.name} />}{ip}{os?.name ? ` · ${shortOs(os.name)}` : a.os === "windows" ? tx(" · Windows") : ""}</span></div>
+    <section className={`flex flex-col gap-2.5 rounded-xl border border-line bg-card p-3 ${a.ping ? "" : "opacity-60"}`}>
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">{os?.kind ? <OsGlyph kind={os.kind} name={os.name} /> : <Gauge size={15} className="text-muted" aria-hidden />}</span>
+        <span className="min-w-0 flex-1"><b className="block truncate">{name}</b><span className="block truncate text-[11px] text-dim"><span className="font-mono">{ip}</span>{os?.name ? ` · ${shortOs(os.name)}` : a.os === "windows" ? tx(" · Windows") : ""}</span></span>
         {a.ping ? <Badge tone="ok" title={tx("Répond au ping : son agent n'a pas encore envoyé de relevé")}>{tx("allumée, agent en attente")}</Badge>
           : <Badge tone="off" title={tx("Éteinte volontairement, aucune alerte")}>{tx("éteinte (voulu)")}</Badge>}
       </div>
-      <p className="mt-3 text-sm text-muted">{a.last_seen ? tx("Dernier relevé de l'agent : {0}", dateTime(a.last_seen * 1000)) : tx("Pas encore de relevé.")}</p>
+      <p className="text-xs text-muted">{a.last_seen ? tx("Dernier relevé de l'agent : {0}", dateTime(a.last_seen * 1000)) : tx("Pas encore de relevé.")}</p>
     </section>
   );
 }
@@ -228,7 +234,9 @@ export function Health({ snap, initial }: { snap: Snapshot; initial?: Selected }
   const hideFine = calm && f.active === 0;   // a search or a filter always shows everything it finds
   const listed = hideFine ? f.shown.filter((h) => worrying(levelOf(h))) : f.shown;
   const allOpen = listed.length > 0 && listed.every((h) => open.has(h.id));
-  const asleep = hideFine ? [] : (snap.health?.asleep ?? []).filter((a) => !Object.keys(f.sel).length && a.name.toLowerCase().includes(f.query.trim().toLowerCase()));
+  // Machines that are off: no health, so only the search and the « System » / « Access » filters apply (a « State » filter hides them)
+  const asleep = hideFine ? [] : (snap.health?.asleep ?? []).filter((a) => searchHit(a.name, f.query) && !f.sel.level?.length
+    && (!f.sel.os?.length || f.sel.os.includes(osOf(splitHostName(a.name)[1], a.os).kind ?? "")) && (!f.sel.access?.length || f.sel.access.includes("agent")));
   const services = (snap.data.services_status ?? []).filter((c) => !NETWORK_CARDS.includes(c.connector)), docker = snap.data.containers ?? [];   // hypervisors and PBS: Virtualization tab; Freebox, UniFi…: Network tab
   if (!snap.health) return services.length || docker.length ? <div className="py-1"><InfraCards docker={docker} services={services} /><Empty>{tx("Santé pas encore relevée.")}</Empty></div> : <Empty>{tx("Santé pas encore relevée.")}</Empty>;
   return (
@@ -252,7 +260,7 @@ export function Health({ snap, initial }: { snap: Snapshot; initial?: Selected }
         const cards = groups.map((g) => (
           <section key={g.key} className="mb-4" aria-label={g.title}>
             <h2 className="mb-2 flex items-center gap-2 border-b border-line/60 pb-1 text-xs font-bold uppercase tracking-wider text-dim">{g.title} <Count n={g.hosts.length + g.asleep.length} tone="off" /></h2>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
               {g.hosts.map((h) => <HostCard key={h.id} h={h} os={osOf(splitHostName(h.name)[1], h.os)} />)}
               {g.asleep.map((a) => <AsleepCard key={a.id} a={a} os={osOf(splitHostName(a.name)[1], a.os)} />)}
             </div>
