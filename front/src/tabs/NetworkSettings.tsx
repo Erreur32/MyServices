@@ -1,5 +1,5 @@
 // Réglages → Découverte : ce que MyServices trouve tout seul et ce qui demande un clic, sur une page à lire de haut en bas.
-//   1. En-tête : l'état en une phrase, le mode automatique, la recherche réseau (dernière, prochaine, lancer maintenant)
+//   1. En-tête : l'état en une phrase, le mode automatique (la recherche réseau est en tête de « Machines sur le réseau »)
 //   2. À faire (seulement s'il y en a)   3. Machines sur le réseau (replié)   4. Applis à activer (tuiles, ordre alphabétique)
 //   5. Autres suggestions   6. Oubliés (replié)
 // No job setting here: the search frequency, networks and discreet mode live in Settings → Tasks and schedules, with every job.
@@ -16,11 +16,10 @@ import { NetworkStep } from "../components/NetworkStep";
 import { appIcon } from "../lib/appIcons";
 import { dateTime } from "../lib/format";
 import { reopenFirstSteps } from "../lib/firstSteps";
-import { act, primary, quiet, type Note } from "../lib/forms";
+import { act, quiet, type Note } from "../lib/forms";
 import { usePoll } from "../lib/polling";
 import { tx } from "../lib/i18n";
 import { runningTip, stoppedTip } from "../lib/runState";
-import { pokeScan } from "../lib/scan";
 import type { NetScan } from "../types";
 
 interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean; auto: boolean; ignored: { ip: string; name: string }[] }
@@ -153,7 +152,6 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   const next = last && cfg.every_h ? last + cfg.every_h * 3_600_000 : null;
   const saveAuto = (on: boolean) => act(() => send("PUT", "network/settings", { auto: on }), on ? tx("mode automatique activé") : tx("mode manuel : rien n'est plus ajouté tout seul"), setNote)
     .then((ok) => { if (ok) { load(); reloadDisc(); } });
-  const scanNow = () => act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setNote).then(() => load());
 
   return (
     <div className="flex flex-col gap-4">
@@ -171,19 +169,8 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
             : tx("Manuel : rien n'est ajouté ni activé tout seul ; vous choisissez les machines trouvées. La recherche réseau garde sa fréquence.")}
           {" "}<span className="text-dim">{tx("Toujours à faire vous-même : autoriser la clé SSH, donner un jeton aux connecteurs, installer l'agent Windows.")}</span>
         </p>
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line/60 pt-3 text-sm">
-          <Search size={15} className="text-muted" aria-hidden /><b>{tx("Recherche sur le réseau")}</b>
-          {running ? <Badge tone="info"><RefreshCw size={11} className="mr-1 inline animate-spin" aria-hidden />{tx("en cours")}</Badge>
-            : cfg.every_h === 0 ? <Badge tone="off">{tx("automatique coupée")}</Badge>
-            : !last ? <Badge tone="info">{tx("première recherche dans la minute")}</Badge>
-            : <Badge tone="ok">{tx("toutes les {0} h", cfg.every_h)}</Badge>}
-          {last ? <span className="text-dim">{tx("dernière :")} {dateTime(last)} · {scan.found.length} {tx("appareils")}</span> : <Dim>{tx("aucune recherche faite")}</Dim>}
-          {next && !running && <span className="text-dim">{tx("prochaine à partir de {0}", dateTime(next))}</span>}
-          <span className="ml-auto flex flex-wrap gap-2">
-            <button type="button" className={primary} disabled={running} onClick={() => void scanNow()}><Search size={14} aria-hidden />{running ? tx("Recherche en cours…") : last ? tx("Relancer la recherche") : tx("Chercher maintenant")}</button>
-            <a href="#settings/tasks" className={`${quiet} no-underline`} title={tx("Fréquence, réseaux à parcourir et mode discret : dans Tâches et horaires")}><Timer size={14} aria-hidden />{tx("Réglages de la recherche")}</a>
-            <button type="button" className={quiet} onClick={reopenFirstSteps} title={tx("Rouvre la carte et efface vos choix « Passer »")}><ListChecks size={14} aria-hidden />{tx("Revoir les premiers pas")}</button>
-          </span>
+        <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-line/60 pt-3">
+          <button type="button" className={quiet} onClick={reopenFirstSteps} title={tx("Rouvre la carte et efface vos choix « Passer »")}><ListChecks size={14} aria-hidden />{tx("Revoir les premiers pas")}</button>
         </div>
         <NoteLine note={note} />
       </section>
@@ -197,8 +184,20 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
 
       {/* 3. Machines sur le réseau */}
       <Fold id="net-hosts" icon={<Radar size={16} aria-hidden />} title={tx("Machines sur le réseau")} n={scan.found.filter((h) => !h.known).length || undefined}
-        hint={picked ? tx("{0} cochée(s)", picked) : hostsItem?.note || (cfg.auto ? tx("le mode automatique ajoute seul les plus utiles") : tx("à cocher pour les suivre, ou à ignorer"))}
+        hint={picked ? tx("{0} cochée(s)", picked) : [last ? tx("dernière recherche : {0}", dateTime(last)) : tx("aucune recherche faite"),
+          hostsItem?.note || (cfg.auto ? tx("le mode automatique ajoute seul les plus utiles") : tx("à cocher pour les suivre, ou à ignorer"))].join(" · ")}
         open={hostsOpen} onToggle={setHostsOpen}>
+        {/* the network search fills this frame: its state and settings here, its button just below */}
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line/60 pb-3 text-sm">
+          <Search size={15} className="text-muted" aria-hidden /><b>{tx("Recherche sur le réseau")}</b>
+          {running ? <Badge tone="info"><RefreshCw size={11} className="mr-1 inline animate-spin" aria-hidden />{tx("en cours")}</Badge>
+            : cfg.every_h === 0 ? <Badge tone="off">{tx("automatique coupée")}</Badge>
+            : !last ? <Badge tone="info">{tx("première recherche dans la minute")}</Badge>
+            : <Badge tone="ok">{tx("toutes les {0} h", cfg.every_h)}</Badge>}
+          {last ? <span className="text-dim">{tx("dernière :")} {dateTime(last)} · {scan.found.length} {tx("appareils")}</span> : <Dim>{tx("aucune recherche faite")}</Dim>}
+          {next && !running && <span className="text-dim">{tx("prochaine à partir de {0}", dateTime(next))}</span>}
+          <a href="#settings/tasks" className={`${quiet} ml-auto no-underline`} title={tx("Fréquence, réseaux à parcourir et mode discret : dans Tâches et horaires")}><Timer size={14} aria-hidden />{tx("Réglages de la recherche")}</a>
+        </div>
         <NetworkStep net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} onCount={setPicked} />
       </Fold>
 

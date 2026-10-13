@@ -18,6 +18,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Settings → Machines: « Remove » is an icon button with an explaining tooltip.
 - Discovery: « Apps to link » becomes « Apps to switch on », like the « Switch on » button of every tile (it said « Configure »);
   « Machines found on the network » becomes « Machines on the network ».
+- Discovery: the network search (frequency, last and next run, its settings) sits at the top of « Machines on the network », which it fills; the header keeps the overall state and the automatic mode.
 - One name for the network search everywhere (Discovery, first steps, found machines): « Search now », then « Search again »; « scan » is gone from the texts.
 - Discovery: « Apps to link » holds only the apps that run; stopped containers and everything forgotten move to a separate
   « Stopped and forgotten » frame, grouped by category (stopped containers, forgotten apps, other forgotten suggestions).
