@@ -692,7 +692,11 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
     }
   };
   const macOf = (m: Machine) => { const d = seen.get(m.ip); const mac = d?.mac || m.links?.mac, vendor = d?.vendor || m.links?.vendor; return mac || vendor ? [mac, vendor].filter(Boolean).join(" · ") : undefined; };
-  const st = (m: Machine) => { const [tone, label, tip] = stateBadge(m); return <Badge tone={tone} title={tip}>{label}</Badge>; };
+  const st = (m: Machine) => {
+    let [tone, label, tip] = stateBadge(m);
+    if (mState(m) === "nossh" && freeboxOf(m, snap.data.network)) [tone, label, tip] = ["ok", tx("via {0}", "MynetworK"), MSTATE.network[2]];   // the Freebox, read through MynetworK
+    return <Badge tone={tone} title={tip}>{label}</Badge>;
+  };
 
   return (
     <div className="py-1">
