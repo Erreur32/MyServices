@@ -30,12 +30,14 @@ function problems(h: HealthHost): [("bad" | "warn"), string][] {
   return healthItems(h).map((i) => [i.tone === "bad" ? "bad" : "warn", i.text]);
 }
 
+const EDGE: Record<string, string> = { ok: "", warn: "border-l-warn" };   // anything worse: red
+
 /** Compact card: who and how it goes, the CPU / memory / disk strip, the first problems; the rest folded under « Détails » */
-function HostCard({ h, os }: { h: HealthHost; os?: OsInfo }) {
+function HostCard({ h, os }: Readonly<{ h: HealthHost; os?: OsInfo }>) {
   const lv = levelOf(h), pb = problems(h);
   const [name, ip] = splitHostName(h.name);
   return (
-    <section className={`flex flex-col gap-2.5 rounded-xl border border-l-[3px] border-line bg-card p-3 has-[details[open]]:!border-link ${lv === "ok" ? "" : lv === "warn" ? "border-l-warn" : "border-l-bad"}`}>
+    <section className={`flex flex-col gap-2.5 rounded-xl border border-l-[3px] border-line bg-card p-3 has-[details[open]]:!border-link ${EDGE[lv] ?? "border-l-bad"}`}>
       <div className="flex items-center gap-2.5">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">{os?.kind ? <OsGlyph kind={os.kind} name={os.name} /> : <Gauge size={15} className="text-muted" aria-hidden />}</span>
         <span className="min-w-0 flex-1">
@@ -254,7 +256,9 @@ export function Health({ snap, initial }: { snap: Snapshot; initial?: Selected }
           <span className="text-xs text-dim">{tx("relevé du")} {dateTime(snap.health.timestamp)}</span>
         </>} />
       <InfraCards docker={docker} services={services} />
-      {listed.length === 0 && !asleep.length ? (hideFine ? null : <Empty>{tx("Aucune machine pour ce filtre.")}</Empty>) : (() => {
+      {listed.length === 0 && !asleep.length ? (hideFine
+        ? <Empty>{tx("Toutes les machines vont bien : elles sont masquées.")} <button type="button" onClick={() => pickCalm(false)} className="text-link hover:underline">{tx("Les afficher")}</button></Empty>
+        : <Empty>{tx("Aucune machine pour ce filtre.")}</Empty>) : (() => {
         const groups = ACCESS.map(([key, title]) => ({ key, title, hosts: listed.filter((h) => accessOf(h) === key), asleep: key === "agent" ? asleep : [] }))   // a PC that is off is known by its agent
           .filter((g) => g.hosts.length || g.asleep.length);
         const cards = groups.map((g) => (

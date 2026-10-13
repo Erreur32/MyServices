@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import errno
 import json
+import re
 import ssl
 import urllib.error
 import urllib.parse
@@ -62,6 +63,23 @@ def update_group(entity_id: str, attrs: dict) -> str:
     if "/api/hassio/addons/" in str(attrs.get("entity_picture") or ""):
         return "addon"
     return "other"
+
+
+ADDON_ICON = re.compile(r"/api/hassio/addons/([a-z0-9_-]{1,64})/icon")
+
+
+def addons(states: list) -> list[dict]:
+    """Add-ons installed, from their update.* entities (one per add-on, whatever its state): no admin right needed, unlike
+    /api/hassio/addons. Name, slug (for the icon), installed version, and the new one when an update waits."""
+    out = []
+    for s in states:
+        a = s.get("attributes") or {} if isinstance(s, dict) else {}
+        m = ADDON_ICON.search(str(a.get("entity_picture") or "")) if str(s.get("entity_id", "")).startswith("update.") else None
+        if m:
+            name = str(a.get("title") or a.get("friendly_name") or m[1]).removesuffix(" Update")
+            out.append({"name": name, "slug": m[1], "version": a.get("installed_version"),
+                        **({"latest": a.get("latest_version")} if s.get("state") == "on" else {})})
+    return sorted(out, key=lambda x: x["name"].lower())
 
 
 def _num(v):
@@ -126,6 +144,18 @@ class HomeAssistantAPI(Connector):
         except (OSError, ValueError) as e:  # HTTPError, URLError, délai, JSON invalide
             raise ConnectorError(f"{explain(e)} [{path}]" if isinstance(e, urllib.error.HTTPError) else explain(e)) from None
 
+    def addon_icon(self, slug: str) -> bytes:
+        """Icon of an add-on (PNG), read with the token: the browser cannot ask Home Assistant itself"""
+        if not re.fullmatch(r"[a-z0-9_-]{1,64}", slug):
+            raise ConnectorError("module inconnu")
+        base = str(self.conf.get("url", "")).rstrip("/")
+        req = urllib.request.Request(f"{base}/api/hassio/addons/{slug}/icon", headers={"Authorization": "Bearer " + str(self.conf.get("token", ""))})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:  # NOSONAR S5144: the address is the connector's own, the slug checked above
+                return r.read(512 * 1024)
+        except OSError as e:
+            raise ConnectorError(explain(e)) from None
+
     def version(self) -> str | None:
         v = self._get("/api/config").get("version")
         return str(v) if v else None
@@ -150,7 +180,7 @@ class HomeAssistantAPI(Connector):
         out = {"version": cfg.get("version"), "name": cfg.get("location_name"), "state": cfg.get("state"),
                "entities": len(states), "unavailable": unavailable, "unavailable_names": gone[:12], "batteries_low": sorted(low)[:10],
                "automations": {"on": sum(1 for st in autos if st.get("state") == "on"), "total": len(autos)},
-               "updates": sorted(updates, key=lambda u: u["name"].lower())}
+               "updates": sorted(updates, key=lambda u: u["name"].lower()), "addons": addons(states)}
         if host := host_sensors(states):
             out["host"] = host
         return out

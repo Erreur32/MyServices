@@ -198,7 +198,9 @@ export interface ServiceStatus {
   facts?: { label: string; value: string; tone?: "ok" | "warn" | "bad" }[];  // connecteurs « état d'un service » : chiffres clés
   problems?: string[];                                                       // et ce qui est à regarder
   updates?: { name: string; installed?: string | null; latest?: string | null; group?: "core" | "addon" | "other" }[];
+  instance?: string;                     // connector instance name (« name » can be the app's own, Home Assistant's place)
   // Home Assistant only
+  addons?: { name: string; slug: string; version?: string | null; latest?: string | null }[];   // add-ons installed
   state?: string | null;                 // RUNNING, NOT_RUNNING, STARTING
   unavailable?: number; unavailable_names?: string[]; batteries_low?: string[];
   automations?: { on: number; total: number };

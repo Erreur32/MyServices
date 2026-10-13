@@ -1,6 +1,8 @@
 // État des services lus par leur API (connecteurs « status », aujourd'hui Home Assistant) : en ligne, version,
 // entités, mises à jour disponibles (information, sans alerte). Affiché sous la barre de recherche de l'onglet Santé.
-import { AlertTriangle, ArrowUpCircle, CheckCircle2, ChevronRight, Home, Layers, Plug } from "lucide-react";
+import { AlertTriangle, ArrowUpCircle, CheckCircle2, ChevronRight, Home, Layers, Plug, Puzzle } from "lucide-react";
+import { useState } from "react";
+import { ROOT } from "../api";
 import { dur } from "../lib/format";
 import type { ServiceStatus } from "../types";
 import { tx } from "../lib/i18n";
@@ -45,6 +47,41 @@ function Fold({ title, tone, items, open }: { title: string; tone: "warn" | "off
   );
 }
 
+/** Add-ons installed in Home Assistant, with their icon (read by the server with the token) and version; an update waiting in orange */
+export function HaAddons({ s }: Readonly<{ s: ServiceStatus }>) {
+  const list = s.addons ?? [];
+  if (!list.length) return null;
+  const inst = encodeURIComponent(s.instance ?? s.name);
+  return (
+    <details className="group rounded-lg border border-line/60">
+      <summary className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-bg2/50">
+        <ChevronRight size={14} className="text-dim transition-transform group-open:rotate-90" aria-hidden />
+        <span className="text-muted">{tx("Modules installés")}</span><Count n={list.length} tone="off" />
+      </summary>
+      <ul className="grid max-h-72 grid-cols-1 gap-1 overflow-y-auto border-t border-line/40 p-2 sm:grid-cols-2">
+        {list.map((a) => (
+          <li key={a.slug} className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-bg2/50" title={`${a.name}${a.version ? ` ${a.version}` : ""}${a.latest ? ` → ${a.latest}` : ""}`}>
+            <AddonIcon src={`${ROOT}api/v1/ha/${inst}/addon-icon/${a.slug}`} />
+            <span className="min-w-0 flex-1 truncate text-sm">{a.name}</span>
+            {a.latest && <span className="shrink-0 font-mono text-[11px] text-warn">→ {a.latest}</span>}
+            {!a.latest && a.version && <span className="shrink-0 truncate font-mono text-[11px] text-dim">{a.version}</span>}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/** Icon of an add-on; a puzzle piece when Home Assistant gives none */
+function AddonIcon({ src }: Readonly<{ src: string }>) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-md bg-bg2">
+      {failed ? <Puzzle size={13} className="text-dim" aria-hidden /> : <img src={src} alt="" loading="lazy" className="h-5 w-5 object-contain" onError={() => setFailed(true)} />}
+    </span>
+  );
+}
+
 /** Home Assistant: its state, the machine that hosts it (System Monitor), key figures, then what to look at, folded */
 function HomeAssistantCard({ s }: { s: ServiceStatus }) {
   const ups = s.updates ?? [], core = ups.filter((u) => u.group === "core"), rest = ups.filter((u) => u.group !== "core");
@@ -84,6 +121,7 @@ function HomeAssistantCard({ s }: { s: ServiceStatus }) {
             <Fold title={tx("Piles faibles (20 % ou moins)")} tone="warn" items={low} open={low.length <= 4} />
             <Fold title={tx("Entités indisponibles")} tone="off" items={[...(s.unavailable_names ?? []), ...(unav > (s.unavailable_names?.length ?? 0) ? [tx("… et {0} autres", unav - (s.unavailable_names?.length ?? 0))] : [])]} />
             <Fold title={tx("Autres mises à jour (modules, appareils)")} tone="off" items={rest.map(upd)} />
+            <HaAddons s={s} />
           </div>
           {!!h?.ips?.length && <p className="font-mono text-xs text-dim">{h.ips.join(" · ")}</p>}
         </div>

@@ -766,7 +766,7 @@ def connector_rows(kind: str) -> list[dict]:
         data, st = cbase.run_isolated(c, state, 60)
         CONNECTOR_STATUS.append(st)
         out.append({"connector": c.type, "name": c.name, "label": c.label, "ok": st.ok, "stale": st.stale, "message": st.message,
-                    "version": st.version, "url": c.conf.get("url"), **(data or {})})
+                    "version": st.version, "url": c.conf.get("url"), **(data or {}), "instance": c.name})   # instance: data may carry its own « name »
     if insts:
         cbase.save_state(CONNECTORS_STATE, state)
     return out

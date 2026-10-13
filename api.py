@@ -1821,6 +1821,28 @@ def discoveries(request: Request):
     return {"auto": core.CFG["auto_mode"], "items": items, "muted": core.CFG.get("discoveries_muted") or [], "todo": sum(1 for x in items if x["state"] == disc.TODO), "suggest": sum(1 for x in items if x["state"] == disc.SUGGEST)}
 
 
+@app.get(API + "/ha/{name}/addon-icon/{slug}", tags=["connecteurs"], summary="Icône d'un module complémentaire de Home Assistant (lue avec le jeton, en cache)")
+def ha_addon_icon(name: str, slug: str):
+    """Home Assistant serves add-on icons only with its token: read here, kept a week in the cache, sent as an image"""
+    import re
+    import connectors
+    if not re.fullmatch(r"[a-z0-9_-]{1,64}", slug):
+        return deny(404, "introuvable")
+    cache = Path(core.CFG["cache_dir"]).expanduser() / "ha-icons" / f"{slug}.png"
+    try:
+        if cache.is_file() and time.time() - cache.stat().st_mtime < 7 * 86400:  # NOSONAR S2083: file name = the slug checked above, in the app's cache
+            return Response(cache.read_bytes(), media_type="image/png", headers={"Cache-Control": "max-age=86400"})  # NOSONAR S2083: same checked slug
+        ha = next((c for c in connectors.instances(core.CFG, kind="status") if c.type == "home-assistant" and c.name == name), None)
+        if ha is None:
+            return deny(404, "introuvable")
+        data = ha.addon_icon(slug)
+    except Exception:  # NOSONAR S5754: no icon is not an error, the page shows a generic one  # noqa: BLE001
+        return deny(404, "introuvable")
+    cache.parent.mkdir(parents=True, exist_ok=True)  # NOSONAR S2083: the app's cache folder
+    cache.write_bytes(data)  # NOSONAR S2083: the name is the slug checked above, under the app's cache folder
+    return Response(data, media_type="image/png", headers={"Cache-Control": "max-age=86400"})
+
+
 class MuteBody(BaseModel):
     id: str
     muted: bool = True

@@ -17,10 +17,17 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   state), the system and uptime, a strip of figures (services, CPU, memory, fullest disk) and, for machines, the servers and what to
   watch; a coloured left edge marks a machine to look at. Health cards list the first three problems, the rest under « Details ».
 
+- Home Assistant: the add-ons installed are listed with their icon and version (an update waiting in orange), on its card and in
+  the unfolded detail of its machine. Read from the update entities, so no admin right is needed; the icons are read by the server
+  with the token (`GET /api/v1/ha/<instance>/addon-icon/<slug>`) and kept a week in the cache.
+- Machines, table view: the « Expand all » button is gone.
+
 ### Fixed
 
 - Health: the machines that are off follow the search like the others (accents and case ignored) and the « System » and « Access »
   filters, instead of disappearing as soon as any filter was on.
+- Health: with « Hide the machines without trouble » on and every machine fine, the page said nothing (the table or cards looked
+  broken); it now says so, with a « Show them » button.
 
 ## v0.11.8 (2026-10-13)
 

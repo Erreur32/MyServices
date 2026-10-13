@@ -1,11 +1,12 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { ArrowUpCircle, Boxes, Plus, Bug, Check, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
+import { ArrowUpCircle, Boxes, Plus, Bug, Check, ChevronDown, ChevronRight, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { dateTime, dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
-import type { HealthHost, Machine, MachineLinks, NetDevice, NetScan, Unlinked } from "../types";
+import type { HealthHost, Machine, MachineLinks, NetDevice, NetScan, ServiceStatus, Unlinked } from "../types";
+import { HaAddons } from "../components/ServiceStatusCards";
 import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, osOfMachine, type MState, type OsKind } from "../lib/machines";
 import { OsGlyph } from "../components/OsGlyph";
 import { shortOs } from "../lib/osName";
@@ -121,7 +122,7 @@ export function UpdatesCell({ h }: { h?: HealthHost }) {
 }
 
 /** Compact cards: a strip of small figures (label on top, value under), shared by the Machines and Health cards */
-export function Stat({ label, children, title }: { label: string; children: React.ReactNode; title?: string }) {
+export function Stat({ label, children, title }: Readonly<{ label: string; children: React.ReactNode; title?: string }>) {
   return (
     <div className="flex min-w-0 flex-col items-center px-1" title={title}>
       <span className="text-[10px] font-semibold uppercase tracking-wide text-dim">{label}</span>
@@ -129,13 +130,19 @@ export function Stat({ label, children, title }: { label: string; children: Reac
     </div>
   );
 }
-function DiskPct({ h }: { h?: HealthHost }) {
+/** Colour of a disk filling: red from 90 % (or the health check's critical), orange from 80 % (or its warning) */
+function diskTone(d: { critical?: boolean; warning?: boolean; used_pct: number }): string {
+  if (d.critical || d.used_pct >= 90) return "text-bad";
+  if (d.warning || d.used_pct >= 80) return "text-warn";
+  return "text-ok";
+}
+function DiskPct({ h }: Readonly<{ h?: HealthHost }>) {
   const d = topDisk(h);
   if (!d) return <Dim>-</Dim>;
-  return <b className={d.critical || d.used_pct >= 90 ? "text-bad" : d.warning || d.used_pct >= 80 ? "text-warn" : "text-ok"}>{d.used_pct} %</b>;
+  return <b className={diskTone(d)}>{d.used_pct} %</b>;
 }
 /** CPU, memory and fullest disk in one strip; `first`: one more figure on the left (services on a machine card) */
-export function ResStrip({ h, first }: { h?: HealthHost; first?: React.ReactNode }) {
+export function ResStrip({ h, first }: Readonly<{ h?: HealthHost; first?: React.ReactNode }>) {
   const d = topDisk(h);
   return (
     <div className={`grid ${first ? "grid-cols-4" : "grid-cols-3"} divide-x divide-line/60 rounded-lg bg-bg2/50 py-1.5`}>
@@ -148,6 +155,8 @@ export function ResStrip({ h, first }: { h?: HealthHost; first?: React.ReactNode
 }
 
 const LEVEL_EDGE: Record<string, string> = { crit: "border-l-bad", down: "border-l-bad", warn: "border-l-warn" };
+/** Health level of a machine for its card edge: « down » when unreachable, "" when health is not read */
+const levelKey = (h?: HealthHost): string => (h?.reachable === false ? "down" : h?.level ?? "");
 
 const WATCH_ICON: Record<WatchKind, LucideIcon> = {
   down: WifiOff, ssh: KeyRound, disk: HardDrive, systemd: ServerCrash, docker: Container, kernel: Bug, smart: ScanSearch, load: Gauge, ssh_auth: ShieldAlert,
@@ -289,7 +298,7 @@ function HealthRows({ h }: { h: HealthHost }) {
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, servers }: { m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode }) {
+function Detail({ m, h, mac, net, from, watch, servers, ha }: { m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus }) {
   const roles = rolesOf(m.role), i = m.info, hw = hardwareRows(m.agent?.hardware), s = m.ssh;
   const [stTone, stLabel, stTip] = MSTATE[mState(m)];
   const vhosts = (i?.vhosts ?? []) as { port?: number; names?: string[] }[];
@@ -340,6 +349,7 @@ function Detail({ m, h, mac, net, from, watch, servers }: { m: Machine; h?: Heal
         <Row k={tx("Services")}>{m.services}{m.npm > 0 && <Dim> · {m.npm} NPM</Dim>}{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</Row>
         <Row k="Docker">{i?.docker ? tx("{0} conteneur(s) en cours", i.docker) : m.agent?.docker != null ? (m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>) : i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined}</Row>
         <Row k="API">{m.api?.length ? <span className="flex flex-wrap gap-1">{m.api.map((a) => <Badge key={`${a.type}/${a.name}`} tone={a.ok ? "ok" : a.stale ? "warn" : "bad"} title={`${a.name} : ${a.message ?? ""}`}>{a.label}{a.version ? ` ${a.version}` : ""}</Badge>)}</span> : undefined}</Row>
+        {ha?.addons?.length ? <div className="py-1"><HaAddons s={ha} /></div> : null}
         <Row k={tx("Applis")}>{m.agent?.apps?.length ? <span className="flex flex-wrap gap-1">{m.agent.apps.map((a) => <Badge key={a.key} tone="info" title={tx("Vue par les services Windows du PC")}>{a.label}</Badge>)}</span> : undefined}</Row>
         <Row k="Apache">{i?.apache ? <>{tx("{0} vhost(s)", vhosts.length)}{!!i.vhosts_unreadable?.length && <span className="text-warn"> · {i.vhosts_unreadable.length} {tx("illisible(s)")}</span>}</> : undefined}</Row>
         {i?.apache && vhosts.slice(0, 6).map((v, n) => <Row key={n} k=""><span className="font-mono text-[11px] text-muted">:{v.port} {(v.names ?? []).join(", ") || "-"}</span></Row>)}
@@ -394,12 +404,13 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
     }
   }, [hb, snap.data.connectors]);
   const sort = useSort(f.shown, keyOf, "ip");
+  // Home Assistant running on this machine (its address points here): its add-ons in the unfolded detail
+  const haOf = (m: Machine) => (snap.data.services_status ?? []).find((c) => c.connector === "home-assistant" && c.url && new URL(c.url).hostname === m.ip);
   const watchOf = (m: Machine) => watchItems(m, hb.get(m.ip), snap.data.connectors ?? []);
   // Tableau sur une seule ligne par machine ; un clic sur le chevron (ou « Tout déplier ») montre le détail
   const [open, setOpen] = useState<Set<string>>(new Set());
   const toggleOpen = (ip: string) => setOpen((o) => { const n = new Set(o); if (!n.delete(ip)) n.add(ip); return n; });
   const [view, pickView] = useStoredView("ms.machines.view", "table");  // Tableau ou Cartes, retenu
-  const allOpen = sort.sorted.length > 0 && sort.sorted.every((m) => open.has(m.ip));
 
   // Inventaire de MynetworK (connecteur « network ») : MAC et fabricant sous l'IP, et les appareils vus mais pas suivis
   const seen = useMemo(() => new Map((snap.data.network ?? []).flatMap((c) => c.devices ?? []).map((d) => [d.ip, d])), [snap.data.network]);
@@ -438,10 +449,6 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
         options={nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []}
         extra={<>
           <ViewToggle view={view} onPick={pickView} />
-          <button type="button" onClick={() => setOpen(allOpen ? new Set() : new Set(sort.sorted.map((m) => m.ip)))} aria-pressed={allOpen}
-            className={`${view === "table" ? "hidden md:inline-flex" : "hidden"} items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-sm text-muted hover:text-txt`}>
-            {allOpen ? <ChevronsDownUp size={14} aria-hidden /> : <ChevronsUpDown size={14} aria-hidden />}{allOpen ? tx("Tout replier") : tx("Tout déplier")}
-          </button>
         </>} />
       {untracked.length > 0 && (
         <details className="mb-3 rounded-xl border border-line bg-bg2/40 px-4 py-2 text-sm">
@@ -493,7 +500,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                       <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
                     
                   </tr>
-                  {shown && <tr className={`bg-bg2/40 ${OPEN_DETAIL} ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} /></td></tr>}
+                  {shown && <tr className={`bg-bg2/40 ${OPEN_DETAIL} ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} /></td></tr>}
                 </Fragment>
               );
             })}
@@ -502,7 +509,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
             {sort.sorted.map((m) => {   // compact card: who, state, system, figures, then servers and what to watch
               const h = hb.get(m.ip), up = m.info?.uptime_s ?? m.agent?.uptime_s;
               return (
-                <div key={m.ip} className={`flex flex-col gap-2.5 rounded-xl border border-l-[3px] border-line bg-card p-3 transition-colors hover:border-link/50 ${LEVEL_EDGE[h ? (h.reachable === false ? "down" : h.level) : ""] ?? ""} ${isOff(m) ? "opacity-50" : ""}`}>
+                <div key={m.ip} className={`flex flex-col gap-2.5 rounded-xl border border-l-[3px] border-line bg-card p-3 transition-colors hover:border-link/50 ${LEVEL_EDGE[levelKey(h)] ?? ""} ${isOff(m) ? "opacity-50" : ""}`}>
                   <div className="flex items-center gap-2.5">
                     <MachineIcon m={m} scan={scanOs[m.ip]} reserve />
                     <button type="button" onClick={() => onMachine(m.ip)} className="min-w-0 flex-1 text-left" title={tx("Voir ses services")}>
