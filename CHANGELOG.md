@@ -11,6 +11,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+
+- Dev image header: the release in prod, the git branch and commit it was built from (with the commits since the last tag and
+  uncommitted changes) and the planned version. `scripts/git-rev.sh` gives the git state, `scripts/dev.sh --build` passes it.
+
 ### Security
 
 - SonarCloud and CodeQL review of the blocker and critical findings. Fixed: the SSH account of a machine found on the network is

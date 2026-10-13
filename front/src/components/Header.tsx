@@ -15,6 +15,28 @@ function ago(iso: string, now: number): string {
   return min < 1 ? tx("à l'instant") : min < 60 ? tx("il y a {0} min", min) : tx("il y a {0} h", Math.round(min / 60));
 }
 
+/** Dev image only: the release in prod, the git state it was built from (branch, commit, commits since the tag, uncommitted
+ *  changes) and the planned version. GIT_REV from scripts/git-rev.sh: « branch|commit|ahead|tag|dirty »; an older plain value is shown as is */
+function DevState({ git, released, planned }: { git?: string; released?: string | null; planned?: string | null }) {
+  const [branch, sha, ahead, tag, dirty] = (git ?? "").split("|");
+  const parts = git?.includes("|");
+  const pill = "rounded border border-line bg-bg2/60 px-1.5 py-0.5 font-mono";
+  return (
+    <span className="flex flex-wrap items-center gap-1.5 text-xs font-normal tracking-normal text-dim">
+      {released && <span title={tx("Dernière version publiée sur GitHub (celle de la prod)")}>{tx("prod")} <code className={`${pill} text-muted`}>{released}</code></span>}
+      {git && (parts ? (
+        <span className="inline-flex flex-wrap items-center gap-1" title={tx("État git d'où vient cette image")}>
+          git <code className={`${pill} ${branch === "main" ? "text-muted" : "text-warn"}`}>{branch}</code>
+          <code className={`${pill} text-muted`}>{sha}</code>
+          {Number(ahead) > 0 && <span>{tx("+{0} depuis {1}", ahead, tag)}</span>}
+          {dirty && <span className="text-warn">{tx("modifs non commitées")}</span>}
+        </span>
+      ) : <span>git <code className={`${pill} text-muted`}>{git}</code></span>)}
+      {planned && <span title={tx("Version prévue d'après le journal des changements")}>{tx("prévue")} <code className={`${pill} text-link`}>{planned}</code></span>}
+    </span>
+  );
+}
+
 export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; theme: Theme; toggleTheme: () => void; now: number }) {
   const stale = (now - new Date(snap.data.generated).getTime()) / 60000 > snap.data.page.stale_min;
   const logo = useHeaderLogo();
@@ -30,11 +52,7 @@ export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; them
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
           <img src={`${import.meta.env.BASE_URL}${HEADER_LOGOS.find((l) => l.id === logo)!.file}`} alt="" width={30} height={30} className="shrink-0" />{tx("MyServices")}
           {snap.me.version && <span className="rounded-md border border-line bg-card px-1.5 py-0.5 font-mono text-xs font-semibold tracking-normal text-dim" title={snap.me.released && snap.me.version !== "dev" && !/^v\d+\.\d+\.\d+/.test(snap.me.version) ? tx("Image construite depuis une branche, après la version {0} : {1}", snap.me.released, snap.me.version) : snap.me.version}>{appVersion(snap.me.version, snap.me.released)}</span>}
-          {snap.me.version === "dev" && (snap.me.git || snap.me.planned) && (
-            <span className="text-xs font-normal tracking-normal text-dim" title={tx("Image de développement : état git d'où elle vient, et version prévue d'après le journal des changements")}>
-              {snap.me.git && <>git <code className="font-mono text-muted">{snap.me.git}</code></>}{snap.me.git && snap.me.planned && " · "}{snap.me.planned && <>{tx("prévue")} <code className="font-mono text-link">{snap.me.planned}</code></>}
-            </span>
-          )}
+          {snap.me.version === "dev" && <DevState git={snap.me.git} released={snap.me.released} planned={snap.me.planned} />}
         </h1>
       </div>
       <div className="flex items-center gap-3">

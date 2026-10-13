@@ -35,7 +35,7 @@ done
 
 if [ "$build" = 1 ]; then
   echo "▸ building myservices:dev…"
-  docker build -q -t myservices:dev "$ROOT" >/dev/null
+  docker build -q -t myservices:dev --build-arg GIT_REV="$("$ROOT/scripts/git-rev.sh")" "$ROOT" >/dev/null   # git state shown in the header
   dc up -d --force-recreate
 else
   dc up -d
