@@ -44,7 +44,7 @@ class CheckSaved(unittest.TestCase):
 
     def test_connector_bug_is_readable(self):
         with mock.patch("connectors.beszel.Beszel.test", side_effect=KeyError("x")):
-            self.assertEqual(settings.check_saved("beszel", "hub"), (False, "erreur du connecteur : KeyError"))
+            self.assertEqual(settings.check_saved("beszel", "hub"), (False, "erreur interne du connecteur (détail dans le journal du conteneur)"))
 
     def test_unknown_instance(self):
         with self.assertRaises(settings.SettingsError):

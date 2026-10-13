@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from pathlib import Path
 
 import secrets_store
@@ -262,8 +263,9 @@ def check_saved(type_: str, name: str) -> tuple[bool, str]:
         r = TYPES[type_](conf, Context(timeout=TEST_TIMEOUT)).test()
     except ConnectorError as e:
         return False, str(e)
-    except Exception as e:  # connector bug: readable message, never a 500
-        return False, f"erreur du connecteur : {type(e).__name__}"
+    except Exception as e:  # connector bug: logged here, a plain message for the page (never the exception itself)
+        print(f"⚠ test {type_} « {name} » : {type(e).__name__}: {e}", file=sys.stderr)
+        return False, "erreur interne du connecteur (détail dans le journal du conteneur)"
     return r.ok, r.message
 
 

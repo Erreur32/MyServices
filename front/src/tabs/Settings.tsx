@@ -63,7 +63,9 @@ function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snaps
     backups: () => <BackupsSettings machines={snap.data.machine_list} />, tasks: () => <SystemSettings part="tasks" snap={snap} />,
     ssh: () => <SystemSettings part="ssh" snap={snap} />,
   };
-  return <>{(panels[section] ?? (() => <SystemSettings part="system" snap={snap} />))()}</>;
+  // own keys only: a section read from the address (#settings/constructor…) never reaches Object's own methods
+  const panel = Object.hasOwn(panels, section) ? panels[section] : () => <SystemSettings part="system" snap={snap} />;
+  return <>{panel()}</>;
 }
 
 export function Settings({ snap }: { snap: Snapshot }) {

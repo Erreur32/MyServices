@@ -57,6 +57,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - A connector saved from a detected service takes it off every list at once (Connectors' detected services, Discovery's
   « Apps to link », the bell, first steps), without waiting for the next collection.
 - Discovery, « Apps to link »: the buttons sit on the card's top line, on the right.
+- Security (code scanning): a connector's internal error no longer shows its exception name on the page (logged in the container
+  instead); Settings opens only its own sections from the address (a forged `#settings/constructor` no longer breaks the page).
 - Dozzle connector reads its hosts and agents through the API of its page: containers (running, stopped, unhealthy) and image
   updates found by Dozzle, shown like Dockhand's environments (Health card, machine matching, Virtualization). Optional account
   for Dozzle's simple login; without one behind its login, links only as before. « Verify HTTPS certificate » setting.
