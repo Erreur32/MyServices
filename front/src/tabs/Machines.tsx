@@ -503,6 +503,14 @@ function HealthSection({ h, from }: Readonly<{ h?: HealthHost; from: Origin[] }>
   );
 }
 
+/** Health column: the level read; without one, why: switched off on purpose, not answering, or not followed by the health check */
+function HealthLevel({ m, h }: Readonly<{ m: Machine; h?: HealthHost }>) {
+  if (h) return <Level level={levelKey(h)} />;
+  if (m.off) return <Badge tone="off" title={tx("Éteinte volontairement, aucune alerte")}>{tx("éteinte")}</Badge>;
+  if (m.ping === false) return <Badge tone="bad" title={tx("Ne répond pas au ping")}>{tx("hors ligne")}</Badge>;
+  return <Badge tone="off" title={tx("Pas de santé relevée : ni SSH, ni agent, ni Beszel, ni Home Assistant pour cette machine")}>{tx("non suivie")}</Badge>;
+}
+
 /** Services of a machine that are down, each with its problem: the tooltip of the red count */
 function downOf(m: Machine, snap: Snapshot): string[] {
   return snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.enabled && status(r)[0] === "bad")
@@ -681,7 +689,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                     <Td>{st(m)}</Td><Td><WatchList items={watchOf(m)} /></Td><Td><SshShort m={m} /></Td>
                     <Td><OsShort m={m} kind={osOf(m)} /></Td><Td><Servers m={m} snap={snap} max={2} /></Td>
                     <Td><span className="inline-flex items-center gap-1.5"><b className="tabular-nums">{m.services}</b><DownBadge m={m} snap={snap} /></span></Td>
-                    {snap.health && <><Td><Level level={h ? (h.reachable === false ? "down" : h.level) : "na"} /></Td>
+                    {snap.health && <><Td><HealthLevel m={m} h={h} /></Td>
                       <Td><MeterCell h={h} what="cpu" /></Td><Td><MeterCell h={h} what="mem" /></Td><Td><MeterCell h={h} what="disk" /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
                     
                   </tr>
