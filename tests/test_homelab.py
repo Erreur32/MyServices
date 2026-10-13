@@ -339,7 +339,7 @@ class NUTTest(unittest.TestCase):
         c = connectors.TYPES["nut"]({"type": "nut", "name": "n", "host": "127.0.0.1", "port": srv.server_address[1]}, Context(timeout=3))
         d = c.collect()
         facts = {f["label"]: f for f in d["facts"]}
-        self.assertEqual((d["version"], facts["Batterie"]["value"], facts["Autonomie"]["value"]), ("Back-UPS", "42 %", "15 min"))
+        self.assertEqual((d["version"], facts["Modèle"]["value"], facts["Batterie"]["value"], facts["Autonomie"]["value"]), (None, "Back-UPS", "42 %", "15 min"))
         self.assertEqual(facts["Secteur"]["tone"], "warn")
         self.assertEqual(d["problems"], ["onduleur : sur batterie"])
 

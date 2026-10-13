@@ -253,7 +253,8 @@ def run_isolated(conn: Connector, state: dict, timeout: float) -> tuple[dict | N
     th.join(timeout)
     if th.is_alive():
         box["error"] = f"délai dépassé ({timeout:.0f} s)"
-    v = box.get("version")
+    # Status connectors (status_kit) find the app version while collecting, not in version()
+    v = box.get("version") or (box["data"].get("version") if isinstance(box.get("data"), dict) else None)
     st = Status(conn.type, conn.name, "error" not in box, box.get("error") or "OK", v,
                 version_tested(v, conn.tested), duration_s=round(time.time() - t0, 2))
     if st.ok:

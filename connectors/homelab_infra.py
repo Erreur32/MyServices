@@ -478,7 +478,9 @@ class NUT(StatusConnector):
             facts.append(fact("Autonomie", duration(num(v["battery.runtime"]))))
         if num(v.get("ups.load")) is not None:
             facts.append(fact("Charge", f"{num(v['ups.load']):.0f} %", "warn" if num(v["ups.load"]) >= 80 else None))
-        return self.out(v.get("ups.model") or v.get("device.model"), facts, [f"onduleur : {label.get(s, s)}" for s in bad])
+        if model := v.get("ups.model") or v.get("device.model"):
+            facts.insert(0, fact("Modèle", model))   # the UPS model, not a version: no « v… » badge on the connector card
+        return self.out(None, facts, [f"onduleur : {label.get(s, s)}" for s in bad])
 
 
 class Portainer(StatusConnector):

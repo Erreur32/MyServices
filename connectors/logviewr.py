@@ -95,7 +95,8 @@ class LogviewR(Connector):
             self._info = self._rpc("initialize", {"protocolVersion": PROTOCOL, "capabilities": {},
                                                   "clientInfo": {"name": "myservices", "version": "1"}}).get("serverInfo") or {}
         v = self._info.get("version")
-        return str(v) if v else None
+        # LogviewR declares its MCP server as a fixed « 1.0.0 », not the app version (0.x): shown only once it is the real one
+        return str(v) if v and str(v) != "1.0.0" else None
 
     def _tool(self, name: str, args: dict | None = None):
         if name not in READ_TOOLS:  # garde-fou : jamais un outil d'écriture

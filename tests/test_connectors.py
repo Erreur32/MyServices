@@ -105,6 +105,8 @@ class Slow(Connector):
             raise ConnectorError("API changée")
         if mode == "bug":
             raise KeyError("champ")
+        if mode == "status":
+            return {"version": "2.3.1", "facts": []}
         return {"n": 1}
 
 
@@ -123,6 +125,10 @@ class Isolation(unittest.TestCase):
         self.assertIn("erreur interne", st.message)
         data, st = self.run_mode("ok", state)
         self.assertEqual((st.ok, st.failures, st.since), (True, 0, None))
+
+    def test_version_found_while_collecting_reaches_the_card(self):
+        self.assertEqual(self.run_mode("status", {})[1].version, "2.3.1")
+        self.assertIsNone(self.run_mode("ok", {})[1].version)
 
     def test_timeout(self):
         data, st = self.run_mode("lent", {})
