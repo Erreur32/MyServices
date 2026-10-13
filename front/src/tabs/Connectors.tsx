@@ -14,12 +14,13 @@ import { Badge, Card, Count, Dim } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
-import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorType, Host, MachinesSettings, Proposal, ScriptTip, Service } from "../types";
+import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service } from "../types";
 import { configFor, modeOf } from "../lib/connectorModes";
 import { takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
 import { savedFor } from "../lib/savedFor";
 import { serviceAt, setupCommand } from "../lib/connectorSetup";
+import { detectedValue, type DetectedValue } from "../lib/detectedValue";
 import { appIcon } from "../lib/appIcons";
 
 const KIND: Record<string, string> = {
@@ -97,7 +98,8 @@ export function Connectors({ snap }: { snap: Snapshot }) {
         )}
         {type && <ConnectorForm key={type.type} type={type} hosts={snap.data.hosts} prefill={prefill?.type === type.type ? prefill : null} onSaved={reload} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
       </Card>
-      <DetectedServices apps={(snap.data.detected_apps ?? []).filter((p) => !saved.includes(discoveryId(p)))} instances={st.instances} onOpen={setOverlay} />
+      <DetectedServices apps={(snap.data.detected_apps ?? []).filter((p) => !saved.includes(discoveryId(p)))} instances={st.instances} types={st.types}
+        machines={snap.data.machine_list} dockerOk={new Set((snap.data.connectors ?? []).filter((c) => c.type === "docker" && c.ok && c.ip).map((c) => c.ip!))} onOpen={setOverlay} />
       {bySsh.length > 0 && (   // folded by default, like the detected services above
         <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
           <summary className={FOLD_HEAD}>
@@ -225,14 +227,30 @@ function TestReport({ r, onClose }: { r: TestOut; onClose: () => void }) {
 /** Same id as the discovery of this app (discoveries.py: « connector:<type>@<ip> »), so « Forget » here and in Discovery is one choice */
 const discoveryId = (p: Proposal) => `connector:${p.connector}@${p.ip ?? "None"}`;
 
-function DetectedServices({ apps, instances, onOpen }: { apps: Proposal[]; instances: ConnectorInstance[]; onOpen: (p: Proposal) => void }) {
+/** What it brings, then « new » (green) or « already read by … » (grey, the sources in the tooltip) */
+function ValueBadges({ v }: Readonly<{ v: DetectedValue }>) {
+  return (
+    <span className="inline-flex flex-wrap items-center justify-end gap-1">
+      {v.brings.map((b) => <Badge key={b} tone="off">{b}</Badge>)}
+      {v.coveredBy.length
+        ? <Badge tone="off" title={tx("Ces données sont déjà lues par : {0}. Le relier ne servirait qu'en complément ou en secours.", v.coveredBy.join(", "))}>{tx("déjà lu par {0}", v.coveredBy.join(", "))}</Badge>
+        : <Badge tone="ok" title={tx("Aucune autre source ne donne ces données : le relier les ajoute.")}>{tx("nouveau")}</Badge>}
+    </span>
+  );
+}
+
+function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }: Readonly<{ apps: Proposal[]; instances: ConnectorInstance[]; types: ConnectorType[];
+  machines: Machine[]; dockerOk: Set<string>; onOpen: (p: Proposal) => void }>) {
   const [disc, reloadDisc] = useDiscoveries();
   const [note, setNote] = useState<Note>(null);
   const muted = new Set((disc?.items ?? []).filter((x) => x.muted).map((x) => x.id));
   // « linked » comes with the next collection (a minute or two): a connector saved a moment ago already hides its row
   const all = apps.filter((p) => !p.linked && !savedFor(p, instances));
   // running containers first: docker ps -a also lists stopped ones, which have nothing to read until they run again
-  const rows = all.filter((p) => !muted.has(discoveryId(p))).sort((a, b) => Number(a.running === false) - Number(b.running === false)), forgotten = all.filter((p) => muted.has(discoveryId(p)));
+  const value = new Map(all.map((p) => [discoveryId(p), detectedValue(p, types.find((t) => t.type === p.connector)?.kinds ?? [], { machines, instances, dockerOk })]));
+  // what nobody reads yet first, then what is already covered; a stopped container last in each
+  const rank = (p: Proposal) => (value.get(discoveryId(p))!.coveredBy.length ? 2 : 0) + Number(p.running === false);
+  const rows = all.filter((p) => !muted.has(discoveryId(p))).sort((a, b) => rank(a) - rank(b)), forgotten = all.filter((p) => muted.has(discoveryId(p)));
   const forget = (p: Proposal, on: boolean) => void act(() => send("PUT", "discoveries/muted", { id: discoveryId(p), muted: on }),
     on ? tx("{0} oublié : plus proposé", p.label) : tx("{0} rappelé : de nouveau proposé", p.label), setNote).then(() => reloadDisc());
   if (!all.length) return null;
@@ -267,7 +285,7 @@ function DetectedServices({ apps, instances, onOpen }: { apps: Proposal[]; insta
                   : p.running === false ? <Badge tone="off" title={p.state || undefined}>{tx("arrêté")}</Badge> : <Dim>-</Dim>}</td>
                 <td className="px-3 py-2.5 text-right">
                   <span className="inline-flex items-center gap-2">
-                    <Badge tone="info">{tx("facultatif")}</Badge>
+                    <ValueBadges v={value.get(discoveryId(p))!} />
                     <button type="button" className={primary} onClick={() => onOpen(p)}><Plus size={14} />{tx("Activer")}</button>
                     <button type="button" className={quiet} onClick={() => forget(p, true)} title={tx("Ne plus le proposer, ni dans la cloche ni sur l'accueil. Il reste dans « Oubliés » pour le rappeler plus tard.")}><EyeOff size={14} />{tx("Oublier")}</button>
                   </span>

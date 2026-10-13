@@ -401,7 +401,8 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
               {confirm ? <>
                 <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `machines/settings/${ip}`), tx("machine retirée : la recherche réseau ne la proposera plus (Réglages → Découverte pour la faire revenir)"), setNote).then((ok) => ok && reload())}>{tx("Confirmer le retrait")}</button>
                 <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
-              </> : <button type="button" className={danger} onClick={() => setConfirm(true)}><Trash2 size={14} />{tx("Retirer")}</button>}
+              </> : <button type="button" className={`${danger} px-2`} onClick={() => setConfirm(true)} aria-label={tx("Retirer")}
+                title={tx("Retirer : MyServices ne suit plus cette machine et la recherche réseau ne la propose plus (une confirmation est demandée)")}><Trash2 size={15} aria-hidden /></button>}
             </span>
           </>} />
         </div>
