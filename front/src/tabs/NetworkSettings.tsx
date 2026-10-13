@@ -19,6 +19,7 @@ import { reopenFirstSteps } from "../lib/firstSteps";
 import { act, primary, quiet, type Note } from "../lib/forms";
 import { usePoll } from "../lib/polling";
 import { tx } from "../lib/i18n";
+import { runningTip, stoppedTip } from "../lib/runState";
 import { pokeScan } from "../lib/scan";
 import type { NetScan } from "../types";
 
@@ -84,8 +85,8 @@ function AppTile({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">{icon ? <img src={icon} alt="" className="h-6 w-6" /> : <Boxes size={18} className="text-muted" aria-hidden />}</span>
         <span className="min-w-0 flex-1">
           <span className="flex min-w-0 items-center gap-1.5"><b className="truncate text-sm">{x.app || x.title}</b>
-            {x.running === true && <Badge tone="ok">{tx("actif")}</Badge>}
-            {x.running === false && <Badge tone="off" title={x.note}>{tx("arrêté")}</Badge>}</span>
+            {x.running === true && <Badge tone="ok" title={runningTip()}>{tx("actif")}</Badge>}
+            {x.running === false && <Badge tone="off" title={stoppedTip(x.note)}>{tx("arrêté")}</Badge>}</span>
           <span className="block truncate text-xs text-dim">{x.machine ? `${x.machine.name || x.machine.ip}${x.machine.name ? ` · ${x.machine.ip}` : ""}` : x.note}</span>
         </span>
         {/* buttons on the top line, at the right of the card */}

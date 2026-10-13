@@ -16,6 +16,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Connector cards: « Test », « Edit » and « Delete » are icon buttons with an explaining tooltip (also read by screen readers);
   the test shows a spinner while it runs.
 - Settings → Machines: « Remove » is an icon button with an explaining tooltip.
+- Detected apps (Discovery, Connectors): the « running » and « stopped » badges explain themselves in a tooltip (what it means, Docker's state).
 - Connectors, « Detected services not set up »: the « optional » badge on every line is replaced by what the service would bring
   (containers, machine health, virtualization, service status…) and « new » (nobody reads that yet) or « already read by SSH,
   Dockhand… » (it would only add to it); the new ones come first.

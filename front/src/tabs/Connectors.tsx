@@ -19,6 +19,7 @@ import { configFor, modeOf } from "../lib/connectorModes";
 import { takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
 import { savedFor } from "../lib/savedFor";
+import { runningTip, stoppedTip } from "../lib/runState";
 import { serviceAt, setupCommand } from "../lib/connectorSetup";
 import { detectedValue, type DetectedValue } from "../lib/detectedValue";
 import { appIcon } from "../lib/appIcons";
@@ -281,8 +282,8 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
                   </button>
                 </td>
                 <td className="px-3 py-2.5"><b className="font-semibold">{p.machine || p.ip}</b>{p.machine && <Dim> · {p.ip}</Dim>}</td>
-                <td className="px-3 py-2.5">{p.running === true ? <Badge tone="ok" title={p.state || undefined}>{tx("actif")}</Badge>
-                  : p.running === false ? <Badge tone="off" title={p.state || undefined}>{tx("arrêté")}</Badge> : <Dim>-</Dim>}</td>
+                <td className="px-3 py-2.5">{p.running === true ? <Badge tone="ok" title={runningTip(p.state)}>{tx("actif")}</Badge>
+                  : p.running === false ? <Badge tone="off" title={stoppedTip(p.state)}>{tx("arrêté")}</Badge> : <Dim>-</Dim>}</td>
                 <td className="px-3 py-2.5 text-right">
                   <span className="inline-flex items-center gap-2">
                     <ValueBadges v={value.get(discoveryId(p))!} />

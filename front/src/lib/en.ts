@@ -895,6 +895,8 @@ export const EN: Record<string, string> = {
   "déjà lu par {0}": "already read by {0}",
   "Aucune autre source ne donne ces données : le relier les ajoute.": "No other source gives this data: connecting it adds it.",
   "nouveau": "new",
+  "Actif : l'appli tourne en ce moment (vu à la dernière collecte{0}). Son connecteur pourra la lire dès qu'il sera relié.": "Running: the app runs right now (seen at the last collection{0}). Its connector can read it as soon as it is connected.",
+  "Arrêté : le conteneur existe mais ne tourne pas (vu par docker ps -a{0}). Rien à lire tant qu'il n'est pas relancé ; le relier peut attendre.": "Stopped: the container exists but does not run (seen by docker ps -a{0}). Nothing to read until it is started again; connecting it can wait.",
   "Retirer : MyServices ne suit plus cette machine et la recherche réseau ne la propose plus (une confirmation est demandée)": "Remove: MyServices stops following this machine and the network search no longer offers it (asks for a confirmation)",
   "Tester : essayer la lecture avec les réglages enregistrés, sans ouvrir le formulaire": "Test: try reading with the saved settings, without opening the form",
   "Fermer le formulaire de réglages": "Close the settings form",
