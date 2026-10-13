@@ -8,6 +8,7 @@ Routes lues (enveloppe {"success": true, "result": …}) :
   GET /api/plugins/unifi/clients        clients UniFi (facultatif : 403 / 404 si UniFi n'est pas branché)
   GET /api/plugins/unifi/devices        bornes, switches, passerelles UniFi (facultatif)
   GET /api/plugins/unifi/system         UniFi Network (version, mise à jour), UniFi OS, passerelle : firmware, adresse LAN, santé (MynetworK 0.10.68+, facultatif)
+  (GET /api/connection/summary donne aussi, depuis 0.10.68, latest_firmware et update_available de la Freebox)
   GET /api/lan/devices                  hôtes vus par la Freebox (facultatif)
   GET /api/connection/summary           ligne et santé de la Freebox, sans IP ni numéro de série (facultatif, MynetworK 0.10.66+)
 Les routes facultatives qui répondent 403 ou 404 ne sont pas une erreur : MynetworK n'a simplement pas cette source.
