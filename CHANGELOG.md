@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.11.3 (2026-10-13)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 
 - Connectors: the « add » picker is sorted alphabetically, with one filter chip per category (Monitoring, Media, Network / DNS,
