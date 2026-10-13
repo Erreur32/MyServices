@@ -67,6 +67,15 @@ export function Settings({ snap }: { snap: Snapshot }) {
     const s = location.hash.split("/")[1];
     if (s !== section && !(section === "machines" && s === "agents")) showInUrl(`settings/${section}`, !s);   // first opening of #settings: replaced, not one more step back
   }, [section]);
+  useEffect(() => {   // a link to another section (#settings/tasks from Discovery…) while Settings is open: follow it
+    const go = () => {
+      const s = location.hash.split("/")[1];
+      const wanted = s === "sources" ? "connectors" : s === "agents" ? "machines" : s;
+      if (location.hash.startsWith("#settings/") && SECTIONS.some((x) => x.id === wanted)) setSection(wanted);
+    };
+    addEventListener("hashchange", go);
+    return () => removeEventListener("hashchange", go);
+  }, []);
   const [disc] = useDiscoveries();   // « Découverte » est colorée quand il y a quelque chose à faire
   return (
     <div className="flex flex-col gap-4 py-4 md:flex-row">

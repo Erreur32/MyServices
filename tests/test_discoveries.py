@@ -17,7 +17,7 @@ class Discoveries(unittest.TestCase):
         self.assertEqual((x["mode"], x["state"]), (d.AUTO, "ok"))              # la première se lance toute seule : rien à faire
         off = by(d.build({"net_has_run": False, "net_every_h": 0}))["network"]
         self.assertEqual((off["mode"], off["state"]), (d.MANUAL, "info"))
-        self.assertEqual((x["action"]["run"], x["action"]["href"]), ("netscan", "#settings/network/scan"))   # launches, then shows the scan card
+        self.assertEqual((x["action"]["run"], x["action"]["href"]), ("netscan", "#settings/network/hosts"))   # launches, then shows the machines found
 
     def test_recherche_reseau_deja_faite_se_repete_seule(self):
         x = by(d.build({"net_has_run": True, "net_last": 1000.0, "net_every_h": 6}))["network"]

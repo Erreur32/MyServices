@@ -38,12 +38,12 @@ def build(i: dict) -> list[dict]:
             f"Se lance toute seule : la première dans la minute, puis toutes les {net_every:g} h (lecture seule, un /24 au plus)." if net_every
             else "Répétition automatique coupée (Réglages → Découverte) : à lancer à la main.",
             None, None, "ok" if net_every else "info", "première recherche dans la minute" if net_every else "jamais lancée",
-            {"label": "Lancer la recherche", "run": "netscan", "href": "#settings/network/scan"})
+            {"label": "Lancer la recherche", "run": "netscan", "href": "#settings/network/hosts"})
     else:
         nxt = (i["net_last"] + net_every * 3600) if net_every and i.get("net_last") else None
         add("network", "Machines du réseau (recherche réseau)", AUTO if net_every else MANUAL,
             f"Se répète toute seule toutes les {net_every:g} h (lecture seule, un /24 au plus)." if net_every else "Répétition automatique coupée : à relancer à la main.",
-            i.get("net_last"), nxt, "ok" if net_every else "info", "", {"label": "Chercher maintenant", "run": "netscan", "href": "#settings/network/scan"})
+            i.get("net_last"), nxt, "ok" if net_every else "info", "", {"label": "Chercher maintenant", "run": "netscan", "href": "#settings/network/hosts"})
 
     add("redetect", "Réglages des machines déjà enregistrées (rôle, système, applis)", MANUAL,
         "Ne se met pas à jour tout seul : après un changement (nouvelle appli, passage à Windows, nouveau port), cliquer sur « Redétecter » dans Réglages → Machines.",

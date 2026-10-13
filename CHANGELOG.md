@@ -29,11 +29,16 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - « What runs by itself » merged into Settings → Tasks and schedules: each task now says what it also finds (collection: services
   and ports, new services, apps to link; network search: network machines; backups: backup cron jobs), and only the searches no
   schedule covers stay in a frame of their own, « By hand or once » (redetect the machines, /home/backup once, other backup
-  folders), one clean row each. Discovery keeps a link to the schedules.
+  folders), one clean row each.
+- The network search settings left Discovery for good: frequency, networks to search and discreet mode are all on the
+  « Network search » row of Settings → Tasks and schedules. Discovery keeps a « Search settings » button to it.
+- Discovery: « Apps to link » is a folding frame (open by default).
 - Discovery → machines found: the scan summary fits in two lines, the scan and what changed since the one before, then the tags.
 
 ### Fixed
 
+- Settings followed a link to another of its sections only when opened: a link from one section to another (Discovery to Tasks
+  and schedules) did nothing. It follows the address now.
 - Discovery: « Forget » (and « Recall ») now shows at once, without reloading the page. A reload asked while another one was under
   way was dropped, so the page kept the old answer.
 

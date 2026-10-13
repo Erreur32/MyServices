@@ -300,15 +300,24 @@ function TaskRow({ t, now, reload }: { t: SystemTask; now: number; reload: () =>
   );
 }
 
+interface NetCfg { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean }
+
 /** The network search runs every N hours: the same setting as Discovery (PUT network/settings), so both pages stay in step */
 function NetscanRow({ n, now, reload }: { n: NonNullable<SystemState["netscan"]>; now: number; reload: () => void }) {
-  const [cfg, setCfg] = useState<{ every_h: number; default_h: number; max_h: number; fixed: boolean } | null>(null);
-  const [hours, setHours] = useState(""), [note, setNote] = useState<Note>(null);
-  const load = useCallback(() => { read<{ every_h: number; default_h: number; max_h: number; fixed: boolean }>("network/settings").then((c) => { setCfg(c); setHours(String(c.every_h)); }).catch(() => undefined); }, []);
+  const [cfg, setCfg] = useState<NetCfg | null>(null), [hostNet, setHostNet] = useState("");
+  const [hours, setHours] = useState(""), [nets, setNets] = useState<string | null>(null), [note, setNote] = useState<Note>(null);
+  const load = useCallback(() => {
+    read<NetCfg>("network/settings").then((c) => { setCfg(c); setHours(String(c.every_h)); }).catch(() => undefined);
+    read<{ net?: string }>("network/scan").then((x) => setHostNet(x.net ?? "")).catch(() => undefined);
+  }, []);
   useEffect(load, [load]);
   const h = Number(hours), valid = !!cfg && hours !== "" && Number.isInteger(h) && h >= 0 && h <= cfg.max_h;
   const save = (value: number) => void act(() => send("PUT", "network/settings", { every_h: value }), value ? tx("enregistré : toutes les {0} h", value) : tx("enregistré : recherche automatique coupée"), setNote)
     .then((ok) => { if (ok) { load(); reload(); } });
+  const netsText = nets ?? cfg?.nets.join(", ") ?? "", netsList = netsText.split(/[\s,;]+/).filter(Boolean);
+  const saveNets = () => void act(() => send("PUT", "network/settings", { nets: netsList }), netsList.length ? tx("réseaux enregistrés") : tx("réseau de la machine hôte"), setNote)
+    .then((ok) => { if (ok) { setNets(null); load(); } });
+  const saveDiscreet = (on: boolean) => void act(() => send("PUT", "network/settings", { discreet: on }), on ? tx("mode discret activé") : tx("mode discret coupé"), setNote).then(() => load());
   return (
     <li className={`px-1 py-3 text-sm ${n.enabled ? "" : "opacity-80"}`}>
       <div className={`flex flex-wrap items-start gap-x-4 gap-y-2 ${ROW_COLS}`}>
@@ -337,7 +346,6 @@ function NetscanRow({ n, now, reload }: { n: NonNullable<SystemState["netscan"]>
           </form>
           <p className={`mt-1 text-xs ${valid || hours === "" ? "text-dim" : "text-bad"}`}>
             {!valid && hours !== "" ? tx("Un nombre entier de 0 à {0}.", cfg?.max_h ?? "?") : h === 0 ? tx("coupée") : tx("toutes les {0} h", h)}
-            {" · "}<a className="text-link hover:underline" href="#settings/network/scan">{tx("même réglage que Découverte")}</a>
           </p>
           {cfg?.fixed && <p className="mt-0.5 text-xs text-dim">{tx("Fixée par MYSERVICES_NETSCAN_EVERY dans le compose.")}</p>}
         </div>
@@ -350,6 +358,25 @@ function NetscanRow({ n, now, reload }: { n: NonNullable<SystemState["netscan"]>
           </button>
         </div>
       </div>
+      {cfg && (   /* what the search reads: the networks and the discreet mode (moved from Discovery: every setting of a job lives here) */
+        <div className="mt-3 grid gap-4 rounded-lg bg-bg2/50 p-3 md:ml-11 md:grid-cols-[minmax(0,1fr)_minmax(0,18rem)]">
+          <form className="flex flex-col gap-1.5" onSubmit={(e) => { e.preventDefault(); saveNets(); }}>
+            <label className="flex flex-col gap-1 text-xs font-semibold text-muted">{tx("Réseaux à parcourir")}
+              <span className="flex flex-wrap gap-2">
+                <input className={`${input} h-9 min-w-[200px] flex-1 font-mono`} value={netsText} placeholder={hostNet || "192.168.1.0/24"} onChange={(e) => setNets(e.target.value)} />
+                {nets !== null && <button className={`${primary} h-9`}>{tx("Enregistrer")}</button>}
+                {nets === null && cfg.nets.length > 0 && <button type="button" className={`${quiet} h-9`} onClick={() => setNets("")}>{tx("Revenir au réseau de l'hôte")}</button>}
+              </span>
+            </label>
+            <p className="text-xs text-dim">{tx("Par défaut, le réseau de la machine hôte. Plusieurs possibles (un /24 au plus chacun), séparés par une virgule.")}</p>
+          </form>
+          <div className="flex flex-col gap-1.5">
+            <span className="flex items-center gap-2 text-xs font-semibold text-muted"><ShieldCheck size={14} aria-hidden />{tx("Mode discret")}
+              <Switch on={cfg.discreet} onChange={saveDiscreet} label={tx("Mode discret")} /></span>
+            <p className="text-xs text-dim">{tx("Ne lit ni le TTL du ping ni l'adresse MAC : le système des machines n'est alors plus deviné par là.")}</p>
+          </div>
+        </div>
+      )}
       <NoteLine note={note} />
     </li>
   );
