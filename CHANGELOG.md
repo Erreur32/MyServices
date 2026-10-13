@@ -11,6 +11,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+
+- Connector cards: « Test », « Edit » and « Delete » are icon buttons with an explaining tooltip (also read by screen readers);
+  the test shows a spinner while it runs.
+
 ## v0.11.12 (2026-10-13)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

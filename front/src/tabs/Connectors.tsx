@@ -314,17 +314,20 @@ function InstanceCard({ inst, hosts, collect, type, reload, onCollect, editing: 
           {url && <a className="mt-1 inline-block break-all font-mono text-xs text-dim hover:text-link hover:underline" href={url} target="_blank" rel="noopener noreferrer">{url}</a>}
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <button type="button" className={quiet} disabled={testing || edit} onClick={async () => {
+          {/* icons only: the explanation is in the tooltip (and read by screen readers) */}
+          <button type="button" className={`${quiet} px-2`} disabled={testing || edit} onClick={async () => {
             setTesting(true); setReport(null);
             setReport(await runTest(inst.type, { name: inst.name, config: configFor(type, modeOf(type, inst.config), inst.config as Record<string, string | number | boolean>), original: inst.name }));
             setTesting(false);
-          }} title={tx("Essayer la lecture avec les réglages enregistrés, sans ouvrir le formulaire")}><Play size={14} />{testing ? tx("Essai…") : tx("Tester")}</button>
-          <button type="button" className={quiet} disabled={locked} onClick={() => setEdit(!edit)} aria-expanded={edit}
-            title={locked ? tx("Un autre formulaire est ouvert : terminez-le ou annulez-le d'abord") : undefined}><Pencil size={14} />{tx("Modifier")}</button>
+          }} title={testing ? tx("Essai…") : tx("Tester : essayer la lecture avec les réglages enregistrés, sans ouvrir le formulaire")}
+            aria-label={testing ? tx("Essai…") : tx("Tester")}>{testing ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <Play size={15} aria-hidden />}</button>
+          <button type="button" className={`${quiet} px-2`} disabled={locked} onClick={() => setEdit(!edit)} aria-expanded={edit} aria-label={tx("Modifier")}
+            title={locked ? tx("Un autre formulaire est ouvert : terminez-le ou annulez-le d'abord") : edit ? tx("Fermer le formulaire de réglages") : tx("Modifier : adresse, accès et options du connecteur")}><Pencil size={15} aria-hidden /></button>
           {confirm ? <>
             <button type="button" className={danger} onClick={() => void act(() => send("DELETE", path), tx("connecteur supprimé"), setNote).then((ok) => { if (ok) { setEdit(false); reload(); } })}>{tx("Confirmer")}</button>
             <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
-          </> : <button type="button" className={danger} onClick={() => setConfirm(true)}><Trash2 size={14} />{tx("Supprimer")}</button>}
+          </> : <button type="button" className={`${danger} px-2`} onClick={() => setConfirm(true)} aria-label={tx("Supprimer")}
+            title={tx("Supprimer : retire ce connecteur et ses réglages (une confirmation est demandée)")}><Trash2 size={15} aria-hidden /></button>}
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
