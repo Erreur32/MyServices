@@ -384,7 +384,10 @@ class HealthFromBeszel(unittest.TestCase):
         self.assertEqual(health.host_level(h), "warn")
         blocks = health.compute_host_blocks(dict(h, level="warn"))
         self.assertIn("lu par Beszel", blocks["smart"])
-        self.assertIn("Non relevé (Beszel seul)", blocks["docker"])
+        self.assertIn("1/2 OK", blocks["docker"])   # its running containers, the unhealthy one listed
+        self.assertIn("<code>web</code> <span class='muted'>Up 2 days (unhealthy)", blocks["docker"])
+        no_docker = health.parse_beszel({**sys_, "containers": []})
+        self.assertIn("Non relevé (Beszel seul)", health.compute_host_blocks(dict(h, **no_docker, level="ok"))["docker"])
         self.assertIn("Non relevé (Beszel seul)", blocks["kernel"])
 
 

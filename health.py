@@ -796,7 +796,7 @@ def docker_from_beszel(containers) -> dict:
                        for c in unhealthy + restarting][:10],
             "image_updates": sorted(str(c.get("name")) for c in containers if c.get("updatable")),
             "total_cpu": total_cpu, "avg_cpu": round(total_cpu / len(containers), 1),
-            "top": [{"name": c.get("name"), "cpu": c["cpu"], "mem_usage": f"{c.get('memory_mb') or 0:.0f} Mo", "mem_pct": None} for c in top]}
+            "top": [{"name": c.get("name"), "cpu": c["cpu"], "mem_usage": f"{c.get('memory_mb') or 0:.0f} Mo", "mem_pct": 0.0} for c in top]}
 
 
 def smart_from_beszel(sys_: dict) -> dict:
