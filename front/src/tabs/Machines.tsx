@@ -310,20 +310,38 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, onServices }: Readon
       <IdentitySection m={m} mac={mac} net={net} from={[...from.role, ...from.mac]} />
 
       <Section icon={Cpu} title={tx("Système")} tone="violet" from={from.os}>
-        <Row k={tx("Système")}>{i?.os || m.agent?.os || undefined}</Row>
+        <Row k={tx("Système")}>{i?.os || m.agent?.os || haSystemName(ha) || undefined}</Row>
+        {ha?.system && <HaSystemRows sys={ha.system} />}
         <Row k={tx("Noyau")}>{i?.kernel || m.agent?.kernel || undefined}</Row>
         <Row k={tx("En marche")}>{(i?.uptime_s ?? m.agent?.uptime_s) ? dur(i?.uptime_s ?? m.agent?.uptime_s) : undefined}</Row>
         {hw.map(([k, v]) => <Row key={k} k={k}>{v}</Row>)}
-        {!i && !m.agent && <Dim>-</Dim>}
+        {!i && !m.agent && !ha?.system && <Dim>-</Dim>}
       </Section>
 
       <AccessSection m={m} from={from.ssh} />
 
       <SoftwareSection m={m} servers={servers} ha={ha} from={from.services} />
 
-      <HealthSection h={h} from={from.health} />
+      <HealthSection h={h} from={from.health} windows={!!m.agent || h?.os === "windows"} />
     </div>
   );
+}
+
+/** « Home Assistant OS 18.3 »: the system of a machine read only through Home Assistant (no SSH, no agent) */
+function haSystemName(ha?: ServiceStatus): string {
+  const sys = ha?.system;
+  if (!sys?.method) return "";
+  return sys.os ? `${sys.method} ${sys.os}` : sys.method;
+}
+
+/** Home Assistant's parts and their versions, as its own « About » page lists them */
+function HaSystemRows({ sys }: Readonly<{ sys: NonNullable<ServiceStatus["system"]> }>) {
+  return <>
+    <Row k={tx("Installation")}>{sys.method ?? <Dim>{tx("Core ou Container")}</Dim>}</Row>
+    <Row k="Core">{sys.core ? <span className="font-mono">{sys.core}</span> : undefined}</Row>
+    <Row k="Supervisor">{sys.supervisor ? <span className="font-mono">{sys.supervisor}</span> : undefined}</Row>
+    <Row k="Operating System">{sys.os ? <span className="font-mono">{sys.os}</span> : undefined}</Row>
+  </>;
 }
 
 /** Detail, « Identity »: name, IP, state, roles, MAC, what the network tools saw, other names, virtualization */
@@ -389,8 +407,44 @@ function SoftwareSection({ m, servers, ha, from }: Readonly<{ m: Machine; server
   );
 }
 
+/** Updates waiting on a machine, folded by default: the packages (apt, « name → version ») or the Windows updates, up to 30 named */
+function UpdatesFold({ h, windows }: Readonly<{ h: HealthHost; windows: boolean }>) {
+  const n = h.apt?.upgradable ?? 0, list = h.apt?.sample ?? [];
+  if (!n) return null;
+  const more = n - list.length;
+  return (
+    <details className="group my-1 rounded-lg border border-line/60">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-1.5 text-xs hover:bg-bg2/50 [&::-webkit-details-marker]:hidden">
+        <ChevronRight size={13} className="shrink-0 text-dim transition-transform group-open:rotate-90" aria-hidden />
+        <ArrowUpCircle size={13} className="shrink-0 text-warn" aria-hidden />
+        <span className="text-warn">{windows ? tx("{0} mise(s) à jour Windows", n) : tx("{0} paquet(s) à mettre à jour", n)}</span>
+        {!!h.apt?.security && <Badge tone="bad">{tx("{0} de sécurité", h.apt.security)}</Badge>}
+      </summary>
+      {list.length > 0 && (
+        <ul className="flex max-h-56 flex-col gap-0.5 overflow-y-auto border-t border-line/40 px-2.5 py-1.5 font-mono text-[11px] text-muted">
+          {list.map((u) => <li key={u} className="break-all">{u}</li>)}
+          {more > 0 && <li className="font-sans text-dim">{tx("… et {0} autres", more)}</li>}
+        </ul>
+      )}
+    </details>
+  );
+}
+
+/** Folded card: an orange arrow with the number of updates waiting (their names on hover) */
+function UpdatesChip({ h }: Readonly<{ h?: HealthHost }>) {
+  const n = h?.apt?.upgradable ?? 0;
+  if (!n && !h?.reboot_required) return null;
+  const names = (h?.apt?.sample ?? []).slice(0, 12).join("\n");
+  const tip = [n ? tx("{0} mise(s) à jour en attente", n) : "", h?.reboot_required ? tx("redémarrage requis") : "", names].filter(Boolean).join("\n");
+  return (
+    <span className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-warn/50 bg-warn/10 px-1.5 py-0.5 text-[11px] font-semibold text-warn" title={tip}>
+      {n > 0 && <><ArrowUpCircle size={12} aria-hidden />{n}</>}{h?.reboot_required && <RotateCw size={12} aria-hidden />}
+    </span>
+  );
+}
+
 /** Detail, « Health »: level, resources, failed systemd units, updates */
-function HealthSection({ h, from }: Readonly<{ h?: HealthHost; from: Origin[] }>) {
+function HealthSection({ h, from, windows }: Readonly<{ h?: HealthHost; from: Origin[]; windows: boolean }>) {
   const failed = h?.systemd?.failed.length || 0, apt = h?.apt?.upgradable || 0;
   return (
       <Section icon={HeartPulse} title={tx("Santé")} tone="bad" from={from}>
@@ -398,7 +452,8 @@ function HealthSection({ h, from }: Readonly<{ h?: HealthHost; from: Origin[] }>
           <Row k={tx("Niveau")}><Level level={h.reachable === false ? "down" : h.level} /></Row>
           <HealthRows h={h} />
           <Row k="Systemd">{failed ? <span className="text-bad">{tx("{0} service(s) en échec", failed)}</span> : undefined}</Row>
-          <Row k={tx("Mises à jour")}>{apt ? tx("{0} paquet(s) à mettre à jour", apt) : undefined}{h.reboot_required && <span className="text-warn"> · {tx("redémarrage requis")}</span>}</Row>
+          <Row k={tx("Mises à jour")}>{apt ? undefined : <span className="text-ok">{tx("à jour")}</span>}{h.reboot_required && <span className="text-warn">{apt ? "" : " · "}{tx("redémarrage requis")}</span>}</Row>
+          <UpdatesFold h={h} windows={windows} />
         </> : <Dim>{tx("non suivie")}</Dim>}
       </Section>
   );
@@ -423,16 +478,16 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, off, state, shown, onTog
         {state}
       </div>
       <div className="flex min-w-0 items-center gap-2 text-xs text-muted">
-        <OsShort m={m} kind={os} />
+        {!m.info?.os && !m.agent?.os && haSystemName(ha) ? <span className="truncate" title={tx("Lu par Home Assistant")}>{haSystemName(ha)}</span> : <OsShort m={m} kind={os} />}
         {up ? <span className="shrink-0 text-dim">· {tx("up")} {dur(up)}</span> : null}
+        <UpdatesChip h={h} />
         {rolesOf(m.role).slice(0, 1).map((t) => <span key={t} className="ml-auto min-w-0 truncate rounded border border-line px-1.5 py-px text-[11px] text-dim" title={m.role}>{t}</span>)}
       </div>
       <ResStrip h={h} first={<Stat label={tx("Services")} title={m.down ? tx("{0} en panne", m.down) : undefined}><b>{m.services}</b>{m.down > 0 && <span className="text-xs text-bad"> ·{m.down}</span>}</Stat>} />
       <div className="flex min-h-7 items-center justify-between gap-2">
-        <Servers m={m} snap={snap} max={4} />
+        {ha?.addons?.length ? <AddonStrip s={ha} max={6} /> : <Servers m={m} snap={snap} max={4} />}   {/* Home Assistant: its add-ons stand for the servers */}
         <WatchList items={watch} />
       </div>
-      {ha && <AddonStrip s={ha} max={8} />}
       <button type="button" onClick={onToggle} aria-expanded={shown} className="flex items-center gap-1.5 border-t border-line/60 pt-2 text-xs text-muted hover:text-txt">
         <ChevronRight size={13} className={`transition-transform ${shown ? "rotate-90" : ""}`} aria-hidden />{shown ? tx("Replier") : tx("Détails")}
       </button>

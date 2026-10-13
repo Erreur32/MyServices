@@ -66,6 +66,7 @@ DOCKER_CPU_CRIT_PCT = 80
 DOCKER_MEM_WARN_PCT = 50   # % mem/conteneur : repere un conteneur gourmand
 DOCKER_MEM_CRIT_PCT = 80
 APT_CRIT_N = 20  # paquets en attente : au-dela, systeme visiblement pas maintenu
+UPDATES_LISTED = 30  # packages (apt) or Windows updates named in the list; the count stays exact beyond
 CPU_WARN_PCT = 90   # Windows : % CPU instantané (pas de load average)
 LOAD_WARN_MULT = 1.5   # load avg 1min > mult × ncpu
 LOAD_CRIT_MULT = 3.0

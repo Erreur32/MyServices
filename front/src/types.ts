@@ -201,6 +201,7 @@ export interface ServiceStatus {
   instance?: string;                     // connector instance name (« name » can be the app's own, Home Assistant's place)
   // Home Assistant only
   addons?: { name: string; slug: string; version?: string | null; latest?: string | null }[];   // add-ons installed
+  system?: { method?: string; core?: string | null; supervisor?: string; os?: string };            // what Home Assistant runs on
   state?: string | null;                 // RUNNING, NOT_RUNNING, STARTING
   unavailable?: number; unavailable_names?: string[]; batteries_low?: string[];
   automations?: { on: number; total: number };
@@ -262,7 +263,7 @@ export interface HealthHost {
   disks?: { mount: string; used_pct: number; size_gb?: number; avail_gb?: number; warning?: boolean; critical?: boolean }[];
   systemd?: { failed: { unit: string }[] };
   docker?: { accessible: boolean; total?: number; stopped?: number; unhealthy?: number; restarting?: number; issues?: string[] };
-  apt?: { upgradable: number; sample?: string[] };
+  apt?: { upgradable: number; sample?: string[]; available?: boolean; security?: number | null };   // packages (apt) or Windows updates; sample: up to 30 named
   kernel?: { has_errors: boolean; samples?: string[] };
   load?: { load_1: number; ncpu: number; available: boolean };
   res?: { available: boolean; cpu_pct?: number; mem_pct?: number; mem_total_mb?: number; mem_used_mb?: number; swap_total_mb?: number; swap_used_mb?: number };  // CPU et mémoire

@@ -191,6 +191,17 @@ class AddonIcons(unittest.TestCase):
             self.assertEqual(api.ha_addon_icon("maison", "core_unknown").status_code, 404)
 
 
+class System(unittest.TestCase):
+    def test_versions_and_method_from_update_entities(self):
+        from connectors.home_assistant import system, update_group
+        up = lambda e, v: {"entity_id": e, "state": "off", "attributes": {"installed_version": v}}   # noqa: E731
+        states = [up("update.home_assistant_core_update", "2026.10.1"), up("update.home_assistant_supervisor_update", "2026.09.3"),
+                  up("update.home_assistant_operating_system_update", "18.3"), up("update.home_assistant_plant_update", "v2026.9.0")]
+        self.assertEqual(system(states), {"core": "2026.10.1", "supervisor": "2026.09.3", "os": "18.3", "method": "Home Assistant OS"})
+        self.assertEqual(system(states[:2])["method"], "Supervised")
+        self.assertNotIn("method", system(states[:1]))
+        self.assertEqual(update_group("update.home_assistant_plant_update", {}), "other")   # a HACS card is not Home Assistant
+
 class Addons(unittest.TestCase):
     def test_addons_from_update_entities(self):
         from connectors.home_assistant import addons

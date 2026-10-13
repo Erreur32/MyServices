@@ -58,14 +58,32 @@ def update_group(entity_id: str, attrs: dict) -> str:
     """Famille d'une entité update.* : « core » (Home Assistant lui-même : cœur, Supervisor, système, interface), « addon »
     (module complémentaire, dont l'icône vient de l'API hassio) ou « other » (appareils et intégrations : Plex, ESPHome,
     une prise…). Seul le cœur dit si Home Assistant est à jour."""
-    if entity_id.startswith("update.home_assistant_"):
+    if entity_id in SYSTEM_PARTS:
         return "core"
     if "/api/hassio/addons/" in str(attrs.get("entity_picture") or ""):
         return "addon"
     return "other"
 
 
-UPDATE = "update."   # entity id prefix of what can be updated (core, add-ons, devices)
+UPDATE = "update."
+# Home Assistant's own parts, by their update entity (« update.home_assistant_* » alone also matches HACS cards, e.g. plant)
+SYSTEM_PARTS = {"update.home_assistant_core_update": "core", "update.home_assistant_supervisor_update": "supervisor",
+                "update.home_assistant_operating_system_update": "os"}
+
+
+def system(states: list) -> dict:
+    """What Home Assistant runs on, from its update entities: versions of Core, Supervisor and the OS, and the installation method
+    they imply (OS entity: Home Assistant OS; Supervisor alone: Supervised; neither: Core or Container, which the API does not tell)."""
+    out = {}
+    for s in states:
+        part = SYSTEM_PARTS.get(s.get("entity_id")) if isinstance(s, dict) else None
+        if part and (v := (s.get("attributes") or {}).get("installed_version")):
+            out[part] = str(v)
+    if "os" in out:
+        out["method"] = "Home Assistant OS"
+    elif "supervisor" in out:
+        out["method"] = "Supervised"
+    return out   # entity id prefix of what can be updated (core, add-ons, devices)
 ADDON_ICON = re.compile(r"/api/hassio/addons/([a-z0-9_-]{1,64})/icon")
 
 
@@ -181,7 +199,8 @@ class HomeAssistantAPI(Connector):
         out = {"version": cfg.get("version"), "name": cfg.get("location_name"), "state": cfg.get("state"),
                "entities": len(states), "unavailable": unavailable, "unavailable_names": gone[:12], "batteries_low": sorted(low)[:10],
                "automations": {"on": sum(1 for st in autos if st.get("state") == "on"), "total": len(autos)},
-               "updates": sorted(updates, key=lambda u: u["name"].lower()), "addons": addons(states)}
+               "updates": sorted(updates, key=lambda u: u["name"].lower()), "addons": addons(states),
+               "system": {"core": cfg.get("version"), **system(states)}}
         if host := host_sensors(states):
             out["host"] = host
         return out

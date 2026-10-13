@@ -23,7 +23,12 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   Folded, the list shows its first seven icons and « +N » for the others.
 - Machines, card view: « Details » unfolds a card on the same full detail as the table (identity, system, access, software, health),
   the card then taking the whole row; both details start with « See its services » (the Services tab filtered on the machine). The
-  card of the Home Assistant machine shows its add-on icons and « +N ».
+  card of the Home Assistant machine shows its add-on icons and « +N » on its servers line (instead of a lone « - »).
+- Machines: the updates waiting are listed in the detail (card or table), folded by default: the apt packages with their new
+  version on Linux, the Windows updates for a PC with the agent, up to 30 named (the count stays exact beyond). A folded card
+  shows an orange arrow with their number (and the reboot sign), names on hover.
+- Home Assistant machine: its system is read from Home Assistant (installation method, Core, Supervisor and Operating System
+  versions) and shown in « System » and on its card, where it was empty.
 - Machines, table view: the « Expand all » button is gone.
 - Virtualization: each node is its own section with its gauges (CPU, RAM) on a fixed grid, its storage gauges in aligned columns
   and its own guests under it (a host without nodes, or ESXi datastores, get one section); the totals moved to the title line,
@@ -31,6 +36,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Fixed
 
+- Home Assistant: a HACS card whose update entity starts with « home_assistant_ » (plant…) was taken for Home Assistant itself.
 - Health: the machines that are off follow the search like the others (accents and case ignored) and the « System » and « Access »
   filters, instead of disappearing as soon as any filter was on.
 - Health: with « Hide the machines without trouble » on and every machine fine, the page said nothing (the table or cards looked
