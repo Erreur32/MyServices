@@ -230,7 +230,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
 
       {/* 7. Réglages de la recherche */}
       <Section id="net-scan" icon={<Settings2 size={16} aria-hidden />} title={tx("Réglages de la recherche")} hint={tx("Cherche les machines allumées sur votre réseau local (un /24 au plus) : un ping, le nom, quelques ports. Lecture seule.")}
-        right={<a href="#settings/tasks" className="text-sm text-link hover:underline">{tx("Ce qui tourne tout seul : Tâches et horaires")}</a>}>
+        right={<a href="#settings/tasks" className="text-sm text-link hover:underline">{tx("Horaires des recherches : Tâches et horaires")}</a>}>
         <div className="grid gap-4 lg:grid-cols-3">
           <form className="flex flex-col gap-1.5" onSubmit={(e) => { e.preventDefault(); if (valid) void save(n); }}>
             <label className="flex flex-col gap-1 text-sm font-semibold">{tx("Fréquence (heures, 0 = coupée)")}

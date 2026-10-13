@@ -26,7 +26,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Apps found in Docker over SSH carry their container state (`docker ps -a` lists stopped ones too): a running container wins over
   a stopped one for the same app on a machine, a stopped one is no longer suggested (Discovery shows it folded under « Stopped
   containers »), and the detected services in Connectors have a « State » column (running first, stopped dimmed).
-- « What runs by itself » moved from Discovery to Settings → Tasks and schedules, under the tasks (a link stays in Discovery).
+- « What runs by itself » merged into Settings → Tasks and schedules: each task now says what it also finds (collection: services
+  and ports, new services, apps to link; network search: network machines; backups: backup cron jobs), and only the searches no
+  schedule covers stay in a frame of their own, « By hand or once » (redetect the machines, /home/backup once, other backup
+  folders), one clean row each. Discovery keeps a link to the schedules.
 - Discovery → machines found: the scan summary fits in two lines, the scan and what changed since the one before, then the tags.
 
 ### Fixed

@@ -17,7 +17,8 @@ import { MachineIcon } from "../components/MachineIcon";
 import { GITHUB, releaseOf } from "../lib/links";
 import { liveText, parseAt, period } from "../lib/tasks";
 import { pokeScan } from "../lib/scan";
-import { AutoDiscoveries } from "../components/AutoDiscoveries";
+import { AutoDiscoveries, DISCOVERED_BY } from "../components/AutoDiscoveries";
+import { useDiscoveries } from "../components/DiscoveryCard";
 
 export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh"; snap: Snapshot }) {
   const [st, setSt] = useState<SystemState | null>(null);
@@ -219,6 +220,21 @@ function NextRun({ on, t, now }: { on: boolean; t: { running: boolean; started: 
   );
 }
 
+/** What a task also discovers (the Discovery entries it runs), as small tags: one place for each scheduled job */
+function AlsoFinds({ task }: { task: string }) {
+  const [disc] = useDiscoveries();
+  const ids = DISCOVERED_BY[task] ?? [];
+  const found = (disc?.items ?? []).filter((x) => ids.includes(x.id));
+  if (!found.length) return null;
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-dim">
+      <span>{tx("découvre aussi :")}</span>
+      {found.map((x) => <span key={x.id} className="rounded-md border border-line bg-bg2/60 px-1.5 py-0.5 text-muted" title={x.what}>{SHORT_FIND[x.id] ?? x.title}</span>)}
+    </div>
+  );
+}
+const SHORT_FIND: Record<string, string> = { services: tx("services et ports"), new: tx("nouveaux services"), connectors: tx("applis à relier"), network: tx("machines du réseau"), cron: tx("tâches cron de sauvegarde") };
+
 /** Last run in one line: result, when, how long; the run state lives in memory, so a restart starts it over */
 function LastRun({ t }: { t: Pick<SystemTask, "running" | "result" | "started" | "ended"> }) {
   return (
@@ -251,6 +267,7 @@ function TaskRow({ t, now, reload }: { t: SystemTask; now: number; reload: () =>
               ) : !t.enabled && <Badge tone="off">{tx("en attente")}</Badge>}
             </div>
             <p className="text-xs text-muted">{!t.enabled && t.why ? t.why : desc(t.name)}</p>
+            <AlsoFinds task={t.name} />
             {t.enabled && <LastRun t={t} />}
           </div>
         </div>
@@ -300,6 +317,7 @@ function NetscanRow({ n, now, reload }: { n: NonNullable<SystemState["netscan"]>
           <div className="min-w-0">
             <b>{tx("Recherche réseau")}</b>
             <p className="text-xs text-muted">{desc("netscan")}</p>
+            <AlsoFinds task="netscan" />
             {n.enabled && <LastRun t={{ running: n.running, result: null, started: n.started, ended: n.ended }} />}
           </div>
         </div>
