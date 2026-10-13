@@ -154,7 +154,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
                     <Td className="max-w-[260px]"><Tech r={r} /></Td>
                     <Td><Access r={r} /></Td>
                   </tr>
-                  {open[k] && <tr className={`bg-bg/40 ${OPEN_DETAIL}`}><td colSpan={8} className="p-3"><ServiceDetail r={r} /></td></tr>}
+                  {open[k] && <tr className={`bg-bg/40 ${OPEN_DETAIL}`}><td colSpan={8} className="p-3"><ServiceDetail r={r} admin={snap.me.role === "admin"} /></td></tr>}
                 </Fragment>
               );
             })}
@@ -172,7 +172,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
                     </span>
                     <Badge tone={ST_TONE[cls]}>{label}</Badge>
                   </button>
-                  {open[k] && <div className="mt-3"><ServiceDetail r={r} /></div>}
+                  {open[k] && <div className="mt-3"><ServiceDetail r={r} admin={snap.me.role === "admin"} /></div>}
                 </div>
               );
             })}

@@ -6,6 +6,7 @@ import type { Snapshot } from "../api";
 import { paragraphs, type Attention, type TabId } from "../lib/summary";
 import { FirstSteps } from "./FirstSteps";
 import { DiscoveryReminder } from "./DiscoveryCard";
+import { NewServices } from "./NewServices";
 import { Rich } from "./Rich";
 import { StatsColumn } from "./StatsColumn";
 import { TABS } from "../lib/tabs";
@@ -42,6 +43,7 @@ export function Home({ snap, items, go, goFilter, now }: { snap: Snapshot; items
       <div className="flex flex-col gap-5">
         <FirstSteps snap={snap} />
         {snap.me.role === "admin" && <DiscoveryReminder machines={snap.data.machine_list} />}
+        {snap.me.role === "admin" && <NewServices generated={snap.data.generated} />}
         <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${frame}`}>
           {items.length > 0 ? (
             <button type="button" onClick={() => fold(!folded)} aria-expanded={!folded} title={folded ? tx("Déplier") : tx("Replier")}

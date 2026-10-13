@@ -11,6 +11,18 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+
+- Home page: « New services on the machines ». Containers and processes that appeared in the last 7 days are proposed:
+  Follow (nothing changes, no longer proposed) or Don't follow (paused: no probe, no alert). A paused service shows why in its
+  detail in Services, with a « Resume following » button.
+
+### Fixed
+
+- Changes show at once: after any change the page reads its data again, then every 5 seconds for 2 minutes 30 so the collection
+  it starts shows up when it ends. The connector list also reads again when a collection ends. No more F5.
+- Deleting a connector while its form was open left « Add a connector » greyed out.
+
 ## v0.11.2 (2026-10-13)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

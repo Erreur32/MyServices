@@ -1,5 +1,9 @@
 // Fiche d'un service (ligne dépliée) : identité, service, réseau & NPM.
-import type { ReactNode } from "react";
+import { Pause, Play } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { send } from "../api";
+import { NoteLine } from "../components/form";
+import { act, quiet, type Note } from "../lib/forms";
 import { CHECK, KIND_NAME, checks, noIdentity } from "../lib/status";
 import type { Host } from "../types";
 import { tx } from "../lib/i18n";
@@ -35,7 +39,21 @@ function link(url: string, text: string) {
   return <a href={url} target="_blank" rel="noopener" className="text-link hover:underline">{text}</a>;
 }
 
-export function ServiceDetail({ r }: { r: Host }) {
+/** A service of a machine in pause (not followed, or « pause » set by hand): why, and the way back (admin) */
+function Paused({ r, admin }: { r: Host; admin: boolean }) {
+  const [note, setNote] = useState<Note>(null);
+  const resume = () => act(() => send("DELETE", `services/pause/${encodeURIComponent(`${r.ip}:${r.port}`)}`), tx("suivi repris : sondé à la prochaine collecte"), setNote);
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-line/60 bg-bg2/60 px-3 py-2 text-sm">
+      <Pause size={15} className="shrink-0 text-dim" aria-hidden />
+      <span className="min-w-0 flex-1 text-muted">{tx("En pause : ni sonde ni alerte.")} <span className="text-dim">{r.paused}</span></span>
+      {admin && r.type === "local" && r.ip && r.port && <button type="button" className={quiet} onClick={() => void resume()}><Play size={14} aria-hidden />{tx("Reprendre le suivi")}</button>}
+      <NoteLine note={note} />
+    </div>
+  );
+}
+
+export function ServiceDetail({ r, admin = false }: { r: Host; admin?: boolean }) {
   const s = r.service, b = r.backend || {}, p = r.public || {};
   const npmOnly = r.type === "redirect" || r.type === "dead";
   const ck = checks(r);
@@ -85,10 +103,13 @@ export function ServiceDetail({ r }: { r: Host }) {
     [tx("Créé"), r.created || "-", "mut"], [tx("Modifié"), r.modified || "-", "mut"],
   );
   return (
+    <>
+    {r.paused && <Paused r={r} admin={admin} />}
     <div className="grid gap-3 lg:grid-cols-3">
       <Block title={tx("Identité")} tone="link" rows={ident} />
       <Block title={tx("Service")} tone="violet" rows={svc} />
       <Block title={r.type === "local" ? tx("Réseau") : tx("Réseau & NPM")} tone="ok" rows={net} />
     </div>
+    </>
   );
 }

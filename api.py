@@ -376,6 +376,66 @@ def services_v1(machine: str | None = None, type: Literal["proxy", "redirect", "
     return ServicesOut(generated=d.get("generated"), services=items, skipped=skipped)
 
 
+# ── New services on the machines: « follow it? » (new_services.py) ────────────────────────────────────
+
+class ServiceKeys(BaseModel):
+    keys: list[str] = Field(min_length=1, max_length=500)
+
+
+@app.get(API + "/services/new", tags=["services"], summary="Services apparus sur les machines ces 7 derniers jours, pas encore choisis (admin)")
+def services_new(request: Request):
+    import history
+    import new_services
+    if denied := admin_only(request):
+        return denied
+    events = history.query(db_path(core.CFG), since=time.time() - new_services.WINDOW_DAYS * 86400, kind="nouveau", limit=5000)
+    return {"items": new_services.pending(read_produced("data.json") or {}, events, core.CFG["state_dir"])}
+
+
+@app.post(API + "/services/new/follow", tags=["services"], summary="Suivre ces nouveaux services tels quels : plus proposés (admin)")
+def services_new_follow(body: ServiceKeys, request: Request):
+    import new_services
+    if denied := admin_write(request):
+        return denied
+    new_services.follow(body.keys, core.CFG["state_dir"])
+    store().audit("services suivis", request.state.user["username"], ip_of(request), ", ".join(body.keys)[:500])
+    return {"ok": True}
+
+
+@app.post(API + "/services/new/ignore", tags=["services"], summary="Ne pas suivre un nouveau service : mis en pause, ni sonde ni alerte (admin)")
+def services_new_ignore(body: ServiceKeys, request: Request):
+    import new_services
+    import setup
+    if denied := admin_write(request):
+        return denied
+    data, done = read_produced("data.json") or {}, []
+    for k in body.keys:
+        try:
+            done.append(new_services.ignore(k, data, setup.META, core.WEB, core.CFG["state_dir"]))
+        except LookupError as e:
+            return deny(404, str(e))
+    store().audit("services non suivis", request.state.user["username"], ip_of(request), ", ".join(done)[:500])
+    return {"ok": True, "paused": done}
+
+
+@app.delete(API + "/services/pause/{target}", tags=["services"], summary="Reprendre le suivi d'un service en pause (ip:port) (admin)")
+def services_resume(target: str, request: Request):
+    import new_services
+    import setup
+    if denied := admin_write(request):
+        return denied
+    ip, _, port = target.rpartition(":")
+    try:
+        ipaddress.ip_address(ip)
+        if not 0 < int(port) < 65536:
+            raise ValueError
+    except ValueError:
+        return deny(400, "ip:port attendu")
+    new_services.set_pause(setup.META, core.WEB, f"{ip}:{int(port)}", None)
+    store().audit("suivi repris", request.state.user["username"], ip_of(request), target)
+    return {"ok": True}
+
+
 @app.get(API + "/health", tags=["modèle"], summary="Santé des machines et niveau global (modèle commun)", response_model=HealthOut)
 def health_v1():
     d = read_produced("health/stats.json") or {}
