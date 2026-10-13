@@ -1,24 +1,23 @@
-# Notes de version : MyServices 0.11.7
+# Notes de version : MyServices 0.11.8
 
 > **Version en ligne, à un stade précoce.** MyServices est utilisable, mais jeune : des écrans et des réglages peuvent encore changer. Gardez une copie de `config/` et `data/` avant de mettre à jour, et laissez-le sur votre réseau local.
 
 
-**0.11.7** (13 octobre 2026) : « Oublier » partout, conteneurs arrêtés écartés, tous les réglages des tâches au même endroit.
+**0.11.8** (13 octobre 2026) : revue de sécurité (SonarCloud, CodeQL), accessibilité, en-tête de développement plus parlant.
 
 ## Pour tout le monde
 
 **Quoi de neuf ?**
-- **Oublier / Rappeler** partout où MyServices propose quelque chose : applis à relier et suggestions de Découverte (rangées dans un cadre « Oubliés »), services détectés des Connecteurs (même choix que dans Découverte), machines trouvées sur le réseau, et accès à régler d'une machine ajoutée (« Passer » devient « Oublier », gardé sur le serveur : la carte ne revient plus, son rappel de clé SSH non plus). « Rappeler » fait tout revenir.
-- **Conteneurs arrêtés** : une appli vue dans un conteneur qui ne tourne pas (`docker ps -a`) n'est plus proposée. Découverte la range à part, et les services détectés des Connecteurs ont une colonne « État » (actif / arrêté).
-- **Tâches et horaires, seul endroit des réglages** : la fréquence, les réseaux à parcourir et le mode discret de la recherche réseau y sont réunis. Chaque tâche dit aussi ce qu'elle découvre ; seules les recherches sans horaire gardent leur cadre « À la main ou une seule fois ». Découverte garde un bouton « Réglages de la recherche ».
-- **Découverte** : « Applis à relier » se replie, le résumé du scan tient en deux lignes, et « Oublier » s'affiche tout de suite (il fallait recharger la page).
-- **Liens entre réglages** : un lien d'une section des Réglages vers une autre (Découverte vers Tâches) fonctionne maintenant.
-- **Aide des horaires** : format et exemples en une ligne, valeurs en blocs de code.
+- **Revue de sécurité** : les alertes graves de SonarCloud et de CodeQL ont été revues une à une. Corrigé : le compte SSH d'une machine trouvée est vérifié strictement, la lecture des crontabs Proxmox contrôle le numéro de VM et l'alias, la connexion UrBackup marque son MD5 comme imposé par le protocole. Les fausses alertes (chemins venant de la config, option « certificat auto-signé » choisie par connecteur, http sur le réseau local) sont marquées avec leur raison.
+- **Accessibilité** : les cartes des sauvegardes suivies s'ouvrent par un vrai bouton (utilisable au clavier), l'interrupteur et « Retirer » restent à côté sans plier la carte ; le fond des fenêtres se ferme d'un clic comme avant ; cases et boutons radio ont un nom lisible par les lecteurs d'écran.
+- **Petites corrections** : boutons de formulaire typés, jours des alertes triés comme des nombres.
+- **Pour le développement** : l'en-tête de l'image de dev montre la version en prod, la branche et le commit, et la version prévue.
 
 **Mettre à jour** : `docker compose pull`, puis `docker compose up -d` (avec l'image `:latest`). Rien à changer dans le compose.
 
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.11.7` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
-- **Nouveau** : `known_apps.run_state()` (état du conteneur derrière une appli), `running` et `state` dans les propositions, `front/src/components/AutoDiscoveries.tsx`, identifiants `access:<ip>` dans `discoveries_muted` (accès oublié, lié au rappel `ssh:<ip>`), `muted` dans `GET /api/v1/discoveries`.
-- **Modifié** : `discoveries.py`, `system.py`, `front/src/components/NetworkStep.tsx`, `front/src/components/DiscoveryCard.tsx` (relecture demandée pendant une autre : refaite), `front/src/tabs/NetworkSettings.tsx`, `front/src/tabs/SystemSettings.tsx`, `front/src/tabs/Connectors.tsx`, `front/src/tabs/Settings.tsx`.
+- **Image** : `ghcr.io/erreur32/myservices:0.11.8` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
+- **SonarCloud** : chaque analyse envoie la version du projet (le code nouveau est celui depuis la dernière version) ; les écrans React, l'agent Windows et l'ancienne page statique sont hors couverture, la logique (Python, `front/src/lib`) reste mesurée ; http vers les applis du réseau local déclaré une fois (règle S5332).
+- **Nouveau** : `scripts/git-rev.sh` (état git pour l'image de dev), tests de la commande d'import de bout en bout et des petits contrôles (`tests/test_small_guards.py`).
+- **Modifié** : `machines_admin.py`, `backups.py`, `connectors/homelab_backups.py`, `front/src/tabs/BackupsSettings.tsx`, `front/src/components/Overlay.tsx`, `front/src/components/Header.tsx`, `sonar-project.properties`, `.github/workflows/sonarcloud.yml`.
