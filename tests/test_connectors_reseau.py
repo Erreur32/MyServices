@@ -141,6 +141,24 @@ class Reseau(unittest.TestCase):
         self.assertIsNone(inst(MynetworK, self.url).collect()["freebox"])
         self.assertIsNone(freebox_status({"freebox": None}))
 
+    def test_mynetwork_unifi_system(self):
+        dev = {"success": True, "result": [{"name": "UCG", "type": "udm", "ip": "203.0.113.2", "state": "connected"}]}
+        system = {"success": True, "result": {"version": "9.4.19", "update_available": True, "console_version": "4.2.13", "sso_app_sec": "never-kept",
+                                              "gateway": {"version": "4.2.13", "upgradable": False, "upgrade_to_firmware": None, "lan_ip": "10.0.0.1",
+                                                          "cpu_pct": 12.5, "mem_pct": 40.0, "temperature": 61, "mem_total": 4e9, "mem_used": 1.6e9}}}
+        base = {"/api/network-scan/history": (200, {"success": True, "result": {"items": [], "total": 0}}),
+                "/api/plugins/unifi/clients": (200, {"success": True, "result": []}), "/api/plugins/unifi/devices": (200, dev)}
+        Fake.routes = {**base, "/api/plugins/unifi/system": (200, system)}
+        got = inst(MynetworK, self.url).collect()["unifi"]["system"]
+        self.assertEqual((got["version"], got["update_available"], got["console_version"], got["gateway"]["lan_ip"]), ("9.4.19", True, "4.2.13", "10.0.0.1"))
+        self.assertNotIn("sso_app_sec", got)                                 # only the fields named are kept
+        Fake.routes = base                                                    # MynetworK before 0.10.68: no route, no system
+        self.assertIsNone(inst(MynetworK, self.url).collect()["unifi"]["system"])
+
+    def test_freebox_update_waiting(self):
+        card = freebox_status({"name": "lan", "ok": True, "freebox": {"connection": {}, "system": {"model": "Freebox", "update_available": True, "latest_firmware": "4.14.0"}}})
+        self.assertIn({"label": "Mise à jour", "value": "→ 4.14.0", "tone": "warn"}, card["facts"])
+
     def test_mynetwork_unifi_unavailable_is_no_unifi(self):
         Fake.routes = {"/api/network-scan/history": (200, {"success": True, "result": {"items": [], "total": 0}}),
                        "/api/plugins/unifi/clients": (503, {"success": False, "error": {"code": "UNIFI_UNAVAILABLE"}}),

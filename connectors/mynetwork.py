@@ -7,6 +7,7 @@ Routes lues (enveloppe {"success": true, "result": …}) :
   GET /api/network-scan/history         inventaire du scanner, paginé (limit 1000) : ip, mac, hostname, vendor, status, pingLatency…
   GET /api/plugins/unifi/clients        clients UniFi (facultatif : 403 / 404 si UniFi n'est pas branché)
   GET /api/plugins/unifi/devices        bornes, switches, passerelles UniFi (facultatif)
+  GET /api/plugins/unifi/system         UniFi Network (version, mise à jour), UniFi OS, passerelle : firmware, adresse LAN, santé (MynetworK 0.10.68+, facultatif)
   GET /api/lan/devices                  hôtes vus par la Freebox (facultatif)
   GET /api/connection/summary           ligne et santé de la Freebox, sans IP ni numéro de série (facultatif, MynetworK 0.10.66+)
 Les routes facultatives qui répondent 403 ou 404 ne sont pas une erreur : MynetworK n'a simplement pas cette source.
@@ -20,6 +21,18 @@ FREEBOX_HOT = (75, 85)   # °C : warn, bad
 
 PAGE = 1000   # maximum accepté par MynetworK
 MAX_ITEMS = 5000  # garde-fou : un réseau plus grand n'est pas lu en entier
+
+
+GATEWAY_KEYS = ("version", "upgradable", "upgrade_to_firmware", "lan_ip", "uptime", "cpu_pct", "mem_pct", "mem_total", "mem_used", "temperature")
+SYSTEM_KEYS = ("version", "previous_version", "update_available", "update_downloaded", "name", "hostname", "uptime", "console_version")
+
+
+def _unifi_system(got: object) -> dict | None:
+    """UniFi system summary (MynetworK 0.10.68+): the fields named only, whatever else might come; None when the route is absent"""
+    if not isinstance(got, dict):
+        return None
+    gw = got.get("gateway")
+    return {**{k: got.get(k) for k in SYSTEM_KEYS}, "gateway": {k: gw.get(k) for k in GATEWAY_KEYS} if isinstance(gw, dict) else None}
 
 
 def _result(got: object) -> object:
@@ -104,6 +117,8 @@ class MynetworK(Connector):
                 "devices": [{k: d.get(k) for k in ("name", "model", "type", "mac", "ip", "state", "version", "clients", "uptime", "cpu_pct", "mem_pct",
                                                    "upgradable", "upgrade_to_firmware")}
                             for d in gear or [] if isinstance(d, dict)]}
+        if out["unifi"] is not None:
+            out["unifi"]["system"] = _unifi_system(self._get("/api/plugins/unifi/system", optional=True))
         out["freebox"] = self._freebox()
         return out
 
@@ -172,6 +187,8 @@ def freebox_status(row: dict) -> dict | None:
         facts.append(fact("Température max", f"{hot['value']:.0f} °C ({hot.get('name') or hot.get('id')})", tone))
         if tone != "ok":
             problems.append(f"Freebox chaude : {hot.get('name') or hot.get('id')} à {hot['value']:.0f} °C")
+    if s.get("update_available"):   # MynetworK 0.10.68+: the firmware the Freebox offers
+        facts.append(fact("Mise à jour", f"→ {s['latest_firmware']}" if s.get("latest_firmware") else "disponible", "warn"))
     if s.get("uptime") is not None:
         facts.append(fact("Allumée depuis", duration(s["uptime"])))
     fans = [x for x in s.get("fans") or [] if isinstance(x, dict) and isinstance(x.get("value"), (int, float))]

@@ -15,6 +15,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 - Freebox through MynetworK: « Active devices » no longer reads « 1/127 » behind another router (the Freebox keeps every device it
   ever saw): it shows the active ones and the rest as history. The fan speed is shown, and the internal disk when it is not active.
+- MynetworK 0.10.68+ (read as soon as it answers, nothing changes before): the UniFi system summary
+  (`/api/plugins/unifi/system`) gives the gateway its LAN address (it is matched to its machine by that address), its temperature,
+  memory size and firmware update, and the versions of UniFi OS and of the UniFi Network application with its update waiting
+  (« System » of the gateway; both updates in its updates list and arrow). Only the fields named are kept. The Freebox card shows
+  the firmware update it offers (`latest_firmware`, `update_available`).
 
 ### Fixed
 

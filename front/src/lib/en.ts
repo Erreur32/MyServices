@@ -1518,6 +1518,7 @@ export const EN: Record<string, string> = {
   "Une pastille dans l'en-tête quand une nouvelle version est publiée. Sa croix la masque pour cette version seulement.": "A pill in the header when a new version is published. Its cross hides it for that version only.",
   "annonce affichée": "notice shown",
   "annonce masquée": "notice hidden",
+  "mise à jour disponible": "update available",
   "Tâches et horaires": "Tasks and schedules",
   "TCP {0} ms · accès LAN direct": "TCP {0} ms · direct LAN access",
   "Télécharger": "Download",

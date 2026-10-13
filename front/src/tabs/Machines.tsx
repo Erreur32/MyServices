@@ -5,9 +5,9 @@ import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { dateTime, dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
-import type { HealthHost, Machine, MachineLinks, NetDevice, NetScan, ServiceStatus, UnifiDevice, Unlinked } from "../types";
+import type { HealthHost, Machine, MachineLinks, NetDevice, NetScan, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
-import { unifiDeviceOf, unifiDevices, unifiHealth } from "../lib/unifi";
+import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
 import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, networkTool, osOfMachine, stateBadge, type MState, type OsKind } from "../lib/machines";
 import { OsGlyph } from "../components/OsGlyph";
 import { shortOs } from "../lib/osName";
@@ -331,7 +331,7 @@ function HealthRows({ h }: { h: HealthHost }) {
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, onServices }: Readonly<{ m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; onServices: () => void }>) {
+function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, onServices }: Readonly<{ m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; onServices: () => void }>) {
   const i = m.info, hw = hardwareRows(m.agent?.hardware);
   return (
     <div className="grid gap-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -345,7 +345,7 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, onServices }:
       <Section icon={Cpu} title={tx("Système")} tone="violet" from={from.os}>
         <Row k={tx("Système")}>{i?.os || m.agent?.os || haSystemName(ha) || undefined}</Row>
         {ha?.system && <HaSystemRows sys={ha.system} />}
-        {unifi && <UnifiRows d={unifi} />}
+        {unifi && <UnifiRows d={unifi} sys={unifiSys} />}
         <Row k={tx("Noyau")}>{i?.kernel || m.agent?.kernel || undefined}</Row>
         <Row k={tx("En marche")}>{(i?.uptime_s ?? m.agent?.uptime_s) ? dur(i?.uptime_s ?? m.agent?.uptime_s) : undefined}</Row>
         {hw.map(([k, v]) => <Row key={k} k={k}>{v}</Row>)}
@@ -377,8 +377,10 @@ function SystemLine({ m, os, ha, unifi }: Readonly<{ m: Machine; os: OsKind | nu
   return <OsShort m={m} kind={os} />;
 }
 
-/** A UniFi device as MynetworK relays it: name, model, firmware, the update waiting when known */
-function UnifiRows({ d }: Readonly<{ d: UnifiDevice }>) {
+/** A UniFi device as MynetworK relays it: name, model, firmware, the update waiting when known; on the gateway, UniFi OS and the
+ *  UniFi Network application with their versions (MynetworK 0.10.68+) */
+function UnifiRows({ d, sys }: Readonly<{ d: UnifiDevice; sys?: UnifiSystem }>) {
+  const gateway = !!sys?.gateway && ["udm", "ugw", "uxg"].includes(d.type ?? "");
   let update: React.ReactNode = <Dim>{tx("non transmise par MynetworK")}</Dim>;
   if (d.upgradable) update = <span className="text-warn">{d.upgrade_to_firmware ? `→ ${d.upgrade_to_firmware}` : tx("disponible")}</span>;
   else if (d.upgradable === false) update = <span className="text-ok">{tx("à jour")}</span>;
@@ -386,6 +388,8 @@ function UnifiRows({ d }: Readonly<{ d: UnifiDevice }>) {
     <Row k={tx("Appareil")}>{[d.name, d.model].filter(Boolean).join(" · ") || undefined}</Row>
     <Row k="Firmware">{d.version ? <span className="font-mono">{d.version}</span> : undefined}</Row>
     <Row k={tx("Mise à jour")}>{update}</Row>
+    {gateway && sys?.console_version && <Row k="UniFi OS"><span className="font-mono">{sys.console_version}</span></Row>}
+    {gateway && sys?.version && <Row k="UniFi Network"><span className="font-mono">{sys.version}</span>{sys.update_available && <span className="text-warn"> · {tx("mise à jour disponible")}</span>}</Row>}
   </>;
 }
 
@@ -589,7 +593,8 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
 export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachine: (ip: string) => void; initial?: Selected }) {
   // Health by IP: the health check's, completed by UniFi (through MynetworK) for the devices read no other way (the gateway…)
   const devices = useMemo(() => unifiDevices(snap.data.network), [snap.data.network]);
-  const unifiOf = useCallback((m: Machine) => unifiDeviceOf(m, devices), [devices]);
+  const sysUnifi = useMemo(() => unifiSystem(snap.data.network), [snap.data.network]);
+  const unifiOf = useCallback((m: Machine) => { const d = unifiDeviceOf(m, devices, sysUnifi); return d && withSystem(d, sysUnifi); }, [devices, sysUnifi]);
   const hb = useMemo(() => {
     const map = healthByIp(snap.health?.hosts);
     for (const m of snap.data.machine_list) {
@@ -727,7 +732,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                       <Td><MeterCell h={h} what="cpu" /></Td><Td><MeterCell h={h} what="mem" /></Td><Td><MeterCell h={h} what="disk" /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
                     
                   </tr>
-                  {shown && <tr className={`bg-bg2/40 ${OPEN_DETAIL} ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} unifi={unifiOf(m)} onServices={() => onMachine(m.ip)} /></td></tr>}
+                  {shown && <tr className={`bg-bg2/40 ${OPEN_DETAIL} ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} onServices={() => onMachine(m.ip)} /></td></tr>}
                 </Fragment>
               );
             })}
@@ -738,7 +743,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
               return (
                 <MachineCard key={m.ip} m={m} h={h} snap={snap} scan={scanOs[m.ip]} os={osOf(m)} watch={watchOf(m)} ha={haOf(m)} unifi={unifiOf(m)} off={isOff(m)}
                   state={st(m)} shown={shown} onToggle={() => setOpen((o) => (o.has(m.ip) ? new Set() : new Set([m.ip])))} onMachine={onMachine}
-                  detail={shown && <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} unifi={unifiOf(m)} onServices={() => onMachine(m.ip)} />} />
+                  detail={shown && <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} onServices={() => onMachine(m.ip)} />} />
               );
             })}
           </Cards>

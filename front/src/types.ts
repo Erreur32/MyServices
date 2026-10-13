@@ -604,7 +604,7 @@ export interface NetDevice { ip: string; mac?: string | null; hostname?: string 
 /** MynetworK : inventaire du réseau (scanner, UniFi) */
 export interface NetworkConnector extends InfraConnector {
   devices?: NetDevice[]; online?: number;
-  unifi?: { clients: { name?: string; ip?: string; mac?: string; wired?: boolean; essid?: string }[]; devices: UnifiDevice[] } | null;
+  unifi?: { clients: { name?: string; ip?: string; mac?: string; wired?: boolean; essid?: string }[]; devices: UnifiDevice[]; system?: UnifiSystem | null } | null;
 }
 /** LogviewR : fail2ban */
 export interface SecurityConnector extends InfraConnector {
@@ -643,8 +643,18 @@ export interface NotificationsState {
   kinds: { id: string; label: string; group: string }[]; groups: Record<string, string>; examples: { name: string; kind: "report" | "events" }[];
 }
 
+/** UniFi system summary (MynetworK 0.10.68+, /api/plugins/unifi/system): UniFi Network, UniFi OS and the gateway; unknown = null */
+export interface UnifiSystem {
+  version?: string | null; previous_version?: string | null; update_available?: boolean | null; update_downloaded?: boolean | null;
+  name?: string | null; hostname?: string | null; uptime?: number | null; console_version?: string | null;
+  gateway?: { version?: string | null; upgradable?: boolean | null; upgrade_to_firmware?: string | null; lan_ip?: string | null; uptime?: number | null;
+    cpu_pct?: number | null; mem_pct?: number | null; mem_total?: number | null; mem_used?: number | null; temperature?: number | null } | null;
+}
+
 /** A UniFi device as MynetworK relays it (gateway, switch, access point); upgradable / upgrade_to_firmware only when MynetworK passes them on */
 export interface UnifiDevice {
   name?: string; model?: string; type?: string; state?: string; clients?: number; mac?: string; ip?: string; version?: string;
   uptime?: number; cpu_pct?: number | string | null; mem_pct?: number | string | null; upgradable?: boolean | null; upgrade_to_firmware?: string | null;
+  temperature?: number | null; mem_total?: number | null; mem_used?: number | null;   // from the system summary, gateway only
+  network_update?: boolean;                                                             // the UniFi Network application it runs has an update
 }
