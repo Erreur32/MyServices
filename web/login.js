@@ -68,7 +68,6 @@
       setup = true;
       $("links").hidden = true;
       $("sub").textContent = "Première installation : aucun compte n'existe encore.";
-      $("hint").hidden = true;
       var box = $("setup");
       box.hidden = false;
       if (!s.seconds_left) {
@@ -140,7 +139,6 @@
     $("p").autocomplete = "new-password";
     $("again").hidden = false;
     $("rulebox").hidden = false;
-    $("hint").hidden = true;
     $("forgot-link").textContent = "← Retour à la connexion";
     $("forgot-link").setAttribute("href", "login.html");
     $("forgot-link").replaceWith($("forgot-link").cloneNode(true));   // plain link, no forgot form
