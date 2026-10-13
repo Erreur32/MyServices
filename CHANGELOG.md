@@ -24,7 +24,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   when it fails.
 - Beszel connector: the account field asks for the e-mail (the hub signs in by e-mail only); a user name gets a clear message.
 - Forms: the red « * » (required field) stays on the same line as its label.
-- Dozzle connector: the URL help says no login is needed here (links only; with Dozzle's login on, the browser signs in).
+- Dozzle connector reads its hosts and agents through the API of its page: containers (running, stopped, unhealthy) and image
+  updates found by Dozzle, shown like Dockhand's environments (Health card, machine matching, Virtualization). Optional account
+  for Dozzle's simple login; without one behind its login, links only as before. « Verify HTTPS certificate » setting.
 
 ## v0.11.10 (2026-10-13)
 

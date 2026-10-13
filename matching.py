@@ -173,18 +173,18 @@ def link(machines: list[dict], network: list[dict] | None = None, virtualization
                 lost(src, label, inst, ip=_ip(g.get("ip")), name=g.get("name"), vmid=g.get("vmid"), type=g.get("type"), node=g.get("node"),
                      online=g.get("status") == "running")
 
-    # 4. Dockhand: one environment per Docker host (local, or a remote / Hawser agent)
+    # 4. Dockhand, Dozzle: one environment per Docker host (local, or a remote host / agent)
     for c in containers or []:
-        inst, label = c.get("name") or "", c.get("label") or "Dockhand"
+        inst, label, src = c.get("name") or "", c.get("label") or "Dockhand", c.get("connector") or "dockhand"
         for e in c.get("environments") or []:
             h = host_of(e.get("host"))
             if h in (None, "localhost", "127.0.0.1") or str(e.get("host") or "").startswith("unix:"):
                 h = host_of(c.get("url"))   # local socket: the machine Dockhand itself runs on
             ip, by = idx.find(h, None, (h, e.get("agent"), e.get("name")))
             if ip:
-                seen(ip, "dockhand", label, inst, by, environment=e.get("name"), containers=(e.get("containers") or {}).get("total"))
+                seen(ip, src, label, inst, by, environment=e.get("name"), containers=(e.get("containers") or {}).get("total"))
             else:
-                lost("dockhand", label, inst, ip=_ip(h), name=e.get("name"))
+                lost(src, label, inst, ip=_ip(h), name=e.get("name"))
 
     for e in out.values():
         e["names"] = sorted(set(e["names"]))

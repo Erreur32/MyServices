@@ -618,11 +618,12 @@ export interface SecurityConnector extends InfraConnector {
   jails?: string[]; bans_24h?: number; bans?: { ip: string; jail: string; time: number; failures?: number }[]; threat_count?: number; log_sources?: number;
   threats?: { key: string; kind: "ip_escalation" | "asn_campaign" | "autre"; ips: string[]; ip_count: number; jails: string[]; bans: number | null; first: number | null; last: number | null; severity: number | null; asn: string | null }[];
 }
-/** Dockhand : environnements Docker */
+/** Dockhand, Dozzle : environnements Docker (hôtes, agents) */
 export interface ContainersConnector extends InfraConnector {
   environments?: { id: number | string; name?: string; host?: string | null; agent?: string | null;
     containers: { total?: number; running?: number; stopped?: number; paused?: number; unhealthy?: number }; updates: { container?: string; image?: string; newer?: string | null }[] }[];
   updates?: number;
+  links_only?: boolean;   // Dozzle behind its login without an account here: links only, no card
 }
 /** Proxmox VE (nœuds, VM, conteneurs, stockages) et Proxmox Backup Server (magasins) */
 export interface VirtualizationConnector extends InfraConnector {

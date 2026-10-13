@@ -128,7 +128,7 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
                     <tbody className="divide-y divide-line/60">
                       {list.map((g) => {
                         const m = machineOf(g);
-                        const dh = m?.links?.sources.find((x) => x.source === "dockhand");
+                        const dh = m?.links?.sources.find((x) => x.source === "dockhand" || x.source === "dozzle");
                         const env = dh && envs.find((e) => e.name === dh.environment);
                         return <GuestRow key={`${g.node}/${g.vmid}`} g={g} m={m} set={vmware ? undefined : backupOf(g, sets, hostIds)} backups={!vmware} onMachine={onMachine}
                           docker={m?.info?.docker || undefined} dockhand={dh ? { containers: dh.containers, updates: env?.updates.length ?? 0 } : undefined} />;

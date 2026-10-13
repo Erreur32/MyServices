@@ -1179,7 +1179,6 @@ def main():
     # Avant « out » : ces lectures ajoutent leur état à CONNECTOR_STATUS, que « connectors » (ci-dessous) recopie ;
     # lues dans le dictionnaire, après « connectors », leur état manquait et la page disait « pas encore lu »
     services_status, network, security, containers, virtualization = (connector_rows(k) for k in ("status", "network", "security", "containers", "virtualization"))
-    connector_rows("logs")   # Dozzle: only its state and version for the connector card (its links are added to the containers)
     # An API without version (Dockhand…): the one of the container behind the connector URL, when its image says it
     urls = {}
     with contextlib.suppress(connectors.ConnectorError):
