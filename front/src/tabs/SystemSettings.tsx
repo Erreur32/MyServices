@@ -234,7 +234,7 @@ function AlsoFinds({ task }: { task: string }) {
     </div>
   );
 }
-const SHORT_FIND: Record<string, string> = { services: tx("services et ports"), new: tx("nouveaux services"), connectors: tx("applis à relier"), network: tx("machines du réseau"), cron: tx("tâches cron de sauvegarde") };
+const SHORT_FIND: Record<string, string> = { services: tx("services et ports"), new: tx("nouveaux services"), connectors: tx("applis à activer"), network: tx("machines du réseau"), cron: tx("tâches cron de sauvegarde") };
 
 /** Last run in one line: result, when, how long; the run state lives in memory, so a restart starts it over */
 function LastRun({ t }: { t: Pick<SystemTask, "running" | "result" | "started" | "ended"> }) {

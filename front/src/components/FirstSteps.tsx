@@ -81,7 +81,7 @@ function Proposals({ list }: { list: Proposal[] }) {
             <Badge tone={HOW[p.confidence]}>{how}</Badge>
             <button type="button" className={`${p.confidence === "possible" ? button + " border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10" : primary} ml-auto`}
               onClick={() => openConnector({ type: p.connector, name: p.connector, url: p.url })}>
-              {tx("Configurer")}
+              {tx("Activer")}
             </button>
           </li>
         );
@@ -298,7 +298,7 @@ export function FirstSteps({ snap, page = false }: { snap: Snapshot; page?: bool
             ? <><p className="mb-2">{tx("MyServices a reconnu des applis qu'il sait lire par leur API. Un connecteur ajoute leurs données (certificats, DNS, santé) sans rien recoder.")}</p><Proposals list={proposals} /><p className="mt-2"><a className="font-semibold text-link hover:underline" href="#settings/connectors">{tx("Tout voir dans Réglages → Connecteurs")}</a></p></>
             : <>
                 <p>
-                  {tx("Aucune autre appli à relier")}{containers > 0 && ` ${tx("({0} conteneurs examinés)", containers)}`}.
+                  {tx("Aucune autre appli à activer")}{containers > 0 && ` ${tx("({0} conteneurs examinés)", containers)}`}.
                 </p>
                 {linked.length > 0 && <p className="mt-1 text-ok">{tx("Déjà reliés : {0}.", linked.join(", "))}</p>}
                 <p className="mt-1 font-semibold text-ok">{tx("Rien à faire pour l'instant : tout est en ordre.")}</p>

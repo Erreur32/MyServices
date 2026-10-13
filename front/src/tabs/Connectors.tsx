@@ -234,8 +234,8 @@ function ValueBadges({ v }: Readonly<{ v: DetectedValue }>) {
     <span className="inline-flex flex-wrap items-center justify-end gap-1">
       {v.brings.map((b) => <Badge key={b} tone="off">{b}</Badge>)}
       {v.coveredBy.length
-        ? <Badge tone="off" title={tx("Ces données sont déjà lues par : {0}. Le relier ne servirait qu'en complément ou en secours.", v.coveredBy.join(", "))}>{tx("déjà lu par {0}", v.coveredBy.join(", "))}</Badge>
-        : <Badge tone="ok" title={tx("Aucune autre source ne donne ces données : le relier les ajoute.")}>{tx("nouveau")}</Badge>}
+        ? <Badge tone="off" title={tx("Ces données sont déjà lues par : {0}. L'activer ne servirait qu'en complément ou en secours.", v.coveredBy.join(", "))}>{tx("déjà lu par {0}", v.coveredBy.join(", "))}</Badge>
+        : <Badge tone="ok" title={tx("Aucune autre source ne donne ces données : l'activer les ajoute.")}>{tx("nouveau")}</Badge>}
     </span>
   );
 }
@@ -260,7 +260,7 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
       <summary className={FOLD_HEAD}>
         <ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
         <ScanSearch size={16} aria-hidden />{tx("Services détectés non configurés")} <Count n={rows.length} />
-        <span className="font-normal text-muted">{tx("facultatif : à relier quand vous voulez")}</span>
+        <span className="font-normal text-muted">{tx("facultatif : à activer quand vous voulez")}</span>
       </summary>
       <p className="mt-1 text-sm text-muted">{tx("MyServices a reconnu ces applis mais ne les lit pas encore. Cliquez sur l'une d'elles pour renseigner son accès en lecture.")}</p>
       <div className="mt-2 overflow-x-auto">

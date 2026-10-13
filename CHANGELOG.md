@@ -16,6 +16,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Connector cards: « Test », « Edit » and « Delete » are icon buttons with an explaining tooltip (also read by screen readers);
   the test shows a spinner while it runs.
 - Settings → Machines: « Remove » is an icon button with an explaining tooltip.
+- Discovery: « Apps to link » becomes « Apps to switch on », like the « Switch on » button of every tile (it said « Configure »);
+  « Machines found on the network » becomes « Machines on the network ».
 - One name for the network search everywhere (Discovery, first steps, found machines): « Search now », then « Search again »; « scan » is gone from the texts.
 - Discovery: « Apps to link » holds only the apps that run; stopped containers and everything forgotten move to a separate
   « Stopped and forgotten » frame, grouped by category (stopped containers, forgotten apps, other forgotten suggestions).

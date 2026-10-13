@@ -1,6 +1,6 @@
 // Réglages → Découverte : ce que MyServices trouve tout seul et ce qui demande un clic, sur une page à lire de haut en bas.
 //   1. En-tête : l'état en une phrase, le mode automatique, la recherche réseau (dernière, prochaine, lancer maintenant)
-//   2. À faire (seulement s'il y en a)   3. Machines trouvées sur le réseau (replié)   4. Applis à relier (tuiles, ordre alphabétique)
+//   2. À faire (seulement s'il y en a)   3. Machines sur le réseau (replié)   4. Applis à activer (tuiles, ordre alphabétique)
 //   5. Autres suggestions   6. Oubliés (replié)
 // No job setting here: the search frequency, networks and discreet mode live in Settings → Tasks and schedules, with every job.
 // Cadres neutres, jamais un cadre coloré dans un autre : la couleur reste dans les pastilles. Liens directs gardés :
@@ -76,7 +76,7 @@ function Row({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; ma
   );
 }
 
-/** Appli reconnue à relier : une tuile (logo, appli, machine), « Configurer » ouvre le connecteur déjà rempli */
+/** Appli reconnue à activer : une tuile (logo, appli, machine), « Activer » ouvre le connecteur déjà rempli */
 function AppTile({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
   const icon = x.app ? appIcon([x.app]) : null;
   return (
@@ -195,16 +195,16 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
         </Section>
       )}
 
-      {/* 3. Machines trouvées sur le réseau */}
-      <Fold id="net-hosts" icon={<Radar size={16} aria-hidden />} title={tx("Machines trouvées sur le réseau")} n={scan.found.filter((h) => !h.known).length || undefined}
+      {/* 3. Machines sur le réseau */}
+      <Fold id="net-hosts" icon={<Radar size={16} aria-hidden />} title={tx("Machines sur le réseau")} n={scan.found.filter((h) => !h.known).length || undefined}
         hint={picked ? tx("{0} cochée(s)", picked) : hostsItem?.note || (cfg.auto ? tx("le mode automatique ajoute seul les plus utiles") : tx("à cocher pour les suivre, ou à ignorer"))}
         open={hostsOpen} onToggle={setHostsOpen}>
         <NetworkStep net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} onCount={setPicked} />
       </Fold>
 
-      {/* 4. Applis à relier : only those that run (stopped and forgotten ones are put aside, below) */}
+      {/* 4. Applis à activer : only those that run (stopped and forgotten ones are put aside, below) */}
       {apps.length > 0 && (
-        <Fold id="net-services" icon={<Boxes size={16} aria-hidden />} title={tx("Applis à relier")} n={apps.length}
+        <Fold id="net-services" icon={<Boxes size={16} aria-hidden />} title={tx("Applis à activer")} n={apps.length}
           hint={tx("Applis reconnues sur vos machines, qu'un connecteur peut lire. Facultatif : « Oublier » range celles qui ne vous servent pas, « Rappeler » les fait revenir.")}
           open={appsOpen} onToggle={setAppsOpen}>
           <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{apps.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul>
@@ -221,7 +221,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
       {/* 6. Mis de côté : stopped containers and what was forgotten, grouped by category, each with its button */}
       {aside > 0 && (
         <Fold id="net-forgotten" icon={<EyeOff size={16} className="text-muted" aria-hidden />} title={tx("Arrêtés et oubliés")} n={aside}
-          hint={tx("mis de côté : rien à relier tant qu'un conteneur est arrêté ; « Rappeler » fait revenir ce qui a été oublié")} open={forgotOpen} onToggle={setForgotOpen}>
+          hint={tx("mis de côté : rien à activer tant qu'un conteneur est arrêté ; « Rappeler » fait revenir ce qui a été oublié")} open={forgotOpen} onToggle={setForgotOpen}>
           <div className="flex flex-col gap-4">
             {stopped.length > 0 && (
               <AsideGroup title={tx("Conteneurs arrêtés")} n={stopped.length} hint={tx("vus par docker ps -a mais pas lancés")}>
@@ -229,7 +229,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
               </AsideGroup>
             )}
             {forgotApps.length > 0 && (
-              <AsideGroup title={tx("Applis oubliées")} n={forgotApps.length} hint={tx("plus proposées à relier")}>
+              <AsideGroup title={tx("Applis oubliées")} n={forgotApps.length} hint={tx("plus proposées à activer")}>
                 <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{forgotApps.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul>
               </AsideGroup>
             )}

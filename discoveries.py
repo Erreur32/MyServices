@@ -38,7 +38,7 @@ def build(i: dict) -> list[dict]:
             f"Se lance toute seule : la première dans la minute, puis toutes les {net_every:g} h (lecture seule, un /24 au plus)." if net_every
             else "Répétition automatique coupée (Réglages → Découverte) : à lancer à la main.",
             None, None, "ok" if net_every else "info", "première recherche dans la minute" if net_every else "jamais lancée",
-            {"label": "Lancer la recherche", "run": "netscan", "href": "#settings/network/hosts"})
+            {"label": "Chercher maintenant", "run": "netscan", "href": "#settings/network/hosts"})
     else:
         nxt = (i["net_last"] + net_every * 3600) if net_every and i.get("net_last") else None
         add("network", "Machines du réseau (recherche réseau)", AUTO if net_every else MANUAL,
@@ -86,8 +86,8 @@ def build(i: dict) -> list[dict]:
             machine={"ip": a["ip"], "name": a.get("name") or ""})
     props = i.get("proposals") or []
     if not props:
-        add("connectors", "Connecteurs à relier", AUTO,
-            "Après chaque collecte, les applis reconnues sans connecteur sont proposées : MyServices ne les relie pas sans votre accord (jeton ou compte à fournir). Rien à relier pour l'instant.",
+        add("connectors", "Applis à activer", AUTO,
+            "Après chaque collecte, les applis reconnues sans connecteur sont proposées : MyServices ne les relie pas sans votre accord (jeton ou compte à fournir). Rien à activer pour l'instant.",
             i.get("collect_last"), i.get("collect_next"), "ok", "", {"label": "Voir Réglages → Connecteurs", "href": "#settings/connectors"})
     for p in props:   # une entrée par appli reconnue : la notification dit quoi, où, et ouvre le connecteur déjà rempli
         where = f" sur {p['machine']}" if p.get("machine") else f" ({p.get('ip')})" if p.get("ip") else ""
@@ -96,7 +96,7 @@ def build(i: dict) -> list[dict]:
         add(f"connector:{p['connector']}@{p.get('ip')}", f"{p['label']} trouvé{where}", AUTO,
             f"MyServices a reconnu cette appli{how} mais ne la lit pas encore : il faut lui donner un accès en lecture (compte, clé ou jeton). Il ne le fait jamais sans votre accord.",
             None, None, "info" if stopped else SUGGEST, f"conteneur arrêté ({p.get('state')})" if stopped else "connecteur à configurer",
-            {"label": "Configurer", "prefill": {"type": p["connector"], "name": p["connector"], "url": p.get("url") or ""}},
+            {"label": "Activer", "prefill": {"type": p["connector"], "name": p["connector"], "url": p.get("url") or ""}},
             app=p["label"], machine={"ip": p.get("ip") or "", "name": p.get("machine") or ""} if p.get("ip") or p.get("machine") else None, running=p.get("running"))
     muted = set(i.get("muted") or [])
     for x in out:   # a reminder can be forgotten (and recalled); a machine access forgotten in Discovery (« access:<ip> ») hides its key reminder too
