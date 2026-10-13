@@ -1123,7 +1123,6 @@ export const EN: Record<string, string> = {
   "root refusé en SSH": "root refused over SSH",
   "mot de passe refusé : clé seulement": "password refused: key only",
   "connexion refusée ou impossible": "connection refused or impossible",
-  "Disque le plus rempli": "Fullest disk",
   "Aucun service en échec": "No failed service",
   "{0} paquet(s) à mettre à jour": "{0} package(s) to update",
   "À jour": "Up to date",

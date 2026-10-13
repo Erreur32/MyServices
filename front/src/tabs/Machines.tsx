@@ -94,11 +94,6 @@ function Sshd({ m, what }: { m: Machine; what: "root" | "pwd" }) {
 }
 
 /** Colonnes santé de la v1 : disque le plus rempli, services systemd en échec, mises à jour et redémarrage */
-export function DiskCell({ h }: { h?: HealthHost }) {
-  const d = topDisk(h);
-  if (!d) return <Dim>-</Dim>;
-  return <span title={tx("Disque le plus rempli")}><b className={d.critical || d.used_pct >= 90 ? "text-bad" : d.warning || d.used_pct >= 80 ? "text-warn" : "text-ok"}>{d.used_pct} %</b> <code className="text-xs">{d.mount}</code></span>;
-}
 export function ResCell({ h, what }: { h?: HealthHost; what: "cpu" | "mem" }) {
   const v = what === "cpu" ? h?.res?.cpu_pct : h?.res?.mem_pct;
   if (!h?.res?.available || v == null) return <Dim>-</Dim>;
@@ -119,6 +114,43 @@ export function UpdatesCell({ h }: { h?: HealthHost }) {
       {h.reboot_required && <Mark tone="warn" title={tx("Redémarrage requis")}>↻</Mark>}
     </span>
   );
+}
+
+type MeterTone = "ok" | "warn" | "bad";
+const METER_TEXT: Record<MeterTone, string> = { ok: "text-txt", warn: "text-warn", bad: "text-bad" };
+const METER_BAR: Record<MeterTone, string> = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad" };
+const level = (v: number, warn: number, bad: number): MeterTone => {
+  if (v >= bad) return "bad";
+  return v >= warn ? "warn" : "ok";
+};
+
+/** Table cell: the value on top (with a hint on its right, e.g. the disk), a thin bar under it; the same width in every row */
+function Meter({ pct, tone, hint, title }: Readonly<{ pct: number; tone: MeterTone; hint?: string; title?: string }>) {
+  return (
+    <div className="w-24" title={title}>
+      <div className="flex items-baseline justify-between gap-1 leading-tight">
+        <b className={`text-sm tabular-nums ${METER_TEXT[tone]}`}>{Math.round(pct)} %</b>
+        {hint && <span className="truncate font-mono text-[10px] text-dim">{hint}</span>}
+      </div>
+      <span className="mt-1 block h-1 overflow-hidden rounded-full bg-bg2"><span className={`block h-full rounded-full ${METER_BAR[tone]}`} style={{ width: `${Math.min(100, Math.max(2, pct))}%` }} /></span>
+    </div>
+  );
+}
+
+/** CPU, memory and fullest disk of a machine as table meters; « - » when health does not read them */
+export function MeterCell({ h, what }: Readonly<{ h?: HealthHost; what: "cpu" | "mem" | "disk" }>) {
+  if (what === "disk") {
+    const d = topDisk(h);
+    if (!d) return <Dim>-</Dim>;
+    const warnAt = d.warning ? 0 : 80;   // the health check's own warning wins over the 80 % default
+    const tone: MeterTone = d.critical ? "bad" : level(d.used_pct, warnAt, 90);
+    return <Meter pct={d.used_pct} tone={tone} hint={d.mount} title={tx("Disque le plus rempli : {0}", d.mount)} />;
+  }
+  const v = what === "cpu" ? h?.res?.cpu_pct : h?.res?.mem_pct;
+  if (!h?.res?.available || v == null) return <Dim>-</Dim>;
+  if (what === "cpu") return <Meter pct={v} tone={level(v, 90, 101)} />;
+  const gb = h.res.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} Go` : undefined;
+  return <Meter pct={v} tone={level(v, 90, 97)} hint={h.res.mem_total_mb ? `${Math.round(h.res.mem_total_mb / 1024)} Go` : undefined} title={gb} />;
 }
 
 /** Compact cards: a strip of small figures (label on top, value under), shared by the Machines and Health cards */
@@ -471,6 +503,20 @@ function HealthSection({ h, from }: Readonly<{ h?: HealthHost; from: Origin[] }>
   );
 }
 
+/** Services of a machine that are down, each with its problem: the tooltip of the red count */
+function downOf(m: Machine, snap: Snapshot): string[] {
+  return snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.enabled && status(r)[0] === "bad")
+    .map((r) => `${r.domains?.[0] || r.service?.name || `${r.ip}:${r.port}`} : ${status(r)[2]}`);
+}
+
+/** Red count of the services down on a machine; what fails is in the tooltip */
+function DownBadge({ m, snap }: Readonly<{ m: Machine; snap: Snapshot }>) {
+  if (!m.down) return null;
+  const list = downOf(m, snap);
+  const tip = [tx("{0} en panne", m.down), ...list].join("\n");
+  return <span className="rounded-md border border-bad/50 bg-bad/10 px-1.5 py-px text-[11px] font-semibold tabular-nums text-bad" title={tip}>{m.down}</span>;
+}
+
 /** Compact machine card: who, state, system, figures, servers and what to watch; « Details » unfolds the same detail as the table,
  *  the card then taking the whole row. A Home Assistant machine shows its add-on icons. */
 function MachineCard({ m, h, snap, scan, os, watch, ha, off, state, shown, onToggle, onMachine, detail }: Readonly<{
@@ -495,7 +541,7 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, off, state, shown, onTog
         <UpdatesChip h={h} />
         {rolesOf(m.role).slice(0, 1).map((t) => <span key={t} className="ml-auto min-w-0 truncate rounded border border-line px-1.5 py-px text-[11px] text-dim" title={m.role}>{t}</span>)}
       </div>
-      <ResStrip h={h} first={<Stat label={tx("Services")} title={m.down ? tx("{0} en panne", m.down) : undefined}><b>{m.services}</b>{m.down > 0 && <span className="text-xs text-bad"> ·{m.down}</span>}</Stat>} />
+      <ResStrip h={h} first={<Stat label={tx("Services")}><span className="inline-flex items-center gap-1"><b>{m.services}</b><DownBadge m={m} snap={snap} /></span></Stat>} />
       <div className="flex min-h-7 items-center justify-between gap-2">
         {ha?.addons?.length ? <AddonStrip s={ha} max={6} /> : <Servers m={m} snap={snap} max={4} />}   {/* Home Assistant: its add-ons stand for the servers */}
         <WatchList items={watch} />
@@ -634,9 +680,9 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                       <b className="font-semibold hover:text-link">{m.name}</b><span className="text-xs text-dim">{m.ip}</span></button></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
                     <Td>{st(m)}</Td><Td><WatchList items={watchOf(m)} /></Td><Td><SshShort m={m} /></Td>
                     <Td><OsShort m={m} kind={osOf(m)} /></Td><Td><Servers m={m} snap={snap} max={2} /></Td>
-                    <Td><b>{m.services}</b>{m.down > 0 && <span className="text-xs text-bad"> · {m.down} {tx("en panne")}</span>}</Td>
+                    <Td><span className="inline-flex items-center gap-1.5"><b className="tabular-nums">{m.services}</b><DownBadge m={m} snap={snap} /></span></Td>
                     {snap.health && <><Td><Level level={h ? (h.reachable === false ? "down" : h.level) : "na"} /></Td>
-                      <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
+                      <Td><MeterCell h={h} what="cpu" /></Td><Td><MeterCell h={h} what="mem" /></Td><Td><MeterCell h={h} what="disk" /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
                     
                   </tr>
                   {shown && <tr className={`bg-bg2/40 ${OPEN_DETAIL} ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} onServices={() => onMachine(m.ip)} /></td></tr>}

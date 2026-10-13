@@ -28,6 +28,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   version on Linux, the Windows updates for a PC with the agent, up to 30 named (the count stays exact beyond). A folded card
   shows an orange arrow with their number (and the reboot sign), names on hover.
 - Machines, card view: opening a card closes the one open before.
+- Machines and Health tables: CPU, memory and disk are meters of the same width in every row (value, then a thin bar; the memory
+  size and the fullest disk next to the value). The services column shows the count and, when some are down, a red count whose
+  tooltip lists them with their problem (instead of « · 1 down »).
+- Home: the schedule box lines up (task, time, countdown in columns, soonest first, « in 2 h 58 » past an hour), styled like the
+  counters above it; its title opens Tasks and schedules.
 - Home Assistant machine: its system is read from Home Assistant (installation method, Core, Supervisor and Operating System
   versions) and shown in « System » and on its card, where it was empty.
 - Machines, table view: the « Expand all » button is gone.

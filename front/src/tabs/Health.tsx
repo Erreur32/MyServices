@@ -6,7 +6,7 @@ import { searchHit, useFilter, type Facet, type Selected } from "../lib/filter";
 import { dateTime, splitHostName } from "../lib/format";
 import type { AsleepHost, HealthHost } from "../types";
 import { Badge, Cards, Count, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
-import { DiskCell, ResCell, ResStrip, SystemdCell, UpdatesCell } from "./Machines";
+import { MeterCell, ResStrip, SystemdCell, UpdatesCell } from "./Machines";
 import { OsGlyph } from "../components/OsGlyph";
 import { shortOs } from "../lib/osName";
 import { healthItems } from "../lib/machineWatch";
@@ -163,7 +163,7 @@ function HealthTable({ groups, osOf, open, toggle }: {
                   </td>
                   <Td><b>{name}</b> <span className="text-xs text-dim">{ip}</span>{pb.length > 0 && <span className={`ml-2 text-xs ${pb.some(([t]) => t === "bad") ? "text-bad" : "text-warn"}`} title={pb.map((x) => x[1]).join("\n")}>⚑ {pb.length}</span>}</Td>
                   <Td><OsCell os={osOf(ip, h.os)} /></Td><Td><Level level={levelOf(h)} /></Td>
-                  <Td><ResCell h={h} what="cpu" /></Td><Td><ResCell h={h} what="mem" /></Td><Td><DiskCell h={h} /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td>
+                  <Td><MeterCell h={h} what="cpu" /></Td><Td><MeterCell h={h} what="mem" /></Td><Td><MeterCell h={h} what="disk" /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td>
                 </tr>
                 {shown && (
                   <tr className={`bg-bg2/40 ${OPEN_DETAIL}`}><td colSpan={9} className="p-0">
