@@ -691,6 +691,8 @@ def complement(h: dict, parts: dict[str, dict]) -> None:
             h["res"], gave = part["res"], True
         if not h.get("temp", {}).get("available") and part.get("temp", {}).get("available"):
             h["temp"], gave = part["temp"], True
+        elif h.get("temp", {}).get("available") and not h["temp"].get("sensors") and part.get("temp", {}).get("sensors"):
+            h["temp"], gave = {**h["temp"], "sensors": part["temp"]["sensors"]}, True   # every sensor, the reading keeps its own value
         if gave:
             used.append(name)
     h["sources"] = used

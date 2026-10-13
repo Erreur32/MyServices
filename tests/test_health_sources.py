@@ -192,3 +192,12 @@ class BeszelExtras(unittest.TestCase):
 
     def test_no_docker(self):
         self.assertFalse(health.read_host(hc(target=None), None, beszel())["docker"]["accessible"])
+
+    def test_sensors_complete_ssh(self):
+        """SSH reads the temperature, Beszel adds every sensor; with no temperature from SSH, Beszel's is taken whole."""
+        sys_ = {**beszel(), "sensors": [{"name": "core", "celsius": 51.0}]}
+        host = hc()
+        h = health.read_host(host, None, sys_, ssh=lambda x: ssh_ok(x, temp={"available": True, "celsius": 48.0, "source": "capteur"}))
+        self.assertEqual((h["temp"]["celsius"], h["temp"]["sensors"], h["sources"]), (48.0, [{"name": "core", "celsius": 51.0}], ["ssh", "beszel"]))
+        h = health.read_host(host, None, sys_, ssh=ssh_ok)
+        self.assertEqual((h["temp"]["celsius"], h["temp"]["source"]), (51.0, "Beszel"))

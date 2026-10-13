@@ -23,6 +23,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Beszel connector reads more of what its agents send: running containers per machine (health check, image update), every
   temperature sensor and the swap. In the Health tab, a machine read by Beszel gets its Docker part (containers, unhealthy ones,
   busiest, image updates) and its sensors on the temperature badge.
+  A machine read by SSH also gets Beszel's sensors on its temperature badge.
 - Netdata connector also reads the machine it runs on for the Health tab (processor, memory, load, disks, hottest sensor), all
   current values in one call (`allmetrics`).
 - GpuViewR connector: each machine's GPUs (model, temperature, load, memory, power) shown in its detail in the Machines tab,
