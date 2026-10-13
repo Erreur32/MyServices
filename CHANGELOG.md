@@ -16,6 +16,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Freebox through MynetworK: « Active devices » no longer reads « 1/127 » behind another router (the Freebox keeps every device it
   ever saw): it shows the active ones and the rest as history. The fan speed is shown, and the internal disk when it is not active.
 
+### Fixed
+
+- MynetworK: an optional route answering 503 (UniFi not plugged in: `UNIFI_UNAVAILABLE`) is read as « no UniFi » like 403 and 404,
+  instead of failing the whole MynetworK reading (scanner and Freebox included).
+
 ## v0.11.9 (2026-10-13)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

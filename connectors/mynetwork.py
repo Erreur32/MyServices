@@ -67,7 +67,7 @@ class MynetworK(Connector):
         except ConnectorError as e:
             if str(e).startswith("HTTP 401"):
                 raise ConnectorError("jeton refusé (jeton API mwk_api_… en lecture seule ?)") from None
-            if optional and str(e)[:8] in ("HTTP 403", "HTTP 404"):
+            if optional and str(e)[:8] in ("HTTP 403", "HTTP 404", "HTTP 503"):   # 503 UNIFI_UNAVAILABLE: plugin not plugged in
                 return None
             raise
         return _result(got)

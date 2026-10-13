@@ -141,6 +141,12 @@ class Reseau(unittest.TestCase):
         self.assertIsNone(inst(MynetworK, self.url).collect()["freebox"])
         self.assertIsNone(freebox_status({"freebox": None}))
 
+    def test_mynetwork_unifi_unavailable_is_no_unifi(self):
+        Fake.routes = {"/api/network-scan/history": (200, {"success": True, "result": {"items": [], "total": 0}}),
+                       "/api/plugins/unifi/clients": (503, {"success": False, "error": {"code": "UNIFI_UNAVAILABLE"}}),
+                       "/api/plugins/unifi/devices": (503, {"success": False, "error": {"code": "UNIFI_UNAVAILABLE"}})}
+        self.assertIsNone(inst(MynetworK, self.url).collect()["unifi"])   # the rest of MynetworK is still read
+
     def test_mynetwork_sans_unifi_et_jeton_refuse(self):
         Fake.routes = {"/api/health": (200, {}), "/api/network-scan/history": (200, {"success": True, "result": {"items": [], "total": 0}}),
                        "/api/plugins/unifi/clients": (404, {}), "/api/plugins/unifi/devices": (404, {})}
