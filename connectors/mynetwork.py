@@ -100,7 +100,9 @@ class MynetworK(Connector):
             out["unifi"] = {
                 "clients": [{k: c.get(k) for k in ("name", "mac", "ip", "wired", "essid", "signal_dbm", "ap_mac", "switch_mac", "switch_port")}
                             for c in clients or [] if isinstance(c, dict)],
-                "devices": [{k: d.get(k) for k in ("name", "model", "type", "mac", "ip", "state", "version", "clients", "uptime")}
+                # upgradable / upgrade_to_firmware: kept when MynetworK passes them on from UniFi (the update waiting for a device)
+                "devices": [{k: d.get(k) for k in ("name", "model", "type", "mac", "ip", "state", "version", "clients", "uptime", "cpu_pct", "mem_pct",
+                                                   "upgradable", "upgrade_to_firmware")}
                             for d in gear or [] if isinstance(d, dict)]}
         out["freebox"] = self._freebox()
         return out

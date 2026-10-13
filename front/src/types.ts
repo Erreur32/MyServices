@@ -603,7 +603,7 @@ export interface NetDevice { ip: string; mac?: string | null; hostname?: string 
 /** MynetworK : inventaire du réseau (scanner, UniFi) */
 export interface NetworkConnector extends InfraConnector {
   devices?: NetDevice[]; online?: number;
-  unifi?: { clients: { name?: string; ip?: string; mac?: string; wired?: boolean; essid?: string }[]; devices: { name?: string; model?: string; type?: string; state?: string; clients?: number }[] } | null;
+  unifi?: { clients: { name?: string; ip?: string; mac?: string; wired?: boolean; essid?: string }[]; devices: UnifiDevice[] } | null;
 }
 /** LogviewR : fail2ban */
 export interface SecurityConnector extends InfraConnector {
@@ -640,4 +640,10 @@ export interface NotificationsState {
   notifications: NotificationItem[]; channels: AlertChannel[]; sent: AlertSent[];
   sensors: { id: string; label: string; icon: string }[]; machines: { ip: string; name: string }[];
   kinds: { id: string; label: string; group: string }[]; groups: Record<string, string>; examples: { name: string; kind: "report" | "events" }[];
+}
+
+/** A UniFi device as MynetworK relays it (gateway, switch, access point); upgradable / upgrade_to_firmware only when MynetworK passes them on */
+export interface UnifiDevice {
+  name?: string; model?: string; type?: string; state?: string; clients?: number; mac?: string; ip?: string; version?: string;
+  uptime?: number; cpu_pct?: number | string | null; mem_pct?: number | string | null; upgradable?: boolean | null; upgrade_to_firmware?: string | null;
 }

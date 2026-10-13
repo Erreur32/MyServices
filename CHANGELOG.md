@@ -34,6 +34,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Machines table, health column: a machine without health says why, « off » (switched off on purpose), « offline » (no ping) or
   « not followed » (no SSH, agent, Beszel or Home Assistant), or « waiting for its reading » when it has a health source but the
   Health task has not read it yet, instead of « not applicable ».
+- Machines seen by one of the tools (MynetworK, UniFi, Beszel, Proxmox…) without SSH: state « via MynetworK » (the tool named)
+  instead of « online, no SSH ». A UniFi device relayed by MynetworK (the gateway too, matched as the machine set as gateway)
+  gives its health (OK, busy at 90 % CPU or memory, down when not connected), its CPU and memory meters, its uptime, and its model
+  and firmware on the card and in « System »; its update waiting is shown when MynetworK passes it on.
 - Home: the schedule box lines up (task, time, countdown in columns, soonest first, « in 2 h 58 » past an hour), styled like the
   counters above it; its title opens Tasks and schedules.
 - Home Assistant machine: its system is read from Home Assistant (installation method, Core, Supervisor and Operating System

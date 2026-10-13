@@ -3,11 +3,12 @@ import type { Tone } from "./level";
 import type { Machine } from "../types";
 import { tx } from "./i18n";
 
-export type MState = "ssh" | "agent" | "api" | "manual" | "refused" | "nossh" | "off" | "down" | "disabled";
+export type MState = "ssh" | "agent" | "api" | "network" | "manual" | "refused" | "nossh" | "off" | "down" | "disabled";
 export const MSTATE: Record<MState, [Tone, string, string]> = {
   ssh: ["ok", tx("SSH OK"), tx("Connexion SSH par clé réussie depuis le collecteur")],
   agent: ["ok", tx("Agent actif"), tx("Lue par l'agent MyServices : son dernier relevé est récent (pas de SSH nécessaire)")],
   api: ["ok", tx("API"), tx("Lue par l'API d'un connecteur (Home Assistant, Proxmox…) : pas de SSH nécessaire")],
+  network: ["ok", tx("vue par un outil"), tx("Vue par un de vos outils (MynetworK, UniFi, Beszel, Proxmox…) : en ligne et identifiée, sans SSH")],
   manual: ["info", tx("SSH manuel"), tx("Accès déclaré sans clé (mot de passe) : non testé automatiquement")],
   refused: ["warn", tx("SSH refusé"), tx("Accès SSH configuré, mais la connexion par clé échoue")],
   nossh: ["off", tx("en ligne, sans SSH"), tx("Répond au ping, aucun accès SSH configuré")],
@@ -15,7 +16,18 @@ export const MSTATE: Record<MState, [Tone, string, string]> = {
   down: ["bad", tx("injoignable"), tx("Ne répond ni au ping ni en SSH")],
   disabled: ["off", tx("non suivie"), tx("Désactivée dans Réglages → Machines : ni ping, ni SSH, ni santé, aucune alerte")],
 };
-export const ORDER: MState[] = ["ssh", "agent", "api", "manual", "refused", "nossh", "off", "down", "disabled"];
+export const ORDER: MState[] = ["ssh", "agent", "api", "network", "manual", "refused", "nossh", "off", "down", "disabled"];
+
+/** The first of the user's tools that sees a machine and answers (MynetworK, UniFi, Beszel, Proxmox, Dockhand…): its label */
+export function networkTool(m: Machine): string | undefined {
+  return m.links?.sources.find((x) => x.ok !== false)?.label;
+}
+
+/** Badge of a machine's state: [tone, label, tooltip]; « seen by a tool » names the tool (« via MynetworK ») */
+export function stateBadge(m: Machine): [Tone, string, string] {
+  const st = mState(m), [tone, label, tip] = MSTATE[st];
+  return st === "network" ? [tone, tx("via {0}", networkTool(m) ?? "?"), tip] : [tone, label, tip];
+}
 
 /** Une session SSH réussie prime sur le ping (certains pare-feu bloquent l'ICMP). */
 export function mState(m: Machine): MState {
@@ -24,6 +36,7 @@ export function mState(m: Machine): MState {
   if (m.agent) return "agent";   // PC lu par son agent (relevé frais) : pas besoin de SSH, ce n'est pas « sans SSH »
   if (!m.ssh && m.api?.some((a) => a.ok || a.stale)) return "api";   // lue par l'API d'un connecteur (Home Assistant, Proxmox…)
   if (m.off && !m.ping) return "off";
+  if (!m.ssh && m.ping !== false && networkTool(m)) return "network";   // seen by one of the user's tools (a gateway in MynetworK…): that is how it is followed
   if (m.ssh && !m.ssh.identity) return "manual";
   if (m.ssh) return "refused";
   return m.ping ? "nossh" : "down";

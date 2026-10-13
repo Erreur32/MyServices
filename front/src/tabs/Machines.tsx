@@ -5,9 +5,10 @@ import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { dateTime, dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
-import type { HealthHost, Machine, MachineLinks, NetDevice, NetScan, ServiceStatus, Unlinked } from "../types";
+import type { HealthHost, Machine, MachineLinks, NetDevice, NetScan, ServiceStatus, UnifiDevice, Unlinked } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
-import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, osOfMachine, type MState, type OsKind } from "../lib/machines";
+import { unifiDeviceOf, unifiDevices, unifiHealth } from "../lib/unifi";
+import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, networkTool, osOfMachine, stateBadge, type MState, type OsKind } from "../lib/machines";
 import { OsGlyph } from "../components/OsGlyph";
 import { shortOs } from "../lib/osName";
 import { ViewToggle, useStoredView } from "../components/ViewToggle";
@@ -330,7 +331,7 @@ function HealthRows({ h }: { h: HealthHost }) {
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, servers, ha, onServices }: Readonly<{ m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; onServices: () => void }>) {
+function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, onServices }: Readonly<{ m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; onServices: () => void }>) {
   const i = m.info, hw = hardwareRows(m.agent?.hardware);
   return (
     <div className="grid gap-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -344,10 +345,11 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, onServices }: Readon
       <Section icon={Cpu} title={tx("Système")} tone="violet" from={from.os}>
         <Row k={tx("Système")}>{i?.os || m.agent?.os || haSystemName(ha) || undefined}</Row>
         {ha?.system && <HaSystemRows sys={ha.system} />}
+        {unifi && <UnifiRows d={unifi} />}
         <Row k={tx("Noyau")}>{i?.kernel || m.agent?.kernel || undefined}</Row>
         <Row k={tx("En marche")}>{(i?.uptime_s ?? m.agent?.uptime_s) ? dur(i?.uptime_s ?? m.agent?.uptime_s) : undefined}</Row>
         {hw.map(([k, v]) => <Row key={k} k={k}>{v}</Row>)}
-        {!i && !m.agent && !ha?.system && <Dim>-</Dim>}
+        {!i && !m.agent && !ha?.system && !unifi && <Dim>-</Dim>}
       </Section>
 
       <AccessSection m={m} from={from.ssh} />
@@ -367,6 +369,26 @@ function haSystemName(ha?: ServiceStatus): string {
   return sys.os ? `${sys.method} ${sys.os}` : sys.method;
 }
 
+/** The system line of a card: the system read (SSH, agent), else Home Assistant's, else the UniFi model and firmware */
+function SystemLine({ m, os, ha, unifi }: Readonly<{ m: Machine; os: OsKind | null; ha?: ServiceStatus; unifi?: UnifiDevice }>) {
+  if (m.info?.os || m.agent?.os) return <OsShort m={m} kind={os} />;
+  if (haSystemName(ha)) return <span className="truncate" title={tx("Lu par Home Assistant")}>{haSystemName(ha)}</span>;
+  if (unifi?.version) return <span className="truncate" title={tx("Lu par MynetworK (UniFi)")}>{[unifi.model, `UniFi ${unifi.version}`].filter(Boolean).join(" · ")}</span>;
+  return <OsShort m={m} kind={os} />;
+}
+
+/** A UniFi device as MynetworK relays it: name, model, firmware, the update waiting when known */
+function UnifiRows({ d }: Readonly<{ d: UnifiDevice }>) {
+  let update: React.ReactNode = <Dim>{tx("non transmise par MynetworK")}</Dim>;
+  if (d.upgradable) update = <span className="text-warn">{d.upgrade_to_firmware ? `→ ${d.upgrade_to_firmware}` : tx("disponible")}</span>;
+  else if (d.upgradable === false) update = <span className="text-ok">{tx("à jour")}</span>;
+  return <>
+    <Row k={tx("Appareil")}>{[d.name, d.model].filter(Boolean).join(" · ") || undefined}</Row>
+    <Row k="Firmware">{d.version ? <span className="font-mono">{d.version}</span> : undefined}</Row>
+    <Row k={tx("Mise à jour")}>{update}</Row>
+  </>;
+}
+
 /** Home Assistant's parts and their versions, as its own « About » page lists them */
 function HaSystemRows({ sys }: Readonly<{ sys: NonNullable<ServiceStatus["system"]> }>) {
   return <>
@@ -380,7 +402,7 @@ function HaSystemRows({ sys }: Readonly<{ sys: NonNullable<ServiceStatus["system
 /** Detail, « Identity »: name, IP, state, roles, MAC, what the network tools saw, other names, virtualization */
 function IdentitySection({ m, mac, net, from }: Readonly<{ m: Machine; mac?: string; net?: NetDevice; from: Origin[] }>) {
   const roles = rolesOf(m.role);
-  const [stTone, stLabel, stTip] = MSTATE[mState(m)];
+  const [stTone, stLabel, stTip] = stateBadge(m);
   return (
       <Section icon={IdCard} title={tx("Identité")} tone="link" from={from}>
         <Row k={tx("Nom")}><b>{m.name}</b></Row>
@@ -509,6 +531,7 @@ function HealthLevel({ m, h, followed }: Readonly<{ m: Machine; h?: HealthHost; 
   if (followed && !m.off) return <Badge tone="info" title={tx("Une source de santé existe (SSH, agent, Beszel ou Home Assistant) : la machine sera lue au prochain passage de la tâche Santé (Réglages → Tâches et horaires)")}>{tx("en attente du relevé")}</Badge>;
   if (m.off) return <Badge tone="off" title={tx("Éteinte volontairement, aucune alerte")}>{tx("éteinte")}</Badge>;
   if (m.ping === false) return <Badge tone="bad" title={tx("Ne répond pas au ping")}>{tx("hors ligne")}</Badge>;
+  if (networkTool(m)) return <Badge tone="off" title={tx("Vue par {0} : en ligne, mais ses ressources (CPU, mémoire, disque) ne sont lues que par SSH, l'agent, Beszel ou Home Assistant", networkTool(m)!)}>{tx("via {0}", networkTool(m)!)}</Badge>;
   return <Badge tone="off" title={tx("Pas de santé relevée : ni SSH, ni agent, ni Beszel, ni Home Assistant pour cette machine")}>{tx("non suivie")}</Badge>;
 }
 
@@ -528,11 +551,11 @@ function DownBadge({ m, snap }: Readonly<{ m: Machine; snap: Snapshot }>) {
 
 /** Compact machine card: who, state, system, figures, servers and what to watch; « Details » unfolds the same detail as the table,
  *  the card then taking the whole row. A Home Assistant machine shows its add-on icons. */
-function MachineCard({ m, h, snap, scan, os, watch, ha, off, state, shown, onToggle, onMachine, detail }: Readonly<{
-  m: Machine; h?: HealthHost; snap: Snapshot; scan?: { os?: string; apps: string[]; ssh?: boolean }; os: OsKind | null; watch: WatchItem[]; ha?: ServiceStatus;
+function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown, onToggle, onMachine, detail }: Readonly<{
+  m: Machine; h?: HealthHost; snap: Snapshot; scan?: { os?: string; apps: string[]; ssh?: boolean }; os: OsKind | null; watch: WatchItem[]; ha?: ServiceStatus; unifi?: UnifiDevice;
   off: boolean; state: React.ReactNode; shown: boolean; onToggle: () => void; onMachine: (ip: string) => void; detail: React.ReactNode;
 }>) {
-  const up = m.info?.uptime_s ?? m.agent?.uptime_s;
+  const up = m.info?.uptime_s ?? m.agent?.uptime_s ?? unifi?.uptime;
   const edge = LEVEL_EDGE[levelKey(h)] ?? "";
   return (
     <div className={`flex flex-col gap-2.5 overflow-hidden rounded-xl border border-l-[3px] border-line bg-card p-3 transition-colors hover:border-link/50 ${edge} ${shown ? "col-span-full" : ""} ${off ? "opacity-50" : ""}`}>
@@ -545,7 +568,7 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, off, state, shown, onTog
         {state}
       </div>
       <div className="flex min-w-0 items-center gap-2 text-xs text-muted">
-        {!m.info?.os && !m.agent?.os && haSystemName(ha) ? <span className="truncate" title={tx("Lu par Home Assistant")}>{haSystemName(ha)}</span> : <OsShort m={m} kind={os} />}
+        <SystemLine m={m} os={os} ha={ha} unifi={unifi} />
         {up ? <span className="shrink-0 text-dim">· {tx("up")} {dur(up)}</span> : null}
         <UpdatesChip h={h} />
         {rolesOf(m.role).slice(0, 1).map((t) => <span key={t} className="ml-auto min-w-0 truncate rounded border border-line px-1.5 py-px text-[11px] text-dim" title={m.role}>{t}</span>)}
@@ -564,7 +587,17 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, off, state, shown, onTog
 }
 
 export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachine: (ip: string) => void; initial?: Selected }) {
-  const hb = useMemo(() => healthByIp(snap.health?.hosts), [snap.health]);
+  // Health by IP: the health check's, completed by UniFi (through MynetworK) for the devices read no other way (the gateway…)
+  const devices = useMemo(() => unifiDevices(snap.data.network), [snap.data.network]);
+  const unifiOf = useCallback((m: Machine) => unifiDeviceOf(m, devices), [devices]);
+  const hb = useMemo(() => {
+    const map = healthByIp(snap.health?.hosts);
+    for (const m of snap.data.machine_list) {
+      const d = !map.has(m.ip) && !m.ssh && !m.agent ? unifiOf(m) : undefined;
+      if (d) map.set(m.ip, unifiHealth(m, d));
+    }
+    return map;
+  }, [snap.health, snap.data.machine_list, unifiOf]);
   // Système et applis vus par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas
   const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean }>>({});
   useEffect(() => { read<NetScan>("network/scan").then((n) => setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [], ssh: !!h.ssh_port }])))).catch(() => undefined); }, []);
@@ -579,7 +612,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
     { key: "role", label: tx("Rôle"), get: (m) => rolesOf(m.role) },
     { key: "user", label: tx("Compte SSH"), get: (m) => m.ssh?.user || "" },
   ], [hb, osOf]);
-  const text = useCallback((m: Machine) => [m.name, m.ip, m.role, MSTATE[mState(m)][1], m.ssh?.alias, m.ssh?.user, m.info?.os].join(" "), []);
+  const text = useCallback((m: Machine) => [m.name, m.ip, m.role, stateBadge(m)[1], m.ssh?.alias, m.ssh?.user, m.info?.os].join(" "), []);
   // « Ne plus suivre » se règle uniquement dans Réglages → Machines (interrupteur « Machine suivie ») ; ici, les machines non suivies restent masquées d'office.
   const isOff = (m: Machine) => !!m.disabled;
   // Machines non suivies : masquées d'office, un bouton les ramène (grisées)
@@ -635,7 +668,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
     }
   };
   const macOf = (m: Machine) => { const d = seen.get(m.ip); const mac = d?.mac || m.links?.mac, vendor = d?.vendor || m.links?.vendor; return mac || vendor ? [mac, vendor].filter(Boolean).join(" · ") : undefined; };
-  const st = (m: Machine) => { const [tone, label, tip] = MSTATE[mState(m)]; return <Badge tone={tone} title={tip}>{label}</Badge>; };
+  const st = (m: Machine) => { const [tone, label, tip] = stateBadge(m); return <Badge tone={tone} title={tip}>{label}</Badge>; };
 
   return (
     <div className="py-1">
@@ -694,7 +727,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                       <Td><MeterCell h={h} what="cpu" /></Td><Td><MeterCell h={h} what="mem" /></Td><Td><MeterCell h={h} what="disk" /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
                     
                   </tr>
-                  {shown && <tr className={`bg-bg2/40 ${OPEN_DETAIL} ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} onServices={() => onMachine(m.ip)} /></td></tr>}
+                  {shown && <tr className={`bg-bg2/40 ${OPEN_DETAIL} ${isOff(m) ? "opacity-50" : ""}`}><td colSpan={cols} className="p-0"><Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} unifi={unifiOf(m)} onServices={() => onMachine(m.ip)} /></td></tr>}
                 </Fragment>
               );
             })}
@@ -703,9 +736,9 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
             {sort.sorted.map((m) => {
               const h = hb.get(m.ip), shown = open.has(m.ip);
               return (
-                <MachineCard key={m.ip} m={m} h={snap.health ? h : undefined} snap={snap} scan={scanOs[m.ip]} os={osOf(m)} watch={watchOf(m)} ha={haOf(m)} off={isOff(m)}
+                <MachineCard key={m.ip} m={m} h={h} snap={snap} scan={scanOs[m.ip]} os={osOf(m)} watch={watchOf(m)} ha={haOf(m)} unifi={unifiOf(m)} off={isOff(m)}
                   state={st(m)} shown={shown} onToggle={() => setOpen((o) => (o.has(m.ip) ? new Set() : new Set([m.ip])))} onMachine={onMachine}
-                  detail={shown && <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} onServices={() => onMachine(m.ip)} />} />
+                  detail={shown && <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} unifi={unifiOf(m)} onServices={() => onMachine(m.ip)} />} />
               );
             })}
           </Cards>
