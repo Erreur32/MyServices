@@ -52,16 +52,22 @@ export function HaAddons({ s }: Readonly<{ s: ServiceStatus }>) {
   const list = s.addons ?? [];
   if (!list.length) return null;
   const inst = encodeURIComponent(s.instance ?? s.name);
+  const iconUrl = (slug: string) => `${ROOT}api/v1/ha/${inst}/addon-icon/${slug}`;
   return (
     <details className="group rounded-lg border border-line/60">
       <summary className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-bg2/50">
         <ChevronRight size={14} className="text-dim transition-transform group-open:rotate-90" aria-hidden />
         <span className="text-muted">{tx("Modules installés")}</span><Count n={list.length} tone="off" />
+        {/* folded: the first icons, then « +N » for the others; open: the full list below */}
+        <span className="ml-auto flex items-center gap-1 group-open:hidden">
+          {list.slice(0, PREVIEW).map((a) => <AddonIcon key={a.slug} src={iconUrl(a.slug)} title={a.name} small />)}
+          {list.length > PREVIEW && <span className="rounded-md bg-bg2 px-1.5 py-0.5 text-[11px] font-semibold text-muted" title={list.slice(PREVIEW).map((a) => a.name).join(", ")}>+{list.length - PREVIEW}</span>}
+        </span>
       </summary>
       <ul className="grid max-h-72 grid-cols-1 gap-1 overflow-y-auto border-t border-line/40 p-2 sm:grid-cols-2">
         {list.map((a) => (
           <li key={a.slug} className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-bg2/50" title={[a.name, a.version, a.latest && `→ ${a.latest}`].filter(Boolean).join(" ")}>
-            <AddonIcon src={`${ROOT}api/v1/ha/${inst}/addon-icon/${a.slug}`} />
+            <AddonIcon src={iconUrl(a.slug)} />
             <span className="min-w-0 flex-1 truncate text-sm">{a.name}</span>
             {a.latest && <span className="shrink-0 font-mono text-[11px] text-warn">→ {a.latest}</span>}
             {!a.latest && a.version && <span className="shrink-0 truncate font-mono text-[11px] text-dim">{a.version}</span>}
@@ -72,12 +78,15 @@ export function HaAddons({ s }: Readonly<{ s: ServiceStatus }>) {
   );
 }
 
-/** Icon of an add-on; a puzzle piece when Home Assistant gives none */
-function AddonIcon({ src }: Readonly<{ src: string }>) {
+const PREVIEW = 7;   // icons shown on the folded list
+
+/** Icon of an add-on; a puzzle piece when Home Assistant gives none. `small`: in the folded title */
+function AddonIcon({ src, title, small = false }: Readonly<{ src: string; title?: string; small?: boolean }>) {
   const [failed, setFailed] = useState(false);
+  const [box, img, glyph] = small ? ["h-5 w-5", "h-4 w-4", 11] : ["h-6 w-6", "h-5 w-5", 13];
   return (
-    <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-md bg-bg2">
-      {failed ? <Puzzle size={13} className="text-dim" aria-hidden /> : <img src={src} alt="" loading="lazy" className="h-5 w-5 object-contain" onError={() => setFailed(true)} />}
+    <span className={`grid ${box} shrink-0 place-items-center overflow-hidden rounded-md bg-bg2`} title={title}>
+      {failed ? <Puzzle size={glyph} className="text-dim" aria-hidden /> : <img src={src} alt="" loading="lazy" className={`${img} object-contain`} onError={() => setFailed(true)} />}
     </span>
   );
 }
