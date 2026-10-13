@@ -9,7 +9,8 @@
 
 <p align="center">
   <b>L'état de vos services et de vos machines, au même endroit, en lecture seule.</b><br>
-  <sub>Il s'appuie sur les outils que vous utilisez déjà. Il ne les remplace pas et n'y écrit jamais.</sub>
+  <sub>Il s'appuie sur les outils que vous utilisez déjà. Il ne les remplace pas et n'y écrit jamais.<br>
+  Là où aucun outil ne couvre une machine, il la lit lui-même : par SSH, avec son agent Windows, ou par l'API de l'appli.</sub>
 </p>
 
 <p align="center">

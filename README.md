@@ -9,7 +9,8 @@
 
 <p align="center">
   <b>The state of your services and machines, in one place, read-only.</b><br>
-  <sub>It builds on the tools you already run. It never replaces them and never writes to them.</sub>
+  <sub>It builds on the tools you already run. It never replaces them and never writes to them.<br>
+  Where no tool covers a machine, it reads it itself: over SSH, with its Windows agent, or through an app's own API.</sub>
 </p>
 
 <p align="center">
