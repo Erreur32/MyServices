@@ -1494,6 +1494,8 @@ export const EN: Record<string, string> = {
   "éteinte": "off",
   "Ne répond pas au ping": "Does not answer ping",
   "Pas de santé relevée : ni SSH, ni agent, ni Beszel, ni Home Assistant pour cette machine": "No health read: no SSH, agent, Beszel or Home Assistant for this machine",
+  "Une source de santé existe (SSH, agent, Beszel ou Home Assistant) : la machine sera lue au prochain passage de la tâche Santé (Réglages → Tâches et horaires)": "A health source exists (SSH, agent, Beszel or Home Assistant): the machine is read at the next run of the Health task (Settings → Tasks and schedules)",
+  "en attente du relevé": "waiting for its reading",
   "Tâches et horaires": "Tasks and schedules",
   "TCP {0} ms · accès LAN direct": "TCP {0} ms · direct LAN access",
   "Télécharger": "Download",
