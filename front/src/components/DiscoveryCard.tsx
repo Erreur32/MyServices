@@ -1,7 +1,8 @@
 // « Découvertes » : ce que MyServices cherche tout seul, ce qui demande un clic, et ce qui reste à faire (GET /discoveries).
 // Liste complète en haut de Réglages → Découverte ; rappel court sur l'accueil quand quelque chose est à faire.
+import { DROP_PANEL, useDropdown } from "./Dropdown";
 import { Bell, Boxes, Check, ChevronRight, EyeOff, Hand, HardDrive, Lightbulb, Network, Play, RefreshCw, Repeat, RotateCcw, Settings2 } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { dateTime } from "../lib/format";
 import { act, button, primary, type Note } from "../lib/forms";
@@ -267,18 +268,7 @@ export function DiscoveryReminder({ machines }: { machines?: Machine[] }) {
  *  de suggestions facultatives et un lien vers Réglages → Découverte. Pastille orange = choses à faire ; cloche grise s'il n'y a que des suggestions. */
 export function DiscoveryBell({ machines }: { machines?: Machine[] }) {
   const [d, reload] = useDiscoveries();
-  const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    const moved = () => setOpen(false);   // un bouton du panneau mène ailleurs : le panneau se ferme
-    addEventListener("mousedown", away);
-    addEventListener("keydown", esc);
-    addEventListener("hashchange", moved);
-    return () => { removeEventListener("mousedown", away); removeEventListener("keydown", esc); removeEventListener("hashchange", moved); };
-  }, [open]);
+  const { open, setOpen, box } = useDropdown();
   const n = d?.todo ?? 0, sug = d?.suggest ?? 0;
   if (!n && !sug) return null;
   const todo = d!.items.filter((x) => x.state === "todo");
@@ -291,7 +281,7 @@ export function DiscoveryBell({ machines }: { machines?: Machine[] }) {
         {n > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-warn px-1 text-[10px] font-bold leading-none text-bg">{n}</span>}
       </button>
       {open && (
-        <div role="dialog" aria-label={tx("Notifications")} className="absolute right-0 z-30 mt-2 w-[min(26rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-line bg-card shadow-xl shadow-black/30">
+        <div role="dialog" aria-label={tx("Notifications")} className={`${DROP_PANEL} w-[min(26rem,calc(100vw-2rem))]`}>
           <p className={`flex items-center gap-2 px-4 py-3 text-sm font-bold ${n ? "bg-warn/10 text-warn" : "text-ok"}`}>
             {n ? <><Bell size={15} aria-hidden />{tx("À faire ({0})", n)}</> : <><Check size={15} aria-hidden />{tx("Rien d'obligatoire à faire")}</>}
           </p>

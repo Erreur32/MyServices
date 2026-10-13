@@ -1,8 +1,8 @@
-import { ArrowUpCircle, ChevronDown, ExternalLink, ListChecks, LogOut, Map, Moon, Settings, Sun, UserRound, Workflow, X } from "lucide-react";
-import { useDiagrams } from "./Diagrams";
+import { ArrowUpCircle, ChevronDown, ExternalLink, ListChecks, LogOut, Moon, Settings, Sun, UserRound, X } from "lucide-react";
 import { DiscoveryBell } from "./DiscoveryCard";
-import { useEffect, useRef, useState } from "react";
-import { logout, ROOT, type Snapshot } from "../api";
+import { DropItem, DROP_PANEL, DropSep, useDropdown } from "./Dropdown";
+import { useState } from "react";
+import { logout, type Snapshot } from "../api";
 import { HEADER_LOGOS, useHeaderLogo, type Theme } from "../theme";
 import { LOCALE, tx } from "../lib/i18n";
 import { appVersion } from "../lib/format";
@@ -81,53 +81,37 @@ export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; them
   );
 }
 
-/** Menu du compte, à droite : rôle, réglages, profil, thème, liens (carte, ancienne page, projet), déconnexion. */
+/** Menu du compte, à droite : qui est connecté, réglages, profil, premiers pas, thème, projet, déconnexion. */
 function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; toggleTheme: () => void }) {
-  const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    addEventListener("mousedown", away);
-    addEventListener("keydown", esc);
-    return () => { removeEventListener("mousedown", away); removeEventListener("keydown", esc); };
-  }, [open]);
+  const { open, setOpen, box } = useDropdown();
   const admin = snap.me.role === "admin";
-  const [diagrams] = useDiagrams(open);  // chargés à l'ouverture du menu
-  const item = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-muted hover:bg-bg2 hover:text-txt";
   const go = (hash: string) => { location.hash = hash; setOpen(false); };
   return (
     <div ref={box} className="relative">
       <button type="button" onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open}
         className="inline-flex items-center gap-2 rounded-full border border-line bg-card py-1 pl-1 pr-3 text-sm font-semibold text-txt hover:border-link">
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-link/20 text-link"><UserRound size={15} /></span>
+        <span className="grid h-7 w-7 place-items-center rounded-full bg-link/20 text-xs font-bold uppercase text-link" aria-hidden>{snap.me.username.slice(0, 1)}</span>
         {snap.me.username}
         <ChevronDown size={14} className={`text-dim transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 z-30 mt-2 w-64 rounded-xl border border-line bg-card p-1.5 shadow-xl shadow-black/30">
-          <div className="px-3 py-2">
-            <div className="font-semibold">{snap.me.username}</div>
-            <div className="text-xs text-dim">{admin ? tx("admin : tout, réglages compris") : tx("lecture seule")}</div>
+        <div role="menu" className={`${DROP_PANEL} w-64 p-1.5`}>
+          <div className="flex items-center gap-3 px-3 py-2">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-link/20 font-bold uppercase text-link" aria-hidden>{snap.me.username.slice(0, 1)}</span>
+            <span className="min-w-0">
+              <b className="block truncate">{snap.me.username}</b>
+              <span className="block truncate text-xs text-dim">{snap.me.email || (admin ? tx("admin : tout, réglages compris") : tx("lecture seule"))}</span>
+            </span>
           </div>
-          <div className="my-1 border-t border-line/70" />
-          {admin && <button type="button" role="menuitem" className={item} onClick={() => go(lastSettingsSection() ? `settings/${lastSettingsSection()}` : "settings")}><Settings size={15} />{tx("Réglages")}</button>}
-          <button type="button" role="menuitem" className={item} onClick={() => go("profile")}><UserRound size={15} />{tx("Profil")}</button>
-          {admin && <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); reopenFirstSteps(); }} title={tx("Rouvre la carte et efface vos choix « Passer »")}><ListChecks size={15} />{tx("Revoir les premiers pas")}</button>}
-          <button type="button" role="menuitem" className={item} onClick={toggleTheme}>
-            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}{tx("Thème")} {theme === "dark" ? tx("clair") : tx("sombre")}
-          </button>
-          <div className="my-1 border-t border-line/70" />
-          <button type="button" role="menuitem" className={item} onClick={() => go("diagrams")}><Workflow size={15} />{tx("Tous les schémas")}</button>
-          {(diagrams?.diagrams ?? []).filter((d) => d.exists && d.available).map((d) => (
-            <a key={d.id} role="menuitem" className={`${item} pl-9`} href={`${ROOT}${d.file}`} target="_blank" rel="noopener" title={d.what}><Map size={14} aria-hidden />{d.title}</a>
-          ))}
-          <a role="menuitem" className={item} href={GITHUB} target="_blank" rel="noopener noreferrer">
-            <ExternalLink size={15} />{tx("Projet sur GitHub")}
-          </a>
-          <div className="my-1 border-t border-line/70" />
-          <button type="button" role="menuitem" className={`${item} hover:text-bad`} onClick={() => void logout()}><LogOut size={15} />{tx("Se déconnecter")}</button>
+          <DropSep />
+          <DropItem icon={<UserRound size={15} />} onClick={() => go("profile")}>{tx("Profil")}</DropItem>
+          {admin && <DropItem icon={<Settings size={15} />} onClick={() => go(lastSettingsSection() ? `settings/${lastSettingsSection()}` : "settings")}>{tx("Réglages")}</DropItem>}
+          {admin && <DropItem icon={<ListChecks size={15} />} title={tx("Rouvre la carte et efface vos choix « Passer »")} onClick={() => { setOpen(false); reopenFirstSteps(); }}>{tx("Revoir les premiers pas")}</DropItem>}
+          <DropItem icon={theme === "dark" ? <Sun size={15} /> : <Moon size={15} />} onClick={toggleTheme}>{tx("Thème")} {theme === "dark" ? tx("clair") : tx("sombre")}</DropItem>
+          <DropSep />
+          <DropItem icon={<ExternalLink size={15} />} href={GITHUB}>{tx("Projet sur GitHub")}</DropItem>
+          <DropSep />
+          <DropItem icon={<LogOut size={15} />} danger onClick={() => void logout()}>{tx("Se déconnecter")}</DropItem>
         </div>
       )}
     </div>

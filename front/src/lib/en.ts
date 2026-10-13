@@ -648,7 +648,6 @@ export const EN: Record<string, string> = {
   "échec": "failed",
   "Vous préviennent d'un problème : panne, machine hors ligne, santé critique…": "Warn you of a problem: outage, machine offline, critical health…",
   "Vos messages : rapports de machines à heure fixe, événements en direct filtrés": "Your messages: machine reports at a fixed time, filtered live events",
-  "Tous les schémas": "All diagrams",
   "Schémas": "Diagrams",
   "source non activée": "source not enabled",
   "pas encore généré": "not generated yet",
