@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.11.11 (2026-10-13)
+
+> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 
 - **Forgotten password by e-mail**: a « Forgot your password? » link on the sign-in page sends a one-time link, valid 30 minutes,
@@ -24,7 +28,6 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   by their content, never by the name.
 - **Settings → System → E-mail**: SMTP server (STARTTLS, SSL or none), account, password (encrypted at rest), sender and the page
   address put in the links (never taken from the request), with « Send a test e-mail » to one's own address.
-
 - Beszel connector: « Verify HTTPS certificate » setting (on by default), to reach a hub behind a self-signed certificate.
 - Arcane connector is now a container source, like Dockhand and Dozzle: each environment with its containers (running, stopped,
   unhealthy) and image updates, matched to its machine; an offline environment is flagged « offline » on the card.
@@ -38,14 +41,12 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   A machine read by SSH also gets Beszel's sensors on its temperature badge.
 - Netdata connector also reads the machine it runs on for the Health tab (processor, memory, load, disks, hottest sensor), all
   current values in one call (`allmetrics`).
-- GpuViewR connector: each machine's GPUs (model, temperature, load, memory, power) shown in its detail in the Machines tab,
-  matched by the machine's name (GpuViewR gives no address). Offline machines are named again in its card.
-- GpuViewR 0.13: machines matched by the LAN addresses its agents send (by name only with an older GpuViewR), every GPU's 24 h in
-  one call (one per GPU before 0.13), each AI model's port and alias, and GpuViewR's own update shown when one is out.
+- GpuViewR connector: in each machine's detail (Machines tab), its GPUs (model, temperature, load, memory, power, last 24 h) and
+  the AI models running (model, runtime, port, idle or busy, memory). With GpuViewR 0.13, machines are matched by the LAN
+  addresses its agents send and the 24 h of every GPU come in one call; with an older GpuViewR, by name and one call per GPU.
+  GpuViewR's own update is shown when one is out.
 - Pulse connector is now a source of the Virtualization tab: Proxmox nodes, VMs and LXC containers with their load (a reading
   Pulse does not have stays empty, never 0), plus what Pulse says needs attention. Not tried against a real Pulse yet.
-- GpuViewR: the AI models running on each machine (model, runtime, idle or busy, memory) and each GPU's last 24 h (max temperature,
-  average and max load, max memory, average power) in the machine detail; one call for the models, one per GPU for the 24 h.
 - The health task reuses a connector result read less than 10 minutes ago (Glances, Home Assistant) instead of calling it again.
 - AdGuard Home (API mode), Uptime Kuma and Web-Check connectors: « Verify HTTPS certificate » setting, for a self-signed certificate.
 - Connectors: « Save without collection » button, to set up a service that is down or not ready yet: settings kept, no test,
