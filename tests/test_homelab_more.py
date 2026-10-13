@@ -30,7 +30,7 @@ class Registry(unittest.TestCase):
         apps = {a.connector for a in known_apps.APPS}
         for t in NEW:
             cls = connectors.TYPES[t]
-            self.assertEqual(cls.kinds, ("containers",) if t == "arcane" else ("status",), t)
+            self.assertEqual(cls.kinds, {"arcane": ("containers",), "pulse": ("virtualization",)}.get(t, ("status",)), t)
             self.assertTrue(cls.label and cls.fields and cls.guide, t)
             self.assertIn(t, apps, f"{t}: no known app proposes it")
 
@@ -43,18 +43,38 @@ class Registry(unittest.TestCase):
 
 
 class Pulse(Base):
-    def test_summary(self):
-        self.route("/api/version", {"version": "5.1.2", "updateAvailable": True, "latestVersion": "5.2.0"})
-        self.route("/api/state/summary", {"activeAlerts": 2, "nodes": 3, "vms": 12, "containers": 8,
-                                          "verdicts": {"ok": 20, "attention": 1, "critical": 1},
-                                          "attention": [{"name": "vm-db", "type": "vm", "verdict": "critical", "topReason": {"code": "disk_full"}},
+    RES = "/api/resources?type=agent,vm,system-container&source=proxmox&limit=100&page="
+
+    def test_nodes_guests_and_attention(self):
+        gb = 1024 ** 3
+        self.route("/api/version", {"version": "6.5.0", "updateAvailable": True, "latestVersion": "6.6.0"})
+        self.route(self.RES + "1", {"data": [
+            {"id": "n1", "type": "agent", "name": "pve", "status": "online", "sources": ["proxmox"], "uptime": 3600,
+             "metrics": {"cpu": {"value": 12.5, "percent": 12.5}, "memory": {"used": 8 * gb, "total": 32 * gb, "percent": 25}},
+             "proxmox": {"nodeName": "pve", "cpus": 16}},
+            {"id": "h1", "type": "agent", "name": "laptop", "status": "online", "sources": ["agent"]}], "meta": {"page": 1, "totalPages": 2}})
+        self.route(self.RES + "2", {"data": [
+            {"id": "v1", "type": "vm", "name": "web", "status": "online", "tags": ["prod"],
+             "metrics": {"cpu": {"percent": 50}, "memory": {"used": 2 * gb, "total": 4 * gb}},
+             "proxmox": {"nodeName": "pve", "vmid": 101, "cpus": 2, "runtimeStatus": "running"}},
+            {"id": "c1", "type": "system-container", "name": "dns", "status": "offline", "proxmox": {"nodeName": "pve", "vmid": 200}},
+            {"id": "t1", "type": "vm", "name": "tpl", "status": "offline", "proxmox": {"nodeName": "pve", "vmid": 900, "template": True}}],
+            "meta": {"page": 2, "totalPages": 2}})
+        self.route("/api/state/summary", {"attention": [{"name": "vm-db", "type": "vm", "verdict": "critical", "topReason": {"code": "disk_full"}},
                                                         {"name": "ok-vm", "type": "vm", "verdict": "ok"}]})
         d = self.conn("pulse", token=KEY).collect()
-        f = facts(d)
-        self.assertEqual(d["version"], "5.1.2")
-        self.assertEqual((f["Nœuds"]["value"], f["Alertes actives"]["tone"], f["À regarder"]["tone"]), ("3", "bad", "bad"))
-        self.assertEqual(d["problems"], ["« vm-db » (vm) : disk_full", "mise à jour de Pulse disponible : 5.2.0"])
+        (node,) = d["nodes"]
+        self.assertEqual((node["name"], node["online"], node["cpu_pct"], node["mem_pct"], node["cpus"]), ("pve", True, 12.5, 25.0, 16))
+        web, dns, tpl = d["guests"]
+        self.assertEqual((web["type"], web["vmid"], web["status"], web["cpu_pct"], web["mem_pct"], web["tags"]), ("qemu", 101, "running", 50.0, 50.0, ["prod"]))
+        self.assertEqual((dns["type"], dns["status"], dns["cpu_pct"], dns["mem_pct"]), ("lxc", "stopped", None, None))   # no reading: not 0
+        self.assertTrue(tpl["template"])
+        self.assertEqual(d["totals"], {"vm": 1, "lxc": 1, "running": 1, "stopped": 1})
+        self.assertEqual(d["problems"], ["« vm-db » (vm) : disk_full", "mise à jour de Pulse disponible : 6.6.0"])
         self.assertEqual({k.lower(): v for k, v in SEEN[-1][2].items()}.get("x-api-token"), KEY)
+        r = self.conn("pulse", token=KEY).test()
+        self.assertTrue(r.ok, r.message)
+        self.assertEqual((r.message, r.version), ("1 nœud(s), 1 VM, 1 conteneur(s) LXC, 1 en marche", "6.5.0"))
 
     def test_not_pulse(self):
         self.route("/api/version", {"autre": 1})

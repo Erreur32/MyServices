@@ -30,10 +30,13 @@ def _data(v):
 
 
 class Pulse(StatusConnector):
-    """Pulse (Proxmox, Docker and host monitoring): version and update, nodes, VMs, containers, active alerts, what needs attention.
-    API token (X-API-Token, scope monitoring:read). Routes (GET): /api/version (public), /api/state/summary."""
+    """Pulse (Proxmox, Docker and host monitoring) as a source of the Virtualization tab: Proxmox nodes, VMs and LXC containers with
+    their load, plus what Pulse says needs attention. API token (X-API-Token, scope monitoring:read). Routes (GET): /api/version
+    (public), /api/state/summary, /api/resources?type=agent,vm,system-container&source=proxmox (paged, 100 a page; code source of
+    Pulse v6, internal/unifiedresources). Its rows are put in the shape of Proxmox VE's /cluster/resources, read by the same code."""
     type = "pulse"
     label = "Pulse"
+    kinds = ("virtualization",)
     images = ("rcourtman/pulse", "ghcr.io/rcourtman/pulse")
     fields = (
         Field("url", "Adresse de Pulse", "url", required=True, help="http://<IP>:7655"),
@@ -42,33 +45,77 @@ class Pulse(StatusConnector):
     )
     setup_fields = ("url", "token")
     guide = ("Dans Pulse : Settings → Security → API tokens → nouveau jeton avec la seule portée « monitoring:read ».",
-             "MyServices ne fait que des GET (version, résumé de l'état).")
+             "MyServices ne fait que des GET (version, résumé de l'état, liste des nœuds, VM et conteneurs Proxmox).")
+    PAGES = 20
+
+    def _h(self) -> dict:
+        return {"X-API-Token": str(self.conf.get("token", ""))}
+
+    def _version(self) -> dict:
+        if getattr(self, "_ver", None) is None:
+            ver = self.get("/api/version")
+            if not isinstance(ver, dict) or "version" not in ver:
+                raise ConnectorError("réponse inattendue : l'adresse ne mène pas à Pulse")
+            self._ver = ver
+        return self._ver
+
+    def version(self) -> str | None:
+        return str(self._version().get("version")).lstrip("v")
 
     def collect(self) -> dict:
-        ver = self.get("/api/version")
-        if not isinstance(ver, dict) or "version" not in ver:
-            raise ConnectorError("réponse inattendue : l'adresse ne mène pas à Pulse")
-        s = self.get("/api/state/summary", {"X-API-Token": str(self.conf.get("token", ""))})
-        if not isinstance(s, dict):
-            raise ConnectorError("réponse inattendue de /api/state/summary")
-        verdicts = s.get("verdicts") if isinstance(s.get("verdicts"), dict) else {}
-        alerts = int(num(s.get("activeAlerts"), 0))
-        crit, attn = int(num(verdicts.get("critical"), 0)), int(num(verdicts.get("attention"), 0))
-        facts = [fact("Nœuds", int(num(s.get("nodes"), 0))), fact("VM", int(num(s.get("vms"), 0))), fact("Conteneurs", int(num(s.get("containers"), 0))),
-                 fact("Alertes actives", alerts, "bad" if alerts else "ok")]
-        if crit or attn:
-            facts.append(fact("À regarder", f"{crit} critique(s), {attn} à surveiller", "bad" if crit else "warn"))
+        from connectors.proxmox import resources
+        ver = self._version()
+        found, page = [], 1
+        while page <= self.PAGES:
+            got = self.get(f"/api/resources?type=agent,vm,system-container&source=proxmox&limit=100&page={page}", self._h())
+            found += rows(got)
+            if page >= int(num(((got or {}).get("meta") or {}).get("totalPages") if isinstance(got, dict) else None, 1)):
+                break
+            page += 1
+        out = resources([r for r in (_pulse_row(x) for x in found) if r])
+        s = self.get_opt("/api/state/summary", self._h())
+        out["problems"] = [f"« {a.get('name') or a.get('id') or '?'} » ({a.get('type') or '?'}) : {(a.get('topReason') or {}).get('code') or a.get('verdict')}"
+                           for a in rows((s or {}).get("attention") if isinstance(s, dict) else None) if a.get("verdict") in ("critical", "attention")]
         if ver.get("updateAvailable") is True:
-            facts.append(fact("Mise à jour", ver.get("latestVersion") or "disponible", "warn"))
-        problems = [f"« {a.get('name') or a.get('id') or '?'} » ({a.get('type') or '?'}) : {(a.get('topReason') or {}).get('code') or a.get('verdict')}"
-                    for a in rows(s.get("attention")) if a.get("verdict") in ("critical", "attention")]
-        if ver.get("updateAvailable") is True:
-            problems.append(f"mise à jour de Pulse disponible : {ver.get('latestVersion') or '?'}")
-        return self.out(str(ver.get("version")), facts, problems)
+            out["problems"].append(f"mise à jour de Pulse disponible : {ver.get('latestVersion') or '?'}")
+        return out
+
+    def test(self) -> Result:
+        try:
+            d = self.collect()
+        except ConnectorError as e:
+            return Result(False, str(e))
+        t = d["totals"]
+        return Result(True, f"{len(d['nodes'])} nœud(s), {t['vm']} VM, {t['lxc']} conteneur(s) LXC, {t['running']} en marche", self.version())
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
         return {"url": f"http://{ip}:{host_port(ports, 7655) or 7655}"}
+
+
+def _metric(r: dict, key: str) -> dict:
+    m = (r.get("metrics") or {}).get(key) if isinstance(r.get("metrics"), dict) else None
+    return m if isinstance(m, dict) else {}
+
+
+def _pulse_row(r: dict) -> dict | None:
+    """One Pulse resource as a row of Proxmox VE's /cluster/resources (cpu as a fraction, memory and disk in bytes). A missing
+    reading stays missing, never 0 (Pulse: « do not replace an absent metric with zero »)."""
+    px = r.get("proxmox") if isinstance(r.get("proxmox"), dict) else {}
+    cpu, mem, disk = _metric(r, "cpu"), _metric(r, "memory"), _metric(r, "disk")
+    pct = num(cpu.get("percent"), num(cpu.get("value")))
+    row = {"cpu": pct / 100 if pct is not None else None, "mem": num(mem.get("used")), "maxmem": num(mem.get("total")),
+           "disk": num(disk.get("used")), "maxdisk": num(disk.get("total")), "uptime": r.get("uptime") or px.get("uptime"), "maxcpu": px.get("cpus")}
+    t = r.get("type")
+    if t == "agent":
+        if not px.get("nodeName") and "proxmox" not in (r.get("sources") or []):
+            return None   # a host agent outside Proxmox
+        return {**row, "type": "node", "node": px.get("nodeName") or r.get("name"), "status": "online" if r.get("status") in ("online", "warning") else "offline"}
+    if t not in ("vm", "system-container"):
+        return None
+    status = px.get("runtimeStatus") or ("running" if r.get("status") in ("online", "warning") else "stopped")
+    return {**row, "type": "qemu" if t == "vm" else "lxc", "vmid": px.get("vmid"), "name": r.get("name"), "node": px.get("nodeName") or r.get("parentName"),
+            "status": status, "template": 1 if px.get("template") else 0, "tags": ";".join(r.get("tags") or [])}
 
 
 class Arcane(StatusConnector):

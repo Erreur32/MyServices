@@ -17,7 +17,7 @@ import urllib.parse
 
 MAC_RE = re.compile(r"^[0-9a-f]{2}([:-]?[0-9a-f]{2}){5}$")
 MAX_UNLINKED = 500   # a big network is not listed in full
-HYPERVISORS = ("proxmox", "esxi", "vcenter")   # virtualization rows with nodes and guests (PBS has neither)
+HYPERVISORS = ("proxmox", "pulse", "esxi", "vcenter")   # virtualization rows with nodes and guests (PBS has neither)
 
 
 def norm_mac(v) -> str | None:

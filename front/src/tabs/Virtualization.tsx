@@ -10,7 +10,7 @@ import type { BackupSet, Machine, VirtualizationConnector } from "../types";
 import { Badge, Card, Count, Dim, Empty, Fill } from "../components/ui";
 import { PbsCard } from "../components/InfraCards";
 
-const HYPERVISORS = ["proxmox", "esxi", "vcenter", "pdm", "unraid", "libvirt", "incus", "lxd", "virtualbox", "hyperv"];
+const HYPERVISORS = ["proxmox", "pulse", "esxi", "vcenter", "pdm", "unraid", "libvirt", "incus", "lxd", "virtualbox", "hyperv"];
 /** How a host was read, shown as a badge */
 const VIA: Record<string, string> = { esxi: "vim-cmd", proxmox: "pvesh", libvirt: "virsh", incus: "incus", lxd: "lxc", virtualbox: "VBoxManage" };
 type Guest = NonNullable<VirtualizationConnector["guests"]>[number];
@@ -82,7 +82,7 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
   const envs = (snap.data.containers ?? []).flatMap((x) => x.environments ?? []);
   const machineOf = (g: Guest) => machines.find((m) => m.links?.guest?.vmid === g.vmid && m.links.guest.node === g.node && m.links.guest.instance === c.name);
   const via = c.via === "ssh" ? tx("lu par SSH ({0})", VIA[c.connector] ?? "ssh") : c.via === "agent" ? tx("lu par l'agent Windows") : tx("lu par l'API");
-  const vmware = c.connector !== "proxmox" && c.connector !== "pdm";   // vzdump backups and « node » wording are Proxmox's only
+  const vmware = !["proxmox", "pdm", "pulse"].includes(c.connector);   // vzdump backups and « node » wording are Proxmox's only (Pulse reads Proxmox)
   // One section per node with its own guests and storage; a host without nodes (or guests on an unknown node) gets a section of its own
   const nodes = c.nodes ?? [];
   const storageOf = (node?: string) => (c.storage ?? []).filter((st) => (node ? st.node === node : !nodes.some((n) => n.name === st.node)));
@@ -95,7 +95,7 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
         <Badge tone={c.ok ? "ok" : "bad"}>{c.ok ? tx("en ligne") : tx("illisible")}</Badge>
         {c.version && <span className="font-mono text-xs text-dim">{c.label} {c.version}</span>}
         <Badge tone="info">{via}</Badge>{c.stale && <Badge tone="warn">{tx("relevé périmé")}</Badge>}
-        {c.totals && <span className="ml-auto text-sm font-normal text-muted">{c.totals.vm} {tx("VM")}{c.totals.lxc > 0 || c.connector === "proxmox" ? <> · {c.totals.lxc} {tx("LXC")}</> : null} · <b className="text-ok">{c.totals.running} {tx("en marche")}</b>{c.totals.stopped > 0 && <> · {c.totals.stopped} {tx("arrêtés")}</>}</span>}</h2>
+        {c.totals && <span className="ml-auto text-sm font-normal text-muted">{c.totals.vm} {tx("VM")}{c.totals.lxc > 0 || c.connector === "proxmox" || c.connector === "pulse" ? <> · {c.totals.lxc} {tx("LXC")}</> : null} · <b className="text-ok">{c.totals.running} {tx("en marche")}</b>{c.totals.stopped > 0 && <> · {c.totals.stopped} {tx("arrêtés")}</>}</span>}</h2>
       {!c.ok && !c.stale ? <p className="mt-3 rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{c.message}</p> : (
         <>
           {!!c.problems?.length && <ul className="mt-3 flex flex-col gap-0.5 rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{c.problems.map((p) => <li key={p}>⚑ {p}</li>)}</ul>}
