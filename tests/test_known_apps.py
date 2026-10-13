@@ -236,5 +236,15 @@ class RunState(unittest.TestCase):
         self.assertEqual((got["10.0.0.1"]["service"], got["10.0.0.1"]["running"]), ("new", True))   # the running one wins
         self.assertEqual((got["10.0.0.2"]["running"], got["10.0.0.2"]["state"]), (False, "Created"))
 
+
+class StillProposed(unittest.TestCase):
+    """A connector saved since the last collection takes its proposal off at once (Discovery page, bell)."""
+
+    def test_saved_connector_hides_its_proposal(self):
+        props = [{"connector": "arcane", "ip": "10.0.0.6"}, {"connector": "glances", "ip": "10.0.0.6"}, {"connector": "arcane", "ip": "10.0.0.7"}]
+        saved = [{"type": "arcane", "name": "a", "url": "http://10.0.0.6:3552", "enabled": False}]
+        self.assertEqual(ka.still_proposed(props, saved), props[1:])
+        self.assertEqual(ka.still_proposed(props, []), props)
+
 if __name__ == "__main__":
     unittest.main()

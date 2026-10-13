@@ -79,7 +79,7 @@ function Row({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; ma
 function AppTile({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
   const icon = x.app ? appIcon([x.app]) : null;
   return (
-    <li className={`flex flex-col gap-2 rounded-xl border border-line bg-bg2/40 p-3 ${x.muted || x.running === false ? "opacity-70" : ""}`}>
+    <li className={`rounded-xl border border-line bg-bg2/40 p-3 ${x.muted || x.running === false ? "opacity-70" : ""}`}>
       <div className="flex items-center gap-3">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">{icon ? <img src={icon} alt="" className="h-6 w-6" /> : <Boxes size={18} className="text-muted" aria-hidden />}</span>
         <span className="min-w-0 flex-1">
@@ -88,8 +88,9 @@ function AppTile({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
             {x.running === false && <Badge tone="off" title={x.note}>{tx("arrêté")}</Badge>}</span>
           <span className="block truncate text-xs text-dim">{x.machine ? `${x.machine.name || x.machine.ip}${x.machine.name ? ` · ${x.machine.ip}` : ""}` : x.note}</span>
         </span>
+        {/* buttons on the top line, at the right of the card */}
+        <span className="flex shrink-0 items-center gap-1.5">{x.action && <Action a={x.action} reload={reload} />}<MuteButton x={x} reload={reload} /></span>
       </div>
-      <div className="flex flex-wrap items-center gap-1.5">{x.action && <Action a={x.action} reload={reload} />}<MuteButton x={x} reload={reload} /></div>
     </li>
   );
 }

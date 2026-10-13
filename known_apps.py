@@ -303,6 +303,16 @@ def apps_from_services(services: list[dict]) -> list[App]:
     return list(found.values())
 
 
+def is_linked(ctype: str, ip: str | None, declared: list[dict]) -> bool:
+    """A connector of that type is already set for that machine: one of its text settings names the address."""
+    return bool(ip) and any(c.get("type") == ctype and ip in " ".join(v for v in c.values() if isinstance(v, str)) for c in declared)
+
+
+def still_proposed(proposals: list[dict], declared: list[dict]) -> list[dict]:
+    """The proposals of the last collection, minus those set since (saved a moment ago): the lists change at once, not at the next run."""
+    return [p for p in proposals if not is_linked(p.get("connector") or "", p.get("ip"), declared)]
+
+
 def propose_windows(ip: str, machine: str | None, apps: list[App], ports: dict, declared: list[dict], with_linked: bool = False) -> list[dict]:
     """Connecteurs à proposer pour les applis vues par les services d'un PC Windows : la même forme que propose(). L'adresse est celle du port
     web connu de l'appli, ou son port par défaut ; une appli qui n'écoute pas là reste proposée (l'utilisateur corrige l'adresse)."""
@@ -310,7 +320,7 @@ def propose_windows(ip: str, machine: str | None, apps: list[App], ports: dict, 
     for a in apps:
         if not a.connector:
             continue
-        linked = any(c.get("type") == a.connector and ip in " ".join(v for v in c.values() if isinstance(v, str)) for c in declared)
+        linked = is_linked(a.connector, ip, declared)
         if linked and not with_linked:
             continue
         port = next((p for p in a.ports if p in ports), None) or WEB_PORTS.get(a.key) or (a.ports[0] if a.ports else None)
@@ -345,7 +355,7 @@ def propose(rows: list[dict], declared: list[dict], with_linked: bool = False) -
         if not ip or (ctype, ip) in seen:
             continue
         seen.add((ctype, ip))
-        linked = any(c.get("type") == ctype and ip in " ".join(v for v in c.values() if isinstance(v, str)) for c in declared)
+        linked = is_linked(ctype, ip, declared)
         if linked and not with_linked:
             continue
         scheme = r.get("web_scheme") or r.get("scheme") or "http"

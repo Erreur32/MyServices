@@ -1809,6 +1809,17 @@ def diagrams_rebuild(request: Request):
     return {"ok": True}
 
 
+def current_proposals(data: dict) -> list[dict]:
+    """Proposals of the last collection without the connectors saved since: the discovery list changes at once."""
+    import known_apps
+    from connectors import settings
+    try:
+        saved = [c for _, _, c in settings._entries(settings._raw())]
+    except settings.SettingsError:
+        return data.get("proposals") or []
+    return known_apps.still_proposed(data.get("proposals") or [], saved)
+
+
 @app.get(API + "/discoveries", tags=["système"], summary="Qui découvre quoi : automatique, à la main, à faire (admin)")
 def discoveries(request: Request):
     import backups_admin
@@ -1851,7 +1862,7 @@ def discoveries(request: Request):
         "net_has_run": bool(net.get("ended") or net.get("started")), "net_last": net.get("ended") or net.get("started"), "net_every_h": core.CFG["netscan_every"],
         "backups_auto": core.CFG.get("backups_auto", True), "ssh_machines": len(ssh), "auto_checked": sum(1 for ip in ssh if ip in _read_list(state / "backups-auto.json")) if checked else 0,
         "backups_search_last": stamp("backups-discover.json"), "backups_enabled": bool(core.CFG.get("backups_url")),
-        "backups_last": bk["end"] or None, "backups_next": core.next_run("backups"), "proposals": data.get("proposals") or [],
+        "backups_last": bk["end"] or None, "backups_next": core.next_run("backups"), "proposals": current_proposals(data),
         "muted": core.CFG.get("discoveries_muted") or [], "auto_mode": core.CFG["auto_mode"],
     })
     return {"auto": core.CFG["auto_mode"], "items": items, "muted": core.CFG.get("discoveries_muted") or [], "todo": sum(1 for x in items if x["state"] == disc.TODO), "suggest": sum(1 for x in items if x["state"] == disc.SUGGEST)}

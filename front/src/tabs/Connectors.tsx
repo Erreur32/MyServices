@@ -18,6 +18,7 @@ import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorType, 
 import { configFor, modeOf } from "../lib/connectorModes";
 import { takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
+import { savedFor } from "../lib/savedFor";
 import { appIcon } from "../lib/appIcons";
 
 const KIND: Record<string, string> = {
@@ -215,10 +216,6 @@ function TestReport({ r, onClose }: { r: TestOut; onClose: () => void }) {
  *  Facultatif (comme les suggestions de Découverte) : cadre replié, à ouvrir quand on veut. Celles déjà reliées n'y sont pas ; rien à montrer, rien d'affiché. */
 /** Same id as the discovery of this app (discoveries.py: « connector:<type>@<ip> »), so « Forget » here and in Discovery is one choice */
 const discoveryId = (p: Proposal) => `connector:${p.connector}@${p.ip ?? "None"}`;
-
-/** Same rule as the server (known_apps.propose): an instance of that type whose settings name the address */
-export const savedFor = (p: Proposal, instances: ConnectorInstance[]) =>
-  !!p.ip && instances.some((i) => i.type === p.connector && Object.values(i.config).some((v) => typeof v === "string" && v.includes(p.ip!)));
 
 function DetectedServices({ apps, instances, onOpen }: { apps: Proposal[]; instances: ConnectorInstance[]; onOpen: (p: Proposal) => void }) {
   const [disc, reloadDisc] = useDiscoveries();

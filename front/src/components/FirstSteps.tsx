@@ -13,7 +13,8 @@ import { REOPEN_EVENT, savedState, saveState, setSkipped, skippedSteps, takeReop
 import { tx } from "../lib/i18n";
 import { useScan } from "../lib/scan";
 import { plural } from "../lib/summary";
-import type { ConnectorsState, Proposal, SystemState } from "../types";
+import type { ConnectorInstance, ConnectorsState, Proposal, SystemState } from "../types";
+import { savedFor } from "../lib/savedFor";
 import { netState, useNetScan } from "../lib/netScan";
 import { AuthorizeKey } from "./AuthorizeKey";
 import { SkipButton } from "./SkipButton";
@@ -137,7 +138,10 @@ export function FirstSteps({ snap, page = false }: { snap: Snapshot; page?: bool
   const { net, reload: reloadNet } = useNetScan();
   const admin = snap.me.role === "admin";
   useEffect(() => { if (admin) read<SystemState>("system").then(setSys).catch(() => undefined); }, [admin]);
-  useEffect(() => { if (admin) read<ConnectorsState>("connectors/settings").then((c) => setTools(c.types.filter((t) => !t.kinds.includes("alerts")).map((t) => ({ type: t.type, label: t.label })))).catch(() => undefined); }, [admin]);
+  const [instances, setInstances] = useState<ConnectorInstance[]>([]);   // connectors saved since the last collection: their proposal goes at once
+  useEffect(() => {
+    if (admin) read<ConnectorsState>("connectors/settings").then((c) => { setTools(c.types.filter((t) => !t.kinds.includes("alerts")).map((t) => ({ type: t.type, label: t.label }))); setInstances(c.instances); }).catch(() => undefined);
+  }, [admin, snap.data.generated]);
 
   const failing = (snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok);
   const fp = sys?.ssh.fingerprint || sys?.ssh.public || "app";
@@ -178,7 +182,7 @@ export function FirstSteps({ snap, page = false }: { snap: Snapshot; page?: bool
   const running = !!scan?.running;
   const finished = keyDone && !running && !failing.length;
   const reopened = acceptedGen !== null && !accepted;
-  const proposals = snap.data.proposals ?? [];
+  const proposals = (snap.data.proposals ?? []).filter((p) => !savedFor(p, instances));
   const host = snap.data.machine_list.find((m) => m.local) || snap.data.machine_list[0];
   const docker = sys.host_docker;
   // Services reconnus sur l'hôte (applis nommées par le scan des ports, serveurs web vus par SSH), Docker mis à part

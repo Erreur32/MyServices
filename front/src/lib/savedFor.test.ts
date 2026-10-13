@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { savedFor } from "../tabs/Connectors";
+import { savedFor } from "./savedFor";
 import type { ConnectorInstance, Proposal } from "../types";
 
 const inst = (type: string, url: string) => ({ type, label: type, name: type, config: { url }, set: {}, enabled: false }) as unknown as ConnectorInstance;
