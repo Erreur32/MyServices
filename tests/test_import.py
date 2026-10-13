@@ -6,6 +6,7 @@ import json
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -75,6 +76,50 @@ class Convert(unittest.TestCase):
         self.assertEqual((dest / "secrets" / "veeam-secrets").read_text(), "VEEAM_USER=u\n")
         self.assertEqual(bm["hosts"][1]["ssh"], "hote")
 
+
+
+class Main(unittest.TestCase):
+    """The whole command, end to end: a classic install in, a /config folder out, the original never touched."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.src, self.dest, self.ssh = self.root / "old", self.root / "config", self.root / ".ssh"
+        for d in (self.src, self.ssh):
+            d.mkdir()
+        (self.src / "config.json").write_text(json.dumps({"web_dir": "/x", "public_url": "http://old/"}))
+        (self.src / "services-meta.json").write_text(json.dumps({"machines": {"10.0.0.2": {"ssh": "local"}}}))
+        (self.src / "backups-meta.json").write_text(json.dumps({"hosts": [{"id": "l", "ssh": "local"}], "sets": [{"id": "s"}]}))
+        (self.ssh / "config").write_text("Host nas\n    HostName 10.0.0.3\n")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_main(self, *extra):
+        argv = ["import_install.py", "--from", str(self.src), "--to", str(self.dest), "--ssh-dir", str(self.ssh), "--host-ip", "10.0.0.1", *extra]
+        with unittest.mock.patch.object(sys, "argv", argv), unittest.mock.patch("builtins.print"), unittest.mock.patch.object(imp, "say"):
+            return imp.main()
+
+    def test_converts_into_an_empty_folder(self):
+        self.assertEqual(self.run_main(), 0)
+        cfg = json.loads((self.dest / "config.json").read_text())
+        self.assertNotIn("web_dir", cfg)
+        self.assertEqual(json.loads((self.dest / "services-meta.json").read_text())["machines"]["10.0.0.2"]["ssh"], "hote")
+        self.assertEqual(json.loads((self.dest / "backups-meta.json").read_text())["hosts"][0]["ssh"], "hote")
+        self.assertIn("Host hote", (self.dest / "ssh" / "config").read_text())
+        self.assertEqual((self.dest / "config.json").stat().st_mode & 0o777, 0o600)   # locked down
+        self.assertIn("web_dir", (self.src / "config.json").read_text())            # original intact
+
+    def test_refuses_a_filled_folder_without_force(self):
+        self.dest.mkdir()
+        (self.dest / "keep").write_text("x")
+        with self.assertRaises(SystemExit):
+            self.run_main()
+        self.assertEqual(self.run_main("--force"), 0)
+
+    def test_refuses_what_is_not_an_install(self):
+        (self.src / "services-meta.json").unlink()
+        with self.assertRaises(SystemExit):
+            self.run_main()
 
 if __name__ == "__main__":
     unittest.main()

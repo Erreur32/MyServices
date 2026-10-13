@@ -122,4 +122,4 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     os.makedirs(STATE_DIR, exist_ok=True)
-    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()  # NOSONAR S5332: answers on the LAN behind the page, like the app itself

@@ -52,6 +52,6 @@ echo " ok"
 if [[ "$keep" = 0 ]]; then
   trap 'echo; echo "▸ stopping the backend…"; dc stop >/dev/null 2>&1 || true' EXIT
 fi
-echo "▸ front with hot reload: http://${HOSTS:-localhost}:${VITE_PORT:-5180}/  (Ctrl+C stops$([[ "$keep" = 0 ]] && echo " both"))"
+echo "▸ front with hot reload: http://${HOSTS:-localhost}:${VITE_PORT:-5180}/  (Ctrl+C stops$([[ "$keep" = 0 ]] && echo " both"))"  # NOSONAR S5332: the local Vite dev server, http on purpose
 cd "$ROOT/front"
 MYSERVICES_BACKEND="$BACKEND" MS_DEV_HOSTS="$HOSTS" npm run dev
