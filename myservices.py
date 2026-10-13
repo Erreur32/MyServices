@@ -301,9 +301,9 @@ _opener = urllib.request.build_opener(_NoRedirect)
 # du type *.lan.exemple.fr, et beaucoup de backends LAN ont un cert auto-signé. Sans vérif
 # uniquement pour ces sondes anonymes (GET /, aucun identifiant envoyé) ; signalé
 # via cert_ok=false côté NPM.
-_insecure = ssl.create_default_context()
+_insecure = ssl.create_default_context()  # NOSONAR S5527: opt-in per connector for a self-signed LAN certificate
 _insecure.check_hostname = False
-_insecure.verify_mode = ssl.CERT_NONE
+_insecure.verify_mode = ssl.CERT_NONE  # NOSONAR S4830: opt-in per connector for a self-signed LAN certificate
 _opener_insecure = urllib.request.build_opener(_NoRedirect, urllib.request.HTTPSHandler(context=_insecure))
 _opener_title = urllib.request.build_opener(urllib.request.HTTPSHandler(context=_insecure))
 

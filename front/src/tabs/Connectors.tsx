@@ -428,7 +428,7 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onDone, 
       {type.tested.length > 0 && <p className="text-xs text-dim">{tx("Versions testées :")} {type.tested.join(", ")}</p>}
       <div className="flex flex-wrap gap-2">
         <button type="button" className={quiet} disabled={busy} onClick={() => void tryIt()}>{tx("Tester")}</button>
-        <button className={primary} disabled={busy}><Plus size={14} />{inst ? tx("Enregistrer") : tx("Ajouter")}</button>
+        <button type="submit" className={primary} disabled={busy}><Plus size={14} />{inst ? tx("Enregistrer") : tx("Ajouter")}</button>
         <button type="button" className={quiet} onClick={onCancel}>{tx("Annuler")}</button>
         {type.guide && type.guide.length > 0 && (
           <button type="button" className={`${quiet} ml-auto`} aria-expanded={help} onClick={() => setHelp(!help)}>

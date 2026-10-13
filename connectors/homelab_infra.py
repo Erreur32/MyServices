@@ -338,7 +338,7 @@ class UniFi(StatusConnector):
 
     def _account(self) -> tuple:
         jar = http.cookiejar.CookieJar()
-        ctx = None if self.tls() else ssl._create_unverified_context()
+        ctx = None if self.tls() else ssl._create_unverified_context()  # NOSONAR S5527: opt-in per connector for a self-signed LAN certificate
         opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar), urllib.request.HTTPSHandler(context=ctx))
         base = self.base_url()
 

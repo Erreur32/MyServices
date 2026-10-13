@@ -420,7 +420,7 @@ def auto_adopt() -> None:
         log(f"mode automatique : ajout des machines impossible : {type(e).__name__}: {e}")
         new = []
     tmp = mark.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"scan": st["ended"], "added": added + new}), encoding="utf-8")
+    tmp.write_text(json.dumps({"scan": st["ended"], "added": added + new}), encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     tmp.replace(mark)
     if new:
         log(f"mode automatique : {len(new)} machine(s) ajoutée(s) d'après la recherche réseau : {', '.join(new)}")
@@ -652,7 +652,7 @@ def main() -> int:
     if api.AUTH and not api.store().has_users():
         log(f"aucun compte : ouvrir la page pour créer le compte admin (pendant {api.SETUP_WINDOW // 60} min ; "
             "au-delà, redémarrer le conteneur)")
-    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="warning", access_log=False, server_header=False,
+    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="warning", access_log=False, server_header=False,  # NOSONAR S8392: inside the container; MYSERVICES_ALLOW limits who may connect
                 proxy_headers=False)  # IP du client telle que vue (contrôle MYSERVICES_ALLOW), jamais X-Forwarded-For
     return 0
 

@@ -85,7 +85,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
-        self.wfile.write(raw)
+        self.wfile.write(raw)  # NOSONAR S5131: JSON body sent as application/json, not HTML
 
     def do_GET(self):
         if self.path.split("?")[0] != "/status":

@@ -165,7 +165,7 @@ function Form({ st, item, onDone, onCancel }: { st: NotificationsState; item?: N
             </fieldset>
             <fieldset>
               <legend className="mb-1.5 text-sm text-muted">{tx("Jours")}</legend>
-              <div className="flex flex-wrap gap-1.5">{DAYS.map((d, i) => <button key={d} type="button" aria-pressed={days.includes(i)} onClick={() => setDays(toggled(days, i).sort())} className={chip(days.includes(i))}>{d}</button>)}</div>
+              <div className="flex flex-wrap gap-1.5">{DAYS.map((d, i) => <button key={d} type="button" aria-pressed={days.includes(i)} onClick={() => setDays(toggled(days, i).sort((x, y) => x - y))} className={chip(days.includes(i))}>{d}</button>)}</div>
             </fieldset>
           </div>
         </>
@@ -195,7 +195,7 @@ function Form({ st, item, onDone, onCancel }: { st: NotificationsState; item?: N
       )}
 
       <fieldset><legend className="mb-1.5 text-sm text-muted">{tx("Envoyer sur")}</legend><ChannelPick channels={st.channels} value={channels} onChange={setChannels} /></fieldset>
-      <div className="flex gap-2"><button className={primary} disabled={busy}>{item ? tx("Enregistrer") : tx("Ajouter")}</button><button type="button" className={quiet} onClick={onCancel}>{tx("Annuler")}</button></div>
+      <div className="flex gap-2"><button type="submit" className={primary} disabled={busy}>{item ? tx("Enregistrer") : tx("Ajouter")}</button><button type="button" className={quiet} onClick={onCancel}>{tx("Annuler")}</button></div>
       <NoteLine note={note} />
     </form>
   );

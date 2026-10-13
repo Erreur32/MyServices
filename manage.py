@@ -69,7 +69,7 @@ def main() -> int:
             f = Path(os.environ.get("MYSERVICES_CONFIG") or "config.json")
             out, n = secrets_store.encrypt_all(json.loads(f.read_text(encoding="utf-8")), f)
             tmp = f.with_suffix(".tmp")
-            tmp.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            tmp.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
             tmp.chmod(0o600)
             tmp.replace(f)
             store.audit("secrets chiffrés", "manage.py", None, f"{n} valeur(s)")

@@ -11,11 +11,19 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Security
+
+- SonarCloud and CodeQL review of the blocker and critical findings. Fixed: the SSH account of a machine found on the network is
+  checked with a full match (`$` let a final newline through into the SSH config), the Proxmox VM id of a crontab read through the
+  guest agent must be digits and its alias may not start with « - », the UrBackup login marks its MD5 as protocol-only
+  (`usedforsecurity=False`). Reviewed and marked `NOSONAR` with the reason: file writes whose path comes from the config or the
+  environment (never from a request), the self-signed certificate option chosen per connector, the container listening on all
+  interfaces, a same-site redirect, a JSON answer seen as HTML, a slice seen as an index.
+- Front: buttons get an explicit `type`, the alert days are sorted as numbers.
+
 ## v0.11.7 (2026-10-13)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
-
-## Unreleased (next version, not tagged yet)
 
 ### Changed
 

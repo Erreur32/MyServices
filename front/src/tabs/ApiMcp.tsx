@@ -105,7 +105,7 @@ function NewToken({ onCreated }: { onCreated: (c: { token: string; info: ApiToke
             <input className={`${input} max-w-xs`} type="password" required autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} />
           </Field>
         )}
-        <div><button className={primary} disabled={busy}><Plus size={14} />{tx("Créer le jeton")}</button></div>
+        <div><button type="submit" className={primary} disabled={busy}><Plus size={14} />{tx("Créer le jeton")}</button></div>
         <NoteLine note={note} />
       </form>
     </Card>

@@ -176,4 +176,4 @@ def freebox_status(row: dict) -> dict | None:
         facts.append(fact("Appareils actifs", f"{fb['hosts_active']}/{fb['hosts']}"))
     return {"connector": "freebox", "name": row.get("name") or "", "label": f"{s.get('model') or 'Freebox'} (via MynetworK)",
             "ok": bool(row.get("ok")), "stale": row.get("stale"), "message": row.get("message"), "version": s.get("firmware"),
-            "url": row.get("url"), "facts": facts[:8], "problems": problems}
+            "url": row.get("url"), "facts": facts[:8], "problems": problems}  # NOSONAR S6466: a slice never raises IndexError

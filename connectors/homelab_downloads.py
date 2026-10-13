@@ -123,7 +123,7 @@ class QBittorrent(StatusConnector):
     STALLED = ("stalledDL",)
 
     def _opener(self):
-        ctx = None if self.tls() else ssl._create_unverified_context()
+        ctx = None if self.tls() else ssl._create_unverified_context()  # NOSONAR S5527: opt-in per connector for a self-signed LAN certificate
         return urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()), urllib.request.HTTPSHandler(context=ctx))
 
     def _req(self, op, path: str, form: dict | None = None):
@@ -193,7 +193,7 @@ class Transmission(StatusConnector):
         h = {"User-Agent": "myservices", "Content-Type": "application/json"}
         if self.conf.get("user"):
             h["Authorization"] = "Basic " + base64.b64encode(f"{self.conf['user']}:{self.conf.get('password', '')}".encode()).decode()
-        ctx = None if self.tls() else ssl._create_unverified_context()
+        ctx = None if self.tls() else ssl._create_unverified_context()  # NOSONAR S5527: opt-in per connector for a self-signed LAN certificate
         body = json.dumps({"method": method, "arguments": arguments or {}}).encode()
         for _ in range(2):
             if sid and sid[0]:

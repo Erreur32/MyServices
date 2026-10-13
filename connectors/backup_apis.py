@@ -88,7 +88,7 @@ class Veeam(Connector):
     def _call(self, path: str, data: bytes | None = None, token: str | None = None) -> dict:
         hd = {"x-api-version": self.conf.get("api_version") or "1.1-rev0", **({"Authorization": "Bearer " + token} if token else {})}
         req = urllib.request.Request(self.conf["url"].rstrip("/") + path, data=data, headers=hd)
-        ctx = ssl._create_unverified_context()  # certificat auto-signé de Veeam (LAN), comme la console
+        ctx = ssl._create_unverified_context()  # certificat auto-signé de Veeam (LAN), comme la console ; NOSONAR S5527
         with urllib.request.urlopen(req, context=ctx, timeout=30) as r:
             return json.load(r)
 

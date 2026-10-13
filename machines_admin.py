@@ -363,7 +363,7 @@ def publish(ip: str, m: dict) -> None:
     if not hit:
         return
     tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     os.chmod(tmp, p.stat().st_mode & 0o777)
     tmp.replace(p)
 
@@ -502,7 +502,7 @@ def _set_alias_user(alias: str, user: str, port: int) -> bool:
         out.append(ln)
     if out == lines:
         return False
-    conf.write_text("\n".join(out) + "\n", encoding="utf-8")
+    conf.write_text("\n".join(out) + "\n", encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     conf.chmod(0o600)
     return True
 
@@ -516,7 +516,7 @@ def add_alias(ip: str, user: str = "root", port: int = 22) -> dict:
         ip = str(ipaddress.ip_address(ip))
     except ValueError:
         raise MachineError("IP invalide") from None
-    if not _ALIAS_USER.match(user or ""):
+    if not _ALIAS_USER.fullmatch(user or ""):   # fullmatch: « $ » would let a final newline through into the SSH config
         raise MachineError("compte SSH : lettres minuscules, chiffres, . _ - (32 au plus)")
     if not isinstance(port, int) or not 1 <= port <= 65535:
         raise MachineError("port SSH invalide")
@@ -527,6 +527,6 @@ def add_alias(ip: str, user: str = "root", port: int = 22) -> dict:
     text = conf.read_text(encoding="utf-8") if conf.exists() else ""
     block = (f"\n# Machine trouvée par la recherche réseau\nHost {alias}\n    HostName {ip}\n    User {user}\n    Port {port}\n"
              "    IdentityFile ~/.ssh/myservices\n    IdentityFile ~/.ssh/myservices_ecdsa\n    IdentitiesOnly yes\n    StrictHostKeyChecking accept-new\n")
-    conf.write_text(text + block, encoding="utf-8")
+    conf.write_text(text + block, encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     conf.chmod(0o600)
     return {"alias": alias, "created": True}

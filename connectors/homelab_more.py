@@ -540,7 +540,7 @@ class Webmin(StatusConnector):
 
     def collect(self) -> dict:
         req = urllib.request.Request(self.base_url() + "/", headers={"User-Agent": "myservices"}, method="GET")
-        ctx = None if self.tls() else ssl._create_unverified_context()
+        ctx = None if self.tls() else ssl._create_unverified_context()  # NOSONAR S5527: opt-in per connector for a self-signed LAN certificate
         try:
             with urllib.request.urlopen(req, timeout=self.ctx.timeout, context=ctx) as r:
                 server = r.headers.get("Server", "")

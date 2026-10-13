@@ -121,7 +121,7 @@ class Context:
             data = json.dumps(body).encode()
             h["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=data, headers=h, method=method)
-        ctx = None if verify_tls else ssl._create_unverified_context()  # certificat auto-signé (box, NAS)
+        ctx = None if verify_tls else ssl._create_unverified_context()  # certificat auto-signé (box, NAS) ; NOSONAR S5527
         try:
             with urllib.request.urlopen(req, timeout=timeout or self.timeout, context=ctx) as r:
                 raw = r.read()
@@ -286,6 +286,6 @@ def load_state(path: Path) -> dict:
 def save_state(path: Path, state: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+    tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     tmp.chmod(0o600)
     tmp.replace(path)

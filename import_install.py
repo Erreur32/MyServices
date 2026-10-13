@@ -204,12 +204,12 @@ def main() -> int:
     (dest / "config.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     meta = json.loads((src / "services-meta.json").read_text(encoding="utf-8"))
     n = convert_meta(meta)
-    (dest / "services-meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (dest / "services-meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     say(f"✓ services-meta.json : {len(meta.get('machines', {}))} machines, {n} accès « local » -> « {HOST_ALIAS} »")
     if (src / "backups-meta.json").exists():
         bm = json.loads((src / "backups-meta.json").read_text(encoding="utf-8"))
         convert_backups(bm, dest)
-        (dest / "backups-meta.json").write_text(json.dumps(bm, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        (dest / "backups-meta.json").write_text(json.dumps(bm, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
         say(f"✓ backups-meta.json : {len(bm.get('sets', []))} jeux")
     if sshd.is_dir():
         keys = convert_ssh(sshd, dest, host, a.host_user, a.host_key or None)

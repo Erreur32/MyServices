@@ -275,7 +275,7 @@ function TaskRow({ t, now, reload }: { t: SystemTask; now: number; reload: () =>
           <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (parsed) save(at.trim(), tx("horaire enregistré")); }}>
             <input className={`${input} h-9 w-36 font-mono ${parsed ? "" : "border-bad"}`} value={at} disabled={t.fixed} onChange={(e) => setAt(e.target.value)} aria-label={tx("Horaire de {0}", t.label)}
               aria-invalid={!parsed} title={t.fixed ? tx("fixé par la variable d'environnement du conteneur") : tx("défaut : {0}", t.default)} />
-            {!t.fixed && changed && <button className={`${primary} h-9`} disabled={!parsed}>{tx("Enregistrer")}</button>}
+            {!t.fixed && changed && <button type="submit" className={`${primary} h-9`} disabled={!parsed}>{tx("Enregistrer")}</button>}
             {!t.fixed && !changed && t.at !== t.default && (
               <button type="button" className={`${quiet} h-9`} title={tx("Revenir au défaut : {0}", t.default)} aria-label={tx("Revenir au défaut : {0}", t.default)}
                 onClick={() => save("", tx("horaire par défaut"))}><RotateCcw size={14} /></button>
@@ -338,7 +338,7 @@ function NetscanRow({ n, now, reload }: { n: NonNullable<SystemState["netscan"]>
                 title={cfg?.fixed ? tx("fixée par la variable d'environnement du conteneur") : tx("défaut : {0}", cfg?.default_h ?? "?")} />
               <span className="text-xs text-dim">h</span>
             </span>
-            {cfg && !cfg.fixed && h !== cfg.every_h && <button className={`${primary} h-9`} disabled={!valid}>{tx("Enregistrer")}</button>}
+            {cfg && !cfg.fixed && h !== cfg.every_h && <button type="submit" className={`${primary} h-9`} disabled={!valid}>{tx("Enregistrer")}</button>}
             {cfg && !cfg.fixed && h === cfg.every_h && cfg.every_h !== cfg.default_h && (
               <button type="button" className={`${quiet} h-9`} title={tx("Revenir au défaut : {0}", cfg.default_h)} aria-label={tx("Revenir au défaut : {0}", cfg.default_h)}
                 onClick={() => save(cfg.default_h)}><RotateCcw size={14} /></button>
@@ -364,7 +364,7 @@ function NetscanRow({ n, now, reload }: { n: NonNullable<SystemState["netscan"]>
             <label className="flex flex-col gap-1 text-xs font-semibold text-muted">{tx("Réseaux à parcourir")}
               <span className="flex flex-wrap gap-2">
                 <input className={`${input} h-9 min-w-[200px] flex-1 font-mono`} value={netsText} placeholder={hostNet || "192.168.1.0/24"} onChange={(e) => setNets(e.target.value)} />
-                {nets !== null && <button className={`${primary} h-9`}>{tx("Enregistrer")}</button>}
+                {nets !== null && <button type="submit" className={`${primary} h-9`}>{tx("Enregistrer")}</button>}
                 {nets === null && cfg.nets.length > 0 && <button type="button" className={`${quiet} h-9`} onClick={() => setNets("")}>{tx("Revenir au réseau de l'hôte")}</button>}
               </span>
             </label>
@@ -410,7 +410,7 @@ function Export() {
         <Field label={tx("Ton mot de passe")}>
           <input className={`${input} w-64`} type="password" required autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} />
         </Field>
-        <button className={primary} disabled={busy}><Download size={14} />{tx("Télécharger")}</button>
+        <button type="submit" className={primary} disabled={busy}><Download size={14} />{tx("Télécharger")}</button>
       </form>
       <NoteLine note={note} />
     </Card>

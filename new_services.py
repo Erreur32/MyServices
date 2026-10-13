@@ -101,7 +101,7 @@ def set_pause(meta_path: Path, web_dir: str | Path, target: str, reason: str | N
             else:
                 r.pop("paused", None)
     tmp = p.with_name(p.name + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     os.chmod(tmp, p.stat().st_mode & 0o777)
     tmp.replace(p)
 

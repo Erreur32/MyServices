@@ -96,7 +96,7 @@ function MyPassword() {
           </Field>
         </div>
         <PasswordRules pw={pw} again={pw2} />
-        <div><button className={primary} disabled={busy || !checkPassword(pw, pw2).ok}><KeyRound size={14} />{tx("Changer")}</button></div>
+        <div><button type="submit" className={primary} disabled={busy || !checkPassword(pw, pw2).ok}><KeyRound size={14} />{tx("Changer")}</button></div>
         <p className="text-xs text-dim">{tx("Toutes tes sessions (autres navigateurs compris) seront fermées.")}</p>
       </form>
       <NoteLine note={note} />

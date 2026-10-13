@@ -175,10 +175,10 @@ class UrBackup(_Backups):
         s = self._x("salt", {"username": user})
         if not s.get("ready"):
             raise ConnectorError("accès refusé : utilisateur inconnu d'UrBackup")
-        pw = hashlib.md5((str(s.get("salt", "")) + str(self.conf.get("password", ""))).encode()).hexdigest()
+        pw = hashlib.md5((str(s.get("salt", "")) + str(self.conf.get("password", ""))).encode(), usedforsecurity=False).hexdigest()  # NOSONAR S4790: UrBackup's login challenge imposes MD5; nothing is stored
         if num(s.get("pbkdf2_rounds"), 0):
             pw = hashlib.pbkdf2_hmac("sha256", bytes.fromhex(pw), str(s["salt"]).encode(), int(num(s["pbkdf2_rounds"]))).hex()
-        d = self._x("login", {"username": user, "password": hashlib.md5((str(s.get("rnd", "")) + pw).encode()).hexdigest(), "ses": s.get("ses", "")})
+        d = self._x("login", {"username": user, "password": hashlib.md5((str(s.get("rnd", "")) + pw).encode(), usedforsecurity=False).hexdigest(), "ses": s.get("ses", "")})  # NOSONAR S4790: UrBackup's login challenge imposes MD5; nothing is stored
         if not d.get("success"):
             raise ConnectorError("accès refusé : utilisateur ou mot de passe d'UrBackup")
         return str(s.get("ses") or d.get("session", ""))

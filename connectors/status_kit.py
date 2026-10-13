@@ -128,7 +128,7 @@ def raw_tcp(host: str, port: int, request: bytes, end: bytes, timeout: float = 5
 def post_form(url: str, fields: dict, verify_tls: bool = True, timeout: float = 15.0):
     """POST application/x-www-form-urlencoded, réponse JSON (Synology DSM : les identifiants ne passent jamais dans l'URL)."""
     req = urllib.request.Request(url, data=urllib.parse.urlencode(fields).encode(), headers={"User-Agent": "myservices", "Accept": "application/json"}, method="POST")
-    ctx = None if verify_tls else ssl._create_unverified_context()
+    ctx = None if verify_tls else ssl._create_unverified_context()  # NOSONAR S5527: opt-in per connector for a self-signed LAN certificate
     try:
         with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
             return json.loads(r.read() or b"null")

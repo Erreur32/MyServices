@@ -224,7 +224,7 @@ function Detect({ st, onDone, onCancel }: { st: State; onDone: () => void; onCan
           <input className={`${input} min-w-[260px]`} list="ssh-aliases" required value={target} onChange={(e) => setTarget(e.target.value)} placeholder={tx("ex. 192.168.1.20 ou nas")} />
           <datalist id="ssh-aliases">{st.aliases.map((a) => <option key={a.alias} value={a.alias}>{a.ip || a.host}</option>)}</datalist>
         </Field>
-        <button className={primary} disabled={busy}><Radar size={14} />{busy ? tx("Détection…") : tx("Détecter")}</button>
+        <button type="submit" className={primary} disabled={busy}><Radar size={14} />{busy ? tx("Détection…") : tx("Détecter")}</button>
         <button type="button" className={quiet} onClick={onCancel}>{tx("Annuler")}</button>
       </form>
       <p className="text-sm text-muted">

@@ -77,7 +77,7 @@ class LogviewR(Connector):
         ctx = None
         if self.conf.get("verify_tls", True) is False:
             import ssl
-            ctx = ssl._create_unverified_context()
+            ctx = ssl._create_unverified_context()  # NOSONAR S5527: opt-in per connector for a self-signed LAN certificate
         try:
             with urllib.request.urlopen(req, timeout=self.ctx.timeout, context=ctx) as r:
                 got = _body(r.read(), r.headers.get("Content-Type", ""))

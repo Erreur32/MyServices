@@ -291,6 +291,8 @@ def run_py(ssh: str | None, src: str, arg: str, sudo: str | None = None) -> tupl
 def qm_crontab(spec: str) -> list[dict]:
     """Crontab root d'une VM lue par le guest agent depuis Proxmox (spec = alias:vmid)."""
     alias, vmid = spec.split(":")
+    if not vmid.isdigit() or alias.startswith("-"):   # VM id put in a remote command: digits only; an alias is never an ssh option
+        return []
     try:
         r = subprocess.run(["ssh", *SSH_OPTS, alias, f"qm guest exec {vmid} -- crontab -l"],
                            capture_output=True, text=True, timeout=60)
@@ -637,7 +639,7 @@ def main() -> int:
     d = analyse(meta, res, sres, now)
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
     tmp = OUT_JSON.with_suffix(".tmp")
-    tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     if os.geteuid() == 0:  # rendu au propriétaire du projet, comme data.json
         st = HERE.stat()
         os.chown(tmp, st.st_uid, st.st_gid)

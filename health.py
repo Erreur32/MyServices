@@ -1421,7 +1421,7 @@ def record_events(hosts: list[dict], prev_levels: dict, ts: str) -> None:
                             key=lambda e: e["ts"], reverse=True)
     data.update(generated=local.isoformat(timespec="seconds"), retention_days=EVENTS_RETENTION_DAYS,
                 labels=EVENT_LABELS, severity=EVENT_SEVERITY)
-    EVENTS_JSON.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    EVENTS_JSON.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
 
 
 # ───────────── Main ─────────────

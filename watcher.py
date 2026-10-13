@@ -501,7 +501,7 @@ def main() -> int:
                                                     ensure_ascii=False), encoding="utf-8")
     # Sauvegarde SYSTÉMATIQUE, baseline comprise (cf bug secu-watcher du 2026-09-12)
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps({"snap": cur, "pending": pending, "history": history,
+    STATE_FILE.write_text(json.dumps({"snap": cur, "pending": pending, "history": history,  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
                                       "machines": mcur, "mpending": mpending, "dns": dcur,
                                       "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending, "threats": tcur, "nextcloud": xcur,
                                       "stale_reported": age > STALE_MIN, "last_run": now},

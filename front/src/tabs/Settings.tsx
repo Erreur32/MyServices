@@ -167,7 +167,7 @@ function SessionDays() {
             <input className={`${input} w-20 py-1`} type="number" min={1} max={90} value={days} onChange={(e) => setDays(e.target.value)} aria-label={tx("Jours")} />
           </span>
         </div>
-        <button className={quiet} disabled={!valid || n === cur}>{tx("Enregistrer")}</button>
+        <button type="submit" className={quiet} disabled={!valid || n === cur}>{tx("Enregistrer")}</button>
       </form>
       <NoteLine note={note} />
     </Card>
@@ -200,7 +200,7 @@ function AddUser({ onDone }: { onDone: () => void }) {
           <input className={`${input} ${okField(pw)}`} type="password" autoComplete="new-password" required minLength={PASSWORD_MIN} value={pw} onChange={(e) => setPw(e.target.value)} />
         </Field>
         <PasswordRules pw={pw} />
-        <div><button className={primary} disabled={busy || !checkPassword(pw).ok}><Plus size={14} />{tx("Créer")}</button></div>
+        <div><button type="submit" className={primary} disabled={busy || !checkPassword(pw).ok}><Plus size={14} />{tx("Créer")}</button></div>
       </form>
       <NoteLine note={note} />
     </Card>
@@ -262,7 +262,7 @@ function UserRow({ u, self, onDone }: { u: User; self: boolean; onDone: () => vo
         }}>
           <input className={`${input} max-w-xs`} type="password" autoComplete="new-password" required minLength={PASSWORD_MIN}
             placeholder={tx("nouveau mot de passe ({0} min.)", PASSWORD_MIN)} value={pw} onChange={(e) => setPw(e.target.value)} />
-          <button className={primary}>{tx("Enregistrer")}</button>
+          <button type="submit" className={primary}>{tx("Enregistrer")}</button>
         </form>
       )}
       <NoteLine note={note} />

@@ -92,7 +92,7 @@ def save(path: Path, data: dict) -> None:
         if secrets_store.key_path(CONFIG).exists():
             data, _ = secrets_store.encrypt_all(data, CONFIG)
     tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     os.chmod(tmp, 0o600)
     st = HERE.stat()
     if os.geteuid() == 0:
@@ -735,10 +735,10 @@ def _veeam_secrets(path: Path) -> bool:
     if not user:
         return False
     password = getpass.getpass("  Mot de passe (non affiché) : ")
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     with os.fdopen(fd, "w") as f:
         f.write(f"VEEAM_USER={user}\nVEEAM_PASS={password}\n")
-    os.chmod(path, 0o600)
+    os.chmod(path, 0o600)  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     ok(f"identifiants écrits dans {path} (600)")
     return True
 

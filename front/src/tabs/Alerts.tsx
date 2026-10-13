@@ -181,7 +181,7 @@ function ChannelForm({ channel, onDone, onCancel }: { channel?: AlertChannel; on
         );
       })}
       <div className="flex gap-2">
-        <button className={primary} disabled={busy}>{channel ? tx("Enregistrer") : tx("Ajouter")}</button>
+        <button type="submit" className={primary} disabled={busy}>{channel ? tx("Enregistrer") : tx("Ajouter")}</button>
         <button type="button" className={quiet} onClick={onCancel}>{tx("Annuler")}</button>
       </div>
       <NoteLine note={note} />
@@ -322,7 +322,7 @@ function RuleForm({ st, rule, onDone, onCancel }: { st: AlertsState; rule?: Aler
         </div>
       </fieldset>
       <div className="flex gap-2">
-        <button className={primary} disabled={busy}>{rule ? tx("Enregistrer") : tx("Ajouter")}</button>
+        <button type="submit" className={primary} disabled={busy}>{rule ? tx("Enregistrer") : tx("Ajouter")}</button>
         <button type="button" className={quiet} onClick={onCancel}>{tx("Annuler")}</button>
       </div>
       <NoteLine note={note} />

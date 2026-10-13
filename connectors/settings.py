@@ -138,7 +138,7 @@ def _write(raw: dict) -> None:
     f = config_file()
     out, _ = secrets_store.encrypt_all(raw, f)
     tmp = f.with_suffix(".tmp")
-    tmp.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     tmp.chmod(0o600)
     tmp.replace(f)
 
