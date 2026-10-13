@@ -205,7 +205,6 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
               <ul className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{stopped.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul>
             </details>
           )}
-          <p className="mt-3 text-sm"><a href="#settings/connectors" className="text-link hover:underline">{tx("Réglages → Connecteurs")}</a></p>
         </Fold>
       )}
 
