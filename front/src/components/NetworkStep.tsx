@@ -152,7 +152,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
   const actions = (
     <div className="flex flex-wrap items-center gap-2">
       <button type="button" className={scanned ? quietBtn : primary} disabled={busy} onClick={() => void start()}>
-        {scanned ? <RefreshCw size={14} aria-hidden /> : <Search size={14} aria-hidden />}{scanned ? tx("Refaire un scan") : tx("Lancer le scan")}
+        {scanned ? <RefreshCw size={14} aria-hidden /> : <Search size={14} aria-hidden />}{scanned ? tx("Relancer la recherche") : tx("Chercher maintenant")}
       </button>
       {onSkip && <SkipButton onClick={onSkip} onDark />}
     </div>
@@ -164,7 +164,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
       <EyeOff size={15} className="ml-3 mt-3 shrink-0 text-muted" aria-hidden />
       <div className={ROW_BODY}>
         <HostInfo h={h} />
-        <Badge tone="off">{tx("oublié")}{ignoredGone.includes(h) ? ` · ${tx("pas revu à ce scan")}` : ""}</Badge>
+        <Badge tone="off">{tx("oublié")}{ignoredGone.includes(h) ? ` · ${tx("pas revu à cette recherche")}` : ""}</Badge>
       </div>
       <button type="button" className={`${quietBtn} m-1.5 shrink-0`} onClick={() => unignore(h)}><RotateCcw size={13} aria-hidden />{tx("Rappeler")}</button>
     </li>
@@ -276,7 +276,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
         <section className="flex flex-col gap-2 rounded-xl border border-line bg-bg2/40 px-3 py-2.5" aria-live="polite">
           {/* line 1: what was scanned, when, and what changed since the scan before; line 2: the tags only */}
           <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
-            <b className="text-txt">{net.stopped ? tx("Scan arrêté : ") : ""}{tx("{0} appareil(s) sur {1}", sum.total, net.net ?? "")}</b>
+            <b className="text-txt">{net.stopped ? tx("Recherche arrêtée : ") : ""}{tx("{0} appareil(s) sur {1}", sum.total, net.net ?? "")}</b>
             {sum.known > 0 && <span className="text-dim">· {tx("{0} déjà ajouté(s)", sum.known)}</span>}
             {net.ended && <span className="text-dim">· {tx("scan du {0}", dateTime(net.ended * 1000))}</span>}
             {diff && !net.stopped && (diff.fresh.size === 0 && diff.gone.length === 0
@@ -311,7 +311,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
               <ul className="flex flex-col gap-1.5">{renderRows(watch)}</ul>
             </section>
           )}
-          {watch.length === 0 && rest > 0 && <p className="text-sm text-dim">{tx("Rien d'évident à ajouter dans ce scan : les appareils trouvés sont repliés ci-dessous.")}</p>}
+          {watch.length === 0 && rest > 0 && <p className="text-sm text-dim">{tx("Rien d'évident à ajouter dans cette recherche : les appareils trouvés sont repliés ci-dessous.")}</p>}
           {rest > 0 && (
             <details open={othersOpen} onToggle={(e) => setOthersOpen(e.currentTarget.open)} className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
               <summary className={FOLD_HEAD}><ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
@@ -340,7 +340,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
                 tx("{0} oublié : il reste dans « machines déjà ajoutées », pour le rappeler", h.name || h.ip), setNote)
                 .then((ok) => { if (ok) { setAdded((a) => { const n = { ...a }; delete n[h.ip]; return n; }); reloadDisc(); } else setJustForgot((f) => f.filter((x) => x !== h.ip)); }); }} />
           ))}
-          {found.length === 0 && <p className="text-sm text-dim">{tx("Toutes les machines trouvées sont ajoutées. « Terminé » ferme un cadre ; « Refaire un scan » relance la recherche.")}</p>}
+          {found.length === 0 && <p className="text-sm text-dim">{tx("Toutes les machines trouvées sont ajoutées. « Terminé » ferme un cadre ; « Relancer la recherche » la refait.")}</p>}
         </div>
       )}
       {scanned && declared.length > 0 && (

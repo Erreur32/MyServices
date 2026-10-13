@@ -180,7 +180,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
           {last ? <span className="text-dim">{tx("dernière :")} {dateTime(last)} · {scan.found.length} {tx("appareils")}</span> : <Dim>{tx("aucune recherche faite")}</Dim>}
           {next && !running && <span className="text-dim">{tx("prochaine à partir de {0}", dateTime(next))}</span>}
           <span className="ml-auto flex flex-wrap gap-2">
-            <button type="button" className={primary} disabled={running} onClick={() => void scanNow()}><Search size={14} aria-hidden />{running ? tx("Recherche en cours…") : tx("Chercher maintenant")}</button>
+            <button type="button" className={primary} disabled={running} onClick={() => void scanNow()}><Search size={14} aria-hidden />{running ? tx("Recherche en cours…") : last ? tx("Relancer la recherche") : tx("Chercher maintenant")}</button>
             <a href="#settings/tasks" className={`${quiet} no-underline`} title={tx("Fréquence, réseaux à parcourir et mode discret : dans Tâches et horaires")}><Timer size={14} aria-hidden />{tx("Réglages de la recherche")}</a>
             <button type="button" className={quiet} onClick={reopenFirstSteps} title={tx("Rouvre la carte et efface vos choix « Passer »")}><ListChecks size={14} aria-hidden />{tx("Revoir les premiers pas")}</button>
           </span>

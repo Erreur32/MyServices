@@ -264,7 +264,7 @@ export function FirstSteps({ snap, page = false }: { snap: Snapshot; page?: bool
         ) : (
           <Step state={skipped.includes("key") ? "next" : "now"} title={tx("Autoriser la clé SSH de MyServices")}
             onSkip={() => skip("key")} skipped={skipped.includes("key")} onResume={() => resume("key")}>
-            {reopened && <p className="mb-2 text-warn">{tx("La clé répond, mais Docker reste illisible après le scan : vérifier que le compte est dans le groupe docker.")}</p>}
+            {reopened && <p className="mb-2 text-warn">{tx("La clé répond, mais Docker reste illisible après la nouvelle lecture : vérifier que le compte est dans le groupe docker.")}</p>}
             <AuthorizeKey failing={failing} bare onAccepted={() => setAcceptedGen(snap.data.generated)} />
           </Step>
         )}

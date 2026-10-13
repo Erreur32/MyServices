@@ -144,7 +144,7 @@ function Events({ snap }: { snap: Snapshot }) {
           toggle: () => setHide(hidden.includes(k) ? hidden.filter((x) => x !== k) : [...hidden, k]) }))}
         extra={<>
           {range && <button type="button" onClick={() => setRange(null)} className="rounded-lg border border-link px-2.5 py-1.5 text-sm text-txt">{range.label} ✕</button>}
-          {nHidden > 0 && <button type="button" onClick={() => setHide([])} className="text-sm text-link hover:underline" title={tx("Les menaces fail2ban, les connecteurs revenus vite et les appareils du scan sont masqués")}>
+          {nHidden > 0 && <button type="button" onClick={() => setHide([])} className="text-sm text-link hover:underline" title={tx("Les menaces fail2ban, les connecteurs revenus vite et les appareils de la recherche réseau sont masqués")}>
             {tx("{0} masqué(s) : tout afficher", nHidden)}</button>}
         </>} />
       {listed.length === 0 ? (

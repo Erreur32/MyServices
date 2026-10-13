@@ -48,7 +48,7 @@ export function ScanBar({ onFinished }: { onFinished: () => void }) {
   if (!st?.running && !net) return null;
   const p = st?.running ? st.progress : null;
   const pct = p ? Math.round(fraction(p) * 100) : net ? netPercent(net) : null;
-  const title = net && !st?.running ? tx("Découverte") : tx("Scan en cours");
+  const title = net && !st?.running ? tx("Découverte") : tx("Recherche réseau en cours");
   const label = p ? `${p.label}${p.total ? ` (${p.done ?? 0}/${p.total})` : ""}`
     : net ? (net.phase === "identify" ? tx("identification : {0}/{1} machines (nom, ports ouverts)", net.described, net.up)
                                       : tx("recherche des machines allumées : {0}/{1} adresses", net.done, net.total)) : tx("démarrage…");
