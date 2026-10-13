@@ -60,7 +60,7 @@ export function HaAddons({ s }: Readonly<{ s: ServiceStatus }>) {
       </summary>
       <ul className="grid max-h-72 grid-cols-1 gap-1 overflow-y-auto border-t border-line/40 p-2 sm:grid-cols-2">
         {list.map((a) => (
-          <li key={a.slug} className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-bg2/50" title={`${a.name}${a.version ? ` ${a.version}` : ""}${a.latest ? ` → ${a.latest}` : ""}`}>
+          <li key={a.slug} className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-bg2/50" title={[a.name, a.version, a.latest && `→ ${a.latest}`].filter(Boolean).join(" ")}>
             <AddonIcon src={`${ROOT}api/v1/ha/${inst}/addon-icon/${a.slug}`} />
             <span className="min-w-0 flex-1 truncate text-sm">{a.name}</span>
             {a.latest && <span className="shrink-0 font-mono text-[11px] text-warn">→ {a.latest}</span>}

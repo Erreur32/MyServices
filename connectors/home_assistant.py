@@ -65,6 +65,7 @@ def update_group(entity_id: str, attrs: dict) -> str:
     return "other"
 
 
+UPDATE = "update."   # entity id prefix of what can be updated (core, add-ons, devices)
 ADDON_ICON = re.compile(r"/api/hassio/addons/([a-z0-9_-]{1,64})/icon")
 
 
@@ -74,7 +75,7 @@ def addons(states: list) -> list[dict]:
     out = []
     for s in states:
         a = s.get("attributes") or {} if isinstance(s, dict) else {}
-        m = ADDON_ICON.search(str(a.get("entity_picture") or "")) if str(s.get("entity_id", "")).startswith("update.") else None
+        m = ADDON_ICON.search(str(a.get("entity_picture") or "")) if str(s.get("entity_id", "")).startswith(UPDATE) else None
         if m:
             name = str(a.get("title") or a.get("friendly_name") or m[1]).removesuffix(" Update")
             out.append({"name": name, "slug": m[1], "version": a.get("installed_version"),
@@ -169,14 +170,14 @@ class HomeAssistantAPI(Connector):
                     "installed": (s.get("attributes") or {}).get("installed_version"),
                     "latest": (s.get("attributes") or {}).get("latest_version"),
                     "group": update_group(s["entity_id"], s.get("attributes") or {})}
-                   for s in states if str(s.get("entity_id", "")).startswith("update.") and s.get("state") == "on"]
+                   for s in states if str(s.get("entity_id", "")).startswith(UPDATE) and s.get("state") == "on"]
         unavailable = sum(1 for s in states if s.get("state") == "unavailable")
         low = [(s.get("attributes") or {}).get("friendly_name") or s["entity_id"] for s in states
                if s.get("entity_id", "").startswith("sensor.") and (s.get("attributes") or {}).get("device_class") == "battery"
                and (_num(s.get("state")) is not None and _num(s["state"]) <= 20)]
         name_of = lambda st: (st.get("attributes") or {}).get("friendly_name") or st["entity_id"]   # noqa: E731
         autos = [st for st in states if str(st.get("entity_id", "")).startswith("automation.")]
-        gone = sorted(name_of(st) for st in states if st.get("state") == "unavailable" and not str(st.get("entity_id", "")).startswith("update."))
+        gone = sorted(name_of(st) for st in states if st.get("state") == "unavailable" and not str(st.get("entity_id", "")).startswith(UPDATE))
         out = {"version": cfg.get("version"), "name": cfg.get("location_name"), "state": cfg.get("state"),
                "entities": len(states), "unavailable": unavailable, "unavailable_names": gone[:12], "batteries_low": sorted(low)[:10],
                "automations": {"on": sum(1 for st in autos if st.get("state") == "on"), "total": len(autos)},

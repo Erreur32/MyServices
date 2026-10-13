@@ -42,14 +42,14 @@ function HostCard({ h, os }: Readonly<{ h: HealthHost; os?: OsInfo }>) {
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">{os?.kind ? <OsGlyph kind={os.kind} name={os.name} /> : <Gauge size={15} className="text-muted" aria-hidden />}</span>
         <span className="min-w-0 flex-1">
           <b className="block truncate">{name}</b>
-          <span className="block truncate text-[11px] text-dim"><span className="font-mono">{ip}</span>{os?.name ? ` · ${shortOs(os.name)}` : h.os === "windows" ? tx(" · Windows") : ""}</span>
+          <span className="block truncate text-[11px] text-dim"><span className="font-mono">{ip}</span>{osSuffix(os, h.os)}</span>
         </span>
         <Level level={lv} />
       </div>
       {h.reachable !== false && <ResStrip h={h} />}
       {pb.length > 0 ? (
         <ul className="flex flex-col gap-0.5 text-xs">
-          {pb.slice(0, 3).map(([t, x], i) => <li key={i} className={`truncate ${t === "bad" ? "text-bad" : "text-warn"}`} title={x}>• {x}</li>)}
+          {pb.slice(0, 3).map(([t, x]) => <li key={x} className={`truncate ${t === "bad" ? "text-bad" : "text-warn"}`} title={x}>• {x}</li>)}
           {pb.length > 3 && <li className="text-dim">{tx("+{0} autre(s), dans les détails", pb.length - 3)}</li>}
         </ul>
       ) : h.reachable !== false && <p className="text-xs text-ok">{tx("Rien à signaler.")}</p>}
@@ -116,7 +116,7 @@ function AsleepCard({ a, os }: { a: AsleepHost; os?: OsInfo }) {
     <section className={`flex flex-col gap-2.5 rounded-xl border border-line bg-card p-3 ${a.ping ? "" : "opacity-60"}`}>
       <div className="flex items-center gap-2.5">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">{os?.kind ? <OsGlyph kind={os.kind} name={os.name} /> : <Gauge size={15} className="text-muted" aria-hidden />}</span>
-        <span className="min-w-0 flex-1"><b className="block truncate">{name}</b><span className="block truncate text-[11px] text-dim"><span className="font-mono">{ip}</span>{os?.name ? ` · ${shortOs(os.name)}` : a.os === "windows" ? tx(" · Windows") : ""}</span></span>
+        <span className="min-w-0 flex-1"><b className="block truncate">{name}</b><span className="block truncate text-[11px] text-dim"><span className="font-mono">{ip}</span>{osSuffix(os, a.os)}</span></span>
         {a.ping ? <Badge tone="ok" title={tx("Répond au ping : son agent n'a pas encore envoyé de relevé")}>{tx("allumée, agent en attente")}</Badge>
           : <Badge tone="off" title={tx("Éteinte volontairement, aucune alerte")}>{tx("éteinte (voulu)")}</Badge>}
       </div>
@@ -126,6 +126,12 @@ function AsleepCard({ a, os }: { a: AsleepHost; os?: OsInfo }) {
 }
 
 interface OsInfo { kind?: OsKind; name?: string }
+
+/** « · Debian 13 » after the IP: the system's short name, or « Windows » when only the family is known */
+function osSuffix(os: OsInfo | undefined, family?: string): string {
+  if (os?.name) return ` · ${shortOs(os.name)}`;
+  return family === "windows" ? tx(" · Windows") : "";
+}
 
 function OsCell({ os }: { os: OsInfo }) {
   return os.kind ? <span className="inline-flex max-w-[15rem] items-center gap-1.5" title={os.name}><OsGlyph kind={os.kind} name={os.name} /><span className="truncate">{shortOs(os.name) || OS_LABEL[os.kind]}</span></span> : <Dim>-</Dim>;
@@ -256,9 +262,11 @@ export function Health({ snap, initial }: { snap: Snapshot; initial?: Selected }
           <span className="text-xs text-dim">{tx("relevé du")} {dateTime(snap.health.timestamp)}</span>
         </>} />
       <InfraCards docker={docker} services={services} />
-      {listed.length === 0 && !asleep.length ? (hideFine
-        ? <Empty>{tx("Toutes les machines vont bien : elles sont masquées.")} <button type="button" onClick={() => pickCalm(false)} className="text-link hover:underline">{tx("Les afficher")}</button></Empty>
-        : <Empty>{tx("Aucune machine pour ce filtre.")}</Empty>) : (() => {
+      {listed.length === 0 && !asleep.length && hideFine && (
+        <Empty>{tx("Toutes les machines vont bien : elles sont masquées.")} <button type="button" onClick={() => pickCalm(false)} className="text-link hover:underline">{tx("Les afficher")}</button></Empty>
+      )}
+      {listed.length === 0 && !asleep.length && !hideFine && <Empty>{tx("Aucune machine pour ce filtre.")}</Empty>}
+      {(listed.length > 0 || asleep.length > 0) && (() => {
         const groups = ACCESS.map(([key, title]) => ({ key, title, hosts: listed.filter((h) => accessOf(h) === key), asleep: key === "agent" ? asleep : [] }))   // a PC that is off is known by its agent
           .filter((g) => g.hosts.length || g.asleep.length);
         const cards = groups.map((g) => (

@@ -298,15 +298,36 @@ function HealthRows({ h }: { h: HealthHost }) {
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, servers, ha }: { m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus }) {
-  const roles = rolesOf(m.role), i = m.info, hw = hardwareRows(m.agent?.hardware), s = m.ssh;
-  const [stTone, stLabel, stTip] = MSTATE[mState(m)];
-  const vhosts = (i?.vhosts ?? []) as { port?: number; names?: string[] }[];
-  const failed = h?.systemd?.failed.length || 0, apt = h?.apt?.upgradable || 0;
+function Detail({ m, h, mac, net, from, watch, servers, ha }: Readonly<{ m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus }>) {
+  const i = m.info, hw = hardwareRows(m.agent?.hardware);
   return (
     <div className="grid gap-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
       <WatchSummary items={watch} />
-      <Section icon={IdCard} title={tx("Identité")} tone="link" from={[...from.role, ...from.mac]}>
+      <IdentitySection m={m} mac={mac} net={net} from={[...from.role, ...from.mac]} />
+
+      <Section icon={Cpu} title={tx("Système")} tone="violet" from={from.os}>
+        <Row k={tx("Système")}>{i?.os || m.agent?.os || undefined}</Row>
+        <Row k={tx("Noyau")}>{i?.kernel || m.agent?.kernel || undefined}</Row>
+        <Row k={tx("En marche")}>{(i?.uptime_s ?? m.agent?.uptime_s) ? dur(i?.uptime_s ?? m.agent?.uptime_s) : undefined}</Row>
+        {hw.map(([k, v]) => <Row key={k} k={k}>{v}</Row>)}
+        {!i && !m.agent && <Dim>-</Dim>}
+      </Section>
+
+      <AccessSection m={m} from={from.ssh} />
+
+      <SoftwareSection m={m} servers={servers} ha={ha} from={from.services} />
+
+      <HealthSection h={h} from={from.health} />
+    </div>
+  );
+}
+
+/** Detail, « Identity »: name, IP, state, roles, MAC, what the network tools saw, other names, virtualization */
+function IdentitySection({ m, mac, net, from }: Readonly<{ m: Machine; mac?: string; net?: NetDevice; from: Origin[] }>) {
+  const roles = rolesOf(m.role);
+  const [stTone, stLabel, stTip] = MSTATE[mState(m)];
+  return (
+      <Section icon={IdCard} title={tx("Identité")} tone="link" from={from}>
         <Row k={tx("Nom")}><b>{m.name}</b></Row>
         <Row k="IP"><span className="font-mono">{m.ip}</span></Row>
         <Row k={tx("État")}><Badge tone={stTone} title={stTip}>{stLabel}</Badge></Row>
@@ -319,16 +340,14 @@ function Detail({ m, h, mac, net, from, watch, servers, ha }: { m: Machine; h?: 
         <Row k={tx("Vue par")}>{m.links?.sources.length ? <SeenBy links={m.links} /> : undefined}</Row>
         <Row k="TTL">{m.ttl ? <span title={tx("Durée de vie des paquets du ping : 64 Linux, 128 Windows")}>{m.ttl}</span> : undefined}</Row>
       </Section>
+  );
+}
 
-      <Section icon={Cpu} title={tx("Système")} tone="violet" from={from.os}>
-        <Row k={tx("Système")}>{i?.os || m.agent?.os || undefined}</Row>
-        <Row k={tx("Noyau")}>{i?.kernel || m.agent?.kernel || undefined}</Row>
-        <Row k={tx("En marche")}>{(i?.uptime_s ?? m.agent?.uptime_s) ? dur(i?.uptime_s ?? m.agent?.uptime_s) : undefined}</Row>
-        {hw.map(([k, v]) => <Row key={k} k={k}>{v}</Row>)}
-        {!i && !m.agent && <Dim>-</Dim>}
-      </Section>
-
-      <Section icon={KeyRound} title={tx("Accès")} tone="ok" from={from.ssh}>
+/** Detail, « Access »: SSH (account, key, host security) or the Windows agent */
+function AccessSection({ m, from }: Readonly<{ m: Machine; from: Origin[] }>) {
+  const i = m.info, s = m.ssh;
+  return (
+      <Section icon={KeyRound} title={tx("Accès")} tone="ok" from={from}>
         {s ? <>
           <Row k={tx("Connexion")}><SshAccess alias={s.alias} user={s.user} ip={m.ip} port={s.port} refused={!i && !!s.identity} /></Row>
           <Row k={tx("Clé")}><KeyCell m={m} /></Row>
@@ -343,8 +362,15 @@ function Detail({ m, h, mac, net, from, watch, servers, ha }: { m: Machine; h?: 
         </> : <Row k={tx("SSH")}>{m.local ? tx("local") : <Dim>{tx("pas d'accès SSH configuré")}</Dim>}</Row>}
         {m.agent && <Row k={tx("Agent")}>{tx("relevé par l'agent MyServices")}</Row>}
       </Section>
+  );
+}
 
-      <Section icon={Boxes} title={tx("Logiciels et services")} tone="warn" from={from.services}>
+/** Detail, « Software and services »: servers, services, Docker, linked APIs, Home Assistant add-ons, Apache and nginx */
+function SoftwareSection({ m, servers, ha, from }: Readonly<{ m: Machine; servers?: React.ReactNode; ha?: ServiceStatus; from: Origin[] }>) {
+  const i = m.info;
+  const vhosts = (i?.vhosts ?? []) as { port?: number; names?: string[] }[];
+  return (
+      <Section icon={Boxes} title={tx("Logiciels et services")} tone="warn" from={from}>
         <Row k={tx("Serveurs")}>{servers}</Row>
         <Row k={tx("Services")}>{m.services}{m.npm > 0 && <Dim> · {m.npm} NPM</Dim>}{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</Row>
         <Row k="Docker">{i?.docker ? tx("{0} conteneur(s) en cours", i.docker) : m.agent?.docker != null ? (m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>) : i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined}</Row>
@@ -356,8 +382,14 @@ function Detail({ m, h, mac, net, from, watch, servers, ha }: { m: Machine; h?: 
         <Row k="nginx">{i?.nginx ? tx("actif sur la machine (hors conteneur)") : undefined}</Row>
         {!m.services && !i?.docker && !i?.apache && !i?.nginx && !m.agent?.docker && !m.agent?.apps?.length && !m.api?.length && <Dim>-</Dim>}
       </Section>
+  );
+}
 
-      <Section icon={HeartPulse} title={tx("Santé")} tone="bad" from={from.health}>
+/** Detail, « Health »: level, resources, failed systemd units, updates */
+function HealthSection({ h, from }: Readonly<{ h?: HealthHost; from: Origin[] }>) {
+  const failed = h?.systemd?.failed.length || 0, apt = h?.apt?.upgradable || 0;
+  return (
+      <Section icon={HeartPulse} title={tx("Santé")} tone="bad" from={from}>
         {h ? <>
           <Row k={tx("Niveau")}><Level level={h.reachable === false ? "down" : h.level} /></Row>
           <HealthRows h={h} />
@@ -365,7 +397,6 @@ function Detail({ m, h, mac, net, from, watch, servers, ha }: { m: Machine; h?: 
           <Row k={tx("Mises à jour")}>{apt ? tx("{0} paquet(s) à mettre à jour", apt) : undefined}{h.reboot_required && <span className="text-warn"> · {tx("redémarrage requis")}</span>}</Row>
         </> : <Dim>{tx("non suivie")}</Dim>}
       </Section>
-    </div>
   );
 }
 

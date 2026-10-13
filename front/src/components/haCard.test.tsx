@@ -22,4 +22,11 @@ describe("carte Home Assistant", () => {
     expect(html).toContain("Home Assistant à jour");
     expect(html).not.toContain("Processeur");
   });
+  it("lists the add-ons installed, with their icon from the API and the update waiting", () => {
+    const html = renderToStaticMarkup(<ServiceCard s={{ ...base, instance: "home-assistant", addons: [
+      { name: "Mosquitto broker", slug: "core_mosquitto", version: "7.1.1" }, { name: "Zigbee2MQTT", slug: "45df7312_zigbee2mqtt", version: "2.1", latest: "2.2" }] }} />);
+    expect(html).toContain("Mosquitto broker");
+    expect(html).toContain("api/v1/ha/home-assistant/addon-icon/core_mosquitto");
+    expect(html).toContain("→ 2.2");
+  });
 });
