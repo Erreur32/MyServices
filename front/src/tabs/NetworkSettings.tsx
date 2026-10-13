@@ -1,10 +1,11 @@
 // Réglages → Découverte : ce que MyServices trouve tout seul et ce qui demande un clic, sur une page à lire de haut en bas.
 //   1. En-tête : l'état en une phrase, le mode automatique, la recherche réseau (dernière, prochaine, lancer maintenant)
 //   2. À faire (seulement s'il y en a)   3. Machines trouvées sur le réseau (replié)   4. Applis à relier (tuiles, ordre alphabétique)
-//   5. Autres suggestions   6. Ce qui tourne tout seul (replié)   7. Réglages de la recherche (fréquence, réseaux, discrétion)
+//   5. Autres suggestions   6. Oubliés (replié)   7. Réglages de la recherche (fréquence, réseaux, discrétion)
+// What runs by itself is listed in Settings → Tasks and schedules (components/AutoDiscoveries.tsx), with the other scheduled jobs.
 // Cadres neutres, jamais un cadre coloré dans un autre : la couleur reste dans les pastilles. Liens directs gardés :
 // #settings/network/<hosts|scan|services|backups> fait défiler jusqu'à la section (et ouvre les machines trouvées).
-import { Bell, Boxes, Check, ChevronRight, EyeOff, ListChecks, Lightbulb, Radar, RefreshCw, RotateCcw, Search, Settings2, ShieldCheck } from "lucide-react";
+import { Bell, Boxes, ChevronRight, EyeOff, ListChecks, Lightbulb, Radar, RefreshCw, RotateCcw, Search, Settings2, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import type { Snapshot } from "../api";
@@ -74,28 +75,6 @@ function Row({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; ma
   );
 }
 
-/** Something that runs by itself: aligned columns (icon, what it is, mode, last and next time, button), so the list reads as a table */
-function AutoRow({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; machines: Snapshot["data"]["machine_list"] }) {
-  const m = MODE[x.mode], last = when(x.last), next = when(x.next);
-  const sub = "col-start-2 md:col-start-auto";
-  return (
-    <li className="grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 py-3 md:grid-cols-[2rem_minmax(0,1fr)_8.5rem_12.5rem_10rem] md:items-center">
-      <span className={`grid h-8 w-8 place-items-center rounded-lg ${m.tone === "ok" ? "bg-ok/10 text-ok" : "bg-bg2 text-muted"}`} title={m.hint}><m.Icon size={15} aria-hidden /></span>
-      <div className="min-w-0">
-        <div className="text-sm"><Title x={x} machines={machines} /></div>
-        <p className="mt-0.5 text-xs text-muted">{x.what}</p>
-        {x.note && <p className="mt-0.5 text-xs text-dim">{x.note}</p>}
-      </div>
-      <span className={sub}><Badge tone={m.tone} title={m.hint}>{m.label}</Badge></span>
-      <dl className={`${sub} grid grid-cols-[auto_1fr] gap-x-2 text-xs tabular-nums`}>
-        <dt className="text-dim">{tx("dernière")}</dt><dd className="text-muted">{last ?? "-"}</dd>
-        <dt className="text-dim">{tx("prochaine")}</dt><dd className="text-muted">{next ?? "-"}</dd>
-      </dl>
-      <div className={`${sub} flex flex-wrap gap-1.5 md:justify-end`}>{x.action && <Action a={x.action} reload={reload} />}</div>
-    </li>
-  );
-}
-
 /** Appli reconnue à relier : une tuile (logo, appli, machine), « Configurer » ouvre le connecteur déjà rempli */
 function AppTile({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
   const icon = x.app ? appIcon([x.app]) : null;
@@ -135,7 +114,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   const [disc, reloadDisc] = useDiscoveries();
   const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
   const [hours, setHours] = useState(""), [nets, setNets] = useState<string | null>(null), [note, setNote] = useState<Note>(null), [error, setError] = useState("");
-  const [hostsOpen, setHostsOpen] = useState(false), [autoOpen, setAutoOpen] = useState(false), [forgotOpen, setForgotOpen] = useState(false), [picked, setPicked] = useState(0);
+  const [hostsOpen, setHostsOpen] = useState(false), [forgotOpen, setForgotOpen] = useState(false), [picked, setPicked] = useState(0);
   const load = useCallback(() => {
     Promise.all([read<NetSettings>("network/settings"), read<NetScan>("network/scan")])
       .then(([c, s]) => { setCfg(c); setScan(s); setHours((h) => (h === "" ? String(c.every_h) : h)); setError(""); })
@@ -152,7 +131,6 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   const apps = items.filter((x) => x.state === "suggest" && x.id.startsWith("connector:")).sort(byLabel);
   const stopped = items.filter((x) => x.running === false && !x.muted && x.id.startsWith("connector:")).sort(byLabel);   // container not running
   const others = items.filter((x) => x.state === "suggest" && !x.id.startsWith("connector:") && x.id !== "hosts").sort(byLabel);
-  const quiet_ = items.filter((x) => x.state !== "todo" && x.state !== "suggest" && x.id !== "hosts" && !x.muted && x.running !== false);
   const forgotten = items.filter((x) => x.muted).sort(byLabel);   // « Forget »: out of every list above, back with « Recall »
   const hostsItem = items.find((x) => x.id === "hosts");
 
@@ -243,22 +221,16 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
         </Section>
       )}
 
-      {/* 6. Ce qui tourne tout seul */}
-      {quiet_.length > 0 && (
-        <Fold id="net-auto" icon={<Check size={16} className="text-ok" aria-hidden />} title={tx("Ce qui tourne tout seul")} n={quiet_.length} hint={tx("rien à faire, pour information")} open={autoOpen} onToggle={setAutoOpen}>
-          <ul className="flex flex-col divide-y divide-line/60">{quiet_.map((x) => <AutoRow key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} />)}</ul>
-        </Fold>
-      )}
-
-      {/* 7. Oubliés : ce qu'on a choisi de ne plus voir proposé, à rappeler d'un clic */}
+      {/* 6. Oubliés : ce qu'on a choisi de ne plus voir proposé, à rappeler d'un clic */}
       {forgotten.length > 0 && (
         <Fold id="net-forgotten" icon={<EyeOff size={16} className="text-muted" aria-hidden />} title={tx("Oubliés")} n={forgotten.length} hint={tx("plus proposés ; « Rappeler » les fait revenir")} open={forgotOpen} onToggle={setForgotOpen}>
           <ul className="flex flex-col divide-y divide-line/60">{forgotten.map((x) => <Row key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} />)}</ul>
         </Fold>
       )}
 
-      {/* 8. Réglages de la recherche */}
-      <Section id="net-scan" icon={<Settings2 size={16} aria-hidden />} title={tx("Réglages de la recherche")} hint={tx("Cherche les machines allumées sur votre réseau local (un /24 au plus) : un ping, le nom, quelques ports. Lecture seule.")}>
+      {/* 7. Réglages de la recherche */}
+      <Section id="net-scan" icon={<Settings2 size={16} aria-hidden />} title={tx("Réglages de la recherche")} hint={tx("Cherche les machines allumées sur votre réseau local (un /24 au plus) : un ping, le nom, quelques ports. Lecture seule.")}
+        right={<a href="#settings/tasks" className="text-sm text-link hover:underline">{tx("Ce qui tourne tout seul : Tâches et horaires")}</a>}>
         <div className="grid gap-4 lg:grid-cols-3">
           <form className="flex flex-col gap-1.5" onSubmit={(e) => { e.preventDefault(); if (valid) void save(n); }}>
             <label className="flex flex-col gap-1 text-sm font-semibold">{tx("Fréquence (heures, 0 = coupée)")}

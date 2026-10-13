@@ -17,6 +17,7 @@ import { MachineIcon } from "../components/MachineIcon";
 import { GITHUB, releaseOf } from "../lib/links";
 import { liveText, parseAt, period } from "../lib/tasks";
 import { pokeScan } from "../lib/scan";
+import { AutoDiscoveries } from "../components/AutoDiscoveries";
 
 export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh"; snap: Snapshot }) {
   const [st, setSt] = useState<SystemState | null>(null);
@@ -31,7 +32,7 @@ export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh
   return (
     <div className="flex flex-col gap-4">
       {part === "ssh" && <SshKey ssh={st.ssh} snap={snap} />}
-      {part === "tasks" && <Tasks tasks={st.tasks} netscan={st.netscan} beat={st.scheduler?.beat ?? null} reload={reload} />}
+      {part === "tasks" && <><Tasks tasks={st.tasks} netscan={st.netscan} beat={st.scheduler?.beat ?? null} reload={reload} /><AutoDiscoveries machines={snap.data.machine_list} /></>}
       {part === "system" && <><Export /><Info info={st.info} /></>}
     </div>
   );

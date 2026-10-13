@@ -273,32 +273,29 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
       )}
       {net?.error && <p className="text-bad">⚠ {net.error}</p>}
       {sum && scanned && !net.error && (
-        <section className="rounded-xl border border-line bg-bg2/40 p-3" aria-live="polite">
-          <p className="text-sm">
+        <section className="flex flex-col gap-2 rounded-xl border border-line bg-bg2/40 px-3 py-2.5" aria-live="polite">
+          {/* line 1: what was scanned, when, and what changed since the scan before; line 2: the tags only */}
+          <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
             <b className="text-txt">{net.stopped ? tx("Scan arrêté : ") : ""}{tx("{0} appareil(s) sur {1}", sum.total, net.net ?? "")}</b>
-            {sum.known > 0 && <span className="text-dim"> · {tx("{0} déjà ajouté(s)", sum.known)}</span>}
-            {net.ended && <span className="text-dim"> · {tx("scan du {0}", dateTime(net.ended * 1000))}</span>}
+            {sum.known > 0 && <span className="text-dim">· {tx("{0} déjà ajouté(s)", sum.known)}</span>}
+            {net.ended && <span className="text-dim">· {tx("scan du {0}", dateTime(net.ended * 1000))}</span>}
+            {diff && !net.stopped && (diff.fresh.size === 0 && diff.gone.length === 0
+              ? <span className="text-dim" title={tx("Aucun changement depuis le scan du {0}.", dateTime((net.previous_ended ?? 0) * 1000))}>· {tx("aucun changement")}</span>
+              : <span title={tx("Depuis le scan du {0} :", dateTime((net.previous_ended ?? 0) * 1000)) + (diff.gone.length ? ` ${diff.gone.join(", ")}` : "")}>
+                  <span className="text-dim">· </span>
+                  {diff.fresh.size > 0 && <span className="text-warn">{tx("{0} nouvelle(s)", diff.fresh.size)}</span>}
+                  {diff.fresh.size > 0 && diff.gone.length > 0 && <span className="text-dim">, </span>}
+                  {diff.gone.length > 0 && <span className="text-bad">{tx("{0} disparue(s) : {1}", diff.gone.length, diff.gone.slice(0, 2).join(", "))}{diff.gone.length > 2 ? "…" : ""}</span>}
+                </span>)}
           </p>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <Badge tone="off">{tx("{0} à regarder", sum.watch)}</Badge>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge tone={sum.watch ? "info" : "off"}>{tx("{0} à regarder", sum.watch)}</Badge>
             {sum.ssh > 0 && <Badge tone="off">SSH {sum.ssh}</Badge>}
             {sum.apps > 0 && <Badge tone="off">{tx("{0} applis reconnues", sum.apps)}</Badge>}
             {sum.shares > 0 && <Badge tone="off">{tx("{0} partages / bureau à distance", sum.shares)}</Badge>}
             {sum.webOnly > 0 && <Badge tone="off">{tx("{0} pages web seules (repliées)", sum.webOnly)}</Badge>}
             {sum.pingOnly > 0 && <Badge tone="off">{tx("{0} ping seulement (repliés)", sum.pingOnly)}</Badge>}
           </div>
-          {diff && !net.stopped && (
-            <p className="mt-2 text-sm">
-              {diff.fresh.size === 0 && diff.gone.length === 0
-                ? <span className="text-dim">{tx("Aucun changement depuis le scan du {0}.", dateTime((net.previous_ended ?? 0) * 1000))}</span>
-                : <>
-                    <b className="text-txt">{tx("Depuis le scan du {0} :", dateTime((net.previous_ended ?? 0) * 1000))}</b>{" "}
-                    {diff.fresh.size > 0 && <span className="text-warn">{tx("{0} nouvelle(s)", diff.fresh.size)}</span>}
-                    {diff.fresh.size > 0 && diff.gone.length > 0 && " · "}
-                    {diff.gone.length > 0 && <span className="text-bad" title={diff.gone.join(", ")}>{tx("{0} disparue(s) : {1}", diff.gone.length, diff.gone.slice(0, 4).join(", "))}{diff.gone.length > 4 ? "…" : ""}</span>}
-                  </>}
-            </p>
-          )}
         </section>
       )}
       {(found.length > 0 || ignoredAll.length > 0) && toLink.length === 0 && (
