@@ -21,6 +21,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   under « Already read over SSH », with their state and version: nothing to add for them. Hypervisors read over SSH (Proxmox
   by pvesh, ESXi, KVM, Incus, VirtualBox) are listed there too, and the picker says « already read over SSH » on their card.
 - Dozzle tagged « Docker · logs ».
+- « Detected services not set up » no longer proposes what is already covered: a service read over SSH (Proxmox by pvesh: its
+  connector would read the same), a connector whose address is a name served by NPM, and the other Dozzle servers once one is set
+  (one Dozzle shows the logs of every host).
 
 ### Changed
 

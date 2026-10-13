@@ -1221,6 +1221,20 @@ def main():
     detected_apps = known_apps.propose(rows, declared_now, with_linked=True) + [   # applis reconnues, reliées ou non : « proposals » garde les non reliées
         p for ip, apps in agent_apps.items()
         for p in known_apps.propose_windows(ip, (MACHINES.get(ip) or [None])[0], apps, procs.get(ip) or {}, declared_now, with_linked=True)]
+    # Not proposed when already covered: read over SSH without a connector (Proxmox by pvesh: the connector would read the same), a
+    # connector whose address is a name served by NPM (its backend is this machine), or Dozzle (one server shows every host's logs)
+    by_ssh = {(v.get("connector"), v.get("ip")) for v in virtualization if v.get("via") == "ssh"}
+    backend = {d.lower(): r.get("ip") for r in rows if r["type"] == "proxy" for d in r.get("domains") or []}
+    by_name = {(c.get("type"), backend.get((urllib.parse.urlsplit(str(c.get("url") or "")).hostname or "").lower()))
+               for c in declared_now if c.get("url")}
+    one = {c.get("type") for c in declared_now} & {"dozzle"}
+    for p in detected_apps:
+        if p["linked"]:
+            continue
+        if (p["connector"], p["ip"]) in by_ssh:
+            p.update(linked=True, via="ssh")
+        elif (p["connector"], p["ip"]) in by_name or p["connector"] in one:
+            p["linked"] = True
     out = {
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "next_run": next_timer_run("myservices.timer"),
