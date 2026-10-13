@@ -13,6 +13,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Changed
 
+- Nextcloud connector help: real commands to create and set the serverinfo token, in a block with a copy button, for Nextcloud
+  without Docker, the official Docker image, All-in-One and linuxserver.io. Any connector help step can now carry a command block.
 - Security (code scanning): SVG avatars are read with `defusedxml` (no DTD, entity or outside file); saving a connector whose test
   fails no longer puts the error text in its answer, the page asks the test route for the reason.
 - SonarCloud: tests for mail sending and the mail routes; simpler connector functions (Arcane, Pulse, Netdata, Dozzle); e-mail

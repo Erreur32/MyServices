@@ -26,11 +26,28 @@ class Nextcloud(StatusConnector):
         Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=True),
     )
     setup_fields = ("url", "token")
+    # A step's first line is its text; the next lines, when there are some, are a command block shown with a copy button
     guide = (
-        "Sur le serveur Nextcloud, choisir un jeton long et aléatoire (par exemple : openssl rand -hex 32).",
-        "Le donner à l'appli de supervision : occ config:app:set serverinfo token --value <jeton> "
-        "(Docker : docker exec -u www-data <conteneur> php occ config:app:set serverinfo token --value <jeton>).",
-        "Ce jeton n'ouvre que la page de supervision (version, utilisateurs actifs, stockage) : aucun compte n'est donné à MyServices.",
+        "Choisir un jeton long et aléatoire, puis le donner à l'appli serverinfo de Nextcloud (elle est installée d'office). "
+        "Lancer une seule des commandes ci-dessous sur la machine de Nextcloud : elle crée le jeton, l'enregistre et l'affiche.",
+        "Nextcloud installé sans Docker (chemin habituel /var/www/nextcloud, à adapter) :\n"
+        "TOKEN=$(openssl rand -hex 32)\n"
+        "sudo -u www-data php /var/www/nextcloud/occ config:app:set serverinfo token --value \"$TOKEN\"\n"
+        "echo \"$TOKEN\"",
+        "Nextcloud en Docker, image officielle (remplacer « nextcloud » par le nom du conteneur) :\n"
+        "TOKEN=$(openssl rand -hex 32)\n"
+        "docker exec -u www-data nextcloud php occ config:app:set serverinfo token --value \"$TOKEN\"\n"
+        "echo \"$TOKEN\"",
+        "Nextcloud All-in-One (AIO) :\n"
+        "TOKEN=$(openssl rand -hex 32)\n"
+        "docker exec -u www-data nextcloud-aio-nextcloud php occ config:app:set serverinfo token --value \"$TOKEN\"\n"
+        "echo \"$TOKEN\"",
+        "Image linuxserver.io (occ déjà prêt) :\n"
+        "TOKEN=$(openssl rand -hex 32)\n"
+        "docker exec nextcloud occ config:app:set serverinfo token --value \"$TOKEN\"\n"
+        "echo \"$TOKEN\"",
+        "Copier le jeton affiché dans le champ « Jeton de l'appli serverinfo » ci-dessus. Il n'ouvre que la page de supervision "
+        "(version, utilisateurs actifs, stockage) : aucun compte n'est donné à MyServices.",
     )
 
     def collect(self) -> dict:

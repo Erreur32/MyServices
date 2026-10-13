@@ -5,7 +5,7 @@ import { Check, ChevronRight, EyeOff, HelpCircle, Loader2, Package, Pencil, Play
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Overlay } from "../components/Overlay";
-import { Field, NoteLine, Switch } from "../components/form";
+import { Copyable, Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { SecretInput } from "../components/SecretInput";
 import { FOLD, FOLD_HEAD } from "../components/NetworkStep";
@@ -181,6 +181,12 @@ function CategoryChips({ types, cat, setCat }: { types: ConnectorType[]; cat: st
 
 /** Réponse de l'essai d'un connecteur : message, version et ce que la lecture a rapporté (preuve que le connecteur lit vraiment) */
 interface TestOut { ok: boolean; message: string; version: string | null; version_tested: boolean | null; found?: { name: string; count: number }[] }
+
+/** One help step: its first line is the text, the following lines (when there are some) a command to copy */
+function GuideStep({ step }: Readonly<{ step: string }>) {
+  const [text, ...code] = step.split("\n");
+  return <li>{text}{code.length > 0 && <div className="mt-1.5"><Copyable text={code.join("\n")} oneLine /></div>}</li>;
+}
 
 async function runTest(type: string, body: unknown): Promise<TestOut> {
   try {
@@ -455,7 +461,7 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onSaved,
         {busy && <span className="self-center text-sm text-dim">…</span>}
       </div>
       {help && type.guide && (
-        <ol className="list-decimal space-y-1 rounded-lg border border-line/70 bg-bg2/60 py-2 pl-8 pr-3 text-sm text-muted">{type.guide.map((g) => <li key={g}>{g}</li>)}</ol>
+        <ol className="list-decimal space-y-1 rounded-lg border border-line/70 bg-bg2/60 py-2 pl-8 pr-3 text-sm text-muted">{type.guide.map((g) => <GuideStep key={g} step={g} />)}</ol>
       )}
       {report && <TestReport r={report} onClose={() => setReport(null)} />}
       <NoteLine note={note} />
