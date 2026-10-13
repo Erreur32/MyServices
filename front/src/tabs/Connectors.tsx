@@ -14,11 +14,12 @@ import { Badge, Card, Count, Dim } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
-import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorType, MachinesSettings, Proposal, ScriptTip } from "../types";
+import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorType, Host, MachinesSettings, Proposal, ScriptTip, Service } from "../types";
 import { configFor, modeOf } from "../lib/connectorModes";
 import { takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
 import { savedFor } from "../lib/savedFor";
+import { serviceAt, setupCommand } from "../lib/connectorSetup";
 import { appIcon } from "../lib/appIcons";
 
 const KIND: Record<string, string> = {
@@ -94,7 +95,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
             })}
           </ul>
         )}
-        {type && <ConnectorForm key={type.type} type={type} prefill={prefill?.type === type.type ? prefill : null} onSaved={reload} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
+        {type && <ConnectorForm key={type.type} type={type} hosts={snap.data.hosts} prefill={prefill?.type === type.type ? prefill : null} onSaved={reload} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
       </Card>
       <DetectedServices apps={(snap.data.detected_apps ?? []).filter((p) => !saved.includes(discoveryId(p)))} instances={st.instances} onOpen={setOverlay} />
       {bySsh.length > 0 && (   // folded by default, like the detected services above
@@ -123,6 +124,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
       {overlay && st.types.find((t) => t.type === overlay.connector) && (
         <Overlay title={<>{appIcon([overlay.label]) && <img src={appIcon([overlay.label])!} alt="" className="h-6 w-6" />}{tx("Activer")} {overlay.label} <Dim>· {overlay.machine || overlay.ip}</Dim></>} onClose={() => setOverlay(null)}>
           <ConnectorForm key={overlay.connector} type={st.types.find((t) => t.type === overlay.connector)!} prefill={{ type: overlay.connector, name: overlay.connector, url: overlay.url }}
+            found={snap.data.hosts.find((h) => String(h.id) === String(overlay.service))?.service} hosts={snap.data.hosts}
             onSaved={() => { setSaved((x) => [...x, discoveryId(overlay)]); reload(); }}
             onDone={() => { setOverlay(null); reload(); }} onCancel={() => setOverlay(null)} />
         </Overlay>
@@ -131,7 +133,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
         <Card><p className="text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p></Card>
       )}
       {[...st.instances].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name)).map((i) => (   // alphabetical, like the picker
-        <InstanceCard key={`${i.type}/${i.name}`} inst={i} collect={collect} type={st.types.find((t) => t.type === i.type)!} reload={reload}
+        <InstanceCard key={`${i.type}/${i.name}`} inst={i} hosts={snap.data.hosts} collect={collect} type={st.types.find((t) => t.type === i.type)!} reload={reload}
           onCollect={(on) => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
             on ? tx("allumé : relecture lancée") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
           editing={editing === `${i.type}/${i.name}`} locked={(!!editing && editing !== `${i.type}/${i.name}`) || picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
@@ -292,8 +294,8 @@ function DetectedServices({ apps, instances, onOpen }: { apps: Proposal[]; insta
   );
 }
 
-function InstanceCard({ inst, collect, type, reload, onCollect, editing: edit, locked, setEditing: setEdit }: {
-  inst: ConnectorInstance; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
+function InstanceCard({ inst, hosts, collect, type, reload, onCollect, editing: edit, locked, setEditing: setEdit }: {
+  inst: ConnectorInstance; hosts: Host[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
 }) {
   const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null), [report, setReport] = useState<TestOut | null>(null), [testing, setTesting] = useState(false);
   const url = inst.config.url as string | undefined;
@@ -334,20 +336,22 @@ function InstanceCard({ inst, collect, type, reload, onCollect, editing: edit, l
         </div>
       </div>
       {report && !edit && <TestReport r={report} onClose={() => setReport(null)} />}
-      {edit && <ConnectorForm type={type} inst={inst} onSaved={reload} onDone={() => { setEdit(false); reload(); }} onCancel={() => setEdit(false)} />}
+      {edit && <ConnectorForm type={type} inst={inst} hosts={hosts} onSaved={reload} onDone={() => { setEdit(false); reload(); }} onCancel={() => setEdit(false)} />}
       <NoteLine note={note} />
     </Card></div>
   );
 }
 
 /** quietSave : pas de message vert « enregistré » (l'appelant confirme lui-même, comme dans Premiers pas) */
-export function ConnectorForm({ type, inst, prefill, quietSave = false, onSaved, onDone, onCancel }: { type: ConnectorType; inst?: ConnectorInstance; prefill?: Prefill | null; quietSave?: boolean; onSaved?: () => void; onDone: () => void; onCancel: () => void }) {
+export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = false, onSaved, onDone, onCancel }: { type: ConnectorType; inst?: ConnectorInstance; prefill?: Prefill | null; found?: Service; hosts?: Host[]; quietSave?: boolean; onSaved?: () => void; onDone: () => void; onCancel: () => void }) {
   const [name, setName] = useState(inst?.name || prefill?.name || type.type);
   const [conf, setConf] = useState<Record<string, string | number | boolean>>(() => {
     const init: Record<string, string | number | boolean> = {};
     for (const f of type.fields) if (!f.secret) init[f.name] = inst?.config[f.name] ?? (f.name === "url" ? prefill?.url : undefined) ?? (f.default as string | number | boolean | null) ?? "";
     return init;
-  });
+  });  // the install is known (found by the scan, or the app at the address typed): its exact command comes first in the help
+  const setup = setupCommand(type.type, found ?? serviceAt(conf.url, hosts ?? [], type.type));
+
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [help, setHelp] = useState(!inst);  // aide dépliée à l'ajout, sous les boutons
   // Façon de relier le service (NPM : API directe, par SSH, script) : décide des champs montrés, requis et envoyés
   const [mode, setMode] = useState(() => modeOf(type, inst?.config));
@@ -460,9 +464,17 @@ export function ConnectorForm({ type, inst, prefill, quietSave = false, onSaved,
         )}
         {busy && <span className="self-center text-sm text-dim">…</span>}
       </div>
-      {help && type.guide && (
+      {help && type.guide && (setup ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-line/70 bg-bg2/60 p-3 text-sm text-muted">
+          <p><b className="text-txt">{tx("Pour votre installation détectée")}</b> <Dim>({setup.title})</Dim> : {tx("lancez cette commande sur la machine, puis copiez le jeton affiché dans le champ ci-dessus.")}</p>
+          <Copyable text={setup.code} oneLine />
+          <details><summary className="cursor-pointer text-link">{tx("Autres installations et explications")}</summary>
+            <ol className="mt-2 list-decimal space-y-1 pl-6">{type.guide.map((g) => <GuideStep key={g} step={g} />)}</ol>
+          </details>
+        </div>
+      ) : (
         <ol className="list-decimal space-y-1 rounded-lg border border-line/70 bg-bg2/60 py-2 pl-8 pr-3 text-sm text-muted">{type.guide.map((g) => <GuideStep key={g} step={g} />)}</ol>
-      )}
+      ))}
       {report && <TestReport r={report} onClose={() => setReport(null)} />}
       <NoteLine note={note} />
     </form>
