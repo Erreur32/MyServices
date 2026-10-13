@@ -151,15 +151,15 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
     </div>
   );
 
-  const unignore = (h: NetHost) => void act(() => send("DELETE", `network/ignored/${h.ip}`), tx("{0} sera de nouveau proposé", h.name || h.ip), setNote).then(() => reload());
+  const unignore = (h: NetHost) => void act(() => send("DELETE", `network/ignored/${h.ip}`), tx("{0} rappelé : de nouveau proposé", h.name || h.ip), setNote).then(() => reload());
   const renderRows = (list: NetHost[]) => list.map((h) => ignoredAll.includes(h) ? (
     <li key={h.ip} className={`${ROW} border-dashed bg-bg2/30 opacity-80`}>
       <EyeOff size={15} className="ml-3 mt-3 shrink-0 text-muted" aria-hidden />
       <div className={ROW_BODY}>
         <HostInfo h={h} />
-        <Badge tone="off">{tx("ignoré")}{ignoredGone.includes(h) ? ` · ${tx("pas revu à ce scan")}` : ""}</Badge>
+        <Badge tone="off">{tx("oublié")}{ignoredGone.includes(h) ? ` · ${tx("pas revu à ce scan")}` : ""}</Badge>
       </div>
-      <button type="button" className={`${quietBtn} m-1.5 shrink-0`} onClick={() => unignore(h)}>{tx("Reprendre")}</button>
+      <button type="button" className={`${quietBtn} m-1.5 shrink-0`} onClick={() => unignore(h)}><RotateCcw size={13} aria-hidden />{tx("Rappeler")}</button>
     </li>
   ) : (
     <li key={h.ip} className={`${ROW} ${picked.has(h.ip) ? "border-link/50 bg-link/5" : "border-transparent bg-bg2/60 hover:bg-bg2"}`}>
@@ -167,8 +167,8 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
         <input type="checkbox" className="h-4 w-4 shrink-0 accent-[rgb(var(--link))]" checked={picked.has(h.ip)} onChange={() => toggle(h.ip)} />
         <HostInfo h={h} fresh={!!diff?.fresh.has(h.ip)} />
       </label>
-      <button type="button" className="m-1.5 shrink-0 rounded-md p-1.5 text-muted hover:bg-line/40 hover:text-txt" aria-label={tx("Ignorer {0}", h.name || h.ip)}
-        title={tx("Ignorer : ne plus le proposer (à reprendre dans Réglages → Découverte)")} onClick={() => void ignore(h)}><EyeOff size={15} aria-hidden /></button>
+      <button type="button" className="m-1.5 inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-xs text-muted hover:bg-line/40 hover:text-txt" aria-label={tx("Oublier {0}", h.name || h.ip)}
+        title={tx("Ne plus le proposer. Il reste dans « autres appareils » pour le rappeler plus tard.")} onClick={() => void ignore(h)}><EyeOff size={14} aria-hidden />{tx("Oublier")}</button>
       {picked.has(h.ip) && (
         <div className="row-in flex basis-full flex-col gap-1.5 px-3 pb-2.5 pl-9">
           <input className={`${input} max-w-xs py-1 text-xs`} value={names[h.ip] ?? h.name ?? ""} maxLength={60} placeholder={h.ip}
@@ -203,7 +203,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
 
   const ignore = async (h: NetHost) => {
     setPicked((p) => { const n = new Set(p); n.delete(h.ip); return n; });
-    await act(() => send("POST", "network/ignored", { ip: h.ip, name: h.name || "" }), tx("{0} ignoré : retrouvez-le dans Réglages → Découverte", h.name || h.ip), setNote);
+    await act(() => send("POST", "network/ignored", { ip: h.ip, name: h.name || "" }), tx("{0} oublié : il reste dans « autres appareils », pour le rappeler", h.name || h.ip), setNote);
     reload();
   };
 
@@ -329,7 +329,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
           {rest > 0 && (
             <details open={othersOpen} onToggle={(e) => setOthersOpen(e.currentTarget.open)} className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
               <summary className={FOLD_HEAD}><ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
-                {tx("{0} autre(s) appareil(s) : pages web seules, caméras, objets connectés, ping seulement, ignorés", rest)}
+                {tx("{0} autre(s) appareil(s) : pages web seules, caméras, objets connectés, ping seulement, oubliés", rest)}
                 {[...webOnly, ...pingOnly].some((h) => diff?.fresh.has(h.ip)) && <> <Badge tone="warn">{tx("nouvelle")}</Badge></>}
               </summary>
               <p className="text-xs text-dim">{tx("On n'y touche pas : décochés. Cochez-en un si vous voulez le suivre quand même.")}</p>

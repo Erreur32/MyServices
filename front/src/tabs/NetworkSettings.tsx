@@ -4,7 +4,7 @@
 //   5. Autres suggestions   6. Ce qui tourne tout seul (replié)   7. Réglages de la recherche (fréquence, réseaux, discrétion)
 // Cadres neutres, jamais un cadre coloré dans un autre : la couleur reste dans les pastilles. Liens directs gardés :
 // #settings/network/<hosts|scan|services|backups> fait défiler jusqu'à la section (et ouvre les machines trouvées).
-import { Bell, Boxes, Check, ChevronRight, ListChecks, Lightbulb, Radar, RefreshCw, RotateCcw, Search, Settings2, ShieldCheck } from "lucide-react";
+import { Bell, Boxes, Check, ChevronRight, EyeOff, ListChecks, Lightbulb, Radar, RefreshCw, RotateCcw, Search, Settings2, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import type { Snapshot } from "../api";
@@ -61,7 +61,7 @@ function Row({ x, reload, machines, auto }: { x: DiscoveryItem; reload: () => vo
     <li className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2 text-muted" title={m.hint}><m.Icon size={15} aria-hidden /></span>
       <div className="min-w-[220px] flex-1">
-        <div className="flex flex-wrap items-center gap-2"><Title x={x} machines={machines} />{auto && <Badge tone={m.tone} title={m.hint}>{m.label}</Badge>}{x.muted && <Badge tone="off">{tx("rappel coupé")}</Badge>}</div>
+        <div className="flex flex-wrap items-center gap-2"><Title x={x} machines={machines} />{auto && <Badge tone={m.tone} title={m.hint}>{m.label}</Badge>}</div>
         <p className="mt-0.5 text-sm text-muted">{x.what}</p>
         {(x.note || x.last || x.next) && (
           <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-dim">
@@ -111,7 +111,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   const [disc, reloadDisc] = useDiscoveries();
   const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
   const [hours, setHours] = useState(""), [nets, setNets] = useState<string | null>(null), [note, setNote] = useState<Note>(null), [error, setError] = useState("");
-  const [hostsOpen, setHostsOpen] = useState(false), [autoOpen, setAutoOpen] = useState(false), [picked, setPicked] = useState(0);
+  const [hostsOpen, setHostsOpen] = useState(false), [autoOpen, setAutoOpen] = useState(false), [forgotOpen, setForgotOpen] = useState(false), [picked, setPicked] = useState(0);
   const load = useCallback(() => {
     Promise.all([read<NetSettings>("network/settings"), read<NetScan>("network/scan")])
       .then(([c, s]) => { setCfg(c); setScan(s); setHours((h) => (h === "" ? String(c.every_h) : h)); setError(""); })
@@ -119,7 +119,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   }, []);
   const running = scan?.phase === "ping" || scan?.phase === "identify";
   usePoll(load, running ? 10_000 : 60_000);   // 10 s seulement pour suivre une recherche en cours
-  const onPart = useCallback((part: string) => { if (part === "hosts" || part === "network") setHostsOpen(true); load(); }, [load]);
+  const onPart = useCallback((part: string) => { if (part === "hosts" || part === "network") setHostsOpen(true); if (part === "forgotten") setForgotOpen(true); load(); }, [load]);
   usePart(!!cfg && !!scan && !!disc, onPart);
   if (!cfg || !scan) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 
@@ -127,7 +127,8 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   const todo = items.filter((x) => x.state === "todo" && x.id !== "hosts").sort(byLabel);
   const apps = items.filter((x) => x.state === "suggest" && x.id.startsWith("connector:")).sort(byLabel);
   const others = items.filter((x) => x.state === "suggest" && !x.id.startsWith("connector:") && x.id !== "hosts").sort(byLabel);
-  const quiet_ = items.filter((x) => x.state !== "todo" && x.state !== "suggest" && x.id !== "hosts");
+  const quiet_ = items.filter((x) => x.state !== "todo" && x.state !== "suggest" && x.id !== "hosts" && !x.muted);
+  const forgotten = items.filter((x) => x.muted).sort(byLabel);   // « Forget »: out of every list above, back with « Recall »
   const hostsItem = items.find((x) => x.id === "hosts");
 
   const last = scan.ended ? scan.ended * 1000 : null;
@@ -194,7 +195,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
       {/* 4. Applis à relier */}
       {apps.length > 0 && (
         <Section id="net-services" icon={<Boxes size={16} aria-hidden />} title={tx("Applis à relier")} n={apps.length}
-          hint={tx("Applis reconnues sur vos machines, qu'un connecteur peut lire. Facultatif : « Ne plus me le rappeler » range celles qui ne vous servent pas.")}
+          hint={tx("Applis reconnues sur vos machines, qu'un connecteur peut lire. Facultatif : « Oublier » range celles qui ne vous servent pas, « Rappeler » les fait revenir.")}
           right={<a href="#settings/connectors" className="text-sm text-link hover:underline">{tx("Réglages → Connecteurs")}</a>}>
           <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{apps.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul>
         </Section>
@@ -214,7 +215,14 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
         </Fold>
       )}
 
-      {/* 7. Réglages de la recherche */}
+      {/* 7. Oubliés : ce qu'on a choisi de ne plus voir proposé, à rappeler d'un clic */}
+      {forgotten.length > 0 && (
+        <Fold id="net-forgotten" icon={<EyeOff size={16} className="text-muted" aria-hidden />} title={tx("Oubliés")} n={forgotten.length} hint={tx("plus proposés ; « Rappeler » les fait revenir")} open={forgotOpen} onToggle={setForgotOpen}>
+          <ul className="flex flex-col divide-y divide-line/60">{forgotten.map((x) => <Row key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} />)}</ul>
+        </Fold>
+      )}
+
+      {/* 8. Réglages de la recherche */}
       <Section id="net-scan" icon={<Settings2 size={16} aria-hidden />} title={tx("Réglages de la recherche")} hint={tx("Cherche les machines allumées sur votre réseau local (un /24 au plus) : un ping, le nom, quelques ports. Lecture seule.")}>
         <div className="grid gap-4 lg:grid-cols-3">
           <form className="flex flex-col gap-1.5" onSubmit={(e) => { e.preventDefault(); if (valid) void save(n); }}>

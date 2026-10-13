@@ -1,7 +1,7 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { Check, ChevronRight, HelpCircle, Loader2, Package, Pencil, Play, Plug, Plus, ScanSearch, Search, ShieldCheck, Trash2, X } from "lucide-react";
+import { Check, ChevronRight, EyeOff, HelpCircle, Loader2, Package, Pencil, Play, Plug, Plus, RotateCcw, ScanSearch, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Overlay } from "../components/Overlay";
@@ -13,6 +13,7 @@ import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
+import { useDiscoveries } from "../components/DiscoveryCard";
 import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorType, MachinesSettings, Proposal, ScriptTip } from "../types";
 import { configFor, modeOf } from "../lib/connectorModes";
 import { takePrefill, type Prefill } from "../lib/connectorPrefill";
@@ -210,9 +211,18 @@ function TestReport({ r, onClose }: { r: TestOut; onClose: () => void }) {
 
 /** Les applis reconnues qui ont un connecteur mais pas encore d'accès réglé : une ligne chacune, le clic ouvre le formulaire déjà rempli.
  *  Facultatif (comme les suggestions de Découverte) : cadre replié, à ouvrir quand on veut. Celles déjà reliées n'y sont pas ; rien à montrer, rien d'affiché. */
+/** Same id as the discovery of this app (discoveries.py: « connector:<type>@<ip> »), so « Forget » here and in Discovery is one choice */
+const discoveryId = (p: Proposal) => `connector:${p.connector}@${p.ip ?? "None"}`;
+
 function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Proposal) => void }) {
-  const rows = apps.filter((p) => !p.linked);
-  if (!rows.length) return null;
+  const [disc, reloadDisc] = useDiscoveries();
+  const [note, setNote] = useState<Note>(null);
+  const muted = new Set((disc?.items ?? []).filter((x) => x.muted).map((x) => x.id));
+  const all = apps.filter((p) => !p.linked);
+  const rows = all.filter((p) => !muted.has(discoveryId(p))), forgotten = all.filter((p) => muted.has(discoveryId(p)));
+  const forget = (p: Proposal, on: boolean) => void act(() => send("PUT", "discoveries/muted", { id: discoveryId(p), muted: on }),
+    on ? tx("{0} oublié : plus proposé", p.label) : tx("{0} rappelé : de nouveau proposé", p.label), setNote).then(() => reloadDisc());
+  if (!all.length) return null;
   return (
     <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
       <summary className={FOLD_HEAD}>
@@ -244,6 +254,7 @@ function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Prop
                   <span className="inline-flex items-center gap-2">
                     <Badge tone="info">{tx("facultatif")}</Badge>
                     <button type="button" className={primary} onClick={() => onOpen(p)}><Plus size={14} />{tx("Activer")}</button>
+                    <button type="button" className={quiet} onClick={() => forget(p, true)} title={tx("Ne plus le proposer, ni dans la cloche ni sur l'accueil. Il reste dans « Oubliés » pour le rappeler plus tard.")}><EyeOff size={14} />{tx("Oublier")}</button>
                   </span>
                 </td>
               </tr>
@@ -251,6 +262,19 @@ function DetectedServices({ apps, onOpen }: { apps: Proposal[]; onOpen: (p: Prop
           </tbody>
         </table>
       </div>
+      {forgotten.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line/60 pt-3 text-sm">
+          <span className="inline-flex items-center gap-1.5 text-dim"><EyeOff size={14} aria-hidden />{tx("Oubliés")} <Count n={forgotten.length} /></span>
+          {forgotten.map((p) => (
+            <span key={discoveryId(p)} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-bg2/50 py-0.5 pl-2.5 pr-1">
+              {p.label} <Dim>{p.machine || p.ip}</Dim>
+              <button type="button" className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs text-link hover:bg-link/10" onClick={() => forget(p, false)}>
+                <RotateCcw size={12} aria-hidden />{tx("Rappeler")}</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <NoteLine note={note} />
     </details>
   );
 }

@@ -1,6 +1,6 @@
 // « Découvertes » : ce que MyServices cherche tout seul, ce qui demande un clic, et ce qui reste à faire (GET /discoveries).
 // Liste complète en haut de Réglages → Découverte ; rappel court sur l'accueil quand quelque chose est à faire.
-import { Bell, BellOff, Boxes, Check, ChevronRight, Hand, HardDrive, Lightbulb, Network, Play, RefreshCw, Repeat, Settings2 } from "lucide-react";
+import { Bell, Boxes, Check, ChevronRight, EyeOff, Hand, HardDrive, Lightbulb, Network, Play, RefreshCw, Repeat, RotateCcw, Settings2 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { dateTime } from "../lib/format";
@@ -66,16 +66,16 @@ export function Title({ x, machines }: { x: DiscoveryItem; machines?: Machine[] 
 
 export const when = (ts: number | null) => (ts ? dateTime(ts * 1000) : null);
 
-/** Couper le rappel d'une découverte (plus de cloche ni de rappel sur l'accueil) ou le rétablir ; elle reste listée dans Réglages → Découverte */
+/** Forget a discovery (no bell, no home reminder, moved to « Forgotten » in Settings → Discovery) or bring it back */
 export function MuteButton({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
   const [note, setNote] = useState<Note>(null);
   if (!x.mutable) return null;
   const mute = !x.muted;
   return (
     <>
-      <button type="button" className={`${button} border-line bg-bg2 text-txt hover:border-link`} onClick={() => void act(() => send("PUT", "discoveries/muted", { id: x.id, muted: mute }), mute ? tx("rappel coupé : il reste listé ici") : tx("rappel rétabli"), setNote).then(() => reload())}
-        title={mute ? tx("Ne plus compter cette découverte dans la cloche ni sur l'accueil ; elle reste ici, vous pouvez la réafficher") : undefined}>
-        {mute ? <BellOff size={13} aria-hidden /> : <Bell size={13} aria-hidden />}{mute ? tx("Ne plus me le rappeler") : tx("Réafficher le rappel")}
+      <button type="button" className={`${button} border-line bg-bg2 text-txt hover:border-link`} onClick={() => void act(() => send("PUT", "discoveries/muted", { id: x.id, muted: mute }), mute ? tx("oublié : rangé dans « Oubliés », en bas de Réglages → Découverte") : tx("rappelé : de nouveau proposé"), setNote).then(() => reload())}
+        title={mute ? tx("Ne plus le proposer, ni dans la cloche ni sur l'accueil. Il reste dans « Oubliés » pour le rappeler plus tard.") : tx("Le proposer de nouveau")}>
+        {mute ? <EyeOff size={13} aria-hidden /> : <RotateCcw size={13} aria-hidden />}{mute ? tx("Oublier") : tx("Rappeler")}
       </button>
       <NoteLine note={note} />
     </>
@@ -139,7 +139,7 @@ function Item({ x, reload, machines, extra }: { x: DiscoveryItem; reload: () => 
       </div>
       <p className="text-sm text-muted">{x.what}</p>
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
-        {x.muted ? <Badge tone="off">{tx("rappel coupé")}</Badge> : x.note && <span className={todo ? "text-warn" : "text-dim"}>{x.note}</span>}
+        {x.muted ? <Badge tone="off">{tx("oublié")}</Badge> : x.note && <span className={todo ? "text-warn" : "text-dim"}>{x.note}</span>}
         {when(x.last) ? <Badge tone="off">{tx("dernière fois")} {when(x.last)}</Badge> : x.mode !== "auto" && <Badge tone="warn">{tx("jamais lancée")}</Badge>}
         {when(x.next) && <Badge tone="info">{tx("prochaine")} {when(x.next)}</Badge>}
       </div>
