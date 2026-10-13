@@ -538,7 +538,7 @@ function HealthLevel({ m, h, followed }: Readonly<{ m: Machine; h?: HealthHost; 
 /** Services of a machine that are down, each with its problem: the tooltip of the red count */
 function downOf(m: Machine, snap: Snapshot): string[] {
   return snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.enabled && status(r)[0] === "bad")
-    .map((r) => `${r.domains?.[0] || r.service?.name || `${r.ip}:${r.port}`} : ${status(r)[2]}`);
+    .map((r) => [r.domains?.[0] || r.service?.name || [r.ip, r.port].join(":"), status(r)[2]].join(" : "));
 }
 
 /** Red count of the services down on a machine; what fails is in the tooltip */
