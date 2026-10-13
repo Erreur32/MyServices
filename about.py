@@ -84,6 +84,15 @@ def latest(state_dir: Path, force: bool = False, enabled: bool = True, now: floa
     return {"release": cur.get("release"), "checked_at": cur.get("checked_at"), "error": err, "cached": err is not None, "enabled": True}
 
 
+def cached(state_dir: Path, current: str | None) -> dict:
+    """The last answer kept, without any request (for every page load): {available, tag, url}; nothing known: available False."""
+    try:
+        rel = json.loads((state_dir / "update-check.json").read_text(encoding="utf-8")).get("release") or {}
+    except (OSError, ValueError):
+        rel = {}
+    return {"available": newer(rel.get("tag"), current), "tag": rel.get("tag"), "url": rel.get("url")}
+
+
 def changelog(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")[:200_000]

@@ -239,6 +239,24 @@ def set_diagram_extra(core, key: str, on: bool) -> list[str]:
     return kept
 
 
+def set_update_settings(core, auto: bool | None = None, header: bool | None = None) -> dict:
+    """Settings → Updates: the automatic check (update_check, every 6 h by the scheduler) and the notice in the header (update_header)."""
+    def change(raw: dict) -> None:
+        for key, val in (("update_check", auto), ("update_header", header)):
+            if val is None:
+                continue
+            if val:
+                raw.pop(key, None)   # on is the default
+            else:
+                raw[key] = False
+    _update_config(core, change)
+    if auto is not None:
+        core.CFG["update_check"] = auto
+    if header is not None:
+        core.CFG["update_header"] = header
+    return {"auto": bool(core.CFG.get("update_check", True)), "header": bool(core.CFG.get("update_header", True))}
+
+
 def set_auto_mode(core, on: bool) -> dict:
     """Auto mode (default): found machines added and SSH turned on by themselves. Turning it on also turns back on the automatic
     network search (unless fixed by MYSERVICES_NETSCAN_EVERY) and the /home/backup follow-up; off: nothing is added by itself."""

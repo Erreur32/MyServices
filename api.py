@@ -1495,7 +1495,9 @@ def me(request: Request):
             # image de développement : le dépôt git d'où elle vient (describe) et la version prévue d'après le journal des changements
             "git": os.environ.get("MYSERVICES_GIT", ""), "planned": about.planned(about.changelog(Path(core.HERE) / "CHANGELOG.md")),
             # last release written in this build's changelog: an image built from a branch shows it (« 0.10.1+ · main abc1234 »)
-            "released": about.released(about.changelog(Path(core.HERE) / "CHANGELOG.md"))}
+            "released": about.released(about.changelog(Path(core.HERE) / "CHANGELOG.md")),
+            # a newer release published, from the last check kept (no request here); None when the header notice is off
+            "update": about.cached(Path(core.CFG["state_dir"]), os.environ.get("MYSERVICES_VERSION", "dev")) if core.CFG.get("update_header", True) else None}
 
 
 def admin_only(request: Request) -> JSONResponse | None:
@@ -1697,6 +1699,7 @@ def about_payload(force: bool) -> dict:
     got = about.latest(Path(core.CFG["state_dir"]), force=force, enabled=bool(core.CFG.get("update_check", True)))
     tag = (got.get("release") or {}).get("tag")
     return {"version": version, "latest": got.get("release"), "checked_at": got.get("checked_at"), "error": got.get("error"), "enabled": got.get("enabled", True),
+            "header": bool(core.CFG.get("update_header", True)),
             "update_available": about.newer(tag, version), "running": about.core_version(version),
             "released": about.released(about.changelog(Path(core.HERE) / "CHANGELOG.md")),
             "changelog": about.changelog(Path(core.HERE) / "CHANGELOG.md"), "repo": f"https://github.com/{about.REPO}"}
@@ -1712,6 +1715,21 @@ def about_check(request: Request):
     if denied := admin_write(request):
         return denied
     return about_payload(True)
+
+
+class UpdateSettings(BaseModel):
+    auto: bool | None = None
+    header: bool | None = None
+
+
+@app.put(API + "/about/settings", tags=["système"], summary="Vérification automatique des mises à jour et annonce dans l'en-tête (admin)")
+def about_settings(body: UpdateSettings, request: Request):
+    import system
+    if denied := admin_write(request):
+        return denied
+    out = system.set_update_settings(core, auto=body.auto, header=body.header)
+    store().audit("réglages des mises à jour", request.state.user["username"], ip_of(request), json.dumps(out))
+    return out
 
 
 @app.get(API + "/diagrams", tags=["schémas"], summary="Schémas de l'infra (Archify) : titre, fichier, date ; ceux à créer d'un clic")

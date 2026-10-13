@@ -462,6 +462,15 @@ def notifications_tick() -> None:
         log(f"⚠ notifications : {type(e).__name__}: {e}")
 
 
+def update_check() -> None:
+    """Latest version published, checked by itself when update_check is on: about.latest keeps its answer 6 h, so this asks GitHub
+    at most every 6 h (one anonymous GET), whatever page is open"""
+    if not CFG.get("update_check", True):
+        return
+    import about
+    threading.Thread(target=about.latest, args=(Path(CFG["state_dir"]),), daemon=True, name="update-check").start()
+
+
 def wake_check() -> None:
     """Postes « souvent éteints » dont la fiche est grisée dans Santé : un ping ciblé chaque minute ; si la réponse change (le PC
     s'allume ou s'éteint), la santé de cette seule machine est relue, la fiche passe de « éteinte » à « allumée, agent en attente »."""
@@ -500,6 +509,7 @@ def scheduler() -> None:
             auto_netscan()
             auto_adopt()
             wake_check()
+            update_check()
             notifications_tick()
         time.sleep(5)
 

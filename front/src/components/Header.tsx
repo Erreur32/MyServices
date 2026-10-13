@@ -1,4 +1,4 @@
-import { ChevronDown, ExternalLink, ListChecks, LogOut, Map, Moon, Settings, Sun, UserRound, Workflow } from "lucide-react";
+import { ArrowUpCircle, ChevronDown, ExternalLink, ListChecks, LogOut, Map, Moon, Settings, Sun, UserRound, Workflow, X } from "lucide-react";
 import { useDiagrams } from "./Diagrams";
 import { DiscoveryBell } from "./DiscoveryCard";
 import { useEffect, useRef, useState } from "react";
@@ -9,6 +9,7 @@ import { appVersion } from "../lib/format";
 import { reopenFirstSteps } from "../lib/firstSteps";
 import { GITHUB } from "../lib/links";
 import { lastSettingsSection } from "../lib/settingsNav";
+import { dismissTag, dismissedTag } from "../lib/updateNotice";
 
 function ago(iso: string, now: number): string {
   const min = Math.round((now - new Date(iso).getTime()) / 60000);
@@ -37,6 +38,22 @@ function DevState({ git, released, planned }: Readonly<{ git?: string; released?
   );
 }
 
+/** A new release published: a pill that opens Settings → Updates; its cross hides it for this version only */
+function UpdatePill({ update }: Readonly<{ update?: { available: boolean; tag?: string | null } | null }>) {
+  const [hidden, setHidden] = useState(dismissedTag());
+  if (!update?.available || !update.tag || hidden === update.tag) return null;
+  const tag = update.tag;
+  return (
+    <span className="hidden items-center overflow-hidden rounded-full border border-link/50 bg-link/10 text-xs sm:inline-flex">
+      <a href="#settings/updates" className="inline-flex items-center gap-1.5 py-1 pl-2.5 pr-1.5 font-semibold text-link no-underline hover:bg-link/15" title={tx("Nouvelle version publiée : voir Réglages → Mises à jour")}>
+        <ArrowUpCircle size={14} aria-hidden />{tx("{0} disponible", tag)}
+      </a>
+      <button type="button" onClick={() => { dismissTag(tag); setHidden(tag); }} aria-label={tx("Masquer pour cette version")} title={tx("Masquer pour cette version")}
+        className="grid h-full place-items-center px-1.5 text-dim hover:bg-link/15 hover:text-txt"><X size={12} aria-hidden /></button>
+    </span>
+  );
+}
+
 export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; theme: Theme; toggleTheme: () => void; now: number }) {
   const stale = (now - new Date(snap.data.generated).getTime()) / 60000 > snap.data.page.stale_min;
   const logo = useHeaderLogo();
@@ -56,6 +73,7 @@ export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; them
         </h1>
       </div>
       <div className="flex items-center gap-3">
+        <UpdatePill update={snap.me.update} />
         {snap.me.role === "admin" && <DiscoveryBell machines={snap.data.machine_list} />}
         <UserMenu snap={snap} theme={theme} toggleTheme={toggleTheme} />
       </div>

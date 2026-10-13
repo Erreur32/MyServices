@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+
+- Settings → Updates (Application group): the version installed and the latest published on GitHub with its notes, « Check
+  now », an automatic check (the scheduler asks at most every 6 h, one anonymous request; `update_check`) and the notice in the
+  header (`update_header`). The header shows a « vX.Y.Z available » pill that opens this page; its cross hides it for that
+  version only.
+
 ### Changed
 
 - Machines and Health in card view: compact cards, one more column on wide screens. Each card shows who it is (icon, name, IP,
