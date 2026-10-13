@@ -47,7 +47,7 @@ export function useDiscoveries() {
   return [d, loadShared] as const;
 }
 
-const MODE: Record<DiscoveryItem["mode"], { label: string; hint: string; tone: "ok" | "warn" | "info"; Icon: typeof Repeat }> = {
+export const MODE: Record<DiscoveryItem["mode"], { label: string; hint: string; tone: "ok" | "warn" | "info"; Icon: typeof Repeat }> = {
   auto: { label: tx("Automatique"), hint: tx("Se fait tout seul, rien à faire"), tone: "ok", Icon: RefreshCw },
   first: { label: tx("Une fois, puis automatique"), hint: tx("À lancer une première fois ; ensuite MyServices s'en occupe"), tone: "info", Icon: Repeat },
   manual: { label: tx("À la main"), hint: tx("Ne se fait jamais tout seul : à lancer quand c'est utile"), tone: "warn", Icon: Hand },
@@ -64,10 +64,10 @@ export function Title({ x, machines }: { x: DiscoveryItem; machines?: Machine[] 
   return <b>{x.title}</b>;
 }
 
-const when = (ts: number | null) => (ts ? dateTime(ts * 1000) : null);
+export const when = (ts: number | null) => (ts ? dateTime(ts * 1000) : null);
 
 /** Couper le rappel d'une découverte (plus de cloche ni de rappel sur l'accueil) ou le rétablir ; elle reste listée dans Réglages → Découverte */
-function MuteButton({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
+export function MuteButton({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
   const [note, setNote] = useState<Note>(null);
   if (!x.mutable) return null;
   const mute = !x.muted;
@@ -82,7 +82,7 @@ function MuteButton({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
   );
 }
 
-function Action({ a, reload }: { a: NonNullable<DiscoveryItem["action"]>; reload: () => void }) {
+export function Action({ a, reload }: { a: NonNullable<DiscoveryItem["action"]>; reload: () => void }) {
   const [note, setNote] = useState<Note>(null);
   const go = (href: string) => {   // déjà à cette adresse : l'adresse ne change pas, on prévient quand même la page (défilement, cadre allumé)
     if (location.hash === href) dispatchEvent(new HashChangeEvent("hashchange"));

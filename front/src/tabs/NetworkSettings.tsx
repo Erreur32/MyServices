@@ -1,81 +1,137 @@
-// Réglages → Découverte, en trois sous-onglets (Réseau et machines, Services et applis, Sauvegardes) : les découvertes de chaque famille
-// en cartes, et pour le réseau le scan du réseau local (lecture seule) et sa fréquence automatique ; relancer à la main,
-// refaire le parcours des premiers pas. La première recherche se lance toute seule, puis à la fréquence choisie.
-import { Bell, Check, ListChecks, Radar, RotateCcw, Search, ShieldCheck } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+// Réglages → Découverte : ce que MyServices trouve tout seul et ce qui demande un clic, sur une page à lire de haut en bas.
+//   1. En-tête : l'état en une phrase, le mode automatique, la recherche réseau (dernière, prochaine, lancer maintenant)
+//   2. À faire (seulement s'il y en a)   3. Machines trouvées sur le réseau (replié)   4. Applis à relier (tuiles, ordre alphabétique)
+//   5. Autres suggestions   6. Ce qui tourne tout seul (replié)   7. Réglages de la recherche (fréquence, réseaux, discrétion)
+// Cadres neutres, jamais un cadre coloré dans un autre : la couleur reste dans les pastilles. Liens directs gardés :
+// #settings/network/<hosts|scan|services|backups> fait défiler jusqu'à la section (et ouvre les machines trouvées).
+import { Bell, Boxes, Check, ChevronRight, ListChecks, Lightbulb, Radar, RefreshCw, RotateCcw, Search, Settings2, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
-import { NoteLine } from "../components/form";
-import { Badge, Card, Dim } from "../components/ui";
+import type { Snapshot } from "../api";
+import { NoteLine, Switch } from "../components/form";
+import { Badge, Count, Dim } from "../components/ui";
+import { Action, MODE, MuteButton, Title, useDiscoveries, when, type DiscoveryItem } from "../components/DiscoveryCard";
+import { NetworkStep } from "../components/NetworkStep";
+import { appIcon } from "../lib/appIcons";
 import { dateTime } from "../lib/format";
 import { reopenFirstSteps } from "../lib/firstSteps";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { usePoll } from "../lib/polling";
 import { tx } from "../lib/i18n";
 import { pokeScan } from "../lib/scan";
-import { GROUPS, DiscoveryPanel, suggestOf, todoOf, useDiscoveries } from "../components/DiscoveryCard";
-import type { Snapshot } from "../api";
-import { NetworkStep } from "../components/NetworkStep";
-import { AutoMode } from "../components/AutoMode";
 import type { NetScan } from "../types";
 
 interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean; auto: boolean; ignored: { ip: string; name: string }[] }
 
-/** Lien #settings/network/<hosts|scan> (depuis une découverte à faire) : fait défiler jusqu'à la carte et l'allume, même si l'on est
- *  déjà sur la page ; `ready` : la page est chargée (sinon la carte n'existe pas encore au moment du clic) */
-function useScrollToPart(ready: boolean, reload: () => void) {
+const CARD = "rounded-2xl border border-line bg-card p-4";
+const byLabel = (a: DiscoveryItem, b: DiscoveryItem) => (a.app || a.title).localeCompare(b.app || b.title, undefined, { sensitivity: "base" }) || (a.machine?.name ?? "").localeCompare(b.machine?.name ?? "");
+
+/** Section : titre avec icône et compteur, une phrase d'aide, le contenu ; `id` sert aux liens directs */
+function Section({ id, icon, title, n, hint, right, children }: { id?: string; icon: ReactNode; title: string; n?: number; hint?: string; right?: ReactNode; children: ReactNode }) {
+  return (
+    <section id={id} className={`${CARD} scroll-mt-20`} aria-label={title}>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <h2 className="flex items-center gap-2 font-bold">{icon}{title}{n !== undefined && <Count n={n} />}</h2>
+        {right && <span className="ml-auto flex flex-wrap items-center gap-2">{right}</span>}
+      </div>
+      {hint && <p className="mt-1 text-sm text-muted">{hint}</p>}
+      <div className="mt-3">{children}</div>
+    </section>
+  );
+}
+
+/** Section repliable (même cadre neutre) : ouverte par un lien direct vers elle */
+function Fold({ id, icon, title, n, hint, open, onToggle, children }: { id: string; icon: ReactNode; title: string; n?: number; hint?: string; open: boolean; onToggle: (o: boolean) => void; children: ReactNode }) {
+  return (
+    <details id={id} open={open} onToggle={(e) => onToggle(e.currentTarget.open)} className={`${CARD} group scroll-mt-20`}>
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 [&::-webkit-details-marker]:hidden">
+        <ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
+        <h2 className="flex items-center gap-2 font-bold">{icon}{title}{n !== undefined && <Count n={n} />}</h2>
+        {hint && <span className="text-sm text-muted">{hint}</span>}
+      </summary>
+      <div className="mt-3">{children}</div>
+    </details>
+  );
+}
+
+/** Une découverte en ligne : titre, note, dernière / prochaine fois, puis ses boutons */
+function Row({ x, reload, machines, auto }: { x: DiscoveryItem; reload: () => void; machines: Snapshot["data"]["machine_list"]; auto?: boolean }) {
+  const m = MODE[x.mode];
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2 text-muted" title={m.hint}><m.Icon size={15} aria-hidden /></span>
+      <div className="min-w-[220px] flex-1">
+        <div className="flex flex-wrap items-center gap-2"><Title x={x} machines={machines} />{auto && <Badge tone={m.tone} title={m.hint}>{m.label}</Badge>}{x.muted && <Badge tone="off">{tx("rappel coupé")}</Badge>}</div>
+        <p className="mt-0.5 text-sm text-muted">{x.what}</p>
+        {(x.note || x.last || x.next) && (
+          <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-dim">
+            {x.note && <span>{x.note}</span>}{when(x.last) && <span>{tx("dernière fois")} {when(x.last)}</span>}{when(x.next) && <span>{tx("prochaine")} {when(x.next)}</span>}
+          </p>
+        )}
+      </div>
+      {(x.action || x.mutable) && <div className="flex flex-wrap items-center gap-1.5">{x.action && <Action a={x.action} reload={reload} />}<MuteButton x={x} reload={reload} /></div>}
+    </li>
+  );
+}
+
+/** Appli reconnue à relier : une tuile (logo, appli, machine), « Configurer » ouvre le connecteur déjà rempli */
+function AppTile({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
+  const icon = x.app ? appIcon([x.app]) : null;
+  return (
+    <li className={`flex flex-col gap-2 rounded-xl border border-line bg-bg2/40 p-3 ${x.muted ? "opacity-70" : ""}`}>
+      <div className="flex items-center gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">{icon ? <img src={icon} alt="" className="h-6 w-6" /> : <Boxes size={18} className="text-muted" aria-hidden />}</span>
+        <span className="min-w-0 flex-1">
+          <b className="block truncate text-sm">{x.app || x.title}</b>
+          <span className="block truncate text-xs text-dim">{x.machine ? `${x.machine.name || x.machine.ip}${x.machine.name ? ` · ${x.machine.ip}` : ""}` : x.note}</span>
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">{x.action && <Action a={x.action} reload={reload} />}<MuteButton x={x} reload={reload} /></div>
+    </li>
+  );
+}
+
+/** Lien direct #settings/network/<part> : défile jusqu'à la section, même si la page est déjà ouverte */
+function usePart(ready: boolean, onPart: (part: string) => void) {
   useEffect(() => {
     if (!ready) return;
     const go = () => {
       const part = location.hash.split("/")[2];
       if (!part) return;
-      reload();   // une recherche peut venir d'être lancée depuis une découverte : l'état « en cours » tout de suite
-      setTimeout(() => {
-        const el = document.getElementById(`net-${part}`);
-        el?.scrollIntoView({ behavior: "smooth", block: "start" });
-        const card = el?.firstElementChild;   // la carte elle-même (le conteneur peut en porter deux)
-        if (card) { card.classList.remove("flash"); void (card as HTMLElement).offsetWidth; card.classList.add("flash"); }   // relancée à chaque clic
-      }, 50);
+      onPart(part);
+      setTimeout(() => document.getElementById(`net-${part === "network" ? "hosts" : part}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
     };
     go();
     addEventListener("hashchange", go);
     return () => removeEventListener("hashchange", go);
-  }, [ready, reload]);
+  }, [ready, onPart]);
 }
-
-/** Sous-onglet d'ouverture : celui du lien (#settings/network/<hosts|scan|services|backups>), sinon le premier qui a quelque chose à faire,
- *  sinon le premier qui a une suggestion */
-const openTab = (todo: (g: (typeof GROUPS)[number]) => number, suggest: (g: (typeof GROUPS)[number]) => number) => {
-  const part = location.hash.split("/")[2];
-  if (part === "services" || part === "backups") return part;
-  if (part === "hosts" || part === "scan") return "network";
-  return (GROUPS.find((g) => todo(g)) ?? GROUPS.find((g) => suggest(g)))?.id ?? "network";
-};
 
 export function NetworkSettings({ snap }: { snap: Snapshot }) {
   const [disc, reloadDisc] = useDiscoveries();
-  const [tab, setTab] = useState<string | null>(null);
-  const current = tab ?? (disc ? openTab((g) => todoOf(disc, g), (g) => suggestOf(disc, g)) : "network");
-  const group = GROUPS.find((g) => g.id === current) ?? GROUPS[0];
-  const hasHostsItem = !!disc?.items.some((x) => x.id === "hosts");   // même coupée, la découverte porte déjà la liste
   const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
   const [hours, setHours] = useState(""), [nets, setNets] = useState<string | null>(null), [note, setNote] = useState<Note>(null), [error, setError] = useState("");
+  const [hostsOpen, setHostsOpen] = useState(false), [autoOpen, setAutoOpen] = useState(false), [picked, setPicked] = useState(0);
   const load = useCallback(() => {
     Promise.all([read<NetSettings>("network/settings"), read<NetScan>("network/scan")])
       .then(([c, s]) => { setCfg(c); setScan(s); setHours((h) => (h === "" ? String(c.every_h) : h)); setError(""); })
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
   }, []);
-  usePoll(load, scan && (scan.phase === "ping" || scan.phase === "identify") ? 10_000 : 60_000);   // 10 s seulement pour suivre une recherche en cours
-  useScrollToPart(!!cfg && !!scan && current === "network", load);
+  const running = scan?.phase === "ping" || scan?.phase === "identify";
+  usePoll(load, running ? 10_000 : 60_000);   // 10 s seulement pour suivre une recherche en cours
+  const onPart = useCallback((part: string) => { if (part === "hosts" || part === "network") setHostsOpen(true); load(); }, [load]);
+  usePart(!!cfg && !!scan && !!disc, onPart);
   if (!cfg || !scan) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 
-  const hostsList = (onCount?: (n: number) => void) => (
-    <>
-      <p className="text-sm text-muted">{cfg.auto ? tx("Le mode automatique ajoute seul celles avec SSH, appli ou service utile ; cochez les autres à suivre, ou ignorez-les.") : tx("Cochez celles à suivre puis ajoutez-les, ou ignorez-les. En mode manuel, MyServices ne les ajoute jamais seul.")}</p>
-      <NetworkStep net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} onCount={onCount} />
-    </>
-  );
-  const running = scan.phase === "ping" || scan.phase === "identify";
+  const items = disc?.items ?? [];
+  const todo = items.filter((x) => x.state === "todo" && x.id !== "hosts").sort(byLabel);
+  const apps = items.filter((x) => x.state === "suggest" && x.id.startsWith("connector:")).sort(byLabel);
+  const others = items.filter((x) => x.state === "suggest" && !x.id.startsWith("connector:") && x.id !== "hosts").sort(byLabel);
+  const quiet_ = items.filter((x) => x.state !== "todo" && x.state !== "suggest" && x.id !== "hosts");
+  const hostsItem = items.find((x) => x.id === "hosts");
+
   const last = scan.ended ? scan.ended * 1000 : null;
+  const next = last && cfg.every_h ? last + cfg.every_h * 3_600_000 : null;
   const n = Number(hours);
   const valid = hours !== "" && Number.isInteger(n) && n >= 0 && n <= cfg.max_h;
   const save = (value: number) => act(() => send("PUT", "network/settings", { every_h: value }), value ? tx("enregistré : toutes les {0} h", value) : tx("enregistré : recherche automatique coupée"), setNote)
@@ -85,100 +141,114 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   const saveNets = () => act(() => send("PUT", "network/settings", { nets: netsList }), netsList.length ? tx("réseaux enregistrés") : tx("réseau de la machine hôte"), setNote)
     .then((ok) => { if (ok) { setNets(null); load(); } });
   const saveDiscreet = (on: boolean) => act(() => send("PUT", "network/settings", { discreet: on }), on ? tx("mode discret activé") : tx("mode discret coupé"), setNote).then(() => load());
-  const next = last && cfg.every_h ? last + cfg.every_h * 3_600_000 : null;
-  const state = cfg.every_h === 0 ? <Badge tone="off">{tx("automatique coupée")}</Badge>
-    : !last ? <Badge tone="info">{tx("première recherche dans la minute")}</Badge>
-    : <Badge tone="ok">{tx("automatique : toutes les {0} h", cfg.every_h)}</Badge>;
+  const saveAuto = (on: boolean) => act(() => send("PUT", "network/settings", { auto: on }), on ? tx("mode automatique activé") : tx("mode manuel : rien n'est plus ajouté tout seul"), setNote)
+    .then((ok) => { if (ok) { load(); reloadDisc(); } });
+  const scanNow = () => act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setNote).then(() => load());
 
   return (
     <div className="flex flex-col gap-4">
-      <AutoMode onChange={() => { load(); reloadDisc(); }} />
-      {disc && (   // en une phrase, pour toutes les familles : ce qu'il faut faire, ce qui est seulement proposé
-        <p className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border px-4 py-3 text-sm ${disc.todo ? "border-warn/50 bg-warn/10" : "border-ok/40 bg-ok/5"}`}>
-          {disc.todo ? <><Bell size={16} className="text-warn" aria-hidden /><b>{tx("{0} chose(s) à faire", disc.todo)}</b></> : <><Check size={16} className="text-ok" aria-hidden /><b>{tx("Rien d'obligatoire à faire")}</b></>}
-          <span className="text-muted">{disc.suggest ? tx("· {0} suggestion(s) facultative(s) · le reste se fait tout seul", disc.suggest) : tx("· le reste se fait tout seul")}</span>
+      {/* 1. En-tête : l'état, le mode, la recherche réseau */}
+      <section className={CARD} aria-label={tx("Découverte")}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h2 className="flex items-center gap-2 text-lg font-bold"><Radar size={18} aria-hidden />{tx("Découverte")}</h2>
+          {todo.length ? <Badge tone="warn">{tx("{0} chose(s) à faire", todo.length)}</Badge> : <Badge tone="ok">{tx("rien d'obligatoire à faire")}</Badge>}
+          {apps.length + others.length > 0 && <Badge tone="info">{tx("{0} suggestion(s) facultative(s)", apps.length + others.length)}</Badge>}
+          <span className="ml-auto flex items-center gap-2 text-sm font-semibold">{tx("Mode automatique")}<Switch on={cfg.auto} onChange={(on) => void saveAuto(on)} label={tx("Mode automatique")} /></span>
+        </div>
+        <p className="mt-2 text-sm text-muted">
+          {cfg.auto
+            ? tx("Automatique : après chaque recherche, les machines avec SSH, une appli reconnue ou un service utile sont ajoutées toutes seules, et leur SSH s'active dès que la clé marche. Une machine retirée à la main ne revient pas.")
+            : tx("Manuel : rien n'est ajouté ni activé tout seul ; vous choisissez les machines trouvées. La recherche réseau garde sa fréquence.")}
+          {" "}<span className="text-dim">{tx("Toujours à faire vous-même : autoriser la clé SSH, donner un jeton aux connecteurs, installer l'agent Windows.")}</span>
         </p>
-      )}
-      <nav className="flex gap-1 overflow-x-auto border-b border-line" aria-label={tx("Familles de découvertes")}>
-        {GROUPS.map((g) => {
-          const n = todoOf(disc, g), s = suggestOf(disc, g);
-          return (
-            <button key={g.id} type="button" onClick={() => setTab(g.id)} aria-current={current === g.id ? "page" : undefined}
-              className={`flex shrink-0 items-center gap-1.5 rounded-t-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
-                current === g.id ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : n > 0 ? "text-warn hover:bg-warn/10" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
-              <g.Icon size={15} strokeWidth={1.75} className={n > 0 ? "text-warn" : ""} aria-hidden />{g.title}
-              {n > 0 ? <Badge tone="warn" title={tx("{0} chose(s) à faire", n)}>{n}</Badge> : s > 0 && <Badge tone="info" title={tx("{0} suggestion(s) facultative(s)", s)}>{s}</Badge>}
-            </button>
-          );
-        })}
-      </nav>
-      <DiscoveryPanel d={disc} group={group} reload={reloadDisc} machines={snap.data.machine_list} extra={(x, onCount) => (x.id === "hosts" ? hostsList(onCount) : null)} />
-      {current === "services" && <Card><p className="text-sm text-muted">{tx("Les applis reconnues se relient dans")} <a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a>.</p></Card>}
-      {current === "backups" && <Card><p className="text-sm text-muted">{tx("Les dossiers et jeux de sauvegarde se règlent dans")} <a className="text-link hover:underline" href="#settings/backups">{tx("Réglages → Sauvegardes")}</a>.</p></Card>}
-      {current === "network" && <>
-      {!hasHostsItem && (   // aucune machine à choisir dans les découvertes : la liste (scan, déjà ajoutées, ignorées) reste ici
-        <div id="net-hosts" className="scroll-mt-20">
-          <Card>
-            <h2 className="mb-1 flex items-center gap-2 font-bold"><Radar size={16} />{tx("Machines trouvées sur le réseau")}</h2>
-            {hostsList()}
-          </Card>
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line/60 pt-3 text-sm">
+          <Search size={15} className="text-muted" aria-hidden /><b>{tx("Recherche sur le réseau")}</b>
+          {running ? <Badge tone="info"><RefreshCw size={11} className="mr-1 inline animate-spin" aria-hidden />{tx("en cours")}</Badge>
+            : cfg.every_h === 0 ? <Badge tone="off">{tx("automatique coupée")}</Badge>
+            : !last ? <Badge tone="info">{tx("première recherche dans la minute")}</Badge>
+            : <Badge tone="ok">{tx("toutes les {0} h", cfg.every_h)}</Badge>}
+          {last ? <span className="text-dim">{tx("dernière :")} {dateTime(last)} · {scan.found.length} {tx("appareils")}</span> : <Dim>{tx("aucune recherche faite")}</Dim>}
+          {next && !running && <span className="text-dim">{tx("prochaine à partir de {0}", dateTime(next))}</span>}
+          <span className="ml-auto flex flex-wrap gap-2">
+            <button type="button" className={primary} disabled={running} onClick={() => void scanNow()}><Search size={14} aria-hidden />{running ? tx("Recherche en cours…") : tx("Chercher maintenant")}</button>
+            <button type="button" className={quiet} onClick={reopenFirstSteps} title={tx("Rouvre la carte et efface vos choix « Passer »")}><ListChecks size={14} aria-hidden />{tx("Revoir les premiers pas")}</button>
+          </span>
         </div>
+        <NoteLine note={note} />
+      </section>
+
+      {/* 2. À faire */}
+      {todo.length > 0 && (
+        <Section icon={<Bell size={16} className="text-warn" aria-hidden />} title={tx("À faire")} n={todo.length} hint={tx("Nécessaire : sans ça, MyServices ne voit pas tout.")}>
+          <ul className="flex flex-col divide-y divide-line/60">{todo.map((x) => <Row key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} />)}</ul>
+        </Section>
       )}
-      <div id="net-scan" className="grid scroll-mt-20 items-start gap-4 lg:grid-cols-2">
-        <Card className="scroll-mt-20">
-          <h2 className="mb-1 flex items-center gap-2 font-bold"><Search size={16} />{tx("Recherche sur le réseau")}</h2>
-          <p className="mb-3 text-sm text-muted">
-            {tx("Cherche les machines allumées sur votre réseau local (un /24 au plus) : un ping, le nom, quelques ports. Lecture seule.")}
-          </p>
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-            {state}
-            {last ? <span className="text-dim">{tx("dernière :")} {dateTime(last)} · {scan.found.length} {tx("appareils")}</span> : <Dim>{tx("aucune recherche faite")}</Dim>}
-            {next && !running && <span className="text-dim">{tx("prochaine à partir de {0}", dateTime(next))}</span>}
-            {running && <Badge tone="info">{tx("en cours")}</Badge>}
-          </div>
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <button type="button" className={primary} disabled={running}
-              onClick={() => void act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setNote).then(() => load())}>
-              <Search size={14} />{running ? tx("Recherche en cours…") : tx("Lancer une recherche maintenant")}
-            </button>
-            <button type="button" className={quiet} onClick={reopenFirstSteps} title={tx("Rouvre la carte et efface vos choix « Passer »")}>
-              <ListChecks size={14} />{tx("Revoir les premiers pas")}
-            </button>
-          </div>
-          <form className="flex flex-wrap items-end gap-2 border-t border-line/60 pt-3" onSubmit={(e) => { e.preventDefault(); if (valid) void save(n); }}>
-            <label className="flex flex-col gap-1 text-xs text-dim">{tx("Fréquence automatique (heures, 0 = coupée)")}
-              <input className={`${input} w-40`} type="number" min={0} max={cfg.max_h} step={1} value={hours} disabled={cfg.fixed}
-                onChange={(e) => setHours(e.target.value)} title={cfg.fixed ? tx("fixée par la variable d'environnement du conteneur") : tx("défaut : {0}", cfg.default_h)} />
+
+      {/* 3. Machines trouvées sur le réseau */}
+      <Fold id="net-hosts" icon={<Radar size={16} aria-hidden />} title={tx("Machines trouvées sur le réseau")} n={scan.found.filter((h) => !h.known).length || undefined}
+        hint={picked ? tx("{0} cochée(s)", picked) : hostsItem?.note || (cfg.auto ? tx("le mode automatique ajoute seul les plus utiles") : tx("à cocher pour les suivre, ou à ignorer"))}
+        open={hostsOpen} onToggle={setHostsOpen}>
+        <NetworkStep net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} onCount={setPicked} />
+      </Fold>
+
+      {/* 4. Applis à relier */}
+      {apps.length > 0 && (
+        <Section id="net-services" icon={<Boxes size={16} aria-hidden />} title={tx("Applis à relier")} n={apps.length}
+          hint={tx("Applis reconnues sur vos machines, qu'un connecteur peut lire. Facultatif : « Ne plus me le rappeler » range celles qui ne vous servent pas.")}
+          right={<a href="#settings/connectors" className="text-sm text-link hover:underline">{tx("Réglages → Connecteurs")}</a>}>
+          <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{apps.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul>
+        </Section>
+      )}
+
+      {/* 5. Autres suggestions */}
+      {others.length > 0 && (
+        <Section id="net-backups" icon={<Lightbulb size={16} aria-hidden />} title={tx("Autres suggestions")} n={others.length} hint={tx("Facultatif : pour en voir davantage.")}>
+          <ul className="flex flex-col divide-y divide-line/60">{others.map((x) => <Row key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} />)}</ul>
+        </Section>
+      )}
+
+      {/* 6. Ce qui tourne tout seul */}
+      {quiet_.length > 0 && (
+        <Fold id="net-auto" icon={<Check size={16} className="text-ok" aria-hidden />} title={tx("Ce qui tourne tout seul")} n={quiet_.length} hint={tx("rien à faire, pour information")} open={autoOpen} onToggle={setAutoOpen}>
+          <ul className="flex flex-col divide-y divide-line/60">{quiet_.map((x) => <Row key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} auto />)}</ul>
+        </Fold>
+      )}
+
+      {/* 7. Réglages de la recherche */}
+      <Section id="net-scan" icon={<Settings2 size={16} aria-hidden />} title={tx("Réglages de la recherche")} hint={tx("Cherche les machines allumées sur votre réseau local (un /24 au plus) : un ping, le nom, quelques ports. Lecture seule.")}>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <form className="flex flex-col gap-1.5" onSubmit={(e) => { e.preventDefault(); if (valid) void save(n); }}>
+            <label className="flex flex-col gap-1 text-sm font-semibold">{tx("Fréquence (heures, 0 = coupée)")}
+              <span className="flex gap-2">
+                <input className={`${input} w-28`} type="number" min={0} max={cfg.max_h} step={1} value={hours} disabled={cfg.fixed}
+                  onChange={(e) => setHours(e.target.value)} title={cfg.fixed ? tx("fixée par la variable d'environnement du conteneur") : tx("défaut : {0}", cfg.default_h)} />
+                {!cfg.fixed && <button className={quiet} disabled={!valid || n === cfg.every_h}>{tx("Enregistrer")}</button>}
+                {!cfg.fixed && cfg.every_h !== cfg.default_h && (
+                  <button type="button" className={quiet} title={tx("défaut : {0}", cfg.default_h)} aria-label={tx("Remettre la valeur par défaut")} onClick={() => void save(cfg.default_h)}><RotateCcw size={14} /></button>
+                )}
+              </span>
             </label>
-            {!cfg.fixed && <button className={quiet} disabled={!valid || n === cfg.every_h}>{tx("Enregistrer")}</button>}
-            {!cfg.fixed && cfg.every_h !== cfg.default_h && (
-              <button type="button" className={quiet} title={tx("défaut : {0}", cfg.default_h)} aria-label={tx("Remettre la valeur par défaut")} onClick={() => void save(cfg.default_h)}><RotateCcw size={14} /></button>
-            )}
+            {cfg.fixed && <p className="text-xs text-dim">{tx("Fixée par MYSERVICES_NETSCAN_EVERY dans le compose.")}</p>}
+            {!valid && hours !== "" && <p className="text-xs text-warn">{tx("Un nombre entier de 0 à {0}.", cfg.max_h)}</p>}
+            <p className="text-xs text-dim">{tx("La première recherche se lance toute seule ; ensuite à cette fréquence.")}</p>
           </form>
-          {cfg.fixed && <p className="mt-1 text-xs text-dim">{tx("Fixée par MYSERVICES_NETSCAN_EVERY dans le compose.")}</p>}
-          {!valid && hours !== "" && <p className="mt-1 text-xs text-warn">{tx("Un nombre entier de 0 à {0}.", cfg.max_h)}</p>}
-          <p className="mt-2 text-xs text-dim">{tx("La première recherche se lance toute seule ; ensuite à la fréquence ci-dessus.")}</p>
-          <NoteLine note={note} />
-        </Card>
-        <div className="flex flex-col gap-4">
-          <Card>
-            <h2 className="mb-1 flex items-center gap-2 font-bold"><ShieldCheck size={16} aria-hidden />{tx("Réseaux et discrétion")}</h2>
-            <p className="mb-3 text-sm text-muted">{tx("Par défaut, le réseau de la machine hôte. Vous pouvez en indiquer plusieurs (un /24 au plus chacun), séparés par une virgule.")}</p>
-            <form className="mb-4 flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void saveNets(); }}>
-              <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-dim">{tx("Réseaux à parcourir")}
-                <input className={`${input} w-full font-mono`} value={netsText} placeholder={scan.net || "192.168.1.0/24"} onChange={(e) => setNets(e.target.value)} />
-              </label>
-              <button className={quiet} disabled={nets === null}>{tx("Enregistrer")}</button>
-              {cfg.nets.length > 0 && <button type="button" className={quiet} onClick={() => { setNets(""); }}>{tx("Revenir au réseau de l'hôte")}</button>}
-            </form>
-            <label className="flex items-start gap-2 text-sm">
-              <input type="checkbox" className="mt-1" checked={cfg.discreet} onChange={(e) => void saveDiscreet(e.target.checked)} />
-              <span><b>{tx("Mode discret")}</b> <Dim>{tx("(ne lit ni le TTL du ping ni l'adresse MAC : le système des machines n'est alors plus deviné par là)")}</Dim></span>
+          <form className="flex flex-col gap-1.5" onSubmit={(e) => { e.preventDefault(); void saveNets(); }}>
+            <label className="flex flex-col gap-1 text-sm font-semibold">{tx("Réseaux à parcourir")}
+              <input className={`${input} w-full font-mono`} value={netsText} placeholder={scan.net || "192.168.1.0/24"} onChange={(e) => setNets(e.target.value)} />
             </label>
-          </Card>
+            <span className="flex flex-wrap gap-2">
+              <button className={quiet} disabled={nets === null}>{tx("Enregistrer")}</button>
+              {cfg.nets.length > 0 && <button type="button" className={quiet} onClick={() => setNets("")}>{tx("Revenir au réseau de l'hôte")}</button>}
+            </span>
+            <p className="text-xs text-dim">{tx("Par défaut, le réseau de la machine hôte. Plusieurs possibles (un /24 au plus chacun), séparés par une virgule.")}</p>
+          </form>
+          <div className="flex flex-col gap-1.5">
+            <span className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck size={15} aria-hidden />{tx("Mode discret")}
+              <Switch on={cfg.discreet} onChange={(on) => void saveDiscreet(on)} label={tx("Mode discret")} /></span>
+            <p className="text-xs text-dim">{tx("Ne lit ni le TTL du ping ni l'adresse MAC : le système des machines n'est alors plus deviné par là.")}</p>
+          </div>
         </div>
-      </div>
-      </>}
+      </Section>
     </div>
   );
 }

@@ -14,6 +14,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### Changed
 
 - Connectors: « Already read over SSH » moved just under « Detected services not set up », folded by default.
+- Settings → Discovery redone as one page read from top to bottom, without sub-tabs nor colored frames inside colored frames:
+  a header (state in one line, automatic mode switch, network search with its last and next run and « Search now »), « To do »
+  when there is something, the machines found on the network (folded), the apps to link as tiles in alphabetical order, other
+  suggestions, what runs by itself (folded), and the search settings (frequency, networks, discreet mode) in one frame.
 
 ### Fixed
 
