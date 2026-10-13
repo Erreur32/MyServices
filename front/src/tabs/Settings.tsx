@@ -23,7 +23,7 @@ import { Logs } from "./Logs";
 import { BackupsSettings } from "./BackupsSettings";
 import { SystemSettings } from "./SystemSettings";
 import { tx } from "../lib/i18n";
-import { lastSettingsSection, rememberSettingsSection } from "../lib/settingsNav";
+import { lastSettingsSection, rememberSettingsSection, showInUrl } from "../lib/settingsNav";
 import { checkPassword, okField, PASSWORD_MIN } from "../lib/password";
 import { PasswordRules } from "../components/PasswordRules";
 
@@ -60,7 +60,13 @@ export function Settings({ snap }: { snap: Snapshot }) {
     const wanted = s === "sources" ? "connectors" : s === "agents" ? "machines" : s || lastSettingsSection(); // « sources » : ancien lien, fondu dans Connecteurs
     return SECTIONS.some((x) => x.id === wanted) ? wanted : "accounts";
   });
-  useEffect(() => rememberSettingsSection(section), [section]);
+  useEffect(() => {
+    rememberSettingsSection(section);
+    // The address follows the section; a deeper part already there (#settings/machines/<ip>, #settings/network/hosts) is kept;
+    // Machines and Notifications write their own sub-tab
+    const s = location.hash.split("/")[1];
+    if (s !== section && !(section === "machines" && s === "agents")) showInUrl(`settings/${section}`, !s);   // first opening of #settings: replaced, not one more step back
+  }, [section]);
   const [disc] = useDiscoveries();   // « Découverte » est colorée quand il y a quelque chose à faire
   return (
     <div className="flex flex-col gap-4 py-4 md:flex-row">

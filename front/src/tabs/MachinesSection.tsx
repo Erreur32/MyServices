@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { MonitorUp, Server, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import { tx } from "../lib/i18n";
-import { lastMachinesPart, rememberMachinesPart } from "../lib/settingsNav";
+import { lastMachinesPart, rememberMachinesPart, showInUrl } from "../lib/settingsNav";
 import { MachinesSettings } from "./MachinesSettings";
 import { SshAgents } from "./SshAgents";
 
@@ -15,9 +15,12 @@ const PARTS: [Part, string, string, LucideIcon][] = [
 
 export function MachinesSection({ snap }: { snap: Snapshot }) {
   const [, section, ip] = location.hash.split("/");   // #settings/agents/<ip> : « Installer l'agent » ; #settings/machines/<ip> : une machine ; sans adresse, on reprend le dernier sous-onglet
-  const [part, setPart] = useState<Part>(() => ip && (section === "agents" || section === "machines") ? section
+  const [part, setPart] = useState<Part>(() => section === "agents" ? "agents" : ip && section === "machines" ? "machines"
     : (PARTS.find(([id]) => id === lastMachinesPart())?.[0] ?? "machines"));
-  useEffect(() => rememberMachinesPart(part), [part]);
+  useEffect(() => {
+    rememberMachinesPart(part);
+    if (location.hash.split("/")[1] !== part) showInUrl(`settings/${part}`, true);   // #settings/machines or #settings/agents: a reload stays there
+  }, [part]);
   return (
     <div className="flex flex-col gap-4">
       <nav className="flex gap-1 overflow-x-auto border-b border-line" aria-label={tx("Sous-onglets des machines")}>

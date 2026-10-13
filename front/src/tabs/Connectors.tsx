@@ -75,7 +75,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
               if (m) return (
               <li key={m.label}>
                 <a href="#settings/machines" title={m.how}
-                  className="flex h-full w-full items-center gap-3 rounded-xl border border-dashed border-dim/50 bg-bg2 p-3 text-left no-underline transition-colors hover:border-link hover:bg-link/10">
+                  className="flex h-full w-full items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 text-left no-underline transition-colors hover:border-link hover:bg-link/10">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
                     {appIcon([m.label]) ? <img src={appIcon([m.label])!} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
                   </span>
@@ -83,7 +83,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
                     <b className="block truncate text-sm text-txt">{m.label}</b>
                     <span className="block truncate text-xs text-dim">{tx("par SSH : Réglages → Machines")}</span>
                   </span>
-                  <ChevronRight size={15} className="shrink-0 text-dim" aria-hidden />
+                  <Plus size={15} className="shrink-0 text-dim" aria-hidden />
                 </a>
               </li>);
               t = t!;
