@@ -821,13 +821,13 @@ API_REUSE_S = 600   # a service's API read less than 10 minutes ago is not read 
 
 
 def api_systems(meta: dict) -> dict:
-    """{IP: système au format Beszel} des machines lues par l'API d'un service relié : Glances (sur la machine même), puis
+    """{IP: système au format Beszel} des machines lues par l'API d'un service relié : Glances ou Netdata (sur la machine même), puis
     Home Assistant (capteurs System Monitor / Supervisor de la machine hôte)."""
     import connectors
     import connectors.base as cbase
     from api_link import host_ip
     try:
-        conns = sorted((c for c in connectors.instances(CFG, kind="status") if c.type in ("glances", "home-assistant")), key=lambda c: c.type != "glances")
+        conns = sorted((c for c in connectors.instances(CFG, kind="status") if c.type in ("glances", "netdata", "home-assistant")), key=lambda c: c.type == "home-assistant")
     except connectors.ConnectorError:
         return {}
     machines, found = meta.get("machines", {}), {}
@@ -843,7 +843,7 @@ def api_systems(meta: dict) -> dict:
             continue
         ip = next((i for i in [host_ip(c.conf.get("url")), *host.get("ips", [])] if i in machines), None)
         if ip:
-            found.setdefault(ip, {k: v for k, v in host.items() if k not in ("ips", "boot")})   # Glances first: read on the machine itself
+            found.setdefault(ip, {k: v for k, v in host.items() if k not in ("ips", "boot")})   # Glances / Netdata first: read on the machine itself
     return found
 
 

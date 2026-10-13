@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from connectors.base import ConnectorError, Field
-from connectors.status_kit import StatusConnector, fact, rows
+from connectors.status_kit import StatusConnector, fact, num, rows
 
 VERIFY = Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=True, help="à décocher pour un certificat auto-signé")
 
@@ -84,7 +84,8 @@ class Healthchecks(StatusConnector):
 
 
 class Netdata(StatusConnector):
-    """Netdata : alarmes actives (critiques ou d'avertissement) d'une machine. Routes lues (GET) : /api/v1/info, /api/v1/alarms."""
+    """Netdata : alarmes actives (critiques ou d'avertissement) d'une machine, et la machine elle-même pour l'onglet Santé.
+    Routes lues (GET) : /api/v1/info, /api/v1/alarms, /api/v1/allmetrics?format=json (toutes les valeurs courantes, un appel)."""
     type = "netdata"
     label = "Netdata"
     images = ("netdata/netdata",)
@@ -93,7 +94,7 @@ class Netdata(StatusConnector):
         VERIFY,
     )
     setup_fields = ("url",)
-    guide = ("Aucune clé à créer : l'API locale de Netdata est ouverte sur le réseau local. MyServices ne fait que des GET (version, alarmes).",)
+    guide = ("Aucune clé à créer : l'API locale de Netdata est ouverte sur le réseau local. MyServices ne fait que des GET (version, alarmes, valeurs courantes).",)
 
     def collect(self) -> dict:
         info = self.get("/api/v1/info")
@@ -107,11 +108,51 @@ class Netdata(StatusConnector):
         if info.get("hostname"):
             facts.insert(0, fact("Machine", info["hostname"]))
         problems = [f"{a.get('chart', '?')} : {a.get('name', '?')} ({'critique' if a in crit else 'avertissement'})" for a in crit + warn]
-        return self.out(str(info.get("version", "")).lstrip("v") or None, facts, problems)
+        out = self.out(str(info.get("version", "")).lstrip("v") or None, facts, problems)
+        try:   # every current value in one call (the agent's own cache), for the Health tab
+            host = _netdata_host(self.get("/api/v1/allmetrics?format=json"), info)
+        except ConnectorError:
+            host = None
+        if host:
+            out["host"] = host
+        return out
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
         return {"url": f"http://{ip}:{next((h for h, c in ports if c == 19999), 19999)}"}
+
+
+def _dims(chart) -> dict:
+    """{dimension: value} of one chart of /api/v1/allmetrics."""
+    d = chart.get("dimensions") if isinstance(chart, dict) else None
+    return {k: num(v.get("value")) for k, v in (d or {}).items() if isinstance(v, dict) and num(v.get("value")) is not None}
+
+
+def _netdata_host(m, info: dict) -> dict | None:
+    """The machine Netdata runs on, in the shape of a Beszel system (health.py, source « API »): processor, memory, load,
+    disks (disk_space.*, GiB), hottest temperature sensor."""
+    if not isinstance(m, dict) or not m:
+        return None
+    cpu = _dims(m.get("system.cpu"))
+    ram = _dims(m.get("system.ram"))
+    load = _dims(m.get("system.load"))
+    disks = []
+    for key, chart in sorted(m.items()):
+        if not key.startswith("disk_space.") or not isinstance(chart, dict):
+            continue
+        d = _dims(chart)
+        total = sum(d.values())
+        mount = str(chart.get("family") or key[len("disk_space."):])
+        if total and not mount.startswith(("/dev", "/run", "/sys", "/proc", "/snap", "/boot/efi")):
+            used = d.get("used", 0) + d.get("reserved_for_root", 0)
+            disks.append({"mount": mount, "size_gb": round(total, 1), "used_gb": round(used, 1), "used_pct": round(100 * used / total)})
+    temps = [v for k, c in m.items() if isinstance(c, dict) and str(c.get("units", "")).lower() in ("celsius", "°c")
+             for v in _dims(c).values() if 0 < v < 150]
+    out = {"status": "up", "via": "Netdata", "cpu": round(sum(cpu.values()), 1) if cpu else None,
+           "mem_pct": round(100 * ram["used"] / sum(ram.values()), 1) if ram.get("used") is not None and sum(ram.values()) else None,
+           "load": [load.get("load1", 0), load.get("load5", 0), load.get("load15", 0)] if load else None,
+           "cores": int(num(info.get("cores_total"), 0)) or None, "disks": disks, "temp": max(temps) if temps else None}
+    return {k: v for k, v in out.items() if v is not None} if cpu or ram or disks else None
 
 
 class Jellyfin(StatusConnector):

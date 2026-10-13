@@ -23,6 +23,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Beszel connector reads more of what its agents send: running containers per machine (health check, image update), every
   temperature sensor and the swap. In the Health tab, a machine read by Beszel gets its Docker part (containers, unhealthy ones,
   busiest, image updates) and its sensors on the temperature badge.
+- Netdata connector also reads the machine it runs on for the Health tab (processor, memory, load, disks, hottest sensor), all
+  current values in one call (`allmetrics`).
+- GpuViewR connector: each machine's GPUs (model, temperature, load, memory, power) shown in its detail in the Machines tab,
+  matched by the machine's name (GpuViewR gives no address). Offline machines are named again in its card.
 - The health task reuses a connector result read less than 10 minutes ago (Glances, Home Assistant) instead of calling it again.
 - AdGuard Home (API mode), Uptime Kuma and Web-Check connectors: « Verify HTTPS certificate » setting, for a self-signed certificate.
 - Connectors: « Save without collection » button, to set up a service that is down or not ready yet: settings kept, no test,

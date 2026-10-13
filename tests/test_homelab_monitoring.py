@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import connectors  # noqa: E402
 from connectors.base import ConnectorError  # noqa: E402
-from test_homelab import SEEN, Base  # noqa: E402
+from test_homelab import ROUTES, SEEN, Base  # noqa: E402
 
 
 class Registre(unittest.TestCase):
@@ -78,6 +78,25 @@ class Netdata(Base):
         d = self.conn("netdata").collect()
         self.assertEqual(d["version"], "1.45.0")
         self.assertEqual(d["problems"], ["disk.space : disk_full (critique)", "system.ram : ram_usage (avertissement)"])
+
+    def test_machine_pour_la_sante(self):
+        """allmetrics (un appel) : processeur, mémoire, charge, disques réels, sonde la plus chaude ; sans allmetrics, rien."""
+        def dims(**kw):
+            return {"dimensions": {k: {"value": v} for k, v in kw.items()}}
+        self.route("/api/v1/info", {"version": "v2.1.0", "hostname": "nas", "cores_total": "8"})
+        self.route("/api/v1/alarms", {"alarms": {}})
+        self.route("/api/v1/allmetrics?format=json", {
+            "system.cpu": dims(user=10.0, system=2.5, iowait=0.5),
+            "system.ram": dims(free=4000, used=3000, cached=2500, buffers=500),
+            "system.load": dims(load1=0.5, load5=0.4, load15=0.3),
+            "disk_space._": {"family": "/", **dims(avail=60.0, used=35.0, reserved_for_root=5.0)},
+            "disk_space._dev": {"family": "/dev", **dims(avail=1.0, used=0.0)},
+            "sensors.coretemp": {"units": "Celsius", **dims(core0=48.0, core1=55.0)}})
+        h = self.conn("netdata").collect()["host"]
+        self.assertEqual((h["via"], h["cpu"], h["mem_pct"], h["load"], h["cores"], h["temp"]), ("Netdata", 13.0, 30.0, [0.5, 0.4, 0.3], 8, 55.0))
+        self.assertEqual(h["disks"], [{"mount": "/", "size_gb": 100.0, "used_gb": 40.0, "used_pct": 40}])
+        ROUTES.pop(("GET", "/api/v1/allmetrics?format=json"))
+        self.assertNotIn("host", self.conn("netdata").collect())
 
     def test_pas_netdata(self):
         self.route("/api/v1/info", {"autre": 1})

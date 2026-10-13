@@ -284,7 +284,7 @@ class GpuViewR(StatusConnector):
             raise ConnectorError("réponse inattendue : l'adresse ne mène pas à GpuViewR")
         hosts = rows((self.get("/api/v1/hosts", h) or {}).get("hosts"))
         gpus = rows((self.get("/api/v1/gpus", h) or {}).get("gpus"))
-        names = {x.get("id"): x.get("name") or x.get("hostname") or x.get("id") for x in hosts}
+        names = {x.get("id"): x.get("label") or x.get("name") or x.get("hostname") or x.get("id") for x in hosts}
         off = [x for x in hosts if x.get("status") == "offline"]
         total, online = int(num(health.get("hosts_total"), 0)), int(num(health.get("hosts_online"), 0))
         facts = [fact("Machines", f"{online}/{total} en ligne", "bad" if off else "ok" if total else None), fact("GPU", len(gpus) or int(num(health.get("gpu_count"), 0)))]
@@ -298,7 +298,13 @@ class GpuViewR(StatusConnector):
         problems = [f"machine « {names.get(x.get('id')) or '?'} » hors ligne" for x in off]
         problems += [f"GPU {g.get('name', '?')} ({names.get(g.get('host_id')) or g.get('host_id', '?')}) à {num(g.get('temperature'), 0):.0f} °C"
                      for g in gpus if num(g.get("temperature"), 0) >= 85]
-        return self.out(health.get("version"), facts, problems)
+        out = self.out(health.get("version"), facts, problems)
+        # each machine with its GPUs, for its detail in the Machines tab (matching.py: by its name, GpuViewR gives no address)
+        out["machines"] = [{"name": names[x.get("id")], "hostname": x.get("hostname"), "online": x.get("status") != "offline",
+                            "gpus": [{"name": g.get("name"), "temp": num(g.get("temperature")), "util": num(g.get("utilization")),
+                                      "mem_used": num(g.get("memory_used")), "mem_total": num(g.get("memory_total")), "power": num(g.get("power"))}
+                                     for g in gpus if g.get("host_id") == x.get("id")]} for x in hosts]
+        return out
 
 
 class SpeedtestTracker(StatusConnector):

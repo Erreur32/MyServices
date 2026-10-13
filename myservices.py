@@ -1213,7 +1213,7 @@ def main():
     beszel = [{"name": k.split("/", 1)[1], "systems": (v.get("last") or {}).get("systems", [])}
               for k, v in cstate.items() if k.startswith("beszel/") and isinstance(v, dict)]
     unifi = [s for s in services_status if s.get("connector") == "unifi" and s.get("unifi")]   # UniFi read directly, not through MynetworK
-    links = matching.link(machines_out, network + unifi, virtualization, containers, beszel)
+    links = matching.link(machines_out, network + unifi, virtualization, containers, beszel, services_status)
     for m in machines_out:
         m["links"] = links["machines"].get(m["ip"])
     declared_now = connectors.declared(CFG, META_RAW)

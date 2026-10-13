@@ -135,7 +135,7 @@ class Glances(Base):
 class GpuViewR(Base):
     def test_hosts_and_gpus(self):
         self.route("/api/v1/health", {"status": "ok", "version": "0.12.0", "gpu_count": 2, "hosts_total": 2, "hosts_online": 1, "hosts_offline": 1})
-        self.route("/api/v1/hosts", {"hosts": [{"id": "local", "name": "Jarvis", "status": "online"}, {"id": "a1", "name": "Tower", "status": "offline"}]})
+        self.route("/api/v1/hosts", {"hosts": [{"id": "local", "label": "Jarvis", "hostname": "0ec0f7233a3a", "status": "online"}, {"id": "a1", "label": "Tower", "status": "offline"}]})
         self.route("/api/v1/gpus", {"gpus": [{"host_id": "local", "name": "RTX 3090", "temperature": 88, "utilization": 97}]})
         d = self.conn("gpuviewr", token=KEY).collect()
         f = facts(d)
@@ -143,6 +143,9 @@ class GpuViewR(Base):
         self.assertEqual((f["Machines"]["value"], f["GPU le plus chaud"]["tone"], f["GPU le plus occupé"]["value"]), ("1/2 en ligne", "bad", "97 %"))
         self.assertEqual(d["problems"], ["machine « Tower » hors ligne", "GPU RTX 3090 (Jarvis) à 88 °C"])
         self.assertEqual(SEEN[-1][2].get("Authorization"), f"Bearer {KEY}")
+        jarvis, tower = d["machines"]
+        self.assertEqual((jarvis["name"], jarvis["hostname"], jarvis["online"], tower["online"], tower["gpus"]), ("Jarvis", "0ec0f7233a3a", True, False, []))
+        self.assertEqual(jarvis["gpus"], [{"name": "RTX 3090", "temp": 88.0, "util": 97.0, "mem_used": None, "mem_total": None, "power": None}])
 
     def test_api_off(self):
         self.route("/api/v1/health", {"error": "API access is disabled (Settings > API)"}, code=403)

@@ -351,6 +351,7 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, fre
         <Row k={tx("Noyau")}>{i?.kernel || m.agent?.kernel || undefined}</Row>
         <Row k={tx("En marche")}>{(i?.uptime_s ?? m.agent?.uptime_s) ? dur(i?.uptime_s ?? m.agent?.uptime_s) : undefined}</Row>
         {hw.map(([k, v]) => <Row key={k} k={k}>{v}</Row>)}
+        <GpuRows m={m} />
         {!i && !m.agent && !ha?.system && !unifi && !freebox && <Dim>-</Dim>}
       </Section>
 
@@ -362,6 +363,19 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, fre
       <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} />
     </div>
   );
+}
+
+/** GPUs read by GpuViewR (matched by the machine's name): model, temperature, load, memory, power */
+function GpuRows({ m }: Readonly<{ m: Machine }>) {
+  const gpus = m.links?.sources.find((x) => x.source === "gpuviewr")?.gpus ?? [];
+  return <>{gpus.map((g, n) => (
+    <Row key={`${g.name}-${n}`} k={gpus.length > 1 ? `GPU ${n + 1}` : "GPU"}>
+      <span title={tx("Lu par GpuViewR")}>{g.name || "?"}
+        <Dim>{[g.temp != null && `${Math.round(g.temp)} °C`, g.util != null && `${Math.round(g.util)} %`,
+          g.mem_total ? `${((g.mem_used ?? 0) / 1024).toFixed(1)} / ${(g.mem_total / 1024).toFixed(0)} Go` : null,
+          g.power != null && `${Math.round(g.power)} W`].filter(Boolean).map((x) => ` · ${x}`).join("")}</Dim></span>
+    </Row>
+  ))}</>;
 }
 
 /** « Home Assistant OS 18.3 »: the system of a machine read only through Home Assistant (no SSH, no agent) */

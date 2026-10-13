@@ -37,6 +37,17 @@ BESZEL = [{"name": "hub", "systems": [{"name": "storage.lan", "host": "nas.home"
                                       {"name": "elsewhere", "host": "10.0.0.7", "status": "down"}]}]
 
 
+class Gpus(unittest.TestCase):
+    def test_gpuviewr_by_name(self):
+        gpu = [{"connector": "gpuviewr", "name": "gv", "machines": [
+            {"name": "docker1", "hostname": "x", "online": True, "gpus": [{"name": "RTX", "temp": 41}]},
+            {"name": "ghost", "online": False, "gpus": []}]}]
+        r = matching.link(MACHINES, services=gpu)
+        s = [x for x in r["machines"]["192.168.1.20"]["sources"] if x["source"] == "gpuviewr"][0]
+        self.assertEqual((s["by"], s["gpus"]), ("name", [{"name": "RTX", "temp": 41}]))
+        self.assertEqual([u["name"] for u in r["unlinked"] if u["source"] == "gpuviewr"], ["ghost"])
+
+
 class Normalise(unittest.TestCase):
     def test_mac(self):
         self.assertEqual(matching.norm_mac("aa-bb-cc-dd-ee-01"), "AA:BB:CC:DD:EE:01")

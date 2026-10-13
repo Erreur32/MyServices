@@ -242,7 +242,8 @@ export interface Data {
 }
 
 /** One tool that sees a machine, and how it was tied to it (address is sure, name is a guess) */
-export interface LinkSource { source: string; label: string; instance: string; by: "ip" | "mac" | "name"; ok: boolean; vmid?: number | string; node?: string; environment?: string; containers?: number; kind?: string }
+export interface LinkSource { source: string; label: string; instance: string; by: "ip" | "mac" | "name"; ok: boolean; vmid?: number | string; node?: string; environment?: string; containers?: number; kind?: string;
+  gpus?: { name?: string; temp?: number | null; util?: number | null; mem_used?: number | null; mem_total?: number | null; power?: number | null }[] }   // GpuViewR
 /** Matching layer (matching.py): the same machine as seen by the other tools */
 export interface MachineLinks {
   mac: string | null; vendor: string | null; names: string[]; sources: LinkSource[];

@@ -92,9 +92,10 @@ class _Index:
 
 
 def link(machines: list[dict], network: list[dict] | None = None, virtualization: list[dict] | None = None,
-         containers: list[dict] | None = None, beszel: list[dict] | None = None) -> dict:
+         containers: list[dict] | None = None, beszel: list[dict] | None = None, services: list[dict] | None = None) -> dict:
     """{"machines": {ip: {mac, vendor, names, sources, guest, hypervisor}}, "unlinked": [...]}.
-    network / virtualization / containers: connector rows of data.json (MynetworK ; Proxmox VE and PBS ; Dockhand).
+    network / virtualization / containers / services: connector rows of data.json (MynetworK ; Proxmox VE and PBS ; Dockhand,
+    Dozzle, Arcane, Portainer ; GpuViewR among the services).
     beszel: [{"name": instance, "systems": [...]}], read from the connectors' last result."""
     idx = _Index(machines)
     out = {m["ip"]: {"mac": None, "vendor": None, "names": [], "sources": [], "guest": None, "hypervisor": None} for m in machines if m.get("ip")}
@@ -185,6 +186,18 @@ def link(machines: list[dict], network: list[dict] | None = None, virtualization
                 seen(ip, src, label, inst, by, environment=e.get("name"), containers=(e.get("containers") or {}).get("total"))
             else:
                 lost(src, label, inst, ip=_ip(h), name=e.get("name"))
+
+    # 5. GpuViewR: its machines and their GPUs, by name only (it gives no address)
+    for c in services or []:
+        if c.get("connector") != "gpuviewr":
+            continue
+        inst = c.get("name") or ""
+        for g in c.get("machines") or []:
+            ip, by = idx.find(None, None, (g.get("name"), g.get("hostname")))
+            if ip:
+                seen(ip, "gpuviewr", "GpuViewR", inst, by, ok=bool(g.get("online")), gpus=g.get("gpus") or None)
+            else:
+                lost("gpuviewr", "GpuViewR", inst, name=g.get("name"), online=g.get("online"))
 
     for e in out.values():
         e["names"] = sorted(set(e["names"]))
