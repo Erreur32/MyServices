@@ -12,6 +12,9 @@ Un « jeu » de sauvegarde = un dossier d'une machine dont le fichier le plus r�
                    et un jeu par job coché
   vzdump_discover / vzdump_follow   dumps of Proxmox VE (vzdump, without Proxmox Backup) read by SSH on the Proxmox host: one set
                    per guest (VM or container) and dump folder ; copies (rsync to a NAS…) are then declared or found like any folder
+  remote_test / remote_browse / remote_follow   folder on a box read over FTP, FTPS or Samba (a Freebox, a NAS): connection test,
+                   folder browsing (read-only, nothing saved), then the account (connector « backup-folder », password encrypted) and a
+                   set for the folder, or a copy added to a set already followed
   ha_check / ha_follow   sauvegardes de Home Assistant, lues avec l'adresse et le jeton du connecteur « home-assistant »
                    (déjà réglé dans Connecteurs) : un jeu « sauvegarde automatique » rapproché de l'âge de la dernière réussie
 
@@ -32,6 +35,7 @@ import setup
 from connectors import settings
 from connectors.backup_apis import HomeAssistant, PbsBackups, Veeam
 from connectors.base import ConnectorError, Context
+from connectors.remote_folder import RemoteFolder, check_path
 
 AGE_MIN, AGE_MAX = 0.1, 365.0
 AGE_DEFAULT = 2.0
@@ -142,7 +146,7 @@ def current() -> dict:
         loc = (s.get("locations") or [{}])[0]
         sets.append({"id": s["id"], "label": s.get("label", s["id"]), "origin": hosts.get(s.get("origin"), {}).get("label", s.get("origin", "")),
                      "origin_ip": hosts.get(s.get("origin"), {}).get("ip"),
-                     "path": loc.get("path"), "veeam_job": loc.get("veeam_job"), "pbs_group": loc.get("pbs_group"), "vzdump": loc.get("vzdump"), "max_age_days": s.get("max_age_days", 8),
+                     "path": loc.get("path"), "remote": hosts.get(loc.get("host"), {}).get("api") == "remote", "veeam_job": loc.get("veeam_job"), "pbs_group": loc.get("pbs_group"), "vzdump": loc.get("vzdump"), "max_age_days": s.get("max_age_days", 8),
                      "ha": any(l.get("ha_backup") for l in s.get("locations", [])),
                      "expect_offsite": s.get("expect_offsite", True), "editable": bool(loc.get("path")),
                      "copies": [{"index": i, "host": hosts.get(l.get("host"), {}).get("label", l.get("host", "")), "path": l.get("path"),
@@ -153,7 +157,8 @@ def current() -> dict:
             "patterns": patterns_of(meta), "host_patterns": meta.get("discover_by_host", {}), "default_path": DEFAULT_PATH, "machines": len(_machines()),
             "ssh_machines": [{"ip": ip, "name": m["name"]} for ip, m in sorted(_machines().items(), key=lambda x: x[1]["name"].lower())],
             "veeam": _veeam_state(), "ha": _ha_state(meta), "pbs": _pbs_state(meta),
-            "vzdump": {"followed": sum(1 for s in meta.get("sets", []) if (s.get("locations") or [{}])[0].get("vzdump"))}}
+            "vzdump": {"followed": sum(1 for s in meta.get("sets", []) if (s.get("locations") or [{}])[0].get("vzdump"))},
+            "remote": _remote_state()}
 
 
 def _last_report() -> dict:
@@ -764,3 +769,116 @@ def ha_follow(name: str, label: str = "", max_age_days: float = 2.0) -> dict:
                              "locations": [{"host": HA_HOST, "ha_backup": True, "offsite": True, "via": "gestionnaire de sauvegardes HA"}]})
     _write(meta)
     return {"added": 0 if existing else 1, "updated": 1 if existing else 0}
+
+
+# ───────────── Folder on a box (FTP, FTPS, Samba) ─────────────
+
+REMOTE_TYPE = RemoteFolder.type
+REMOTE_FIELDS = ("protocol", "host", "port", "user", "share")
+
+
+def _remote_state() -> list[dict]:
+    """Accounts already saved (connector « backup-folder »), without their password: the form offers them."""
+    out = []
+    for name in settings.names(REMOTE_TYPE):
+        c = settings.get(REMOTE_TYPE, name) or {}
+        out.append({"name": name, "password_set": bool(c.get("password")), **{k: c.get(k, "") for k in REMOTE_FIELDS}})
+    return out
+
+
+def _remote_conn(conf: dict) -> tuple[str, RemoteFolder]:
+    """Connector ready from the form (empty password = the saved one of the same name). Nothing is written."""
+    name = str(conf.get("name") or "").strip()
+    if not re.fullmatch(r"[\w .-]{1,60}", name):
+        raise BackupError("nom du compte : 1 à 60 caractères (lettres, chiffres, espace, . - _)")
+    fields = {k: str(conf.get(k) or "").strip() for k in REMOTE_FIELDS} | {"password": str(conf.get("password") or "")}
+    if len(fields["user"]) > 200 or len(fields["password"]) > 500:
+        raise BackupError("compte ou mot de passe trop long")
+    try:
+        plain = settings.resolve(REMOTE_TYPE, name, fields, name if settings.get(REMOTE_TYPE, name) is not None else None)
+    except settings.SettingsError as e:
+        raise BackupError(str(e)) from None
+    if problems := RemoteFolder.validate(plain):
+        raise BackupError("; ".join(problems))
+    return name, RemoteFolder(plain, Context(timeout=TEST_TIMEOUT))
+
+
+def _remote_path(path: str) -> str:
+    try:
+        return check_path(path)
+    except ConnectorError as e:
+        raise BackupError(str(e)) from None
+
+
+def remote_test(conf: dict) -> dict:
+    """Connection test (login and root listing) without saving anything."""
+    r = _remote_conn(conf)[1].test()
+    return {"ok": r.ok, "message": r.message}
+
+
+def remote_browse(conf: dict, path: str) -> dict:
+    """One folder of the box, read-only: its sub-folders and its newest files. Nothing is saved."""
+    path = _remote_path(path)
+    try:
+        entries = _remote_conn(conf)[1].list_dir(path)
+    except ConnectorError as e:
+        raise BackupError(str(e)) from None
+    files = sorted((e for e in entries if not e["is_dir"]), key=lambda e: -e["mtime"])
+    return {"path": path, "folders": sorted(e["name"] for e in entries if e["is_dir"]), "files": files[:10],
+            "file_count": len(files), "size": sum(e["size"] for e in files), "newest": files[0]["mtime"] if files else None}
+
+
+def remote_follow(conf: dict, path: str, label: str = "", max_age_days: float = AGE_DEFAULT, copy_of: str = "") -> dict:
+    """Saves the account (connector « backup-folder ») then follows the folder: as a set of its own, or as a copy of the set `copy_of`
+    (a folder followed on a machine and copied to the box). The folder is read first: absent folder = nothing is saved."""
+    name, conn = _remote_conn(conf)
+    path = _remote_path(path)
+    if path == "/":
+        raise BackupError("choisir un dossier, pas la racine")
+    label, age = _check_age_label({"label": label, "max_age_days": max_age_days}, f"{name} : {path}"[:LABEL_MAX])
+    try:
+        found = conn.scan(path, DEPTH)
+    except ConnectorError as e:
+        raise BackupError(str(e)) from None
+    if not found.get("exists"):
+        raise BackupError(f"dossier absent : {path}")
+    exists = settings.get(REMOTE_TYPE, name) is not None
+    try:
+        settings.save(REMOTE_TYPE, name, {k: conn.conf[k] for k in (*REMOTE_FIELDS, "password") if conn.conf.get(k) not in (None, "")}, name if exists else None)
+    except settings.SettingsError as e:
+        raise BackupError(str(e)) from None
+    meta = _read()
+    meta.setdefault("hosts", [])
+    meta.setdefault("sets", [])
+    hid = "remote-" + _slug(name)
+    _ensure_host(meta, {"id": hid, "label": name, "kind": "dossier distant (" + conn.proto.upper() + ")", "api": "remote", "connector": name})
+    here = next((s for s in meta["sets"] for loc in s.get("locations", []) if loc.get("host") == hid and loc.get("path") == path), None)
+    if copy_of:
+        s = next((x for x in meta["sets"] if x["id"] == copy_of), None)
+        if s is None:
+            raise BackupError("jeu inconnu")
+        src = (s.get("locations") or [{}])[0]
+        if not src.get("path"):
+            raise BackupError("copie déclarable seulement pour un dossier (Veeam, PBS et Home Assistant ont déjà leur copie)")
+        if any(l.get("host") == hid and l.get("path") == path for l in s["locations"]):
+            raise BackupError("cet emplacement est déjà dans le jeu")
+        if len(s["locations"]) >= 6:
+            raise BackupError("5 copies au plus par jeu")
+        s["locations"].append({"host": hid, "path": path, "pattern": src.get("pattern", "*"), "depth": src.get("depth", DEPTH), "via": "copie",
+                               **({"exclude": src["exclude"]} if src.get("exclude") else {}), "offsite": True})
+        s["expect_offsite"] = True
+        _write(meta)
+        return {"added": 0, "updated": 0, "copy": True}
+    if here:
+        here["label"], here["max_age_days"] = label, age
+        _write(meta)
+        return {"added": 0, "updated": 1, "copy": False}
+    taken = {s["id"] for s in meta["sets"]}
+    base = sid = _slug(f"{name}-{path.rstrip('/').rsplit('/', 1)[-1]}")
+    n = 2
+    while sid in taken:
+        sid, n = f"{base}-{n}", n + 1
+    meta["sets"].append({"id": sid, "label": label, "origin": hid, "schedule": "", "max_age_days": age, "expect_offsite": False,
+                         "locations": [{"host": hid, "path": path, "pattern": "*", "depth": DEPTH, "via": "dossier distant"}]})
+    _write(meta)
+    return {"added": 1, "updated": 0, "copy": False}

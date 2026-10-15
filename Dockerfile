@@ -12,7 +12,7 @@ RUN npm test && npm run build
 FROM python:3.14-slim-trixie
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends openssh-client iputils-ping iproute2 ca-certificates tzdata nodejs \
+ && apt-get install -y --no-install-recommends openssh-client smbclient iputils-ping iproute2 ca-certificates tzdata nodejs \
  && rm -rf /var/lib/apt/lists/*
 
 # Archify (carte de l'infra en HTML, archify_map.py) : version figée, empreinte vérifiée

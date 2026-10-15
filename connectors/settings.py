@@ -26,7 +26,7 @@ ALERT_TYPES = {"discord", "telegram"}  # section Alertes
 TEST_TIMEOUT = 20
 # Category of a connector in the « add » picker: the one of its known app (known_apps), except the backup tools grouped apart and
 # the connectors without a known app
-BACKUP_TYPES = {"backrest", "borgmatic", "urbackup", "veeam", "veeam-m365", "proxmox-backup"}
+BACKUP_TYPES = {"backup-folder", "backrest", "borgmatic", "urbackup", "veeam", "veeam-m365", "proxmox-backup"}
 CATEGORY = {"vcenter": "Infra / virtualisation", "synology": "Fichiers / sync"}
 
 

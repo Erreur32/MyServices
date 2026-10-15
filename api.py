@@ -1233,6 +1233,50 @@ def backups_veeam_follow(body: VeeamFollow, request: Request):
     return backups_call(request, "jobs Veeam suivis", f"{body.url} : {len(body.jobs)} job(s)", go)
 
 
+class RemoteAccount(BaseModel):
+    name: str
+    protocol: str = "ftp"
+    host: str
+    port: str = ""
+    user: str = ""
+    password: str = ""  # empty = the one already saved for this name; never sent back, never in the log
+    share: str = ""
+
+
+class RemoteBrowse(RemoteAccount):
+    path: str = "/"
+
+
+class RemoteFollow(RemoteAccount):
+    path: str
+    label: str = ""
+    max_age_days: float = 2.0
+    copy_of: str = ""
+
+
+@app.post(API + "/backups/remote/test", tags=["sauvegardes"], summary="Essayer la connexion à un dossier distant (FTP, FTPS, Samba) sans rien enregistrer (admin)")
+def backups_remote_test(body: RemoteAccount, request: Request):
+    return backups_call(request, "essai de connexion dossier distant", body.host, lambda b: b.remote_test(body.model_dump()))
+
+
+@app.post(API + "/backups/remote/browse", tags=["sauvegardes"], summary="Lister un dossier distant, lecture seule, sans rien enregistrer (admin)")
+def backups_remote_browse(body: RemoteBrowse, request: Request):
+    return backups_call(request, "", body.host, lambda b: b.remote_browse(body.model_dump(exclude={"path"}), body.path))
+
+
+@app.put(API + "/backups/remote", tags=["sauvegardes"], summary="Enregistrer le compte d'un dossier distant (mot de passe chiffré) et le suivre (admin)")
+def backups_remote_follow(body: RemoteFollow, request: Request):
+    import system
+
+    def go(b):
+        out = b.remote_follow(body.model_dump(exclude={"path", "label", "max_age_days", "copy_of"}), body.path, body.label, body.max_age_days, body.copy_of)
+        if not core.CFG.get("backups_url"):
+            system.set_backups_url(core, "backups.json")
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (dossier distant)")
+        return {"ok": True, **out}
+    return backups_call(request, "dossier distant suivi", f"{body.host} : {body.path}", go)
+
+
 class PbsChoice(BaseModel):
     connector: str
 

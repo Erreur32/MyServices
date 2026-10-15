@@ -319,6 +319,24 @@ def api_collect(cls, h: dict, prefix: str) -> tuple[dict | None, str]:
         return None, f"{prefix} : erreur interne ({type(e).__name__}: {e})"[:200]
 
 
+def remote_collect(h: dict, locs: list[tuple[str, dict]]) -> tuple[dict | None, str]:
+    """Box read over FTP / FTPS / Samba (connector « backup-folder » of config.json): the followed folders in the shape of the SSH agent."""
+    from connectors.remote_folder import RemoteFolder
+    c = next((c for c in CFG.get("connectors") or [] if c.get("name") == h.get("connector") and c.get("type") == RemoteFolder.type), None)
+    if c is None:
+        return None, f"dossier distant : connecteur « {h.get('connector')} » absent de config.json (ou coupé dans Réglages)"
+    conn = RemoteFolder(dict(c), Context())
+    out: dict = {"user": conn.proto.upper(), "locs": {}, "disks": [], "crons": [], "cron_root": None}
+    try:
+        for key, loc in locs:
+            out["locs"][key] = conn.scan(loc["path"], loc.get("depth", 1), loc.get("pattern", "*"), loc.get("exclude"))
+    except ConnectorError as e:
+        return None, f"dossier distant : {e}"[:200]
+    except Exception as e:  # connector bug: this box is « unreachable », the others are read
+        return None, f"dossier distant : erreur interne ({type(e).__name__}: {e})"[:200]
+    return out, ""
+
+
 # ───────────── Collecte ─────────────
 
 def collect(meta: dict) -> tuple[dict, dict]:
@@ -349,6 +367,9 @@ def collect(meta: dict) -> tuple[dict, dict]:
             res[hid] = api_collect(Veeam, h, "API Veeam")
         elif h.get("api") == "pbs":
             res[hid] = api_collect(PbsBackups, h, "API Proxmox Backup")
+        elif h.get("api") == "remote":
+            res[hid] = remote_collect(h, [(f"{s['id']}#{i}", loc) for s in meta["sets"] for i, loc in enumerate(s["locations"])
+                                          if loc["host"] == hid and loc.get("path")])
         elif h.get("api") == "none":  # origine sans accès (poste sauvegardé par Veeam) : rien à lire, pas « injoignable »
             res[hid] = ({"user": None, "locs": {}, "disks": [], "crons": [], "cron_root": None}, "")
     for hid, h in hosts.items():

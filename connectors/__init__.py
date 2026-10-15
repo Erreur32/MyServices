@@ -13,6 +13,7 @@ from __future__ import annotations
 from connectors.adguard import AdGuard
 from connectors.alerts import Discord, Telegram
 from connectors.backup_apis import Veeam
+from connectors.remote_folder import RemoteFolder
 from connectors.base import Connector, ConnectorError, Context
 from connectors.beszel import Beszel
 from connectors.docker_ssh import DockerSSH
@@ -37,7 +38,7 @@ from connectors.nextcloud import Nextcloud
 from connectors.uptime_kuma import UptimeKuma
 from connectors.webcheck import WebCheck
 
-TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, MynetworK, LogviewR, Dockhand, ProxmoxVE, ProxmoxBackup, VCenter, Nextcloud, Frigate, Arr, OPNsense, CrowdSec, PiHole, Technitium, TrueNAS, Synology, UniFi, Tailscale, NUT, Portainer, Prometheus, Healthchecks, Netdata, Jellyfin, Pulse, Arcane, Glances, GpuViewR, SpeedtestTracker, NetAlertX, Wazuh, Umami, Rybbit, Tautulli, Webmin, Bazarr, Overseerr, QBittorrent, Transmission, Backrest, Borgmatic, UrBackup, Veeam365, Unraid, ProxmoxDatacenter, Hermes, Ollama, LlamaCpp, Discord, Telegram)}
+TYPES: dict[str, type[Connector]] = {c.type: c for c in (DockerSSH, Process, NPM, AdGuard, Beszel, UptimeKuma, Dozzle, WebCheck, HomeAssistantAPI, Veeam, RemoteFolder, MynetworK, LogviewR, Dockhand, ProxmoxVE, ProxmoxBackup, VCenter, Nextcloud, Frigate, Arr, OPNsense, CrowdSec, PiHole, Technitium, TrueNAS, Synology, UniFi, Tailscale, NUT, Portainer, Prometheus, Healthchecks, Netdata, Jellyfin, Pulse, Arcane, Glances, GpuViewR, SpeedtestTracker, NetAlertX, Wazuh, Umami, Rybbit, Tautulli, Webmin, Bazarr, Overseerr, QBittorrent, Transmission, Backrest, Borgmatic, UrBackup, Veeam365, Unraid, ProxmoxDatacenter, Hermes, Ollama, LlamaCpp, Discord, Telegram)}
 
 
 def declared(cfg: dict, meta: dict | None = None) -> list[dict]:
