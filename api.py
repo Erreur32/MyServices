@@ -1148,6 +1148,7 @@ class BackupFollow(BaseModel):
 
 class BackupPatterns(BaseModel):
     patterns: list[str] = Field(max_length=40)
+    by_host: dict[str, list[str]] | None = Field(default=None, description="Locations searched on one machine only, {ip: paths}")
 
 
 @app.get(API + "/backups/settings", tags=["sauvegardes"], summary="Jeux de sauvegarde suivis et état de l'onglet (admin)")
@@ -1171,7 +1172,7 @@ def backups_discover(request: Request):
 
 @app.put(API + "/backups/patterns", tags=["sauvegardes"], summary="Emplacements cherchés en plus de /home/backup, motifs glob permis (admin)")
 def backups_patterns(body: BackupPatterns, request: Request):
-    return backups_call(request, "emplacements de sauvegarde", f"{len(body.patterns)} emplacement(s)", lambda b: b.set_patterns(body.patterns))
+    return backups_call(request, "emplacements de sauvegarde", f"{len(body.patterns)} emplacement(s)", lambda b: b.set_patterns(body.patterns, body.by_host))
 
 
 @app.put(API + "/backups/settings", tags=["sauvegardes"], summary="Suivre des dossiers de sauvegarde : écrit l'inventaire, active l'onglet (admin)")

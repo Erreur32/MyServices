@@ -20,7 +20,7 @@ import { CopyGuesses, SetCopies, type CopyRow, type SshMachine } from "./Backups
 
 interface SetRow { id: string; label: string; origin: string; origin_ip?: string | null; path: string | null; veeam_job: string | null; pbs_group: string | null; vzdump?: string | null; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean; copies?: CopyRow[]; cadence_days?: number | null }
 const AGES = [2, 8, 15, 31];   // paliers proposés : quotidienne, hebdomadaire, tous les 15 jours, mensuelle
-interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; default_path: string; machines: number; ssh_machines?: SshMachine[]; veeam: VeeamState; ha: HaState; pbs: PbsState; vzdump: VzdumpState }
+interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; host_patterns?: Record<string, string[]>; default_path: string; machines: number; ssh_machines?: SshMachine[]; veeam: VeeamState; ha: HaState; pbs: PbsState; vzdump: VzdumpState }
 interface Folder { path: string; size: number | null; newest: number | null; newest_name: string; readable: boolean; followed: boolean; default?: boolean }
 interface Found { ip: string; name: string; ssh: string; ok: boolean; error: string; folders: Folder[] }
 interface Choice { on: boolean; label: string; age: string }
@@ -66,6 +66,7 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
   const [opened, setOpened] = useState<Set<string>>(new Set());   // followed backups unfolded (all folded by default)
   const toggleSet = (id: string) => setOpened((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const [extra, setExtra] = useState<string | null>(null);  // emplacements cherchés en plus du dossier par défaut (null = ceux du serveur)
+  const [hostExtra, setHostExtra] = useState<Record<string, string>>({});  // per machine (ip), only the lists edited and not saved yet
   const load = useCallback(() => {
     read<Current>("backups/settings").then((c) => { setCur(c); setError(""); })
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
@@ -106,11 +107,16 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
   };
 
   const extras = extra ?? (cur?.patterns ?? []).filter((p) => p !== cur?.default_path).join(", ");
+  const hostExtras = (ip: string) => hostExtra[ip] ?? (cur?.host_patterns?.[ip] ?? []).join(", ");
+  const splitList = (v: string) => v.split(",").map((p) => p.trim()).filter(Boolean);
+  const dirty = extra !== null || Object.keys(hostExtra).length > 0;
   const savePatterns = async () => {
     setBusy(true);
-    const ok = await act(() => send("PUT", "backups/patterns", { patterns: extras.split(",").map((p) => p.trim()).filter(Boolean) }), tx("emplacements enregistrés"), setNote);
+    const byHost: Record<string, string[]> = {};
+    for (const m of cur?.ssh_machines ?? []) byHost[m.ip] = splitList(hostExtras(m.ip));
+    const ok = await act(() => send("PUT", "backups/patterns", { patterns: splitList(extras), by_host: byHost }), tx("emplacements enregistrés"), setNote);
     setBusy(false);
-    if (ok) { setExtra(null); setFound(null); load(); }
+    if (ok) { setExtra(null); setHostExtra({}); setFound(null); load(); }
   };
 
   if (!cur) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
@@ -129,15 +135,32 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
       <div className="mt-3 rounded-lg bg-bg2/50 p-3">
         <div className="mb-1 flex flex-wrap items-center gap-2 text-sm"><b>{tx("Dossier par défaut")}</b><code className="font-mono text-xs">{cur.default_path}</code>
           <Dim>{tx("toujours cherché ; s'il existe sur une machine, il est coché d'office.")}</Dim></div>
-        <TagInput label={tx("Autres emplacements")} value={extras} onChange={setExtra} max={800} placeholder={tx("ex. /srv/sauvegardes, /mnt/*/save*")} />
-        <p className="mt-1 text-xs text-dim">{tx("Un chemin absolu ; * permis (un motif). Entrée ou virgule pour en ajouter.")}</p>
-        {extra !== null && <button type="button" className={`${primary} mt-2`} disabled={busy} onClick={() => void savePatterns()}>{tx("Enregistrer les emplacements")}</button>}
+        <TagInput label={tx("Emplacements communs à toutes les machines")} value={extras} onChange={setExtra} max={800} placeholder={tx("ex. /srv/sauvegardes, /mnt/*/save*")} />
+        <p className="mt-1 text-xs text-dim">{tx("Un chemin absolu ; * permis (un motif). Entrée ou virgule pour en ajouter. Cherché sur chaque machine lue par SSH.")}</p>
+        {(cur.ssh_machines ?? []).length > 0 && (
+          <div className="mt-3 border-t border-line pt-3">
+            <b className="text-sm">{tx("Emplacements propres à une machine")}</b>
+            <p className="mb-2 text-xs text-dim">{tx("Un dossier qui n'existe que sur une machine (ex. la sauvegarde de configuration d'un Proxmox) : il n'est cherché que là.")}</p>
+            <ul className="flex flex-col gap-2">
+              {(cur.ssh_machines ?? []).map((m) => (
+                <li key={m.ip} className="flex flex-wrap items-start gap-x-3 gap-y-1">
+                  <span className="flex w-44 shrink-0 items-center gap-2 pt-1.5 text-sm">{machineOf(m.ip) && <MachineIcon m={machineOf(m.ip)!} reserve />}<span className="truncate" title={m.ip}>{m.name}</span></span>
+                  <div className="min-w-[220px] flex-1">
+                    <TagInput label={`${tx("Emplacements de")} ${m.name}`} value={hostExtras(m.ip)} max={800} placeholder={tx("ex. /mnt/nvme0/proxmox-host-backup/config")}
+                      onChange={(v) => setHostExtra({ ...hostExtra, [m.ip]: v })} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {dirty && <button type="button" className={`${primary} mt-2`} disabled={busy} onClick={() => void savePatterns()}>{tx("Enregistrer les emplacements")}</button>}
       </div>
       {searching && <p className="mt-2 text-sm text-dim">{tx("Lecture des dossiers en cours (taille et fichier le plus récent) : jusqu'à une minute.")}</p>}
       {found && (
         <div className="mt-3 flex flex-col gap-3">
           {found.every((m) => m.ok && m.folders.length === 0) && (
-            <p className="rounded-lg bg-bg2/60 px-3 py-2 text-sm text-muted">{tx("Aucun dossier de sauvegarde trouvé dans ces emplacements. Si vos sauvegardes sont ailleurs, ajoutez leur dossier dans « Autres emplacements » puis relancez la recherche.")}</p>
+            <p className="rounded-lg bg-bg2/60 px-3 py-2 text-sm text-muted">{tx("Aucun dossier de sauvegarde trouvé dans ces emplacements. Si vos sauvegardes sont ailleurs, ajoutez leur dossier dans « Emplacements communs à toutes les machines » ou sous la machine concernée, puis relancez la recherche.")}</p>
           )}
           {found.map((m) => {   // one folded frame per machine: the summary says what was found and what is ticked
             const ticked = m.folders.filter((f) => pick[keyOf(m.ip, f.path)]?.on).length, followed = m.folders.filter((f) => f.followed).length;

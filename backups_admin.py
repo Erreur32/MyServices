@@ -82,10 +82,10 @@ def patterns_of(meta: dict) -> list[str]:
     return [DEFAULT_PATH] + [p for p in meta.get("discover", []) if p != DEFAULT_PATH]
 
 
-def set_patterns(extra: list[str]) -> dict:
-    """Remplace les emplacements cherchés en plus du dossier par défaut (qui reste toujours). Un chemin absolu, motif glob permis."""
+def _clean_paths(raw_list: list[str]) -> list[str]:
+    """Validated absolute paths (glob allowed), without duplicates and without the default folder."""
     out: list[str] = []
-    for raw in extra:
+    for raw in raw_list:
         p = str(raw).strip().rstrip("/") if str(raw).strip() != "/" else "/"
         if p == DEFAULT_PATH or p in out:
             continue
@@ -94,10 +94,25 @@ def set_patterns(extra: list[str]) -> dict:
         out.append(p)
     if len(out) > PATTERNS_MAX:
         raise BackupError(f"{PATTERNS_MAX} emplacements au plus")
+    return out
+
+
+def host_patterns_of(meta: dict, ip: str) -> list[str]:
+    """Locations searched on one machine only: the shared ones (default folder first), then its own."""
+    own = [p for p in (meta.get("discover_by_host") or {}).get(ip, []) if p not in patterns_of(meta)]
+    return patterns_of(meta) + own
+
+
+def set_patterns(extra: list[str], by_host: dict[str, list[str]] | None = None) -> dict:
+    """Replace the locations searched besides the default folder: `extra` on every machine, `by_host` ({ip: paths}) on one machine
+    only. `by_host` None keeps the per-machine lists as they are. An absolute path, glob allowed."""
     meta = _read()
-    meta["discover"] = out
+    meta["discover"] = _clean_paths(extra)
+    if by_host is not None:
+        known = set(_machines())
+        meta["discover_by_host"] = {ip: paths for ip, raw in by_host.items() if ip in known and (paths := _clean_paths(raw))}
     _write(meta)
-    return {"patterns": patterns_of(meta)}
+    return {"patterns": patterns_of(meta), "by_host": meta.get("discover_by_host", {})}
 
 
 def _write(meta: dict) -> None:
@@ -135,7 +150,7 @@ def current() -> dict:
                      "cadence_days": seen.get(s["id"], {}).get("cadence_days")})
     import config
     return {"sets": sets, "exists": _path().exists(), "tab": bool(config.CFG.get("backups_url")),
-            "patterns": patterns_of(meta), "default_path": DEFAULT_PATH, "machines": len(_machines()),
+            "patterns": patterns_of(meta), "host_patterns": meta.get("discover_by_host", {}), "default_path": DEFAULT_PATH, "machines": len(_machines()),
             "ssh_machines": [{"ip": ip, "name": m["name"]} for ip, m in sorted(_machines().items(), key=lambda x: x[1]["name"].lower())],
             "veeam": _veeam_state(), "ha": _ha_state(meta), "pbs": _pbs_state(meta),
             "vzdump": {"followed": sum(1 for s in meta.get("sets", []) if (s.get("locations") or [{}])[0].get("vzdump"))}}
@@ -167,7 +182,7 @@ def discover() -> dict:
     patterns = patterns_of(meta)
     machines = _machines()
     with ThreadPoolExecutor(max(1, min(8, len(machines)))) as ex:
-        found = list(ex.map(lambda it: _scan(it, patterns), machines.items()))
+        found = list(ex.map(lambda it: _scan(it, host_patterns_of(meta, it[0])), machines.items()))
     followed = {(loc.get("host"), loc.get("path")) for s in meta.get("sets", []) for loc in s.get("locations", []) if loc.get("path") and not loc.get("vzdump")}
     hosts = {h.get("ip"): h["id"] for h in meta.get("hosts", [])}
     for m in found:

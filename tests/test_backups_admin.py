@@ -71,6 +71,21 @@ class Patterns(Base):
         self.assertEqual(ba.current()["default_path"], "/home/backup")
         self.assertEqual(ba.set_patterns([])["patterns"], ["/home/backup"])  # le défaut ne se retire pas
 
+    def test_emplacements_propres_a_une_machine(self):
+        ba.set_patterns(["/srv/commun"], {"10.0.0.2": ["/mnt/nvme0/pve/config", "/srv/commun"], "10.0.0.9": ["/inconnue"], "10.0.0.3": []})
+        meta = ba._read()
+        self.assertEqual(meta["discover_by_host"], {"10.0.0.2": ["/mnt/nvme0/pve/config", "/srv/commun"]})  # machine inconnue / vide écartée
+        self.assertEqual(ba.host_patterns_of(meta, "10.0.0.2"), ["/home/backup", "/srv/commun", "/mnt/nvme0/pve/config"])
+        self.assertEqual(ba.host_patterns_of(meta, "10.0.0.3"), ["/home/backup", "/srv/commun"])
+        import backups
+        with mock.patch.object(backups, "run_py", return_value=({"local": []}, "")) as run:
+            ba.discover()
+        self.assertIn("/mnt/nvme0/pve/config", run.call_args.args[2])
+        ba.set_patterns(["/srv/commun"])  # by_host omitted: per-machine lists kept
+        self.assertIn("10.0.0.2", ba._read()["discover_by_host"])
+        ba.set_patterns([], {})
+        self.assertNotIn("10.0.0.2", ba._read()["discover_by_host"])
+
     def test_chemins_refuses(self):
         for bad in ("relatif/dossier", "/", "/a/../etc", "/a\nb", "x" * 301):
             with self.assertRaises(ba.BackupError, msg=bad):
