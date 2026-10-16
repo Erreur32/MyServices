@@ -176,3 +176,4 @@ bade8700a5fbed646994197cf4a93533  front/public/icons/whisparr.svg
 ab8ea2fbbbf8eb0509acac3c8813219e  front/public/icons/xen-orchestra.svg
 6fb2bad073b382c5e8023564608908de  front/public/icons/hermes-agent.svg
 bb2049460fee1e06a75f9aa15e5b0350  front/public/icons/llama-cpp.svg
+a963b01ac719bcd05cffc4cf75235c72  docs/logo.svg
