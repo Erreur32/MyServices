@@ -13,7 +13,7 @@ const PORT = Number.parseInt(process.env.VITE_PORT || "5180", 10);
 
 // Backend qui redémarre (docker compose up, nouvelle image) : Vite journalise une erreur par requête de la page. Une seule
 // ligne d'avertissement par tranche de 30 s la remplace ; la page, elle, reçoit toujours le 503 JSON du relais ci-dessous.
-const logger = createLogger();
+const logger = createLogger("info", { allowClearScreen: false }); // keeps the launcher lines (scripts/dev.sh: how to stop) above Vite's output
 const logError = logger.error.bind(logger);
 let lastDownNotice = 0;
 logger.error = (msg, options) => {

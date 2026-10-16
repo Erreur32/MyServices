@@ -1,0 +1,8 @@
+{
+  "name": "myservices-dev",
+  "private": true,
+  "description": "Launcher only: runs the dev script from the repo root. The front-end package is front/package.json.",
+  "scripts": {
+    "dev": "scripts/dev.sh"
+  }
+}

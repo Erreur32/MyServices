@@ -4,8 +4,8 @@
   "version": "0.11.13",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:all": "../scripts/dev.sh",
+    "dev": "../scripts/dev.sh",
+    "dev:vite": "vite",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "check": "tsc --noEmit",

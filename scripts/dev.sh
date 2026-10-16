@@ -6,6 +6,8 @@
 #   scripts/dev.sh --keep     leave the backend running when Vite stops
 #   scripts/dev.sh --stop     stop the backend and leave
 #
+# Optional, local only: if scripts/dev-panes.sh exists (ignored by git), it is called with "open <logs command>" and "close".
+#
 # Settings (environment, or a .dev.env file at the root of the repo, ignored by git):
 #   MS_DEV_COMPOSE   compose file of the backend          (default: compose.yaml of the repo, page on :8090)
 #   MS_DEV_PROJECT   compose project name                 (default: compose's own)
@@ -49,9 +51,12 @@ done
 curl -sf "$BACKEND/healthz" >/dev/null || { echo " not answering: docker compose logs" >&2; exit 1; }
 echo " ok"
 
+PANES="$ROOT/scripts/dev-panes.sh"
+[[ -x "$PANES" ]] && { "$PANES" open "docker compose ${MS_DEV_PROJECT:+-p $MS_DEV_PROJECT }-f $COMPOSE logs -f --tail 50" || true; }
 if [[ "$keep" = 0 ]]; then
-  trap 'echo; echo "▸ stopping the backend…"; dc stop >/dev/null 2>&1 || true' EXIT
+  trap 'echo; echo "▸ stopping the backend…"; dc stop >/dev/null 2>&1 || true; [[ -x "$PANES" ]] && "$PANES" close || true' EXIT
 fi
-echo "▸ front with hot reload: http://${HOSTS:-localhost}:${VITE_PORT:-5180}/  (Ctrl+C stops$([[ "$keep" = 0 ]] && echo " both"))"  # NOSONAR S5332: the local Vite dev server, http on purpose
+echo "▸ front with hot reload: http://${HOSTS:-localhost}:${VITE_PORT:-5180}/"  # NOSONAR S5332: the local Vite dev server, http on purpose
+echo "▸ STOP: q + Enter, or Ctrl+C$([[ "$keep" = 0 ]] && echo " (stops both)")"
 cd "$ROOT/front"
-MYSERVICES_BACKEND="$BACKEND" MS_DEV_HOSTS="$HOSTS" npm run dev
+MYSERVICES_BACKEND="$BACKEND" MS_DEV_HOSTS="$HOSTS" npm run dev:vite

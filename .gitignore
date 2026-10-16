@@ -28,3 +28,7 @@ coverage.xml
 .claude/
 secret.key
 .dev.env
+
+# Local herdr helpers (personal terminal setup)
+scripts/dev-panes.sh
+scripts/dev-stop.sh
