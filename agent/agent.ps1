@@ -3,7 +3,7 @@
 # PowerShell 5.1 compatible. Config: %ProgramData%\MyServices-Agent\config.json ({url, token, interval}).
 $ErrorActionPreference = 'Stop'
 $Version = '__VERSION__'
-$Dir = Join-Path $env:ProgramData 'MyServices-Agent'
+$Dir = $PSScriptRoot  # the folder this script lives in (installed: %ProgramData%\MyServices-Agent), so a copy elsewhere keeps its own config and stays there after a self-update
 $LogPath = Join-Path $Dir 'agent.log'
 $StatePath = Join-Path $Dir 'state.json'
 $UpdateEvery = 3600  # s: the Windows Update search is slow, so it runs at most once per hour

@@ -177,6 +177,11 @@ class Agents(unittest.TestCase):
         a = next(x for x in self.c.get(BASE + "/agents").json()["agents"] if x["id"] == info["id"])
         self.assertEqual(a["hostname"], "GAMER32")
 
+    def test_script_garde_son_propre_dossier(self):
+        script = self.anon.get("/myservices/agent/agent.ps1").text
+        self.assertIn("$Dir = $PSScriptRoot", script)   # a self-updated copy must not fall back to the installed agent's folder
+        self.assertNotIn("Join-Path $env:ProgramData", script)
+
     def test_script_envoie_le_vrai_nom_du_poste(self):
         script = self.anon.get("/myservices/agent/agent.ps1").text
         self.assertIn("(Json ([Environment]::MachineName))", script)   # without the inner parentheses PowerShell sends the literal text
