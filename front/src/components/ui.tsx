@@ -103,16 +103,31 @@ export function Card({ children, className = "", tone }: { children: ReactNode; 
 /** Réglage d'affichage rangé avec les filtres (ex. « Désactivées ») : une pastille qui s'allume et s'éteint, comptée dans le bouton « Filtres » */
 export interface FilterOption { id: string; label: string; on: boolean; toggle: () => void; mark?: ReactNode; count?: number }
 
-export function FilterBar<T>({ f, placeholder, extra, options = [] }: {
+/** Pastille d'un filtre : active, disponible (avec son nombre) ou vide */
+function ChipButton({ on, count, mark, label, onClick }: { on: boolean; count: number; mark?: ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-pressed={on}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${on
+        ? "border-link bg-link/15 text-txt" : count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60"}`}>
+      {mark}{label}<span className="font-mono text-[11px] text-dim">{count}</span>
+    </button>
+  );
+}
+
+export function FilterBar<T>({ f, placeholder, extra, options = [], primary = [] }: {
   f: { query: string; setQuery: (q: string) => void; shown: unknown[]; total: number; active: number; reset: () => void;
        chips: { facet: Facet<T>; chips: Chip[] }[]; toggle: (k: string, v: string) => void };
   placeholder: string; extra?: ReactNode; options?: FilterOption[];
+  /** Clés des filtres toujours visibles sous la recherche ; les autres restent derrière le bouton « Filtres » */
+  primary?: string[];
 }) {
   // Filtres repliés d'office (sur tous les écrans) : la barre de recherche suffit le plus souvent ; ce qui est actif
   // reste visible en pastilles retirables, et le bouton « Filtres » déplie le reste.
   const [open, setOpen] = useState(false);
-  const groups = f.chips.filter((g) => g.chips.length > 1 || g.chips.some((c) => c.on));
-  const active = f.chips.flatMap((g) => g.chips.filter((c) => c.on).map((c) => ({ facet: g.facet, chip: c })));
+  const shownGroups = f.chips.filter((g) => g.chips.length > 1 || g.chips.some((c) => c.on));
+  const inline = shownGroups.filter((g) => primary.includes(g.facet.key));
+  const groups = shownGroups.filter((g) => !primary.includes(g.facet.key));
+  const active = f.chips.filter((g) => !primary.includes(g.facet.key)).flatMap((g) => g.chips.filter((c) => c.on).map((c) => ({ facet: g.facet, chip: c })));
   const nActive = active.length + options.filter((o) => o.on).length;
   // Les filtres déjà actifs un jour sur cette page restent affichés en pastilles, même retirés : un clic les désactive, un autre clic les réactive
   const keyOf = (facet: Facet<T>, chip: Chip) => `${facet.key}\u0000${chip.value}`;
@@ -138,11 +153,21 @@ export function FilterBar<T>({ f, placeholder, extra, options = [] }: {
         {(groups.length > 0 || options.length > 0) && (
           <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
             className={`ml-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold text-link transition-colors hover:bg-link/10 ${open || nActive ? "border-link bg-link/10" : "border-link/50"}`}>
-            <SlidersHorizontal size={14} />{tx("Filtres")}{nActive > 0 && <b className="grid h-5 min-w-5 place-items-center rounded-full bg-link px-1 text-[11px] leading-none text-white">{nActive}</b>}
+            <SlidersHorizontal size={14} />{primary.length ? tx("Plus de filtres") : tx("Filtres")}{nActive > 0 && <b className="grid h-5 min-w-5 place-items-center rounded-full bg-link px-1 text-[11px] leading-none text-white">{nActive}</b>}
             {open ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
           </button>
         )}
       </div>
+      {inline.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          {inline.map(({ facet, chips }) => (
+            <div key={facet.key} className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-dim">{facet.label}</span>
+              {chips.map((c) => <ChipButton key={c.value} on={c.on} count={c.count} mark={facet.mark?.(c.value)} label={c.label} onClick={() => f.toggle(facet.key, c.value)} />)}
+            </div>
+          ))}
+        </div>
+      )}
       {!open && (toggles.length > 0 || options.some((o) => o.on)) && (
         <div className="flex flex-wrap items-center gap-1.5">
           {options.filter((o) => o.on).map((o) => (
@@ -181,13 +206,7 @@ export function FilterBar<T>({ f, placeholder, extra, options = [] }: {
             <div key={facet.key} className="flex flex-col gap-1.5 rounded-xl border border-line/60 bg-bg2/40 p-2.5">
               <span className="text-xs font-semibold uppercase tracking-wide text-dim">{facet.label}</span>
               <div className="flex flex-wrap gap-1.5">
-                {chips.map((c) => (
-                  <button key={c.value} type="button" onClick={() => f.toggle(facet.key, c.value)} aria-pressed={c.on}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${c.on
-                      ? "border-link bg-link/15 text-txt" : c.count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60"}`}>
-                    {facet.mark?.(c.value)}{c.label}<span className="font-mono text-[11px] text-dim">{c.count}</span>
-                  </button>
-                ))}
+                {chips.map((c) => <ChipButton key={c.value} on={c.on} count={c.count} mark={facet.mark?.(c.value)} label={c.label} onClick={() => f.toggle(facet.key, c.value)} />)}
               </div>
             </div>
           ))}
