@@ -57,6 +57,12 @@ export function interesting(h: { ssh_port?: number | null; hints: string[]; apps
   return !!h.ssh_port || h.apps.length > 0 || h.hints.some((x) => !x.startsWith("web") && !x.startsWith("port "));
 }
 
+/** Machine à proposer dans l'assistant : celle qui a un SSH, une appli reconnue ou un service utile, ou dont le système probable est un vrai ordinateur
+ *  (Windows, Linux, macOS) même sans rien d'ouvert. Caméras, objets connectés, téléphones et matériel réseau (système « network », « ios » ou inconnu) sont écartés. */
+export function worthFollowing(h: { ssh_port?: number | null; hints: string[]; apps: string[]; os?: string | null }): boolean {
+  return interesting(h) || h.os === "windows" || h.os === "linux" || h.os === "macos";
+}
+
 /** Changements depuis la recherche d'avant : adresses nouvelles (absentes de la précédente) et disparues */
 export function changes(net: { found: { ip: string }[]; previous?: string[]; gone?: string[] }): { fresh: Set<string>; gone: string[] } | null {
   if (!net.previous?.length) return null;

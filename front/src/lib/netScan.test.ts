@@ -119,3 +119,19 @@ describe("osOf", () => {
     expect(osOf({ os: "windows", os_how: "ports", hints: ["Windows (RDP)"] })).toBeNull();
   });
 });
+
+import { worthFollowing } from "./netScan";
+
+describe("machines à proposer dans l'assistant", () => {
+  const h = (o = {}) => ({ hints: [] as string[], apps: [] as string[], ...o });
+  it("un vrai ordinateur compte même sans rien d'ouvert", () => {
+    for (const os of ["windows", "linux", "macos"]) expect(worthFollowing(h({ os })), os).toBe(true);
+  });
+  it("caméras, objets connectés, téléphones et matériel réseau sont écartés", () => {
+    for (const os of ["network", "ios", null, undefined]) expect(worthFollowing(h({ os, hints: ["web :80"] })), String(os)).toBe(false);
+  });
+  it("SSH ou appli reconnue comptent toujours", () => {
+    expect(worthFollowing(h({ ssh_port: 22 }))).toBe(true);
+    expect(worthFollowing(h({ apps: ["Plex"] }))).toBe(true);
+  });
+});

@@ -6,7 +6,7 @@ import { send } from "../api";
 import { appIcon } from "../lib/appIcons";
 import { act, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
-import { interesting, netState, roleOf, tagsOf } from "../lib/netScan";
+import { netState, osOf, roleOf, tagsOf, worthFollowing } from "../lib/netScan";
 import { pokeScan, rereadMachines } from "../lib/scan";
 import { plural } from "../lib/summary";
 import type { NetHost, NetScan } from "../types";
@@ -14,9 +14,9 @@ import { NoteLine } from "./form";
 import { netPercent } from "./ScanBar";
 import { Badge } from "./ui";
 
-/** Ce que la machine est, en un seul mot : l'appli reconnue, sinon SSH, sinon la première étiquette */
-export function whatIs(h: Pick<NetHost, "hints" | "apps" | "ssh_port">): string {
-  return h.apps[0] ?? (h.ssh_port ? "SSH" : tagsOf(h)[0]?.label ?? "");
+/** Ce que la machine est, en un seul mot : l'appli reconnue, sinon SSH, sinon son système probable, sinon la première étiquette */
+export function whatIs(h: Pick<NetHost, "hints" | "apps" | "ssh_port" | "os" | "os_how">): string {
+  return h.apps[0] ?? (h.ssh_port ? "SSH" : osOf(h)?.label ?? tagsOf(h)[0]?.label ?? "");
 }
 
 function Row({ h, on, toggle }: { h: NetHost; on: boolean; toggle: () => void }) {
@@ -41,7 +41,7 @@ export function AssistantNetwork({ net, reload, known }: { net: NetScan | null; 
   useEffect(() => {   // fin d'une recherche : les machines intéressantes sont cochées d'office (décochables)
     if (net?.phase !== "done" || !net.ended || preselected.current === net.ended) return;
     preselected.current = net.ended;
-    setPicked(new Set(net.found.filter((h) => !known.includes(h.ip) && !net.ignored?.includes(h.ip) && interesting(h)).map((h) => h.ip)));
+    setPicked(new Set(net.found.filter((h) => !known.includes(h.ip) && !net.ignored?.includes(h.ip) && worthFollowing(h)).map((h) => h.ip)));
   }, [net, known]);
 
   const start = async () => {
@@ -75,7 +75,7 @@ export function AssistantNetwork({ net, reload, known }: { net: NetScan | null; 
   }
 
   const fresh = (net?.found ?? []).filter((h) => !known.includes(h.ip) && !net?.ignored?.includes(h.ip));
-  const proposed = fresh.filter(interesting), others = fresh.filter((h) => !interesting(h));
+  const proposed = fresh.filter(worthFollowing), others = fresh.filter((h) => !worthFollowing(h));
   const chosen = proposed.filter((h) => picked.has(h.ip));
   const addPicked = async () => {
     setBusy(true);
@@ -102,7 +102,7 @@ export function AssistantNetwork({ net, reload, known }: { net: NetScan | null; 
         <ul className="flex flex-col gap-1.5">{proposed.map((h) => <Row key={h.ip} h={h} on={picked.has(h.ip)} toggle={() => toggle(h.ip)} />)}</ul>
       )}
       {others.length > 0 && (   // caméras, objets connectés, téléphones : seulement un ping possible, pas dans l'assistant ; ajoutables après, depuis Découverte
-        <p className="text-xs text-dim">{plural(others.length, "autre appareil", "autres appareils")} {tx("(caméras, objets connectés…) : à ajouter plus tard, en simple ping, dans")} <a href="#settings/network" className="text-link hover:underline">{tx("Réglages → Découverte")}</a>.</p>
+        <p className="text-xs text-dim">{plural(others.length, "autre appareil", "autres appareils")} {tx("(caméras, objets connectés…) : à ajouter plus tard, en simple ping, dans Réglages → Découverte.")}</p>
       )}
       {added > 0 && <p className="rounded-lg bg-ok/10 px-3 py-2 text-sm font-semibold text-ok" role="status"><Check size={14} className="mr-1 inline" aria-hidden />{tx("{0} ajoutées. À l'étape suivante, vous choisissez comment les lire.", plural(added, "machine"))}</p>}
       <div className="flex flex-wrap items-center gap-2">

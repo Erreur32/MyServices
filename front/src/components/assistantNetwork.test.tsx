@@ -33,7 +33,18 @@ describe("étape réseau de l'assistant", () => {
     expect(html).not.toContain("camera");   // pas dans l'assistant : seulement un ping possible, à ajouter plus tard depuis Découverte
     expect(html).not.toContain("Autres appareils");
     expect(html).toContain("Une machine manque ?");
+    expect(html).not.toContain('href="#settings/network"');   // la phrase sur les autres appareils n'est pas un lien (on la prendrait pour un bouton)
     expect(html).not.toContain("deja");     // déjà suivie : pas proposée
+  });
+
+  it("un ordinateur qui ne répond qu'au ping est proposé, pas une caméra", () => {
+    const found = [host("10.0.0.20", { name: "pc-bureau", os: "windows", os_how: "TTL" }), host("10.0.0.21", { name: "cam", os: "network", hints: ["web :80"] }),
+                   host("10.0.0.22", { name: "ampoule" }), host("10.0.0.23", { name: "tel", os: "ios" })];
+    const html = render(scan({ found }));
+    expect(html).toContain("pc-bureau");
+    expect(html).toContain("Windows");
+    for (const t of ["cam<", "ampoule", ">tel<"]) expect(html, t).not.toContain(t);
+    expect(html).toContain("3 autres appareils");
   });
 
   it("rien de nouveau : le dit simplement", () => {
@@ -44,6 +55,7 @@ describe("étape réseau de l'assistant", () => {
     expect(whatIs({ apps: ["Plex"], hints: ["SSH"], ssh_port: 22 })).toBe("Plex");
     expect(whatIs({ apps: [], hints: ["SSH"], ssh_port: 22 })).toBe("SSH");
     expect(whatIs({ apps: [], hints: ["web :80"], ssh_port: null })).toBe("web :80");
+    expect(whatIs({ apps: [], hints: [], ssh_port: null, os: "linux", os_how: "SSH" })).toBe("Linux");
     expect(whatIs({ apps: [], hints: [], ssh_port: null })).toBe("");
   });
 });
