@@ -28,6 +28,9 @@ const STATE: Record<AgentInfo["state"], ["ok" | "warn" | "info" | "off", string]
 // Exemple d'adresse du LAN : en local il n'y a pas de TLS, http est voulu
 const EXAMPLE_URL = "http://192.168.1.10:8090"; // NOSONAR
 
+/** Icônes de matériel fermé (box, onduleur…) : on n'y installe rien, donc jamais d'agent proposé */
+const APPLIANCE_ICONS = new Set(["freebox", "free", "nut"]);
+
 /** Nom d'agent accepté par le serveur (lettres, chiffres, espace, . _ @ -) tiré du nom de la machine */
 const agentName = (machine: string) => machine.replace(/[^\p{L}\p{N}_ .@-]/gu, "").trim().slice(0, 64) || "agent";
 
@@ -76,7 +79,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   const badge = (ip: string) => { const st = stateOf(ip); if (!st) return null; const [tone, label, tip] = MSTATE[st]; return <Badge tone={tone} title={tip}>{label}</Badge>; };
   // SSH réel : réglé sur la machine, ou trouvé par la collecte (alias de ~/.ssh/config pour cette adresse), comme le badge « SSH OK »
   const sshAlias = (ip: string) => machines[ip].ssh === false ? "" : machines[ip].ssh || liveBy.get(ip)?.ssh?.alias || "";   // coupé à la main : pas de SSH
-  const byApi = sorted(tracked.filter((ip) => !sshAlias(ip) && (stateOf(ip) === "api" || stateOf(ip) === "network")));      // lues par une API ou un outil réseau (box, passerelle), sans SSH : aucun agent possible
+  const byApi = sorted(tracked.filter((ip) => !sshAlias(ip) && (stateOf(ip) === "api" || stateOf(ip) === "network" || APPLIANCE_ICONS.has(liveBy.get(ip)?.icon ?? ""))));      // lues par une API ou un outil réseau (box, passerelle), sans SSH : aucun agent possible
   const without = sorted(tracked.filter((ip) => !sshAlias(ip) && !byApi.includes(ip)));   // sans agent, sans SSH, sans API : agent Windows ou Linux
   const ssh = sorted(tracked.filter((ip) => !isWindows(ip) && !!sshAlias(ip)));               // Linux lus par SSH
   const kindOf = (ip: string): "windows" | "linux" => (isWindows(ip) ? "windows" : "linux");
