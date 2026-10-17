@@ -21,6 +21,8 @@ export const EN: Record<string, string> = {
   "Déjà suivies par l'API d'un connecteur (Home Assistant…) ou un outil réseau (box, passerelle) : rien à régler, et pas d'agent possible.": "Already followed through a connector's API (Home Assistant…) or a network tool (box, gateway): nothing to set, and no agent possible.",
   "outil réseau": "network tool",
   "Ouvrir ce connecteur": "Open this connector",
+  "MyServices n'a pas pu savoir tout seul sur laquelle de ces machines il tourne. Choisissez-la :": "MyServices could not tell by itself which of these machines it runs on. Pick it:",
+  "Désignée par vous.": "Chosen by you.",
   "Bienvenue": "Welcome",
   "Cette machine": "This machine",
   "Le réseau": "The network",

@@ -9,9 +9,11 @@ Object.defineProperty(globalThis, "localStorage", {
   configurable: true,
 });
 
+Object.defineProperty(globalThis, "location", { value: { hostname: "serveur.lan" }, configurable: true });   // la page n'est pas ouverte par l'adresse d'une machine
+
 const snap = {
   me: { username: "admin", role: "admin" },
-  data: { machine_list: [{ ip: "10.0.0.2", name: "srv", ping: true, local: true, services: 3, info: { apache: true } }], hosts: [{ machine: "srv", app: { label: "Plex" } }] },
+  data: { machine_list: [{ ip: "10.0.0.1", name: "passerelle", ping: true, services: 0 }, { ip: "10.0.0.2", name: "srv", ping: true, local: true, services: 3, info: { apache: true } }], hosts: [{ machine: "srv", app: { label: "Plex" } }] },
 } as unknown as Snapshot;
 
 describe("Assistant de démarrage", () => {
@@ -35,6 +37,14 @@ describe("Assistant de démarrage", () => {
     expect(html).toContain("Cette étape arrive bientôt");
     expect(html).toContain("Passer");
     expect(html).not.toContain("Continuer");
+  });
+
+  it("sans machine identifiable, ne montre pas la première au hasard et demande laquelle", () => {
+    mem.set("myservices-assistant", JSON.stringify({ current: "machine", done: [], skipped: [] }));
+    const unknown = { ...snap, data: { machine_list: [{ ip: "10.0.0.1", name: "passerelle" }, { ip: "10.0.0.5", name: "autre" }], hosts: [] } } as unknown as Snapshot;
+    const html = renderToStaticMarkup(<Assistant snap={unknown} />);
+    expect(html).toContain("Choisissez-la");
+    expect(html).not.toContain("services trouvés");
   });
 
   it("aucune machine détectée : un message au lieu d'une page vide", () => {

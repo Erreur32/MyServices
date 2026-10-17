@@ -1,6 +1,7 @@
 // Assistant de démarrage : les étapes et ce que l'utilisateur en a fait (faite, passée), gardé par le navigateur.
 // Hors du composant : le rechargement à chaud de Vite ne marche que sur un fichier qui n'exporte que des composants.
 import { tx } from "./i18n";
+import type { Machine } from "../types";
 
 export type AssistantStep = "welcome" | "machine" | "network" | "access" | "tools" | "alerts";
 
@@ -34,6 +35,19 @@ export function saveProgress(p: AssistantProgress): void {
 
 export function resetProgress(): void {
   try { localStorage.removeItem(KEY); } catch { /* idem */ }
+}
+
+const HOST_KEY = "myservices-assistant-host";
+
+export const chosenHost = (): string => { try { return localStorage.getItem(HOST_KEY) || ""; } catch { return ""; } };
+export const chooseHost = (ip: string): void => { try { localStorage.setItem(HOST_KEY, ip); } catch { /* navigation privée : à redemander */ } };
+
+/** La machine qui héberge MyServices, sans jamais en deviner une au hasard. Dans l'ordre : celle que l'utilisateur a désignée, celle marquée « locale »,
+ *  celle dont l'adresse est celle de la page (on ouvre MyServices par l'adresse de sa machine), celle que MyServices a lui-même atteinte par l'alias
+ *  « hote » (créé pour son hôte). Aucune ne correspond : undefined (la page demande alors de la désigner). */
+export function thisMachine(machines: Machine[], hostname: string, chosen = ""): Machine | undefined {
+  return machines.find((m) => chosen && m.ip === chosen) ?? machines.find((m) => m.local) ?? machines.find((m) => m.ip === hostname)
+    ?? machines.find((m) => m.ssh?.alias === "hote");
 }
 
 /** L'étape après `id` (la dernière reste la dernière) */

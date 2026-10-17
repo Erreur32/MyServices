@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { STEPS, advance, loadProgress, nextStep, previousStep, resetProgress, saveProgress } from "./assistant";
+import type { Machine } from "../types";
+import { STEPS, advance, loadProgress, nextStep, previousStep, resetProgress, saveProgress, thisMachine } from "./assistant";
 
 // Un localStorage minimal : les tests tournent sans navigateur
 const mem = new Map<string, string>();
@@ -54,5 +55,15 @@ describe("assistant : progression", () => {
   it("les deux premières étapes existent, les autres sont annoncées", () => {
     expect(STEPS.filter((s) => s.ready).map((s) => s.id)).toEqual(["welcome", "machine"]);
     expect(STEPS).toHaveLength(6);
+  });
+
+  it("trouve la machine hôte sans jamais prendre la première au hasard", () => {
+    const m = (ip: string, extra = {}) => ({ ip, name: ip, ...extra }) as unknown as Machine;
+    const gw = m("10.0.0.1"), srv = m("10.0.0.2", { ssh: { alias: "hote" } }), nas = m("10.0.0.3"), me = m("10.0.0.4", { local: true });
+    expect(thisMachine([gw, srv, nas], "10.0.0.3")?.ip).toBe("10.0.0.3");          // l'adresse de la page
+    expect(thisMachine([gw, srv, nas], "monserveur.lan")?.ip).toBe("10.0.0.2");   // l'alias « hote » de MyServices
+    expect(thisMachine([gw, srv, nas, me], "10.0.0.3")?.ip).toBe("10.0.0.4");     // marquée locale
+    expect(thisMachine([gw, srv, nas, me], "10.0.0.3", "10.0.0.1")?.ip).toBe("10.0.0.1");   // désignée par l'utilisateur
+    expect(thisMachine([gw, nas], "monserveur.lan")).toBeUndefined();              // aucune ne correspond : on ne devine pas
   });
 });

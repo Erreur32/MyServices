@@ -7,7 +7,7 @@ import type { Snapshot } from "../api";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Card, Dim } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
-import { STEPS, advance, loadProgress, previousStep, resetProgress, saveProgress, type AssistantProgress } from "../lib/assistant";
+import { STEPS, advance, chooseHost, chosenHost, loadProgress, previousStep, resetProgress, saveProgress, thisMachine, type AssistantProgress } from "../lib/assistant";
 import { primary, quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { plural } from "../lib/summary";
@@ -98,7 +98,8 @@ function ThisMachine({ snap }: { snap: Snapshot }) {
   const [sys, setSys] = useState<SystemState | null>(null);
   useEffect(() => { read<SystemState>("system").then(setSys).catch(() => undefined); }, []);
   const list = snap.data.machine_list;
-  const host = list.find((m) => m.local) || list[0];
+  const [chosen, setChosen] = useState(chosenHost);
+  const host = thisMachine(list, location.hostname, chosen);
   const apps = host ? [...new Set([
     ...snap.data.hosts.filter((h) => h.machine === host.name && h.app).map((h) => h.app!.label),
     ...(host.info?.apache ? ["Apache"] : []), ...(host.info?.nginx ? ["Nginx"] : []),
@@ -125,7 +126,19 @@ function ThisMachine({ snap }: { snap: Snapshot }) {
             </p>
           )}
         </div>
-      ) : <p className="mt-4 rounded-lg bg-bg2 px-3 py-2 text-sm text-muted">{tx("Aucune machine détectée pour l'instant : la première lecture est en cours, revenez dans un instant.")}</p>}
+      ) : list.length === 0
+        ? <p className="mt-4 rounded-lg bg-bg2 px-3 py-2 text-sm text-muted">{tx("Aucune machine détectée pour l'instant : la première lecture est en cours, revenez dans un instant.")}</p>
+        : (
+          <div className="mt-4 rounded-xl border border-warn/40 bg-warn/5 p-4">
+            <p className="text-sm text-txt">{tx("MyServices n'a pas pu savoir tout seul sur laquelle de ces machines il tourne. Choisissez-la :")}</p>
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {list.filter((m) => !m.disabled).map((m) => (
+                <li key={m.ip}><button type="button" className={quiet} onClick={() => { chooseHost(m.ip); setChosen(m.ip); }}>{m.name} <Dim>{m.ip}</Dim></button></li>
+              ))}
+            </ul>
+          </div>
+        )}
+      {host && chosen === host.ip && <p className="mt-2 text-xs text-dim">{tx("Désignée par vous.")} <button type="button" className="text-link hover:underline" onClick={() => { chooseHost(""); setChosen(""); }}>{tx("Changer")}</button></p>}
       <p className="mt-3 text-xs text-dim">{tx("Ce que MyServices lit d'une autre machine dépend de la méthode choisie (SSH, agent ou outil déjà en place) : c'est l'objet des étapes suivantes.")}</p>
     </div>
   );
