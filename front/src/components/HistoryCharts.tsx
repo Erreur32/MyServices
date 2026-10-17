@@ -182,7 +182,7 @@ export function HeatChart({ events, active, onPick }: Readonly<{ events: StoredE
           {row.map((n, h) => {
             const on = active?.d === d && active.h === h;
             return (
-              <button key={h} type="button" disabled={!n} onClick={() => onPick(on ? null : { d, h })} aria-pressed={on}
+              <button key={`${days[d]}-${HOURS[h]}`} type="button" disabled={!n} onClick={() => onPick(on ? null : { d, h })} aria-pressed={on}
                 title={tx("{0} {1} h : {2} événement{3}", days[d], h, n, n > 1 ? "s" : "")}
                 className={`h-full flex-1 rounded-sm bg-link ${on ? "ring-2 ring-txt" : ""} ${n ? "cursor-pointer hover:ring-1 hover:ring-txt" : "cursor-default"}`}
                 style={{ opacity: n ? 0.15 + 0.85 * (n / max) : 0.05 }} />

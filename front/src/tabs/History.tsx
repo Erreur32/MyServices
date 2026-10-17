@@ -48,12 +48,12 @@ export function History({ snap }: { snap: Snapshot }) {
   const pickView = (v: typeof view) => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* stockage refusé */ } };
   return (
     <>
-      <div className="mt-4 flex justify-end"><div className="inline-flex rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Vue de l'historique")}>
+      <div className="mt-4 flex justify-end"><fieldset className="m-0 inline-flex rounded-lg border border-line bg-card p-0.5" aria-label={tx("Vue de l'historique")}>
         {([["events", tx("Événements"), ListOrdered], ["availability", tx("Disponibilité"), Activity]] as const).map(([k, l, Icon]) => (
           <button key={k} type="button" onClick={() => pickView(k)} aria-pressed={view === k}
             className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm ${view === k ? "bg-link/15 font-semibold text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{l}</button>
         ))}
-      </div></div>
+      </fieldset></div>
       {view === "events" ? <Events snap={snap} /> : <Availability snap={snap} />}
     </>
   );

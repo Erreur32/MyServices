@@ -3,7 +3,7 @@ import { ArrowRight, ArrowUpCircle, Boxes, Plus, Bug, Check, ChevronRight, Conta
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
-import { bytes, dateTime, dur, ipNum, splitHostName } from "../lib/format";
+import { dateTime, dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
 import type { HealthHost, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
@@ -311,11 +311,17 @@ function Section({ icon, title, tone, from, children }: { icon: typeof Info; tit
 const Row = DetailRow;
 
 /** Disques, processeur et mémoire de la dernière santé, en barres */
+/** Colour of a processor temperature: red from 85 °C, orange from 75 °C */
+function heatClass(c: number): string {
+  if (c >= 85) return "text-bad";
+  return c >= 75 ? "text-warn" : "";
+}
+
 /** The processor temperature when the machine reports one (a gauge on a 0 to 100 °C scale, red from 85 °C), else nothing */
 function TemperatureRow({ h }: Readonly<{ h: HealthHost }>) {
   const t = h.temp;
   if (!t?.available || t.celsius == null) return null;
-  const hot = t.celsius >= 85 ? "text-bad" : t.celsius >= 75 ? "text-warn" : "";
+  const hot = heatClass(t.celsius);
   return (
     <DetailRow k={tx("Température")} title={tx("Température du processeur")}>
       <Fill pct={t.celsius} /><span className={`tabular-nums ${hot}`}>{Math.round(t.celsius)} °C</span>{t.source && <Dim>{t.source}</Dim>}
@@ -441,12 +447,6 @@ function UnifiRows({ d, sys }: Readonly<{ d: UnifiDevice; sys?: UnifiSystem }>) 
 /** Line speed in bits per second, as « 8 Gb/s » or « 70 Mb/s » */
 const bitRate = (bits: number): string => (bits >= 1e9 ? `${(bits / 1e9).toFixed(1).replace(".0", "")} Gb/s` : `${Math.round(bits / 1e6)} Mb/s`);
 
-/** Colour of a storage filling: red from 90 %, orange from 80 % */
-function fillClass(pct: number): string {
-  if (pct >= 90) return "text-bad";
-  return pct >= 80 ? "text-warn" : "";
-}
-
 /** The firmware update line: up to date, the version on offer, or unknown */
 function FirmwareUpdate({ sys }: Readonly<{ sys: NonNullable<FreeboxInfo["system"]> }>) {
   if (sys.update_available) return <span className="text-warn">{sys.latest_firmware ? `→ ${sys.latest_firmware}` : tx("disponible")}</span>;
@@ -471,17 +471,10 @@ function FreeboxLine({ fb }: Readonly<{ fb: FreeboxInfo }>) {
   </>;
 }
 
-/** The partitions and the internal disk */
+/** The internal disk (the partitions' filling is already in the Health column) */
 function FreeboxStorage({ fb }: Readonly<{ fb: FreeboxInfo }>) {
-  const parts = fb.storage?.partitions ?? [], disks = fb.storage?.disks ?? [];
   return <>
-    {parts.map((p) => (
-      <Row key={p.label ?? "disk"} k={tx("Stockage")}>
-        {p.used_pct == null ? "-" : <span className={fillClass(p.used_pct)}>{p.used_pct} %</span>}{" "}
-        <Dim>{[p.label, p.total_bytes ? `${bytes(p.used_bytes)} / ${bytes(p.total_bytes)}` : ""].filter(Boolean).join(" · ")}</Dim>
-      </Row>
-    ))}
-    {disks.map((d) => (
+    {(fb.storage?.disks ?? []).map((d) => (
       <Row key={d.model ?? "ssd"} k={tx("Disque interne")}>
         {[d.model, d.state, d.temperature == null ? "" : `${Math.round(d.temperature)} °C`].filter(Boolean).join(" · ")}
         {d.smart_ok === false && <span className="text-bad"> · SMART</span>}

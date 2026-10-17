@@ -1290,7 +1290,6 @@ export const EN: Record<string, string> = {
   "Fibre": "Fibre",
   "reçus": "received",
   "émis": "sent",
-  "Stockage": "Storage",
   "Disque interne": "Internal disk",
   "{0} borne(s)": "{0} access point(s)",
   "{0} appareil(s)": "{0} device(s)",

@@ -51,6 +51,12 @@ function Anchor({ id, lit, children }: { id?: string; lit?: string; children: Re
 
 const code = (t: string) => <code className="rounded bg-bg2 px-1.5 py-0.5 font-mono text-xs">{t}</code>;
 
+/** Tone of the error line: red while an error is open, orange once they are all closed, green without any */
+function errorsTone(s: { errors_24h?: number; errors_open?: number }): "bad" | "warn" | "ok" {
+  if (s.errors_open ?? s.errors_24h) return "bad";
+  return s.errors_24h ? "warn" : "ok";
+}
+
 /** The error count of the sync log: how many in 24 h, how many are still open, and the last one's message */
 function errorsText(s: { errors_24h?: number; errors_open?: number; last_error?: string | null }): string {
   const n = s.errors_24h || 0;
@@ -94,7 +100,7 @@ export function Dns({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
           rows={[
             ...(sync ? [[tx("Dernière synchro"), last ? hm(last) : tx("aucune en 24 h"), st.cls === "bad" ? "bad" : undefined] as Row,
                         ...(sync.interval_min ? [[tx("Fréquence"), `${tx("toutes les")} ${sync.interval_min} ${tx("min")}`] as Row] : []),
-                        [tx("Erreurs (24 h)"), errorsText(sync), (sync.errors_open ?? sync.errors_24h) ? "bad" : sync.errors_24h ? "warn" : "ok"] as Row]
+                        [tx("Erreurs (24 h)"), errorsText(sync), errorsTone(sync)] as Row]
                     : [["adguardhome-sync", Object.keys(g.servers).length > 1 ? tx("absent : contenus comparés") : tx("sans objet")] as Row]),
             [tx("Contenu"), content, diff.length ? "warn" : "ok"] as Row,
           ]} />
