@@ -11,6 +11,34 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+
+- Machines tab, health: a notice with messages behind it (kernel errors) shows them in its tooltip, and a click on its badge opens the machine
+  window at the right row, which flashes. Kernel errors have their own block in the window (time and message in a log, copy button, "Ignore" until
+  a more recent message appears, kept in the browser only). The kernel window is 12 h (it was 24 h) and the 8 most recent lines are kept (the oldest were).
+- Machines tab: a coloured dot on the machine icon (red, yellow, blue) follows its worst notice; the warning badge of the tab is now a button that
+  filters the table on the machines with a notice (new "Alerts" filter).
+- Machines table: a **GPU** column (only when some machine has one): name, load, temperature, memory, power, last 24 h and AI models from GpuViewR
+  in a tooltip; without GpuViewR, the adapters read by `lspci` over SSH (Linux, Proxmox; integrated graphics included, virtual adapters skipped)
+  or the names listed by the Windows agent. A **VM** cube beside the name of a virtual machine. The **Uptime** column is compact (`12j 4h`) and
+  Home Assistant now has one (from its last boot time).
+- Machine window of a UniFi device, like the Freebox's (reading, UniFi info, firmware in Updates); a Docker container list with service logos;
+  the "Services" and "N NPM" counts open the Services tab already filtered.
+- Machine window of Home Assistant (advanced mode): its backups with where each is copied, apps (running, stopped), integrations (failing ones),
+  configuration check and repairs, and its updates by kind (Home Assistant, apps, HACS and others).
+- Machine window of a box, NAS or server that receives copies: a **Share** section (copies hosted, free space, age of each copy), in console style.
+- Backups tab: a summary card (sets OK, late, critical, without copy outside the machine, source volume, free space of the storage machines,
+  where the copies go, time of the reading).
+
+### Changed
+
+- Backups: the observed rhythm of a folder is read on its 8 most recent runs and the last 120 days only (a forgotten old file no longer stretches
+  it to months); the settings page also advises to tighten a threshold that is much looser than the rhythm.
+- DNS: the AdGuard sync state is judged at the time of the collection, not against the clock of the browser (it showed "sync late" a few minutes
+  after each collection although the sync ran every 5 minutes).
+- The settings icon is now a set of sliders everywhere; the "to watch" level badge is outline only; tooltips have a dark heading strip like the card
+  headers; the Infra, Network and Security tabs are shown only on development builds until they are finished.
+
 ## v0.12.0 (2026-10-17)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
