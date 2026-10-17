@@ -1274,6 +1274,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   const haOf = (m: Machine) => (snap.data.services_status ?? []).find((c) => c.connector === "home-assistant" && c.url && new URL(c.url).hostname === m.ip);
   const keyOf = useCallback((m: Machine, k: string): string | number => {
     switch (k) {
+      case "name": return m.name.toLowerCase();
       case "state": return ORDER.indexOf(mState(m));
       case "os": return m.info?.os || "~";
       case "svc": return -m.services;
@@ -1371,7 +1372,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           {view === "table" && <Table fit head={<>
-            <th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
+            <th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="name" sort={sort}>{tx("Machine")}</Th><Th k="ip" sort={sort}>IP</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
             <Th k="svc" sort={sort}>{tx("Services")}</Th><Th k="watch" sort={sort}>{tx("Santé")}</Th>{snap.health && <><Th className="!px-1.5">{tx("CPU")}</Th><Th className="!px-1.5">{tx("Mémoire")}</Th><Th className="!px-1.5">{tx("Disque")}</Th></>}{anyGpu && <Th className="!px-1.5">GPU</Th>}
             <Th k="up" sort={sort} className="w-px !pl-2 !pr-1 !text-right" title={tx("Temps depuis le dernier démarrage de la machine")}>Uptime</Th>
             {admin && <th className="w-8 px-1" aria-label={tx("Réglages")} />}
@@ -1385,7 +1386,8 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                     onClick={(e) => { if (!(e.target as Element).closest("button, a, input, select, label, summary, [role=button]")) setDetailIp(m.ip); }}
                     onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) setDetailIp(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
                     <td className="w-10 px-2 py-2 align-middle"><AlertDot items={watchOf(m)}><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifiOf(m)) }} scan={scanOs[m.ip]} reserve /></AlertDot></td>
-                    <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><VmMark m={m} h={hb.get(m.ip)} /><span className="text-xs text-dim">{m.ip}</span><ProblemFlag h={h} /></span></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
+                    <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><VmMark m={m} h={hb.get(m.ip)} /><ProblemFlag h={h} /></span></Td>
+                    <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-dim">{m.ip}</Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
                     <Td>{st(m, false)}</Td>
                     <Td><div className="max-w-[11rem]"><SystemLine m={m} os={osOf(m)} ha={haOf(m)} unifi={unifiOf(m)} freebox={freeboxOf(m, snap.data.network)} /></div></Td>
                     <Td><span className="inline-flex items-center gap-1.5">
