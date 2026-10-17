@@ -127,7 +127,7 @@ export default function App() {
       ) : <Tabs tab={current} snap={snap} badges={badges} onSelect={go} />}
       {!profile && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} />}
       {current === "history" && <History snap={snap} />}
-      {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
+      {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} onFilter={(sel) => goFilter("services", sel)} />}
       {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} />}
       {current === "infra" && <Infra snap={snap} />}
       {current === "dns" && <Dns key={pending.tab === "dns" ? pending.n : 0} snap={snap} initial={initialFor("dns")} />}

@@ -9,7 +9,7 @@ import type { HealthHost, Machine, MachineLinks, NetDevice, NetScan, NetworkConn
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
 import { freeboxHealth, freeboxOf } from "../lib/freebox";
-import { modelIcon } from "../lib/appIcons";
+import { modelIcon, serviceIcon } from "../lib/appIcons";
 import { MachineModal } from "./MachinesSettings";
 import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, networkTool, osOfMachine, stateBadge, type MState, type OsKind } from "../lib/machines";
 import { OsGlyph } from "../components/OsGlyph";
@@ -65,6 +65,34 @@ function Servers({ m, snap, max }: { m: Machine; snap: Snapshot; max?: number })
       {more.length > 0 && <span title={tx("Aussi : {0} (détail déplié)", more.map((c) => c.key).join(", "))} className="grid h-7 min-w-7 place-items-center rounded-md border border-line bg-bg2 px-1 text-[11px] font-bold text-muted">+{more.length}</span>}
     </div>
   ) : <Dim>-</Dim>;
+}
+
+/** The Docker containers behind the services of a machine (name, image, state), each with its service logo, one line each */
+function DockerList({ m, snap }: Readonly<{ m: Machine; snap: Snapshot }>) {
+  const seen = new Set<string>();
+  const rows = snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.service?.kind === "docker").filter((r) => {
+    const k = r.service!.name || r.service!.image || "";
+    return k && !seen.has(k) && !!seen.add(k);
+  });
+  if (!rows.length) return null;
+  return (
+    <div className="py-1">
+      <div className="mb-1 text-xs text-dim">{tx("Conteneurs Docker")} · {rows.length}</div>
+      <ul className="flex flex-col gap-0.5">
+        {rows.map((r) => {
+          const sv = r.service!, icon = serviceIcon(r), up = !sv.state || /^up|running/i.test(sv.state);
+          return (
+            <li key={sv.name || sv.image} className="flex items-center gap-2 text-xs" title={[sv.image, sv.state].filter(Boolean).join(" · ")}>
+              {icon ? <img src={icon} alt="" className="h-4 w-4 shrink-0" /> : <span className="h-4 w-4 shrink-0" />}
+              <b className="truncate font-medium">{sv.name || sv.image}</b>
+              {sv.image && <span className="truncate font-mono text-[11px] text-dim">{sv.image}</span>}
+              <span className={`ml-auto shrink-0 ${up ? "text-ok" : "text-warn"}`}>{sv.state ? sv.state.replace(/^Up /i, "") : tx("en marche")}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 }
 
 /** Clé utilisée par l'alias (chemin et début d'empreinte) */
@@ -397,7 +425,8 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, freebox }: Readonly<{ m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; freebox?: FreeboxInfo }>) {
+function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, unifiNet, freebox, containers, onFilter }: Readonly<{ onFilter?: (sel: Selected) => void; m: Machine; containers?: React.ReactNode; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
+  const unifiOnly = !!unifi && !m.info && !m.agent;   // read only through UniFi: no SSH, no agent
   const i = m.info, hw = hardwareRows(m.agent?.hardware);
   return (
     <div className="grid gap-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -416,12 +445,16 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, fre
         {!i && !m.agent && !ha?.system && !unifi && !freebox && <Dim>-</Dim>}
       </Section>
 
-      {freebox ? <FreeboxAccessSection fb={freebox} from={from.ssh} /> : <AccessSection m={m} from={from.ssh} />}
+      {freebox && <FreeboxAccessSection fb={freebox} from={from.ssh} />}
+      {!freebox && unifiOnly && <UnifiAccessSection d={unifi} sys={unifiSys} mac={mac} from={from.ssh} />}
+      {!freebox && !unifiOnly && <AccessSection m={m} from={from.ssh} />}
 
-      {freebox && (freebox.vms || freebox.vm_system) ? <FreeboxVmSection fb={freebox} from={from.services} /> : <SoftwareSection m={m} servers={servers} ha={ha} from={from.services} />}
+      {freebox && (freebox.vms || freebox.vm_system) && <FreeboxVmSection fb={freebox} from={from.services} />}
+      {!freebox && unifiOnly && <UnifiNetworkSection d={unifi} sys={unifiSys} net={unifiNet} from={from.services} />}
+      {!(freebox && (freebox.vms || freebox.vm_system)) && !(!freebox && unifiOnly) && <SoftwareSection m={m} servers={servers} ha={ha} from={from.services} containers={containers} onFilter={onFilter} />}
 
       <HealthSection h={h} from={from.health} />
-      <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} freebox={freebox} />
+      <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} freebox={freebox} unifi={unifi} unifiSys={unifiSys} />
     </div>
   );
 }
@@ -469,20 +502,62 @@ function SystemLine({ m, os, ha, unifi, freebox }: Readonly<{ m: Machine; os: Os
   return <OsShort m={m} kind={os} />;
 }
 
-/** A UniFi device as MynetworK relays it: name, model, firmware, the update waiting when known; on the gateway, UniFi OS and the
- *  UniFi Network application with their versions (MynetworK 0.10.68+) */
+const UNIFI_KIND: Record<string, string> = { udm: "Passerelle", ugw: "Passerelle", uxg: "Passerelle", usw: "Switch", uap: "Borne Wi-Fi", ubb: "Pont Wi-Fi", uph: "Téléphone", uck: "Contrôleur" };
+const isGateway = (d: UnifiDevice, sys?: UnifiSystem) => !!sys?.gateway && ["udm", "ugw", "uxg"].includes(d.type ?? "");
+export type UnifiNet = { clients: NonNullable<NetworkConnector["unifi"]>["clients"]; devices: UnifiDevice[] };
+
+/** A UniFi device as MynetworK relays it: model (photo), kind, and on the gateway UniFi OS and the UniFi Network application with their versions
+ *  (MynetworK 0.10.68+); its firmware and update are in the Updates section */
 function UnifiRows({ d, sys }: Readonly<{ d: UnifiDevice; sys?: UnifiSystem }>) {
-  const gateway = !!sys?.gateway && ["udm", "ugw", "uxg"].includes(d.type ?? "");
-  let update: React.ReactNode = <Dim>{tx("non transmise par MynetworK")}</Dim>;
-  if (d.upgradable) update = <span className="text-warn">{d.upgrade_to_firmware ? `→ ${d.upgrade_to_firmware}` : tx("disponible")}</span>;
-  else if (d.upgradable === false) update = <span className="text-ok">{tx("à jour")}</span>;
+  const gateway = isGateway(d, sys), kind = UNIFI_KIND[d.type ?? ""];
   return <>
     <Row k={tx("Appareil")}>{[d.name, d.model].filter(Boolean).length ? <span className="inline-flex items-center gap-2">{modelIcon(d.model) && <img src={modelIcon(d.model)!} alt="" className="h-9 w-auto" />}{[d.name, d.model].filter(Boolean).join(" · ")}</span> : undefined}</Row>
-    <Row k="Firmware">{d.version ? <span className="font-mono">{d.version}</span> : undefined}</Row>
-    <Row k={tx("Mise à jour")}>{update}</Row>
+    <Row k={tx("Type")}>{kind ? tx(kind) : d.type?.toUpperCase()}</Row>
     {gateway && sys?.console_version && <Row k="UniFi OS"><span className="font-mono">{sys.console_version}</span></Row>}
     {gateway && sys?.version && <Row k="UniFi Network"><span className="font-mono">{sys.version}</span>{sys.update_available && <span className="text-warn"> · {tx("mise à jour disponible")}</span>}</Row>}
   </>;
+}
+
+/** The device firmware in the Updates section: the installed version, then what is on offer or that MynetworK does not tell (like the Freebox's) */
+export function UnifiFirmware({ d, sys }: Readonly<{ d: UnifiDevice; sys?: UnifiSystem }>) {
+  const gateway = isGateway(d, sys);
+  return <>
+    <Row k="Firmware">{d.version ? <span className="font-mono">{d.version}</span> : undefined}</Row>
+    {d.upgradable == null && <Row k={tx("Mise à jour")}><Dim>{tx("non transmise par MynetworK")}</Dim></Row>}
+    {d.upgradable && <Row k={tx("Disponible")}><span className="font-mono text-warn">{d.upgrade_to_firmware ? `→ ${d.upgrade_to_firmware}` : tx("disponible")}</span></Row>}
+    {gateway && sys?.update_available && <Row k="UniFi Network"><span className="text-warn">{tx("mise à jour disponible")}</span>{sys.version && <Dim>{sys.version}</Dim>}</Row>}
+  </>;
+}
+
+/** A UniFi device has no SSH here: its section says how it is read (MynetworK, through the UniFi API), at which address, and its state */
+export function UnifiAccessSection({ d, sys, mac, from }: Readonly<{ d: UnifiDevice; sys?: UnifiSystem; mac?: string; from: Origin[] }>) {
+  const on = d.state === "connected", addr = d.ip ?? sys?.gateway?.lan_ip;
+  return (
+    <Section icon={Plug} title={tx("Lecture")} tone="ok" from={from}>
+      <Row k={tx("Lue par")}><Badge tone="ok">MynetworK</Badge> <Dim>{tx("API UniFi, sans SSH ni agent")}</Dim></Row>
+      <Row k={tx("Adresse")}>{addr ? <span className="font-mono">{addr}</span> : undefined}</Row>
+      <Row k="MAC">{d.mac || mac ? <span className="font-mono">{d.mac ?? mac}</span> : undefined}</Row>
+      <Row k={tx("État UniFi")}>{d.state ? <Badge tone={on ? "ok" : "bad"}>{on ? tx("connecté") : d.state}</Badge> : undefined}</Row>
+    </Section>
+  );
+}
+
+/** What the UniFi side shows around the device: its clients, and for the gateway the whole network (devices by kind, clients wired / Wi-Fi, network names) */
+export function UnifiNetworkSection({ d, sys, net, from }: Readonly<{ d: UnifiDevice; sys?: UnifiSystem; net?: UnifiNet; from: Origin[] }>) {
+  const gateway = isGateway(d, sys), clients = net?.clients ?? [], devices = net?.devices ?? [];
+  const kinds = Object.entries(devices.reduce<Record<string, number>>((n, x) => ({ ...n, [UNIFI_KIND[x.type ?? ""] ?? x.type ?? "?"]: (n[UNIFI_KIND[x.type ?? ""] ?? x.type ?? "?"] ?? 0) + 1 }), {}));
+  const wired = clients.filter((c) => c.wired).length, ssids = [...new Set(clients.map((c) => c.essid).filter((x): x is string => !!x))];
+  return (
+    <Section icon={Boxes} title={tx("Infos UniFi")} tone="warn" from={from}>
+      {d.clients != null && <Row k={tx("Clients")}>{d.clients}</Row>}
+      {gateway && <>
+        <Row k={tx("Appareils UniFi")}>{kinds.length ? kinds.map(([k, n]) => `${n} ${tx(k).toLowerCase()}`).join(" · ") : undefined}</Row>
+        <Row k={tx("Clients du réseau")}>{clients.length ? `${clients.length} · ${wired} ${tx("filaires")} / ${clients.length - wired} Wi-Fi` : undefined}</Row>
+        {ssids.length > 0 && <Row k={tx("Réseaux Wi-Fi")}><ProbeChips items={ssids.map((x) => ({ name: x, value: tx("{0} appareil(s)", clients.filter((c) => c.essid === x).length), tone: "" }))} /></Row>}
+      </>}
+      {d.clients == null && !gateway && <Dim>-</Dim>}
+    </Section>
+  );
 }
 
 /** The Freebox as MynetworK relays it: model, line, firmware and the update it offers */
@@ -683,14 +758,17 @@ function AccessSection({ m, from }: Readonly<{ m: Machine; from: Origin[] }>) {
 }
 
 /** Detail, « Software and services »: servers, services, Docker, linked APIs, Home Assistant add-ons, Apache and nginx */
-function SoftwareSection({ m, servers, ha, from }: Readonly<{ m: Machine; servers?: React.ReactNode; ha?: ServiceStatus; from: Origin[] }>) {
+function SoftwareSection({ m, servers, ha, from, containers, onFilter }: Readonly<{ onFilter?: (sel: Selected) => void; m: Machine; servers?: React.ReactNode; ha?: ServiceStatus; from: Origin[]; containers?: React.ReactNode }>) {
   const i = m.info;
   const vhosts = (i?.vhosts ?? []) as { port?: number; names?: string[] }[];
   return (
       <Section icon={Boxes} title={tx("Logiciels et services")} tone="warn" from={from}>
         <Row k={tx("Serveurs")}>{servers}</Row>
-        <Row k={tx("Services")}>{m.services}{m.npm > 0 && <Dim> · {m.npm} NPM</Dim>}{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</Row>
+        <Row k={tx("Services")}>
+          {onFilter && m.services > 0 ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services")} onClick={() => onFilter({ machine: [m.ip] })}>{m.services}</button> : m.services}
+          {m.npm > 0 && <Dim> · {onFilter ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services NPM")} onClick={() => onFilter({ machine: [m.ip], src: ["npm"] })}>{m.npm} NPM</button> : `${m.npm} NPM`}</Dim>}{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</Row>
         <Row k="Docker">{i?.docker ? tx("{0} conteneur(s) en cours", i.docker) : m.agent?.docker != null ? (m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>) : i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined}</Row>
+        {containers}
         <Row k="API">{m.api?.length ? <span className="flex flex-wrap gap-1">{m.api.map((a) => <Badge key={`${a.type}/${a.name}`} tone={a.ok ? "ok" : a.stale ? "warn" : "bad"} title={`${a.name} : ${a.message ?? ""}`}>{a.label}{a.version ? ` ${a.version}` : ""}</Badge>)}</span> : undefined}</Row>
         {ha?.addons?.length ? <div className="py-1"><HaAddons s={ha} /></div> : null}
         <Row k={tx("Applis")}>{m.agent?.apps?.length ? <span className="flex flex-wrap gap-1">{m.agent.apps.map((a) => <Badge key={a.key} tone="info" title={tx("Vue par les services Windows du PC")}>{a.label}</Badge>)}</span> : undefined}</Row>
@@ -744,12 +822,13 @@ function UpdatesChip({ h }: Readonly<{ h?: HealthHost }>) {
 }
 
 /** Detail, « Updates »: up to date, or the packages / Windows updates waiting (folded list), and a reboot required */
-export function UpdatesSection({ h, windows, from, freebox }: Readonly<{ h?: HealthHost; windows: boolean; from: Origin[]; freebox?: FreeboxInfo }>) {
+export function UpdatesSection({ h, windows, from, freebox, unifi, unifiSys }: Readonly<{ h?: HealthHost; windows: boolean; from: Origin[]; freebox?: FreeboxInfo; unifi?: UnifiDevice; unifiSys?: UnifiSystem }>) {
   if (!h) return null;
   const n = h.apt?.upgradable ?? 0;
   return (
     <Section icon={ArrowUpCircle} title={tx("Mises à jour")} tone={n || h.reboot_required ? "warn" : "ok"} from={from}>
       {freebox && <FreeboxFirmware fb={freebox} />}
+      {!freebox && unifi && <UnifiFirmware d={unifi} sys={unifiSys} />}
       {!n && <Row k={tx("État")}><span className="text-ok">{tx("à jour")}</span></Row>}
       {h.reboot_required && <Row k={tx("Redémarrage")}><span className="text-warn">{tx("redémarrage requis")}</span></Row>}
       <UpdatesFold h={h} windows={windows} />
@@ -863,10 +942,11 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
   );
 }
 
-export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachine: (ip: string) => void; initial?: Selected }) {
+export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapshot; onMachine: (ip: string) => void; onFilter?: (sel: Selected) => void; initial?: Selected }) {
   // Health by IP: the health check's, completed by UniFi (through MynetworK) for the devices read no other way (the gateway…)
   const devices = useMemo(() => unifiDevices(snap.data.network), [snap.data.network]);
   const sysUnifi = useMemo(() => unifiSystem(snap.data.network), [snap.data.network]);
+  const unifiNetwork = useMemo<UnifiNet>(() => ({ clients: (snap.data.network ?? []).flatMap((c) => c.unifi?.clients ?? []), devices }), [snap.data.network, devices]);
   const unifiOf = useCallback((m: Machine) => { const d = unifiDeviceOf(m, devices, sysUnifi); return d && withSystem(d, sysUnifi); }, [devices, sysUnifi]);
   const hb = useMemo(() => {
     const map = healthByIp(snap.health?.hosts);
@@ -922,7 +1002,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
   const admin = snap.me.role === "admin";
   const detailOf = (m: Machine) => {
     const h = hb.get(m.ip);
-    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} freebox={freeboxOf(m, snap.data.network)} />;
+    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} containers={<DockerList m={m} snap={snap} />} onFilter={onFilter} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} />;
   };
   const [view, pickView] = useStoredView("ms.machines.view", "table");  // Tableau ou Cartes, retenu
 
