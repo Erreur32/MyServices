@@ -4,7 +4,7 @@
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
 import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, Radar, RefreshCw, Server, Settings2, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
-import { Fragment, createElement, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, refreshSnapshot, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch, TagInput } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
@@ -438,6 +438,16 @@ function OptionGroup({ title, hint, tone, children }: { title: string; hint?: st
   );
 }
 
+/** Une catégorie d'accès (SSH, agent, connecteurs) : titre, état à droite, contenu en dessous */
+function AccessCategory({ icon: Icon, title, badge, children }: Readonly<{ icon: typeof KeyRound; title: string; badge?: React.ReactNode; children: React.ReactNode }>) {
+  return (
+    <section className="rounded-2xl border border-dim/50 border-l-2 border-l-link bg-bg2/30 p-4 shadow-sm">
+      <h4 className="mb-3 flex items-center gap-2 text-sm font-bold"><Icon size={16} className="text-link" aria-hidden />{title}{badge && <span className="ml-auto">{badge}</span>}</h4>
+      <div className="flex flex-col gap-3">{children}</div>
+    </section>
+  );
+}
+
 const CONNECTOR_STATE: Record<string, React.ReactNode> = {
   ok: <Badge tone="ok" title={tx("Ce connecteur répond et voit cette machine")}>{tx("actif")}</Badge>,
   stale: <Badge tone="warn" title={tx("Ce connecteur répond avec retard : ses données sont anciennes")}>{tx("en retard")}</Badge>,
@@ -466,7 +476,6 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   const [missingOpen, setMissingOpen] = useState(false), [manualOpen, setManualOpen] = useState(false);
   const [tab, setTab] = useState<"identity" | "options" | "access">(focusTab ?? "identity");
   const show = (t: string) => !tabbed || tab === t;   // dans la fenêtre d'une machine : un onglet à la fois ; à l'ajout, tout d'un coup
-  const [sshOpen, setSshOpen] = useState(!!isNew || !!tabbed);  // replié d'office ; ouvert à l'ajout d'une machine et dans l'onglet Accès
   const [localNote, setLocalNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const setNote = report ?? setLocalNote;
   const windows = v.os === "windows";
@@ -605,41 +614,9 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   };
   // Carte d'une machine déjà enregistrée : l'accès SSH et les interrupteurs s'enregistrent seuls ; ce bouton ne sert qu'aux champs texte
   const dirty = isNew || ["name", "adguard", "adguard_sync"].some((k) => String(v[k] ?? "") !== String(saved[k] ?? ""));
-  return (
-    <form onSubmit={submit} className="flex flex-col gap-3">
-      {tabbed && (
-        <div role="tablist" className="flex gap-1 border-b border-line">
-          {([["identity", tx("Identité"), IdCard], ["options", tx("Options"), Power], ["access", tx("Accès"), KeyRound]] as const).map(([id, label, Icon]) => (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
-              className={`flex items-center gap-1.5 rounded-t-lg px-3.5 py-2 text-sm font-semibold transition-colors ${tab === id ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
-              <Icon size={15} strokeWidth={1.75} aria-hidden />{label}
-            </button>
-          ))}
-        </div>
-      )}
-      {show("access") && <>
-      {tabbed && (
-        <section className="grid gap-2 sm:grid-cols-3" aria-label={tx("Accès disponibles")}>
-          {[
-            [tx("SSH"), KeyRound, sshSummary],
-            [tx("Agent"), MonitorUp, agentSummary],
-            [tx("Connecteurs"), Plug, connectorSummary],
-          ].map(([label, Icon, badge]) => (
-            <div key={String(label)} className="flex items-center gap-2 rounded-xl border border-line/60 bg-bg2/70 px-3 py-2">
-              {createElement(Icon as typeof KeyRound, { size: 16, className: "shrink-0 text-link", "aria-hidden": true })}
-              <b className="text-sm">{label as string}</b>
-              <span className="ml-auto">{badge as React.ReactNode}</span>
-            </div>
-          ))}
-        </section>
-      )}
-      <section className="rounded-2xl border border-dim/50 border-l-2 border-l-link bg-bg2/30 p-4 shadow-sm">
-        <button type="button" onClick={() => setSshOpen(!sshOpen)} aria-expanded={sshOpen} className="flex w-full flex-wrap items-center gap-2 text-left">
-          {sshOpen ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}
-          <h4 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><KeyRound size={13} className="text-link" aria-hidden />{tx("Sources de lecture")}</h4>
-          {!sshOpen && live && <span className="ml-auto"><SourceBadges m={live} agent={agent} /></span>}
-        </button>
-        {sshOpen && <div className="mt-4 flex flex-col gap-4">
+  // L'accès d'une machine en trois catégories distinctes : SSH, agent, connecteurs (dans la fenêtre) ; à l'ajout, une seule section comme avant
+  const sshBody = (
+    <>
         <p className="text-xs leading-relaxed text-muted">
           {agentMode ? tx("Un petit script PowerShell sur le PC envoie sa santé à MyServices : système, disques, services, processeur, mémoire, mises à jour, journal, ports en écoute.") : tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache.")} <b className="text-txt">{tx("Lecture seule")}</b>{tx(" : rien n'y est modifié.")}
           <span className="block text-dim">{tx("Sans accès : ping et services web seulement.")}</span>
@@ -668,7 +645,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
           </ul>
         </div>
         <NoteLine note={reuse} />
-        {connection && (
+        {connection && !agentMode && (
           <div className="rounded-lg border border-line/60 bg-bg2/70 p-3">
             <h5 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{agentMode ? tx("Lecture par l'agent") : tx("État de la connexion")}</h5>
             {connection}
@@ -693,18 +670,14 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
             <KeyRound size={14} aria-hidden />{tx("Voir la clé SSH")}<ArrowRight size={14} aria-hidden />
           </a>
         </div>
-        {linked.length > 0 && (
-          <div className="flex flex-col gap-1.5 rounded-lg border border-line/60 bg-bg2/70 p-3 text-sm">
-            <b>{tx("Connecteurs")}</b>
-            <ul className="flex flex-col divide-y divide-line/40">
-              {linked.map((c) => (
-                <li key={`${c.type}/${c.name}`} className="flex items-center gap-3 py-1.5">
-                  <a href="#settings/connectors" onClick={() => focusConnector(c.type, c.name)} title={tx("Ouvrir ce connecteur")} className="font-semibold text-link hover:underline">{c.label}</a>
-                  <Dim>{c.name}</Dim>
-                  <span className="ml-auto">{CONNECTOR_STATE[c.state]}</span>
-                </li>
-              ))}
-            </ul>
+    </>
+  );
+  const agentBody = (
+    <>
+        {connection && agentMode && (
+          <div className="rounded-lg border border-line/60 bg-bg2/70 p-3">
+            <h5 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("Lecture par l'agent")}</h5>
+            {connection}
           </div>
         )}
         {agent && sshAccess && (
@@ -721,9 +694,43 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
           </div>
         )}
         {!isNew && onAgent && <AgentBlock ip={ip} name={v.name} kind={windows || windowsGuess ? "windows" : "linux"} agent={agent} onChanged={onAgent} />}
-        </div>}
-      </section>
-      </>}
+    </>
+  );
+  const connectorsBody = linked.length > 0 ? (
+        <div className="flex flex-col gap-1.5 rounded-lg border border-line/60 bg-bg2/70 p-3 text-sm">
+            <b>{tx("Connecteurs")}</b>
+            <ul className="flex flex-col divide-y divide-line/40">
+              {linked.map((c) => (
+                <li key={`${c.type}/${c.name}`} className="flex items-center gap-3 py-1.5">
+                  <a href="#settings/connectors" onClick={() => focusConnector(c.type, c.name)} title={tx("Ouvrir ce connecteur")} className="font-semibold text-link hover:underline">{c.label}</a>
+                  <Dim>{c.name}</Dim>
+                  <span className="ml-auto">{CONNECTOR_STATE[c.state]}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+  ) : <p className="text-sm text-dim">{tx("Aucun connecteur ne voit cette machine pour l'instant.")} <a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a></p>;
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-3">
+      {tabbed && (
+        <div role="tablist" className="flex gap-1 border-b border-line">
+          {([["identity", tx("Identité"), IdCard], ["options", tx("Options"), Power], ["access", tx("Accès"), KeyRound]] as const).map(([id, label, Icon]) => (
+            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
+              className={`flex items-center gap-1.5 rounded-t-lg px-3.5 py-2 text-sm font-semibold transition-colors ${tab === id ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
+              <Icon size={15} strokeWidth={1.75} aria-hidden />{label}
+            </button>
+          ))}
+        </div>
+      )}
+      {show("access") && (tabbed ? <>
+        <AccessCategory icon={KeyRound} title="SSH" badge={sshSummary}>
+          {agentMode ? <p className="text-sm text-muted">{tx("Cette machine est lue par son agent, sans SSH.")}</p> : sshBody}
+        </AccessCategory>
+        <AccessCategory icon={MonitorUp} title={tx("Agent")} badge={agentSummary}>{agentBody}</AccessCategory>
+        <AccessCategory icon={Plug} title={tx("Connecteurs")} badge={connectorSummary}>{connectorsBody}</AccessCategory>
+      </> : (
+        <AccessCategory icon={KeyRound} title={tx("Sources de lecture")}>{sshBody}</AccessCategory>
+      ))}
       {show("identity") && <>
       <section className="rounded-2xl border border-dim/50 border-l-2 border-l-ok bg-bg2/30 p-4">
         <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><IdCard size={13} className="text-ok" aria-hidden />{tx("Identité")}</h4>
