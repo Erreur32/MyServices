@@ -2,16 +2,16 @@
 // Six étapes : bienvenue, cette machine (sans SSH), le réseau, la façon de lire chaque machine, relier les outils, être prévenu, puis un résumé.
 // La progression est gardée côté serveur (reprise depuis un autre navigateur), avec une copie dans ce navigateur.
 import { ArrowLeft, ArrowRight, Bell, Check, ChevronLeft, ChevronRight, Eye, Loader2, Plug, ShieldCheck, SkipForward, Sparkles } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { read, send } from "../api";
 import type { Snapshot } from "../api";
 import { MachineIcon } from "../components/MachineIcon";
-import { AssistantNetwork } from "../components/AssistantNetwork";
+import { AssistantNetwork, proposedFrom } from "../components/AssistantNetwork";
 import { SourceBadges } from "../components/SourceBadges";
 import { NoteLine } from "../components/form";
 import { Badge, Card, Dim } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
-import { STEPS, advance, isFinished, loadProgress, previousStep, resetProgress, saveProgress, thisMachine, type AssistantProgress } from "../lib/assistant";
+import { STEPS, advance, isFinished, type AssistantStep, loadProgress, previousStep, resetProgress, saveProgress, thisMachine, type AssistantProgress } from "../lib/assistant";
 import { openConnector } from "../lib/connectorPrefill";
 import { savedFor } from "../lib/savedFor";
 import { STATUS_RANK, describeAdvice, summary } from "../lib/access";
@@ -34,6 +34,9 @@ export function Assistant({ snap }: { snap: Snapshot }) {
   }, []);
   const index = STEPS.findIndex((s) => s.id === p.current), step = STEPS[index], last = index === STEPS.length - 1;
   const finished = isFinished(p);
+  // Chaque étape dit si elle est déjà en ordre (rien à régler) : « Passer » n'a alors plus de sens et disparaît
+  const [inOrder, setInOrder] = useState<Partial<Record<AssistantStep, boolean>>>({ welcome: true });
+  const report = useCallback((id: AssistantStep, ok: boolean) => setInOrder((o) => (o[id] === ok ? o : { ...o, [id]: ok })), []);
 
   return (
     <div className="mx-auto max-w-3xl px-4 pb-16 sm:px-6">
@@ -64,16 +67,16 @@ export function Assistant({ snap }: { snap: Snapshot }) {
       <Card>
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-dim">{tx("Étape {0} sur {1}", index + 1, STEPS.length)}</p>
         {p.current === "welcome" && <Welcome snap={snap} />}
-        {p.current === "machine" && <ThisMachine snap={snap} chosen={p.host} onChoose={(host) => store({ ...p, host })} />}
-        {p.current === "network" && <Network snap={snap} />}
-        {p.current === "access" && <Access snap={snap} />}
-        {p.current === "tools" && <Tools snap={snap} />}
-        {p.current === "alerts" && <Alerts />}
+        {p.current === "machine" && <ThisMachine snap={snap} chosen={p.host} onChoose={(host) => store({ ...p, host })} report={report} />}
+        {p.current === "network" && <Network snap={snap} report={report} />}
+        {p.current === "access" && <Access snap={snap} report={report} />}
+        {p.current === "tools" && <Tools snap={snap} report={report} />}
+        {p.current === "alerts" && <AlertsStep report={report} />}
         {!step.ready && <Soon title={step.title} />}
         <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-line/60 pt-4">
           {index > 0 && <button type="button" className={quiet} onClick={() => update({ ...p, current: previousStep(p.current) })}><ArrowLeft size={14} aria-hidden />{tx("Retour")}</button>}
           <span className="ml-auto flex flex-wrap items-center gap-2">
-            {!last || !finished ? <button type="button" className={quiet} title={tx("Pas maintenant : l'étape est marquée « passée » et la suivante s'affiche. Vous pourrez y revenir à tout moment ; l'assistant reste ouvert.")}
+            {!inOrder[p.current] && (!last || !finished) ? <button type="button" className={quiet} title={tx("Pas maintenant : l'étape est marquée « passée » et la suivante s'affiche. Vous pourrez y revenir à tout moment ; l'assistant reste ouvert.")}
               onClick={() => update(advance(p, "skipped"))}><SkipForward size={14} aria-hidden />{tx("Passer cette étape")}</button> : null}
             {step.ready
               ? <button type="button" className={primary} title={last ? tx("C'est fait : l'assistant affiche son résumé.") : tx("Cette étape est faite : la suivante s'affiche.")}
@@ -116,7 +119,9 @@ function Welcome({ snap }: { snap: Snapshot }) {
 }
 
 /** Ce que MyServices voit de la machine qui l'héberge, sans SSH ni rien à configurer */
-function ThisMachine({ snap, chosen, onChoose }: { snap: Snapshot; chosen: string; onChoose: (ip: string) => void }) {
+type Report = (id: AssistantStep, ok: boolean) => void;
+
+function ThisMachine({ snap, chosen, onChoose, report }: { snap: Snapshot; chosen: string; onChoose: (ip: string) => void; report: Report }) {
   const [sys, setSys] = useState<SystemState | null>(null);
   useEffect(() => { read<SystemState>("system").then(setSys).catch(() => undefined); }, []);
   const list = snap.data.machine_list;
@@ -126,6 +131,7 @@ function ThisMachine({ snap, chosen, onChoose }: { snap: Snapshot; chosen: strin
     ...(host.info?.apache ? ["Apache"] : []), ...(host.info?.nginx ? ["Nginx"] : []),
   ])].filter((a) => a !== "Docker") : [];
   const docker = sys?.host_docker;
+  useEffect(() => report("machine", !!host), [host, report]);   // machine hôte identifiée : rien à décider
   return (
     <div>
       <h2 className="text-xl font-bold">{tx("Cette machine")}</h2>
@@ -166,23 +172,26 @@ function ThisMachine({ snap, chosen, onChoose }: { snap: Snapshot; chosen: strin
 }
 
 /** Étape 3 : chercher les autres machines du réseau et choisir celles à suivre (la recherche et l'ajout existent déjà dans NetworkStep) */
-function Network({ snap }: { snap: Snapshot }) {
+function Network({ snap, report }: { snap: Snapshot; report: Report }) {
   const { net, reload } = useNetScan();
+  const known = snap.data.machine_list.map((m) => m.ip);
+  useEffect(() => report("network", net?.phase === "done" && proposedFrom(net, known).length === 0), [net, known.join(), report]);   // recherche faite, rien de nouveau à suivre
   return (
     <div>
       <h2 className="text-xl font-bold">{tx("Le réseau")}</h2>
       <p className="mt-2 text-sm text-muted">{tx("Cherchons les machines de votre réseau, puis choisissez celles à suivre. Rien n'est ajouté sans votre accord.")}</p>
-      <AssistantNetwork net={net} reload={reload} known={snap.data.machine_list.map((m) => m.ip)} />
+      <AssistantNetwork net={net} reload={reload} known={known} />
     </div>
   );
 }
 
 /** Étape 4 : une machine à la fois, la méthode de lecture recommandée et ce qu'il reste à faire */
-function Access({ snap }: { snap: Snapshot }) {
+function Access({ snap, report }: { snap: Snapshot; report: Report }) {
   const [advice, setAdvice] = useState<Record<string, Advice> | null>(null), [error, setError] = useState(""), [i, setI] = useState(0);
   useEffect(() => {
     read<{ advice: Record<string, Advice> }>("machines/advice").then((r) => setAdvice(r.advice)).catch((e: Error) => setError(e.message));
   }, [snap.data.generated]);
+  useEffect(() => { if (advice) report("access", Object.entries(advice).every(([ip, a]) => describeAdvice(ip, a).status === "ok")); }, [advice, report]);   // tout est déjà en place
   if (error) return <p className="text-sm text-warn">⚠ {error}</p>;
   if (!advice) return <p className="flex items-center gap-2 text-sm text-muted"><Loader2 size={16} className="animate-spin" aria-hidden />{tx("Chargement…")}</p>;
   // Les machines pas encore lues par la méthode recommandée d'abord : c'est là qu'il y a quelque chose à faire
@@ -224,10 +233,11 @@ function Access({ snap }: { snap: Snapshot }) {
 }
 
 /** Étape 5 : les outils reconnus sur le réseau que MyServices sait lire par leur API, pas encore reliés */
-function Tools({ snap }: { snap: Snapshot }) {
+function Tools({ snap, report }: { snap: Snapshot; report: Report }) {
   const [instances, setInstances] = useState<ConnectorInstance[] | null>(null);
   useEffect(() => { read<ConnectorsState>("connectors/settings").then((c) => setInstances(c.instances)).catch(() => setInstances([])); }, [snap.data.generated]);
   const list: Proposal[] | null = instances ? (snap.data.proposals ?? []).filter((x) => !savedFor(x, instances)) : null;
+  useEffect(() => report("tools", !!list && list.length === 0), [list?.length, report]);   // aucun outil reconnu qui reste à relier
   const how = (c: Proposal["confidence"]) => c === "sure" ? tx("conteneur reconnu") : c === "probable" ? tx("page reconnue") : tx("à vérifier");
   return (
     <div>
@@ -256,10 +266,11 @@ function Tools({ snap }: { snap: Snapshot }) {
 }
 
 /** Étape 6 : un canal d'alerte qui marche (Discord, Telegram ou webhook), avec un message d'essai */
-function Alerts() {
+function AlertsStep({ report }: { report: Report }) {
   const [channels, setChannels] = useState<AlertChannel[] | null>(null), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(0);
   useEffect(() => { read<{ channels: AlertChannel[] }>("alerts").then((r) => setChannels(r.channels)).catch(() => setChannels([])); }, []);
   const ready = (channels ?? []).filter((c) => c.enabled);
+  useEffect(() => report("alerts", ready.length > 0), [ready.length, report]);   // un canal d'alerte marche déjà
   const test = async (id: number) => { setBusy(id); await act(() => send("POST", `alerts/channels/${id}/test`), tx("message d'essai envoyé"), setNote); setBusy(0); };
   return (
     <div>

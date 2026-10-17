@@ -21,8 +21,9 @@ describe("Assistant de démarrage", () => {
 
   it("étape 1 : bienvenue, trois principes, compte, six étapes en haut", () => {
     const html = renderToStaticMarkup(<Assistant snap={snap} />);
-    for (const t of ["Bienvenue sur MyServices", "Il lit, il ne modifie rien", "Compte administrateur", "admin", "Étape 1 sur 6", "Cette machine", "Être prévenu", "Continuer", "Passer"]) expect(html, t).toContain(t);
+    for (const t of ["Bienvenue sur MyServices", "Il lit, il ne modifie rien", "Compte administrateur", "admin", "Étape 1 sur 6", "Cette machine", "Être prévenu", "Continuer"]) expect(html, t).toContain(t);
     expect(html).not.toContain("Retour");   // pas de retour depuis la première étape
+    expect(html).not.toContain("Passer cette étape");   // bienvenue n'a rien à régler : seulement « Continuer »
   });
 
   it("étape 2 : la machine qui héberge, ses services et ses applis, sans SSH", () => {

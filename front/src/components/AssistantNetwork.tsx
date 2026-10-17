@@ -34,6 +34,10 @@ function Row({ h, on, toggle }: { h: NetHost; on: boolean; toggle: () => void })
   );
 }
 
+/** Machines de la recherche à proposer : pas déjà suivies, pas oubliées, et qui valent la peine d'être suivies */
+export const proposedFrom = (net: NetScan | null, known: string[]): NetHost[] =>
+  (net?.found ?? []).filter((h) => !known.includes(h.ip) && !net?.ignored?.includes(h.ip) && worthFollowing(h));
+
 export function AssistantNetwork({ net, reload, known }: { net: NetScan | null; reload: () => void; known: string[] }) {
   const [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set()), [added, setAdded] = useState(0);
@@ -41,7 +45,7 @@ export function AssistantNetwork({ net, reload, known }: { net: NetScan | null; 
   useEffect(() => {   // fin d'une recherche : les machines intéressantes sont cochées d'office (décochables)
     if (net?.phase !== "done" || !net.ended || preselected.current === net.ended) return;
     preselected.current = net.ended;
-    setPicked(new Set(net.found.filter((h) => !known.includes(h.ip) && !net.ignored?.includes(h.ip) && worthFollowing(h)).map((h) => h.ip)));
+    setPicked(new Set(proposedFrom(net, known).map((h) => h.ip)));
   }, [net, known]);
 
   const start = async () => {
@@ -75,7 +79,7 @@ export function AssistantNetwork({ net, reload, known }: { net: NetScan | null; 
   }
 
   const fresh = (net?.found ?? []).filter((h) => !known.includes(h.ip) && !net?.ignored?.includes(h.ip));
-  const proposed = fresh.filter(worthFollowing), others = fresh.filter((h) => !worthFollowing(h));
+  const proposed = proposedFrom(net, known), others = fresh.filter((h) => !worthFollowing(h));
   const chosen = proposed.filter((h) => picked.has(h.ip));
   const addPicked = async () => {
     setBusy(true);
