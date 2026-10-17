@@ -368,7 +368,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
             if (!r.root && !r.password) return null;
             let what = tx("mot de passe");
             if (r.root) what = r.password ? tx("root et mot de passe") : tx("connexion root");
-            return <Badge tone="warn" title={`${tx("Sécurité SSH, pas une panne")}\n${tx("Ce serveur SSH autorise {0}.\n**Pour durcir : PermitRootLogin no et PasswordAuthentication no dans sshd_config, puis recharger sshd.**", what)}`}>🛡 {what}</Badge>;
+            return <Badge tone="warn" title={`${tx("Sécurité SSH, pas une panne")}\n${tx("Ce serveur SSH autorise {0}.\n**Pour durcir :** PermitRootLogin no et PasswordAuthentication no dans sshd_config, puis recharger sshd.", what)}`}>🛡 {what}</Badge>;
           })()}
           {statuses.some((c) => !c.ok) && <Badge tone="bad" title={`${tx("Lecture en échec")}\n${statuses.filter((c) => !c.ok).map((c) => c.name).join(", ")}`}>{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
           {off && <Badge tone="off" title={`${tx("Non suivie")}\n${tx("Plus lue par MyServices : cachée dans les onglets. Rallumez « Machine suivie » dans la carte pour la reprendre.")}`}>{tx("non suivie")}</Badge>}
