@@ -33,6 +33,9 @@ GUIDE = (
     "Facultatif, mode avancé : si vous avez installé le module complémentaire « ha-mcp » (module communautaire, ce n'est pas le MCP natif de "
     "Home Assistant), collez l'adresse HTTP qu'il affiche (elle contient un chemin secret). MyServices n'y fait que six lectures ; "
     "activez aussi le mode lecture seule de ha-mcp (BACKUP_READ_ONLY=true) pour que le module refuse toute écriture de son côté.",
+    "Pour que l'adresse ne change pas au redémarrage : lancez ha-mcp en mode HTTP (commande ha-mcp-web, ou son conteneur) avec une valeur fixe de "
+    "MCP_SECRET_PATH (une longue chaîne au hasard, par exemple /private_ suivi de 22 caractères). Sans cette variable le chemin par défaut est /mcp, sans secret. "
+    "Le ha-mcp lancé en local par Claude Code (mode stdio) n'a pas d'adresse réseau et ne peut pas servir ici.",
 )
 
 
