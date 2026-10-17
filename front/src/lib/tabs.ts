@@ -1,5 +1,5 @@
 // Onglets : ordre, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { ClipboardClock, LayoutGrid, Server, Shield, Globe, HardDrive, House, Monitor, Network, Router, Settings, Workflow, type LucideIcon } from "lucide-react";
+import { ClipboardClock, LayoutGrid, Server, Shield, Globe, HardDrive, House, Monitor, Network, Router, SlidersHorizontal, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -22,7 +22,7 @@ export const TABS: { id: TabId; icon: LucideIcon; label: string }[] = [
   { id: "dns", icon: Network, label: tx("DNS") },
   { id: "backups", icon: HardDrive, label: tx("Sauvegardes") },
   { id: "diagrams", icon: Workflow, label: tx("Schémas") },
-  { id: "settings", icon: Settings, label: tx("Réglages") },
+  { id: "settings", icon: SlidersHorizontal, label: tx("Réglages") },
 ];
 
 /** Onglets encore en chantier : visibles seulement sur une image de dev (construite sur place, git-rev), pas publiés. */

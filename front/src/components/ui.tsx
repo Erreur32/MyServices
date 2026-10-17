@@ -230,12 +230,12 @@ export function FilterBar<T>({ f, placeholder, extra, side, options = [], primar
 }
 
 /** En-tête de colonne triable */
-export function Th({ k, sort, children, className = "" }: {
-  k?: string; sort?: { key: string; asc: boolean; by: (k: string) => void }; children?: ReactNode; className?: string;
+export function Th({ k, sort, children, className = "", title }: {
+  title?: string; k?: string; sort?: { key: string; asc: boolean; by: (k: string) => void }; children?: ReactNode; className?: string;
 }) {
   const on = k && sort?.key === k;
   return (
-    <th className={`sticky top-0 z-10 whitespace-nowrap border-b border-line bg-bg2 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-dim ${className}`}>
+    <th title={title} className={`sticky top-0 z-10 whitespace-nowrap border-b border-line bg-bg2 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-dim ${className}`}>
       {k && sort ? (
         <button type="button" onClick={() => sort.by(k)} className={`inline-flex items-center gap-1 uppercase hover:text-txt ${on ? "text-txt" : ""}`}>
           {children}{on && (sort.asc ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}

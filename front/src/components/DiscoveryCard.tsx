@@ -1,7 +1,7 @@
 // « Découvertes » : ce que MyServices cherche tout seul, ce qui demande un clic, et ce qui reste à faire (GET /discoveries).
 // Liste complète en haut de Réglages → Découverte ; rappel court sur l'accueil quand quelque chose est à faire.
 import { DROP_PANEL, useDropdown } from "./Dropdown";
-import { Bell, Boxes, Check, ChevronRight, EyeOff, Hand, HardDrive, Lightbulb, Network, Play, RefreshCw, Repeat, RotateCcw, Settings2 } from "lucide-react";
+import { Bell, Boxes, Check, ChevronRight, EyeOff, Hand, HardDrive, Lightbulb, Network, Play, RefreshCw, Repeat, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { dateTime } from "../lib/format";
@@ -97,7 +97,7 @@ export function Action({ a, reload }: { a: NonNullable<DiscoveryItem["action"]>;
       <NoteLine note={note} />
     </>
   );
-  if (a.prefill) return <button type="button" className={primary} onClick={() => openConnector(a.prefill!)}><Settings2 size={13} aria-hidden />{a.label}<ChevronRight size={14} aria-hidden /></button>;   // le connecteur s'ouvre déjà rempli
+  if (a.prefill) return <button type="button" className={primary} onClick={() => openConnector(a.prefill!)}><SlidersHorizontal size={13} aria-hidden />{a.label}<ChevronRight size={14} aria-hidden /></button>;   // le connecteur s'ouvre déjà rempli
   if (a.href) return (
     <a href={a.href} className={`${primary} no-underline`} onClick={(e) => { e.preventDefault(); go(a.href!); }}>
       {a.label}<ChevronRight size={14} aria-hidden />

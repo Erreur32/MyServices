@@ -1,9 +1,9 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { ArrowRight, Copy, Crosshair, ArrowUpCircle, Boxes, Plus, Bug, Check, ChevronRight, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, Settings2, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bot, Box, Copy, Crosshair, ArrowUpCircle, Boxes, Plus, Bug, Check, ChevronRight, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
 import { Fragment, createContext, useContext, useRef, useCallback, useEffect, useMemo, useState } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
-import { dateTime, dur, ipNum, splitHostName } from "../lib/format";
+import { dateTime, dur, durShort, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
 import type { LinkSource, HealthHost, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
@@ -255,6 +255,15 @@ function watchTip(it: WatchItem, hint?: string): string {
   return [it.text, ...lines, ...more, ...(hint ? ["", `[[off:${hint}]]`] : [])].join("\n");
 }
 
+/** A virtual machine (Proxmox / ESXi guest, flagged or seen by the health check): a small cube beside its name */
+const isVm = (m: Machine, h?: HealthHost): boolean => !!(m.links?.guest || m.detected?.includes("vm") || h?.smart?.vm || h?.temp?.virt);
+function VmMark({ m, h }: Readonly<{ m: Machine; h?: HealthHost }>) {
+  if (!isVm(m, h)) return null;
+  const g = m.links?.guest;
+  const tip = g ? `${tx("Machine virtuelle")}\n${g.type === "lxc" ? tx("conteneur LXC") : "VM"} ${g.vmid} ${tx("sur")} ${g.node}` : tx("Machine virtuelle");
+  return <span className="inline-grid h-5 w-5 shrink-0 place-items-center rounded border border-link/50 bg-link/10 text-link" title={tip} tabIndex={0}><Box size={12} aria-hidden /></span>;
+}
+
 /** GPUs of a machine: those GpuViewR reads (load, temperature, memory, power, last 24 h, the AI models on each), else the names the Windows agent lists in its hardware.
  *  SSH and the Linux agent read no GPU; GpuViewR is the only source of the figures. */
 type GpuModel = NonNullable<LinkSource["models"]>[number];
@@ -283,25 +292,20 @@ function gpuTip(g: GpuCell): string {
   ].filter((l, i, all) => l !== "" || (i > 0 && all[i - 1] !== "")).join("\n").replace(/\n\n+/g, "\n\n");
 }
 
-/** GPU column cell: each GPU's short name with its load and temperature, then its memory and power in small print; the tooltip has the rest (24 h, AI models) */
+/** GPU column cell, kept narrow: the short name with its load and temperature, then the memory in small print; power, 24 h and AI models are in the tooltip */
 function GpuCellView({ list }: Readonly<{ list: GpuCell[] }>) {
   if (!list.length) return <Dim>-</Dim>;
   return (
-    <span className="flex max-w-[14rem] flex-col gap-1">
+    <span className="flex w-[8.5rem] flex-col gap-1">
       {list.map((g, i) => (
         <span key={`${g.name}-${i}`} className="flex flex-col whitespace-nowrap text-xs leading-tight" title={gpuTip(g)} tabIndex={0}>
           <span className="flex items-baseline gap-1.5">
-            <span className="min-w-0 truncate font-medium">{shortGpu(g.name)}</span>
-            {g.util != null && <span className="tabular-nums text-muted">{Math.round(g.util)} %</span>}
-            {g.temp != null && <span className={`tabular-nums ${heatClass(g.temp)}`}>{Math.round(g.temp)} °C</span>}
+            <span className="min-w-0 flex-1 truncate font-medium">{shortGpu(g.name)}</span>
+            {g.models.length > 0 && <Bot size={11} className="shrink-0 self-center text-link" aria-label={tx("Modèles IA")} />}
+            {g.util != null && <span className="tabular-nums text-muted">{Math.round(g.util)}%</span>}
+            {g.temp != null && <span className={`tabular-nums ${heatClass(g.temp)}`}>{Math.round(g.temp)}°</span>}
           </span>
-          {(g.memTotal || g.power != null || g.models.length > 0) && (
-            <span className="flex items-baseline gap-1.5 text-[11px] text-dim">
-              {g.memTotal ? <span className="tabular-nums">{gb(g.memUsed ?? 0)} / {gb(g.memTotal)}</span> : null}
-              {g.power != null && <span className="tabular-nums">{Math.round(g.power)} W</span>}
-              {g.models.length > 0 && <span className="truncate text-link" title={g.models.map((x) => x.model).join(", ")}>{g.models.length === 1 ? g.models[0].model : `${g.models.length} ${tx("modèles IA")}`}</span>}
-            </span>
-          )}
+          {g.memTotal ? <span className="text-[11px] tabular-nums text-dim">{gb(g.memUsed ?? 0)} / {gb(g.memTotal)}</span> : null}
         </span>
       ))}
     </span>
@@ -1072,7 +1076,7 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
       <div className="-mx-3 -mt-3 flex items-center gap-2.5 border-b border-line/60 bg-bg px-3 py-2.5">
         <AlertDot items={watch}><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifi) }} scan={scan} reserve /></AlertDot>
         <button type="button" onClick={() => onMachine(m.ip)} className="min-w-0 flex-1 text-left" title={tx("Voir ses services")}>
-          <b className="block truncate font-semibold hover:text-link">{m.name}</b>
+          <b className="flex items-center gap-1.5 truncate font-semibold hover:text-link"><span className="truncate">{m.name}</span><VmMark m={m} h={h} /></b>
           <span className="block truncate font-mono text-[11px] text-dim">{m.ip}</span>
         </button>
         {state}
@@ -1252,7 +1256,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
           {view === "table" && <Table fit head={<>
             <th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
             <Th k="svc" sort={sort}>{tx("Services")}</Th><Th k="watch" sort={sort}>{tx("Santé")}</Th>{snap.health && <><Th className="!px-1.5">{tx("CPU")}</Th><Th className="!px-1.5">{tx("Mémoire")}</Th><Th className="!px-1.5">{tx("Disque")}</Th></>}{anyGpu && <Th className="!px-1.5">GPU</Th>}
-            <Th k="up" sort={sort} className="w-px !pl-2 !pr-1 !text-right">{tx("En marche")}</Th>
+            <Th k="up" sort={sort} className="w-px !pl-2 !pr-1 !text-right" title={tx("Temps depuis le dernier démarrage de la machine")}>Uptime</Th>
             {admin && <th className="w-8 px-1" aria-label={tx("Réglages")} />}
           </>}>
             {sort.sorted.map((m) => {
@@ -1264,7 +1268,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                     onClick={(e) => { if (!(e.target as Element).closest("button, a, input, select, label, summary, [role=button]")) setDetailIp(m.ip); }}
                     onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) setDetailIp(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
                     <td className="w-10 px-2 py-2 align-middle"><AlertDot items={watchOf(m)}><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifiOf(m)) }} scan={scanOs[m.ip]} reserve /></AlertDot></td>
-                    <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><span className="text-xs text-dim">{m.ip}</span><ProblemFlag h={h} /></span></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
+                    <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><VmMark m={m} h={hb.get(m.ip)} /><span className="text-xs text-dim">{m.ip}</span><ProblemFlag h={h} /></span></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
                     <Td>{st(m, false)}</Td>
                     <Td><div className="max-w-[11rem]"><SystemLine m={m} os={osOf(m)} ha={haOf(m)} unifi={unifiOf(m)} freebox={freeboxOf(m, snap.data.network)} /></div></Td>
                     <Td><span className="inline-flex items-center gap-1.5">
@@ -1274,9 +1278,9 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                       {snap.health && <HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} />}
                       <WatchList ip={m.ip} quiet={!!snap.health} items={watchOf(m).filter((i) => i.kind !== "updates")} /></span></Td>
                     {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="!px-1.5"><GpuCellView list={gpusOf(m)} /></Td>}
-                    <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-muted tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network)); return up ? dur(up) : <Dim>-</Dim>; })()}</Td>
+                    <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-xs tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network)); return up ? <span className={up < 3600 ? "text-warn" : "text-muted"} title={`${dur(up)}${up < 3600 ? ` · ${tx("vient de redémarrer")}` : ""}`}>{durShort(up)}</span> : <Dim>-</Dim>; })()}</Td>
                     {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => setEditIp(m.ip)} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
-                      className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><Settings2 size={14} aria-hidden /></button></td>}
+                      className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><SlidersHorizontal size={14} aria-hidden /></button></td>}
                   </tr>
                 </Fragment>
               );

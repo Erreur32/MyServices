@@ -18,6 +18,14 @@ export function dur(sec: number | null | undefined): string {
   return d ? tx("{0} j {1} h", d, h) : tx("{0} h", h);
 }
 
+/** Uptime in a few characters for a table cell: « 12j 4h », « 4h 20m », « 12m » */
+export function durShort(sec: number | null | undefined): string {
+  if (sec == null) return "-";
+  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+  if (d) return tx("{0}j {1}h", d, h);
+  return h ? tx("{0}h {1}m", h, m) : tx("{0}m", m);
+}
+
 /** Âge en jours -> « 5 h » ou « 3 j » */
 export function ageDays(a: number | null | undefined): string {
   if (a == null) return "-";
