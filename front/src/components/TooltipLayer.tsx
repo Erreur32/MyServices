@@ -12,9 +12,9 @@ function splitTip(text: string): [string, string] {
   return i < 0 ? ["", text] : [text.slice(0, i), text.slice(i + 1)];
 }
 
-/** Light markup inside a tip: **text** in bold, `text` as code (settings, commands, file names) */
-const rich = (text: string) => text.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) => {
-  if (part.startsWith("**")) return <b key={i} className="text-txt">{part.slice(2, -2)}</b>;
+/** Light markup inside a tip: **text** in bold, `text` as code (settings, commands, file names), ![](url) as a small icon (service logos) */
+const rich = (text: string) => text.split(/(\*\*[^*]+\*\*|`[^`]+`|!\[\]\([^)]+\))/).map((part, i) => {
+  if (part.startsWith("![](")) return <img key={i} src={part.slice(4, -1)} alt="" aria-hidden className="mr-1 inline h-4 w-4 object-contain align-text-bottom" />;  if (part.startsWith("**")) return <b key={i} className="text-txt">{part.slice(2, -2)}</b>;
   if (part.startsWith("`")) return <code key={i} className="rounded bg-bg2 px-1 font-mono text-[11px] font-semibold text-txt">{part.slice(1, -1)}</code>;
   return part;
 });

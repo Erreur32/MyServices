@@ -4,6 +4,7 @@
 import { Badge, type Tone } from "./ui";
 import { MSTATE, mState, stateBadge } from "../lib/machines";
 import { dateTime } from "../lib/format";
+import { appIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
 import type { AgentInfo, Machine } from "../types";
 
@@ -70,13 +71,25 @@ export function sourcesOf(m: Machine, agent?: AgentInfo | null, extra: Extra[] =
  *  sinon la première tout court (en panne : on voit sa couleur) */
 const primaryOf = (list: Src[]): Src => (list[0].key === "state" ? list[0] : list.find((s) => s.tone === "ok") ?? list[0]);
 
+const ICON_SSH = `${import.meta.env.BASE_URL}icons/ssh.svg`;
+const MARK: Record<Tone, string> = { ok: "✓", warn: "⚠", bad: "✕", info: "•", off: "–" };
+
+/** Info-bulle de la liste des sources : un titre, puis une ligne par source (logo, état, nom en gras, explication) */
+function listTip(list: Src[]): string {
+  const lines = list.map((s) => {
+    const icon = s.key === "ssh" ? ICON_SSH : appIcon([s.label]);
+    return `${icon ? `![](${icon}) ` : ""}${MARK[s.tone]} **${s.label}** ${s.tip}`;
+  });
+  return [tx("Sources de lecture"), ...lines].join("\n");
+}
+
 /** all : toutes les sources (carte dépliée) ; sinon seulement la prioritaire, avec « +N » (infobulle : les autres) */
 export function SourceBadges({ m, agent, extra, all }: Readonly<{ m: Machine; agent?: AgentInfo | null; extra?: Extra[]; all?: boolean }>) {
   const list = sourcesOf(m, agent, extra), first = primaryOf(list), shown = all ? list : [first], rest = list.filter((s) => s !== first);
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
       {shown.map((s) => <Badge key={s.key} tone={s.tone} title={s.tip}>{s.label}</Badge>)}
-      {!all && rest.length > 0 && <span className="text-xs text-dim" title={rest.map((s) => `${s.label} : ${s.tip}`).join("\n")}>+{rest.length}</span>}
+      {!all && rest.length > 0 && <span className="inline-flex cursor-help items-center rounded-md border border-line bg-bg2 px-1.5 py-0.5 text-xs font-semibold text-muted hover:border-link hover:text-txt" title={listTip(list)}>+{rest.length}</span>}
     </span>
   );
 }
