@@ -159,7 +159,7 @@ SYSTEMD_CMD = "systemctl --failed --no-legend --no-pager"
 DOCKER_PS_CMD = "docker ps -a --format '{{.Names}}|{{.Status}}|{{.Image}}' 2>&1"
 DOCKER_STATS_CMD = "docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}' 2>/dev/null"
 APT_CMD = "LC_ALL=C apt list --upgradable 2>/dev/null"
-KERNEL_CMD = "journalctl -k -p err --since '-24h' --no-pager 2>/dev/null | tail -n 50"
+KERNEL_CMD = "journalctl -k -p err --since '-12h' --no-pager 2>/dev/null | tail -n 50"
 REBOOT_CMD = "test -f /var/run/reboot-required && echo yes || echo no"
 LOAD_CMD = "cat /proc/loadavg; nproc"
 VIRT_CMD = "systemd-detect-virt 2>/dev/null"
@@ -1291,8 +1291,8 @@ def compute_host_blocks(h: dict) -> dict:
     elif kernel.get("available") is False:
         kernel_block = "<div class='muted'>Non relevé (Beszel seul)</div>"
     else:
-        kernel_block = ("<div class='muted'>✅ Aucune erreur critique ou disque (journal Système, 24h)</div>"
-                        if h.get("os") == "windows" else "<div class='muted'>✅ Aucune erreur kernel (24h)</div>")
+        kernel_block = ("<div class='muted'>✅ Aucune erreur critique ou disque (journal Système, 12h)</div>"
+                        if h.get("os") == "windows" else "<div class='muted'>✅ Aucune erreur kernel (12h)</div>")
 
     apt = h["apt"]
     if apt.get("available") is False:

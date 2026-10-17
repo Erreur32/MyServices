@@ -255,6 +255,11 @@ function watchTip(it: WatchItem, hint?: string): string {
   return [it.text, ...lines, ...more, ...(hint ? ["", `[[off:${hint}]]`] : [])].join("\n");
 }
 
+/** Kernel errors set aside by the viewer, per machine: hidden until a more recent message appears (kept in this browser only) */
+const KernelIgnore = createContext<{ ignored: Record<string, string>; set: (id: string, sig: string | null) => void }>({ ignored: {}, set: () => undefined });
+const KERNEL_KEY = "ms.machines.kernelIgnored";
+const kernelSig = (samples: string[] = []): string => samples[samples.length - 1] ?? "";
+
 /** Asks the machines page to open a machine window at the section that explains a notice (null outside the page) */
 const PickWatch = createContext<((ip: string, kind: WatchKind) => void) | null>(null);
 
@@ -425,17 +430,30 @@ function KernelLines({ lines, tall = false }: Readonly<{ lines: string[]; tall?:
 }
 
 /** « Kernel errors » block of the Health section: what it is, how many, the log, and a button to copy it (to paste into a report or a search) */
-function KernelBlock({ lines }: Readonly<{ lines: string[] }>) {
+function KernelBlock({ id, lines }: Readonly<{ id: string; lines: string[] }>) {
   const [copied, setCopied] = useState(false);
+  const { ignored, set } = useContext(KernelIgnore);
+  const sig = kernelSig(lines);
+  if (ignored[id] === sig) {
+    return (
+      <div data-watch="kernel" className="my-1 flex flex-wrap items-center gap-2 rounded-md border border-line/60 px-2.5 py-1.5 text-muted">
+        <Bug size={14} aria-hidden /><span>{tx("Erreurs noyau ignorées (plus récentes que ce message : elles reviendront)")}</span>
+        <button type="button" onClick={() => set(id, null)} className="ml-auto rounded-md border border-line px-1.5 py-0.5 text-[11px] hover:border-link hover:text-txt">{tx("Réactiver")}</button>
+      </div>
+    );
+  }
   const copy = () => { navigator.clipboard.writeText(lines.join("\n")).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => undefined); };
   return (
     <div data-watch="kernel" className="my-1 flex flex-col gap-1.5 rounded-md border border-warn/40 bg-warn/5 p-2.5">
       <div className="flex flex-wrap items-center gap-2">
         <Bug size={14} className="text-warn" aria-hidden />
         <b className="text-warn">{tx("Erreurs noyau")}</b><Badge tone="warn">{lines.length}</Badge>
-        <Dim>{tx("sur 24 h, relevées par journalctl -k")}</Dim>
+        <Dim>{tx("sur 12 h, relevées par journalctl -k")}</Dim>
         <button type="button" onClick={copy} className="ml-auto inline-flex items-center gap-1 rounded-md border border-line px-1.5 py-0.5 text-[11px] text-muted hover:border-link hover:text-txt" title={tx("Copier ces messages")}>
           {copied ? <Check size={12} aria-hidden /> : <Copy size={12} aria-hidden />}{copied ? tx("Copié") : tx("Copier")}
+        </button>
+        <button type="button" onClick={() => set(id, sig)} className="inline-flex items-center gap-1 rounded-md border border-line px-1.5 py-0.5 text-[11px] text-muted hover:border-link hover:text-txt" title={tx("Cacher ces erreurs, déjà réglées : elles reviennent si un message plus récent apparaît")}>
+          <EyeOff size={12} aria-hidden />{tx("Ignorer")}
         </button>
       </div>
       <KernelLines lines={lines} tall />
@@ -494,7 +512,7 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
           <ProbeChips items={h.fans.map((f) => ({ name: f.name, value: `${Math.round(f.rpm)} ${tx("tr/min")}`, tone: "" }))} />
         </DetailRow>
       )}
-      {h.kernel?.has_errors && <KernelBlock lines={h.kernel.samples ?? []} />}
+      {h.kernel?.has_errors && <KernelBlock id={h.id} lines={h.kernel.samples ?? []} />}
       {h.vmem && bar(tx("Mémoire VM"), h.vmem.pct, `${(h.vmem.used_mb / 1024).toFixed(1)} / ${(h.vmem.total_mb / 1024).toFixed(1)} ${tx("Go")}`)}
       {h.vms && (
         <DetailRow k={tx("Machines virtuelles")} title={tx("Machines virtuelles")}>
@@ -1045,7 +1063,17 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean }>>({});
   useEffect(() => { read<NetScan>("network/scan").then((n) => setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [], ssh: !!h.ssh_port }])))).catch(() => undefined); }, []);
   const osOf = useCallback((m: Machine): OsKind | null => osOfMachine({ os: m.agent ? "windows" : undefined, info: m.info, ttl: m.ttl, name: m.name }, scanOs[m.ip]?.os, scanOs[m.ip]?.ssh)?.kind ?? null, [scanOs]);
-  const watchOf = useCallback((m: Machine) => watchItems(m, hb.get(m.ip), snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m)), [hb, snap.data.connectors, snap.data.network, unifiOf]);
+  const [ignored, setIgnored] = useState<Record<string, string>>(() => { try { return JSON.parse(localStorage.getItem(KERNEL_KEY) ?? "{}") as Record<string, string>; } catch { return {}; } });
+  const setIgnore = useCallback((id: string, sig: string | null) => setIgnored((cur) => {
+    const next = { ...cur }; if (sig === null) delete next[id]; else next[id] = sig;
+    try { localStorage.setItem(KERNEL_KEY, JSON.stringify(next)); } catch { /* private browsing: not kept */ }
+    return next;
+  }), []);
+  const ignoreCtx = useMemo(() => ({ ignored, set: setIgnore }), [ignored, setIgnore]);
+  const watchOf = useCallback((m: Machine) => {
+    const h = hb.get(m.ip), items = watchItems(m, h, snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m));
+    return h && ignored[h.id] === kernelSig(h.kernel?.samples) ? items.filter((i) => i.kind !== "kernel") : items;   // set aside by the viewer, until a newer message
+  }, [hb, snap.data.connectors, snap.data.network, unifiOf, ignored]);
   const facets = useMemo((): Facet<Machine>[] => [
     { key: "state", label: tx("État"), get: mState, name: (v) => MSTATE[v as MState][1], order: ORDER, mark: (v) => <Dot tone={MSTATE[v as MState][0]} /> },
     { key: "health", label: tx("Santé"), get: (m) => { const h = hb.get(m.ip); return h ? (h.reachable === false ? "down" : h.level) : ""; },
@@ -1130,6 +1158,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
 
   return (
     <PickWatch.Provider value={pickWatch}>
+    <KernelIgnore.Provider value={ignoreCtx}>
     <div className="py-1">
       <FilterBar f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
         options={[
@@ -1217,6 +1246,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       })()}
       {editIp && <MachineModal ip={editIp} snap={snap} onClose={() => setEditIp(null)} />}
     </div>
+    </KernelIgnore.Provider>
     </PickWatch.Provider>
   );
 }
