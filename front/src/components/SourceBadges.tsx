@@ -35,6 +35,17 @@ export function sourcesOf(m: Machine, agent?: AgentInfo | null, extra: { type: s
   return out;
 }
 
-export function SourceBadges({ m, agent, extra }: { m: Machine; agent?: AgentInfo | null; extra?: { type: string; name: string; label: string }[] }) {
-  return <span className="inline-flex flex-wrap items-center gap-1">{sourcesOf(m, agent, extra).map((s) => <Badge key={s.key} tone={s.tone} title={s.tip}>{s.label}</Badge>)}</span>;
+/** Source prioritaire : l'état d'accès s'il y en a un (éteinte, injoignable, non suivie), sinon la première source qui marche (SSH, agent, puis connecteurs),
+ *  sinon la première tout court (en panne : on voit sa couleur) */
+const primaryOf = (list: Src[]): Src => list[0].key === "state" ? list[0] : list.find((s) => s.tone === "ok") ?? list[0];
+
+/** all : toutes les sources (carte dépliée) ; sinon seulement la prioritaire, avec « +N » (infobulle : les autres) */
+export function SourceBadges({ m, agent, extra, all }: { m: Machine; agent?: AgentInfo | null; extra?: { type: string; name: string; label: string }[]; all?: boolean }) {
+  const list = sourcesOf(m, agent, extra), first = primaryOf(list), shown = all ? list : [first], rest = list.filter((s) => s !== first);
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      {shown.map((s) => <Badge key={s.key} tone={s.tone} title={s.tip}>{s.label}</Badge>)}
+      {!all && rest.length > 0 && <span className="text-xs text-dim" title={rest.map((s) => `${s.label} : ${s.tip}`).join("\n")}>+{rest.length}</span>}
+    </span>
+  );
 }

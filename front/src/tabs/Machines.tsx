@@ -716,9 +716,9 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
   };
   const macOf = (m: Machine) => { const d = seen.get(m.ip); const mac = d?.mac || m.links?.mac, vendor = d?.vendor || m.links?.vendor; return mac || vendor ? [mac, vendor].filter(Boolean).join(" · ") : undefined; };
   // Sources de lecture (SSH, agent, connecteurs), un badge court coloré par source ; la Freebox est lue par MynetworK (rapprochée par son nom)
-  const st = (m: Machine) => {
+  const st = (m: Machine, all: boolean) => {
     const fb = freeboxOf(m, snap.data.network) && snap.data.network?.find((c) => c.freebox?.system);
-    return <SourceBadges m={m} extra={fb ? [{ type: fb.connector, name: fb.name, label: fb.label }] : []} />;
+    return <SourceBadges all={all} m={m} extra={fb ? [{ type: fb.connector, name: fb.name, label: fb.label }] : []} />;
   };
 
   return (
@@ -771,7 +771,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                     <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td>
                     <Td><button type="button" onClick={() => onMachine(m.ip)} className="flex items-baseline gap-2 text-left" title={tx("Voir ses services")}>
                       <b className="font-semibold hover:text-link">{m.name}</b><span className="text-xs text-dim">{m.ip}</span></button></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
-                    <Td>{st(m)}</Td><Td><WatchList items={watchOf(m)} /></Td>
+                    <Td>{st(m, shown)}</Td><Td><WatchList items={watchOf(m)} /></Td>
                     <Td><OsShort m={m} kind={osOf(m)} /></Td><Td><Servers m={m} snap={snap} max={2} /></Td>
                     <Td><span className="inline-flex items-center gap-1.5"><b className="tabular-nums">{m.services}</b><DownBadge m={m} snap={snap} /></span></Td>
                     {snap.health && <><Td><HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} /></Td>
@@ -788,7 +788,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
               const h = hb.get(m.ip), shown = open.has(m.ip);
               return (
                 <MachineCard key={m.ip} m={m} h={h} snap={snap} scan={scanOs[m.ip]} os={osOf(m)} watch={watchOf(m)} ha={haOf(m)} unifi={unifiOf(m)} off={isOff(m)}
-                  state={st(m)} shown={shown} onToggle={() => setOpen((o) => (o.has(m.ip) ? new Set() : new Set([m.ip])))} onMachine={onMachine}
+                  state={st(m, shown)} shown={shown} onToggle={() => setOpen((o) => (o.has(m.ip) ? new Set() : new Set([m.ip])))} onMachine={onMachine}
                   detail={shown && <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} freebox={freeboxOf(m, snap.data.network)} onServices={() => onMachine(m.ip)} />} />
               );
             })}

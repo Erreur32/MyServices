@@ -361,7 +361,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
         {/* Qui lit la machine : un badge court par source, coloré selon son état (détail en infobulle). Le détail de l'accès SSH n'est que dans la carte dépliée */}
         <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">
           {!open && rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}
-          {live ? <SourceBadges m={live} agent={agent} /> : agent ? <Badge tone={agent.state === "actif" ? "ok" : "warn"} title={tx("Agent MyServices : {0}", agent.state)}>{tx("agent")}</Badge> : <span className="truncate">{access}</span>}
+          {live ? <SourceBadges all={open} m={live} agent={agent} /> : agent ? <Badge tone={agent.state === "actif" ? "ok" : "warn"} title={tx("Agent MyServices : {0}", agent.state)}>{tx("agent")}</Badge> : <span className="truncate">{access}</span>}
         </span>
       </button>
       {open && (
