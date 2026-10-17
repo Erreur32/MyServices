@@ -36,6 +36,12 @@ FORBIDDEN = [
     ".env", ".env.*", "*/.env", "*/.env.*", "*.sqlite", "*.sqlite3", "*.db", "*.db-wal", "*.db-shm",
     "dev-data/*", "*ADMIN-mot-de-passe*", "*.htpasswd", "npm-api.conf", "*/npm-api.conf",
     "TODO.md", "PLAN.md", ".notes.git/*", "web/data.json", "web/events.json", "*.bundle", "*.tar.gz", "*.tgz", "*.zip",
+    # Test and dev instances: database, state, caches, SSH keys, config (never to be pushed)
+    "MyServices-test/*", "*/MyServices-test/*", "*composetest*", "myservices.db*", "*/myservices.db*",
+    "data/*", "config/*", "*/data/state/*", "*/data/cache/*", "*/data/web/*", "*/config/ssh/*",
+    # Claude Code: local settings, instructions, memory, session logs and credentials
+    ".claude/*", "*/.claude/*", "CLAUDE.md", "*/CLAUDE.md", "RTK.md", "*/RTK.md", "MEMORY.md", "*/MEMORY.md",
+    "memory/*", "*.jsonl", ".credentials.json", "*/.credentials.json", "settings.local.json", "*/settings.local.json",
 ]
 # Exceptions : les exemples sont faits pour être versionnés
 FORBIDDEN_OK = ["*.example.json", "*.example.yaml", "*.example.yml", ".env.example", "*/.env.example"]
@@ -50,6 +56,13 @@ SECRETS = [
     (r"\bsk-(?:proj-)?[0-9A-Za-z_-]{40,}\b", "clé OpenAI"),
     (r"\bxox[abprs]-[0-9A-Za-z-]{10,}\b", "jeton Slack"),
     (r"\bAIza[0-9A-Za-z_-]{35}\b", "clé Google"),
+    (r"\bya29\.[0-9A-Za-z_-]{20,}", "jeton OAuth Google"),
+    (r"\bnpm_[0-9A-Za-z]{36}\b", "jeton npm"),
+    (r"\bdckr_pat_[0-9A-Za-z_-]{20,}", "jeton Docker Hub"),
+    (r"\bhf_[0-9A-Za-z]{30,}\b", "jeton Hugging Face"),
+    (r"\btskey-[a-z]+-[0-9A-Za-z]{10,}", "clé Tailscale"),
+    (r"\bSG\.[0-9A-Za-z_-]{20,}\.[0-9A-Za-z_-]{20,}", "clé SendGrid"),
+    (r"\bPVEAPIToken=\S+=[0-9a-fA-F-]{36}\b", "jeton API Proxmox"),
     (r"\bmsv_(?:api|mcp)_[0-9A-Za-z_-]{16,}\b", "jeton API / MCP de MyServices"),
     (r"https://(?:discord(?:app)?\.com)/api/webhooks/\d+/[\w-]{20,}", "webhook Discord"),
     (r"\bbot\d{8,10}:[A-Za-z0-9_-]{35}\b", "jeton de bot Telegram"),
