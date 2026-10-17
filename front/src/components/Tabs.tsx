@@ -1,6 +1,6 @@
 import type { Snapshot } from "../api";
 import type { TabId } from "../lib/summary";
-import { TABS, visible } from "../lib/tabs";
+import { TABS, UNRELEASED, visible } from "../lib/tabs";
 import { tx } from "../lib/i18n";
 
 export function Tabs({ tab, snap, badges, onSelect, onBadge }: {
@@ -13,8 +13,10 @@ export function Tabs({ tab, snap, badges, onSelect, onBadge }: {
         return (
           <span key={t.id} className="relative flex shrink-0">
             <button type="button" onClick={() => onSelect(t.id)} aria-current={on ? "page" : undefined}
+              title={UNRELEASED.includes(t.id) ? tx("Pas encore publié : visible seulement sur ce serveur de développement") : undefined}
               className={`flex items-center gap-1.5 rounded-t-lg py-2.5 pl-3.5 text-sm font-semibold transition-colors ${b ? "pr-7" : "pr-3.5"} ${
-                on ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
+                UNRELEASED.includes(t.id) ? `italic opacity-50 hover:opacity-80 ${on ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : "text-dim hover:bg-bg2"}`
+                : on ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
               <t.icon size={16} strokeWidth={1.75} aria-hidden />{t.label}
             </button>
             {b && (

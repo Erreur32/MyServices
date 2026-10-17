@@ -26,7 +26,7 @@ export const TABS: { id: TabId; icon: LucideIcon; label: string }[] = [
 ];
 
 /** Onglets encore en chantier : visibles seulement sur une image de dev (construite sur place, git-rev), pas publiés. */
-const UNRELEASED: TabId[] = ["infra", "network", "security"];
+export const UNRELEASED: TabId[] = ["infra", "network", "security"];
 const isDevBuild = (s: Snapshot) => !!s.me.git || s.me.version === "dev";
 
 /** Onglet affiché seulement si sa source est activée (et Réglages pour les admins). */

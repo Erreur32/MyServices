@@ -2,7 +2,7 @@
 // copies ailleurs, jeux produits) et les dossiers de sauvegarde trouvés sur les disques.
 import { HardDrive } from "lucide-react";
 import { useCallback, useMemo } from "react";
-import { ROOT, type Snapshot } from "../api";
+import { type Snapshot } from "../api";
 import { useFilter, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime } from "../lib/format";
 import type { BackupHost } from "../types";
@@ -77,7 +77,7 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
           <h2 className="flex items-center gap-2 font-bold"><HardDrive size={16} aria-hidden />{tx("Sauvegardes")}</h2>
-          <span className="text-xs text-dim">{tx("Relevé du")} {dateTime(b.generated)}{snap.data.page.map && <> · <a className="text-link hover:underline" href={`${ROOT}sauvegardes.html`} target="_blank" rel="noopener">{tx("carte des copies entre machines")}</a></>}</span>
+          <span className="text-xs text-dim">{tx("Relevé du")} {dateTime(b.generated)}</span>
         </div>
         <p className="text-sm text-muted">
           {tx("{0} jeux de sauvegarde sur {1} machines", sm.sets, sm.hosts)}
@@ -93,10 +93,12 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
           {storageFree != null && <Tile n={bytes(storageFree.avail)} label={tx("libres sur {0}", storageFree.names)} />}
         </div>
       </Card>
-      <TableCard title={tx("À regarder")} tone={b.issues.some((i) => i.level === "crit" || i.level === "down") ? "bad" : b.issues.length ? "warn" : "ok"}
-        cols={[{ label: tx("État"), className: "w-[7.5rem]" }, { label: tx("Jeu de sauvegarde"), className: "w-[34%]" }, { label: tx("Ce qui ne va pas") }]}
-        rows={b.issues.map((i) => [<Level level={i.level} />, <b className="font-semibold">{i.set}</b>, <span className="text-muted">{i.text}</span>])}
-        empty={tx("Rien à signaler.")} footer={<>{tx("Relevé du")} {dateTime(b.generated)}{snap.data.page.map && <> · <a className="text-link hover:underline" href={`${ROOT}sauvegardes.html`} target="_blank" rel="noopener">{tx("carte des sauvegardes")}</a></>}</>} />
+      {b.issues.length > 0 && (   // nothing to say = no frame
+        <TableCard title={tx("Points d'attention")} tone={b.issues.some((i) => i.level === "crit" || i.level === "down") ? "bad" : "warn"}
+          cols={[{ label: tx("État"), className: "w-[7.5rem]" }, { label: tx("Jeu de sauvegarde"), className: "w-[34%]" }, { label: tx("Ce qui ne va pas") }]}
+          rows={b.issues.map((i) => [<Level level={i.level} />, <b className="font-semibold">{i.set}</b>, <span className="text-muted">{i.text}</span>])}
+          footer={<>{tx("Relevé du")} {dateTime(b.generated)}</>} />
+      )}
       <FilterBar f={f} placeholder={tx("Machine, jeu, dossier…")} />
       {f.shown.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
