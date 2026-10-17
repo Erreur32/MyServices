@@ -3,15 +3,15 @@
 // prêtes à être cliquées. Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller sur le PC.
 // Gérés seulement depuis une session admin.
 import { shortOs } from "../lib/osName";
-import { ArrowUpCircle, Check, ChevronDown, ChevronRight, Download, Monitor, MonitorUp, Plus, RefreshCw, RotateCw, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowUpCircle, Check, ChevronDown, ChevronRight, MonitorUp, Plus, RefreshCw, RotateCw, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
-import { Copyable, Field, NoteLine } from "../components/form";
+import { NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
-import { cleanAgentUrl, installCommand } from "../lib/agentCommand";
+import { AgentInstall, type AgentKind, type InstallTarget } from "../components/AgentInstall";
 import { isWindowsMachine } from "../lib/machines";
 import { focusConnector } from "../lib/connectorPrefill";
-import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
+import { act, danger, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
 import { dateTime, ipNum } from "../lib/format";
 import type { AgentInfo, AgentsState, Machine, MachineConf, MachinesSettings, NetworkConnector } from "../types";
@@ -27,27 +27,14 @@ const STATE: Record<AgentInfo["state"], ["ok" | "warn" | "info" | "off", string]
   révoqué: ["off", tx("révoqué")],
 };
 
-// Exemple d'adresse du LAN : en local il n'y a pas de TLS, http est voulu
-const EXAMPLE_URL = "http://192.168.1.10:8090"; // NOSONAR
-
 /** Icônes de matériel fermé (box, onduleur…) : on n'y installe rien, donc jamais d'agent proposé */
 const APPLIANCE_ICONS = new Set(["freebox", "free", "nut"]);
-
-/** Nom d'agent accepté par le serveur (lettres, chiffres, espace, . _ @ -) tiré du nom de la machine */
-const agentName = (machine: string) => machine.replace(/[^\p{L}\p{N}_ .@-]/gu, "").trim().slice(0, 64) || "agent";
 
 export function Agents({ focusIp, live, network = [] }: { focusIp?: string; live: Machine[]; network?: NetworkConnector[] }) {
   const [st, setSt] = useState<AgentsState | null>(null);
   const [machines, setMachines] = useState<MachinesSettings["machines"]>({});
   const [error, setError] = useState("");
-  // Adresse de MyServices vue du PC : par défaut celle de la page (l'adresse par laquelle le PC joindra aussi MyServices) ;
-  // le champ n'apparaît qu'à une nouvelle demande d'agent, pour la corriger au besoin
-  const [url, setUrl] = useState(location.origin);
-  const [created, setCreated] = useState<{ info: AgentInfo; token: string } | null>(null);  // jeton gardé en mémoire de la page seulement
-  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState("");
-  const command = created ? installCommand(url, created.token, created.info.kind) : null;  // suit le champ « Adresse de MyServices » même après la création
-  const [pick, setPick] = useState("");  // machine choisie, en attente de confirmation (rien n'est créé avant)
-  const [pickKind, setPickKind] = useState<"windows" | "linux" | null>(null);  // type choisi à la main ; null = celui que la machine laisse supposer
+  const [install, setInstall] = useState<InstallTarget | null>(null);   // agent en cours d'installation (le composant partagé gère le reste)
   const reload = useCallback(() => {
     read<AgentsState>("agents")
       .then((s) => { setSt(s); setError(""); })
@@ -59,12 +46,6 @@ export function Agents({ focusIp, live, network = [] }: { focusIp?: string; live
   // à l'arrêt quand l'onglet du navigateur est caché. Les cartes « Linux, lus par SSH » suivent l'état de la collecte (snapshot de l'application).
   const waiting = !!st?.agents.some((a) => a.state === "en attente");
   usePoll(reload, waiting ? 5000 : 30_000, false);
-  // Cadre « Agent créé » : replié tout seul au premier relevé reçu (une fois), dépliable à la demande tant qu'on ne l'a pas fermé
-  const [folded, setFolded] = useState(false), foldedFor = useRef(0);
-  const seenFirst = created ? st?.agents.find((x) => x.id === created.info.id)?.last_seen : null;
-  useEffect(() => {
-    if (created && seenFirst && foldedFor.current !== created.info.id) { foldedFor.current = created.info.id; setFolded(true); }
-  }, [created, seenFirst]);
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 
   const byIp = new Map(st.agents.filter((a) => a.state !== "révoqué").map((a) => [a.ip, a]));
@@ -84,35 +65,8 @@ export function Agents({ focusIp, live, network = [] }: { focusIp?: string; live
   const byApi = sorted(tracked.filter((ip) => !sshAlias(ip) && (stateOf(ip) === "api" || stateOf(ip) === "network" || APPLIANCE_ICONS.has(liveBy.get(ip)?.icon ?? ""))));      // lues par une API ou un outil réseau (box, passerelle), sans SSH : aucun agent possible
   const without = sorted(tracked.filter((ip) => !sshAlias(ip) && !byApi.includes(ip)));   // sans agent, sans SSH, sans API : agent Windows ou Linux
   const ssh = sorted(tracked.filter((ip) => !isWindows(ip) && !!sshAlias(ip)));               // Linux lus par SSH
-  const kindOf = (ip: string): "windows" | "linux" => (isWindows(ip) ? "windows" : "linux");
-  const chosen = pickKind ?? (pick ? kindOf(pick) : "windows");
-  const local = /^https?:\/\/(localhost|127\.|\[::1\])/i.test(url);
-
-  const addressField = (
-    <div className="mt-3">
-      <div className="max-w-md">
-        <Field label={tx("Adresse de MyServices, vue du PC")}>
-          <input className={input} value={url} onChange={(e) => setUrl(e.target.value.trim())} placeholder={EXAMPLE_URL} inputMode="url" />
-        </Field>
-      </div>
-      {cleanAgentUrl(url)?.endsWith(":5180") && <p className="mt-2 text-sm text-warn">{tx("5180 est le serveur de développement : l'agent cessera d'envoyer quand il s'arrête. Utilisez l'adresse stable de MyServices (le conteneur, ex. http://192.168.1.10:8091).")}</p>}
-      {local && <p className="mt-2 text-sm text-warn">{tx("localhost ne marchera pas depuis un autre PC : mettez l'adresse du LAN de MyServices (ex. http://192.168.1.10:8090).")}</p>}
-    </div>
-  );
-
-  const create = async (ip: string, kind: "windows" | "linux") => {
-    setBusy(ip); setNote(null);
-    try {
-      setCreated(await send<{ info: AgentInfo; token: string }>("POST", "agents", { ip, name: agentName(machines[ip]?.name ?? ip), url, kind }));
-      setPick(""); setPickKind(null);
-      reload();
-    } catch (err) {
-      if (err instanceof LoginRequired) location.replace(LOGIN);
-      else setNote({ ok: false, text: (err as Error).message });
-    }
-    setBusy("");
-  };
-
+  const kindOf = (ip: string): AgentKind => (isWindows(ip) ? "windows" : "linux");
+  const nameOf = (ip: string) => machines[ip]?.name ?? ip;
   return (
     <div className="flex flex-col gap-7">
       <Card>
@@ -130,75 +84,20 @@ export function Agents({ focusIp, live, network = [] }: { focusIp?: string; live
           </ul>
           <p className="mt-1 text-xs text-dim">{tx("SSH, agent et connecteurs peuvent tourner ensemble sur une même machine : la première source qui répond fait foi, les autres complètent.")}</p>
         </div>
-        <NoteLine note={note} />
       </Card>
 
-      {created && (
-        <Card tone="ok">
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setFolded(!folded)} aria-expanded={!folded} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-              {folded ? <ChevronRight size={16} className="shrink-0 text-txt" aria-hidden /> : <ChevronDown size={16} className="shrink-0 text-txt" aria-hidden />}
-              <h2 className="truncate font-bold text-ok">{tx("Agent «")} {created.info.name} {tx("» créé")}</h2>
-              {folded && seenFirst && <Badge tone="ok">✓ {tx("premier relevé reçu")}</Badge>}
-            </button>
-            <button type="button" className={quiet} onClick={() => setCreated(null)}><X size={14} />{tx("Fermer")}</button>
-          </div>
-          {!folded && <div className="mt-2">
-            <p className="mb-2 text-sm text-warn">{tx("À copier maintenant : le jeton qu'elle contient ne sera plus jamais affiché.")}</p>
-            <p className="mb-2 text-sm text-muted">{created.info.kind === "linux" ? tx("Sur la machine, ouvrez un terminal (compte avec sudo) et collez :") : tx("Sur le PC, ouvrez PowerShell en administrateur (clic droit → Exécuter en tant qu'administrateur) et collez :")}</p>
-            {command ? <Copyable key={command} text={command} />
-              : <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{tx("Adresse de MyServices invalide : http://hôte:port, sans chemin. Corrigez-la ci-dessous, la commande se met à jour.")}</p>}
-            {!command && addressField}
-            <p className="mt-2 text-xs text-dim">{created.info.kind === "linux"
-              ? tx("L'installation crée un minuteur systemd (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur la machine relancer la commande avec MSV_UNINSTALL=1.")
-              : tx("L'installation crée une tâche planifiée (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur le PC relancer la commande avec MSV_UNINSTALL = '1'.")}</p>
-            {(() => {  // confirmation côté MyServices : la page relit les agents toutes les 5 s tant qu'un premier relevé est attendu
-              const seen = st.agents.find((x) => x.id === created.info.id);
-              return seen?.last_seen
-                ? <div role="status" className="mt-3 rounded-lg bg-ok/10 px-3 py-2">
-                    <p className="text-sm font-semibold text-ok">✓ {tx("Agent installé et actif : premier relevé reçu")}</p>
-                    <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted">
-                      <Monitor size={16} className="shrink-0 text-ok" aria-hidden />{tx("Système détecté :")} <b className="text-base text-txt">{seen.os || tx("non précisé par l'agent")}</b>
-                      <Dim>· {tx("agent")} v{seen.version || "?"} · {dateTime(seen.last_seen * 1000)}</Dim>
-                    </p>
-                  </div>
-                : <p role="status" className="mt-3 rounded-lg bg-bg2 px-3 py-2 text-sm text-muted">⏳ {tx("En attente du premier relevé : cette ligne se met à jour toute seule dès que le PC a envoyé le premier, sans rien à recharger.")}</p>;
-            })()}
-          </div>}
-        </Card>
-      )}
-
-      {pick && machines[pick] && (
-        <Card className="border-link/60">
-          <h2 className="mb-1 flex items-center gap-2 font-bold"><Download size={16} aria-hidden />{tx("Installer l'agent sur")} {machines[pick].name} <Dim>· {pick}</Dim></h2>
-          <p className="text-sm text-muted">{chosen === "linux"
-            ? tx("L'agent Linux est un script Python, en lecture seule. « Créer l'agent » génère son jeton (montré une seule fois) et la commande à coller dans un terminal de la machine (avec sudo).")
-            : tx("L'agent est un script PowerShell pour Windows, en lecture seule. « Créer l'agent » génère son jeton (montré une seule fois) et la commande à coller dans un PowerShell administrateur du PC.")}</p>
-          <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label={tx("Type d'agent")}>
-            {(["windows", "linux"] as const).map((k) => (
-              <button key={k} type="button" aria-pressed={chosen === k} onClick={() => setPickKind(k)}
-                className={`inline-flex h-8 items-center rounded-lg border px-3 text-sm font-semibold ${chosen === k ? "border-link bg-link/10 text-txt" : "border-line bg-bg2 text-muted hover:border-link"}`}>{k === "windows" ? "Windows" : "Linux"}</button>
-            ))}
-            {chosen === "linux" && <a href={`#settings/machines/${pick}`} className="text-xs text-link underline">{tx("ou régler l'accès SSH de cette machine")}</a>}
-          </div>
-          {addressField}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" className={primary} disabled={!!busy || !url} onClick={() => void create(pick, chosen)}><Plus size={14} />{tx("Créer l'agent")}</button>
-            <button type="button" className={quiet} onClick={() => { setPick(""); setPickKind(null); }}>{tx("Annuler")}</button>
-          </div>
-        </Card>
-      )}
+      {install && <AgentInstall key={`${install.ip}-${install.auto ? "auto" : "pick"}`} target={install} onChanged={reload} onClose={() => setInstall(null)} />}
 
       <Group title={tx("Avec un agent")} n={withAgent.length} fold rows>
-        {withAgent.map((ip) => <ActiveCard key={ip} a={byIp.get(ip)!} conf={machines[ip]} ip={ip} focus={ip === focusIp} busy={busy === ip} onRenew={() => void create(ip, byIp.get(ip)?.kind ?? kindOf(ip))} reload={reload} />)}
+        {withAgent.map((ip) => <ActiveCard key={ip} a={byIp.get(ip)!} conf={machines[ip]} ip={ip} focus={ip === focusIp} busy={install?.ip === ip && !!install.auto} onRenew={() => setInstall({ ip, name: nameOf(ip), kind: byIp.get(ip)?.kind ?? kindOf(ip), auto: true })} reload={reload} />)}
       </Group>
 
       <Group title={tx("Sans agent")} fold n={without.length}
         hint={tx("Cliquez sur une machine pour préparer son agent : rien n'est créé avant que vous confirmiez.")}>
         {without.map((ip) => (
           <li key={ip}>
-            <button type="button" disabled={!!busy} onClick={() => { setPick(pick === ip ? "" : ip); setPickKind(null); }} aria-pressed={pick === ip}
-              className={`flex h-full w-full items-center gap-3 rounded-xl border bg-bg2 p-3 text-left transition-colors hover:border-link hover:bg-link/10 disabled:opacity-60 ${pick === ip || ip === focusIp ? "border-link bg-link/10 ring-1 ring-link" : "border-dim/50"}`}>
+            <button type="button" onClick={() => setInstall(install?.ip === ip ? null : { ip, name: nameOf(ip), kind: kindOf(ip), choose: true })} aria-pressed={install?.ip === ip}
+              className={`flex h-full w-full items-center gap-3 rounded-xl border bg-bg2 p-3 text-left transition-colors hover:border-link hover:bg-link/10 disabled:opacity-60 ${install?.ip === ip || ip === focusIp ? "border-link bg-link/10 ring-1 ring-link" : "border-dim/50"}`}>
               <MachineIcon m={{ role: liveBy.get(ip)?.role, icon: liveBy.get(ip)?.icon, name: machines[ip].name, os: machines[ip].os, osName: liveBy.get(ip)?.agent?.os }} reserve />
               <span className="min-w-0 flex-1">
                 <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
@@ -225,8 +124,8 @@ export function Agents({ focusIp, live, network = [] }: { focusIp?: string; live
                 </span>
                 {badge(ip)}
               </a>
-              <button type="button" disabled={!!busy} className={quiet} title={tx("Préparer un agent Linux pour cette machine, à la place du SSH")}
-                onClick={() => { setPick(ip); setPickKind("linux"); window.scrollTo({ top: 0, behavior: "smooth" }); }}><Plus size={14} />{tx("Agent")}</button>
+              <button type="button" className={quiet} title={tx("Préparer un agent Linux pour cette machine, à la place du SSH")}
+                onClick={() => { setInstall({ ip, name: nameOf(ip), kind: "linux", choose: true }); window.scrollTo({ top: 0, behavior: "smooth" }); }}><Plus size={14} />{tx("Agent")}</button>
             </li>
           );
         })}
@@ -264,8 +163,8 @@ export function Agents({ focusIp, live, network = [] }: { focusIp?: string; live
 
       <Group title={tx("Agents révoqués")} n={revoked.length} fold folded
         hint={tx("Leur jeton ne marche plus. « Nouvel agent » en crée un autre pour ce PC ; « Supprimer » les retire de la liste pour de bon.")}>
-        {revoked.map((a) => <RevokedCard key={a.id} a={a} conf={machines[a.ip]} ip={a.ip} busy={busy === a.ip}
-          onNew={() => void create(a.ip, a.kind ?? kindOf(a.ip))} reload={reload} />)}
+        {revoked.map((a) => <RevokedCard key={a.id} a={a} conf={machines[a.ip]} ip={a.ip} busy={install?.ip === a.ip && !!install.auto}
+          onNew={() => setInstall({ ip: a.ip, name: nameOf(a.ip), kind: a.kind ?? kindOf(a.ip), auto: true })} reload={reload} />)}
       </Group>
     </div>
   );
