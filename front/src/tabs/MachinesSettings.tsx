@@ -22,7 +22,7 @@ import { SshGuide } from "../components/SshGuide";
 import { SshAccess, SshDetails } from "../components/ssh";
 import { ReadBySsh } from "../components/ReadBySsh";
 import { useWide } from "../lib/useWide";
-import { rolesOf, sshBrief, sshWarn } from "../lib/ssh";
+import { rolesOf, sshWarn } from "../lib/ssh";
 import { pokeScan } from "../lib/scan";
 import { hardwareRows } from "../lib/hardware";
 import { tx } from "../lib/i18n";
@@ -321,6 +321,8 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
   };
   const access = agent ? tx("agent MyServices") : m.os === "windows" ? (m.health ? tx("Windows · santé par {0}", m.health) : tx("Windows · sans agent")) : m.ssh ? `SSH ${m.ssh}` : tx("sans SSH");
   const Chevron = open ? ChevronDown : ChevronRight;
+  // Connecteurs qui voient cette machine : ceux de l'API (Home Assistant…) et les outils réseau rapprochés (MynetworK…), sans doublon
+  const connectors = [...new Set([...(live?.api ?? []).map((a) => a.label), ...(live?.links?.sources ?? []).filter((x) => x.ok !== false).map((x) => x.label)])];
   // Ce que la collecte (SSH) ou l'agent a lu de la connexion : montré dans le cadre « Accès », sous l'interrupteur
   const hw = hardwareRows(live?.agent?.hardware);  // matériel lu par l'agent (modèle, BIOS, processeur, mémoire...)
   const connection = m.os === "windows" ? (
@@ -353,13 +355,20 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
               onClick={(e) => { e.stopPropagation(); goAuthorize(); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); goAuthorize(); } }}>!</span>
           )}
           {unfinished && <Badge tone="warn" title={unfinished.why === "ha" ? tx("Jeton Home Assistant manquant") : tx("Accès SSH à régler")}>{unfinished.passed ? tx("Non terminé (passé)") : tx("Non terminé")}</Badge>}
-          {agent && <Badge tone={agent.state === "actif" ? "ok" : agent.state === "silencieux" ? "warn" : "info"} title={tx("Santé envoyée par l'agent MyServices (Réglages → Connecteurs)")}>{tx("agent")}</Badge>}
           {m.off && <Badge tone="off">{tx("souvent éteinte")}</Badge>}
           {live && sshWarn(live) && <Badge tone="warn" title={tx("sshd : root ou mot de passe autorisé")}>{tx("sshd")}</Badge>}
           {statuses.some((c) => !c.ok) && <Badge tone="bad">{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
-          {off ? <Badge tone="off">{tx("non suivie")}</Badge> : state && <Badge tone={state[0]} title={state[2]}>{state[1]}</Badge>}
+          {off ? <Badge tone="off">{tx("non suivie")}</Badge> : state && live && mState(live) !== "ssh" && <Badge tone={state[0]} title={state[2]}>{state[1]}</Badge>}   {/* « SSH OK » : remplacé par le badge vert « SSH » de la ligne des sources */}
         </span>
-        {!open && <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">{rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}{live?.ssh && <SshAccess noIp alias={live.ssh.alias} user={live.ssh.user} ip={ip} port={live.ssh.port} refused={!live.info && !!live.ssh.identity} />}<span className="truncate">{[(live && sshBrief(live)) || (live?.ssh ? null : access), st.process_hosts[ip] ? tx("process lus") : null].filter(Boolean).join(" · ")}</span></span>}
+        {/* Qui lit la machine : un badge par source (SSH, agent, connecteurs). Le détail de l'accès SSH n'est montré que carte dépliée (section « Accès SSH ») */}
+        <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">
+          {!open && rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}
+          {(live?.ssh || m.ssh) && <Badge tone={live?.info ? "ok" : live?.ssh ? "warn" : "off"} title={live?.info ? tx("Lue par SSH") : tx("SSH réglé, pas (encore) lisible")}>SSH</Badge>}
+          {agent && <Badge tone={agent.state === "actif" ? "ok" : agent.state === "silencieux" ? "warn" : "info"} title={tx("Santé envoyée par l'agent MyServices")}>{tx("agent")}</Badge>}
+          {connectors.map((c) => <Badge key={c} tone="info" title={tx("Lue par ce connecteur")}>{c}</Badge>)}
+          {!open && !live?.ssh && !m.ssh && !agent && connectors.length === 0 && <span className="truncate">{access}</span>}
+          {!open && st.process_hosts[ip] && <span className="truncate">{tx("process lus")}</span>}
+        </span>
       </button>
       {open && (
         <div className="flex flex-col gap-3 px-3 pb-3">
