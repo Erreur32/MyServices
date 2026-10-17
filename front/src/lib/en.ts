@@ -2267,4 +2267,5 @@ export const EN: Record<string, string> = {
   "Suivre une machine, c'est la pinger et la lire avec ses sources (SSH, agent, connecteurs) pour la santé et les alertes. Une machine souvent éteinte (PC, portable) ne déclenche pas d'alerte quand elle ne répond pas.": "Tracking a machine means pinging it and reading it through its sources (SSH, agent, connectors) for health and alerts. A machine that is often off (PC, laptop) raises no alert when it does not answer.",
   "Aucun connecteur ne voit cette machine pour l'instant.": "No connector sees this machine for now.",
   "Cette machine est lue par son agent, sans SSH.": "This machine is read by its agent, without SSH.",
+  "Accès disponibles": "Available access",
 };

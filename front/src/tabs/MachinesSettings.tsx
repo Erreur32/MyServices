@@ -723,6 +723,15 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
         </div>
       )}
       {show("access") && (tabbed ? <>
+        <section className="grid gap-2 sm:grid-cols-3" aria-label={tx("Accès disponibles")}>
+          {([["SSH", KeyRound, sshSummary], [tx("Agent"), MonitorUp, agentSummary], [tx("Connecteurs"), Plug, connectorSummary]] as const).map(([label, Icon, badge]) => (
+            <div key={label} className="flex items-center gap-2 rounded-xl border border-line/60 bg-bg2/70 px-3 py-2">
+              <Icon size={16} className="shrink-0 text-link" aria-hidden />
+              <b className="text-sm">{label}</b>
+              <span className="ml-auto">{badge}</span>
+            </div>
+          ))}
+        </section>
         <AccessCategory icon={KeyRound} title="SSH" badge={sshSummary}>
           {agentMode ? <p className="text-sm text-muted">{tx("Cette machine est lue par son agent, sans SSH.")}</p> : sshBody}
         </AccessCategory>
