@@ -290,7 +290,8 @@ class Agents(unittest.TestCase):
         finally:
             server.run_task, server.enabled, server.run_chain = old
         # 1er relevé : passage complet de la santé ; relevés suivants : seulement la fiche de cette machine (--only)
-        self.assertEqual(calls, [("health", ()), ("health", ("--only", "192.168.1.60"))])
+        # only the health calls count here: a background thread left by another test can call the patched run_task with "collect" in the same window
+        self.assertEqual([c for c in calls if c[0] == "health"], [("health", ()), ("health", ("--only", "192.168.1.60"))])
         self.assertEqual(chains, [["collect"]])   # le premier relevé lance aussi la collecte (système, matériel, ports), une seule fois
 
     def test_verifier_une_machine_lue_par_son_agent(self):
