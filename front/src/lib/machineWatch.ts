@@ -1,5 +1,5 @@
 // « À surveiller » : tout ce qui demande un coup d'œil sur une machine, avec sa gravité et une icône. Sert à la colonne de l'onglet Machines et,
-// pour la partie santé, à la liste de problèmes de l'onglet Santé (mêmes phrases aux deux endroits).
+// pour la partie santé, à la liste de problèmes de l'onglet Machines (mêmes phrases aux deux endroits).
 import type { Connector, HealthHost, Machine } from "../types";
 import { MSTATE, mState } from "./machines";
 import { tx } from "./i18n";

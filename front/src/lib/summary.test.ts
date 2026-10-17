@@ -63,7 +63,7 @@ describe("accueil", () => {
         issues: [{ level: "crit", set: "HA", text: "aucune copie hors machine à jour" }] },
     });
     expect(items.map((i) => [i.level, i.tab])).toEqual([
-      ["crit", "services"], ["crit", "backups"], ["warn", "services"], ["warn", "health"]]);
+      ["crit", "services"], ["crit", "backups"], ["warn", "services"], ["warn", "machines"]]);
     expect(items[0].text).toBe("**plex.lan** ne répond plus (backend down), sur srv");
     expect(items[3].text).toBe("Santé : **srv · prod** est à surveiller (disque / à 91 %)");  // nom avec « · » gardé entier
   });

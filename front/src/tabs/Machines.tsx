@@ -105,22 +105,6 @@ export function ResCell({ h, what }: { h?: HealthHost; what: "cpu" | "mem" }) {
   const tone = what === "mem" && v >= 97 ? "text-bad" : (what === "mem" && v >= 90) || (what === "cpu" && v >= 90) ? "text-warn" : "text-ok";
   return <b className={tone} title={what === "mem" && h.res?.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} Go` : undefined}>{Math.round(v)} %</b>;
 }
-export function SystemdCell({ h }: { h?: HealthHost }) {
-  if (!h) return <Dim>-</Dim>;
-  const f = h.systemd?.failed || [];
-  return f.length ? <Mark tone="bad" title={f.map((u) => u.unit).join(", ")}>{String(f.length)}</Mark> : <Mark tone="ok" title={tx("Aucun service en échec")}>✓</Mark>;
-}
-export function UpdatesCell({ h }: { h?: HealthHost }) {
-  if (!h) return <Dim>-</Dim>;
-  const n = h.apt?.upgradable || 0;
-  return (
-    <span className="inline-flex items-center gap-1">
-      {n ? <Mark tone="warn" title={tx("{0} paquet(s) à mettre à jour", n)}>{String(n)}</Mark> : <Mark tone="ok" title={tx("À jour")}>✓</Mark>}
-      {h.reboot_required && <Mark tone="warn" title={tx("Redémarrage requis")}>↻</Mark>}
-    </span>
-  );
-}
-
 type MeterTone = "ok" | "warn" | "bad";
 const METER_TEXT: Record<MeterTone, string> = { ok: "text-txt", warn: "text-warn", bad: "text-bad" };
 const METER_BAR: Record<MeterTone, string> = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad" };

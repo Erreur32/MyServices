@@ -1,5 +1,5 @@
 // État des services lus par leur API (connecteurs « status », aujourd'hui Home Assistant) : en ligne, version,
-// entités, mises à jour disponibles (information, sans alerte). Affiché sous la barre de recherche de l'onglet Santé.
+// entités, mises à jour disponibles (information, sans alerte). Affiché sous la barre de recherche de l'onglet Infra.
 import { AlertTriangle, ArrowUpCircle, CheckCircle2, ChevronRight, Home, Layers, Plug, Puzzle } from "lucide-react";
 import { useState } from "react";
 import { ROOT } from "../api";

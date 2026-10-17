@@ -84,7 +84,7 @@ Update: `docker compose pull && docker compose up -d` (settings and data live in
 | **History** | Events of the last 24 h to one year, as dots, bars, curve or heat map; each says what detected it and what read it |
 | **Machines** | Every machine with its state, system, access (SSH, agent, API), roles and details; a PC often switched off keeps a greyed card |
 | **Services** | NPM hosts and local services (Docker, Apache, ports), status, what to check, filters |
-| **Health** | CPU, memory, disks, SMART, temperature, failed services, per machine |
+| **Infra** | Cards of the services read through their API (Dockhand, Home Assistant, Uptime Kuma…) and of containers; machine health (CPU, memory, disks, SMART, temperature, failed services, updates) is in **Machines** and summarized on the home page |
 | **Fail2ban** | Bans and jails, once a LogviewR connector is linked |
 | **DNS** | AdGuard Home: synchronisation, rewrites, domains to check |
 | **Backups** | Which backup sets exist, how old the latest copy is, where the copies live |

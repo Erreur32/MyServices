@@ -1,4 +1,4 @@
-// Dockhand, Dozzle, Arcane (conteneurs) et les services lus par leur API : cartes sous la barre de recherche de l'onglet Santé. PbsCard sert à l'onglet Virtualisation
+// Dockhand, Dozzle, Arcane (conteneurs) et les services lus par leur API : cartes sous la barre de recherche de l'onglet Infra. PbsCard sert à l'onglet Virtualisation
 // (les hyperviseurs y sont aussi, plus dans Santé).
 import { Boxes, Container, HardDrive } from "lucide-react";
 import type { ContainersConnector, ServiceStatus, VirtualizationConnector } from "../types";

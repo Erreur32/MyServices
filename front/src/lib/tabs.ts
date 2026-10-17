@@ -1,5 +1,5 @@
 // Onglets : ordre, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { ClipboardClock, LayoutGrid, Server, Shield, Globe, HardDrive, House, Monitor, Network, Router, Settings, Stethoscope, Workflow, type LucideIcon } from "lucide-react";
+import { ClipboardClock, LayoutGrid, Server, Shield, Globe, HardDrive, House, Monitor, Network, Router, Settings, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -15,7 +15,6 @@ export const TABS: { id: TabId; icon: LucideIcon; label: string }[] = [
   { id: "history", icon: ClipboardClock, label: tx("Historique") },
   { id: "machines", icon: Monitor, label: tx("Machines") },
   { id: "services", icon: Globe, label: tx("Services") },
-  { id: "health", icon: Stethoscope, label: tx("Santé") },
   { id: "infra", icon: LayoutGrid, label: tx("Infra") },
   { id: "virtualization", icon: Server, label: tx("Virtualisation") },
   { id: "network", icon: Router, label: tx("Réseau") },
@@ -29,7 +28,6 @@ export const TABS: { id: TabId; icon: LucideIcon; label: string }[] = [
 /** Onglet affiché seulement si sa source est activée (et Réglages pour les admins). */
 export function visible(id: TabId, s: Snapshot): boolean {
   switch (id) {
-    case "health": return !!s.health; // activée et déjà relevée
     case "infra": return infraCards(s).length > 0 || infraDocker(s).length > 0;   // cartes des services lus par leur API (Dockhand, Home Assistant, Uptime Kuma…)
     case "backups": return !!s.backups;
     case "dns": return !!s.data.dns;

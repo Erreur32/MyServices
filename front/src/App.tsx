@@ -14,7 +14,6 @@ import { Dns } from "./tabs/Dns";
 import { Security } from "./tabs/Security";
 import { Virtualization } from "./tabs/Virtualization";
 import { Network } from "./tabs/Network";
-import { Health } from "./tabs/Health";
 import { Infra } from "./tabs/Infra";
 import { History } from "./tabs/History";
 import { Machines } from "./tabs/Machines";
@@ -31,7 +30,7 @@ const FAST_MS = 5_000, FAST_FOR_MS = 150_000;   // after a change: data.json rea
 
 function tabFromHash(): TabId {
   const raw = location.hash.slice(1).split("/")[0];
-  const h = (raw === "fail2ban" ? "security" : raw) as TabId; // « settings/accounts » : onglet puis section ; #fail2ban : ancien onglet, dans Sécurité
+  const h = (raw === "fail2ban" ? "security" : raw === "health" ? "machines" : raw) as TabId; // « settings/accounts » : onglet puis section ; #fail2ban : ancien onglet, dans Sécurité
   return TABS.some((t) => t.id === h) ? h : "home";
 }
 
@@ -129,7 +128,6 @@ export default function App() {
       {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
       {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} />}
       {current === "infra" && <Infra snap={snap} />}
-      {current === "health" && <Health key={pending.tab === "health" ? pending.n : 0} snap={snap} initial={initialFor("health")} />}
       {current === "dns" && <Dns key={pending.tab === "dns" ? pending.n : 0} snap={snap} initial={initialFor("dns")} />}
       {current === "backups" && <Backups key={pending.tab === "backups" ? pending.n : 0} snap={snap} initial={initialFor("backups")} />}
       {current === "diagrams" && <DiagramsTab admin={snap.me.role === "admin"} />}

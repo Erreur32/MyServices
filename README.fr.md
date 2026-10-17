@@ -84,7 +84,7 @@ Mise à jour : `docker compose pull && docker compose up -d` (réglages et donn�
 | **Historique** | Les événements de 24 h à un an, en points, barres, courbe ou carte de chaleur ; chacun dit ce qui l'a détecté et ce qui l'a lu |
 | **Machines** | Chaque machine avec son état, son système, son accès (SSH, agent, API), ses rôles et ses détails ; un PC souvent éteint garde une fiche grisée |
 | **Services** | Hôtes NPM et services locaux (Docker, Apache, ports), état, points à vérifier, filtres |
-| **Santé** | Processeur, mémoire, disques, SMART, température, services en échec, par machine |
+| **Infra** | Cartes des services lus par leur API (Dockhand, Home Assistant, Uptime Kuma…) et des conteneurs ; la santé des machines (processeur, mémoire, disques, SMART, température, services en échec, mises à jour) est dans **Machines** et résumée sur l'accueil |
 | **Fail2ban** | Bannissements et prisons, dès qu'un connecteur LogviewR est relié |
 | **DNS** | AdGuard Home : synchronisation, réécritures, domaines à vérifier |
 | **Sauvegardes** | Quels jeux existent, l'âge de la copie la plus récente, où vivent les copies |

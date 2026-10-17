@@ -6,7 +6,7 @@ import { CLEANUP, certIssue, checks, dnsDown, dnsSync, hostName, status } from "
 import { mState } from "./machines";
 import { tx } from "./i18n";
 
-export type TabId = "home" | "history" | "machines" | "services" | "health" | "infra" | "security" | "virtualization" | "network" | "dns" | "backups" | "diagrams" | "settings";
+export type TabId = "home" | "history" | "machines" | "services" | "infra" | "security" | "virtualization" | "network" | "dns" | "backups" | "diagrams" | "settings";
 
 export interface Attention {
   level: "crit" | "warn";
@@ -79,9 +79,9 @@ export function attention({ data, health, backups, now = Date.now() }: Inputs): 
   }
   for (const h of health?.hosts || []) {
     const l = healthLevel(h);
-    if (l === "down") out.push({ level: "crit", text: tx("Santé : **{0}** est injoignable en SSH", machineOf(h)), tab: "health" });
-    else if (l === "crit") out.push({ level: "crit", text: tx("Santé : **{0}** est en état critique{1}", machineOf(h), fullDisk(h)), tab: "health" });
-    else if (l === "warn") out.push({ level: "warn", text: tx("Santé : **{0}** est à surveiller{1}", machineOf(h), fullDisk(h)), tab: "health" });
+    if (l === "down") out.push({ level: "crit", text: tx("Santé : **{0}** est injoignable en SSH", machineOf(h)), tab: "machines" });
+    else if (l === "crit") out.push({ level: "crit", text: tx("Santé : **{0}** est en état critique{1}", machineOf(h), fullDisk(h)), tab: "machines" });
+    else if (l === "warn") out.push({ level: "warn", text: tx("Santé : **{0}** est à surveiller{1}", machineOf(h), fullDisk(h)), tab: "machines" });
   }
   if (data.dns) {
     for (const n of dnsDown(data.dns)) out.push({ level: "crit", text: tx("AdGuard **{0}** ne répond pas", n), tab: "dns" });
@@ -123,7 +123,7 @@ function servicesParagraph(data: Data): Paragraph {
   return { tab: "services", title: tx("Services"), sentences: s };
 }
 
-function machinesParagraph(data: Data): Paragraph {
+function machinesParagraph(data: Data, health?: Health | null): Paragraph {
   const ms = data.machine_list.filter((m) => !m.disabled);
   const off = ms.filter((m) => m.off), down = ms.filter((m) => !m.off && !m.ping), up = ms.filter((m) => !m.off && m.ping);
   const s = [tx("{0} : {1} en ligne", plural(ms.length, "machine"), up.length)
@@ -131,10 +131,11 @@ function machinesParagraph(data: Data): Paragraph {
     + (off.length ? tx(", {0} éteinte{1} volontairement ({2})", off.length, off.length > 1 ? "s" : "", names(off.map((m) => m.name))) : "") + "."];
   const unreachable = (data.connectors || []).filter((c) => c.type === "docker" && !c.ok);
   if (unreachable.length) s.push(tx("Docker illisible sur {0} : leurs conteneurs ne sont pas à jour.", names(unreachable.map((c) => c.name))));
+  if (health) s.push(...healthSentences(health));   // la santé n'a plus de page : son résumé est ici, avec les machines
   return { tab: "machines", title: tx("Machines"), sentences: s };
 }
 
-function healthParagraph(h: Health): Paragraph {
+function healthSentences(h: Health): string[] {
   const at = (l: string) => h.hosts.filter((x) => healthLevel(x) === l).map(machineOf);
   const warn = at("warn"), crit = at("crit"), down = at("down"), reboot = h.hosts.filter((x) => x.reboot_required).map(machineOf);
   const ok = h.hosts.length - warn.length - crit.length - down.length;
@@ -143,7 +144,7 @@ function healthParagraph(h: Health): Paragraph {
     + (crit.length ? tx(", {0} en état critique ({1})", crit.length, names(crit)) : "")
     + (down.length ? tx(", {0} injoignable{1} ({2})", down.length, down.length > 1 ? "s" : "", names(down)) : "") + "."];
   if (reboot.length) s.push(tx("Redémarrage demandé sur {0}.", names(reboot)));
-  return { tab: "health", title: tx("Santé"), sentences: s };
+  return s;
 }
 
 function dnsParagraph(data: Data, now: number): Paragraph | null {
@@ -187,9 +188,8 @@ export function paragraphs(i: Inputs): Paragraph[] {
   const now = i.now ?? Date.now();
   const out: (Paragraph | null)[] = [
     historyParagraph(i.events || [], i.labels || {}, now),
-    machinesParagraph(i.data),
+    machinesParagraph(i.data, i.health),
     servicesParagraph(i.data),
-    i.health ? healthParagraph(i.health) : null,
     dnsParagraph(i.data, now),
     i.backups ? backupsParagraph(i.backups) : null,
   ];

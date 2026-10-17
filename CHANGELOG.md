@@ -11,6 +11,15 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+
+- The Health tab is gone: machine health (level, CPU, memory, disks, updates flag) lives in the **Machines** tab and a summary stays on the
+  home page, whose links now open Machines (with the health filter). The service and container cards that sat under the Health table have
+  their own **Infra** tab.
+- Machines: a click on a row opens the details in a window (width follows the administrator's setting) instead of unfolding it; settings
+  (identity, options, access with SSH, agent and connectors) open in a window with tabs, from Settings -> Machines or from the gear of the
+  Machines table (administrators). The "SSH & Agents" sub-tab is merged into that window. The Sources column lists every source in its tooltip.
+
 ### Added
 
 - Linux agent: a Python 3 script (3.6+) and a `install.sh` installer (systemd timer, dedicated read-only account). It runs the same
