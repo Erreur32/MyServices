@@ -1055,6 +1055,7 @@ export const EN: Record<string, string> = {
   "Temps depuis le dernier démarrage de la machine": "Time since the machine last started",
   "vient de redémarrer": "just restarted",
   "Modèles IA": "AI models",
+  "Maintenant": "Now",
   "24 dernières heures": "Last 24 hours",
   "moyenne {0} %, max {1} %": "average {0} %, max {1} %",
   "max {0}": "max {0}",

@@ -277,19 +277,27 @@ function gpusOf(m: Machine): GpuCell[] {
 const shortGpu = (n: string): string => n.replace(/^(NVIDIA|AMD|Intel\(R\))\s+/i, "").replace(/^(GeForce|Radeon)\s+/i, "").replace(/\s*\(TM\)|\s*\(R\)/gi, "").trim();
 const gb = (mb: number): string => `${(mb / 1024).toFixed(mb >= 10240 ? 0 : 1)} ${tx("Go")}`;
 
-/** The tooltip of a GPU, in the tooltip layer's layout (heading, then label / value rows): now, the last 24 h, the AI models running on it */
+/** The tooltip of a GPU, in the tooltip layer's layout (dark heading, then label / value rows by block): now, the last 24 h, the AI models running on it.
+ *  Values get the state colour (temperature from 80 °C, load or memory from 90 %). */
 function gpuTip(g: GpuCell): string {
+  const tone = (v: number, warn: number, bad: number, text: string) => (v >= bad ? `[[bad:${text}]]` : v >= warn ? `[[warn:${text}]]` : text);
   const row = (k: string, v: string | false | null | undefined) => (v ? `${k}\t${v}` : "");
-  const d = g.day;
-  return [g.name,
-    row(tx("Charge"), g.util != null && `${Math.round(g.util)} %`), row(tx("Température"), g.temp != null && `${Math.round(g.temp)} °C`),
-    row(tx("Mémoire"), g.memTotal ? `${gb(g.memUsed ?? 0)} / ${gb(g.memTotal)}` : false), row(tx("Puissance"), g.power != null && `${Math.round(g.power)} W`),
-    d ? `\n[[off:${tx("24 dernières heures")}]]` : "",
-    row(tx("Charge"), d?.util_avg != null && tx("moyenne {0} %, max {1} %", Math.round(d.util_avg), Math.round(d.util_max ?? d.util_avg))), row(tx("Température"), d?.temp_max != null && tx("max {0} °C", Math.round(d.temp_max))),
-    row(tx("Mémoire"), d?.mem_max != null && tx("max {0}", gb(d.mem_max))), row(tx("Puissance"), d?.pow_avg != null && tx("{0} W en moyenne", Math.round(d.pow_avg))),
-    g.models.length ? `\n[[off:${tx("Modèles IA")}]]` : "",
-    ...g.models.map((x) => `\`${x.model ?? "?"}\`\t${[x.runtime, x.port ? tx("port {0}", x.port) : "", x.state === "idle" ? tx("au repos") : x.state, x.mem_mb ? gb(x.mem_mb) : ""].filter(Boolean).join(" · ")}`),
-  ].filter((l, i, all) => l !== "" || (i > 0 && all[i - 1] !== "")).join("\n").replace(/\n\n+/g, "\n\n");
+  const block = (title: string, rows: string[]) => (rows.some(Boolean) ? [`\n[[off:${title}]]`, ...rows.filter(Boolean)] : []);
+  const d = g.day, memPct = g.memTotal ? (100 * (g.memUsed ?? 0)) / g.memTotal : null;
+  const now = [
+    row(tx("Charge"), g.util != null && tone(g.util, 90, 98, `${Math.round(g.util)} %`)),
+    row(tx("Température"), g.temp != null && tone(g.temp, 80, 85, `${Math.round(g.temp)} °C`)),
+    row(tx("Mémoire"), g.memTotal ? `${gb(g.memUsed ?? 0)} / ${gb(g.memTotal)} (${tone(memPct ?? 0, 90, 98, `${Math.round(memPct ?? 0)} %`)})` : false),
+    row(tx("Puissance"), g.power != null && `${Math.round(g.power)} W`),
+  ];
+  const day = d ? [
+    row(tx("Charge"), d.util_avg != null && tx("moyenne {0} %, max {1} %", Math.round(d.util_avg), Math.round(d.util_max ?? d.util_avg))),
+    row(tx("Température"), d.temp_max != null && tone(d.temp_max, 80, 85, tx("max {0} °C", Math.round(d.temp_max)))),
+    row(tx("Mémoire"), d.mem_max != null && tx("max {0}", gb(d.mem_max))),
+    row(tx("Puissance"), d.pow_avg != null && tx("{0} W en moyenne", Math.round(d.pow_avg))),
+  ] : [];
+  const models = g.models.map((x) => `**${x.model ?? "?"}**\t${[x.runtime, x.port ? tx("port {0}", x.port) : "", x.state === "idle" ? tx("au repos") : x.state, x.mem_mb ? gb(x.mem_mb) : ""].filter(Boolean).join(" · ")}`);
+  return [g.name, ...block(tx("Maintenant"), now), ...block(tx("24 dernières heures"), day), ...block(tx("Modèles IA"), models)].join("\n");
 }
 
 /** GPU column cell: the column takes the spare width of the table, so the name stays whole; load and temperature after it, then memory, power and the AI model on the second line (24 h in the tooltip) */
