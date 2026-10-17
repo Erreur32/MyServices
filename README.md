@@ -207,6 +207,16 @@ Settings -> Backups shows a table of **sources** (click one to unfold its fields
 - **Proxmox Backup Server**: backup groups (a VM, container or host per datastore) read with the existing connector's token (role *DatastoreAudit*).
 - **Home Assistant**: its automatic backup, through the existing connector's token. Optionally, with the community **ha-mcp** add-on installed in Home Assistant (this is *not* Home Assistant's native MCP), paste its address in the connector: MyServices then also reads the real list of backups (date, size, encrypted or not, where each one is copied), the Repairs, the configuration check and the failing integrations. It only runs six fixed read calls and never installs, deletes or restores anything; also turn on ha-mcp's own read-only mode.
 
+- **A folder on a box or NAS (FTP, FTPS, Samba)**: an account typed in the page (password kept encrypted) lets MyServices browse a shared folder and follow it, as a backup on its own or as the **copy of** another backup. Nothing is written on the box.
+- **A share already mounted on the machine that runs MyServices** (Freebox, NAS): the container can read it **read-only**, with no account stored in MyServices. Mount the share on the host (for example `/mnt/nas`, from `/etc/fstab` or a systemd automount), then add one line to the volumes of your compose file:
+
+  ```yaml
+      volumes:
+        - /mnt/nas:/mnt/nas:ro,rslave   # read-only; rslave follows the mount/unmount of an automount
+  ```
+
+  Recreate the container (`docker compose up -d --force-recreate`), then declare the box as a host with `"mount": "/mnt/nas"` in `backups-meta.json`. The account of the share only needs read rights. Prefer the mount when the share is already mounted on the host; prefer the account when it is not.
+
 For each followed backup you set the age after which an alert fires, and whether a copy on another machine is required. Cron jobs and timers that look like backups are listed on their own.
 
 </details>

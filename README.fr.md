@@ -207,6 +207,16 @@ Réglages -> Sauvegardes montre un tableau de **sources** (cliquez sur l'une : s
 - **Proxmox Backup Server** : groupes de sauvegarde (une VM, un conteneur ou un hôte par magasin) lus avec le jeton du connecteur existant (rôle *DatastoreAudit*).
 - **Home Assistant** : sa sauvegarde automatique, avec le jeton du connecteur existant. En option, avec le module communautaire **ha-mcp** installé dans Home Assistant (ce n'est *pas* le MCP natif de Home Assistant), collez son adresse dans le connecteur : MyServices lit alors aussi la liste réelle des sauvegardes (date, taille, chiffrée ou non, où chacune est copiée), les réparations, le contrôle de la configuration et les intégrations en erreur. Il ne lance que six lectures fixes et n'installe, ne supprime ni ne restaure rien ; activez aussi le mode lecture seule de ha-mcp.
 
+- **Un dossier sur une box ou un NAS (FTP, FTPS, Samba)** : un compte saisi dans la page (mot de passe gardé chiffré) permet à MyServices de parcourir un dossier partagé et de le suivre, comme sauvegarde à part entière ou comme **copie de** une autre sauvegarde. Rien n'est écrit sur la box.
+- **Un partage déjà monté sur la machine qui fait tourner MyServices** (Freebox, NAS) : le conteneur le lit en **lecture seule**, sans aucun compte stocké dans MyServices. Montez le partage sur l'hôte (par exemple `/mnt/nas`, avec `/etc/fstab` ou un automount systemd), puis ajoutez une ligne aux volumes de votre fichier compose :
+
+  ```yaml
+      volumes:
+        - /mnt/nas:/mnt/nas:ro,rslave   # lecture seule ; rslave suit le montage / démontage d'un automount
+  ```
+
+  Recréez le conteneur (`docker compose up -d --force-recreate`), puis déclarez la box comme une machine avec `"mount": "/mnt/nas"` dans `backups-meta.json`. Le compte du partage n'a besoin que du droit de lecture. Préférez le montage quand le partage est déjà monté sur l'hôte ; préférez le compte quand il ne l'est pas.
+
 Pour chaque sauvegarde suivie, vous fixez l'âge au-delà duquel une alerte part, et si une copie sur une autre machine est exigée. Les tâches cron et timers qui ressemblent à des sauvegardes sont listées à part.
 
 </details>

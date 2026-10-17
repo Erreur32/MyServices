@@ -21,6 +21,8 @@ services:
     volumes:
       - ./dev-data/config:/config   # configs, secrets, clés et alias SSH (600, compte 10001)
       - ./dev-data/data:/data       # page générée, état, caches
+      # Sauvegardes : un partage de box / NAS déjà monté sur l'hôte, lisible en lecture seule (voir le README, « Backups ») :
+      # - /mnt/nas:/mnt/nas:ro,rslave
     # Pas de /var/run/docker.sock : la machine hôte est lue par SSH, comme les autres
     read_only: true
     tmpfs:

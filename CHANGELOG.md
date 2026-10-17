@@ -30,6 +30,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Backups tab: a summary card (sets OK, late, critical, without copy outside the machine, source volume, free space of the storage machines,
   where the copies go, time of the reading).
 
+- README (EN, FR): how to follow the backups of a box or NAS, either through a share mounted on the host and read **read-only** by the container
+  (one compose volume line, `compose.yaml` shows it commented) or with an account typed in the page (FTP, FTPS, Samba).
+
 ### Changed
 
 - Backups: the observed rhythm of a folder is read on its 8 most recent runs and the last 120 days only (a forgotten old file no longer stretches
