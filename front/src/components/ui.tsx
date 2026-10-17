@@ -265,11 +265,16 @@ export function Td({ children, className = "" }: { children?: ReactNode; classNa
 }
 
 /** Barre de remplissage (disque) */
-export function Fill({ pct, tone }: { pct: number; tone: Tone }) {
-  const color = tone === "bad" ? "bg-bad" : tone === "warn" ? "bg-warn" : "bg-ok";
+/** Green to amber to red gradient laid over the whole track; the fill only shows its first part (a full bar is red, a short one green) */
+export function GradientFill({ pct }: { pct: number }) {
+  const fill = Math.min(100, Math.max(2, pct));
+  return <span className="block h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-500 saturate-150" style={{ width: `${fill}%`, backgroundSize: `${10000 / fill}% 100%` }} />;
+}
+
+export function Fill({ pct }: { pct: number }) {
   return (
     <span className="inline-block h-1.5 w-20 overflow-hidden rounded-full border border-line bg-bg2 align-middle">
-      <span className={`block h-full ${color}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+      <GradientFill pct={pct} />
     </span>
   );
 }

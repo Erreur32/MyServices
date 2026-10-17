@@ -25,7 +25,7 @@ import { Overlay } from "../components/Overlay";
 import { rereadMachines } from "../lib/scan";
 import { watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
-import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
+import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Table, Td, Th } from "../components/ui";
 import { tx } from "../lib/i18n";
 import { useStoredFlag } from "../lib/storedFlag";
 import { hardwareRows } from "../lib/hardware";
@@ -115,17 +115,13 @@ const level = (v: number, warn: number, bad: number): MeterTone => {
 
 /** Table cell: the value on top (with a hint on its right, e.g. the disk), a thin bar under it; the same width in every row */
 function Meter({ pct, tone, hint, title }: Readonly<{ pct: number; tone: MeterTone; hint?: string; title?: string }>) {
-  const fill = Math.min(100, Math.max(2, pct));
   return (
     <div className="w-[5.5rem]" title={title}>
       <div className="flex items-baseline justify-between gap-1 leading-tight">
         <b className={`shrink-0 whitespace-nowrap text-sm tabular-nums ${METER_TEXT[tone]}`}>{Math.round(pct)} %</b>
         {hint && <span className="min-w-0 truncate font-mono text-[10px] text-dim">{hint}</span>}
       </div>
-      {/* the gradient is laid over the whole track (green to red), the fill only shows its first part: a full bar is red, a short one green */}
-      <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-bg2">
-        <span className="block h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-500 saturate-150" style={{ width: `${fill}%`, backgroundSize: `${10000 / fill}% 100%` }} />
-      </span>
+      <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-bg2"><GradientFill pct={pct} /></span>
     </div>
   );
 }
@@ -303,15 +299,15 @@ const Row = DetailRow;
 
 /** Disques, processeur et mémoire de la dernière santé, en barres */
 function HealthRows({ h }: { h: HealthHost }) {
-  const bar = (label: string, pct: number | undefined, tone: "ok" | "warn" | "bad", extra?: string) => pct == null ? null : (
-    <DetailRow key={label} k={label} title={label}><Fill pct={pct} tone={tone} /><span className="tabular-nums">{Math.round(pct)} %</span>{extra && <Dim>{extra}</Dim>}</DetailRow>
+  const bar = (label: string, pct: number | undefined, extra?: string) => pct == null ? null : (
+    <DetailRow key={label} k={label} title={label}><Fill pct={pct} /><span className="tabular-nums">{Math.round(pct)} %</span>{extra && <Dim>{extra}</Dim>}</DetailRow>
   );
   return (
     <>
-      {h.res?.available && bar(tx("CPU"), h.res.cpu_pct, (h.res.cpu_pct ?? 0) >= 90 ? "warn" : "ok")}
-      {h.res?.available && bar(tx("Mémoire"), h.res.mem_pct, (h.res.mem_pct ?? 0) >= 97 ? "bad" : (h.res.mem_pct ?? 0) >= 90 ? "warn" : "ok",
+      {h.res?.available && bar(tx("CPU"), h.res.cpu_pct)}
+      {h.res?.available && bar(tx("Mémoire"), h.res.mem_pct,
         h.res.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} ${tx("Go")}` : undefined)}
-      {(h.disks || []).filter((d) => (d.size_gb ?? 1) >= 1).map((d) => bar(d.mount, d.used_pct, d.critical ? "bad" : d.warning ? "warn" : "ok", d.avail_gb != null ? `${d.avail_gb.toFixed(0)} ${tx("Go libres")}` : undefined))}
+      {(h.disks || []).filter((d) => (d.size_gb ?? 1) >= 1).map((d) => bar(d.mount, d.used_pct, d.avail_gb != null ? `${d.avail_gb.toFixed(0)} ${tx("Go libres")}` : undefined))}
     </>
   );
 }

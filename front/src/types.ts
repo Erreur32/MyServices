@@ -41,6 +41,7 @@ export interface Service {
 
 export interface Host {
   id: string | number;
+  forward_declared?: string | null;   // NPM forward target, when the advanced config sends the traffic elsewhere (the real target is ip:port)
   vhost_domains?: string[];   // domain names declared by Apache / nginx on the machine for this port
   vhost_server?: "apache" | "nginx";
   npm?: string;

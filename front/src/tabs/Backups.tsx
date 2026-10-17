@@ -60,7 +60,7 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
       {h.disks.map((d) => (
         <span key={d.mount} className="flex items-center gap-2 text-xs">
           <span className="w-20 truncate font-mono" title={d.mount}>{d.mount}</span>
-          <Fill pct={d.pct} tone={d.level === "crit" ? "bad" : d.level === "warn" ? "warn" : "ok"} /><span>{d.pct} %</span>
+          <Fill pct={d.pct} /><span>{d.pct} %</span>
           <Dim>{bytes(d.avail)} {tx("libres")}</Dim>
         </span>
       ))}

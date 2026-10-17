@@ -1,7 +1,7 @@
 // Réglages, trois sections sur le même état : « Clé SSH » (Accès et sécurité : à autoriser sur chaque machine), « Tâches et
 // horaires » (Surveillance : modifiables, lancer maintenant) et « Sauvegarde et informations » (export de la configuration,
 // version de l'image et lien vers la dernière publiée, chemins, tailles).
-import { Bell, Check, Copy, Download, ExternalLink, Eye, EyeOff, HardDrive, HeartPulse, KeyRound, Loader2, Play, Radar, RefreshCw, RotateCcw, Server, ShieldCheck, Timer, type LucideIcon } from "lucide-react";
+import { Bell, Check, CircleHelp, Copy, Download, ExternalLink, Eye, EyeOff, HardDrive, HeartPulse, KeyRound, Loader2, Play, Radar, RefreshCw, RotateCcw, Server, ShieldCheck, Timer, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { download, LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { copyText } from "../lib/clipboard";
@@ -154,7 +154,6 @@ function SshKey({ ssh, snap }: { ssh: SystemState["ssh"]; snap: Snapshot }) {
 
 /** Aligned columns from one row to the next: task, editable schedule, next run, button */
 const ROW_COLS = "lg:grid lg:grid-cols-[minmax(0,1fr)_18rem_9rem_11rem]";
-const CODE = "rounded border border-line bg-bg px-1.5 py-0.5 font-mono text-[11px] text-txt";
 const ICON: Record<string, LucideIcon> = { collect: RefreshCw, watch: Bell, health: HeartPulse, backups: HardDrive, netscan: Radar };
 const DESC: Record<string, string> = {
   collect: tx("Lit les machines, Docker, NPM et les connecteurs, puis met les pages à jour."),
@@ -170,6 +169,10 @@ function TaskIcon({ name, on }: { name: string; on: boolean }) {
   return <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${on ? "bg-link/15 text-link" : "bg-bg2 text-dim"}`}><Icon size={16} aria-hidden /></span>;
 }
 
+/** How to write a schedule, as a tip behind a help icon (lines with a tab are the rows of a small table) */
+const scheduleHelp = () => [tx("Écrire un horaire"), `${tx("Format")}\t\`${tx("minutes heures")}\``, `\`10,40 *\`\t${tx("deux fois par heure")}`,
+  `\`5 7,19\`\t${tx("à 7 h 05 et 19 h 05")}`, `${tx("Appliqué tout de suite, gardé dans")} \`config.json\``].join("\n");
+
 function Tasks({ tasks, netscan, beat, reload }: { tasks: SystemTask[]; netscan?: SystemState["netscan"]; beat: number | null; reload: () => void }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 15_000); return () => clearInterval(t); }, []);
@@ -179,6 +182,7 @@ function Tasks({ tasks, netscan, beat, reload }: { tasks: SystemTask[]; netscan?
     <Card>
       <div className="mb-1 flex flex-wrap items-center gap-2">
         <h2 className="flex items-center gap-2 font-bold"><Timer size={16} />{tx("Tâches et horaires")}</h2>
+        <button type="button" className="text-dim hover:text-link" title={scheduleHelp()} aria-label={tx("Aide sur les horaires")}><CircleHelp size={15} aria-hidden /></button>
         <Badge tone={alive ? "ok" : "bad"} title={alive ? tx("Vérifié il y a {0} s. Il lance chaque tâche à son horaire, comme une crontab.", ago) : tx("Plus aucun tour depuis {0} s : redémarrez le conteneur.", ago ?? "?")}>
           {alive ? tx("planificateur actif") : tx("planificateur arrêté")}</Badge>
         <Badge tone="info">{tx("{0} tâche(s) programmée(s)", tasks.filter((t) => t.enabled).length + (netscan?.enabled ? 1 : 0))}</Badge>
@@ -190,13 +194,6 @@ function Tasks({ tasks, netscan, beat, reload }: { tasks: SystemTask[]; netscan?
           <b>{tx("Les horaires ne sont pas appliqués :")}</b> {tx("le planificateur intégré au conteneur (l'équivalent d'une crontab) ne tourne plus, aucune tâche ne part à son heure. Rien à activer : redémarrez le conteneur MyServices. Si le message revient, regardez Réglages → Journaux. En attendant, « Exécuter maintenant » marche toujours.")}
         </p>
       )}
-      {/* how to write a schedule: the format, two examples, where it is kept */}
-      <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg bg-bg2/50 px-3 py-2 text-xs text-muted">
-        <span className="inline-flex items-center gap-1.5">{tx("Format")} <code className={CODE}>{tx("minutes heures")}</code></span>
-        <span className="inline-flex items-center gap-1.5"><code className={CODE}>10,40 *</code>{tx("deux fois par heure")}</span>
-        <span className="inline-flex items-center gap-1.5"><code className={CODE}>5 7,19</code>{tx("à 7 h 05 et 19 h 05")}</span>
-        <span className="inline-flex items-center gap-1.5 lg:ml-auto">{tx("Appliqué tout de suite, gardé dans")} <code className={CODE}>config.json</code></span>
-      </div>
       <div className={`mb-1 hidden items-center gap-x-4 border-b border-line px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-dim ${ROW_COLS}`}>
         <span>{tx("Tâche")}</span><span>{tx("Horaire")}</span><span>{tx("Prochain passage")}</span><span aria-hidden />
       </div>
@@ -228,10 +225,10 @@ function AlsoFinds({ task }: { task: string }) {
   const found = (disc?.items ?? []).filter((x) => ids.includes(x.id));
   if (!found.length) return null;
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-dim">
-      <span>{tx("découvre aussi :")}</span>
+    <span className="inline-flex flex-wrap items-center gap-1 text-dim">
+      <span title={tx("Découvertes mises à jour par cette tâche (page Découverte)")}>{tx("alimente aussi :")}</span>
       {found.map((x) => <span key={x.id} className="rounded-md border border-line bg-bg2/60 px-1.5 py-0.5 text-muted" title={x.what}>{SHORT_FIND[x.id] ?? x.title}</span>)}
-    </div>
+    </span>
   );
 }
 const SHORT_FIND: Record<string, string> = { services: tx("services et ports"), new: tx("nouveaux services"), connectors: tx("applis à activer"), network: tx("machines du réseau"), cron: tx("tâches cron de sauvegarde") };
@@ -259,6 +256,7 @@ function TaskRow({ t, now, reload }: { t: SystemTask; now: number; reload: () =>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <b>{t.label}</b>
+              <NoteLine inline note={note} />
               {t.switch ? (
                 <label className="inline-flex items-center gap-1.5 text-xs text-dim">
                   <Switch on={t.enabled} label={t.enabled ? tx("Couper la santé des machines") : tx("Allumer la santé des machines")}
@@ -267,8 +265,7 @@ function TaskRow({ t, now, reload }: { t: SystemTask; now: number; reload: () =>
                 </label>
               ) : !t.enabled && <Badge tone="off">{tx("en attente")}</Badge>}
             </div>
-            <p className="text-xs text-muted">{!t.enabled && t.why ? t.why : desc(t.name)}</p>
-            <AlsoFinds task={t.name} />
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted"><span>{!t.enabled && t.why ? t.why : desc(t.name)}</span><AlsoFinds task={t.name} /></p>
             {t.enabled && <LastRun t={t} />}
           </div>
         </div>
@@ -296,7 +293,6 @@ function TaskRow({ t, now, reload }: { t: SystemTask; now: number; reload: () =>
           </button>
         </div>
       </div>
-      <NoteLine note={note} />
     </li>
   );
 }
@@ -325,9 +321,8 @@ function NetscanRow({ n, now, reload }: { n: NonNullable<SystemState["netscan"]>
         <div className="flex min-w-[220px] gap-3">
           <TaskIcon name="netscan" on={n.enabled} />
           <div className="min-w-0">
-            <b>{tx("Recherche réseau")}</b>
-            <p className="text-xs text-muted">{desc("netscan")}</p>
-            <AlsoFinds task="netscan" />
+            <div className="flex flex-wrap items-center gap-2"><b>{tx("Recherche réseau")}</b><NoteLine inline note={note} /></div>
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted"><span>{desc("netscan")}</span><AlsoFinds task="netscan" /></p>
             {n.enabled && <LastRun t={{ running: n.running, result: null, started: n.started, ended: n.ended }} />}
           </div>
         </div>
@@ -378,7 +373,6 @@ function NetscanRow({ n, now, reload }: { n: NonNullable<SystemState["netscan"]>
           </div>
         </div>
       )}
-      <NoteLine note={note} />
     </li>
   );
 }

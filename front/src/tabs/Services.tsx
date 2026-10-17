@@ -66,7 +66,7 @@ function Name({ r }: { r: Host }) {
       ) : <b>{hostName(r)}</b>}
       {r.domains.length > 1 && <span className="ml-1 text-xs text-dim" title={r.domains.slice(1).join(", ")}>+{r.domains.length - 1}</span>}
       <span className="ml-2 inline-flex flex-wrap items-center gap-1 align-middle">
-        <Badge tone="off" title={`${tx("Source")}\n${tx("Lu via : {0}", via(r))}`}>{via(r)}</Badge>
+        <Badge tone="off" title={`${tx("Source")}\n${tx("Lu via : {0}", via(r))}${r.forward_declared ? `\n${tx("Cible réelle : {0}:{1} (advanced_config). NPM déclare {2}, ignoré.", r.ip, r.port, r.forward_declared)}` : ""}`}>{via(r)}</Badge>
       </span>
     </div>
   );
@@ -158,14 +158,13 @@ function GroupHeader({ g, folded, onToggle, cols }: { g: { name: string; ip: str
 function ServiceRow({ r, grouped, onOpen }: { r: Host; grouped: boolean; onOpen: () => void }) {   // grouped: the rows of an opened group sit on a darker background with a coloured edge
   return (
     <tr onClick={onOpen} className={`cursor-pointer ${grouped ? "bg-bg/60 hover:bg-bg2/60" : "hover:bg-bg2/60"} ${r.enabled ? "" : "opacity-60"}`}>
-      <td className={`w-10 min-w-10 px-1.5 py-2.5 align-middle ${grouped ? `${OPEN_EDGE} !pl-14` : ""}`}><ServiceLogo r={r} /></td>
-      <Td className="align-middle whitespace-nowrap"><State r={r} ck={checks(r)} /></Td>
+      <Td className={`overflow-hidden align-middle whitespace-nowrap ${grouped ? `${OPEN_EDGE} !pl-14` : ""}`}><State r={r} ck={checks(r)} /></Td>
       <Td className="overflow-hidden !pl-10 align-middle"><Name r={r} /></Td>
       <Td className="overflow-hidden whitespace-nowrap !pl-6 align-middle font-mono text-xs text-muted">
         {r.type === "redirect" ? `→ ${r.target}` : r.type === "dead" ? tx("aucune (404)") : `${r.ip}:${r.port}`}
       </Td>
       {!grouped && <Td className="!pl-6 align-middle">{r.machine ? <><b className="font-medium">{r.machine}</b>{r.category && <span className="block text-xs text-dim">{r.category}</span>}</> : <Dim>-</Dim>}</Td>}
-      <Td className="overflow-hidden !pl-6 align-middle"><Tech r={r} /></Td>
+      <Td className="overflow-hidden !pl-10 align-middle"><div className="flex items-center gap-2.5"><ServiceLogo r={r} /><Tech r={r} /></div></Td>
     </tr>
   );
 }
@@ -214,12 +213,12 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
       {sort.sorted.length === 0 ? <Empty>{tx("Aucun service pour ce filtre.")}</Empty> : (
         <>
           <Table fixed head={<>
-            <Th className={grouped ? "w-24 !px-1.5" : "w-10 !px-1.5"} /><Th k="status" sort={sort} className="w-44">{tx("État")}</Th><Th k="name" sort={sort} className="w-[30%] !pl-10">{tx("Service")}</Th><Th k="target" sort={sort} className="w-44 !pl-6">{tx("Cible")}</Th>
-            {!grouped && <Th k="machine" sort={sort} className="w-[16%] !pl-6">{tx("Machine")}</Th>}<Th k="kind" sort={sort} className="!pl-6">{tx("Logiciel")}</Th>
+            <Th k="status" sort={sort} className={grouped ? "w-[19.5rem] !pl-14" : "w-64"}>{tx("État")}</Th><Th k="name" sort={sort} className="w-[30%] !pl-10">{tx("Service")}</Th><Th k="target" sort={sort} className="w-60 !pl-6">{tx("Cible")}</Th>
+            {!grouped && <Th k="machine" sort={sort} className="w-[16%] !pl-6">{tx("Machine")}</Th>}<Th k="kind" sort={sort} className="!pl-10">{tx("Logiciel")}</Th>
           </>}>
             {groups.map((g) => (
               <Fragment key={g.name}>
-                {grouped && <GroupHeader g={g} cols={5} folded={!expanded.includes(g.name)} onToggle={() => setExpanded(expanded.includes(g.name) ? expanded.filter((n) => n !== g.name) : [...expanded, g.name])} />}
+                {grouped && <GroupHeader g={g} cols={4} folded={!expanded.includes(g.name)} onToggle={() => setExpanded(expanded.includes(g.name) ? expanded.filter((n) => n !== g.name) : [...expanded, g.name])} />}
                 {(!grouped || expanded.includes(g.name)) && g.rows.map((r) => <ServiceRow key={keyOfRow(r)} r={r} grouped={grouped} onOpen={() => setOpenKey(keyOfRow(r))} />)}
               </Fragment>
             ))}

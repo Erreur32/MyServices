@@ -678,6 +678,20 @@ def row(kind, ident, ip, port, **kw):
     return base
 
 
+_ADV_LOCATION_ROOT = re.compile(r"location\s+/\s*\{([^}]*)\}")
+_ADV_PROXY_PASS = re.compile(r"^\s*proxy_pass\s+(https?)://(\d{1,3}(?:\.\d{1,3}){3})(?::(\d+))?\s*;", re.M)
+
+
+def advanced_target(adv):
+    """(scheme, ip, port) when the `location / { ... }` of a host's advanced config sends the traffic to a literal IPv4
+    address with `proxy_pass`: NPM then ignores the forward host and port of the host, so that is the real backend."""
+    for body in _ADV_LOCATION_ROOT.findall(adv or ""):
+        m = _ADV_PROXY_PASS.search(body)
+        if m:
+            return m.group(1), m.group(2), int(m.group(3) or (443 if m.group(1) == "https" else 80))
+    return None
+
+
 def attach_vhost_domains(rows, hinfo):
     """Real domain names declared by Apache (ServerName / ServerAlias) and nginx (server_name) on a machine, put on the
     local row that serves their port: r["vhost_domains"] and r["vhost_server"]. NPM domains stay in r["domains"]."""
@@ -900,6 +914,10 @@ def main():
         if ip in IGNORED_IPS:
             continue
         adv = h.get("advanced_config") or ""
+        scheme, declared = h["forward_scheme"], None
+        real = advanced_target(adv)
+        if real and real[1:] != (ip, port):   # the advanced config overrides the forward target: probe and match the real one
+            declared, (scheme, ip, port) = f"{ip}:{port}", real
         svc = via = cname = None
         hip = ip  # machine où chercher le service (l'hôte NPM quand la cible n'existe que vu de lui)
         npm_host = NPM_IPS.get(h["_npm"])
@@ -946,7 +964,8 @@ def main():
             npm=h["_npm"],
             domains=h["domain_names"],
             enabled=bool(h["enabled"]),
-            scheme=h["forward_scheme"],
+            scheme=scheme,
+            forward_declared=declared,
             service=svc,
             acl_id=h["access_list_id"],
             acl=h["_acl"],

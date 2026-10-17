@@ -7,7 +7,6 @@ import { tx } from "../lib/i18n";
 import { Badge, Count, Dim, Fill } from "./ui";
 import { ServiceCard } from "./ServiceStatusCards";
 
-const tone = (p?: number | null) => (p == null ? "off" : p >= 90 ? "bad" : p >= 80 ? "warn" : "ok") as "ok" | "warn" | "bad" | "off";
 
 /** Shared header of every card of the grid: logo, name and address, what kind of thing it is, and its state. */
 export function CardHead({ c, icon, kind }: { c: { label: string; url?: string | null; ok: boolean; version?: string | null; stale: boolean }; icon: React.ReactNode; kind: string }) {
@@ -41,7 +40,7 @@ export function PbsCard({ c }: { c: VirtualizationConnector }) {
             <li key={d.name}>
               <div className="flex flex-wrap items-center gap-2"><b>{d.name}</b><Dim>{d.groups} {tx("groupes de sauvegarde")}</Dim>
                 {d.age_h != null && <Badge tone={d.age_h > 48 ? "warn" : "ok"}>{tx("dernière")} {d.age_h < 48 ? `${Math.round(d.age_h)} h` : `${Math.round(d.age_h / 24)} ${tx("j")}`}</Badge>}</div>
-              {d.used_pct != null && <div className="mt-1 text-xs"><div className="flex justify-between text-muted"><span>{tx("Espace utilisé")}</span><span>{d.used_pct} %</span></div><Fill pct={d.used_pct} tone={tone(d.used_pct)} /></div>}
+              {d.used_pct != null && <div className="mt-1 text-xs"><div className="flex justify-between text-muted"><span>{tx("Espace utilisé")}</span><span>{d.used_pct} %</span></div><Fill pct={d.used_pct} /></div>}
             </li>
           ))}
         </ul>
