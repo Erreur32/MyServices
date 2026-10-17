@@ -771,7 +771,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
         <>
           {view === "table" && <Table fit head={<>
             <th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="watch" sort={sort}>{tx("À surveiller")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
-            <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th><span title={tx("Systemd")}>{tx("Syst.")}</span></Th><Th><span title={tx("Mises à jour")}>{tx("MAJ")}</span></Th></>}
+            <Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th><span title={tx("Systemd")}>{tx("Syst.")}</span></Th><Th><span title={tx("Mises à jour")}>{tx("MAJ")}</span></Th></>}
             {admin && <th className="w-8 px-1" aria-label={tx("Réglages")} />}
           </>}>
             {sort.sorted.map((m) => {
@@ -785,7 +785,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                     <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td>
                     <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><span className="text-xs text-dim">{m.ip}</span></span></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
                     <Td>{st(m, false)}</Td><Td><WatchList items={watchOf(m)} /></Td>
-                    <Td><OsShort m={m} kind={osOf(m)} /></Td><Td><Servers m={m} snap={snap} max={2} /></Td>
+                    <Td><OsShort m={m} kind={osOf(m)} /></Td>
                     <Td><span className="inline-flex items-center gap-1.5">
                       <button type="button" onClick={() => onMachine(m.ip)} title={tx("Voir ses services")} aria-label={tx("Voir les services de {0}", m.name)}
                         className="rounded-md px-1.5 py-0.5 hover:bg-link/10 hover:text-link"><b className="tabular-nums">{m.services}</b></button><DownBadge m={m} snap={snap} /></span></Td>
