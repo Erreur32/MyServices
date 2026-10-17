@@ -2,7 +2,11 @@
 import { tx } from "./i18n";
 import type { Advice } from "../types";
 
+/** todo : rien ne lit encore la machine · optimize : lue, mais pas par la meilleure méthode · ok : rien à faire (ou rien de possible) */
+export type AdviceStatus = "todo" | "optimize" | "ok";
+
 export interface AdviceView {
+  status: AdviceStatus;
   title: string;                       // « SSH », « Agent Windows »…
   why: string;                         // une phrase sans jargon
   read: boolean;                       // la méthode recommandée lit déjà la machine : rien à faire
@@ -35,11 +39,15 @@ export function describeAdvice(ip: string, a: Advice): AdviceView {
     else if (a.method === "agent") action = { label: a.agent_kind === "windows" ? tx("Installer l'agent Windows") : tx("Installer l'agent Linux"), href: `#settings/agents/${ip}` };
     else if (a.method === "connector") action = { label: tx("Voir les connecteurs"), href: "#settings/connectors" };
   }
+  const status: AdviceStatus = read || a.method === "ping" ? "ok" : a.current.length ? "optimize" : "todo";
   return {
-    title: METHOD_LABEL(a.method, a.agent_kind), why: (WHY[a.why] ?? (() => ""))(), read, action,
+    status, title: METHOD_LABEL(a.method, a.agent_kind), why: (WHY[a.why] ?? (() => ""))(), read, action,
     others: a.alternatives.map((m) => METHOD_LABEL(m, a.agent_kind)),
   };
 }
+
+/** Ordre des machines : d'abord celles à finir, puis celles à optimiser, en dernier celles qui sont en place */
+export const STATUS_RANK: Record<AdviceStatus, number> = { todo: 0, optimize: 1, ok: 2 };
 
 /** Résumé de l'étape : combien de machines sont déjà lues par la méthode recommandée */
 export function summary(advice: Record<string, Advice>): { total: number; read: number } {

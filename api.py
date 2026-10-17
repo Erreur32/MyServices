@@ -687,6 +687,22 @@ def machines_advice(request: Request):
     return machine_call(request, "", "", advise, write=False)
 
 
+@app.get(API + "/assistant", tags=["système"], summary="Progression de l'assistant de démarrage ; null s'il n'a jamais servi (admin)")
+def assistant_get(request: Request):
+    import assistant_state
+    if denied := admin_only(request):
+        return denied
+    return {"state": assistant_state.load(Path(core.CFG["state_dir"]) / "assistant.json")}
+
+
+@app.put(API + "/assistant", tags=["système"], summary="Enregistrer la progression de l'assistant de démarrage (admin)")
+def assistant_put(body: dict, request: Request):
+    import assistant_state
+    if denied := admin_only(request):   # pas admin_write : cette route ne touche à aucun compte, et doit marcher aussi sans comptes
+        return denied
+    return {"state": assistant_state.save(Path(core.CFG["state_dir"]) / "assistant.json", body)}
+
+
 @app.post(API + "/machines/detect", tags=["machines"], summary="Détecter une machine (IP, nom ou alias), sans rien écrire (admin)")
 def machines_detect(request: Request, target: str):
     return machine_call(request, "", "", lambda m: m.detect(target))

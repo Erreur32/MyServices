@@ -31,12 +31,26 @@ describe("Assistant de démarrage", () => {
     for (const t of ["Étape 2 sur 6", "srv", "10.0.0.2", "3 services trouvés", "Plex", "Apache", "Retour"]) expect(html, t).toContain(t);
   });
 
-  it("étape pas encore faite : annoncée, et on peut la passer", () => {
-    mem.set("myservices-assistant", JSON.stringify({ current: "alerts", done: [], skipped: [] }));
+  it("étapes 5 et 6 : outils et alertes, avec Continuer et Passer", () => {
+    for (const [step, title] of [["tools", "Relier vos outils"], ["alerts", "Être prévenu"]]) {
+      mem.set("myservices-assistant", JSON.stringify({ current: step, done: [], skipped: [] }));
+      const html = renderToStaticMarkup(<Assistant snap={snap} />);
+      expect(html, step).toContain(title);
+      expect(html, step).toContain("Passer");
+      expect(html, step).not.toContain("arrive bientôt");
+    }
+  });
+
+  it("dernière étape : « Terminer » à la place de « Continuer »", () => {
+    mem.set("myservices-assistant", JSON.stringify({ current: "alerts", done: ["welcome"], skipped: [] }));
     const html = renderToStaticMarkup(<Assistant snap={snap} />);
-    expect(html).toContain("Cette étape arrive bientôt");
-    expect(html).toContain("Passer");
+    expect(html).toContain("Terminer");
     expect(html).not.toContain("Continuer");
+  });
+
+  it("le résumé n'apparaît qu'une fois toutes les étapes faites ou passées", () => {
+    mem.set("myservices-assistant", JSON.stringify({ current: "alerts", done: ["welcome"], skipped: [] }));
+    expect(renderToStaticMarkup(<Assistant snap={snap} />)).not.toContain("Vous avez fait le tour");
   });
 
   it("sans machine identifiable, ne montre pas la première au hasard et demande laquelle", () => {

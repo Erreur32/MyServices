@@ -4,6 +4,7 @@ import { ArrowRight, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import type { Snapshot } from "../api";
 import { paragraphs, type Attention, type TabId } from "../lib/summary";
+import { AssistantBanner } from "./AssistantBanner";
 import { FirstSteps } from "./FirstSteps";
 import { DiscoveryReminder } from "./DiscoveryCard";
 import { NewServices } from "./NewServices";
@@ -41,6 +42,7 @@ export function Home({ snap, items, go, goFilter, now }: { snap: Snapshot; items
   return (
     <div className="grid gap-5 py-5 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="flex flex-col gap-5">
+        {snap.me.role === "admin" && <AssistantBanner />}
         <FirstSteps snap={snap} />
         {snap.me.role === "admin" && <DiscoveryReminder machines={snap.data.machine_list} />}
         {snap.me.role === "admin" && <NewServices generated={snap.data.generated} />}

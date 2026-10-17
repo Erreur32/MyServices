@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Advice } from "../types";
-import { describeAdvice, summary } from "./access";
+import { STATUS_RANK, describeAdvice, summary } from "./access";
 
 const adv = (o: Partial<Advice>): Advice => ({ kind: "linux", method: "ssh", why: "ssh_configured", current: [], alternatives: ["agent"], agent_possible: true, agent_kind: "linux", ...o });
 
@@ -42,5 +42,15 @@ describe("recommandation de méthode de lecture : présentation", () => {
 
   it("résumé : compte les machines lues par la méthode recommandée", () => {
     expect(summary({ a: adv({ current: ["ssh"] }), b: adv({}), c: adv({ method: "ping", current: ["ssh"] }) })).toEqual({ total: 3, read: 1 });
+  });
+
+  it("à finir, à optimiser, en place : trois états, dans cet ordre", () => {
+    expect(describeAdvice("1.1.1.1", adv({ current: [] })).status).toBe("todo");
+    expect(describeAdvice("1.1.1.1", adv({ current: ["connector"] })).status).toBe("optimize");   // lue par un outil, mais SSH est la meilleure méthode
+    expect(describeAdvice("1.1.1.1", adv({ current: ["ssh"] })).status).toBe("ok");
+    expect(describeAdvice("1.1.1.1", adv({ method: "ping", why: "appliance", current: [] })).status).toBe("ok");   // rien de possible : rien à faire
+    expect([STATUS_RANK.ok, STATUS_RANK.todo, STATUS_RANK.optimize].sort()).toEqual([0, 1, 2]);
+    expect(STATUS_RANK.todo).toBeLessThan(STATUS_RANK.optimize);
+    expect(STATUS_RANK.optimize).toBeLessThan(STATUS_RANK.ok);
   });
 });

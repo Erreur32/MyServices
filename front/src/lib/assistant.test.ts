@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Machine } from "../types";
-import { STEPS, advance, loadProgress, nextStep, previousStep, resetProgress, saveProgress, thisMachine } from "./assistant";
+import { STEPS, advance, isFinished, loadProgress, nextStep, previousStep, resetProgress, saveProgress, thisMachine } from "./assistant";
 
 // Un localStorage minimal : les tests tournent sans navigateur
 const mem = new Map<string, string>();
@@ -13,13 +13,13 @@ describe("assistant : progression", () => {
   beforeEach(() => mem.clear());
 
   it("commence à la bienvenue, rien de fait", () => {
-    expect(loadProgress()).toEqual({ current: "welcome", done: [], skipped: [] });
+    expect(loadProgress()).toEqual({ current: "welcome", done: [], skipped: [], host: "" });
   });
 
   it("avance en marquant l'étape faite ou passée", () => {
     const p = advance(loadProgress(), "done");
-    expect(p).toEqual({ current: "machine", done: ["welcome"], skipped: [] });
-    expect(advance(p, "skipped")).toEqual({ current: "network", done: ["welcome"], skipped: ["machine"] });
+    expect(p).toEqual({ current: "machine", done: ["welcome"], skipped: [], host: "" });
+    expect(advance(p, "skipped")).toEqual({ current: "network", done: ["welcome"], skipped: ["machine"], host: "" });
   });
 
   it("refaire une étape passée la retire des passées", () => {
@@ -37,7 +37,7 @@ describe("assistant : progression", () => {
   });
 
   it("se souvient d'où on en est, et recommence", () => {
-    saveProgress({ current: "network", done: ["welcome", "machine"], skipped: [] });
+    saveProgress({ current: "network", done: ["welcome", "machine"], skipped: [], host: "" });
     expect(loadProgress().current).toBe("network");
     resetProgress();
     expect(loadProgress().current).toBe("welcome");
@@ -49,12 +49,25 @@ describe("assistant : progression", () => {
     mem.set("myservices-assistant", JSON.stringify({ current: "inconnue", done: ["x"] }));
     expect(loadProgress().current).toBe("welcome");
     mem.set("myservices-assistant", JSON.stringify({ current: "machine", done: ["welcome", "x"], skipped: ["y"] }));
-    expect(loadProgress()).toEqual({ current: "machine", done: ["welcome"], skipped: [] });
+    expect(loadProgress()).toEqual({ current: "machine", done: ["welcome"], skipped: [], host: "" });
   });
 
-  it("les quatre premières étapes existent, les autres sont annoncées", () => {
-    expect(STEPS.filter((s) => s.ready).map((s) => s.id)).toEqual(["welcome", "machine", "network", "access"]);
+  it("les six étapes existent", () => {
+    expect(STEPS.filter((s) => s.ready).map((s) => s.id)).toEqual(["welcome", "machine", "network", "access", "tools", "alerts"]);
     expect(STEPS).toHaveLength(6);
+  });
+
+  it("l'assistant est fini quand chaque étape est faite ou passée", () => {
+    const ids = STEPS.map((s) => s.id);
+    expect(isFinished(null)).toBe(false);
+    expect(isFinished({ done: ids.slice(0, 5), skipped: [] })).toBe(false);
+    expect(isFinished({ done: ids.slice(0, 3), skipped: ids.slice(3) })).toBe(true);
+  });
+
+  it("garde la machine hôte désignée dans la progression", () => {
+    saveProgress({ current: "machine", done: [], skipped: [], host: "10.0.0.2" });
+    expect(loadProgress().host).toBe("10.0.0.2");
+    expect(advance(loadProgress(), "done").host).toBe("10.0.0.2");
   });
 
   it("trouve la machine hôte sans jamais prendre la première au hasard", () => {
