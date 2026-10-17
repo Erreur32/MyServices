@@ -86,7 +86,7 @@ export function Dim({ children }: { children: ReactNode }) {
 /** Card title (h2): when it opens the card, directly or inside a row that also holds buttons, it becomes a header strip across the card (same look as
  *  TableCard and the card grids); otherwise it is just a larger bold title. The icon takes the link colour; a text colour already set (text-ok…) is kept. */
 // Written out in full: Tailwind only generates classes it finds as complete strings in the source.
-const TITLE =
+export const TITLE =
   "[&_h2]:text-[1.0625rem] [&_h2]:font-extrabold [&_h2]:leading-snug [&_h2]:tracking-tight [&_h2_svg]:text-link " +
   "[&>h2:first-child]:-mx-4 [&>div:first-child:has(>h2)]:-mx-4 [&>h2:first-child]:-mt-4 [&>div:first-child:has(>h2)]:-mt-4 [&>h2:first-child]:mb-3 [&>div:first-child:has(>h2)]:mb-3 [&>h2:first-child]:border-b [&>div:first-child:has(>h2)]:border-b [&>h2:first-child]:border-line/60 [&>div:first-child:has(>h2)]:border-line/60 [&>h2:first-child]:bg-bg [&>div:first-child:has(>h2)]:bg-bg [&>h2:first-child]:px-4 [&>div:first-child:has(>h2)]:px-4 [&>h2:first-child]:py-3 [&>div:first-child:has(>h2)]:py-3 [&>h2:first-child]:rounded-t-[15px] [&>div:first-child:has(>h2)]:rounded-t-[15px] [&>div:first-child>h2]:mb-0";
 

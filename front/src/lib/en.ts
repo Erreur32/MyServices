@@ -1055,6 +1055,7 @@ export const EN: Record<string, string> = {
   "vient de redémarrer": "just restarted",
   "Modèles IA": "AI models",
   "Maintenant": "Now",
+  "{0} oublié : il reste dans « Arrêtés et oubliés », pour le rappeler": "{0} forgotten: it stays in « Stopped and forgotten », to bring it back",
   "Pas encore publié : visible seulement sur ce serveur de développement": "Not published yet: shown on this development server only",
   "Points d'attention": "Points of attention",
   "{0} tâche(s) suivie(s)": "{0} task(s) followed",
