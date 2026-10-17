@@ -27,6 +27,7 @@ echo "##SSHD $(grep -h -E -i '^[[:space:]]*(Port|PermitRootLogin|PasswordAuthent
 echo "##DOCKERBIN $(command -v docker >/dev/null 2>&1 && echo yes || echo no)"
 echo "##DOCKER $(docker ps -q 2>/dev/null | wc -l)"
 echo "##VIRT $(systemd-detect-virt 2>/dev/null)"
+echo "##GPU $(lspci 2>/dev/null | grep -E -i 'vga compatible|3d controller|display controller' | cut -d' ' -f2- | head -4 | paste -sd'|')"
 echo "##ESXI $(vmware -v 2>/dev/null)"
 echo "##PVE $( [ -d /etc/pve ] && command -v pvesh >/dev/null 2>&1 && echo yes || echo no)"
 echo "##HV $(for t in virsh incus lxc VBoxManage; do command -v $t >/dev/null 2>&1 && printf '%s ' $t; done)"
@@ -43,6 +44,23 @@ for f in /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*.conf; do
   else echo "##NU $f"; fi
 done
 """
+
+
+# Emulated display adapters of virtual machines: not a real GPU, not worth a line
+VIRTUAL_GPU = re.compile(r"virtio|qxl|cirrus|bochs|vmware svga|vga adapter|hyper-v|virtualbox|microsoft corporation", re.I)
+
+
+def parse_gpus(raw: str) -> list[str]:
+    """Graphics adapters from the « lspci » lines (« VGA compatible controller: Intel Corporation HD Graphics 630 (rev 04) »): the model only,
+    the vendor name shortened, the revision dropped. Empty when lspci is missing or finds nothing (a headless machine shows no GPU)."""
+    out = []
+    for item in filter(None, (x.strip() for x in raw.split("|"))):
+        name = item.split(": ", 1)[-1]
+        name = re.sub(r"\s*\(rev [0-9a-f]+\)", "", name)
+        name = re.sub(r"\b(Corporation|Corp\.|Inc\.?|Co\., Ltd\.|Advanced Micro Devices, Inc\. \[AMD/ATI\])\s*", lambda m: "AMD " if m.group(1).startswith("Advanced") else "", name).strip()
+        if name and not VIRTUAL_GPU.search(name) and name not in out:
+            out.append(name[:80])
+    return out
 
 
 def ping_ttl(stdout: str) -> int | None:
@@ -274,6 +292,7 @@ def host_info(alias: str) -> dict | None:
         "proxmox": tag.get("PVE") == "yes",
         "esxi": tag.get("ESXI", "").startswith("VMware ESXi"),  # VMware ESXi host: its VMs and datastores are read by vim-cmd  # Proxmox VE host: its guests and storages are read by pvesh at each collection
         "hypervisors": [t for t in tag.get("HV", "").split() if t in ("virsh", "incus", "lxc", "VBoxManage")],  # other hypervisors read by virt_ssh.py
+        "gpus": parse_gpus(tag.get("GPU", "")),  # lspci: the graphics adapters (iGPU included), names only, no load
         "sshd": sshd,  # vide si /etc/ssh/sshd_config illisible pour ce compte
         "vhosts": vhosts,
         "vhosts_unreadable": unreadable,

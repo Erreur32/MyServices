@@ -264,15 +264,16 @@ function VmMark({ m, h }: Readonly<{ m: Machine; h?: HealthHost }>) {
   return <span className="inline-grid h-5 w-5 shrink-0 place-items-center rounded border border-link/50 bg-link/10 text-link" title={tip} tabIndex={0}><Box size={12} aria-hidden /></span>;
 }
 
-/** GPUs of a machine: those GpuViewR reads (load, temperature, memory, power, last 24 h, the AI models on each), else the names the Windows agent lists in its hardware.
- *  SSH and the Linux agent read no GPU; GpuViewR is the only source of the figures. */
+/** GPUs of a machine: those GpuViewR reads (load, temperature, memory, power, last 24 h, the AI models on each), else the names the Windows agent lists in its hardware, else lspci over SSH (iGPU included, none shown when nothing is found).
+ *  GpuViewR is the only source of load, temperature and memory. */
 type GpuModel = NonNullable<LinkSource["models"]>[number];
 type GpuCell = { name: string; util?: number | null; temp?: number | null; memUsed?: number | null; memTotal?: number | null; power?: number | null; day?: NonNullable<LinkSource["gpus"]>[number]["day"]; models: GpuModel[] };
 function gpusOf(m: Machine): GpuCell[] {
   const src = m.links?.sources.find((x) => x.source === "gpuviewr"), read = src?.gpus ?? [];
   if (read.length) return read.map((g, i) => ({ name: g.name ?? "GPU", util: g.util, temp: g.temp, memUsed: g.mem_used, memTotal: g.mem_total, power: g.power, day: g.day,
     models: (src?.models ?? []).filter((x) => x.gpu === i || (x.gpu == null && read.length === 1)) }));
-  return (m.agent?.hardware?.gpu ?? []).map((g) => ({ name: g.name, models: [] }));
+  const names = m.agent?.hardware?.gpu?.map((g) => g.name) ?? m.info?.gpus ?? [];   // the Windows agent's list, else lspci over SSH (Linux, Proxmox): names only
+  return names.map((name) => ({ name, models: [] }));
 }
 const shortGpu = (n: string): string => n.replace(/^(NVIDIA|AMD|Intel\(R\))\s+/i, "").replace(/^(GeForce|Radeon)\s+/i, "").replace(/\s*\(TM\)|\s*\(R\)/gi, "").trim();
 const gb = (mb: number): string => `${(mb / 1024).toFixed(mb >= 10240 ? 0 : 1)} ${tx("Go")}`;

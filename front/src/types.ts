@@ -113,7 +113,7 @@ export interface Machine {
   api?: { type: string; name: string; label: string; ok: boolean; stale?: boolean; version?: string | null; message?: string; host?: { cpu?: number; mem_pct?: number; temp?: number; boot?: string } | null }[];   // connecteurs API (Home Assistant…) qui lisent cette machine
   agent?: { os: string; kernel?: string | null; uptime_s?: number | null; hardware?: AgentHardware | null; docker?: number | null; apps?: { key: string; label: string }[]; via: "agent" } | null;  // système lu par l'agent (PC Windows)
   info?: {
-    os?: string; kernel?: string; uptime_s?: number; apache?: boolean; nginx?: boolean; docker?: number; docker_installed?: boolean;
+    os?: string; kernel?: string; uptime_s?: number; gpus?: string[]; apache?: boolean; nginx?: boolean; docker?: number; docker_installed?: boolean;
     sshd?: { permitrootlogin?: string; passwordauthentication?: string };
     vhosts?: unknown[]; vhosts_unreadable?: string[];
   } | null;
