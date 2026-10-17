@@ -42,6 +42,7 @@ tells you what needs your attention.
 
 - 🔒 **Read-only**: nothing is ever written to what it observes.
 - 📦 **A single container**: collection, watcher, health checks, backups, accounts, API and web page.
+- 🧭 A **setup assistant**: one decision at a time, and it recommends the simplest way to read each machine.
 - 🖥️ **Machines** read over SSH (Linux), through a PowerShell agent (Windows), through an app's API, or simply by ping.
 - 🔌 **More than 50 connectors**: Nginx Proxy Manager, AdGuard Home, Home Assistant, Proxmox, Veeam, UniFi, MynetworK, Beszel, Ollama…
 - 🕘 **A history** of every event, with what detected it and where the data came from.
@@ -61,7 +62,7 @@ docker compose logs myservices        # the app's public key and the command to 
 ```
 
 Then open **`http://<IP>:8090/`** (the app is at the root of the site; the old `/myservices/…` addresses still work and redirect) **within 30 minutes** to create the admin account (after that delay:
-`docker compose restart myservices`) and follow the **"Premiers pas"** (getting started) card, then the **Help** page in Settings.
+`docker compose restart myservices`) and follow the **setup assistant**, which opens by itself the first time (six short steps: this machine, the network, how to read each machine, your tools, alerts; every step can be skipped and redone, from the account menu: "Review the setup assistant"), then the **Help** page in Settings.
 
 > **The app listens on port `8090`.** It is a setting, not a fixed value: if 8090 is already taken on your machine, put **`MYSERVICES_PORT=8095`** (or any free port) in a `.env` file next to `docker-compose.yaml` (example: [`deploy/env.example`](deploy/env.example), downloaded by the second `curl` above), then run `docker compose up -d` and open `http://<IP>:8095/`. The container uses the host network, so editing a `ports:` mapping would do nothing.
 

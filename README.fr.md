@@ -42,6 +42,7 @@ signale ce qui demande votre attention.
 
 - 🔒 **Lecture seule** : rien n'est écrit sur ce qu'il observe.
 - 📦 **Un seul conteneur** : collecte, veille, santé, sauvegardes, comptes, API et page web.
+- 🧭 Un **assistant de démarrage** : une décision à la fois, qui recommande la façon la plus simple de lire chaque machine.
 - 🖥️ **Machines** lues par SSH (Linux), par un agent PowerShell (Windows), par l'API d'une appli, ou simplement par ping.
 - 🔌 **Plus de 50 connecteurs** : Nginx Proxy Manager, AdGuard Home, Home Assistant, Proxmox, Veeam, UniFi, MynetworK, Beszel, Ollama…
 - 🕘 **Un historique** de chaque événement, avec ce qui l'a détecté et d'où vient l'information.
@@ -61,7 +62,7 @@ docker compose logs myservices        # clé publique de l'app et commande pour 
 ```
 
 Puis ouvrez **`http://<IP>:8090/`** (l'appli est à la racine du site ; les anciennes adresses `/myservices/…` marchent toujours et redirigent) **dans les 30 minutes** pour créer le compte admin (passé ce délai :
-`docker compose restart myservices`), et suivez la carte **« Premiers pas »**, puis la page **Aide** des Réglages.
+`docker compose restart myservices`), et suivez l'**assistant de démarrage**, qui s'ouvre tout seul la première fois (six courtes étapes : cette machine, le réseau, la façon de lire chaque machine, vos outils, les alertes ; chaque étape se passe et se refait, depuis le menu du compte : « Revoir l'assistant de démarrage »), puis la page **Aide** des Réglages.
 
 > **L'application écoute sur le port `8090`.** C'est un réglage, pas une valeur figée : si le 8090 est déjà pris sur votre machine, mettez **`MYSERVICES_PORT=8095`** (ou un autre port libre) dans un fichier `.env` à côté de `docker-compose.yaml` (exemple : [`deploy/env.example`](deploy/env.example), téléchargé par le second `curl` ci-dessus), puis lancez `docker compose up -d` et ouvrez `http://<IP>:8095/`. Le conteneur utilise le réseau de l'hôte : modifier un `ports:` ne servirait à rien.
 

@@ -47,6 +47,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - The "Machine followed" and "Often off" switches sit at the top of a machine's settings card and are never greyed out. A SSH security
   notice (root login or password allowed) is now a blue shield badge saying what is allowed, not an orange "sshd" badge that looked like a fault.
 - Dialog windows now have a nearly opaque blurred backdrop and open near the top of the page.
+- The setup assistant replaces the "Premiers pas" card on the home page and the old `#setup` installation page (the old address redirects to
+  the assistant). On a fresh install, with no other machine followed and the assistant never used, it opens by itself once per browser
+  session; otherwise a banner on the home page offers it until it is finished or closed. "Review the setup assistant" (account menu and
+  Settings -> Discovery) restarts it from the first step. The automatic mode switch stays in Settings -> Discovery.
 
 ## v0.11.13 (2026-10-13)
 
