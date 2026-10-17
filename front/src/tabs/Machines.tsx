@@ -255,6 +255,31 @@ function watchTip(it: WatchItem, hint?: string): string {
   return [it.text, ...lines, ...more, ...(hint ? ["", `[[off:${hint}]]`] : [])].join("\n");
 }
 
+/** GPUs of a machine: those GpuViewR reads (name, load, temperature), else the names the Windows agent lists in its hardware */
+type GpuCell = { name: string; util?: number | null; temp?: number | null };
+function gpusOf(m: Machine): GpuCell[] {
+  const read = m.links?.sources.find((x) => x.source === "gpuviewr")?.gpus ?? [];
+  if (read.length) return read.map((g) => ({ name: g.name ?? "GPU", util: g.util, temp: g.temp }));
+  return (m.agent?.hardware?.gpu ?? []).map((g) => ({ name: g.name }));
+}
+const shortGpu = (n: string): string => n.replace(/^(NVIDIA|AMD|Intel\(R\))\s+/i, "").replace(/^(GeForce|Radeon)\s+/i, "").replace(/\s*\(TM\)|\s*\(R\)/gi, "").trim();
+
+/** GPU column cell: each GPU's short name, with its load and temperature when GpuViewR gives them */
+function GpuCellView({ list }: Readonly<{ list: GpuCell[] }>) {
+  if (!list.length) return <Dim>-</Dim>;
+  return (
+    <span className="flex max-w-[12rem] flex-col gap-0.5">
+      {list.map((g, i) => (
+        <span key={`${g.name}-${i}`} className="flex items-baseline gap-1.5 whitespace-nowrap text-xs" title={[g.name, g.util != null && `${Math.round(g.util)} %`, g.temp != null && `${Math.round(g.temp)} °C`].filter(Boolean).join(" · ")}>
+          <span className="min-w-0 truncate">{shortGpu(g.name)}</span>
+          {g.util != null && <span className="tabular-nums text-dim">{Math.round(g.util)} %</span>}
+          {g.temp != null && <span className={`tabular-nums ${heatClass(g.temp)}`}>{Math.round(g.temp)} °C</span>}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 /** Kernel errors set aside by the viewer, per machine: hidden until a more recent message appears (kept in this browser only) */
 const KernelIgnore = createContext<{ ignored: Record<string, string>; set: (id: string, sig: string | null) => void }>({ ignored: {}, set: () => undefined });
 const KERNEL_KEY = "ms.machines.kernelIgnored";
@@ -1069,6 +1094,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
     try { localStorage.setItem(KERNEL_KEY, JSON.stringify(next)); } catch { /* private browsing: not kept */ }
     return next;
   }), []);
+  const anyGpu = useMemo(() => snap.data.machine_list.some((m) => !m.disabled && gpusOf(m).length > 0), [snap.data.machine_list]);   // the column exists only when some machine has a GPU to show
   const ignoreCtx = useMemo(() => ({ ignored, set: setIgnore }), [ignored, setIgnore]);
   const watchOf = useCallback((m: Machine) => {
     const h = hb.get(m.ip), items = watchItems(m, h, snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m));
@@ -1197,7 +1223,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
         <>
           {view === "table" && <Table fit head={<>
             <th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
-            <Th k="svc" sort={sort}>{tx("Services")}</Th><Th k="watch" sort={sort}>{tx("Santé")}</Th>{snap.health && <><Th className="!px-1.5">{tx("CPU")}</Th><Th className="!px-1.5">{tx("Mémoire")}</Th><Th className="!px-1.5">{tx("Disque")}</Th></>}
+            <Th k="svc" sort={sort}>{tx("Services")}</Th><Th k="watch" sort={sort}>{tx("Santé")}</Th>{snap.health && <><Th className="!px-1.5">{tx("CPU")}</Th><Th className="!px-1.5">{tx("Mémoire")}</Th><Th className="!px-1.5">{tx("Disque")}</Th></>}{anyGpu && <Th className="!px-1.5">GPU</Th>}
             <Th k="up" sort={sort} className="w-px !pl-2 !pr-1 !text-right">{tx("En marche")}</Th>
             {admin && <th className="w-8 px-1" aria-label={tx("Réglages")} />}
           </>}>
@@ -1219,7 +1245,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                     <Td><span className="flex flex-wrap items-center gap-1.5">   {/* one column: the level, then what explains it (the updates have their flag near the name) */}
                       {snap.health && <HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} />}
                       <WatchList ip={m.ip} quiet={!!snap.health} items={watchOf(m).filter((i) => i.kind !== "updates")} /></span></Td>
-                    {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}
+                    {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="!px-1.5"><GpuCellView list={gpusOf(m)} /></Td>}
                     <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-muted tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network)); return up ? dur(up) : <Dim>-</Dim>; })()}</Td>
                     {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => setEditIp(m.ip)} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
                       className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><Settings2 size={14} aria-hidden /></button></td>}
