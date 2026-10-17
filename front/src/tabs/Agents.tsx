@@ -8,7 +8,7 @@ import { NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
 import { AgentInstall, type AgentKind, type InstallTarget } from "../components/AgentInstall";
 import { act, danger, quiet, type Note } from "../lib/forms";
-import { Badge, Card, Dim } from "../components/ui";
+import { Badge, Dim } from "../components/ui";
 import { dateTime } from "../lib/format";
 import type { AgentInfo, AgentsState, MachineConf } from "../types";
 import { tx } from "../lib/i18n";
@@ -120,6 +120,29 @@ export function AgentBlock({ ip, name, kind, agent, onChanged }: Readonly<{ ip: 
   );
 }
 
+/** « Accès aux machines » : agent, SSH ou connecteur, lequel choisir. Shown from the icon in the header of Réglages → Machines */
+export function AccessGuide() {
+  return (
+    <div className="mt-3 border-t border-line/60 pt-3">
+      <h3 className="flex items-center gap-2 font-bold"><MonitorUp size={16} aria-hidden />{tx("Accès aux machines")}</h3>
+      <p className="mt-1 text-sm text-muted">
+        {tx("Deux façons de lire la santé d'une machine, toujours en lecture seule.")} <b className="text-txt">{tx("Agent")}</b> {tx(": un petit script (PowerShell sur un PC Windows, Python sur une machine Linux), installé sur la machine, qui envoie lui-même sa santé à MyServices (disques, services, processeur, mémoire, mises à jour, journal) ; pas de SSH à ouvrir, et un PC souvent éteint se signale dès qu'il se rallume.")}{" "}
+        <b className="text-txt">SSH</b> {tx(": pour les machines Linux, MyServices s'y connecte avec sa clé (santé, Docker, services en écoute).")}
+      </p>
+      <div className="mt-3 rounded-lg border border-link/50 bg-link/5 px-3 py-2 text-sm text-muted">
+        <b className="text-txt">{tx("Lequel choisir ?")}</b>
+        <ul className="mt-1 list-disc space-y-0.5 pl-5">
+          <li><b className="text-txt">{tx("Machine Linux que vous administrez")}</b> {tx(": le SSH suffit. Un agent n'y sert que de filet de sécurité (si le SSH ne répond plus, l'agent prend le relais).")}</li>
+          <li><b className="text-txt">{tx("Machine où le SSH est impossible")}</b> {tx("(clé refusée, port fermé, NAT, VPN) : l'agent, Windows ou Linux.")}</li>
+          <li><b className="text-txt">{tx("Box, passerelle, appli")}</b> {tx("(Freebox, UniFi, Home Assistant…) : le connecteur, pas d'agent.")}</li>
+        </ul>
+        <p className="mt-1 text-xs text-dim">{tx("SSH, agent et connecteurs peuvent tourner ensemble sur une même machine : la première source qui répond fait foi, les autres complètent.")}</p>
+        <p className="mt-1 text-xs text-dim">{tx("Chaque machine se règle dans sa fenêtre, onglet Accès.")}</p>
+      </div>
+    </div>
+  );
+}
+
 /** Vue d'ensemble, en bas de Réglages → Machines : comment choisir entre agent, SSH et connecteur, et les agents révoqués */
 export function AgentsOverview({ machines }: Readonly<{ machines: Record<string, MachineConf> }>) {
   const [st, setSt] = useState<AgentsState | null>(null), [install, setInstall] = useState<InstallTarget | null>(null);
@@ -128,23 +151,6 @@ export function AgentsOverview({ machines }: Readonly<{ machines: Record<string,
   const revoked = st?.agents.filter((a) => a.state === "révoqué") ?? [];
   return (
     <>
-      <Card>
-        <h2 className="flex items-center gap-2 font-bold"><MonitorUp size={16} aria-hidden />{tx("Accès aux machines")}</h2>
-        <p className="mt-1 text-sm text-muted">
-          {tx("Deux façons de lire la santé d'une machine, toujours en lecture seule.")} <b className="text-txt">{tx("Agent")}</b> {tx(": un petit script (PowerShell sur un PC Windows, Python sur une machine Linux), installé sur la machine, qui envoie lui-même sa santé à MyServices (disques, services, processeur, mémoire, mises à jour, journal) ; pas de SSH à ouvrir, et un PC souvent éteint se signale dès qu'il se rallume.")}{" "}
-          <b className="text-txt">SSH</b> {tx(": pour les machines Linux, MyServices s'y connecte avec sa clé (santé, Docker, services en écoute).")}
-        </p>
-        <div className="mt-3 rounded-lg border border-link/50 bg-link/5 px-3 py-2 text-sm text-muted">
-          <b className="text-txt">{tx("Lequel choisir ?")}</b>
-          <ul className="mt-1 list-disc space-y-0.5 pl-5">
-            <li><b className="text-txt">{tx("Machine Linux que vous administrez")}</b> {tx(": le SSH suffit. Un agent n'y sert que de filet de sécurité (si le SSH ne répond plus, l'agent prend le relais).")}</li>
-            <li><b className="text-txt">{tx("Machine où le SSH est impossible")}</b> {tx("(clé refusée, port fermé, NAT, VPN) : l'agent, Windows ou Linux.")}</li>
-            <li><b className="text-txt">{tx("Box, passerelle, appli")}</b> {tx("(Freebox, UniFi, Home Assistant…) : le connecteur, pas d'agent.")}</li>
-          </ul>
-          <p className="mt-1 text-xs text-dim">{tx("SSH, agent et connecteurs peuvent tourner ensemble sur une même machine : la première source qui répond fait foi, les autres complètent.")}</p>
-          <p className="mt-1 text-xs text-dim">{tx("Chaque machine se règle dans sa fenêtre, onglet Accès.")}</p>
-        </div>
-      </Card>
       {install && <AgentInstall key={`${install.ip}-auto`} target={install} onChanged={reload} onClose={() => setInstall(null)} />}
       <Group title={tx("Agents révoqués")} n={revoked.length} fold folded
         hint={tx("Leur jeton ne marche plus. « Nouvel agent » en crée un autre pour ce PC ; « Supprimer » les retire de la liste pour de bon.")}>

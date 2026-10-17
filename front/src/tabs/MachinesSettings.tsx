@@ -3,7 +3,7 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
-import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, Radar, RefreshCw, Server, Settings2, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, Info, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, Radar, RefreshCw, Server, Settings2, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, refreshSnapshot, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -15,7 +15,7 @@ import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
 import { Overlay } from "../components/Overlay";
-import { AgentBlock, AgentsOverview } from "./Agents";
+import { AccessGuide, AgentBlock, AgentsOverview } from "./Agents";
 import { IconChoice } from "../components/IconChoice";
 import { IconPicker } from "../components/IconPicker";
 import { mState, osOfMachine } from "../lib/machines";
@@ -57,6 +57,7 @@ export function MachinesSettings({ snap, focusIp, focusTab }: Readonly<{ snap: S
   // Système vu par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas (suggestion)
   const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean; sshPort?: number }>>({});
   const [hosts, setHosts] = useState<NetHost[]>([]);
+  const [showAccess, setShowAccess] = useState(false);
   const [agents, setAgents] = useState<Record<string, AgentInfo>>({});  // agent actif par IP
   const loadAgents = useCallback(() => { read<{ agents: AgentInfo[] }>("agents").then((r) => setAgents(Object.fromEntries(r.agents.filter((a) => a.state !== "révoqué").map((a) => [a.ip, a])))).catch(() => undefined); }, []);
   useEffect(loadAgents, [loadAgents]);
@@ -95,10 +96,7 @@ export function MachinesSettings({ snap, focusIp, focusTab }: Readonly<{ snap: S
       <div id="authorize-key" className="scroll-mt-24"><AuthorizeKey userOf={userOf} failing={failingKey} onAccepted={() => setAccepted({ gen: snap.data.generated, ips: [...hidden, ...failingKey.map((c) => c.ip ?? c.name)] })} /></div>
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-bold"><Server size={16} aria-hidden />{tx("Machines")} <Count n={all.length - nOff} />
-            {nOff > 0 && <button type="button" onClick={() => setShowOff(!showOff)} aria-pressed={showOff} title={tx("Machines dont « Machine suivie » est coupé : plus lues, cachées ici et dans l'onglet Machines")}
-              className={`ml-1 inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-semibold ${showOff ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:text-txt"}`}>
-              {showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}{tx("Non suivies")} ({nOff})</button>}</h2>
+          <h2 className="flex items-center gap-2 font-bold"><Server size={16} aria-hidden />{tx("Machines")} <Count n={all.length - nOff} /></h2>
           {!detecting && (
             <div className="flex flex-wrap gap-2">
               {!redetecting && <button type="button" className={quiet} onClick={() => setRedetecting(true)}><RefreshCw size={14} />{tx("Redétecter")}</button>}
@@ -106,6 +104,15 @@ export function MachinesSettings({ snap, focusIp, focusTab }: Readonly<{ snap: S
             </div>
           )}
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => setShowAccess(!showAccess)} aria-pressed={showAccess} aria-label={tx("Accès aux machines")} title={tx("Accès aux machines : agent, SSH ou connecteur, lequel choisir")}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-semibold ${showAccess ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:text-txt"}`}><Info size={12} aria-hidden />{tx("Accès")}</button>
+          {nOff > 0 && <button type="button" onClick={() => setShowOff(!showOff)} aria-pressed={showOff} title={tx("Machines dont « Machine suivie » est coupé : plus lues, cachées ici et dans l'onglet Machines")}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-semibold ${showOff ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:text-txt"}`}>
+            {showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}{tx("Non suivies")} ({nOff})</button>}
+        </div>
+
+        {showAccess && <AccessGuide />}
         {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
         {detecting && <Detect st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
       </Card>
@@ -550,18 +557,23 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgen
   if (bare) return <>{overlay}</>;   // fenêtre ouverte depuis l'onglet Machines : pas de carte
   return (
     <div ref={card} className={cardClass(off, focus, open)}>
-      <button type="button" onClick={() => openCard(true)} aria-haspopup="dialog" title={tx("Ouvrir les réglages de cette machine")} className="flex h-[7rem] w-full flex-wrap content-start items-center gap-x-2 gap-y-1 overflow-hidden rounded-xl p-3 text-left hover:bg-bg2">
-        <Settings2 size={14} className="text-dim" aria-hidden /><MachineIcon m={iconProps} scan={scan} reserve /><b className="max-w-[10rem] truncate">{m.name}</b><Dim>{ip}</Dim>
+      <button type="button" onClick={() => openCard(true)} aria-haspopup="dialog" title={tx("Ouvrir les réglages de cette machine")} className="relative flex h-[7rem] w-full flex-col overflow-hidden rounded-xl text-left hover:bg-bg2">
+        <span className="flex w-full items-center gap-x-2 border-b border-line/60 bg-bg px-3 py-2">
+        <MachineIcon m={iconProps} scan={scan} reserve /><b className="max-w-[10rem] truncate">{m.name}</b><Dim>{ip}</Dim>
         <span className="ml-auto flex min-w-0 items-center justify-end gap-1.5 flex-nowrap overflow-hidden">
           <RowBadges keyMissing={keyMissing} unfinished={unfinished} m={m} live={live} statuses={statuses} off={off} onAuthorize={goAuthorize} />
         </span>
+        </span>
         {/* Qui lit la machine : un badge court par source, coloré selon son état (détail en infobulle). Le détail de l'accès SSH n'est que dans la carte dépliée */}
-        <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">
-          {rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}
+        <span className="flex flex-col gap-1 p-3 pt-2">
+          <span className="flex flex-wrap items-center gap-1 text-xs text-dim">
+            {rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}
+          </span>
+          <span className="flex flex-wrap items-center gap-1 text-xs text-dim">
+            {live ? <SourceBadges m={live} agent={agent} extra={readers} /> : <AgentOrAccess agent={agent} access={access} />}
+          </span>
         </span>
-        <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">
-          {live ? <SourceBadges m={live} agent={agent} extra={readers} /> : <AgentOrAccess agent={agent} access={access} />}
-        </span>
+        <Settings2 size={14} className="absolute bottom-2 right-3 text-dim" aria-hidden />
       </button>
       {overlay}
     </div>

@@ -1764,6 +1764,7 @@ export const EN: Record<string, string> = {
   "Réseaux Wi-Fi": "Wi-Fi networks",
   "Conteneurs Docker": "Docker containers",
   "Voir ses services NPM": "See its NPM services",
+  "Accès aux machines : agent, SSH ou connecteur, lequel choisir": "Machine access: agent, SSH or connector, which to pick",
   "non transmise par MynetworK": "not passed on by MynetworK",
   "disponible": "available",
   "Appareil": "Device",

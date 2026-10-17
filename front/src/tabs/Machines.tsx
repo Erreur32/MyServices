@@ -915,7 +915,7 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
   const edge = LEVEL_EDGE[levelKey(h)] ?? "";
   return (
     <div className={`flex flex-col gap-2.5 overflow-hidden rounded-xl border border-l-[3px] border-line bg-card p-3 transition-colors hover:border-link/50 ${edge} ${shown ? "col-span-full" : ""} ${off ? "opacity-50" : ""}`}>
-      <div className="flex items-center gap-2.5">
+      <div className="-mx-3 -mt-3 flex items-center gap-2.5 border-b border-line/60 bg-bg px-3 py-2.5">
         <MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifi) }} scan={scan} reserve />
         <button type="button" onClick={() => onMachine(m.ip)} className="min-w-0 flex-1 text-left" title={tx("Voir ses services")}>
           <b className="block truncate font-semibold hover:text-link">{m.name}</b>
