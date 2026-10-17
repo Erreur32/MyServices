@@ -17,6 +17,7 @@ import { Dot } from "../components/marks";
 import { LEVEL } from "../lib/level";
 import { rolesOf } from "../lib/ssh";
 import { SshAccess } from "../components/ssh";
+import { SourceBadges } from "../components/SourceBadges";
 import { DetailRow, DetailSection } from "../components/DetailSection";
 import { OPEN_DETAIL, OPEN_ROW, quiet } from "../lib/forms";
 import { rereadMachines } from "../lib/scan";
@@ -232,12 +233,6 @@ function WatchSummary({ items }: { items: WatchItem[] }) {
       )}
     </details>
   );
-}
-
-/** Accès SSH comme dans la première version, sur une ligne : logo, pastilles compte, IP et port ; l'alias, la note et les alertes sont dans le détail déplié */
-function SshShort({ m }: { m: Machine }) {
-  if (!m.ssh) return <Dim>{m.local ? tx("local") : "-"}</Dim>;
-  return <SshAccess noAlias alias={m.ssh.alias} user={m.ssh.user} ip={m.ip} port={m.ssh.port} refused={!m.info && !!m.ssh.identity} />;
 }
 
 /** Système sur une ligne : logo de la distribution (ou icône de la famille) puis le nom, coupé, entier au survol */
@@ -720,10 +715,10 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
     }
   };
   const macOf = (m: Machine) => { const d = seen.get(m.ip); const mac = d?.mac || m.links?.mac, vendor = d?.vendor || m.links?.vendor; return mac || vendor ? [mac, vendor].filter(Boolean).join(" · ") : undefined; };
+  // Sources de lecture (SSH, agent, connecteurs), un badge court coloré par source ; la Freebox est lue par MynetworK (rapprochée par son nom)
   const st = (m: Machine) => {
-    let [tone, label, tip] = stateBadge(m);
-    if (mState(m) === "nossh" && freeboxOf(m, snap.data.network)) [tone, label, tip] = ["ok", tx("via {0}", "MynetworK"), MSTATE.network[2]];   // the Freebox, read through MynetworK
-    return <Badge tone={tone} title={tip}>{label}</Badge>;
+    const fb = freeboxOf(m, snap.data.network) && snap.data.network?.find((c) => c.freebox?.system);
+    return <SourceBadges m={m} extra={fb ? [{ type: fb.connector, name: fb.name, label: fb.label }] : []} />;
   };
 
   return (
@@ -761,11 +756,11 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           {view === "table" && <Table fit head={<>
-            <th className="w-8 px-1" aria-label={tx("Détails")} /><th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("État")}</Th><Th k="watch" sort={sort}>{tx("À surveiller")}</Th><Th>{tx("SSH")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
+            <th className="w-8 px-1" aria-label={tx("Détails")} /><th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="watch" sort={sort}>{tx("À surveiller")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
             <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th>{tx("Systemd")}</Th><Th>{tx("Mises à jour")}</Th></>}
           </>}>
             {sort.sorted.map((m) => {
-              const shown = open.has(m.ip), h = hb.get(m.ip), cols = 9 + (snap.health ? 6 : 0);
+              const shown = open.has(m.ip), h = hb.get(m.ip), cols = 8 + (snap.health ? 6 : 0);
               return (
                 <Fragment key={m.ip}>
                   <tr className={`${shown ? OPEN_ROW : "hover:bg-bg2/60"} ${isOff(m) ? "opacity-50" : ""}`}>
@@ -776,7 +771,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                     <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td>
                     <Td><button type="button" onClick={() => onMachine(m.ip)} className="flex items-baseline gap-2 text-left" title={tx("Voir ses services")}>
                       <b className="font-semibold hover:text-link">{m.name}</b><span className="text-xs text-dim">{m.ip}</span></button></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
-                    <Td>{st(m)}</Td><Td><WatchList items={watchOf(m)} /></Td><Td><SshShort m={m} /></Td>
+                    <Td>{st(m)}</Td><Td><WatchList items={watchOf(m)} /></Td>
                     <Td><OsShort m={m} kind={osOf(m)} /></Td><Td><Servers m={m} snap={snap} max={2} /></Td>
                     <Td><span className="inline-flex items-center gap-1.5"><b className="tabular-nums">{m.services}</b><DownBadge m={m} snap={snap} /></span></Td>
                     {snap.health && <><Td><HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} /></Td>

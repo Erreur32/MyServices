@@ -20,6 +20,7 @@ import { MSTATE, mState, osOfMachine } from "../lib/machines";
 import { AuthorizeKey } from "../components/AuthorizeKey";
 import { SshGuide } from "../components/SshGuide";
 import { SshAccess, SshDetails } from "../components/ssh";
+import { SourceBadges } from "../components/SourceBadges";
 import { ReadBySsh } from "../components/ReadBySsh";
 import { useWide } from "../lib/useWide";
 import { rolesOf, sshWarn } from "../lib/ssh";
@@ -294,7 +295,6 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
   const keyMissing = !accepted && statuses.some((c) => c.type === "docker" && !c.ok);  // accès SSH activé, mais la clé de l'app n'est pas autorisée (ou le port est faux)
   const wrongPort = !accepted && !!(scan?.sshPort && live?.ssh && scan.sshPort !== live.ssh.port);   // alias sur un autre port que celui où sshd répond
   const goAuthorize = () => document.getElementById("authorize-key")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  const state = live ? MSTATE[mState(live)] : null;
   // Les badges viennent du dernier passage de la collecte : après un test réussi, on en lance un (sans bloquer si un passage est déjà en cours)
   // Seule cette machine est relue (SSH, Docker, santé) : les autres restent en cache, le passage est court.
   const refreshState = () => { void send("POST", `machines/settings/${ip}/refresh`).then(pokeScan, () => undefined); };
@@ -321,8 +321,6 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
   };
   const access = agent ? tx("agent MyServices") : m.os === "windows" ? (m.health ? tx("Windows · santé par {0}", m.health) : tx("Windows · sans agent")) : m.ssh ? `SSH ${m.ssh}` : tx("sans SSH");
   const Chevron = open ? ChevronDown : ChevronRight;
-  // Connecteurs qui voient cette machine : ceux de l'API (Home Assistant…) et les outils réseau rapprochés (MynetworK…), sans doublon
-  const connectors = [...new Set([...(live?.api ?? []).map((a) => a.label), ...(live?.links?.sources ?? []).filter((x) => x.ok !== false).map((x) => x.label)])];
   // Ce que la collecte (SSH) ou l'agent a lu de la connexion : montré dans le cadre « Accès », sous l'interrupteur
   const hw = hardwareRows(live?.agent?.hardware);  // matériel lu par l'agent (modèle, BIOS, processeur, mémoire...)
   const connection = m.os === "windows" ? (
@@ -358,15 +356,12 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
           {m.off && <Badge tone="off">{tx("souvent éteinte")}</Badge>}
           {live && sshWarn(live) && <Badge tone="warn" title={tx("sshd : root ou mot de passe autorisé")}>{tx("sshd")}</Badge>}
           {statuses.some((c) => !c.ok) && <Badge tone="bad">{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
-          {off ? <Badge tone="off">{tx("non suivie")}</Badge> : state && live && mState(live) !== "ssh" && <Badge tone={state[0]} title={state[2]}>{state[1]}</Badge>}   {/* « SSH OK » : remplacé par le badge vert « SSH » de la ligne des sources */}
+          {off && <Badge tone="off">{tx("non suivie")}</Badge>}
         </span>
-        {/* Qui lit la machine : un badge par source (SSH, agent, connecteurs). Le détail de l'accès SSH n'est montré que carte dépliée (section « Accès SSH ») */}
+        {/* Qui lit la machine : un badge court par source, coloré selon son état (détail en infobulle). Le détail de l'accès SSH n'est que dans la carte dépliée */}
         <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">
           {!open && rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}
-          {(live?.ssh || m.ssh) && <Badge tone={live?.info ? "ok" : live?.ssh ? "warn" : "off"} title={live?.info ? tx("Lue par SSH") : tx("SSH réglé, pas (encore) lisible")}>SSH</Badge>}
-          {agent && <Badge tone={agent.state === "actif" ? "ok" : agent.state === "silencieux" ? "warn" : "info"} title={tx("Santé envoyée par l'agent MyServices")}>{tx("agent")}</Badge>}
-          {connectors.map((c) => <Badge key={c} tone="info" title={tx("Lue par ce connecteur")}>{c}</Badge>)}
-          {!open && !live?.ssh && !m.ssh && !agent && connectors.length === 0 && <span className="truncate">{access}</span>}
+          {live ? <SourceBadges m={live} agent={agent} /> : agent ? <Badge tone={agent.state === "actif" ? "ok" : "warn"} title={tx("Agent MyServices : {0}", agent.state)}>{tx("agent")}</Badge> : <span className="truncate">{access}</span>}
           {!open && st.process_hosts[ip] && <span className="truncate">{tx("process lus")}</span>}
         </span>
       </button>

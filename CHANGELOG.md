@@ -18,6 +18,14 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   Settings -> Agents lets you pick Windows or Linux when creating an agent and shows the matching one-line command; Linux machines
   with no SSH and no API are now offered in "Without agent". Each agent type has its own version, checksum and update path.
 
+### Changed
+
+- Machines page and Settings -> Machines: the "State" column is now "Sources", one short badge per source that reads the machine
+  (SSH, agent, each connector), green when it works and another colour when it does not, with an explaining tooltip. The SSH
+  connection column is gone from the table (the detail keeps it), and the folded settings card no longer shows the SSH details.
+- Settings -> Agents explains when to use SSH, an agent or a connector; boxes and gateways (Freebox, UniFi) are never offered an agent,
+  and a connector badge opens that connector's card, highlighted.
+
 ## v0.11.13 (2026-10-13)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
