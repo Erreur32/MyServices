@@ -798,9 +798,11 @@ function submitBody(v: MachineConf, proc: boolean, extra?: Detection["web"]) {
   return { machine: v, process: v.os === "windows" ? null : proc, extra: extra || [] };
 }
 
+const asText = (x: unknown) => (typeof x === "string" ? x : "");
+
 /** Existing card: SSH and switches save alone; the button is only for the text fields */
 function isDirty(isNew: boolean | undefined, v: MachineConf, saved: MachineConf): boolean {
-  return !!isNew || ["name", "adguard", "adguard_sync"].some((k) => String(v[k] ?? "") !== String(saved[k] ?? ""));
+  return !!isNew || ["name", "adguard", "adguard_sync"].some((k) => asText(v[k]) !== asText(saved[k]));
 }
 
 function SavedMark({ k, s }: Readonly<{ k: string; s: SaveState }>) {

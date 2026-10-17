@@ -42,7 +42,7 @@ MINUTES=${MSV_MINUTES:-15}
 URL_OK=0
 [[ "$URL" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] && URL_OK=1  # NOSONAR S5332: local network, see above
 [[ "$URL" =~ ^https?://\[[0-9A-Fa-f:]+\](:[0-9]{1,5})?$ ]] && URL_OK=1  # NOSONAR S5332: local network, see above
-(( URL_OK )) || die "Bad MyServices address: '$URL' (expected http://host:port, no trailing path)"
+(( URL_OK )) || die "Bad MyServices address: '$URL' (expected http://host:port, no trailing path)"  # NOSONAR S5332: message only
 [[ "$TOKEN" =~ ^msv_agent_[A-Za-z0-9_-]+$ ]] || die "Bad token: it must start with msv_agent_"
 [[ "$MINUTES" =~ ^[0-9]+$ ]] && (( MINUTES >= 1 && MINUTES <= 1440 )) || die "MSV_MINUTES must be between 1 and 1440"
 command -v python3 >/dev/null || die "python3 is required"

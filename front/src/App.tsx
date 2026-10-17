@@ -28,9 +28,11 @@ import { GREY_CARDS } from "./lib/forms";
 const REFRESH_MS = 60_000;
 const FAST_MS = 5_000, FAST_FOR_MS = 150_000;   // after a change: data.json read every 5 s for 2 min 30 (304 when unchanged)
 
+const OLD_TABS: Record<string, string> = { fail2ban: "security", health: "machines" };   // removed tabs, now inside another one
+
 function tabFromHash(): TabId {
   const raw = location.hash.slice(1).split("/")[0];
-  const h = (raw === "fail2ban" ? "security" : raw === "health" ? "machines" : raw) as TabId; // « settings/accounts » : onglet puis section ; #fail2ban : ancien onglet, dans Sécurité
+  const h = (OLD_TABS[raw] ?? raw) as TabId; // « settings/accounts » : onglet puis section ; #fail2ban : ancien onglet, dans Sécurité
   return TABS.some((t) => t.id === h) ? h : "home";
 }
 
