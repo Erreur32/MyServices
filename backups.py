@@ -381,10 +381,18 @@ def collect(meta: dict) -> tuple[dict, dict]:
 
 # ───────────── Analyse ─────────────
 
+CADENCE_WINDOW_DAYS = 120   # an archive older than this says nothing about the current rhythm (a forgotten file would stretch it)
+CADENCE_RUNS = 8            # the rhythm is read on the most recent runs only
+
+
 def cadence(files: list[dict]) -> float | None:
     """Observed rhythm of a folder, in days: median gap between the days archives were written (several files the same day = one run).
-    None with fewer than 3 runs."""
-    days = sorted({f["mtime"] // 3600 // 6 for f in files}, reverse=True)   # 6-hour slots: one run, even if it writes for a while
+    Only the recent runs count: the files of the last CADENCE_WINDOW_DAYS days before the newest one, and at most CADENCE_RUNS runs. None with fewer than 3 runs."""
+    if not files:
+        return None
+    newest = max(f["mtime"] for f in files)
+    recent = [f for f in files if newest - f["mtime"] <= CADENCE_WINDOW_DAYS * 86400]
+    days = sorted({f["mtime"] // 3600 // 6 for f in recent}, reverse=True)[:CADENCE_RUNS]   # 6-hour slots: one run, even if it writes for a while
     gaps = sorted((a - b) * 0.25 for a, b in zip(days, days[1:]))
     return round(gaps[len(gaps) // 2], 1) if len(gaps) >= 2 else None
 

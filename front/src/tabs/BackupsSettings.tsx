@@ -293,14 +293,17 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
                           className={`rounded-full border px-2 py-0.5 text-xs font-medium ${s.max_age_days === d ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>{d} {tx("j")}</button>
                       ))}
                       <CustomAge value={s.max_age_days} disabled={s.id === busyId} onSave={(d) => void change(s.id, { max_age_days: d })} />
-                      {(() => {   // observed rhythm slower than the threshold: one click sets the advised one
+                      {(() => {   // observed rhythm vs the threshold: slower than it = alert between two runs (warn), much faster = alert comes too late (info)
                         const advised = s.cadence_days ? AGES.find((d) => d >= s.cadence_days! * 1.25) ?? AGES[AGES.length - 1] : null;
-                        return advised && advised > s.max_age_days ? (
+                        if (!advised || advised === s.max_age_days) return null;
+                        const tooEarly = advised > s.max_age_days;
+                        return (
                           <button type="button" disabled={s.id === busyId} onClick={() => void change(s.id, { max_age_days: advised })}
-                            className="rounded-full border border-warn/60 bg-warn/10 px-2 py-0.5 text-xs font-medium text-warn hover:bg-warn/20"
-                            title={tx("Les archives arrivent environ tous les {0} j : avec un seuil de {1} j, le jeu est en alerte entre deux passages.", s.cadence_days, s.max_age_days)}>
+                            className={`rounded-full border px-2 py-0.5 text-xs font-medium ${tooEarly ? "border-warn/60 bg-warn/10 text-warn hover:bg-warn/20" : "border-link/60 bg-link/10 text-link hover:bg-link/20"}`}
+                            title={tooEarly ? tx("Les archives arrivent environ tous les {0} j : avec un seuil de {1} j, le jeu est en alerte entre deux passages.", s.cadence_days, s.max_age_days)
+                              : tx("Les archives arrivent environ tous les {0} j : avec un seuil de {1} j, une sauvegarde manquée ne serait signalée que très tard.", s.cadence_days, s.max_age_days)}>
                             {tx("rythme observé ~{0} j : passer à {1} j", s.cadence_days, advised)}</button>
-                        ) : null;
+                        );
                       })()}
                     </span>
                   </div>

@@ -210,7 +210,19 @@ export interface ServiceStatus {
   state?: string | null;                 // RUNNING, NOT_RUNNING, STARTING
   unavailable?: number; unavailable_names?: string[]; batteries_low?: string[];
   automations?: { on: number; total: number };
+  mcp?: HaMcp | null;   // advanced mode (ha-mcp add-on): backups, apps, integrations, configuration check
   host?: { cpu?: number | null; mem_pct?: number | null; temp?: number | null; disks?: { mount: string; used_pct: number; size_gb?: number; used_gb?: number }[]; ips?: string[]; boot?: string | null };
+}
+
+/** What the ha-mcp add-on gives about a Home Assistant (read-only calls); each part is absent when its call failed (see errors) */
+export interface HaMcp {
+  server?: { name?: string; version?: string };
+  errors?: Record<string, string>;
+  backups?: { total: number; items: { id: string; name: string; date: number; size: number; protected?: boolean; database?: boolean; ha_version?: string; auto?: boolean; locations: string[]; offsite?: boolean }[] };
+  overview?: { version?: string; state?: string; notifications?: { title: string; created: number }[]; repairs?: number };
+  health?: { config_ok?: boolean; config_errors?: string[]; repairs?: unknown[]; repairs_count?: number; components?: number };
+  apps?: { total: number; running: number; stopped: number; updates: number; items: { name: string; slug: string; version?: string; state: string; update?: boolean }[] };
+  integrations?: { total: number; states: Record<string, number>; problems: { domain: string; title?: string; state: string }[] };
 }
 
 /** Connecteur à proposer : appli reconnue sur une machine, pas encore réglée (known_apps.py) */

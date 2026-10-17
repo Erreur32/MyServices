@@ -261,6 +261,8 @@ class Rythme(unittest.TestCase):
         self.assertEqual(backups.cadence(weekly), 7.0)
         self.assertEqual(backups.cadence([{"mtime": 1_700_000_000 - k * day} for k in range(10)]), 1.0)
         self.assertIsNone(backups.cadence(weekly[:3]))   # un seul passage
+        # an old forgotten file does not stretch the rhythm: only the last 120 days before the newest archive count
+        self.assertEqual(backups.cadence(weekly + [{"mtime": 1_700_000_000 - 400 * day}, {"mtime": 1_700_000_000 - 500 * day}]), 7.0)
 
 
 class Unfollow(Base):

@@ -71,7 +71,7 @@ export function statGroups(snap: Snapshot, nav: Open): Partial<Record<TabId, Rea
       ["warn", local.filter((r) => r.web === "ui" && !r.direct_ok).length, tx("UI sans domaine"), { src: ["local"] }], ["off", n(local, "off"), tx("non testés"), { src: ["local"], status: ["off"] }]]} />,
     health && <Group key="hl" mark={<Mark Icon={HeartPulse} tone="text-ok" />} title={tx("🩺 Santé")} sub={tx("{0} machines", health.hosts.length)} accent="border-l-ok" tab="machines" nav={nav} cells={[
       ["ok", hl("ok"), tx("OK"), { health: ["ok"] }], ["warn", hl("warn"), tx("à surveiller"), { health: ["warn"] }], ["bad", hl("crit"), tx("critiques"), { health: ["crit"] }], ["bad", hl("down"), tx("injoignables"), { health: ["down"] }]]} />,
-    dns && <Group key="dns" mark={<Mark app="AdGuard Home" Icon={Boxes} />} title={tx("🌍 AdGuard")} sub={dnsSync(dns).label} accent="border-l-link" tab="dns" nav={nav} cells={[
+    dns && <Group key="dns" mark={<Mark app="AdGuard Home" Icon={Boxes} />} title={tx("🌍 AdGuard")} sub={dnsSync(dns, Date.parse(data.generated)).label} accent="border-l-link" tab="dns" nav={nav} cells={[
       ["ok", data.hosts.filter((r) => r.dns && r.enabled && !r.dns.issues.length).length, tx("domaines OK"), { anchor: ["domains"] }],
       ["warn", data.hosts.filter((r) => r.dns && r.enabled && r.dns.issues.length).length, tx("à vérifier"), { anchor: ["domains"] }],
       ["warn", dns.orphans.length, tx("orphelines"), { anchor: ["orphans"] }],

@@ -59,7 +59,7 @@ function fullDisk(h: HealthHost): string {
 }
 
 /** Liste « à regarder » : rouge d'abord, puis orange, dans l'ordre des onglets. */
-export function attention({ data, health, backups, now = Date.now() }: Inputs): Attention[] {
+export function attention({ data, health, backups }: Inputs): Attention[] {
   const out: Attention[] = [];
   for (const m of data.machine_list)
     if (!m.ping && !m.off && !m.disabled) out.push({ level: "crit", text: tx("La machine **{0}** ({1}) ne répond plus au ping", m.name, m.ip), tab: "machines" });
@@ -85,7 +85,7 @@ export function attention({ data, health, backups, now = Date.now() }: Inputs): 
   }
   if (data.dns) {
     for (const n of dnsDown(data.dns)) out.push({ level: "crit", text: tx("AdGuard **{0}** ne répond pas", n), tab: "dns" });
-    const s = dnsSync(data.dns, now);
+    const s = dnsSync(data.dns, Date.parse(data.generated));
     if (s.cls !== "ok") out.push({ level: s.cls === "bad" ? "crit" : "warn", text: tx("DNS AdGuard : {0}", s.label), tab: "dns" });
   }
   for (const i of backups?.issues || [])
@@ -147,13 +147,13 @@ function healthSentences(h: Health): string[] {
   return s;
 }
 
-function dnsParagraph(data: Data, now: number): Paragraph | null {
+function dnsParagraph(data: Data): Paragraph | null {
   const g = data.dns;
   if (!g) return null;
   const srv = Object.values(g.servers), rows = data.hosts.filter((r) => r.dns && r.enabled);
   const bad = rows.filter((r) => r.dns!.issues.length);
   const rw = [...new Set(srv.map((x) => x.rewrites))].join(" / ");
-  const s = [tx("{0} AdGuard ({1}), {2} réécritures ; {3}.", plural(srv.length, "instance"), srv.map((x) => x.name).join(", "), rw, dnsSync(g, now).label),
+  const s = [tx("{0} AdGuard ({1}), {2} réécritures ; {3}.", plural(srv.length, "instance"), srv.map((x) => x.name).join(", "), rw, dnsSync(g, Date.parse(data.generated)).label),
     tx("{0} domaines NPM sur {1} résolvent correctement", rows.length - bad.length, rows.length)
       + (bad.length ? tx(" ; à vérifier : {0}.", names(bad.map(hostName))) : ".")];
   if (g.orphans.length) s.push(tx("{0}, sans host NPM actif ({1}).", plural(g.orphans.length, "réécriture orpheline", "réécritures orphelines"), names(g.orphans.map((o) => o.domain))));
@@ -190,7 +190,7 @@ export function paragraphs(i: Inputs): Paragraph[] {
     historyParagraph(i.events || [], i.labels || {}, now),
     machinesParagraph(i.data, i.health),
     servicesParagraph(i.data),
-    dnsParagraph(i.data, now),
+    dnsParagraph(i.data),
     i.backups ? backupsParagraph(i.backups) : null,
   ];
   return out.filter((p): p is Paragraph => !!p && p.sentences.length > 0);

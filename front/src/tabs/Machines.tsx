@@ -1,11 +1,11 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { ArrowRight, Bot, Box, Copy, Crosshair, ArrowUpCircle, Boxes, Plus, Bug, Check, ChevronRight, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
+import { ArrowRight, Archive, Puzzle, FolderOpen, Bot, Box, Copy, Crosshair, ArrowUpCircle, Boxes, Plus, Bug, Check, ChevronRight, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
 import { Fragment, createContext, useContext, useRef, useCallback, useEffect, useMemo, useState } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
-import { dateTime, dur, durShort, ipNum, splitHostName } from "../lib/format";
+import { ageDays, bytes, dateTime, dur, durShort, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
-import type { LinkSource, HealthHost, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
+import type { Backups, LinkSource, HealthHost, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
 import { freeboxHealth, freeboxOf } from "../lib/freebox";
@@ -488,6 +488,11 @@ export function DriveStatus({ d }: Readonly<{ d: NonNullable<HealthHost["drives"
   );
 }
 
+/** Fields in console mode: a dark framed block, monospace, one line per entry (the same look as the kernel log); `cols` lays several columns out on a grid */
+function ConsoleBox({ children, cols }: Readonly<{ children: React.ReactNode; cols?: string }>) {
+  return <span className={`${cols ? "grid gap-x-3" : "flex flex-col"} gap-y-0.5 overflow-x-auto rounded-md border border-line bg-bg px-2.5 py-1.5 font-mono text-[11px] leading-snug`} style={cols ? { gridTemplateColumns: cols } : undefined}>{children}</span>;
+}
+
 /** The kernel messages of a machine, as a framed log of its own across the whole section: the time in a dim column, the message wrapped, scrolling past a dozen lines */
 function KernelLines({ lines, tall = false }: Readonly<{ lines: string[]; tall?: boolean }>) {
   return (
@@ -594,8 +599,38 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
   );
 }
 
+/** « Share » section: a machine that holds backups of others (a box, a NAS: a followed shared folder, or a machine that receives rsync copies) shows what it hosts,
+ *  its free space and, for each set, how old its copy is. Nothing for a machine that holds no copy. */
+export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine; backups?: Backups | null; from: Origin[] }>) {
+  const host = backups?.hosts?.find((h) => h.ip === m.ip);
+  const hosted = host ? (backups?.sets ?? []).flatMap((s) => s.locations.filter((l) => l.host === host.id && s.origin !== host.id).map((l) => ({ s, l }))) : [];
+  if (!host || (!host.storage && !hosted.length)) return null;
+  const disk = [...host.disks].sort((a, b) => b.size - a.size)[0];
+  const worst = hosted.reduce((n, { l }) => Math.max(n, ({ crit: 2, down: 2, warn: 1 } as Record<string, number>)[l.level] ?? 0), 0);
+  return (
+    <Section sec="share" icon={FolderOpen} title={tx("Partage")} tone={worst >= 2 ? "bad" : "link"} from={from}>
+      <Row k={tx("Copies hébergées")}>{hosted.length ? tx("{0} jeu(x)", hosted.length) : <Dim>{tx("aucune")}</Dim>}</Row>
+      {disk && <Row k={tx("Espace")}><Fill pct={disk.pct} /><span className="tabular-nums">{disk.pct} %</span><Dim>{bytes(disk.avail)} {tx("libres")} · {disk.mount}</Dim></Row>}
+      {hosted.length > 0 && (
+        <Row k={tx("Détail")}>
+          <ConsoleBox cols="minmax(0,1fr) auto auto">
+            {hosted.map(({ s, l }) => (
+              <Fragment key={`${s.id}-${l.label}`}>
+                <span className="truncate text-txt" title={s.label}>{s.label.replace(/^[^:]*: /, "")}<span className="text-dim"> ← {s.label.split(":")[0].trim()}</span></span>
+                <span className="whitespace-nowrap text-dim">{l.via ?? ""}</span>
+                <span className={`whitespace-nowrap text-right ${l.level === "ok" ? "text-dim" : l.level === "warn" ? "text-warn" : "text-bad"}`}>{l.age != null ? ageDays(l.age) : tx("jamais vue")}</span>
+              </Fragment>
+            ))}
+          </ConsoleBox>
+        </Row>
+      )}
+      {host.sets.length > 0 && <Row k={tx("Jeux produits ici")}>{host.sets.length}</Row>}
+    </Section>
+  );
+}
+
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, unifiNet, freebox, containers, onFilter, focus }: Readonly<{ focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; containers?: React.ReactNode; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
+function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, unifiNet, freebox, containers, onFilter, focus, backups }: Readonly<{ backups?: Backups | null; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; containers?: React.ReactNode; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
   const unifiOnly = !!unifi && !m.info && !m.agent;   // read only through UniFi: no SSH, no agent
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) setTimeout(() => showWatch(root.current, focus.kind), 120); }, [focus]);   // opened from a badge: show where its notice is explained
@@ -611,7 +646,7 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, uni
         {unifi && <UnifiRows d={unifi} sys={unifiSys} />}
         {freebox?.system && <FreeboxRows fb={freebox} />}
         <Row k={tx("Noyau")}>{i?.kernel || m.agent?.kernel || undefined}</Row>
-        <Row k={tx("En marche")}>{uptimeOf(m, unifi, freebox) ? dur(uptimeOf(m, unifi, freebox)!) : undefined}</Row>
+        <Row k={tx("En marche")}>{uptimeOf(m, unifi, freebox, ha) ? dur(uptimeOf(m, unifi, freebox, ha)!) : undefined}</Row>
         {hw.map(([k, v]) => <Row key={k} k={k}>{v}</Row>)}
         <GpuRows m={m} />
         {!i && !m.agent && !ha?.system && !unifi && !freebox && <Dim>-</Dim>}
@@ -625,8 +660,12 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, uni
       {!freebox && unifiOnly && <UnifiNetworkSection d={unifi} sys={unifiSys} net={unifiNet} from={from.services} />}
       {!(freebox && (freebox.vms || freebox.vm_system)) && !(!freebox && unifiOnly) && <SoftwareSection m={m} servers={servers} ha={ha} from={from.services} containers={containers} onFilter={onFilter} />}
 
+      {ha && <HaBackupsSection ha={ha} from={from.services} />}
+      {ha && <HaInsideSection ha={ha} from={from.services} />}
+      <SharedBackupsSection m={m} backups={backups} from={from.services} />
+
       <HealthSection h={h} from={from.health} />
-      <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} freebox={freebox} unifi={unifi} unifiSys={unifiSys} />
+      <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} freebox={freebox} unifi={unifi} unifiSys={unifiSys} ha={ha} />
     </div>
   );
 }
@@ -952,6 +991,68 @@ function SoftwareSection({ m, servers, ha, from, containers, onFilter }: Readonl
   );
 }
 
+/** Home Assistant, advanced mode: its backups, with where each one is copied (the shares), the last automatic one first */
+export function HaBackupsSection({ ha, from }: Readonly<{ ha: ServiceStatus; from: Origin[] }>) {
+  const bk = ha.mcp?.backups;
+  if (!bk) return null;
+  const now = Date.now() / 1000, items = [...bk.items].sort((a, b) => b.date - a.date);
+  const lastAuto = items.find((x) => x.auto), places = [...new Set(items.slice(0, 8).flatMap((x) => x.locations))];
+  const age = (t: number) => ageDays((now - t) / 86400);
+  const alone = (x: (typeof items)[number]) => x.locations.every((l) => l === "local");
+  return (
+    <Section sec="ha-backups" icon={Archive} title={tx("Sauvegardes Home Assistant")} tone={lastAuto && now - lastAuto.date < 3 * 86400 ? "ok" : "warn"} from={from}>
+      <Row k={tx("Dernière automatique")}>{lastAuto ? <span>{dateTime(lastAuto.date * 1000)} <Dim>· {age(lastAuto.date)} · {bytes(lastAuto.size)}{lastAuto.protected ? ` · 🔒 ${tx("chiffrée")}` : ""}</Dim></span> : <span className="text-warn">{tx("aucune")}</span>}</Row>
+      <Row k={tx("Total")}>{bk.total} <Dim>· {bytes(items.reduce((n, x) => n + x.size, 0))}</Dim></Row>
+      <Row k={tx("Copiée vers")}>{places.length ? (
+        <ConsoleBox>
+          {places.map((pl) => pl === "local"
+            ? <span key={pl} className="text-warn" title={tx("Reste sur Home Assistant lui-même")}>{tx("sur HA seulement")}</span>
+            : <span key={pl} className="text-muted" title={tx("Partage ou emplacement de sauvegarde déclaré dans Home Assistant")}><span className="text-dim">→ </span>{pl}</span>)}
+        </ConsoleBox>
+      ) : undefined}</Row>
+      <Row k={tx("Récentes")}>
+        <ul className="flex min-w-0 flex-col gap-1">
+          {items.slice(0, 5).map((x) => (
+            <li key={x.id} className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+              <span className="min-w-0 truncate" title={x.name}>{x.name}</span>
+              <Dim>{x.auto ? tx("auto") : tx("manuelle")} · {dateTime(x.date * 1000)} · {bytes(x.size)}</Dim>
+              {alone(x) ? <span className="text-warn" title={tx("Pas de copie hors de Home Assistant")}>{tx("sur HA seulement")}</span> : <Dim>{x.locations.join(", ")}</Dim>}
+            </li>
+          ))}
+        </ul>
+      </Row>
+    </Section>
+  );
+}
+
+/** Home Assistant, advanced mode: apps (add-ons) running or stopped, integrations loaded or failing, configuration check and repairs */
+export function HaInsideSection({ ha, from }: Readonly<{ ha: ServiceStatus; from: Origin[] }>) {
+  const mcp = ha.mcp;
+  if (!mcp || (!mcp.apps && !mcp.integrations && !mcp.health)) return null;
+  const { apps, integrations: ig, health } = mcp, bad = ig?.problems ?? [];
+  const stopped = apps?.items.filter((a) => a.state !== "started") ?? [];
+  const loaded = ig?.states.loaded ?? 0, notLoaded = ig?.states.not_loaded ?? 0;
+  const ok = (!health || (health.config_ok !== false && !(health.repairs_count ?? 0))) && !bad.length;
+  return (
+    <Section sec="ha-inside" icon={Puzzle} title={tx("Home Assistant : applis et intégrations")} tone={ok ? "ok" : "warn"} from={from}>
+      {apps && <Row k={tx("Applis")}>{apps.total} <Dim>· {tx("{0} en marche", apps.running)}{apps.stopped ? ` · ${tx("{0} arrêtée(s)", apps.stopped)}` : ""}</Dim></Row>}
+      {stopped.length > 0 && <Row k={tx("Arrêtées")}><span className="min-w-0 break-words text-muted">{stopped.map((a) => a.name).join(", ")}</span></Row>}
+      {ig && <Row k={tx("Intégrations")}>{ig.total} <Dim>· {tx("{0} chargées", loaded)}{notLoaded ? ` · ${tx("{0} non chargées", notLoaded)}` : ""}</Dim></Row>}
+      {bad.length > 0 && <Row k={tx("En échec")}><span className="min-w-0 break-words text-warn">{bad.map((b) => `${b.domain}${b.title ? ` (${b.title})` : ""}`).join(", ")}</span></Row>}
+      {health && <Row k={tx("Configuration")}>{health.config_ok === false ? <span className="text-bad">{tx("erreurs : {0}", (health.config_errors ?? []).join(" ; ") || "?")}</span> : <span className="text-ok">{tx("valide")}</span>}</Row>}
+      {health && <Row k={tx("Réparations")}>{(health.repairs_count ?? 0) ? <span className="text-warn">{health.repairs_count}</span> : <span className="text-ok">{tx("aucune")}</span>}</Row>}
+    </Section>
+  );
+}
+
+/** Updates Home Assistant waits for, by kind: Home Assistant itself, its apps, and the rest (HACS integrations and cards, other entities) */
+function HaUpdates({ ha }: Readonly<{ ha: ServiceStatus }>) {
+  const ups = ha.updates ?? [], group = (g: string) => ups.filter((u) => (u.group ?? "other") === g);
+  const line = (u: NonNullable<ServiceStatus["updates"]>[number]) => <li key={u.name}>{u.name} <Dim>{[u.installed, u.latest].filter(Boolean).join(" → ")}</Dim></li>;
+  const kinds: [string, string][] = [["core", tx("Home Assistant")], ["addon", tx("Applis")], ["other", tx("HACS et autres")]];
+  return <>{kinds.map(([g, label]) => group(g).length > 0 && <Row key={g} k={label}><ul className="flex min-w-0 flex-col gap-0.5">{group(g).map(line)}</ul></Row>)}</>;
+}
+
 /** Updates waiting on a machine, always shown in the detail window: the packages (apt, « name → version ») or the Windows updates, up to 30 named */
 /** The summary line of the pending updates: Windows updates, a box firmware, or packages */
 function updatesLabel(n: number, windows: boolean, firmware?: boolean): string {
@@ -994,16 +1095,17 @@ function UpdatesChip({ h }: Readonly<{ h?: HealthHost }>) {
 }
 
 /** Detail, « Updates »: up to date, or the packages / Windows updates waiting (folded list), and a reboot required */
-export function UpdatesSection({ h, windows, from, freebox, unifi, unifiSys }: Readonly<{ h?: HealthHost; windows: boolean; from: Origin[]; freebox?: FreeboxInfo; unifi?: UnifiDevice; unifiSys?: UnifiSystem }>) {
-  if (!h) return null;
-  const n = h.apt?.upgradable ?? 0;
+export function UpdatesSection({ h, windows, from, freebox, unifi, unifiSys, ha }: Readonly<{ h?: HealthHost; windows: boolean; from: Origin[]; freebox?: FreeboxInfo; unifi?: UnifiDevice; unifiSys?: UnifiSystem; ha?: ServiceStatus }>) {
+  if (!h && !ha) return null;
+  const haN = ha?.updates?.length ?? 0, n = (h?.apt?.upgradable ?? 0) + haN;
   return (
-    <Section sec="updates" icon={ArrowUpCircle} title={tx("Mises à jour")} tone={n || h.reboot_required ? "warn" : "ok"} from={from}>
+    <Section sec="updates" icon={ArrowUpCircle} title={tx("Mises à jour")} tone={n || h?.reboot_required ? "warn" : "ok"} from={from}>
       {freebox && <FreeboxFirmware fb={freebox} />}
       {!freebox && unifi && <UnifiFirmware d={unifi} sys={unifiSys} />}
       {!n && <Row k={tx("État")}><span className="text-ok">{tx("à jour")}</span></Row>}
-      {h.reboot_required && <Row k={tx("Redémarrage")}><span className="text-warn">{tx("redémarrage requis")}</span></Row>}
-      <UpdatesFold h={h} windows={windows} />
+      {ha && <HaUpdates ha={ha} />}
+      {h?.reboot_required && <Row k={tx("Redémarrage")}><span className="text-warn">{tx("redémarrage requis")}</span></Row>}
+      {h && <UpdatesFold h={h} windows={windows} />}
     </Section>
   );
 }
@@ -1032,8 +1134,9 @@ function healthRank(m: Machine, h: HealthHost | undefined, followed: boolean): n
 }
 
 /** How long a machine has been up, from whatever reads it: SSH, its agent, the UniFi console or the Freebox */
-function uptimeOf(m: Machine, unifi?: UnifiDevice, fb?: FreeboxInfo): number | undefined {
-  return m.info?.uptime_s ?? m.agent?.uptime_s ?? unifi?.uptime ?? fb?.system?.uptime ?? undefined;
+function uptimeOf(m: Machine, unifi?: UnifiDevice, fb?: FreeboxInfo, ha?: ServiceStatus): number | undefined {
+  const booted = ha?.host?.boot ? Date.parse(ha.host.boot) : NaN;   // Home Assistant gives its last boot time, not a duration
+  return m.info?.uptime_s ?? m.agent?.uptime_s ?? unifi?.uptime ?? fb?.system?.uptime ?? (Number.isNaN(booted) ? undefined : Math.max(0, Math.floor((Date.now() - booted) / 1000)));
 }
 
 /** The model a network tool reads for this machine (the Freebox, a UniFi device): its photo is the icon */
@@ -1054,7 +1157,7 @@ function HealthLevel({ m, h, followed }: Readonly<{ m: Machine; h?: HealthHost; 
     const key = levelKey(h), [tone, label] = LEVEL[key] ?? ["off", key], items = key === "ok" ? [] : healthItems(h);
     // not OK: the tooltip says why (the same sentences as the « À surveiller » column)
     const title = items.length ? [label.charAt(0).toUpperCase() + label.slice(1), ...items.map((i) => `• ${i.text}`)].join("\n") : undefined;
-    return <Badge tone={tone} title={title}>{label}</Badge>;
+    return <Badge tone={tone} title={title} outline={key === "warn"}>{label}</Badge>;   // « à surveiller »: outline only
   }
   if (followed && !m.off) return <Badge tone="info" title={tx("Une source de santé existe (SSH, agent, Beszel ou Home Assistant) : la machine sera lue au prochain passage de la tâche Santé (Réglages → Tâches et horaires)")}>{tx("en attente du relevé")}</Badge>;
   if (m.off) return <Badge tone="off" title={tx("Éteinte volontairement, aucune alerte")}>{tx("éteinte")}</Badge>;
@@ -1083,7 +1186,7 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
   m: Machine; h?: HealthHost; snap: Snapshot; scan?: { os?: string; apps: string[]; ssh?: boolean }; os: OsKind | null; watch: WatchItem[]; ha?: ServiceStatus; unifi?: UnifiDevice;
   off: boolean; state: React.ReactNode; shown: boolean; onToggle: () => void; onMachine: (ip: string) => void; detail: React.ReactNode;
 }>) {
-  const up = uptimeOf(m, unifi, freeboxOf(m, snap.data.network));
+  const up = uptimeOf(m, unifi, freeboxOf(m, snap.data.network), ha);
   const edge = LEVEL_EDGE[levelKey(h)] ?? "";
   return (
     <div className={`flex flex-col gap-2.5 overflow-hidden rounded-xl border border-l-[3px] border-line bg-card p-3 transition-colors hover:border-link/50 ${edge} ${shown ? "col-span-full" : ""} ${off ? "opacity-50" : ""}`}>
@@ -1175,7 +1278,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       case "os": return m.info?.os || "~";
       case "svc": return -m.services;
       case "health": return healthRank(m, hb.get(m.ip), !!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))) * 1e10 + ipNum(m.ip);   // les plus graves d'abord, puis par adresse
-      case "up": return -(uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network)) ?? -1);   // the longest up first
+      case "up": return -(uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network), haOf(m)) ?? -1);   // the longest up first
       case "watch": { const it = watchItems(m, hb.get(m.ip), snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m)); return -(worst(it) * 100 + it.length); }   // le plus grave d'abord
       default: return ipNum(m.ip);
     }
@@ -1189,7 +1292,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   const admin = snap.me.role === "admin";
   const detailOf = (m: Machine) => {
     const h = hb.get(m.ip);
-    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} containers={<DockerList m={m} snap={snap} />} onFilter={onFilter} focus={focus} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} />;
+    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} containers={<DockerList m={m} snap={snap} />} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} />;
   };
   const [view, pickView] = useStoredView("ms.machines.view", "table");  // Tableau ou Cartes, retenu
 
@@ -1277,7 +1380,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
               const h = hb.get(m.ip);
               return (
                 <Fragment key={m.ip}>
-                  <tr className={`cursor-pointer hover:bg-bg2/60 ${isOff(m) ? "opacity-50" : ""}`}
+                  <tr className={`cursor-pointer outline-none hover:bg-bg2/60 focus-visible:bg-bg2/60 ${isOff(m) ? "opacity-50" : ""}`}
                     tabIndex={0} aria-haspopup="dialog" aria-label={tx("Détails de {0}", m.name)}
                     onClick={(e) => { if (!(e.target as Element).closest("button, a, input, select, label, summary, [role=button]")) setDetailIp(m.ip); }}
                     onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) setDetailIp(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
@@ -1292,7 +1395,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                       {snap.health && <HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} />}
                       <WatchList ip={m.ip} quiet={!!snap.health} items={watchOf(m).filter((i) => i.kind !== "updates")} /></span></Td>
                     {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="!px-1.5"><GpuCellView list={gpusOf(m)} /></Td>}
-                    <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-xs tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network)); return up ? <span className={up < 3600 ? "text-warn" : "text-muted"} title={`${dur(up)}${up < 3600 ? ` · ${tx("vient de redémarrer")}` : ""}`}>{durShort(up)}</span> : <Dim>-</Dim>; })()}</Td>
+                    <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-xs tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network), haOf(m)); return up ? <span className={up < 3600 ? "text-warn" : "text-muted"} title={`${dur(up)}${up < 3600 ? ` · ${tx("vient de redémarrer")}` : ""}`}>{durShort(up)}</span> : <Dim>-</Dim>; })()}</Td>
                     {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => setEditIp(m.ip)} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
                       className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><SlidersHorizontal size={14} aria-hidden /></button></td>}
                   </tr>

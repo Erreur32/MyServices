@@ -1,11 +1,12 @@
 // Sauvegardes (backups.py) : synthèse, points d'attention, puis chaque machine (disques, dernier backup local,
 // copies ailleurs, jeux produits) et les dossiers de sauvegarde trouvés sur les disques.
+import { HardDrive } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { ROOT, type Snapshot } from "../api";
 import { useFilter, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime } from "../lib/format";
 import type { BackupHost } from "../types";
-import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, TableCard, Td, Th } from "../components/ui";
+import { Badge, Card, Cards, Dim, Empty, Fill, FilterBar, Level, Table, TableCard, Td, Th } from "../components/ui";
 import { LEVEL } from "../lib/level";
 import { Dot } from "../components/marks";
 import { tx } from "../lib/i18n";
@@ -33,6 +34,10 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
   const f = useFilter(b?.hosts || [], facets, text, initial);
   if (!b) return <Empty>{tx("Sauvegardes pas encore relevées.")}</Empty>;
   const sm = b.summary;
+  // where the copies go (the machines that hold copies of other machines' sets) and the free space of the storage machines (a box, a NAS)
+  const copyTargets = [...new Set(b.hosts?.flatMap((h) => h.copies.map((c) => c.label)) ?? [])].sort((x, y) => x.localeCompare(y));
+  const storage = (b.hosts ?? []).filter((h) => h.storage && h.disks.length);
+  const storageFree = storage.length ? { avail: storage.reduce((n, h) => n + Math.max(...h.disks.map((d) => d.avail)), 0), names: storage.map((h) => h.label).join(", ") } : null;
   const local = f.shown.flatMap((h) => h.local.filter((x) => x.size || x.covered.length).map((x) => ({ h, x })));
 
   const copies = (h: BackupHost) => h.copies.length ? (
@@ -69,13 +74,25 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
 
   return (
     <div className="flex flex-col gap-4 py-4">
-      <div className="flex gap-2.5 overflow-x-auto pb-1">   {/* one single row; scrolls sideways on a narrow screen instead of wrapping */}
-        <Tile n={sm.ok} label={tx("jeux à jour")} tone="ok" /><Tile n={sm.warn} label={tx("jeux en retard")} tone={sm.warn ? "warn" : undefined} />
-        <Tile n={sm.crit} label={tx("jeux critiques")} tone={sm.crit ? "bad" : undefined} />
-        <Tile n={sm.no_offsite} label={tx("sans copie hors machine")} tone={sm.no_offsite ? "bad" : "ok"} />
-        {!!sm.offsite_unknown && <Tile n={sm.offsite_unknown} label={tx("copie ailleurs non déclarée")} />}
-        <Tile n={bytes(sm.volume)} label={tx("volume des sources")} /><Tile n={sm.hosts} label={tx("machines")} />
-      </div>
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <h2 className="flex items-center gap-2 font-bold"><HardDrive size={16} aria-hidden />{tx("Sauvegardes")}</h2>
+          <span className="text-xs text-dim">{tx("Relevé du")} {dateTime(b.generated)}{snap.data.page.map && <> · <a className="text-link hover:underline" href={`${ROOT}sauvegardes.html`} target="_blank" rel="noopener">{tx("carte des copies entre machines")}</a></>}</span>
+        </div>
+        <p className="text-sm text-muted">
+          {tx("{0} jeux de sauvegarde sur {1} machines", sm.sets, sm.hosts)}
+          {copyTargets.length > 0 && <> · {tx("copies vers")} <b className="text-txt">{copyTargets.join(", ")}</b></>}
+          {" · "}{tx("relevé en lecture seule, sans rien modifier sur vos machines")}
+        </p>
+        <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1">   {/* one single row; scrolls sideways on a narrow screen instead of wrapping */}
+          <Tile n={sm.ok} label={tx("jeux à jour")} tone="ok" /><Tile n={sm.warn} label={tx("jeux en retard")} tone={sm.warn ? "warn" : undefined} />
+          <Tile n={sm.crit} label={tx("jeux critiques")} tone={sm.crit ? "bad" : undefined} />
+          <Tile n={sm.no_offsite} label={tx("sans copie hors machine")} tone={sm.no_offsite ? "bad" : "ok"} />
+          {!!sm.offsite_unknown && <Tile n={sm.offsite_unknown} label={tx("copie ailleurs non déclarée")} />}
+          <Tile n={bytes(sm.volume)} label={tx("volume des sources")} />
+          {storageFree != null && <Tile n={bytes(storageFree.avail)} label={tx("libres sur {0}", storageFree.names)} />}
+        </div>
+      </Card>
       <TableCard title={tx("À regarder")} tone={b.issues.some((i) => i.level === "crit" || i.level === "down") ? "bad" : b.issues.length ? "warn" : "ok"}
         cols={[{ label: tx("État"), className: "w-[7.5rem]" }, { label: tx("Jeu de sauvegarde"), className: "w-[34%]" }, { label: tx("Ce qui ne va pas") }]}
         rows={b.issues.map((i) => [<Level level={i.level} />, <b className="font-semibold">{i.set}</b>, <span className="text-muted">{i.text}</span>])}
