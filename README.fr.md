@@ -131,6 +131,25 @@ Pour les machines Linux, les mêmes informations viennent de SSH, sans rien inst
 
 </details>
 
+<details>
+<summary><b>🛰️ Agent Windows : installation, sécurité, mises à jour</b></summary>
+
+**Installation.** Dans **Réglages -> Agents**, ajoutez un agent pour le PC (son IP et un nom). MyServices affiche une commande d'une ligne, avec le jeton, **une seule fois**. Collez-la dans un PowerShell **administrateur** sur le PC. L'installateur télécharge l'agent depuis MyServices, écrit ses réglages, crée la tâche planifiée *MyServices Agent* (exécutée en SYSTEM au démarrage, à l'ouverture de session et toutes les 15 minutes par défaut ; `-Minutes` change cela) et envoie un premier relevé. Seuls SYSTEM et les Administrateurs peuvent lire le dossier de l'agent (`C:\ProgramData\MyServices-Agent`), car le jeton s'y trouve. Pour le retirer : lancez l'installateur avec `-Uninstall`, puis révoquez le jeton dans Réglages -> Agents.
+
+**Ce qu'il fait et ne fait pas.** L'agent lit seulement le PC et **envoie** son relevé à MyServices (rien n'est ouvert sur le PC). Il n'exécute aucune commande reçue du serveur, n'écoute sur aucun port et n'installe rien d'autre.
+
+**Jeton et limites.**
+- Un jeton par machine, montré une seule fois ; seule son empreinte SHA-256 est gardée. Un nouveau jeton pour la même machine révoque l'ancien. Le jeton n'ouvre qu'une route (envoyer son propre relevé) : il est refusé partout ailleurs, et les jetons d'API ou de MCP sont refusés sur cette route.
+- Un relevé par minute et par agent (au-delà : `429`). Une IP qui présente 10 jetons inconnus en 15 minutes est refusée jusqu'à la fin de la fenêtre (les jetons révoqués ne comptent pas).
+- Le nom du PC vu au premier relevé est retenu. Un relevé sous un autre nom (PC renommé, ou jeton copié sur un autre PC) est refusé tant que vous n'avez pas cliqué sur **Confirmer ce nom** sur la carte de l'agent ; l'événement est écrit au journal d'audit.
+- Comme le reste de MyServices, la page et la route de l'agent ne répondent qu'aux réseaux autorisés par `MYSERVICES_ALLOW`. Le HTTP simple convient sur un réseau local de confiance ; derrière un proxy inverse, donnez à l'agent l'adresse HTTPS.
+
+**Mises à jour.** La carte de l'agent affiche sa version. **Mettre à jour maintenant** ou l'interrupteur **Automatique** par agent (coupé par défaut) fait récupérer le nouveau script à MyServices au prochain relevé ; l'agent contrôle le SHA-256 et la syntaxe avant de se remplacer. Le script n'est pas signé : MyServices est la seule source de confiance.
+
+**Linux et macOS.** Pas encore d'agent pour eux : les machines Linux sont lues par SSH.
+
+</details>
+
 Les machines trouvées mais pas suivies, les clés SSH à autoriser et les agents pas encore installés sont listés dans **Réglages -> Découverte** et comptés dans la cloche de l'en-tête.
 
 </details>

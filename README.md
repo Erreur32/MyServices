@@ -131,6 +131,25 @@ For Linux machines, the same information comes from SSH, with nothing to install
 
 </details>
 
+<details>
+<summary><b>🛰️ Windows agent: install, security, updates</b></summary>
+
+**Install.** In **Settings -> Agents**, add an agent for the PC (its IP and a name). MyServices shows a one-line command, with the token, **once**. Paste it in an **administrator** PowerShell on the PC. The installer downloads the agent from MyServices, writes its settings, creates the scheduled task *MyServices Agent* (runs as SYSTEM at startup, at logon and every 15 minutes by default; `-Minutes` changes it) and sends a first report. Only SYSTEM and Administrators can read the agent folder (`C:\ProgramData\MyServices-Agent`), because the token is in it. To remove it: run the installer with `-Uninstall`, then revoke the token in Settings -> Agents.
+
+**What it can and cannot do.** The agent only reads the PC and **sends** its report to MyServices (nothing is opened on the PC). It runs no command received from the server, listens on no port and installs nothing else.
+
+**Token and limits.**
+- One token per machine, shown once; only its SHA-256 fingerprint is stored. A new token for the same machine revokes the old one. The token opens a single route (sending its own report): it is refused everywhere else, and API or MCP tokens are refused on that route.
+- One report per minute per agent (more gets a `429`). An IP that presents 10 unknown tokens within 15 minutes is refused for the rest of the window (revoked tokens do not count).
+- The PC name seen in the first report is remembered. A report under another name (PC renamed, or token copied to another PC) is refused until you click **Confirm this name** on the agent's card; the event is written to the audit log.
+- Like the rest of MyServices, the page and the agent route only answer to the networks allowed by `MYSERVICES_ALLOW`. Plain HTTP is fine on a trusted LAN; behind a reverse proxy, give the agent the HTTPS address.
+
+**Updates.** The agent card shows its version. **Update now** or the per-agent **Automatic** switch (off by default) makes the agent fetch the new script from MyServices at its next report; it checks the SHA-256 and the syntax before replacing itself. The script is not signed: MyServices is the only source of trust.
+
+**Linux and macOS.** There is no agent for them yet: Linux machines are read over SSH.
+
+</details>
+
 Machines found but not yet followed, SSH keys to authorize and agents not yet installed are listed under **Settings -> Discovery** and counted in the bell of the header.
 
 </details>
