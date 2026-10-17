@@ -22,9 +22,14 @@ const EXPO: Record<string, [Tone, string, string]> = {
   public: ["info", tx("🌍 public"), tx("Ouvert à Internet volontairement : le site est déclaré public, sans liste d'accès.")],
   ouvert: ["bad", tx("⚠ ouvert ?"), tx("Ni liste d'accès ni déclaration « public » : le site est peut-être joignable depuis Internet sans aucune restriction. À vérifier.")],
 };
+const domainMark = (v: string) => <Dot tone={v === "with" ? "info" : "off"} />;
+
 /** Every real domain of a service: its NPM domains, or the ones its Apache / nginx declares */
 const declaredDomains = (r: Host): string[] => (r.domains.length ? r.domains : r.vhost_domains ?? []);
-const domainSource = (r: Host) => (r.domains.length ? "NPM" : r.vhost_server === "nginx" ? "nginx" : "Apache");
+function domainSource(r: Host): string {
+  if (r.domains.length) return "NPM";
+  return r.vhost_server === "nginx" ? "nginx" : "Apache";
+}
 const hostIp = (r: Host) => r.host_ip || r.ip || r.target_ip || "";
 const keyOfRow = (r: Host) => `${r.type}${r.id}`;
 
@@ -55,7 +60,14 @@ function sslRisk(r: Host): string | null {
   return r.ssl_forced ? null : tx("SSL non forcé");
 }
 
-function Name({ r }: { r: Host }) {
+/** Tooltip of the « Via » badge: where the service is read from, and the real NPM target when the advanced config overrides the declared one */
+function sourceTip(r: Host): string {
+  const lines = [tx("Source"), tx("Lu via : {0}", via(r))];
+  if (r.forward_declared) lines.push(tx("Cible réelle : {0}:{1} (advanced_config). NPM déclare {2}, ignoré.", r.ip, r.port, r.forward_declared));
+  return lines.join("\n");
+}
+
+function Name({ r }: Readonly<{ r: Host }>) {
   const u = url(r);
   return (
     <div className="min-w-0">
@@ -66,14 +78,14 @@ function Name({ r }: { r: Host }) {
       ) : <b>{hostName(r)}</b>}
       {r.domains.length > 1 && <span className="ml-1 text-xs text-dim" title={r.domains.slice(1).join(", ")}>+{r.domains.length - 1}</span>}
       <span className="ml-2 inline-flex flex-wrap items-center gap-1 align-middle">
-        <Badge tone="off" title={`${tx("Source")}\n${tx("Lu via : {0}", via(r))}${r.forward_declared ? `\n${tx("Cible réelle : {0}:{1} (advanced_config). NPM déclare {2}, ignoré.", r.ip, r.port, r.forward_declared)}` : ""}`}>{via(r)}</Badge>
+        <Badge tone="off" title={sourceTip(r)}>{via(r)}</Badge>
       </span>
     </div>
   );
 }
 
 /** Icon-only marks next to the state, in fixed slots so they line up from row to row: exposure (private, public, open) and SSL */
-function Marks({ r }: { r: Host }) {
+function Marks({ r }: Readonly<{ r: Host }>) {
   const e = exposure(r), risk = sslRisk(r), domains = declaredDomains(r);
   const slot = "inline-flex w-7 justify-center";
   return (
@@ -86,7 +98,7 @@ function Marks({ r }: { r: Host }) {
 }
 
 /** One readable state; the reason and the flags to check are in the tooltip */
-function State({ r, ck }: { r: Host; ck: Check[] }) {
+function State({ r, ck }: Readonly<{ r: Host; ck: Check[] }>) {
   const [cls, label, why] = status(r);
   const flags = ck.filter((k) => !CLEANUP.includes(k)).map((k) => `⚑ ${CHECK[k][0]}`);
   return (
@@ -137,7 +149,7 @@ function groupByMachine(rows: Host[]): { name: string; ip: string; rows: Host[] 
   return [...groups.values()];
 }
 
-function GroupHeader({ g, folded, onToggle, cols }: { g: { name: string; ip: string; rows: Host[] }; folded: boolean; onToggle: () => void; cols: number }) {
+function GroupHeader({ g, folded, onToggle, cols }: Readonly<{ g: { name: string; ip: string; rows: Host[] }; folded: boolean; onToggle: () => void; cols: number }>) {
   const count = (c: string) => g.rows.filter((r) => status(r)[0] === c).length;
   return (
     <tr onClick={onToggle} className={`cursor-pointer hover:bg-bg2 ${folded ? "bg-bg2/70" : "bg-link/15"}`}>
@@ -160,13 +172,20 @@ function GroupHeader({ g, folded, onToggle, cols }: { g: { name: string; ip: str
   );
 }
 
-function ServiceRow({ r, grouped, onOpen }: { r: Host; grouped: boolean; onOpen: () => void }) {   // grouped: the rows of an opened group sit on a darker background with a coloured edge
+/** The target column: where the service listens, or where a redirect goes */
+function targetOf(r: Host): string {
+  if (r.type === "redirect") return `→ ${r.target}`;
+  return r.type === "dead" ? tx("aucune (404)") : `${r.ip}:${r.port}`;
+}
+
+function ServiceRow({ r, grouped, onOpen }: Readonly<{ r: Host; grouped: boolean; onOpen: () => void }>) {   // grouped: the rows of an opened group sit on a darker background with a coloured edge
+  const edge = grouped ? `${OPEN_EDGE} !pl-14` : "";
   return (
     <tr onClick={onOpen} className={`cursor-pointer ${grouped ? "bg-bg/60 hover:bg-bg2/60" : "hover:bg-bg2/60"} ${r.enabled ? "" : "opacity-60"}`}>
-      <Td className={`overflow-hidden align-middle whitespace-nowrap ${grouped ? `${OPEN_EDGE} !pl-14` : ""}`}><State r={r} ck={checks(r)} /></Td>
+      <Td className={`overflow-hidden align-middle whitespace-nowrap ${edge}`}><State r={r} ck={checks(r)} /></Td>
       <Td className="overflow-hidden !pl-10 align-middle"><Name r={r} /></Td>
       <Td className="overflow-hidden whitespace-nowrap !pl-6 align-middle font-mono text-xs text-muted">
-        {r.type === "redirect" ? `→ ${r.target}` : r.type === "dead" ? tx("aucune (404)") : `${r.ip}:${r.port}`}
+        {targetOf(r)}
       </Td>
       {!grouped && <Td className="!pl-6 align-middle">{r.machine ? <><b className="font-medium">{r.machine}</b>{r.category && <span className="block text-xs text-dim">{r.category}</span>}</> : <Dim>-</Dim>}</Td>}
       <Td className="overflow-hidden !pl-10 align-middle"><div className="flex items-center gap-2.5"><ServiceLogo r={r} /><Tech r={r} /></div></Td>
@@ -182,7 +201,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
       mark: (v) => (v === "npm" ? <Logo src={`${import.meta.env.BASE_URL}icons/nginx-proxy-manager.svg`} /> : <Dot tone="info" />) },
     { key: "status", label: tx("État"), get: (r) => status(r)[0], name: (v) => ST_NAME[v] || v, order: ["bad", "warn", "ok", "off"], mark: (v) => <Dot tone={v as Tone} /> },
     { key: "domain", label: tx("Domaine"), get: (r) => (declaredDomains(r).length ? "with" : "without"), name: (v) => (v === "with" ? tx("avec domaine") : tx("sans domaine")), order: ["with", "without"],
-      mark: (v) => <Dot tone={v === "with" ? "info" : "off"} /> },
+      mark: domainMark },
     { key: "check", label: tx("À vérifier"), get: (r) => checks(r), name: (v) => CHECK[v as Check]?.[0] || v, mark: (v) => <Dot tone={CLEANUP.includes(v as Check) ? "off" : "warn"} /> },
     { key: "machine", label: tx("Machine"), get: (r) => hostIp(r), name: (v) => machines.get(v) || v },
     { key: "cat", label: tx("Catégorie"), get: (r) => r.category || "" },

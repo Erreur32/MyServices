@@ -15,6 +15,15 @@ import { tx } from "../lib/i18n";
 import { NOISE, collapse, saveHidden, savedHidden, unmasked, type NoiseId } from "../lib/historyNoise";
 import { EVENT_LIMIT, GROUPS, GROUP_COLOR, GROUP_NAME, STYLES, buckets, dayBuckets, groupOf, stepFor, type ChartStyle } from "../lib/historyChart";
 
+/** Severity of an event kind (0 to 3) as the filter groups it */
+function severityGroup(n: number): string {
+  if (n >= 3) return "bad";
+  return n === 2 ? "warn" : "info";
+}
+const SEVERITY_NAME: Record<string, string> = { bad: tx("grave"), warn: tx("avertissement"), info: tx("information") };
+const SEVERITY_CLS: Record<string, string> = { bad: "bg-bad", warn: "bg-warn", info: "bg-dim" };
+const severityMark = (v: string) => <Square cls={SEVERITY_CLS[v] ?? "bg-dim"} />;
+
 const PERIODS: [number, string][] = [[1, tx("24 h")], [7, tx("7 jours")], [30, tx("30 jours")], [90, tx("90 jours")], [365, tx("1 an")]];
 const STYLE_ICON: Record<ChartStyle, typeof BarChart3> = { points: ScatterChart, bars: BarChart3, area: LineChart, heat: Flame };
 const STYLE_KEY = "ms.history.style";
@@ -80,9 +89,7 @@ function Events({ snap }: { snap: Snapshot }) {
     { key: "via", label: tx("Lu par"), get: (e) => originOf(e).via },
     { key: "machine", label: tx("Machine"), get: (e) => e.machine || "" },
     { key: "service", label: tx("Service"), get: (e) => e.label || "" },
-    { key: "severity", label: tx("Gravité"), get: (e) => ((snap.severity[e.kind] || 0) >= 3 ? "bad" : (snap.severity[e.kind] || 0) === 2 ? "warn" : "info"),
-      name: (v) => ({ bad: tx("grave"), warn: tx("avertissement"), info: tx("information") } as Record<string, string>)[v] || v, order: ["bad", "warn", "info"],
-      mark: (v) => <Square cls={v === "bad" ? "bg-bad" : v === "warn" ? "bg-warn" : "bg-dim"} /> },
+    { key: "severity", label: tx("Gravité"), get: (e) => severityGroup(snap.severity[e.kind] || 0), name: (v) => SEVERITY_NAME[v] || v, order: ["bad", "warn", "info"], mark: severityMark },
   ], [label, snap.severity]);
   const text = useCallback((e: StoredEvent) => [e.label, e.machine, e.target, e.detail, label(e.kind)].join(" "), [label]);
   const f = useFilter(all, facets, text);  // les graphiques suivent la recherche et les pastilles

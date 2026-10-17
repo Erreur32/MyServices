@@ -104,23 +104,27 @@ export function Card({ children, className = "", tone }: { children: ReactNode; 
 export interface FilterOption { id: string; label: string; on: boolean; toggle: () => void; mark?: ReactNode; count?: number }
 
 /** Pastille d'un filtre : active, disponible (avec son nombre) ou vide */
-function ChipButton({ on, count, mark, label, onClick }: { on: boolean; count: number; mark?: ReactNode; label: string; onClick: () => void }) {
+function chipTone(on: boolean, count: number): string {
+  if (on) return "border-link bg-link/15 text-txt";
+  return count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60";
+}
+
+function ChipButton({ on, count, mark, label, onClick }: Readonly<{ on: boolean; count: number; mark?: ReactNode; label: string; onClick: () => void }>) {
   return (
     <button type="button" onClick={onClick} aria-pressed={on}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${on
-        ? "border-link bg-link/15 text-txt" : count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60"}`}>
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${chipTone(on, count)}`}>
       {mark}{label}<span className="font-mono text-[11px] text-dim">{count}</span>
     </button>
   );
 }
 
-export function FilterBar<T>({ f, placeholder, extra, side, options = [], primary = [] }: {
+export function FilterBar<T>({ f, placeholder, extra, side, options = [], primary = [] }: Readonly<{
   f: { query: string; setQuery: (q: string) => void; shown: unknown[]; total: number; active: number; reset: () => void;
        chips: { facet: Facet<T>; chips: Chip[] }[]; toggle: (k: string, v: string) => void };
   placeholder: string; extra?: ReactNode; side?: ReactNode; options?: FilterOption[];   // side : à droite, sous le bouton « Filtres »
   /** Clés des filtres toujours visibles sous la recherche ; les autres restent derrière le bouton « Filtres » */
   primary?: string[];
-}) {
+}>) {
   // Filtres repliés d'office (sur tous les écrans) : la barre de recherche suffit le plus souvent ; ce qui est actif
   // reste visible en pastilles retirables, et le bouton « Filtres » déplie le reste.
   const [open, setOpen] = useState(false);
@@ -266,12 +270,12 @@ export function Td({ children, className = "" }: { children?: ReactNode; classNa
 
 /** Barre de remplissage (disque) */
 /** Green to amber to red gradient laid over the whole track; the fill only shows its first part (a full bar is red, a short one green) */
-export function GradientFill({ pct }: { pct: number }) {
+export function GradientFill({ pct }: Readonly<{ pct: number }>) {
   const fill = Math.min(100, Math.max(2, pct));
   return <span className="block h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-500 saturate-150" style={{ width: `${fill}%`, backgroundSize: `${10000 / fill}% 100%` }} />;
 }
 
-export function Fill({ pct }: { pct: number }) {
+export function Fill({ pct }: Readonly<{ pct: number }>) {
   return (
     <span className="inline-block h-1.5 w-20 overflow-hidden rounded-full border border-line bg-bg2 align-middle">
       <GradientFill pct={pct} />

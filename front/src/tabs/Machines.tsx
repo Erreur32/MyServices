@@ -5,7 +5,7 @@ import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { bytes, dateTime, dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
-import type { HealthHost, Machine, MachineLinks, NetDevice, NetScan, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
+import type { HealthHost, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
 import { freeboxHealth, freeboxOf } from "../lib/freebox";
@@ -25,7 +25,7 @@ import { Overlay } from "../components/Overlay";
 import { rereadMachines } from "../lib/scan";
 import { healthItems, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
-import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Table, Td, Th } from "../components/ui";
+import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Table, Td, Th, type Tone } from "../components/ui";
 import { tx } from "../lib/i18n";
 import { useStoredFlag } from "../lib/storedFlag";
 import { hardwareRows } from "../lib/hardware";
@@ -332,7 +332,7 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, fre
         <button type="button" onClick={onServices} className={`${quiet} py-1 text-sm`}>{tx("Voir ses services")}<ArrowRight size={14} aria-hidden /></button>
       </div>
       <WatchSummary items={watch} />
-      <IdentitySection m={m} mac={mac} net={net} from={[...from.role, ...from.mac]} />
+      <IdentitySection m={m} mac={mac} net={net} from={[...from.role, ...from.mac]} tool={freebox || unifi ? "MynetworK" : undefined} />
 
       <Section icon={Cpu} title={tx("Système")} tone="violet" from={from.os}>
         <Row k={tx("Système")}>{i?.os || m.agent?.os || haSystemName(ha) || undefined}</Row>
@@ -492,9 +492,11 @@ function HaSystemRows({ sys }: Readonly<{ sys: NonNullable<ServiceStatus["system
 }
 
 /** Detail, « Identity »: name, IP, state, roles, MAC, what the network tools saw, other names, virtualization */
-function IdentitySection({ m, mac, net, from }: Readonly<{ m: Machine; mac?: string; net?: NetDevice; from: Origin[] }>) {
+function IdentitySection({ m, mac, net, from, tool }: Readonly<{ m: Machine; mac?: string; net?: NetDevice; from: Origin[]; tool?: string }>) {
   const roles = rolesOf(m.role);
-  const [stTone, stLabel, stTip] = stateBadge(m);
+  // read by a network tool's API (the Freebox, a UniFi gateway): « online, no SSH » would be wrong, it is followed through that tool
+  const viaTool = tool && mState(m) === "nossh";
+  const [stTone, stLabel, stTip]: [Tone, string, string] = viaTool ? ["ok", tx("Par le connecteur {0}", tool), tx("Lue par le connecteur {0} (son API) : en ligne, sans SSH ni agent", tool)] : stateBadge(m);
   return (
       <Section icon={IdCard} title={tx("Identité")} tone="link" from={from}>
         <Row k={tx("Nom")}><b>{m.name}</b></Row>
@@ -630,6 +632,11 @@ function uptimeOf(m: Machine, unifi?: UnifiDevice, fb?: FreeboxInfo): number | u
   return m.info?.uptime_s ?? m.agent?.uptime_s ?? unifi?.uptime ?? fb?.system?.uptime ?? undefined;
 }
 
+/** The model a network tool reads for this machine (the Freebox, a UniFi device): its photo is the icon */
+function modelOf(m: Machine, network: NetworkConnector[] | undefined, unifi?: UnifiDevice): string | undefined {
+  return freeboxOf(m, network)?.system?.model ?? unifi?.model;
+}
+
 /** Flag after the name: only the system updates waiting (and a reboot required), the packages named in the tooltip; the other things to watch have their own column */
 function ProblemFlag({ h }: Readonly<{ h?: HealthHost }>) {
   const n = h && h.reachable !== false ? h.apt?.upgradable ?? 0 : 0;
@@ -677,7 +684,7 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
   return (
     <div className={`flex flex-col gap-2.5 overflow-hidden rounded-xl border border-l-[3px] border-line bg-card p-3 transition-colors hover:border-link/50 ${edge} ${shown ? "col-span-full" : ""} ${off ? "opacity-50" : ""}`}>
       <div className="flex items-center gap-2.5">
-        <MachineIcon m={m} scan={scan} reserve />
+        <MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifi) }} scan={scan} reserve />
         <button type="button" onClick={() => onMachine(m.ip)} className="min-w-0 flex-1 text-left" title={tx("Voir ses services")}>
           <b className="block truncate font-semibold hover:text-link">{m.name}</b>
           <span className="block truncate font-mono text-[11px] text-dim">{m.ip}</span>
@@ -852,7 +859,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                     tabIndex={0} aria-haspopup="dialog" aria-label={tx("Détails de {0}", m.name)}
                     onClick={(e) => { if (!(e.target as Element).closest("button, a, input, select, label, summary, [role=button]")) setDetailIp(m.ip); }}
                     onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) setDetailIp(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
-                    <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td>
+                    <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifiOf(m)) }} scan={scanOs[m.ip]} reserve /></td>
                     <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><span className="text-xs text-dim">{m.ip}</span><ProblemFlag h={h} /></span></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
                     <Td>{st(m, false)}</Td>
                     <Td><div className="max-w-[11rem]"><SystemLine m={m} os={osOf(m)} ha={haOf(m)} unifi={unifiOf(m)} freebox={freeboxOf(m, snap.data.network)} /></div></Td>
@@ -885,7 +892,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
       )}
       {detailIp && (() => {
         const m = snap.data.machine_list.find((x) => x.ip === detailIp);
-        return m && <Overlay wide onClose={() => setDetailIp(null)} title={<><MachineIcon m={m} scan={scanOs[m.ip]} reserve />{m.name} <Dim>{m.ip}</Dim></>}><div className="mt-3 -mx-4 -mb-4 overflow-hidden rounded-b-2xl bg-bg2/40">{detailOf(m)}</div></Overlay>;
+        return m && <Overlay wide onClose={() => setDetailIp(null)} title={<><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifiOf(m)) }} scan={scanOs[m.ip]} reserve />{m.name} <Dim>{m.ip}</Dim></>}><div className="mt-3 -mx-4 -mb-4 overflow-hidden rounded-b-2xl bg-bg2/40">{detailOf(m)}</div></Overlay>;
       })()}
       {editIp && <MachineModal ip={editIp} snap={snap} onClose={() => setEditIp(null)} />}
     </div>

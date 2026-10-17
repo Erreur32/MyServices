@@ -17,8 +17,8 @@ export function NoteLine({ note, inline = false }: { note: Note; inline?: boolea
   }, [note]);
   if (!note || (note.ok && !note.text) || gone === note) return null;
   const tone = note.ok ? "text-ok" : "text-bad";
-  if (inline) return <span role="status" className={`text-xs font-normal ${tone}`}>{note.ok ? "✓" : "⚠"} {note.text}</span>;
-  return <p role="status" className={`mt-2 text-sm ${tone}`}>{note.ok ? "✓" : "⚠"} {note.text}</p>;
+  if (inline) return <output className={`text-xs font-normal ${tone}`}>{note.ok ? "✓" : "⚠"} {note.text}</output>;
+  return <output className={`mt-2 block text-sm ${tone}`}>{note.ok ? "✓" : "⚠"} {note.text}</output>;
 }
 
 export function Field({ label, children }: { label: ReactNode; children: ReactNode }) {

@@ -728,14 +728,40 @@ def advanced_target(adv):
 def attach_vhost_domains(rows, hinfo):
     """Real domain names declared by Apache (ServerName / ServerAlias) and nginx (server_name) on a machine, put on the
     local row that serves their port: r["vhost_domains"] and r["vhost_server"]. NPM domains stay in r["domains"]."""
+    local = {}
+    for r in rows:
+        if r["type"] == "local":
+            local.setdefault((r.get("ip"), r.get("port")), []).append(r)
     for ip, info in hinfo.items():
         for server, key in (("apache", "vhosts"), ("nginx", "nginx_vhosts")):
             for v in (info or {}).get(key, []):
-                for r in rows:
-                    if r["type"] == "local" and r.get("ip") == ip and r.get("port") == v["port"]:
-                        have = r.setdefault("vhost_domains", [])
-                        have += [n for n in v["names"] if n not in have]
-                        r["vhost_server"] = server
+                for r in local.get((ip, v["port"]), []):
+                    have = r.setdefault("vhost_domains", [])
+                    have += [n for n in v["names"] if n not in have]
+                    r["vhost_server"] = server
+
+
+def nginx_rows(hinfo, used):
+    """One local row for each port an nginx server block listens on that no other source claimed yet (`used` is updated)."""
+    out = []
+    for ip, info in hinfo.items():
+        for port in sorted({v["port"] for v in (info or {}).get("nginx_vhosts", [])}):
+            if (ip, port) in used:
+                continue
+            used.add((ip, port))
+            names = [n for v in info["nginx_vhosts"] if v["port"] == port for n in v["names"][:1]]
+            out.append(row("local", f"{ip}:{port}", ip, port, name=f"nginx :{port}",
+                           service={"kind": "nginx", "name": "nginx" + (" · " + ", ".join(names) if names else ""), "match": "port"}))
+    return out
+
+
+def forward_target(h, ip, port, adv):
+    """(scheme, ip, port, declared) of an NPM host: the forward target, or the `proxy_pass` of its advanced config when that overrides it
+    (declared is then the forward target NPM shows, else None)."""
+    real = advanced_target(adv)
+    if real and real[1:] != (ip, port):
+        return real[0], real[1], real[2], f"{ip}:{port}"
+    return h["forward_scheme"], ip, port, None
 
 
 def docker_service(c, how):
@@ -947,10 +973,7 @@ def main():
         if ip in IGNORED_IPS:
             continue
         adv = h.get("advanced_config") or ""
-        scheme, declared = h["forward_scheme"], None
-        real = advanced_target(adv)
-        if real and real[1:] != (ip, port):   # the advanced config overrides the forward target: probe and match the real one
-            declared, (scheme, ip, port) = f"{ip}:{port}", real
+        scheme, ip, port, declared = forward_target(h, ip, port, adv)   # the advanced config may override the forward target: probe and match the real one
         svc = via = cname = None
         hip = ip  # machine où chercher le service (l'hôte NPM quand la cible n'existe que vu de lui)
         npm_host = NPM_IPS.get(h["_npm"])
@@ -1112,13 +1135,7 @@ def main():
                 if addr and addr not in ("0.0.0.0", "*", "[::]", ip):  # lié à une IP interne : pas de sonde depuis le collecteur
                     rows[-1].update(internal=True, listen_addr=addr, ssh_active=True,  # apache2 actif (systemctl, via SSH)
                                     machine_role=rows[-1]["machine_role"] + f" · Apache écoute seulement sur {addr}")
-    for ip, info in hinfo.items():
-        for port in sorted({v["port"] for v in (info or {}).get("nginx_vhosts", [])}):
-            if (ip, port) not in used:
-                used.add((ip, port))
-                names = [n for v in info["nginx_vhosts"] if v["port"] == port for n in v["names"][:1]]
-                rows.append(row("local", f"{ip}:{port}", ip, port, name=f"nginx :{port}",
-                                service={"kind": "nginx", "name": "nginx" + (" · " + ", ".join(names) if names else ""), "match": "port"}))
+    rows.extend(nginx_rows(hinfo, used))
     attach_vhost_domains(rows, hinfo)
     for x in meta.get("extra", []):
         rows.append(row("local", f'{x["ip"]}:{x["port"]}', x["ip"], x["port"], name=x["name"],

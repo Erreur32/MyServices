@@ -1274,6 +1274,8 @@ export const EN: Record<string, string> = {
   "connexion refusée ou impossible": "connection refused or impossible",
   "La connexion SSH échoue : voir l'action requise en haut de la fenêtre": "The SSH connection fails: see the required action at the top of the window",
   "connexion refusée": "connection refused",
+  "Par le connecteur {0}": "Through the {0} connector",
+  "Lue par le connecteur {0} (son API) : en ligne, sans SSH ni agent": "Read by the {0} connector (its API): online, no SSH or agent needed",
   "Alloué aux VM": "Given to the VMs",
   "part des VM, pas la charge de la box": "share of the VMs, not the box's load",
   "Température la plus haute : la Freebox ne donne pas la charge de son processeur": "Hottest temperature: the Freebox gives no processor load",

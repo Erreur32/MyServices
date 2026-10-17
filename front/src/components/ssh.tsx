@@ -68,7 +68,7 @@ export function SshAccess({ alias, user, ip, port, refused, noIp, noAlias }: {
 }
 
 /** One line for the state of the connection: connected, partly read, or refused */
-function ConnectionState({ refused, reading, failed }: { refused: boolean; reading: boolean; failed: number }) {
+function ConnectionState({ refused, reading, failed }: Readonly<{ refused: boolean; reading: boolean; failed: number }>) {
   if (refused) return <Badge tone="bad" title={tx("La connexion SSH échoue : voir l'action requise en haut de la fenêtre")}>{tx("connexion refusée")}</Badge>;
   if (failed > 0) return <Badge tone="warn" title={tx("SSH répond, mais certaines lectures échouent (détail plus bas)")}>{tx("connecté, {0} lecture(s) en échec", failed)}</Badge>;
   return <Badge tone="ok" title={reading ? tx("SSH répond et toutes les lectures ont réussi") : tx("SSH répond")}>{reading ? tx("connecté, tout est lu") : tx("connecté")}</Badge>;
@@ -79,7 +79,7 @@ const risky = (v?: string) => !!v && !/^(no|prohibit-password)$/.test(v);
 /** Long key fingerprint cut in the middle (full value in the tooltip) */
 const shortFp = (fp: string) => (fp.length > 24 ? `${fp.slice(0, 14)}…${fp.slice(-8)}` : fp);
 
-function Block({ title, children }: { title: string; children: ReactNode }) {
+function Block({ title, children }: Readonly<{ title: string; children: ReactNode }>) {
   return (
     <div className="flex flex-col gap-0.5 rounded-lg border border-line/50 bg-bg/40 p-2.5">
       <b className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-dim">{title}</b>
@@ -90,7 +90,10 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 
 /** What is read over SSH: containers, web servers (one line, or a grey « nothing more ») */
 function readSummary(i: NonNullable<Machine["info"]>): ReactNode {
-  const parts = [i.docker ? tx("{0} conteneurs", i.docker) : i.docker_installed === false ? tx("pas de Docker") : null, i.apache ? tx("Apache") : null, i.nginx ? tx("nginx") : null].filter(Boolean);
+  let docker: string | null = null;
+  if (i.docker) docker = tx("{0} conteneurs", i.docker);
+  else if (i.docker_installed === false) docker = tx("pas de Docker");
+  const parts = [docker, i.apache ? tx("Apache") : null, i.nginx ? tx("nginx") : null].filter(Boolean);
   return parts.length ? parts.join(" · ") : <Dim>{tx("rien de plus")}</Dim>;
 }
 

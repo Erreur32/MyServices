@@ -318,6 +318,28 @@ def _alias_is_root(alias: str) -> bool:
     return any(s.get("alias") == alias and s.get("user") == "root" for s in hostinfo.ssh_config().values())
 
 
+def _update_process_host(meta: dict, ip: str, old: dict, new: dict, process: bool | None) -> None:
+    """process_hosts follows the « read the listening ports » choice; switching SSH on with a root alias turns it on by default (ss needs root)."""
+    ph = meta.setdefault("process_hosts", {})
+    if new.get("ssh") and not old.get("ssh") and _alias_is_root(new["ssh"]):
+        process = True
+    if process is None:
+        return
+    if process and new.get("ssh"):
+        ph[ip] = new["ssh"]
+    else:
+        ph.pop(ip, None)
+
+
+def _add_extra(meta: dict, ip: str, new: dict, extra: list[dict] | None) -> None:
+    """Web services to follow on this machine, added once per port."""
+    have = {(x.get("ip"), x.get("port")) for x in meta.setdefault("extra", [])}
+    for w in extra or []:
+        if (ip, int(w["port"])) not in have:
+            meta["extra"].append({"name": str(w.get("name") or f"{new['name']} · {w.get('label', '')}")[:NAME_MAX],
+                                  "ip": ip, "port": int(w["port"]), "scheme": "https" if w.get("scheme") == "https" else "http"})
+
+
 def save(ip: str, m: dict, process: bool | None = None, extra: list[dict] | None = None) -> dict:
     """Machine écrite (réglages hors page gardés : « health » objet, notes…). process : lire aussi ses
     ports en écoute (process_hosts, root requis sur la machine). extra : services web à suivre."""
@@ -333,19 +355,8 @@ def save(ip: str, m: dict, process: bool | None = None, extra: list[dict] | None
     machines[ip] = {**keep, **new}
     if old.get("ssh") != new.get("ssh"):
         expire_inventory(ip)
-    ph = meta.setdefault("process_hosts", {})
-    if new.get("ssh") and not old.get("ssh") and _alias_is_root(new["ssh"]):
-        process = True  # SSH just switched on with the root account: ports outside Docker are read by default (ss needs root)
-    if process is not None:
-        if process and new.get("ssh"):
-            ph[ip] = new["ssh"]
-        else:
-            ph.pop(ip, None)
-    have = {(x.get("ip"), x.get("port")) for x in meta.setdefault("extra", [])}
-    for w in extra or []:
-        if (ip, int(w["port"])) not in have:
-            meta["extra"].append({"name": str(w.get("name") or f"{new['name']} · {w.get('label', '')}")[:NAME_MAX],
-                                  "ip": ip, "port": int(w["port"]), "scheme": "https" if w.get("scheme") == "https" else "http"})
+    _update_process_host(meta, ip, old, new, process)
+    _add_extra(meta, ip, new, extra)
     with contextlib.redirect_stdout(io.StringIO()):
         setup.save(setup.META, meta)
     return machines[ip]

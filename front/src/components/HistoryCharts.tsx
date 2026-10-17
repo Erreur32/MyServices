@@ -43,6 +43,19 @@ function YAxis({ ticks: t, top, children }: { ticks: number[]; top: number; chil
   );
 }
 
+/** What the pointer shows in the points chart: the hovered point's time and place, else the pointer's own (null = nothing) */
+function hoverOf(point: StoredEvent | null, cursor: number | null, from: number, to: number, pct: (ts: number) => number): { at: number; x: number } | null {
+  if (point) return { at: point.ts * 1000, x: pct(point.ts) };
+  if (cursor != null) return { at: from + cursor * (to - from), x: cursor * 100 };
+  return null;
+}
+
+/** Where the time chip sits against its anchor: kept inside the chart near both edges */
+function chipShift(x: number): string {
+  if (x > 85) return "-100%";
+  return x < 15 ? "0" : "-50%";
+}
+
 /** Un point par événement, à son heure exacte ; une ligne par famille. Clic = la liste se limite à ce jour.
  *  Souris dans le graphique : un repère pointillé suit le temps (heure en haut) ; sur un point, le repère descend du point à l'axe et le point est mis en avant. */
 export function PointsChart({ events, from, to, days, onRange }: { events: StoredEvent[]; from: number; to: number; days: number; onRange: (r: Range) => void }) {
@@ -59,8 +72,7 @@ export function PointsChart({ events, from, to, days, onRange }: { events: Store
   };
   const point = hot != null ? events[hot] : null;
   const pointLane = point ? lanes.findIndex(([k]) => k === groupOf(point.kind)) : -1;
-  const shownAt = point ? point.ts * 1000 : cursor != null ? from + cursor * (to - from) : null;
-  const shownX = point ? pct(point.ts) : cursor != null ? cursor * 100 : null;
+  const shown = hoverOf(point, cursor, from, to, pct), shownAt = shown?.at ?? null, shownX = shown?.x ?? null;
   return (
     <div className="flex gap-3">
       <div className="flex h-40 w-32 shrink-0 flex-col text-xs text-muted sm:w-40">
@@ -77,7 +89,7 @@ export function PointsChart({ events, from, to, days, onRange }: { events: Store
           {point && pointLane >= 0 && <span className="pointer-events-none absolute bottom-0 border-l-2 border-dashed border-link" style={{ left: x(point.ts), top: `${((pointLane + 0.5) / lanes.length) * 100}%` }} aria-hidden />}
           {shownAt != null && shownX != null && (
             <span className="pointer-events-none absolute top-0.5 z-20 whitespace-nowrap rounded bg-card px-1.5 py-0.5 text-[11px] tabular-nums text-txt shadow ring-1 ring-line"
-              style={{ left: `${shownX}%`, transform: `translateX(${shownX > 85 ? "-100%" : shownX < 15 ? "0" : "-50%"})` }}>{days <= 2 ? hm(shownAt) : dateTime(shownAt)}</span>
+              style={{ left: `${shownX}%`, transform: `translateX(${chipShift(shownX)})` }}>{days <= 2 ? hm(shownAt) : dateTime(shownAt)}</span>
           )}
           {events.map((e, i) => {
             const lane = lanes.findIndex(([k]) => k === groupOf(e.kind));
@@ -148,20 +160,24 @@ export function AreaChart({ data, days }: { data: Bucket[]; days: number }) {
 
 /** Carte de chaleur : quels jours de la semaine et à quelle heure les événements arrivent */
 /** Weekday names, Monday first */
-export const heatDays = (): string[] => [...Array(7)].map((_, i) => new Date(2026, 9, 12 + i).toLocaleDateString(LOCALE, { weekday: "short" }));
+export const heatDays = (): string[] => Array.from({ length: 7 }, (_, i) => new Date(2026, 9, 12 + i).toLocaleDateString(LOCALE, { weekday: "short" }));
+
+/** Opacities of the scale under the heat map: an empty cell, then four steps up to the busiest */
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
+const HEAT_SCALE = [0.05, 0.36, 0.58, 0.79, 1];
 
 /** A cell of the heat map: weekday (0 = Monday) and hour */
 export interface HeatCell { d: number; h: number }
 
 /** Events per weekday and hour, every week of the period piled up. A click on a cell limits the list to that weekday and hour. */
-export function HeatChart({ events, active, onPick }: { events: StoredEvent[]; active: HeatCell | null; onPick: (c: HeatCell | null) => void }) {
+export function HeatChart({ events, active, onPick }: Readonly<{ events: StoredEvent[]; active: HeatCell | null; onPick: (c: HeatCell | null) => void }>) {
   const grid = heat(events), max = Math.max(1, ...grid.flat());
   const days = heatDays();
   return (
-    <div className="text-[11px] text-dim" role="group" aria-label={tx("Événements par jour de la semaine et par heure")}>
+    <fieldset className="m-0 min-w-0 border-0 p-0 text-[11px] text-dim" aria-label={tx("Événements par jour de la semaine et par heure")}>
       <div className="flex h-40 flex-col gap-[3px]">
       {grid.map((row, d) => (
-        <div key={d} className="flex min-h-0 flex-1 items-center gap-[3px]">
+        <div key={days[d]} className="flex min-h-0 flex-1 items-center gap-[3px]">
           <span className="w-10 shrink-0 capitalize">{days[d]}</span>
           {row.map((n, h) => {
             const on = active?.d === d && active.h === h;
@@ -175,12 +191,12 @@ export function HeatChart({ events, active, onPick }: { events: StoredEvent[]; a
         </div>
       ))}
       </div>
-      <div className="mt-1 flex h-4 gap-[3px] pl-10">{[...Array(24)].map((_, h) => <span key={h} className="flex-1 whitespace-nowrap text-center">{h % 3 === 0 ? `${h} h` : ""}</span>)}</div>
+      <div className="mt-1 flex h-4 gap-[3px] pl-10">{HOURS.map((h) => <span key={h} className="flex-1 whitespace-nowrap text-center">{h % 3 === 0 ? `${h} h` : ""}</span>)}</div>
       <div className="mt-2 flex items-center justify-end gap-1.5" aria-label={tx("Échelle")}>
         <span>0</span>
-        {[0.05, 0.25, 0.5, 0.75, 1].map((o) => <span key={o} className="h-3 w-6 rounded-sm bg-link" style={{ opacity: o === 0.05 ? 0.05 : 0.15 + 0.85 * o }} aria-hidden />)}
+        {HEAT_SCALE.map((o) => <span key={o} className="h-3 w-6 rounded-sm bg-link" style={{ opacity: o }} aria-hidden />)}
         <span>{max} {tx("événement(s) par case")}</span>
       </div>
-    </div>
+    </fieldset>
   );
 }

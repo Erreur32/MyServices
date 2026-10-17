@@ -205,6 +205,16 @@ def parse_apache(text: str) -> tuple[list[dict], list[str], list[int], dict]:
 _NGINX_NO_NAME = {"_", "localhost", "default_server", ""}
 
 
+def _nginx_directive(cur: dict, word: str, rest: str) -> None:
+    """One `listen` or `server_name` line of a server block, kept on that block."""
+    if word == "listen":
+        m = re.search(r"(?:^|:)(\d{1,5})(?:\s|$)", rest.strip() + " ")
+        if m and int(m.group(1)) not in cur["ports"]:
+            cur["ports"].append(int(m.group(1)))
+    elif word == "server_name":
+        cur["names"] += [n for n in rest.split() if n not in _NGINX_NO_NAME and not n.startswith(("~", "*", ".")) and "$" not in n]
+
+
 def parse_nginx(text: str) -> tuple[list[dict], list[str]]:
     """(vhosts, unreadable files) from the ##NF / ##NU sections of REMOTE: one entry per (server block, port), with the
     real server_name values (wildcards, regexes, « _ » and localhost are left out)."""
@@ -218,19 +228,12 @@ def parse_nginx(text: str) -> tuple[list[dict], list[str]]:
         elif line.startswith("##"):
             conf = conf if line.startswith("##NF") else None
         elif conf:
-            s = line.strip().rstrip(";{ ").strip()
-            word, _, rest = s.partition(" ")
+            word, _, rest = line.strip().rstrip(";{ ").strip().partition(" ")
             if word.lower() == "server":
                 cur = {"ports": [], "names": [], "conf": conf}
                 vhosts.append(cur)
-            elif cur is None:
-                continue
-            elif word.lower() == "listen":
-                m = re.search(r"(?:^|:)(\d{1,5})(?:\s|$)", rest.strip() + " ")
-                if m and int(m.group(1)) not in cur["ports"]:
-                    cur["ports"].append(int(m.group(1)))
-            elif word.lower() == "server_name":
-                cur["names"] += [n for n in rest.split() if n not in _NGINX_NO_NAME and not n.startswith(("~", "*", ".")) and "$" not in n]
+            elif cur is not None:
+                _nginx_directive(cur, word.lower(), rest)
     out = [{"port": p, "names": v["names"], "conf": v["conf"]} for v in vhosts for p in (v["ports"] or [80])]
     return out, unreadable
 
