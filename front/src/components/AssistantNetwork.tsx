@@ -108,7 +108,7 @@ export function AssistantNetwork({ net, reload, known }: { net: NetScan | null; 
       <div className="flex flex-wrap items-center gap-2">
         {chosen.length > 0 && <button type="button" className={primary} disabled={busy} onClick={() => void addPicked()}><Check size={14} aria-hidden />{tx("Suivre la sélection")} ({chosen.length})</button>}
         <span className="ml-auto flex flex-wrap items-center gap-3">
-          <a href="#settings/machines" className="text-sm text-link hover:underline">{tx("Ajouter à la main")}</a>
+          <span className="text-xs text-dim">{tx("Une machine manque ?")} <a href="#settings/machines" className="text-link hover:underline">{tx("Ajoutez-la à la main")}</a></span>
           <button type="button" className={quiet} disabled={busy} onClick={() => void start()}><RefreshCw size={14} aria-hidden />{tx("Relancer la recherche")}</button>
         </span>
       </div>
