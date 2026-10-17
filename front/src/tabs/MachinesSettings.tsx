@@ -3,8 +3,8 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
-import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, KeyRound, Loader2, Monitor, Plus, Power, Radar, RefreshCw, Server, Settings2, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
-import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, Radar, RefreshCw, Server, Settings2, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { Fragment, createElement, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, refreshSnapshot, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch, TagInput } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
@@ -21,7 +21,7 @@ import { IconPicker } from "../components/IconPicker";
 import { mState, osOfMachine } from "../lib/machines";
 import { AuthorizeKey } from "../components/AuthorizeKey";
 import { SshGuide } from "../components/SshGuide";
-import { SshAccess, SshDetails } from "../components/ssh";
+import { SshDetails } from "../components/ssh";
 import { freeboxOf } from "../lib/freebox";
 import { SourceBadges } from "../components/SourceBadges";
 import { focusConnector } from "../lib/connectorPrefill";
@@ -438,6 +438,12 @@ function OptionGroup({ title, hint, tone, children }: { title: string; hint?: st
   );
 }
 
+const CONNECTOR_STATE: Record<string, React.ReactNode> = {
+  ok: <Badge tone="ok" title={tx("Ce connecteur répond et voit cette machine")}>{tx("actif")}</Badge>,
+  stale: <Badge tone="warn" title={tx("Ce connecteur répond avec retard : ses données sont anciennes")}>{tx("en retard")}</Badge>,
+  bad: <Badge tone="off" title={tx("Ce connecteur ne répond pas ou est coupé")}>{tx("inactif")}</Badge>,
+};
+
 function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, scan, actions, windowsGuess, report, onDone, onIcon, onFollow, agent, connection, tabbed, focusTab, onAgent }: {
   focusTab?: "access"; onAgent?: () => void;
   tabbed?: boolean;  // dans la fenêtre d'une machine : Identité, Options et Accès en onglets
@@ -467,8 +473,10 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   // Ce que l'accès choisi permet de lire (suit le formulaire, avant même l'enregistrement)
   const sshAccess = windows ? !!v.health : !!v.ssh;
   // Connecteurs qui voient cette machine (API et outils réseau rapprochés), sans doublon
-  const linked = [...new Map([...(live?.api ?? []).map((a) => [`${a.type}/${a.name}`, { type: a.type, name: a.name, label: a.label }] as const),
-    ...(live?.links?.sources ?? []).filter((x) => x.ok !== false).map((x) => [`${x.source}/${x.instance}`, { type: x.source, name: x.instance, label: x.label }] as const)]).values()];
+  const linked = [...new Map([
+    ...(live?.api ?? []).map((a) => [`${a.type}/${a.name}`, { type: a.type, name: a.name, label: a.label, state: a.ok ? "ok" : a.stale ? "stale" : "bad" }] as const),
+    ...(live?.links?.sources ?? []).map((x) => [`${x.source}/${x.instance}`, { type: x.source, name: x.instance, label: x.label, state: x.ok === false ? "bad" : "ok" }] as const),
+  ]).values()];
   const access = sshAccess || !!agent, health = access && (!!agent || (!v.off && v.health !== false));  // un agent lit même un poste « souvent éteint »
   const gives: [string, boolean, string][] = [
     // Pas de pastille Docker quand la machine est lue par SSH et qu'il n'y en a pas : rien à dire, ce n'est pas un manque
@@ -555,8 +563,14 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   const agentMode = windows || windowsGuess === true || (!!agent && !v.ssh);  // un PC Windows se lit par l'agent (pas de SSH) ; on garde le SSH s'il est déjà réglé
   const key = (windows ? v.health : v.ssh) as string | null | undefined | false;
   const sshOn = typeof key === "string" && key !== "";
-  const info = st.aliases.find((a) => a.alias === key);
-  const sshPills = <SshAccess alias={String(key || "")} user={info?.user} ip={info ? info.ip || info.host : null} port={info?.port} />;
+  // Synthèse en tête de l'onglet Accès : ce qui lit la machine, en un coup d'œil
+  const refusedSsh = sshOn && !!live && ["refused", "nossh", "down"].includes(mState(live));
+  const sshSummary = !sshOn || agentMode ? <Badge tone="off">{tx("inactif")}</Badge>
+    : <Badge tone={refusedSsh ? "warn" : "ok"} title={refusedSsh ? tx("L'accès est réglé mais la connexion échoue") : undefined}>{refusedSsh ? tx("refusé") : tx("actif")}</Badge>;
+  const agentSummary = agent ? <Badge tone={agent.state === "actif" ? "ok" : "warn"}>{agent.state}</Badge> : <Badge tone="off">{tx("aucun")}</Badge>;
+  const activeLinked = linked.filter((c) => c.state === "ok").length;
+  const connectorSummary = linked.length === 0 ? <Badge tone="off">{tx("aucun")}</Badge>
+    : <Badge tone={activeLinked === linked.length ? "ok" : "warn"}>{activeLinked}/{linked.length} {tx("actifs")}</Badge>;
   // Réactivation : si un accès existe déjà pour cette IP (la config SSH garde l'alias quand on coupe l'interrupteur), on le reprend et on
   // teste la clé tout de suite ; le guide ne s'ouvre que si la connexion échoue (ou s'il n'y a encore aucun accès).
   const known = st.aliases.find((a) => a.ip === ip);
@@ -604,6 +618,21 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
         </div>
       )}
       {show("access") && <>
+      {tabbed && (
+        <section className="grid gap-2 sm:grid-cols-3" aria-label={tx("Accès disponibles")}>
+          {[
+            [tx("SSH"), KeyRound, sshSummary],
+            [tx("Agent"), MonitorUp, agentSummary],
+            [tx("Connecteurs"), Plug, connectorSummary],
+          ].map(([label, Icon, badge]) => (
+            <div key={String(label)} className="flex items-center gap-2 rounded-xl border border-line/60 bg-bg2/70 px-3 py-2">
+              {createElement(Icon as typeof KeyRound, { size: 16, className: "shrink-0 text-link", "aria-hidden": true })}
+              <b className="text-sm">{label as string}</b>
+              <span className="ml-auto">{badge as React.ReactNode}</span>
+            </div>
+          ))}
+        </section>
+      )}
       <section className="rounded-2xl border border-dim/50 border-l-2 border-l-link bg-bg2/30 p-4 shadow-sm">
         <button type="button" onClick={() => setSshOpen(!sshOpen)} aria-expanded={sshOpen} className="flex w-full flex-wrap items-center gap-2 text-left">
           {sshOpen ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}
@@ -620,7 +649,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
             {agentMode ? <span className="text-sm text-muted">{tx("Lue par l'agent MyServices : son état et ses réglages sont plus bas.")}</span> : <>
               <Switch on={sshOn} disabled={pending === "ssh"} onChange={(on) => void toggleSsh(on)} label={tx("Lecture par SSH")} />
               <span><b>{sshOn ? tx("Actif") : tx("Inactif")}</b> <Saved k="ssh" />
-                {sshOn ? <> <Dim>·</Dim> {sshPills}</> : <Dim> · {foundSsh ? tx("activé tout seul au prochain passage") : v.ssh === false ? tx("coupé : ping et services web seulement") : tx("ping et services web seulement")}</Dim>}</span>
+                {!sshOn && <Dim> · {foundSsh ? tx("activé tout seul au prochain passage") : v.ssh === false ? tx("coupé : ping et services web seulement") : tx("ping et services web seulement")}</Dim>}</span>
             </>}
           </label>
           {foundSsh && (
@@ -665,10 +694,17 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
           </a>
         </div>
         {linked.length > 0 && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-line/60 bg-bg2/70 p-3 text-sm">
+          <div className="flex flex-col gap-1.5 rounded-lg border border-line/60 bg-bg2/70 p-3 text-sm">
             <b>{tx("Connecteurs")}</b>
-            {linked.map((c) => <a key={`${c.type}/${c.name}`} href="#settings/connectors" onClick={() => focusConnector(c.type, c.name)} title={tx("Ouvrir ce connecteur")}
-              className="rounded-full border border-link/60 px-2 py-0.5 text-xs font-semibold text-link hover:bg-link/10">{c.label}</a>)}
+            <ul className="flex flex-col divide-y divide-line/40">
+              {linked.map((c) => (
+                <li key={`${c.type}/${c.name}`} className="flex items-center gap-3 py-1.5">
+                  <a href="#settings/connectors" onClick={() => focusConnector(c.type, c.name)} title={tx("Ouvrir ce connecteur")} className="font-semibold text-link hover:underline">{c.label}</a>
+                  <Dim>{c.name}</Dim>
+                  <span className="ml-auto">{CONNECTOR_STATE[c.state]}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
         {agent && sshAccess && (
@@ -708,9 +744,10 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
       </section>
       {/* Réglages courants, toujours visibles : suivre la machine, et « souvent éteinte » (PC, portable : pas d'alerte quand elle est éteinte) */}
       </>}
-      {show("identity") && <>
+      {show("options") && <>
       <section className="rounded-2xl border border-dim/50 border-l-2 border-l-warn bg-bg2/30 p-4" aria-label={tx("Réglages courants")}>
         <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><Power size={13} className="text-warn" aria-hidden />{tx("Réglages courants")}</h4>
+        <p className="mb-3 text-xs leading-relaxed text-muted">{tx("Suivre une machine, c'est la pinger et la lire avec ses sources (SSH, agent, connecteurs) pour la santé et les alertes. Une machine souvent éteinte (PC, portable) ne déclenche pas d'alerte quand elle ne répond pas.")}</p>
         <div className="grid gap-2 lg:grid-cols-2">
           <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
             <Switch on={!v.disabled} disabled={pending === "disabled"} onChange={(on) => void autoSave("disabled", { disabled: !on })} label={tx("Machine suivie")} />

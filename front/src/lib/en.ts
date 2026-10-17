@@ -2259,4 +2259,11 @@ export const EN: Record<string, string> = {
   "Installer un agent": "Install an agent",
   "Chaque machine se règle dans sa fenêtre, onglet Accès.": "Each machine is set up in its window, Access tab.",
   "Lue par l'agent MyServices : son état et ses réglages sont plus bas.": "Read by the MyServices agent: its status and settings are below.",
+  "Ce connecteur répond et voit cette machine": "This connector answers and sees this machine",
+  "Ce connecteur répond avec retard : ses données sont anciennes": "This connector answers late: its data is old",
+  "Ce connecteur ne répond pas ou est coupé": "This connector does not answer or is turned off",
+  "inactif": "inactive",
+  "L'accès est réglé mais la connexion échoue": "Access is set up but the connection fails",
+  "Accès disponibles": "Available access",
+  "Suivre une machine, c'est la pinger et la lire avec ses sources (SSH, agent, connecteurs) pour la santé et les alertes. Une machine souvent éteinte (PC, portable) ne déclenche pas d'alerte quand elle ne répond pas.": "Tracking a machine means pinging it and reading it through its sources (SSH, agent, connectors) for health and alerts. A machine that is often off (PC, laptop) raises no alert when it does not answer.",
 };
