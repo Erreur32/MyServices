@@ -1,6 +1,6 @@
 // Étape « Le réseau » de l'assistant, volontairement simple : trois états (pas encore cherché, en cours, résultat), une seule décision
 // (quelles machines suivre). Ni accès SSH, ni connecteurs, ni appareils oubliés : l'étape suivante s'occupe de la façon de lire chaque machine.
-import { Check, ChevronDown, ChevronRight, Loader2, RefreshCw, Search } from "lucide-react";
+import { Check, Loader2, RefreshCw, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { send } from "../api";
 import { appIcon } from "../lib/appIcons";
@@ -12,7 +12,7 @@ import { plural } from "../lib/summary";
 import type { NetHost, NetScan } from "../types";
 import { NoteLine } from "./form";
 import { netPercent } from "./ScanBar";
-import { Badge, Dim } from "./ui";
+import { Badge } from "./ui";
 
 /** Ce que la machine est, en un seul mot : l'appli reconnue, sinon SSH, sinon la première étiquette */
 export function whatIs(h: Pick<NetHost, "hints" | "apps" | "ssh_port">): string {
@@ -36,7 +36,7 @@ function Row({ h, on, toggle }: { h: NetHost; on: boolean; toggle: () => void })
 
 export function AssistantNetwork({ net, reload, known }: { net: NetScan | null; reload: () => void; known: string[] }) {
   const [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null);
-  const [picked, setPicked] = useState<Set<string>>(new Set()), [othersOpen, setOthersOpen] = useState(false), [added, setAdded] = useState(0);
+  const [picked, setPicked] = useState<Set<string>>(new Set()), [added, setAdded] = useState(0);
   const state = netState(net), preselected = useRef<number | null>(null);
   useEffect(() => {   // fin d'une recherche : les machines intéressantes sont cochées d'office (décochables)
     if (net?.phase !== "done" || !net.ended || preselected.current === net.ended) return;
@@ -73,7 +73,7 @@ export function AssistantNetwork({ net, reload, known }: { net: NetScan | null; 
 
   const fresh = (net?.found ?? []).filter((h) => !known.includes(h.ip) && !net?.ignored?.includes(h.ip));
   const proposed = fresh.filter(interesting), others = fresh.filter((h) => !interesting(h));
-  const chosen = fresh.filter((h) => picked.has(h.ip) && (interesting(h) || othersOpen));
+  const chosen = proposed.filter((h) => picked.has(h.ip));
   const addPicked = async () => {
     setBusy(true);
     const done: string[] = [];
@@ -101,18 +101,8 @@ export function AssistantNetwork({ net, reload, known }: { net: NetScan | null; 
           <ul className="flex flex-col gap-1.5">{proposed.map((h) => <Row key={h.ip} h={h} on={picked.has(h.ip)} toggle={() => toggle(h.ip)} />)}</ul>
         </section>
       )}
-      {others.length > 0 && (
-        <section>
-          <button type="button" className="flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-txt" aria-expanded={othersOpen} onClick={() => setOthersOpen(!othersOpen)}>
-            {othersOpen ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}{tx("Autres appareils")} <Dim>({others.length})</Dim>
-          </button>
-          {othersOpen && (
-            <>
-              <p className="mb-2 mt-1 text-xs text-dim">{tx("Caméras, objets connectés, téléphones… Cochez seulement ce qui vous intéresse.")}</p>
-              <ul className="flex flex-col gap-1.5">{others.map((h) => <Row key={h.ip} h={h} on={picked.has(h.ip)} toggle={() => toggle(h.ip)} />)}</ul>
-            </>
-          )}
-        </section>
+      {others.length > 0 && (   // caméras, objets connectés, téléphones : seulement un ping possible, pas dans l'assistant ; ajoutables après, depuis Découverte
+        <p className="text-xs text-dim">{plural(others.length, "autre appareil vu", "autres appareils vus")} {tx("(caméras, objets connectés…) : vous pourrez les suivre plus tard, en simple ping, dans")} <a href="#settings/network" className="text-link hover:underline">{tx("Réglages → Découverte")}</a>.</p>
       )}
       {added > 0 && <p className="rounded-lg bg-ok/10 px-3 py-2 text-sm font-semibold text-ok" role="status"><Check size={14} className="mr-1 inline" aria-hidden />{tx("{0} ajoutées. À l'étape suivante, vous choisissez comment les lire.", plural(added, "machine"))}</p>}
       <div className="flex flex-wrap items-center gap-2">

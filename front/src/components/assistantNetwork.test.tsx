@@ -21,15 +21,16 @@ describe("étape réseau de l'assistant", () => {
     expect(html).not.toContain(">nas<");
   });
 
-  it("résultat : un résumé, les machines à suivre, les autres repliées", () => {
+  it("résultat : un résumé, les machines à suivre, les autres appareils seulement mentionnés", () => {
     const found = [host("10.0.0.2", { name: "srv", ssh_port: 22, hints: ["SSH"] }), host("10.0.0.3", { name: "plex", apps: ["Plex"], hints: ["web :32400"] }),
                    host("10.0.0.4", { name: "camera", hints: ["web :80"] }), host("10.0.0.9", { name: "deja" })];
     const html = render(scan({ found }), ["10.0.0.9"]);
     expect(html).toContain("4 machines trouvées");
     expect(html).toContain("1 déjà suivies");
     expect(html).toContain("2 à suivre");
-    for (const t of ["srv", "plex", "Plex", "SSH", "Autres appareils", "Relancer la recherche"]) expect(html, t).toContain(t);
-    expect(html).not.toContain("camera");   // replié : pas dans la page tant qu'on ne l'ouvre pas
+    for (const t of ["srv", "plex", "Plex", "SSH", "1 autre appareil vu", "Réglages → Découverte", "Relancer la recherche"]) expect(html, t).toContain(t);
+    expect(html).not.toContain("camera");   // pas dans l'assistant : seulement un ping possible, à ajouter plus tard depuis Découverte
+    expect(html).not.toContain("Autres appareils");
     expect(html).not.toContain("deja");     // déjà suivie : pas proposée
   });
 
