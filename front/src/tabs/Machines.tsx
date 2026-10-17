@@ -108,7 +108,6 @@ export function ResCell({ h, what }: { h?: HealthHost; what: "cpu" | "mem" }) {
 }
 type MeterTone = "ok" | "warn" | "bad";
 const METER_TEXT: Record<MeterTone, string> = { ok: "text-txt", warn: "text-warn", bad: "text-bad" };
-const METER_BAR: Record<MeterTone, string> = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad" };
 const level = (v: number, warn: number, bad: number): MeterTone => {
   if (v >= bad) return "bad";
   return v >= warn ? "warn" : "ok";
@@ -116,13 +115,17 @@ const level = (v: number, warn: number, bad: number): MeterTone => {
 
 /** Table cell: the value on top (with a hint on its right, e.g. the disk), a thin bar under it; the same width in every row */
 function Meter({ pct, tone, hint, title }: Readonly<{ pct: number; tone: MeterTone; hint?: string; title?: string }>) {
+  const fill = Math.min(100, Math.max(2, pct));
   return (
-    <div className="w-24" title={title}>
+    <div className="w-[5.5rem]" title={title}>
       <div className="flex items-baseline justify-between gap-1 leading-tight">
-        <b className={`text-sm tabular-nums ${METER_TEXT[tone]}`}>{Math.round(pct)} %</b>
-        {hint && <span className="truncate font-mono text-[10px] text-dim">{hint}</span>}
+        <b className={`shrink-0 whitespace-nowrap text-sm tabular-nums ${METER_TEXT[tone]}`}>{Math.round(pct)} %</b>
+        {hint && <span className="min-w-0 truncate font-mono text-[10px] text-dim">{hint}</span>}
       </div>
-      <span className="mt-1 block h-1 overflow-hidden rounded-full bg-bg2"><span className={`block h-full rounded-full ${METER_BAR[tone]}`} style={{ width: `${Math.min(100, Math.max(2, pct))}%` }} /></span>
+      {/* the gradient is laid over the whole track (green to red), the fill only shows its first part: a full bar is red, a short one green */}
+      <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-bg2">
+        <span className="block h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-500 saturate-150" style={{ width: `${fill}%`, backgroundSize: `${10000 / fill}% 100%` }} />
+      </span>
     </div>
   );
 }
@@ -161,7 +164,7 @@ function diskTone(d: { critical?: boolean; warning?: boolean; used_pct: number }
 function DiskPct({ h }: Readonly<{ h?: HealthHost }>) {
   const d = topDisk(h);
   if (!d) return <Dim>-</Dim>;
-  return <b className={diskTone(d)}>{d.used_pct} %</b>;
+  return <b className={`whitespace-nowrap ${diskTone(d)}`}>{d.used_pct} %</b>;
 }
 /** CPU, memory and fullest disk in one strip; `first`: one more figure on the left (services on a machine card) */
 export function ResStrip({ h, first }: Readonly<{ h?: HealthHost; first?: React.ReactNode }>) {
@@ -768,7 +771,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
         <>
           {view === "table" && <Table fit head={<>
             <th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="watch" sort={sort}>{tx("À surveiller")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
-            <Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th></>}
+            <Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th className="!px-1.5">{tx("CPU")}</Th><Th className="!px-1.5">{tx("Mémoire")}</Th><Th className="!px-1.5">{tx("Disque")}</Th></>}
             {admin && <th className="w-8 px-1" aria-label={tx("Réglages")} />}
           </>}>
             {sort.sorted.map((m) => {
@@ -787,7 +790,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                       <button type="button" onClick={() => onMachine(m.ip)} title={tx("Voir ses services")} aria-label={tx("Voir les services de {0}", m.name)}
                         className="rounded-md px-1.5 py-0.5 hover:bg-link/10 hover:text-link"><b className="tabular-nums">{m.services}</b></button><DownBadge m={m} snap={snap} /></span></Td>
                     {snap.health && <><Td><HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} /></Td>
-                      <Td><MeterCell h={h} what="cpu" /></Td><Td><MeterCell h={h} what="mem" /></Td><Td><MeterCell h={h} what="disk" /></Td></>}
+                      <Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}
                     {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => setEditIp(m.ip)} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
                       className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><Settings2 size={14} aria-hidden /></button></td>}
                   </tr>
