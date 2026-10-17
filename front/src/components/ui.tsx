@@ -16,9 +16,9 @@ const TONE: Record<Tone, string> = {
   info: "border-link/40 bg-link/10 text-link",
 };
 
-export function Badge({ tone, children, title }: { tone: Tone; children: ReactNode; title?: string }) {
+export function Badge({ tone, children, title, outline = false }: { tone: Tone; children: ReactNode; title?: string; outline?: boolean }) {   // outline: the border and the text colour only, no filled background
   return (
-    <span title={title} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-xs font-semibold ${TONE[tone]}`}>
+    <span title={title} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-xs font-semibold ${outline ? TONE[tone].replace(/bg-\S+/, "bg-transparent") : TONE[tone]}`}>
       {children}
     </span>
   );
@@ -27,7 +27,7 @@ export function Badge({ tone, children, title }: { tone: Tone; children: ReactNo
 
 export function Level({ level, children }: { level: string; children?: ReactNode }) {
   const [tone, label] = LEVEL[level] || ["off", level];
-  return <Badge tone={tone}>{children ?? label}</Badge>;
+  return <Badge tone={tone} outline={level === "warn"}>{children ?? label}</Badge>;   // « à surveiller »: outline only
 }
 
 export type CardTone = "bad" | "warn" | "info" | "ok";
