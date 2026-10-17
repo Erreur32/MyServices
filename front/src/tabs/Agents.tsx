@@ -121,6 +121,15 @@ export function Agents({ focusIp, live, network = [] }: { focusIp?: string; live
           {tx("Deux façons de lire la santé d'une machine, toujours en lecture seule.")} <b className="text-txt">{tx("Agent")}</b> {tx(": un petit script (PowerShell sur un PC Windows, Python sur une machine Linux), installé sur la machine, qui envoie lui-même sa santé à MyServices (disques, services, processeur, mémoire, mises à jour, journal) ; pas de SSH à ouvrir, et un PC souvent éteint se signale dès qu'il se rallume.")}{" "}
           <b className="text-txt">SSH</b> {tx(": pour les machines Linux, MyServices s'y connecte avec sa clé (santé, Docker, services en écoute).")}
         </p>
+        <div className="mt-3 rounded-lg border border-link/50 bg-link/5 px-3 py-2 text-sm text-muted">
+          <b className="text-txt">{tx("Lequel choisir ?")}</b>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            <li><b className="text-txt">{tx("Machine Linux que vous administrez")}</b> {tx(": le SSH suffit. Un agent n'y sert que de filet de sécurité (si le SSH ne répond plus, l'agent prend le relais).")}</li>
+            <li><b className="text-txt">{tx("Machine où le SSH est impossible")}</b> {tx("(clé refusée, port fermé, NAT, VPN) : l'agent, Windows ou Linux.")}</li>
+            <li><b className="text-txt">{tx("Box, passerelle, appli")}</b> {tx("(Freebox, UniFi, Home Assistant…) : le connecteur, pas d'agent.")}</li>
+          </ul>
+          <p className="mt-1 text-xs text-dim">{tx("SSH, agent et connecteurs peuvent tourner ensemble sur une même machine : la première source qui répond fait foi, les autres complètent.")}</p>
+        </div>
         <NoteLine note={note} />
       </Card>
 

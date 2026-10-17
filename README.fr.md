@@ -103,6 +103,13 @@ Une machine peut être suivie de trois façons, qui se combinent. La première s
 2. **Services externes déjà installés sur le réseau** (connecteurs) : si vous faites déjà tourner Beszel, Proxmox, Uptime Kuma, MynetworK… MyServices lit leur API avec une clé en lecture seule. Rien n'est installé sur la machine.
 3. **Ping et recherche réseau** : indiquent seulement si une machine est allumée et quelles applis y répondent. La première recherche sur le réseau local se lance toute seule, puis se répète à la fréquence choisie. En mode manuel, vous choisissez les machines à suivre ; en mode automatique, les plus utiles sont ajoutées pour vous.
 
+> **Lequel choisir ? Une règle simple.**
+> - **Une machine Linux que vous administrez** : le SSH suffit. Un agent n'y sert que de filet de sécurité (si le SSH ne répond plus, l'agent prend le relais).
+> - **Une machine où le SSH est impossible** (aucune clé autorisée, port fermé, NAT, VPN) : l'agent, Windows ou Linux.
+> - **Une box, une passerelle, une appli** (Freebox, UniFi, Home Assistant...) : le connecteur, pas d'agent.
+>
+> SSH, agent et connecteurs peuvent tourner ensemble sur une même machine. SSH et agent lisent la santé de la machine ; un connecteur ajoute ce que lui seul connaît (machines virtuelles, clients réseau, GPU...), affiché en un badge par outil.
+
 <details>
 <summary><b>🆚 Agent ou services externes ? Ce que l'agent lit déjà</b></summary>
 
