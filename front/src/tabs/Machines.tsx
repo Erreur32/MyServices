@@ -783,11 +783,12 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                     onClick={(e) => { if (!(e.target as Element).closest("button, a, input, select, label, summary, [role=button]")) setDetailIp(m.ip); }}
                     onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) setDetailIp(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
                     <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td>
-                    <Td><button type="button" onClick={() => onMachine(m.ip)} className="flex items-baseline gap-2 text-left" title={tx("Voir ses services")}>
-                      <b className="font-semibold hover:text-link">{m.name}</b><span className="text-xs text-dim">{m.ip}</span></button></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
+                    <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><span className="text-xs text-dim">{m.ip}</span></span></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
                     <Td>{st(m, false)}</Td><Td><WatchList items={watchOf(m)} /></Td>
                     <Td><OsShort m={m} kind={osOf(m)} /></Td><Td><Servers m={m} snap={snap} max={2} /></Td>
-                    <Td><span className="inline-flex items-center gap-1.5"><b className="tabular-nums">{m.services}</b><DownBadge m={m} snap={snap} /></span></Td>
+                    <Td><span className="inline-flex items-center gap-1.5">
+                      <button type="button" onClick={() => onMachine(m.ip)} title={tx("Voir ses services")} aria-label={tx("Voir les services de {0}", m.name)}
+                        className="rounded-md px-1.5 py-0.5 hover:bg-link/10 hover:text-link"><b className="tabular-nums">{m.services}</b></button><DownBadge m={m} snap={snap} /></span></Td>
                     {snap.health && <><Td><HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} /></Td>
                       <Td><MeterCell h={h} what="cpu" /></Td><Td><MeterCell h={h} what="mem" /></Td><Td><MeterCell h={h} what="disk" /></Td><Td><SystemdCell h={h} /></Td><Td><UpdatesCell h={h} /></Td></>}
                     {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => setEditIp(m.ip)} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
