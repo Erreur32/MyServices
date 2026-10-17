@@ -55,8 +55,15 @@ class Advice(unittest.TestCase):
         m = machine(role="passerelle UniFi · DHCP / firewall", links={"sources": [{"label": "NetTool", "ok": True}]})
         self.check(adv.facts_of(m, scan={"os": "linux", "ssh_port": 22, "apps": ["UniFi"]}), "connector", "appliance", False)
 
-    def test_home_assistant_ssh_and_api_cohabit(self):
-        m = machine(info={"os": "Home Assistant OS"}, ssh={"alias": "ha"}, api=[{"label": "Home Assistant", "ok": True}])
+    def test_home_assistant_os_is_read_by_its_api_not_by_ssh_or_agent(self):
+        m = machine(ssh={"alias": "ha"}, api=[{"label": "Home Assistant", "ok": True}])   # SSH set up but not readable (erased at each reboot)
+        self.check(adv.facts_of(m), "connector", "home_assistant", False, None, ["connector"])
+        m = machine(info={"os": "Home Assistant OS 14"}, ssh={"alias": "ha"}, api=[{"label": "Home Assistant", "ok": True}])   # even with a working SSH add-on
+        self.check(adv.facts_of(m), "connector", "home_assistant", False, None, ["ssh", "connector"])
+        self.check(adv.facts_of(machine(), scan={"os": "linux", "apps": ["Home Assistant"]}), "ping", "home_assistant", False)
+
+    def test_home_assistant_in_a_container_on_a_normal_linux_is_a_normal_linux(self):
+        m = machine(info={"os": "Debian GNU/Linux 12"}, ssh={"alias": "srv"}, api=[{"label": "Home Assistant", "ok": True}])
         a = self.check(adv.facts_of(m), "ssh", "ssh_configured", True, "linux", ["ssh", "connector"])
         self.assertEqual(a["alternatives"], ["agent", "connector"])
 

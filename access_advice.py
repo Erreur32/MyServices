@@ -5,6 +5,7 @@ elle reçoit ce que l'on sait de la machine et répond. Rien n'est décidé à l
 
 Règle (la même que dans le README) :
 - box, passerelle, appli fermée (Freebox, UniFi…) : le connecteur, jamais d'agent ;
+- Home Assistant OS : son API (connecteur), ni SSH ni agent : l'accès SSH y est effacé à chaque redémarrage (constat de l'auteur) ;
 - PC Windows : l'agent ;
 - machine Linux où le SSH est possible : le SSH (l'agent n'y sert que de secours) ;
 - machine où le SSH est impossible : l'agent ;
@@ -54,6 +55,17 @@ def is_appliance(f: dict) -> bool:
     )
 
 
+def is_home_assistant_os(f: dict) -> bool:
+    """Home Assistant OS : système fermé, lu par l'API de Home Assistant. Reconnu par le relevé SSH, ou, sans relevé SSH, par l'appli reconnue,
+    le connecteur ou l'icône (un Home Assistant en conteneur sur un Linux lu par SSH reste une machine Linux normale)."""
+    if "home assistant" in str(f.get("info_os") or "").lower():
+        return True
+    if f.get("ssh_ok"):
+        return False
+    words = [str(a).lower() for a in (f.get("apps") or []) + (f.get("connectors") or [])] + [str(f.get("icon") or "").lower()]
+    return any(re.search(r"home[ _-]?assistant", w) for w in words)
+
+
 def advise(f: dict) -> dict:
     """Recommandation pour une machine décrite par ses faits (clés facultatives) :
     ip, os (réglage « windows »), info_os (relevé SSH), scan_os, ttl, ping, icon, role, gateway, apps, ssh_port (vu par le scan),
@@ -72,6 +84,8 @@ def advise(f: dict) -> dict:
 
     if is_appliance(f):
         return answer("connector" if connectors else "ping", "appliance", ["ping"])
+    if is_home_assistant_os(f):   # ni SSH ni agent : l'API
+        return answer("connector" if connectors else "ping", "home_assistant", ["ping"])
     if kind == "windows":
         return answer("agent", "windows", ["connector"] if connectors else [], True, "windows")
     if kind in ("ios", "network"):
