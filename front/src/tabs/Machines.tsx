@@ -341,7 +341,7 @@ function WatchList({ items, wrap = false, quiet = false, ip }: Readonly<{ items:
   return (
     <div className="flex flex-wrap items-center gap-1" role="list" aria-label={tx("À surveiller")}>   {/* tout est montré, jamais caché : les pastilles passent à la ligne */}
       {items.map((it, i) => {
-        const Icon = WATCH_ICON[it.kind], cls = `grid h-7 w-7 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`;
+        const Icon = WATCH_ICON[it.kind], cls = `grid h-6 w-6 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`;
         if (ip && pick) return <button key={i} type="button" role="listitem" title={watchTip(it, tx("Cliquer pour voir où"))} aria-label={it.text} onClick={() => pick(ip, it.kind)} className={`${cls} hover:brightness-125`}><Icon size={14} aria-hidden /></button>;
         return <span key={i} role="listitem" tabIndex={0} title={watchTip(it)} className={cls}><Icon size={14} aria-hidden /></span>;
       })}
@@ -1288,7 +1288,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                     <Td><span className="inline-flex items-center gap-1.5">
                       <button type="button" onClick={() => onMachine(m.ip)} title={tx("Voir ses services")} aria-label={tx("Voir les services de {0}", m.name)}
                         className="rounded-md px-1.5 py-0.5 hover:bg-link/10 hover:text-link"><span className="tabular-nums">{m.services}</span></button><DownBadge m={m} snap={snap} /></span></Td>
-                    <Td><span className="flex flex-wrap items-center gap-1.5">   {/* one column: the level, then what explains it (the updates have their flag near the name) */}
+                    <Td><span className="flex flex-wrap items-center gap-1.5 [&>span]:h-6">   {/* same height (24 px) for the level badge and the cause badges; one column: the level, then what explains it (the updates have their flag near the name) */}
                       {snap.health && <HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} />}
                       <WatchList ip={m.ip} quiet={!!snap.health} items={watchOf(m).filter((i) => i.kind !== "updates")} /></span></Td>
                     {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="!px-1.5"><GpuCellView list={gpusOf(m)} /></Td>}
