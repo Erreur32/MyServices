@@ -14,7 +14,7 @@ export function Overlay({ title, onClose, children, wide }: { title: ReactNode; 
     <div className="fixed inset-0 z-50 grid items-start justify-items-center overflow-y-auto p-4 sm:pt-[6vh]">
       {/* the dark backdrop is a real button: a click beside the window closes it (Escape and « Close » do too) */}
       <button type="button" tabIndex={-1} aria-label={tx("Fermer")} className="fixed inset-0 cursor-default bg-black/90 backdrop-blur-md" onClick={onClose} />
-      <div role="dialog" aria-modal="true" className={`relative w-full ${wide ? "max-w-6xl" : "max-w-2xl"} rounded-2xl border border-link/40 bg-card p-4 shadow-2xl ring-1 ring-black/40`}>
+      <div role="dialog" aria-modal="true" className={`relative w-full ${wide ? "max-w-[var(--content-max,72rem)]" : "max-w-2xl"} rounded-2xl border border-link/40 bg-card p-4 shadow-2xl ring-1 ring-black/40`}>
         <div className="flex items-start justify-between gap-3">
           <h2 className="flex items-center gap-2 text-lg font-bold">{title}</h2>
           <button type="button" className={quiet} onClick={onClose} aria-label={tx("Fermer")}><X size={14} />{tx("Fermer")}</button>

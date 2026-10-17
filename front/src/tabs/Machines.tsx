@@ -508,26 +508,25 @@ function SoftwareSection({ m, servers, ha, from }: Readonly<{ m: Machine; server
   );
 }
 
-/** Updates waiting on a machine, folded by default: the packages (apt, « name → version ») or the Windows updates, up to 30 named */
+/** Updates waiting on a machine, always shown in the detail window: the packages (apt, « name → version ») or the Windows updates, up to 30 named */
 function UpdatesFold({ h, windows }: Readonly<{ h: HealthHost; windows: boolean }>) {
   const n = h.apt?.upgradable ?? 0, list = h.apt?.sample ?? [];
   if (!n) return null;
   const more = n - list.length;
   return (
-    <details className="group my-1 rounded-lg border border-line/60">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-1.5 text-xs hover:bg-bg2/50 [&::-webkit-details-marker]:hidden">
-        <ChevronRight size={13} className="shrink-0 text-dim transition-transform group-open:rotate-90" aria-hidden />
+    <div className="my-1 rounded-lg border border-line/60">
+      <div className="flex items-center gap-2 px-2.5 py-1.5 text-xs">
         <ArrowUpCircle size={13} className="shrink-0 text-warn" aria-hidden />
         <span className="text-warn">{windows ? tx("{0} mise(s) à jour Windows", n) : tx("{0} paquet(s) à mettre à jour", n)}</span>
         {!!h.apt?.security && <Badge tone="bad">{tx("{0} de sécurité", h.apt.security)}</Badge>}
-      </summary>
+      </div>
       {list.length > 0 && (
-        <ul className="flex max-h-56 flex-col gap-0.5 overflow-y-auto border-t border-line/40 px-2.5 py-1.5 font-mono text-[11px] text-muted">
+        <ul className="flex max-h-72 flex-col gap-0.5 overflow-y-auto border-t border-line/40 px-2.5 py-1.5 font-mono text-[11px] text-muted">
           {list.map((u) => <li key={u} className="break-all">{u}</li>)}
           {more > 0 && <li className="font-sans text-dim">{tx("… et {0} autres", more)}</li>}
         </ul>
       )}
-    </details>
+    </div>
   );
 }
 
@@ -771,7 +770,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           {view === "table" && <Table fit head={<>
-            <th className="w-8 px-1" aria-label={tx("Détails")} /><th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="watch" sort={sort}>{tx("À surveiller")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
+            <th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="watch" sort={sort}>{tx("À surveiller")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
             <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th><span title={tx("Systemd")}>{tx("Syst.")}</span></Th><Th><span title={tx("Mises à jour")}>{tx("MAJ")}</span></Th></>}
             {admin && <th className="w-8 px-1" aria-label={tx("Réglages")} />}
           </>}>
@@ -780,11 +779,9 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
               return (
                 <Fragment key={m.ip}>
                   <tr className={`cursor-pointer hover:bg-bg2/60 ${isOff(m) ? "opacity-50" : ""}`}
-                    onClick={(e) => { if (!(e.target as Element).closest("button, a, input, select, label, summary, [role=button]")) setDetailIp(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : le bouton « détail » */}
-                    <td className="w-8 px-1 py-2 align-middle">
-                      <button type="button" onClick={() => setDetailIp(m.ip)} aria-haspopup="dialog" aria-label={tx("Détails de {0}", m.name)} title={tx("Voir le détail")}
-                        className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><Info size={14} aria-hidden /></button>
-                    </td>
+                    tabIndex={0} aria-haspopup="dialog" aria-label={tx("Détails de {0}", m.name)}
+                    onClick={(e) => { if (!(e.target as Element).closest("button, a, input, select, label, summary, [role=button]")) setDetailIp(m.ip); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) setDetailIp(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
                     <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td>
                     <Td><button type="button" onClick={() => onMachine(m.ip)} className="flex items-baseline gap-2 text-left" title={tx("Voir ses services")}>
                       <b className="font-semibold hover:text-link">{m.name}</b><span className="text-xs text-dim">{m.ip}</span></button></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
