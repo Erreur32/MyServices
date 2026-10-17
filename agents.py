@@ -14,6 +14,7 @@ import json
 import re
 import secrets
 import sqlite3
+import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -26,6 +27,8 @@ MAX_BODY = 256 * 1024     # octets : un relevé fait quelques ko
 DEFAULT_INTERVAL = 900    # s : 15 min
 MIN_INTERVAL, MAX_INTERVAL = 60, 86400
 FRESH_MULT = 2.5          # un relevé plus vieux que 2,5 × l'intervalle est périmé
+MIN_GAP = 60              # s: an agent sends at most one report per minute (the rest gets 429)
+BAD_MAX, BAD_WINDOW = 10, 15 * 60   # bad tokens tolerated per IP, then refused until the window ends
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS agents (
@@ -33,6 +36,10 @@ CREATE TABLE IF NOT EXISTS agents (
   created REAL NOT NULL, created_by TEXT, revoked REAL, last_seen REAL, last_ip TEXT,
   interval INTEGER, version TEXT, os_name TEXT, report TEXT);
 """
+
+
+_bad: dict[str, list[float]] = {}   # IP -> dates of its recent bad tokens
+_bad_lock = threading.Lock()
 
 
 class AgentError(Exception):
@@ -45,7 +52,8 @@ class Agents:
         with self._db() as db:
             db.executescript(SCHEMA)
             have = {r["name"] for r in db.execute("PRAGMA table_info(agents)")}
-            for col, ddl in (("auto_update", "INTEGER NOT NULL DEFAULT 0"), ("update_requested", "REAL")):   # bases créées avant la mise à jour des agents
+            for col, ddl in (("auto_update", "INTEGER NOT NULL DEFAULT 0"), ("update_requested", "REAL"),
+                             ("hostname", "TEXT"), ("host_pending", "TEXT")):   # databases created before these columns
                 if col not in have:
                     db.execute(f"ALTER TABLE agents ADD COLUMN {col} {ddl}")
 
@@ -126,6 +134,45 @@ class Agents:
         with self._db() as db:
             if not db.execute("DELETE FROM agents WHERE id = ? AND revoked IS NOT NULL", (aid,)).rowcount:
                 raise AgentError("agent inconnu ou pas révoqué (révoquez-le d'abord)")
+
+    def too_many_bad(self, ip: str) -> bool:
+        """True when this IP presented too many bad tokens in the window (in memory: resets on restart)."""
+        with _bad_lock:
+            recent = [t for t in _bad.get(ip, []) if t > time.time() - BAD_WINDOW]
+            _bad[ip] = recent
+            return len(recent) >= BAD_MAX
+
+    def note_bad(self, ip: str) -> None:
+        with _bad_lock:
+            _bad.setdefault(ip, []).append(time.time())
+            if len(_bad) > 1000:   # drop IPs with nothing recent so the table stays small
+                for k in [k for k, v in _bad.items() if not v or v[-1] <= time.time() - BAD_WINDOW]:
+                    del _bad[k]
+
+    def claim_host(self, aid: int, host: object) -> bool:
+        """Host name announced by the agent. The first name seen is kept; another name is refused (token copied to another
+        machine?) and held until the admin confirms it. True when the report can be stored."""
+        host = str(host or "").strip()[:64]
+        if not host:
+            return True
+        with self._db() as db:
+            r = db.execute("SELECT hostname FROM agents WHERE id = ?", (aid,)).fetchone()
+            if r is None:
+                return False
+            if not r["hostname"]:
+                db.execute("UPDATE agents SET hostname = ?, host_pending = NULL WHERE id = ?", (host, aid))
+                return True
+            if r["hostname"].casefold() == host.casefold():
+                return True
+            db.execute("UPDATE agents SET host_pending = ? WHERE id = ?", (host, aid))
+            return False
+
+    def confirm_host(self, aid: int) -> None:
+        """The admin accepts the new host name (machine renamed)."""
+        with self._db() as db:
+            if not db.execute("UPDATE agents SET hostname = host_pending, host_pending = NULL "
+                              "WHERE id = ? AND host_pending IS NOT NULL AND revoked IS NULL", (aid,)).rowcount:
+                raise AgentError("aucun changement de nom à confirmer")
 
     def check(self, raw: str | None) -> dict:
         """Fiche de l'agent si le jeton est valable ; AgentError(code) sinon."""
@@ -342,7 +389,8 @@ def _public(r: sqlite3.Row) -> dict:
             "outdated": bool(r["version"]) and older(r["version"], VERSION),
             "id": r["id"], "ip": r["ip"], "name": r["name"], "hint": r["hint"], "created": r["created"],
             "created_by": r["created_by"], "revoked": r["revoked"], "last_seen": r["last_seen"], "last_ip": r["last_ip"],
-            "interval": interval, "version": r["version"], "os": r["os_name"], "state": state}
+            "interval": interval, "version": r["version"], "os": r["os_name"], "state": state,
+            "hostname": r["hostname"], "host_pending": r["host_pending"]}
 
 
 def _h(raw: str) -> str:

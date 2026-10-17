@@ -564,6 +564,8 @@ export interface AgentHardware {
 
 /** Réglages → Agents (api/v1/agents) */
 export interface AgentInfo {
+  hostname?: string | null;     // nom de poste retenu au premier relevé
+  host_pending?: string | null; // autre nom de poste vu : relevés refusés jusqu'à confirmation de l'admin
   auto_update?: boolean;       // mise à jour automatique : l'agent récupère le script du serveur s'il est plus ancien
   update_requested?: boolean;  // « mettre à jour maintenant » demandé, pas encore pris en compte
   latest_version?: string;     // version du script d'agent servi par cette installation

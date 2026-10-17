@@ -45,8 +45,12 @@ class Agents(unittest.TestCase):
         self.c.post(BASE + "/login", json={"username": "admin", "password": PW})
         self.h = {"X-CSRF-Token": self.c.cookies["ms_csrf"]}
         self.anon = TestClient(api.app, client=("192.168.1.51", 50000))
+        self.gap, agents.MIN_GAP = agents.MIN_GAP, 0   # most tests send several reports in a row
+        agents._bad.clear()
 
     def tearDown(self):
+        agents.MIN_GAP = self.gap
+        agents._bad.clear()
         self.tmp.cleanup()
 
     def create(self, ip="192.168.1.60"):
@@ -115,6 +119,45 @@ class Agents(unittest.TestCase):
         self.assertEqual(r.status_code, 400)
         big = {**REPORT, "pad": "x" * agents.MAX_BODY}
         self.assertEqual(self.send(token, big).status_code, 413)
+
+    def test_un_releve_par_minute(self):
+        agents.MIN_GAP = 60
+        token, _ = self.create()
+        self.assertEqual(self.send(token).status_code, 200)
+        r = self.send(token)
+        self.assertEqual((r.status_code, r.json()["code"]), (429, "TOO_SOON"))
+        self.assertGreater(int(r.headers["Retry-After"]), 0)
+        agents.MIN_GAP = 0
+        self.assertEqual(self.send(token).status_code, 200)
+
+    def test_faux_jetons_bloquent_l_ip(self):
+        token, _ = self.create()
+        for _ in range(agents.BAD_MAX):
+            self.assertEqual(self.send("msv_agent_faux").status_code, 401)
+        r = self.send("msv_agent_faux")
+        self.assertEqual((r.status_code, r.json()["code"]), (429, "TOO_MANY_BAD_TOKENS"))
+        self.assertEqual(self.send(token).status_code, 429)   # same IP: even the good token waits
+        other = TestClient(api.app, client=("192.168.1.52", 50000))
+        self.assertEqual(other.post(BASE + "/agent/report", json=REPORT, headers={"Authorization": f"Bearer {token}"}).status_code, 200)
+
+    def test_jeton_revoque_ne_compte_pas_comme_faux_jeton(self):
+        token, info = self.create()
+        self.c.delete(f"{BASE}/agents/{info['id']}", headers=self.h)
+        for _ in range(agents.BAD_MAX + 2):
+            self.assertEqual(self.send(token).status_code, 401)   # never 429: a known agent still retrying
+
+    def test_nom_de_poste_different_refuse_jusqu_a_confirmation(self):
+        token, info = self.create()
+        self.assertEqual(self.send(token).status_code, 200)
+        self.assertEqual(self.send(token, {**REPORT, "host": "gamer32"}).status_code, 200)   # case does not matter
+        r = self.send(token, {**REPORT, "host": "AUTRE-PC"})
+        self.assertEqual((r.status_code, r.json()["code"]), (409, "HOST_CHANGED"))
+        a = next(x for x in self.c.get(BASE + "/agents").json()["agents"] if x["id"] == info["id"])
+        self.assertEqual((a["hostname"], a["host_pending"]), ("GAMER32", "AUTRE-PC"))
+        self.assertEqual(self.anon.post(BASE + f"/agents/{info['id']}/confirm-host").status_code, 401)
+        self.assertEqual(self.c.post(BASE + f"/agents/{info['id']}/confirm-host", headers=self.h).status_code, 200)
+        self.assertEqual(self.send(token, {**REPORT, "host": "AUTRE-PC"}).status_code, 200)
+        self.assertEqual(self.c.post(BASE + f"/agents/{info['id']}/confirm-host", headers=self.h).status_code, 400)   # nothing pending
 
     def test_fusion_dans_la_sante(self):
         token, info = self.create()

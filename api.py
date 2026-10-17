@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import math
 import mimetypes
 import os
 import secrets
@@ -149,9 +150,15 @@ def agents_store():
 def agent_guard(request: Request, raw: str) -> JSONResponse | None:
     """Jeton d'agent valable : la fiche est posée dans request.state.agent."""
     import agents
+    store_, ip = agents_store(), ip_of(request)
+    if store_.too_many_bad(ip):
+        return JSONResponse({"error": "trop de jetons refusés : réessayer dans 15 minutes", "code": "TOO_MANY_BAD_TOKENS"},
+                            status_code=429, headers={**SECURITY_HEADERS, "Retry-After": str(agents.BAD_WINDOW)})
     try:
-        request.state.agent = agents_store().check(raw)
+        request.state.agent = store_.check(raw)
     except agents.AgentError as e:
+        if str(e) in ("TOKEN_MISSING", "TOKEN_INVALID"):   # a revoked token is a known agent still retrying, not a guess
+            store_.note_bad(ip)
         return JSONResponse({"error": str(e), "code": str(e)}, status_code=401, headers=SECURITY_HEADERS)
     return None
 
@@ -935,6 +942,12 @@ class NewAgent(BaseModel):
 @app.post(AGENT_REPORT, tags=["agents"], summary="Relevé de santé envoyé par un agent (jeton msv_agent_)")
 async def agent_report(request: Request):
     import agents
+    a = request.state.agent
+    remaining = agents.MIN_GAP - (time.time() - a["last_seen"]) if a["last_seen"] else 0
+    if remaining > 0:
+        wait = math.ceil(remaining)
+        return JSONResponse({"error": f"trop tôt, réessayer dans {wait} s", "code": "TOO_SOON"}, status_code=429,
+                            headers={**SECURITY_HEADERS, "Retry-After": str(wait)})
     raw = await request.body()
     if len(raw) > agents.MAX_BODY:
         return deny(413, "relevé trop gros")
@@ -944,7 +957,10 @@ async def agent_report(request: Request):
         return deny(400, "relevé invalide : JSON attendu")
     except agents.AgentError as e:
         return deny(400, str(e))
-    a = request.state.agent
+    if not agents_store().claim_host(a["id"], report.get("host")):
+        store().audit("agent : nom de poste différent, relevé refusé", "agent", ip_of(request), f"« {a['name']} » ({a['ip']}) : {str(report.get('host'))[:64]}")
+        return JSONResponse({"error": "nom de poste différent de celui connu : à confirmer dans MyServices (Réglages → Agents)", "code": "HOST_CHANGED"},
+                            status_code=409, headers=SECURITY_HEADERS)
     before, now = agents_store().store_report(a["id"], report, ip_of(request))
     first, upgraded = not a["last_seen"], str(report.get("version") or "") != (a.get("version") or "")
     # La santé est relue tout de suite au premier relevé et quand le niveau de la machine change (sinon, au prochain horaire)
@@ -1027,6 +1043,19 @@ def agents_update(aid: int, request: Request):
         return deny(400, str(e))
     store().audit("mise à jour d'agent demandée", request.state.user["username"], ip_of(request), str(aid))
     return {"ok": True, "message": "l'agent se mettra à jour à son prochain relevé"}
+
+
+@app.post(API + "/agents/{aid}/confirm-host", tags=["agents"], summary="Accepter le nouveau nom de poste d'un agent (machine renommée ; session admin)")
+def agents_confirm_host(aid: int, request: Request):
+    import agents
+    if denied := session_admin(request):
+        return denied
+    try:
+        agents_store().confirm_host(aid)
+    except agents.AgentError as e:
+        return deny(400, str(e))
+    store().audit("nom de poste d'agent confirmé", request.state.user["username"], ip_of(request), str(aid))
+    return {"ok": True}
 
 
 @app.delete(API + "/agents/{aid}", tags=["agents"], summary="Révoquer un agent (session admin)")

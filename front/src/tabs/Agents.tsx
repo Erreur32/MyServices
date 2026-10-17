@@ -297,6 +297,20 @@ function UpdateControls({ a, reload, setNote }: { a: AgentInfo; reload: () => vo
   );
 }
 
+/** Le jeton arrive d'un poste qui porte un autre nom que le premier vu (machine renommée, ou jeton copié ailleurs) : ses relevés sont refusés tant que l'admin n'a pas confirmé. */
+function HostConfirm({ a, reload, setNote }: { a: AgentInfo; reload: () => void; setNote: (n: Note) => void }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-warn/50 bg-warn/10 px-2.5 py-1.5 text-xs text-txt" role="alert">
+      <span className="min-w-0 flex-1">{tx("Relevés refusés : le poste s'appelle maintenant {0} (connu : {1}). Machine renommée, ou jeton copié sur un autre PC ?", a.host_pending ?? "?", a.hostname ?? "?")}</span>
+      <button type="button" disabled={busy} className="inline-flex h-8 items-center gap-2 rounded-lg border border-warn/60 bg-bg2 px-2.5 font-semibold leading-none hover:border-link disabled:opacity-50"
+        onClick={() => { setBusy(true); void act(() => send("POST", `agents/${a.id}/confirm-host`), tx("nom de poste confirmé"), setNote).then((ok) => { setBusy(false); if (ok) reload(); }); }}>
+        <Check size={14} className="shrink-0" aria-hidden /><span className="leading-none">{tx("Confirmer ce nom")}</span>
+      </button>
+    </div>
+  );
+}
+
 /** Carte d'une machine qui a un agent : état, dernier relevé, nouvelle commande, révocation */
 function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
   a: AgentInfo; conf?: MachineConf; ip: string; focus: boolean; busy: boolean; onRenew?: () => void; reload: () => void;  // onRenew : seulement pour un PC Windows (la commande est PowerShell)
@@ -305,7 +319,7 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
   // Carte repliable : l'en-tête reste, le détail et les boutons se replient. Repliée d'office quand l'agent va bien (actif) ;
   // dépliée s'il y a quelque chose à voir (silencieux, en attente du premier relevé). Un clic de l'utilisateur l'emporte ensuite.
   const [choice, setChoice] = useState<boolean | null>(null);
-  const folded = choice ?? a.state === "actif";
+  const folded = choice ?? (a.state === "actif" && !a.host_pending);
   const setFolded = (v: boolean) => setChoice(v);
   const [tone, label] = STATE[a.state];
   return (
@@ -317,6 +331,7 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
           <b className="block truncate">{conf?.name ?? a.name}</b>
           <span className="block truncate text-xs text-dim">{ip}</span>
         </span>
+        {a.host_pending && <Badge tone="warn" title={tx("Nom de poste différent : {0} au lieu de {1}", a.host_pending, a.hostname ?? "?")}>{tx("nom à confirmer")}</Badge>}
         {a.auto_update && <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-ok/60 bg-ok/15 text-ok" title={tx("Mise à jour automatique activée")}><RotateCw size={13} aria-hidden /></span>}
         {a.outdated
           ? <Badge tone="warn" title={a.update_requested ? tx("Mise à jour demandée : l'agent se met à jour à son prochain relevé") : tx("Agent v{0} : la v{1} est disponible", a.version ?? "?", a.latest_version ?? "?")}><ArrowUpCircle size={11} aria-hidden />{a.update_requested ? tx("maj demandée") : tx("pas à jour")} · v{a.version}</Badge>
@@ -331,8 +346,10 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
         <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Version")}</dt>
           <dd className="min-w-0">{a.version ? <>v{a.version}{a.outdated && <span className="text-warn"> · {tx("v{0} disponible", a.latest_version ?? "?")}</span>}</> : "-"}</dd></div>
         <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Fréquence")}</dt><dd className="min-w-0">{tx("toutes les {0} min", Math.round(a.interval / 60))}</dd></div>
+        <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Nom du poste")}</dt><dd className="min-w-0 break-words">{a.hostname ?? "-"}</dd></div>
         <div className="flex gap-2 sm:col-span-2"><dt className="w-24 shrink-0 text-dim">{tx("Jeton")}</dt><dd className="min-w-0"><code className="font-mono">{tx("msv_")}agent_…{a.hint}</code></dd></div>
       </dl>
+      {a.host_pending && <HostConfirm a={a} reload={reload} setNote={setNote} />}
       <UpdateControls a={a} reload={reload} setNote={setNote} />
       <div className="flex flex-wrap items-center gap-1.5">
         {confirm === "" && <>

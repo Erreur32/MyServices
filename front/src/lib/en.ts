@@ -2172,4 +2172,10 @@ export const EN: Record<string, string> = {
   "Aussi : {0} (détail déplié)": "Also: {0} (unfolded detail)",
   "Ressources": "Resources",
   "Repères": "Markers",
+  "nom à confirmer": "name to confirm",
+  "Nom de poste différent : {0} au lieu de {1}": "Different host name: {0} instead of {1}",
+  "Nom du poste": "Host name",
+  "Relevés refusés : le poste s'appelle maintenant {0} (connu : {1}). Machine renommée, ou jeton copié sur un autre PC ?": "Reports refused: the host is now called {0} (known: {1}). Machine renamed, or token copied to another PC?",
+  "Confirmer ce nom": "Confirm this name",
+  "nom de poste confirmé": "host name confirmed",
 };
