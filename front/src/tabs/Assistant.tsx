@@ -7,12 +7,12 @@ import { read, send } from "../api";
 import type { Snapshot } from "../api";
 import { MachineIcon } from "../components/MachineIcon";
 import { AssistantNetwork, proposedFrom } from "../components/AssistantNetwork";
+import { SetupModal, type Setup } from "../components/SetupModal";
 import { SourceBadges } from "../components/SourceBadges";
 import { NoteLine } from "../components/form";
 import { Badge, Card, Dim } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
 import { STEPS, advance, isFinished, type AssistantStep, loadProgress, previousStep, resetProgress, saveProgress, thisMachine, type AssistantProgress } from "../lib/assistant";
-import { openConnector } from "../lib/connectorPrefill";
 import { savedFor } from "../lib/savedFor";
 import { STATUS_RANK, describeAdvice, summary } from "../lib/access";
 import { act, primary, quiet, type Note } from "../lib/forms";
@@ -35,6 +35,8 @@ export function Assistant({ snap }: { snap: Snapshot }) {
   const index = STEPS.findIndex((s) => s.id === p.current), step = STEPS[index], last = index === STEPS.length - 1;
   const finished = isFinished(p);
   // Chaque étape dit si elle est déjà en ordre (rien à régler) : « Passer » n'a alors plus de sens et disparaît
+  const [setup, setSetup] = useState<Setup | null>(null), [rev, setRev] = useState(0);   // fenêtre de réglage ouverte ; rev : les étapes se relisent à sa fermeture
+  const closeSetup = () => { setSetup(null); setRev((n) => n + 1); };
   const [inOrder, setInOrder] = useState<Partial<Record<AssistantStep, boolean>>>({ welcome: true });
   const report = useCallback((id: AssistantStep, ok: boolean) => setInOrder((o) => (o[id] === ok ? o : { ...o, [id]: ok })), []);
 
@@ -68,10 +70,10 @@ export function Assistant({ snap }: { snap: Snapshot }) {
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-dim">{tx("Étape {0} sur {1}", index + 1, STEPS.length)}</p>
         {p.current === "welcome" && <Welcome snap={snap} />}
         {p.current === "machine" && <ThisMachine snap={snap} chosen={p.host} onChoose={(host) => store({ ...p, host })} report={report} />}
-        {p.current === "network" && <Network snap={snap} report={report} />}
-        {p.current === "access" && <Access snap={snap} report={report} />}
-        {p.current === "tools" && <Tools snap={snap} report={report} />}
-        {p.current === "alerts" && <AlertsStep report={report} />}
+        {p.current === "network" && <Network snap={snap} report={report} open={setSetup} />}
+        {p.current === "access" && <Access snap={snap} report={report} open={setSetup} rev={rev} />}
+        {p.current === "tools" && <Tools snap={snap} report={report} open={setSetup} rev={rev} />}
+        {p.current === "alerts" && <AlertsStep report={report} open={setSetup} rev={rev} />}
         {!step.ready && <Soon title={step.title} />}
         <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-line/60 pt-4">
           {index > 0 && <button type="button" className={quiet} onClick={() => update({ ...p, current: previousStep(p.current) })}><ArrowLeft size={14} aria-hidden />{tx("Retour")}</button>}
@@ -86,6 +88,7 @@ export function Assistant({ snap }: { snap: Snapshot }) {
         </div>
       </Card>
 
+      {setup && <SetupModal setup={setup} snap={snap} onClose={closeSetup} onSwitch={setSetup} />}
       {finished && <Recap snap={snap} onReview={() => update({ ...p, current: "access" })} />}
       <p className="mt-6 text-center text-xs text-dim">
         {tx("Votre progression est enregistrée.")}{" "}
@@ -172,7 +175,9 @@ function ThisMachine({ snap, chosen, onChoose, report }: { snap: Snapshot; chose
 }
 
 /** Étape 3 : chercher les autres machines du réseau et choisir celles à suivre (la recherche et l'ajout existent déjà dans NetworkStep) */
-function Network({ snap, report }: { snap: Snapshot; report: Report }) {
+type Open = (s: Setup) => void;
+
+function Network({ snap, report, open }: { snap: Snapshot; report: Report; open: Open }) {
   const { net, reload } = useNetScan();
   const known = snap.data.machine_list.map((m) => m.ip);
   useEffect(() => report("network", net?.phase === "done" && proposedFrom(net, known).length === 0), [net, known.join(), report]);   // recherche faite, rien de nouveau à suivre
@@ -180,17 +185,17 @@ function Network({ snap, report }: { snap: Snapshot; report: Report }) {
     <div>
       <h2 className="text-xl font-bold">{tx("Le réseau")}</h2>
       <p className="mt-2 text-sm text-muted">{tx("Cherchons les machines de votre réseau, puis choisissez celles à suivre. Rien n'est ajouté sans votre accord.")}</p>
-      <AssistantNetwork net={net} reload={reload} known={known} />
+      <AssistantNetwork net={net} reload={reload} known={known} onManual={() => open({ kind: "machine" })} />
     </div>
   );
 }
 
 /** Étape 4 : une machine à la fois, la méthode de lecture recommandée et ce qu'il reste à faire */
-function Access({ snap, report }: { snap: Snapshot; report: Report }) {
+function Access({ snap, report, open, rev }: { snap: Snapshot; report: Report; open: Open; rev: number }) {
   const [advice, setAdvice] = useState<Record<string, Advice> | null>(null), [error, setError] = useState(""), [i, setI] = useState(0);
   useEffect(() => {
     read<{ advice: Record<string, Advice> }>("machines/advice").then((r) => setAdvice(r.advice)).catch((e: Error) => setError(e.message));
-  }, [snap.data.generated]);
+  }, [snap.data.generated, rev]);
   useEffect(() => { if (advice) report("access", Object.entries(advice).every(([ip, a]) => describeAdvice(ip, a).status === "ok")); }, [advice, report]);   // tout est déjà en place
   if (error) return <p className="text-sm text-warn">⚠ {error}</p>;
   if (!advice) return <p className="flex items-center gap-2 text-sm text-muted"><Loader2 size={16} className="animate-spin" aria-hidden />{tx("Chargement…")}</p>;
@@ -219,7 +224,7 @@ function Access({ snap, report }: { snap: Snapshot; report: Report }) {
             {v.status === "optimize" && <Badge tone="warn" title={tx("La machine est déjà lue, mais pas par la meilleure méthode.")}>{tx("à optimiser")}</Badge>}
             {v.status === "todo" && <Badge tone="info">{tx("à régler")}</Badge>}</p>
           <p className="mt-1 text-sm text-muted">{v.why}</p>
-          {v.action && <a href={v.action.href} className={`${primary} mt-3 inline-flex no-underline`}>{v.action.label}<ArrowRight size={14} aria-hidden /></a>}
+          {v.action && <button type="button" className={`${primary} mt-3`} onClick={() => open(v.action!.setup === "ssh" ? { kind: "ssh", ip: m.ip, name: m.name } : v.action!.setup === "agent" ? { kind: "agent", ip: m.ip, name: m.name, agent: advice[m.ip].agent_kind } : { kind: "connector", ip: m.ip, name: m.name })}>{v.action.label}<ArrowRight size={14} aria-hidden /></button>}
           {v.others.length > 0 && <p className="mt-2 text-xs text-dim">{tx("Autres possibilités :")} {v.others.join(", ")}</p>}
         </div>
       </div>
@@ -233,9 +238,9 @@ function Access({ snap, report }: { snap: Snapshot; report: Report }) {
 }
 
 /** Étape 5 : les outils reconnus sur le réseau que MyServices sait lire par leur API, pas encore reliés */
-function Tools({ snap, report }: { snap: Snapshot; report: Report }) {
+function Tools({ snap, report, open, rev }: { snap: Snapshot; report: Report; open: Open; rev: number }) {
   const [instances, setInstances] = useState<ConnectorInstance[] | null>(null);
-  useEffect(() => { read<ConnectorsState>("connectors/settings").then((c) => setInstances(c.instances)).catch(() => setInstances([])); }, [snap.data.generated]);
+  useEffect(() => { read<ConnectorsState>("connectors/settings").then((c) => setInstances(c.instances)).catch(() => setInstances([])); }, [snap.data.generated, rev]);
   const list: Proposal[] | null = instances ? (snap.data.proposals ?? []).filter((x) => !savedFor(x, instances)) : null;
   useEffect(() => report("tools", !!list && list.length === 0), [list?.length, report]);   // aucun outil reconnu qui reste à relier
   const how = (c: Proposal["confidence"]) => c === "sure" ? tx("conteneur reconnu") : c === "probable" ? tx("page reconnue") : tx("à vérifier");
@@ -255,7 +260,7 @@ function Tools({ snap, report }: { snap: Snapshot; report: Report }) {
                 {appIcon([x.label]) && <img src={appIcon([x.label])!} alt="" aria-hidden className="h-5 w-5 object-contain" />}
                 <b className="text-sm text-txt">{x.label}</b><Dim>{x.machine || x.ip}</Dim>
                 <Badge tone={x.confidence === "sure" ? "ok" : x.confidence === "probable" ? "info" : "off"}>{how(x.confidence)}</Badge>
-                <button type="button" className={`${x.confidence === "possible" ? quiet : primary} ml-auto`} onClick={() => openConnector({ type: x.connector, name: x.connector, url: x.url })}>{tx("Configurer")}</button>
+                <button type="button" className={`${x.confidence === "possible" ? quiet : primary} ml-auto`} onClick={() => open({ kind: "connector", ip: x.ip, name: x.label, proposal: x })}>{tx("Configurer")}</button>
               </li>
             ))}
           </ul>
@@ -266,9 +271,9 @@ function Tools({ snap, report }: { snap: Snapshot; report: Report }) {
 }
 
 /** Étape 6 : un canal d'alerte qui marche (Discord, Telegram ou webhook), avec un message d'essai */
-function AlertsStep({ report }: { report: Report }) {
+function AlertsStep({ report, open, rev }: { report: Report; open: Open; rev: number }) {
   const [channels, setChannels] = useState<AlertChannel[] | null>(null), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(0);
-  useEffect(() => { read<{ channels: AlertChannel[] }>("alerts").then((r) => setChannels(r.channels)).catch(() => setChannels([])); }, []);
+  useEffect(() => { read<{ channels: AlertChannel[] }>("alerts").then((r) => setChannels(r.channels)).catch(() => setChannels([])); }, [rev]);
   const ready = (channels ?? []).filter((c) => c.enabled);
   useEffect(() => report("alerts", ready.length > 0), [ready.length, report]);   // un canal d'alerte marche déjà
   const test = async (id: number) => { setBusy(id); await act(() => send("POST", `alerts/channels/${id}/test`), tx("message d'essai envoyé"), setNote); setBusy(0); };
@@ -280,7 +285,7 @@ function AlertsStep({ report }: { report: Report }) {
       {channels && ready.length === 0 && (
         <div className="mt-4 rounded-xl border border-line/60 bg-bg2/60 p-4">
           <p className="text-sm text-muted">{tx("Aucun canal pour l'instant.")}</p>
-          <a href="#settings/alerts" className={`${primary} mt-3 inline-flex no-underline`}>{tx("Ajouter un canal")}<ArrowRight size={14} aria-hidden /></a>
+          <button type="button" className={`${primary} mt-3`} onClick={() => open({ kind: "channel" })}>{tx("Ajouter un canal")}<ArrowRight size={14} aria-hidden /></button>
         </div>
       )}
       {ready.length > 0 && (

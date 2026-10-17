@@ -142,7 +142,7 @@ function ChannelRow({ c, reload }: { c: AlertChannel; reload: () => void }) {
   );
 }
 
-function ChannelForm({ channel, onDone, onCancel }: { channel?: AlertChannel; onDone: () => void; onCancel: () => void }) {
+export function ChannelForm({ channel, onDone, onCancel }: { channel?: AlertChannel; onDone: () => void; onCancel: () => void }) {
   const [type, setType] = useState<ChannelType>(channel?.type || "discord");
   const [name, setName] = useState(channel?.name || "");
   const [conf, setConf] = useState<Record<string, string>>(channel?.config || {});

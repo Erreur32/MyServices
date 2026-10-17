@@ -10,7 +10,7 @@ export interface AdviceView {
   title: string;                       // « SSH », « Agent Windows »…
   why: string;                         // une phrase sans jargon
   read: boolean;                       // la méthode recommandée lit déjà la machine : rien à faire
-  action: { label: string; href: string } | null;
+  action: { label: string; setup: "ssh" | "agent" | "connector" } | null;   // le réglage à ouvrir (dans une fenêtre, jamais un lien hors de la page)
   others: string[];                    // autres méthodes possibles (libellés)
 }
 
@@ -31,13 +31,13 @@ const WHY: Record<string, () => string> = {
   unknown_system: () => tx("Système inconnu : MyServices ne devine pas. Choisissez un agent Windows ou Linux si vous voulez la lire, sinon elle reste en ping seul."),
 };
 
-export function describeAdvice(ip: string, a: Advice): AdviceView {
+export function describeAdvice(_ip: string, a: Advice): AdviceView {
   const read = a.current.includes(a.method === "ping" ? "" : a.method);
   let action: AdviceView["action"] = null;
   if (!read) {
-    if (a.method === "ssh") action = { label: tx("Régler l'accès SSH"), href: `#settings/machines/${ip}` };
-    else if (a.method === "agent") action = { label: a.agent_kind === "windows" ? tx("Installer l'agent Windows") : tx("Installer l'agent Linux"), href: `#settings/agents/${ip}` };
-    else if (a.method === "connector") action = { label: tx("Voir les connecteurs"), href: "#settings/connectors" };
+    if (a.method === "ssh") action = { label: tx("Régler l'accès SSH"), setup: "ssh" };
+    else if (a.method === "agent") action = { label: a.agent_kind === "windows" ? tx("Installer l'agent Windows") : tx("Installer l'agent Linux"), setup: "agent" };
+    else if (a.method === "connector") action = { label: tx("Régler le connecteur"), setup: "connector" };
   }
   const status: AdviceStatus = read || a.method === "ping" ? "ok" : a.current.length ? "optimize" : "todo";
   return {

@@ -7,7 +7,7 @@ const adv = (o: Partial<Advice>): Advice => ({ kind: "linux", method: "ssh", why
 describe("recommandation de méthode de lecture : présentation", () => {
   it("SSH recommandé, pas encore lu : bouton vers les réglages de la machine", () => {
     const v = describeAdvice("10.0.0.2", adv({ why: "ssh_port" }));
-    expect(v).toMatchObject({ title: "SSH", read: false, action: { href: "#settings/machines/10.0.0.2" } });
+    expect(v).toMatchObject({ title: "SSH", read: false, action: { setup: "ssh" } });
     expect(v.others).toEqual(["Agent Linux"]);
   });
 
@@ -19,13 +19,13 @@ describe("recommandation de méthode de lecture : présentation", () => {
 
   it("PC Windows : agent Windows, bouton vers la page Agents", () => {
     const v = describeAdvice("10.0.0.9", adv({ kind: "windows", method: "agent", why: "windows", alternatives: [], agent_kind: "windows" }));
-    expect(v).toMatchObject({ title: "Agent Windows", read: false, action: { href: "#settings/agents/10.0.0.9" } });
+    expect(v).toMatchObject({ title: "Agent Windows", read: false, action: { setup: "agent" } });
   });
 
   it("box ou passerelle : le connecteur, jamais d'agent proposé", () => {
     const v = describeAdvice("10.0.0.1", adv({ kind: "unknown", method: "connector", why: "appliance", alternatives: ["ping"], agent_possible: false, agent_kind: null }));
     expect(v.title).toBe("Connecteur");
-    expect(v.action?.href).toBe("#settings/connectors");
+    expect(v.action?.setup).toBe("connector");
     expect(v.why).toContain("n'y installe rien");
     expect(v.others).not.toContain("Agent");
   });

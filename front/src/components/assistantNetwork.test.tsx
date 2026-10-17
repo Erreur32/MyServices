@@ -5,7 +5,7 @@ import { AssistantNetwork, whatIs } from "./AssistantNetwork";
 
 const host = (ip: string, o: Partial<NetHost> = {}): NetHost => ({ ip, name: "", ports: [], hints: [], apps: [], ...o });
 const scan = (o: Partial<NetScan>): NetScan => ({ phase: "done", net: "10.0.0.0/24", total: 254, done: 254, up: 4, described: 4, found: [], started: 1, ended: 2, error: null, stopped: false, ...o });
-const render = (net: NetScan | null, known: string[] = []) => renderToStaticMarkup(<AssistantNetwork net={net} reload={() => undefined} known={known} />);
+const render = (net: NetScan | null, known: string[] = []) => renderToStaticMarkup(<AssistantNetwork net={net} reload={() => undefined} known={known} onManual={() => undefined} />);
 
 describe("étape réseau de l'assistant", () => {
   it("pas encore cherché : une explication et un seul bouton", () => {

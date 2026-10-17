@@ -38,7 +38,7 @@ function Row({ h, on, toggle }: { h: NetHost; on: boolean; toggle: () => void })
 export const proposedFrom = (net: NetScan | null, known: string[]): NetHost[] =>
   (net?.found ?? []).filter((h) => !known.includes(h.ip) && !net?.ignored?.includes(h.ip) && worthFollowing(h));
 
-export function AssistantNetwork({ net, reload, known }: { net: NetScan | null; reload: () => void; known: string[] }) {
+export function AssistantNetwork({ net, reload, known, onManual }: { net: NetScan | null; reload: () => void; known: string[]; onManual: () => void }) {
   const [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set()), [added, setAdded] = useState(0);
   const state = netState(net), preselected = useRef<number | null>(null);
@@ -62,7 +62,7 @@ export function AssistantNetwork({ net, reload, known }: { net: NetScan | null; 
         <p className="mt-2 text-sm text-muted">{tx("MyServices envoie un ping à chaque adresse de votre réseau, demande son nom à chaque machine et regarde quelques ports (lecture seule).")}</p>
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
           <button type="button" className={primary} disabled={busy} onClick={() => void start()}><Search size={14} aria-hidden />{tx("Lancer la recherche")}</button>
-          <a href="#settings/machines" className="text-sm text-link hover:underline">{tx("ou ajouter une machine à la main")}</a>
+          <button type="button" className="text-sm text-link hover:underline" onClick={onManual}>{tx("ou ajouter une machine à la main")}</button>
         </div>
         <NoteLine note={note} />
       </div>
@@ -112,7 +112,7 @@ export function AssistantNetwork({ net, reload, known }: { net: NetScan | null; 
       <div className="flex flex-wrap items-center gap-2">
         {chosen.length > 0 && <button type="button" className={primary} disabled={busy} onClick={() => void addPicked()}><Check size={14} aria-hidden />{tx("Suivre la sélection")} ({chosen.length})</button>}
         <span className="ml-auto flex flex-wrap items-center gap-3">
-          <span className="text-xs text-dim">{tx("Une machine manque ?")} <a href="#settings/machines" className="text-link hover:underline">{tx("Ajoutez-la à la main")}</a></span>
+          <span className="text-xs text-dim">{tx("Une machine manque ?")} <button type="button" className="text-link hover:underline" onClick={onManual}>{tx("Ajoutez-la à la main")}</button></span>
           <button type="button" className={quiet} disabled={busy} onClick={() => void start()}><RefreshCw size={14} aria-hidden />{tx("Relancer la recherche")}</button>
         </span>
       </div>
