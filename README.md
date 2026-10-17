@@ -23,15 +23,17 @@
   <a href="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml"><img alt="Safety guard" src="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml/badge.svg"></a>
 </p>
 
-> ## 🚧 Live, but still young
+> ## 🚧 Still in development
 >
-> MyServices is **released and usable**, but still **early-stage** (`0.x`). Screens, settings and stored data may change between versions,
-> and several parts have only been tested on a single PC or against mock servers so far (Windows agent, Veeam, Proxmox, Prometheus,
-> Healthchecks, Netdata, Jellyfin, Home Assistant backups). **It only ever reads your machines**, so trying it carries little risk, but
-> give it time before relying on it for anything critical: back up `config/` and `data/` before each update, and keep it on your local
-> network (never exposed directly to the Internet).
+> MyServices is **under active development** (`0.x`) and is **not ready for everyday use yet**. Screens, settings and stored data change
+> between versions, and several parts have only been tested on a single PC or against mock servers so far (Windows agent, Veeam, Proxmox,
+> Prometheus, Healthchecks, Netdata, Jellyfin, Home Assistant backups). **It only ever reads your machines**, so trying it carries little
+> risk, but please do not rely on it for anything that matters. If you try it anyway, back up `config/` and `data/` before each update and
+> keep it on your local network (never exposed directly to the Internet).
 >
-> Version numbers stay **below 2.0.0** until it is declared stable (`0.11.13`, `0.11.14`…).
+> Because it is still moving fast, **pull requests and issues are not being handled for now**; please hold them until a stable release.
+>
+> Development builds are not tagged. Version numbers stay **below 2.0.0** until it is declared stable (`0.11.13`, `0.11.14`…).
 > Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in French).
 
 ## At a glance

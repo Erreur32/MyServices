@@ -23,15 +23,17 @@
   <a href="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml"><img alt="Garde-fou" src="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml/badge.svg"></a>
 </p>
 
-> ## 🚧 En ligne, mais encore jeune
+> ## 🚧 Encore en développement
 >
-> MyServices est **publié et utilisable**, mais encore **jeune** (`0.x`). Les écrans, les réglages et les données enregistrées peuvent changer
-> d'une version à l'autre, et plusieurs parties n'ont été essayées que sur un seul PC ou contre des serveurs simulés (agent Windows, Veeam,
-> Proxmox, Prometheus, Healthchecks, Netdata, Jellyfin, sauvegardes de Home Assistant). **Il ne fait que lire vos machines** : l'essayer
-> présente peu de risque, mais attendez un peu avant de vous y fier pour quelque chose de critique. Gardez une copie de `config/` et `data/`
-> avant chaque mise à jour, et laissez-le sur votre réseau local (jamais exposé directement sur Internet).
+> MyServices est **en plein développement** (`0.x`) et **n'est pas encore prêt pour un usage au quotidien**. Les écrans, les réglages et les
+> données enregistrées changent d'une version à l'autre, et plusieurs parties n'ont été essayées que sur un seul PC ou contre des serveurs
+> simulés (agent Windows, Veeam, Proxmox, Prometheus, Healthchecks, Netdata, Jellyfin, sauvegardes de Home Assistant). **Il ne fait que lire
+> vos machines** : l'essayer présente peu de risque, mais ne vous y fiez pas pour quelque chose d'important. Si vous l'essayez quand même,
+> gardez une copie de `config/` et `data/` avant chaque mise à jour et laissez-le sur votre réseau local (jamais exposé directement sur Internet).
 >
-> Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.11.13`, `0.11.14`…).
+> Comme il évolue vite, **les pull requests et les issues ne sont pas traitées pour le moment** : merci de les garder pour une version stable.
+>
+> Les versions de développement ne sont pas étiquetées. Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.11.13`, `0.11.14`…).
 > Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 ## En bref

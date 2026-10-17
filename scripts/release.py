@@ -114,7 +114,7 @@ def apply(root: Path, new: str, date: dt.date) -> dict[str, str]:
 
     ch = read(root, "CHANGELOG.md")
     ch = sub("CHANGELOG.md", ch, r"^## Unreleased[^\n]*\n", f"## v{new} ({date.isoformat()})\n", "section « Unreleased » à publier", re.M)
-    head = "## Unreleased (next version, not tagged yet)\n\n> **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**\n\n"
+    head = "## Unreleased (next version, not tagged yet)\n\n> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**\n\n"
     files["CHANGELOG.md"] = ch.replace(f"## v{new} ({date.isoformat()})\n", head + f"## v{new} ({date.isoformat()})\n", 1)
 
     rn = read(root, "RELEASE-NOTES.md")
