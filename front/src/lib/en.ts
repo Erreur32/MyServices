@@ -2268,4 +2268,6 @@ export const EN: Record<string, string> = {
   "Aucun connecteur ne voit cette machine pour l'instant.": "No connector sees this machine for now.",
   "Cette machine est lue par son agent, sans SSH.": "This machine is read by its agent, without SSH.",
   "Accès disponibles": "Available access",
+  "Réglages de {0}": "Settings of {0}",
+  "Réglages de cette machine": "Settings of this machine",
 };

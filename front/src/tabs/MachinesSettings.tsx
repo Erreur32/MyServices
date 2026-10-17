@@ -277,12 +277,14 @@ function AgentOrAccess({ agent, access }: Readonly<{ agent?: AgentInfo; access: 
   return <Badge tone={agent.state === "actif" ? "ok" : "warn"} title={tx("Agent MyServices : {0}", agent.state)}>{tx("agent")}</Badge>;
 }
 
-function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgent, scan, unfinished, agent, network }: {
+function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgent, bare, onClosed, scan, unfinished, agent, network }: {
+  bare?: boolean; onClosed?: () => void;  // fenêtre seule, sans la carte (ouverte depuis un autre onglet)
   focusTab?: "access"; onAgent: () => void; network?: NetworkConnector[]; agent?: AgentInfo; unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[]; ssh?: boolean; sshPort?: number }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
 }) {
   const fb = live && freeboxOf(live, network) && network?.find((c) => c.freebox?.system);   // la Freebox est lue par MynetworK, rapprochée par son nom
   const readers = fb ? [{ type: fb.connector, name: fb.name, label: fb.label }] : [];
-  const [open, setOpen] = useState(!!focus), [confirm, setConfirm] = useState(false);  // focus : arrivée depuis un lien (Connecteurs → machine)
+  const [open, setOpenState] = useState(!!focus || !!bare), [confirm, setConfirm] = useState(false);  // focus : arrivée depuis un lien (Connecteurs → machine)
+  const setOpen = (on: boolean) => { setOpenState(on); if (!on) onClosed?.(); };
   const [icon, setIcon] = useState(m.icon as string | undefined);  // icône choisie dans le formulaire : l'en-tête de la carte la reprend aussitôt
   useEffect(() => setIcon(m.icon as string | undefined), [m.icon]);
   const [off, setOff] = useState(!!m.disabled);  // « Machine suivie » basculée dans le formulaire : la carte (grisée ou non) suit aussitôt
@@ -346,36 +348,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgen
         <a className="text-link hover:underline" href={`#settings/agents/${ip}`}>{tx("Installer l'agent")}</a>{tx(" pour lire sa santé sans SSH.")}</p>}
     </div>
   ) : live ? <SshDetails m={live} statuses={statuses} /> : null;
-  return (
-    <div ref={card} className={`flex w-full min-w-0 flex-col rounded-xl border bg-card text-sm transition-colors ${off ? "opacity-60" : ""} ${focus || open ? "border-link ring-1 ring-link" : "border-dim/50"}`}>
-      <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" title={tx("Ouvrir les réglages de cette machine")} className="flex h-[5.5rem] w-full flex-wrap content-start items-center gap-x-2 gap-y-1 overflow-hidden rounded-xl p-3 text-left hover:bg-bg2">
-        <Settings2 size={14} className="text-dim" aria-hidden /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon }} scan={scan} reserve /><b className="max-w-[10rem] truncate">{m.name}</b><Dim>{ip}</Dim>
-        <span className={`ml-auto flex min-w-0 items-center justify-end gap-1.5 flex-nowrap overflow-hidden`}>
-          {keyMissing && (
-            <span role="button" tabIndex={0} className="grid h-5 w-5 cursor-pointer place-items-center rounded-full bg-warn text-xs font-extrabold text-bg hover:brightness-110"
-              title={tx("Docker illisible sur cette machine : la clé SSH de l'app n'y est pas encore autorisée. Cliquez pour voir la commande à lancer sur la machine.")}
-              aria-label={tx("Action requise : autoriser la clé de l'app sur cette machine")}
-              onClick={(e) => { e.stopPropagation(); goAuthorize(); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); goAuthorize(); } }}>!</span>
-          )}
-          {unfinished && <Badge tone="warn" title={`${tx("Réglage à terminer")}\n${unfinished.why === "ha" ? tx("Le jeton Home Assistant manque : sans lui, MyServices ne peut pas lire cette machine.") : tx("Cette machine offre le SSH mais MyServices n'y a pas encore d'accès : il reste à le régler.")}`}>{unfinished.passed ? tx("Non terminé (passé)") : tx("Non terminé")}</Badge>}
-          {m.off && <Badge tone="off" title={`${tx("Souvent éteinte")}\n${tx("Une machine éteinte n'est pas signalée comme en panne.")}`}>{tx("souvent éteinte")}</Badge>}
-          {live && (() => {  // réglage de sécurité du serveur SSH de la machine (pas une panne) : dit précisément ce qui est permis
-            const r = sshRisks(live);
-            if (!r.root && !r.password) return null;
-            let what = tx("mot de passe");
-            if (r.root) what = r.password ? tx("root et mot de passe") : tx("connexion root");
-            return <Badge tone="warn" title={`${tx("Sécurité SSH, pas une panne")}\n${tx("Ce serveur SSH autorise {0}.\n**Pour durcir :** `PermitRootLogin no` et `PasswordAuthentication no` dans `sshd_config`, puis recharger `sshd`.\n**Attention :** ne coupez le mot de passe (`PasswordAuthentication no`) qu'une fois votre propre clé SSH testée sur cette machine, sinon vous perdez l'accès. La clé de MyServices ne suffit pas : elle ne vous connecte pas, vous.", what)}`}>🛡 {what}</Badge>;
-          })()}
-          {statuses.some((c) => !c.ok) && <Badge tone="bad" title={`${tx("Lecture en échec")}\n${statuses.filter((c) => !c.ok).map((c) => c.name).join(", ")}`}>{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
-          {off && <Badge tone="off" title={`${tx("Non suivie")}\n${tx("Plus lue par MyServices : cachée dans les onglets. Rallumez « Machine suivie » dans la carte pour la reprendre.")}`}>{tx("non suivie")}</Badge>}
-        </span>
-        {/* Qui lit la machine : un badge court par source, coloré selon son état (détail en infobulle). Le détail de l'accès SSH n'est que dans la carte dépliée */}
-        <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">
-          {rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}
-          {live ? <SourceBadges m={live} agent={agent} extra={readers} /> : <AgentOrAccess agent={agent} access={access} />}
-        </span>
-      </button>
-      {open && (
+  const overlay = open && (
         <Overlay wide onClose={() => setOpen(false)} title={<><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon }} scan={scan} reserve />{m.name} <Dim>{ip}</Dim></>}>
         <div className="mt-3 flex flex-col gap-3">
           <NoteLine note={note} />
@@ -422,7 +395,38 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgen
           </>} />
         </div>
         </Overlay>
-      )}
+  );
+  if (bare) return <>{overlay}</>;   // fenêtre ouverte depuis l'onglet Machines : pas de carte
+  return (
+    <div ref={card} className={`flex w-full min-w-0 flex-col rounded-xl border bg-card text-sm transition-colors ${off ? "opacity-60" : ""} ${focus || open ? "border-link ring-1 ring-link" : "border-dim/50"}`}>
+      <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" title={tx("Ouvrir les réglages de cette machine")} className="flex h-[5.5rem] w-full flex-wrap content-start items-center gap-x-2 gap-y-1 overflow-hidden rounded-xl p-3 text-left hover:bg-bg2">
+        <Settings2 size={14} className="text-dim" aria-hidden /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon }} scan={scan} reserve /><b className="max-w-[10rem] truncate">{m.name}</b><Dim>{ip}</Dim>
+        <span className={`ml-auto flex min-w-0 items-center justify-end gap-1.5 flex-nowrap overflow-hidden`}>
+          {keyMissing && (
+            <span role="button" tabIndex={0} className="grid h-5 w-5 cursor-pointer place-items-center rounded-full bg-warn text-xs font-extrabold text-bg hover:brightness-110"
+              title={tx("Docker illisible sur cette machine : la clé SSH de l'app n'y est pas encore autorisée. Cliquez pour voir la commande à lancer sur la machine.")}
+              aria-label={tx("Action requise : autoriser la clé de l'app sur cette machine")}
+              onClick={(e) => { e.stopPropagation(); goAuthorize(); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); goAuthorize(); } }}>!</span>
+          )}
+          {unfinished && <Badge tone="warn" title={`${tx("Réglage à terminer")}\n${unfinished.why === "ha" ? tx("Le jeton Home Assistant manque : sans lui, MyServices ne peut pas lire cette machine.") : tx("Cette machine offre le SSH mais MyServices n'y a pas encore d'accès : il reste à le régler.")}`}>{unfinished.passed ? tx("Non terminé (passé)") : tx("Non terminé")}</Badge>}
+          {m.off && <Badge tone="off" title={`${tx("Souvent éteinte")}\n${tx("Une machine éteinte n'est pas signalée comme en panne.")}`}>{tx("souvent éteinte")}</Badge>}
+          {live && (() => {  // réglage de sécurité du serveur SSH de la machine (pas une panne) : dit précisément ce qui est permis
+            const r = sshRisks(live);
+            if (!r.root && !r.password) return null;
+            let what = tx("mot de passe");
+            if (r.root) what = r.password ? tx("root et mot de passe") : tx("connexion root");
+            return <Badge tone="warn" title={`${tx("Sécurité SSH, pas une panne")}\n${tx("Ce serveur SSH autorise {0}.\n**Pour durcir :** `PermitRootLogin no` et `PasswordAuthentication no` dans `sshd_config`, puis recharger `sshd`.\n**Attention :** ne coupez le mot de passe (`PasswordAuthentication no`) qu'une fois votre propre clé SSH testée sur cette machine, sinon vous perdez l'accès. La clé de MyServices ne suffit pas : elle ne vous connecte pas, vous.", what)}`}>🛡 {what}</Badge>;
+          })()}
+          {statuses.some((c) => !c.ok) && <Badge tone="bad" title={`${tx("Lecture en échec")}\n${statuses.filter((c) => !c.ok).map((c) => c.name).join(", ")}`}>{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
+          {off && <Badge tone="off" title={`${tx("Non suivie")}\n${tx("Plus lue par MyServices : cachée dans les onglets. Rallumez « Machine suivie » dans la carte pour la reprendre.")}`}>{tx("non suivie")}</Badge>}
+        </span>
+        {/* Qui lit la machine : un badge court par source, coloré selon son état (détail en infobulle). Le détail de l'accès SSH n'est que dans la carte dépliée */}
+        <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">
+          {rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}
+          {live ? <SourceBadges m={live} agent={agent} extra={readers} /> : <AgentOrAccess agent={agent} access={access} />}
+        </span>
+      </button>
+      {overlay}
     </div>
   );
 }
@@ -838,4 +842,18 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
       {!report && <NoteLine note={localNote} />}
     </form>
   );
+}
+
+/** La fenêtre d'une machine, ouverte depuis un autre onglet (l'engrenage de l'onglet Machines, admin) : mêmes réglages que dans Réglages → Machines */
+export function MachineModal({ ip, snap, onClose }: Readonly<{ ip: string; snap: Snapshot; onClose: () => void }>) {
+  const [st, setSt] = useState<State | null>(null), [agents, setAgents] = useState<AgentInfo[]>([]), [scan, setScan] = useState<NetHost | undefined>();
+  const reload = useCallback(() => { read<State>("machines/settings").then(setSt).catch(() => undefined); }, []);
+  const loadAgents = useCallback(() => { read<{ agents: AgentInfo[] }>("agents").then((r) => setAgents(r.agents)).catch(() => undefined); }, []);
+  useEffect(() => { reload(); loadAgents(); read<NetScan>("network/scan").then((n) => setScan((n.found || []).find((h) => h.ip === ip))).catch(() => undefined); }, [reload, loadAgents, ip]);
+  const m = st?.machines[ip];
+  if (!st || !m) return null;
+  const live = snap.data.machine_list.find((x) => x.ip === ip);
+  const statuses = m.os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.ip ? c.ip === ip : c.name === ip || c.name === live?.name));
+  return <MachineRow bare ip={ip} m={m} st={st} live={live} statuses={statuses} reload={reload} onClosed={onClose} onAgent={loadAgents} network={snap.data.network}
+    agent={agents.find((a) => a.ip === ip && a.state !== "révoqué")} scan={scan ? { os: scan.os ?? undefined, apps: scan.apps ?? [], ssh: !!scan.ssh_port, sshPort: scan.ssh_port ?? undefined } : undefined} />;
 }
