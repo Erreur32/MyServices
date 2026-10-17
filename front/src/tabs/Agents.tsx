@@ -162,7 +162,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         </Card>
       )}
 
-      <Group title={tx("Avec un agent")} n={withAgent.length} fold>
+      <Group title={tx("Avec un agent")} n={withAgent.length} fold rows>
         {withAgent.map((ip) => <ActiveCard key={ip} a={byIp.get(ip)!} conf={machines[ip]} ip={ip} focus={ip === focusIp} busy={busy === ip} onRenew={isWindows(ip) ? () => void create(ip) : undefined} reload={reload} />)}
       </Group>
 
@@ -249,7 +249,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
 }
 
 /** Groupe de cartes : titre, compte, texte d'aide, grille (ou le texte « vide ») ; pliable (chevron, comme « Agent créé ») si fold */
-function Group({ title, n, hint, fold, folded, children }: { title: string; n: number; hint?: string; fold?: boolean; folded?: boolean; children: React.ReactNode }) {
+function Group({ title, n, hint, fold, folded, rows, children }: { title: string; n: number; hint?: string; fold?: boolean; folded?: boolean; rows?: boolean; children: React.ReactNode }) {
   const [choice, setChoice] = useState<boolean | null>(null);  // null : pas touché, donc ouvert s'il y a des cartes, replié s'il est vide
   const open = choice ?? (n > 0 && !folded);  // folded : replié d'office même s'il a des cartes (agents révoqués)
   const shown = !fold || open;
@@ -265,35 +265,8 @@ function Group({ title, n, hint, fold, folded, children }: { title: string; n: n
         ) : <span className="flex items-center gap-2">{title} <Dim>· {n}</Dim></span>}
       </h3>
       {shown && hint && n > 0 && <p className="mb-2 px-1 text-xs text-dim">{hint}</p>}
-      {shown && <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{children}</ul>}
+      {shown && <ul className={rows ? "flex flex-col gap-2" : "grid gap-2 sm:grid-cols-2 lg:grid-cols-3"}>{children}</ul>}   {/* rows : une ligne par élément */}
     </section>
-  );
-}
-
-/** Mises à jour de l'agent, comme dans GpuViewR : un interrupteur-icône « automatique » et un bouton « maintenant ». L'agent vient chercher le nouveau
- *  script au prochain relevé (au plus tard dans son intervalle) : rien n'est poussé vers le PC. */
-function UpdateControls({ a, reload, setNote }: { a: AgentInfo; reload: () => void; setNote: (n: Note) => void }) {
-  const [busy, setBusy] = useState(false);
-  const live = a.state !== "révoqué";
-  const run = async (fn: () => Promise<unknown>, done: string) => { setBusy(true); const ok = await act(fn, done, setNote); setBusy(false); if (ok) reload(); };
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg bg-bg2/50 px-2.5 py-1.5 text-xs text-muted">
-      <span className="inline-flex items-center gap-1.5 font-semibold text-txt"><ArrowUpCircle size={14} className={a.outdated ? "text-warn" : "text-ok"} aria-hidden />
-        {a.outdated ? tx("v{0} → v{1} disponible", a.version ?? "?", a.latest_version ?? "?") : tx("à jour (v{0})", a.version ?? a.latest_version ?? "?")}</span>
-      <button type="button" disabled={!live || busy} aria-pressed={!!a.auto_update}
-        title={a.auto_update ? tx("Mise à jour automatique activée : l'agent prend le nouveau script dès qu'il est plus ancien. Cliquer pour couper.") : tx("Activer la mise à jour automatique de cet agent")}
-        onClick={() => void run(() => send("PATCH", `agents/${a.id}`, { auto_update: !a.auto_update }), a.auto_update ? tx("mise à jour automatique coupée") : tx("mise à jour automatique activée"))}
-        className={`inline-flex h-8 items-center gap-2 rounded-lg border px-2.5 font-semibold leading-none disabled:opacity-50 ${a.auto_update ? "border-ok/60 bg-ok/15 text-ok" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
-        <RotateCw size={14} className="shrink-0" aria-hidden /><span className="leading-none">{tx("Automatique")}</span>
-        <span className={`rounded px-1.5 py-1 text-[10px] font-bold uppercase leading-none ${a.auto_update ? "bg-ok/25 text-ok" : "bg-bg2 text-dim"}`}>{a.auto_update ? tx("oui") : tx("non")}</span>
-      </button>
-      <button type="button" disabled={!live || busy || (!a.outdated && !a.update_requested)}
-        title={!a.outdated ? tx("L'agent est déjà à jour") : a.update_requested ? tx("Demandée : l'agent se mettra à jour à son prochain relevé") : tx("Mettre à jour maintenant : l'agent récupère le nouveau script à son prochain relevé (au plus tard dans {0} min)", Math.round(a.interval / 60))}
-        onClick={() => void run(() => send("POST", `agents/${a.id}/update`), tx("demandée : l'agent se mettra à jour à son prochain relevé"))}
-        className="inline-flex h-8 items-center gap-2 rounded-lg border border-txt/30 bg-bg2 px-2.5 font-semibold leading-none text-txt hover:border-link hover:bg-link/10 disabled:opacity-40">
-        <ArrowUpCircle size={14} className="shrink-0" aria-hidden /><span className="leading-none">{a.update_requested ? tx("Demandée…") : tx("Mettre à jour maintenant")}</span>
-      </button>
-    </div>
   );
 }
 
@@ -311,62 +284,67 @@ function HostConfirm({ a, reload, setNote }: { a: AgentInfo; reload: () => void;
   );
 }
 
-/** Carte d'une machine qui a un agent : état, dernier relevé, nouvelle commande, révocation */
+const iconBtn = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border disabled:opacity-40";
+
+/** Une machine qui a un agent, sur une seule ligne (elle passe à la ligne sur un petit écran) : nom, IP, système, nom du poste, version,
+ *  dernier relevé, fréquence, jeton, état, puis des boutons-icônes : mise à jour automatique, mettre à jour maintenant, nouvelle commande, révoquer.
+ *  Mise à jour : l'agent vient chercher le nouveau script à son prochain relevé (au plus tard dans son intervalle), rien n'est poussé vers le PC. */
 function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
   a: AgentInfo; conf?: MachineConf; ip: string; focus: boolean; busy: boolean; onRenew?: () => void; reload: () => void;  // onRenew : seulement pour un PC Windows (la commande est PowerShell)
 }) {
-  const [confirm, setConfirm] = useState<"" | "renew" | "revoke">(""), [note, setNote] = useState<Note>(null);
-  // Carte repliable : l'en-tête reste, le détail et les boutons se replient. Repliée d'office quand l'agent va bien (actif) ;
-  // dépliée s'il y a quelque chose à voir (silencieux, en attente du premier relevé). Un clic de l'utilisateur l'emporte ensuite.
-  const [choice, setChoice] = useState<boolean | null>(null);
-  const folded = choice ?? (a.state === "actif" && !a.host_pending);
-  const setFolded = (v: boolean) => setChoice(v);
+  const [confirm, setConfirm] = useState<"" | "renew" | "revoke">(""), [note, setNote] = useState<Note>(null), [upBusy, setUpBusy] = useState(false);
   const [tone, label] = STATE[a.state];
+  const run = async (fn: () => Promise<unknown>, done: string) => { setUpBusy(true); const ok = await act(fn, done, setNote); setUpBusy(false); if (ok) reload(); };
+  const attention = a.state !== "actif" || !!a.host_pending;
   return (
-    <li className={`flex flex-col gap-2 rounded-xl border bg-card p-3 text-sm ${focus || !folded ? "border-link ring-1 ring-link" : "border-dim/50"}`}>
-      <button type="button" onClick={() => setFolded(!folded)} aria-expanded={!folded} className="flex items-center gap-3 text-left">
-        {folded ? <ChevronRight size={16} className="shrink-0 text-txt" aria-hidden /> : <ChevronDown size={16} className="shrink-0 text-txt" aria-hidden />}
-        <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? "windows", osName: a.os }} reserve />
-        <span className="min-w-0 flex-1">
-          <b className="block truncate">{conf?.name ?? a.name}</b>
-          <span className="block truncate text-xs text-dim">{ip}</span>
+    <li className={`rounded-xl border bg-card px-3 py-2 text-sm ${focus || attention ? "border-link ring-1 ring-link" : "border-dim/50"}`}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        <span className="flex min-w-[12rem] flex-1 items-center gap-2">
+          <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? "windows", osName: a.os }} reserve />
+          <b className="truncate">{conf?.name ?? a.name}</b>
+          <span className="truncate text-xs text-dim">{ip}</span>
         </span>
-        {a.host_pending && <Badge tone="warn" title={tx("Nom de poste différent : {0} au lieu de {1}", a.host_pending, a.hostname ?? "?")}>{tx("nom à confirmer")}</Badge>}
-        {a.auto_update && <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-ok/60 bg-ok/15 text-ok" title={tx("Mise à jour automatique activée")}><RotateCw size={13} aria-hidden /></span>}
-        {a.outdated
-          ? <Badge tone="warn" title={a.update_requested ? tx("Mise à jour demandée : l'agent se met à jour à son prochain relevé") : tx("Agent v{0} : la v{1} est disponible", a.version ?? "?", a.latest_version ?? "?")}><ArrowUpCircle size={11} aria-hidden />{a.update_requested ? tx("maj demandée") : tx("pas à jour")} · v{a.version}</Badge>
-          : a.version && <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-line text-ok" title={tx("à jour (v{0})", a.version)}><Check size={13} aria-hidden /></span>}
-        <Badge tone={tone}>{label}</Badge>
-      </button>
-      {!folded && <>
-      <dl className="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2" aria-label={tx("Détails de l'agent")}>
-        <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Dernier relevé")}</dt>
-          <dd className="min-w-0">{a.last_seen ? <>{dateTime(a.last_seen * 1000)} <span className="text-dim">({a.last_ip})</span></> : <span className="text-warn">{tx("aucun relevé reçu")}</span>}</dd></div>
-        <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Système")}</dt><dd className="min-w-0 break-words" title={a.os ?? undefined}>{a.os ? shortOs(a.os) : "-"}</dd></div>
-        <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Version")}</dt>
-          <dd className="min-w-0">{a.version ? <>v{a.version}{a.outdated && <span className="text-warn"> · {tx("v{0} disponible", a.latest_version ?? "?")}</span>}</> : "-"}</dd></div>
-        <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Fréquence")}</dt><dd className="min-w-0">{tx("toutes les {0} min", Math.round(a.interval / 60))}</dd></div>
-        <div className="flex gap-2"><dt className="w-24 shrink-0 text-dim">{tx("Nom du poste")}</dt><dd className="min-w-0 break-words">{a.hostname ?? "-"}</dd></div>
-        <div className="flex gap-2 sm:col-span-2"><dt className="w-24 shrink-0 text-dim">{tx("Jeton")}</dt><dd className="min-w-0"><code className="font-mono">{tx("msv_")}agent_…{a.hint}</code></dd></div>
-      </dl>
-      {a.host_pending && <HostConfirm a={a} reload={reload} setNote={setNote} />}
-      <UpdateControls a={a} reload={reload} setNote={setNote} />
-      <div className="flex flex-wrap items-center gap-1.5">
-        {confirm === "" && <>
-          {onRenew && <button type="button" className={quiet} disabled={busy} title={tx("Crée un nouveau jeton et révoque l'ancien : à refaire sur le PC avec la nouvelle commande")} onClick={() => setConfirm("renew")}><RefreshCw size={14} />{tx("Nouvelle commande")}</button>}
-          <button type="button" className={`${danger} ml-auto`} onClick={() => setConfirm("revoke")}><Trash2 size={14} />{tx("Révoquer")}</button>
-        </>}
-        {confirm !== "" && <>
-          <span className="text-xs text-muted">{confirm === "renew" ? tx("L'ancien jeton cessera de marcher.") : tx("La machine n'enverra plus rien.")}</span>
-          <button type="button" className={`${danger} ml-auto`} onClick={() => {
-            if (confirm === "renew") { setConfirm(""); onRenew?.(); }
-            else void act(() => send("DELETE", `agents/${a.id}`), tx("révoqué"), setNote).then((ok) => ok && reload());
-          }}>{tx("Confirmer")}</button>
-          <button type="button" className={quiet} onClick={() => setConfirm("")}>{tx("Annuler")}</button>
-        </>}
+        <span className="w-44 truncate text-xs text-muted" title={a.os ?? undefined}>{a.os ? shortOs(a.os) : "-"}</span>
+        <span className="w-28 truncate text-xs text-muted" title={tx("Nom du poste")}>{a.hostname ?? "-"}</span>
+        <span className="inline-flex w-14 items-center gap-1 text-xs" title={a.outdated ? tx("Agent v{0} : la v{1} est disponible", a.version ?? "?", a.latest_version ?? "?") : a.version ? tx("à jour (v{0})", a.version) : undefined}>
+          {a.version ? <>v{a.version}{a.outdated ? <ArrowUpCircle size={13} className="text-warn" aria-hidden /> : <Check size={13} className="text-ok" aria-hidden />}</> : "-"}
+        </span>
+        <span className="w-36 text-xs text-muted" title={a.last_ip ? `${tx("Dernier relevé")} : ${a.last_ip}` : undefined}>
+          {a.last_seen ? dateTime(a.last_seen * 1000) : <span className="text-warn">{tx("aucun relevé reçu")}</span>}
+        </span>
+        <span className="w-28 text-xs text-dim" title={tx("Fréquence")}>{tx("toutes les {0} min", Math.round(a.interval / 60))}</span>
+        <code className="w-28 truncate font-mono text-xs text-dim" title={tx("Jeton")}>{tx("msv_")}agent_…{a.hint}</code>
+        <span className="flex items-center gap-1.5">
+          {a.host_pending && <Badge tone="warn" title={tx("Nom de poste différent : {0} au lieu de {1}", a.host_pending, a.hostname ?? "?")}>{tx("nom à confirmer")}</Badge>}
+          <Badge tone={tone}>{label}</Badge>
+        </span>
+        <span className="ml-auto flex items-center gap-1.5">
+          {confirm === "" && <>
+            <button type="button" disabled={upBusy} aria-pressed={!!a.auto_update} aria-label={tx("Automatique")}
+              title={a.auto_update ? tx("Mise à jour automatique activée : l'agent prend le nouveau script dès qu'il est plus ancien. Cliquer pour couper.") : tx("Activer la mise à jour automatique de cet agent")}
+              onClick={() => void run(() => send("PATCH", `agents/${a.id}`, { auto_update: !a.auto_update }), a.auto_update ? tx("mise à jour automatique coupée") : tx("mise à jour automatique activée"))}
+              className={`${iconBtn} ${a.auto_update ? "border-ok/60 bg-ok/15 text-ok" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}><RotateCw size={14} aria-hidden /></button>
+            {(a.outdated || a.update_requested) && <button type="button" disabled={upBusy || !!a.update_requested} aria-label={tx("Mettre à jour maintenant")}
+              title={a.update_requested ? tx("Demandée : l'agent se mettra à jour à son prochain relevé") : tx("Mettre à jour maintenant : l'agent récupère le nouveau script à son prochain relevé (au plus tard dans {0} min)", Math.round(a.interval / 60))}
+              onClick={() => void run(() => send("POST", `agents/${a.id}/update`), tx("demandée : l'agent se mettra à jour à son prochain relevé"))}
+              className={`${iconBtn} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`}><ArrowUpCircle size={14} aria-hidden /></button>}
+            {onRenew && <button type="button" disabled={busy} aria-label={tx("Nouvelle commande")} title={tx("Crée un nouveau jeton et révoque l'ancien : à refaire sur le PC avec la nouvelle commande")}
+              onClick={() => setConfirm("renew")} className={`${iconBtn} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`}><RefreshCw size={14} aria-hidden /></button>}
+            <button type="button" aria-label={tx("Révoquer")} title={tx("Révoquer")} onClick={() => setConfirm("revoke")}
+              className={`${iconBtn} border-bad/50 text-bad hover:bg-bad/10`}><Trash2 size={14} aria-hidden /></button>
+          </>}
+          {confirm !== "" && <>
+            <span className="text-xs text-muted">{confirm === "renew" ? tx("L'ancien jeton cessera de marcher.") : tx("La machine n'enverra plus rien.")}</span>
+            <button type="button" className={danger} onClick={() => {
+              if (confirm === "renew") { setConfirm(""); onRenew?.(); }
+              else void act(() => send("DELETE", `agents/${a.id}`), tx("révoqué"), setNote).then((ok) => ok && reload());
+            }}>{tx("Confirmer")}</button>
+            <button type="button" className={quiet} onClick={() => setConfirm("")}>{tx("Annuler")}</button>
+          </>}
+        </span>
       </div>
+      {a.host_pending && <div className="mt-2"><HostConfirm a={a} reload={reload} setNote={setNote} /></div>}
       <NoteLine note={note} />
-      </>}
     </li>
   );
 }
