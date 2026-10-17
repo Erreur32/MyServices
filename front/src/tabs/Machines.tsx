@@ -1157,7 +1157,7 @@ function HealthLevel({ m, h, followed }: Readonly<{ m: Machine; h?: HealthHost; 
     const key = levelKey(h), [tone, label] = LEVEL[key] ?? ["off", key], items = key === "ok" ? [] : healthItems(h);
     // not OK: the tooltip says why (the same sentences as the « À surveiller » column)
     const title = items.length ? [label.charAt(0).toUpperCase() + label.slice(1), ...items.map((i) => `• ${i.text}`)].join("\n") : undefined;
-    return <Badge tone={tone} title={title} outline={key === "warn"}>{label}</Badge>;   // « à surveiller »: outline only
+    return <Badge tone={tone} title={title} outline={key === "warn"} plainText={key === "warn"}>{label}</Badge>;   // « à surveiller »: outline only
   }
   if (followed && !m.off) return <Badge tone="info" title={tx("Une source de santé existe (SSH, agent, Beszel ou Home Assistant) : la machine sera lue au prochain passage de la tâche Santé (Réglages → Tâches et horaires)")}>{tx("en attente du relevé")}</Badge>;
   if (m.off) return <Badge tone="off" title={tx("Éteinte volontairement, aucune alerte")}>{tx("éteinte")}</Badge>;

@@ -16,18 +16,18 @@ const TONE: Record<Tone, string> = {
   info: "border-link/40 bg-link/10 text-link",
 };
 
-export function Badge({ tone, children, title, outline = false }: { tone: Tone; children: ReactNode; title?: string; outline?: boolean }) {   // outline: the border and the text colour only, no filled background
+export function Badge({ tone, children, title, outline = false, plainText = false }: { tone: Tone; children: ReactNode; title?: string; outline?: boolean; plainText?: boolean }) {   // outline: the border and the text colour only, no filled background ; plainText: the text in the normal colour (white on dark), the state is carried by the border
   return (
-    <span title={title} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-xs font-semibold ${outline ? TONE[tone].replace(/bg-\S+/, "bg-transparent") : TONE[tone]}`}>
+    <span title={title} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-xs font-semibold ${(outline ? TONE[tone].replace(/bg-\S+/, "bg-transparent") : TONE[tone]).replace(plainText ? /text-\S+/ : /$^/, "text-txt")}`}>
       {children}
     </span>
   );
 }
 
 
-export function Level({ level, children }: { level: string; children?: ReactNode }) {
+export function Level({ level, children, outline, plainText }: { level: string; children?: ReactNode; outline?: boolean; plainText?: boolean }) {   // outline: border and text colour only; always so for « to watch »
   const [tone, label] = LEVEL[level] || ["off", level];
-  return <Badge tone={tone} outline={level === "warn"}>{children ?? label}</Badge>;   // « à surveiller »: outline only
+  return <Badge tone={tone} outline={outline ?? level === "warn"} plainText={plainText ?? level === "warn"}>{children ?? label}</Badge>;
 }
 
 export type CardTone = "bad" | "warn" | "info" | "ok";

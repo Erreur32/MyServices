@@ -44,11 +44,11 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
     <div className="flex flex-col gap-1">
       {h.copies.map((c) => (
         <span key={c.host} className="text-sm">
-          <Level level={c.level}>{c.encrypted ? "🔒 " : ""}{c.label}</Level> <Dim>{ageDays(c.age)} · {c.vias.join(", ")}</Dim>
+          <Level level={c.level} outline plainText>{c.encrypted ? "🔒 " : ""}{c.label}</Level> <Dim>{ageDays(c.age)} · {c.vias.join(", ")}</Dim>
         </span>
       ))}
     </div>
-  ) : h.sets.length ? <Badge tone="bad">{tx("aucune copie ailleurs")}</Badge> : <Dim>-</Dim>;
+  ) : h.sets.length ? <Badge tone="bad" outline plainText>{tx("aucune copie ailleurs")}</Badge> : <Dim>-</Dim>;
   const last = (h: BackupHost) => h.last_local ? (
     <span className="text-sm"><Level level={h.last_local.level}>{ageDays(h.last_local.age)}</Level>
       <span className="block text-xs text-dim">{dateTime(h.last_local.mtime * 1000)} · {short(h.last_local.set)}</span></span>
@@ -56,7 +56,7 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
   const produced = (h: BackupHost) => h.sets.length ? (
     <ul className="flex flex-col gap-1 text-sm">
       {h.sets.map((id) => { const s = sets.get(id); return s && (
-        <li key={id}><Level level={s.level}>{short(s.label)}</Level> <Dim>{s.schedule} · {s.offsite || s.expect_offsite !== false ? `${s.offsite} ${tx("copie(s) hors machine")}` : tx("copie ailleurs non déclarée")}</Dim></li>
+        <li key={id}><Level level={s.level} outline plainText>{short(s.label)}</Level> <Dim>{s.schedule} · {s.offsite || s.expect_offsite !== false ? `${s.offsite} ${tx("copie(s) hors machine")}` : tx("copie ailleurs non déclarée")}</Dim></li>
       ); })}
     </ul>
   ) : <Dim>{tx("aucun jeu produit")}</Dim>;
