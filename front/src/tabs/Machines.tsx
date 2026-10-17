@@ -80,7 +80,7 @@ function DockerList({ m, snap }: Readonly<{ m: Machine; snap: Snapshot }>) {
       <div className="mb-1 text-xs text-dim">{tx("Conteneurs Docker")} · {rows.length}</div>
       <ul className="flex flex-col gap-0.5">
         {rows.map((r) => {
-          const sv = r.service!, icon = serviceIcon(r), up = !sv.state || /^up|running/i.test(sv.state);
+          const sv = r.service!, icon = serviceIcon(r), up = !sv.state || /^(?:up|running)/i.test(sv.state);
           return (
             <li key={sv.name || sv.image} className="flex items-center gap-2 text-xs" title={[sv.image, sv.state].filter(Boolean).join(" · ")}>
               {icon ? <img src={icon} alt="" className="h-4 w-4 shrink-0" /> : <span className="h-4 w-4 shrink-0" />}
