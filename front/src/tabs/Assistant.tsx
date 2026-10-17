@@ -1,7 +1,7 @@
 // Assistant de démarrage : une étape à la fois, « Passer » et « Retour » partout, rien n'est modifié sur les machines.
 // Six étapes : bienvenue, cette machine (sans SSH), le réseau, la façon de lire chaque machine, relier les outils, être prévenu, puis un résumé.
 // La progression est gardée côté serveur (reprise depuis un autre navigateur), avec une copie dans ce navigateur.
-import { ArrowLeft, ArrowRight, Bell, Check, ChevronLeft, ChevronRight, Eye, Loader2, Plug, ShieldCheck, SkipForward, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, Check, ChevronLeft, ChevronRight, Download, Eye, KeyRound, Loader2, Plug, ShieldCheck, SkipForward, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { read, send } from "../api";
 import type { Snapshot } from "../api";
@@ -178,6 +178,13 @@ function ThisMachine({ snap, chosen, onChoose, report }: { snap: Snapshot; chose
 /** Étape 3 : chercher les autres machines du réseau et choisir celles à suivre (la recherche et l'ajout existent déjà dans NetworkStep) */
 type Open = (s: Setup) => void;
 
+/** Boutons d'action d'une machine : même largeur, même hauteur, texte centré, icône à gauche */
+const ACTION = "min-w-[13rem] flex-1 justify-center sm:max-w-[17rem]";
+
+/** La fenêtre de réglage qui correspond à l'action recommandée pour cette machine */
+const setupFor = (kind: "ssh" | "agent" | "connector", m: Machine, a: Advice): Setup =>
+  kind === "ssh" ? { kind: "ssh", ip: m.ip, name: m.name } : kind === "agent" ? { kind: "agent", ip: m.ip, name: m.name, agent: a.agent_kind } : { kind: "connector", ip: m.ip, name: m.name };
+
 function Network({ snap, report, open }: { snap: Snapshot; report: Report; open: Open }) {
   const { net, reload } = useNetScan();
   const known = snap.data.machine_list.map((m) => m.ip);
@@ -232,8 +239,14 @@ function Access({ snap, report, open, rev, accepted, onAccept }: { snap: Snapsho
           <p className="mt-1 text-sm text-muted">{v.why}</p>
           {v.explain && <p className="mt-2 rounded-md bg-warn/10 px-2.5 py-1.5 text-sm text-txt">{v.explain}</p>}
           {v.todo && <p className="mt-2 text-sm"><b className="text-txt">{tx("À faire :")}</b> <span className="text-muted">{v.todo}</span></p>}
-          {v.action && <button type="button" className={`${primary} mt-3`} onClick={() => open(v.action!.setup === "ssh" ? { kind: "ssh", ip: m.ip, name: m.name } : v.action!.setup === "agent" ? { kind: "agent", ip: m.ip, name: m.name, agent: advice[m.ip].agent_kind } : { kind: "connector", ip: m.ip, name: m.name })}>{v.action.label}<ArrowRight size={14} aria-hidden /></button>}
-          {v.status === "optimize" && <button type="button" className={`${quiet} mt-2`} title={tx("Garder la méthode actuelle : cette machine ne sera plus signalée comme à optimiser.")} onClick={() => onAccept(m.ip, true)}><Check size={14} aria-hidden />{tx("C'est suffisant ainsi")}</button>}
+          {(v.action || v.status === "optimize") && (
+            <div className="mt-3 flex flex-wrap gap-2">   {/* actions alignées : même largeur, même hauteur, icône à gauche */}
+              {v.action && <button type="button" className={`${primary} ${ACTION}`} onClick={() => open(setupFor(v.action!.setup, m, advice[m.ip]))}>
+                {v.action.setup === "ssh" ? <KeyRound size={14} aria-hidden /> : v.action.setup === "agent" ? <Download size={14} aria-hidden /> : <Plug size={14} aria-hidden />}{v.action.label}</button>}
+              {v.status === "optimize" && <button type="button" className={`${quiet} ${ACTION}`} title={tx("Garder la méthode actuelle : cette machine ne sera plus signalée comme à optimiser.")} onClick={() => onAccept(m.ip, true)}>
+                <Check size={14} aria-hidden />{tx("C'est suffisant ainsi")}</button>}
+            </div>
+          )}
           {v.kept && <p className="mt-2 text-xs text-dim">{tx("Méthode actuelle gardée : {0}.", v.now)} <button type="button" className="text-link hover:underline" onClick={() => onAccept(m.ip, false)}>{tx("Revenir à la recommandation")}</button></p>}
           {v.others.length > 0 && <p className="mt-2 text-xs text-dim">
             {v.others.every((o) => o.active) ? tx("Déjà actif en complément :") : tx("Aussi possible :")}{" "}
