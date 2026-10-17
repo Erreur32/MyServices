@@ -274,6 +274,13 @@ function Proposal({ d, st, onDone }: { d: Detection; st: State; onDone: () => vo
   );
 }
 
+const AGENT_TONE: Record<string, "ok" | "warn"> = { actif: "ok", silencieux: "warn" };
+
+function AgentOrAccess({ agent, access }: Readonly<{ agent?: AgentInfo; access: string }>) {
+  if (!agent) return <span className="truncate">{access}</span>;
+  return <Badge tone={agent.state === "actif" ? "ok" : "warn"} title={tx("Agent MyServices : {0}", agent.state)}>{tx("agent")}</Badge>;
+}
+
 function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished, agent }: {
   agent?: AgentInfo; unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[]; ssh?: boolean; sshPort?: number }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
 }) {
@@ -358,7 +365,8 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
           {live && (() => {  // réglage de sécurité du serveur SSH de la machine (pas une panne) : dit précisément ce qui est permis
             const r = sshRisks(live);
             if (!r.root && !r.password) return null;
-            const what = r.root && r.password ? tx("root et mot de passe") : r.root ? tx("connexion root") : tx("mot de passe");
+            let what = tx("mot de passe");
+            if (r.root) what = r.password ? tx("root et mot de passe") : tx("connexion root");
             return <Badge tone="info" title={tx("Sécurité SSH, pas une panne : ce serveur SSH autorise {0}. Pour durcir, mettre PermitRootLogin no et PasswordAuthentication no dans sshd_config, puis recharger sshd.", what)}>🛡 {what}</Badge>;
           })()}
           {statuses.some((c) => !c.ok) && <Badge tone="bad">{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
@@ -367,7 +375,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
         {/* Qui lit la machine : un badge court par source, coloré selon son état (détail en infobulle). Le détail de l'accès SSH n'est que dans la carte dépliée */}
         <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">
           {!open && rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}
-          {live ? <SourceBadges all={open} m={live} agent={agent} /> : agent ? <Badge tone={agent.state === "actif" ? "ok" : "warn"} title={tx("Agent MyServices : {0}", agent.state)}>{tx("agent")}</Badge> : <span className="truncate">{access}</span>}
+          {live ? <SourceBadges all={open} m={live} agent={agent} /> : <AgentOrAccess agent={agent} access={access} />}
         </span>
       </button>
       {open && (
@@ -472,14 +480,14 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   // ne se détectent pas : toujours libres.
   const found = new Set([...(live?.detected ?? []), ...detected]);
   const DETECTABLE = ["gateway", "vm", "npm", "off"];
-  const QUICK = ["off"];   // réglages courants, montrés en haut de la carte (jamais grisés ni cachés dans le menu des options)
-  const locked = (k: string) => !QUICK.includes(k) && !unlock && DETECTABLE.includes(k) && !found.has(k) && !v[k as keyof MachineConf];
+  const QUICK = new Set(["off"]);   // réglages courants, montrés en haut de la carte (jamais grisés ni cachés dans le menu des options)
+  const locked = (k: string) => !QUICK.has(k) && !unlock && DETECTABLE.includes(k) && !found.has(k) && !v[k as keyof MachineConf];
   const isOn = (k: string) => found.has(k) || !!v[k as keyof MachineConf];
-  const activeFlags = FLAGS.filter((f) => !!v[f.k] && !QUICK.includes(String(f.k)));  // allumées : montrées hors du menu
+  const activeFlags = FLAGS.filter((f) => !!v[f.k] && !QUICK.has(String(f.k)));  // allumées : montrées hors du menu
   const procOn = proc && !windows && !!v.ssh;
-  const detectedFlags = FLAGS.filter((f) => !QUICK.includes(String(f.k)) && DETECTABLE.includes(String(f.k)) && isOn(String(f.k)) && !v[f.k]);
-  const missingFlags = FLAGS.filter((f) => !QUICK.includes(String(f.k)) && DETECTABLE.includes(String(f.k)) && !isOn(String(f.k)));
-  const manualFlags = FLAGS.filter((f) => !QUICK.includes(String(f.k)) && !DETECTABLE.includes(String(f.k)) && !v[f.k]);
+  const detectedFlags = FLAGS.filter((f) => !QUICK.has(String(f.k)) && DETECTABLE.includes(String(f.k)) && isOn(String(f.k)) && !v[f.k]);
+  const missingFlags = FLAGS.filter((f) => !QUICK.has(String(f.k)) && DETECTABLE.includes(String(f.k)) && !isOn(String(f.k)));
+  const manualFlags = FLAGS.filter((f) => !QUICK.has(String(f.k)) && !DETECTABLE.includes(String(f.k)) && !v[f.k]);
   const flagRow = (f: (typeof FLAGS)[number]) => (
     <label key={String(f.k)} className={`flex items-start gap-2 ${locked(String(f.k)) ? "opacity-50" : ""}`}
       title={locked(String(f.k)) ? tx("Non détecté sur cette machine : grisé") : undefined}>
@@ -650,7 +658,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line/60 bg-bg2/70 p-3 text-sm">
             <b>{tx("Agent")}</b>
             {agent ? <>
-              <Badge tone={agent.state === "actif" ? "ok" : agent.state === "silencieux" ? "warn" : "info"}>{agent.state}</Badge>
+              <Badge tone={AGENT_TONE[agent.state] ?? "info"}>{agent.state}</Badge>
               <Dim>v{agent.version ?? "?"} · {agent.last_seen ? tx("dernier relevé {0}", dateTime(agent.last_seen * 1000)) : tx("en attente du premier relevé")}</Dim>
               <a href={`#settings/agents/${ip}`} className="ml-auto text-xs font-semibold text-link hover:underline">{tx("Gérer l'agent")}</a>
             </> : <>

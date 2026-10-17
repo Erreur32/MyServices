@@ -211,6 +211,10 @@ const iconBtn = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounde
 /** Une machine qui a un agent, sur une seule ligne (elle passe à la ligne sur un petit écran) : nom, IP, système, nom du poste, version,
  *  dernier relevé, fréquence, jeton, état, puis des boutons-icônes : mise à jour automatique, mettre à jour maintenant, nouvelle commande, révoquer.
  *  Mise à jour : l'agent vient chercher le nouveau script à son prochain relevé (au plus tard dans son intervalle), rien n'est poussé vers le PC. */
+const VersionMark = ({ outdated }: Readonly<{ outdated: boolean }>) => outdated
+  ? <ArrowUpCircle size={13} className="text-warn" aria-hidden />
+  : <Check size={13} className="text-ok" aria-hidden />;
+
 function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
   a: AgentInfo; conf?: MachineConf; ip: string; focus: boolean; busy: boolean; onRenew?: () => void; reload: () => void;
 }) {
@@ -229,7 +233,7 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
         <span className="w-44 truncate text-center text-xs font-bold text-txt lg:w-auto" title={a.os ?? undefined}>{a.os ? shortOs(a.os) : "-"}</span>
         <span className="w-28 truncate text-center text-xs text-muted lg:w-auto" title={tx("Nom du poste")}>{a.hostname ?? "-"}</span>
         <span className="inline-flex w-14 items-center justify-center gap-1 text-xs lg:w-auto" title={a.outdated ? tx("Agent v{0} : la v{1} est disponible", a.version ?? "?", a.latest_version ?? "?") : a.version ? tx("à jour (v{0})", a.version) : undefined}>
-          {a.version ? <>v{a.version}{a.outdated ? <ArrowUpCircle size={13} className="text-warn" aria-hidden /> : <Check size={13} className="text-ok" aria-hidden />}</> : "-"}
+          {a.version ? <>v{a.version}<VersionMark outdated={!!a.outdated} /></> : "-"}
         </span>
         <span className="w-36 text-center text-xs text-muted lg:w-auto" title={a.last_ip ? `${tx("Dernier relevé")} : ${a.last_ip}` : undefined}>
           {a.last_seen ? dateTime(a.last_seen * 1000) : <span className="text-warn">{tx("aucun relevé reçu")}</span>}

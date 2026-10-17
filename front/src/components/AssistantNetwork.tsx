@@ -53,7 +53,11 @@ export function AssistantNetwork({ net, reload, known, onManual }: Readonly<{ ne
     await act(async () => { await send("POST", "network/scan"); pokeScan(); reload(); }, tx("recherche lancée"), setNote);
     setBusy(false);
   };
-  const toggle = (ip: string) => setPicked((p) => { const n = new Set(p); if (n.has(ip)) n.delete(ip); else n.add(ip); return n; });
+  const toggle = (ip: string) => setPicked((p) => {
+    const n = new Set(p);
+    if (!n.delete(ip)) n.add(ip);
+    return n;
+  });
 
   if (state === "idle" && !net?.found.length) {
     return (
@@ -85,10 +89,10 @@ export function AssistantNetwork({ net, reload, known, onManual }: Readonly<{ ne
     setBusy(true);
     const done: string[] = [];
     await act(async () => {
-      for (const h of chosen) {
+      await Promise.all(chosen.map(async (h) => {
         await send("PUT", `machines/settings/${h.ip}`, { machine: { name: h.name.trim() || h.ip, role: roleOf(h) }, extra: [] });
         done.push(h.ip);
-      }
+      }));
     }, tx("machines ajoutées : relevé et santé lancés"), setNote);
     setAdded((n) => n + done.length); setPicked(new Set());
     await rereadMachines(done).catch(() => undefined);
@@ -108,7 +112,7 @@ export function AssistantNetwork({ net, reload, known, onManual }: Readonly<{ ne
       {others.length > 0 && (   // caméras, objets connectés, téléphones : seulement un ping possible, pas dans l'assistant ; ajoutables après, depuis Découverte
         <p className="text-xs text-dim">{plural(others.length, "autre appareil", "autres appareils")} {tx("(caméras, objets connectés…) : à ajouter plus tard, en simple ping, dans Réglages → Découverte.")}</p>
       )}
-      {added > 0 && <p className="rounded-lg bg-ok/10 px-3 py-2 text-sm font-semibold text-ok" role="status"><Check size={14} className="mr-1 inline" aria-hidden />{tx("{0} ajoutées. À l'étape suivante, vous choisissez comment les lire.", plural(added, "machine"))}</p>}
+      {added > 0 && <output className="block rounded-lg bg-ok/10 px-3 py-2 text-sm font-semibold text-ok"><Check size={14} className="mr-1 inline" aria-hidden />{tx("{0} ajoutées. À l'étape suivante, vous choisissez comment les lire.", plural(added, "machine"))}</output>}
       <div className="flex flex-wrap items-center gap-2">
         {chosen.length > 0 && <button type="button" className={primary} disabled={busy} onClick={() => void addPicked()}><Check size={14} aria-hidden />{tx("Suivre la sélection")} ({chosen.length})</button>}
         <span className="ml-auto flex flex-wrap items-center gap-3">

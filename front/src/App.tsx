@@ -62,7 +62,11 @@ export default function App() {
   useEffect(() => {
     load();
     const id = setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);   // rien quand l'onglet est masqué
-    const onHash = () => { if (location.hash.startsWith("#setup")) location.replace("#assistant"); setTab(tabFromHash()); setHash(location.hash); };   // ancienne page « Installation » -> assistant
+    const onHash = () => {   // ancienne page « Installation » -> assistant
+      if (location.hash.startsWith("#setup")) location.replace("#assistant");
+      setTab(tabFromHash());
+      setHash(location.hash);
+    };
     onHash();
     addEventListener("hashchange", onHash);
     let fast: ReturnType<typeof setInterval> | undefined, stop: ReturnType<typeof setTimeout> | undefined;

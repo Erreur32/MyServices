@@ -26,9 +26,9 @@ const EMPTY: AssistantProgress = { current: "welcome", done: [], skipped: [], ho
  *  car la page s'appuie dessus (un champ absent ferait planter l'assistant). */
 export function normalizeProgress(raw: unknown): AssistantProgress {
   const got = (raw && typeof raw === "object" ? raw : {}) as Partial<AssistantProgress>;
-  const ids: string[] = STEPS.map((s) => s.id), list = (v: unknown) => (Array.isArray(v) ? v : []);
-  if (!ids.includes(got.current as string)) return EMPTY;
-  return { current: got.current as AssistantStep, done: list(got.done).filter((i) => ids.includes(i)), skipped: list(got.skipped).filter((i) => ids.includes(i)),
+  const ids = new Set<string>(STEPS.map((s) => s.id)), list = (v: unknown) => (Array.isArray(v) ? v : []);
+  if (!ids.has(got.current as string)) return EMPTY;
+  return { current: got.current as AssistantStep, done: list(got.done).filter((i) => ids.has(i)), skipped: list(got.skipped).filter((i) => ids.has(i)),
     host: typeof got.host === "string" ? got.host : "", accepted: list(got.accepted).filter((a) => typeof a === "string") };
 }
 

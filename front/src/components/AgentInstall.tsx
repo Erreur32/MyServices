@@ -24,6 +24,23 @@ const EXAMPLE_URL = "http://192.168.1.10:8090"; // NOSONAR
 /** Nom d'agent accepté par le serveur (lettres, chiffres, espace, . _ @ -) tiré du nom de la machine */
 const agentName = (machine: string) => machine.replace(/[^\p{L}\p{N}_ .@-]/gu, "").trim().slice(0, 64) || "agent";
 
+const installNote = (kind: AgentKind) => kind === "linux"
+  ? tx("L'installation crée un minuteur systemd (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur la machine relancer la commande avec MSV_UNINSTALL=1.")
+  : tx("L'installation crée une tâche planifiée (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur le PC relancer la commande avec MSV_UNINSTALL = '1'.");
+
+function FirstReport({ seen }: Readonly<{ seen?: AgentInfo }>) {
+  if (!seen?.last_seen) return <output className="mt-3 block rounded-lg bg-bg2 px-3 py-2 text-sm text-muted">⏳ {tx("En attente du premier relevé : cette ligne se met à jour toute seule dès que le PC a envoyé le premier, sans rien à recharger.")}</output>;
+  return (
+    <output className="mt-3 block rounded-lg bg-ok/10 px-3 py-2">
+      <span className="block text-sm font-semibold text-ok">✓ {tx("Agent installé et actif : premier relevé reçu")}</span>
+      <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted">
+        <Monitor size={16} className="shrink-0 text-ok" aria-hidden />{tx("Système détecté :")} <b className="text-base text-txt">{seen.os || tx("non précisé par l'agent")}</b>
+        <Dim>· {tx("agent")} v{seen.version || "?"} · {dateTime(seen.last_seen * 1000)}</Dim>
+      </span>
+    </output>
+  );
+}
+
 export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
   target: InstallTarget; onChanged?: () => void; onClose: () => void;
   onSsh?: () => void;   // dans l'assistant : ouvre le réglage SSH dans une fenêtre ; sans cela, lien vers la page de la machine
@@ -90,18 +107,8 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
           {command ? <Copyable key={command} text={command} />
             : <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{tx("Adresse de MyServices invalide : http://hôte:port, sans chemin. Corrigez-la ci-dessous, la commande se met à jour.")}</p>}
           {!command && addressField}
-          <p className="mt-2 text-xs text-dim">{created.info.kind === "linux"
-            ? tx("L'installation crée un minuteur systemd (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur la machine relancer la commande avec MSV_UNINSTALL=1.")
-            : tx("L'installation crée une tâche planifiée (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur le PC relancer la commande avec MSV_UNINSTALL = '1'.")}</p>
-          {seen?.last_seen
-            ? <div role="status" className="mt-3 rounded-lg bg-ok/10 px-3 py-2">
-                <p className="text-sm font-semibold text-ok">✓ {tx("Agent installé et actif : premier relevé reçu")}</p>
-                <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted">
-                  <Monitor size={16} className="shrink-0 text-ok" aria-hidden />{tx("Système détecté :")} <b className="text-base text-txt">{seen.os || tx("non précisé par l'agent")}</b>
-                  <Dim>· {tx("agent")} v{seen.version || "?"} · {dateTime(seen.last_seen * 1000)}</Dim>
-                </p>
-              </div>
-            : <p role="status" className="mt-3 rounded-lg bg-bg2 px-3 py-2 text-sm text-muted">⏳ {tx("En attente du premier relevé : cette ligne se met à jour toute seule dès que le PC a envoyé le premier, sans rien à recharger.")}</p>}
+          <p className="mt-2 text-xs text-dim">{installNote(created.info.kind as AgentKind)}</p>
+          <FirstReport seen={seen} />
         </div>}
       </Card>
     );
@@ -114,7 +121,7 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
         ? tx("L'agent Linux est un script Python, en lecture seule. « Créer l'agent » génère son jeton (montré une seule fois) et la commande à coller dans un terminal de la machine (avec sudo).")
         : tx("L'agent est un script PowerShell pour Windows, en lecture seule. « Créer l'agent » génère son jeton (montré une seule fois) et la commande à coller dans un PowerShell administrateur du PC.")}</p>
       {target.choose && (
-        <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label={tx("Type d'agent")}>
+        <fieldset className="m-0 mt-3 flex min-w-0 flex-wrap items-center gap-2 border-0 p-0" aria-label={tx("Type d'agent")}>
           {(["windows", "linux"] as const).map((k) => (
             <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}
               className={`inline-flex h-8 items-center rounded-lg border px-3 text-sm font-semibold ${kind === k ? "border-link bg-link/10 text-txt" : "border-line bg-bg2 text-muted hover:border-link"}`}>{k === "windows" ? "Windows" : "Linux"}</button>
@@ -122,7 +129,7 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
           {kind === "linux" && (onSsh
             ? <button type="button" className="text-xs text-link underline" onClick={onSsh}>{tx("ou régler l'accès SSH de cette machine")}</button>
             : <a href={`#settings/machines/${target.ip}`} className="text-xs text-link underline">{tx("ou régler l'accès SSH de cette machine")}</a>)}
-        </div>
+        </fieldset>
       )}
       {addressField}
       <div className="mt-3 flex flex-wrap gap-2">
