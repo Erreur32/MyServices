@@ -23,7 +23,7 @@ import { DetailRow, DetailSection } from "../components/DetailSection";
 import { quiet } from "../lib/forms";
 import { Overlay } from "../components/Overlay";
 import { rereadMachines } from "../lib/scan";
-import { healthItems, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
+import { watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
 import { tx } from "../lib/i18n";
@@ -579,12 +579,12 @@ function healthRank(m: Machine, h: HealthHost | undefined, followed: boolean): n
   return !m.off && m.ping === false ? 0 : 4;
 }
 
-/** Flag after the name, as on the Health page: how many things need attention (updates included), the list in the tooltip */
+/** Flag after the name: only the system updates waiting (and a reboot required), the packages named in the tooltip; the other things to watch have their own column */
 function ProblemFlag({ h }: Readonly<{ h?: HealthHost }>) {
-  const pb = h && h.reachable !== false ? healthItems(h) : [];
-  if (!pb.length) return null;
-  const bad = pb.some((i) => i.tone === "bad");
-  return <span className={`text-xs ${bad ? "text-bad" : "text-warn"}`} title={[tx("À surveiller"), ...pb.map((i) => i.text)].join("\n")}>⚑ {pb.length}</span>;
+  const n = h && h.reachable !== false ? h.apt?.upgradable ?? 0 : 0;
+  if (!n) return null;
+  const names = (h?.apt?.sample ?? []).slice(0, 12).join("\n");
+  return <span className="text-xs text-warn" title={[tx("{0} mise(s) à jour en attente", n), names].filter(Boolean).join("\n")}>⚑ {n}</span>;
 }
 
 function HealthLevel({ m, h, followed }: Readonly<{ m: Machine; h?: HealthHost; followed: boolean }>) {
