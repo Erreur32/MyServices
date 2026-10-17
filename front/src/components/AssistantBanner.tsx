@@ -1,17 +1,21 @@
 // Bandeau de l'accueil (administrateur) : l'assistant de démarrage n'est pas fini. Disparaît quand il l'est, ou quand on le ferme (par navigateur).
+// Sur une installation neuve (aucune autre machine suivie, assistant jamais servi), il ouvre l'assistant tout seul, une fois par session.
 import { Rocket, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { read } from "../api";
-import { STEPS, isFinished, type AssistantProgress } from "../lib/assistant";
+import type { Snapshot } from "../api";
+import { STEPS, bannerClosed, closeBanner, isFinished, markLanded, normalizeProgress, shouldLand, type AssistantProgress } from "../lib/assistant";
 import { tx } from "../lib/i18n";
 import { primary } from "../lib/forms";
 
-const OFF = "myservices-assistant-banner-off";
-const isOff = (): boolean => { try { return localStorage.getItem(OFF) === "1"; } catch { return false; } };
-
-export function AssistantBanner() {
-  const [state, setState] = useState<AssistantProgress | null | undefined>(undefined), [off, setOff] = useState(isOff);
-  useEffect(() => { read<{ state: AssistantProgress | null }>("assistant").then((r) => setState(r.state)).catch(() => setState(undefined)); }, []);
+export function AssistantBanner({ snap }: { snap: Snapshot }) {
+  const [state, setState] = useState<AssistantProgress | null | undefined>(undefined), [off, setOff] = useState(bannerClosed);
+  useEffect(() => {
+    read<{ state: AssistantProgress | null }>("assistant").then((r) => setState(r.state && normalizeProgress(r.state))).catch(() => setState(undefined));
+  }, []);
+  useEffect(() => {
+    if (shouldLand(state, snap.data.machine_list, location.hash)) { markLanded(); location.hash = "assistant"; }
+  }, [state, snap.data.machine_list]);
   if (off || state === undefined || isFinished(state)) return null;   // undefined : pas encore lu (ou illisible) ; fini : plus rien à proposer
   const n = state ? new Set([...state.done, ...state.skipped]).size : 0;
   return (
@@ -23,7 +27,7 @@ export function AssistantBanner() {
       </p>
       <a href="#assistant" className={`${primary} no-underline`}>{n > 0 ? tx("Continuer") : tx("Commencer")}</a>
       <button type="button" aria-label={tx("Fermer")} title={tx("Fermer")} className="rounded-lg p-1.5 text-dim hover:bg-bg2 hover:text-txt"
-        onClick={() => { try { localStorage.setItem(OFF, "1"); } catch { /* navigation privée : tant pis */ } setOff(true); }}><X size={16} aria-hidden /></button>
+        onClick={() => { closeBanner(); setOff(true); }}><X size={16} aria-hidden /></button>
     </aside>
   );
 }

@@ -7,7 +7,7 @@ import { logout, type Snapshot } from "../api";
 import { HEADER_LOGOS, useHeaderLogo, type Theme } from "../theme";
 import { LOCALE, tx } from "../lib/i18n";
 import { appVersion } from "../lib/format";
-import { reopenFirstSteps } from "../lib/firstSteps";
+import { reopenAssistant } from "../lib/assistant";
 import { GITHUB } from "../lib/links";
 import { lastSettingsSection } from "../lib/settingsNav";
 import { dismissTag, dismissedTag } from "../lib/updateNotice";
@@ -107,7 +107,7 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
           <DropSep />
           <DropItem icon={<UserRound size={15} />} onClick={() => go("profile")}>{tx("Profil")}</DropItem>
           {admin && <DropItem icon={<Settings size={15} />} onClick={() => go(lastSettingsSection() ? `settings/${lastSettingsSection()}` : "settings")}>{tx("Réglages")}</DropItem>}
-          {admin && <DropItem icon={<ListChecks size={15} />} title={tx("Rouvre la carte et efface vos choix « Passer »")} onClick={() => { setOpen(false); reopenFirstSteps(); }}>{tx("Revoir les premiers pas")}</DropItem>}
+          {admin && <DropItem icon={<ListChecks size={15} />} title={tx("Rouvre l'assistant depuis le début")} onClick={() => { setOpen(false); reopenAssistant(); }}>{tx("Revoir l'assistant de démarrage")}</DropItem>}
           <DropItem icon={theme === "dark" ? <Sun size={15} /> : <Moon size={15} />} onClick={toggleTheme}>{tx("Thème")} {theme === "dark" ? tx("clair") : tx("sombre")}</DropItem>
           <DropSep />
           <DropItem icon={<ExternalLink size={15} />} href={GITHUB}>{tx("Projet sur GitHub")}</DropItem>

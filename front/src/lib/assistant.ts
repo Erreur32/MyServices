@@ -1,5 +1,7 @@
 // Assistant de démarrage : les étapes et ce que l'utilisateur en a fait (faite, passée), gardé par le navigateur.
 // Hors du composant : le rechargement à chaud de Vite ne marche que sur un fichier qui n'exporte que des composants.
+import { send } from "../api";
+import { REOPEN_EVENT, forgetChoices } from "./firstSteps";
 import { tx } from "./i18n";
 import type { Machine } from "../types";
 
@@ -49,6 +51,30 @@ export function thisMachine(machines: Machine[], hostname: string, chosen = ""):
   return machines.find((m) => chosen && m.ip === chosen) ?? machines.find((m) => m.local) ?? machines.find((m) => m.ip === hostname)
     ?? machines.find((m) => m.ssh?.alias === "hote");
 }
+
+const BANNER_OFF = "myservices-assistant-banner-off", LANDED = "myservices-assistant-landed";
+
+/** Menu du compte, Réglages -> Découverte : l'assistant repart du début, même s'il était fini ou fermé (choix « passés » de la recherche réseau effacés aussi) */
+export function reopenAssistant(): void {
+  resetProgress();
+  try { localStorage.removeItem(BANNER_OFF); } catch { /* navigation privée : tant pis */ }
+  forgetChoices();
+  void send("PUT", "assistant", EMPTY).catch(() => undefined);
+  location.hash = "assistant";
+  dispatchEvent(new Event(REOPEN_EVENT));
+}
+
+export const bannerClosed = (): boolean => { try { return localStorage.getItem(BANNER_OFF) === "1"; } catch { return false; } };
+export function closeBanner(): void { try { localStorage.setItem(BANNER_OFF, "1"); } catch { /* idem */ } }
+
+/** Installation neuve : l'assistant s'ouvre tout seul, une seule fois par session. Jamais pour une installation qui l'a déjà servi ou qui suit déjà
+ *  des machines, jamais si l'utilisateur est déjà ailleurs que sur l'accueil. `state` : null = jamais servi ; undefined = pas encore lu. */
+export function shouldLand(state: AssistantProgress | null | undefined, machines: { disabled?: boolean }[], hash: string): boolean {
+  let landed = false;
+  try { landed = sessionStorage.getItem(LANDED) === "1"; } catch { /* idem */ }
+  return state === null && machines.filter((m) => !m.disabled).length <= 1 && (hash === "" || hash === "#") && !landed;
+}
+export function markLanded(): void { try { sessionStorage.setItem(LANDED, "1"); } catch { /* idem */ } }
 
 /** L'étape après `id` (la dernière reste la dernière) */
 export function nextStep(id: AssistantStep): AssistantStep {

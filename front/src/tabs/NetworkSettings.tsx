@@ -15,7 +15,7 @@ import { Action, MODE, MuteButton, Title, useDiscoveries, when, type DiscoveryIt
 import { NetworkStep } from "../components/NetworkStep";
 import { appIcon } from "../lib/appIcons";
 import { dateTime } from "../lib/format";
-import { reopenFirstSteps } from "../lib/firstSteps";
+import { reopenAssistant } from "../lib/assistant";
 import { act, primary, quiet, type Note } from "../lib/forms";
 import { pokeScan } from "../lib/scan";
 import { usePoll } from "../lib/polling";
@@ -186,7 +186,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
           </div>
         </div>
         <div className="mt-3 flex flex-wrap justify-end gap-2 border-t border-line/60 pt-3">
-          <button type="button" className={quiet} onClick={reopenFirstSteps} title={tx("Rouvre la carte et efface vos choix « Passer »")}><ListChecks size={14} aria-hidden />{tx("Revoir les premiers pas")}</button>
+          <button type="button" className={quiet} onClick={reopenAssistant} title={tx("Rouvre l'assistant depuis le début")}><ListChecks size={14} aria-hidden />{tx("Revoir l'assistant de démarrage")}</button>
         </div>
         <NoteLine note={note} />
       </section>

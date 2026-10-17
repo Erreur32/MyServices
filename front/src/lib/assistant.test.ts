@@ -1,16 +1,21 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Machine } from "../types";
-import { STEPS, advance, isFinished, normalizeProgress, loadProgress, nextStep, previousStep, resetProgress, saveProgress, thisMachine } from "./assistant";
+import { STEPS, advance, bannerClosed, closeBanner, isFinished, markLanded, normalizeProgress, shouldLand, loadProgress, nextStep, previousStep, resetProgress, saveProgress, thisMachine } from "./assistant";
 
 // Un localStorage minimal : les tests tournent sans navigateur
 const mem = new Map<string, string>();
+const session = new Map<string, string>();
+Object.defineProperty(globalThis, "sessionStorage", {
+  value: { getItem: (k: string) => session.get(k) ?? null, setItem: (k: string, v: string) => void session.set(k, v), removeItem: (k: string) => void session.delete(k) },
+  configurable: true,
+});
 Object.defineProperty(globalThis, "localStorage", {
   value: { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k) },
   configurable: true,
 });
 
 describe("assistant : progression", () => {
-  beforeEach(() => mem.clear());
+  beforeEach(() => { mem.clear(); session.clear(); });
 
   it("commence à la bienvenue, rien de fait", () => {
     expect(loadProgress()).toEqual({ current: "welcome", done: [], skipped: [], host: "", accepted: [] });
@@ -84,5 +89,28 @@ describe("assistant : progression", () => {
     expect(normalizeProgress({ current: "access", done: ["welcome"], skipped: [] })).toEqual({ current: "access", done: ["welcome"], skipped: [], host: "", accepted: [] });
     expect(normalizeProgress({ current: "access", accepted: ["10.0.0.5", 3, null] }).accepted).toEqual(["10.0.0.5"]);
     for (const bad of [null, undefined, "x", 3, [], {}, { current: "inconnue" }]) expect(normalizeProgress(bad).current).toBe("welcome");
+  });
+
+  it("s'ouvre tout seul sur une installation neuve, une seule fois par session", () => {
+    const host = [{ disabled: false }];
+    expect(shouldLand(null, host, "")).toBe(true);                       // jamais servi, seule la machine hôte, sur l'accueil
+    expect(shouldLand(null, [], "#")).toBe(true);
+    markLanded();
+    expect(shouldLand(null, host, "")).toBe(false);                      // déjà fait dans cette session : pas de boucle
+  });
+
+  it("ne s'ouvre jamais sur une installation déjà utilisée ou ailleurs que sur l'accueil", () => {
+    const host = [{ disabled: false }];
+    expect(shouldLand(undefined, host, "")).toBe(false);                 // état pas encore lu
+    expect(shouldLand({ current: "machine", done: [], skipped: [], host: "", accepted: [] }, host, "")).toBe(false);   // déjà servi
+    expect(shouldLand(null, [{}, {}], "")).toBe(false);                  // des machines sont déjà suivies
+    expect(shouldLand(null, [{ disabled: false }, { disabled: true }], "")).toBe(true);   // une machine désactivée ne compte pas
+    expect(shouldLand(null, host, "#settings/machines")).toBe(false);    // l'utilisateur est déjà ailleurs
+  });
+
+  it("le bandeau fermé reste fermé dans ce navigateur", () => {
+    expect(bannerClosed()).toBe(false);
+    closeBanner();
+    expect(bannerClosed()).toBe(true);
   });
 });
