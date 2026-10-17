@@ -2270,7 +2270,7 @@ export const EN: Record<string, string> = {
   "Cette machine offre le SSH mais MyServices n'y a pas encore d'accès : il reste à le régler.": "This machine offers SSH but MyServices has no access to it yet: it still needs to be set up.",
   "Une machine éteinte n'est pas signalée comme en panne.": "A machine that is off is not reported as down.",
   "Sécurité SSH, pas une panne": "SSH security, not a failure",
-  "Ce serveur SSH autorise {0}.\n**Pour durcir :** PermitRootLogin no et PasswordAuthentication no dans sshd_config, puis recharger sshd.": "This SSH server allows {0}.\n**To harden it:** set PermitRootLogin no and PasswordAuthentication no in sshd_config, then reload sshd.",
+  "Ce serveur SSH autorise {0}.\n**Pour durcir :** `PermitRootLogin no` et `PasswordAuthentication no` dans `sshd_config`, puis recharger `sshd`.": "This SSH server allows {0}.\n**To harden it:** set `PermitRootLogin no` and `PasswordAuthentication no` in `sshd_config`, then reload `sshd`.",
   "Lecture en échec": "Reading failed",
   "Non suivie": "Not tracked",
   "Plus lue par MyServices : cachée dans les onglets. Rallumez « Machine suivie » dans la carte pour la reprendre.": "No longer read by MyServices: hidden in the tabs. Turn \"Machine tracked\" back on in the card to resume.",

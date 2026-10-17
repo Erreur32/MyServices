@@ -12,8 +12,12 @@ function splitTip(text: string): [string, string] {
   return i < 0 ? ["", text] : [text.slice(0, i), text.slice(i + 1)];
 }
 
-/** **text** inside a tip is shown in bold (to set a sentence apart on its own line) */
-const bold = (text: string) => text.split("**").map((part, i) => (i % 2 ? <b key={i} className="text-txt">{part}</b> : part));
+/** Light markup inside a tip: **text** in bold, `text` as code (settings, commands, file names) */
+const rich = (text: string) => text.split(/(\*\*[^*]+\*\*|`[^`]+`)/).map((part, i) => {
+  if (part.startsWith("**")) return <b key={i} className="text-txt">{part.slice(2, -2)}</b>;
+  if (part.startsWith("`")) return <code key={i} className="rounded bg-bg2 px-1 font-mono text-[11px] font-semibold text-txt">{part.slice(1, -1)}</code>;
+  return part;
+});
 
 export function TooltipLayer() {
   const [tip, setTip] = useState<Tip | null>(null);
@@ -75,7 +79,7 @@ export function TooltipLayer() {
     <div ref={box} role="tooltip" className="pointer-events-none fixed z-[100] max-w-xs animate-[tip-in_.12s_ease-out] whitespace-pre-line rounded-lg border border-line bg-card px-2.5 py-1.5 text-xs leading-snug text-txt shadow-lg shadow-black/30"
       style={{ left: tip.x + shift, top: tip.below ? tip.y + GAP : tip.y - GAP, transform: `translate(-50%, ${tip.below ? "0" : "-100%"})` }}>
       {head && <b className="block text-txt">{head}</b>}
-      {rest && <span className={head ? "mt-0.5 block text-muted" : ""}>{bold(rest)}</span>}
+      {rest && <span className={head ? "mt-0.5 block text-muted" : ""}>{rich(rest)}</span>}
       <span aria-hidden className={`absolute h-2 w-2 rotate-45 border border-line bg-card ${tip.below ? "-top-1 border-b-0 border-r-0" : "-bottom-1 border-l-0 border-t-0"}`} style={{ left: `calc(50% - ${shift}px - 4px)` }} />
     </div>
   );
