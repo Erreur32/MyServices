@@ -3,5 +3,5 @@ import type { Snapshot } from "../api";
 import { Agents } from "./Agents";
 
 export function SshAgents({ snap, focusIp }: { snap: Snapshot; focusIp?: string }) {
-  return <Agents focusIp={focusIp} live={snap.data.machine_list || []} />;
+  return <Agents focusIp={focusIp} live={snap.data.machine_list || []} network={snap.data.network || []} />;
 }

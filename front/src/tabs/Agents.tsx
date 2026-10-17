@@ -14,7 +14,8 @@ import { focusConnector } from "../lib/connectorPrefill";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
 import { dateTime, ipNum } from "../lib/format";
-import type { AgentInfo, AgentsState, Machine, MachineConf, MachinesSettings } from "../types";
+import type { AgentInfo, AgentsState, Machine, MachineConf, MachinesSettings, NetworkConnector } from "../types";
+import { freeboxOf } from "../lib/freebox";
 import { MSTATE, mState } from "../lib/machines";
 import { usePoll } from "../lib/polling";
 import { tx } from "../lib/i18n";
@@ -35,7 +36,7 @@ const APPLIANCE_ICONS = new Set(["freebox", "free", "nut"]);
 /** Nom d'agent accepté par le serveur (lettres, chiffres, espace, . _ @ -) tiré du nom de la machine */
 const agentName = (machine: string) => machine.replace(/[^\p{L}\p{N}_ .@-]/gu, "").trim().slice(0, 64) || "agent";
 
-export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] }) {
+export function Agents({ focusIp, live, network = [] }: { focusIp?: string; live: Machine[]; network?: NetworkConnector[] }) {
   const [st, setSt] = useState<AgentsState | null>(null);
   const [machines, setMachines] = useState<MachinesSettings["machines"]>({});
   const [error, setError] = useState("");
@@ -230,6 +231,9 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
           const via = new Map<string, { type: string; name: string; label: string }>();
           for (const a of list) via.set(`${a.type}/${a.name}`, { type: a.type, name: a.name, label: a.label });
           for (const x of lm?.links?.sources ?? []) if (x.ok !== false && !via.has(`${x.source}/${x.instance}`)) via.set(`${x.source}/${x.instance}`, { type: x.source, name: x.instance, label: x.label });
+          // La Freebox n'a pas d'adresse chez MynetworK : elle est reconnue par son nom (freeboxOf), comme dans l'onglet Machines
+          const fbOf = lm && freeboxOf(lm, network) && network.find((c) => c.freebox?.system);
+          if (fbOf && !via.has(`${fbOf.connector}/${fbOf.name}`)) via.set(`${fbOf.connector}/${fbOf.name}`, { type: fbOf.connector, name: fbOf.name, label: fbOf.label });
           return (
             <li key={ip} className="flex h-full flex-wrap items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3" title={list.map((a) => `${a.label} (${a.name}) : ${a.message ?? ""}`).join("\n") || undefined}>
               <MachineIcon m={{ role: liveBy.get(ip)?.role, icon: liveBy.get(ip)?.icon, name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
