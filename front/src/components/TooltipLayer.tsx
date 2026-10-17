@@ -104,11 +104,11 @@ export function TooltipLayer() {
   if (!tip) return null;
   const [head, rest] = splitTip(tip.text);
   return (
-    <div ref={box} role="tooltip" className="pointer-events-none fixed z-[100] w-max max-w-[min(36rem,calc(100vw-1rem))] animate-[tip-in_.12s_ease-out] whitespace-pre-line rounded-lg border border-line bg-bg px-2.5 py-1.5 text-xs leading-snug text-txt shadow-lg shadow-black/30"
+    <div ref={box} role="tooltip" className="pointer-events-none fixed z-[100] w-max max-w-[min(36rem,calc(100vw-1rem))] animate-[tip-in_.12s_ease-out] whitespace-pre-line overflow-hidden rounded-lg border border-line bg-card px-2.5 py-1.5 text-xs leading-snug text-txt shadow-lg shadow-black/30"
       style={{ left: tip.x + shift, top: tip.below ? tip.y + GAP : tip.y - GAP, transform: `translate(-50%, ${tip.below ? "0" : "-100%"})` }}>
-      {head && <b className="block text-txt">{head}</b>}
-      {rest && <span className={head ? "mt-0.5 block text-muted" : ""}>{body(rest)}</span>}
-      <span aria-hidden className={`absolute h-2 w-2 rotate-45 border border-line bg-bg ${tip.below ? "-top-1 border-b-0 border-r-0" : "-bottom-1 border-l-0 border-t-0"}`} style={{ left: `calc(50% - ${shift}px - 4px)` }} />
+      {head && <b className={`block text-txt ${rest ? "-mx-2.5 -mt-1.5 mb-1.5 border-b border-line/60 bg-bg px-2.5 py-1.5" : ""}`}>{head}</b>}   {/* heading = the darkest tone of the theme, like the card header strips */}
+      {rest && <span className={head ? "block text-muted" : ""}>{body(rest)}</span>}
+      <span aria-hidden className={`absolute h-2 w-2 rotate-45 border border-line ${tip.below && head && rest ? "bg-bg" : "bg-card"} ${tip.below ? "-top-1 border-b-0 border-r-0" : "-bottom-1 border-l-0 border-t-0"}`} style={{ left: `calc(50% - ${shift}px - 4px)` }} />
     </div>
   );
 }

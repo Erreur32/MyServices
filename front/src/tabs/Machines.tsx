@@ -292,20 +292,25 @@ function gpuTip(g: GpuCell): string {
   ].filter((l, i, all) => l !== "" || (i > 0 && all[i - 1] !== "")).join("\n").replace(/\n\n+/g, "\n\n");
 }
 
-/** GPU column cell, kept narrow: the short name with its load and temperature, then the memory in small print; power, 24 h and AI models are in the tooltip */
+/** GPU column cell: the column takes the spare width of the table, so the name stays whole; load and temperature after it, then memory, power and the AI model on the second line (24 h in the tooltip) */
 function GpuCellView({ list }: Readonly<{ list: GpuCell[] }>) {
   if (!list.length) return <Dim>-</Dim>;
   return (
-    <span className="flex w-[8.5rem] flex-col gap-1">
+    <span className="flex min-w-0 flex-col gap-1">
       {list.map((g, i) => (
-        <span key={`${g.name}-${i}`} className="flex flex-col whitespace-nowrap text-xs leading-tight" title={gpuTip(g)} tabIndex={0}>
-          <span className="flex items-baseline gap-1.5">
-            <span className="min-w-0 flex-1 truncate font-medium">{shortGpu(g.name)}</span>
-            {g.models.length > 0 && <Bot size={11} className="shrink-0 self-center text-link" aria-label={tx("Modèles IA")} />}
-            {g.util != null && <span className="tabular-nums text-muted">{Math.round(g.util)}%</span>}
-            {g.temp != null && <span className={`tabular-nums ${heatClass(g.temp)}`}>{Math.round(g.temp)}°</span>}
+        <span key={`${g.name}-${i}`} className="flex min-w-0 flex-col text-xs leading-tight" title={gpuTip(g)} tabIndex={0}>
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="min-w-0 truncate font-medium">{shortGpu(g.name)}</span>
+            {g.util != null && <span className="shrink-0 tabular-nums text-muted">{Math.round(g.util)} %</span>}
+            {g.temp != null && <span className={`shrink-0 tabular-nums ${heatClass(g.temp)}`}>{Math.round(g.temp)} °C</span>}
           </span>
-          {g.memTotal ? <span className="text-[11px] tabular-nums text-dim">{gb(g.memUsed ?? 0)} / {gb(g.memTotal)}</span> : null}
+          {(g.memTotal || g.power != null || g.models.length > 0) && (
+            <span className="flex min-w-0 items-center gap-2 text-[11px] text-dim">
+              {g.memTotal ? <span className="shrink-0 tabular-nums">{gb(g.memUsed ?? 0)} / {gb(g.memTotal)}</span> : null}
+              {g.power != null && <span className="shrink-0 tabular-nums">{Math.round(g.power)} W</span>}
+              {g.models.length > 0 && <span className="flex min-w-0 items-center gap-1 text-link"><Bot size={11} className="shrink-0" aria-hidden /><span className="truncate">{g.models.map((x) => x.model).join(", ")}</span></span>}
+            </span>
+          )}
         </span>
       ))}
     </span>
@@ -1255,7 +1260,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
         <>
           {view === "table" && <Table fit head={<>
             <th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
-            <Th k="svc" sort={sort}>{tx("Services")}</Th><Th k="watch" sort={sort}>{tx("Santé")}</Th>{snap.health && <><Th className="!px-1.5">{tx("CPU")}</Th><Th className="!px-1.5">{tx("Mémoire")}</Th><Th className="!px-1.5">{tx("Disque")}</Th></>}{anyGpu && <Th className="!px-1.5">GPU</Th>}
+            <Th k="svc" sort={sort}>{tx("Services")}</Th><Th k="watch" sort={sort}>{tx("Santé")}</Th>{snap.health && <><Th className="!px-1.5">{tx("CPU")}</Th><Th className="!px-1.5">{tx("Mémoire")}</Th><Th className="!px-1.5">{tx("Disque")}</Th></>}{anyGpu && <Th className="w-full !px-1.5">GPU</Th>}
             <Th k="up" sort={sort} className="w-px !pl-2 !pr-1 !text-right" title={tx("Temps depuis le dernier démarrage de la machine")}>Uptime</Th>
             {admin && <th className="w-8 px-1" aria-label={tx("Réglages")} />}
           </>}>
@@ -1277,7 +1282,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                     <Td><span className="flex flex-wrap items-center gap-1.5">   {/* one column: the level, then what explains it (the updates have their flag near the name) */}
                       {snap.health && <HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} />}
                       <WatchList ip={m.ip} quiet={!!snap.health} items={watchOf(m).filter((i) => i.kind !== "updates")} /></span></Td>
-                    {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="!px-1.5"><GpuCellView list={gpusOf(m)} /></Td>}
+                    {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="w-full !px-1.5"><GpuCellView list={gpusOf(m)} /></Td>}
                     <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-xs tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network)); return up ? <span className={up < 3600 ? "text-warn" : "text-muted"} title={`${dur(up)}${up < 3600 ? ` · ${tx("vient de redémarrer")}` : ""}`}>{durShort(up)}</span> : <Dim>-</Dim>; })()}</Td>
                     {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => setEditIp(m.ip)} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
                       className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><SlidersHorizontal size={14} aria-hidden /></button></td>}
