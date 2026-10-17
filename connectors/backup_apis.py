@@ -1,4 +1,4 @@
-"""Sauvegardes lues par API, en lecture seule : Veeam Backup & Replication et Home Assistant.
+"""Sauvegardes lues par API, en lecture seule : Veeam Backup & Replication, Proxmox Backup Server, Synology Hyper Backup et Home Assistant.
 
 Instances tirées de backups-meta.json (hosts « api »: "veeam" / "ha"), identifiants dans un fichier
 de secrets CLÉ=valeur (mode 600), jamais dans backups-meta.json. Forme rendue : celle de backups.py
@@ -19,7 +19,9 @@ import urllib.request
 from datetime import datetime
 
 from connectors.base import Connector, ConnectorError, Field, Result
+from connectors.status_kit import num, rows
 from connectors.ha_mcp import HaMcp
+from connectors.homelab_infra import Synology
 from connectors.proxmox import ProxmoxBackup
 
 
@@ -233,3 +235,79 @@ class PbsBackups(ProxmoxBackup):
     def test(self) -> Result:
         n = len(self.groups())
         return Result(True, f"connecté : {n} groupe(s) de sauvegarde lus", self.version())
+
+
+DSM_FAIL = ("fail", "error", "partial", "interrupt", "cancel", "abort", "timeout")   # words of a failed last run (last_bkp_result), checked in lower case
+DSM_TIME_FORMATS = ("%Y/%m/%d %H:%M:%S", "%Y/%m/%d %H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S")
+
+
+def dsm_time(v) -> int | None:
+    """A Hyper Backup time (« 2026/10/17 03:00 » in the NAS's local time, or an epoch, or empty / « - » when never run) as an epoch."""
+    if isinstance(v, (int, float)) and v > 0:
+        return int(v)
+    text = str(v or "").strip()
+    if not text or text in ("-", "none", "0"):
+        return None
+    if text.isdigit():
+        return int(text)
+    for fmt in DSM_TIME_FORMATS:
+        try:
+            return int(datetime.strptime(text, fmt).timestamp())
+        except ValueError:
+            continue
+    return None
+
+
+class SynologyBackups(Synology):
+    """Hyper Backup tasks of a Synology DSM: the last run of each task (date, result, next run). Same account as the « synology » connector
+    (read-only user); the volumes give the disks. Shape returned: backups.py (synology_tasks, disks). Routes from DSM's web API, to confirm against a real NAS."""
+    type = "synology-backups"
+    BASE_ADDITIONAL = '["last_bkp_time","last_bkp_result"]'
+    WIDE_ADDITIONAL = '["last_bkp_time","last_bkp_result","next_bkp_time","target_type"]'
+
+    def tasks(self, sid: str) -> list[dict]:
+        """Hyper Backup tasks : {name, id, last_run (epoch), result, next (epoch), state, target_type}. Empty list when the package is missing."""
+        data = None
+        for extra in (self.WIDE_ADDITIONAL, self.BASE_ADDITIONAL):   # an older DSM refuses the extra fields: ask again with the two known ones
+            data = self._call(sid, "SYNO.Backup.Task", "list", 1, {"additional": extra})
+            if data is not None:
+                break
+        out, seen = [], set()
+        for t in rows((data or {}).get("task_list")):
+            add = t.get("additional") if isinstance(t.get("additional"), dict) else {}
+            get = lambda k: t.get(k) if t.get(k) not in (None, "") else add.get(k)   # noqa: E731
+            name = str(t.get("name") or t.get("task_id") or "?")
+            if name in seen:
+                name = f"{name} #{t.get('task_id')}"
+            seen.add(name)
+            out.append({"name": name, "id": t.get("task_id"), "last_run": dsm_time(get("last_bkp_time")), "result": str(get("last_bkp_result") or "none"),
+                        "next": dsm_time(get("next_bkp_time")), "state": str(t.get("state") or ""), "target_type": str(get("target_type") or "")})
+        return out
+
+    def snapshot(self) -> tuple[list[dict], list[dict]]:
+        """(tasks, volumes) in one session, closed at the end."""
+        sid = self.login()
+        try:
+            vols = rows((self._call(sid, "SYNO.Storage.CGI.Storage", "load_info") or {}).get("volumes"))
+            return self.tasks(sid), vols
+        finally:
+            self.logout(sid)
+
+    def collect(self) -> dict:
+        tasks, vols = self.snapshot()
+        disks = []
+        for v in vols:
+            sz = v.get("size") or {}
+            total, used = num(sz.get("total")), num(sz.get("used"))
+            if total:
+                disks.append({"dev": str(v.get("id") or v.get("vol_path") or "volume"), "fs": "synology", "mount": str(v.get("vol_path") or v.get("id") or "volume"),
+                              "size": int(total), "used": int(used or 0), "avail": max(int(total) - int(used or 0), 0), "pct": round((used or 0) * 100 / total, 1)})
+        out = {"user": "API Synology DSM", "locs": {}, "cron_root": None, "disks": disks, "crons": [], "synology_tasks": {}}
+        for t in tasks:
+            out["synology_tasks"][t["name"]] = {k: t[k] for k in ("last_run", "result", "next", "state", "target_type")}
+            out["crons"].append({"src": "Hyper Backup", "line": f"{t['name']} : dernier {_fmt(t['last_run'])} ({t['result']}), prochain {_fmt(t['next'])}"})
+        return out
+
+    def test(self) -> Result:
+        tasks, _ = self.snapshot()
+        return Result(True, f"connecté : {len(tasks)} tâche(s) Hyper Backup lue(s)")

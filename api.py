@@ -1382,6 +1382,38 @@ class PbsFollow(PbsChoice):
     groups: list[PbsGroup]
 
 
+class SynologyChoice(BaseModel):
+    connector: str
+
+
+class SynologyTask(BaseModel):
+    key: str
+    label: str = ""
+    max_age_days: float = 2.0
+
+
+class SynologyFollow(SynologyChoice):
+    tasks: list[SynologyTask]
+
+
+@app.post(API + "/backups/synology/discover", tags=["sauvegardes"], summary="Lister les tâches Hyper Backup d'un NAS Synology par son connecteur, lecture seule (admin)")
+def backups_synology_discover(body: SynologyChoice, request: Request):
+    return backups_call(request, "", "", lambda b: b.synology_discover(body.connector))
+
+
+@app.put(API + "/backups/synology", tags=["sauvegardes"], summary="Suivre des tâches Hyper Backup d'un NAS Synology (admin)")
+def backups_synology_follow(body: SynologyFollow, request: Request):
+    import system
+
+    def go(b):
+        out = b.synology_follow(body.connector, [t.model_dump() for t in body.tasks])
+        if not core.CFG.get("backups_url"):
+            system.set_backups_url(core, "backups.json")
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (Synology)")
+        return {"ok": True, **out}
+    return backups_call(request, "tâches Hyper Backup suivies", f"{body.connector} : {len(body.tasks)} tâche(s)", go)
+
+
 @app.post(API + "/backups/pbs/discover", tags=["sauvegardes"], summary="Lister les groupes de sauvegarde d'un Proxmox Backup Server par son connecteur, lecture seule (admin)")
 def backups_pbs_discover(body: PbsChoice, request: Request):
     return backups_call(request, "", "", lambda b: b.pbs_discover(body.connector))
