@@ -115,8 +115,8 @@ export function Agents({ focusIp, live, network = [] }: Readonly<{ focusIp?: str
         {ssh.map((ip) => {
           const lm = liveBy.get(ip);
           return (
-            <li key={ip} className="flex items-center gap-2">
-              <a href={`#settings/machines/${ip}`} className="flex h-full min-w-0 flex-1 items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 transition-colors hover:border-link hover:bg-link/10">
+            <li key={ip} className="flex items-center gap-1 rounded-xl border border-dim/50 bg-bg2 pr-2 transition-colors hover:border-link">
+              <a href={`#settings/machines/${ip}`} className="flex h-full min-w-0 flex-1 items-center gap-3 rounded-xl p-3 transition-colors hover:bg-link/10">
                 <MachineIcon m={{ role: liveBy.get(ip)?.role, icon: liveBy.get(ip)?.icon, name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
                 <span className="min-w-0 flex-1">
                   <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
@@ -124,8 +124,8 @@ export function Agents({ focusIp, live, network = [] }: Readonly<{ focusIp?: str
                 </span>
                 {badge(ip)}
               </a>
-              <button type="button" className={quiet} title={tx("Préparer un agent Linux pour cette machine, à la place du SSH")}
-                onClick={() => { setInstall({ ip, name: nameOf(ip), kind: "linux", choose: true }); window.scrollTo({ top: 0, behavior: "smooth" }); }}><Plus size={14} />{tx("Agent")}</button>
+              <button type="button" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-dim hover:bg-link/10 hover:text-txt" title={tx("Préparer un agent Linux pour cette machine, à la place du SSH")} aria-label={tx("Agent")}
+                onClick={() => { setInstall({ ip, name: nameOf(ip), kind: "linux", choose: true }); window.scrollTo({ top: 0, behavior: "smooth" }); }}><Plus size={16} aria-hidden /></button>
             </li>
           );
         })}
