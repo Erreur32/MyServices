@@ -673,6 +673,20 @@ def machines_settings(request: Request):
     return machine_call(request, "", "", lambda m: m.listing(), write=False)
 
 
+@app.get(API + "/machines/advice", tags=["machines"], summary="Méthode de lecture recommandée pour chaque machine suivie : SSH, agent, connecteur ou ping (admin)")
+def machines_advice(request: Request):
+    import access_advice, netscan
+
+    def advise(m):
+        try:
+            data = json.loads((Path(core.CFG["web_dir"]) / "data.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            data = {}
+        found = netscan.state(_netscan_file()).get("found") or []
+        return {"advice": access_advice.advise_all([x for x in data.get("machine_list") or [] if not x.get("disabled")], m.listing()["machines"], found, data.get("network"))}
+    return machine_call(request, "", "", advise, write=False)
+
+
 @app.post(API + "/machines/detect", tags=["machines"], summary="Détecter une machine (IP, nom ou alias), sans rien écrire (admin)")
 def machines_detect(request: Request, target: str):
     return machine_call(request, "", "", lambda m: m.detect(target))
