@@ -8,14 +8,13 @@ import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
-import { MachineAccess } from "../components/MachineAccess";
 import { AgentInstall, type AgentKind, type InstallTarget } from "../components/AgentInstall";
 import { isWindowsMachine } from "../lib/machines";
 import { focusConnector } from "../lib/connectorPrefill";
 import { act, danger, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
 import { dateTime, ipNum } from "../lib/format";
-import type { AgentInfo, AgentsState, Connector, Machine, MachineConf, MachinesSettings, NetworkConnector } from "../types";
+import type { AgentInfo, AgentsState, Machine, MachineConf, MachinesSettings, NetworkConnector } from "../types";
 import { freeboxOf } from "../lib/freebox";
 import { MSTATE, mState } from "../lib/machines";
 import { usePoll } from "../lib/polling";
@@ -31,11 +30,9 @@ const STATE: Record<AgentInfo["state"], ["ok" | "warn" | "info" | "off", string]
 /** Icônes de matériel fermé (box, onduleur…) : on n'y installe rien, donc jamais d'agent proposé */
 const APPLIANCE_ICONS = new Set(["freebox", "free", "nut"]);
 
-export function Agents({ focusIp, live, network = [], statuses = [] }: Readonly<{ focusIp?: string; live: Machine[]; network?: NetworkConnector[]; statuses?: Connector[] }>) {
+export function Agents({ focusIp, live, network = [] }: Readonly<{ focusIp?: string; live: Machine[]; network?: NetworkConnector[] }>) {
   const [st, setSt] = useState<AgentsState | null>(null);
   const [machines, setMachines] = useState<MachinesSettings["machines"]>({});
-  const [mst, setMst] = useState<MachinesSettings | null>(null);   // réglages complets (accès SSH connus, services hors Docker) pour le panneau d'accès
-  const [access, setAccess] = useState<string | null>(null);   // machine dont l'accès SSH est ouvert
   const [error, setError] = useState("");
   const [install, setInstall] = useState<InstallTarget | null>(null);   // agent en cours d'installation (le composant partagé gère le reste)
   const reload = useCallback(() => {
@@ -44,9 +41,7 @@ export function Agents({ focusIp, live, network = [], statuses = [] }: Readonly<
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
   }, []);
   useEffect(reload, [reload]);
-  useEffect(() => { read<MachinesSettings>("machines/settings").then((m) => { setMachines(m.machines); setMst(m); }).catch(() => undefined); }, []);
-  const reloadAccess = useCallback(() => { read<MachinesSettings>("machines/settings").then((m) => { setMachines(m.machines); setMst(m); }).catch(() => undefined); }, []);
-  useEffect(() => { if (focusIp && mst?.machines[focusIp] && !st?.agents.some((a) => a.ip === focusIp && a.state !== "révoqué")) setAccess(focusIp); }, [focusIp, mst, st]);
+  useEffect(() => { read<MachinesSettings>("machines/settings").then((m) => setMachines(m.machines)).catch(() => undefined); }, []);
   // Rafraîchissement automatique : toutes les 5 s tant qu'un premier relevé est attendu (l'installation se voit aboutir), sinon toutes les 10 s ;
   // à l'arrêt quand l'onglet du navigateur est caché. Les cartes « Linux, lus par SSH » suivent l'état de la collecte (snapshot de l'application).
   const waiting = !!st?.agents.some((a) => a.state === "en attente");
@@ -91,14 +86,7 @@ export function Agents({ focusIp, live, network = [], statuses = [] }: Readonly<
         </div>
       </Card>
 
-      {install && <AgentInstall key={`${install.ip}-${install.auto ? "auto" : "pick"}`} target={install} onChanged={reload} onClose={() => setInstall(null)}
-        onSsh={() => { setAccess(install.ip); setInstall(null); }} />}
-
-      {access && mst?.machines[access] && (
-        <MachineAccess key={access} ip={access} conf={mst.machines[access]} st={mst} live={liveBy.get(access)} agent={byIp.get(access)} windowsGuess={isWindows(access)}
-          statuses={statuses.filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.ip ? c.ip === access : c.name === access || c.name === liveBy.get(access)?.name))}
-          onDone={reloadAccess} onClose={() => setAccess(null)} />
-      )}
+      {install && <AgentInstall key={`${install.ip}-${install.auto ? "auto" : "pick"}`} target={install} onChanged={reload} onClose={() => setInstall(null)} />}
 
       <Group title={tx("Avec un agent")} n={withAgent.length} fold rows>
         {withAgent.map((ip) => <ActiveCard key={ip} a={byIp.get(ip)!} conf={machines[ip]} ip={ip} focus={ip === focusIp} busy={install?.ip === ip && !!install.auto} onRenew={() => setInstall({ ip, name: nameOf(ip), kind: byIp.get(ip)?.kind ?? kindOf(ip), auto: true })} reload={reload} />)}
@@ -123,20 +111,19 @@ export function Agents({ focusIp, live, network = [], statuses = [] }: Readonly<
       </Group>
 
       <Group title={tx("Linux, lus par SSH")} fold n={ssh.length}
-        hint={tx("Cliquez sur une carte pour régler son accès SSH (interrupteur, clé, ce qui est lu).")}>
+        hint={tx("L'accès SSH se règle avec la machine : cliquez sur une carte pour ouvrir ses réglages.")}>
         {ssh.map((ip) => {
           const lm = liveBy.get(ip);
           return (
             <li key={ip} className="flex items-center gap-2">
-              <button type="button" onClick={() => { setAccess(access === ip ? null : ip); window.scrollTo({ top: 0, behavior: "smooth" }); }} aria-pressed={access === ip}
-                className={`flex h-full min-w-0 flex-1 items-center gap-3 rounded-xl border bg-bg2 p-3 text-left transition-colors hover:border-link hover:bg-link/10 ${access === ip ? "border-link bg-link/10" : "border-dim/50"}`}>
+              <a href={`#settings/machines/${ip}`} className="flex h-full min-w-0 flex-1 items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 transition-colors hover:border-link hover:bg-link/10">
                 <MachineIcon m={{ role: liveBy.get(ip)?.role, icon: liveBy.get(ip)?.icon, name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
                 <span className="min-w-0 flex-1">
                   <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
                   <span className="block truncate text-xs text-dim">{ip} · SSH {sshAlias(ip)}{!machines[ip].ssh && ` · ${tx("activé tout seul au prochain passage")}`}</span>
                 </span>
                 {badge(ip)}
-              </button>
+              </a>
               <button type="button" className={quiet} title={tx("Préparer un agent Linux pour cette machine, à la place du SSH")}
                 onClick={() => { setInstall({ ip, name: nameOf(ip), kind: "linux", choose: true }); window.scrollTo({ top: 0, behavior: "smooth" }); }}><Plus size={14} />{tx("Agent")}</button>
             </li>
