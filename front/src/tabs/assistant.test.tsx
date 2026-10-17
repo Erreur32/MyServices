@@ -19,9 +19,9 @@ const snap = {
 describe("Assistant de démarrage", () => {
   beforeEach(() => mem.clear());
 
-  it("étape 1 : bienvenue, trois principes, compte, six étapes en haut", () => {
+  it("étape 1 : bienvenue, trois principes, compte, cinq étapes en haut", () => {
     const html = renderToStaticMarkup(<Assistant snap={snap} />);
-    for (const t of ["Bienvenue sur MyServices", "Il lit, il ne modifie rien", "Compte administrateur", "admin", "Étape 1 sur 6", "Cette machine", "Être prévenu", "Continuer"]) expect(html, t).toContain(t);
+    for (const t of ["Bienvenue sur MyServices", "Il lit, il ne modifie rien", "Compte administrateur", "admin", "Étape 1 sur 5", "Cette machine", "Relier vos outils", "Continuer"]) expect(html, t).toContain(t);
     expect(html).not.toContain("Retour");   // pas de retour depuis la première étape
     expect(html).not.toContain("Passer cette étape");   // bienvenue n'a rien à régler : seulement « Continuer »
   });
@@ -29,11 +29,11 @@ describe("Assistant de démarrage", () => {
   it("étape 2 : la machine qui héberge, ses services et ses applis, sans SSH", () => {
     mem.set("myservices-assistant", JSON.stringify({ current: "machine", done: ["welcome"], skipped: [] }));
     const html = renderToStaticMarkup(<Assistant snap={snap} />);
-    for (const t of ["Étape 2 sur 6", "srv", "10.0.0.2", "3 services trouvés", "Plex", "Apache", "Retour"]) expect(html, t).toContain(t);
+    for (const t of ["Étape 2 sur 5", "srv", "10.0.0.2", "3 services trouvés", "Plex", "Apache", "Retour"]) expect(html, t).toContain(t);
   });
 
-  it("étapes 5 et 6 : outils et alertes, avec Continuer et Passer", () => {
-    for (const [step, title] of [["tools", "Relier vos outils"], ["alerts", "Être prévenu"]]) {
+  it("étape 5 : les outils, avec Continuer et Passer (plus d'étape d'alertes : elle viendra plus tard)", () => {
+    for (const [step, title] of [["tools", "Relier vos outils"]]) {
       mem.set("myservices-assistant", JSON.stringify({ current: step, done: [], skipped: [] }));
       const html = renderToStaticMarkup(<Assistant snap={snap} />);
       expect(html, step).toContain(title);
@@ -43,21 +43,21 @@ describe("Assistant de démarrage", () => {
   });
 
   it("dernière étape : « Terminer » à la place de « Continuer »", () => {
-    mem.set("myservices-assistant", JSON.stringify({ current: "alerts", done: ["welcome"], skipped: [] }));
+    mem.set("myservices-assistant", JSON.stringify({ current: "tools", done: ["welcome"], skipped: [] }));
     const html = renderToStaticMarkup(<Assistant snap={snap} />);
     expect(html).toContain("Terminer");
     expect(html).not.toContain("Continuer");
   });
 
   it("ne plante pas avec une progression d'un serveur plus ancien, sans le champ « accepted »", () => {
-    for (const step of ["welcome", "machine", "access", "tools", "alerts"]) {   // « network » lit le scan par un abonnement qui ne se rend pas hors navigateur
+    for (const step of ["welcome", "machine", "access", "tools"]) {   // « network » lit le scan par un abonnement qui ne se rend pas hors navigateur
       mem.set("myservices-assistant", JSON.stringify({ current: step, done: [], skipped: [] }));   // ni host ni accepted
       expect(() => renderToStaticMarkup(<Assistant snap={snap} />), step).not.toThrow();
     }
   });
 
   it("le résumé n'apparaît qu'une fois toutes les étapes faites ou passées", () => {
-    mem.set("myservices-assistant", JSON.stringify({ current: "alerts", done: ["welcome"], skipped: [] }));
+    mem.set("myservices-assistant", JSON.stringify({ current: "tools", done: ["welcome"], skipped: [] }));
     expect(renderToStaticMarkup(<Assistant snap={snap} />)).not.toContain("Vous avez fait le tour");
   });
 

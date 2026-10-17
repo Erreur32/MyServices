@@ -1,7 +1,7 @@
 // Assistant de démarrage : une étape à la fois, « Passer » et « Retour » partout, rien n'est modifié sur les machines.
-// Six étapes : bienvenue, cette machine (sans SSH), le réseau, la façon de lire chaque machine, relier les outils, être prévenu, puis un résumé.
+// Cinq étapes : bienvenue, cette machine (sans SSH), le réseau, la façon de lire chaque machine, relier les outils, puis un résumé.
 // La progression est gardée côté serveur (reprise depuis un autre navigateur), avec une copie dans ce navigateur.
-import { ArrowLeft, ArrowRight, Bell, Check, ChevronLeft, ChevronRight, Download, Eye, KeyRound, Loader2, Plug, ShieldCheck, SkipForward, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Download, Eye, KeyRound, Loader2, Plug, ShieldCheck, SkipForward, Sparkles } from "lucide-react";
 import { createElement, useCallback, useEffect, useState } from "react";
 import { read, send } from "../api";
 import type { Snapshot } from "../api";
@@ -9,17 +9,16 @@ import { MachineIcon } from "../components/MachineIcon";
 import { AssistantNetwork, proposedFrom } from "../components/AssistantNetwork";
 import { SetupModal, type Setup } from "../components/SetupModal";
 import { SourceBadges } from "../components/SourceBadges";
-import { NoteLine } from "../components/form";
 import { Badge, Card, Dim } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
 import { STEPS, advance, isFinished, type AssistantStep, loadProgress, normalizeProgress, previousStep, resetProgress, saveProgress, thisMachine, type AssistantProgress } from "../lib/assistant";
 import { savedFor } from "../lib/savedFor";
 import { STATUS_RANK, describeAdvice, isActive, summary } from "../lib/access";
-import { act, primary, quiet, type Note } from "../lib/forms";
+import { primary, quiet } from "../lib/forms";
 import { useNetScan } from "../lib/netScan";
 import { tx } from "../lib/i18n";
 import { plural } from "../lib/summary";
-import type { Advice, AlertChannel, ConnectorInstance, ConnectorsState, Machine, Proposal, SystemState } from "../types";
+import type { Advice, ConnectorInstance, ConnectorsState, Machine, Proposal, SystemState } from "../types";
 
 const confide = (local: AssistantProgress) => void send("PUT", "assistant", local).catch(() => undefined);   // confie au serveur la progression de ce navigateur
 
@@ -87,7 +86,6 @@ export function Assistant({ snap }: Readonly<{ snap: Snapshot }>) {
         {p.current === "access" && <Access snap={snap} report={report} open={setSetup} rev={rev} accepted={p.accepted}
           onAccept={(ip, on) => store({ ...p, accepted: on ? [...new Set([...p.accepted, ip])] : p.accepted.filter((a) => a !== ip) })} />}
         {p.current === "tools" && <Tools snap={snap} report={report} open={setSetup} rev={rev} />}
-        {p.current === "alerts" && <AlertsStep report={report} open={setSetup} rev={rev} />}
         {!step.ready && <Soon title={step.title} />}
         <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-line/60 pt-4">
           {index > 0 && <button type="button" className={quiet} onClick={() => update({ ...p, current: previousStep(p.current) })}><ArrowLeft size={14} aria-hidden />{tx("Retour")}</button>}
@@ -309,39 +307,6 @@ function Tools({ snap, report, open, rev }: Readonly<{ snap: Snapshot; report: R
           </ul>
         </>
       )}
-    </div>
-  );
-}
-
-/** Étape 6 : un canal d'alerte qui marche (Discord, Telegram ou webhook), avec un message d'essai */
-function AlertsStep({ report, open, rev }: Readonly<{ report: Report; open: Open; rev: number }>) {
-  const [channels, setChannels] = useState<AlertChannel[] | null>(null), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(0);
-  useEffect(() => { read<{ channels: AlertChannel[] }>("alerts").then((r) => setChannels(r.channels)).catch(() => setChannels([])); }, [rev]);
-  const ready = (channels ?? []).filter((c) => c.enabled);
-  useEffect(() => report("alerts", ready.length > 0), [ready.length, report]);   // un canal d'alerte marche déjà
-  const test = async (id: number) => { setBusy(id); await act(() => send("POST", `alerts/channels/${id}/test`), tx("message d'essai envoyé"), setNote); setBusy(0); };
-  return (
-    <div>
-      <h2 className="flex items-center gap-2 text-xl font-bold"><Bell size={20} className="text-link" aria-hidden />{tx("Être prévenu")}</h2>
-      <p className="mt-2 text-sm text-muted">{tx("Recevez un message quand une machine tombe, qu'une sauvegarde est en retard ou qu'un service s'arrête : Discord, Telegram ou un webhook.")}</p>
-      {!channels && <p className="mt-3 flex items-center gap-2 text-sm text-muted"><Loader2 size={16} className="animate-spin" aria-hidden />{tx("Chargement…")}</p>}
-      {channels && ready.length === 0 && (
-        <div className="mt-4 rounded-xl border border-line/60 bg-bg2/60 p-4">
-          <p className="text-sm text-muted">{tx("Aucun canal pour l'instant.")}</p>
-          <button type="button" className={`${primary} mt-3`} onClick={() => open({ kind: "channel" })}>{tx("Ajouter un canal")}<ArrowRight size={14} aria-hidden /></button>
-        </div>
-      )}
-      {ready.length > 0 && (
-        <ul className="mt-4 flex flex-col gap-2">
-          {ready.map((c) => (
-            <li key={c.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2">
-              <Badge tone="ok">✓</Badge><b className="text-sm text-txt">{c.name}</b><Dim>{c.type}</Dim>
-              <button type="button" className={`${quiet} ml-auto`} disabled={busy === c.id} onClick={() => void test(c.id)}>{tx("Envoyer un test")}</button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <NoteLine note={note} />
     </div>
   );
 }

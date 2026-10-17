@@ -5,7 +5,7 @@ import { REOPEN_EVENT, forgetChoices } from "./firstSteps";
 import { tx } from "./i18n";
 import type { Machine } from "../types";
 
-export type AssistantStep = "welcome" | "machine" | "network" | "access" | "tools" | "alerts";
+export type AssistantStep = "welcome" | "machine" | "network" | "access" | "tools";
 
 /** ready : l'étape existe vraiment ; sinon la page annonce qu'elle arrive et laisse passer */
 export const STEPS: { id: AssistantStep; title: string; ready: boolean }[] = [
@@ -14,7 +14,6 @@ export const STEPS: { id: AssistantStep; title: string; ready: boolean }[] = [
   { id: "network", title: tx("Le réseau"), ready: true },
   { id: "access", title: tx("Lire chaque machine"), ready: true },
   { id: "tools", title: tx("Relier vos outils"), ready: true },
-  { id: "alerts", title: tx("Être prévenu"), ready: true },
 ];
 
 export interface AssistantProgress { current: AssistantStep; done: AssistantStep[]; skipped: AssistantStep[]; host: string; accepted: string[] }   // accepted : machines gardées avec leur méthode actuelle
