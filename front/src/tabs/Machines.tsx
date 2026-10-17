@@ -23,7 +23,7 @@ import { DetailRow, DetailSection } from "../components/DetailSection";
 import { quiet } from "../lib/forms";
 import { Overlay } from "../components/Overlay";
 import { rereadMachines } from "../lib/scan";
-import { watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
+import { healthItems, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Table, Td, Th } from "../components/ui";
 import { tx } from "../lib/i18n";
@@ -107,7 +107,7 @@ export function ResCell({ h, what }: { h?: HealthHost; what: "cpu" | "mem" }) {
   return <b className={tone} title={what === "mem" && h.res?.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} Go` : undefined}>{Math.round(v)} %</b>;
 }
 type MeterTone = "ok" | "warn" | "bad";
-const METER_TEXT: Record<MeterTone, string> = { ok: "text-txt", warn: "text-warn", bad: "text-bad" };
+const METER_TEXT: Record<MeterTone, string> = { ok: "text-txt", warn: "font-bold text-warn", bad: "font-bold text-bad" };   // plain when fine, bold and coloured only when it needs a look
 const level = (v: number, warn: number, bad: number): MeterTone => {
   if (v >= bad) return "bad";
   return v >= warn ? "warn" : "ok";
@@ -118,7 +118,7 @@ function Meter({ pct, tone, hint, title }: Readonly<{ pct: number; tone: MeterTo
   return (
     <div className="w-[5.5rem]" title={title}>
       <div className="flex items-baseline justify-between gap-1 leading-tight">
-        <b className={`shrink-0 whitespace-nowrap text-sm tabular-nums ${METER_TEXT[tone]}`}>{Math.round(pct)} %</b>
+        <span className={`shrink-0 whitespace-nowrap text-sm tabular-nums ${METER_TEXT[tone]}`}>{Math.round(pct)} %</span>
         {hint && <span className="min-w-0 truncate font-mono text-[10px] text-dim">{hint}</span>}
       </div>
       <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-bg2"><GradientFill pct={pct} /></span>
@@ -186,7 +186,8 @@ const WATCH_ICON: Record<WatchKind, LucideIcon> = {
 const WATCH_STYLE: Record<WatchTone, string> = { bad: "border-bad/60 bg-bad/15 text-bad", warn: "border-warn/60 bg-warn/15 text-warn", info: "border-link/50 bg-link/10 text-link" };
 
 /** « À surveiller » : une pastille-icône par sujet, rouge (grave), orange (à regarder) ou bleue (à savoir) ; le détail est dans l'info-bulle. Rien : une coche discrète. */
-function WatchList({ items, wrap = false }: { items: WatchItem[]; wrap?: boolean }) {   // wrap : libellé « Rien à surveiller » écrit en toutes lettres (fiches)
+function WatchList({ items, wrap = false, quiet = false }: { items: WatchItem[]; wrap?: boolean; quiet?: boolean }) {   // quiet : rien à dire = rien d'affiché (le badge de niveau le dit déjà)   // wrap : libellé « Rien à surveiller » écrit en toutes lettres (fiches)
+  if (!items.length && quiet) return null;
   if (!items.length) return <span className="inline-flex items-center gap-1 text-xs text-ok" title={tx("Rien à surveiller")}><Check size={14} aria-hidden />{wrap && tx("Rien à surveiller")}</span>;
   return (
     <div className="flex flex-wrap items-center gap-1" role="list" aria-label={tx("À surveiller")}>   {/* tout est montré, jamais caché : les pastilles passent à la ligne */}
@@ -330,7 +331,7 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, fre
         {unifi && <UnifiRows d={unifi} sys={unifiSys} />}
         {freebox?.system && <FreeboxRows fb={freebox} />}
         <Row k={tx("Noyau")}>{i?.kernel || m.agent?.kernel || undefined}</Row>
-        <Row k={tx("En marche")}>{(i?.uptime_s ?? m.agent?.uptime_s) ? dur(i?.uptime_s ?? m.agent?.uptime_s) : undefined}</Row>
+        <Row k={tx("En marche")}>{uptimeOf(m, unifi, freebox) ? dur(uptimeOf(m, unifi, freebox)!) : undefined}</Row>
         {hw.map(([k, v]) => <Row key={k} k={k}>{v}</Row>)}
         <GpuRows m={m} />
         {!i && !m.agent && !ha?.system && !unifi && !freebox && <Dim>-</Dim>}
@@ -563,6 +564,11 @@ function healthRank(m: Machine, h: HealthHost | undefined, followed: boolean): n
   return !m.off && m.ping === false ? 0 : 4;
 }
 
+/** How long a machine has been up, from whatever reads it: SSH, its agent, the UniFi console or the Freebox */
+function uptimeOf(m: Machine, unifi?: UnifiDevice, fb?: FreeboxInfo): number | undefined {
+  return m.info?.uptime_s ?? m.agent?.uptime_s ?? unifi?.uptime ?? fb?.system?.uptime ?? undefined;
+}
+
 /** Flag after the name: only the system updates waiting (and a reboot required), the packages named in the tooltip; the other things to watch have their own column */
 function ProblemFlag({ h }: Readonly<{ h?: HealthHost }>) {
   const n = h && h.reachable !== false ? h.apt?.upgradable ?? 0 : 0;
@@ -572,7 +578,12 @@ function ProblemFlag({ h }: Readonly<{ h?: HealthHost }>) {
 }
 
 function HealthLevel({ m, h, followed }: Readonly<{ m: Machine; h?: HealthHost; followed: boolean }>) {
-  if (h) return <Level level={levelKey(h)} />;
+  if (h) {
+    const key = levelKey(h), [tone, label] = LEVEL[key] ?? ["off", key], items = key === "ok" ? [] : healthItems(h);
+    // not OK: the tooltip says why (the same sentences as the « À surveiller » column)
+    const title = items.length ? [label.charAt(0).toUpperCase() + label.slice(1), ...items.map((i) => `• ${i.text}`)].join("\n") : undefined;
+    return <Badge tone={tone} title={title}>{label}</Badge>;
+  }
   if (followed && !m.off) return <Badge tone="info" title={tx("Une source de santé existe (SSH, agent, Beszel ou Home Assistant) : la machine sera lue au prochain passage de la tâche Santé (Réglages → Tâches et horaires)")}>{tx("en attente du relevé")}</Badge>;
   if (m.off) return <Badge tone="off" title={tx("Éteinte volontairement, aucune alerte")}>{tx("éteinte")}</Badge>;
   if (m.ping === false) return <Badge tone="bad" title={tx("Ne répond pas au ping")}>{tx("hors ligne")}</Badge>;
@@ -600,7 +611,7 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
   m: Machine; h?: HealthHost; snap: Snapshot; scan?: { os?: string; apps: string[]; ssh?: boolean }; os: OsKind | null; watch: WatchItem[]; ha?: ServiceStatus; unifi?: UnifiDevice;
   off: boolean; state: React.ReactNode; shown: boolean; onToggle: () => void; onMachine: (ip: string) => void; detail: React.ReactNode;
 }>) {
-  const up = m.info?.uptime_s ?? m.agent?.uptime_s ?? unifi?.uptime;
+  const up = uptimeOf(m, unifi, freeboxOf(m, snap.data.network));
   const edge = LEVEL_EDGE[levelKey(h)] ?? "";
   return (
     <div className={`flex flex-col gap-2.5 overflow-hidden rounded-xl border border-l-[3px] border-line bg-card p-3 transition-colors hover:border-link/50 ${edge} ${shown ? "col-span-full" : ""} ${off ? "opacity-50" : ""}`}>
@@ -677,12 +688,13 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
       case "os": return m.info?.os || "~";
       case "svc": return -m.services;
       case "health": return healthRank(m, hb.get(m.ip), !!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))) * 1e10 + ipNum(m.ip);   // les plus graves d'abord, puis par adresse
-      case "watch": { const it = watchItems(m, hb.get(m.ip), snap.data.connectors ?? []); return -(worst(it) * 100 + it.length); }   // le plus grave d'abord
+      case "up": return -(uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network)) ?? -1);   // the longest up first
+      case "watch": { const it = watchItems(m, hb.get(m.ip), snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m)); return -(worst(it) * 100 + it.length); }   // le plus grave d'abord
       default: return ipNum(m.ip);
     }
   }, [hb, snap.data.connectors, snap.data.services_status]);
   const sort = useSort(f.shown, keyOf, "ip");
-  const watchOf = (m: Machine) => watchItems(m, hb.get(m.ip), snap.data.connectors ?? []);
+  const watchOf = (m: Machine) => watchItems(m, hb.get(m.ip), snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m));
   // Tableau sur une seule ligne par machine ; un clic sur le chevron (ou « Tout déplier ») montre le détail
   const [detailIp, setDetailIp] = useState<string | null>(null);   // détail d'une machine : dans une fenêtre, plus de ligne qui se déplie
   const [editIp, setEditIp] = useState<string | null>(null);   // fenêtre de réglages d'une machine (engrenage, admin seulement)
@@ -766,8 +778,9 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           {view === "table" && <Table fit head={<>
-            <th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="watch" sort={sort}>{tx("À surveiller")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
-            <Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th className="!px-1.5">{tx("CPU")}</Th><Th className="!px-1.5">{tx("Mémoire")}</Th><Th className="!px-1.5">{tx("Disque")}</Th></>}
+            <th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
+            <Th k="svc" sort={sort}>{tx("Services")}</Th><Th k="watch" sort={sort}>{tx("Santé")}</Th>{snap.health && <><Th className="!px-1.5">{tx("CPU")}</Th><Th className="!px-1.5">{tx("Mémoire")}</Th><Th className="!px-1.5">{tx("Disque")}</Th></>}
+            <Th k="up" sort={sort} className="w-px !pl-2 !pr-1 !text-right">{tx("En marche")}</Th>
             {admin && <th className="w-8 px-1" aria-label={tx("Réglages")} />}
           </>}>
             {sort.sorted.map((m) => {
@@ -780,13 +793,16 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                     onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) setDetailIp(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
                     <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td>
                     <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><span className="text-xs text-dim">{m.ip}</span><ProblemFlag h={h} /></span></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
-                    <Td>{st(m, false)}</Td><Td><WatchList items={watchOf(m).filter((i) => i.kind !== "updates")} /></Td>   {/* les mises à jour ont leur drapeau près du nom */}
+                    <Td>{st(m, false)}</Td>
                     <Td><OsShort m={m} kind={osOf(m)} /></Td>
                     <Td><span className="inline-flex items-center gap-1.5">
                       <button type="button" onClick={() => onMachine(m.ip)} title={tx("Voir ses services")} aria-label={tx("Voir les services de {0}", m.name)}
-                        className="rounded-md px-1.5 py-0.5 hover:bg-link/10 hover:text-link"><b className="tabular-nums">{m.services}</b></button><DownBadge m={m} snap={snap} /></span></Td>
-                    {snap.health && <><Td><HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} /></Td>
-                      <Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}
+                        className="rounded-md px-1.5 py-0.5 hover:bg-link/10 hover:text-link"><span className="tabular-nums">{m.services}</span></button><DownBadge m={m} snap={snap} /></span></Td>
+                    <Td><span className="flex flex-wrap items-center gap-1.5">   {/* one column: the level, then what explains it (the updates have their flag near the name) */}
+                      {snap.health && <HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} />}
+                      <WatchList quiet={!!snap.health} items={watchOf(m).filter((i) => i.kind !== "updates")} /></span></Td>
+                    {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}
+                    <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-muted tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network)); return up ? dur(up) : <Dim>-</Dim>; })()}</Td>
                     {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => setEditIp(m.ip)} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
                       className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><Settings2 size={14} aria-hidden /></button></td>}
                   </tr>

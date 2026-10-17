@@ -22,6 +22,7 @@ describe("à surveiller", () => {
     expect(watchItems(machine({ ping: false, info: null, ssh: null }), undefined)[0]).toMatchObject({ tone: "bad", kind: "down" });
     expect(watchItems(machine({ info: null }), undefined)[0]).toMatchObject({ tone: "warn", kind: "ssh" });
     expect(watchItems(machine({ info: null, ssh: null }), undefined)[0]).toMatchObject({ tone: "info", kind: "access" });
+    expect(watchItems(machine({ info: null, ssh: null }), undefined, [], true)).toEqual([]);   // read by a network tool (Freebox, UniFi): no SSH is not a gap
   });
 
   it("machine lue par son agent : pas « sans accès »", () => {

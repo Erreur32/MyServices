@@ -34,13 +34,13 @@ export function healthItems(h: HealthHost): WatchItem[] {
 
 /** Tout ce qui est à surveiller sur une machine : accès (ping, SSH), santé, services en panne, connecteurs en échec ; le plus grave d'abord.
  *  Une machine non suivie ou éteinte volontairement n'a rien à surveiller. */
-export function watchItems(m: Machine, h: HealthHost | undefined, connectors: Connector[] = []): WatchItem[] {
+export function watchItems(m: Machine, h: HealthHost | undefined, connectors: Connector[] = [], readByTool = false): WatchItem[] {   // readByTool: read by a network tool (Freebox, UniFi via their API): « no SSH, no containers » is not a gap
   const st = mState(m);
   if (st === "disabled" || st === "off") return [];
   const out: WatchItem[] = [];
   if (st === "down") out.push({ tone: "bad", kind: "down", text: MSTATE.down[1] + " : " + MSTATE.down[2] });
   else if (st === "refused") out.push({ tone: "warn", kind: "ssh", text: tx("SSH refusé : la clé de l'app n'est pas autorisée sur la machine (ou le port est faux)") });
-  else if (st === "nossh") out.push({ tone: "info", kind: "access", text: tx("en ligne, sans accès SSH ni agent : ses conteneurs et sa santé ne sont pas lus") });
+  else if (st === "nossh" && !readByTool) out.push({ tone: "info", kind: "access", text: tx("en ligne, sans accès SSH ni agent : ses conteneurs et sa santé ne sont pas lus") });
   if (h && !(st === "down" && h.reachable === false)) out.push(...healthItems(h));
   if (m.down > 0) out.push({ tone: "bad", kind: "services", text: tx("{0} service(s) en panne", m.down) });
   for (const c of connectors) if (c.ip === m.ip && !c.ok && c.type !== "docker") out.push({ tone: "warn", kind: "connector", text: `${c.type} ${c.name} : ${c.message}` });
