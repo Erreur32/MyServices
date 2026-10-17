@@ -10,7 +10,7 @@ import { Field, NoteLine, Switch, TagInput } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
 import { dateTime, ipNum } from "../lib/format";
-import type { AgentInfo, Connector, Detection, MachineConf, MachinesSettings as State, NetHost, NetScan, Redetection, RedetectItem } from "../types";
+import type { AgentInfo, Connector, NetworkConnector, Detection, MachineConf, MachinesSettings as State, NetHost, NetScan, Redetection, RedetectItem } from "../types";
 import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
@@ -20,6 +20,7 @@ import { mState, osOfMachine } from "../lib/machines";
 import { AuthorizeKey } from "../components/AuthorizeKey";
 import { SshGuide } from "../components/SshGuide";
 import { SshAccess, SshDetails } from "../components/ssh";
+import { freeboxOf } from "../lib/freebox";
 import { SourceBadges } from "../components/SourceBadges";
 import { focusConnector } from "../lib/connectorPrefill";
 import { ReadBySsh } from "../components/ReadBySsh";
@@ -114,7 +115,7 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
           const lm = live.get(ip);
           // Un PC Windows n'a ni Docker ni services en écoute à lire : pas d'état de connecteur SSH Linux (reste d'un ancien relevé)
           const stat = st.machines[ip].os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.ip ? c.ip === ip : c.name === ip || c.name === lm?.name));
-          return <MachineRow key={ip} agent={agents[ip]} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} />;
+          return <MachineRow key={ip} agent={agents[ip]} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} network={snap.data.network} />;
         });
         return wide
           ? <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start gap-3">{[0, 1].map((c) => <div key={c} className="flex min-w-0 flex-col gap-3">{cards.filter((_, i) => i % 2 === c)}</div>)}</div>
@@ -281,9 +282,11 @@ function AgentOrAccess({ agent, access }: Readonly<{ agent?: AgentInfo; access: 
   return <Badge tone={agent.state === "actif" ? "ok" : "warn"} title={tx("Agent MyServices : {0}", agent.state)}>{tx("agent")}</Badge>;
 }
 
-function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished, agent }: {
-  agent?: AgentInfo; unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[]; ssh?: boolean; sshPort?: number }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
+function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished, agent, network }: {
+  network?: NetworkConnector[]; agent?: AgentInfo; unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[]; ssh?: boolean; sshPort?: number }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
 }) {
+  const fb = live && freeboxOf(live, network) && network?.find((c) => c.freebox?.system);   // la Freebox est lue par MynetworK, rapprochée par son nom
+  const readers = fb ? [{ type: fb.connector, name: fb.name, label: fb.label }] : [];
   const [open, setOpen] = useState(!!focus), [confirm, setConfirm] = useState(false);  // focus : arrivée depuis un lien (Connecteurs → machine)
   const [icon, setIcon] = useState(m.icon as string | undefined);  // icône choisie dans le formulaire : l'en-tête de la carte la reprend aussitôt
   useEffect(() => setIcon(m.icon as string | undefined), [m.icon]);
@@ -375,7 +378,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
         {/* Qui lit la machine : un badge court par source, coloré selon son état (détail en infobulle). Le détail de l'accès SSH n'est que dans la carte dépliée */}
         <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">
           {!open && rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}
-          {live ? <SourceBadges all={open} m={live} agent={agent} /> : <AgentOrAccess agent={agent} access={access} />}
+          {live ? <SourceBadges all={open} m={live} agent={agent} extra={readers} /> : <AgentOrAccess agent={agent} access={access} />}
         </span>
       </button>
       {open && (
