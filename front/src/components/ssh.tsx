@@ -6,8 +6,10 @@ import { liveText, type TaskInfo } from "../lib/tasks";
 import type { Connector, ConnectorStatus, Machine } from "../types";
 import { Badge, Dim } from "./ui";
 import { tx } from "../lib/i18n";
+import { appIcon } from "../lib/appIcons";
 
 const SSH_KIND: Record<string, string> = { docker: tx("conteneurs Docker"), process: tx("services hors Docker"), adguard: "AdGuard" };
+const SSH_KIND_ICON: Record<string, string | null> = { docker: appIcon(["Docker"]), adguard: appIcon(["AdGuard Home"]), process: null };
 
 export function StatusLine({ s, collect }: { s: (Partial<ConnectorStatus> & Connector) | null; collect?: { task: TaskInfo | null; now: number } }) {
   if (!s) {
@@ -35,7 +37,7 @@ export function StatusLine({ s, collect }: { s: (Partial<ConnectorStatus> & Conn
 }
 
 function Kv({ k, children }: { k: string; children: ReactNode }) {
-  return <div className="flex justify-between gap-3"><span className="text-dim">{k}</span><span className="min-w-0 truncate text-right">{children}</span></div>;
+  return <div className="flex justify-between gap-3 whitespace-nowrap"><span className="shrink-0 text-dim">{k}</span><span className="min-w-0 truncate text-right">{children}</span></div>;
 }
 
 /** IP pill (blue) and port pill (yellow, filled when `odd`) */
@@ -64,42 +66,73 @@ export function SshAccess({ alias, user, ip, port, refused, noIp, noAlias }: {
   );
 }
 
+/** One line for the state of the connection: connected, partly read, or refused */
+function ConnectionState({ refused, reading, failed }: { refused: boolean; reading: boolean; failed: number }) {
+  if (refused) return <Badge tone="bad" title={tx("La connexion SSH échoue : voir l'action requise en haut de la fenêtre")}>{tx("connexion refusée")}</Badge>;
+  if (failed > 0) return <Badge tone="warn" title={tx("SSH répond, mais certaines lectures échouent (détail plus bas)")}>{tx("connecté, {0} lecture(s) en échec", failed)}</Badge>;
+  return <Badge tone="ok" title={reading ? tx("SSH répond et toutes les lectures ont réussi") : tx("SSH répond")}>{reading ? tx("connecté, tout est lu") : tx("connecté")}</Badge>;
+}
+
 const risky = (v?: string) => !!v && !/^(no|prohibit-password)$/.test(v);
 
-/** Détail SSH : accès, clé, empreintes, sshd, système, ce qui est lu, état des connecteurs SSH de la machine. */
+/** Long key fingerprint cut in the middle (full value in the tooltip) */
+const shortFp = (fp: string) => (fp.length > 24 ? `${fp.slice(0, 14)}…${fp.slice(-8)}` : fp);
+
+function Block({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5 rounded-lg border border-line/50 bg-bg/40 p-2.5">
+      <b className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-dim">{title}</b>
+      {children}
+    </div>
+  );
+}
+
+/** What is read over SSH: containers, web servers (one line, or a grey « nothing more ») */
+function readSummary(i: NonNullable<Machine["info"]>): ReactNode {
+  const parts = [i.docker ? tx("{0} conteneurs", i.docker) : i.docker_installed === false ? tx("pas de Docker") : null, i.apache ? tx("Apache") : null, i.nginx ? tx("nginx") : null].filter(Boolean);
+  return parts.length ? parts.join(" · ") : <Dim>{tx("rien de plus")}</Dim>;
+}
+
+/** Détail SSH : état de la connexion en tête, puis le bloc Accès (alias, clé, empreintes), le bloc Lecture (système, sshd, conteneurs) et l'état de chaque connecteur SSH. */
 export function SshDetails({ m, statuses }: { m: Machine; statuses: (Connector | ConnectorStatus)[] }) {
   const s = m.ssh, i = m.info, d = i?.sshd;
   if (!s && !m.local) return <p className="text-dim">{tx("Pas d'accès SSH : ping et services web seulement.")}</p>;
   return (
-    <div>
-      <div className="flex flex-col gap-0.5">
-        {s ? <Kv k={tx("Accès")}><SshAccess alias={s.alias} user={s.user} ip={m.ip} port={s.port} refused={!i && !!s.identity} /></Kv> : <Kv k={tx("Accès")}>{tx("collecteur lui-même (local)")}</Kv>}
-        {s && <Kv k={tx("Clé")}><span className="inline-flex items-center gap-1 font-mono text-xs"><KeyRound size={12} />{s.identity || tx("aucune (mot de passe)")}</span></Kv>}
-        {s?.key_fp && <Kv k={tx("Empreinte clé")}><span className="font-mono text-xs" title={s.key_fp}>{s.key_fp}</span></Kv>}
-        {s?.host_key && <Kv k={tx("Clé d'hôte")}><span className="font-mono text-xs" title={s.host_key}>{s.host_key}</span></Kv>}
-        {d && (
-          <Kv k="sshd">
-            <span className={risky(d.permitrootlogin) ? "text-warn" : ""}>{tx("root")} {d.permitrootlogin || "?"}</span>
-            {" · "}
-            <span className={d.passwordauthentication?.startsWith("yes") ? "text-warn" : ""}>{tx("mot de passe")} {d.passwordauthentication || "?"}</span>
-          </Kv>
-        )}
-        {i?.os && <Kv k={tx("Système")}>{i.os}{i.uptime_s ? <Dim> {tx("· en marche depuis")} {dur(i.uptime_s)}</Dim> : null}</Kv>}
-        {i && (
-          <Kv k={tx("Lu par SSH")}>
-            {[i.docker ? `${i.docker} conteneurs` : i.docker_installed === false ? tx("pas de Docker") : null, i.apache ? tx("Apache") : null, i.nginx ? tx("nginx") : null].filter(Boolean).join(" · ") || <Dim>{tx("rien de plus")}</Dim>}
-          </Kv>
-        )}
-        {s?.note && <Kv k={tx("Note")}>{s.note}</Kv>}
+    <div className="flex flex-col gap-2.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <ConnectionState refused={!i && !!s?.identity} reading={statuses.length > 0 && statuses.every((c) => c.ok)} failed={statuses.filter((c) => !c.ok).length} />
+        {i?.os && <span className="text-sm">{i.os}{i.uptime_s ? <Dim> {tx("· en marche depuis")} {dur(i.uptime_s)}</Dim> : null}</span>}
+      </div>
+      <div className="grid gap-2.5 md:grid-cols-2">
+        <Block title={tx("Accès")}>
+          {s ? <Kv k={tx("Compte")}><SshAccess alias={s.alias} user={s.user} ip={m.ip} port={s.port} refused={!i && !!s.identity} /></Kv> : <Kv k={tx("Compte")}>{tx("collecteur lui-même (local)")}</Kv>}
+          {s && <Kv k={tx("Clé")}><span className="inline-flex items-center gap-1 font-mono text-xs"><KeyRound size={12} />{s.identity || tx("aucune (mot de passe)")}</span></Kv>}
+          {s?.key_fp && <Kv k={tx("Empreinte clé")}><span className="font-mono text-xs" title={s.key_fp}>{shortFp(s.key_fp)}</span></Kv>}
+          {s?.host_key && <Kv k={tx("Clé d'hôte")}><span className="font-mono text-xs" title={s.host_key}>{shortFp(s.host_key)}</span></Kv>}
+          {s?.note && <Kv k={tx("Note")}>{s.note}</Kv>}
+        </Block>
+        <Block title={tx("Lecture")}>
+          {i ? <Kv k={tx("Lu par SSH")}>{readSummary(i)}</Kv> : <Dim>{tx("rien lu pour l'instant")}</Dim>}
+          {d && (
+            <Kv k="sshd">
+              <span className={risky(d.permitrootlogin) ? "text-warn" : ""}>{tx("root")} {d.permitrootlogin || "?"}</span>
+              {" · "}
+              <span className={d.passwordauthentication?.startsWith("yes") ? "text-warn" : ""}>{tx("mot de passe")} {d.passwordauthentication || "?"}</span>
+            </Kv>
+          )}
+        </Block>
       </div>
       {statuses.length > 0 && (
-        <ul className="mt-2 flex flex-col gap-1 border-t border-line/60 pt-2">
-          {statuses.map((st) => (
-            <li key={`${st.type}/${st.name}`} className="flex flex-wrap items-center gap-2">
-              <span className="text-muted">{SSH_KIND[st.type] || st.type}</span><StatusLine s={st} />
-            </li>
-          ))}
-        </ul>
+        <Block title={tx("Connecteurs SSH")}>
+          <ul className="flex flex-col gap-1">
+            {statuses.map((st) => (
+              <li key={`${st.type}/${st.name}`} className="flex flex-wrap items-center gap-2">
+                {SSH_KIND_ICON[st.type] ? <img src={SSH_KIND_ICON[st.type]!} alt="" aria-hidden className="h-4 w-4 shrink-0" /> : null}
+                <span className="font-semibold text-txt">{SSH_KIND[st.type] || st.type}</span><StatusLine s={st} />
+              </li>
+            ))}
+          </ul>
+        </Block>
       )}
     </div>
   );

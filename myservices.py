@@ -190,8 +190,11 @@ def _process_read(conn):
     """Connecteur « process » d'une machine : {port: process} ; état ajouté au passage."""
     t0 = time.time()
     try:
-        got = conn.collect()["ports"]
-        ok, msg = True, f"{len(got)} port(s) en écoute"
+        read = conn.collect()
+        got, hidden = read["ports"], read.get("hidden", 0)
+        ok, msg = not hidden, f"{len(got)} port(s) en écoute"
+        if hidden:   # ss sans root : les ports des autres comptes n'ont pas de nom
+            msg += f" ; lecture partielle : {hidden} port(s) sans nom de processus, un accès root est nécessaire"
     except Exception as e:  # SSH coupé, ss absent, bug : machine sans process ce passage, comme avant
         got, ok, msg = {}, False, str(e)
     CONNECTOR_STATUS.append(cbase.Status(conn.type, conn.conf.get("label") or conn.name, ok, msg, extra={"ip": conn.conf.get("ip")},

@@ -313,6 +313,11 @@ def adopt_found(found: list[dict], skip: set[str]) -> list[str]:
     return done
 
 
+def _alias_is_root(alias: str) -> bool:
+    """True when the SSH alias connects as root (the only account that sees every listening process)."""
+    return any(s.get("alias") == alias and s.get("user") == "root" for s in hostinfo.ssh_config().values())
+
+
 def save(ip: str, m: dict, process: bool | None = None, extra: list[dict] | None = None) -> dict:
     """Machine écrite (réglages hors page gardés : « health » objet, notes…). process : lire aussi ses
     ports en écoute (process_hosts, root requis sur la machine). extra : services web à suivre."""
@@ -328,8 +333,10 @@ def save(ip: str, m: dict, process: bool | None = None, extra: list[dict] | None
     machines[ip] = {**keep, **new}
     if old.get("ssh") != new.get("ssh"):
         expire_inventory(ip)
+    ph = meta.setdefault("process_hosts", {})
+    if new.get("ssh") and not old.get("ssh") and _alias_is_root(new["ssh"]):
+        process = True  # SSH just switched on with the root account: ports outside Docker are read by default (ss needs root)
     if process is not None:
-        ph = meta.setdefault("process_hosts", {})
         if process and new.get("ssh"):
             ph[ip] = new["ssh"]
         else:
