@@ -36,7 +36,7 @@ describe("seen by a tool", () => {
   it("names the tool instead of « online, no SSH »", () => {
     expect(networkTool(seen)).toBe("MynetworK");
     expect(mState(seen)).toBe("network");
-    expect(stateBadge(seen)[1]).toBe("via MynetworK");
+    expect(stateBadge(seen)[1]).toBe("Via MynetworK");
     expect(stateBadge(base)[1]).toBe("en ligne, sans SSH");
   });
   it("a tool that does not answer does not count", () => {
