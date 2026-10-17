@@ -16,11 +16,12 @@ import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
 import { IconChoice } from "../components/IconChoice";
 import { IconPicker } from "../components/IconPicker";
-import { MSTATE, mState, osOfMachine } from "../lib/machines";
+import { mState, osOfMachine } from "../lib/machines";
 import { AuthorizeKey } from "../components/AuthorizeKey";
 import { SshGuide } from "../components/SshGuide";
 import { SshAccess, SshDetails } from "../components/ssh";
 import { SourceBadges } from "../components/SourceBadges";
+import { focusConnector } from "../lib/connectorPrefill";
 import { ReadBySsh } from "../components/ReadBySsh";
 import { useWide } from "../lib/useWide";
 import { rolesOf, sshWarn } from "../lib/ssh";
@@ -449,6 +450,9 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   const windows = v.os === "windows";
   // Ce que l'accès choisi permet de lire (suit le formulaire, avant même l'enregistrement)
   const sshAccess = windows ? !!v.health : !!v.ssh;
+  // Connecteurs qui voient cette machine (API et outils réseau rapprochés), sans doublon
+  const linked = [...new Map([...(live?.api ?? []).map((a) => [`${a.type}/${a.name}`, { type: a.type, name: a.name, label: a.label }] as const),
+    ...(live?.links?.sources ?? []).filter((x) => x.ok !== false).map((x) => [`${x.source}/${x.instance}`, { type: x.source, name: x.instance, label: x.label }] as const)]).values()];
   const access = sshAccess || !!agent, health = access && (!!agent || (!v.off && v.health !== false));  // un agent lit même un poste « souvent éteint »
   const gives: [string, boolean, string][] = [
     // Pas de pastille Docker quand la machine est lue par SSH et qu'il n'y en a pas : rien à dire, ce n'est pas un manque
@@ -532,7 +536,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   // Accès SSH : un simple interrupteur. Actif = l'accès de cette IP (créé avec la clé de l'app s'il n'existe pas encore, compte root
   // port 22 comme « Lire cette machine par SSH »), inactif = on le retire. Le choix d'un autre compte se fait dans la config SSH.
   const [winGuide, setWinGuide] = useState(false);
-  const agentMode = windows || windowsGuess === true || !!agent;  // un PC Windows se lit par l'agent (pas de SSH) ; on garde le SSH s'il est déjà réglé
+  const agentMode = windows || windowsGuess === true || (!!agent && !v.ssh);  // un PC Windows se lit par l'agent (pas de SSH) ; on garde le SSH s'il est déjà réglé
   const key = (windows ? v.health : v.ssh) as string | null | undefined | false;
   const sshOn = typeof key === "string" && key !== "";
   const info = st.aliases.find((a) => a.alias === key);
@@ -576,13 +580,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
       <section className="rounded-2xl border border-dim/50 border-l-2 border-l-link bg-bg2/30 p-4 shadow-sm">
         <button type="button" onClick={() => setSshOpen(!sshOpen)} aria-expanded={sshOpen} className="flex w-full flex-wrap items-center gap-2 text-left">
           {sshOpen ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}
-          <h4 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><KeyRound size={13} className="text-link" aria-hidden />{agentMode ? tx("Accès par l'agent") : tx("Accès SSH")}</h4>
-          {agentMode ? <Badge tone={agent ? (agent.state === "actif" ? "ok" : agent.state === "silencieux" ? "warn" : "info") : "off"}>{agent ? agent.state : tx("pas d'agent")}</Badge>
-          : live && <Badge tone={MSTATE[mState(live)][0]} title={MSTATE[mState(live)][2]}>{MSTATE[mState(live)][1]}</Badge>}
-          {!sshOpen && <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-            {!agentMode && sshOn && sshPills}
-            {gives.filter(([, on]) => on).map(([label, , why]) => <Badge key={label} tone="ok" title={why}>✓ {label}</Badge>)}
-          </span>}
+          <h4 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><KeyRound size={13} className="text-link" aria-hidden />{tx("Sources de lecture")}</h4>
+          {!sshOpen && live && <span className="ml-auto"><SourceBadges m={live} agent={agent} /></span>}
         </button>
         {sshOpen && <div className="mt-4 flex flex-col gap-4">
         <p className="text-xs leading-relaxed text-muted">
@@ -642,6 +641,39 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
             <KeyRound size={14} aria-hidden />{tx("Voir la clé SSH")}<ArrowRight size={14} aria-hidden />
           </a>
         </div>
+        {!agentMode && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line/60 bg-bg2/70 p-3 text-sm">
+            <b>{tx("Agent")}</b>
+            {agent ? <>
+              <Badge tone={agent.state === "actif" ? "ok" : agent.state === "silencieux" ? "warn" : "info"}>{agent.state}</Badge>
+              <Dim>v{agent.version ?? "?"} · {agent.last_seen ? tx("dernier relevé {0}", dateTime(agent.last_seen * 1000)) : tx("en attente du premier relevé")}</Dim>
+              <a href={`#settings/agents/${ip}`} className="ml-auto text-xs font-semibold text-link hover:underline">{tx("Gérer l'agent")}</a>
+            </> : <>
+              <Dim>{tx("aucun : utile si le SSH est impossible")}</Dim>
+              <a href={`#settings/agents/${ip}`} className="ml-auto text-xs font-semibold text-link hover:underline">{tx("Installer un agent")}</a>
+            </>}
+          </div>
+        )}
+        {linked.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-line/60 bg-bg2/70 p-3 text-sm">
+            <b>{tx("Connecteurs")}</b>
+            {linked.map((c) => <a key={`${c.type}/${c.name}`} href="#settings/connectors" onClick={() => focusConnector(c.type, c.name)} title={tx("Ouvrir ce connecteur")}
+              className="rounded-full border border-link/60 px-2 py-0.5 text-xs font-semibold text-link hover:bg-link/10">{c.label}</a>)}
+          </div>
+        )}
+        {agent && sshAccess && (
+          <div className="flex flex-col gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
+            <div className="flex flex-wrap items-center gap-2"><b>{tx("Lu d'abord par")}</b> <Saved k="health_sources" /></div>
+            <IconChoice label={tx("Santé lue d'abord par")} disabled={pending === "health_sources"} value={((v.health_sources as string[] | undefined)?.[0] ?? "") as "" | "ssh" | "agent"}
+              onPick={(src) => void autoSave("health_sources", { health_sources: src ? [src] : undefined })}
+              options={[
+                { value: "", label: tx("Automatique"), hint: windows ? tx("Automatique (l'agent, puis SSH)") : tx("Automatique (SSH, puis l'agent)"), icon: <Sparkles size={24} className="text-link" aria-hidden /> },
+                { value: "ssh", label: "SSH", hint: tx("Lire d'abord par SSH"), icon: <KeyRound size={24} className="text-ok" aria-hidden /> },
+                { value: "agent", label: tx("L'agent"), hint: tx("Lire d'abord par l'agent MyServices"), icon: <Monitor size={24} className="text-warn" aria-hidden /> },
+              ]} />
+            <Dim>{tx("la première source qui répond fait foi, l'autre prend le relais si elle se tait et complète ce qui manque")}</Dim>
+          </div>
+        )}
         </div>}
       </section>
       <section className="rounded-2xl border border-dim/50 border-l-2 border-l-ok bg-bg2/30 p-4">
@@ -661,19 +693,6 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
             onPick={(icon) => (isNew ? setV({ ...v, icon }) : void autoSave("icon", { icon }))} />
         </div>
       </section>
-      {agent && sshAccess && (
-        <div className="flex flex-col gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
-          <div className="flex flex-wrap items-center gap-2"><b>{tx("Santé lue d'abord par")}</b> <Saved k="health_sources" /></div>
-          <IconChoice label={tx("Santé lue d'abord par")} disabled={pending === "health_sources"} value={((v.health_sources as string[] | undefined)?.[0] ?? "") as "" | "ssh" | "agent"}
-            onPick={(src) => void autoSave("health_sources", { health_sources: src ? [src] : undefined })}
-            options={[
-              { value: "", label: tx("Automatique"), hint: windows ? tx("Automatique (l'agent, puis SSH)") : tx("Automatique (SSH, puis l'agent)"), icon: <Sparkles size={24} className="text-link" aria-hidden /> },
-              { value: "ssh", label: "SSH", hint: tx("Lire d'abord par SSH"), icon: <KeyRound size={24} className="text-ok" aria-hidden /> },
-              { value: "agent", label: tx("L'agent"), hint: tx("Lire d'abord par l'agent MyServices"), icon: <Monitor size={24} className="text-warn" aria-hidden /> },
-            ]} />
-          <Dim>{tx("la première source qui répond fait foi, l'autre prend le relais si elle se tait et complète ce qui manque")}</Dim>
-        </div>
-      )}
       {/* Réglages courants, toujours visibles : suivre la machine, et « souvent éteinte » (PC, portable : pas d'alerte quand elle est éteinte) */}
       <section className="rounded-2xl border border-dim/50 border-l-2 border-l-warn bg-bg2/30 p-4" aria-label={tx("Réglages courants")}>
         <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><Power size={13} className="text-warn" aria-hidden />{tx("Réglages courants")}</h4>
