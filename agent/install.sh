@@ -122,5 +122,5 @@ if systemctl start "$UNIT.service"; then
   ok "Done: the machine now reports to MyServices."
 else
   journalctl -u "$UNIT.service" -n 8 --no-pager 2>/dev/null || true
-  die "First report failed: see 'journalctl -u $UNIT.service' and $DIR/agent.log (wrong address or revoked token?)"
+  die "First report failed: see 'journalctl -u $UNIT.service' and $DIR/agent.log (wrong address, revoked token, or a report already sent less than a minute ago: wait a minute and retry)"
 fi
