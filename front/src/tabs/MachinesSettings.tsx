@@ -407,7 +407,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
                 : tx("cette machine offre SSH mais MyServices n'y a pas d'accès : activez « Lecture par SSH » ci-dessous.")}
             </p>
           )}
-          <MachineForm agent={agent} connection={connection} report={setNote} onIcon={setIcon} onFollow={(on) => setOff(!on)} ip={ip} m={m} st={st} live={live} scan={scan} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
+          <MachineForm tabbed agent={agent} connection={connection} report={setNote} onIcon={setIcon} onFollow={(on) => setOff(!on)} ip={ip} m={m} st={st} live={live} scan={scan} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
             <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
             <span className="ml-auto flex items-center gap-1.5">
               {confirm ? <>
@@ -435,7 +435,8 @@ function OptionGroup({ title, hint, tone, children }: { title: string; hint?: st
   );
 }
 
-function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, scan, actions, windowsGuess, report, onDone, onIcon, onFollow, agent, connection }: {
+function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, scan, actions, windowsGuess, report, onDone, onIcon, onFollow, agent, connection, tabbed }: {
+  tabbed?: boolean;  // dans la fenêtre d'une machine : Identité, Options et Accès en onglets
   onFollow?: (followed: boolean) => void;  // « Machine suivie » vient d'être enregistrée : la carte de la machine se dégrise (ou se grise)
   onIcon?: (icon: string | undefined) => void;  // l'icône vient d'être enregistrée : la carte de la machine se met à jour
   scan?: { os?: string; apps: string[]; ssh?: boolean; sshPort?: number };  // ce que le dernier scan du réseau a vu : aperçu de l'icône automatique
@@ -453,7 +454,9 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   // d'une machine dont la détection est à confirmer.
   const [options, setOptions] = useState(() => !!isNew && detected.length > 0);
   const [missingOpen, setMissingOpen] = useState(false), [manualOpen, setManualOpen] = useState(false);
-  const [sshOpen, setSshOpen] = useState(!!isNew);  // replié d'office ; ouvert à l'ajout d'une machine, où il faut choisir l'accès
+  const [tab, setTab] = useState<"identity" | "options" | "access">("identity");
+  const show = (t: string) => !tabbed || tab === t;   // dans la fenêtre d'une machine : un onglet à la fois ; à l'ajout, tout d'un coup
+  const [sshOpen, setSshOpen] = useState(!!isNew || !!tabbed);  // replié d'office ; ouvert à l'ajout d'une machine et dans l'onglet Accès
   const [localNote, setLocalNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const setNote = report ?? setLocalNote;
   const windows = v.os === "windows";
@@ -586,6 +589,17 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   const dirty = isNew || ["name", "adguard", "adguard_sync"].some((k) => String(v[k] ?? "") !== String(saved[k] ?? ""));
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
+      {tabbed && (
+        <div role="tablist" className="flex gap-1 border-b border-line">
+          {([["identity", tx("Identité"), IdCard], ["options", tx("Options"), Power], ["access", tx("Accès"), KeyRound]] as const).map(([id, label, Icon]) => (
+            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
+              className={`flex items-center gap-1.5 rounded-t-lg px-3.5 py-2 text-sm font-semibold transition-colors ${tab === id ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
+              <Icon size={15} strokeWidth={1.75} aria-hidden />{label}
+            </button>
+          ))}
+        </div>
+      )}
+      {show("access") && <>
       <section className="rounded-2xl border border-dim/50 border-l-2 border-l-link bg-bg2/30 p-4 shadow-sm">
         <button type="button" onClick={() => setSshOpen(!sshOpen)} aria-expanded={sshOpen} className="flex w-full flex-wrap items-center gap-2 text-left">
           {sshOpen ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}
@@ -672,6 +686,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
         )}
         </div>}
       </section>
+      </>}
+      {show("identity") && <>
       <section className="rounded-2xl border border-dim/50 border-l-2 border-l-ok bg-bg2/30 p-4">
         <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><IdCard size={13} className="text-ok" aria-hidden />{tx("Identité")}</h4>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -690,6 +706,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
         </div>
       </section>
       {/* Réglages courants, toujours visibles : suivre la machine, et « souvent éteinte » (PC, portable : pas d'alerte quand elle est éteinte) */}
+      </>}
+      {show("identity") && <>
       <section className="rounded-2xl border border-dim/50 border-l-2 border-l-warn bg-bg2/30 p-4" aria-label={tx("Réglages courants")}>
         <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><Power size={13} className="text-warn" aria-hidden />{tx("Réglages courants")}</h4>
         <div className="grid gap-2 lg:grid-cols-2">
@@ -700,6 +718,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
           <div className="rounded-lg border border-line/60 bg-bg2/70 p-3">{flagRow(FLAGS[0])}</div>
         </div>
       </section>
+      </>}
+      {show("options") && <>
       {(activeFlags.length > 0 || procOn) && (
         <OptionGroup title={tx("Options actives")} hint={tx("Allumées pour cette machine ; les autres sont dans « Options de la machine »")}>
           {activeFlags.map(flagRow)}
@@ -756,6 +776,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
           </div>
         )}
       </div>
+      </>}
       <div className="flex flex-wrap items-center gap-1.5">
         <button type="submit" className={primary} disabled={busy || !dirty} title={dirty ? undefined : tx("Rien à enregistrer : l'accès, les options et les étiquettes s'enregistrent tout seuls")}>{tx("Enregistrer")}</button>
         {actions}

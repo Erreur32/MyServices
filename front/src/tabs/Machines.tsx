@@ -570,6 +570,14 @@ function HealthSection({ h, from }: Readonly<{ h?: HealthHost; from: Origin[] }>
 }
 
 /** Health column: the level read; without one, why: switched off on purpose, not answering, or not followed by the health check */
+/** Order of the « Santé » column, the same as its badges: critical or offline first, then to watch, waiting, OK, and last what is not read at all */
+const LEVEL_RANK: Record<string, number> = { down: 0, crit: 0, warn: 1, ok: 3 };
+function healthRank(m: Machine, h: HealthHost | undefined, followed: boolean): number {
+  if (h) return LEVEL_RANK[levelKey(h)] ?? 4;
+  if (followed && !m.off) return 2;
+  return !m.off && m.ping === false ? 0 : 4;
+}
+
 function HealthLevel({ m, h, followed }: Readonly<{ m: Machine; h?: HealthHost; followed: boolean }>) {
   if (h) return <Level level={levelKey(h)} />;
   if (followed && !m.off) return <Badge tone="info" title={tx("Une source de santé existe (SSH, agent, Beszel ou Home Assistant) : la machine sera lue au prochain passage de la tâche Santé (Réglages → Tâches et horaires)")}>{tx("en attente du relevé")}</Badge>;
@@ -667,19 +675,19 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
   const nOff = snap.data.machine_list.filter(isOff).length;
   const items = useMemo(() => (showOff ? snap.data.machine_list : snap.data.machine_list.filter((m) => !isOff(m))), [snap.data.machine_list, showOff, isOff]);
   const f = useFilter(items, facets, text, initial);
+  // Home Assistant running on this machine (its address points here): its add-ons in the unfolded detail
+  const haOf = (m: Machine) => (snap.data.services_status ?? []).find((c) => c.connector === "home-assistant" && c.url && new URL(c.url).hostname === m.ip);
   const keyOf = useCallback((m: Machine, k: string): string | number => {
     switch (k) {
       case "state": return ORDER.indexOf(mState(m));
       case "os": return m.info?.os || "~";
       case "svc": return -m.services;
-      case "health": return -(topDisk(hb.get(m.ip))?.used_pct ?? -1);
+      case "health": return healthRank(m, hb.get(m.ip), !!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))) * 1e10 + ipNum(m.ip);   // les plus graves d'abord, puis par adresse
       case "watch": { const it = watchItems(m, hb.get(m.ip), snap.data.connectors ?? []); return -(worst(it) * 100 + it.length); }   // le plus grave d'abord
       default: return ipNum(m.ip);
     }
-  }, [hb, snap.data.connectors]);
+  }, [hb, snap.data.connectors, snap.data.services_status]);
   const sort = useSort(f.shown, keyOf, "ip");
-  // Home Assistant running on this machine (its address points here): its add-ons in the unfolded detail
-  const haOf = (m: Machine) => (snap.data.services_status ?? []).find((c) => c.connector === "home-assistant" && c.url && new URL(c.url).hostname === m.ip);
   const watchOf = (m: Machine) => watchItems(m, hb.get(m.ip), snap.data.connectors ?? []);
   // Tableau sur une seule ligne par machine ; un clic sur le chevron (ou « Tout déplier ») montre le détail
   const [open, setOpen] = useState<Set<string>>(new Set());
