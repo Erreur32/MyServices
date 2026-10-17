@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LOGIN, LoginRequired, NotConfigured, RELOAD_EVENT, loadSnapshot, logout, type Snapshot } from "./api";
 import { Header } from "./components/Header";
 import { FirstSteps } from "./components/FirstSteps";
+import { Assistant } from "./tabs/Assistant";
 import { Home } from "./components/Home";
 import { ScanBar } from "./components/ScanBar";
 import { Tabs } from "./components/Tabs";
@@ -111,9 +112,11 @@ export default function App() {
             <ArrowLeft size={16} aria-hidden className="transition-transform group-hover:-translate-x-0.5" />{tx("Tableau de bord")}
           </a>
         </header>
+        <p className="mb-3 rounded-lg border border-link/40 bg-link/5 px-3 py-2 text-sm text-muted">{tx("Nouveau : un assistant pas à pas est en préparation.")} <a href="#assistant" className="font-semibold text-link hover:underline">{tx("Essayer l'assistant")}</a></p>
         <FirstSteps snap={snap} page />
       </div>
     );
+  if (hash.startsWith("#assistant") && snap.me.role === "admin") return <Assistant snap={snap} />;
   const profile = hash.startsWith("#profile"); // page à part (tout compte), indépendante des Réglages et de la gestion des comptes
 
   return (

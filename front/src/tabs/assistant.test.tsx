@@ -1,0 +1,45 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { beforeEach, describe, expect, it } from "vitest";
+import type { Snapshot } from "../api";
+import { Assistant } from "./Assistant";
+
+const mem = new Map<string, string>();
+Object.defineProperty(globalThis, "localStorage", {
+  value: { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k) },
+  configurable: true,
+});
+
+const snap = {
+  me: { username: "admin", role: "admin" },
+  data: { machine_list: [{ ip: "10.0.0.2", name: "srv", ping: true, local: true, services: 3, info: { apache: true } }], hosts: [{ machine: "srv", app: { label: "Plex" } }] },
+} as unknown as Snapshot;
+
+describe("Assistant de démarrage", () => {
+  beforeEach(() => mem.clear());
+
+  it("étape 1 : bienvenue, trois principes, compte, six étapes en haut", () => {
+    const html = renderToStaticMarkup(<Assistant snap={snap} />);
+    for (const t of ["Bienvenue sur MyServices", "Il lit, il ne modifie rien", "Compte administrateur", "admin", "Étape 1 sur 6", "Cette machine", "Être prévenu", "Continuer", "Passer"]) expect(html, t).toContain(t);
+    expect(html).not.toContain("Retour");   // pas de retour depuis la première étape
+  });
+
+  it("étape 2 : la machine qui héberge, ses services et ses applis, sans SSH", () => {
+    mem.set("myservices-assistant", JSON.stringify({ current: "machine", done: ["welcome"], skipped: [] }));
+    const html = renderToStaticMarkup(<Assistant snap={snap} />);
+    for (const t of ["Étape 2 sur 6", "srv", "10.0.0.2", "3 services trouvés", "Plex", "Apache", "Retour"]) expect(html, t).toContain(t);
+  });
+
+  it("étape pas encore faite : annoncée, et on peut la passer", () => {
+    mem.set("myservices-assistant", JSON.stringify({ current: "network", done: [], skipped: [] }));
+    const html = renderToStaticMarkup(<Assistant snap={snap} />);
+    expect(html).toContain("Cette étape arrive bientôt");
+    expect(html).toContain("Passer");
+    expect(html).not.toContain("Continuer");
+  });
+
+  it("aucune machine détectée : un message au lieu d'une page vide", () => {
+    mem.set("myservices-assistant", JSON.stringify({ current: "machine", done: [], skipped: [] }));
+    const empty = { ...snap, data: { machine_list: [], hosts: [] } } as unknown as Snapshot;
+    expect(renderToStaticMarkup(<Assistant snap={empty} />)).toContain("Aucune machine détectée");
+  });
+});
