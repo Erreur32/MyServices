@@ -134,6 +134,22 @@ class Reseau(unittest.TestCase):
         self.assertEqual(facts["Ventilateur"], "570 tr/min")
         self.assertNotIn("Disque interne", facts)   # « active » is the normal state
 
+    def test_mynetwork_freebox_extras(self):
+        extras = {"storage": {"disks": [{"model": "SSD", "state": "enabled", "smart_ok": None}], "partitions": [{"label": "NVME 32", "used_pct": 55}]},
+                  "ftth": {"sfp_has_signal": True, "link": True, "sfp_pwr_rx": -15.71, "sfp_pwr_tx": 6.46},
+                  "wifi": {"enabled": True, "aps": [{"name": "a"}, {"name": "b"}], "stations_count": 3},
+                  "vms": [{"name": "vm", "status": "stopped"}, {"name": "vm2", "status": "running"}], "vm_system": {"total_cpus": 2}, "missing_rights": []}
+        Fake.routes = {"/api/network-scan/history": (200, {"success": True, "result": {"items": [], "total": 0}}),
+                       "/api/connection/summary": (200, {"success": True, "result": {"connection": {"state": "up"}, "system": {"model": "Freebox Ultra", "lan_ip": "10.0.0.254"}, **extras}}),
+                       "/api/lan/devices": (200, {"success": True, "result": []})}
+        data = inst(MynetworK, self.url).collect()
+        fb = data["freebox"]
+        self.assertEqual(fb["storage"]["partitions"][0]["used_pct"], 55)
+        self.assertEqual((fb["system"]["lan_ip"], fb["missing_rights"], len(fb["vms"])), ("10.0.0.254", [], 2))
+        facts = {f["label"]: f["value"] for f in freebox_status({"name": "lan", "ok": True, **data})["facts"]}
+        self.assertEqual((facts["Stockage"], facts["Fibre"], facts["Wi-Fi"], facts["Machines virtuelles"]),
+                         ("55 % (NVME 32)", "-15.7 dBm reçus", "2 borne(s), 3 appareil(s)", "1 en marche sur 2"))
+
     def test_mynetwork_freebox_non_appairee(self):
         Fake.routes = {"/api/network-scan/history": (200, {"success": True, "result": {"items": [], "total": 0}}),
                        "/api/lan/devices": (200, {"success": False, "msg": "Freebox non appairée"}),

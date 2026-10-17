@@ -280,6 +280,7 @@ export interface HealthHost {
   smart?: { accessible: boolean; disks: { device: string; healthy: boolean; failed?: boolean }[]; vm?: boolean };
   source?: "ssh" | "agent" | "beszel" | "ha";  // source retenue pour la santé de la machine
   sources?: string[];                    // toutes celles qui ont servi (la retenue, puis celles qui ont complété)
+  vmem?: { used_mb: number; total_mb: number; pct: number };   // Freebox: memory given to its virtual machines (the box itself reports no load)
   api_name?: string;                     // source « ha » : the service whose API was read (Glances, Home Assistant)
 }
 
@@ -630,9 +631,18 @@ export interface NetworkConnector extends InfraConnector {
 }
 /** The Freebox as MynetworK relays it (no address given: matched to the machine whose name contains « Freebox ») */
 export interface FreeboxInfo {
-  connection?: { state?: string; media?: string } | null;
-  system?: { model?: string; firmware?: string; latest_firmware?: string | null; update_available?: boolean | null; uptime?: number;
-    sensors?: { id?: string; name?: string; value: number }[] } | null;
+  connection?: { state?: string; media?: string; rate_down?: number; rate_up?: number; bandwidth_down?: number; bandwidth_up?: number } | null;
+  system?: { model?: string; firmware?: string; latest_firmware?: string | null; update_available?: boolean | null; uptime?: number; lan_ip?: string | null;
+    sensors?: { id?: string; name?: string; value: number }[]; fans?: { id?: string; name?: string; value: number }[] } | null;
+  // MynetworK 0.10.69+: null = the paired app lacks the right (see missing_rights), absent = the box does not have it
+  storage?: { disks: { model: string | null; state: string | null; smart_ok: boolean | null; temperature: number | null; total_bytes: number | null }[];
+    partitions: { label: string | null; fstype: string | null; total_bytes: number | null; used_bytes: number | null; free_bytes: number | null; used_pct: number | null }[] } | null;
+  ftth?: { sfp_present: boolean | null; sfp_has_signal: boolean | null; link: boolean | null; sfp_pwr_rx: number | null; sfp_pwr_tx: number | null } | null;
+  wifi?: { enabled: boolean | null; aps: { name: string | null; state: string | null; band: string | null; channel: number | null }[]; stations_count: number | null } | null;
+  vms?: { id: number | null; name: string | null; status: string | null; vcpus: number | null; memory_mb: number | null; os: string | null }[] | null;
+  // memory_pct and cpu_pct: the share allocated to the virtual machines, not the box's real load (MynetworK announces them; computed from the totals until then)
+  vm_system?: { total_memory_mb: number | null; used_memory_mb: number | null; total_cpus: number | null; used_cpus: number | null; memory_pct?: number | null; cpu_pct?: number | null } | null;
+  missing_rights?: string[];
 }
 /** LogviewR : fail2ban */
 export interface SecurityConnector extends InfraConnector {

@@ -3,7 +3,7 @@ import { ArrowRight, ArrowUpCircle, Boxes, Plus, Bug, Check, ChevronRight, Conta
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
-import { dateTime, dur, ipNum, splitHostName } from "../lib/format";
+import { bytes, dateTime, dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
 import type { HealthHost, Machine, MachineLinks, NetDevice, NetScan, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
@@ -102,7 +102,16 @@ function Sshd({ m, what }: { m: Machine; what: "root" | "pwd" }) {
 /** Colonnes santé de la v1 : disque le plus rempli, services systemd en échec, mises à jour et redémarrage */
 export function ResCell({ h, what }: { h?: HealthHost; what: "cpu" | "mem" }) {
   const v = what === "cpu" ? h?.res?.cpu_pct : h?.res?.mem_pct;
-  if (!h?.res?.available || v == null) return <Dim>-</Dim>;
+  if (!h?.res?.available || v == null) {
+    // The Freebox reports no load: its hottest CPU sensor stands in for the CPU, the memory given to its virtual machines for the memory
+    if (what === "cpu" && h?.temp?.available && h.temp.source === "Freebox" && h.temp.celsius != null) {
+      return <Meter pct={h.temp.celsius} unit="°C" tone={level(h.temp.celsius, 75, 85)} title={tx("Température la plus haute : la Freebox ne donne pas la charge de son processeur")} />;
+    }
+    if (what === "mem" && h?.vmem) {
+      return <Meter pct={h.vmem.pct} tone="ok" hint="VM" title={tx("Mémoire des machines virtuelles de la Freebox : {0} / {1} Go (la box ne donne pas sa propre mémoire)", (h.vmem.used_mb / 1024).toFixed(1), (h.vmem.total_mb / 1024).toFixed(1))} />;
+    }
+    return <Dim>-</Dim>;
+  }
   const tone = what === "mem" && v >= 97 ? "text-bad" : (what === "mem" && v >= 90) || (what === "cpu" && v >= 90) ? "text-warn" : "text-ok";
   return <b className={tone} title={what === "mem" && h.res?.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} Go` : undefined}>{Math.round(v)} %</b>;
 }
@@ -114,11 +123,11 @@ const level = (v: number, warn: number, bad: number): MeterTone => {
 };
 
 /** Table cell: the value on top (with a hint on its right, e.g. the disk), a thin bar under it; the same width in every row */
-function Meter({ pct, tone, hint, title }: Readonly<{ pct: number; tone: MeterTone; hint?: string; title?: string }>) {
+function Meter({ pct, tone, hint, title, unit = "%" }: Readonly<{ pct: number; tone: MeterTone; hint?: string; title?: string; unit?: "%" | "°C" }>) {
   return (
     <div className="w-[5.5rem]" title={title}>
       <div className="flex items-baseline justify-between gap-1 leading-tight">
-        <span className={`shrink-0 whitespace-nowrap text-sm tabular-nums ${METER_TEXT[tone]}`}>{Math.round(pct)} %</span>
+        <span className={`shrink-0 whitespace-nowrap text-sm tabular-nums ${METER_TEXT[tone]}`}>{Math.round(pct)} {unit}</span>
         {hint && <span className="min-w-0 truncate font-mono text-[10px] text-dim">{hint}</span>}
       </div>
       <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-bg2"><GradientFill pct={pct} /></span>
@@ -407,16 +416,68 @@ function UnifiRows({ d, sys }: Readonly<{ d: UnifiDevice; sys?: UnifiSystem }>) 
 }
 
 /** The Freebox as MynetworK relays it: model, line, firmware and the update it offers */
+/** Line speed in bits per second, as « 8 Gb/s » or « 70 Mb/s » */
+const bitRate = (bits: number): string => (bits >= 1e9 ? `${(bits / 1e9).toFixed(1).replace(".0", "")} Gb/s` : `${Math.round(bits / 1e6)} Mb/s`);
+
+/** What MynetworK reads of the Freebox (line, firmware, then storage, fibre, Wi-Fi, temperatures and virtual machines from 0.10.69) */
 function FreeboxRows({ fb }: Readonly<{ fb: FreeboxInfo }>) {
-  const sys = fb.system ?? {};
+  const sys = fb.system ?? {}, c = fb.connection ?? {};
   let update: React.ReactNode = <span className="text-ok">{tx("à jour")}</span>;
   if (sys.update_available) update = <span className="text-warn">{sys.latest_firmware ? `→ ${sys.latest_firmware}` : tx("disponible")}</span>;
   else if (sys.update_available == null) update = <Dim>{tx("non transmise par MynetworK")}</Dim>;
+  const speed = c.bandwidth_down ? `${bitRate(c.bandwidth_down)}${c.bandwidth_up ? ` / ${bitRate(c.bandwidth_up)}` : ""}` : undefined;
+  const now = c.rate_down != null ? `${bitRate(8 * c.rate_down)} / ${bitRate(8 * (c.rate_up ?? 0))}` : undefined;
+  const parts = fb.storage?.partitions ?? [], disks = fb.storage?.disks ?? [], ap = fb.wifi?.aps ?? [];
+  const temps = (sys.sensors ?? []).filter((x) => typeof x.value === "number"), fans = (sys.fans ?? []).filter((x) => typeof x.value === "number");
   return <>
     <Row k={tx("Appareil")}>{sys.model || undefined}</Row>
-    <Row k={tx("Ligne")}>{fb.connection?.state ? `${fb.connection.state}${fb.connection.media ? ` · ${fb.connection.media.toUpperCase()}` : ""}` : undefined}</Row>
+    <Row k={tx("Ligne")}>{c.state ? `${c.state}${c.media ? ` · ${c.media.toUpperCase()}` : ""}` : undefined}</Row>
+    {speed && <Row k={tx("Débit max")}>{speed}</Row>}
+    {now && <Row k={tx("Débit actuel")}>{now}</Row>}
+    {fb.ftth?.sfp_pwr_rx != null && (
+      <Row k={tx("Fibre")}><span className={fb.ftth.sfp_has_signal === false ? "text-bad" : ""}>{fb.ftth.sfp_pwr_rx.toFixed(1)} dBm {tx("reçus")}{fb.ftth.sfp_pwr_tx != null ? ` · ${fb.ftth.sfp_pwr_tx.toFixed(1)} dBm ${tx("émis")}` : ""}</span></Row>
+    )}
     <Row k="Firmware">{sys.firmware ? <span className="font-mono">{sys.firmware}</span> : undefined}</Row>
     <Row k={tx("Mise à jour")}>{update}</Row>
+    {parts.map((p) => (
+      <Row key={p.label ?? "disk"} k={tx("Stockage")}>
+        {p.used_pct != null ? <span className={p.used_pct >= 90 ? "text-bad" : p.used_pct >= 80 ? "text-warn" : ""}>{p.used_pct} %</span> : "-"}{" "}
+        <Dim>{[p.label, p.total_bytes ? `${bytes(p.used_bytes)} / ${bytes(p.total_bytes)}` : ""].filter(Boolean).join(" · ")}</Dim>
+      </Row>
+    ))}
+    {disks.map((d) => (
+      <Row key={d.model ?? "ssd"} k={tx("Disque interne")}>
+        {[d.model, d.state, d.temperature != null ? `${Math.round(d.temperature)} °C` : ""].filter(Boolean).join(" · ")}
+        {d.smart_ok === false && <span className="text-bad"> · SMART</span>}
+      </Row>
+    ))}
+    {fb.wifi && (
+      <Row k="Wi-Fi">
+        {fb.wifi.enabled === false ? <span className="text-warn">{tx("coupé")}</span> : tx("activé")}{" "}
+        <Dim>{[ap.length ? tx("{0} borne(s)", ap.length) : "", fb.wifi.stations_count != null ? tx("{0} appareil(s)", fb.wifi.stations_count) : ""].filter(Boolean).join(" · ")}</Dim>
+        {ap.length > 0 && <span className="block text-xs text-dim">{ap.map((a) => [a.name, a.band, a.channel != null ? `ch. ${a.channel}` : ""].filter(Boolean).join(" ")).join(" · ")}</span>}
+      </Row>
+    )}
+    {temps.length > 0 && <Row k={tx("Températures")}>{temps.map((x) => `${x.name ?? x.id} ${Math.round(x.value)} °C`).join(" · ")}</Row>}
+    {fans.length > 0 && <Row k={tx("Ventilateur")}>{fans.map((x) => `${Math.round(x.value)} ${tx("tr/min")}`).join(" · ")}</Row>}
+    {fb.vm_system && (fb.vm_system.total_cpus || fb.vm_system.total_memory_mb) && (
+      <Row k={tx("Alloué aux VM")}>
+        {fb.vm_system.total_cpus ? `${fb.vm_system.used_cpus ?? 0} / ${fb.vm_system.total_cpus} CPU` : ""}
+        {fb.vm_system.total_cpus && fb.vm_system.total_memory_mb ? " · " : ""}
+        {fb.vm_system.total_memory_mb ? `${((fb.vm_system.used_memory_mb ?? 0) / 1024).toFixed(1)} / ${(fb.vm_system.total_memory_mb / 1024).toFixed(1)} ${tx("Go")}` : ""}{" "}
+        <Dim>{tx("part des VM, pas la charge de la box")}</Dim>
+      </Row>
+    )}
+    {(fb.vms ?? []).map((v) => (
+      <Row key={v.id ?? v.name ?? "vm"} k={tx("Machine virtuelle")}>
+        <Badge tone={v.status === "running" ? "ok" : "off"}>{v.status === "running" ? tx("en marche") : tx("arrêtée")}</Badge> <b className="font-medium">{v.name}</b>{" "}
+        <Dim>{[v.vcpus != null ? tx("{0} CPU", v.vcpus) : "", v.memory_mb != null ? `${Math.round(v.memory_mb / 1024)} ${tx("Go")}` : "", v.os].filter(Boolean).join(" · ")}</Dim>
+      </Row>
+    ))}
+    {fb.missing_rights && fb.missing_rights.length > 0 && (
+      <Row k={tx("Droits manquants")}><span className="text-warn">{fb.missing_rights.join(", ")}</span>{" "}
+        <Dim>{tx("à donner à l'application MynetworK dans Freebox OS (gestion des accès)")}</Dim></Row>
+    )}
   </>;
 }
 
@@ -794,7 +855,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                     <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td>
                     <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><span className="text-xs text-dim">{m.ip}</span><ProblemFlag h={h} /></span></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
                     <Td>{st(m, false)}</Td>
-                    <Td><OsShort m={m} kind={osOf(m)} /></Td>
+                    <Td><div className="max-w-[11rem]"><SystemLine m={m} os={osOf(m)} ha={haOf(m)} unifi={unifiOf(m)} freebox={freeboxOf(m, snap.data.network)} /></div></Td>
                     <Td><span className="inline-flex items-center gap-1.5">
                       <button type="button" onClick={() => onMachine(m.ip)} title={tx("Voir ses services")} aria-label={tx("Voir les services de {0}", m.name)}
                         className="rounded-md px-1.5 py-0.5 hover:bg-link/10 hover:text-link"><span className="tabular-nums">{m.services}</span></button><DownBadge m={m} snap={snap} /></span></Td>

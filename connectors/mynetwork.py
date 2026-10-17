@@ -136,6 +136,8 @@ class MynetworK(Connector):
         out = {"connection": None, "system": None, "hosts": None, "hosts_active": None}
         if isinstance(summary, dict):
             out["connection"], out["system"] = summary.get("connection"), summary.get("system")
+            # MynetworK 0.10.69+: storage, ftth, wifi, vms, vm_system and the permissions the paired app lacks (already allowlisted over there)
+            out.update({k: summary[k] for k in ("storage", "ftth", "wifi", "vms", "vm_system", "missing_rights") if k in summary})
         if isinstance(hosts, list):
             out["hosts"] = len(hosts)
             out["hosts_active"] = sum(1 for h in hosts if isinstance(h, dict) and h.get("active"))
@@ -197,9 +199,22 @@ def freebox_status(row: dict) -> dict | None:
         facts.append(fact("Ventilateur", " / ".join(f"{x['value']:.0f} tr/min" for x in fans)))
     if s.get("disk_status") and s["disk_status"] != "active":
         facts.append(fact("Disque interne", s["disk_status"], "warn"))
+    parts = [p for p in (fb.get("storage") or {}).get("partitions") or [] if isinstance(p, dict) and isinstance(p.get("used_pct"), (int, float))]
+    if parts:
+        full = max(parts, key=lambda p: p["used_pct"])
+        facts.append(fact("Stockage", f"{full['used_pct']:.0f} % ({full.get('label') or 'disque'})", "bad" if full["used_pct"] >= 90 else "warn" if full["used_pct"] >= 80 else "ok"))
+    ftth = fb.get("ftth") or {}
+    if ftth.get("sfp_pwr_rx") is not None:
+        facts.append(fact("Fibre", f"{ftth['sfp_pwr_rx']:.1f} dBm reçus", "ok" if ftth.get("sfp_has_signal") is not False else "bad"))
+    wifi = fb.get("wifi") or {}
+    if wifi.get("aps"):
+        facts.append(fact("Wi-Fi", f"{len(wifi['aps'])} borne(s)" + (f", {wifi['stations_count']} appareil(s)" if wifi.get("stations_count") is not None else "")))
+    vms = [v for v in fb.get("vms") or [] if isinstance(v, dict)]
+    if vms:
+        facts.append(fact("Machines virtuelles", f"{sum(v.get('status') == 'running' for v in vms)} en marche sur {len(vms)}"))
     if fb.get("hosts") is not None:
         # the Freebox keeps every device it ever saw: behind another router (UniFi…) only that router is active, the rest is history
         facts.append(fact("Appareils actifs", f"{fb['hosts_active']}" + (f" (+{fb['hosts'] - fb['hosts_active']} dans l'historique)" if fb["hosts"] > fb["hosts_active"] else "")))
     return {"connector": "freebox", "name": row.get("name") or "", "label": f"{s.get('model') or 'Freebox'} (via MynetworK)",
             "ok": bool(row.get("ok")), "stale": row.get("stale"), "message": row.get("message"), "version": s.get("firmware"),
-            "url": row.get("url"), "facts": facts[:8], "problems": problems}  # NOSONAR S6466: a slice never raises IndexError
+            "url": row.get("url"), "facts": facts[:11], "problems": problems}  # NOSONAR S6466: a slice never raises IndexError
