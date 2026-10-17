@@ -37,6 +37,11 @@ describe("freebox", () => {
     const withVm = { ...fb, vm_system: { total_memory_mb: 2048, used_memory_mb: 1024, total_cpus: 2, used_cpus: 1 } };
     expect(freeboxHealth(m("Freebox"), withVm).vmem).toEqual({ used_mb: 1024, total_mb: 2048, pct: 50 });
   });
+  it("reports its virtual machines: how many run out of how many", () => {
+    const withVms = { ...fb, vms: [{ id: 0, name: "a", status: "running", vcpus: 2, memory_mb: 1024, os: null }, { id: 1, name: "b", status: "stopped", vcpus: 1, memory_mb: 512, os: null }] };
+    expect(freeboxHealth(m("Freebox"), withVms).vms).toEqual({ running: 1, total: 2 });
+    expect(freeboxHealth(m("Freebox"), fb).vms).toBeUndefined();
+  });
   it("reads OK, busy when hot, down when the line is down, and its firmware update", () => {
     expect(freeboxHealth(m("Freebox"), fb)).toMatchObject({ level: "ok", temp: { celsius: 60 }, apt: { upgradable: 1, sample: ["firmware → 4.14.0"] } });
     expect(freeboxHealth(m("Freebox"), { ...fb, system: { ...fb.system, sensors: [{ name: "Disque", value: 90 }] } }).level).toBe("warn");

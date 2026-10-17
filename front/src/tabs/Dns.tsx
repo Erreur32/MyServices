@@ -51,6 +51,15 @@ function Anchor({ id, lit, children }: { id?: string; lit?: string; children: Re
 
 const code = (t: string) => <code className="rounded bg-bg2 px-1.5 py-0.5 font-mono text-xs">{t}</code>;
 
+/** The error count of the sync log: how many in 24 h, how many are still open, and the last one's message */
+function errorsText(s: { errors_24h?: number; errors_open?: number; last_error?: string | null }): string {
+  const n = s.errors_24h || 0;
+  if (!n) return "0";
+  const open = s.errors_open ?? n;
+  const msg = s.last_error ? ` · ${s.last_error.split("\t")[0]}` : "";
+  return open ? `${n} (${tx("{0} en cours", open)})${msg}` : `${n} (${tx("close par une synchro réussie")})${msg}`;
+}
+
 export function Dns({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
   const g = snap.data.dns;
   const want = initial?.anchor?.[0];
@@ -85,7 +94,7 @@ export function Dns({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
           rows={[
             ...(sync ? [[tx("Dernière synchro"), last ? hm(last) : tx("aucune en 24 h"), st.cls === "bad" ? "bad" : undefined] as Row,
                         ...(sync.interval_min ? [[tx("Fréquence"), `${tx("toutes les")} ${sync.interval_min} ${tx("min")}`] as Row] : []),
-                        [tx("Erreurs (24 h)"), String(sync.errors_24h || 0), sync.errors_24h ? "bad" : "ok"] as Row]
+                        [tx("Erreurs (24 h)"), errorsText(sync), (sync.errors_open ?? sync.errors_24h) ? "bad" : sync.errors_24h ? "warn" : "ok"] as Row]
                     : [["adguardhome-sync", Object.keys(g.servers).length > 1 ? tx("absent : contenus comparés") : tx("sans objet")] as Row]),
             [tx("Contenu"), content, diff.length ? "warn" : "ok"] as Row,
           ]} />

@@ -31,6 +31,7 @@ export function freeboxHealth(m: Machine, fb: FreeboxInfo): HealthHost {
     id: `freebox:${m.ip}`, name: `${m.name} · ${m.ip}`, level, reachable: true, sources: ["mynetwork"], res: { available: false },
     ...(parts.length ? { disks: parts.map((p) => ({ mount: p.label ?? "disque", used_pct: p.used_pct as number, ...(p.total_bytes ? { size_gb: p.total_bytes / 1e9 } : {}),
       ...(p.free_bytes != null ? { avail_gb: p.free_bytes / 1e9 } : {}), warning: (p.used_pct as number) >= 80, critical: (p.used_pct as number) >= 90 })) } : {}),
+    ...(fb.vms?.length ? { vms: { running: fb.vms.filter((v) => v.status === "running").length, total: fb.vms.length } } : {}),
     ...(fb.vm_system?.total_memory_mb ? { vmem: { used_mb: fb.vm_system.used_memory_mb ?? 0, total_mb: fb.vm_system.total_memory_mb, pct: vmShare(fb.vm_system.memory_pct, fb.vm_system.used_memory_mb, fb.vm_system.total_memory_mb) } } : {}),
     ...(cpuHot != null ? { temp: { available: true, celsius: cpuHot, source: "Freebox" } } : {}),
     ...(fb.system?.update_available ? { apt: { upgradable: 1, sample: [latest ? `firmware → ${latest}` : "firmware"] } } : {}),

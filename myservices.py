@@ -31,6 +31,7 @@ import re
 import socket
 import ssl
 import struct
+import statistics
 import subprocess
 import sys
 import threading
@@ -447,6 +448,14 @@ def _sync_time(ts):
         return None
 
 
+def _error_state(errors, times):
+    """Errors of the sync log that still matter: only those after the last successful sync are « open » (a later success closes the older ones).
+    errors: [(time, message)], times: the times of the successful syncs. Returns errors_open and the last error message."""
+    last_ok = max(times, default=None)
+    open_ = [e for e in errors if e[0] is None or last_ok is None or e[0] > last_ok]
+    return {"errors_open": len(open_), "last_error": errors[-1][1] if errors else None}
+
+
 def adguard_sync_state(alias, container):
     """Journal 24 h d'adguardhome-sync : origine, dernière synchro réussie par réplique, intervalle entre
     deux synchros (médiane, d'après le journal : pas besoin de connaître son cron), nombre d'erreurs.
@@ -458,11 +467,11 @@ def adguard_sync_state(alias, container):
         return None
     if r.returncode not in (0, 1):  # grep : 1 = aucune ligne
         return None
-    last, runs, origin, errors = {}, {}, None, 0
+    last, runs, origin, errors = {}, {}, None, []
     for line in r.stdout.splitlines():
         ts = line.split("\t", 1)[0]
         if "\tERROR\t" in line:
-            errors += 1
+            errors.append((_sync_time(ts), line.split("\t", 4)[-1][:160] if line.count("\t") >= 4 else line[:160]))
         m = re.search(r'Sync done.*"to": "(?:https?://)?([\d.]+)', line)
         if m:
             last[m.group(1)] = ts
@@ -470,9 +479,9 @@ def adguard_sync_state(alias, container):
             f = re.search(r'"from": "(?:https?://)?([\d.]+)', line)
             origin = f.group(1) if f else origin
     times = sorted(t for t in max(runs.values(), key=len, default=[]) if t)
-    gaps = sorted((b - a).total_seconds() / 60 for a, b in zip(times, times[1:]))
-    return {"container": container, "origin": origin, "last_done": last, "errors_24h": errors,
-            "interval_min": round(gaps[len(gaps) // 2]) if gaps else None}
+    gaps = [(b - a).total_seconds() / 60 for a, b in zip(times, times[1:])]   # in time order
+    return {"container": container, "origin": origin, "last_done": last, "errors_24h": len(errors), **_error_state(errors, times),
+            "interval_min": round(statistics.median(gaps[-6:])) if gaps else None}   # the latest gaps: the cron may have been changed today
 
 
 def _skip_name(data, pos):

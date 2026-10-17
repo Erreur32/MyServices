@@ -140,7 +140,7 @@ export interface Rewrite {
 export interface Dns {
   npm_ip?: string;
   servers: Record<string, DnsServer & { container?: string; user_rules?: number }>;
-  sync?: Record<string, { container: string; origin?: string; last_done?: Record<string, string>; errors_24h?: number; interval_min?: number; unreadable?: boolean }>;
+  sync?: Record<string, { container: string; origin?: string; last_done?: Record<string, string>; errors_24h?: number; errors_open?: number; last_error?: string | null; interval_min?: number; unreadable?: boolean }>;
   rewrites_diff: Rewrite[];
   user_rules_diff: Rewrite[];
   orphans: Rewrite[];
@@ -280,7 +280,8 @@ export interface HealthHost {
   smart?: { accessible: boolean; disks: { device: string; healthy: boolean; failed?: boolean }[]; vm?: boolean };
   source?: "ssh" | "agent" | "beszel" | "ha";  // source retenue pour la santé de la machine
   sources?: string[];                    // toutes celles qui ont servi (la retenue, puis celles qui ont complété)
-  vmem?: { used_mb: number; total_mb: number; pct: number };   // Freebox: memory given to its virtual machines (the box itself reports no load)
+  vmem?: { used_mb: number; total_mb: number; pct: number };
+  vms?: { running: number; total: number };   // Freebox: its virtual machines, how many run   // Freebox: memory given to its virtual machines (the box itself reports no load)
   api_name?: string;                     // source « ha » : the service whose API was read (Glances, Home Assistant)
 }
 

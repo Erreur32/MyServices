@@ -167,6 +167,13 @@ def _rate(bits) -> str:
     return f"{bits / 1e9:.1f} Gb/s".replace(".", ",") if bits >= 1e9 else f"{bits / 1e6:.0f} Mb/s"
 
 
+def _full_tone(pct: float) -> str:
+    """Tone of a storage filling: bad from 90 %, warn from 80 %."""
+    if pct >= 90:
+        return "bad"
+    return "warn" if pct >= 80 else "ok"
+
+
 def freebox_status(row: dict) -> dict | None:
     """Carte « Service via API » de la Freebox lue par MynetworK (même forme que les connecteurs status), None sans Freebox."""
     fb = row.get("freebox")
@@ -202,7 +209,7 @@ def freebox_status(row: dict) -> dict | None:
     parts = [p for p in (fb.get("storage") or {}).get("partitions") or [] if isinstance(p, dict) and isinstance(p.get("used_pct"), (int, float))]
     if parts:
         full = max(parts, key=lambda p: p["used_pct"])
-        facts.append(fact("Stockage", f"{full['used_pct']:.0f} % ({full.get('label') or 'disque'})", "bad" if full["used_pct"] >= 90 else "warn" if full["used_pct"] >= 80 else "ok"))
+        facts.append(fact("Stockage", f"{full['used_pct']:.0f} % ({full.get('label') or 'disque'})", _full_tone(full["used_pct"])))
     ftth = fb.get("ftth") or {}
     if ftth.get("sfp_pwr_rx") is not None:
         facts.append(fact("Fibre", f"{ftth['sfp_pwr_rx']:.1f} dBm reçus", "ok" if ftth.get("sfp_has_signal") is not False else "bad"))
