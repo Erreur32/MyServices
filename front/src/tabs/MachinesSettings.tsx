@@ -3,7 +3,7 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
-import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, KeyRound, Loader2, Monitor, Plus, Power, Radar, RefreshCw, Server, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, KeyRound, Loader2, Monitor, Plus, Power, Radar, RefreshCw, Server, Settings2, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, refreshSnapshot, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -14,6 +14,7 @@ import type { AgentInfo, Connector, NetworkConnector, Detection, MachineConf, Ma
 import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
+import { Overlay } from "../components/Overlay";
 import { IconChoice } from "../components/IconChoice";
 import { IconPicker } from "../components/IconPicker";
 import { mState, osOfMachine } from "../lib/machines";
@@ -23,7 +24,6 @@ import { SshAccess, SshDetails } from "../components/ssh";
 import { freeboxOf } from "../lib/freebox";
 import { SourceBadges } from "../components/SourceBadges";
 import { focusConnector } from "../lib/connectorPrefill";
-import { useWide } from "../lib/useWide";
 import { rolesOf, sshRisks } from "../lib/ssh";
 import { pokeScan } from "../lib/scan";
 import { hardwareRows } from "../lib/hardware";
@@ -67,7 +67,6 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
   }, []);
   useEffect(reload, [reload]);
-  const wide = useWide();
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   const live = new Map((snap.data.machine_list || []).map((m) => [m.ip, m]));
   // « Non terminé » : accès encore à régler (SSH absent alors que la machine l'offre, jeton Home Assistant manquant). Ceux que l'on
@@ -108,18 +107,15 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
         {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
         {detecting && <Detect st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
       </Card>
-      {/* Deux colonnes indépendantes (une ligne sur deux dans chacune) : ouvrir un cadre ne déplace ni n'étire l'autre colonne */}
-      {(() => {
-        const cards = ips.map((ip) => {
+      {/* Cartes compactes de hauteur fixe : les réglages s'ouvrent dans une fenêtre, rien ne se déplie ni ne déforme la grille */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {ips.map((ip) => {
           const lm = live.get(ip);
           // Un PC Windows n'a ni Docker ni services en écoute à lire : pas d'état de connecteur SSH Linux (reste d'un ancien relevé)
           const stat = st.machines[ip].os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.ip ? c.ip === ip : c.name === ip || c.name === lm?.name));
           return <MachineRow key={ip} agent={agents[ip]} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} network={snap.data.network} />;
-        });
-        return wide
-          ? <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start gap-3">{[0, 1].map((c) => <div key={c} className="flex min-w-0 flex-col gap-3">{cards.filter((_, i) => i % 2 === c)}</div>)}</div>
-          : <div className="flex flex-col gap-3">{cards}</div>;
-      })()}
+        })}
+      </div>
     </div>
   );
 }
@@ -327,8 +323,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
     reload();
   };
   const access = agent ? tx("agent MyServices") : m.os === "windows" ? (m.health ? tx("Windows · santé par {0}", m.health) : tx("Windows · sans agent")) : m.ssh ? `SSH ${m.ssh}` : tx("sans SSH");
-  const Chevron = open ? ChevronDown : ChevronRight;
-  // Ce que la collecte (SSH) ou l'agent a lu de la connexion : montré dans le cadre « Accès », sous l'interrupteur
+    // Ce que la collecte (SSH) ou l'agent a lu de la connexion : montré dans le cadre « Accès », sous l'interrupteur
   const hw = hardwareRows(live?.agent?.hardware);  // matériel lu par l'agent (modèle, BIOS, processeur, mémoire...)
   const connection = m.os === "windows" ? (
     <div className="text-sm">
@@ -349,10 +344,10 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
     </div>
   ) : live ? <SshDetails m={live} statuses={statuses} /> : null;
   return (
-    <div ref={card} className={`flex w-full min-w-0 flex-col rounded-xl border bg-card text-sm transition-colors self-start ${off ? "opacity-60" : ""} ${focus || open ? "border-link ring-1 ring-link" : "border-dim/50"}`}>
-      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className={`flex w-full flex-wrap content-start items-center gap-x-2 gap-y-1 rounded-xl p-3 text-left hover:bg-bg2 ${open ? "" : "h-[5.5rem] overflow-hidden"}`}>
-        <Chevron size={14} className="text-txt" /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon }} scan={scan} reserve /><b className="max-w-[10rem] truncate">{m.name}</b><Dim>{ip}</Dim>
-        <span className={`ml-auto flex min-w-0 items-center justify-end gap-1.5 ${open ? "flex-wrap" : "flex-nowrap overflow-hidden"}`}>
+    <div ref={card} className={`flex w-full min-w-0 flex-col rounded-xl border bg-card text-sm transition-colors ${off ? "opacity-60" : ""} ${focus || open ? "border-link ring-1 ring-link" : "border-dim/50"}`}>
+      <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" title={tx("Ouvrir les réglages de cette machine")} className="flex h-[5.5rem] w-full flex-wrap content-start items-center gap-x-2 gap-y-1 overflow-hidden rounded-xl p-3 text-left hover:bg-bg2">
+        <Settings2 size={14} className="text-dim" aria-hidden /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon }} scan={scan} reserve /><b className="max-w-[10rem] truncate">{m.name}</b><Dim>{ip}</Dim>
+        <span className={`ml-auto flex min-w-0 items-center justify-end gap-1.5 flex-nowrap overflow-hidden`}>
           {keyMissing && (
             <span role="button" tabIndex={0} className="grid h-5 w-5 cursor-pointer place-items-center rounded-full bg-warn text-xs font-extrabold text-bg hover:brightness-110"
               title={tx("Docker illisible sur cette machine : la clé SSH de l'app n'y est pas encore autorisée. Cliquez pour voir la commande à lancer sur la machine.")}
@@ -373,12 +368,13 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
         </span>
         {/* Qui lit la machine : un badge court par source, coloré selon son état (détail en infobulle). Le détail de l'accès SSH n'est que dans la carte dépliée */}
         <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">
-          {!open && rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}
-          {live ? <SourceBadges all={open} m={live} agent={agent} extra={readers} /> : <AgentOrAccess agent={agent} access={access} />}
+          {rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}
+          {live ? <SourceBadges m={live} agent={agent} extra={readers} /> : <AgentOrAccess agent={agent} access={access} />}
         </span>
       </button>
       {open && (
-        <div className="flex flex-col gap-3 px-3 pb-3">
+        <Overlay wide onClose={() => setOpen(false)} title={<><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon }} scan={scan} reserve />{m.name} <Dim>{ip}</Dim></>}>
+        <div className="mt-3 flex flex-col gap-3">
           <NoteLine note={note} />
           {lines && (
             <ul className="rounded-lg bg-bg2 p-2 font-mono text-xs">
@@ -422,6 +418,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
             </span>
           </>} />
         </div>
+        </Overlay>
       )}
     </div>
   );
