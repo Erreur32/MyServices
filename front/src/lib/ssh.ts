@@ -3,10 +3,15 @@ import type { Machine } from "../types";
 
 export const risky = (v?: string) => !!v && !/^(no|prohibit-password|forced-commands-only)$/.test(v.replace(/ \(.*\)$/, ""));   // « prohibit-password (défaut) » : the default, safe
 
-/** sshd autorise root ou le mot de passe */
-export function sshWarn(m: Machine): boolean {
+/** Ce que le serveur SSH de la machine autorise de risqué : connexion directe en root, connexion par mot de passe (vide : rien à signaler) */
+export function sshRisks(m: Machine): { root: boolean; password: boolean } {
   const d = m.info?.sshd;
-  return !!d && (risky(d.permitrootlogin) || !!d.passwordauthentication?.startsWith("yes"));
+  return { root: !!d && risky(d.permitrootlogin), password: !!d && !!d.passwordauthentication?.startsWith("yes") };
+}
+
+export function sshWarn(m: Machine): boolean {
+  const r = sshRisks(m);
+  return r.root || r.password;
 }
 
 /** Rôle d'une machine (texte « a, b, c ») en étiquettes */

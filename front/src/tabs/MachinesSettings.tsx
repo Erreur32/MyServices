@@ -24,7 +24,7 @@ import { SourceBadges } from "../components/SourceBadges";
 import { focusConnector } from "../lib/connectorPrefill";
 import { ReadBySsh } from "../components/ReadBySsh";
 import { useWide } from "../lib/useWide";
-import { rolesOf, sshWarn } from "../lib/ssh";
+import { rolesOf, sshRisks } from "../lib/ssh";
 import { pokeScan } from "../lib/scan";
 import { hardwareRows } from "../lib/hardware";
 import { tx } from "../lib/i18n";
@@ -355,7 +355,12 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
           )}
           {unfinished && <Badge tone="warn" title={unfinished.why === "ha" ? tx("Jeton Home Assistant manquant") : tx("Accès SSH à régler")}>{unfinished.passed ? tx("Non terminé (passé)") : tx("Non terminé")}</Badge>}
           {m.off && <Badge tone="off">{tx("souvent éteinte")}</Badge>}
-          {live && sshWarn(live) && <Badge tone="warn" title={tx("sshd : root ou mot de passe autorisé")}>{tx("sshd")}</Badge>}
+          {live && (() => {  // réglage de sécurité du serveur SSH de la machine (pas une panne) : dit précisément ce qui est permis
+            const r = sshRisks(live);
+            if (!r.root && !r.password) return null;
+            const what = r.root && r.password ? tx("root et mot de passe") : r.root ? tx("connexion root") : tx("mot de passe");
+            return <Badge tone="info" title={tx("Sécurité SSH, pas une panne : ce serveur SSH autorise {0}. Pour durcir, mettre PermitRootLogin no et PasswordAuthentication no dans sshd_config, puis recharger sshd.", what)}>🛡 {what}</Badge>;
+          })()}
           {statuses.some((c) => !c.ok) && <Badge tone="bad">{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
           {off && <Badge tone="off">{tx("non suivie")}</Badge>}
         </span>
