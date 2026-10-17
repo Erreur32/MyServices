@@ -154,8 +154,29 @@ def after_banner(out: str) -> str:
 
 # ───────────── Collecte ─────────────
 
+DISKS_CMD = "df -P -B1M | tail -n +2; echo '---'; df -P -i | tail -n +2"
+SYSTEMD_CMD = "systemctl --failed --no-legend --no-pager"
+DOCKER_PS_CMD = "docker ps -a --format '{{.Names}}|{{.Status}}|{{.Image}}' 2>&1"
+DOCKER_STATS_CMD = "docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}' 2>/dev/null"
+APT_CMD = "LC_ALL=C apt list --upgradable 2>/dev/null"
+KERNEL_CMD = "journalctl -k -p err --since '-24h' --no-pager 2>/dev/null | tail -n 50"
+REBOOT_CMD = "test -f /var/run/reboot-required && echo yes || echo no"
+LOAD_CMD = "cat /proc/loadavg; nproc"
+VIRT_CMD = "systemd-detect-virt 2>/dev/null"
+SSH_AUTH_CMD = (
+    "if [ \"$(id -u)\" = 0 ] || id -nG | grep -qwE 'adm|systemd-journal'; then "
+    "journalctl -u ssh -u sshd --since '-24h' --no-pager 2>/dev/null "
+    "| grep -E 'Failed password|authentication failure|Invalid user' | grep -vc 'Invalid user nobody' || true; "
+    "else echo noaccess; fi")
+SMART_LIST_CMD = "test -x /usr/sbin/smartctl && lsblk -dno NAME,TYPE 2>/dev/null | awk '$2==\"disk\"{print $1}'"
+
+
+def smart_cmd(target: str) -> str:
+    return f"sudo -n /usr/sbin/smartctl -H /dev/{target} 2>&1"
+
+
 def collect_disks(run) -> list[dict]:
-    rc, out = run("df -P -B1M | tail -n +2; echo '---'; df -P -i | tail -n +2")
+    rc, out = run(DISKS_CMD)
     disks = []
     if rc != 0:
         return disks
@@ -197,7 +218,7 @@ def collect_disks(run) -> list[dict]:
 
 
 def collect_systemd(run) -> dict:
-    rc, out = run("systemctl --failed --no-legend --no-pager")
+    rc, out = run(SYSTEMD_CMD)
     info = {"failed": []}
     if rc != 0:
         return info
@@ -215,7 +236,7 @@ def collect_systemd(run) -> dict:
 
 def collect_docker(run) -> dict:
     """Best effort : gracieux si pas d'accès au socket docker (retourne accessible: False)."""
-    rc, out = run("docker ps -a --format '{{.Names}}|{{.Status}}|{{.Image}}' 2>&1", timeout=10)
+    rc, out = run(DOCKER_PS_CMD, timeout=10)
     if rc != 0 or "permission denied" in out.lower() or "cannot connect" in out.lower():
         return {"accessible": False, "reason": out.strip()[:120]}
     containers, stopped = [], []
@@ -244,9 +265,7 @@ def collect_docker(run) -> dict:
 
     # Stats CPU/mem : un seul échantillon, pour repérer les conteneurs gourmands.
     cstats = []
-    rc2, out2 = run(
-        "docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}' 2>/dev/null",
-        timeout=25)
+    rc2, out2 = run(DOCKER_STATS_CMD, timeout=25)
     if rc2 == 0:
         for ln in out2.strip().splitlines():
             cols = ln.split("|")
@@ -283,7 +302,7 @@ def collect_apt(run) -> dict:
     d'une ligne de paquet (nom/repo version ...), ce qui exclut naturellement toute ligne
     de statut/progression quelle que soit la langue du système.
     """
-    rc, out = run("LC_ALL=C apt list --upgradable 2>/dev/null", timeout=15)
+    rc, out = run(APT_CMD, timeout=15)
     info = {"upgradable": 0, "sample": []}
     if rc != 0:
         return info
@@ -300,7 +319,7 @@ def collect_apt(run) -> dict:
 def collect_kernel_errors(run) -> dict:
     # Pas de 2>&1 : le hint "vous ne voyez pas les messages des autres utilisateurs..."
     # (compte hors groupes adm/systemd-journal) part sur stderr et ne doit pas polluer stdout.
-    rc, out = run("journalctl -k -p err --since '-24h' --no-pager 2>/dev/null | tail -n 50", timeout=15)
+    rc, out = run(KERNEL_CMD, timeout=15)
     lines = []
     if rc == 0:
         for ln in out.splitlines():
@@ -318,12 +337,12 @@ def collect_kernel_errors(run) -> dict:
 
 
 def collect_reboot_required(run) -> bool:
-    rc, out = run("test -f /var/run/reboot-required && echo yes || echo no", timeout=6)
+    rc, out = run(REBOOT_CMD, timeout=6)
     return rc == 0 and out.strip() == "yes"
 
 
 def collect_load(run) -> dict:
-    rc, out = run("cat /proc/loadavg; nproc", timeout=8)
+    rc, out = run(LOAD_CMD, timeout=8)
     if rc != 0:
         return {"load_1": 0.0, "ncpu": 1, "available": False}
     lines = out.strip().splitlines()
@@ -412,7 +431,7 @@ def collect_cpu_temp(run, vm: bool = False) -> dict:
     rc, out = run(_TEMP_CMD, timeout=8)
     temp = parse_cpu_temp(out) if rc == 0 else {"available": False}
     if not temp["available"]:
-        rc, out = run("systemd-detect-virt 2>/dev/null", timeout=6)
+        rc, out = run(VIRT_CMD, timeout=6)
         virt = out.strip().splitlines()[-1].strip() if out.strip() else ""
         if re.fullmatch(r"[a-z0-9-]{2,20}", virt) and virt != "none":
             temp["virt"] = virt
@@ -435,12 +454,7 @@ def collect_ssh_auth(run) -> dict:
     journalctl ne renvoie rien : on le détecte et on rend available=False au lieu d'un faux 0.
     Les « Invalid user nobody » du test de méthodes SSH de MyServices sont exclus.
     """
-    rc, out = run(
-        "if [ \"$(id -u)\" = 0 ] || id -nG | grep -qwE 'adm|systemd-journal'; then "
-        "journalctl -u ssh -u sshd --since '-24h' --no-pager 2>/dev/null "
-        "| grep -E 'Failed password|authentication failure|Invalid user' | grep -vc 'Invalid user nobody' || true; "
-        "else echo noaccess; fi",
-        timeout=15)
+    rc, out = run(SSH_AUTH_CMD, timeout=15)
     out = (out or "").strip()
     if rc != 0 or out == "noaccess":
         return {"failed_24h": 0, "available": False, "reason": "journal non lisible (groupe adm requis)"}
@@ -459,9 +473,7 @@ def collect_smart(run) -> dict:
     règle sudoers cible elle-même le chemin absolu. Device NVMe : la règle sudoers vise le
     contrôleur (/dev/nvme0), pas le namespace bloc listé par lsblk (nvme0n1) → on convertit.
     """
-    rc, out = run(
-        "test -x /usr/sbin/smartctl && lsblk -dno NAME,TYPE 2>/dev/null | awk '$2==\"disk\"{print $1}'",
-        timeout=8)
+    rc, out = run(SMART_LIST_CMD, timeout=8)
     if rc != 0 or not out.strip():
         return {"accessible": False, "disks": []}
     disks = []
@@ -475,7 +487,7 @@ def collect_smart(run) -> dict:
         if target in seen:
             continue
         seen.add(target)
-        _, out2 = run(f"sudo -n /usr/sbin/smartctl -H /dev/{target} 2>&1", timeout=10)
+        _, out2 = run(smart_cmd(target), timeout=10)
         low = out2.lower()
         # Deux formats selon le type de disque : ATA/NVMe ("overall-health ... PASSED/FAILED")
         # vs SCSI/virtio ("Health Status: OK/...") : ex. disque virtuel de VM.
@@ -648,16 +660,28 @@ def agent_reports() -> dict:
 def host_from_agent(hc: dict, a: dict) -> dict:
     """Machine d'après le dernier relevé de son agent (mêmes champs qu'une lecture SSH). Relevé périmé ou jamais
     reçu : injoignable, comme une machine SSH qui ne répond pas."""
-    base = {"id": hc["id"], "name": hc["name"], "os": "windows"}  # l'agent est un script PowerShell
     data = (a["report"] or {}).get("data")
+    linux = isinstance(data, dict) and data.get("kind") == "linux"   # Linux agent: recorded command outputs; otherwise the PowerShell report
+    base = {"id": hc["id"], "name": hc["name"], "os": "linux" if linux else "windows"}
     if not a["fresh"] or not isinstance(data, dict):
         return {**base, "reachable": False, "disks": [], "systemd": {"failed": []},
                 "docker": {"accessible": False, "reason": "agent"}, "level": "down", **_EMPTY_HOST_EXTRAS,
                 "error": "agent : aucun relevé récent"}
+    if linux:
+        h = {**collect_linux(hc, replay_runner(data.get("cmds"))), **base, "source": "agent", "agent_seen": a["seen"]}
+        h["level"] = host_level(h)
+        return h
     h = {**base, "reachable": True, **parse_windows(data), "source": "agent", "agent_seen": a["seen"]}
     h["docker"] = {"accessible": False, "reason": "agent"}
     h["level"] = host_level(h)
     return h
+
+
+def parse_agent_data(hc: dict, data: dict) -> dict:
+    """Champs de santé lus dans le relevé d'un agent, Linux (sorties rejouées) ou Windows (PowerShell)."""
+    if data.get("kind") == "linux":
+        return collect_linux(hc, replay_runner(data.get("cmds")))
+    return parse_windows(data)
 
 
 # ───────────── Fusion des sources (SSH, agent, Beszel) ─────────────
@@ -739,7 +763,7 @@ def read_host(hc: dict, agent: dict | None, beszel: dict | None, ssh=None, api: 
         if name == primary["source"]:
             continue
         if name == "agent" and agent and agent["fresh"] and isinstance((agent["report"] or {}).get("data"), dict):
-            cheap[name] = parse_windows(agent["report"]["data"])
+            cheap[name] = parse_agent_data(hc, agent["report"]["data"])
         elif name == "beszel" and beszel and beszel.get("status") == "up":
             cheap[name] = parse_beszel(beszel)
         elif name == "ha" and api:
@@ -965,6 +989,29 @@ def collect_host(host: dict) -> dict:
         # ESXi: no apt, systemd nor Docker; its VMs and datastores are read by the collection (esxi_ssh.py, Virtualization tab)
         return {"id": host["id"], "name": host["name"], "reachable": True, "os": "esxi", "esxi": esxi.strip()[:80],
                 "disks": [], "systemd": {"failed": []}, "docker": {"accessible": False, "reason": "esxi"}, "level": "ok", **_EMPTY_HOST_EXTRAS}
+    return collect_linux(host, run)
+
+
+# Commands the Linux agent runs on its own machine (the SSH collectors' commands, fixed); smart_cmd(<disk>) is added per disk it finds.
+LINUX_AGENT_COMMANDS = [DISKS_CMD, SYSTEMD_CMD, DOCKER_PS_CMD, DOCKER_STATS_CMD, APT_CMD, KERNEL_CMD, REBOOT_CMD, LOAD_CMD,
+                        _RES_CMD, _TEMP_CMD, VIRT_CMD, SSH_AUTH_CMD, SMART_LIST_CMD]
+
+
+def replay_runner(recorded):
+    """run(cmd, timeout) -> (rc, out) that answers from the outputs a Linux agent recorded (nothing is ever executed here):
+    the collectors then read an agent report exactly like an SSH session. A command the agent did not record fails like a missing tool."""
+    recorded = recorded if isinstance(recorded, dict) else {}
+
+    def run(cmd: str, timeout: int = 15) -> tuple[int, str]:
+        r = recorded.get(cmd)
+        if isinstance(r, (list, tuple)) and len(r) == 2 and isinstance(r[0], int) and isinstance(r[1], str):
+            return r[0], r[1]
+        return 127, "commande non relevée par l'agent"
+    return run
+
+
+def collect_linux(host: dict, run) -> dict:
+    """Santé d'une machine Linux joignable : `run` exécute les commandes (SSH, local) ou les rejoue (relevé d'agent)."""
     disks = collect_disks(run)
     systemd = collect_systemd(run)
     docker = collect_docker(run)

@@ -120,6 +120,18 @@ class Agents(unittest.TestCase):
         big = {**REPORT, "pad": "x" * agents.MAX_BODY}
         self.assertEqual(self.send(token, big).status_code, 413)
 
+    def test_releve_linux_accepte_et_range_comme_une_lecture_ssh(self):
+        token, _ = self.create("192.168.1.61")
+        body = {"version": "1", "os": "Debian 12", "host": "box", "interval": 900,
+                "data": {"kind": "linux", "cmds": {health.REBOOT_CMD: [0, "yes\n"], health.LOAD_CMD: [0, "0.5 0.4 0.3 1/200 1\n4\n"]}}}
+        self.assertEqual(self.send(token, body).status_code, 200)
+        rep = api.agents_store().fresh_reports()["192.168.1.61"]
+        self.assertTrue(rep["fresh"])
+        hc = {"id": "box", "name": "Box · 192.168.1.61", "os": "linux", "ip": "192.168.1.61", "target": None, "off": False}
+        h = health.host_from_agent(hc, rep)
+        self.assertEqual((h["reachable"], h["os"], h["source"], h["reboot_required"]), (True, "linux", "agent", True))
+        self.assertEqual(self.send(token, {**body, "data": {"kind": "linux", "cmds": {"a": "x"}}}).status_code, 400)
+
     def test_un_releve_par_minute(self):
         agents.MIN_GAP = 60
         token, _ = self.create()

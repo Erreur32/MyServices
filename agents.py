@@ -27,6 +27,7 @@ MAX_BODY = 256 * 1024     # octets : un relevé fait quelques ko
 DEFAULT_INTERVAL = 900    # s : 15 min
 MIN_INTERVAL, MAX_INTERVAL = 60, 86400
 FRESH_MULT = 2.5          # un relevé plus vieux que 2,5 × l'intervalle est périmé
+MAX_LINUX_CMDS, MAX_LINUX_OUT = 60, 60_000   # a Linux report: commands per report, characters per output
 MIN_GAP = 60              # s: an agent sends at most one report per minute (the rest gets 429)
 LEGACY_HOST = "[Environment]::MachineName"   # what agents up to version 7 sent instead of the real name (script bug): means "unknown"
 BAD_MAX, BAD_WINDOW = 10, 15 * 60   # bad tokens tolerated per IP, then refused until the window ends
@@ -346,15 +347,29 @@ def report_level(report: dict) -> str | None:
     """Niveau de santé (ok, warn, crit) que donne un relevé, avec les mêmes règles que la page Santé ; None s'il est illisible."""
     import health
     try:
-        return health.host_level({"reachable": True, **health.parse_windows(report["data"])})
+        data = report["data"]
+        if data.get("kind") == "linux":
+            return health.host_level(health.collect_linux({"id": "x", "name": "x"}, health.replay_runner(data.get("cmds"))))
+        return health.host_level({"reachable": True, **health.parse_windows(data)})
     except (KeyError, TypeError, ValueError, AttributeError):
         return None
 
 
 def validate_report(body) -> dict:
-    """Relevé reçu : un objet {"interval", "version", "os", "host", "data": relevé PowerShell}. AgentError sinon."""
+    """Relevé reçu : un objet {"interval", "version", "os", "host", "data"}. `data` est le relevé PowerShell (Windows) ou, pour un agent
+    Linux, {"kind": "linux", "cmds": {commande: [code, sortie]}} : les sorties des commandes que lance la collecte SSH, rejouées côté serveur
+    (jamais exécutées). AgentError sinon."""
     if not isinstance(body, dict) or not isinstance(body.get("data"), dict):
         raise AgentError("relevé invalide : objet « data » attendu")
+    if body["data"].get("kind") == "linux":
+        cmds = body["data"].get("cmds")
+        if not isinstance(cmds, dict) or not 0 < len(cmds) <= MAX_LINUX_CMDS:
+            raise AgentError("relevé invalide : « cmds » attendu (au plus %d commandes)" % MAX_LINUX_CMDS)
+        for cmd, res in cmds.items():
+            if (not isinstance(cmd, str) or len(cmd) > 1000 or not isinstance(res, list) or len(res) != 2
+                    or not isinstance(res[0], int) or isinstance(res[0], bool) or not isinstance(res[1], str) or len(res[1]) > MAX_LINUX_OUT):
+                raise AgentError("relevé invalide : sortie de commande illisible")
+        return body
     import health
     try:
         health.parse_windows(body["data"])
