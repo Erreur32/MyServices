@@ -361,17 +361,17 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
               aria-label={tx("Action requise : autoriser la clé de l'app sur cette machine")}
               onClick={(e) => { e.stopPropagation(); goAuthorize(); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); goAuthorize(); } }}>!</span>
           )}
-          {unfinished && <Badge tone="warn" title={unfinished.why === "ha" ? tx("Jeton Home Assistant manquant") : tx("Accès SSH à régler")}>{unfinished.passed ? tx("Non terminé (passé)") : tx("Non terminé")}</Badge>}
-          {m.off && <Badge tone="off">{tx("souvent éteinte")}</Badge>}
+          {unfinished && <Badge tone="warn" title={`${tx("Réglage à terminer")}\n${unfinished.why === "ha" ? tx("Le jeton Home Assistant manque : sans lui, MyServices ne peut pas lire cette machine.") : tx("Cette machine offre le SSH mais MyServices n'y a pas encore d'accès : il reste à le régler.")}`}>{unfinished.passed ? tx("Non terminé (passé)") : tx("Non terminé")}</Badge>}
+          {m.off && <Badge tone="off" title={`${tx("Souvent éteinte")}\n${tx("Une machine éteinte n'est pas signalée comme en panne.")}`}>{tx("souvent éteinte")}</Badge>}
           {live && (() => {  // réglage de sécurité du serveur SSH de la machine (pas une panne) : dit précisément ce qui est permis
             const r = sshRisks(live);
             if (!r.root && !r.password) return null;
             let what = tx("mot de passe");
             if (r.root) what = r.password ? tx("root et mot de passe") : tx("connexion root");
-            return <Badge tone="info" title={tx("Sécurité SSH, pas une panne : ce serveur SSH autorise {0}. Pour durcir, mettre PermitRootLogin no et PasswordAuthentication no dans sshd_config, puis recharger sshd.", what)}>🛡 {what}</Badge>;
+            return <Badge tone="warn" title={`${tx("Sécurité SSH, pas une panne")}\n${tx("Ce serveur SSH autorise {0}.\n**Pour durcir : PermitRootLogin no et PasswordAuthentication no dans sshd_config, puis recharger sshd.**", what)}`}>🛡 {what}</Badge>;
           })()}
-          {statuses.some((c) => !c.ok) && <Badge tone="bad">{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
-          {off && <Badge tone="off">{tx("non suivie")}</Badge>}
+          {statuses.some((c) => !c.ok) && <Badge tone="bad" title={`${tx("Lecture en échec")}\n${statuses.filter((c) => !c.ok).map((c) => c.name).join(", ")}`}>{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
+          {off && <Badge tone="off" title={`${tx("Non suivie")}\n${tx("Plus lue par MyServices : cachée dans les onglets. Rallumez « Machine suivie » dans la carte pour la reprendre.")}`}>{tx("non suivie")}</Badge>}
         </span>
         {/* Qui lit la machine : un badge court par source, coloré selon son état (détail en infobulle). Le détail de l'accès SSH n'est que dans la carte dépliée */}
         <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">
