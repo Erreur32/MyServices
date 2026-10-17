@@ -305,19 +305,19 @@ function gpuTip(g: GpuCell): string {
 function GpuCellView({ list }: Readonly<{ list: GpuCell[] }>) {
   if (!list.length) return <Dim>-</Dim>;
   return (
-    <span className="flex max-w-[18rem] min-w-0 flex-col gap-1">
+    <span className="flex max-w-[18rem] flex-col gap-1">
       {list.map((g, i) => (
-        <span key={`${g.name}-${i}`} className="flex min-w-0 flex-col text-xs leading-tight" title={gpuTip(g)} tabIndex={0}>
-          <span className="flex min-w-0 items-baseline gap-2">
-            <span className="min-w-0 truncate font-medium">{shortGpu(g.name)}</span>
+        <span key={`${g.name}-${i}`} className="flex flex-col text-xs leading-tight" title={gpuTip(g)} tabIndex={0}>
+          <span className="flex items-baseline gap-2">
+            <span className="truncate font-medium">{shortGpu(g.name)}</span>
             {g.util != null && <span className="shrink-0 tabular-nums text-muted">{Math.round(g.util)} %</span>}
             {g.temp != null && <span className={`shrink-0 tabular-nums ${heatClass(g.temp)}`}>{Math.round(g.temp)} °C</span>}
           </span>
           {(g.memTotal || g.power != null || g.models.length > 0) && (
-            <span className="flex min-w-0 items-center gap-2 text-[11px] text-dim">
+            <span className="flex items-center gap-2 text-[11px] text-dim">
               {g.memTotal ? <span className="shrink-0 tabular-nums">{gb(g.memUsed ?? 0)} / {gb(g.memTotal)}</span> : null}
               {g.power != null && <span className="shrink-0 tabular-nums">{Math.round(g.power)} W</span>}
-              {g.models.length > 0 && <span className="flex min-w-0 items-center gap-1 text-link"><Bot size={11} className="shrink-0" aria-hidden /><span className="truncate">{g.models.map((x) => x.model).join(", ")}</span></span>}
+              {g.models.length > 0 && <span className="flex items-center gap-1 text-link"><Bot size={11} className="shrink-0" aria-hidden /><span className="truncate">{g.models.map((x) => x.model).join(", ")}</span></span>}
             </span>
           )}
         </span>
