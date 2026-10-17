@@ -340,6 +340,8 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
         h.res.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} ${tx("Go")}` : undefined)}
       {(h.disks || []).filter((d) => (d.size_gb ?? 1) >= 1).map((d) => bar(d.mount, d.used_pct, d.avail_gb != null ? `${d.avail_gb.toFixed(0)} ${tx("Go libres")}` : undefined))}
       <TemperatureRow h={h} />
+      {!!h.temp?.sensors?.length && <DetailRow k={tx("Sondes")} title={tx("Sondes")}>{h.temp.sensors.map((x) => `${x.name} ${Math.round(x.celsius)} °C`).join(" · ")}</DetailRow>}
+      {!!h.fans?.length && <DetailRow k={tx("Ventilateur")} title={tx("Ventilateur")}>{h.fans.map((f) => `${Math.round(f.rpm)} ${tx("tr/min")}`).join(" · ")}</DetailRow>}
       {h.vmem && bar(tx("Mémoire VM"), h.vmem.pct, `${(h.vmem.used_mb / 1024).toFixed(1)} / ${(h.vmem.total_mb / 1024).toFixed(1)} ${tx("Go")}`)}
       {h.vms && (
         <DetailRow k={tx("Machines virtuelles")} title={tx("Machines virtuelles")}>
@@ -374,9 +376,9 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, fre
         {!i && !m.agent && !ha?.system && !unifi && !freebox && <Dim>-</Dim>}
       </Section>
 
-      <AccessSection m={m} from={from.ssh} />
+      {freebox ? <FreeboxAccessSection fb={freebox} from={from.ssh} /> : <AccessSection m={m} from={from.ssh} />}
 
-      <SoftwareSection m={m} servers={servers} ha={ha} from={from.services} />
+      {freebox && (freebox.vms || freebox.vm_system) ? <FreeboxVmSection fb={freebox} from={from.services} /> : <SoftwareSection m={m} servers={servers} ha={ha} from={from.services} />}
 
       <HealthSection h={h} from={from.health} />
       <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} />
@@ -517,10 +519,36 @@ function FreeboxModel({ model }: Readonly<{ model: string }>) {
   return <span className="inline-flex items-center gap-2">{photo && <img src={photo} alt="" className="h-9 w-auto" />}{model}</span>;
 }
 
+/** The Freebox has no SSH: its section says how it is read (MynetworK, through the Freebox OS API), at which address, and whether the paired app has every right it needs */
+export function FreeboxAccessSection({ fb, from }: Readonly<{ fb: FreeboxInfo; from: Origin[] }>) {
+  const missing = fb.missing_rights ?? [];
+  const known = fb.hosts ?? null, active = fb.hosts_active ?? null;
+  return (
+    <Section icon={Plug} title={tx("Lecture")} tone="ok" from={from}>
+      <Row k={tx("Lue par")}><Badge tone="ok">MynetworK</Badge> <Dim>{tx("API Freebox OS, sans SSH ni agent")}</Dim></Row>
+      <Row k={tx("Adresse")}>{fb.system?.lan_ip ? <span className="font-mono">{fb.system.lan_ip}</span> : undefined}</Row>
+      <Row k={tx("Droits de l'application")}>
+        {missing.length ? <span className="text-warn">{tx("manquants : {0}", missing.join(", "))}</span> : <span className="text-ok">{tx("tous accordés")}</span>}
+      </Row>
+      <Row k={tx("Appareils vus")}>{known == null ? undefined : `${active ?? 0} ${tx("actifs")} / ${known}`}</Row>
+    </Section>
+  );
+}
+
+/** The Freebox has no software or services to list: its section is about the virtual machines it runs */
+function FreeboxVmSection({ fb, from }: Readonly<{ fb: FreeboxInfo; from: Origin[] }>) {
+  const none = !(fb.vms ?? []).length && !fb.vm_system?.total_memory_mb && !fb.vm_system?.total_cpus;
+  return (
+    <Section icon={Boxes} title={tx("Infos VM")} tone="warn" from={from}>
+      <FreeboxVms fb={fb} />
+      {none && <Dim>{tx("aucune machine virtuelle")}</Dim>}
+    </Section>
+  );
+}
+
 /** What MynetworK reads of the Freebox (line, firmware, then storage, fibre, Wi-Fi, temperatures and virtual machines from 0.10.69) */
 function FreeboxRows({ fb }: Readonly<{ fb: FreeboxInfo }>) {
   const sys = fb.system ?? {};
-  const temps = (sys.sensors ?? []).filter((x) => typeof x.value === "number"), fans = (sys.fans ?? []).filter((x) => typeof x.value === "number");
   return <>
     <Row k={tx("Appareil")}>{sys.model ? <FreeboxModel model={sys.model} /> : undefined}</Row>
     <FreeboxLine fb={fb} />
@@ -528,9 +556,6 @@ function FreeboxRows({ fb }: Readonly<{ fb: FreeboxInfo }>) {
     <Row k={tx("Mise à jour")}><FirmwareUpdate sys={sys} /></Row>
     <FreeboxStorage fb={fb} />
     {fb.wifi && <FreeboxWifi wifi={fb.wifi} />}
-    {temps.length > 0 && <Row k={tx("Températures")}>{temps.map((x) => `${x.name ?? x.id} ${Math.round(x.value)} °C`).join(" · ")}</Row>}
-    {fans.length > 0 && <Row k={tx("Ventilateur")}>{fans.map((x) => `${Math.round(x.value)} ${tx("tr/min")}`).join(" · ")}</Row>}
-    <FreeboxVms fb={fb} />
     {fb.missing_rights && fb.missing_rights.length > 0 && (
       <Row k={tx("Droits manquants")}><span className="text-warn">{fb.missing_rights.join(", ")}</span>{" "}
         <Dim>{tx("à donner à l'application MynetworK dans Freebox OS (gestion des accès)")}</Dim></Row>
@@ -614,6 +639,12 @@ function SoftwareSection({ m, servers, ha, from }: Readonly<{ m: Machine; server
 }
 
 /** Updates waiting on a machine, always shown in the detail window: the packages (apt, « name → version ») or the Windows updates, up to 30 named */
+/** The summary line of the pending updates: Windows updates, a box firmware, or packages */
+function updatesLabel(n: number, windows: boolean, firmware?: boolean): string {
+  if (firmware) return tx("Mise à jour du firmware disponible");
+  return windows ? tx("{0} mise(s) à jour Windows", n) : tx("{0} paquet(s) à mettre à jour", n);
+}
+
 function UpdatesFold({ h, windows }: Readonly<{ h: HealthHost; windows: boolean }>) {
   const n = h.apt?.upgradable ?? 0, list = h.apt?.sample ?? [];
   if (!n) return null;
@@ -622,7 +653,7 @@ function UpdatesFold({ h, windows }: Readonly<{ h: HealthHost; windows: boolean 
     <div className="my-1 rounded-lg border border-line/60">
       <div className="flex items-center gap-2 px-2.5 py-1.5 text-xs">
         <ArrowUpCircle size={13} className="shrink-0 text-warn" aria-hidden />
-        <span className="text-warn">{windows ? tx("{0} mise(s) à jour Windows", n) : tx("{0} paquet(s) à mettre à jour", n)}</span>
+        <span className="text-warn">{updatesLabel(n, windows, h.apt?.firmware)}</span>
         {!!h.apt?.security && <Badge tone="bad">{tx("{0} de sécurité", h.apt.security)}</Badge>}
       </div>
       {list.length > 0 && (
@@ -649,7 +680,7 @@ function UpdatesChip({ h }: Readonly<{ h?: HealthHost }>) {
 }
 
 /** Detail, « Updates »: up to date, or the packages / Windows updates waiting (folded list), and a reboot required */
-function UpdatesSection({ h, windows, from }: Readonly<{ h?: HealthHost; windows: boolean; from: Origin[] }>) {
+export function UpdatesSection({ h, windows, from }: Readonly<{ h?: HealthHost; windows: boolean; from: Origin[] }>) {
   if (!h) return null;
   const n = h.apt?.upgradable ?? 0;
   return (
@@ -662,7 +693,7 @@ function UpdatesSection({ h, windows, from }: Readonly<{ h?: HealthHost; windows
 }
 
 /** Detail, « Health »: level, resources, failed systemd units, updates */
-function HealthSection({ h, from }: Readonly<{ h?: HealthHost; from: Origin[] }>) {
+export function HealthSection({ h, from }: Readonly<{ h?: HealthHost; from: Origin[] }>) {
   const failed = h?.systemd?.failed.length || 0;
   return (
       <Section icon={HeartPulse} title={tx("Santé")} tone="bad" from={from}>

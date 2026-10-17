@@ -20,6 +20,7 @@ export function vmShare(pct: number | null | undefined, used: number | null | un
 export function freeboxHealth(m: Machine, fb: FreeboxInfo): HealthHost {
   const sensors = (fb.system?.sensors ?? []).filter((x) => typeof x.value === "number");
   const temps = sensors.map((x) => x.value), cpus = sensors.filter((x) => /cpu/i.test(`${x.id ?? ""} ${x.name ?? ""}`)).map((x) => x.value);
+  const fans = (fb.system?.fans ?? []).filter((x) => typeof x.value === "number").map((x) => ({ name: x.name ?? x.id ?? "", rpm: x.value }));
   const hot = temps.length ? Math.max(...temps) : undefined, cpuHot = cpus.length ? Math.max(...cpus) : hot, up = fb.connection?.state === "up";   // hot: any sensor (health), cpuHot: the processor only (the CPU column)
   const parts = (fb.storage?.partitions ?? []).filter((p) => p.used_pct != null);
   const full = Math.max(0, ...parts.map((p) => p.used_pct as number)), noLight = fb.ftth?.sfp_has_signal === false || fb.ftth?.link === false;
@@ -33,7 +34,8 @@ export function freeboxHealth(m: Machine, fb: FreeboxInfo): HealthHost {
       ...(p.free_bytes != null ? { avail_gb: p.free_bytes / 1e9 } : {}), warning: (p.used_pct as number) >= 80, critical: (p.used_pct as number) >= 90 })) } : {}),
     ...(fb.vms?.length ? { vms: { running: fb.vms.filter((v) => v.status === "running").length, total: fb.vms.length } } : {}),
     ...(fb.vm_system?.total_memory_mb ? { vmem: { used_mb: fb.vm_system.used_memory_mb ?? 0, total_mb: fb.vm_system.total_memory_mb, pct: vmShare(fb.vm_system.memory_pct, fb.vm_system.used_memory_mb, fb.vm_system.total_memory_mb) } } : {}),
-    ...(cpuHot != null ? { temp: { available: true, celsius: cpuHot, source: "Freebox" } } : {}),
-    ...(fb.system?.update_available ? { apt: { upgradable: 1, sample: [latest ? `firmware → ${latest}` : "firmware"] } } : {}),
+    ...(cpuHot != null ? { temp: { available: true, celsius: cpuHot, source: "Freebox", sensors: sensors.map((x) => ({ name: x.name ?? x.id ?? "", celsius: x.value })) } } : {}),
+    ...(fans.length ? { fans } : {}),
+    ...(fb.system?.update_available ? { apt: { upgradable: 1, sample: [latest ? `firmware → ${latest}` : "firmware"], firmware: true } } : {}),
   } as HealthHost;
 }

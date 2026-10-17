@@ -271,7 +271,7 @@ export interface HealthHost {
   disks?: { mount: string; used_pct: number; size_gb?: number; avail_gb?: number; warning?: boolean; critical?: boolean }[];
   systemd?: { failed: { unit: string }[] };
   docker?: { accessible: boolean; total?: number; stopped?: number; unhealthy?: number; restarting?: number; issues?: string[] };
-  apt?: { upgradable: number; sample?: string[]; available?: boolean; security?: number | null };   // packages (apt) or Windows updates; sample: up to 30 named
+  apt?: { upgradable: number; sample?: string[]; available?: boolean; security?: number | null; firmware?: boolean };   // packages (apt) or Windows updates; sample: up to 30 named
   kernel?: { has_errors: boolean; samples?: string[] };
   load?: { load_1: number; ncpu: number; available: boolean };
   res?: { available: boolean; cpu_pct?: number; mem_pct?: number; mem_total_mb?: number; mem_used_mb?: number; swap_total_mb?: number; swap_used_mb?: number };  // CPU et mémoire
@@ -281,6 +281,7 @@ export interface HealthHost {
   source?: "ssh" | "agent" | "beszel" | "ha";  // source retenue pour la santé de la machine
   sources?: string[];                    // toutes celles qui ont servi (la retenue, puis celles qui ont complété)
   vmem?: { used_mb: number; total_mb: number; pct: number };
+  fans?: { name: string; rpm: number }[];       // Freebox: its fans
   vms?: { running: number; total: number };   // Freebox: its virtual machines, how many run   // Freebox: memory given to its virtual machines (the box itself reports no load)
   api_name?: string;                     // source « ha » : the service whose API was read (Glances, Home Assistant)
 }
@@ -644,6 +645,7 @@ export interface FreeboxInfo {
   // memory_pct and cpu_pct: the share allocated to the virtual machines, not the box's real load (MynetworK announces them; computed from the totals until then)
   vm_system?: { total_memory_mb: number | null; used_memory_mb: number | null; total_cpus: number | null; used_cpus: number | null; memory_pct?: number | null; cpu_pct?: number | null } | null;
   missing_rights?: string[];
+  hosts?: number | null; hosts_active?: number | null;   // devices the box has seen, and the ones active now
 }
 /** LogviewR : fail2ban */
 export interface SecurityConnector extends InfraConnector {

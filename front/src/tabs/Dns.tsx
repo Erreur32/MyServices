@@ -10,8 +10,9 @@ import { Badge, Empty, TableCard } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
 
-type Row = [label: string, value: string, tone?: "ok" | "warn" | "bad"];
-const TEXT: Record<"ok" | "warn" | "bad", string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad" };
+type RowTone = "ok" | "warn" | "bad";
+type Row = [label: string, value: string, tone?: RowTone];
+const TEXT: Record<RowTone, string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad" };
 
 /** Card of the page header (synchronisation, one per AdGuard server): coloured strip with icon, title, address and state, then label/value rows
  *  in two aligned columns separated by thin lines. */
@@ -52,7 +53,7 @@ function Anchor({ id, lit, children }: { id?: string; lit?: string; children: Re
 const code = (t: string) => <code className="rounded bg-bg2 px-1.5 py-0.5 font-mono text-xs">{t}</code>;
 
 /** Tone of the error line: red while an error is open, orange once they are all closed, green without any */
-function errorsTone(s: { errors_24h?: number; errors_open?: number }): "bad" | "warn" | "ok" {
+function errorsTone(s: { errors_24h?: number; errors_open?: number }): RowTone {
   if (s.errors_open ?? s.errors_24h) return "bad";
   return s.errors_24h ? "warn" : "ok";
 }
