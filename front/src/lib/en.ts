@@ -2252,8 +2252,6 @@ export const EN: Record<string, string> = {
   "Lecture en échec": "Reading failed",
   "Non suivie": "Not tracked",
   "Plus lue par MyServices : cachée dans les onglets. Rallumez « Machine suivie » dans la carte pour la reprendre.": "No longer read by MyServices: hidden in the tabs. Turn \"Machine tracked\" back on in the card to resume.",
-  "MAJ": "Upd.",
-  "Syst.": "Syst.",
   "Options": "Options",
   "aucun : utile si le SSH est impossible": "none: useful when SSH is not possible",
   "Installer un agent": "Install an agent",
