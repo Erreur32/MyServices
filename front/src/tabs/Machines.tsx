@@ -237,7 +237,7 @@ function AlertDot({ items, children }: Readonly<{ items: WatchItem[]; children: 
   return (
     <span className="relative inline-flex shrink-0">
       {children}
-      <span className={`absolute -right-1 -top-1 h-3 w-3 rounded-full ring-2 ring-card ${DOT_COLOR[tone]}`} title={`${tone === "bad" ? tx("problème à regarder") : tx("à surveiller")} : ${n}\n${items.map((i) => `${i.text}`).join("\n")}`} />
+      <span className={`absolute -left-1 -top-1 h-2.5 w-2.5 rounded-full ring-2 ring-card ${DOT_COLOR[tone]}`} title={`${tone === "bad" ? tx("problème à regarder") : tx("à surveiller")} : ${n}\n${items.map((i) => `${i.text}`).join("\n")}`} />
     </span>
   );
 }
