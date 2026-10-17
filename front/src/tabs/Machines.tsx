@@ -145,7 +145,7 @@ const level = (v: number, warn: number, bad: number): MeterTone => {
 /** Table cell: the value on top (with a hint on its right, e.g. the disk), a thin bar under it; the same width in every row */
 function Meter({ pct, tone, hint, title, unit = "%" }: Readonly<{ pct: number; tone: MeterTone; hint?: string; title?: string; unit?: "%" | "°C" }>) {
   return (
-    <div className="w-[5.5rem]" title={title}>
+    <div className="w-[7rem]" title={title}>
       <div className="flex items-baseline justify-between gap-1 leading-tight">
         <span className={`shrink-0 whitespace-nowrap text-sm tabular-nums ${METER_TEXT[tone]}`}>{Math.round(pct)} {unit}</span>
         {hint && <span className="min-w-0 truncate font-mono text-[10px] text-dim">{hint}</span>}
@@ -304,7 +304,7 @@ function gpuTip(g: GpuCell): string {
 function GpuCellView({ list }: Readonly<{ list: GpuCell[] }>) {
   if (!list.length) return <Dim>-</Dim>;
   return (
-    <span className="flex min-w-0 flex-col gap-1">
+    <span className="flex max-w-[18rem] min-w-0 flex-col gap-1">
       {list.map((g, i) => (
         <span key={`${g.name}-${i}`} className="flex min-w-0 flex-col text-xs leading-tight" title={gpuTip(g)} tabIndex={0}>
           <span className="flex min-w-0 items-baseline gap-2">
@@ -1268,7 +1268,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
         <>
           {view === "table" && <Table fit head={<>
             <th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
-            <Th k="svc" sort={sort}>{tx("Services")}</Th><Th k="watch" sort={sort}>{tx("Santé")}</Th>{snap.health && <><Th className="!px-1.5">{tx("CPU")}</Th><Th className="!px-1.5">{tx("Mémoire")}</Th><Th className="!px-1.5">{tx("Disque")}</Th></>}{anyGpu && <Th className="w-[28%] min-w-[15rem] !px-1.5">GPU</Th>}
+            <Th k="svc" sort={sort}>{tx("Services")}</Th><Th k="watch" sort={sort}>{tx("Santé")}</Th>{snap.health && <><Th className="!px-1.5">{tx("CPU")}</Th><Th className="!px-1.5">{tx("Mémoire")}</Th><Th className="!px-1.5">{tx("Disque")}</Th></>}{anyGpu && <Th className="!px-1.5">GPU</Th>}
             <Th k="up" sort={sort} className="w-px !pl-2 !pr-1 !text-right" title={tx("Temps depuis le dernier démarrage de la machine")}>Uptime</Th>
             {admin && <th className="w-8 px-1" aria-label={tx("Réglages")} />}
           </>}>
@@ -1290,7 +1290,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                     <Td><span className="flex flex-wrap items-center gap-1.5">   {/* one column: the level, then what explains it (the updates have their flag near the name) */}
                       {snap.health && <HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} />}
                       <WatchList ip={m.ip} quiet={!!snap.health} items={watchOf(m).filter((i) => i.kind !== "updates")} /></span></Td>
-                    {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="w-[28%] min-w-[15rem] !px-1.5"><GpuCellView list={gpusOf(m)} /></Td>}
+                    {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="!px-1.5"><GpuCellView list={gpusOf(m)} /></Td>}
                     <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-xs tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network)); return up ? <span className={up < 3600 ? "text-warn" : "text-muted"} title={`${dur(up)}${up < 3600 ? ` · ${tx("vient de redémarrer")}` : ""}`}>{durShort(up)}</span> : <Dim>-</Dim>; })()}</Td>
                     {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => setEditIp(m.ip)} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
                       className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><SlidersHorizontal size={14} aria-hidden /></button></td>}
