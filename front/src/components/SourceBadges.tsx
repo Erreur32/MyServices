@@ -78,7 +78,7 @@ const MARK: Record<Tone, string> = { ok: "✓", warn: "⚠", bad: "✕", info: "
 function listTip(list: Src[]): string {
   const lines = list.map((s) => {
     const icon = s.key === "ssh" ? ICON_SSH : appIcon([s.label]);
-    return [icon ? `![](${icon})` : "", `[[${s.tone}:${MARK[s.tone]}]]`, `[[${s.tone}:${s.label}]]`, s.tip].join("\t");
+    return [icon ? `![](${icon})` : "", `[[${s.tone}:${MARK[s.tone]}]]`, `**${s.label}**`, s.tip].join("\t");
   });
   return [tx("Sources de lecture"), ...lines].join("\n");
 }
