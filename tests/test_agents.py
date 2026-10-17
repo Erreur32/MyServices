@@ -159,6 +159,28 @@ class Agents(unittest.TestCase):
         self.assertEqual(self.send(token, {**REPORT, "host": "AUTRE-PC"}).status_code, 200)
         self.assertEqual(self.c.post(BASE + f"/agents/{info['id']}/confirm-host", headers=self.h).status_code, 400)   # nothing pending
 
+    def test_nom_de_poste_des_agents_v7(self):
+        token, info = self.create()
+        legacy = {**REPORT, "host": agents.LEGACY_HOST}
+        self.assertEqual(self.send(token, legacy).status_code, 200)   # version 7 sends a placeholder: accepted, nothing learned
+        a = next(x for x in self.c.get(BASE + "/agents").json()["agents"] if x["id"] == info["id"])
+        self.assertIsNone(a["hostname"])
+        self.assertEqual(self.send(token, REPORT).status_code, 200)   # the updated agent announces the real name: learned, no 409
+        self.assertEqual(self.send(token, legacy).status_code, 200)   # an old agent still reports: not a name change
+        self.assertEqual(self.send(token, {**REPORT, "host": "AUTRE-PC"}).status_code, 409)
+        # a placeholder stored by an earlier server version is replaced by the real name
+        with api.agents_store()._db() as db:
+            db.execute("UPDATE agents SET hostname = ? WHERE id = ?", (agents.LEGACY_HOST, info["id"]))
+        a = next(x for x in self.c.get(BASE + "/agents").json()["agents"] if x["id"] == info["id"])
+        self.assertIsNone(a["hostname"])   # the placeholder is never shown as a host name
+        self.assertEqual(self.send(token, REPORT).status_code, 200)
+        a = next(x for x in self.c.get(BASE + "/agents").json()["agents"] if x["id"] == info["id"])
+        self.assertEqual(a["hostname"], "GAMER32")
+
+    def test_script_envoie_le_vrai_nom_du_poste(self):
+        script = self.anon.get("/myservices/agent/agent.ps1").text
+        self.assertIn("(Json ([Environment]::MachineName))", script)   # without the inner parentheses PowerShell sends the literal text
+
     def test_ancien_nom_de_retour_efface_l_avertissement(self):
         token, info = self.create()
         self.send(token)
@@ -341,7 +363,7 @@ class Agents(unittest.TestCase):
         self.assertEqual(agents.docker_of({"data": {"dk": "seule|ligne|0.0.0.0:80->80/tcp|Up|bridge"}})[0]["ports"], [(80, 80)])   # PowerShell : un seul élément = texte
 
     def test_script_ascii_et_version(self):
-        self.assertEqual(agents.VERSION, "7")
+        self.assertEqual(agents.VERSION, "8")
         agents.script("agent.ps1").encode("ascii")
 
     def test_titres_de_mises_a_jour_au_format_powershell_5_1(self):

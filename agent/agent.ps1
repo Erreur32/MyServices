@@ -53,7 +53,7 @@ try {
   $env:MSV_UPD = ''
 
   $os = (Get-CimInstance Win32_OperatingSystem).Caption
-  $body = '{{"version":{0},"os":{1},"host":{2},"interval":{3},"data":{4}}}' -f (Json $Version), (Json $os), (Json [Environment]::MachineName), [int]$cfg.interval, $data
+  $body = '{{"version":{0},"os":{1},"host":{2},"interval":{3},"data":{4}}}' -f (Json $Version), (Json $os), (Json ([Environment]::MachineName)), [int]$cfg.interval, $data
   # Right after a boot the network (DNS, DHCP) is often not ready yet: retry instead of waiting for the next scheduled run
   $uptime = ((Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime).TotalMinutes
   $tries = if ($uptime -lt 15) { 24 } else { 3 }  # just booted: up to ~6 min (24 x 15 s); otherwise 3 tries

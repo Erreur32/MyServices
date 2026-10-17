@@ -19,7 +19,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "7"
+VERSION = "8"
 SCRIPTS = Path(__file__).resolve().parent / "agent"
 PREFIX = "msv_agent_"
 NAME_RE = re.compile(r"^[\w .@-]{2,64}$")
@@ -28,6 +28,7 @@ DEFAULT_INTERVAL = 900    # s : 15 min
 MIN_INTERVAL, MAX_INTERVAL = 60, 86400
 FRESH_MULT = 2.5          # un relevé plus vieux que 2,5 × l'intervalle est périmé
 MIN_GAP = 60              # s: an agent sends at most one report per minute (the rest gets 429)
+LEGACY_HOST = "[Environment]::MachineName"   # what agents up to version 7 sent instead of the real name (script bug): means "unknown"
 BAD_MAX, BAD_WINDOW = 10, 15 * 60   # bad tokens tolerated per IP, then refused until the window ends
 
 SCHEMA = """
@@ -153,13 +154,13 @@ class Agents:
         """Host name announced by the agent. The first name seen is kept; another name is refused (token copied to another
         machine?) and held until the admin confirms it. True when the report can be stored."""
         host = str(host or "").strip()[:64]
-        if not host:
+        if not host or host == LEGACY_HOST:
             return True
         with self._db() as db:
             r = db.execute("SELECT hostname FROM agents WHERE id = ?", (aid,)).fetchone()
             if r is None:
                 return False
-            if not r["hostname"]:
+            if not r["hostname"] or r["hostname"] == LEGACY_HOST:   # nothing known yet, or only the version 7 placeholder: learn the real name
                 db.execute("UPDATE agents SET hostname = ?, host_pending = NULL WHERE id = ?", (host, aid))
                 return True
             if r["hostname"].casefold() == host.casefold():
@@ -391,7 +392,7 @@ def _public(r: sqlite3.Row) -> dict:
             "id": r["id"], "ip": r["ip"], "name": r["name"], "hint": r["hint"], "created": r["created"],
             "created_by": r["created_by"], "revoked": r["revoked"], "last_seen": r["last_seen"], "last_ip": r["last_ip"],
             "interval": interval, "version": r["version"], "os": r["os_name"], "state": state,
-            "hostname": r["hostname"], "host_pending": r["host_pending"]}
+            "hostname": None if r["hostname"] == LEGACY_HOST else r["hostname"], "host_pending": r["host_pending"]}
 
 
 def _h(raw: str) -> str:
