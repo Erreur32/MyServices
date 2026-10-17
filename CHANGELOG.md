@@ -23,6 +23,20 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   assumed), Repairs, the configuration check, add-ons and failing integrations. Six fixed read calls only, a guard test forbids any
   write action; the mixed tools are only ever called with `action = list`.
 
+- Setup assistant at `#assistant` (administrators): six steps, one decision at a time, each one skippable and revisitable, with a summary at
+  the end and a banner on the home page until it is finished. 1 Welcome, 2 This machine (read without SSH), 3 The network (search and a
+  short list of machines worth following; cameras and other ping-only devices are not listed and can be added later from Settings ->
+  Discovery), 4 Read each machine (the recommended method, why, and what to do; machines to finish first, then those to optimize, then those
+  already in place; "That is enough" keeps the current method), 5 Connect your tools (recognized tools not yet connected), 6 Get notified (an
+  alert channel with a test message). Nothing is changed on your machines. The progress is kept on the server (`GET` and `PUT
+  /api/v1/assistant`), so you can resume from another browser.
+- Reading method recommendation for each machine, shared by the assistant: SSH for a Linux machine you administer, an agent where SSH is
+  not possible (Windows or Linux), the connector for a box, a gateway or Home Assistant OS (never an agent), ping only otherwise.
+  "To optimize" appears only when the recommended method gathers more than what already reads the machine. `GET /api/v1/machines/advice`
+  (administrators).
+- Every setting opened from the assistant (SSH access, agent installation, connector, alert channel, adding a machine) opens in a window, so
+  you never leave the page. The windows reuse the existing forms; the agent installation is now one component shared with Settings -> Agents.
+
 ### Changed
 
 - Machines page and Settings -> Machines: the "State" column is now "Sources", one short badge per source that reads the machine
@@ -30,6 +44,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   connection column is gone from the table (the detail keeps it), and the folded settings card no longer shows the SSH details.
 - Settings -> Agents explains when to use SSH, an agent or a connector; boxes and gateways (Freebox, UniFi) are never offered an agent,
   and a connector badge opens that connector's card, highlighted.
+- The "Machine followed" and "Often off" switches sit at the top of a machine's settings card and are never greyed out. A SSH security
+  notice (root login or password allowed) is now a blue shield badge saying what is allowed, not an orange "sshd" badge that looked like a fault.
+- Dialog windows now have a nearly opaque blurred backdrop and open near the top of the page.
 
 ## v0.11.13 (2026-10-13)
 
