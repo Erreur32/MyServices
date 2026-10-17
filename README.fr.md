@@ -23,7 +23,7 @@
   <a href="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml"><img alt="Garde-fou" src="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml/badge.svg"></a>
 </p>
 
-> ## 🚧 Encore en développement
+> ## Encore en développement
 >
 > MyServices est **en plein développement** (`0.x`) et **n'est pas encore prêt pour un usage au quotidien**. Les écrans, les réglages et les
 > données enregistrées changent d'une version à l'autre, et plusieurs parties n'ont été essayées que sur un seul PC ou contre des serveurs
@@ -42,15 +42,15 @@ MyServices rassemble les services de toutes les machines de votre réseau local 
 interroge l'API des outils que vous utilisez déjà (ou la machine elle-même, par SSH ou par son agent Windows), recoupe leurs réponses et vous
 signale ce qui demande votre attention.
 
-- 🔒 **Lecture seule** : rien n'est écrit sur ce qu'il observe.
-- 📦 **Un seul conteneur** : collecte, veille, santé, sauvegardes, comptes, API et page web.
-- 🧭 Un **assistant de démarrage** : une décision à la fois, qui recommande la façon la plus simple de lire chaque machine.
-- 🖥️ **Machines** lues par SSH (Linux), par un agent PowerShell (Windows), par l'API d'une appli, ou simplement par ping.
-- 🔌 **Plus de 50 connecteurs** : Nginx Proxy Manager, AdGuard Home, Home Assistant, Proxmox, Veeam, UniFi, MynetworK, Beszel, Ollama…
-- 🕘 **Un historique** de chaque événement, avec ce qui l'a détecté et d'où vient l'information.
-- 🗺️ **Schémas** générés pour vous (réseau, accès aux machines, sauvegardes, alertes, et d'autres en un clic).
-- 🔔 **Alertes et notifications** sur Discord, Telegram et webhook.
-- 🤖 Une **API REST** et un **serveur MCP** pour vos outils et assistants IA.
+- **Lecture seule** : rien n'est écrit sur ce qu'il observe.
+- **Un seul conteneur** : collecte, veille, santé, sauvegardes, comptes, API et page web.
+- Un **assistant de démarrage** : une décision à la fois, qui recommande la façon la plus simple de lire chaque machine.
+- **Machines** lues par SSH (Linux), par un agent PowerShell (Windows), par l'API d'une appli, ou simplement par ping.
+- **Plus de 50 connecteurs** : Nginx Proxy Manager, AdGuard Home, Home Assistant, Proxmox, Veeam, UniFi, MynetworK, Beszel, Ollama…
+- **Un historique** de chaque événement, avec ce qui l'a détecté et d'où vient l'information.
+- **Schémas** générés pour vous (réseau, accès aux machines, sauvegardes, alertes, et d'autres en un clic).
+- **Alertes et notifications** sur Discord, Telegram et webhook.
+- Une **API REST** et un **serveur MCP** pour vos outils et assistants IA.
 
 ## Démarrage rapide (sur une machine de test)
 
@@ -85,7 +85,7 @@ Les pull requests ne sont pas traitées pour le moment (voir l'avertissement en 
 ## En savoir plus
 
 <details>
-<summary><b>🔭 Ce que l'on voit : les onglets</b></summary>
+<summary><b>Ce que l'on voit : les onglets</b></summary>
 
 | Onglet | Ce qu'il montre |
 |---|---|
@@ -105,7 +105,7 @@ Chaque filtre est un interrupteur : un clic le coupe, un autre le rallume ; plus
 </details>
 
 <details>
-<summary><b>🖥️ Comment les machines sont lues</b></summary>
+<summary><b>Comment les machines sont lues</b></summary>
 
 Une machine peut être suivie de trois façons, qui se combinent. La première source qui répond fait foi, les suivantes complètent ce qu'elle n'a pas lu (l'ordre se règle machine par machine).
 
@@ -123,27 +123,27 @@ Une machine peut être suivie de trois façons, qui se combinent. La première s
 > SSH, agent et connecteurs peuvent tourner ensemble sur une même machine. SSH et agent lisent la santé de la machine ; un connecteur ajoute ce que lui seul connaît (machines virtuelles, clients réseau, GPU...), affiché en un badge par outil.
 
 <details>
-<summary><b>🆚 Agent ou services externes ? Ce que l'agent lit déjà</b></summary>
+<summary><b>Agent ou services externes ? Ce que l'agent lit déjà</b></summary>
 
 L'agent Windows est un seul petit script. Le tableau montre ce qu'il lit sur un PC et les outils externes qu'il faudrait pour obtenir la même chose. La colonne externe indique ce que ces outils couvrent en général pour cette liste, pas toutes leurs fonctions ; vérifiez leur documentation.
 
 | Ce qui est lu | Agent MyServices (Windows) | Outils externes qui le remplaceraient |
 |---|---|---|
-| Charge CPU et mémoire | ✅ | Beszel, windows_exporter (Prometheus), Netdata |
-| Occupation des disques, par lecteur | ✅ | Beszel, windows_exporter, Netdata |
-| Santé des disques physiques | ✅ | Beszel (SMART), windows_exporter |
-| Durée de fonctionnement et dernier démarrage | ✅ | Beszel, windows_exporter |
-| Ports TCP en écoute et leur programme | ✅ | Peu par défaut ; TCPView à la main |
-| Services automatiques arrêtés en erreur | ✅ | windows_exporter, agent Zabbix |
-| Erreurs système graves (disque, NTFS, WHEA), 24 h | ✅ | Graylog, Loki avec Alloy, Wazuh |
-| Échecs de connexion (nombre, 24 h) | ✅ (compte administrateur) | Wazuh, Graylog, transfert des journaux Windows |
-| Mises à jour Windows en attente | ✅ | WSUS, Intune, PDQ Deploy, Lansweeper |
-| Redémarrage nécessaire | ✅ | Gestionnaires de correctifs |
-| Matériel : fabricant, modèle, BIOS, CPU, cœurs, RAM, GPU | ✅ | GLPI avec FusionInventory, Lansweeper, Snipe-IT |
-| Cartes réseau et adresse IPv4 | ✅ (pas d'adresse MAC) | GLPI, Lansweeper ; MynetworK pour la MAC et le fabricant |
-| Services en cours | ✅ (jusqu'à 300) | windows_exporter, agent Zabbix |
-| Conteneurs Docker du PC : nom, image, ports, état | ✅ | Dockhand ou Portainer (API Docker exposée), Dozzle |
-| Présence : allumé, en veille ou muet | ✅ (l'agent se signale lui-même) | Uptime Kuma (ping ou port), MynetworK |
+| Charge CPU et mémoire | Oui | Beszel, windows_exporter (Prometheus), Netdata |
+| Occupation des disques, par lecteur | Oui | Beszel, windows_exporter, Netdata |
+| Santé des disques physiques | Oui | Beszel (SMART), windows_exporter |
+| Durée de fonctionnement et dernier démarrage | Oui | Beszel, windows_exporter |
+| Ports TCP en écoute et leur programme | Oui | Peu par défaut ; TCPView à la main |
+| Services automatiques arrêtés en erreur | Oui | windows_exporter, agent Zabbix |
+| Erreurs système graves (disque, NTFS, WHEA), 24 h | Oui | Graylog, Loki avec Alloy, Wazuh |
+| Échecs de connexion (nombre, 24 h) | Oui (compte administrateur) | Wazuh, Graylog, transfert des journaux Windows |
+| Mises à jour Windows en attente | Oui | WSUS, Intune, PDQ Deploy, Lansweeper |
+| Redémarrage nécessaire | Oui | Gestionnaires de correctifs |
+| Matériel : fabricant, modèle, BIOS, CPU, cœurs, RAM, GPU | Oui | GLPI avec FusionInventory, Lansweeper, Snipe-IT |
+| Cartes réseau et adresse IPv4 | Oui (pas d'adresse MAC) | GLPI, Lansweeper ; MynetworK pour la MAC et le fabricant |
+| Services en cours | Oui (jusqu'à 300) | windows_exporter, agent Zabbix |
+| Conteneurs Docker du PC : nom, image, ports, état | Oui | Dockhand ou Portainer (API Docker exposée), Dozzle |
+| Présence : allumé, en veille ou muet | Oui (l'agent se signale lui-même) | Uptime Kuma (ping ou port), MynetworK |
 | Installation | Un script, une tâche planifiée, une seule connexion sortante vers MyServices | Un service par outil, son propre compte ou sa clé, un port à ouvrir sur le réseau |
 
 Pour les machines Linux, les mêmes informations viennent de SSH, sans rien installer sur la machine.
@@ -151,7 +151,7 @@ Pour les machines Linux, les mêmes informations viennent de SSH, sans rien inst
 </details>
 
 <details>
-<summary><b>🛰️ Agent Windows : installation, sécurité, mises à jour</b></summary>
+<summary><b>Agent Windows : installation, sécurité, mises à jour</b></summary>
 
 **Installation.** Dans **Réglages -> Agents**, ajoutez un agent pour le PC (son IP et un nom). MyServices affiche une commande d'une ligne, avec le jeton, **une seule fois**. Collez-la dans un PowerShell **administrateur** sur le PC. L'installateur télécharge l'agent depuis MyServices, écrit ses réglages, crée la tâche planifiée *MyServices Agent* (exécutée en SYSTEM au démarrage, à l'ouverture de session et toutes les 15 minutes par défaut ; `-Minutes` change cela) et envoie un premier relevé. Seuls SYSTEM et les Administrateurs peuvent lire le dossier de l'agent (`C:\ProgramData\MyServices-Agent`), car le jeton s'y trouve. Pour le retirer : lancez l'installateur avec `-Uninstall`, puis révoquez le jeton dans Réglages -> Agents.
 
@@ -174,7 +174,7 @@ Les machines trouvées mais pas suivies, les clés SSH à autoriser et les agent
 </details>
 
 <details>
-<summary><b>🔌 Connecteurs (plus de 50)</b></summary>
+<summary><b>Connecteurs (plus de 50)</b></summary>
 
 Un connecteur laisse MyServices lire un outil par son API, **en lecture seule** : donnez-lui une clé ou un compte qui ne peut rien modifier. Réglages -> Connecteurs les liste, teste chacun (bouton **Tester**) et montre ce que la dernière collecte a lu. Un tableau **« Services détectés non configurés »** en haut propose ceux qu'il a reconnus sur votre réseau, avec le formulaire déjà rempli.
 
@@ -198,7 +198,7 @@ Un connecteur laisse MyServices lire un outil par son API, **en lecture seule** 
 </details>
 
 <details>
-<summary><b>💾 Sauvegardes</b></summary>
+<summary><b>Sauvegardes</b></summary>
 
 Réglages -> Sauvegardes montre un tableau de **sources** (cliquez sur l'une : ses champs se déplient) :
 
@@ -212,7 +212,7 @@ Pour chaque sauvegarde suivie, vous fixez l'âge au-delà duquel une alerte part
 </details>
 
 <details>
-<summary><b>🔔 Alertes et notifications</b></summary>
+<summary><b>Alertes et notifications</b></summary>
 
 - **Canaux** : Discord, Telegram, webhook.
 - **Alertes** : des règles choisissent quels événements (machine hors ligne, santé critique, sauvegarde en retard, nouveau service…) partent sur quel canal, avec un délai pour ne pas répéter la même alerte. Des préréglages aident à démarrer.
@@ -223,7 +223,7 @@ Les pannes sont confirmées sur plusieurs passages avant qu'une alerte parte.
 </details>
 
 <details>
-<summary><b>🗺️ Schémas</b></summary>
+<summary><b>Schémas</b></summary>
 
 Générés avec [Archify](https://github.com/tt-a1i/archify) après chaque collecte : la **carte du réseau**, l'**accès aux machines** (chaque machine sous SSH, agent, connecteur ou aucun accès), les **sauvegardes** et la **chaîne d'alertes**.
 
@@ -232,7 +232,7 @@ L'onglet **Schémas** en propose aussi que vous créez en un clic, construits av
 </details>
 
 <details>
-<summary><b>🔐 Sécurité et accès</b></summary>
+<summary><b>Sécurité et accès</b></summary>
 
 - **Lecture seule par construction** : les connecteurs n'envoient que des requêtes GET (ou des commandes de lecture par SSH). Mots de passe et jetons sont stockés chiffrés (`enc:v1`) et jamais renvoyés à la page ; la clé SSH privée reste dans `config/ssh` (mode 600) et n'est jamais montrée.
 - **Comptes** : comptes locaux (admin ou lecture seule), règles de mot de passe, liste des sessions, journal d'audit (filtrable, export CSV).
@@ -243,7 +243,7 @@ L'onglet **Schémas** en propose aussi que vous créez en un clic, construits av
 </details>
 
 <details>
-<summary><b>⚙️ Configuration</b></summary>
+<summary><b>Configuration</b></summary>
 
 Presque tout se règle dans la page (Réglages). Fichiers et variables, pour mémoire :
 
@@ -262,14 +262,14 @@ Les horaires se modifient aussi à chaud dans Réglages -> Tâches et horaires. 
 </details>
 
 <details>
-<summary><b>🤖 API et MCP</b></summary>
+<summary><b>API et MCP</b></summary>
 
 Une API REST (`/api/v1/…`, documentation OpenAPI à `/api/v1/docs`) et un **serveur MCP** (`/mcp`, jeton `msv_mcp_`) laissent vos outils et assistants IA lire les mêmes données. Créez des jetons dans Réglages -> API et MCP, avec la durée de validité de votre choix : **read** (par défaut), **runs** (lecture + demander une collecte) ou **admin** (réglages compris ; une durée est obligatoire et votre mot de passe est demandé). Chaque outil MCP a son interrupteur.
 
 </details>
 
 <details>
-<summary><b>🧪 Développer</b></summary>
+<summary><b>Développer</b></summary>
 
 ```bash
 docker build -t myservices:dev .
