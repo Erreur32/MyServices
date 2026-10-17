@@ -27,6 +27,7 @@ import { watchItems, worst, type WatchItem, type WatchKind, type WatchTone } fro
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
 import { tx } from "../lib/i18n";
+import { useStoredFlag } from "../lib/storedFlag";
 import { hardwareRows } from "../lib/hardware";
 
 
@@ -665,6 +666,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
   const isOff = (m: Machine) => !!m.disabled;
   // Machines non suivies : masquées d'office, un bouton les ramène (grisées)
   const [showOff, setShowOff] = useState(false);
+  const [hideTools, setHideTools] = useStoredFlag("myservices.machines.hideSeenByTools", false);   // « Vus par vos outils, pas suivis ici »
   const nOff = snap.data.machine_list.filter(isOff).length;
   const items = useMemo(() => (showOff ? snap.data.machine_list : snap.data.machine_list.filter((m) => !isOff(m))), [snap.data.machine_list, showOff, isOff]);
   const f = useFilter(items, facets, text, initial);
@@ -730,11 +732,14 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
   return (
     <div className="py-1">
       <FilterBar f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
-        options={nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []}
+        options={[
+          ...(nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []),
+          ...(untracked.length > 0 ? [{ id: "tools", label: tx("Masquer « Vus par vos outils »"), on: hideTools, toggle: () => setHideTools(!hideTools), mark: <EyeOff size={12} aria-hidden />, count: untracked.length }] : []),
+        ]}
         extra={<>
           <ViewToggle view={view} onPick={pickView} />
         </>} />
-      {untracked.length > 0 && (
+      {untracked.length > 0 && !hideTools && (
         <details className="mb-3 rounded-xl border border-line bg-bg2/40 px-4 py-2 text-sm">
           <summary className="cursor-pointer text-muted hover:text-txt">{tx("Vus par vos outils, pas suivis ici")} <b className="text-dim">({untracked.length})</b></summary>
           {bySource.map(([label, list]) => (

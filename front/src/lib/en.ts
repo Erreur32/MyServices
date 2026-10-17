@@ -1278,6 +1278,7 @@ export const EN: Record<string, string> = {
   "connexion refusée ou impossible": "connection refused or impossible",
   "La connexion SSH échoue : voir l'action requise en haut de la fenêtre": "The SSH connection fails: see the required action at the top of the window",
   "connexion refusée": "connection refused",
+  "Masquer « Vus par vos outils »": "Hide \"Seen by your tools\"",
   "Lignes affichées sur le total, après la recherche et les filtres": "Rows shown out of the total, after the search and the filters",
   "Domaines déclarés ({0})": "Declared domains ({0})",
   "avec domaine": "with domain",

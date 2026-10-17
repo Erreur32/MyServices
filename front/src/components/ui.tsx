@@ -149,16 +149,18 @@ export function FilterBar<T>({ f, placeholder, extra, side, options = [], primar
             <X size={14} />{tx("Tout effacer")}
           </button>
         )}
-        {extra}
-        {((groups.length > 0 || options.length > 0) || side) && (
+        {((groups.length > 0 || options.length > 0) || side || extra) && (
           <div className="ml-auto flex flex-col items-end gap-1.5">
-            {(groups.length > 0 || options.length > 0) && (
-              <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold text-link transition-colors hover:bg-link/10 ${open || nActive ? "border-link bg-link/10" : "border-link/50"}`}>
-                <SlidersHorizontal size={14} />{primary.length ? tx("Plus de filtres") : tx("Filtres")}{nActive > 0 && <b className="grid h-5 min-w-5 place-items-center rounded-full bg-link px-1 text-[11px] leading-none text-white">{nActive}</b>}
-                {open ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
-              </button>
-            )}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {extra}
+              {(groups.length > 0 || options.length > 0) && (
+                <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold text-link transition-colors hover:bg-link/10 ${open || nActive ? "border-link bg-link/10" : "border-link/50"}`}>
+                  <SlidersHorizontal size={14} />{primary.length ? tx("Plus de filtres") : tx("Filtres")}{nActive > 0 && <b className="grid h-5 min-w-5 place-items-center rounded-full bg-link px-1 text-[11px] leading-none text-white">{nActive}</b>}
+                  {open ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
+                </button>
+              )}
+            </div>
             {side}
           </div>
         )}
@@ -241,7 +243,7 @@ export function Table({ head, children, fit = false, fixed = false }: { head: Re
   return (
     <div className={`hidden rounded-2xl border border-line bg-card md:block ${fit ? "overflow-hidden" : "overflow-x-auto"}`}>
       <table className={`w-full border-collapse text-sm ${fixed ? "table-fixed" : ""}`}>
-        <thead><tr>{head}</tr></thead>
+        <thead className="bg-bg2"><tr className="bg-bg2">{head}</tr></thead>
         <tbody className="[&>tr]:border-b [&>tr]:border-line/60">{children}</tbody>
       </table>
     </div>
