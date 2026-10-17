@@ -23,7 +23,7 @@ import { DetailRow, DetailSection } from "../components/DetailSection";
 import { quiet } from "../lib/forms";
 import { Overlay } from "../components/Overlay";
 import { rereadMachines } from "../lib/scan";
-import { watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
+import { healthItems, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, Td, Th } from "../components/ui";
 import { tx } from "../lib/i18n";
@@ -579,6 +579,14 @@ function healthRank(m: Machine, h: HealthHost | undefined, followed: boolean): n
   return !m.off && m.ping === false ? 0 : 4;
 }
 
+/** Flag after the name, as on the Health page: how many things need attention (updates included), the list in the tooltip */
+function ProblemFlag({ h }: Readonly<{ h?: HealthHost }>) {
+  const pb = h && h.reachable !== false ? healthItems(h) : [];
+  if (!pb.length) return null;
+  const bad = pb.some((i) => i.tone === "bad");
+  return <span className={`text-xs ${bad ? "text-bad" : "text-warn"}`} title={[tx("À surveiller"), ...pb.map((i) => i.text)].join("\n")}>⚑ {pb.length}</span>;
+}
+
 function HealthLevel({ m, h, followed }: Readonly<{ m: Machine; h?: HealthHost; followed: boolean }>) {
   if (h) return <Level level={levelKey(h)} />;
   if (followed && !m.off) return <Badge tone="info" title={tx("Une source de santé existe (SSH, agent, Beszel ou Home Assistant) : la machine sera lue au prochain passage de la tâche Santé (Réglages → Tâches et horaires)")}>{tx("en attente du relevé")}</Badge>;
@@ -783,7 +791,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
                     onClick={(e) => { if (!(e.target as Element).closest("button, a, input, select, label, summary, [role=button]")) setDetailIp(m.ip); }}
                     onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) setDetailIp(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
                     <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={m} scan={scanOs[m.ip]} reserve /></td>
-                    <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><span className="text-xs text-dim">{m.ip}</span></span></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
+                    <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><span className="text-xs text-dim">{m.ip}</span><ProblemFlag h={h} /></span></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
                     <Td>{st(m, false)}</Td><Td><WatchList items={watchOf(m)} /></Td>
                     <Td><OsShort m={m} kind={osOf(m)} /></Td>
                     <Td><span className="inline-flex items-center gap-1.5">
