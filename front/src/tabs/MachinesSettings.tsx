@@ -275,8 +275,6 @@ function Proposal({ d, st, onDone }: { d: Detection; st: State; onDone: () => vo
   );
 }
 
-const AGENT_TONE: Record<string, "ok" | "warn"> = { actif: "ok", silencieux: "warn" };
-
 function AgentOrAccess({ agent, access }: Readonly<{ agent?: AgentInfo; access: string }>) {
   if (!agent) return <span className="truncate">{access}</span>;
   return <Badge tone={agent.state === "actif" ? "ok" : "warn"} title={tx("Agent MyServices : {0}", agent.state)}>{tx("agent")}</Badge>;
@@ -657,19 +655,6 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
             <KeyRound size={14} aria-hidden />{tx("Voir la clé SSH")}<ArrowRight size={14} aria-hidden />
           </a>
         </div>
-        {!agentMode && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-line/60 bg-bg2/70 p-3 text-sm">
-            <b>{tx("Agent")}</b>
-            {agent ? <>
-              <Badge tone={AGENT_TONE[agent.state] ?? "info"}>{agent.state}</Badge>
-              <Dim>v{agent.version ?? "?"} · {agent.last_seen ? tx("dernier relevé {0}", dateTime(agent.last_seen * 1000)) : tx("en attente du premier relevé")}</Dim>
-              <a href={`#settings/agents/${ip}`} className="ml-auto text-xs font-semibold text-link hover:underline">{tx("Gérer l'agent")}</a>
-            </> : <>
-              <Dim>{tx("aucun : utile si le SSH est impossible")}</Dim>
-              <a href={`#settings/agents/${ip}`} className="ml-auto text-xs font-semibold text-link hover:underline">{tx("Installer un agent")}</a>
-            </>}
-          </div>
-        )}
         {linked.length > 0 && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-line/60 bg-bg2/70 p-3 text-sm">
             <b>{tx("Connecteurs")}</b>
