@@ -729,7 +729,7 @@ def _ha_conn(name: str) -> HomeAssistant:
     if name not in _ha_names():
         raise BackupError(f"connecteur Home Assistant « {name[:64]} » introuvable (Réglages → Connecteurs)")
     plain = settings.get("home-assistant", name, plain=True)
-    return HomeAssistant({"name": name, "url": plain.get("url"), "token": plain.get("token")}, Context(timeout=TEST_TIMEOUT))
+    return HomeAssistant({"name": name, "url": plain.get("url"), "token": plain.get("token"), "mcp_url": plain.get("mcp_url")}, Context(timeout=TEST_TIMEOUT))
 
 
 def ha_check(name: str) -> dict:

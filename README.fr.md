@@ -193,7 +193,7 @@ Réglages -> Sauvegardes montre un tableau de **sources** (cliquez sur l'une : s
 - **Dossiers sur mes machines** : trouvés par SSH aux endroits habituels (`/home/backup` est suivi automatiquement) ; vous cochez ceux à surveiller.
 - **Veeam Backup & Replication** : API REST (port 9419) avec un compte en lecture seule (rôle *Veeam Backup Viewer*) ; vous choisissez les jobs à suivre.
 - **Proxmox Backup Server** : groupes de sauvegarde (une VM, un conteneur ou un hôte par magasin) lus avec le jeton du connecteur existant (rôle *DatastoreAudit*).
-- **Home Assistant** : sa sauvegarde automatique, avec le jeton du connecteur existant.
+- **Home Assistant** : sa sauvegarde automatique, avec le jeton du connecteur existant. En option, avec le module communautaire **ha-mcp** installé dans Home Assistant (ce n'est *pas* le MCP natif de Home Assistant), collez son adresse dans le connecteur : MyServices lit alors aussi la liste réelle des sauvegardes (date, taille, chiffrée ou non, où chacune est copiée), les réparations, le contrôle de la configuration et les intégrations en erreur. Il ne lance que six lectures fixes et n'installe, ne supprime ni ne restaure rien ; activez aussi le mode lecture seule de ha-mcp.
 
 Pour chaque sauvegarde suivie, vous fixez l'âge au-delà duquel une alerte part, et si une copie sur une autre machine est exigée. Les tâches cron et timers qui ressemblent à des sauvegardes sont listées à part.
 

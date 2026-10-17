@@ -45,7 +45,7 @@ export function BackupsHa({ state, reload }: { state: HaState; reload: () => voi
       ) : (
         <>
           <p className="mb-3 text-sm text-muted">
-            {tx("Lit la dernière sauvegarde automatique réussie de Home Assistant (capteurs du gestionnaire de sauvegardes), avec l'adresse et le jeton déjà enregistrés pour le connecteur. Lecture seule.")}
+            {tx("Lit la dernière sauvegarde automatique réussie de Home Assistant (capteurs du gestionnaire de sauvegardes), avec l'adresse et le jeton déjà enregistrés pour le connecteur. Lecture seule. Si le connecteur a l'adresse du module ha-mcp (module communautaire, pas le MCP natif), MyServices lit aussi la liste réelle des sauvegardes : date, taille, chiffrement et où elles sont copiées.")}
           </p>
           <div className="flex flex-wrap items-end gap-3">
             {state.connectors.length > 1 && (

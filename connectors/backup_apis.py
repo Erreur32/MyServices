@@ -19,6 +19,7 @@ import urllib.request
 from datetime import datetime
 
 from connectors.base import Connector, ConnectorError, Field, Result
+from connectors.ha_mcp import HaMcp
 from connectors.proxmox import ProxmoxBackup
 
 
@@ -176,13 +177,19 @@ class HomeAssistant(Connector):
         total, used, free = (float(val(f"sensor.home_assistant_host_disk_{k}") or 0) for k in ("total", "used", "free"))
         ok, tried, nxt = (ts(f"sensor.backup_{k}") for k in ("last_successful_automatic_backup",
                                                               "last_attempted_automatic_backup", "next_scheduled_automatic_backup"))
+        ha_backup = {"last_ok": ok, "last_attempt": tried, "next": nxt}
+        if str(self.conf.get("mcp_url") or "").strip():   # mode avancé (module ha-mcp) : la liste réelle des sauvegardes, avec leurs copies ailleurs
+            try:
+                ha_backup["list"] = HaMcp(self.conf["mcp_url"], 30).get("backups")
+            except ConnectorError as e:
+                ha_backup["mcp_error"] = str(e)
         return {"user": "API REST", "locs": {}, "cron_root": None,
                 "disks": [{"dev": "HAOS", "fs": "ext4", "mount": "/ (HAOS)", "size": int(total * gb), "used": int(used * gb),
                            "avail": int(free * gb), "pct": round(used * 100 / total, 1) if total else 0}] if total else [],
                 "crons": [{"src": "gestionnaire de sauvegardes HA",
                            "line": f"auto : dernière réussie {_fmt(ok)}, dernier essai {_fmt(tried)}, prochaine {_fmt(nxt)} "
                                    f"(état {val('sensor.backup_backup_manager_state')})"}],
-                "ha_backup": {"last_ok": ok, "last_attempt": tried, "next": nxt}}
+                "ha_backup": ha_backup}
 
 
 class PbsBackups(ProxmoxBackup):

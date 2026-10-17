@@ -310,7 +310,7 @@ def api_collect(cls, h: dict, prefix: str) -> tuple[dict | None, str]:
         c = next((c for c in CFG.get("connectors") or [] if c.get("name") == h["connector"] and c.get("type") in CONNECTOR_OF[cls]), None)
         if c is None:
             return None, f"{prefix} : connecteur « {h['connector']} » absent de config.json (ou coupé dans Réglages)"
-        conf.update({k: c[k] for k in ("url", "user", "password", "token", "api_version", "secret", "verify_tls") if c.get(k)})
+        conf.update({k: c[k] for k in ("url", "user", "password", "token", "api_version", "secret", "verify_tls", "mcp_url") if c.get(k)})
     try:
         return cls(conf, Context()).collect(), ""
     except ConnectorError as e:
@@ -459,6 +459,21 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                 continue
             if loc.get("ha_backup") and r:
                 hb = r["ha_backup"]
+                top = next((i for i in (hb.get("list") or {}).get("items") or [] if i.get("date")), None)
+                if top:   # liste réelle des sauvegardes (module ha-mcp) : la plus récente, et où elle est copiée
+                    L["age"] = age_days(top["date"], now)
+                    L["newest"] = {"name": top["name"] or top["id"], "mtime": top["date"], "size": top["size"]}
+                    L["level"] = level_for_age(L["age"], max_age)
+                    L["count"] = hb["list"]["total"]
+                    L["encrypted"] = bool(top["protected"])
+                    L["offsite"] = bool(hb["list"]["offsite"])   # constaté, pas supposé : la plus récente existe aussi hors de Home Assistant
+                    where = ", ".join(top["locations"]) or "?"
+                    L["detail"] = (f"{hb['list']['total']} sauvegarde(s) ; la dernière est {'chiffrée' if top['protected'] else 'NON chiffrée'}, "
+                                   f"stockée : {where}" + ("" if L["offsite"] else " (uniquement sur Home Assistant)"))
+                    if hb["last_attempt"] and hb["last_ok"] and hb["last_attempt"] > hb["last_ok"] + 3600:
+                        L["level"], L["detail"] = "crit", "le dernier essai de sauvegarde a échoué"
+                    locs.append(L)
+                    continue
                 if not hb["last_ok"]:
                     L["level"], L["detail"] = "crit", "aucune sauvegarde réussie connue"
                 else:

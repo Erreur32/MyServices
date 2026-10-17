@@ -193,7 +193,7 @@ Settings -> Backups shows a table of **sources** (click one to unfold its fields
 - **Folders on my machines**: found over SSH in the usual places (`/home/backup` is followed automatically); you tick the ones to watch.
 - **Veeam Backup & Replication**: REST API (port 9419) with a read-only account (role *Veeam Backup Viewer*); pick the jobs to follow.
 - **Proxmox Backup Server**: backup groups (a VM, container or host per datastore) read with the existing connector's token (role *DatastoreAudit*).
-- **Home Assistant**: its automatic backup, through the existing connector's token.
+- **Home Assistant**: its automatic backup, through the existing connector's token. Optionally, with the community **ha-mcp** add-on installed in Home Assistant (this is *not* Home Assistant's native MCP), paste its address in the connector: MyServices then also reads the real list of backups (date, size, encrypted or not, where each one is copied), the Repairs, the configuration check and the failing integrations. It only runs six fixed read calls and never installs, deletes or restores anything; also turn on ha-mcp's own read-only mode.
 
 For each followed backup you set the age after which an alert fires, and whether a copy on another machine is required. Cron jobs and timers that look like backups are listed on their own.
 

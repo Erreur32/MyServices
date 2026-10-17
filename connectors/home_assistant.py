@@ -6,6 +6,10 @@ disponibles = entités update.* à l'état « on »). Aucun appel de service, au
 Un jeton Home Assistant a les droits de son compte, il n'est pas « lecture seule » : le guide recommande un compte
 dédié non administrateur. Les sauvegardes lues dans les mêmes données sont l'affaire du module backups.py
 (connectors/backup_apis.py, fichier de secrets), pas de ce connecteur.
+
+Mode avancé facultatif : l'adresse du module complémentaire « ha-mcp » (serveur MCP communautaire, PAS le MCP natif de Home Assistant)
+ajoute la liste réelle des sauvegardes, les réparations, la validité de la configuration, les modules et les intégrations en erreur
+(connectors/ha_mcp.py : six appels de lecture fixes). Sans elle, rien ne change.
 """
 from __future__ import annotations
 
@@ -18,6 +22,7 @@ import urllib.parse
 import urllib.request
 
 from connectors.base import Connector, ConnectorError, Field, Result
+from connectors.ha_mcp import HaMcp
 
 GUIDE = (
     "Créer un compte dédié : Paramètres → Personnes → onglet Utilisateurs → Ajouter un utilisateur (nom « myservices », "
@@ -25,6 +30,9 @@ GUIDE = (
     "Se connecter avec ce compte, ouvrir son profil (en bas à gauche), onglet Sécurité.",
     "« Jetons d'accès longue durée » → Créer un jeton (nom « MyServices »), puis le copier : il ne s'affiche qu'une fois.",
     "Coller le jeton ici. L'adresse est celle de Home Assistant, avec son port (8123 par défaut).",
+    "Facultatif, mode avancé : si vous avez installé le module complémentaire « ha-mcp » (module communautaire, ce n'est pas le MCP natif de "
+    "Home Assistant), collez l'adresse HTTP qu'il affiche (elle contient un chemin secret). MyServices n'y fait que six lectures ; "
+    "activez aussi le mode lecture seule de ha-mcp (BACKUP_READ_ONLY=true) pour que le module refuse toute écriture de son côté.",
 )
 
 
@@ -52,6 +60,24 @@ def explain(e: Exception) -> str:
     if isinstance(e, ValueError):
         return "réponse inattendue : l'adresse ne mène pas à Home Assistant"
     return f"{reason}"[:160]
+
+
+def mcp_summary(m: dict | None) -> str:
+    """Fin du message de test : ce que le module ha-mcp a donné (ou pourquoi il n'a rien donné)."""
+    if m is None:
+        return ""
+    if not m.get("backups") and m.get("errors"):
+        return " · ha-mcp : " + next(iter(m["errors"].values()))
+    bits = []
+    if m.get("backups"):
+        bits.append(f"{m['backups']['total']} sauvegarde(s)")
+    if m.get("health"):
+        bits.append(f"{m['health']['repairs_count']} réparation(s)")
+    if (m.get("health") or {}).get("config_ok") is False:
+        bits.append("configuration invalide")
+    if m.get("errors"):
+        bits.append(f"{len(m['errors'])} lecture(s) en échec")
+    return " · ha-mcp : " + ", ".join(bits) if bits else " · ha-mcp : connecté"
 
 
 def update_group(entity_id: str, attrs: dict) -> str:
@@ -149,6 +175,9 @@ class HomeAssistantAPI(Connector):
         Field("url", "Adresse de Home Assistant", "url", required=True, help="http://<IP>:8123"),
         Field("token", "Jeton d'accès longue durée", "password", required=True, secret=True,
               help="créé dans le profil d'un compte dédié non administrateur (voir l'aide)"),
+        Field("mcp_url", "Adresse du module ha-mcp (facultatif)", "password", secret=True,
+              help="mode avancé : sauvegardes réelles, réparations, configuration. Module communautaire « ha-mcp », pas le MCP natif de Home Assistant ; "
+                   "l'adresse contient un chemin secret"),
     )
     setup_fields = ("url", "token")
 
@@ -203,6 +232,8 @@ class HomeAssistantAPI(Connector):
                "system": {"core": cfg.get("version"), **system(states)}}
         if host := host_sensors(states):
             out["host"] = host
+        if str(self.conf.get("mcp_url") or "").strip():   # mode avancé : un échec de ha-mcp ne gâche pas la lecture par l'API REST
+            out["mcp"] = HaMcp(self.conf["mcp_url"], self.ctx.timeout).collect()
         return out
 
     def test(self) -> Result:
@@ -214,7 +245,7 @@ class HomeAssistantAPI(Connector):
         other = len(d["updates"]) - core
         return Result(True, f"{d['name'] or 'Home Assistant'} · {d['entities']} entités · "
                             + (f"Home Assistant : {core} mise(s) à jour" if core else "Home Assistant à jour")
-                            + (f" · {other} autre(s) (modules, appareils)" if other else ""), d["version"])
+                            + (f" · {other} autre(s) (modules, appareils)" if other else "") + mcp_summary(d.get("mcp")), d["version"])
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:

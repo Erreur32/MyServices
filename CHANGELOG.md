@@ -18,6 +18,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   Settings -> Agents lets you pick Windows or Linux when creating an agent and shows the matching one-line command; Linux machines
   with no SSH and no API are now offered in "Without agent". Each agent type has its own version, checksum and update path.
 
+- Home Assistant connector, optional advanced mode: paste the address of the community **ha-mcp** add-on (not Home Assistant's native MCP)
+  to read the real list of backups (date, size, encrypted, where each is copied: a backup copied elsewhere is now observed, not
+  assumed), Repairs, the configuration check, add-ons and failing integrations. Six fixed read calls only, a guard test forbids any
+  write action; the mixed tools are only ever called with `action = list`.
+
 ### Changed
 
 - Machines page and Settings -> Machines: the "State" column is now "Sources", one short badge per source that reads the machine
