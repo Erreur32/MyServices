@@ -3,7 +3,7 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
-import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, KeyRound, Loader2, Monitor, Plus, Radar, RefreshCw, Server, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, KeyRound, Loader2, Monitor, Plus, Power, Radar, RefreshCw, Server, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, refreshSnapshot, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -463,13 +463,14 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   // ne se détectent pas : toujours libres.
   const found = new Set([...(live?.detected ?? []), ...detected]);
   const DETECTABLE = ["gateway", "vm", "npm", "off"];
-  const locked = (k: string) => !unlock && DETECTABLE.includes(k) && !found.has(k) && !v[k as keyof MachineConf];
+  const QUICK = ["off"];   // réglages courants, montrés en haut de la carte (jamais grisés ni cachés dans le menu des options)
+  const locked = (k: string) => !QUICK.includes(k) && !unlock && DETECTABLE.includes(k) && !found.has(k) && !v[k as keyof MachineConf];
   const isOn = (k: string) => found.has(k) || !!v[k as keyof MachineConf];
-  const activeFlags = FLAGS.filter((f) => !!v[f.k]);  // allumées : montrées hors du menu
+  const activeFlags = FLAGS.filter((f) => !!v[f.k] && !QUICK.includes(String(f.k)));  // allumées : montrées hors du menu
   const procOn = proc && !windows && !!v.ssh;
-  const detectedFlags = FLAGS.filter((f) => DETECTABLE.includes(String(f.k)) && isOn(String(f.k)) && !v[f.k]);
-  const missingFlags = FLAGS.filter((f) => DETECTABLE.includes(String(f.k)) && !isOn(String(f.k)));
-  const manualFlags = FLAGS.filter((f) => !DETECTABLE.includes(String(f.k)) && !v[f.k]);
+  const detectedFlags = FLAGS.filter((f) => !QUICK.includes(String(f.k)) && DETECTABLE.includes(String(f.k)) && isOn(String(f.k)) && !v[f.k]);
+  const missingFlags = FLAGS.filter((f) => !QUICK.includes(String(f.k)) && DETECTABLE.includes(String(f.k)) && !isOn(String(f.k)));
+  const manualFlags = FLAGS.filter((f) => !QUICK.includes(String(f.k)) && !DETECTABLE.includes(String(f.k)) && !v[f.k]);
   const flagRow = (f: (typeof FLAGS)[number]) => (
     <label key={String(f.k)} className={`flex items-start gap-2 ${locked(String(f.k)) ? "opacity-50" : ""}`}
       title={locked(String(f.k)) ? tx("Non détecté sur cette machine : grisé") : undefined}>
@@ -673,10 +674,17 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
           <Dim>{tx("la première source qui répond fait foi, l'autre prend le relais si elle se tait et complète ce qui manque")}</Dim>
         </div>
       )}
-      <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
-        <Switch on={!v.disabled} disabled={pending === "disabled"} onChange={(on) => void autoSave("disabled", { disabled: !on })} label={tx("Machine suivie")} />
-        <span><b>{tx("Machine suivie")}</b> <Saved k="disabled" /> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>
-      </label>
+      {/* Réglages courants, toujours visibles : suivre la machine, et « souvent éteinte » (PC, portable : pas d'alerte quand elle est éteinte) */}
+      <section className="rounded-2xl border border-dim/50 border-l-2 border-l-warn bg-bg2/30 p-4" aria-label={tx("Réglages courants")}>
+        <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><Power size={13} className="text-warn" aria-hidden />{tx("Réglages courants")}</h4>
+        <div className="grid gap-2 lg:grid-cols-2">
+          <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
+            <Switch on={!v.disabled} disabled={pending === "disabled"} onChange={(on) => void autoSave("disabled", { disabled: !on })} label={tx("Machine suivie")} />
+            <span><b>{tx("Machine suivie")}</b> <Saved k="disabled" /> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>
+          </label>
+          <div className="rounded-lg border border-line/60 bg-bg2/70 p-3">{flagRow(FLAGS[0])}</div>
+        </div>
+      </section>
       {(activeFlags.length > 0 || procOn) && (
         <OptionGroup title={tx("Options actives")} hint={tx("Allumées pour cette machine ; les autres sont dans « Options de la machine »")}>
           {activeFlags.map(flagRow)}

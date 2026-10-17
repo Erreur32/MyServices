@@ -21,6 +21,7 @@ export const EN: Record<string, string> = {
   "Déjà suivies par l'API d'un connecteur (Home Assistant…) ou un outil réseau (box, passerelle) : rien à régler, et pas d'agent possible.": "Already followed through a connector's API (Home Assistant…) or a network tool (box, gateway): nothing to set, and no agent possible.",
   "outil réseau": "network tool",
   "Ouvrir ce connecteur": "Open this connector",
+  "Réglages courants": "Common settings",
   "Sources": "Sources",
   "Lue par SSH ({0}) : santé, Docker, services en écoute.": "Read over SSH ({0}): health, Docker, listening services.",
   "Agent MyServices v{0} : {1}. Dernier relevé : {2}.": "MyServices agent v{0}: {1}. Last report: {2}.",
