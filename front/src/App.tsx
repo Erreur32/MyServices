@@ -124,7 +124,7 @@ export default function App() {
           </a>
           <Profile username={snap.me.username} role={snap.me.role} email={snap.me.email ?? ""} avatar={snap.me.avatar ?? null} look={{ theme, setTheme, width, setWidth }} />
         </>
-      ) : <Tabs tab={current} snap={snap} badges={badges} onSelect={go} />}
+      ) : <Tabs tab={current} snap={snap} badges={badges} onSelect={go} onBadge={(t) => (t === "machines" ? goFilter("machines", { alert: ["bad", "warn"] }) : go(t))} />}
       {!profile && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} />}
       {current === "history" && <History snap={snap} />}
       {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} onFilter={(sel) => goFilter("services", sel)} />}

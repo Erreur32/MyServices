@@ -331,9 +331,8 @@ def collect_kernel_errors(run) -> dict:
                 continue
             if KERNEL_IGNORE_RE.search(ln):
                 continue
-            if len(lines) < 8:
-                lines.append(ln[:200])
-    return {"has_errors": bool(lines), "samples": lines}
+            lines.append(ln[:200])
+    return {"has_errors": bool(lines), "samples": lines[-8:]}   # the 8 most recent (the journal comes oldest first)
 
 
 def collect_reboot_required(run) -> bool:

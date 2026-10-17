@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HealthHost, Machine } from "../types";
-import { healthItems, watchItems, worst } from "./machineWatch";
+import { WATCH_SECTION, healthItems, watchItems, worst } from "./machineWatch";
 
 const machine = (o: Partial<Machine> = {}): Machine => ({ ip: "10.0.0.2", name: "srv", ping: true, off: false, services: 3, npm: 0, down: 0, info: { os: "Debian" }, ssh: { alias: "a", port: 22, identity: "k" }, ...o }) as Machine;
 const health = (o: Partial<HealthHost> = {}): HealthHost => ({ id: "srv", name: "srv · 10.0.0.2", reachable: true, level: "ok", ...o }) as HealthHost;
@@ -42,5 +42,12 @@ describe("à surveiller", () => {
   it("connecteur en échec rattaché à la machine (hors Docker, déjà dit par « SSH refusé »)", () => {
     const cs = [{ type: "adguard", name: "dns", ok: false, message: "refusé", ip: "10.0.0.2" }, { type: "docker", name: "srv", ok: false, message: "x", ip: "10.0.0.2" }, { type: "npm", name: "n", ok: false, message: "y", ip: "10.0.0.9" }];
     expect(watchItems(machine(), health(), cs).map((i) => i.kind)).toEqual(["connector"]);
+  });
+
+  it("erreurs noyau : les messages relevés suivent l'avertissement et mènent à la section Santé", () => {
+    const it = healthItems(health({ kernel: { has_errors: true, samples: ["nvme0: I/O error", "EXT4-fs error"] } })).find((i) => i.kind === "kernel");
+    expect(it?.tone).toBe("warn");
+    expect(it?.detail).toEqual(["nvme0: I/O error", "EXT4-fs error"]);
+    expect(WATCH_SECTION.kernel).toBe("health");
   });
 });
