@@ -15,17 +15,17 @@ export const STEPS: { id: AssistantStep; title: string; ready: boolean }[] = [
   { id: "alerts", title: tx("Être prévenu"), ready: true },
 ];
 
-export interface AssistantProgress { current: AssistantStep; done: AssistantStep[]; skipped: AssistantStep[]; host: string }
+export interface AssistantProgress { current: AssistantStep; done: AssistantStep[]; skipped: AssistantStep[]; host: string; accepted: string[] }   // accepted : machines gardées avec leur méthode actuelle
 
 const KEY = "myservices-assistant";
-const EMPTY: AssistantProgress = { current: "welcome", done: [], skipped: [], host: "" };
+const EMPTY: AssistantProgress = { current: "welcome", done: [], skipped: [], host: "", accepted: [] };
 
 export function loadProgress(): AssistantProgress {
   try {
     const got = JSON.parse(localStorage.getItem(KEY) || "null") as Partial<AssistantProgress> | null;
     const ids = STEPS.map((s) => s.id);
     if (!got || !ids.includes(got.current as AssistantStep)) return EMPTY;
-    return { current: got.current as AssistantStep, done: (got.done ?? []).filter((i) => ids.includes(i)), skipped: (got.skipped ?? []).filter((i) => ids.includes(i)), host: typeof got.host === "string" ? got.host : "" };
+    return { current: got.current as AssistantStep, done: (got.done ?? []).filter((i) => ids.includes(i)), skipped: (got.skipped ?? []).filter((i) => ids.includes(i)), host: typeof got.host === "string" ? got.host : "", accepted: Array.isArray(got.accepted) ? got.accepted.filter((a) => typeof a === "string") : [] };
   } catch { return EMPTY; }
 }
 

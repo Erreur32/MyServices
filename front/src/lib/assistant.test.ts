@@ -13,13 +13,13 @@ describe("assistant : progression", () => {
   beforeEach(() => mem.clear());
 
   it("commence à la bienvenue, rien de fait", () => {
-    expect(loadProgress()).toEqual({ current: "welcome", done: [], skipped: [], host: "" });
+    expect(loadProgress()).toEqual({ current: "welcome", done: [], skipped: [], host: "", accepted: [] });
   });
 
   it("avance en marquant l'étape faite ou passée", () => {
     const p = advance(loadProgress(), "done");
-    expect(p).toEqual({ current: "machine", done: ["welcome"], skipped: [], host: "" });
-    expect(advance(p, "skipped")).toEqual({ current: "network", done: ["welcome"], skipped: ["machine"], host: "" });
+    expect(p).toEqual({ current: "machine", done: ["welcome"], skipped: [], host: "", accepted: [] });
+    expect(advance(p, "skipped")).toEqual({ current: "network", done: ["welcome"], skipped: ["machine"], host: "", accepted: [] });
   });
 
   it("refaire une étape passée la retire des passées", () => {
@@ -37,7 +37,7 @@ describe("assistant : progression", () => {
   });
 
   it("se souvient d'où on en est, et recommence", () => {
-    saveProgress({ current: "network", done: ["welcome", "machine"], skipped: [], host: "" });
+    saveProgress({ current: "network", done: ["welcome", "machine"], skipped: [], host: "", accepted: [] });
     expect(loadProgress().current).toBe("network");
     resetProgress();
     expect(loadProgress().current).toBe("welcome");
@@ -49,7 +49,7 @@ describe("assistant : progression", () => {
     mem.set("myservices-assistant", JSON.stringify({ current: "inconnue", done: ["x"] }));
     expect(loadProgress().current).toBe("welcome");
     mem.set("myservices-assistant", JSON.stringify({ current: "machine", done: ["welcome", "x"], skipped: ["y"] }));
-    expect(loadProgress()).toEqual({ current: "machine", done: ["welcome"], skipped: [], host: "" });
+    expect(loadProgress()).toEqual({ current: "machine", done: ["welcome"], skipped: [], host: "", accepted: [] });
   });
 
   it("les six étapes existent", () => {
@@ -65,7 +65,7 @@ describe("assistant : progression", () => {
   });
 
   it("garde la machine hôte désignée dans la progression", () => {
-    saveProgress({ current: "machine", done: [], skipped: [], host: "10.0.0.2" });
+    saveProgress({ current: "machine", done: [], skipped: [], host: "10.0.0.2", accepted: [] });
     expect(loadProgress().host).toBe("10.0.0.2");
     expect(advance(loadProgress(), "done").host).toBe("10.0.0.2");
   });

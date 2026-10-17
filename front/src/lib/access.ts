@@ -7,6 +7,7 @@ export type AdviceStatus = "todo" | "optimize" | "ok";
 
 export interface AdviceView {
   status: AdviceStatus;
+  kept: boolean;                       // l'utilisateur a choisi de garder la méthode actuelle (« C'est suffisant ainsi »)
   title: string;                       // « SSH », « Agent Windows »…
   why: string;                         // une phrase sans jargon
   read: boolean;                       // la méthode recommandée lit déjà la machine : rien à faire
@@ -55,28 +56,34 @@ const WHY: Record<string, () => string> = {
  *  son outil fournit, le ping seulement la présence. Une machine n'est « à optimiser » que si la méthode recommandée recueille PLUS que ce qui la lit déjà. */
 export const RICHNESS: Record<string, number> = { ssh: 3, agent: 3, connector: 1, ping: 0 };
 
-export function describeAdvice(_ip: string, a: Advice): AdviceView {
+export function describeAdvice(_ip: string, a: Advice, accepted = false): AdviceView {
   const best = Math.max(0, ...a.current.map((m) => RICHNESS[m] ?? 0));
   const read = a.method !== "ping" && (a.current.includes(a.method) || best >= RICHNESS[a.method]);
   let action: AdviceView["action"] = null;
-  if (!read) {
+  if (!read && !(accepted && a.current.length > 0)) {
     if (a.method === "ssh") action = { label: tx("Régler l'accès SSH"), setup: "ssh" };
     else if (a.method === "agent") action = { label: a.agent_kind === "windows" ? tx("Installer l'agent Windows") : tx("Installer l'agent Linux"), setup: "agent" };
     else if (a.method === "connector") action = { label: tx("Régler le connecteur"), setup: "connector" };
   }
-  const status: AdviceStatus = read || a.method === "ping" ? "ok" : a.current.length ? "optimize" : "todo";
+  const raw: AdviceStatus = read || a.method === "ping" ? "ok" : a.current.length ? "optimize" : "todo";
+  const kept = accepted && raw === "optimize";   // seule une machine « à optimiser » peut être gardée ainsi : une machine jamais lue reste à régler
+  const status: AdviceStatus = kept ? "ok" : raw;
   const title = METHOD_LABEL(a.method, a.agent_kind), now = a.current.map((m) => NOW_LABEL[m]()).join(", ");
   // Un agent est installé mais ne répond plus : la cause la plus utile à dire, avant la méthode manquante
   const silent = a.method === "agent" && a.agent_state && a.agent_state !== "actif";
-  const explain = status !== "optimize" ? null : silent
+  const explain = raw !== "optimize" || kept ? null : silent
     ? tx("Un agent est déjà installé, mais il ne répond plus ({0}). Vérifiez que la machine est allumée et qu'elle joint MyServices ; sinon recréez l'agent.", a.agent_state ?? "")
     : tx("Aujourd'hui elle est lue par {0}. {1} donnerait plus : {2}", now, title, (BENEFIT[a.method] ?? (() => ""))(a.agent_kind));
   return {
-    status, title, why: (WHY[a.why] ?? (() => ""))(), read, action, now, explain,
-    todo: action ? (silent ? tx("Si l'agent est perdu, recréez-le : un nouveau jeton remplace l'ancien.") : (TODO[a.method] ?? (() => ""))(a.agent_kind)) || null : null,
+    status, kept, title, why: (WHY[a.why] ?? (() => ""))(), read, action, now, explain,
+    todo: action && !kept ? (silent ? tx("Si l'agent est perdu, recréez-le : un nouveau jeton remplace l'ancien.") : (TODO[a.method] ?? (() => ""))(a.agent_kind)) || null : null,
     others: a.alternatives.filter((m) => m !== "ping").map((m) => ({ label: OTHER_LABEL[m](), active: a.current.includes(m) })),
   };
 }
+
+/** Machine à régler maintenant : suivie et qui répond. Une machine éteinte (même « souvent éteinte ») ne peut pas être lue : lui proposer SSH ou un agent
+ *  n'aurait aucun sens, on la reprend quand elle est allumée. */
+export const isActive = (m: { ping?: boolean; disabled?: boolean }): boolean => !m.disabled && !!m.ping;
 
 /** Ordre des machines : d'abord celles à finir, puis celles à optimiser, en dernier celles qui sont en place */
 export const STATUS_RANK: Record<AdviceStatus, number> = { todo: 0, optimize: 1, ok: 2 };
@@ -85,4 +92,12 @@ export const STATUS_RANK: Record<AdviceStatus, number> = { todo: 0, optimize: 1,
 export function summary(advice: Record<string, Advice>): { total: number; read: number } {
   const all = Object.values(advice);
   return { total: all.length, read: all.filter((a) => a.method !== "ping" && a.current.includes(a.method)).length };
+}
+
+/** Connecteurs à proposer pour une machine qu'un outil doit lire (box, passerelle…) : d'abord ceux dont le nom se retrouve dans la machine
+ *  (« UniFi » dans le rôle d'une passerelle UniFi), puis les inventaires réseau (MynetworK lit la Freebox et UniFi). Quatre au plus. */
+export function connectorsFor<T extends { type: string; label: string; kinds: readonly string[] }>(m: { name: string; role?: string | null; icon?: string | null }, types: T[]): T[] {
+  const hay = `${m.name} ${m.role ?? ""} ${m.icon ?? ""}`.toLowerCase();
+  const direct = types.filter((t) => hay.includes(t.type.toLowerCase()) || hay.includes(t.label.split(/[\s/(]/)[0].toLowerCase()));
+  return [...direct, ...types.filter((t) => t.kinds.includes("network") && !direct.includes(t))].slice(0, 4);
 }

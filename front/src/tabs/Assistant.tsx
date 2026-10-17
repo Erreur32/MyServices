@@ -14,7 +14,7 @@ import { Badge, Card, Dim } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
 import { STEPS, advance, isFinished, type AssistantStep, loadProgress, previousStep, resetProgress, saveProgress, thisMachine, type AssistantProgress } from "../lib/assistant";
 import { savedFor } from "../lib/savedFor";
-import { STATUS_RANK, describeAdvice, summary } from "../lib/access";
+import { STATUS_RANK, describeAdvice, isActive, summary } from "../lib/access";
 import { act, primary, quiet, type Note } from "../lib/forms";
 import { useNetScan } from "../lib/netScan";
 import { tx } from "../lib/i18n";
@@ -71,7 +71,8 @@ export function Assistant({ snap }: { snap: Snapshot }) {
         {p.current === "welcome" && <Welcome snap={snap} />}
         {p.current === "machine" && <ThisMachine snap={snap} chosen={p.host} onChoose={(host) => store({ ...p, host })} report={report} />}
         {p.current === "network" && <Network snap={snap} report={report} open={setSetup} />}
-        {p.current === "access" && <Access snap={snap} report={report} open={setSetup} rev={rev} />}
+        {p.current === "access" && <Access snap={snap} report={report} open={setSetup} rev={rev} accepted={p.accepted}
+          onAccept={(ip, on) => store({ ...p, accepted: on ? [...new Set([...p.accepted, ip])] : p.accepted.filter((a) => a !== ip) })} />}
         {p.current === "tools" && <Tools snap={snap} report={report} open={setSetup} rev={rev} />}
         {p.current === "alerts" && <AlertsStep report={report} open={setSetup} rev={rev} />}
         {!step.ready && <Soon title={step.title} />}
@@ -191,25 +192,29 @@ function Network({ snap, report, open }: { snap: Snapshot; report: Report; open:
 }
 
 /** Étape 4 : une machine à la fois, la méthode de lecture recommandée et ce qu'il reste à faire */
-function Access({ snap, report, open, rev }: { snap: Snapshot; report: Report; open: Open; rev: number }) {
+function Access({ snap, report, open, rev, accepted, onAccept }: { snap: Snapshot; report: Report; open: Open; rev: number; accepted: string[]; onAccept: (ip: string, on: boolean) => void }) {
+  const view = (ip: string, a: Advice) => describeAdvice(ip, a, accepted.includes(ip));   // « C'est suffisant ainsi » pris en compte
   const [advice, setAdvice] = useState<Record<string, Advice> | null>(null), [error, setError] = useState(""), [i, setI] = useState(0);
   useEffect(() => {
     read<{ advice: Record<string, Advice> }>("machines/advice").then((r) => setAdvice(r.advice)).catch((e: Error) => setError(e.message));
   }, [snap.data.generated, rev]);
-  useEffect(() => { if (advice) report("access", Object.entries(advice).every(([ip, a]) => describeAdvice(ip, a).status === "ok")); }, [advice, report]);   // tout est déjà en place
+  const active = new Set(snap.data.machine_list.filter(isActive).map((m) => m.ip));   // seules les machines qui répondent sont proposées
+  useEffect(() => { if (advice) report("access", Object.entries(advice).filter(([ip]) => active.has(ip)).every(([ip, a]) => view(ip, a).status === "ok")); }, [advice, report, accepted, snap.data.generated]);   // tout est déjà en place
   if (error) return <p className="text-sm text-warn">⚠ {error}</p>;
   if (!advice) return <p className="flex items-center gap-2 text-sm text-muted"><Loader2 size={16} className="animate-spin" aria-hidden />{tx("Chargement…")}</p>;
   // Les machines pas encore lues par la méthode recommandée d'abord : c'est là qu'il y a quelque chose à faire
-  const rank = (m: Machine) => STATUS_RANK[describeAdvice(m.ip, advice[m.ip]).status];
-  const machines = snap.data.machine_list.filter((m) => advice[m.ip]).sort((a, b) => rank(a) - rank(b));
-  const sum = summary(advice);
+  const rank = (m: Machine) => STATUS_RANK[view(m.ip, advice[m.ip]).status];
+  const machines = snap.data.machine_list.filter((m) => advice[m.ip] && active.has(m.ip)).sort((a, b) => rank(a) - rank(b));
+  const asleep = snap.data.machine_list.filter((m) => advice[m.ip] && !active.has(m.ip)).length;
+  const sum = summary(Object.fromEntries(Object.entries(advice).filter(([ip]) => active.has(ip))));
   if (machines.length === 0) return <p className="text-sm text-muted">{tx("Aucune machine à régler pour l'instant : ajoutez-en à l'étape précédente.")}</p>;
-  const m = machines[Math.min(i, machines.length - 1)], v = describeAdvice(m.ip, advice[m.ip]);
+  const m = machines[Math.min(i, machines.length - 1)], v = view(m.ip, advice[m.ip]);
   return (
     <div>
       <h2 className="text-xl font-bold">{tx("Lire chaque machine")}</h2>
       <p className="mt-2 text-sm text-muted">{tx("Pour chaque machine, MyServices vous recommande la méthode la plus simple. Rien ne change tant que vous ne lancez pas l'action proposée.")}</p>
-      <p className="mt-2 text-xs text-dim">{tx("{0} machines suivies, {1} déjà lues par la méthode recommandée. Les machines à finir ou à optimiser passent en premier.", sum.total, sum.read)}</p>
+      <p className="mt-2 text-xs text-dim">{tx("{0} machines suivies, {1} déjà lues par la méthode recommandée. Les machines à finir ou à optimiser passent en premier.", sum.total, sum.read)}
+        {asleep > 0 && <> {tx("{0} éteintes ou hors ligne ne sont pas proposées : à régler quand elles seront allumées.", asleep)}</>}</p>
       {/* Hauteur minimale fixe : les boutons « Machine précédente / suivante » restent à la même place d'une machine à l'autre */}
       <div className="mt-4 flex min-h-[23rem] flex-col rounded-xl border border-line/60 bg-bg2/60 p-4 sm:min-h-[20rem]">
         <div className="flex flex-wrap items-center gap-3">
@@ -221,12 +226,15 @@ function Access({ snap, report, open, rev }: { snap: Snapshot; report: Report; o
           <p className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("Recommandé")}</p>
           <p className="mt-1 flex flex-wrap items-center gap-2 text-base font-bold">{v.title}
             {v.status === "ok" && v.read && <Badge tone="ok">✓ {tx("déjà en place")}</Badge>}
+            {v.kept && <Badge tone="ok" title={tx("Vous avez choisi de garder la méthode actuelle pour cette machine.")}>✓ {tx("gardée ainsi")}</Badge>}
             {v.status === "optimize" && <Badge tone="warn" title={tx("La machine est déjà lue, mais pas par la meilleure méthode.")}>{tx("à optimiser")}</Badge>}
             {v.status === "todo" && <Badge tone="info">{tx("à régler")}</Badge>}</p>
           <p className="mt-1 text-sm text-muted">{v.why}</p>
           {v.explain && <p className="mt-2 rounded-md bg-warn/10 px-2.5 py-1.5 text-sm text-txt">{v.explain}</p>}
           {v.todo && <p className="mt-2 text-sm"><b className="text-txt">{tx("À faire :")}</b> <span className="text-muted">{v.todo}</span></p>}
           {v.action && <button type="button" className={`${primary} mt-3`} onClick={() => open(v.action!.setup === "ssh" ? { kind: "ssh", ip: m.ip, name: m.name } : v.action!.setup === "agent" ? { kind: "agent", ip: m.ip, name: m.name, agent: advice[m.ip].agent_kind } : { kind: "connector", ip: m.ip, name: m.name })}>{v.action.label}<ArrowRight size={14} aria-hidden /></button>}
+          {v.status === "optimize" && <button type="button" className={`${quiet} mt-2`} title={tx("Garder la méthode actuelle : cette machine ne sera plus signalée comme à optimiser.")} onClick={() => onAccept(m.ip, true)}><Check size={14} aria-hidden />{tx("C'est suffisant ainsi")}</button>}
+          {v.kept && <p className="mt-2 text-xs text-dim">{tx("Méthode actuelle gardée : {0}.", v.now)} <button type="button" className="text-link hover:underline" onClick={() => onAccept(m.ip, false)}>{tx("Revenir à la recommandation")}</button></p>}
           {v.others.length > 0 && <p className="mt-2 text-xs text-dim">
             {v.others.every((o) => o.active) ? tx("Déjà actif en complément :") : tx("Aussi possible :")}{" "}
             {v.others.map((o) => (o.active && !v.others.every((x) => x.active) ? `${o.label} (${tx("déjà actif")})` : o.label)).join(", ")}.</p>}
@@ -312,7 +320,8 @@ function Recap({ snap, onReview }: { snap: Snapshot; onReview: () => void }) {
   const [advice, setAdvice] = useState<Record<string, Advice> | null>(null);
   useEffect(() => { read<{ advice: Record<string, Advice> }>("machines/advice").then((r) => setAdvice(r.advice)).catch(() => undefined); }, [snap.data.generated]);
   if (!advice) return null;
-  const all = Object.entries(advice), views = all.map(([ip, a]) => describeAdvice(ip, a));
+  const live = new Set(snap.data.machine_list.filter(isActive).map((m) => m.ip));
+  const all = Object.entries(advice).filter(([ip]) => live.has(ip)), views = all.map(([ip, a]) => describeAdvice(ip, a));
   const how = (a: Advice) => a.current.includes("ssh") ? "ssh" : a.current.includes("agent") ? "agent" : a.current.includes("connector") ? "connector" : "ping";
   const count = (k: string) => all.filter(([, a]) => how(a) === k).length;
   const todo = views.filter((v) => v.status !== "ok").length;

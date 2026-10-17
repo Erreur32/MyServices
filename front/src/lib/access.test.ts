@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Advice } from "../types";
-import { RICHNESS, STATUS_RANK, describeAdvice, summary } from "./access";
+import { RICHNESS, STATUS_RANK, connectorsFor, describeAdvice, isActive, summary } from "./access";
 
 const adv = (o: Partial<Advice>): Advice => ({ kind: "linux", method: "ssh", why: "ssh_configured", current: [], alternatives: ["agent"], agent_possible: true, agent_kind: "linux", agent_state: null, ...o });
 
@@ -81,5 +81,27 @@ describe("recommandation de méthode de lecture : présentation", () => {
   it("autres méthodes : dit si elles sont déjà actives", () => {
     const v = describeAdvice("1.1.1.1", adv({ current: ["ssh", "connector"], alternatives: ["agent", "connector"] }));
     expect(v.others).toEqual([{ label: "un agent", active: false }, { label: "un connecteur", active: true }]);
+  });
+
+  it("seules les machines qui répondent sont à régler : une machine éteinte n'est pas proposée", () => {
+    expect(isActive({ ping: true })).toBe(true);
+    expect(isActive({ ping: false })).toBe(false);            // éteinte (même « souvent éteinte ») : SSH ne marcherait pas
+    expect(isActive({})).toBe(false);
+    expect(isActive({ ping: true, disabled: true })).toBe(false);
+  });
+
+  it("C'est suffisant ainsi : une machine à optimiser passe en place, pas une machine jamais lue", () => {
+    const optimize = adv({ current: ["connector"] });
+    expect(describeAdvice("1.1.1.1", optimize, true)).toMatchObject({ status: "ok", kept: true, action: null, explain: null, todo: null });
+    expect(describeAdvice("1.1.1.1", optimize, false)).toMatchObject({ status: "optimize", kept: false });
+    expect(describeAdvice("1.1.1.1", adv({ current: [] }), true)).toMatchObject({ status: "todo", kept: false });   // jamais lue : on ne peut pas « garder »
+  });
+
+  it("connecteurs proposés pour une box : le nom d'abord, puis les inventaires réseau", () => {
+    const types = [{ type: "nut", label: "Onduleur (NUT)", kinds: ["status"] }, { type: "unifi", label: "UniFi Network", kinds: ["status"] },
+                   { type: "mynetwork", label: "MynetworK", kinds: ["network"] }, { type: "beszel", label: "Beszel", kinds: ["health"] }];
+    expect(connectorsFor({ name: "UCG Fiber", role: "passerelle UniFi · DHCP" }, types).map((t) => t.type)).toEqual(["unifi", "mynetwork"]);
+    expect(connectorsFor({ name: "Freebox", icon: "freebox" }, types).map((t) => t.type)).toEqual(["mynetwork"]);
+    expect(connectorsFor({ name: "Autre" }, [types[3]])).toEqual([]);
   });
 });

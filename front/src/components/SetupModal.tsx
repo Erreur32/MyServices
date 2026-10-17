@@ -12,6 +12,7 @@ import { Overlay } from "./Overlay";
 import { SshGuide } from "./SshGuide";
 import { Dim } from "./ui";
 import { saveSshAlias } from "../lib/machineAccess";
+import { connectorsFor } from "../lib/access";
 import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import type { ConnectorsState, MachinesSettings, Proposal } from "../types";
@@ -60,20 +61,32 @@ function SshSetup({ ip, onClose }: { ip: string; onClose: () => void }) {
 
 /** Formulaire du connecteur de l'outil reconnu ; sans outil précis, les outils reconnus sur cette machine */
 function ConnectorSetup({ setup, snap, onClose }: { setup: Extract<Setup, { kind: "connector" }>; snap: Snapshot; onClose: () => void }) {
-  const [types, setTypes] = useState<ConnectorsState["types"] | null>(null), [picked, setPicked] = useState<Proposal | undefined>(setup.proposal);
+  const [types, setTypes] = useState<ConnectorsState["types"] | null>(null), [picked, setPicked] = useState<{ type: string; url: string } | undefined>(setup.proposal && { type: setup.proposal.connector, url: setup.proposal.url });
   useEffect(() => { read<ConnectorsState>("connectors/settings").then((c) => setTypes(c.types)).catch(() => setTypes([])); }, []);
   if (!types) return <Loading />;
-  const type = picked && types.find((t) => t.type === picked.connector);
+  const type = picked && types.find((t) => t.type === picked.type);
   if (picked && type) {
-    return <ConnectorForm type={type} prefill={{ type: picked.connector, name: picked.connector, url: picked.url }} hosts={snap.data.hosts} onDone={onClose} onCancel={onClose} />;
+    return <ConnectorForm type={type} prefill={{ type: picked.type, name: picked.type, url: picked.url }} hosts={snap.data.hosts} onDone={onClose} onCancel={onClose} />;
   }
-  const here = (snap.data.proposals ?? []).filter((p) => p.ip === setup.ip);
-  return here.length === 0
-    ? <p className="text-sm text-muted">{tx("Aucun outil reconnu sur cette machine. S'il en existe un (MynetworK, Beszel…), il se relie à l'étape « Relier vos outils ».")}</p>
-    : <ul className="flex flex-col gap-2">{here.map((p) => (
-        <li key={p.connector} className="flex items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2"><b className="text-sm">{p.label}</b>
-          <button type="button" className={`${quiet} ml-auto`} onClick={() => setPicked(p)}>{tx("Configurer")}</button></li>
-      ))}</ul>;
+  // Outils reconnus sur cette adresse (un clic, adresse déjà remplie), puis les outils qui savent lire ce genre d'équipement (box, passerelle…)
+  const m = snap.data.machine_list.find((x) => x.ip === setup.ip);
+  const seen = (snap.data.proposals ?? []).filter((p) => p.ip === setup.ip).map((p) => ({ type: p.connector, label: p.label, url: p.url, why: tx("reconnu sur cette machine") }));
+  const fits = connectorsFor(m ?? { name: setup.name }, types).filter((t) => !seen.some((s) => s.type === t.type))
+    .map((t) => ({ type: t.type, label: t.label, url: "", why: t.kinds.includes("network") ? tx("lit les équipements du réseau (box, bornes, passerelles)") : tx("adapté à cet équipement") }));
+  const list = [...seen, ...fits];
+  return list.length === 0
+    ? <p className="text-sm text-muted">{tx("Aucun connecteur adapté à cette machine.")}</p>
+    : (
+      <>
+        <p className="mb-3 text-sm text-muted">{tx("Un outil que vous utilisez déjà peut lire cette machine. Choisissez-le, MyServices demande ensuite son adresse et une clé en lecture seule.")}</p>
+        <ul className="flex flex-col gap-2">{list.map((c) => (
+          <li key={c.type} className="flex flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2">
+            <b className="text-sm">{c.label}</b><Dim>{c.why}</Dim>
+            <button type="button" className={`${quiet} ml-auto`} onClick={() => setPicked({ type: c.type, url: c.url })}>{tx("Configurer")}</button>
+          </li>
+        ))}</ul>
+      </>
+    );
 }
 
 /** Ajout manuel : IP, nom ou alias, détection, puis enregistrement */

@@ -8,22 +8,26 @@ import os
 from pathlib import Path
 
 STEPS = ("welcome", "machine", "network", "access", "tools", "alerts")
-EMPTY = {"current": "welcome", "done": [], "skipped": [], "host": ""}
+MAX_ACCEPTED = 500
+EMPTY = {"current": "welcome", "done": [], "skipped": [], "host": "", "accepted": []}
 
 
 def clean(raw) -> dict:
     """État propre depuis n'importe quelle valeur : étapes connues seulement, sans doublon, `host` = une adresse IP ou vide."""
     if not isinstance(raw, dict) or raw.get("current") not in STEPS:
-        return dict(EMPTY, done=[], skipped=[])
+        return dict(EMPTY, done=[], skipped=[], accepted=[])
     def steps(v):
         return [s for s in dict.fromkeys(v if isinstance(v, list) else []) if s in STEPS]
-    host = ""
-    try:
-        host = str(ipaddress.ip_address(str(raw.get("host") or "").strip())) if raw.get("host") else ""
-    except ValueError:
-        pass
+    def address(v) -> str:
+        try:
+            return str(ipaddress.ip_address(str(v or "").strip())) if v else ""
+        except ValueError:
+            return ""
     done = steps(raw.get("done"))
-    return {"current": raw["current"], "done": done, "skipped": [s for s in steps(raw.get("skipped")) if s not in done], "host": host}
+    # accepted : machines dont l'utilisateur a choisi de garder la méthode de lecture actuelle (« C'est suffisant ainsi »)
+    accepted = list(dict.fromkeys(a for a in map(address, raw.get("accepted") if isinstance(raw.get("accepted"), list) else []) if a))[:MAX_ACCEPTED]
+    return {"current": raw["current"], "done": done, "skipped": [s for s in steps(raw.get("skipped")) if s not in done], "host": address(raw.get("host")),
+            "accepted": accepted}
 
 
 def load(path: str | Path) -> dict | None:
