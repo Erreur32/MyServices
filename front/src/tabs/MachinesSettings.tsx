@@ -23,7 +23,6 @@ import { SshAccess, SshDetails } from "../components/ssh";
 import { freeboxOf } from "../lib/freebox";
 import { SourceBadges } from "../components/SourceBadges";
 import { focusConnector } from "../lib/connectorPrefill";
-import { ReadBySsh } from "../components/ReadBySsh";
 import { useWide } from "../lib/useWide";
 import { rolesOf, sshRisks } from "../lib/ssh";
 import { pokeScan } from "../lib/scan";
@@ -121,7 +120,6 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
           ? <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start gap-3">{[0, 1].map((c) => <div key={c} className="flex min-w-0 flex-col gap-3">{cards.filter((_, i) => i % 2 === c)}</div>)}</div>
           : <div className="flex flex-col gap-3">{cards}</div>;
       })()}
-      <ReadBySsh snap={snap} />
     </div>
   );
 }
