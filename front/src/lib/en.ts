@@ -20,6 +20,7 @@ export const EN: Record<string, string> = {
   "Lues par leur API ou un outil réseau, sans SSH": "Read by their API or a network tool, without SSH",
   "Déjà suivies par l'API d'un connecteur (Home Assistant…) ou un outil réseau (box, passerelle) : rien à régler, et pas d'agent possible.": "Already followed through a connector's API (Home Assistant…) or a network tool (box, gateway): nothing to set, and no agent possible.",
   "outil réseau": "network tool",
+  "Ouvrir ce connecteur": "Open this connector",
   "Afficher la valeur enregistrée (mot de passe du compte demandé)": "Show the saved value (your account password is asked)",
   "Votre mot de passe, pour afficher la valeur enregistrée :": "Your password, to show the saved value:",
   "Veille": "Watch",

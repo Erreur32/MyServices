@@ -2,7 +2,7 @@
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
 import { Check, ChevronRight, EyeOff, HelpCircle, Loader2, Package, Pencil, Play, Plug, Plus, RotateCcw, ScanSearch, Search, ShieldCheck, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Overlay } from "../components/Overlay";
 import { Copyable, Field, NoteLine, Switch } from "../components/form";
@@ -16,7 +16,7 @@ import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
 import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service } from "../types";
 import { configFor, modeOf } from "../lib/connectorModes";
-import { takePrefill, type Prefill } from "../lib/connectorPrefill";
+import { takeFocus, takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
 import { savedFor } from "../lib/savedFor";
 import { runningTip, stoppedTip } from "../lib/runState";
@@ -31,6 +31,7 @@ const KIND: Record<string, string> = {
 // Proposé depuis « Premiers pas » : lu une seule fois, à l'ouverture de l'onglet
 export function Connectors({ snap }: { snap: Snapshot }) {
   const [prefill] = useState(takePrefill);
+  const [focusKey] = useState(takeFocus);   // « type/nom » du connecteur à montrer (venu de Réglages → Agents)
   const [st, setSt] = useState<ConnectorsState | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
@@ -139,7 +140,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
         <InstanceCard key={`${i.type}/${i.name}`} inst={i} hosts={snap.data.hosts} collect={collect} type={st.types.find((t) => t.type === i.type)!} reload={reload}
           onCollect={(on) => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
             on ? tx("allumé : relecture lancée") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
-          editing={editing === `${i.type}/${i.name}`} locked={(!!editing && editing !== `${i.type}/${i.name}`) || picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
+          focus={focusKey === `${i.type}/${i.name}`} editing={editing === `${i.type}/${i.name}`} locked={(!!editing && editing !== `${i.type}/${i.name}`) || picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
       ))}
       <NoteLine note={srcNote} />
       {changed && (
@@ -313,14 +314,16 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
   );
 }
 
-function InstanceCard({ inst, hosts, collect, type, reload, onCollect, editing: edit, locked, setEditing: setEdit }: {
-  inst: ConnectorInstance; hosts: Host[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
+function InstanceCard({ inst, hosts, collect, type, reload, onCollect, focus, editing: edit, locked, setEditing: setEdit }: {
+  focus?: boolean; inst: ConnectorInstance; hosts: Host[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
 }) {
   const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null), [report, setReport] = useState<TestOut | null>(null), [testing, setTesting] = useState(false);
   const url = inst.config.url as string | undefined;
   const path = `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}`;
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (focus) box.current?.scrollIntoView({ block: "center" }); }, [focus]);
   return (
-    <div id={`connector-${inst.type}-${inst.name}`} className="scroll-mt-24"><Card className={`${inst.enabled ? "" : "opacity-80"} ${edit ? "!border-link ring-1 ring-link" : "!border-dim/50"}`}>
+    <div ref={box} id={`connector-${inst.type}-${inst.name}`} className="scroll-mt-24"><Card className={`${inst.enabled ? "" : "opacity-80"} ${edit || focus ? "!border-link ring-2 ring-link bg-link/10" : "!border-dim/50"}`}>
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         <div className="min-w-[220px] flex-1">
           <div className="flex flex-wrap items-center gap-2">

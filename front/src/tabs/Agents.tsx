@@ -10,6 +10,7 @@ import { Copyable, Field, NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
 import { cleanAgentUrl, installCommand } from "../lib/agentCommand";
 import { isWindowsMachine } from "../lib/machines";
+import { focusConnector } from "../lib/connectorPrefill";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
 import { dateTime, ipNum } from "../lib/format";
@@ -225,17 +226,24 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         hint={tx("Déjà suivies par l'API d'un connecteur (Home Assistant…) ou un outil réseau (box, passerelle) : rien à régler, et pas d'agent possible.")}>
         {byApi.map((ip) => {
           const lm = liveBy.get(ip), list = lm?.api ?? [];
+          // Connecteurs qui lisent la machine : ceux de l'API (Home Assistant…) puis les outils réseau rapprochés (MynetworK) ; chacun mène à sa carte
+          const via = new Map<string, { type: string; name: string; label: string }>();
+          for (const a of list) via.set(`${a.type}/${a.name}`, { type: a.type, name: a.name, label: a.label });
+          for (const x of lm?.links?.sources ?? []) if (x.ok !== false && !via.has(`${x.source}/${x.instance}`)) via.set(`${x.source}/${x.instance}`, { type: x.source, name: x.instance, label: x.label });
           return (
-            <li key={ip}>
-              <a href="#settings/connectors" className="flex h-full items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 transition-colors hover:border-link hover:bg-link/10"
-                title={list.map((a) => `${a.label} (${a.name}) : ${a.message ?? ""}`).join("\n")}>
-                <MachineIcon m={{ role: liveBy.get(ip)?.role, icon: liveBy.get(ip)?.icon, name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
-                <span className="min-w-0 flex-1">
-                  <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
-                  <span className="block truncate text-xs text-dim">{ip} · {list.length ? list.map((a) => a.label).join(", ") : tx("outil réseau")}</span>
+            <li key={ip} className="flex h-full flex-wrap items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3" title={list.map((a) => `${a.label} (${a.name}) : ${a.message ?? ""}`).join("\n") || undefined}>
+              <MachineIcon m={{ role: liveBy.get(ip)?.role, icon: liveBy.get(ip)?.icon, name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
+              <span className="min-w-0 flex-1">
+                <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
+                <span className="flex flex-wrap items-center gap-1 text-xs text-dim">{ip} ·
+                  {[...via.values()].map((c) => (
+                    <a key={`${c.type}/${c.name}`} href="#settings/connectors" onClick={() => focusConnector(c.type, c.name)} title={tx("Ouvrir ce connecteur")}
+                      className="rounded-full border border-link/60 px-2 py-0.5 font-semibold text-link hover:bg-link/10">{c.label}</a>
+                  ))}
+                  {via.size === 0 && <a href="#settings/connectors" className="rounded-full border border-link/60 px-2 py-0.5 font-semibold text-link hover:bg-link/10">{tx("outil réseau")}</a>}
                 </span>
-                {badge(ip)}
-              </a>
+              </span>
+              {badge(ip)}
             </li>
           );
         })}
