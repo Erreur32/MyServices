@@ -99,7 +99,7 @@ A machine can be followed in three ways, which can be combined. The first source
 
 1. **MyServices itself**, nothing else to install:
    - **SSH** (Linux): MyServices connects with its **own key** (shown in Settings -> SSH key) and reads health, Docker, listening services and web servers. The key is never sent anywhere; you authorize it on each machine with one command. A dedicated non-root account in the `docker` and `adm` groups is the safest.
-   - **Agent** (Windows): a small read-only PowerShell script, installed as a scheduled task, sends the PC's own health, disks, ports, services, hardware and Docker containers. Nothing to open on the PC.
+   - **Agent** (Windows or Linux): a small read-only script (PowerShell as a scheduled task, or Python as a systemd timer) sends the machine's own health, disks, ports, services, hardware and Docker containers. Nothing to open on the PC.
 2. **External services already on your network** (connectors): if you already run Beszel, Proxmox, Uptime Kuma, MynetworK… MyServices reads their API with a read-only key. Nothing is installed on the machine.
 3. **Ping and network scan**: only tell whether a machine is up and which apps answer on it. The first scan of your local network runs on its own, then repeats at the frequency you set. In manual mode you choose which machines to follow; in automatic mode the useful ones are added for you.
 
@@ -127,7 +127,7 @@ The Windows agent is one small script. The table lists what it reads on a PC and
 | Presence: on, asleep or silent | ✅ (the agent reports itself) | Uptime Kuma (ping or port), MynetworK |
 | Installation | One script, one scheduled task, one outgoing connection to MyServices | One service per tool, its own account or key, a port to open on the network |
 
-For Linux machines, the same information comes from SSH, with nothing to install on the machine.
+For Linux machines, the same information comes from SSH, with nothing to install on the machine, or from the Linux agent (Python 3.6+, systemd) when SSH is not an option: pick **Linux** when creating the agent in Settings -> Agents, then paste the command in a terminal on the machine.
 
 </details>
 

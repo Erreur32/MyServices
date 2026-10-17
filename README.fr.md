@@ -99,7 +99,7 @@ Une machine peut être suivie de trois façons, qui se combinent. La première s
 
 1. **MyServices lui-même**, rien d'autre à installer :
    - **SSH** (Linux) : MyServices se connecte avec **sa propre clé** (montrée dans Réglages -> Clé SSH) et lit la santé, Docker, les services en écoute et les serveurs web. Vous l'autorisez sur chaque machine avec une commande. Un compte dédié non root, dans les groupes `docker` et `adm`, est le plus sûr.
-   - **Agent** (Windows) : un petit script PowerShell en lecture seule, installé en tâche planifiée, envoie la santé du PC, ses disques, ses ports, ses services, son matériel et ses conteneurs Docker. Rien à ouvrir côté PC.
+   - **Agent** (Windows ou Linux) : un petit script en lecture seule (PowerShell en tâche planifiée, ou Python en minuteur systemd) envoie la santé de la machine, ses disques, ses ports, ses services, son matériel et ses conteneurs Docker. Rien à ouvrir côté PC.
 2. **Services externes déjà installés sur le réseau** (connecteurs) : si vous faites déjà tourner Beszel, Proxmox, Uptime Kuma, MynetworK… MyServices lit leur API avec une clé en lecture seule. Rien n'est installé sur la machine.
 3. **Ping et recherche réseau** : indiquent seulement si une machine est allumée et quelles applis y répondent. La première recherche sur le réseau local se lance toute seule, puis se répète à la fréquence choisie. En mode manuel, vous choisissez les machines à suivre ; en mode automatique, les plus utiles sont ajoutées pour vous.
 

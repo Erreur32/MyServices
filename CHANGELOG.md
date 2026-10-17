@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+
+- Linux agent: a Python 3 script (3.6+) and a `install.sh` installer (systemd timer, dedicated read-only account). It runs the same
+  commands as the SSH collectors and the server replays the outputs through the existing parsers, so there is no second set of rules.
+  Settings -> Agents lets you pick Windows or Linux when creating an agent and shows the matching one-line command; Linux machines
+  with no SSH and no API are now offered in "Without agent". Each agent type has its own version, checksum and update path.
+
 ## v0.11.13 (2026-10-13)
 
 > **Live but early-stage: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

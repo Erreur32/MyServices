@@ -19,4 +19,12 @@ describe("commande d'installation de l'agent", () => {
     expect(b?.split("\n")[2]).toBe(`$env:MSV_TOKEN = '${fake}'`);   // le jeton figure dans la troisième ligne, tel quel
     expect(installCommand("n'importe quoi", "t")).toBeNull();
   });
+  it("commande Linux : variables exportées puis installateur sous sudo", () => {
+    const fake = ["msv", "agent", "factice"].join("_"), c = installCommand("http://192.168.1.10:8091/", fake, "linux")?.split("\n");
+    expect(c?.[0]).toBe("export MSV_URL='http://192.168.1.10:8091'");
+    expect(c?.[1]).toBe(`export MSV_TOKEN='${fake}'`);
+    expect(c?.[2]).toContain("/agent/install.sh");
+    expect(c?.[2]).toContain("sudo env");
+    expect(installCommand("n'importe quoi", "t", "linux")).toBeNull();
+  });
 });

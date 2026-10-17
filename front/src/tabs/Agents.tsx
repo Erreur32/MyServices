@@ -40,8 +40,9 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   const [url, setUrl] = useState(location.origin);
   const [created, setCreated] = useState<{ info: AgentInfo; token: string } | null>(null);  // jeton gardé en mémoire de la page seulement
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState("");
-  const command = created ? installCommand(url, created.token) : null;  // suit le champ « Adresse de MyServices » même après la création
-  const [pick, setPick] = useState("");  // PC Windows choisi, en attente de confirmation (rien n'est créé avant)
+  const command = created ? installCommand(url, created.token, created.info.kind) : null;  // suit le champ « Adresse de MyServices » même après la création
+  const [pick, setPick] = useState("");  // machine choisie, en attente de confirmation (rien n'est créé avant)
+  const [pickKind, setPickKind] = useState<"windows" | "linux" | null>(null);  // type choisi à la main ; null = celui que la machine laisse supposer
   const reload = useCallback(() => {
     read<AgentsState>("agents")
       .then((s) => { setSt(s); setError(""); })
@@ -65,8 +66,8 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   const revoked = st.agents.filter((a) => a.state === "révoqué");
   const sorted = (ips: string[]) => ips.sort((a, b) => ipNum(a) - ipNum(b));
   const liveBy = new Map(live.map((m) => [m.ip, m]));
-  // L'agent est un script PowerShell : il ne concerne que Windows (réglage « windows » ou système probable : TTL, scan). Une machine
-  // qui n'est pas Windows se lit par SSH ; sans SSH, il lui faut d'abord un accès (réglage de la machine).
+  // Deux agents : script PowerShell (Windows) ou Python (Linux). Windows = réglage « windows » ou système probable (TTL, scan) ; le reste
+  // est proposé en Linux. Une machine Linux avec SSH se lit déjà par SSH ; sans SSH ni API, l'agent Linux est la voie.
   const isWindows = (ip: string) => isWindowsMachine(machines[ip], liveBy.get(ip), byIp.has(ip));
   const tracked = Object.keys(machines).filter((ip) => !byIp.has(ip) && !machines[ip].disabled);
   const withAgent = sorted([...byIp.keys()]);
@@ -76,9 +77,10 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   // SSH réel : réglé sur la machine, ou trouvé par la collecte (alias de ~/.ssh/config pour cette adresse), comme le badge « SSH OK »
   const sshAlias = (ip: string) => machines[ip].ssh === false ? "" : machines[ip].ssh || liveBy.get(ip)?.ssh?.alias || "";   // coupé à la main : pas de SSH
   const byApi = sorted(tracked.filter((ip) => !sshAlias(ip) && stateOf(ip) === "api"));      // lues par une API, sans SSH
-  const without = sorted(tracked.filter((ip) => isWindows(ip) && !sshAlias(ip) && !byApi.includes(ip)));   // PC Windows sans agent
+  const without = sorted(tracked.filter((ip) => !sshAlias(ip) && !byApi.includes(ip)));   // sans agent, sans SSH, sans API : agent Windows ou Linux
   const ssh = sorted(tracked.filter((ip) => !isWindows(ip) && !!sshAlias(ip)));               // Linux lus par SSH
-  const noAccess = sorted(tracked.filter((ip) => !isWindows(ip) && !sshAlias(ip) && !byApi.includes(ip)));   // ni agent possible, ni SSH, ni API
+  const kindOf = (ip: string): "windows" | "linux" => (isWindows(ip) ? "windows" : "linux");
+  const chosen = pickKind ?? (pick ? kindOf(pick) : "windows");
   const local = /^https?:\/\/(localhost|127\.|\[::1\])/i.test(url);
 
   const addressField = (
@@ -93,11 +95,11 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
     </div>
   );
 
-  const create = async (ip: string) => {
+  const create = async (ip: string, kind: "windows" | "linux") => {
     setBusy(ip); setNote(null);
     try {
-      setCreated(await send<{ info: AgentInfo; token: string }>("POST", "agents", { ip, name: agentName(machines[ip]?.name ?? ip), url }));
-      setPick("");
+      setCreated(await send<{ info: AgentInfo; token: string }>("POST", "agents", { ip, name: agentName(machines[ip]?.name ?? ip), url, kind }));
+      setPick(""); setPickKind(null);
       reload();
     } catch (err) {
       if (err instanceof LoginRequired) location.replace(LOGIN);
@@ -111,7 +113,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
       <Card>
         <h2 className="flex items-center gap-2 font-bold"><MonitorUp size={16} />{tx("Accès aux machines")} <Count n={withAgent.length} /><Dim>{tx("agents")}</Dim><Count n={ssh.length} /><Dim>SSH</Dim></h2>
         <p className="mt-1 text-sm text-muted">
-          {tx("Deux façons de lire la santé d'une machine, toujours en lecture seule.")} <b className="text-txt">{tx("Agent")}</b> {tx(": un petit script PowerShell installé sur un PC Windows, qui envoie lui-même sa santé à MyServices (disques, services, processeur, mémoire, mises à jour, journal) ; pas de SSH à ouvrir, et un PC souvent éteint se signale dès qu'il se rallume.")}{" "}
+          {tx("Deux façons de lire la santé d'une machine, toujours en lecture seule.")} <b className="text-txt">{tx("Agent")}</b> {tx(": un petit script (PowerShell sur un PC Windows, Python sur une machine Linux), installé sur la machine, qui envoie lui-même sa santé à MyServices (disques, services, processeur, mémoire, mises à jour, journal) ; pas de SSH à ouvrir, et un PC souvent éteint se signale dès qu'il se rallume.")}{" "}
           <b className="text-txt">SSH</b> {tx(": pour les machines Linux, MyServices s'y connecte avec sa clé (santé, Docker, services en écoute).")}
         </p>
         <NoteLine note={note} />
@@ -129,11 +131,13 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
           </div>
           {!folded && <div className="mt-2">
             <p className="mb-2 text-sm text-warn">{tx("À copier maintenant : le jeton qu'elle contient ne sera plus jamais affiché.")}</p>
-            <p className="mb-2 text-sm text-muted">{tx("Sur le PC, ouvrez PowerShell en administrateur (clic droit → Exécuter en tant qu'administrateur) et collez :")}</p>
+            <p className="mb-2 text-sm text-muted">{created.info.kind === "linux" ? tx("Sur la machine, ouvrez un terminal (compte avec sudo) et collez :") : tx("Sur le PC, ouvrez PowerShell en administrateur (clic droit → Exécuter en tant qu'administrateur) et collez :")}</p>
             {command ? <Copyable key={command} text={command} />
               : <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{tx("Adresse de MyServices invalide : http://hôte:port, sans chemin. Corrigez-la ci-dessous, la commande se met à jour.")}</p>}
             {!command && addressField}
-            <p className="mt-2 text-xs text-dim">{tx("L'installation crée une tâche planifiée (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur le PC relancer la commande avec MSV_UNINSTALL = '1'.")}</p>
+            <p className="mt-2 text-xs text-dim">{created.info.kind === "linux"
+              ? tx("L'installation crée un minuteur systemd (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur la machine relancer la commande avec MSV_UNINSTALL=1.")
+              : tx("L'installation crée une tâche planifiée (au démarrage, puis toutes les 15 min) et envoie un premier relevé. Pour retirer l'agent : révoquer ici, puis sur le PC relancer la commande avec MSV_UNINSTALL = '1'.")}</p>
             {(() => {  // confirmation côté MyServices : la page relit les agents toutes les 5 s tant qu'un premier relevé est attendu
               const seen = st.agents.find((x) => x.id === created.info.id);
               return seen?.last_seen
@@ -153,24 +157,33 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
       {pick && machines[pick] && (
         <Card className="border-link/60">
           <h2 className="mb-1 flex items-center gap-2 font-bold"><Download size={16} aria-hidden />{tx("Installer l'agent sur")} {machines[pick].name} <Dim>· {pick}</Dim></h2>
-          <p className="text-sm text-muted">{tx("L'agent est un script PowerShell pour Windows, en lecture seule. « Créer l'agent » génère son jeton (montré une seule fois) et la commande à coller dans un PowerShell administrateur du PC.")}</p>
+          <p className="text-sm text-muted">{chosen === "linux"
+            ? tx("L'agent Linux est un script Python, en lecture seule. « Créer l'agent » génère son jeton (montré une seule fois) et la commande à coller dans un terminal de la machine (avec sudo).")
+            : tx("L'agent est un script PowerShell pour Windows, en lecture seule. « Créer l'agent » génère son jeton (montré une seule fois) et la commande à coller dans un PowerShell administrateur du PC.")}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label={tx("Type d'agent")}>
+            {(["windows", "linux"] as const).map((k) => (
+              <button key={k} type="button" aria-pressed={chosen === k} onClick={() => setPickKind(k)}
+                className={`inline-flex h-8 items-center rounded-lg border px-3 text-sm font-semibold ${chosen === k ? "border-link bg-link/10 text-txt" : "border-line bg-bg2 text-muted hover:border-link"}`}>{k === "windows" ? "Windows" : "Linux"}</button>
+            ))}
+            {chosen === "linux" && <a href={`#settings/machines/${pick}`} className="text-xs text-link underline">{tx("ou régler l'accès SSH de cette machine")}</a>}
+          </div>
           {addressField}
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" className={primary} disabled={!!busy || !url} onClick={() => void create(pick)}><Plus size={14} />{tx("Créer l'agent")}</button>
-            <button type="button" className={quiet} onClick={() => setPick("")}>{tx("Annuler")}</button>
+            <button type="button" className={primary} disabled={!!busy || !url} onClick={() => void create(pick, chosen)}><Plus size={14} />{tx("Créer l'agent")}</button>
+            <button type="button" className={quiet} onClick={() => { setPick(""); setPickKind(null); }}>{tx("Annuler")}</button>
           </div>
         </Card>
       )}
 
       <Group title={tx("Avec un agent")} n={withAgent.length} fold rows>
-        {withAgent.map((ip) => <ActiveCard key={ip} a={byIp.get(ip)!} conf={machines[ip]} ip={ip} focus={ip === focusIp} busy={busy === ip} onRenew={isWindows(ip) ? () => void create(ip) : undefined} reload={reload} />)}
+        {withAgent.map((ip) => <ActiveCard key={ip} a={byIp.get(ip)!} conf={machines[ip]} ip={ip} focus={ip === focusIp} busy={busy === ip} onRenew={() => void create(ip, byIp.get(ip)?.kind ?? kindOf(ip))} reload={reload} />)}
       </Group>
 
       <Group title={tx("Sans agent")} fold n={without.length}
-        hint={tx("PC Windows seulement. Cliquez sur un PC pour préparer son agent : rien n'est créé avant que vous confirmiez.")}>
+        hint={tx("Cliquez sur une machine pour préparer son agent : rien n'est créé avant que vous confirmiez.")}>
         {without.map((ip) => (
           <li key={ip}>
-            <button type="button" disabled={!!busy} onClick={() => setPick(pick === ip ? "" : ip)} aria-pressed={pick === ip}
+            <button type="button" disabled={!!busy} onClick={() => { setPick(pick === ip ? "" : ip); setPickKind(null); }} aria-pressed={pick === ip}
               className={`flex h-full w-full items-center gap-3 rounded-xl border bg-bg2 p-3 text-left transition-colors hover:border-link hover:bg-link/10 disabled:opacity-60 ${pick === ip || ip === focusIp ? "border-link bg-link/10 ring-1 ring-link" : "border-dim/50"}`}>
               <MachineIcon m={{ role: liveBy.get(ip)?.role, icon: liveBy.get(ip)?.icon, name: machines[ip].name, os: machines[ip].os, osName: liveBy.get(ip)?.agent?.os }} reserve />
               <span className="min-w-0 flex-1">
@@ -189,8 +202,8 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         {ssh.map((ip) => {
           const lm = liveBy.get(ip);
           return (
-            <li key={ip}>
-              <a href={`#settings/machines/${ip}`} className="flex h-full items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 transition-colors hover:border-link hover:bg-link/10">
+            <li key={ip} className="flex items-center gap-2">
+              <a href={`#settings/machines/${ip}`} className="flex h-full min-w-0 flex-1 items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 transition-colors hover:border-link hover:bg-link/10">
                 <MachineIcon m={{ role: liveBy.get(ip)?.role, icon: liveBy.get(ip)?.icon, name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
                 <span className="min-w-0 flex-1">
                   <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
@@ -198,6 +211,8 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
                 </span>
                 {badge(ip)}
               </a>
+              <button type="button" disabled={!!busy} className={quiet} title={tx("Préparer un agent Linux pour cette machine, à la place du SSH")}
+                onClick={() => { setPick(ip); setPickKind("linux"); window.scrollTo({ top: 0, behavior: "smooth" }); }}><Plus size={14} />{tx("Agent")}</button>
             </li>
           );
         })}
@@ -223,26 +238,10 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         })}
       </Group>
 
-      <Group title={tx("Sans accès : à régler")} fold n={noAccess.length}
-        hint={tx("Ni agent possible (pas un PC Windows), ni SSH, ni API : activez l'accès SSH dans les réglages de la machine.")}>
-        {noAccess.map((ip) => (
-          <li key={ip}>
-            <a href={`#settings/machines/${ip}`} className="flex h-full items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 transition-colors hover:border-link hover:bg-link/10">
-              <MachineIcon m={{ role: liveBy.get(ip)?.role, icon: liveBy.get(ip)?.icon, name: machines[ip].name, os: machines[ip].os, info: liveBy.get(ip)?.info, ttl: liveBy.get(ip)?.ttl, osName: liveBy.get(ip)?.info?.os ?? liveBy.get(ip)?.agent?.os }} reserve />
-              <span className="min-w-0 flex-1">
-                <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
-                <span className="block truncate text-xs text-dim">{ip}{machines[ip].off ? ` · ${tx("souvent éteinte")}` : ""}</span>
-              </span>
-              {badge(ip) ?? <Badge tone="warn">{tx("Régler l'accès SSH")}</Badge>}
-            </a>
-          </li>
-        ))}
-      </Group>
-
       <Group title={tx("Agents révoqués")} n={revoked.length} fold folded
         hint={tx("Leur jeton ne marche plus. « Nouvel agent » en crée un autre pour ce PC ; « Supprimer » les retire de la liste pour de bon.")}>
         {revoked.map((a) => <RevokedCard key={a.id} a={a} conf={machines[a.ip]} ip={a.ip} busy={busy === a.ip}
-          onNew={isWindows(a.ip) ? () => void create(a.ip) : undefined} reload={reload} />)}
+          onNew={() => void create(a.ip, a.kind ?? kindOf(a.ip))} reload={reload} />)}
       </Group>
     </div>
   );
@@ -290,7 +289,7 @@ const iconBtn = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounde
  *  dernier relevé, fréquence, jeton, état, puis des boutons-icônes : mise à jour automatique, mettre à jour maintenant, nouvelle commande, révoquer.
  *  Mise à jour : l'agent vient chercher le nouveau script à son prochain relevé (au plus tard dans son intervalle), rien n'est poussé vers le PC. */
 function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
-  a: AgentInfo; conf?: MachineConf; ip: string; focus: boolean; busy: boolean; onRenew?: () => void; reload: () => void;  // onRenew : seulement pour un PC Windows (la commande est PowerShell)
+  a: AgentInfo; conf?: MachineConf; ip: string; focus: boolean; busy: boolean; onRenew?: () => void; reload: () => void;
 }) {
   const [confirm, setConfirm] = useState<"" | "renew" | "revoke">(""), [note, setNote] = useState<Note>(null), [upBusy, setUpBusy] = useState(false);
   const [tone, label] = STATE[a.state];
@@ -300,7 +299,7 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
     <li className={`rounded-xl border bg-card px-3 py-2 text-sm ${focus || attention ? "border-link ring-1 ring-link" : "border-dim/50"}`}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 lg:grid lg:grid-cols-[minmax(13rem,1.6fr)_11rem_7rem_4.5rem_9.5rem_7.5rem_8rem_7.5rem_10rem] lg:gap-x-3">
         <span className="flex min-w-[12rem] flex-1 items-center gap-2 lg:flex-none">
-          <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? "windows", osName: a.os }} reserve />
+          <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? a.kind ?? "windows", osName: a.os }} reserve />
           <b className="truncate">{conf?.name ?? a.name}</b>
           <span className="truncate text-xs text-dim">{ip}</span>
         </span>
@@ -355,7 +354,7 @@ function RevokedCard({ a, conf, ip, busy, onNew, reload }: { a: AgentInfo; conf?
   return (
     <li className="flex flex-col gap-2 rounded-xl border border-dim/50 bg-card/60 p-3 text-sm">
       <div className="flex items-center gap-3">
-        <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? "windows", osName: a.os }} reserve />
+        <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? a.kind ?? "windows", osName: a.os }} reserve />
         <span className="min-w-0 flex-1">
           <b className="block truncate">{conf?.name ?? a.name}</b>
           <span className="block truncate text-xs text-dim">{ip}</span>
