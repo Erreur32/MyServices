@@ -22,14 +22,20 @@ const EXPO: Record<string, [Tone, string, string]> = {
   public: ["info", tx("🌍 public"), tx("Ouvert à Internet volontairement : le site est déclaré public, sans liste d'accès.")],
   ouvert: ["bad", tx("⚠ ouvert ?"), tx("Ni liste d'accès ni déclaration « public » : le site est peut-être joignable depuis Internet sans aucune restriction. À vérifier.")],
 };
+/** Every real domain of a service: its NPM domains, or the ones its Apache / nginx declares */
+const declaredDomains = (r: Host): string[] => (r.domains.length ? r.domains : r.vhost_domains ?? []);
+const domainSource = (r: Host) => (r.domains.length ? "NPM" : r.vhost_server === "nginx" ? "nginx" : "Apache");
 const hostIp = (r: Host) => r.host_ip || r.ip || r.target_ip || "";
 const keyOfRow = (r: Host) => `${r.type}${r.id}`;
 
+/** Coloured left edge of an opened machine group (header and rows) */
+const OPEN_EDGE = "border-l-[3px] border-l-link";
+
 const GROUP_KEY = "myservices.services.byMachine";
 
-/** « Grouper par machine » is remembered in this browser only; the page works without it */
+/** « Grouper par machine » is on by default, remembered in this browser only; the page works without it */
 function useGrouped(): [boolean, (on: boolean) => void] {
-  const [on, setOn] = useState(() => { try { return localStorage.getItem(GROUP_KEY) === "1"; } catch { return false; } });
+  const [on, setOn] = useState(() => { try { return localStorage.getItem(GROUP_KEY) !== "0"; } catch { return true; } });
   const set = (v: boolean) => { setOn(v); try { localStorage.setItem(GROUP_KEY, v ? "1" : "0"); } catch { /* navigation privée : tant pis */ } };
   return [on, set];
 }
@@ -68,11 +74,12 @@ function Name({ r }: { r: Host }) {
 
 /** Icon-only marks next to the state, in fixed slots so they line up from row to row: exposure (private, public, open) and SSL */
 function Marks({ r }: { r: Host }) {
-  const e = exposure(r), risk = sslRisk(r);
-  const slot = "inline-flex w-6 justify-center";
+  const e = exposure(r), risk = sslRisk(r), domains = declaredDomains(r);
+  const slot = "inline-flex w-7 justify-center";
   return (
     <>
       <span className={slot}>{e && <Badge tone={EXPO[e][0]} title={`${EXPO[e][1].replace(/^\S+\s/, "")}\n${EXPO[e][2]}`}>{EXPO[e][1].split(" ")[0]}</Badge>}</span>
+      <span className={slot}>{domains.length > 0 && <Badge tone="info" title={`${tx("Domaines déclarés ({0})", domainSource(r))}\n${domains.join("\n")}`}>🌐</Badge>}</span>
       <span className={slot}>{risk && <Badge tone={r.ssl ? "warn" : "bad"} title={`${risk}\n${tx("Ouvrez la fiche pour le détail de l'accès.")}`}>🔓</Badge>}</span>
     </>
   );
@@ -83,9 +90,9 @@ function State({ r, ck }: { r: Host; ck: Check[] }) {
   const [cls, label, why] = status(r);
   const flags = ck.filter((k) => !CLEANUP.includes(k)).map((k) => `⚑ ${CHECK[k][0]}`);
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className="inline-flex w-28 shrink-0"><Badge tone={ST_TONE[cls]} title={[label, why, ...flags].filter(Boolean).join("\n")}>{label}{flags.length > 0 && <span className="ml-1">⚑</span>}</Badge></span>
+    <span className="inline-flex items-center gap-1">
       <Marks r={r} />
+      <Badge tone={ST_TONE[cls]} title={[label, why, ...flags].filter(Boolean).join("\n")}>{label}{flags.length > 0 && <span className="ml-1">⚑</span>}</Badge>
     </span>
   );
 }
@@ -133,9 +140,10 @@ function groupByMachine(rows: Host[]): { name: string; ip: string; rows: Host[] 
 function GroupHeader({ g, folded, onToggle, cols }: { g: { name: string; ip: string; rows: Host[] }; folded: boolean; onToggle: () => void; cols: number }) {
   const count = (c: string) => g.rows.filter((r) => status(r)[0] === c).length;
   return (
-    <tr onClick={onToggle} className="cursor-pointer bg-bg2/70 hover:bg-bg2">
-      <td colSpan={cols} className="px-3 py-2">
-        <span className="flex flex-wrap items-center gap-2">
+    <tr onClick={onToggle} className={`cursor-pointer hover:bg-bg2 ${folded ? "bg-bg2/70" : "bg-link/15"}`}>
+      <td colSpan={cols} className={`p-0 ${folded ? "" : OPEN_EDGE}`}>
+        {/* width 0 + min-width 100%: the title adds nothing to the column widths, so the columns below keep their own size */}
+        <span className="flex w-0 min-w-full flex-wrap items-center gap-2 px-3 py-2">
           {folded ? <ChevronRight size={15} className="text-dim" aria-hidden /> : <ChevronDown size={15} className="text-dim" aria-hidden />}
           <Server size={15} className="text-link" aria-hidden /><b>{g.name}</b>{g.ip && g.ip !== g.name && <Dim>{g.ip}</Dim>}
           <Badge tone="off">{g.rows.length}</Badge>
@@ -147,17 +155,17 @@ function GroupHeader({ g, folded, onToggle, cols }: { g: { name: string; ip: str
   );
 }
 
-function ServiceRow({ r, grouped, onOpen }: { r: Host; grouped: boolean; onOpen: () => void }) {
+function ServiceRow({ r, grouped, onOpen }: { r: Host; grouped: boolean; onOpen: () => void }) {   // grouped: the rows of an opened group sit on a darker background with a coloured edge
   return (
-    <tr onClick={onOpen} className={`cursor-pointer hover:bg-bg2/60 ${r.enabled ? "" : "opacity-60"}`}>
-      <td className="w-12 min-w-12 px-2 py-2.5 align-middle"><ServiceLogo r={r} /></td>
-      <Td className="w-[1%] whitespace-nowrap"><State r={r} ck={checks(r)} /></Td>
-      <Td><Name r={r} /></Td>
-      <Td className="whitespace-nowrap font-mono text-xs text-muted">
+    <tr onClick={onOpen} className={`cursor-pointer ${grouped ? "bg-bg/60 hover:bg-bg2/60" : "hover:bg-bg2/60"} ${r.enabled ? "" : "opacity-60"}`}>
+      <td className={`w-10 min-w-10 px-1.5 py-2.5 align-middle ${grouped ? `${OPEN_EDGE} !pl-14` : ""}`}><ServiceLogo r={r} /></td>
+      <Td className="align-middle whitespace-nowrap"><State r={r} ck={checks(r)} /></Td>
+      <Td className="overflow-hidden !pl-10 align-middle"><Name r={r} /></Td>
+      <Td className="overflow-hidden whitespace-nowrap !pl-6 align-middle font-mono text-xs text-muted">
         {r.type === "redirect" ? `→ ${r.target}` : r.type === "dead" ? tx("aucune (404)") : `${r.ip}:${r.port}`}
       </Td>
-      {!grouped && <Td>{r.machine ? <><b className="font-medium">{r.machine}</b>{r.category && <span className="block text-xs text-dim">{r.category}</span>}</> : <Dim>-</Dim>}</Td>}
-      <Td><Tech r={r} /></Td>
+      {!grouped && <Td className="!pl-6 align-middle">{r.machine ? <><b className="font-medium">{r.machine}</b>{r.category && <span className="block text-xs text-dim">{r.category}</span>}</> : <Dim>-</Dim>}</Td>}
+      <Td className="overflow-hidden !pl-6 align-middle"><Tech r={r} /></Td>
     </tr>
   );
 }
@@ -169,6 +177,8 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
     { key: "src", label: tx("Source"), get: (r) => (r.type === "local" ? "local" : "npm"), name: (v) => (v === "npm" ? "NPM" : tx("Services")), order: ["npm", "local"],
       mark: (v) => (v === "npm" ? <Logo src={`${import.meta.env.BASE_URL}icons/nginx-proxy-manager.svg`} /> : <Dot tone="info" />) },
     { key: "status", label: tx("État"), get: (r) => status(r)[0], name: (v) => ST_NAME[v] || v, order: ["bad", "warn", "ok", "off"], mark: (v) => <Dot tone={v as Tone} /> },
+    { key: "domain", label: tx("Domaine"), get: (r) => (declaredDomains(r).length ? "with" : "without"), name: (v) => (v === "with" ? tx("avec domaine") : tx("sans domaine")), order: ["with", "without"],
+      mark: (v) => <Dot tone={v === "with" ? "info" : "off"} /> },
     { key: "check", label: tx("À vérifier"), get: (r) => checks(r), name: (v) => CHECK[v as Check]?.[0] || v, mark: (v) => <Dot tone={CLEANUP.includes(v as Check) ? "off" : "warn"} /> },
     { key: "machine", label: tx("Machine"), get: (r) => hostIp(r), name: (v) => machines.get(v) || v },
     { key: "cat", label: tx("Catégorie"), get: (r) => r.category || "" },
@@ -177,7 +187,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
       mark: (v) => (KIND_LOGO.has(v) ? <Logo src={`${import.meta.env.BASE_URL}icons/${v}.svg`} /> : null) },
   ], [machines]);
   const text = useCallback((r: Host) => [
-    ...r.domains, r.name, r.ip, r.port, r.target, r.machine, r.category, r.service?.name, r.service?.image, r.service?.title, r.description,
+    ...declaredDomains(r), r.name, r.ip, r.port, r.target, r.machine, r.category, r.service?.name, r.service?.image, r.service?.title, r.description,
   ].join(" "), []);
   // Tout s'affiche par défaut, les pannes d'abord (tri par état) ; un filtre demandé ailleurs (compteur de l'accueil, machine) est gardé tel quel
   const f = useFilter(snap.data.hosts, facets, text, initial);
@@ -197,15 +207,15 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
 
   return (
     <div className="py-1">
-      <FilterBar f={f} primary={["status", "machine"]} placeholder={tx("Domaine, IP, port, conteneur, image…")}
+      <FilterBar f={f} primary={["status", "domain", "machine"]} placeholder={tx("Domaine, IP, port, conteneur, image…")}
         extra={<button type="button" onClick={() => setGrouped(!grouped)} aria-pressed={grouped} title={tx("Regrouper les services sous le nom de leur machine")}
           className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-colors ${grouped ? "border-link bg-link/15 text-txt" : "border-line text-link hover:bg-link/10"}`}>
           <Server size={14} aria-hidden />{tx("Par machine")}</button>} />
       {sort.sorted.length === 0 ? <Empty>{tx("Aucun service pour ce filtre.")}</Empty> : (
         <>
-          <Table head={<>
-            <Th className="w-12 min-w-12 !px-2" /><Th k="status" sort={sort}>{tx("État")}</Th><Th k="name" sort={sort} className="w-[34%]">{tx("Service")}</Th><Th k="target" sort={sort} className="w-[15%]">{tx("Cible")}</Th>
-            {!grouped && <Th k="machine" sort={sort} className="w-[17%]">{tx("Machine")}</Th>}<Th k="kind" sort={sort} className="w-[24%]">{tx("Logiciel")}</Th>
+          <Table fixed head={<>
+            <Th className={grouped ? "w-24 !px-1.5" : "w-10 !px-1.5"} /><Th k="status" sort={sort} className="w-44">{tx("État")}</Th><Th k="name" sort={sort} className="w-[30%] !pl-10">{tx("Service")}</Th><Th k="target" sort={sort} className="w-44 !pl-6">{tx("Cible")}</Th>
+            {!grouped && <Th k="machine" sort={sort} className="w-[16%] !pl-6">{tx("Machine")}</Th>}<Th k="kind" sort={sort} className="!pl-6">{tx("Logiciel")}</Th>
           </>}>
             {groups.map((g) => (
               <Fragment key={g.name}>

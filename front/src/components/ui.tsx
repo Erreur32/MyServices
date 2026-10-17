@@ -232,10 +232,10 @@ export function Th({ k, sort, children, className = "" }: {
   );
 }
 
-export function Table({ head, children, fit = false }: { head: ReactNode; children: ReactNode; fit?: boolean }) {  // fit : jamais de défilement horizontal (les colonnes se serrent)
+export function Table({ head, children, fit = false, fixed = false }: { head: ReactNode; children: ReactNode; fit?: boolean; fixed?: boolean }) {  // fixed : largeurs données par l'en-tête, identiques pour toutes les lignes  // fit : jamais de défilement horizontal (les colonnes se serrent)
   return (
     <div className={`hidden rounded-2xl border border-line bg-card md:block ${fit ? "overflow-hidden" : "overflow-x-auto"}`}>
-      <table className="w-full border-collapse text-sm">
+      <table className={`w-full border-collapse text-sm ${fixed ? "table-fixed" : ""}`}>
         <thead><tr>{head}</tr></thead>
         <tbody className="[&>tr]:border-b [&>tr]:border-line/60">{children}</tbody>
       </table>

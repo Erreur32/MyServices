@@ -37,6 +37,11 @@ for f in /etc/apache2/sites-enabled/*.conf; do
   if [ -r "$f" ]; then echo "##F $f"; grep -E -i '^[[:space:]]*(<VirtualHost|ServerName|ServerAlias|DocumentRoot)' "$f"
   else echo "##U $f"; fi
 done
+for f in /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*.conf; do
+  [ -f "$f" ] || continue
+  if [ -r "$f" ]; then echo "##NF $f"; grep -E -i '^[[:space:]]*(server[[:space:]]*\{|listen[[:space:]]|server_name[[:space:]])' "$f"
+  else echo "##NU $f"; fi
+done
 """
 
 
@@ -175,6 +180,8 @@ def parse_apache(text: str) -> tuple[list[dict], list[str], list[int], dict]:
             # « Listen 172.30.0.3:8443 » : Apache lié à une seule adresse (souvent un réseau docker)
             listen_addr = {int(p.rsplit(":", 1)[1]): p.rsplit(":", 1)[0] for p in line[8:].split()
                            if ":" in p and p.rsplit(":", 1)[1].isdigit()}
+        elif line.startswith(("##NF ", "##NU ")):
+            conf, cur = None, None   # nginx files are read by parse_nginx, not as Apache
         elif line.startswith("##"):
             continue
         elif conf:
@@ -193,6 +200,39 @@ def parse_apache(text: str) -> tuple[list[dict], list[str], list[int], dict]:
             elif k.lower() == "documentroot":
                 cur["docroot"] = v
     return vhosts, unreadable, listen, listen_addr
+
+
+_NGINX_NO_NAME = {"_", "localhost", "default_server", ""}
+
+
+def parse_nginx(text: str) -> tuple[list[dict], list[str]]:
+    """(vhosts, unreadable files) from the ##NF / ##NU sections of REMOTE: one entry per (server block, port), with the
+    real server_name values (wildcards, regexes, « _ » and localhost are left out)."""
+    vhosts, unreadable, conf, cur = [], [], None, None
+    for line in text.splitlines():
+        if line.startswith("##NF "):
+            conf, cur = os.path.basename(line[5:].strip()), None
+        elif line.startswith("##NU "):
+            unreadable.append(os.path.basename(line[5:].strip()))
+            conf = None
+        elif line.startswith("##"):
+            conf = conf if line.startswith("##NF") else None
+        elif conf:
+            s = line.strip().rstrip(";{ ").strip()
+            word, _, rest = s.partition(" ")
+            if word.lower() == "server":
+                cur = {"ports": [], "names": [], "conf": conf}
+                vhosts.append(cur)
+            elif cur is None:
+                continue
+            elif word.lower() == "listen":
+                m = re.search(r"(?:^|:)(\d{1,5})(?:\s|$)", rest.strip() + " ")
+                if m and int(m.group(1)) not in cur["ports"]:
+                    cur["ports"].append(int(m.group(1)))
+            elif word.lower() == "server_name":
+                cur["names"] += [n for n in rest.split() if n not in _NGINX_NO_NAME and not n.startswith(("~", "*", ".")) and "$" not in n]
+    out = [{"port": p, "names": v["names"], "conf": v["conf"]} for v in vhosts for p in (v["ports"] or [80])]
+    return out, unreadable
 
 
 def host_info(alias: str) -> dict | None:
@@ -217,6 +257,7 @@ def host_info(alias: str) -> dict | None:
             if k not in sshd:
                 sshd[k] = v + " (défaut)"
     vhosts, unreadable, listen, listen_addr = parse_apache(r.stdout)
+    nginx_vhosts, nginx_unreadable = parse_nginx(r.stdout)
     return {
         "os": tag.get("OS") or (tag.get("ESXI") if tag.get("ESXI", "").startswith("VMware ESXi") else None),
         "kernel": tag.get("KERNEL") or None,
@@ -233,6 +274,8 @@ def host_info(alias: str) -> dict | None:
         "sshd": sshd,  # vide si /etc/ssh/sshd_config illisible pour ce compte
         "vhosts": vhosts,
         "vhosts_unreadable": unreadable,
+        "nginx_vhosts": nginx_vhosts,
+        "nginx_unreadable": nginx_unreadable,
         "apache_listen": listen,
         "apache_listen_addr": {str(k): v for k, v in listen_addr.items()},
     }

@@ -41,6 +41,8 @@ export interface Service {
 
 export interface Host {
   id: string | number;
+  vhost_domains?: string[];   // domain names declared by Apache / nginx on the machine for this port
+  vhost_server?: "apache" | "nginx";
   npm?: string;
   scheme?: string;
   category?: string;
