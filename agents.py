@@ -19,7 +19,10 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "8"
+VERSION = "8"                # Windows agent (agent.ps1)
+LINUX_VERSION = "1"          # Linux agent (agent.py)
+KINDS = ("windows", "linux")
+SCRIPT_OF = {"windows": "agent.ps1", "linux": "agent.py"}
 SCRIPTS = Path(__file__).resolve().parent / "agent"
 PREFIX = "msv_agent_"
 NAME_RE = re.compile(r"^[\w .@-]{2,64}$")
@@ -55,7 +58,7 @@ class Agents:
             db.executescript(SCHEMA)
             have = {r["name"] for r in db.execute("PRAGMA table_info(agents)")}
             for col, ddl in (("auto_update", "INTEGER NOT NULL DEFAULT 0"), ("update_requested", "REAL"),
-                             ("hostname", "TEXT"), ("host_pending", "TEXT")):   # databases created before these columns
+                             ("hostname", "TEXT"), ("host_pending", "TEXT"), ("kind", "TEXT NOT NULL DEFAULT 'windows'")):   # databases created before these columns
                 if col not in have:
                     db.execute(f"ALTER TABLE agents ADD COLUMN {col} {ddl}")
 
@@ -69,12 +72,14 @@ class Agents:
         finally:
             db.close()
 
-    def create(self, ip: str, name: str, by: str) -> tuple[str, dict]:
+    def create(self, ip: str, name: str, by: str, kind: str = "windows") -> tuple[str, dict]:
         """(jeton en clair, à montrer une seule fois ; fiche). Un seul agent actif par machine : le précédent est révoqué."""
         try:
             ip = str(ipaddress.ip_address((ip or "").strip()))
         except ValueError:
             raise AgentError("adresse IP de la machine invalide")
+        if kind not in KINDS:
+            raise AgentError("type d'agent inconnu : windows ou linux")
         name = (name or "").strip()
         if not NAME_RE.match(name):
             raise AgentError("nom : 2 à 64 caractères (lettres, chiffres, espace, . _ @ -)")
@@ -82,8 +87,8 @@ class Agents:
         now = time.time()
         with self._db() as db:
             db.execute("UPDATE agents SET revoked = ? WHERE ip = ? AND revoked IS NULL", (now, ip))
-            aid = db.execute("INSERT INTO agents (ip, name, hash, hint, created, created_by) VALUES (?, ?, ?, ?, ?, ?)",
-                             (ip, name, _h(raw), raw[-4:], now, by)).lastrowid
+            aid = db.execute("INSERT INTO agents (ip, name, hash, hint, created, created_by, kind) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                             (ip, name, _h(raw), raw[-4:], now, by, kind)).lastrowid
         return raw, self.get(aid)
 
     def get(self, aid: int) -> dict:
@@ -115,16 +120,17 @@ class Agents:
         """Ce que le serveur répond à un relevé de version `version` : la mise à jour (version, chemin, empreinte du script servi) si l'agent est
         plus ancien et que la mise à jour est automatique ou demandée ; None sinon. Une demande dont l'agent est à jour est classée."""
         with self._db() as db:
-            r = db.execute("SELECT auto_update, update_requested FROM agents WHERE id = ? AND revoked IS NULL", (aid,)).fetchone()
+            r = db.execute("SELECT auto_update, update_requested, kind FROM agents WHERE id = ? AND revoked IS NULL", (aid,)).fetchone()
             if r is None:
                 return None
-            if not older(version, VERSION):
+            kind = r["kind"] or "windows"
+            if not older(version, version_of(kind)):
                 if r["update_requested"]:
                     db.execute("UPDATE agents SET update_requested = NULL WHERE id = ?", (aid,))
                 return None
         if not (r["auto_update"] or r["update_requested"]):
             return None
-        return {"version": VERSION, "path": "/myservices/agent/agent.ps1", "sha256": script_sha256()}
+        return {"version": version_of(kind), "path": "/myservices/agent/" + SCRIPT_OF[kind], "sha256": script_sha256(SCRIPT_OF[kind])}
 
     def revoke(self, aid: int) -> None:
         with self._db() as db:
@@ -386,9 +392,13 @@ def older(version: str | None, latest: str) -> bool:
         return True
 
 
-def script_sha256() -> str:
-    """Empreinte du script d'agent tel que servi (ASCII) : l'agent la contrôle avant de remplacer son propre fichier."""
-    return hashlib.sha256(script("agent.ps1").encode("utf-8")).hexdigest()
+def version_of(kind: str) -> str:
+    return LINUX_VERSION if kind == "linux" else VERSION
+
+
+def script_sha256(name: str = "agent.ps1") -> str:
+    """Empreinte du script d'agent tel que servi : l'agent la contrôle avant de remplacer son propre fichier."""
+    return hashlib.sha256(script(name).encode("utf-8")).hexdigest()
 
 
 def _public(r: sqlite3.Row) -> dict:
@@ -402,8 +412,9 @@ def _public(r: sqlite3.Row) -> dict:
         state = "actif"
     else:
         state = "silencieux"
-    return {"auto_update": bool(r["auto_update"]), "update_requested": bool(r["update_requested"]), "latest_version": VERSION,
-            "outdated": bool(r["version"]) and older(r["version"], VERSION),
+    kind = r["kind"] or "windows"
+    return {"auto_update": bool(r["auto_update"]), "update_requested": bool(r["update_requested"]), "latest_version": version_of(kind),
+            "kind": kind, "outdated": bool(r["version"]) and older(r["version"], version_of(kind)),
             "id": r["id"], "ip": r["ip"], "name": r["name"], "hint": r["hint"], "created": r["created"],
             "created_by": r["created_by"], "revoked": r["revoked"], "last_seen": r["last_seen"], "last_ip": r["last_ip"],
             "interval": interval, "version": r["version"], "os": r["os_name"], "state": state,
@@ -421,6 +432,10 @@ def script(name: str) -> str:
     if name == "agent.ps1":
         import health
         text = text.replace("#__COLLECT__", health.WIN_PS.strip()).replace("__VERSION__", VERSION)
+    elif name == "agent.py":   # the Linux agent runs the commands the SSH collection runs: one list, here
+        import health
+        text = (text.replace("__VERSION__", LINUX_VERSION).replace("__COMMANDS__", json.dumps(health.LINUX_AGENT_COMMANDS))
+                .replace("__SMART_LIST__", json.dumps(health.SMART_LIST_CMD)).replace("__SMART_FMT__", json.dumps(health.smart_cmd("{target}"))))
     return text
 
 
@@ -432,8 +447,11 @@ def clean_url(url: str) -> str:
     return url
 
 
-def install_command(base_url: str, token: str) -> str:
-    """Commande à coller dans un PowerShell administrateur de la machine."""
+def install_command(base_url: str, token: str, kind: str = "windows") -> str:
+    """Commande à coller sur la machine : PowerShell administrateur (Windows) ou terminal (Linux, sudo)."""
+    if kind == "linux":
+        return (f"export MSV_URL='{base_url}'\nexport MSV_TOKEN='{token}'\n"
+                'curl -fsSL "$MSV_URL/agent/install.sh" | sudo env MSV_URL="$MSV_URL" MSV_TOKEN="$MSV_TOKEN" bash')
     return ("Set-ExecutionPolicy Bypass -Scope Process -Force\n"
             f"$env:MSV_URL = '{base_url}'\n$env:MSV_TOKEN = '{token}'\n"
             'iex (iwr "$env:MSV_URL/agent/install.ps1" -UseBasicParsing).Content')

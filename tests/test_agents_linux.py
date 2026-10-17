@@ -105,5 +105,65 @@ class LinuxAgent(unittest.TestCase):
         self.assertIsNone(agents.hardware_of(report))
 
 
+class LinuxAgentScripts(unittest.TestCase):
+    """The scripts the server hands out: rendered, valid, and consistent with the collectors."""
+
+    def test_agent_py_rendu_est_du_python_valide(self):
+        text = agents.script("agent.py")
+        for marker in ("__VERSION__", "__COMMANDS__", "__SMART_LIST__", "__SMART_FMT__"):
+            self.assertNotIn(marker, text)
+        code = compile(text, "agent.py", "exec")          # must be valid Python once rendered
+        ns: dict = {"__name__": "agent_under_test", "__file__": "/nonexistent/agent.py"}
+        exec(code, ns)
+        self.assertEqual(ns["VERSION"], agents.LINUX_VERSION)
+        self.assertEqual(ns["COMMANDS"], health.LINUX_AGENT_COMMANDS)
+        self.assertEqual(ns["SMART_LIST"], health.SMART_LIST_CMD)
+        self.assertEqual(ns["SMART_FMT"].format(target="sda"), health.smart_cmd("sda"))   # same SMART command as the SSH collection
+
+    def test_agent_ne_lance_que_la_liste_fixe(self):
+        ns: dict = {"__name__": "agent_under_test", "__file__": "/nonexistent/agent.py"}
+        exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
+        asked = []
+        ns["run"] = lambda cmd, timeout: (asked.append(cmd) or (0, "sda\nnvme0n1\nnvme0n1\n" if cmd == health.SMART_LIST_CMD else "x"))
+        cmds = ns["collect"]()
+        self.assertEqual(asked, health.LINUX_AGENT_COMMANDS + [health.smart_cmd("sda"), health.smart_cmd("nvme0")])   # one per disk, deduplicated
+        self.assertEqual(set(cmds), set(asked))
+
+    def test_agent_refuse_un_nom_de_disque_etrange(self):
+        ns: dict = {"__name__": "agent_under_test", "__file__": "/nonexistent/agent.py"}
+        exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
+        asked = []
+        ns["run"] = lambda cmd, timeout: (asked.append(cmd) or (0, "sda;reboot\n$(id)\nsdb\n" if cmd == health.SMART_LIST_CMD else "x"))
+        ns["collect"]()
+        self.assertEqual(asked[-1], health.smart_cmd("sdb"))
+        self.assertFalse([c for c in asked if "sda;reboot" in c or "$(id)" in c])           # a disk name is never interpolated unchecked
+
+    def test_install_sh_syntaxe_et_contenu(self):
+        text = agents.script("install.sh")
+        self.assertTrue(text.startswith("#!/usr/bin/env bash"))
+        self.assertIn("msv_agent_", text)
+        self.assertNotIn("MSV_TOKEN=msv_agent_", text)           # no token ever written in the script itself
+        import shutil
+        import subprocess
+        if shutil.which("bash"):
+            r = subprocess.run(["bash", "-n"], input=text.encode(), capture_output=True)
+            self.assertEqual(r.returncode, 0, r.stderr.decode())
+
+    def test_commande_d_installation(self):
+        win = agents.install_command("http://192.168.1.10:8090", "msv_agent_x")
+        self.assertIn("iex (iwr", win)
+        lin = agents.install_command("http://192.168.1.10:8090", "msv_agent_x", "linux")
+        self.assertIn("export MSV_TOKEN='msv_agent_x'", lin)
+        self.assertIn("/agent/install.sh", lin)
+        self.assertIn('sudo env MSV_URL="$MSV_URL" MSV_TOKEN="$MSV_TOKEN" bash', lin)
+        self.assertNotIn("iex", lin)
+
+    def test_versions_et_empreintes_par_type(self):
+        self.assertEqual(agents.version_of("linux"), agents.LINUX_VERSION)
+        self.assertEqual(agents.version_of("windows"), agents.VERSION)
+        self.assertNotEqual(agents.script_sha256("agent.py"), agents.script_sha256("agent.ps1"))
+        self.assertEqual(agents.script_sha256("agent.py"), agents.script_sha256("agent.py"))   # stable: the agent compares it to what it downloads
+
+
 if __name__ == "__main__":
     unittest.main()

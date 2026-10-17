@@ -121,7 +121,8 @@ class Agents(unittest.TestCase):
         self.assertEqual(self.send(token, big).status_code, 413)
 
     def test_releve_linux_accepte_et_range_comme_une_lecture_ssh(self):
-        token, _ = self.create("192.168.1.61")
+        r = self.c.post(BASE + "/agents", json={"ip": "192.168.1.61", "name": "Box", "kind": "linux"}, headers=self.h)
+        token = r.json()["token"]
         body = {"version": "1", "os": "Debian 12", "host": "box", "interval": 900,
                 "data": {"kind": "linux", "cmds": {health.REBOOT_CMD: [0, "yes\n"], health.LOAD_CMD: [0, "0.5 0.4 0.3 1/200 1\n4\n"]}}}
         self.assertEqual(self.send(token, body).status_code, 200)
@@ -131,6 +132,36 @@ class Agents(unittest.TestCase):
         h = health.host_from_agent(hc, rep)
         self.assertEqual((h["reachable"], h["os"], h["source"], h["reboot_required"]), (True, "linux", "agent", True))
         self.assertEqual(self.send(token, {**body, "data": {"kind": "linux", "cmds": {"a": "x"}}}).status_code, 400)
+
+    def test_agent_linux_creation_scripts_et_type(self):
+        r = self.c.post(BASE + "/agents", json={"ip": "192.168.1.62", "name": "Box", "kind": "linux"}, headers=self.h)
+        self.assertEqual(r.status_code, 200, r.text)
+        info, token = r.json()["info"], r.json()["token"]
+        self.assertEqual(info["kind"], "linux")
+        self.assertEqual(info["latest_version"], agents.LINUX_VERSION)
+        self.assertIn("/agent/install.sh", r.json()["command"])
+        self.assertEqual(self.c.post(BASE + "/agents", json={"ip": "192.168.1.63", "name": "Box2", "kind": "bsd"}, headers=self.h).status_code, 400)
+        for path in ("/agent/agent.py", "/agent/install.sh", "/myservices/agent/agent.py", "/myservices/agent/install.sh"):
+            self.assertEqual(self.anon.get(path).status_code, 200, path)          # no session needed, like the Windows scripts
+        self.assertEqual(self.anon.get("/agent/agent.py").text, agents.script("agent.py"))
+        linux = {"version": "1", "os": "Debian 12", "host": "box", "interval": 900,
+                 "data": {"kind": "linux", "cmds": {health.REBOOT_CMD: [0, "no\n"]}}}
+        self.assertEqual(self.send(token, REPORT).status_code, 400)                # a Windows report on a Linux agent
+        self.assertEqual(self.send(token, linux).status_code, 200)
+        wtoken, _ = self.create("192.168.1.64")
+        self.assertEqual(self.send(wtoken, linux).status_code, 400)                # and the other way round
+
+    def test_mise_a_jour_d_un_agent_linux(self):
+        r = self.c.post(BASE + "/agents", json={"ip": "192.168.1.62", "name": "Box", "kind": "linux"}, headers=self.h)
+        token, info = r.json()["token"], r.json()["info"]
+        old = {"version": "0", "os": "Debian", "host": "box", "interval": 900, "data": {"kind": "linux", "cmds": {health.REBOOT_CMD: [0, "no\n"]}}}
+        self.assertNotIn("update", self.send(token, old).json())                   # not requested, not automatic
+        self.c.post(BASE + f"/agents/{info['id']}/update", headers=self.h)
+        upd = self.send(token, old).json()["update"]
+        self.assertEqual((upd["version"], upd["path"]), (agents.LINUX_VERSION, "/myservices/agent/agent.py"))
+        self.assertEqual(upd["sha256"], agents.script_sha256("agent.py"))
+        current = {**old, "version": agents.LINUX_VERSION}
+        self.assertNotIn("update", self.send(token, current).json())               # up to date: nothing
 
     def test_un_releve_par_minute(self):
         agents.MIN_GAP = 60

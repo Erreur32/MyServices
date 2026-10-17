@@ -81,7 +81,7 @@ def csp_for(path: str) -> str | None:
 AUTH = os.environ.get("MYSERVICES_AUTH", "1") != "0"
 COOKIE, CSRF_COOKIE = "ms_session", "ms_csrf"
 # Accessibles sans session : page de connexion et ce qu'elle charge, connexion, santé du conteneur
-PUBLIC = {"/healthz", "/agent/install.ps1", "/agent/agent.ps1", "/login.html", "/login.js", "/login.css", "/favicon.svg",
+PUBLIC = {"/healthz", "/agent/install.ps1", "/agent/agent.ps1", "/agent/install.sh", "/agent/agent.py", "/login.html", "/login.js", "/login.css", "/favicon.svg",
           API + "/login", API + "/setup", API + "/password/forgot", API + "/password/reset"}
 # Premier compte depuis la page (comme Uptime Kuma) : seulement tant qu'aucun compte n'existe, et dans les
 # SETUP_WINDOW s après le démarrage (au-delà : redémarrer le conteneur). Réseau local seulement (guard).
@@ -937,6 +937,7 @@ class NewAgent(BaseModel):
     ip: str = Field(max_length=45)
     name: str = Field(max_length=64)
     url: str | None = Field(default=None, max_length=200)  # adresse de MyServices vue par la machine (sinon celle du navigateur)
+    kind: str = Field(default="windows", max_length=10)    # « windows » (agent PowerShell) ou « linux » (agent Python)
 
 
 @app.post(AGENT_REPORT, tags=["agents"], summary="Relevé de santé envoyé par un agent (jeton msv_agent_)")
@@ -957,6 +958,8 @@ async def agent_report(request: Request):
         return deny(400, "relevé invalide : JSON attendu")
     except agents.AgentError as e:
         return deny(400, str(e))
+    if (report["data"].get("kind") == "linux") != (a.get("kind") == "linux"):
+        return deny(400, "relevé d'un autre type que cet agent (Windows ou Linux)")
     if not agents_store().claim_host(a["id"], report.get("host")):
         store().audit("agent : nom de poste différent, relevé refusé", "agent", ip_of(request), f"« {a['name']} » ({a['ip']}) : {str(report.get('host'))[:64]}")
         return JSONResponse({"error": "nom de poste différent de celui connu : à confirmer dans MyServices (Réglages → Agents)", "code": "HOST_CHANGED"},
@@ -985,6 +988,18 @@ def agent_script(name: str):
     return Response(agents.script(name + ".ps1"), media_type="text/plain; charset=utf-8")
 
 
+@app.get("/agent/agent.py", tags=["agents"], summary="Agent Linux (sans secret, réseau local)")
+def agent_script_py():
+    import agents
+    return Response(agents.script("agent.py"), media_type="text/plain; charset=utf-8")
+
+
+@app.get("/agent/install.sh", tags=["agents"], summary="Installateur de l'agent Linux (sans secret, réseau local)")
+def agent_script_sh():
+    import agents
+    return Response(agents.script("install.sh"), media_type="text/plain; charset=utf-8")
+
+
 def base_url(request: Request) -> str:
     """Adresse de MyServices vue par le navigateur (derrière un proxy : en-têtes X-Forwarded-*)."""
     proto = request.headers.get("x-forwarded-proto") or request.url.scheme
@@ -1008,11 +1023,11 @@ def agents_create(body: NewAgent, request: Request):
     u, ip = request.state.user, ip_of(request)
     try:
         url = agents.clean_url(body.url) if body.url else base_url(request)
-        raw, info = agents_store().create(body.ip, body.name, u["username"])
+        raw, info = agents_store().create(body.ip, body.name, u["username"], body.kind)
     except agents.AgentError as e:
         return deny(400, str(e))
     store().audit("agent créé", u["username"], ip, f"« {body.name} » ({info['ip']})")
-    return {"token": raw, "info": info, "url": url, "command": agents.install_command(url, raw)}
+    return {"token": raw, "info": info, "url": url, "command": agents.install_command(url, raw, info["kind"])}
 
 
 class AgentChange(BaseModel):
