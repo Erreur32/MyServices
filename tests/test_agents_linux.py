@@ -162,7 +162,8 @@ class LinuxAgentScripts(unittest.TestCase):
         self.assertEqual(agents.version_of("linux"), agents.LINUX_VERSION)
         self.assertEqual(agents.version_of("windows"), agents.VERSION)
         self.assertNotEqual(agents.script_sha256("agent.py"), agents.script_sha256("agent.ps1"))
-        self.assertEqual(agents.script_sha256("agent.py"), agents.script_sha256("agent.py"))   # stable: the agent compares it to what it downloads
+        first, second = agents.script_sha256("agent.py"), agents.script_sha256("agent.py")
+        self.assertEqual(first, second)   # stable: the agent compares it to what it downloads
 
 
 if __name__ == "__main__":

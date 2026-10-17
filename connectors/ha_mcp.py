@@ -148,6 +148,22 @@ def _body(raw: bytes, ctype: str) -> dict:
     return got
 
 
+def _payload(tool: str, res: dict) -> dict:
+    """Premier bloc de texte de la réponse d'un outil qui est du JSON ; erreur lisible si l'outil a échoué ou si rien n'est lisible."""
+    texts = [c.get("text") or "" for c in res.get("content") or [] if isinstance(c, dict) and c.get("type") == "text"]
+    if res.get("isError"):
+        raise ConnectorError(f"{tool} : {_text(texts[0] if texts else 'erreur', 160)}")
+    for t in texts:
+        try:
+            got = json.loads(t)
+        except ValueError:
+            continue
+        if isinstance(got, dict) and got.get("success") is False:
+            raise ConnectorError(f"{tool} : {_text(got.get('error') or got.get('message') or 'refusé', 160)}")
+        return got if isinstance(got, dict) else {}
+    raise ConnectorError(f"{tool} : réponse illisible")
+
+
 class HaMcp:
     def __init__(self, url: str, timeout: float = 30):
         if urllib.parse.urlsplit(str(url or "")).scheme not in ("http", "https"):
@@ -190,18 +206,7 @@ class HaMcp:
         if not self.ready:
             self.start()
         res = self._rpc("tools/call", {"name": tool, "arguments": dict(args)})
-        texts = [c.get("text") or "" for c in res.get("content") or [] if isinstance(c, dict) and c.get("type") == "text"]
-        if res.get("isError"):
-            raise ConnectorError(f"{tool} : {_text(texts[0] if texts else 'erreur', 160)}")
-        for t in texts:
-            try:
-                got = json.loads(t)
-            except ValueError:
-                continue
-            if isinstance(got, dict) and got.get("success") is False:
-                raise ConnectorError(f"{tool} : {_text(got.get('error') or got.get('message') or 'refusé', 160)}")
-            return got if isinstance(got, dict) else {}
-        raise ConnectorError(f"{tool} : réponse illisible")
+        return _payload(tool, res)
 
     def get(self, key: str) -> dict:
         return PARSERS[key](self.call(key))

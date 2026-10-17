@@ -93,7 +93,7 @@ def post(cfg, body):
     """Sends the report; returns the server's answer. Raises HTTPError (4xx/5xx), URLError or OSError."""
     req = urllib.request.Request(cfg["url"].rstrip("/") + "/myservices/api/v1/agent/report", data=body, method="POST",
                                  headers={"Authorization": "Bearer " + cfg["token"], "Content-Type": "application/json; charset=utf-8"})
-    with urllib.request.urlopen(req, timeout=30) as r:
+    with urllib.request.urlopen(req, timeout=30) as r:  # NOSONAR S5144: the address is the one the installer wrote in config.json (readable by the agent account only), checked in load_config()
         return json.loads(r.read().decode("utf-8"))
 
 
@@ -104,7 +104,7 @@ def self_update(cfg, upd):
     if not (path.startswith("/myservices/agent/") and path.endswith(".py") and upd.get("sha256")):
         return
     try:
-        with urllib.request.urlopen(cfg["url"].rstrip("/") + path, timeout=30) as r:
+        with urllib.request.urlopen(cfg["url"].rstrip("/") + path, timeout=30) as r:  # NOSONAR S5144: same address as post(); the path is checked above (/myservices/agent/*.py)
             new = r.read()
         if hashlib.sha256(new).hexdigest() != str(upd["sha256"]):
             raise ValueError("downloaded script does not match the announced SHA-256")
@@ -119,35 +119,50 @@ def self_update(cfg, upd):
         log("UPDATE FAILED: %s" % e)
 
 
-def main():
+def load_config():
+    """config.json written by the installer (address of MyServices and token); None, after logging, when it is missing or malformed."""
     try:
         with open(os.path.join(DIR, "config.json")) as f:
             cfg = json.load(f)
         if not re.match(r"^https?://", str(cfg.get("url"))) or not re.match(r"^msv_agent_[A-Za-z0-9_-]+$", str(cfg.get("token"))):
             raise ValueError("config.json: bad url or token")
+        return cfg
     except (OSError, ValueError) as e:
         log("FAILED: %s" % e)
-        return 1
-    body = json.dumps({"version": VERSION, "os": os_name(), "host": socket.gethostname(), "interval": int(cfg.get("interval") or 900),
-                       "data": {"kind": "linux", "cmds": collect()}}).encode("utf-8")
-    tries = 3
+        return None
+
+
+def send(cfg, body, tries=3):
+    """Sends the report with a few tries; the server's answer, or None after logging why it failed."""
     for i in range(1, tries + 1):
         try:
             answer = post(cfg, body)
             if not answer.get("ok"):
                 raise ValueError("server answered without ok")
-            break
+            return answer
         except urllib.error.HTTPError as e:
             if e.code in (401, 403, 404, 409, 413) or i == tries:   # revoked token, host name to confirm, ...: waiting will not help
                 log("FAILED: HTTP %d %s" % (e.code, e.read().decode("utf-8", "replace")[:200]))
-                return 1
+                return None
             log("try %d/%d failed (HTTP %d), new try in 15 s" % (i, tries, e.code))
-        except (urllib.error.URLError, OSError, ValueError) as e:
+        except (OSError, ValueError) as e:   # URLError is an OSError
             if i == tries:
                 log("FAILED: %s" % e)
-                return 1
+                return None
             log("try %d/%d failed (%s), new try in 15 s" % (i, tries, e))
         time.sleep(15)
+    return None
+
+
+def main():
+    cfg = load_config()
+    if cfg is None:
+        return 1
+    body = json.dumps({"version": VERSION, "os": os_name(), "host": socket.gethostname(), "interval": int(cfg.get("interval") or 900),
+                       "data": {"kind": "linux", "cmds": collect()}}).encode("utf-8")
+    answer = send(cfg, body)
+    if answer is None:
+        return 1
     log("report sent to %s (agent %s)" % (cfg["url"], VERSION))
     if isinstance(answer.get("update"), dict):
         self_update(cfg, answer["update"])

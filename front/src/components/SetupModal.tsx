@@ -29,7 +29,7 @@ const TITLE: Record<Setup["kind"], () => string> = {
   channel: () => tx("Ajouter un canal d'alerte"), machine: () => tx("Ajouter une machine"),
 };
 
-export function SetupModal({ setup, snap, onClose, onSwitch }: { setup: Setup; snap: Snapshot; onClose: () => void; onSwitch: (s: Setup) => void }) {
+export function SetupModal({ setup, snap, onClose, onSwitch }: Readonly<{ setup: Setup; snap: Snapshot; onClose: () => void; onSwitch: (s: Setup) => void }>) {
   const named = "name" in setup ? ` · ${setup.name}` : "";
   return (
     <Overlay title={<>{TITLE[setup.kind]()}{named && <Dim>{named}</Dim>}</>} onClose={onClose}>
@@ -50,7 +50,7 @@ export function SetupModal({ setup, snap, onClose, onSwitch }: { setup: Setup; s
 const Loading = () => <p className="flex items-center gap-2 text-sm text-muted"><Loader2 size={16} className="animate-spin" aria-hidden />{tx("Chargement…")}</p>;
 
 /** Guide SSH (compte, commande à lancer sur la machine, test), puis enregistrement de l'accès */
-function SshSetup({ ip, onClose }: { ip: string; onClose: () => void }) {
+function SshSetup({ ip, onClose }: Readonly<{ ip: string; onClose: () => void }>) {
   const [st, setSt] = useState<MachinesSettings | null>(null);
   useEffect(() => { read<MachinesSettings>("machines/settings").then(setSt).catch(() => undefined); }, []);
   if (!st) return <Loading />;
@@ -60,7 +60,7 @@ function SshSetup({ ip, onClose }: { ip: string; onClose: () => void }) {
 }
 
 /** Formulaire du connecteur de l'outil reconnu ; sans outil précis, les outils reconnus sur cette machine */
-function ConnectorSetup({ setup, snap, onClose }: { setup: Extract<Setup, { kind: "connector" }>; snap: Snapshot; onClose: () => void }) {
+function ConnectorSetup({ setup, snap, onClose }: Readonly<{ setup: Extract<Setup, { kind: "connector" }>; snap: Snapshot; onClose: () => void }>) {
   const [types, setTypes] = useState<ConnectorsState["types"] | null>(null), [picked, setPicked] = useState<{ type: string; url: string } | undefined>(setup.proposal && { type: setup.proposal.connector, url: setup.proposal.url });
   useEffect(() => { read<ConnectorsState>("connectors/settings").then((c) => setTypes(c.types)).catch(() => setTypes([])); }, []);
   if (!types) return <Loading />;

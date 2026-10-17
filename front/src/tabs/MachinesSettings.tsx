@@ -204,7 +204,7 @@ function Redetect({ st, onDone }: { st: State; onDone: () => void }) {
 }
 
 /** Ajout : cible → détection → proposition à relire → enregistrer. */
-export function Detect({ st, onDone, onCancel }: { st: State; onDone: () => void; onCancel: () => void }) {
+export function Detect({ st, onDone, onCancel }: Readonly<{ st: State; onDone: () => void; onCancel: () => void }>) {
   const [target, setTarget] = useState("");
   const [d, setD] = useState<Detection | null>(null);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);

@@ -972,15 +972,38 @@ class NewAgent(BaseModel):
     kind: str = Field(default="windows", max_length=10)    # « windows » (agent PowerShell) ou « linux » (agent Python)
 
 
+PLAIN = "text/plain; charset=utf-8"   # scripts d'agent servis tels quels
+
+
+def too_soon(a: dict) -> JSONResponse | None:
+    """Réponse 429 si cet agent a déjà envoyé un relevé il y a moins de MIN_GAP secondes."""
+    import agents
+    remaining = agents.MIN_GAP - (time.time() - a["last_seen"]) if a["last_seen"] else 0
+    if remaining <= 0:
+        return None
+    wait = math.ceil(remaining)
+    return JSONResponse({"error": f"trop tôt, réessayer dans {wait} s", "code": "TOO_SOON"}, status_code=429, headers={**SECURITY_HEADERS, "Retry-After": str(wait)})
+
+
+def refresh_after_report(a: dict, report: dict, before, now) -> None:
+    """Relit la santé (et, au premier relevé ou après une mise à jour d'agent, la collecte) sans attendre le prochain horaire."""
+    first, upgraded = not a["last_seen"], str(report.get("version") or "") != (a.get("version") or "")
+    if core.enabled("health"):
+        if first or before != now:   # premier relevé ou niveau de la machine changé
+            core.run_task("health", f"relevé de l'agent {a['name']} : {before or 'premier'} → {now}")
+        else:   # chaque relevé rafraîchit la fiche de cette machine seule (lecture du relevé, sans SSH) : un poste rallumé réapparaît tout de suite
+            core.run_task("health", f"relevé de l'agent {a['name']}", ("--only", a["ip"]))
+    # Premier relevé ou agent réinstallé dans une autre version : système, matériel et ports (lus à la collecte) apparaissent sans attendre l'horaire
+    if (first or upgraded) and core.enabled("collect"):
+        core.run_chain(["collect"], f"relevé de l'agent {a['name']} (version {report.get('version')})")
+
+
 @app.post(AGENT_REPORT, tags=["agents"], summary="Relevé de santé envoyé par un agent (jeton msv_agent_)")
 async def agent_report(request: Request):
     import agents
     a = request.state.agent
-    remaining = agents.MIN_GAP - (time.time() - a["last_seen"]) if a["last_seen"] else 0
-    if remaining > 0:
-        wait = math.ceil(remaining)
-        return JSONResponse({"error": f"trop tôt, réessayer dans {wait} s", "code": "TOO_SOON"}, status_code=429,
-                            headers={**SECURITY_HEADERS, "Retry-After": str(wait)})
+    if early := too_soon(a):
+        return early
     raw = await request.body()
     if len(raw) > agents.MAX_BODY:
         return deny(413, "relevé trop gros")
@@ -997,15 +1020,7 @@ async def agent_report(request: Request):
         return JSONResponse({"error": "nom de poste différent de celui connu : à confirmer dans MyServices (Réglages → Agents)", "code": "HOST_CHANGED"},
                             status_code=409, headers=SECURITY_HEADERS)
     before, now = agents_store().store_report(a["id"], report, ip_of(request))
-    first, upgraded = not a["last_seen"], str(report.get("version") or "") != (a.get("version") or "")
-    # La santé est relue tout de suite au premier relevé et quand le niveau de la machine change (sinon, au prochain horaire)
-    if (first or before != now) and core.enabled("health"):
-        core.run_task("health", f"relevé de l'agent {a['name']} : {before or 'premier'} → {now}")
-    elif core.enabled("health"):  # chaque relevé rafraîchit la fiche de cette machine seule (lecture du relevé, sans SSH) : un poste rallumé réapparaît tout de suite
-        core.run_task("health", f"relevé de l'agent {a['name']}", ("--only", a["ip"]))
-    # Premier relevé ou agent réinstallé dans une autre version : système, matériel et ports (lus à la collecte) apparaissent sans attendre l'horaire
-    if (first or upgraded) and core.enabled("collect"):
-        core.run_chain(["collect"], f"relevé de l'agent {a['name']} (version {report.get('version')})")
+    refresh_after_report(a, report, before, now)
     out = {"ok": True, "interval": agents.DEFAULT_INTERVAL}
     if upd := agents_store().update_for(a["id"], str(report.get("version") or "")):   # mise à jour automatique ou demandée : l'agent s'en charge
         out["update"] = upd
@@ -1017,19 +1032,19 @@ def agent_script(name: str):
     import agents
     if name not in ("install", "agent"):
         return deny(404, "introuvable")
-    return Response(agents.script(name + ".ps1"), media_type="text/plain; charset=utf-8")
+    return Response(agents.script(name + ".ps1"), media_type=PLAIN)
 
 
 @app.get("/agent/agent.py", tags=["agents"], summary="Agent Linux (sans secret, réseau local)")
 def agent_script_py():
     import agents
-    return Response(agents.script("agent.py"), media_type="text/plain; charset=utf-8")
+    return Response(agents.script("agent.py"), media_type=PLAIN)
 
 
 @app.get("/agent/install.sh", tags=["agents"], summary="Installateur de l'agent Linux (sans secret, réseau local)")
 def agent_script_sh():
     import agents
-    return Response(agents.script("install.sh"), media_type="text/plain; charset=utf-8")
+    return Response(agents.script("install.sh"), media_type=PLAIN)
 
 
 def base_url(request: Request) -> str:

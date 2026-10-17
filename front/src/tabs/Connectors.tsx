@@ -314,9 +314,9 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
   );
 }
 
-function InstanceCard({ inst, hosts, collect, type, reload, onCollect, focus, editing: edit, locked, setEditing: setEdit }: {
+function InstanceCard({ inst, hosts, collect, type, reload, onCollect, focus, editing: edit, locked, setEditing: setEdit }: Readonly<{
   focus?: boolean; inst: ConnectorInstance; hosts: Host[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
-}) {
+}>) {
   const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null), [report, setReport] = useState<TestOut | null>(null), [testing, setTesting] = useState(false);
   const url = inst.config.url as string | undefined;
   const path = `connectors/settings/${inst.type}/${encodeURIComponent(inst.name)}`;

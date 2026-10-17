@@ -24,10 +24,10 @@ const EXAMPLE_URL = "http://192.168.1.10:8090"; // NOSONAR
 /** Nom d'agent accepté par le serveur (lettres, chiffres, espace, . _ @ -) tiré du nom de la machine */
 const agentName = (machine: string) => machine.replace(/[^\p{L}\p{N}_ .@-]/gu, "").trim().slice(0, 64) || "agent";
 
-export function AgentInstall({ target, onChanged, onClose, onSsh }: {
+export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
   target: InstallTarget; onChanged?: () => void; onClose: () => void;
   onSsh?: () => void;   // dans l'assistant : ouvre le réglage SSH dans une fenêtre ; sans cela, lien vers la page de la machine
-}) {
+}>) {
   const [kind, setKind] = useState<AgentKind>(target.kind);
   // Adresse de MyServices vue de la machine : par défaut celle de la page ; le champ ne s'affiche que pour la corriger
   const [url, setUrl] = useState(location.origin);

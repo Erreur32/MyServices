@@ -30,7 +30,7 @@ const STATE: Record<AgentInfo["state"], ["ok" | "warn" | "info" | "off", string]
 /** Icônes de matériel fermé (box, onduleur…) : on n'y installe rien, donc jamais d'agent proposé */
 const APPLIANCE_ICONS = new Set(["freebox", "free", "nut"]);
 
-export function Agents({ focusIp, live, network = [] }: { focusIp?: string; live: Machine[]; network?: NetworkConnector[] }) {
+export function Agents({ focusIp, live, network = [] }: Readonly<{ focusIp?: string; live: Machine[]; network?: NetworkConnector[] }>) {
   const [st, setSt] = useState<AgentsState | null>(null);
   const [machines, setMachines] = useState<MachinesSettings["machines"]>({});
   const [error, setError] = useState("");
@@ -171,7 +171,7 @@ export function Agents({ focusIp, live, network = [] }: { focusIp?: string; live
 }
 
 /** Groupe de cartes : titre, compte, texte d'aide, grille (ou le texte « vide ») ; pliable (chevron, comme « Agent créé ») si fold */
-function Group({ title, n, hint, fold, folded, rows, children }: { title: string; n: number; hint?: string; fold?: boolean; folded?: boolean; rows?: boolean; children: React.ReactNode }) {
+function Group({ title, n, hint, fold, folded, rows, children }: Readonly<{ title: string; n: number; hint?: string; fold?: boolean; folded?: boolean; rows?: boolean; children: React.ReactNode }>) {
   const [choice, setChoice] = useState<boolean | null>(null);  // null : pas touché, donc ouvert s'il y a des cartes, replié s'il est vide
   const open = choice ?? (n > 0 && !folded);  // folded : replié d'office même s'il a des cartes (agents révoqués)
   const shown = !fold || open;
@@ -193,7 +193,7 @@ function Group({ title, n, hint, fold, folded, rows, children }: { title: string
 }
 
 /** Le jeton arrive d'un poste qui porte un autre nom que le premier vu (machine renommée, ou jeton copié ailleurs) : ses relevés sont refusés tant que l'admin n'a pas confirmé. */
-function HostConfirm({ a, reload, setNote }: { a: AgentInfo; reload: () => void; setNote: (n: Note) => void }) {
+function HostConfirm({ a, reload, setNote }: Readonly<{ a: AgentInfo; reload: () => void; setNote: (n: Note) => void }>) {
   const [busy, setBusy] = useState(false);
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-warn/50 bg-warn/10 px-2.5 py-1.5 text-xs text-txt" role="alert">

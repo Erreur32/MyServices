@@ -2,7 +2,7 @@
 import { tx } from "./i18n";
 import type { Advice } from "../types";
 
-/** todo : rien ne lit encore la machine · optimize : lue, mais pas par la meilleure méthode · ok : rien à faire (ou rien de possible) */
+/** Trois états d'une machine : à régler (rien ne la lit encore), à optimiser (lue, mais pas par la meilleure méthode), en place (rien à faire ou rien de possible) */
 export type AdviceStatus = "todo" | "optimize" | "ok";
 
 export interface AdviceView {
@@ -18,7 +18,13 @@ export interface AdviceView {
   todo: string | null;                 // ce qu'il faut faire, en une phrase (quand une action existe)
 }
 
-const METHOD_LABEL = (m: string, kind: string | null) => m === "ssh" ? "SSH" : m === "agent" ? (kind === "windows" ? tx("Agent Windows") : kind === "linux" ? tx("Agent Linux") : tx("Agent")) : m === "connector" ? tx("Connecteur") : tx("Ping seul");
+const AGENT_LABEL: Record<string, () => string> = { windows: () => tx("Agent Windows"), linux: () => tx("Agent Linux") };
+
+function METHOD_LABEL(m: string, kind: string | null): string {
+  if (m === "ssh") return "SSH";
+  if (m === "agent") return (AGENT_LABEL[kind ?? ""] ?? (() => tx("Agent")))();
+  return m === "connector" ? tx("Connecteur") : tx("Ping seul");
+}
 
 const OTHER_LABEL: Record<string, () => string> = { ssh: () => "SSH", agent: () => tx("un agent"), connector: () => tx("un connecteur"), ping: () => tx("le ping seul") };
 const NOW_LABEL: Record<string, () => string> = { ssh: () => "SSH", agent: () => tx("l'agent"), connector: () => tx("un connecteur") };
@@ -56,27 +62,42 @@ const WHY: Record<string, () => string> = {
  *  son outil fournit, le ping seulement la présence. Une machine n'est « à optimiser » que si la méthode recommandée recueille PLUS que ce qui la lit déjà. */
 export const RICHNESS: Record<string, number> = { ssh: 3, agent: 3, connector: 1, ping: 0 };
 
+/** Le réglage à ouvrir pour mettre en place la méthode recommandée (null : rien à ouvrir) */
+function actionFor(a: Advice): AdviceView["action"] {
+  if (a.method === "ssh") return { label: tx("Régler l'accès SSH"), setup: "ssh" };
+  if (a.method === "agent") return { label: a.agent_kind === "windows" ? tx("Installer l'agent Windows") : tx("Installer l'agent Linux"), setup: "agent" };
+  if (a.method === "connector") return { label: tx("Régler le connecteur"), setup: "connector" };
+  return null;
+}
+
+function statusOf(a: Advice, read: boolean): AdviceStatus {
+  if (read || a.method === "ping") return "ok";
+  return a.current.length ? "optimize" : "todo";
+}
+
+/** Pourquoi la méthode actuelle n'est pas la meilleure ; un agent installé mais silencieux est la cause à dire en premier */
+function explainFor(a: Advice, now: string, title: string, silent: boolean): string {
+  if (silent) return tx("Un agent est déjà installé, mais il ne répond plus ({0}). Vérifiez que la machine est allumée et qu'elle joint MyServices ; sinon recréez l'agent.", a.agent_state ?? "");
+  return tx("Aujourd'hui elle est lue par {0}. {1} donnerait plus : {2}", now, title, (BENEFIT[a.method] ?? (() => ""))(a.agent_kind));
+}
+
+function todoFor(a: Advice, silent: boolean): string | null {
+  const text = silent ? tx("Si l'agent est perdu, recréez-le : un nouveau jeton remplace l'ancien.") : (TODO[a.method] ?? (() => ""))(a.agent_kind);
+  return text || null;
+}
+
 export function describeAdvice(_ip: string, a: Advice, accepted = false): AdviceView {
   const best = Math.max(0, ...a.current.map((m) => RICHNESS[m] ?? 0));
   const read = a.method !== "ping" && (a.current.includes(a.method) || best >= RICHNESS[a.method]);
-  let action: AdviceView["action"] = null;
-  if (!read && !(accepted && a.current.length > 0)) {
-    if (a.method === "ssh") action = { label: tx("Régler l'accès SSH"), setup: "ssh" };
-    else if (a.method === "agent") action = { label: a.agent_kind === "windows" ? tx("Installer l'agent Windows") : tx("Installer l'agent Linux"), setup: "agent" };
-    else if (a.method === "connector") action = { label: tx("Régler le connecteur"), setup: "connector" };
-  }
-  const raw: AdviceStatus = read || a.method === "ping" ? "ok" : a.current.length ? "optimize" : "todo";
+  const raw = statusOf(a, read);
   const kept = accepted && raw === "optimize";   // seule une machine « à optimiser » peut être gardée ainsi : une machine jamais lue reste à régler
-  const status: AdviceStatus = kept ? "ok" : raw;
+  const action = !read && !(accepted && a.current.length > 0) ? actionFor(a) : null;
   const title = METHOD_LABEL(a.method, a.agent_kind), now = a.current.map((m) => NOW_LABEL[m]()).join(", ");
-  // Un agent est installé mais ne répond plus : la cause la plus utile à dire, avant la méthode manquante
-  const silent = a.method === "agent" && a.agent_state && a.agent_state !== "actif";
-  const explain = raw !== "optimize" || kept ? null : silent
-    ? tx("Un agent est déjà installé, mais il ne répond plus ({0}). Vérifiez que la machine est allumée et qu'elle joint MyServices ; sinon recréez l'agent.", a.agent_state ?? "")
-    : tx("Aujourd'hui elle est lue par {0}. {1} donnerait plus : {2}", now, title, (BENEFIT[a.method] ?? (() => ""))(a.agent_kind));
+  const silent = a.method === "agent" && !!a.agent_state && a.agent_state !== "actif";   // un agent installé mais qui ne répond plus
   return {
-    status, kept, title, why: (WHY[a.why] ?? (() => ""))(), read, action, now, explain,
-    todo: action && !kept ? (silent ? tx("Si l'agent est perdu, recréez-le : un nouveau jeton remplace l'ancien.") : (TODO[a.method] ?? (() => ""))(a.agent_kind)) || null : null,
+    status: kept ? "ok" : raw, kept, title, why: (WHY[a.why] ?? (() => ""))(), read, action, now,
+    explain: raw === "optimize" && !kept ? explainFor(a, now, title, silent) : null,
+    todo: action && !kept ? todoFor(a, silent) : null,
     others: a.alternatives.filter((m) => m !== "ping").map((m) => ({ label: OTHER_LABEL[m](), active: a.current.includes(m) })),
   };
 }

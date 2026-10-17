@@ -19,7 +19,7 @@ export function whatIs(h: Pick<NetHost, "hints" | "apps" | "ssh_port" | "os" | "
   return h.apps[0] ?? (h.ssh_port ? "SSH" : osOf(h)?.label ?? tagsOf(h)[0]?.label ?? "");
 }
 
-function Row({ h, on, toggle }: { h: NetHost; on: boolean; toggle: () => void }) {
+function Row({ h, on, toggle }: Readonly<{ h: NetHost; on: boolean; toggle: () => void }>) {
   const what = whatIs(h), icon = appIcon(h.apps);
   return (
     <li>
@@ -38,7 +38,7 @@ function Row({ h, on, toggle }: { h: NetHost; on: boolean; toggle: () => void })
 export const proposedFrom = (net: NetScan | null, known: string[]): NetHost[] =>
   (net?.found ?? []).filter((h) => !known.includes(h.ip) && !net?.ignored?.includes(h.ip) && worthFollowing(h));
 
-export function AssistantNetwork({ net, reload, known, onManual }: { net: NetScan | null; reload: () => void; known: string[]; onManual: () => void }) {
+export function AssistantNetwork({ net, reload, known, onManual }: Readonly<{ net: NetScan | null; reload: () => void; known: string[]; onManual: () => void }>) {
   const [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set()), [added, setAdded] = useState(0);
   const state = netState(net), preselected = useRef<number | null>(null);

@@ -8,7 +8,7 @@ import { STEPS, bannerClosed, closeBanner, isFinished, markLanded, normalizeProg
 import { tx } from "../lib/i18n";
 import { primary } from "../lib/forms";
 
-export function AssistantBanner({ snap }: { snap: Snapshot }) {
+export function AssistantBanner({ snap }: Readonly<{ snap: Snapshot }>) {
   const [state, setState] = useState<AssistantProgress | null | undefined>(undefined), [off, setOff] = useState(bannerClosed);
   useEffect(() => {
     read<{ state: AssistantProgress | null }>("assistant").then((r) => setState(r.state && normalizeProgress(r.state))).catch(() => setState(undefined));

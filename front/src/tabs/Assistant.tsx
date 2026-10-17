@@ -21,7 +21,7 @@ import { tx } from "../lib/i18n";
 import { plural } from "../lib/summary";
 import type { Advice, AlertChannel, ConnectorInstance, ConnectorsState, Machine, Proposal, SystemState } from "../types";
 
-export function Assistant({ snap }: { snap: Snapshot }) {
+export function Assistant({ snap }: Readonly<{ snap: Snapshot }>) {
   const [p, setP] = useState<AssistantProgress>(loadProgress);
   const store = (next: AssistantProgress) => { saveProgress(next); setP(next); void send("PUT", "assistant", next).catch(() => undefined); };   // navigateur + serveur
   const update = (next: AssistantProgress) => { store(next); scrollTo({ top: 0 }); };
@@ -99,7 +99,7 @@ export function Assistant({ snap }: { snap: Snapshot }) {
   );
 }
 
-function Welcome({ snap }: { snap: Snapshot }) {
+function Welcome({ snap }: Readonly<{ snap: Snapshot }>) {
   const items = [
     { Icon: Eye, title: tx("Il lit, il ne modifie rien"), text: tx("MyServices regarde vos machines et vos outils en lecture seule. Rien n'est changé sur eux sans que vous le demandiez.") },
     { Icon: Plug, title: tx("Il s'appuie sur ce que vous avez déjà"), text: tx("SSH, un petit agent, ou les outils que vous utilisez déjà : à chaque machine sa méthode, vous choisissez.") },
@@ -125,7 +125,7 @@ function Welcome({ snap }: { snap: Snapshot }) {
 /** Ce que MyServices voit de la machine qui l'héberge, sans SSH ni rien à configurer */
 type Report = (id: AssistantStep, ok: boolean) => void;
 
-function ThisMachine({ snap, chosen, onChoose, report }: { snap: Snapshot; chosen: string; onChoose: (ip: string) => void; report: Report }) {
+function ThisMachine({ snap, chosen, onChoose, report }: Readonly<{ snap: Snapshot; chosen: string; onChoose: (ip: string) => void; report: Report }>) {
   const [sys, setSys] = useState<SystemState | null>(null);
   useEffect(() => { read<SystemState>("system").then(setSys).catch(() => undefined); }, []);
   const list = snap.data.machine_list;
@@ -185,7 +185,7 @@ const ACTION = "min-w-[13rem] flex-1 justify-center sm:max-w-[17rem]";
 const setupFor = (kind: "ssh" | "agent" | "connector", m: Machine, a: Advice): Setup =>
   kind === "ssh" ? { kind: "ssh", ip: m.ip, name: m.name } : kind === "agent" ? { kind: "agent", ip: m.ip, name: m.name, agent: a.agent_kind } : { kind: "connector", ip: m.ip, name: m.name };
 
-function Network({ snap, report, open }: { snap: Snapshot; report: Report; open: Open }) {
+function Network({ snap, report, open }: Readonly<{ snap: Snapshot; report: Report; open: Open }>) {
   const { net, reload } = useNetScan();
   const known = snap.data.machine_list.map((m) => m.ip);
   useEffect(() => report("network", net?.phase === "done" && proposedFrom(net, known).length === 0), [net, known.join(), report]);   // recherche faite, rien de nouveau à suivre
@@ -199,7 +199,7 @@ function Network({ snap, report, open }: { snap: Snapshot; report: Report; open:
 }
 
 /** Étape 4 : une machine à la fois, la méthode de lecture recommandée et ce qu'il reste à faire */
-function Access({ snap, report, open, rev, accepted, onAccept }: { snap: Snapshot; report: Report; open: Open; rev: number; accepted: string[]; onAccept: (ip: string, on: boolean) => void }) {
+function Access({ snap, report, open, rev, accepted, onAccept }: Readonly<{ snap: Snapshot; report: Report; open: Open; rev: number; accepted: string[]; onAccept: (ip: string, on: boolean) => void }>) {
   const view = (ip: string, a: Advice) => describeAdvice(ip, a, accepted.includes(ip));   // « C'est suffisant ainsi » pris en compte
   const [advice, setAdvice] = useState<Record<string, Advice> | null>(null), [error, setError] = useState(""), [i, setI] = useState(0);
   useEffect(() => {
@@ -263,7 +263,7 @@ function Access({ snap, report, open, rev, accepted, onAccept }: { snap: Snapsho
 }
 
 /** Étape 5 : les outils reconnus sur le réseau que MyServices sait lire par leur API, pas encore reliés */
-function Tools({ snap, report, open, rev }: { snap: Snapshot; report: Report; open: Open; rev: number }) {
+function Tools({ snap, report, open, rev }: Readonly<{ snap: Snapshot; report: Report; open: Open; rev: number }>) {
   const [instances, setInstances] = useState<ConnectorInstance[] | null>(null);
   useEffect(() => { read<ConnectorsState>("connectors/settings").then((c) => setInstances(c.instances)).catch(() => setInstances([])); }, [snap.data.generated, rev]);
   const list: Proposal[] | null = instances ? (snap.data.proposals ?? []).filter((x) => !savedFor(x, instances)) : null;
@@ -296,7 +296,7 @@ function Tools({ snap, report, open, rev }: { snap: Snapshot; report: Report; op
 }
 
 /** Étape 6 : un canal d'alerte qui marche (Discord, Telegram ou webhook), avec un message d'essai */
-function AlertsStep({ report, open, rev }: { report: Report; open: Open; rev: number }) {
+function AlertsStep({ report, open, rev }: Readonly<{ report: Report; open: Open; rev: number }>) {
   const [channels, setChannels] = useState<AlertChannel[] | null>(null), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(0);
   useEffect(() => { read<{ channels: AlertChannel[] }>("alerts").then((r) => setChannels(r.channels)).catch(() => setChannels([])); }, [rev]);
   const ready = (channels ?? []).filter((c) => c.enabled);
@@ -329,7 +329,7 @@ function AlertsStep({ report, open, rev }: { report: Report; open: Open; rev: nu
 }
 
 /** Fin de l'assistant : ce que MyServices lit maintenant, méthode par méthode, et ce qui peut encore être amélioré */
-function Recap({ snap, onReview }: { snap: Snapshot; onReview: () => void }) {
+function Recap({ snap, onReview }: Readonly<{ snap: Snapshot; onReview: () => void }>) {
   const [advice, setAdvice] = useState<Record<string, Advice> | null>(null);
   useEffect(() => { read<{ advice: Record<string, Advice> }>("machines/advice").then((r) => setAdvice(r.advice)).catch(() => undefined); }, [snap.data.generated]);
   if (!advice) return null;
@@ -353,7 +353,7 @@ function Recap({ snap, onReview }: { snap: Snapshot; onReview: () => void }) {
   );
 }
 
-function Soon({ title }: { title: string }) {
+function Soon({ title }: Readonly<{ title: string }>) {
   return (
     <div>
       <h2 className="text-xl font-bold">{title}</h2>

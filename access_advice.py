@@ -78,34 +78,40 @@ def advise(f: dict) -> dict:
     kind = os_kind(f)
     connectors = [c for c in f.get("connectors") or [] if c]
     current = [m for m, on in (("ssh", f.get("ssh_ok")), ("agent", f.get("agent") == "actif"), ("connector", bool(connectors))) if on]
-    ssh_possible = bool(f.get("ssh_ok") or f.get("ssh_alias") or f.get("ssh_port"))
+    method, why, alternatives, agent_possible, agent_kind = _plan(f, kind, connectors)
+    return {"kind": kind, "method": method, "why": why, "current": current, "alternatives": [a for a in alternatives if a != method],
+            "agent_possible": agent_possible, "agent_kind": agent_kind, "agent_state": f.get("agent_state")}
 
-    def answer(method: str, why: str, alternatives: list[str], agent_possible: bool = False, agent_kind: str | None = None) -> dict:
-        return {"kind": kind, "method": method, "why": why, "current": current, "alternatives": [a for a in alternatives if a != method],
-                "agent_possible": agent_possible, "agent_kind": agent_kind, "agent_state": f.get("agent_state")}
 
+def _plan(f: dict, kind: str, connectors: list[str]) -> tuple[str, str, list[str], bool, str | None]:
+    """(méthode, motif, alternatives, agent possible, type d'agent) pour une machine de ce système, dans l'ordre des règles du module."""
+    via_tool = "connector" if connectors else "ping"
     if is_appliance(f):
-        return answer("connector" if connectors else "ping", "appliance", ["ping"])
+        return via_tool, "appliance", ["ping"], False, None
     if is_home_assistant_os(f):   # ni SSH ni agent : l'API
-        return answer("connector" if connectors else "ping", "home_assistant", ["ping"])
+        return via_tool, "home_assistant", ["ping"], False, None
     if kind == "windows":
-        return answer("agent", "windows", ["connector"] if connectors else [], True, "windows")
+        return "agent", "windows", ["connector"] if connectors else [], True, "windows"
     if kind in ("ios", "network"):
-        return answer("connector" if connectors else "ping", "device", [])
+        return via_tool, "device", [], False, None
+    ssh_possible = bool(f.get("ssh_ok") or f.get("ssh_alias") or f.get("ssh_port"))
     if kind == "macos":   # pas d'agent macOS
-        return answer("ssh" if ssh_possible else "ping", "macos" if ssh_possible else "macos_no_ssh", [])
-    # Linux ou système inconnu
-    agent_kind = "linux" if kind == "linux" else None
+        return ("ssh", "macos", [], False, None) if ssh_possible else ("ping", "macos_no_ssh", [], False, None)
+    return _plan_linux(f, kind, connectors, ssh_possible)
+
+
+def _plan_linux(f: dict, kind: str, connectors: list[str], ssh_possible: bool) -> tuple[str, str, list[str], bool, str | None]:
+    """Linux ou système inconnu : SSH si possible, sinon un outil, sinon l'agent, sinon le ping."""
     if ssh_possible:
-        return answer("ssh", "ssh_configured" if f.get("ssh_ok") or f.get("ssh_alias") else "ssh_port",
-                      ["agent"] + (["connector"] if connectors else []), True, "linux")
+        why = "ssh_configured" if f.get("ssh_ok") or f.get("ssh_alias") else "ssh_port"
+        return "ssh", why, ["agent"] + (["connector"] if connectors else []), True, "linux"
     if connectors:
-        return answer("connector", "connector_only", ["agent"], True, "linux")
+        return "connector", "connector_only", ["agent"], True, "linux"
     if f.get("ping") is False:
-        return answer("ping", "unreachable", ["agent"], True, agent_kind)
+        return "ping", "unreachable", ["agent"], True, "linux" if kind == "linux" else None
     if kind == "linux":
-        return answer("agent", "no_ssh_port", [], True, "linux")
-    return answer("ping", "unknown_system", ["agent"], True, None)
+        return "agent", "no_ssh_port", [], True, "linux"
+    return "ping", "unknown_system", ["agent"], True, None
 
 
 def freebox_tool(m: dict, network: list[dict] | None) -> str | None:
@@ -115,22 +121,26 @@ def freebox_tool(m: dict, network: list[dict] | None) -> str | None:
     return next((c.get("label") for c in network or [] if (c.get("freebox") or {}).get("system")), None)
 
 
+def connectors_of(m: dict, network: list[dict] | None) -> list[str]:
+    """Libellés des outils qui lisent cette machine : connecteurs d'API (y compris périmés), outils rapprochés qui répondent, et l'outil de la Freebox."""
+    out = [a.get("label") for a in m.get("api") or [] if a.get("ok") or a.get("stale")]
+    out += [s.get("label") for s in (m.get("links") or {}).get("sources") or [] if s.get("ok") is not False and s.get("label") not in out]
+    if (fb := freebox_tool(m, network)) and fb not in out:
+        out.append(fb)
+    return out
+
+
 def facts_of(m: dict, conf: dict | None = None, scan: dict | None = None, network: list[dict] | None = None, agent_state: str | None = None) -> dict:
     """Faits d'une machine à partir de l'entrée de data.json « machine_list » (m), de son réglage (conf), de son entrée du dernier scan réseau
     et des outils réseau (data.json « network », pour reconnaître la Freebox)."""
     conf, scan = conf or {}, scan or {}
     ssh = m.get("ssh") or {}
-    sources = (m.get("links") or {}).get("sources") or []
-    connectors = [a.get("label") for a in m.get("api") or [] if a.get("ok") or a.get("stale")]
-    connectors += [s.get("label") for s in sources if s.get("ok") is not False and s.get("label") not in connectors]
-    if (fb := freebox_tool(m, network)) and fb not in connectors:
-        connectors.append(fb)
     return {
         "ip": m.get("ip"), "os": conf.get("os"), "info_os": (m.get("info") or {}).get("os"), "scan_os": scan.get("os"), "ttl": m.get("ttl"),
         "ping": m.get("ping"), "icon": m.get("icon") or conf.get("icon"), "role": m.get("role") or conf.get("role"),
         "gateway": bool(conf.get("gateway")) or "gateway" in (m.get("detected") or []), "apps": scan.get("apps") or [],
         "ssh_port": scan.get("ssh_port"), "ssh_alias": ssh.get("alias") or (conf.get("ssh") if isinstance(conf.get("ssh"), str) else None),
-        "ssh_ok": bool(m.get("info")), "agent": "actif" if m.get("agent") else None, "agent_state": agent_state, "connectors": connectors,
+        "ssh_ok": bool(m.get("info")), "agent": "actif" if m.get("agent") else None, "agent_state": agent_state, "connectors": connectors_of(m, network),
     }
 
 

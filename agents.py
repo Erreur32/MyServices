@@ -22,7 +22,8 @@ from pathlib import Path
 VERSION = "8"                # Windows agent (agent.ps1)
 LINUX_VERSION = "1"          # Linux agent (agent.py)
 KINDS = ("windows", "linux")
-SCRIPT_OF = {"windows": "agent.ps1", "linux": "agent.py"}
+PS_AGENT = "agent.ps1"       # script de l'agent Windows
+SCRIPT_OF = {"windows": PS_AGENT, "linux": "agent.py"}
 SCRIPTS = Path(__file__).resolve().parent / "agent"
 PREFIX = "msv_agent_"
 NAME_RE = re.compile(r"^[\w .@-]{2,64}$")
@@ -396,7 +397,7 @@ def version_of(kind: str) -> str:
     return LINUX_VERSION if kind == "linux" else VERSION
 
 
-def script_sha256(name: str = "agent.ps1") -> str:
+def script_sha256(name: str = PS_AGENT) -> str:
     """Empreinte du script d'agent tel que servi : l'agent la contrôle avant de remplacer son propre fichier."""
     return hashlib.sha256(script(name).encode("utf-8")).hexdigest()
 
@@ -429,7 +430,7 @@ def script(name: str) -> str:
     """agent.ps1 (relevé de health.WIN_PS inclus : une seule source pour SSH et agent) ou install.ps1, tels que servis.
     ASCII seulement : Windows PowerShell 5.1 lit un script sans BOM en ANSI."""
     text = (SCRIPTS / name).read_text(encoding="utf-8")
-    if name == "agent.ps1":
+    if name == PS_AGENT:
         import health
         text = text.replace("#__COLLECT__", health.WIN_PS.strip()).replace("__VERSION__", VERSION)
     elif name == "agent.py":   # the Linux agent runs the commands the SSH collection runs: one list, here
