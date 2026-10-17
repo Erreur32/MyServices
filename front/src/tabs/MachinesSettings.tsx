@@ -15,6 +15,7 @@ import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
 import { Overlay } from "../components/Overlay";
+import { AgentBlock, AgentsOverview } from "./Agents";
 import { IconChoice } from "../components/IconChoice";
 import { IconPicker } from "../components/IconPicker";
 import { mState, osOfMachine } from "../lib/machines";
@@ -48,7 +49,7 @@ function sshWho(st: State, alias: string): string {
   return a ? `${a.user ? `${a.user}@` : ""}${a.ip || a.host}${a.port ? `:${a.port}` : ""}` : alias;
 }
 
-export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: string }) {
+export function MachinesSettings({ snap, focusIp, focusTab }: { snap: Snapshot; focusIp?: string; focusTab?: "access" }) {
   const [st, setSt] = useState<State | null>(null);
   const [error, setError] = useState("");
   const [detecting, setDetecting] = useState(false);
@@ -57,7 +58,8 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
   const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean; sshPort?: number }>>({});
   const [hosts, setHosts] = useState<NetHost[]>([]);
   const [agents, setAgents] = useState<Record<string, AgentInfo>>({});  // agent actif par IP
-  useEffect(() => { read<{ agents: AgentInfo[] }>("agents").then((r) => setAgents(Object.fromEntries(r.agents.filter((a) => a.state !== "révoqué").map((a) => [a.ip, a])))).catch(() => undefined); }, []);
+  const loadAgents = useCallback(() => { read<{ agents: AgentInfo[] }>("agents").then((r) => setAgents(Object.fromEntries(r.agents.filter((a) => a.state !== "révoqué").map((a) => [a.ip, a])))).catch(() => undefined); }, []);
+  useEffect(loadAgents, [loadAgents]);
   useEffect(() => { read<NetScan>("network/scan").then((n) => { setHosts(n.found || []); setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [], ssh: !!h.ssh_port, sshPort: h.ssh_port ?? undefined }]))); }).catch(() => undefined); }, []);
   const [accepted, setAccepted] = useState<{ gen: string; ips: string[] }>({ gen: "", ips: [] });
   const [showOff, setShowOff] = useState(false);   // machines not followed: hidden, like in the Machines tab   // clés acceptées depuis le dernier passage : la carte se retire sans attendre le suivant
@@ -113,9 +115,10 @@ export function MachinesSettings({ snap, focusIp }: { snap: Snapshot; focusIp?: 
           const lm = live.get(ip);
           // Un PC Windows n'a ni Docker ni services en écoute à lire : pas d'état de connecteur SSH Linux (reste d'un ancien relevé)
           const stat = st.machines[ip].os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.ip ? c.ip === ip : c.name === ip || c.name === lm?.name));
-          return <MachineRow key={ip} agent={agents[ip]} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} network={snap.data.network} />;
+          return <MachineRow key={ip} agent={agents[ip]} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} focusTab={ip === focusIp ? focusTab : undefined} onAgent={loadAgents} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} network={snap.data.network} />;
         })}
       </div>
+      <AgentsOverview machines={st.machines} />
     </div>
   );
 }
@@ -274,8 +277,8 @@ function AgentOrAccess({ agent, access }: Readonly<{ agent?: AgentInfo; access: 
   return <Badge tone={agent.state === "actif" ? "ok" : "warn"} title={tx("Agent MyServices : {0}", agent.state)}>{tx("agent")}</Badge>;
 }
 
-function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished, agent, network }: {
-  network?: NetworkConnector[]; agent?: AgentInfo; unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[]; ssh?: boolean; sshPort?: number }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
+function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgent, scan, unfinished, agent, network }: {
+  focusTab?: "access"; onAgent: () => void; network?: NetworkConnector[]; agent?: AgentInfo; unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[]; ssh?: boolean; sshPort?: number }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
 }) {
   const fb = live && freeboxOf(live, network) && network?.find((c) => c.freebox?.system);   // la Freebox est lue par MynetworK, rapprochée par son nom
   const readers = fb ? [{ type: fb.connector, name: fb.name, label: fb.label }] : [];
@@ -407,7 +410,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, scan, unfinished
                 : tx("cette machine offre SSH mais MyServices n'y a pas d'accès : activez « Lecture par SSH » ci-dessous.")}
             </p>
           )}
-          <MachineForm tabbed agent={agent} connection={connection} report={setNote} onIcon={setIcon} onFollow={(on) => setOff(!on)} ip={ip} m={m} st={st} live={live} scan={scan} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
+          <MachineForm tabbed focusTab={focusTab} onAgent={onAgent} agent={agent} connection={connection} report={setNote} onIcon={setIcon} onFollow={(on) => setOff(!on)} ip={ip} m={m} st={st} live={live} scan={scan} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
             <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
             <span className="ml-auto flex items-center gap-1.5">
               {confirm ? <>
@@ -435,7 +438,8 @@ function OptionGroup({ title, hint, tone, children }: { title: string; hint?: st
   );
 }
 
-function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, scan, actions, windowsGuess, report, onDone, onIcon, onFollow, agent, connection, tabbed }: {
+function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, scan, actions, windowsGuess, report, onDone, onIcon, onFollow, agent, connection, tabbed, focusTab, onAgent }: {
+  focusTab?: "access"; onAgent?: () => void;
   tabbed?: boolean;  // dans la fenêtre d'une machine : Identité, Options et Accès en onglets
   onFollow?: (followed: boolean) => void;  // « Machine suivie » vient d'être enregistrée : la carte de la machine se dégrise (ou se grise)
   onIcon?: (icon: string | undefined) => void;  // l'icône vient d'être enregistrée : la carte de la machine se met à jour
@@ -454,7 +458,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   // d'une machine dont la détection est à confirmer.
   const [options, setOptions] = useState(() => !!isNew && detected.length > 0);
   const [missingOpen, setMissingOpen] = useState(false), [manualOpen, setManualOpen] = useState(false);
-  const [tab, setTab] = useState<"identity" | "options" | "access">("identity");
+  const [tab, setTab] = useState<"identity" | "options" | "access">(focusTab ?? "identity");
   const show = (t: string) => !tabbed || tab === t;   // dans la fenêtre d'une machine : un onglet à la fois ; à l'ajout, tout d'un coup
   const [sshOpen, setSshOpen] = useState(!!isNew || !!tabbed);  // replié d'office ; ouvert à l'ajout d'une machine et dans l'onglet Accès
   const [localNote, setLocalNote] = useState<Note>(null), [busy, setBusy] = useState(false);
@@ -613,11 +617,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
         </p>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-lg border border-line/60 bg-bg2/70 p-3">
           <label className="flex min-w-[240px] flex-1 items-center gap-3 text-sm">
-            {agentMode ? <>
-              <Switch on={!!agent} onChange={() => { location.hash = `#settings/agents/${ip}`; }} label={tx("Lecture par l'agent")} />
-              <span><b>{agent ? tx("Actif") : tx("Inactif")}</b>
-                <Dim> · {agent ? (agent.last_seen ? tx("dernier relevé {0}", dateTime(agent.last_seen * 1000)) : tx("en attente du premier relevé")) : tx("cliquez pour installer l'agent")}</Dim></span>
-            </> : <>
+            {agentMode ? <span className="text-sm text-muted">{tx("Lue par l'agent MyServices : son état et ses réglages sont plus bas.")}</span> : <>
               <Switch on={sshOn} disabled={pending === "ssh"} onChange={(on) => void toggleSsh(on)} label={tx("Lecture par SSH")} />
               <span><b>{sshOn ? tx("Actif") : tx("Inactif")}</b> <Saved k="ssh" />
                 {sshOn ? <> <Dim>·</Dim> {sshPills}</> : <Dim> · {foundSsh ? tx("activé tout seul au prochain passage") : v.ssh === false ? tx("coupé : ping et services web seulement") : tx("ping et services web seulement")}</Dim>}</span>
@@ -684,6 +684,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
             <Dim>{tx("la première source qui répond fait foi, l'autre prend le relais si elle se tait et complète ce qui manque")}</Dim>
           </div>
         )}
+        {!isNew && onAgent && <AgentBlock ip={ip} name={v.name} kind={windows || windowsGuess ? "windows" : "linux"} agent={agent} onChanged={onAgent} />}
         </div>}
       </section>
       </>}
