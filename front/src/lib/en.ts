@@ -1278,6 +1278,7 @@ export const EN: Record<string, string> = {
   "connexion refusée ou impossible": "connection refused or impossible",
   "La connexion SSH échoue : voir l'action requise en haut de la fenêtre": "The SSH connection fails: see the required action at the top of the window",
   "connexion refusée": "connection refused",
+  "{0} en attente de la synchro": "{0} waiting for the sync",
   "lecture partielle": "partial reading",
   "Lecture partielle": "Partial reading",
   "alimente aussi :": "also feeds:",

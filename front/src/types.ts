@@ -132,6 +132,8 @@ export interface Rewrite {
   why?: string;
   rule?: string;
   only?: string;
+  waiting?: boolean;   // difference between two AdGuard: adguardhome-sync has not had a full turn since it appeared
+  since?: number;      // when it was first seen (epoch s)
   enabled?: boolean;
 }
 

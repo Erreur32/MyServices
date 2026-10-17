@@ -66,7 +66,8 @@ export function Dns({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
   const name = (ip?: string) => (ip && g.servers[ip]?.name) || ip || "?";
   const last = sync?.last_done ? Math.max(...Object.values(sync.last_done).map((t) => new Date(t).getTime())) : null;
   const rows = snap.data.hosts.filter((r) => r.dns && r.enabled && r.dns.issues.length);
-  const diff = [...g.rewrites_diff, ...g.user_rules_diff];
+  const all = [...g.rewrites_diff, ...g.user_rules_diff];
+  const diff = all.filter((x) => !x.waiting), waiting = all.length - diff.length;   // a fresh difference waits one sync turn before it counts
   return (
     <div className="flex flex-col gap-4 py-4">
       <header className="flex items-center gap-3">
@@ -83,7 +84,7 @@ export function Dns({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
                         ...(sync.interval_min ? [[tx("Fréquence"), `${tx("toutes les")} ${sync.interval_min} ${tx("min")}`] as Row] : []),
                         [tx("Erreurs (24 h)"), String(sync.errors_24h || 0), sync.errors_24h ? "bad" : "ok"] as Row]
                     : [["adguardhome-sync", Object.keys(g.servers).length > 1 ? tx("absent : contenus comparés") : tx("sans objet")] as Row]),
-            [tx("Contenu"), diff.length ? tx("{0} différence(s)", diff.length) : tx("identique"), diff.length ? "warn" : "ok"] as Row,
+            [tx("Contenu"), diff.length ? tx("{0} différence(s)", diff.length) : waiting ? tx("{0} en attente de la synchro", waiting) : tx("identique"), diff.length ? "warn" : "ok"] as Row,
           ]} />
         {Object.entries(g.servers).map(([ip, v]) => {
           const ok = v.readable && !v.silent;

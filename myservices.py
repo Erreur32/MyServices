@@ -598,6 +598,9 @@ def dns_check(rows):
                 issues.append(["hors_lan", d])
         r["dns"] = {"answers": per, "issues": issues, "rule": {d: blocked_by[d] for d in per if d in blocked_by},
                     "rewrites": [x for x in rewrites if any(_rewrite_hits(x["domain"], d) for d in per)]}
+    sync = {ip: _sync_origin(f.result() or {"container": ADGUARD_SYNC[ip], "unreadable": True}, servers) for ip, f in syncs.items()}
+    report = _rewrites_report(confs, npm_rows, set(NPM_IPS.values()))
+    mark_waiting(report, sync)
     return {
         "npm_ip": next(iter(NPM_IPS.values()), None),
         "npm_ips": NPM_IPS,
@@ -607,10 +610,40 @@ def dns_check(rows):
                          "rewrites": len(confs[ip]["rewrites"]) if confs[ip] else None,
                          "user_rules": len(confs[ip]["user_rules"]) if confs[ip] else None,
                          "silent": sum(1 for d in names if ans[(ip, d)] is None)} for ip in servers},
-        "sync": {ip: _sync_origin(f.result() or {"container": ADGUARD_SYNC[ip], "unreadable": True}, servers)
-                 for ip, f in syncs.items()},
-        **_rewrites_report(confs, npm_rows, set(NPM_IPS.values())),
+        "sync": sync,
+        **report,
     }
+
+
+DNS_DIFF_SEEN = os.path.join(CFG["cache_dir"], "dns-diff-seen.json")
+SYNC_GRACE_MIN = 3   # minutes added to the sync interval before a difference counts: the run itself takes a moment
+
+
+def mark_waiting(report, sync, now=None):
+    """A difference between two AdGuard instances is not a warning yet: adguardhome-sync may simply not have copied it. Each
+    difference gets `since` (first seen, kept in a small cache file) and `waiting` (true until one sync interval plus a grace
+    has passed since then). Without adguardhome-sync nothing replicates, so nothing waits."""
+    now = now or time.time()
+    gaps = [s["interval_min"] for s in sync.values() if s.get("interval_min")]
+    wait_s = (max(gaps) + SYNC_GRACE_MIN) * 60 if gaps else 0
+    items = {f"rw:{x['domain']}:{x['answer']}:{x['only']}": x for x in report["rewrites_diff"]}
+    items.update({f"rule:{x['rule']}:{x['only']}": x for x in report["user_rules_diff"]})
+    try:
+        with open(DNS_DIFF_SEEN, encoding="utf-8") as f:
+            seen = json.load(f)
+    except (OSError, ValueError):
+        seen = {}
+    kept = {k: seen.get(k, now) for k in items}   # a difference that went away is forgotten
+    for k, x in items.items():
+        x["since"], x["waiting"] = kept[k], now - kept[k] < wait_s
+    if kept != seen:
+        try:
+            tmp = DNS_DIFF_SEEN + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(kept, f)
+            os.replace(tmp, DNS_DIFF_SEEN)
+        except OSError:
+            pass   # no cache: the difference is simply shown as waiting again at the next pass
 
 
 def _sync_origin(s, servers):
