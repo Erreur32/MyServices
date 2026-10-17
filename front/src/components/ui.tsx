@@ -114,10 +114,10 @@ function ChipButton({ on, count, mark, label, onClick }: { on: boolean; count: n
   );
 }
 
-export function FilterBar<T>({ f, placeholder, extra, options = [], primary = [] }: {
+export function FilterBar<T>({ f, placeholder, extra, side, options = [], primary = [] }: {
   f: { query: string; setQuery: (q: string) => void; shown: unknown[]; total: number; active: number; reset: () => void;
        chips: { facet: Facet<T>; chips: Chip[] }[]; toggle: (k: string, v: string) => void };
-  placeholder: string; extra?: ReactNode; options?: FilterOption[];
+  placeholder: string; extra?: ReactNode; side?: ReactNode; options?: FilterOption[];   // side : à droite, sous le bouton « Filtres »
   /** Clés des filtres toujours visibles sous la recherche ; les autres restent derrière le bouton « Filtres » */
   primary?: string[];
 }) {
@@ -138,24 +138,29 @@ export function FilterBar<T>({ f, placeholder, extra, options = [], primary = []
   return (
     <div className="my-4 flex flex-col gap-3 rounded-2xl border border-line bg-card/70 p-3">
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-2 focus-within:border-link">
+        <label className="flex min-w-[220px] max-w-sm flex-1 items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-1.5 focus-within:border-link">
           <Search size={16} className="text-dim" />
           <input value={f.query} onChange={(e) => f.setQuery(e.target.value)} placeholder={placeholder} type="search"
             className="w-full bg-transparent text-sm text-txt outline-none placeholder:text-dim" />
         </label>
-        <span className="text-sm text-muted"><b className="text-txt">{f.shown.length}</b> / {f.total}</span>
+        <span className="text-sm text-muted" title={tx("Lignes affichées sur le total, après la recherche et les filtres")}><b className="text-txt">{f.shown.length}</b> {tx("sur")} {f.total}</span>
         {f.active > 0 && (
           <button type="button" onClick={f.reset} className="inline-flex items-center gap-1 text-sm text-link hover:underline">
             <X size={14} />{tx("Tout effacer")}
           </button>
         )}
         {extra}
-        {(groups.length > 0 || options.length > 0) && (
-          <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
-            className={`ml-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold text-link transition-colors hover:bg-link/10 ${open || nActive ? "border-link bg-link/10" : "border-link/50"}`}>
-            <SlidersHorizontal size={14} />{primary.length ? tx("Plus de filtres") : tx("Filtres")}{nActive > 0 && <b className="grid h-5 min-w-5 place-items-center rounded-full bg-link px-1 text-[11px] leading-none text-white">{nActive}</b>}
-            {open ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
-          </button>
+        {((groups.length > 0 || options.length > 0) || side) && (
+          <div className="ml-auto flex flex-col items-end gap-1.5">
+            {(groups.length > 0 || options.length > 0) && (
+              <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold text-link transition-colors hover:bg-link/10 ${open || nActive ? "border-link bg-link/10" : "border-link/50"}`}>
+                <SlidersHorizontal size={14} />{primary.length ? tx("Plus de filtres") : tx("Filtres")}{nActive > 0 && <b className="grid h-5 min-w-5 place-items-center rounded-full bg-link px-1 text-[11px] leading-none text-white">{nActive}</b>}
+                {open ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
+              </button>
+            )}
+            {side}
+          </div>
         )}
       </div>
       {inline.length > 0 && (

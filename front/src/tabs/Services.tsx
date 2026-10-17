@@ -208,7 +208,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
   return (
     <div className="py-1">
       <FilterBar f={f} primary={["status", "domain", "machine"]} placeholder={tx("Domaine, IP, port, conteneur, image…")}
-        extra={<button type="button" onClick={() => setGrouped(!grouped)} aria-pressed={grouped} title={tx("Regrouper les services sous le nom de leur machine")}
+        side={<button type="button" onClick={() => setGrouped(!grouped)} aria-pressed={grouped} title={tx("Regrouper les services sous le nom de leur machine")}
           className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-colors ${grouped ? "border-link bg-link/15 text-txt" : "border-line text-link hover:bg-link/10"}`}>
           <Server size={14} aria-hidden />{tx("Par machine")}</button>} />
       {sort.sorted.length === 0 ? <Empty>{tx("Aucun service pour ce filtre.")}</Empty> : (
