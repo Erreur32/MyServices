@@ -78,6 +78,7 @@ class Status:
     since: float | None = None  # début de la panne (epoch)
     extra: dict = field(default_factory=dict)
     found: list = field(default_factory=list)  # ce que la lecture a rapporté : [{name, count}]
+    warning: str = ""  # lecture réussie mais incomplète (ex. ss sans root) : avertissement orange, pas une panne
 
 
 class Context:

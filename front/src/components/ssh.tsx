@@ -25,6 +25,7 @@ export function StatusLine({ s, collect }: { s: (Partial<ConnectorStatus> & Conn
   const found = (s.found ?? []).map((f) => <Badge key={f.name} tone={f.count ? "ok" : "off"} title={tx("Lu à la dernière collecte")}>{f.name} : {f.count}</Badge>);
   // Docker read fine but not installed (VMware ESXi, a NAS…): nothing to read, said in grey, not a green tick
   if (s.ok && s.type === "docker" && s.message?.startsWith("pas de Docker")) return <Dim>{tx("pas de Docker sur cette machine (rien à lire)")}</Dim>;
+  if (s.ok && !s.stale && s.warning) return <span className="flex flex-wrap items-center gap-2"><AlertTriangle size={16} className="shrink-0 text-warn" aria-label={tx("lecture partielle")} /><span className="text-warn">{s.warning}</span>{version}{found}</span>;
   if (s.ok && !s.stale) return <span className="flex flex-wrap items-center gap-2"><CheckCircle2 size={16} className="shrink-0 text-ok" aria-label={tx("lu")} />{version}{found}</span>;
   const bad = !s.ok;
   return (

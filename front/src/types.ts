@@ -459,6 +459,7 @@ export interface ConnectorStatus {
   version_tested: boolean | null;
   stale: boolean;
   failures: number;
+  warning?: string;   // read fine but incomplete (ss without root): orange, not a failure
   found?: { name: string; count: number }[];
   pending?: boolean;   // saved or switched on after the last collection: being read again
 }

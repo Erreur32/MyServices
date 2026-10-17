@@ -410,9 +410,13 @@ function SshRiskBadge({ live }: Readonly<{ live: Live }>) {
 }
 
 function FailedBadge({ statuses }: Readonly<{ statuses: Statuses }>) {
-  const failed = statuses.filter((c) => !c.ok);
-  if (failed.length === 0) return null;
-  return <Badge tone="bad" title={`${tx("Lecture en échec")}\n${failed.map((c) => c.name).join(", ")}`}>{failed.length} {tx("en échec")}</Badge>;
+  const failed = statuses.filter((c) => !c.ok), partial = statuses.filter((c) => c.ok && "warning" in c && c.warning);
+  return (
+    <>
+      {failed.length > 0 && <Badge tone="bad" title={`${tx("Lecture en échec")}\n${failed.map((c) => c.name).join(", ")}`}>{failed.length} {tx("en échec")}</Badge>}
+      {partial.length > 0 && <Badge tone="warn" title={`${tx("Lecture partielle")}\n${partial.map((c) => ("warning" in c ? c.warning : "")).join("\n")}`}>{tx("lecture partielle")}</Badge>}
+    </>
+  );
 }
 
 /** The status badges at the right of the card header */
