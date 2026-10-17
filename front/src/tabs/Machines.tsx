@@ -485,6 +485,20 @@ function FreeboxStorage({ fb }: Readonly<{ fb: FreeboxInfo }>) {
   </>;
 }
 
+/** The box's DHCP server and the DNS it hands out (MynetworK 0.10.72+; nothing shown without them) */
+export function FreeboxNetwork({ dhcp }: Readonly<{ dhcp?: FreeboxInfo["dhcp"] }>) {
+  if (!dhcp) return null;
+  const range = dhcp.ip_range_start && dhcp.ip_range_end ? `${dhcp.ip_range_start} → ${dhcp.ip_range_end}` : "";
+  const detail = [dhcp.gateway ? `${tx("passerelle")} ${dhcp.gateway}` : "", dhcp.netmask ? `${tx("masque")} ${dhcp.netmask}` : ""].filter(Boolean).join(" · ");
+  return <>
+    <Row k="DHCP">
+      {dhcp.enabled === false ? <span className="text-warn">{tx("coupé")}</span> : <span className="text-ok">{tx("activé")}</span>}
+      {range && <span className="font-mono text-xs"> · {range}</span>} {detail && <Dim>{detail}</Dim>}
+    </Row>
+    <Row k="DNS">{dhcp.dns.length ? <span className="font-mono text-xs">{dhcp.dns.join(" · ")}</span> : <Dim>{tx("celui de la box")}</Dim>}</Row>
+  </>;
+}
+
 /** Wi-Fi: on or off, how many access points and devices, then the access points */
 function FreeboxWifi({ wifi }: Readonly<{ wifi: NonNullable<FreeboxInfo["wifi"]> }>) {
   const ap = wifi.aps ?? [];
@@ -493,6 +507,7 @@ function FreeboxWifi({ wifi }: Readonly<{ wifi: NonNullable<FreeboxInfo["wifi"]>
     <Row k="Wi-Fi">
       {wifi.enabled === false ? <span className="text-warn">{tx("coupé")}</span> : tx("activé")} <Dim>{counts}</Dim>
       {ap.length > 0 && <span className="block text-xs text-dim">{ap.map((a) => [a.name, a.band, a.channel == null ? "" : `ch. ${a.channel}`].filter(Boolean).join(" ")).join(" · ")}</span>}
+      {!!wifi.networks?.length && <span className="block text-xs text-dim">{wifi.networks.filter((n) => n.ssid).map((n) => `${n.ssid}${n.hidden ? ` (${tx("masqué")})` : ""}${n.enabled === false ? ` (${tx("coupé")})` : ""}`).join(" · ")}</span>}
     </Row>
   );
 }
@@ -552,6 +567,7 @@ function FreeboxRows({ fb }: Readonly<{ fb: FreeboxInfo }>) {
   return <>
     <Row k={tx("Appareil")}>{sys.model ? <FreeboxModel model={sys.model} /> : undefined}</Row>
     <FreeboxLine fb={fb} />
+    <FreeboxNetwork dhcp={fb.dhcp} />
     <Row k="Firmware">{sys.firmware ? <span className="font-mono">{sys.firmware}</span> : undefined}</Row>
     <Row k={tx("Mise à jour")}><FirmwareUpdate sys={sys} /></Row>
     <FreeboxStorage fb={fb} />

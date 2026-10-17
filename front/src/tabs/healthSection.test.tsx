@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Machine } from "../types";
 import { freeboxHealth } from "../lib/freebox";
-import { FreeboxAccessSection, HealthSection, UpdatesSection } from "./Machines";
+import { FreeboxAccessSection, FreeboxNetwork, HealthSection, UpdatesSection } from "./Machines";
 
 const m = { ip: "10.0.0.254", name: "Freebox", ping: true, off: false, services: 0, npm: 0, down: 0 } as Machine;
 const h = freeboxHealth(m, {
@@ -41,5 +41,16 @@ describe("section Lecture de la fiche d'une Freebox (pas de SSH)", () => {
   });
   it("signale un droit manquant", () => {
     expect(renderToStaticMarkup(<FreeboxAccessSection fb={{ missing_rights: ["vm"] }} from={[]} />)).toContain("manquants : vm");
+  });
+});
+
+describe("DHCP et DNS de la Freebox", () => {
+  it("montre le serveur DHCP, sa plage et les DNS distribués", () => {
+    const html = renderToStaticMarkup(<FreeboxNetwork dhcp={{ enabled: true, ip_range_start: "10.0.0.10", ip_range_end: "10.0.0.200", gateway: "10.0.0.254", netmask: "255.255.255.0", dns: ["10.0.0.254", "10.0.0.53"] }} />);
+    for (const t of ["DHCP", "activé", "10.0.0.10 → 10.0.0.200", "passerelle 10.0.0.254", "masque 255.255.255.0", "DNS", "10.0.0.254 · 10.0.0.53"]) expect(html, t).toContain(t);
+  });
+  it("sans DNS annoncé : celui de la box ; sans bloc DHCP (MynetworK plus ancien) : rien", () => {
+    expect(renderToStaticMarkup(<FreeboxNetwork dhcp={{ enabled: false, ip_range_start: null, ip_range_end: null, gateway: null, netmask: null, dns: [] }} />)).toContain("celui de la box");
+    expect(renderToStaticMarkup(<FreeboxNetwork dhcp={undefined} />)).toBe("");
   });
 });

@@ -136,8 +136,8 @@ class MynetworK(Connector):
         out = {"connection": None, "system": None, "hosts": None, "hosts_active": None}
         if isinstance(summary, dict):
             out["connection"], out["system"] = summary.get("connection"), summary.get("system")
-            # MynetworK 0.10.69+: storage, ftth, wifi, vms, vm_system and the permissions the paired app lacks (already allowlisted over there)
-            out.update({k: summary[k] for k in ("storage", "ftth", "wifi", "vms", "vm_system", "missing_rights") if k in summary})
+            # MynetworK 0.10.69+: storage, ftth, wifi, vms, vm_system and the permissions the paired app lacks; 0.10.72+: dhcp and firmware_update (already allowlisted over there)
+            out.update({k: summary[k] for k in ("storage", "ftth", "wifi", "vms", "vm_system", "missing_rights", "dhcp", "firmware_update") if k in summary})
         if isinstance(hosts, list):
             out["hosts"] = len(hosts)
             out["hosts_active"] = sum(1 for h in hosts if isinstance(h, dict) and h.get("active"))
