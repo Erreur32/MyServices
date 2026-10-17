@@ -16,7 +16,7 @@ import { Badge, Card, Count, Dim } from "../components/ui";
 import { dateTime, ipNum } from "../lib/format";
 import type { AgentInfo, AgentsState, Machine, MachineConf, MachinesSettings, NetworkConnector } from "../types";
 import { freeboxOf } from "../lib/freebox";
-import { MSTATE, mState } from "../lib/machines";
+import { mState, stateBadge } from "../lib/machines";
 import { usePoll } from "../lib/polling";
 import { tx } from "../lib/i18n";
 
@@ -59,7 +59,7 @@ export function Agents({ focusIp, live, network = [] }: Readonly<{ focusIp?: str
   const withAgent = sorted([...byIp.keys()]);
   // Même état que l'onglet Machines (mState) : « api » = déjà lue par l'API d'un connecteur (Home Assistant…), sans SSH, rien à régler
   const stateOf = (ip: string) => { const lm = liveBy.get(ip); return lm ? mState(lm) : null; };
-  const badge = (ip: string) => { const st = stateOf(ip); if (!st) return null; const [tone, label, tip] = MSTATE[st]; return <Badge tone={tone} title={tip}>{label}</Badge>; };
+  const badge = (ip: string) => { const lm = liveBy.get(ip); if (!lm) return null; const [tone, label, tip] = stateBadge(lm); return <Badge tone={tone} title={tip}>{label}</Badge>; };
   // SSH réel : réglé sur la machine, ou trouvé par la collecte (alias de ~/.ssh/config pour cette adresse), comme le badge « SSH OK »
   const sshAlias = (ip: string) => machines[ip].ssh === false ? "" : machines[ip].ssh || liveBy.get(ip)?.ssh?.alias || "";   // coupé à la main : pas de SSH
   const byApi = sorted(tracked.filter((ip) => !sshAlias(ip) && (stateOf(ip) === "api" || stateOf(ip) === "network" || APPLIANCE_ICONS.has(liveBy.get(ip)?.icon ?? ""))));      // lues par une API ou un outil réseau (box, passerelle), sans SSH : aucun agent possible

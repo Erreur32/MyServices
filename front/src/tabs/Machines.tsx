@@ -575,7 +575,7 @@ function HealthLevel({ m, h, followed }: Readonly<{ m: Machine; h?: HealthHost; 
   if (followed && !m.off) return <Badge tone="info" title={tx("Une source de santé existe (SSH, agent, Beszel ou Home Assistant) : la machine sera lue au prochain passage de la tâche Santé (Réglages → Tâches et horaires)")}>{tx("en attente du relevé")}</Badge>;
   if (m.off) return <Badge tone="off" title={tx("Éteinte volontairement, aucune alerte")}>{tx("éteinte")}</Badge>;
   if (m.ping === false) return <Badge tone="bad" title={tx("Ne répond pas au ping")}>{tx("hors ligne")}</Badge>;
-  if (networkTool(m)) return <Badge tone="off" title={tx("Vue par {0} : en ligne, mais ses ressources (CPU, mémoire, disque) ne sont lues que par SSH, l'agent, Beszel ou Home Assistant", networkTool(m)!)}>{tx("via {0}", networkTool(m)!)}</Badge>;
+  if (networkTool(m)) return <Badge tone="off" title={tx("Vue par {0} : en ligne, mais ses ressources (CPU, mémoire, disque) ne sont lues que par SSH, l'agent, Beszel ou Home Assistant", networkTool(m)!)}>{tx("Via {0}", networkTool(m)!)}</Badge>;
   return <Badge tone="off" title={tx("Pas de santé relevée : ni SSH, ni agent, ni Beszel, ni Home Assistant pour cette machine")}>{tx("non suivie")}</Badge>;
 }
 

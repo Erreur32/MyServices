@@ -5,7 +5,7 @@ import { Bell, Check, Copy, Download, ExternalLink, Eye, EyeOff, HardDrive, Hear
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { download, LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { copyText } from "../lib/clipboard";
-import { MSTATE, mState } from "../lib/machines";
+import { stateBadge } from "../lib/machines";
 import { Field, NoteLine, Switch } from "../components/form";
 import { act, button, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
@@ -128,7 +128,7 @@ function SshKey({ ssh, snap }: { ssh: SystemState["ssh"]; snap: Snapshot }) {
               </thead>
               <tbody className="divide-y divide-line/60">
                 {users.map((m) => {
-                  const [tone, label, tip] = MSTATE[mState(m)];
+                  const [tone, label, tip] = stateBadge(m);
                   return (
                     <tr key={m.ip} className="hover:bg-bg2/40">
                       <td className="py-2 pr-3">

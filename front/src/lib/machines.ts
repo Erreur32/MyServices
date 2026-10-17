@@ -8,7 +8,7 @@ export const MSTATE: Record<MState, [Tone, string, string]> = {
   ssh: ["ok", tx("SSH OK"), tx("Connexion SSH par clé réussie depuis le collecteur")],
   agent: ["ok", tx("Agent actif"), tx("Lue par l'agent MyServices : son dernier relevé est récent (pas de SSH nécessaire)")],
   api: ["ok", tx("API"), tx("Lue par l'API d'un connecteur (Home Assistant, Proxmox…) : pas de SSH nécessaire")],
-  network: ["ok", tx("vue par un outil"), tx("Vue par un de vos outils (MynetworK, UniFi, Beszel, Proxmox…) : en ligne et identifiée, sans SSH")],
+  network: ["ok", tx("Via un connecteur"), tx("Vue par un de vos outils (MynetworK, UniFi, Beszel, Proxmox…) : en ligne et identifiée, sans SSH")],
   manual: ["info", tx("SSH manuel"), tx("Accès déclaré sans clé (mot de passe) : non testé automatiquement")],
   refused: ["warn", tx("SSH refusé"), tx("Accès SSH configuré, mais la connexion par clé échoue")],
   nossh: ["off", tx("en ligne, sans SSH"), tx("Répond au ping, aucun accès SSH configuré")],
@@ -26,7 +26,7 @@ export function networkTool(m: Machine): string | undefined {
 /** Badge of a machine's state: [tone, label, tooltip]; « seen by a tool » names the tool (« via MynetworK ») */
 export function stateBadge(m: Machine): [Tone, string, string] {
   const st = mState(m), [tone, label, tip] = MSTATE[st];
-  return st === "network" ? [tone, tx("via {0}", networkTool(m) ?? "?"), tip] : [tone, label, tip];
+  return st === "network" ? [tone, tx("Via {0}", networkTool(m) ?? "?"), tip] : [tone, label, tip];
 }
 
 /** Une session SSH réussie prime sur le ping (certains pare-feu bloquent l'ICMP). */

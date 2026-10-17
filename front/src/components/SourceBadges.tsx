@@ -2,7 +2,7 @@
 // l'infobulle. Utilisé par la page Machines (colonne « Sources ») et la carte de Réglages → Machines. L'accès SSH détaillé (compte, port, clé)
 // reste dans le détail déplié.
 import { Badge, type Tone } from "./ui";
-import { MSTATE, mState } from "../lib/machines";
+import { MSTATE, mState, stateBadge } from "../lib/machines";
 import { dateTime } from "../lib/format";
 import { tx } from "../lib/i18n";
 import type { AgentInfo, Machine } from "../types";
@@ -62,7 +62,7 @@ export function sourcesOf(m: Machine, agent?: AgentInfo | null, extra: Extra[] =
   const st = mState(m);
   const out = [...accessState(st), ...sshSource(m, st), ...agentSource(m, agent), ...connectorSources(m, extra)];
   if (out.length > 0) return out;
-  const [tone, label, tip] = MSTATE[st];
+  const [tone, label, tip] = stateBadge(m);
   return [{ key: "state", tone, label, tip }];
 }
 
