@@ -298,27 +298,27 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
   const attention = a.state !== "actif" || !!a.host_pending;
   return (
     <li className={`rounded-xl border bg-card px-3 py-2 text-sm ${focus || attention ? "border-link ring-1 ring-link" : "border-dim/50"}`}>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-        <span className="flex min-w-[12rem] flex-1 items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 lg:grid lg:grid-cols-[minmax(13rem,1.6fr)_11rem_7rem_4.5rem_9.5rem_7.5rem_8rem_7.5rem_10rem] lg:gap-x-3">
+        <span className="flex min-w-[12rem] flex-1 items-center gap-2 lg:flex-none">
           <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? "windows", osName: a.os }} reserve />
-          <b className="truncate">{conf?.name ?? a.name}</b>
+          <b className="truncate text-[15px] font-extrabold text-txt">{conf?.name ?? a.name}</b>
           <span className="truncate text-xs text-dim">{ip}</span>
         </span>
-        <span className="w-44 truncate text-xs text-muted" title={a.os ?? undefined}>{a.os ? shortOs(a.os) : "-"}</span>
-        <span className="w-28 truncate text-xs text-muted" title={tx("Nom du poste")}>{a.hostname ?? "-"}</span>
-        <span className="inline-flex w-14 items-center gap-1 text-xs" title={a.outdated ? tx("Agent v{0} : la v{1} est disponible", a.version ?? "?", a.latest_version ?? "?") : a.version ? tx("à jour (v{0})", a.version) : undefined}>
+        <span className="w-44 truncate text-center text-xs text-muted lg:w-auto" title={a.os ?? undefined}>{a.os ? shortOs(a.os) : "-"}</span>
+        <span className="w-28 truncate text-center text-xs text-muted lg:w-auto" title={tx("Nom du poste")}>{a.hostname ?? "-"}</span>
+        <span className="inline-flex w-14 items-center justify-center gap-1 text-xs lg:w-auto" title={a.outdated ? tx("Agent v{0} : la v{1} est disponible", a.version ?? "?", a.latest_version ?? "?") : a.version ? tx("à jour (v{0})", a.version) : undefined}>
           {a.version ? <>v{a.version}{a.outdated ? <ArrowUpCircle size={13} className="text-warn" aria-hidden /> : <Check size={13} className="text-ok" aria-hidden />}</> : "-"}
         </span>
-        <span className="w-36 text-xs text-muted" title={a.last_ip ? `${tx("Dernier relevé")} : ${a.last_ip}` : undefined}>
+        <span className="w-36 text-center text-xs text-muted lg:w-auto" title={a.last_ip ? `${tx("Dernier relevé")} : ${a.last_ip}` : undefined}>
           {a.last_seen ? dateTime(a.last_seen * 1000) : <span className="text-warn">{tx("aucun relevé reçu")}</span>}
         </span>
-        <span className="w-28 text-xs text-dim" title={tx("Fréquence")}>{tx("toutes les {0} min", Math.round(a.interval / 60))}</span>
-        <code className="w-28 truncate font-mono text-xs text-dim" title={tx("Jeton")}>{tx("msv_")}agent_…{a.hint}</code>
-        <span className="flex items-center gap-1.5">
+        <span className="w-28 text-center text-xs text-dim lg:w-auto" title={tx("Fréquence")}>{tx("toutes les {0} min", Math.round(a.interval / 60))}</span>
+        <code className="w-28 truncate text-center font-mono text-xs text-dim lg:w-auto" title={tx("Jeton")}>{tx("msv_")}agent_…{a.hint}</code>
+        <span className="flex items-center justify-center gap-1.5">
           {a.host_pending && <Badge tone="warn" title={tx("Nom de poste différent : {0} au lieu de {1}", a.host_pending, a.hostname ?? "?")}>{tx("nom à confirmer")}</Badge>}
           <Badge tone={tone}>{label}</Badge>
         </span>
-        <span className="ml-auto flex items-center gap-1.5">
+        <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5 lg:ml-0">
           {confirm === "" && <>
             <button type="button" disabled={upBusy} aria-pressed={!!a.auto_update} aria-label={tx("Automatique")}
               title={a.auto_update ? tx("Mise à jour automatique activée : l'agent prend le nouveau script dès qu'il est plus ancien. Cliquer pour couper.") : tx("Activer la mise à jour automatique de cet agent")}
