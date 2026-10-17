@@ -138,8 +138,12 @@ def dns_snaps(data: dict) -> dict:
     for x in g.get("invalid", []):
         out[f'invalid:{x["domain"]}'] = f'réécriture au nom invalide {x["domain"]}'
     for x in g.get("rewrites_diff", []):
+        if x.get("waiting"):   # adguardhome-sync has not had its turn yet: not a warning
+            continue
         out[f'rwdiff:{x["domain"]}:{x["answer"]}'] = f'réécriture {x["domain"]} → {x["answer"]} seulement sur {x["only"]}'
     for x in g.get("user_rules_diff", []):
+        if x.get("waiting"):
+            continue
         out[f'rulediff:{x["rule"]}'] = f'règle perso {x["rule"]} seulement sur {x["only"]}'
     for ip, v in g.get("servers", {}).items():
         if not v.get("readable"):

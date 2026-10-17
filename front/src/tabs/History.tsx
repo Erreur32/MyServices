@@ -8,12 +8,21 @@ import { useFilter, type Facet } from "../lib/filter";
 import { dayKey, hm, longDay, splitHostName } from "../lib/format";
 import { localVia, originOf } from "../lib/eventOrigin";
 import type { StoredEvent } from "../types";
-import { AreaChart, BarsChart, HeatChart, PointsChart, type Range } from "../components/HistoryCharts";
+import { AreaChart, BarsChart, HeatChart, PointsChart, heatDays, type HeatCell, type Range } from "../components/HistoryCharts";
 import { Badge, Count, Empty, FilterBar } from "../components/ui";
 import { Square } from "../components/marks";
 import { tx } from "../lib/i18n";
 import { NOISE, collapse, saveHidden, savedHidden, unmasked, type NoiseId } from "../lib/historyNoise";
 import { EVENT_LIMIT, GROUPS, GROUP_COLOR, GROUP_NAME, STYLES, buckets, dayBuckets, groupOf, stepFor, type ChartStyle } from "../lib/historyChart";
+
+/** Severity of an event kind (0 to 3) as the filter groups it */
+function severityGroup(n: number): string {
+  if (n >= 3) return "bad";
+  return n === 2 ? "warn" : "info";
+}
+const SEVERITY_NAME: Record<string, string> = { bad: tx("grave"), warn: tx("avertissement"), info: tx("information") };
+const SEVERITY_CLS: Record<string, string> = { bad: "bg-bad", warn: "bg-warn", info: "bg-dim" };
+const severityMark = (v: string) => <Square cls={SEVERITY_CLS[v] ?? "bg-dim"} />;
 
 const PERIODS: [number, string][] = [[1, tx("24 h")], [7, tx("7 jours")], [30, tx("30 jours")], [90, tx("90 jours")], [365, tx("1 an")]];
 const STYLE_ICON: Record<ChartStyle, typeof BarChart3> = { points: ScatterChart, bars: BarChart3, area: LineChart, heat: Flame };
@@ -39,12 +48,12 @@ export function History({ snap }: { snap: Snapshot }) {
   const pickView = (v: typeof view) => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* stockage refusé */ } };
   return (
     <>
-      <div className="mt-4 inline-flex rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Vue de l'historique")}>
+      <div className="mt-4 flex justify-end"><fieldset className="m-0 inline-flex rounded-lg border border-line bg-card p-0.5" aria-label={tx("Vue de l'historique")}>
         {([["events", tx("Événements"), ListOrdered], ["availability", tx("Disponibilité"), Activity]] as const).map(([k, l, Icon]) => (
           <button key={k} type="button" onClick={() => pickView(k)} aria-pressed={view === k}
             className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm ${view === k ? "bg-link/15 font-semibold text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{l}</button>
         ))}
-      </div>
+      </fieldset></div>
       {view === "events" ? <Events snap={snap} /> : <Availability snap={snap} />}
     </>
   );
@@ -54,6 +63,7 @@ function Events({ snap }: { snap: Snapshot }) {
   const [days, setDays] = useState(savedDays);
   const [style, setStyle] = useState<ChartStyle>(savedStyle);
   const [range, setRange] = useState<Range | null>(null);
+  const [cell, setCell] = useState<HeatCell | null>(null);   // heat map: one weekday and hour
   const [hist, setHist] = useState<Loaded | null>(null);
   const [error, setError] = useState("");
 
@@ -78,16 +88,22 @@ function Events({ snap }: { snap: Snapshot }) {
     { key: "method", label: tx("Méthode"), get: (e) => originOf(e).method },
     { key: "via", label: tx("Lu par"), get: (e) => originOf(e).via },
     { key: "machine", label: tx("Machine"), get: (e) => e.machine || "" },
-  ], [label]);
+    { key: "service", label: tx("Service"), get: (e) => e.label || "" },
+    { key: "severity", label: tx("Gravité"), get: (e) => severityGroup(snap.severity[e.kind] || 0), name: (v) => SEVERITY_NAME[v] || v, order: ["bad", "warn", "info"], mark: severityMark },
+  ], [label, snap.severity]);
   const text = useCallback((e: StoredEvent) => [e.label, e.machine, e.target, e.detail, label(e.kind)].join(" "), [label]);
   const f = useFilter(all, facets, text);  // les graphiques suivent la recherche et les pastilles
-  const listed = useMemo(() => (range ? f.shown.filter((e) => e.ts >= range.from && e.ts < range.to) : f.shown), [f.shown, range]);
+  const listed = useMemo(() => {
+    const inRange = range ? f.shown.filter((e) => e.ts >= range.from && e.ts < range.to) : f.shown;
+    return cell ? inRange.filter((e) => { const d = new Date(e.ts * 1000); return (d.getDay() + 6) % 7 === cell.d && d.getHours() === cell.h; }) : inRange;
+  }, [f.shown, range, cell]);
 
   if (error && !ready) return <Empty>{tx("Historique illisible :")} {error}</Empty>;
   if (!ready) return <p className="py-8 text-muted">{tx("Chargement de l'historique…")}</p>;
 
   const to = ready.at, from = to - days * 86400e3, truncated = ready.events.length >= EVENT_LIMIT;
   const counts = Object.fromEntries(GROUPS.map(([k]) => [k, f.shown.filter((e) => groupOf(e.kind) === k).length]));
+  const busiest = (f.chips.find((g) => g.facet.key === "service")?.chips ?? []).filter((c) => c.count > 1).slice(0, 6);   // services with the most events
   const bars = truncated && !f.active ? dayBuckets(ready.perDay, days, to) : buckets(f.shown, from, to, stepFor(days));
 
   const sources = new Map((snap.health?.hosts ?? []).map((h) => [splitHostName(h.name)[1], h.sources ?? []]));  // IP -> sources de la santé
@@ -110,7 +126,7 @@ function Events({ snap }: { snap: Snapshot }) {
     <div className="py-4">
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
         {PERIODS.map(([d, l]) => (
-          <button key={d} type="button" onClick={() => { pickDays(d); setRange(null); }}
+          <button key={d} type="button" onClick={() => { pickDays(d); setRange(null); setCell(null); }}
             className={`rounded-full border px-3 py-1 text-sm ${days === d ? "border-link bg-link/15 text-txt" : "border-line bg-card text-muted hover:text-txt"}`}>{l}</button>
         ))}
         <span className="ml-auto inline-flex rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Style du graphique")}>
@@ -127,15 +143,28 @@ function Events({ snap }: { snap: Snapshot }) {
       <div className="rounded-2xl border border-line bg-card p-4">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="flex items-center gap-2 font-bold"><Count n={f.shown.length} />{tx("événement")}{f.shown.length > 1 ? "s" : ""} {tx("sur la période")}</h2>
-          <div className="flex flex-wrap gap-3 text-xs text-muted">
-            {GROUPS.filter(([k]) => counts[k]).map(([k, l, c]) => <span key={k} className="inline-flex items-center gap-1.5"><span className={`h-2.5 w-2.5 rounded-sm ${c}`} />{l} <b className="text-dim">{counts[k]}</b></span>)}
-          </div>
+          {/* the points chart has its own legend on its left, with the counts */}
+          {style !== "points" && (
+            <div className="flex flex-wrap gap-3 text-xs text-muted">
+              {GROUPS.filter(([k]) => counts[k]).map(([k, l, c]) => <span key={k} className="inline-flex items-center gap-1.5"><span className={`h-2.5 w-2.5 rounded-sm ${c}`} />{l} <b className="text-dim">{counts[k]}</b></span>)}
+            </div>
+          )}
         </div>
         {f.shown.length === 0 ? <p className="flex h-[180px] items-center justify-center text-sm text-muted">{tx("Aucun événement sur cette période.")}</p>
           : style === "points" ? <PointsChart events={f.shown} from={from} to={to} days={days} onRange={setRange} />
           : style === "bars" ? <BarsChart data={bars} days={days} active={range} onRange={setRange} />
           : style === "area" ? <AreaChart data={bars} days={days} />
-          : <HeatChart events={f.shown} />}
+          : <HeatChart events={f.shown} active={cell} onPick={setCell} />}
+        {busiest.length > 1 && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line/60 pt-3 text-xs">
+            <span className="text-dim">{tx("Les plus actifs :")}</span>
+            {busiest.map((c) => (
+              <button key={c.value} type="button" onClick={() => f.toggle("service", c.value)} aria-pressed={c.on} title={tx("Filtrer sur ce service")}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${c.on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
+                <span className="max-w-[16rem] truncate">{c.label}</span><span className="font-mono text-[11px] text-dim">{c.count}</span></button>
+            ))}
+          </div>
+        )}
         {truncated && style !== "bars" && <p className="mt-2 text-xs text-warn">{tx("Les {0} événements les plus récents seulement : choisissez une période plus courte pour tout voir.", EVENT_LIMIT)}</p>}
       </div>
 
@@ -144,6 +173,7 @@ function Events({ snap }: { snap: Snapshot }) {
           toggle: () => setHide(hidden.includes(k) ? hidden.filter((x) => x !== k) : [...hidden, k]) }))}
         extra={<>
           {range && <button type="button" onClick={() => setRange(null)} className="rounded-lg border border-link px-2.5 py-1.5 text-sm text-txt">{range.label} ✕</button>}
+          {cell && <button type="button" onClick={() => setCell(null)} className="rounded-lg border border-link px-2.5 py-1.5 text-sm capitalize text-txt">{heatDays()[cell.d]} {cell.h} h ✕</button>}
           {nHidden > 0 && <button type="button" onClick={() => setHide([])} className="text-sm text-link hover:underline" title={tx("Les menaces fail2ban, les connecteurs revenus vite et les appareils de la recherche réseau sont masqués")}>
             {tx("{0} masqué(s) : tout afficher", nHidden)}</button>}
         </>} />

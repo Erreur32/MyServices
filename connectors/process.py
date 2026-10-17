@@ -19,6 +19,12 @@ NOISE_PROCS = {"docker-proxy", "rpcbind", "rpc.statd", "rpc.mountd", "systemd-re
 def listening_processes(alias):
     """{port: process} des services non-docker d'une machine (ss -tlnp), lan=False si loopback.
     ConnectorError si la machine n'a pas répondu (SSH coupé, délai, ss absent)."""
+    return listening_read(alias)[0]
+
+
+def listening_read(alias):
+    """(ports, hidden) : comme listening_processes, plus le nombre de ports en écoute dont `ss` cache le nom du process
+    (compte sans root : il ne voit que ses propres process), pour dire que la lecture est partielle."""
     cmd = ["ss", "-tlnpH"] if alias == "local" else \
         ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, "ss -tlnpH"]
     try:
@@ -27,14 +33,16 @@ def listening_processes(alias):
         raise ConnectorError(f"{alias} : délai dépassé") from None
     if r.returncode != 0:
         raise ConnectorError(f"{alias} : {(r.stderr.strip() or f'code {r.returncode}')[-160:]}")
-    ports = {}
+    ports, hidden = {}, set()
     for line in r.stdout.splitlines():
         cols = line.split()
         m = re.match(r"(.*):(\d+)$", cols[3]) if len(cols) > 3 else None
         p = re.search(r'\(\("([^"]+)"', line)
+        if m and not p and int(m.group(2)) not in NOISE_PORTS:
+            hidden.add(int(m.group(2)))
         if m and p and p.group(1) not in NOISE_PROCS:
             ports.setdefault(int(m.group(2)), {"name": p.group(1), "lan": not m.group(1).startswith(("127.", "[::1]"))})
-    return ports
+    return ports, len(hidden - set(ports))
 
 
 def host_ports() -> dict:
@@ -80,4 +88,5 @@ class Process(Connector):
     fields = (Field("ssh", "Alias SSH de la machine", required=True), Field("ip", "IP de la machine", required=True))
 
     def collect(self) -> dict:
-        return {"ports": listening_processes(self.conf["ssh"])}
+        ports, hidden = listening_read(self.conf["ssh"])
+        return {"ports": ports, "hidden": hidden}

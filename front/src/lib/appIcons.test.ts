@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { appIcon } from "./appIcons";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { appIcon, modelIcon } from "./appIcons";
 
 describe("appIcon", () => {
   it("trouve l'icône d'après le nom lisible de l'appli", () => {
@@ -45,5 +47,28 @@ describe("logo d'un service", () => {
     expect(serviceIcon({ service: { name: "monappli", image: "x/y", kind: "docker" } })).toMatch(/docker\.svg$/);
     expect(serviceIcon({ service: { name: "site", kind: "web" } })).toBeNull();
     expect(serviceIcon({})).toBeNull();
+  });
+});
+
+describe("photos par modèle", () => {
+  it("Freebox : Ultra (aussi « v9 »), Revolution (« v6 »), Pop ; un modèle inconnu n'a pas de photo", () => {
+    expect(modelIcon("Freebox v9 (r1)")).toMatch(/freebox-ultra\.png$/);
+    expect(modelIcon("Freebox Ultra")).toMatch(/freebox-ultra\.png$/);
+    expect(modelIcon("Freebox Revolution")).toMatch(/freebox-revolution\.png$/);
+    expect(modelIcon("Freebox v6")).toMatch(/freebox-revolution\.png$/);
+    expect(modelIcon("Freebox Pop")).toMatch(/freebox-pop\.png$/);
+    expect(modelIcon("Freebox Delta")).toBeNull();
+    expect(modelIcon(undefined)).toBeNull();
+  });
+  it("UniFi : les bornes ont leur photo, une console non", () => {
+    for (const m of ["U6-Pro", "U7 Pro", "UAP-AC-Lite", "UniFi AP", "nanoHD"]) expect(modelIcon(m), m).toMatch(/unifi-ap\.png$/);
+    expect(modelIcon("UCG-Fiber")).toBeNull();
+    expect(modelIcon("USW-24")).toBeNull();
+  });
+  it("chaque photo existe dans public/icons", () => {
+    for (const m of ["Freebox Ultra", "Freebox Revolution", "Freebox Pop", "U6-Pro"]) {
+      const file = modelIcon(m)!.split("/icons/")[1];
+      expect(existsSync(join(__dirname, "../../public/icons", file)), file).toBe(true);
+    }
   });
 });

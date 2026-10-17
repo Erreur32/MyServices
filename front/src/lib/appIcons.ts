@@ -39,6 +39,17 @@ export function appIcon(apps: readonly string[] | undefined): string | null {
   return null;
 }
 
+/** Photos of the devices MynetworK knows by model (copied from it): the Freebox Ultra, Pop and Revolution, and the UniFi access points.
+ *  « Freebox v9 » is the Ultra and « v6 » the Revolution (the name MynetworK reads from the box); null when the model has no photo. */
+const MODELS: [RegExp, string][] = [
+  [/freebox.?(ultra|v9)/i, "freebox-ultra.png"], [/freebox.?(revolution|v6)/i, "freebox-revolution.png"], [/freebox.?pop/i, "freebox-pop.png"],
+  [/\bunifi[\s-]?ap\b|\buap-|\bu[67][a-z0-9-]*\b|nanohd|nanolite/i, "unifi-ap.png"],
+];
+export function modelIcon(model?: string | null): string | null {
+  const hit = model ? MODELS.find(([rx]) => rx.test(model)) : undefined;
+  return hit ? iconUrl(hit[1]) : null;
+}
+
 const squash = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "");
 
 /** Icône d'après un texte libre (nom ou rôle d'une machine : « homeassistant », « Proxmox VE »…) ; null si rien ne correspond */

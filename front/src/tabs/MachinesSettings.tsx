@@ -3,7 +3,7 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
-import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, Radar, RefreshCw, Server, Settings2, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, Info, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, Radar, RefreshCw, Server, Settings2, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, refreshSnapshot, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -15,7 +15,7 @@ import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
 import { Overlay } from "../components/Overlay";
-import { AgentBlock, AgentsOverview } from "./Agents";
+import { AccessGuide, AgentBlock, AgentsOverview } from "./Agents";
 import { IconChoice } from "../components/IconChoice";
 import { IconPicker } from "../components/IconPicker";
 import { mState, osOfMachine } from "../lib/machines";
@@ -57,6 +57,7 @@ export function MachinesSettings({ snap, focusIp, focusTab }: Readonly<{ snap: S
   // Système vu par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas (suggestion)
   const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean; sshPort?: number }>>({});
   const [hosts, setHosts] = useState<NetHost[]>([]);
+  const [showAccess, setShowAccess] = useState(false);
   const [agents, setAgents] = useState<Record<string, AgentInfo>>({});  // agent actif par IP
   const loadAgents = useCallback(() => { read<{ agents: AgentInfo[] }>("agents").then((r) => setAgents(Object.fromEntries(r.agents.filter((a) => a.state !== "révoqué").map((a) => [a.ip, a])))).catch(() => undefined); }, []);
   useEffect(loadAgents, [loadAgents]);
@@ -95,10 +96,7 @@ export function MachinesSettings({ snap, focusIp, focusTab }: Readonly<{ snap: S
       <div id="authorize-key" className="scroll-mt-24"><AuthorizeKey userOf={userOf} failing={failingKey} onAccepted={() => setAccepted({ gen: snap.data.generated, ips: [...hidden, ...failingKey.map((c) => c.ip ?? c.name)] })} /></div>
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-bold"><Server size={16} aria-hidden />{tx("Machines")} <Count n={all.length - nOff} />
-            {nOff > 0 && <button type="button" onClick={() => setShowOff(!showOff)} aria-pressed={showOff} title={tx("Machines dont « Machine suivie » est coupé : plus lues, cachées ici et dans l'onglet Machines")}
-              className={`ml-1 inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-semibold ${showOff ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:text-txt"}`}>
-              {showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}{tx("Non suivies")} ({nOff})</button>}</h2>
+          <h2 className="flex items-center gap-2 font-bold"><Server size={16} aria-hidden />{tx("Machines")} <Count n={all.length - nOff} /></h2>
           {!detecting && (
             <div className="flex flex-wrap gap-2">
               {!redetecting && <button type="button" className={quiet} onClick={() => setRedetecting(true)}><RefreshCw size={14} />{tx("Redétecter")}</button>}
@@ -106,6 +104,15 @@ export function MachinesSettings({ snap, focusIp, focusTab }: Readonly<{ snap: S
             </div>
           )}
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => setShowAccess(!showAccess)} aria-pressed={showAccess} aria-label={tx("Accès aux machines")} title={tx("Accès aux machines : agent, SSH ou connecteur, lequel choisir")}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-semibold ${showAccess ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:text-txt"}`}><Info size={12} aria-hidden />{tx("Accès")}</button>
+          {nOff > 0 && <button type="button" onClick={() => setShowOff(!showOff)} aria-pressed={showOff} title={tx("Machines dont « Machine suivie » est coupé : plus lues, cachées ici et dans l'onglet Machines")}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-semibold ${showOff ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:text-txt"}`}>
+            {showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}{tx("Non suivies")} ({nOff})</button>}
+        </div>
+
+        {showAccess && <AccessGuide />}
         {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
         {detecting && <Detect st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
       </Card>
@@ -410,9 +417,13 @@ function SshRiskBadge({ live }: Readonly<{ live: Live }>) {
 }
 
 function FailedBadge({ statuses }: Readonly<{ statuses: Statuses }>) {
-  const failed = statuses.filter((c) => !c.ok);
-  if (failed.length === 0) return null;
-  return <Badge tone="bad" title={`${tx("Lecture en échec")}\n${failed.map((c) => c.name).join(", ")}`}>{failed.length} {tx("en échec")}</Badge>;
+  const failed = statuses.filter((c) => !c.ok), partial = statuses.filter((c) => c.ok && "warning" in c && c.warning);
+  return (
+    <>
+      {failed.length > 0 && <Badge tone="bad" title={`${tx("Lecture en échec")}\n${failed.map((c) => c.name).join(", ")}`}>{failed.length} {tx("en échec")}</Badge>}
+      {partial.length > 0 && <Badge tone="warn" title={`${tx("Lecture partielle")}\n${partial.map((c) => ("warning" in c ? c.warning : "")).join("\n")}`}>{tx("lecture partielle")}</Badge>}
+    </>
+  );
 }
 
 /** The status badges at the right of the card header */
@@ -533,7 +544,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgen
   const connection = m.os === "windows" || live ? <MachineConnection ip={ip} m={m} st={st} live={live} statuses={statuses} agent={agent} /> : null;
   const iconProps = { name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon };
   const overlay = open && (
-        <Overlay wide onClose={() => openCard(false)} title={<><MachineIcon m={iconProps} scan={scan} reserve />{m.name} <Dim>{ip}</Dim></>}>
+        <Overlay medium onClose={() => openCard(false)} title={<><MachineIcon m={iconProps} scan={scan} reserve />{m.name} <Dim>{ip}</Dim></>}>
         <div className="mt-3 flex flex-col gap-3">
           <NoteLine note={note} />
           {lines && <CheckLines lines={lines} />}
@@ -546,16 +557,23 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgen
   if (bare) return <>{overlay}</>;   // fenêtre ouverte depuis l'onglet Machines : pas de carte
   return (
     <div ref={card} className={cardClass(off, focus, open)}>
-      <button type="button" onClick={() => openCard(true)} aria-haspopup="dialog" title={tx("Ouvrir les réglages de cette machine")} className="flex h-[5.5rem] w-full flex-wrap content-start items-center gap-x-2 gap-y-1 overflow-hidden rounded-xl p-3 text-left hover:bg-bg2">
-        <Settings2 size={14} className="text-dim" aria-hidden /><MachineIcon m={iconProps} scan={scan} reserve /><b className="max-w-[10rem] truncate">{m.name}</b><Dim>{ip}</Dim>
+      <button type="button" onClick={() => openCard(true)} aria-haspopup="dialog" title={tx("Ouvrir les réglages de cette machine")} className="relative flex h-[7rem] w-full flex-col overflow-hidden rounded-xl text-left hover:bg-bg2">
+        <span className="flex w-full items-center gap-x-2 border-b border-line/60 bg-bg px-3 py-2">
+        <MachineIcon m={iconProps} scan={scan} reserve /><b className="max-w-[10rem] truncate">{m.name}</b><Dim>{ip}</Dim>
         <span className="ml-auto flex min-w-0 items-center justify-end gap-1.5 flex-nowrap overflow-hidden">
           <RowBadges keyMissing={keyMissing} unfinished={unfinished} m={m} live={live} statuses={statuses} off={off} onAuthorize={goAuthorize} />
         </span>
-        {/* Qui lit la machine : un badge court par source, coloré selon son état (détail en infobulle). Le détail de l'accès SSH n'est que dans la carte dépliée */}
-        <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">
-          {rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}
-          {live ? <SourceBadges m={live} agent={agent} extra={readers} /> : <AgentOrAccess agent={agent} access={access} />}
         </span>
+        {/* Qui lit la machine : un badge court par source, coloré selon son état (détail en infobulle). Le détail de l'accès SSH n'est que dans la carte dépliée */}
+        <span className="flex flex-col gap-1 p-3 pt-2">
+          <span className="flex flex-wrap items-center gap-1 text-xs text-dim">
+            {rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}
+          </span>
+          <span className="flex flex-wrap items-center gap-1 text-xs text-dim">
+            {live ? <SourceBadges m={live} agent={agent} extra={readers} /> : <AgentOrAccess agent={agent} access={access} />}
+          </span>
+        </span>
+        <Settings2 size={14} className="absolute bottom-2 right-3 text-dim" aria-hidden />
       </button>
       {overlay}
     </div>
@@ -593,11 +611,23 @@ function OptionGroup({ title, hint, tone, children }: { title: string; hint?: st
   );
 }
 
-/** Une catégorie d'accès (SSH, agent, connecteurs) : titre, état à droite, contenu en dessous */
-function AccessCategory({ icon: Icon, title, badge, children }: Readonly<{ icon: typeof KeyRound; title: string; badge?: React.ReactNode; children: React.ReactNode }>) {
+/** Une catégorie d'accès (SSH, agent, connecteurs) : titre, état à droite, contenu en dessous ; pliable (fold) */
+function AccessCategory({ icon: Icon, title, badge, fold, children }: Readonly<{ icon: typeof KeyRound; title: string; badge?: React.ReactNode; fold?: boolean; children: React.ReactNode }>) {
+  const head = <><Icon size={16} className="text-link" aria-hidden />{title}{badge && <span className="ml-auto">{badge}</span>}</>;
+  const cls = "rounded-2xl border border-dim/50 border-l-2 border-l-link bg-bg2/30 p-4 shadow-sm";
+  if (fold) {
+    return (
+      <details className={`group ${cls}`}>
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-bold [&::-webkit-details-marker]:hidden">
+          <ChevronRight size={14} className="text-dim transition-transform group-open:rotate-90" aria-hidden />{head}
+        </summary>
+        <div className="mt-3 flex flex-col gap-3">{children}</div>
+      </details>
+    );
+  }
   return (
-    <section className="rounded-2xl border border-dim/50 border-l-2 border-l-link bg-bg2/30 p-4 shadow-sm">
-      <h4 className="mb-3 flex items-center gap-2 text-sm font-bold"><Icon size={16} className="text-link" aria-hidden />{title}{badge && <span className="ml-auto">{badge}</span>}</h4>
+    <section className={cls}>
+      <h4 className="mb-3 flex items-center gap-2 text-sm font-bold">{head}</h4>
       <div className="flex flex-col gap-3">{children}</div>
     </section>
   );
@@ -612,7 +642,6 @@ const CONNECTOR_STATE: Record<string, React.ReactNode> = {
 type Tab = "identity" | "options" | "access";
 type SaveState = { pending: string; failed: { k: string; text: string } | null; flash: string };
 type AutoSave = (key: string, next: Partial<MachineConf>, nextProc?: boolean, refresh?: boolean) => Promise<void>;
-type Gives = [string, boolean, string][];
 type Linked = ReturnType<typeof linkedConnectors>;
 type SshCtl = {
   agentMode: boolean; sshOn: boolean; foundSsh: boolean; offHint: string; winGuide: boolean; setWinGuide: (on: boolean) => void;
@@ -760,23 +789,6 @@ function useSshToggle(ip: string, known: State["aliases"][number] | undefined, a
   return { winGuide, setWinGuide, reuse, toggleSsh };
 }
 
-/** The pills of what the access gives (Docker, health, system...) */
-function accessGives(o: { v: MachineConf; windows: boolean; agent?: AgentInfo; live?: Live; sshAccess: boolean; proc: boolean; hasAdguard: boolean }): Gives {
-  const { v, windows, agent, live, sshAccess, proc, hasAdguard } = o;
-  const access = sshAccess || !!agent;
-  const health = access && (!!agent || (!v.off && v.health !== false));  // un agent lit même un poste « souvent éteint »
-  const readable = !windows && access;
-  // Pas de pastille Docker quand la machine est lue par SSH et qu'il n'y en a pas : rien à dire, ce n'est pas un manque
-  const noDocker = readable && live?.info?.docker_installed === false;
-  return [
-    ...(noDocker ? [] : [["Docker", readable, tx("Conteneurs, images, ports (onglet Services)")] as [string, boolean, string]]),
-    [tx("Santé"), health, v.off ? tx("Souvent éteinte : la santé ne la lit pas") : tx("Disques, mémoire, CPU, systemd, mises à jour (onglet Machines)")],
-    [tx("Système"), readable, tx("Système, noyau, sshd, Apache (onglet Machines)")],
-    ...(hasAdguard ? [["AdGuard Home", readable, tx("Réécritures et réponses DNS (onglet DNS)")] as [string, boolean, string]] : []),
-    [tx("Services en écoute"), readable && proc, tx("Ports en écoute hors Docker (option ci-dessous)")],
-  ];
-}
-
 /** Tags offered in one click from what the machine really is: Docker (containers read), Apache, nginx, SSH, Windows, VM, gateway, NPM */
 function roleSuggestionsOf(live: Live | undefined, v: MachineConf, found: Set<string>): string[] {
   const i = live?.info;
@@ -832,8 +844,11 @@ function SshSummary({ sshOn, agentMode, refused }: Readonly<{ sshOn: boolean; ag
   return <Badge tone={refused ? "warn" : "ok"} title={refused ? tx("L'accès est réglé mais la connexion échoue") : undefined}>{refused ? tx("refusé") : tx("actif")}</Badge>;
 }
 
+/** Why one would install an agent (shown when there is none) */
+const AGENT_HINT = () => tx("Utile quand le SSH est impossible et qu'aucun connecteur ne voit la machine.");
+
 function AgentSummary({ agent }: Readonly<{ agent?: AgentInfo }>) {
-  if (!agent) return <Badge tone="off">{tx("aucun")}</Badge>;
+  if (!agent) return <Badge tone="off" title={AGENT_HINT()}>{tx("aucun")}</Badge>;
   return <Badge tone={agent.state === "actif" ? "ok" : "warn"}>{agent.state}</Badge>;
 }
 
@@ -843,18 +858,9 @@ function ConnectorSummary({ linked }: Readonly<{ linked: Linked }>) {
   return <Badge tone={active === linked.length ? "ok" : "warn"}>{active}/{linked.length} {tx("actifs")}</Badge>;
 }
 
-function GivesList({ gives }: Readonly<{ gives: Gives }>) {
-  return (
-    <ul className="flex flex-wrap items-center justify-end gap-2" aria-label={tx("Ce que cet accès permet de lire")}>
-      {gives.map(([label, on, why]) => (
-        <li key={label} title={why}><Badge tone={on ? "ok" : "off"}>{on ? "✓" : "–"} {label}</Badge></li>
-      ))}
-    </ul>
-  );
-}
-
-function SshSwitchRow({ ctl, live, ss, gives }: Readonly<{ ctl: SshCtl; live?: Live; ss: SaveState; gives: Gives }>) {
+function SshSwitchRow({ ctl, live, ss, proc, autoSave }: Readonly<{ ctl: SshCtl; live?: Live; ss: SaveState; proc: boolean; autoSave: AutoSave }>) {
   const { agentMode, sshOn, offHint, toggleSsh } = ctl;
+  const notRoot = !!ctl.known?.user && ctl.known.user !== "root";
   const showHelp = !agentMode && sshOn && !ctl.winGuide && !!live && ["refused", "nossh"].includes(mState(live));
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-lg border border-line/60 bg-bg2/70 p-3">
@@ -871,10 +877,20 @@ function SshSwitchRow({ ctl, live, ss, gives }: Readonly<{ ctl: SshCtl; live?: L
           {" "}<button type="button" className="font-semibold text-link hover:underline" disabled={ss.pending === "ssh"} onClick={() => void toggleSsh(true)}>{tx("Activer maintenant")}</button>
         </p>
       )}
+      {!agentMode && sshOn && (
+        <label className={`flex items-center gap-2 text-sm ${notRoot && !proc ? "opacity-50" : ""}`} title={notRoot ? tx("Grisé : le compte SSH n'est pas root, il ne verrait pas les ports des autres comptes. Utilisez un accès root pour lire les ports en écoute.") : tx("Ports en écoute hors Docker (ss -tlnp, root requis sur la machine)")}>
+          <Switch on={proc} disabled={ss.pending === "proc" || (notRoot && !proc)} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Écoute des ports")} />
+          <span><b>{tx("Écoute des ports")}</b> <SavedMark k="proc" s={ss} /></span>
+        </label>
+      )}
+      {!agentMode && sshOn && notRoot && (
+        <p className="basis-full rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
+          <b className="text-warn">!</b> {tx("Le compte SSH est « {0} », pas root : sans root, seuls les ports de ce compte sont visibles, donc l'écoute des ports est réservée à root.", ctl.known?.user)}
+        </p>
+      )}
       {showHelp && (
         <button type="button" className="text-xs text-link hover:underline" onClick={() => ctl.setWinGuide(true)}>{tx("La connexion échoue ? Voir les commandes")}</button>
       )}
-      <GivesList gives={gives} />
     </div>
   );
 }
@@ -898,9 +914,9 @@ function AuthorizeHint() {
   );
 }
 
-function SshBody({ ctl, ip, v, setV, live, scan, windowsGuess, hasAdguard, connection, gives, ss, autoSave }: Readonly<{
+function SshBody({ ctl, ip, v, setV, live, scan, windowsGuess, hasAdguard, connection, ss, autoSave, proc }: Readonly<{
   ctl: SshCtl; ip: string; v: MachineConf; setV: (v: MachineConf) => void; live?: Live; scan?: ScanInfo; windowsGuess?: boolean; hasAdguard: boolean;
-  connection?: React.ReactNode; gives: Gives; ss: SaveState; autoSave: AutoSave;
+  connection?: React.ReactNode; ss: SaveState; autoSave: AutoSave; proc: boolean;
 }>) {
   const windows = v.os === "windows";
   return (
@@ -909,7 +925,7 @@ function SshBody({ ctl, ip, v, setV, live, scan, windowsGuess, hasAdguard, conne
           {ctl.agentMode ? tx("Un petit script PowerShell sur le PC envoie sa santé à MyServices : système, disques, services, processeur, mémoire, mises à jour, journal, ports en écoute.") : tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache.")} <b className="text-txt">{tx("Lecture seule")}</b>{tx(" : rien n'y est modifié.")}
           <span className="block text-dim">{tx("Sans accès : ping et services web seulement.")}</span>
         </p>
-        <SshSwitchRow ctl={ctl} live={live} ss={ss} gives={gives} />
+        <SshSwitchRow ctl={ctl} live={live} ss={ss} proc={proc} autoSave={autoSave} />
         <NoteLine note={ctl.reuse} />
         {connection && !ctl.agentMode && (
           <div className="rounded-lg border border-line/60 bg-bg2/70 p-3">
@@ -957,6 +973,7 @@ function AgentBody({ ip, v, windowsGuess, agent, agentMode, sshAccess, isNew, on
             <Dim>{tx("la première source qui répond fait foi, l'autre prend le relais si elle se tait et complète ce qui manque")}</Dim>
           </div>
         )}
+        {!isNew && onAgent && !agent && <p className="text-sm text-muted">{AGENT_HINT()}</p>}
         {!isNew && onAgent && <AgentBlock ip={ip} name={v.name} kind={osKind(windows, windowsGuess)} agent={agent} onChanged={onAgent} />}
     </>
   );
@@ -997,11 +1014,11 @@ function AccessTab({ tabbed, agentMode, sshBody, agentBody, connectorsBody, sshS
           </div>
         ))}
       </section>
-      <AccessCategory icon={KeyRound} title="SSH" badge={sshSummary}>
+      <AccessCategory fold icon={KeyRound} title="SSH" badge={sshSummary}>
         {agentMode ? <p className="text-sm text-muted">{tx("Cette machine est lue par son agent, sans SSH.")}</p> : sshBody}
       </AccessCategory>
-      <AccessCategory icon={MonitorUp} title={tx("Agent")} badge={agentSummary}>{agentBody}</AccessCategory>
-      <AccessCategory icon={Plug} title={tx("Connecteurs")} badge={connectorSummary}>{connectorsBody}</AccessCategory>
+      <AccessCategory fold icon={MonitorUp} title={tx("Agent")} badge={agentSummary}>{agentBody}</AccessCategory>
+      <AccessCategory fold icon={Plug} title={tx("Connecteurs")} badge={connectorSummary}>{connectorsBody}</AccessCategory>
     </>
   );
 }
@@ -1193,7 +1210,6 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   const known = st.aliases.find((a) => a.ip === ip);
   const toggle = useSshToggle(ip, known, autoSave);
   const ctl: SshCtl = { agentMode: status.agentMode, sshOn: status.sshOn, foundSsh: status.foundSsh, offHint: offHintText(v.ssh, status.foundSsh), known, ...toggle };
-  const gives = accessGives({ v, windows, agent, live, sshAccess: status.sshAccess, proc, hasAdguard });
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -1206,7 +1222,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   };
   const dirty = isDirty(isNew, v, saved);
   const flagCtx: FlagCtx = { v, found, unlock: menu.unlock, ss, autoSave };
-  const sshBody = <SshBody ctl={ctl} ip={ip} v={v} setV={setV} live={live} scan={scan} windowsGuess={windowsGuess} hasAdguard={hasAdguard} connection={connection} gives={gives} ss={ss} autoSave={autoSave} />;
+  const sshBody = <SshBody ctl={ctl} ip={ip} v={v} setV={setV} live={live} scan={scan} windowsGuess={windowsGuess} hasAdguard={hasAdguard} connection={connection} ss={ss} autoSave={autoSave} proc={proc} />;
   const agentBody = <AgentBody ip={ip} v={v} windowsGuess={windowsGuess} agent={agent} agentMode={status.agentMode} sshAccess={status.sshAccess} isNew={isNew} onAgent={onAgent} connection={connection} ss={ss} autoSave={autoSave} />;
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">

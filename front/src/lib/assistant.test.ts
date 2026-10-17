@@ -57,15 +57,15 @@ describe("assistant : progression", () => {
     expect(loadProgress()).toEqual({ current: "machine", done: ["welcome"], skipped: [], host: "", accepted: [] });
   });
 
-  it("les six étapes existent", () => {
-    expect(STEPS.filter((s) => s.ready).map((s) => s.id)).toEqual(["welcome", "machine", "network", "access", "tools", "alerts"]);
-    expect(STEPS).toHaveLength(6);
+  it("les cinq étapes existent", () => {
+    expect(STEPS.filter((s) => s.ready).map((s) => s.id)).toEqual(["welcome", "machine", "network", "access", "tools"]);
+    expect(STEPS).toHaveLength(5);
   });
 
   it("l'assistant est fini quand chaque étape est faite ou passée", () => {
     const ids = STEPS.map((s) => s.id);
     expect(isFinished(null)).toBe(false);
-    expect(isFinished({ done: ids.slice(0, 5), skipped: [] })).toBe(false);
+    expect(isFinished({ done: ids.slice(0, 4), skipped: [] })).toBe(false);
     expect(isFinished({ done: ids.slice(0, 3), skipped: ids.slice(3) })).toBe(true);
   });
 

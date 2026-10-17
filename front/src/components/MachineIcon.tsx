@@ -1,6 +1,6 @@
 // Icône d'une machine : l'appli qu'elle héberge si on la reconnaît (Proxmox, Home Assistant, UniFi… d'après le scan ou le nom),
 // sinon son système (relevé SSH, réglage « windows », scan, TTL du ping) ; rien si on ne sait pas.
-import { appIcon, appIconByText } from "../lib/appIcons";
+import { appIcon, appIconByText, modelIcon } from "../lib/appIcons";
 import { osOfMachine } from "../lib/machines";
 import { distroIcon } from "../lib/osIcon";
 import type { Machine } from "../types";
@@ -9,7 +9,7 @@ import { chosenIcon } from "../lib/machineIcons";
 import { OS_ICON } from "./OsGlyph";
 
 interface Props {
-  m: { name?: string; role?: string; os?: string; osName?: string | null; info?: Machine["info"]; ttl?: number | null; icon?: string | null };   // osName : nom complet du système (agent, SSH) pour le logo de la distribution  // icon : choisie à la main
+  m: { name?: string; role?: string; os?: string; osName?: string | null; info?: Machine["info"]; ttl?: number | null; icon?: string | null; model?: string | null };   // osName : nom complet du système (agent, SSH) pour le logo de la distribution  // icon : choisie à la main
   /** ce que le dernier scan du réseau a vu de la machine (système probable, applis reconnues) */
   scan?: { os?: string; apps: string[]; ssh?: boolean };
   /** rien à montrer : garder la place, pour que les noms restent alignés d'une ligne à l'autre */
@@ -29,7 +29,7 @@ export function MachineIcon({ m, scan, reserve, large, empty }: Props) {
       : <span className={`grid ${box} shrink-0 place-items-center rounded-md bg-bg2 text-muted`} title={picked.label}><picked.Icon size={glyph} aria-hidden /></span>;
   }
   const os = osOfMachine({ os: m.os, info: m.info, ttl: m.ttl }, scan?.os, scan?.ssh);
-  const app = appIcon(scan?.apps) ?? appIconByText(m.name, m.role);
+  const app = appIcon(scan?.apps) ?? modelIcon(m.model) ?? appIconByText(m.name, m.role);
   if (app) return <span className={`grid ${box} shrink-0 place-items-center rounded-md bg-bg2`} title={os?.label}><img src={app} alt="" className={img} /></span>;
   const logo = distroIcon(m.osName || m.info?.os);   // logo de la distribution ou de Windows quand le nom complet est connu
   if (logo) return <span className={`grid ${box} shrink-0 place-items-center rounded-md bg-bg2`} title={m.osName || m.info?.os || os?.label}><img src={logo} alt="" className={img} /></span>;

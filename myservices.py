@@ -31,6 +31,7 @@ import re
 import socket
 import ssl
 import struct
+import statistics
 import subprocess
 import sys
 import threading
@@ -188,14 +189,17 @@ def agent_reports() -> dict:
 
 def _process_read(conn):
     """Connecteur « process » d'une machine : {port: process} ; état ajouté au passage."""
-    t0 = time.time()
+    t0, warning = time.time(), ""
     try:
-        got = conn.collect()["ports"]
+        read = conn.collect()
+        got, hidden = read["ports"], read.get("hidden", 0)
         ok, msg = True, f"{len(got)} port(s) en écoute"
+        if hidden:   # ss sans root : les ports des autres comptes n'ont pas de nom
+            warning = f"lecture partielle : {hidden} port(s) sans nom de processus, un accès root est nécessaire"
     except Exception as e:  # SSH coupé, ss absent, bug : machine sans process ce passage, comme avant
         got, ok, msg = {}, False, str(e)
     CONNECTOR_STATUS.append(cbase.Status(conn.type, conn.conf.get("label") or conn.name, ok, msg, extra={"ip": conn.conf.get("ip")},
-                                         duration_s=round(time.time() - t0, 2)))
+                                         duration_s=round(time.time() - t0, 2), warning=warning))
     return got
 
 
@@ -444,6 +448,14 @@ def _sync_time(ts):
         return None
 
 
+def _error_state(errors, times):
+    """Errors of the sync log that still matter: only those after the last successful sync are « open » (a later success closes the older ones).
+    errors: [(time, message)], times: the times of the successful syncs. Returns errors_open and the last error message."""
+    last_ok = max(times, default=None)
+    open_ = [e for e in errors if e[0] is None or last_ok is None or e[0] > last_ok]
+    return {"errors_open": len(open_), "last_error": errors[-1][1] if errors else None}
+
+
 def adguard_sync_state(alias, container):
     """Journal 24 h d'adguardhome-sync : origine, dernière synchro réussie par réplique, intervalle entre
     deux synchros (médiane, d'après le journal : pas besoin de connaître son cron), nombre d'erreurs.
@@ -455,11 +467,11 @@ def adguard_sync_state(alias, container):
         return None
     if r.returncode not in (0, 1):  # grep : 1 = aucune ligne
         return None
-    last, runs, origin, errors = {}, {}, None, 0
+    last, runs, origin, errors = {}, {}, None, []
     for line in r.stdout.splitlines():
         ts = line.split("\t", 1)[0]
         if "\tERROR\t" in line:
-            errors += 1
+            errors.append((_sync_time(ts), line.split("\t", 4)[-1][:160] if line.count("\t") >= 4 else line[:160]))
         m = re.search(r'Sync done.*"to": "(?:https?://)?([\d.]+)', line)
         if m:
             last[m.group(1)] = ts
@@ -467,9 +479,9 @@ def adguard_sync_state(alias, container):
             f = re.search(r'"from": "(?:https?://)?([\d.]+)', line)
             origin = f.group(1) if f else origin
     times = sorted(t for t in max(runs.values(), key=len, default=[]) if t)
-    gaps = sorted((b - a).total_seconds() / 60 for a, b in zip(times, times[1:]))
-    return {"container": container, "origin": origin, "last_done": last, "errors_24h": errors,
-            "interval_min": round(gaps[len(gaps) // 2]) if gaps else None}
+    gaps = [(b - a).total_seconds() / 60 for a, b in zip(times, times[1:])]   # in time order
+    return {"container": container, "origin": origin, "last_done": last, "errors_24h": len(errors), **_error_state(errors, times),
+            "interval_min": round(statistics.median(gaps[-6:])) if gaps else None}   # the latest gaps: the cron may have been changed today
 
 
 def _skip_name(data, pos):
@@ -595,6 +607,9 @@ def dns_check(rows):
                 issues.append(["hors_lan", d])
         r["dns"] = {"answers": per, "issues": issues, "rule": {d: blocked_by[d] for d in per if d in blocked_by},
                     "rewrites": [x for x in rewrites if any(_rewrite_hits(x["domain"], d) for d in per)]}
+    sync = {ip: _sync_origin(f.result() or {"container": ADGUARD_SYNC[ip], "unreadable": True}, servers) for ip, f in syncs.items()}
+    report = _rewrites_report(confs, npm_rows, set(NPM_IPS.values()))
+    mark_waiting(report, sync)
     return {
         "npm_ip": next(iter(NPM_IPS.values()), None),
         "npm_ips": NPM_IPS,
@@ -604,10 +619,40 @@ def dns_check(rows):
                          "rewrites": len(confs[ip]["rewrites"]) if confs[ip] else None,
                          "user_rules": len(confs[ip]["user_rules"]) if confs[ip] else None,
                          "silent": sum(1 for d in names if ans[(ip, d)] is None)} for ip in servers},
-        "sync": {ip: _sync_origin(f.result() or {"container": ADGUARD_SYNC[ip], "unreadable": True}, servers)
-                 for ip, f in syncs.items()},
-        **_rewrites_report(confs, npm_rows, set(NPM_IPS.values())),
+        "sync": sync,
+        **report,
     }
+
+
+DNS_DIFF_SEEN = os.path.join(CFG["cache_dir"], "dns-diff-seen.json")
+SYNC_GRACE_MIN = 3   # minutes added to the sync interval before a difference counts: the run itself takes a moment
+
+
+def mark_waiting(report, sync, now=None):
+    """A difference between two AdGuard instances is not a warning yet: adguardhome-sync may simply not have copied it. Each
+    difference gets `since` (first seen, kept in a small cache file) and `waiting` (true until one sync interval plus a grace
+    has passed since then). Without adguardhome-sync nothing replicates, so nothing waits."""
+    now = now or time.time()
+    gaps = [s["interval_min"] for s in sync.values() if s.get("interval_min")]
+    wait_s = (max(gaps) + SYNC_GRACE_MIN) * 60 if gaps else 0
+    items = {f"rw:{x['domain']}:{x['answer']}:{x['only']}": x for x in report["rewrites_diff"]}
+    items.update({f"rule:{x['rule']}:{x['only']}": x for x in report["user_rules_diff"]})
+    try:
+        with open(DNS_DIFF_SEEN, encoding="utf-8") as f:
+            seen = json.load(f)
+    except (OSError, ValueError):
+        seen = {}
+    kept = {k: seen.get(k, now) for k in items}   # a difference that went away is forgotten
+    for k, x in items.items():
+        x["since"], x["waiting"] = kept[k], now - kept[k] < wait_s
+    if kept != seen:
+        try:
+            tmp = DNS_DIFF_SEEN + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(kept, f)
+            os.replace(tmp, DNS_DIFF_SEEN)
+        except OSError:
+            pass   # no cache: the difference is simply shown as waiting again at the next pass
 
 
 def _sync_origin(s, servers):
@@ -673,6 +718,59 @@ def row(kind, ident, ip, port, **kw):
             "machine": mach[0] if mach else None, "machine_role": mach[1] if mach else None}
     base.update(kw)
     return base
+
+
+_ADV_LOCATION_ROOT = re.compile(r"location\s+/\s*\{([^}]*)\}")
+_ADV_PROXY_PASS = re.compile(r"^\s*proxy_pass\s+(https?)://(\d{1,3}(?:\.\d{1,3}){3})(?::(\d+))?\s*;", re.M)
+
+
+def advanced_target(adv):
+    """(scheme, ip, port) when the `location / { ... }` of a host's advanced config sends the traffic to a literal IPv4
+    address with `proxy_pass`: NPM then ignores the forward host and port of the host, so that is the real backend."""
+    for body in _ADV_LOCATION_ROOT.findall(adv or ""):
+        m = _ADV_PROXY_PASS.search(body)
+        if m:
+            return m.group(1), m.group(2), int(m.group(3) or (443 if m.group(1) == "https" else 80))
+    return None
+
+
+def attach_vhost_domains(rows, hinfo):
+    """Real domain names declared by Apache (ServerName / ServerAlias) and nginx (server_name) on a machine, put on the
+    local row that serves their port: r["vhost_domains"] and r["vhost_server"]. NPM domains stay in r["domains"]."""
+    local = {}
+    for r in rows:
+        if r["type"] == "local":
+            local.setdefault((r.get("ip"), r.get("port")), []).append(r)
+    for ip, info in hinfo.items():
+        for server, key in (("apache", "vhosts"), ("nginx", "nginx_vhosts")):
+            for v in (info or {}).get(key, []):
+                for r in local.get((ip, v["port"]), []):
+                    have = r.setdefault("vhost_domains", [])
+                    have += [n for n in v["names"] if n not in have]
+                    r["vhost_server"] = server
+
+
+def nginx_rows(hinfo, used):
+    """One local row for each port an nginx server block listens on that no other source claimed yet (`used` is updated)."""
+    out = []
+    for ip, info in hinfo.items():
+        for port in sorted({v["port"] for v in (info or {}).get("nginx_vhosts", [])}):
+            if (ip, port) in used:
+                continue
+            used.add((ip, port))
+            names = [n for v in info["nginx_vhosts"] if v["port"] == port for n in v["names"][:1]]
+            out.append(row("local", f"{ip}:{port}", ip, port, name=f"nginx :{port}",
+                           service={"kind": "nginx", "name": "nginx" + (" · " + ", ".join(names) if names else ""), "match": "port"}))
+    return out
+
+
+def forward_target(h, ip, port, adv):
+    """(scheme, ip, port, declared) of an NPM host: the forward target, or the `proxy_pass` of its advanced config when that overrides it
+    (declared is then the forward target NPM shows, else None)."""
+    real = advanced_target(adv)
+    if real and real[1:] != (ip, port):
+        return real[0], real[1], real[2], f"{ip}:{port}"
+    return h["forward_scheme"], ip, port, None
 
 
 def docker_service(c, how):
@@ -884,6 +982,7 @@ def main():
         if ip in IGNORED_IPS:
             continue
         adv = h.get("advanced_config") or ""
+        scheme, ip, port, declared = forward_target(h, ip, port, adv)   # the advanced config may override the forward target: probe and match the real one
         svc = via = cname = None
         hip = ip  # machine où chercher le service (l'hôte NPM quand la cible n'existe que vu de lui)
         npm_host = NPM_IPS.get(h["_npm"])
@@ -930,7 +1029,8 @@ def main():
             npm=h["_npm"],
             domains=h["domain_names"],
             enabled=bool(h["enabled"]),
-            scheme=h["forward_scheme"],
+            scheme=scheme,
+            forward_declared=declared,
             service=svc,
             acl_id=h["access_list_id"],
             acl=h["_acl"],
@@ -1044,6 +1144,8 @@ def main():
                 if addr and addr not in ("0.0.0.0", "*", "[::]", ip):  # lié à une IP interne : pas de sonde depuis le collecteur
                     rows[-1].update(internal=True, listen_addr=addr, ssh_active=True,  # apache2 actif (systemctl, via SSH)
                                     machine_role=rows[-1]["machine_role"] + f" · Apache écoute seulement sur {addr}")
+    rows.extend(nginx_rows(hinfo, used))
+    attach_vhost_domains(rows, hinfo)
     for x in meta.get("extra", []):
         rows.append(row("local", f'{x["ip"]}:{x["port"]}', x["ip"], x["port"], name=x["name"],
                         scheme=x.get("scheme", "http"), manual=True,

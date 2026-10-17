@@ -13,7 +13,7 @@ function Tile({ icon, value, label, tone }: { icon: React.ReactNode; value: stri
   return (
     <div className="flex items-center gap-2.5 rounded-lg bg-bg2/60 px-3 py-2">
       <span className="text-dim" aria-hidden>{icon}</span>
-      <div className="min-w-0"><div className={`font-mono text-base font-bold leading-tight ${tone ?? "text-txt"}`}>{value}</div><div className="truncate text-xs text-dim">{label}</div></div>
+      <div className="min-w-0"><div className={`truncate font-mono text-sm font-semibold leading-tight ${tone ?? "text-txt"}`} title={String(value)}>{value}</div><div className="truncate text-xs text-dim">{label}</div></div>
     </div>
   );
 }
@@ -65,8 +65,8 @@ export function HaAddons({ s }: Readonly<{ s: ServiceStatus }>) {
           <li key={a.slug} className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-bg2/50" title={[a.name, a.version, a.latest && `→ ${a.latest}`].filter(Boolean).join(" ")}>
             <AddonIcon src={iconUrl(a.slug)} />
             <span className="min-w-0 flex-1 truncate text-sm">{a.name}</span>
-            {a.latest && <span className="shrink-0 font-mono text-[11px] text-warn">→ {a.latest}</span>}
-            {!a.latest && a.version && <span className="shrink-0 truncate font-mono text-[11px] text-dim">{a.version}</span>}
+            {a.latest && <span className="shrink-0 font-mono text-xs text-warn">→ {a.latest}</span>}
+            {!a.latest && a.version && <span className="shrink-0 truncate font-mono text-xs text-dim">{a.version}</span>}
           </li>
         ))}
       </ul>
@@ -84,7 +84,7 @@ export function AddonStrip({ s, max = PREVIEW }: Readonly<{ s: ServiceStatus; ma
   return (
     <span className="flex items-center gap-1" title={tx("Modules installés")}>
       {list.slice(0, max).map((a) => <AddonIcon key={a.slug} src={addonIconUrl(s, a.slug)} title={a.name} small />)}
-      {list.length > max && <span className="rounded-md bg-bg2 px-1.5 py-0.5 text-[11px] font-semibold text-muted" title={list.slice(max).map((a) => a.name).join(", ")}>+{list.length - max}</span>}
+      {list.length > max && <span className="rounded-md bg-bg2 px-1.5 py-0.5 text-xs font-semibold text-muted" title={list.slice(max).map((a) => a.name).join(", ")}>+{list.length - max}</span>}
     </span>
   );
 }
@@ -130,9 +130,9 @@ function HomeAssistantCard({ s }: { s: ServiceStatus }) {
             </div>
           )}
           <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-lg bg-bg2/60 px-2 py-2"><div className="font-mono text-lg font-bold leading-tight">{s.entities ?? "-"}</div><div className="text-[11px] text-dim">{tx("entités")}</div></div>
-            <div className="rounded-lg bg-bg2/60 px-2 py-2"><div className={`font-mono text-lg font-bold leading-tight ${unav ? "text-warn" : "text-ok"}`}>{unav}</div><div className="text-[11px] text-dim">{tx("indisponibles")}</div></div>
-            <div className="rounded-lg bg-bg2/60 px-2 py-2"><div className="font-mono text-lg font-bold leading-tight">{auto ? `${auto.on}/${auto.total}` : "-"}</div><div className="text-[11px] text-dim">{tx("automatisations actives")}</div></div>
+            <div className="rounded-lg bg-bg2/60 px-2 py-2"><div className="font-mono text-lg font-bold leading-tight">{s.entities ?? "-"}</div><div className="text-xs text-dim">{tx("entités")}</div></div>
+            <div className="rounded-lg bg-bg2/60 px-2 py-2"><div className={`font-mono text-lg font-bold leading-tight ${unav ? "text-warn" : "text-ok"}`}>{unav}</div><div className="text-xs text-dim">{tx("indisponibles")}</div></div>
+            <div className="rounded-lg bg-bg2/60 px-2 py-2"><div className="font-mono text-lg font-bold leading-tight">{auto ? `${auto.on}/${auto.total}` : "-"}</div><div className="text-xs text-dim">{tx("automatisations actives")}</div></div>
           </div>
           <div className="flex flex-col gap-1.5">
             <Fold title={tx("Mises à jour de Home Assistant")} tone="warn" items={core.map(upd)} open />

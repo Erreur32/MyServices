@@ -142,7 +142,7 @@ export function dnsSync(g: Dns, now = Date.now()): { cls: "ok" | "warn" | "bad";
   const age = last.length ? Math.min(...last.map((t) => (now - t) / 60000)) : null;
   const every = sync?.interval_min, single = srv.length < 2 && !sync;
   const late = !!sync && (!!sync.unreadable || age == null || (!!every && age > every * 1.25 + 5));
-  const errs = sync?.errors_24h || 0;
+  const errs = sync?.errors_open ?? sync?.errors_24h ?? 0;   // only the errors no later sync has closed (older servers send errors_24h alone)
   const cls = !diff && !late && !errs ? "ok" : diff && !late && !errs ? "warn" : "bad";
   const label = single ? tx("instance unique") : !sync ? (diff ? tx("{0} écart(s)", diff) : "identiques")
     : cls === "ok" ? tx("synchro à jour") : errs ? tx("synchro en erreur") : late ? tx("synchro en retard") : tx("{0} à synchroniser", diff);

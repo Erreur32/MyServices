@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.12.0 (2026-10-17)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Changed
 
 - The Health tab is gone: machine health (level, CPU, memory, disks, updates flag) lives in the **Machines** tab and a summary stays on the
@@ -45,6 +49,20 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   (administrators).
 - Every setting opened from the assistant (SSH access, agent installation, connector, alert channel, adding a machine) opens in a window, so
   you never leave the page. The windows reuse the existing forms; the agent installation is now one component shared with Settings -> Agents.
+
+### Added (late in 0.12.0)
+
+- Machine window of a UniFi device, like the Freebox's: model photo and kind, UniFi OS and UniFi Network versions, a "Reading" section (read by
+  MynetworK through the UniFi API, address, MAC, state), an "UniFi info" section (clients, devices by kind, wired / Wi-Fi clients, Wi-Fi
+  networks) and the firmware in the Updates section. Shown only for a device read through UniFi alone (no SSH, no agent).
+- Machine window: the Docker containers behind the services of a machine, each with its service logo, name, image and state; the
+  "Services" and "N NPM" counts open the Services tab filtered on that machine (and on NPM).
+- Settings -> Machines: the "Machine access" guide opens from an info button under the title.
+
+### Changed (late in 0.12.0)
+
+- The Infra, Network and Security tabs are shown only on development builds until they are finished.
+- Card header strips are dark on the Machines cards and on the Settings -> Machines cards; the settings icon moved to the bottom right.
 
 ### Changed
 

@@ -12,7 +12,7 @@ describe("fenêtre de réglage de l'assistant", () => {
   it("canal d'alerte : le formulaire des Réglages, dans une fenêtre", () => {
     const html = render({ kind: "channel" });
     expect(html).toContain("Ajouter un canal d");
-    expect(html).toContain('role="dialog"');
+    expect(html).toContain("<dialog open");   // the window is a real dialog element
   });
 
   it("agent : le composant d'installation partagé avec la page Agents, choix Windows / Linux compris", () => {

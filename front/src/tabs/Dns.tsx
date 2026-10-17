@@ -10,13 +10,14 @@ import { Badge, Empty, TableCard } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
 
-type Row = [label: string, value: string, tone?: "ok" | "warn" | "bad"];
-const TEXT: Record<"ok" | "warn" | "bad", string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad" };
+type RowTone = "ok" | "warn" | "bad";
+type Row = [label: string, value: string, tone?: RowTone];
+const TEXT: Record<RowTone, string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad" };
 
 /** Card of the page header (synchronisation, one per AdGuard server): coloured strip with icon, title, address and state, then label/value rows
  *  in two aligned columns separated by thin lines. */
 function InfoCard({ icon, title, sub, tone, state, rows }: { icon: ReactNode; title: string; sub?: string; tone: "ok" | "warn" | "bad"; state: string; rows: Row[] }) {
-  const strip = { ok: "bg-ok/10", warn: "bg-warn/10", bad: "bg-bad/10" }[tone], frame = { ok: "border-line", warn: "border-warn/50", bad: "border-bad/50" }[tone];
+  const strip = "border-b border-line/60 bg-bg", frame = { ok: "border-line", warn: "border-warn/50", bad: "border-bad/50" }[tone];
   return (
     <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${frame}`}>
       <div className={`flex items-center gap-3 px-4 py-3 ${strip}`}>
@@ -51,6 +52,21 @@ function Anchor({ id, lit, children }: { id?: string; lit?: string; children: Re
 
 const code = (t: string) => <code className="rounded bg-bg2 px-1.5 py-0.5 font-mono text-xs">{t}</code>;
 
+/** Tone of the error line: red while an error is open, orange once they are all closed, green without any */
+function errorsTone(s: { errors_24h?: number; errors_open?: number }): RowTone {
+  if (s.errors_open ?? s.errors_24h) return "bad";
+  return s.errors_24h ? "warn" : "ok";
+}
+
+/** The error count of the sync log: how many in 24 h, how many are still open, and the last one's message */
+function errorsText(s: { errors_24h?: number; errors_open?: number; last_error?: string | null }): string {
+  const n = s.errors_24h || 0;
+  if (!n) return "0";
+  const open = s.errors_open ?? n;
+  const msg = s.last_error ? ` · ${s.last_error.split("\t")[0]}` : "";
+  return open ? `${n} (${tx("{0} en cours", open)})${msg}` : `${n} (${tx("close par une synchro réussie")})${msg}`;
+}
+
 export function Dns({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
   const g = snap.data.dns;
   const want = initial?.anchor?.[0];
@@ -66,7 +82,11 @@ export function Dns({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
   const name = (ip?: string) => (ip && g.servers[ip]?.name) || ip || "?";
   const last = sync?.last_done ? Math.max(...Object.values(sync.last_done).map((t) => new Date(t).getTime())) : null;
   const rows = snap.data.hosts.filter((r) => r.dns && r.enabled && r.dns.issues.length);
-  const diff = [...g.rewrites_diff, ...g.user_rules_diff];
+  const all = [...g.rewrites_diff, ...g.user_rules_diff];
+  const diff = all.filter((x) => !x.waiting), waiting = all.length - diff.length;   // a fresh difference waits one sync turn before it counts
+  let content = tx("identique");
+  if (diff.length) content = tx("{0} différence(s)", diff.length);
+  else if (waiting) content = tx("{0} en attente de la synchro", waiting);
   return (
     <div className="flex flex-col gap-4 py-4">
       <header className="flex items-center gap-3">
@@ -81,9 +101,9 @@ export function Dns({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
           rows={[
             ...(sync ? [[tx("Dernière synchro"), last ? hm(last) : tx("aucune en 24 h"), st.cls === "bad" ? "bad" : undefined] as Row,
                         ...(sync.interval_min ? [[tx("Fréquence"), `${tx("toutes les")} ${sync.interval_min} ${tx("min")}`] as Row] : []),
-                        [tx("Erreurs (24 h)"), String(sync.errors_24h || 0), sync.errors_24h ? "bad" : "ok"] as Row]
+                        [tx("Erreurs (24 h)"), errorsText(sync), errorsTone(sync)] as Row]
                     : [["adguardhome-sync", Object.keys(g.servers).length > 1 ? tx("absent : contenus comparés") : tx("sans objet")] as Row]),
-            [tx("Contenu"), diff.length ? tx("{0} différence(s)", diff.length) : tx("identique"), diff.length ? "warn" : "ok"] as Row,
+            [tx("Contenu"), content, diff.length ? "warn" : "ok"] as Row,
           ]} />
         {Object.entries(g.servers).map(([ip, v]) => {
           const ok = v.readable && !v.silent;

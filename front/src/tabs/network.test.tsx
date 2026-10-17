@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { Snapshot } from "../api";
 import { hasNetwork } from "../lib/network";
 import { Network } from "./Network";
@@ -22,8 +22,27 @@ const snap = {
   },
 } as unknown as Snapshot;
 
+// A minimal localStorage: the folded sections are remembered there ([] = the person unfolded everything)
+const stored = new Map<string, string>();
+Object.defineProperty(globalThis, "localStorage", { value: { getItem: (k: string) => stored.get(k) ?? null, setItem: (k: string, v: string) => void stored.set(k, v), removeItem: (k: string) => void stored.delete(k) }, configurable: true });
+afterEach(() => stored.clear());
+
 describe("onglet Réseau", () => {
+  it("par défaut tout est plié sauf l'accès Internet et les passerelles ; le menu reste là", () => {
+    const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} />);
+    expect(html).toContain("Freebox (via MynetworK)");              // the open section
+    expect(html).not.toContain('<b class="text-txt">UCG</b>');       // the equipment table is folded
+    expect(html).not.toContain("LG");                               // so is the device list
+    for (const t of ["Équipements réseau", "Clients par borne ou switch", "Appareils du réseau", "Tout déplier"]) expect(html, t).toContain(t);   // headers and menu stay
+    expect(html).toContain('aria-expanded="true"');
+    expect(html).toContain('aria-expanded="false"');
+  });
+  it("si la personne a tout déplié, tout s'affiche", () => {
+    stored.set("ms.network.folded", "[]");
+    expect(renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} />)).toContain("LG");
+  });
   it("tiles, Internet card, equipment merged by MAC, clients by uplink, devices", () => {
+    stored.set("ms.network.folded", "[]");   // everything unfolded to read it all
     expect(hasNetwork(snap)).toBe(true);
     const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} />);
     for (const t of ["Freebox (via MynetworK)", "UniFi Network", "Passerelle", "1/2 en ligne", "« Borne salon » hors ligne", "« UCG » : mise à jour disponible", "UDMA6A8", "Borne salon", "port 5", "Maison · -60 dBm", "LG", "Monitor", "1/2"]) expect(html, t).toContain(t);

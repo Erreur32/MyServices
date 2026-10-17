@@ -8,7 +8,7 @@ import { tx } from "../lib/i18n";
 /** Retour d'une action : message vert ou rouge sous le formulaire. */
 
 /** Message d'un enregistrement : un succès disparaît au bout de 15 s, une erreur reste affichée. */
-export function NoteLine({ note }: { note: Note }) {
+export function NoteLine({ note, inline = false }: { note: Note; inline?: boolean }) {   // inline : une petite ligne dans un titre, sans rien pousser en dessous
   const [gone, setGone] = useState<Note>(null);
   useEffect(() => {
     if (!note?.ok) return;
@@ -16,7 +16,9 @@ export function NoteLine({ note }: { note: Note }) {
     return () => clearTimeout(t);
   }, [note]);
   if (!note || (note.ok && !note.text) || gone === note) return null;
-  return <p role="status" className={`mt-2 text-sm ${note.ok ? "text-ok" : "text-bad"}`}>{note.ok ? "✓" : "⚠"} {note.text}</p>;
+  const tone = note.ok ? "text-ok" : "text-bad";
+  if (inline) return <output className={`text-xs font-normal ${tone}`}>{note.ok ? "✓" : "⚠"} {note.text}</output>;
+  return <output className={`mt-2 block text-sm ${tone}`}>{note.ok ? "✓" : "⚠"} {note.text}</output>;
 }
 
 export function Field({ label, children }: { label: ReactNode; children: ReactNode }) {

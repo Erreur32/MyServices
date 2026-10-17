@@ -2,7 +2,7 @@
 // (API), KVM / libvirt, Incus / LXD ou VirtualBox (SSH) et Hyper-V (agent Windows) avec ses VM,
 // reliés à leur fiche Machine (couche de rapprochement), à leur sauvegarde vzdump suivie et à leurs conteneurs Docker (SSH, Dockhand).
 // Plus bas : Proxmox Backup Server, s'il est relié. Dockhand (Docker seulement) reste dans Santé. Lecture seule.
-import { Box, Container, HardDrive, Monitor, Server } from "lucide-react";
+import { Box, Container, Cpu, HardDrive, Monitor, Server } from "lucide-react";
 import type { Snapshot } from "../api";
 import { bytes, dur } from "../lib/format";
 import { tx } from "../lib/i18n";
@@ -14,7 +14,6 @@ const HYPERVISORS = ["proxmox", "pulse", "esxi", "vcenter", "pdm", "unraid", "li
 /** How a host was read, shown as a badge */
 const VIA: Record<string, string> = { esxi: "vim-cmd", proxmox: "pvesh", libvirt: "virsh", incus: "incus", lxd: "lxc", virtualbox: "VBoxManage" };
 type Guest = NonNullable<VirtualizationConnector["guests"]>[number];
-const tone = (p?: number | null, warn = 80, bad = 90) => (p == null ? "off" : p >= bad ? "bad" : p >= warn ? "warn" : "ok") as "ok" | "warn" | "bad" | "off";
 const LEVEL_TONE: Record<string, "ok" | "warn" | "bad" | "off"> = { ok: "ok", warn: "warn", crit: "bad", down: "bad" };
 
 /** Gauge with its value, « 40 / 64 Go » under it when the totals are known; it fills the width its grid cell gives, so gauges line up */
@@ -23,7 +22,7 @@ function Gauge({ label, pct, used, total, icon }: Readonly<{ label: string; pct?
   return (
     <div className="min-w-0 text-xs">
       <div className="flex items-center justify-between gap-2 text-muted"><span className="flex min-w-0 items-center gap-1 truncate">{icon}{label}</span><b className="tabular-nums text-txt">{Math.round(pct)} %</b></div>
-      <Fill pct={pct} tone={tone(pct)} />
+      <Fill pct={pct} />
       {total ? <div className="truncate text-[11px] text-dim">{bytes(used)} / {bytes(total)}</div> : null}
     </div>
   );
@@ -74,6 +73,18 @@ function GuestRow({ g, m, set, backups, docker, dockhand, onMachine }: { g: Gues
   );
 }
 
+/** A framed category of a host: a title strip (icon, name, optional count), then its content */
+function Category({ icon: Icon, title, count, children }: Readonly<{ icon: typeof Server; title: string; count?: number; children: React.ReactNode }>) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-line border-l-2 border-l-link">
+      <h3 className="flex items-center gap-2 border-b border-line/60 bg-bg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-dim">
+        <Icon size={13} className="text-link" aria-hidden />{title}{count != null && <Count n={count} tone="off" />}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
 function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapshot; onMachine: (ip: string) => void }) {
   const guests = (c.guests ?? []).filter((g) => !g.template).sort((a, b) => Number(b.status === "running") - Number(a.status === "running") || String(a.vmid).localeCompare(String(b.vmid), undefined, { numeric: true }));
   const machines = snap.data.machine_list;
@@ -91,7 +102,7 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
     ...(orphan ? [{ node: undefined, list: guests.filter((g) => !nodes.some((n) => n.name === g.node)) }] : [])];
   return (
     <Card className={c.ok ? "" : "border-bad/40"}>
-      <h2 className="flex flex-wrap items-center gap-2 font-bold"><Server size={16} aria-hidden />{c.name}
+      <h2 className="-mx-4 -mt-4 flex flex-wrap items-center gap-2 rounded-t-2xl border-b border-line/60 bg-bg px-4 py-3 font-bold"><Server size={16} aria-hidden />{c.name}
         <Badge tone={c.ok ? "ok" : "bad"}>{c.ok ? tx("en ligne") : tx("illisible")}</Badge>
         {c.version && <span className="font-mono text-xs text-dim">{c.label} {c.version}</span>}
         <Badge tone="info">{via}</Badge>{c.stale && <Badge tone="warn">{tx("relevé périmé")}</Badge>}
@@ -100,7 +111,9 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
         <>
           {!!c.problems?.length && <ul className="mt-3 flex flex-col gap-0.5 rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{c.problems.map((p) => <li key={p}>⚑ {p}</li>)}</ul>}
           {byNode.map(({ node: n, list }) => (
-            <section key={n?.name ?? "-"} className="mt-3 overflow-hidden rounded-xl border border-line">
+            <div key={n?.name ?? "-"} className="mt-3 flex flex-col gap-3">
+              {(n || storageOf().length > 0) && (
+                <Category icon={Cpu} title={tx("Système")}>
               {n && (
                 <div className="grid items-center gap-x-6 gap-y-2 bg-bg2/50 px-3 py-2.5 md:grid-cols-[minmax(0,1fr)_11rem_11rem]">
                   <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
@@ -114,12 +127,15 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
                 </div>
               )}
               {storageOf(n?.name).length > 0 && (
-                <div className="grid gap-x-6 gap-y-2 border-t border-line/60 px-3 py-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-x-6 gap-y-2 border-t border-line/60 px-3 py-2.5 sm:grid-cols-2 lg:grid-cols-4 [&:first-child]:border-t-0">
                   {storageOf(n?.name).map((st) => <Gauge key={`${st.node}/${st.name}`} label={st.name} pct={st.used_pct} used={st.used} total={st.total} icon={<HardDrive size={12} className="shrink-0 text-dim" aria-hidden />} />)}
                 </div>
               )}
+                </Category>
+              )}
               {list.length > 0 && (
-                <div className="overflow-x-auto border-t border-line/60">
+                <Category icon={Monitor} title={tx("Machines virtuelles")} count={list.length}>
+                <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-sm">
                     <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
                       <th className="px-3 py-2">{tx("État")}</th><th className="px-3 py-2">{tx("Invité")}</th><th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("CPU")}</th>
@@ -136,8 +152,9 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
                     </tbody>
                   </table>
                 </div>
+                </Category>
               )}
-            </section>
+            </div>
           ))}
         </>
       )}

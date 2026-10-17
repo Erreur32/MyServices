@@ -41,6 +41,9 @@ export interface Service {
 
 export interface Host {
   id: string | number;
+  forward_declared?: string | null;   // NPM forward target, when the advanced config sends the traffic elsewhere (the real target is ip:port)
+  vhost_domains?: string[];   // domain names declared by Apache / nginx on the machine for this port
+  vhost_server?: "apache" | "nginx";
   npm?: string;
   scheme?: string;
   category?: string;
@@ -129,13 +132,15 @@ export interface Rewrite {
   why?: string;
   rule?: string;
   only?: string;
+  waiting?: boolean;   // difference between two AdGuard: adguardhome-sync has not had a full turn since it appeared
+  since?: number;      // when it was first seen (epoch s)
   enabled?: boolean;
 }
 
 export interface Dns {
   npm_ip?: string;
   servers: Record<string, DnsServer & { container?: string; user_rules?: number }>;
-  sync?: Record<string, { container: string; origin?: string; last_done?: Record<string, string>; errors_24h?: number; interval_min?: number; unreadable?: boolean }>;
+  sync?: Record<string, { container: string; origin?: string; last_done?: Record<string, string>; errors_24h?: number; errors_open?: number; last_error?: string | null; interval_min?: number; unreadable?: boolean }>;
   rewrites_diff: Rewrite[];
   user_rules_diff: Rewrite[];
   orphans: Rewrite[];
@@ -266,7 +271,7 @@ export interface HealthHost {
   disks?: { mount: string; used_pct: number; size_gb?: number; avail_gb?: number; warning?: boolean; critical?: boolean }[];
   systemd?: { failed: { unit: string }[] };
   docker?: { accessible: boolean; total?: number; stopped?: number; unhealthy?: number; restarting?: number; issues?: string[] };
-  apt?: { upgradable: number; sample?: string[]; available?: boolean; security?: number | null };   // packages (apt) or Windows updates; sample: up to 30 named
+  apt?: { upgradable: number; sample?: string[]; available?: boolean; security?: number | null; firmware?: boolean };   // packages (apt) or Windows updates; sample: up to 30 named
   kernel?: { has_errors: boolean; samples?: string[] };
   load?: { load_1: number; ncpu: number; available: boolean };
   res?: { available: boolean; cpu_pct?: number; mem_pct?: number; mem_total_mb?: number; mem_used_mb?: number; swap_total_mb?: number; swap_used_mb?: number };  // CPU et mémoire
@@ -275,6 +280,10 @@ export interface HealthHost {
   smart?: { accessible: boolean; disks: { device: string; healthy: boolean; failed?: boolean }[]; vm?: boolean };
   source?: "ssh" | "agent" | "beszel" | "ha";  // source retenue pour la santé de la machine
   sources?: string[];                    // toutes celles qui ont servi (la retenue, puis celles qui ont complété)
+  vmem?: { used_mb: number; total_mb: number; pct: number };
+  drives?: { model: string | null; state: string | null; temperature: number | null; smart_ok: boolean | null }[];   // Freebox: its internal disks (the partitions are in `disks`)
+  fans?: { name: string; rpm: number }[];       // Freebox: its fans
+  vms?: { running: number; total: number };   // Freebox: its virtual machines, how many run   // Freebox: memory given to its virtual machines (the box itself reports no load)
   api_name?: string;                     // source « ha » : the service whose API was read (Glances, Home Assistant)
 }
 
@@ -456,6 +465,7 @@ export interface ConnectorStatus {
   version_tested: boolean | null;
   stale: boolean;
   failures: number;
+  warning?: string;   // read fine but incomplete (ss without root): orange, not a failure
   found?: { name: string; count: number }[];
   pending?: boolean;   // saved or switched on after the last collection: being read again
 }
@@ -624,9 +634,22 @@ export interface NetworkConnector extends InfraConnector {
 }
 /** The Freebox as MynetworK relays it (no address given: matched to the machine whose name contains « Freebox ») */
 export interface FreeboxInfo {
-  connection?: { state?: string; media?: string } | null;
-  system?: { model?: string; firmware?: string; latest_firmware?: string | null; update_available?: boolean | null; uptime?: number;
-    sensors?: { id?: string; name?: string; value: number }[] } | null;
+  connection?: { state?: string; media?: string; rate_down?: number; rate_up?: number; bandwidth_down?: number; bandwidth_up?: number } | null;
+  system?: { model?: string; firmware?: string; latest_firmware?: string | null; update_available?: boolean | null; uptime?: number; lan_ip?: string | null;
+    sensors?: { id?: string; name?: string; value: number }[]; fans?: { id?: string; name?: string; value: number }[] } | null;
+  // MynetworK 0.10.69+: null = the paired app lacks the right (see missing_rights), absent = the box does not have it
+  storage?: { disks: { model: string | null; state: string | null; smart_ok: boolean | null; temperature: number | null; total_bytes: number | null }[];
+    partitions: { label: string | null; fstype: string | null; total_bytes: number | null; used_bytes: number | null; free_bytes: number | null; used_pct: number | null }[] } | null;
+  ftth?: { sfp_present: boolean | null; sfp_has_signal: boolean | null; link: boolean | null; sfp_pwr_rx: number | null; sfp_pwr_tx: number | null } | null;
+  wifi?: { enabled: boolean | null; aps: { name: string | null; state: string | null; band: string | null; channel: number | null; width?: string | null }[]; stations_count: number | null;
+    networks?: { ssid: string | null; enabled: boolean | null; hidden: boolean | null; state: string | null; band: string | null }[] } | null;
+  vms?: { id: number | null; name: string | null; status: string | null; vcpus: number | null; memory_mb: number | null; os: string | null }[] | null;
+  // memory_pct and cpu_pct: the share allocated to the virtual machines, not the box's real load (MynetworK announces them; computed from the totals until then)
+  vm_system?: { total_memory_mb: number | null; used_memory_mb: number | null; total_cpus: number | null; used_cpus: number | null; memory_pct?: number | null; cpu_pct?: number | null } | null;
+  firmware_update?: { server?: { installed: string | null; latest: string | null; update_available: boolean | null; date: string | null; changelog: string | null; url: string | null } | null } | null;   // MynetworK 0.10.72+
+  dhcp?: { enabled: boolean | null; ip_range_start: string | null; ip_range_end: string | null; gateway: string | null; netmask: string | null; dns: string[] } | null;   // MynetworK 0.10.72+
+  missing_rights?: string[];
+  hosts?: number | null; hosts_active?: number | null;   // devices the box has seen, and the ones active now
 }
 /** LogviewR : fail2ban */
 export interface SecurityConnector extends InfraConnector {

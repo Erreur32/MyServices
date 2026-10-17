@@ -25,8 +25,13 @@ export const TABS: { id: TabId; icon: LucideIcon; label: string }[] = [
   { id: "settings", icon: Settings, label: tx("Réglages") },
 ];
 
+/** Onglets encore en chantier : visibles seulement sur une image de dev (construite sur place, git-rev), pas publiés. */
+const UNRELEASED: TabId[] = ["infra", "network", "security"];
+const isDevBuild = (s: Snapshot) => !!s.me.git || s.me.version === "dev";
+
 /** Onglet affiché seulement si sa source est activée (et Réglages pour les admins). */
 export function visible(id: TabId, s: Snapshot): boolean {
+  if (UNRELEASED.includes(id) && !isDevBuild(s)) return false;
   switch (id) {
     case "infra": return infraCards(s).length > 0 || infraDocker(s).length > 0;   // cartes des services lus par leur API (Dockhand, Home Assistant, Uptime Kuma…)
     case "backups": return !!s.backups;

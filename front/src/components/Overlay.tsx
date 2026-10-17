@@ -3,8 +3,14 @@ import { X } from "lucide-react";
 import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 
+/** Max width of the window: the content width (wide), a large window (medium) or the default one */
+function widthClass(wide?: boolean, medium?: boolean): string {
+  if (wide) return "max-w-[var(--content-max,72rem)]";
+  return medium ? "max-w-6xl" : "max-w-2xl";
+}
+
 /** Fenêtre par-dessus la page : se ferme avec Échap, le bouton ou un clic à côté. Fond presque opaque et flou : la page derrière ne distrait pas de la fenêtre. */
-export function Overlay({ title, onClose, children, wide }: { title: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean }) {
+export function Overlay({ title, onClose, children, wide, medium }: Readonly<{ title: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean; medium?: boolean }>) {
   useEffect(() => {
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     addEventListener("keydown", key);
@@ -14,13 +20,13 @@ export function Overlay({ title, onClose, children, wide }: { title: ReactNode; 
     <div className="fixed inset-0 z-50 grid items-start justify-items-center overflow-y-auto p-4 sm:pt-[6vh]">
       {/* the dark backdrop is a real button: a click beside the window closes it (Escape and « Close » do too) */}
       <button type="button" tabIndex={-1} aria-label={tx("Fermer")} className="fixed inset-0 cursor-default bg-black/90 backdrop-blur-md" onClick={onClose} />
-      <div role="dialog" aria-modal="true" className={`relative w-full ${wide ? "max-w-[var(--content-max,72rem)]" : "max-w-2xl"} rounded-2xl border border-link/40 bg-card p-4 shadow-2xl ring-1 ring-black/40`}>
+      <dialog open aria-modal="true" className={`relative m-0 w-full ${widthClass(wide, medium)} rounded-2xl border border-link/40 bg-card p-4 text-txt shadow-2xl ring-1 ring-black/40`}>
         <div className="flex items-start justify-between gap-3">
           <h2 className="flex items-center gap-2 text-lg font-bold">{title}</h2>
           <button type="button" className={quiet} onClick={onClose} aria-label={tx("Fermer")}><X size={14} />{tx("Fermer")}</button>
         </div>
         {children}
-      </div>
+      </dialog>
     </div>
   );
 }

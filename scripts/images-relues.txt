@@ -177,3 +177,9 @@ ab8ea2fbbbf8eb0509acac3c8813219e  front/public/icons/xen-orchestra.svg
 6fb2bad073b382c5e8023564608908de  front/public/icons/hermes-agent.svg
 bb2049460fee1e06a75f9aa15e5b0350  front/public/icons/llama-cpp.svg
 a963b01ac719bcd05cffc4cf75235c72  docs/logo.svg
+63ea0a6379515aa4234350bb52a316af  front/public/icons/free.svg
+9a1601643a025dc8d852ac133131ad11  front/public/icons/freebox-pop.png
+6ee5482299963ce4071cf48ea4dc8142  front/public/icons/freebox-revolution.png
+852b7a55a92e43b705132b12e52c8f89  front/public/icons/freebox-ultra.png
+4a31a8832d334b7b96d844f04f205cef  front/public/icons/freebox.svg
+86958b02004a33225125e8ba8745862b  front/public/icons/unifi-ap.png

@@ -32,7 +32,9 @@ export function Level({ level, children }: { level: string; children?: ReactNode
 
 export type CardTone = "bad" | "warn" | "info" | "ok";
 const FRAME: Record<CardTone, string> = { bad: "border-bad/50", warn: "border-warn/50", info: "border-line", ok: "border-ok/40" };
-const STRIP: Record<CardTone, string> = { bad: "bg-bad/10", warn: "bg-warn/10", info: "bg-bg2/60", ok: "bg-ok/10" };
+// the header strip of every card is the darkest tone of the theme; the state is carried by the frame and the count bubble
+const DARK_STRIP = "border-b border-line/60 bg-bg";
+const STRIP: Record<CardTone, string> = { bad: DARK_STRIP, warn: DARK_STRIP, info: DARK_STRIP, ok: DARK_STRIP };
 const BUBBLE: Record<CardTone, "bad" | "warn" | "off" | "ok"> = { bad: "bad", warn: "warn", info: "off", ok: "ok" };
 
 /** Card with a coloured header strip (title, count in a round bubble) over a table with fixed columns and headers. Nothing is shown without a row,
@@ -86,13 +88,13 @@ export function Dim({ children }: { children: ReactNode }) {
 // Written out in full: Tailwind only generates classes it finds as complete strings in the source.
 const TITLE =
   "[&_h2]:text-[1.0625rem] [&_h2]:font-extrabold [&_h2]:leading-snug [&_h2]:tracking-tight [&_h2_svg]:text-link " +
-  "[&>h2:first-child]:-mx-4 [&>div:first-child:has(>h2)]:-mx-4 [&>h2:first-child]:-mt-4 [&>div:first-child:has(>h2)]:-mt-4 [&>h2:first-child]:mb-3 [&>div:first-child:has(>h2)]:mb-3 [&>h2:first-child]:border-b [&>div:first-child:has(>h2)]:border-b [&>h2:first-child]:border-line/60 [&>div:first-child:has(>h2)]:border-line/60 [&>h2:first-child]:bg-bg2/60 [&>div:first-child:has(>h2)]:bg-bg2/60 [&>h2:first-child]:px-4 [&>div:first-child:has(>h2)]:px-4 [&>h2:first-child]:py-3 [&>div:first-child:has(>h2)]:py-3 [&>h2:first-child]:rounded-t-[15px] [&>div:first-child:has(>h2)]:rounded-t-[15px] [&>div:first-child>h2]:mb-0";
+  "[&>h2:first-child]:-mx-4 [&>div:first-child:has(>h2)]:-mx-4 [&>h2:first-child]:-mt-4 [&>div:first-child:has(>h2)]:-mt-4 [&>h2:first-child]:mb-3 [&>div:first-child:has(>h2)]:mb-3 [&>h2:first-child]:border-b [&>div:first-child:has(>h2)]:border-b [&>h2:first-child]:border-line/60 [&>div:first-child:has(>h2)]:border-line/60 [&>h2:first-child]:bg-bg [&>div:first-child:has(>h2)]:bg-bg [&>h2:first-child]:px-4 [&>div:first-child:has(>h2)]:px-4 [&>h2:first-child]:py-3 [&>div:first-child:has(>h2)]:py-3 [&>h2:first-child]:rounded-t-[15px] [&>div:first-child:has(>h2)]:rounded-t-[15px] [&>div:first-child>h2]:mb-0";
 
-// Tint of the header strip and of the frame (written in full for Tailwind).
+// Tint of the frame (written in full for Tailwind); the header strip stays dark whatever the state.
 const CARD_TONE: Record<"ok" | "warn" | "bad", string> = {
-  ok: "border-ok/40 [&>h2:first-child]:bg-ok/10 [&>div:first-child:has(>h2)]:bg-ok/10",
-  warn: "border-warn/50 [&>h2:first-child]:bg-warn/10 [&>div:first-child:has(>h2)]:bg-warn/10",
-  bad: "border-bad/50 [&>h2:first-child]:bg-bad/10 [&>div:first-child:has(>h2)]:bg-bad/10",
+  ok: "border-ok/40",
+  warn: "border-warn/50",
+  bad: "border-bad/50",
 };
 
 export function Card({ children, className = "", tone }: { children: ReactNode; className?: string; tone?: "ok" | "warn" | "bad" }) {
@@ -103,16 +105,35 @@ export function Card({ children, className = "", tone }: { children: ReactNode; 
 /** Réglage d'affichage rangé avec les filtres (ex. « Désactivées ») : une pastille qui s'allume et s'éteint, comptée dans le bouton « Filtres » */
 export interface FilterOption { id: string; label: string; on: boolean; toggle: () => void; mark?: ReactNode; count?: number }
 
-export function FilterBar<T>({ f, placeholder, extra, options = [] }: {
+/** Pastille d'un filtre : active, disponible (avec son nombre) ou vide */
+function chipTone(on: boolean, count: number): string {
+  if (on) return "border-link bg-link/15 text-txt";
+  return count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60";
+}
+
+function ChipButton({ on, count, mark, label, onClick }: Readonly<{ on: boolean; count: number; mark?: ReactNode; label: string; onClick: () => void }>) {
+  return (
+    <button type="button" onClick={onClick} aria-pressed={on}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${chipTone(on, count)}`}>
+      {mark}{label}<span className="font-mono text-[11px] text-dim">{count}</span>
+    </button>
+  );
+}
+
+export function FilterBar<T>({ f, placeholder, extra, side, options = [], primary = [] }: Readonly<{
   f: { query: string; setQuery: (q: string) => void; shown: unknown[]; total: number; active: number; reset: () => void;
        chips: { facet: Facet<T>; chips: Chip[] }[]; toggle: (k: string, v: string) => void };
-  placeholder: string; extra?: ReactNode; options?: FilterOption[];
-}) {
+  placeholder: string; extra?: ReactNode; side?: ReactNode; options?: FilterOption[];   // side : à droite, sous le bouton « Filtres »
+  /** Clés des filtres toujours visibles sous la recherche ; les autres restent derrière le bouton « Filtres » */
+  primary?: string[];
+}>) {
   // Filtres repliés d'office (sur tous les écrans) : la barre de recherche suffit le plus souvent ; ce qui est actif
   // reste visible en pastilles retirables, et le bouton « Filtres » déplie le reste.
   const [open, setOpen] = useState(false);
-  const groups = f.chips.filter((g) => g.chips.length > 1 || g.chips.some((c) => c.on));
-  const active = f.chips.flatMap((g) => g.chips.filter((c) => c.on).map((c) => ({ facet: g.facet, chip: c })));
+  const shownGroups = f.chips.filter((g) => g.chips.length > 1 || g.chips.some((c) => c.on));
+  const inline = shownGroups.filter((g) => primary.includes(g.facet.key));
+  const groups = shownGroups.filter((g) => !primary.includes(g.facet.key));
+  const active = f.chips.filter((g) => !primary.includes(g.facet.key)).flatMap((g) => g.chips.filter((c) => c.on).map((c) => ({ facet: g.facet, chip: c })));
   const nActive = active.length + options.filter((o) => o.on).length;
   // Les filtres déjà actifs un jour sur cette page restent affichés en pastilles, même retirés : un clic les désactive, un autre clic les réactive
   const keyOf = (facet: Facet<T>, chip: Chip) => `${facet.key}\u0000${chip.value}`;
@@ -123,26 +144,43 @@ export function FilterBar<T>({ f, placeholder, extra, options = [] }: {
   return (
     <div className="my-4 flex flex-col gap-3 rounded-2xl border border-line bg-card/70 p-3">
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-2 focus-within:border-link">
+        <label className="flex min-w-[220px] max-w-sm flex-1 items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-1.5 focus-within:border-link">
           <Search size={16} className="text-dim" />
           <input value={f.query} onChange={(e) => f.setQuery(e.target.value)} placeholder={placeholder} type="search"
             className="w-full bg-transparent text-sm text-txt outline-none placeholder:text-dim" />
         </label>
-        <span className="text-sm text-muted"><b className="text-txt">{f.shown.length}</b> / {f.total}</span>
+        <span className="text-sm text-muted" title={tx("Lignes affichées sur le total, après la recherche et les filtres")}><b className="text-txt">{f.shown.length}</b> {tx("sur")} {f.total}</span>
         {f.active > 0 && (
           <button type="button" onClick={f.reset} className="inline-flex items-center gap-1 text-sm text-link hover:underline">
             <X size={14} />{tx("Tout effacer")}
           </button>
         )}
-        {extra}
-        {(groups.length > 0 || options.length > 0) && (
-          <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
-            className={`ml-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold text-link transition-colors hover:bg-link/10 ${open || nActive ? "border-link bg-link/10" : "border-link/50"}`}>
-            <SlidersHorizontal size={14} />{tx("Filtres")}{nActive > 0 && <b className="grid h-5 min-w-5 place-items-center rounded-full bg-link px-1 text-[11px] leading-none text-white">{nActive}</b>}
-            {open ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
-          </button>
+        {((groups.length > 0 || options.length > 0) || side || extra) && (
+          <div className="ml-auto flex flex-col items-end gap-1.5">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {extra}
+              {(groups.length > 0 || options.length > 0) && (
+                <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold text-link transition-colors hover:bg-link/10 ${open || nActive ? "border-link bg-link/10" : "border-link/50"}`}>
+                  <SlidersHorizontal size={14} />{primary.length ? tx("Plus de filtres") : tx("Filtres")}{nActive > 0 && <b className="grid h-5 min-w-5 place-items-center rounded-full bg-link px-1 text-[11px] leading-none text-white">{nActive}</b>}
+                  {open ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}
+                </button>
+              )}
+            </div>
+            {side}
+          </div>
         )}
       </div>
+      {inline.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          {inline.map(({ facet, chips }) => (
+            <div key={facet.key} className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-dim">{facet.label}</span>
+              {chips.map((c) => <ChipButton key={c.value} on={c.on} count={c.count} mark={facet.mark?.(c.value)} label={c.label} onClick={() => f.toggle(facet.key, c.value)} />)}
+            </div>
+          ))}
+        </div>
+      )}
       {!open && (toggles.length > 0 || options.some((o) => o.on)) && (
         <div className="flex flex-wrap items-center gap-1.5">
           {options.filter((o) => o.on).map((o) => (
@@ -181,13 +219,7 @@ export function FilterBar<T>({ f, placeholder, extra, options = [] }: {
             <div key={facet.key} className="flex flex-col gap-1.5 rounded-xl border border-line/60 bg-bg2/40 p-2.5">
               <span className="text-xs font-semibold uppercase tracking-wide text-dim">{facet.label}</span>
               <div className="flex flex-wrap gap-1.5">
-                {chips.map((c) => (
-                  <button key={c.value} type="button" onClick={() => f.toggle(facet.key, c.value)} aria-pressed={c.on}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${c.on
-                      ? "border-link bg-link/15 text-txt" : c.count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60"}`}>
-                    {facet.mark?.(c.value)}{c.label}<span className="font-mono text-[11px] text-dim">{c.count}</span>
-                  </button>
-                ))}
+                {chips.map((c) => <ChipButton key={c.value} on={c.on} count={c.count} mark={facet.mark?.(c.value)} label={c.label} onClick={() => f.toggle(facet.key, c.value)} />)}
               </div>
             </div>
           ))}
@@ -213,11 +245,11 @@ export function Th({ k, sort, children, className = "" }: {
   );
 }
 
-export function Table({ head, children, fit = false }: { head: ReactNode; children: ReactNode; fit?: boolean }) {  // fit : jamais de défilement horizontal (les colonnes se serrent)
+export function Table({ head, children, fit = false, fixed = false }: Readonly<{ head: ReactNode; children: ReactNode; fit?: boolean; fixed?: boolean }>) {  // fixed : largeurs données par l'en-tête, identiques pour toutes les lignes  // fit : jamais de défilement horizontal (les colonnes se serrent)
   return (
     <div className={`hidden rounded-2xl border border-line bg-card md:block ${fit ? "overflow-hidden" : "overflow-x-auto"}`}>
-      <table className="w-full border-collapse text-sm">
-        <thead><tr>{head}</tr></thead>
+      <table className={`w-full border-collapse text-sm ${fixed ? "table-fixed" : ""}`}>
+        <thead className="bg-bg2"><tr className="bg-bg2">{head}</tr></thead>
         <tbody className="[&>tr]:border-b [&>tr]:border-line/60">{children}</tbody>
       </table>
     </div>
@@ -239,11 +271,16 @@ export function Td({ children, className = "" }: { children?: ReactNode; classNa
 }
 
 /** Barre de remplissage (disque) */
-export function Fill({ pct, tone }: { pct: number; tone: Tone }) {
-  const color = tone === "bad" ? "bg-bad" : tone === "warn" ? "bg-warn" : "bg-ok";
+/** Green to amber to red gradient laid over the whole track; the fill only shows its first part (a full bar is red, a short one green) */
+export function GradientFill({ pct }: Readonly<{ pct: number }>) {
+  const fill = Math.min(100, Math.max(2, pct));
+  return <span className="block h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-500 saturate-150" style={{ width: `${fill}%`, backgroundSize: `${10000 / fill}% 100%` }} />;
+}
+
+export function Fill({ pct }: Readonly<{ pct: number }>) {
   return (
     <span className="inline-block h-1.5 w-20 overflow-hidden rounded-full border border-line bg-bg2 align-middle">
-      <span className={`block h-full ${color}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+      <GradientFill pct={pct} />
     </span>
   );
 }
