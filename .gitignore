@@ -29,6 +29,42 @@ coverage.xml
 secret.key
 .dev.env
 
+# Test and dev instances: database, state, caches, SSH keys, config (mirrors scripts/safety.py)
+/MyServices-test/
+/data/
+/config/
+*composetest*
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Credentials and keys
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+*.key
+id_rsa*
+id_ed25519*
+id_ecdsa*
+authorized_keys
+known_hosts
+*.htpasswd
+npm-api.conf
+.credentials.json
+
+# Claude Code: instructions, memory, session logs, local settings
+CLAUDE.md
+RTK.md
+MEMORY.md
+/memory/
+*.jsonl
+settings.local.json
+
 # Local herdr helpers (personal terminal setup)
 scripts/dev-panes.sh
 scripts/dev-stop.sh
