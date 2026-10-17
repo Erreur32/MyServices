@@ -159,6 +159,14 @@ class Agents(unittest.TestCase):
         self.assertEqual(self.send(token, {**REPORT, "host": "AUTRE-PC"}).status_code, 200)
         self.assertEqual(self.c.post(BASE + f"/agents/{info['id']}/confirm-host", headers=self.h).status_code, 400)   # nothing pending
 
+    def test_ancien_nom_de_retour_efface_l_avertissement(self):
+        token, info = self.create()
+        self.send(token)
+        self.assertEqual(self.send(token, {**REPORT, "host": "AUTRE-PC"}).status_code, 409)
+        self.assertEqual(self.send(token).status_code, 200)   # the real PC reports again under its known name
+        a = next(x for x in self.c.get(BASE + "/agents").json()["agents"] if x["id"] == info["id"])
+        self.assertEqual((a["hostname"], a["host_pending"]), ("GAMER32", None))
+
     def test_fusion_dans_la_sante(self):
         token, info = self.create()
         self.send(token)

@@ -163,6 +163,7 @@ class Agents:
                 db.execute("UPDATE agents SET hostname = ?, host_pending = NULL WHERE id = ?", (host, aid))
                 return True
             if r["hostname"].casefold() == host.casefold():
+                db.execute("UPDATE agents SET host_pending = NULL WHERE id = ? AND host_pending IS NOT NULL", (aid,))   # the known host is back: drop the stale warning
                 return True
             db.execute("UPDATE agents SET host_pending = ? WHERE id = ?", (host, aid))
             return False
