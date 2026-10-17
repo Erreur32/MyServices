@@ -20,13 +20,18 @@ export interface AssistantProgress { current: AssistantStep; done: AssistantStep
 const KEY = "myservices-assistant";
 const EMPTY: AssistantProgress = { current: "welcome", done: [], skipped: [], host: "", accepted: [] };
 
+/** Progression propre depuis n'importe quelle valeur (navigateur ou serveur, ancienne ou nouvelle version) : tous les champs existent toujours,
+ *  car la page s'appuie dessus (un champ absent ferait planter l'assistant). */
+export function normalizeProgress(raw: unknown): AssistantProgress {
+  const got = (raw && typeof raw === "object" ? raw : {}) as Partial<AssistantProgress>;
+  const ids: string[] = STEPS.map((s) => s.id), list = (v: unknown) => (Array.isArray(v) ? v : []);
+  if (!ids.includes(got.current as string)) return EMPTY;
+  return { current: got.current as AssistantStep, done: list(got.done).filter((i) => ids.includes(i)), skipped: list(got.skipped).filter((i) => ids.includes(i)),
+    host: typeof got.host === "string" ? got.host : "", accepted: list(got.accepted).filter((a) => typeof a === "string") };
+}
+
 export function loadProgress(): AssistantProgress {
-  try {
-    const got = JSON.parse(localStorage.getItem(KEY) || "null") as Partial<AssistantProgress> | null;
-    const ids = STEPS.map((s) => s.id);
-    if (!got || !ids.includes(got.current as AssistantStep)) return EMPTY;
-    return { current: got.current as AssistantStep, done: (got.done ?? []).filter((i) => ids.includes(i)), skipped: (got.skipped ?? []).filter((i) => ids.includes(i)), host: typeof got.host === "string" ? got.host : "", accepted: Array.isArray(got.accepted) ? got.accepted.filter((a) => typeof a === "string") : [] };
-  } catch { return EMPTY; }
+  try { return normalizeProgress(JSON.parse(localStorage.getItem(KEY) || "null")); } catch { return EMPTY; }
 }
 
 export function saveProgress(p: AssistantProgress): void {

@@ -49,6 +49,13 @@ describe("Assistant de démarrage", () => {
     expect(html).not.toContain("Continuer");
   });
 
+  it("ne plante pas avec une progression d'un serveur plus ancien, sans le champ « accepted »", () => {
+    for (const step of ["welcome", "machine", "access", "tools", "alerts"]) {   // « network » lit le scan par un abonnement qui ne se rend pas hors navigateur
+      mem.set("myservices-assistant", JSON.stringify({ current: step, done: [], skipped: [] }));   // ni host ni accepted
+      expect(() => renderToStaticMarkup(<Assistant snap={snap} />), step).not.toThrow();
+    }
+  });
+
   it("le résumé n'apparaît qu'une fois toutes les étapes faites ou passées", () => {
     mem.set("myservices-assistant", JSON.stringify({ current: "alerts", done: ["welcome"], skipped: [] }));
     expect(renderToStaticMarkup(<Assistant snap={snap} />)).not.toContain("Vous avez fait le tour");

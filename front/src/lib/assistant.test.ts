@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Machine } from "../types";
-import { STEPS, advance, isFinished, loadProgress, nextStep, previousStep, resetProgress, saveProgress, thisMachine } from "./assistant";
+import { STEPS, advance, isFinished, normalizeProgress, loadProgress, nextStep, previousStep, resetProgress, saveProgress, thisMachine } from "./assistant";
 
 // Un localStorage minimal : les tests tournent sans navigateur
 const mem = new Map<string, string>();
@@ -78,5 +78,11 @@ describe("assistant : progression", () => {
     expect(thisMachine([gw, srv, nas, me], "10.0.0.3")?.ip).toBe("10.0.0.4");     // marquée locale
     expect(thisMachine([gw, srv, nas, me], "10.0.0.3", "10.0.0.1")?.ip).toBe("10.0.0.1");   // désignée par l'utilisateur
     expect(thisMachine([gw, nas], "monserveur.lan")).toBeUndefined();              // aucune ne correspond : on ne devine pas
+  });
+
+  it("une progression venue d'un ancien serveur (sans host ni accepted) est complétée, pas rejetée", () => {
+    expect(normalizeProgress({ current: "access", done: ["welcome"], skipped: [] })).toEqual({ current: "access", done: ["welcome"], skipped: [], host: "", accepted: [] });
+    expect(normalizeProgress({ current: "access", accepted: ["10.0.0.5", 3, null] }).accepted).toEqual(["10.0.0.5"]);
+    for (const bad of [null, undefined, "x", 3, [], {}, { current: "inconnue" }]) expect(normalizeProgress(bad).current).toBe("welcome");
   });
 });

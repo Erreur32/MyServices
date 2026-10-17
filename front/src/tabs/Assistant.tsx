@@ -12,7 +12,7 @@ import { SourceBadges } from "../components/SourceBadges";
 import { NoteLine } from "../components/form";
 import { Badge, Card, Dim } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
-import { STEPS, advance, isFinished, type AssistantStep, loadProgress, previousStep, resetProgress, saveProgress, thisMachine, type AssistantProgress } from "../lib/assistant";
+import { STEPS, advance, isFinished, type AssistantStep, loadProgress, normalizeProgress, previousStep, resetProgress, saveProgress, thisMachine, type AssistantProgress } from "../lib/assistant";
 import { savedFor } from "../lib/savedFor";
 import { STATUS_RANK, describeAdvice, isActive, summary } from "../lib/access";
 import { act, primary, quiet, type Note } from "../lib/forms";
@@ -27,7 +27,7 @@ export function Assistant({ snap }: { snap: Snapshot }) {
   const update = (next: AssistantProgress) => { store(next); scrollTo({ top: 0 }); };
   useEffect(() => {   // la progression du serveur fait foi (reprise depuis un autre navigateur) ; sinon on lui confie celle de ce navigateur
     read<{ state: AssistantProgress | null }>("assistant").then((r) => {
-      if (r.state) { saveProgress(r.state); setP(r.state); return; }
+      if (r.state) { const state = normalizeProgress(r.state); saveProgress(state); setP(state); return; }
       const local = loadProgress();
       if (local.done.length || local.skipped.length || local.current !== "welcome") void send("PUT", "assistant", local).catch(() => undefined);
     }).catch(() => undefined);
