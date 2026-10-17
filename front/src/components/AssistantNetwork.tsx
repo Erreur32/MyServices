@@ -55,8 +55,11 @@ export function AssistantNetwork({ net, reload, known }: { net: NetScan | null; 
     return (
       <div className="mt-4 rounded-xl border border-line/60 bg-bg2/60 p-5 text-center">
         <Search size={28} className="mx-auto text-link" aria-hidden />
-        <p className="mt-2 text-sm text-muted">{tx("MyServices envoie un ping à chaque adresse de votre réseau, demande son nom à chaque machine et regarde quelques ports. Rien n'est modifié.")}</p>
-        <button type="button" className={`${primary} mt-4`} disabled={busy} onClick={() => void start()}><Search size={14} aria-hidden />{tx("Lancer la recherche")}</button>
+        <p className="mt-2 text-sm text-muted">{tx("MyServices envoie un ping à chaque adresse de votre réseau, demande son nom à chaque machine et regarde quelques ports (lecture seule).")}</p>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+          <button type="button" className={primary} disabled={busy} onClick={() => void start()}><Search size={14} aria-hidden />{tx("Lancer la recherche")}</button>
+          <a href="#settings/machines" className="text-sm text-link hover:underline">{tx("ou ajouter une machine à la main")}</a>
+        </div>
         <NoteLine note={note} />
       </div>
     );
@@ -96,18 +99,18 @@ export function AssistantNetwork({ net, reload, known }: { net: NetScan | null; 
         {proposed.length > 0 ? <> · {tx("{0} à suivre, à mon avis", proposed.length)}</> : <> · {tx("rien de nouveau à suivre")}</>}
       </p>
       {proposed.length > 0 && (
-        <section>
-          <h3 className="mb-2 text-sm font-bold">{tx("À suivre")}</h3>
-          <ul className="flex flex-col gap-1.5">{proposed.map((h) => <Row key={h.ip} h={h} on={picked.has(h.ip)} toggle={() => toggle(h.ip)} />)}</ul>
-        </section>
+        <ul className="flex flex-col gap-1.5">{proposed.map((h) => <Row key={h.ip} h={h} on={picked.has(h.ip)} toggle={() => toggle(h.ip)} />)}</ul>
       )}
       {others.length > 0 && (   // caméras, objets connectés, téléphones : seulement un ping possible, pas dans l'assistant ; ajoutables après, depuis Découverte
-        <p className="text-xs text-dim">{plural(others.length, "autre appareil vu", "autres appareils vus")} {tx("(caméras, objets connectés…) : vous pourrez les suivre plus tard, en simple ping, dans")} <a href="#settings/network" className="text-link hover:underline">{tx("Réglages → Découverte")}</a>.</p>
+        <p className="text-xs text-dim">{plural(others.length, "autre appareil", "autres appareils")} {tx("(caméras, objets connectés…) : à ajouter plus tard, en simple ping, dans")} <a href="#settings/network" className="text-link hover:underline">{tx("Réglages → Découverte")}</a>.</p>
       )}
       {added > 0 && <p className="rounded-lg bg-ok/10 px-3 py-2 text-sm font-semibold text-ok" role="status"><Check size={14} className="mr-1 inline" aria-hidden />{tx("{0} ajoutées. À l'étape suivante, vous choisissez comment les lire.", plural(added, "machine"))}</p>}
       <div className="flex flex-wrap items-center gap-2">
         {chosen.length > 0 && <button type="button" className={primary} disabled={busy} onClick={() => void addPicked()}><Check size={14} aria-hidden />{tx("Suivre la sélection")} ({chosen.length})</button>}
-        <button type="button" className={`${quiet} ml-auto`} disabled={busy} onClick={() => void start()}><RefreshCw size={14} aria-hidden />{tx("Relancer la recherche")}</button>
+        <span className="ml-auto flex flex-wrap items-center gap-3">
+          <a href="#settings/machines" className="text-sm text-link hover:underline">{tx("Ajouter à la main")}</a>
+          <button type="button" className={quiet} disabled={busy} onClick={() => void start()}><RefreshCw size={14} aria-hidden />{tx("Relancer la recherche")}</button>
+        </span>
       </div>
       <NoteLine note={note} />
     </div>

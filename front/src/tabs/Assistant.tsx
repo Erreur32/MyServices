@@ -156,9 +156,8 @@ function Network({ snap }: { snap: Snapshot }) {
   return (
     <div>
       <h2 className="text-xl font-bold">{tx("Le réseau")}</h2>
-      <p className="mt-2 text-sm text-muted">{tx("Trouvons les autres machines de votre réseau, puis choisissez celles à suivre. Rien n'est ajouté sans votre accord.")}</p>
+      <p className="mt-2 text-sm text-muted">{tx("Cherchons les machines de votre réseau, puis choisissez celles à suivre. Rien n'est ajouté sans votre accord.")}</p>
       <AssistantNetwork net={net} reload={reload} known={snap.data.machine_list.map((m) => m.ip)} />
-      <p className="mt-4 text-xs text-dim">{tx("Vous ne voulez pas de recherche automatique ? Ajoutez une machine à la main :")} <a href="#settings/machines" className="text-link hover:underline">{tx("Réglages → Machines")}</a></p>
     </div>
   );
 }
