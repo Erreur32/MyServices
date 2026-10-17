@@ -6,7 +6,11 @@ import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+import config  # noqa: E402
+
+config.CFG["meta"] = str(ROOT / "services-meta.example.json")   # CI has no /config/services-meta.json: the example stands in
 import myservices  # noqa: E402
 
 
