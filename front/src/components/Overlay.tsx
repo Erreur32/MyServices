@@ -11,7 +11,7 @@ export function Overlay({ title, onClose, children }: { title: ReactNode; onClos
     return () => removeEventListener("keydown", key);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 grid place-items-start overflow-y-auto p-4 sm:place-items-center">
+    <div className="fixed inset-0 z-50 grid place-items-start overflow-y-auto p-4 sm:pt-[6vh]">
       {/* the dark backdrop is a real button: a click beside the window closes it (Escape and « Close » do too) */}
       <button type="button" tabIndex={-1} aria-label={tx("Fermer")} className="fixed inset-0 cursor-default bg-black/90 backdrop-blur-md" onClick={onClose} />
       <div role="dialog" aria-modal="true" className="relative w-full max-w-2xl rounded-2xl border border-link/40 bg-card p-4 shadow-2xl ring-1 ring-black/40">
