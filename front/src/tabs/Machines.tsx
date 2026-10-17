@@ -757,7 +757,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
         <>
           {view === "table" && <Table fit head={<>
             <th className="w-8 px-1" aria-label={tx("Détails")} /><th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="watch" sort={sort}>{tx("À surveiller")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
-            <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th>{tx("Systemd")}</Th><Th>{tx("Mises à jour")}</Th></>}
+            <Th>{tx("Serveurs")}</Th><Th k="svc" sort={sort}>{tx("Services")}</Th>{snap.health && <><Th k="health" sort={sort}>{tx("Santé")}</Th><Th>{tx("CPU")}</Th><Th>{tx("Mémoire")}</Th><Th>{tx("Disque")}</Th><Th>{tx("Systemd")}</Th><Th><span title={tx("Mises à jour")}>{tx("MAJ")}</span></Th></>}
           </>}>
             {sort.sorted.map((m) => {
               const shown = open.has(m.ip), h = hb.get(m.ip), cols = 8 + (snap.health ? 6 : 0);

@@ -2271,4 +2271,5 @@ export const EN: Record<string, string> = {
   "Lecture en échec": "Reading failed",
   "Non suivie": "Not tracked",
   "Plus lue par MyServices : cachée dans les onglets. Rallumez « Machine suivie » dans la carte pour la reprendre.": "No longer read by MyServices: hidden in the tabs. Turn \"Machine tracked\" back on in the card to resume.",
+  "MAJ": "Upd.",
 };
