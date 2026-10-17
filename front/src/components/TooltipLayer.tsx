@@ -28,8 +28,8 @@ function body(text: string): React.ReactNode {
   const flush = () => {
     if (!rows.length) return;
     const cols = Math.max(...rows.map((r) => r.length));
-    out.push(<span key={`t${out.length}`} className="grid items-baseline gap-x-2 gap-y-0.5" style={{ gridTemplateColumns: `repeat(${cols - 1}, auto) minmax(0, 1fr)` }}>
-      {rows.flatMap((r, i) => Array.from({ length: cols }, (_, c) => <span key={`${i}-${c}`}>{rich(r[c] ?? "")}</span>))}
+    out.push(<span key={`t${out.length}`} className="mt-1 grid items-baseline gap-x-2.5 gap-y-1" style={{ gridTemplateColumns: `repeat(${cols - 1}, auto) minmax(0, 1fr)` }}>
+      {rows.flatMap((r, i) => Array.from({ length: cols }, (_, c) => <span key={`${i}-${c}`} className={i > 0 ? "border-t border-line/40 pt-1" : ""}>{rich(r[c] ?? "")}</span>))}
     </span>);
     rows.length = 0;
   };

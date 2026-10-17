@@ -2271,4 +2271,6 @@ export const EN: Record<string, string> = {
   "Réglages de {0}": "Settings of {0}",
   "Réglages de cette machine": "Settings of this machine",
   "Voir les services de {0}": "See the services of {0}",
+  "prioritaire": "primary",
+  "complément": "extra",
 };

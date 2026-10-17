@@ -75,10 +75,11 @@ const ICON_SSH = `${import.meta.env.BASE_URL}icons/ssh.svg`;
 const MARK: Record<Tone, string> = { ok: "✓", warn: "⚠", bad: "✕", info: "•", off: "–" };
 
 /** Info-bulle de la liste des sources : un titre, puis une ligne par source (logo, état, nom en gras, explication) */
-function listTip(list: Src[]): string {
-  const lines = list.map((s) => {
+function listTip(list: Src[], first: Src): string {
+  const ordered = [first, ...list.filter((s) => s !== first)];   // la source prioritaire d'abord
+  const lines = ordered.map((s, i) => {
     const icon = s.key === "ssh" ? ICON_SSH : appIcon([s.label]);
-    return [icon ? `![](${icon})` : "", `[[${s.tone}:${MARK[s.tone]}]]`, `**${s.label}**`, s.tip].join("\t");
+    return [icon ? `![](${icon})` : "", `[[${s.tone}:${MARK[s.tone]}]]`, `**${s.label}**`, i === 0 ? `**${tx("prioritaire")}**` : `[[off:${tx("complément")}]]`, s.tip].join("\t");
   });
   return [tx("Sources de lecture"), ...lines].join("\n");
 }
@@ -89,7 +90,7 @@ export function SourceBadges({ m, agent, extra, all }: Readonly<{ m: Machine; ag
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
       {shown.map((s) => <Badge key={s.key} tone={s.tone} title={s.tip}>{s.label}</Badge>)}
-      {!all && rest.length > 0 && <span className="inline-flex cursor-help items-center rounded-md border border-line bg-bg2 px-1.5 py-0.5 text-xs font-semibold text-muted hover:border-link hover:text-txt" title={listTip(list)}>+{rest.length}</span>}
+      {!all && rest.length > 0 && <span className="inline-flex cursor-help items-center rounded-md border border-line bg-bg2 px-1.5 py-0.5 text-xs font-semibold text-muted hover:border-link hover:text-txt" title={listTip(list, first)}>+{rest.length}</span>}
     </span>
   );
 }
