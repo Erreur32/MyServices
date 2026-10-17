@@ -2270,4 +2270,5 @@ export const EN: Record<string, string> = {
   "Accès disponibles": "Available access",
   "Réglages de {0}": "Settings of {0}",
   "Réglages de cette machine": "Settings of this machine",
+  "Voir le détail": "See details",
 };
