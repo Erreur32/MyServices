@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { Advice } from "../types";
-import { STATUS_RANK, describeAdvice, summary } from "./access";
+import { RICHNESS, STATUS_RANK, describeAdvice, summary } from "./access";
 
-const adv = (o: Partial<Advice>): Advice => ({ kind: "linux", method: "ssh", why: "ssh_configured", current: [], alternatives: ["agent"], agent_possible: true, agent_kind: "linux", ...o });
+const adv = (o: Partial<Advice>): Advice => ({ kind: "linux", method: "ssh", why: "ssh_configured", current: [], alternatives: ["agent"], agent_possible: true, agent_kind: "linux", agent_state: null, ...o });
 
 describe("recommandation de méthode de lecture : présentation", () => {
   it("SSH recommandé, pas encore lu : bouton vers les réglages de la machine", () => {
     const v = describeAdvice("10.0.0.2", adv({ why: "ssh_port" }));
     expect(v).toMatchObject({ title: "SSH", read: false, action: { setup: "ssh" } });
-    expect(v.others).toEqual(["Agent Linux"]);
+    expect(v.others).toEqual([{ label: "un agent", active: false }]);
   });
 
   it("déjà lue par la méthode recommandée : rien à faire, pas de bouton", () => {
@@ -52,5 +52,34 @@ describe("recommandation de méthode de lecture : présentation", () => {
     expect([STATUS_RANK.ok, STATUS_RANK.todo, STATUS_RANK.optimize].sort()).toEqual([0, 1, 2]);
     expect(STATUS_RANK.todo).toBeLessThan(STATUS_RANK.optimize);
     expect(STATUS_RANK.optimize).toBeLessThan(STATUS_RANK.ok);
+  });
+
+  it("« à optimiser » seulement si la méthode recommandée recueille plus que ce qui lit déjà la machine", () => {
+    // Linux lu par un agent (même richesse que SSH) : rien à optimiser
+    expect(describeAdvice("1.1.1.1", adv({ current: ["agent"] }))).toMatchObject({ status: "ok", read: true, action: null });
+    // Windows lu par SSH (même richesse que l'agent) : idem
+    expect(describeAdvice("1.1.1.1", adv({ kind: "windows", method: "agent", why: "windows", current: ["ssh"], agent_kind: "windows" })).status).toBe("ok");
+    // lue par un connecteur seulement : l'agent ou SSH recueillent plus
+    expect(describeAdvice("1.1.1.1", adv({ current: ["connector"] })).status).toBe("optimize");
+    expect(RICHNESS.connector).toBeLessThan(RICHNESS.ssh);
+  });
+
+  it("dit pourquoi et quoi faire pour une machine à optimiser", () => {
+    const v = describeAdvice("10.0.0.9", adv({ kind: "windows", method: "agent", why: "windows", current: ["connector"], agent_kind: "windows" }));
+    expect(v.now).toBe("un connecteur");
+    expect(v.explain).toContain("Aujourd'hui elle est lue par un connecteur");
+    expect(v.explain).toContain("mises à jour Windows");
+    expect(v.todo).toContain("PowerShell administrateur");
+  });
+
+  it("un agent installé mais silencieux est nommé comme la cause", () => {
+    const v = describeAdvice("10.0.0.9", adv({ kind: "windows", method: "agent", why: "windows", current: ["connector"], agent_kind: "windows", agent_state: "silencieux" }));
+    expect(v.explain).toContain("ne répond plus (silencieux)");
+    expect(v.todo).toContain("recréez-le");
+  });
+
+  it("autres méthodes : dit si elles sont déjà actives", () => {
+    const v = describeAdvice("1.1.1.1", adv({ current: ["ssh", "connector"], alternatives: ["agent", "connector"] }));
+    expect(v.others).toEqual([{ label: "un agent", active: false }, { label: "un connecteur", active: true }]);
   });
 });

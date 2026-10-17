@@ -589,6 +589,7 @@ export interface AgentInfo {
 export interface Advice {
   kind: string; method: "ssh" | "agent" | "connector" | "ping"; why: string; current: string[]; alternatives: string[];
   agent_possible: boolean; agent_kind: "windows" | "linux" | null;
+  agent_state: "actif" | "silencieux" | "en attente" | null;   // état de l'agent installé, s'il y en a un
 }
 export interface AgentsState { agents: AgentInfo[]; report_path: string }
 

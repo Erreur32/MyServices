@@ -69,10 +69,12 @@ def is_home_assistant_os(f: dict) -> bool:
 def advise(f: dict) -> dict:
     """Recommandation pour une machine décrite par ses faits (clés facultatives) :
     ip, os (réglage « windows »), info_os (relevé SSH), scan_os, ttl, ping, icon, role, gateway, apps, ssh_port (vu par le scan),
-    ssh_alias (accès réglé), ssh_ok (relevé SSH reçu), agent (état de l'agent : actif, silencieux, en attente), connectors (libellés).
+    ssh_alias (accès réglé), ssh_ok (relevé SSH reçu), agent (« actif » si son relevé est frais), agent_state (état de l'agent installé :
+    actif, silencieux, en attente ; absent s'il n'y en a pas), connectors (libellés).
 
     Retour : kind (système), method (ssh | agent | connector | ping), why (code court), agent_possible, agent_kind (windows | linux | None),
-    current (méthodes qui lisent déjà la machine), alternatives (autres méthodes possibles, dans l'ordre)."""
+    agent_state (celui de l'agent installé, pour dire « il ne répond plus »), current (méthodes qui lisent déjà la machine),
+    alternatives (autres méthodes possibles, dans l'ordre)."""
     kind = os_kind(f)
     connectors = [c for c in f.get("connectors") or [] if c]
     current = [m for m, on in (("ssh", f.get("ssh_ok")), ("agent", f.get("agent") == "actif"), ("connector", bool(connectors))) if on]
@@ -80,7 +82,7 @@ def advise(f: dict) -> dict:
 
     def answer(method: str, why: str, alternatives: list[str], agent_possible: bool = False, agent_kind: str | None = None) -> dict:
         return {"kind": kind, "method": method, "why": why, "current": current, "alternatives": [a for a in alternatives if a != method],
-                "agent_possible": agent_possible, "agent_kind": agent_kind}
+                "agent_possible": agent_possible, "agent_kind": agent_kind, "agent_state": f.get("agent_state")}
 
     if is_appliance(f):
         return answer("connector" if connectors else "ping", "appliance", ["ping"])
@@ -113,7 +115,7 @@ def freebox_tool(m: dict, network: list[dict] | None) -> str | None:
     return next((c.get("label") for c in network or [] if (c.get("freebox") or {}).get("system")), None)
 
 
-def facts_of(m: dict, conf: dict | None = None, scan: dict | None = None, network: list[dict] | None = None) -> dict:
+def facts_of(m: dict, conf: dict | None = None, scan: dict | None = None, network: list[dict] | None = None, agent_state: str | None = None) -> dict:
     """Faits d'une machine à partir de l'entrée de data.json « machine_list » (m), de son réglage (conf), de son entrée du dernier scan réseau
     et des outils réseau (data.json « network », pour reconnaître la Freebox)."""
     conf, scan = conf or {}, scan or {}
@@ -128,11 +130,12 @@ def facts_of(m: dict, conf: dict | None = None, scan: dict | None = None, networ
         "ping": m.get("ping"), "icon": m.get("icon") or conf.get("icon"), "role": m.get("role") or conf.get("role"),
         "gateway": bool(conf.get("gateway")) or "gateway" in (m.get("detected") or []), "apps": scan.get("apps") or [],
         "ssh_port": scan.get("ssh_port"), "ssh_alias": ssh.get("alias") or (conf.get("ssh") if isinstance(conf.get("ssh"), str) else None),
-        "ssh_ok": bool(m.get("info")), "agent": "actif" if m.get("agent") else None, "connectors": connectors,
+        "ssh_ok": bool(m.get("info")), "agent": "actif" if m.get("agent") else None, "agent_state": agent_state, "connectors": connectors,
     }
 
 
-def advise_all(machines: list[dict], confs: dict[str, dict] | None = None, scan_found: list[dict] | None = None, network: list[dict] | None = None) -> dict[str, dict]:
-    """Recommandation de chaque machine suivie : {ip: advise(...)}."""
+def advise_all(machines: list[dict], confs: dict[str, dict] | None = None, scan_found: list[dict] | None = None, network: list[dict] | None = None,
+               agents: dict[str, str] | None = None) -> dict[str, dict]:
+    """Recommandation de chaque machine suivie : {ip: advise(...)}. `agents` : {ip: état de l'agent installé}."""
     scans = {h.get("ip"): h for h in scan_found or []}
-    return {m["ip"]: advise(facts_of(m, (confs or {}).get(m["ip"]), scans.get(m["ip"]), network)) for m in machines if m.get("ip")}
+    return {m["ip"]: advise(facts_of(m, (confs or {}).get(m["ip"]), scans.get(m["ip"]), network, (agents or {}).get(m["ip"]))) for m in machines if m.get("ip")}

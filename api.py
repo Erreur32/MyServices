@@ -683,7 +683,9 @@ def machines_advice(request: Request):
         except (OSError, ValueError):
             data = {}
         found = netscan.state(_netscan_file()).get("found") or []
-        return {"advice": access_advice.advise_all([x for x in data.get("machine_list") or [] if not x.get("disabled")], m.listing()["machines"], found, data.get("network"))}
+        states = {a["ip"]: a["state"] for a in agents_store().listing() if a["state"] != "révoqué"}   # agent installé : actif, silencieux ou en attente
+        return {"advice": access_advice.advise_all([x for x in data.get("machine_list") or [] if not x.get("disabled")], m.listing()["machines"], found,
+                                                   data.get("network"), states)}
     return machine_call(request, "", "", advise, write=False)
 
 

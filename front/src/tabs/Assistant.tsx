@@ -224,8 +224,12 @@ function Access({ snap, report, open, rev }: { snap: Snapshot; report: Report; o
             {v.status === "optimize" && <Badge tone="warn" title={tx("La machine est déjà lue, mais pas par la meilleure méthode.")}>{tx("à optimiser")}</Badge>}
             {v.status === "todo" && <Badge tone="info">{tx("à régler")}</Badge>}</p>
           <p className="mt-1 text-sm text-muted">{v.why}</p>
+          {v.explain && <p className="mt-2 rounded-md bg-warn/10 px-2.5 py-1.5 text-sm text-txt">{v.explain}</p>}
+          {v.todo && <p className="mt-2 text-sm"><b className="text-txt">{tx("À faire :")}</b> <span className="text-muted">{v.todo}</span></p>}
           {v.action && <button type="button" className={`${primary} mt-3`} onClick={() => open(v.action!.setup === "ssh" ? { kind: "ssh", ip: m.ip, name: m.name } : v.action!.setup === "agent" ? { kind: "agent", ip: m.ip, name: m.name, agent: advice[m.ip].agent_kind } : { kind: "connector", ip: m.ip, name: m.name })}>{v.action.label}<ArrowRight size={14} aria-hidden /></button>}
-          {v.others.length > 0 && <p className="mt-2 text-xs text-dim">{tx("Autres possibilités :")} {v.others.join(", ")}</p>}
+          {v.others.length > 0 && <p className="mt-2 text-xs text-dim">
+            {v.others.every((o) => o.active) ? tx("Déjà actif en complément :") : tx("Aussi possible :")}{" "}
+            {v.others.map((o) => (o.active && !v.others.every((x) => x.active) ? `${o.label} (${tx("déjà actif")})` : o.label)).join(", ")}.</p>}
         </div>
       </div>
       <div className="mt-3 flex items-center justify-between gap-2">

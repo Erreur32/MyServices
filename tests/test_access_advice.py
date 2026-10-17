@@ -101,10 +101,18 @@ class Advice(unittest.TestCase):
         f = adv.facts_of(machine(links={"sources": [{"label": "Down", "ok": False}]}))
         self.assertEqual(f["connectors"], [])
 
+    def test_silent_agent_is_reported_so_the_page_can_say_it(self):
+        # Windows PC: the agent is installed but silent (its reports go elsewhere or the PC is off); a connector reads it meanwhile
+        m = machine(ttl=128, api=[{"label": "Tool", "ok": True}])
+        a = adv.advise(adv.facts_of(m, {"os": "windows"}, agent_state="silencieux"))
+        self.assertEqual((a["method"], a["agent_state"], a["current"]), ("agent", "silencieux", ["connector"]))
+        self.assertIsNone(adv.advise(adv.facts_of(m, {"os": "windows"}))["agent_state"])   # no agent installed
+
     def test_all_machines(self):
         ms = [machine(ip="192.168.1.1", icon="freebox"), machine(ip="192.168.1.2", info={"os": "Debian"}, ssh={"alias": "a"}), {"name": "no ip"}]
-        out = adv.advise_all(ms)
+        out = adv.advise_all(ms, agents={"192.168.1.2": "silencieux"})
         self.assertEqual({k: v["method"] for k, v in out.items()}, {"192.168.1.1": "ping", "192.168.1.2": "ssh"})
+        self.assertEqual({k: v["agent_state"] for k, v in out.items()}, {"192.168.1.1": None, "192.168.1.2": "silencieux"})
 
 
 if __name__ == "__main__":
