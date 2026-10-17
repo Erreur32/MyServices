@@ -5,7 +5,7 @@ import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { dateTime, dur, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
-import type { HealthHost, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
+import type { LinkSource, HealthHost, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
 import { freeboxHealth, freeboxOf } from "../lib/freebox";
@@ -255,25 +255,53 @@ function watchTip(it: WatchItem, hint?: string): string {
   return [it.text, ...lines, ...more, ...(hint ? ["", `[[off:${hint}]]`] : [])].join("\n");
 }
 
-/** GPUs of a machine: those GpuViewR reads (name, load, temperature), else the names the Windows agent lists in its hardware */
-type GpuCell = { name: string; util?: number | null; temp?: number | null };
+/** GPUs of a machine: those GpuViewR reads (load, temperature, memory, power, last 24 h, the AI models on each), else the names the Windows agent lists in its hardware.
+ *  SSH and the Linux agent read no GPU; GpuViewR is the only source of the figures. */
+type GpuModel = NonNullable<LinkSource["models"]>[number];
+type GpuCell = { name: string; util?: number | null; temp?: number | null; memUsed?: number | null; memTotal?: number | null; power?: number | null; day?: NonNullable<LinkSource["gpus"]>[number]["day"]; models: GpuModel[] };
 function gpusOf(m: Machine): GpuCell[] {
-  const read = m.links?.sources.find((x) => x.source === "gpuviewr")?.gpus ?? [];
-  if (read.length) return read.map((g) => ({ name: g.name ?? "GPU", util: g.util, temp: g.temp }));
-  return (m.agent?.hardware?.gpu ?? []).map((g) => ({ name: g.name }));
+  const src = m.links?.sources.find((x) => x.source === "gpuviewr"), read = src?.gpus ?? [];
+  if (read.length) return read.map((g, i) => ({ name: g.name ?? "GPU", util: g.util, temp: g.temp, memUsed: g.mem_used, memTotal: g.mem_total, power: g.power, day: g.day,
+    models: (src?.models ?? []).filter((x) => x.gpu === i || (x.gpu == null && read.length === 1)) }));
+  return (m.agent?.hardware?.gpu ?? []).map((g) => ({ name: g.name, models: [] }));
 }
 const shortGpu = (n: string): string => n.replace(/^(NVIDIA|AMD|Intel\(R\))\s+/i, "").replace(/^(GeForce|Radeon)\s+/i, "").replace(/\s*\(TM\)|\s*\(R\)/gi, "").trim();
+const gb = (mb: number): string => `${(mb / 1024).toFixed(mb >= 10240 ? 0 : 1)} ${tx("Go")}`;
 
-/** GPU column cell: each GPU's short name, with its load and temperature when GpuViewR gives them */
+/** The tooltip of a GPU, in the tooltip layer's layout (heading, then label / value rows): now, the last 24 h, the AI models running on it */
+function gpuTip(g: GpuCell): string {
+  const row = (k: string, v: string | false | null | undefined) => (v ? `${k}\t${v}` : "");
+  const d = g.day;
+  return [g.name,
+    row(tx("Charge"), g.util != null && `${Math.round(g.util)} %`), row(tx("Température"), g.temp != null && `${Math.round(g.temp)} °C`),
+    row(tx("Mémoire"), g.memTotal ? `${gb(g.memUsed ?? 0)} / ${gb(g.memTotal)}` : false), row(tx("Puissance"), g.power != null && `${Math.round(g.power)} W`),
+    d ? `\n[[off:${tx("24 dernières heures")}]]` : "",
+    row(tx("Charge"), d?.util_avg != null && tx("moyenne {0} %, max {1} %", Math.round(d.util_avg), Math.round(d.util_max ?? d.util_avg))), row(tx("Température"), d?.temp_max != null && tx("max {0} °C", Math.round(d.temp_max))),
+    row(tx("Mémoire"), d?.mem_max != null && tx("max {0}", gb(d.mem_max))), row(tx("Puissance"), d?.pow_avg != null && tx("{0} W en moyenne", Math.round(d.pow_avg))),
+    g.models.length ? `\n[[off:${tx("Modèles IA")}]]` : "",
+    ...g.models.map((x) => `\`${x.model ?? "?"}\`\t${[x.runtime, x.port ? tx("port {0}", x.port) : "", x.state === "idle" ? tx("au repos") : x.state, x.mem_mb ? gb(x.mem_mb) : ""].filter(Boolean).join(" · ")}`),
+  ].filter((l, i, all) => l !== "" || (i > 0 && all[i - 1] !== "")).join("\n").replace(/\n\n+/g, "\n\n");
+}
+
+/** GPU column cell: each GPU's short name with its load and temperature, then its memory and power in small print; the tooltip has the rest (24 h, AI models) */
 function GpuCellView({ list }: Readonly<{ list: GpuCell[] }>) {
   if (!list.length) return <Dim>-</Dim>;
   return (
-    <span className="flex max-w-[12rem] flex-col gap-0.5">
+    <span className="flex max-w-[14rem] flex-col gap-1">
       {list.map((g, i) => (
-        <span key={`${g.name}-${i}`} className="flex items-baseline gap-1.5 whitespace-nowrap text-xs" title={[g.name, g.util != null && `${Math.round(g.util)} %`, g.temp != null && `${Math.round(g.temp)} °C`].filter(Boolean).join(" · ")}>
-          <span className="min-w-0 truncate">{shortGpu(g.name)}</span>
-          {g.util != null && <span className="tabular-nums text-dim">{Math.round(g.util)} %</span>}
-          {g.temp != null && <span className={`tabular-nums ${heatClass(g.temp)}`}>{Math.round(g.temp)} °C</span>}
+        <span key={`${g.name}-${i}`} className="flex flex-col whitespace-nowrap text-xs leading-tight" title={gpuTip(g)} tabIndex={0}>
+          <span className="flex items-baseline gap-1.5">
+            <span className="min-w-0 truncate font-medium">{shortGpu(g.name)}</span>
+            {g.util != null && <span className="tabular-nums text-muted">{Math.round(g.util)} %</span>}
+            {g.temp != null && <span className={`tabular-nums ${heatClass(g.temp)}`}>{Math.round(g.temp)} °C</span>}
+          </span>
+          {(g.memTotal || g.power != null || g.models.length > 0) && (
+            <span className="flex items-baseline gap-1.5 text-[11px] text-dim">
+              {g.memTotal ? <span className="tabular-nums">{gb(g.memUsed ?? 0)} / {gb(g.memTotal)}</span> : null}
+              {g.power != null && <span className="tabular-nums">{Math.round(g.power)} W</span>}
+              {g.models.length > 0 && <span className="truncate text-link" title={g.models.map((x) => x.model).join(", ")}>{g.models.length === 1 ? g.models[0].model : `${g.models.length} ${tx("modèles IA")}`}</span>}
+            </span>
+          )}
         </span>
       ))}
     </span>
