@@ -1388,7 +1388,6 @@ export const EN: Record<string, string> = {
   "Prévenir aussi du retour à la normale (rétabli, en ligne, santé OK…)": "Also notify when back to normal (restored, online, health OK…)",
   "Prévenir pour": "Notify for",
   "problème à regarder": "problem to look at",
-  "process lus": "processes read",
   "Projet sur GitHub": "Project on GitHub",
   "Proxy NPM": "NPM proxy",
   "public": "public",
