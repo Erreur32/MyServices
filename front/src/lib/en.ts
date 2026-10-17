@@ -2271,4 +2271,6 @@ export const EN: Record<string, string> = {
   "Voir les services de {0}": "See the services of {0}",
   "prioritaire": "primary",
   "complément": "extra",
+  "Infra": "Infra",
+  "Aucun service lu par son API pour l'instant.": "No service read through its API for now.",
 };

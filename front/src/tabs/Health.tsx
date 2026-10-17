@@ -1,5 +1,4 @@
 // Santé des machines (health.py / Beszel) : une fiche par machine, avec ce qui ne va pas en premier.
-import { NETWORK_CARDS } from "../lib/network";
 import { Fragment, useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { searchHit, useFilter, type Facet, type Selected } from "../lib/filter";
@@ -16,7 +15,6 @@ import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ChevronsDownUp,
 import { DetailRow, DetailSection } from "../components/DetailSection";
 import { OPEN_DETAIL, OPEN_ROW } from "../lib/forms";
 import { ViewToggle, useStoredView } from "../components/ViewToggle";
-import { InfraCards } from "../components/InfraCards";
 import { LEVEL } from "../lib/level";
 import { saveCalm, savedCalm, worrying } from "../lib/healthCalm";
 import { tx } from "../lib/i18n";
@@ -245,8 +243,7 @@ export function Health({ snap, initial }: { snap: Snapshot; initial?: Selected }
   // Machines that are off: no health, so only the search and the « System » / « Access » filters apply (a « State » filter hides them)
   const asleep = hideFine ? [] : (snap.health?.asleep ?? []).filter((a) => searchHit(a.name, f.query) && !f.sel.level?.length
     && (!f.sel.os?.length || f.sel.os.includes(osOf(splitHostName(a.name)[1], a.os).kind ?? "")) && (!f.sel.access?.length || f.sel.access.includes("agent")));
-  const services = (snap.data.services_status ?? []).filter((c) => !NETWORK_CARDS.includes(c.connector)), docker = (snap.data.containers ?? []).filter((c) => !c.links_only);   // hypervisors and PBS: Virtualization tab; Freebox, UniFi…: Network tab
-  if (!snap.health) return services.length || docker.length ? <div className="py-1"><InfraCards docker={docker} services={services} /><Empty>{tx("Santé pas encore relevée.")}</Empty></div> : <Empty>{tx("Santé pas encore relevée.")}</Empty>;
+  if (!snap.health) return <Empty>{tx("Santé pas encore relevée.")}</Empty>;
   return (
     <div className="py-1">
       <Summary hosts={hosts} asleep={snap.health.asleep?.length ?? 0} calm={calm} onCalm={pickCalm} filtering={f.active > 0} />
@@ -261,7 +258,6 @@ export function Health({ snap, initial }: { snap: Snapshot; initial?: Selected }
           )}
           <span className="text-xs text-dim">{tx("relevé du")} {dateTime(snap.health.timestamp)}</span>
         </>} />
-      <InfraCards docker={docker} services={services} />
       {listed.length === 0 && !asleep.length && hideFine && (
         <Empty>{tx("Toutes les machines vont bien : elles sont masquées.")} <button type="button" onClick={() => pickCalm(false)} className="text-link hover:underline">{tx("Les afficher")}</button></Empty>
       )}

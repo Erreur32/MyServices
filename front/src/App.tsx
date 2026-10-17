@@ -15,6 +15,7 @@ import { Security } from "./tabs/Security";
 import { Virtualization } from "./tabs/Virtualization";
 import { Network } from "./tabs/Network";
 import { Health } from "./tabs/Health";
+import { Infra } from "./tabs/Infra";
 import { History } from "./tabs/History";
 import { Machines } from "./tabs/Machines";
 import { Services } from "./tabs/Services";
@@ -127,6 +128,7 @@ export default function App() {
       {current === "history" && <History snap={snap} />}
       {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
       {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} />}
+      {current === "infra" && <Infra snap={snap} />}
       {current === "health" && <Health key={pending.tab === "health" ? pending.n : 0} snap={snap} initial={initialFor("health")} />}
       {current === "dns" && <Dns key={pending.tab === "dns" ? pending.n : 0} snap={snap} initial={initialFor("dns")} />}
       {current === "backups" && <Backups key={pending.tab === "backups" ? pending.n : 0} snap={snap} initial={initialFor("backups")} />}
