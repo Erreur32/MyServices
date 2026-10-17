@@ -779,7 +779,8 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
               const h = hb.get(m.ip);
               return (
                 <Fragment key={m.ip}>
-                  <tr className={`hover:bg-bg2/60 ${isOff(m) ? "opacity-50" : ""}`}>
+                  <tr className={`cursor-pointer hover:bg-bg2/60 ${isOff(m) ? "opacity-50" : ""}`}
+                    onClick={(e) => { if (!(e.target as Element).closest("button, a, input, select, label, summary, [role=button]")) setDetailIp(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : le bouton « détail » */}
                     <td className="w-8 px-1 py-2 align-middle">
                       <button type="button" onClick={() => setDetailIp(m.ip)} aria-haspopup="dialog" aria-label={tx("Détails de {0}", m.name)} title={tx("Voir le détail")}
                         className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><Info size={14} aria-hidden /></button>
