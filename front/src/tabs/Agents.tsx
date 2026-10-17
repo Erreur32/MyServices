@@ -301,10 +301,10 @@ function ActiveCard({ a, conf, ip, focus, busy, onRenew, reload }: {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 lg:grid lg:grid-cols-[minmax(13rem,1.6fr)_11rem_7rem_4.5rem_9.5rem_7.5rem_8rem_7.5rem_10rem] lg:gap-x-3">
         <span className="flex min-w-[12rem] flex-1 items-center gap-2 lg:flex-none">
           <MachineIcon m={{ name: conf?.name ?? a.name, os: conf?.os ?? "windows", osName: a.os }} reserve />
-          <b className="truncate text-[15px] font-extrabold text-txt">{conf?.name ?? a.name}</b>
+          <b className="truncate">{conf?.name ?? a.name}</b>
           <span className="truncate text-xs text-dim">{ip}</span>
         </span>
-        <span className="w-44 truncate text-center text-xs text-muted lg:w-auto" title={a.os ?? undefined}>{a.os ? shortOs(a.os) : "-"}</span>
+        <span className="w-44 truncate text-center text-xs font-bold text-txt lg:w-auto" title={a.os ?? undefined}>{a.os ? shortOs(a.os) : "-"}</span>
         <span className="w-28 truncate text-center text-xs text-muted lg:w-auto" title={tx("Nom du poste")}>{a.hostname ?? "-"}</span>
         <span className="inline-flex w-14 items-center justify-center gap-1 text-xs lg:w-auto" title={a.outdated ? tx("Agent v{0} : la v{1} est disponible", a.version ?? "?", a.latest_version ?? "?") : a.version ? tx("à jour (v{0})", a.version) : undefined}>
           {a.version ? <>v{a.version}{a.outdated ? <ArrowUpCircle size={13} className="text-warn" aria-hidden /> : <Check size={13} className="text-ok" aria-hidden />}</> : "-"}
