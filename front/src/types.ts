@@ -585,6 +585,11 @@ export interface AgentInfo {
   os: string | null;
   state: "actif" | "silencieux" | "en attente" | "révoqué";
 }
+/** Méthode de lecture recommandée pour une machine (GET machines/advice, access_advice.py) */
+export interface Advice {
+  kind: string; method: "ssh" | "agent" | "connector" | "ping"; why: string; current: string[]; alternatives: string[];
+  agent_possible: boolean; agent_kind: "windows" | "linux" | null;
+}
 export interface AgentsState { agents: AgentInfo[]; report_path: string }
 
 /** Réglages → Système (api/v1/system) */

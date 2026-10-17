@@ -1,17 +1,21 @@
 // Assistant de démarrage : une étape à la fois, « Passer » et « Retour » partout, rien n'est modifié sur les machines.
 // Étapes 1 (bienvenue) et 2 (cette machine, lue sans SSH) faites ; les suivantes sont annoncées. Progression gardée par le navigateur.
-import { ArrowLeft, ArrowRight, Check, Eye, Plug, ShieldCheck, SkipForward, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Eye, Loader2, Plug, ShieldCheck, SkipForward, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { read } from "../api";
 import type { Snapshot } from "../api";
 import { MachineIcon } from "../components/MachineIcon";
+import { AssistantNetwork } from "../components/AssistantNetwork";
+import { SourceBadges } from "../components/SourceBadges";
 import { Badge, Card, Dim } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
 import { STEPS, advance, chooseHost, chosenHost, loadProgress, previousStep, resetProgress, saveProgress, thisMachine, type AssistantProgress } from "../lib/assistant";
+import { describeAdvice, summary } from "../lib/access";
 import { primary, quiet } from "../lib/forms";
+import { useNetScan } from "../lib/netScan";
 import { tx } from "../lib/i18n";
 import { plural } from "../lib/summary";
-import type { SystemState } from "../types";
+import type { Advice, Machine, SystemState } from "../types";
 
 export function Assistant({ snap }: { snap: Snapshot }) {
   const [p, setP] = useState<AssistantProgress>(loadProgress);
@@ -49,6 +53,8 @@ export function Assistant({ snap }: { snap: Snapshot }) {
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-dim">{tx("Étape {0} sur {1}", index + 1, STEPS.length)}</p>
         {p.current === "welcome" && <Welcome snap={snap} />}
         {p.current === "machine" && <ThisMachine snap={snap} />}
+        {p.current === "network" && <Network snap={snap} />}
+        {p.current === "access" && <Access snap={snap} />}
         {!step.ready && <Soon title={step.title} />}
         <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-line/60 pt-4">
           {index > 0 && <button type="button" className={quiet} onClick={() => update({ ...p, current: previousStep(p.current) })}><ArrowLeft size={14} aria-hidden />{tx("Retour")}</button>}
@@ -140,6 +146,61 @@ function ThisMachine({ snap }: { snap: Snapshot }) {
         )}
       {host && chosen === host.ip && <p className="mt-2 text-xs text-dim">{tx("Désignée par vous.")} <button type="button" className="text-link hover:underline" onClick={() => { chooseHost(""); setChosen(""); }}>{tx("Changer")}</button></p>}
       <p className="mt-3 text-xs text-dim">{tx("Ce que MyServices lit d'une autre machine dépend de la méthode choisie (SSH, agent ou outil déjà en place) : c'est l'objet des étapes suivantes.")}</p>
+    </div>
+  );
+}
+
+/** Étape 3 : chercher les autres machines du réseau et choisir celles à suivre (la recherche et l'ajout existent déjà dans NetworkStep) */
+function Network({ snap }: { snap: Snapshot }) {
+  const { net, reload } = useNetScan();
+  return (
+    <div>
+      <h2 className="text-xl font-bold">{tx("Le réseau")}</h2>
+      <p className="mt-2 text-sm text-muted">{tx("Trouvons les autres machines de votre réseau, puis choisissez celles à suivre. Rien n'est ajouté sans votre accord.")}</p>
+      <AssistantNetwork net={net} reload={reload} known={snap.data.machine_list.map((m) => m.ip)} />
+      <p className="mt-4 text-xs text-dim">{tx("Vous ne voulez pas de recherche automatique ? Ajoutez une machine à la main :")} <a href="#settings/machines" className="text-link hover:underline">{tx("Réglages → Machines")}</a></p>
+    </div>
+  );
+}
+
+/** Étape 4 : une machine à la fois, la méthode de lecture recommandée et ce qu'il reste à faire */
+function Access({ snap }: { snap: Snapshot }) {
+  const [advice, setAdvice] = useState<Record<string, Advice> | null>(null), [error, setError] = useState(""), [i, setI] = useState(0);
+  useEffect(() => {
+    read<{ advice: Record<string, Advice> }>("machines/advice").then((r) => setAdvice(r.advice)).catch((e: Error) => setError(e.message));
+  }, [snap.data.generated]);
+  if (error) return <p className="text-sm text-warn">⚠ {error}</p>;
+  if (!advice) return <p className="flex items-center gap-2 text-sm text-muted"><Loader2 size={16} className="animate-spin" aria-hidden />{tx("Chargement…")}</p>;
+  // Les machines pas encore lues par la méthode recommandée d'abord : c'est là qu'il y a quelque chose à faire
+  const rank = (m: Machine) => (describeAdvice(m.ip, advice[m.ip]).read ? 1 : 0);
+  const machines = snap.data.machine_list.filter((m) => advice[m.ip]).sort((a, b) => rank(a) - rank(b));
+  const sum = summary(advice);
+  if (machines.length === 0) return <p className="text-sm text-muted">{tx("Aucune machine à régler pour l'instant : ajoutez-en à l'étape précédente.")}</p>;
+  const m = machines[Math.min(i, machines.length - 1)], v = describeAdvice(m.ip, advice[m.ip]);
+  return (
+    <div>
+      <h2 className="text-xl font-bold">{tx("Lire chaque machine")}</h2>
+      <p className="mt-2 text-sm text-muted">{tx("Pour chaque machine, MyServices vous recommande la méthode la plus simple. Rien ne change tant que vous ne lancez pas l'action proposée.")}</p>
+      <p className="mt-2 text-xs text-dim">{tx("{0} machines suivies, {1} déjà lues par la méthode recommandée.", sum.total, sum.read)}</p>
+      <div className="mt-4 rounded-xl border border-line/60 bg-bg2/60 p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <MachineIcon m={{ name: m.name, role: m.role, info: m.info, ttl: m.ttl, icon: m.icon ?? undefined }} reserve />
+          <b className="text-base">{m.name}</b><Dim>{m.ip}</Dim>
+          <span className="ml-auto"><SourceBadges all m={m} /></span>
+        </div>
+        <div className={`mt-3 rounded-lg border p-3 ${v.read ? "border-ok/50 bg-ok/10" : "border-link/50 bg-link/5"}`}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("Recommandé")}</p>
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-base font-bold">{v.title}{v.read && <Badge tone="ok">✓ {tx("déjà en place")}</Badge>}</p>
+          <p className="mt-1 text-sm text-muted">{v.why}</p>
+          {v.action && <a href={v.action.href} className={`${primary} mt-3 inline-flex no-underline`}>{v.action.label}<ArrowRight size={14} aria-hidden /></a>}
+          {v.others.length > 0 && <p className="mt-2 text-xs text-dim">{tx("Autres possibilités :")} {v.others.join(", ")}</p>}
+        </div>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <button type="button" className={quiet} disabled={i === 0} onClick={() => setI(i - 1)}><ChevronLeft size={14} aria-hidden />{tx("Machine précédente")}</button>
+        <span className="text-xs text-dim">{tx("Machine {0} sur {1}", Math.min(i, machines.length - 1) + 1, machines.length)}</span>
+        <button type="button" className={quiet} disabled={i >= machines.length - 1} onClick={() => setI(i + 1)}>{tx("Machine suivante")}<ChevronRight size={14} aria-hidden /></button>
+      </div>
     </div>
   );
 }

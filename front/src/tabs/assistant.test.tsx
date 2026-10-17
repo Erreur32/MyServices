@@ -32,7 +32,7 @@ describe("Assistant de démarrage", () => {
   });
 
   it("étape pas encore faite : annoncée, et on peut la passer", () => {
-    mem.set("myservices-assistant", JSON.stringify({ current: "network", done: [], skipped: [] }));
+    mem.set("myservices-assistant", JSON.stringify({ current: "alerts", done: [], skipped: [] }));
     const html = renderToStaticMarkup(<Assistant snap={snap} />);
     expect(html).toContain("Cette étape arrive bientôt");
     expect(html).toContain("Passer");

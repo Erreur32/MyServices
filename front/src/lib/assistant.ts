@@ -9,8 +9,8 @@ export type AssistantStep = "welcome" | "machine" | "network" | "access" | "tool
 export const STEPS: { id: AssistantStep; title: string; ready: boolean }[] = [
   { id: "welcome", title: tx("Bienvenue"), ready: true },
   { id: "machine", title: tx("Cette machine"), ready: true },
-  { id: "network", title: tx("Le réseau"), ready: false },
-  { id: "access", title: tx("Lire chaque machine"), ready: false },
+  { id: "network", title: tx("Le réseau"), ready: true },
+  { id: "access", title: tx("Lire chaque machine"), ready: true },
   { id: "tools", title: tx("Relier vos outils"), ready: false },
   { id: "alerts", title: tx("Être prévenu"), ready: false },
 ];

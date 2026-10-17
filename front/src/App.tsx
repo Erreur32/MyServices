@@ -116,7 +116,7 @@ export default function App() {
         <FirstSteps snap={snap} page />
       </div>
     );
-  if (hash.startsWith("#assistant") && snap.me.role === "admin") return <Assistant snap={snap} />;
+  if (hash.startsWith("#assistant") && snap.me.role === "admin") return <><ScanBar onFinished={load} /><Assistant snap={snap} /></>;
   const profile = hash.startsWith("#profile"); // page à part (tout compte), indépendante des Réglages et de la gestion des comptes
 
   return (

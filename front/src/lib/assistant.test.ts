@@ -52,8 +52,8 @@ describe("assistant : progression", () => {
     expect(loadProgress()).toEqual({ current: "machine", done: ["welcome"], skipped: [] });
   });
 
-  it("les deux premières étapes existent, les autres sont annoncées", () => {
-    expect(STEPS.filter((s) => s.ready).map((s) => s.id)).toEqual(["welcome", "machine"]);
+  it("les quatre premières étapes existent, les autres sont annoncées", () => {
+    expect(STEPS.filter((s) => s.ready).map((s) => s.id)).toEqual(["welcome", "machine", "network", "access"]);
     expect(STEPS).toHaveLength(6);
   });
 
