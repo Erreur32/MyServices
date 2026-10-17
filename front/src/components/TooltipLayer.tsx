@@ -14,13 +14,18 @@ function splitTip(text: string): [string, string] {
 
 /** Light markup inside a tip: **text** in bold, `text` as code (settings, commands, file names), ![](url) as a small icon (service logos), [[ok:text]] in a state colour (ok, warn, bad, info, off) */
 const TONE_TEXT: Record<string, string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad", info: "text-link", off: "text-dim" };
-const rich = (text: string) => text.split(/(\*\*[^*]+\*\*|`[^`]+`|!\[\]\([^)]+\)|\[\[\w+:[^\]]+\]\])/).map((part, i) => {
-  const tone = /^\[\[(\w+):([^\]]+)\]\]$/.exec(part);
-  if (tone) return <b key={i} className={TONE_TEXT[tone[1]] ?? ""}>{tone[2]}</b>;
-  if (part.startsWith("![](")) return <img key={i} src={part.slice(4, -1)} alt="" aria-hidden className="mr-1 inline h-4 w-4 object-contain align-text-bottom" />;  if (part.startsWith("**")) return <b key={i} className="text-txt">{part.slice(2, -2)}</b>;
-  if (part.startsWith("`")) return <code key={i} className="rounded bg-bg2 px-1 font-mono text-[11px] font-semibold text-txt">{part.slice(1, -1)}</code>;
-  return part;
-});
+const rich = (text: string) => {
+  const seen = new Map<string, number>();   // stable keys from the content (a repeated part gets a counter), not from the position
+  const keyOf = (part: string) => { const n = seen.get(part) ?? 0; seen.set(part, n + 1); return `${part}#${n}`; };
+  return text.split(/(\*\*[^*]+\*\*|`[^`]+`|!\[\]\([^)]+\)|\[\[\w+:[^\]]+\]\])/).map((part) => {
+    const key = keyOf(part), tone = /^\[\[(\w+):([^\]]+)\]\]$/.exec(part);
+    if (tone) return <b key={key} className={TONE_TEXT[tone[1]] ?? ""}>{tone[2]}</b>;
+    if (part.startsWith("![](")) return <img key={key} src={part.slice(4, -1)} alt="" aria-hidden className="mr-1 inline h-4 w-4 object-contain align-text-bottom" />;
+    if (part.startsWith("**")) return <b key={key} className="text-txt">{part.slice(2, -2)}</b>;
+    if (part.startsWith("`")) return <code key={key} className="rounded bg-bg2 px-1 font-mono text-[11px] font-semibold text-txt">{part.slice(1, -1)}</code>;
+    return part;
+  });
+};
 
 /** Lines with tab characters are table rows: their cells line up in columns from one line to the next (logo, mark, name, explanation) */
 function body(text: string): React.ReactNode {

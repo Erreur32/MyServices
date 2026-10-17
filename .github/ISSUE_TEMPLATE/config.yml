@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question or share an idea (Discussions)
+    url: https://github.com/Erreur32/MyServices/discussions
+    about: Questions, ideas and "how do I...?" belong in Discussions, not in issues.
+  - name: How to request a new connector
+    url: https://github.com/Erreur32/MyServices/blob/main/docs/CONNECTOR-REQUESTS.md
+    about: Read this first. It explains what a connector can be, what we need from you and how a request is handled.

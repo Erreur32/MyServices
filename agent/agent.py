@@ -91,9 +91,9 @@ def os_name():
 
 def post(cfg, body):
     """Sends the report; returns the server's answer. Raises HTTPError (4xx/5xx), URLError or OSError."""
-    req = urllib.request.Request(cfg["url"].rstrip("/") + "/myservices/api/v1/agent/report", data=body, method="POST",
+    req = urllib.request.Request(cfg["url"].rstrip("/") + "/myservices/api/v1/agent/report", data=body, method="POST",  # NOSONAR S5144: address written by the installer in config.json, checked in load_config()
                                  headers={"Authorization": "Bearer " + cfg["token"], "Content-Type": "application/json; charset=utf-8"})
-    with urllib.request.urlopen(req, timeout=30) as r:  # NOSONAR S5144: the address is the one the installer wrote in config.json (readable by the agent account only), checked in load_config()
+    with urllib.request.urlopen(req, timeout=30) as r:
         return json.loads(r.read().decode("utf-8"))
 
 

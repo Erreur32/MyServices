@@ -1,0 +1,84 @@
+name: Connector request
+description: Ask MyServices to read a new service (an app, a device or a platform) through its API or SSH.
+labels: ["connector-request"]
+title: "Connector: <service name>"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please read **[How to request a connector](https://github.com/Erreur32/MyServices/blob/main/docs/CONNECTOR-REQUESTS.md)** first.
+        A connector is **read-only**: it reads data from a service you already run, it never changes anything on it.
+        Fill what you know; "I do not know" is a valid answer. **Never paste a real token, password or private address.**
+  - type: input
+    id: service
+    attributes:
+      label: Service name and website
+      placeholder: "Example: Pi-hole, https://pi-hole.net"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version you run
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What would it bring to MyServices?
+      description: Pick the closest family (details in the guide). Several are possible.
+      multiple: true
+      options:
+        - Status of the service (version, updates, health of the app)
+        - Machine or device inventory
+        - Network (devices, clients, gateways)
+        - Health of machines (CPU, memory, disks, SMART)
+        - Backups (jobs, last run, size)
+        - DNS
+        - Security (bans, threats)
+        - Containers
+        - Virtualization (VMs, nodes, storage)
+        - Logs
+        - Alerts / notifications channel
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: read
+    attributes:
+      label: What exactly should be read?
+      description: The numbers, lists or states that would be useful on your screen (for example "blocked queries today, list of clients, last update date").
+    validations:
+      required: true
+  - type: dropdown
+    id: access
+    attributes:
+      label: How can the service be read?
+      options:
+        - HTTP API with an API key or token
+        - HTTP API with a login and password
+        - HTTP API without authentication
+        - SSH command
+        - Prometheus / metrics endpoint
+        - Other or I do not know
+    validations:
+      required: true
+  - type: input
+    id: docs
+    attributes:
+      label: Link to the API documentation
+      description: The page that lists the routes you would use (read routes only).
+  - type: textarea
+    id: sample
+    attributes:
+      label: A sample answer of the API (anonymized)
+      description: "Output of one read request, with names, addresses and tokens replaced. This is the most useful thing you can give."
+      render: json
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Can you help?
+      options:
+        - label: I can test a first version on my own instance and report back.
+        - label: I can provide anonymized API answers for the tests.
+        - label: I would like to write the connector myself (pull requests are welcome once the project leaves its development phase).

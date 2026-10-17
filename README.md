@@ -73,6 +73,15 @@ Update: `docker compose pull && docker compose up -d` (settings and data live in
 
 ---
 
+## Questions, ideas, connector requests
+
+- **A question or an idea**: [Discussions](https://github.com/Erreur32/MyServices/discussions).
+- **A bug**: open an issue with the "Bug report" form (the project is in development, please check you run the latest image first).
+- **A new connector** (a service MyServices should read): see [How to request a connector](docs/CONNECTOR-REQUESTS.md), then use the
+  "Connector request" issue form.
+
+Pull requests are not handled for now (see the notice at the top).
+
 ## Learn more
 
 <details>

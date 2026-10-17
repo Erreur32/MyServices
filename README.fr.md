@@ -73,6 +73,15 @@ Mise à jour : `docker compose pull && docker compose up -d` (réglages et donn�
 
 ---
 
+## Questions, idées, demandes de connecteur
+
+- **Une question ou une idée** : [Discussions](https://github.com/Erreur32/MyServices/discussions).
+- **Un bug** : ouvrir une issue avec le formulaire « Bug report » (le projet est en développement : vérifiez d'abord que vous avez la dernière image).
+- **Un nouveau connecteur** (un service que MyServices devrait lire) : lire [Comment demander un connecteur](docs/CONNECTOR-REQUESTS.md)
+  (en anglais), puis utiliser le formulaire d'issue « Connector request ».
+
+Les pull requests ne sont pas traitées pour le moment (voir l'avertissement en haut).
+
 ## En savoir plus
 
 <details>

@@ -1,0 +1,20 @@
+title: "[Idea] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share an idea for MyServices. It can be a feature, a page, a way to read a service, or a change to what already exists.
+        For a **new connector**, please read [How to request a connector](https://github.com/Erreur32/MyServices/blob/main/docs/CONNECTOR-REQUESTS.md); the "Connector request" issue form is the best place for it.
+        The project is in development: ideas are read, but not all can be planned.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do, or what is missing?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+    validations:
+      required: true

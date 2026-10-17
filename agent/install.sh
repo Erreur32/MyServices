@@ -38,9 +38,11 @@ fi
 URL=${MSV_URL:-}
 TOKEN=${MSV_TOKEN:-}
 MINUTES=${MSV_MINUTES:-15}
-# NOSONAR S5332: plain http is deliberate for a MyServices on the local network (the token never leaves it); https is used when the server has a certificate
-[[ "$URL" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ || "$URL" =~ ^https?://\[[0-9A-Fa-f:]+\](:[0-9]{1,5})?$ ]] \
-  || die "Bad MyServices address: '$URL' (expected http://host:port, no trailing path)"
+# Plain http is deliberate for a MyServices on the local network (the token never leaves it); https is used when the server has a certificate
+URL_OK=0
+[[ "$URL" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] && URL_OK=1  # NOSONAR S5332: local network, see above
+[[ "$URL" =~ ^https?://\[[0-9A-Fa-f:]+\](:[0-9]{1,5})?$ ]] && URL_OK=1  # NOSONAR S5332: local network, see above
+(( URL_OK )) || die "Bad MyServices address: '$URL' (expected http://host:port, no trailing path)"
 [[ "$TOKEN" =~ ^msv_agent_[A-Za-z0-9_-]+$ ]] || die "Bad token: it must start with msv_agent_"
 [[ "$MINUTES" =~ ^[0-9]+$ ]] && (( MINUTES >= 1 && MINUTES <= 1440 )) || die "MSV_MINUTES must be between 1 and 1440"
 command -v python3 >/dev/null || die "python3 is required"

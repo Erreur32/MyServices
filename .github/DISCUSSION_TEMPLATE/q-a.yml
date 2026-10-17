@@ -1,0 +1,21 @@
+title: "[Question] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ask how to install, set up or use MyServices. Please look at the README and at Settings, Help first.
+        **Never paste a token, a password or a private address.**
+  - type: input
+    id: version
+    attributes:
+      label: MyServices version
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What did you already try?

@@ -4,7 +4,7 @@
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
 import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, Radar, RefreshCw, Server, Settings2, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
-import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, refreshSnapshot, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch, TagInput } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
@@ -49,7 +49,7 @@ function sshWho(st: State, alias: string): string {
   return a ? `${a.user ? `${a.user}@` : ""}${a.ip || a.host}${a.port ? `:${a.port}` : ""}` : alias;
 }
 
-export function MachinesSettings({ snap, focusIp, focusTab }: { snap: Snapshot; focusIp?: string; focusTab?: "access" }) {
+export function MachinesSettings({ snap, focusIp, focusTab }: Readonly<{ snap: Snapshot; focusIp?: string; focusTab?: "access" }>) {
   const [st, setSt] = useState<State | null>(null);
   const [error, setError] = useState("");
   const [detecting, setDetecting] = useState(false);
@@ -272,54 +272,256 @@ function Proposal({ d, st, onDone }: { d: Detection; st: State; onDone: () => vo
   );
 }
 
-function AgentOrAccess({ agent, access }: Readonly<{ agent?: AgentInfo; access: string }>) {
-  if (!agent) return <span className="truncate">{access}</span>;
-  return <Badge tone={agent.state === "actif" ? "ok" : "warn"} title={tx("Agent MyServices : {0}", agent.state)}>{tx("agent")}</Badge>;
+type Live = Snapshot["data"]["machine_list"][number];
+type Statuses = NonNullable<Snapshot["data"]["connectors"]>;
+type ScanInfo = { os?: string; apps: string[]; ssh?: boolean; sshPort?: number };
+type Unfinished = { why: "ha" | "ssh"; passed: boolean };
+
+/** Only this machine is re-read (SSH, Docker, health): the others stay cached, so the pass is short */
+function refreshMachine(ip: string) { void send("POST", `machines/settings/${ip}/refresh`).then(pokeScan, () => undefined); }
+
+/** A failed check: back to the login page when the session ended, otherwise the message */
+function onCheckError(e: unknown, set: (n: Note) => void) {
+  if (e instanceof LoginRequired) location.replace(LOGIN);
+  else set({ ok: false, text: (e as Error).message });
 }
 
-function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgent, bare, onClosed, scan, unfinished, agent, network }: {
-  bare?: boolean; onClosed?: () => void;  // fenêtre seule, sans la carte (ouverte depuis un autre onglet)
-  focusTab?: "access"; onAgent: () => void; network?: NetworkConnector[]; agent?: AgentInfo; unfinished?: { why: "ha" | "ssh"; passed: boolean }; scan?: { os?: string; apps: string[]; ssh?: boolean; sshPort?: number }; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Snapshot["data"]["machine_list"][number]; statuses: NonNullable<Snapshot["data"]["connectors"]>; reload: () => void;
-}) {
-  const fb = live && freeboxOf(live, network) && network?.find((c) => c.freebox?.system);   // la Freebox est lue par MynetworK, rapprochée par son nom
-  const readers = fb ? [{ type: fb.connector, name: fb.name, label: fb.label }] : [];
-  const [open, setOpenState] = useState(!!focus || !!bare), [confirm, setConfirm] = useState(false);  // focus : arrivée depuis un lien (Connecteurs → machine)
-  const setOpen = (on: boolean) => { setOpenState(on); if (!on) onClosed?.(); };
-  const [icon, setIcon] = useState(m.icon as string | undefined);  // icône choisie dans le formulaire : l'en-tête de la carte la reprend aussitôt
-  useEffect(() => setIcon(m.icon as string | undefined), [m.icon]);
-  const [off, setOff] = useState(!!m.disabled);  // « Machine suivie » basculée dans le formulaire : la carte (grisée ou non) suit aussitôt
-  useEffect(() => setOff(!!m.disabled), [m.disabled]);
-  const card = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (focus) card.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [focus]);
-  const [note, setNote] = useState<Note>(null), [lines, setLines] = useState<string[] | null>(null), [busy, setBusy] = useState(false);
+/** Access check of a machine: result lines (shown 15 s), busy flag, and the "accepted" state that lifts the warnings after a good test */
+function useAccessCheck(ip: string, stamp: string, setNote: (n: Note) => void) {
+  const [lines, setLines] = useState<string[] | null>(null), [busy, setBusy] = useState(false);
   const linesTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(linesTimer.current), []);
-  const sshUser = st.aliases.find((a) => a.alias === m.ssh)?.user || "root";  // compte de l'accès, pour le chemin de authorized_keys
   // Un test réussi lève les avertissements tout de suite : les badges viennent du dernier passage de la collecte (une minute ou plus), sans cela
   // la carte « port faux » ou « clé refusée » resterait affichée et reviendrait « en boucle » après chaque correction.
   const [accepted, setAccepted] = useState(false);
-  const stamp = `${statuses.map((c) => c.ok).join()}|${live?.ssh?.port}`;
   useEffect(() => setAccepted(false), [stamp]);   // nouveau passage : on retrouve l'état réel
-  const keyMissing = !accepted && statuses.some((c) => c.type === "docker" && !c.ok);  // accès SSH activé, mais la clé de l'app n'est pas autorisée (ou le port est faux)
-  const wrongPort = !accepted && !!(scan?.sshPort && live?.ssh && scan.sshPort !== live.ssh.port);   // alias sur un autre port que celui où sshd répond
-  const goAuthorize = () => document.getElementById("authorize-key")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  // Les badges viennent du dernier passage de la collecte : après un test réussi, on en lance un (sans bloquer si un passage est déjà en cours)
-  // Seule cette machine est relue (SSH, Docker, santé) : les autres restent en cache, le passage est court.
-  const refreshState = () => { void send("POST", `machines/settings/${ip}/refresh`).then(pokeScan, () => undefined); };
   const verify = async () => {
     setBusy(true); setLines(null);
     try {
       const r = await send<{ lines: string[]; failed: number }>("POST", `machines/settings/${ip}/check`);
       setLines(r.lines);
-      if (!r.failed) { setAccepted(true); refreshState(); }  // l'accès répond : avertissements levés, le badge (état du dernier passage) est remis à jour
+      if (!r.failed) { setAccepted(true); refreshMachine(ip); }  // l'accès répond : avertissements levés, le badge (état du dernier passage) est remis à jour
       clearTimeout(linesTimer.current);
       linesTimer.current = setTimeout(() => setLines(null), 15_000);  // résultat visible 15 s, puis il disparaît
     } catch (e) {
-      if (e instanceof LoginRequired) location.replace(LOGIN);
-      else setNote({ ok: false, text: (e as Error).message });
+      onCheckError(e, setNote);
     }
     setBusy(false);
   };
+  return { lines, busy, setBusy, accepted, verify };
+}
+
+/** Warnings of the card: the app key is refused (Docker unreadable), or the SSH alias points at another port than sshd's */
+function rowWarnings(accepted: boolean, statuses: Statuses, live?: Live, scan?: ScanInfo) {
+  const keyMissing = !accepted && statuses.some((c) => c.type === "docker" && !c.ok);  // accès SSH activé, mais la clé de l'app n'est pas autorisée (ou le port est faux)
+  const wrongPort = !accepted && !!(scan?.sshPort && live?.ssh && scan.sshPort !== live.ssh.port);   // alias sur un autre port que celui où sshd répond
+  return { keyMissing, wrongPort };
+}
+
+function accessLabel(m: MachineConf, agent?: AgentInfo): string {
+  if (agent) return tx("agent MyServices");
+  if (m.os === "windows") return m.health ? tx("Windows · santé par {0}", m.health) : tx("Windows · sans agent");
+  return m.ssh ? `SSH ${m.ssh}` : tx("sans SSH");
+}
+
+function cardClass(off: boolean, focus?: boolean, open?: boolean): string {
+  return `flex w-full min-w-0 flex-col rounded-xl border bg-card text-sm transition-colors ${off ? "opacity-60" : ""} ${focus || open ? "border-link ring-1 ring-link" : "border-dim/50"}`;
+}
+
+function scrollToCard(focus: boolean | undefined, el: HTMLElement | null) {
+  if (focus) el?.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+function lineTone(l: string): string {
+  if (l.startsWith("✓")) return "text-ok";
+  return l.startsWith("✗") ? "text-bad" : "text-warn";
+}
+
+function CheckLines({ lines }: Readonly<{ lines: string[] }>) {
+  return (
+    <ul className="rounded-lg bg-bg2 p-2 font-mono text-xs">
+      {lines.map((l, i) => <li key={`${i}:${l}`} className={lineTone(l)}>{l}</li>)}
+    </ul>
+  );
+}
+
+/** What the agent read of a Windows PC (read only), with its hardware */
+function AgentReading({ agent, hw }: Readonly<{ agent: AgentInfo; hw: ReturnType<typeof hardwareRows> }>) {
+  return (
+    <>
+    <p className="text-muted">{tx("Lu par l'agent MyServices, en lecture seule : système, disques, services, processeur, mémoire, mises à jour Windows, journal Système, ports en écoute. Pas de Docker.")}{" "}
+      {agent.last_seen ? tx("Dernier relevé {0}.", dateTime(agent.last_seen * 1000)) : tx("Aucun relevé reçu pour l'instant.")}{" "}
+      <a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a></p>
+      {hw.length > 0 && <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
+        {hw.map(([k, v]) => <Fragment key={k}><dt className="text-dim">{k}</dt><dd className="break-words text-txt">{v}</dd></Fragment>)}
+      </dl>}
+    </>
+  );
+}
+
+function WindowsConnection({ ip, m, st, agent, hw }: Readonly<{ ip: string; m: MachineConf; st: State; agent?: AgentInfo; hw: ReturnType<typeof hardwareRows> }>) {
+  if (agent) return <AgentReading agent={agent} hw={hw} />;
+  if (typeof m.health === "string" && m.health) {
+    return (
+      <p className="text-muted">{tx("Lu par OpenSSH et PowerShell, en lecture seule : disques, services, processeur, mises à jour Windows, journal Système. Pas de Docker. Accès :")} <code className="font-mono text-xs">{sshWho(st, m.health)}</code>.
+        {m.off ? <span className="block text-dim">{tx("Marqué « souvent éteinte » : la santé ne le relève pas tant que cette option est cochée.")}</span> : null}</p>
+    );
+  }
+  return (
+    <p className="text-dim">{tx("Pas d'agent : ping et services web seulement.")}{" "}
+      <a className="text-link hover:underline" href={`#settings/agents/${ip}`}>{tx("Installer l'agent")}</a>{tx(" pour lire sa santé sans SSH.")}</p>
+  );
+}
+
+/** What the collection (SSH) or the agent read of the connection: shown in the "Accès" frame, under the switch */
+function MachineConnection({ ip, m, st, live, statuses, agent }: Readonly<{ ip: string; m: MachineConf; st: State; live?: Live; statuses: Statuses; agent?: AgentInfo }>) {
+  if (m.os !== "windows") return live ? <SshDetails m={live} statuses={statuses} /> : null;
+  const hw = hardwareRows(live?.agent?.hardware);  // matériel lu par l'agent (modèle, BIOS, processeur, mémoire...)
+  return <div className="text-sm"><WindowsConnection ip={ip} m={m} st={st} agent={agent} hw={hw} /></div>;
+}
+
+function AuthorizeBadge({ onAuthorize }: Readonly<{ onAuthorize: () => void }>) {
+  return (
+    <span role="button" tabIndex={0} className="grid h-5 w-5 cursor-pointer place-items-center rounded-full bg-warn text-xs font-extrabold text-bg hover:brightness-110"
+      title={tx("Docker illisible sur cette machine : la clé SSH de l'app n'y est pas encore autorisée. Cliquez pour voir la commande à lancer sur la machine.")}
+      aria-label={tx("Action requise : autoriser la clé de l'app sur cette machine")}
+      onClick={(e) => { e.stopPropagation(); onAuthorize(); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onAuthorize(); } }}>!</span>
+  );
+}
+
+function UnfinishedBadge({ unfinished }: Readonly<{ unfinished: Unfinished }>) {
+  const why = unfinished.why === "ha"
+    ? tx("Le jeton Home Assistant manque : sans lui, MyServices ne peut pas lire cette machine.")
+    : tx("Cette machine offre le SSH mais MyServices n'y a pas encore d'accès : il reste à le régler.");
+  return <Badge tone="warn" title={`${tx("Réglage à terminer")}\n${why}`}>{unfinished.passed ? tx("Non terminé (passé)") : tx("Non terminé")}</Badge>;
+}
+
+function sshRiskWhat(r: { root: boolean; password: boolean }): string {
+  if (!r.root) return tx("mot de passe");
+  return r.password ? tx("root et mot de passe") : tx("connexion root");
+}
+
+/** SSH server security setting (not a failure): says precisely what is allowed */
+function SshRiskBadge({ live }: Readonly<{ live: Live }>) {
+  const r = sshRisks(live);
+  if (!r.root && !r.password) return null;
+  const what = sshRiskWhat(r);
+  return <Badge tone="warn" title={`${tx("Sécurité SSH, pas une panne")}\n${tx("Ce serveur SSH autorise {0}.\n**Pour durcir :** `PermitRootLogin no` et `PasswordAuthentication no` dans `sshd_config`, puis recharger `sshd`.\n**Attention :** ne coupez le mot de passe (`PasswordAuthentication no`) qu'une fois votre propre clé SSH testée sur cette machine, sinon vous perdez l'accès. La clé de MyServices ne suffit pas : elle ne vous connecte pas, vous.", what)}`}>🛡 {what}</Badge>;
+}
+
+function FailedBadge({ statuses }: Readonly<{ statuses: Statuses }>) {
+  const failed = statuses.filter((c) => !c.ok);
+  if (failed.length === 0) return null;
+  return <Badge tone="bad" title={`${tx("Lecture en échec")}\n${failed.map((c) => c.name).join(", ")}`}>{failed.length} {tx("en échec")}</Badge>;
+}
+
+/** The status badges at the right of the card header */
+function RowBadges({ keyMissing, unfinished, m, live, statuses, off, onAuthorize }: Readonly<{
+  keyMissing: boolean; unfinished?: Unfinished; m: MachineConf; live?: Live; statuses: Statuses; off: boolean; onAuthorize: () => void;
+}>) {
+  return (
+    <>
+      {keyMissing && <AuthorizeBadge onAuthorize={onAuthorize} />}
+      {unfinished && <UnfinishedBadge unfinished={unfinished} />}
+      {m.off && <Badge tone="off" title={`${tx("Souvent éteinte")}\n${tx("Une machine éteinte n'est pas signalée comme en panne.")}`}>{tx("souvent éteinte")}</Badge>}
+      {live && <SshRiskBadge live={live} />}
+      <FailedBadge statuses={statuses} />
+      {off && <Badge tone="off" title={`${tx("Non suivie")}\n${tx("Plus lue par MyServices : cachée dans les onglets. Rallumez « Machine suivie » dans la carte pour la reprendre.")}`}>{tx("non suivie")}</Badge>}
+    </>
+  );
+}
+
+function WrongPortNotice({ live, scan, busy, onFix }: Readonly<{ live?: Live; scan?: ScanInfo; busy: boolean; onFix: () => void }>) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
+      <p className="min-w-[240px] flex-1">
+        <b className="text-warn">!</b> {tx("Ce n'est pas la clé : le port SSH est faux. L'accès utilise le port")} <b className="text-txt">{live?.ssh?.port}</b>
+        {tx(", mais la recherche réseau a vu SSH sur le port")} <b className="text-txt">{scan?.sshPort}</b>.
+      </p>
+      <button type="button" className={primary} disabled={busy} onClick={onFix}>{tx("Utiliser le port {0}", scan?.sshPort ?? "")}</button>
+    </div>
+  );
+}
+
+function KeyMissingNotice({ sshUser, statuses }: Readonly<{ sshUser: string; statuses: Statuses }>) {
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
+      <p>
+        <b className="text-warn">!</b> {tx("Action requise : la clé SSH de l'app est refusée pour le compte")} <b className="text-txt">{sshUser}</b>{tx(" sur cette machine, donc Docker n'est pas lisible. Ce n'est pas la clé qui a changé : elle n'est pas (encore) dans les clés autorisées de ce compte.")}
+      </p>
+      <p>{tx("Sur la machine, connecté en")} <b className="text-txt">{sshUser}</b>{tx(", lancez :")}</p>
+      <AuthorizeKey bare user={sshUser} failing={statuses.filter((c) => c.type === "docker" && !c.ok)} />
+      <p className="text-xs text-dim">{tx("Puis « Vérifier ». Si l'accès marchait avec un autre compte (root, par exemple), revenez-y en réactivant l'accès avec ce compte.")}</p>
+    </div>
+  );
+}
+
+function UnfinishedNotice({ unfinished }: Readonly<{ unfinished: Unfinished }>) {
+  const passed = unfinished.passed ? ` · ${tx("vous l'aviez passé dans les premiers pas")}` : "";
+  return (
+    <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
+      <b className="text-warn">{tx("Non terminé")}</b>{passed} {" : "}
+      {unfinished.why === "ha" ? <>{tx("le jeton de Home Assistant manque : ")}<a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a></>
+        : tx("cette machine offre SSH mais MyServices n'y a pas d'accès : activez « Lecture par SSH » ci-dessous.")}
+    </p>
+  );
+}
+
+/** The warning notices at the top of the machine window */
+function RowNotices({ keyMissing, wrongPort, unfinished, live, scan, sshUser, statuses, busy, onFixPort }: Readonly<{
+  keyMissing: boolean; wrongPort: boolean; unfinished?: Unfinished; live?: Live; scan?: ScanInfo; sshUser: string; statuses: Statuses; busy: boolean; onFixPort: () => void;
+}>) {
+  return (
+    <>
+      {keyMissing && wrongPort && <WrongPortNotice live={live} scan={scan} busy={busy} onFix={onFixPort} />}
+      {keyMissing && !wrongPort && <KeyMissingNotice sshUser={sshUser} statuses={statuses} />}
+      {unfinished && <UnfinishedNotice unfinished={unfinished} />}
+    </>
+  );
+}
+
+function RowActions({ ip, busy, confirm, setConfirm, setNote, reload, verify }: Readonly<{
+  ip: string; busy: boolean; confirm: boolean; setConfirm: (on: boolean) => void; setNote: (n: Note) => void; reload: () => void; verify: () => Promise<void>;
+}>) {
+  return (
+    <>
+      <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
+      <span className="ml-auto flex items-center gap-1.5">
+        {confirm ? <>
+          <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `machines/settings/${ip}`), tx("machine retirée : la recherche réseau ne la proposera plus (Réglages → Découverte pour la faire revenir)"), setNote).then((ok) => ok && reload())}>{tx("Confirmer le retrait")}</button>
+          <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
+        </> : <button type="button" className={`${danger} px-2`} onClick={() => setConfirm(true)} aria-label={tx("Retirer")}
+          title={tx("Retirer : MyServices ne suit plus cette machine et la recherche réseau ne la propose plus (une confirmation est demandée)")}><Trash2 size={15} aria-hidden /></button>}
+      </span>
+    </>
+  );
+}
+
+function AgentOrAccess({ agent, access }: Readonly<{ agent?: AgentInfo; access: string }>) {
+  if (!agent) return <span className="truncate">{access}</span>;
+  return <Badge tone={agent.state === "actif" ? "ok" : "warn"} title={tx("Agent MyServices : {0}", agent.state)}>{tx("agent")}</Badge>;
+}
+
+function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgent, bare, onClosed, scan, unfinished, agent, network }: Readonly<{
+  bare?: boolean; onClosed?: () => void;  // fenêtre seule, sans la carte (ouverte depuis un autre onglet)
+  focusTab?: "access"; onAgent: () => void; network?: NetworkConnector[]; agent?: AgentInfo; unfinished?: Unfinished; scan?: ScanInfo; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Live; statuses: Statuses; reload: () => void;
+}>) {
+  const fb = live && freeboxOf(live, network) && network?.find((c) => c.freebox?.system);   // la Freebox est lue par MynetworK, rapprochée par son nom
+  const readers = fb ? [{ type: fb.connector, name: fb.name, label: fb.label }] : [];
+  const [open, setOpen] = useState(!!focus || !!bare), [confirm, setConfirm] = useState(false);  // focus : arrivée depuis un lien (Connecteurs → machine)
+  const openCard = (on: boolean) => { setOpen(on); if (!on) onClosed?.(); };
+  const [icon, setIcon] = useState(m.icon as string | undefined);  // icône choisie dans le formulaire : l'en-tête de la carte la reprend aussitôt
+  useEffect(() => setIcon(m.icon as string | undefined), [m.icon]);
+  const [off, setOff] = useState(!!m.disabled);  // « Machine suivie » basculée dans le formulaire : la carte (grisée ou non) suit aussitôt
+  useEffect(() => setOff(!!m.disabled), [m.disabled]);
+  const card = useRef<HTMLDivElement>(null);
+  useEffect(() => scrollToCard(focus, card.current), [focus]);
+  const [note, setNote] = useState<Note>(null);
+  const sshUser = st.aliases.find((a) => a.alias === m.ssh)?.user || "root";  // compte de l'accès, pour le chemin de authorized_keys
+  const stamp = `${statuses.map((c) => c.ok).join()}|${live?.ssh?.port}`;
+  const { lines, busy, setBusy, accepted, verify } = useAccessCheck(ip, stamp, setNote);
+  const { keyMissing, wrongPort } = rowWarnings(accepted, statuses, live, scan);
+  const goAuthorize = () => document.getElementById("authorize-key")?.scrollIntoView({ behavior: "smooth", block: "start" });
   const fixPort = async () => {   // l'alias garde son compte ; seul le port change
     setBusy(true);
     await act(() => send("POST", "machines/ssh-alias", { ip, user: sshUser, port: scan?.sshPort }), tx("port corrigé : test en cours"), setNote);
@@ -327,98 +529,27 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgen
     await verify();
     reload();
   };
-  const access = agent ? tx("agent MyServices") : m.os === "windows" ? (m.health ? tx("Windows · santé par {0}", m.health) : tx("Windows · sans agent")) : m.ssh ? `SSH ${m.ssh}` : tx("sans SSH");
-    // Ce que la collecte (SSH) ou l'agent a lu de la connexion : montré dans le cadre « Accès », sous l'interrupteur
-  const hw = hardwareRows(live?.agent?.hardware);  // matériel lu par l'agent (modèle, BIOS, processeur, mémoire...)
-  const connection = m.os === "windows" ? (
-    <div className="text-sm">
-      {agent ? (
-        <>
-        <p className="text-muted">{tx("Lu par l'agent MyServices, en lecture seule : système, disques, services, processeur, mémoire, mises à jour Windows, journal Système, ports en écoute. Pas de Docker.")}{" "}
-          {agent.last_seen ? tx("Dernier relevé {0}.", dateTime(agent.last_seen * 1000)) : tx("Aucun relevé reçu pour l'instant.")}{" "}
-          <a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a></p>
-          {hw.length > 0 && <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
-            {hw.map(([k, v]) => <Fragment key={k}><dt className="text-dim">{k}</dt><dd className="break-words text-txt">{v}</dd></Fragment>)}
-          </dl>}
-        </>
-      ) : typeof m.health === "string" && m.health ? (
-        <p className="text-muted">{tx("Lu par OpenSSH et PowerShell, en lecture seule : disques, services, processeur, mises à jour Windows, journal Système. Pas de Docker. Accès :")} <code className="font-mono text-xs">{sshWho(st, m.health)}</code>.
-          {m.off ? <span className="block text-dim">{tx("Marqué « souvent éteinte » : la santé ne le relève pas tant que cette option est cochée.")}</span> : null}</p>
-      ) : <p className="text-dim">{tx("Pas d'agent : ping et services web seulement.")}{" "}
-        <a className="text-link hover:underline" href={`#settings/agents/${ip}`}>{tx("Installer l'agent")}</a>{tx(" pour lire sa santé sans SSH.")}</p>}
-    </div>
-  ) : live ? <SshDetails m={live} statuses={statuses} /> : null;
+  const access = accessLabel(m, agent);
+  const connection = m.os === "windows" || live ? <MachineConnection ip={ip} m={m} st={st} live={live} statuses={statuses} agent={agent} /> : null;
+  const iconProps = { name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon };
   const overlay = open && (
-        <Overlay wide onClose={() => setOpen(false)} title={<><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon }} scan={scan} reserve />{m.name} <Dim>{ip}</Dim></>}>
+        <Overlay wide onClose={() => openCard(false)} title={<><MachineIcon m={iconProps} scan={scan} reserve />{m.name} <Dim>{ip}</Dim></>}>
         <div className="mt-3 flex flex-col gap-3">
           <NoteLine note={note} />
-          {lines && (
-            <ul className="rounded-lg bg-bg2 p-2 font-mono text-xs">
-              {lines.map((l, i) => <li key={i} className={l.startsWith("✓") ? "text-ok" : l.startsWith("✗") ? "text-bad" : "text-warn"}>{l}</li>)}
-            </ul>
-          )}
-          {keyMissing && wrongPort && (
-            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
-              <p className="min-w-[240px] flex-1">
-                <b className="text-warn">!</b> {tx("Ce n'est pas la clé : le port SSH est faux. L'accès utilise le port")} <b className="text-txt">{live?.ssh?.port}</b>
-                {tx(", mais la recherche réseau a vu SSH sur le port")} <b className="text-txt">{scan?.sshPort}</b>.
-              </p>
-              <button type="button" className={primary} disabled={busy} onClick={() => void fixPort()}>{tx("Utiliser le port {0}", scan?.sshPort ?? "")}</button>
-            </div>
-          )}
-          {keyMissing && !wrongPort && (
-            <div className="flex flex-col gap-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
-              <p>
-                <b className="text-warn">!</b> {tx("Action requise : la clé SSH de l'app est refusée pour le compte")} <b className="text-txt">{sshUser}</b>{tx(" sur cette machine, donc Docker n'est pas lisible. Ce n'est pas la clé qui a changé : elle n'est pas (encore) dans les clés autorisées de ce compte.")}
-              </p>
-              <p>{tx("Sur la machine, connecté en")} <b className="text-txt">{sshUser}</b>{tx(", lancez :")}</p>
-              <AuthorizeKey bare user={sshUser} failing={statuses.filter((c) => c.type === "docker" && !c.ok)} />
-              <p className="text-xs text-dim">{tx("Puis « Vérifier ». Si l'accès marchait avec un autre compte (root, par exemple), revenez-y en réactivant l'accès avec ce compte.")}</p>
-            </div>
-          )}
-          {unfinished && (
-            <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
-              <b className="text-warn">{tx("Non terminé")}</b>{unfinished.passed ? ` · ${tx("vous l'aviez passé dans les premiers pas")}` : ""} {" : "}
-              {unfinished.why === "ha" ? <>{tx("le jeton de Home Assistant manque : ")}<a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a></>
-                : tx("cette machine offre SSH mais MyServices n'y a pas d'accès : activez « Lecture par SSH » ci-dessous.")}
-            </p>
-          )}
-          <MachineForm tabbed focusTab={focusTab} onAgent={onAgent} agent={agent} connection={connection} report={setNote} onIcon={setIcon} onFollow={(on) => setOff(!on)} ip={ip} m={m} st={st} live={live} scan={scan} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload} actions={<>
-            <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
-            <span className="ml-auto flex items-center gap-1.5">
-              {confirm ? <>
-                <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `machines/settings/${ip}`), tx("machine retirée : la recherche réseau ne la proposera plus (Réglages → Découverte pour la faire revenir)"), setNote).then((ok) => ok && reload())}>{tx("Confirmer le retrait")}</button>
-                <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
-              </> : <button type="button" className={`${danger} px-2`} onClick={() => setConfirm(true)} aria-label={tx("Retirer")}
-                title={tx("Retirer : MyServices ne suit plus cette machine et la recherche réseau ne la propose plus (une confirmation est demandée)")}><Trash2 size={15} aria-hidden /></button>}
-            </span>
-          </>} />
+          {lines && <CheckLines lines={lines} />}
+          <RowNotices keyMissing={keyMissing} wrongPort={wrongPort} unfinished={unfinished} live={live} scan={scan} sshUser={sshUser} statuses={statuses} busy={busy} onFixPort={() => void fixPort()} />
+          <MachineForm tabbed focusTab={focusTab} onAgent={onAgent} agent={agent} connection={connection} report={setNote} onIcon={setIcon} onFollow={(on) => setOff(!on)} ip={ip} m={m} st={st} live={live} scan={scan} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload}
+            actions={<RowActions ip={ip} busy={busy} confirm={confirm} setConfirm={setConfirm} setNote={setNote} reload={reload} verify={verify} />} />
         </div>
         </Overlay>
   );
   if (bare) return <>{overlay}</>;   // fenêtre ouverte depuis l'onglet Machines : pas de carte
   return (
-    <div ref={card} className={`flex w-full min-w-0 flex-col rounded-xl border bg-card text-sm transition-colors ${off ? "opacity-60" : ""} ${focus || open ? "border-link ring-1 ring-link" : "border-dim/50"}`}>
-      <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" title={tx("Ouvrir les réglages de cette machine")} className="flex h-[5.5rem] w-full flex-wrap content-start items-center gap-x-2 gap-y-1 overflow-hidden rounded-xl p-3 text-left hover:bg-bg2">
-        <Settings2 size={14} className="text-dim" aria-hidden /><MachineIcon m={{ name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon }} scan={scan} reserve /><b className="max-w-[10rem] truncate">{m.name}</b><Dim>{ip}</Dim>
-        <span className={`ml-auto flex min-w-0 items-center justify-end gap-1.5 flex-nowrap overflow-hidden`}>
-          {keyMissing && (
-            <span role="button" tabIndex={0} className="grid h-5 w-5 cursor-pointer place-items-center rounded-full bg-warn text-xs font-extrabold text-bg hover:brightness-110"
-              title={tx("Docker illisible sur cette machine : la clé SSH de l'app n'y est pas encore autorisée. Cliquez pour voir la commande à lancer sur la machine.")}
-              aria-label={tx("Action requise : autoriser la clé de l'app sur cette machine")}
-              onClick={(e) => { e.stopPropagation(); goAuthorize(); }} onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); goAuthorize(); } }}>!</span>
-          )}
-          {unfinished && <Badge tone="warn" title={`${tx("Réglage à terminer")}\n${unfinished.why === "ha" ? tx("Le jeton Home Assistant manque : sans lui, MyServices ne peut pas lire cette machine.") : tx("Cette machine offre le SSH mais MyServices n'y a pas encore d'accès : il reste à le régler.")}`}>{unfinished.passed ? tx("Non terminé (passé)") : tx("Non terminé")}</Badge>}
-          {m.off && <Badge tone="off" title={`${tx("Souvent éteinte")}\n${tx("Une machine éteinte n'est pas signalée comme en panne.")}`}>{tx("souvent éteinte")}</Badge>}
-          {live && (() => {  // réglage de sécurité du serveur SSH de la machine (pas une panne) : dit précisément ce qui est permis
-            const r = sshRisks(live);
-            if (!r.root && !r.password) return null;
-            let what = tx("mot de passe");
-            if (r.root) what = r.password ? tx("root et mot de passe") : tx("connexion root");
-            return <Badge tone="warn" title={`${tx("Sécurité SSH, pas une panne")}\n${tx("Ce serveur SSH autorise {0}.\n**Pour durcir :** `PermitRootLogin no` et `PasswordAuthentication no` dans `sshd_config`, puis recharger `sshd`.\n**Attention :** ne coupez le mot de passe (`PasswordAuthentication no`) qu'une fois votre propre clé SSH testée sur cette machine, sinon vous perdez l'accès. La clé de MyServices ne suffit pas : elle ne vous connecte pas, vous.", what)}`}>🛡 {what}</Badge>;
-          })()}
-          {statuses.some((c) => !c.ok) && <Badge tone="bad" title={`${tx("Lecture en échec")}\n${statuses.filter((c) => !c.ok).map((c) => c.name).join(", ")}`}>{statuses.filter((c) => !c.ok).length} {tx("en échec")}</Badge>}
-          {off && <Badge tone="off" title={`${tx("Non suivie")}\n${tx("Plus lue par MyServices : cachée dans les onglets. Rallumez « Machine suivie » dans la carte pour la reprendre.")}`}>{tx("non suivie")}</Badge>}
+    <div ref={card} className={cardClass(off, focus, open)}>
+      <button type="button" onClick={() => openCard(true)} aria-haspopup="dialog" title={tx("Ouvrir les réglages de cette machine")} className="flex h-[5.5rem] w-full flex-wrap content-start items-center gap-x-2 gap-y-1 overflow-hidden rounded-xl p-3 text-left hover:bg-bg2">
+        <Settings2 size={14} className="text-dim" aria-hidden /><MachineIcon m={iconProps} scan={scan} reserve /><b className="max-w-[10rem] truncate">{m.name}</b><Dim>{ip}</Dim>
+        <span className="ml-auto flex min-w-0 items-center justify-end gap-1.5 flex-nowrap overflow-hidden">
+          <RowBadges keyMissing={keyMissing} unfinished={unfinished} m={m} live={live} statuses={statuses} off={off} onAuthorize={goAuthorize} />
         </span>
         {/* Qui lit la machine : un badge court par source, coloré selon son état (détail en infobulle). Le détail de l'accès SSH n'est que dans la carte dépliée */}
         <span className="flex basis-full flex-wrap items-center gap-1 pl-5 text-xs text-dim">
@@ -429,6 +560,26 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgen
       {overlay}
     </div>
   );
+}
+
+/** Connector state shown in the Access tab: answering, answering late, or not answering */
+function connectorState(a: { ok: boolean; stale?: boolean }): string {
+  if (a.ok) return "ok";
+  return a.stale ? "stale" : "bad";
+}
+
+/** Records (once per machine, in the browser) that "Machine virtuelle" was ticked alone; false when it already was */
+function markVmAuto(ip: string): boolean {
+  let done: string[] = [];
+  try { done = JSON.parse(localStorage.getItem(VM_AUTO_KEY) || "[]") as string[]; } catch { /* mémoire du navigateur illisible */ }
+  if (done.includes(ip)) return false;
+  try { localStorage.setItem(VM_AUTO_KEY, JSON.stringify([...done, ip])); } catch { /* navigation privée : tant pis */ }
+  return true;
+}
+
+function offHintText(ssh: MachineConf["ssh"], foundSsh: boolean): string {
+  if (foundSsh) return tx("activé tout seul au prochain passage");
+  return ssh === false ? tx("coupé : ping et services web seulement") : tx("ping et services web seulement");
 }
 
 /** Groupe d'interrupteurs : titre, éventuel rappel, interrupteurs en dessous */
@@ -458,204 +609,313 @@ const CONNECTOR_STATE: Record<string, React.ReactNode> = {
   bad: <Badge tone="off" title={tx("Ce connecteur ne répond pas ou est coupé")}>{tx("inactif")}</Badge>,
 };
 
-function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, scan, actions, windowsGuess, report, onDone, onIcon, onFollow, agent, connection, tabbed, focusTab, onAgent }: {
-  focusTab?: "access"; onAgent?: () => void;
-  tabbed?: boolean;  // dans la fenêtre d'une machine : Identité, Options et Accès en onglets
-  onFollow?: (followed: boolean) => void;  // « Machine suivie » vient d'être enregistrée : la carte de la machine se dégrise (ou se grise)
-  onIcon?: (icon: string | undefined) => void;  // l'icône vient d'être enregistrée : la carte de la machine se met à jour
-  scan?: { os?: string; apps: string[]; ssh?: boolean; sshPort?: number };  // ce que le dernier scan du réseau a vu : aperçu de l'icône automatique
-  connection?: React.ReactNode;  // ce qui a été lu de la connexion (SSH ou agent), montré dans le cadre « Accès »
-  agent?: AgentInfo;  // agent actif de la machine : c'est son accès (Windows), ou une deuxième source de santé à ordonner (avec SSH)
-  report?: (n: Note) => void;  // dans une carte de machine : le message s'affiche en haut de la carte
-  windowsGuess?: boolean;
-  live?: Snapshot["data"]["machine_list"][number]; actions?: React.ReactNode; detected?: string[]; ip: string; m: MachineConf; st: State; isNew?: boolean; process?: boolean; extra?: Detection["web"]; onDone: () => void;
-}) {
-  const [v, setV] = useState<MachineConf>(m);
-  const [proc, setProc] = useState(!!process);
-  const [unlock, setUnlock] = useState(false);  // détection incomplète : débloque tous les interrupteurs
-  const [hasAdguard] = useState(() => !!m.adguard);  // figé à l'ouverture : vider le champ ne le fait pas disparaître
-  // Menu des options replié ; les options ACTIVES sont montrées dehors, sous « Options actives ». Ouvert d'office seulement à l'ajout
-  // d'une machine dont la détection est à confirmer.
-  const [options, setOptions] = useState(() => !!isNew && detected.length > 0);
-  const [missingOpen, setMissingOpen] = useState(false), [manualOpen, setManualOpen] = useState(false);
-  const [tab, setTab] = useState<"identity" | "options" | "access">(focusTab ?? "identity");
-  const show = (t: string) => !tabbed || tab === t;   // dans la fenêtre d'une machine : un onglet à la fois ; à l'ajout, tout d'un coup
-  const [localNote, setLocalNote] = useState<Note>(null), [busy, setBusy] = useState(false);
-  const setNote = report ?? setLocalNote;
-  const windows = v.os === "windows";
-  // Ce que l'accès choisi permet de lire (suit le formulaire, avant même l'enregistrement)
-  const sshAccess = windows ? !!v.health : !!v.ssh;
-  // Connecteurs qui voient cette machine (API et outils réseau rapprochés), sans doublon
-  const linked = [...new Map([
-    ...(live?.api ?? []).map((a) => [`${a.type}/${a.name}`, { type: a.type, name: a.name, label: a.label, state: a.ok ? "ok" : a.stale ? "stale" : "bad" }] as const),
-    ...(live?.links?.sources ?? []).map((x) => [`${x.source}/${x.instance}`, { type: x.source, name: x.instance, label: x.label, state: x.ok === false ? "bad" : "ok" }] as const),
-  ]).values()];
-  const access = sshAccess || !!agent, health = access && (!!agent || (!v.off && v.health !== false));  // un agent lit même un poste « souvent éteint »
-  const gives: [string, boolean, string][] = [
-    // Pas de pastille Docker quand la machine est lue par SSH et qu'il n'y en a pas : rien à dire, ce n'est pas un manque
-    ...(access && !windows && live?.info?.docker_installed === false ? [] : [["Docker", !windows && access, tx("Conteneurs, images, ports (onglet Services)")] as [string, boolean, string]]),
-    [tx("Santé"), health, v.off ? tx("Souvent éteinte : la santé ne la lit pas") : tx("Disques, mémoire, CPU, systemd, mises à jour (onglet Machines)")],
-    [tx("Système"), !windows && access, tx("Système, noyau, sshd, Apache (onglet Machines)")],
-    ...(hasAdguard ? [["AdGuard Home", !windows && access, tx("Réécritures et réponses DNS (onglet DNS)")] as [string, boolean, string]] : []),
-    [tx("Services en écoute"), !windows && access && proc, tx("Ports en écoute hors Docker (option ci-dessous)")],
-  ];
-  // Interrupteurs détectables (passerelle, VM, hôte NPM, poste Windows) : grisés si la détection ne les confirme pas et qu'ils
-  // sont éteints. Un interrupteur déjà allumé reste modifiable (pour le retirer). Les autres (NPM seulement, services hors Docker)
-  // ne se détectent pas : toujours libres.
-  const found = new Set([...(live?.detected ?? []), ...detected]);
-  const DETECTABLE = ["gateway", "vm", "npm", "off"];
-  const QUICK = new Set(["off"]);   // réglages courants, montrés en haut de la carte (jamais grisés ni cachés dans le menu des options)
-  const locked = (k: string) => !QUICK.has(k) && !unlock && DETECTABLE.includes(k) && !found.has(k) && !v[k as keyof MachineConf];
+type Tab = "identity" | "options" | "access";
+type SaveState = { pending: string; failed: { k: string; text: string } | null; flash: string };
+type AutoSave = (key: string, next: Partial<MachineConf>, nextProc?: boolean, refresh?: boolean) => Promise<void>;
+type Gives = [string, boolean, string][];
+type Linked = ReturnType<typeof linkedConnectors>;
+type SshCtl = {
+  agentMode: boolean; sshOn: boolean; foundSsh: boolean; offHint: string; winGuide: boolean; setWinGuide: (on: boolean) => void;
+  reuse: Note; toggleSsh: (on: boolean) => Promise<void>; known?: State["aliases"][number];
+};
+type OptionsState = {
+  options: boolean; setOptions: (on: boolean) => void; manualOpen: boolean; setManualOpen: (on: boolean) => void;
+  missingOpen: boolean; setMissingOpen: (on: boolean) => void; unlock: boolean; setUnlock: (on: boolean) => void;
+};
+type FlagDef = (typeof FLAGS)[number];
+type FlagCtx = { v: MachineConf; found: Set<string>; unlock: boolean; ss: SaveState; autoSave: AutoSave };
+
+// Interrupteurs détectables (passerelle, VM, hôte NPM, poste Windows) : grisés si la détection ne les confirme pas et qu'ils
+// sont éteints. Un interrupteur déjà allumé reste modifiable (pour le retirer). Les autres (NPM seulement, services hors Docker)
+// ne se détectent pas : toujours libres.
+const DETECTABLE = ["gateway", "vm", "npm", "off"];
+const QUICK = new Set(["off"]);   // réglages courants, montrés en haut de la carte (jamais grisés ni cachés dans le menu des options)
+
+function isLocked(k: string, ctx: FlagCtx): boolean {
+  return !QUICK.has(k) && !ctx.unlock && DETECTABLE.includes(k) && !ctx.found.has(k) && !ctx.v[k as keyof MachineConf];
+}
+
+/** The switches split by group: on (shown outside the menu), detected but off, not detected, not detectable */
+function flagGroups(v: MachineConf, found: Set<string>) {
   const isOn = (k: string) => found.has(k) || !!v[k as keyof MachineConf];
-  const activeFlags = FLAGS.filter((f) => !!v[f.k] && !QUICK.has(String(f.k)));  // allumées : montrées hors du menu
-  const procOn = proc && !windows && !!v.ssh;
-  const detectedFlags = FLAGS.filter((f) => !QUICK.has(String(f.k)) && DETECTABLE.includes(String(f.k)) && isOn(String(f.k)) && !v[f.k]);
-  const missingFlags = FLAGS.filter((f) => !QUICK.has(String(f.k)) && DETECTABLE.includes(String(f.k)) && !isOn(String(f.k)));
-  const manualFlags = FLAGS.filter((f) => !QUICK.has(String(f.k)) && !DETECTABLE.includes(String(f.k)) && !v[f.k]);
-  const flagRow = (f: (typeof FLAGS)[number]) => (
-    <label key={String(f.k)} className={`flex items-start gap-2 ${locked(String(f.k)) ? "opacity-50" : ""}`}
-      title={locked(String(f.k)) ? tx("Non détecté sur cette machine : grisé") : undefined}>
-      <Switch on={!!v[f.k]} disabled={locked(String(f.k)) || pending === String(f.k)} onChange={(on) => void autoSave(String(f.k), { [f.k]: on })} label={f.label} />
-      <span>{f.label} {found.has(String(f.k)) && <Badge tone="info" title={tx("Trouvé par la détection : décochez si c'est faux")}>{tx("détecté")}</Badge>} <Saved k={String(f.k)} /> <Dim>· {f.help}</Dim></span>
-    </label>
-  );
-  // Machine déjà enregistrée : un interrupteur se sauvegarde tout seul (sans toucher aux champs texte en cours de saisie) ;
-  // une coche « ✓ enregistré » s'anime à côté. À l'ajout (isNew), tout part avec « Enregistrer ».
-  const [saved, setSaved] = useState<MachineConf>(m), [savedProc, setSavedProc] = useState(!!process);
-  const [flash, setFlash] = useState(""), [pending, setPending] = useState(""), [failed, setFailed] = useState<{ k: string; text: string } | null>(null);
-  // Seule cette machine est relue (SSH, Docker, santé) : les autres restent en cache, le passage est court.
-  const refreshState = () => { void send("POST", `machines/settings/${ip}/refresh`).then(pokeScan, () => undefined); };
-  const autoSave = async (key: string, next: Partial<MachineConf>, nextProc = savedProc, refresh = true) => {
-    if (isNew) { setV((x) => ({ ...x, ...next })); if (key === "proc") setProc(nextProc); return; }
+  const menu = FLAGS.filter((f) => !QUICK.has(String(f.k)));
+  return {
+    active: menu.filter((f) => !!v[f.k]),
+    detected: menu.filter((f) => DETECTABLE.includes(String(f.k)) && isOn(String(f.k)) && !v[f.k]),
+    missing: menu.filter((f) => DETECTABLE.includes(String(f.k)) && !isOn(String(f.k))),
+    manual: menu.filter((f) => !DETECTABLE.includes(String(f.k)) && !v[f.k]),
+  };
+}
+
+function failedNote(n: Note): Note {
+  return n && !n.ok ? n : null;
+}
+
+function clearFlash(key: string) {
+  return (f: string) => (f === key ? "" : f);
+}
+
+/** Saves a setting alone (existing machine), with the animated tick next to it; when adding (isNew), everything goes with "Enregistrer" */
+function useAutoSave(o: {
+  ip: string; isNew?: boolean; windows: boolean; m: MachineConf; process?: boolean; setV: Dispatch<SetStateAction<MachineConf>>; setProc: (on: boolean) => void;
+  setNote: (n: Note) => void; onIcon?: (icon: string | undefined) => void; onFollow?: (followed: boolean) => void; onDone: () => void;
+}) {
+  const { ip, isNew, windows, setV, setProc, setNote, onIcon, onFollow, onDone } = o;
+  const [saved, setSaved] = useState<MachineConf>(o.m), [savedProc, setSavedProc] = useState(!!o.process);
+  const [flash, setFlash] = useState(""), [pending, setPending] = useState(""), [failed, setFailed] = useState<SaveState["failed"]>(null);
+  const applyLocal = (key: string, next: Partial<MachineConf>, nextProc: boolean) => {
+    setV((x) => ({ ...x, ...next }));
+    if (key === "proc") setProc(nextProc);
+  };
+  const persist = async (key: string, next: Partial<MachineConf>, nextProc: boolean) => {
     setPending(key); setFailed(null);
     const machine = { ...saved, ...next };
+    const body = { machine, process: windows ? null : nextProc, extra: [] };
     // Refused: the reason shows next to the field itself (not only at the bottom of the card), the old value stays on screen
-    const ok = await act(() => send("PUT", `machines/settings/${ip}`, { machine, process: windows ? null : nextProc, extra: [] }), tx("enregistré"),
-      (n) => { setNote(n && !n.ok ? n : null); if (n && !n.ok) setFailed({ k: key, text: n.text }); });  // succès : seulement la coche animée ; erreur : message
+    const ok = await act(() => send("PUT", `machines/settings/${ip}`, body), tx("enregistré"),
+      (n) => { const bad = failedNote(n); setNote(bad); if (bad) setFailed({ k: key, text: bad.text }); });  // succès : seulement la coche animée ; erreur : message
     setPending("");
+    return { ok, machine };
+  };
+  const autoSave: AutoSave = async (key, next, nextProc = savedProc, refresh = true) => {
+    if (isNew) { applyLocal(key, next, nextProc); return; }
+    const { ok, machine } = await persist(key, next, nextProc);
     if (!ok) return;
     setSaved(machine); setSavedProc(nextProc);
-    if (key === "icon") onIcon?.(next.icon as string | undefined);
-    if (key === "disabled") onFollow?.(!next.disabled);
-    setV((x) => ({ ...x, ...next })); if (key === "proc") setProc(nextProc);
-    if (refresh) refreshState();  // un réglage changé (accès, options) : cette machine est relue tout de suite, pas au prochain horaire
+    const notify: Partial<Record<string, () => void>> = { icon: () => onIcon?.(next.icon as string | undefined), disabled: () => onFollow?.(!next.disabled) };
+    notify[key]?.();
+    applyLocal(key, next, nextProc);
+    if (refresh) refreshMachine(ip);  // un réglage changé (accès, options) : cette machine est relue tout de suite, pas au prochain horaire
     onDone();            // the card list re-reads the saved settings: a tag added or removed stays after closing and reopening the card
     refreshSnapshot();   // name and tags already published by the server: the other tabs show them now
-    setFlash(key); setTimeout(() => setFlash((f) => (f === key ? "" : f)), 1800);
+    setFlash(key); setTimeout(() => setFlash(clearFlash(key)), 1800);
   };
-  // Machine virtuelle détectée sur une machine déjà enregistrée : « Machine virtuelle » se coche toute seule, une fois par machine
-  // (la liste est gardée par le navigateur : si l'on décoche ensuite, c'est respecté)
+  const ss: SaveState = { pending, failed, flash };
+  return { autoSave, saved, setSaved, savedProc, ss };
+}
+
+// Machine virtuelle détectée sur une machine déjà enregistrée : « Machine virtuelle » se coche toute seule, une fois par machine
+// (la liste est gardée par le navigateur : si l'on décoche ensuite, c'est respecté)
+function useAutoVm(ip: string, isNew: boolean | undefined, m: MachineConf, live: Live | undefined, autoSave: AutoSave) {
   useEffect(() => {
     if (isNew || m.vm || m.disabled || !live?.detected?.includes("vm")) return;
-    let done: string[] = [];
-    try { done = JSON.parse(localStorage.getItem(VM_AUTO_KEY) || "[]") as string[]; } catch { /* mémoire du navigateur illisible */ }
-    if (done.includes(ip)) return;
-    try { localStorage.setItem(VM_AUTO_KEY, JSON.stringify([...done, ip])); } catch { /* navigation privée : tant pis */ }
+    if (!markVmAuto(ip)) return;
     void autoSave("vm", { vm: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live?.detected?.join(), isNew]);
-  const Saved = ({ k }: { k: string }) => (pending === k ? <Loader2 size={13} className="animate-spin text-dim" aria-label={tx("enregistrement…")} />
-    : failed?.k === k ? <span className="text-xs font-semibold text-bad" role="alert">⚠ {tx("non enregistré :")} {failed.text}</span>
-    : flash === k ? <span className="saved-pop inline-flex items-center gap-1 text-xs font-semibold text-ok"><Check size={13} aria-hidden />{tx("enregistré")}</span> : null);
-  // Étiquettes proposées en un clic d'après ce que la machine est réellement : Docker (conteneurs lus), Apache, nginx, SSH, Windows, VM, passerelle, NPM
-  const i = live?.info;
-  const roleSuggestions = [
-    ...(i?.docker || i?.docker_installed ? ["Docker"] : []), ...(i?.apache ? ["Apache"] : []), ...(i?.nginx ? ["nginx"] : []),
-    ...(windows ? ["Windows"] : v.ssh ? ["SSH"] : []), ...((v.vm || found.has("vm")) ? ["VM"] : []),
-    ...((v.gateway || found.has("gateway")) ? ["Passerelle"] : []), ...((v.npm || found.has("npm")) ? ["NPM"] : []),
-  ];
-  const procRow = (
-    <label className="flex items-start gap-2">
-      <Switch on={proc} disabled={pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Lire les services hors Docker")} />
-      <span>{tx("Lire les services hors Docker")} <Saved k="proc" /> <Dim>{tx("· ports en écoute (ss -tlnp, root requis sur la machine)")}</Dim></span>
-    </label>
-  );
-  // Accès SSH : un simple interrupteur. Actif = l'accès de cette IP (créé avec la clé de l'app s'il n'existe pas encore, compte root
-  // port 22 comme « Lire cette machine par SSH »), inactif = on le retire. Le choix d'un autre compte se fait dans la config SSH.
-  const [winGuide, setWinGuide] = useState(false);
+}
+
+/** State of the collapsible options menu: folded, except when adding a machine whose detection is to be confirmed */
+function useOptionsState(isNew: boolean | undefined, detected: string[]): OptionsState {
+  const [unlock, setUnlock] = useState(false);  // détection incomplète : débloque tous les interrupteurs
+  const [options, setOptions] = useState(() => !!isNew && detected.length > 0);
+  const [missingOpen, setMissingOpen] = useState(false), [manualOpen, setManualOpen] = useState(false);
+  return { options, setOptions, manualOpen, setManualOpen, missingOpen, setMissingOpen, unlock, setUnlock };
+}
+
+/** Connectors that see this machine (API and matched network tools), without duplicates */
+function linkedConnectors(live?: Live) {
+  return [...new Map([
+    ...(live?.api ?? []).map((a) => [`${a.type}/${a.name}`, { type: a.type, name: a.name, label: a.label, state: connectorState(a) }] as const),
+    ...(live?.links?.sources ?? []).map((x) => [`${x.source}/${x.instance}`, { type: x.source, name: x.instance, label: x.label, state: x.ok === false ? "bad" : "ok" }] as const),
+  ]).values()];
+}
+
+/** What the chosen access allows (follows the form, even before saving) */
+function sshStatus(o: { v: MachineConf; windows: boolean; windowsGuess?: boolean; agent?: AgentInfo; live?: Live }) {
+  const { v, windows, windowsGuess, agent, live } = o;
+  const sshAccess = windows ? !!v.health : !!v.ssh;
   const agentMode = windows || windowsGuess === true || (!!agent && !v.ssh);  // un PC Windows se lit par l'agent (pas de SSH) ; on garde le SSH s'il est déjà réglé
   const key = (windows ? v.health : v.ssh) as string | null | undefined | false;
   const sshOn = typeof key === "string" && key !== "";
-  // Synthèse en tête de l'onglet Accès : ce qui lit la machine, en un coup d'œil
   const refusedSsh = sshOn && !!live && ["refused", "nossh", "down"].includes(mState(live));
-  const sshSummary = !sshOn || agentMode ? <Badge tone="off">{tx("inactif")}</Badge>
-    : <Badge tone={refusedSsh ? "warn" : "ok"} title={refusedSsh ? tx("L'accès est réglé mais la connexion échoue") : undefined}>{refusedSsh ? tx("refusé") : tx("actif")}</Badge>;
-  const agentSummary = agent ? <Badge tone={agent.state === "actif" ? "ok" : "warn"}>{agent.state}</Badge> : <Badge tone="off">{tx("aucun")}</Badge>;
-  const activeLinked = linked.filter((c) => c.state === "ok").length;
-  const connectorSummary = linked.length === 0 ? <Badge tone="off">{tx("aucun")}</Badge>
-    : <Badge tone={activeLinked === linked.length ? "ok" : "warn"}>{activeLinked}/{linked.length} {tx("actifs")}</Badge>;
-  // Réactivation : si un accès existe déjà pour cette IP (la config SSH garde l'alias quand on coupe l'interrupteur), on le reprend et on
-  // teste la clé tout de suite ; le guide ne s'ouvre que si la connexion échoue (ou s'il n'y a encore aucun accès).
-  const known = st.aliases.find((a) => a.ip === ip);
   // Interrupteur coupé, mais la collecte lit déjà la machine par SSH (alias de ~/.ssh/config pour cette adresse) : à dire clairement
   const foundSsh = !agentMode && !sshOn && v.ssh !== false && !!live?.ssh?.alias && !!live.info;
-  const [reuse, setReuse] = useState<Note>(null);
+  return { sshAccess, agentMode, sshOn, refusedSsh, foundSsh };
+}
+
+/**
+ * SSH access: a simple switch. On = the access of this IP (created with the app key if it does not exist yet, root account
+ * port 22), off = removed. Re-enabling reuses an existing access and tests the key at once; the guide opens only if it fails
+ * (or if there is no access yet).
+ */
+function useSshToggle(ip: string, known: State["aliases"][number] | undefined, autoSave: AutoSave) {
+  const [winGuide, setWinGuide] = useState(false), [reuse, setReuse] = useState<Note>(null);
+  const recheck = async () => {
+    try {
+      const r = await send<{ lines: string[]; failed: number }>("POST", `machines/settings/${ip}/check`);
+      if (r.failed) { setReuse({ ok: false, text: tx("L'accès existe mais la connexion échoue : la clé n'est pas (ou plus) autorisée sur la machine.") }); setWinGuide(true); return; }
+      setReuse({ ok: true, text: tx("Accès rétabli : la clé est déjà valide, rien à refaire. L'état se met à jour à la fin du prochain passage.") });
+      refreshMachine(ip);
+    } catch (e) {
+      onCheckError(e, setReuse);
+    }
+  };
   const toggleSsh = async (on: boolean) => {
     if (!on) { setWinGuide(false); setReuse(null); return void autoSave("ssh", { ssh: false, health: undefined }); }   // coupé à la main : plus lu par SSH, jamais réactivé seul
     if (!known) return setWinGuide(true);  // premier accès : le guide demande le compte et crée l'alias
     await autoSave("ssh", { ssh: known.alias, health: undefined });
-    try {
-      const r = await send<{ lines: string[]; failed: number }>("POST", `machines/settings/${ip}/check`);
-      if (r.failed) { setReuse({ ok: false, text: tx("L'accès existe mais la connexion échoue : la clé n'est pas (ou plus) autorisée sur la machine.") }); setWinGuide(true); }
-      else {
-        setReuse({ ok: true, text: tx("Accès rétabli : la clé est déjà valide, rien à refaire. L'état se met à jour à la fin du prochain passage.") });
-        refreshState();
-      }
-    } catch (e) {
-      if (e instanceof LoginRequired) location.replace(LOGIN);
-      else setReuse({ ok: false, text: (e as Error).message });
-    }
+    await recheck();
   };
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    const ok = await act(() => send("PUT", `machines/settings/${ip}`, { machine: v, process: windows ? null : proc, extra: extra || [] }),
-      isNew ? tx("machine ajoutée : relevé et santé lancés") : tx("enregistrée : prise en compte au prochain passage"), setNote);
-    setBusy(false);
-    if (ok && !isNew) setSaved(v);
-    if (ok) refreshState();  // ajout ou modification : cette machine est relue tout de suite
-    if (ok) setTimeout(onDone, 900);
-  };
-  // Carte d'une machine déjà enregistrée : l'accès SSH et les interrupteurs s'enregistrent seuls ; ce bouton ne sert qu'aux champs texte
-  const dirty = isNew || ["name", "adguard", "adguard_sync"].some((k) => String(v[k] ?? "") !== String(saved[k] ?? ""));
-  // L'accès d'une machine en trois catégories distinctes : SSH, agent, connecteurs (dans la fenêtre) ; à l'ajout, une seule section comme avant
-  const sshBody = (
+  return { winGuide, setWinGuide, reuse, toggleSsh };
+}
+
+/** The pills of what the access gives (Docker, health, system...) */
+function accessGives(o: { v: MachineConf; windows: boolean; agent?: AgentInfo; live?: Live; sshAccess: boolean; proc: boolean; hasAdguard: boolean }): Gives {
+  const { v, windows, agent, live, sshAccess, proc, hasAdguard } = o;
+  const access = sshAccess || !!agent;
+  const health = access && (!!agent || (!v.off && v.health !== false));  // un agent lit même un poste « souvent éteint »
+  const readable = !windows && access;
+  // Pas de pastille Docker quand la machine est lue par SSH et qu'il n'y en a pas : rien à dire, ce n'est pas un manque
+  const noDocker = readable && live?.info?.docker_installed === false;
+  return [
+    ...(noDocker ? [] : [["Docker", readable, tx("Conteneurs, images, ports (onglet Services)")] as [string, boolean, string]]),
+    [tx("Santé"), health, v.off ? tx("Souvent éteinte : la santé ne la lit pas") : tx("Disques, mémoire, CPU, systemd, mises à jour (onglet Machines)")],
+    [tx("Système"), readable, tx("Système, noyau, sshd, Apache (onglet Machines)")],
+    ...(hasAdguard ? [["AdGuard Home", readable, tx("Réécritures et réponses DNS (onglet DNS)")] as [string, boolean, string]] : []),
+    [tx("Services en écoute"), readable && proc, tx("Ports en écoute hors Docker (option ci-dessous)")],
+  ];
+}
+
+/** Tags offered in one click from what the machine really is: Docker (containers read), Apache, nginx, SSH, Windows, VM, gateway, NPM */
+function roleSuggestionsOf(live: Live | undefined, v: MachineConf, found: Set<string>): string[] {
+  const i = live?.info;
+  let os = "";
+  if (v.os === "windows") os = "Windows";
+  else if (v.ssh) os = "SSH";
+  const roles: [boolean, string][] = [
+    [!!(i?.docker || i?.docker_installed), "Docker"], [!!i?.apache, "Apache"], [!!i?.nginx, "nginx"], [!!os, os],
+    [!!(v.vm || found.has("vm")), "VM"], [!!(v.gateway || found.has("gateway")), "Passerelle"], [!!(v.npm || found.has("npm")), "NPM"],
+  ];
+  return roles.filter(([on]) => on).map(([, name]) => name);
+}
+
+function submitMessage(isNew?: boolean): string {
+  return isNew ? tx("machine ajoutée : relevé et santé lancés") : tx("enregistrée : prise en compte au prochain passage");
+}
+
+function submitBody(v: MachineConf, proc: boolean, extra?: Detection["web"]) {
+  return { machine: v, process: v.os === "windows" ? null : proc, extra: extra || [] };
+}
+
+/** Existing card: SSH and switches save alone; the button is only for the text fields */
+function isDirty(isNew: boolean | undefined, v: MachineConf, saved: MachineConf): boolean {
+  return !!isNew || ["name", "adguard", "adguard_sync"].some((k) => String(v[k] ?? "") !== String(saved[k] ?? ""));
+}
+
+function SavedMark({ k, s }: Readonly<{ k: string; s: SaveState }>) {
+  if (s.pending === k) return <Loader2 size={13} className="animate-spin text-dim" aria-label={tx("enregistrement…")} />;
+  if (s.failed?.k === k) return <span className="text-xs font-semibold text-bad" role="alert">⚠ {tx("non enregistré :")} {s.failed.text}</span>;
+  if (s.flash === k) return <span className="saved-pop inline-flex items-center gap-1 text-xs font-semibold text-ok"><Check size={13} aria-hidden />{tx("enregistré")}</span>;
+  return null;
+}
+
+function TabBar({ tab, setTab }: Readonly<{ tab: Tab; setTab: (t: Tab) => void }>) {
+  return (
+    <div role="tablist" className="flex gap-1 border-b border-line">
+      {([["identity", tx("Identité"), IdCard], ["options", tx("Options"), Power], ["access", tx("Accès"), KeyRound]] as const).map(([id, label, Icon]) => (
+        <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
+          className={`flex items-center gap-1.5 rounded-t-lg px-3.5 py-2 text-sm font-semibold transition-colors ${tab === id ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
+          <Icon size={15} strokeWidth={1.75} aria-hidden />{label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ---- Access tab ---- */
+
+function SshSummary({ sshOn, agentMode, refused }: Readonly<{ sshOn: boolean; agentMode: boolean; refused: boolean }>) {
+  if (!sshOn || agentMode) return <Badge tone="off">{tx("inactif")}</Badge>;
+  return <Badge tone={refused ? "warn" : "ok"} title={refused ? tx("L'accès est réglé mais la connexion échoue") : undefined}>{refused ? tx("refusé") : tx("actif")}</Badge>;
+}
+
+function AgentSummary({ agent }: Readonly<{ agent?: AgentInfo }>) {
+  if (!agent) return <Badge tone="off">{tx("aucun")}</Badge>;
+  return <Badge tone={agent.state === "actif" ? "ok" : "warn"}>{agent.state}</Badge>;
+}
+
+function ConnectorSummary({ linked }: Readonly<{ linked: Linked }>) {
+  if (linked.length === 0) return <Badge tone="off">{tx("aucun")}</Badge>;
+  const active = linked.filter((c) => c.state === "ok").length;
+  return <Badge tone={active === linked.length ? "ok" : "warn"}>{active}/{linked.length} {tx("actifs")}</Badge>;
+}
+
+function GivesList({ gives }: Readonly<{ gives: Gives }>) {
+  return (
+    <ul className="flex flex-wrap items-center justify-end gap-2" aria-label={tx("Ce que cet accès permet de lire")}>
+      {gives.map(([label, on, why]) => (
+        <li key={label} title={why}><Badge tone={on ? "ok" : "off"}>{on ? "✓" : "–"} {label}</Badge></li>
+      ))}
+    </ul>
+  );
+}
+
+function SshSwitchRow({ ctl, live, ss, gives }: Readonly<{ ctl: SshCtl; live?: Live; ss: SaveState; gives: Gives }>) {
+  const { agentMode, sshOn, offHint, toggleSsh } = ctl;
+  const showHelp = !agentMode && sshOn && !ctl.winGuide && !!live && ["refused", "nossh"].includes(mState(live));
+  return (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-lg border border-line/60 bg-bg2/70 p-3">
+      <label className="flex min-w-[240px] flex-1 items-center gap-3 text-sm">
+        {agentMode ? <span className="text-sm text-muted">{tx("Lue par l'agent MyServices : son état et ses réglages sont plus bas.")}</span> : <>
+          <Switch on={sshOn} disabled={ss.pending === "ssh"} onChange={(on) => void toggleSsh(on)} label={tx("Lecture par SSH")} />
+          <span><b>{sshOn ? tx("Actif") : tx("Inactif")}</b> <SavedMark k="ssh" s={ss} />
+            {!sshOn && <Dim> · {offHint}</Dim>}</span>
+        </>}
+      </label>
+      {ctl.foundSsh && (
+        <p className="basis-full rounded-lg border border-link/40 bg-link/5 px-3 py-2 text-sm text-muted">
+          {tx("La clé marche déjà avec l'accès « {0} » trouvé dans la configuration SSH (d'où « SSH OK ») : l'interrupteur passe tout seul sur Actif au prochain passage de la collecte. Pour ne pas lire cette machine par SSH, coupez-le ensuite : il ne sera plus réactivé.", live?.ssh?.alias)}
+          {" "}<button type="button" className="font-semibold text-link hover:underline" disabled={ss.pending === "ssh"} onClick={() => void toggleSsh(true)}>{tx("Activer maintenant")}</button>
+        </p>
+      )}
+      {showHelp && (
+        <button type="button" className="text-xs text-link hover:underline" onClick={() => ctl.setWinGuide(true)}>{tx("La connexion échoue ? Voir les commandes")}</button>
+      )}
+      <GivesList gives={gives} />
+    </div>
+  );
+}
+
+function osKind(windows: boolean, windowsGuess?: boolean): "windows" | "linux" {
+  return windows || windowsGuess ? "windows" : "linux";
+}
+
+function AuthorizeHint() {
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dim/50 bg-bg2/50 p-3">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-link/15 text-link"><KeyRound size={17} aria-hidden /></span>
+      <div className="min-w-[220px] flex-1">
+        <b className="block text-sm text-txt">{tx("La clé de l'app doit être autorisée sur cette machine")}</b>
+        <span className="block text-xs leading-relaxed text-dim">{tx("L'interrupteur prépare l'accès (compte root, port 22) ; il reste à ajouter la clé publique de l'app dans authorized_keys de la machine.")}</span>
+      </div>
+      <a href="#settings/ssh" className={`${quiet} no-underline`} title={tx("Ouvre la clé publique et la commande à copier")}>
+        <KeyRound size={14} aria-hidden />{tx("Voir la clé SSH")}<ArrowRight size={14} aria-hidden />
+      </a>
+    </div>
+  );
+}
+
+function SshBody({ ctl, ip, v, setV, live, scan, windowsGuess, hasAdguard, connection, gives, ss, autoSave }: Readonly<{
+  ctl: SshCtl; ip: string; v: MachineConf; setV: (v: MachineConf) => void; live?: Live; scan?: ScanInfo; windowsGuess?: boolean; hasAdguard: boolean;
+  connection?: React.ReactNode; gives: Gives; ss: SaveState; autoSave: AutoSave;
+}>) {
+  const windows = v.os === "windows";
+  return (
     <>
         <p className="text-xs leading-relaxed text-muted">
-          {agentMode ? tx("Un petit script PowerShell sur le PC envoie sa santé à MyServices : système, disques, services, processeur, mémoire, mises à jour, journal, ports en écoute.") : tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache.")} <b className="text-txt">{tx("Lecture seule")}</b>{tx(" : rien n'y est modifié.")}
+          {ctl.agentMode ? tx("Un petit script PowerShell sur le PC envoie sa santé à MyServices : système, disques, services, processeur, mémoire, mises à jour, journal, ports en écoute.") : tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache.")} <b className="text-txt">{tx("Lecture seule")}</b>{tx(" : rien n'y est modifié.")}
           <span className="block text-dim">{tx("Sans accès : ping et services web seulement.")}</span>
         </p>
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-lg border border-line/60 bg-bg2/70 p-3">
-          <label className="flex min-w-[240px] flex-1 items-center gap-3 text-sm">
-            {agentMode ? <span className="text-sm text-muted">{tx("Lue par l'agent MyServices : son état et ses réglages sont plus bas.")}</span> : <>
-              <Switch on={sshOn} disabled={pending === "ssh"} onChange={(on) => void toggleSsh(on)} label={tx("Lecture par SSH")} />
-              <span><b>{sshOn ? tx("Actif") : tx("Inactif")}</b> <Saved k="ssh" />
-                {!sshOn && <Dim> · {foundSsh ? tx("activé tout seul au prochain passage") : v.ssh === false ? tx("coupé : ping et services web seulement") : tx("ping et services web seulement")}</Dim>}</span>
-            </>}
-          </label>
-          {foundSsh && (
-            <p className="basis-full rounded-lg border border-link/40 bg-link/5 px-3 py-2 text-sm text-muted">
-              {tx("La clé marche déjà avec l'accès « {0} » trouvé dans la configuration SSH (d'où « SSH OK ») : l'interrupteur passe tout seul sur Actif au prochain passage de la collecte. Pour ne pas lire cette machine par SSH, coupez-le ensuite : il ne sera plus réactivé.", live!.ssh!.alias)}
-              {" "}<button type="button" className="font-semibold text-link hover:underline" disabled={pending === "ssh"} onClick={() => void toggleSsh(true)}>{tx("Activer maintenant")}</button>
-            </p>
-          )}
-          {!agentMode && sshOn && !winGuide && live && ["refused", "nossh"].includes(mState(live)) && (
-            <button type="button" className="text-xs text-link hover:underline" onClick={() => setWinGuide(true)}>{tx("La connexion échoue ? Voir les commandes")}</button>
-          )}
-          <ul className="flex flex-wrap items-center justify-end gap-2" aria-label={tx("Ce que cet accès permet de lire")}>
-            {gives.map(([label, on, why]) => (
-              <li key={label} title={why}><Badge tone={on ? "ok" : "off"}>{on ? "✓" : "–"} {label}</Badge></li>
-            ))}
-          </ul>
-        </div>
-        <NoteLine note={reuse} />
-        {connection && !agentMode && (
+        <SshSwitchRow ctl={ctl} live={live} ss={ss} gives={gives} />
+        <NoteLine note={ctl.reuse} />
+        {connection && !ctl.agentMode && (
           <div className="rounded-lg border border-line/60 bg-bg2/70 p-3">
-            <h5 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{agentMode ? tx("Lecture par l'agent") : tx("État de la connexion")}</h5>
+            <h5 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("État de la connexion")}</h5>
             {connection}
           </div>
         )}
-        {winGuide && <SshGuide ip={ip} port={scan?.sshPort} user={known?.user} guess={windows || windowsGuess ? "windows" : "linux"} onCancel={() => setWinGuide(false)}
+        {ctl.winGuide && <SshGuide ip={ip} port={scan?.sshPort} user={ctl.known?.user} guess={osKind(windows, windowsGuess)} onCancel={() => ctl.setWinGuide(false)}
           onReady={(alias) => autoSave("ssh", { os: undefined, ssh: alias, health: undefined })} />}
         {!windows && v.ssh && hasAdguard && (  // seulement si AdGuard a été trouvé sur la machine (ou déjà réglé) : sinon rien à montrer
           <div className="sm:max-w-[50%]">
@@ -664,19 +924,17 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
             </Field>
           </div>
         )}
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dim/50 bg-bg2/50 p-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-link/15 text-link"><KeyRound size={17} aria-hidden /></span>
-          <div className="min-w-[220px] flex-1">
-            <b className="block text-sm text-txt">{tx("La clé de l'app doit être autorisée sur cette machine")}</b>
-            <span className="block text-xs leading-relaxed text-dim">{tx("L'interrupteur prépare l'accès (compte root, port 22) ; il reste à ajouter la clé publique de l'app dans authorized_keys de la machine.")}</span>
-          </div>
-          <a href="#settings/ssh" className={`${quiet} no-underline`} title={tx("Ouvre la clé publique et la commande à copier")}>
-            <KeyRound size={14} aria-hidden />{tx("Voir la clé SSH")}<ArrowRight size={14} aria-hidden />
-          </a>
-        </div>
+        <AuthorizeHint />
     </>
   );
-  const agentBody = (
+}
+
+function AgentBody({ ip, v, windowsGuess, agent, agentMode, sshAccess, isNew, onAgent, connection, ss, autoSave }: Readonly<{
+  ip: string; v: MachineConf; windowsGuess?: boolean; agent?: AgentInfo; agentMode: boolean; sshAccess: boolean; isNew?: boolean; onAgent?: () => void;
+  connection?: React.ReactNode; ss: SaveState; autoSave: AutoSave;
+}>) {
+  const windows = v.os === "windows";
+  return (
     <>
         {connection && agentMode && (
           <div className="rounded-lg border border-line/60 bg-bg2/70 p-3">
@@ -686,8 +944,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
         )}
         {agent && sshAccess && (
           <div className="flex flex-col gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
-            <div className="flex flex-wrap items-center gap-2"><b>{tx("Lu d'abord par")}</b> <Saved k="health_sources" /></div>
-            <IconChoice label={tx("Santé lue d'abord par")} disabled={pending === "health_sources"} value={((v.health_sources as string[] | undefined)?.[0] ?? "") as "" | "ssh" | "agent"}
+            <div className="flex flex-wrap items-center gap-2"><b>{tx("Lu d'abord par")}</b> <SavedMark k="health_sources" s={ss} /></div>
+            <IconChoice label={tx("Santé lue d'abord par")} disabled={ss.pending === "health_sources"} value={((v.health_sources as string[] | undefined)?.[0] ?? "") as "" | "ssh" | "agent"}
               onPick={(src) => void autoSave("health_sources", { health_sources: src ? [src] : undefined })}
               options={[
                 { value: "", label: tx("Automatique"), hint: windows ? tx("Automatique (l'agent, puis SSH)") : tx("Automatique (SSH, puis l'agent)"), icon: <Sparkles size={24} className="text-link" aria-hidden /> },
@@ -697,144 +955,264 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
             <Dim>{tx("la première source qui répond fait foi, l'autre prend le relais si elle se tait et complète ce qui manque")}</Dim>
           </div>
         )}
-        {!isNew && onAgent && <AgentBlock ip={ip} name={v.name} kind={windows || windowsGuess ? "windows" : "linux"} agent={agent} onChanged={onAgent} />}
+        {!isNew && onAgent && <AgentBlock ip={ip} name={v.name} kind={osKind(windows, windowsGuess)} agent={agent} onChanged={onAgent} />}
     </>
   );
-  const connectorsBody = linked.length > 0 ? (
-        <div className="flex flex-col gap-1.5 rounded-lg border border-line/60 bg-bg2/70 p-3 text-sm">
-            <b>{tx("Connecteurs")}</b>
-            <ul className="flex flex-col divide-y divide-line/40">
-              {linked.map((c) => (
-                <li key={`${c.type}/${c.name}`} className="flex items-center gap-3 py-1.5">
-                  <a href="#settings/connectors" onClick={() => focusConnector(c.type, c.name)} title={tx("Ouvrir ce connecteur")} className="font-semibold text-link hover:underline">{c.label}</a>
-                  <Dim>{c.name}</Dim>
-                  <span className="ml-auto">{CONNECTOR_STATE[c.state]}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-  ) : <p className="text-sm text-dim">{tx("Aucun connecteur ne voit cette machine pour l'instant.")} <a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a></p>;
+}
+
+function ConnectorsBody({ linked }: Readonly<{ linked: Linked }>) {
+  if (linked.length === 0) return <p className="text-sm text-dim">{tx("Aucun connecteur ne voit cette machine pour l'instant.")} <a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a></p>;
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3">
-      {tabbed && (
-        <div role="tablist" className="flex gap-1 border-b border-line">
-          {([["identity", tx("Identité"), IdCard], ["options", tx("Options"), Power], ["access", tx("Accès"), KeyRound]] as const).map(([id, label, Icon]) => (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
-              className={`flex items-center gap-1.5 rounded-t-lg px-3.5 py-2 text-sm font-semibold transition-colors ${tab === id ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
-              <Icon size={15} strokeWidth={1.75} aria-hidden />{label}
-            </button>
+    <div className="flex flex-col gap-1.5 rounded-lg border border-line/60 bg-bg2/70 p-3 text-sm">
+        <b>{tx("Connecteurs")}</b>
+        <ul className="flex flex-col divide-y divide-line/40">
+          {linked.map((c) => (
+            <li key={`${c.type}/${c.name}`} className="flex items-center gap-3 py-1.5">
+              <a href="#settings/connectors" onClick={() => focusConnector(c.type, c.name)} title={tx("Ouvrir ce connecteur")} className="font-semibold text-link hover:underline">{c.label}</a>
+              <Dim>{c.name}</Dim>
+              <span className="ml-auto">{CONNECTOR_STATE[c.state]}</span>
+            </li>
           ))}
+        </ul>
+      </div>
+  );
+}
+
+/** L'accès d'une machine en trois catégories distinctes : SSH, agent, connecteurs (dans la fenêtre) ; à l'ajout, une seule section comme avant */
+function AccessTab({ tabbed, agentMode, sshBody, agentBody, connectorsBody, sshSummary, agentSummary, connectorSummary }: Readonly<{
+  tabbed?: boolean; agentMode: boolean; sshBody: React.ReactNode; agentBody: React.ReactNode; connectorsBody: React.ReactNode;
+  sshSummary: React.ReactNode; agentSummary: React.ReactNode; connectorSummary: React.ReactNode;
+}>) {
+  if (!tabbed) return <AccessCategory icon={KeyRound} title={tx("Sources de lecture")}>{sshBody}</AccessCategory>;
+  return (
+    <>
+      <section className="grid gap-2 sm:grid-cols-3" aria-label={tx("Accès disponibles")}>
+        {([["SSH", KeyRound, sshSummary], [tx("Agent"), MonitorUp, agentSummary], [tx("Connecteurs"), Plug, connectorSummary]] as const).map(([label, Icon, badge]) => (
+          <div key={label} className="flex items-center gap-2 rounded-xl border border-line/60 bg-bg2/70 px-3 py-2">
+            <Icon size={16} className="shrink-0 text-link" aria-hidden />
+            <b className="text-sm">{label}</b>
+            <span className="ml-auto">{badge}</span>
+          </div>
+        ))}
+      </section>
+      <AccessCategory icon={KeyRound} title="SSH" badge={sshSummary}>
+        {agentMode ? <p className="text-sm text-muted">{tx("Cette machine est lue par son agent, sans SSH.")}</p> : sshBody}
+      </AccessCategory>
+      <AccessCategory icon={MonitorUp} title={tx("Agent")} badge={agentSummary}>{agentBody}</AccessCategory>
+      <AccessCategory icon={Plug} title={tx("Connecteurs")} badge={connectorSummary}>{connectorsBody}</AccessCategory>
+    </>
+  );
+}
+
+/* ---- Identity tab ---- */
+
+function IdentityTab({ v, setV, isNew, live, scan, found, ss, autoSave, savedProc }: Readonly<{
+  v: MachineConf; setV: (v: MachineConf) => void; isNew?: boolean; live?: Live; scan?: ScanInfo; found: Set<string>; ss: SaveState; autoSave: AutoSave; savedProc: boolean;
+}>) {
+  return (
+    <section className="rounded-2xl border border-dim/50 border-l-2 border-l-ok bg-bg2/30 p-4">
+      <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><IdCard size={13} className="text-ok" aria-hidden />{tx("Identité")}</h4>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={tx("Nom")}><input className={input} required maxLength={80} value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>
+        <div>
+          <TagInput label={tx("Rôle (étiquettes)")} value={v.role || ""} suggestions={roleSuggestionsOf(live, v, found)} placeholder={tx("ex. Docker, NAS…")}
+            onChange={(role) => (isNew ? setV({ ...v, role }) : void autoSave("role", { role }, savedProc, false))} />  {/* chaque étiquette s'enregistre seule, comme un interrupteur */}
+          <SavedMark k="role" s={ss} />
+        </div>
+      </div>
+      <div className="mt-3">
+        <div className="mb-1 flex items-center gap-2 text-sm text-muted">{tx("Icône")} <SavedMark k="icon" s={ss} /></div>
+        <IconPicker value={v.icon as string | undefined} disabled={ss.pending === "icon"} autoHint={tx("appli reconnue, sinon système")}
+          auto={<MachineIcon large m={{ name: v.name, role: v.role, os: v.os as string | undefined, info: live?.info, ttl: live?.ttl }} scan={scan} empty={<span className="text-xs font-semibold text-dim">{tx("Auto")}</span>} />}
+          onPick={(icon) => (isNew ? setV({ ...v, icon }) : void autoSave("icon", { icon }))} />
+      </div>
+    </section>
+  );
+}
+
+/* ---- Options tab ---- */
+
+function FlagRow({ f, ctx }: Readonly<{ f: FlagDef; ctx: FlagCtx }>) {
+  const k = String(f.k);
+  const locked = isLocked(k, ctx);
+  return (
+    <label className={`flex items-start gap-2 ${locked ? "opacity-50" : ""}`}
+      title={locked ? tx("Non détecté sur cette machine : grisé") : undefined}>
+      <Switch on={!!ctx.v[f.k]} disabled={locked || ctx.ss.pending === k} onChange={(on) => void ctx.autoSave(k, { [f.k]: on })} label={f.label} />
+      <span>{f.label} {ctx.found.has(k) && <Badge tone="info" title={tx("Trouvé par la détection : décochez si c'est faux")}>{tx("détecté")}</Badge>} <SavedMark k={k} s={ctx.ss} /> <Dim>· {f.help}</Dim></span>
+    </label>
+  );
+}
+
+function ProcRow({ proc, ss, autoSave }: Readonly<{ proc: boolean; ss: SaveState; autoSave: AutoSave }>) {
+  return (
+    <label className="flex items-start gap-2">
+      <Switch on={proc} disabled={ss.pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Lire les services hors Docker")} />
+      <span>{tx("Lire les services hors Docker")} <SavedMark k="proc" s={ss} /> <Dim>{tx("· ports en écoute (ss -tlnp, root requis sur la machine)")}</Dim></span>
+    </label>
+  );
+}
+
+/** Réglages courants, toujours visibles : suivre la machine, et « souvent éteinte » (PC, portable : pas d'alerte quand elle est éteinte) */
+function QuickSettings({ ctx }: Readonly<{ ctx: FlagCtx }>) {
+  const { v, ss, autoSave } = ctx;
+  return (
+    <section className="rounded-2xl border border-dim/50 border-l-2 border-l-warn bg-bg2/30 p-4" aria-label={tx("Réglages courants")}>
+      <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><Power size={13} className="text-warn" aria-hidden />{tx("Réglages courants")}</h4>
+      <p className="mb-3 text-xs leading-relaxed text-muted">{tx("Suivre une machine, c'est la pinger et la lire avec ses sources (SSH, agent, connecteurs) pour la santé et les alertes. Une machine souvent éteinte (PC, portable) ne déclenche pas d'alerte quand elle ne répond pas.")}</p>
+      <div className="grid gap-2 lg:grid-cols-2">
+        <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
+          <Switch on={!v.disabled} disabled={ss.pending === "disabled"} onChange={(on) => void autoSave("disabled", { disabled: !on })} label={tx("Machine suivie")} />
+          <span><b>{tx("Machine suivie")}</b> <SavedMark k="disabled" s={ss} /> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>
+        </label>
+        <div className="rounded-lg border border-line/60 bg-bg2/70 p-3"><FlagRow f={FLAGS[0]} ctx={ctx} /></div>
+      </div>
+    </section>
+  );
+}
+
+function Chevron({ open, size }: Readonly<{ open: boolean; size: number }>) {
+  const Icon = open ? ChevronDown : ChevronRight;
+  return <Icon size={size} className="text-txt" aria-hidden />;
+}
+
+function ManualGroup({ groups, ctx, proc, windows, procOn, menu }: Readonly<{
+  groups: ReturnType<typeof flagGroups>; ctx: FlagCtx; proc: boolean; windows: boolean; procOn: boolean; menu: OptionsState;
+}>) {
+  const { v } = ctx;
+  return (
+    <div className="rounded-lg border border-line/60 bg-bg2/70">
+      <button type="button" onClick={() => menu.setManualOpen(!menu.manualOpen)} aria-expanded={menu.manualOpen}
+        className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-dim hover:text-txt">
+        <Chevron open={menu.manualOpen} size={13} />
+        {tx("À changer manuellement")}
+        <span className="flex flex-wrap items-center gap-1 normal-case tracking-normal">
+          {groups.manual.filter((f) => v[f.k]).map((f) => <Badge key={String(f.k)} tone="off">{f.label}</Badge>)}
+          {proc && !windows && !!v.ssh && <Badge tone="off">{tx("services hors Docker")}</Badge>}
+        </span>
+      </button>
+      {menu.manualOpen && (
+        <div className="flex flex-col gap-2 border-t border-line/60 p-3">
+          <p className="text-xs text-dim">{tx("Non détectables : c'est à vous de choisir.")}</p>
+          {groups.manual.map((f) => <FlagRow key={String(f.k)} f={f} ctx={ctx} />)}
+          {!windows && v.ssh && !procOn && <ProcRow proc={proc} ss={ctx.ss} autoSave={ctx.autoSave} />}
         </div>
       )}
-      {show("access") && (tabbed ? <>
-        <section className="grid gap-2 sm:grid-cols-3" aria-label={tx("Accès disponibles")}>
-          {([["SSH", KeyRound, sshSummary], [tx("Agent"), MonitorUp, agentSummary], [tx("Connecteurs"), Plug, connectorSummary]] as const).map(([label, Icon, badge]) => (
-            <div key={label} className="flex items-center gap-2 rounded-xl border border-line/60 bg-bg2/70 px-3 py-2">
-              <Icon size={16} className="shrink-0 text-link" aria-hidden />
-              <b className="text-sm">{label}</b>
-              <span className="ml-auto">{badge}</span>
-            </div>
-          ))}
-        </section>
-        <AccessCategory icon={KeyRound} title="SSH" badge={sshSummary}>
-          {agentMode ? <p className="text-sm text-muted">{tx("Cette machine est lue par son agent, sans SSH.")}</p> : sshBody}
-        </AccessCategory>
-        <AccessCategory icon={MonitorUp} title={tx("Agent")} badge={agentSummary}>{agentBody}</AccessCategory>
-        <AccessCategory icon={Plug} title={tx("Connecteurs")} badge={connectorSummary}>{connectorsBody}</AccessCategory>
-      </> : (
-        <AccessCategory icon={KeyRound} title={tx("Sources de lecture")}>{sshBody}</AccessCategory>
-      ))}
-      {show("identity") && <>
-      <section className="rounded-2xl border border-dim/50 border-l-2 border-l-ok bg-bg2/30 p-4">
-        <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><IdCard size={13} className="text-ok" aria-hidden />{tx("Identité")}</h4>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label={tx("Nom")}><input className={input} required maxLength={80} value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>
-          <div>
-            <TagInput label={tx("Rôle (étiquettes)")} value={v.role || ""} suggestions={roleSuggestions} placeholder={tx("ex. Docker, NAS…")}
-              onChange={(role) => (isNew ? setV({ ...v, role }) : void autoSave("role", { role }, savedProc, false))} />  {/* chaque étiquette s'enregistre seule, comme un interrupteur */}
-            <Saved k="role" />
-          </div>
+    </div>
+  );
+}
+
+function MissingGroup({ groups, ctx, menu }: Readonly<{ groups: ReturnType<typeof flagGroups>; ctx: FlagCtx; menu: OptionsState }>) {
+  return (
+    <div className="rounded-lg border border-line/60 bg-bg2/50">
+      <button type="button" onClick={() => menu.setMissingOpen(!menu.missingOpen)} aria-expanded={menu.missingOpen}
+        className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-dim hover:text-txt">
+        <Chevron open={menu.missingOpen} size={13} />
+        {tx("Non détectés")} <span className="font-mono normal-case">({groups.missing.length})</span>
+      </button>
+      {menu.missingOpen && (
+        <div className="flex flex-col gap-2 border-t border-line/60 p-3">
+          {!menu.unlock && <p className="text-xs text-dim">{tx("Grisés : la détection ne les confirme pas (elle relit la machine à chaque collecte).")}</p>}
+          {groups.missing.map((f) => <FlagRow key={String(f.k)} f={f} ctx={ctx} />)}
+          {!menu.unlock && <button type="button" className="self-start text-xs text-link hover:underline" onClick={() => menu.setUnlock(true)}>{tx("Détection incomplète ? Tout débloquer")}</button>}
         </div>
-        <div className="mt-3">
-          <div className="mb-1 flex items-center gap-2 text-sm text-muted">{tx("Icône")} <Saved k="icon" /></div>
-          <IconPicker value={v.icon as string | undefined} disabled={pending === "icon"} autoHint={tx("appli reconnue, sinon système")}
-            auto={<MachineIcon large m={{ name: v.name, role: v.role, os: v.os as string | undefined, info: live?.info, ttl: live?.ttl }} scan={scan} empty={<span className="text-xs font-semibold text-dim">{tx("Auto")}</span>} />}
-            onPick={(icon) => (isNew ? setV({ ...v, icon }) : void autoSave("icon", { icon }))} />
-        </div>
-      </section>
-      {/* Réglages courants, toujours visibles : suivre la machine, et « souvent éteinte » (PC, portable : pas d'alerte quand elle est éteinte) */}
-      </>}
-      {show("options") && <>
-      <section className="rounded-2xl border border-dim/50 border-l-2 border-l-warn bg-bg2/30 p-4" aria-label={tx("Réglages courants")}>
-        <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><Power size={13} className="text-warn" aria-hidden />{tx("Réglages courants")}</h4>
-        <p className="mb-3 text-xs leading-relaxed text-muted">{tx("Suivre une machine, c'est la pinger et la lire avec ses sources (SSH, agent, connecteurs) pour la santé et les alertes. Une machine souvent éteinte (PC, portable) ne déclenche pas d'alerte quand elle ne répond pas.")}</p>
-        <div className="grid gap-2 lg:grid-cols-2">
-          <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
-            <Switch on={!v.disabled} disabled={pending === "disabled"} onChange={(on) => void autoSave("disabled", { disabled: !on })} label={tx("Machine suivie")} />
-            <span><b>{tx("Machine suivie")}</b> <Saved k="disabled" /> <Dim>· {tx("coupée : ni ping, ni SSH, ni santé, aucune alerte ; elle reste ici pour être réactivée")}</Dim></span>
-          </label>
-          <div className="rounded-lg border border-line/60 bg-bg2/70 p-3">{flagRow(FLAGS[0])}</div>
-        </div>
-      </section>
-      </>}
-      {show("options") && <>
-      {(activeFlags.length > 0 || procOn) && (
+      )}
+    </div>
+  );
+}
+
+function OptionsMenuBody({ groups, ctx, proc, windows, procOn, menu }: Readonly<{
+  groups: ReturnType<typeof flagGroups>; ctx: FlagCtx; proc: boolean; windows: boolean; procOn: boolean; menu: OptionsState;
+}>) {
+  return (
+    <div className="flex flex-col gap-3 border-t border-line/60 p-3">
+      {groups.detected.length > 0 && (
+        <OptionGroup title={tx("Détectés sur cette machine")} tone="ok">{groups.detected.map((f) => <FlagRow key={String(f.k)} f={f} ctx={ctx} />)}</OptionGroup>
+      )}
+      <ManualGroup groups={groups} ctx={ctx} proc={proc} windows={windows} procOn={procOn} menu={menu} />
+      {groups.missing.length > 0 && <MissingGroup groups={groups} ctx={ctx} menu={menu} />}
+    </div>
+  );
+}
+
+function OptionsTab({ ctx, proc, windows, menu }: Readonly<{ ctx: FlagCtx; proc: boolean; windows: boolean; menu: OptionsState }>) {
+  const groups = flagGroups(ctx.v, ctx.found);
+  const procOn = proc && !windows && !!ctx.v.ssh;
+  const count = groups.detected.length + groups.manual.length + groups.missing.length + (!windows && !!ctx.v.ssh && !procOn ? 1 : 0);
+  return (
+    <>
+      <QuickSettings ctx={ctx} />
+      {(groups.active.length > 0 || procOn) && (
         <OptionGroup title={tx("Options actives")} hint={tx("Allumées pour cette machine ; les autres sont dans « Options de la machine »")}>
-          {activeFlags.map(flagRow)}
-          {procOn && procRow}
+          {groups.active.map((f) => <FlagRow key={String(f.k)} f={f} ctx={ctx} />)}
+          {procOn && <ProcRow proc={proc} ss={ctx.ss} autoSave={ctx.autoSave} />}
         </OptionGroup>
       )}
       {/* Menu pliant des autres interrupteurs : replié, sauf à l'ajout d'une machine dont la détection est à confirmer */}
       <div className="rounded-xl border border-dim/50 bg-bg2/30">
-        <button type="button" onClick={() => setOptions(!options)} aria-expanded={options}
+        <button type="button" onClick={() => menu.setOptions(!menu.options)} aria-expanded={menu.options}
           className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl px-3 py-2 text-left text-sm font-semibold hover:bg-bg2/60">
-          {options ? <ChevronDown size={14} className="text-txt" aria-hidden /> : <ChevronRight size={14} className="text-txt" aria-hidden />}
+          <Chevron open={menu.options} size={14} />
           {tx("Options de la machine")}
-          <span className="font-mono text-xs font-normal text-dim">({detectedFlags.length + manualFlags.length + missingFlags.length + (!windows && !!v.ssh && !procOn ? 1 : 0)})</span>
+          <span className="font-mono text-xs font-normal text-dim">({count})</span>
         </button>
-        {options && (
-          <div className="flex flex-col gap-3 border-t border-line/60 p-3">
-          {detectedFlags.length > 0 && (
-            <OptionGroup title={tx("Détectés sur cette machine")} tone="ok">{detectedFlags.map(flagRow)}</OptionGroup>
-          )}
-          <div className="rounded-lg border border-line/60 bg-bg2/70">
-            <button type="button" onClick={() => setManualOpen(!manualOpen)} aria-expanded={manualOpen}
-              className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-dim hover:text-txt">
-              {manualOpen ? <ChevronDown size={13} className="text-txt" aria-hidden /> : <ChevronRight size={13} className="text-txt" aria-hidden />}
-              {tx("À changer manuellement")}
-              <span className="flex flex-wrap items-center gap-1 normal-case tracking-normal">
-                {manualFlags.filter((f) => v[f.k]).map((f) => <Badge key={String(f.k)} tone="off">{f.label}</Badge>)}
-                {proc && !windows && !!v.ssh && <Badge tone="off">{tx("services hors Docker")}</Badge>}
-              </span>
-            </button>
-            {manualOpen && (
-              <div className="flex flex-col gap-2 border-t border-line/60 p-3">
-                <p className="text-xs text-dim">{tx("Non détectables : c'est à vous de choisir.")}</p>
-                {manualFlags.map(flagRow)}
-                {!windows && v.ssh && !procOn && procRow}
-              </div>
-            )}
-          </div>
-          {missingFlags.length > 0 && (
-            <div className="rounded-lg border border-line/60 bg-bg2/50">
-              <button type="button" onClick={() => setMissingOpen(!missingOpen)} aria-expanded={missingOpen}
-                className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-dim hover:text-txt">
-                {missingOpen ? <ChevronDown size={13} className="text-txt" aria-hidden /> : <ChevronRight size={13} className="text-txt" aria-hidden />}
-                {tx("Non détectés")} <span className="font-mono normal-case">({missingFlags.length})</span>
-              </button>
-              {missingOpen && (
-                <div className="flex flex-col gap-2 border-t border-line/60 p-3">
-                  {!unlock && <p className="text-xs text-dim">{tx("Grisés : la détection ne les confirme pas (elle relit la machine à chaque collecte).")}</p>}
-                  {missingFlags.map(flagRow)}
-                  {!unlock && <button type="button" className="self-start text-xs text-link hover:underline" onClick={() => setUnlock(true)}>{tx("Détection incomplète ? Tout débloquer")}</button>}
-                </div>
-              )}
-            </div>
-          )}
-          </div>
-        )}
+        {menu.options && <OptionsMenuBody groups={groups} ctx={ctx} proc={proc} windows={windows} procOn={procOn} menu={menu} />}
       </div>
-      </>}
+    </>
+  );
+}
+
+function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, scan, actions, windowsGuess, report, onDone, onIcon, onFollow, agent, connection, tabbed, focusTab, onAgent }: Readonly<{
+  focusTab?: "access"; onAgent?: () => void;
+  tabbed?: boolean;  // dans la fenêtre d'une machine : Identité, Options et Accès en onglets
+  onFollow?: (followed: boolean) => void;  // « Machine suivie » vient d'être enregistrée : la carte de la machine se dégrise (ou se grise)
+  onIcon?: (icon: string | undefined) => void;  // l'icône vient d'être enregistrée : la carte de la machine se met à jour
+  scan?: ScanInfo;  // ce que le dernier scan du réseau a vu : aperçu de l'icône automatique
+  connection?: React.ReactNode;  // ce qui a été lu de la connexion (SSH ou agent), montré dans le cadre « Accès »
+  agent?: AgentInfo;  // agent actif de la machine : c'est son accès (Windows), ou une deuxième source de santé à ordonner (avec SSH)
+  report?: (n: Note) => void;  // dans une carte de machine : le message s'affiche en haut de la carte
+  windowsGuess?: boolean;
+  live?: Live; actions?: React.ReactNode; detected?: string[]; ip: string; m: MachineConf; st: State; isNew?: boolean; process?: boolean; extra?: Detection["web"]; onDone: () => void;
+}>) {
+  const [v, setV] = useState<MachineConf>(m);
+  const [proc, setProc] = useState(!!process);
+  const [hasAdguard] = useState(() => !!m.adguard);  // figé à l'ouverture : vider le champ ne le fait pas disparaître
+  const menu = useOptionsState(isNew, detected);
+  const [tab, setTab] = useState<Tab>(focusTab ?? "identity");
+  const show = (t: Tab) => !tabbed || tab === t;   // dans la fenêtre d'une machine : un onglet à la fois ; à l'ajout, tout d'un coup
+  const [localNote, setLocalNote] = useState<Note>(null), [busy, setBusy] = useState(false);
+  const setNote = report ?? setLocalNote;
+  const windows = v.os === "windows";
+  const { autoSave, saved, setSaved, savedProc, ss } = useAutoSave({ ip, isNew, windows, m, process, setV, setProc, setNote, onIcon, onFollow, onDone });
+  useAutoVm(ip, isNew, m, live, autoSave);
+  const found = new Set([...(live?.detected ?? []), ...detected]);
+  const linked = linkedConnectors(live);
+  const status = sshStatus({ v, windows, windowsGuess, agent, live });
+  const known = st.aliases.find((a) => a.ip === ip);
+  const toggle = useSshToggle(ip, known, autoSave);
+  const ctl: SshCtl = { agentMode: status.agentMode, sshOn: status.sshOn, foundSsh: status.foundSsh, offHint: offHintText(v.ssh, status.foundSsh), known, ...toggle };
+  const gives = accessGives({ v, windows, agent, live, sshAccess: status.sshAccess, proc, hasAdguard });
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    const ok = await act(() => send("PUT", `machines/settings/${ip}`, submitBody(v, proc, extra)), submitMessage(isNew), setNote);
+    setBusy(false);
+    if (!ok) return;
+    if (!isNew) setSaved(v);
+    refreshMachine(ip);  // ajout ou modification : cette machine est relue tout de suite
+    setTimeout(onDone, 900);
+  };
+  const dirty = isDirty(isNew, v, saved);
+  const flagCtx: FlagCtx = { v, found, unlock: menu.unlock, ss, autoSave };
+  const sshBody = <SshBody ctl={ctl} ip={ip} v={v} setV={setV} live={live} scan={scan} windowsGuess={windowsGuess} hasAdguard={hasAdguard} connection={connection} gives={gives} ss={ss} autoSave={autoSave} />;
+  const agentBody = <AgentBody ip={ip} v={v} windowsGuess={windowsGuess} agent={agent} agentMode={status.agentMode} sshAccess={status.sshAccess} isNew={isNew} onAgent={onAgent} connection={connection} ss={ss} autoSave={autoSave} />;
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-3">
+      {tabbed && <TabBar tab={tab} setTab={setTab} />}
+      {show("access") && <AccessTab tabbed={tabbed} agentMode={status.agentMode} sshBody={sshBody} agentBody={agentBody} connectorsBody={<ConnectorsBody linked={linked} />}
+        sshSummary={<SshSummary sshOn={status.sshOn} agentMode={status.agentMode} refused={status.refusedSsh} />} agentSummary={<AgentSummary agent={agent} />} connectorSummary={<ConnectorSummary linked={linked} />} />}
+      {show("identity") && <IdentityTab v={v} setV={setV} isNew={isNew} live={live} scan={scan} found={found} ss={ss} autoSave={autoSave} savedProc={savedProc} />}
+      {show("options") && <OptionsTab ctx={flagCtx} proc={proc} windows={windows} menu={menu} />}
       <div className="flex flex-wrap items-center gap-1.5">
         <button type="submit" className={primary} disabled={busy || !dirty} title={dirty ? undefined : tx("Rien à enregistrer : l'accès, les options et les étiquettes s'enregistrent tout seuls")}>{tx("Enregistrer")}</button>
         {actions}

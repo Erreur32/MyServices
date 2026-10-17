@@ -1,0 +1,61 @@
+name: Bug report
+description: Something that MyServices does wrong, with steps to see it again.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        MyServices is **still in development** (0.x): screens and data change often, and several parts were only tested on one network.
+        Please check that you run the latest `:latest` image, and look at the existing issues first.
+        **Never paste a token, a password or a private address.** Replace them with `xxx`.
+  - type: input
+    id: version
+    attributes:
+      label: MyServices version
+      description: Shown in Settings, About (for example 0.11.13).
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it happen?
+      options:
+        - Setup assistant
+        - Machines
+        - Services
+        - Network
+        - Virtualization
+        - Backups
+        - DNS
+        - Security
+        - Alerts / notifications
+        - Settings
+        - Agent (Windows or Linux)
+        - Docker image / installation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to see it again
+      placeholder: "1. Open ...\n2. Click ...\n3. See ..."
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log lines or a screenshot (secrets removed)
+      description: Settings, Logs shows the application log.
+      render: text
+  - type: input
+    id: setup
+    attributes:
+      label: Your setup in one line
+      description: "Docker or not, the machines and the connectors involved (for example: Docker on a Debian VM, 5 machines, Proxmox, MynetworK)."

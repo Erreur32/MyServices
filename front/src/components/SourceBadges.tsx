@@ -29,11 +29,12 @@ function sshSource(m: Machine, st: ReturnType<typeof mState>): Src[] {
 
 function agentSource(m: Machine, agent?: AgentInfo | null): Src[] {
   if (!agent && !m.agent) return [];
-  const tip = agent
-    ? tx("Agent MyServices v{0} : {1}. Dernier relevé : {2}.", agent.version ?? "?", agent.state, agent.last_seen ? dateTime(agent.last_seen * 1000) : "-")
-    : tx("Agent MyServices : relevé récent, pas de SSH nécessaire.");
+  const last = agent?.last_seen ? dateTime(agent.last_seen * 1000) : "-";
+  const tip = agent ? tx("Agent MyServices v{0} : {1}. Dernier relevé : {2}.", agent.version ?? "?", agent.state, last) : tx("Agent MyServices : relevé récent, pas de SSH nécessaire.");
   return [{ key: "agent", tone: AGENT_TONE[agent?.state ?? ""] ?? "ok", label: tx("agent"), tip }];
 }
+
+const apiTip = (a: { label: string; name: string; message?: string | null }) => `${a.label} (${a.name})${a.message ? " : " + a.message : ""}`;
 
 function apiTone(a: { ok: boolean; stale?: boolean }): Tone {
   if (a.ok) return "ok";
@@ -49,7 +50,7 @@ function connectorSources(m: Machine, extra: Extra[]): Src[] {
     seen.add(key);
     out.push({ key, tone, label, tip });
   };
-  for (const a of m.api ?? []) add(a.type, a.name, a.label, apiTone(a), `${a.label} (${a.name})${a.message ? ` : ${a.message}` : ""}`);
+  for (const a of m.api ?? []) add(a.type, a.name, a.label, apiTone(a), apiTip(a));
   for (const x of m.links?.sources ?? []) {
     const by = MATCHED_BY[x.by]?.() ?? "IP";
     add(x.source, x.instance, x.label, x.ok === false ? "bad" : "ok", tx("{0} voit cette machine (rapprochée par {1}).", x.label, by));
