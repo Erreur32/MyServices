@@ -1,8 +1,8 @@
 // Réseau : accès Internet (Freebox, pare-feu, test de débit), équipements (UniFi), clients par borne ou switch, et appareils trouvés sur le réseau
 // (MynetworK). Une barre de recherche et des filtres communs (type, état, suivi, borne ou switch, fabricant, source), comme les autres onglets.
 // Affiché seulement quand une de ces sources répond ou a déjà répondu. Lecture seule.
-import { ArrowUpCircle, Cable, Monitor, Router, Wifi, type LucideIcon } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { ArrowUpCircle, Cable, ChevronDown, ChevronRight, Monitor, Router, Wifi, type LucideIcon } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { dur } from "../lib/format";
 import { useFilter, useSort, type Facet } from "../lib/filter";
@@ -10,6 +10,7 @@ import { tx } from "../lib/i18n";
 import { NETWORK_CARDS, hasNetwork } from "../lib/network";
 import type { ServiceStatus } from "../types";
 import { Badge, Cards, Count, Dim, Empty, FilterBar, Table, Td, Th } from "../components/ui";
+import { quiet } from "../lib/forms";
 import { Dot } from "../components/marks";
 import { ServiceCard } from "../components/ServiceStatusCards";
 
@@ -41,16 +42,36 @@ function Tile({ value, label, tone, icon: Icon }: { value: number | string; labe
   return (
     <div className="flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-3">
       <Icon size={20} className={color} aria-hidden />
-      <div><div className={`font-mono text-xl font-bold leading-tight ${color}`}>{value}</div><div className="text-xs text-dim">{label}</div></div>
+      <div><div className={`font-mono text-lg font-bold leading-tight ${color}`}>{value}</div><div className="text-xs text-dim">{label}</div></div>
     </div>
   );
 }
 
-function Section({ icon: Icon, title, n, children }: { icon: LucideIcon; title: string; n?: number; children: React.ReactNode }) {
+const FOLD_KEY = "ms.network.folded";
+/** Folded sections when the person never chose: all but the Internet access and gateways */
+const ALL_BUT_INTERNET = ["others", "gear", "clients", "devices"];
+
+/** Which sections the person folded, remembered in this browser only (null: never chosen, the page picks; works without storage) */
+function useFolded(): [string[] | null, (next: string[]) => void] {
+  const [stored, setStored] = useState<string[] | null>(() => {
+    try { const v = JSON.parse(localStorage.getItem(FOLD_KEY) ?? "null"); return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : null; } catch { return null; }
+  });
+  const save = (next: string[]) => { setStored(next); try { localStorage.setItem(FOLD_KEY, JSON.stringify(next)); } catch { /* navigation privée : tant pis */ } };
+  return [stored, save];
+}
+
+/** A framed section: a dark header strip that folds and unfolds the content (title, count, chevron) */
+function FoldSection({ id, icon: Icon, title, n, folded, onToggle, children }: Readonly<{ id: string; icon: LucideIcon; title: string; n?: number; folded: boolean; onToggle: () => void; children: React.ReactNode }>) {
   return (
-    <section className="flex flex-col gap-2">
-      <h2 className="flex items-center gap-2 border-b border-line/60 pb-1 text-xs font-bold uppercase tracking-wider text-dim"><Icon size={14} aria-hidden />{title}{n != null && <Count n={n} tone="off" />}</h2>
-      {children}
+    <section id={id} className="scroll-mt-4 overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
+      <h2 className="m-0">
+        <button type="button" onClick={onToggle} aria-expanded={!folded}
+          className={`flex w-full items-center gap-2 bg-bg px-4 py-3 text-left hover:bg-bg2/60 ${folded ? "" : "border-b border-line/60"}`}>
+          {folded ? <ChevronRight size={15} className="text-dim" aria-hidden /> : <ChevronDown size={15} className="text-dim" aria-hidden />}
+          <Icon size={15} className="text-muted" aria-hidden /><span className="text-sm font-bold">{title}</span>{n != null && <Count n={n} tone="off" />}
+        </button>
+      </h2>
+      {!folded && <div className="flex flex-col gap-3 p-4">{children}</div>}
     </section>
   );
 }
@@ -129,6 +150,7 @@ export function Network({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: s
   const text = useCallback((r: Row) => [r.name, r.ip, r.mac, r.vendor, r.via, r.detail, r.machine ?? "", r.gear?.version ?? ""].join(" "), []);
   const f = useFilter(rows, facets, text);
   const keyOf = useCallback((r: Row, k: string): string | number => k === "ip" ? ipKey(r.ip) : k === "state" ? Number(!r.up) : k === "machine" ? r.machine ?? "~" : String(r[k as keyof Row] ?? "").toLowerCase(), []);
+  const [stored, saveFolded] = useFolded();
   const gearSort = useSort(f.shown.filter((r) => r.kind === "gear"), keyOf, "state");
   const devSort = useSort(f.shown.filter((r) => r.kind === "device"), keyOf, "ip");
   if (!hasNetwork(snap)) return <Empty>{tx("Aucune source réseau : reliez MynetworK, UniFi, OPNsense ou NetAlertX dans Réglages → Connecteurs.")}</Empty>;
@@ -144,6 +166,19 @@ export function Network({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: s
   const groups = new Map<string, Row[]>();
   for (const r of f.shown) if (r.kind === "wifi" || r.kind === "wired") groups.set(`${r.kind}/${r.via}`, [...(groups.get(`${r.kind}/${r.via}`) ?? []), r]);
   const clientsShown = [...groups.values()].reduce((n, l) => n + l.length, 0);
+  const effective = stored ?? ALL_BUT_INTERNET;   // never chosen: everything starts folded except the Internet access and gateways
+  const isFolded = (id: string) => effective.includes(id);
+  const toggleFold = (id: string) => saveFolded(isFolded(id) ? effective.filter((x) => x !== id) : [...effective, id]);
+  const setFolded = (ids: string[], on: boolean) => saveFolded(on ? [...new Set([...effective, ...ids])] : effective.filter((x) => !ids.includes(x)));
+  // The menu: every section that has something to show, to jump to it (it unfolds first) or to fold them all
+  const sections: { key: string; id: string; icon: LucideIcon; title: string; n: number }[] = [
+    { key: "internet", id: "net-internet", icon: Router, title: tx("Accès Internet"), n: internet.length },
+    { key: "others", id: "net-others", icon: Cable, title: tx("Outils réseau"), n: others.length },
+    { key: "gear", id: "net-gear", icon: Router, title: tx("Équipements"), n: gearSort.sorted.length },
+    { key: "clients", id: "net-clients", icon: Wifi, title: tx("Clients"), n: clientsShown },
+    { key: "devices", id: "net-devices", icon: Monitor, title: tx("Appareils"), n: devSort.sorted.length },
+  ].filter((x) => x.n > 0);
+  const jump = (key: string, id: string) => { setFolded([key], false); setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0); };
 
   return (
     <div className="flex flex-col gap-4 py-4">
@@ -158,18 +193,37 @@ export function Network({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: s
         <Tile icon={Monitor} value={devAll.length ? `${devAll.filter((r) => r.up).length}/${devAll.length}` : "-"} label={unfollowed ? tx("appareils en ligne, {0} pas suivis", unfollowed) : tx("appareils en ligne")} tone={unfollowed ? "warn" : "off"} />
       </div>
 
-      {internet.length > 0 && (
-        <Section icon={Router} title={tx("Accès Internet et passerelles")} n={internet.length}>
-          <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">{internet.map((c) => <ServiceCard key={`${c.connector}/${c.name}`} s={c} />)}</div>
-        </Section>
+      {sections.length > 1 && (
+        <nav aria-label={tx("Sections de la page")} className="flex flex-wrap items-center gap-1.5">
+          {sections.map((x) => (
+            <button key={x.key} type="button" onClick={() => jump(x.key, x.id)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-3 py-1 text-sm text-muted hover:border-link hover:text-txt">
+              <x.icon size={13} aria-hidden />{x.title}<span className="font-mono text-xs text-dim">{x.n}</span>
+            </button>
+          ))}
+          <span className="ml-auto flex gap-1.5">
+            <button type="button" className={`${quiet} py-1 text-sm`} onClick={() => setFolded(sections.map((x) => x.key), true)}>{tx("Tout plier")}</button>
+            <button type="button" className={`${quiet} py-1 text-sm`} onClick={() => setFolded(sections.map((x) => x.key), false)}>{tx("Tout déplier")}</button>
+          </span>
+        </nav>
       )}
-      {others.length > 0 && <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">{others.map((c) => <ServiceCard key={`${c.connector}/${c.name}`} s={c} />)}</div>}
+
+      {internet.length > 0 && (
+        <FoldSection id="net-internet" icon={Router} title={tx("Accès Internet et passerelles")} n={internet.length} folded={isFolded("internet")} onToggle={() => toggleFold("internet")}>
+          <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">{internet.map((c) => <ServiceCard key={`${c.connector}/${c.name}`} s={c} />)}</div>
+        </FoldSection>
+      )}
+      {others.length > 0 && (
+        <FoldSection id="net-others" icon={Cable} title={tx("Outils réseau")} n={others.length} folded={isFolded("others")} onToggle={() => toggleFold("others")}>
+          <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">{others.map((c) => <ServiceCard key={`${c.connector}/${c.name}`} s={c} />)}</div>
+        </FoldSection>
+      )}
 
       {rows.length > 0 && <div className="-my-4"><FilterBar f={f} placeholder={tx("Nom, IP, MAC, fabricant, borne…")} /></div>}
       {f.shown.length === 0 && rows.length > 0 && <Empty>{tx("Rien pour ce filtre.")}</Empty>}
 
       {gearSort.sorted.length > 0 && (
-        <Section icon={Router} title={tx("Équipements réseau")} n={gearSort.sorted.length}>
+        <FoldSection id="net-gear" icon={Router} title={tx("Équipements réseau")} n={gearSort.sorted.length} folded={isFolded("gear")} onToggle={() => toggleFold("gear")}>
           <Table head={<><Th k="state" sort={gearSort}>{tx("État")}</Th><Th k="name" sort={gearSort}>{tx("Équipement")}</Th><Th k="ip" sort={gearSort}>IP</Th>
             <Th>{tx("Version")}</Th><Th>{tx("Clients")}</Th><Th>{tx("En marche")}</Th><Th k="source" sort={gearSort}>{tx("Source")}</Th></>}>
             {gearSort.sorted.map((r) => (
@@ -193,22 +247,23 @@ export function Network({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: s
               </div>
             ))}
           </Cards>
-        </Section>
+        </FoldSection>
       )}
 
       {groups.size > 0 && (
-        <Section icon={Wifi} title={tx("Clients par borne ou switch")} n={clientsShown}>
+        <FoldSection id="net-clients" icon={Wifi} title={tx("Clients par borne ou switch")} n={clientsShown} folded={isFolded("clients")} onToggle={() => toggleFold("clients")}>
           <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
             {[...groups.entries()].sort((a, b) => b[1].length - a[1].length).map(([key, list]) => {
               const wired = key.startsWith("wired/");
               const Icon = wired ? Cable : Wifi;
               return (
-                <article key={key} className="flex flex-col overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
-                  <header className="flex items-center gap-3 bg-bg2/50 px-4 py-2.5">
+                <details key={key} open className="group overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
+                  <summary className="flex cursor-pointer list-none items-center gap-3 bg-bg px-4 py-2.5 group-open:border-b group-open:border-line/60 [&::-webkit-details-marker]:hidden">
+                    <ChevronRight size={14} className="shrink-0 text-dim transition-transform group-open:rotate-90" aria-hidden />
                     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2"><Icon size={16} className="text-muted" aria-hidden /></span>
-                    <div className="min-w-0 flex-1"><h3 className="truncate font-bold leading-tight">{list[0].via}</h3><span className="text-[11px] font-semibold uppercase tracking-wider text-dim">{wired ? tx("Filaire") : tx("Wifi")}</span></div>
+                    <div className="min-w-0 flex-1"><h3 className="truncate font-bold leading-tight">{list[0].via}</h3><span className="text-xs font-semibold uppercase tracking-wider text-dim">{wired ? tx("Filaire") : tx("Wifi")}</span></div>
                     <Count n={list.length} tone="off" />
-                  </header>
+                  </summary>
                   <ul className="flex max-h-72 flex-col divide-y divide-line/50 overflow-y-auto px-4 text-sm">
                     {[...list].sort((a, b) => a.name.localeCompare(b.name)).map((r) => (
                       <li key={r.key} className="flex items-baseline justify-between gap-2 py-1.5">
@@ -219,15 +274,15 @@ export function Network({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: s
                       </li>
                     ))}
                   </ul>
-                </article>
+                </details>
               );
             })}
           </div>
-        </Section>
+        </FoldSection>
       )}
 
       {devSort.sorted.length > 0 && (
-        <Section icon={Monitor} title={tx("Appareils du réseau")} n={devSort.sorted.length}>
+        <FoldSection id="net-devices" icon={Monitor} title={tx("Appareils du réseau")} n={devSort.sorted.length} folded={isFolded("devices")} onToggle={() => toggleFold("devices")}>
           <Table head={<><Th k="state" sort={devSort}>{tx("État")}</Th><Th k="ip" sort={devSort}>IP</Th><Th k="name" sort={devSort}>{tx("Nom")}</Th>
             <Th k="vendor" sort={devSort}>{tx("Fabricant")}</Th><Th>MAC</Th><Th k="machine" sort={devSort}>{tx("Machine")}</Th></>}>
             {devSort.sorted.map((r) => (
@@ -250,7 +305,7 @@ export function Network({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: s
             ))}
           </Cards>
           {snap.data.dns && <p className="text-sm text-muted">{tx("Résolution des noms (AdGuard, Pi-hole…) :")} <a href="#dns" className="text-link hover:underline">{tx("onglet DNS")}</a></p>}
-        </Section>
+        </FoldSection>
       )}
     </div>
   );

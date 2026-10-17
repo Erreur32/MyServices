@@ -281,6 +281,7 @@ export interface HealthHost {
   source?: "ssh" | "agent" | "beszel" | "ha";  // source retenue pour la santé de la machine
   sources?: string[];                    // toutes celles qui ont servi (la retenue, puis celles qui ont complété)
   vmem?: { used_mb: number; total_mb: number; pct: number };
+  drives?: { model: string | null; state: string | null; temperature: number | null; smart_ok: boolean | null }[];   // Freebox: its internal disks (the partitions are in `disks`)
   fans?: { name: string; rpm: number }[];       // Freebox: its fans
   vms?: { running: number; total: number };   // Freebox: its virtual machines, how many run   // Freebox: memory given to its virtual machines (the box itself reports no load)
   api_name?: string;                     // source « ha » : the service whose API was read (Glances, Home Assistant)
@@ -640,11 +641,12 @@ export interface FreeboxInfo {
   storage?: { disks: { model: string | null; state: string | null; smart_ok: boolean | null; temperature: number | null; total_bytes: number | null }[];
     partitions: { label: string | null; fstype: string | null; total_bytes: number | null; used_bytes: number | null; free_bytes: number | null; used_pct: number | null }[] } | null;
   ftth?: { sfp_present: boolean | null; sfp_has_signal: boolean | null; link: boolean | null; sfp_pwr_rx: number | null; sfp_pwr_tx: number | null } | null;
-  wifi?: { enabled: boolean | null; aps: { name: string | null; state: string | null; band: string | null; channel: number | null }[]; stations_count: number | null;
+  wifi?: { enabled: boolean | null; aps: { name: string | null; state: string | null; band: string | null; channel: number | null; width?: string | null }[]; stations_count: number | null;
     networks?: { ssid: string | null; enabled: boolean | null; hidden: boolean | null; state: string | null; band: string | null }[] } | null;
   vms?: { id: number | null; name: string | null; status: string | null; vcpus: number | null; memory_mb: number | null; os: string | null }[] | null;
   // memory_pct and cpu_pct: the share allocated to the virtual machines, not the box's real load (MynetworK announces them; computed from the totals until then)
   vm_system?: { total_memory_mb: number | null; used_memory_mb: number | null; total_cpus: number | null; used_cpus: number | null; memory_pct?: number | null; cpu_pct?: number | null } | null;
+  firmware_update?: { server?: { installed: string | null; latest: string | null; update_available: boolean | null; date: string | null; changelog: string | null; url: string | null } | null } | null;   // MynetworK 0.10.72+
   dhcp?: { enabled: boolean | null; ip_range_start: string | null; ip_range_end: string | null; gateway: string | null; netmask: string | null; dns: string[] } | null;   // MynetworK 0.10.72+
   missing_rights?: string[];
   hosts?: number | null; hosts_active?: number | null;   // devices the box has seen, and the ones active now

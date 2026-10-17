@@ -77,7 +77,7 @@ function GuestRow({ g, m, set, backups, docker, dockhand, onMachine }: { g: Gues
 function Category({ icon: Icon, title, count, children }: Readonly<{ icon: typeof Server; title: string; count?: number; children: React.ReactNode }>) {
   return (
     <section className="overflow-hidden rounded-xl border border-line border-l-2 border-l-link">
-      <h3 className="flex items-center gap-2 border-b border-line/60 bg-bg2/70 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-dim">
+      <h3 className="flex items-center gap-2 border-b border-line/60 bg-bg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-dim">
         <Icon size={13} className="text-link" aria-hidden />{title}{count != null && <Count n={count} tone="off" />}
       </h3>
       {children}
@@ -102,7 +102,7 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
     ...(orphan ? [{ node: undefined, list: guests.filter((g) => !nodes.some((n) => n.name === g.node)) }] : [])];
   return (
     <Card className={c.ok ? "" : "border-bad/40"}>
-      <h2 className="flex flex-wrap items-center gap-2 font-bold"><Server size={16} aria-hidden />{c.name}
+      <h2 className="-mx-4 -mt-4 flex flex-wrap items-center gap-2 rounded-t-2xl border-b border-line/60 bg-bg px-4 py-3 font-bold"><Server size={16} aria-hidden />{c.name}
         <Badge tone={c.ok ? "ok" : "bad"}>{c.ok ? tx("en ligne") : tx("illisible")}</Badge>
         {c.version && <span className="font-mono text-xs text-dim">{c.label} {c.version}</span>}
         <Badge tone="info">{via}</Badge>{c.stale && <Badge tone="warn">{tx("relevé périmé")}</Badge>}

@@ -108,7 +108,7 @@ export function Home({ snap, items, go, goFilter, now }: { snap: Snapshot; items
 
         {paragraphs({ ...snap, now }).map((p) => (
           <section key={p.tab} className="overflow-hidden rounded-2xl border border-line bg-card/70 shadow-sm transition-colors hover:border-line/80">
-            <div className="flex items-center gap-3 border-b border-line/60 bg-bg2/40 px-5 py-3">
+            <div className="flex items-center gap-3 border-b border-line/60 bg-bg px-5 py-3">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-link/10 text-link"><TabIcon tab={p.tab} /></span>
               <h2 className="min-w-0 flex-1 truncate text-base font-bold">{p.title}</h2>
               <button type="button" onClick={() => go(p.tab)} className={GO} aria-label={`${tx("Ouvrir")} ${p.title}`}>

@@ -317,6 +317,39 @@ function heatClass(c: number): string {
   return c >= 75 ? "text-warn" : "";
 }
 
+const DRIVE_STATE: Record<string, string> = { enabled: tx("actif"), disabled: tx("désactivé") };
+
+/** One internal disk: its model, then its state, temperature and SMART as separate marks; only a problem is coloured */
+export function DriveStatus({ d }: Readonly<{ d: NonNullable<HealthHost["drives"]>[number] }>) {
+  const state = d.state ? DRIVE_STATE[d.state] ?? d.state : null;
+  const fine = d.state === "enabled";
+  let smart = tx("SMART inconnu");
+  if (d.smart_ok === true) smart = tx("SMART OK");
+  if (d.smart_ok === false) smart = tx("SMART en défaut");
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {d.model && <span className="font-medium">{d.model}</span>}
+      {state && <Badge tone={fine ? "off" : "warn"}>{state}</Badge>}
+      {d.temperature != null && <Badge tone={d.temperature >= 85 ? "bad" : d.temperature >= 75 ? "warn" : "off"}>{Math.round(d.temperature)} °C</Badge>}
+      <Badge tone={d.smart_ok === false ? "bad" : "off"}>{smart}</Badge>
+    </span>
+  );
+}
+
+/** Readings side by side, one small box each (name, then value), in name order: easier to tell apart than a line of values */
+export function ProbeChips({ items }: Readonly<{ items: { name: string; value: string; tone: string; dim?: boolean }[] }>) {
+  const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  return (
+    <span className="flex flex-wrap gap-1.5">
+      {sorted.map((x) => (
+        <span key={x.name} className={`inline-flex items-baseline gap-1.5 rounded-md border border-line/60 bg-bg2/40 px-1.5 py-0.5 ${x.dim ? "opacity-50" : ""}`}>
+          <span className="text-dim">{x.name}</span><span className={`tabular-nums ${x.tone}`}>{x.value}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 /** The processor temperature when the machine reports one (a gauge on a 0 to 100 °C scale, red from 85 °C), else nothing */
 function TemperatureRow({ h }: Readonly<{ h: HealthHost }>) {
   const t = h.temp;
@@ -340,8 +373,19 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
         h.res.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} ${tx("Go")}` : undefined)}
       {(h.disks || []).filter((d) => (d.size_gb ?? 1) >= 1).map((d) => bar(d.mount, d.used_pct, d.avail_gb != null ? `${d.avail_gb.toFixed(0)} ${tx("Go libres")}` : undefined))}
       <TemperatureRow h={h} />
-      {!!h.temp?.sensors?.length && <DetailRow k={tx("Sondes")} title={tx("Sondes")}>{h.temp.sensors.map((x) => `${x.name} ${Math.round(x.celsius)} °C`).join(" · ")}</DetailRow>}
-      {!!h.fans?.length && <DetailRow k={tx("Ventilateur")} title={tx("Ventilateur")}>{h.fans.map((f) => `${Math.round(f.rpm)} ${tx("tr/min")}`).join(" · ")}</DetailRow>}
+      {(h.drives ?? []).map((d) => (
+        <DetailRow key={d.model ?? "disk"} k={tx("État du disque")} title={tx("État du disque")}><DriveStatus d={d} /></DetailRow>
+      ))}
+      {!!h.temp?.sensors?.length && (
+        <DetailRow k={tx("Sondes")} title={tx("Sondes")}>
+          <ProbeChips items={h.temp.sensors.map((x) => ({ name: x.name, value: `${Math.round(x.celsius)} °C`, tone: heatClass(x.celsius) }))} />
+        </DetailRow>
+      )}
+      {!!h.fans?.length && (
+        <DetailRow k={tx("Ventilateur")} title={tx("Ventilateur")}>
+          <ProbeChips items={h.fans.map((f) => ({ name: f.name, value: `${Math.round(f.rpm)} ${tx("tr/min")}`, tone: "" }))} />
+        </DetailRow>
+      )}
       {h.vmem && bar(tx("Mémoire VM"), h.vmem.pct, `${(h.vmem.used_mb / 1024).toFixed(1)} / ${(h.vmem.total_mb / 1024).toFixed(1)} ${tx("Go")}`)}
       {h.vms && (
         <DetailRow k={tx("Machines virtuelles")} title={tx("Machines virtuelles")}>
@@ -353,14 +397,10 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, freebox, onServices }: Readonly<{ m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; freebox?: FreeboxInfo; onServices: () => void }>) {
+function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, freebox }: Readonly<{ m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; freebox?: FreeboxInfo }>) {
   const i = m.info, hw = hardwareRows(m.agent?.hardware);
   return (
     <div className="grid gap-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-2 xl:col-span-3">
-        <span className="text-sm text-muted">{tx("{0} service(s) sur cette machine", m.services)}{m.down > 0 && <span className="text-bad"> · {tx("{0} en panne", m.down)}</span>}</span>
-        <button type="button" onClick={onServices} className={`${quiet} py-1 text-sm`}>{tx("Voir ses services")}<ArrowRight size={14} aria-hidden /></button>
-      </div>
       <WatchSummary items={watch} />
       <IdentitySection m={m} mac={mac} net={net} from={[...from.role, ...from.mac]} tool={freebox || unifi ? "MynetworK" : undefined} />
 
@@ -381,7 +421,7 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, fre
       {freebox && (freebox.vms || freebox.vm_system) ? <FreeboxVmSection fb={freebox} from={from.services} /> : <SoftwareSection m={m} servers={servers} ha={ha} from={from.services} />}
 
       <HealthSection h={h} from={from.health} />
-      <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} />
+      <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} freebox={freebox} />
     </div>
   );
 }
@@ -449,11 +489,20 @@ function UnifiRows({ d, sys }: Readonly<{ d: UnifiDevice; sys?: UnifiSystem }>) 
 /** Line speed in bits per second, as « 8 Gb/s » or « 70 Mb/s » */
 const bitRate = (bits: number): string => (bits >= 1e9 ? `${(bits / 1e9).toFixed(1).replace(".0", "")} Gb/s` : `${Math.round(bits / 1e6)} Mb/s`);
 
-/** The firmware update line: up to date, the version on offer, or unknown */
-function FirmwareUpdate({ sys }: Readonly<{ sys: NonNullable<FreeboxInfo["system"]> }>) {
-  if (sys.update_available) return <span className="text-warn">{sys.latest_firmware ? `→ ${sys.latest_firmware}` : tx("disponible")}</span>;
-  if (sys.update_available == null) return <Dim>{tx("non transmise par MynetworK")}</Dim>;
-  return <span className="text-ok">{tx("à jour")}</span>;
+/** The box firmware in the Updates section: the installed version, then what is on offer (version, date, release notes) or that MynetworK does not tell */
+export function FreeboxFirmware({ fb }: Readonly<{ fb: FreeboxInfo }>) {
+  const sys = fb.system ?? {}, offer = fb.firmware_update?.server;
+  const latest = offer?.latest ?? sys.latest_firmware;
+  return <>
+    <Row k="Firmware">{sys.firmware ? <span className="font-mono">{sys.firmware}</span> : undefined}</Row>
+    {sys.update_available == null && <Row k={tx("Mise à jour")}><Dim>{tx("non transmise par MynetworK")}</Dim></Row>}
+    {sys.update_available && (
+      <Row k={tx("Disponible")}>
+        <span className="font-mono text-warn">{latest ? `→ ${latest}` : tx("disponible")}</span>{offer?.date && <Dim>{offer.date}</Dim>}
+        {offer?.url && <a href={offer.url} target="_blank" rel="noopener noreferrer" className="text-link hover:underline">{tx("notes de version")}</a>}
+      </Row>
+    )}
+  </>;
 }
 
 /** The line: state and medium, speeds and fibre power */
@@ -473,18 +522,6 @@ function FreeboxLine({ fb }: Readonly<{ fb: FreeboxInfo }>) {
   </>;
 }
 
-/** The internal disk (the partitions' filling is already in the Health column) */
-function FreeboxStorage({ fb }: Readonly<{ fb: FreeboxInfo }>) {
-  return <>
-    {(fb.storage?.disks ?? []).map((d) => (
-      <Row key={d.model ?? "ssd"} k={tx("Disque interne")}>
-        {[d.model, d.state, d.temperature == null ? "" : `${Math.round(d.temperature)} °C`].filter(Boolean).join(" · ")}
-        {d.smart_ok === false && <span className="text-bad"> · SMART</span>}
-      </Row>
-    ))}
-  </>;
-}
-
 /** The box's DHCP server and the DNS it hands out (MynetworK 0.10.72+; nothing shown without them) */
 export function FreeboxNetwork({ dhcp }: Readonly<{ dhcp?: FreeboxInfo["dhcp"] }>) {
   if (!dhcp) return null;
@@ -499,17 +536,31 @@ export function FreeboxNetwork({ dhcp }: Readonly<{ dhcp?: FreeboxInfo["dhcp"] }
   </>;
 }
 
-/** Wi-Fi: on or off, how many access points and devices, then the access points */
-function FreeboxWifi({ wifi }: Readonly<{ wifi: NonNullable<FreeboxInfo["wifi"]> }>) {
-  const ap = wifi.aps ?? [];
-  const counts = [ap.length ? tx("{0} borne(s)", ap.length) : "", wifi.stations_count == null ? "" : tx("{0} appareil(s)", wifi.stations_count)].filter(Boolean).join(" · ");
-  return (
-    <Row k="Wi-Fi">
-      {wifi.enabled === false ? <span className="text-warn">{tx("coupé")}</span> : tx("activé")} <Dim>{counts}</Dim>
-      {ap.length > 0 && <span className="block text-xs text-dim">{ap.map((a) => [a.name, a.band, a.channel == null ? "" : `ch. ${a.channel}`].filter(Boolean).join(" ")).join(" · ")}</span>}
-      {!!wifi.networks?.length && <span className="block text-xs text-dim">{wifi.networks.filter((n) => n.ssid).map((n) => `${n.ssid}${n.hidden ? ` (${tx("masqué")})` : ""}${n.enabled === false ? ` (${tx("coupé")})` : ""}`).join(" · ")}</span>}
-    </Row>
-  );
+const BAND: Record<string, string> = { "2d4g": "2,4 GHz", "5g": "5 GHz", "6g": "6 GHz" };
+const bandLabel = (b: string | null): string => (b ? BAND[b.toLowerCase()] ?? b.toUpperCase() : "");
+
+/** Wi-Fi: how many radios are on and how many devices are connected, then each radio (band, channel, width; a disabled one is dimmed) and each network name */
+export function FreeboxWifi({ wifi }: Readonly<{ wifi: NonNullable<FreeboxInfo["wifi"]> }>) {
+  const radios = wifi.aps ?? [], on = radios.filter((a) => a.state === "active").length;
+  const nets = (wifi.networks ?? []).filter((n) => n.ssid);
+  const summary = [radios.length ? tx("{0} bande(s) active(s) sur {1}", on, radios.length) : "", wifi.stations_count == null ? "" : tx("{0} appareil(s)", wifi.stations_count)].filter(Boolean).join(" · ");
+  return <>
+    <Row k="Wi-Fi">{wifi.enabled === false ? <span className="text-warn">{tx("coupé")}</span> : <Dim>{summary || tx("activé")}</Dim>}</Row>
+    {radios.length > 0 && (
+      <Row k={tx("Bandes")}>
+        <ProbeChips items={radios.map((a) => {
+          const active = a.state === "active";
+          const detail = active ? [bandLabel(a.band), a.channel ? `ch. ${a.channel}` : "", a.width ? `${a.width} MHz` : ""].filter(Boolean).join(" · ") : tx("désactivée");
+          return { name: a.name ?? bandLabel(a.band), value: detail, tone: "", dim: !active };
+        })} />
+      </Row>
+    )}
+    {nets.length > 0 && (
+      <Row k={tx("Réseaux")}>
+        <ProbeChips items={nets.map((n) => ({ name: n.ssid ?? "", value: [bandLabel(n.band), n.hidden ? tx("masqué") : "", n.enabled === false ? tx("coupé") : ""].filter(Boolean).join(" · "), tone: "", dim: n.enabled === false }))} />
+      </Row>
+    )}
+  </>;
 }
 
 /** What is given to the virtual machines, then each virtual machine */
@@ -568,9 +619,6 @@ function FreeboxRows({ fb }: Readonly<{ fb: FreeboxInfo }>) {
     <Row k={tx("Appareil")}>{sys.model ? <FreeboxModel model={sys.model} /> : undefined}</Row>
     <FreeboxLine fb={fb} />
     <FreeboxNetwork dhcp={fb.dhcp} />
-    <Row k="Firmware">{sys.firmware ? <span className="font-mono">{sys.firmware}</span> : undefined}</Row>
-    <Row k={tx("Mise à jour")}><FirmwareUpdate sys={sys} /></Row>
-    <FreeboxStorage fb={fb} />
     {fb.wifi && <FreeboxWifi wifi={fb.wifi} />}
     {fb.missing_rights && fb.missing_rights.length > 0 && (
       <Row k={tx("Droits manquants")}><span className="text-warn">{fb.missing_rights.join(", ")}</span>{" "}
@@ -696,11 +744,12 @@ function UpdatesChip({ h }: Readonly<{ h?: HealthHost }>) {
 }
 
 /** Detail, « Updates »: up to date, or the packages / Windows updates waiting (folded list), and a reboot required */
-export function UpdatesSection({ h, windows, from }: Readonly<{ h?: HealthHost; windows: boolean; from: Origin[] }>) {
+export function UpdatesSection({ h, windows, from, freebox }: Readonly<{ h?: HealthHost; windows: boolean; from: Origin[]; freebox?: FreeboxInfo }>) {
   if (!h) return null;
   const n = h.apt?.upgradable ?? 0;
   return (
     <Section icon={ArrowUpCircle} title={tx("Mises à jour")} tone={n || h.reboot_required ? "warn" : "ok"} from={from}>
+      {freebox && <FreeboxFirmware fb={freebox} />}
       {!n && <Row k={tx("État")}><span className="text-ok">{tx("à jour")}</span></Row>}
       {h.reboot_required && <Row k={tx("Redémarrage")}><span className="text-warn">{tx("redémarrage requis")}</span></Row>}
       <UpdatesFold h={h} windows={windows} />
@@ -873,7 +922,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
   const admin = snap.me.role === "admin";
   const detailOf = (m: Machine) => {
     const h = hb.get(m.ip);
-    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} freebox={freeboxOf(m, snap.data.network)} onServices={() => onMachine(m.ip)} />;
+    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} freebox={freeboxOf(m, snap.data.network)} />;
   };
   const [view, pickView] = useStoredView("ms.machines.view", "table");  // Tableau ou Cartes, retenu
 
@@ -996,7 +1045,7 @@ export function Machines({ snap, onMachine, initial }: { snap: Snapshot; onMachi
       )}
       {detailIp && (() => {
         const m = snap.data.machine_list.find((x) => x.ip === detailIp);
-        return m && <Overlay wide onClose={() => setDetailIp(null)} title={<><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifiOf(m)) }} scan={scanOs[m.ip]} reserve />{m.name} <Dim>{m.ip}</Dim></>}><div className="mt-3 -mx-4 -mb-4 overflow-hidden rounded-b-2xl bg-bg2/40">{detailOf(m)}</div></Overlay>;
+        return m && <Overlay wide onClose={() => setDetailIp(null)} title={<><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifiOf(m)) }} scan={scanOs[m.ip]} reserve />{m.name} <Dim>{m.ip}</Dim>{m.services > 0 && <button type="button" onClick={() => onMachine(m.ip)} className={`${quiet} ml-2 py-1 text-sm font-normal`}>{tx("Voir ses services")}<ArrowRight size={14} aria-hidden /></button>}</>}><div className="mt-3 -mx-4 -mb-4 overflow-hidden rounded-b-2xl bg-bg2/40">{detailOf(m)}</div></Overlay>;
       })()}
       {editIp && <MachineModal ip={editIp} snap={snap} onClose={() => setEditIp(null)} />}
     </div>

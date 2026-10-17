@@ -32,7 +32,9 @@ export function Level({ level, children }: { level: string; children?: ReactNode
 
 export type CardTone = "bad" | "warn" | "info" | "ok";
 const FRAME: Record<CardTone, string> = { bad: "border-bad/50", warn: "border-warn/50", info: "border-line", ok: "border-ok/40" };
-const STRIP: Record<CardTone, string> = { bad: "bg-bad/10", warn: "bg-warn/10", info: "bg-bg2/60", ok: "bg-ok/10" };
+// the header strip of every card is the darkest tone of the theme; the state is carried by the frame and the count bubble
+const DARK_STRIP = "border-b border-line/60 bg-bg";
+const STRIP: Record<CardTone, string> = { bad: DARK_STRIP, warn: DARK_STRIP, info: DARK_STRIP, ok: DARK_STRIP };
 const BUBBLE: Record<CardTone, "bad" | "warn" | "off" | "ok"> = { bad: "bad", warn: "warn", info: "off", ok: "ok" };
 
 /** Card with a coloured header strip (title, count in a round bubble) over a table with fixed columns and headers. Nothing is shown without a row,
@@ -86,13 +88,13 @@ export function Dim({ children }: { children: ReactNode }) {
 // Written out in full: Tailwind only generates classes it finds as complete strings in the source.
 const TITLE =
   "[&_h2]:text-[1.0625rem] [&_h2]:font-extrabold [&_h2]:leading-snug [&_h2]:tracking-tight [&_h2_svg]:text-link " +
-  "[&>h2:first-child]:-mx-4 [&>div:first-child:has(>h2)]:-mx-4 [&>h2:first-child]:-mt-4 [&>div:first-child:has(>h2)]:-mt-4 [&>h2:first-child]:mb-3 [&>div:first-child:has(>h2)]:mb-3 [&>h2:first-child]:border-b [&>div:first-child:has(>h2)]:border-b [&>h2:first-child]:border-line/60 [&>div:first-child:has(>h2)]:border-line/60 [&>h2:first-child]:bg-bg2/60 [&>div:first-child:has(>h2)]:bg-bg2/60 [&>h2:first-child]:px-4 [&>div:first-child:has(>h2)]:px-4 [&>h2:first-child]:py-3 [&>div:first-child:has(>h2)]:py-3 [&>h2:first-child]:rounded-t-[15px] [&>div:first-child:has(>h2)]:rounded-t-[15px] [&>div:first-child>h2]:mb-0";
+  "[&>h2:first-child]:-mx-4 [&>div:first-child:has(>h2)]:-mx-4 [&>h2:first-child]:-mt-4 [&>div:first-child:has(>h2)]:-mt-4 [&>h2:first-child]:mb-3 [&>div:first-child:has(>h2)]:mb-3 [&>h2:first-child]:border-b [&>div:first-child:has(>h2)]:border-b [&>h2:first-child]:border-line/60 [&>div:first-child:has(>h2)]:border-line/60 [&>h2:first-child]:bg-bg [&>div:first-child:has(>h2)]:bg-bg [&>h2:first-child]:px-4 [&>div:first-child:has(>h2)]:px-4 [&>h2:first-child]:py-3 [&>div:first-child:has(>h2)]:py-3 [&>h2:first-child]:rounded-t-[15px] [&>div:first-child:has(>h2)]:rounded-t-[15px] [&>div:first-child>h2]:mb-0";
 
-// Tint of the header strip and of the frame (written in full for Tailwind).
+// Tint of the frame (written in full for Tailwind); the header strip stays dark whatever the state.
 const CARD_TONE: Record<"ok" | "warn" | "bad", string> = {
-  ok: "border-ok/40 [&>h2:first-child]:bg-ok/10 [&>div:first-child:has(>h2)]:bg-ok/10",
-  warn: "border-warn/50 [&>h2:first-child]:bg-warn/10 [&>div:first-child:has(>h2)]:bg-warn/10",
-  bad: "border-bad/50 [&>h2:first-child]:bg-bad/10 [&>div:first-child:has(>h2)]:bg-bad/10",
+  ok: "border-ok/40",
+  warn: "border-warn/50",
+  bad: "border-bad/50",
 };
 
 export function Card({ children, className = "", tone }: { children: ReactNode; className?: string; tone?: "ok" | "warn" | "bad" }) {

@@ -36,6 +36,7 @@ export function freeboxHealth(m: Machine, fb: FreeboxInfo): HealthHost {
     ...(fb.vm_system?.total_memory_mb ? { vmem: { used_mb: fb.vm_system.used_memory_mb ?? 0, total_mb: fb.vm_system.total_memory_mb, pct: vmShare(fb.vm_system.memory_pct, fb.vm_system.used_memory_mb, fb.vm_system.total_memory_mb) } } : {}),
     ...(cpuHot != null ? { temp: { available: true, celsius: cpuHot, source: "Freebox", sensors: sensors.map((x) => ({ name: x.name ?? x.id ?? "", celsius: x.value })) } } : {}),
     ...(fans.length ? { fans } : {}),
+    ...(fb.storage?.disks?.length ? { drives: fb.storage.disks.map((d) => ({ model: d.model, state: d.state, temperature: d.temperature, smart_ok: d.smart_ok })) } : {}),
     ...(fb.system?.update_available ? { apt: { upgradable: 1, sample: [latest ? `firmware → ${latest}` : "firmware"], firmware: true } } : {}),
   } as HealthHost;
 }

@@ -19,5 +19,5 @@ export function DetailSection({ icon: Icon, title, tone, right, children }: { ic
 /** Une ligne « libellé / valeur » ; rien quand la valeur est vide */
 export function DetailRow({ k, title, children }: { k: string; title?: string; children?: ReactNode }) {
   if (children === undefined || children === null || children === false || children === "") return null;
-  return <div className="flex gap-2"><dt className="w-24 shrink-0 truncate px-2 py-1 font-semibold text-muted" title={title}>{k}</dt><dd className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 break-words py-1">{children}</dd></div>;
+  return <div className="flex gap-2"><dt className="w-36 shrink-0 truncate px-2.5 py-1 font-semibold text-muted" title={title}>{k}</dt><dd className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 break-words py-1">{children}</dd></div>;
 }
