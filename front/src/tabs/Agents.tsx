@@ -76,7 +76,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
   const badge = (ip: string) => { const st = stateOf(ip); if (!st) return null; const [tone, label, tip] = MSTATE[st]; return <Badge tone={tone} title={tip}>{label}</Badge>; };
   // SSH réel : réglé sur la machine, ou trouvé par la collecte (alias de ~/.ssh/config pour cette adresse), comme le badge « SSH OK »
   const sshAlias = (ip: string) => machines[ip].ssh === false ? "" : machines[ip].ssh || liveBy.get(ip)?.ssh?.alias || "";   // coupé à la main : pas de SSH
-  const byApi = sorted(tracked.filter((ip) => !sshAlias(ip) && stateOf(ip) === "api"));      // lues par une API, sans SSH
+  const byApi = sorted(tracked.filter((ip) => !sshAlias(ip) && (stateOf(ip) === "api" || stateOf(ip) === "network")));      // lues par une API ou un outil réseau (box, passerelle), sans SSH : aucun agent possible
   const without = sorted(tracked.filter((ip) => !sshAlias(ip) && !byApi.includes(ip)));   // sans agent, sans SSH, sans API : agent Windows ou Linux
   const ssh = sorted(tracked.filter((ip) => !isWindows(ip) && !!sshAlias(ip)));               // Linux lus par SSH
   const kindOf = (ip: string): "windows" | "linux" => (isWindows(ip) ? "windows" : "linux");
@@ -218,8 +218,8 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
         })}
       </Group>
 
-      <Group title={tx("Lues par leur API, sans SSH")} fold n={byApi.length}
-        hint={tx("Déjà connectées par l'API d'un connecteur (Home Assistant…) : rien à régler. Le SSH n'y est pas nécessaire, et souvent pas possible.")}>
+      <Group title={tx("Lues par leur API ou un outil réseau, sans SSH")} fold n={byApi.length}
+        hint={tx("Déjà suivies par l'API d'un connecteur (Home Assistant…) ou un outil réseau (box, passerelle) : rien à régler, et pas d'agent possible.")}>
         {byApi.map((ip) => {
           const lm = liveBy.get(ip), list = lm?.api ?? [];
           return (
@@ -229,7 +229,7 @@ export function Agents({ focusIp, live }: { focusIp?: string; live: Machine[] })
                 <MachineIcon m={{ role: liveBy.get(ip)?.role, icon: liveBy.get(ip)?.icon, name: machines[ip].name, os: machines[ip].os, info: lm?.info, ttl: lm?.ttl, osName: lm?.info?.os ?? lm?.agent?.os }} reserve />
                 <span className="min-w-0 flex-1">
                   <b className="block truncate text-sm text-txt">{machines[ip].name}</b>
-                  <span className="block truncate text-xs text-dim">{ip} · {list.map((a) => a.label).join(", ")}</span>
+                  <span className="block truncate text-xs text-dim">{ip} · {list.length ? list.map((a) => a.label).join(", ") : tx("outil réseau")}</span>
                 </span>
                 {badge(ip)}
               </a>
