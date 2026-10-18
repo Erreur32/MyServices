@@ -7,6 +7,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -36,6 +37,18 @@ def tar_of(entries: list[tuple[str, bytes, bytes | None]]) -> bytes:
             else:
                 info.size = len(body)
                 tar.addfile(info, io.BytesIO(body))
+    return buf.getvalue()
+
+
+def zip_of(entries: list[tuple[str, bytes]], link: str | None = None) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        for name, body in entries:
+            zf.writestr(name, body)
+        if link:
+            info = zipfile.ZipInfo(link)
+            info.external_attr = 0o120777 << 16
+            zf.writestr(info, "/etc/passwd")
     return buf.getvalue()
 
 
@@ -129,6 +142,27 @@ class Import(Base):
         bad_key = tar_of([("config/secret.key", b"short", None)])
         with self.assertRaises(ct.TransferError):
             ct.apply(bad_key, ["secrets"], self.target())
+
+
+class Zip(Base):
+    def test_the_export_is_a_zip_anyone_can_open(self):
+        data = ct.export_config(self.root, ["machines"])
+        self.assertEqual(data[:2], b"PK")
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            self.assertEqual(sorted(zf.namelist()), ["config/MANIFEST.json", "config/services-meta.json"])
+
+    def test_an_older_tar_gz_export_is_still_read(self):
+        data = tar_of([("config/services-meta.json", b"{}", None)])
+        self.assertEqual(list(ct.read_archive(data)[0]), ["services-meta.json"])
+
+    def test_unsafe_zips_are_refused(self):
+        for data in (zip_of([("config/../evil", b"x")]), zip_of([("/etc/passwd", b"x")]), zip_of([], link="config/config.json")):
+            with self.assertRaises(ct.TransferError):
+                ct.read_archive(data)
+        with self.assertRaises(ct.TransferError):
+            ct.read_archive(zip_of([("config/config.json", b"x" * (ct.MAX_FILE + 1))]))
+        with self.assertRaises(ct.TransferError):
+            ct.read_archive(b"PK\x03\x04 not really")
 
 
 class Unsafe(Base):

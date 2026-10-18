@@ -1,7 +1,7 @@
 """Export and import of the /config folder, whole or by part.
 
 Parts: settings (config.json), machines (services-meta.json), backups (backups-meta.json), secrets (secret.key, the key that opens every
-encrypted password and token of config.json) and ssh (the keys and the config of the SSH folder). The archive is a tar.gz of `config/...`
+encrypted password and token of config.json) and ssh (the keys and the config of the SSH folder). The archive is a ZIP (a tar.gz from an older export is still read) of `config/...`
 plus a MANIFEST.json. Nothing in an uploaded archive is trusted: names, types, sizes and contents are checked before anything is written,
 and the same checks run again when the import is applied (the preview is only a preview).
 """
@@ -14,6 +14,8 @@ import re
 import shutil
 import tarfile
 import time
+import zipfile
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
 FORMAT = 1
@@ -54,14 +56,8 @@ def present(root: Path) -> dict[str, list[str]]:
     return out
 
 
-def _add(tar: tarfile.TarFile, name: str, data: bytes, now: float) -> None:
-    info = tarfile.TarInfo(f"config/{name}")
-    info.size, info.mode, info.mtime = len(data), 0o600, now
-    tar.addfile(info, io.BytesIO(data))
-
-
 def export_config(root: Path, parts: list[str] | None = None, version: str = "") -> bytes:
-    """tar.gz of the chosen parts (all of them when `parts` is None), with a manifest listing what is inside."""
+    """ZIP of the chosen parts (all of them when `parts` is None), with a manifest listing what is inside."""
     chosen = list(PARTS) if parts is None else [p for p in PARTS if p in parts]
     if not chosen:
         raise TransferError("rien à exporter : choisir au moins une partie")
@@ -70,50 +66,83 @@ def export_config(root: Path, parts: list[str] | None = None, version: str = "")
         raise TransferError("partie inconnue : " + ", ".join(unknown))
     have, now, hashes = present(root), time.time(), {}
     buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+
+    def add(zf: zipfile.ZipFile, name: str, data: bytes) -> None:
+        info = zipfile.ZipInfo(f"config/{name}", time.localtime(now)[:6])
+        info.external_attr = 0o600 << 16
+        info.compress_type = zipfile.ZIP_DEFLATED
+        zf.writestr(info, data)
+
+    with zipfile.ZipFile(buf, "w") as zf:
         for part in chosen:
             for rel in have.get(part, []):
                 data = (root / rel).read_bytes()
                 hashes[rel] = hashlib.sha256(data).hexdigest()
-                _add(tar, rel, data, now)
+                add(zf, rel, data)
         manifest = {"format": FORMAT, "app": version, "created": int(now), "parts": [p for p in chosen if have.get(p)], "files": hashes}
-        _add(tar, "MANIFEST.json", json.dumps(manifest, indent=2).encode(), now)
+        add(zf, "MANIFEST.json", json.dumps(manifest, indent=2).encode())
     return buf.getvalue()
 
 
+# An entry of an archive, whatever its format: (name, kind, size, read) with kind "dir", "file" or "other" (link, device…)
+Entry = tuple[str, str, int, "Callable[[], bytes]"]
+
+
+def _zip_entries(data: bytes):
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        for info in zf.infolist():
+            mode = (info.external_attr >> 16) & 0o170000
+            if info.flag_bits & 0x1:
+                raise TransferError("archive refusée : fichier chiffré par mot de passe")
+            kind = "dir" if info.is_dir() else "other" if mode in (0o120000, 0o060000, 0o020000, 0o010000, 0o140000) else "file"
+            yield info.filename, kind, info.file_size, lambda i=info: zf.open(i).read(MAX_FILE + 1)
+
+
+def _tar_entries(data: bytes):
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
+        for m in tar:
+            kind = "dir" if m.isdir() else "file" if m.isfile() else "other"
+            yield m.name, kind, m.size, lambda m=m: tar.extractfile(m).read(MAX_FILE + 1)   # type: ignore[union-attr]
+
+
 def read_archive(data: bytes) -> tuple[dict[str, bytes], dict, list[str]]:
-    """(files, manifest, ignored names). Raises TransferError for anything unsafe: the whole archive is refused."""
+    """(files, manifest, ignored names) from a ZIP (or an older .tar.gz). Raises TransferError for anything unsafe: the whole archive is refused."""
     if len(data) > MAX_ARCHIVE:
         raise TransferError(f"archive trop grosse (plus de {MAX_ARCHIVE >> 20} Mo)")
+    if data[:2] == b"PK":
+        entries = _zip_entries
+    elif data[:2] == b"\x1f\x8b":
+        entries = _tar_entries
+    else:
+        raise TransferError("ce n'est pas une archive .zip lisible")
     files: dict[str, bytes] = {}
     ignored: list[str] = []
     total, count = 0, 0
     try:
-        with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
-            for m in tar:
-                count += 1
-                if count > MAX_FILES:
-                    raise TransferError("archive refusée : trop de fichiers")
-                name = m.name.replace("\\", "/")
-                path = PurePosixPath(name)
-                if path.is_absolute() or ".." in path.parts:
-                    raise TransferError(f"archive refusée : chemin dangereux ({name[:80]})")
-                if m.isdir():
-                    continue
-                if not m.isfile():
-                    raise TransferError(f"archive refusée : entrée qui n'est pas un fichier ({name[:80]})")
-                if path.parts[:1] != ("config",) or len(path.parts) < 2:
-                    ignored.append(name)
-                    continue
-                if m.size > MAX_FILE:
-                    raise TransferError(f"archive refusée : fichier trop gros ({name[:80]})")
-                body = tar.extractfile(m).read(MAX_FILE + 1)   # type: ignore[union-attr]
-                total += len(body)
-                if len(body) > MAX_FILE or total > MAX_TOTAL:
-                    raise TransferError("archive refusée : contenu trop gros une fois ouvert")
-                files["/".join(path.parts[1:])] = body
-    except (tarfile.TarError, EOFError, OSError) as e:
-        raise TransferError(f"ce n'est pas une archive .tar.gz lisible ({type(e).__name__})") from None
+        for name, kind, size, read in entries(data):
+            count += 1
+            if count > MAX_FILES:
+                raise TransferError("archive refusée : trop de fichiers")
+            name = name.replace("\\", "/")
+            path = PurePosixPath(name)
+            if path.is_absolute() or ".." in path.parts:
+                raise TransferError(f"archive refusée : chemin dangereux ({name[:80]})")
+            if kind == "dir":
+                continue
+            if kind != "file":
+                raise TransferError(f"archive refusée : entrée qui n'est pas un fichier ({name[:80]})")
+            if path.parts[:1] != ("config",) or len(path.parts) < 2:
+                ignored.append(name)
+                continue
+            if size > MAX_FILE:
+                raise TransferError(f"archive refusée : fichier trop gros ({name[:80]})")
+            body = read()
+            total += len(body)
+            if len(body) > MAX_FILE or total > MAX_TOTAL:
+                raise TransferError("archive refusée : contenu trop gros une fois ouvert")
+            files["/".join(path.parts[1:])] = body
+    except (tarfile.TarError, zipfile.BadZipFile, zipfile.LargeZipFile, EOFError, OSError, RuntimeError) as e:
+        raise TransferError(f"ce n'est pas une archive lisible ({type(e).__name__})") from None
     manifest: dict = {}
     if "MANIFEST.json" in files:
         try:

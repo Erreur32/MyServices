@@ -36,7 +36,7 @@ async function toBase64(file: File): Promise<string> {
 function PartCheck({ part, checked, onChange, extra, disabled }: Readonly<{ part: PartInfo; checked: boolean; onChange: (on: boolean) => void; extra?: React.ReactNode; disabled?: boolean }>) {
   const sensitive = SENSITIVE.includes(part.id);
   return (
-    <label className={`flex items-start gap-3 rounded-lg border border-line bg-bg/60 px-3 py-2 ${disabled ? "opacity-50" : "cursor-pointer hover:border-link/60"}`}>
+    <label className={`flex items-start gap-3 rounded-lg border px-3 py-2 motion-safe:transition-colors ${checked && !disabled ? "border-link bg-link/10 ring-1 ring-link/50" : "border-line bg-bg/60"} ${disabled ? "opacity-50" : "cursor-pointer hover:border-link/60"}`}>
       <input type="checkbox" className="mt-1" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2 font-semibold">{part.label}{sensitive && <Badge tone="warn"><KeyRound size={11} aria-hidden />{tx("sensible")}</Badge>}{extra}</span>
@@ -76,7 +76,7 @@ function ExportCard() {
       <fieldset className="m-0 mb-3 inline-flex min-w-0 rounded-lg border border-line bg-card p-0.5" aria-label={tx("Quoi exporter")}>
         {([[true, tx("Tout")], [false, tx("Au choix")]] as [boolean, string][]).map(([v, label]) => (
           <button key={label} type="button" aria-pressed={all === v} onClick={() => setAll(v)}
-            className={`rounded-md px-3 py-1.5 text-sm font-semibold ${all === v ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}>{label}</button>
+            className={`rounded-md border px-3 py-1.5 text-sm font-semibold ${all === v ? "border-link bg-link/15 text-txt ring-1 ring-link/50" : "border-transparent text-muted hover:text-txt"}`}>{label}</button>
         ))}
       </fieldset>
       <div className="mb-3 flex flex-col gap-2">
@@ -146,8 +146,8 @@ function ImportCard() {
       <h2 className="mb-1 flex items-center gap-2 font-bold"><Upload size={16} aria-hidden />{tx("Importer une configuration")}</h2>
       <p className="mb-3 text-sm text-muted">{tx("Choisissez une archive exportée ici : elle est d'abord lue sans rien changer, puis vous cochez les parties à reprendre. Chaque fichier remplacé est gardé à côté en « .avant-import ».")}</p>
       <label className="mb-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-1.5 text-sm font-semibold hover:border-link">
-        <FileUp size={14} aria-hidden />{tx("Choisir une archive (.tar.gz)")}
-        <input type="file" accept=".gz,.tgz,.tar.gz,application/gzip" className="sr-only" onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = ""; }} />
+        <FileUp size={14} aria-hidden />{tx("Choisir une archive (.zip)")}
+        <input type="file" accept=".zip,.tar.gz,.tgz,application/zip,application/gzip" className="sr-only" onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = ""; }} />
       </label>
       {pv && (
         <div className="flex flex-col gap-3">

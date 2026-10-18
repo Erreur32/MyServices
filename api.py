@@ -1642,7 +1642,7 @@ class ExportBody(Confirm):
 
 
 class ImportPreviewBody(BaseModel):
-    archive: str = Field(max_length=12 << 20)   # base64 of the .tar.gz
+    archive: str = Field(max_length=12 << 20)   # base64 of the ZIP
 
 
 class ImportApplyBody(Confirm, ImportPreviewBody):
@@ -1684,7 +1684,7 @@ def system_config_parts(request: Request):
     return {"parts": [{"id": p, "files": have.get(p, []), "sensitive": p in ct.SENSITIVE} for p in ct.PARTS]}
 
 
-@app.post(API + "/system/export", tags=["système"], summary="Exporter la configuration en tar.gz, tout ou certaines parties (session admin + mot de passe)")
+@app.post(API + "/system/export", tags=["système"], summary="Exporter la configuration en ZIP, tout ou certaines parties (session admin + mot de passe)")
 def system_export(body: ExportBody, request: Request):
     import config_transfer as ct
     if denied := _confirmed(request, body.password):
@@ -1695,8 +1695,8 @@ def system_export(body: ExportBody, request: Request):
         return deny(400, str(e))
     u = request.state.user
     store().audit("configuration exportée", u["username"], ip_of(request), ",".join(body.parts) if body.parts else "tout")
-    name = f"myservices-config-{time.strftime('%Y%m%d-%H%M')}.tar.gz"
-    return Response(data, media_type="application/gzip", headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+    name = f"myservices-config-{time.strftime('%Y%m%d-%H%M')}.zip"
+    return Response(data, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
 
 
 @app.post(API + "/system/import/preview", tags=["système"], summary="Lire une archive de configuration sans rien écrire : parties, problèmes (session admin)")

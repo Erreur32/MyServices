@@ -1786,7 +1786,7 @@ export const EN: Record<string, string> = {
   "Import terminé": "Import done",
   "Importer une configuration": "Import a configuration",
   "Choisissez une archive exportée ici : elle est d'abord lue sans rien changer, puis vous cochez les parties à reprendre. Chaque fichier remplacé est gardé à côté en « .avant-import ».": "Pick an archive exported here: it is first read without changing anything, then you tick the parts to take over. Each replaced file is kept next to it as \".avant-import\".",
-  "Choisir une archive (.tar.gz)": "Choose an archive (.tar.gz)",
+  "Choisir une archive (.zip)": "Choose an archive (.zip)",
   "{0} fichier(s), {1}": "{0} file(s), {1}",
   "remplace l'existant": "replaces what exists",
   "Je sais que les fichiers existants seront remplacés": "I know the existing files will be replaced",
