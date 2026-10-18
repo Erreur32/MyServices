@@ -134,6 +134,17 @@ class Cards(unittest.TestCase):
         got = [f for f in self.run_nic({"speed": 100}, [{**SWITCH, "port_table": [port(3, speed=1000, media="GE")]}]) if f["code"] == "nic_mismatch"]
         self.assertEqual((got[0]["speed"], got[0]["max"]), (100, 1000))
 
+    def test_the_machine_card_is_given_next_to_the_switch_port(self):
+        machines = [{"name": "pc", "ip": "10.0.0.50", "nics": [{"mac": "04:42:1A:E9:4E:A5", "name": "eth0", "speed": 100, "duplex": "full", "max": 1000}]}]
+        sw = {**SWITCH, "port_table": [port(3, speed=1000, media="GE")]}
+        items = nd.findings([sw], [self.CLIENT], [], machines)
+        ok = nd.ok_ports([sw], [self.CLIENT], [], machines)
+        self.assertEqual(ok[0]["nic"], {"machine": "pc", "name": "eth0", "speed": 100, "max": 1000, "duplex": "full", "setting": None})
+        self.assertIsNone(nd.ok_ports([sw], [self.CLIENT], [], [])[0]["nic"])                       # the machine did not tell: nothing invented
+        slow = nd.findings([{**SWITCH, "port_table": [port(3, speed=100, media="GE")]}], [self.CLIENT], [], machines)
+        self.assertEqual(next(f for f in slow if f["kind"] == "speed")["nic"]["speed"], 100)
+        self.assertTrue(items is not None)
+
     def test_no_known_speed_means_no_finding(self):
         self.assertEqual([f for f in self.run_nic({"speed": None, "duplex": "half"}) if f["kind"] == "nic"], [])
 

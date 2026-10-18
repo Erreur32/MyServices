@@ -33,6 +33,22 @@ def _num(v):
     return v if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
+def _norm_mac(v) -> str:
+    return str(v or "").lower().replace("-", ":")
+
+
+def nic_index(machines: list[dict] | None) -> dict[str, dict]:
+    """{mac: {machine, name, speed, max, duplex, setting}} of the network cards the machines reported."""
+    out = {}
+    for m in machines or []:
+        for n in (m.get("nics") or []) if isinstance(m, dict) else []:
+            if isinstance(n, dict) and n.get("mac"):
+                half = n.get("duplex") == "half" or n.get("full_duplex") is False
+                out[_norm_mac(n["mac"])] = {"machine": m.get("name") or m.get("ip"), "name": n.get("name"), "speed": _num(n.get("speed")) or None, "max": _num(n.get("max")),
+                                             "duplex": "half" if half and _num(n.get("speed")) else ("full" if n.get("duplex") == "full" or n.get("full_duplex") else None), "setting": n.get("setting")}
+    return out
+
+
 def findings(devices: list[dict], clients: list[dict] | None = None, scan: list[dict] | None = None, machines: list[dict] | None = None) -> list[dict]:
     """[{severity, kind, code, args, device, port, speed, max, peer, text}] sorted by severity; never raises on odd data.
     scan: the addresses of the network scan ({ip, mac, hostname, status, ping_ms}). machines: [{name, ip, nics: [...]}] read on the machines themselves."""
@@ -42,14 +58,19 @@ def findings(devices: list[dict], clients: list[dict] | None = None, scan: list[
     by_mac = {str(d.get("mac") or "").lower(): d for d in devices}
     ports = {(m, p.get("port_idx")): p for m, d in by_mac.items() for p in d.get("port_table") or [] if isinstance(p, dict)}
     seen: dict[tuple, str] = {}   # (device mac, port) -> name of what is plugged there
+    seen_mac: dict[tuple, str] = {}   # (device mac, port) -> MAC of what is plugged there
     for c in clients:
         if c.get("wired") and c.get("switch_mac") and c.get("switch_port") is not None:
             seen[(str(c["switch_mac"]).lower(), c["switch_port"])] = c.get("name") or c.get("ip") or c.get("mac") or "?"
+            seen_mac[(str(c["switch_mac"]).lower(), c["switch_port"])] = _norm_mac(c.get("mac"))
+    cards = nic_index(machines)
     out: list[dict] = []
 
     def add(sev, kind, d, port, text, speed=None, mx=None, peer=None, code=None, **args):
+        key = (str(d.get("mac") or "").lower(), port)
         out.append({"severity": sev, "kind": kind, "code": code or kind, "args": args, "device": d.get("name") or d.get("model") or d.get("mac"), "mac": d.get("mac"),
-                    "port": port, "speed": speed, "max": mx, "peer": peer, "text": text})
+                    "port": port, "speed": speed, "max": mx, "peer": peer, "text": text,
+                    "nic": cards.get(seen_mac.get(key, "")) if kind in ("speed", "link") else None})   # the machine's own card, side by side with the port
 
     links: set[tuple] = set()   # ports that are the two ends of a link between UniFi devices: judged together
     for mac, d in by_mac.items():
@@ -169,11 +190,14 @@ def findings(devices: list[dict], clients: list[dict] | None = None, scan: list[
     return out
 
 
-def ok_ports(devices: list[dict], clients: list[dict] | None, items: list[dict]) -> list[dict]:
+def ok_ports(devices: list[dict], clients: list[dict] | None, items: list[dict], machines: list[dict] | None = None) -> list[dict]:
     """The ports that are up and have no finding: [{device, mac, port, speed, max, peer, name}] (the page shows them on request only)."""
     flagged = {(str(f.get("mac") or "").lower(), f.get("port")) for f in items if f.get("port") is not None}
     seen = {(str(c["switch_mac"]).lower(), c["switch_port"]): c.get("name") or c.get("ip") or c.get("mac")
             for c in clients or [] if isinstance(c, dict) and c.get("wired") and c.get("switch_mac") and c.get("switch_port") is not None}
+    seen_mac = {(str(c["switch_mac"]).lower(), c["switch_port"]): _norm_mac(c.get("mac"))
+                for c in clients or [] if isinstance(c, dict) and c.get("wired") and c.get("switch_mac") and c.get("switch_port") is not None}
+    cards = nic_index(machines)
     names = {str(d.get("mac") or "").lower(): d.get("name") or d.get("model") for d in devices if isinstance(d, dict)}
     out = []
     for d in devices:
@@ -188,7 +212,7 @@ def ok_ports(devices: list[dict], clients: list[dict] | None, items: list[dict])
             if peer is None and (p.get("is_uplink") or p.get("port_idx") == up.get("port_idx")):
                 peer = names.get(str(up.get("uplink_mac") or "").lower())
             out.append({"device": d.get("name") or d.get("model") or d.get("mac"), "mac": d.get("mac"), "port": p.get("port_idx"), "speed": _num(p.get("speed")),
-                        "max": port_max(p), "peer": peer, "name": p.get("name")})
+                        "max": port_max(p), "peer": peer, "name": p.get("name"), "nic": cards.get(seen_mac.get((mac, p.get("port_idx")), ""))})
     out.sort(key=lambda r: (str(r["device"]), r["port"] if isinstance(r["port"], int) else -1))
     return out
 

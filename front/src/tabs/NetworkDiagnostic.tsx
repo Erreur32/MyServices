@@ -11,12 +11,13 @@ import { tx } from "../lib/i18n";
 import { usePoll } from "../lib/polling";
 
 type Severity = "bad" | "warn" | "info";
-interface Finding { severity: Severity; kind: string; code: string; args: Record<string, string | number | null>; device: string; mac: string | null; port: number | null; speed: number | null; max: number | null; peer: string | null; text: string }
-interface OkPort { device: string; mac: string | null; port: number | null; speed: number | null; max: number | null; peer: string | null; name: string | null }
+interface Nic { machine: string | null; name: string | null; speed: number | null; max: number | null; duplex: "full" | "half" | null; setting: string | null }
+interface Finding { nic?: Nic | null; severity: Severity; kind: string; code: string; args: Record<string, string | number | null>; device: string; mac: string | null; port: number | null; speed: number | null; max: number | null; peer: string | null; text: string }
+interface OkPort { nic?: Nic | null; device: string; mac: string | null; port: number | null; speed: number | null; max: number | null; peer: string | null; name: string | null }
 interface Doc { source: string | null; at: number; error: string; devices: number; summary: Record<Severity, number>; findings: Finding[]; ok_ports: OkPort[] }
 
 /** One line of the table: a finding, or (on request) a port that is up and fine */
-interface Row { level: 0 | 1 | 2 | 3; severity: Severity | "ok"; kind: string; device: string; port: number | null; speed: number | null; max: number | null; peer: string | null; text: string; key: string }
+interface Row { nic: Nic | null; level: 0 | 1 | 2 | 3; severity: Severity | "ok"; kind: string; device: string; port: number | null; speed: number | null; max: number | null; peer: string | null; text: string; key: string }
 const RANK: Record<Severity | "ok", 0 | 1 | 2 | 3> = { bad: 0, warn: 1, info: 2, ok: 3 };
 
 const KIND: Record<string, string> = { speed: tx("Vitesse du port"), link: tx("Liaison entre équipements"), offline: tx("Équipement hors ligne"), wan: tx("Lien WAN"), firmware: tx("Mise à jour"), load: tx("Charge"),
@@ -59,13 +60,27 @@ const textOf = (f: Finding): string => {
   }
 };
 
+/** The machine's own card next to the switch port: its speed and duplex, and a flag when the two sides do not report the same speed */
+function NicCell({ nic, portSpeed }: Readonly<{ nic: Nic | null; portSpeed: number | null }>) {
+  if (!nic?.speed) return <span className="text-dim" title={tx("La machine ne rapporte pas sa carte réseau (SSH ou agent) : rien à comparer")}>?</span>;
+  const differs = portSpeed != null && portSpeed !== nic.speed, half = nic.duplex === "half";
+  return (
+    <span className="inline-flex items-baseline gap-1.5" title={[nic.machine, nic.name, nic.setting].filter(Boolean).join(" · ")}>
+      <b className={differs ? "text-warn" : ""}>{link(nic.speed)}</b>
+      {nic.max ? <Dim>/ {link(nic.max)}</Dim> : null}
+      {half && <Badge tone="bad">half</Badge>}
+      {differs && <Badge tone="warn">≠</Badge>}
+    </span>
+  );
+}
+
 export function NetworkDiagnostic() {
   const [doc, setDoc] = useState<Doc | null>(null), [failed, setFailed] = useState(false), [showOk, setShowOk] = useStoredFlag("myservices.network.diagShowOk", false);
   const load = useCallback(() => { read<Doc>("network/diagnostics").then((d) => { setDoc(d); setFailed(false); }).catch(() => setFailed(true)); }, []);
   usePoll(load, 30_000);
   const rows: Row[] = [
-    ...(doc?.findings ?? []).map((f, i): Row => ({ level: RANK[f.severity], severity: f.severity, kind: f.kind, device: f.device, port: f.port, speed: f.speed, max: f.max, peer: f.peer, text: textOf(f), key: `${f.mac}/${f.kind}/${f.port}/${i}` })),
-    ...(showOk ? (doc?.ok_ports ?? []).map((p): Row => ({ level: 3, severity: "ok", kind: "speed", device: p.device, port: p.port, speed: p.speed, max: p.max, peer: p.peer,
+    ...(doc?.findings ?? []).map((f, i): Row => ({ nic: f.nic ?? null, level: RANK[f.severity], severity: f.severity, kind: f.kind, device: f.device, port: f.port, speed: f.speed, max: f.max, peer: f.peer, text: textOf(f), key: `${f.mac}/${f.kind}/${f.port}/${i}` })),
+    ...(showOk ? (doc?.ok_ports ?? []).map((p): Row => ({ nic: p.nic ?? null, level: 3, severity: "ok", kind: "speed", device: p.device, port: p.port, speed: p.speed, max: p.max, peer: p.peer,
       text: p.max && p.speed && p.speed >= p.max ? tx("au maximum du port") : tx("liaison active"), key: `ok/${p.mac}/${p.port}` })) : []),
   ];
   const keyOf = useCallback((r: Row, k: string): string | number => {
@@ -74,6 +89,7 @@ export function NetworkDiagnostic() {
       case "device": return r.device.toLowerCase();
       case "port": return r.port ?? -1;
       case "speed": return r.speed ?? -1;
+      case "nic": return r.nic?.speed ?? -1;
       case "peer": return (r.peer ?? "~").toLowerCase();
       case "text": return r.text.toLowerCase();
       default: return r.level;
@@ -106,7 +122,7 @@ export function NetworkDiagnostic() {
             <thead>
               <tr>
                 <Th k="level" sort={sort} className="!px-4">{tx("Niveau")}</Th><Th k="kind" sort={sort}>{tx("Contrôle")}</Th><Th k="device" sort={sort}>{tx("Équipement")}</Th>
-                <Th k="port" sort={sort}>{tx("Port")}</Th><Th k="speed" sort={sort}>{tx("Négocié / maximum")}</Th><Th k="peer" sort={sort}>{tx("Branché")}</Th><Th k="text" sort={sort} className="!px-4">{tx("Constat")}</Th>
+                <Th k="port" sort={sort}>{tx("Port")}</Th><Th k="speed" sort={sort}>{tx("Côté switch : négocié / maximum")}</Th><Th k="peer" sort={sort}>{tx("Branché")}</Th><Th k="nic" sort={sort}>{tx("Côté machine : carte réseau")}</Th><Th k="text" sort={sort} className="!px-4">{tx("Constat")}</Th>
               </tr>
             </thead>
             <tbody className="[&>tr:nth-child(even)]:bg-bg/50 [&>tr]:border-b [&>tr]:border-line/60">
@@ -120,6 +136,7 @@ export function NetworkDiagnostic() {
                     <td className="px-3 py-2 align-top tabular-nums">{r.port ?? "-"}</td>
                     <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums">{r.kind === "speed" || r.kind === "link" ? <><b>{link(r.speed)}</b> <Dim>/ {link(r.max)}</Dim></> : <Dim>-</Dim>}</td>
                     <td className="px-3 py-2 align-top">{r.peer ?? <Dim>-</Dim>}</td>
+                    <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums">{r.kind === "speed" || r.kind === "link" ? <NicCell nic={r.nic} portSpeed={r.speed} /> : <Dim>-</Dim>}</td>
                     <td className={`px-4 py-2 align-top ${r.severity === "ok" ? "text-dim" : "text-muted"}`}>{r.text}</td>
                   </tr>
                 );

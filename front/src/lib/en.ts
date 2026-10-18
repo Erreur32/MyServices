@@ -2500,7 +2500,6 @@ export const EN: Record<string, string> = {
   "équipement(s) UniFi analysés": "UniFi device(s) analysed",
   "Aucun souci détecté : tous les ports en liaison tournent à leur vitesse maximale.": "No problem found: every linked port runs at its maximum speed.",
   "Contrôle": "Check",
-  "Négocié / maximum": "Negotiated / maximum",
   "Branché": "Plugged",
   "Constat": "Finding",
   "Le maximum d'un port vient de son type (100 Mb/s, 1, 2,5, 10 Gb/s). Un appareil qui n'a qu'une carte à 1 Gb/s ou à 100 Mb/s (pont, concentrateur d'objets connectés) donne un constat « à vérifier » normal.": "A port's maximum comes from its type (100 Mb/s, 1, 2.5, 10 Gb/s). A device with only a 1 Gb/s or 100 Mb/s card (a bridge, a smart-home hub) gives a normal \"to check\" finding.",
@@ -2527,4 +2526,7 @@ export const EN: Record<string, string> = {
   "au maximum du port": "at the port maximum",
   "liaison active": "link up",
   "Afficher les ports OK": "Show the OK ports",
+  "Côté switch : négocié / maximum": "Switch side: negotiated / maximum",
+  "Côté machine : carte réseau": "Machine side: network card",
+  "La machine ne rapporte pas sa carte réseau (SSH ou agent) : rien à comparer": "The machine does not report its network card (SSH or agent): nothing to compare",
 };

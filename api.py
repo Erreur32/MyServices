@@ -828,7 +828,7 @@ def network_diagnostics_route():
                 for m in data.get("machine_list") or [] if not m.get("disabled")]
     items = nd.findings(doc["devices"], clients, scan, machines)
     return {"source": doc["source"], "at": doc["at"], "error": doc["error"], "devices": len(doc["devices"]), "summary": nd.summary(items), "findings": items,
-            "ok_ports": nd.ok_ports(doc["devices"], clients, items)}
+            "ok_ports": nd.ok_ports(doc["devices"], clients, items, machines)}
 
 
 class LiveChecks(BaseModel):
