@@ -13,6 +13,6 @@ describe("RoleBadges", () => {
     const html = renderToStaticMarkup(<RoleBadges roles={["a", "b", "un-role-vraiment-trop-long", "d", "e"]} />);
     expect(html).toContain("un-role-vraim…");
     expect(html).toContain("+2");
-    expect(html).toContain('title="d&#10;e"');
+    expect(html).toMatch(/title="d\ne"/);   // the names of the hidden roles, one per line
   });
 });
