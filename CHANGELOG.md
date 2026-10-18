@@ -22,6 +22,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Changed
 
+- README: two screenshots (home page and history tab, names and addresses blurred) and the note that the release notes are in English.
 - Clicking at random in the menus and table headers no longer leaves a focus ring or a text selection behind (the keyboard keeps its ring).
 - The Fail2ban card and the certificates of the Security page are foldable panels.
 - A new SSH key gets its own comment (`myservices@<machine>-<date>`), so two installations are no longer indistinguishable in `authorized_keys`.

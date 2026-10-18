@@ -23,6 +23,16 @@
   <a href="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml"><img alt="Safety guard" src="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml/badge.svg"></a>
 </p>
 
+<p align="center">
+  <img src="docs/screenshot-home.png" alt="MyServices home page: the points that need attention by category, the last 24 hours, and the counters (names and addresses blurred)" width="900"><br>
+  <sub>The home page, on a test installation (names and addresses blurred).</sub>
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-history.png" alt="MyServices history tab: events over 24 hours (names and addresses blurred)" width="900"><br>
+  <sub>The history tab: what fell, came back, appeared or disappeared (names and addresses blurred).</sub>
+</p>
+
 > ## Still in development
 >
 > MyServices is **under active development** (`0.x`) and is **not ready for everyday use yet**. Screens, settings and stored data change
@@ -34,7 +44,7 @@
 > Because it is still moving fast, **pull requests and issues are not being handled for now**; please hold them until a stable release.
 >
 > Development builds are not tagged. Version numbers stay **below 2.0.0** until it is declared stable (`0.15.1`, `0.15.2`…).
-> Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in French).
+> Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in English).
 
 ## At a glance
 

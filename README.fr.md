@@ -23,6 +23,16 @@
   <a href="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml"><img alt="Garde-fou" src="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml/badge.svg"></a>
 </p>
 
+<p align="center">
+  <img src="docs/screenshot-home.png" alt="Page d'accueil de MyServices : les points à regarder par catégorie, les dernières 24 h et les compteurs (noms et adresses floutés)" width="900"><br>
+  <sub>La page d'accueil, sur une installation de test (noms et adresses floutés).</sub>
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-history.png" alt="Onglet Historique de MyServices : les événements sur 24 h (noms et adresses floutés)" width="900"><br>
+  <sub>L'onglet Historique : ce qui est tombé, revenu, apparu ou disparu (noms et adresses floutés).</sub>
+</p>
+
 > ## Encore en développement
 >
 > MyServices est **en plein développement** (`0.x`) et **n'est pas encore prêt pour un usage au quotidien**. Les écrans, les réglages et les
@@ -34,7 +44,7 @@
 > Comme il évolue vite, **les pull requests et les issues ne sont pas traitées pour le moment** : merci de les garder pour une version stable.
 >
 > Les versions de développement ne sont pas étiquetées. Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.15.1`, `0.15.2`…).
-> Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md).
+> Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (en anglais).
 
 ## En bref
 
