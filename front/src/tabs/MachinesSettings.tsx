@@ -3,7 +3,7 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
-import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, Info, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, Radar, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, Info, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, refreshSnapshot, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -30,6 +30,7 @@ import { pokeScan } from "../lib/scan";
 import { hardwareRows } from "../lib/hardware";
 import { tx } from "../lib/i18n";
 import { InfoNote } from "../components/InfoNote";
+import { AddMachine } from "../components/AddMachine";
 
 const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
   { k: "off", label: tx("Souvent éteinte"), help: tx("PC, portable : pas d'alerte si elle ne répond pas") },
@@ -115,7 +116,7 @@ export function MachinesSettings({ snap, focusIp, focusTab }: Readonly<{ snap: S
 
         {showAccess && <AccessGuide />}
         {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
-        {detecting && <Detect st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
+        {detecting && <AddMachine st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
       </Card>
       {/* Cartes compactes de hauteur fixe : les réglages s'ouvrent dans une fenêtre, rien ne se déplie ni ne déforme la grille */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -205,77 +206,6 @@ function Redetect({ st, onDone }: { st: State; onDone: () => void }) {
         {withChanges.length > 0 && <button type="button" className={primary} disabled={busy} onClick={apply}><Check size={14} />{busy ? tx("Enregistrement…") : tx("Appliquer")}</button>}
         <button type="button" className={quiet} onClick={onDone}>{withChanges.length > 0 ? tx("Annuler") : tx("Fermer")}</button>
       </div>
-    </div>
-  );
-}
-
-/** Ajout : cible → détection → proposition à relire → enregistrer. */
-export function Detect({ st, onDone, onCancel }: Readonly<{ st: State; onDone: () => void; onCancel: () => void }>) {
-  const [target, setTarget] = useState("");
-  const [d, setD] = useState<Detection | null>(null);
-  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
-  const run = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true); setD(null); setNote(null);
-    try {
-      setD(await send<Detection>("POST", `machines/detect?target=${encodeURIComponent(target)}`));
-    } catch (err) {
-      if (err instanceof LoginRequired) location.replace(LOGIN);
-      else setNote({ ok: false, text: (err as Error).message });
-    }
-    setBusy(false);
-  };
-  return (
-    <div className="mt-3 flex flex-col gap-3 rounded-xl border-2 border-link bg-link/5 p-3">
-      <form onSubmit={run} className="flex flex-wrap items-end gap-2">
-        <Field label={tx("IP, nom ou alias SSH")}>
-          <input className={`${input} min-w-[260px]`} list="ssh-aliases" required value={target} onChange={(e) => setTarget(e.target.value)} placeholder={tx("ex. 192.168.1.20 ou nas")} />
-          <datalist id="ssh-aliases">{st.aliases.map((a) => <option key={a.alias} value={a.alias}>{a.ip || a.host}</option>)}</datalist>
-        </Field>
-        <button type="submit" className={primary} disabled={busy}><Radar size={14} />{busy ? tx("Détection…") : tx("Détecter")}</button>
-        <button type="button" className={quiet} onClick={onCancel}>{tx("Annuler")}</button>
-      </form>
-      <InfoNote>
-        {tx("Lecture seule sur le réseau, comme la collecte. L'accès SSH passe par un alias de")} <code className="font-mono text-xs">{st.ssh_conf}</code>
-        {" "}({st.aliases.length} {tx("connus) ; la clé publique de l'app doit être dans")} <code className="font-mono text-xs">{tx("authorized_keys")}</code> {tx("du compte visé. Un changement est pris en compte au prochain passage de la collecte.")}
-      </InfoNote>
-      <p className="text-xs text-dim">{tx("Ping, ports connus, nom DNS, SSH (Linux ou Windows), Docker, AdGuard, VM, services web : quelques secondes. Rien n'est écrit avant « Enregistrer ».")}</p>
-      <NoteLine note={note} />
-      {d && <Proposal d={d} st={st} onDone={onDone} />}
-    </div>
-  );
-}
-
-function Proposal({ d, st, onDone }: { d: Detection; st: State; onDone: () => void }) {
-  const [web, setWeb] = useState<number[]>([]);
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <b>{d.ip}</b>{d.dns && <Dim>{d.dns}</Dim>}
-        <Badge tone={d.up ? "ok" : "warn"}>{d.up ? tx("répond au ping") : tx("ne répond pas au ping")}</Badge>
-        {d.alias && <Badge tone="info">{tx("alias")} {d.alias}</Badge>}
-        {d.known && <Badge tone="off">{tx("déjà déclarée : réglages gardés")}</Badge>}
-        {d.hints.map((h) => <Badge key={h} tone="off">{h}</Badge>)}
-      </div>
-      {d.notes.map((n, i) => <p key={i} className={`text-sm ${n.startsWith("✓") ? "text-ok" : "text-warn"}`}>{n}</p>)}
-      {d.connectors.length > 0 && (
-        <InfoNote>
-          {tx("Services reconnus, à ajouter dans Réglages → Connecteurs (compte ou clé lecture seule) :")}{" "}
-          {d.connectors.map((c) => <span key={c.type} className="mr-2"><b className="text-txt">{c.label}</b>{c.proposed.url && <Dim> {c.proposed.url}</Dim>}</span>)}
-        </InfoNote>
-      )}
-      {d.web.length > 0 && (
-        <div className="text-sm">
-          <span className="text-muted">{tx("Services web à suivre (sans SSH : sinon seulement le ping) :")}</span>
-          {d.web.map((w) => (
-            <label key={w.port} className="ml-3 inline-flex items-center gap-1.5">
-              <input type="checkbox" checked={web.includes(w.port)} onChange={() => setWeb(web.includes(w.port) ? web.filter((x) => x !== w.port) : [...web, w.port])} />
-              {w.scheme}://{d.ip}:{w.port} <Dim>({w.label})</Dim>
-            </label>
-          ))}
-        </div>
-      )}
-      <MachineForm ip={d.ip} m={d.machine} st={st} isNew={!d.known} detected={[...(d.detected ?? []), ...(d.machine.off && !d.known ? ["off"] : [])]} extra={d.web.filter((w) => web.includes(w.port))} onDone={onDone} />
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { read } from "../api";
 import type { Snapshot } from "../api";
 import { ChannelForm } from "../tabs/Alerts";
 import { ConnectorForm } from "../tabs/Connectors";
-import { Detect } from "../tabs/MachinesSettings";
+import { AddMachine } from "./AddMachine";
 import { AgentInstall, type AgentKind } from "./AgentInstall";
 import { Overlay } from "./Overlay";
 import { SshGuide } from "./SshGuide";
@@ -94,5 +94,5 @@ function ConnectorSetup({ setup, snap, onClose }: Readonly<{ setup: Extract<Setu
 function MachineSetup({ onClose }: { onClose: () => void }) {
   const [st, setSt] = useState<MachinesSettings | null>(null);
   useEffect(() => { read<MachinesSettings>("machines/settings").then(setSt).catch(() => undefined); }, []);
-  return st ? <Detect st={st} onDone={onClose} onCancel={onClose} /> : <Loading />;
+  return st ? <AddMachine st={st} onDone={onClose} onCancel={onClose} /> : <Loading />;
 }

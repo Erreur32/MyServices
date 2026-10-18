@@ -790,6 +790,21 @@ def machines_ssh_alias(body: AliasBody, request: Request):
     return machine_call(request, "alias SSH préparé", f"{body.user}@{body.ip}:{body.port}", lambda m: m.add_alias(body.ip, body.user, body.port))
 
 
+class ProbeBody(BaseModel):
+    ip: str
+    windows: bool = False
+
+
+@app.post(API + "/machines/ssh-alias/test", tags=["machines"], summary="Tester l'accès SSH d'une machine pas encore déclarée (admin)")
+def machines_ssh_alias_test(body: ProbeBody, request: Request):
+    return machine_call(request, "", "", lambda m: m.probe_alias(body.ip, body.windows))
+
+
+@app.delete(API + "/machines/ssh-alias/{ip}", tags=["machines"], summary="Retirer l'alias SSH préparé pour une machine dont l'ajout est abandonné (admin)")
+def machines_ssh_alias_delete(ip: str, request: Request):
+    return machine_call(request, "alias SSH retiré", ip, lambda m: m.remove_alias(ip))
+
+
 # ── Recherche des machines du réseau (étape 4 de « Premiers pas ») ────────────────────────────────
 
 def _netscan_file():
