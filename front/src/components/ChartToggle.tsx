@@ -54,10 +54,10 @@ const BTN = "inline-flex items-center rounded-md p-1.5 text-muted hover:text-txt
 export function ChartToggle({ id, icon, title, rows, list, startFolded }: Readonly<{ id: string; icon: LucideIcon; title: string; rows: Slice[]; list: ReactNode; startFolded?: boolean }>) {
   const [chart, setChart] = useState(false);
   const toggle = (
-    <span className="inline-flex gap-0.5" role="group" aria-label={tx("Affichage")}>
+    <fieldset className="m-0 inline-flex gap-0.5 border-0 p-0" aria-label={tx("Affichage")}>
       <button type="button" className={BTN} aria-pressed={!chart} title={tx("Liste")} onClick={() => setChart(false)}><List size={15} aria-hidden /></button>
       <button type="button" className={BTN} aria-pressed={chart} title={tx("Camembert")} onClick={() => setChart(true)}><PieChart size={15} aria-hidden /></button>
-    </span>
+    </fieldset>
   );
   return <FoldPanel id={id} icon={icon} title={title} extra={toggle} startFolded={startFolded}>{chart ? <Donut rows={rows} /> : list}</FoldPanel>;
 }

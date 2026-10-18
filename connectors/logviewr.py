@@ -155,9 +155,18 @@ def add_domains(stats: dict, search) -> dict:
     return stats
 
 
+def _lookup_domains(ip: str, search) -> list[dict]:
+    """The domains one address went after, from a log search; a failing search gives none."""
+    try:
+        found = attack_domains(search(ip))
+    except ConnectorError:
+        return []
+    return [{"domain": d, "hits": n} for d, n in found.items()]
+
+
 def add_threat_domains(threats: list[dict], stats: dict | None, search) -> list[dict]:
     """Adds `domains` (the domains the addresses of a threat went after) to each threat. Addresses the statistics already looked up are reused;
-    at most THREAT_LOOKUPS others are searched, a failing search leaves them out."""
+    at most THREAT_LOOKUPS others are searched."""
     known = {w["ip"]: w.get("domains") or [] for w in (stats or {}).get("top_ips", [])}
     budget = THREAT_LOOKUPS
     for t in threats:
@@ -165,11 +174,7 @@ def add_threat_domains(threats: list[dict], stats: dict | None, search) -> list[
         for ip in t["ips"][:3]:
             if ip not in known and budget > 0:
                 budget -= 1
-                try:
-                    found = attack_domains(search(ip))
-                except ConnectorError:
-                    found = {}
-                known[ip] = [{"domain": d, "hits": n} for d, n in found.items()]
+                known[ip] = _lookup_domains(ip, search)
             for d in known.get(ip, []):
                 hits[d["domain"]] = hits.get(d["domain"], 0) + d["hits"]
         t["domains"] = [d for d, _ in sorted(hits.items(), key=lambda kv: -kv[1])][:5]

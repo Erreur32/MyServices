@@ -78,7 +78,8 @@ function AreaTiles({ snap, findings, admin, open }: Readonly<{ snap: Snapshot; f
     <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
       {SUBS.filter((x): x is typeof x & { area: Area } => !!x.area && (admin || x.id !== "members")).map(({ id, label, icon: Icon, area }) => {
         const mine = findings.filter((f) => f.area === area);
-        const tone = mine.some((f) => f.sev === "bad") ? "bad" : mine.length ? "warn" : "ok";
+        let tone: "ok" | "warn" | "bad" = mine.length ? "warn" : "ok";
+        if (mine.some((f) => f.sev === "bad")) tone = "bad";
         const color = { ok: "text-ok", warn: "text-warn", bad: "text-bad" }[tone];
         const frame = { ok: "border-line", warn: "border-warn/50", bad: "border-bad/50" }[tone];
         return (
