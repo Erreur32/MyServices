@@ -18,6 +18,7 @@ import connectors
 from connectors.base import ConnectorError
 from connectors.mynetwork import compact_sheet
 
+VERSION_EVERY = 6 * 3600   # s, between two version readings of a light-read connector
 PORTS_MAX_AGE = 3600   # s, a port list older than this is called old (its scan date, not the time we read it)
 
 
@@ -51,7 +52,12 @@ def refresh(cfg: dict, path: Path, followed: list[str], prev: dict | None = None
             sources[key] = cur
         elif c.type == "beszel":
             systems, err = _try(lambda c=c: c._records("systems"))
-            sources[key] = {"at": now, "ok": systems is not None, "error": err,
+            ver, ver_at = old.get("version"), old.get("version_at", 0)
+            if systems is not None and now - ver_at > VERSION_EVERY:   # the version changes rarely: asked again every few hours, not every reading
+                got, _ = _try(c.test)
+                ver, ver_at = (got.version if got else ver), now
+            sources[key] = {"at": now, "ok": systems is not None, "error": err, "version": ver, "version_at": ver_at,
+                            "total": len(systems) if systems is not None else old.get("total"),
                             "status": _beszel_by_ip(systems, cfg) if systems is not None else old.get("status", {})}
         elif c.type == "proxmox":
             got, err = _try(c.collect)
@@ -116,7 +122,8 @@ def statuses_missing(live: dict, have: set[tuple[str, str]]) -> list[dict]:
             continue
         ok = bool(src.get("ok"))
         count = len(src.get("status") or {})
+        total = src.get("total") or count
         message = (f"{count} système(s)" if count else "OK") if ok else str(src.get("error") or "illisible")[:160]
         out.append({"type": kind, "name": name, "ok": ok, "message": message, "stale": False, "failures": 0, "since": None, "duration_s": 0.0,
-                    "version": None, "version_tested": None, "extra": {}, "found": [{"name": "systèmes", "count": count}] if ok and count else [], "warning": ""})
+                    "version": src.get("version"), "version_tested": None, "extra": {}, "found": [{"name": "systèmes", "count": total}] if ok and total else [], "warning": ""})
     return out

@@ -489,7 +489,44 @@ def last_statuses() -> list[dict]:
     rows = list(data.get("connectors", []))
     import fast
     rows += fast.statuses_missing(fast.read(core.WEB / "live.json"), {(st.get("type"), st.get("name")) for st in rows})   # read lightly, never by the collection
+    tests = _tests()
+    rows = [_with_test(st, tests.get(f"{st.get('type')}/{st.get('name')}"), at) for st in rows]
     return [{**st, "pending": True} if f"{st.get('type')}/{st.get('name')}" in saved else st for st in rows]
+
+
+def _tests_file() -> Path:
+    return Path(core.CFG["state_dir"]) / "connectors-tests.json"
+
+
+def _tests() -> dict[str, dict]:
+    try:
+        got = json.loads(_tests_file().read_text(encoding="utf-8"))
+        return got if isinstance(got, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _with_test(st: dict, test: dict | None, generated: float) -> dict:
+    """A test made from the page, newer than the last collection (or on a connector the collection never reads), is the freshest state."""
+    if not test or (test["at"] <= generated and st.get("version")):
+        return st
+    return {**st, "ok": test["ok"], "message": test["message"], "stale": False, "version": test.get("version") or st.get("version"),
+            "version_tested": test.get("version_tested"), "found": test.get("found") or st.get("found") or []}
+
+
+def remember_test(type_: str, name: str, out: dict) -> None:
+    """Keep the answer of a test made from the page: the card shows it at once, the next collection takes over."""
+    keep = {k: out.get(k) for k in ("ok", "message", "version", "version_tested", "found")}
+    marks = {k: v for k, v in _tests().items() if time.time() - v["at"] < 7 * 86400}
+    marks[f"{type_}/{name}"] = {**keep, "at": time.time()}
+    try:
+        f = _tests_file()
+        f.parent.mkdir(parents=True, exist_ok=True)
+        tmp = f.with_suffix(".tmp")
+        tmp.write_text(json.dumps(marks), encoding="utf-8")
+        tmp.replace(f)
+    except OSError:
+        pass   # a convenience: the card then waits for the collection, as before
 
 
 def _saved_file() -> Path:
@@ -653,7 +690,11 @@ def npm_script_install(body: NpmScriptInstall, request: Request):
 
 @app.post(API + "/connectors/settings/{type_}/test", tags=["connecteurs"], summary="Essayer des réglages sans les enregistrer (admin)")
 def connector_test(type_: str, body: ConnectorConf, request: Request):
-    return connector_call(request, "", "", lambda s: s.test(type_, body.name, body.config, body.original))
+    from connectors import settings
+    out = connector_call(request, "", "", lambda s: s.test(type_, body.name, body.config, body.original))
+    if isinstance(out, dict) and "ok" in out and body.name in settings.names(type_):
+        remember_test(type_, body.name, out)   # only a saved instance: a form being filled in has no card yet
+    return out
 
 
 # ── Machines (machines_admin.py, équivalent de setup.py --add) ─────────────────────────────────────

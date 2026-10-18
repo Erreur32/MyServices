@@ -363,7 +363,7 @@ function InstanceCard({ inst, hosts, collect, type, reload, onCollect, toggling,
           <button type="button" className={`${quiet} px-2`} disabled={testing || edit} onClick={async () => {
             setTesting(true); setReport(null);
             setReport(await runTest(inst.type, { name: inst.name, config: configFor(type, modeOf(type, inst.config), inst.config as Record<string, string | number | boolean>), original: inst.name }));
-            setTesting(false);
+            setTesting(false); reload();   // the server kept the answer: the card shows the version and the tags without waiting for the collection
           }} title={testing ? tx("Essai…") : tx("Tester : essayer la lecture avec les réglages enregistrés, sans ouvrir le formulaire")}
             aria-label={testing ? tx("Essai…") : tx("Tester")}>{testing ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <Play size={15} aria-hidden />}</button>
           <button type="button" className={`${quiet} px-2`} disabled={locked} onClick={() => setEdit(!edit)} aria-expanded={edit} aria-label={tx("Modifier")}
