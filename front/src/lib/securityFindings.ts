@@ -21,7 +21,7 @@ export function siteIssues(r: Host): string[] {
   const out: string[] = [];
   if (r.ssl && !r.ssl_forced) out.push(tx("HTTPS non forcé"));
   if (!r.ssl) out.push(tx("pas de HTTPS"));
-  if (r.webcheck && r.webcheck.hsts === false) out.push(tx("pas de HSTS"));
+  if (r.webcheck?.hsts === false) out.push(tx("pas de HSTS"));
   if (!r.block_exploits) out.push(tx("« Block exploits » coupé"));
   if (r.webcheck?.headers_total && (r.webcheck.headers_ok ?? 0) < r.webcheck.headers_total / 2) out.push(tx("en-têtes de sécurité faibles"));
   return out;
@@ -29,10 +29,12 @@ export function siteIssues(r: Host): string[] {
 
 export const exposedSites = (hosts: Host[]): Host[] => hosts.filter((r) => r.type === "proxy" && r.enabled && !r.acl && !r.acl_adv);
 
+const moreIps = (count: number): string => (count > 3 ? " +" + (count - 3) : "");
+
 function threatFindings(snap: Snapshot): Finding[] {
   return (snap.data.security ?? []).flatMap((c) => (c.threats ?? []).map((t): Finding => ({
     sev: "bad", area: "fail2ban", title: t.kind === "ip_escalation" ? tx("Une IP attaque plusieurs services") : tx("Campagne d'attaque {0}", t.asn ?? ""),
-    detail: `${t.ips.slice(0, 3).join(", ")}${t.ip_count > 3 ? ` +${t.ip_count - 3}` : ""} · ${t.jails.join(", ")}`,
+    detail: `${t.ips.slice(0, 3).join(", ")}${moreIps(t.ip_count)} · ${t.jails.join(", ")}`,
     fix: tx("Vérifier ces adresses dans Fail2ban et les bloquer au pare-feu si elles reviennent."),
   })));
 }

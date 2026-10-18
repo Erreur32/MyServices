@@ -7,7 +7,7 @@ export function MiniBars({ values, color, label, from, to, titleOf }: Readonly<{
     <div>
       <div className="flex h-14 items-end gap-0.5" role="img" aria-label={label}>
         {values.map((n, i) => (
-          <span key={i} title={titleOf(i, n)} className={`flex-1 rounded-sm ${n ? color : "bg-line/60"}`} style={{ height: n ? `${Math.max(14, (n / max) * 100)}%` : "6%" }} />
+          <span key={`bar${values.length - i}`} title={titleOf(i, n)} className={`flex-1 rounded-sm ${n ? color : "bg-line/60"}`} style={{ height: n ? `${Math.max(14, (n / max) * 100)}%` : "6%" }} />
         ))}
       </div>
       <div className="mt-1 flex justify-between text-[10px] uppercase tracking-wide text-dim"><span>{from}</span><span>{tx("max {0}", max)}</span><span>{to}</span></div>

@@ -40,6 +40,29 @@ HOST_RE = re.compile(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?")
 DOMAIN_LOOKUPS = 8   # the most banned addresses whose logs are searched for the domain they went after
 
 
+def _count(e: dict, key: str) -> int:
+    v = e.get(key)
+    return v if isinstance(v, int) else 0
+
+
+def _ban_of(e, now: float) -> tuple[float, str, str] | None:
+    """(time, ip, jail) of a ban event of the last 7 days that Fail2ban wrote properly, else None."""
+    t = e.get("timeofban") if isinstance(e, dict) else None
+    ip = str(e.get("ip") or "") if isinstance(e, dict) else ""
+    if not isinstance(t, (int, float)) or not IP_RE.fullmatch(ip) or not 0 <= now - t < 7 * 86400:
+        return None
+    return t, ip, str(e.get("jail") or "?")[:40]
+
+
+def _note_ip(ips: dict, ip: str, jail: str, e: dict, t: float, recent: bool) -> None:
+    who = ips.setdefault(ip, {"ip": ip, "bans": 0, "jails": set(), "failures": 0, "last": 0, "recent": False})
+    who["bans"] += 1
+    who["jails"].add(jail)
+    who["failures"] += _count(e, "failures")
+    who["last"] = max(who["last"], t)
+    who["recent"] = who["recent"] or recent
+
+
 def ban_stats(events: list, now: float) -> dict:
     """Aggregates of the last 7 days of bans, worked out here so that data.json carries a few numbers and not thousands of events: bans per hour
     (last 24 h) and per day (last 7), per jail, the IPs banned most, how many IPs came back, and the failures behind the bans of the last day.
@@ -49,25 +72,20 @@ def ban_stats(events: list, now: float) -> dict:
     ips: dict[str, dict] = {}
     failures_1d = 0
     for e in events:
-        t = e.get("timeofban") if isinstance(e, dict) else None
-        ip = str(e.get("ip") or "") if isinstance(e, dict) else ""
-        if not isinstance(t, (int, float)) or not IP_RE.fullmatch(ip) or not 0 <= now - t < 7 * 86400:
+        ban = _ban_of(e, now)
+        if ban is None:
             continue
-        age, jail = now - t, str(e.get("jail") or "?")[:40]
+        t, ip, jail = ban
+        age = now - t
         recent = age < 86400
         days[6 - int(age // 86400)] += 1
         if recent:
             hours[23 - int(age // 3600)] += 1
-            failures_1d += e.get("failures") if isinstance(e.get("failures"), int) else 0
+            failures_1d += _count(e, "failures")
         row = jails.setdefault(jail, [0, 0])
         row[1] += 1
         row[0] += recent
-        who = ips.setdefault(ip, {"ip": ip, "bans": 0, "jails": set(), "failures": 0, "last": 0, "recent": False})
-        who["bans"] += 1
-        who["jails"].add(jail)
-        who["failures"] += e.get("failures") if isinstance(e.get("failures"), int) else 0
-        who["last"] = max(who["last"], t)
-        who["recent"] = who["recent"] or recent
+        _note_ip(ips, ip, jail, e, t, recent)
     top = sorted(ips.values(), key=lambda w: (-w["bans"], -w["last"]))[:10]
     return {"hours": hours, "days": days,
             "by_jail": [{"jail": j, "d1": v[0], "d7": v[1]} for j, v in sorted(jails.items(), key=lambda kv: -kv[1][1])][:20],

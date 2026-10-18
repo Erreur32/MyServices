@@ -2,7 +2,7 @@
 // a link or a button placed in it (lib/foldHeader.ts). The state is kept in this browser; the chevron button is the way in for the keyboard.
 import { ChevronDown, ChevronUp, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { FOLD_HEADER, headerToggle } from "../lib/foldHeader";
+import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 import { tx } from "../lib/i18n";
 import { useStoredFlag } from "../lib/storedFlag";
 import { Count } from "./ui";
@@ -14,7 +14,7 @@ export function FoldPanel({ id, icon: Icon, title, count, tone = "off", extra, s
   const Chevron = folded ? ChevronDown : ChevronUp;
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
-      <div className={`flex flex-wrap items-center gap-2 bg-bg px-4 py-3 ${folded ? "" : "border-b border-line/60"} ${FOLD_HEADER}`} onClick={headerToggle(() => setFolded(!folded))}>
+      <div className={`flex flex-wrap items-center gap-2 bg-bg px-4 py-3 ${folded ? "" : "border-b border-line/60"} ${FOLD_HEADER}`} {...foldHeaderProps(() => setFolded(!folded))}>
         <Icon size={16} className="text-link" aria-hidden />
         <h2 className="font-bold">{title}</h2>
         {count != null && <Count n={count} tone={tone} />}

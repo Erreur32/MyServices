@@ -13,7 +13,7 @@ import { tx } from "../lib/i18n";
 import { usePoll } from "../lib/polling";
 import type { AgentInfo, AgentsState } from "../types";
 import { InfoNote } from "./InfoNote";
-import { FOLD_HEADER, headerToggle } from "../lib/foldHeader";
+import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 
 export type AgentKind = "windows" | "linux";
 
@@ -95,7 +95,7 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
   if (created) {
     return (
       <Card tone="ok">
-        <div className={`flex flex-wrap items-center gap-2 ${FOLD_HEADER}`} onClick={headerToggle(() => setFolded(!folded))}>
+        <div className={`flex flex-wrap items-center gap-2 ${FOLD_HEADER}`} {...foldHeaderProps(() => setFolded(!folded))}>
           <button type="button" onClick={() => setFolded(!folded)} aria-expanded={!folded} className="flex min-w-0 flex-1 items-center gap-2 text-left">
             {folded ? <ChevronRight size={16} className="shrink-0 text-txt" aria-hidden /> : <ChevronDown size={16} className="shrink-0 text-txt" aria-hidden />}
             <h2 className="truncate font-bold text-ok">{tx("Agent «")} {created.info.name} {tx("» créé")}</h2>

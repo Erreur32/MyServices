@@ -19,14 +19,14 @@ function mergeDomains(rows: NonNullable<Stats["by_domain"]>): NonNullable<Stats[
 
 /** Several LogviewR / Fail2ban sources: their numbers add up (the IP and jail lists are merged) */
 export function mergeStats(list: Stats[]): Stats {
-  const sum = (a: number[], b: number[]) => a.map((n, i) => n + (b[i] ?? 0));
+  const sumOf = (lists: number[][]): number[] => lists.reduce<number[]>((acc, l) => acc.map((n, i) => n + (l[i] ?? 0)), lists[0].map(() => 0));
   const jails = new Map<string, { jail: string; d1: number; d7: number }>();
   for (const j of list.flatMap((s) => s.by_jail)) {
     const cur = jails.get(j.jail) ?? { jail: j.jail, d1: 0, d7: 0 };
     jails.set(j.jail, { jail: j.jail, d1: cur.d1 + j.d1, d7: cur.d7 + j.d7 });
   }
   return {
-    hours: list.map((s) => s.hours).reduce(sum), days: list.map((s) => s.days).reduce(sum),
+    hours: sumOf(list.map((s) => s.hours)), days: sumOf(list.map((s) => s.days)),
     by_jail: [...jails.values()].sort((a, b) => b.d7 - a.d7),
     top_ips: list.flatMap((s) => s.top_ips).sort((a, b) => b.bans - a.bans).slice(0, 10),
     unique_1d: list.reduce((n, s) => n + s.unique_1d, 0), unique_7d: list.reduce((n, s) => n + s.unique_7d, 0),

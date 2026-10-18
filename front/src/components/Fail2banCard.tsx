@@ -8,6 +8,8 @@ import { Badge, Card, Count, Dim } from "./ui";
 const BAN_COLS = "grid items-center gap-x-6 md:grid-cols-[minmax(0,12rem)_10rem_7rem_minmax(0,1fr)]";
 const BANS_SHOWN = 15;
 
+const banKey = (b: NonNullable<SecurityConnector["bans"]>[number]): string => `${b.ip}/${b.jail}/${b.time ?? 0}/${b.failures ?? 0}`;
+
 function BanRow({ b }: Readonly<{ b: NonNullable<SecurityConnector["bans"]>[number] }>) {
   return (
     <li className={`${BAN_COLS} gap-y-1 px-2 py-1.5`}>
@@ -28,11 +30,11 @@ function LastBans({ bans }: Readonly<{ bans: NonNullable<SecurityConnector["bans
       <div className={`${BAN_COLS} border-b border-line px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim max-md:hidden`} aria-hidden>
         <span>{tx("Adresse")}</span><span>{tx("Jail")}</span><span>{tx("Échecs")}</span><span className="text-right">{tx("Quand")}</span>
       </div>
-      <ul className="flex flex-col divide-y divide-line/50 text-sm [&>li:nth-child(even)]:bg-bg/50">{sorted.slice(0, BANS_SHOWN).map((b, i) => <BanRow key={i} b={b} />)}</ul>
+      <ul className="flex flex-col divide-y divide-line/50 text-sm [&>li:nth-child(even)]:bg-bg/50">{sorted.slice(0, BANS_SHOWN).map((b) => <BanRow key={banKey(b)} b={b} />)}</ul>
       {sorted.length > BANS_SHOWN && (
         <details className="mt-1 text-sm">
           <summary className="cursor-pointer px-1 py-1 text-xs font-semibold text-muted hover:text-txt">{tx("Voir les {0} suivants", sorted.length - BANS_SHOWN)}</summary>
-          <ul className="flex flex-col divide-y divide-line/50 text-sm [&>li:nth-child(even)]:bg-bg/50">{sorted.slice(BANS_SHOWN).map((b, i) => <BanRow key={i} b={b} />)}</ul>
+          <ul className="flex flex-col divide-y divide-line/50 text-sm [&>li:nth-child(even)]:bg-bg/50">{sorted.slice(BANS_SHOWN).map((b) => <BanRow key={banKey(b)} b={b} />)}</ul>
         </details>
       )}
     </div>

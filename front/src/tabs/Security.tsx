@@ -30,7 +30,10 @@ const AREA_SUB: Record<Area, Sub> = { fail2ban: "fail2ban", sites: "sites", cert
 const savedSub = (): Sub => { try { const v = localStorage.getItem(SUB_KEY); return SUBS.some((s) => s.id === v) ? (v as Sub) : "overview"; } catch { return "overview"; } };
 
 function Posture({ findings }: Readonly<{ findings: Finding[] }>) {
-  const bad = findings.filter((f) => f.sev === "bad").length, tone = findings.length === 0 ? "ok" : bad ? "bad" : "warn";
+  const bad = findings.filter((f) => f.sev === "bad").length;
+  let tone: "ok" | "warn" | "bad" = "warn";
+  if (findings.length === 0) tone = "ok";
+  else if (bad) tone = "bad";
   const frame = { ok: "border-ok/40 bg-ok/10", warn: "border-warn/50 bg-warn/10", bad: "border-bad/50 bg-bad/10" }[tone];
   const Icon = tone === "ok" ? ShieldCheck : ShieldAlert;
   return (
@@ -65,7 +68,7 @@ function Overview({ snap, findings, open }: Readonly<{ snap: Snapshot; findings:
       {findings.length > 0 && (
         <Card>
           <h2 className="mb-1 font-bold">{tx("À traiter d'abord")} <Count n={findings.length} tone="warn" /></h2>
-          <ul className={"flex flex-col divide-y divide-line/60"+" [&>li:nth-child(even)]:bg-bg/50"}>{findings.map((f, i) => <FindingRow key={i} f={f} open={open} />)}</ul>
+          <ul className="flex flex-col divide-y divide-line/60 [&>li:nth-child(even)]:bg-bg/50">{findings.map((f) => <FindingRow key={`${f.area}/${f.title}/${f.detail}`} f={f} open={open} />)}</ul>
         </Card>
       )}
       <InfoNote>{tx("Cette page lit ce que vos outils savent (Fail2ban par LogviewR, Nginx Proxy Manager, SSH, MynetworK). Elle ne change rien et ne donne pas de note : des faits, du plus grave au moins grave.")}</InfoNote>
@@ -113,12 +116,18 @@ function AccessList({ snap }: Readonly<{ snap: Snapshot }>) {
             <SshCell label={tx("Connexion root")} value={d?.permitrootlogin} warn={root} known={!!d} />
             <SshCell label={tx("Mot de passe")} value={d?.passwordauthentication} warn={pwd} known={!!d} />
             <span className="flex items-center gap-2 md:block"><span className="text-xs text-dim md:hidden">{tx("Échecs sur 24 h")}</span>
-              {fails == null ? <Dim>-</Dim> : <Badge outline tone={fails > 50 ? "bad" : fails ? "warn" : "ok"}>{fails}</Badge>}</span>
+              {fails == null ? <Dim>-</Dim> : <Badge outline tone={failTone(fails)}>{fails}</Badge>}</span>
           </li>
         ))}
       </ul>
     </FoldPanel>
   );
+}
+
+/** Refused SSH logins in 24 h: none is fine, a few is a note, many means someone is trying */
+function failTone(n: number): "ok" | "warn" | "bad" {
+  if (n > 50) return "bad";
+  return n ? "warn" : "ok";
 }
 
 const SSH_COLS = "grid gap-x-6 gap-y-1 md:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]";   // the machine gets the most room, the three settings share the rest evenly

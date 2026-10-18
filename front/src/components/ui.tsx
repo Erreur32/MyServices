@@ -5,7 +5,7 @@ import type { Chip, Facet } from "../lib/filter";
 
 import { LEVEL, type Tone } from "../lib/level";
 import { tx } from "../lib/i18n";
-import { FOLD_HEADER, headerToggle } from "../lib/foldHeader";
+import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 
 export type { Tone };
 
@@ -45,11 +45,11 @@ export function TableCard({ title, tone, count, cols, rows, note, empty, footer,
 }) {
   const [shut, setShut] = useState(foldable && folded);
   const n = count ?? rows.length;
+  const clickable = foldable ? FOLD_HEADER + " hover:bg-bg2/40" : "";
   if (!n && !empty) return null;
   return (
     <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${FRAME[tone]} ${className}`}>
-      <div className={`flex flex-wrap items-center gap-3 px-4 py-3 ${STRIP[tone]} ${foldable ? `${FOLD_HEADER} hover:bg-bg2/40` : ""}`}
-        {...(foldable ? { onClick: headerToggle(() => setShut(!shut)) } : {})}>
+      <div className={`flex flex-wrap items-center gap-3 px-4 py-3 ${STRIP[tone]} ${clickable}`} {...(foldable ? foldHeaderProps(() => setShut(!shut)) : {})}>
         <h3 className="font-bold">{title}</h3><Count n={n} tone={BUBBLE[tone]} />
         {foldable && <button type="button" className="ml-auto text-dim hover:text-txt" aria-expanded={!shut} onClick={() => setShut(!shut)} title={shut ? tx("Déplier") : tx("Replier")}>{shut ? <ChevronDown size={16} aria-hidden /> : <ChevronUp size={16} aria-hidden />}</button>}
       </div>

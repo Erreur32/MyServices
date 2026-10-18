@@ -1,7 +1,7 @@
 // A click on the header of a foldable card opens or closes it, unless it lands on something clickable in that header (a link, a button, a field, a
 // label…): that element does its own job and the card stays as it is. The chevron / title button of the card is one of those buttons: it toggles
 // by itself and is the way in for the keyboard and screen readers.
-import type { MouseEvent } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
 
 /** What keeps its own click inside a header */
 export const INTERACTIVE = "a[href],button,input,select,textarea,label,summary,[role=button],[role=checkbox],[role=switch],[data-no-fold]";
@@ -18,3 +18,11 @@ export const headerToggle = (toggle: () => void) => (e: MouseEvent) => { if (isH
 
 /** Tailwind classes that tell the pointer the header is clickable (written out for Tailwind) */
 export const FOLD_HEADER = "cursor-pointer select-none";
+
+/** Props for the header element of a foldable card: the click above, and Enter / Space when the header itself has the focus. The header is only a bigger
+ *  target for the mouse (role "presentation"): the chevron button inside it is the control for the keyboard and for screen readers. */
+export const foldHeaderProps = (toggle: () => void) => ({
+  role: "presentation" as const,
+  onClick: headerToggle(toggle),
+  onKeyDown: (e: KeyboardEvent) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggle(); } },
+});
