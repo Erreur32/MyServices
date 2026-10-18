@@ -15,8 +15,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+
+- API `GET manifest`: the stamp (modification time and size) of every produced file the page reads (data, pulse, live, events, health, backups). The page asks this small document every 15 s and reads a file again only when its stamp moved; at rest the home page makes one small request per 15 s instead of a dozen revalidations per minute. Without the route (older server), the page reads everything as before.
+
 ### Changed
 
+- Page: one refresh loop every 15 s guided by the manifest replaces the three loops (full load every 60 s, live every 15 s, fast window after a change); the account is read again every 5 minutes; coming back on the browser tab reads at once.
 - Collection and fast loop: every connector instance of every kind (status, network, security, containers, virtualization, and the light reads) is read at the same time, so a pass lasts as long as the slowest service instead of the sum of them all.
 - Connectors: the version of a service is asked once, then reused from the connector state for 6 hours (one request less per connector and per pass).
 - API `GET system`: folder sizes and the key fingerprint are kept 5 minutes (several panels read this route).
