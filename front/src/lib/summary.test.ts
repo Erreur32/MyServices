@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Data, Host } from "../types";
 import { checks, status } from "./status";
-import { attention, names } from "./summary";
+import { attention, groupAttention, limitGroups, names, type Attention } from "./summary";
 
 const NOW = new Date("2026-10-10T12:00:00+02:00").getTime();
 
@@ -98,5 +98,35 @@ describe("avertissements de l'accueil", () => {
     expect(a).toHaveLength(1);
     expect(a[0].level).toBe("warn");
     expect(a[0].text).toContain("2 entrées");
+  });
+});
+
+describe("attention sorted by category and severity", () => {
+  const item = (category: Attention["category"], level: Attention["level"], text: string): Attention => ({ category, level, text, tab: "machines" });
+  it("the categories with red points come first, then by orange count; red before orange inside", () => {
+    const got = groupAttention([
+      item("dns", "warn", "d1"), item("machines", "warn", "m1"), item("services", "crit", "s1"), item("machines", "crit", "m2"),
+      item("services", "warn", "s2"), item("sauvegardes", "warn", "b1"), item("sauvegardes", "warn", "b2"),
+    ]);
+    expect(got.map((g) => [g.category, g.crit, g.warn])).toEqual([["machines", 1, 1], ["services", 1, 1], ["sauvegardes", 0, 2], ["dns", 0, 1]]);
+    expect(got[0].items.map((i) => i.text)).toEqual(["m2", "m1"]);
+    expect(got[1].items.map((i) => i.text)).toEqual(["s1", "s2"]);
+  });
+  it("nothing to say, no group", () => {
+    expect(groupAttention([])).toEqual([]);
+  });
+  it("every line found by attention() has a category", () => {
+    const d = { generated: "", hosts: [], machine_list: [{ name: "pc", ip: "10.0.0.2", ping: false, off: false, services: 0, npm: 0, down: 0 }], connectors: [{ type: "x", name: "c", ok: false, message: "m" }] } as unknown as Data;
+    expect(attention({ data: d, now: NOW }).every((i) => !!i.category)).toBe(true);
+  });
+});
+
+describe("the attention card's line limit", () => {
+  const item = (category: Attention["category"], level: Attention["level"], text: string): Attention => ({ category, level, text, tab: "machines" });
+  it("cuts across the groups in order, and a group with no line left disappears", () => {
+    const groups = groupAttention([item("machines", "crit", "m1"), item("machines", "warn", "m2"), item("dns", "warn", "d1"), item("dns", "warn", "d2")]);
+    expect(limitGroups(groups, 3).map((g) => g.shown.map((i) => i.text))).toEqual([["m1", "m2"], ["d1"]]);
+    expect(limitGroups(groups, 2).map((g) => g.category)).toEqual(["machines"]);
+    expect(limitGroups(groups, 0).reduce((n, g) => n + g.shown.length, 0)).toBe(4);
   });
 });

@@ -8,7 +8,11 @@ import { tx } from "./i18n";
 
 export type TabId = "home" | "history" | "machines" | "services" | "infra" | "security" | "virtualization" | "network" | "dns" | "backups" | "diagrams" | "settings";
 
+/** The families the attention card is sorted into */
+export type Category = "machines" | "services" | "sante" | "dns" | "sauvegardes" | "connecteurs";
+
 export interface Attention {
+  category: Category;
   level: "crit" | "warn";
   text: string;
   tab: TabId;
@@ -56,41 +60,62 @@ function fullDisk(h: HealthHost): string {
 export function attention({ data, health, backups }: Inputs): Attention[] {
   const out: Attention[] = [];
   for (const m of data.machine_list)
-    if (!m.ping && !m.off && !m.disabled) out.push({ level: "crit", text: tx("La machine **{0}** ({1}) ne répond plus au ping", m.name, m.ip), tab: "machines" });
+    if (!m.ping && !m.off && !m.disabled) out.push({ category: "machines", level: "crit", text: tx("La machine **{0}** ({1}) ne répond plus au ping", m.name, m.ip), tab: "machines" });
   // En ligne mais sans accès SSH utilisable : ni conteneurs ni santé lus (box et machines éteintes volontairement exclues)
   const noSsh = data.machine_list.filter((m) => m.ping && !m.off && !m.disabled && !m.gateway && !m.local && ["nossh", "refused"].includes(mState(m)));
   if (noSsh.length)
-    out.push({ level: "warn", text: tx("{0} sans accès SSH utilisable ({1}) : leurs conteneurs et leur santé ne sont pas lus", plural(noSsh.length, "machine"), names(noSsh.map((m) => m.name))), tab: "machines" });
+    out.push({ category: "machines", level: "warn", text: tx("{0} sans accès SSH utilisable ({1}) : leurs conteneurs et leur santé ne sont pas lus", plural(noSsh.length, "machine"), names(noSsh.map((m) => m.name))), tab: "machines" });
   // NPM : entrées actives avec un avertissement (accès, SSL, DNS…), en une seule ligne
   const npmWarn = data.hosts.filter((r) => r.type !== "local" && r.enabled && !r.paused && status(r)[0] === "warn");
   if (npmWarn.length)
-    out.push({ level: "warn", text: tx("{0} NPM avec avertissement : {1}", plural(npmWarn.length, "entrée"), names(npmWarn.map(hostName))), tab: "services" });
+    out.push({ category: "services", level: "warn", text: tx("{0} NPM avec avertissement : {1}", plural(npmWarn.length, "entrée"), names(npmWarn.map(hostName))), tab: "services" });
   for (const r of data.hosts) {
     const [cls, label] = status(r);
-    if (cls === "bad") out.push({ level: "crit", text: tx("**{0}** ne répond plus ({1}){2}", hostName(r), label, r.machine ? tx(", sur {0}", r.machine) : ""), tab: "services" });
+    if (cls === "bad") out.push({ category: "services", level: "crit", text: tx("**{0}** ne répond plus ({1}){2}", hostName(r), label, r.machine ? tx(", sur {0}", r.machine) : ""), tab: "services" });
     const cert = r.enabled && !r.paused ? certIssue(r) : "";
-    if (cert) out.push({ level: "warn", text: tx("**{0}** : {1}", hostName(r), cert), tab: "services" });
+    if (cert) out.push({ category: "services", level: "warn", text: tx("**{0}** : {1}", hostName(r), cert), tab: "services" });
   }
   for (const h of health?.hosts || []) {
     const l = healthLevel(h);
-    if (l === "down") out.push({ level: "crit", text: tx("Santé : **{0}** est injoignable en SSH", machineOf(h)), tab: "machines" });
-    else if (l === "crit") out.push({ level: "crit", text: tx("Santé : **{0}** est en état critique{1}", machineOf(h), fullDisk(h)), tab: "machines" });
-    else if (l === "warn") out.push({ level: "warn", text: tx("Santé : **{0}** est à surveiller{1}", machineOf(h), fullDisk(h)), tab: "machines" });
+    if (l === "down") out.push({ category: "sante", level: "crit", text: tx("Santé : **{0}** est injoignable en SSH", machineOf(h)), tab: "machines" });
+    else if (l === "crit") out.push({ category: "sante", level: "crit", text: tx("Santé : **{0}** est en état critique{1}", machineOf(h), fullDisk(h)), tab: "machines" });
+    else if (l === "warn") out.push({ category: "sante", level: "warn", text: tx("Santé : **{0}** est à surveiller{1}", machineOf(h), fullDisk(h)), tab: "machines" });
   }
   const reboot = (health?.hosts || []).filter((h) => h.reboot_required).map(machineOf);
-  if (reboot.length) out.push({ level: "warn", text: tx("Redémarrage demandé sur {0}", names(reboot)), tab: "machines" });
+  if (reboot.length) out.push({ category: "sante", level: "warn", text: tx("Redémarrage demandé sur {0}", names(reboot)), tab: "machines" });
   if (data.dns) {
-    for (const n of dnsDown(data.dns)) out.push({ level: "crit", text: tx("AdGuard **{0}** ne répond pas", n), tab: "dns" });
+    for (const n of dnsDown(data.dns)) out.push({ category: "dns", level: "crit", text: tx("AdGuard **{0}** ne répond pas", n), tab: "dns" });
     const s = dnsSync(data.dns, Date.parse(data.generated));
-    if (s.cls !== "ok") out.push({ level: s.cls === "bad" ? "crit" : "warn", text: tx("DNS AdGuard : {0}", s.label), tab: "dns" });
-    if (data.dns.orphans.length) out.push({ level: "warn", text: tx("{0}, sans host NPM actif ({1})", plural(data.dns.orphans.length, "réécriture AdGuard orpheline", "réécritures AdGuard orphelines"), names(data.dns.orphans.map((o) => o.domain))), tab: "dns" });
+    if (s.cls !== "ok") out.push({ category: "dns", level: s.cls === "bad" ? "crit" : "warn", text: tx("DNS AdGuard : {0}", s.label), tab: "dns" });
+    if (data.dns.orphans.length) out.push({ category: "dns", level: "warn", text: tx("{0}, sans host NPM actif ({1})", plural(data.dns.orphans.length, "réécriture AdGuard orpheline", "réécritures AdGuard orphelines"), names(data.dns.orphans.map((o) => o.domain))), tab: "dns" });
   }
   for (const i of backups?.issues || [])
-    out.push({ level: i.level === "warn" ? "warn" : "crit", text: tx("Sauvegarde **{0}** : {1}", i.set, i.text), tab: "backups" });
+    out.push({ category: "sauvegardes", level: i.level === "warn" ? "warn" : "crit", text: tx("Sauvegarde **{0}** : {1}", i.set, i.text), tab: "backups" });
   const dockerOff = (data.connectors || []).filter((c) => c.type === "docker" && !c.ok);
   if (dockerOff.length)
-    out.push({ level: "warn", text: tx("Docker illisible sur {0} : leurs conteneurs ne sont pas à jour", names(dockerOff.map((c) => c.name))), tab: "settings", href: "settings/machines" });
+    out.push({ category: "connecteurs", level: "warn", text: tx("Docker illisible sur {0} : leurs conteneurs ne sont pas à jour", names(dockerOff.map((c) => c.name))), tab: "settings", href: "settings/machines" });
   for (const c of data.connectors || [])
-    if (!c.ok && c.type !== "docker") out.push({ level: "warn", text: tx("Connecteur **{0}** ({1}) : {2}", c.name, c.type, short(c.message)), tab: "settings" });
+    if (!c.ok && c.type !== "docker") out.push({ category: "connecteurs", level: "warn", text: tx("Connecteur **{0}** ({1}) : {2}", c.name, c.type, short(c.message)), tab: "settings" });
   return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "crit" ? -1 : 1));
+}
+
+export interface AttentionGroup { category: Category; crit: number; warn: number; items: Attention[] }
+
+/** The attention lines sorted into their category: the categories with the most serious points first (red count, then orange count), and in each one
+ *  the red lines before the orange ones, keeping the order they were found in */
+export function groupAttention(items: Attention[]): AttentionGroup[] {
+  const by = new Map<Category, Attention[]>();
+  for (const it of items) by.set(it.category, [...(by.get(it.category) ?? []), it]);
+  return [...by].map(([category, list]): AttentionGroup => {
+    const sorted = [...list.filter((i) => i.level === "crit"), ...list.filter((i) => i.level === "warn")];
+    return { category, crit: list.filter((i) => i.level === "crit").length, warn: list.filter((i) => i.level === "warn").length, items: sorted };
+  }).sort((a, b) => b.crit - a.crit || b.warn - a.warn || ORDER.indexOf(a.category) - ORDER.indexOf(b.category));
+}
+
+const ORDER: Category[] = ["machines", "services", "sante", "dns", "sauvegardes", "connecteurs"];
+
+/** The groups cut to `max` lines in all, in group order (0 = no limit); a group left with no line disappears */
+export function limitGroups(groups: AttentionGroup[], max: number): (AttentionGroup & { shown: Attention[] })[] {
+  let left = max > 0 ? max : Number.POSITIVE_INFINITY;
+  return groups.map((g) => { const shown = g.items.slice(0, left); left -= shown.length; return { ...g, shown }; }).filter((g) => g.shown.length > 0);
 }

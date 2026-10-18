@@ -11,6 +11,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+
+- Home page: the attention card is sorted into categories (machines, services, health, DNS, backups, connectors), the categories with red points first and
+  the red lines before the orange ones in each; a click on a category header folds it (kept in the browser).
+
 ## v0.15.0 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
