@@ -73,6 +73,9 @@ APPS: tuple[App, ...] = (
     App("ollama", "Ollama", "IA", ui="api", ports=(11434,), images=("ollama/ollama",), proc=r"^ollama\b", connector="ollama"),
     App("lmstudio", "LM Studio", "IA", ports=(1234,)),
     App("llamacpp", "llama.cpp", "IA", title=r"^llama\.cpp", images=("ghcr.io/ggml-org/llama.cpp", "ghcr.io/ggerganov/llama.cpp"), proc=r"^llama-server\b", connector="llamacpp"),
+    App("vllm", "vLLM", "IA", ui="api", images=("vllm/vllm-openai",), proc=r"^vllm\b"),
+    App("localai", "LocalAI", "IA", ui="api", images=("localai/localai", "quay.io/go-skynet/local-ai"), proc=r"^local-ai\b"),
+    App("koboldcpp", "KoboldCpp", "IA", ports=(5001,), proc=r"^koboldcpp"),
     App("hermes", "Hermes Agent", "IA", ports=(8642, 19119), proc=r"^hermes\b", connector="hermes"),
     App("open-webui", "Open WebUI", "IA", title=r"open webui", images=("ghcr.io/open-webui/open-webui",)),
     # Veeam Backup & Replication : API REST 9419 (lue par Sauvegardes), service 9392, serveur de montage 9401. Ports d'après la doc Veeam, à confirmer sur un vrai serveur

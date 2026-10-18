@@ -28,6 +28,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - A new SSH key gets its own comment (`myservices@<machine>-<date>`), so two installations are no longer indistinguishable in `authorized_keys`.
 - The start guide shows the scheduled tasks at a glance (when each runs, and why one is off).
 - The backup scan also reads `/etc/cron.hourly|daily|weekly|monthly`, `/etc/anacrontab` and the account's systemd timers.
+- **AI model to service**: on a machine's sheet, the AI model read by GpuViewR links to the service it runs in (the service of that machine on the model's port,
+  else the one named after its runtime, also when it is declared in NPM), which opens the machine's services. vLLM, LocalAI and KoboldCpp join the
+  recognised AI applications (Ollama, llama.cpp, LM Studio and Open WebUI already were).
 - **Two new alerts**: "Image to update" (a container whose image has a newer version, read from Dockhand, Dozzle, Portainer…: one event per container, the first reading is the
   reference) and "Jail going up" (a Fail2ban jail with at least 20 bans in 24 hours and 3 times its usual daily number, from the LogviewR statistics). Both
   can be picked in the alert rules; by default they join "Connectors and collection" and "Security and DNS".

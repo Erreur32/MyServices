@@ -1879,6 +1879,7 @@ export const EN: Record<string, string> = {
   "Tâches planifiées": "Scheduled tasks",
   "MyServices relit tout seul vos machines et vos outils. Voici quand, et pourquoi une tâche ne tourne pas si elle est coupée.": "MyServices reads your machines and tools by itself. Here is when, and why a task does not run when it is off.",
   "Régler les horaires": "Set the schedules",
+  "Voir les services de cette machine": "See this machine's services",
   "Format": "Format",
   "à 7 h 05 et 19 h 05": "at 7:05 and 19:05",
   "Appliqué tout de suite, gardé dans": "Applied right away, kept in",
