@@ -529,7 +529,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
             if r is None:
                 L["level"], L["detail"] = "down", f"injoignable ({err})"
             elif not data or not data.get("exists"):
-                L["level"], L["detail"] = "crit", "dossier absent"
+                L["level"], L["detail"] = "crit", f"dossier absent : {loc['path']} (à créer sur {L['label']})" if loc.get("path") else "dossier absent"
             elif not data["count"]:
                 L["level"], L["detail"] = "crit", "aucune archive"
                 L["count"] = 0
