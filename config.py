@@ -73,20 +73,31 @@ def _path(v: str) -> str:
     return str(p if p.is_absolute() else HERE / p)
 
 
-def load() -> dict:
+class ConfigError(Exception):
+    """config.json cannot be read (not JSON, or secrets that cannot be opened)."""
+
+
+def _fail(message: str, fatal: bool) -> None:
+    """At the start, an unreadable configuration stops the program; when read again while running, it is reported and the running one is kept."""
+    if fatal:
+        sys.exit(message)
+    raise ConfigError(message)
+
+
+def load(fatal: bool = True) -> dict:
     cfg = dict(DEFAULTS)
     f = Path(os.environ.get("MYSERVICES_CONFIG") or HERE / "config.json")
     if f.exists():
         try:
             user = json.loads(f.read_text(encoding="utf-8"))
         except ValueError as e:
-            sys.exit(f"{f} illisible : {e}")
+            _fail(f"{f} illisible : {e}", fatal)
         if any(isinstance(v, (str, list, dict)) and "enc:v1:" in json.dumps(v) for v in user.values()):
             import secrets_store  # secrets chiffrés (version Docker) : déchiffrés ici, en mémoire seulement
             try:
                 user = secrets_store.decrypt_all(user, f)
             except secrets_store.SecretError as e:
-                sys.exit(f"{f} : {e}")
+                _fail(f"{f} : {e}", fatal)
         unknown = sorted(k for k in user if k not in DEFAULTS and not k.startswith("_"))
         if unknown:
             print(f"{f} : clé(s) inconnue(s) ignorée(s) : {', '.join(unknown)}", file=sys.stderr)

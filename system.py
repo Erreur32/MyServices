@@ -332,8 +332,8 @@ def reload_config(core) -> bool:
     False, nothing changed, when the file cannot be read. Settings read only once at the start (the encryption key) still need a restart."""
     import config
     try:
-        fresh = config.load()
-    except SystemExit:
+        fresh = config.load(fatal=False)
+    except config.ConfigError:
         return False
     core.CFG.clear()
     core.CFG.update(fresh)
