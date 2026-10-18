@@ -3,12 +3,13 @@ import type { Tone } from "./level";
 import type { Machine } from "../types";
 import { tx } from "./i18n";
 
-export type MState = "ssh" | "agent" | "api" | "network" | "manual" | "refused" | "nossh" | "off" | "down" | "disabled";
+export type MState = "ssh" | "agent" | "api" | "network" | "box" | "manual" | "refused" | "nossh" | "off" | "down" | "disabled";
 export const MSTATE: Record<MState, [Tone, string, string]> = {
   ssh: ["ok", tx("SSH OK"), tx("Connexion SSH par clé réussie depuis le collecteur")],
   agent: ["ok", tx("Agent actif"), tx("Lue par l'agent MyServices : son dernier relevé est récent (pas de SSH nécessaire)")],
   api: ["ok", tx("API"), tx("Lue par l'API d'un connecteur (Home Assistant, Proxmox…) : pas de SSH nécessaire")],
   network: ["ok", tx("Via un connecteur"), tx("Vue par un de vos outils (MynetworK, UniFi, Beszel, Proxmox…) : en ligne et identifiée, sans SSH")],
+  box: ["ok", tx("Équipement réseau"), tx("Box ou passerelle : pas de SSH possible, elle est lue par son API ou par vos outils réseau ; ce n'est pas un manque")],
   manual: ["info", tx("SSH manuel"), tx("Accès déclaré sans clé (mot de passe) : non testé automatiquement")],
   refused: ["warn", tx("SSH refusé"), tx("Accès SSH configuré, mais la connexion par clé échoue")],
   nossh: ["off", tx("en ligne, sans SSH"), tx("Répond au ping, aucun accès SSH configuré")],
@@ -16,7 +17,12 @@ export const MSTATE: Record<MState, [Tone, string, string]> = {
   down: ["bad", tx("injoignable"), tx("Ne répond ni au ping ni en SSH")],
   disabled: ["off", tx("non suivie"), tx("Désactivée dans Réglages → Machines : ni ping, ni SSH, ni santé, aucune alerte")],
 };
-export const ORDER: MState[] = ["ssh", "agent", "api", "network", "manual", "refused", "nossh", "off", "down", "disabled"];
+export const ORDER: MState[] = ["ssh", "agent", "api", "network", "box", "manual", "refused", "nossh", "off", "down", "disabled"];
+
+/** A box or a gateway (Freebox, router): it has no SSH to offer, so « without SSH » is never a warning for it */
+export function isAppliance(m: Machine): boolean {
+  return !!m.gateway || /\bfreebox\b/i.test(m.name) || (m.links?.sources ?? []).some((x) => /freebox/i.test(`${x.source} ${x.label}`));
+}
 
 /** The first of the user's tools that sees a machine and answers (MynetworK, UniFi, Beszel, Proxmox, Dockhand…): its label */
 export function networkTool(m: Machine): string | undefined {
@@ -37,6 +43,7 @@ export function mState(m: Machine): MState {
   if (!m.ssh && m.api?.some((a) => a.ok || a.stale)) return "api";   // lue par l'API d'un connecteur (Home Assistant, Proxmox…)
   if (m.off && !m.ping) return "off";
   if (!m.ssh && m.ping !== false && networkTool(m)) return "network";   // seen by one of the user's tools (a gateway in MynetworK…): that is how it is followed
+  if (m.ping !== false && isAppliance(m)) return "box";   // a box has no SSH to offer: neither a missing nor a refused SSH is a problem for it
   if (m.ssh && !m.ssh.identity) return "manual";
   if (m.ssh) return "refused";
   return m.ping ? "nossh" : "down";

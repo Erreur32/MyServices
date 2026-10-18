@@ -49,6 +49,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **New default schedules** (installations that saved their own keep them): collection every 15 minutes (was twice an hour), watcher 5 minutes after,
   health every 2 hours (was 6), backups checked 4 times a day (was 2); the "data is late" threshold drops from 75 to 45 minutes. `install.sh` follows.
 - Header: one text per scan (the orb from the medium width up, the bar below), titled by scan type (collection or network search).
+- A box or a gateway (Freebox, router) is no longer reported as "without SSH" or "SSH refused": it has its own state, "Network equipment" (home page, counters, machine window).
 - Settings: Discovery is first in the Monitoring group and Notifications last.
 - SonarCloud cleanup of the 0.14.0 code (diagnostic and statistics functions split, no nested ternaries, read-only props).
 

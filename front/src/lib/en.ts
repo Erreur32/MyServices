@@ -1872,6 +1872,7 @@ export const EN: Record<string, string> = {
   "adresse(s)": "address(es)",
   "ligne(s)": "line(s)",
   "Domaine visé inconnu : LogviewR doit lire les journaux de Nginx Proxy Manager ou d'Apache pour relier une adresse à un domaine.": "Targeted domain unknown: LogviewR must read the Nginx Proxy Manager or Apache logs to tie an address to a domain.",
+  "Box ou passerelle : pas de SSH possible, elle est lue par son API ou par vos outils réseau ; ce n'est pas un manque": "Box or gateway: no SSH is possible, it is read through its API or your network tools; this is not something missing",
   "Format": "Format",
   "à 7 h 05 et 19 h 05": "at 7:05 and 19:05",
   "Appliqué tout de suite, gardé dans": "Applied right away, kept in",
