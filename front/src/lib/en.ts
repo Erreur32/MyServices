@@ -1793,8 +1793,6 @@ export const EN: Record<string, string> = {
   "{0} fichier(s) écrit(s)": "{0} file(s) written",
   "{0} ancien(s) gardé(s) en « .avant-import »": "{0} old one(s) kept as \".avant-import\"",
   "Redémarrez le conteneur pour appliquer les réglages et la clé importés.": "Restart the container to apply the imported settings and key.",
-  "en cours de finition": "being finished",
-  "Fonction pas encore terminée": "Feature not finished yet",
   "Décisions mémorisées": "Remembered decisions",
   "Vos choix : services suivis ou écartés, constats du Diagnostic marqués « c'est normal », avancement de l'assistant, ajouts automatiques.": "Your choices: followed or ignored services, Diagnostic findings marked \"this is normal\", assistant progress, automatic additions.",
   "Comptes et historique": "Accounts and history",

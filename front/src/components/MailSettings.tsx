@@ -53,7 +53,7 @@ export function MailSettings() {
   const title = (
     <>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><Mail size={16} aria-hidden />{tx("E-mail")}
-        {st.ready ? <Badge tone="ok">{tx("prêt")}</Badge> : <Badge tone="off">{tx("non réglé")}</Badge>}<Badge tone="warn">{tx("en cours de finition")}</Badge></h2>
+        {st.ready ? <Badge tone="ok">{tx("prêt")}</Badge> : <Badge tone="off">{tx("non réglé")}</Badge>}</h2>
       <p className="mb-3 text-sm text-muted">{tx("Envoi des e-mails de MyServices (« Mot de passe oublié ? » : un lien à usage unique, valable 30 minutes, envoyé à l'adresse du profil).")}</p>
     </>
   );

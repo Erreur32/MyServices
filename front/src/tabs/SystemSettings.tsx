@@ -37,7 +37,7 @@ export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh
     <div className="flex flex-col gap-4">
       {part === "ssh" && <SshKey ssh={st.ssh} snap={snap} />}
       {part === "tasks" && <><Tasks tasks={st.tasks} netscan={st.netscan} beat={st.scheduler?.beat ?? null} reload={reload} /><AutoDiscoveries machines={snap.data.machine_list} /></>}
-      {part === "system" && <><ConfigTransfer /><Info info={st.info} /><div className="opacity-60 grayscale" title={tx("Fonction pas encore terminée")}><MailSettings /></div></>}
+      {part === "system" && <><MailSettings /><ConfigTransfer /><Info info={st.info} /></>}
     </div>
   );
 }
