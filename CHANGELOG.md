@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.15.3 (2026-10-18)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 
 - After an import, the settings are read again without restarting the container (the imported schedules apply at once), and the collection, the watch and the health run one after the other. A restart is still asked for the encryption key, or when the settings file could not be read.
