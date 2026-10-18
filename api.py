@@ -66,6 +66,9 @@ _CSP_BASE = ("default-src 'self'; connect-src 'self'; object-src 'none'; base-ur
              "frame-ancestors 'self'; form-action 'self'; font-src 'self' data:; ")
 CSP = {"page": _CSP_BASE + "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:",
        "login": _CSP_BASE + "script-src 'self'; style-src 'self'; img-src 'self' data:",
+       # The React front: scripts stay strict. Styles may be inline, because the UniFi device cards (a custom element) build their face plate
+       # with <style> tags and style attributes: with style-src 'self' alone they showed a bare text list.
+       "front": _CSP_BASE + "script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:",
        "map": _CSP_BASE + "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
                           "img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:"}
 
@@ -73,7 +76,9 @@ CSP = {"page": _CSP_BASE + "script-src 'self' 'unsafe-inline'; style-src 'self' 
 def csp_for(path: str) -> str | None:
     if path.startswith(API + "/docs"):
         return None
-    if path in ("/", "/index.html") or path.startswith("/login."):   # the React front and the sign-in page: strict policy
+    if path in ("/", "/index.html"):   # the React front: strict scripts, inline styles for the UniFi cards
+        return CSP["front"]
+    if path.startswith("/login."):   # the sign-in page: strict policy
         return CSP["login"]
     if path.endswith("/carte.html"):
         return CSP["map"]

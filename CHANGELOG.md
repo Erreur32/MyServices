@@ -21,6 +21,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Fixed
 
+- UniFi device cards (Network tab) showed only text: the page's Content-Security-Policy (`style-src 'self'`) blocked the inline styles the card builds its face plate with. The React front now allows inline styles; scripts stay strict, and the sign-in page stays fully strict.
 - Import: the SSH part no longer replaces this installation's own key (`myservices*`) when it differs from the archive's, unless asked with a tick box: the machines that authorized that key refused the new one. The page says which files were kept, and warns when the SSH aliases and the machine list are not imported together.
 - Settings, Machines: the machine cards keep one height; the roles are limited to three on one line (long names cut short, the others behind a « +N » with their names in the tooltip), so that the cards stay aligned.
 - SSH « key refused » in a Docker install now names the account and the key file the machine's alias really uses (an alias can carry a key of its own, not the app's), and shows that public key to authorize. Before, only the app's own key was suggested, which cannot work for such an alias.
