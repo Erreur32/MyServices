@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to MyServices v2 (Docker). One section per published version, newest first. **This file is always written in
-English.** For the latest update explained in plain words (in French), see [RELEASE-NOTES.md](RELEASE-NOTES.md).
+English.** For the latest update explained in plain words, see [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 Versioning: the first pre-releases were called `2.0.0-alpha.N`, `-beta.N` and `-rc.N`. Since the project is still in BETA,
 numbering restarts **below 2.0.0** with **0.9.0** (2.0.0 is reserved for a version judged stable). The `:latest` image tag follows the
@@ -10,6 +10,39 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ## Unreleased (next version, not tagged yet)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+## v0.14.0 (2026-10-18)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- **Network tab is public** (it was shown on development builds only), with a sub-menu: an overview (stats, network scan, UniFi cards) and the list of
+  equipment, clients and devices with its search bar and filters.
+- Network tab: **UniFi front-panel cards** for switches, gateways and access points (ports, link speed, PoE, live traffic LEDs, uplink
+  selector, hardware view), built on the MIT-licensed [unifi-device-card](https://github.com/bluenazgul/unifi-device-card) through MynetworK's
+  `/api/plugins/unifi/card-devices` (MynetworK 0.11.1+). The cards can be reordered by drag and drop and resized with the mouse (width, height, both);
+  the layout is kept in the browser. The frame can be folded, and a sample preview shows the cards when no source answers.
+- Network tab: a **"Network scan"** frame read through MynetworK: counters (its own from 0.11.2, else counted from its inventory), addresses offline
+  with their last reading, worst latencies, and the data volume per client (live in bits per second with a download / upload arrow, today, all time;
+  from MynetworK 0.11.2). Foldable.
+- While a collection or a network search runs: the progress bar at the top has flowing stripes and a pulsing head, and a **searching orb** (the MIT-licensed
+  [thinking-orbs](https://libraries.dev/orbs.html) package, loaded only when something runs) sits in the middle of the header with the current step.
+- Network tab, **Diagnostic** sub-page: ports that negotiated below their maximum (from the port type: 100 Mb/s, 1, 2.5, 10 Gb/s; two UniFi devices linked
+  together are judged at the slower end), a device or a WAN link down, firmware updates, overloaded or hot devices, devices restarted a few minutes ago,
+  an access point linked by radio, weak Wi-Fi signals, an address seen with two MAC addresses, high latencies. The machines' own network cards are checked
+  too (half duplex, forced speed, card negotiating below what it can do or differently from its switch port): read over SSH (sysfs, `ethtool` when
+  installed) and by the Windows agent (`Get-NetAdapter`, read-only).
+- Diagnostic: an admin can mark a finding as normal (check mark on its row); it is remembered server side (`diagnostic-accepted.json` in the state
+  folder), leaves the counters, and can be shown again from "Show the accepted findings". A followed machine whose card, or whose switch port, runs at
+  100 Mb/s or less is reported even when its maximum is unknown (connected objects are left alone).
+- Settings: Discovery is first in the Monitoring group and Notifications last. `scripts/release.py` now writes the release notes' title and date in English.
+- An address-sheet and Beszel-status overlay on the Machines tab, and the pulse follow-ups of 0.13.0.
+
+### Fixed
+
+- Settings -> Updates: the "latest published" version was older than the installed one when a tag had no GitHub release; the highest tag now stands
+  in, and an answer kept older than the installed version is checked again at once.
 
 ## v0.13.0 (2026-10-18)
 

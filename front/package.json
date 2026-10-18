@@ -1,7 +1,7 @@
 {
   "name": "myservices-front",
   "private": true,
-  "version": "0.13.0",
+  "version": "0.14.0",
   "type": "module",
   "scripts": {
     "dev": "../scripts/dev.sh",
@@ -14,7 +14,8 @@
   "dependencies": {
     "lucide-react": "^0.577.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "thinking-orbs": "0.3.2"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

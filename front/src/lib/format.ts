@@ -12,6 +12,17 @@ export function bytes(n: number | null | undefined): string {
 }
 
 /** Durée en secondes -> « 3 j 4 h » */
+/** Network speed in bits per second, decimal units, like the Freebox and MynetworK show it: « 0 b/s », « 850 kb/s », « 1,2 Mb/s ». */
+export function rate(bytesPerSec: number | null | undefined): string {
+  if (bytesPerSec == null) return "?";
+  const bits = bytesPerSec * 8;
+  if (bits <= 0) return "0 b/s";
+  const u = ["b/s", "kb/s", "Mb/s", "Gb/s"];
+  const i = Math.min(u.length - 1, Math.floor(Math.log(bits) / Math.log(1000)));
+  const v = bits / 1000 ** i, txt = v.toFixed(v < 10 && i > 0 ? 1 : 0);
+  return `${LANG === "fr" ? txt.replace(".", ",") : txt} ${u[i]}`;
+}
+
 export function dur(sec: number | null | undefined): string {
   if (sec == null) return "-";
   const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600);

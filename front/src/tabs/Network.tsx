@@ -1,7 +1,7 @@
 // Réseau : accès Internet (Freebox, pare-feu, test de débit), équipements (UniFi), clients par borne ou switch, et appareils trouvés sur le réseau
 // (MynetworK). Une barre de recherche et des filtres communs (type, état, suivi, borne ou switch, fabricant, source), comme les autres onglets.
 // Affiché seulement quand une de ces sources répond ou a déjà répondu. Lecture seule.
-import { ArrowUpCircle, Cable, ChevronDown, ChevronRight, Monitor, Router, Wifi, type LucideIcon } from "lucide-react";
+import { ArrowUpCircle, Cable, ChevronDown, ChevronRight, LayoutDashboard, List, Monitor, Router, Stethoscope, Wifi, type LucideIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { dur } from "../lib/format";
@@ -13,6 +13,9 @@ import { Badge, Cards, Count, Dim, Empty, FilterBar, Table, Td, Th } from "../co
 import { quiet } from "../lib/forms";
 import { Dot } from "../components/marks";
 import { ServiceCard } from "../components/ServiceStatusCards";
+import { NetworkDiagnostic } from "./NetworkDiagnostic";
+import { NetworkScanStats } from "./NetworkScanStats";
+import { UnifiCards } from "./UnifiCards";
 
 const INTERNET = ["freebox", "opnsense", "speedtest-tracker"];
 type Kind = "gear" | "wifi" | "wired" | "device";
@@ -135,7 +138,13 @@ function MachineLink({ r, onMachine }: { r: Row; onMachine: (ip: string) => void
     : <Dim>{tx("pas suivie")}</Dim>;
 }
 
-export function Network({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: string) => void }) {
+type Sub = "overview" | "list" | "diagnostic";
+const SUBS: [Sub, string, LucideIcon][] = [["overview", tx("Vue d'ensemble"), LayoutDashboard], ["list", tx("Équipements et appareils"), List], ["diagnostic", tx("Diagnostic"), Stethoscope]];
+const SUB_KEY = "ms.network.sub";
+
+export function Network({ snap, onMachine, initialSub }: { snap: Snapshot; onMachine: (ip: string) => void; initialSub?: Sub }) {
+  const [sub, setSub] = useState<Sub>(() => { try { const v = localStorage.getItem(SUB_KEY); return initialSub ?? (v === "list" || v === "diagnostic" ? v : "overview"); } catch { return initialSub ?? "overview"; } });   // the sub-page is kept
+  const pickSub = (v: Sub) => { setSub(v); try { localStorage.setItem(SUB_KEY, v); } catch { /* storage refused: the choice lasts this visit */ } };
   const cards = useMemo(() => (snap.data.services_status ?? []).filter((c) => NETWORK_CARDS.includes(c.connector)), [snap.data.services_status]);
   const rows = useMemo(() => buildRows(snap, cards), [snap, cards]);
   const facets = useMemo<Facet<Row>[]>(() => [
@@ -193,119 +202,141 @@ export function Network({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: s
         <Tile icon={Monitor} value={devAll.length ? `${devAll.filter((r) => r.up).length}/${devAll.length}` : "-"} label={unfollowed ? tx("appareils en ligne, {0} pas suivis", unfollowed) : tx("appareils en ligne")} tone={unfollowed ? "warn" : "off"} />
       </div>
 
-      {sections.length > 1 && (
-        <nav aria-label={tx("Sections de la page")} className="flex flex-wrap items-center gap-1.5">
-          {sections.map((x) => (
-            <button key={x.key} type="button" onClick={() => jump(x.key, x.id)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-3 py-1 text-sm text-muted hover:border-link hover:text-txt">
-              <x.icon size={13} aria-hidden />{x.title}<span className="font-mono text-xs text-dim">{x.n}</span>
-            </button>
-          ))}
-          <span className="ml-auto flex gap-1.5">
-            <button type="button" className={`${quiet} py-1 text-sm`} onClick={() => setFolded(sections.map((x) => x.key), true)}>{tx("Tout plier")}</button>
-            <button type="button" className={`${quiet} py-1 text-sm`} onClick={() => setFolded(sections.map((x) => x.key), false)}>{tx("Tout déplier")}</button>
-          </span>
-        </nav>
+      <div className="inline-flex self-start rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Sous-menu du réseau")}>
+        {SUBS.map(([id, label, Icon]) => (
+          <button key={id} type="button" aria-pressed={sub === id} onClick={() => pickSub(id)}
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold ${sub === id ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{label}</button>
+        ))}
+      </div>
+
+      {sub === "overview" && (
+        <>
+        <NetworkScanStats />
+
+        <UnifiCards />
+        </>
       )}
 
-      {internet.length > 0 && (
-        <FoldSection id="net-internet" icon={Router} title={tx("Accès Internet et passerelles")} n={internet.length} folded={isFolded("internet")} onToggle={() => toggleFold("internet")}>
-          <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">{internet.map((c) => <ServiceCard key={`${c.connector}/${c.name}`} s={c} />)}</div>
-        </FoldSection>
-      )}
-      {others.length > 0 && (
-        <FoldSection id="net-others" icon={Cable} title={tx("Outils réseau")} n={others.length} folded={isFolded("others")} onToggle={() => toggleFold("others")}>
-          <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">{others.map((c) => <ServiceCard key={`${c.connector}/${c.name}`} s={c} />)}</div>
-        </FoldSection>
-      )}
+      {sub === "diagnostic" && <NetworkDiagnostic admin={snap.me.role === "admin"} />}
 
-      {rows.length > 0 && <div className="-my-4"><FilterBar f={f} placeholder={tx("Nom, IP, MAC, fabricant, borne…")} /></div>}
-      {f.shown.length === 0 && rows.length > 0 && <Empty>{tx("Rien pour ce filtre.")}</Empty>}
+      {sub === "list" && (
+        <>
+        {rows.length > 0 && <FilterBar f={f} placeholder={tx("Nom, IP, MAC, fabricant, borne…")} primary={["kind", "state"]} oneLine />}   {/* right under the stats, with its main filters shown */}
 
-      {gearSort.sorted.length > 0 && (
-        <FoldSection id="net-gear" icon={Router} title={tx("Équipements réseau")} n={gearSort.sorted.length} folded={isFolded("gear")} onToggle={() => toggleFold("gear")}>
-          <Table head={<><Th k="state" sort={gearSort}>{tx("État")}</Th><Th k="name" sort={gearSort}>{tx("Équipement")}</Th><Th k="ip" sort={gearSort}>IP</Th>
-            <Th>{tx("Version")}</Th><Th>{tx("Clients")}</Th><Th>{tx("En marche")}</Th><Th k="source" sort={gearSort}>{tx("Source")}</Th></>}>
-            {gearSort.sorted.map((r) => (
-              <tr key={r.key} className={`hover:bg-bg2/50 ${r.up ? "" : "text-muted"}`}>
-                <Td><State up={r.up} /></Td>
-                <Td><b className="text-txt">{r.name}</b>{r.vendor && <span className="block text-xs text-dim">{r.vendor}</span>}</Td>
-                <Td className="font-mono text-xs">{r.ip || "-"}</Td>
-                <Td className="font-mono text-xs">{r.gear?.version || "-"}{r.gear?.updatable && <span className="ml-1.5"><Badge tone="warn">{tx("mise à jour")}</Badge></span>}</Td>
-                <Td className="tabular-nums">{r.gear?.clients ?? "-"}</Td>
-                <Td className="tabular-nums">{r.gear?.uptime ? dur(r.gear.uptime) : <Dim>-</Dim>}</Td>
-                <Td className="text-xs text-dim">{r.source}</Td>
-              </tr>
+        {sections.length > 1 && (
+          <nav aria-label={tx("Sections de la page")} className="flex flex-wrap items-center gap-1.5">
+            {sections.map((x) => (
+              <button key={x.key} type="button" onClick={() => jump(x.key, x.id)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-3 py-1 text-sm text-muted hover:border-link hover:text-txt">
+                <x.icon size={13} aria-hidden />{x.title}<span className="font-mono text-xs text-dim">{x.n}</span>
+              </button>
             ))}
-          </Table>
-          <Cards>
-            {gearSort.sorted.map((r) => (
-              <div key={r.key} className="rounded-2xl border border-line bg-card p-3.5">
-                <div className="flex items-start justify-between gap-2"><span className="min-w-0"><b className="block truncate">{r.name}</b><Dim>{[r.vendor, r.ip].filter(Boolean).join(" · ")}</Dim></span><State up={r.up} /></div>
-                <p className="mt-1.5 text-xs text-muted">{[r.gear?.version, r.gear?.clients != null ? tx("{0} clients", r.gear.clients) : "", r.gear?.uptime ? dur(r.gear.uptime) : ""].filter(Boolean).join(" · ")}
-                  {r.gear?.updatable && <span className="ml-1.5"><Badge tone="warn">{tx("mise à jour")}</Badge></span>}</p>
-              </div>
-            ))}
-          </Cards>
-        </FoldSection>
-      )}
+            <span className="ml-auto flex gap-1.5">
+              <button type="button" className={`${quiet} py-1 text-sm`} onClick={() => setFolded(sections.map((x) => x.key), true)}>{tx("Tout plier")}</button>
+              <button type="button" className={`${quiet} py-1 text-sm`} onClick={() => setFolded(sections.map((x) => x.key), false)}>{tx("Tout déplier")}</button>
+            </span>
+          </nav>
+        )}
 
-      {groups.size > 0 && (
-        <FoldSection id="net-clients" icon={Wifi} title={tx("Clients par borne ou switch")} n={clientsShown} folded={isFolded("clients")} onToggle={() => toggleFold("clients")}>
-          <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {[...groups.entries()].sort((a, b) => b[1].length - a[1].length).map(([key, list]) => {
-              const wired = key.startsWith("wired/");
-              const Icon = wired ? Cable : Wifi;
-              return (
-                <details key={key} open className="group overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
-                  <summary className="flex cursor-pointer list-none items-center gap-3 bg-bg px-4 py-2.5 group-open:border-b group-open:border-line/60 [&::-webkit-details-marker]:hidden">
-                    <ChevronRight size={14} className="shrink-0 text-dim transition-transform group-open:rotate-90" aria-hidden />
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2"><Icon size={16} className="text-muted" aria-hidden /></span>
-                    <div className="min-w-0 flex-1"><h3 className="truncate font-bold leading-tight">{list[0].via}</h3><span className="text-xs font-semibold uppercase tracking-wider text-dim">{wired ? tx("Filaire") : tx("Wifi")}</span></div>
-                    <Count n={list.length} tone="off" />
-                  </summary>
-                  <ul className="flex max-h-72 flex-col divide-y divide-line/50 overflow-y-auto px-4 text-sm">
-                    {[...list].sort((a, b) => a.name.localeCompare(b.name)).map((r) => (
-                      <li key={r.key} className="flex items-baseline justify-between gap-2 py-1.5">
-                        <span className="min-w-0 truncate">{r.machine
-                          ? <button type="button" onClick={() => onMachine(r.ip)} className="font-semibold hover:text-link" title={tx("Voir ses services")}>{r.name}</button>
-                          : <span className="text-txt">{r.name}</span>} <span className="font-mono text-xs text-dim">{r.ip}</span></span>
-                        <span className="shrink-0 text-xs text-dim">{r.detail}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              );
-            })}
-          </div>
-        </FoldSection>
-      )}
+        {internet.length > 0 && (
+          <FoldSection id="net-internet" icon={Router} title={tx("Accès Internet et passerelles")} n={internet.length} folded={isFolded("internet")} onToggle={() => toggleFold("internet")}>
+            <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">{internet.map((c) => <ServiceCard key={`${c.connector}/${c.name}`} s={c} />)}</div>
+          </FoldSection>
+        )}
+        {others.length > 0 && (
+          <FoldSection id="net-others" icon={Cable} title={tx("Outils réseau")} n={others.length} folded={isFolded("others")} onToggle={() => toggleFold("others")}>
+            <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">{others.map((c) => <ServiceCard key={`${c.connector}/${c.name}`} s={c} />)}</div>
+          </FoldSection>
+        )}
 
-      {devSort.sorted.length > 0 && (
-        <FoldSection id="net-devices" icon={Monitor} title={tx("Appareils du réseau")} n={devSort.sorted.length} folded={isFolded("devices")} onToggle={() => toggleFold("devices")}>
-          <Table head={<><Th k="state" sort={devSort}>{tx("État")}</Th><Th k="ip" sort={devSort}>IP</Th><Th k="name" sort={devSort}>{tx("Nom")}</Th>
-            <Th k="vendor" sort={devSort}>{tx("Fabricant")}</Th><Th>MAC</Th><Th k="machine" sort={devSort}>{tx("Machine")}</Th></>}>
-            {devSort.sorted.map((r) => (
-              <tr key={r.key} className={`hover:bg-bg2/50 ${r.up ? "" : "text-muted"}`}>
-                <Td><State up={r.up} /></Td>
-                <Td className="font-mono text-xs">{r.ip}{r.detail && <Dim> · {r.detail}</Dim>}</Td>
-                <Td>{r.name || <Dim>-</Dim>}</Td>
-                <Td>{r.vendor || <Dim>-</Dim>}</Td>
-                <Td className="font-mono text-xs text-dim">{r.mac || "-"}</Td>
-                <Td><MachineLink r={r} onMachine={onMachine} /></Td>
-              </tr>
-            ))}
-          </Table>
-          <Cards>
-            {devSort.sorted.map((r) => (
-              <div key={r.key} className="rounded-2xl border border-line bg-card p-3.5">
-                <div className="flex items-start justify-between gap-2"><span className="min-w-0"><b className="block truncate">{r.name || r.ip}</b><Dim>{[r.ip, r.vendor].filter(Boolean).join(" · ")}</Dim></span><State up={r.up} /></div>
-                <div className="mt-1.5 text-sm"><MachineLink r={r} onMachine={onMachine} /></div>
-              </div>
-            ))}
-          </Cards>
-          {snap.data.dns && <p className="text-sm text-muted">{tx("Résolution des noms (AdGuard, Pi-hole…) :")} <a href="#dns" className="text-link hover:underline">{tx("onglet DNS")}</a></p>}
-        </FoldSection>
+        {f.shown.length === 0 && rows.length > 0 && <Empty>{tx("Rien pour ce filtre.")}</Empty>}
+
+        {gearSort.sorted.length > 0 && (
+          <FoldSection id="net-gear" icon={Router} title={tx("Équipements réseau")} n={gearSort.sorted.length} folded={isFolded("gear")} onToggle={() => toggleFold("gear")}>
+            <Table head={<><Th k="state" sort={gearSort}>{tx("État")}</Th><Th k="name" sort={gearSort}>{tx("Équipement")}</Th><Th k="ip" sort={gearSort}>IP</Th>
+              <Th>{tx("Version")}</Th><Th>{tx("Clients")}</Th><Th>{tx("En marche")}</Th><Th k="source" sort={gearSort}>{tx("Source")}</Th></>}>
+              {gearSort.sorted.map((r) => (
+                <tr key={r.key} className={`hover:bg-bg2/50 ${r.up ? "" : "text-muted"}`}>
+                  <Td><State up={r.up} /></Td>
+                  <Td><b className="text-txt">{r.name}</b>{r.vendor && <span className="block text-xs text-dim">{r.vendor}</span>}</Td>
+                  <Td className="font-mono text-xs">{r.ip || "-"}</Td>
+                  <Td className="font-mono text-xs">{r.gear?.version || "-"}{r.gear?.updatable && <span className="ml-1.5"><Badge tone="warn">{tx("mise à jour")}</Badge></span>}</Td>
+                  <Td className="tabular-nums">{r.gear?.clients ?? "-"}</Td>
+                  <Td className="tabular-nums">{r.gear?.uptime ? dur(r.gear.uptime) : <Dim>-</Dim>}</Td>
+                  <Td className="text-xs text-dim">{r.source}</Td>
+                </tr>
+              ))}
+            </Table>
+            <Cards>
+              {gearSort.sorted.map((r) => (
+                <div key={r.key} className="rounded-2xl border border-line bg-card p-3.5">
+                  <div className="flex items-start justify-between gap-2"><span className="min-w-0"><b className="block truncate">{r.name}</b><Dim>{[r.vendor, r.ip].filter(Boolean).join(" · ")}</Dim></span><State up={r.up} /></div>
+                  <p className="mt-1.5 text-xs text-muted">{[r.gear?.version, r.gear?.clients != null ? tx("{0} clients", r.gear.clients) : "", r.gear?.uptime ? dur(r.gear.uptime) : ""].filter(Boolean).join(" · ")}
+                    {r.gear?.updatable && <span className="ml-1.5"><Badge tone="warn">{tx("mise à jour")}</Badge></span>}</p>
+                </div>
+              ))}
+            </Cards>
+          </FoldSection>
+        )}
+
+        {groups.size > 0 && (
+          <FoldSection id="net-clients" icon={Wifi} title={tx("Clients par borne ou switch")} n={clientsShown} folded={isFolded("clients")} onToggle={() => toggleFold("clients")}>
+            <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {[...groups.entries()].sort((a, b) => b[1].length - a[1].length).map(([key, list]) => {
+                const wired = key.startsWith("wired/");
+                const Icon = wired ? Cable : Wifi;
+                return (
+                  <details key={key} open className="group overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
+                    <summary className="flex cursor-pointer list-none items-center gap-3 bg-bg px-4 py-2.5 group-open:border-b group-open:border-line/60 [&::-webkit-details-marker]:hidden">
+                      <ChevronRight size={14} className="shrink-0 text-dim transition-transform group-open:rotate-90" aria-hidden />
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2"><Icon size={16} className="text-muted" aria-hidden /></span>
+                      <div className="min-w-0 flex-1"><h3 className="truncate font-bold leading-tight">{list[0].via}</h3><span className="text-xs font-semibold uppercase tracking-wider text-dim">{wired ? tx("Filaire") : tx("Wifi")}</span></div>
+                      <Count n={list.length} tone="off" />
+                    </summary>
+                    <ul className="flex max-h-72 flex-col divide-y divide-line/50 overflow-y-auto px-4 text-sm">
+                      {[...list].sort((a, b) => a.name.localeCompare(b.name)).map((r) => (
+                        <li key={r.key} className="flex items-baseline justify-between gap-2 py-1.5">
+                          <span className="min-w-0 truncate">{r.machine
+                            ? <button type="button" onClick={() => onMachine(r.ip)} className="font-semibold hover:text-link" title={tx("Voir ses services")}>{r.name}</button>
+                            : <span className="text-txt">{r.name}</span>} <span className="font-mono text-xs text-dim">{r.ip}</span></span>
+                          <span className="shrink-0 text-xs text-dim">{r.detail}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                );
+              })}
+            </div>
+          </FoldSection>
+        )}
+
+        {devSort.sorted.length > 0 && (
+          <FoldSection id="net-devices" icon={Monitor} title={tx("Appareils du réseau")} n={devSort.sorted.length} folded={isFolded("devices")} onToggle={() => toggleFold("devices")}>
+            <Table head={<><Th k="state" sort={devSort}>{tx("État")}</Th><Th k="ip" sort={devSort}>IP</Th><Th k="name" sort={devSort}>{tx("Nom")}</Th>
+              <Th k="vendor" sort={devSort}>{tx("Fabricant")}</Th><Th>MAC</Th><Th k="machine" sort={devSort}>{tx("Machine")}</Th></>}>
+              {devSort.sorted.map((r) => (
+                <tr key={r.key} className={`hover:bg-bg2/50 ${r.up ? "" : "text-muted"}`}>
+                  <Td><State up={r.up} /></Td>
+                  <Td className="font-mono text-xs">{r.ip}{r.detail && <Dim> · {r.detail}</Dim>}</Td>
+                  <Td>{r.name || <Dim>-</Dim>}</Td>
+                  <Td>{r.vendor || <Dim>-</Dim>}</Td>
+                  <Td className="font-mono text-xs text-dim">{r.mac || "-"}</Td>
+                  <Td><MachineLink r={r} onMachine={onMachine} /></Td>
+                </tr>
+              ))}
+            </Table>
+            <Cards>
+              {devSort.sorted.map((r) => (
+                <div key={r.key} className="rounded-2xl border border-line bg-card p-3.5">
+                  <div className="flex items-start justify-between gap-2"><span className="min-w-0"><b className="block truncate">{r.name || r.ip}</b><Dim>{[r.ip, r.vendor].filter(Boolean).join(" · ")}</Dim></span><State up={r.up} /></div>
+                  <div className="mt-1.5 text-sm"><MachineLink r={r} onMachine={onMachine} /></div>
+                </div>
+              ))}
+            </Cards>
+            {snap.data.dns && <p className="text-sm text-muted">{tx("Résolution des noms (AdGuard, Pi-hole…) :")} <a href="#dns" className="text-link hover:underline">{tx("onglet DNS")}</a></p>}
+          </FoldSection>
+        )}
+        </>
       )}
     </div>
   );

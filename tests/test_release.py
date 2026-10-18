@@ -36,9 +36,9 @@ class Release(unittest.TestCase):
         self.assertEqual(release.bump("0.9.3", "minor"), "0.10.0")
         self.assertEqual(release.bump("0.9.3", "major"), "1.0.0")
 
-    def test_date_en_francais(self):
-        self.assertEqual(release.french_date(dt.date(2026, 10, 11)), "11 octobre 2026")
-        self.assertEqual(release.french_date(dt.date(2026, 2, 1)), "1er février 2026")
+    def test_date_en_anglais(self):
+        self.assertEqual(release.english_date(dt.date(2026, 10, 11)), "11 October 2026")
+        self.assertEqual(release.english_date(dt.date(2026, 2, 1)), "1 February 2026")
 
     def test_applique_partout(self):
         old = release.current(self.root)
@@ -54,7 +54,7 @@ class Release(unittest.TestCase):
         self.assertIn(f"## v{new} (2026-10-12)", ch)
         self.assertLess(ch.index("## Unreleased"), ch.index(f"## v{new}"))   # une section « Unreleased » vide est rouverte au-dessus
         self.assertIn(f"`:{new}`", (self.root / "README.md").read_text(encoding="utf-8"))
-        self.assertIn("12 octobre 2026", (self.root / "RELEASE-NOTES.md").read_text(encoding="utf-8"))
+        self.assertIn("12 October 2026", (self.root / "RELEASE-NOTES.md").read_text(encoding="utf-8"))
         # on peut enchaîner : sans « Unreleased » plein de contenu, la version suivante est quand même possible
         again = release.apply(self.root, release.bump(new, "patch"), dt.date(2026, 10, 13))
         self.assertIn("## v", again["CHANGELOG.md"])

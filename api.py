@@ -802,6 +802,58 @@ def network_settings_set(body: NetscanEvery, request: Request):
     return {"ok": True, **(out or system.netscan_settings(core))}
 
 
+@app.get(API + "/unifi/cards", tags=["réseau"], summary="Appareils UniFi avec leurs ports, pour les cartes de l'onglet Réseau")
+def unifi_cards():
+    import unifi_cards as uc
+    return uc.read(core.CFG)
+
+
+@app.get(API + "/network/stats", tags=["réseau"], summary="Statistiques du scan et volume par client lus par MynetworK (onglet Réseau)")
+def network_stats(traffic: str = "live"):
+    import network_stats as ns
+    return ns.read(core.CFG, traffic)
+
+
+@app.get(API + "/network/diagnostics", tags=["réseau"], summary="Problèmes possibles du réseau : ports négociés sous leur maximum, équipements hors ligne…")
+def network_diagnostics_route():
+    import network_diagnostics as nd
+    import unifi_cards as uc
+    doc = uc.read(core.CFG)
+    data = read_produced("data.json") or {}
+    clients = [c for row in data.get("network") or [] for c in ((row.get("unifi") or {}).get("clients") or [])]
+    import fast
+    live = {ip: d for src in (fast.read(core.WEB / "live.json").get("sources") or {}).values() for ip, d in (src.get("devices") or {}).items()}   # fresher than data.json
+    scan = [{**d, **{k: live[d["ip"]][k] for k in ("status", "ping_ms") if k in live.get(d["ip"], {})}} for row in data.get("network") or [] for d in row.get("devices") or [] if d.get("ip")]
+    machines = [{"name": m.get("name"), "ip": m.get("ip"), "nics": ((m.get("info") or {}).get("nics")) or (((m.get("agent") or {}).get("hardware") or {}).get("nics")) or []}
+                for m in data.get("machine_list") or [] if not m.get("disabled")]
+    items = nd.mark_accepted(nd.findings(doc["devices"], clients, scan, machines), nd.accepted_keys(_diag_accepted_file()))
+    return {"source": doc["source"], "at": doc["at"], "error": doc["error"], "devices": len(doc["devices"]), "summary": nd.summary(items), "findings": items,
+            "ok_ports": nd.ok_ports(doc["devices"], clients, items, machines)}
+
+
+def _diag_accepted_file() -> Path:
+    return Path(core.CFG["state_dir"]) / "diagnostic-accepted.json"
+
+
+class DiagAccept(BaseModel):
+    key: str
+    label: str = ""
+    accepted: bool = True
+
+
+@app.post(API + "/network/diagnostics/accepted", tags=["réseau"], summary="Marquer un constat du diagnostic comme normal, ou le rappeler (admin)")
+def network_diagnostics_accept(body: DiagAccept, request: Request):
+    import network_diagnostics as nd
+    if denied := admin_only(request):
+        return denied
+    try:
+        nd.set_accepted(_diag_accepted_file(), body.key, body.label, body.accepted)
+    except ValueError as e:
+        return deny(400, str(e))
+    store().audit("diagnostic : constat accepté" if body.accepted else "diagnostic : constat rappelé", request.state.user["username"], ip_of(request), body.label or body.key)
+    return {"ok": True}
+
+
 class LiveChecks(BaseModel):
     pulse_every: int | None = None
     pulse_confirm: int | None = None
@@ -1919,7 +1971,7 @@ from diagram_nav import ARCHIFY_URL, DIAGRAMS  # noqa: E402
 def about_payload(force: bool) -> dict:
     import about
     version = os.environ.get("MYSERVICES_VERSION", "dev")
-    got = about.latest(Path(core.CFG["state_dir"]), force=force, enabled=bool(core.CFG.get("update_check", True)))
+    got = about.latest(Path(core.CFG["state_dir"]), force=force, enabled=bool(core.CFG.get("update_check", True)), current=version)
     tag = (got.get("release") or {}).get("tag")
     return {"version": version, "latest": got.get("release"), "checked_at": got.get("checked_at"), "error": got.get("error"), "enabled": got.get("enabled", True),
             "header": bool(core.CFG.get("update_header", True)),

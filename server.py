@@ -532,7 +532,8 @@ def update_check() -> None:
     if not CFG.get("update_check", True):
         return
     import about
-    threading.Thread(target=about.latest, args=(Path(CFG["state_dir"]),), daemon=True, name="update-check").start()
+    threading.Thread(target=about.latest, args=(Path(CFG["state_dir"]),), kwargs={"current": os.environ.get("MYSERVICES_VERSION")}, daemon=True,
+                     name="update-check").start()
 
 
 def wake_check() -> None:

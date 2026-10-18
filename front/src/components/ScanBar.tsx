@@ -55,8 +55,8 @@ export function ScanBar({ onFinished }: { onFinished: () => void }) {
   return (
     <div role="progressbar" aria-label={title} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined}
       aria-valuetext={label} className="pointer-events-none fixed inset-x-0 top-0 z-50">
-      <div className="h-[3px] w-full overflow-hidden bg-line/60">
-        {pct === null ? <div className="scan-wait h-full" /> : <div className="scan-fill h-full rounded-r-full" style={{ width: `${pct}%` }} />}
+      <div className="h-1 w-full bg-line/60">
+        {pct === null ? <div className="scan-wait h-full" /> : <div className="scan-fill h-full rounded-r-full" style={{ width: `${pct}%` }}><span className="scan-head" aria-hidden /></div>}
       </div>
       <div className="mx-auto mt-1.5 hidden w-fit max-w-[60vw] items-center gap-2 truncate rounded-full border border-line bg-card/90 px-3 py-0.5 text-xs text-muted shadow-sm backdrop-blur sm:flex">
         <span className="font-semibold text-txt">{title}</span>

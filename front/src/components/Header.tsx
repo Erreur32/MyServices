@@ -11,6 +11,7 @@ import { reopenAssistant } from "../lib/assistant";
 import { GITHUB } from "../lib/links";
 import { lastSettingsSection } from "../lib/settingsNav";
 import { dismissTag, dismissedTag } from "../lib/updateNotice";
+import { ScanOrb } from "./ScanOrb";
 
 function ago(iso: string, now: number): string {
   const min = Math.round((now - new Date(iso).getTime()) / 60000);
@@ -59,7 +60,8 @@ export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; them
   const stale = (now - new Date(snap.data.generated).getTime()) / 60000 > snap.data.page.stale_min;
   const logo = useHeaderLogo();
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3 py-4">
+    <header className="relative flex flex-wrap items-center justify-between gap-3 py-4">
+      <ScanOrb />
       <div>
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-dim">
           <span className={`h-2 w-2 rounded-full ${stale ? "bg-warn" : "bg-ok"}`} />
