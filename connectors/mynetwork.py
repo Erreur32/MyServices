@@ -11,6 +11,8 @@ Routes lues (enveloppe {"success": true, "result": …}) :
   (GET /api/connection/summary donne aussi, depuis 0.10.68, latest_firmware et update_available de la Freebox)
   GET /api/lan/devices                  hôtes vus par la Freebox (facultatif)
   GET /api/connection/summary           ligne et santé de la Freebox, sans IP ni numéro de série (facultatif, MynetworK 0.10.66+)
+  GET /api/plugins/unifi/card-devices   switches, gateways and access points with their port tables, for the front-panel cards (MynetworK 0.11.1+;
+                                        403 / 404 / 503 = absent, see card_devices)
   GET /api/search/ip-details/<ip>       fiche complète d'une adresse en un appel : scan, UniFi, bail Freebox, redirections de ports, ping en direct,
                                         réservation DHCP (prévu, pas encore ouvert aux jetons API : 403 / 404 = absent, voir ip_details)
 Les routes facultatives qui répondent 403 ou 404 ne sont pas une erreur : MynetworK n'a simplement pas cette source.
@@ -32,6 +34,7 @@ MAX_ITEMS = 5000  # garde-fou : un réseau plus grand n'est pas lu en entier
 # Keys never kept from a detail sheet, whatever MynetworK sends (its own filter should have dropped them: a second one here)
 SENSITIVE = re.compile(r"key|pass|token|secret|auth|cookie|psk|serial", re.I)
 MAX_DEPTH = 6
+MAX_CARD_DEVICES = 200   # a UniFi site has dozens of devices at most
 
 
 def scrub(obj: object, depth: int = 0) -> object:
@@ -130,6 +133,14 @@ class MynetworK(Connector):
                 return None
             raise
         return _result(got)
+
+    def card_devices(self) -> list[dict] | None:
+        """UniFi switches, gateways and access points with the per-port data of the front-panel cards (MynetworK 0.11.1+), secrets removed
+        on our side too; None while the route is absent (older MynetworK, UniFi not plugged in or not open to API tokens)."""
+        got = self._get("/api/plugins/unifi/card-devices", optional=True)
+        if not isinstance(got, list):
+            return None
+        return [scrub(d) for d in got[:MAX_CARD_DEVICES] if isinstance(d, dict) and d.get("mac")]
 
     def ip_details(self, ip: str) -> dict | None:
         """Detail sheet of one address (scan, UniFi, Freebox lease, port redirections, live ping, DHCP reservation) in one call, secrets

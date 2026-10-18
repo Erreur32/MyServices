@@ -802,6 +802,12 @@ def network_settings_set(body: NetscanEvery, request: Request):
     return {"ok": True, **(out or system.netscan_settings(core))}
 
 
+@app.get(API + "/unifi/cards", tags=["réseau"], summary="Appareils UniFi avec leurs ports, pour les cartes de l'onglet Réseau")
+def unifi_cards():
+    import unifi_cards as uc
+    return uc.read(core.CFG)
+
+
 class LiveChecks(BaseModel):
     pulse_every: int | None = None
     pulse_confirm: int | None = None

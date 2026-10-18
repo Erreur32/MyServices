@@ -13,6 +13,7 @@ import { Badge, Cards, Count, Dim, Empty, FilterBar, Table, Td, Th } from "../co
 import { quiet } from "../lib/forms";
 import { Dot } from "../components/marks";
 import { ServiceCard } from "../components/ServiceStatusCards";
+import { UnifiCards } from "./UnifiCards";
 
 const INTERNET = ["freebox", "opnsense", "speedtest-tracker"];
 type Kind = "gear" | "wifi" | "wired" | "device";
@@ -192,6 +193,8 @@ export function Network({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: s
         <Tile icon={Cable} value={all("wired").length} label={tx("clients filaires")} tone="off" />
         <Tile icon={Monitor} value={devAll.length ? `${devAll.filter((r) => r.up).length}/${devAll.length}` : "-"} label={unfollowed ? tx("appareils en ligne, {0} pas suivis", unfollowed) : tx("appareils en ligne")} tone={unfollowed ? "warn" : "off"} />
       </div>
+
+      <UnifiCards />
 
       {sections.length > 1 && (
         <nav aria-label={tx("Sections de la page")} className="flex flex-wrap items-center gap-1.5">
