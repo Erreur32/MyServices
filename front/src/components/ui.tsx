@@ -1,6 +1,6 @@
 // Éléments communs des onglets : barre de recherche et pastilles, en-têtes triables, badges d'état.
 import { ChevronDown, ChevronUp, Plus, Search, SlidersHorizontal, X } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Chip, Facet } from "../lib/filter";
 
 import { LEVEL, type Tone } from "../lib/level";
@@ -120,17 +120,35 @@ function ChipButton({ on, count, mark, label, onClick }: Readonly<{ on: boolean;
   );
 }
 
-export function FilterBar<T>({ f, placeholder, extra, side, options = [], primary = [] }: Readonly<{
+export function FilterBar<T>({ f, placeholder, extra, side, options = [], primary: primaryProp = [], oneLine = false }: Readonly<{
   f: { query: string; setQuery: (q: string) => void; shown: unknown[]; total: number; active: number; reset: () => void;
        chips: { facet: Facet<T>; chips: Chip[] }[]; toggle: (k: string, v: string) => void };
   placeholder: string; extra?: ReactNode; side?: ReactNode; options?: FilterOption[];   // side : à droite, sous le bouton « Filtres »
   /** Clés des filtres toujours visibles sous la recherche ; les autres restent derrière le bouton « Filtres » */
   primary?: string[];
+  /** Filtres visibles sur la même ligne que la recherche ; au-delà de 10 pastilles ou si la ligne déborde, ils passent derrière le bouton « Filtres » */
+  oneLine?: boolean;
 }>) {
   // Filtres repliés d'office (sur tous les écrans) : la barre de recherche suffit le plus souvent ; ce qui est actif
   // reste visible en pastilles retirables, et le bouton « Filtres » déplie le reste.
   const [open, setOpen] = useState(false);
   const shownGroups = f.chips.filter((g) => g.chips.length > 1 || g.chips.some((c) => c.on));
+  // Une seule ligne : si les pastilles demandées sont trop nombreuses (plus de 10) ou ne tiennent pas, elles vont derrière le bouton « Filtres »
+  const wanted = shownGroups.filter((g) => primaryProp.includes(g.facet.key));
+  const rowRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [tooWide, setTooWide] = useState(false);
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!oneLine || !row) return;
+    const check = () => setTooWide(220 + 400 + (measureRef.current?.scrollWidth ?? 0) > row.clientWidth);   // 220 = search field, 400 = counter, buttons and gaps
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(row);
+    return () => ro.disconnect();
+  }, [oneLine, wanted.length]);
+  const collapsed = oneLine && (tooWide || wanted.reduce((n, g) => n + g.chips.length, 0) > 10);
+  const primary = collapsed ? [] : primaryProp;
   const inline = shownGroups.filter((g) => primary.includes(g.facet.key));
   const groups = shownGroups.filter((g) => !primary.includes(g.facet.key));
   const active = f.chips.filter((g) => !primary.includes(g.facet.key)).flatMap((g) => g.chips.filter((c) => c.on).map((c) => ({ facet: g.facet, chip: c })));
@@ -141,15 +159,28 @@ export function FilterBar<T>({ f, placeholder, extra, side, options = [], primar
   const fresh = active.map((a) => keyOf(a.facet, a.chip)).filter((k) => !seen.includes(k));
   if (fresh.length) setSeen([...seen, ...fresh]);   // mise à jour pendant le rendu : autorisée pour un état de ce composant
   const toggles = seen.flatMap((k) => f.chips.flatMap((g) => g.chips.filter((c) => keyOf(g.facet, c) === k).map((c) => ({ facet: g.facet, chip: c }))));
+  const renderInline = (list: typeof inline, nowrap: boolean) => list.length > 0 && (
+    <div className={`flex items-center gap-x-5 gap-y-2 ${nowrap ? "flex-nowrap whitespace-nowrap" : "flex-wrap"}`}>
+      {list.map(({ facet, chips }) => (
+        <div key={facet.key} className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-dim">{facet.label}</span>
+          {chips.map((c) => <ChipButton key={c.value} on={c.on} count={c.count} mark={facet.mark?.(c.value)} label={c.label} onClick={() => f.toggle(facet.key, c.value)} />)}
+        </div>
+      ))}
+    </div>
+  );
+  const inlineFilters = renderInline(inline, oneLine);
   return (
     <div className="my-4 flex flex-col gap-3 rounded-2xl border border-line bg-card/70 p-3">
-      <div className="flex flex-wrap items-center gap-3">
+      <div ref={rowRef} className={`flex items-center gap-3 ${oneLine && !collapsed ? "flex-nowrap" : "flex-wrap"}`}>
         <label className="flex min-w-[220px] max-w-sm flex-1 items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-1.5 focus-within:border-link">
           <Search size={16} className="text-dim" />
           <input value={f.query} onChange={(e) => f.setQuery(e.target.value)} placeholder={placeholder} type="search"
             className="w-full bg-transparent text-sm text-txt outline-none placeholder:text-dim" />
         </label>
         <span className="text-sm text-muted" title={tx("Lignes affichées sur le total, après la recherche et les filtres")}><b className="text-txt">{f.shown.length}</b> {tx("sur")} {f.total}</span>
+        {oneLine && inlineFilters}
+        {oneLine && <div ref={measureRef} aria-hidden className="pointer-events-none invisible absolute h-0 overflow-hidden">{renderInline(wanted, true)}</div>}
         {f.active > 0 && (
           <button type="button" onClick={f.reset} className="inline-flex items-center gap-1 text-sm text-link hover:underline">
             <X size={14} />{tx("Tout effacer")}
@@ -171,16 +202,7 @@ export function FilterBar<T>({ f, placeholder, extra, side, options = [], primar
           </div>
         )}
       </div>
-      {inline.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          {inline.map(({ facet, chips }) => (
-            <div key={facet.key} className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-dim">{facet.label}</span>
-              {chips.map((c) => <ChipButton key={c.value} on={c.on} count={c.count} mark={facet.mark?.(c.value)} label={c.label} onClick={() => f.toggle(facet.key, c.value)} />)}
-            </div>
-          ))}
-        </div>
-      )}
+      {!oneLine && inlineFilters}
       {!open && (toggles.length > 0 || options.some((o) => o.on)) && (
         <div className="flex flex-wrap items-center gap-1.5">
           {options.filter((o) => o.on).map((o) => (

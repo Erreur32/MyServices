@@ -16,7 +16,7 @@ const short = (label: string) => label.replace(/^[^:]*: /, "");
 
 function Tile({ n, label, tone }: { n: string | number; label: string; tone?: "ok" | "warn" | "bad" }) {
   return (
-    <div className="min-w-[7.5rem] flex-1 rounded-xl border border-line bg-card px-3 py-2.5">
+    <div className="min-w-[7.5rem] flex-1 rounded-xl border border-line bg-card px-3 py-2.5 text-center">
       <div className={`font-mono text-xl font-bold ${tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : tone === "bad" ? "text-bad" : ""}`}>{n}</div>
       <div className="text-xs leading-tight text-muted">{label}</div>
     </div>
@@ -92,6 +92,7 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
           <Tile n={bytes(sm.volume)} label={tx("volume des sources")} />
           {storageFree != null && <Tile n={bytes(storageFree.avail)} label={tx("libres sur {0}", storageFree.names)} />}
         </div>
+        <div className="mt-3"><FilterBar f={f} placeholder={tx("Machine, jeu, dossier…")} primary={["state", "kind"]} oneLine /></div>
       </Card>
       {b.issues.length > 0 && (   // nothing to say = no frame
         <TableCard title={tx("Points d'attention")} tone={b.issues.some((i) => i.level === "crit" || i.level === "down") ? "bad" : "warn"}
@@ -99,7 +100,6 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
           rows={b.issues.map((i) => [<Level level={i.level} />, <b className="font-semibold">{i.set}</b>, <span className="text-muted">{i.text}</span>])}
           footer={<>{tx("Relevé du")} {dateTime(b.generated)}</>} />
       )}
-      <FilterBar f={f} placeholder={tx("Machine, jeu, dossier…")} />
       {f.shown.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           <Table head={<><Th>{tx("Machine")}</Th><Th>{tx("État")}</Th><Th>{tx("Disques")}</Th><Th>{tx("Dernier backup local")}</Th><Th>{tx("Copié ailleurs")}</Th><Th>{tx("Jeux produits")}</Th></>}>
