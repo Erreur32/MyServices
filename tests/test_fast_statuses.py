@@ -1,6 +1,7 @@
 """fast.statuses_missing: the state of the connectors read only by the light reading (Beszel), for the settings cards."""
 import sys
 import unittest
+import unittest.mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -39,6 +40,14 @@ class WithTest(unittest.TestCase):
     def test_a_newer_test_gives_the_version_and_the_tags(self):
         got = api._with_test(self.row, self.test, 50.0)
         self.assertEqual((got["version"], got["found"]), ("0.12.1", self.test["found"]))
+
+    def test_a_test_is_kept_and_read_back(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d, unittest.mock.patch.dict(api.core.CFG, {"state_dir": d}):
+            self.assertEqual(api._tests(), {})
+            api.remember_test("beszel", "b", {"ok": True, "message": "OK", "version": "1", "found": [], "extra": "dropped"})
+            got = api._tests()["beszel/b"]
+            self.assertEqual((got["ok"], got["version"], "extra" in got), (True, "1", False))
 
     def test_an_older_test_leaves_a_complete_row_alone(self):
         full = {**self.row, "version": "0.1"}

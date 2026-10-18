@@ -380,7 +380,7 @@ function InstanceCard({ inst, hosts, collect, type, reload, onCollect, toggling,
         <div className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted">
           <span className="flex items-center gap-2" title={tx("Le connecteur est lu à chaque collecte ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
             <Switch on={inst.enabled} disabled={toggling} label={`${tx("Collecte")} ${inst.label} : ${inst.enabled ? tx("coupé") : tx("activé")}`} onChange={onCollect} />{tx("Collecte")}
-            {toggling && <span className="inline-flex items-center gap-1.5 text-xs text-warn" role="status"><Loader2 size={13} className="animate-spin" aria-hidden />{tx("Test de la connexion en cours, cela peut durer une minute…")}</span>}
+            {toggling && <output className="inline-flex items-center gap-1.5 text-xs text-warn"><Loader2 size={13} className="animate-spin" aria-hidden />{tx("Test de la connexion en cours, cela peut durer une minute…")}</output>}
           </span>
         </div>
       </div>

@@ -49,7 +49,32 @@ def run(insts, prev=None, **kw):
         return doc
 
 
+class Bes:
+    type, name = "beszel", "beszel"
+
+    def __init__(self):
+        self.tests = 0
+
+    def _records(self, _):
+        return [{"name": "a", "status": "up"}, {"name": "b", "status": "up"}]
+
+    def test(self):
+        self.tests += 1
+        return mock.Mock(version="0.12.1")
+
+
 class Fast(unittest.TestCase):
+    def test_beszel_keeps_total_and_version_and_asks_the_version_rarely(self):
+        bes = Bes()
+        first = run([bes], now=1e6)
+        src = first["sources"]["beszel/beszel"]
+        self.assertEqual((src["total"], src["version"]), (2, "0.12.1"))
+        asked = bes.tests
+        run([bes], prev=first, now=1e6 + 100)
+        self.assertEqual(bes.tests, asked)   # the version is not asked again at the next reading
+        run([bes], prev=first, now=1e6 + fast.VERSION_EVERY + 1)
+        self.assertGreater(bes.tests, asked)
+
     def test_devices_ports_and_guests(self):
         doc = run([Net(), Pve()])
         d = doc["sources"]["mynetwork/mynetwork"]

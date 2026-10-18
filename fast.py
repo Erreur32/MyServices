@@ -112,18 +112,25 @@ def read(path: Path, max_age: float = 900) -> dict:
     return doc if isinstance(doc.get("sources"), dict) else {}
 
 
+def _missing_row(kind: str, name: str, src: dict) -> dict:
+    ok = bool(src.get("ok"))
+    count = len(src.get("status") or {})
+    total = src.get("total") or count
+    if not ok:
+        message = str(src.get("error") or "illisible")[:160]
+    else:
+        message = f"{count} système(s)" if count else "OK"
+    found = [{"name": "systèmes", "count": total}] if ok and total else []
+    return {"type": kind, "name": name, "ok": ok, "message": message, "stale": False, "failures": 0, "since": None, "duration_s": 0.0,
+            "version": src.get("version"), "version_tested": None, "extra": {}, "found": found, "warning": ""}
+
+
 def statuses_missing(live: dict, have: set[tuple[str, str]]) -> list[dict]:
     """Connector states, in the shape of data.json « connectors », for the instances the light reading read but the full collection never lists
     (Beszel is read for its health, not by the collector): without them the settings card says « not read yet » after every collection."""
     out = []
     for key, src in (live.get("sources") or {}).items():
         kind, _, name = key.partition("/")
-        if not isinstance(src, dict) or not name or (kind, name) in have:
-            continue
-        ok = bool(src.get("ok"))
-        count = len(src.get("status") or {})
-        total = src.get("total") or count
-        message = (f"{count} système(s)" if count else "OK") if ok else str(src.get("error") or "illisible")[:160]
-        out.append({"type": kind, "name": name, "ok": ok, "message": message, "stale": False, "failures": 0, "since": None, "duration_s": 0.0,
-                    "version": src.get("version"), "version_tested": None, "extra": {}, "found": [{"name": "systèmes", "count": total}] if ok and total else [], "warning": ""})
+        if isinstance(src, dict) and name and (kind, name) not in have:
+            out.append(_missing_row(kind, name, src))
     return out
