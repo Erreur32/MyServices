@@ -6,17 +6,19 @@ import { LoginRequired, read } from "../api";
 import { hm, longDay } from "../lib/format";
 import { LOCALE, tx } from "../lib/i18n";
 import { detail, liveText, shortName, type TaskInfo } from "../lib/tasks";
+import { onStream, streamConnected } from "../lib/stream";
 
-const IDLE_MS = 15_000, RUN_MS = 1_500;   // at rest the next runs are minutes away; while a task runs its progress is followed closely
+const IDLE_MS = 15_000, RUN_MS = 1_500, STREAM_IDLE_MS = 120_000;   // at rest the next runs are minutes away; while a task runs its progress is followed closely; with the event stream, a safety read only
 
 /** The collection task (next run, running), read every 30 s, with a clock for its countdown: for « not read yet » states */
 export function useCollectTask(): { task: TaskInfo | null; now: number } {
   const [task, setTask] = useState<TaskInfo | null>(null), [now, setNow] = useState(Date.now());
   useEffect(() => {
-    const load = () => { if (!document.hidden) read<Record<string, TaskInfo>>("tasks").then((t) => setTask(t.collect ?? null)).catch(() => undefined); };
-    load();
+    const load = () => { if (!document.hidden && !streamConnected()) read<Record<string, TaskInfo>>("tasks").then((t) => setTask(t.collect ?? null)).catch(() => undefined); };
+    read<Record<string, TaskInfo>>("tasks").then((t) => setTask(t.collect ?? null)).catch(() => undefined);
     const poll = setInterval(load, 30_000), clock = setInterval(() => setNow(Date.now()), 15_000);
-    return () => { clearInterval(poll); clearInterval(clock); };
+    const off = onStream("tasks", (t) => setTask((t as Record<string, TaskInfo>).collect ?? null));
+    return () => { clearInterval(poll); clearInterval(clock); off(); };
   }, []);
   return { task, now };
 }
@@ -38,11 +40,12 @@ export function ScheduleCard() {
           if (e instanceof LoginRequired) return;  // la page recharge déjà vers la connexion
         }
       }
-      if (!stop) timer = setTimeout(() => void tick(), busy ? RUN_MS : IDLE_MS);
+      if (!stop) timer = setTimeout(() => void tick(), streamConnected() ? STREAM_IDLE_MS : busy ? RUN_MS : IDLE_MS);
     };
     void tick();
     const clock = setInterval(() => setNow(Date.now()), 1000);
-    return () => { stop = true; clearTimeout(timer); clearInterval(clock); };
+    const off = onStream("tasks", (t) => { if (!stop) setTasks(t as Record<string, TaskInfo>); });   // a task started or ended: the server says it
+    return () => { stop = true; clearTimeout(timer); clearInterval(clock); off(); };
   }, []);
   // soonest first; a task running stays on top
   const active = Object.entries(tasks ?? {}).filter(([, t]) => t.enabled)

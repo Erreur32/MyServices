@@ -143,10 +143,9 @@ const loadManifest = (): Promise<Manifest | null> => get<Manifest>("api/v1/manif
 
 /** Tout ce que l'accueil lit ; santé, sauvegardes et événements sont facultatifs. Guided by the manifest: at rest one small request,
  *  and only the files whose stamp moved are read again (each still with its ETag); without manifest, everything as before. */
-export async function loadSnapshot(): Promise<Snapshot> {
+export async function loadSnapshot(known?: Record<string, string>): Promise<Snapshot> {   // known: the stamps the event stream just sent
   const now = Date.now();
-  const man = await loadManifest();
-  const stamps = man?.files ?? null;
+  const stamps = known ?? (await loadManifest())?.files ?? null;
   const k = kept;
   const moved = (rel: string): boolean => {
     if (!k) return true;

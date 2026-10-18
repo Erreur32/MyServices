@@ -728,6 +728,8 @@ def main() -> int:
 
     import api
     from api import app
+    import live_events
+    threading.Thread(target=live_events.watch, args=(api.stream_sources(),), daemon=True, name="events").start()   # page event stream
     if api.AUTH and not api.store().has_users():
         log(f"aucun compte : ouvrir la page pour créer le compte admin (pendant {api.SETUP_WINDOW // 60} min ; "
             "au-delà, redémarrer le conteneur)")

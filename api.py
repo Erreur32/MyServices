@@ -29,7 +29,7 @@ from urllib.parse import quote
 from starlette.middleware.gzip import GZipMiddleware
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 import models
@@ -301,6 +301,21 @@ def status_v1():
                      429: {"description": "trop tôt (délai entre deux passages)"}})
 def refresh_v1(request: Request):
     return refresh_from(request)
+
+
+def stream_sources() -> dict:
+    """What the event stream watches: the collector's state, the tasks, the stamps of the produced files."""
+    return {"status": core.status, "tasks": tasks_v1, "manifest": lambda: produced_manifest()["files"]}
+
+
+@app.get(API + "/stream", tags=["passages"], summary="Flux d'événements (SSE) : status, tasks, manifest, dès qu'ils changent")
+def stream_v1():
+    import live_events
+    q = live_events.subscribe()
+    first = {k: fn() for k, fn in stream_sources().items()}
+    # Content-Encoding set: the gzip middleware leaves the stream alone (it would buffer the events)
+    return StreamingResponse(live_events.stream(q, first), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-store", "Content-Encoding": "identity", "X-Accel-Buffering": "no"})
 
 
 @app.get(API + "/tasks", tags=["passages"], summary="Tâches planifiées : horaires, dernier passage, résultat")

@@ -7,6 +7,7 @@ import { LOGIN, LoginRequired, read, send } from "../api";
 import { dateTime } from "../lib/format";
 import { act, button, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { onStream, streamConnected } from "../lib/stream";
 import { openConnector } from "../lib/connectorPrefill";
 import { pokeScan } from "../lib/scan";
 import type { Machine } from "../types";
@@ -30,7 +31,7 @@ export interface DiscoveryItem {
 // de composants qui l'affichent, à l'arrêt quand l'onglet est masqué.
 let shared: { items: DiscoveryItem[]; muted?: string[]; todo: number; suggest: number } | null = null;
 const listeners = new Set<(d: NonNullable<typeof shared>) => void>();
-let timer: ReturnType<typeof setInterval> | undefined, inflight = false, again = false;
+let timer: ReturnType<typeof setInterval> | undefined, inflight = false, again = false, offStream: (() => void) | undefined;
 const loadShared = (force = true) => {
   if (inflight) { if (force) again = true; return; }   // asked during a read after a change: read once more when it ends, or the change is missed; a panel mounting meanwhile just waits
   inflight = true;
@@ -44,9 +45,12 @@ export function useDiscoveries() {
   const [d, setD] = useState(shared);
   useEffect(() => {
     listeners.add(setD);
-    if (listeners.size === 1) timer = setInterval(() => { if (!document.hidden) loadShared(false); }, 30_000);
+    if (listeners.size === 1) {
+      timer = setInterval(() => { if (!document.hidden && !streamConnected()) loadShared(false); }, 30_000);   // with the stream, the events below say when to read
+      offStream = onStream("manifest", () => { if (!document.hidden) loadShared(false); });   // a pass wrote its files: something may be new
+    }
     loadShared(false);
-    return () => { listeners.delete(setD); if (!listeners.size) clearInterval(timer); };
+    return () => { listeners.delete(setD); if (!listeners.size) { clearInterval(timer); offStream?.(); } };
   }, []);
   return [d, () => loadShared()] as const;
 }
