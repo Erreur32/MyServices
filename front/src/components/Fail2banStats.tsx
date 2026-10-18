@@ -124,16 +124,16 @@ export function Fail2banStats({ sources }: Readonly<{ sources: SecurityConnector
       {(s.by_jail.length > 0 || (s.by_domain ?? []).length > 0) && (
         <div className="grid items-start gap-4 lg:grid-cols-2">
           {s.by_jail.length > 0 && (
-            <ChartToggle id="security.f2b.jails" icon={ShieldAlert} title={tx("Par jail")} rows={s.by_jail.map((j) => ({ key: j.jail, label: j.jail, value: j.d7, detail: tx("{0} sur 7 jours, {1} sur 24 h", j.d7, j.d1) }))}
+            <ChartToggle id="security.f2b.jails" icon={ShieldAlert} startFolded title={tx("Par jail")} rows={s.by_jail.map((j) => ({ key: j.jail, label: j.jail, value: j.d7, detail: tx("{0} sur 7 jours, {1} sur 24 h", j.d7, j.d1) }))}
               list={<JailBars jails={s.by_jail} />} />
           )}
           {(s.by_domain ?? []).length > 0 && (
-            <ChartToggle id="security.f2b.domains" icon={Globe} title={tx("Domaines visés")} rows={s.by_domain!.map((d) => ({ key: d.domain, label: d.domain, value: d.hits }))} list={<Domains rows={s.by_domain!} />} />
+            <ChartToggle id="security.f2b.domains" icon={Globe} startFolded title={tx("Domaines visés")} rows={s.by_domain!.map((d) => ({ key: d.domain, label: d.domain, value: d.hits }))} list={<Domains rows={s.by_domain!} />} />
           )}
         </div>
       )}
       {(s.by_domain ?? []).length === 0 && s.top_ips.length > 0 && <InfoNote>{tx("Domaine visé inconnu : LogviewR doit lire les journaux de Nginx Proxy Manager ou d'Apache pour relier une adresse à un domaine.")}</InfoNote>}
-      {s.top_ips.length > 0 && <FoldPanel id="security.f2b.ips" icon={Radar} title={tx("Adresses les plus bannies")} count={s.top_ips.length}><TopIps ips={s.top_ips} /></FoldPanel>}
+      {s.top_ips.length > 0 && <FoldPanel id="security.f2b.ips" icon={Radar} startFolded title={tx("Adresses les plus bannies")} count={s.top_ips.length}><TopIps ips={s.top_ips} /></FoldPanel>}
     </div>
   );
 }

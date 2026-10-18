@@ -51,7 +51,7 @@ export function Donut({ rows }: Readonly<{ rows: Slice[] }>) {
 const BTN = "inline-flex items-center rounded-md p-1.5 text-muted hover:text-txt aria-pressed:bg-link/15 aria-pressed:text-link";
 
 /** A foldable panel with the switch list / donut in its header: `list` as it was, or the donut of `rows` */
-export function ChartToggle({ id, icon, title, rows, list }: Readonly<{ id: string; icon: LucideIcon; title: string; rows: Slice[]; list: ReactNode }>) {
+export function ChartToggle({ id, icon, title, rows, list, startFolded }: Readonly<{ id: string; icon: LucideIcon; title: string; rows: Slice[]; list: ReactNode; startFolded?: boolean }>) {
   const [chart, setChart] = useState(false);
   const toggle = (
     <span className="inline-flex gap-0.5" role="group" aria-label={tx("Affichage")}>
@@ -59,5 +59,5 @@ export function ChartToggle({ id, icon, title, rows, list }: Readonly<{ id: stri
       <button type="button" className={BTN} aria-pressed={chart} title={tx("Camembert")} onClick={() => setChart(true)}><PieChart size={15} aria-hidden /></button>
     </span>
   );
-  return <FoldPanel id={id} icon={icon} title={title} extra={toggle}>{chart ? <Donut rows={rows} /> : list}</FoldPanel>;
+  return <FoldPanel id={id} icon={icon} title={title} extra={toggle} startFolded={startFolded}>{chart ? <Donut rows={rows} /> : list}</FoldPanel>;
 }
