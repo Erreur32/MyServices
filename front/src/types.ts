@@ -288,6 +288,7 @@ export interface HealthHost {
   kernel?: { has_errors: boolean; samples?: string[] };
   load?: { load_1: number; ncpu: number; available: boolean };
   res?: { available: boolean; cpu_pct?: number; mem_pct?: number; mem_total_mb?: number; mem_used_mb?: number; swap_total_mb?: number; swap_used_mb?: number };  // CPU et mémoire
+  gpu?: { available: boolean; gpus: { name: string; util: number | null; temp: number | null; mem_used: number | null; mem_total: number | null; power: number | null }[] };   // nvidia-smi / rocm-smi (SSH or Linux agent)
   temp?: { available: boolean; celsius?: number; source?: string; virt?: string; sensors?: { name: string; celsius: number }[] };  // température du processeur (capteur de la machine ou Beszel)
   ssh_auth?: { failed_24h: number; available: boolean };
   logs?: { available: boolean; files: { path: string; mb: number }[]; journal_mb: number | null };   // biggest files of /var/log and the systemd journal
