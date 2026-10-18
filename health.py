@@ -353,6 +353,28 @@ def collect_load(run) -> dict:
     return {"load_1": load_1, "ncpu": ncpu, "available": True}
 
 
+# Biggest log files under /var/log (same filesystem only), then the journal's disk use; read-only
+LOGS_MIN_MB, LOGS_TOP = 10, 6
+LOGS_CMD = ("find /var/log -xdev -type f -not -path '/var/log/journal/*' -size +%dM -printf '%%s %%p\\n' 2>/dev/null | sort -rn | head -n %d; echo '---'; "
+            "journalctl --disk-usage 2>/dev/null") % (LOGS_MIN_MB, LOGS_TOP)
+
+
+def collect_big_logs(run) -> dict:
+    """The biggest files of /var/log (over LOGS_MIN_MB) and the size of the systemd journal, both in MB."""
+    rc, out = run(LOGS_CMD, timeout=15)
+    if rc != 0:
+        return {"available": False, "files": [], "journal_mb": None}
+    head, _, tail = out.partition("---")
+    files = []
+    for ln in head.strip().splitlines():
+        size, _, path = ln.strip().partition(" ")
+        if size.isdigit() and path.startswith("/var/log/"):
+            files.append({"path": path[:200], "mb": round(int(size) / 1048576)})
+    m = re.search(r"take up ([\d.]+)([KMGT])", tail)
+    journal = round(float(m.group(1)) * {"K": 1 / 1024, "M": 1, "G": 1024, "T": 1048576}[m.group(2)]) if m else None
+    return {"available": True, "files": files, "journal_mb": journal}
+
+
 MEM_WARN_PCT, MEM_CRIT_PCT = 90, 97  # mémoire utilisée (hors cache) ; le CPU instantané seul n'alerte pas, c'est la charge qui le fait
 
 # Deux lectures de /proc/stat à 1 s d'écart (pourcentage CPU réel) puis la mémoire
@@ -997,7 +1019,7 @@ def collect_host(host: dict) -> dict:
 
 # Commands the Linux agent runs on its own machine (the SSH collectors' commands, fixed); smart_cmd(<disk>) is added per disk it finds.
 LINUX_AGENT_COMMANDS = [DISKS_CMD, SYSTEMD_CMD, DOCKER_PS_CMD, DOCKER_STATS_CMD, APT_CMD, KERNEL_CMD, REBOOT_CMD, LOAD_CMD,
-                        _RES_CMD, _TEMP_CMD, VIRT_CMD, SSH_AUTH_CMD, SMART_LIST_CMD]
+                        _RES_CMD, _TEMP_CMD, VIRT_CMD, SSH_AUTH_CMD, SMART_LIST_CMD, LOGS_CMD]
 
 
 def replay_runner(recorded):
@@ -1025,11 +1047,12 @@ def collect_linux(host: dict, run) -> dict:
     ssh_auth = collect_ssh_auth(run)
     temp = collect_cpu_temp(run, bool(host.get("vm")))
     res = collect_resources(run)
+    logs = collect_big_logs(run)
     # SMART non pertinent sur une VM (disque virtualisé, pas de hardware physique dédié)
     smart = {"accessible": False, "disks": [], "vm": True} if host.get("vm") else collect_smart(run)
     h = {"id": host["id"], "name": host["name"], "reachable": True,
          "disks": disks, "systemd": systemd, "docker": docker, "apt": apt, "kernel": kernel,
-         "reboot_required": reboot_required, "load": load, "ssh_auth": ssh_auth, "smart": smart, "temp": temp, "res": res}
+         "reboot_required": reboot_required, "load": load, "ssh_auth": ssh_auth, "smart": smart, "temp": temp, "res": res, "logs": logs}
     h["level"] = host_level(h)
     return h
 

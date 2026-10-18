@@ -48,6 +48,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 
+- Machine sheet: a « Biggest logs » row (files over 10 MB under `/var/log`, and the systemd journal size), read over SSH or by the Linux agent with the same read-only command; sizes over 1 GB are flagged.
+
 - **Import and export of the configuration** (Settings -> Backup and info): export everything or pick the parts (settings and connectors, machines and
   services, followed backups, remembered decisions, accounts and history (the database, without current sign-ins), encryption key, SSH keys) as a standard **ZIP**; import a ZIP (or an older `.tar.gz`) in two steps, a preview that reads it without changing anything (parts,
   problems, whether the passwords of its settings open with the key that will be in place), then the parts you tick. Both ask for your password.

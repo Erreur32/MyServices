@@ -581,6 +581,15 @@ function TemperatureRow({ h }: Readonly<{ h: HealthHost }>) {
   );
 }
 
+const LOG_BIG_MB = 1000;   // a log file over 1 GB is worth a look (rotation missing?)
+const sizeText = (mb: number) => mb >= 1024 ? `${(mb / 1024).toFixed(1)} ${tx("Go")}` : `${mb} ${tx("Mo")}`;
+
+function BigLogsRow({ logs }: Readonly<{ logs: NonNullable<HealthHost["logs"]> }>) {
+  const items = logs.files.map((f) => ({ name: f.path.replace("/var/log/", ""), value: sizeText(f.mb), tone: f.mb >= LOG_BIG_MB ? "text-warn" : "" }));
+  if (logs.journal_mb) items.push({ name: "journal", value: sizeText(logs.journal_mb), tone: logs.journal_mb >= 4 * LOG_BIG_MB ? "text-warn" : "" });
+  return <DetailRow k={tx("Gros journaux")} title={tx("Gros journaux")}><ProbeChips items={items} /></DetailRow>;
+}
+
 function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
   const bar = (label: string, pct: number | undefined, extra?: string) => pct == null ? null : (
     <DetailRow key={label} k={label} title={label}><Fill pct={pct} /><span className="tabular-nums">{Math.round(pct)} %</span>{extra && <Dim>{extra}</Dim>}</DetailRow>
@@ -605,6 +614,7 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
           <ProbeChips items={h.fans.map((f) => ({ name: f.name, value: `${Math.round(f.rpm)} ${tx("tr/min")}`, tone: "" }))} />
         </DetailRow>
       )}
+      {!!h.logs?.available && (h.logs.files.length > 0 || !!h.logs.journal_mb) && <BigLogsRow logs={h.logs} />}
       {h.kernel?.has_errors && <KernelBlock id={h.id} lines={h.kernel.samples ?? []} />}
       {h.vmem && bar(tx("Mémoire VM"), h.vmem.pct, `${(h.vmem.used_mb / 1024).toFixed(1)} / ${(h.vmem.total_mb / 1024).toFixed(1)} ${tx("Go")}`)}
       {h.vms && (

@@ -1331,6 +1331,8 @@ export const EN: Record<string, string> = {
   "Appareils vus": "Devices seen",
   "Adresse": "Address",
   "Sondes": "Probes",
+  "Gros journaux": "Biggest logs",
+  "Mo": "MB",
   "Mise à jour du firmware disponible": "Firmware update available",
   "Infos VM": "VM info",
   "aucune machine virtuelle": "no virtual machine",
