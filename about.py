@@ -14,6 +14,7 @@ from pathlib import Path
 
 REPO = "Erreur32/MyServices"
 API = f"https://api.github.com/repos/{REPO}/releases/latest"
+TAGS_API = f"https://api.github.com/repos/{REPO}/tags?per_page=30"
 TTL = 6 * 3600
 SEMVER = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.]+))?$")
 
@@ -52,16 +53,34 @@ def newer(latest: str | None, current: str | None) -> bool:
     return bool(a and b and a > b)
 
 
-def fetch_latest(opener=urllib.request.urlopen) -> dict:
-    req = urllib.request.Request(API, headers={"Accept": "application/vnd.github+json", "User-Agent": "myservices-update-check"})
+def _get(url: str, opener) -> object:
+    req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "myservices-update-check"})
     with opener(req, timeout=8) as r:
-        d = json.loads(r.read(200_000))
-    return {"tag": d.get("tag_name"), "name": d.get("name") or d.get("tag_name"), "url": d.get("html_url"), "published": d.get("published_at"),
-            "prerelease": bool(d.get("prerelease")), "notes": (d.get("body") or "")[:3000]}
+        return json.loads(r.read(200_000))
 
 
-def latest(state_dir: Path, force: bool = False, enabled: bool = True, now: float | None = None, opener=urllib.request.urlopen) -> dict:
-    """{release, checked_at, error, cached} ; jamais d'exception : hors ligne ou limite GitHub atteinte, on garde la dernière réponse connue."""
+def fetch_latest(opener=urllib.request.urlopen, current: str | None = None) -> dict:
+    """The latest GitHub release. When it is older than the installed version (a tag pushed without its release), the highest published tag
+    stands in for it: the page then says what is really the latest instead of a version older than the one running."""
+    d = _get(API, opener)
+    rel = {"tag": d.get("tag_name"), "name": d.get("name") or d.get("tag_name"), "url": d.get("html_url"), "published": d.get("published_at"),
+           "prerelease": bool(d.get("prerelease")), "notes": (d.get("body") or "")[:3000]}
+    if current and newer(core_version(current) or current, rel["tag"]):
+        try:
+            tags = [t.get("name") for t in _get(TAGS_API, opener) if isinstance(t, dict)]   # type: ignore[union-attr]
+        except (OSError, ValueError, TypeError):
+            return rel
+        final = [t for t in tags if parse(t) and parse(t)[3] == 1]   # final versions only (a pre-release has a 0 there)
+        top = max(final, key=parse, default=None)
+        if top and newer(top, rel["tag"]):
+            return {"tag": top, "name": top, "url": f"https://github.com/{REPO}/releases/tag/{top}", "published": None, "prerelease": False, "notes": "", "from_tag": True}
+    return rel
+
+
+def latest(state_dir: Path, force: bool = False, enabled: bool = True, now: float | None = None, opener=urllib.request.urlopen,
+           current: str | None = None) -> dict:
+    """{release, checked_at, error, cached} ; jamais d'exception : hors ligne ou limite GitHub atteinte, on garde la dernière réponse connue.
+    `current` : la version installée ; une réponse gardée plus ancienne qu'elle (vérifiée avant la publication) est revérifiée tout de suite."""
     now = now or time.time()
     f = state_dir / "update-check.json"
     try:
@@ -70,10 +89,11 @@ def latest(state_dir: Path, force: bool = False, enabled: bool = True, now: floa
         cur = {}
     if not enabled:
         return {"release": cur.get("release"), "checked_at": cur.get("checked_at"), "error": "vérification coupée (update_check)", "cached": True, "enabled": False}
-    if not force and cur.get("checked_at") and now - cur["checked_at"] < TTL:
+    stale = newer(core_version(current) or current, (cur.get("release") or {}).get("tag"))   # installed is newer than the latest kept
+    if not force and not stale and cur.get("checked_at") and now - cur["checked_at"] < TTL:
         return {**cur, "error": None, "cached": True, "enabled": True}
     try:
-        cur = {"release": fetch_latest(opener), "checked_at": now}
+        cur = {"release": fetch_latest(opener, current), "checked_at": now}
         err = None
         state_dir.mkdir(parents=True, exist_ok=True)
         tmp = f.with_suffix(".tmp")

@@ -1925,7 +1925,7 @@ from diagram_nav import ARCHIFY_URL, DIAGRAMS  # noqa: E402
 def about_payload(force: bool) -> dict:
     import about
     version = os.environ.get("MYSERVICES_VERSION", "dev")
-    got = about.latest(Path(core.CFG["state_dir"]), force=force, enabled=bool(core.CFG.get("update_check", True)))
+    got = about.latest(Path(core.CFG["state_dir"]), force=force, enabled=bool(core.CFG.get("update_check", True)), current=version)
     tag = (got.get("release") or {}).get("tag")
     return {"version": version, "latest": got.get("release"), "checked_at": got.get("checked_at"), "error": got.get("error"), "enabled": got.get("enabled", True),
             "header": bool(core.CFG.get("update_header", True)),

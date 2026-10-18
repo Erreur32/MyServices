@@ -85,6 +85,36 @@ class Latest(unittest.TestCase):
         r = about.latest(self.d, enabled=False, opener=f)
         self.assertEqual((f.calls, r["enabled"]), (0, False))
 
+    def test_kept_answer_older_than_installed_is_checked_again(self):
+        f = Fake()
+        about.latest(self.d, opener=f, now=1000.0, current="v0.9.4")
+        self.assertEqual(f.calls, 1)
+        about.latest(self.d, opener=f, now=1000.0 + 60, current="v0.9.4")
+        self.assertEqual(f.calls, 1)                              # same version: the 6 h cache holds
+        about.latest(self.d, opener=f, now=1000.0 + 120, current="v0.9.5")
+        self.assertEqual(f.calls, 3)                              # installed newer than the kept v0.9.4: asked again at once (release, then the tags)
+
+    def test_release_older_than_installed_falls_back_to_the_tags(self):
+        class Gh(Fake):
+            def __call__(self, req, timeout=0):
+                self.calls += 1
+                url = req.full_url
+                return io.BytesIO(json.dumps([{"name": "v0.9.5"}, {"name": "v0.9.5-rc.1"}, {"name": "v0.9.4"}, {"name": "x"}] if url.endswith("per_page=30") else RELEASE).encode())
+        r = about.latest(self.d, opener=Gh(), now=1000.0, current="v0.9.5")
+        self.assertEqual((r["release"]["tag"], r["release"]["published"], r["release"].get("from_tag")), ("v0.9.5", None, True))
+        self.assertFalse(about.newer(r["release"]["tag"], "v0.9.5"))   # installed = latest: no update announced
+        tagless = about.latest(Path(self.tmp.name) / "b", opener=Fake(), now=1000.0, current="v0.9.3")
+        self.assertEqual(tagless["release"]["tag"], "v0.9.4")           # a release newer than the installed version is used as it is
+
+    def test_tags_unreachable_keeps_the_release(self):
+        class Half(Fake):
+            def __call__(self, req, timeout=0):
+                if req.full_url.endswith("per_page=30"):
+                    raise OSError("limite")
+                return super().__call__(req, timeout)
+        r = about.latest(self.d, opener=Half(), now=1000.0, current="v0.9.5")
+        self.assertEqual(r["release"]["tag"], "v0.9.4")
+
     def test_cached_reads_without_asking(self):
         self.assertFalse(about.cached(self.d, "v0.9.3")["available"])   # never checked: nothing to announce
         about.latest(self.d, opener=Fake(), now=1000.0)
