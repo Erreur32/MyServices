@@ -50,16 +50,15 @@ function Posture({ findings }: Readonly<{ findings: Finding[] }>) {
   );
 }
 
-function FindingRow({ f, open }: Readonly<{ f: Finding; open: (s: Sub) => void }>) {
+/** One point to handle as a card: severity on the left edge, what it is, what to do, and a button to the sub-tab that holds it */
+function FindingCard({ f, open }: Readonly<{ f: Finding; open: (s: Sub) => void }>) {
+  const bad = f.sev === "bad";
   return (
-    <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 px-2 py-3">
-      <span aria-hidden className={`mt-1.5 h-2.5 w-2.5 rounded-full ${f.sev === "bad" ? "bg-bad" : "bg-warn"}`} />
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2"><b className="truncate">{f.title}</b><Badge tone={f.sev === "bad" ? "bad" : "warn"}>{AREA_LABEL[f.area]}</Badge></div>
-        <p className="text-sm text-muted">{f.detail}</p>
-        <p className="mt-0.5 flex items-start gap-1.5 text-xs text-dim"><Wrench size={12} className="mt-0.5 shrink-0" aria-hidden />{f.fix}</p>
-      </div>
-      <button type="button" onClick={() => open(AREA_SUB[f.area])} className="rounded-full border border-line bg-bg2/60 px-2.5 py-1 text-xs font-semibold text-muted hover:border-link hover:text-link">{tx("Voir")}</button>
+    <li className={`flex flex-col gap-2 rounded-xl border border-l-4 bg-card px-4 py-3 ${bad ? "border-bad/40 border-l-bad" : "border-warn/40 border-l-warn"}`}>
+      <div className="flex flex-wrap items-center gap-2"><Badge tone={bad ? "bad" : "warn"}>{AREA_LABEL[f.area]}</Badge><b className="min-w-0 flex-1 truncate" title={f.title}>{f.title}</b></div>
+      <p className="text-sm text-muted">{f.detail}</p>
+      <p className="flex items-start gap-1.5 text-xs text-dim"><Wrench size={12} className="mt-0.5 shrink-0" aria-hidden />{f.fix}</p>
+      <button type="button" onClick={() => open(AREA_SUB[f.area])} className="mt-auto self-start rounded-full border border-line bg-bg2/60 px-2.5 py-1 text-xs font-semibold text-muted hover:border-link hover:text-link">{tx("Voir")}</button>
     </li>
   );
 }
@@ -100,10 +99,10 @@ function Overview({ snap, findings, admin, open }: Readonly<{ snap: Snapshot; fi
       <Posture findings={findings} />
       <AreaTiles snap={snap} findings={findings} admin={admin} open={open} />
       {findings.length > 0 && (
-        <Card>
-          <h2 className="mb-1 font-bold">{tx("À traiter d'abord")} <Count n={findings.length} tone="warn" /></h2>
-          <ul className="flex flex-col divide-y divide-line/60 [&>li:nth-child(even)]:bg-bg/50">{findings.map((f) => <FindingRow key={`${f.area}/${f.title}/${f.detail}`} f={f} open={open} />)}</ul>
-        </Card>
+        <section aria-label={tx("À traiter d'abord")}>
+          <h2 className="mb-2 font-bold">{tx("À traiter d'abord")} <Count n={findings.length} tone="warn" /></h2>
+          <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{findings.map((f) => <FindingCard key={`${f.area}/${f.title}/${f.detail}`} f={f} open={open} />)}</ul>
+        </section>
       )}
       <InfoNote>{tx("Cette page lit ce que vos outils savent (Fail2ban par LogviewR, Nginx Proxy Manager, SSH, MynetworK). Elle ne change rien et ne donne pas de note : des faits, du plus grave au moins grave.")}</InfoNote>
       {(snap.data.security ?? []).length === 0 && <InfoNote tone="warn">{tx("Aucun Fail2ban n'est relié : reliez LogviewR (Réglages, Connecteurs) pour voir les bannissements et les menaces.")}</InfoNote>}
