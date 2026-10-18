@@ -140,6 +140,14 @@ class Collect(unittest.TestCase):
         old = dict(data, locs={"s#0": {"exists": True, "count": 2, "size": 150, "files": [{"name": "a.vma", "mtime": NOW - 9 * DAY, "size": 100}]}})
         self.assertEqual(backups.analyse(meta, {"remote-box": (old, "")}, {}, NOW)["sets"][0]["locations"][0]["level"], "crit")
 
+    def test_missing_folder_names_the_path_to_create(self):
+        meta = {"hosts": [{"id": "remote-box", "label": "Freebox", "api": "remote"}],
+                "sets": [{"id": "s", "label": "PVE", "origin": "remote-box", "max_age_days": 2, "expect_offsite": False,
+                          "locations": [{"host": "remote-box", "path": "/backups/pve", "depth": 1}]}]}
+        data = {"user": "FTP", "locs": {"s#0": {"exists": False}}, "disks": [], "crons": [], "cron_root": None}
+        loc = backups.analyse(meta, {"remote-box": (data, "")}, {}, NOW)["sets"][0]["locations"][0]
+        self.assertEqual((loc["level"], loc["detail"]), ("crit", "dossier absent : /backups/pve (à créer sur Freebox)"))
+
 
 class Assistant(unittest.TestCase):
     def setUp(self):

@@ -11,6 +11,23 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.15.5 (2026-10-18)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- Machines: the machine window shows the front panel of the UniFi switch a wired machine is plugged into, with its port framed (`mark_port` option added to the vendored card, noted in `VENDOR.md`).
+- Machines: GPU load, temperature, memory and power from `nvidia-smi` and `rocm-smi`, read over SSH and by the Linux agent with the same command (`GPU_CMD`); GpuViewR stays first, then these tools, then the `lspci` names. Existing Linux agents need an update to report it.
+- Settings, Backup and info: after an import, a banner says the collection, the watch and the health are still reading the imported data, then that it is up to date.
+- Machines: the « N service(s) down » notice lists which services are down and why, in the health column tooltip and in the machine window.
+
+### Fixed
+
+- Settings, Connectors: a test made from the page is kept by the server and shown on the card at once (version, what was read, or the failure); the Beszel card shows its version and the number of systems after a scan instead of nothing.
+- Backups: a missing copy folder says which path to create and on which machine.
+- Linux agent: the uninstall also clears the failed state of its removed unit, so `systemctl --failed` no longer lists `myservices-agent.service`.
+
 ## v0.15.4 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

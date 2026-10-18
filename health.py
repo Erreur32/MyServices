@@ -461,6 +461,54 @@ def collect_cpu_temp(run, vm: bool = False) -> dict:
     return temp
 
 
+# Graphics cards by their own tool (NVIDIA, AMD): load, temperature, memory, power. Absent tools print nothing; the final « true » keeps the exit code 0.
+GPU_CMD = ("(nvidia-smi --query-gpu=name,utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw --format=csv,noheader,nounits 2>/dev/null; "
+           "echo '---'; rocm-smi --showproductname --showuse --showtemp --showmeminfo vram --json 2>/dev/null; true)")
+
+
+def _num(v) -> float | None:
+    """A number from a tool field (« 45 », « 12.5 », « 4.0 W »); « [N/A] », « N/A » or empty -> None."""
+    m = re.match(r"\s*(-?\d+(?:\.\d+)?)", str(v))
+    return float(m[1]) if m else None
+
+
+def _rocm_field(card: dict, *words: str):
+    """First value of a rocm-smi card whose key holds every word (its key names change between versions)."""
+    return next((v for k, v in card.items() if all(w in k.lower() for w in words)), None)
+
+
+def _nvidia_gpus(text: str) -> list[dict]:
+    gpus = []
+    for ln in filter(None, (x.strip() for x in text.splitlines())):
+        f = [x.strip() for x in ln.split(",")]
+        if len(f) >= 6 and f[0]:
+            gpus.append({"name": f[0][:80], "util": _num(f[1]), "temp": _num(f[2]), "mem_used": _num(f[3]), "mem_total": _num(f[4]), "power": _num(f[5])})
+    return gpus
+
+
+def _rocm_gpu(card: dict) -> dict:
+    used, total = _num(_rocm_field(card, "vram", "used")), _num(_rocm_field(card, "vram", "total", "memory"))
+    return {"name": str(_rocm_field(card, "series") or _rocm_field(card, "card", "model") or "AMD GPU")[:80], "util": _num(_rocm_field(card, "gpu use")),
+            "temp": _num(_rocm_field(card, "temperature", "edge")), "power": None,
+            "mem_used": round(used / 1048576) if used is not None else None, "mem_total": round(total / 1048576) if total is not None else None}
+
+
+def parse_gpu(out: str) -> dict:
+    """{available, gpus:[{name, util %, temp °C, mem_used MB, mem_total MB, power W}]} from nvidia-smi (csv) and rocm-smi (json); nothing found -> available False."""
+    nv, _, amd = out.partition("---")
+    try:
+        cards = json.loads(amd) if amd.strip() else {}
+    except ValueError:
+        cards = {}
+    gpus = _nvidia_gpus(nv) + [_rocm_gpu(c) for k, c in (cards.items() if isinstance(cards, dict) else []) if k.startswith("card") and isinstance(c, dict)]
+    return {"available": bool(gpus), "gpus": gpus}
+
+
+def collect_gpu(run) -> dict:
+    rc, out = run(GPU_CMD, timeout=10)
+    return parse_gpu(out) if rc == 0 else {"available": False, "gpus": []}
+
+
 def temp_level(temp) -> str:
     c = temp.get("celsius") if isinstance(temp, dict) else None
     if not isinstance(c, (int, float)):
@@ -1019,7 +1067,7 @@ def collect_host(host: dict) -> dict:
 
 # Commands the Linux agent runs on its own machine (the SSH collectors' commands, fixed); smart_cmd(<disk>) is added per disk it finds.
 LINUX_AGENT_COMMANDS = [DISKS_CMD, SYSTEMD_CMD, DOCKER_PS_CMD, DOCKER_STATS_CMD, APT_CMD, KERNEL_CMD, REBOOT_CMD, LOAD_CMD,
-                        _RES_CMD, _TEMP_CMD, VIRT_CMD, SSH_AUTH_CMD, SMART_LIST_CMD, LOGS_CMD]
+                        _RES_CMD, _TEMP_CMD, VIRT_CMD, SSH_AUTH_CMD, SMART_LIST_CMD, LOGS_CMD, GPU_CMD]
 
 
 def replay_runner(recorded):
@@ -1046,13 +1094,14 @@ def collect_linux(host: dict, run) -> dict:
     load = collect_load(run)
     ssh_auth = collect_ssh_auth(run)
     temp = collect_cpu_temp(run, bool(host.get("vm")))
+    gpu = collect_gpu(run)
     res = collect_resources(run)
     logs = collect_big_logs(run)
     # SMART non pertinent sur une VM (disque virtualisé, pas de hardware physique dédié)
     smart = {"accessible": False, "disks": [], "vm": True} if host.get("vm") else collect_smart(run)
     h = {"id": host["id"], "name": host["name"], "reachable": True,
          "disks": disks, "systemd": systemd, "docker": docker, "apt": apt, "kernel": kernel,
-         "reboot_required": reboot_required, "load": load, "ssh_auth": ssh_auth, "smart": smart, "temp": temp, "res": res, "logs": logs}
+         "reboot_required": reboot_required, "load": load, "ssh_auth": ssh_auth, "smart": smart, "temp": temp, "gpu": gpu, "res": res, "logs": logs}
     h["level"] = host_level(h)
     return h
 

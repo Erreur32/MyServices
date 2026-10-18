@@ -31,6 +31,7 @@ OUTPUTS = {
     health.VIRT_CMD: (0, "kvm\n"),
     health.SSH_AUTH_CMD: (0, "7\n"),
     health.SMART_LIST_CMD: (0, "sda\nnvme0n1\n"),
+    health.GPU_CMD: (0, "NVIDIA T400, 9, 40, 200, 4096, 12.0\n---\n"),
     health.LOGS_CMD: (0, "3145728000 /var/log/big.log\n---\nArchived and active journals take up 1.5G in the file system.\n"),
     health.smart_cmd("sda"): (0, "SMART overall-health self-assessment test result: PASSED\n"),
     health.smart_cmd("nvme0"): (0, "SMART overall-health self-assessment test result: PASSED\n"),
@@ -59,6 +60,7 @@ class LinuxAgent(unittest.TestCase):
         self.assertEqual(direct["ssh_auth"]["failed_24h"], 7)
         self.assertEqual([d["mount"] for d in direct["disks"]], ["/", "/data"])
         self.assertTrue(direct["smart"]["accessible"])
+        self.assertEqual(direct["gpu"]["gpus"][0]["name"], "NVIDIA T400")   # same reading over SSH and through the agent
 
     def test_commande_non_relevee_echoue_comme_un_outil_absent(self):
         run = health.replay_runner({health.REBOOT_CMD: [0, "no\n"]})

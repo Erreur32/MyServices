@@ -13,6 +13,7 @@ below are MynetworK's, copied as they are:
 - `unifi-device-card.js`: front panel background reads `--udc-panel-bg` (theming); the initial port selection prefers the real uplink; port RX/TX
   are shown as bit/s, kbit/s, Mbit/s, Gbit/s; `VERSION` is a constant (no build-time define); ports with live traffic get a `has-traffic` class
   and a faster LED blink (`port_led_traffic_blink_speed`).
+- `unifi-device-card.js` (MyServices): config `mark_port: <n>` puts a `marked` class on that port (`_renderPortButton`) and a frame around it (`.port.marked` in `_styles`); used by the machine window to show the port a machine is plugged into. To redo after a refresh from upstream: those two spots only.
 - `unifi-device-card.d.ts` (new, MyServices): the module only registers the `unifi-device-card` element, nothing is imported from it.
 
 Excluded from SonarCloud (`sonar.exclusions`).

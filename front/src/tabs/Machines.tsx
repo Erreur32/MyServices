@@ -6,6 +6,7 @@ import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime, dur, durShort, ipNum, splitHostName } from "../lib/format";
 import { hostName, status } from "../lib/status";
 import { modelService } from "../lib/modelService";
+import { SwitchPanel } from "./UnifiCards";
 import type { AddressSheet, Backups, LinkSource, HealthHost, Host, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
@@ -267,13 +268,14 @@ function VmMark({ m, h }: Readonly<{ m: Machine; h?: HealthHost }>) {
 }
 
 /** GPUs of a machine: those GpuViewR reads (load, temperature, memory, power, last 24 h, the AI models on each), else the names the Windows agent lists in its hardware, else lspci over SSH (iGPU included, none shown when nothing is found).
- *  GpuViewR is the only source of load, temperature and memory. */
+ *  Load, temperature and memory come from GpuViewR, else from nvidia-smi / rocm-smi (SSH or Linux agent). */
 type GpuModel = NonNullable<LinkSource["models"]>[number];
 type GpuCell = { name: string; util?: number | null; temp?: number | null; memUsed?: number | null; memTotal?: number | null; power?: number | null; day?: NonNullable<LinkSource["gpus"]>[number]["day"]; models: GpuModel[] };
-function gpusOf(m: Machine): GpuCell[] {
+function gpusOf(m: Machine, h?: HealthHost): GpuCell[] {
   const src = m.links?.sources.find((x) => x.source === "gpuviewr"), read = src?.gpus ?? [];
   if (read.length) return read.map((g, i) => ({ name: g.name ?? "GPU", util: g.util, temp: g.temp, memUsed: g.mem_used, memTotal: g.mem_total, power: g.power, day: g.day,
     models: (src?.models ?? []).filter((x) => x.gpu === i || (x.gpu == null && read.length === 1)) }));
+  if (h?.gpu?.available) return h.gpu.gpus.map((g) => ({ name: g.name, util: g.util, temp: g.temp, memUsed: g.mem_used, memTotal: g.mem_total, power: g.power, models: [] }));   // nvidia-smi / rocm-smi
   const names = m.agent?.hardware?.gpu?.map((g) => g.name) ?? m.info?.gpus ?? [];   // the Windows agent's list, else lspci over SSH (Linux, Proxmox): names only
   return names.map((name) => ({ name, models: [] }));
 }
@@ -978,6 +980,7 @@ function IdentitySection({ m, mac, net, from, tool, pve, sheet }: Readonly<{ m: 
         <Row k={tx("Sur le réseau")}>{net?.first_seen ? <span title={tx("Vue par MynetworK")}>{tx("depuis le {0}", dateTime(net.first_seen))}{net.last_seen && <Dim> · {tx("vue le {0}", dateTime(net.last_seen))}</Dim>}{net.ping_ms != null && <Dim> · {Math.round(net.ping_ms)} ms</Dim>}</span> : undefined}</Row>
         <Row k={tx("Autres noms")}>{otherNames(m).join(", ") || undefined}</Row>
         <Row k={tx("Branchement")}>{sheet?.unifi && (sheet.unifi.wired || sheet.unifi.wireless) ? <PlugLine u={sheet.unifi} /> : undefined}</Row>
+        {sheet?.unifi?.wired && sheet.unifi.switch_port != null && <Row k=""><SwitchPanel ip={sheet.unifi.switch_ip} name={sheet.unifi.switch_name} port={sheet.unifi.switch_port} /></Row>}
         <Row k={tx("Nom dans UniFi")}>{sheet?.unifi?.name && sheet.unifi.name.toLowerCase() !== m.name.toLowerCase() ? sheet.unifi.name : undefined}</Row>
         <Row k={tx("Bail de la Freebox")}>{sheet?.freebox?.dhcp ? <span><span className="font-mono">{sheet.freebox.dhcp.ip}</span><Dim> · {sheet.freebox.dhcp.static ? tx("réservation fixe") : tx("adresse attribuée")}</Dim></span> : undefined}</Row>
         <Row k={tx("Redirections de ports")}>{sheet?.freebox?.forwards?.length ? <span className="flex flex-col gap-0.5 font-mono text-xs">{sheet.freebox.forwards.map((f, i) => <span key={i}>{forwardText(f)}</span>)}</span> : undefined}</Row>
@@ -1286,7 +1289,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
     try { localStorage.setItem(KERNEL_KEY, JSON.stringify(next)); } catch { /* private browsing: not kept */ }
     return next;
   }), []);
-  const anyGpu = useMemo(() => snap.data.machine_list.some((m) => !m.disabled && gpusOf(m).length > 0), [snap.data.machine_list]);   // the column exists only when some machine has a GPU to show
+  const anyGpu = useMemo(() => snap.data.machine_list.some((m) => !m.disabled && gpusOf(m, hb.get(m.ip)).length > 0), [snap.data.machine_list, hb]);   // the column exists only when some machine has a GPU to show
   const ignoreCtx = useMemo(() => ({ ignored, set: setIgnore }), [ignored, setIgnore]);
   const watchOf = useCallback((m: Machine) => {
     const h = hb.get(m.ip), items = watchItems(m, h, snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m), downOf(m, snap.data.hosts));
@@ -1439,7 +1442,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                     <Td><span className="flex flex-wrap items-center gap-1.5 [&>span]:h-6">   {/* same height (24 px) for the level badge and the cause badges; one column: the level, then what explains it (the updates have their flag near the name) */}
                       {snap.health && <HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} />}
                       <WatchList ip={m.ip} quiet={!!snap.health} items={watchOf(m).filter((i) => i.kind !== "updates")} /></span></Td>
-                    {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="!px-1.5"><GpuCellView list={gpusOf(m)} /></Td>}
+                    {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="!px-1.5"><GpuCellView list={gpusOf(m, hb.get(m.ip))} /></Td>}
                     <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-xs tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network), haOf(m)); return up ? <span className={up < 3600 ? "text-warn" : "text-muted"} title={`${dur(up)}${up < 3600 ? ` · ${tx("vient de redémarrer")}` : ""}`}>{durShort(up)}</span> : <Dim>-</Dim>; })()}</Td>
                     {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => setEditIp(m.ip)} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
                       className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><SlidersHorizontal size={14} aria-hidden /></button></td>}
