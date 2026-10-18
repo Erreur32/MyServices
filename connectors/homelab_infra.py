@@ -274,6 +274,9 @@ class Synology(StatusConnector):
         return self.out(info.get("version_string"), facts, problems)
 
 
+LOGIN_PATH = "/api/login"   # sign-in of the controller's legacy API (local account)
+
+
 class UniFi(StatusConnector):
     """UniFi Network : appareils en ligne ou non, mises à jour, clients (IP / MAC pour le rapprochement). Deux accès :
     - « api_key » : console UniFi OS (UCG, UDM, UX, Cloud Key, UniFi OS Server), API d'intégration officielle, en-tête X-API-KEY ;
@@ -346,9 +349,9 @@ class UniFi(StatusConnector):
     @staticmethod
     def _http_error(path: str, code: int) -> ConnectorError:
         """The error for an HTTP status of the legacy controller API; the sign-in has its own readable reasons."""
-        if path == "/api/login" and code in (400, 401, 403):
+        if path == LOGIN_PATH and code in (400, 401, 403):
             return ConnectorError("compte refusé : identifiant ou mot de passe faux, ou double authentification activée sur ce compte")
-        if path == "/api/login" and code == 404:
+        if path == LOGIN_PATH and code == 404:
             return ConnectorError("pas de connexion par compte ici : console UniFi OS ? choisir l'accès « api_key »")
         return ConnectorError(f"HTTP {code}")
 
@@ -371,7 +374,7 @@ class UniFi(StatusConnector):
                 raise ConnectorError(f"injoignable ({getattr(e, 'reason', e.__class__.__name__)})") from None
             return d.get("data") if isinstance(d, dict) else None
 
-        call("/api/login", {"username": str(self.conf.get("user", "")), "password": str(self.conf.get("password", "")), "remember": False})
+        call(LOGIN_PATH, {"username": str(self.conf.get("user", "")), "password": str(self.conf.get("password", "")), "remember": False})
         return call
 
     def _account(self) -> tuple:
