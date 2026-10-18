@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.15.8 (2026-10-18)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Changed
 
 - Collection and fast loop: every connector instance of every kind (status, network, security, containers, virtualization, and the light reads) is read at the same time, so a pass lasts as long as the slowest service instead of the sum of them all.
