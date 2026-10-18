@@ -1461,6 +1461,7 @@ export const EN: Record<string, string> = {
   "Rallumer quand même (sans test)": "Turn on anyway (without a test)",
   "Attention": "Warning",
   "OK": "OK",
+  "Test de la connexion en cours, cela peut durer une minute…": "Testing the connection, this can take up to a minute…",
   "Affichage": "Display",
   "collecte coupée": "collection off",
   "Le connecteur est lu à chaque collecte ; coupé, ses réglages sont gardés mais plus rien n'est lu": "The connector is read at every collection; when off, its settings are kept but nothing is read",

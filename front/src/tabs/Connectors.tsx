@@ -41,7 +41,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
   const [saved, setSaved] = useState<string[]>([]);   // detected services just activated: hidden at once, before any reload
   const [picking, setPicking] = useState(false);  // mini cartes des connecteurs disponibles, ouvertes par le « + »
   const [cat, setCat] = useState(""), [query, setQuery] = useState("");   // category and search of the picker (empty: all)
-  const [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false), [srcKey, setSrcKey] = useState("");
+  const [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false), [srcKey, setSrcKey] = useState(""), [toggling, setToggling] = useState("");   // toggling: the connector whose switch waits for the answer
   const collect = useCollectTask();
   const reload = useCallback(() => {
     read<ConnectorsState>("connectors/settings")
@@ -139,10 +139,10 @@ export function Connectors({ snap }: { snap: Snapshot }) {
       )}
       {[...st.instances].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name)).map((i) => (   // alphabetical, like the picker
         <InstanceCard key={`${i.type}/${i.name}`} inst={i} hosts={snap.data.hosts} collect={collect} type={st.types.find((t) => t.type === i.type)!} reload={reload}
-          toggleNote={srcKey === `${i.type}/${i.name}` ? srcNote : null} onForce={() => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: true, force: true }),
+          toggling={toggling === `${i.type}/${i.name}`} toggleNote={srcKey === `${i.type}/${i.name}` ? srcNote : null} onForce={() => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: true, force: true }),
             tx("allumé sans test : relecture lancée"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
-          onCollect={(on) => { setSrcKey(`${i.type}/${i.name}`); setSrcNote(null); void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
-            on ? tx("allumé : relecture lancée") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } }); }}
+          onCollect={(on) => { setSrcKey(`${i.type}/${i.name}`); setSrcNote(null); setToggling(`${i.type}/${i.name}`); void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
+            on ? tx("allumé : relecture lancée") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { setToggling(""); if (ok) { setChanged(true); reload(); } }); }}
           focus={focusKey === `${i.type}/${i.name}`} editing={editing === `${i.type}/${i.name}`} locked={(!!editing && editing !== `${i.type}/${i.name}`) || picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
       ))}
       {changed && (
@@ -337,8 +337,8 @@ function ToggleNote({ note, onForce }: Readonly<{ note: Note; onForce?: () => vo
   );
 }
 
-function InstanceCard({ inst, hosts, collect, type, reload, onCollect, toggleNote, onForce, focus, editing: edit, locked, setEditing: setEdit }: Readonly<{
-  toggleNote?: Note; onForce?: () => void; focus?: boolean; inst: ConnectorInstance; hosts: Host[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
+function InstanceCard({ inst, hosts, collect, type, reload, onCollect, toggling, toggleNote, onForce, focus, editing: edit, locked, setEditing: setEdit }: Readonly<{
+  toggling?: boolean; toggleNote?: Note; onForce?: () => void; focus?: boolean; inst: ConnectorInstance; hosts: Host[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
 }>) {
   const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null), [report, setReport] = useState<TestOut | null>(null), [testing, setTesting] = useState(false);
   const url = inst.config.url as string | undefined;
@@ -379,7 +379,8 @@ function InstanceCard({ inst, hosts, collect, type, reload, onCollect, toggleNot
         {inst.enabled ? <StatusLine s={inst.status} collect={collect} /> : <Badge tone="off">{tx("collecte coupée")}</Badge>}
         <div className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted">
           <span className="flex items-center gap-2" title={tx("Le connecteur est lu à chaque collecte ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
-            <Switch on={inst.enabled} label={`${tx("Collecte")} ${inst.label} : ${inst.enabled ? tx("coupé") : tx("activé")}`} onChange={onCollect} />{tx("Collecte")}
+            <Switch on={inst.enabled} disabled={toggling} label={`${tx("Collecte")} ${inst.label} : ${inst.enabled ? tx("coupé") : tx("activé")}`} onChange={onCollect} />{tx("Collecte")}
+            {toggling && <span className="inline-flex items-center gap-1.5 text-xs text-warn" role="status"><Loader2 size={13} className="animate-spin" aria-hidden />{tx("Test de la connexion en cours, cela peut durer une minute…")}</span>}
           </span>
         </div>
       </div>
