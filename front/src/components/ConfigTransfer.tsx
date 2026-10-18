@@ -1,9 +1,10 @@
 // Settings -> Backup and info: export the configuration (all of it or some parts) and import an archive (preview first, then the parts you pick).
-import { ChevronDown, ChevronRight, Download, FileUp, KeyRound, ShieldAlert, Upload, X, type LucideIcon } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Download, FileUp, KeyRound, Loader2, ShieldAlert, Upload, X, type LucideIcon } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { download, read, send } from "../api";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { bytes, dateTime } from "../lib/format";
+import type { TaskInfo } from "../lib/tasks";
 import { useStoredFlag } from "../lib/storedFlag";
 import { tx } from "../lib/i18n";
 import { Field, NoteLine } from "./form";
@@ -213,12 +214,30 @@ function ImportCard() {
           {done.restart && <InfoNote tone="warn">{tx("Redémarrez le conteneur pour appliquer les réglages et la clé importés.")}</InfoNote>}
           {!!done.skipped?.length && <InfoNote tone="warn">{tx("Gardés tels quels (clé propre de cette installation) : {0}", done.skipped.map((f) => f.replace("ssh/", "")).join(", "))}</InfoNote>}
           {done.reloaded && <p className="text-muted">{tx("Réglages relus sans redémarrage : les horaires importés sont déjà appliqués.")}</p>}
-          <p className="text-muted">{tx("La collecte, la veille et la santé sont relancées l'une après l'autre : les machines importées apparaissent d'ici quelques minutes.")}</p>
+          <AfterImport />
           <button type="button" className={`${quiet} self-start`} onClick={() => window.location.reload()}>{tx("Recharger la page")}</button>
         </div>
       )}
     </FoldCard>
   );
+}
+
+const SETTLE_MS = 20_000;   // the chained tasks start a moment after the import answers: not finished before they had the time to appear
+
+/** What follows an import: the collection, the watch and the health run one after the other; says so while any of them runs, then that the data is up to date */
+function AfterImport() {
+  const [busy, setBusy] = useState(true);
+  useEffect(() => {
+    const t0 = Date.now();
+    const check = () => read<Record<string, TaskInfo>>("tasks")
+      .then((t) => setBusy(Date.now() - t0 < SETTLE_MS || Object.values(t).some((x) => x.running))).catch(() => undefined);
+    void check();
+    const timer = setInterval(check, 3000);
+    return () => clearInterval(timer);
+  }, []);
+  return busy
+    ? <output className="flex items-center gap-2 text-warn"><Loader2 size={14} className="shrink-0 animate-spin" aria-hidden />{tx("Mise à jour en cours : la collecte, la veille et la santé relisent les données importées, cela peut durer quelques minutes. Les machines importées apparaissent au fil de l'eau.")}</output>
+    : <p className="flex items-center gap-2 text-ok"><CheckCircle2 size={14} className="shrink-0" aria-hidden />{tx("Mise à jour terminée : les données importées sont à jour.")}</p>;
 }
 
 export function ConfigTransfer() {
