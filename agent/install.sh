@@ -29,6 +29,7 @@ if [[ "${MSV_UNINSTALL:-}" = 1 ]]; then
   systemctl stop "$UNIT.service" >/dev/null 2>&1 || true
   rm -f "/etc/systemd/system/$UNIT.service" "/etc/systemd/system/$UNIT.timer" "$SUDOERS"
   systemctl daemon-reload
+  systemctl reset-failed "$UNIT.service" "$UNIT.timer" >/dev/null 2>&1 || true   # else a removed unit stays listed as « not-found failed » in systemctl --failed
   id "$USER_NAME" >/dev/null 2>&1 && userdel "$USER_NAME" >/dev/null 2>&1 || true
   rm -rf "$DIR"
   ok "MyServices agent removed (revoke its token in MyServices: Settings -> Agents)."
