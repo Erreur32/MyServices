@@ -16,10 +16,19 @@ const CLOSED_KEY = "ms.home.attention.closed";
 
 const savedClosed = (): Category[] => { try { const v = JSON.parse(localStorage.getItem(CLOSED_KEY) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
 
+/** A line opens the exact address it points to, else the tab of its category */
+function open(it: Attention, go: (t: TabId) => void): void {
+  if (it.href) {
+    location.hash = it.href;
+    return;
+  }
+  go(it.tab);
+}
+
 function Line({ it, go }: Readonly<{ it: Attention; go: (t: TabId) => void }>) {
   return (
     <li>
-      <button type="button" onClick={() => (it.href ? void (location.hash = it.href) : go(it.tab))}
+      <button type="button" onClick={() => open(it, go)}
         className="group flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left text-sm text-muted transition-colors hover:bg-bg2">
         <span aria-hidden className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${it.level === "crit" ? "bg-bad" : "bg-warn"}`} />
         <span className="flex-1"><Rich text={it.text} /></span>
