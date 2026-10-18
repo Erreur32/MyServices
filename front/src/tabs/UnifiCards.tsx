@@ -100,8 +100,8 @@ const pageLang = (): string => (typeof document === "undefined" ? "" : document.
 /** The badge next to the title: where the cards come from, or why there are none (the reason is in its tooltip) */
 function sourceBadge(doc: CardsDoc | null, failed: boolean): { tone: "ok" | "off" | "warn" | "bad"; label: string; title?: string } {
   if (!doc) return failed ? { tone: "bad", label: tx("illisible"), title: tx("Le serveur de MyServices n'a pas répondu") } : { tone: "off", label: "…" };
-  if (doc.source !== "mynetwork") return { tone: "warn", label: tx("indisponible"), title: doc.error || tx("MynetworK ne donne pas la liste des équipements UniFi") };
-  return { tone: doc.devices.length > 0 ? "ok" : "off", label: "MynetworK" };
+  if (doc.source !== "mynetwork" && doc.source !== "unifi") return { tone: "warn", label: tx("indisponible"), title: doc.error || tx("Ni MynetworK ni un contrôleur UniFi (accès par compte) ne donne la liste des équipements") };
+  return { tone: doc.devices.length > 0 ? "ok" : "off", label: doc.source === "unifi" ? "UniFi" : "MynetworK" };
 }
 
 /** Pointer capture on the grabbed handle, then every move is forwarded until release. */

@@ -343,7 +343,8 @@ class UniFi(StatusConnector):
                     break
         return info.get("applicationVersion"), len(sites), devices, clients, total
 
-    def _account(self) -> tuple:
+    def _login(self):
+        """Opens a session on a controller with a local account (Network Application, e.g. in Docker); returns the `call(path, body)` function of that session."""
         jar = http.cookiejar.CookieJar()
         ctx = None if self.tls() else ssl._create_unverified_context()  # NOSONAR S5527: opt-in per connector for a self-signed LAN certificate
         opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar), urllib.request.HTTPSHandler(context=ctx))
@@ -366,6 +367,10 @@ class UniFi(StatusConnector):
             return d.get("data") if isinstance(d, dict) else None
 
         call("/api/login", {"username": str(self.conf.get("user", "")), "password": str(self.conf.get("password", "")), "remember": False})
+        return call
+
+    def _account(self) -> tuple:
+        call = self._login()
         try:
             sites = rows(call("/api/self/sites"))
             version, devices, clients = None, [], []
@@ -385,6 +390,25 @@ class UniFi(StatusConnector):
             except ConnectorError:
                 pass
         return version, len(sites), devices, clients, len(clients)
+
+    def card_devices(self) -> list[dict] | None:
+        """The controller's own device rows (ports, speeds, PoE, traffic) for the Network tab cards, without anything that looks like a secret.
+        Only with a local account (Docker controller): an API key reads the integration API, which has no port table. None otherwise."""
+        if self.conf.get("auth") != "account":
+            return None
+        from connectors.mynetwork import scrub   # the same filter as for the MynetworK rows
+        call = self._login()
+        out: list[dict] = []
+        try:
+            for s in rows(call("/api/self/sites"))[:5]:
+                site = urllib.parse.quote(str(s.get("name") or "default"), safe="")
+                out += [scrub(d) for d in rows(call(f"/api/s/{site}/stat/device")) if isinstance(d, dict) and d.get("mac")]
+        finally:
+            try:
+                call("/api/logout", {})
+            except ConnectorError:
+                pass
+        return out[:200]
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:

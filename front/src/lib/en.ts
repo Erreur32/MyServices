@@ -1888,7 +1888,7 @@ export const EN: Record<string, string> = {
   "Box ou passerelle : pas de SSH possible, elle est lue par son API ou par vos outils réseau ; ce n'est pas un manque": "Box or gateway: no SSH is possible, it is read through its API or your network tools; this is not something missing",
   "indisponible": "unavailable",
   "Le serveur de MyServices n'a pas répondu": "The MyServices server did not answer",
-  "MynetworK ne donne pas la liste des équipements UniFi": "MynetworK does not give the list of UniFi devices",
+  "Ni MynetworK ni un contrôleur UniFi (accès par compte) ne donne la liste des équipements": "Neither MynetworK nor a UniFi controller (account access) gives the list of devices",
   "Tâches planifiées": "Scheduled tasks",
   "MyServices relit tout seul vos machines et vos outils. Voici quand, et pourquoi une tâche ne tourne pas si elle est coupée.": "MyServices reads your machines and tools by itself. Here is when, and why a task does not run when it is off.",
   "Régler les horaires": "Set the schedules",

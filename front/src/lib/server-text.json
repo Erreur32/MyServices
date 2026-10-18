@@ -109,7 +109,9 @@
   "🚨 Nouvelle menace": "🚨 New threat",
   "🛡️ Sécurité": "🛡️ Security",
   "🟢 Rétabli": "🟢 Back up",
-  "🧭 DNS": "🧭 DNS"
+  "🧭 DNS": "🧭 DNS",
+  "MynetworK ne répond pas (détail dans les journaux)": "MynetworK does not answer (details in the logs)",
+  "Le contrôleur UniFi ne répond pas (détail dans les journaux)": "The UniFi controller does not answer (details in the logs)"
  },
  "templates": [
   [

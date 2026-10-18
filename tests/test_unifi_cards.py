@@ -40,6 +40,18 @@ class Cards(unittest.TestCase):
         doc = run([none, ok], 100.0)
         self.assertEqual((doc["source"], doc["devices"], doc["error"]), ("mynetwork", [{"mac": "aa"}], ""))
 
+    def test_the_unifi_controller_is_read_when_mynetwork_has_no_route(self):
+        ctl = Fake([{"mac": "bb"}])
+        ctl.type, ctl.conf = "unifi", {"auth": "account"}
+        doc = run([Fake(None), ctl], 100.0)
+        self.assertEqual((doc["source"], doc["devices"]), ("unifi", [{"mac": "bb"}]))
+
+    def test_a_controller_with_an_api_key_is_not_asked(self):
+        key = Fake([{"mac": "bb"}])
+        key.type, key.conf = "unifi", {"auth": "api_key"}
+        self.assertIsNone(run([key], 100.0)["source"])
+        self.assertEqual(key.calls, 0)
+
     def test_one_reading_is_shared_for_a_few_seconds(self):
         f = Fake([{"mac": "aa"}])
         run([f], 100.0)

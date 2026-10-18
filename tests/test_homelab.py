@@ -270,6 +270,17 @@ class UniFi(Base):
         self.assertEqual({f["label"]: f["value"] for f in d["facts"]}["Clients"], "31")
 
 
+    def test_cartes_du_controleur_en_direct_sans_secret(self):
+        self.route("/api/login", {"meta": {"rc": "ok"}, "data": []}, "POST")
+        self.route("/api/logout", {"meta": {"rc": "ok"}, "data": []}, "POST")
+        self.route("/api/self/sites", {"data": [{"name": "default"}]})
+        self.route("/api/s/default/stat/device", {"data": [{"name": "USW", "mac": "sw", "type": "usw", "port_table": [{"port_idx": 1, "up": True}],
+                                                           "x_authkey": "hidden", "x_ssh_password": "hidden"}, {"name": "no mac"}]})
+        pw = "p" * 8
+        got = self.conn("unifi", auth="account", user="ro", password=pw).card_devices()
+        self.assertEqual(got, [{"name": "USW", "mac": "sw", "type": "usw", "port_table": [{"port_idx": 1, "up": True}]}])   # secrets cut, row without a MAC dropped
+        self.assertIsNone(self.conn("unifi", api_key="K").card_devices())   # an API key has no port table
+
     def test_mises_a_jour_et_attente_adoption(self):
         base = "/proxy/network/integration/v1"
         self.route(f"{base}/info", {"applicationVersion": "9.4.19"})

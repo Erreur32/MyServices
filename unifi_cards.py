@@ -2,7 +2,7 @@
 
 Sources, in this order, the first that answers wins:
   MynetworK   GET /api/plugins/unifi/card-devices (MynetworK 0.11.1+), through its API token
-  (the UniFi controller read directly comes next, for those who do not have MynetworK)
+  UniFi       the controller read directly with a local account (UniFi connector, « account » access), for those who do not have MynetworK
 Every call to a source queries the UniFi controller behind it: the answer is kept a few seconds and shared by all the open pages.
 """
 from __future__ import annotations
@@ -20,6 +20,7 @@ _cache: dict = {"at": 0.0, "doc": None}
 
 
 FAILED = "MynetworK ne répond pas (détail dans les journaux)"
+FAILED_CONTROLLER = "Le contrôleur UniFi ne répond pas (détail dans les journaux)"
 
 
 def _failed(e: Exception) -> str:
@@ -46,6 +47,25 @@ def _from_mynetwork(cfg: dict) -> tuple[list[dict] | None, str]:
     return None, err
 
 
+def _from_controller(cfg: dict) -> tuple[list[dict] | None, str]:
+    """(devices, error) from the first UniFi connector that reads its controller with an account; (None, "") when there is none."""
+    try:
+        insts = [c for c in connectors.instances(cfg, kind="status") if c.type == "unifi" and c.conf.get("auth") == "account"]
+    except ConnectorError:
+        return None, ""
+    err = ""
+    for c in insts:
+        try:
+            got = c.card_devices()
+        except ConnectorError as e:
+            print("UniFi controller cards: %s" % e, file=sys.stderr)
+            err = FAILED_CONTROLLER
+            continue
+        if got:
+            return got, ""
+    return None, err
+
+
 def read(cfg: dict, now: float | None = None) -> dict:
     """{"source": "mynetwork" | None, "devices": [...], "at": reading time, "error": text}; never raises."""
     now = time.time() if now is None else now
@@ -53,7 +73,11 @@ def read(cfg: dict, now: float | None = None) -> dict:
         if _cache["doc"] is not None and now - _cache["at"] < TTL:
             return _cache["doc"]
         devices, err = _from_mynetwork(cfg)
-        doc = {"source": "mynetwork" if devices is not None else None, "devices": devices or [], "at": now, "error": err}
+        source = "mynetwork"
+        if devices is None:
+            devices, err2 = _from_controller(cfg)
+            source, err = "unifi", err2 or err
+        doc = {"source": source if devices is not None else None, "devices": devices or [], "at": now, "error": err}
         _cache.update(at=now, doc=doc)
         return doc
 
