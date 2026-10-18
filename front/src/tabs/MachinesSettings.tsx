@@ -558,7 +558,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgen
   if (bare) return <>{overlay}</>;   // fenêtre ouverte depuis l'onglet Machines : pas de carte
   return (
     <div ref={card} className={cardClass(off, focus, open)}>
-      <button type="button" onClick={() => openCard(true)} aria-haspopup="dialog" title={tx("Ouvrir les réglages de cette machine")} className="relative flex h-full min-h-[7rem] w-full flex-col overflow-hidden rounded-xl text-left hover:bg-bg2">
+      <button type="button" onClick={() => openCard(true)} aria-haspopup="dialog" title={tx("Ouvrir les réglages de cette machine")} className="relative flex min-h-[7rem] flex-1 w-full flex-col overflow-hidden rounded-xl text-left hover:bg-bg2">
         <span className="flex w-full items-center gap-x-2 border-b border-line/60 bg-bg px-3 py-2">
         <MachineIcon m={iconProps} scan={scan} reserve /><b className="max-w-[10rem] truncate">{m.name}</b><Dim>{ip}</Dim>
         <span className="ml-auto flex min-w-0 items-center justify-end gap-1.5 flex-nowrap overflow-hidden">
