@@ -11,6 +11,8 @@ Routes lues (enveloppe {"success": true, "result": …}) :
   (GET /api/connection/summary donne aussi, depuis 0.10.68, latest_firmware et update_available de la Freebox)
   GET /api/lan/devices                  hôtes vus par la Freebox (facultatif)
   GET /api/connection/summary           ligne et santé de la Freebox, sans IP ni numéro de série (facultatif, MynetworK 0.10.66+)
+  GET /api/network-scan/stats           scan counters: total, online, offline, unknown, last scan (MynetworK 0.11.2+; else counted from the inventory)
+  GET /api/plugins/unifi/top-traffic    data volume per client, ?mode=live|today|alltime&limit=1..50 (MynetworK 0.11.2+; 403 / 404 = absent)
   GET /api/plugins/unifi/card-devices   switches, gateways and access points with their port tables, for the front-panel cards (MynetworK 0.11.1+;
                                         403 / 404 / 503 = absent, see card_devices)
   GET /api/search/ip-details/<ip>       fiche complète d'une adresse en un appel : scan, UniFi, bail Freebox, redirections de ports, ping en direct,
@@ -34,6 +36,7 @@ MAX_ITEMS = 5000  # garde-fou : un réseau plus grand n'est pas lu en entier
 # Keys never kept from a detail sheet, whatever MynetworK sends (its own filter should have dropped them: a second one here)
 SENSITIVE = re.compile(r"key|pass|token|secret|auth|cookie|psk|serial", re.I)
 MAX_DEPTH = 6
+TRAFFIC_MODES = ("live", "today", "alltime")
 MAX_CARD_DEVICES = 200   # a UniFi site has dozens of devices at most
 
 
@@ -133,6 +136,24 @@ class MynetworK(Connector):
                 return None
             raise
         return _result(got)
+
+    def scan_stats(self) -> dict | None:
+        """The scan counters MynetworK gives (0.11.2+): {total, online, offline, unknown, last_scan}; None while the route is absent."""
+        got = self._get("/api/network-scan/stats", optional=True)
+        if not isinstance(got, dict):
+            return None
+        pick = lambda *names: next((got[n] for n in names if isinstance(got.get(n), (int, float)) and not isinstance(got.get(n), bool)), None)   # noqa: E731
+        out = {"total": pick("total"), "online": pick("online"), "offline": pick("offline"), "unknown": pick("unknown"),
+               "last_scan": next((got[n] for n in ("lastScan", "last_scan") if isinstance(got.get(n), (str, int, float))), None)}
+        return out if out["total"] is not None else None
+
+    def top_traffic(self, mode: str = "live", limit: int = 10) -> list[dict] | None:
+        """Data volume per client (0.11.2+): the best `limit` clients over `mode` (live, today, alltime); None while the route is absent."""
+        if mode not in TRAFFIC_MODES:
+            return None
+        got = self._get("/api/plugins/unifi/top-traffic", {"mode": mode, "limit": max(1, min(50, int(limit)))}, optional=True)
+        items = got if isinstance(got, list) else (got.get("items") or got.get("clients") or got.get("result")) if isinstance(got, dict) else None
+        return [scrub(i) for i in items[:50] if isinstance(i, dict)] if isinstance(items, list) else None
 
     def card_devices(self) -> list[dict] | None:
         """UniFi switches, gateways and access points with the per-port data of the front-panel cards (MynetworK 0.11.1+), secrets removed

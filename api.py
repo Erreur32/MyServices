@@ -808,6 +808,12 @@ def unifi_cards():
     return uc.read(core.CFG)
 
 
+@app.get(API + "/network/stats", tags=["réseau"], summary="Statistiques du scan et volume par client lus par MynetworK (onglet Réseau)")
+def network_stats(traffic: str = "live"):
+    import network_stats as ns
+    return ns.read(core.CFG, traffic)
+
+
 class LiveChecks(BaseModel):
     pulse_every: int | None = None
     pulse_confirm: int | None = None
