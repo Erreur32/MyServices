@@ -240,6 +240,23 @@ class Reseau(unittest.TestCase):
         self.assertEqual((d["name"], d["used_pct"], d["groups"]), ("main", 25.0, 1))
         self.assertEqual(c._auth(), {"Authorization": "PBSAPIToken=u@pbs!t:s"})  # deux-points chez PBS
 
+    def test_mynetwork_fiche_adresse(self):
+        sheet = {"ip": "192.168.1.20", "scan": {"status": "online", "pingLatency": 1.2}, "freeboxDevice": {"name": "nas", "apiKey": "no", "access": {"token": "no"}},
+                 "dhcpLease": {"mac": "aa:bb", "wifiPassword": "no"}, "redirects": [{"lan_port": 22, "secret": "no"}]}
+        Fake.routes = {"/api/search/ip-details/192.168.1.20": (200, {"success": True, "result": sheet})}
+        c = inst(MynetworK, self.url)
+        got = c.ip_details("192.168.1.20")
+        self.assertEqual(got["scan"]["status"], "online")
+        self.assertEqual(got["dhcpLease"], {"mac": "aa:bb"})
+        self.assertEqual(got["redirects"], [{"lan_port": 22}])
+        self.assertNotIn("no", json.dumps(got))
+        self.assertIsNone(c.ip_details("192.168.1.21"))          # route open but nothing there: 404 is "absent", not an error
+        Fake.seen.clear()
+        self.assertIsNone(c.ip_details("../etc/passwd"))         # not an address: no request at all
+        self.assertEqual(Fake.seen, [])
+        Fake.routes = {"/api/search/ip-details/192.168.1.20": (403, {"success": False, "error": {"code": "API_TOKEN_ROUTE_NOT_ALLOWED"}})}
+        self.assertIsNone(c.ip_details("192.168.1.20"))          # not open to API tokens yet
+
     def test_dockhand(self):
         Fake.routes = {"/api/host": (200, {"hostname": "h"}),
                        "/api/environments": (200, [{"id": 1, "name": "local"}, {"id": 2, "name": "nas", "hawserAgentName": "ag"}]),

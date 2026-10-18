@@ -11,9 +11,14 @@ Routes lues (enveloppe {"success": true, "result": …}) :
   (GET /api/connection/summary donne aussi, depuis 0.10.68, latest_firmware et update_available de la Freebox)
   GET /api/lan/devices                  hôtes vus par la Freebox (facultatif)
   GET /api/connection/summary           ligne et santé de la Freebox, sans IP ni numéro de série (facultatif, MynetworK 0.10.66+)
+  GET /api/search/ip-details/<ip>       fiche complète d'une adresse en un appel : scan, UniFi, bail Freebox, redirections de ports, ping en direct,
+                                        réservation DHCP (prévu, pas encore ouvert aux jetons API : 403 / 404 = absent, voir ip_details)
 Les routes facultatives qui répondent 403 ou 404 ne sont pas une erreur : MynetworK n'a simplement pas cette source.
 """
 from __future__ import annotations
+
+import ipaddress
+import re
 
 from connectors.base import Connector, ConnectorError, Field, Result
 from connectors.status_kit import duration, fact
@@ -22,6 +27,22 @@ FREEBOX_HOT = (75, 85)   # °C : warn, bad
 
 PAGE = 1000   # maximum accepté par MynetworK
 MAX_ITEMS = 5000  # garde-fou : un réseau plus grand n'est pas lu en entier
+
+
+# Keys never kept from a detail sheet, whatever MynetworK sends (its own filter should have dropped them: a second one here)
+SENSITIVE = re.compile(r"key|pass|token|secret|auth|cookie|psk|serial", re.I)
+MAX_DEPTH = 6
+
+
+def scrub(obj: object, depth: int = 0) -> object:
+    """Copy of a JSON value without the keys that look like a secret; too deep structures are cut."""
+    if depth > MAX_DEPTH:
+        return None
+    if isinstance(obj, dict):
+        return {k: scrub(v, depth + 1) for k, v in obj.items() if not SENSITIVE.search(str(k))}
+    if isinstance(obj, list):
+        return [scrub(v, depth + 1) for v in obj[:200]]
+    return obj
 
 
 GATEWAY_KEYS = ("version", "upgradable", "upgrade_to_firmware", "lan_ip", "uptime", "cpu_pct", "mem_pct", "mem_total", "mem_used", "temperature")
@@ -87,6 +108,16 @@ class MynetworK(Connector):
                 return None
             raise
         return _result(got)
+
+    def ip_details(self, ip: str) -> dict | None:
+        """Detail sheet of one address (scan, UniFi, Freebox lease, port redirections, live ping, DHCP reservation) in one call, secrets
+        removed; None while the route is not open to API tokens (403 / 404 / 503) or when `ip` is not an address."""
+        try:
+            addr = str(ipaddress.ip_address(ip))
+        except ValueError:
+            return None
+        got = self._get(f"/api/search/ip-details/{addr}", optional=True)
+        return scrub(got) if isinstance(got, dict) else None
 
     def version(self) -> str | None:
         """App version from /api/health (public, no token), given since MynetworK 0.10.67; None before."""
