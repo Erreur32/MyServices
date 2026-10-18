@@ -61,6 +61,31 @@ class Confirm(unittest.TestCase):
         self.assertEqual(pulse.read(self.path.with_name("missing.json")), {})
 
 
+class OwedTasks(unittest.TestCase):
+    def test_what_cannot_start_is_asked_again(self):
+        owed, started = pulse.Owed(), []
+        owed.add(["10.0.0.2", "10.0.0.3"])
+        busy = {"watch": True}
+        run_w = lambda: (started.append("watch") or True) if not busy["watch"] else False
+        run_h = lambda ip: started.append(ip) or True
+        owed.settle(run_w, run_h, True, True)
+        self.assertEqual((started, owed.watch, owed.health), (["10.0.0.2"], True, ["10.0.0.3"]))   # watcher busy, one health per pulse
+        busy["watch"] = False
+        owed.settle(run_w, run_h, True, True)
+        self.assertEqual((started, owed.watch, owed.health), (["10.0.0.2", "watch", "10.0.0.3"], False, []))
+
+    def test_a_task_that_is_off_is_forgotten(self):
+        owed = pulse.Owed()
+        owed.add(["10.0.0.2"])
+        owed.settle(lambda: True, lambda ip: True, False, False)
+        self.assertEqual((owed.watch, owed.health), (False, []))
+
+    def test_no_change_owes_nothing(self):
+        owed = pulse.Owed()
+        owed.add([])
+        self.assertEqual((owed.watch, owed.health), (False, []))
+
+
 class WatcherTakesThePulse(unittest.TestCase):
     DATA = {"machine_list": [{"ip": "10.0.0.2", "name": "pc", "ping": True, "ssh": None},
                              {"ip": "10.0.0.3", "name": "nas", "ping": True, "off": True, "ssh": None}]}

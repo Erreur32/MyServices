@@ -65,6 +65,29 @@ class Pulse:
             pass   # the pulse is a convenience: a full disk must not stop the server
 
 
+class Owed:
+    """What a confirmed change still owes: one watcher run (events, history, alerts) and one health reading per machine that moved.
+    Each task runs one at a time, so what could not start (task busy) is asked again at the next pulse."""
+
+    def __init__(self) -> None:
+        self.watch, self.health = False, []
+
+    def add(self, changed: list[str]) -> None:
+        self.watch = self.watch or bool(changed)
+        self.health += [ip for ip in changed if ip not in self.health]
+
+    def settle(self, run_watch, run_health, watch_on: bool, health_on: bool) -> None:
+        """Starts the owed tasks that can start now; run_* return True when the task started."""
+        if self.watch and watch_on and run_watch():
+            self.watch = False
+        if self.health and health_on and run_health(self.health[0]):
+            self.health.pop(0)
+        if not watch_on:
+            self.watch = False
+        if not health_on:
+            self.health.clear()
+
+
 def read(path: Path, max_age: float = 300) -> dict[str, dict]:
     """Machines of a recent pulse file, {} when it is missing, unreadable or older than `max_age` seconds."""
     try:

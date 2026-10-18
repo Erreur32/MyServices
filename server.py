@@ -245,15 +245,18 @@ def pulse_ips() -> list[str]:
 
 
 def pulse_loop() -> None:
-    """Ping every machine every `pulse_every` s; a confirmed change starts the watcher at once (its events, history and alerts)."""
-    every, owed = CFG["pulse_every"], False
+    """Ping every machine every `pulse_every` s; a confirmed change starts the watcher at once (its events, history and alerts)
+    and a health reading of that machine alone."""
+    every, owed = CFG["pulse_every"], pulse.Owed()
     while every > 0:
         t0 = time.time()
         try:
             ips = pulse_ips()
-            owed = bool(ips and PULSE.tick(ips)) or owed
-            if owed and enabled("watch") and run_task("watch", "pouls"):
-                owed = False   # watcher busy: asked again at the next pulse
+            if ips:
+                owed.add(PULSE.tick(ips))
+            # the machine that moved also gets its health read again at once (not at the next 6 h pass), alone
+            owed.settle(lambda: run_task("watch", "pouls"), lambda ip: run_task("health", f"ping de {ip} changé (pouls)", ("--only", ip)),
+                        enabled("watch"), enabled("health"))
         except Exception as e:  # a bug here must not stop the pulse
             log(f"⚠ pouls : {e}")
         time.sleep(max(1.0, every - (time.time() - t0)))
