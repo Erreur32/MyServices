@@ -219,12 +219,14 @@ class Reseau(unittest.TestCase):
                {"type": "qemu", "vmid": 9000, "name": "modele", "node": "pve", "status": "stopped", "template": 1},
                {"type": "storage", "storage": "local", "node": "pve", "disk": 50, "maxdisk": 100}]
         Fake.routes = {"/api2/json/version": (200, {"data": {"version": "8.2.4"}}), "/api2/json/cluster/resources": (200, {"data": res}),
-                       "/api2/json/cluster/tasks": (200, {"data": [{"type": "vzdump", "status": "OK", "endtime": 1760000000}]})}
+                       "/api2/json/cluster/tasks": (200, {"data": [{"type": "vzdump", "status": "OK", "endtime": 1760000000}]}),
+                       "/api2/json/nodes/pve/status": (200, {"data": {"loadavg": ["0.5", "0.4", "0.3"], "kversion": "Linux 6.8.12-1-pve #1", "swap": {"used": 1, "total": 2}}})}
         c = ProxmoxVE({"type": "proxmox", "name": "t", "url": self.url, "user": "u@pve!t", "secret": "s", "verify_tls": False}, Context(timeout=5))
         d = c.collect()
         self.assertEqual(d["totals"], {"vm": 1, "lxc": 1, "running": 1, "stopped": 1})  # le modèle n'est pas compté
         self.assertEqual(d["storage"][0]["used_pct"], 50.0)
         self.assertTrue(d["backups"]["ok"])
+        self.assertEqual((d["nodes"][0]["load"], d["nodes"][0]["kernel"]), ([0.5, 0.4, 0.3], "6.8.12-1-pve"))
         self.assertTrue(all(s[0] == "GET" for s in Fake.seen))
         self.assertEqual(c.test().version, "8.2.4")
         self.assertEqual(c._auth(), {"Authorization": "PVEAPIToken=u@pve!t=s"})

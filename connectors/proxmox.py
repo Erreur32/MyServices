@@ -3,7 +3,7 @@
 Jeton d'API sans mot de passe ni session (Datacenter → Permissions → API Tokens ; décocher « Privilege Separation » ou donner au jeton
 lui-même le rôle PVEAuditor / Audit). Réponses : {"data": …}. Adresse : https://<hôte>:8006/api2/json (PVE), :8007 (PBS).
   PVE  Authorization: PVEAPIToken=utilisateur@royaume!nom=secret
-       GET /version, GET /cluster/resources (nœuds, qemu, lxc, stockages), GET /cluster/tasks (sauvegardes vzdump récentes, facultatif)
+       GET /version, GET /cluster/resources (nœuds, qemu, lxc, stockages), GET /nodes/<nœud>/status (charge, swap, noyau), GET /cluster/tasks (sauvegardes vzdump récentes, facultatif)
   PBS  Authorization: PBSAPIToken=utilisateur@royaume!nom:secret   (deux-points, pas un égal)
        GET /version, GET /status/datastore-usage, GET /admin/datastore/<magasin>/snapshots
 Un certificat auto-signé est la règle : « Vérifier le certificat » est décoché par défaut (comme la console). Seuls des GET sont émis.
@@ -51,6 +51,24 @@ def resources(res: list) -> dict:
                        "running": sum(1 for g in live if g["status"] == "running"),
                        "stopped": sum(1 for g in live if g["status"] != "running")},
             "backups": None}
+
+
+def node_extra(st: object) -> dict:
+    """Extra figures of /nodes/<n>/status shown in the Virtualisation header (load, swap, root disk, kernel, CPU model)."""
+    if not isinstance(st, dict):
+        return {}
+    load = st.get("loadavg")
+    swap, root, cpu = st.get("swap") or {}, st.get("rootfs") or {}, st.get("cpuinfo") or {}
+    wait, kernel = st.get("wait"), str(st.get("kversion") or "").split()
+    extra = {
+        "load": [float(x) for x in load[:3]] if isinstance(load, list) and all(str(x).replace(".", "", 1).isdigit() for x in load[:3]) else None,
+        "iowait_pct": round(100 * wait, 1) if isinstance(wait, (int, float)) else None,
+        "swap_used": swap.get("used"), "swap_total": swap.get("total"),
+        "root_used": root.get("used"), "root_total": root.get("total"),
+        "kernel": kernel[1] if len(kernel) > 1 and kernel[0] == "Linux" else None,   # « Linux 6.8.12-1-pve #1 SMP … »
+        "model": cpu.get("model"), "sockets": cpu.get("sockets"), "cores": cpu.get("cpus"),
+    }
+    return {k: v for k, v in extra.items() if v not in (None, "", [])}
 
 
 def _data(got: object):
@@ -111,6 +129,9 @@ class ProxmoxVE(_Base):
         if not isinstance(res, list):
             raise ConnectorError("réponse sans ressources (URL de Proxmox ? droits PVEAuditor ?)")
         out = resources(res)
+        for n in out["nodes"]:   # load, swap, system disk, kernel, CPU model (no temperature or fans: the API does not give them)
+            if n["online"] and n["name"]:
+                n.update(node_extra(self._get(f"/nodes/{n['name']}/status", optional=True)))
         tasks = self._get("/cluster/tasks", optional=True)
         if isinstance(tasks, list):
             dump = sorted((t for t in tasks if isinstance(t, dict) and t.get("type") == "vzdump" and t.get("endtime")),
