@@ -1845,7 +1845,7 @@ def me(request: Request):
     import mailer
     return {"username": u.get("username"), "role": u.get("role"), "auth": AUTH, "version": os.environ.get("MYSERVICES_VERSION", "dev"),
             "email": store().email_of(u["username"]) if AUTH and u.get("username") and not u.get("token") else None,
-            "mail_ready": mailer.ready(core.CFG),   # the profile warns when « Forgot your password? » links cannot be sent
+            "mail_ready": mailer.ready(core.CFG), "mail_error": "" if mailer.LAST["ok"] else mailer.LAST["error"],   # the profile warns when « Forgot your password? » links cannot be sent
             "avatar": _avatar_version(u.get("username")) if AUTH and u.get("username") and not u.get("token") else None,
             # image de développement : le dépôt git d'où elle vient (describe) et la version prévue d'après le journal des changements
             "git": os.environ.get("MYSERVICES_GIT", ""), "planned": about.planned(about.changelog(Path(core.HERE) / "CHANGELOG.md")),

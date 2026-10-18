@@ -24,16 +24,35 @@ const CHECK = "ss -ltn | grep ':25'";
 const INSTALL = "sudo apt install postfix\nsudo systemctl enable --now postfix";
 const ALLOW = "sudo postconf -e 'mynetworks = 127.0.0.0/8 [::1]/128'\n# or, to send through your provider's server:\n# sudo postconf -e 'relayhost = [smtp.provider.example]:587'\nsudo systemctl reload postfix";
 
-/** The same help for a full SMTP setup (a provider's server): what to check in the form, not the mail relay of the host */
+const EXAMPLES: { name: string; host: string; port: number; security: string; user: string; note: string }[] = [
+  { name: "OVH", host: "ssl0.ovh.net", port: 465, security: "SSL/TLS", user: tx("l'adresse e-mail complète"), note: tx("ou 587 avec STARTTLS ; le mot de passe est celui de la boîte") },
+  { name: "Gmail", host: "smtp.gmail.com", port: 587, security: "STARTTLS", user: tx("votre adresse Gmail"), note: tx("mot de passe d'application (double authentification requise)") },
+  { name: "Brevo", host: "smtp-relay.brevo.com", port: 587, security: "STARTTLS", user: tx("identifiant SMTP de Brevo"), note: tx("clé SMTP, pas le mot de passe du compte") },
+  { name: "Mailgun", host: "smtp.mailgun.org", port: 587, security: "STARTTLS", user: tx("identifiant SMTP du domaine"), note: tx("mot de passe SMTP du domaine") },
+];
+const EXAMPLE_COLS = "grid items-center gap-x-4 gap-y-0.5 md:grid-cols-[5rem_minmax(0,1.3fr)_4rem_6rem_minmax(0,1.2fr)]";
+
+/** Examples of full SMTP settings from a few providers, and what to check when it fails (opens by itself after a failure) */
 function SmtpHelp({ open }: Readonly<{ open: boolean }>) {
   return (
     <details open={open} className="rounded-lg border border-line bg-bg/50 px-3 py-2 text-sm [&[open]]:border-warn/50">
-      <summary className="cursor-pointer font-semibold text-muted">{tx("Ça ne marche pas ? Que faire")}</summary>
-      <ol className="mt-2 flex list-decimal flex-col gap-2 pl-5 text-muted">
+      <summary className="cursor-pointer font-semibold text-muted">{tx("Exemples de réglages et aide")}</summary>
+      <div className={`${EXAMPLE_COLS} mt-2 border-b border-line px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim max-md:hidden`} aria-hidden>
+        <span>{tx("Fournisseur")}</span><span>{tx("Serveur")}</span><span>{tx("Port")}</span><span>{tx("Sécurité")}</span><span>{tx("Compte")}</span>
+      </div>
+      <ul className="flex flex-col divide-y divide-line/50 [&>li:nth-child(even)]:bg-bg/50">
+        {EXAMPLES.map((x) => (
+          <li key={x.name} className={`${EXAMPLE_COLS} px-1 py-1.5`}>
+            <b>{x.name}</b><code className="truncate font-mono text-xs">{x.host}</code><span className="tabular-nums">{x.port}</span><span>{x.security}</span>
+            <span className="text-xs text-muted">{x.user}<br />{x.note}</span>
+          </li>
+        ))}
+      </ul>
+      <InfoNote className="mt-2">{tx("Ces valeurs sont des exemples : vérifiez-les chez votre fournisseur. L'expéditeur est le plus souvent l'adresse du compte.")}</InfoNote>
+      <ol className="mt-2 flex list-decimal flex-col gap-1.5 pl-5 text-muted">
         <li>{tx("Port et sécurité vont ensemble : 587 avec STARTTLS, 465 avec SSL/TLS, 25 sans chiffrement.")}</li>
-        <li>{tx("Le compte est celui du serveur d'envoi. Gmail et d'autres demandent un mot de passe d'application, pas le mot de passe du compte.")}</li>
-        <li>{tx("L'expéditeur doit être une adresse que ce serveur accepte d'utiliser (souvent celle du compte).")}</li>
         <li>{tx("Beaucoup de fournisseurs d'accès bloquent le port 25 sortant : préférer 587 ou 465.")}</li>
+        <li>{tx("Compte ou mot de passe refusé : Gmail et d'autres demandent un mot de passe d'application, pas celui du compte.")}</li>
       </ol>
     </details>
   );

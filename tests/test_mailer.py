@@ -41,6 +41,21 @@ class FakeSSL(FakeSMTP):
     pass
 
 
+class Last(unittest.TestCase):
+    """The outcome of the latest sending is kept: the profile warns when a setting that worked stops working."""
+
+    def test_a_failure_then_a_success_are_remembered(self):
+        cfg = {"smtp_host": "h", "smtp_from": "a@b.test", "page_url": "https://x.test"}
+        with mock.patch("smtplib.SMTP", side_effect=ConnectionRefusedError):
+            with self.assertRaises(mailer.MailError):
+                mailer.send(cfg, "to@b.test", "s", "t")
+        self.assertFalse(mailer.LAST["ok"])
+        self.assertIn("rien n'écoute", mailer.LAST["error"])
+        with mock.patch("smtplib.SMTP", FakeSMTP):
+            mailer.send(cfg, "to@b.test", "s", "t")
+        self.assertEqual((mailer.LAST["ok"], mailer.LAST["error"]), (True, ""))
+
+
 class Send(unittest.TestCase):
     def setUp(self):
         FakeSMTP.calls, FakeSMTP.fail = [], None
