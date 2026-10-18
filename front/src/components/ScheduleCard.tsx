@@ -7,7 +7,7 @@ import { hm, longDay } from "../lib/format";
 import { LOCALE, tx } from "../lib/i18n";
 import { detail, liveText, shortName, type TaskInfo } from "../lib/tasks";
 
-const IDLE_MS = 5_000, RUN_MS = 1_500;
+const IDLE_MS = 15_000, RUN_MS = 1_500;   // at rest the next runs are minutes away; while a task runs its progress is followed closely
 
 /** The collection task (next run, running), read every 30 s, with a clock for its countdown: for « not read yet » states */
 export function useCollectTask(): { task: TaskInfo | null; now: number } {

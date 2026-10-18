@@ -27,6 +27,7 @@ export function ScanBar({ onFinished }: { onFinished: () => void }) {
   useEffect(() => {
     let stop = false, timer: ReturnType<typeof setTimeout>;
     const tick = async () => {
+      if (document.hidden) { timer = setTimeout(() => void tick(), IDLE_MS); return; }   // hidden tab: asked again when it is shown (visibilitychange below)
       let next: ScanStatus | null = null;
       try {
         const r = await fetch(`${ROOT}api/v1/status`, { cache: "no-store" });
@@ -42,7 +43,9 @@ export function ScanBar({ onFinished }: { onFinished: () => void }) {
     };
     void tick();
     const unregister = registerPoller(() => { clearTimeout(timer); void tick(); });
-    return () => { stop = true; clearTimeout(timer); unregister(); };
+    const shown = () => { if (!document.hidden) { clearTimeout(timer); void tick(); } };
+    document.addEventListener("visibilitychange", shown);
+    return () => { stop = true; clearTimeout(timer); unregister(); document.removeEventListener("visibilitychange", shown); };
   }, []);
   const net = st?.network?.running ? st.network : null;
   if (!st?.running && !net) return null;

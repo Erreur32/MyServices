@@ -31,8 +31,8 @@ export interface DiscoveryItem {
 let shared: { items: DiscoveryItem[]; muted?: string[]; todo: number; suggest: number } | null = null;
 const listeners = new Set<(d: NonNullable<typeof shared>) => void>();
 let timer: ReturnType<typeof setInterval> | undefined, inflight = false, again = false;
-const loadShared = () => {
-  if (inflight) { again = true; return; }   // asked during a read (after a change): read once more when it ends, or the change is missed
+const loadShared = (force = true) => {
+  if (inflight) { if (force) again = true; return; }   // asked during a read after a change: read once more when it ends, or the change is missed; a panel mounting meanwhile just waits
   inflight = true;
   read<NonNullable<typeof shared>>("discoveries")
     .then((d) => { shared = d; listeners.forEach((f) => f(d)); })
@@ -44,11 +44,11 @@ export function useDiscoveries() {
   const [d, setD] = useState(shared);
   useEffect(() => {
     listeners.add(setD);
-    if (listeners.size === 1) timer = setInterval(() => { if (!document.hidden) loadShared(); }, 30_000);
-    loadShared();
+    if (listeners.size === 1) timer = setInterval(() => { if (!document.hidden) loadShared(false); }, 30_000);
+    loadShared(false);
     return () => { listeners.delete(setD); if (!listeners.size) clearInterval(timer); };
   }, []);
-  return [d, loadShared] as const;
+  return [d, () => loadShared()] as const;
 }
 
 export const MODE: Record<DiscoveryItem["mode"], { label: string; hint: string; tone: "ok" | "warn" | "info"; Icon: typeof Repeat }> = {

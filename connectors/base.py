@@ -230,18 +230,27 @@ def tally(data: object) -> list[dict]:
     return out[:12]
 
 
+VERSION_EVERY = 6 * 3600   # s, between two version readings of a service: it changes rarely, one request less per pass
+
+
 def run_isolated(conn: Connector, state: dict, timeout: float) -> tuple[dict | None, Status]:
     """collect() avec délai maximal et erreur capturée. state : {clé: {"ok", "since", "failures", "last"}}
     (persisté par l'appelant). En échec, le dernier résultat bon est rendu, marqué périmé."""
     key = f"{conn.type}/{conn.name}"
     prev = state.get(key, {})
     box: dict = {}
+    t0 = time.time()
+    ver_at = prev.get("version_at")
+    keep_version = isinstance(ver_at, (int, float)) and t0 - ver_at < VERSION_EVERY and prev.get("version") is not None
 
     def work():
-        try:
-            box["version"] = conn.version()
-        except ConnectorError:
-            box["version"] = None
+        if keep_version:
+            box["version"] = prev["version"]
+        else:
+            try:
+                box["version"] = conn.version()
+            except ConnectorError:
+                box["version"] = None
         try:
             box["data"] = conn.collect()
         except ConnectorError as e:
@@ -249,7 +258,6 @@ def run_isolated(conn: Connector, state: dict, timeout: float) -> tuple[dict | N
         except Exception as e:  # bug du connecteur : n'arrête pas le passage
             box["error"] = f"erreur interne du connecteur ({type(e).__name__}: {e})"
 
-    t0 = time.time()
     th = threading.Thread(target=work, daemon=True)
     th.start()
     th.join(timeout)
@@ -261,7 +269,8 @@ def run_isolated(conn: Connector, state: dict, timeout: float) -> tuple[dict | N
                 version_tested(v, conn.tested), duration_s=round(time.time() - t0, 2))
     if st.ok:
         st.found = tally(box["data"])
-        state[key] = {"ok": True, "failures": 0, "since": None, "last": box["data"], "version": v, "at": t0}
+        state[key] = {"ok": True, "failures": 0, "since": None, "last": box["data"], "version": v, "at": t0,
+                      "version_at": ver_at if keep_version else t0}
         return box["data"], st
     st.failures = prev.get("failures", 0) + 1
     st.since = prev.get("since") or t0
