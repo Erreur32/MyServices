@@ -1,8 +1,8 @@
 // A card that shows the same figures as a list or as a donut chart, the way MynetworK's analytics page does: a two-button switch in the header.
-import { List, PieChart } from "lucide-react";
+import { List, PieChart, type LucideIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { tx } from "../lib/i18n";
-import { Card } from "./ui";
+import { FoldPanel } from "./FoldPanel";
 
 export interface Slice { key: string; label: string; value: number; detail?: string }
 
@@ -50,19 +50,14 @@ export function Donut({ rows }: Readonly<{ rows: Slice[] }>) {
 
 const BTN = "inline-flex items-center rounded-md p-1.5 text-muted hover:text-txt aria-pressed:bg-link/15 aria-pressed:text-link";
 
-/** Title, switch list / donut, and the body: `list` as it was, or the donut of `rows` */
-export function ChartToggle({ title, rows, list }: Readonly<{ title: string; rows: Slice[]; list: ReactNode }>) {
+/** A foldable panel with the switch list / donut in its header: `list` as it was, or the donut of `rows` */
+export function ChartToggle({ id, icon, title, rows, list }: Readonly<{ id: string; icon: LucideIcon; title: string; rows: Slice[]; list: ReactNode }>) {
   const [chart, setChart] = useState(false);
-  return (
-    <Card>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="font-bold">{title}</h2>
-        <span className="inline-flex gap-0.5" role="group" aria-label={tx("Affichage")}>
-          <button type="button" className={BTN} aria-pressed={!chart} title={tx("Liste")} onClick={() => setChart(false)}><List size={15} aria-hidden /></button>
-          <button type="button" className={BTN} aria-pressed={chart} title={tx("Camembert")} onClick={() => setChart(true)}><PieChart size={15} aria-hidden /></button>
-        </span>
-      </div>
-      {chart ? <Donut rows={rows} /> : list}
-    </Card>
+  const toggle = (
+    <span className="inline-flex gap-0.5" role="group" aria-label={tx("Affichage")}>
+      <button type="button" className={BTN} aria-pressed={!chart} title={tx("Liste")} onClick={() => setChart(false)}><List size={15} aria-hidden /></button>
+      <button type="button" className={BTN} aria-pressed={chart} title={tx("Camembert")} onClick={() => setChart(true)}><PieChart size={15} aria-hidden /></button>
+    </span>
   );
+  return <FoldPanel id={id} icon={icon} title={title} extra={toggle}>{chart ? <Donut rows={rows} /> : list}</FoldPanel>;
 }

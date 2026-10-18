@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { Ban } from "lucide-react";
 import { ChartToggle, topSlices } from "./ChartToggle";
 
 const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ key: `k${i}`, label: `row ${i}`, value: i + 1 }));
@@ -20,7 +21,7 @@ describe("topSlices", () => {
 
 describe("ChartToggle", () => {
   it("shows the list first, with the two switch buttons", () => {
-    const html = renderToStaticMarkup(<ChartToggle title="T" rows={rows(2)} list={<p>the list</p>} />);
+    const html = renderToStaticMarkup(<ChartToggle id="t" icon={Ban} title="T" rows={rows(2)} list={<p>the list</p>} />);
     expect(html).toContain("the list");
     expect(html).toContain('aria-pressed="true"');
     expect(html).not.toContain("<svg viewBox");
