@@ -61,6 +61,31 @@ class Confirm(unittest.TestCase):
         self.assertEqual(pulse.read(self.path.with_name("missing.json")), {})
 
 
+class Contradicted(unittest.TestCase):
+    HOSTS = [{"name": "Gamer32 · 10.0.0.2", "reachable": False}, {"name": "NAS · 10.0.0.3", "reachable": True}, {"name": "Box · 10.0.0.4", "reachable": False}]
+    STATE = {"10.0.0.2": {"ping": True}, "10.0.0.3": {"ping": True}, "10.0.0.4": {"ping": False}}
+
+    def test_only_a_host_that_pings_but_is_called_unreachable(self):
+        tried = {}
+        self.assertEqual(pulse.contradicted(self.HOSTS, self.STATE, 600, tried, 1000.0), ["10.0.0.2"])
+
+    def test_a_fresh_snapshot_is_left_alone(self):
+        self.assertEqual(pulse.contradicted(self.HOSTS, self.STATE, 30, {}, 1000.0), [])
+
+    def test_retries_are_spaced_more_and_more(self):
+        tried, got = {}, []
+        for t in range(0, 20000, 300):
+            got.append(bool(pulse.contradicted(self.HOSTS, self.STATE, 600, tried, float(t))))
+        times = [t * 300 for t, g in enumerate(got) if g]
+        self.assertEqual(times[:4], [0, 600, 1800, 4200])   # 10 min, 20 min, 40 min...
+        self.assertLessEqual(max(b - a for a, b in zip(times, times[1:])), 7200)
+
+    def test_back_to_normal_forgets_the_machine(self):
+        tried = {"10.0.0.2": (0.0, 3)}
+        pulse.contradicted([{"name": "Gamer32 · 10.0.0.2", "reachable": True}], self.STATE, 600, tried, 10.0)
+        self.assertEqual(tried, {})
+
+
 class OwedTasks(unittest.TestCase):
     def test_what_cannot_start_is_asked_again(self):
         owed, started = pulse.Owed(), []

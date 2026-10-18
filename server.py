@@ -247,6 +247,21 @@ def pulse_ips() -> list[str]:
     return [m["ip"] for m in data.get("machine_list", []) if m.get("ip") and not m.get("disabled")]
 
 
+HEALTH_TRIED: dict = {}
+
+
+def pulse_stale_health() -> list[str]:
+    """Machines whose health says « unreachable » while they answer the ping: a snapshot older than the machine's return."""
+    if not enabled("health"):
+        return []
+    try:
+        stats = json.loads((WEB / "health" / "stats.json").read_text(encoding="utf-8"))
+        age = time.time() - datetime.fromisoformat(stats["timestamp"]).timestamp()
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+    return pulse.contradicted(stats.get("hosts") or [], PULSE.state, age, HEALTH_TRIED, time.time())
+
+
 def pulse_loop() -> None:
     """Ping every machine every `pulse_every` s; a confirmed change starts the watcher at once (its events, history and alerts)
     and a health reading of that machine alone."""
@@ -258,6 +273,7 @@ def pulse_loop() -> None:
             ips = pulse_ips() if every > 0 else []
             if ips:
                 owed.add(PULSE.tick(ips))
+                owed.health += [ip for ip in pulse_stale_health() if ip not in owed.health]
             # the machine that moved also gets its health read again at once (not at the next 6 h pass), alone
             owed.settle(lambda: run_task("watch", "pouls"), lambda ip: run_task("health", f"ping de {ip} changé (pouls)", ("--only", ip)),
                         enabled("watch"), enabled("health"))

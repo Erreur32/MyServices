@@ -65,6 +65,23 @@ class Pulse:
             pass   # the pulse is a convenience: a full disk must not stop the server
 
 
+def contradicted(hosts: list[dict], state: dict, health_age: float, tried: dict, now: float, min_age: float = 120, cooldown: float = 600) -> list[str]:
+    """IPs whose health snapshot says « unreachable » while their confirmed ping answers and the snapshot is old enough to be behind: their
+    health is read again, alone. A machine that stays contradictory (no health source works) is retried less and less often (x2, up to 2 h).
+    `tried` {ip: (time, tries)} is updated."""
+    out = []
+    for h in hosts:
+        ip = str(h.get("name", "")).rpartition(" · ")[2].strip()
+        if h.get("reachable") is not False or not (state.get(ip) or {}).get("ping") or health_age < min_age:
+            tried.pop(ip, None) if h.get("reachable") is not False else None
+            continue
+        last, n = tried.get(ip, (float("-inf"), 0))
+        if now - last >= min(cooldown * 2 ** max(0, n - 1), 7200):
+            tried[ip] = (now, n + 1)
+            out.append(ip)
+    return out
+
+
 class Owed:
     """What a confirmed change still owes: one watcher run (events, history, alerts) and one health reading per machine that moved.
     Each task runs one at a time, so what could not start (task busy) is asked again at the next pulse."""
