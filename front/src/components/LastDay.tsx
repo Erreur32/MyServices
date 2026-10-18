@@ -28,14 +28,14 @@ function Chart({ hours }: Readonly<{ hours: { n: number; color: string }[] }>) {
 function Row({ row, now }: Readonly<{ row: Last24hRow; now: number }>) {
   const more = row.who.length - WHO_SHOWN;
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5">
-      <span aria-hidden className={`h-3 w-3 shrink-0 rounded-sm ${row.color}`} />
-      <span className="flex min-w-[8rem] items-center gap-2 font-semibold text-txt">{row.label}<Badge tone={row.severity >= 2 ? "warn" : "off"}>{row.count}</Badge></span>
-      <span className="flex min-w-0 flex-1 flex-wrap gap-1.5 text-[13px]">
+    <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1.5 py-2.5 md:grid-cols-[auto_11rem_minmax(0,1fr)_6rem] md:items-center">
+      <span aria-hidden className={`mt-1 h-3 w-3 shrink-0 rounded-sm md:mt-0 ${row.color}`} />
+      <span className="flex min-w-0 items-center justify-between gap-2 font-semibold text-txt"><span className="truncate">{row.label}</span><Badge tone={row.severity >= 2 ? "warn" : "off"}>{row.count}</Badge></span>
+      <span className="col-span-3 col-start-1 row-start-2 flex min-w-0 flex-wrap gap-1.5 text-[13px] md:col-span-1 md:col-start-3 md:row-start-1">
         {row.who.slice(0, WHO_SHOWN).map((w) => <span key={w} className="max-w-[14rem] truncate rounded-md border border-line bg-bg2/60 px-1.5 py-0.5 text-muted"><Rich text={`**${w}**`} /></span>)}
         {more > 0 && <span className="px-1 py-0.5 text-dim">{tx("+ {0} autre(s)", more)}</span>}
       </span>
-      <span className="shrink-0 text-xs text-dim">{sinceText(row.last, now)}</span>
+      <span className="col-start-3 row-start-1 whitespace-nowrap text-right text-xs text-dim md:col-start-4">{sinceText(row.last, now)}</span>
     </li>
   );
 }
