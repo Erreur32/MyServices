@@ -343,6 +343,15 @@ class UniFi(StatusConnector):
                     break
         return info.get("applicationVersion"), len(sites), devices, clients, total
 
+    @staticmethod
+    def _http_error(path: str, code: int) -> ConnectorError:
+        """The error for an HTTP status of the legacy controller API; the sign-in has its own readable reasons."""
+        if path == "/api/login" and code in (400, 401, 403):
+            return ConnectorError("compte refusé : identifiant ou mot de passe faux, ou double authentification activée sur ce compte")
+        if path == "/api/login" and code == 404:
+            return ConnectorError("pas de connexion par compte ici : console UniFi OS ? choisir l'accès « api_key »")
+        return ConnectorError(f"HTTP {code}")
+
     def _login(self):
         """Opens a session on a controller with a local account (Network Application, e.g. in Docker); returns the `call(path, body)` function of that session."""
         jar = http.cookiejar.CookieJar()
@@ -357,11 +366,7 @@ class UniFi(StatusConnector):
                 with opener.open(req, timeout=self.ctx.timeout) as r:
                     d = json.loads(r.read() or b"null")
             except urllib.error.HTTPError as e:
-                if path == "/api/login" and e.code in (400, 401, 403):
-                    raise ConnectorError("compte refusé : identifiant ou mot de passe faux, ou double authentification activée sur ce compte") from None
-                if path == "/api/login" and e.code == 404:
-                    raise ConnectorError("pas de connexion par compte ici : console UniFi OS ? choisir l'accès « api_key »") from None
-                raise ConnectorError(f"HTTP {e.code}") from None
+                raise self._http_error(path, e.code) from None
             except (OSError, ValueError) as e:
                 raise ConnectorError(f"injoignable ({getattr(e, 'reason', e.__class__.__name__)})") from None
             return d.get("data") if isinstance(d, dict) else None

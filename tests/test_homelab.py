@@ -281,6 +281,19 @@ class UniFi(Base):
         self.assertEqual(got, [{"name": "USW", "mac": "sw", "type": "usw", "port_table": [{"port_idx": 1, "up": True}]}])   # secrets cut, row without a MAC dropped
         self.assertIsNone(self.conn("unifi", api_key="K").card_devices())   # an API key has no port table
 
+    def test_cartes_du_controleur_une_deconnexion_qui_echoue_ne_casse_rien(self):
+        self.route("/api/login", {"meta": {"rc": "ok"}, "data": []}, "POST")
+        self.route("/api/self/sites", {"data": [{"name": "default"}]})
+        self.route("/api/s/default/stat/device", {"data": [{"name": "USW", "mac": "sw"}]})   # no /api/logout route: the sign-out fails
+        pw = "p" * 8
+        self.assertEqual(self.conn("unifi", auth="account", user="ro", password=pw).card_devices(), [{"name": "USW", "mac": "sw"}])
+
+    def test_connexion_refusee_ou_absente_a_un_message_lisible(self):
+        from connectors.homelab_infra import UniFi
+        self.assertIn("compte refusé", str(UniFi._http_error("/api/login", 401)))
+        self.assertIn("api_key", str(UniFi._http_error("/api/login", 404)))
+        self.assertEqual(str(UniFi._http_error("/api/self/sites", 500)), "HTTP 500")
+
     def test_mises_a_jour_et_attente_adoption(self):
         base = "/proxy/network/integration/v1"
         self.route(f"{base}/info", {"applicationVersion": "9.4.19"})

@@ -20,3 +20,18 @@ export function serverText(fr: string, lang: string = LANG): string {
 export function withServerMessages<T extends { message?: string }>(rows: T[] | undefined, lang?: string): T[] | undefined {
   return rows?.map((r) => (typeof r.message === "string" ? { ...r, message: serverText(r.message, lang) } : r));
 }
+
+/** Every connector list of data.json (an array of rows that carry a `message`) with its messages translated; French is returned as it is */
+export function translateConnectorMessages<T extends object>(data: T, lang?: string): T {
+  if ((lang ?? LANG) === "fr") return data;
+  const out = { ...data } as Record<string, unknown>;
+  for (const [k, v] of Object.entries(out)) {
+    if (Array.isArray(v) && v.some((r) => typeof r?.message === "string")) out[k] = withServerMessages(v, lang);
+  }
+  return out as T;
+}
+
+/** The event labels sent by the server, translated */
+export function translateLabels(labels: Record<string, string>, lang?: string): Record<string, string> {
+  return Object.fromEntries(Object.entries(labels).map(([k, v]) => [k, serverText(v, lang)]));
+}
