@@ -55,15 +55,15 @@ function connectorItems(m: Machine, connectors: Connector[]): WatchItem[] {
 }
 
 /** Tout ce qui est à surveiller sur une machine : accès (ping, SSH), santé, services en panne, connecteurs en échec ; le plus grave d'abord.
- *  Une machine non suivie ou éteinte volontairement n'a rien à surveiller. readByTool : lue par l'API d'un outil réseau (Freebox, UniFi), « sans SSH » n'est pas un manque. */
-export function watchItems(m: Machine, h: HealthHost | undefined, connectors: Connector[] = [], readByTool = false): WatchItem[] {
+ *  Une machine non suivie ou éteinte volontairement n'a rien à surveiller. downList : les services en panne (nom : cause). readByTool : lue par l'API d'un outil réseau (Freebox, UniFi), « sans SSH » n'est pas un manque. */
+export function watchItems(m: Machine, h: HealthHost | undefined, connectors: Connector[] = [], readByTool = false, downList: string[] = []): WatchItem[] {
   const st = mState(m);
   if (st === "disabled" || st === "off") return [];
   const out: WatchItem[] = [];
   const access = accessItem(st, readByTool);
   if (access) out.push(access);
   if (h && !(st === "down" && h.reachable === false)) out.push(...healthItems(h));
-  if (m.down > 0) out.push({ tone: "bad", kind: "services", text: tx("{0} service(s) en panne", m.down) });
+  if (m.down > 0) out.push({ tone: "bad", kind: "services", text: tx("{0} service(s) en panne", m.down), ...(downList.length ? { detail: downList } : {}) });   // which ones, and why: in the tooltip and the machine window
   out.push(...connectorItems(m, connectors));
   return out.sort((a, b) => RANK[b.tone] - RANK[a.tone]);
 }
