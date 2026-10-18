@@ -27,7 +27,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   folded by default, and the Information card is regrouped (application, access and security, storage).
 - Import: the parts that need the encryption key are flagged, and importing the key alone (which would lock the current passwords out) is refused.
 
-- **Security page, redone** (development builds, it replaces the former page under the same "Security" tab): an overview that lists what needs a look,
+- **Security page, redone** (public: the Security tab is no longer reserved to development builds; it replaces the former page): an overview that lists what needs a look,
   worst first, each with its source and what to do, then one sub-tab per category (Fail2ban, exposed sites, SSH access, network ports, certificates),
   each tab showing how many points it holds. The Fail2ban tab has statistics: bans per hour (24 h) and per day (7 days), per jail, the addresses banned
   most and those that came back, failed logins behind the bans, and **the domains attacked** (LogviewR's log search ties an address to the NPM host or
