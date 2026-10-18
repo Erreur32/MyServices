@@ -31,6 +31,7 @@ DECISIONS = tuple(f"state/{n}.json" for n in ("services-decided", "diagnostic-ac
 FILES = {"settings": (CONFIG_FILE,), "machines": ("services-meta.json",), "backups": ("backups-meta.json",), "decisions": DECISIONS,
          "accounts": (DB_REL,), "secrets": (KEY_FILE,)}
 PARTS = (*FILES, "ssh")
+APP_KEYS = tuple(f"ssh/{n}" for n in ("myservices", "myservices.pub", "myservices_ecdsa", "myservices_ecdsa.pub"))   # this installation's own key: the machines authorized it
 SENSITIVE = ("accounts", "secrets", "ssh")   # the parts the page warns about
 NEEDS_RESTART = ("settings", "secrets")      # read once at start
 MAX_ARCHIVE, MAX_FILE, MAX_DB, MAX_TOTAL, MAX_FILES = 64 << 20, 2 << 20, 64 << 20, 80 << 20, 200
@@ -351,6 +352,17 @@ def key_swap_unsafe(files: dict[str, bytes], selected: list[str], places: Places
     return secrets_status(current, files[KEY_FILE]) == "unreadable"
 
 
+def protected(files: dict[str, bytes], places: Places) -> list[str]:
+    """The app's own key files that exist here with other contents than the archive's: replacing them would make every machine that
+    authorized this installation's key refuse it. They are left alone unless the import is told to replace them."""
+    out = []
+    for rel in APP_KEYS:
+        target = disk_path(rel, places)
+        if rel in files and target.is_file() and target.read_bytes() != files[rel]:
+            out.append(rel)
+    return out
+
+
 def preview(data: bytes, places: Places) -> dict:
     """What an archive holds, part by part, and what would not work; nothing is written."""
     files, manifest, ignored = read_archive(data)
@@ -362,7 +374,8 @@ def preview(data: bytes, places: Places) -> dict:
             facts = db_facts(files[DB_REL])[1] if part == "accounts" else {}
             parts.append({"id": part, "files": names, "bytes": sum(len(files[n]) for n in names), "sensitive": part in SENSITIVE, "facts": facts,
                           "problems": [bad[n] for n in names if n in bad], "exists_here": part in here,
-                          "needs_key": part == "settings" and secrets_status(files[CONFIG_FILE], None) != "none"})
+                          "needs_key": part == "settings" and secrets_status(files[CONFIG_FILE], None) != "none",
+                          "protected": protected(files, places) if part == "ssh" else []})
     every = [p["id"] for p in parts]
     return {"manifest": {k: manifest.get(k) for k in ("format", "app", "created")}, "parts": parts, "ignored": ignored[:20],
             "secrets": {"with_archive_key": settings_status(files, every, places), "with_current_key": settings_status(files, [p for p in every if p != "secrets"], places),
@@ -414,14 +427,16 @@ def _write_file(target: Path, body: bytes, ssh: bool) -> bool:
     return kept
 
 
-def apply(data: bytes, selected: list[str], places: Places) -> dict:
+def apply(data: bytes, selected: list[str], places: Places, replace_app_keys: bool = False) -> dict:
     """Writes the chosen parts. Everything is checked first; an existing file is kept next to the new one as `<name>.avant-import`."""
     files, _, _ = read_archive(data)
     chosen = [p for p in PARTS if p in selected]
     if not chosen or len(chosen) != len(set(selected)):
         raise TransferError("choisir au moins une partie connue")
     todo = {rel: body for rel, body in files.items() if part_of(rel) in chosen}
-    missing = [p for p in chosen if not any(part_of(r) == p for r in todo)]
+    skipped = [] if replace_app_keys else protected(files, places)
+    todo = {rel: body for rel, body in todo.items() if rel not in skipped}
+    missing = [p for p in chosen if not any(part_of(r) == p for r in todo) and not any(part_of(r) == p for r in skipped)]
     if missing:
         raise TransferError("absent de l'archive : " + ", ".join(missing))
     if bad := problems(todo):
@@ -436,4 +451,4 @@ def apply(data: bytes, selected: list[str], places: Places) -> dict:
         written.append(rel)
         if had:
             kept.append(rel)
-    return {"written": written, "kept": kept, "restart": any(p in NEEDS_RESTART for p in chosen), "relogin": "accounts" in chosen}
+    return {"written": written, "kept": kept, "skipped": skipped, "restart": any(p in NEEDS_RESTART for p in chosen), "relogin": "accounts" in chosen}

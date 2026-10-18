@@ -20,15 +20,15 @@ const PARTS: PartInfo[] = [
   { id: "decisions", label: tx("Décisions mémorisées"), hint: tx("Vos choix : services suivis ou écartés, constats du Diagnostic marqués « c'est normal », avancement de l'assistant, ajouts automatiques.") },
   { id: "accounts", label: tx("Comptes et historique"), hint: tx("Comptes (mots de passe hachés), jetons d'API, agents, règles d'alerte, historique, journal d'audit et disponibilité. Les connexions en cours ne sont pas gardées.") },
   { id: "secrets", label: tx("Clé de chiffrement"), hint: tx("Ouvre les mots de passe et jetons des réglages. Sans elle, ils ne sont pas lisibles sur une autre installation.") },
-  { id: "ssh", label: tx("Clés et accès SSH"), hint: tx("Les clés privées et les alias SSH utilisés pour lire vos machines.") },
+  { id: "ssh", label: tx("Clés et accès SSH"), hint: tx("Tout le dossier SSH : les clés privées, le fichier config (les alias, comptes et ports) et known_hosts. Chaque fichier du même nom est remplacé ; la clé propre de cette installation est gardée sauf demande. À importer avec « Machines ».") },
 ];
 const SENSITIVE = new Set<PartId>(["accounts", "secrets", "ssh"]);
 const ALL: PartId[] = PARTS.map((p) => p.id);
 
 interface Available { parts: { id: PartId; files: string[]; sensitive: boolean }[] }
-interface PreviewPart { needs_key?: boolean; id: PartId; files: string[]; bytes: number; sensitive: boolean; facts: { users?: number; events?: number }; problems: string[]; exists_here: boolean }
+interface PreviewPart { needs_key?: boolean; id: PartId; files: string[]; bytes: number; sensitive: boolean; facts: { users?: number; events?: number }; problems: string[]; exists_here: boolean; protected?: string[] }
 interface Preview { manifest: { format?: number; app?: string; created?: number }; parts: PreviewPart[]; ignored: string[]; secrets: { with_archive_key: string; with_current_key: string; swap_unsafe: boolean } }
-interface Applied { written: string[]; kept: string[]; restart: boolean; relogin: boolean; reloaded?: boolean; parts: string[] }
+interface Applied { written: string[]; kept: string[]; restart: boolean; relogin: boolean; reloaded?: boolean; skipped?: string[]; parts: string[] }
 
 /** A file as base64, in chunks (a spread of the whole array would overflow the call stack) */
 async function toBase64(file: File): Promise<string> {
@@ -138,8 +138,8 @@ function keyWarning(pv: Preview, picked: PartId[]): string | null {
 
 function ImportCard() {
   const [pv, setPv] = useState<Preview | null>(null), [archive, setArchive] = useState(""), [picked, setPicked] = useState<PartId[]>([]);
-  const [pw, setPw] = useState(""), [sure, setSure] = useState(false), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [done, setDone] = useState<Applied | null>(null);
-  const reset = () => { setPv(null); setArchive(""); setPicked([]); setPw(""); setSure(false); };
+  const [pw, setPw] = useState(""), [sure, setSure] = useState(false), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [done, setDone] = useState<Applied | null>(null), [replaceKey, setReplaceKey] = useState(false);
+  const reset = () => { setPv(null); setArchive(""); setPicked([]); setPw(""); setSure(false); setReplaceKey(false); };
   const choose = async (file: File | undefined) => {
     reset(); setDone(null); setNote(null);
     if (!file) return;
@@ -156,13 +156,15 @@ function ImportCard() {
   const toggle = (id: PartId, on: boolean) => setPicked(on ? [...picked, id] : picked.filter((x) => x !== id));
   const apply = async () => {
     setBusy(true); setNote(null);
-    const ok = await act(async () => { const res = await send<Omit<Applied, "parts">>("POST", "system/import", { archive, parts: picked, password: pw });
+    const ok = await act(async () => { const res = await send<Omit<Applied, "parts">>("POST", "system/import", { archive, parts: picked, password: pw, replace_app_keys: replaceKey });
       setDone({ ...res, parts: PARTS.filter((p) => picked.includes(p.id)).map((p) => p.label) });
     }, tx("Import terminé"), setNote);
     if (ok) reset();
     setBusy(false);
   };
   const warning = pv ? keyWarning(pv, picked) : null;
+  const heldKeys = pv?.parts.find((p) => p.id === "ssh")?.protected ?? [];   // this installation's own SSH key files that differ from the archive's
+  const sshAlone = picked.includes("ssh") !== picked.includes("machines");   // the SSH aliases (config) and the machine list refer to each other
   const risky = pv?.parts.some((p) => picked.includes(p.id) && p.exists_here);
   return (
     <FoldCard id="import" icon={Upload} title={tx("Importer une configuration")}>
@@ -184,6 +186,13 @@ function ImportCard() {
             })}
           </div>
           {picked.includes("accounts") && <p className="flex items-start gap-2 rounded-lg border border-link/50 bg-link/10 px-3 py-2 text-sm text-txt"><ShieldAlert size={16} className="mt-0.5 shrink-0" aria-hidden />{tx("Les comptes de cette installation seront remplacés par ceux de l'archive : vous devrez vous reconnecter avec l'un d'eux.")}</p>}
+          {picked.includes("ssh") && heldKeys.length > 0 && (
+            <InfoNote tone="warn">
+              {tx("La clé SSH propre à cette installation n'est pas la même que celle de l'archive. Les machines où vous l'avez autorisée refuseraient la nouvelle : elle est donc gardée telle quelle.")}
+              <label className="mt-1 flex items-center gap-2"><input type="checkbox" checked={replaceKey} onChange={(e) => setReplaceKey(e.target.checked)} />{tx("La remplacer quand même (à vos risques)")}</label>
+            </InfoNote>
+          )}
+          {sshAlone && <InfoNote tone="warn">{tx("Les alias SSH (clés SSH) et la liste des machines vont ensemble : un alias absent ou une machine sans alias coupe sa lecture. Importez les deux, ou aucun des deux.")}</InfoNote>}
           {warning && <p className="flex items-start gap-2 rounded-lg border border-warn/50 bg-warn/10 px-3 py-2 text-sm text-warn"><ShieldAlert size={16} className="mt-0.5 shrink-0" aria-hidden />{warning}</p>}
           <form className="flex flex-wrap items-end gap-3" onSubmit={(e) => { e.preventDefault(); void apply(); }}>
             <Field label={tx("Ton mot de passe")}>
@@ -202,6 +211,7 @@ function ImportCard() {
           {done.kept.length > 0 && <p className="text-muted">{tx("{0} ancien(s) fichier(s) gardé(s) à côté, en « .avant-import »", done.kept.length)}</p>}
           {done.relogin && <InfoNote tone="warn">{tx("Les comptes ont été remplacés : reconnectez-vous avec un compte de l'archive.")}</InfoNote>}
           {done.restart && <InfoNote tone="warn">{tx("Redémarrez le conteneur pour appliquer les réglages et la clé importés.")}</InfoNote>}
+          {!!done.skipped?.length && <InfoNote tone="warn">{tx("Gardés tels quels (clé propre de cette installation) : {0}", done.skipped.map((f) => f.replace("ssh/", "")).join(", "))}</InfoNote>}
           {done.reloaded && <p className="text-muted">{tx("Réglages relus sans redémarrage : les horaires importés sont déjà appliqués.")}</p>}
           <p className="text-muted">{tx("La collecte, la veille et la santé sont relancées l'une après l'autre : les machines importées apparaissent d'ici quelques minutes.")}</p>
           <button type="button" className={`${quiet} self-start`} onClick={() => window.location.reload()}>{tx("Recharger la page")}</button>

@@ -1648,6 +1648,7 @@ class ImportPreviewBody(BaseModel):
 class ImportApplyBody(ImportPreviewBody):
     password: str = Field(max_length=256)
     parts: list[str] = Field(max_length=8)
+    replace_app_keys: bool = False   # replace the app's own SSH key too (the machines that authorized it will refuse the new one)
 
 
 def _places():
@@ -1724,7 +1725,7 @@ def system_import(body: ImportApplyBody, request: Request):
     if isinstance(data, JSONResponse):
         return data
     try:
-        out = ct.apply(data, body.parts, _places())
+        out = ct.apply(data, body.parts, _places(), body.replace_app_keys)
     except ct.TransferError as e:
         return deny(400, str(e))
     store().audit("configuration importée", request.state.user["username"], ip_of(request), ",".join(body.parts))
