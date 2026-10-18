@@ -851,22 +851,27 @@ def uptime_rows(rows):
     cbase.save_state(CONNECTORS_STATE, state)
 
 
-def connector_rows(kind: str) -> list[dict]:
-    """Connecteurs d'un apport (status : Home Assistant ; network : MynetworK ; security : LogviewR ; containers : Dockhand ;
-    virtualization : Proxmox) : état de chaque instance et ses données, pour data.json ; une instance injoignable garde son
-    dernier relevé, marqué périmé."""
+def connector_rows(kinds: tuple[str, ...]) -> dict[str, list[dict]]:
+    """Connecteurs de plusieurs apports (status : Home Assistant ; network : MynetworK ; security : LogviewR ; containers : Dockhand ;
+    virtualization : Proxmox) : état de chaque instance et ses données, pour data.json, par apport ; une instance injoignable garde son
+    dernier relevé, marqué périmé. Every instance of every kind is read at the same time: the pass lasts as long as the slowest
+    service, not the sum of them all (with many connectors, one slow controller no longer delays the others)."""
+    out: dict[str, list[dict]] = {k: [] for k in kinds}
     try:
-        insts = connectors.instances(CFG, kind=kind)
+        per_kind = [(k, c) for k in kinds for c in connectors.instances(CFG, kind=k)]
     except connectors.ConnectorError:
-        return []  # déjà signalé par read_npm (même registre)
-    out, state = [], cbase.load_state(CONNECTORS_STATE)
-    for c in insts:
-        data, st = cbase.run_isolated(c, state, 60)
+        return out  # déjà signalé par read_npm (même registre)
+    if not per_kind:
+        return out
+    state = cbase.load_state(CONNECTORS_STATE)
+    with ThreadPoolExecutor(min(8, len(per_kind))) as ex:
+        jobs = [(k, c, ex.submit(cbase.run_isolated, c, state, 60)) for k, c in per_kind]
+    for k, c, job in jobs:   # statuses and rows in the declared order, whatever the order the answers came in
+        data, st = job.result()
         CONNECTOR_STATUS.append(st)
-        out.append({"connector": c.type, "name": c.name, "label": c.label, "ok": st.ok, "stale": st.stale, "message": st.message,
-                    "version": st.version, "url": c.conf.get("url"), **(data or {}), "instance": c.name})   # instance: data may carry its own « name »
-    if insts:
-        cbase.save_state(CONNECTORS_STATE, state)
+        out[k].append({"connector": c.type, "name": c.name, "label": c.label, "ok": st.ok, "stale": st.stale, "message": st.message,
+                       "version": st.version, "url": c.conf.get("url"), **(data or {}), "instance": c.name})   # instance: data may carry its own « name »
+    cbase.save_state(CONNECTORS_STATE, state)
     return out
 
 
@@ -1280,7 +1285,7 @@ def main():
 
     # Avant « out » : ces lectures ajoutent leur état à CONNECTOR_STATUS, que « connectors » (ci-dessous) recopie ;
     # lues dans le dictionnaire, après « connectors », leur état manquait et la page disait « pas encore lu »
-    services_status, network, security, containers, virtualization = (connector_rows(k) for k in ("status", "network", "security", "containers", "virtualization"))
+    services_status, network, security, containers, virtualization = connector_rows(("status", "network", "security", "containers", "virtualization")).values()
     # An API without version (Dockhand…): the one of the container behind the connector URL, when its image says it
     urls = {}
     with contextlib.suppress(connectors.ConnectorError):

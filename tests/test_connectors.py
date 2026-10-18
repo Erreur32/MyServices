@@ -110,9 +110,32 @@ class Slow(Connector):
         return {"n": 1}
 
 
+class Versioned(Slow):
+    type = "versionne"
+    asked = 0
+
+    def version(self):
+        Versioned.asked += 1
+        return "1.0"
+
+
 class Isolation(unittest.TestCase):
     def run_mode(self, mode, state):
         return run_isolated(Slow({"name": "x", "mode": mode}, Context()), state, timeout=1)
+
+    def test_version_asked_every_six_hours_only(self):
+        """The version of a service is asked once, then reused from the state for VERSION_EVERY seconds (one request less per pass)."""
+        import connectors.base as cbase
+        Versioned.asked = 0
+        state = {}
+        c = Versioned({"name": "x", "mode": "ok"}, Context())
+        data, st = run_isolated(c, state, 1)
+        self.assertEqual((st.version, Versioned.asked), ("1.0", 1))
+        data, st = run_isolated(c, state, 1)
+        self.assertEqual((st.version, Versioned.asked), ("1.0", 1))   # reused
+        state["versionne/x"]["version_at"] -= cbase.VERSION_EVERY + 1
+        data, st = run_isolated(c, state, 1)
+        self.assertEqual((st.version, Versioned.asked), ("1.0", 2))   # old: asked again
 
     def test_failure_reuses_last_good_and_counts(self):
         state = {}

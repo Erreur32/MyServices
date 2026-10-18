@@ -19,11 +19,27 @@ STARTED = time.time()
 LABELS = {"collect": "Collecte", "watch": "Veille (pannes, alertes)", "health": "Santé des machines", "backups": "Sauvegardes"}
 
 
+MEMO_S = 300   # s, folder sizes and the key fingerprint are kept this long: /system is read by several panels, a walk of the data folder each time is useless
+_memo: dict[str, tuple[float, object]] = {}
+
+
+def _memoed(key: str, fn):
+    """fn() kept MEMO_S seconds under key (the server process only; a restart forgets everything)."""
+    at, val = _memo.get(key, (0.0, None))
+    if time.time() - at < MEMO_S:
+        return val
+    val = fn()
+    _memo[key] = (time.time(), val)
+    return val
+
+
 def _size(p: Path) -> int:
-    try:
-        return sum(f.stat().st_size for f in p.rglob("*") if f.is_file()) if p.is_dir() else p.stat().st_size
-    except OSError:
-        return 0
+    def walk():
+        try:
+            return sum(f.stat().st_size for f in p.rglob("*") if f.is_file()) if p.is_dir() else p.stat().st_size
+        except OSError:
+            return 0
+    return _memoed(f"size:{p}", walk)
 
 
 def ssh_key(core) -> dict:
@@ -32,7 +48,7 @@ def ssh_key(core) -> dict:
         text = pub.read_text(encoding="utf-8").strip()
     except OSError:
         return {"public": None}
-    fp = subprocess.run(["ssh-keygen", "-lf", str(pub)], capture_output=True, text=True).stdout.split()
+    fp = _memoed(f"fp:{pub}:{text[-24:]}", lambda: subprocess.run(["ssh-keygen", "-lf", str(pub)], capture_output=True, text=True).stdout.split())
     known = core.SSH_DIR / "known_hosts"
     try:
         hosts = sum(1 for ln in known.read_text(encoding="utf-8").splitlines() if ln.strip() and not ln.startswith("#"))

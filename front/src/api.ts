@@ -169,8 +169,9 @@ export async function send<T = { ok: boolean }>(method: "POST" | "PATCH" | "PUT"
   return j as T;
 }
 
-/** POST routes that change nothing (try, check, show a secret, sign in): no reload after them */
-const READ_ONLY = /(\/test|\/check|\/preview|\/reveal|^login|^logout|password)$/;
+/** Writes after which data.json cannot have changed yet: tries, checks, secrets, sign-in, the assistant's own progress, a detection
+ *  proposal, and « read this machine again » (the pass it starts ends with a reload by the scan bar): no reload after them */
+const READ_ONLY = /(\/test|\/check|\/preview|\/reveal|\/refresh|\/redetect|^login|^logout|password|^assistant)$/;
 
 /** Téléchargement d'un fichier produit par une écriture (export) : renvoie le Blob et son nom. */
 export async function download(path: string, body: unknown): Promise<{ blob: Blob; name: string }> {

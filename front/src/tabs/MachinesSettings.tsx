@@ -5,7 +5,7 @@
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
 import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, Info, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
-import { LOGIN, LoginRequired, read, refreshSnapshot, send, type Snapshot } from "../api";
+import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Field, NoteLine, Switch, TagInput } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
@@ -660,7 +660,7 @@ function useAutoSave(o: {
     applyLocal(key, next, nextProc);
     if (refresh) refreshMachine(ip);  // un réglage changé (accès, options) : cette machine est relue tout de suite, pas au prochain horaire
     onDone();            // the card list re-reads the saved settings: a tag added or removed stays after closing and reopening the card
-    refreshSnapshot();   // name and tags already published by the server: the other tabs show them now
+    // name and tags already published by the server: the other tabs show them now (the PUT itself asked the page to reload)
     setFlash(key); setTimeout(() => setFlash(clearFlash(key)), 1800);
   };
   const ss: SaveState = { pending, failed, flash };

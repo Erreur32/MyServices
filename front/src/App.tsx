@@ -27,7 +27,8 @@ import { GREY_CARDS } from "./lib/forms";
 
 const REFRESH_MS = 60_000;
 const PULSE_MS = 15_000;   // the ping state (pulse.json) is read more often than the whole snapshot
-const FAST_MS = 5_000, FAST_FOR_MS = 150_000;   // after a change: data.json read every 5 s for 2 min 30 (304 when unchanged)
+const FAST_MS = 15_000, FAST_FOR_MS = 60_000;   // after a change: data.json read every 15 s for 1 min (304 when unchanged); the scan bar reloads when the pass ends
+const LIVE_SKIP_MS = 5_000;   // a full load (live and pulse included) a moment ago: the live tick skips its turn
 
 const OLD_TABS: Record<string, string> = { fail2ban: "security", health: "machines" };   // removed tabs, now inside another one
 
@@ -51,8 +52,10 @@ export default function App() {
   const [pending, setPending] = useState<{ tab: TabId; sel: Selected; n: number }>({ tab: "home", sel: {}, n: 0 });
 
   const retry = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const lastFull = useRef(0);   // last full load: the live tick skips its turn right after one
   const load = useCallback(() => {
     clearTimeout(retry.current);
+    lastFull.current = Date.now();
     loadSnapshot()
       .then((s) => { setSnap(s); setError(""); setFresh(null); setNow(Date.now()); })
       .catch((e) => {
@@ -66,7 +69,7 @@ export default function App() {
     load();
     const id = setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);   // rien quand l'onglet est masqué
     const live = setInterval(() => {
-      if (!document.hidden) void Promise.all([loadLive(), loadPulse()]).then(([l, p]) => setSnap((s) => { const d = s && withPulse(withLive(s.data, l), p); return s && d !== s.data ? { ...s, data: d! } : s; }));
+      if (!document.hidden && Date.now() - lastFull.current > LIVE_SKIP_MS) void Promise.all([loadLive(), loadPulse()]).then(([l, p]) => setSnap((s) => { const d = s && withPulse(withLive(s.data, l), p); return s && d !== s.data ? { ...s, data: d! } : s; }));
     }, PULSE_MS);
     const onHash = () => {   // ancienne page « Installation » -> assistant
       if (location.hash.startsWith("#setup")) location.replace("#assistant");

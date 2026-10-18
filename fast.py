@@ -11,6 +11,7 @@ is shown as such instead of as fresh.
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 import time
 from pathlib import Path
 
@@ -38,30 +39,10 @@ def refresh(cfg: dict, path: Path, followed: list[str], prev: dict | None = None
         insts = connectors.instances(cfg, kind="network") + connectors.instances(cfg, kind="virtualization") + connectors.instances(cfg, kind="health")
     except ConnectorError:
         insts = []
-    for c in insts:
-        key = f"{c.type}/{c.name}"
-        old = (prev.get("sources") or {}).get(key, {})
-        if c.type == "mynetwork":
-            devices, err = _try(c.scan)
-            cur = {"at": now, "ok": devices is not None, "error": err,
-                   "devices": {d["ip"]: {k: d.get(k) for k in ("status", "ping_ms", "ports", "ports_at")} for d in devices} if devices is not None else old.get("devices", {})}
-            if devices is not None:
-                cur["details"], cur["details_at"] = _details(c, followed, old, now, details_every)
-            else:
-                cur["details"], cur["details_at"] = old.get("details", {}), old.get("details_at")
-            sources[key] = cur
-        elif c.type == "beszel":
-            systems, err = _try(lambda c=c: c._records("systems"))
-            ver, ver_at = old.get("version"), old.get("version_at", 0)
-            if systems is not None and now - ver_at > VERSION_EVERY:   # the version changes rarely: asked again every few hours, not every reading
-                got, _ = _try(c.test)
-                ver, ver_at = (got.version if got else ver), now
-            sources[key] = {"at": now, "ok": systems is not None, "error": err, "version": ver, "version_at": ver_at,
-                            "total": len(systems) if systems is not None else old.get("total"),
-                            "status": _beszel_by_ip(systems, cfg) if systems is not None else old.get("status", {})}
-        elif c.type == "proxmox":
-            got, err = _try(c.collect)
-            sources[key] = {"at": now, "ok": got is not None, "error": err, **(_guests(got) if got else {k: old.get(k, {}) for k in ("guests", "nodes")})}
+    with ThreadPoolExecutor(min(8, len(insts) or 1)) as ex:   # every source at once: one slow controller does not hold the others
+        for key, cur in ex.map(lambda c: _read_one(c, cfg, followed, (prev.get("sources") or {}).get(f"{c.type}/{c.name}", {}), now, details_every), insts):
+            if cur is not None:
+                sources[key] = cur
     doc = {"ts": now, "sources": sources}
     tmp = path.with_suffix(".tmp")
     try:
@@ -70,6 +51,33 @@ def refresh(cfg: dict, path: Path, followed: list[str], prev: dict | None = None
     except OSError:
         pass   # a convenience file: a full disk must not stop the server
     return doc
+
+
+def _read_one(c, cfg: dict, followed: list[str], old: dict, now: float, details_every: float) -> tuple[str, dict | None]:
+    """One light reading of a fast connector: (key, its live entry), or (key, None) for a type without a light reading."""
+    key = f"{c.type}/{c.name}"
+    cur = None
+    if c.type == "mynetwork":
+        devices, err = _try(c.scan)
+        cur = {"at": now, "ok": devices is not None, "error": err,
+               "devices": {d["ip"]: {k: d.get(k) for k in ("status", "ping_ms", "ports", "ports_at")} for d in devices} if devices is not None else old.get("devices", {})}
+        if devices is not None:
+            cur["details"], cur["details_at"] = _details(c, followed, old, now, details_every)
+        else:
+            cur["details"], cur["details_at"] = old.get("details", {}), old.get("details_at")
+    elif c.type == "beszel":
+        systems, err = _try(lambda c=c: c._records("systems"))
+        ver, ver_at = old.get("version"), old.get("version_at", 0)
+        if systems is not None and now - ver_at > VERSION_EVERY:   # the version changes rarely: asked again every few hours, not every reading
+            got, _ = _try(c.test)
+            ver, ver_at = (got.version if got else ver), now
+        cur = {"at": now, "ok": systems is not None, "error": err, "version": ver, "version_at": ver_at,
+               "total": len(systems) if systems is not None else old.get("total"),
+               "status": _beszel_by_ip(systems, cfg) if systems is not None else old.get("status", {})}
+    elif c.type == "proxmox":
+        got, err = _try(c.collect)
+        cur = {"at": now, "ok": got is not None, "error": err, **(_guests(got) if got else {k: old.get(k, {}) for k in ("guests", "nodes")})}
+    return key, cur
 
 
 def _beszel_by_ip(systems: list[dict], cfg: dict) -> dict:

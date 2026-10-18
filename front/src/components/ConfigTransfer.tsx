@@ -229,10 +229,18 @@ function AfterImport() {
   const [busy, setBusy] = useState(true);
   useEffect(() => {
     const t0 = Date.now();
-    const check = () => read<Record<string, TaskInfo>>("tasks")
-      .then((t) => setBusy(Date.now() - t0 < SETTLE_MS || Object.values(t).some((x) => x.running))).catch(() => undefined);
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const check = () => {
+      if (document.hidden) return;
+      void read<Record<string, TaskInfo>>("tasks")
+        .then((t) => {
+          const still = Date.now() - t0 < SETTLE_MS || Object.values(t).some((x) => x.running);
+          setBusy(still);
+          if (!still) clearInterval(timer);   // done: no more reads (the message stays)
+        }).catch(() => undefined);
+    };
     void check();
-    const timer = setInterval(check, 3000);
+    timer = setInterval(check, 3000);
     return () => clearInterval(timer);
   }, []);
   return busy

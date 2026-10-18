@@ -11,6 +11,17 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.15.8 (2026-10-18)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Changed
+
+- Collection and fast loop: every connector instance of every kind (status, network, security, containers, virtualization, and the light reads) is read at the same time, so a pass lasts as long as the slowest service instead of the sum of them all.
+- Connectors: the version of a service is asked once, then reused from the connector state for 6 hours (one request less per connector and per pass).
+- API `GET system`: folder sizes and the key fingerprint are kept 5 minutes (several panels read this route).
+- Page: after a change, the data is read again every 15 s for 1 minute (was every 5 s for 2 min 30); the scan bar still reloads when the pass started by the change ends. The assistant's own progress, a detection proposal and « read this machine again » no longer trigger a reload. The live tick skips its turn right after a full load (the two no longer coincide every minute). The schedule card asks the tasks every 15 s at rest (1.5 s while one runs). The scan bar and the check after an import stop reading while the browser tab is hidden, and the latter stops for good once the chained tasks ended. The discovery panels share one read when several mount at once. Saving a machine setting reloads the data once, not three times.
+
 ## v0.15.7 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
