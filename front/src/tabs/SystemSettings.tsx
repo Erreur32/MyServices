@@ -1,12 +1,12 @@
 // Réglages, trois sections sur le même état : « Clé SSH » (Accès et sécurité : à autoriser sur chaque machine), « Tâches et
 // horaires » (Surveillance : modifiables, lancer maintenant) et « Sauvegarde et informations » (export de la configuration,
 // version de l'image et lien vers la dernière publiée, chemins, tailles).
-import { Activity, Bell, Check, Clock, Copy, Download, ExternalLink, Eye, EyeOff, HardDrive, HeartPulse, KeyRound, Loader2, Pause, Play, Radar, RefreshCw, RotateCcw, Server, ShieldCheck, Timer, TriangleAlert, type LucideIcon } from "lucide-react";
+import { Activity, Bell, Check, Clock, Copy, ExternalLink, Eye, EyeOff, HardDrive, HeartPulse, KeyRound, Loader2, Pause, Play, Radar, RefreshCw, RotateCcw, Server, ShieldCheck, Timer, TriangleAlert, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { download, LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
+import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { copyText } from "../lib/clipboard";
 import { stateBadge } from "../lib/machines";
-import { Field, NoteLine, Switch } from "../components/form";
+import { NoteLine, Switch } from "../components/form";
 import { act, button, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim, type Tone } from "../components/ui";
 import { bytes, dateTime, dur, hm } from "../lib/format";
@@ -20,6 +20,7 @@ import { pokeScan } from "../lib/scan";
 import { AutoDiscoveries, DISCOVERED_BY } from "../components/AutoDiscoveries";
 import { useDiscoveries } from "../components/DiscoveryCard";
 import { MailSettings } from "../components/MailSettings";
+import { ConfigTransfer } from "../components/ConfigTransfer";
 import { ScheduleHelp } from "../components/ScheduleHelp";
 
 export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh"; snap: Snapshot }) {
@@ -36,7 +37,7 @@ export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh
     <div className="flex flex-col gap-4">
       {part === "ssh" && <SshKey ssh={st.ssh} snap={snap} />}
       {part === "tasks" && <><Tasks tasks={st.tasks} netscan={st.netscan} beat={st.scheduler?.beat ?? null} reload={reload} /><AutoDiscoveries machines={snap.data.machine_list} /></>}
-      {part === "system" && <><MailSettings /><Export /><Info info={st.info} /></>}
+      {part === "system" && <><MailSettings /><ConfigTransfer /><Info info={st.info} /></>}
     </div>
   );
 }
@@ -486,41 +487,6 @@ function NetscanRow({ n, now, reload }: Readonly<{ n: NonNullable<SystemState["n
         </div>
       )}
     </li>
-  );
-}
-
-function Export() {
-  const [pw, setPw] = useState(""), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
-  const go = async () => {
-    setBusy(true); setNote(null);
-    try {
-      const { blob, name } = await download("system/export", { password: pw });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = name;
-      a.click();
-      URL.revokeObjectURL(a.href);
-      setPw("");
-      setNote({ ok: true, text: tx("{0} téléchargé ({1}) : à garder en lieu sûr", name, bytes(blob.size)) });
-    } catch (e) {
-      setNote({ ok: false, text: (e as Error).message });
-    }
-    setBusy(false);
-  };
-  return (
-    <Card>
-      <h2 className="mb-1 flex items-center gap-2 font-bold"><Download size={16} />{tx("Exporter la configuration")}</h2>
-      <p className="mb-3 text-sm text-muted">
-        {tx("Archive de")} <code className="font-mono text-xs">{tx("/config")}</code> {tx(": réglages, machines, secrets")} <b className="text-warn">{tx("avec leur clé")}</b> {tx("et clés SSH. De quoi tout réinstaller (à remettre dans")} <code className="font-mono text-xs">{tx("./config")}</code>{tx(") : la garder comme un mot de passe. Les comptes et l'historique sont dans")} <code className="font-mono text-xs">{tx("/data/myservices.db")}</code>.
-      </p>
-      <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); void go(); }}>
-        <Field label={tx("Ton mot de passe")}>
-          <input className={`${input} w-64`} type="password" required autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} />
-        </Field>
-        <button type="submit" className={primary} disabled={busy}><Download size={14} />{tx("Télécharger")}</button>
-      </form>
-      <NoteLine note={note} />
-    </Card>
   );
 }
 

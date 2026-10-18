@@ -11,6 +11,15 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+
+- **Import and export of the configuration** (Settings -> Backup and info): export everything or pick the parts (settings and connectors, machines and
+  services, followed backups, encryption key, SSH keys); import an archive in two steps, a preview that reads it without changing anything (parts,
+  problems, whether the passwords of its settings open with the key that will be in place), then the parts you tick. Both ask for your password.
+  The archive is checked before anything is written (no path outside `config/`, no link, size limits, valid JSON and key), a replaced file is kept
+  as `<name>.avant-import`, and importing settings or the key asks for a restart. New routes `GET /system/config-parts`, `POST /system/export`
+  (now takes `parts`), `POST /system/import/preview` and `POST /system/import`.
+
 ### Changed
 
 - Settings -> Tasks and schedules redesigned: a header with the scheduler heartbeat and a live summary, three grouped cards with dark title bands

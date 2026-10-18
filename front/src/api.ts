@@ -144,7 +144,7 @@ export async function send<T = { ok: boolean }>(method: "POST" | "PATCH" | "PUT"
 }
 
 /** POST routes that change nothing (try, check, show a secret, sign in): no reload after them */
-const READ_ONLY = /(\/test|\/check|\/reveal|^login|^logout|password)$/;
+const READ_ONLY = /(\/test|\/check|\/preview|\/reveal|^login|^logout|password)$/;
 
 /** Téléchargement d'un fichier produit par une écriture (export) : renvoie le Blob et son nom. */
 export async function download(path: string, body: unknown): Promise<{ blob: Blob; name: string }> {

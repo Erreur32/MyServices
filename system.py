@@ -6,12 +6,10 @@ une tâche fixée par MYSERVICES_<TÂCHE>_AT n'est pas modifiable ici. Export : 
 """
 from __future__ import annotations
 
-import io
 import json
 import os
 import platform
 import subprocess
-import tarfile
 import time
 from pathlib import Path
 
@@ -367,17 +365,6 @@ def info(core, api) -> dict:
 
 def api_config_dir() -> Path:
     return Path(os.environ.get("MYSERVICES_CONFIG", "/config/config.json")).parent
-
-
-def export_config() -> bytes:
-    """Archive tar.gz de /config (secrets compris), construite en mémoire."""
-    root = api_config_dir()
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
-        for f in sorted(root.rglob("*")):
-            if f.is_file() and not f.name.endswith((".tmp", ".lock")):
-                tar.add(f, arcname=f"config/{f.relative_to(root)}")
-    return buf.getvalue()
 
 
 def mail_settings(core) -> dict:
