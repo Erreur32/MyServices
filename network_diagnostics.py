@@ -110,7 +110,8 @@ def findings(devices: list[dict], clients: list[dict] | None = None, scan: list[
             if not isinstance(p, dict) or not p.get("up") or (mac, p.get("port_idx")) in links:
                 continue
             speed, mx = _num(p.get("speed")), port_max(p)
-            if not speed or not mx or speed >= mx:
+            plugged_machine = seen_mac.get((mac, p.get("port_idx"))) in cards   # a machine we follow (SSH, agent), not a connected object
+            if not speed or not mx or (speed >= mx and not (speed <= 100 and plugged_machine)):
                 continue
             peer = seen.get((mac, p.get("port_idx")))
             if speed <= 10:
@@ -163,6 +164,7 @@ def findings(devices: list[dict], clients: list[dict] | None = None, scan: list[
             add("warn" if wired else "info", "latency", {"name": x.get("ip"), "mac": x.get("mac")}, None, f"latency {ms:.0f} ms", ms, LATENCY_WIRED if wired else LATENCY_OTHER,
                 x.get("hostname") or names.get(x.get("ip")), code="latency_wired" if wired else "latency", value=round(ms))
     # --- the machines' own network cards -----------------------------------------------------------------------------------------------
+    slow_ports = {(str(f.get("mac") or "").lower(), f.get("port")) for f in out if f["kind"] == "speed"}   # ports already reported from the switch side
     plugged = {str(c.get("mac") or "").lower().replace("-", ":"): c for c in clients if c.get("wired") and c.get("switch_mac") and c.get("switch_port") is not None}
     for m in machines or []:
         for n in (m.get("nics") or []) if isinstance(m, dict) else []:
@@ -188,6 +190,8 @@ def findings(devices: list[dict], clients: list[dict] | None = None, scan: list[
                 add("warn", "nic", who, None, "network card negotiates below what it can do", speed, min(nmax, pmax) if pmax else nmax, where, code="nic_low", nic=n.get("name"))
             elif port and _num(port.get("speed")) and port.get("up") and _num(port.get("speed")) != speed and not nmax:
                 add("warn", "nic", who, None, "card and switch port do not report the same speed", speed, _num(port.get("speed")), where, code="nic_mismatch", port_speed=_num(port.get("speed")), nic=n.get("name"))
+            elif speed <= 100 and not (port and (str(c["switch_mac"]).lower(), c["switch_port"]) in slow_ports):   # rare on a machine (a connected object is another story)
+                add("warn", "nic", who, None, "network card at 100 Mb/s or less", speed, None, where, code="nic_slow", nic=n.get("name"))
     out.sort(key=lambda f: (SEVERITY[f["severity"]], str(f["device"]), f["port"] if isinstance(f["port"], int) else -1))
     return out
 

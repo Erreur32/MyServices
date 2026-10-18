@@ -54,6 +54,7 @@ const textOf = (f: Finding): string => {
     case "latency": return tx("latence de {0} ms", String(a.value));
     case "nic_half": return tx("la carte réseau est en half duplex : câble, port ou réglage à corriger");
     case "nic_forced": return tx("vitesse et duplex forcés sur la carte ({0}) : repasser en négociation automatique", String(a.setting));
+    case "nic_slow": return tx("la carte réseau de la machine tourne à {0} : rare pour une machine, câble, port ou carte à vérifier", link(f.speed));
     case "nic_low": return tx("la carte sait faire plus que ce qu'elle négocie : câble ou port à vérifier");
     case "nic_mismatch": return tx("la carte annonce {0} et le port du switch {1} : les deux ne s'accordent pas", link(f.speed), link(Number(a.port_speed)));
     default: return f.text;

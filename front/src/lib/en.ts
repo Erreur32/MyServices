@@ -2521,6 +2521,7 @@ export const EN: Record<string, string> = {
   "Carte réseau de la machine": "Machine network card",
   "la carte réseau est en half duplex : câble, port ou réglage à corriger": "the network card is in half duplex: cable, port or setting to fix",
   "vitesse et duplex forcés sur la carte ({0}) : repasser en négociation automatique": "speed and duplex forced on the card ({0}): switch back to automatic negotiation",
+  "la carte réseau de la machine tourne à {0} : rare pour une machine, câble, port ou carte à vérifier": "the machine's network card runs at {0}: rare for a machine, check the cable, the port or the card",
   "la carte sait faire plus que ce qu'elle négocie : câble ou port à vérifier": "the card can do more than it negotiates: check the cable or the port",
   "la carte annonce {0} et le port du switch {1} : les deux ne s'accordent pas": "the card says {0} and the switch port {1}: the two do not agree",
   "au maximum du port": "at the port maximum",

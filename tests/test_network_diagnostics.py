@@ -164,5 +164,15 @@ class AcceptedFindings(unittest.TestCase):
             self.assertEqual(nd.accepted_keys(Path(d) / "missing.json"), {})
 
 
+class SlowMachineCard(unittest.TestCase):
+    def test_100_mbps_card_without_known_maximum_is_reported(self):
+        got = nd.findings([], [], [], [{"name": "pc", "ip": "10.0.0.2", "nics": [{"name": "eth0", "mac": "aa:bb:cc:dd:ee:01", "speed": 100, "duplex": "full"}]}])
+        self.assertEqual([f["code"] for f in got if f["kind"] == "nic"], ["nic_slow"])
+
+    def test_gigabit_card_is_quiet(self):
+        got = nd.findings([], [], [], [{"name": "pc", "ip": "10.0.0.2", "nics": [{"name": "eth0", "mac": "aa:bb:cc:dd:ee:01", "speed": 1000, "duplex": "full"}]}])
+        self.assertEqual([f for f in got if f["kind"] == "nic"], [])
+
+
 if __name__ == "__main__":
     unittest.main()
