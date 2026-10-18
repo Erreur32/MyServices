@@ -10,7 +10,9 @@ Every finding has a `code` (what the page translates) and `args` (the figures in
 """
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 
 MEDIA_MAX = {"FE": 100, "GE": 1000, "2P5GE": 2500, "2.5GE": 2500, "5GE": 5000, "10GE": 10000, "SFP": 1000, "SFP+": 10000, "SFP28": 25000,
              "QSFP+": 40000, "QSFP28": 100000}
@@ -218,4 +220,41 @@ def ok_ports(devices: list[dict], clients: list[dict] | None, items: list[dict],
 
 
 def summary(items: list[dict]) -> dict:
-    return {s: sum(1 for f in items if f["severity"] == s) for s in SEVERITY}
+    return {s: sum(1 for f in items if f["severity"] == s and not f.get("accepted")) for s in SEVERITY}
+
+
+def finding_key(f: dict) -> str:
+    """Stable identity of a finding, to remember « this one is fine »: device MAC, check, port and network card."""
+    return "|".join([str(f.get("mac") or "").lower(), str(f.get("code") or ""), str(f.get("port") if f.get("port") is not None else ""), str((f.get("args") or {}).get("nic") or "")])
+
+
+def accepted_keys(path: str | Path) -> dict[str, str]:
+    """{key: label} of the findings the admin marked as normal (a missing or odd file is an empty list)."""
+    try:
+        got = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {str(k): str(v)[:200] for k, v in got.items()} if isinstance(got, dict) else {}
+
+
+def set_accepted(path: str | Path, key: str, label: str, on: bool) -> None:
+    """Mark (or unmark) a finding as normal; written whole then renamed."""
+    if not key or len(key) > 200:
+        raise ValueError("clé invalide")
+    f, cur = Path(path), accepted_keys(path)
+    if on:
+        cur[key] = label
+    else:
+        cur.pop(key, None)
+    f.parent.mkdir(parents=True, exist_ok=True)
+    tmp = f.with_name(f.name + ".tmp")
+    tmp.write_text(json.dumps(dict(list(cur.items())[-500:]), ensure_ascii=False), encoding="utf-8")
+    tmp.replace(f)
+
+
+def mark_accepted(items: list[dict], accepted: dict[str, str]) -> list[dict]:
+    """Add `key` and `accepted` to every finding."""
+    for f in items:
+        f["key"] = finding_key(f)
+        f["accepted"] = f["key"] in accepted
+    return items

@@ -1,9 +1,9 @@
 // Réseau, sous-page « Diagnostic » : problèmes possibles lus sur les équipements UniFi (via MynetworK). Surtout les ports qui ont négocié une
 // vitesse plus basse que leur maximum (câble, port, ou carte réseau de l'appareil branché) ; aussi équipement hors ligne, lien WAN coupé,
 // mise à jour en attente, équipement très chargé. Lecture seule, relue toutes les 30 s.
-import { CircleCheck, CircleHelp, OctagonAlert, TriangleAlert } from "lucide-react";
+import { Check, CircleCheck, CircleHelp, OctagonAlert, TriangleAlert, Undo2 } from "lucide-react";
 import { useCallback, useState } from "react";
-import { read } from "../api";
+import { read, send } from "../api";
 import { Badge, Dim, Empty, Th } from "../components/ui";
 import { useSort } from "../lib/filter";
 import { useStoredFlag } from "../lib/storedFlag";
@@ -12,12 +12,12 @@ import { usePoll } from "../lib/polling";
 
 type Severity = "bad" | "warn" | "info";
 interface Nic { machine: string | null; name: string | null; speed: number | null; max: number | null; duplex: "full" | "half" | null; setting: string | null }
-interface Finding { nic?: Nic | null; severity: Severity; kind: string; code: string; args: Record<string, string | number | null>; device: string; mac: string | null; port: number | null; speed: number | null; max: number | null; peer: string | null; text: string }
+interface Finding { key: string; accepted: boolean; nic?: Nic | null; severity: Severity; kind: string; code: string; args: Record<string, string | number | null>; device: string; mac: string | null; port: number | null; speed: number | null; max: number | null; peer: string | null; text: string }
 interface OkPort { nic?: Nic | null; device: string; mac: string | null; port: number | null; speed: number | null; max: number | null; peer: string | null; name: string | null }
 interface Doc { source: string | null; at: number; error: string; devices: number; summary: Record<Severity, number>; findings: Finding[]; ok_ports: OkPort[] }
 
 /** One line of the table: a finding, or (on request) a port that is up and fine */
-interface Row { nic: Nic | null; level: 0 | 1 | 2 | 3; severity: Severity | "ok"; kind: string; device: string; port: number | null; speed: number | null; max: number | null; peer: string | null; text: string; key: string }
+interface Row { nic: Nic | null; accept: { key: string; label: string; accepted: boolean } | null; level: 0 | 1 | 2 | 3; severity: Severity | "ok"; kind: string; device: string; port: number | null; speed: number | null; max: number | null; peer: string | null; text: string; key: string }
 const RANK: Record<Severity | "ok", 0 | 1 | 2 | 3> = { bad: 0, warn: 1, info: 2, ok: 3 };
 
 const KIND: Record<string, string> = { speed: tx("Vitesse du port"), link: tx("Liaison entre équipements"), offline: tx("Équipement hors ligne"), wan: tx("Lien WAN"), firmware: tx("Mise à jour"), load: tx("Charge"),
@@ -74,13 +74,16 @@ function NicCell({ nic, portSpeed }: Readonly<{ nic: Nic | null; portSpeed: numb
   );
 }
 
-export function NetworkDiagnostic() {
+export function NetworkDiagnostic({ admin }: Readonly<{ admin: boolean }>) {
   const [doc, setDoc] = useState<Doc | null>(null), [failed, setFailed] = useState(false), [showOk, setShowOk] = useStoredFlag("myservices.network.diagShowOk", false);
+  const [showAccepted, setShowAccepted] = useStoredFlag("myservices.network.diagShowAccepted", false);
   const load = useCallback(() => { read<Doc>("network/diagnostics").then((d) => { setDoc(d); setFailed(false); }).catch(() => setFailed(true)); }, []);
   usePoll(load, 30_000);
+  const accept = (k: string, label: string, on: boolean) => void send("POST", "network/diagnostics/accepted", { key: k, label, accepted: on }).then(load).catch(() => setFailed(true));
+  const nAccepted = (doc?.findings ?? []).filter((f) => f.accepted).length;
   const rows: Row[] = [
-    ...(doc?.findings ?? []).map((f, i): Row => ({ nic: f.nic ?? null, level: RANK[f.severity], severity: f.severity, kind: f.kind, device: f.device, port: f.port, speed: f.speed, max: f.max, peer: f.peer, text: textOf(f), key: `${f.mac}/${f.kind}/${f.port}/${i}` })),
-    ...(showOk ? (doc?.ok_ports ?? []).map((p): Row => ({ nic: p.nic ?? null, level: 3, severity: "ok", kind: "speed", device: p.device, port: p.port, speed: p.speed, max: p.max, peer: p.peer,
+    ...(doc?.findings ?? []).filter((f) => showAccepted || !f.accepted).map((f, i): Row => ({ accept: { key: f.key, label: `${f.device} ${f.port ?? ""} ${KIND[f.kind] ?? f.kind}`.trim(), accepted: f.accepted }, nic: f.nic ?? null, level: RANK[f.severity], severity: f.severity, kind: f.kind, device: f.device, port: f.port, speed: f.speed, max: f.max, peer: f.peer, text: textOf(f), key: `${f.mac}/${f.kind}/${f.port}/${i}` })),
+    ...(showOk ? (doc?.ok_ports ?? []).map((p): Row => ({ accept: null, nic: p.nic ?? null, level: 3, severity: "ok", kind: "speed", device: p.device, port: p.port, speed: p.speed, max: p.max, peer: p.peer,
       text: p.max && p.speed && p.speed >= p.max ? tx("au maximum du port") : tx("liaison active"), key: `ok/${p.mac}/${p.port}` })) : []),
   ];
   const keyOf = useCallback((r: Row, k: string): string | number => {
@@ -108,8 +111,13 @@ export function NetworkDiagnostic() {
         {s.bad > 0 && <Badge tone="bad">{s.bad} {tx("à corriger")}</Badge>}
         {s.warn > 0 && <Badge tone="warn">{s.warn} {tx("à vérifier")}</Badge>}
         {s.info > 0 && <Badge tone="off">{s.info} {tx("pour info")}</Badge>}
-        {nOk > 0 && (
+        {nAccepted > 0 && (
           <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm text-muted">
+            <input type="checkbox" checked={showAccepted} onChange={(e) => setShowAccepted(e.target.checked)} />{tx("Afficher les constats acceptés")} <Dim>({nAccepted})</Dim>
+          </label>
+        )}
+        {nOk > 0 && (
+          <label className={`${nAccepted > 0 ? "" : "ml-auto "}flex cursor-pointer items-center gap-2 text-sm text-muted`}>
             <input type="checkbox" checked={showOk} onChange={(e) => setShowOk(e.target.checked)} />{tx("Afficher les ports OK")} <Dim>({nOk})</Dim>
           </label>
         )}
@@ -122,7 +130,7 @@ export function NetworkDiagnostic() {
             <thead>
               <tr>
                 <Th k="level" sort={sort} className="!px-4">{tx("Niveau")}</Th><Th k="kind" sort={sort}>{tx("Contrôle")}</Th><Th k="device" sort={sort}>{tx("Équipement")}</Th>
-                <Th k="port" sort={sort}>{tx("Port")}</Th><Th k="speed" sort={sort}>{tx("Côté switch : négocié / maximum")}</Th><Th k="peer" sort={sort}>{tx("Branché")}</Th><Th k="nic" sort={sort}>{tx("Côté machine : carte réseau")}</Th><Th k="text" sort={sort} className="!px-4">{tx("Constat")}</Th>
+                <Th k="port" sort={sort}>{tx("Port")}</Th><Th k="speed" sort={sort}>{tx("Côté switch : négocié / maximum")}</Th><Th k="peer" sort={sort}>{tx("Branché")}</Th><Th k="nic" sort={sort}>{tx("Côté machine : carte réseau")}</Th><Th k="text" sort={sort} className="!px-4">{tx("Constat")}</Th>{admin && <Th title={tx("Action")}><span className="sr-only">{tx("Action")}</span></Th>}
               </tr>
             </thead>
             <tbody className="[&>tr:nth-child(even)]:bg-bg/50 [&>tr]:border-b [&>tr]:border-line/60">
@@ -138,6 +146,13 @@ export function NetworkDiagnostic() {
                     <td className="px-3 py-2 align-top">{r.peer ?? <Dim>-</Dim>}</td>
                     <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums">{r.kind === "speed" || r.kind === "link" ? <NicCell nic={r.nic} portSpeed={r.speed} /> : <Dim>-</Dim>}</td>
                     <td className={`px-4 py-2 align-top ${r.severity === "ok" ? "text-dim" : "text-muted"}`}>{r.text}</td>
+                    {admin && (
+                      <td className="whitespace-nowrap px-3 py-2 align-top">
+                        {r.accept && (r.accept.accepted
+                          ? <button type="button" className="text-dim hover:text-ink" title={tx("Signaler de nouveau ce constat")} aria-label={tx("Signaler de nouveau ce constat")} onClick={() => accept(r.accept!.key, r.accept!.label, false)}><Undo2 size={15} aria-hidden /></button>
+                          : <button type="button" className="text-dim hover:text-ok" title={tx("C'est normal : ne plus signaler ce constat")} aria-label={tx("C'est normal : ne plus signaler ce constat")} onClick={() => accept(r.accept!.key, r.accept!.label, true)}><Check size={15} aria-hidden /></button>)}
+                      </td>
+                    )}
                   </tr>
                 );
               })}

@@ -826,9 +826,32 @@ def network_diagnostics_route():
     scan = [{**d, **{k: live[d["ip"]][k] for k in ("status", "ping_ms") if k in live.get(d["ip"], {})}} for row in data.get("network") or [] for d in row.get("devices") or [] if d.get("ip")]
     machines = [{"name": m.get("name"), "ip": m.get("ip"), "nics": ((m.get("info") or {}).get("nics")) or (((m.get("agent") or {}).get("hardware") or {}).get("nics")) or []}
                 for m in data.get("machine_list") or [] if not m.get("disabled")]
-    items = nd.findings(doc["devices"], clients, scan, machines)
+    items = nd.mark_accepted(nd.findings(doc["devices"], clients, scan, machines), nd.accepted_keys(_diag_accepted_file()))
     return {"source": doc["source"], "at": doc["at"], "error": doc["error"], "devices": len(doc["devices"]), "summary": nd.summary(items), "findings": items,
             "ok_ports": nd.ok_ports(doc["devices"], clients, items, machines)}
+
+
+def _diag_accepted_file() -> Path:
+    return Path(core.CFG["state_dir"]) / "diagnostic-accepted.json"
+
+
+class DiagAccept(BaseModel):
+    key: str
+    label: str = ""
+    accepted: bool = True
+
+
+@app.post(API + "/network/diagnostics/accepted", tags=["réseau"], summary="Marquer un constat du diagnostic comme normal, ou le rappeler (admin)")
+def network_diagnostics_accept(body: DiagAccept, request: Request):
+    import network_diagnostics as nd
+    if denied := admin_only(request):
+        return denied
+    try:
+        nd.set_accepted(_diag_accepted_file(), body.key, body.label, body.accepted)
+    except ValueError as e:
+        return deny(400, str(e))
+    store().audit("diagnostic : constat accepté" if body.accepted else "diagnostic : constat rappelé", request.state.user["username"], ip_of(request), body.label or body.key)
+    return {"ok": True}
 
 
 class LiveChecks(BaseModel):

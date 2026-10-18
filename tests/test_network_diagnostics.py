@@ -149,5 +149,20 @@ class Cards(unittest.TestCase):
         self.assertEqual([f for f in self.run_nic({"speed": None, "duplex": "half"}) if f["kind"] == "nic"], [])
 
 
+class AcceptedFindings(unittest.TestCase):
+    def test_remembered_and_out_of_the_summary(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "accepted.json"
+            items = [{"severity": "warn", "code": "speed_100", "mac": "AA:BB", "port": 3, "args": {}}, {"severity": "warn", "code": "speed_100", "mac": "AA:BB", "port": 4, "args": {}}]
+            nd.set_accepted(f, nd.finding_key(items[0]), "hub", True)
+            marked = nd.mark_accepted(items, nd.accepted_keys(f))
+            self.assertEqual([i["accepted"] for i in marked], [True, False])
+            self.assertEqual(nd.summary(marked)["warn"], 1)
+            nd.set_accepted(f, nd.finding_key(items[0]), "", False)
+            self.assertEqual(nd.accepted_keys(f), {})
+            self.assertEqual(nd.accepted_keys(Path(d) / "missing.json"), {})
+
+
 if __name__ == "__main__":
     unittest.main()

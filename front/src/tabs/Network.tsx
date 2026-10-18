@@ -217,7 +217,7 @@ export function Network({ snap, onMachine, initialSub }: { snap: Snapshot; onMac
         </>
       )}
 
-      {sub === "diagnostic" && <NetworkDiagnostic />}
+      {sub === "diagnostic" && <NetworkDiagnostic admin={snap.me.role === "admin"} />}
 
       {sub === "list" && (
         <>
