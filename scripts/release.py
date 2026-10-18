@@ -10,7 +10,7 @@ Ce qui est mis à jour :
   front/package.json et front/package-lock.json   « version »
   README.md, README.fr.md                          étiquette d'image figée (`:0.9.4`) et exemple « (`0.9.4`, `0.9.5`…) »
   CHANGELOG.md                                     « ## Unreleased … » devient « ## v0.9.4 (date) », une section « Unreleased » vide est rouverte
-  RELEASE-NOTES.md                                 titre, ligne de version (date en français) et étiquette d'image ; le TEXTE reste à écrire
+  RELEASE-NOTES.md                                 titre, ligne de version (date in English) et étiquette d'image ; le TEXTE reste à écrire
 Le badge de version du README (shields.io « github/v/release ») se met à jour tout seul avec la release GitHub.
 Le script ne committe, ne tague et ne pousse rien : il affiche les commandes à lancer ensuite.
 """
@@ -25,7 +25,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
-MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"]
+MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
 
 class ReleaseError(Exception):
@@ -37,8 +37,8 @@ def bump(version: str, kind: str) -> str:
     return {"patch": f"{major}.{minor}.{patch + 1}", "minor": f"{major}.{minor + 1}.0", "major": f"{major + 1}.0.0"}[kind]
 
 
-def french_date(d: dt.date) -> str:
-    return f"{d.day}{'er' if d.day == 1 else ''} {MONTHS[d.month - 1]} {d.year}"
+def english_date(d: dt.date) -> str:
+    return f"{d.day} {MONTHS[d.month - 1]} {d.year}"
 
 
 def read(root: Path, rel: str) -> str:
@@ -69,7 +69,7 @@ def seen(root: Path = ROOT) -> dict[str, str | None]:
         out[rel] = m.group(1) if m else None
     m = re.search(r"^## v(\d+\.\d+\.\d+) \(", read(root, "CHANGELOG.md"), re.M)
     out["CHANGELOG.md (dernière version publiée)"] = m.group(1) if m else None
-    m = re.search(r"^# Notes de version : MyServices (\d+\.\d+\.\d+)", read(root, "RELEASE-NOTES.md"), re.M)
+    m = re.search(r"^# Release notes: MyServices (\d+\.\d+\.\d+)", read(root, "RELEASE-NOTES.md"), re.M)
     out["RELEASE-NOTES.md"] = m.group(1) if m else None
     return out
 
@@ -118,8 +118,8 @@ def apply(root: Path, new: str, date: dt.date) -> dict[str, str]:
     files["CHANGELOG.md"] = ch.replace(f"## v{new} ({date.isoformat()})\n", head + f"## v{new} ({date.isoformat()})\n", 1)
 
     rn = read(root, "RELEASE-NOTES.md")
-    rn = sub("RELEASE-NOTES.md", rn, r"^(# Notes de version : MyServices )\d+\.\d+\.\d+", rf"\g<1>{new}", "titre", re.M)
-    rn = sub("RELEASE-NOTES.md", rn, r"\*\*\d+\.\d+\.\d+\*\* \([^)]*\)", f"**{new}** ({french_date(date)})", "ligne de version", re.M)
+    rn = sub("RELEASE-NOTES.md", rn, r"^(# Release notes: MyServices )\d+\.\d+\.\d+", rf"\g<1>{new}", "titre", re.M)
+    rn = sub("RELEASE-NOTES.md", rn, r"\*\*\d+\.\d+\.\d+\*\* \([^)]*\)", f"**{new}** ({english_date(date)})", "ligne de version", re.M)
     rn = sub("RELEASE-NOTES.md", rn, r"(myservices:)\d+\.\d+\.\d+", rf"\g<1>{new}", "étiquette d'image", re.M)
     files["RELEASE-NOTES.md"] = rn
     return files
@@ -156,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
             tmp.replace(ROOT / rel)
     print(f"{'(essai, rien écrit) ' if args.dry_run else ''}{old} -> {new}")
     if not args.dry_run:
-        print("À faire à la main : réécrire RELEASE-NOTES.md (le texte), puis, quand vous le décidez :\n"
+        print("À faire à la main : rewrite RELEASE-NOTES.md (the text, in English), puis, quand vous le décidez :\n"
               f"  git add -A && git commit -m \"Version {new}\"\n  git tag v{new}\n  git push github docker --tags   (seulement sur demande)")
     return 0
 

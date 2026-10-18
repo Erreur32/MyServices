@@ -1,13 +1,17 @@
 # Changelog
 
 All notable changes to MyServices v2 (Docker). One section per published version, newest first. **This file is always written in
-English.** For the latest update explained in plain words (in French), see [RELEASE-NOTES.md](RELEASE-NOTES.md).
+English.** For the latest update explained in plain words, see [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 Versioning: the first pre-releases were called `2.0.0-alpha.N`, `-beta.N` and `-rc.N`. Since the project is still in BETA,
 numbering restarts **below 2.0.0** with **0.9.0** (2.0.0 is reserved for a version judged stable). The `:latest` image tag follows the
 latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ## Unreleased (next version, not tagged yet)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+## v0.14.0 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
@@ -29,6 +33,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   an access point linked by radio, weak Wi-Fi signals, an address seen with two MAC addresses, high latencies. The machines' own network cards are checked
   too (half duplex, forced speed, card negotiating below what it can do or differently from its switch port): read over SSH (sysfs, `ethtool` when
   installed) and by the Windows agent (`Get-NetAdapter`, read-only).
+- Diagnostic: an admin can mark a finding as normal (check mark on its row); it is remembered server side (`diagnostic-accepted.json` in the state
+  folder), leaves the counters, and can be shown again from "Show the accepted findings". A followed machine whose card, or whose switch port, runs at
+  100 Mb/s or less is reported even when its maximum is unknown (connected objects are left alone).
+- Settings: Discovery is first in the Monitoring group and Notifications last. `scripts/release.py` now writes the release notes' title and date in English.
 - An address-sheet and Beszel-status overlay on the Machines tab, and the pulse follow-ups of 0.13.0.
 
 ### Fixed
