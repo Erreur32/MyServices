@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -347,10 +348,48 @@ def remote_collect(h: dict, locs: list[tuple[str, dict]]) -> tuple[dict | None, 
     return out, ""
 
 
+# ───────────── Accès SSH d'une machine déclarée ─────────────
+
+def ssh_aliases() -> set[str]:
+    """Names defined by the « Host » lines of the SSH config of the app (no pattern)."""
+    try:
+        text = (Path.home() / ".ssh" / "config").read_text(encoding="utf-8")
+    except OSError:
+        return set()
+    names: set[str] = set()
+    for ln in text.splitlines():
+        m = re.match(r"\s*Host\s+(.+)", ln, re.I)
+        if m:
+            names.update(x for x in m[1].split() if not set(x) & set("*?!"))
+    return names
+
+
+def machine_aliases() -> dict[str, str]:
+    """{ip: SSH alias} of the machines the app follows (services-meta), the ones with an access."""
+    try:
+        machines = json.loads(Path(CFG["meta"]).read_text(encoding="utf-8")).get("machines", {})
+    except (OSError, ValueError, KeyError):
+        return {}
+    return {ip: m["ssh"] for ip, m in machines.items() if m.get("ssh") and not m.get("disabled")}
+
+
+def resolve_ssh(hosts: list[dict], by_ip: dict[str, str], known: set[str], docker: bool) -> list[dict]:
+    """The access of each declared machine, found again from its address when the declared one cannot work here: an alias the SSH config of this
+    installation does not define (a declaration brought from another install), or « local » in a container (the collector is not that machine).
+    A machine without an address, an API or a mount is left as declared."""
+    out = []
+    for h in hosts:
+        found = by_ip.get(h.get("ip") or "")
+        declared = h.get("ssh")
+        unusable = (declared in (None, "local") and docker) or (declared not in (None, "local") and declared not in known)
+        out.append({**h, "ssh": found} if found and unusable and not h.get("api") and not h.get("mount") else h)
+    return out
+
+
 # ───────────── Collecte ─────────────
 
 def collect(meta: dict) -> tuple[dict, dict]:
-    hosts = {h["id"]: h for h in meta["hosts"]}
+    hosts = {h["id"]: h for h in resolve_ssh(meta["hosts"], machine_aliases(), ssh_aliases(), os.environ.get("MYSERVICES_DOCKER") == "1")}
     # Machine « mount » (NAS monté sur la collectrice) : disque du point de montage seulement, ni cron ni discover
     reqs: dict[str, dict] = {hid: {"locs": {}, "disks": True, "crons": not h.get("mount"), "mount": h.get("mount"),
                                    "discover": [] if h.get("mount") else meta.get("discover", []),
