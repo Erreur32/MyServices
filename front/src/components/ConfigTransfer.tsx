@@ -1,8 +1,8 @@
 // Settings -> Backup and info: export the configuration (all of it or some parts) and import an archive (preview first, then the parts you pick).
-import { Download, FileUp, KeyRound, ShieldAlert, Upload } from "lucide-react";
+import { Download, FileUp, KeyRound, ShieldAlert, Upload, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { download, read, send } from "../api";
-import { act, input, primary, type Note } from "../lib/forms";
+import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { bytes, dateTime } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { Field, NoteLine } from "./form";
@@ -168,6 +168,7 @@ function ImportCard() {
             </Field>
             {risky && <label className="flex items-center gap-2 pb-2 text-sm text-muted"><input type="checkbox" checked={sure} onChange={(e) => setSure(e.target.checked)} />{tx("Je sais que les fichiers existants seront remplacés")}</label>}
             <button type="submit" className={primary} disabled={busy || picked.length === 0 || Boolean(warning) || (Boolean(risky) && !sure)}><Upload size={14} aria-hidden />{tx("Importer la sélection")}</button>
+            <button type="button" className={quiet} disabled={busy} onClick={() => { reset(); setNote(null); }}><X size={14} aria-hidden />{tx("Annuler")}</button>
           </form>
         </div>
       )}
