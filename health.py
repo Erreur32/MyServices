@@ -477,25 +477,30 @@ def _rocm_field(card: dict, *words: str):
     return next((v for k, v in card.items() if all(w in k.lower() for w in words)), None)
 
 
-def parse_gpu(out: str) -> dict:
-    """{available, gpus:[{name, util %, temp °C, mem_used MB, mem_total MB, power W}]} from nvidia-smi (csv) and rocm-smi (json); nothing found -> available False."""
-    nv, _, amd = out.partition("---")
+def _nvidia_gpus(text: str) -> list[dict]:
     gpus = []
-    for ln in filter(None, (x.strip() for x in nv.splitlines())):
+    for ln in filter(None, (x.strip() for x in text.splitlines())):
         f = [x.strip() for x in ln.split(",")]
         if len(f) >= 6 and f[0]:
             gpus.append({"name": f[0][:80], "util": _num(f[1]), "temp": _num(f[2]), "mem_used": _num(f[3]), "mem_total": _num(f[4]), "power": _num(f[5])})
+    return gpus
+
+
+def _rocm_gpu(card: dict) -> dict:
+    used, total = _num(_rocm_field(card, "vram", "used")), _num(_rocm_field(card, "vram", "total", "memory"))
+    return {"name": str(_rocm_field(card, "series") or _rocm_field(card, "card", "model") or "AMD GPU")[:80], "util": _num(_rocm_field(card, "gpu use")),
+            "temp": _num(_rocm_field(card, "temperature", "edge")), "power": None,
+            "mem_used": round(used / 1048576) if used is not None else None, "mem_total": round(total / 1048576) if total is not None else None}
+
+
+def parse_gpu(out: str) -> dict:
+    """{available, gpus:[{name, util %, temp °C, mem_used MB, mem_total MB, power W}]} from nvidia-smi (csv) and rocm-smi (json); nothing found -> available False."""
+    nv, _, amd = out.partition("---")
     try:
         cards = json.loads(amd) if amd.strip() else {}
     except ValueError:
         cards = {}
-    for key, card in (cards.items() if isinstance(cards, dict) else []):
-        if not (key.startswith("card") and isinstance(card, dict)):
-            continue
-        used, total = _num(_rocm_field(card, "vram", "used")), _num(_rocm_field(card, "vram", "total", "memory"))
-        name = str(_rocm_field(card, "series") or _rocm_field(card, "card", "model") or "AMD GPU")[:80]
-        gpus.append({"name": name, "util": _num(_rocm_field(card, "gpu use")), "temp": _num(_rocm_field(card, "temperature", "edge")),
-                     "mem_used": round(used / 1048576) if used is not None else None, "mem_total": round(total / 1048576) if total is not None else None, "power": None})
+    gpus = _nvidia_gpus(nv) + [_rocm_gpu(c) for k, c in (cards.items() if isinstance(cards, dict) else []) if k.startswith("card") and isinstance(c, dict)]
     return {"available": bool(gpus), "gpus": gpus}
 
 

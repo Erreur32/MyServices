@@ -238,7 +238,7 @@ export function SwitchPanel({ ip, name, port }: Readonly<{ ip?: string | null; n
   }, []);
   const raw = doc?.devices ?? NO_DEVICES;
   const { hass } = useMemo(() => createMynetworkHass(raw, pageLang()), [raw]);
-  const found = raw.find((d) => (ip && String(d.ip ?? "") === ip) || (name && String(d.name ?? "") === name));
+  const found = raw.find((d) => (ip && d.ip === ip) || (name && d.name === name));
   if (!cardReady || !found) return null;
   return <div className="mt-1 max-w-full overflow-x-auto"><DeviceCard deviceId={mnDeviceId(found as { mac?: string })} hass={hass} showPanel={false} markPort={port} /></div>;
 }
