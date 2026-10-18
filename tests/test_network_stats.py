@@ -38,6 +38,7 @@ class Fake:
 
     def top_traffic(self, mode="live", limit=10):
         self.traffic_modes.append(mode)
+        self.limit = limit
         return self.traffic
 
 
@@ -66,8 +67,9 @@ class Stats(unittest.TestCase):
         self.assertIsNone(run(Fake(), 100.0)["traffic"])
         ns.reset()
         raw = [{"hostname": "tv", "ip": "10.0.0.7", "vendor": "Samsung", "rxBytes": 100, "txBytes": 20}, {"name": "pc", "total_bytes": 5000}, {"mac": "aa:bb"}]
-        t = run(Fake(traffic=raw), 100.0, "today")["traffic"]
-        self.assertEqual(t["mode"], "today")
+        f = Fake(traffic=raw)
+        t = run(f, 100.0, "today")["traffic"]
+        self.assertEqual((t["mode"], f.limit), ("today", 50))                                     # the best fifty are asked: the page shows ten, a window all
         self.assertEqual([(i["name"], i["total"], i["unit"]) for i in t["items"]], [("pc", 5000, "volume"), ("tv", 120, "volume"), ("aa:bb", None, "volume")])
         self.assertEqual(t["items"][1]["vendor"], "Samsung")
 

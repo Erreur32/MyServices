@@ -195,6 +195,8 @@ export function Network({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: s
         <Tile icon={Monitor} value={devAll.length ? `${devAll.filter((r) => r.up).length}/${devAll.length}` : "-"} label={unfollowed ? tx("appareils en ligne, {0} pas suivis", unfollowed) : tx("appareils en ligne")} tone={unfollowed ? "warn" : "off"} />
       </div>
 
+      {rows.length > 0 && <FilterBar f={f} placeholder={tx("Nom, IP, MAC, fabricant, borne…")} primary={["kind", "state"]} oneLine />}   {/* right under the stats, with its main filters shown */}
+
       <NetworkScanStats />
 
       <UnifiCards />
@@ -225,7 +227,6 @@ export function Network({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: s
         </FoldSection>
       )}
 
-      {rows.length > 0 && <div className="-my-4"><FilterBar f={f} placeholder={tx("Nom, IP, MAC, fabricant, borne…")} /></div>}
       {f.shown.length === 0 && rows.length > 0 && <Empty>{tx("Rien pour ce filtre.")}</Empty>}
 
       {gearSort.sorted.length > 0 && (

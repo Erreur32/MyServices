@@ -16,6 +16,7 @@ from connectors.mynetwork import TRAFFIC_MODES
 TTL = 30   # s, the scan figures
 TRAFFIC_TTL = {"live": 8, "today": 60, "alltime": 300}   # s, per mode: the live volume follows the traffic, the totals hardly move
 LIST_MAX = 10
+TRAFFIC_MAX = 50   # the route's own ceiling: the page shows the first ten and all of them in a window
 _lock = threading.Lock()
 _cache: dict = {}
 
@@ -91,11 +92,11 @@ def read(cfg: dict, traffic: str = "live", now: float | None = None) -> dict:
             items = None
             for c in _instances(cfg) if hit["scan"] else []:
                 try:
-                    got = c.top_traffic(mode)
+                    got = c.top_traffic(mode, TRAFFIC_MAX)
                 except ConnectorError as e:
                     err = str(e)
                     continue
-                items = None if got is None else traffic_items(got)[:LIST_MAX]
+                items = None if got is None else traffic_items(got)[:TRAFFIC_MAX]
                 break
             tr = _cache[("traffic", mode)] = {"at": now, "items": items}
         return {"scan": hit["scan"], "traffic": None if tr["items"] is None else {"mode": mode, "items": tr["items"]}, "at": max(hit["at"], tr["at"]),
