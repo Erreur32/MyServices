@@ -36,14 +36,39 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - README (EN, FR): how to follow the backups of a box or NAS, either through a share mounted on the host and read **read-only** by the container
   (one compose volume line, `compose.yaml` shows it commented) or with an account typed in the page (FTP, FTPS, Samba).
 
+- **Live checks**: a pulse pings every followed machine every 30 s (2 in a row to confirm, so one lost packet is not an outage) and writes
+  `pulse.json`; the page reads it every 15 s and the watcher takes the machine up / down events from it, started at once (they used to wait for
+  the next collection, 35 to 65 minutes). The health of a machine that moved is read again alone, and so is the health of a machine that
+  answers the ping while its health says "unreachable". A **fast connector tier** reads MynetworK (devices, ports, date of their last scan; the
+  address sheet when MynetworK 0.10.74+ allows it), Proxmox by API and the Beszel status every 5 minutes into `live.json`. Settings -> Tasks
+  and schedules has a "Live checks" row (pulse period, pulses to confirm, fast connectors period; 0 turns a tier off). The watcher runs right
+  after each collection and never counts the same collection twice.
+- Proxmox: a strip under each node with the load, I/O wait, swap, system disk, kernel, CPU model and guests allocation; the CPU temperature
+  and the fans when `lm-sensors` answers on the host (SSH only). The same figures without temperature for hosts read with an API token. The
+  Proxmox version is in the machine window. The Virtualisation tab has a "Hide stopped" toggle and greys the stopped guests.
+- Machine window, from MynetworK's address sheet: where UniFi sees the address plugged (switch and port, or Wi-Fi access point), its name in
+  UniFi, the Freebox lease and port redirections; the UniFi clients list keeps the switch name and IP. Our own agent is listed as a source of
+  the machine it reports for.
+
 ### Changed
 
 - Backups: the observed rhythm of a folder is read on its 8 most recent runs and the last 120 days only (a forgotten old file no longer stretches
   it to months); the settings page also advises to tighten a threshold that is much looser than the rhythm.
 - DNS: the AdGuard sync state is judged at the time of the collection, not against the clock of the browser (it showed "sync late" a few minutes
   after each collection although the sync ran every 5 minutes).
+- Services tab: the columns are "Domain" and "Service" (they were swapped in meaning), the service logos are bigger, the rows are striped and
+  lower, and the machine groups are open when you arrive with a filter. Machines, Services and Backups tables are striped; the local backup
+  folders frame is a foldable table (folded at start); the search and filters of Backups sit in the stats frame on one line (they fold behind
+  the Filters button beyond 10 chips or when too wide), and the History hide toggles are on the search line.
 - The settings icon is now a set of sliders everywhere; the "to watch" level badge is outline only; tooltips have a dark heading strip like the card
   headers; the Infra, Network and Security tabs are shown only on development builds until they are finished.
+
+### Fixed
+
+- MynetworK: the open ports were all dropped (the scanner now sends them as `{port, protocol}`); they are read again, with the date of their
+  last scan.
+- A machine marked "often off" that Beszel sees up is read from Beszel, and a machine no longer read loses its stale "unreachable" health row;
+  the Beszel badge follows its current status instead of the one of the last full collection.
 
 ## v0.12.0 (2026-10-17)
 
