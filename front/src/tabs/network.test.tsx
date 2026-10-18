@@ -29,7 +29,7 @@ afterEach(() => stored.clear());
 
 describe("onglet Réseau", () => {
   it("par défaut tout est plié sauf l'accès Internet et les passerelles ; le menu reste là", () => {
-    const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} />);
+    const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} initialSub="list" />);
     expect(html).toContain("Freebox (via MynetworK)");              // the open section
     expect(html).not.toContain('<b class="text-txt">UCG</b>');       // the equipment table is folded
     expect(html).not.toContain("LG");                               // so is the device list
@@ -39,17 +39,23 @@ describe("onglet Réseau", () => {
   });
   it("si la personne a tout déplié, tout s'affiche", () => {
     stored.set("ms.network.folded", "[]");
-    expect(renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} />)).toContain("LG");
+    expect(renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} initialSub="list" />)).toContain("LG");
   });
   it("tiles, Internet card, equipment merged by MAC, clients by uplink, devices", () => {
     stored.set("ms.network.folded", "[]");   // everything unfolded to read it all
     expect(hasNetwork(snap)).toBe(true);
-    const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} />);
+    const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} initialSub="list" />);
     for (const t of ["Freebox (via MynetworK)", "UniFi Network", "Passerelle", "1/2 en ligne", "« Borne salon » hors ligne", "« UCG » : mise à jour disponible", "UDMA6A8", "Borne salon", "port 5", "Maison · -60 dBm", "LG", "Monitor", "1/2"]) expect(html, t).toContain(t);
     expect(html.match(/<b class="text-txt">UCG<\/b>/g)?.length).toBe(1);   // MynetworK and the UniFi connector: one row
     expect(html.indexOf("Freebox (via MynetworK)")).toBeLessThan(html.indexOf("UniFi Network"));   // side by side at the top, Freebox first
   });
   it("hidden without any network source", () => {
     expect(hasNetwork({ data: { network: [], services_status: [] } } as unknown as Snapshot)).toBe(false);
+  });
+  it("la vue d'ensemble est la page d'arrivée : les compteurs et le sous-menu, pas la liste", () => {
+    const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} />);
+    expect(html).toContain("Vue d");                       // the sub-menu
+    expect(html).toContain("Équipements et appareils");
+    expect(html).not.toContain("Clients par borne ou switch");   // that list lives in the other sub-page
   });
 });

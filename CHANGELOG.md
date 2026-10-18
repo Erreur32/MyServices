@@ -13,7 +13,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 
-- Network tab (development builds): **UniFi front-panel cards** for switches, gateways and access points (ports, link speed, PoE, live traffic LEDs, uplink
+- **Network tab is public** (it was shown on development builds only), with a sub-menu: an overview (stats, network scan, UniFi cards) and the list of
+  equipment, clients and devices with its search bar and filters.
+- Network tab: **UniFi front-panel cards** for switches, gateways and access points (ports, link speed, PoE, live traffic LEDs, uplink
   selector, hardware view), built on the MIT-licensed [unifi-device-card](https://github.com/bluenazgul/unifi-device-card) through MynetworK's
   `/api/plugins/unifi/card-devices` (MynetworK 0.11.1+). The cards can be reordered by drag and drop and resized with the mouse (width, height, both);
   the layout is kept in the browser. The frame can be folded, and a sample preview shows the cards when no source answers.

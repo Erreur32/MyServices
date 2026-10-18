@@ -2479,4 +2479,7 @@ export const EN: Record<string, string> = {
   "Volume par client": "Volume per client",
   "Heure de notre lecture de l'inventaire de MynetworK (il ne donne pas celle de la mesure)": "Time we read MynetworK's inventory (it does not give the time of the measure)",
   "Volume de données par client": "Data volume per client",
+  "Sous-menu du réseau": "Network sub-menu",
+  "Vue d'ensemble": "Overview",
+  "Équipements et appareils": "Equipment and devices",
 };
