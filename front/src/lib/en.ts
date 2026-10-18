@@ -2524,4 +2524,7 @@ export const EN: Record<string, string> = {
   "vitesse et duplex forcés sur la carte ({0}) : repasser en négociation automatique": "speed and duplex forced on the card ({0}): switch back to automatic negotiation",
   "la carte sait faire plus que ce qu'elle négocie : câble ou port à vérifier": "the card can do more than it negotiates: check the cable or the port",
   "la carte annonce {0} et le port du switch {1} : les deux ne s'accordent pas": "the card says {0} and the switch port {1}: the two do not agree",
+  "au maximum du port": "at the port maximum",
+  "liaison active": "link up",
+  "Afficher les ports OK": "Show the OK ports",
 };

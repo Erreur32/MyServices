@@ -94,6 +94,20 @@ class More(unittest.TestCase):
         self.assertEqual(self.codes([], clients, scan), sorted([("latency_wired", "warn"), ("latency", "info")]))
 
 
+class OkPorts(unittest.TestCase):
+    def test_up_ports_without_finding_are_listed_with_what_is_plugged(self):
+        items = nd.findings([GATEWAY, SWITCH], CLIENTS)
+        ok = nd.ok_ports([GATEWAY, SWITCH], CLIENTS, items)
+        keys = {(r["device"], r["port"]) for r in ok}
+        self.assertIn(("Gateway", 7), keys)                               # up, at its maximum
+        self.assertIn(("Switch", 2), keys)
+        self.assertNotIn(("Gateway", 3), keys)                            # down
+        self.assertNotIn(("Gateway", 2), keys)                            # has a finding
+        self.assertNotIn(("Switch", 1), keys)
+        self.assertEqual(next(r for r in ok if r["device"] == "Gateway" and r["port"] == 7)["peer"], None)
+        self.assertEqual(next(r for r in ok if r["device"] == "Switch" and r["port"] == 10)["peer"], "Gateway")     # the uplink names its other end
+
+
 class Cards(unittest.TestCase):
     CLIENT = {"wired": True, "mac": "04:42:1a:e9:4e:a5", "switch_mac": SW, "switch_port": 3, "name": "pc", "switch_name": "Switch"}
 

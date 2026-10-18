@@ -4,13 +4,20 @@
 import { CircleCheck, CircleHelp, OctagonAlert, TriangleAlert } from "lucide-react";
 import { useCallback, useState } from "react";
 import { read } from "../api";
-import { Badge, Dim, Empty } from "../components/ui";
+import { Badge, Dim, Empty, Th } from "../components/ui";
+import { useSort } from "../lib/filter";
+import { useStoredFlag } from "../lib/storedFlag";
 import { tx } from "../lib/i18n";
 import { usePoll } from "../lib/polling";
 
 type Severity = "bad" | "warn" | "info";
 interface Finding { severity: Severity; kind: string; code: string; args: Record<string, string | number | null>; device: string; mac: string | null; port: number | null; speed: number | null; max: number | null; peer: string | null; text: string }
-interface Doc { source: string | null; at: number; error: string; devices: number; summary: Record<Severity, number>; findings: Finding[] }
+interface OkPort { device: string; mac: string | null; port: number | null; speed: number | null; max: number | null; peer: string | null; name: string | null }
+interface Doc { source: string | null; at: number; error: string; devices: number; summary: Record<Severity, number>; findings: Finding[]; ok_ports: OkPort[] }
+
+/** One line of the table: a finding, or (on request) a port that is up and fine */
+interface Row { level: 0 | 1 | 2 | 3; severity: Severity | "ok"; kind: string; device: string; port: number | null; speed: number | null; max: number | null; peer: string | null; text: string; key: string }
+const RANK: Record<Severity | "ok", 0 | 1 | 2 | 3> = { bad: 0, warn: 1, info: 2, ok: 3 };
 
 const KIND: Record<string, string> = { speed: tx("Vitesse du port"), link: tx("Liaison entre équipements"), offline: tx("Équipement hors ligne"), wan: tx("Lien WAN"), firmware: tx("Mise à jour"), load: tx("Charge"),
   mesh: tx("Liaison radio"), nic: tx("Carte réseau de la machine"), temp: tx("Température"), reboot: tx("Redémarrage"), clients: tx("Clients"), wifi: tx("Wi-Fi"), conflict: tx("Adresse IP"), latency: tx("Latence") };
@@ -53,13 +60,30 @@ const textOf = (f: Finding): string => {
 };
 
 export function NetworkDiagnostic() {
-  const [doc, setDoc] = useState<Doc | null>(null), [failed, setFailed] = useState(false);
+  const [doc, setDoc] = useState<Doc | null>(null), [failed, setFailed] = useState(false), [showOk, setShowOk] = useStoredFlag("myservices.network.diagShowOk", false);
   const load = useCallback(() => { read<Doc>("network/diagnostics").then((d) => { setDoc(d); setFailed(false); }).catch(() => setFailed(true)); }, []);
   usePoll(load, 30_000);
+  const rows: Row[] = [
+    ...(doc?.findings ?? []).map((f, i): Row => ({ level: RANK[f.severity], severity: f.severity, kind: f.kind, device: f.device, port: f.port, speed: f.speed, max: f.max, peer: f.peer, text: textOf(f), key: `${f.mac}/${f.kind}/${f.port}/${i}` })),
+    ...(showOk ? (doc?.ok_ports ?? []).map((p): Row => ({ level: 3, severity: "ok", kind: "speed", device: p.device, port: p.port, speed: p.speed, max: p.max, peer: p.peer,
+      text: p.max && p.speed && p.speed >= p.max ? tx("au maximum du port") : tx("liaison active"), key: `ok/${p.mac}/${p.port}` })) : []),
+  ];
+  const keyOf = useCallback((r: Row, k: string): string | number => {
+    switch (k) {
+      case "kind": return (KIND[r.kind] ?? r.kind).toLowerCase();
+      case "device": return r.device.toLowerCase();
+      case "port": return r.port ?? -1;
+      case "speed": return r.speed ?? -1;
+      case "peer": return (r.peer ?? "~").toLowerCase();
+      case "text": return r.text.toLowerCase();
+      default: return r.level;
+    }
+  }, []);
+  const sort = useSort(rows, keyOf, "level");
   if (failed && !doc) return <Empty>{tx("Lecture du diagnostic impossible pour l'instant.")}</Empty>;
   if (!doc) return null;
   if (!doc.source) return <Empty>{doc.error || tx("Aucun équipement UniFi lisible : le diagnostic des ports demande MynetworK 0.11.1 ou plus relié à UniFi.")}</Empty>;
-  const s = doc.summary;
+  const s = doc.summary, nOk = doc.ok_ports?.length ?? 0;
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
       <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
@@ -68,30 +92,35 @@ export function NetworkDiagnostic() {
         {s.bad > 0 && <Badge tone="bad">{s.bad} {tx("à corriger")}</Badge>}
         {s.warn > 0 && <Badge tone="warn">{s.warn} {tx("à vérifier")}</Badge>}
         {s.info > 0 && <Badge tone="off">{s.info} {tx("pour info")}</Badge>}
+        {nOk > 0 && (
+          <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm text-muted">
+            <input type="checkbox" checked={showOk} onChange={(e) => setShowOk(e.target.checked)} />{tx("Afficher les ports OK")} <Dim>({nOk})</Dim>
+          </label>
+        )}
       </div>
-      {doc.findings.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="flex items-center gap-2 px-4 py-4 text-sm text-ok"><CircleCheck size={16} aria-hidden />{tx("Aucun souci détecté : tous les ports en liaison tournent à leur vitesse maximale.")}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
+        <div className="max-h-[42rem] overflow-auto">
+          <table className="w-full min-w-[720px] border-collapse text-sm">
             <thead>
-              <tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-                <th className="px-4 py-2">{tx("Niveau")}</th><th className="px-3 py-2">{tx("Contrôle")}</th><th className="px-3 py-2">{tx("Équipement")}</th><th className="px-3 py-2">{tx("Port")}</th>
-                <th className="px-3 py-2">{tx("Négocié / maximum")}</th><th className="px-3 py-2">{tx("Branché")}</th><th className="px-4 py-2">{tx("Constat")}</th>
+              <tr>
+                <Th k="level" sort={sort} className="!px-4">{tx("Niveau")}</Th><Th k="kind" sort={sort}>{tx("Contrôle")}</Th><Th k="device" sort={sort}>{tx("Équipement")}</Th>
+                <Th k="port" sort={sort}>{tx("Port")}</Th><Th k="speed" sort={sort}>{tx("Négocié / maximum")}</Th><Th k="peer" sort={sort}>{tx("Branché")}</Th><Th k="text" sort={sort} className="!px-4">{tx("Constat")}</Th>
               </tr>
             </thead>
             <tbody className="[&>tr:nth-child(even)]:bg-bg/50 [&>tr]:border-b [&>tr]:border-line/60">
-              {doc.findings.map((f, i) => {
-                const Icon = f.severity === "bad" ? OctagonAlert : f.severity === "warn" ? TriangleAlert : CircleHelp;
+              {sort.sorted.map((r) => {
+                const Icon = r.severity === "bad" ? OctagonAlert : r.severity === "warn" ? TriangleAlert : r.severity === "info" ? CircleHelp : CircleCheck;
                 return (
-                  <tr key={`${f.mac}/${f.kind}/${f.port}/${i}`}>
-                    <td className="whitespace-nowrap px-4 py-2 align-top"><Badge tone={TONE[f.severity]}><Icon size={12} aria-hidden />{LABEL[f.severity]}</Badge></td>
-                    <td className="px-3 py-2 align-top">{KIND[f.kind] ?? f.kind}</td>
-                    <td className="px-3 py-2 align-top font-semibold">{f.device}</td>
-                    <td className="px-3 py-2 align-top tabular-nums">{f.port ?? "-"}</td>
-                    <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums">{f.kind === "speed" || f.kind === "link" ? <><b>{link(f.speed)}</b> <Dim>/ {link(f.max)}</Dim></> : <Dim>-</Dim>}</td>
-                    <td className="px-3 py-2 align-top">{f.peer ?? <Dim>-</Dim>}</td>
-                    <td className="px-4 py-2 align-top text-muted">{textOf(f)}</td>
+                  <tr key={r.key}>
+                    <td className="whitespace-nowrap px-4 py-2 align-top"><Badge tone={r.severity === "ok" ? "ok" : TONE[r.severity]}><Icon size={12} aria-hidden />{r.severity === "ok" ? "OK" : LABEL[r.severity]}</Badge></td>
+                    <td className="px-3 py-2 align-top">{KIND[r.kind] ?? r.kind}</td>
+                    <td className="px-3 py-2 align-top font-semibold">{r.device}</td>
+                    <td className="px-3 py-2 align-top tabular-nums">{r.port ?? "-"}</td>
+                    <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums">{r.kind === "speed" || r.kind === "link" ? <><b>{link(r.speed)}</b> <Dim>/ {link(r.max)}</Dim></> : <Dim>-</Dim>}</td>
+                    <td className="px-3 py-2 align-top">{r.peer ?? <Dim>-</Dim>}</td>
+                    <td className={`px-4 py-2 align-top ${r.severity === "ok" ? "text-dim" : "text-muted"}`}>{r.text}</td>
                   </tr>
                 );
               })}

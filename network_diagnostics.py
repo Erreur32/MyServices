@@ -169,5 +169,29 @@ def findings(devices: list[dict], clients: list[dict] | None = None, scan: list[
     return out
 
 
+def ok_ports(devices: list[dict], clients: list[dict] | None, items: list[dict]) -> list[dict]:
+    """The ports that are up and have no finding: [{device, mac, port, speed, max, peer, name}] (the page shows them on request only)."""
+    flagged = {(str(f.get("mac") or "").lower(), f.get("port")) for f in items if f.get("port") is not None}
+    seen = {(str(c["switch_mac"]).lower(), c["switch_port"]): c.get("name") or c.get("ip") or c.get("mac")
+            for c in clients or [] if isinstance(c, dict) and c.get("wired") and c.get("switch_mac") and c.get("switch_port") is not None}
+    names = {str(d.get("mac") or "").lower(): d.get("name") or d.get("model") for d in devices if isinstance(d, dict)}
+    out = []
+    for d in devices:
+        if not isinstance(d, dict):
+            continue
+        mac = str(d.get("mac") or "").lower()
+        up = d.get("uplink") if isinstance(d.get("uplink"), dict) else {}
+        for p in d.get("port_table") or []:
+            if not isinstance(p, dict) or not p.get("up") or (mac, p.get("port_idx")) in flagged:
+                continue
+            peer = seen.get((mac, p.get("port_idx")))
+            if peer is None and (p.get("is_uplink") or p.get("port_idx") == up.get("port_idx")):
+                peer = names.get(str(up.get("uplink_mac") or "").lower())
+            out.append({"device": d.get("name") or d.get("model") or d.get("mac"), "mac": d.get("mac"), "port": p.get("port_idx"), "speed": _num(p.get("speed")),
+                        "max": port_max(p), "peer": peer, "name": p.get("name")})
+    out.sort(key=lambda r: (str(r["device"]), r["port"] if isinstance(r["port"], int) else -1))
+    return out
+
+
 def summary(items: list[dict]) -> dict:
     return {s: sum(1 for f in items if f["severity"] == s) for s in SEVERITY}
