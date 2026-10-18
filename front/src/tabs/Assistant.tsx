@@ -18,6 +18,7 @@ import { primary, quiet } from "../lib/forms";
 import { useNetScan } from "../lib/netScan";
 import { tx } from "../lib/i18n";
 import { plural } from "../lib/summary";
+import { ScheduleGlance } from "../components/ScheduleGlance";
 import type { Advice, ConnectorInstance, ConnectorsState, Machine, Proposal, SystemState } from "../types";
 import { InfoNote } from "../components/InfoNote";
 
@@ -86,7 +87,7 @@ export function Assistant({ snap }: Readonly<{ snap: Snapshot }>) {
         {p.current === "network" && <Network snap={snap} report={report} open={setSetup} />}
         {p.current === "access" && <Access snap={snap} report={report} open={setSetup} rev={rev} accepted={p.accepted}
           onAccept={(ip, on) => store({ ...p, accepted: on ? [...new Set([...p.accepted, ip])] : p.accepted.filter((a) => a !== ip) })} />}
-        {p.current === "tools" && <Tools snap={snap} report={report} open={setSetup} rev={rev} />}
+        {p.current === "tools" && <><Tools snap={snap} report={report} open={setSetup} rev={rev} /><ScheduleGlance /></>}
         {!step.ready && <Soon title={step.title} />}
         <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-line/60 pt-4">
           {index > 0 && <button type="button" className={quiet} onClick={() => update({ ...p, current: previousStep(p.current) })}><ArrowLeft size={14} aria-hidden />{tx("Retour")}</button>}

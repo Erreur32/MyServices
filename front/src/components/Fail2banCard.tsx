@@ -3,7 +3,8 @@ import { Ban, ShieldAlert } from "lucide-react";
 import { dateTime } from "../lib/format";
 import { tx } from "../lib/i18n";
 import type { SecurityConnector } from "../types";
-import { Badge, Card, Count, Dim } from "./ui";
+import { FoldPanel } from "./FoldPanel";
+import { Badge, Count, Dim } from "./ui";
 
 const BAN_COLS = "grid items-center gap-x-6 md:grid-cols-[minmax(0,12rem)_10rem_7rem_minmax(0,1fr)]";
 const BANS_SHOWN = 15;
@@ -46,11 +47,12 @@ export function Fail2banCard({ c }: Readonly<{ c: SecurityConnector }>) {
   const byJail = new Map<string, number>();
   (c.bans ?? []).forEach((b) => byJail.set(b.jail, (byJail.get(b.jail) ?? 0) + 1));
   return (
-    <Card className={c.ok ? "" : "border-bad/40"}>
-      <h2 className="flex flex-wrap items-center gap-2 font-bold"><Ban size={16} aria-hidden />{tx("Fail2ban")} <Dim>· {c.label} {c.name}</Dim>
-        <Badge tone={c.ok ? "ok" : "bad"}>{c.ok ? tx("en ligne") : tx("illisible")}</Badge>{c.stale && <Badge tone="warn">{tx("relevé périmé")}</Badge>}</h2>
-      {!c.ok && !c.stale ? <p className="mt-3 rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{c.message}</p> : <>
-        {(c.jails ?? []).length > 0 && <p className="mt-3 flex flex-wrap items-center gap-1.5 text-sm">{c.jails!.map((j) => <Badge key={j} tone={byJail.has(j) ? "warn" : "off"}>{j}{byJail.has(j) && ` · ${byJail.get(j)}`}</Badge>)}</p>}
+    <FoldPanel id={`security.fail2ban.${c.name}`} icon={Ban} title={tx("Fail2ban")} extra={<>
+      <Dim>· {c.label} {c.name}</Dim>
+      <Badge tone={c.ok ? "ok" : "bad"}>{c.ok ? tx("en ligne") : tx("illisible")}</Badge>{c.stale && <Badge tone="warn">{tx("relevé périmé")}</Badge>}
+    </>}>
+      {!c.ok && !c.stale ? <p className="rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{c.message}</p> : <>
+        {(c.jails ?? []).length > 0 && <p className="flex flex-wrap items-center gap-1.5 text-sm">{c.jails!.map((j) => <Badge key={j} tone={byJail.has(j) ? "warn" : "off"}>{j}{byJail.has(j) && ` · ${byJail.get(j)}`}</Badge>)}</p>}
         {(c.threats ?? []).length > 0 && (
           <div className="mt-3">
             <h3 className="mb-1 flex items-center gap-1.5 text-sm font-bold text-bad"><ShieldAlert size={14} aria-hidden />{tx("Menaces actives")} <Count n={c.threats!.length} tone="bad" /></h3>
@@ -67,7 +69,6 @@ export function Fail2banCard({ c }: Readonly<{ c: SecurityConnector }>) {
         )}
         {(c.bans ?? []).length > 0 && <LastBans bans={c.bans!} />}
       </>}
-    </Card>
+    </FoldPanel>
   );
-
 }

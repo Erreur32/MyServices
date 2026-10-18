@@ -22,6 +22,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Changed
 
+- Clicking at random in the menus and table headers no longer leaves a focus ring or a text selection behind (the keyboard keeps its ring).
+- The Fail2ban card and the certificates of the Security page are foldable panels.
+- A new SSH key gets its own comment (`myservices@<machine>-<date>`), so two installations are no longer indistinguishable in `authorized_keys`.
+- The start guide shows the scheduled tasks at a glance (when each runs, and why one is off).
+- The backup scan also reads `/etc/cron.hourly|daily|weekly|monthly`, `/etc/anacrontab` and the account's systemd timers.
 - Reads of the API that run at the same time share one network call (two panels of one screen loading the same data); a write empties them.
 - Home page: the attention card is sorted into categories (machines, services, health, DNS, backups, connectors), the categories with red points first and
   the red lines before the orange ones in each; a click on a category header folds it (kept in the browser).

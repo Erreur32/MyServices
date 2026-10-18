@@ -81,3 +81,7 @@ body {
 /* Standalone setup page (#setup): everything a notch bigger than the dashboard */
 .setup-big .text-sm { font-size: 1rem; line-height: 1.5rem; }
 .setup-big .text-xs { font-size: 0.875rem; line-height: 1.25rem; }
+
+/* A mouse click never leaves a focus ring or a text selection behind in the menus and table headers; the keyboard still shows its ring */
+:focus:not(:focus-visible) { outline: none; }
+button, [role="button"], nav, th, summary { user-select: none; }
