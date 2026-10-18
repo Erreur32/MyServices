@@ -24,6 +24,21 @@ const CHECK = "ss -ltn | grep ':25'";
 const INSTALL = "sudo apt install postfix\nsudo systemctl enable --now postfix";
 const ALLOW = "sudo postconf -e 'mynetworks = 127.0.0.0/8 [::1]/128'\n# or, to send through your provider's server:\n# sudo postconf -e 'relayhost = [smtp.provider.example]:587'\nsudo systemctl reload postfix";
 
+/** The same help for a full SMTP setup (a provider's server): what to check in the form, not the mail relay of the host */
+function SmtpHelp({ open }: Readonly<{ open: boolean }>) {
+  return (
+    <details open={open} className="rounded-lg border border-line bg-bg/50 px-3 py-2 text-sm [&[open]]:border-warn/50">
+      <summary className="cursor-pointer font-semibold text-muted">{tx("Ça ne marche pas ? Que faire")}</summary>
+      <ol className="mt-2 flex list-decimal flex-col gap-2 pl-5 text-muted">
+        <li>{tx("Port et sécurité vont ensemble : 587 avec STARTTLS, 465 avec SSL/TLS, 25 sans chiffrement.")}</li>
+        <li>{tx("Le compte est celui du serveur d'envoi. Gmail et d'autres demandent un mot de passe d'application, pas le mot de passe du compte.")}</li>
+        <li>{tx("L'expéditeur doit être une adresse que ce serveur accepte d'utiliser (souvent celle du compte).")}</li>
+        <li>{tx("Beaucoup de fournisseurs d'accès bloquent le port 25 sortant : préférer 587 ou 465.")}</li>
+      </ol>
+    </details>
+  );
+}
+
 /** What to do when the mail relay does not answer or refuses: install one, or use a provider's SMTP instead (opens by itself after a failure) */
 function MailHelp({ open }: Readonly<{ open: boolean }>) {
   return (
@@ -41,8 +56,9 @@ function MailHelp({ open }: Readonly<{ open: boolean }>) {
 
 export function MailSettings() {
   const [st, setSt] = useState<MailState | null>(null), [pw, setPw] = useState("");
-  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [advanced, setAdvanced] = useState(false), [relay, setRelay] = useState(""), [failed, setFailed] = useState(false);
+  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [advanced, setAdvanced] = useState(false), [relay, setRelay] = useState(""), [failed, setFailed] = useState(false), [myEmail, setMyEmail] = useState<string | null>(null);
   useEffect(() => {
+    read<{ email?: string | null }>("me").then((m) => setMyEmail(m.email ?? "")).catch(() => undefined);
     read<MailState>("system/mail").then((s) => {
       setSt({ ...s, page_url: s.page_url || location.origin });
       setRelay(relayText(s));
@@ -68,6 +84,7 @@ export function MailSettings() {
   };
   /** Tries what is typed, before saving anything */
   const test = async () => {
+    if (myEmail === "") return setNote({ ok: false, text: tx("Le test part vers l'adresse de votre profil, qui est vide : ajoutez-la dans Profil.") });   // not a failure of the server: no help to show
     setBusy(true);
     const ok = await act(() => send("POST", "system/mail/test", payload()), tx("e-mail de test envoyé : regardez votre boîte (et les indésirables)"), setNote);
     setFailed(!ok);
@@ -82,6 +99,7 @@ export function MailSettings() {
   );
   const actions = (
     <div className="flex flex-wrap gap-2">
+      {myEmail === "" && <InfoNote tone="warn" className="w-full">{tx("Le test est envoyé à l'adresse de votre profil, qui est vide : ")}<a href="#profile" className="underline">{tx("l'ajouter dans Profil")}</a>.</InfoNote>}
       <button type="button" className={quiet} disabled={busy || !(advanced ? st.host : relay.trim())} onClick={() => void test()} title={tx("Essaie ce qui est saisi, sans l'enregistrer, et envoie un message à l'adresse de votre profil")}><Send size={14} aria-hidden />{tx("Tester")}</button>
       <button type="submit" className={primary} disabled={busy}><Mail size={14} aria-hidden />{tx("Enregistrer")}</button>
     </div>
@@ -129,7 +147,7 @@ export function MailSettings() {
         <InfoNote>{tx("L'adresse de la page est celle mise dans les liens des e-mails : celle que vous ouvrez dans le navigateur.")}</InfoNote>
         {actions}
         <NoteLine note={note} />
-        <MailHelp open={failed} />
+        <SmtpHelp open={failed} />
         <button type="button" className="inline-flex items-center gap-1.5 self-start text-xs text-link hover:underline" onClick={() => setAdvanced(false)}>{tx("Retour au réglage simple")}</button>
       </form>
     </Card>

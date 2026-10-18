@@ -392,6 +392,7 @@ export interface Me {
   planned?: string | null;  // version prévue (journal des changements : section Unreleased + dernière publiée + 1)
   version?: string;  // version de l'application (tag de l'image, puis empreinte du commit) ; « dev » pour une image construite sur place
   email?: string | null;  // address for a forgotten password link (Profile)
+  mail_ready?: boolean;   // the e-mail sending is set up (a forgotten password link can be sent)
   avatar?: string | null;  // fingerprint of the account's avatar (api/v1/users/<name>/avatar?v=…); null: its initial
 }
 

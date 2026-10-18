@@ -17,6 +17,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 
+- E-mail: the Profile page warns when e-mail sending is not set up (and links to the setting); the settings test no longer shows the postfix help when your profile has no address (it says so and links to Profile); a full SMTP setup gets its own help (port and security, app password, sender, blocked port 25). The import result lists the imported parts, asks for a collection and offers a reload button.
+
 - UniFi cards (Network tab) can now be read straight from the controller, without MynetworK: a UniFi connector set up with a local account (e.g. a Docker controller) gives the ports, speeds, PoE and traffic; secrets are cut. MynetworK stays the first source. An API key (UniFi OS console) cannot give ports, so it is not used for the cards. Not tried on real hardware yet.
 - In English, the fixed error messages, connector messages and event labels written by the server are now translated too (a message built with a value in it stays in French for now). A test fails when a new fixed message is added without its English text.
 
