@@ -77,11 +77,13 @@ function TopIps({ ips }: Readonly<{ ips: Stats["top_ips"] }>) {
   return (
     <ul className="flex flex-col divide-y divide-line/50 text-sm [&>li:nth-child(even)]:bg-bg/50">
       {ips.map((w) => (
-        <li key={w.ip} className="grid grid-cols-[minmax(0,11rem)_4rem_minmax(0,1fr)_auto] items-center gap-3 px-2 py-1.5">
-          <code className="truncate font-mono text-xs">{w.ip}</code>
+        <li key={w.ip} className="grid grid-cols-[minmax(0,13rem)_4rem_minmax(0,1fr)_auto] items-center gap-3 px-2 py-1.5">
+          <span className="flex min-w-0 items-center gap-1.5"><code className="truncate font-mono text-xs">{w.ip}</code>
+            {w.country && <Badge outline tone="off" title={[w.country, w.asn, w.org].filter(Boolean).join(" · ")}>{w.country}</Badge>}</span>
           <Badge tone={w.bans > 2 ? "bad" : "warn"}>{w.bans} {tx("ban(s)")}</Badge>
           <span className="flex min-w-0 flex-wrap gap-1">
             {w.jails.map((j) => <Badge key={j} outline tone="off">{j}</Badge>)}
+            {(w.org || w.asn) && <Badge outline tone="off" title={w.asn ?? undefined}>{w.org ?? w.asn}</Badge>}
             {(w.domains ?? []).map((d) => <Badge key={d.domain} outline tone="info" title={tx("{0} ligne(s) de journal", d.hits)}><Globe size={11} aria-hidden />{d.domain}</Badge>)}
           </span>
           <span className="whitespace-nowrap text-xs text-dim">{w.failures ? `${w.failures} ${tx("échecs")} · ` : ""}{dateTime(w.last * 1000)}</span>

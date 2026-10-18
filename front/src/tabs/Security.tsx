@@ -1,6 +1,6 @@
 // Sécurité : une vue d'ensemble de ce qu'il faut traiter, puis un sous-onglet par catégorie (Fail2ban, sites exposés, accès SSH,
 // ports du réseau, certificats). Lecture seule.
-import { Ban, FileBadge, Globe, KeyRound, LayoutDashboard, Radar, ShieldAlert, ShieldCheck, Wrench, type LucideIcon } from "lucide-react";
+import { Ban, FileBadge, Globe, KeyRound, LayoutDashboard, Radar, ShieldAlert, ShieldCheck, UserCog, Wrench, type LucideIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { Certificates } from "../components/Certificates";
@@ -13,19 +13,22 @@ import { splitHostName } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { exposedSites, securityFindings, SENSITIVE, siteIssues, type Area, type Finding } from "../lib/securityFindings";
 import { risky } from "../lib/ssh";
+import { accessFindings } from "../lib/accessFindings";
+import { SecurityAccess, useAccessData } from "../components/SecurityAccess";
 
-type Sub = "overview" | "fail2ban" | "sites" | "access" | "network" | "certs";
+type Sub = "overview" | "fail2ban" | "sites" | "access" | "members" | "network" | "certs";
 const SUBS: { id: Sub; label: string; icon: LucideIcon; area?: Area }[] = [
   { id: "overview", label: tx("Vue d'ensemble"), icon: LayoutDashboard },
   { id: "fail2ban", label: tx("Fail2ban"), icon: Ban, area: "fail2ban" },
   { id: "sites", label: tx("Sites exposés"), icon: Globe, area: "sites" },
   { id: "access", label: tx("Accès SSH"), icon: KeyRound, area: "ssh" },
+  { id: "members", label: tx("Accès à MyServices"), icon: UserCog, area: "access" },
   { id: "network", label: tx("Ports du réseau"), icon: Radar, area: "ports" },
   { id: "certs", label: tx("Certificats"), icon: FileBadge, area: "certs" },
 ];
 const SUB_KEY = "ms.security.sub";
-const AREA_LABEL: Record<Area, string> = { fail2ban: tx("Fail2ban"), sites: tx("Site"), certs: tx("Certificat"), ssh: tx("SSH"), ports: tx("Port") };
-const AREA_SUB: Record<Area, Sub> = { fail2ban: "fail2ban", sites: "sites", certs: "certs", ssh: "access", ports: "network" };
+const AREA_LABEL: Record<Area, string> = { fail2ban: tx("Fail2ban"), sites: tx("Site"), certs: tx("Certificat"), ssh: tx("SSH"), access: tx("Accès"), ports: tx("Port") };
+const AREA_SUB: Record<Area, Sub> = { fail2ban: "fail2ban", sites: "sites", certs: "certs", ssh: "access", access: "members", ports: "network" };
 
 const savedSub = (): Sub => { try { const v = localStorage.getItem(SUB_KEY); return SUBS.some((s) => s.id === v) ? (v as Sub) : "overview"; } catch { return "overview"; } };
 
@@ -160,10 +163,10 @@ function PortsList({ snap }: Readonly<{ snap: Snapshot }>) {
   );
 }
 
-function Menu({ sub, pick, counts }: Readonly<{ sub: Sub; pick: (s: Sub) => void; counts: Partial<Record<Area, number>> }>) {
+function Menu({ sub, pick, counts, admin }: Readonly<{ sub: Sub; pick: (s: Sub) => void; counts: Partial<Record<Area, number>>; admin: boolean }>) {
   return (
     <fieldset className="m-0 flex min-w-0 max-w-full flex-wrap self-start rounded-lg border border-line bg-card p-0.5" aria-label={tx("Sous-menu de la sécurité")}>
-      {SUBS.map(({ id, label, icon: Icon, area }) => (
+      {SUBS.filter((x) => admin || x.id !== "members").map(({ id, label, icon: Icon, area }) => (
         <button key={id} type="button" aria-pressed={sub === id} onClick={() => pick(id)}
           className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-semibold ${sub === id ? "border-link bg-link/15 text-txt ring-1 ring-link/50" : "border-transparent text-muted hover:text-txt"}`}>
           <Icon size={14} aria-hidden />{label}{area && (counts[area] ?? 0) > 0 && <Badge tone="warn">{counts[area]}</Badge>}
@@ -176,16 +179,18 @@ function Menu({ sub, pick, counts }: Readonly<{ sub: Sub; pick: (s: Sub) => void
 export function Security({ snap }: Readonly<{ snap: Snapshot }>) {
   const [sub, setSub] = useState<Sub>(savedSub);
   const pick = (s: Sub) => { setSub(s); try { localStorage.setItem(SUB_KEY, s); } catch { /* storage refused: the choice lasts this visit */ } };
-  const findings = useMemo(() => securityFindings(snap), [snap]);
+  const admin = snap.me.role === "admin", access = useAccessData(admin), now = Math.floor(Date.now() / 1000);
+  const findings = useMemo(() => securityFindings(snap, access ? accessFindings(access, now) : []), [snap, access, now]);
   const counts = useMemo(() => findings.reduce<Partial<Record<Area, number>>>((n, f) => ({ ...n, [f.area]: (n[f.area] ?? 0) + 1 }), {}), [findings]);
   const sources = snap.data.security ?? [];
   return (
     <div className="flex flex-col gap-4 py-4">
-      <Menu sub={sub} pick={pick} counts={counts} />
+      <Menu sub={sub} pick={pick} counts={counts} admin={admin} />
       {sub === "overview" && <Overview snap={snap} findings={findings} open={pick} />}
       {sub === "fail2ban" && (sources.length ? <><Fail2banStats sources={sources} />{sources.map((c) => <Fail2banCard key={`${c.connector}/${c.name}`} c={c} />)}</> : <Empty>{tx("Aucun Fail2ban n'est relié : reliez LogviewR dans Réglages, Connecteurs.")}</Empty>)}
       {sub === "sites" && <SitesList snap={snap} />}
       {sub === "access" && <AccessList snap={snap} />}
+      {sub === "members" && admin && <SecurityAccess data={access} now={now} />}
       {sub === "network" && <PortsList snap={snap} />}
       {sub === "certs" && <Certificates snap={snap} />}
     </div>

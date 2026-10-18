@@ -62,6 +62,7 @@ class Fake(BaseHTTPRequestHandler):
                                                                  "jails": ["sshd"], "totalBans": 3, "org": "ignore-me", "asn": "AS64500"}]},
                     "f2b_get_metrics": {"totalBans": 12},
                     "log_list_sources": {"sources": [{"id": "nginx"}, {"id": "auth"}]},
+                    "f2b_lookup_ip": {"ip": "203.0.113.5", "geo": {"countryCode": "NL", "country": "ignore-me", "org": "ignore-me"}, "whois": {"asn": "AS64500", "org": "<b>ignore</b>"}},
                     "log_search": {"matches": [{"domain": "app.example.test:443", "content": "ignore-me"}]}}[name]
             res = {"content": [{"type": "text", "text": json.dumps(data)}]}
             args = body["params"].get("arguments") or {}
@@ -224,6 +225,23 @@ class Reseau(unittest.TestCase):
         def broken(ip):
             raise ConnectorError("down")
         self.assertEqual(add_domains({"top_ips": [{"ip": "203.0.113.5"}]}, broken)["top_ips"][0]["domains"], [])
+
+    def test_logviewr_origin_keeps_the_country_code_and_the_as_number_only(self):
+        from connectors.logviewr import add_origins, origin_of
+        self.assertEqual(origin_of({"geo": {"countryCode": "nl", "org": "Infraly, LLC"}, "whois": {"asn": "AS64500", "org": "<b>x</b>"}}), {"country": "NL", "asn": "AS64500", "org": "Infraly, LLC"})
+        self.assertEqual(origin_of({"geo": {"org": "<script>alert(1)</script> Evil; DROP"}})["org"], "scriptalert1script Evil DROP")   # no markup, no instructions
+        self.assertEqual(len(origin_of({"geo": {"org": "x" * 200}})["org"]), 48)
+        self.assertEqual(origin_of({"whois": {"asn": "64500", "country": "DE"}}), {"country": "DE", "asn": "AS64500", "org": None})
+        self.assertEqual(origin_of({"geo": {"countryCode": "<script>"}, "whois": {"asn": "AS1; drop"}}), {"country": None, "asn": None, "org": None})
+        stats = {"top_ips": [{"ip": "203.0.113.5"}, {"ip": "198.51.100.7"}]}
+
+        def lookup(ip):
+            if ip.startswith("198"):
+                raise ConnectorError("down")
+            return {"geo": {"countryCode": "FR"}, "whois": {"asn": "AS3215"}}
+        out = add_origins(stats, lookup)
+        self.assertEqual((out["top_ips"][0]["country"], out["top_ips"][0]["asn"]), ("FR", "AS3215"))
+        self.assertEqual((out["top_ips"][1]["country"], out["top_ips"][1]["asn"]), (None, None))
 
     def test_logviewr_ne_lit_que(self):
         c = inst(LogviewR, self.url)

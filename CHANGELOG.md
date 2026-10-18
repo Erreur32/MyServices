@@ -28,6 +28,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - A new SSH key gets its own comment (`myservices@<machine>-<date>`), so two installations are no longer indistinguishable in `authorized_keys`.
 - The start guide shows the scheduled tasks at a glance (when each runs, and why one is off).
 - The backup scan also reads `/etc/cron.hourly|daily|weekly|monthly`, `/etc/anacrontab` and the account's systemd timers.
+- **Security page, access to MyServices** (admins only, new sub-tab and part of "To handle first"): the accounts, the API and MCP tokens and the agents with when each
+  was last used, and a flag for an account never used after a month or silent for 90 days, a token that is expired but not revoked, never used or unused for 90 days,
+  and an agent that went silent, was never installed, or whose host name changed. The most banned Fail2ban addresses now show their country and the owner's
+  name (read from LogviewR, cleaned of anything but plain text).
 - **AI model to service**: on a machine's sheet, the AI model read by GpuViewR links to the service it runs in (the service of that machine on the model's port,
   else the one named after its runtime, also when it is declared in NPM), which opens the machine's services. vLLM, LocalAI and KoboldCpp join the
   recognised AI applications (Ollama, llama.cpp, LM Studio and Open WebUI already were).

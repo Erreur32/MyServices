@@ -7,7 +7,7 @@ import { splitHostName } from "./format";
 import { certIssue } from "./status";
 
 export type Severity = "bad" | "warn";
-export type Area = "fail2ban" | "sites" | "certs" | "ssh" | "ports";
+export type Area = "fail2ban" | "sites" | "certs" | "ssh" | "access" | "ports";
 export interface Finding { sev: Severity; area: Area; title: string; detail: string; fix: string }
 
 /** Ports that should not be open on a home network without a reason (clear-text or remote-control protocols, databases, Docker API) */
@@ -70,10 +70,10 @@ function portFindings(snap: Snapshot): Finding[] {
     .map(({ d, hit }): Finding => ({ sev: "warn", area: "ports", title: d.hostname || d.vendor || d.ip, detail: hit.map((p) => `${p} ${SENSITIVE[p]}`).join(" · "), fix: tx("Fermer le port s'il ne sert pas, ou le limiter à un réseau de confiance.") }));
 }
 
-const AREAS: Area[] = ["fail2ban", "certs", "sites", "ssh", "ports"];
+const AREAS: Area[] = ["fail2ban", "certs", "sites", "ssh", "access", "ports"];
 
 /** Everything that needs a look, red first, then by area */
-export function securityFindings(snap: Snapshot): Finding[] {
-  return [...threatFindings(snap), ...certFindings(snap), ...siteFindings(snap), ...sshFindings(snap), ...portFindings(snap)]
+export function securityFindings(snap: Snapshot, access: Finding[] = []): Finding[] {
+  return [...threatFindings(snap), ...certFindings(snap), ...siteFindings(snap), ...sshFindings(snap), ...access, ...portFindings(snap)]
     .sort((a, b) => Number(b.sev === "bad") - Number(a.sev === "bad") || AREAS.indexOf(a.area) - AREAS.indexOf(b.area));
 }
