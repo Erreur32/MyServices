@@ -48,6 +48,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 
+- Security, Fail2ban: a « Biggest logs » table from LogviewR (`log_list_files`: size and date only, never the content), largest first, over 1 GB flagged. Older LogviewR versions without the tool simply show nothing.
 - Machine sheet: a « Biggest logs » row (files over 10 MB under `/var/log`, and the systemd journal size), read over SSH or by the Linux agent with the same read-only command; sizes over 1 GB are flagged.
 
 - **Import and export of the configuration** (Settings -> Backup and info): export everything or pick the parts (settings and connectors, machines and

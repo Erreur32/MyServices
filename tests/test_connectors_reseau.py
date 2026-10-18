@@ -63,6 +63,7 @@ class Fake(BaseHTTPRequestHandler):
                     "f2b_get_metrics": {"totalBans": 12},
                     "log_list_sources": {"sources": [{"id": "nginx"}, {"id": "auth"}]},
                     "f2b_lookup_ip": {"ip": "203.0.113.5", "geo": {"countryCode": "NL", "country": "ignore-me", "org": "ignore-me"}, "whois": {"asn": "AS64500", "org": "<b>ignore</b>"}},
+                    "log_list_files": {"files": [{"pluginId": "npm", "path": "/host/logs/big.log", "type": "access", "size": 15317565, "modified": "2026-10-18T13:46:19.573Z", "content": "ignore-me"}]},
                     "log_search": {"matches": [{"domain": "app.example.test:443", "content": "ignore-me"}]}}[name]
             res = {"content": [{"type": "text", "text": json.dumps(data)}]}
             args = body["params"].get("arguments") or {}
@@ -250,6 +251,7 @@ class Reseau(unittest.TestCase):
         self.assertEqual(data["bans_24h"], 1)
         self.assertNotIn("ignore-me", json.dumps(data))  # pas de texte libre
         self.assertEqual(data["log_sources"], 2)
+        self.assertEqual(data["big_logs"], [{"plugin": "npm", "path": "/host/logs/big.log", "size": 15317565, "modified": "2026-10-18T13:46:19.573Z"}])   # sizes only, no content
         self.assertIsNotNone(data["stats"])   # the week of history was accepted (LogviewR refuses a limit above 1000)
         self.assertEqual(data["threat_count"], 1)   # JSON in the second block, after LogviewR's « UNTRUSTED DATA » notice
         self.assertEqual(data["threats"][0]["ips"], ["203.0.113.5"])

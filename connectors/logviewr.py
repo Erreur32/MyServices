@@ -17,7 +17,8 @@ import urllib.request
 from connectors.base import Connector, ConnectorError, Field, Result
 
 PROTOCOL = "2025-06-18"
-READ_TOOLS = ("f2b_list_jails", "f2b_get_metrics", "f2b_get_ban_history", "f2b_get_active_threats", "log_list_sources", "log_search", "f2b_lookup_ip")
+BIG_LOGS_MIN, BIG_LOGS_TOP = 10 * 1048576, 8   # biggest log files: over 10 MB, the first 8
+READ_TOOLS = ("f2b_list_jails", "f2b_get_metrics", "f2b_get_ban_history", "f2b_get_active_threats", "log_list_sources", "log_search", "f2b_lookup_ip", "log_list_files")
 
 
 def _body(raw: bytes, ctype: str) -> dict:
@@ -253,7 +254,16 @@ class LogviewR(Connector):
         return {"jails": [n for n in names if n], "bans_24h": len(bans), "bans": bans[:200],
                 "threat_count": len(raw), "threats": [cluster(c) for c in raw if isinstance(c, dict)][:50],
                 "metrics": metrics if isinstance(metrics, dict) else None, "stats": stats,
-                "log_sources": len(sources)}
+                "log_sources": len(sources), "big_logs": self.big_logs()}
+
+    def big_logs(self) -> list[dict]:
+        """The biggest log files LogviewR reads (size and date only, never the content); empty with a LogviewR that lacks the tool."""
+        try:
+            files = (self._tool("log_list_files", {"minSizeBytes": BIG_LOGS_MIN, "limit": BIG_LOGS_TOP}) or {}).get("files") or []
+        except ConnectorError:
+            return []
+        return [{"plugin": str(f.get("pluginId"))[:40], "path": str(f.get("path"))[:200], "size": f["size"], "modified": f.get("modified")}
+                for f in files if isinstance(f, dict) and isinstance(f.get("size"), int)][:BIG_LOGS_TOP]
 
     def test(self) -> Result:
         try:

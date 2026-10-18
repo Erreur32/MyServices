@@ -42,6 +42,32 @@ function LastBans({ bans }: Readonly<{ bans: NonNullable<SecurityConnector["bans
   );
 }
 
+const LOG_COLS = "grid items-center gap-x-6 md:grid-cols-[6rem_minmax(0,1fr)_7rem_10rem]";
+const BIG_LOG = 1024 ** 3;   // a log file over 1 GB is flagged (rotation missing?)
+const sizeText = (n: number) => n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(1)} ${tx("Go")}` : `${Math.max(1, Math.round(n / 1048576))} ${tx("Mo")}`;
+
+/** The biggest log files LogviewR reads, largest first (size and date only) */
+function BigLogs({ files }: Readonly<{ files: NonNullable<SecurityConnector["big_logs"]> }>) {
+  return (
+    <div className="mt-4">
+      <h3 className="mb-1 flex items-center gap-2 text-sm font-bold">{tx("Gros journaux")} <Count n={files.length} tone="off" /></h3>
+      <div className={`${LOG_COLS} border-b border-line px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim max-md:hidden`} aria-hidden>
+        <span>{tx("Source")}</span><span>{tx("Fichier")}</span><span className="text-right">{tx("Taille")}</span><span className="text-right">{tx("Modifié")}</span>
+      </div>
+      <ul className="flex flex-col divide-y divide-line/50 text-sm [&>li:nth-child(even)]:bg-bg/50">
+        {files.map((f) => (
+          <li key={`${f.plugin}/${f.path}`} className={`${LOG_COLS} gap-y-1 px-2 py-1.5`}>
+            <span><Badge outline tone="off">{f.plugin}</Badge></span>
+            <code className="truncate font-mono text-xs" title={f.path}>{f.path}</code>
+            <span className={`text-right text-xs tabular-nums ${f.size >= BIG_LOG ? "text-warn" : "text-muted"}`}>{sizeText(f.size)}</span>
+            <span className="text-xs text-dim md:text-right">{f.modified ? dateTime(Date.parse(f.modified)) : ""}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** One Fail2ban / LogviewR connector: jails, active threats and the latest bans (shared with the new security page) */
 export function Fail2banCard({ c }: Readonly<{ c: SecurityConnector }>) {
   const byJail = new Map<string, number>();
@@ -68,6 +94,7 @@ export function Fail2banCard({ c }: Readonly<{ c: SecurityConnector }>) {
           </div>
         )}
         {(c.bans ?? []).length > 0 && <LastBans bans={c.bans!} />}
+        {(c.big_logs ?? []).length > 0 && <BigLogs files={c.big_logs!} />}
       </>}
     </FoldPanel>
   );

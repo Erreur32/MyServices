@@ -2552,6 +2552,7 @@ export const EN: Record<string, string> = {
   "{0} socket(s), {1} cœurs": "{0} socket(s), {1} cores",
   "version": "version",
   "Taille": "Size",
+  "Fichier": "File",
   "Dernière modification": "Last modified",
   "Inventorié": "Inventoried",
   "menaces fail2ban": "fail2ban threats",
