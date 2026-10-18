@@ -595,18 +595,19 @@ def connector_reveal(type_: str, name: str, body: Reveal, request: Request):
 
 class Toggle(BaseModel):
     enabled: bool
+    force: bool = False   # turn the collection on without the test first (the source may simply be slow or down at that moment)
 
 
 @app.patch(API + "/connectors/settings/{type_}/{name}", tags=["connecteurs"], summary="Allumer ou couper un connecteur (admin)")
 def connector_toggle(type_: str, name: str, body: Toggle, request: Request):
     from connectors import settings
-    if body.enabled and not admin_write(request) and type_ in settings.TYPES:
+    if body.enabled and not body.force and not admin_write(request) and type_ in settings.TYPES:
         try:
             ok, msg = settings.check_saved(type_, name)
         except settings.SettingsError as e:
             return deny(400, str(e))
         if not ok:   # never collect untested settings
-            return deny(409, f"collecte non allumée : le test a échoué ({msg})")
+            return deny(409, f"collecte non allumée : le test a échoué ({msg}). Vous pouvez la rallumer quand même.")
     out = connector_call(request, "connecteur allumé" if body.enabled else "connecteur coupé", f"{type_} {name}",
                          lambda s: s.set_enabled(type_, name, body.enabled))
     if body.enabled and isinstance(out, dict) and out.get("ok"):

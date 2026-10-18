@@ -41,7 +41,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
   const [saved, setSaved] = useState<string[]>([]);   // detected services just activated: hidden at once, before any reload
   const [picking, setPicking] = useState(false);  // mini cartes des connecteurs disponibles, ouvertes par le « + »
   const [cat, setCat] = useState(""), [query, setQuery] = useState("");   // category and search of the picker (empty: all)
-  const [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false);
+  const [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false), [untested, setUntested] = useState<{ type: string; name: string } | null>(null);
   const collect = useCollectTask();
   const reload = useCallback(() => {
     read<ConnectorsState>("connectors/settings")
@@ -139,11 +139,15 @@ export function Connectors({ snap }: { snap: Snapshot }) {
       )}
       {[...st.instances].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name)).map((i) => (   // alphabetical, like the picker
         <InstanceCard key={`${i.type}/${i.name}`} inst={i} hosts={snap.data.hosts} collect={collect} type={st.types.find((t) => t.type === i.type)!} reload={reload}
-          onCollect={(on) => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
-            on ? tx("allumé : relecture lancée") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
+          onCollect={(on) => { setUntested(on ? { type: i.type, name: i.name } : null); void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
+            on ? tx("allumé : relecture lancée") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } }); }}
           focus={focusKey === `${i.type}/${i.name}`} editing={editing === `${i.type}/${i.name}`} locked={(!!editing && editing !== `${i.type}/${i.name}`) || picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
       ))}
       <NoteLine note={srcNote} />
+      {untested && srcNote && !srcNote.ok && srcNote.text.includes("collecte non allumée") && (
+        <button type="button" className={`${quiet} self-start`} onClick={() => void act(() => send("PATCH", `connectors/settings/${untested.type}/${encodeURIComponent(untested.name)}`, { enabled: true, force: true }),
+          tx("allumé sans test : relecture lancée"), setSrcNote).then((ok) => { if (ok) { setUntested(null); setChanged(true); reload(); } })}>{tx("Rallumer quand même (sans test)")}</button>
+      )}
       {changed && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-bg2/40 px-4 py-3 text-sm text-muted">
           {tx("Pris en compte à la prochaine collecte.")}

@@ -89,7 +89,30 @@ export function withLive(data: Data, live: Live | null): Data {
       return { ...m, links: { ...m.links!, sources: m.links!.sources.map((x) => (x === src ? { ...x, ok: hit.st.status === "up" } : x)) } };
     });
   }
-  return moved || Object.keys(sheets).length ? { ...data, machine_list, network, virtualization, sheets } : data;
+  const merged = moved || Object.keys(sheets).length ? { ...data, machine_list, network, virtualization, sheets } : data;
+  return healConnectors(merged, live);
+}
+
+interface ConnectorRow { ok?: boolean; stale?: boolean; message?: string; name?: string; type?: string; connector?: string }
+
+/** A connector that failed at the last full collection but that a newer light reading (live.json) read fine is shown as read, with no failure
+ *  message: the warnings (home, machines, services…) no longer wait for the next full collection to go away. */
+export function healConnectors(data: Data, live: Live): Data {
+  const collected = Date.parse(data.generated) / 1000;
+  if (!Number.isFinite(collected)) return data;
+  let out: Record<string, unknown> | null = null;
+  for (const [key, value] of Object.entries(data)) {
+    if (!Array.isArray(value)) continue;
+    let changed = false;
+    const rows = value.map((row: ConnectorRow) => {
+      const src = row && (row.ok === false || row.stale === true) ? live.sources[`${row.connector ?? row.type}/${row.name}`] : undefined;
+      if (!src?.ok || src.at <= collected) return row;
+      changed = true;
+      return { ...row, ok: true, stale: false, message: "" };
+    });
+    if (changed) out = { ...(out ?? data), [key]: rows };
+  }
+  return (out as unknown as Data) ?? data;
 }
 
 export const loadLive = (): Promise<Live | null> => get<Live>("live.json", true).catch(() => null);
