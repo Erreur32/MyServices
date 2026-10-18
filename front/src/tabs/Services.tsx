@@ -1,5 +1,6 @@
 // Services : tous les services (NPM et directs) avec leur état, leur machine et leur source ; clic sur une ligne
 // = fiche détaillée dans une fenêtre (comme Machines). Sur mobile, une fiche par service.
+import { foldHeaderProps } from "../lib/foldHeader";
 import { ChevronDown, ChevronRight, ExternalLink, Server } from "lucide-react";
 import { Fragment, useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
@@ -152,13 +153,13 @@ function groupByMachine(rows: Host[]): { name: string; ip: string; rows: Host[] 
 function GroupHeader({ g, folded, onToggle, cols }: Readonly<{ g: { name: string; ip: string; rows: Host[] }; folded: boolean; onToggle: () => void; cols: number }>) {
   const count = (c: string) => g.rows.filter((r) => status(r)[0] === c).length;
   return (
-    <tr onClick={onToggle} className={`cursor-pointer hover:bg-bg2 ${folded ? "bg-bg2/70" : "bg-link/15"}`}>
+    <tr {...foldHeaderProps(onToggle)} className={`cursor-pointer hover:bg-bg2 ${folded ? "bg-bg2/70" : "bg-link/15"}`}>
       <td className={`p-0 ${folded ? "" : OPEN_EDGE}`}>
         {/* width 0 + min-width 100%: the title adds nothing to the column widths, so the columns below keep their own size */}
-        <span className="flex w-0 min-w-full items-center gap-2 overflow-hidden whitespace-nowrap px-3 py-2">
+        <button type="button" onClick={onToggle} aria-expanded={!folded} className="flex w-0 min-w-full items-center gap-2 overflow-hidden whitespace-nowrap px-3 py-2 text-left">
           {folded ? <ChevronRight size={15} className="shrink-0 text-dim" aria-hidden /> : <ChevronDown size={15} className="shrink-0 text-dim" aria-hidden />}
           <Server size={15} className="shrink-0 text-link" aria-hidden /><b className="truncate">{g.name}</b>{g.ip && g.ip !== g.name && <Dim>{g.ip}</Dim>}
-        </span>
+        </button>
       </td>
       {/* the counts sit in the Service column, lined up with the service names below */}
       <td colSpan={cols - 1} className="py-2 !pl-10 pr-3">
