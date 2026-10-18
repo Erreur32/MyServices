@@ -52,13 +52,41 @@ export function withPulse(data: Data, p: Pulse | null): Data {
   return moved ? { ...data, machine_list } : data;
 }
 
+/** Lectures légères des connecteurs (live.json, toutes les 5 min) : MynetworK (état, ports et date de leur scan), invités Proxmox par API */
+export interface Live {
+  ts: number;
+  sources: Record<string, { at: number; ok: boolean; devices?: Record<string, { status: string; ping_ms: number | null; ports: number[]; ports_at: string | null }>; guests?: Record<string, string> }>;
+}
+const LIVE_MAX_AGE_S = 900;
+
+/** data.json avec les lectures rapides par-dessus (appareils du scanner, invités Proxmox par API) ; sans lecture récente, tel quel */
+export function withLive(data: Data, live: Live | null): Data {
+  if (!live || Date.now() / 1000 - live.ts > LIVE_MAX_AGE_S) return data;
+  let moved = false;
+  const network = data.network?.map((row) => {
+    const src = live.sources[`${row.connector}/${row.name}`];
+    if (row.connector !== "mynetwork" || !src?.ok || !src.devices) return row;
+    moved = true;
+    return { ...row, devices: (row.devices ?? []).map((d) => { const l = src.devices![d.ip]; return l ? { ...d, ...l } : d; }) };
+  });
+  const virtualization = data.virtualization?.map((row) => {
+    const src = live.sources[`${row.connector}/${row.name}`];
+    if (row.via === "ssh" || !src?.ok || !src.guests || !row.guests) return row;
+    moved = true;
+    return { ...row, guests: row.guests.map((g) => { const s = src.guests![`${g.node}/${g.vmid}`]; return s ? { ...g, status: s } : g; }) };
+  });
+  return moved ? { ...data, network, virtualization } : data;
+}
+
+export const loadLive = (): Promise<Live | null> => get<Live>("live.json", true).catch(() => null);
+
 export const loadPulse = (): Promise<Pulse | null> => get<Pulse>("pulse.json", true).catch(() => null);
 
 /** Tout ce que l'accueil lit, en parallèle ; santé, sauvegardes et événements sont facultatifs. */
 export async function loadSnapshot(): Promise<Snapshot> {
-  const [me, raw, pulse] = await Promise.all([get<Me>("api/v1/me"), get<Data>("data.json", true), loadPulse()]);
+  const [me, raw, pulse, live] = await Promise.all([get<Me>("api/v1/me"), get<Data>("data.json", true), loadPulse(), loadLive()]);
   if (!raw) throw new NotConfigured(me!);
-  const data = withPulse(raw, pulse);
+  const data = withPulse(withLive(raw, live), pulse);
   const hu = data!.page.health_url, bu = data!.page.backups_url;
   const [health, backups, watch, hev] = await Promise.all([
     hu ? get<Health>(`${hu}stats.json`, true) : null,

@@ -109,5 +109,27 @@ class WatcherTakesThePulse(unittest.TestCase):
         self.assertEqual(watcher.diff_machines(prev, cur, {})[0], [])
 
 
+class LiveSettings(unittest.TestCase):
+    def core(self):
+        import config
+        return type("Core", (), {"CFG": {k: config.DEFAULTS[k] for k in ("pulse_every", "pulse_confirm", "fast_every")}})()
+
+    def test_values_are_checked_and_defaults_are_not_written(self):
+        import system
+        from unittest import mock
+        core, written = self.core(), []
+        with mock.patch.object(system, "_update_config", side_effect=lambda c, change: (lambda raw: (change(raw), written.append(dict(raw))))({"pulse_every": 99})):
+            out = system.set_live(core, {"pulse_every": 15, "pulse_confirm": 3})
+            self.assertEqual((core.CFG["pulse_every"], core.CFG["pulse_confirm"], out["values"]["pulse_every"]), (15, 3, 15))
+            system.set_live(core, {"pulse_every": 30})   # the default: the key is removed from config.json
+            self.assertNotIn("pulse_every", written[-1])
+            for bad in ({"pulse_every": 5}, {"pulse_confirm": 0}, {"fast_every": 30}, {"pulse_every": True}, {"pulse_every": "x"}):
+                with self.assertRaises(ValueError):
+                    system.set_live(core, bad)
+            system.set_live(core, {"pulse_every": 0})   # 0 = off is allowed for the pulse and the fast tier
+            with self.assertRaises(ValueError):
+                system.set_live(core, {"pulse_confirm": 0})
+
+
 if __name__ == "__main__":
     unittest.main()

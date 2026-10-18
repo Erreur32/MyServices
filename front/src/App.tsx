@@ -1,6 +1,6 @@
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LOGIN, LoginRequired, NotConfigured, RELOAD_EVENT, loadPulse, loadSnapshot, logout, withPulse, type Snapshot } from "./api";
+import { LOGIN, LoginRequired, NotConfigured, RELOAD_EVENT, loadLive, loadPulse, loadSnapshot, logout, withLive, withPulse, type Snapshot } from "./api";
 import { Header } from "./components/Header";
 import { Assistant } from "./tabs/Assistant";
 import { Home } from "./components/Home";
@@ -66,7 +66,7 @@ export default function App() {
     load();
     const id = setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);   // rien quand l'onglet est masqué
     const live = setInterval(() => {
-      if (!document.hidden) void loadPulse().then((p) => p && setSnap((s) => { const d = s && withPulse(s.data, p); return s && d !== s.data ? { ...s, data: d! } : s; }));
+      if (!document.hidden) void Promise.all([loadLive(), loadPulse()]).then(([l, p]) => setSnap((s) => { const d = s && withPulse(withLive(s.data, l), p); return s && d !== s.data ? { ...s, data: d! } : s; }));
     }, PULSE_MS);
     const onHash = () => {   // ancienne page « Installation » -> assistant
       if (location.hash.startsWith("#setup")) location.replace("#assistant");

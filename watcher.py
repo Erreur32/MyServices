@@ -483,6 +483,18 @@ def main() -> int:
     counts = {"services": len(cur), "en panne": sum(1 for c in cur.values() if c["status"] == "bad"),
               "désactivés": sum(1 for c in cur.values() if c["status"] == "off")}
 
+    # A run between two collections (started by the pulse) sees the same data.json as the one before: only the ping of the machines can
+    # have moved. What needs two collections to be confirmed (services, connectors, SSH...) must not count the same one twice.
+    same_gen = state.get("gen") == data.get("generated") and "snap" in state
+    if same_gen:
+        events = [e for e in events if str(e["key"]).startswith("machine:") and e["kind"] in ("hors_ligne", "en_ligne")]
+        for k, c in mcur.items():
+            c["ssh"] = ((state.get("machines") or {}).get(k) or c).get("ssh", c["ssh"])
+        mpending = {**state.get("mpending", {}), **{k: v for k, v in mpending.items() if not k.endswith(":ping")}}
+        cur, pending, ccur, cpending = state["snap"], state.get("pending", {}), state.get("connectors", ccur), state.get("cpending", {})
+        dcur, vcur, vpending = state.get("dns", dcur), state.get("virt", vcur), state.get("vpending", {})
+        tcur, xcur, ncur = state.get("threats", tcur), state.get("nextcloud", xcur), state.get("network", ncur)
+
     if dry:
         print(f"=== DRY RUN (baseline={baseline}) · {len(events)} événement(s) ===")
         for e in events:
@@ -512,7 +524,8 @@ def main() -> int:
     STATE_FILE.write_text(json.dumps({"snap": cur, "pending": pending, "history": history,  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
                                       "machines": mcur, "mpending": mpending, "dns": dcur,
                                       "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending, "threats": tcur, "nextcloud": xcur,
-                                      "stale_reported": age > STALE_MIN, "last_run": now},
+                                      "stale_reported": state.get("stale_reported", False) if same_gen else age > STALE_MIN,
+                                      "gen": data.get("generated"), "last_run": now},
                                      ensure_ascii=False), encoding="utf-8")
     print(f"✓ {EVENTS} · {info} · " + " · ".join(f"{v} {k}" for k, v in counts.items()), file=sys.stderr)
     return 0

@@ -2415,4 +2415,13 @@ export const EN: Record<string, string> = {
   "menaces fail2ban": "fail2ban threats",
   "connecteurs revenus < 1 h": "connectors back < 1 h",
   "nouveaux appareils": "new devices",
+  "scannés le {0}": "scanned on {0}",
+  "Pouls (ping des machines)": "Pulse (machine ping)",
+  "Un ping de chaque machine suivie : l'état en ligne ou hors ligne est vivant. 0 = coupé.": "A ping of every followed machine: the online or offline state is live. 0 = off.",
+  "Pouls à confirmer": "Pulses to confirm",
+  "Nombre de pouls de suite avant d'annoncer qu'une machine est tombée ou revenue (un paquet perdu ne compte pas).": "Pulses in a row before announcing that a machine went down or came back (one lost packet does not count).",
+  "Connecteurs rapides": "Fast connectors",
+  "Lecture légère de MynetworK (état, ports) et de Proxmox par API, entre deux collectes. 0 = coupé.": "Light read of MynetworK (status, ports) and of Proxmox by API, between two collections. 0 = off.",
+  "Vérifications en direct": "Live checks",
+  "Ping de chaque machine et lectures légères des connecteurs, entre deux collectes : les changements se voient en quelques secondes.": "A ping of every machine and light connector reads, between two collections: changes show within seconds.",
 };

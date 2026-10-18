@@ -39,6 +39,47 @@ class Connectors(unittest.TestCase):
         self.assertIn("connecteur", watcher.LABEL)
 
 
+class SameCollection(unittest.TestCase):
+    """A run started by the pulse sees the data.json of the run before: it must not confirm a service outage by itself."""
+
+    @staticmethod
+    def gen(n):
+        from datetime import datetime, timedelta, timezone
+        return (datetime.now(timezone.utc) - timedelta(minutes=10 - n)).isoformat(timespec="seconds")   # n-th collection, all recent
+
+    def run_main(self, d, generated, up, pulse_ping=None):
+        import json
+        import tempfile
+        from unittest import mock
+        host = {"type": "local", "id": 1, "name": "web", "enabled": True, "ip": "10.0.0.5", "port": 80, "domains": [],
+                "backend": {"up": up}, "public": {}}
+        data = {"generated": generated, "hosts": [host], "machine_list": [{"ip": "10.0.0.2", "name": "pc", "ping": True, "ssh": None}], "page": {}}
+        (d / "data.json").write_text(json.dumps(data), encoding="utf-8")
+        live = {"10.0.0.2": {"ping": pulse_ping}} if pulse_ping is not None else {}
+        with mock.patch.object(watcher, "DATA", d / "data.json"), mock.patch.object(watcher, "EVENTS", d / "events.json"), \
+                mock.patch.object(watcher, "STATE_DIR", d), mock.patch.object(watcher, "STATE_FILE", d / "state.json"), \
+                mock.patch.object(watcher.pulse, "read", return_value=live), mock.patch.object(watcher, "notify_discord", return_value=""), \
+                mock.patch.object(watcher.notify, "telegram_on", return_value=False), mock.patch.dict(watcher.os.environ, {"MYSERVICES_ALERTS_ENGINE": "1"}):
+            watcher.main()
+        return [e["kind"] for e in json.loads((d / "events.json").read_text(encoding="utf-8"))["events"]]
+
+    def test_pulse_run_does_not_confirm_a_service_alone(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            self.run_main(d, self.gen(1), True)                                  # baseline
+            self.assertNotIn("panne", self.run_main(d, self.gen(2), False))      # first collection that sees it down: not confirmed yet
+            self.assertNotIn("panne", self.run_main(d, self.gen(2), False))      # a run between two collections: still not
+            self.assertIn("panne", self.run_main(d, self.gen(3), False))         # the second collection confirms
+
+    def test_pulse_run_still_reports_a_machine_that_moved(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            self.run_main(d, self.gen(1), True)
+            self.assertIn("hors_ligne", self.run_main(d, self.gen(1), True, pulse_ping=False))
+
+
 class Network(unittest.TestCase):
     """« New device on the network » (MynetworK): reference on the first reading, then one event per unknown device."""
 

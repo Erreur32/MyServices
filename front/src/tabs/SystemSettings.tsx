@@ -1,7 +1,7 @@
 // Réglages, trois sections sur le même état : « Clé SSH » (Accès et sécurité : à autoriser sur chaque machine), « Tâches et
 // horaires » (Surveillance : modifiables, lancer maintenant) et « Sauvegarde et informations » (export de la configuration,
 // version de l'image et lien vers la dernière publiée, chemins, tailles).
-import { Bell, Check, CircleHelp, Copy, Download, ExternalLink, Eye, EyeOff, HardDrive, HeartPulse, KeyRound, Loader2, Play, Radar, RefreshCw, RotateCcw, Server, ShieldCheck, Timer, type LucideIcon } from "lucide-react";
+import { Activity, Bell, Check, CircleHelp, Copy, Download, ExternalLink, Eye, EyeOff, HardDrive, HeartPulse, KeyRound, Loader2, Play, Radar, RefreshCw, RotateCcw, Server, ShieldCheck, Timer, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { download, LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { copyText } from "../lib/clipboard";
@@ -154,7 +154,7 @@ function SshKey({ ssh, snap }: { ssh: SystemState["ssh"]; snap: Snapshot }) {
 
 /** Aligned columns from one row to the next: task, editable schedule, next run, button */
 const ROW_COLS = "lg:grid lg:grid-cols-[minmax(0,1fr)_18rem_9rem_11rem]";
-const ICON: Record<string, LucideIcon> = { collect: RefreshCw, watch: Bell, health: HeartPulse, backups: HardDrive, netscan: Radar };
+const ICON: Record<string, LucideIcon> = { collect: RefreshCw, watch: Bell, health: HeartPulse, backups: HardDrive, netscan: Radar, pulse: Activity };
 const DESC: Record<string, string> = {
   collect: tx("Lit les machines, Docker, NPM et les connecteurs, puis met les pages à jour."),
   watch: tx("Compare au passage précédent : services tombés, nouveaux ou disparus, et envoie les alertes."),
@@ -200,6 +200,7 @@ function Tasks({ tasks, netscan, beat, reload }: { tasks: SystemTask[]; netscan?
       <ul className="flex flex-col divide-y divide-line/60">
         {tasks.map((t) => <TaskRow key={t.name} t={t} now={now} reload={reload} />)}
         {netscan && <NetscanRow n={netscan} now={now} reload={reload} />}
+        <LiveChecksRow />
       </ul>
     </Card>
   );
@@ -293,6 +294,55 @@ function TaskRow({ t, now, reload }: { t: SystemTask; now: number; reload: () =>
           </button>
         </div>
       </div>
+    </li>
+  );
+}
+
+interface LiveCfg { values: Record<LiveKey, number>; defaults: Record<LiveKey, number>; limits: Record<LiveKey, [number, number]>; off_allowed: LiveKey[] }
+type LiveKey = "pulse_every" | "pulse_confirm" | "fast_every";
+const LIVE_FIELDS: { key: LiveKey; label: string; unit: string; hint: string }[] = [
+  { key: "pulse_every", label: tx("Pouls (ping des machines)"), unit: "s", hint: tx("Un ping de chaque machine suivie : l'état en ligne ou hors ligne est vivant. 0 = coupé.") },
+  { key: "pulse_confirm", label: tx("Pouls à confirmer"), unit: "×", hint: tx("Nombre de pouls de suite avant d'annoncer qu'une machine est tombée ou revenue (un paquet perdu ne compte pas).") },
+  { key: "fast_every", label: tx("Connecteurs rapides"), unit: "s", hint: tx("Lecture légère de MynetworK (état, ports) et de Proxmox par API, entre deux collectes. 0 = coupé.") },
+];
+
+/** Settings of the live checks: the ping of every machine and the light connector reads (PUT system/live-checks, applied at the next pass) */
+function LiveChecksRow() {
+  const [cfg, setCfg] = useState<LiveCfg | null>(null), [draft, setDraft] = useState<Record<string, string>>({}), [note, setNote] = useState<Note>(null);
+  const load = useCallback(() => { read<LiveCfg>("system/live-checks").then((c) => { setCfg(c); setDraft({}); }).catch(() => undefined); }, []);
+  useEffect(load, [load]);
+  if (!cfg) return null;
+  const valueOf = (k: LiveKey) => draft[k] ?? String(cfg.values[k]);
+  const okValue = (k: LiveKey) => { const v = Number(valueOf(k)), [lo, hi] = cfg.limits[k]; return valueOf(k) !== "" && Number.isInteger(v) && ((v >= lo && v <= hi) || (v === 0 && cfg.off_allowed.includes(k))); };
+  const changed = LIVE_FIELDS.filter((f) => Number(valueOf(f.key)) !== cfg.values[f.key]);
+  const valid = LIVE_FIELDS.every((f) => okValue(f.key));
+  const save = (body: Partial<Record<LiveKey, number>>) => void act(() => send("PUT", "system/live-checks", body), tx("enregistré"), setNote).then((ok) => { if (ok) load(); });
+  return (
+    <li className="px-1 py-3 text-sm">
+      <div className="flex min-w-[220px] gap-3">
+        <TaskIcon name="pulse" on />
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2"><b>{tx("Vérifications en direct")}</b><NoteLine inline note={note} /></div>
+          <p className="text-xs text-muted">{tx("Ping de chaque machine et lectures légères des connecteurs, entre deux collectes : les changements se voient en quelques secondes.")}</p>
+        </div>
+      </div>
+      <form className="mt-3 grid gap-3 rounded-lg bg-bg2/50 p-3 md:ml-11 md:grid-cols-3" onSubmit={(e) => { e.preventDefault(); if (valid && changed.length) save(Object.fromEntries(changed.map((f) => [f.key, Number(valueOf(f.key))]))); }}>
+        {LIVE_FIELDS.map((f) => (
+          <label key={f.key} className="flex flex-col gap-1 text-xs font-semibold text-muted">{f.label}
+            <span className="flex items-center gap-1.5">
+              <input className={`${input} h-9 w-24 font-mono ${okValue(f.key) ? "" : "border-bad"}`} type="number" step={1} value={valueOf(f.key)}
+                onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })} title={tx("défaut : {0}", cfg.defaults[f.key])} />
+              <span className="font-normal text-dim">{f.unit}</span>
+              {cfg.values[f.key] !== cfg.defaults[f.key] && !draft[f.key] && (
+                <button type="button" className={`${quiet} h-9`} title={tx("Revenir au défaut : {0}", cfg.defaults[f.key])} aria-label={tx("Revenir au défaut : {0}", cfg.defaults[f.key])}
+                  onClick={() => save({ [f.key]: cfg.defaults[f.key] })}><RotateCcw size={14} /></button>
+              )}
+            </span>
+            <span className="font-normal text-dim">{f.hint}</span>
+          </label>
+        ))}
+        {changed.length > 0 && <div className="md:col-span-3"><button type="submit" className={`${primary} h-9`} disabled={!valid}>{tx("Enregistrer")}</button></div>}
+      </form>
     </li>
   );
 }

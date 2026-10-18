@@ -32,6 +32,7 @@ from pathlib import Path
 if __name__ == "__main__":
     sys.modules.setdefault("server", sys.modules[__name__])
 
+import fast
 import netscan
 import pulse
 from config import CFG
@@ -176,6 +177,8 @@ def _wait(name: str) -> None:
         t.update(proc=None, end=time.time(), result=result)
     save_last_runs()
     log(f"{name} : terminé, {result} ({t['end'] - t['start']:.0f} s)")
+    if name == "collect" and code == 0 and enabled("watch"):
+        run_chain(["watch"], "après la collecte")   # its events at once, not at the next :15 / :45 (a run on the same data.json counts for nothing twice)
 
 
 _AUTO_ADGUARD = threading.Lock()
@@ -247,11 +250,12 @@ def pulse_ips() -> list[str]:
 def pulse_loop() -> None:
     """Ping every machine every `pulse_every` s; a confirmed change starts the watcher at once (its events, history and alerts)
     and a health reading of that machine alone."""
-    every, owed = CFG["pulse_every"], pulse.Owed()
-    while every > 0:
-        t0 = time.time()
+    owed = pulse.Owed()
+    while True:
+        t0, every = time.time(), CFG["pulse_every"]   # read again at every pass: a change in the settings applies at once
+        PULSE.confirm = max(1, CFG["pulse_confirm"])
         try:
-            ips = pulse_ips()
+            ips = pulse_ips() if every > 0 else []
             if ips:
                 owed.add(PULSE.tick(ips))
             # the machine that moved also gets its health read again at once (not at the next 6 h pass), alone
@@ -259,7 +263,20 @@ def pulse_loop() -> None:
                         enabled("watch"), enabled("health"))
         except Exception as e:  # a bug here must not stop the pulse
             log(f"⚠ pouls : {e}")
-        time.sleep(max(1.0, every - (time.time() - t0)))
+        time.sleep(max(1.0, (every or 5) - (time.time() - t0)))
+
+
+def fast_loop() -> None:
+    """Light reads of the connectors every `fast_every` s (live.json): the page and the watcher need not wait for the 30 min collection."""
+    last = {}
+    while True:
+        t0, every = time.time(), CFG["fast_every"]
+        try:
+            if every > 0 and enabled("collect"):
+                last = fast.refresh(CFG, WEB / "live.json", pulse_ips(), last)
+        except Exception as e:  # a bug here must not stop the loop
+            log(f"⚠ connecteurs rapides : {e}")
+        time.sleep(max(5.0, (every or 30) - (time.time() - t0)))
 
 
 def keep_availability() -> None:
@@ -686,6 +703,7 @@ def main() -> int:
         keep_history(name)
     threading.Thread(target=scheduler, daemon=True).start()
     threading.Thread(target=pulse_loop, daemon=True, name="pulse").start()
+    threading.Thread(target=fast_loop, daemon=True, name="fast").start()
     threading.Thread(target=first_runs, daemon=True).start()
     import uvicorn
 

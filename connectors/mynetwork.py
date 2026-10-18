@@ -128,18 +128,22 @@ class MynetworK(Connector):
         v = got.get("version") if isinstance(got, dict) else None
         return str(v).lstrip("v") if v else None
 
-    def collect(self) -> dict:
+    def scan(self) -> list[dict]:
+        """The scanner inventory alone (one paginated call): what the live tier reads often, without UniFi or the Freebox."""
         devices, offset, total = [], 0, None
         while total is None or (offset < total and offset < MAX_ITEMS):
             page = self._get("/api/network-scan/history", {"limit": PAGE, "offset": offset, "sortBy": "ip", "sortOrder": "asc"})
             if not isinstance(page, dict) or not isinstance(page.get("items"), list):
                 raise ConnectorError("réponse sans inventaire (URL de MynetworK ?)")
-            items = [device(d) for d in page["items"] if isinstance(d, dict) and d.get("ip")]
-            devices += items
+            devices += [device(d) for d in page["items"] if isinstance(d, dict) and d.get("ip")]
             total = page.get("total") if isinstance(page.get("total"), int) else len(devices)
             if not page["items"]:
                 break
             offset += PAGE
+        return devices
+
+    def collect(self) -> dict:
+        devices = self.scan()
         out: dict = {"devices": devices, "online": sum(1 for d in devices if d["status"] == "online"), "unifi": None}
         clients = self._get("/api/plugins/unifi/clients", {"limit": PAGE}, optional=True)
         gear = self._get("/api/plugins/unifi/devices", {"limit": PAGE}, optional=True)
