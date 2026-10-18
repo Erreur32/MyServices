@@ -265,7 +265,7 @@ Presque tout se règle dans la page (Réglages). Fichiers et variables, pour mé
 | `MYSERVICES_PORT` | port de la page (défaut `8090`) |
 | `MYSERVICES_ALLOW` | réseaux autorisés à ouvrir la page (défaut : réseaux privés et boucle locale) |
 | `MYSERVICES_HOST_USER` | compte SSH de l'alias `hote` (la machine hôte) |
-| `MYSERVICES_COLLECT_AT` | horaire de la collecte, `minutes heures` (défaut `10,40 *`) ; idem pour la veille et la santé |
+| `MYSERVICES_COLLECT_AT` | horaire de la collecte, `minutes heures` (défaut `0,15,30,45 *`) ; idem pour la veille et la santé |
 | `TZ` | fuseau horaire |
 
 Les horaires se modifient aussi à chaud dans Réglages -> Tâches et horaires. Un exemple complet : [`deploy/compose.example.yaml`](deploy/compose.example.yaml).

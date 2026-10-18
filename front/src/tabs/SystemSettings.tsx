@@ -1,25 +1,26 @@
 // Réglages, trois sections sur le même état : « Clé SSH » (Accès et sécurité : à autoriser sur chaque machine), « Tâches et
 // horaires » (Surveillance : modifiables, lancer maintenant) et « Sauvegarde et informations » (export de la configuration,
 // version de l'image et lien vers la dernière publiée, chemins, tailles).
-import { Activity, Bell, Check, CircleHelp, Copy, Download, ExternalLink, Eye, EyeOff, HardDrive, HeartPulse, KeyRound, Loader2, Play, Radar, RefreshCw, RotateCcw, Server, ShieldCheck, Timer, type LucideIcon } from "lucide-react";
+import { Activity, Bell, Check, Clock, Copy, Download, ExternalLink, Eye, EyeOff, HardDrive, HeartPulse, KeyRound, Loader2, Pause, Play, Radar, RefreshCw, RotateCcw, Server, ShieldCheck, Timer, TriangleAlert, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { download, LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { copyText } from "../lib/clipboard";
 import { stateBadge } from "../lib/machines";
 import { Field, NoteLine, Switch } from "../components/form";
 import { act, button, input, primary, quiet, type Note } from "../lib/forms";
-import { Badge, Card, Count, Dim } from "../components/ui";
+import { Badge, Card, Count, Dim, type Tone } from "../components/ui";
 import { bytes, dateTime, dur, hm } from "../lib/format";
 import type { SystemState, SystemTask } from "../types";
 import { usePoll } from "../lib/polling";
 import { tx } from "../lib/i18n";
 import { MachineIcon } from "../components/MachineIcon";
 import { GITHUB, releaseOf } from "../lib/links";
-import { liveText, parseAt, period } from "../lib/tasks";
+import { groupOf, inText, liveText, parseAt, period, runLength, runState, summarize, TASK_GROUPS, type RunState } from "../lib/tasks";
 import { pokeScan } from "../lib/scan";
 import { AutoDiscoveries, DISCOVERED_BY } from "../components/AutoDiscoveries";
 import { useDiscoveries } from "../components/DiscoveryCard";
 import { MailSettings } from "../components/MailSettings";
+import { ScheduleHelp } from "../components/ScheduleHelp";
 
 export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh"; snap: Snapshot }) {
   const [st, setSt] = useState<SystemState | null>(null);
@@ -164,63 +165,130 @@ const DESC: Record<string, string> = {
 };
 const desc = (name: string) => DESC[name] ?? "";
 
-function TaskIcon({ name, on }: { name: string; on: boolean }) {
-  const Icon = ICON[name] ?? Timer;
-  return <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${on ? "bg-link/15 text-link" : "bg-bg2 text-dim"}`}><Icon size={16} aria-hidden /></span>;
+/** One look per state: the icon and the word carry it, the colour only backs it up */
+const STATE_VIEW: Record<RunState, { tone: Tone; Icon: LucideIcon; label: () => string }> = {
+  running: { tone: "info", Icon: Loader2, label: () => tx("en cours") },
+  failed: { tone: "bad", Icon: TriangleAlert, label: () => tx("échec") },
+  ok: { tone: "ok", Icon: Check, label: () => tx("réussi") },
+  disabled: { tone: "off", Icon: Pause, label: () => tx("coupée") },
+  idle: { tone: "off", Icon: Clock, label: () => tx("en attente") },
+};
+const ROW_STYLE: Record<RunState, string> = {
+  running: "border-l-link bg-link/5", failed: "border-l-bad bg-bad/5", ok: "border-l-transparent", idle: "border-l-transparent", disabled: "border-l-transparent opacity-70",
+};
+/** Dark title band of a card, as in the other cards (flush with the card edges) */
+const STRIP = "-mx-4 -mt-4 mb-3 rounded-t-2xl border-b border-line/60 bg-bg px-4 py-3";
+const rowClass = (s: RunState) => `border-l-4 px-3 py-3 text-sm ${ROW_STYLE[s]}`;
+
+function StateBadge({ state }: Readonly<{ state: RunState }>) {
+  const { tone, Icon, label } = STATE_VIEW[state];
+  return (
+    <Badge tone={tone} title={state === "idle" ? tx("pas encore passé depuis le démarrage") : undefined}>
+      <Icon size={12} aria-hidden className={state === "running" ? "motion-safe:animate-spin" : ""} />{label()}
+    </Badge>
+  );
 }
 
-/** How to write a schedule, as a tip behind a help icon (lines with a tab are the rows of a small table) */
-const scheduleHelp = () => [tx("Écrire un horaire"), `${tx("Format")}\t\`${tx("minutes heures")}\``, `\`10,40 *\`\t${tx("deux fois par heure")}`,
-  `\`5 7,19\`\t${tx("à 7 h 05 et 19 h 05")}`, `${tx("Appliqué tout de suite, gardé dans")} \`config.json\``].join("\n");
+function TaskIcon({ name, state }: Readonly<{ name: string; state: RunState }>) {
+  const Icon = ICON[name] ?? Timer;
+  return (
+    <span className={`relative grid h-8 w-8 shrink-0 place-items-center rounded-lg ${state === "disabled" ? "bg-bg2 text-dim" : "bg-link/15 text-link"}`}>
+      {state === "running" && <span className="absolute inset-0 rounded-lg ring-2 ring-link/60 motion-safe:animate-pulse" aria-hidden />}
+      <Icon size={16} aria-hidden />
+    </span>
+  );
+}
 
-function Tasks({ tasks, netscan, beat, reload }: { tasks: SystemTask[]; netscan?: SystemState["netscan"]; beat: number | null; reload: () => void }) {
+/** Left part of every row: icon, name, state, short description and the last run */
+function TaskHead({ name, title, state, badge, note, extra, about, children }: Readonly<{
+  name: string; title: string; state: RunState; badge?: ReactNode; note: Note; extra?: ReactNode; about: ReactNode; children?: ReactNode;
+}>) {
+  return (
+    <div className="flex min-w-[220px] gap-3">
+      <TaskIcon name={name} state={state} />
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <b>{title}</b>
+          {badge ?? <StateBadge state={state} />}
+          <NoteLine inline note={note} />
+          {extra}
+        </div>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">{about}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Tasks({ tasks, netscan, beat, reload }: Readonly<{ tasks: SystemTask[]; netscan?: SystemState["netscan"]; beat: number | null; reload: () => void }>) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 15_000); return () => clearInterval(t); }, []);
-  const failed = tasks.filter((t) => t.result && t.result !== "success" && !t.running).length;
   const ago = beat ? Math.max(0, Math.round(now / 1000 - beat)) : null, alive = ago !== null && ago < 90;   // the loop turns every 5 s
+  const sections: Record<string, ReactNode[]> = {};
+  const add = (group: string, row: ReactNode) => { (sections[group] ??= []).push(row); };
+  tasks.forEach((t) => add(groupOf(t.name), <TaskRow key={t.name} t={t} now={now} reload={reload} />));
+  if (netscan) add(groupOf("netscan"), <NetscanRow key="netscan" n={netscan} now={now} reload={reload} />);
+  add(groupOf("live"), <LiveChecksRow key="live" />);
+  return <>
+    <TasksHeader tasks={tasks} netscan={netscan} ago={ago} alive={alive} now={now} />
+    {TASK_GROUPS.filter((g) => sections[g.id]?.length).map((g) => (
+      <Card key={g.id}>
+        <h3 className={`${STRIP} text-xs font-bold uppercase tracking-wider text-muted`}>{g.title()}</h3>
+        <div className={`mb-1 hidden items-center gap-x-4 border-b border-line px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-dim ${ROW_COLS}`} aria-hidden>
+          <span>{tx("Tâche")}</span><span>{tx("Horaire")}</span><span>{tx("Prochain passage")}</span><span />
+        </div>
+        <ul className="flex flex-col divide-y divide-line/60" aria-label={g.title()}>{sections[g.id]}</ul>
+      </Card>
+    ))}
+  </>;
+}
+
+/** Title, scheduler heartbeat and a one-line summary: how many tasks are on, which one is running or failed, which is next */
+function TasksHeader({ tasks, netscan, ago, alive, now }: Readonly<{ tasks: SystemTask[]; netscan?: SystemState["netscan"]; ago: number | null; alive: boolean; now: number }>) {
+  const items = netscan ? [...tasks, { name: "netscan", label: tx("Recherche réseau"), enabled: netscan.enabled, running: netscan.running, result: netscan.ended ? "success" : null, next: netscan.next }] : tasks;
+  const sum = summarize(items), label = items.find((t) => t.name === sum.next?.name)?.label;
   return (
-    <Card>
-      <div className="mb-1 flex flex-wrap items-center gap-2">
-        <h2 className="flex items-center gap-2 font-bold"><Timer size={16} />{tx("Tâches et horaires")}</h2>
-        <button type="button" className="text-dim hover:text-link" title={scheduleHelp()} aria-label={tx("Aide sur les horaires")}><CircleHelp size={15} aria-hidden /></button>
+    <Card tone={alive ? undefined : "bad"}>
+      <div className={`${STRIP} flex flex-wrap items-center gap-2`}>
+        <h2 className="flex items-center gap-2 font-bold"><Timer size={16} aria-hidden />{tx("Tâches et horaires")}</h2>
+        <ScheduleHelp />
         <Badge tone={alive ? "ok" : "bad"} title={alive ? tx("Vérifié il y a {0} s. Il lance chaque tâche à son horaire, comme une crontab.", ago) : tx("Plus aucun tour depuis {0} s : redémarrez le conteneur.", ago ?? "?")}>
+          {alive ? <span className="h-1.5 w-1.5 rounded-full bg-ok motion-safe:animate-pulse" aria-hidden /> : <TriangleAlert size={12} aria-hidden />}
           {alive ? tx("planificateur actif") : tx("planificateur arrêté")}</Badge>
-        <Badge tone="info">{tx("{0} tâche(s) programmée(s)", tasks.filter((t) => t.enabled).length + (netscan?.enabled ? 1 : 0))}</Badge>
-        {failed > 0 && <Badge tone="bad">{tx("{0} en échec", failed)}</Badge>}
-        {tasks.some((t) => t.running) && <Badge tone="info">{tx("en cours")}</Badge>}
       </div>
+      <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted" aria-live="polite">
+        <span>{tx("{0} tâche(s) active(s) sur {1}", sum.enabled, items.length)}</span>
+        {sum.running > 0 && <Badge tone="info"><Loader2 size={12} aria-hidden className="motion-safe:animate-spin" />{tx("{0} en cours", sum.running)}</Badge>}
+        {sum.failed > 0 && <Badge tone="bad"><TriangleAlert size={12} aria-hidden />{tx("{0} en échec", sum.failed)}</Badge>}
+        {sum.next && <span>{tx("prochaine : {0}, {1} ({2})", label ?? sum.next.name, hm(sum.next.at * 1000), inText(sum.next.at * 1000 - now))}</span>}
+      </p>
       {!alive && (
-        <p className="mb-3 rounded-lg border border-bad/50 bg-bad/10 px-3 py-2 text-sm">
+        <p className="mt-3 rounded-lg border border-bad/50 bg-bad/10 px-3 py-2 text-sm">
           <b>{tx("Les horaires ne sont pas appliqués :")}</b> {tx("le planificateur intégré au conteneur (l'équivalent d'une crontab) ne tourne plus, aucune tâche ne part à son heure. Rien à activer : redémarrez le conteneur MyServices. Si le message revient, regardez Réglages → Journaux. En attendant, « Exécuter maintenant » marche toujours.")}
         </p>
       )}
-      <div className={`mb-1 hidden items-center gap-x-4 border-b border-line px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-dim ${ROW_COLS}`}>
-        <span>{tx("Tâche")}</span><span>{tx("Horaire")}</span><span>{tx("Prochain passage")}</span><span aria-hidden />
-      </div>
-      <ul className="flex flex-col divide-y divide-line/60">
-        {tasks.map((t) => <TaskRow key={t.name} t={t} now={now} reload={reload} />)}
-        {netscan && <NetscanRow n={netscan} now={now} reload={reload} />}
-        <LiveChecksRow />
-      </ul>
     </Card>
   );
 }
 
-/** Next run in its own column: the time, then how long until it (or how long it has been running) */
-function NextRun({ on, t, now }: { on: boolean; t: { running: boolean; started: number | null; next: number | null }; now: number }) {
-  if (!on) return <div className="text-xs text-dim lg:pt-2">{tx("coupée")}</div>;
-  if (t.running || t.next === null) return <div className="text-xs tabular-nums text-muted lg:pt-2">{liveText(t, now)}</div>;
-  const min = Math.ceil((t.next * 1000 - now) / 60000);
+/** Next run in its own column: the time, then how long until it (or how long it has been running); the full date on hover */
+function NextRun({ on, t, now }: Readonly<{ on: boolean; t: { running: boolean; started: number | null; next: number | null }; now: number }>) {
+  const when = on && t.next !== null && !t.running;
   return (
-    <div className="flex items-baseline gap-2 tabular-nums lg:flex-col lg:gap-0 lg:pt-1">
-      <b className="font-mono text-sm">{hm(t.next * 1000)}</b>
-      <span className="text-xs text-dim">{min <= 1 ? tx("dans moins d'une minute") : min >= 120 ? tx("dans {0} h", Math.round(min / 60)) : tx("dans {0} min", min)}</span>
+    <div className="flex flex-wrap items-baseline gap-x-2 lg:block lg:pt-1" title={when ? dateTime(t.next! * 1000) : undefined}>
+      <span className="text-xs text-dim lg:hidden">{tx("Prochain passage")}</span>
+      {when ? (
+        <span className="flex items-baseline gap-2 tabular-nums lg:flex-col lg:gap-0">
+          <b className="font-mono text-sm">{hm(t.next! * 1000)}</b>
+          <span className="text-xs text-dim">{inText(t.next! * 1000 - now)}</span>
+        </span>
+      ) : <span className="text-xs tabular-nums text-muted lg:block lg:pt-1">{on ? liveText(t, now) : tx("coupée")}</span>}
     </div>
   );
 }
 
 /** What a task also discovers (the Discovery entries it runs), as small tags: one place for each scheduled job */
-function AlsoFinds({ task }: { task: string }) {
+function AlsoFinds({ task }: Readonly<{ task: string }>) {
   const [disc] = useDiscoveries();
   const ids = DISCOVERED_BY[task] ?? [];
   const found = (disc?.items ?? []).filter((x) => ids.includes(x.id));
@@ -234,50 +302,60 @@ function AlsoFinds({ task }: { task: string }) {
 }
 const SHORT_FIND: Record<string, string> = { services: tx("services et ports"), new: tx("nouveaux services"), connectors: tx("applis à activer"), network: tx("machines du réseau"), cron: tx("tâches cron de sauvegarde") };
 
-/** Last run in one line: result, when, how long; the run state lives in memory, so a restart starts it over */
-function LastRun({ t }: { t: Pick<SystemTask, "running" | "result" | "started" | "ended"> }) {
+/** Last run in one line: when, how long, and the error of a failed run; the run state lives in memory, so a restart starts it over */
+function LastRun({ t }: Readonly<{ t: Pick<SystemTask, "running" | "result" | "started" | "ended"> }>) {
+  const failed = !!t.result && t.result !== "success" && !t.running;
+  let last: string | null = null;
+  if (t.ended && t.started) last = `${tx("dernier :")} ${dateTime(t.ended * 1000)} (${runLength(t.started, t.ended)})`;
+  else if (!t.running) last = tx("pas encore passé depuis le démarrage");
+  if (!last && !failed) return null;
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-dim">
-      {t.running ? <Badge tone="info">{tx("en cours")}</Badge> : t.result === "success" ? <Badge tone="ok">{tx("réussi")}</Badge> : t.result ? <Badge tone="bad">{t.result}</Badge> : null}
-      {t.ended && t.started ? <span>{tx("dernier :")} {dateTime(t.ended * 1000)} ({Math.round(t.ended - t.started)} s)</span>
-        : !t.running && <span>{tx("pas encore passé depuis le démarrage")}</span>}
+    <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-dim">
+      {last && <span>{last}</span>}
+      {failed && <span className="font-semibold text-bad">{t.result}</span>}
     </div>
   );
 }
 
-function TaskRow({ t, now, reload }: { t: SystemTask; now: number; reload: () => void }) {
-  const [at, setAt] = useState(t.at), [note, setNote] = useState<Note>(null);
-  const parsed = parseAt(at), changed = at.trim() !== t.at;
-  const save = (spec: string, done: string) => void act(() => send("PUT", `system/tasks/${t.name}/schedule`, { at: spec }), done, setNote).then((ok) => { if (ok) { if (!spec) setAt(t.default); reload(); } });
+function RunButton({ label, busy, disabled, onRun }: Readonly<{ label: string; busy: boolean; disabled?: boolean; onRun: () => void }>) {
   return (
-    <li className={`px-1 py-3 text-sm ${t.enabled ? "" : "opacity-80"}`}>
+    <div className="flex items-start lg:justify-end">
+      <button type="button" className={`${button} h-9 min-w-[7rem] justify-center border-link/50 bg-link/10 text-txt hover:border-link hover:bg-link/20 active:scale-[0.98] motion-safe:transition`}
+        disabled={disabled || busy} aria-busy={busy} aria-label={tx("Lancer {0} maintenant", label)}
+        title={tx("Lance la tâche tout de suite, une fois, sans attendre l'horaire ; l'horaire ne change pas")} onClick={onRun}>
+        {busy ? <Loader2 size={14} className="motion-safe:animate-spin" aria-hidden /> : <Play size={14} className="fill-current" aria-hidden />}{busy ? tx("En cours") : tx("Lancer")}
+      </button>
+    </div>
+  );
+}
+
+function TaskRow({ t, now, reload }: Readonly<{ t: SystemTask; now: number; reload: () => void }>) {
+  const [at, setAt] = useState(t.at), [note, setNote] = useState<Note>(null);
+  const parsed = parseAt(at), changed = at.trim() !== t.at, state = runState(t);
+  const save = (spec: string, done: string) => void act(() => send("PUT", `system/tasks/${t.name}/schedule`, { at: spec }), done, setNote).then((ok) => { if (ok) { if (!spec) setAt(t.default); reload(); } });
+  const toggle = (on: boolean) => void act(() => send("PUT", "system/health", { enabled: on }), on ? tx("santé allumée : premier relevé en cours, puis la collecte (une minute environ)") : tx("santé coupée"), setNote).then((ok) => ok && reload());
+  return (
+    <li className={rowClass(state)}>
       <div className={`flex flex-wrap items-start gap-x-4 gap-y-2 ${ROW_COLS}`}>
-        <div className="flex min-w-[220px] gap-3">
-          <TaskIcon name={t.name} on={t.enabled} />
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <b>{t.label}</b>
-              <NoteLine inline note={note} />
-              {t.switch ? (
-                <label className="inline-flex items-center gap-1.5 text-xs text-dim">
-                  <Switch on={t.enabled} label={t.enabled ? tx("Couper la santé des machines") : tx("Allumer la santé des machines")}
-                    onChange={(on) => void act(() => send("PUT", "system/health", { enabled: on }), on ? tx("santé allumée : premier relevé en cours, puis la collecte (une minute environ)") : tx("santé coupée"), setNote).then((ok) => ok && reload())} />
-                  {t.enabled ? tx("allumée") : tx("coupée")}
-                </label>
-              ) : !t.enabled && <Badge tone="off">{tx("en attente")}</Badge>}
-            </div>
-            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted"><span>{!t.enabled && t.why ? t.why : desc(t.name)}</span><AlsoFinds task={t.name} /></p>
-            {t.enabled && <LastRun t={t} />}
-          </div>
-        </div>
+        <TaskHead name={t.name} title={t.label} state={state} note={note}
+          extra={t.switch && (
+            <label className="inline-flex items-center gap-1.5 text-xs text-dim">
+              <Switch on={t.enabled} label={t.enabled ? tx("Couper la santé des machines") : tx("Allumer la santé des machines")} onChange={toggle} />
+              {t.enabled ? tx("allumée") : tx("coupée")}
+            </label>
+          )}
+          about={<><span>{!t.enabled && t.why ? t.why : desc(t.name)}</span><AlsoFinds task={t.name} /></>}>
+          {t.enabled && <LastRun t={t} />}
+        </TaskHead>
         <div>
+          <span className="mb-1 block text-xs text-dim lg:hidden">{tx("Horaire")}</span>
           <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (parsed) save(at.trim(), tx("horaire enregistré")); }}>
             <input className={`${input} h-9 w-36 font-mono ${parsed ? "" : "border-bad"}`} value={at} disabled={t.fixed} onChange={(e) => setAt(e.target.value)} aria-label={tx("Horaire de {0}", t.label)}
               aria-invalid={!parsed} title={t.fixed ? tx("fixé par la variable d'environnement du conteneur") : tx("défaut : {0}", t.default)} />
             {!t.fixed && changed && <button type="submit" className={`${primary} h-9`} disabled={!parsed}>{tx("Enregistrer")}</button>}
             {!t.fixed && !changed && t.at !== t.default && (
               <button type="button" className={`${quiet} h-9`} title={tx("Revenir au défaut : {0}", t.default)} aria-label={tx("Revenir au défaut : {0}", t.default)}
-                onClick={() => save("", tx("horaire par défaut"))}><RotateCcw size={14} /></button>
+                onClick={() => save("", tx("horaire par défaut"))}><RotateCcw size={14} aria-hidden /></button>
             )}
           </form>
           <p className={`mt-1 text-xs ${parsed ? "text-dim" : "text-bad"}`}>
@@ -286,13 +364,8 @@ function TaskRow({ t, now, reload }: { t: SystemTask; now: number; reload: () =>
           {t.fixed && <p className="mt-0.5 text-xs text-dim">{tx("Fixé par MYSERVICES_")}{t.name.toUpperCase()}{tx("_AT dans le compose.")}</p>}
         </div>
         <NextRun on={t.enabled} t={{ running: t.running, started: t.started, next: t.next ?? null }} now={now} />
-        <div className="flex items-start lg:justify-end">
-          <button type="button" className={`${button} h-9 justify-center border-link/50 bg-link/10 text-txt hover:bg-link/20`} disabled={!t.enabled || t.running}
-            title={tx("Exécute la tâche tout de suite, une fois, sans attendre l'horaire ; l'horaire ne change pas")}
-            onClick={() => void act(() => send("POST", `system/tasks/${t.name}/run`), tx("lancée : son état se met à jour ici"), setNote).then((ok) => ok && reload())}>
-            {t.running ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}{tx("Exécuter maintenant")}
-          </button>
-        </div>
+        <RunButton label={t.label} busy={t.running} disabled={!t.enabled}
+          onRun={() => void act(() => send("POST", `system/tasks/${t.name}/run`), tx("lancée : son état se met à jour ici"), setNote).then((ok) => ok && reload())} />
       </div>
     </li>
   );
@@ -316,16 +389,13 @@ function LiveChecksRow() {
   const okValue = (k: LiveKey) => { const v = Number(valueOf(k)), [lo, hi] = cfg.limits[k]; return valueOf(k) !== "" && Number.isInteger(v) && ((v >= lo && v <= hi) || (v === 0 && cfg.off_allowed.includes(k))); };
   const changed = LIVE_FIELDS.filter((f) => Number(valueOf(f.key)) !== cfg.values[f.key]);
   const valid = LIVE_FIELDS.every((f) => okValue(f.key));
+  const live = cfg.values.pulse_every > 0 || cfg.values.fast_every > 0;
   const save = (body: Partial<Record<LiveKey, number>>) => void act(() => send("PUT", "system/live-checks", body), tx("enregistré"), setNote).then((ok) => { if (ok) load(); });
   return (
-    <li className="px-1 py-3 text-sm">
-      <div className="flex min-w-[220px] gap-3">
-        <TaskIcon name="pulse" on />
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2"><b>{tx("Vérifications en direct")}</b><NoteLine inline note={note} /></div>
-          <p className="text-xs text-muted">{tx("Ping de chaque machine et lectures légères des connecteurs, entre deux collectes : les changements se voient en quelques secondes.")}</p>
-        </div>
-      </div>
+    <li className={rowClass(live ? "ok" : "disabled")}>
+      <TaskHead name="pulse" title={tx("Vérifications en direct")} state={live ? "ok" : "disabled"} note={note}
+        badge={<Badge tone={live ? "ok" : "off"}>{live ? <Check size={12} aria-hidden /> : <Pause size={12} aria-hidden />}{live ? tx("actif") : tx("coupée")}</Badge>}
+        about={<span>{tx("Ping de chaque machine et lectures légères des connecteurs, entre deux collectes : les changements se voient en quelques secondes.")}</span>} />
       <form className="mt-3 grid gap-3 rounded-lg bg-bg2/50 p-3 md:ml-11 md:grid-cols-3" onSubmit={(e) => { e.preventDefault(); if (valid && changed.length) save(Object.fromEntries(changed.map((f) => [f.key, Number(valueOf(f.key))]))); }}>
         {LIVE_FIELDS.map((f) => (
           <label key={f.key} className="flex flex-col gap-1 text-xs font-semibold text-muted">{f.label}
@@ -335,7 +405,7 @@ function LiveChecksRow() {
               <span className="font-normal text-dim">{f.unit}</span>
               {cfg.values[f.key] !== cfg.defaults[f.key] && !draft[f.key] && (
                 <button type="button" className={`${quiet} h-9`} title={tx("Revenir au défaut : {0}", cfg.defaults[f.key])} aria-label={tx("Revenir au défaut : {0}", cfg.defaults[f.key])}
-                  onClick={() => save({ [f.key]: cfg.defaults[f.key] })}><RotateCcw size={14} /></button>
+                  onClick={() => save({ [f.key]: cfg.defaults[f.key] })}><RotateCcw size={14} aria-hidden /></button>
               )}
             </span>
             <span className="font-normal text-dim">{f.hint}</span>
@@ -350,7 +420,8 @@ function LiveChecksRow() {
 interface NetCfg { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean }
 
 /** The network search runs every N hours: the same setting as Discovery (PUT network/settings), so both pages stay in step */
-function NetscanRow({ n, now, reload }: { n: NonNullable<SystemState["netscan"]>; now: number; reload: () => void }) {
+function NetscanRow({ n, now, reload }: Readonly<{ n: NonNullable<SystemState["netscan"]>; now: number; reload: () => void }>) {
+  const state = runState({ enabled: n.enabled, running: n.running, result: n.ended ? "success" : null });
   const [cfg, setCfg] = useState<NetCfg | null>(null), [hostNet, setHostNet] = useState("");
   const [hours, setHours] = useState(""), [nets, setNets] = useState<string | null>(null), [note, setNote] = useState<Note>(null);
   const load = useCallback(() => {
@@ -366,17 +437,13 @@ function NetscanRow({ n, now, reload }: { n: NonNullable<SystemState["netscan"]>
     .then((ok) => { if (ok) { setNets(null); load(); } });
   const saveDiscreet = (on: boolean) => void act(() => send("PUT", "network/settings", { discreet: on }), on ? tx("mode discret activé") : tx("mode discret coupé"), setNote).then(() => load());
   return (
-    <li className={`px-1 py-3 text-sm ${n.enabled ? "" : "opacity-80"}`}>
+    <li className={rowClass(state)}>
       <div className={`flex flex-wrap items-start gap-x-4 gap-y-2 ${ROW_COLS}`}>
-        <div className="flex min-w-[220px] gap-3">
-          <TaskIcon name="netscan" on={n.enabled} />
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2"><b>{tx("Recherche réseau")}</b><NoteLine inline note={note} /></div>
-            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted"><span>{desc("netscan")}</span><AlsoFinds task="netscan" /></p>
-            {n.enabled && <LastRun t={{ running: n.running, result: null, started: n.started, ended: n.ended }} />}
-          </div>
-        </div>
+        <TaskHead name="netscan" title={tx("Recherche réseau")} state={state} note={note} about={<><span>{desc("netscan")}</span><AlsoFinds task="netscan" /></>}>
+          {n.enabled && <LastRun t={{ running: n.running, result: null, started: n.started, ended: n.ended }} />}
+        </TaskHead>
         <div>
+          <span className="mb-1 block text-xs text-dim lg:hidden">{tx("Horaire")}</span>
           <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (valid) save(h); }}>
             <span className="flex items-center gap-1.5">
               <input className={`${input} h-9 w-20 font-mono ${valid || hours === "" ? "" : "border-bad"}`} type="number" min={0} max={cfg?.max_h} step={1} value={hours}
@@ -387,7 +454,7 @@ function NetscanRow({ n, now, reload }: { n: NonNullable<SystemState["netscan"]>
             {cfg && !cfg.fixed && h !== cfg.every_h && <button type="submit" className={`${primary} h-9`} disabled={!valid}>{tx("Enregistrer")}</button>}
             {cfg && !cfg.fixed && h === cfg.every_h && cfg.every_h !== cfg.default_h && (
               <button type="button" className={`${quiet} h-9`} title={tx("Revenir au défaut : {0}", cfg.default_h)} aria-label={tx("Revenir au défaut : {0}", cfg.default_h)}
-                onClick={() => save(cfg.default_h)}><RotateCcw size={14} /></button>
+                onClick={() => save(cfg.default_h)}><RotateCcw size={14} aria-hidden /></button>
             )}
           </form>
           <p className={`mt-1 text-xs ${valid || hours === "" ? "text-dim" : "text-bad"}`}>
@@ -396,13 +463,8 @@ function NetscanRow({ n, now, reload }: { n: NonNullable<SystemState["netscan"]>
           {cfg?.fixed && <p className="mt-0.5 text-xs text-dim">{tx("Fixée par MYSERVICES_NETSCAN_EVERY dans le compose.")}</p>}
         </div>
         <NextRun on={n.enabled} t={n} now={now} />
-        <div className="flex items-start lg:justify-end">
-          <button type="button" className={`${button} h-9 justify-center border-link/50 bg-link/10 text-txt hover:bg-link/20`} disabled={n.running}
-            title={tx("Exécute la tâche tout de suite, une fois, sans attendre l'horaire ; l'horaire ne change pas")}
-            onClick={() => void act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setNote).then(() => reload())}>
-            {n.running ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}{tx("Exécuter maintenant")}
-          </button>
-        </div>
+        <RunButton label={tx("Recherche réseau")} busy={n.running}
+          onRun={() => void act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setNote).then(() => reload())} />
       </div>
       {cfg && (   /* what the search reads: the networks and the discreet mode (moved from Discovery: every setting of a job lives here) */
         <div className="mt-3 grid gap-4 rounded-lg bg-bg2/50 p-3 md:ml-11 md:grid-cols-[minmax(0,1fr)_minmax(0,18rem)]">

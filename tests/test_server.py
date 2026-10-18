@@ -182,7 +182,7 @@ class Http(unittest.TestCase):
     def test_v1_connectors_tasks_docs(self):
         self.assertEqual(self.c.get("/myservices/api/v1/connectors").json()["connectors"][0]["name"], "lan")
         tasks = self.c.get("/myservices/api/v1/tasks").json()
-        self.assertEqual(tasks["collect"]["minutes"], [10, 40])
+        self.assertEqual(tasks["collect"]["minutes"], [0, 15, 30, 45])
         self.assertEqual(self.c.get("/myservices/api/v1/openapi.json").json()["info"]["title"], "MyServices")
 
     def test_network_not_allowed(self):
@@ -196,18 +196,19 @@ class Http(unittest.TestCase):
 
 class Schedule(unittest.TestCase):
     def test_default_hours(self):
-        self.assertEqual(server.TASKS["collect"]["minutes"], {10, 40})
+        self.assertEqual(server.TASKS["collect"]["minutes"], {0, 15, 30, 45})
         self.assertIsNone(server.TASKS["collect"]["hours"])
-        self.assertEqual(server.TASKS["health"]["hours"], {0, 6, 12, 18})
+        self.assertEqual(server.TASKS["health"]["hours"], set(range(0, 24, 2)))
         self.assertEqual(server.TASKS["backups"]["minutes"], {5})
+        self.assertEqual(server.TASKS["backups"]["hours"], {1, 7, 13, 19})
 
     def test_next_run(self):
         from datetime import datetime
         at = lambda h, m, s=30: datetime(2026, 10, 11, h, m, s)  # noqa: E731
         with mock.patch.object(server, "enabled", lambda name: name != "watch"):
-            self.assertEqual(datetime.fromtimestamp(server.next_run("collect", at(10, 12))), at(10, 40, 0))
-            self.assertEqual(datetime.fromtimestamp(server.next_run("collect", at(10, 40))), at(11, 10, 0))  # le créneau en cours ne compte pas
-            self.assertEqual(datetime.fromtimestamp(server.next_run("health", at(18, 30))), datetime(2026, 10, 12, 0, 0))
+            self.assertEqual(datetime.fromtimestamp(server.next_run("collect", at(10, 12))), at(10, 15, 0))
+            self.assertEqual(datetime.fromtimestamp(server.next_run("collect", at(10, 45))), at(11, 0, 0))  # le créneau en cours ne compte pas
+            self.assertEqual(datetime.fromtimestamp(server.next_run("health", at(22, 30))), datetime(2026, 10, 12, 0, 0))
             self.assertIsNone(server.next_run("watch", at(10, 12)))  # tâche coupée
 
 

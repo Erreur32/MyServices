@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { liveText, period, type TaskInfo } from "./tasks";
+import { groupOf, liveText, period, runLength, runState, summarize, type TaskInfo } from "./tasks";
 
 const task = (o: Partial<TaskInfo> = {}): TaskInfo => ({
   label: "Collecte", at: "10,40 *", next: null, minutes: [10, 40], hours: null, enabled: true, running: false, started: null, ended: null, result: null, ...o,
@@ -24,5 +24,32 @@ describe("tâches planifiées", () => {
     const now = 1_000_000;
     expect(liveText(task({ next: now / 1000 + 7 * 60 }), now)).toContain("7");
     expect(liveText(task({ next: now / 1000 + 20 }), now)).not.toContain("NaN");
+  });
+
+  it("donne un seul état par tâche", () => {
+    const o = { enabled: true, running: false, result: null };
+    expect(runState({ ...o, running: true })).toBe("running");
+    expect(runState({ ...o, enabled: false, result: "boom" })).toBe("disabled");
+    expect(runState({ ...o, result: "success" })).toBe("ok");
+    expect(runState({ ...o, result: "boom" })).toBe("failed");
+    expect(runState(o)).toBe("idle");
+  });
+
+  it("résume les tâches et trouve la prochaine", () => {
+    const s = summarize([
+      { name: "a", enabled: true, running: false, result: "success", next: 500 },
+      { name: "b", enabled: true, running: false, result: "boom", next: 300 },
+      { name: "c", enabled: false, running: false, result: null, next: 100 },
+      { name: "d", enabled: true, running: true, result: null, next: 50 },
+    ]);
+    expect(s).toEqual({ enabled: 3, running: 1, failed: 1, next: { name: "b", at: 300 } });
+    expect(summarize([]).next).toBeNull();
+  });
+
+  it("range les tâches par section", () => {
+    expect(groupOf("collect")).toBe(groupOf("live"));
+    expect(groupOf("netscan")).toBe("network");
+    expect(groupOf("unknown")).toBe("keep");
+    expect(runLength(10, 52)).toContain("42");
   });
 });

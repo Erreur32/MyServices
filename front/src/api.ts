@@ -35,7 +35,7 @@ export class NotConfigured extends Error {
   constructor(public me: Me) { super(tx("pas encore configurée")); }
 }
 
-/** Pouls (pulse.json) : l'état du ping de chaque machine, confirmé, bien plus frais que data.json (collecte toutes les 30 min) */
+/** Pouls (pulse.json) : l'état du ping de chaque machine, confirmé, bien plus frais que data.json (collecte toutes les 15 min) */
 interface Pulse { ts: number; machines: Record<string, { ping: boolean; ms: number | null; since: number }> }
 const PULSE_MAX_AGE_S = 300;
 

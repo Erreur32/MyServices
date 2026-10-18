@@ -265,7 +265,7 @@ Almost everything is set in the page (Settings). Files and variables, for refere
 | `MYSERVICES_PORT` | port of the page (default `8090`) |
 | `MYSERVICES_ALLOW` | networks allowed to open the page (default: private networks and loopback) |
 | `MYSERVICES_HOST_USER` | SSH account of the `hote` alias (the host machine) |
-| `MYSERVICES_COLLECT_AT` | schedule of the collection, `minutes hours` (default `10,40 *`); same for the watcher and health |
+| `MYSERVICES_COLLECT_AT` | schedule of the collection, `minutes hours` (default `0,15,30,45 *`); same for the watcher and health |
 | `TZ` | time zone |
 
 Schedules can also be edited live in Settings -> Tasks and schedules. A full example is in [`deploy/compose.example.yaml`](deploy/compose.example.yaml).

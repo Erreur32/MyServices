@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """myservices-watcher : veille des changements de l'annuaire MyServices.
 
-NE PROBE RIEN : lit uniquement <web_dir>/data.json, produit toutes les 30 min par
+NE PROBE RIEN : lit uniquement <web_dir>/data.json, produit toutes les 15 min par
 myservices.py (timer systemd), et compare avec l'état du run précédent. Tout le « qu'est-ce
 qui a changé » est calculé ici en Python, de façon déterministe : aucun LLM.
 

@@ -64,7 +64,7 @@ export function Availability({ snap }: { snap: Snapshot }) {
       </div>
       {error && !rep ? <Empty>{tx("Disponibilité illisible :")} {error}</Empty>
         : !rep ? <p className="py-8 text-muted">{tx("Chargement…")}</p>
-        : !items.length ? <Empty>{tx("Pas encore de relevé : la disponibilité se remplit à chaque collecte (toutes les 30 minutes).")}</Empty>
+        : !items.length ? <Empty>{tx("Pas encore de relevé : la disponibilité se remplit à chaque collecte (toutes les 15 minutes par défaut).")}</Empty>
         : <>
           <FilterBar f={f} placeholder={tx("Service, machine, adresse…")} />
           {f.shown.length === 0 ? <Empty>{tx("Rien pour ce filtre.")}</Empty> : (
@@ -87,7 +87,7 @@ export function Availability({ snap }: { snap: Snapshot }) {
               })}
             </ul>
           )}
-          <p className="mt-2 text-xs text-dim">{tx("Relevé à chaque collecte (toutes les 30 minutes) : une coupure plus courte peut passer inaperçue. Uptime Kuma garde le détail à la minute.")}</p>
+          <p className="mt-2 text-xs text-dim">{tx("Relevé à chaque collecte (toutes les 15 minutes par défaut) : une coupure plus courte peut passer inaperçue. Uptime Kuma garde le détail à la minute.")}</p>
         </>}
     </div>
   );
