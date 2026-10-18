@@ -23,6 +23,7 @@ import { runningTip, stoppedTip } from "../lib/runState";
 import { serviceAt, setupCommand } from "../lib/connectorSetup";
 import { detectedValue, type DetectedValue } from "../lib/detectedValue";
 import { appIcon } from "../lib/appIcons";
+import { InfoNote } from "../components/InfoNote";
 
 const KIND: Record<string, string> = {
   services: "services", health: tx("santé"), logs: tx("Docker · journaux"), dns: "DNS", inventory: "inventaire", backups: "sauvegardes", network: tx("réseau"), security: tx("sécurité"), containers: "Docker",
@@ -65,7 +66,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
             {picking ? <X size={14} /> : <Plus size={14} />}{picking ? tx("Fermer") : tx("Ajouter un connecteur")}
           </button>
         </div>
-        <p className="mt-1 text-sm text-muted">{tx("Un connecteur lit par son API, en lecture seule, les services d'un outil que vous utilisez déjà (Nginx Proxy Manager, AdGuard Home, Beszel…) : une clé ou un compte sans droit de modification suffit.")}</p>
+        <InfoNote className="mt-1">{tx("Un connecteur lit par son API, en lecture seule, les services d'un outil que vous utilisez déjà (Nginx Proxy Manager, AdGuard Home, Beszel…) : une clé ou un compte sans droit de modification suffit.")}</InfoNote>
         {picking && (
           <label className="mt-3 flex max-w-md items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-2 focus-within:border-link">
             <Search size={16} className="text-dim" aria-hidden />
@@ -109,7 +110,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
             <Plug size={16} aria-hidden />{tx("Déjà lus par SSH")} <Count n={bySsh.length} />
             <span className="font-normal text-muted">{tx("rien à ajouter pour eux")}</span>
           </summary>
-          <p className="mt-1 text-sm text-muted">{tx("Trouvés sur une machine suivie et lus par SSH (AdGuard, Proxmox, ESXi, KVM…) : inutile de les ajouter ici. Un connecteur n'apporte quelque chose que s'il lit une API que SSH ne voit pas.")}</p>
+          <InfoNote className="mt-1">{tx("Trouvés sur une machine suivie et lus par SSH (AdGuard, Proxmox, ESXi, KVM…) : inutile de les ajouter ici. Un connecteur n'apporte quelque chose que s'il lit une API que SSH ne voit pas.")}</InfoNote>
           <ul className="mt-2 flex flex-col divide-y divide-line/60">
             {bySsh.map((o) => {
               const label = st.types.find((t) => t.type === o.type)?.label ?? o.label ?? o.type, icon = appIcon([label]);
@@ -263,7 +264,7 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
         <ScanSearch size={16} aria-hidden />{tx("Services détectés non configurés")} <Count n={rows.length} />
         <span className="font-normal text-muted">{tx("facultatif : à activer quand vous voulez")}</span>
       </summary>
-      <p className="mt-1 text-sm text-muted">{tx("MyServices a reconnu ces applis mais ne les lit pas encore. Cliquez sur l'une d'elles pour renseigner son accès en lecture.")}</p>
+      <InfoNote className="mt-1">{tx("MyServices a reconnu ces applis mais ne les lit pas encore. Cliquez sur l'une d'elles pour renseigner son accès en lecture.")}</InfoNote>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full min-w-[480px] text-sm">
           <thead>
@@ -436,7 +437,7 @@ export function ConnectorForm({ type, inst, prefill, found, hosts, quietSave = f
                 className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${mode === m.id ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:border-link hover:text-txt"}`}>{tx(m.label)}</button>
             ))}
           </div>
-          <p className="text-xs text-dim">{tx(modeDef.help)}</p>
+          <InfoNote>{tx(modeDef.help)}</InfoNote>
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
@@ -551,9 +552,9 @@ function NpmScript({ conf, setConf }: { conf: Record<string, string | number | b
       {done.length > 0 && <ul className="text-sm text-ok">{done.map((l, i) => <li key={i}>{l}</li>)}</ul>}
       {install && (
         <div className="flex flex-col gap-2 rounded-lg border border-link/40 bg-link/5 p-3">
-          <p className="text-sm text-muted">
+          <InfoNote>
             {tx("MyServices va, sur")} <b className="text-txt">{where}</b>{tx(" : télécharger npm-api.sh")} <b className="text-txt">v{"3.6.9"}</b> {tx("(dépôt Erreur32/nginx-proxy-manager-Bash-API, empreinte SHA-256 vérifiée avant installation), l'installer dans le dossier ci-dessous, et écrire à côté un fichier npm-api.conf (droits 600) avec le compte NPM saisi ici. Rien d'autre n'est modifié. Un npm-api.conf déjà présent est conservé. Le mot de passe n'est pas gardé par MyServices.")}
-          </p>
+          </InfoNote>
           <div className="grid gap-2 sm:grid-cols-2">
             <Field label={<>{tx("Dossier d'installation")}<b className="ml-0.5 text-bad">*</b></>}><input className={input} value={f.directory} onChange={(e) => setF({ ...f, directory: e.target.value })} /></Field>
             <Field label={<>{tx("Adresse de NPM vue de la machine")}<b className="ml-0.5 text-bad">*</b></>}><input className={input} value={f.ip} onChange={(e) => setF({ ...f, ip: e.target.value })} /></Field>

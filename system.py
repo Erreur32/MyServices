@@ -6,12 +6,10 @@ une tâche fixée par MYSERVICES_<TÂCHE>_AT n'est pas modifiable ici. Export : 
 """
 from __future__ import annotations
 
-import io
 import json
 import os
 import platform
 import subprocess
-import tarfile
 import time
 from pathlib import Path
 
@@ -369,15 +367,14 @@ def api_config_dir() -> Path:
     return Path(os.environ.get("MYSERVICES_CONFIG", "/config/config.json")).parent
 
 
-def export_config() -> bytes:
-    """Archive tar.gz de /config (secrets compris), construite en mémoire."""
-    root = api_config_dir()
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
-        for f in sorted(root.rglob("*")):
-            if f.is_file() and not f.name.endswith((".tmp", ".lock")):
-                tar.add(f, arcname=f"config/{f.relative_to(root)}")
-    return buf.getvalue()
+def _host_relay() -> str:
+    """Where the host's mail relay (postfix, sendmail…) is reached from here: 127.0.0.1 with the host network (the supplied compose files), else the
+    container's default gateway, which is the Docker host."""
+    import hostinfo
+    from pathlib import Path
+    if Path("/sys/class/net/docker0").exists():   # the host's Docker bridge is visible: this container shares the host network
+        return "127.0.0.1"
+    return hostinfo.default_gateway() or ""
 
 
 def mail_settings(core) -> dict:
@@ -386,7 +383,7 @@ def mail_settings(core) -> dict:
     c = core.CFG
     return {"host": c.get("smtp_host") or "", "port": int(c.get("smtp_port") or 587), "security": c.get("smtp_security") or "starttls",
             "user": c.get("smtp_user") or "", "password_set": bool(c.get("smtp_password")), "from": c.get("smtp_from") or "",
-            "page_url": c.get("page_url") or "", "ready": mailer.ready(c)}
+            "page_url": c.get("page_url") or "", "ready": mailer.ready(c), "suggested_host": _host_relay()}
 
 
 def _check_mail(security: str, port: int, page_url: str, sender: str) -> None:
@@ -400,6 +397,16 @@ def _check_mail(security: str, port: int, page_url: str, sender: str) -> None:
         raise ValueError("adresse de la page : http://… ou https://…")
     if sender and "@" not in sender:
         raise ValueError("expéditeur : une adresse e-mail")
+
+
+def mail_trial(cfg: dict, host: str, port: int, security: str, user: str, password: str | None, sender: str, page_url: str) -> dict:
+    """A copy of the mail settings with the given values laid over, to try them before saving anything (same checks as saving)."""
+    page_url, sender = page_url.strip().rstrip("/"), sender.strip()
+    _check_mail(security, port, page_url, sender)
+    out = dict(cfg, smtp_host=host.strip(), smtp_port=int(port), smtp_security=security, smtp_user=user.strip(), smtp_from=sender, page_url=page_url)
+    if password:
+        out["smtp_password"] = "" if password == "-" else password
+    return out
 
 
 def set_mail_settings(core, host: str, port: int, security: str, user: str, password: str | None, sender: str, page_url: str) -> dict:

@@ -33,7 +33,7 @@
 >
 > Comme il évolue vite, **les pull requests et les issues ne sont pas traitées pour le moment** : merci de les garder pour une version stable.
 >
-> Les versions de développement ne sont pas étiquetées. Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.14.0`, `0.14.1`…).
+> Les versions de développement ne sont pas étiquetées. Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.15.0`, `0.15.1`…).
 > Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 ## En bref
@@ -68,7 +68,7 @@ Puis ouvrez **`http://<IP>:8090/`** (l'appli est à la racine du site ; les anci
 
 > **L'application écoute sur le port `8090`.** C'est un réglage, pas une valeur figée : si le 8090 est déjà pris sur votre machine, mettez **`MYSERVICES_PORT=8095`** (ou un autre port libre) dans un fichier `.env` à côté de `docker-compose.yaml` (exemple : [`deploy/env.example`](deploy/env.example), téléchargé par le second `curl` ci-dessus), puis lancez `docker compose up -d` et ouvrez `http://<IP>:8095/`. Le conteneur utilise le réseau de l'hôte : modifier un `ports:` ne servirait à rien.
 
-Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.14.0` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
+Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.15.0` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
 Mise à jour : `docker compose pull && docker compose up -d` (réglages et données restent dans les volumes `./config` et `./data`).
 
 ---
@@ -265,7 +265,7 @@ Presque tout se règle dans la page (Réglages). Fichiers et variables, pour mé
 | `MYSERVICES_PORT` | port de la page (défaut `8090`) |
 | `MYSERVICES_ALLOW` | réseaux autorisés à ouvrir la page (défaut : réseaux privés et boucle locale) |
 | `MYSERVICES_HOST_USER` | compte SSH de l'alias `hote` (la machine hôte) |
-| `MYSERVICES_COLLECT_AT` | horaire de la collecte, `minutes heures` (défaut `10,40 *`) ; idem pour la veille et la santé |
+| `MYSERVICES_COLLECT_AT` | horaire de la collecte, `minutes heures` (défaut `0,15,30,45 *`) ; idem pour la veille et la santé |
 | `TZ` | fuseau horaire |
 
 Les horaires se modifient aussi à chaud dans Réglages -> Tâches et horaires. Un exemple complet : [`deploy/compose.example.yaml`](deploy/compose.example.yaml).

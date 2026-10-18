@@ -1,6 +1,6 @@
 """Pulse: a light ping of every followed machine every few seconds, so that « online / offline » is live.
 
-The collector (every 30 min) and the watcher (twice an hour) stay in charge of the heavy reading; the pulse only answers
+The collector (every 15 min) and the watcher (right after it) stay in charge of the heavy reading; the pulse only answers
 « does it ping? ». A state change is confirmed after `confirm` pulses in a row (a lost packet is not an outage), then written to
 <web_dir>/pulse.json: the page overlays it on data.json and the watcher takes its machine events from it.
 """

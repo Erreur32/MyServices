@@ -30,6 +30,7 @@ import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Table, 
 import { tx } from "../lib/i18n";
 import { useStoredFlag } from "../lib/storedFlag";
 import { hardwareRows } from "../lib/hardware";
+import { InfoNote } from "../components/InfoNote";
 
 
 function healthByIp(hosts: HealthHost[] = []): Map<string, HealthHost> {
@@ -1385,7 +1386,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
               </ul>
             </div>
           ))}
-          <p className="mt-2 text-xs text-dim">{tx("« Suivre » l'ajoute aux machines (son accès SSH se règle ensuite dans Réglages → Machines).")}</p>
+          <InfoNote className="mt-2">{tx("« Suivre » l'ajoute aux machines (son accès SSH se règle ensuite dans Réglages → Machines).")}</InfoNote>
         </details>
       )}
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (

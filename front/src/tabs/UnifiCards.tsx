@@ -11,8 +11,8 @@ import { tx } from "../lib/i18n";
 import { usePoll } from "../lib/polling";
 import { useStoredFlag } from "../lib/storedFlag";
 import { applyOrder, clampSpan, DEFAULT_SPAN, GRID_COLUMNS, useCardLayout } from "../lib/cardLayout";
-import { DEMO_UNIFI_DEVICES } from "../lib/unifiCardsDemo";
 import { createMynetworkHass, type MnDevice } from "../vendor/unifi-device-card/mynetwork-adapter";
+import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 
 const NO_DEVICES: Record<string, unknown>[] = [];   // stable: a new empty array at each render would rebuild the cards
 const LIVE_REFRESH_MS = 10_000;   // each reading asks the controller behind the source: calm on purpose
@@ -95,9 +95,28 @@ function useIsWide(): boolean {
   return wide;
 }
 
+const pageLang = (): string => (typeof document === "undefined" ? "" : document.documentElement.lang).slice(0, 2) || "en";
+
+/** The badge next to the title: where the cards come from, or why there are none (the reason is in its tooltip) */
+function sourceBadge(doc: CardsDoc | null, failed: boolean): { tone: "ok" | "off" | "warn" | "bad"; label: string; title?: string } {
+  if (!doc) return failed ? { tone: "bad", label: tx("illisible"), title: tx("Le serveur de MyServices n'a pas répondu") } : { tone: "off", label: "…" };
+  if (doc.source !== "mynetwork") return { tone: "warn", label: tx("indisponible"), title: doc.error || tx("MynetworK ne donne pas la liste des équipements UniFi") };
+  return { tone: doc.devices.length > 0 ? "ok" : "off", label: "MynetworK" };
+}
+
+/** Pointer capture on the grabbed handle, then every move is forwarded until release. */
+function track(e: ReactPointerEvent<HTMLElement>, onMove: (ev: PointerEvent) => void) {
+  e.preventDefault();
+  const handle = e.currentTarget;
+  handle.setPointerCapture(e.pointerId);
+  const onUp = () => { handle.removeEventListener("pointermove", onMove); handle.removeEventListener("pointerup", onUp); };
+  handle.addEventListener("pointermove", onMove);
+  handle.addEventListener("pointerup", onUp);
+}
+
 export function UnifiCards() {
   const [doc, setDoc] = useState<CardsDoc | null>(null), [failed, setFailed] = useState(false);
-  const [preview, setPreview] = useState(false), [cardReady, setCardReady] = useState(false), [showPanel, setShowPanel] = useState(false);
+  const [cardReady, setCardReady] = useState(false), [showPanel, setShowPanel] = useState(false);
   const [folded, setFolded] = useStoredFlag("myservices.network.unifiCardsFolded", false);
   const load = useCallback(() => { if (!folded) read<CardsDoc>("unifi/cards").then((d) => { setDoc(d); setFailed(false); }).catch(() => setFailed(true)); }, [folded]);   // nothing is read while folded
   usePoll(load, LIVE_REFRESH_MS);
@@ -108,22 +127,13 @@ export function UnifiCards() {
     return () => { cancelled = true; };
   }, []);
 
-  const raw = preview ? DEMO_UNIFI_DEVICES : (doc?.devices ?? NO_DEVICES);
-  const { hass, devices } = useMemo(() => createMynetworkHass(raw, (typeof document === "undefined" ? "" : document.documentElement.lang).slice(0, 2) || "en"), [raw]);
+  const raw = doc?.devices ?? NO_DEVICES;
+  const { hass, devices } = useMemo(() => createMynetworkHass(raw, pageLang()), [raw]);
   const ids = useMemo(() => devices.map((d: MnDevice) => d.id), [devices]);
   const { order, spans, heights, uplinks, move, setSpan, setHeight, setUplink, reset } = useCardLayout(ids);
   const ordered = useMemo(() => applyOrder<MnDevice>(devices, order), [devices, order]);
   const wide = useIsWide(), gridRef = useRef<HTMLDivElement>(null), [dragged, setDragged] = useState<string | null>(null);
 
-  // Pointer capture on the grabbed handle, then every move is forwarded until release.
-  const track = (e: ReactPointerEvent<HTMLElement>, onMove: (ev: PointerEvent) => void) => {
-    e.preventDefault();
-    const handle = e.currentTarget;
-    handle.setPointerCapture(e.pointerId);
-    const onUp = () => { handle.removeEventListener("pointermove", onMove); handle.removeEventListener("pointerup", onUp); };
-    handle.addEventListener("pointermove", onMove);
-    handle.addEventListener("pointerup", onUp);
-  };
   const resize = (e: ReactPointerEvent<HTMLElement>, id: string, axis: "width" | "height" | "both") => {
     const card = e.currentTarget.parentElement, grid = gridRef.current, area = card?.querySelector("[data-card-area]");
     if (!card || !grid) return;
@@ -135,14 +145,14 @@ export function UnifiCards() {
     });
   };
 
-  if (!folded && !doc && !failed && !preview) return null;   // folded: the header stays (nothing was read, so nothing is known)
+  if (!folded && !doc && !failed) return null;   // folded: the header stays (nothing was read, so nothing is known)
   const noDevice = devices.length === 0;
-  const live = !preview && (doc?.devices.length ?? 0) > 0;   // real devices are read
+  const badge = sourceBadge(doc, failed);
   return (
     <section className="mb-4 overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
-      <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
+      <div className={`flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3 ${FOLD_HEADER}`} {...foldHeaderProps(() => setFolded(!folded))}>
         <h3 className="font-bold">{tx("Cartes UniFi")}</h3>
-        <Badge tone={preview ? "warn" : live ? "ok" : "off"}>{preview ? tx("exemple") : doc?.source === "mynetwork" ? "MynetworK" : tx("aucune source")}</Badge>
+        <Badge tone={badge.tone} title={badge.title}>{badge.label}</Badge>
         {!noDevice && !folded && (
           <>
             <label className="flex cursor-pointer items-center gap-2 text-xs text-muted"><input type="checkbox" checked={showPanel} onChange={(e) => setShowPanel(e.target.checked)} />{tx("Vue matérielle")}</label>
@@ -150,8 +160,7 @@ export function UnifiCards() {
             <Dim>{tx("Glisser par la poignée, tirer le bord ou le coin pour redimensionner ; double-clic pour revenir à la taille d'origine.")}</Dim>
           </>
         )}
-        {(preview || noDevice) && <button type="button" className={`${quiet} ml-auto !px-2 !py-1 text-xs`} aria-pressed={preview} onClick={() => setPreview(!preview)}>{preview ? tx("Quitter l'exemple") : tx("Voir un exemple")}</button>}   {/* only while no real device is read: with a source it would be of no use */}
-        <button type="button" className={`text-dim hover:text-txt ${preview || noDevice ? "" : "ml-auto"}`} aria-expanded={!folded} onClick={() => setFolded(!folded)} title={folded ? tx("Déplier") : tx("Replier")}>
+        <button type="button" className="ml-auto text-dim hover:text-txt" aria-expanded={!folded} onClick={() => setFolded(!folded)} title={folded ? tx("Déplier") : tx("Replier")}>
           {folded ? <ChevronDown size={18} aria-hidden /> : <ChevronUp size={18} aria-hidden />}
         </button>
       </div>
@@ -164,7 +173,13 @@ export function UnifiCards() {
               <div key={d.id} className={`relative min-w-0 rounded-xl border-2 border-link/40 bg-bg shadow-lg shadow-black/20 transition-colors hover:border-link/70 ${dragged === d.id ? "opacity-50" : ""}`}
                 style={wide ? { gridColumn: `span ${clampSpan(spans[d.id] ?? DEFAULT_SPAN)}` } : undefined}
                 onDragOver={(e) => { if (dragged) e.preventDefault(); }}
-                onDrop={(e) => { e.preventDefault(); if (dragged) move(dragged, d.id); setDragged(null); }}>
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragged) {
+                    move(dragged, d.id);
+                  }
+                  setDragged(null);
+                }}>
                 <span draggable title={tx("Glisser pour changer l'ordre")} className="absolute right-3 top-3 z-10 cursor-grab text-dim hover:text-txt active:cursor-grabbing"
                   onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", d.id); setDragged(d.id); }} onDragEnd={() => setDragged(null)}>
                   <GripVertical size={18} aria-hidden />

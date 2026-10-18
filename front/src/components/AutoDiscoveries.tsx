@@ -6,6 +6,7 @@ import type { Snapshot } from "../api";
 import { Action, MODE, Title, useDiscoveries, when, type DiscoveryItem } from "./DiscoveryCard";
 import { Badge, Card, Count } from "./ui";
 import { tx } from "../lib/i18n";
+import { InfoNote } from "./InfoNote";
 
 /** Task -> the discoveries it runs (discoveries.py ids) */
 export const DISCOVERED_BY: Record<string, string[]> = { collect: ["services", "new", "connectors"], netscan: ["network"], backups: ["cron"] };
@@ -40,7 +41,7 @@ export function AutoDiscoveries({ machines }: { machines: Snapshot["data"]["mach
   return (
     <Card>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><Hand size={16} aria-hidden />{tx("À la main ou une seule fois")} <Count n={items.length} /></h2>
-      <p className="text-sm text-muted">{tx("Ces recherches ne suivent pas d'horaire : à lancer quand c'est utile, ou faites une seule fois.")}</p>
+      <InfoNote>{tx("Ces recherches ne suivent pas d'horaire : à lancer quand c'est utile, ou faites une seule fois.")}</InfoNote>
       <ul className="mt-2 flex flex-col divide-y divide-line/60">{items.map((x) => <ManualRow key={x.id} x={x} reload={reload} machines={machines} />)}</ul>
     </Card>
   );

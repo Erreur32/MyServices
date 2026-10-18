@@ -19,6 +19,7 @@ import { useNetScan } from "../lib/netScan";
 import { tx } from "../lib/i18n";
 import { plural } from "../lib/summary";
 import type { Advice, ConnectorInstance, ConnectorsState, Machine, Proposal, SystemState } from "../types";
+import { InfoNote } from "../components/InfoNote";
 
 const confide = (local: AssistantProgress) => void send("PUT", "assistant", local).catch(() => undefined);   // confie au serveur la progression de ce navigateur
 
@@ -119,7 +120,7 @@ function Welcome({ snap }: Readonly<{ snap: Snapshot }>) {
   return (
     <div>
       <h2 className="flex items-center gap-2 text-xl font-bold"><Sparkles size={20} className="text-link" aria-hidden />{tx("Bienvenue sur MyServices")}</h2>
-      <p className="mt-2 text-sm text-muted">{tx("En quelques étapes, MyServices apprend à connaître votre réseau. Voici comment il travaille.")}</p>
+      <InfoNote className="mt-2">{tx("En quelques étapes, MyServices apprend à connaître votre réseau. Voici comment il travaille.")}</InfoNote>
       <ul className="mt-4 flex flex-col gap-3">
         {items.map(({ Icon, title, text }) => (
           <li key={title} className="flex gap-3 rounded-xl border border-line/60 bg-bg2/60 p-3">
@@ -150,7 +151,7 @@ function ThisMachine({ snap, chosen, onChoose, report }: Readonly<{ snap: Snapsh
   return (
     <div>
       <h2 className="text-xl font-bold">{tx("Cette machine")}</h2>
-      <p className="mt-2 text-sm text-muted">{tx("MyServices commence par se regarder lui-même, sans rien configurer : voici ce qu'il voit déjà de la machine où il tourne.")}</p>
+      <InfoNote className="mt-2">{tx("MyServices commence par se regarder lui-même, sans rien configurer : voici ce qu'il voit déjà de la machine où il tourne.")}</InfoNote>
       {host ? (
         <div className="mt-4 rounded-xl border border-line/60 bg-bg2/60 p-4">
           <div className="flex flex-wrap items-center gap-3">
@@ -170,7 +171,7 @@ function ThisMachine({ snap, chosen, onChoose, report }: Readonly<{ snap: Snapsh
         </div>
       ) : <HostChoice list={list} onChoose={onChoose} />}
       {host?.ip === chosen && <p className="mt-2 text-xs text-dim">{tx("Désignée par vous.")} <button type="button" className="text-link hover:underline" onClick={() => onChoose("")}>{tx("Changer")}</button></p>}
-      <p className="mt-3 text-xs text-dim">{tx("Ce que MyServices lit d'une autre machine dépend de la méthode choisie (SSH, agent ou outil déjà en place) : c'est l'objet des étapes suivantes.")}</p>
+      <InfoNote className="mt-3">{tx("Ce que MyServices lit d'une autre machine dépend de la méthode choisie (SSH, agent ou outil déjà en place) : c'est l'objet des étapes suivantes.")}</InfoNote>
     </div>
   );
 }
@@ -208,7 +209,7 @@ function Network({ snap, report, open }: Readonly<{ snap: Snapshot; report: Repo
   return (
     <div>
       <h2 className="text-xl font-bold">{tx("Le réseau")}</h2>
-      <p className="mt-2 text-sm text-muted">{tx("Cherchons les machines de votre réseau, puis choisissez celles à suivre. Rien n'est ajouté sans votre accord.")}</p>
+      <InfoNote className="mt-2">{tx("Cherchons les machines de votre réseau, puis choisissez celles à suivre. Rien n'est ajouté sans votre accord.")}</InfoNote>
       <AssistantNetwork net={net} reload={reload} known={known} onManual={() => open({ kind: "machine" })} />
     </div>
   );
@@ -235,7 +236,7 @@ function Access({ snap, report, open, rev, accepted, onAccept }: Readonly<{ snap
   return (
     <div>
       <h2 className="text-xl font-bold">{tx("Lire chaque machine")}</h2>
-      <p className="mt-2 text-sm text-muted">{tx("Pour chaque machine, MyServices vous recommande la méthode la plus simple. Rien ne change tant que vous ne lancez pas l'action proposée.")}</p>
+      <InfoNote className="mt-2">{tx("Pour chaque machine, MyServices vous recommande la méthode la plus simple. Rien ne change tant que vous ne lancez pas l'action proposée.")}</InfoNote>
       <p className="mt-2 text-xs text-dim">{tx("{0} machines suivies, {1} déjà lues par la méthode recommandée. Les machines à finir ou à optimiser passent en premier.", sum.total, sum.read)}
         {asleep > 0 && <> {tx("{0} éteintes ou hors ligne ne sont pas proposées : à régler quand elles seront allumées.", asleep)}</>}</p>
       {/* Hauteur minimale fixe : les boutons « Machine précédente / suivante » restent à la même place d'une machine à l'autre */}
@@ -294,7 +295,7 @@ function Tools({ snap, report, open, rev }: Readonly<{ snap: Snapshot; report: R
       )}
       {list && list.length > 0 && (
         <>
-          <p className="mt-2 text-sm text-muted">{tx("MyServices a reconnu ces outils sur votre réseau. Reliez-les pour lire leurs données (certificats, DNS, sauvegardes, santé) : une clé en lecture seule suffit.")}</p>
+          <InfoNote className="mt-2">{tx("MyServices a reconnu ces outils sur votre réseau. Reliez-les pour lire leurs données (certificats, DNS, sauvegardes, santé) : une clé en lecture seule suffit.")}</InfoNote>
           <ul className="mt-4 flex flex-col gap-2">
             {list.map((x) => (
               <li key={`${x.connector}/${x.ip}`} className="flex flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2">
@@ -340,7 +341,7 @@ function Soon({ title }: Readonly<{ title: string }>) {
   return (
     <div>
       <h2 className="text-xl font-bold">{title}</h2>
-      <p className="mt-2 rounded-lg bg-bg2 px-3 py-2 text-sm text-muted">{tx("Cette étape arrive bientôt. En attendant, vous pouvez la passer : elle reste disponible dans Réglages.")}</p>
+      <InfoNote className="mt-2">{tx("Cette étape arrive bientôt. En attendant, vous pouvez la passer : elle reste disponible dans Réglages.")}</InfoNote>
     </div>
   );
 }

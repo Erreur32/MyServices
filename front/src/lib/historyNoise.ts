@@ -1,6 +1,6 @@
 // Historique : ce qui fait du bruit, et comment le calmer sans rien perdre (affichage seulement, la base garde tout).
 //   Masquages (choix gardé dans le navigateur) : menaces fail2ban, connecteur revenu en moins d'une heure, nouvel appareil du scan réseau.
-//   Regroupements de la liste : les menaces d'un jour par prison, les coupures d'un même connecteur dans la journée.
+//   Regroupements de la liste : les menaces d'un jour par jail, les coupures d'un même connecteur dans la journée.
 import type { StoredEvent } from "../types";
 import { dayKey } from "./format";
 import { tx } from "./i18n";
@@ -79,7 +79,7 @@ export function collapse(events: StoredEvent[]): ListItem[] {
     if (done.has(k)) continue;
     done.add(k);
     if (e.kind === "menace") {
-      out.push({ title: tx("fail2ban : {0} nouvelles menaces", list.length), detail: e.target ? tx("prisons {0}", e.target) : "", kind: "menace", ts: list[0].ts, events: list });
+      out.push({ title: tx("fail2ban : {0} nouvelles menaces", list.length), detail: e.target ? tx("jails {0}", e.target) : "", kind: "menace", ts: list[0].ts, events: list });
     } else {
       const cuts = list.filter((x) => x.kind === "connecteur").length, last = list[0];   // newest first
       out.push({ title: tx("{0} : {1} coupure(s)", last.label || last.key, cuts), detail: last.kind === "connecteur_ok" ? tx("rétabli") : tx("en panne"),

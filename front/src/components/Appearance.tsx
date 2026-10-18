@@ -8,6 +8,7 @@ import { Flag } from "./Flag";
 import { Card } from "./ui";
 import { IconChoice, type IconOption } from "./IconChoice";
 import { quiet } from "../lib/forms";
+import { InfoNote } from "./InfoNote";
 
 /** Réglages d'apparence tenus par App (appliqués à toute la page). */
 export interface Look {
@@ -46,7 +47,7 @@ export function Appearance({ look }: { look: Look }) {
       </Card>
       <Card>
         <h2 className="mb-1 flex items-center gap-2 font-bold"><Image size={16} aria-hidden />{tx("Logo de l'en-tête")}</h2>
-        <p className="mb-3 text-sm text-muted">{tx("L'icône affichée avant le titre. Le changement est immédiat. Le favicon de l'onglet du navigateur ne change pas.")}</p>
+        <InfoNote className="mb-3">{tx("L'icône affichée avant le titre. Le changement est immédiat. Le favicon de l'onglet du navigateur ne change pas.")}</InfoNote>
         <IconChoice label={tx("Logo de l'en-tête")} value={useHeaderLogo()} onPick={setHeaderLogo} options={LOGO_OPTIONS} />
       </Card>
       <Card>
@@ -67,9 +68,9 @@ export function Appearance({ look }: { look: Look }) {
             <RotateCcw size={14} />{tx("Par défaut")}
           </button>
         </div>
-        <p className="mb-3 text-sm text-muted">
+        <InfoNote className="mb-3">
           {tx("Largeur maximale du contenu (en-tête, onglets, pages). Le cran le plus à droite utilise toute la largeur de l'écran.")}
-        </p>
+        </InfoNote>
         <div className="flex items-center gap-4">
           <input type="range" className="range flex-1" min={CONTENT_WIDTH.min} max={fullNotch} step={CONTENT_WIDTH.step}
             value={full ? fullNotch : look.width} aria-label={tx("Largeur de la page")}
@@ -77,7 +78,7 @@ export function Appearance({ look }: { look: Look }) {
           <span className="w-32 whitespace-nowrap text-right font-mono text-sm tabular-nums">{full ? tx("Pleine largeur") : `${look.width} px`}</span>
         </div>
       </Card>
-      <p className="text-xs text-dim">{tx("Retenus par ce navigateur seulement.")}</p>
+      <InfoNote>{tx("Retenus par ce navigateur seulement.")}</InfoNote>
     </div>
   );
 }

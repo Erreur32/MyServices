@@ -430,7 +430,7 @@ def setup_config() -> dict:
     val["discord_webhook"] = ask("Webhook Discord des alertes (vide = aucun)", val["discord_webhook"])
     # Santé des machines : health.py intégré (health_url "health/") ou health-watcher externe (autre URL)
     if val["health_url"] in ("", "health/"):
-        val["health_url"] = "health/" if yes("Santé des machines (health.py : disque, systemd, maj, SMART…, toutes les 6 h) ?",
+        val["health_url"] = "health/" if yes("Santé des machines (health.py : disque, systemd, maj, SMART…, toutes les 2 h) ?",
                                              val["health_url"] != "" or not CONFIG.exists()) else ""
     else:
         ok(f"santé : health-watcher externe ({val['health_url']}), gardé")

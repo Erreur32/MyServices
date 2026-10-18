@@ -1637,20 +1637,98 @@ class Confirm(BaseModel):
     password: str = Field(max_length=256)
 
 
-@app.post(API + "/system/export", tags=["système"], summary="Exporter /config en tar.gz (session admin + mot de passe)")
-def system_export(body: Confirm, request: Request):
+class ExportBody(Confirm):
+    parts: list[str] | None = Field(default=None, max_length=8)   # a missing list means every part
+
+
+class ImportPreviewBody(BaseModel):
+    archive: str = Field(max_length=96 << 20)   # base64 of the ZIP
+
+
+class ImportApplyBody(ImportPreviewBody):
+    password: str = Field(max_length=256)
+    parts: list[str] = Field(max_length=8)
+
+
+def _places():
+    import config_transfer as ct
     import system
+    return ct.Places(system.api_config_dir(), Path(core.CFG["state_dir"]), db_path(core.CFG))
+
+
+def _archive_bytes(b64: str) -> bytes | JSONResponse:
+    import base64
+    import binascii
+    try:
+        return base64.b64decode(b64, validate=True)
+    except ValueError:   # binascii.Error is a ValueError
+        return deny(400, "archive illisible (base64 invalide)")
+
+
+def _confirmed(request: Request, password: str) -> JSONResponse | None:
+    """Session admin + the user's own password, with the same lock-out as a login."""
     if denied := session_admin(request):
         return denied
     u, ip = request.state.user, ip_of(request)
     if store().too_many_failures(ip):
         return deny(429, "trop d'échecs : réessayer dans 15 minutes")
-    if store().verify(u["username"], body.password, ip) is None:
+    if store().verify(u["username"], password, ip) is None:
         return deny(401, "mot de passe incorrect")
-    store().audit("configuration exportée", u["username"], ip)
-    name = f"myservices-config-{time.strftime('%Y%m%d-%H%M')}.tar.gz"
-    return Response(system.export_config(), media_type="application/gzip",
-                    headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+    return None
+
+
+@app.get(API + "/system/config-parts", tags=["système"], summary="Parties exportables de la configuration et ce que cette installation en a (admin)")
+def system_config_parts(request: Request):
+    import config_transfer as ct
+    if denied := session_admin(request):
+        return denied
+    have = ct.present(_places())
+    return {"parts": [{"id": p, "files": have.get(p, []), "sensitive": p in ct.SENSITIVE} for p in ct.PARTS]}
+
+
+@app.post(API + "/system/export", tags=["système"], summary="Exporter la configuration en ZIP, tout ou certaines parties (session admin + mot de passe)")
+def system_export(body: ExportBody, request: Request):
+    import config_transfer as ct
+    if denied := _confirmed(request, body.password):
+        return denied
+    try:
+        data = ct.export_config(_places(), body.parts, os.environ.get("MYSERVICES_VERSION", "dev"))
+    except ct.TransferError as e:
+        return deny(400, str(e))
+    u = request.state.user
+    store().audit("configuration exportée", u["username"], ip_of(request), ",".join(body.parts) if body.parts else "tout")
+    name = f"myservices-config-{time.strftime('%Y%m%d-%H%M')}.zip"
+    return Response(data, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+
+
+@app.post(API + "/system/import/preview", tags=["système"], summary="Lire une archive de configuration sans rien écrire : parties, problèmes (session admin)")
+def system_import_preview(body: ImportPreviewBody, request: Request):
+    import config_transfer as ct
+    if denied := session_admin(request):
+        return denied
+    data = _archive_bytes(body.archive)
+    if isinstance(data, JSONResponse):
+        return data
+    try:
+        return ct.preview(data, _places())
+    except ct.TransferError as e:
+        return deny(400, str(e))
+
+
+@app.post(API + "/system/import", tags=["système"], summary="Importer des parties d'une archive de configuration (session admin + mot de passe)")
+def system_import(body: ImportApplyBody, request: Request):
+    import config_transfer as ct
+    if denied := _confirmed(request, body.password):
+        return denied
+    data = _archive_bytes(body.archive)
+    if isinstance(data, JSONResponse):
+        return data
+    try:
+        out = ct.apply(data, body.parts, _places())
+    except ct.TransferError as e:
+        return deny(400, str(e))
+    store().audit("configuration importée", request.state.user["username"], ip_of(request), ",".join(body.parts))
+    return {"ok": True, **out}
 
 
 # ── Historique ────────────────────────────────────────────────────────────────────────────────────
@@ -2437,16 +2515,22 @@ def mail_put(body: MailConf, request: Request):
 
 
 @app.post(API + "/system/mail/test", tags=["système"], summary="Envoyer un e-mail de test à sa propre adresse (admin)")
-def mail_test(request: Request):
+def mail_test(request: Request, body: MailConf | None = None):
+    """With a body: tries those values without saving them; without: the saved settings."""
     import mailer
+    import system
     if denied := admin_write(request):
         return denied
     to = store().email_of(request.state.user["username"])
     if not to:
         return deny(400, "votre compte n'a pas d'adresse e-mail : l'ajouter dans Profil")
     try:
-        mailer.send(core.CFG, to, "MyServices : e-mail de test",
-                    f"Bonjour,\n\nL'envoi d'e-mails de MyServices fonctionne.\nAdresse de la page : {core.CFG.get('page_url')}\n\n-- MyServices\n")
+        cfg = system.mail_trial(core.CFG, body.host, body.port, body.security, body.user, body.password, body.sender, body.page_url) if body and body.host else core.CFG
+    except ValueError as e:
+        return deny(400, str(e))
+    try:
+        mailer.send(cfg, to, "MyServices : e-mail de test",
+                    f"Bonjour,\n\nL'envoi d'e-mails de MyServices fonctionne.\nAdresse de la page : {cfg.get('page_url')}\n\n-- MyServices\n")
     except mailer.MailError as e:
         return deny(502, str(e))
     store().audit("e-mail de test envoyé", request.state.user["username"], ip_of(request), to)

@@ -1,159 +1,193 @@
-// Sécurité (remplace l'onglet Fail2ban) : ce que vos outils disent de l'exposition et des attaques, en une page, lecture seule.
-//   Résumé · Fail2ban et menaces actives (LogviewR) · Sites exposés à Internet (NPM, Web-Check) · Certificats · Accès SSH des machines
-//   (sshd, échecs) · Ports sensibles vus sur le réseau (MynetworK). Pas de score d'exposition (décision de l'auteur) : des faits.
-import { Ban, Globe, KeyRound, Radar, ShieldAlert, Siren } from "lucide-react";
-import { useMemo } from "react";
+// Sécurité : une vue d'ensemble de ce qu'il faut traiter, puis un sous-onglet par catégorie (Fail2ban, sites exposés, accès SSH,
+// ports du réseau, certificats). Lecture seule.
+import { Ban, FileBadge, Globe, KeyRound, LayoutDashboard, Radar, ShieldAlert, ShieldCheck, Wrench, type LucideIcon } from "lucide-react";
+import { useMemo, useState } from "react";
 import type { Snapshot } from "../api";
-import { dateTime, splitHostName } from "../lib/format";
-import { risky } from "../lib/ssh";
-import { tx } from "../lib/i18n";
-import type { HealthHost, Host } from "../types";
+import { Certificates } from "../components/Certificates";
+import { Fail2banCard } from "../components/Fail2banCard";
+import { Fail2banStats } from "../components/Fail2banStats";
+import { FoldPanel } from "../components/FoldPanel";
+import { InfoNote } from "../components/InfoNote";
 import { Badge, Card, Count, Dim, Empty } from "../components/ui";
-import { Certificates, CERT_SOON } from "../components/Certificates";
+import { splitHostName } from "../lib/format";
+import { tx } from "../lib/i18n";
+import { exposedSites, securityFindings, SENSITIVE, siteIssues, type Area, type Finding } from "../lib/securityFindings";
+import { risky } from "../lib/ssh";
 
-/** Ports that should not be open on a home network without a reason (clear-text or remote-control protocols, databases, Docker API) */
-const SENSITIVE: Record<number, string> = {
-  21: "FTP", 23: "Telnet", 445: "SMB", 139: "NetBIOS", 3389: tx("Bureau à distance (RDP)"), 5900: "VNC", 2375: tx("API Docker sans TLS"),
-  3306: "MySQL", 5432: "PostgreSQL", 6379: "Redis", 27017: "MongoDB", 9200: "Elasticsearch", 11211: "Memcached", 1883: tx("MQTT sans TLS"),
-};
+type Sub = "overview" | "fail2ban" | "sites" | "access" | "network" | "certs";
+const SUBS: { id: Sub; label: string; icon: LucideIcon; area?: Area }[] = [
+  { id: "overview", label: tx("Vue d'ensemble"), icon: LayoutDashboard },
+  { id: "fail2ban", label: tx("Fail2ban"), icon: Ban, area: "fail2ban" },
+  { id: "sites", label: tx("Sites exposés"), icon: Globe, area: "sites" },
+  { id: "access", label: tx("Accès SSH"), icon: KeyRound, area: "ssh" },
+  { id: "network", label: tx("Ports du réseau"), icon: Radar, area: "ports" },
+  { id: "certs", label: tx("Certificats"), icon: FileBadge, area: "certs" },
+];
+const SUB_KEY = "ms.security.sub";
+const AREA_LABEL: Record<Area, string> = { fail2ban: tx("Fail2ban"), sites: tx("Site"), certs: tx("Certificat"), ssh: tx("SSH"), ports: tx("Port") };
+const AREA_SUB: Record<Area, Sub> = { fail2ban: "fail2ban", sites: "sites", certs: "certs", ssh: "access", ports: "network" };
 
-function Tile({ value, label, tone, icon: Icon }: { value: number | string; label: string; tone: "ok" | "warn" | "bad" | "off"; icon: typeof Ban }) {
-  const color = tone === "bad" ? "text-bad" : tone === "warn" ? "text-warn" : tone === "ok" ? "text-ok" : "text-muted";
+const savedSub = (): Sub => { try { const v = localStorage.getItem(SUB_KEY); return SUBS.some((s) => s.id === v) ? (v as Sub) : "overview"; } catch { return "overview"; } };
+
+function Posture({ findings }: Readonly<{ findings: Finding[] }>) {
+  const bad = findings.filter((f) => f.sev === "bad").length;
+  let tone: "ok" | "warn" | "bad" = "warn";
+  if (findings.length === 0) tone = "ok";
+  else if (bad) tone = "bad";
+  const frame = { ok: "border-ok/40 bg-ok/10", warn: "border-warn/50 bg-warn/10", bad: "border-bad/50 bg-bad/10" }[tone];
+  const Icon = tone === "ok" ? ShieldCheck : ShieldAlert;
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-3">
-      <Icon size={20} className={color} aria-hidden />
-      <div><div className={`font-mono text-xl font-bold leading-tight ${color}`}>{value}</div><div className="text-xs text-dim">{label}</div></div>
+    <div className={`flex items-center gap-3 rounded-2xl border px-5 py-4 ${frame}`}>
+      <Icon size={26} className={{ ok: "text-ok", warn: "text-warn", bad: "text-bad" }[tone]} aria-hidden />
+      <div>
+        <h2 className="text-lg font-bold">{findings.length ? tx("{0} point(s) de sécurité à traiter", findings.length) : tx("Rien à signaler")}</h2>
+        <p className="text-sm text-muted">{findings.length ? tx("dont {0} urgent(s) : les plus graves sont en tête de liste.", bad) : tx("Aucune exposition ni réglage faible détecté par vos outils.")}</p>
+      </div>
     </div>
   );
 }
 
-/** A public site (NPM proxy without access list): what protects it, what is missing */
-function siteIssues(r: Host): string[] {
-  const out = [];
-  if (r.ssl && !r.ssl_forced) out.push(tx("HTTPS non forcé"));
-  if (!r.ssl) out.push(tx("pas de HTTPS"));
-  if (r.webcheck && r.webcheck.hsts === false) out.push(tx("pas de HSTS"));
-  if (!r.block_exploits) out.push(tx("« Block exploits » coupé"));
-  const d = r.webcheck?.cert_days ?? (r.uptime ?? []).find((u) => u.cert_days != null)?.cert_days;
-  if (d != null && d <= CERT_SOON) out.push(d < 0 ? tx("certificat expiré") : tx("certificat dans {0} j", d));
-  if (r.webcheck?.headers_total && (r.webcheck.headers_ok ?? 0) < r.webcheck.headers_total / 2) out.push(tx("en-têtes de sécurité faibles"));
-  return out;
+function FindingRow({ f, open }: Readonly<{ f: Finding; open: (s: Sub) => void }>) {
+  return (
+    <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 px-2 py-3">
+      <span aria-hidden className={`mt-1.5 h-2.5 w-2.5 rounded-full ${f.sev === "bad" ? "bg-bad" : "bg-warn"}`} />
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2"><b className="truncate">{f.title}</b><Badge tone={f.sev === "bad" ? "bad" : "warn"}>{AREA_LABEL[f.area]}</Badge></div>
+        <p className="text-sm text-muted">{f.detail}</p>
+        <p className="mt-0.5 flex items-start gap-1.5 text-xs text-dim"><Wrench size={12} className="mt-0.5 shrink-0" aria-hidden />{f.fix}</p>
+      </div>
+      <button type="button" onClick={() => open(AREA_SUB[f.area])} className="rounded-full border border-line bg-bg2/60 px-2.5 py-1 text-xs font-semibold text-muted hover:border-link hover:text-link">{tx("Voir")}</button>
+    </li>
+  );
 }
 
-export function Security({ snap }: { snap: Snapshot }) {
-  const lv = snap.data.security ?? [];
-  const exposed = useMemo(() => snap.data.hosts.filter((r) => r.type === "proxy" && r.enabled && !r.acl && !r.acl_adv)
-    .map((r) => ({ r, issues: siteIssues(r) })).sort((a, b) => b.issues.length - a.issues.length || (a.r.domains[0] ?? "").localeCompare(b.r.domains[0] ?? "")), [snap.data.hosts]);
-  const health = useMemo(() => new Map((snap.health?.hosts ?? []).map((h): [string, HealthHost] => [splitHostName(h.name)[1], h])), [snap.health]);
-  const ssh = snap.data.machine_list.filter((m) => !m.disabled && (m.info?.sshd || health.get(m.ip)?.ssh_auth?.available)).map((m) => {
-    const d = m.info?.sshd, fails = health.get(m.ip)?.ssh_auth;
-    return { m, root: risky(d?.permitrootlogin), pwd: !!d?.passwordauthentication?.startsWith("yes"), fails: fails?.available ? fails.failed_24h : null, d };
-  }).sort((a, b) => Number(b.root) + Number(b.pwd) - Number(a.root) - Number(a.pwd) || (b.fails ?? 0) - (a.fails ?? 0));
-  const ports = useMemo(() => (snap.data.network ?? []).flatMap((c) => c.devices ?? []).map((d) => ({ d, hit: d.ports.filter((p) => SENSITIVE[p]) }))
-    .filter((x) => x.hit.length).sort((a, b) => b.hit.length - a.hit.length), [snap.data.network]);
-  const bans = lv.reduce((s, c) => s + (c.bans_24h ?? 0), 0), threats = lv.reduce((s, c) => s + (c.threat_count ?? 0), 0);
-  const weakSites = exposed.filter((x) => x.issues.length).length, weakSsh = ssh.filter((x) => x.root || x.pwd).length;
-  if (!lv.length && !exposed.length && !ssh.length && !ports.length) return <Empty>{tx("Rien à montrer : reliez LogviewR, Nginx Proxy Manager ou MynetworK, ou lisez une machine par SSH.")}</Empty>;
+function Overview({ snap, findings, open }: Readonly<{ snap: Snapshot; findings: Finding[]; open: (s: Sub) => void }>) {
+  return (
+    <div className="flex flex-col gap-4">
+      <Posture findings={findings} />
+      {findings.length > 0 && (
+        <Card>
+          <h2 className="mb-1 font-bold">{tx("À traiter d'abord")} <Count n={findings.length} tone="warn" /></h2>
+          <ul className="flex flex-col divide-y divide-line/60 [&>li:nth-child(even)]:bg-bg/50">{findings.map((f) => <FindingRow key={`${f.area}/${f.title}/${f.detail}`} f={f} open={open} />)}</ul>
+        </Card>
+      )}
+      <InfoNote>{tx("Cette page lit ce que vos outils savent (Fail2ban par LogviewR, Nginx Proxy Manager, SSH, MynetworK). Elle ne change rien et ne donne pas de note : des faits, du plus grave au moins grave.")}</InfoNote>
+      {(snap.data.security ?? []).length === 0 && <InfoNote tone="warn">{tx("Aucun Fail2ban n'est relié : reliez LogviewR (Réglages, Connecteurs) pour voir les bannissements et les menaces.")}</InfoNote>}
+    </div>
+  );
+}
 
+function SitesList({ snap }: Readonly<{ snap: Snapshot }>) {
+  const rows = useMemo(() => exposedSites(snap.data.hosts).map((r) => ({ r, issues: siteIssues(r) })).sort((a, b) => b.issues.length - a.issues.length), [snap.data.hosts]);
+  if (!rows.length) return <Empty>{tx("Aucun site public : tous les hôtes de Nginx Proxy Manager sont derrière une liste d'accès.")}</Empty>;
+  return (
+    <FoldPanel id="security.sites" icon={Globe} title={tx("Sites exposés à Internet")} count={rows.length}>
+      <InfoNote className="mb-2">{tx("Hôtes de Nginx Proxy Manager actifs et sans liste d'accès : joignables de partout. Ce qui manque est en orange.")}</InfoNote>
+      <ul className="flex flex-col divide-y divide-line/60 text-sm [&>li:nth-child(even)]:bg-bg/50">
+        {rows.map(({ r, issues }) => (
+          <li key={`${r.npm}-${r.id}`} className="grid grid-cols-[minmax(0,1fr)] items-center gap-x-4 gap-y-1 px-2 py-2 md:grid-cols-[minmax(0,16rem)_minmax(0,9rem)_minmax(0,1fr)]">
+            <span className="truncate font-semibold">{r.domains[0]}</span>
+            <span className="flex items-center gap-1.5 truncate text-dim">{r.machine ?? ""}{r.public_ok && <Badge tone="info" title={tx("Marqué « site public voulu » dans Services")}>{tx("public voulu")}</Badge>}</span>
+            <span className="flex flex-wrap gap-1">{issues.length ? issues.map((x) => <Badge key={x} tone="warn">{x}</Badge>) : <Badge tone="ok">{tx("rien à signaler")}</Badge>}</span>
+          </li>
+        ))}
+      </ul>
+    </FoldPanel>
+  );
+}
+
+function AccessList({ snap }: Readonly<{ snap: Snapshot }>) {
+  const health = useMemo(() => new Map((snap.health?.hosts ?? []).map((h) => [splitHostName(h.name)[1], h])), [snap.health]);
+  const rows = snap.data.machine_list.filter((m) => !m.disabled && (m.info?.sshd || health.get(m.ip)?.ssh_auth?.available)).map((m) => {
+    const d = m.info?.sshd, a = health.get(m.ip)?.ssh_auth;
+    return { m, d, root: risky(d?.permitrootlogin), pwd: !!d?.passwordauthentication?.startsWith("yes"), fails: a?.available ? a.failed_24h : null };
+  }).sort((a, b) => Number(b.root) + Number(b.pwd) - Number(a.root) - Number(a.pwd) || (b.fails ?? 0) - (a.fails ?? 0));
+  if (!rows.length) return <Empty>{tx("Aucune machine lue par SSH : l'accès SSH n'a rien à montrer.")}</Empty>;
+  return (
+    <FoldPanel id="security.ssh" icon={KeyRound} title={tx("Accès SSH des machines")} count={rows.length}>
+      <InfoNote className="mb-3">{tx("Réglages du serveur SSH lus sur chaque machine, et connexions refusées sur 24 h (santé).")}</InfoNote>
+      <div className={`${SSH_COLS} mb-1 hidden border-b border-line px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-dim md:grid`} aria-hidden>
+        <span>{tx("Machine")}</span><span>{tx("Connexion root")}</span><span>{tx("Mot de passe")}</span><span>{tx("Échecs sur 24 h")}</span>
+      </div>
+      <ul className="flex flex-col divide-y divide-line/60 text-sm [&>li:nth-child(even)]:bg-bg/50">
+        {rows.map(({ m, d, root, pwd, fails }) => (
+          <li key={m.ip} className={`${SSH_COLS} items-center px-2 py-2`}>
+            <span className="truncate font-semibold">{m.name} <Dim>{m.ip}</Dim></span>
+            <SshCell label={tx("Connexion root")} value={d?.permitrootlogin} warn={root} known={!!d} />
+            <SshCell label={tx("Mot de passe")} value={d?.passwordauthentication} warn={pwd} known={!!d} />
+            <span className="flex items-center gap-2 md:block"><span className="text-xs text-dim md:hidden">{tx("Échecs sur 24 h")}</span>
+              {fails == null ? <Dim>-</Dim> : <Badge outline tone={failTone(fails)}>{fails}</Badge>}</span>
+          </li>
+        ))}
+      </ul>
+    </FoldPanel>
+  );
+}
+
+/** Refused SSH logins in 24 h: none is fine, a few is a note, many means someone is trying */
+function failTone(n: number): "ok" | "warn" | "bad" {
+  if (n > 50) return "bad";
+  return n ? "warn" : "ok";
+}
+
+const SSH_COLS = "grid gap-x-6 gap-y-1 md:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]";   // the machine gets the most room, the three settings share the rest evenly
+
+/** One setting of a machine's SSH server: the label on a phone, the value as an outlined badge (no filled background) */
+function SshCell({ label, value, warn, known }: Readonly<{ label: string; value?: string; warn: boolean; known: boolean }>) {
+  return (
+    <span className="flex items-center gap-2 md:block">
+      <span className="text-xs text-dim md:hidden">{label}</span>
+      {known ? <Badge outline tone={warn ? "warn" : "ok"}>{value || "?"}</Badge> : <Dim>-</Dim>}
+    </span>
+  );
+}
+
+function PortsList({ snap }: Readonly<{ snap: Snapshot }>) {
+  const rows = (snap.data.network ?? []).flatMap((c) => c.devices ?? []).map((d) => ({ d, hit: d.ports.filter((p) => SENSITIVE[p]) })).filter((x) => x.hit.length).sort((a, b) => b.hit.length - a.hit.length);
+  if (!rows.length) return <Empty>{tx("Aucun port sensible ouvert vu sur le réseau.")}</Empty>;
+  return (
+    <FoldPanel id="security.ports" icon={Radar} title={tx("Ports sensibles ouverts sur le réseau")} count={rows.length} tone="warn">
+      <InfoNote className="mb-2">{tx("Vus par le scanner de MynetworK : protocoles en clair, prise de main à distance, bases de données. À fermer s'ils ne servent pas.")}</InfoNote>
+      <ul className="flex flex-col divide-y divide-line/60 text-sm [&>li:nth-child(even)]:bg-bg/50">
+        {rows.map(({ d, hit }) => (
+          <li key={d.ip} className="grid items-center gap-x-4 gap-y-1 px-2 py-2 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+            <span className="truncate font-semibold">{d.hostname || d.vendor || d.ip} <Dim>{d.ip}</Dim></span>
+            <span className="flex flex-wrap gap-1">{hit.map((p) => <Badge key={p} tone="warn">{p} · {SENSITIVE[p]}</Badge>)}</span>
+          </li>
+        ))}
+      </ul>
+    </FoldPanel>
+  );
+}
+
+function Menu({ sub, pick, counts }: Readonly<{ sub: Sub; pick: (s: Sub) => void; counts: Partial<Record<Area, number>> }>) {
+  return (
+    <fieldset className="m-0 flex min-w-0 max-w-full flex-wrap self-start rounded-lg border border-line bg-card p-0.5" aria-label={tx("Sous-menu de la sécurité")}>
+      {SUBS.map(({ id, label, icon: Icon, area }) => (
+        <button key={id} type="button" aria-pressed={sub === id} onClick={() => pick(id)}
+          className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-semibold ${sub === id ? "border-link bg-link/15 text-txt ring-1 ring-link/50" : "border-transparent text-muted hover:text-txt"}`}>
+          <Icon size={14} aria-hidden />{label}{area && (counts[area] ?? 0) > 0 && <Badge tone="warn">{counts[area]}</Badge>}
+        </button>
+      ))}
+    </fieldset>
+  );
+}
+
+export function Security({ snap }: Readonly<{ snap: Snapshot }>) {
+  const [sub, setSub] = useState<Sub>(savedSub);
+  const pick = (s: Sub) => { setSub(s); try { localStorage.setItem(SUB_KEY, s); } catch { /* storage refused: the choice lasts this visit */ } };
+  const findings = useMemo(() => securityFindings(snap), [snap]);
+  const counts = useMemo(() => findings.reduce<Partial<Record<Area, number>>>((n, f) => ({ ...n, [f.area]: (n[f.area] ?? 0) + 1 }), {}), [findings]);
+  const sources = snap.data.security ?? [];
   return (
     <div className="flex flex-col gap-4 py-4">
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        {lv.length > 0 && <Tile icon={Ban} value={bans} label={tx("bannissements en 24 h")} tone={bans ? "warn" : "ok"} />}
-        {lv.length > 0 && <Tile icon={Siren} value={threats} label={tx("menaces actives")} tone={threats ? "bad" : "ok"} />}
-        <Tile icon={Globe} value={`${weakSites} / ${exposed.length}`} label={tx("sites publics à renforcer")} tone={weakSites ? "warn" : "ok"} />
-        <Tile icon={KeyRound} value={`${weakSsh} / ${ssh.length}`} label={tx("machines : SSH root ou mot de passe")} tone={weakSsh ? "warn" : "ok"} />
-        {(snap.data.network ?? []).length > 0 && <Tile icon={Radar} value={ports.length} label={tx("appareils avec un port sensible")} tone={ports.length ? "warn" : "ok"} />}
-      </div>
-
-      {lv.map((c) => {
-        const byJail = new Map<string, number>();
-        (c.bans ?? []).forEach((b) => byJail.set(b.jail, (byJail.get(b.jail) ?? 0) + 1));
-        return (
-          <Card key={`${c.connector}/${c.name}`} className={c.ok ? "" : "border-bad/40"}>
-            <h2 className="flex flex-wrap items-center gap-2 font-bold"><Ban size={16} aria-hidden />{tx("Fail2ban")} <Dim>· {c.label} {c.name}</Dim>
-              <Badge tone={c.ok ? "ok" : "bad"}>{c.ok ? tx("en ligne") : tx("illisible")}</Badge>{c.stale && <Badge tone="warn">{tx("relevé périmé")}</Badge>}</h2>
-            {!c.ok && !c.stale ? <p className="mt-3 rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{c.message}</p> : <>
-              {(c.jails ?? []).length > 0 && <p className="mt-3 flex flex-wrap items-center gap-1.5 text-sm">{c.jails!.map((j) => <Badge key={j} tone={byJail.has(j) ? "warn" : "off"}>{j}{byJail.has(j) && ` · ${byJail.get(j)}`}</Badge>)}</p>}
-              {(c.threats ?? []).length > 0 && (
-                <div className="mt-3">
-                  <h3 className="mb-1 flex items-center gap-1.5 text-sm font-bold text-bad"><ShieldAlert size={14} aria-hidden />{tx("Menaces actives")} <Count n={c.threats!.length} tone="bad" /></h3>
-                  <ul className="flex flex-col gap-1 text-sm">
-                    {c.threats!.map((t) => (
-                      <li key={t.key} className="flex flex-wrap items-baseline gap-2 rounded-lg bg-bad/5 px-3 py-1.5">
-                        <Badge tone="bad">{t.kind === "ip_escalation" ? tx("IP sur plusieurs prisons") : tx("campagne {0}", t.asn ?? "")}</Badge>
-                        <code className="font-mono text-xs">{t.ips.slice(0, 5).join(", ")}{t.ip_count > 5 ? ` +${t.ip_count - 5}` : ""}</code>
-                        <Dim>{t.jails.join(", ")}{t.bans != null ? ` · ${t.bans} ${tx("bannissement(s)")}` : ""}{t.last ? ` · ${tx("dernier")} ${dateTime(t.last * 1000)}` : ""}</Dim>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {(c.bans ?? []).length > 0 && (
-                <details className="mt-3 text-sm">
-                  <summary className="cursor-pointer text-muted hover:text-txt">{tx("Derniers bannissements")} · {c.bans!.length}</summary>
-                  <ul className="mt-1 flex flex-col gap-0.5">
-                    {c.bans!.slice(0, 50).map((b, i) => (
-                      <li key={i} className="flex flex-wrap items-baseline gap-2"><code className="font-mono text-xs">{b.ip}</code><Badge tone="off">{b.jail}</Badge>
-                        {b.failures ? <Dim>{b.failures} {tx("échecs")}</Dim> : null}<Dim>{b.time ? dateTime(b.time * 1000) : ""}</Dim></li>
-                    ))}
-                  </ul>
-                </details>
-              )}
-            </>}
-          </Card>
-        );
-      })}
-
-      {exposed.length > 0 && (
-        <Card>
-          <h2 className="mb-1 flex items-center gap-2 font-bold"><Globe size={16} aria-hidden />{tx("Sites exposés à Internet")} <Count n={exposed.length} tone="off" /></h2>
-          <p className="mb-2 text-sm text-muted">{tx("Hôtes de Nginx Proxy Manager actifs et sans liste d'accès : joignables de partout. Ce qui manque est en orange.")}</p>
-          <ul className="flex flex-col divide-y divide-line/60 text-sm">
-            {exposed.map(({ r, issues }) => (
-              <li key={`${r.npm}-${r.id}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-1.5">
-                <span className="min-w-[14rem] truncate font-semibold">{r.domains[0]}</span>
-                {r.public_ok && <Badge tone="info" title={tx("Marqué « site public voulu » dans Services")}>{tx("public voulu")}</Badge>}
-                {r.machine && <Dim>{r.machine}</Dim>}
-                <span className="flex flex-wrap gap-1">{issues.length ? issues.map((x) => <Badge key={x} tone="warn">{x}</Badge>) : <Badge tone="ok">{tx("rien à signaler")}</Badge>}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      <Certificates snap={snap} />
-
-      {ssh.length > 0 && (
-        <Card>
-          <h2 className="mb-1 flex items-center gap-2 font-bold"><KeyRound size={16} aria-hidden />{tx("Accès SSH des machines")} <Count n={ssh.length} tone="off" /></h2>
-          <p className="mb-2 text-sm text-muted">{tx("Réglages du serveur SSH lus sur chaque machine, et connexions refusées sur 24 h (santé).")}</p>
-          <ul className="flex flex-col divide-y divide-line/60 text-sm">
-            {ssh.map(({ m, root, pwd, fails, d }) => (
-              <li key={m.ip} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-1.5">
-                <span className="min-w-[12rem] font-semibold">{m.name} <Dim>{m.ip}</Dim></span>
-                {d && <Badge tone={root ? "warn" : "ok"}>{tx("root")} : {d.permitrootlogin || "?"}</Badge>}
-                {d && <Badge tone={pwd ? "warn" : "ok"}>{tx("mot de passe")} : {d.passwordauthentication || "?"}</Badge>}
-                {fails != null && <Badge tone={fails > 50 ? "bad" : fails ? "warn" : "ok"}>{tx("{0} échec(s) en 24 h", fails)}</Badge>}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      {ports.length > 0 && (
-        <Card>
-          <h2 className="mb-1 flex items-center gap-2 font-bold"><Radar size={16} aria-hidden />{tx("Ports sensibles ouverts sur le réseau")} <Count n={ports.length} tone="warn" /></h2>
-          <p className="mb-2 text-sm text-muted">{tx("Vus par le scanner de MynetworK : protocoles en clair, prise de main à distance, bases de données. À fermer s'ils ne servent pas.")}</p>
-          <ul className="flex flex-col divide-y divide-line/60 text-sm">
-            {ports.map(({ d, hit }) => (
-              <li key={d.ip} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-1.5">
-                <span className="min-w-[12rem] font-semibold">{d.hostname || d.vendor || d.ip} <Dim>{d.ip}</Dim></span>
-                <span className="flex flex-wrap gap-1">{hit.map((p) => <Badge key={p} tone="warn">{p} · {SENSITIVE[p]}</Badge>)}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+      <Menu sub={sub} pick={pick} counts={counts} />
+      {sub === "overview" && <Overview snap={snap} findings={findings} open={pick} />}
+      {sub === "fail2ban" && (sources.length ? <><Fail2banStats sources={sources} />{sources.map((c) => <Fail2banCard key={`${c.connector}/${c.name}`} c={c} />)}</> : <Empty>{tx("Aucun Fail2ban n'est relié : reliez LogviewR dans Réglages, Connecteurs.")}</Empty>)}
+      {sub === "sites" && <SitesList snap={snap} />}
+      {sub === "access" && <AccessList snap={snap} />}
+      {sub === "network" && <PortsList snap={snap} />}
+      {sub === "certs" && <Certificates snap={snap} />}
     </div>
   );
 }

@@ -9,6 +9,8 @@ import { act, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { NoteLine } from "./form";
 import { Badge, Count } from "./ui";
+import { InfoNote } from "./InfoNote";
+import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 
 export interface NewService {
   key: string; name: string; kind: string; image?: string | null; app?: string | null;
@@ -36,13 +38,13 @@ export function NewServices({ generated }: { generated?: string }) {   // genera
   };
   return (
     <section className="overflow-hidden rounded-2xl border border-link/40 bg-card shadow-sm" aria-label={tx("Nouveaux services sur les machines")}>
-      <div className="flex flex-wrap items-center gap-3 bg-link/10 px-5 py-3.5">
+      <div className={`flex flex-wrap items-center gap-3 bg-link/10 px-5 py-3.5 ${FOLD_HEADER}`} {...foldHeaderProps(() => fold(!folded))}>
         <button type="button" onClick={() => fold(!folded)} aria-expanded={!folded} title={folded ? tx("Déplier") : tx("Replier")}
           className="flex min-w-0 flex-1 items-center gap-3 text-left">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-link/20 text-link"><Boxes size={18} aria-hidden /></span>
           <span className="min-w-0 flex-1">
             <h2 className="flex items-center gap-2 text-base font-bold">{tx("Nouveaux services sur les machines")} <Count n={items.length} /></h2>
-            <p className="text-xs text-muted">{tx("Apparus ces 7 derniers jours : les suivre ? Sans réponse, ils sont suivis comme les autres.")}</p>
+            <InfoNote>{tx("Apparus ces 7 derniers jours : les suivre ? Sans réponse, ils sont suivis comme les autres.")}</InfoNote>
           </span>
           <ChevronRight size={18} className={`shrink-0 text-txt transition-transform ${folded ? "" : "rotate-90"}`} aria-hidden />
         </button>

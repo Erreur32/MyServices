@@ -35,7 +35,7 @@ export class NotConfigured extends Error {
   constructor(public me: Me) { super(tx("pas encore configurée")); }
 }
 
-/** Pouls (pulse.json) : l'état du ping de chaque machine, confirmé, bien plus frais que data.json (collecte toutes les 30 min) */
+/** Pouls (pulse.json) : l'état du ping de chaque machine, confirmé, bien plus frais que data.json (collecte toutes les 15 min) */
 interface Pulse { ts: number; machines: Record<string, { ping: boolean; ms: number | null; since: number }> }
 const PULSE_MAX_AGE_S = 300;
 
@@ -144,7 +144,7 @@ export async function send<T = { ok: boolean }>(method: "POST" | "PATCH" | "PUT"
 }
 
 /** POST routes that change nothing (try, check, show a secret, sign in): no reload after them */
-const READ_ONLY = /(\/test|\/check|\/reveal|^login|^logout|password)$/;
+const READ_ONLY = /(\/test|\/check|\/preview|\/reveal|^login|^logout|password)$/;
 
 /** Téléchargement d'un fichier produit par une écriture (export) : renvoie le Blob et son nom. */
 export async function download(path: string, body: unknown): Promise<{ blob: Blob; name: string }> {

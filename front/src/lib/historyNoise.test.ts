@@ -27,7 +27,7 @@ describe("historique : bruit", () => {
     const items = collapse(list);
     const groups = items.filter((i) => "events" in i) as { title: string; detail: string; events: StoredEvent[] }[];
     expect(groups.map((g) => [g.title, g.detail, g.events.length])).toEqual([
-      ["mynetwork lan : 1 coupure(s)", "rétabli", 2], ["fail2ban : 2 nouvelles menaces", "prisons sshd", 2], ["connecteur:beszel/b : 1 coupure(s)", "rétabli", 2]]);
+      ["mynetwork lan : 1 coupure(s)", "rétabli", 2], ["fail2ban : 2 nouvelles menaces", "jails sshd", 2], ["connecteur:beszel/b : 1 coupure(s)", "rétabli", 2]]);
     expect(items.length).toBe(5);   // 3 groups + the device + the outage
   });
 });

@@ -14,6 +14,8 @@ import { MachineIcon } from "./MachineIcon";
 import { FOLD, FOLD_HEAD, FOLD_WARN } from "./NetworkStep";
 import { NoteLine } from "./form";
 import { Badge } from "./ui";
+import { InfoNote } from "./InfoNote";
+import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 
 export interface DiscoveryItem {
   id: string; title: string; mode: "auto" | "first" | "manual"; what: string; last: number | null; next: number | null;
@@ -228,7 +230,7 @@ export function DiscoveryReminder({ machines }: { machines?: Machine[] }) {
   if (!todo.length) return null;
   return (
     <section className="overflow-hidden rounded-2xl border border-warn/50 bg-card shadow-sm" aria-label={tx("Découvertes à faire")}>
-      <div className="flex flex-wrap items-center gap-3 bg-warn/10 px-5 py-3.5">
+      <div className={`flex flex-wrap items-center gap-3 bg-warn/10 px-5 py-3.5 ${FOLD_HEADER}`} {...foldHeaderProps(() => fold(!folded))}>
         <button type="button" onClick={() => fold(!folded)} aria-expanded={!folded} title={folded ? tx("Déplier") : tx("Replier")}
           className="flex min-w-0 flex-1 items-center gap-3 text-left">
           <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-warn/20 text-warn">
@@ -238,7 +240,7 @@ export function DiscoveryReminder({ machines }: { machines?: Machine[] }) {
           </span>
           <span className="min-w-0 flex-1">
             <h2 className="text-base font-bold">{tx("À faire pour compléter la découverte")}</h2>
-            <p className="text-xs text-muted">{tx("Ces recherches ne se lancent pas toutes seules.")}</p>
+            <InfoNote>{tx("Ces recherches ne se lancent pas toutes seules.")}</InfoNote>
           </span>
           <ChevronRight size={18} className={`shrink-0 text-txt transition-transform ${folded ? "" : "rotate-90"}`} aria-hidden />
         </button>

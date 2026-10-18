@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Data, Host } from "../types";
 import { checks, status } from "./status";
-import { attention, names, paragraphs } from "./summary";
+import { attention, names } from "./summary";
 
 const NOW = new Date("2026-10-10T12:00:00+02:00").getTime();
 
@@ -47,10 +47,15 @@ describe("accueil", () => {
   it("rien à signaler quand tout va bien", () => {
     const d = data([host({})]);
     expect(attention({ data: d, now: NOW })).toEqual([]);
-    const p = paragraphs({ data: d, now: NOW });
-    expect(p.map((x) => x.tab)).toEqual(["history", "machines", "services"]);
-    expect(p[1].sentences[0]).toBe("2 machines : 1 en ligne, 1 éteinte volontairement (**PC**).");
-    expect(p[0].sentences[0]).toMatch(/^Aucun événement/);
+  });
+
+  it("redémarrage demandé et réécritures orphelines : des lignes d'attention, plus des paragraphes", () => {
+    const d = data([host({})]);
+    d.dns = { orphans: [{ domain: "vieux.lan" }], servers: {}, rewrites_diff: [], user_rules_diff: [] } as unknown as Data["dns"];
+    const items = attention({ data: d, now: NOW, health: { timestamp: "", hosts: [{ id: "srv", name: "srv · prod · 10.0.0.2", reachable: true, level: "ok", reboot_required: true }] } });
+    expect(items.map((i) => i.tab).sort()).toEqual(["dns", "machines"]);
+    expect(items.find((i) => i.tab === "machines")!.text).toBe("Redémarrage demandé sur **srv · prod**");
+    expect(items.find((i) => i.tab === "dns")!.text).toContain("1 réécriture AdGuard orpheline");
   });
 
   it("pannes, santé et sauvegardes triées par gravité, avec les noms", () => {
@@ -66,17 +71,6 @@ describe("accueil", () => {
       ["crit", "services"], ["crit", "backups"], ["warn", "services"], ["warn", "machines"]]);
     expect(items[0].text).toBe("**plex.lan** ne répond plus (backend down), sur srv");
     expect(items[3].text).toBe("Santé : **srv · prod** est à surveiller (disque / à 91 %)");  // nom avec « · » gardé entier
-  });
-
-  it("dernières 24 h : regroupées par genre, les anciennes ignorées", () => {
-    const p = paragraphs({
-      data: data([host({})]), now: NOW, labels: { panne: "🔴 Panne", retabli: "🟢 Rétabli" },
-      events: [{ ts: "2026-10-10T10:00:00+02:00", kind: "panne", label: "plex.lan" },
-               { ts: "2026-10-10T11:00:00+02:00", kind: "retabli", label: "plex.lan" },
-               { ts: "2026-10-10T11:30:00+02:00", kind: "panne", label: "sonarr.lan" },
-               { ts: "2026-10-01T11:00:00+02:00", kind: "panne", label: "vieux.lan" }],
-    });
-    expect(p[0].sentences).toEqual(["3 événements :", "2 × panne (**plex.lan**, **sonarr.lan**)", "1 × rétabli (**plex.lan**)"]);
   });
 });
 

@@ -11,6 +11,7 @@ import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import type { AlertChannel, NotificationItem, NotificationsState } from "../types";
 import { CHANNEL_ICON } from "./Alerts";
+import { InfoNote } from "../components/InfoNote";
 
 const DAYS = [tx("Lun"), tx("Mar"), tx("Mer"), tx("Jeu"), tx("Ven"), tx("Sam"), tx("Dim")];
 const COOLDOWNS: [number, string][] = [[0, tx("aucun")], [5, "5 min"], [60, "1 h"], [360, "6 h"], [1440, "24 h"]];
@@ -34,7 +35,7 @@ export function Notifications() {
     <div className="flex flex-col gap-4">
       <Card>
         <h2 className="flex items-center gap-2 font-bold"><Send size={16} />{tx("Notifications")}</h2>
-        <p className="mt-1 text-sm text-muted">{tx("Des messages que vous composez : un rapport de vos machines à heure fixe, ou les événements d'un service ou d'une machine en direct. Ils partent sur les canaux de l'onglet Alertes (Discord, Telegram, webhook).")}</p>
+        <InfoNote className="mt-1">{tx("Des messages que vous composez : un rapport de vos machines à heure fixe, ou les événements d'un service ou d'une machine en direct. Ils partent sur les canaux de l'onglet Alertes (Discord, Telegram, webhook).")}</InfoNote>
         {st.channels.filter((c) => c.enabled).length === 0 && <p className="mt-2 text-sm text-warn">{tx("Aucun canal actif : ajoutez-en un dans l'onglet Alertes pour recevoir quoi que ce soit.")}</p>}
       </Card>
       <List st={st} reload={reload} />
@@ -209,7 +210,7 @@ function Examples({ st, reload }: { st: NotificationsState; reload: () => void }
   return (
     <Card>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><Sparkles size={16} />{tx("Exemples prêts à l'emploi")}</h2>
-      <p className="mb-3 text-sm text-muted">{tx("Ajoutés désactivés, sur vos canaux actifs : relisez-les, essayez-les avec « Envoyer maintenant », puis activez-les.")}</p>
+      <InfoNote className="mb-3">{tx("Ajoutés désactivés, sur vos canaux actifs : relisez-les, essayez-les avec « Envoyer maintenant », puis activez-les.")}</InfoNote>
       <ul className="flex flex-col gap-1.5">
         {todo.map((e) => (
           <li key={e.name} className="flex flex-wrap items-center gap-3 rounded-lg bg-bg2/50 px-3 py-2 text-sm">

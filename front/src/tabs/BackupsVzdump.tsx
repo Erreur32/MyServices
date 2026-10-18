@@ -9,6 +9,7 @@ import { Badge, Card, Dim } from "../components/ui";
 import { bytes, dateTime } from "../lib/format";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { InfoNote } from "../components/InfoNote";
 
 export interface VzdumpState { followed: number }
 interface Group { dir: string; storage: string; network: boolean; kind: string; vmid: string; name: string; count: number; newest: number; newest_name: string; size: number; followed: boolean; suggested_age: number }
@@ -53,9 +54,9 @@ export function BackupsVzdump({ state, reload }: { state: VzdumpState; reload: (
     <Card>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><Archive size={16} />{tx("Proxmox VE (vzdump)")}
         {state.followed > 0 && <Badge tone="ok">{tx("{0} machine(s) invitée(s) suivie(s)", state.followed)}</Badge>}</h2>
-      <p className="mb-3 text-sm text-muted">
+      <InfoNote className="mb-3">
         {tx("Les sauvegardes faites par Proxmox VE lui-même (vzdump, sans Proxmox Backup Server) sont lues par SSH sur l'hôte, en lecture seule : l'âge du dernier dump de chaque VM ou conteneur est surveillé. Une copie (rsync vers un NAS…) s'ajoute ensuite au jeu, ou se trouve avec « Trouver les copies ».")}
-      </p>
+      </InfoNote>
       <button type="button" className={primary} disabled={busy !== ""} onClick={() => void search()}>
         {busy === "search" ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Search size={14} aria-hidden />}{tx("Chercher les dumps")}
       </button>

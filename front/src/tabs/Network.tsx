@@ -142,7 +142,7 @@ type Sub = "overview" | "list" | "diagnostic";
 const SUBS: [Sub, string, LucideIcon][] = [["overview", tx("Vue d'ensemble"), LayoutDashboard], ["list", tx("Équipements et appareils"), List], ["diagnostic", tx("Diagnostic"), Stethoscope]];
 const SUB_KEY = "ms.network.sub";
 
-export function Network({ snap, onMachine, initialSub }: { snap: Snapshot; onMachine: (ip: string) => void; initialSub?: Sub }) {
+export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapshot; onMachine: (ip: string) => void; initialSub?: Sub }>) {
   const [sub, setSub] = useState<Sub>(() => { try { const v = localStorage.getItem(SUB_KEY); return initialSub ?? (v === "list" || v === "diagnostic" ? v : "overview"); } catch { return initialSub ?? "overview"; } });   // the sub-page is kept
   const pickSub = (v: Sub) => { setSub(v); try { localStorage.setItem(SUB_KEY, v); } catch { /* storage refused: the choice lasts this visit */ } };
   const cards = useMemo(() => (snap.data.services_status ?? []).filter((c) => NETWORK_CARDS.includes(c.connector)), [snap.data.services_status]);
@@ -191,9 +191,16 @@ export function Network({ snap, onMachine, initialSub }: { snap: Snapshot; onMac
 
   return (
     <div className="flex flex-col gap-4 py-4">
+      <fieldset className="m-0 inline-flex min-w-0 self-start rounded-lg border border-line bg-card p-0.5" aria-label={tx("Sous-menu du réseau")}>
+        {SUBS.map(([id, label, Icon]) => (
+          <button key={id} type="button" aria-pressed={sub === id} onClick={() => pickSub(id)}
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold ${sub === id ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{label}</button>
+        ))}
+      </fieldset>
       {net.filter((c) => !c.ok).map((c) => (
         <p key={c.name} className="rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">{c.label} : {c.message}{c.stale && ` (${tx("dernier relevé gardé")})`}</p>
       ))}
+      {sub === "overview" && (
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         <Tile icon={Router} value={gearAll.length ? `${gearAll.length - gearDown}/${gearAll.length}` : "-"} label={tx("équipements en ligne")} tone={gearDown ? "bad" : gearAll.length ? "ok" : "off"} />
         <Tile icon={ArrowUpCircle} value={updates} label={tx("mises à jour d'équipement")} tone={updates ? "warn" : "off"} />
@@ -201,13 +208,8 @@ export function Network({ snap, onMachine, initialSub }: { snap: Snapshot; onMac
         <Tile icon={Cable} value={all("wired").length} label={tx("clients filaires")} tone="off" />
         <Tile icon={Monitor} value={devAll.length ? `${devAll.filter((r) => r.up).length}/${devAll.length}` : "-"} label={unfollowed ? tx("appareils en ligne, {0} pas suivis", unfollowed) : tx("appareils en ligne")} tone={unfollowed ? "warn" : "off"} />
       </div>
+      )}
 
-      <div className="inline-flex self-start rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Sous-menu du réseau")}>
-        {SUBS.map(([id, label, Icon]) => (
-          <button key={id} type="button" aria-pressed={sub === id} onClick={() => pickSub(id)}
-            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold ${sub === id ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{label}</button>
-        ))}
-      </div>
 
       {sub === "overview" && (
         <>
@@ -221,7 +223,7 @@ export function Network({ snap, onMachine, initialSub }: { snap: Snapshot; onMac
 
       {sub === "list" && (
         <>
-        {rows.length > 0 && <FilterBar f={f} placeholder={tx("Nom, IP, MAC, fabricant, borne…")} primary={["kind", "state"]} oneLine />}   {/* right under the stats, with its main filters shown */}
+        {rows.length > 0 && <FilterBar f={f} placeholder={tx("Nom, IP, MAC, fabricant, borne…")} primary={["kind", "state"]} oneLine />}   {/* right under the menu, with its main filters shown */}
 
         {sections.length > 1 && (
           <nav aria-label={tx("Sections de la page")} className="flex flex-wrap items-center gap-1.5">

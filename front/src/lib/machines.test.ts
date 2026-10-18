@@ -30,6 +30,17 @@ describe("mState", () => {
   });
 });
 
+describe("a box has no SSH to offer", () => {
+  const base = { ip: "10.0.0.1", name: "Freebox", ping: true, off: false, services: 0, npm: 0, down: 0 } as Machine;
+  it("a Freebox or a gateway is an equipment, never « without SSH » or « SSH refused »", () => {
+    expect(mState(base)).toBe("box");
+    expect(mState({ ...base, ssh: { alias: "freebox", identity: "k", user: "root", port: 22 } } as Machine)).toBe("box");   // an SSH entry that cannot work is not a problem either
+    expect(mState({ ...base, name: "UCG Fiber", gateway: true } as Machine)).toBe("box");
+    expect(mState({ ...base, name: "pc" })).toBe("nossh");
+    expect(mState({ ...base, ping: false })).toBe("down");   // but a box that does not answer is still down
+  });
+});
+
 describe("seen by a tool", () => {
   const base: Machine = { ip: "10.0.0.1", name: "gw", ping: true, off: false, services: 0, npm: 0, down: 0 };
   const seen = { ...base, links: { mac: null, vendor: null, names: [], sources: [{ source: "mynetwork", label: "MynetworK", instance: "m", by: "ip", ok: true }], guest: null, hypervisor: null } } as Machine;

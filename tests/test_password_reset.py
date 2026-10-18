@@ -102,6 +102,15 @@ class Reset(unittest.TestCase):
             with self.assertRaises(ValueError):
                 system.set_mail_settings(server, "h", 25, "ssl", "", None, "ms@example.test", "javascript:alert(1)")
 
+    def test_mail_trial_lays_values_over_a_copy_without_saving(self):
+        saved = {"smtp_host": "old.example.test", "smtp_password": "kept", "page_url": "https://old.example.test"}
+        out = system.mail_trial(saved, " 127.0.0.1 ", 25, "none", "", None, "ms@example.test", "https://ms.example.test/")
+        self.assertEqual((out["smtp_host"], out["smtp_port"], out["smtp_password"], out["page_url"]), ("127.0.0.1", 25, "kept", "https://ms.example.test"))
+        self.assertEqual(saved["smtp_host"], "old.example.test")
+        self.assertEqual(system.mail_trial(saved, "h", 25, "none", "", "-", "ms@example.test", "https://x.test")["smtp_password"], "")
+        with self.assertRaises(ValueError):
+            system.mail_trial(saved, "h", 25, "bogus", "", None, "ms@example.test", "https://x.test")
+
 
     def test_avatar_routes(self):
         import base64

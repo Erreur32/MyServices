@@ -1,6 +1,6 @@
 // Profil (tout compte, admin ou lecture seule) : apparence de la page, changer son mot de passe, voir ses sessions ouvertes, fermer celles des autres appareils.
 // Affiché par #profile (menu du compte), hors des onglets et des Réglages : un compte en lecture seule n'a pas accès aux Réglages.
-import { ImagePlus, KeyRound, LogOut, Mail, MonitorSmartphone, Trash2 } from "lucide-react";
+import { ImagePlus, KeyRound, LogOut, Mail, MonitorSmartphone, Send, Trash2 } from "lucide-react";
 import { Avatar, setAvatarVersion } from "../components/Avatar";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
@@ -12,6 +12,7 @@ import { dateTime } from "../lib/format";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { checkPassword, okField, PASSWORD_MIN } from "../lib/password";
+import { InfoNote } from "../components/InfoNote";
 
 interface MySession { created: number; expires: number; ip: string | null; current: boolean }
 
@@ -26,7 +27,7 @@ export function Profile({ username, role, email, avatar, look }: Readonly<{ user
         </div>
       </header>
       <div className="grid items-start gap-4 lg:grid-cols-2">
-        <div className="flex flex-col gap-4"><MyAvatar username={username} initial={avatar} /><MyEmail initial={email} /><MyPassword /><Sessions /></div>
+        <div className="flex flex-col gap-4"><MyAvatar username={username} initial={avatar} /><MyEmail initial={email} admin={role === "admin"} /><MyPassword /><Sessions /></div>
         <section aria-label={tx("Apparence")}><h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-widest text-dim">{tx("Apparence")}</h2><Appearance look={look} /></section>
       </div>
     </div>
@@ -46,7 +47,7 @@ function Sessions() {
   return (
     <Card>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><MonitorSmartphone size={16} />{tx("Mes sessions")} {list && <Count n={list.length} />}</h2>
-      {days > 0 && <p className="mb-3 text-sm text-muted">{tx("Navigateurs et appareils connectés à ce compte. Une session dure {0} jours et se prolonge à l'usage.", days)}</p>}
+      {days > 0 && <InfoNote className="mb-3">{tx("Navigateurs et appareils connectés à ce compte. Une session dure {0} jours et se prolonge à l'usage.", days)}</InfoNote>}
       {error && <p className="text-sm text-bad">⚠ {error}</p>}
       {list === null ? !error && <p className="text-sm text-muted">{tx("Chargement…")}</p> : (
         <ul className="flex flex-col divide-y divide-line/60">
@@ -131,14 +132,14 @@ function MyAvatar({ username, initial }: Readonly<{ username: string; initial: s
           {version && <button type="button" className={danger} disabled={busy} onClick={() => void remove()}><Trash2 size={14} />{tx("Retirer")}</button>}
         </div>
       </div>
-      <p className="mt-3 text-xs text-dim">{tx("PNG, JPEG, WebP, GIF ou SVG, 512 Ko au plus. Une photo est recadrée en carré ; un SVG doit être un simple dessin (sans script ni lien vers l'extérieur).")}</p>
+      <InfoNote className="mt-3">{tx("PNG, JPEG, WebP, GIF ou SVG, 512 Ko au plus. Une photo est recadrée en carré ; un SVG doit être un simple dessin (sans script ni lien vers l'extérieur).")}</InfoNote>
       <NoteLine note={note} />
     </Card>
   );
 }
 
 /** Address that receives the link of « Forgot your password? » on the sign-in page */
-function MyEmail({ initial }: Readonly<{ initial: string }>) {
+function MyEmail({ initial, admin }: Readonly<{ initial: string; admin: boolean }>) {
   const [email, setEmail] = useState(initial), [saved, setSaved] = useState(initial);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const submit = async (e: { preventDefault: () => void }) => {
@@ -148,6 +149,11 @@ function MyEmail({ initial }: Readonly<{ initial: string }>) {
     setBusy(false);
     if (ok) setSaved(email.trim());
   };
+  const test = async () => {
+    setBusy(true);
+    await act(() => send("POST", "system/mail/test"), tx("e-mail de test envoyé : regardez votre boîte (et les indésirables)"), setNote);
+    setBusy(false);
+  };
   return (
     <Card>
       <h2 className="mb-3 flex items-center gap-2 font-bold"><Mail size={16} aria-hidden />{tx("Mon adresse e-mail")}</h2>
@@ -155,8 +161,13 @@ function MyEmail({ initial }: Readonly<{ initial: string }>) {
         <Field label={tx("Adresse e-mail")}>
           <input className={input} type="email" autoComplete="email" maxLength={254} value={email} placeholder="nom@exemple.fr" onChange={(e) => setEmail(e.target.value)} />
         </Field>
-        <div><button type="submit" className={primary} disabled={busy || email.trim() === saved}><Mail size={14} />{tx("Enregistrer")}</button></div>
-        <p className="text-xs text-dim">{tx("Sert seulement à recevoir un lien si vous oubliez votre mot de passe (« Mot de passe oublié ? » sur la page de connexion).")}</p>
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" className={primary} disabled={busy || email.trim() === saved}><Mail size={14} aria-hidden />{tx("Enregistrer")}</button>
+          {admin && saved !== "" && (
+            <button type="button" className={quiet} disabled={busy} onClick={() => void test()} title={tx("Envoie un message à cette adresse pour vérifier que l'envoi fonctionne")}><Send size={14} aria-hidden />{tx("Envoyer un e-mail de test")}</button>
+          )}
+        </div>
+        <InfoNote>{tx("Sert seulement à recevoir un lien si vous oubliez votre mot de passe (« Mot de passe oublié ? » sur la page de connexion).")}</InfoNote>
       </form>
       <NoteLine note={note} />
     </Card>
@@ -191,7 +202,7 @@ function MyPassword() {
         </div>
         <PasswordRules pw={pw} again={pw2} />
         <div><button type="submit" className={primary} disabled={busy || !checkPassword(pw, pw2).ok}><KeyRound size={14} />{tx("Changer")}</button></div>
-        <p className="text-xs text-dim">{tx("Toutes tes sessions (autres navigateurs compris) seront fermées.")}</p>
+        <InfoNote tone="warn">{tx("Toutes tes sessions (autres navigateurs compris) seront fermées.")}</InfoNote>
       </form>
       <NoteLine note={note} />
     </Card>

@@ -11,6 +11,56 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.15.0 (2026-10-18)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- **Import and export of the configuration** (Settings -> Backup and info): export everything or pick the parts (settings and connectors, machines and
+  services, followed backups, remembered decisions, accounts and history (the database, without current sign-ins), encryption key, SSH keys) as a standard **ZIP**; import a ZIP (or an older `.tar.gz`) in two steps, a preview that reads it without changing anything (parts,
+  problems, whether the passwords of its settings open with the key that will be in place), then the parts you tick. Both ask for your password.
+  The archive is checked before anything is written (no path outside `config/`, no link, size limits, valid JSON and key), a replaced file is kept
+  as `<name>.avant-import`, and importing settings or the key asks for a restart. New routes `GET /system/config-parts`, `POST /system/export`
+  (now takes `parts`), `POST /system/import/preview` and `POST /system/import`.
+
+- **E-mail in one field**: Settings -> E-mail asks only for the host's mail relay (postfix, sendmail, exim… reached on port 25, the container's gateway is
+  suggested); the sender and the page address are worked out, and the full SMTP form stays under "Advanced settings". Readable errors when the relay
+  refuses or does not answer, and a help block with copyable commands (check, install postfix, allow or relay) that opens by itself after a failure.
+  "Test" tries what is typed before anything is saved. The profile has a "Send a test e-mail" button for admins. The Export and Import cards are
+  folded by default, and the Information card is regrouped (application, access and security, storage).
+- Import: the parts that need the encryption key are flagged, and importing the key alone (which would lock the current passwords out) is refused.
+
+- **Security page, redone** (public: the Security tab is no longer reserved to development builds; it replaces the former page): an overview that lists what needs a look,
+  worst first, each with its source and what to do, then one sub-tab per category (Fail2ban, exposed sites, SSH access, network ports, certificates),
+  each tab showing how many points it holds. The Fail2ban tab has statistics: bans per hour (24 h) and per day (7 days), per jail, the addresses banned
+  most and those that came back, failed logins behind the bans, and **the domains attacked** (LogviewR's log search ties an address to the NPM host or
+  Apache vhost it went after; only that field is used, never the log text). The LogviewR connector now reads 7 days of ban history and sends the
+  aggregates only. Fail2ban's own words are kept ("jail", not translated). Tables are striped and the aligned columns are rebalanced.
+
+### Changed
+
+- **Home page**: the counters column is wider and gains four groups, Network (UniFi equipment online or offline, Diagnostic findings to fix or to check),
+  Connectors and agents, Virtualisation (guests running or stopped, nodes down) and Updates and certificates (machines to update or restart, certificates
+  expiring soon or invalid). The left side keeps the attention card and a redesigned **last 24 hours** card (an hour by hour chart, one row per kind of
+  event with the machines concerned and when it last happened). The four per-tab paragraphs that repeated the counters are gone; the facts no counter
+  tells (restart requested, orphan AdGuard rewrites) moved into the attention card.
+- Card headers: a click on the header of a foldable card opens or closes it, except on a link, button or field placed in it (`lib/foldHeader.ts`); the
+  long lists of the Security page are foldable panels (`FoldPanel`).
+- Informative texts (the explanation under a title, the hint under a field, a caution) now share one look: an icon in front and a tinted band with a coloured
+  edge (`InfoNote`), so they read apart from the page's own data.
+- Settings -> Tasks and schedules redesigned: a header with the scheduler heartbeat and a live summary, three grouped cards with dark title bands
+  (collection and watching, network discovery, backups and health), a state badge per task, a shorter "Run" button, and a help window with suggested
+  schedules (what each task costs the network and the machines' logs).
+- **New default schedules** (installations that saved their own keep them): collection every 15 minutes (was twice an hour), watcher 5 minutes after,
+  health every 2 hours (was 6), backups checked 4 times a day (was 2); the "data is late" threshold drops from 75 to 45 minutes. `install.sh` follows.
+- Header: one text per scan (the orb from the medium width up, the bar below), titled by scan type (collection or network search).
+- A box or a gateway (Freebox, router) is no longer reported as "without SSH" or "SSH refused": it has its own state, "Network equipment" (home page, counters, machine window).
+- UniFi cards: the "See an example" button is gone, and the badge next to the title says what happens (MynetworK, unavailable with the reason in its tooltip, or unreadable) instead of "no source".
+- Network tab: the sub-menu is now at the top and the counters show on the first sub-page only.
+- Settings: Discovery is first in the Monitoring group and Notifications last.
+- SonarCloud cleanup of the 0.14.0 code (diagnostic and statistics functions split, no nested ternaries, read-only props).
+
 ## v0.14.0 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

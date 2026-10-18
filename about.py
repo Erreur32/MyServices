@@ -67,7 +67,9 @@ def fetch_latest(opener=urllib.request.urlopen, current: str | None = None) -> d
            "prerelease": bool(d.get("prerelease")), "notes": (d.get("body") or "")[:3000]}
     if current and newer(core_version(current) or current, rel["tag"]):
         try:
-            tags = [t.get("name") for t in _get(TAGS_API, opener) if isinstance(t, dict)]   # type: ignore[union-attr]
+            got: object = _get(TAGS_API, opener)
+            raw_tags: list = got if isinstance(got, list) else []
+            tags = [t.get("name") for t in raw_tags if isinstance(t, dict)]
         except (OSError, ValueError, TypeError):
             return rel
         final = [t for t in tags if parse(t) and parse(t)[3] == 1]   # final versions only (a pre-release has a 0 there)

@@ -33,7 +33,7 @@
 >
 > Because it is still moving fast, **pull requests and issues are not being handled for now**; please hold them until a stable release.
 >
-> Development builds are not tagged. Version numbers stay **below 2.0.0** until it is declared stable (`0.14.0`, `0.14.1`…).
+> Development builds are not tagged. Version numbers stay **below 2.0.0** until it is declared stable (`0.15.0`, `0.15.1`…).
 > Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in French).
 
 ## At a glance
@@ -68,7 +68,7 @@ Then open **`http://<IP>:8090/`** (the app is at the root of the site; the old `
 
 > **The app listens on port `8090`.** It is a setting, not a fixed value: if 8090 is already taken on your machine, put **`MYSERVICES_PORT=8095`** (or any free port) in a `.env` file next to `docker-compose.yaml` (example: [`deploy/env.example`](deploy/env.example), downloaded by the second `curl` above), then run `docker compose up -d` and open `http://<IP>:8095/`. The container uses the host network, so editing a `ports:` mapping would do nothing.
 
-Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.14.0` pins a version, `:main` tracks the latest commit of the `main` branch (the header then shows e.g. `v0.10.1+ · main · abc1234`).
+Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.15.0` pins a version, `:main` tracks the latest commit of the `main` branch (the header then shows e.g. `v0.10.1+ · main · abc1234`).
 Update: `docker compose pull && docker compose up -d` (settings and data live in the `./config` and `./data` volumes).
 
 ---
@@ -265,7 +265,7 @@ Almost everything is set in the page (Settings). Files and variables, for refere
 | `MYSERVICES_PORT` | port of the page (default `8090`) |
 | `MYSERVICES_ALLOW` | networks allowed to open the page (default: private networks and loopback) |
 | `MYSERVICES_HOST_USER` | SSH account of the `hote` alias (the host machine) |
-| `MYSERVICES_COLLECT_AT` | schedule of the collection, `minutes hours` (default `10,40 *`); same for the watcher and health |
+| `MYSERVICES_COLLECT_AT` | schedule of the collection, `minutes hours` (default `0,15,30,45 *`); same for the watcher and health |
 | `TZ` | time zone |
 
 Schedules can also be edited live in Settings -> Tasks and schedules. A full example is in [`deploy/compose.example.yaml`](deploy/compose.example.yaml).

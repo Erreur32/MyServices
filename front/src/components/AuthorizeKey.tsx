@@ -10,6 +10,7 @@ import { authorizeFor } from "../lib/ssh";
 import type { Connector, SystemState } from "../types";
 import { Copyable, NoteLine } from "./form";
 import { Card } from "./ui";
+import { InfoNote } from "./InfoNote";
 
 export function AuthorizeKey({ failing, bare = false, onAccepted, user, userOf }: { failing: Connector[]; bare?: boolean; onAccepted?: () => void; user?: string; userOf?: (c: Connector) => string }) {  // user : compte SSH commun ; userOf : compte de chaque machine (une commande par compte)  // user : compte SSH commun aux machines visées (chemin complet de authorized_keys)
   const [cmd, setCmd] = useState<string | null>(null), [esxiKey, setEsxiKey] = useState<string | null>(null), [busy, setBusy] = useState(false), [note, setNote] = useState<Note>(null);
@@ -39,10 +40,10 @@ export function AuthorizeKey({ failing, bare = false, onAccepted, user, userOf }
   const names = failing.map((c) => c.name).join(", ");
   const body = (
     <div className="flex flex-col gap-3">
-      <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm text-muted">
+      <InfoNote tone="warn">
         <b className="text-warn">{tx("Pourquoi cette carte ?")}</b>{" "}
         {tx("L'accès SSH de {0} est activé, mais la connexion par clé échoue : la clé de l'app n'est pas encore autorisée sur la machine. Tant que ce n'est pas fait, ses conteneurs, ses services et sa santé ne sont pas lus.", names)}
-      </p>
+      </InfoNote>
       <div className="grid gap-x-6 gap-y-2 text-sm text-muted lg:grid-cols-2">
         <p>
           {tx("MyServices lit vos machines par SSH, en lecture seule, sans accès au socket Docker : c'est ce qui garde la main sur Docker hors de la page. Autoriser sa clé sur une machine lui permet de lire ses conteneurs, ses services et sa santé. La clé n'ouvre que le compte visé et se retire en supprimant sa ligne de authorized_keys.")}

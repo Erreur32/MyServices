@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """myservices-watcher : veille des changements de l'annuaire MyServices.
 
-NE PROBE RIEN : lit uniquement <web_dir>/data.json, produit toutes les 30 min par
+NE PROBE RIEN : lit uniquement <web_dir>/data.json, produit toutes les 15 min par
 myservices.py (timer systemd), et compare avec l'état du run précédent. Tout le « qu'est-ce
 qui a changé » est calculé ici en Python, de façon déterministe : aucun LLM.
 
@@ -300,7 +300,7 @@ def threat_snaps(data: dict) -> dict | None:
     out = {}
     for c in rows:
         for t in c.get("threats") or []:
-            what = "IP qui passe d'une prison à l'autre" if t.get("kind") == "ip_escalation" else f"campagne depuis {t.get('asn') or 'un même réseau'}"
+            what = "IP qui passe d'un jail à l'autre" if t.get("kind") == "ip_escalation" else f"campagne depuis {t.get('asn') or 'un même réseau'}"
             out[f'menace:{c.get("name")}:{t.get("key")}'] = {
                 "label": ", ".join(t.get("ips") or [])[:80] or "?", "target": ", ".join(t.get("jails") or []) or None,
                 "detail": f'{what} : {t.get("ip_count")} IP, {t.get("bans") or "?"} bannissement(s) (LogviewR)'}

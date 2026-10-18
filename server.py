@@ -63,8 +63,8 @@ def parse_at(spec: str) -> tuple[set[int], set[int] | None]:
 
 # Tâche -> (script, horaire par défaut, délai max en s). Mêmes horaires que install.sh. Priorité :
 # MYSERVICES_<TÂCHE>_AT (fixe, non modifiable dans la page) > « schedule » de config.json (Réglages → Système) > défaut.
-DEFAULTS_AT = {"collect": ("myservices.py", "10,40 *", 900), "watch": ("watcher.py", "15,45 *", 300),
-               "health": ("health.py", "0 0,6,12,18", 600), "backups": ("backups.py", "5 7,19", 900)}
+DEFAULTS_AT = {"collect": ("myservices.py", "0,15,30,45 *", 900), "watch": ("watcher.py", "5,20,35,50 *", 300),
+               "health": ("health.py", "0 0,2,4,6,8,10,12,14,16,18,20,22", 600), "backups": ("backups.py", "5 1,7,13,19", 900)}
 TASKS = {}
 for name, (script, at, timeout) in DEFAULTS_AT.items():
     env = os.environ.get(f"MYSERVICES_{name.upper()}_AT")

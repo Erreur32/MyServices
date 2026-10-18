@@ -1,15 +1,15 @@
-// Accueil : à gauche, ce qui demande l'attention puis un paragraphe par onglet ; à droite, les compteurs (StatsColumn, dessous sur mobile).
+// Accueil : à gauche, ce qui demande l'attention puis les dernières 24 h ; à droite, les compteurs (StatsColumn, dessous sur mobile).
 // Les compteurs ne sont qu'à droite. Chaque carte et chaque lien ouvre son onglet.
-import { ArrowRight, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import type { Snapshot } from "../api";
-import { paragraphs, type Attention, type TabId } from "../lib/summary";
+import type { Attention, TabId } from "../lib/summary";
 import { AssistantBanner } from "./AssistantBanner";
 import { DiscoveryReminder } from "./DiscoveryCard";
+import { LastDay } from "./LastDay";
 import { NewServices } from "./NewServices";
 import { Rich } from "./Rich";
 import { StatsColumn } from "./StatsColumn";
-import { TABS } from "../lib/tabs";
 import { tx } from "../lib/i18n";
 import type { Selected } from "../lib/filter";
 
@@ -18,15 +18,6 @@ const SIZES = [12, 25, 50, 0];
 const SIZE_KEY = "ms.home.attention.rows";
 const FOLD_KEY = "ms.home.attention.folded";
 const savedSize = (): number => { try { const v = Number(localStorage.getItem(SIZE_KEY)); return SIZES.includes(v) && localStorage.getItem(SIZE_KEY) !== null ? v : 12; } catch { return 12; } };
-
-/** Même icône que l'onglet (lucide, monochrome) */
-function TabIcon({ tab }: { tab: TabId }) {
-  const Icon = TABS.find((t) => t.id === tab)!.icon;
-  return <Icon size={18} strokeWidth={1.75} aria-hidden />;
-}
-
-/** Lien-bouton discret : texte + flèche qui avance au survol (ouvre l'onglet) */
-const GO = "group/go inline-flex items-center gap-1 rounded-full border border-line bg-bg2/60 px-2.5 py-1 text-xs font-semibold text-muted transition-colors hover:border-link hover:bg-link/10 hover:text-link";
 
 export function Home({ snap, items, go, goFilter, now }: { snap: Snapshot; items: Attention[]; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void; now: number }) {
   const [folded, setFolded] = useState(() => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; } });
@@ -39,7 +30,7 @@ export function Home({ snap, items, go, goFilter, now }: { snap: Snapshot; items
   const frame = { bad: "border-bad/50", warn: "border-warn/50", ok: "border-ok/40" }[tone];
   const strip = { bad: "bg-bad/10", warn: "bg-warn/10", ok: "bg-ok/10" }[tone];
   return (
-    <div className="grid gap-5 py-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+    <div className="grid gap-5 py-5 lg:grid-cols-[minmax(0,1fr)_420px]">
       <div className="flex flex-col gap-5">
         {snap.me.role === "admin" && <AssistantBanner snap={snap} />}
         {snap.me.role === "admin" && <DiscoveryReminder machines={snap.data.machine_list} />}
@@ -106,25 +97,7 @@ export function Home({ snap, items, go, goFilter, now }: { snap: Snapshot; items
           )}
         </section>
 
-        {paragraphs({ ...snap, now }).map((p) => (
-          <section key={p.tab} className="overflow-hidden rounded-2xl border border-line bg-card/70 shadow-sm transition-colors hover:border-line/80">
-            <div className="flex items-center gap-3 border-b border-line/60 bg-bg px-5 py-3">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-link/10 text-link"><TabIcon tab={p.tab} /></span>
-              <h2 className="min-w-0 flex-1 truncate text-base font-bold">{p.title}</h2>
-              <button type="button" onClick={() => go(p.tab)} className={GO} aria-label={`${tx("Ouvrir")} ${p.title}`}>
-                {tx("Ouvrir")}<ArrowRight size={13} className="transition-transform group-hover/go:translate-x-0.5" aria-hidden />
-              </button>
-            </div>
-            <ul className="flex flex-col gap-2 px-5 py-4 text-[15px] leading-relaxed text-muted">
-              {p.sentences.map((s, i) => (
-                <li key={i} className="flex gap-3">
-                  <span aria-hidden className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full bg-link/60" />
-                  <span className="min-w-0 flex-1"><Rich text={s} /></span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
+        <LastDay snap={snap} go={go} now={now} />
       </div>
       <StatsColumn snap={snap} go={go} goFilter={goFilter} />
     </div>

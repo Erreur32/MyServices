@@ -50,6 +50,10 @@ def send(cfg: dict, to: str, subject: str, text: str) -> None:
             server.send_message(msg)
     except smtplib.SMTPAuthenticationError:
         raise MailError("compte ou mot de passe du serveur d'envoi refusé") from None
+    except (smtplib.SMTPRecipientsRefused, smtplib.SMTPSenderRefused):
+        raise MailError("le serveur d'envoi refuse ce message (relais non autorisé ?) : sur postfix, ajouter le réseau Docker à mynetworks, ou régler un compte dans les réglages avancés") from None
+    except ConnectionRefusedError:
+        raise MailError(f"rien n'écoute sur {cfg['smtp_host']}:{port} : le courrier de l'hôte (postfix…) doit écouter sur cette adresse") from None
     except (smtplib.SMTPException, OSError) as e:
         raise MailError(f"envoi impossible ({type(e).__name__}: {str(e)[:160]})") from None
 

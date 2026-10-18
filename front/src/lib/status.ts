@@ -136,7 +136,7 @@ export { exposure };
 
 /** État de la synchro AdGuard (même règle que l'encadré DNS de la page actuelle). */
 /** Sync state of AdGuard. `at` is the moment of the reading (the data's generation time): the last sync is compared with it, not with the clock, because the page
- *  only learns the sync log at each collection (every 30 min) while the sync itself runs every few minutes. */
+ *  only learns the sync log at each collection (every 15 min) while the sync itself runs every few minutes. */
 export function dnsSync(g: Dns, at = Date.now()): { cls: "ok" | "warn" | "bad"; label: string } {
   const srv = Object.keys(g.servers), diff = g.rewrites_diff.length + g.user_rules_diff.length;
   const sync = Object.values(g.sync || {})[0];

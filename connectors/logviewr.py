@@ -1,4 +1,4 @@
-"""LogviewR : fail2ban (prisons, bannissements, menaces) et recherche dans les journaux, en lecture seule, par son serveur MCP.
+"""LogviewR : fail2ban (jails, bannissements, menaces) et recherche dans les journaux, en lecture seule, par son serveur MCP.
 
 LogviewR n'a pas d'API REST à jeton : il parle MCP (Streamable HTTP, sans état) sur POST /mcp, avec un jeton « Lecture seule »
 (Réglages → MCP → Jetons d'accès). Il faut y activer « Transport HTTP distant » (désactivé par défaut). MyServices n'appelle que
@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import urllib.error
 import urllib.request
 
 from connectors.base import Connector, ConnectorError, Field, Result
 
 PROTOCOL = "2025-06-18"
-READ_TOOLS = ("f2b_list_jails", "f2b_get_metrics", "f2b_get_ban_history", "f2b_get_active_threats", "log_list_sources")
+READ_TOOLS = ("f2b_list_jails", "f2b_get_metrics", "f2b_get_ban_history", "f2b_get_active_threats", "log_list_sources", "log_search")
 
 
 def _body(raw: bytes, ctype: str) -> dict:
@@ -32,6 +33,95 @@ def _body(raw: bytes, ctype: str) -> dict:
     if not isinstance(got, dict):
         raise ConnectorError("réponse MCP inattendue")
     return got
+
+
+IP_RE = re.compile(r"[0-9a-fA-F:.]{3,45}")
+HOST_RE = re.compile(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?")
+DOMAIN_LOOKUPS = 8   # the most banned addresses whose logs are searched for the domain they went after
+
+
+def _count(e: dict, key: str) -> int:
+    v = e.get(key)
+    return v if isinstance(v, int) else 0
+
+
+def _ban_of(e, now: float) -> tuple[float, str, str] | None:
+    """(time, ip, jail) of a ban event of the last 7 days that Fail2ban wrote properly, else None."""
+    t = e.get("timeofban") if isinstance(e, dict) else None
+    ip = str(e.get("ip") or "") if isinstance(e, dict) else ""
+    if not isinstance(t, (int, float)) or not IP_RE.fullmatch(ip) or not 0 <= now - t < 7 * 86400:
+        return None
+    return t, ip, str(e.get("jail") or "?")[:40]
+
+
+def _note_ip(ips: dict, ip: str, jail: str, e: dict, t: float, recent: bool) -> None:
+    who = ips.setdefault(ip, {"ip": ip, "bans": 0, "jails": set(), "failures": 0, "last": 0, "recent": False})
+    who["bans"] += 1
+    who["jails"].add(jail)
+    who["failures"] += _count(e, "failures")
+    who["last"] = max(who["last"], t)
+    who["recent"] = who["recent"] or recent
+
+
+def ban_stats(events: list, now: float) -> dict:
+    """Aggregates of the last 7 days of bans, worked out here so that data.json carries a few numbers and not thousands of events: bans per hour
+    (last 24 h) and per day (last 7), per jail, the IPs banned most, how many IPs came back, and the failures behind the bans of the last day.
+    Only fields written by Fail2ban itself are kept (an IP that does not look like one is dropped, jail names are cut)."""
+    hours, days = [0] * 24, [0] * 7
+    jails: dict[str, list[int]] = {}
+    ips: dict[str, dict] = {}
+    failures_1d = 0
+    for e in events:
+        ban = _ban_of(e, now)
+        if ban is None:
+            continue
+        t, ip, jail = ban
+        age = now - t
+        recent = age < 86400
+        days[6 - int(age // 86400)] += 1
+        if recent:
+            hours[23 - int(age // 3600)] += 1
+            failures_1d += _count(e, "failures")
+        row = jails.setdefault(jail, [0, 0])
+        row[1] += 1
+        row[0] += recent
+        _note_ip(ips, ip, jail, e, t, recent)
+    top = sorted(ips.values(), key=lambda w: (-w["bans"], -w["last"]))[:10]
+    return {"hours": hours, "days": days,
+            "by_jail": [{"jail": j, "d1": v[0], "d7": v[1]} for j, v in sorted(jails.items(), key=lambda kv: -kv[1][1])][:20],
+            "top_ips": [{**w, "jails": sorted(w["jails"])[:5]} for w in top],
+            "unique_1d": sum(1 for w in ips.values() if w["recent"]), "unique_7d": len(ips),
+            "repeat": sum(1 for w in ips.values() if w["bans"] >= 2), "failures_1d": failures_1d}
+
+
+def attack_domains(matches: list) -> dict[str, int]:
+    """{domain: lines} from the matches of a log search. Only the `domain` field LogviewR worked out from a web log (NPM host, Apache vhost) is
+    used, and only when it looks like a host name: the text of the log line is written by the attacker and is never kept."""
+    counts: dict[str, int] = {}
+    for m in matches:
+        d = m.get("domain") if isinstance(m, dict) else None
+        d = d.strip().lower().split(":")[0] if isinstance(d, str) else ""
+        if d and HOST_RE.fullmatch(d):
+            counts[d] = counts.get(d, 0) + 1
+    return counts
+
+
+def add_domains(stats: dict, search) -> dict:
+    """Adds `domains` to the most banned addresses of `stats` and `by_domain` (the domains attacked, with the addresses behind them).
+    `search(ip)` returns the matches of a log search for that address; a search that fails leaves that address without domains."""
+    per_domain: dict[str, dict] = {}
+    for w in stats["top_ips"][:DOMAIN_LOOKUPS]:
+        try:
+            found = attack_domains(search(w["ip"]))
+        except ConnectorError:
+            found = {}
+        w["domains"] = [{"domain": d, "hits": n} for d, n in sorted(found.items(), key=lambda kv: -kv[1])][:5]
+        for d, n in found.items():
+            row = per_domain.setdefault(d, {"domain": d, "hits": 0, "ips": 0})
+            row["hits"] += n
+            row["ips"] += 1
+    stats["by_domain"] = sorted(per_domain.values(), key=lambda r: (-r["ips"], -r["hits"]))[:20]
+    return stats
 
 
 def cluster(c: dict) -> dict:
@@ -121,13 +211,18 @@ class LogviewR(Connector):
         threats = self._tool("f2b_get_active_threats")
         metrics = self._tool("f2b_get_metrics")
         sources = (self._tool("log_list_sources") or {}).get("sources") or []
+        try:   # a week of history for the statistics; an older LogviewR that refuses it just has no statistics
+            week = (self._tool("f2b_get_ban_history", {"days": 7, "limit": 5000}) or {}).get("events") or []
+            stats = add_domains(ban_stats(week, time.time()), lambda ip: (self._tool("log_search", {"query": ip, "maxResults": 100}) or {}).get("matches") or [])
+        except ConnectorError:
+            stats = None
         bans = [{"ip": e.get("ip"), "jail": e.get("jail"), "time": e.get("timeofban"), "failures": e.get("failures")}
                 for e in events if isinstance(e, dict)]
         lists = threats if isinstance(threats, list) else [v for v in (threats or {}).values() if isinstance(v, list)] if isinstance(threats, dict) else []
         raw = lists if lists and isinstance(threats, list) else lists[0] if lists else []
         return {"jails": [n for n in names if n], "bans_24h": len(bans), "bans": bans[:200],
                 "threat_count": len(raw), "threats": [cluster(c) for c in raw if isinstance(c, dict)][:50],
-                "metrics": metrics if isinstance(metrics, dict) else None,
+                "metrics": metrics if isinstance(metrics, dict) else None, "stats": stats,
                 "log_sources": len(sources)}
 
     def test(self) -> Result:
@@ -136,7 +231,7 @@ class LogviewR(Connector):
             data = self.collect()
         except ConnectorError as e:
             return Result(False, str(e))
-        return Result(True, f"{len(data['jails'])} prison(s), {data['bans_24h']} bannissement(s) en 24 h", v)
+        return Result(True, f"{len(data['jails'])} jail(s), {data['bans_24h']} bannissement(s) en 24 h", v)
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:

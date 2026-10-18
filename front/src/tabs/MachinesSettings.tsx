@@ -29,6 +29,7 @@ import { rolesOf, sshRisks } from "../lib/ssh";
 import { pokeScan } from "../lib/scan";
 import { hardwareRows } from "../lib/hardware";
 import { tx } from "../lib/i18n";
+import { InfoNote } from "../components/InfoNote";
 
 const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
   { k: "off", label: tx("Souvent éteinte"), help: tx("PC, portable : pas d'alerte si elle ne répond pas") },
@@ -234,10 +235,10 @@ export function Detect({ st, onDone, onCancel }: Readonly<{ st: State; onDone: (
         <button type="submit" className={primary} disabled={busy}><Radar size={14} />{busy ? tx("Détection…") : tx("Détecter")}</button>
         <button type="button" className={quiet} onClick={onCancel}>{tx("Annuler")}</button>
       </form>
-      <p className="text-sm text-muted">
+      <InfoNote>
         {tx("Lecture seule sur le réseau, comme la collecte. L'accès SSH passe par un alias de")} <code className="font-mono text-xs">{st.ssh_conf}</code>
         {" "}({st.aliases.length} {tx("connus) ; la clé publique de l'app doit être dans")} <code className="font-mono text-xs">{tx("authorized_keys")}</code> {tx("du compte visé. Un changement est pris en compte au prochain passage de la collecte.")}
-      </p>
+      </InfoNote>
       <p className="text-xs text-dim">{tx("Ping, ports connus, nom DNS, SSH (Linux ou Windows), Docker, AdGuard, VM, services web : quelques secondes. Rien n'est écrit avant « Enregistrer ».")}</p>
       <NoteLine note={note} />
       {d && <Proposal d={d} st={st} onDone={onDone} />}
@@ -258,10 +259,10 @@ function Proposal({ d, st, onDone }: { d: Detection; st: State; onDone: () => vo
       </div>
       {d.notes.map((n, i) => <p key={i} className={`text-sm ${n.startsWith("✓") ? "text-ok" : "text-warn"}`}>{n}</p>)}
       {d.connectors.length > 0 && (
-        <p className="text-sm text-muted">
+        <InfoNote>
           {tx("Services reconnus, à ajouter dans Réglages → Connecteurs (compte ou clé lecture seule) :")}{" "}
           {d.connectors.map((c) => <span key={c.type} className="mr-2"><b className="text-txt">{c.label}</b>{c.proposed.url && <Dim> {c.proposed.url}</Dim>}</span>)}
-        </p>
+        </InfoNote>
       )}
       {d.web.length > 0 && (
         <div className="text-sm">
@@ -462,7 +463,7 @@ function KeyMissingNotice({ sshUser, statuses }: Readonly<{ sshUser: string; sta
       </p>
       <p>{tx("Sur la machine, connecté en")} <b className="text-txt">{sshUser}</b>{tx(", lancez :")}</p>
       <AuthorizeKey bare user={sshUser} failing={statuses.filter((c) => c.type === "docker" && !c.ok)} />
-      <p className="text-xs text-dim">{tx("Puis « Vérifier ». Si l'accès marchait avec un autre compte (root, par exemple), revenez-y en réactivant l'accès avec ce compte.")}</p>
+      <InfoNote>{tx("Puis « Vérifier ». Si l'accès marchait avec un autre compte (root, par exemple), revenez-y en réactivant l'accès avec ce compte.")}</InfoNote>
     </div>
   );
 }
@@ -470,11 +471,11 @@ function KeyMissingNotice({ sshUser, statuses }: Readonly<{ sshUser: string; sta
 function UnfinishedNotice({ unfinished }: Readonly<{ unfinished: Unfinished }>) {
   const passed = unfinished.passed ? ` · ${tx("vous l'aviez passé dans les premiers pas")}` : "";
   return (
-    <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
+    <InfoNote tone="warn">
       <b className="text-warn">{tx("Non terminé")}</b>{passed} {" : "}
       {unfinished.why === "ha" ? <>{tx("le jeton de Home Assistant manque : ")}<a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a></>
         : tx("cette machine offre SSH mais MyServices n'y a pas d'accès : activez « Lecture par SSH » ci-dessous.")}
-    </p>
+    </InfoNote>
   );
 }
 
@@ -605,7 +606,7 @@ function OptionGroup({ title, hint, tone, children }: { title: string; hint?: st
   return (
     <fieldset className={`flex flex-col gap-2 rounded-xl border p-3 ${tone === "ok" ? "border-ok/40 bg-ok/10" : "border-dim/50 bg-bg2/70"}`}>
       <legend className="inline-flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-dim"><span aria-hidden className={`h-1.5 w-1.5 rounded-full ${tone === "ok" ? "bg-ok" : "bg-dim"}`} />{title}</legend>
-      {hint && <p className="text-xs text-dim">{hint}</p>}
+      {hint && <InfoNote>{hint}</InfoNote>}
       {children}
     </fieldset>
   );
@@ -872,10 +873,10 @@ function SshSwitchRow({ ctl, live, ss, proc, autoSave }: Readonly<{ ctl: SshCtl;
         </>}
       </label>
       {ctl.foundSsh && (
-        <p className="basis-full rounded-lg border border-link/40 bg-link/5 px-3 py-2 text-sm text-muted">
+        <InfoNote className="basis-full">
           {tx("La clé marche déjà avec l'accès « {0} » trouvé dans la configuration SSH (d'où « SSH OK ») : l'interrupteur passe tout seul sur Actif au prochain passage de la collecte. Pour ne pas lire cette machine par SSH, coupez-le ensuite : il ne sera plus réactivé.", live?.ssh?.alias)}
           {" "}<button type="button" className="font-semibold text-link hover:underline" disabled={ss.pending === "ssh"} onClick={() => void toggleSsh(true)}>{tx("Activer maintenant")}</button>
-        </p>
+        </InfoNote>
       )}
       {!agentMode && sshOn && (
         <label className={`flex items-center gap-2 text-sm ${notRoot && !proc ? "opacity-50" : ""}`} title={notRoot ? tx("Grisé : le compte SSH n'est pas root, il ne verrait pas les ports des autres comptes. Utilisez un accès root pour lire les ports en écoute.") : tx("Ports en écoute hors Docker (ss -tlnp, root requis sur la machine)")}>
@@ -884,9 +885,9 @@ function SshSwitchRow({ ctl, live, ss, proc, autoSave }: Readonly<{ ctl: SshCtl;
         </label>
       )}
       {!agentMode && sshOn && notRoot && (
-        <p className="basis-full rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-muted">
+        <InfoNote tone="warn" className="basis-full">
           <b className="text-warn">!</b> {tx("Le compte SSH est « {0} », pas root : sans root, seuls les ports de ce compte sont visibles, donc l'écoute des ports est réservée à root.", ctl.known?.user)}
-        </p>
+        </InfoNote>
       )}
       {showHelp && (
         <button type="button" className="text-xs text-link hover:underline" onClick={() => ctl.setWinGuide(true)}>{tx("La connexion échoue ? Voir les commandes")}</button>
@@ -921,10 +922,10 @@ function SshBody({ ctl, ip, v, setV, live, scan, windowsGuess, hasAdguard, conne
   const windows = v.os === "windows";
   return (
     <>
-        <p className="text-xs leading-relaxed text-muted">
+        <InfoNote>
           {ctl.agentMode ? tx("Un petit script PowerShell sur le PC envoie sa santé à MyServices : système, disques, services, processeur, mémoire, mises à jour, journal, ports en écoute.") : tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache.")} <b className="text-txt">{tx("Lecture seule")}</b>{tx(" : rien n'y est modifié.")}
           <span className="block text-dim">{tx("Sans accès : ping et services web seulement.")}</span>
-        </p>
+        </InfoNote>
         <SshSwitchRow ctl={ctl} live={live} ss={ss} proc={proc} autoSave={autoSave} />
         <NoteLine note={ctl.reuse} />
         {connection && !ctl.agentMode && (
@@ -973,7 +974,7 @@ function AgentBody({ ip, v, windowsGuess, agent, agentMode, sshAccess, isNew, on
             <Dim>{tx("la première source qui répond fait foi, l'autre prend le relais si elle se tait et complète ce qui manque")}</Dim>
           </div>
         )}
-        {!isNew && onAgent && !agent && <p className="text-sm text-muted">{AGENT_HINT()}</p>}
+        {!isNew && onAgent && !agent && <InfoNote>{AGENT_HINT()}</InfoNote>}
         {!isNew && onAgent && <AgentBlock ip={ip} name={v.name} kind={osKind(windows, windowsGuess)} agent={agent} onChanged={onAgent} />}
     </>
   );
@@ -1078,7 +1079,7 @@ function QuickSettings({ ctx }: Readonly<{ ctx: FlagCtx }>) {
   return (
     <section className="rounded-2xl border border-dim/50 border-l-2 border-l-warn bg-bg2/30 p-4" aria-label={tx("Réglages courants")}>
       <h4 className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-dim"><Power size={13} className="text-warn" aria-hidden />{tx("Réglages courants")}</h4>
-      <p className="mb-3 text-xs leading-relaxed text-muted">{tx("Suivre une machine, c'est la pinger et la lire avec ses sources (SSH, agent, connecteurs) pour la santé et les alertes. Une machine souvent éteinte (PC, portable) ne déclenche pas d'alerte quand elle ne répond pas.")}</p>
+      <InfoNote className="mb-3">{tx("Suivre une machine, c'est la pinger et la lire avec ses sources (SSH, agent, connecteurs) pour la santé et les alertes. Une machine souvent éteinte (PC, portable) ne déclenche pas d'alerte quand elle ne répond pas.")}</InfoNote>
       <div className="grid gap-2 lg:grid-cols-2">
         <label className="flex items-start gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
           <Switch on={!v.disabled} disabled={ss.pending === "disabled"} onChange={(on) => void autoSave("disabled", { disabled: !on })} label={tx("Machine suivie")} />

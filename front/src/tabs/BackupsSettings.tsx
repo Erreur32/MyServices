@@ -19,6 +19,7 @@ import { BackupsVzdump, type VzdumpState } from "./BackupsVzdump";
 import { MachineIcon } from "../components/MachineIcon";
 import type { Machine } from "../types";
 import { CopyGuesses, SetCopies, type CopyRow, type SshMachine } from "./BackupsCopies";
+import { InfoNote } from "../components/InfoNote";
 
 interface SetRow { id: string; label: string; origin: string; origin_ip?: string | null; path: string | null; veeam_job: string | null; pbs_group: string | null; synology_task?: string | null; vzdump?: string | null; remote?: boolean; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean; copies?: CopyRow[]; cadence_days?: number | null }
 const AGES = [2, 8, 15, 31];   // paliers proposés : quotidienne, hebdomadaire, tous les 15 jours, mensuelle
@@ -130,19 +131,19 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
           {searching ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <FolderSearch size={14} aria-hidden />}{searching ? tx("Recherche…") : tx("Chercher")}
         </button>
       </div>
-      <p className="mt-1 text-sm text-muted">
+      <InfoNote className="mt-1">
         {cur.machines === 0 ? tx("Aucune machine n'est lue par SSH : activez l'accès SSH d'une machine (Réglages → Machines) pour y chercher des sauvegardes.")
           : tx("Cherche, sur les {0} machine(s) lues par SSH, les dossiers de sauvegarde habituels :", cur.machines)} {cur.machines > 0 && <code className="font-mono text-xs">{cur.patterns.join("  ")}</code>}
-      </p>
+      </InfoNote>
       <div className="mt-3 rounded-lg bg-bg2/50 p-3">
         <div className="mb-1 flex flex-wrap items-center gap-2 text-sm"><b>{tx("Dossier par défaut")}</b><code className="font-mono text-xs">{cur.default_path}</code>
           <Dim>{tx("toujours cherché ; s'il existe sur une machine, il est coché d'office.")}</Dim></div>
         <TagInput label={tx("Emplacements communs à toutes les machines")} value={extras} onChange={setExtra} max={800} placeholder={tx("ex. /srv/sauvegardes, /mnt/*/save*")} />
-        <p className="mt-1 text-xs text-dim">{tx("Un chemin absolu ; * permis (un motif). Entrée ou virgule pour en ajouter. Cherché sur chaque machine lue par SSH.")}</p>
+        <InfoNote className="mt-1">{tx("Un chemin absolu ; * permis (un motif). Entrée ou virgule pour en ajouter. Cherché sur chaque machine lue par SSH.")}</InfoNote>
         {(cur.ssh_machines ?? []).length > 0 && (
           <div className="mt-3 border-t border-line pt-3">
             <b className="text-sm">{tx("Emplacements propres à une machine")}</b>
-            <p className="mb-2 text-xs text-dim">{tx("Un dossier qui n'existe que sur une machine (ex. la sauvegarde de configuration d'un Proxmox) : il n'est cherché que là.")}</p>
+            <InfoNote className="mb-2">{tx("Un dossier qui n'existe que sur une machine (ex. la sauvegarde de configuration d'un Proxmox) : il n'est cherché que là.")}</InfoNote>
             <ul className="flex flex-col gap-2">
               {(cur.ssh_machines ?? []).map((m) => (
                 <li key={m.ip} className="flex flex-wrap items-start gap-x-3 gap-y-1">
@@ -246,9 +247,9 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
     <div className="flex flex-col gap-4">
       <Card>
         <h2 className="mb-1 flex items-center gap-2 font-bold"><HardDrive size={16} />{tx("Sauvegardes suivies")} <Count n={cur.sets.length} /></h2>
-        <p className="mb-3 text-sm text-muted">
+        <InfoNote className="mb-3">
           {tx("MyServices regarde l'âge du fichier le plus récent de chaque dossier et vous prévient s'il est trop vieux. Lecture seule : rien n'est modifié sur les machines.")}
-        </p>
+        </InfoNote>
         {cur.sets.some((x) => x.path) && cur.machines > 0 && <CopyGuesses onDone={load} setNote={setNote} />}
         {cur.sets.length === 0 ? <Dim>{tx("Aucune sauvegarde suivie pour l'instant.")}</Dim> : (
           <ul className="flex flex-col gap-2">
@@ -325,7 +326,7 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
 
       <Card>
         <h2 className="mb-1 flex items-center gap-2 font-bold"><Database size={16} />{tx("Sources de sauvegarde")}</h2>
-        <p className="mb-3 text-sm text-muted">{tx("D'où viennent les sauvegardes à surveiller. Cliquez sur une source : ses champs à remplir se déplient.")}</p>
+        <InfoNote className="mb-3">{tx("D'où viennent les sauvegardes à surveiller. Cliquez sur une source : ses champs à remplir se déplient.")}</InfoNote>
         <ul className="flex flex-col gap-2">
           {sources.map((x) => {
             const on = open === x.id;

@@ -13,6 +13,7 @@ import type { NetHost, NetScan } from "../types";
 import { NoteLine } from "./form";
 import { netPercent } from "./ScanBar";
 import { Badge } from "./ui";
+import { InfoNote } from "./InfoNote";
 
 /** Ce que la machine est, en un seul mot : l'appli reconnue, sinon SSH, sinon son système probable, sinon la première étiquette */
 export function whatIs(h: Pick<NetHost, "hints" | "apps" | "ssh_port" | "os" | "os_how">): string {
@@ -63,7 +64,7 @@ export function AssistantNetwork({ net, reload, known, onManual }: Readonly<{ ne
     return (
       <div className="mt-4 rounded-xl border border-line/60 bg-bg2/60 p-5 text-center">
         <Search size={28} className="mx-auto text-link" aria-hidden />
-        <p className="mt-2 text-sm text-muted">{tx("MyServices envoie un ping à chaque adresse de votre réseau, demande son nom à chaque machine et regarde quelques ports (lecture seule).")}</p>
+        <InfoNote className="mt-2">{tx("MyServices envoie un ping à chaque adresse de votre réseau, demande son nom à chaque machine et regarde quelques ports (lecture seule).")}</InfoNote>
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
           <button type="button" className={primary} disabled={busy} onClick={() => void start()}><Search size={14} aria-hidden />{tx("Lancer la recherche")}</button>
           <button type="button" className="text-sm text-link hover:underline" onClick={onManual}>{tx("ou ajouter une machine à la main")}</button>
@@ -110,7 +111,7 @@ export function AssistantNetwork({ net, reload, known, onManual }: Readonly<{ ne
         <ul className="flex flex-col gap-1.5">{proposed.map((h) => <Row key={h.ip} h={h} on={picked.has(h.ip)} toggle={() => toggle(h.ip)} />)}</ul>
       )}
       {others.length > 0 && (   // caméras, objets connectés, téléphones : seulement un ping possible, pas dans l'assistant ; ajoutables après, depuis Découverte
-        <p className="text-xs text-dim">{plural(others.length, "autre appareil", "autres appareils")} {tx("(caméras, objets connectés…) : à ajouter plus tard, en simple ping, dans Réglages → Découverte.")}</p>
+        <InfoNote>{plural(others.length, "autre appareil", "autres appareils")} {tx("(caméras, objets connectés…) : à ajouter plus tard, en simple ping, dans Réglages → Découverte.")}</InfoNote>
       )}
       {added > 0 && <output className="block rounded-lg bg-ok/10 px-3 py-2 text-sm font-semibold text-ok"><Check size={14} className="mr-1 inline" aria-hidden />{tx("{0} ajoutées. À l'étape suivante, vous choisissez comment les lire.", plural(added, "machine"))}</output>}
       <div className="flex flex-wrap items-center gap-2">

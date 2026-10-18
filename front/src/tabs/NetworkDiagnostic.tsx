@@ -22,6 +22,7 @@ const RANK: Record<Severity | "ok", 0 | 1 | 2 | 3> = { bad: 0, warn: 1, info: 2,
 
 const KIND: Record<string, string> = { speed: tx("Vitesse du port"), link: tx("Liaison entre équipements"), offline: tx("Équipement hors ligne"), wan: tx("Lien WAN"), firmware: tx("Mise à jour"), load: tx("Charge"),
   mesh: tx("Liaison radio"), nic: tx("Carte réseau de la machine"), temp: tx("Température"), reboot: tx("Redémarrage"), clients: tx("Clients"), wifi: tx("Wi-Fi"), conflict: tx("Adresse IP"), latency: tx("Latence") };
+const ICON = { bad: OctagonAlert, warn: TriangleAlert, info: CircleHelp, ok: CircleCheck };
 const TONE: Record<Severity, "bad" | "warn" | "off"> = { bad: "bad", warn: "warn", info: "off" };
 const LABEL: Record<Severity, string> = { bad: tx("à corriger"), warn: tx("à vérifier"), info: tx("pour info") };
 
@@ -136,7 +137,7 @@ export function NetworkDiagnostic({ admin }: Readonly<{ admin: boolean }>) {
             </thead>
             <tbody className="[&>tr:nth-child(even)]:bg-bg/50 [&>tr]:border-b [&>tr]:border-line/60">
               {sort.sorted.map((r) => {
-                const Icon = r.severity === "bad" ? OctagonAlert : r.severity === "warn" ? TriangleAlert : r.severity === "info" ? CircleHelp : CircleCheck;
+                const Icon = ICON[r.severity];
                 return (
                   <tr key={r.key}>
                     <td className="whitespace-nowrap px-4 py-2 align-top"><Badge tone={r.severity === "ok" ? "ok" : TONE[r.severity]}><Icon size={12} aria-hidden />{r.severity === "ok" ? "OK" : LABEL[r.severity]}</Badge></td>

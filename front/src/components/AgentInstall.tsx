@@ -12,6 +12,8 @@ import { input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { usePoll } from "../lib/polling";
 import type { AgentInfo, AgentsState } from "../types";
+import { InfoNote } from "./InfoNote";
+import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 
 export type AgentKind = "windows" | "linux";
 
@@ -93,7 +95,7 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
   if (created) {
     return (
       <Card tone="ok">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className={`flex flex-wrap items-center gap-2 ${FOLD_HEADER}`} {...foldHeaderProps(() => setFolded(!folded))}>
           <button type="button" onClick={() => setFolded(!folded)} aria-expanded={!folded} className="flex min-w-0 flex-1 items-center gap-2 text-left">
             {folded ? <ChevronRight size={16} className="shrink-0 text-txt" aria-hidden /> : <ChevronDown size={16} className="shrink-0 text-txt" aria-hidden />}
             <h2 className="truncate font-bold text-ok">{tx("Agent «")} {created.info.name} {tx("» créé")}</h2>
@@ -103,11 +105,11 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
         </div>
         {!folded && <div className="mt-2">
           <p className="mb-2 text-sm text-warn">{tx("À copier maintenant : le jeton qu'elle contient ne sera plus jamais affiché.")}</p>
-          <p className="mb-2 text-sm text-muted">{created.info.kind === "linux" ? tx("Sur la machine, ouvrez un terminal (compte avec sudo) et collez :") : tx("Sur le PC, ouvrez PowerShell en administrateur (clic droit → Exécuter en tant qu'administrateur) et collez :")}</p>
+          <InfoNote className="mb-2">{created.info.kind === "linux" ? tx("Sur la machine, ouvrez un terminal (compte avec sudo) et collez :") : tx("Sur le PC, ouvrez PowerShell en administrateur (clic droit → Exécuter en tant qu'administrateur) et collez :")}</InfoNote>
           {command ? <Copyable key={command} text={command} />
             : <p className="rounded-lg bg-warn/10 px-3 py-2 text-sm text-warn">{tx("Adresse de MyServices invalide : http://hôte:port, sans chemin. Corrigez-la ci-dessous, la commande se met à jour.")}</p>}
           {!command && addressField}
-          <p className="mt-2 text-xs text-dim">{installNote(created.info.kind as AgentKind)}</p>
+          <InfoNote className="mt-2">{installNote(created.info.kind as AgentKind)}</InfoNote>
           <FirstReport seen={seen} />
         </div>}
       </Card>
@@ -117,9 +119,9 @@ export function AgentInstall({ target, onChanged, onClose, onSsh }: Readonly<{
   return (
     <Card className="border-link/60">
       <h2 className="mb-1 flex items-center gap-2 font-bold"><Download size={16} aria-hidden />{tx("Installer l'agent sur")} {target.name} <Dim>· {target.ip}</Dim></h2>
-      <p className="text-sm text-muted">{kind === "linux"
+      <InfoNote>{kind === "linux"
         ? tx("L'agent Linux est un script Python, en lecture seule. « Créer l'agent » génère son jeton (montré une seule fois) et la commande à coller dans un terminal de la machine (avec sudo).")
-        : tx("L'agent est un script PowerShell pour Windows, en lecture seule. « Créer l'agent » génère son jeton (montré une seule fois) et la commande à coller dans un PowerShell administrateur du PC.")}</p>
+        : tx("L'agent est un script PowerShell pour Windows, en lecture seule. « Créer l'agent » génère son jeton (montré une seule fois) et la commande à coller dans un PowerShell administrateur du PC.")}</InfoNote>
       {target.choose && (
         <fieldset className="m-0 mt-3 flex min-w-0 flex-wrap items-center gap-2 border-0 p-0" aria-label={tx("Type d'agent")}>
           {(["windows", "linux"] as const).map((k) => (

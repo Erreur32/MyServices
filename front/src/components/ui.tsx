@@ -5,6 +5,7 @@ import type { Chip, Facet } from "../lib/filter";
 
 import { LEVEL, type Tone } from "../lib/level";
 import { tx } from "../lib/i18n";
+import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 
 export type { Tone };
 
@@ -44,14 +45,13 @@ export function TableCard({ title, tone, count, cols, rows, note, empty, footer,
 }) {
   const [shut, setShut] = useState(foldable && folded);
   const n = count ?? rows.length;
+  const clickable = foldable ? FOLD_HEADER + " hover:bg-bg2/40" : "";
   if (!n && !empty) return null;
   return (
     <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${FRAME[tone]} ${className}`}>
-      <div className={`flex flex-wrap items-center gap-3 px-4 py-3 ${STRIP[tone]} ${foldable ? "cursor-pointer select-none hover:bg-bg2/40" : ""}`}
-        {...(foldable ? { onClick: () => setShut(!shut), role: "button", tabIndex: 0, "aria-expanded": !shut,
-          onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShut(!shut); } } } : {})}>
+      <div className={`flex flex-wrap items-center gap-3 px-4 py-3 ${STRIP[tone]} ${clickable}`} {...(foldable ? foldHeaderProps(() => setShut(!shut)) : {})}>
         <h3 className="font-bold">{title}</h3><Count n={n} tone={BUBBLE[tone]} />
-        {foldable && <span className="ml-auto text-dim" aria-hidden>{shut ? <ChevronDown size={16} /> : <ChevronUp size={16} />}</span>}
+        {foldable && <button type="button" className="ml-auto text-dim hover:text-txt" aria-expanded={!shut} onClick={() => setShut(!shut)} title={shut ? tx("Déplier") : tx("Replier")}>{shut ? <ChevronDown size={16} aria-hidden /> : <ChevronUp size={16} aria-hidden />}</button>}
       </div>
       {!shut && note && <p className="border-b border-line/60 px-4 py-2 text-sm text-muted">{note}</p>}
       {shut ? null : rows.length ? (

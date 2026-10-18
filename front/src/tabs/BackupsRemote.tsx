@@ -12,6 +12,7 @@ import { Badge, Card, Dim } from "../components/ui";
 import { bytes, dateTime } from "../lib/format";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { InfoNote } from "../components/InfoNote";
 
 type Proto = "ftp" | "ftps" | "smb";
 export interface RemoteAccountState { name: string; protocol: Proto; host: string; port: string | number; user: string; share: string; password_set: boolean }
@@ -65,9 +66,9 @@ export function BackupsRemote({ accounts, sets, reload }: { accounts: RemoteAcco
     <Card>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><FolderTree size={16} />{tx("Dossier distant (FTP, FTPS, Samba)")}
         {accounts.length > 0 && <Badge tone="ok">{tx("{0} compte(s)", accounts.length)}</Badge>}</h2>
-      <p className="mb-3 text-sm text-muted">
+      <InfoNote className="mb-3">
         {tx("Un dossier de sauvegarde sur une Freebox, un NAS ou un serveur FTP / Samba. MyServices ne fait que lister les fichiers (nom, date, taille) : rien n'est écrit ni supprimé là-bas. Le mot de passe est chiffré et n'est jamais réaffiché.")}
-      </p>
+      </InfoNote>
       {accounts.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
           <span className="text-dim">{tx("Compte :")}</span>
@@ -105,7 +106,7 @@ export function BackupsRemote({ accounts, sets, reload }: { accounts: RemoteAcco
           {busy === "browse" ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <FolderOpen size={14} aria-hidden />}{tx("Parcourir")}
         </button>
       </div>
-      <p className="mt-1 text-xs text-dim">{tx("L'essai et le parcours n'enregistrent rien : le compte n'est gardé que lorsque vous suivez un dossier.")}</p>
+      <InfoNote className="mt-1">{tx("L'essai et le parcours n'enregistrent rien : le compte n'est gardé que lorsque vous suivez un dossier.")}</InfoNote>
       {list && (
         <div className="mt-3 flex flex-col gap-3 rounded-lg bg-bg2/50 p-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">

@@ -9,6 +9,7 @@ import { Badge, Card, Dim } from "../components/ui";
 import { dateTime } from "../lib/format";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { InfoNote } from "../components/InfoNote";
 
 export interface PbsState { connectors: string[]; followed: number }
 interface Group { key: string; store: string; type: string; id: string; last: number | null; count: number; comment: string; followed: boolean }
@@ -47,15 +48,15 @@ export function BackupsPbs({ state, reload }: { state: PbsState; reload: () => v
       <h2 className="mb-1 flex items-center gap-2 font-bold"><DatabaseBackup size={16} />{tx("Proxmox Backup Server")}
         {state.followed > 0 && <Badge tone="ok">{tx("{0} groupe(s) suivi(s)", state.followed)}</Badge>}</h2>
       {state.connectors.length === 0 ? (
-        <p className="text-sm text-muted">
+        <InfoNote>
           {tx("Aucun connecteur Proxmox Backup Server : ajoutez-le d'abord dans")} <a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a>
           {tx(" (jeton en lecture seule, rôle DatastoreAudit). Ses sauvegardes se suivent ensuite ici, sans ressaisir le compte.")}
-        </p>
+        </InfoNote>
       ) : (
         <>
-          <p className="mb-3 text-sm text-muted">
+          <InfoNote className="mb-3">
             {tx("MyServices lit les groupes de sauvegarde (une VM, un conteneur ou un hôte par magasin) avec le jeton du connecteur, en lecture seule : l'âge de la dernière sauvegarde de chaque groupe est surveillé.")}
-          </p>
+          </InfoNote>
           <div className="flex flex-wrap items-end gap-3">
             {state.connectors.length > 1 && (
               <Field label={tx("Connecteur")}>

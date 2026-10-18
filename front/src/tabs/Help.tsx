@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Card, Dim } from "../components/ui";
 import { tx } from "../lib/i18n";
+import { InfoNote } from "../components/InfoNote";
 
 const link = "font-semibold text-link hover:underline";
 
@@ -50,9 +51,9 @@ export function Help() {
     <div className="flex flex-col gap-4">
       <Card>
         <h2 className="mb-1 flex items-center gap-2 font-bold"><BookOpen size={16} aria-hidden />{tx("Bien utiliser MyServices")}</h2>
-        <p className="text-sm text-muted">
+        <InfoNote>
           {tx("MyServices rassemble en une page les services, la santé et les sauvegardes de toutes vos machines, en s'appuyant sur les outils que vous avez déjà. Il lit, il ne modifie rien. Voici dans l'ordre comment le configurer, puis les bons réflexes.")}
-        </p>
+        </InfoNote>
       </Card>
 
       <Block icon={ListChecks} title={tx("Par où commencer")}>
@@ -76,7 +77,7 @@ export function Help() {
             <div key={w.title} className="rounded-xl border border-line bg-bg2/50 p-3 text-sm"><dt className="font-bold">{w.title}</dt><dd className="mt-0.5 text-muted">{w.text}</dd></div>
           ))}
         </dl>
-        <p className="mt-3 text-sm text-muted">{tx("Une machine peut avoir plusieurs sources : la première qui répond fait foi, les suivantes complètent. L'ordre se règle machine par machine.")}</p>
+        <InfoNote className="mt-3">{tx("Une machine peut avoir plusieurs sources : la première qui répond fait foi, les suivantes complètent. L'ordre se règle machine par machine.")}</InfoNote>
       </Block>
 
       <Block icon={ShieldCheck} title={tx("Bons réflexes")}>
