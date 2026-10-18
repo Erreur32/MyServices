@@ -334,22 +334,24 @@ def diff_nextcloud(prev: dict | None, cur: dict | None) -> tuple[list[dict], dic
     return diff_points("nextcloud", prev, cur)
 
 
+def _image_updates(c: dict):
+    """(environment, container name, image) of every container of the tool `c` that has a newer image."""
+    for env in c.get("environments") or []:
+        for u in env.get("updates") or []:
+            name = str(u.get("container") or "")[:80]
+            if name:
+                yield env, name, str(u.get("image") or "")[:120]
+
+
 def image_snaps(data: dict) -> dict | None:
     """Container images with a newer version (Dockhand, Dozzle, Portainer…), by stable key. None: no container tool read this time."""
     rows = [c for c in data.get("containers") or [] if c.get("ok") and not c.get("stale") and not c.get("links_only")]
     if not rows:
         return None
-    out = {}
-    for c in rows:
-        for env in c.get("environments") or []:
-            for u in env.get("updates") or []:
-                name = str(u.get("container") or "")[:80]
-                if name:
-                    image = str(u.get("image") or "")[:120]
-                    out[f'maj_image:{c.get("name")}:{env.get("id")}:{name}'] = {
-                        "label": name, "machine": env.get("name") or env.get("host"), "target": image or None,
-                        "text": f"une version plus récente de l'image {image} est disponible" if image else "une version plus récente de l'image est disponible"}
-    return out
+    return {f'maj_image:{c.get("name")}:{env.get("id")}:{name}': {
+                "label": name, "machine": env.get("name") or env.get("host"), "target": image or None,
+                "text": f"une version plus récente de l'image {image} est disponible" if image else "une version plus récente de l'image est disponible"}
+            for c in rows for env, name, image in _image_updates(c)}
 
 
 def jail_surge_snaps(data: dict) -> dict | None:

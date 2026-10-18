@@ -42,7 +42,7 @@ describe("reads of the API", () => {
     expect(f.calls).toHaveLength(1);
     void send("POST", "system/mail/test").catch(() => undefined);
     void read("system");
-    expect(f.calls.filter((u) => u.includes("api/v1/system?")).length).toBe(2);
+    expect(f.calls.filter((u) => u.includes("api/v1/system?"))).toHaveLength(2);
     f.release();
   });
 });
