@@ -17,6 +17,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Fixed
 
+- Settings, Machines: the machine cards grow in height instead of cutting the badges when they run over several lines.
 - SSH « key refused » in a Docker install now names the account and the key file the machine's alias really uses (an alias can carry a key of its own, not the app's), and shows that public key to authorize. Before, only the app's own key was suggested, which cannot work for such an alias.
 
 ## v0.15.2 (2026-10-18)
