@@ -36,7 +36,7 @@ export function MailSettings() {
   return (
     <Card>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><Mail size={16} aria-hidden />{tx("E-mail")}
-        {st.ready ? <Badge tone="ok">{tx("prêt")}</Badge> : <Badge tone="off">{tx("non réglé")}</Badge>}</h2>
+        {st.ready ? <Badge tone="ok">{tx("prêt")}</Badge> : <Badge tone="off">{tx("non réglé")}</Badge>}<Badge tone="warn">{tx("en cours de finition")}</Badge></h2>
       <p className="mb-3 text-sm text-muted">{tx("Serveur d'envoi pour « Mot de passe oublié ? » : chaque compte reçoit un lien à usage unique, valable 30 minutes, à l'adresse de son profil.")}</p>
       <form onSubmit={save} className="flex flex-col gap-3">
         <div className="grid gap-3 sm:grid-cols-[1fr_7rem]">

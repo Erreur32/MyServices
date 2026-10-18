@@ -1794,6 +1794,8 @@ export const EN: Record<string, string> = {
   "{0} fichier(s) écrit(s)": "{0} file(s) written",
   "{0} ancien(s) gardé(s) en « .avant-import »": "{0} old one(s) kept as \".avant-import\"",
   "Redémarrez le conteneur pour appliquer les réglages et la clé importés.": "Restart the container to apply the imported settings and key.",
+  "en cours de finition": "being finished",
+  "Fonction pas encore terminée": "Feature not finished yet",
   "Format": "Format",
   "à 7 h 05 et 19 h 05": "at 7:05 and 19:05",
   "Appliqué tout de suite, gardé dans": "Applied right away, kept in",
