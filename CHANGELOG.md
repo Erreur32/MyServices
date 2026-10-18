@@ -11,6 +11,17 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+
+- Settings -> Tasks and schedules redesigned: a header with the scheduler heartbeat and a live summary, three grouped cards with dark title bands
+  (collection and watching, network discovery, backups and health), a state badge per task, a shorter "Run" button, and a help window with suggested
+  schedules (what each task costs the network and the machines' logs).
+- **New default schedules** (installations that saved their own keep them): collection every 15 minutes (was twice an hour), watcher 5 minutes after,
+  health every 2 hours (was 6), backups checked 4 times a day (was 2); the "data is late" threshold drops from 75 to 45 minutes. `install.sh` follows.
+- Header: one text per scan (the orb from the medium width up, the bar below), titled by scan type (collection or network search).
+- Settings: Discovery is first in the Monitoring group and Notifications last.
+- SonarCloud cleanup of the 0.14.0 code (diagnostic and statistics functions split, no nested ternaries, read-only props).
+
 ## v0.14.0 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
