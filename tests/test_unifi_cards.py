@@ -40,6 +40,29 @@ class Cards(unittest.TestCase):
         doc = run([none, ok], 100.0)
         self.assertEqual((doc["source"], doc["devices"], doc["error"]), ("mynetwork", [{"mac": "aa"}], ""))
 
+    def test_the_unifi_controller_is_read_when_mynetwork_has_no_route(self):
+        ctl = Fake([{"mac": "bb"}])
+        ctl.type, ctl.conf = "unifi", {"auth": "account"}
+        doc = run([Fake(None), ctl], 100.0)
+        self.assertEqual((doc["source"], doc["devices"]), ("unifi", [{"mac": "bb"}]))
+
+    def test_a_controller_with_an_api_key_is_not_asked(self):
+        key = Fake([{"mac": "bb"}])
+        key.type, key.conf = "unifi", {"auth": "api_key"}
+        self.assertIsNone(run([key], 100.0)["source"])
+        self.assertEqual(key.calls, 0)
+
+    def test_a_controller_that_fails_is_told_and_its_detail_kept_out_of_the_page(self):
+        ctl = Fake(ConnectorError("HTTP 500 secret detail"))
+        ctl.type, ctl.conf = "unifi", {"auth": "account"}
+        doc = run([ctl], 100.0)
+        self.assertEqual((doc["source"], doc["error"]), (None, unifi_cards.FAILED_CONTROLLER))
+
+    def test_a_wrong_connector_setting_gives_no_source(self):
+        with mock.patch.object(unifi_cards.connectors, "instances", side_effect=ConnectorError("réglage faux")):
+            doc = unifi_cards.read({}, 100.0)
+        self.assertEqual((doc["source"], doc["devices"], doc["error"]), (None, [], ""))
+
     def test_one_reading_is_shared_for_a_few_seconds(self):
         f = Fake([{"mac": "aa"}])
         run([f], 100.0)

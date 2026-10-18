@@ -8,6 +8,7 @@ Standard library only (smtplib); the certificate is always checked.
 from __future__ import annotations
 
 import smtplib
+import time
 import ssl
 from email.message import EmailMessage
 from email.utils import formataddr, make_msgid
@@ -25,7 +26,7 @@ def ready(cfg: dict) -> bool:
     return bool(cfg.get("smtp_host") and cfg.get("smtp_from") and cfg.get("page_url"))
 
 
-def send(cfg: dict, to: str, subject: str, text: str) -> None:
+def _send(cfg: dict, to: str, subject: str, text: str) -> None:
     if not ready(cfg):
         raise MailError("envoi d'e-mails non réglé (Réglages → Système → E-mail)")
     msg = EmailMessage()
@@ -56,6 +57,19 @@ def send(cfg: dict, to: str, subject: str, text: str) -> None:
         raise MailError(f"rien n'écoute sur {cfg['smtp_host']}:{port} : le courrier de l'hôte (postfix…) doit écouter sur cette adresse") from None
     except (smtplib.SMTPException, OSError) as e:
         raise MailError(f"envoi impossible ({type(e).__name__}: {str(e)[:160]})") from None
+
+
+LAST: dict = {"ok": True, "error": "", "at": 0.0}   # outcome of the latest sending since the start: the profile warns when it failed
+
+
+def send(cfg: dict, to: str, subject: str, text: str) -> None:
+    """Sends one message and remembers whether it worked (LAST), so that a setting which stopped working does not go unnoticed."""
+    try:
+        _send(cfg, to, subject, text)
+    except MailError as e:
+        LAST.update(ok=False, error=str(e), at=time.time())
+        raise
+    LAST.update(ok=True, error="", at=time.time())
 
 
 def reset_text(page_url: str, token: str, username: str, minutes: int) -> tuple[str, str]:

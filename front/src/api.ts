@@ -1,4 +1,5 @@
 // Lecture des fichiers produits par les tâches et de l'API v1 (même origine, cookie de session).
+import { serverText, translateConnectorMessages, translateLabels } from "./lib/serverText";
 import type { AddressSheet, Backups, Data, Event, Events, Health, Me, StoredEvent } from "./types";
 import { tx } from "./lib/i18n";
 
@@ -99,7 +100,7 @@ export const loadPulse = (): Promise<Pulse | null> => get<Pulse>("pulse.json", t
 export async function loadSnapshot(): Promise<Snapshot> {
   const [me, raw, pulse, live] = await Promise.all([get<Me>("api/v1/me"), get<Data>("data.json", true), loadPulse(), loadLive()]);
   if (!raw) throw new NotConfigured(me!);
-  const data = withPulse(withLive(raw, live), pulse);
+  const data = translateConnectorMessages(withPulse(withLive(raw, live), pulse));
   const hu = data!.page.health_url, bu = data!.page.backups_url;
   const [health, backups, watch, hev] = await Promise.all([
     hu ? get<Health>(`${hu}stats.json`, true) : null,
@@ -110,8 +111,8 @@ export async function loadSnapshot(): Promise<Snapshot> {
   return {
     me: me!, data: data!, health, backups,
     events: [...(watch?.events || []), ...(hev?.events || [])],
-    labels: { ...(hev?.labels || {}), ...(watch?.labels || {}) },
-    severity: { ...(hev?.severity || {}), ...(watch?.severity || {}) },
+    labels: translateLabels({ ...hev?.labels, ...watch?.labels }),
+    severity: { ...hev?.severity, ...watch?.severity },
   };
 }
 
@@ -139,8 +140,9 @@ export async function send<T = { ok: boolean }>(method: "POST" | "PATCH" | "PUT"
   });
   if (r.status === 401 && !path.endsWith("password")) throw new LoginRequired();
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(typeof j.error === "string" ? j.error : `HTTP ${r.status}`);
+  if (!r.ok) throw new Error(typeof j.error === "string" ? serverText(j.error) : `HTTP ${r.status}`);
   if (!READ_ONLY.test(path)) refreshSnapshot();   // a change: every tab shows it now, and follows the collection it may start
+  if (typeof j.message === "string") j.message = serverText(j.message);
   return j as T;
 }
 
@@ -154,7 +156,7 @@ export async function download(path: string, body: unknown): Promise<{ blob: Blo
   });
   if (!r.ok) {
     const j = await r.json().catch(() => ({}));
-    throw new Error(typeof j.error === "string" ? j.error : `HTTP ${r.status}`);
+    throw new Error(typeof j.error === "string" ? serverText(j.error) : `HTTP ${r.status}`);
   }
   const name = /filename="([^"]+)"/.exec(r.headers.get("content-disposition") || "")?.[1] || "export.tar.gz";
   return { blob: await r.blob(), name };

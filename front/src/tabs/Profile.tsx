@@ -16,7 +16,7 @@ import { InfoNote } from "../components/InfoNote";
 
 interface MySession { created: number; expires: number; ip: string | null; current: boolean }
 
-export function Profile({ username, role, email, avatar, look }: Readonly<{ username: string; role: "admin" | "viewer"; email: string; avatar: string | null; look: Look }>) {
+export function Profile({ username, role, email, mailReady, mailError, avatar, look }: Readonly<{ username: string; role: "admin" | "viewer"; email: string; mailReady: boolean; mailError: string; avatar: string | null; look: Look }>) {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4 py-4">
       <header className="flex items-center gap-4 rounded-2xl border border-line bg-card p-4">
@@ -27,7 +27,7 @@ export function Profile({ username, role, email, avatar, look }: Readonly<{ user
         </div>
       </header>
       <div className="grid items-start gap-4 lg:grid-cols-2">
-        <div className="flex flex-col gap-4"><MyAvatar username={username} initial={avatar} /><MyEmail initial={email} admin={role === "admin"} /><MyPassword /><Sessions /></div>
+        <div className="flex flex-col gap-4"><MyAvatar username={username} initial={avatar} /><MyEmail initial={email} admin={role === "admin"} mailReady={mailReady} mailError={mailError} /><MyPassword /><Sessions /></div>
         <section aria-label={tx("Apparence")}><h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-widest text-dim">{tx("Apparence")}</h2><Appearance look={look} /></section>
       </div>
     </div>
@@ -138,8 +138,20 @@ function MyAvatar({ username, initial }: Readonly<{ username: string; initial: s
   );
 }
 
+/** What is wrong with the e-mail, if anything: sending not set up, the latest sending failed, or no address to send to (nothing when all is well) */
+function MailWarning({ email, admin, ready, error }: Readonly<{ email: string; admin: boolean; ready: boolean; error: string }>) {
+  const settings = admin && <> <a href="#settings/system" className="underline">{tx("Régler l'envoi")}</a></>;
+  if (!ready) {
+    const text = email ? tx("Votre adresse est enregistrée, mais l'envoi d'e-mails n'est pas réglé : le lien « Mot de passe oublié ? » ne partira pas.") : tx("L'envoi d'e-mails n'est pas réglé : le lien « Mot de passe oublié ? » ne partira pas.");
+    return <InfoNote tone="warn">{text}{admin ? settings : ` ${tx("Demandez à un administrateur.")}`}</InfoNote>;
+  }
+  if (error) return <InfoNote tone="warn">{tx("Le dernier envoi d'e-mail a échoué.")} {admin ? error : tx("Demandez à un administrateur de vérifier le réglage.")}{settings}</InfoNote>;
+  if (!email) return <InfoNote>{tx("Sans adresse e-mail, vous ne pourrez pas recevoir de lien si vous oubliez votre mot de passe.")}</InfoNote>;
+  return null;
+}
+
 /** Address that receives the link of « Forgot your password? » on the sign-in page */
-function MyEmail({ initial, admin }: Readonly<{ initial: string; admin: boolean }>) {
+function MyEmail({ initial, admin, mailReady, mailError }: Readonly<{ initial: string; admin: boolean; mailReady: boolean; mailError: string }>) {
   const [email, setEmail] = useState(initial), [saved, setSaved] = useState(initial);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const submit = async (e: { preventDefault: () => void }) => {
@@ -167,6 +179,7 @@ function MyEmail({ initial, admin }: Readonly<{ initial: string; admin: boolean 
             <button type="button" className={quiet} disabled={busy} onClick={() => void test()} title={tx("Envoie un message à cette adresse pour vérifier que l'envoi fonctionne")}><Send size={14} aria-hidden />{tx("Envoyer un e-mail de test")}</button>
           )}
         </div>
+        <MailWarning email={saved} admin={admin} ready={mailReady} error={mailError} />
         <InfoNote>{tx("Sert seulement à recevoir un lien si vous oubliez votre mot de passe (« Mot de passe oublié ? » sur la page de connexion).")}</InfoNote>
       </form>
       <NoteLine note={note} />

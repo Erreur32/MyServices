@@ -274,6 +274,9 @@ class Synology(StatusConnector):
         return self.out(info.get("version_string"), facts, problems)
 
 
+LOGIN_PATH = "/api/login"   # sign-in of the controller's legacy API (local account)
+
+
 class UniFi(StatusConnector):
     """UniFi Network : appareils en ligne ou non, mises à jour, clients (IP / MAC pour le rapprochement). Deux accès :
     - « api_key » : console UniFi OS (UCG, UDM, UX, Cloud Key, UniFi OS Server), API d'intégration officielle, en-tête X-API-KEY ;
@@ -343,7 +346,17 @@ class UniFi(StatusConnector):
                     break
         return info.get("applicationVersion"), len(sites), devices, clients, total
 
-    def _account(self) -> tuple:
+    @staticmethod
+    def _http_error(path: str, code: int) -> ConnectorError:
+        """The error for an HTTP status of the legacy controller API; the sign-in has its own readable reasons."""
+        if path == LOGIN_PATH and code in (400, 401, 403):
+            return ConnectorError("compte refusé : identifiant ou mot de passe faux, ou double authentification activée sur ce compte")
+        if path == LOGIN_PATH and code == 404:
+            return ConnectorError("pas de connexion par compte ici : console UniFi OS ? choisir l'accès « api_key »")
+        return ConnectorError(f"HTTP {code}")
+
+    def _login(self):
+        """Opens a session on a controller with a local account (Network Application, e.g. in Docker); returns the `call(path, body)` function of that session."""
         jar = http.cookiejar.CookieJar()
         ctx = None if self.tls() else ssl._create_unverified_context()  # NOSONAR S5527: opt-in per connector for a self-signed LAN certificate
         opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar), urllib.request.HTTPSHandler(context=ctx))
@@ -356,16 +369,16 @@ class UniFi(StatusConnector):
                 with opener.open(req, timeout=self.ctx.timeout) as r:
                     d = json.loads(r.read() or b"null")
             except urllib.error.HTTPError as e:
-                if path == "/api/login" and e.code in (400, 401, 403):
-                    raise ConnectorError("compte refusé : identifiant ou mot de passe faux, ou double authentification activée sur ce compte") from None
-                if path == "/api/login" and e.code == 404:
-                    raise ConnectorError("pas de connexion par compte ici : console UniFi OS ? choisir l'accès « api_key »") from None
-                raise ConnectorError(f"HTTP {e.code}") from None
+                raise self._http_error(path, e.code) from None
             except (OSError, ValueError) as e:
                 raise ConnectorError(f"injoignable ({getattr(e, 'reason', e.__class__.__name__)})") from None
             return d.get("data") if isinstance(d, dict) else None
 
-        call("/api/login", {"username": str(self.conf.get("user", "")), "password": str(self.conf.get("password", "")), "remember": False})
+        call(LOGIN_PATH, {"username": str(self.conf.get("user", "")), "password": str(self.conf.get("password", "")), "remember": False})
+        return call
+
+    def _account(self) -> tuple:
+        call = self._login()
         try:
             sites = rows(call("/api/self/sites"))
             version, devices, clients = None, [], []
@@ -385,6 +398,25 @@ class UniFi(StatusConnector):
             except ConnectorError:
                 pass
         return version, len(sites), devices, clients, len(clients)
+
+    def card_devices(self) -> list[dict] | None:
+        """The controller's own device rows (ports, speeds, PoE, traffic) for the Network tab cards, without anything that looks like a secret.
+        Only with a local account (Docker controller): an API key reads the integration API, which has no port table. None otherwise."""
+        if self.conf.get("auth") != "account":
+            return None
+        from connectors.mynetwork import scrub   # the same filter as for the MynetworK rows
+        call = self._login()
+        out: list[dict] = []
+        try:
+            for s in rows(call("/api/self/sites"))[:5]:
+                site = urllib.parse.quote(str(s.get("name") or "default"), safe="")
+                out += [scrub(d) for d in rows(call(f"/api/s/{site}/stat/device")) if isinstance(d, dict) and d.get("mac")]
+        finally:
+            try:
+                call("/api/logout", {})
+            except ConnectorError:
+                pass
+        return out[:200]
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
