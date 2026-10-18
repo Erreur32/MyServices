@@ -32,9 +32,11 @@ const AREA_SUB: Record<Area, Sub> = { fail2ban: "fail2ban", sites: "sites", cert
 
 const savedSub = (): Sub => { try { const v = localStorage.getItem(SUB_KEY); return SUBS.some((s) => s.id === v) ? (v as Sub) : "overview"; } catch { return "overview"; } };
 
+type Tone = "ok" | "warn" | "bad";
+
 function Posture({ findings }: Readonly<{ findings: Finding[] }>) {
   const bad = findings.filter((f) => f.sev === "bad").length;
-  let tone: "ok" | "warn" | "bad" = "warn";
+  let tone: Tone = "warn";
   if (findings.length === 0) tone = "ok";
   else if (bad) tone = "bad";
   const frame = { ok: "border-ok/40 bg-ok/10", warn: "border-warn/50 bg-warn/10", bad: "border-bad/50 bg-bad/10" }[tone];
@@ -78,7 +80,7 @@ function AreaTiles({ snap, findings, admin, open }: Readonly<{ snap: Snapshot; f
     <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
       {SUBS.filter((x): x is typeof x & { area: Area } => !!x.area && (admin || x.id !== "members")).map(({ id, label, icon: Icon, area }) => {
         const mine = findings.filter((f) => f.area === area);
-        let tone: "ok" | "warn" | "bad" = mine.length ? "warn" : "ok";
+        let tone: Tone = mine.length ? "warn" : "ok";
         if (mine.some((f) => f.sev === "bad")) tone = "bad";
         const color = { ok: "text-ok", warn: "text-warn", bad: "text-bad" }[tone];
         const frame = { ok: "border-line", warn: "border-warn/50", bad: "border-bad/50" }[tone];
