@@ -27,7 +27,9 @@ const snap = {
 describe("onglet Sauvegardes", () => {
   it("synthèse, alertes, machines et dossiers locaux", () => {
     const html = renderToStaticMarkup(<Backups snap={snap} />);
-    for (const t of ["jeux critiques", "aucune copie hors machine à jour", "🔒 NAS", "base", "91 %", "/backup/x", "non inventorié", "injoignable"])
+    for (const t of ["jeux critiques", "aucune copie hors machine à jour", "🔒 NAS", "base", "91 %", "Dossiers de sauvegarde locaux", "injoignable"])
       expect(html).toContain(t);
+    expect(html).toContain('aria-expanded="false"');   // the local folders frame starts folded: its rows are not in the markup
+    expect(html).not.toContain("/backup/x");
   });
 });

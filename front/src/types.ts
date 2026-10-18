@@ -679,7 +679,8 @@ export interface ContainersConnector extends InfraConnector {
 export interface VirtualizationConnector extends InfraConnector {
   via?: "ssh" | "agent"; ip?: string;   // ssh: read on the host (pvesh, vim-cmd, virsh…), agent: Hyper-V by the Windows agent
   problems?: string[];   // Unraid, Datacenter Manager: what needs a look
-  nodes?: { name: string; online: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null; cpus?: number | null; mem?: number | null; maxmem?: number | null; model?: string | null }[];
+  nodes?: { name: string; online: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null; cpus?: number | null; mem?: number | null; maxmem?: number | null; model?: string | null
+    load?: number[]; iowait_pct?: number; swap_used?: number; swap_total?: number; root_used?: number; root_total?: number; kernel?: string; sockets?: number; cores?: number; temp_c?: number; fans_rpm?: number[] }[];
   guests?: { name?: string; type: "qemu" | "lxc" | "vm"; node?: string; status?: string; template: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null;
     cpus?: number | null; mem?: number | null; maxmem?: number | null; maxdisk?: number | null; tags?: string[]; vmid: number | string; os?: string | null; ip?: string | null; hostname?: string | null }[];
   storage?: { name: string; node?: string; used_pct?: number | null; status?: string; used?: number | null; total?: number | null }[];

@@ -112,7 +112,7 @@ function State({ r, ck }: Readonly<{ r: Host; ck: Check[] }>) {
 /** Logo du service, dans sa propre colonne pour ne pas déformer le nom ; la place est gardée quand il n'y en a pas */
 function ServiceLogo({ r }: { r: Host }) {
   const src = serviceIcon(r);
-  return src ? <span className="grid h-7 w-7 min-w-7 shrink-0 place-items-center rounded-md bg-bg2" title={r.app?.label || r.service?.name}><img src={src} alt="" className="h-4 w-4" /></span> : <span className="block h-7 w-7 shrink-0" aria-hidden />;
+  return src ? <span className="grid h-10 w-10 min-w-10 shrink-0 place-items-center rounded-md bg-bg2" title={r.app?.label || r.service?.name}><img src={src} alt="" className="h-7 w-7" /></span> : <span className="block h-10 w-10 shrink-0" aria-hidden />;
 }
 
 function Tech({ r }: { r: Host }) {
@@ -181,14 +181,14 @@ function targetOf(r: Host): string {
 function ServiceRow({ r, grouped, onOpen }: Readonly<{ r: Host; grouped: boolean; onOpen: () => void }>) {   // grouped: the rows of an opened group sit on a darker background with a coloured edge
   const edge = grouped ? `${OPEN_EDGE} !pl-14` : "";
   return (
-    <tr onClick={onOpen} className={`cursor-pointer ${grouped ? "bg-bg/60 hover:bg-bg2/60" : "hover:bg-bg2/60"} ${r.enabled ? "" : "opacity-60"}`}>
-      <Td className={`overflow-hidden align-middle whitespace-nowrap ${edge}`}><State r={r} ck={checks(r)} /></Td>
-      <Td className="overflow-hidden !pl-10 align-middle"><Name r={r} /></Td>
-      <Td className="overflow-hidden whitespace-nowrap !pl-6 align-middle font-mono text-xs text-muted">
+    <tr onClick={onOpen} className={`cursor-pointer ${grouped ? "bg-bg/30 even:bg-bg/70" : "even:bg-bg/50"} hover:!bg-bg2/60 ${r.enabled ? "" : "opacity-60"}`}>
+      <Td className={`!py-1 overflow-hidden align-middle whitespace-nowrap ${edge}`}><State r={r} ck={checks(r)} /></Td>
+      <Td className="!py-1 overflow-hidden !pl-10 align-middle"><Name r={r} /></Td>
+      <Td className="!py-1 overflow-hidden whitespace-nowrap !pl-6 align-middle font-mono text-xs text-muted">
         {targetOf(r)}
       </Td>
-      {!grouped && <Td className="!pl-6 align-middle">{r.machine ? <><b className="font-medium">{r.machine}</b>{r.category && <span className="block text-xs text-dim">{r.category}</span>}</> : <Dim>-</Dim>}</Td>}
-      <Td className="overflow-hidden !pl-10 align-middle"><div className="flex items-center gap-2.5"><ServiceLogo r={r} /><Tech r={r} /></div></Td>
+      {!grouped && <Td className="!py-1 !pl-6 align-middle">{r.machine ? <><b className="font-medium">{r.machine}</b>{r.category && <span className="block text-xs text-dim">{r.category}</span>}</> : <Dim>-</Dim>}</Td>}
+      <Td className="!py-1 overflow-hidden !pl-10 align-middle"><div className="flex items-center gap-2.5"><ServiceLogo r={r} /><Tech r={r} /></div></Td>
     </tr>
   );
 }
@@ -225,7 +225,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
   }, []);
   const sort = useSort(f.shown, keyOf, "status");
   const opened = sort.sorted.find((r) => keyOfRow(r) === openKey);
-  const [grouped, setGrouped] = useGrouped(), [expanded, setExpanded] = useState<string[]>([]);   // groups are folded until opened
+  const [grouped, setGrouped] = useGrouped(), [expanded, setExpanded] = useState<string[]>(() => (initial && Object.keys(initial).length ? groupByMachine(f.shown).map((g) => g.name) : []));   // groups are folded until opened, except when arriving with a filter (link from a machine): then they are already open
   const groups = useMemo(() => (grouped ? groupByMachine(sort.sorted) : [{ name: "", ip: "", rows: sort.sorted }]), [grouped, sort.sorted]);
 
   return (
@@ -237,8 +237,8 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
       {sort.sorted.length === 0 ? <Empty>{tx("Aucun service pour ce filtre.")}</Empty> : (
         <>
           <Table fixed head={<>
-            <Th k="status" sort={sort} className={grouped ? "w-[19.5rem] !pl-14" : "w-64"}>{tx("État")}</Th><Th k="name" sort={sort} className="w-[30%] !pl-10">{tx("Service")}</Th><Th k="target" sort={sort} className="w-60 !pl-6">{tx("Cible")}</Th>
-            {!grouped && <Th k="machine" sort={sort} className="w-[16%] !pl-6">{tx("Machine")}</Th>}<Th k="kind" sort={sort} className="!pl-10">{tx("Logiciel")}</Th>
+            <Th k="status" sort={sort} className={grouped ? "w-[19.5rem] !pl-14" : "w-64"}>{tx("État")}</Th><Th k="name" sort={sort} className="w-[30%] !pl-10">{tx("Domaine")}</Th><Th k="target" sort={sort} className="w-60 !pl-6">{tx("Cible")}</Th>
+            {!grouped && <Th k="machine" sort={sort} className="w-[16%] !pl-6">{tx("Machine")}</Th>}<Th k="kind" sort={sort} className="!pl-10">{tx("Service")}</Th>
           </>}>
             {groups.map((g) => (
               <Fragment key={g.name}>

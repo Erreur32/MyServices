@@ -39,18 +39,22 @@ const BUBBLE: Record<CardTone, "bad" | "warn" | "off" | "ok"> = { bad: "bad", wa
 
 /** Card with a coloured header strip (title, count in a round bubble) over a table with fixed columns and headers. Nothing is shown without a row,
  *  unless `empty` (the "all good" message) is given. `footer` goes under the table. */
-export function TableCard({ title, tone, count, cols, rows, note, empty, footer, className = "" }: {
-  title: ReactNode; tone: CardTone; count?: number; cols: { label: string; className?: string }[]; rows: ReactNode[][]; note?: ReactNode; empty?: ReactNode; footer?: ReactNode; className?: string;
+export function TableCard({ title, tone, count, cols, rows, note, empty, footer, className = "", zebra = false, foldable = false, folded = false }: {
+  title: ReactNode; tone: CardTone; count?: number; cols: { label: string; className?: string }[]; rows: ReactNode[][]; note?: ReactNode; empty?: ReactNode; footer?: ReactNode; className?: string; zebra?: boolean; foldable?: boolean; folded?: boolean;   // zebra: every other row darker; foldable: the header strip folds the frame, `folded` is its starting state
 }) {
+  const [shut, setShut] = useState(foldable && folded);
   const n = count ?? rows.length;
   if (!n && !empty) return null;
   return (
     <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${FRAME[tone]} ${className}`}>
-      <div className={`flex flex-wrap items-center gap-3 px-4 py-3 ${STRIP[tone]}`}>
+      <div className={`flex flex-wrap items-center gap-3 px-4 py-3 ${STRIP[tone]} ${foldable ? "cursor-pointer select-none hover:bg-bg2/40" : ""}`}
+        {...(foldable ? { onClick: () => setShut(!shut), role: "button", tabIndex: 0, "aria-expanded": !shut,
+          onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShut(!shut); } } } : {})}>
         <h3 className="font-bold">{title}</h3><Count n={n} tone={BUBBLE[tone]} />
+        {foldable && <span className="ml-auto text-dim" aria-hidden>{shut ? <ChevronDown size={16} /> : <ChevronUp size={16} />}</span>}
       </div>
-      {note && <p className="border-b border-line/60 px-4 py-2 text-sm text-muted">{note}</p>}
-      {rows.length ? (
+      {!shut && note && <p className="border-b border-line/60 px-4 py-2 text-sm text-muted">{note}</p>}
+      {shut ? null : rows.length ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[420px] table-fixed border-collapse text-sm">
             <thead>
@@ -60,7 +64,7 @@ export function TableCard({ title, tone, count, cols, rows, note, empty, footer,
             </thead>
             <tbody className="divide-y divide-line/60">
               {rows.map((r, i) => (
-                <tr key={i} className="hover:bg-bg2/40">
+                <tr key={i} className={`hover:!bg-bg2/40 ${zebra ? "even:bg-bg/50" : ""}`}>
                   {r.map((cell, j) => <td key={j} className={`break-words px-4 py-2 align-top ${cols[j]?.className ?? ""}`}>{cell}</td>)}
                 </tr>
               ))}
@@ -68,7 +72,7 @@ export function TableCard({ title, tone, count, cols, rows, note, empty, footer,
           </table>
         </div>
       ) : <p className="px-4 py-3 text-sm text-ok">{empty}</p>}
-      {footer && <div className="border-t border-line/60 px-4 py-2 text-xs text-dim">{footer}</div>}
+      {!shut && footer && <div className="border-t border-line/60 px-4 py-2 text-xs text-dim">{footer}</div>}
     </section>
   );
 }

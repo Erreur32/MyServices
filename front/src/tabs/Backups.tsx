@@ -95,7 +95,7 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
         <div className="mt-3"><FilterBar f={f} placeholder={tx("Machine, jeu, dossier…")} primary={["state", "kind"]} oneLine /></div>
       </Card>
       {b.issues.length > 0 && (   // nothing to say = no frame
-        <TableCard title={tx("Points d'attention")} tone={b.issues.some((i) => i.level === "crit" || i.level === "down") ? "bad" : "warn"}
+        <TableCard zebra title={tx("Points d'attention")} tone={b.issues.some((i) => i.level === "crit" || i.level === "down") ? "bad" : "warn"}
           cols={[{ label: tx("État"), className: "w-[7.5rem]" }, { label: tx("Jeu de sauvegarde"), className: "w-[34%]" }, { label: tx("Ce qui ne va pas") }]}
           rows={b.issues.map((i) => [<Level level={i.level} />, <b className="font-semibold">{i.set}</b>, <span className="text-muted">{i.text}</span>])}
           footer={<>{tx("Relevé du")} {dateTime(b.generated)}</>} />
@@ -104,7 +104,7 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
         <>
           <Table head={<><Th>{tx("Machine")}</Th><Th>{tx("État")}</Th><Th>{tx("Disques")}</Th><Th>{tx("Dernier backup local")}</Th><Th>{tx("Copié ailleurs")}</Th><Th>{tx("Jeux produits")}</Th></>}>
             {f.shown.map((h) => (
-              <tr key={h.id}>
+              <tr key={h.id} className="even:bg-bg/50 hover:bg-bg2/40">
                 <Td><b>{h.label}</b><span className="block text-xs text-dim">{h.ip} · {h.kind}</span></Td>
                 <Td><Level level={stateOf(h)} /></Td><Td>{disks(h)}</Td><Td>{last(h)}</Td><Td>{copies(h)}</Td><Td>{produced(h)}</Td>
               </tr>
@@ -121,18 +121,17 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
           </Cards>
         </>
       )}
-      {local.length > 0 && (
-        <details className="rounded-2xl border border-line bg-card p-4">
-          <summary className="cursor-pointer font-bold">{tx("Dossiers de sauvegarde locaux")} <Dim>· {sm.local_dirs ?? local.length} {tx("trouvés,")} {sm.local_unlisted ?? 0} {tx("non inventoriés")}</Dim></summary>
-          <ul className="mt-3 flex flex-col gap-1 text-sm">
-            {local.map(({ h, x }) => (
-              <li key={h.id + x.path} className="flex flex-wrap items-center gap-2">
-                <b>{h.label}</b><code className="font-mono text-xs">{x.path}</code><Dim>{bytes(x.size)} · {x.age == null ? "-" : tx("il y a {0}", ageDays(x.age))}</Dim>
-                {x.covered.length ? <Badge tone="ok">{x.covered.join(", ")}</Badge> : <Badge tone="warn">{tx("non inventorié")}</Badge>}
-              </li>
-            ))}
-          </ul>
-        </details>
+      {local.length > 0 && (   // framed table like « Points d'attention »; the warning tone shows when some folders are not inventoried
+        <TableCard zebra foldable folded title={tx("Dossiers de sauvegarde locaux")} tone={(sm.local_unlisted ?? 0) > 0 ? "warn" : "info"}
+          note={<>{sm.local_dirs ?? local.length} {tx("trouvés,")} <b className={sm.local_unlisted ? "text-warn" : "text-txt"}>{sm.local_unlisted ?? 0}</b> {tx("non inventoriés")}</>}
+          cols={[{ label: tx("Machine"), className: "w-[16%]" }, { label: tx("Dossier") }, { label: tx("Taille"), className: "w-28" }, { label: tx("Dernière modification"), className: "w-40" }, { label: tx("Inventorié"), className: "w-[22%]" }]}
+          rows={local.map(({ h, x }) => [
+            <b className="font-semibold">{h.label}</b>,
+            <code className="break-all font-mono text-xs">{x.path}</code>,
+            <span className="tabular-nums">{x.size ? bytes(x.size) : <Dim>-</Dim>}</span>,
+            x.age == null ? <Dim>-</Dim> : <span className="whitespace-nowrap">{tx("il y a {0}", ageDays(x.age))}</span>,
+            x.covered.length ? <Badge tone="ok">{x.covered.join(", ")}</Badge> : <Badge tone="warn">{tx("non inventorié")}</Badge>,
+          ])} />
       )}
     </div>
   );

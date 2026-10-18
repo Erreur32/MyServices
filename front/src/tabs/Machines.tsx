@@ -448,10 +448,10 @@ function SeenBy({ links }: { links?: MachineLinks | null }) {
 const otherNames = (m: Machine) => (m.links?.names ?? []).filter((n) => n.split(".")[0].toLowerCase() !== m.name.toLowerCase());
 
 /** « VM 101 sur pve » / « nœud Proxmox pve » */
-function Virt({ links }: { links?: MachineLinks | null }) {
+function Virt({ links, version }: { links?: MachineLinks | null; version?: string }) {
   const g = links?.guest, n = links?.hypervisor;
   if (g) return <>{g.type === "lxc" ? tx("conteneur LXC") : "VM"} {g.vmid} {tx("sur")} <b>{g.node}</b>{g.status && g.status !== "running" && <Dim> · {g.status}</Dim>}</>;
-  if (n) return <>{n.source === "proxmox" || !n.source ? tx("nœud Proxmox") : tx("hôte VMware ESXi")} <b>{n.node}</b></>;
+  if (n) return <>{n.source === "proxmox" || !n.source ? tx("nœud Proxmox") : tx("hôte VMware ESXi")} <b>{n.node}</b>{version && <Dim> · {tx("version")} {version}</Dim>}</>;
   return null;
 }
 
@@ -630,7 +630,7 @@ export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, unifiNet, freebox, containers, onFilter, focus, backups }: Readonly<{ backups?: Backups | null; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; containers?: React.ReactNode; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
+function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, unifiNet, freebox, containers, onFilter, focus, backups, pve }: Readonly<{ pve?: string; backups?: Backups | null; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; containers?: React.ReactNode; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
   const unifiOnly = !!unifi && !m.info && !m.agent;   // read only through UniFi: no SSH, no agent
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) setTimeout(() => showWatch(root.current, focus.kind), 120); }, [focus]);   // opened from a badge: show where its notice is explained
@@ -638,7 +638,7 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, uni
   return (
     <div ref={root} className="grid gap-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
       <WatchSummary items={watch} onShow={(kind) => showWatch(root.current, kind)} />
-      <IdentitySection m={m} mac={mac} net={net} from={[...from.role, ...from.mac]} tool={freebox || unifi ? "MynetworK" : undefined} />
+      <IdentitySection m={m} mac={mac} net={net} from={[...from.role, ...from.mac]} tool={freebox || unifi ? "MynetworK" : undefined} pve={pve} />
 
       <Section icon={Cpu} title={tx("Système")} tone="violet" from={from.os}>
         <Row k={tx("Système")}>{i?.os || m.agent?.os || haSystemName(ha) || undefined}</Row>
@@ -924,7 +924,7 @@ function HaSystemRows({ sys }: Readonly<{ sys: NonNullable<ServiceStatus["system
 }
 
 /** Detail, « Identity »: name, IP, state, roles, MAC, what the network tools saw, other names, virtualization */
-function IdentitySection({ m, mac, net, from, tool }: Readonly<{ m: Machine; mac?: string; net?: NetDevice; from: Origin[]; tool?: string }>) {
+function IdentitySection({ m, mac, net, from, tool, pve }: Readonly<{ m: Machine; mac?: string; net?: NetDevice; from: Origin[]; tool?: string; pve?: string }>) {
   const roles = rolesOf(m.role);
   // read by a network tool's API (the Freebox, a UniFi gateway): « online, no SSH » would be wrong, it is followed through that tool
   const viaTool = tool && mState(m) === "nossh";
@@ -939,7 +939,7 @@ function IdentitySection({ m, mac, net, from, tool }: Readonly<{ m: Machine; mac
         <Row k={tx("Ports ouverts")}>{net?.ports.length ? <span className="font-mono" title={tx("Vus par le scanner de MynetworK")}>{net.ports.join(", ")}</span> : undefined}</Row>
         <Row k={tx("Sur le réseau")}>{net?.first_seen ? <span title={tx("Vue par MynetworK")}>{tx("depuis le {0}", dateTime(net.first_seen))}{net.last_seen && <Dim> · {tx("vue le {0}", dateTime(net.last_seen))}</Dim>}{net.ping_ms != null && <Dim> · {Math.round(net.ping_ms)} ms</Dim>}</span> : undefined}</Row>
         <Row k={tx("Autres noms")}>{otherNames(m).join(", ") || undefined}</Row>
-        <Row k={tx("Virtualisation")}>{m.links?.guest || m.links?.hypervisor ? <Virt links={m.links} /> : undefined}</Row>
+        <Row k={tx("Virtualisation")}>{m.links?.guest || m.links?.hypervisor ? <Virt links={m.links} version={pve} /> : undefined}</Row>
         <Row k={tx("Vue par")}>{m.links?.sources.length ? <SeenBy links={m.links} /> : undefined}</Row>
         <Row k="TTL">{m.ttl ? <span title={tx("Durée de vie des paquets du ping : 64 Linux, 128 Windows")}>{m.ttl}</span> : undefined}</Row>
       </Section>
@@ -1293,7 +1293,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   const admin = snap.me.role === "admin";
   const detailOf = (m: Machine) => {
     const h = hb.get(m.ip);
-    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} containers={<DockerList m={m} snap={snap} />} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} />;
+    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} containers={<DockerList m={m} snap={snap} />} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} pve={snap.data.virtualization?.find((c) => c.connector === "proxmox" && c.version && (c.ip === m.ip || c.name === m.links?.hypervisor?.instance))?.version ?? undefined} />;
   };
   const [view, pickView] = useStoredView("ms.machines.view", "table");  // Tableau ou Cartes, retenu
 
@@ -1381,7 +1381,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
               const h = hb.get(m.ip);
               return (
                 <Fragment key={m.ip}>
-                  <tr className={`cursor-pointer outline-none hover:bg-bg2/60 focus-visible:bg-bg2/60 ${isOff(m) ? "opacity-50" : ""}`}
+                  <tr className={`cursor-pointer outline-none even:bg-bg/50 hover:!bg-bg2/60 focus-visible:!bg-bg2/60 [&>td]:!py-3.5 ${isOff(m) ? "opacity-50" : ""}`}
                     tabIndex={0} aria-haspopup="dialog" aria-label={tx("Détails de {0}", m.name)}
                     onClick={(e) => { if (!(e.target as Element).closest("button, a, input, select, label, summary, [role=button]")) setDetailIp(m.ip); }}
                     onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) setDetailIp(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
