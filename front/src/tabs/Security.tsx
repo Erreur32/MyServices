@@ -64,10 +64,41 @@ function FindingRow({ f, open }: Readonly<{ f: Finding; open: (s: Sub) => void }
   );
 }
 
-function Overview({ snap, findings, open }: Readonly<{ snap: Snapshot; findings: Finding[]; open: (s: Sub) => void }>) {
+/** One tile per area: its icon, how many points it holds (green when none) and a fact read from the tools; a click opens the sub-tab */
+function AreaTiles({ snap, findings, admin, open }: Readonly<{ snap: Snapshot; findings: Finding[]; admin: boolean; open: (s: Sub) => void }>) {
+  const bans24 = (snap.data.security ?? []).reduce((n, c) => n + (c.stats?.hours ?? []).reduce((a, v) => a + v, 0), 0);
+  const facts: Record<Area, string> = {
+    fail2ban: (snap.data.security ?? []).length ? tx("{0} bannissement(s) en 24 h", bans24) : tx("non relié"),
+    sites: tx("{0} site(s) exposé(s)", exposedSites(snap.data.hosts).length),
+    ssh: tx("{0} machine(s) lue(s)", snap.data.machine_list.filter((m) => !m.disabled && m.info?.sshd).length),
+    access: tx("comptes, jetons, agents"),
+    ports: tx("{0} port(s) sensible(s)", (snap.data.network ?? []).flatMap((c) => c.devices ?? []).reduce((n, d) => n + d.ports.filter((p) => SENSITIVE[p]).length, 0)),
+    certs: tx("expirations"),
+  };
+  return (
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+      {SUBS.filter((x): x is typeof x & { area: Area } => !!x.area && (admin || x.id !== "members")).map(({ id, label, icon: Icon, area }) => {
+        const mine = findings.filter((f) => f.area === area);
+        const tone = mine.some((f) => f.sev === "bad") ? "bad" : mine.length ? "warn" : "ok";
+        const color = { ok: "text-ok", warn: "text-warn", bad: "text-bad" }[tone];
+        const frame = { ok: "border-line", warn: "border-warn/50", bad: "border-bad/50" }[tone];
+        return (
+          <button key={id} type="button" onClick={() => open(id)} className={`flex flex-col gap-1 rounded-xl border bg-card px-3 py-3 text-left hover:border-link ${frame}`}>
+            <span className="flex items-center gap-2 text-sm font-semibold"><Icon size={16} className={color} aria-hidden />{label}</span>
+            <span className={`font-mono text-2xl font-bold leading-none ${color}`}>{mine.length || "OK"}</span>
+            <span className="truncate text-xs text-dim">{facts[area]}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Overview({ snap, findings, admin, open }: Readonly<{ snap: Snapshot; findings: Finding[]; admin: boolean; open: (s: Sub) => void }>) {
   return (
     <div className="flex flex-col gap-4">
       <Posture findings={findings} />
+      <AreaTiles snap={snap} findings={findings} admin={admin} open={open} />
       {findings.length > 0 && (
         <Card>
           <h2 className="mb-1 font-bold">{tx("À traiter d'abord")} <Count n={findings.length} tone="warn" /></h2>
@@ -186,7 +217,7 @@ export function Security({ snap }: Readonly<{ snap: Snapshot }>) {
   return (
     <div className="flex flex-col gap-4 py-4">
       <Menu sub={sub} pick={pick} counts={counts} admin={admin} />
-      {sub === "overview" && <Overview snap={snap} findings={findings} open={pick} />}
+      {sub === "overview" && <Overview snap={snap} findings={findings} admin={admin} open={pick} />}
       {sub === "fail2ban" && (sources.length ? <><Fail2banStats sources={sources} />{sources.map((c) => <Fail2banCard key={`${c.connector}/${c.name}`} c={c} />)}</> : <Empty>{tx("Aucun Fail2ban n'est relié : reliez LogviewR dans Réglages, Connecteurs.")}</Empty>)}
       {sub === "sites" && <SitesList snap={snap} />}
       {sub === "access" && <AccessList snap={snap} />}

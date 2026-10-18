@@ -4,6 +4,7 @@ import type { Fail2banStats as Stats, SecurityConnector } from "../types";
 import { dateTime } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { InfoNote } from "./InfoNote";
+import { ChartToggle } from "./ChartToggle";
 import { MiniBars } from "./MiniBars";
 import { Badge, Card } from "./ui";
 
@@ -121,10 +122,18 @@ export function Fail2banStats({ sources }: Readonly<{ sources: SecurityConnector
             titleOf={(i, n) => tx("{0} bannissement(s), il y a {1} j", n, 6 - i)} />
         </Card>
       </div>
-      {s.by_jail.length > 0 && <Card><h2 className="mb-3 font-bold">{tx("Par jail")}</h2><JailBars jails={s.by_jail} /></Card>}
-      {(s.by_domain ?? []).length > 0
-        ? <Card><h2 className="mb-2 font-bold">{tx("Domaines visés")}</h2><Domains rows={s.by_domain!} /></Card>
-        : s.top_ips.length > 0 && <InfoNote>{tx("Domaine visé inconnu : LogviewR doit lire les journaux de Nginx Proxy Manager ou d'Apache pour relier une adresse à un domaine.")}</InfoNote>}
+      {(s.by_jail.length > 0 || (s.by_domain ?? []).length > 0) && (
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          {s.by_jail.length > 0 && (
+            <ChartToggle title={tx("Par jail")} rows={s.by_jail.map((j) => ({ key: j.jail, label: j.jail, value: j.d7, detail: tx("{0} sur 7 jours, {1} sur 24 h", j.d7, j.d1) }))}
+              list={<JailBars jails={s.by_jail} />} />
+          )}
+          {(s.by_domain ?? []).length > 0 && (
+            <ChartToggle title={tx("Domaines visés")} rows={s.by_domain!.map((d) => ({ key: d.domain, label: d.domain, value: d.hits }))} list={<Domains rows={s.by_domain!} />} />
+          )}
+        </div>
+      )}
+      {(s.by_domain ?? []).length === 0 && s.top_ips.length > 0 && <InfoNote>{tx("Domaine visé inconnu : LogviewR doit lire les journaux de Nginx Proxy Manager ou d'Apache pour relier une adresse à un domaine.")}</InfoNote>}
       {s.top_ips.length > 0 && <Card><h2 className="mb-2 font-bold">{tx("Adresses les plus bannies")}</h2><TopIps ips={s.top_ips} /></Card>}
     </div>
   );
