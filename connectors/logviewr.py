@@ -37,6 +37,8 @@ def _body(raw: bytes, ctype: str) -> dict:
 
 IP_RE = re.compile(r"[0-9a-fA-F:.]{3,45}")
 HOST_RE = re.compile(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?")
+WEB_LOGS = ["npm", "apache"]   # the log plugins that know the domain of a request; without this filter the first 100 hits are Fail2ban's own log
+HISTORY_LIMIT = 1000           # the most LogviewR accepts for one call (it refuses more)
 DOMAIN_LOOKUPS = 8   # the most banned addresses whose logs are searched for the domain they went after
 
 
@@ -212,8 +214,8 @@ class LogviewR(Connector):
         metrics = self._tool("f2b_get_metrics")
         sources = (self._tool("log_list_sources") or {}).get("sources") or []
         try:   # a week of history for the statistics; an older LogviewR that refuses it just has no statistics
-            week = (self._tool("f2b_get_ban_history", {"days": 7, "limit": 5000}) or {}).get("events") or []
-            stats = add_domains(ban_stats(week, time.time()), lambda ip: (self._tool("log_search", {"query": ip, "maxResults": 100}) or {}).get("matches") or [])
+            week = (self._tool("f2b_get_ban_history", {"days": 7, "limit": HISTORY_LIMIT}) or {}).get("events") or []
+            stats = add_domains(ban_stats(week, time.time()), lambda ip: (self._tool("log_search", {"query": ip, "pluginIds": WEB_LOGS, "maxResults": 100}) or {}).get("matches") or [])
         except ConnectorError:
             stats = None
         bans = [{"ip": e.get("ip"), "jail": e.get("jail"), "time": e.get("timeofban"), "failures": e.get("failures")}

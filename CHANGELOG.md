@@ -15,8 +15,14 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Fixed
+
+- Fail2ban statistics were empty with LogviewR: the week of ban history was asked with a limit above the 1000 LogviewR accepts. The attacked domains were
+  never found either, because the log search was filled by Fail2ban's own log; it now looks only in the Nginx Proxy Manager and Apache logs.
+
 ### Changed
 
+- Reads of the API that run at the same time share one network call (two panels of one screen loading the same data); a write empties them.
 - Home page: the attention card is sorted into categories (machines, services, health, DNS, backups, connectors), the categories with red points first and
   the red lines before the orange ones in each; a click on a category header folds it (kept in the browser).
 

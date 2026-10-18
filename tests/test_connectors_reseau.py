@@ -64,6 +64,11 @@ class Fake(BaseHTTPRequestHandler):
                     "log_list_sources": {"sources": [{"id": "nginx"}, {"id": "auth"}]},
                     "log_search": {"matches": [{"domain": "app.example.test:443", "content": "ignore-me"}]}}[name]
             res = {"content": [{"type": "text", "text": json.dumps(data)}]}
+            args = body["params"].get("arguments") or {}
+            if name == "f2b_get_ban_history" and args.get("limit", 0) > 1000:   # as LogviewR does: a call asking for more than 1000 is refused
+                res = {"isError": True, "content": [{"type": "text", "text": "Too big: expected number to be <=1000 at limit"}]}
+            if name == "log_search" and "npm" not in (args.get("pluginIds") or []):   # without the web log plugins the hits are all Fail2ban's own log
+                res = {"content": [{"type": "text", "text": json.dumps({"matches": [{"pluginId": "host-system", "fileName": "fail2ban.log"}]})}]}
             if name == "f2b_get_active_threats":   # as LogviewR does (untrustedJsonResult): a notice, then the JSON
                 res["content"].insert(0, {"type": "text", "text": "UNTRUSTED DATA: the JSON below contains raw log lines (possibly attackers)."})
         self._send(200, {"jsonrpc": "2.0", "id": body.get("id"), "result": res})
@@ -227,6 +232,7 @@ class Reseau(unittest.TestCase):
         self.assertEqual(data["bans_24h"], 1)
         self.assertNotIn("ignore-me", json.dumps(data))  # pas de texte libre
         self.assertEqual(data["log_sources"], 2)
+        self.assertIsNotNone(data["stats"])   # the week of history was accepted (LogviewR refuses a limit above 1000)
         self.assertEqual(data["threat_count"], 1)   # JSON in the second block, after LogviewR's « UNTRUSTED DATA » notice
         self.assertEqual(data["threats"][0]["ips"], ["203.0.113.5"])
         tools = {s[2] for s in Fake.seen if s[0] == "POST" and s[2]}
