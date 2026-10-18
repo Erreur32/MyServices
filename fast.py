@@ -3,6 +3,7 @@
   MynetworK  the scanner inventory (one call): status, ping, open ports and the date of their last scan
              + the detail sheet of each followed address (one call each, every `details_every` s), once MynetworK lets API tokens read it
   Proxmox    guests and nodes by API token (hosts read by SSH are left to the collection: no extra SSH)
+  Beszel     the status (up / down / paused) of each system, matched to the followed machines: one light call
 
 The result goes to <web_dir>/live.json with the time of each reading; the page puts it over data.json, a value older than its limit
 is shown as such instead of as fresh.
@@ -33,7 +34,7 @@ def refresh(cfg: dict, path: Path, followed: list[str], prev: dict | None = None
     prev = prev or {}
     sources: dict[str, dict] = {}
     try:
-        insts = connectors.instances(cfg, kind="network") + connectors.instances(cfg, kind="virtualization")
+        insts = connectors.instances(cfg, kind="network") + connectors.instances(cfg, kind="virtualization") + connectors.instances(cfg, kind="health")
     except ConnectorError:
         insts = []
     for c in insts:
@@ -48,6 +49,10 @@ def refresh(cfg: dict, path: Path, followed: list[str], prev: dict | None = None
             else:
                 cur["details"], cur["details_at"] = old.get("details", {}), old.get("details_at")
             sources[key] = cur
+        elif c.type == "beszel":
+            systems, err = _try(lambda c=c: c._records("systems"))
+            sources[key] = {"at": now, "ok": systems is not None, "error": err,
+                            "status": _beszel_by_ip(systems, cfg) if systems is not None else old.get("status", {})}
         elif c.type == "proxmox":
             got, err = _try(c.collect)
             sources[key] = {"at": now, "ok": got is not None, "error": err, **(_guests(got) if got else {k: old.get(k, {}) for k in ("guests", "nodes")})}
@@ -59,6 +64,16 @@ def refresh(cfg: dict, path: Path, followed: list[str], prev: dict | None = None
     except OSError:
         pass   # a convenience file: a full disk must not stop the server
     return doc
+
+
+def _beszel_by_ip(systems: list[dict], cfg: dict) -> dict:
+    """{ip of a followed machine: {"status", "name"}} for the Beszel systems, matched the way the health reading matches them."""
+    from connectors.beszel import match
+    try:
+        machines = json.loads(Path(cfg["meta"]).read_text(encoding="utf-8")).get("machines", {})
+    except (OSError, ValueError, KeyError):
+        return {}
+    return {ip: {"status": s.get("status"), "name": s.get("name")} for ip, s in match(systems, machines).items()}
 
 
 def _details(c, followed: list[str], old: dict, now: float, every: float) -> tuple[dict, float | None]:

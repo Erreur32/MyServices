@@ -110,6 +110,11 @@ def link(machines: list[dict], network: list[dict] | None = None, virtualization
         if len(unlinked) < MAX_UNLINKED:
             unlinked.append({"source": source, "label": label, "instance": inst, **{k: v for k, v in ref.items() if v is not None}})
 
+    # 0. Our own agent (a PC that reports by itself): a source like the others, by its address
+    for m in machines:
+        if m.get("ip") and m.get("agent"):
+            seen(m["ip"], "agent", "Agent MyServices", "myservices", "ip")
+
     # 1. MynetworK first: it gives the MAC and the hostname that the other sources then match on
     for c in network or []:
         inst, label = c.get("name") or "", c.get("label") or "MynetworK"

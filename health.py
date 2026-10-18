@@ -1502,6 +1502,19 @@ def record_events(hosts: list[dict], prev_levels: dict, ts: str) -> None:
 
 # ───────────── Main ─────────────
 
+def awake_ips(besz: dict) -> set[str]:
+    """IPs of the machines Beszel gives as up right now."""
+    return {ip for ip, s in besz.items() if isinstance(s, dict) and s.get("status") == "up"}
+
+
+def merge_only(previous: list[dict], previous_asleep: list[dict], hosts: list[dict], asleep: list[dict], only: str) -> tuple[list[dict], list[dict]]:
+    """Result of « --only <ip> »: the machine read replaces its old row, the others keep theirs. A machine no longer read at all (switched
+    off in Settings, « often off » without an agent report...) loses its old row instead of keeping a stale « unreachable » for ever."""
+    fresh = {h["id"] for h in hosts} | {a["id"] for a in asleep}
+    return ([h for h in previous if h["id"] not in fresh and not str(h.get("name", "")).endswith(f" · {only}")] + hosts,
+            asleep + [a for a in previous_asleep if a["id"] not in fresh and a.get("ip") != only])
+
+
 def main() -> int:
     dry = "--dry-run" in sys.argv
     ts = datetime.now(timezone.utc).isoformat()
@@ -1519,10 +1532,16 @@ def main() -> int:
             previous, previous_asleep = last.get("hosts", []), last.get("asleep", [])
         except (OSError, ValueError):
             pass
-        candidates = [hc for hc in candidates if hc["ip"] == only]
     asleep = []
     apis = api_systems(meta)
-    besz, _ = beszel_systems(meta) if (not only or any(hc["target"] is None or "beszel" in source_order(hc) for hc in candidates)) else ({}, [])
+    # Beszel is read for a whole pass, or for the one machine asked for (even a « often off » one: Beszel may be telling it is up)
+    needs_beszel = any(hc["target"] is None or "beszel" in source_order(hc) for hc in candidates if not only or hc["ip"] == only)
+    besz, _ = beszel_systems(meta) if (not only or needs_beszel or only in meta.get("machines", {})) else ({}, [])
+    awake = awake_ips(besz)
+    if awake - set(agents):   # a « often off » machine that Beszel sees up is read like the others, from Beszel
+        candidates, meta = load_hosts(set(agents) | awake)
+    if only:
+        candidates = [hc for hc in candidates if hc["ip"] == only]
     for hc in candidates:
         print(f"▸ {hc['name']}...")
         h = read_host(hc, agents.get(hc["ip"]), besz.get(hc["ip"]), api=apis.get(hc["ip"]))
@@ -1536,9 +1555,7 @@ def main() -> int:
         hosts.append(h)
 
     if only:  # relevé d'une machine : elle remplace son ancienne ligne (ou s'ajoute), les autres restent telles quelles
-        fresh = {h["id"] for h in hosts} | {a["id"] for a in asleep}
-        hosts = [h for h in previous if h["id"] not in fresh] + hosts
-        asleep += [a for a in previous_asleep if a["id"] not in fresh]
+        hosts, asleep = merge_only(previous, previous_asleep, hosts, asleep, only)
     overall = worst(*(h["level"] for h in hosts))
     stats = {"timestamp": ts, "hosts": hosts, "asleep": asleep, "overall_level": overall}
     print(f"→ global={overall.upper()}")

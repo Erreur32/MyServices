@@ -55,7 +55,7 @@ export function withPulse(data: Data, p: Pulse | null): Data {
 /** Lectures légères des connecteurs (live.json, toutes les 5 min) : MynetworK (état, ports et date de leur scan), invités Proxmox par API */
 export interface Live {
   ts: number;
-  sources: Record<string, { at: number; ok: boolean; devices?: Record<string, { status: string; ping_ms: number | null; ports: number[]; ports_at: string | null }>; guests?: Record<string, string>; details?: Record<string, AddressSheet> }>;
+  sources: Record<string, { at: number; ok: boolean; devices?: Record<string, { status: string; ping_ms: number | null; ports: number[]; ports_at: string | null }>; guests?: Record<string, string>; details?: Record<string, AddressSheet>; status?: Record<string, { status: string; name: string }> }>;
 }
 const LIVE_MAX_AGE_S = 900;
 
@@ -76,7 +76,19 @@ export function withLive(data: Data, live: Live | null): Data {
     moved = true;
     return { ...row, guests: row.guests.map((g) => { const s = src.guests![`${g.node}/${g.vmid}`]; return s ? { ...g, status: s } : g; }) };
   });
-  return moved || Object.keys(sheets).length ? { ...data, network, virtualization, sheets } : data;
+  // Beszel: the red or green of its badge follows the status it gives now, not the one of the last full collection
+  const beszel = Object.entries(live.sources).filter(([k, s]) => k.startsWith("beszel/") && s.ok && s.status);
+  let machine_list = data.machine_list;
+  if (beszel.length) {
+    machine_list = data.machine_list.map((m) => {
+      const hit = beszel.map(([k, s]) => ({ inst: k.slice(7), st: s.status![m.ip] })).find((x) => x.st);
+      const src = m.links?.sources.find((x) => x.source === "beszel" && x.instance === hit?.inst);
+      if (!hit || !src || src.ok === (hit.st.status === "up")) return m;
+      moved = true;
+      return { ...m, links: { ...m.links!, sources: m.links!.sources.map((x) => (x === src ? { ...x, ok: hit.st.status === "up" } : x)) } };
+    });
+  }
+  return moved || Object.keys(sheets).length ? { ...data, machine_list, network, virtualization, sheets } : data;
 }
 
 export const loadLive = (): Promise<Live | null> => get<Live>("live.json", true).catch(() => null);

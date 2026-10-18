@@ -89,6 +89,15 @@ class Fast(unittest.TestCase):
         self.assertNotIn("freebox", compact_sheet({"freebox": {"name": "pc", "dhcp": None}}))   # a box that only knows the name: nothing to add
         self.assertEqual(compact_sheet(None), {})
 
+    def test_beszel_status_by_machine(self):
+        import tempfile
+        meta = Path(tempfile.mkdtemp()) / "meta.json"
+        meta.write_text(json.dumps({"machines": {"10.0.0.2": {"name": "Gamer32"}, "10.0.0.3": {"name": "nas"}}}), encoding="utf-8")
+        systems = [{"name": "[Win] PC Gamer32", "host": "10.0.0.2", "status": "up"}, {"name": "nas", "host": "elsewhere", "status": "down"}, {"name": "unknown", "host": "9.9.9.9", "status": "up"}]
+        got = fast._beszel_by_ip(systems, {"meta": str(meta)})
+        self.assertEqual(got, {"10.0.0.2": {"status": "up", "name": "[Win] PC Gamer32"}, "10.0.0.3": {"status": "down", "name": "nas"}})   # by address, else by name
+        self.assertEqual(fast._beszel_by_ip(systems, {"meta": str(meta) + ".none"}), {})
+
     def test_a_failing_source_keeps_its_last_reading(self):
         first = run([Net()])
         down = run([Net(devices=None)], prev=first)

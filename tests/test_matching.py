@@ -37,6 +37,15 @@ BESZEL = [{"name": "hub", "systems": [{"name": "storage.lan", "host": "nas.home"
                                       {"name": "elsewhere", "host": "10.0.0.7", "status": "down"}]}]
 
 
+class Agent(unittest.TestCase):
+    def test_our_agent_is_a_source_of_the_machine_it_reports_for(self):
+        machines = [{"ip": "192.168.1.60", "name": "pc", "agent": {"via": "agent"}}, {"ip": "192.168.1.61", "name": "other", "agent": None}]
+        got = matching.link(machines)["machines"]
+        self.assertEqual([x["source"] for x in got["192.168.1.60"]["sources"]], ["agent"])
+        self.assertEqual(got["192.168.1.60"]["sources"][0]["label"], "Agent MyServices")
+        self.assertEqual(got["192.168.1.61"]["sources"], [])
+
+
 class Gpus(unittest.TestCase):
     def test_gpuviewr_by_name(self):
         gpu = [{"connector": "gpuviewr", "name": "gv", "machines": [
