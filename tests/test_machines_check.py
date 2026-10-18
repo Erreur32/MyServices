@@ -219,6 +219,22 @@ class SshAlias(unittest.TestCase):
             self.assertIn(line, txt)
         self.assertEqual(self.conf.stat().st_mode & 0o777, 0o600)
 
+    def test_adresse_ssh_differente(self):
+        """A server reached through another address: HostName is the DNS name, and the alias is found again through the machine's settings."""
+        r = machines_admin.add_alias("192.168.1.20", "debian", 22232, host="srv.example.org")
+        self.assertEqual(r, {"alias": "m-192-168-1-20", "created": True})
+        self.assertIn("HostName srv.example.org", self.conf.read_text())
+        conf = {"srv.example.org": {"alias": "m-192-168-1-20", "port": 22232, "user": "debian"}}
+        meta = {"machines": {"192.168.1.20": {"name": "srv", "ssh": "m-192-168-1-20"}}}
+        with mock.patch.object(machines_admin.hostinfo, "ssh_config", return_value=conf), mock.patch.object(machines_admin, "_meta", return_value=meta):
+            r = machines_admin.add_alias("192.168.1.20", "debian", 2222, host="10.9.9.9")
+            self.assertEqual(r, {"alias": "m-192-168-1-20", "created": False, "updated": True})
+        txt = self.conf.read_text()
+        self.assertIn("HostName 10.9.9.9", txt)
+        self.assertIn("Port 2222", txt)
+        with self.assertRaises(machines_admin.MachineError):
+            machines_admin.add_alias("192.168.1.20", "debian", 22, host="bad host!")
+
     def test_alias_existant_repris(self):
         self.aliases["192.168.1.20"] = "nas"
         self.assertEqual(machines_admin.add_alias("192.168.1.20"), {"alias": "nas", "created": False, "updated": False})

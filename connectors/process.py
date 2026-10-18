@@ -25,8 +25,9 @@ def listening_processes(alias):
 def listening_read(alias):
     """(ports, hidden) : comme listening_processes, plus le nombre de ports en écoute dont `ss` cache le nom du process
     (compte sans root : il ne voit que ses propres process), pour dire que la lecture est partielle."""
+    # Not root on the machine: a sudoers rule for « ss -tlnpH » alone (given in the page) shows every process; without one, plain ss
     cmd = ["ss", "-tlnpH"] if alias == "local" else \
-        ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, "ss -tlnpH"]
+        ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, "sudo -n ss -tlnpH 2>/dev/null || ss -tlnpH"]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
     except subprocess.TimeoutExpired:

@@ -810,11 +810,12 @@ class AliasBody(BaseModel):
     ip: str
     user: str = "root"
     port: int = 22
+    host: str | None = None   # SSH address when it differs from the machine IP (DNS name, another network)
 
 
 @app.post(API + "/machines/ssh-alias", tags=["machines"], summary="Préparer l'accès SSH d'une machine : alias avec la clé de l'app (admin)")
 def machines_ssh_alias(body: AliasBody, request: Request):
-    return machine_call(request, "alias SSH préparé", f"{body.user}@{body.ip}:{body.port}", lambda m: m.add_alias(body.ip, body.user, body.port))
+    return machine_call(request, "alias SSH préparé", f"{body.user}@{body.ip}:{body.port}", lambda m: m.add_alias(body.ip, body.user, body.port, body.host))
 
 
 class ProbeBody(BaseModel):

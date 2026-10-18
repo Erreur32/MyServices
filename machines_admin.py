@@ -445,7 +445,7 @@ def probe_alias(ip: str, windows: bool = False) -> dict:
         ip = str(ipaddress.ip_address(ip))
     except ValueError:
         raise MachineError("IP invalide") from None
-    alias = setup.ssh_aliases().get(ip)
+    alias = _alias_for(ip)
     if not alias:
         raise MachineError("aucun accès SSH ne vise cette machine : préparer l'accès d'abord")
     m = {"name": ip, "os": "windows", "health": alias} if windows else {"name": ip, "ssh": alias}
@@ -460,7 +460,7 @@ def remove_alias(ip: str) -> dict:
         ip = str(ipaddress.ip_address(ip))
     except ValueError:
         raise MachineError("IP invalide") from None
-    alias = setup.ssh_aliases().get(ip)
+    alias = _alias_for(ip)
     if not alias or not alias.startswith("m-"):
         return {"removed": False}
     if any(alias in (c.get("ssh"), c.get("health")) for c in _meta().get("machines", {}).values()):
@@ -551,9 +551,10 @@ def _alias_port(alias: str) -> int | None:
     return int(m.group(1)) if m else 22
 
 
-def _set_alias_user(alias: str, user: str, port: int) -> bool:
-    """Compte et port d'un alias créé par la page (« m-<ip> ») changés dans la config SSH de l'app ; un alias écrit à la main n'est
-    jamais modifié. True si le fichier a changé (ex. alias créé en root par défaut pour un PC Windows, à passer au compte Windows)."""
+def _set_alias_user(alias: str, user: str, port: int, host: str | None = None) -> bool:
+    """Compte, port (et adresse, si donnée) d'un alias créé par la page (« m-<ip> ») changés dans la config SSH de l'app ; un alias
+    écrit à la main n'est jamais modifié. True si le fichier a changé (ex. alias créé en root par défaut pour un PC Windows, à passer
+    au compte Windows)."""
     if not alias.startswith("m-"):
         return False
     conf = Path(setup.SSH_CONF)
@@ -561,15 +562,17 @@ def _set_alias_user(alias: str, user: str, port: int) -> bool:
         lines = conf.read_text(encoding="utf-8").splitlines()
     except OSError:
         return False
-    out, inside, seen = [], False, {"user": False, "port": False}
+    out, inside = [], False
     for ln in lines:
         head = ln.split()
         if head[:1] == ["Host"]:
             inside = head[1:] == [alias]
         elif inside and head[:1] == ["User"]:
-            ln, seen["user"] = f"    User {user}", True
+            ln = f"    User {user}"
         elif inside and head[:1] == ["Port"]:
-            ln, seen["port"] = f"    Port {port}", True
+            ln = f"    Port {port}"
+        elif inside and host and head[:1] == ["HostName"]:
+            ln = f"    HostName {host}"
         out.append(ln)
     if out == lines:
         return False
@@ -578,9 +581,23 @@ def _set_alias_user(alias: str, user: str, port: int) -> bool:
     return True
 
 
-def add_alias(ip: str, user: str = "root", port: int = 22) -> dict:
+_ALIAS_HOST = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$")   # an IP or a DNS name (a server reached through another address, or a domain)
+
+
+def _alias_for(ip: str) -> str | None:
+    """Alias SSH of a declared machine: the one its settings name (ssh or health), when it exists in the SSH config, otherwise the first
+    alias whose HostName resolves to its IP. A machine reached through another address (HostName = a domain) is found by the first way."""
+    m = _meta().get("machines", {}).get(ip) or {}
+    named = next((x for x in (m.get("ssh"), m.get("health")) if isinstance(x, str) and x and x != "local"), None)
+    if named and any(s["alias"] == named for s in hostinfo.ssh_config().values()):
+        return named
+    return setup.ssh_aliases().get(ip)
+
+
+def add_alias(ip: str, user: str = "root", port: int = 22, host: str | None = None) -> dict:
     """Alias SSH pour une machine trouvée (clé de l'app, version Docker) : écrit un bloc « Host » dans la config SSH
-    de l'app et rend {alias, created}. Déjà un alias qui vise cette IP : il est repris, rien n'est écrit."""
+    de l'app et rend {alias, created}. Déjà un alias qui vise cette IP : il est repris (compte, port et adresse mis à jour s'il
+    a été écrit par la page). host : adresse SSH quand elle diffère de l'IP de la machine (nom DNS, autre réseau)."""
     if not setup.DOCKER:
         raise MachineError("disponible dans la version Docker (la config SSH de l'installation classique reste à la main)")
     try:
@@ -591,12 +608,15 @@ def add_alias(ip: str, user: str = "root", port: int = 22) -> dict:
         raise MachineError("compte SSH : lettres minuscules, chiffres, . _ - (32 au plus)")
     if not isinstance(port, int) or not 1 <= port <= 65535:
         raise MachineError("port SSH invalide")
-    if alias := setup.ssh_aliases().get(ip):
-        return {"alias": alias, "created": False, "updated": _set_alias_user(alias, user, port)}
+    host = (host or "").strip() or ip
+    if not _ALIAS_HOST.fullmatch(host):
+        raise MachineError("adresse SSH : une IP ou un nom DNS")
+    if alias := _alias_for(ip):
+        return {"alias": alias, "created": False, "updated": _set_alias_user(alias, user, port, host)}
     alias = "m-" + ip.replace(".", "-")
     conf = Path(setup.SSH_CONF)
     text = conf.read_text(encoding="utf-8") if conf.exists() else ""
-    block = (f"\n# Machine trouvée par la recherche réseau\nHost {alias}\n    HostName {ip}\n    User {user}\n    Port {port}\n"
+    block = (f"\n# Machine trouvée par la recherche réseau\nHost {alias}\n    HostName {host}\n    User {user}\n    Port {port}\n"
              "    IdentityFile ~/.ssh/myservices\n    IdentityFile ~/.ssh/myservices_ecdsa\n    IdentitiesOnly yes\n    StrictHostKeyChecking accept-new\n")
     conf.write_text(text + block, encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     conf.chmod(0o600)

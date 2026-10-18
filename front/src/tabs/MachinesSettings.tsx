@@ -3,10 +3,10 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
 // machine est ici ; Connecteurs ne garde que les services lus par leur API.
-import { ArrowRight, Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, Info, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, Info, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
-import { Field, NoteLine, Switch, TagInput } from "../components/form";
+import { Copyable, Field, NoteLine, Switch, TagInput } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
 import { dateTime, ipNum } from "../lib/format";
@@ -20,7 +20,7 @@ import { IconChoice } from "../components/IconChoice";
 import { IconPicker } from "../components/IconPicker";
 import { mState, osOfMachine } from "../lib/machines";
 import { AuthorizeKey } from "../components/AuthorizeKey";
-import { SshGuide } from "../components/SshGuide";
+import { KeyToAuthorize, SshParams, type CheckResult } from "../components/SshParams";
 import { SshDetails } from "../components/ssh";
 import { freeboxOf } from "../lib/freebox";
 import { SourceBadges } from "../components/SourceBadges";
@@ -822,20 +822,34 @@ function SshSwitchRow({ ctl, live, ss, proc, autoSave }: Readonly<{ ctl: SshCtl;
         </InfoNote>
       )}
       {!agentMode && sshOn && (
-        <label className={`flex items-center gap-2 text-sm ${notRoot && !proc ? "opacity-50" : ""}`} title={notRoot ? tx("Grisé : le compte SSH n'est pas root, il ne verrait pas les ports des autres comptes. Utilisez un accès root pour lire les ports en écoute.") : tx("Ports en écoute hors Docker (ss -tlnp, root requis sur la machine)")}>
-          <Switch on={proc} disabled={ss.pending === "proc" || (notRoot && !proc)} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Écoute des ports")} />
+        <label className="flex items-center gap-2 text-sm" title={tx("Ports en écoute hors Docker (ss -tlnp : root, ou une règle sudo sur la machine)")}>
+          <Switch on={proc} disabled={ss.pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Écoute des ports")} />
           <span><b>{tx("Écoute des ports")}</b> <SavedMark k="proc" s={ss} /></span>
         </label>
       )}
-      {!agentMode && sshOn && notRoot && (
-        <InfoNote tone="warn" className="basis-full">
-          <b className="text-warn">!</b> {tx("Le compte SSH est « {0} », pas root : sans root, seuls les ports de ce compte sont visibles, donc l'écoute des ports est réservée à root.", ctl.known?.user)}
-        </InfoNote>
-      )}
+      {!agentMode && sshOn && notRoot && <NotRootHint user={ctl.known?.user ?? ""} />}
       {showHelp && (
-        <button type="button" className="text-xs text-link hover:underline" onClick={() => ctl.setWinGuide(true)}>{tx("La connexion échoue ? Voir les commandes")}</button>
+        <button type="button" className="text-xs text-link hover:underline" onClick={() => ctl.setWinGuide(true)}>{tx("La connexion échoue ? Revoir les paramètres et la clé")}</button>
       )}
     </div>
+  );
+}
+
+/** SSH account that is not root: the listening ports of the other accounts need a sudo rule on the machine, given behind a discreet link */
+function NotRootHint({ user }: Readonly<{ user: string }>) {
+  const [how, setHow] = useState(false);
+  const rule = `echo '${user} ALL=(root) NOPASSWD: /usr/bin/ss -tlnpH' | sudo tee /etc/sudoers.d/myservices-ports >/dev/null && sudo chmod 440 /etc/sudoers.d/myservices-ports`;
+  return (
+    <InfoNote tone="warn" className="basis-full">
+      <b className="text-warn">!</b> {tx("Le compte SSH est « {0} », pas root : il ne voit que ses propres ports en écoute, pas ceux des autres comptes.", user)}
+      {" "}<button type="button" className="text-link hover:underline" aria-expanded={how} onClick={() => setHow(!how)}>{how ? tx("Masquer") : tx("Comment faire sur la machine ?")}</button>
+      {how && (
+        <span className="mt-2 block">
+          {tx("Sur la machine, en root (ou avec sudo), autorisez ce compte à lancer « ss -tlnpH » seul, sans mot de passe : lecture seule, rien d'autre. La collecte l'utilise au passage suivant.")}
+          <Copyable text={rule} />
+        </span>
+      )}
+    </InfoNote>
   );
 }
 
@@ -843,42 +857,50 @@ function osKind(windows: boolean, windowsGuess?: boolean): "windows" | "linux" {
   return windows || windowsGuess ? "windows" : "linux";
 }
 
-function AuthorizeHint() {
-  return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dim/50 bg-bg2/50 p-3">
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-link/15 text-link"><KeyRound size={17} aria-hidden /></span>
-      <div className="min-w-[220px] flex-1">
-        <b className="block text-sm text-txt">{tx("La clé de l'app doit être autorisée sur cette machine")}</b>
-        <span className="block text-xs leading-relaxed text-dim">{tx("L'interrupteur prépare l'accès (compte root, port 22) ; il reste à ajouter la clé publique de l'app dans authorized_keys de la machine.")}</span>
-      </div>
-      <a href="#settings/ssh" className={`${quiet} no-underline`} title={tx("Ouvre la clé publique et la commande à copier")}>
-        <KeyRound size={14} aria-hidden />{tx("Voir la clé SSH")}<ArrowRight size={14} aria-hidden />
-      </a>
-    </div>
-  );
-}
-
 function SshBody({ ctl, ip, v, setV, live, scan, windowsGuess, hasAdguard, connection, ss, autoSave, proc }: Readonly<{
   ctl: SshCtl; ip: string; v: MachineConf; setV: (v: MachineConf) => void; live?: Live; scan?: ScanInfo; windowsGuess?: boolean; hasAdguard: boolean;
   connection?: React.ReactNode; ss: SaveState; autoSave: AutoSave; proc: boolean;
 }>) {
   const windows = v.os === "windows";
+  const kind = osKind(windows, windowsGuess);
+  const [user, setUser] = useState(ctl.known?.user || "root");
+  const refused = !!live && ["refused", "nossh"].includes(mState(live));
+  const setup = ctl.winGuide;   // switch turned on without any access yet: the parameters are asked first
+  const alias = ctl.known?.alias ?? (typeof v.ssh === "string" ? v.ssh : typeof v.health === "string" ? v.health : null);
+  // The alias is written: the machine takes it (Windows: health access, Linux: ssh), then it is checked
+  const applied = async (r: { alias: string }) => {
+    ctl.setWinGuide(false);
+    if (alias !== r.alias || !ctl.sshOn) await autoSave("ssh", windows ? { health: r.alias, ssh: null } : { ssh: r.alias, health: undefined });
+    refreshMachine(ip);
+  };
   return (
     <>
         <InfoNote>
-          {ctl.agentMode ? tx("Un petit script PowerShell sur le PC envoie sa santé à MyServices : système, disques, services, processeur, mémoire, mises à jour, journal, ports en écoute.") : tx("Permet à MyServices de lire cette machine : Docker, santé, système, Apache.")} <b className="text-txt">{tx("Lecture seule")}</b>{tx(" : rien n'y est modifié.")}
-          <span className="block text-dim">{tx("Sans accès : ping et services web seulement.")}</span>
+          {ctl.agentMode ? tx("Un petit script PowerShell sur le PC envoie sa santé à MyServices : système, disques, services, processeur, mémoire, mises à jour, journal, ports en écoute.") : tx("Lecture seule par SSH avec la clé de l'app : Docker, santé, système, Apache. Sans accès : ping et services web seulement.")}
         </InfoNote>
         <SshSwitchRow ctl={ctl} live={live} ss={ss} proc={proc} autoSave={autoSave} />
         <NoteLine note={ctl.reuse} />
+        {!ctl.agentMode && (ctl.sshOn || setup) && (
+          <div className={`flex flex-col gap-3 rounded-lg border p-3 ${setup ? "border-link/60 bg-link/5" : "border-line/60 bg-bg2/70"}`}>
+            <h5 className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("Paramètres de connexion")}</h5>
+            <SshParams ip={ip} known={ctl.known} alias={alias} first={setup} onUser={setUser} defaults={{ port: live?.ssh?.port ?? scan?.sshPort ?? 22 }}
+              onApplied={applied} probe={() => send<CheckResult>("POST", `machines/settings/${ip}/check`)} />
+            <details open={setup || refused} className="group">
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+                <ChevronRight size={14} className="text-dim transition-transform group-open:rotate-90" aria-hidden />{tx("Clé de l'app à autoriser sur la machine")}
+                {refused && <Badge tone="warn">{tx("connexion refusée")}</Badge>}
+              </summary>
+              <div className="mt-2"><KeyToAuthorize user={user} kind={kind} /></div>
+            </details>
+            {setup && <button type="button" className={`${quiet} self-start`} onClick={() => ctl.setWinGuide(false)}>{tx("Annuler")}</button>}
+          </div>
+        )}
         {connection && !ctl.agentMode && (
           <div className="rounded-lg border border-line/60 bg-bg2/70 p-3">
             <h5 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("État de la connexion")}</h5>
             {connection}
           </div>
         )}
-        {ctl.winGuide && <SshGuide ip={ip} port={scan?.sshPort} user={ctl.known?.user} guess={osKind(windows, windowsGuess)} onCancel={() => ctl.setWinGuide(false)}
-          onReady={(alias) => autoSave("ssh", { os: undefined, ssh: alias, health: undefined })} />}
         {!windows && v.ssh && hasAdguard && (  // seulement si AdGuard a été trouvé sur la machine (ou déjà réglé) : sinon rien à montrer
           <div className="sm:max-w-[50%]">
             <Field label={tx("AdGuard Home trouvé (conteneur ou chemin du .yaml)")}>
@@ -886,42 +908,8 @@ function SshBody({ ctl, ip, v, setV, live, scan, windowsGuess, hasAdguard, conne
             </Field>
           </div>
         )}
-        {!windows && !ctl.agentMode && <CustomSsh ip={ip} v={v} user={ctl.known?.user || "root"} port={live?.ssh?.port ?? scan?.sshPort ?? 22} autoSave={autoSave} />}
-        <AuthorizeHint />
+        {!ctl.agentMode && !ctl.sshOn && !setup && <Dim>{tx("Allumez « Lecture par SSH » pour régler l'adresse, le port et le compte.")}</Dim>}
     </>
-  );
-}
-
-/** Custom SSH access: account and port written into the app's SSH config for this address (alias « m-<ip> »), then tested.
- *  For a server outside the local network (the network search never sees its port) or any non-standard port. */
-function CustomSsh({ ip, v, user, port, autoSave }: Readonly<{ ip: string; v: MachineConf; user: string; port: number; autoSave: AutoSave }>) {
-  const [account, setAccount] = useState(user), [portText, setPortText] = useState(String(port));
-  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
-  useEffect(() => { setAccount(user); setPortText(String(port)); }, [user, port]);
-  const apply = async () => {
-    setBusy(true);
-    await act(async () => {
-      const r = await send<{ alias: string; created: boolean; updated?: boolean }>("POST", "machines/ssh-alias", { ip, user: account.trim(), port: Number(portText) });
-      if (!r.created && !r.updated && !r.alias.startsWith("m-")) throw new Error(tx("L'accès « {0} » est écrit à la main dans la config SSH : modifiez-le là.", r.alias));
-      if (v.ssh !== r.alias) await autoSave("ssh", { ssh: r.alias });
-      refreshMachine(ip);
-    }, tx("accès SSH enregistré : test en cours"), setNote);
-    setBusy(false);
-  };
-  return (
-    <details className="group rounded-lg border border-line/60 bg-bg2/70 p-3">
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-        <ChevronRight size={14} className="text-dim transition-transform group-open:rotate-90" aria-hidden />{tx("Accès SSH personnalisé")}
-        <span className="font-normal text-dim">{tx("compte et port")}</span>
-      </summary>
-      <div className="mt-2 flex flex-wrap items-end gap-2">
-        <Field label={tx("Compte SSH")}><input className={`${input} w-40`} maxLength={32} value={account} onChange={(e) => setAccount(e.target.value)} /></Field>
-        <Field label={tx("Port SSH")}><input className={`${input} w-28`} type="number" min={1} max={65535} value={portText} onChange={(e) => setPortText(e.target.value)} /></Field>
-        <button type="button" className={primary} disabled={busy || !account.trim() || !portText} onClick={() => void apply()}>{busy ? tx("Test…") : tx("Appliquer")}</button>
-      </div>
-      <p className="mt-1.5 text-xs text-dim">{tx("Écrit le compte et le port dans la config SSH de l'application (alias créé par la page), puis teste l'accès. La clé publique de l'application doit être dans authorized_keys de ce compte.")}</p>
-      <NoteLine note={note} />
-    </details>
   );
 }
 
@@ -1185,7 +1173,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   const found = new Set([...(live?.detected ?? []), ...detected]);
   const linked = linkedConnectors(live);
   const status = sshStatus({ v, windows, windowsGuess, agent, live });
-  const known = st.aliases.find((a) => a.ip === ip);
+  const named = [v.ssh, v.health].find((x): x is string => typeof x === "string" && x !== "" && x !== "local");
+  const known = (named && st.aliases.find((a) => a.alias === named)) || st.aliases.find((a) => a.ip === ip);   // by name first: an access through another address
   const toggle = useSshToggle(ip, known, autoSave);
   const ctl: SshCtl = { agentMode: status.agentMode, sshOn: status.sshOn, foundSsh: status.foundSsh, offHint: offHintText(v.ssh, status.foundSsh), known, ...toggle };
   const submit = async (e: FormEvent) => {
