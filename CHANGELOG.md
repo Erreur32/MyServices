@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.16.1 (2026-10-18)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 
 - Backups: « Attention points » and Settings → Backups are linked both ways. Each attention point about a followed set carries the set id; its row has a small gear that opens Settings → Backups on that set (unfolded and framed). In the settings, a set listed in the attention points shows a badge with its level (late, critical, unreachable) and the texts in the tooltip, its source row shows the same badge, and the « Followed backups » heading counts the sets to check. Attention points about a machine (full disk, unreachable, Syncthing) carry the host id and have no gear.
