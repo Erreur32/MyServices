@@ -14,7 +14,8 @@ import time
 import connectors
 from connectors.base import ConnectorError
 
-TTL = 8   # s, one reading shared by every page and every viewer
+TTL = 30   # s, one reading shared by every page and every viewer (each one asks the controller behind the source)
+TTL_FAILED = 120   # s, after a failed reading: the source is left alone for a while instead of being asked again at once
 _lock = threading.Lock()
 _cache: dict = {"at": 0.0, "doc": None}
 
@@ -70,7 +71,8 @@ def read(cfg: dict, now: float | None = None) -> dict:
     """{"source": "mynetwork" | None, "devices": [...], "at": reading time, "error": text}; never raises."""
     now = time.time() if now is None else now
     with _lock:
-        if _cache["doc"] is not None and now - _cache["at"] < TTL:
+        kept = TTL if _cache["doc"] is None or _cache["doc"]["source"] else TTL_FAILED
+        if _cache["doc"] is not None and now - _cache["at"] < kept:
             return _cache["doc"]
         devices, err = _from_mynetwork(cfg)
         source = "mynetwork"

@@ -95,7 +95,7 @@ function ModeButtons({ mode, setMode }: Readonly<{ mode: Mode; setMode: (m: Mode
 export function NetworkScanStats() {
   const [mode, setMode] = useState<Mode>("live"), [doc, setDoc] = useState<StatsDoc | null>(null), [folded, setFolded] = useStoredFlag("myservices.network.scanStatsFolded", false), [all, setAll] = useState(false);
   const load = useCallback(() => { if (!folded) read<StatsDoc>(`network/stats?traffic=${mode}`).then(setDoc).catch(() => undefined); }, [mode, folded]);   // nothing is read while folded
-  usePoll(load, mode === "live" ? 10_000 : 30_000);   // the live volume follows the traffic; the rest hardly moves
+  usePoll(load, mode === "live" ? 20_000 : 30_000);   // the live volume follows the traffic; the rest hardly moves
   const scan = doc?.scan;
   if (!scan && !folded) return null;   // no MynetworK (or not readable): nothing to show ; folded: the header stays, nothing was read
   const c = scan?.counters;

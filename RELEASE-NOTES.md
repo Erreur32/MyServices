@@ -1,8 +1,8 @@
-# Release notes: MyServices 0.15.3
+# Release notes: MyServices 0.15.4
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.15.3** (18 October 2026): a safer import, settings read again after an import, a clearer SSH message and aligned machine cards.
+**0.15.4** (18 October 2026): a safer import, settings read again after an import, a clearer SSH message and aligned machine cards.
 
 ## For everyone
 
@@ -17,5 +17,5 @@
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.15.3` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit.
+- **Image**: `ghcr.io/erreur32/myservices:0.15.4` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit.
 - **Changed**: `config_transfer.apply(..., replace_app_keys)` and `protected()`; `system.reload_config` and `system.after_import`; `setup.refused_key_text`; `RoleBadges`.

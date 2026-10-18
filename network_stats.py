@@ -15,7 +15,7 @@ from connectors.base import ConnectorError
 from connectors.mynetwork import TRAFFIC_MODES
 
 TTL = 30   # s, the scan figures
-TRAFFIC_TTL = {"live": 8, "today": 60, "alltime": 300}   # s, per mode: the live volume follows the traffic, the totals hardly move
+TRAFFIC_TTL = {"live": 20, "today": 60, "alltime": 300}   # s, per mode: the live volume follows the traffic, the totals hardly move
 LIST_MAX = 10
 TRAFFIC_MAX = 50   # the route's own ceiling: the page shows the first ten and all of them in a window
 _lock = threading.Lock()

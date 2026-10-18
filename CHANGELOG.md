@@ -11,6 +11,14 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.15.4 (2026-10-18)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+
+- MynetworK was asked too often when the Network tab was open: the UniFi cards were read every 10 seconds (server pause 8 s), and each reading makes MynetworK query the UniFi controller, which could end in « timed out ». They are now read every 30 seconds (server pause 30 s), the live traffic every 20 seconds, and after a failed reading the source is left alone for 2 minutes.
+
 ## v0.15.3 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
