@@ -6,13 +6,18 @@ import { useScan } from "../lib/scan";
 
 const Orb = lazy(() => import("thinking-orbs").then((m) => ({ default: m.ThinkingOrb })));
 
+const netStep = (net: { phase?: string } | null): string => {
+  if (!net) return tx("démarrage…");
+  return net.phase === "identify" ? tx("identification des machines") : tx("recherche des machines allumées");
+};
+
 export function ScanOrb() {
   const st = useScan();
   const net = st?.network?.running ? st.network : null;
   if (!st?.running && !net) return null;
   const p = st?.running ? st.progress : null;
   const title = st?.running ? tx("Collecte en cours") : tx("Recherche réseau en cours");
-  const step = p ? `${p.step}/${p.steps} · ${p.label}` : net ? (net.phase === "identify" ? tx("identification des machines") : tx("recherche des machines allumées")) : tx("démarrage…");
+  const step = p ? `${p.step}/${p.steps} · ${p.label}` : netStep(net);
   return (
     <div className="pointer-events-none absolute inset-x-0 top-1/2 hidden -translate-y-1/2 items-center justify-center gap-3 md:flex" role="status" aria-live="polite" aria-label={`${title} : ${step}`}>
       <Suspense fallback={<span className="block h-16 w-16" aria-hidden />}><Orb state="searching" size={64} theme="auto" /></Suspense>

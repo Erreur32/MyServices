@@ -95,6 +95,23 @@ function useIsWide(): boolean {
   return wide;
 }
 
+const pageLang = (): string => (typeof document === "undefined" ? "" : document.documentElement.lang).slice(0, 2) || "en";
+
+const sourceLabel = (preview: boolean, source: string | null | undefined): string => {
+  if (preview) return tx("exemple");
+  return source === "mynetwork" ? "MynetworK" : tx("aucune source");
+};
+
+/** Pointer capture on the grabbed handle, then every move is forwarded until release. */
+function track(e: ReactPointerEvent<HTMLElement>, onMove: (ev: PointerEvent) => void) {
+  e.preventDefault();
+  const handle = e.currentTarget;
+  handle.setPointerCapture(e.pointerId);
+  const onUp = () => { handle.removeEventListener("pointermove", onMove); handle.removeEventListener("pointerup", onUp); };
+  handle.addEventListener("pointermove", onMove);
+  handle.addEventListener("pointerup", onUp);
+}
+
 export function UnifiCards() {
   const [doc, setDoc] = useState<CardsDoc | null>(null), [failed, setFailed] = useState(false);
   const [preview, setPreview] = useState(false), [cardReady, setCardReady] = useState(false), [showPanel, setShowPanel] = useState(false);
@@ -109,21 +126,12 @@ export function UnifiCards() {
   }, []);
 
   const raw = preview ? DEMO_UNIFI_DEVICES : (doc?.devices ?? NO_DEVICES);
-  const { hass, devices } = useMemo(() => createMynetworkHass(raw, (typeof document === "undefined" ? "" : document.documentElement.lang).slice(0, 2) || "en"), [raw]);
+  const { hass, devices } = useMemo(() => createMynetworkHass(raw, pageLang()), [raw]);
   const ids = useMemo(() => devices.map((d: MnDevice) => d.id), [devices]);
   const { order, spans, heights, uplinks, move, setSpan, setHeight, setUplink, reset } = useCardLayout(ids);
   const ordered = useMemo(() => applyOrder<MnDevice>(devices, order), [devices, order]);
   const wide = useIsWide(), gridRef = useRef<HTMLDivElement>(null), [dragged, setDragged] = useState<string | null>(null);
 
-  // Pointer capture on the grabbed handle, then every move is forwarded until release.
-  const track = (e: ReactPointerEvent<HTMLElement>, onMove: (ev: PointerEvent) => void) => {
-    e.preventDefault();
-    const handle = e.currentTarget;
-    handle.setPointerCapture(e.pointerId);
-    const onUp = () => { handle.removeEventListener("pointermove", onMove); handle.removeEventListener("pointerup", onUp); };
-    handle.addEventListener("pointermove", onMove);
-    handle.addEventListener("pointerup", onUp);
-  };
   const resize = (e: ReactPointerEvent<HTMLElement>, id: string, axis: "width" | "height" | "both") => {
     const card = e.currentTarget.parentElement, grid = gridRef.current, area = card?.querySelector("[data-card-area]");
     if (!card || !grid) return;
@@ -142,7 +150,7 @@ export function UnifiCards() {
     <section className="mb-4 overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
       <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
         <h3 className="font-bold">{tx("Cartes UniFi")}</h3>
-        <Badge tone={preview ? "warn" : live ? "ok" : "off"}>{preview ? tx("exemple") : doc?.source === "mynetwork" ? "MynetworK" : tx("aucune source")}</Badge>
+        <Badge tone={preview ? "warn" : live ? "ok" : "off"}>{sourceLabel(preview, doc?.source)}</Badge>
         {!noDevice && !folded && (
           <>
             <label className="flex cursor-pointer items-center gap-2 text-xs text-muted"><input type="checkbox" checked={showPanel} onChange={(e) => setShowPanel(e.target.checked)} />{tx("Vue matérielle")}</label>
@@ -164,7 +172,13 @@ export function UnifiCards() {
               <div key={d.id} className={`relative min-w-0 rounded-xl border-2 border-link/40 bg-bg shadow-lg shadow-black/20 transition-colors hover:border-link/70 ${dragged === d.id ? "opacity-50" : ""}`}
                 style={wide ? { gridColumn: `span ${clampSpan(spans[d.id] ?? DEFAULT_SPAN)}` } : undefined}
                 onDragOver={(e) => { if (dragged) e.preventDefault(); }}
-                onDrop={(e) => { e.preventDefault(); if (dragged) move(dragged, d.id); setDragged(null); }}>
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragged) {
+                    move(dragged, d.id);
+                  }
+                  setDragged(null);
+                }}>
                 <span draggable title={tx("Glisser pour changer l'ordre")} className="absolute right-3 top-3 z-10 cursor-grab text-dim hover:text-txt active:cursor-grabbing"
                   onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", d.id); setDragged(d.id); }} onDragEnd={() => setDragged(null)}>
                   <GripVertical size={18} aria-hidden />

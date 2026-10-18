@@ -142,7 +142,7 @@ type Sub = "overview" | "list" | "diagnostic";
 const SUBS: [Sub, string, LucideIcon][] = [["overview", tx("Vue d'ensemble"), LayoutDashboard], ["list", tx("Équipements et appareils"), List], ["diagnostic", tx("Diagnostic"), Stethoscope]];
 const SUB_KEY = "ms.network.sub";
 
-export function Network({ snap, onMachine, initialSub }: { snap: Snapshot; onMachine: (ip: string) => void; initialSub?: Sub }) {
+export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapshot; onMachine: (ip: string) => void; initialSub?: Sub }>) {
   const [sub, setSub] = useState<Sub>(() => { try { const v = localStorage.getItem(SUB_KEY); return initialSub ?? (v === "list" || v === "diagnostic" ? v : "overview"); } catch { return initialSub ?? "overview"; } });   // the sub-page is kept
   const pickSub = (v: Sub) => { setSub(v); try { localStorage.setItem(SUB_KEY, v); } catch { /* storage refused: the choice lasts this visit */ } };
   const cards = useMemo(() => (snap.data.services_status ?? []).filter((c) => NETWORK_CARDS.includes(c.connector)), [snap.data.services_status]);
@@ -202,12 +202,12 @@ export function Network({ snap, onMachine, initialSub }: { snap: Snapshot; onMac
         <Tile icon={Monitor} value={devAll.length ? `${devAll.filter((r) => r.up).length}/${devAll.length}` : "-"} label={unfollowed ? tx("appareils en ligne, {0} pas suivis", unfollowed) : tx("appareils en ligne")} tone={unfollowed ? "warn" : "off"} />
       </div>
 
-      <div className="inline-flex self-start rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Sous-menu du réseau")}>
+      <fieldset className="m-0 inline-flex min-w-0 self-start rounded-lg border border-line bg-card p-0.5" aria-label={tx("Sous-menu du réseau")}>
         {SUBS.map(([id, label, Icon]) => (
           <button key={id} type="button" aria-pressed={sub === id} onClick={() => pickSub(id)}
             className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold ${sub === id ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{label}</button>
         ))}
-      </div>
+      </fieldset>
 
       {sub === "overview" && (
         <>

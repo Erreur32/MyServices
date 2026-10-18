@@ -49,7 +49,7 @@ class Cards(unittest.TestCase):
         self.assertEqual(f.calls, 2)
 
     def test_no_route_gives_no_source_and_an_error_is_told(self):
-        self.assertEqual(run([Fake(None)], 100.0)["source"], None)
+        self.assertIsNone(run([Fake(None)], 100.0)["source"])
         unifi_cards.reset()
         doc = run([Fake(ConnectorError("HTTP 500"))], 100.0)
         self.assertEqual((doc["source"], doc["devices"], doc["error"]), (None, [], "HTTP 500"))

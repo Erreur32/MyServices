@@ -29,6 +29,6 @@ describe("données d'exemple des cartes UniFi", () => {
     expect(sw.ports.length).toBeGreaterThanOrEqual(9);   // the model layout may add slots the controller did not list
     const states = (hass as { states: Record<string, { state: string }> }).states;
     const link = Object.entries(states).filter(([k]) => k.includes("aabbcc000002_p") && k.endsWith("_link"));
-    expect(link.filter(([, v]) => v.state === "on").length).toBe(7);   // 7 of the 9 ports are up
+    expect(link.filter(([, v]) => v.state === "on")).toHaveLength(7);   // 7 of the 9 ports are up
   });
 });

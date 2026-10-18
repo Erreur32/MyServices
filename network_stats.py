@@ -33,20 +33,23 @@ def traffic_items(raw: list[dict]) -> list[dict]:
     """Clients of the top-traffic route reduced to {name, ip, mac, vendor, rx, tx, total, unit}. MynetworK gives, for « live », a rate in KiB/s
     (download, upload: unit « rate », returned here in bytes per second) and, for « today » and « alltime », bytes (rxBytes, txBytes: unit
     « volume »). Other usual field names are accepted too."""
-    out = []
-    for i in raw:
-        live = _num(i.get("download")) is not None or _num(i.get("upload")) is not None
-        if live:
-            rx, tx = (None if v is None else v * 1024 for v in (_num(i.get("download")), _num(i.get("upload"))))
-        else:
-            rx = _num(i.get("rxBytes"), i.get("rx_bytes"), i.get("rx"), i.get("bytes_rx"))
-            tx = _num(i.get("txBytes"), i.get("tx_bytes"), i.get("tx"), i.get("bytes_tx"))
-        total = _num(i.get("totalBytes"), i.get("total_bytes"), i.get("total"), i.get("bytes"), i.get("volume")) if not live else None
-        if total is None and (rx is not None or tx is not None):
-            total = (rx or 0) + (tx or 0)
-        out.append({"name": _text(i.get("name"), i.get("hostname"), i.get("mac")), "ip": _text(i.get("ip")), "mac": _text(i.get("mac")), "vendor": _text(i.get("vendor")),
-                    "rx": rx, "tx": tx, "total": total, "unit": "rate" if live else "volume"})
+    out = [_traffic_item(i) for i in raw]
     return sorted(out, key=lambda x: -(x["total"] or 0))
+
+
+def _traffic_item(i: dict) -> dict:
+    live = _num(i.get("download")) is not None or _num(i.get("upload")) is not None
+    total = None
+    if live:
+        rx, tx = (None if v is None else v * 1024 for v in (_num(i.get("download")), _num(i.get("upload"))))
+    else:
+        rx = _num(i.get("rxBytes"), i.get("rx_bytes"), i.get("rx"), i.get("bytes_rx"))
+        tx = _num(i.get("txBytes"), i.get("tx_bytes"), i.get("tx"), i.get("bytes_tx"))
+        total = _num(i.get("totalBytes"), i.get("total_bytes"), i.get("total"), i.get("bytes"), i.get("volume"))
+    if total is None and (rx is not None or tx is not None):
+        total = (rx or 0) + (tx or 0)
+    return {"name": _text(i.get("name"), i.get("hostname"), i.get("mac")), "ip": _text(i.get("ip")), "mac": _text(i.get("mac")), "vendor": _text(i.get("vendor")),
+            "rx": rx, "tx": tx, "total": total, "unit": "rate" if live else "volume"}
 
 
 def _scan(c) -> dict:
@@ -70,6 +73,30 @@ def _instances(cfg: dict) -> list:
         return []
 
 
+def _read_scan(cfg: dict) -> tuple[dict | None, str]:
+    """(scan, error): the first MynetworK instance that answers; the last error when none does."""
+    err = ""
+    for c in _instances(cfg):
+        try:
+            return _scan(c), err
+        except ConnectorError as e:
+            err = str(e)
+    return None, err
+
+
+def _read_traffic(cfg: dict, mode: str) -> tuple[list | None, str]:
+    """(items, error): the traffic of the first instance that has the route; the last error met on the way."""
+    err = ""
+    for c in _instances(cfg):
+        try:
+            got = c.top_traffic(mode, TRAFFIC_MAX)
+        except ConnectorError as e:
+            err = str(e)
+            continue
+        return (None if got is None else traffic_items(got)[:TRAFFIC_MAX]), err
+    return None, err
+
+
 def read(cfg: dict, traffic: str = "live", now: float | None = None) -> dict:
     """{"scan": {...} | None, "traffic": {"mode", "items"} | None, "at", "error"}; never raises. traffic: live, today or alltime.
     The scan part and each traffic mode are kept apart: the live volume is read often, the rest much less."""
@@ -79,25 +106,12 @@ def read(cfg: dict, traffic: str = "live", now: float | None = None) -> dict:
         err = ""
         hit = _cache.get("scan")
         if not hit or now - hit["at"] >= TTL:
-            scan = None
-            for c in _instances(cfg):
-                try:
-                    scan = _scan(c)
-                    break
-                except ConnectorError as e:
-                    err = str(e)
+            scan, err = _read_scan(cfg)
             hit = _cache["scan"] = {"at": now, "scan": scan, "error": err}
         tr = _cache.get(("traffic", mode))
         if not tr or now - tr["at"] >= TRAFFIC_TTL[mode]:
-            items = None
-            for c in _instances(cfg) if hit["scan"] else []:
-                try:
-                    got = c.top_traffic(mode, TRAFFIC_MAX)
-                except ConnectorError as e:
-                    err = str(e)
-                    continue
-                items = None if got is None else traffic_items(got)[:TRAFFIC_MAX]
-                break
+            items, terr = _read_traffic(cfg, mode) if hit["scan"] else (None, "")
+            err = terr or err
             tr = _cache[("traffic", mode)] = {"at": now, "items": items}
         return {"scan": hit["scan"], "traffic": None if tr["items"] is None else {"mode": mode, "items": tr["items"]}, "at": max(hit["at"], tr["at"]),
                 "error": err or hit["error"]}

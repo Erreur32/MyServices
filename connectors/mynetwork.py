@@ -152,7 +152,11 @@ class MynetworK(Connector):
         if mode not in TRAFFIC_MODES:
             return None
         got = self._get("/api/plugins/unifi/top-traffic", {"mode": mode, "limit": max(1, min(50, int(limit)))}, optional=True)
-        items = got if isinstance(got, list) else (got.get("items") or got.get("clients") or got.get("result")) if isinstance(got, dict) else None
+        items = None
+        if isinstance(got, list):
+            items = got
+        elif isinstance(got, dict):
+            items = got.get("items") or got.get("clients") or got.get("result")
         return [scrub(i) for i in items[:50] if isinstance(i, dict)] if isinstance(items, list) else None
 
     def card_devices(self) -> list[dict] | None:

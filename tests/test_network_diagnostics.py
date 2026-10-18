@@ -104,7 +104,7 @@ class OkPorts(unittest.TestCase):
         self.assertNotIn(("Gateway", 3), keys)                            # down
         self.assertNotIn(("Gateway", 2), keys)                            # has a finding
         self.assertNotIn(("Switch", 1), keys)
-        self.assertEqual(next(r for r in ok if r["device"] == "Gateway" and r["port"] == 7)["peer"], None)
+        self.assertIsNone(next(r for r in ok if r["device"] == "Gateway" and r["port"] == 7)["peer"])
         self.assertEqual(next(r for r in ok if r["device"] == "Switch" and r["port"] == 10)["peer"], "Gateway")     # the uplink names its other end
 
 
@@ -143,7 +143,7 @@ class Cards(unittest.TestCase):
         self.assertIsNone(nd.ok_ports([sw], [self.CLIENT], [], [])[0]["nic"])                       # the machine did not tell: nothing invented
         slow = nd.findings([{**SWITCH, "port_table": [port(3, speed=100, media="GE")]}], [self.CLIENT], [], machines)
         self.assertEqual(next(f for f in slow if f["kind"] == "speed")["nic"]["speed"], 100)
-        self.assertTrue(items is not None)
+        self.assertIsNotNone(items)
 
     def test_no_known_speed_means_no_finding(self):
         self.assertEqual([f for f in self.run_nic({"speed": None, "duplex": "half"}) if f["kind"] == "nic"], [])

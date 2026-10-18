@@ -22,6 +22,17 @@ interface StatsDoc {
 
 const MODES: [Mode, string][] = [["live", tx("En direct")], ["today", tx("Aujourd'hui")], ["alltime", tx("Depuis toujours")]];
 
+const pingText = (ms: number | null | undefined): string => {
+  if (ms == null) return "-";
+  return `${ms >= 10 ? Math.round(ms) : ms.toFixed(1)} ms`;
+};
+
+/** The time of an address' last reading, else the time we read MynetworK's inventory */
+const readTime = (when: number | string | null | undefined, doc: { at: number } | null): string => {
+  if (when) return dateTime(when);
+  return doc ? `${tx("lu à")} ${hm(doc.at * 1000)}` : "-";
+};
+
 function Counter({ icon: Icon, value, label, tone }: Readonly<{ icon: typeof Radar; value: number | string; label: string; tone: string }>) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-line bg-bg2/40 px-4 py-2.5">
@@ -123,9 +134,9 @@ export function NetworkScanStats() {
                 <span className="font-mono text-xs">{r.ip}</span>
                 <span className="truncate text-muted">{r.name ?? "-"}</span>
                 <span className="text-right text-xs tabular-nums text-dim" title={when ? tx("Dernier relevé de cette adresse") : tx("Heure de notre lecture de l'inventaire de MynetworK (il ne donne pas celle de la mesure)")}>
-                  {when ? dateTime(when) : doc ? `${tx("lu à")} ${hm(doc.at * 1000)}` : "-"}
+                  {readTime(when, doc)}
                 </span>
-                <b className={`w-16 text-right tabular-nums ${r.ping_ms != null && r.ping_ms >= 100 ? "text-warn" : ""}`}>{r.ping_ms == null ? "-" : `${r.ping_ms >= 10 ? Math.round(r.ping_ms) : r.ping_ms.toFixed(1)} ms`}</b>
+                <b className={`w-16 text-right tabular-nums ${r.ping_ms != null && r.ping_ms >= 100 ? "text-warn" : ""}`}>{pingText(r.ping_ms)}</b>
               </li>
             );
           })}
