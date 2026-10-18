@@ -1,20 +1,18 @@
-# Release notes: MyServices 0.15.9
+# Release notes: MyServices 0.16.0
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.15.9** (18 October 2026): the page reads only what changed, and the SSH section of a machine is redone.
+**0.16.0** (18 October 2026): the server tells the page what changed. Nothing is read at rest, and the state of a pass shows up at once.
 
 ## For everyone
 
 **What's new?**
-- **One small request at rest**: the server publishes a manifest of its produced files, and the page reads a file again only when it moved. At rest the home page makes one small request every 15 seconds instead of a dozen revalidations per minute, with the same freshness. An older server without the manifest is read as before.
-- **SSH section of a machine, redone**: one « Connection parameters » block with the SSH address (the machine's IP, or a DNS name when it is reached another way), the port, the account and « Save and test » with the result lines; the app key to authorize, with the command for the typed account, folded under it; then the connection state. The first activation opens the parameters in place.
-- **Listening ports with a non-root account**: the collection tries a sudo rule first, and the window gives the one-line rule to put on the machine behind a discreet « How to set it up on the machine? » link.
+- **Live page, zero requests at rest**: the page keeps one connection open and the server sends an event when a file was produced, when a pass starts, progresses or ends, and when a task ran. The home page, the progress bar, the schedule card and the discovery panels react to these events instead of asking again and again. If the connection drops (a proxy, a sleep), the browser reconnects by itself and the page falls back on a slow read in the meantime.
+- Also in this version line: the manifest-guided refresh (0.15.9) and the parallel connector reads (0.15.8).
 
-**Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change in your compose file.
+**Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change in your compose file. Behind a reverse proxy, server-sent events need response buffering off for `/api/v1/stream` (the response already asks for it with `X-Accel-Buffering: no`).
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.15.9` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit.
-- **Added**: `GET api/v1/manifest` (stamp of data, pulse, live, events, health and backups files); `POST machines/ssh-alias` takes `host`; `machines_admin._alias_for` finds a machine's alias through its settings.
-- **Changed**: front `loadSnapshot` keeps what it read and re-reads only the files whose stamp moved (`snapshot.test.ts`); one 15 s loop in `App.tsx`; `components/SshParams.tsx` shared by the add frame and the machine window; `connectors/process.py` runs `sudo -n ss -tlnpH || ss -tlnpH`.
+- **Image**: `ghcr.io/erreur32/myservices:0.16.0` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit.
+- **Added**: `GET api/v1/stream` (server-sent events: the current state first, then `manifest`, `status`, `tasks`, heartbeat every 25 s, `Content-Encoding: identity` so the gzip middleware leaves it alone); `live_events.py` (subscribers, watcher thread comparing the three sources every second while a stream is open); front `lib/stream.ts` shared by `App`, `ScanBar`, `ScheduleCard` and `DiscoveryCard`, with safety reads of 1 to 2 minutes while disconnected.
