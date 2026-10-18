@@ -48,6 +48,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 
+- In English, the fixed error messages, connector messages and event labels written by the server are now translated too (a message built with a value in it stays in French for now). A test fails when a new fixed message is added without its English text.
 - Security overview: a threat card (« one address attacks several services ») now names the domains those addresses went after (searched in the web logs LogviewR reads, at most 6 extra searches per reading). In the Fail2ban tab the jail, domain and address panels start folded; the choice of each visitor is remembered.
 - Security, Fail2ban: « By jail » and « Targeted domains » now sit side by side, each with a list / pie chart switch (like MynetworK's analytics). Security overview: one tile per area (points to handle, a fact, a click opens the sub-tab).
 - Security, Fail2ban: a « Biggest logs » table from LogviewR (`log_list_files`: size and date only, never the content), largest first, over 1 GB flagged. Older LogviewR versions without the tool simply show nothing.
