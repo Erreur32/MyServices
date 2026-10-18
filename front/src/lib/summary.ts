@@ -1,8 +1,8 @@
-// Accueil : ce qui demande l'attention (tous onglets confondus, trié par gravité) et un paragraphe par onglet.
+// Accueil : ce qui demande l'attention (tous onglets confondus, trié par gravité) et le paragraphe des dernières 24 h.
 // Texte en phrases, avec les noms (3 au plus, puis « … et N autres ») ; **gras** rendu par <Rich>.
 import type { Backups, Data, Event, Events, Health, HealthHost, Level } from "../types";
-import { bytes, splitHostName } from "./format";
-import { CLEANUP, certIssue, checks, dnsDown, dnsSync, hostName, status } from "./status";
+import { splitHostName } from "./format";
+import { certIssue, dnsDown, dnsSync, hostName, status } from "./status";
 import { mState } from "./machines";
 import { tx } from "./i18n";
 
@@ -13,12 +13,6 @@ export interface Attention {
   text: string;
   tab: TabId;
   href?: string;  // adresse exacte (ex. « settings/machines ») quand l'onglet ne suffit pas
-}
-
-export interface Paragraph {
-  tab: TabId;
-  title: string;
-  sentences: string[];
 }
 
 export interface Inputs {
@@ -83,10 +77,13 @@ export function attention({ data, health, backups }: Inputs): Attention[] {
     else if (l === "crit") out.push({ level: "crit", text: tx("Santé : **{0}** est en état critique{1}", machineOf(h), fullDisk(h)), tab: "machines" });
     else if (l === "warn") out.push({ level: "warn", text: tx("Santé : **{0}** est à surveiller{1}", machineOf(h), fullDisk(h)), tab: "machines" });
   }
+  const reboot = (health?.hosts || []).filter((h) => h.reboot_required).map(machineOf);
+  if (reboot.length) out.push({ level: "warn", text: tx("Redémarrage demandé sur {0}", names(reboot)), tab: "machines" });
   if (data.dns) {
     for (const n of dnsDown(data.dns)) out.push({ level: "crit", text: tx("AdGuard **{0}** ne répond pas", n), tab: "dns" });
     const s = dnsSync(data.dns, Date.parse(data.generated));
     if (s.cls !== "ok") out.push({ level: s.cls === "bad" ? "crit" : "warn", text: tx("DNS AdGuard : {0}", s.label), tab: "dns" });
+    if (data.dns.orphans.length) out.push({ level: "warn", text: tx("{0}, sans host NPM actif ({1})", plural(data.dns.orphans.length, "réécriture AdGuard orpheline", "réécritures AdGuard orphelines"), names(data.dns.orphans.map((o) => o.domain))), tab: "dns" });
   }
   for (const i of backups?.issues || [])
     out.push({ level: i.level === "warn" ? "warn" : "crit", text: tx("Sauvegarde **{0}** : {1}", i.set, i.text), tab: "backups" });
@@ -96,102 +93,4 @@ export function attention({ data, health, backups }: Inputs): Attention[] {
   for (const c of data.connectors || [])
     if (!c.ok && c.type !== "docker") out.push({ level: "warn", text: tx("Connecteur **{0}** ({1}) : {2}", c.name, c.type, short(c.message)), tab: "settings" });
   return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "crit" ? -1 : 1));
-}
-
-function servicesParagraph(data: Data): Paragraph {
-  const npm = data.hosts.filter((r) => r.type !== "local"), local = data.hosts.filter((r) => r.type === "local");
-  const by = (rows: typeof npm, cls: string) => rows.filter((r) => status(r)[0] === cls);
-  const active = npm.filter((r) => r.enabled);
-  const bad = by(npm, "bad"), warn = by(npm, "warn"), ok = by(active, "ok");
-  const fix = npm.filter((r) => checks(r).some((c) => !CLEANUP.includes(c)));
-  const cleanup = npm.filter((r) => checks(r).some((c) => CLEANUP.includes(c)));
-  const certs = npm.filter((r) => r.enabled && certIssue(r));
-  const s: string[] = [];
-  if (npm.length) {
-    s.push(tx("NPM publie {0} : {1} répondent normalement", plural(npm.length, "entrée"), ok.length)
-      + (bad.length ? tx(", {0} en panne ({1})", bad.length, names(bad.map(hostName))) : "")
-      + (warn.length ? tx(", {0} ({1})", plural(warn.length, "avertissement"), names(warn.map(hostName))) : "")
-      + (npm.length - active.length ? tx(", {0} désactivées", npm.length - active.length) : "") + ".");
-    if (certs.length) s.push(tx("{0} à renouveler bientôt ou invalide{1} : {2}.", plural(certs.length, "certificat"), certs.length > 1 ? "s" : "", names(certs.map(hostName))));
-    if (fix.length || cleanup.length)
-      s.push(tx("À corriger : {0} (accès, SSL, DNS…)", plural(fix.length, "entrée")) + (cleanup.length ? tx(" ; à nettoyer : {0} (désactivées dont le service est mort, ou en pause).", cleanup.length) : "."));
-  }
-  if (local.length) {
-    const down = by(local, "bad");
-    s.push(tx("{0} en accès direct sur le réseau local", plural(local.length, "service")) + (down.length ? tx(", dont {0} injoignable{1} ({2}).", down.length, down.length > 1 ? "s" : "", names(down.map(hostName))) : tx(", tous joignables.")));
-  }
-  return { tab: "services", title: tx("Services"), sentences: s };
-}
-
-function machinesParagraph(data: Data, health?: Health | null): Paragraph {
-  const ms = data.machine_list.filter((m) => !m.disabled);
-  const off = ms.filter((m) => m.off), down = ms.filter((m) => !m.off && !m.ping), up = ms.filter((m) => !m.off && m.ping);
-  const s = [tx("{0} : {1} en ligne", plural(ms.length, "machine"), up.length)
-    + (down.length ? tx(", {0} hors ligne ({1})", down.length, names(down.map((m) => m.name))) : "")
-    + (off.length ? tx(", {0} éteinte{1} volontairement ({2})", off.length, off.length > 1 ? "s" : "", names(off.map((m) => m.name))) : "") + "."];
-  const unreachable = (data.connectors || []).filter((c) => c.type === "docker" && !c.ok);
-  if (unreachable.length) s.push(tx("Docker illisible sur {0} : leurs conteneurs ne sont pas à jour.", names(unreachable.map((c) => c.name))));
-  if (health) s.push(...healthSentences(health));   // la santé n'a plus de page : son résumé est ici, avec les machines
-  return { tab: "machines", title: tx("Machines"), sentences: s };
-}
-
-function healthSentences(h: Health): string[] {
-  const at = (l: string) => h.hosts.filter((x) => healthLevel(x) === l).map(machineOf);
-  const warn = at("warn"), crit = at("crit"), down = at("down"), reboot = h.hosts.filter((x) => x.reboot_required).map(machineOf);
-  const ok = h.hosts.length - warn.length - crit.length - down.length;
-  const s = [tx("{0} : {1} sans alerte", plural(h.hosts.length, "machine relevée", "machines relevées"), ok)
-    + (warn.length ? tx(", {0} à surveiller ({1})", warn.length, names(warn)) : "")
-    + (crit.length ? tx(", {0} en état critique ({1})", crit.length, names(crit)) : "")
-    + (down.length ? tx(", {0} injoignable{1} ({2})", down.length, down.length > 1 ? "s" : "", names(down)) : "") + "."];
-  if (reboot.length) s.push(tx("Redémarrage demandé sur {0}.", names(reboot)));
-  return s;
-}
-
-function dnsParagraph(data: Data): Paragraph | null {
-  const g = data.dns;
-  if (!g) return null;
-  const srv = Object.values(g.servers), rows = data.hosts.filter((r) => r.dns && r.enabled);
-  const bad = rows.filter((r) => r.dns!.issues.length);
-  const rw = [...new Set(srv.map((x) => x.rewrites))].join(" / ");
-  const s = [tx("{0} AdGuard ({1}), {2} réécritures ; {3}.", plural(srv.length, "instance"), srv.map((x) => x.name).join(", "), rw, dnsSync(g, Date.parse(data.generated)).label),
-    tx("{0} domaines NPM sur {1} résolvent correctement", rows.length - bad.length, rows.length)
-      + (bad.length ? tx(" ; à vérifier : {0}.", names(bad.map(hostName))) : ".")];
-  if (g.orphans.length) s.push(tx("{0}, sans host NPM actif ({1}).", plural(g.orphans.length, "réécriture orpheline", "réécritures orphelines"), names(g.orphans.map((o) => o.domain))));
-  return { tab: "dns", title: tx("DNS"), sentences: s };
-}
-
-function backupsParagraph(b: Backups): Paragraph {
-  const m = b.summary;
-  const s = [tx("{0} de sauvegarde sur {1}, {2} de sources : {3} à jour", plural(m.sets, "jeu", "jeux"), plural(m.hosts, "machine"), bytes(m.volume), m.ok)
-    + (m.warn ? tx(", {0} en retard", m.warn) : "") + (m.crit ? tx(", {0} critique{1}", m.crit, m.crit > 1 ? "s" : "") : "") + "."];
-  if (m.no_offsite) s.push(tx("{0} sans aucune copie hors de sa machine.", plural(m.no_offsite, "jeu", "jeux")));
-  return { tab: "backups", title: tx("Sauvegardes"), sentences: s };
-}
-
-function eventTime(e: Event): number {
-  if (e.ts) return new Date(e.ts).getTime();
-  return e.at ? new Date(e.at.replace(" ", "T")).getTime() : Number.NaN;
-}
-
-function historyParagraph(events: Event[], labels: Record<string, string>, now: number): Paragraph {
-  const recent = events.filter((e) => now - eventTime(e) < 86400e3);
-  if (!recent.length) return { tab: "history", title: tx("Dernières 24 h"), sentences: [tx("Aucun événement : rien n'est tombé, rien n'a changé.")] };
-  const kinds = new Map<string, string[]>();
-  for (const e of recent) kinds.set(e.kind, [...(kinds.get(e.kind) || []), e.label || e.machine || "?"]);
-  const parts = [...kinds].sort((a, b) => b[1].length - a[1].length)
-    .map(([k, who]) => `${who.length} × ${(labels[k] || k).replace(/^\S+\s/, "").toLowerCase()} (${names([...new Set(who)])})`);
-  return { tab: "history", title: tx("Dernières 24 h"), sentences: [tx("{0} :", plural(recent.length, "événement")), ...parts] };  // en liste : une ligne par type
-}
-
-/** Paragraphes dans l'ordre des onglets ; un onglet sans données n'en a pas. */
-export function paragraphs(i: Inputs): Paragraph[] {
-  const now = i.now ?? Date.now();
-  const out: (Paragraph | null)[] = [
-    historyParagraph(i.events || [], i.labels || {}, now),
-    machinesParagraph(i.data, i.health),
-    servicesParagraph(i.data),
-    dnsParagraph(i.data),
-    i.backups ? backupsParagraph(i.backups) : null,
-  ];
-  return out.filter((p): p is Paragraph => !!p && p.sentences.length > 0);
 }
