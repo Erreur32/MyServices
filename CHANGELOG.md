@@ -50,6 +50,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   health every 2 hours (was 6), backups checked 4 times a day (was 2); the "data is late" threshold drops from 75 to 45 minutes. `install.sh` follows.
 - Header: one text per scan (the orb from the medium width up, the bar below), titled by scan type (collection or network search).
 - A box or a gateway (Freebox, router) is no longer reported as "without SSH" or "SSH refused": it has its own state, "Network equipment" (home page, counters, machine window).
+- UniFi cards: the "See an example" button is gone, and the badge next to the title says what happens (MynetworK, unavailable with the reason in its tooltip, or unreadable) instead of "no source".
 - Network tab: the sub-menu is now at the top and the counters show on the first sub-page only.
 - Settings: Discovery is first in the Monitoring group and Notifications last.
 - SonarCloud cleanup of the 0.14.0 code (diagnostic and statistics functions split, no nested ternaries, read-only props).
