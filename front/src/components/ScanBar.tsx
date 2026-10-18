@@ -48,7 +48,7 @@ export function ScanBar({ onFinished }: { onFinished: () => void }) {
   if (!st?.running && !net) return null;
   const p = st?.running ? st.progress : null;
   const pct = p ? Math.round(fraction(p) * 100) : net ? netPercent(net) : null;
-  const title = net && !st?.running ? tx("Découverte") : tx("Recherche réseau en cours");
+  const title = st?.running ? tx("Collecte en cours") : tx("Recherche réseau en cours");
   const label = p ? `${p.label}${p.total ? ` (${p.done ?? 0}/${p.total})` : ""}`
     : net ? (net.phase === "identify" ? tx("identification : {0}/{1} machines (nom, ports ouverts)", net.described, net.up)
                                       : tx("recherche des machines allumées : {0}/{1} adresses", net.done, net.total)) : tx("démarrage…");
@@ -58,7 +58,7 @@ export function ScanBar({ onFinished }: { onFinished: () => void }) {
       <div className="h-1 w-full bg-line/60">
         {pct === null ? <div className="scan-wait h-full" /> : <div className="scan-fill h-full rounded-r-full" style={{ width: `${pct}%` }}><span className="scan-head" aria-hidden /></div>}
       </div>
-      <div className="mx-auto mt-1.5 hidden w-fit max-w-[60vw] items-center gap-2 truncate rounded-full border border-line bg-card/90 px-3 py-0.5 text-xs text-muted shadow-sm backdrop-blur sm:flex">
+      <div className="mx-auto mt-1.5 hidden w-fit max-w-[60vw] items-center gap-2 truncate rounded-full border border-line bg-card/90 px-3 py-0.5 text-xs text-muted shadow-sm backdrop-blur sm:flex md:hidden">
         <span className="font-semibold text-txt">{title}</span>
         {p && <span className="tabular-nums text-dim">{p.step}/{p.steps}</span>}
         <span className="truncate">{label}</span>
