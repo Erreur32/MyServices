@@ -626,12 +626,12 @@ function OptionGroup({ title, hint, tone, children }: { title: string; hint?: st
 }
 
 /** Une catégorie d'accès (SSH, agent, connecteurs) : titre, état à droite, contenu en dessous ; pliable (fold) */
-function AccessCategory({ icon: Icon, title, badge, fold, children }: Readonly<{ icon: typeof KeyRound; title: string; badge?: React.ReactNode; fold?: boolean; children: React.ReactNode }>) {
+function AccessCategory({ icon: Icon, title, badge, fold, open, children }: Readonly<{ icon: typeof KeyRound; title: string; badge?: React.ReactNode; fold?: boolean; open?: boolean; children: React.ReactNode }>) {
   const head = <><Icon size={16} className="text-link" aria-hidden />{title}{badge && <span className="ml-auto">{badge}</span>}</>;
   const cls = "rounded-2xl border border-dim/50 border-l-2 border-l-link bg-bg2/30 p-4 shadow-sm";
   if (fold) {
     return (
-      <details className={`group ${cls}`}>
+      <details open={open} className={`group ${cls}`}>
         <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-bold [&::-webkit-details-marker]:hidden">
           <ChevronRight size={14} className="text-dim transition-transform group-open:rotate-90" aria-hidden />{head}
         </summary>
@@ -956,8 +956,42 @@ function SshBody({ ctl, ip, v, setV, live, scan, windowsGuess, hasAdguard, conne
             </Field>
           </div>
         )}
+        {!windows && !ctl.agentMode && <CustomSsh ip={ip} v={v} user={ctl.known?.user || "root"} port={live?.ssh?.port ?? scan?.sshPort ?? 22} autoSave={autoSave} />}
         <AuthorizeHint />
     </>
+  );
+}
+
+/** Custom SSH access: account and port written into the app's SSH config for this address (alias « m-<ip> »), then tested.
+ *  For a server outside the local network (the network search never sees its port) or any non-standard port. */
+function CustomSsh({ ip, v, user, port, autoSave }: Readonly<{ ip: string; v: MachineConf; user: string; port: number; autoSave: AutoSave }>) {
+  const [account, setAccount] = useState(user), [portText, setPortText] = useState(String(port));
+  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
+  useEffect(() => { setAccount(user); setPortText(String(port)); }, [user, port]);
+  const apply = async () => {
+    setBusy(true);
+    await act(async () => {
+      const r = await send<{ alias: string; created: boolean; updated?: boolean }>("POST", "machines/ssh-alias", { ip, user: account.trim(), port: Number(portText) });
+      if (!r.created && !r.updated && !r.alias.startsWith("m-")) throw new Error(tx("L'accès « {0} » est écrit à la main dans la config SSH : modifiez-le là.", r.alias));
+      if (v.ssh !== r.alias) await autoSave("ssh", { ssh: r.alias });
+      refreshMachine(ip);
+    }, tx("accès SSH enregistré : test en cours"), setNote);
+    setBusy(false);
+  };
+  return (
+    <details className="group rounded-lg border border-line/60 bg-bg2/70 p-3">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+        <ChevronRight size={14} className="text-dim transition-transform group-open:rotate-90" aria-hidden />{tx("Accès SSH personnalisé")}
+        <span className="font-normal text-dim">{tx("compte et port")}</span>
+      </summary>
+      <div className="mt-2 flex flex-wrap items-end gap-2">
+        <Field label={tx("Compte SSH")}><input className={`${input} w-40`} maxLength={32} value={account} onChange={(e) => setAccount(e.target.value)} /></Field>
+        <Field label={tx("Port SSH")}><input className={`${input} w-28`} type="number" min={1} max={65535} value={portText} onChange={(e) => setPortText(e.target.value)} /></Field>
+        <button type="button" className={primary} disabled={busy || !account.trim() || !portText} onClick={() => void apply()}>{busy ? tx("Test…") : tx("Appliquer")}</button>
+      </div>
+      <p className="mt-1.5 text-xs text-dim">{tx("Écrit le compte et le port dans la config SSH de l'application (alias créé par la page), puis teste l'accès. La clé publique de l'application doit être dans authorized_keys de ce compte.")}</p>
+      <NoteLine note={note} />
+    </details>
   );
 }
 
@@ -1012,8 +1046,8 @@ function ConnectorsBody({ linked }: Readonly<{ linked: Linked }>) {
 }
 
 /** L'accès d'une machine en trois catégories distinctes : SSH, agent, connecteurs (dans la fenêtre) ; à l'ajout, une seule section comme avant */
-function AccessTab({ tabbed, agentMode, sshBody, agentBody, connectorsBody, sshSummary, agentSummary, connectorSummary }: Readonly<{
-  tabbed?: boolean; agentMode: boolean; sshBody: React.ReactNode; agentBody: React.ReactNode; connectorsBody: React.ReactNode;
+function AccessTab({ tabbed, agentMode, sshBody, agentBody, connectorsBody, sshSummary, agentSummary, connectorSummary, agentActive, connectorsActive }: Readonly<{
+  tabbed?: boolean; agentActive: boolean; connectorsActive: boolean; agentMode: boolean; sshBody: React.ReactNode; agentBody: React.ReactNode; connectorsBody: React.ReactNode;
   sshSummary: React.ReactNode; agentSummary: React.ReactNode; connectorSummary: React.ReactNode;
 }>) {
   if (!tabbed) return <AccessCategory icon={KeyRound} title={tx("Sources de lecture")}>{sshBody}</AccessCategory>;
@@ -1031,8 +1065,8 @@ function AccessTab({ tabbed, agentMode, sshBody, agentBody, connectorsBody, sshS
       <AccessCategory fold icon={KeyRound} title="SSH" badge={sshSummary}>
         {agentMode ? <p className="text-sm text-muted">{tx("Cette machine est lue par son agent, sans SSH.")}</p> : sshBody}
       </AccessCategory>
-      <AccessCategory fold icon={MonitorUp} title={tx("Agent")} badge={agentSummary}>{agentBody}</AccessCategory>
-      <AccessCategory fold icon={Plug} title={tx("Connecteurs")} badge={connectorSummary}>{connectorsBody}</AccessCategory>
+      <AccessCategory fold open={agentActive} icon={MonitorUp} title={tx("Agent")} badge={agentSummary}>{agentBody}</AccessCategory>
+      <AccessCategory fold open={connectorsActive} icon={Plug} title={tx("Connecteurs")} badge={connectorSummary}>{connectorsBody}</AccessCategory>
     </>
   );
 }
@@ -1241,7 +1275,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
       {tabbed && <TabBar tab={tab} setTab={setTab} />}
-      {show("access") && <AccessTab tabbed={tabbed} agentMode={status.agentMode} sshBody={sshBody} agentBody={agentBody} connectorsBody={<ConnectorsBody linked={linked} />}
+      {show("access") && <AccessTab tabbed={tabbed} agentActive={!!agent && agent.state !== "révoqué"} connectorsActive={linked.length > 0} agentMode={status.agentMode} sshBody={sshBody} agentBody={agentBody} connectorsBody={<ConnectorsBody linked={linked} />}
         sshSummary={<SshSummary sshOn={status.sshOn} agentMode={status.agentMode} refused={status.refusedSsh} />} agentSummary={<AgentSummary agent={agent} />} connectorSummary={<ConnectorSummary linked={linked} />} />}
       {show("identity") && <IdentityTab v={v} setV={setV} isNew={isNew} live={live} scan={scan} found={found} ss={ss} autoSave={autoSave} savedProc={savedProc} />}
       {show("options") && <OptionsTab ctx={flagCtx} proc={proc} windows={windows} menu={menu} />}
