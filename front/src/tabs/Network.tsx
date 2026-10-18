@@ -1,7 +1,7 @@
 // Réseau : accès Internet (Freebox, pare-feu, test de débit), équipements (UniFi), clients par borne ou switch, et appareils trouvés sur le réseau
 // (MynetworK). Une barre de recherche et des filtres communs (type, état, suivi, borne ou switch, fabricant, source), comme les autres onglets.
 // Affiché seulement quand une de ces sources répond ou a déjà répondu. Lecture seule.
-import { ArrowUpCircle, Cable, ChevronDown, ChevronRight, LayoutDashboard, List, Monitor, Router, Wifi, type LucideIcon } from "lucide-react";
+import { ArrowUpCircle, Cable, ChevronDown, ChevronRight, LayoutDashboard, List, Monitor, Router, Stethoscope, Wifi, type LucideIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { dur } from "../lib/format";
@@ -13,6 +13,7 @@ import { Badge, Cards, Count, Dim, Empty, FilterBar, Table, Td, Th } from "../co
 import { quiet } from "../lib/forms";
 import { Dot } from "../components/marks";
 import { ServiceCard } from "../components/ServiceStatusCards";
+import { NetworkDiagnostic } from "./NetworkDiagnostic";
 import { NetworkScanStats } from "./NetworkScanStats";
 import { UnifiCards } from "./UnifiCards";
 
@@ -137,12 +138,13 @@ function MachineLink({ r, onMachine }: { r: Row; onMachine: (ip: string) => void
     : <Dim>{tx("pas suivie")}</Dim>;
 }
 
-const SUBS: ["overview" | "list", string, LucideIcon][] = [["overview", tx("Vue d'ensemble"), LayoutDashboard], ["list", tx("Équipements et appareils"), List]];
+type Sub = "overview" | "list" | "diagnostic";
+const SUBS: [Sub, string, LucideIcon][] = [["overview", tx("Vue d'ensemble"), LayoutDashboard], ["list", tx("Équipements et appareils"), List], ["diagnostic", tx("Diagnostic"), Stethoscope]];
 const SUB_KEY = "ms.network.sub";
 
-export function Network({ snap, onMachine, initialSub }: { snap: Snapshot; onMachine: (ip: string) => void; initialSub?: "overview" | "list" }) {
-  const [sub, setSub] = useState<"overview" | "list">(() => { try { return initialSub ?? (localStorage.getItem(SUB_KEY) === "list" ? "list" : "overview"); } catch { return initialSub ?? "overview"; } });   // the sub-page is kept
-  const pickSub = (v: "overview" | "list") => { setSub(v); try { localStorage.setItem(SUB_KEY, v); } catch { /* storage refused: the choice lasts this visit */ } };
+export function Network({ snap, onMachine, initialSub }: { snap: Snapshot; onMachine: (ip: string) => void; initialSub?: Sub }) {
+  const [sub, setSub] = useState<Sub>(() => { try { const v = localStorage.getItem(SUB_KEY); return initialSub ?? (v === "list" || v === "diagnostic" ? v : "overview"); } catch { return initialSub ?? "overview"; } });   // the sub-page is kept
+  const pickSub = (v: Sub) => { setSub(v); try { localStorage.setItem(SUB_KEY, v); } catch { /* storage refused: the choice lasts this visit */ } };
   const cards = useMemo(() => (snap.data.services_status ?? []).filter((c) => NETWORK_CARDS.includes(c.connector)), [snap.data.services_status]);
   const rows = useMemo(() => buildRows(snap, cards), [snap, cards]);
   const facets = useMemo<Facet<Row>[]>(() => [
@@ -214,6 +216,8 @@ export function Network({ snap, onMachine, initialSub }: { snap: Snapshot; onMac
         <UnifiCards />
         </>
       )}
+
+      {sub === "diagnostic" && <NetworkDiagnostic />}
 
       {sub === "list" && (
         <>

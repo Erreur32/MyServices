@@ -31,6 +31,12 @@ echo "##GPU $(lspci 2>/dev/null | grep -E -i 'vga compatible|3d controller|displ
 echo "##ESXI $(vmware -v 2>/dev/null)"
 echo "##PVE $( [ -d /etc/pve ] && command -v pvesh >/dev/null 2>&1 && echo yes || echo no)"
 echo "##HV $(for t in virsh incus lxc VBoxManage; do command -v $t >/dev/null 2>&1 && printf '%s ' $t; done)"
+for n in /sys/class/net/*; do   # physical wired interfaces: negotiated speed and duplex (sysfs), what the card can do (ethtool, when installed)
+  i=${n##*/}; [ -e "$n/device" ] && [ ! -d "$n/wireless" ] && [ "$i" != lo ] || continue
+  sp=$(cat "$n/speed" 2>/dev/null); dp=$(cat "$n/duplex" 2>/dev/null); st=$(cat "$n/operstate" 2>/dev/null); mac=$(cat "$n/address" 2>/dev/null)
+  mx=$(ethtool "$i" 2>/dev/null | awk '/Supported link modes/{f=1} /Supported pause/{f=0} f' | grep -o '[0-9]\+base' | tr -d 'base' | sort -n | tail -1)
+  echo "##NIC $i ${mac:--} ${st:--} ${sp:--} ${dp:--} ${mx:--}"
+done
 echo "##NPM $(docker ps --format '{{.Image}}' 2>/dev/null | grep -c nginx-proxy-manager)"
 echo "##LISTEN $(grep -h -E -i '^[[:space:]]*Listen[[:space:]]' /etc/apache2/ports.conf 2>/dev/null | awk '{print $2}' | sort -u | paste -sd' ')"
 for f in /etc/apache2/sites-enabled/*.conf; do
@@ -256,6 +262,18 @@ def parse_nginx(text: str) -> tuple[list[dict], list[str]]:
     return out, unreadable
 
 
+def parse_nics(raw: str) -> list[dict]:
+    """The « ##NIC name mac state speed duplex max » lines -> [{name, mac, up, speed (Mb/s), duplex, max (Mb/s)}]; a speed the kernel does not know
+    (link down: -1) or a missing figure is None."""
+    out = []
+    for m in re.finditer(r"^##NIC (\S+) (\S+) (\S+) (\S+) (\S+) (\S+)$", raw, re.M):
+        name, mac, state, speed, duplex, mx = m.groups()
+        num = lambda v: int(v) if v.isdigit() else None   # noqa: E731
+        out.append({"name": name, "mac": mac.lower() if re.fullmatch(r"([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}", mac) else None, "up": state == "up",
+                    "speed": num(speed), "duplex": duplex if duplex in ("full", "half") else None, "max": num(mx)})
+    return out[:8]
+
+
 def host_info(alias: str) -> dict | None:
     """Infos d'une machine : 1 commande SSH (ou locale). None si injoignable."""
     cmd = ["bash", "-c", REMOTE] if alias == "local" else \
@@ -292,6 +310,7 @@ def host_info(alias: str) -> dict | None:
         "proxmox": tag.get("PVE") == "yes",
         "esxi": tag.get("ESXI", "").startswith("VMware ESXi"),  # VMware ESXi host: its VMs and datastores are read by vim-cmd  # Proxmox VE host: its guests and storages are read by pvesh at each collection
         "hypervisors": [t for t in tag.get("HV", "").split() if t in ("virsh", "incus", "lxc", "VBoxManage")],  # other hypervisors read by virt_ssh.py
+        "nics": parse_nics(r.stdout),  # wired network cards: negotiated speed / duplex, and the maximum when ethtool says it
         "gpus": parse_gpus(tag.get("GPU", "")),  # lspci: the graphics adapters (iGPU included), names only, no load
         "sshd": sshd,  # vide si /etc/ssh/sshd_config illisible pour ce compte
         "vhosts": vhosts,

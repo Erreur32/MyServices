@@ -1,11 +1,12 @@
 // Cartes UniFi (onglet Réseau) : face avant réaliste des switches, passerelles et bornes (ports, vitesse, PoE, trafic en direct), d'après le
 // composant unifi-device-card (MIT, copie dans src/vendor). Les données viennent de GET unifi/cards (MynetworK) ; l'agencement (ordre, largeur,
 // hauteur, port d'uplink choisi) est gardé dans ce navigateur. Lecture seule.
-import { ChevronDown, ChevronUp, GripVertical, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronUp, GripVertical, Network, RotateCcw, Router, Wifi, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { read } from "../api";
 import { Badge, Dim, Empty } from "../components/ui";
 import { input, quiet } from "../lib/forms";
+import { appIcon, modelIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
 import { usePoll } from "../lib/polling";
 import { useStoredFlag } from "../lib/storedFlag";
@@ -38,6 +39,8 @@ const THEME_VARS: Record<string, string> = {
   "--udc-port-size": "26px",   // smaller than the 36 px default: several cards side by side
   "--udc-ap-scale": "0.45",
 };
+
+const TYPE_ICON: Record<MnDevice["type"], [LucideIcon, string]> = { gateway: [Router, tx("Passerelle")], switch: [Network, tx("Switch")], access_point: [Wifi, tx("Borne Wi-Fi")] };
 
 type CardElement = HTMLElement & { setConfig: (c: Record<string, unknown>) => void; hass: unknown };
 
@@ -167,6 +170,7 @@ export function UnifiCards() {
                   <GripVertical size={18} aria-hidden />
                 </span>
                 <div className="flex flex-wrap items-center gap-2 rounded-t-[10px] border-b border-line bg-bg2 px-4 py-2.5 pr-10">
+                  {(() => { const logo = d.type === "access_point" ? modelIcon(d.model) ?? appIcon(["unifi"]) : appIcon(["unifi"]); return logo ? <img src={logo} alt="UniFi" title="UniFi" className="h-6 w-6 shrink-0 object-contain" /> : null; })()}
                   <b>{d.name}</b>
                   {d.type !== "access_point" && d.ports.length > 0 && (
                     <label className="flex items-center gap-1 rounded border border-link/60 bg-bg2 px-2 py-0.5 text-xs text-muted">{tx("Uplink")}
@@ -180,7 +184,7 @@ export function UnifiCards() {
                 </div>
                 <div className="flex flex-wrap gap-1.5 px-4 pb-1 pt-3 text-xs">
                   <Badge tone="off">{tx("Modèle")} : {d.model}</Badge>
-                  <Badge tone="off">{d.type}</Badge>
+                  <Badge tone="off">{(() => { const [Icon, label] = TYPE_ICON[d.type]; return <><Icon size={12} aria-hidden />{label}</>; })()}</Badge>
                   <Badge tone={d.exact ? "ok" : "warn"} title={d.exact ? d.modelKey ?? "" : tx("Pas de face avant dédiée à ce modèle : une face générique est dessinée")}>{d.exact ? tx("face avant dédiée") : tx("face générique")}</Badge>
                   <Badge tone="off">{tx("{0} port(s)", d.portCount)}</Badge>
                 </div>

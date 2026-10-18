@@ -22,6 +22,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Network tab: a **"Network scan"** frame read through MynetworK: counters (its own from 0.11.2, else counted from its inventory), addresses offline
   with their last reading, worst latencies, and the data volume per client (live in bits per second with a download / upload arrow, today, all time;
   from MynetworK 0.11.2). Foldable.
+- Network tab, **Diagnostic** sub-page: ports that negotiated below their maximum (from the port type: 100 Mb/s, 1, 2.5, 10 Gb/s; two UniFi devices linked
+  together are judged at the slower end), a device or a WAN link down, firmware updates, overloaded or hot devices, devices restarted a few minutes ago,
+  an access point linked by radio, weak Wi-Fi signals, an address seen with two MAC addresses, high latencies. The machines' own network cards are checked
+  too (half duplex, forced speed, card negotiating below what it can do or differently from its switch port): read over SSH (sysfs, `ethtool` when
+  installed) and by the Windows agent (`Get-NetAdapter`, read-only).
 - An address-sheet and Beszel-status overlay on the Machines tab, and the pulse follow-ups of 0.13.0.
 
 ### Fixed

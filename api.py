@@ -814,6 +814,22 @@ def network_stats(traffic: str = "live"):
     return ns.read(core.CFG, traffic)
 
 
+@app.get(API + "/network/diagnostics", tags=["réseau"], summary="Problèmes possibles du réseau : ports négociés sous leur maximum, équipements hors ligne…")
+def network_diagnostics_route():
+    import network_diagnostics as nd
+    import unifi_cards as uc
+    doc = uc.read(core.CFG)
+    data = read_produced("data.json") or {}
+    clients = [c for row in data.get("network") or [] for c in ((row.get("unifi") or {}).get("clients") or [])]
+    import fast
+    live = {ip: d for src in (fast.read(core.WEB / "live.json").get("sources") or {}).values() for ip, d in (src.get("devices") or {}).items()}   # fresher than data.json
+    scan = [{**d, **{k: live[d["ip"]][k] for k in ("status", "ping_ms") if k in live.get(d["ip"], {})}} for row in data.get("network") or [] for d in row.get("devices") or [] if d.get("ip")]
+    machines = [{"name": m.get("name"), "ip": m.get("ip"), "nics": ((m.get("info") or {}).get("nics")) or (((m.get("agent") or {}).get("hardware") or {}).get("nics")) or []}
+                for m in data.get("machine_list") or [] if not m.get("disabled")]
+    items = nd.findings(doc["devices"], clients, scan, machines)
+    return {"source": doc["source"], "at": doc["at"], "error": doc["error"], "devices": len(doc["devices"]), "summary": nd.summary(items), "findings": items}
+
+
 class LiveChecks(BaseModel):
     pulse_every: int | None = None
     pulse_confirm: int | None = None

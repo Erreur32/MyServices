@@ -523,6 +523,7 @@ try{$h.bios=[string](Get-CimInstance Win32_BIOS|Select-Object -First 1).SMBIOSBI
 try{$h.cpu=[string]($p|Select-Object -First 1).Name;$h.cc=($p|Measure-Object NumberOfCores -Sum).Sum;$h.cl=$o.ncpu}catch{}
 try{$h.gpu=@(Get-CimInstance Win32_VideoController|?{$_.Name}|Select-Object -First 4|%{@{n=[string]$_.Name;r=$(if($_.CurrentHorizontalResolution){'{0}x{1}' -f $_.CurrentHorizontalResolution,$_.CurrentVerticalResolution}else{''})}})}catch{}
 try{$h.net=@(Get-CimInstance Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=True'|?{$_.IPAddress}|Select-Object -First 8|%{$d=$_.Description;@($_.IPAddress|?{$_ -match '^\d+\.\d+\.\d+\.\d+$'}|%{@{n=[string]$d;ip=[string]$_}})})}catch{}
+try{$h.nic=@(Get-NetAdapter -Physical -ErrorAction Stop|?{$_.Status -eq 'Up'}|Select-Object -First 6|%{$a=$_;$sd=$null;try{$sd=(Get-NetAdapterAdvancedProperty -Name $a.Name -RegistryKeyword '*SpeedDuplex' -ErrorAction Stop).DisplayValue}catch{};@{n=[string]$a.Name;mac=[string]$a.MacAddress;sp=[int64]$a.Speed;fd=[bool]$a.FullDuplex;sd=[string]$sd}})}catch{}
 try{$q=Get-HotFix|Where-Object{$_.InstalledOn}|Sort-Object InstalledOn -Descending|Select-Object -First 1;if($q){$h.wu=$q.InstalledOn.ToString('yyyy-MM-dd')}}catch{}
 try{$o.sv=@(Get-CimInstance Win32_Service -Filter "State='Running'"|Select-Object -First 300|%{@{n=[string]$_.Name;d=[string]$_.DisplayName}})}catch{}
 try{if(Get-Command docker.exe -ErrorAction Stop){$l=@(& docker.exe ps -a --format '{{.Names}}|{{.Image}}|{{.Ports}}|{{.Status}}|{{.Networks}}' 2>$null);if($LASTEXITCODE -eq 0){$o.dk=@($l|Select-Object -First 200|%{[string]$_})}}}catch{}
@@ -564,7 +565,10 @@ def hardware_of_raw(hw) -> dict | None:
            "ram_gb": round(_pos(hw, "ram"), 1) if _pos(hw, "ram") else None, "domain": _txt(hw, "dom"), "last_update": _txt(hw, "wu", 20),
            "gpu": [{"name": _txt(g, "n"), "res": _txt(g, "r", 20)} for g in items("gpu", 4) if _txt(g, "n")],
            "net": [{"name": _txt(n, "n"), "ip": _txt(n, "ip", 15)} for n in items("net", 8)
-                   if _txt(n, "n") and re.fullmatch(r"\d{1,3}(\.\d{1,3}){3}", _txt(n, "ip") or "")]}
+                   if _txt(n, "n") and re.fullmatch(r"\d{1,3}(\.\d{1,3}){3}", _txt(n, "ip") or "")],
+           # wired cards that are up: negotiated speed (Mb/s), duplex, and the « Speed & Duplex » setting ("Auto Negotiation" or a forced value)
+           "nics": [{"name": _txt(n, "n"), "mac": (_txt(n, "mac", 17) or "").lower().replace("-", ":") or None, "speed": round(_pos(n, "sp") / 1_000_000) if _pos(n, "sp") else None,
+                     "full_duplex": bool(n.get("fd")), "setting": _txt(n, "sd", 60)} for n in items("nic", 6) if _txt(n, "n")]}
     return out if any(out.values()) else None
 
 
