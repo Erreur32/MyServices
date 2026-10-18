@@ -1,5 +1,5 @@
 // Lecture des fichiers produits par les tâches et de l'API v1 (même origine, cookie de session).
-import type { Backups, Data, Event, Events, Health, Me, StoredEvent } from "./types";
+import type { AddressSheet, Backups, Data, Event, Events, Health, Me, StoredEvent } from "./types";
 import { tx } from "./lib/i18n";
 
 export const ROOT = "/";   // the app is served at the root of the site (before 0.10.2: /myservices/)
@@ -55,7 +55,7 @@ export function withPulse(data: Data, p: Pulse | null): Data {
 /** Lectures légères des connecteurs (live.json, toutes les 5 min) : MynetworK (état, ports et date de leur scan), invités Proxmox par API */
 export interface Live {
   ts: number;
-  sources: Record<string, { at: number; ok: boolean; devices?: Record<string, { status: string; ping_ms: number | null; ports: number[]; ports_at: string | null }>; guests?: Record<string, string> }>;
+  sources: Record<string, { at: number; ok: boolean; devices?: Record<string, { status: string; ping_ms: number | null; ports: number[]; ports_at: string | null }>; guests?: Record<string, string>; details?: Record<string, AddressSheet> }>;
 }
 const LIVE_MAX_AGE_S = 900;
 
@@ -63,6 +63,7 @@ const LIVE_MAX_AGE_S = 900;
 export function withLive(data: Data, live: Live | null): Data {
   if (!live || Date.now() / 1000 - live.ts > LIVE_MAX_AGE_S) return data;
   let moved = false;
+  const sheets = Object.values(live.sources).reduce<Record<string, AddressSheet>>((all, s) => (s.ok ? { ...all, ...s.details } : all), {});
   const network = data.network?.map((row) => {
     const src = live.sources[`${row.connector}/${row.name}`];
     if (row.connector !== "mynetwork" || !src?.ok || !src.devices) return row;
@@ -75,7 +76,7 @@ export function withLive(data: Data, live: Live | null): Data {
     moved = true;
     return { ...row, guests: row.guests.map((g) => { const s = src.guests![`${g.node}/${g.vmid}`]; return s ? { ...g, status: s } : g; }) };
   });
-  return moved ? { ...data, network, virtualization } : data;
+  return moved || Object.keys(sheets).length ? { ...data, network, virtualization, sheets } : data;
 }
 
 export const loadLive = (): Promise<Live | null> => get<Live>("live.json", true).catch(() => null);

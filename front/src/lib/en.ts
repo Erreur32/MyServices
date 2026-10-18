@@ -2424,4 +2424,12 @@ export const EN: Record<string, string> = {
   "Lecture légère de MynetworK (état, ports) et de Proxmox par API, entre deux collectes. 0 = coupé.": "Light read of MynetworK (status, ports) and of Proxmox by API, between two collections. 0 = off.",
   "Vérifications en direct": "Live checks",
   "Ping de chaque machine et lectures légères des connecteurs, entre deux collectes : les changements se voient en quelques secondes.": "A ping of every machine and light connector reads, between two collections: changes show within seconds.",
+  "switch": "switch",
+  "filaire": "wired",
+  "Branchement": "Plugged into",
+  "Nom dans UniFi": "Name in UniFi",
+  "Bail de la Freebox": "Freebox lease",
+  "Redirections de ports": "Port redirections",
+  "réservation fixe": "fixed reservation",
+  "adresse attribuée": "assigned address",
 };

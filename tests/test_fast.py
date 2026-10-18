@@ -64,13 +64,30 @@ class Fast(unittest.TestCase):
         self.assertEqual(doc["sources"]["mynetwork/mynetwork"]["details"], {})
 
     def test_details_are_kept_between_two_periods(self):
-        net = Net(sheet={"scan": {"status": "online"}})
+        net = Net(sheet={"scanner": {"status": "online", "pingLatency": 0.6, "openPorts": [{"port": 445, "protocol": "tcp"}], "lastPortScan": "2026-10-17T22:00:00Z"}})
         first = run([net], now=1000.0)
         second = run([net], prev=first, now=1100.0, details_every=900)
         self.assertEqual(net.asked, ["10.0.0.2"])   # not asked again before the period is over
-        self.assertEqual(second["sources"]["mynetwork/mynetwork"]["details"]["10.0.0.2"], {"scan": {"status": "online"}})
+        self.assertEqual(second["sources"]["mynetwork/mynetwork"]["details"]["10.0.0.2"], {"scan": {"status": "online", "ping_ms": 0.6, "ports": [445], "ports_at": "2026-10-17T22:00:00Z"}})
         run([net], prev=second, now=2100.0, details_every=900)
         self.assertEqual(len(net.asked), 2)
+
+    def test_compact_sheet_of_the_real_shape(self):
+        from connectors.mynetwork import compact_sheet
+        raw = {"ip": "10.0.0.2", "scanner": {"status": "online", "pingLatency": 0.64, "openPorts": [{"port": 445, "protocol": "tcp"}, {"port": 135, "protocol": "tcp"}], "lastPortScan": "t"},
+               "freebox": None,
+               "unifi": {"device": {"name": "Pc"}, "client": {"name": "Pc", "is_wired": True, "is_wireless": False, "ap_name": "Switch", "sw_port": 3},
+                         "switch": {"name": "Switch", "ip": "10.0.0.4", "model": "USW"}, "ap": None}}
+        got = compact_sheet(raw)
+        self.assertEqual(got["scan"], {"status": "online", "ping_ms": 0.64, "ports": [135, 445], "ports_at": "t"})
+        self.assertEqual(got["unifi"], {"name": "Pc", "wired": True, "wireless": False, "switch_name": "Switch", "switch_ip": "10.0.0.4", "switch_model": "USW", "switch_port": 3})
+        self.assertNotIn("freebox", got)   # nothing from the Freebox: left out
+        wifi = compact_sheet({"unifi": {"client": {"name": "Phone", "is_wired": False, "is_wireless": True, "ap_name": "Salon", "sw_port": 9}, "ap": {"name": "Salon", "model": "U6"}}})
+        self.assertEqual(wifi["unifi"], {"name": "Phone", "wired": False, "wireless": True, "ap_name": "Salon", "ap_model": "U6"})   # no switch port for Wi-Fi
+        fb = compact_sheet({"freebox": {"dhcp": {"ip": "10.0.0.2", "static": True}, "portForwarding": [{"lan_port": 22}], "name": "pc", "active": True, "apiKey": "x"}})
+        self.assertEqual(fb["freebox"], {"dhcp": {"ip": "10.0.0.2", "static": True}, "forwards": [{"lan_port": 22}], "name": "pc", "active": True})
+        self.assertNotIn("freebox", compact_sheet({"freebox": {"name": "pc", "dhcp": None}}))   # a box that only knows the name: nothing to add
+        self.assertEqual(compact_sheet(None), {})
 
     def test_a_failing_source_keeps_its_last_reading(self):
         first = run([Net()])

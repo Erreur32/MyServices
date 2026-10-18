@@ -45,6 +45,28 @@ def scrub(obj: object, depth: int = 0) -> object:
     return obj
 
 
+def compact_sheet(raw: object) -> dict:
+    """The detail sheet of an address reduced to what the page shows (MynetworK 0.10.74+): scanner reading, where UniFi sees it plugged,
+    the Freebox lease and port redirections. Fields it does not have are left out."""
+    if not isinstance(raw, dict):
+        return {}
+    sc, un = raw.get("scanner") or {}, raw.get("unifi") or {}
+    cl, sw, ap, dev = (un.get(k) or {} for k in ("client", "switch", "ap", "device"))
+    ports = sorted({p if isinstance(p, int) else p.get("port") for p in sc.get("openPorts") or []
+                    if isinstance(p, int) or (isinstance(p, dict) and isinstance(p.get("port"), int))})
+    wired = cl.get("is_wired")
+    unifi = {"name": cl.get("name") or dev.get("name"), "wired": wired, "wireless": cl.get("is_wireless"),
+             "switch_name": sw.get("name"), "switch_ip": sw.get("ip"), "switch_model": sw.get("model"), "switch_port": cl.get("sw_port") if wired else None,
+             "ap_name": (ap.get("name") or cl.get("ap_name")) if wired is False else None, "ap_model": ap.get("model") if wired is False else None}
+    fb = raw.get("freebox") if isinstance(raw.get("freebox"), dict) else {}
+    out = {"scan": {"status": sc.get("status"), "ping_ms": sc.get("pingLatency"), "ports": ports, "ports_at": sc.get("lastPortScan")} if sc else None,
+           "unifi": {k: v for k, v in unifi.items() if v not in (None, "")} or None,
+           "freebox": {"dhcp": fb.get("dhcp"), "forwards": fb.get("portForwarding"), "name": fb.get("name"), "active": fb.get("active"), "type": fb.get("type")}
+           if fb.get("dhcp") or fb.get("portForwarding") else None}
+    out["freebox"] = {k: v for k, v in (out["freebox"] or {}).items() if v not in (None, "", [])} or None
+    return {k: v for k, v in out.items() if v}
+
+
 GATEWAY_KEYS = ("version", "upgradable", "upgrade_to_firmware", "lan_ip", "uptime", "cpu_pct", "mem_pct", "mem_total", "mem_used", "temperature")
 SYSTEM_KEYS = ("version", "previous_version", "update_available", "update_downloaded", "name", "hostname", "uptime", "console_version")
 
@@ -149,7 +171,7 @@ class MynetworK(Connector):
         gear = self._get("/api/plugins/unifi/devices", {"limit": PAGE}, optional=True)
         if isinstance(clients, list) or isinstance(gear, list):
             out["unifi"] = {
-                "clients": [{k: c.get(k) for k in ("name", "mac", "ip", "wired", "essid", "signal_dbm", "ap_mac", "switch_mac", "switch_port")}
+                "clients": [{k: c.get(k) for k in ("name", "mac", "ip", "wired", "essid", "signal_dbm", "ap_mac", "switch_mac", "switch_port", "switch_name", "switch_ip")}
                             for c in clients or [] if isinstance(c, dict)],
                 # upgradable / upgrade_to_firmware: kept when MynetworK passes them on from UniFi (the update waiting for a device)
                 "devices": [{k: d.get(k) for k in ("name", "model", "type", "mac", "ip", "state", "version", "clients", "uptime", "cpu_pct", "mem_pct",

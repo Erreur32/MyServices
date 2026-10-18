@@ -15,6 +15,7 @@ from pathlib import Path
 
 import connectors
 from connectors.base import ConnectorError
+from connectors.mynetwork import compact_sheet
 
 PORTS_MAX_AGE = 3600   # s, a port list older than this is called old (its scan date, not the time we read it)
 
@@ -70,7 +71,7 @@ def _details(c, followed: list[str], old: dict, now: float, every: float) -> tup
         if sheet is None and not out:
             return {}, now   # closed (or MynetworK too old): not asked again for every address, nor before the next period
         if sheet is not None:
-            out[ip] = sheet
+            out[ip] = compact_sheet(sheet)
     return out, now
 
 

@@ -252,6 +252,7 @@ export interface Data {
   security?: SecurityConnector[];
   containers?: ContainersConnector[];
   virtualization?: VirtualizationConnector[];
+  sheets?: Record<string, AddressSheet>;   // address -> sheet, from the fast reads (live.json), not from data.json
   hosts: Host[];
   dns?: Dns;
   machine_list: Machine[];
@@ -637,6 +638,12 @@ export interface SystemState {
 
 /** Connecteurs d'infrastructure : état de l'instance, puis les données propres à chaque type (data.json) */
 export interface InfraConnector { connector: string; name: string; label: string; ok: boolean; stale: boolean; message: string; version?: string | null; url?: string | null }
+/** Fiche d'une adresse lue par MynetworK (ip-details, 0.10.74+) : scanner, où UniFi la voit branchée, bail et redirections de la Freebox */
+export interface AddressSheet {
+  scan?: { status?: string; ping_ms?: number | null; ports: number[]; ports_at?: string | null };
+  unifi?: { name?: string; wired?: boolean; wireless?: boolean; switch_name?: string; switch_ip?: string; switch_model?: string; switch_port?: number; ap_name?: string; ap_model?: string };
+  freebox?: { dhcp?: { ip?: string; hostname?: string; mac?: string; static?: boolean }; forwards?: Record<string, unknown>[]; name?: string; active?: boolean; type?: string };
+}
 export interface NetDevice { ip: string; mac?: string | null; hostname?: string | null; vendor?: string | null; status: string; ping_ms?: number | null; first_seen?: string | null; last_seen?: string | null; ports: number[]; ports_at?: string | null }
 /** MynetworK : inventaire du réseau (scanner, UniFi) */
 export interface NetworkConnector extends InfraConnector {
