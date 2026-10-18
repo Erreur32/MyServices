@@ -1,6 +1,6 @@
 // Profil (tout compte, admin ou lecture seule) : apparence de la page, changer son mot de passe, voir ses sessions ouvertes, fermer celles des autres appareils.
 // Affiché par #profile (menu du compte), hors des onglets et des Réglages : un compte en lecture seule n'a pas accès aux Réglages.
-import { ImagePlus, KeyRound, LogOut, Mail, MonitorSmartphone, Trash2 } from "lucide-react";
+import { ImagePlus, KeyRound, LogOut, Mail, MonitorSmartphone, Send, Trash2 } from "lucide-react";
 import { Avatar, setAvatarVersion } from "../components/Avatar";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
@@ -26,7 +26,7 @@ export function Profile({ username, role, email, avatar, look }: Readonly<{ user
         </div>
       </header>
       <div className="grid items-start gap-4 lg:grid-cols-2">
-        <div className="flex flex-col gap-4"><MyAvatar username={username} initial={avatar} /><MyEmail initial={email} /><MyPassword /><Sessions /></div>
+        <div className="flex flex-col gap-4"><MyAvatar username={username} initial={avatar} /><MyEmail initial={email} admin={role === "admin"} /><MyPassword /><Sessions /></div>
         <section aria-label={tx("Apparence")}><h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-widest text-dim">{tx("Apparence")}</h2><Appearance look={look} /></section>
       </div>
     </div>
@@ -138,7 +138,7 @@ function MyAvatar({ username, initial }: Readonly<{ username: string; initial: s
 }
 
 /** Address that receives the link of « Forgot your password? » on the sign-in page */
-function MyEmail({ initial }: Readonly<{ initial: string }>) {
+function MyEmail({ initial, admin }: Readonly<{ initial: string; admin: boolean }>) {
   const [email, setEmail] = useState(initial), [saved, setSaved] = useState(initial);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const submit = async (e: { preventDefault: () => void }) => {
@@ -148,6 +148,11 @@ function MyEmail({ initial }: Readonly<{ initial: string }>) {
     setBusy(false);
     if (ok) setSaved(email.trim());
   };
+  const test = async () => {
+    setBusy(true);
+    await act(() => send("POST", "system/mail/test"), tx("e-mail de test envoyé : regardez votre boîte (et les indésirables)"), setNote);
+    setBusy(false);
+  };
   return (
     <Card>
       <h2 className="mb-3 flex items-center gap-2 font-bold"><Mail size={16} aria-hidden />{tx("Mon adresse e-mail")}</h2>
@@ -155,7 +160,12 @@ function MyEmail({ initial }: Readonly<{ initial: string }>) {
         <Field label={tx("Adresse e-mail")}>
           <input className={input} type="email" autoComplete="email" maxLength={254} value={email} placeholder="nom@exemple.fr" onChange={(e) => setEmail(e.target.value)} />
         </Field>
-        <div><button type="submit" className={primary} disabled={busy || email.trim() === saved}><Mail size={14} />{tx("Enregistrer")}</button></div>
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" className={primary} disabled={busy || email.trim() === saved}><Mail size={14} aria-hidden />{tx("Enregistrer")}</button>
+          {admin && saved !== "" && (
+            <button type="button" className={quiet} disabled={busy} onClick={() => void test()} title={tx("Envoie un message à cette adresse pour vérifier que l'envoi fonctionne")}><Send size={14} aria-hidden />{tx("Envoyer un e-mail de test")}</button>
+          )}
+        </div>
         <p className="text-xs text-dim">{tx("Sert seulement à recevoir un lien si vous oubliez votre mot de passe (« Mot de passe oublié ? » sur la page de connexion).")}</p>
       </form>
       <NoteLine note={note} />

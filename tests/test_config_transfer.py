@@ -157,8 +157,22 @@ class Import(Base):
         data = ct.export_config(self.places)
         got = ct.preview(data, self.target())
         self.assertEqual([p["id"] for p in got["parts"]], ["settings", "machines", "backups", "decisions", "accounts", "secrets", "ssh"])
-        self.assertEqual(got["secrets"], {"with_archive_key": "ok", "with_current_key": "unreadable"})
+        self.assertEqual(got["secrets"], {"with_archive_key": "ok", "with_current_key": "unreadable", "swap_unsafe": False})
         self.assertTrue(next(p for p in got["parts"] if p["id"] == "ssh")["sensitive"])
+
+    def test_importing_only_the_key_would_lock_the_current_settings_out(self):
+        data = ct.export_config(self.places, ["secrets"])
+        out = self.target()
+        (out.config / "secret.key").write_bytes(make_key())
+        (out.config / "config.json").write_text(json.dumps({"smtp_password": encrypted(out.config.joinpath("secret.key").read_bytes(), "pw")}))
+        self.assertTrue(ct.preview(data, out)["secrets"]["swap_unsafe"])
+        with self.assertRaises(ct.TransferError):
+            ct.apply(data, ["secrets"], out)
+        self.assertEqual(ct.apply(ct.export_config(self.places, ["settings", "secrets"]), ["settings", "secrets"], out)["written"], ["config.json", "secret.key"])
+
+    def test_preview_flags_the_part_that_needs_the_key(self):
+        got = ct.preview(ct.export_config(self.places, ["settings", "machines", "secrets"]), self.target())
+        self.assertEqual({p["id"]: p["needs_key"] for p in got["parts"]}, {"settings": True, "machines": False, "secrets": False})
 
     def test_part_missing_from_the_archive_is_refused(self):
         data = ct.export_config(self.places, ["machines"])

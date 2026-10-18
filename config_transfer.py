@@ -308,6 +308,17 @@ def settings_status(files: dict[str, bytes], selected: list[str], places: Places
     return secrets_status(files["config.json"], key)
 
 
+def key_swap_unsafe(files: dict[str, bytes], selected: list[str], places: Places) -> bool:
+    """True when the imported key would replace this installation's key while the current config.json (left as it is) holds secrets it cannot open."""
+    if "secrets" not in selected or "settings" in selected or "secret.key" not in files:
+        return False
+    try:
+        current = (places.config / "config.json").read_bytes()
+    except OSError:
+        return False
+    return secrets_status(current, files["secret.key"]) == "unreadable"
+
+
 def preview(data: bytes, places: Places) -> dict:
     """What an archive holds, part by part, and what would not work; nothing is written."""
     files, manifest, ignored = read_archive(data)
@@ -318,10 +329,12 @@ def preview(data: bytes, places: Places) -> dict:
         if names:
             facts = db_facts(files[DB_REL])[1] if part == "accounts" else {}
             parts.append({"id": part, "files": names, "bytes": sum(len(files[n]) for n in names), "sensitive": part in SENSITIVE, "facts": facts,
-                          "problems": [bad[n] for n in names if n in bad], "exists_here": part in here})
+                          "problems": [bad[n] for n in names if n in bad], "exists_here": part in here,
+                          "needs_key": part == "settings" and secrets_status(files["config.json"], None) != "none"})
     every = [p["id"] for p in parts]
     return {"manifest": {k: manifest.get(k) for k in ("format", "app", "created")}, "parts": parts, "ignored": ignored[:20],
-            "secrets": {"with_archive_key": settings_status(files, every, places), "with_current_key": settings_status(files, [p for p in every if p != "secrets"], places)}}
+            "secrets": {"with_archive_key": settings_status(files, every, places), "with_current_key": settings_status(files, [p for p in every if p != "secrets"], places),
+                        "swap_unsafe": key_swap_unsafe(files, ["secrets"], places)}}
 
 
 def _keep_copy(target: Path) -> bool:
@@ -383,6 +396,8 @@ def apply(data: bytes, selected: list[str], places: Places) -> dict:
         raise TransferError("; ".join(bad.values()))
     if settings_status(files, chosen, places) == "unreadable":
         raise TransferError("les mots de passe de config.json ne sont lisibles avec aucune clé disponible : importer aussi la partie « secrets » (secret.key)")
+    if key_swap_unsafe(files, chosen, places):
+        raise TransferError("remplacer la clé sans reprendre aussi les réglages de l'archive rendrait illisibles les mots de passe actuels : cocher aussi « Réglages et connecteurs »")
     written, kept = [], []
     for rel in sorted(todo):
         had = _restore_db(todo[rel], places.db) if rel == DB_REL else _write_file(disk_path(rel, places), todo[rel], rel.startswith("ssh/"))

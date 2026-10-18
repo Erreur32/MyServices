@@ -20,6 +20,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   as `<name>.avant-import`, and importing settings or the key asks for a restart. New routes `GET /system/config-parts`, `POST /system/export`
   (now takes `parts`), `POST /system/import/preview` and `POST /system/import`.
 
+- **E-mail in one field**: Settings -> E-mail asks only for the host's mail relay (postfix, sendmail, exim… reached on port 25, the container's gateway is
+  suggested); the sender and the page address are worked out, and the full SMTP form stays under "Advanced settings". Readable errors when the relay
+  refuses or does not answer. The profile has a "Send a test e-mail" button for admins.
+- Import: the parts that need the encryption key are flagged, and importing the key alone (which would lock the current passwords out) is refused.
+
 ### Changed
 
 - Settings -> Tasks and schedules redesigned: a header with the scheduler heartbeat and a live summary, three grouped cards with dark title bands

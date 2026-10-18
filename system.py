@@ -367,13 +367,19 @@ def api_config_dir() -> Path:
     return Path(os.environ.get("MYSERVICES_CONFIG", "/config/config.json")).parent
 
 
+def _host_relay() -> str:
+    """Where the host's mail relay (postfix, sendmail…) is reached from the container: the default gateway of the container is the host."""
+    import hostinfo
+    return hostinfo.default_gateway() or ""
+
+
 def mail_settings(core) -> dict:
     """Settings → System → E-mail, without the password (only whether it is set)."""
     import mailer
     c = core.CFG
     return {"host": c.get("smtp_host") or "", "port": int(c.get("smtp_port") or 587), "security": c.get("smtp_security") or "starttls",
             "user": c.get("smtp_user") or "", "password_set": bool(c.get("smtp_password")), "from": c.get("smtp_from") or "",
-            "page_url": c.get("page_url") or "", "ready": mailer.ready(c)}
+            "page_url": c.get("page_url") or "", "ready": mailer.ready(c), "suggested_host": _host_relay()}
 
 
 def _check_mail(security: str, port: int, page_url: str, sender: str) -> None:

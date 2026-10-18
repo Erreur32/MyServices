@@ -23,8 +23,8 @@ const SENSITIVE: PartId[] = ["accounts", "secrets", "ssh"];
 const ALL: PartId[] = PARTS.map((p) => p.id);
 
 interface Available { parts: { id: PartId; files: string[]; sensitive: boolean }[] }
-interface PreviewPart { id: PartId; files: string[]; bytes: number; sensitive: boolean; facts: { users?: number; events?: number }; problems: string[]; exists_here: boolean }
-interface Preview { manifest: { format?: number; app?: string; created?: number }; parts: PreviewPart[]; ignored: string[]; secrets: { with_archive_key: string; with_current_key: string } }
+interface PreviewPart { needs_key?: boolean; id: PartId; files: string[]; bytes: number; sensitive: boolean; facts: { users?: number; events?: number }; problems: string[]; exists_here: boolean }
+interface Preview { manifest: { format?: number; app?: string; created?: number }; parts: PreviewPart[]; ignored: string[]; secrets: { with_archive_key: string; with_current_key: string; swap_unsafe: boolean } }
 interface Applied { written: string[]; kept: string[]; restart: boolean; relogin: boolean }
 
 /** A file as base64, in chunks (a spread of the whole array would overflow the call stack) */
@@ -110,6 +110,7 @@ function PreviewSummary({ pv }: Readonly<{ pv: Preview }>) {
 
 /** Why the chosen parts would not work together, in plain words (the server refuses it as well) */
 function keyWarning(pv: Preview, picked: PartId[]): string | null {
+  if (picked.includes("secrets") && !picked.includes("settings") && pv.secrets.swap_unsafe) return tx("Remplacer la clé sans reprendre aussi « Réglages et connecteurs » rendrait illisibles les mots de passe actuels de cette installation : cochez aussi les réglages.");
   if (!picked.includes("settings")) return null;
   const hasKey = pv.parts.some((p) => p.id === "secrets");
   if (picked.includes("secrets")) return pv.secrets.with_archive_key === "unreadable" ? tx("La clé de l'archive n'ouvre pas les mots de passe de ses réglages.") : null;
@@ -159,7 +160,7 @@ function ImportCard() {
               const info = PARTS.find((x) => x.id === p.id)!;
               return (
                 <PartCheck key={p.id} part={info} checked={picked.includes(p.id)} disabled={p.problems.length > 0} onChange={(on) => toggle(p.id, on)}
-                  extra={<><Dim>{p.facts.users === undefined ? tx("{0} fichier(s), {1}", p.files.length, bytes(p.bytes)) : tx("{0} compte(s), {1} événement(s), {2}", p.facts.users, p.facts.events ?? 0, bytes(p.bytes))}</Dim>{p.exists_here && <Badge tone="info">{tx("remplace l'existant")}</Badge>}{p.problems.map((x) => <Badge key={x} tone="bad">{x}</Badge>)}</>} />
+                  extra={<><Dim>{p.facts.users === undefined ? tx("{0} fichier(s), {1}", p.files.length, bytes(p.bytes)) : tx("{0} compte(s), {1} événement(s), {2}", p.facts.users, p.facts.events ?? 0, bytes(p.bytes))}</Dim>{p.exists_here && <Badge tone="info">{tx("remplace l'existant")}</Badge>}{p.needs_key && <Badge tone="warn"><KeyRound size={11} aria-hidden />{tx("mots de passe chiffrés : demande la clé")}</Badge>}{p.problems.map((x) => <Badge key={x} tone="bad">{x}</Badge>)}</>} />
               );
             })}
           </div>
