@@ -11,6 +11,14 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.15.6 (2026-10-18)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+
+- Backups: a machine declared in the backups with an SSH alias this installation does not define (a declaration brought from another install: « Could not resolve hostname », « Host key verification failed », or the wrong port) is now reached through the SSH access of the followed machine that has the same address, port included. A machine declared as « local » is no longer read inside the container, where its folders do not exist (« source: folder absent »). Nothing to edit by hand in the SSH config.
+
 ## v0.15.5 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
