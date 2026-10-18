@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import urllib.error
 import urllib.request
 
@@ -32,6 +33,45 @@ def _body(raw: bytes, ctype: str) -> dict:
     if not isinstance(got, dict):
         raise ConnectorError("réponse MCP inattendue")
     return got
+
+
+IP_RE = re.compile(r"[0-9a-fA-F:.]{3,45}")
+
+
+def ban_stats(events: list, now: float) -> dict:
+    """Aggregates of the last 7 days of bans, worked out here so that data.json carries a few numbers and not thousands of events: bans per hour
+    (last 24 h) and per day (last 7), per jail, the IPs banned most, how many IPs came back, and the failures behind the bans of the last day.
+    Only fields written by Fail2ban itself are kept (an IP that does not look like one is dropped, jail names are cut)."""
+    hours, days = [0] * 24, [0] * 7
+    jails: dict[str, list[int]] = {}
+    ips: dict[str, dict] = {}
+    failures_1d = 0
+    for e in events:
+        t = e.get("timeofban") if isinstance(e, dict) else None
+        ip = str(e.get("ip") or "") if isinstance(e, dict) else ""
+        if not isinstance(t, (int, float)) or not IP_RE.fullmatch(ip) or not 0 <= now - t < 7 * 86400:
+            continue
+        age, jail = now - t, str(e.get("jail") or "?")[:40]
+        recent = age < 86400
+        days[6 - int(age // 86400)] += 1
+        if recent:
+            hours[23 - int(age // 3600)] += 1
+            failures_1d += e.get("failures") if isinstance(e.get("failures"), int) else 0
+        row = jails.setdefault(jail, [0, 0])
+        row[1] += 1
+        row[0] += recent
+        who = ips.setdefault(ip, {"ip": ip, "bans": 0, "jails": set(), "failures": 0, "last": 0, "recent": False})
+        who["bans"] += 1
+        who["jails"].add(jail)
+        who["failures"] += e.get("failures") if isinstance(e.get("failures"), int) else 0
+        who["last"] = max(who["last"], t)
+        who["recent"] = who["recent"] or recent
+    top = sorted(ips.values(), key=lambda w: (-w["bans"], -w["last"]))[:10]
+    return {"hours": hours, "days": days,
+            "by_jail": [{"jail": j, "d1": v[0], "d7": v[1]} for j, v in sorted(jails.items(), key=lambda kv: -kv[1][1])][:20],
+            "top_ips": [{**w, "jails": sorted(w["jails"])[:5]} for w in top],
+            "unique_1d": sum(1 for w in ips.values() if w["recent"]), "unique_7d": len(ips),
+            "repeat": sum(1 for w in ips.values() if w["bans"] >= 2), "failures_1d": failures_1d}
 
 
 def cluster(c: dict) -> dict:
@@ -121,13 +161,18 @@ class LogviewR(Connector):
         threats = self._tool("f2b_get_active_threats")
         metrics = self._tool("f2b_get_metrics")
         sources = (self._tool("log_list_sources") or {}).get("sources") or []
+        try:   # a week of history for the statistics; an older LogviewR that refuses it just has no statistics
+            week = (self._tool("f2b_get_ban_history", {"days": 7, "limit": 5000}) or {}).get("events") or []
+            stats = ban_stats(week, time.time())
+        except ConnectorError:
+            stats = None
         bans = [{"ip": e.get("ip"), "jail": e.get("jail"), "time": e.get("timeofban"), "failures": e.get("failures")}
                 for e in events if isinstance(e, dict)]
         lists = threats if isinstance(threats, list) else [v for v in (threats or {}).values() if isinstance(v, list)] if isinstance(threats, dict) else []
         raw = lists if lists and isinstance(threats, list) else lists[0] if lists else []
         return {"jails": [n for n in names if n], "bans_24h": len(bans), "bans": bans[:200],
                 "threat_count": len(raw), "threats": [cluster(c) for c in raw if isinstance(c, dict)][:50],
-                "metrics": metrics if isinstance(metrics, dict) else None,
+                "metrics": metrics if isinstance(metrics, dict) else None, "stats": stats,
                 "log_sources": len(sources)}
 
     def test(self) -> Result:

@@ -7,7 +7,7 @@ import type { Snapshot } from "../api";
 import { dateTime, splitHostName } from "../lib/format";
 import { risky } from "../lib/ssh";
 import { tx } from "../lib/i18n";
-import type { HealthHost, Host } from "../types";
+import type { HealthHost, Host, SecurityConnector } from "../types";
 import { Badge, Card, Count, Dim, Empty } from "../components/ui";
 import { Certificates, CERT_SOON } from "../components/Certificates";
 import { InfoNote } from "../components/InfoNote";
@@ -41,6 +41,47 @@ function siteIssues(r: Host): string[] {
   return out;
 }
 
+/** One Fail2ban / LogviewR connector: jails, active threats and the latest bans (shared with the new security page) */
+export function Fail2banCard({ c }: Readonly<{ c: SecurityConnector }>) {
+  const byJail = new Map<string, number>();
+  (c.bans ?? []).forEach((b) => byJail.set(b.jail, (byJail.get(b.jail) ?? 0) + 1));
+  return (
+    <Card className={c.ok ? "" : "border-bad/40"}>
+      <h2 className="flex flex-wrap items-center gap-2 font-bold"><Ban size={16} aria-hidden />{tx("Fail2ban")} <Dim>· {c.label} {c.name}</Dim>
+        <Badge tone={c.ok ? "ok" : "bad"}>{c.ok ? tx("en ligne") : tx("illisible")}</Badge>{c.stale && <Badge tone="warn">{tx("relevé périmé")}</Badge>}</h2>
+      {!c.ok && !c.stale ? <p className="mt-3 rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{c.message}</p> : <>
+        {(c.jails ?? []).length > 0 && <p className="mt-3 flex flex-wrap items-center gap-1.5 text-sm">{c.jails!.map((j) => <Badge key={j} tone={byJail.has(j) ? "warn" : "off"}>{j}{byJail.has(j) && ` · ${byJail.get(j)}`}</Badge>)}</p>}
+        {(c.threats ?? []).length > 0 && (
+          <div className="mt-3">
+            <h3 className="mb-1 flex items-center gap-1.5 text-sm font-bold text-bad"><ShieldAlert size={14} aria-hidden />{tx("Menaces actives")} <Count n={c.threats!.length} tone="bad" /></h3>
+            <ul className="flex flex-col gap-1 text-sm">
+              {c.threats!.map((t) => (
+                <li key={t.key} className="flex flex-wrap items-baseline gap-2 rounded-lg bg-bad/5 px-3 py-1.5">
+                  <Badge tone="bad">{t.kind === "ip_escalation" ? tx("IP sur plusieurs prisons") : tx("campagne {0}", t.asn ?? "")}</Badge>
+                  <code className="font-mono text-xs">{t.ips.slice(0, 5).join(", ")}{t.ip_count > 5 ? ` +${t.ip_count - 5}` : ""}</code>
+                  <Dim>{t.jails.join(", ")}{t.bans != null ? ` · ${t.bans} ${tx("bannissement(s)")}` : ""}{t.last ? ` · ${tx("dernier")} ${dateTime(t.last * 1000)}` : ""}</Dim>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {(c.bans ?? []).length > 0 && (
+          <details className="mt-3 text-sm">
+            <summary className="cursor-pointer text-muted hover:text-txt">{tx("Derniers bannissements")} · {c.bans!.length}</summary>
+            <ul className="mt-1 flex flex-col gap-0.5">
+              {c.bans!.slice(0, 50).map((b, i) => (
+                <li key={i} className="flex flex-wrap items-baseline gap-2"><code className="font-mono text-xs">{b.ip}</code><Badge tone="off">{b.jail}</Badge>
+                  {b.failures ? <Dim>{b.failures} {tx("échecs")}</Dim> : null}<Dim>{b.time ? dateTime(b.time * 1000) : ""}</Dim></li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </>}
+    </Card>
+  );
+
+}
+
 export function Security({ snap }: { snap: Snapshot }) {
   const lv = snap.data.security ?? [];
   const exposed = useMemo(() => snap.data.hosts.filter((r) => r.type === "proxy" && r.enabled && !r.acl && !r.acl_adv)
@@ -66,44 +107,7 @@ export function Security({ snap }: { snap: Snapshot }) {
         {(snap.data.network ?? []).length > 0 && <Tile icon={Radar} value={ports.length} label={tx("appareils avec un port sensible")} tone={ports.length ? "warn" : "ok"} />}
       </div>
 
-      {lv.map((c) => {
-        const byJail = new Map<string, number>();
-        (c.bans ?? []).forEach((b) => byJail.set(b.jail, (byJail.get(b.jail) ?? 0) + 1));
-        return (
-          <Card key={`${c.connector}/${c.name}`} className={c.ok ? "" : "border-bad/40"}>
-            <h2 className="flex flex-wrap items-center gap-2 font-bold"><Ban size={16} aria-hidden />{tx("Fail2ban")} <Dim>· {c.label} {c.name}</Dim>
-              <Badge tone={c.ok ? "ok" : "bad"}>{c.ok ? tx("en ligne") : tx("illisible")}</Badge>{c.stale && <Badge tone="warn">{tx("relevé périmé")}</Badge>}</h2>
-            {!c.ok && !c.stale ? <p className="mt-3 rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{c.message}</p> : <>
-              {(c.jails ?? []).length > 0 && <p className="mt-3 flex flex-wrap items-center gap-1.5 text-sm">{c.jails!.map((j) => <Badge key={j} tone={byJail.has(j) ? "warn" : "off"}>{j}{byJail.has(j) && ` · ${byJail.get(j)}`}</Badge>)}</p>}
-              {(c.threats ?? []).length > 0 && (
-                <div className="mt-3">
-                  <h3 className="mb-1 flex items-center gap-1.5 text-sm font-bold text-bad"><ShieldAlert size={14} aria-hidden />{tx("Menaces actives")} <Count n={c.threats!.length} tone="bad" /></h3>
-                  <ul className="flex flex-col gap-1 text-sm">
-                    {c.threats!.map((t) => (
-                      <li key={t.key} className="flex flex-wrap items-baseline gap-2 rounded-lg bg-bad/5 px-3 py-1.5">
-                        <Badge tone="bad">{t.kind === "ip_escalation" ? tx("IP sur plusieurs prisons") : tx("campagne {0}", t.asn ?? "")}</Badge>
-                        <code className="font-mono text-xs">{t.ips.slice(0, 5).join(", ")}{t.ip_count > 5 ? ` +${t.ip_count - 5}` : ""}</code>
-                        <Dim>{t.jails.join(", ")}{t.bans != null ? ` · ${t.bans} ${tx("bannissement(s)")}` : ""}{t.last ? ` · ${tx("dernier")} ${dateTime(t.last * 1000)}` : ""}</Dim>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {(c.bans ?? []).length > 0 && (
-                <details className="mt-3 text-sm">
-                  <summary className="cursor-pointer text-muted hover:text-txt">{tx("Derniers bannissements")} · {c.bans!.length}</summary>
-                  <ul className="mt-1 flex flex-col gap-0.5">
-                    {c.bans!.slice(0, 50).map((b, i) => (
-                      <li key={i} className="flex flex-wrap items-baseline gap-2"><code className="font-mono text-xs">{b.ip}</code><Badge tone="off">{b.jail}</Badge>
-                        {b.failures ? <Dim>{b.failures} {tx("échecs")}</Dim> : null}<Dim>{b.time ? dateTime(b.time * 1000) : ""}</Dim></li>
-                    ))}
-                  </ul>
-                </details>
-              )}
-            </>}
-          </Card>
-        );
-      })}
+      {lv.map((c) => <Fail2banCard key={`${c.connector}/${c.name}`} c={c} />)}
 
       {exposed.length > 0 && (
         <Card>

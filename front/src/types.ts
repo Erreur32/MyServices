@@ -673,7 +673,14 @@ export interface FreeboxInfo {
 /** LogviewR : fail2ban */
 export interface SecurityConnector extends InfraConnector {
   jails?: string[]; bans_24h?: number; bans?: { ip: string; jail: string; time: number; failures?: number }[]; threat_count?: number; log_sources?: number;
+  stats?: Fail2banStats | null;   // 7 days of bans, worked out by the connector (connectors/logviewr.py ban_stats)
   threats?: { key: string; kind: "ip_escalation" | "asn_campaign" | "autre"; ips: string[]; ip_count: number; jails: string[]; bans: number | null; first: number | null; last: number | null; severity: number | null; asn: string | null }[];
+}
+export interface Fail2banStats {
+  hours: number[]; days: number[];   // bans per hour over the last 24 h, per day over the last 7 (the last value is the most recent)
+  by_jail: { jail: string; d1: number; d7: number }[];
+  top_ips: { ip: string; bans: number; jails: string[]; failures: number; last: number }[];
+  unique_1d: number; unique_7d: number; repeat: number; failures_1d: number;
 }
 /** Dockhand, Dozzle : environnements Docker (hôtes, agents) */
 export interface ContainersConnector extends InfraConnector {

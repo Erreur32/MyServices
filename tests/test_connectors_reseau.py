@@ -194,6 +194,20 @@ class Reseau(unittest.TestCase):
         self.assertFalse(bad.ok)
         self.assertIn("jeton refusé", bad.message)
 
+    def test_logviewr_ban_statistics(self):
+        from connectors.logviewr import ban_stats
+        now = 1_800_000_000
+        ev = [{"ip": "203.0.113.5", "jail": "sshd", "timeofban": now - 600, "failures": 5}, {"ip": "203.0.113.5", "jail": "nginx", "timeofban": now - 7200, "failures": 3},
+              {"ip": "198.51.100.7", "jail": "sshd", "timeofban": now - 3 * 86400}, {"ip": "198.51.100.8", "jail": "sshd", "timeofban": now - 9 * 86400},
+              {"ip": "<script>", "jail": "sshd", "timeofban": now - 60}, {"ip": "203.0.113.9", "jail": "sshd", "timeofban": now + 500}]
+        st = ban_stats(ev, now)
+        self.assertEqual((sum(st["hours"]), sum(st["days"]), st["hours"][23], st["hours"][21], st["days"][6]), (2, 3, 1, 1, 2))
+        self.assertEqual((st["unique_1d"], st["unique_7d"], st["repeat"], st["failures_1d"]), (1, 2, 1, 8))
+        self.assertEqual(st["by_jail"][0], {"jail": "sshd", "d1": 1, "d7": 2})
+        self.assertEqual(st["top_ips"][0]["ip"], "203.0.113.5")
+        self.assertEqual(st["top_ips"][0]["jails"], ["nginx", "sshd"])
+        self.assertEqual(ban_stats([], now)["unique_7d"], 0)
+
     def test_logviewr_ne_lit_que(self):
         c = inst(LogviewR, self.url)
         data = c.collect()

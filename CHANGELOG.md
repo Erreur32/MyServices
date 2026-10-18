@@ -27,6 +27,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   folded by default, and the Information card is regrouped (application, access and security, storage).
 - Import: the parts that need the encryption key are flagged, and importing the key alone (which would lock the current passwords out) is refused.
 
+- **Security page, new version** (development builds, next to the current one for now, tab "Security (new)"): an overview that lists what needs a look,
+  worst first, each with its source and what to do, then one sub-tab per category (Fail2ban, exposed sites, SSH access, network ports, certificates),
+  each tab showing how many points it holds. The Fail2ban tab has statistics: bans per hour (24 h) and per day (7 days), per jail, the addresses banned
+  most and those that came back, failed logins behind the bans. The LogviewR connector now reads 7 days of ban history and sends the aggregates only.
+
 ### Changed
 
 - **Home page**: the counters column is wider and gains four groups, Network (UniFi equipment online or offline, Diagnostic findings to fix or to check),
