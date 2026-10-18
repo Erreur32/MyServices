@@ -12,6 +12,7 @@
 - **Warnings that stay**: a connector warning no longer waits up to 15 minutes to disappear once the source answers again; the next light reading (every 5 minutes) clears it.
 - **Failure messages**: the message after an action that failed now opens in a window over the page, wherever you are on it, and stays as a red line once closed.
 - **Beszel in Settings, Connectors**: the card no longer says “not read yet” after every collection; it shows the state of the last light reading.
+- **MynetworK no longer fails when UniFi is slow**: its three UniFi routes are read at the same time with a longer delay, and if UniFi still does not answer the inventory is kept and the page says “UniFi unavailable” instead of showing MynetworK as unreachable.
 
 **Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change in your compose file.
 

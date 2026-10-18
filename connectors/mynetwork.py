@@ -22,6 +22,7 @@ Les routes facultatives qui répondent 403 ou 404 ne sont pas une erreur : Mynet
 from __future__ import annotations
 
 import ipaddress
+import threading
 import re
 
 from connectors.base import Connector, ConnectorError, Field, Result
@@ -37,6 +38,7 @@ MAX_ITEMS = 5000  # garde-fou : un réseau plus grand n'est pas lu en entier
 SENSITIVE = re.compile(r"key|pass|token|secret|auth|cookie|psk|serial", re.I)
 MAX_DEPTH = 6
 TRAFFIC_MODES = ("live", "today", "alltime")
+UNIFI_TIMEOUT = 60   # s, MynetworK reads the UniFi controller for these routes: slow when the controller is busy
 MAX_CARD_DEVICES = 200   # a UniFi site has dozens of devices at most
 
 
@@ -124,11 +126,11 @@ class MynetworK(Connector):
         "Un jeton MCP ne marche pas ici : il faut un jeton « API ».",
     )
 
-    def _get(self, path: str, params: dict | None = None, optional: bool = False):
+    def _get(self, path: str, params: dict | None = None, optional: bool = False, timeout: float | None = None):
         url = self.conf["url"].rstrip("/") + path + ("?" + "&".join(f"{k}={v}" for k, v in params.items()) if params else "")
         try:
             got = self.ctx.http(url, headers={"Authorization": f"Bearer {self.conf['token']}"},
-                                verify_tls=self.conf.get("verify_tls", True) is not False)
+                                verify_tls=self.conf.get("verify_tls", True) is not False, timeout=timeout)
         except ConnectorError as e:
             if str(e).startswith("HTTP 401"):
                 raise ConnectorError("jeton refusé (jeton API mwk_api_… en lecture seule ?)") from None
@@ -200,11 +202,32 @@ class MynetworK(Connector):
             offset += PAGE
         return devices
 
+    def _unifi_parts(self) -> tuple[object, object, object, str]:
+        """(clients, devices, system, error): the three UniFi routes read at the same time, each with a long delay (MynetworK asks the UniFi
+        controller behind them, which can take half a minute). A route that fails leaves its part empty and the first reason in `error`."""
+        routes = {"clients": ("/api/plugins/unifi/clients", {"limit": PAGE}), "devices": ("/api/plugins/unifi/devices", {"limit": PAGE}),
+                  "system": ("/api/plugins/unifi/system", None)}
+        got: dict[str, object] = {}
+        errors: list[str] = []
+
+        def read(name: str) -> None:
+            path, params = routes[name]
+            try:
+                got[name] = self._get(path, params, optional=True, timeout=UNIFI_TIMEOUT)
+            except ConnectorError as e:
+                errors.append(str(e))
+
+        threads = [threading.Thread(target=read, args=(n,), daemon=True) for n in routes]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        return got.get("clients"), got.get("devices"), got.get("system"), (errors[0] if errors else "")
+
     def collect(self) -> dict:
         devices = self.scan()
-        out: dict = {"devices": devices, "online": sum(1 for d in devices if d["status"] == "online"), "unifi": None}
-        clients = self._get("/api/plugins/unifi/clients", {"limit": PAGE}, optional=True)
-        gear = self._get("/api/plugins/unifi/devices", {"limit": PAGE}, optional=True)
+        out: dict = {"devices": devices, "online": sum(1 for d in devices if d["status"] == "online"), "unifi": None, "unifi_error": ""}
+        clients, gear, system, out["unifi_error"] = self._unifi_parts()
         if isinstance(clients, list) or isinstance(gear, list):
             out["unifi"] = {
                 "clients": [{k: c.get(k) for k in ("name", "mac", "ip", "wired", "essid", "signal_dbm", "ap_mac", "switch_mac", "switch_port", "switch_name", "switch_ip")}
@@ -213,8 +236,7 @@ class MynetworK(Connector):
                 "devices": [{k: d.get(k) for k in ("name", "model", "type", "mac", "ip", "state", "version", "clients", "uptime", "cpu_pct", "mem_pct",
                                                    "upgradable", "upgrade_to_firmware")}
                             for d in gear or [] if isinstance(d, dict)]}
-        if out["unifi"] is not None:
-            out["unifi"]["system"] = _unifi_system(self._get("/api/plugins/unifi/system", optional=True))
+            out["unifi"]["system"] = _unifi_system(system)
         out["freebox"] = self._freebox()
         return out
 
@@ -249,7 +271,7 @@ class MynetworK(Connector):
             return Result(False, str(e))
         u, fb = data["unifi"], data["freebox"]
         return Result(True, f"{len(data['devices'])} appareil(s), {data['online']} en ligne" +
-                      (f", UniFi : {len(u['clients'])} client(s)" if u else "") +
+                      (f", UniFi : {len(u['clients'])} client(s)" if u else "") + (f" (UniFi indisponible : {data['unifi_error']})" if data.get("unifi_error") and not u else "") +
                       (", Freebox : " + ("ligne " + str(fb["connection"].get("state")) if fb.get("connection") else f"{fb['hosts']} hôte(s)") if fb else ""))
 
     @classmethod

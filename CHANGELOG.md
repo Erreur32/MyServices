@@ -17,6 +17,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Fixed
 
+- MynetworK failed its whole reading (« timed out », sometimes for several collections in a row) when the UniFi controller behind it was slow: its three UniFi routes took 20 to 30 seconds each, one after the other, against a delay of 20 seconds. They are now read at the same time with a delay of 60 seconds, and if UniFi still does not answer, MynetworK stays read with its inventory and the test says « UniFi indisponible ».
 - Settings, Connectors: a connector read only by the light reading (Beszel) said « not read yet, next collection at … » after every collection, because the full collection never lists it. Its state now comes from the light reading (every 5 minutes).
 - Turning a connector on waits for a connection test that can last up to a minute with a slow source: the switch now shows « Testing the connection… » and is disabled until the answer, instead of looking frozen.
 - The message after an action that failed now opens in a window over the page, wherever you are on it, and stays as a red line under the form once closed. For a connector that cannot be turned on because its test failed, the message is in the connector's own card (it used to be at the very bottom of the page) and the window carries the « Turn on anyway » button.
