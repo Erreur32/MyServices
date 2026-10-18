@@ -119,6 +119,42 @@ def after_mark(out: str) -> str:
     return tail if sep else out
 
 
+def alias_keys(alias: str) -> tuple[str, list[tuple[str, str]]]:
+    """(account, [(key file name, public key)]) that SSH really uses for `alias` (`ssh -G` reads the effective configuration, nothing is
+    contacted): the public keys only, and only for key files that exist next to their .pub."""
+    try:
+        out = subprocess.run(["ssh", "-G", alias], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return "", []
+    user, keys = "", []
+    for ln in out.splitlines():
+        k, _, v = ln.partition(" ")
+        if k == "user":
+            user = v.strip()
+        elif k == "identityfile":
+            pub = Path(os.path.expanduser(v.strip()) + ".pub")
+            try:
+                text = pub.read_text(encoding="utf-8").strip()
+            except OSError:
+                continue
+            if text.startswith(("ssh-", "ecdsa-")) and len(keys) < 3:
+                keys.append((pub.name[:-4], text.splitlines()[0]))
+    return user, keys
+
+
+def refused_key_text(alias: str) -> str:
+    """The « key refused » message of a Docker install: names the account and the key file THIS alias uses (it is not always the app's own
+    key: an alias can carry a key of its own), with the public key to authorize."""
+    user, keys = alias_keys(alias)
+    if not keys:
+        return (f"SSH {alias} : clé refusée (clé publique de /config/ssh dans authorized_keys du compte visé ? VMware ESXi : "
+                "clé ECDSA dans /etc/ssh/keys-root/authorized_keys)")
+    who = f"le compte « {user} »" if user else "le compte visé"
+    used = " / ".join(name for name, _ in keys)
+    return (f"SSH {alias} : clé refusée. Cet alias utilise la clé {used} pour {who} : c'est SA clé publique qui doit être dans authorized_keys "
+            f"de ce compte (pas forcément celle de l'app) : {keys[0][1]}")
+
+
 def ssh_why(alias: str, r: subprocess.CompletedProcess | None) -> str:
     """Cause d'un échec SSH en BatchMode (r : résultat de run(alias, "true")), avec la commande qui le règle."""
     if r is None:
@@ -129,9 +165,7 @@ def ssh_why(alias: str, r: subprocess.CompletedProcess | None) -> str:
     if "remote host identification has changed" in err:
         return f"SSH {alias} : clé d'hôte changée (réinstallation ?) : sudo ssh-keygen -R <hôte>, puis sudo ssh {alias} true"
     if "permission denied" in err:
-        return (f"SSH {alias} : clé refusée (clé publique de /config/ssh dans authorized_keys du compte visé ? VMware ESXi : "
-                "clé ECDSA dans /etc/ssh/keys-root/authorized_keys)" if DOCKER else
-                f"SSH {alias} : clé refusée (ssh-copy-id fait pour root de cette machine ? clé sans phrase de passe ?)")
+        return refused_key_text(alias) if DOCKER else f"SSH {alias} : clé refusée (ssh-copy-id fait pour root de cette machine ? clé sans phrase de passe ?)"
     if "could not resolve" in err:
         return f"SSH {alias} : alias ou HostName inconnu de {SSH_CONF}"
     if "connection refused" in err:

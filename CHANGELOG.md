@@ -11,6 +11,14 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+
+- After an import, the settings are read again without restarting the container (the imported schedules apply at once), and the collection, the watch and the health run one after the other. A restart is still asked for the encryption key, or when the settings file could not be read.
+
+### Fixed
+
+- SSH « key refused » in a Docker install now names the account and the key file the machine's alias really uses (an alias can carry a key of its own, not the app's), and shows that public key to authorize. Before, only the app's own key was suggested, which cannot work for such an alias.
+
 ## v0.15.2 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

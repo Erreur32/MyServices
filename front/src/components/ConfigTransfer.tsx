@@ -28,7 +28,7 @@ const ALL: PartId[] = PARTS.map((p) => p.id);
 interface Available { parts: { id: PartId; files: string[]; sensitive: boolean }[] }
 interface PreviewPart { needs_key?: boolean; id: PartId; files: string[]; bytes: number; sensitive: boolean; facts: { users?: number; events?: number }; problems: string[]; exists_here: boolean }
 interface Preview { manifest: { format?: number; app?: string; created?: number }; parts: PreviewPart[]; ignored: string[]; secrets: { with_archive_key: string; with_current_key: string; swap_unsafe: boolean } }
-interface Applied { written: string[]; kept: string[]; restart: boolean; relogin: boolean; parts: string[] }
+interface Applied { written: string[]; kept: string[]; restart: boolean; relogin: boolean; reloaded?: boolean; parts: string[] }
 
 /** A file as base64, in chunks (a spread of the whole array would overflow the call stack) */
 async function toBase64(file: File): Promise<string> {
@@ -158,7 +158,6 @@ function ImportCard() {
     setBusy(true); setNote(null);
     const ok = await act(async () => { const res = await send<Omit<Applied, "parts">>("POST", "system/import", { archive, parts: picked, password: pw });
       setDone({ ...res, parts: PARTS.filter((p) => picked.includes(p.id)).map((p) => p.label) });
-      if (!res.restart && !res.relogin) send("POST", "refresh").catch(() => undefined);   // a collection now, so the machines imported show up without waiting for the next one
     }, tx("Import terminé"), setNote);
     if (ok) reset();
     setBusy(false);
@@ -203,7 +202,8 @@ function ImportCard() {
           {done.kept.length > 0 && <p className="text-muted">{tx("{0} ancien(s) fichier(s) gardé(s) à côté, en « .avant-import »", done.kept.length)}</p>}
           {done.relogin && <InfoNote tone="warn">{tx("Les comptes ont été remplacés : reconnectez-vous avec un compte de l'archive.")}</InfoNote>}
           {done.restart && <InfoNote tone="warn">{tx("Redémarrez le conteneur pour appliquer les réglages et la clé importés.")}</InfoNote>}
-          {!done.restart && !done.relogin && <p className="text-muted">{tx("Un passage du collecteur est demandé : les machines importées apparaissent d'ici quelques minutes.")}</p>}
+          {done.reloaded && <p className="text-muted">{tx("Réglages relus sans redémarrage : les horaires importés sont déjà appliqués.")}</p>}
+          <p className="text-muted">{tx("La collecte, la veille et la santé sont relancées l'une après l'autre : les machines importées apparaissent d'ici quelques minutes.")}</p>
           <button type="button" className={`${quiet} self-start`} onClick={() => window.location.reload()}>{tx("Recharger la page")}</button>
         </div>
       )}

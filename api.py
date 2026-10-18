@@ -1728,7 +1728,8 @@ def system_import(body: ImportApplyBody, request: Request):
     except ct.TransferError as e:
         return deny(400, str(e))
     store().audit("configuration importée", request.state.user["username"], ip_of(request), ",".join(body.parts))
-    return {"ok": True, **out}
+    import system
+    return {"ok": True, **out, **system.after_import(core, body.parts)}
 
 
 # ── Historique ────────────────────────────────────────────────────────────────────────────────────
