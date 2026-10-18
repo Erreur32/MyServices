@@ -2,14 +2,16 @@
 import { Check, Copy, Plus, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { copyText } from "../lib/clipboard";
-import { type Note } from "../lib/forms";
+import { primary, type Note } from "../lib/forms";
+import { Overlay } from "./Overlay";
 import { tx } from "../lib/i18n";
 
 /** Retour d'une action : message vert ou rouge sous le formulaire. */
 
-/** Message d'un enregistrement : un succès disparaît au bout de 15 s, une erreur reste affichée. */
+/** Message d'un enregistrement : un succès disparaît au bout de 15 s ; une erreur s'ouvre en fenêtre par-dessus la page (on la voit où que l'on soit),
+ *  puis reste affichée en rouge sous le formulaire une fois fermée. */
 export function NoteLine({ note, inline = false }: { note: Note; inline?: boolean }) {   // inline : une petite ligne dans un titre, sans rien pousser en dessous
-  const [gone, setGone] = useState<Note>(null);
+  const [gone, setGone] = useState<Note>(null), [closed, setClosed] = useState<Note>(null);
   useEffect(() => {
     if (!note?.ok) return;
     const t = setTimeout(() => setGone(note), 15_000);
@@ -18,7 +20,17 @@ export function NoteLine({ note, inline = false }: { note: Note; inline?: boolea
   if (!note || (note.ok && !note.text) || gone === note) return null;
   const tone = note.ok ? "text-ok" : "text-bad";
   if (inline) return <output className={`text-xs font-normal ${tone}`}>{note.ok ? "✓" : "⚠"} {note.text}</output>;
-  return <output className={`mt-2 block text-sm ${tone}`}>{note.ok ? "✓" : "⚠"} {note.text}</output>;
+  return (
+    <>
+      {!note.ok && closed !== note && (
+        <Overlay title={<>⚠ {tx("Attention")}</>} onClose={() => setClosed(note)}>
+          <p className="mt-3 text-sm text-bad">{note.text}</p>
+          <div className="mt-4 flex justify-end"><button type="button" className={primary} onClick={() => setClosed(note)}>{tx("OK")}</button></div>
+        </Overlay>
+      )}
+      <output className={`mt-2 block text-sm ${tone}`}>{note.ok ? "✓" : "⚠"} {note.text}</output>
+    </>
+  );
 }
 
 export function Field({ label, children }: { label: ReactNode; children: ReactNode }) {

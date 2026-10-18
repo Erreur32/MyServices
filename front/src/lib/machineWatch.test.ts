@@ -18,6 +18,12 @@ describe("à surveiller", () => {
     expect(worst(items)).toBe(3);
   });
 
+  it("services en panne : la liste (nom : cause) accompagne l'avertissement", () => {
+    const list = ["app.exemple.fr : backend down"];
+    expect(watchItems(machine({ down: 1 }), health(), [], false, list)[0]).toMatchObject({ kind: "services", detail: list });
+    expect(watchItems(machine({ down: 1 }), health())[0].detail).toBeUndefined();
+  });
+
   it("accès : injoignable en rouge, clé refusée en orange, sans accès en bleu", () => {
     expect(watchItems(machine({ ping: false, info: null, ssh: null }), undefined)[0]).toMatchObject({ tone: "bad", kind: "down" });
     expect(watchItems(machine({ info: null }), undefined)[0]).toMatchObject({ tone: "warn", kind: "ssh" });

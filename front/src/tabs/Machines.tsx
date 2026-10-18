@@ -239,7 +239,7 @@ function AlertDot({ items, children }: Readonly<{ items: WatchItem[]; children: 
   return (
     <span className="relative inline-flex shrink-0">
       {children}
-      <span className={`absolute -left-1 -top-1 h-2.5 w-2.5 rounded-full ring-2 ring-card ${DOT_COLOR[tone]}`} title={`${tone === "bad" ? tx("problème à regarder") : tx("à surveiller")} : ${n}\n${items.map((i) => `${i.text}`).join("\n")}`} />
+      <span className={`absolute -left-1 -top-1 h-2.5 w-2.5 rounded-full ring-2 ring-card ${DOT_COLOR[tone]}`} title={`${tone === "bad" ? tx("problème à regarder") : tx("à surveiller")} : ${n}\n${items.map((i) => [i.text, ...(i.detail ?? []).slice(0, 3).map((d) => `   ${d}`)].join("\n")).join("\n")}`} />
     </span>
   );
 }
@@ -685,7 +685,7 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, uni
 
       {freebox && (freebox.vms || freebox.vm_system) && <FreeboxVmSection fb={freebox} from={from.services} />}
       {!freebox && unifiOnly && <UnifiNetworkSection d={unifi} sys={unifiSys} net={unifiNet} from={from.services} />}
-      {!(freebox && (freebox.vms || freebox.vm_system)) && !(!freebox && unifiOnly) && <SoftwareSection m={m} servers={servers} ha={ha} from={from.services} containers={containers} onFilter={onFilter} />}
+      {!(freebox && (freebox.vms || freebox.vm_system)) && !(!freebox && unifiOnly) && <SoftwareSection m={m} down={watch.find((w) => w.kind === "services")?.detail} servers={servers} ha={ha} from={from.services} containers={containers} onFilter={onFilter} />}
 
       {ha && <HaBackupsSection ha={ha} from={from.services} />}
       {ha && <HaInsideSection ha={ha} from={from.services} />}
@@ -1011,7 +1011,7 @@ function AccessSection({ m, from }: Readonly<{ m: Machine; from: Origin[] }>) {
 }
 
 /** Detail, « Software and services »: servers, services, Docker, linked APIs, Home Assistant add-ons, Apache and nginx */
-function SoftwareSection({ m, servers, ha, from, containers, onFilter }: Readonly<{ onFilter?: (sel: Selected) => void; m: Machine; servers?: React.ReactNode; ha?: ServiceStatus; from: Origin[]; containers?: React.ReactNode }>) {
+function SoftwareSection({ m, down, servers, ha, from, containers, onFilter }: Readonly<{ down?: string[]; onFilter?: (sel: Selected) => void; m: Machine; servers?: React.ReactNode; ha?: ServiceStatus; from: Origin[]; containers?: React.ReactNode }>) {
   const i = m.info;
   const vhosts = (i?.vhosts ?? []) as { port?: number; names?: string[] }[];
   return (
@@ -1020,6 +1020,7 @@ function SoftwareSection({ m, servers, ha, from, containers, onFilter }: Readonl
         <Row k={tx("Services")}>
           {onFilter && m.services > 0 ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services")} onClick={() => onFilter({ machine: [m.ip] })}>{m.services}</button> : m.services}
           {m.npm > 0 && <Dim> · {onFilter ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services NPM")} onClick={() => onFilter({ machine: [m.ip], src: ["npm"] })}>{m.npm} NPM</button> : `${m.npm} NPM`}</Dim>}{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</Row>
+        {down?.map((d) => <Row key={d} k=""><span className="text-[11px] text-bad">• {d}</span></Row>)}
         <Row k="Docker">{i?.docker ? tx("{0} conteneur(s) en cours", i.docker) : m.agent?.docker != null ? (m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>) : i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined}</Row>
         {containers}
         <Row k="API">{m.api?.length ? <span className="flex flex-wrap gap-1">{m.api.map((a) => <Badge key={`${a.type}/${a.name}`} tone={a.ok ? "ok" : a.stale ? "warn" : "bad"} title={`${a.name} : ${a.message ?? ""}`}>{a.label}{a.version ? ` ${a.version}` : ""}</Badge>)}</span> : undefined}</Row>
@@ -1209,15 +1210,15 @@ function HealthLevel({ m, h, followed }: Readonly<{ m: Machine; h?: HealthHost; 
 }
 
 /** Services of a machine that are down, each with its problem: the tooltip of the red count */
-function downOf(m: Machine, snap: Snapshot): string[] {
-  return snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.enabled && status(r)[0] === "bad")
+function downOf(m: Machine, hosts: Host[]): string[] {
+  return hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.enabled && status(r)[0] === "bad")
     .map((r) => [r.domains?.[0] || r.service?.name || [r.ip, r.port].join(":"), status(r)[2]].join(" : "));
 }
 
 /** Red count of the services down on a machine; what fails is in the tooltip */
 function DownBadge({ m, snap }: Readonly<{ m: Machine; snap: Snapshot }>) {
   if (!m.down) return null;
-  const list = downOf(m, snap);
+  const list = downOf(m, snap.data.hosts);
   const tip = [tx("{0} en panne", m.down), ...list].join("\n");
   return <span className="rounded-md border border-bad/50 bg-bad/10 px-1.5 py-px text-[11px] font-semibold tabular-nums text-bad" title={tip}>{m.down}</span>;
 }
@@ -1288,9 +1289,9 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   const anyGpu = useMemo(() => snap.data.machine_list.some((m) => !m.disabled && gpusOf(m).length > 0), [snap.data.machine_list]);   // the column exists only when some machine has a GPU to show
   const ignoreCtx = useMemo(() => ({ ignored, set: setIgnore }), [ignored, setIgnore]);
   const watchOf = useCallback((m: Machine) => {
-    const h = hb.get(m.ip), items = watchItems(m, h, snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m));
+    const h = hb.get(m.ip), items = watchItems(m, h, snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m), downOf(m, snap.data.hosts));
     return h && ignored[h.id] === kernelSig(h.kernel?.samples) ? items.filter((i) => i.kind !== "kernel") : items;   // set aside by the viewer, until a newer message
-  }, [hb, snap.data.connectors, snap.data.network, unifiOf, ignored]);
+  }, [hb, snap.data.connectors, snap.data.network, snap.data.hosts, unifiOf, ignored]);
   const facets = useMemo((): Facet<Machine>[] => [
     { key: "state", label: tx("État"), get: mState, name: (v) => MSTATE[v as MState][1], order: ORDER, mark: (v) => <Dot tone={MSTATE[v as MState][0]} /> },
     { key: "health", label: tx("Santé"), get: (m) => { const h = hb.get(m.ip); return h ? (h.reachable === false ? "down" : h.level) : ""; },
@@ -1322,7 +1323,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       case "svc": return -m.services;
       case "health": return healthRank(m, hb.get(m.ip), !!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))) * 1e10 + ipNum(m.ip);   // les plus graves d'abord, puis par adresse
       case "up": return -(uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network), haOf(m)) ?? -1);   // the longest up first
-      case "watch": { const it = watchItems(m, hb.get(m.ip), snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m)); return -(worst(it) * 100 + it.length); }   // le plus grave d'abord
+      case "watch": { const it = watchItems(m, hb.get(m.ip), snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m), downOf(m, snap.data.hosts)); return -(worst(it) * 100 + it.length); }   // le plus grave d'abord
       default: return ipNum(m.ip);
     }
   }, [hb, snap.data.connectors, snap.data.services_status]);

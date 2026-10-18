@@ -63,6 +63,14 @@ class Cards(unittest.TestCase):
             doc = unifi_cards.read({}, 100.0)
         self.assertEqual((doc["source"], doc["devices"], doc["error"]), (None, [], ""))
 
+    def test_a_failed_reading_is_not_asked_again_for_a_while(self):
+        f = Fake(ConnectorError("down"))
+        run([f], 100.0)
+        run([f], 100.0 + unifi_cards.TTL + 5)   # past the normal delay, still inside the longer one after a failure
+        self.assertEqual(f.calls, 1)
+        run([f], 100.0 + unifi_cards.TTL_FAILED + 1)
+        self.assertEqual(f.calls, 2)
+
     def test_one_reading_is_shared_for_a_few_seconds(self):
         f = Fake([{"mac": "aa"}])
         run([f], 100.0)

@@ -104,6 +104,19 @@ class Reseau(unittest.TestCase):
             self.assertIn(t, connectors.TYPES)
         self.assertEqual(connectors.TYPES["mynetwork"].kinds, ("network",))
 
+    def test_mynetwork_stays_read_when_its_unifi_routes_fail(self):
+        item = {"id": 1, "ip": "192.168.1.20", "status": "online"}
+        Fake.routes = {"/api/health": (200, {"status": "ok"}),
+                       "/api/network-scan/history": (200, {"success": True, "result": {"items": [item], "total": 1}}),
+                       "/api/plugins/unifi/clients": (500, {"success": False}), "/api/plugins/unifi/devices": (500, {"success": False}),
+                       "/api/plugins/unifi/system": (500, {"success": False})}
+        data = inst(MynetworK, self.url).collect()
+        self.assertEqual((len(data["devices"]), data["unifi"]), (1, None))   # the inventory is kept, UniFi is left out for this pass
+        self.assertIn("500", data["unifi_error"])
+        res = inst(MynetworK, self.url).test()
+        self.assertTrue(res.ok)
+        self.assertIn("UniFi indisponible", res.message)
+
     def test_mynetwork_inventaire_et_unifi(self):
         item = {"id": 1, "ip": "192.168.1.20", "mac": "aa:bb:cc:dd:ee:ff", "hostname": "nas", "vendor": "Synology", "status": "online",
                 "pingLatency": 1.4, "additionalInfo": {"openPorts": [22, {"port": 80, "protocol": "tcp"}, {"port": "x"}, "x"], "lastPortScan": "2026-10-17T22:04:57.703Z", "secret": "no"}}

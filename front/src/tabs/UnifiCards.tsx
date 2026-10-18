@@ -15,7 +15,7 @@ import { createMynetworkHass, type MnDevice } from "../vendor/unifi-device-card/
 import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 
 const NO_DEVICES: Record<string, unknown>[] = [];   // stable: a new empty array at each render would rebuild the cards
-const LIVE_REFRESH_MS = 10_000;   // each reading asks the controller behind the source: calm on purpose
+const LIVE_REFRESH_MS = 30_000;   // each reading asks the controller behind the source: calm on purpose
 
 interface CardsDoc { source: string | null; devices: Record<string, unknown>[]; at: number; error: string }
 

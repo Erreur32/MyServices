@@ -11,6 +11,20 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.15.4 (2026-10-18)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+
+- MynetworK failed its whole reading (« timed out », sometimes for several collections in a row) when the UniFi controller behind it was slow: its three UniFi routes took 20 to 30 seconds each, one after the other, against a delay of 20 seconds. They are now read at the same time with a delay of 60 seconds, and if UniFi still does not answer, MynetworK stays read with its inventory and the test says « UniFi indisponible ».
+- Settings, Connectors: a connector read only by the light reading (Beszel) said « not read yet, next collection at … » after every collection, because the full collection never lists it. Its state now comes from the light reading (every 5 minutes).
+- Turning a connector on waits for a connection test that can last up to a minute with a slow source: the switch now shows « Testing the connection… » and is disabled until the answer, instead of looking frozen.
+- The message after an action that failed now opens in a window over the page, wherever you are on it, and stays as a red line under the form once closed. For a connector that cannot be turned on because its test failed, the message is in the connector's own card (it used to be at the very bottom of the page) and the window carries the « Turn on anyway » button.
+- A connector turned off could not be turned on again while its source did not answer: the safety test before the collection failed and the switch stayed off. The message now offers « Turn on anyway (without a test) ».
+- Warnings about a connector (home, machines, services…) waited for the next full collection (15 minutes) to go away after the source was back. A newer light reading (every 5 minutes) that read the source fine now clears them.
+- MynetworK was asked too often when the Network tab was open: the UniFi cards were read every 10 seconds (server pause 8 s), and each reading makes MynetworK query the UniFi controller, which could end in « timed out ». They are now read every 30 seconds (server pause 30 s), the live traffic every 20 seconds, and after a failed reading the source is left alone for 2 minutes.
+
 ## v0.15.3 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
