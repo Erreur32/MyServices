@@ -147,7 +147,8 @@ class Http(unittest.TestCase):
         (server.STATIC / "v2").mkdir(exist_ok=True)
         (server.STATIC / "v2" / "index.html").write_text("<div id=root>")
         root = self.c.get("/").headers["content-security-policy"]
-        self.assertNotIn("unsafe-inline", root)  # the compiled front at the root: strict policy
+        self.assertIn("script-src 'self';", root)  # the compiled front at the root: no inline script
+        self.assertIn("style-src 'self' 'unsafe-inline'", root)  # inline styles allowed: the UniFi device cards build their face plate with them
         self.assertNotIn("content-security-policy", self.c.get("/myservices/api/v1/status").headers)  # JSON : inutile
 
     def test_folder_without_slash_and_unknown_page(self):
