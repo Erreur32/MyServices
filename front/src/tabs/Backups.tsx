@@ -1,6 +1,6 @@
 // Sauvegardes (backups.py) : synthèse, points d'attention, puis chaque machine (disques, dernier backup local,
 // copies ailleurs, jeux produits) et les dossiers de sauvegarde trouvés sur les disques.
-import { HardDrive } from "lucide-react";
+import { HardDrive, Settings2 } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { type Snapshot } from "../api";
 import { useFilter, type Facet, type Selected } from "../lib/filter";
@@ -97,7 +97,10 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
       {b.issues.length > 0 && (   // nothing to say = no frame
         <TableCard zebra title={tx("Points d'attention")} tone={b.issues.some((i) => i.level === "crit" || i.level === "down") ? "bad" : "warn"}
           cols={[{ label: tx("État"), className: "w-[7.5rem]" }, { label: tx("Jeu de sauvegarde"), className: "w-[34%]" }, { label: tx("Ce qui ne va pas") }]}
-          rows={b.issues.map((i) => [<Level level={i.level} />, <b className="font-semibold">{i.set}</b>, <span className="text-muted">{i.text}</span>])}
+          rows={b.issues.map((i) => [<Level level={i.level} />,
+            <span className="inline-flex items-center gap-1.5"><b className="font-semibold">{i.set}</b>
+              {i.set_id && <a href={`#settings/backups/${i.set_id}`} className="text-dim hover:text-link" title={tx("Régler ce jeu (Réglages → Sauvegardes)")} aria-label={tx("Régler ce jeu (Réglages → Sauvegardes)")}><Settings2 size={13} aria-hidden /></a>}</span>,
+            <span className="text-muted">{i.text}</span>])}
           footer={<>{tx("Relevé du")} {dateTime(b.generated)}</>} />
       )}
       {f.shown.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (

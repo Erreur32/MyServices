@@ -61,7 +61,7 @@ function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snaps
     accounts: () => <Accounts me={snap.me.username} />, alerts: () => <NotificationsHub />, connectors: () => <Connectors snap={snap} />,
     machines: () => <MachinesSection snap={snap} />, api: () => <ApiMcp />, network: () => <NetworkSettings snap={snap} />, help: () => <Help />,
     about: () => <AboutSettings />, updates: () => <UpdatesSettings />, audit: () => <AuditLog />, logs: () => <Logs />,
-    backups: () => <BackupsSettings machines={snap.data.machine_list} />, tasks: () => <SystemSettings part="tasks" snap={snap} />,
+    backups: () => <BackupsSettings machines={snap.data.machine_list} issues={snap.backups?.issues ?? []} />, tasks: () => <SystemSettings part="tasks" snap={snap} />,
     ssh: () => <SystemSettings part="ssh" snap={snap} />,
   };
   // own keys only: a section read from the address (#settings/constructor…) never reaches Object's own methods

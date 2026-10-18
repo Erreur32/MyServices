@@ -2752,4 +2752,7 @@ export const EN: Record<string, string> = {
   "Le compte SSH est « {0} », pas root : il ne voit que ses propres ports en écoute, pas ceux des autres comptes.": "The SSH account is “{0}”, not root: it only sees its own listening ports, not those of the other accounts.",
   "Comment faire sur la machine ?": "How to set it up on the machine?",
   "Sur la machine, en root (ou avec sudo), autorisez ce compte à lancer « ss -tlnpH » seul, sans mot de passe : lecture seule, rien d'autre. La collecte l'utilise au passage suivant.": "On the machine, as root (or with sudo), allow this account to run “ss -tlnpH” alone, without password: read only, nothing else. The collection uses it at the next pass.",
+  "Régler ce jeu (Réglages → Sauvegardes)": "Set up this set (Settings → Backups)",
+  "Jeux signalés dans « Points d'attention » de l'onglet Sauvegardes": "Sets listed under “Attention points” of the Backups tab",
+  "{0} à voir": "{0} to check",
 };
