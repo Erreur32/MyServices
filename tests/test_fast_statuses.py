@@ -16,6 +16,10 @@ class Missing(unittest.TestCase):
         self.assertEqual([(r["type"], r["name"], r["ok"], r["message"]) for r in got],
                          [("beszel", "beszel", True, "2 système(s)"), ("proxmox", "pve", False, "injoignable (timed out)")])
 
+    def test_followed_systems_are_counted_for_the_tag(self):
+        got = fast.statuses_missing(self.live, set())
+        self.assertEqual([r["found"] for r in got if r["type"] == "beszel"], [[{"name": "systèmes", "count": 2}]])
+
     def test_nothing_without_a_light_reading(self):
         self.assertEqual(fast.statuses_missing({}, set()), [])
 

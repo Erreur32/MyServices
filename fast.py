@@ -118,5 +118,5 @@ def statuses_missing(live: dict, have: set[tuple[str, str]]) -> list[dict]:
         count = len(src.get("status") or {})
         message = (f"{count} système(s)" if count else "OK") if ok else str(src.get("error") or "illisible")[:160]
         out.append({"type": kind, "name": name, "ok": ok, "message": message, "stale": False, "failures": 0, "since": None, "duration_s": 0.0,
-                    "version": None, "version_tested": None, "extra": {}, "found": [], "warning": ""})
+                    "version": None, "version_tested": None, "extra": {}, "found": [{"name": "systèmes", "count": count}] if ok and count else [], "warning": ""})
     return out
