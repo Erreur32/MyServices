@@ -509,6 +509,19 @@ function RowActions({ ip, busy, confirm, setConfirm, setNote, reload, verify }: 
   );
 }
 
+const ROLES_SHOWN = 3, ROLE_CHARS = 14;   // the card keeps one height: at most this many roles, each cut short, the others behind a « +N »
+
+/** The roles of a machine on one line: the first ones, long names cut short (full name in the tooltip), and « +N » for the rest (listed in its tooltip) */
+export function RoleBadges({ roles }: Readonly<{ roles: string[] }>) {
+  const rest = roles.slice(ROLES_SHOWN);
+  return (
+    <>
+      {roles.slice(0, ROLES_SHOWN).map((t) => <Badge key={t} tone="off" title={t}>{t.length > ROLE_CHARS ? `${t.slice(0, ROLE_CHARS - 1)}…` : t}</Badge>)}
+      {rest.length > 0 && <span className="inline-flex cursor-help items-center rounded-md border border-line bg-bg2 px-1.5 py-0.5 text-xs font-semibold text-muted hover:border-link hover:text-txt" title={rest.join("\n")}>+{rest.length}</span>}
+    </>
+  );
+}
+
 function AgentOrAccess({ agent, access }: Readonly<{ agent?: AgentInfo; access: string }>) {
   if (!agent) return <span className="truncate">{access}</span>;
   return <Badge tone={agent.state === "actif" ? "ok" : "warn"} title={tx("Agent MyServices : {0}", agent.state)}>{tx("agent")}</Badge>;
@@ -567,10 +580,10 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgen
         </span>
         {/* Qui lit la machine : un badge court par source, coloré selon son état (détail en infobulle). Le détail de l'accès SSH n'est que dans la carte dépliée */}
         <span className="flex flex-col gap-1 p-3 pt-2">
-          <span className="flex flex-wrap items-center gap-1 text-xs text-dim">
-            {rolesOf(m.role).map((t) => <Badge key={t} tone="off">{t}</Badge>)}
+          <span className="flex flex-nowrap items-center gap-1 overflow-hidden text-xs text-dim">
+            <RoleBadges roles={rolesOf(m.role)} />
           </span>
-          <span className="flex flex-wrap items-center gap-1 text-xs text-dim">
+          <span className="flex flex-nowrap items-center gap-1 overflow-hidden text-xs text-dim">
             {live ? <SourceBadges m={live} agent={agent} extra={readers} /> : <AgentOrAccess agent={agent} access={access} />}
           </span>
         </span>

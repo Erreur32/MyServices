@@ -134,6 +134,23 @@ class Import(Base):
         self.assertEqual((out.config / "secret.key").read_bytes(), self.key)
         self.assertEqual((out.config / "config.json").stat().st_mode & 0o777, 0o600)
 
+    def test_the_apps_own_key_is_not_replaced_unless_asked(self):
+        (self.root / "ssh" / "myservices").write_text("key of the source installation")
+        (self.root / "ssh" / "myservices.pub").write_text("pub of the source installation")
+        data = ct.export_config(self.places, ["ssh"])
+        out = fresh_places(self.tmp.name)
+        (out.config / "ssh").mkdir(exist_ok=True)
+        (out.config / "ssh" / "myservices").write_text("key of THIS installation")
+        self.assertEqual(ct.preview(data, out)["parts"][0]["protected"], ["ssh/myservices"])   # the .pub is not here yet: nothing to protect
+        got = ct.apply(data, ["ssh"], out)
+        self.assertEqual(got["skipped"], ["ssh/myservices"])
+        self.assertEqual((out.config / "ssh" / "myservices").read_text(), "key of THIS installation")   # untouched, no .avant-import either
+        self.assertFalse((out.config / "ssh" / ("myservices" + ct.BACKUP_SUFFIX)).exists())
+        self.assertEqual((out.config / "ssh" / "myservices.pub").read_text(), "pub of the source installation")   # a missing file is written
+        got = ct.apply(data, ["ssh"], out, replace_app_keys=True)
+        self.assertEqual((got["skipped"], (out.config / "ssh" / "myservices").read_text()), ([], "key of the source installation"))
+        self.assertTrue((out.config / "ssh" / ("myservices" + ct.BACKUP_SUFFIX)).exists())
+
     def test_machines_only_leaves_the_rest_alone_and_keeps_the_old_file(self):
         data = ct.export_config(self.places)
         out = fresh_places(self.tmp.name)

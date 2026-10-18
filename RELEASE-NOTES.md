@@ -1,20 +1,21 @@
-# Release notes: MyServices 0.15.2
+# Release notes: MyServices 0.15.3
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.15.2** (18 October 2026): server messages in English, UniFi cards without MynetworK, and the Security page finishing touches.
+**0.15.3** (18 October 2026): a safer import, settings read again after an import, a clearer SSH message and aligned machine cards.
 
 ## For everyone
 
 **What's new?**
-- **English server messages**: the fixed error messages, the connector messages and the event labels written by the server are translated when the page is in English. A message that carries a value (a name, a code) is still in French for now.
-- **UniFi cards without MynetworK**: if a UniFi connector is set up with a local account (for example a controller running in Docker), the cards of the Network tab are read straight from the controller. MynetworK stays the first source. An API key (UniFi OS console) cannot give the ports, so it is not used for the cards. This was only tested with a fake controller so far.
-- **Security overview and Fail2ban tab**: the threat cards name the domains the addresses went after, and the jail, domain and address panels start folded (each visitor's choice is remembered).
+- **Import no longer replaces this installation's own SSH key**: when the key in the archive differs from the one in use, it is kept (the machines that authorized it would refuse the new one). A tick box lets you replace it anyway. The page also warns when the SSH aliases and the machine list are not imported together, and says which files were kept.
+- **After an import**: the settings are read again without restarting the container (the imported schedules apply at once), and the collection, the watch and the health run one after the other.
+- **SSH “key refused”**: the message now names the account and the key file the machine's alias really uses, and shows the public key to authorize.
+- **Machine cards in Settings, Machines**: one fixed height; at most three roles on one line, the others behind a “+N” with their names in the tooltip.
+- **E-mail**: the Profile page warns when sending is not set up, when the latest sending failed, or when there is no address; a full SMTP setup shows examples (OVH, Gmail, Brevo, Mailgun).
 
 **Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change in your compose file.
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.15.2` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit.
-- **Added**: `front/src/lib/server-text.json` and `lib/serverText.ts` (a test fails when a fixed server message has no English text); `UniFi.card_devices()` and `unifi_cards._from_controller`; LogviewR threats get `domains`.
-- **Changed**: MynetworK read errors show a fixed text on screen (the detail stays in the container log); the Fail2ban blocks are `FoldPanel`s.
+- **Image**: `ghcr.io/erreur32/myservices:0.15.3` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit.
+- **Changed**: `config_transfer.apply(..., replace_app_keys)` and `protected()`; `system.reload_config` and `system.after_import`; `setup.refused_key_text`; `RoleBadges`.

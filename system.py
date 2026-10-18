@@ -327,6 +327,39 @@ def set_netscan_discreet(core, on: bool) -> dict:
     return netscan_settings(core)
 
 
+def reload_config(core) -> bool:
+    """Reads config.json again into the running configuration (the same dict every module holds) and applies its schedules, without a restart.
+    False, nothing changed, when the file cannot be read. Settings read only once at the start (the encryption key) still need a restart."""
+    import config
+    try:
+        fresh = config.load(fatal=False)
+    except config.ConfigError:
+        return False
+    core.CFG.clear()
+    core.CFG.update(fresh)
+    with core.LOCK:
+        for name, (_script, default, _timeout) in core.DEFAULTS_AT.items():
+            t = core.TASKS[name]
+            if t["fixed"]:
+                continue
+            spec = (core.CFG.get("schedule") or {}).get(name) or default
+            try:
+                mins, hrs = core.parse_at(spec)
+            except ValueError:
+                spec = default
+                mins, hrs = core.parse_at(default)
+            t.update(minutes=mins, hours=hrs, at=spec)
+    return True
+
+
+def after_import(core, parts: list[str]) -> dict:
+    """After an import: the settings are read again (no restart), then the collection, the watch and the health run one after the other.
+    `restart` stays true for the encryption key and for settings that could not be read again."""
+    reloaded = "settings" in parts and "secrets" not in parts and reload_config(core)
+    core.run_chain([n for n in ("collect", "watch", "health") if core.enabled(n)], "après un import")
+    return {"reloaded": reloaded, "restart": "secrets" in parts or ("settings" in parts and not reloaded)}
+
+
 def set_schedule(core, name: str, spec: str | None) -> dict:
     """Nouvel horaire (None ou vide = défaut), écrit dans config.json et appliqué aussitôt."""
     if name not in core.TASKS:
