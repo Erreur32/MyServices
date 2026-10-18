@@ -69,6 +69,14 @@ def make_db(path: Path, admin: bool = True) -> None:
     db.close()
 
 
+def fresh_places(tmp: str) -> ct.Places:
+    """Another, empty installation: its own config, state and database locations"""
+    base = Path(tempfile.mkdtemp(dir=tmp))
+    (base / "config").mkdir()
+    (base / "state").mkdir()
+    return ct.Places(base / "config", base / "state", base / "data" / "myservices.db")
+
+
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -92,11 +100,6 @@ class Base(unittest.TestCase):
         make_db(self.db)
         self.places = ct.Places(self.root, self.state, self.db)
 
-    def target(self) -> ct.Places:
-        base = Path(tempfile.mkdtemp(dir=self.tmp.name))
-        (base / "config").mkdir()
-        (base / "state").mkdir()
-        return ct.Places(base / "config", base / "state", base / "data" / "myservices.db")
 
 
 class Export(Base):
@@ -124,7 +127,7 @@ class Export(Base):
 class Import(Base):
     def test_roundtrip_into_an_empty_folder(self):
         data = ct.export_config(self.places)
-        out = self.target()
+        out = fresh_places(self.tmp.name)
         got = ct.apply(data, list(ct.PARTS), out)
         self.assertTrue(got["restart"])
         self.assertEqual(json.loads((out.config / "services-meta.json").read_text())["machines"]["10.0.0.2"]["name"], "pc")
@@ -133,7 +136,7 @@ class Import(Base):
 
     def test_machines_only_leaves_the_rest_alone_and_keeps_the_old_file(self):
         data = ct.export_config(self.places)
-        out = self.target()
+        out = fresh_places(self.tmp.name)
         (out.config / "services-meta.json").write_text('{"machines": {}}')
         got = ct.apply(data, ["machines"], out)
         self.assertFalse(got["restart"])
@@ -143,7 +146,7 @@ class Import(Base):
 
     def test_settings_alone_need_a_key_that_opens_the_secrets(self):
         data = ct.export_config(self.places, ["settings", "secrets"])
-        out = self.target()
+        out = fresh_places(self.tmp.name)
         with self.assertRaises(ct.TransferError):
             ct.apply(data, ["settings"], out)                     # no key here, none imported
         (out.config / "secret.key").write_bytes(make_key())
@@ -155,14 +158,14 @@ class Import(Base):
 
     def test_preview_lists_the_parts_and_warns_about_the_key(self):
         data = ct.export_config(self.places)
-        got = ct.preview(data, self.target())
+        got = ct.preview(data, fresh_places(self.tmp.name))
         self.assertEqual([p["id"] for p in got["parts"]], ["settings", "machines", "backups", "decisions", "accounts", "secrets", "ssh"])
         self.assertEqual(got["secrets"], {"with_archive_key": "ok", "with_current_key": "unreadable", "swap_unsafe": False})
         self.assertTrue(next(p for p in got["parts"] if p["id"] == "ssh")["sensitive"])
 
     def test_importing_only_the_key_would_lock_the_current_settings_out(self):
         data = ct.export_config(self.places, ["secrets"])
-        out = self.target()
+        out = fresh_places(self.tmp.name)
         (out.config / "secret.key").write_bytes(make_key())
         (out.config / "config.json").write_text(json.dumps({"smtp_password": encrypted(out.config.joinpath("secret.key").read_bytes(), "pw")}))
         self.assertTrue(ct.preview(data, out)["secrets"]["swap_unsafe"])
@@ -171,18 +174,18 @@ class Import(Base):
         self.assertEqual(ct.apply(ct.export_config(self.places, ["settings", "secrets"]), ["settings", "secrets"], out)["written"], ["config.json", "secret.key"])
 
     def test_preview_flags_the_part_that_needs_the_key(self):
-        got = ct.preview(ct.export_config(self.places, ["settings", "machines", "secrets"]), self.target())
+        got = ct.preview(ct.export_config(self.places, ["settings", "machines", "secrets"]), fresh_places(self.tmp.name))
         self.assertEqual({p["id"]: p["needs_key"] for p in got["parts"]}, {"settings": True, "machines": False, "secrets": False})
 
     def test_part_missing_from_the_archive_is_refused(self):
         data = ct.export_config(self.places, ["machines"])
-        out = self.target()
+        out = fresh_places(self.tmp.name)
         with self.assertRaises(ct.TransferError):
             ct.apply(data, ["backups"], out)
 
     def test_invalid_contents_are_refused(self):
         bad_json = tar_of([("config/services-meta.json", b"{nope", None)])
-        out = self.target()
+        out = fresh_places(self.tmp.name)
         with self.assertRaises(ct.TransferError):
             ct.apply(bad_json, ["machines"], out)
         bad_key = tar_of([("config/secret.key", b"short", None)])
@@ -196,7 +199,7 @@ class Data(Base):
     def test_decisions_are_only_the_choices_not_the_generated_files(self):
         files, _, _ = ct.read_archive(ct.export_config(self.places, ["decisions"]))
         self.assertEqual(sorted(files), ["state/diagnostic-accepted.json", "state/services-decided.json"])
-        out = self.target()
+        out = fresh_places(self.tmp.name)
         ct.apply(ct.export_config(self.places, ["decisions"]), ["decisions"], out)
         self.assertEqual(json.loads((out.state / "services-decided.json").read_text()), {"local:10.0.0.2:80": 1})
 
@@ -213,7 +216,7 @@ class Data(Base):
 
     def test_import_replaces_the_live_database_and_keeps_the_old_one(self):
         data = ct.export_config(self.places, ["accounts"])
-        out = self.target()
+        out = fresh_places(self.tmp.name)
         out.db.parent.mkdir()
         make_db(out.db)
         live = sqlite3.connect(out.db)
@@ -231,7 +234,7 @@ class Data(Base):
         bad = Path(self.tmp.name) / "noadmin.db"
         make_db(bad, admin=False)
         data = zip_of([("config/" + ct.DB_REL, bad.read_bytes())])
-        out = self.target()
+        out = fresh_places(self.tmp.name)
         with self.assertRaises(ct.TransferError):
             ct.apply(data, ["accounts"], out)
         junk = zip_of([("config/" + ct.DB_REL, b"not a database at all, just text")])
@@ -239,7 +242,7 @@ class Data(Base):
             ct.apply(junk, ["accounts"], out)
 
     def test_preview_tells_what_is_in_the_database(self):
-        got = ct.preview(ct.export_config(self.places, ["accounts"]), self.target())
+        got = ct.preview(ct.export_config(self.places, ["accounts"]), fresh_places(self.tmp.name))
         self.assertEqual(got["parts"][0]["facts"], {"users": 1, "events": 2})
         self.assertTrue(got["parts"][0]["sensitive"])
 
@@ -293,7 +296,7 @@ class Unsafe(Base):
         files, _, ignored = ct.read_archive(data)
         self.assertEqual(sorted(files), ["services-meta.json"])
         self.assertEqual(len(ignored), 3)
-        out = self.target()
+        out = fresh_places(self.tmp.name)
         ct.apply(data, ["machines"], out)
         self.assertEqual(sorted(p.name for p in out.config.iterdir()), ["services-meta.json"])
 

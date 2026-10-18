@@ -8,6 +8,7 @@ import { dateTime, hm, longDay } from "../lib/format";
 import { LANG, tx } from "../lib/i18n";
 import { Dim, Empty, FilterBar } from "../components/ui";
 import { InfoNote } from "../components/InfoNote";
+import type { ReactNode } from "react";
 
 interface Cell { t: number; pct: number | null }
 interface Item { key: string; kind: "service" | "machine" | "kuma"; label: string | null; machine: string | null; target: string | null;
@@ -51,6 +52,11 @@ export function Availability({ snap }: { snap: Snapshot }) {
     const l = items.filter((x) => x.kind === k), n = l.reduce((s, x) => s + x.samples, 0);
     return n ? (100 * l.reduce((s, x) => s + x.samples - x.down, 0)) / n : null;
   };
+  // what replaces the list while there is nothing to list (null: show it)
+  let notice: ReactNode = null;
+  if (error && !rep) notice = <Empty>{tx("Disponibilité illisible :")} {error}</Empty>;
+  else if (!rep) notice = <p className="py-8 text-muted">{tx("Chargement…")}</p>;
+  else if (!items.length) notice = <Empty>{tx("Pas encore de relevé : la disponibilité se remplit à chaque collecte (toutes les 15 minutes par défaut).")}</Empty>;
 
   return (
     <div className="py-4">
@@ -63,10 +69,7 @@ export function Availability({ snap }: { snap: Snapshot }) {
           {(["service", "machine", "kuma"] as const).map((k) => { const a = avg(k); return a == null ? null : <span key={k}>{KIND[k][0]} <b className={pctTone(a)}>{pct(a)}</b></span>; })}
         </span>
       </div>
-      {error && !rep ? <Empty>{tx("Disponibilité illisible :")} {error}</Empty>
-        : !rep ? <p className="py-8 text-muted">{tx("Chargement…")}</p>
-        : !items.length ? <Empty>{tx("Pas encore de relevé : la disponibilité se remplit à chaque collecte (toutes les 15 minutes par défaut).")}</Empty>
-        : <>
+      {notice ?? (rep && <>
           <FilterBar f={f} placeholder={tx("Service, machine, adresse…")} />
           {f.shown.length === 0 ? <Empty>{tx("Rien pour ce filtre.")}</Empty> : (
             <ul className="overflow-hidden rounded-2xl border border-line bg-card">
@@ -89,7 +92,7 @@ export function Availability({ snap }: { snap: Snapshot }) {
             </ul>
           )}
           <InfoNote className="mt-2">{tx("Relevé à chaque collecte (toutes les 15 minutes par défaut) : une coupure plus courte peut passer inaperçue. Uptime Kuma garde le détail à la minute.")}</InfoNote>
-        </>}
+        </>)}
     </div>
   );
 }

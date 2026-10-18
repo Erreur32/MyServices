@@ -10,7 +10,7 @@ type Tone = "ok" | "warn" | "bad" | "off";
 const TONE: Record<Tone, string> = { ok: "text-ok", warn: "text-warn", bad: "text-bad", off: "text-muted" };
 
 /** Vrai logo de l'appli quand il existe, sinon une icône du thème */
-export function Mark({ app, Icon, tone = "text-muted" }: { app?: string; Icon: LucideIcon; tone?: string }) {
+export function Mark({ app, Icon, tone = "text-muted" }: Readonly<{ app?: string; Icon: LucideIcon; tone?: string }>) {
   const src = app ? appIcon([app]) : null;
   return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-bg2">{src ? <img src={src} alt="" className="h-4 w-4" /> : <Icon size={14} className={tone} aria-hidden />}</span>;
 }
@@ -19,9 +19,9 @@ export function Mark({ app, Icon, tone = "text-muted" }: { app?: string; Icon: L
 export type Cell = [Tone, number, string, Selected?];
 export type Open = { go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void };
 
-export function Group({ title, sub, accent, tab, nav, cells, mark }: {
+export function Group({ title, sub, accent, tab, nav, cells, mark }: Readonly<{
   mark: ReactNode; title: string; sub: string; accent: string; tab: TabId; nav: Open; cells: Cell[];
-}) {
+}>) {
   return (
     <div className={`w-full rounded-xl border border-line border-l-4 ${accent} bg-card p-3`}>
       <button type="button" onClick={() => nav.go(tab)} className="flex w-full items-center justify-between gap-2 text-left hover:text-link" title={tx("Ouvrir l'onglet")}>

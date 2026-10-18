@@ -1661,7 +1661,7 @@ def _archive_bytes(b64: str) -> bytes | JSONResponse:
     import binascii
     try:
         return base64.b64decode(b64, validate=True)
-    except (binascii.Error, ValueError):
+    except ValueError:   # binascii.Error is a ValueError
         return deny(400, "archive illisible (base64 invalide)")
 
 

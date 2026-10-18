@@ -12,6 +12,12 @@ import { InfoNote } from "./InfoNote";
 
 interface MailState { suggested_host?: string; host: string; port: number; security: "starttls" | "ssl" | "none"; user: string; password_set: boolean; from: string; page_url: string; ready: boolean }
 
+/** « host » or « host:port » as the simple form shows it (port 25 is implicit) */
+function relayText(s: Pick<MailState, "host" | "port">): string {
+  if (!s.host) return "";
+  return s.port === 25 ? s.host : `${s.host}:${s.port}`;
+}
+
 const PORTS: Record<MailState["security"], number> = { starttls: 587, ssl: 465, none: 25 };
 
 const CHECK = "ss -ltn | grep ':25'";
@@ -39,7 +45,7 @@ export function MailSettings() {
   useEffect(() => {
     read<MailState>("system/mail").then((s) => {
       setSt({ ...s, page_url: s.page_url || location.origin });
-      setRelay(s.host ? (s.port === 25 ? s.host : `${s.host}:${s.port}`) : "");
+      setRelay(relayText(s));
       setAdvanced(Boolean(s.user || s.password_set || (s.host && s.security !== "none")));   // an existing full SMTP setup stays visible
     }).catch(() => undefined);
   }, []);
@@ -86,7 +92,7 @@ export function MailSettings() {
         {title}
         <form onSubmit={save} className="flex flex-col gap-3">
           <Field label={tx("Relais de courrier de l'hôte")}>
-            <input className={`${input} max-w-sm font-mono`} value={relay} placeholder={st.suggested_host || "172.17.0.1"} onChange={(e) => setRelay(e.target.value)} />
+            <input className={`${input} max-w-sm font-mono`} value={relay} placeholder={st.suggested_host || "127.0.0.1"} onChange={(e) => setRelay(e.target.value)} />
           </Field>
           <InfoNote>{tx("L'adresse du courrier (postfix, sendmail, exim…) installé sur la machine qui héberge Docker, port 25 par défaut. Avec le réseau de l'hôte (les fichiers compose fournis), 127.0.0.1 convient et postfix n'a rien à changer. L'expéditeur et l'adresse de la page sont déduits.")}</InfoNote>
           {actions}

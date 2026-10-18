@@ -16,7 +16,7 @@ function Chart({ hours }: Readonly<{ hours: { n: number; color: string }[] }>) {
     <div>
       <div className="flex h-14 items-end gap-0.5" role="img" aria-label={tx("Événements par heure sur les dernières 24 h")}>
         {hours.map((h, i) => (
-          <span key={i} title={h.n ? tx("{0} événement(s), il y a {1} h", h.n, 23 - i) : tx("rien, il y a {0} h", 23 - i)}
+          <span key={`ago${23 - i}`} title={h.n ? tx("{0} événement(s), il y a {1} h", h.n, 23 - i) : tx("rien, il y a {0} h", 23 - i)}
             className={`flex-1 rounded-sm ${h.n ? h.color : "bg-line/60"}`} style={{ height: h.n ? `${Math.max(14, (h.n / max) * 100)}%` : "6%" }} />
         ))}
       </div>
