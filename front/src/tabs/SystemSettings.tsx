@@ -490,32 +490,55 @@ function NetscanRow({ n, now, reload }: Readonly<{ n: NonNullable<SystemState["n
   );
 }
 
-function Info({ info }: { info: SystemState["info"] }) {
-  const row = (k: string, v: ReactNode) => (
-    <div className="flex justify-between gap-3 py-1"><span className="text-dim">{k}</span><span className="min-w-0 text-right">{v}</span></div>
+/** One group of the information card: a small title and a list of label / value lines */
+function InfoGroup({ title, icon: Icon, children }: Readonly<{ title: string; icon: LucideIcon; children: ReactNode }>) {
+  return (
+    <section className="rounded-xl border border-line/70 bg-bg/40 p-3">
+      <h3 className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted"><Icon size={13} aria-hidden />{title}</h3>
+      <dl className="flex flex-col divide-y divide-line/50 text-sm">{children}</dl>
+    </section>
   );
+}
+
+function InfoLine({ label, children }: Readonly<{ label: ReactNode; children: ReactNode }>) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-1.5 first:pt-0 last:pb-0">
+      <dt className="shrink-0 text-dim">{label}</dt>
+      <dd className="m-0 min-w-0 text-right">{children}</dd>
+    </div>
+  );
+}
+
+const LINK = "inline-flex items-center gap-1 text-link hover:underline";
+
+function Info({ info }: Readonly<{ info: SystemState["info"] }>) {
+  const release = releaseOf(info.version);
   return (
     <Card>
-      <h2 className="mb-2 flex items-center gap-2 font-bold"><Server size={16} />{tx("Informations")}</h2>
-      <div className="grid gap-x-8 text-sm md:grid-cols-2">
-        <div>
-          {row(tx("Version"), <code className="font-mono text-xs">{info.version}</code>)}
-          {row(tx("Dernière publiée"), <span className="flex flex-wrap justify-end gap-x-3">
-            {releaseOf(info.version) && <a className="inline-flex items-center gap-1 text-link hover:underline" href={releaseOf(info.version)!.url} target="_blank" rel="noopener noreferrer">{tx("Notes de {0}", releaseOf(info.version)!.tag)}<ExternalLink size={12} aria-hidden /></a>}
-            <a className="inline-flex items-center gap-1 text-link hover:underline" href={`${GITHUB}/releases/latest`} target="_blank" rel="noopener noreferrer">{tx("Voir la dernière version")}<ExternalLink size={12} aria-hidden /></a>
-          </span>)}
-          {row(tx("Démarré"), tx("{0} · depuis {1}", dateTime(info.started * 1000), dur(info.uptime_s)))}
-          {row(tx("Python"), info.python)}
-          {row(tx("Port"), info.port)}
-          {row(tx("Comptes"), info.auth ? tx("connexion requise") : <span className="text-warn">{tx("coupés (MYSERVICES_AUTH=0)")}</span>)}
-          {row(tx("Cookies Secure"), info.cookie_secure ? tx("oui") : tx("non (HTTP direct)"))}
-        </div>
-        <div>
-          {row(tx("Réseaux autorisés"), <span className="font-mono text-xs">{info.allow.join(", ")}</span>)}
-          {row(info.paths.config, bytes(info.sizes.config))}
-          {row(info.paths.data, bytes(info.sizes.data))}
-          {row(tx("Base (comptes, historique, alertes)"), bytes(info.sizes.db))}
-        </div>
+      <h2 className="mb-3 flex items-center gap-2 font-bold"><Server size={16} aria-hidden />{tx("Informations")}</h2>
+      <div className="grid gap-3 md:grid-cols-3">
+        <InfoGroup title={tx("Application")} icon={Server}>
+          <InfoLine label={tx("Version")}><code className="font-mono text-xs">{info.version}</code></InfoLine>
+          <InfoLine label={tx("Dernière publiée")}>
+            <span className="flex flex-wrap justify-end gap-x-3">
+              {release && <a className={LINK} href={release.url} target="_blank" rel="noopener noreferrer">{tx("Notes de {0}", release.tag)}<ExternalLink size={12} aria-hidden /></a>}
+              <a className={LINK} href={`${GITHUB}/releases/latest`} target="_blank" rel="noopener noreferrer">{tx("Voir la dernière version")}<ExternalLink size={12} aria-hidden /></a>
+            </span>
+          </InfoLine>
+          <InfoLine label={tx("Démarré")}><span title={dateTime(info.started * 1000)}>{tx("depuis {0}", dur(info.uptime_s))}</span></InfoLine>
+          <InfoLine label={tx("Python")}>{info.python}</InfoLine>
+        </InfoGroup>
+        <InfoGroup title={tx("Accès et sécurité")} icon={ShieldCheck}>
+          <InfoLine label={tx("Port")}><code className="font-mono text-xs">{info.port}</code></InfoLine>
+          <InfoLine label={tx("Comptes")}>{info.auth ? <Badge tone="ok">{tx("connexion requise")}</Badge> : <Badge tone="warn">{tx("coupés (MYSERVICES_AUTH=0)")}</Badge>}</InfoLine>
+          <InfoLine label={tx("Cookies Secure")}>{info.cookie_secure ? <Badge tone="ok">{tx("oui")}</Badge> : <Badge tone="off">{tx("non (HTTP direct)")}</Badge>}</InfoLine>
+          <InfoLine label={tx("Réseaux autorisés")}><span className="break-words font-mono text-xs">{info.allow.join(", ")}</span></InfoLine>
+        </InfoGroup>
+        <InfoGroup title={tx("Stockage")} icon={HardDrive}>
+          <InfoLine label={<code className="font-mono text-xs">{info.paths.config}</code>}>{bytes(info.sizes.config)}</InfoLine>
+          <InfoLine label={<code className="font-mono text-xs">{info.paths.data}</code>}>{bytes(info.sizes.data)}</InfoLine>
+          <InfoLine label={tx("Base (comptes, historique, alertes)")}>{bytes(info.sizes.db)}</InfoLine>
+        </InfoGroup>
       </div>
     </Card>
   );

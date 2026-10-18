@@ -71,7 +71,7 @@ export function MailSettings() {
           <Field label={tx("Relais de courrier de l'hôte")}>
             <input className={`${input} max-w-sm font-mono`} value={relay} placeholder={st.suggested_host || "172.17.0.1"} onChange={(e) => setRelay(e.target.value)} />
           </Field>
-          <p className="text-xs text-dim">{tx("L'adresse du courrier (postfix, sendmail, exim…) installé sur la machine qui héberge Docker, port 25 par défaut. L'expéditeur et l'adresse de la page sont déduits. Postfix doit accepter le réseau Docker (mynetworks).")}</p>
+          <p className="text-xs text-dim">{tx("L'adresse du courrier (postfix, sendmail, exim…) installé sur la machine qui héberge Docker, port 25 par défaut. Avec le réseau de l'hôte (les fichiers compose fournis), 127.0.0.1 convient et postfix n'a rien à changer. L'expéditeur et l'adresse de la page sont déduits.")}</p>
           {actions}
           <button type="button" className="inline-flex items-center gap-1.5 self-start text-xs text-link hover:underline" onClick={() => setAdvanced(true)}><SlidersHorizontal size={12} aria-hidden />{tx("Réglages avancés (SMTP complet)")}</button>
         </form>
