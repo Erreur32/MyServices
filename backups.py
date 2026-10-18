@@ -649,7 +649,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                          "offsite": len(offsite), "expect_offsite": expect, "locations": locs, "why": why, "size": src.get("size", 0),
                          "cadence_days": cadence(src_files) if src_files else None})
         for w in why:
-            issues.append({"level": level, "set": s["label"], "text": w})
+            issues.append({"level": level, "set": s["label"], "set_id": s["id"], "text": w})
 
     meta_sets = {st["id"]: st for st in meta["sets"]}
     by_id = {st["id"]: st for st in sets_out}
@@ -663,7 +663,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
             d["level"] = "crit" if d["pct"] >= DISK_CRIT else "warn" if d["pct"] >= DISK_WARN else "ok"
             dlevel = max(dlevel, d["level"], key=RANK.get)
             if d["level"] != "ok":
-                issues.append({"level": d["level"], "set": h["label"], "text": f"disque {d['mount']} rempli à {d['pct']:g} %"})
+                issues.append({"level": d["level"], "set": h["label"], "host_id": h["id"], "text": f"disque {d['mount']} rempli à {d['pct']:g} %"})
         local = []
         ignored = meta.get("discover_ignore", {}).get(h["id"], [])
         for x in (r or {}).get("local", []):
@@ -706,7 +706,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                           "last_local": last_local, "copies": list(dests.values()),
                           "set_levels": {k: sum(1 for x in mine if x["level"] == k) for k in ("ok", "warn", "crit")}})
         if r is None:
-            issues.append({"level": "down", "set": h["label"], "text": f"machine injoignable ({err})"})
+            issues.append({"level": "down", "set": h["label"], "host_id": h["id"], "text": f"machine injoignable ({err})"})
 
     stn = []
     for node in meta.get("syncthing", []):
@@ -714,10 +714,10 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
         stn.append({"host": node["host"], "label": hosts[node["host"]]["label"], "ok": r is not None, "error": err, **(r or {})})
         for d in (r or {}).get("devices", []):
             if not d["connected"] and not d["paused"]:
-                issues.append({"level": "warn", "set": "Syncthing", "text": f"{hosts[node['host']]['label']} : pair {d['name']} déconnecté"})
+                issues.append({"level": "warn", "set": "Syncthing", "host_id": node["host"], "text": f"{hosts[node['host']]['label']} : pair {d['name']} déconnecté"})
         for f in (r or {}).get("folders", []):
             if f["errors"]:
-                issues.append({"level": "warn", "set": "Syncthing", "text": f"{hosts[node['host']]['label']} : {f['label']} a {f['errors']} erreur(s)"})
+                issues.append({"level": "warn", "set": "Syncthing", "host_id": node["host"], "text": f"{hosts[node['host']]['label']} : {f['label']} a {f['errors']} erreur(s)"})
 
     issues.sort(key=lambda i: -RANK[i["level"]])
     active = [x for x in sets_out if not x["archived"]]

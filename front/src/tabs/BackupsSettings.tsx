@@ -17,7 +17,7 @@ import { BackupsSynology, type SynologyState } from "./BackupsSynology";
 import { BackupsRemote, type RemoteAccountState } from "./BackupsRemote";
 import { BackupsVzdump, type VzdumpState } from "./BackupsVzdump";
 import { MachineIcon } from "../components/MachineIcon";
-import type { Machine } from "../types";
+import type { Backups, Machine } from "../types";
 import { CopyGuesses, SetCopies, type CopyRow, type SshMachine } from "./BackupsCopies";
 import { InfoNote } from "../components/InfoNote";
 
@@ -59,7 +59,33 @@ function CustomAge({ value, disabled, onSave }: { value: number; disabled: boole
   );
 }
 
-export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
+type Issue = Backups["issues"][number];
+const ISSUE_TONE: Record<string, "warn" | "bad"> = { warn: "warn", crit: "bad", down: "bad" };
+
+/** The worst issue of a set (crit or down before warn), or none */
+function worstOf(list: Issue[]): Issue | undefined {
+  return list.find((i) => i.level === "crit" || i.level === "down") ?? list[0];
+}
+
+/** Source of a followed set, as the source rows name them */
+function sourceOf(s: SetRow): string {
+  if (s.remote) return "remote";
+  if (s.veeam_job) return "veeam";
+  if (s.pbs_group) return "pbs";
+  if (s.synology_task) return "synology";
+  if (s.vzdump) return "vzdump";
+  return s.ha ? "ha" : "folders";
+}
+
+/** Attention badge of a set or a source: its worst level, the texts in the tooltip */
+function IssueBadge({ list }: Readonly<{ list: Issue[] }>) {
+  const w = worstOf(list);
+  if (!w) return null;
+  const label = w.level === "down" ? tx("injoignable") : w.level === "crit" ? tx("critique") : tx("en retard");
+  return <Badge tone={ISSUE_TONE[w.level] ?? "warn"} title={list.map((i) => i.text).join("\n")}>{label}{list.length > 1 ? ` (${list.length})` : ""}</Badge>;
+}
+
+export function BackupsSettings({ machines = [], issues = [] }: { machines?: Machine[]; issues?: Issue[] }) {
   const machineOf = (ip?: string | null) => machines.find((m) => m.ip === ip);
   const [cur, setCur] = useState<Current | null>(null), [error, setError] = useState("");
   const [found, setFound] = useState<Found[] | null>(null), [searching, setSearching] = useState(false);
@@ -75,6 +101,16 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
   }, []);
   useEffect(load, [load]);
+  const [focus] = useState(() => location.hash.split("/")[2] || "");   // #settings/backups/<set id> from a « Points d'attention » row: that set unfolded and shown
+  useEffect(() => {
+    if (!cur || !focus || !cur.sets.some((x) => x.id === focus)) return;
+    setOpened((o) => new Set(o).add(focus));
+    setTimeout(() => document.getElementById(`set-${focus}`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!cur, focus]);
+  const issuesOf = (id: string) => issues.filter((i) => i.set_id === id);
+  const flagged = cur ? cur.sets.filter((x) => issuesOf(x.id).length > 0).length : 0;
+  const sourceIssues = (src: string) => (cur ? cur.sets.filter((x) => sourceOf(x) === src).flatMap((x) => issuesOf(x.id)) : []);
 
   const search = async () => {
     setSearching(true); setNote(null);
@@ -246,7 +282,8 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
   return (
     <div className="flex flex-col gap-4">
       <Card>
-        <h2 className="mb-1 flex items-center gap-2 font-bold"><HardDrive size={16} />{tx("Sauvegardes suivies")} <Count n={cur.sets.length} /></h2>
+        <h2 className="mb-1 flex items-center gap-2 font-bold"><HardDrive size={16} />{tx("Sauvegardes suivies")} <Count n={cur.sets.length} />
+          {flagged > 0 && <Badge tone="warn" title={tx("Jeux signalés dans « Points d'attention » de l'onglet Sauvegardes")}>{tx("{0} à voir", flagged)}</Badge>}</h2>
         <InfoNote className="mb-3">
           {tx("MyServices regarde l'âge du fichier le plus récent de chaque dossier et vous prévient s'il est trop vieux. Lecture seule : rien n'est modifié sur les machines.")}
         </InfoNote>
@@ -256,8 +293,8 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
             {cur.sets.map((s) => {
               const kind = s.remote ? SRC.remote : s.veeam_job ? SRC.veeam : s.pbs_group ? SRC.pbs : s.synology_task ? SRC.synology : s.vzdump ? SRC.vzdump : s.ha ? SRC.ha : SRC.folder;
               return (
-                <li key={s.id} className="text-sm">
-                <div className="overflow-hidden rounded-xl border border-line bg-bg2/30">
+                <li key={s.id} id={`set-${s.id}`} className="text-sm">
+                <div className={`overflow-hidden rounded-xl border bg-bg2/30 ${focus === s.id ? "border-link ring-1 ring-link" : "border-line"}`}>
                   <div className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 bg-bg px-3 py-2 ${opened.has(s.id) ? "border-b border-line" : ""}`}>
                     <button type="button" onClick={() => toggleSet(s.id)} aria-expanded={opened.has(s.id)} className="flex min-w-[200px] flex-1 items-center gap-x-3 text-left">
                     <ChevronRight size={15} className={`shrink-0 text-link transition-transform ${opened.has(s.id) ? "rotate-90" : ""}`} aria-hidden />
@@ -274,6 +311,7 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
                       })()}
                     </span>
                     </button>
+                    <IssueBadge list={issuesOf(s.id)} />
                     <Badge tone="info">{kind.label}</Badge>
                     <Badge tone="off">{tx("alerte après")} {s.max_age_days} {tx("j")}</Badge>
                     {/* the switch and buttons work from the folded title: outside the fold button, so they never fold or unfold */}
@@ -339,6 +377,7 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
                   </span>
                   <b className="min-w-[160px]">{x.label}</b>
                   <span className="min-w-0 flex-1 text-xs text-dim">{x.hint}</span>
+                  <IssueBadge list={sourceIssues(x.id)} />
                   <Badge tone={x.tone}>{x.state}</Badge>
                 </button>
                 {on && <div className="px-3 pb-3 [&_h2]:hidden [&>section]:border-0 [&>section]:bg-transparent [&>section]:p-0 [&>section]:shadow-none">{x.panel}</div>}
