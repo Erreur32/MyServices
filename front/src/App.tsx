@@ -23,9 +23,11 @@ import { Settings } from "./tabs/Settings";
 import { DiagramsTab } from "./tabs/DiagramsTab";
 import { useContentWidth, useTheme } from "./theme";
 import { tx } from "./lib/i18n";
+import { onStream, streamConnected } from "./lib/stream";
 import { GREY_CARDS } from "./lib/forms";
 
-const REFRESH_MS = 15_000;   // one small manifest request; the files that moved (pulse, live, data…) are read again, the others not at all
+const REFRESH_MS = 15_000;      // without the event stream: one small manifest request, the files that moved are read again
+const STREAM_REFRESH_MS = 120_000;   // with the stream, which says when a file moved: a safety read only
 
 const OLD_TABS: Record<string, string> = { fail2ban: "security", health: "machines" };   // removed tabs, now inside another one
 
@@ -49,9 +51,11 @@ export default function App() {
   const [pending, setPending] = useState<{ tab: TabId; sel: Selected; n: number }>({ tab: "home", sel: {}, n: 0 });
 
   const retry = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const load = useCallback(() => {
+  const lastLoad = useRef(0);
+  const load = useCallback((stamps?: Record<string, string>) => {
     clearTimeout(retry.current);
-    loadSnapshot()
+    lastLoad.current = Date.now();
+    loadSnapshot(stamps)
       .then((s) => { setSnap((cur) => (cur === s ? cur : s)); setError(""); setFresh(null); setNow(Date.now()); })
       .catch((e) => {
         if (e instanceof LoginRequired) location.replace(LOGIN);
@@ -62,9 +66,13 @@ export default function App() {
 
   useEffect(() => {
     load();
-    const id = setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);   // rien quand l'onglet est masqué
+    const id = setInterval(() => {   // rien quand l'onglet est masqué ; avec le flux, seulement une lecture de sûreté
+      if (!document.hidden && (!streamConnected() || Date.now() - lastLoad.current > STREAM_REFRESH_MS)) load();
+    }, REFRESH_MS);
     const shown = () => { if (!document.hidden) load(); };   // back on the tab: read now, not at the next tick
     document.addEventListener("visibilitychange", shown);
+    const offManifest = onStream("manifest", (stamps) => { if (!document.hidden) load(stamps as Record<string, string>); });
+    const offOpen = onStream("open", () => load());   // (re)connected: catch up with what may have moved meanwhile
     const onHash = () => {   // ancienne page « Installation » -> assistant
       if (location.hash.startsWith("#setup")) location.replace("#assistant");
       setTab(tabFromHash());
@@ -74,7 +82,7 @@ export default function App() {
     addEventListener("hashchange", onHash);
     const changed = () => load();   // after a change: read now; the 15 s manifest ticks follow the pass it may have started
     addEventListener(RELOAD_EVENT, changed);
-    return () => { clearInterval(id); document.removeEventListener("visibilitychange", shown); removeEventListener("hashchange", onHash); removeEventListener(RELOAD_EVENT, changed); };
+    return () => { clearInterval(id); offManifest(); offOpen(); document.removeEventListener("visibilitychange", shown); removeEventListener("hashchange", onHash); removeEventListener(RELOAD_EVENT, changed); };
   }, [load]);
 
   const go = (t: TabId) => { location.hash = t === "home" ? "" : t; setTab(t); setPending((f) => ({ tab: "home", sel: {}, n: f.n })); scrollTo({ top: 0 }); };

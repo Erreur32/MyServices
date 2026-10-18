@@ -4,8 +4,9 @@ import { useEffect, useRef } from "react";
 import { ROOT } from "../api";
 import { tx } from "../lib/i18n";
 import { registerPoller, setScan, useScan, type NetworkSummary, type ScanStatus } from "../lib/scan";
+import { onStream, streamConnected } from "../lib/stream";
 
-const IDLE_MS = 10_000, RUN_MS = 1_500;
+const IDLE_MS = 10_000, RUN_MS = 1_500, STREAM_IDLE_MS = 60_000;   // with the event stream the state arrives by itself: a safety read only
 
 /** Avancement de 0 à 1 : étapes finies, plus la part des sondes de l'étape en cours (compteur done / total) */
 export function fraction(p: NonNullable<ScanStatus["progress"]>): number {
@@ -26,6 +27,11 @@ export function ScanBar({ onFinished }: { onFinished: () => void }) {
   finished.current = onFinished;
   useEffect(() => {
     let stop = false, timer: ReturnType<typeof setTimeout>;
+    const apply = (next: ScanStatus | null) => {
+      if (was.current && !next?.running) finished.current(); // passage terminé : la page relit ses données
+      was.current = !!next?.running;
+      setScan(next);
+    };
     const tick = async () => {
       if (document.hidden) { timer = setTimeout(() => void tick(), IDLE_MS); return; }   // hidden tab: asked again when it is shown (visibilitychange below)
       let next: ScanStatus | null = null;
@@ -36,16 +42,16 @@ export function ScanBar({ onFinished }: { onFinished: () => void }) {
         // serveur injoignable : la barre s'efface, la page signale déjà l'erreur
       }
       if (stop) return;
-      if (was.current && !next?.running) finished.current(); // passage terminé : la page relit ses données
-      was.current = !!next?.running;
-      setScan(next);
-      timer = setTimeout(() => void tick(), next?.running || next?.network?.running ? RUN_MS : IDLE_MS);
+      apply(next);
+      const running = next?.running || next?.network?.running;
+      timer = setTimeout(() => void tick(), running && !streamConnected() ? RUN_MS : streamConnected() ? STREAM_IDLE_MS : IDLE_MS);
     };
     void tick();
     const unregister = registerPoller(() => { clearTimeout(timer); void tick(); });
     const shown = () => { if (!document.hidden) { clearTimeout(timer); void tick(); } };
     document.addEventListener("visibilitychange", shown);
-    return () => { stop = true; clearTimeout(timer); unregister(); document.removeEventListener("visibilitychange", shown); };
+    const off = onStream("status", (s) => { if (!stop) apply(s as ScanStatus); });   // the server says it: no read at all
+    return () => { stop = true; clearTimeout(timer); unregister(); off(); document.removeEventListener("visibilitychange", shown); };
   }, []);
   const net = st?.network?.running ? st.network : null;
   if (!st?.running && !net) return null;

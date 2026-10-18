@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.16.0 (2026-10-18)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ## v0.15.9 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
@@ -21,6 +25,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 
+- API `GET stream`: an event stream for the page (server-sent events). The server sends the current state when the stream opens, then « manifest » when a produced file moved, « status » when the collector's state changed and « tasks » when a task started or ended, with a heartbeat every 25 s. The page reads nothing at rest any more: the home page, the scan bar, the schedule card and the discovery panels wait for these events, and keep a slow safety read (1 to 2 minutes) only while the stream is down. The browser reconnects by itself.
 - Settings, Machines, SSH access: the SSH address can differ from the machine's IP (a DNS name, another network); `POST machines/ssh-alias` takes `host`, and the alias of a machine is found through its settings, not only through its IP.
 - Listening ports with a non-root SSH account: the collection tries `sudo -n ss -tlnpH` first; the machine window gives the one-line sudoers rule to allow it (read only), behind a discreet « How to set it up on the machine? » link.
 - API `GET manifest`: the stamp (modification time and size) of every produced file the page reads (data, pulse, live, events, health, backups). The page asks this small document every 15 s and reads a file again only when its stamp moved; at rest the home page makes one small request per 15 s instead of a dozen revalidations per minute. Without the route (older server), the page reads everything as before.

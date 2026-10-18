@@ -114,6 +114,25 @@ class ApiModels(unittest.TestCase):
             self.assertNotIn("https://elsewhere.example/health/stats.json", self.c.get(BASE + "/manifest").json()["files"])
         self.assertEqual(self.anon.get(BASE + "/manifest").status_code, 401)
 
+    def test_stream(self):
+        """The event stream opens with the current state (status, tasks, manifest), not compressed, and needs a session."""
+        import itertools
+        import live_events
+        self.put("data.json", DATA)
+        real = live_events.stream
+        # the test client cannot hang up on an endless body: the first frames only (the current state) are kept
+        with mock.patch.object(live_events, "stream", lambda q, first=None: itertools.islice(real(q, first), 4)):
+            r = self.c.get(BASE + "/stream")
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.headers["content-type"].startswith("text/event-stream"))
+        self.assertEqual(r.headers.get("content-encoding"), "identity")
+        got = r.text
+        self.assertIn("retry: 3000", got)
+        self.assertIn("event: status", got)
+        self.assertIn("event: tasks", got)
+        self.assertIn('"data.json"', got)
+        self.assertEqual(self.anon.get(BASE + "/stream").status_code, 401)
+
     def test_missing_files(self):
         for path in ("machines", "services", "health"):
             r = self.c.get(f"{BASE}/{path}")
