@@ -1459,6 +1459,8 @@ export const EN: Record<string, string> = {
   "Gardés tels quels (clé propre de cette installation) : {0}": "Kept as they were (this installation's own key): {0}",
   "allumé sans test : relecture lancée": "turned on without a test: reading started",
   "Rallumer quand même (sans test)": "Turn on anyway (without a test)",
+  "Attention": "Warning",
+  "OK": "OK",
   "Affichage": "Display",
   "collecte coupée": "collection off",
   "Le connecteur est lu à chaque collecte ; coupé, ses réglages sont gardés mais plus rien n'est lu": "The connector is read at every collection; when off, its settings are kept but nothing is read",

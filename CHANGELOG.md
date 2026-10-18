@@ -17,6 +17,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Fixed
 
+- The message after an action that failed now opens in a window over the page, wherever you are on it, and stays as a red line under the form once closed. For a connector that cannot be turned on because its test failed, the message is in the connector's own card (it used to be at the very bottom of the page) and the window carries the « Turn on anyway » button.
 - A connector turned off could not be turned on again while its source did not answer: the safety test before the collection failed and the switch stayed off. The message now offers « Turn on anyway (without a test) ».
 - Warnings about a connector (home, machines, services…) waited for the next full collection (15 minutes) to go away after the source was back. A newer light reading (every 5 minutes) that read the source fine now clears them.
 - MynetworK was asked too often when the Network tab was open: the UniFi cards were read every 10 seconds (server pause 8 s), and each reading makes MynetworK query the UniFi controller, which could end in « timed out ». They are now read every 30 seconds (server pause 30 s), the live traffic every 20 seconds, and after a failed reading the source is left alone for 2 minutes.
