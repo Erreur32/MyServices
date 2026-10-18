@@ -413,24 +413,77 @@ def check(ip: str) -> dict:
     has_ssh = bool(m.get("ssh") or isinstance(m.get("health"), str))
     if agent_lines and not has_ssh:  # lu par son agent seulement (PC Windows) : rien à tester en SSH
         return {"lines": agent_lines, "failed": agent_failed}
+    lines = agent_lines + _ssh_check_lines(ip, m)
+    if not setup.FAILED:  # accès SSH qui répond : l'inventaire raté d'avant ne doit pas rester en cache (2 h)
+        expire_inventory(ip)
+    return {"lines": lines, "failed": len(setup.FAILED) + agent_failed}
+
+
+def _ssh_check_lines(ip: str, m: dict) -> list[str]:
+    """Lines of setup.py's access check for one machine (setup.FAILED counts the failures); a closed port is explained."""
     buf = io.StringIO()
     setup.FAILED.clear()
     with contextlib.redirect_stdout(buf):
         setup.check_machine(ip, m, setup.ssh_aliases())
-    lines = agent_lines + [ln.strip() for ln in buf.getvalue().splitlines() if ln.strip()]
+    lines = [ln.strip() for ln in buf.getvalue().splitlines() if ln.strip()]
     if any("Connection refused" in ln for ln in lines):   # port fermé : ce n'est pas la clé, souvent un sshd sur un autre port
         port = scan_ssh_port(ip)
         alias = setup.ssh_aliases().get(ip)
         used = _alias_port(alias) if alias else None
         if port and used and port != used:
             lines.append(f"✗ Le port SSH de l'alias ({used}) est fermé ; la recherche réseau a vu SSH sur le port {port} : corriger le port, puis tester de nouveau")
-            setup.FAILED.append(lines[-1])
         else:
             lines.append(f"✗ Connexion refusée au port {used or 22} : sshd n'écoute pas là (ou un pare-feu bloque)")
-            setup.FAILED.append(lines[-1])
-    if not setup.FAILED:  # accès SSH qui répond : l'inventaire raté d'avant ne doit pas rester en cache (2 h)
-        expire_inventory(ip)
-    return {"lines": lines, "failed": len(setup.FAILED) + agent_failed}
+        setup.FAILED.append(lines[-1])
+    return lines
+
+
+def probe_alias(ip: str, windows: bool = False) -> dict:
+    """Test of the SSH access of a machine NOT declared yet (add page, before the final button): the alias of this IP is
+    checked as setup.py would, without writing anything. Windows: the health access (PowerShell) is what is tested."""
+    try:
+        ip = str(ipaddress.ip_address(ip))
+    except ValueError:
+        raise MachineError("IP invalide") from None
+    alias = setup.ssh_aliases().get(ip)
+    if not alias:
+        raise MachineError("aucun accès SSH ne vise cette machine : préparer l'accès d'abord")
+    m = {"name": ip, "os": "windows", "health": alias} if windows else {"name": ip, "ssh": alias}
+    lines = _ssh_check_lines(ip, m)
+    return {"lines": lines, "failed": len(setup.FAILED)}
+
+
+def remove_alias(ip: str) -> dict:
+    """Removes the « Host m-<ip> » block written by add_alias when the add is cancelled. An alias written by hand, or
+    one still used by a declared machine, is left alone: {removed: False}."""
+    try:
+        ip = str(ipaddress.ip_address(ip))
+    except ValueError:
+        raise MachineError("IP invalide") from None
+    alias = setup.ssh_aliases().get(ip)
+    if not alias or not alias.startswith("m-"):
+        return {"removed": False}
+    if any(alias in (c.get("ssh"), c.get("health")) for c in _meta().get("machines", {}).values()):
+        return {"removed": False}
+    conf = Path(setup.SSH_CONF)
+    try:
+        lines = conf.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return {"removed": False}
+    out, inside = [], False
+    for ln in lines:
+        head = ln.split()
+        if head[:1] == ["Host"]:
+            inside = head[1:] == [alias]
+            if inside and out and out[-1].strip() == "# Machine trouvée par la recherche réseau":
+                out.pop()   # the comment line add_alias writes above the block
+        if not inside:
+            out.append(ln)
+    while out and not out[-1].strip():
+        out.pop()
+    conf.write_text("\n".join(out) + "\n" if out else "", encoding="utf-8")  # NOSONAR S2083: path from the config, never from a request
+    conf.chmod(0o600)
+    return {"removed": True}
 
 
 def _check_agent(ip: str, m: dict, store=None) -> tuple[list[str], int]:

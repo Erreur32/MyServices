@@ -233,6 +233,41 @@ class SshAlias(unittest.TestCase):
         with mock.patch.object(machines_admin.setup, "DOCKER", False), self.assertRaises(machines_admin.MachineError):
             machines_admin.add_alias("192.168.1.20")
 
+    def test_retrait_apres_abandon(self):
+        """Add cancelled in the page: the block written by add_alias goes away, a hand-written alias stays."""
+        self.conf.write_text("Host nas\n    HostName 192.168.1.5\n", encoding="utf-8")
+        machines_admin.add_alias("192.168.1.20", "pi", 2222)
+        self.aliases["192.168.1.20"] = "m-192-168-1-20"
+        with mock.patch.object(machines_admin, "_meta", return_value={"machines": {}}):
+            self.assertEqual(machines_admin.remove_alias("192.168.1.20"), {"removed": True})
+        self.assertEqual(self.conf.read_text(), "Host nas\n    HostName 192.168.1.5\n")
+        self.aliases["192.168.1.5"] = "nas"
+        with mock.patch.object(machines_admin, "_meta", return_value={"machines": {}}):
+            self.assertEqual(machines_admin.remove_alias("192.168.1.5"), {"removed": False})
+        with self.assertRaises(machines_admin.MachineError):
+            machines_admin.remove_alias("pas-une-ip")
+
+    def test_retrait_refuse_si_machine_declaree(self):
+        self.aliases["192.168.1.20"] = "m-192-168-1-20"
+        meta = {"machines": {"192.168.1.20": {"name": "pi", "ssh": "m-192-168-1-20"}}}
+        with mock.patch.object(machines_admin, "_meta", return_value=meta):
+            self.assertEqual(machines_admin.remove_alias("192.168.1.20"), {"removed": False})
+
+    def test_test_avant_ajout(self):
+        """The access of a machine not declared yet is checked with a synthetic machine (Linux: ssh, Windows: health)."""
+        seen = []
+
+        def fake_check(ip, m, aliases):
+            seen.append(m)
+            print("✓ ok")
+        with self.assertRaises(machines_admin.MachineError):
+            machines_admin.probe_alias("192.168.1.20")
+        self.aliases["192.168.1.20"] = "m-192-168-1-20"
+        with mock.patch.object(machines_admin.setup, "check_machine", fake_check):
+            self.assertEqual(machines_admin.probe_alias("192.168.1.20"), {"lines": ["✓ ok"], "failed": 0})
+            machines_admin.probe_alias("192.168.1.20", windows=True)
+        self.assertEqual(seen, [{"name": "192.168.1.20", "ssh": "m-192-168-1-20"}, {"name": "192.168.1.20", "os": "windows", "health": "m-192-168-1-20"}])
+
 
 class DetectionDesReglages(unittest.TestCase):
     """Passerelle, NPM et machine virtuelle sont cochées d'après la détection (à confirmer dans la page)."""
