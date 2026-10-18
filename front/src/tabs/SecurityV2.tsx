@@ -45,7 +45,7 @@ function Posture({ findings }: Readonly<{ findings: Finding[] }>) {
 
 function FindingRow({ f, open }: Readonly<{ f: Finding; open: (s: Sub) => void }>) {
   return (
-    <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 py-3">
+    <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 px-2 py-3">
       <span aria-hidden className={`mt-1.5 h-2.5 w-2.5 rounded-full ${f.sev === "bad" ? "bg-bad" : "bg-warn"}`} />
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2"><b className="truncate">{f.title}</b><Badge tone={f.sev === "bad" ? "bad" : "warn"}>{AREA_LABEL[f.area]}</Badge></div>
@@ -64,7 +64,7 @@ function Overview({ snap, findings, open }: Readonly<{ snap: Snapshot; findings:
       {findings.length > 0 && (
         <Card>
           <h2 className="mb-1 font-bold">{tx("À traiter d'abord")} <Count n={findings.length} tone="warn" /></h2>
-          <ul className="flex flex-col divide-y divide-line/60">{findings.map((f, i) => <FindingRow key={i} f={f} open={open} />)}</ul>
+          <ul className={"flex flex-col divide-y divide-line/60"+" [&>li:nth-child(even)]:bg-bg/50"}>{findings.map((f, i) => <FindingRow key={i} f={f} open={open} />)}</ul>
         </Card>
       )}
       <InfoNote>{tx("Cette page lit ce que vos outils savent (Fail2ban par LogviewR, Nginx Proxy Manager, SSH, MynetworK). Elle ne change rien et ne donne pas de note : des faits, du plus grave au moins grave.")}</InfoNote>
@@ -80,9 +80,9 @@ function SitesList({ snap }: Readonly<{ snap: Snapshot }>) {
     <Card>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><Globe size={16} aria-hidden />{tx("Sites exposés à Internet")} <Count n={rows.length} tone="off" /></h2>
       <InfoNote className="mb-2">{tx("Hôtes de Nginx Proxy Manager actifs et sans liste d'accès : joignables de partout. Ce qui manque est en orange.")}</InfoNote>
-      <ul className="flex flex-col divide-y divide-line/60 text-sm">
+      <ul className="flex flex-col divide-y divide-line/60 text-sm [&>li:nth-child(even)]:bg-bg/50">
         {rows.map(({ r, issues }) => (
-          <li key={`${r.npm}-${r.id}`} className="grid grid-cols-[minmax(0,1fr)] items-center gap-x-4 gap-y-1 py-2 md:grid-cols-[minmax(0,16rem)_minmax(0,9rem)_minmax(0,1fr)]">
+          <li key={`${r.npm}-${r.id}`} className="grid grid-cols-[minmax(0,1fr)] items-center gap-x-4 gap-y-1 px-2 py-2 md:grid-cols-[minmax(0,16rem)_minmax(0,9rem)_minmax(0,1fr)]">
             <span className="truncate font-semibold">{r.domains[0]}</span>
             <span className="flex items-center gap-1.5 truncate text-dim">{r.machine ?? ""}{r.public_ok && <Badge tone="info" title={tx("Marqué « site public voulu » dans Services")}>{tx("public voulu")}</Badge>}</span>
             <span className="flex flex-wrap gap-1">{issues.length ? issues.map((x) => <Badge key={x} tone="warn">{x}</Badge>) : <Badge tone="ok">{tx("rien à signaler")}</Badge>}</span>
@@ -103,18 +103,34 @@ function AccessList({ snap }: Readonly<{ snap: Snapshot }>) {
   return (
     <Card>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><KeyRound size={16} aria-hidden />{tx("Accès SSH des machines")} <Count n={rows.length} tone="off" /></h2>
-      <InfoNote className="mb-2">{tx("Réglages du serveur SSH lus sur chaque machine, et connexions refusées sur 24 h (santé).")}</InfoNote>
-      <ul className="flex flex-col divide-y divide-line/60 text-sm">
+      <InfoNote className="mb-3">{tx("Réglages du serveur SSH lus sur chaque machine, et connexions refusées sur 24 h (santé).")}</InfoNote>
+      <div className={`${SSH_COLS} mb-1 hidden border-b border-line px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-dim md:grid`} aria-hidden>
+        <span>{tx("Machine")}</span><span>{tx("Connexion root")}</span><span>{tx("Mot de passe")}</span><span>{tx("Échecs sur 24 h")}</span>
+      </div>
+      <ul className="flex flex-col divide-y divide-line/60 text-sm [&>li:nth-child(even)]:bg-bg/50">
         {rows.map(({ m, d, root, pwd, fails }) => (
-          <li key={m.ip} className="grid items-center gap-x-4 gap-y-1 py-2 md:grid-cols-[minmax(0,16rem)_9rem_12rem_minmax(0,1fr)]">
+          <li key={m.ip} className={`${SSH_COLS} items-center px-2 py-2`}>
             <span className="truncate font-semibold">{m.name} <Dim>{m.ip}</Dim></span>
-            {d ? <Badge tone={root ? "warn" : "ok"}>{tx("root")} : {d.permitrootlogin || "?"}</Badge> : <span />}
-            {d ? <Badge tone={pwd ? "warn" : "ok"}>{tx("mot de passe")} : {d.passwordauthentication || "?"}</Badge> : <span />}
-            {fails != null ? <Badge tone={fails > 50 ? "bad" : fails ? "warn" : "ok"}>{tx("{0} échec(s) en 24 h", fails)}</Badge> : <span />}
+            <SshCell label={tx("Connexion root")} value={d?.permitrootlogin} warn={root} known={!!d} />
+            <SshCell label={tx("Mot de passe")} value={d?.passwordauthentication} warn={pwd} known={!!d} />
+            <span className="flex items-center gap-2 md:block"><span className="text-xs text-dim md:hidden">{tx("Échecs sur 24 h")}</span>
+              {fails == null ? <Dim>-</Dim> : <Badge outline tone={fails > 50 ? "bad" : fails ? "warn" : "ok"}>{fails}</Badge>}</span>
           </li>
         ))}
       </ul>
     </Card>
+  );
+}
+
+const SSH_COLS = "grid gap-x-6 gap-y-1 md:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]";   // the machine gets the most room, the three settings share the rest evenly
+
+/** One setting of a machine's SSH server: the label on a phone, the value as an outlined badge (no filled background) */
+function SshCell({ label, value, warn, known }: Readonly<{ label: string; value?: string; warn: boolean; known: boolean }>) {
+  return (
+    <span className="flex items-center gap-2 md:block">
+      <span className="text-xs text-dim md:hidden">{label}</span>
+      {known ? <Badge outline tone={warn ? "warn" : "ok"}>{value || "?"}</Badge> : <Dim>-</Dim>}
+    </span>
   );
 }
 
@@ -125,9 +141,9 @@ function PortsList({ snap }: Readonly<{ snap: Snapshot }>) {
     <Card>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><Radar size={16} aria-hidden />{tx("Ports sensibles ouverts sur le réseau")} <Count n={rows.length} tone="warn" /></h2>
       <InfoNote className="mb-2">{tx("Vus par le scanner de MynetworK : protocoles en clair, prise de main à distance, bases de données. À fermer s'ils ne servent pas.")}</InfoNote>
-      <ul className="flex flex-col divide-y divide-line/60 text-sm">
+      <ul className="flex flex-col divide-y divide-line/60 text-sm [&>li:nth-child(even)]:bg-bg/50">
         {rows.map(({ d, hit }) => (
-          <li key={d.ip} className="grid items-center gap-x-4 gap-y-1 py-2 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+          <li key={d.ip} className="grid items-center gap-x-4 gap-y-1 px-2 py-2 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
             <span className="truncate font-semibold">{d.hostname || d.vendor || d.ip} <Dim>{d.ip}</Dim></span>
             <span className="flex flex-wrap gap-1">{hit.map((p) => <Badge key={p} tone="warn">{p} · {SENSITIVE[p]}</Badge>)}</span>
           </li>

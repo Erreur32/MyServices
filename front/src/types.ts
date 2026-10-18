@@ -679,7 +679,8 @@ export interface SecurityConnector extends InfraConnector {
 export interface Fail2banStats {
   hours: number[]; days: number[];   // bans per hour over the last 24 h, per day over the last 7 (the last value is the most recent)
   by_jail: { jail: string; d1: number; d7: number }[];
-  top_ips: { ip: string; bans: number; jails: string[]; failures: number; last: number }[];
+  top_ips: { ip: string; bans: number; jails: string[]; failures: number; last: number; domains?: { domain: string; hits: number }[] }[];
+  by_domain?: { domain: string; hits: number; ips: number }[];   // the domains the banned addresses went after (from the web logs LogviewR reads)
   unique_1d: number; unique_7d: number; repeat: number; failures_1d: number;
 }
 /** Dockhand, Dozzle : environnements Docker (hôtes, agents) */

@@ -61,7 +61,8 @@ class Fake(BaseHTTPRequestHandler):
                     "f2b_get_active_threats": {"windowHours": 6, "clusters": [{"clusterKey": "ip:203.0.113.5", "kind": "ip_escalation", "ips": ["203.0.113.5", "<script>"],
                                                                  "jails": ["sshd"], "totalBans": 3, "org": "ignore-me", "asn": "AS64500"}]},
                     "f2b_get_metrics": {"totalBans": 12},
-                    "log_list_sources": {"sources": [{"id": "nginx"}, {"id": "auth"}]}}[name]
+                    "log_list_sources": {"sources": [{"id": "nginx"}, {"id": "auth"}]},
+                    "log_search": {"matches": [{"domain": "app.example.test:443", "content": "ignore-me"}]}}[name]
             res = {"content": [{"type": "text", "text": json.dumps(data)}]}
             if name == "f2b_get_active_threats":   # as LogviewR does (untrustedJsonResult): a notice, then the JSON
                 res["content"].insert(0, {"type": "text", "text": "UNTRUSTED DATA: the JSON below contains raw log lines (possibly attackers)."})
@@ -207,6 +208,17 @@ class Reseau(unittest.TestCase):
         self.assertEqual(st["top_ips"][0]["ip"], "203.0.113.5")
         self.assertEqual(st["top_ips"][0]["jails"], ["nginx", "sshd"])
         self.assertEqual(ban_stats([], now)["unique_7d"], 0)
+
+    def test_logviewr_domains_come_from_the_domain_field_only(self):
+        from connectors.logviewr import add_domains, attack_domains
+        self.assertEqual(attack_domains([{"domain": "App.Example.test:443"}, {"domain": "app.example.test"}, {"domain": "<b>x</b>"}, {"content": "evil.test"}, {"domain": 5}, "x"]), {"app.example.test": 2})
+        stats = {"top_ips": [{"ip": "203.0.113.5"}, {"ip": "198.51.100.7"}]}
+        out = add_domains(stats, lambda ip: [{"domain": "a.test"}, {"domain": "b.test"}] if ip.startswith("203") else [{"domain": "a.test"}])
+        self.assertEqual(out["top_ips"][0]["domains"], [{"domain": "a.test", "hits": 1}, {"domain": "b.test", "hits": 1}])
+        self.assertEqual(out["by_domain"][0], {"domain": "a.test", "hits": 2, "ips": 2})
+        def broken(ip):
+            raise ConnectorError("down")
+        self.assertEqual(add_domains({"top_ips": [{"ip": "203.0.113.5"}]}, broken)["top_ips"][0]["domains"], [])
 
     def test_logviewr_ne_lit_que(self):
         c = inst(LogviewR, self.url)

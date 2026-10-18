@@ -1,4 +1,4 @@
-"""LogviewR : fail2ban (prisons, bannissements, menaces) et recherche dans les journaux, en lecture seule, par son serveur MCP.
+"""LogviewR : fail2ban (jails, bannissements, menaces) et recherche dans les journaux, en lecture seule, par son serveur MCP.
 
 LogviewR n'a pas d'API REST à jeton : il parle MCP (Streamable HTTP, sans état) sur POST /mcp, avec un jeton « Lecture seule »
 (Réglages → MCP → Jetons d'accès). Il faut y activer « Transport HTTP distant » (désactivé par défaut). MyServices n'appelle que
@@ -17,7 +17,7 @@ import urllib.request
 from connectors.base import Connector, ConnectorError, Field, Result
 
 PROTOCOL = "2025-06-18"
-READ_TOOLS = ("f2b_list_jails", "f2b_get_metrics", "f2b_get_ban_history", "f2b_get_active_threats", "log_list_sources")
+READ_TOOLS = ("f2b_list_jails", "f2b_get_metrics", "f2b_get_ban_history", "f2b_get_active_threats", "log_list_sources", "log_search")
 
 
 def _body(raw: bytes, ctype: str) -> dict:
@@ -36,6 +36,8 @@ def _body(raw: bytes, ctype: str) -> dict:
 
 
 IP_RE = re.compile(r"[0-9a-fA-F:.]{3,45}")
+HOST_RE = re.compile(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?")
+DOMAIN_LOOKUPS = 8   # the most banned addresses whose logs are searched for the domain they went after
 
 
 def ban_stats(events: list, now: float) -> dict:
@@ -72,6 +74,36 @@ def ban_stats(events: list, now: float) -> dict:
             "top_ips": [{**w, "jails": sorted(w["jails"])[:5]} for w in top],
             "unique_1d": sum(1 for w in ips.values() if w["recent"]), "unique_7d": len(ips),
             "repeat": sum(1 for w in ips.values() if w["bans"] >= 2), "failures_1d": failures_1d}
+
+
+def attack_domains(matches: list) -> dict[str, int]:
+    """{domain: lines} from the matches of a log search. Only the `domain` field LogviewR worked out from a web log (NPM host, Apache vhost) is
+    used, and only when it looks like a host name: the text of the log line is written by the attacker and is never kept."""
+    counts: dict[str, int] = {}
+    for m in matches:
+        d = m.get("domain") if isinstance(m, dict) else None
+        d = d.strip().lower().split(":")[0] if isinstance(d, str) else ""
+        if d and HOST_RE.fullmatch(d):
+            counts[d] = counts.get(d, 0) + 1
+    return counts
+
+
+def add_domains(stats: dict, search) -> dict:
+    """Adds `domains` to the most banned addresses of `stats` and `by_domain` (the domains attacked, with the addresses behind them).
+    `search(ip)` returns the matches of a log search for that address; a search that fails leaves that address without domains."""
+    per_domain: dict[str, dict] = {}
+    for w in stats["top_ips"][:DOMAIN_LOOKUPS]:
+        try:
+            found = attack_domains(search(w["ip"]))
+        except ConnectorError:
+            found = {}
+        w["domains"] = [{"domain": d, "hits": n} for d, n in sorted(found.items(), key=lambda kv: -kv[1])][:5]
+        for d, n in found.items():
+            row = per_domain.setdefault(d, {"domain": d, "hits": 0, "ips": 0})
+            row["hits"] += n
+            row["ips"] += 1
+    stats["by_domain"] = sorted(per_domain.values(), key=lambda r: (-r["ips"], -r["hits"]))[:20]
+    return stats
 
 
 def cluster(c: dict) -> dict:
@@ -163,7 +195,7 @@ class LogviewR(Connector):
         sources = (self._tool("log_list_sources") or {}).get("sources") or []
         try:   # a week of history for the statistics; an older LogviewR that refuses it just has no statistics
             week = (self._tool("f2b_get_ban_history", {"days": 7, "limit": 5000}) or {}).get("events") or []
-            stats = ban_stats(week, time.time())
+            stats = add_domains(ban_stats(week, time.time()), lambda ip: (self._tool("log_search", {"query": ip, "maxResults": 100}) or {}).get("matches") or [])
         except ConnectorError:
             stats = None
         bans = [{"ip": e.get("ip"), "jail": e.get("jail"), "time": e.get("timeofban"), "failures": e.get("failures")}
@@ -181,7 +213,7 @@ class LogviewR(Connector):
             data = self.collect()
         except ConnectorError as e:
             return Result(False, str(e))
-        return Result(True, f"{len(data['jails'])} prison(s), {data['bans_24h']} bannissement(s) en 24 h", v)
+        return Result(True, f"{len(data['jails'])} jail(s), {data['bans_24h']} bannissement(s) en 24 h", v)
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:

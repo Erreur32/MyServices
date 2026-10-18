@@ -1,10 +1,21 @@
 // Security -> Fail2ban: the statistics of the bans of the last 7 days (worked out by the connector): bans per hour and per day, per jail, the IPs banned most.
+import { Globe } from "lucide-react";
 import type { Fail2banStats as Stats, SecurityConnector } from "../types";
 import { dateTime } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { InfoNote } from "./InfoNote";
 import { MiniBars } from "./MiniBars";
 import { Badge, Card } from "./ui";
+
+/** The same domain seen by several sources counts once, with the numbers added */
+function mergeDomains(rows: NonNullable<Stats["by_domain"]>): NonNullable<Stats["by_domain"]> {
+  const by = new Map<string, { domain: string; hits: number; ips: number }>();
+  for (const r of rows) {
+    const cur = by.get(r.domain) ?? { domain: r.domain, hits: 0, ips: 0 };
+    by.set(r.domain, { domain: r.domain, hits: cur.hits + r.hits, ips: cur.ips + r.ips });
+  }
+  return [...by.values()].sort((a, b) => b.ips - a.ips || b.hits - a.hits);
+}
 
 /** Several LogviewR / Fail2ban sources: their numbers add up (the IP and jail lists are merged) */
 export function mergeStats(list: Stats[]): Stats {
@@ -20,6 +31,7 @@ export function mergeStats(list: Stats[]): Stats {
     top_ips: list.flatMap((s) => s.top_ips).sort((a, b) => b.bans - a.bans).slice(0, 10),
     unique_1d: list.reduce((n, s) => n + s.unique_1d, 0), unique_7d: list.reduce((n, s) => n + s.unique_7d, 0),
     repeat: list.reduce((n, s) => n + s.repeat, 0), failures_1d: list.reduce((n, s) => n + s.failures_1d, 0),
+    by_domain: mergeDomains(list.flatMap((s) => s.by_domain ?? [])),
   };
 }
 
@@ -45,14 +57,33 @@ function JailBars({ jails }: Readonly<{ jails: Stats["by_jail"] }>) {
   );
 }
 
+/** The domains the banned addresses went after: how many addresses and how many log lines each */
+function Domains({ rows }: Readonly<{ rows: NonNullable<Stats["by_domain"]> }>) {
+  const max = Math.max(1, ...rows.map((r) => r.hits));
+  return (
+    <ul className="flex flex-col divide-y divide-line/50 text-sm [&>li:nth-child(even)]:bg-bg/50">
+      {rows.map((r) => (
+        <li key={r.domain} className="grid grid-cols-[minmax(0,1fr)_minmax(0,8rem)_auto] items-center gap-x-4 px-2 py-1.5 md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)_auto]">
+          <span className="truncate font-semibold">{r.domain}</span>
+          <span className="h-2 overflow-hidden rounded-full bg-line/60"><span className="block h-full rounded-full bg-bad/70" style={{ width: `${(r.hits / max) * 100}%` }} /></span>
+          <span className="whitespace-nowrap text-xs text-dim"><b className="text-txt">{r.ips}</b> {tx("adresse(s)")} · {r.hits} {tx("ligne(s)")}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function TopIps({ ips }: Readonly<{ ips: Stats["top_ips"] }>) {
   return (
-    <ul className="flex flex-col divide-y divide-line/50 text-sm">
+    <ul className="flex flex-col divide-y divide-line/50 text-sm [&>li:nth-child(even)]:bg-bg/50">
       {ips.map((w) => (
-        <li key={w.ip} className="grid grid-cols-[minmax(0,11rem)_4rem_minmax(0,1fr)_auto] items-center gap-3 py-1.5">
+        <li key={w.ip} className="grid grid-cols-[minmax(0,11rem)_4rem_minmax(0,1fr)_auto] items-center gap-3 px-2 py-1.5">
           <code className="truncate font-mono text-xs">{w.ip}</code>
           <Badge tone={w.bans > 2 ? "bad" : "warn"}>{w.bans} {tx("ban(s)")}</Badge>
-          <span className="flex min-w-0 flex-wrap gap-1">{w.jails.map((j) => <Badge key={j} tone="off">{j}</Badge>)}</span>
+          <span className="flex min-w-0 flex-wrap gap-1">
+            {w.jails.map((j) => <Badge key={j} outline tone="off">{j}</Badge>)}
+            {(w.domains ?? []).map((d) => <Badge key={d.domain} outline tone="info" title={tx("{0} ligne(s) de journal", d.hits)}><Globe size={11} aria-hidden />{d.domain}</Badge>)}
+          </span>
           <span className="whitespace-nowrap text-xs text-dim">{w.failures ? `${w.failures} ${tx("échecs")} · ` : ""}{dateTime(w.last * 1000)}</span>
         </li>
       ))}
@@ -88,7 +119,10 @@ export function Fail2banStats({ sources }: Readonly<{ sources: SecurityConnector
             titleOf={(i, n) => tx("{0} bannissement(s), il y a {1} j", n, 6 - i)} />
         </Card>
       </div>
-      {s.by_jail.length > 0 && <Card><h2 className="mb-3 font-bold">{tx("Par prison")}</h2><JailBars jails={s.by_jail} /></Card>}
+      {s.by_jail.length > 0 && <Card><h2 className="mb-3 font-bold">{tx("Par jail")}</h2><JailBars jails={s.by_jail} /></Card>}
+      {(s.by_domain ?? []).length > 0
+        ? <Card><h2 className="mb-2 font-bold">{tx("Domaines visés")}</h2><Domains rows={s.by_domain!} /></Card>
+        : s.top_ips.length > 0 && <InfoNote>{tx("Domaine visé inconnu : LogviewR doit lire les journaux de Nginx Proxy Manager ou d'Apache pour relier une adresse à un domaine.")}</InfoNote>}
       {s.top_ips.length > 0 && <Card><h2 className="mb-2 font-bold">{tx("Adresses les plus bannies")}</h2><TopIps ips={s.top_ips} /></Card>}
     </div>
   );

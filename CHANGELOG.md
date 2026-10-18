@@ -30,7 +30,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Security page, new version** (development builds, next to the current one for now, tab "Security (new)"): an overview that lists what needs a look,
   worst first, each with its source and what to do, then one sub-tab per category (Fail2ban, exposed sites, SSH access, network ports, certificates),
   each tab showing how many points it holds. The Fail2ban tab has statistics: bans per hour (24 h) and per day (7 days), per jail, the addresses banned
-  most and those that came back, failed logins behind the bans. The LogviewR connector now reads 7 days of ban history and sends the aggregates only.
+  most and those that came back, failed logins behind the bans, and **the domains attacked** (LogviewR's log search ties an address to the NPM host or
+  Apache vhost it went after; only that field is used, never the log text). The LogviewR connector now reads 7 days of ban history and sends the
+  aggregates only. Fail2ban's own words are kept ("jail", not translated). Tables are striped and the aligned columns are rebalanced.
 
 ### Changed
 
