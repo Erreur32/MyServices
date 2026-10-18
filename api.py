@@ -2514,16 +2514,22 @@ def mail_put(body: MailConf, request: Request):
 
 
 @app.post(API + "/system/mail/test", tags=["système"], summary="Envoyer un e-mail de test à sa propre adresse (admin)")
-def mail_test(request: Request):
+def mail_test(request: Request, body: MailConf | None = None):
+    """With a body: tries those values without saving them; without: the saved settings."""
     import mailer
+    import system
     if denied := admin_write(request):
         return denied
     to = store().email_of(request.state.user["username"])
     if not to:
         return deny(400, "votre compte n'a pas d'adresse e-mail : l'ajouter dans Profil")
     try:
-        mailer.send(core.CFG, to, "MyServices : e-mail de test",
-                    f"Bonjour,\n\nL'envoi d'e-mails de MyServices fonctionne.\nAdresse de la page : {core.CFG.get('page_url')}\n\n-- MyServices\n")
+        cfg = system.mail_trial(core.CFG, body.host, body.port, body.security, body.user, body.password, body.sender, body.page_url) if body and body.host else core.CFG
+    except ValueError as e:
+        return deny(400, str(e))
+    try:
+        mailer.send(cfg, to, "MyServices : e-mail de test",
+                    f"Bonjour,\n\nL'envoi d'e-mails de MyServices fonctionne.\nAdresse de la page : {cfg.get('page_url')}\n\n-- MyServices\n")
     except mailer.MailError as e:
         return deny(502, str(e))
     store().audit("e-mail de test envoyé", request.state.user["username"], ip_of(request), to)

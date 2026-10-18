@@ -2,7 +2,7 @@
 import { Mail, Send, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { read, send } from "../api";
-import { Field, NoteLine } from "./form";
+import { Copyable, Field, NoteLine } from "./form";
 import { SecretInput } from "./SecretInput";
 import { IconChoice } from "./IconChoice";
 import { Badge, Card } from "./ui";
@@ -13,9 +13,28 @@ interface MailState { suggested_host?: string; host: string; port: number; secur
 
 const PORTS: Record<MailState["security"], number> = { starttls: 587, ssl: 465, none: 25 };
 
+const CHECK = "ss -ltn | grep ':25'";
+const INSTALL = "sudo apt install postfix\nsudo systemctl enable --now postfix";
+const ALLOW = "sudo postconf -e 'mynetworks = 127.0.0.0/8 [::1]/128'\n# or, to send through your provider's server:\n# sudo postconf -e 'relayhost = [smtp.provider.example]:587'\nsudo systemctl reload postfix";
+
+/** What to do when the mail relay does not answer or refuses: install one, or use a provider's SMTP instead (opens by itself after a failure) */
+function MailHelp({ open }: Readonly<{ open: boolean }>) {
+  return (
+    <details open={open} className="rounded-lg border border-line bg-bg/50 px-3 py-2 text-sm [&[open]]:border-warn/50">
+      <summary className="cursor-pointer font-semibold text-muted">{tx("Ça ne marche pas ? Que faire")}</summary>
+      <ol className="mt-2 flex list-decimal flex-col gap-3 pl-5 text-muted">
+        <li className="flex flex-col gap-1.5"><span>{tx("Vérifier qu'un courrier tourne sur l'hôte et écoute. La commande doit afficher une ligne (127.0.0.1:25 convient).")}</span><Copyable text={CHECK} oneLine /></li>
+        <li className="flex flex-col gap-1.5"><span>{tx("Pas installé ? Sur Debian ou Ubuntu, installer postfix (choisir « Site Internet », ou « Système satellite » si vous avez un relais), puis le démarrer.")}</span><Copyable text={INSTALL} oneLine /></li>
+        <li className="flex flex-col gap-1.5"><span>{tx("Message refusé (relais non autorisé) : autoriser l'adresse de MyServices dans postfix, ou envoyer par le serveur de votre fournisseur (retirer le « # » de la ligne relayhost et mettre son adresse), puis recharger.")}</span><Copyable text={ALLOW} oneLine /></li>
+        <li>{tx("Autre option, sans rien installer : « Réglages avancés (SMTP complet) » avec le serveur d'envoi de votre fournisseur d'accès, de Gmail (mot de passe d'application), Brevo ou Mailgun.")}</li>
+      </ol>
+    </details>
+  );
+}
+
 export function MailSettings() {
   const [st, setSt] = useState<MailState | null>(null), [pw, setPw] = useState("");
-  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [advanced, setAdvanced] = useState(false), [relay, setRelay] = useState("");
+  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [advanced, setAdvanced] = useState(false), [relay, setRelay] = useState(""), [failed, setFailed] = useState(false);
   useEffect(() => {
     read<MailState>("system/mail").then((s) => {
       setSt({ ...s, page_url: s.page_url || location.origin });
@@ -25,29 +44,26 @@ export function MailSettings() {
   }, []);
   if (!st) return null;
   const set = (k: Partial<MailState>) => setSt({ ...st, ...k });
+  /** What the simple form stands for: the relay on port 25 unless « host:port » says otherwise; the sender and the page address are worked out */
+  const relayPayload = () => {
+    const [host, port = "25"] = relay.trim().split(":");
+    const name = location.hostname, domain = /[a-z]/i.test(name) && name.includes(".") ? name : "myservices.local";
+    return { host, port: Number(port), security: "none", user: "", password: "-", sender: `myservices@${domain}`, page_url: location.origin };
+  };
+  const fullPayload = () => ({ host: st.host, port: st.port, security: st.security, user: st.user, password: pw || null, sender: st.from, page_url: st.page_url });
+  const payload = () => (advanced ? fullPayload() : relayPayload());
   const save = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
     setBusy(true);
-    await act(async () => {
-      const r = await send<MailState>("PUT", "system/mail", { host: st.host, port: st.port, security: st.security, user: st.user, password: pw || null, sender: st.from, page_url: st.page_url });
-      setSt(r); setPw("");
-    }, tx("enregistré"), setNote);
+    const ok = await act(async () => { setSt(await send<MailState>("PUT", "system/mail", payload())); setPw(""); }, tx("enregistré"), setNote);
+    setFailed(!ok);
     setBusy(false);
   };
-  /** One field: the host's mail relay (« 172.17.0.1 » or « 172.17.0.1:25 »); the sender and the page address are worked out */
-  const saveRelay = async (e: { preventDefault: () => void }) => {
-    e.preventDefault();
-    const [host, port = "25"] = relay.trim().split(":");
-    setBusy(true);
-    await act(async () => {
-      const name = location.hostname, domain = /[a-z]/i.test(name) && name.includes(".") ? name : "myservices.local";
-      setSt(await send<MailState>("PUT", "system/mail", { host, port: Number(port), security: "none", user: "", password: "-", sender: `myservices@${domain}`, page_url: location.origin }));
-    }, tx("enregistré"), setNote);
-    setBusy(false);
-  };
+  /** Tries what is typed, before saving anything */
   const test = async () => {
     setBusy(true);
-    await act(() => send("POST", "system/mail/test"), tx("e-mail de test envoyé : regardez votre boîte (et les indésirables)"), setNote);
+    const ok = await act(() => send("POST", "system/mail/test", payload()), tx("e-mail de test envoyé : regardez votre boîte (et les indésirables)"), setNote);
+    setFailed(!ok);
     setBusy(false);
   };
   const title = (
@@ -59,23 +75,24 @@ export function MailSettings() {
   );
   const actions = (
     <div className="flex flex-wrap gap-2">
+      <button type="button" className={quiet} disabled={busy || !(advanced ? st.host : relay.trim())} onClick={() => void test()} title={tx("Essaie ce qui est saisi, sans l'enregistrer, et envoie un message à l'adresse de votre profil")}><Send size={14} aria-hidden />{tx("Tester")}</button>
       <button type="submit" className={primary} disabled={busy}><Mail size={14} aria-hidden />{tx("Enregistrer")}</button>
-      <button type="button" className={quiet} disabled={busy || !st.ready} onClick={() => void test()} title={tx("Envoyé à l'adresse e-mail de votre profil")}><Send size={14} aria-hidden />{tx("Envoyer un e-mail de test")}</button>
     </div>
   );
   if (!advanced) {
     return (
       <Card>
         {title}
-        <form onSubmit={saveRelay} className="flex flex-col gap-3">
+        <form onSubmit={save} className="flex flex-col gap-3">
           <Field label={tx("Relais de courrier de l'hôte")}>
             <input className={`${input} max-w-sm font-mono`} value={relay} placeholder={st.suggested_host || "172.17.0.1"} onChange={(e) => setRelay(e.target.value)} />
           </Field>
           <p className="text-xs text-dim">{tx("L'adresse du courrier (postfix, sendmail, exim…) installé sur la machine qui héberge Docker, port 25 par défaut. Avec le réseau de l'hôte (les fichiers compose fournis), 127.0.0.1 convient et postfix n'a rien à changer. L'expéditeur et l'adresse de la page sont déduits.")}</p>
           {actions}
+          <NoteLine note={note} />
+          <MailHelp open={failed} />
           <button type="button" className="inline-flex items-center gap-1.5 self-start text-xs text-link hover:underline" onClick={() => setAdvanced(true)}><SlidersHorizontal size={12} aria-hidden />{tx("Réglages avancés (SMTP complet)")}</button>
         </form>
-        <NoteLine note={note} />
       </Card>
     );
   }
@@ -104,9 +121,10 @@ export function MailSettings() {
         </div>
         <p className="text-xs text-dim">{tx("L'adresse de la page est celle mise dans les liens des e-mails : celle que vous ouvrez dans le navigateur.")}</p>
         {actions}
+        <NoteLine note={note} />
+        <MailHelp open={failed} />
         <button type="button" className="inline-flex items-center gap-1.5 self-start text-xs text-link hover:underline" onClick={() => setAdvanced(false)}>{tx("Retour au réglage simple")}</button>
       </form>
-      <NoteLine note={note} />
     </Card>
   );
 }

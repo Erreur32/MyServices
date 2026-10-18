@@ -399,6 +399,16 @@ def _check_mail(security: str, port: int, page_url: str, sender: str) -> None:
         raise ValueError("expéditeur : une adresse e-mail")
 
 
+def mail_trial(cfg: dict, host: str, port: int, security: str, user: str, password: str | None, sender: str, page_url: str) -> dict:
+    """A copy of the mail settings with the given values laid over, to try them before saving anything (same checks as saving)."""
+    page_url, sender = page_url.strip().rstrip("/"), sender.strip()
+    _check_mail(security, port, page_url, sender)
+    out = dict(cfg, smtp_host=host.strip(), smtp_port=int(port), smtp_security=security, smtp_user=user.strip(), smtp_from=sender, page_url=page_url)
+    if password:
+        out["smtp_password"] = "" if password == "-" else password
+    return out
+
+
 def set_mail_settings(core, host: str, port: int, security: str, user: str, password: str | None, sender: str, page_url: str) -> dict:
     """Saves the sending server; password None or empty: the saved one is kept, « - » clears it."""
     page_url, sender = page_url.strip().rstrip("/"), sender.strip()

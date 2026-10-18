@@ -1,9 +1,10 @@
 // Settings -> Backup and info: export the configuration (all of it or some parts) and import an archive (preview first, then the parts you pick).
-import { Download, FileUp, KeyRound, ShieldAlert, Upload, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ChevronDown, ChevronRight, Download, FileUp, KeyRound, ShieldAlert, Upload, X, type LucideIcon } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import { download, read, send } from "../api";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { bytes, dateTime } from "../lib/format";
+import { useStoredFlag } from "../lib/storedFlag";
 import { tx } from "../lib/i18n";
 import { Field, NoteLine } from "./form";
 import { Badge, Card, Dim } from "./ui";
@@ -48,6 +49,22 @@ function PartCheck({ part, checked, onChange, extra, disabled }: Readonly<{ part
   );
 }
 
+/** A card that opens on its title and stays folded by default; the choice is remembered in this browser */
+function FoldCard({ id, icon: Icon, title, children }: Readonly<{ id: string; icon: LucideIcon; title: string; children: ReactNode }>) {
+  const [folded, setFolded] = useStoredFlag(`myservices.settings.${id}Folded`, true);
+  const Chevron = folded ? ChevronRight : ChevronDown;
+  return (
+    <Card>
+      <h2 className={`flex items-center gap-2 font-bold ${folded ? "" : "mb-1"}`}>
+        <button type="button" className="flex flex-1 items-center gap-2 text-left" aria-expanded={!folded} onClick={() => setFolded(!folded)}>
+          <Chevron size={16} className="text-dim" aria-hidden /><Icon size={16} aria-hidden />{title}
+        </button>
+      </h2>
+      {!folded && children}
+    </Card>
+  );
+}
+
 function ExportCard() {
   const [have, setHave] = useState<Available | null>(null), [all, setAll] = useState(true), [picked, setPicked] = useState<PartId[]>(ALL);
   const [pw, setPw] = useState(""), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
@@ -72,8 +89,7 @@ function ExportCard() {
     setBusy(false);
   };
   return (
-    <Card>
-      <h2 className="mb-1 flex items-center gap-2 font-bold"><Download size={16} aria-hidden />{tx("Exporter la configuration")}</h2>
+    <FoldCard id="export" icon={Download} title={tx("Exporter la configuration")}>
       <p className="mb-3 text-sm text-muted">{tx("Une archive à garder en lieu sûr, pour tout réinstaller ou pour reprendre seulement une partie. Elle peut contenir la clé de chiffrement et des clés SSH : ne la partagez pas.")}</p>
       <fieldset className="m-0 mb-3 inline-flex min-w-0 rounded-lg border border-line bg-card p-0.5" aria-label={tx("Quoi exporter")}>
         {([[true, tx("Tout")], [false, tx("Au choix")]] as [boolean, string][]).map(([v, label]) => (
@@ -94,7 +110,7 @@ function ExportCard() {
         <button type="submit" className={primary} disabled={busy || chosen.length === 0}><Download size={14} aria-hidden />{tx("Télécharger")}</button>
       </form>
       <NoteLine note={note} />
-    </Card>
+    </FoldCard>
   );
 }
 
@@ -145,8 +161,7 @@ function ImportCard() {
   const warning = pv ? keyWarning(pv, picked) : null;
   const risky = pv?.parts.some((p) => picked.includes(p.id) && p.exists_here);
   return (
-    <Card>
-      <h2 className="mb-1 flex items-center gap-2 font-bold"><Upload size={16} aria-hidden />{tx("Importer une configuration")}</h2>
+    <FoldCard id="import" icon={Upload} title={tx("Importer une configuration")}>
       <p className="mb-3 text-sm text-muted">{tx("Choisissez une archive exportée ici : elle est d'abord lue sans rien changer, puis vous cochez les parties à reprendre. Chaque fichier remplacé est gardé à côté en « .avant-import ».")}</p>
       <label className="mb-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-1.5 text-sm font-semibold hover:border-link">
         <FileUp size={14} aria-hidden />{tx("Choisir une archive (.zip)")}
@@ -184,7 +199,7 @@ function ImportCard() {
           {done.restart && <p className="mt-1 font-semibold text-warn">{tx("Redémarrez le conteneur pour appliquer les réglages et la clé importés.")}</p>}
         </div>
       )}
-    </Card>
+    </FoldCard>
   );
 }
 

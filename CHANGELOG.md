@@ -22,7 +22,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 - **E-mail in one field**: Settings -> E-mail asks only for the host's mail relay (postfix, sendmail, exim… reached on port 25, the container's gateway is
   suggested); the sender and the page address are worked out, and the full SMTP form stays under "Advanced settings". Readable errors when the relay
-  refuses or does not answer. The profile has a "Send a test e-mail" button for admins.
+  refuses or does not answer, and a help block with copyable commands (check, install postfix, allow or relay) that opens by itself after a failure.
+  "Test" tries what is typed before anything is saved. The profile has a "Send a test e-mail" button for admins. The Export and Import cards are
+  folded by default, and the Information card is regrouped (application, access and security, storage).
 - Import: the parts that need the encryption key are flagged, and importing the key alone (which would lock the current passwords out) is refused.
 
 ### Changed
