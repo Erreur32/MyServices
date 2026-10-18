@@ -11,6 +11,14 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+
+- Settings, Machines: a « Custom SSH access » block (account and port) in the SSH section of a machine, for a server outside the local network or on a non-standard port (the network search never sees it). It writes the account and the port into the application's SSH config for that address and tests the access.
+
+### Changed
+
+- Settings, Machines: the Agent and Connectors sections of a machine window open by themselves when there is an active agent or a connector reading the machine, and stay closed when empty.
+
 ## v0.15.6 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
