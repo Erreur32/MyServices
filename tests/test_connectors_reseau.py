@@ -251,6 +251,7 @@ class Reseau(unittest.TestCase):
         self.assertEqual(data["bans_24h"], 1)
         self.assertNotIn("ignore-me", json.dumps(data))  # pas de texte libre
         self.assertEqual(data["log_sources"], 2)
+        self.assertEqual(data["threats"][0]["domains"], ["app.example.test"])   # looked up for the threat's own addresses
         self.assertEqual(data["big_logs"], [{"plugin": "npm", "path": "/host/logs/big.log", "size": 15317565, "modified": "2026-10-18T13:46:19.573Z"}])   # sizes only, no content
         self.assertIsNotNone(data["stats"])   # the week of history was accepted (LogviewR refuses a limit above 1000)
         self.assertEqual(data["threat_count"], 1)   # JSON in the second block, after LogviewR's « UNTRUSTED DATA » notice

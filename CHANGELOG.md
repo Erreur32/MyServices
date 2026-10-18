@@ -48,7 +48,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 
-- Security overview: a threat card (« one address attacks several services ») now names the domains those addresses went after, when LogviewR's web logs know them. In the Fail2ban tab the jail, domain and address panels start folded; the choice of each visitor is remembered.
+- Security overview: a threat card (« one address attacks several services ») now names the domains those addresses went after (searched in the web logs LogviewR reads, at most 6 extra searches per reading). In the Fail2ban tab the jail, domain and address panels start folded; the choice of each visitor is remembered.
 - Security, Fail2ban: « By jail » and « Targeted domains » now sit side by side, each with a list / pie chart switch (like MynetworK's analytics). Security overview: one tile per area (points to handle, a fact, a click opens the sub-tab).
 - Security, Fail2ban: a « Biggest logs » table from LogviewR (`log_list_files`: size and date only, never the content), largest first, over 1 GB flagged. Older LogviewR versions without the tool simply show nothing.
 - Machine sheet: a « Biggest logs » row (files over 10 MB under `/var/log`, and the systemd journal size), read over SSH or by the Linux agent with the same read-only command; sizes over 1 GB are flagged.

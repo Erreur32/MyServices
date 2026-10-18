@@ -676,7 +676,7 @@ export interface SecurityConnector extends InfraConnector {
   jails?: string[]; bans_24h?: number; bans?: { ip: string; jail: string; time: number; failures?: number }[]; threat_count?: number; log_sources?: number;
   big_logs?: { plugin: string; path: string; size: number; modified: string | null }[];   // biggest log files LogviewR reads (size only)
   stats?: Fail2banStats | null;   // 7 days of bans, worked out by the connector (connectors/logviewr.py ban_stats)
-  threats?: { key: string; kind: "ip_escalation" | "asn_campaign" | "autre"; ips: string[]; ip_count: number; jails: string[]; bans: number | null; first: number | null; last: number | null; severity: number | null; asn: string | null }[];
+  threats?: { domains?: string[]; key: string; kind: "ip_escalation" | "asn_campaign" | "autre"; ips: string[]; ip_count: number; jails: string[]; bans: number | null; first: number | null; last: number | null; severity: number | null; asn: string | null }[];
 }
 export interface Fail2banStats {
   hours: number[]; days: number[];   // bans per hour over the last 24 h, per day over the last 7 (the last value is the most recent)

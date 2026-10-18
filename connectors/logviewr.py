@@ -41,6 +41,7 @@ HOST_RE = re.compile(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?")
 WEB_LOGS = ["npm", "apache"]   # the log plugins that know the domain of a request; without this filter the first 100 hits are Fail2ban's own log
 HISTORY_LIMIT = 1000           # the most LogviewR accepts for one call (it refuses more)
 ORIGIN_LOOKUPS = 10   # the most banned addresses whose country and network are asked
+THREAT_LOOKUPS = 6   # addresses of active threats searched for their domains when the statistics do not already know them
 DOMAIN_LOOKUPS = 8   # the most banned addresses whose logs are searched for the domain they went after
 
 
@@ -154,6 +155,27 @@ def add_domains(stats: dict, search) -> dict:
     return stats
 
 
+def add_threat_domains(threats: list[dict], stats: dict | None, search) -> list[dict]:
+    """Adds `domains` (the domains the addresses of a threat went after) to each threat. Addresses the statistics already looked up are reused;
+    at most THREAT_LOOKUPS others are searched, a failing search leaves them out."""
+    known = {w["ip"]: w.get("domains") or [] for w in (stats or {}).get("top_ips", [])}
+    budget = THREAT_LOOKUPS
+    for t in threats:
+        hits: dict[str, int] = {}
+        for ip in t["ips"][:3]:
+            if ip not in known and budget > 0:
+                budget -= 1
+                try:
+                    found = attack_domains(search(ip))
+                except ConnectorError:
+                    found = {}
+                known[ip] = [{"domain": d, "hits": n} for d, n in found.items()]
+            for d in known.get(ip, []):
+                hits[d["domain"]] = hits.get(d["domain"], 0) + d["hits"]
+        t["domains"] = [d for d, _ in sorted(hits.items(), key=lambda kv: -kv[1])][:5]
+    return threats
+
+
 def cluster(c: dict) -> dict:
     """An active threat (LogviewR ThreatCluster) reduced to safe fields: kind, IPs, jails, numbers and the AS number. The whois
     organisation name is left out: free text written by third parties."""
@@ -241,9 +263,11 @@ class LogviewR(Connector):
         threats = self._tool("f2b_get_active_threats")
         metrics = self._tool("f2b_get_metrics")
         sources = (self._tool("log_list_sources") or {}).get("sources") or []
+        def search(ip):
+            return (self._tool("log_search", {"query": ip, "pluginIds": WEB_LOGS, "maxResults": 100}) or {}).get("matches") or []
         try:   # a week of history for the statistics; an older LogviewR that refuses it just has no statistics
             week = (self._tool("f2b_get_ban_history", {"days": 7, "limit": HISTORY_LIMIT}) or {}).get("events") or []
-            stats = add_origins(add_domains(ban_stats(week, time.time()), lambda ip: (self._tool("log_search", {"query": ip, "pluginIds": WEB_LOGS, "maxResults": 100}) or {}).get("matches") or []),
+            stats = add_origins(add_domains(ban_stats(week, time.time()), search),
                                 lambda ip: self._tool("f2b_lookup_ip", {"ip": ip}))
         except ConnectorError:
             stats = None
@@ -252,7 +276,7 @@ class LogviewR(Connector):
         lists = threats if isinstance(threats, list) else [v for v in (threats or {}).values() if isinstance(v, list)] if isinstance(threats, dict) else []
         raw = lists if lists and isinstance(threats, list) else lists[0] if lists else []
         return {"jails": [n for n in names if n], "bans_24h": len(bans), "bans": bans[:200],
-                "threat_count": len(raw), "threats": [cluster(c) for c in raw if isinstance(c, dict)][:50],
+                "threat_count": len(raw), "threats": add_threat_domains([cluster(c) for c in raw if isinstance(c, dict)][:50], stats, search),
                 "metrics": metrics if isinstance(metrics, dict) else None, "stats": stats,
                 "log_sources": len(sources), "big_logs": self.big_logs()}
 

@@ -33,11 +33,12 @@ const moreIps = (count: number): string => (count > 3 ? " +" + (count - 3) : "")
 
 const DOMAINS_SHOWN = 4;
 
-/** The domains the addresses of a threat went after, when the statistics know them (they come from the web logs LogviewR reads) */
-function threatDomains(c: SecurityConnector, ips: string[]): string[] {
+/** The domains a threat's addresses went after: the ones the connector looked up for the threat itself, else those the statistics know (web logs LogviewR reads) */
+function threatDomains(c: SecurityConnector, t: NonNullable<SecurityConnector["threats"]>[number]): string[] {
+  if (t.domains?.length) return t.domains.slice(0, DOMAINS_SHOWN);
   const hits = new Map<string, number>();
   for (const w of c.stats?.top_ips ?? []) {
-    if (!ips.includes(w.ip)) continue;
+    if (!t.ips.includes(w.ip)) continue;
     for (const d of w.domains ?? []) hits.set(d.domain, (hits.get(d.domain) ?? 0) + d.hits);
   }
   return [...hits].sort((a, b) => b[1] - a[1]).slice(0, DOMAINS_SHOWN).map(([domain]) => domain);
@@ -46,7 +47,7 @@ function threatDomains(c: SecurityConnector, ips: string[]): string[] {
 function threatFindings(snap: Snapshot): Finding[] {
   return (snap.data.security ?? []).flatMap((c) => (c.threats ?? []).map((t): Finding => ({
     sev: "bad", area: "fail2ban", title: t.kind === "ip_escalation" ? tx("Une IP attaque plusieurs services") : tx("Campagne d'attaque {0}", t.asn ?? ""),
-    detail: [`${t.ips.slice(0, 3).join(", ")}${moreIps(t.ip_count)}`, t.jails.join(", "), threatDomains(c, t.ips).join(", ")].filter(Boolean).join(" · "),
+    detail: [`${t.ips.slice(0, 3).join(", ")}${moreIps(t.ip_count)}`, t.jails.join(", "), threatDomains(c, t).join(", ")].filter(Boolean).join(" · "),
     fix: tx("Vérifier ces adresses dans Fail2ban et les bloquer au pare-feu si elles reviennent."),
   })));
 }
