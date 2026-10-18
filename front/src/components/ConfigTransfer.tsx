@@ -8,22 +8,24 @@ import { tx } from "../lib/i18n";
 import { Field, NoteLine } from "./form";
 import { Badge, Card, Dim } from "./ui";
 
-type PartId = "settings" | "machines" | "backups" | "secrets" | "ssh";
+type PartId = "settings" | "machines" | "backups" | "decisions" | "accounts" | "secrets" | "ssh";
 interface PartInfo { id: PartId; label: string; hint: string }
 const PARTS: PartInfo[] = [
   { id: "settings", label: tx("Réglages et connecteurs"), hint: tx("Tâches et horaires, notifications, connecteurs, comptes de service (mots de passe chiffrés).") },
   { id: "machines", label: tx("Machines et services"), hint: tx("La liste des machines, leurs rôles, accès et services suivis.") },
   { id: "backups", label: tx("Sauvegardes suivies"), hint: tx("Les sauvegardes déclarées et leurs copies.") },
+  { id: "decisions", label: tx("Décisions mémorisées"), hint: tx("Vos choix : services suivis ou écartés, constats du Diagnostic marqués « c'est normal », avancement de l'assistant, ajouts automatiques.") },
+  { id: "accounts", label: tx("Comptes et historique"), hint: tx("Comptes (mots de passe hachés), jetons d'API, agents, règles d'alerte, historique, journal d'audit et disponibilité. Les connexions en cours ne sont pas gardées.") },
   { id: "secrets", label: tx("Clé de chiffrement"), hint: tx("Ouvre les mots de passe et jetons des réglages. Sans elle, ils ne sont pas lisibles sur une autre installation.") },
   { id: "ssh", label: tx("Clés et accès SSH"), hint: tx("Les clés privées et les alias SSH utilisés pour lire vos machines.") },
 ];
-const SENSITIVE: PartId[] = ["secrets", "ssh"];
+const SENSITIVE: PartId[] = ["accounts", "secrets", "ssh"];
 const ALL: PartId[] = PARTS.map((p) => p.id);
 
 interface Available { parts: { id: PartId; files: string[]; sensitive: boolean }[] }
-interface PreviewPart { id: PartId; files: string[]; bytes: number; sensitive: boolean; problems: string[]; exists_here: boolean }
+interface PreviewPart { id: PartId; files: string[]; bytes: number; sensitive: boolean; facts: { users?: number; events?: number }; problems: string[]; exists_here: boolean }
 interface Preview { manifest: { format?: number; app?: string; created?: number }; parts: PreviewPart[]; ignored: string[]; secrets: { with_archive_key: string; with_current_key: string } }
-interface Applied { written: string[]; kept: string[]; restart: boolean }
+interface Applied { written: string[]; kept: string[]; restart: boolean; relogin: boolean }
 
 /** A file as base64, in chunks (a spread of the whole array would overflow the call stack) */
 async function toBase64(file: File): Promise<string> {
@@ -157,10 +159,11 @@ function ImportCard() {
               const info = PARTS.find((x) => x.id === p.id)!;
               return (
                 <PartCheck key={p.id} part={info} checked={picked.includes(p.id)} disabled={p.problems.length > 0} onChange={(on) => toggle(p.id, on)}
-                  extra={<><Dim>{tx("{0} fichier(s), {1}", p.files.length, bytes(p.bytes))}</Dim>{p.exists_here && <Badge tone="info">{tx("remplace l'existant")}</Badge>}{p.problems.map((x) => <Badge key={x} tone="bad">{x}</Badge>)}</>} />
+                  extra={<><Dim>{p.facts.users === undefined ? tx("{0} fichier(s), {1}", p.files.length, bytes(p.bytes)) : tx("{0} compte(s), {1} événement(s), {2}", p.facts.users, p.facts.events ?? 0, bytes(p.bytes))}</Dim>{p.exists_here && <Badge tone="info">{tx("remplace l'existant")}</Badge>}{p.problems.map((x) => <Badge key={x} tone="bad">{x}</Badge>)}</>} />
               );
             })}
           </div>
+          {picked.includes("accounts") && <p className="flex items-start gap-2 rounded-lg border border-link/50 bg-link/10 px-3 py-2 text-sm text-txt"><ShieldAlert size={16} className="mt-0.5 shrink-0" aria-hidden />{tx("Les comptes de cette installation seront remplacés par ceux de l'archive : vous devrez vous reconnecter avec l'un d'eux.")}</p>}
           {warning && <p className="flex items-start gap-2 rounded-lg border border-warn/50 bg-warn/10 px-3 py-2 text-sm text-warn"><ShieldAlert size={16} className="mt-0.5 shrink-0" aria-hidden />{warning}</p>}
           <form className="flex flex-wrap items-end gap-3" onSubmit={(e) => { e.preventDefault(); void apply(); }}>
             <Field label={tx("Ton mot de passe")}>
@@ -176,6 +179,7 @@ function ImportCard() {
       {done && (
         <div className="mt-3 text-sm">
           <p className="text-muted">{tx("{0} fichier(s) écrit(s)", done.written.length)}{done.kept.length > 0 && ` · ${tx("{0} ancien(s) gardé(s) en « .avant-import »", done.kept.length)}`}</p>
+          {done.relogin && <p className="mt-1 font-semibold text-warn">{tx("Les comptes ont été remplacés : reconnectez-vous avec un compte de l'archive.")}</p>}
           {done.restart && <p className="mt-1 font-semibold text-warn">{tx("Redémarrez le conteneur pour appliquer les réglages et la clé importés.")}</p>}
         </div>
       )}

@@ -1642,16 +1642,17 @@ class ExportBody(Confirm):
 
 
 class ImportPreviewBody(BaseModel):
-    archive: str = Field(max_length=12 << 20)   # base64 of the ZIP
+    archive: str = Field(max_length=96 << 20)   # base64 of the ZIP
 
 
 class ImportApplyBody(Confirm, ImportPreviewBody):
     parts: list[str] = Field(max_length=8)
 
 
-def _config_root() -> Path:
+def _places():
+    import config_transfer as ct
     import system
-    return system.api_config_dir()
+    return ct.Places(system.api_config_dir(), Path(core.CFG["state_dir"]), db_path(core.CFG))
 
 
 def _archive_bytes(b64: str) -> bytes | JSONResponse:
@@ -1680,7 +1681,7 @@ def system_config_parts(request: Request):
     import config_transfer as ct
     if denied := session_admin(request):
         return denied
-    have = ct.present(_config_root())
+    have = ct.present(_places())
     return {"parts": [{"id": p, "files": have.get(p, []), "sensitive": p in ct.SENSITIVE} for p in ct.PARTS]}
 
 
@@ -1690,7 +1691,7 @@ def system_export(body: ExportBody, request: Request):
     if denied := _confirmed(request, body.password):
         return denied
     try:
-        data = ct.export_config(_config_root(), body.parts, os.environ.get("MYSERVICES_VERSION", "dev"))
+        data = ct.export_config(_places(), body.parts, os.environ.get("MYSERVICES_VERSION", "dev"))
     except ct.TransferError as e:
         return deny(400, str(e))
     u = request.state.user
@@ -1708,7 +1709,7 @@ def system_import_preview(body: ImportPreviewBody, request: Request):
     if isinstance(data, JSONResponse):
         return data
     try:
-        return ct.preview(data, _config_root())
+        return ct.preview(data, _places())
     except ct.TransferError as e:
         return deny(400, str(e))
 
@@ -1722,7 +1723,7 @@ def system_import(body: ImportApplyBody, request: Request):
     if isinstance(data, JSONResponse):
         return data
     try:
-        out = ct.apply(data, body.parts, _config_root())
+        out = ct.apply(data, body.parts, _places())
     except ct.TransferError as e:
         return deny(400, str(e))
     store().audit("configuration importée", request.state.user["username"], ip_of(request), ",".join(body.parts))
