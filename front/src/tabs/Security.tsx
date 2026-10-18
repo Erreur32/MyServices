@@ -8,7 +8,7 @@ import { Fail2banCard } from "../components/Fail2banCard";
 import { Fail2banStats } from "../components/Fail2banStats";
 import { FoldPanel } from "../components/FoldPanel";
 import { InfoNote } from "../components/InfoNote";
-import { Badge, Card, Count, Dim, Empty } from "../components/ui";
+import { Badge, Count, Dim, Empty } from "../components/ui";
 import { splitHostName } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { exposedSites, securityFindings, SENSITIVE, siteIssues, type Area, type Finding } from "../lib/securityFindings";
