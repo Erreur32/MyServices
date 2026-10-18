@@ -12,6 +12,7 @@ import { copyText } from "../lib/clipboard";
 import { dateTime } from "../lib/format";
 import type { ApiToken, TokensState } from "../types";
 import { tx } from "../lib/i18n";
+import { InfoNote } from "../components/InfoNote";
 
 const LEVEL: Record<ApiToken["level"], [string, string]> = {
   read: ["lecture", tx("voir l'état, les machines, les services, l'historique")],
@@ -36,11 +37,11 @@ export function ApiMcp() {
     <div className="flex flex-col gap-4">
       <Card>
         <h2 className="flex items-center gap-2 font-bold"><KeyRound size={16} />{tx("API et MCP")}</h2>
-        <p className="mt-1 text-sm text-muted">
+        <InfoNote className="mt-1">
           {tx("Deux sortes de jetons, chacune refusée chez l'autre :")} <b className="text-txt">{tx("API")}</b> {tx("(scripts, tableaux de bord : REST sous")} <code className="font-mono text-xs">{st.api_path}/</code>{tx(", doc")}{" "}
           <a className="text-link hover:underline" href={`${ROOT}api/v1/docs`} target="_blank" rel="noopener">{tx("OpenAPI")}</a>{tx(") et")}{" "}
           <b className="text-txt">{tx("MCP")}</b> {tx("(assistants IA : Claude, Cursor…). Réseau local et Tailscale seulement. Un jeton est montré")} <b className="text-txt">{tx("une seule fois")}</b> {tx("; seule son empreinte est gardée.")}
-        </p>
+        </InfoNote>
       </Card>
       {created && <Created c={created} origin={origin} mcpPath={st.mcp_path} onClose={() => setCreated(null)} />}
       <NewToken onCreated={(c) => { setCreated(c); reload(); }} />
@@ -193,7 +194,7 @@ function Tools({ st, reload }: { st: TokensState; reload: () => void }) {
   return (
     <Card>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><Wrench size={16} aria-hidden />{tx("Outils MCP")}</h2>
-      <p className="mb-3 text-sm text-muted">{tx("Ce qu'un assistant peut faire avec un jeton MCP. Un outil coupé n'est plus proposé ni accepté, quel que soit le jeton.")}</p>
+      <InfoNote className="mb-3">{tx("Ce qu'un assistant peut faire avec un jeton MCP. Un outil coupé n'est plus proposé ni accepté, quel que soit le jeton.")}</InfoNote>
       <ul className="flex flex-col gap-2">
         {st.tools.map((t) => (
           <li key={t.name} className="flex items-start gap-3 text-sm">

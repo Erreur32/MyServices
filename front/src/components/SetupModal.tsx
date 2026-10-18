@@ -16,6 +16,7 @@ import { connectorsFor } from "../lib/access";
 import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import type { ConnectorsState, MachinesSettings, Proposal } from "../types";
+import { InfoNote } from "./InfoNote";
 
 export type Setup =
   | { kind: "ssh"; ip: string; name: string }
@@ -78,7 +79,7 @@ function ConnectorSetup({ setup, snap, onClose }: Readonly<{ setup: Extract<Setu
     ? <p className="text-sm text-muted">{tx("Aucun connecteur adapté à cette machine.")}</p>
     : (
       <>
-        <p className="mb-3 text-sm text-muted">{tx("Un outil que vous utilisez déjà peut lire cette machine. Choisissez-le, MyServices demande ensuite son adresse et une clé en lecture seule.")}</p>
+        <InfoNote className="mb-3">{tx("Un outil que vous utilisez déjà peut lire cette machine. Choisissez-le, MyServices demande ensuite son adresse et une clé en lecture seule.")}</InfoNote>
         <ul className="flex flex-col gap-2">{list.map((c) => (
           <li key={c.type} className="flex flex-wrap items-center gap-2 rounded-lg bg-bg2/60 px-3 py-2">
             <b className="text-sm">{c.label}</b><Dim>{c.why}</Dim>

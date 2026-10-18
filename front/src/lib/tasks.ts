@@ -78,7 +78,7 @@ export const TASK_GROUPS: { id: string; title: () => string; names: string[] }[]
 ];
 
 export function groupOf(name: string): string {
-  return TASK_GROUPS.find((g) => g.names.includes(name))?.id ?? TASK_GROUPS[TASK_GROUPS.length - 1].id;
+  return TASK_GROUPS.find((g) => g.names.includes(name))?.id ?? TASK_GROUPS.at(-1)!.id;
 }
 
 /** Duration of a run in words: "42 s", "3 min 05 s" */

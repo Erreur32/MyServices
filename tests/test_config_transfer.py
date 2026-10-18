@@ -176,16 +176,18 @@ class Import(Base):
 
     def test_part_missing_from_the_archive_is_refused(self):
         data = ct.export_config(self.places, ["machines"])
+        out = self.target()
         with self.assertRaises(ct.TransferError):
-            ct.apply(data, ["backups"], self.target())
+            ct.apply(data, ["backups"], out)
 
     def test_invalid_contents_are_refused(self):
         bad_json = tar_of([("config/services-meta.json", b"{nope", None)])
+        out = self.target()
         with self.assertRaises(ct.TransferError):
-            ct.apply(bad_json, ["machines"], self.target())
+            ct.apply(bad_json, ["machines"], out)
         bad_key = tar_of([("config/secret.key", b"short", None)])
         with self.assertRaises(ct.TransferError):
-            ct.apply(bad_key, ["secrets"], self.target())
+            ct.apply(bad_key, ["secrets"], out)
 
 
 class Data(Base):
@@ -229,11 +231,12 @@ class Data(Base):
         bad = Path(self.tmp.name) / "noadmin.db"
         make_db(bad, admin=False)
         data = zip_of([("config/" + ct.DB_REL, bad.read_bytes())])
+        out = self.target()
         with self.assertRaises(ct.TransferError):
-            ct.apply(data, ["accounts"], self.target())
+            ct.apply(data, ["accounts"], out)
         junk = zip_of([("config/" + ct.DB_REL, b"not a database at all, just text")])
         with self.assertRaises(ct.TransferError):
-            ct.apply(junk, ["accounts"], self.target())
+            ct.apply(junk, ["accounts"], out)
 
     def test_preview_tells_what_is_in_the_database(self):
         got = ct.preview(ct.export_config(self.places, ["accounts"]), self.target())
@@ -256,16 +259,18 @@ class Zip(Base):
         for data in (zip_of([("config/../evil", b"x")]), zip_of([("/etc/passwd", b"x")]), zip_of([], link="config/config.json")):
             with self.assertRaises(ct.TransferError):
                 ct.read_archive(data)
+        too_big = zip_of([("config/config.json", b"x" * (ct.MAX_FILE + 1))])
         with self.assertRaises(ct.TransferError):
-            ct.read_archive(zip_of([("config/config.json", b"x" * (ct.MAX_FILE + 1))]))
+            ct.read_archive(too_big)
         with self.assertRaises(ct.TransferError):
             ct.read_archive(b"PK\x03\x04 not really")
 
 
 class Unsafe(Base):
     def refuses(self, entries):
+        archive = tar_of(entries)
         with self.assertRaises(ct.TransferError):
-            ct.read_archive(tar_of(entries))
+            ct.read_archive(archive)
 
     def test_paths_that_escape(self):
         self.refuses([("config/../evil", b"x", None)])
@@ -278,8 +283,9 @@ class Unsafe(Base):
     def test_not_an_archive_or_too_big(self):
         with self.assertRaises(ct.TransferError):
             ct.read_archive(b"hello")
+        oversized = b"x" * (ct.MAX_ARCHIVE + 1)
         with self.assertRaises(ct.TransferError):
-            ct.read_archive(b"x" * (ct.MAX_ARCHIVE + 1))
+            ct.read_archive(oversized)
         self.refuses([("config/config.json", b"x" * (ct.MAX_FILE + 1), None)])
 
     def test_unknown_files_are_ignored_not_written(self):

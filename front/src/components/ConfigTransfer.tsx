@@ -8,6 +8,7 @@ import { useStoredFlag } from "../lib/storedFlag";
 import { tx } from "../lib/i18n";
 import { Field, NoteLine } from "./form";
 import { Badge, Card, Dim } from "./ui";
+import { InfoNote } from "./InfoNote";
 
 type PartId = "settings" | "machines" | "backups" | "decisions" | "accounts" | "secrets" | "ssh";
 interface PartInfo { id: PartId; label: string; hint: string }
@@ -20,7 +21,7 @@ const PARTS: PartInfo[] = [
   { id: "secrets", label: tx("Clé de chiffrement"), hint: tx("Ouvre les mots de passe et jetons des réglages. Sans elle, ils ne sont pas lisibles sur une autre installation.") },
   { id: "ssh", label: tx("Clés et accès SSH"), hint: tx("Les clés privées et les alias SSH utilisés pour lire vos machines.") },
 ];
-const SENSITIVE: PartId[] = ["accounts", "secrets", "ssh"];
+const SENSITIVE = new Set<PartId>(["accounts", "secrets", "ssh"]);
 const ALL: PartId[] = PARTS.map((p) => p.id);
 
 interface Available { parts: { id: PartId; files: string[]; sensitive: boolean }[] }
@@ -32,15 +33,15 @@ interface Applied { written: string[]; kept: string[]; restart: boolean; relogin
 async function toBase64(file: File): Promise<string> {
   const data = new Uint8Array(await file.arrayBuffer());
   let out = "";
-  for (let i = 0; i < data.length; i += 0x8000) out += String.fromCharCode(...data.subarray(i, i + 0x8000));
+  for (let i = 0; i < data.length; i += 0x8000) out += String.fromCodePoint(...data.subarray(i, i + 0x8000));
   return btoa(out);
 }
 
 function PartCheck({ part, checked, onChange, extra, disabled }: Readonly<{ part: PartInfo; checked: boolean; onChange: (on: boolean) => void; extra?: React.ReactNode; disabled?: boolean }>) {
-  const sensitive = SENSITIVE.includes(part.id);
+  const sensitive = SENSITIVE.has(part.id);
   return (
     <label className={`flex items-start gap-3 rounded-lg border px-3 py-2 motion-safe:transition-colors ${checked && !disabled ? "border-link bg-link/10 ring-1 ring-link/50" : "border-line bg-bg/60"} ${disabled ? "opacity-50" : "cursor-pointer hover:border-link/60"}`}>
-      <input type="checkbox" className="mt-1" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" className="mt-1" checked={checked} disabled={disabled} aria-label={part.label} onChange={(e) => onChange(e.target.checked)} />
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2 font-semibold">{part.label}{sensitive && <Badge tone="warn"><KeyRound size={11} aria-hidden />{tx("sensible")}</Badge>}{extra}</span>
         <span className="block text-xs text-muted">{part.hint}</span>
@@ -90,7 +91,7 @@ function ExportCard() {
   };
   return (
     <FoldCard id="export" icon={Download} title={tx("Exporter la configuration")}>
-      <p className="mb-3 text-sm text-muted">{tx("Une archive à garder en lieu sûr, pour tout réinstaller ou pour reprendre seulement une partie. Elle peut contenir la clé de chiffrement et des clés SSH : ne la partagez pas.")}</p>
+      <InfoNote tone="warn" className="mb-3">{tx("Une archive à garder en lieu sûr, pour tout réinstaller ou pour reprendre seulement une partie. Elle peut contenir la clé de chiffrement et des clés SSH : ne la partagez pas.")}</InfoNote>
       <fieldset className="m-0 mb-3 inline-flex min-w-0 rounded-lg border border-line bg-card p-0.5" aria-label={tx("Quoi exporter")}>
         {([[true, tx("Tout")], [false, tx("Au choix")]] as [boolean, string][]).map(([v, label]) => (
           <button key={label} type="button" aria-pressed={all === v} onClick={() => setAll(v)}
@@ -162,7 +163,7 @@ function ImportCard() {
   const risky = pv?.parts.some((p) => picked.includes(p.id) && p.exists_here);
   return (
     <FoldCard id="import" icon={Upload} title={tx("Importer une configuration")}>
-      <p className="mb-3 text-sm text-muted">{tx("Choisissez une archive exportée ici : elle est d'abord lue sans rien changer, puis vous cochez les parties à reprendre. Chaque fichier remplacé est gardé à côté en « .avant-import ».")}</p>
+      <InfoNote className="mb-3">{tx("Choisissez une archive exportée ici : elle est d'abord lue sans rien changer, puis vous cochez les parties à reprendre. Chaque fichier remplacé est gardé à côté en « .avant-import ».")}</InfoNote>
       <label className="mb-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-1.5 text-sm font-semibold hover:border-link">
         <FileUp size={14} aria-hidden />{tx("Choisir une archive (.zip)")}
         <input type="file" accept=".zip,.tar.gz,.tgz,application/zip,application/gzip" className="sr-only" onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = ""; }} />

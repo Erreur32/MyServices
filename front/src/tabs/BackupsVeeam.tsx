@@ -10,6 +10,7 @@ import { dateTime } from "../lib/format";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { SecretInput } from "../components/SecretInput";
+import { InfoNote } from "../components/InfoNote";
 
 export interface VeeamState { configured: boolean; url: string; user: string; password_set: boolean }
 interface Job { name: string; type: string; status: string; last_result: string; last_run: number | null; disabled: boolean; followed: boolean }
@@ -58,9 +59,9 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
     <Card>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><ServerCog size={16} />{tx("Veeam Backup & Replication")}
         {state.configured && <Badge tone="ok">{tx("compte enregistré")}</Badge>}</h2>
-      <p className="mb-3 text-sm text-muted">
+      <InfoNote className="mb-3">
         {tx("MyServices lit l'API REST de Veeam (port 9419, pas 9392) avec un compte au seul rôle « Veeam Backup Viewer » : il ne peut ni lancer ni modifier un job. Le mot de passe est chiffré et n'est jamais réaffiché.")}
-      </p>
+      </InfoNote>
       {state.configured && state.password_set && !change ? (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <span className="text-dim">{tx("Compte du connecteur :")}</span><b>{state.user}</b><Dim>· {state.url}</Dim>
@@ -89,7 +90,7 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
           {busy === "search" ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Search size={14} aria-hidden />}{tx("Chercher les jobs")}
         </button>
       </div>
-      <p className="mt-1 text-xs text-dim">{tx("L'essai et la recherche n'enregistrent rien : le compte n'est gardé que lorsque vous suivez des jobs.")}</p>
+      <InfoNote className="mt-1">{tx("L'essai et la recherche n'enregistrent rien : le compte n'est gardé que lorsque vous suivez des jobs.")}</InfoNote>
       {jobs && (
         <div className="mt-3 flex flex-col gap-2">
           {jobs.length > 0 && <ul className="flex flex-col gap-2">

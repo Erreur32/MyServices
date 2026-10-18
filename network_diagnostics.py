@@ -185,15 +185,19 @@ def _check_device_extras(ctx: _Ctx) -> None:
     for d in ctx.devices:
         if str(_dict(d.get("uplink")).get("type") or "").lower() in ("wireless", "wifi"):
             ctx.add("warn", "mesh", d, None, "device is linked by radio (wireless uplink): its throughput is shared with the air", code="mesh")
-        t = _temperature(d)
-        if t is not None and t >= TEMP_WARN:
-            ctx.add("bad" if t >= TEMP_BAD else "warn", "temp", d, None, f"temperature {t:.0f} °C", t, TEMP_WARN, code="temp", value=round(t))
-        upt = _num(d.get("uptime"))
-        if upt is not None and 0 <= upt < REBOOT_S and str(d.get("state")) == "1":
-            ctx.add("info", "reboot", d, None, "restarted a few minutes ago", code="reboot", minutes=max(1, round(upt / 60)))
+        _check_temp_and_uptime(ctx, d)
         sta = _num(d.get("num_sta"))
         if d.get("type") in ("uap", "u6", "u7") and sta is not None and sta >= CLIENTS_HIGH:
             ctx.add("info", "clients", d, None, f"{sta:.0f} clients on this access point", sta, CLIENTS_HIGH, code="clients", value=round(sta))
+
+
+def _check_temp_and_uptime(ctx: _Ctx, d: dict) -> None:
+    t = _temperature(d)
+    if t is not None and t >= TEMP_WARN:
+        ctx.add("bad" if t >= TEMP_BAD else "warn", "temp", d, None, f"temperature {t:.0f} °C", t, TEMP_WARN, code="temp", value=round(t))
+    upt = _num(d.get("uptime"))
+    if upt is not None and 0 <= upt < REBOOT_S and str(d.get("state")) == "1":
+        ctx.add("info", "reboot", d, None, "restarted a few minutes ago", code="reboot", minutes=max(1, round(upt / 60)))
 
 
 def _check_wifi(ctx: _Ctx) -> None:

@@ -10,6 +10,7 @@ import { tx } from "../lib/i18n";
 import type { HealthHost, Host } from "../types";
 import { Badge, Card, Count, Dim, Empty } from "../components/ui";
 import { Certificates, CERT_SOON } from "../components/Certificates";
+import { InfoNote } from "../components/InfoNote";
 
 /** Ports that should not be open on a home network without a reason (clear-text or remote-control protocols, databases, Docker API) */
 const SENSITIVE: Record<number, string> = {
@@ -107,7 +108,7 @@ export function Security({ snap }: { snap: Snapshot }) {
       {exposed.length > 0 && (
         <Card>
           <h2 className="mb-1 flex items-center gap-2 font-bold"><Globe size={16} aria-hidden />{tx("Sites exposés à Internet")} <Count n={exposed.length} tone="off" /></h2>
-          <p className="mb-2 text-sm text-muted">{tx("Hôtes de Nginx Proxy Manager actifs et sans liste d'accès : joignables de partout. Ce qui manque est en orange.")}</p>
+          <InfoNote className="mb-2">{tx("Hôtes de Nginx Proxy Manager actifs et sans liste d'accès : joignables de partout. Ce qui manque est en orange.")}</InfoNote>
           <ul className="flex flex-col divide-y divide-line/60 text-sm">
             {exposed.map(({ r, issues }) => (
               <li key={`${r.npm}-${r.id}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-1.5">
@@ -126,7 +127,7 @@ export function Security({ snap }: { snap: Snapshot }) {
       {ssh.length > 0 && (
         <Card>
           <h2 className="mb-1 flex items-center gap-2 font-bold"><KeyRound size={16} aria-hidden />{tx("Accès SSH des machines")} <Count n={ssh.length} tone="off" /></h2>
-          <p className="mb-2 text-sm text-muted">{tx("Réglages du serveur SSH lus sur chaque machine, et connexions refusées sur 24 h (santé).")}</p>
+          <InfoNote className="mb-2">{tx("Réglages du serveur SSH lus sur chaque machine, et connexions refusées sur 24 h (santé).")}</InfoNote>
           <ul className="flex flex-col divide-y divide-line/60 text-sm">
             {ssh.map(({ m, root, pwd, fails, d }) => (
               <li key={m.ip} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-1.5">
@@ -143,7 +144,7 @@ export function Security({ snap }: { snap: Snapshot }) {
       {ports.length > 0 && (
         <Card>
           <h2 className="mb-1 flex items-center gap-2 font-bold"><Radar size={16} aria-hidden />{tx("Ports sensibles ouverts sur le réseau")} <Count n={ports.length} tone="warn" /></h2>
-          <p className="mb-2 text-sm text-muted">{tx("Vus par le scanner de MynetworK : protocoles en clair, prise de main à distance, bases de données. À fermer s'ils ne servent pas.")}</p>
+          <InfoNote className="mb-2">{tx("Vus par le scanner de MynetworK : protocoles en clair, prise de main à distance, bases de données. À fermer s'ils ne servent pas.")}</InfoNote>
           <ul className="flex flex-col divide-y divide-line/60 text-sm">
             {ports.map(({ d, hit }) => (
               <li key={d.ip} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-1.5">

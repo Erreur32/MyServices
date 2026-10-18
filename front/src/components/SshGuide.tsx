@@ -8,6 +8,7 @@ import { input, primary, quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { authorizeFor, homeOf } from "../lib/ssh";
 import type { SystemState } from "../types";
+import { InfoNote } from "./InfoNote";
 
 
 type Kind = "windows" | "linux";
@@ -89,7 +90,7 @@ export function SshGuide({ ip, user: knownUser, guess, port, onReady, onCancel }
               {authorize ? <Copyable text={authorizeFor(authorize, user, esxiKey)} /> : <span className="block text-warn">{tx("Clé de l'app introuvable : voir")} <a className="underline hover:text-txt" href="#settings/ssh">{tx("Réglages → Clé SSH")}</a>.</span>}
               {(user || "root") === "root" && <span className="mt-1 block text-xs text-dim">{tx("Sur un VMware ESXi, la commande met la clé ECDSA de l'app dans /etc/ssh/keys-root/authorized_keys (ESXi ignore ~/.ssh et refuse les clés ed25519).")}</span>}</li>
           </ol>
-          <p className="text-xs text-dim">💡 {tx("Astuce : si la connexion est refusée, vérifiez que le serveur SSH est installé et démarré sur la machine.")}</p>
+          <InfoNote>💡 {tx("Astuce : si la connexion est refusée, vérifiez que le serveur SSH est installé et démarré sur la machine.")}</InfoNote>
           {error && <p className="text-bad">⚠ {error}</p>}
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" className={primary} disabled={!ok || busy || !!applied} onClick={() => void prepare()}>

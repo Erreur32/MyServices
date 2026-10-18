@@ -11,6 +11,7 @@ import { appVersion, dateTime } from "../lib/format";
 import { act, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { GITHUB } from "../lib/links";
+import { InfoNote } from "../components/InfoNote";
 
 interface Release { tag: string; name: string; url: string; published: string | null; prerelease: boolean; notes: string }
 interface About {
@@ -76,7 +77,7 @@ export function AboutSettings() {
                 <a className="inline-flex items-center gap-1 text-link hover:underline" href={latest.url} target="_blank" rel="noopener noreferrer">{tx("Notes de version")}<ExternalLink size={12} aria-hidden /></a>
               </div>
               {a.update_available && (
-                <p className="rounded-lg bg-bg2/60 px-3 py-2 text-xs text-muted">{tx("Pour mettre à jour : sauvegardez config/ et data/, puis récupérez la nouvelle image et relancez le conteneur.")}</p>
+                <InfoNote>{tx("Pour mettre à jour : sauvegardez config/ et data/, puis récupérez la nouvelle image et relancez le conteneur.")}</InfoNote>
               )}
               <p className="text-xs text-dim">
                 {a.checked_at ? tx("Dernière vérification : {0}", dateTime(a.checked_at * 1000)) : null}{a.error ? <span className="text-warn"> · {a.error}</span> : null}

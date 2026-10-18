@@ -14,6 +14,7 @@ import { MachineIcon } from "./MachineIcon";
 import { FOLD, FOLD_HEAD, FOLD_WARN } from "./NetworkStep";
 import { NoteLine } from "./form";
 import { Badge } from "./ui";
+import { InfoNote } from "./InfoNote";
 
 export interface DiscoveryItem {
   id: string; title: string; mode: "auto" | "first" | "manual"; what: string; last: number | null; next: number | null;
@@ -238,7 +239,7 @@ export function DiscoveryReminder({ machines }: { machines?: Machine[] }) {
           </span>
           <span className="min-w-0 flex-1">
             <h2 className="text-base font-bold">{tx("À faire pour compléter la découverte")}</h2>
-            <p className="text-xs text-muted">{tx("Ces recherches ne se lancent pas toutes seules.")}</p>
+            <InfoNote>{tx("Ces recherches ne se lancent pas toutes seules.")}</InfoNote>
           </span>
           <ChevronRight size={18} className={`shrink-0 text-txt transition-transform ${folded ? "" : "rotate-90"}`} aria-hidden />
         </button>

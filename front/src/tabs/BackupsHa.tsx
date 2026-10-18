@@ -9,6 +9,7 @@ import { appIcon } from "../lib/appIcons";
 import { Badge, Card, Dim } from "../components/ui";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { InfoNote } from "../components/InfoNote";
 
 export interface HaState { connectors: string[]; followed: boolean; connector: string }
 
@@ -44,9 +45,9 @@ export function BackupsHa({ state, reload }: { state: HaState; reload: () => voi
         <Dim>{tx("Aucun connecteur Home Assistant : ajoutez-le d'abord dans Réglages → Connecteurs (adresse et jeton), la sauvegarde s'y rattache ensuite.")}</Dim>
       ) : (
         <>
-          <p className="mb-3 text-sm text-muted">
+          <InfoNote className="mb-3">
             {tx("Lit la dernière sauvegarde automatique réussie de Home Assistant (capteurs du gestionnaire de sauvegardes), avec l'adresse et le jeton déjà enregistrés pour le connecteur. Lecture seule. Si le connecteur a l'adresse du module ha-mcp (module communautaire, pas le MCP natif), MyServices lit aussi la liste réelle des sauvegardes : date, taille, chiffrement et où elles sont copiées.")}
-          </p>
+          </InfoNote>
           <div className="flex flex-wrap items-end gap-3">
             {state.connectors.length > 1 && (
               <div className="flex flex-col gap-1 text-sm text-muted">{tx("Connecteur")}

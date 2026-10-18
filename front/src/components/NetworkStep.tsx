@@ -19,6 +19,7 @@ import { netPercent } from "./ScanBar";
 import { SkipButton } from "./SkipButton";
 import { useDiscoveries } from "./DiscoveryCard";
 import { Badge, Count } from "./ui";
+import { InfoNote } from "./InfoNote";
 
 /** Icône de l'appli reconnue (rien si elle n'en a pas) */
 function AppIcon({ apps }: { apps?: readonly string[] }) {
@@ -235,9 +236,9 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
     const pinging = net.phase === "ping";
     return (
       <div className="flex flex-col gap-3" aria-live="polite">
-        <p className="text-sm text-dim">
+        <InfoNote>
           {tx("Lecture seule : un ping par adresse, la demande du nom et quelques connexions TCP. Rien n'est modifié sur vos machines.")}
-        </p>
+        </InfoNote>
         <ul className="flex flex-col gap-1.5 text-sm">
           <li className="flex items-center gap-2">
             {pinging ? <Loader2 size={15} className="animate-spin text-link" aria-hidden /> : <Check size={15} className="step-pop text-ok" aria-hidden />}
@@ -372,7 +373,7 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
               );
             })}
           </ul>
-          <p className="mt-2 text-xs text-dim">{tx("Pour retirer une machine : Réglages → Machines. Un accès oublié revient avec « Rappeler ».")}</p>
+          <InfoNote className="mt-2">{tx("Pour retirer une machine : Réglages → Machines. Un accès oublié revient avec « Rappeler ».")}</InfoNote>
         </details>
       )}
       <NoteLine note={note} />
@@ -425,9 +426,9 @@ function AddedMachine({ host, linked, onDone, onForget }: { host: NetHost; linke
               title={tx("Ne plus demander cet accès : la machine reste ajoutée. « Rappeler » dans « machines déjà ajoutées » le fait revenir.")}><EyeOff size={13} aria-hidden />{tx("Oublier")}</button>}
       </p>
       {mwk && (
-        <p className="mt-2 text-sm text-muted">
+        <InfoNote className="mt-2">
           {tx("UniFi sera lu par l'API de MynetworK (à venir) : en ligne / hors ligne, appareils et clients, sans SSH. Le SSH apporte seulement l'état système (disque, charge) : à vous de voir.")}
-        </p>
+        </InfoNote>
       )}
       {ssh && !ok && !cmd && (
         <div className="mt-2 flex flex-wrap items-end gap-2">
@@ -447,7 +448,7 @@ function AddedMachine({ host, linked, onDone, onForget }: { host: NetHost; linke
         </div>
       )}
       {ha && <HomeAssistantLink host={host} onLinked={() => setHaOk(true)} />}
-      {!ssh && !ha && <p className="mt-1 text-sm text-dim">{tx("Pas de SSH sur cette machine : ses services web seront suivis par leur adresse.")}</p>}
+      {!ssh && !ha && <InfoNote className="mt-1">{tx("Pas de SSH sur cette machine : ses services web seront suivis par leur adresse.")}</InfoNote>}
       <NoteLine note={note} />
     </div>
   );
@@ -470,7 +471,7 @@ function HomeAssistantLink({ host, onLinked }: { host: NetHost; onLinked: () => 
   if (done) return <p className="mt-2 text-sm text-muted">{tx("Home Assistant relié par son API : première lecture en cours")}</p>;
   return (
     <div className="mt-2">
-      <p className="text-sm text-muted">{tx("Home Assistant se relie par son API (adresse + jeton), pas par SSH. Un compte dédié non administrateur est recommandé.")}</p>
+      <InfoNote>{tx("Home Assistant se relie par son API (adresse + jeton), pas par SSH. Un compte dédié non administrateur est recommandé.")}</InfoNote>
       {!open && (
         <div className="mt-2 flex flex-wrap gap-2">
           <button type="button" className={primary} onClick={() => setOpen(true)}><Plug size={14} aria-hidden />{tx("Relier Home Assistant")}</button>

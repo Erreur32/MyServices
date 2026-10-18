@@ -27,6 +27,7 @@ import { tx } from "../lib/i18n";
 import { lastSettingsSection, rememberSettingsSection, showInUrl } from "../lib/settingsNav";
 import { checkPassword, okField, PASSWORD_MIN } from "../lib/password";
 import { PasswordRules } from "../components/PasswordRules";
+import { InfoNote } from "../components/InfoNote";
 
 /** Menu en quatre groupes ; les identifiants restent ceux des liens directs (#settings/<section>) */
 const GROUPS: { label: string; sections: { id: string; label: string; icon: LucideIcon }[] }[] = [
@@ -146,9 +147,9 @@ function Accounts({ me }: { me: string }) {
       </div>
       <Card>
         <h2 className="mb-1 flex items-center gap-2 font-bold"><Users size={16} aria-hidden />{tx("Comptes")} {users && <Count n={users.length} />}</h2>
-        <p className="mb-3 text-sm text-muted">
+        <InfoNote className="mb-3">
           <b className="text-txt">{tx("Admin")}</b> {tx(": tout, réglages compris.")} <b className="text-txt">{tx("Lecture seule")}</b> {tx(": voit la page et peut demander un passage (⟳). Ton propre mot de passe et tes sessions : menu du compte → « Profil ». Un admin ne peut pas se retirer ses droits, et il reste toujours au moins un admin actif.")}
-        </p>
+        </InfoNote>
         {users && (
           <div className="mb-3 flex flex-wrap gap-2 text-xs">
             <Badge tone="info"><ShieldCheck size={11} aria-hidden />{tx("{0} admin", users.filter((u) => u.role === "admin" && !u.disabled).length)}</Badge>
@@ -173,7 +174,7 @@ function SessionDays() {
   return (
     <Card>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><Timer size={16} aria-hidden />{tx("Durée des sessions")}</h2>
-      <p className="mb-3 text-sm text-muted">{tx("Combien de temps un navigateur reste connecté sans que l'on redemande le mot de passe (de 1 à 90 jours). Vaut pour les prochaines connexions ; les sessions déjà ouvertes gardent leur échéance jusqu'à leur prochaine prolongation.")}</p>
+      <InfoNote className="mb-3">{tx("Combien de temps un navigateur reste connecté sans que l'on redemande le mot de passe (de 1 à 90 jours). Vaut pour les prochaines connexions ; les sessions déjà ouvertes gardent leur échéance jusqu'à leur prochaine prolongation.")}</InfoNote>
       <form className="flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); if (valid) void act(() => send("PUT", "security/session-days", { days: n }), tx("enregistré : {0} jours", n), setNote).then((ok) => ok && setCur(n)); }}>
         <div className="flex flex-col gap-1 text-sm text-muted">{tx("Jours")}
           <span className="flex flex-wrap items-center gap-1.5">

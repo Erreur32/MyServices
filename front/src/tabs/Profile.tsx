@@ -12,6 +12,7 @@ import { dateTime } from "../lib/format";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { checkPassword, okField, PASSWORD_MIN } from "../lib/password";
+import { InfoNote } from "../components/InfoNote";
 
 interface MySession { created: number; expires: number; ip: string | null; current: boolean }
 
@@ -46,7 +47,7 @@ function Sessions() {
   return (
     <Card>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><MonitorSmartphone size={16} />{tx("Mes sessions")} {list && <Count n={list.length} />}</h2>
-      {days > 0 && <p className="mb-3 text-sm text-muted">{tx("Navigateurs et appareils connectés à ce compte. Une session dure {0} jours et se prolonge à l'usage.", days)}</p>}
+      {days > 0 && <InfoNote className="mb-3">{tx("Navigateurs et appareils connectés à ce compte. Une session dure {0} jours et se prolonge à l'usage.", days)}</InfoNote>}
       {error && <p className="text-sm text-bad">⚠ {error}</p>}
       {list === null ? !error && <p className="text-sm text-muted">{tx("Chargement…")}</p> : (
         <ul className="flex flex-col divide-y divide-line/60">
@@ -131,7 +132,7 @@ function MyAvatar({ username, initial }: Readonly<{ username: string; initial: s
           {version && <button type="button" className={danger} disabled={busy} onClick={() => void remove()}><Trash2 size={14} />{tx("Retirer")}</button>}
         </div>
       </div>
-      <p className="mt-3 text-xs text-dim">{tx("PNG, JPEG, WebP, GIF ou SVG, 512 Ko au plus. Une photo est recadrée en carré ; un SVG doit être un simple dessin (sans script ni lien vers l'extérieur).")}</p>
+      <InfoNote className="mt-3">{tx("PNG, JPEG, WebP, GIF ou SVG, 512 Ko au plus. Une photo est recadrée en carré ; un SVG doit être un simple dessin (sans script ni lien vers l'extérieur).")}</InfoNote>
       <NoteLine note={note} />
     </Card>
   );
@@ -166,7 +167,7 @@ function MyEmail({ initial, admin }: Readonly<{ initial: string; admin: boolean 
             <button type="button" className={quiet} disabled={busy} onClick={() => void test()} title={tx("Envoie un message à cette adresse pour vérifier que l'envoi fonctionne")}><Send size={14} aria-hidden />{tx("Envoyer un e-mail de test")}</button>
           )}
         </div>
-        <p className="text-xs text-dim">{tx("Sert seulement à recevoir un lien si vous oubliez votre mot de passe (« Mot de passe oublié ? » sur la page de connexion).")}</p>
+        <InfoNote>{tx("Sert seulement à recevoir un lien si vous oubliez votre mot de passe (« Mot de passe oublié ? » sur la page de connexion).")}</InfoNote>
       </form>
       <NoteLine note={note} />
     </Card>
@@ -201,7 +202,7 @@ function MyPassword() {
         </div>
         <PasswordRules pw={pw} again={pw2} />
         <div><button type="submit" className={primary} disabled={busy || !checkPassword(pw, pw2).ok}><KeyRound size={14} />{tx("Changer")}</button></div>
-        <p className="text-xs text-dim">{tx("Toutes tes sessions (autres navigateurs compris) seront fermées.")}</p>
+        <InfoNote tone="warn">{tx("Toutes tes sessions (autres navigateurs compris) seront fermées.")}</InfoNote>
       </form>
       <NoteLine note={note} />
     </Card>

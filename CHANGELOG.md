@@ -29,6 +29,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Changed
 
+- Informative texts (the explanation under a title, the hint under a field, a caution) now share one look: an icon in front and a tinted band with a coloured
+  edge (`InfoNote`), so they read apart from the page's own data.
 - Settings -> Tasks and schedules redesigned: a header with the scheduler heartbeat and a live summary, three grouped cards with dark title bands
   (collection and watching, network discovery, backups and health), a state badge per task, a shorter "Run" button, and a help window with suggested
   schedules (what each task costs the network and the machines' logs).

@@ -221,12 +221,15 @@ function TaskHead({ name, title, state, badge, note, extra, about, children }: R
   );
 }
 
-function Tasks({ tasks, netscan, beat, reload }: Readonly<{ tasks: SystemTask[]; netscan?: SystemState["netscan"]; beat: number | null; reload: () => void }>) {
+function Tasks({ tasks, netscan, beat, reload }: Readonly<{ tasks: SystemTask[]; netscan: SystemState["netscan"]; beat: number | null; reload: () => void }>) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 15_000); return () => clearInterval(t); }, []);
   const ago = beat ? Math.max(0, Math.round(now / 1000 - beat)) : null, alive = ago !== null && ago < 90;   // the loop turns every 5 s
   const sections: Record<string, ReactNode[]> = {};
-  const add = (group: string, row: ReactNode) => { (sections[group] ??= []).push(row); };
+  const add = (group: string, row: ReactNode) => {
+    sections[group] ??= [];
+    sections[group].push(row);
+  };
   tasks.forEach((t) => add(groupOf(t.name), <TaskRow key={t.name} t={t} now={now} reload={reload} />));
   if (netscan) add(groupOf("netscan"), <NetscanRow key="netscan" n={netscan} now={now} reload={reload} />);
   add(groupOf("live"), <LiveChecksRow key="live" />);
@@ -245,7 +248,7 @@ function Tasks({ tasks, netscan, beat, reload }: Readonly<{ tasks: SystemTask[];
 }
 
 /** Title, scheduler heartbeat and a one-line summary: how many tasks are on, which one is running or failed, which is next */
-function TasksHeader({ tasks, netscan, ago, alive, now }: Readonly<{ tasks: SystemTask[]; netscan?: SystemState["netscan"]; ago: number | null; alive: boolean; now: number }>) {
+function TasksHeader({ tasks, netscan, ago, alive, now }: Readonly<{ tasks: SystemTask[]; netscan: SystemState["netscan"]; ago: number | null; alive: boolean; now: number }>) {
   const items = netscan ? [...tasks, { name: "netscan", label: tx("Recherche réseau"), enabled: netscan.enabled, running: netscan.running, result: netscan.ended ? "success" : null, next: netscan.next }] : tasks;
   const sum = summarize(items), label = items.find((t) => t.name === sum.next?.name)?.label;
   return (

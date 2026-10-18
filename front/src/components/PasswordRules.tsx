@@ -3,6 +3,7 @@
 import { Check, Circle, Lightbulb } from "lucide-react";
 import { checkPassword, PASSWORD_MIN } from "../lib/password";
 import { tx } from "../lib/i18n";
+import { InfoNote } from "./InfoNote";
 
 function Rule({ ok, children, tip }: { ok: boolean; children: React.ReactNode; tip?: boolean }) {
   const Icon = ok ? Check : tip ? Lightbulb : Circle;
@@ -16,7 +17,7 @@ function Rule({ ok, children, tip }: { ok: boolean; children: React.ReactNode; t
 }
 
 export function PasswordRules({ pw, again }: { pw: string; again?: string }) {
-  if (!pw && !again) return <p className="text-xs text-dim">{tx("{0} caractères minimum. Une phrase de plusieurs mots est facile à retenir et solide.", PASSWORD_MIN)}</p>;
+  if (!pw && !again) return <InfoNote>{tx("{0} caractères minimum. Une phrase de plusieurs mots est facile à retenir et solide.", PASSWORD_MIN)}</InfoNote>;
   const c = checkPassword(pw, again);
   return (
     <ul className="flex flex-col gap-0.5 text-xs" aria-live="polite">

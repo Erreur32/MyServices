@@ -1638,14 +1638,15 @@ class Confirm(BaseModel):
 
 
 class ExportBody(Confirm):
-    parts: list[str] | None = Field(default=None, max_length=8)   # None = everything
+    parts: list[str] | None = Field(default=None, max_length=8)   # a missing list means every part
 
 
 class ImportPreviewBody(BaseModel):
     archive: str = Field(max_length=96 << 20)   # base64 of the ZIP
 
 
-class ImportApplyBody(Confirm, ImportPreviewBody):
+class ImportApplyBody(ImportPreviewBody):
+    password: str = Field(max_length=256)
     parts: list[str] = Field(max_length=8)
 
 

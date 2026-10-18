@@ -8,6 +8,7 @@ import { dateTime, norm } from "../lib/format";
 import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import type { AuditEntry } from "../types";
+import { InfoNote } from "../components/InfoNote";
 
 const TEXT: Record<AuditTone, string> = { bad: "text-bad", warn: "text-warn", ok: "", info: "" };
 const DOT: Record<AuditTone, string> = { bad: "bg-bad", warn: "bg-warn", ok: "bg-ok", info: "bg-link" };
@@ -53,7 +54,7 @@ export function AuditLog() {
           <h2 className="flex items-center gap-2 font-bold"><ScrollText size={16} aria-hidden />{tx("Journal d'audit")} <Count n={`${shown.length} / ${entries.length}`} /></h2>
           <button type="button" className={quiet} disabled={!shown.length} onClick={exportCsv}><Download size={14} />{tx("Exporter (CSV)")}</button>
         </div>
-        <p className="mb-3 text-sm text-muted">{tx("Connexions, échecs, passages demandés, changements de comptes ; gardé un an.")}</p>
+        <InfoNote className="mb-3">{tx("Connexions, échecs, passages demandés, changements de comptes ; gardé un an.")}</InfoNote>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Tile value={period.length} label={tx("événements sur la période")} />
           <Tile value={users.length} label={tx("comptes actifs")} />

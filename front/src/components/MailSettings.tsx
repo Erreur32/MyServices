@@ -8,6 +8,7 @@ import { IconChoice } from "./IconChoice";
 import { Badge, Card } from "./ui";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { InfoNote } from "./InfoNote";
 
 interface MailState { suggested_host?: string; host: string; port: number; security: "starttls" | "ssl" | "none"; user: string; password_set: boolean; from: string; page_url: string; ready: boolean }
 
@@ -70,7 +71,7 @@ export function MailSettings() {
     <>
       <h2 className="mb-1 flex items-center gap-2 font-bold"><Mail size={16} aria-hidden />{tx("E-mail")}
         {st.ready ? <Badge tone="ok">{tx("prêt")}</Badge> : <Badge tone="off">{tx("non réglé")}</Badge>}</h2>
-      <p className="mb-3 text-sm text-muted">{tx("Envoi des e-mails de MyServices (« Mot de passe oublié ? » : un lien à usage unique, valable 30 minutes, envoyé à l'adresse du profil).")}</p>
+      <InfoNote className="mb-3">{tx("Envoi des e-mails de MyServices (« Mot de passe oublié ? » : un lien à usage unique, valable 30 minutes, envoyé à l'adresse du profil).")}</InfoNote>
     </>
   );
   const actions = (
@@ -87,7 +88,7 @@ export function MailSettings() {
           <Field label={tx("Relais de courrier de l'hôte")}>
             <input className={`${input} max-w-sm font-mono`} value={relay} placeholder={st.suggested_host || "172.17.0.1"} onChange={(e) => setRelay(e.target.value)} />
           </Field>
-          <p className="text-xs text-dim">{tx("L'adresse du courrier (postfix, sendmail, exim…) installé sur la machine qui héberge Docker, port 25 par défaut. Avec le réseau de l'hôte (les fichiers compose fournis), 127.0.0.1 convient et postfix n'a rien à changer. L'expéditeur et l'adresse de la page sont déduits.")}</p>
+          <InfoNote>{tx("L'adresse du courrier (postfix, sendmail, exim…) installé sur la machine qui héberge Docker, port 25 par défaut. Avec le réseau de l'hôte (les fichiers compose fournis), 127.0.0.1 convient et postfix n'a rien à changer. L'expéditeur et l'adresse de la page sont déduits.")}</InfoNote>
           {actions}
           <NoteLine note={note} />
           <MailHelp open={failed} />
@@ -119,7 +120,7 @@ export function MailSettings() {
           <Field label={tx("Expéditeur")}><input className={input} type="email" value={st.from} placeholder="myservices@exemple.fr" onChange={(e) => set({ from: e.target.value })} /></Field>
           <Field label={tx("Adresse de la page")}><input className={input} value={st.page_url} placeholder="https://myservices.exemple.fr" onChange={(e) => set({ page_url: e.target.value })} /></Field>
         </div>
-        <p className="text-xs text-dim">{tx("L'adresse de la page est celle mise dans les liens des e-mails : celle que vous ouvrez dans le navigateur.")}</p>
+        <InfoNote>{tx("L'adresse de la page est celle mise dans les liens des e-mails : celle que vous ouvrez dans le navigateur.")}</InfoNote>
         {actions}
         <NoteLine note={note} />
         <MailHelp open={failed} />

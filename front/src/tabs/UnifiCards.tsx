@@ -146,11 +146,14 @@ export function UnifiCards() {
   if (!folded && !doc && !failed && !preview) return null;   // folded: the header stays (nothing was read, so nothing is known)
   const noDevice = devices.length === 0;
   const live = !preview && (doc?.devices.length ?? 0) > 0;   // real devices are read
+  let sourceTone: "warn" | "ok" | "off" = "off";
+  if (preview) sourceTone = "warn";
+  else if (live) sourceTone = "ok";
   return (
     <section className="mb-4 overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
       <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
         <h3 className="font-bold">{tx("Cartes UniFi")}</h3>
-        <Badge tone={preview ? "warn" : live ? "ok" : "off"}>{sourceLabel(preview, doc?.source)}</Badge>
+        <Badge tone={sourceTone}>{sourceLabel(preview, doc?.source)}</Badge>
         {!noDevice && !folded && (
           <>
             <label className="flex cursor-pointer items-center gap-2 text-xs text-muted"><input type="checkbox" checked={showPanel} onChange={(e) => setShowPanel(e.target.checked)} />{tx("Vue matérielle")}</label>

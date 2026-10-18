@@ -7,6 +7,7 @@ import { useFilter, type Facet } from "../lib/filter";
 import { dateTime, hm, longDay } from "../lib/format";
 import { LANG, tx } from "../lib/i18n";
 import { Dim, Empty, FilterBar } from "../components/ui";
+import { InfoNote } from "../components/InfoNote";
 
 interface Cell { t: number; pct: number | null }
 interface Item { key: string; kind: "service" | "machine" | "kuma"; label: string | null; machine: string | null; target: string | null;
@@ -87,7 +88,7 @@ export function Availability({ snap }: { snap: Snapshot }) {
               })}
             </ul>
           )}
-          <p className="mt-2 text-xs text-dim">{tx("Relevé à chaque collecte (toutes les 15 minutes par défaut) : une coupure plus courte peut passer inaperçue. Uptime Kuma garde le détail à la minute.")}</p>
+          <InfoNote className="mt-2">{tx("Relevé à chaque collecte (toutes les 15 minutes par défaut) : une coupure plus courte peut passer inaperçue. Uptime Kuma garde le détail à la minute.")}</InfoNote>
         </>}
     </div>
   );

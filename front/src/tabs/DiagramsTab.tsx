@@ -9,6 +9,7 @@ import { dateTime } from "../lib/format";
 import { usePoll } from "../lib/polling";
 import { act, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { InfoNote } from "../components/InfoNote";
 
 function DiagramCard({ d, open, toggle, onRemove }: { d: Diagram; open: boolean; toggle: () => void; onRemove?: () => void }) {
   return (
@@ -58,7 +59,7 @@ export function DiagramsTab({ admin }: { admin: boolean }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h2 className="flex items-center gap-2 font-bold"><Workflow size={16} aria-hidden />{tx("Schémas de l'infrastructure")} <Count n={`${list.filter((x) => x.exists).length}/${list.length}`} /></h2>
-            <p className="text-sm text-muted">{tx("Tous les schémas générés à partir de ce que MyServices sait de votre infra. Ils se mettent à jour après chaque collecte quand les données changent.")}</p>
+            <InfoNote>{tx("Tous les schémas générés à partir de ce que MyServices sait de votre infra. Ils se mettent à jour après chaque collecte quand les données changent.")}</InfoNote>
           </div>
           {admin && d.archify && <button type="button" className={quiet} disabled={busy} onClick={() => void rebuild()}>{busy ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <RefreshCw size={14} aria-hidden />}{tx("Regénérer maintenant")}</button>}
         </div>
@@ -81,7 +82,7 @@ export function DiagramsTab({ admin }: { admin: boolean }) {
       {d.archify && proposals.length > 0 && (
         <Card>
           <h2 className="mb-1 flex items-center gap-2 font-bold"><Sparkles size={16} aria-hidden />{tx("Schémas à créer")} <Count n={proposals.length} /></h2>
-          <p className="mb-3 text-sm text-muted">{tx("Des schémas en plus, construits à la demande depuis ce que MyServices sait déjà. Un clic sur « Créer ce schéma » le génère tout de suite (en général quelques secondes, la page suit l'avancement) et il rejoint la liste ci-dessus. Il se met ensuite à jour après chaque collecte.")}</p>
+          <InfoNote className="mb-3">{tx("Des schémas en plus, construits à la demande depuis ce que MyServices sait déjà. Un clic sur « Créer ce schéma » le génère tout de suite (en général quelques secondes, la page suit l'avancement) et il rejoint la liste ci-dessus. Il se met ensuite à jour après chaque collecte.")}</InfoNote>
           <ul className="grid gap-3 lg:grid-cols-2">
             {proposals.map((x) => (
               <li key={x.id} className={`flex flex-col gap-2 rounded-xl border bg-bg2/30 p-3 ${x.available ? "border-line" : "border-line/60 opacity-70"}`}>

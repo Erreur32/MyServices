@@ -22,6 +22,7 @@ import { usePoll } from "../lib/polling";
 import { tx } from "../lib/i18n";
 import { runningTip, stoppedTip } from "../lib/runState";
 import type { NetScan } from "../types";
+import { InfoNote } from "../components/InfoNote";
 
 interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean; auto: boolean; ignored: { ip: string; name: string }[] }
 
@@ -38,7 +39,7 @@ function Section({ id, icon, title, n, hint, right, children }: { id?: string; i
         <h2 className="flex items-center gap-2 font-bold">{icon}{title}{n !== undefined && <Count n={n} />}</h2>
         {right && <span className="ml-auto flex flex-wrap items-center gap-2">{right}</span>}
       </div>
-      {hint && <p className="mt-1 text-sm text-muted">{hint}</p>}
+      {hint && <InfoNote className="mt-1">{hint}</InfoNote>}
       <div className="mt-3">{children}</div>
     </section>
   );

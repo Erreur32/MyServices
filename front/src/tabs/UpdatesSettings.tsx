@@ -9,6 +9,7 @@ import { appVersion, dateTime } from "../lib/format";
 import { act, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { forgetDismissed } from "../lib/updateNotice";
+import { InfoNote } from "../components/InfoNote";
 
 interface Release { tag: string; name: string; url: string; published: string | null; prerelease: boolean; notes: string }
 interface About { version: string; released?: string | null; running: string | null; latest: Release | null; checked_at: number | null; error: string | null; enabled: boolean; header: boolean; update_available: boolean }
@@ -62,7 +63,7 @@ export function UpdatesSettings() {
           <dd>{a.checked_at ? dateTime(a.checked_at * 1000) : <Dim>-</Dim>}{a.error && latest && <span className="text-warn"> · {a.error}</span>}</dd>
         </dl>
         {a.update_available && (
-          <p className="mt-3 rounded-lg bg-bg2/60 px-3 py-2 text-xs text-muted">{tx("Pour mettre à jour : sauvegardez config/ et data/, puis récupérez la nouvelle image et relancez le conteneur.")} <code className="font-mono">docker compose pull && docker compose up -d</code></p>
+          <InfoNote className="mt-3">{tx("Pour mettre à jour : sauvegardez config/ et data/, puis récupérez la nouvelle image et relancez le conteneur.")} <code className="font-mono">docker compose pull && docker compose up -d</code></InfoNote>
         )}
         <NoteLine note={note} />
       </Card>

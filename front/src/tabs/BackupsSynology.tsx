@@ -8,6 +8,7 @@ import { Badge, Card, Dim } from "../components/ui";
 import { dateTime } from "../lib/format";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { InfoNote } from "../components/InfoNote";
 
 export interface SynologyState { connectors: string[]; followed: number }
 interface Task { key: string; name: string; last_run: number | null; result: string; next: number | null; target_type: string; followed: boolean }
@@ -46,15 +47,15 @@ export function BackupsSynology({ state, reload }: { state: SynologyState; reloa
       <h2 className="mb-1 flex items-center gap-2 font-bold"><HardDrive size={16} />{tx("Synology (Hyper Backup)")}
         {state.followed > 0 && <Badge tone="ok">{tx("{0} tâche(s) suivie(s)", state.followed)}</Badge>}</h2>
       {state.connectors.length === 0 ? (
-        <p className="text-sm text-muted">
+        <InfoNote>
           {tx("Aucun connecteur Synology DSM : ajoutez-le d'abord dans")} <a className="text-link hover:underline" href="#settings/connectors">{tx("Réglages → Connecteurs")}</a>
           {tx(" (compte dédié, sans droit d'administration). Ses tâches Hyper Backup se suivent ensuite ici, sans ressaisir le compte.")}
-        </p>
+        </InfoNote>
       ) : (
         <>
-          <p className="mb-3 text-sm text-muted">
+          <InfoNote className="mb-3">
             {tx("MyServices lit les tâches Hyper Backup du NAS avec le compte du connecteur, en lecture seule : la date et le résultat du dernier passage de chaque tâche sont surveillés (un échec ou un retard déclenche une alerte).")}
-          </p>
+          </InfoNote>
           <div className="flex flex-wrap items-end gap-3">
             {state.connectors.length > 1 && (
               <Field label={tx("Connecteur")}>

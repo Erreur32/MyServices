@@ -23,17 +23,20 @@ from pathlib import Path, PurePosixPath
 from typing import NamedTuple
 
 FORMAT = 1
+MANIFEST = "MANIFEST.json"
+CONFIG_FILE = "config.json"
+KEY_FILE = "secret.key"
 DB_REL = "data/myservices.db"
 DECISIONS = tuple(f"state/{n}.json" for n in ("services-decided", "diagnostic-accepted", "assistant", "auto-mode", "connectors-saved"))
-FILES = {"settings": ("config.json",), "machines": ("services-meta.json",), "backups": ("backups-meta.json",), "decisions": DECISIONS,
-         "accounts": (DB_REL,), "secrets": ("secret.key",)}
+FILES = {"settings": (CONFIG_FILE,), "machines": ("services-meta.json",), "backups": ("backups-meta.json",), "decisions": DECISIONS,
+         "accounts": (DB_REL,), "secrets": (KEY_FILE,)}
 PARTS = (*FILES, "ssh")
 SENSITIVE = ("accounts", "secrets", "ssh")   # the parts the page warns about
 NEEDS_RESTART = ("settings", "secrets")      # read once at start
 MAX_ARCHIVE, MAX_FILE, MAX_DB, MAX_TOTAL, MAX_FILES = 64 << 20, 2 << 20, 64 << 20, 80 << 20, 200
 TRANSIENT_TABLES = ("sessions", "resets", "login_failures")   # logins and reset links are not worth carrying to another installation
 REQUIRED_TABLES = {"users", "sessions", "events", "audit"}
-SSH_NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.@+-]{0,127}$")
+SSH_NAME = re.compile(r"^\w[\w.@+-]{0,127}$", re.ASCII)
 BACKUP_SUFFIX = ".avant-import"
 
 
@@ -127,7 +130,7 @@ def export_config(places: Places, parts: list[str] | None = None, version: str =
                 hashes[rel] = hashlib.sha256(data).hexdigest()
                 add(zf, rel, data)
         manifest = {"format": FORMAT, "app": version, "created": int(now), "parts": [p for p in chosen if have.get(p)], "files": hashes}
-        add(zf, "MANIFEST.json", json.dumps(manifest, indent=2).encode())
+        add(zf, MANIFEST, json.dumps(manifest, indent=2).encode())
     return buf.getvalue()
 
 
@@ -141,15 +144,73 @@ def _zip_entries(data: bytes):
             mode = (info.external_attr >> 16) & 0o170000
             if info.flag_bits & 0x1:
                 raise TransferError("archive refusée : fichier chiffré par mot de passe")
-            kind = "dir" if info.is_dir() else "other" if mode in (0o120000, 0o060000, 0o020000, 0o010000, 0o140000) else "file"
+            kind = "file"
+            if info.is_dir():
+                kind = "dir"
+            elif mode in (0o120000, 0o060000, 0o020000, 0o010000, 0o140000):
+                kind = "other"
             yield info.filename, kind, info.file_size, lambda limit, i=info: zf.open(i).read(limit + 1)
 
 
 def _tar_entries(data: bytes):
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
         for m in tar:
-            kind = "dir" if m.isdir() else "file" if m.isfile() else "other"
+            kind = "file"
+            if m.isdir():
+                kind = "dir"
+            elif not m.isfile():
+                kind = "other"
             yield m.name, kind, m.size, lambda limit, m=m: tar.extractfile(m).read(limit + 1)   # type: ignore[union-attr]
+
+
+def _entry_name(name: str, kind: str) -> PurePosixPath | None:
+    """The cleaned path of an entry, None for a directory. Refuses a dangerous path or an entry that is not a plain file."""
+    name = name.replace("\\", "/")
+    path = PurePosixPath(name)
+    if path.is_absolute() or ".." in path.parts:
+        raise TransferError(f"archive refusée : chemin dangereux ({name[:80]})")
+    if kind == "dir":
+        return None
+    if kind != "file":
+        raise TransferError(f"archive refusée : entrée qui n'est pas un fichier ({name[:80]})")
+    return path
+
+
+def _manifest_of(files: dict[str, bytes]) -> dict:
+    """The manifest taken out of `files` (an empty one when it is missing or unreadable)."""
+    if MANIFEST not in files:
+        return {}
+    try:
+        got = json.loads(files.pop(MANIFEST))
+    except ValueError:
+        return {}
+    return got if isinstance(got, dict) else {}
+
+
+def _read_entries(entries, data: bytes) -> tuple[dict[str, bytes], list[str]]:
+    files: dict[str, bytes] = {}
+    ignored: list[str] = []
+    total, count = 0, 0
+    for name, kind, size, read in entries(data):
+        count += 1
+        if count > MAX_FILES:
+            raise TransferError("archive refusée : trop de fichiers")
+        path = _entry_name(name, kind)
+        if path is None:
+            continue
+        if path.parts[:1] != ("config",) or len(path.parts) < 2:
+            ignored.append(name.replace("\\", "/"))
+            continue
+        rel = "/".join(path.parts[1:])
+        limit = limit_of(rel)
+        if size > limit:
+            raise TransferError(f"archive refusée : fichier trop gros ({name[:80]})")
+        body = read(limit)
+        total += len(body)
+        if len(body) > limit or total > MAX_TOTAL:
+            raise TransferError("archive refusée : contenu trop gros une fois ouvert")
+        files[rel] = body
+    return files, ignored
 
 
 def read_archive(data: bytes) -> tuple[dict[str, bytes], dict, list[str]]:
@@ -162,43 +223,11 @@ def read_archive(data: bytes) -> tuple[dict[str, bytes], dict, list[str]]:
         entries = _tar_entries
     else:
         raise TransferError("ce n'est pas une archive .zip lisible")
-    files: dict[str, bytes] = {}
-    ignored: list[str] = []
-    total, count = 0, 0
     try:
-        for name, kind, size, read in entries(data):
-            count += 1
-            if count > MAX_FILES:
-                raise TransferError("archive refusée : trop de fichiers")
-            name = name.replace("\\", "/")
-            path = PurePosixPath(name)
-            if path.is_absolute() or ".." in path.parts:
-                raise TransferError(f"archive refusée : chemin dangereux ({name[:80]})")
-            if kind == "dir":
-                continue
-            if kind != "file":
-                raise TransferError(f"archive refusée : entrée qui n'est pas un fichier ({name[:80]})")
-            if path.parts[:1] != ("config",) or len(path.parts) < 2:
-                ignored.append(name)
-                continue
-            rel = "/".join(path.parts[1:])
-            limit = limit_of(rel)
-            if size > limit:
-                raise TransferError(f"archive refusée : fichier trop gros ({name[:80]})")
-            body = read(limit)
-            total += len(body)
-            if len(body) > limit or total > MAX_TOTAL:
-                raise TransferError("archive refusée : contenu trop gros une fois ouvert")
-            files[rel] = body
+        files, ignored = _read_entries(entries, data)
     except (tarfile.TarError, zipfile.BadZipFile, zipfile.LargeZipFile, EOFError, OSError, RuntimeError) as e:
         raise TransferError(f"ce n'est pas une archive lisible ({type(e).__name__})") from None
-    manifest: dict = {}
-    if "MANIFEST.json" in files:
-        try:
-            got = json.loads(files.pop("MANIFEST.json"))
-            manifest = got if isinstance(got, dict) else {}
-        except ValueError:
-            manifest = {}
+    manifest = _manifest_of(files)
     for rel in [r for r in files if part_of(r) is None]:
         ignored.append(f"config/{rel}")
         del files[rel]
@@ -218,7 +247,7 @@ def _key_problem(body: bytes) -> str | None:
     try:
         Fernet(body.strip())
     except (ValueError, TypeError):
-        return "secret.key : clé invalide"
+        return f"{KEY_FILE} : clé invalide"
     return None
 
 
@@ -284,10 +313,13 @@ def problems(files: dict[str, bytes]) -> dict[str, str]:
     """{path: reason} for the files whose content is not what its name says."""
     out: dict[str, str] = {}
     for rel, body in files.items():
+        reason = None
         if rel == DB_REL:
             reason = db_facts(body)[0]
-        else:
-            reason = _key_problem(body) if rel == "secret.key" else _json_problem(rel, body) if rel.endswith(".json") else None
+        elif rel == KEY_FILE:
+            reason = _key_problem(body)
+        elif rel.endswith(".json"):
+            reason = _json_problem(rel, body)
         if reason:
             out[rel] = reason
     return out
@@ -295,28 +327,28 @@ def problems(files: dict[str, bytes]) -> dict[str, str]:
 
 def _current_key(places: Places) -> bytes | None:
     try:
-        return (places.config / "secret.key").read_bytes()
+        return (places.config / KEY_FILE).read_bytes()
     except OSError:
         return None
 
 
 def settings_status(files: dict[str, bytes], selected: list[str], places: Places) -> str:
     """Secrets of the imported config.json under the key that will be in place after the import."""
-    if "settings" not in selected or "config.json" not in files:
+    if "settings" not in selected or CONFIG_FILE not in files:
         return "none"
-    key = files.get("secret.key") if "secrets" in selected and "secret.key" in files else _current_key(places)
-    return secrets_status(files["config.json"], key)
+    key = files.get(KEY_FILE) if "secrets" in selected and KEY_FILE in files else _current_key(places)
+    return secrets_status(files[CONFIG_FILE], key)
 
 
 def key_swap_unsafe(files: dict[str, bytes], selected: list[str], places: Places) -> bool:
     """True when the imported key would replace this installation's key while the current config.json (left as it is) holds secrets it cannot open."""
-    if "secrets" not in selected or "settings" in selected or "secret.key" not in files:
+    if "secrets" not in selected or "settings" in selected or KEY_FILE not in files:
         return False
     try:
-        current = (places.config / "config.json").read_bytes()
+        current = (places.config / CONFIG_FILE).read_bytes()
     except OSError:
         return False
-    return secrets_status(current, files["secret.key"]) == "unreadable"
+    return secrets_status(current, files[KEY_FILE]) == "unreadable"
 
 
 def preview(data: bytes, places: Places) -> dict:
@@ -330,7 +362,7 @@ def preview(data: bytes, places: Places) -> dict:
             facts = db_facts(files[DB_REL])[1] if part == "accounts" else {}
             parts.append({"id": part, "files": names, "bytes": sum(len(files[n]) for n in names), "sensitive": part in SENSITIVE, "facts": facts,
                           "problems": [bad[n] for n in names if n in bad], "exists_here": part in here,
-                          "needs_key": part == "settings" and secrets_status(files["config.json"], None) != "none"})
+                          "needs_key": part == "settings" and secrets_status(files[CONFIG_FILE], None) != "none"})
     every = [p["id"] for p in parts]
     return {"manifest": {k: manifest.get(k) for k in ("format", "app", "created")}, "parts": parts, "ignored": ignored[:20],
             "secrets": {"with_archive_key": settings_status(files, every, places), "with_current_key": settings_status(files, [p for p in every if p != "secrets"], places),

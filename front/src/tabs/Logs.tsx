@@ -9,6 +9,7 @@ import { input, quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { isProblem, sourceOf } from "../lib/logs";
 import { usePoll } from "../lib/polling";
+import { InfoNote } from "../components/InfoNote";
 
 interface Line { n: number; t: number; err: boolean; text: string }
 interface Logs { lines: Line[]; last: number; started: number; kept: number }
@@ -62,10 +63,10 @@ export function Logs() {
           <button type="button" className={quiet} disabled={!shown.length} onClick={download}><Download size={14} />{tx("Télécharger (.txt)")}</button>
         </div>
       </div>
-      <p className="mb-3 text-sm text-muted">
+      <InfoNote className="mb-3">
         {tx("Le même texte que « docker compose logs myservices » : le serveur et la sortie de chaque tâche, depuis le démarrage du conteneur ({0}), {1} dernières lignes au plus.", started ? dateTime(started * 1000) : "?", KEEP)}
         {" "}<Dim>{tx("Les actions des comptes sont dans le Journal d'audit.")}</Dim>
-      </p>
+      </InfoNote>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <button type="button" className={chip(!src)} onClick={() => setSrc("")}>{tx("Tout")}</button>
         {sources.map((s) => <button key={s} type="button" className={chip(src === s)} onClick={() => setSrc(src === s ? "" : s)}>{SOURCES[s] ?? s}</button>)}

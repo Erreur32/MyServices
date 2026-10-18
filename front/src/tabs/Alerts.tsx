@@ -11,6 +11,7 @@ import { Badge, Card, Count, Dim } from "../components/ui";
 import { dateTime } from "../lib/format";
 import type { AlertChannel, AlertRule, AlertsState, ChannelType } from "../types";
 import { tx } from "../lib/i18n";
+import { InfoNote } from "../components/InfoNote";
 
 /** Logo de chaque type de canal (public/icons, simple-icons) ; le webhook générique n'a pas de marque : icône d'objet */
 export const CHANNEL_ICON: Record<ChannelType, React.ReactNode> = {
@@ -54,12 +55,12 @@ function Status({ active }: { active: boolean }) {
         <h2 className="flex items-center gap-2 font-bold"><Bell size={16} />{tx("Alertes")} {badge}</h2>
         <button type="button" className={quiet} onClick={() => set(true)} title={tx("Masquer ce cadre ; l'état reste affiché en une ligne")}><EyeOff size={13} aria-hidden />{tx("Masquer")}</button>
       </div>
-      <p className="mt-1 text-sm text-muted">
+      <InfoNote className="mt-1">
         {active
           ? tx("Actives : chaque nouvel événement (panne, machine hors ligne, santé…) passe par les règles ci-dessous, après la collecte et la santé.")
           : tx("Aucune règle active avec un canal actif : les anciens envois de config.json (s'il y en a) continuent tels quels.")}
         {" "}{tx("Les pannes sont déjà confirmées sur plusieurs passages avant d'arriver ici.")}
-      </p>
+      </InfoNote>
     </Card>
   );
 }
@@ -202,9 +203,9 @@ function Rules({ st, reload }: { st: AlertsState; reload: () => void }) {
           {!adding && <button type="button" className={quiet} onClick={() => setAdding(true)} disabled={!st.channels.length}><Plus size={14} />{tx("Nouvelle règle")}</button>}
         </div>
       </div>
-      <p className="mb-3 text-sm text-muted">
+      <InfoNote className="mb-3">
         {tx("Une règle choisit les événements à prévenir et les canaux qui les reçoivent. Le délai évite de renvoyer la même alerte (même élément) trop souvent.")}
-      </p>
+      </InfoNote>
       {presets && <PresetPicker st={st} onDone={() => { setPresets(false); reload(); }} />}
       {st.rules.length === 0 && !adding && <p className="text-sm text-muted">{tx("Aucune règle : partir des préréglages, ou en créer une.")}</p>}
       <ul className="flex flex-col gap-2">
@@ -336,7 +337,7 @@ function PresetPicker({ st, onDone }: { st: AlertsState; onDone: () => void }) {
   const [note, setNote] = useState<Note>(null);
   return (
     <div className="mb-3 rounded-xl border border-line bg-bg2/50 p-3">
-      <p className="mb-2 text-sm text-muted">{tx("Règles courantes, ajoutées")} <b className="text-txt">{tx("désactivées")}</b> {tx("sur tous les canaux : les relire, puis les activer une par une.")}</p>
+      <InfoNote className="mb-2">{tx("Règles courantes, ajoutées")} <b className="text-txt">{tx("désactivées")}</b> {tx("sur tous les canaux : les relire, puis les activer une par une.")}</InfoNote>
       {st.presets.map((p) => (
         <label key={p.name} className={`flex items-center gap-2 py-0.5 text-sm ${have.has(p.name) ? "text-dim" : ""}`}>
           <input type="checkbox" className="h-4 w-4" disabled={have.has(p.name)} checked={picked.includes(p.name)}
