@@ -12,6 +12,7 @@ import { usePoll } from "../lib/polling";
 import { useStoredFlag } from "../lib/storedFlag";
 import { applyOrder, clampSpan, DEFAULT_SPAN, GRID_COLUMNS, useCardLayout } from "../lib/cardLayout";
 import { createMynetworkHass, type MnDevice } from "../vendor/unifi-device-card/mynetwork-adapter";
+import { FOLD_HEADER, headerToggle } from "../lib/foldHeader";
 
 const NO_DEVICES: Record<string, unknown>[] = [];   // stable: a new empty array at each render would rebuild the cards
 const LIVE_REFRESH_MS = 10_000;   // each reading asks the controller behind the source: calm on purpose
@@ -149,7 +150,7 @@ export function UnifiCards() {
   const badge = sourceBadge(doc, failed);
   return (
     <section className="mb-4 overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
-      <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
+      <div className={`flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3 ${FOLD_HEADER}`} onClick={headerToggle(() => setFolded(!folded))}>
         <h3 className="font-bold">{tx("Cartes UniFi")}</h3>
         <Badge tone={badge.tone} title={badge.title}>{badge.label}</Badge>
         {!noDevice && !folded && (

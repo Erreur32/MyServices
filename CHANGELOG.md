@@ -41,6 +41,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
   expiring soon or invalid). The left side keeps the attention card and a redesigned **last 24 hours** card (an hour by hour chart, one row per kind of
   event with the machines concerned and when it last happened). The four per-tab paragraphs that repeated the counters are gone; the facts no counter
   tells (restart requested, orphan AdGuard rewrites) moved into the attention card.
+- Card headers: a click on the header of a foldable card opens or closes it, except on a link, button or field placed in it (`lib/foldHeader.ts`); the
+  long lists of the Security page are foldable panels (`FoldPanel`).
 - Informative texts (the explanation under a title, the hint under a field, a caution) now share one look: an icon in front and a tinted band with a coloured
   edge (`InfoNote`), so they read apart from the page's own data.
 - Settings -> Tasks and schedules redesigned: a header with the scheduler heartbeat and a live summary, three grouped cards with dark title bands

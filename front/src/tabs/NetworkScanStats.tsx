@@ -10,6 +10,7 @@ import { bytes, dateTime, hm, rate } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { usePoll } from "../lib/polling";
 import { useStoredFlag } from "../lib/storedFlag";
+import { FOLD_HEADER, headerToggle } from "../lib/foldHeader";
 
 type Mode = "live" | "today" | "alltime";
 interface Row { ip: string; name: string | null; ping_ms: number | null; last: string | null }
@@ -100,7 +101,7 @@ export function NetworkScanStats() {
   const c = scan?.counters;
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
-      <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
+      <div className={`flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3 ${FOLD_HEADER}`} onClick={headerToggle(() => setFolded(!folded))}>
         <h3 className="font-bold">{tx("Scan du réseau")}</h3>
         {c && <Dim>{c.source === "mynetwork" ? tx("compteurs de MynetworK") : tx("comptés d'après l'inventaire de MynetworK")}</Dim>}
         {c?.last_scan && <Dim>· {tx("dernier scan")} {dateTime(c.last_scan)}</Dim>}

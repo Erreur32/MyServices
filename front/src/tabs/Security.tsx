@@ -6,6 +6,7 @@ import type { Snapshot } from "../api";
 import { Certificates } from "../components/Certificates";
 import { Fail2banCard } from "../components/Fail2banCard";
 import { Fail2banStats } from "../components/Fail2banStats";
+import { FoldPanel } from "../components/FoldPanel";
 import { InfoNote } from "../components/InfoNote";
 import { Badge, Card, Count, Dim, Empty } from "../components/ui";
 import { splitHostName } from "../lib/format";
@@ -77,8 +78,7 @@ function SitesList({ snap }: Readonly<{ snap: Snapshot }>) {
   const rows = useMemo(() => exposedSites(snap.data.hosts).map((r) => ({ r, issues: siteIssues(r) })).sort((a, b) => b.issues.length - a.issues.length), [snap.data.hosts]);
   if (!rows.length) return <Empty>{tx("Aucun site public : tous les hôtes de Nginx Proxy Manager sont derrière une liste d'accès.")}</Empty>;
   return (
-    <Card>
-      <h2 className="mb-1 flex items-center gap-2 font-bold"><Globe size={16} aria-hidden />{tx("Sites exposés à Internet")} <Count n={rows.length} tone="off" /></h2>
+    <FoldPanel id="security.sites" icon={Globe} title={tx("Sites exposés à Internet")} count={rows.length}>
       <InfoNote className="mb-2">{tx("Hôtes de Nginx Proxy Manager actifs et sans liste d'accès : joignables de partout. Ce qui manque est en orange.")}</InfoNote>
       <ul className="flex flex-col divide-y divide-line/60 text-sm [&>li:nth-child(even)]:bg-bg/50">
         {rows.map(({ r, issues }) => (
@@ -89,7 +89,7 @@ function SitesList({ snap }: Readonly<{ snap: Snapshot }>) {
           </li>
         ))}
       </ul>
-    </Card>
+    </FoldPanel>
   );
 }
 
@@ -101,8 +101,7 @@ function AccessList({ snap }: Readonly<{ snap: Snapshot }>) {
   }).sort((a, b) => Number(b.root) + Number(b.pwd) - Number(a.root) - Number(a.pwd) || (b.fails ?? 0) - (a.fails ?? 0));
   if (!rows.length) return <Empty>{tx("Aucune machine lue par SSH : l'accès SSH n'a rien à montrer.")}</Empty>;
   return (
-    <Card>
-      <h2 className="mb-1 flex items-center gap-2 font-bold"><KeyRound size={16} aria-hidden />{tx("Accès SSH des machines")} <Count n={rows.length} tone="off" /></h2>
+    <FoldPanel id="security.ssh" icon={KeyRound} title={tx("Accès SSH des machines")} count={rows.length}>
       <InfoNote className="mb-3">{tx("Réglages du serveur SSH lus sur chaque machine, et connexions refusées sur 24 h (santé).")}</InfoNote>
       <div className={`${SSH_COLS} mb-1 hidden border-b border-line px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-dim md:grid`} aria-hidden>
         <span>{tx("Machine")}</span><span>{tx("Connexion root")}</span><span>{tx("Mot de passe")}</span><span>{tx("Échecs sur 24 h")}</span>
@@ -118,7 +117,7 @@ function AccessList({ snap }: Readonly<{ snap: Snapshot }>) {
           </li>
         ))}
       </ul>
-    </Card>
+    </FoldPanel>
   );
 }
 
@@ -138,8 +137,7 @@ function PortsList({ snap }: Readonly<{ snap: Snapshot }>) {
   const rows = (snap.data.network ?? []).flatMap((c) => c.devices ?? []).map((d) => ({ d, hit: d.ports.filter((p) => SENSITIVE[p]) })).filter((x) => x.hit.length).sort((a, b) => b.hit.length - a.hit.length);
   if (!rows.length) return <Empty>{tx("Aucun port sensible ouvert vu sur le réseau.")}</Empty>;
   return (
-    <Card>
-      <h2 className="mb-1 flex items-center gap-2 font-bold"><Radar size={16} aria-hidden />{tx("Ports sensibles ouverts sur le réseau")} <Count n={rows.length} tone="warn" /></h2>
+    <FoldPanel id="security.ports" icon={Radar} title={tx("Ports sensibles ouverts sur le réseau")} count={rows.length} tone="warn">
       <InfoNote className="mb-2">{tx("Vus par le scanner de MynetworK : protocoles en clair, prise de main à distance, bases de données. À fermer s'ils ne servent pas.")}</InfoNote>
       <ul className="flex flex-col divide-y divide-line/60 text-sm [&>li:nth-child(even)]:bg-bg/50">
         {rows.map(({ d, hit }) => (
@@ -149,7 +147,7 @@ function PortsList({ snap }: Readonly<{ snap: Snapshot }>) {
           </li>
         ))}
       </ul>
-    </Card>
+    </FoldPanel>
   );
 }
 

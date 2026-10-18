@@ -9,6 +9,7 @@ import { tx } from "../lib/i18n";
 import { Field, NoteLine } from "./form";
 import { Badge, Card, Dim } from "./ui";
 import { InfoNote } from "./InfoNote";
+import { FOLD_HEADER, headerToggle } from "../lib/foldHeader";
 
 type PartId = "settings" | "machines" | "backups" | "decisions" | "accounts" | "secrets" | "ssh";
 interface PartInfo { id: PartId; label: string; hint: string }
@@ -56,7 +57,7 @@ function FoldCard({ id, icon: Icon, title, children }: Readonly<{ id: string; ic
   const Chevron = folded ? ChevronRight : ChevronDown;
   return (
     <Card>
-      <h2 className={`flex items-center gap-2 font-bold ${folded ? "" : "mb-1"}`}>
+      <h2 className={`flex items-center gap-2 font-bold ${FOLD_HEADER} ${folded ? "" : "mb-1"}`} onClick={headerToggle(() => setFolded(!folded))}>
         <button type="button" className="flex flex-1 items-center gap-2 text-left" aria-expanded={!folded} onClick={() => setFolded(!folded)}>
           <Chevron size={16} className="text-dim" aria-hidden /><Icon size={16} aria-hidden />{title}
         </button>
