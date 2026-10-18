@@ -15,7 +15,7 @@ export const EVENT_LIMIT = 5000;
 const GROUP: Record<string, string> = {
   panne: "services", retabli: "retours", unhealthy: "services", connecteur: "services", connecteur_version: "services", connecteur_ok: "retours",
   hors_ligne: "machines", en_ligne: "retours", ssh_down: "machines", ssh_ok: "retours",
-  nouveau: "inventaire", disparu: "inventaire", appareil: "inventaire", securite: "securite", menace: "securite", ui_hors: "securite", dns: "securite", perime: "veille",
+  nouveau: "inventaire", disparu: "inventaire", appareil: "inventaire", securite: "securite", menace: "securite", jail_hausse: "securite", maj_image: "inventaire", ui_hors: "securite", dns: "securite", perime: "veille",
   vm_arret: "machines", vm_marche: "retours", stockage: "machines", stockage_ok: "retours",
   health_ok: "retours", health_warn: "sante", health_crit: "sante", health_down: "sante",
 };

@@ -28,6 +28,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - A new SSH key gets its own comment (`myservices@<machine>-<date>`), so two installations are no longer indistinguishable in `authorized_keys`.
 - The start guide shows the scheduled tasks at a glance (when each runs, and why one is off).
 - The backup scan also reads `/etc/cron.hourly|daily|weekly|monthly`, `/etc/anacrontab` and the account's systemd timers.
+- **Two new alerts**: "Image to update" (a container whose image has a newer version, read from Dockhand, Dozzle, Portainer…: one event per container, the first reading is the
+  reference) and "Jail going up" (a Fail2ban jail with at least 20 bans in 24 hours and 3 times its usual daily number, from the LogviewR statistics). Both
+  can be picked in the alert rules; by default they join "Connectors and collection" and "Security and DNS".
 - Reads of the API that run at the same time share one network call (two panels of one screen loading the same data); a write empties them.
 - Home page: the attention card is sorted into categories (machines, services, health, DNS, backups, connectors), the categories with red points first and
   the red lines before the orange ones in each; a click on a category header folds it (kept in the browser).

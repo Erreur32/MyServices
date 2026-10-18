@@ -62,15 +62,17 @@ COLLECTOR = CFG["collector_name"] or socket.gethostname()
 SEVERITY = {"panne": 3, "unhealthy": 3, "perime": 3, "securite": 2, "ui_hors": 1,
             "nouveau": 1, "disparu": 1, "retabli": 0, "dns": 2,
             "hors_ligne": 3, "ssh_down": 3, "en_ligne": 0, "ssh_ok": 0, "connecteur": 2, "connecteur_ok": 0, "connecteur_version": 1, "appareil": 1,
-            "vm_arret": 2, "vm_marche": 0, "stockage": 2, "stockage_ok": 0, "menace": 2, "nextcloud": 1}
+            "vm_arret": 2, "vm_marche": 0, "stockage": 2, "stockage_ok": 0, "menace": 2, "nextcloud": 1, "maj_image": 1, "jail_hausse": 2}
 LABEL = {"panne": "🔴 Panne", "retabli": "🟢 Rétabli", "nouveau": "🆕 Nouveau", "disparu": "➖ Disparu",
          "securite": "🛡️ Sécurité", "ui_hors": "🌐 UI sans domaine", "unhealthy": "💔 Unhealthy",
          "perime": "⏱️ Données périmées", "hors_ligne": "📴 Machine hors ligne",
          "en_ligne": "📶 Machine en ligne", "ssh_down": "🔒 SSH injoignable", "ssh_ok": "🔑 SSH rétabli",
          "dns": "🧭 DNS", "connecteur": "🔌 Connecteur en panne", "connecteur_ok": "🔌 Connecteur rétabli", "connecteur_version": "🔌 Version non testée",
          "appareil": "📡 Nouvel appareil", "vm_arret": "⏹️ VM arrêtée", "vm_marche": "▶️ VM en marche",
-         "stockage": "💽 Stockage presque plein", "stockage_ok": "💽 Stockage dégagé", "menace": "🚨 Nouvelle menace", "nextcloud": "☁️ Nextcloud à regarder"}
+         "stockage": "💽 Stockage presque plein", "stockage_ok": "💽 Stockage dégagé", "menace": "🚨 Nouvelle menace", "nextcloud": "☁️ Nextcloud à regarder",
+         "maj_image": "🐳 Image à mettre à jour", "jail_hausse": "📈 Jail qui monte"}
 STORAGE_FULL = 90   # % used of a Proxmox storage
+SURGE_MIN, SURGE_FACTOR = 20, 3   # a jail « goes up » from this many bans in 24 h AND this many times its usual daily number
 NPM_TYPES = {"proxy", "redirect", "dead", "stream"}  # entrées lues dans NPM (les autres : « local »)
 DNS_LABEL = {"nom": "nom DNS invalide", "absent": "ne résout sur aucun AdGuard", "ecart": "réponses différentes selon l'AdGuard",
              "hors_lan": "garde LAN mais ne résout pas vers NPM", "bloque": "bloqué par AdGuard"}
@@ -317,14 +319,55 @@ def nextcloud_snaps(data: dict) -> dict | None:
             for c in rows for x in c.get("checks") or [] if isinstance(x, dict) and x.get("key")}
 
 
-def diff_nextcloud(prev: dict | None, cur: dict | None) -> tuple[list[dict], dict | None]:
-    """One event when a point appears; none while it stays, none when it goes. The first reading is the reference."""
+def diff_points(kind: str, prev: dict | None, cur: dict | None) -> tuple[list[dict], dict | None]:
+    """One event of `kind` when a point appears; none while it stays, none when it goes (it can come back as a new one). The first reading is the
+    reference; cur None (the tool was not read this time) keeps what was known."""
     if cur is None:
         return [], prev
     if prev is None:
         return [], cur
-    return [{"kind": "nextcloud", "key": k, "label": v["label"], "machine": None, "target": None, "detail": v["text"]}
+    return [{"kind": kind, "key": k, "label": v["label"], "machine": v.get("machine"), "target": v.get("target"), "detail": v["text"]}
             for k, v in cur.items() if k not in prev], cur
+
+
+def diff_nextcloud(prev: dict | None, cur: dict | None) -> tuple[list[dict], dict | None]:
+    return diff_points("nextcloud", prev, cur)
+
+
+def image_snaps(data: dict) -> dict | None:
+    """Container images with a newer version (Dockhand, Dozzle, Portainer…), by stable key. None: no container tool read this time."""
+    rows = [c for c in data.get("containers") or [] if c.get("ok") and not c.get("stale") and not c.get("links_only")]
+    if not rows:
+        return None
+    out = {}
+    for c in rows:
+        for env in c.get("environments") or []:
+            for u in env.get("updates") or []:
+                name = str(u.get("container") or "")[:80]
+                if name:
+                    image = str(u.get("image") or "")[:120]
+                    out[f'maj_image:{c.get("name")}:{env.get("id")}:{name}'] = {
+                        "label": name, "machine": env.get("name") or env.get("host"), "target": image or None,
+                        "text": f"une version plus récente de l'image {image} est disponible" if image else "une version plus récente de l'image est disponible"}
+    return out
+
+
+def jail_surge_snaps(data: dict) -> dict | None:
+    """Fail2ban jails whose last 24 hours are far above their usual (statistics read by LogviewR): at least SURGE_MIN bans and SURGE_FACTOR times the
+    average of the six days before. None: no statistics read this time."""
+    rows = [c for c in data.get("security") or [] if c.get("ok") and not c.get("stale") and c.get("stats")]
+    if not rows:
+        return None
+    out = {}
+    for c in rows:
+        for j in c["stats"].get("by_jail") or []:
+            d1, d7 = j.get("d1") or 0, j.get("d7") or 0
+            usual = max(1.0, (d7 - d1) / 6)
+            if d1 >= SURGE_MIN and d1 >= SURGE_FACTOR * usual:
+                out[f'jail_hausse:{c.get("name")}:{j.get("jail")}'] = {
+                    "label": str(j.get("jail"))[:40], "machine": None, "target": c.get("name"),
+                    "text": f"{d1} bannissement(s) en 24 h, contre {usual:.0f} par jour d'habitude (LogviewR)"}
+    return out
 
 
 def diff_threats(prev: dict | None, cur: dict | None) -> tuple[list[dict], dict | None]:
@@ -473,7 +516,9 @@ def main() -> int:
     vcur = {**(state.get("virt") or {}), **vcur}   # a host not read this time keeps the last known state of its guests
     tev, tcur = diff_threats(state.get("threats"), threat_snaps(data))
     xev, xcur = diff_nextcloud(state.get("nextcloud"), nextcloud_snaps(data))
-    events = sorted(tev + xev + events, key=lambda e: -SEVERITY[e["kind"]])
+    iev, icur = diff_points("maj_image", state.get("images"), image_snaps(data))
+    jev, jcur = diff_points("jail_hausse", state.get("jails_up"), jail_surge_snaps(data))
+    events = sorted(tev + xev + iev + jev + events, key=lambda e: -SEVERITY[e["kind"]])
     nev, ncur = diff_network(state.get("network"), network_snaps(data) if data.get("network") else None)
     events = sorted(nev + events, key=lambda e: -SEVERITY[e["kind"]])
     age = (datetime.now(timezone.utc) - datetime.fromisoformat(data["generated"])).total_seconds() / 60
@@ -494,6 +539,7 @@ def main() -> int:
         cur, pending, ccur, cpending = state["snap"], state.get("pending", {}), state.get("connectors", ccur), state.get("cpending", {})
         dcur, vcur, vpending = state.get("dns", dcur), state.get("virt", vcur), state.get("vpending", {})
         tcur, xcur, ncur = state.get("threats", tcur), state.get("nextcloud", xcur), state.get("network", ncur)
+        icur, jcur = state.get("images", icur), state.get("jails_up", jcur)
 
     if dry:
         print(f"=== DRY RUN (baseline={baseline}) · {len(events)} événement(s) ===")
@@ -523,7 +569,7 @@ def main() -> int:
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps({"snap": cur, "pending": pending, "history": history,  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
                                       "machines": mcur, "mpending": mpending, "dns": dcur,
-                                      "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending, "threats": tcur, "nextcloud": xcur,
+                                      "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending, "threats": tcur, "nextcloud": xcur, "images": icur, "jails_up": jcur,
                                       "stale_reported": state.get("stale_reported", False) if same_gen else age > STALE_MIN,
                                       "gen": data.get("generated"), "last_run": now},
                                      ensure_ascii=False), encoding="utf-8")

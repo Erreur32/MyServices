@@ -179,5 +179,60 @@ class NextcloudPoints(unittest.TestCase):
         self.assertIn("nextcloud", __import__("alerts").KINDS)
 
 
+class ImageUpdates(unittest.TestCase):
+    """« Image to update »: once per container with a newer image (stable key), the first reading is the reference."""
+
+    @staticmethod
+    def data(*updates, ok=True, links_only=False):
+        return {"containers": [{"connector": "dozzle", "name": "dz", "ok": ok, "links_only": links_only,
+                                "environments": [{"id": 7, "name": "Dev", "host": "10.0.0.5:7007",
+                                                  "updates": [{"container": c, "image": i, "newer": None} for c, i in updates]}]}]}
+
+    def test_une_fois_par_conteneur(self):
+        ev, known = watcher.diff_points("maj_image", None, watcher.image_snaps(self.data(("web", "nginx:1.25"))))
+        self.assertEqual(ev, [])   # the first reading is the reference
+        ev, known = watcher.diff_points("maj_image", known, watcher.image_snaps(self.data(("web", "nginx:1.25"), ("db", "postgres:16"))))
+        self.assertEqual([(e["kind"], e["label"], e["machine"], e["target"]) for e in ev], [("maj_image", "db", "Dev", "postgres:16")])
+        self.assertIn("postgres:16", ev[0]["detail"])
+        self.assertEqual(watcher.diff_points("maj_image", known, None), ([], known))   # no container tool read: what was known is kept
+        self.assertIsNone(watcher.image_snaps(self.data(("web", "x"), ok=False)))
+        self.assertIsNone(watcher.image_snaps(self.data(("web", "x"), links_only=True)))
+        self.assertIn("maj_image", __import__("alerts").KINDS)
+        self.assertIn("maj_image", watcher.SEVERITY)
+        self.assertIn("maj_image", watcher.LABEL)
+
+
+class JailSurges(unittest.TestCase):
+    """« Jail going up »: the last 24 hours far above the six days before, from the LogviewR statistics."""
+
+    @staticmethod
+    def data(*jails, ok=True, stats=True):
+        by = [{"jail": j, "d1": d1, "d7": d7} for j, d1, d7 in jails]
+        return {"security": [{"connector": "logviewr", "name": "lv", "ok": ok, "stats": {"by_jail": by} if stats else None}]}
+
+    def test_hausse_nette_seulement(self):
+        snaps = watcher.jail_surge_snaps(self.data(("sshd", 60, 90),        # 60 today, 5 a day before: up
+                                                   ("npm-4xx", 55, 330),    # 55 today, 46 a day before: normal
+                                                   ("nginx", 8, 8)))        # 8 bans: too few to matter
+        self.assertEqual(list(snaps), ["jail_hausse:lv:sshd"])
+        self.assertIn("60 bannissement(s) en 24 h, contre 5 par jour", snaps["jail_hausse:lv:sshd"]["text"])
+
+    def test_une_fois_puis_de_nouveau_apres_le_retour_au_calme(self):
+        up = watcher.jail_surge_snaps(self.data(("sshd", 60, 90)))
+        calm = watcher.jail_surge_snaps(self.data(("sshd", 4, 30)))
+        ev, known = watcher.diff_points("jail_hausse", None, up)
+        self.assertEqual(ev, [])
+        self.assertEqual(watcher.diff_points("jail_hausse", known, up)[0], [])   # still up: nothing new
+        ev, known = watcher.diff_points("jail_hausse", known, calm)
+        self.assertEqual((ev, known), ([], {}))
+        ev, _ = watcher.diff_points("jail_hausse", known, up)                    # up again after a calm spell: a new event
+        self.assertEqual([(e["kind"], e["label"], e["target"]) for e in ev], [("jail_hausse", "sshd", "lv")])
+
+    def test_sans_statistiques_ou_en_panne_rien(self):
+        self.assertIsNone(watcher.jail_surge_snaps(self.data(("sshd", 60, 90), stats=False)))
+        self.assertIsNone(watcher.jail_surge_snaps(self.data(("sshd", 60, 90), ok=False)))
+        self.assertIn("jail_hausse", __import__("alerts").KINDS)
+
+
 if __name__ == "__main__":
     unittest.main()
