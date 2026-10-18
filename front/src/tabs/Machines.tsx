@@ -6,6 +6,7 @@ import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime, dur, durShort, ipNum, splitHostName } from "../lib/format";
 import { hostName, status } from "../lib/status";
 import { modelService } from "../lib/modelService";
+import { SwitchPanel } from "./UnifiCards";
 import type { AddressSheet, Backups, LinkSource, HealthHost, Host, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
@@ -979,6 +980,7 @@ function IdentitySection({ m, mac, net, from, tool, pve, sheet }: Readonly<{ m: 
         <Row k={tx("Sur le réseau")}>{net?.first_seen ? <span title={tx("Vue par MynetworK")}>{tx("depuis le {0}", dateTime(net.first_seen))}{net.last_seen && <Dim> · {tx("vue le {0}", dateTime(net.last_seen))}</Dim>}{net.ping_ms != null && <Dim> · {Math.round(net.ping_ms)} ms</Dim>}</span> : undefined}</Row>
         <Row k={tx("Autres noms")}>{otherNames(m).join(", ") || undefined}</Row>
         <Row k={tx("Branchement")}>{sheet?.unifi && (sheet.unifi.wired || sheet.unifi.wireless) ? <PlugLine u={sheet.unifi} /> : undefined}</Row>
+        {sheet?.unifi?.wired && sheet.unifi.switch_port != null && <Row k=""><SwitchPanel ip={sheet.unifi.switch_ip} name={sheet.unifi.switch_name} port={sheet.unifi.switch_port} /></Row>}
         <Row k={tx("Nom dans UniFi")}>{sheet?.unifi?.name && sheet.unifi.name.toLowerCase() !== m.name.toLowerCase() ? sheet.unifi.name : undefined}</Row>
         <Row k={tx("Bail de la Freebox")}>{sheet?.freebox?.dhcp ? <span><span className="font-mono">{sheet.freebox.dhcp.ip}</span><Dim> · {sheet.freebox.dhcp.static ? tx("réservation fixe") : tx("adresse attribuée")}</Dim></span> : undefined}</Row>
         <Row k={tx("Redirections de ports")}>{sheet?.freebox?.forwards?.length ? <span className="flex flex-col gap-0.5 font-mono text-xs">{sheet.freebox.forwards.map((f, i) => <span key={i}>{forwardText(f)}</span>)}</span> : undefined}</Row>

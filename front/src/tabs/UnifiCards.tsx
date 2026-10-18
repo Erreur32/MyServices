@@ -11,7 +11,7 @@ import { tx } from "../lib/i18n";
 import { usePoll } from "../lib/polling";
 import { useStoredFlag } from "../lib/storedFlag";
 import { applyOrder, clampSpan, DEFAULT_SPAN, GRID_COLUMNS, useCardLayout } from "../lib/cardLayout";
-import { createMynetworkHass, type MnDevice } from "../vendor/unifi-device-card/mynetwork-adapter";
+import { createMynetworkHass, mnDeviceId, type MnDevice } from "../vendor/unifi-device-card/mynetwork-adapter";
 import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 
 const NO_DEVICES: Record<string, unknown>[] = [];   // stable: a new empty array at each render would rebuild the cards
@@ -45,7 +45,7 @@ const TYPE_ICON: Record<MnDevice["type"], [LucideIcon, string]> = { gateway: [Ro
 type CardElement = HTMLElement & { setConfig: (c: Record<string, unknown>) => void; hass: unknown };
 
 /** One card. With a chosen height it keeps its natural layout and is reduced proportionally to fit (never enlarged, no deformation). */
-function DeviceCard({ deviceId, hass, showPanel, height, uplinkPort }: Readonly<{ deviceId: string; hass: unknown; showPanel: boolean; height?: number; uplinkPort?: number }>) {
+function DeviceCard({ deviceId, hass, showPanel, height, uplinkPort, markPort }: Readonly<{ deviceId: string; hass: unknown; showPanel: boolean; height?: number; uplinkPort?: number; markPort?: number }>) {
   const hostRef = useRef<HTMLDivElement>(null), cardRef = useRef<CardElement | null>(null);
   const [naturalHeight, setNaturalHeight] = useState(0);
 
@@ -58,12 +58,13 @@ function DeviceCard({ deviceId, hass, showPanel, height, uplinkPort }: Readonly<
       type: "custom:unifi-device-card", device_id: deviceId, show_panel: showPanel,
       default_uplink_port: "auto",   // without a detected uplink, open on a connected special port (SFP+, 10G)
       ...(uplinkPort == null ? {} : { uplink_port: uplinkPort }),
+      ...(markPort == null ? {} : { mark_port: markPort }),   // framed on the front panel
       port_led_blink: true, port_led_blink_speed_rj45: 1, port_led_blink_speed_sfp: 1, port_led_traffic_blink_speed: 0.5,   // up: slow blink, traffic: faster
     });
     host.appendChild(el);
     cardRef.current = el;
     return () => { el.remove(); cardRef.current = null; };
-  }, [deviceId, showPanel, uplinkPort]);
+  }, [deviceId, showPanel, uplinkPort, markPort]);
 
   useEffect(() => { if (cardRef.current) cardRef.current.hass = hass; });
 
@@ -224,4 +225,20 @@ export function UnifiCards() {
       </div>}
     </section>
   );
+}
+
+/** The front panel of the switch a machine is plugged into, its port framed (machine window). Nothing when no source gives the cards or the switch is not among them. */
+export function SwitchPanel({ ip, name, port }: Readonly<{ ip?: string | null; name?: string | null; port: number }>) {
+  const [doc, setDoc] = useState<CardsDoc | null>(null), [cardReady, setCardReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    read<CardsDoc>("unifi/cards").then((d) => { if (!cancelled) setDoc(d); }).catch(() => undefined);
+    import("../vendor/unifi-device-card/unifi-device-card.js").then(() => { if (!cancelled) setCardReady(true); }).catch((e: unknown) => console.error("unifi-device-card", e));
+    return () => { cancelled = true; };
+  }, []);
+  const raw = doc?.devices ?? NO_DEVICES;
+  const { hass } = useMemo(() => createMynetworkHass(raw, pageLang()), [raw]);
+  const found = raw.find((d) => (ip && String(d.ip ?? "") === ip) || (name && String(d.name ?? "") === name));
+  if (!cardReady || !found) return null;
+  return <div className="mt-1 max-w-full overflow-x-auto"><DeviceCard deviceId={mnDeviceId(found as { mac?: string })} hass={hass} showPanel={false} markPort={port} /></div>;
 }

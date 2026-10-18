@@ -2096,6 +2096,7 @@ class UnifiDeviceCard extends HTMLElement {
       isWan ? "is-wan" : "",
       oddEvenTopRow && !isSpecial && !isSfp ? "odd-even-top" : "",
       linkUp ? "up" : "down",
+      Number.isInteger(slot?.port) && slot.port === Number(this._config?.mark_port) ? "marked" : "",
       selectedKey === slot.key ? "selected" : "",
       this._portLedBlinkEnabled(isSfp ? "sfp" : "rj45") ? "blink-link-led" : "",
       linkUp && hasTraffic(this._hass, slot) ? "has-traffic" : "",
@@ -4124,6 +4125,14 @@ class UnifiDeviceCard extends HTMLElement {
 
       .port.special .port-num {
         color: var(--udc-special-port-label-color, var(--udc-port-label-color, #646a76));
+      }
+
+      /* MyServices: the port a machine is plugged into (config mark_port) */
+      .port.marked {
+        outline: 2px solid var(--udc-accent, #3b82f6);
+        outline-offset: 1px;
+        border-radius: 6px;
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--udc-accent, #3b82f6) 28%, transparent);
       }
 
       .port-num {

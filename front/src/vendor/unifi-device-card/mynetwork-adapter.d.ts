@@ -14,3 +14,4 @@ export function createMynetworkHass(
     unifiDevices: unknown[],
     language?: string
 ): { hass: Record<string, unknown>; devices: MnDevice[] };
+export function mnDeviceId(d: { mac?: string | null }): string;
