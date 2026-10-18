@@ -8,6 +8,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -95,6 +96,23 @@ class ApiModels(unittest.TestCase):
         j = self.c.get(BASE + "/backups").json()
         self.assertEqual(([s["id"] for s in j["sets"]], j["skipped"]), (["s1"], 1))
         self.assertEqual(j["sets"][0]["locations"][0]["label"], "disque 2")
+
+    def test_manifest(self):
+        """The page reads a file again only when its stamp moved; a missing file is not listed; the route needs a session."""
+        self.put("data.json", DATA)
+        self.put("pulse.json", {"ts": 1, "machines": {}})
+        with mock.patch.dict(server.CFG, {"health_url": "health/", "backups_url": "backups.json"}):
+            j = self.c.get(BASE + "/manifest").json()
+            self.assertEqual(sorted(j["files"]), ["data.json", "pulse.json"])
+            before = j["files"]["data.json"]
+            self.put("data.json", {**DATA, "generated": "2026-10-10 10:15", "pad": "x" * 10})
+            self.put("health/stats.json", STATS)
+            j = self.c.get(BASE + "/manifest").json()
+            self.assertNotEqual(j["files"]["data.json"], before)
+            self.assertIn("health/stats.json", j["files"])
+        with mock.patch.dict(server.CFG, {"health_url": "https://elsewhere.example/health/"}):
+            self.assertNotIn("https://elsewhere.example/health/stats.json", self.c.get(BASE + "/manifest").json()["files"])
+        self.assertEqual(self.anon.get(BASE + "/manifest").status_code, 401)
 
     def test_missing_files(self):
         for path in ("machines", "services", "health"):

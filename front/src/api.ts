@@ -115,28 +115,75 @@ export function healConnectors(data: Data, live: Live): Data {
   return (out as unknown as Data) ?? data;
 }
 
-export const loadLive = (): Promise<Live | null> => get<Live>("live.json", true).catch(() => null);
+const loadLive = (): Promise<Live | null> => get<Live>("live.json", true).catch(() => null);
 
-export const loadPulse = (): Promise<Pulse | null> => get<Pulse>("pulse.json", true).catch(() => null);
+const loadPulse = (): Promise<Pulse | null> => get<Pulse>("pulse.json", true).catch(() => null);
 
-/** Tout ce que l'accueil lit, en parallèle ; santé, sauvegardes et événements sont facultatifs. */
+/** Stamp of every produced file (api/v1/manifest): a file is read again only when its stamp moved */
+interface Manifest { ts: number; files: Record<string, string> }
+
+const ME_EVERY_MS = 300_000;      // the account (role, e-mail) is read again every 5 min, not at every refresh
+const REMOTE_EVERY_MS = 60_000;   // a file the manifest cannot stamp (health or backups served from elsewhere): read again every minute
+
+/** What the last refresh read, piece by piece, so the next one reads only what moved */
+interface Kept {
+  files: Record<string, string>;          // stamps of the manifest at the last refresh
+  readAt: Record<string, number>;         // when each file not in the manifest was last read
+  meAt: number;
+  me: Me; raw: Data | null; pulse: Pulse | null; live: Live | null;
+  health: Health | null; backups: Backups | null; watch: Events | null; hev: Events | null;
+  snap: Snapshot | null;
+}
+let kept: Kept | null = null;
+
+/** Forgets what was read: the next refresh reads everything again */
+export function forgetSnapshot(): void { kept = null; }
+
+const loadManifest = (): Promise<Manifest | null> => get<Manifest>("api/v1/manifest", true).catch(() => null);
+
+/** Tout ce que l'accueil lit ; santé, sauvegardes et événements sont facultatifs. Guided by the manifest: at rest one small request,
+ *  and only the files whose stamp moved are read again (each still with its ETag); without manifest, everything as before. */
 export async function loadSnapshot(): Promise<Snapshot> {
-  const [me, raw, pulse, live] = await Promise.all([get<Me>("api/v1/me"), get<Data>("data.json", true), loadPulse(), loadLive()]);
-  if (!raw) throw new NotConfigured(me!);
-  const data = translateConnectorMessages(withPulse(withLive(raw, live), pulse));
-  const hu = data!.page.health_url, bu = data!.page.backups_url;
-  const [health, backups, watch, hev] = await Promise.all([
-    hu ? get<Health>(`${hu}stats.json`, true) : null,
-    bu ? get<Backups>(bu, true) : null,
-    get<Events>("events.json", true),
-    hu ? get<Events>(`${hu}events.json`, true) : null,
+  const now = Date.now();
+  const man = await loadManifest();
+  const stamps = man?.files ?? null;
+  const k = kept;
+  const moved = (rel: string): boolean => {
+    if (!k) return true;
+    if (stamps && rel in stamps) return stamps[rel] !== k.files[rel];
+    if (stamps) return !(rel in k.files) ? now - (k.readAt[rel] ?? 0) > REMOTE_EVERY_MS : true;   // not stamped: at its own pace
+    return true;   // no manifest at all: everything, as before
+  };
+  const readAt: Record<string, number> = { ...(k?.readAt ?? {}) };
+  const file = async <T>(rel: string, prev: T | null, read: () => Promise<T | null>): Promise<T | null> => {
+    if (!moved(rel)) return prev;
+    readAt[rel] = now;
+    return read();
+  };
+  const meFresh = !!k && now - k.meAt < ME_EVERY_MS;
+  const [me, raw, pulse, live] = await Promise.all([
+    meFresh ? k!.me : get<Me>("api/v1/me"),
+    file<Data>("data.json", k?.raw ?? null, () => get<Data>("data.json", true)),
+    file<Pulse>("pulse.json", k?.pulse ?? null, loadPulse),
+    file<Live>("live.json", k?.live ?? null, loadLive),
   ]);
-  return {
-    me: me!, data: data!, health, backups,
+  if (!raw) { kept = null; throw new NotConfigured(me!); }
+  const hu = raw.page.health_url, bu = raw.page.backups_url;
+  const [health, backups, watch, hev] = await Promise.all([
+    hu ? file<Health>(`${hu}stats.json`, k?.health ?? null, () => get<Health>(`${hu}stats.json`, true)) : null,
+    bu ? file<Backups>(bu, k?.backups ?? null, () => get<Backups>(bu, true)) : null,
+    file<Events>("events.json", k?.watch ?? null, () => get<Events>("events.json", true)),
+    hu ? file<Events>(`${hu}events.json`, k?.hev ?? null, () => get<Events>(`${hu}events.json`, true)) : null,
+  ]);
+  const same = !!k?.snap && me === k.me && raw === k.raw && pulse === k.pulse && live === k.live && health === k.health && backups === k.backups && watch === k.watch && hev === k.hev;
+  const snap: Snapshot = same ? k!.snap! : {   // nothing moved: the very same object, so the page does not render again
+    me: me!, data: translateConnectorMessages(withPulse(withLive(raw, live), pulse)), health, backups,
     events: [...(watch?.events || []), ...(hev?.events || [])],
     labels: translateLabels({ ...hev?.labels, ...watch?.labels }),
     severity: { ...hev?.severity, ...watch?.severity },
   };
+  kept = { files: stamps ?? {}, readAt, meAt: meFresh ? k!.meAt : now, me: me!, raw, pulse, live, health, backups, watch, hev, snap };
+  return snap;
 }
 
 /** Historique SQLite (un an) : événements d'une période et comptes par jour. */

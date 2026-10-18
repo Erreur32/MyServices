@@ -358,6 +358,33 @@ def read_produced(rel: str) -> dict | None:
     return d if isinstance(d, dict) else None
 
 
+def produced_manifest() -> dict:
+    """Stamp (mtime and size) of every produced file the page reads: the page asks this small document every few seconds and reads a
+    file again only when its stamp moved, instead of revalidating each of them. A file served from elsewhere (health_url or
+    backups_url as a full URL) is not listed: the page keeps its own pace for it."""
+    hu, bu = str(core.CFG.get("health_url") or ""), str(core.CFG.get("backups_url") or "")
+    rels = ["data.json", "pulse.json", "live.json", "events.json"]
+    if hu and "://" not in hu:
+        rels += [hu + "stats.json", hu + "events.json"]
+    if bu and "://" not in bu:
+        rels.append(bu)
+    files = {}
+    for rel in rels:
+        f = find(rel.lstrip("/"))
+        if f is not None:
+            try:
+                st = f.stat()
+                files[rel] = f"{st.st_mtime_ns}-{st.st_size}"
+            except OSError:
+                pass
+    return {"ts": time.time(), "files": files}
+
+
+@app.get(API + "/manifest", tags=["page"], summary="Horodatage des fichiers produits (data.json, pouls, direct, événements, santé, sauvegardes)")
+def manifest(request: Request):
+    return JSONResponse(produced_manifest(), headers={"Cache-Control": "no-store"})
+
+
 def typed(model: type[BaseModel], items) -> tuple[list, int]:
     """(éléments conformes au modèle, nombre d'éléments ignorés)."""
     ok, skipped = [], 0
@@ -783,11 +810,12 @@ class AliasBody(BaseModel):
     ip: str
     user: str = "root"
     port: int = 22
+    host: str | None = None   # SSH address when it differs from the machine IP (DNS name, another network)
 
 
 @app.post(API + "/machines/ssh-alias", tags=["machines"], summary="Préparer l'accès SSH d'une machine : alias avec la clé de l'app (admin)")
 def machines_ssh_alias(body: AliasBody, request: Request):
-    return machine_call(request, "alias SSH préparé", f"{body.user}@{body.ip}:{body.port}", lambda m: m.add_alias(body.ip, body.user, body.port))
+    return machine_call(request, "alias SSH préparé", f"{body.user}@{body.ip}:{body.port}", lambda m: m.add_alias(body.ip, body.user, body.port, body.host))
 
 
 class ProbeBody(BaseModel):

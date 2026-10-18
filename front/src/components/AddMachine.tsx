@@ -2,20 +2,20 @@
 // 1 target and detection, 2 what was found, 3 access (SSH, agent or none), 4 identity and options. Nothing is written
 // before the final button, except the SSH alias prepared for the test, which is removed again if the add is cancelled.
 import { Ban, Check, KeyRound, MonitorUp, Pencil, Radar } from "lucide-react";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { LOGIN, LoginRequired, read, send } from "../api";
-import { Copyable, Field, NoteLine, Switch, TagInput } from "./form";
+import { useState, type FormEvent, type ReactNode } from "react";
+import { LOGIN, LoginRequired, send } from "../api";
+import { Field, NoteLine, Switch, TagInput } from "./form";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Dim } from "./ui";
 import { tx } from "../lib/i18n";
-import { authorizeFor, homeOf } from "../lib/ssh";
 import { pokeScan } from "../lib/scan";
-import type { Detection, MachineConf, MachinesSettings as State, SystemState } from "../types";
+import type { Detection, MachineConf, MachinesSettings as State } from "../types";
 import { InfoNote } from "./InfoNote";
 import { IconChoice } from "./IconChoice";
 import { IconPicker } from "./IconPicker";
 import { MachineIcon } from "./MachineIcon";
 import { AgentBlock } from "../tabs/Agents";
+import { KeyToAuthorize, SshParams, type CheckResult } from "./SshParams";
 
 type Access = "ssh" | "agent" | "none";
 type Kind = "linux" | "windows";
@@ -39,12 +39,6 @@ function defaultAccess(d: Detection, kind: Kind): Access {
 
 function guessKind(d: Detection): Kind {
   return d.machine.os === "windows" || d.hints.some((h) => h.startsWith("Windows")) ? "windows" : "linux";
-}
-
-/** Colour of one line of the access check: ✓ ok, ✗ failed, anything else a warning */
-function lineTone(l: string): string {
-  if (l.startsWith("✓")) return "text-ok";
-  return l.startsWith("✗") ? "text-bad" : "text-warn";
 }
 
 function onError(e: unknown, set: (n: Note) => void) {
@@ -258,55 +252,15 @@ function AccessStep({ d, st, kind, setKind, access, setAccess, alias, onAlias, o
   );
 }
 
-/** SSH: account and port, the app key to authorize on the machine, then « Préparer et tester » (alias written, connection checked) */
+/** SSH: the shared block (address, port, account, key to authorize, test); the alias written for the test is remembered, to be removed on cancel */
 function SshSetup({ d, st, kind, alias, onAlias }: Readonly<{ d: Detection; st: State; kind: Kind; alias: string | null; onAlias: (alias: string, created: boolean) => void }>) {
-  const known = st.aliases.find((a) => a.ip === d.ip);
-  const handWritten = !!alias && !alias.startsWith("m-");
-  const [user, setUser] = useState(known?.user || "root"), [port, setPort] = useState(String(known?.port || 22));
-  const [authorize, setAuthorize] = useState(""), [esxiKey, setEsxiKey] = useState<string | null>(null);
-  const [lines, setLines] = useState<string[] | null>(null), [failed, setFailed] = useState<boolean | null>(null);
-  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
-  useEffect(() => { read<SystemState>("system").then((s) => { setAuthorize(s.ssh.authorize ?? ""); setEsxiKey(s.ssh.public_esxi ?? null); }).catch(() => undefined); }, []);
-  const userOk = /^[a-z_][a-z0-9_.-]{0,31}$/.test(user), portN = Number(port), portOk = Number.isInteger(portN) && portN >= 1 && portN <= 65535;
-  const test = async () => {
-    setBusy(true); setNote(null); setLines(null); setFailed(null);
-    try {
-      if (!handWritten) {
-        const r = await send<{ alias: string; created: boolean }>("POST", "machines/ssh-alias", { ip: d.ip, user, port: portN });
-        onAlias(r.alias, r.created);
-      }
-      const r = await send<{ lines: string[]; failed: number }>("POST", "machines/ssh-alias/test", { ip: d.ip, windows: kind === "windows" });
-      setLines(r.lines); setFailed(r.failed > 0);
-    } catch (e) { onError(e, setNote); }
-    setBusy(false);
-  };
+  const known = st.aliases.find((a) => a.alias === alias) ?? st.aliases.find((a) => a.ip === d.ip);
+  const [user, setUser] = useState(known?.user || "root");
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-line/60 bg-bg2/60 p-3">
-      <div className="flex flex-wrap items-end gap-2">
-        <Field label={tx("Compte SSH")}><input className={`${input} w-40`} maxLength={32} value={user} disabled={handWritten} autoComplete="off" onChange={(e) => setUser(e.target.value.trim())} /></Field>
-        <Field label={tx("Port SSH")}><input className={`${input} w-28`} type="number" min={1} max={65535} value={port} disabled={handWritten} onChange={(e) => setPort(e.target.value)} /></Field>
-        <button type="button" className={quiet} disabled={busy || !userOk || !portOk} onClick={() => void test()}>
-          <KeyRound size={14} aria-hidden />{busy ? tx("Test…") : tx("Tester la connexion")}
-        </button>
-        {failed === false && <Badge tone="ok">{tx("connexion OK")}</Badge>}
-        {failed === true && <Badge tone="warn">{tx("connexion refusée")}</Badge>}
-      </div>
-      {handWritten
-        ? <Dim>{tx("Accès « {0} » écrit à la main dans la config SSH de l'app : compte et port se changent là.", alias)}</Dim>
-        : <Dim>{tx("root par défaut ; un compte dédié du groupe docker est plus sûr. Le test écrit cet accès dans la config SSH de l'app, retiré si vous annulez.")}</Dim>}
-      {kind === "linux" && (
-        <div className="flex flex-col gap-1 text-sm">
-          <span className="text-muted">{tx("Sur la machine, en root ou avec ce compte, autorisez la clé de l'app dans")} <code className="font-mono text-xs text-txt">{homeOf(user || "root")}/.ssh/authorized_keys</code> :</span>
-          {authorize ? <Copyable text={authorizeFor(authorize, user, esxiKey)} /> : <span className="text-warn">{tx("Clé de l'app introuvable : voir")} <a className="underline hover:text-txt" href="#settings/ssh">{tx("Réglages → Clé SSH")}</a>.</span>}
-        </div>
-      )}
-      {kind === "windows" && <InfoNote>{tx("Windows par SSH : OpenSSH Server doit être installé et la clé de l'app autorisée pour ce compte. Sans serveur SSH, préférez l'agent.")}</InfoNote>}
-      {lines && (
-        <ul className="rounded-lg bg-bg2 p-2 font-mono text-xs">
-          {lines.map((l) => <li key={l} className={lineTone(l)}>{l}</li>)}
-        </ul>
-      )}
-      <NoteLine note={note} />
+      <SshParams ip={d.ip} known={known} alias={alias} onUser={setUser} onApplied={async (r) => { onAlias(r.alias, r.created); }}
+        probe={() => send<CheckResult>("POST", "machines/ssh-alias/test", { ip: d.ip, windows: kind === "windows" })} />
+      <KeyToAuthorize user={user} kind={kind} />
     </div>
   );
 }

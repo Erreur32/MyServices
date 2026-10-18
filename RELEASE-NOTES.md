@@ -1,18 +1,20 @@
-# Release notes: MyServices 0.15.8
+# Release notes: MyServices 0.15.9
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.15.8** (18 October 2026): fewer requests, same freshness. The first tier of the request audit.
+**0.15.9** (18 October 2026): the page reads only what changed, and the SSH section of a machine is redone.
 
 ## For everyone
 
 **What's new?**
-- **Collection bounded by the slowest service**: every connector of every kind is read at the same time, so adding connectors no longer stretches the pass. The version of a service is asked every 6 hours instead of every pass.
-- **A quieter page**: at rest the home page makes about half as many requests as before (the schedule card, the scan bar and the live tick are paced), and a change reloads the data once, then follows it for one minute instead of two and a half. Nothing is read while the browser tab is hidden.
+- **One small request at rest**: the server publishes a manifest of its produced files, and the page reads a file again only when it moved. At rest the home page makes one small request every 15 seconds instead of a dozen revalidations per minute, with the same freshness. An older server without the manifest is read as before.
+- **SSH section of a machine, redone**: one « Connection parameters » block with the SSH address (the machine's IP, or a DNS name when it is reached another way), the port, the account and « Save and test » with the result lines; the app key to authorize, with the command for the typed account, folded under it; then the connection state. The first activation opens the parameters in place.
+- **Listening ports with a non-root account**: the collection tries a sudo rule first, and the window gives the one-line rule to put on the machine behind a discreet « How to set it up on the machine? » link.
 
 **Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change in your compose file.
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.15.8` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit.
-- **Changed**: `myservices.connector_rows(kinds)` and `fast.refresh` use a thread pool; `connectors.base.run_isolated` keeps `version_at` in the connector state (`VERSION_EVERY` = 6 h); `system._memoed` (5 min) for folder sizes and the key fingerprint; front `READ_ONLY` covers `/refresh`, `/redetect` and `assistant`; `FAST_MS` 15 s for 60 s; `ScheduleCard` 15 s at rest.
+- **Image**: `ghcr.io/erreur32/myservices:0.15.9` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit.
+- **Added**: `GET api/v1/manifest` (stamp of data, pulse, live, events, health and backups files); `POST machines/ssh-alias` takes `host`; `machines_admin._alias_for` finds a machine's alias through its settings.
+- **Changed**: front `loadSnapshot` keeps what it read and re-reads only the files whose stamp moved (`snapshot.test.ts`); one 15 s loop in `App.tsx`; `components/SshParams.tsx` shared by the add frame and the machine window; `connectors/process.py` runs `sudo -n ss -tlnpH || ss -tlnpH`.

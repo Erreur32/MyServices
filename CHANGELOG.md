@@ -11,12 +11,24 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.15.9 (2026-10-18)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ## v0.15.8 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+
+- Settings, Machines, SSH access: the SSH address can differ from the machine's IP (a DNS name, another network); `POST machines/ssh-alias` takes `host`, and the alias of a machine is found through its settings, not only through its IP.
+- Listening ports with a non-root SSH account: the collection tries `sudo -n ss -tlnpH` first; the machine window gives the one-line sudoers rule to allow it (read only), behind a discreet « How to set it up on the machine? » link.
+- API `GET manifest`: the stamp (modification time and size) of every produced file the page reads (data, pulse, live, events, health, backups). The page asks this small document every 15 s and reads a file again only when its stamp moved; at rest the home page makes one small request per 15 s instead of a dozen revalidations per minute. Without the route (older server), the page reads everything as before.
+
 ### Changed
 
+- Settings, Machines: the SSH section of a machine window is redone. One « Connection parameters » block (SSH address, port, account, « Save and test » with the result lines), a collapsible « App key to authorize on the machine » with the command for the typed account (open when the connection is refused or at the first activation), then the connection state. The first activation opens the parameters in place instead of a separate guide. The « Listening ports » switch is no longer greyed for a non-root account. The same block serves the add frame.
+- Page: one refresh loop every 15 s guided by the manifest replaces the three loops (full load every 60 s, live every 15 s, fast window after a change); the account is read again every 5 minutes; coming back on the browser tab reads at once.
 - Collection and fast loop: every connector instance of every kind (status, network, security, containers, virtualization, and the light reads) is read at the same time, so a pass lasts as long as the slowest service instead of the sum of them all.
 - Connectors: the version of a service is asked once, then reused from the connector state for 6 hours (one request less per connector and per pass).
 - API `GET system`: folder sizes and the key fingerprint are kept 5 minutes (several panels read this route).
