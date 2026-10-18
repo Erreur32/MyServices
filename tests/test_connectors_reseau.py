@@ -98,7 +98,7 @@ class Reseau(unittest.TestCase):
 
     def test_mynetwork_inventaire_et_unifi(self):
         item = {"id": 1, "ip": "192.168.1.20", "mac": "aa:bb:cc:dd:ee:ff", "hostname": "nas", "vendor": "Synology", "status": "online",
-                "pingLatency": 1.4, "additionalInfo": {"openPorts": [22, 80, "x"], "secret": "no"}}
+                "pingLatency": 1.4, "additionalInfo": {"openPorts": [22, {"port": 80, "protocol": "tcp"}, {"port": "x"}, "x"], "lastPortScan": "2026-10-17T22:04:57.703Z", "secret": "no"}}
         Fake.routes = {"/api/health": (200, {"status": "ok"}),
                        "/api/network-scan/history": (200, {"success": True, "result": {"items": [item, {"ip": "192.168.1.21", "status": "offline"}], "total": 2}}),
                        "/api/plugins/unifi/clients": (200, {"success": True, "result": [{"name": "Pixel", "mac": "m", "wired": False, "essid": "Home"}]}),

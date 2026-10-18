@@ -48,10 +48,12 @@ def _result(got: object) -> object:
 def device(d: dict) -> dict:
     """Appareil du scanner réduit à ce que MyServices affiche (pas de champ libre : additionalInfo garde seulement les ports)."""
     info = d.get("additionalInfo") if isinstance(d.get("additionalInfo"), dict) else {}
-    ports = [p for p in info.get("openPorts") or [] if isinstance(p, int)]
+    # openPorts: plain numbers (older MynetworK) or {"port": 445, "protocol": "tcp"} (current one)
+    ports = sorted({p if isinstance(p, int) else p.get("port") for p in info.get("openPorts") or []
+                    if isinstance(p, int) or (isinstance(p, dict) and isinstance(p.get("port"), int))})
     return {"ip": d.get("ip"), "mac": (d.get("mac") or None), "hostname": d.get("hostname") or None, "vendor": d.get("vendor") or None,
             "status": d.get("status") or "unknown", "ping_ms": d.get("pingLatency"), "first_seen": d.get("firstSeen"),
-            "last_seen": d.get("lastSeen"), "ports": ports}
+            "last_seen": d.get("lastSeen"), "ports": ports, "ports_at": info.get("lastPortScan")}
 
 
 class MynetworK(Connector):
