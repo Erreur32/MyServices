@@ -1,11 +1,11 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { ArrowRight, ArrowUpCircle, Boxes, Plus, Bug, Check, ChevronRight, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, Settings2, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowRight, Archive, Puzzle, FolderOpen, Bot, Box, Copy, Crosshair, ArrowUpCircle, Boxes, Plus, Bug, Check, ChevronRight, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
+import { Fragment, createContext, useContext, useRef, useCallback, useEffect, useMemo, useState } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
-import { dateTime, dur, ipNum, splitHostName } from "../lib/format";
+import { ageDays, bytes, dateTime, dur, durShort, ipNum, splitHostName } from "../lib/format";
 import { status } from "../lib/status";
-import type { HealthHost, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
+import type { AddressSheet, Backups, LinkSource, HealthHost, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
 import { freeboxHealth, freeboxOf } from "../lib/freebox";
@@ -24,7 +24,7 @@ import { DetailRow, DetailSection } from "../components/DetailSection";
 import { quiet } from "../lib/forms";
 import { Overlay } from "../components/Overlay";
 import { rereadMachines } from "../lib/scan";
-import { healthItems, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
+import { WATCH_SECTION, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Table, Td, Th, type Tone } from "../components/ui";
 import { tx } from "../lib/i18n";
@@ -145,7 +145,7 @@ const level = (v: number, warn: number, bad: number): MeterTone => {
 /** Table cell: the value on top (with a hint on its right, e.g. the disk), a thin bar under it; the same width in every row */
 function Meter({ pct, tone, hint, title, unit = "%" }: Readonly<{ pct: number; tone: MeterTone; hint?: string; title?: string; unit?: "%" | "°C" }>) {
   return (
-    <div className="w-[5.5rem]" title={title}>
+    <div className="w-[7rem]" title={title}>
       <div className="flex items-baseline justify-between gap-1 leading-tight">
         <span className={`shrink-0 whitespace-nowrap text-sm tabular-nums ${METER_TEXT[tone]}`}>{Math.round(pct)} {unit}</span>
         {hint && <span className="min-w-0 truncate font-mono text-[10px] text-dim">{hint}</span>}
@@ -226,21 +226,137 @@ const WATCH_ICON: Record<WatchKind, LucideIcon> = {
 const WATCH_STYLE: Record<WatchTone, string> = { bad: "border-bad/60 bg-bad/15 text-bad", warn: "border-warn/60 bg-warn/15 text-warn", info: "border-link/50 bg-link/10 text-link" };
 
 /** « À surveiller » : une pastille-icône par sujet, rouge (grave), orange (à regarder) ou bleue (à savoir) ; le détail est dans l'info-bulle. Rien : une coche discrète. */
-function WatchList({ items, wrap = false, quiet = false }: Readonly<{ items: WatchItem[]; wrap?: boolean; quiet?: boolean }>) {   // quiet : rien à dire = rien d'affiché (le badge de niveau le dit déjà)   // wrap : libellé « Rien à surveiller » écrit en toutes lettres (fiches)
+const DOT_COLOR: Record<WatchTone, string> = { bad: "bg-bad", warn: "bg-warn", info: "bg-link" };
+const TONE_OF_RANK: WatchTone[] = ["info", "info", "warn", "bad"];   // RANK 1..3 -> tone
+
+/** A coloured dot on the corner of a machine's icon, the colour of its worst notice (red, yellow, blue): the same notices as the badges of the "To watch" column */
+function AlertDot({ items, children }: Readonly<{ items: WatchItem[]; children: React.ReactNode }>) {
+  const w = worst(items);
+  if (!w) return <>{children}</>;
+  const tone = TONE_OF_RANK[w], n = items.filter((i) => i.tone === tone).length;
+  return (
+    <span className="relative inline-flex shrink-0">
+      {children}
+      <span className={`absolute -left-1 -top-1 h-2.5 w-2.5 rounded-full ring-2 ring-card ${DOT_COLOR[tone]}`} title={`${tone === "bad" ? tx("problème à regarder") : tx("à surveiller")} : ${n}\n${items.map((i) => `${i.text}`).join("\n")}`} />
+    </span>
+  );
+}
+
+/** The tooltip of a notice, in the tooltip layer's own layout: its sentence as the heading, the messages behind it as code lines (time dimmed), then a hint */
+const MAX_TIP_LINES = 5;
+const plain = (t: string) => t.replace(/[`*[\]]/g, "").slice(0, 120);
+function watchTip(it: WatchItem, hint?: string): string {
+  const all = it.detail ?? [], lines = all.slice(0, MAX_TIP_LINES).map((l) => {
+    if (it.kind !== "kernel") return `\`${plain(l)}\``;
+    const { when, msg } = kernelLine(l);
+    return `${when ? `[[off:${plain(when)}]] ` : ""}\`${plain(msg)}\``;
+  });
+  const more = all.length > MAX_TIP_LINES ? [tx("… et {0} autres", all.length - MAX_TIP_LINES)] : [];
+  return [it.text, ...lines, ...more, ...(hint ? ["", `[[off:${hint}]]`] : [])].join("\n");
+}
+
+/** A virtual machine (Proxmox / ESXi guest, flagged or seen by the health check): a small cube beside its name */
+const isVm = (m: Machine, h?: HealthHost): boolean => !!(m.links?.guest || m.detected?.includes("vm") || h?.smart?.vm || h?.temp?.virt);
+function VmMark({ m, h }: Readonly<{ m: Machine; h?: HealthHost }>) {
+  if (!isVm(m, h)) return null;
+  const g = m.links?.guest;
+  const tip = g ? `${tx("Machine virtuelle")}\n${g.type === "lxc" ? tx("conteneur LXC") : "VM"} ${g.vmid} ${tx("sur")} ${g.node}` : tx("Machine virtuelle");
+  return <span className="inline-grid h-5 w-5 shrink-0 place-items-center rounded border border-link/50 bg-link/10 text-link" title={tip} tabIndex={0}><Box size={12} aria-hidden /></span>;
+}
+
+/** GPUs of a machine: those GpuViewR reads (load, temperature, memory, power, last 24 h, the AI models on each), else the names the Windows agent lists in its hardware, else lspci over SSH (iGPU included, none shown when nothing is found).
+ *  GpuViewR is the only source of load, temperature and memory. */
+type GpuModel = NonNullable<LinkSource["models"]>[number];
+type GpuCell = { name: string; util?: number | null; temp?: number | null; memUsed?: number | null; memTotal?: number | null; power?: number | null; day?: NonNullable<LinkSource["gpus"]>[number]["day"]; models: GpuModel[] };
+function gpusOf(m: Machine): GpuCell[] {
+  const src = m.links?.sources.find((x) => x.source === "gpuviewr"), read = src?.gpus ?? [];
+  if (read.length) return read.map((g, i) => ({ name: g.name ?? "GPU", util: g.util, temp: g.temp, memUsed: g.mem_used, memTotal: g.mem_total, power: g.power, day: g.day,
+    models: (src?.models ?? []).filter((x) => x.gpu === i || (x.gpu == null && read.length === 1)) }));
+  const names = m.agent?.hardware?.gpu?.map((g) => g.name) ?? m.info?.gpus ?? [];   // the Windows agent's list, else lspci over SSH (Linux, Proxmox): names only
+  return names.map((name) => ({ name, models: [] }));
+}
+const shortGpu = (n: string): string => n.replace(/^(NVIDIA|AMD|Intel\(R\))\s+/i, "").replace(/^(GeForce|Radeon)\s+/i, "").replace(/\s*\(TM\)|\s*\(R\)/gi, "").trim();
+const gb = (mb: number): string => `${(mb / 1024).toFixed(mb >= 10240 ? 0 : 1)} ${tx("Go")}`;
+
+/** The tooltip of a GPU, in the tooltip layer's layout (dark heading, then label / value rows by block): now, the last 24 h, the AI models running on it.
+ *  Values get the state colour (temperature from 80 °C, load or memory from 90 %). */
+function gpuTip(g: GpuCell): string {
+  const tone = (v: number, warn: number, bad: number, text: string) => (v >= bad ? `[[bad:${text}]]` : v >= warn ? `[[warn:${text}]]` : text);
+  const row = (k: string, v: string | false | null | undefined) => (v ? `${k}\t${v}` : "");
+  const block = (title: string, rows: string[]) => (rows.some(Boolean) ? [`\n[[off:${title}]]`, ...rows.filter(Boolean)] : []);
+  const d = g.day, memPct = g.memTotal ? (100 * (g.memUsed ?? 0)) / g.memTotal : null;
+  const now = [
+    row(tx("Charge"), g.util != null && tone(g.util, 90, 98, `${Math.round(g.util)} %`)),
+    row(tx("Température"), g.temp != null && tone(g.temp, 80, 85, `${Math.round(g.temp)} °C`)),
+    row(tx("Mémoire"), g.memTotal ? `${gb(g.memUsed ?? 0)} / ${gb(g.memTotal)} (${tone(memPct ?? 0, 90, 98, `${Math.round(memPct ?? 0)} %`)})` : false),
+    row(tx("Puissance"), g.power != null && `${Math.round(g.power)} W`),
+  ];
+  const day = d ? [
+    row(tx("Charge"), d.util_avg != null && tx("moyenne {0} %, max {1} %", Math.round(d.util_avg), Math.round(d.util_max ?? d.util_avg))),
+    row(tx("Température"), d.temp_max != null && tone(d.temp_max, 80, 85, tx("max {0} °C", Math.round(d.temp_max)))),
+    row(tx("Mémoire"), d.mem_max != null && tx("max {0}", gb(d.mem_max))),
+    row(tx("Puissance"), d.pow_avg != null && tx("{0} W en moyenne", Math.round(d.pow_avg))),
+  ] : [];
+  const models = g.models.map((x) => `**${x.model ?? "?"}**\t${[x.runtime, x.port ? tx("port {0}", x.port) : "", x.state === "idle" ? tx("au repos") : x.state, x.mem_mb ? gb(x.mem_mb) : ""].filter(Boolean).join(" · ")}`);
+  return [g.name, ...block(tx("Maintenant"), now), ...block(tx("24 dernières heures"), day), ...block(tx("Modèles IA"), models)].join("\n");
+}
+
+/** GPU column cell: the column takes the spare width of the table, so the name stays whole; load and temperature after it, then memory, power and the AI model on the second line (24 h in the tooltip) */
+function GpuCellView({ list }: Readonly<{ list: GpuCell[] }>) {
+  if (!list.length) return <Dim>-</Dim>;
+  return (
+    <span className="flex max-w-[18rem] flex-col gap-1">
+      {list.map((g, i) => (
+        <span key={`${g.name}-${i}`} className="flex flex-col text-xs leading-tight" title={gpuTip(g)} tabIndex={0}>
+          <span className="flex items-baseline gap-2">
+            <span className="truncate font-medium">{shortGpu(g.name)}</span>
+            {g.util != null && <span className="shrink-0 tabular-nums text-muted">{Math.round(g.util)} %</span>}
+            {g.temp != null && <span className={`shrink-0 tabular-nums ${heatClass(g.temp)}`}>{Math.round(g.temp)} °C</span>}
+          </span>
+          {(g.memTotal || g.power != null || g.models.length > 0) && (
+            <span className="flex items-center gap-2 text-[11px] text-dim">
+              {g.memTotal ? <span className="shrink-0 tabular-nums">{gb(g.memUsed ?? 0)} / {gb(g.memTotal)}</span> : null}
+              {g.power != null && <span className="shrink-0 tabular-nums">{Math.round(g.power)} W</span>}
+              {g.models.length > 0 && <span className="flex items-center gap-1 text-link"><Bot size={11} className="shrink-0" aria-hidden /><span className="truncate">{g.models.map((x) => x.model).join(", ")}</span></span>}
+            </span>
+          )}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Kernel errors set aside by the viewer, per machine: hidden until a more recent message appears (kept in this browser only) */
+const KernelIgnore = createContext<{ ignored: Record<string, string>; set: (id: string, sig: string | null) => void }>({ ignored: {}, set: () => undefined });
+const KERNEL_KEY = "ms.machines.kernelIgnored";
+const kernelSig = (samples: string[] = []): string => samples[samples.length - 1] ?? "";
+
+/** Asks the machines page to open a machine window at the section that explains a notice (null outside the page) */
+const PickWatch = createContext<((ip: string, kind: WatchKind) => void) | null>(null);
+
+function WatchList({ items, wrap = false, quiet = false, ip }: Readonly<{ items: WatchItem[]; wrap?: boolean; quiet?: boolean; ip?: string }>) {   // quiet : rien à dire = rien d'affiché (le badge de niveau le dit déjà)   // wrap : libellé « Rien à surveiller » écrit en toutes lettres (fiches)   // ip : a click on a badge opens that machine's window at the section of the notice
+  const pick = useContext(PickWatch);
   if (!items.length && quiet) return null;
   if (!items.length) return <span className="inline-flex items-center gap-1 text-xs text-ok" title={tx("Rien à surveiller")}><Check size={14} aria-hidden />{wrap && tx("Rien à surveiller")}</span>;
   return (
     <div className="flex flex-wrap items-center gap-1" role="list" aria-label={tx("À surveiller")}>   {/* tout est montré, jamais caché : les pastilles passent à la ligne */}
       {items.map((it, i) => {
-        const Icon = WATCH_ICON[it.kind];
-        return <span key={i} role="listitem" tabIndex={0} title={it.text} className={`grid h-7 w-7 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`}><Icon size={14} aria-hidden /></span>;
+        const Icon = WATCH_ICON[it.kind], cls = `grid h-6 w-6 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`;
+        if (ip && pick) return <button key={i} type="button" role="listitem" title={watchTip(it, tx("Cliquer pour voir où"))} aria-label={it.text} onClick={() => pick(ip, it.kind)} className={`${cls} hover:brightness-125`}><Icon size={14} aria-hidden /></button>;
+        return <span key={i} role="listitem" tabIndex={0} title={watchTip(it)} className={cls}><Icon size={14} aria-hidden /></span>;
       })}
     </div>
   );
 }
-
-/** Synthèse de « À surveiller », dépliable : une ligne par sujet avec son icône, sa couleur et sa phrase complète (repliée : le nombre par gravité) */
-function WatchSummary({ items }: { items: WatchItem[] }) {
+/** Scrolls the machine window to what explains a notice (the exact row when there is one, else its section) and makes it flash */
+function showWatch(root: HTMLElement | null, kind: WatchKind) {
+  const el = root?.querySelector<HTMLElement>(`[data-watch="${kind}"]`) ?? root?.querySelector<HTMLElement>(`[data-sec="${WATCH_SECTION[kind]}"]`);
+  if (!el) return;
+  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  el.classList.add("ring-2", "ring-warn", "animate-pulse");
+  setTimeout(() => el.classList.remove("ring-2", "ring-warn", "animate-pulse"), 2600);
+}
+function WatchSummary({ items, onShow }: { items: WatchItem[]; onShow?: (kind: WatchKind) => void }) {
   const count = (t: WatchTone) => items.filter((i) => i.tone === t).length;
   return (
     <details open={worst(items) >= 2} className="group rounded-lg border border-line/60 bg-card/60 p-3 text-xs sm:col-span-2 xl:col-span-3">
@@ -254,7 +370,15 @@ function WatchSummary({ items }: { items: WatchItem[] }) {
         <ul className="mt-2 flex flex-col gap-1.5">
           {items.map((it, i) => {
             const Icon = WATCH_ICON[it.kind];
-            return <li key={i} className="flex items-start gap-2"><span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`}><Icon size={13} aria-hidden /></span><span className="min-w-0 flex-1 pt-0.5 text-muted">{it.text}</span></li>;
+            return (
+              <li key={i} className="flex items-start gap-2">
+                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`}><Icon size={13} aria-hidden /></span>
+                <span className="min-w-0 flex-1 pt-0.5 text-muted">{it.text}
+                  {it.detail?.length ? <KernelLines lines={it.detail.slice(0, 4)} /> : null}
+                </span>
+                {onShow && <button type="button" onClick={() => onShow(it.kind)} title={tx("Voir où dans cette fenêtre")} aria-label={tx("Voir où dans cette fenêtre")} className="shrink-0 rounded p-1 text-dim hover:text-txt"><Crosshair size={13} aria-hidden /></button>}
+              </li>
+            );
           })}
         </ul>
       )}
@@ -323,18 +447,33 @@ function SeenBy({ links }: { links?: MachineLinks | null }) {
 /** Names the other tools give the machine, minus its own (« dev.lan » is not another name for « dev ») */
 const otherNames = (m: Machine) => (m.links?.names ?? []).filter((n) => n.split(".")[0].toLowerCase() !== m.name.toLowerCase());
 
+/** Where UniFi sees the address plugged: the switch and its port, or the access point for a Wi-Fi client */
+function PlugLine({ u }: { u: NonNullable<AddressSheet["unifi"]> }) {
+  if (u.wired) return <span><b>{u.switch_name ?? tx("switch")}</b>{u.switch_port != null && <> · {tx("port {0}", u.switch_port)}</>}<Dim> · {tx("filaire")}{u.switch_ip ? ` · ${u.switch_ip}` : ""}{u.switch_model ? ` · ${u.switch_model}` : ""}</Dim></span>;
+  return <span><b>{u.ap_name ?? "Wi-Fi"}</b><Dim> · Wi-Fi{u.ap_model ? ` · ${u.ap_model}` : ""}</Dim></span>;
+}
+
+/** The scalar fields of a Freebox record, « key: value » (the shape is the box's own: nothing is assumed beyond that) */
+const factsOf = (o: Record<string, unknown>): string => Object.entries(o).filter(([, v]) => ["string", "number", "boolean"].includes(typeof v) && v !== "").slice(0, 5).map(([k, v]) => `${k}: ${String(v)}`).join(" · ");
+
+/** A port redirection of the Freebox: « tcp 2222 → 22 », else its fields */
+function forwardText(f: Record<string, unknown>): string {
+  const wan = f.wan_port_start ?? f.wan_port, lan = f.lan_port, proto = f.ip_proto ?? f.protocol;
+  return wan != null && lan != null ? `${proto ? `${String(proto)} ` : ""}${String(wan)} → ${String(lan)}${f.comment ? ` · ${String(f.comment)}` : ""}` : factsOf(f);
+}
+
 /** « VM 101 sur pve » / « nœud Proxmox pve » */
-function Virt({ links }: { links?: MachineLinks | null }) {
+function Virt({ links, version }: { links?: MachineLinks | null; version?: string }) {
   const g = links?.guest, n = links?.hypervisor;
   if (g) return <>{g.type === "lxc" ? tx("conteneur LXC") : "VM"} {g.vmid} {tx("sur")} <b>{g.node}</b>{g.status && g.status !== "running" && <Dim> · {g.status}</Dim>}</>;
-  if (n) return <>{n.source === "proxmox" || !n.source ? tx("nœud Proxmox") : tx("hôte VMware ESXi")} <b>{n.node}</b></>;
+  if (n) return <>{n.source === "proxmox" || !n.source ? tx("nœud Proxmox") : tx("hôte VMware ESXi")} <b>{n.node}</b>{version && <Dim> · {tx("version")} {version}</Dim>}</>;
   return null;
 }
 
 
 /** Rubrique du détail, avec d'où viennent ses données à droite de la bande de titre */
-function Section({ icon, title, tone, from, children }: { icon: typeof Info; title: string; tone: "link" | "violet" | "ok" | "warn" | "bad"; from?: Origin[]; children: React.ReactNode }) {
-  return <DetailSection icon={icon} title={title} tone={tone} right={from?.length ? <From list={from} /> : undefined}>{children}</DetailSection>;
+function Section({ icon, title, tone, from, sec, children }: { sec?: string; icon: typeof Info; title: string; tone: "link" | "violet" | "ok" | "warn" | "bad"; from?: Origin[]; children: React.ReactNode }) {
+  return <DetailSection sec={sec} icon={icon} title={title} tone={tone} right={from?.length ? <From list={from} /> : undefined}>{children}</DetailSection>;
 }
 const Row = DetailRow;
 
@@ -361,6 +500,56 @@ export function DriveStatus({ d }: Readonly<{ d: NonNullable<HealthHost["drives"
       {d.temperature != null && <Badge tone={d.temperature >= 85 ? "bad" : d.temperature >= 75 ? "warn" : "off"}>{Math.round(d.temperature)} °C</Badge>}
       <Badge tone={d.smart_ok === false ? "bad" : "off"}>{smart}</Badge>
     </span>
+  );
+}
+
+/** Fields in console mode: a dark framed block, monospace, one line per entry (the same look as the kernel log); `cols` lays several columns out on a grid */
+function ConsoleBox({ children, cols }: Readonly<{ children: React.ReactNode; cols?: string }>) {
+  return <span className={`${cols ? "grid gap-x-3" : "flex flex-col"} gap-y-0.5 overflow-x-auto rounded-md border border-line bg-bg px-2.5 py-1.5 font-mono text-[11px] leading-snug`} style={cols ? { gridTemplateColumns: cols } : undefined}>{children}</span>;
+}
+
+/** The kernel messages of a machine, as a framed log of its own across the whole section: the time in a dim column, the message wrapped, scrolling past a dozen lines */
+function KernelLines({ lines, tall = false }: Readonly<{ lines: string[]; tall?: boolean }>) {
+  return (
+    <span className={`grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 overflow-y-auto rounded-md border border-warn/40 bg-bg px-2.5 py-2 font-mono text-[11px] leading-snug ${tall ? "max-h-60" : "max-h-32"}`}>
+      {lines.map((l, i) => {
+        const { when, msg } = kernelLine(l);
+        return <Fragment key={i}><span className="whitespace-nowrap text-dim">{when}</span><span className="break-words text-muted">{msg}</span></Fragment>;
+      })}
+    </span>
+  );
+}
+
+/** « Kernel errors » block of the Health section: what it is, how many, the log, and a button to copy it (to paste into a report or a search) */
+function KernelBlock({ id, lines }: Readonly<{ id: string; lines: string[] }>) {
+  const [copied, setCopied] = useState(false);
+  const { ignored, set } = useContext(KernelIgnore);
+  const sig = kernelSig(lines);
+  if (ignored[id] === sig) {
+    return (
+      <div data-watch="kernel" className="my-1 flex flex-wrap items-center gap-2 rounded-md border border-line/60 px-2.5 py-1.5 text-muted">
+        <Bug size={14} aria-hidden /><span>{tx("Erreurs noyau ignorées (plus récentes que ce message : elles reviendront)")}</span>
+        <button type="button" onClick={() => set(id, null)} className="ml-auto rounded-md border border-line px-1.5 py-0.5 text-[11px] hover:border-link hover:text-txt">{tx("Réactiver")}</button>
+      </div>
+    );
+  }
+  const copy = () => { navigator.clipboard.writeText(lines.join("\n")).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => undefined); };
+  return (
+    <div data-watch="kernel" className="my-1 flex flex-col gap-1.5 rounded-md border border-warn/40 bg-warn/5 p-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Bug size={14} className="text-warn" aria-hidden />
+        <b className="text-warn">{tx("Erreurs noyau")}</b><Badge tone="warn">{lines.length}</Badge>
+        <Dim>{tx("sur 12 h, relevées par journalctl -k")}</Dim>
+        <button type="button" onClick={copy} className="ml-auto inline-flex items-center gap-1 rounded-md border border-line px-1.5 py-0.5 text-[11px] text-muted hover:border-link hover:text-txt" title={tx("Copier ces messages")}>
+          {copied ? <Check size={12} aria-hidden /> : <Copy size={12} aria-hidden />}{copied ? tx("Copié") : tx("Copier")}
+        </button>
+        <button type="button" onClick={() => set(id, sig)} className="inline-flex items-center gap-1 rounded-md border border-line px-1.5 py-0.5 text-[11px] text-muted hover:border-link hover:text-txt" title={tx("Cacher ces erreurs, déjà réglées : elles reviennent si un message plus récent apparaît")}>
+          <EyeOff size={12} aria-hidden />{tx("Ignorer")}
+        </button>
+      </div>
+      <KernelLines lines={lines} tall />
+      <Dim>{tx("Un message isolé n'est pas toujours grave ; plusieurs lignes de disque, mémoire ou réseau qui se répètent méritent un coup d'œil.")}</Dim>
+    </div>
   );
 }
 
@@ -414,6 +603,7 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
           <ProbeChips items={h.fans.map((f) => ({ name: f.name, value: `${Math.round(f.rpm)} ${tx("tr/min")}`, tone: "" }))} />
         </DetailRow>
       )}
+      {h.kernel?.has_errors && <KernelBlock id={h.id} lines={h.kernel.samples ?? []} />}
       {h.vmem && bar(tx("Mémoire VM"), h.vmem.pct, `${(h.vmem.used_mb / 1024).toFixed(1)} / ${(h.vmem.total_mb / 1024).toFixed(1)} ${tx("Go")}`)}
       {h.vms && (
         <DetailRow k={tx("Machines virtuelles")} title={tx("Machines virtuelles")}>
@@ -424,14 +614,46 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
   );
 }
 
+/** « Share » section: a machine that holds backups of others (a box, a NAS: a followed shared folder, or a machine that receives rsync copies) shows what it hosts,
+ *  its free space and, for each set, how old its copy is. Nothing for a machine that holds no copy. */
+export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine; backups?: Backups | null; from: Origin[] }>) {
+  const host = backups?.hosts?.find((h) => h.ip === m.ip);
+  const hosted = host ? (backups?.sets ?? []).flatMap((s) => s.locations.filter((l) => l.host === host.id && s.origin !== host.id).map((l) => ({ s, l }))) : [];
+  if (!host || (!host.storage && !hosted.length)) return null;
+  const disk = [...host.disks].sort((a, b) => b.size - a.size)[0];
+  const worst = hosted.reduce((n, { l }) => Math.max(n, ({ crit: 2, down: 2, warn: 1 } as Record<string, number>)[l.level] ?? 0), 0);
+  return (
+    <Section sec="share" icon={FolderOpen} title={tx("Partage")} tone={worst >= 2 ? "bad" : "link"} from={from}>
+      <Row k={tx("Copies hébergées")}>{hosted.length ? tx("{0} jeu(x)", hosted.length) : <Dim>{tx("aucune")}</Dim>}</Row>
+      {disk && <Row k={tx("Espace")}><Fill pct={disk.pct} /><span className="tabular-nums">{disk.pct} %</span><Dim>{bytes(disk.avail)} {tx("libres")} · {disk.mount}</Dim></Row>}
+      {hosted.length > 0 && (
+        <Row k={tx("Détail")}>
+          <ConsoleBox cols="minmax(0,1fr) auto auto">
+            {hosted.map(({ s, l }) => (
+              <Fragment key={`${s.id}-${l.label}`}>
+                <span className="truncate text-txt" title={s.label}>{s.label.replace(/^[^:]*: /, "")}<span className="text-dim"> ← {s.label.split(":")[0].trim()}</span></span>
+                <span className="whitespace-nowrap text-dim">{l.via ?? ""}</span>
+                <span className={`whitespace-nowrap text-right ${l.level === "ok" ? "text-dim" : l.level === "warn" ? "text-warn" : "text-bad"}`}>{l.age != null ? ageDays(l.age) : tx("jamais vue")}</span>
+              </Fragment>
+            ))}
+          </ConsoleBox>
+        </Row>
+      )}
+      {host.sets.length > 0 && <Row k={tx("Jeux produits ici")}>{host.sets.length}</Row>}
+    </Section>
+  );
+}
+
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, unifiNet, freebox, containers, onFilter }: Readonly<{ onFilter?: (sel: Selected) => void; m: Machine; containers?: React.ReactNode; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
+function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, unifiNet, freebox, containers, onFilter, focus, backups, pve, sheet }: Readonly<{ pve?: string; sheet?: AddressSheet; backups?: Backups | null; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; containers?: React.ReactNode; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
   const unifiOnly = !!unifi && !m.info && !m.agent;   // read only through UniFi: no SSH, no agent
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (focus) setTimeout(() => showWatch(root.current, focus.kind), 120); }, [focus]);   // opened from a badge: show where its notice is explained
   const i = m.info, hw = hardwareRows(m.agent?.hardware);
   return (
-    <div className="grid gap-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
-      <WatchSummary items={watch} />
-      <IdentitySection m={m} mac={mac} net={net} from={[...from.role, ...from.mac]} tool={freebox || unifi ? "MynetworK" : undefined} />
+    <div ref={root} className="grid gap-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
+      <WatchSummary items={watch} onShow={(kind) => showWatch(root.current, kind)} />
+      <IdentitySection m={m} mac={mac} net={net} from={[...from.role, ...from.mac]} tool={freebox || unifi ? "MynetworK" : undefined} pve={pve} sheet={sheet} />
 
       <Section icon={Cpu} title={tx("Système")} tone="violet" from={from.os}>
         <Row k={tx("Système")}>{i?.os || m.agent?.os || haSystemName(ha) || undefined}</Row>
@@ -439,7 +661,7 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, uni
         {unifi && <UnifiRows d={unifi} sys={unifiSys} />}
         {freebox?.system && <FreeboxRows fb={freebox} />}
         <Row k={tx("Noyau")}>{i?.kernel || m.agent?.kernel || undefined}</Row>
-        <Row k={tx("En marche")}>{uptimeOf(m, unifi, freebox) ? dur(uptimeOf(m, unifi, freebox)!) : undefined}</Row>
+        <Row k={tx("En marche")}>{uptimeOf(m, unifi, freebox, ha) ? dur(uptimeOf(m, unifi, freebox, ha)!) : undefined}</Row>
         {hw.map(([k, v]) => <Row key={k} k={k}>{v}</Row>)}
         <GpuRows m={m} />
         {!i && !m.agent && !ha?.system && !unifi && !freebox && <Dim>-</Dim>}
@@ -453,8 +675,12 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, uni
       {!freebox && unifiOnly && <UnifiNetworkSection d={unifi} sys={unifiSys} net={unifiNet} from={from.services} />}
       {!(freebox && (freebox.vms || freebox.vm_system)) && !(!freebox && unifiOnly) && <SoftwareSection m={m} servers={servers} ha={ha} from={from.services} containers={containers} onFilter={onFilter} />}
 
+      {ha && <HaBackupsSection ha={ha} from={from.services} />}
+      {ha && <HaInsideSection ha={ha} from={from.services} />}
+      <SharedBackupsSection m={m} backups={backups} from={from.services} />
+
       <HealthSection h={h} from={from.health} />
-      <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} freebox={freebox} unifi={unifi} unifiSys={unifiSys} />
+      <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} freebox={freebox} unifi={unifi} unifiSys={unifiSys} ha={ha} />
     </div>
   );
 }
@@ -713,7 +939,7 @@ function HaSystemRows({ sys }: Readonly<{ sys: NonNullable<ServiceStatus["system
 }
 
 /** Detail, « Identity »: name, IP, state, roles, MAC, what the network tools saw, other names, virtualization */
-function IdentitySection({ m, mac, net, from, tool }: Readonly<{ m: Machine; mac?: string; net?: NetDevice; from: Origin[]; tool?: string }>) {
+function IdentitySection({ m, mac, net, from, tool, pve, sheet }: Readonly<{ m: Machine; mac?: string; net?: NetDevice; from: Origin[]; tool?: string; pve?: string; sheet?: AddressSheet }>) {
   const roles = rolesOf(m.role);
   // read by a network tool's API (the Freebox, a UniFi gateway): « online, no SSH » would be wrong, it is followed through that tool
   const viaTool = tool && mState(m) === "nossh";
@@ -725,10 +951,14 @@ function IdentitySection({ m, mac, net, from, tool }: Readonly<{ m: Machine; mac
         <Row k={tx("État")}><Badge tone={stTone} title={stTip}>{stLabel}</Badge></Row>
         <Row k={tx("Rôle")}>{roles.length ? <span className="flex flex-wrap gap-1">{roles.map((t) => <Badge key={t} tone="off">{t}</Badge>)}</span> : undefined}</Row>
         <Row k="MAC">{mac && <span className="font-mono">{mac}</span>}</Row>
-        <Row k={tx("Ports ouverts")}>{net?.ports.length ? <span className="font-mono" title={tx("Vus par le scanner de MynetworK")}>{net.ports.join(", ")}</span> : undefined}</Row>
+        <Row k={tx("Ports ouverts")}>{net?.ports.length ? <span className="font-mono" title={tx("Vus par le scanner de MynetworK")}>{net.ports.join(", ")}{net.ports_at && <Dim> · {tx("scannés le {0}", dateTime(net.ports_at))}</Dim>}</span> : undefined}</Row>
         <Row k={tx("Sur le réseau")}>{net?.first_seen ? <span title={tx("Vue par MynetworK")}>{tx("depuis le {0}", dateTime(net.first_seen))}{net.last_seen && <Dim> · {tx("vue le {0}", dateTime(net.last_seen))}</Dim>}{net.ping_ms != null && <Dim> · {Math.round(net.ping_ms)} ms</Dim>}</span> : undefined}</Row>
         <Row k={tx("Autres noms")}>{otherNames(m).join(", ") || undefined}</Row>
-        <Row k={tx("Virtualisation")}>{m.links?.guest || m.links?.hypervisor ? <Virt links={m.links} /> : undefined}</Row>
+        <Row k={tx("Branchement")}>{sheet?.unifi && (sheet.unifi.wired || sheet.unifi.wireless) ? <PlugLine u={sheet.unifi} /> : undefined}</Row>
+        <Row k={tx("Nom dans UniFi")}>{sheet?.unifi?.name && sheet.unifi.name.toLowerCase() !== m.name.toLowerCase() ? sheet.unifi.name : undefined}</Row>
+        <Row k={tx("Bail de la Freebox")}>{sheet?.freebox?.dhcp ? <span><span className="font-mono">{sheet.freebox.dhcp.ip}</span><Dim> · {sheet.freebox.dhcp.static ? tx("réservation fixe") : tx("adresse attribuée")}</Dim></span> : undefined}</Row>
+        <Row k={tx("Redirections de ports")}>{sheet?.freebox?.forwards?.length ? <span className="flex flex-col gap-0.5 font-mono text-xs">{sheet.freebox.forwards.map((f, i) => <span key={i}>{forwardText(f)}</span>)}</span> : undefined}</Row>
+        <Row k={tx("Virtualisation")}>{m.links?.guest || m.links?.hypervisor ? <Virt links={m.links} version={pve} /> : undefined}</Row>
         <Row k={tx("Vue par")}>{m.links?.sources.length ? <SeenBy links={m.links} /> : undefined}</Row>
         <Row k="TTL">{m.ttl ? <span title={tx("Durée de vie des paquets du ping : 64 Linux, 128 Windows")}>{m.ttl}</span> : undefined}</Row>
       </Section>
@@ -739,7 +969,7 @@ function IdentitySection({ m, mac, net, from, tool }: Readonly<{ m: Machine; mac
 function AccessSection({ m, from }: Readonly<{ m: Machine; from: Origin[] }>) {
   const i = m.info, s = m.ssh;
   return (
-      <Section icon={KeyRound} title={tx("Accès")} tone="ok" from={from}>
+      <Section sec="access" icon={KeyRound} title={tx("Accès")} tone="ok" from={from}>
         {s ? <>
           <Row k={tx("Connexion")}><SshAccess alias={s.alias} user={s.user} ip={m.ip} port={s.port} refused={!i && !!s.identity} /></Row>
           <Row k={tx("Clé")}><KeyCell m={m} /></Row>
@@ -762,7 +992,7 @@ function SoftwareSection({ m, servers, ha, from, containers, onFilter }: Readonl
   const i = m.info;
   const vhosts = (i?.vhosts ?? []) as { port?: number; names?: string[] }[];
   return (
-      <Section icon={Boxes} title={tx("Logiciels et services")} tone="warn" from={from}>
+      <Section sec="services" icon={Boxes} title={tx("Logiciels et services")} tone="warn" from={from}>
         <Row k={tx("Serveurs")}>{servers}</Row>
         <Row k={tx("Services")}>
           {onFilter && m.services > 0 ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services")} onClick={() => onFilter({ machine: [m.ip] })}>{m.services}</button> : m.services}
@@ -778,6 +1008,68 @@ function SoftwareSection({ m, servers, ha, from, containers, onFilter }: Readonl
         {!m.services && !i?.docker && !i?.apache && !i?.nginx && !m.agent?.docker && !m.agent?.apps?.length && !m.api?.length && <Dim>-</Dim>}
       </Section>
   );
+}
+
+/** Home Assistant, advanced mode: its backups, with where each one is copied (the shares), the last automatic one first */
+export function HaBackupsSection({ ha, from }: Readonly<{ ha: ServiceStatus; from: Origin[] }>) {
+  const bk = ha.mcp?.backups;
+  if (!bk) return null;
+  const now = Date.now() / 1000, items = [...bk.items].sort((a, b) => b.date - a.date);
+  const lastAuto = items.find((x) => x.auto), places = [...new Set(items.slice(0, 8).flatMap((x) => x.locations))];
+  const age = (t: number) => ageDays((now - t) / 86400);
+  const alone = (x: (typeof items)[number]) => x.locations.every((l) => l === "local");
+  return (
+    <Section sec="ha-backups" icon={Archive} title={tx("Sauvegardes Home Assistant")} tone={lastAuto && now - lastAuto.date < 3 * 86400 ? "ok" : "warn"} from={from}>
+      <Row k={tx("Dernière automatique")}>{lastAuto ? <span>{dateTime(lastAuto.date * 1000)} <Dim>· {age(lastAuto.date)} · {bytes(lastAuto.size)}{lastAuto.protected ? ` · 🔒 ${tx("chiffrée")}` : ""}</Dim></span> : <span className="text-warn">{tx("aucune")}</span>}</Row>
+      <Row k={tx("Total")}>{bk.total} <Dim>· {bytes(items.reduce((n, x) => n + x.size, 0))}</Dim></Row>
+      <Row k={tx("Copiée vers")}>{places.length ? (
+        <ConsoleBox>
+          {places.map((pl) => pl === "local"
+            ? <span key={pl} className="text-warn" title={tx("Reste sur Home Assistant lui-même")}>{tx("sur HA seulement")}</span>
+            : <span key={pl} className="text-muted" title={tx("Partage ou emplacement de sauvegarde déclaré dans Home Assistant")}><span className="text-dim">→ </span>{pl}</span>)}
+        </ConsoleBox>
+      ) : undefined}</Row>
+      <Row k={tx("Récentes")}>
+        <ul className="flex min-w-0 flex-col gap-1">
+          {items.slice(0, 5).map((x) => (
+            <li key={x.id} className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+              <span className="min-w-0 truncate" title={x.name}>{x.name}</span>
+              <Dim>{x.auto ? tx("auto") : tx("manuelle")} · {dateTime(x.date * 1000)} · {bytes(x.size)}</Dim>
+              {alone(x) ? <span className="text-warn" title={tx("Pas de copie hors de Home Assistant")}>{tx("sur HA seulement")}</span> : <Dim>{x.locations.join(", ")}</Dim>}
+            </li>
+          ))}
+        </ul>
+      </Row>
+    </Section>
+  );
+}
+
+/** Home Assistant, advanced mode: apps (add-ons) running or stopped, integrations loaded or failing, configuration check and repairs */
+export function HaInsideSection({ ha, from }: Readonly<{ ha: ServiceStatus; from: Origin[] }>) {
+  const mcp = ha.mcp;
+  if (!mcp || (!mcp.apps && !mcp.integrations && !mcp.health)) return null;
+  const { apps, integrations: ig, health } = mcp, bad = ig?.problems ?? [];
+  const stopped = apps?.items.filter((a) => a.state !== "started") ?? [];
+  const loaded = ig?.states.loaded ?? 0, notLoaded = ig?.states.not_loaded ?? 0;
+  const ok = (!health || (health.config_ok !== false && !(health.repairs_count ?? 0))) && !bad.length;
+  return (
+    <Section sec="ha-inside" icon={Puzzle} title={tx("Home Assistant : applis et intégrations")} tone={ok ? "ok" : "warn"} from={from}>
+      {apps && <Row k={tx("Applis")}>{apps.total} <Dim>· {tx("{0} en marche", apps.running)}{apps.stopped ? ` · ${tx("{0} arrêtée(s)", apps.stopped)}` : ""}</Dim></Row>}
+      {stopped.length > 0 && <Row k={tx("Arrêtées")}><span className="min-w-0 break-words text-muted">{stopped.map((a) => a.name).join(", ")}</span></Row>}
+      {ig && <Row k={tx("Intégrations")}>{ig.total} <Dim>· {tx("{0} chargées", loaded)}{notLoaded ? ` · ${tx("{0} non chargées", notLoaded)}` : ""}</Dim></Row>}
+      {bad.length > 0 && <Row k={tx("En échec")}><span className="min-w-0 break-words text-warn">{bad.map((b) => `${b.domain}${b.title ? ` (${b.title})` : ""}`).join(", ")}</span></Row>}
+      {health && <Row k={tx("Configuration")}>{health.config_ok === false ? <span className="text-bad">{tx("erreurs : {0}", (health.config_errors ?? []).join(" ; ") || "?")}</span> : <span className="text-ok">{tx("valide")}</span>}</Row>}
+      {health && <Row k={tx("Réparations")}>{(health.repairs_count ?? 0) ? <span className="text-warn">{health.repairs_count}</span> : <span className="text-ok">{tx("aucune")}</span>}</Row>}
+    </Section>
+  );
+}
+
+/** Updates Home Assistant waits for, by kind: Home Assistant itself, its apps, and the rest (HACS integrations and cards, other entities) */
+function HaUpdates({ ha }: Readonly<{ ha: ServiceStatus }>) {
+  const ups = ha.updates ?? [], group = (g: string) => ups.filter((u) => (u.group ?? "other") === g);
+  const line = (u: NonNullable<ServiceStatus["updates"]>[number]) => <li key={u.name}>{u.name} <Dim>{[u.installed, u.latest].filter(Boolean).join(" → ")}</Dim></li>;
+  const kinds: [string, string][] = [["core", tx("Home Assistant")], ["addon", tx("Applis")], ["other", tx("HACS et autres")]];
+  return <>{kinds.map(([g, label]) => group(g).length > 0 && <Row key={g} k={label}><ul className="flex min-w-0 flex-col gap-0.5">{group(g).map(line)}</ul></Row>)}</>;
 }
 
 /** Updates waiting on a machine, always shown in the detail window: the packages (apt, « name → version ») or the Windows updates, up to 30 named */
@@ -822,16 +1114,17 @@ function UpdatesChip({ h }: Readonly<{ h?: HealthHost }>) {
 }
 
 /** Detail, « Updates »: up to date, or the packages / Windows updates waiting (folded list), and a reboot required */
-export function UpdatesSection({ h, windows, from, freebox, unifi, unifiSys }: Readonly<{ h?: HealthHost; windows: boolean; from: Origin[]; freebox?: FreeboxInfo; unifi?: UnifiDevice; unifiSys?: UnifiSystem }>) {
-  if (!h) return null;
-  const n = h.apt?.upgradable ?? 0;
+export function UpdatesSection({ h, windows, from, freebox, unifi, unifiSys, ha }: Readonly<{ h?: HealthHost; windows: boolean; from: Origin[]; freebox?: FreeboxInfo; unifi?: UnifiDevice; unifiSys?: UnifiSystem; ha?: ServiceStatus }>) {
+  if (!h && !ha) return null;
+  const haN = ha?.updates?.length ?? 0, n = (h?.apt?.upgradable ?? 0) + haN;
   return (
-    <Section icon={ArrowUpCircle} title={tx("Mises à jour")} tone={n || h.reboot_required ? "warn" : "ok"} from={from}>
+    <Section sec="updates" icon={ArrowUpCircle} title={tx("Mises à jour")} tone={n || h?.reboot_required ? "warn" : "ok"} from={from}>
       {freebox && <FreeboxFirmware fb={freebox} />}
       {!freebox && unifi && <UnifiFirmware d={unifi} sys={unifiSys} />}
       {!n && <Row k={tx("État")}><span className="text-ok">{tx("à jour")}</span></Row>}
-      {h.reboot_required && <Row k={tx("Redémarrage")}><span className="text-warn">{tx("redémarrage requis")}</span></Row>}
-      <UpdatesFold h={h} windows={windows} />
+      {ha && <HaUpdates ha={ha} />}
+      {h?.reboot_required && <Row k={tx("Redémarrage")}><span className="text-warn">{tx("redémarrage requis")}</span></Row>}
+      {h && <UpdatesFold h={h} windows={windows} />}
     </Section>
   );
 }
@@ -840,7 +1133,7 @@ export function UpdatesSection({ h, windows, from, freebox, unifi, unifiSys }: R
 export function HealthSection({ h, from }: Readonly<{ h?: HealthHost; from: Origin[] }>) {
   const failed = h?.systemd?.failed.length || 0;
   return (
-      <Section icon={HeartPulse} title={tx("Santé")} tone="bad" from={from}>
+      <Section sec="health" icon={HeartPulse} title={tx("Santé")} tone="bad" from={from}>
         {h ? <>
           <Row k={tx("Niveau")}><Level level={h.reachable === false ? "down" : h.level} /></Row>
           <HealthRows h={h} />
@@ -860,8 +1153,9 @@ function healthRank(m: Machine, h: HealthHost | undefined, followed: boolean): n
 }
 
 /** How long a machine has been up, from whatever reads it: SSH, its agent, the UniFi console or the Freebox */
-function uptimeOf(m: Machine, unifi?: UnifiDevice, fb?: FreeboxInfo): number | undefined {
-  return m.info?.uptime_s ?? m.agent?.uptime_s ?? unifi?.uptime ?? fb?.system?.uptime ?? undefined;
+function uptimeOf(m: Machine, unifi?: UnifiDevice, fb?: FreeboxInfo, ha?: ServiceStatus): number | undefined {
+  const booted = ha?.host?.boot ? Date.parse(ha.host.boot) : NaN;   // Home Assistant gives its last boot time, not a duration
+  return m.info?.uptime_s ?? m.agent?.uptime_s ?? unifi?.uptime ?? fb?.system?.uptime ?? (Number.isNaN(booted) ? undefined : Math.max(0, Math.floor((Date.now() - booted) / 1000)));
 }
 
 /** The model a network tool reads for this machine (the Freebox, a UniFi device): its photo is the icon */
@@ -882,7 +1176,7 @@ function HealthLevel({ m, h, followed }: Readonly<{ m: Machine; h?: HealthHost; 
     const key = levelKey(h), [tone, label] = LEVEL[key] ?? ["off", key], items = key === "ok" ? [] : healthItems(h);
     // not OK: the tooltip says why (the same sentences as the « À surveiller » column)
     const title = items.length ? [label.charAt(0).toUpperCase() + label.slice(1), ...items.map((i) => `• ${i.text}`)].join("\n") : undefined;
-    return <Badge tone={tone} title={title}>{label}</Badge>;
+    return <Badge tone={tone} title={title} outline={key === "warn"} plainText={key === "warn"}>{label}</Badge>;   // « à surveiller »: outline only
   }
   if (followed && !m.off) return <Badge tone="info" title={tx("Une source de santé existe (SSH, agent, Beszel ou Home Assistant) : la machine sera lue au prochain passage de la tâche Santé (Réglages → Tâches et horaires)")}>{tx("en attente du relevé")}</Badge>;
   if (m.off) return <Badge tone="off" title={tx("Éteinte volontairement, aucune alerte")}>{tx("éteinte")}</Badge>;
@@ -911,14 +1205,14 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
   m: Machine; h?: HealthHost; snap: Snapshot; scan?: { os?: string; apps: string[]; ssh?: boolean }; os: OsKind | null; watch: WatchItem[]; ha?: ServiceStatus; unifi?: UnifiDevice;
   off: boolean; state: React.ReactNode; shown: boolean; onToggle: () => void; onMachine: (ip: string) => void; detail: React.ReactNode;
 }>) {
-  const up = uptimeOf(m, unifi, freeboxOf(m, snap.data.network));
+  const up = uptimeOf(m, unifi, freeboxOf(m, snap.data.network), ha);
   const edge = LEVEL_EDGE[levelKey(h)] ?? "";
   return (
     <div className={`flex flex-col gap-2.5 overflow-hidden rounded-xl border border-l-[3px] border-line bg-card p-3 transition-colors hover:border-link/50 ${edge} ${shown ? "col-span-full" : ""} ${off ? "opacity-50" : ""}`}>
       <div className="-mx-3 -mt-3 flex items-center gap-2.5 border-b border-line/60 bg-bg px-3 py-2.5">
-        <MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifi) }} scan={scan} reserve />
+        <AlertDot items={watch}><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifi) }} scan={scan} reserve /></AlertDot>
         <button type="button" onClick={() => onMachine(m.ip)} className="min-w-0 flex-1 text-left" title={tx("Voir ses services")}>
-          <b className="block truncate font-semibold hover:text-link">{m.name}</b>
+          <b className="flex items-center gap-1.5 truncate font-semibold hover:text-link"><span className="truncate">{m.name}</span><VmMark m={m} h={h} /></b>
           <span className="block truncate font-mono text-[11px] text-dim">{m.ip}</span>
         </button>
         {state}
@@ -932,7 +1226,7 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
       <ResStrip h={h} first={<Stat label={tx("Services")}><span className="inline-flex items-center gap-1"><b>{m.services}</b><DownBadge m={m} snap={snap} /></span></Stat>} />
       <div className="flex min-h-7 items-center justify-between gap-2">
         {ha?.addons?.length ? <AddonStrip s={ha} max={6} /> : <Servers m={m} snap={snap} max={4} />}   {/* Home Assistant: its add-ons stand for the servers */}
-        <WatchList items={watch} />
+        <WatchList ip={m.ip} items={watch} />
       </div>
       <button type="button" onClick={onToggle} aria-expanded={shown} className="flex items-center gap-1.5 border-t border-line/60 pt-2 text-xs text-muted hover:text-txt">
         <ChevronRight size={13} className={`transition-transform ${shown ? "rotate-90" : ""}`} aria-hidden />{shown ? tx("Replier") : tx("Détails")}
@@ -962,16 +1256,30 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean }>>({});
   useEffect(() => { read<NetScan>("network/scan").then((n) => setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [], ssh: !!h.ssh_port }])))).catch(() => undefined); }, []);
   const osOf = useCallback((m: Machine): OsKind | null => osOfMachine({ os: m.agent ? "windows" : undefined, info: m.info, ttl: m.ttl, name: m.name }, scanOs[m.ip]?.os, scanOs[m.ip]?.ssh)?.kind ?? null, [scanOs]);
+  const [ignored, setIgnored] = useState<Record<string, string>>(() => { try { return JSON.parse(localStorage.getItem(KERNEL_KEY) ?? "{}") as Record<string, string>; } catch { return {}; } });
+  const setIgnore = useCallback((id: string, sig: string | null) => setIgnored((cur) => {
+    const next = { ...cur }; if (sig === null) delete next[id]; else next[id] = sig;
+    try { localStorage.setItem(KERNEL_KEY, JSON.stringify(next)); } catch { /* private browsing: not kept */ }
+    return next;
+  }), []);
+  const anyGpu = useMemo(() => snap.data.machine_list.some((m) => !m.disabled && gpusOf(m).length > 0), [snap.data.machine_list]);   // the column exists only when some machine has a GPU to show
+  const ignoreCtx = useMemo(() => ({ ignored, set: setIgnore }), [ignored, setIgnore]);
+  const watchOf = useCallback((m: Machine) => {
+    const h = hb.get(m.ip), items = watchItems(m, h, snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m));
+    return h && ignored[h.id] === kernelSig(h.kernel?.samples) ? items.filter((i) => i.kind !== "kernel") : items;   // set aside by the viewer, until a newer message
+  }, [hb, snap.data.connectors, snap.data.network, unifiOf, ignored]);
   const facets = useMemo((): Facet<Machine>[] => [
     { key: "state", label: tx("État"), get: mState, name: (v) => MSTATE[v as MState][1], order: ORDER, mark: (v) => <Dot tone={MSTATE[v as MState][0]} /> },
     { key: "health", label: tx("Santé"), get: (m) => { const h = hb.get(m.ip); return h ? (h.reachable === false ? "down" : h.level) : ""; },
       name: (v) => ({ ok: "OK", warn: tx("à surveiller"), crit: "critique", down: "injoignable" } as Record<string, string>)[v] || v, order: ["ok", "warn", "crit", "down"], mark: (v) => <Dot tone={LEVEL[v]?.[0] ?? "off"} /> },
+    { key: "alert", label: tx("Alertes"), get: (m) => { const w = worst(watchOf(m)); return w ? TONE_OF_RANK[w] : ""; },
+      name: (v) => ({ bad: tx("problème à regarder"), warn: tx("à surveiller"), info: tx("information") } as Record<string, string>)[v] || v, order: ["bad", "warn", "info"], mark: (v) => <Dot tone={v === "bad" ? "bad" : v === "warn" ? "warn" : "info"} /> },
     { key: "os", label: tx("Système"), get: (m) => osOf(m) ?? "", name: (v) => OS_LABEL[v as OsKind], order: OS_ORDER, mark: (v) => <OsGlyph kind={v as OsKind} size={13} /> },
     { key: "access", label: tx("Accès"), get: (m) => (m.ssh ? "ssh" : m.agent ? "agent" : "none"), name: (v) => ({ ssh: "SSH", agent: tx("Agent"), none: tx("aucun") } as Record<string, string>)[v], order: ["ssh", "agent", "none"],
       mark: (v) => <Dot tone={v === "none" ? "off" : "ok"} /> },
     { key: "role", label: tx("Rôle"), get: (m) => rolesOf(m.role) },
     { key: "user", label: tx("Compte SSH"), get: (m) => m.ssh?.user || "" },
-  ], [hb, osOf]);
+  ], [hb, osOf, watchOf]);
   const text = useCallback((m: Machine) => [m.name, m.ip, m.role, stateBadge(m)[1], m.ssh?.alias, m.ssh?.user, m.info?.os].join(" "), []);
   // « Ne plus suivre » se règle uniquement dans Réglages → Machines (interrupteur « Machine suivie ») ; ici, les machines non suivies restent masquées d'office.
   const isOff = (m: Machine) => !!m.disabled;
@@ -985,24 +1293,26 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   const haOf = (m: Machine) => (snap.data.services_status ?? []).find((c) => c.connector === "home-assistant" && c.url && new URL(c.url).hostname === m.ip);
   const keyOf = useCallback((m: Machine, k: string): string | number => {
     switch (k) {
+      case "name": return m.name.toLowerCase();
       case "state": return ORDER.indexOf(mState(m));
       case "os": return m.info?.os || "~";
       case "svc": return -m.services;
       case "health": return healthRank(m, hb.get(m.ip), !!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))) * 1e10 + ipNum(m.ip);   // les plus graves d'abord, puis par adresse
-      case "up": return -(uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network)) ?? -1);   // the longest up first
+      case "up": return -(uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network), haOf(m)) ?? -1);   // the longest up first
       case "watch": { const it = watchItems(m, hb.get(m.ip), snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m)); return -(worst(it) * 100 + it.length); }   // le plus grave d'abord
       default: return ipNum(m.ip);
     }
   }, [hb, snap.data.connectors, snap.data.services_status]);
   const sort = useSort(f.shown, keyOf, "ip");
-  const watchOf = (m: Machine) => watchItems(m, hb.get(m.ip), snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m));
   // Tableau sur une seule ligne par machine ; un clic sur le chevron (ou « Tout déplier ») montre le détail
+  const [focus, setFocus] = useState<{ kind: WatchKind; n: number } | null>(null);   // the notice whose section the opened window shows
+  const pickWatch = useCallback((ip: string, kind: WatchKind) => { setFocus((f) => ({ kind, n: (f?.n ?? 0) + 1 })); setDetailIp(ip); }, []);
   const [detailIp, setDetailIp] = useState<string | null>(null);   // détail d'une machine : dans une fenêtre, plus de ligne qui se déplie
   const [editIp, setEditIp] = useState<string | null>(null);   // fenêtre de réglages d'une machine (engrenage, admin seulement)
   const admin = snap.me.role === "admin";
   const detailOf = (m: Machine) => {
     const h = hb.get(m.ip);
-    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} containers={<DockerList m={m} snap={snap} />} onFilter={onFilter} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} />;
+    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} containers={<DockerList m={m} snap={snap} />} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} sheet={snap.data.sheets?.[m.ip]} pve={snap.data.virtualization?.find((c) => c.connector === "proxmox" && c.version && (c.ip === m.ip || c.name === m.links?.hypervisor?.instance))?.version ?? undefined} />;
   };
   const [view, pickView] = useStoredView("ms.machines.view", "table");  // Tableau ou Cartes, retenu
 
@@ -1042,6 +1352,8 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   };
 
   return (
+    <PickWatch.Provider value={pickWatch}>
+    <KernelIgnore.Provider value={ignoreCtx}>
     <div className="py-1">
       <FilterBar f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
         options={[
@@ -1079,33 +1391,34 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           {view === "table" && <Table fit head={<>
-            <th className="w-10 px-2" aria-label={tx("Icône")} /><Th k="ip" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
-            <Th k="svc" sort={sort}>{tx("Services")}</Th><Th k="watch" sort={sort}>{tx("Santé")}</Th>{snap.health && <><Th className="!px-1.5">{tx("CPU")}</Th><Th className="!px-1.5">{tx("Mémoire")}</Th><Th className="!px-1.5">{tx("Disque")}</Th></>}
-            <Th k="up" sort={sort} className="w-px !pl-2 !pr-1 !text-right">{tx("En marche")}</Th>
+            <th className="w-14 pl-4 pr-2" aria-label={tx("Icône")} /><Th k="name" sort={sort}>{tx("Machine")}</Th><Th k="ip" sort={sort}>IP</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
+            <Th k="svc" sort={sort}>{tx("Services")}</Th><Th k="watch" sort={sort}>{tx("Santé")}</Th>{snap.health && <><Th className="!px-1.5">{tx("CPU")}</Th><Th className="!px-1.5">{tx("Mémoire")}</Th><Th className="!px-1.5">{tx("Disque")}</Th></>}{anyGpu && <Th className="!px-1.5">GPU</Th>}
+            <Th k="up" sort={sort} className="w-px !pl-2 !pr-1 !text-right" title={tx("Temps depuis le dernier démarrage de la machine")}>Uptime</Th>
             {admin && <th className="w-8 px-1" aria-label={tx("Réglages")} />}
           </>}>
             {sort.sorted.map((m) => {
               const h = hb.get(m.ip);
               return (
                 <Fragment key={m.ip}>
-                  <tr className={`cursor-pointer hover:bg-bg2/60 ${isOff(m) ? "opacity-50" : ""}`}
+                  <tr className={`cursor-pointer outline-none even:bg-bg/50 hover:!bg-bg2/60 focus-visible:!bg-bg2/60 [&>td]:!py-3.5 ${isOff(m) ? "opacity-50" : ""}`}
                     tabIndex={0} aria-haspopup="dialog" aria-label={tx("Détails de {0}", m.name)}
                     onClick={(e) => { if (!(e.target as Element).closest("button, a, input, select, label, summary, [role=button]")) setDetailIp(m.ip); }}
                     onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) setDetailIp(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
-                    <td className="w-10 px-2 py-2 align-middle"><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifiOf(m)) }} scan={scanOs[m.ip]} reserve /></td>
-                    <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><span className="text-xs text-dim">{m.ip}</span><ProblemFlag h={h} /></span></Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
+                    <td className="w-14 pl-4 pr-2 py-2 align-middle"><AlertDot items={watchOf(m)}><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifiOf(m)) }} scan={scanOs[m.ip]} reserve /></AlertDot></td>
+                    <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><VmMark m={m} h={hb.get(m.ip)} /><ProblemFlag h={h} /></span></Td>
+                    <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-dim">{m.ip}</Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
                     <Td>{st(m, false)}</Td>
                     <Td><div className="max-w-[11rem]"><SystemLine m={m} os={osOf(m)} ha={haOf(m)} unifi={unifiOf(m)} freebox={freeboxOf(m, snap.data.network)} /></div></Td>
                     <Td><span className="inline-flex items-center gap-1.5">
                       <button type="button" onClick={() => onMachine(m.ip)} title={tx("Voir ses services")} aria-label={tx("Voir les services de {0}", m.name)}
                         className="rounded-md px-1.5 py-0.5 hover:bg-link/10 hover:text-link"><span className="tabular-nums">{m.services}</span></button><DownBadge m={m} snap={snap} /></span></Td>
-                    <Td><span className="flex flex-wrap items-center gap-1.5">   {/* one column: the level, then what explains it (the updates have their flag near the name) */}
+                    <Td><span className="flex flex-wrap items-center gap-1.5 [&>span]:h-6">   {/* same height (24 px) for the level badge and the cause badges; one column: the level, then what explains it (the updates have their flag near the name) */}
                       {snap.health && <HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} />}
-                      <WatchList quiet={!!snap.health} items={watchOf(m).filter((i) => i.kind !== "updates")} /></span></Td>
-                    {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}
-                    <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-muted tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network)); return up ? dur(up) : <Dim>-</Dim>; })()}</Td>
+                      <WatchList ip={m.ip} quiet={!!snap.health} items={watchOf(m).filter((i) => i.kind !== "updates")} /></span></Td>
+                    {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="!px-1.5"><GpuCellView list={gpusOf(m)} /></Td>}
+                    <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-xs tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network), haOf(m)); return up ? <span className={up < 3600 ? "text-warn" : "text-muted"} title={`${dur(up)}${up < 3600 ? ` · ${tx("vient de redémarrer")}` : ""}`}>{durShort(up)}</span> : <Dim>-</Dim>; })()}</Td>
                     {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => setEditIp(m.ip)} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
-                      className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><Settings2 size={14} aria-hidden /></button></td>}
+                      className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><SlidersHorizontal size={14} aria-hidden /></button></td>}
                   </tr>
                 </Fragment>
               );
@@ -1129,5 +1442,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       })()}
       {editIp && <MachineModal ip={editIp} snap={snap} onClose={() => setEditIp(null)} />}
     </div>
+    </KernelIgnore.Provider>
+    </PickWatch.Provider>
   );
 }

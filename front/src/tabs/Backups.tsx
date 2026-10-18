@@ -1,11 +1,12 @@
 // Sauvegardes (backups.py) : synthèse, points d'attention, puis chaque machine (disques, dernier backup local,
 // copies ailleurs, jeux produits) et les dossiers de sauvegarde trouvés sur les disques.
+import { HardDrive } from "lucide-react";
 import { useCallback, useMemo } from "react";
-import { ROOT, type Snapshot } from "../api";
+import { type Snapshot } from "../api";
 import { useFilter, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime } from "../lib/format";
 import type { BackupHost } from "../types";
-import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, TableCard, Td, Th } from "../components/ui";
+import { Badge, Card, Cards, Dim, Empty, Fill, FilterBar, Level, Table, TableCard, Td, Th } from "../components/ui";
 import { LEVEL } from "../lib/level";
 import { Dot } from "../components/marks";
 import { tx } from "../lib/i18n";
@@ -15,7 +16,7 @@ const short = (label: string) => label.replace(/^[^:]*: /, "");
 
 function Tile({ n, label, tone }: { n: string | number; label: string; tone?: "ok" | "warn" | "bad" }) {
   return (
-    <div className="min-w-[7.5rem] flex-1 rounded-xl border border-line bg-card px-3 py-2.5">
+    <div className="min-w-[7.5rem] flex-1 rounded-xl border border-line bg-card px-3 py-2.5 text-center">
       <div className={`font-mono text-xl font-bold ${tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : tone === "bad" ? "text-bad" : ""}`}>{n}</div>
       <div className="text-xs leading-tight text-muted">{label}</div>
     </div>
@@ -33,17 +34,21 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
   const f = useFilter(b?.hosts || [], facets, text, initial);
   if (!b) return <Empty>{tx("Sauvegardes pas encore relevées.")}</Empty>;
   const sm = b.summary;
+  // where the copies go (the machines that hold copies of other machines' sets) and the free space of the storage machines (a box, a NAS)
+  const copyTargets = [...new Set(b.hosts?.flatMap((h) => h.copies.map((c) => c.label)) ?? [])].sort((x, y) => x.localeCompare(y));
+  const storage = (b.hosts ?? []).filter((h) => h.storage && h.disks.length);
+  const storageFree = storage.length ? { avail: storage.reduce((n, h) => n + Math.max(...h.disks.map((d) => d.avail)), 0), names: storage.map((h) => h.label).join(", ") } : null;
   const local = f.shown.flatMap((h) => h.local.filter((x) => x.size || x.covered.length).map((x) => ({ h, x })));
 
   const copies = (h: BackupHost) => h.copies.length ? (
     <div className="flex flex-col gap-1">
       {h.copies.map((c) => (
         <span key={c.host} className="text-sm">
-          <Level level={c.level}>{c.encrypted ? "🔒 " : ""}{c.label}</Level> <Dim>{ageDays(c.age)} · {c.vias.join(", ")}</Dim>
+          <Level level={c.level} outline plainText>{c.encrypted ? "🔒 " : ""}{c.label}</Level> <Dim>{ageDays(c.age)} · {c.vias.join(", ")}</Dim>
         </span>
       ))}
     </div>
-  ) : h.sets.length ? <Badge tone="bad">{tx("aucune copie ailleurs")}</Badge> : <Dim>-</Dim>;
+  ) : h.sets.length ? <Badge tone="bad" outline plainText>{tx("aucune copie ailleurs")}</Badge> : <Dim>-</Dim>;
   const last = (h: BackupHost) => h.last_local ? (
     <span className="text-sm"><Level level={h.last_local.level}>{ageDays(h.last_local.age)}</Level>
       <span className="block text-xs text-dim">{dateTime(h.last_local.mtime * 1000)} · {short(h.last_local.set)}</span></span>
@@ -51,7 +56,7 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
   const produced = (h: BackupHost) => h.sets.length ? (
     <ul className="flex flex-col gap-1 text-sm">
       {h.sets.map((id) => { const s = sets.get(id); return s && (
-        <li key={id}><Level level={s.level}>{short(s.label)}</Level> <Dim>{s.schedule} · {s.offsite || s.expect_offsite !== false ? `${s.offsite} ${tx("copie(s) hors machine")}` : tx("copie ailleurs non déclarée")}</Dim></li>
+        <li key={id}><Level level={s.level} outline plainText>{short(s.label)}</Level> <Dim>{s.schedule} · {s.offsite || s.expect_offsite !== false ? `${s.offsite} ${tx("copie(s) hors machine")}` : tx("copie ailleurs non déclarée")}</Dim></li>
       ); })}
     </ul>
   ) : <Dim>{tx("aucun jeu produit")}</Dim>;
@@ -69,23 +74,37 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
 
   return (
     <div className="flex flex-col gap-4 py-4">
-      <div className="flex gap-2.5 overflow-x-auto pb-1">   {/* one single row; scrolls sideways on a narrow screen instead of wrapping */}
-        <Tile n={sm.ok} label={tx("jeux à jour")} tone="ok" /><Tile n={sm.warn} label={tx("jeux en retard")} tone={sm.warn ? "warn" : undefined} />
-        <Tile n={sm.crit} label={tx("jeux critiques")} tone={sm.crit ? "bad" : undefined} />
-        <Tile n={sm.no_offsite} label={tx("sans copie hors machine")} tone={sm.no_offsite ? "bad" : "ok"} />
-        {!!sm.offsite_unknown && <Tile n={sm.offsite_unknown} label={tx("copie ailleurs non déclarée")} />}
-        <Tile n={bytes(sm.volume)} label={tx("volume des sources")} /><Tile n={sm.hosts} label={tx("machines")} />
-      </div>
-      <TableCard title={tx("À regarder")} tone={b.issues.some((i) => i.level === "crit" || i.level === "down") ? "bad" : b.issues.length ? "warn" : "ok"}
-        cols={[{ label: tx("État"), className: "w-[7.5rem]" }, { label: tx("Jeu de sauvegarde"), className: "w-[34%]" }, { label: tx("Ce qui ne va pas") }]}
-        rows={b.issues.map((i) => [<Level level={i.level} />, <b className="font-semibold">{i.set}</b>, <span className="text-muted">{i.text}</span>])}
-        empty={tx("Rien à signaler.")} footer={<>{tx("Relevé du")} {dateTime(b.generated)}{snap.data.page.map && <> · <a className="text-link hover:underline" href={`${ROOT}sauvegardes.html`} target="_blank" rel="noopener">{tx("carte des sauvegardes")}</a></>}</>} />
-      <FilterBar f={f} placeholder={tx("Machine, jeu, dossier…")} />
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <h2 className="flex items-center gap-2 font-bold"><HardDrive size={16} aria-hidden />{tx("Sauvegardes")}</h2>
+          <span className="text-xs text-dim">{tx("Relevé du")} {dateTime(b.generated)}</span>
+        </div>
+        <p className="text-sm text-muted">
+          {tx("{0} jeux de sauvegarde sur {1} machines", sm.sets, sm.hosts)}
+          {copyTargets.length > 0 && <> · {tx("copies vers")} <b className="text-txt">{copyTargets.join(", ")}</b></>}
+          {" · "}{tx("relevé en lecture seule, sans rien modifier sur vos machines")}
+        </p>
+        <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1">   {/* one single row; scrolls sideways on a narrow screen instead of wrapping */}
+          <Tile n={sm.ok} label={tx("jeux à jour")} tone="ok" /><Tile n={sm.warn} label={tx("jeux en retard")} tone={sm.warn ? "warn" : undefined} />
+          <Tile n={sm.crit} label={tx("jeux critiques")} tone={sm.crit ? "bad" : undefined} />
+          <Tile n={sm.no_offsite} label={tx("sans copie hors machine")} tone={sm.no_offsite ? "bad" : "ok"} />
+          {!!sm.offsite_unknown && <Tile n={sm.offsite_unknown} label={tx("copie ailleurs non déclarée")} />}
+          <Tile n={bytes(sm.volume)} label={tx("volume des sources")} />
+          {storageFree != null && <Tile n={bytes(storageFree.avail)} label={tx("libres sur {0}", storageFree.names)} />}
+        </div>
+        <div className="mt-3"><FilterBar f={f} placeholder={tx("Machine, jeu, dossier…")} primary={["state", "kind"]} oneLine /></div>
+      </Card>
+      {b.issues.length > 0 && (   // nothing to say = no frame
+        <TableCard zebra title={tx("Points d'attention")} tone={b.issues.some((i) => i.level === "crit" || i.level === "down") ? "bad" : "warn"}
+          cols={[{ label: tx("État"), className: "w-[7.5rem]" }, { label: tx("Jeu de sauvegarde"), className: "w-[34%]" }, { label: tx("Ce qui ne va pas") }]}
+          rows={b.issues.map((i) => [<Level level={i.level} />, <b className="font-semibold">{i.set}</b>, <span className="text-muted">{i.text}</span>])}
+          footer={<>{tx("Relevé du")} {dateTime(b.generated)}</>} />
+      )}
       {f.shown.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           <Table head={<><Th>{tx("Machine")}</Th><Th>{tx("État")}</Th><Th>{tx("Disques")}</Th><Th>{tx("Dernier backup local")}</Th><Th>{tx("Copié ailleurs")}</Th><Th>{tx("Jeux produits")}</Th></>}>
             {f.shown.map((h) => (
-              <tr key={h.id}>
+              <tr key={h.id} className="even:bg-bg/50 hover:bg-bg2/40">
                 <Td><b>{h.label}</b><span className="block text-xs text-dim">{h.ip} · {h.kind}</span></Td>
                 <Td><Level level={stateOf(h)} /></Td><Td>{disks(h)}</Td><Td>{last(h)}</Td><Td>{copies(h)}</Td><Td>{produced(h)}</Td>
               </tr>
@@ -102,18 +121,17 @@ export function Backups({ snap, initial }: { snap: Snapshot; initial?: Selected 
           </Cards>
         </>
       )}
-      {local.length > 0 && (
-        <details className="rounded-2xl border border-line bg-card p-4">
-          <summary className="cursor-pointer font-bold">{tx("Dossiers de sauvegarde locaux")} <Dim>· {sm.local_dirs ?? local.length} {tx("trouvés,")} {sm.local_unlisted ?? 0} {tx("non inventoriés")}</Dim></summary>
-          <ul className="mt-3 flex flex-col gap-1 text-sm">
-            {local.map(({ h, x }) => (
-              <li key={h.id + x.path} className="flex flex-wrap items-center gap-2">
-                <b>{h.label}</b><code className="font-mono text-xs">{x.path}</code><Dim>{bytes(x.size)} · {x.age == null ? "-" : tx("il y a {0}", ageDays(x.age))}</Dim>
-                {x.covered.length ? <Badge tone="ok">{x.covered.join(", ")}</Badge> : <Badge tone="warn">{tx("non inventorié")}</Badge>}
-              </li>
-            ))}
-          </ul>
-        </details>
+      {local.length > 0 && (   // framed table like « Points d'attention »; the warning tone shows when some folders are not inventoried
+        <TableCard zebra foldable folded title={tx("Dossiers de sauvegarde locaux")} tone={(sm.local_unlisted ?? 0) > 0 ? "warn" : "info"}
+          note={<>{sm.local_dirs ?? local.length} {tx("trouvés,")} <b className={sm.local_unlisted ? "text-warn" : "text-txt"}>{sm.local_unlisted ?? 0}</b> {tx("non inventoriés")}</>}
+          cols={[{ label: tx("Machine"), className: "w-[16%]" }, { label: tx("Dossier") }, { label: tx("Taille"), className: "w-28" }, { label: tx("Dernière modification"), className: "w-40" }, { label: tx("Inventorié"), className: "w-[22%]" }]}
+          rows={local.map(({ h, x }) => [
+            <b className="font-semibold">{h.label}</b>,
+            <code className="break-all font-mono text-xs">{x.path}</code>,
+            <span className="tabular-nums">{x.size ? bytes(x.size) : <Dim>-</Dim>}</span>,
+            x.age == null ? <Dim>-</Dim> : <span className="whitespace-nowrap">{tx("il y a {0}", ageDays(x.age))}</span>,
+            x.covered.length ? <Badge tone="ok">{x.covered.join(", ")}</Badge> : <Badge tone="warn">{tx("non inventorié")}</Badge>,
+          ])} />
       )}
     </div>
   );

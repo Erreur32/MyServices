@@ -1,24 +1,26 @@
-# Notes de version : MyServices 0.12.0
+# Notes de version : MyServices 0.13.0
 
 > **Version en ligne, à un stade précoce.** MyServices est utilisable, mais jeune : des écrans et des réglages peuvent encore changer. Gardez une copie de `config/` et `data/` avant de mettre à jour, et laissez-le sur votre réseau local.
 
 
-**0.12.0** (17 octobre 2026) : un assistant de démarrage, un agent pour Linux, et des fenêtres de machines plus riches.
+**0.13.0** (18 octobre 2026) : l'état des machines est vivant, Proxmox donne plus d'informations, et la fenêtre d'une machine montre où elle est branchée.
 
 ## Pour tout le monde
 
 **Quoi de neuf ?**
-- **Assistant de démarrage** (page `#assistant`) : six étapes, une décision à la fois, chacune passable et reprenable. Il lit d'abord « cette machine », cherche le réseau, propose la meilleure façon de lire chaque machine (SSH, agent ou connecteur), relie vos outils et règle une alerte. Rien n'est changé sur vos machines, et chaque réglage s'ouvre dans une fenêtre : vous ne quittez jamais la page.
-- **Agent pour Linux** : un petit script Python avec son installeur, pour les machines où le SSH est impossible. Il envoie lui-même sa santé, en lecture seule.
-- **Home Assistant, mode avancé** : avec l'extension communautaire ha-mcp, MyServices lit la vraie liste des sauvegardes, les réparations, la vérification de la configuration, les extensions et les intégrations en panne.
-- **Fenêtre de machine** : la fenêtre d'un appareil UniFi suit le modèle de la Freebox (photo, versions, lecture, clients, réseaux Wi-Fi, firmware). Les conteneurs Docker d'une machine s'affichent avec le logo de leur service, et « Services » ou « N NPM » mènent à l'onglet Services déjà filtré.
-- **Machines et Réglages** : une colonne « Sources » avec un badge par source qui lit la machine, des bandes d'en-tête sombres, un guide « Accès aux machines » ouvert depuis un bouton sous le titre.
-- **Onglet Santé supprimé** : la santé vit dans l'onglet Machines. Les onglets Infra, Réseau et Sécurité restent cachés tant qu'ils ne sont pas finis.
+- **Vérifications en direct** : MyServices envoie un petit ping à chaque machine toutes les 30 secondes. Une machine qui tombe ou qui revient est annoncée en une ou deux minutes (avant, il fallait attendre jusqu'à une heure), dans la page, l'historique et les alertes. Un paquet perdu ne déclenche rien : il faut deux réponses de suite. Les réglages sont dans Réglages → Tâches et horaires.
+- **Lectures rapides des outils** : MynetworK, Proxmox (par jeton) et Beszel sont relus toutes les 5 minutes, sans toucher à vos machines. Le rouge ou vert de la pastille Beszel suit son état réel, et les ports ouverts viennent de MynetworK avec la date de leur dernier scan.
+- **Proxmox** : sous chaque nœud, la charge, le swap, le disque système, le noyau, le processeur et ce que prennent les machines virtuelles ; la température et les ventilateurs quand `lm-sensors` est installé sur l'hôte. La page Virtualisation grise les machines arrêtées et peut les masquer.
+- **Fenêtre d'une machine** : avec MynetworK 0.10.74 ou plus, elle montre sur quel switch et quel port la machine est branchée (ou sa borne Wi-Fi), son nom dans UniFi, son bail et ses redirections de ports Freebox. Notre agent apparaît comme une source de plus.
+- **Tableaux** : lignes zébrées et plus basses sur Services, Machines et Sauvegardes ; colonnes « Domaine » et « Service » mieux nommées ; filtres sur une seule ligne avec un bouton quand il y en a trop ; cadre des dossiers de sauvegarde repliable ; icônes de service plus grandes.
+- **Sauvegardes** : suivi des tâches Hyper Backup de Synology (lecture seule).
+- **Corrections** : les ports de MynetworK n'étaient plus lus ; une machine « souvent éteinte » vue en marche par Beszel est de nouveau lue, et une ancienne ligne « injoignable » ne reste plus affichée.
 
 **Mettre à jour** : `docker compose pull`, puis `docker compose up -d` (avec l'image `:latest`). Rien à changer dans le compose.
 
 ## En résumé, côté technique
 
-- **Image** : `ghcr.io/erreur32/myservices:0.12.0` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
-- **Nouveau** : `access_advice.py` (recommandation de lecture), `front/src/tabs/Assistant.tsx` et ses étapes, `front/src/components/AgentInstall.tsx` et `SetupModal.tsx` (partagés), l'agent Linux.
-- **Modifié** : `front/src/tabs/Machines.tsx` (fenêtre UniFi, liste Docker, liens filtrés), `front/src/tabs/MachinesSettings.tsx`, `front/src/lib/tabs.ts` (onglets en chantier).
+- **Image** : `ghcr.io/erreur32/myservices:0.13.0` (amd64 et arm64) ; `:latest` suit le dernier tag, `:main` le dernier commit.
+- **Nouveau** : `pulse.py` (ping toutes les 30 s, `pulse.json`), `fast.py` (lectures légères, `live.json`), `connectors/mynetwork.py` (`scan`, `ip_details`, `compact_sheet`), `connectors/proxmox.py` (`node_extra`).
+- **Modifié** : `watcher.py` (prend le pouls, ne compte jamais deux fois la même collecte), `health.py` (relance d'une seule machine, machine « souvent éteinte » lue par Beszel), `server.py` (boucles du pouls et des lectures rapides), `front/src/tabs/` (Machines, Services, Sauvegardes, Virtualisation, Historique).
+- **Réglages** : `pulse_every` (30 s), `pulse_confirm` (2), `fast_every` (300 s) dans `config.json`, ou la ligne « Vérifications en direct » de Réglages → Tâches et horaires.

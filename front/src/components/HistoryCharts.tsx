@@ -29,11 +29,11 @@ function Axis({ from, to, days }: { from: number; to: number; days: number }) {
 function YAxis({ ticks: t, top, children }: { ticks: number[]; top: number; children: React.ReactNode }) {
   return (
     <div className="flex gap-2">
-      <div className="relative h-40 w-8 shrink-0 text-right text-[11px] tabular-nums text-dim" aria-hidden>
+      <div className="relative h-36 w-8 shrink-0 text-right text-[11px] tabular-nums text-dim" aria-hidden>
         {t.map((v) => <span key={v} className="absolute right-0 -translate-y-1/2" style={{ bottom: `${(v / top) * 100}%` }}>{v}</span>)}
       </div>
       <div className="relative min-w-0 flex-1">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-40" aria-hidden>
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-36" aria-hidden>
           {t.map((v) => <span key={v} className={`absolute inset-x-0 border-t ${v === 0 ? "border-line" : "border-dashed border-line/80"}`} style={{ bottom: `${(v / top) * 100}%` }} />)}
           {[1, 2, 3, 4, 5].map((i) => <span key={i} className="absolute inset-y-0 border-l border-dashed border-line/60" style={{ left: `${(i / 6) * 100}%` }} />)}  {/* repères verticaux alignés sur l'axe du temps */}
         </div>
@@ -75,14 +75,14 @@ export function PointsChart({ events, from, to, days, onRange }: { events: Store
   const shown = hoverOf(point, cursor, from, to, pct), shownAt = shown?.at ?? null, shownX = shown?.x ?? null;
   return (
     <div className="flex gap-3">
-      <div className="flex h-40 w-32 shrink-0 flex-col text-xs text-muted sm:w-40">
+      <div className="flex h-36 w-32 shrink-0 flex-col text-xs text-muted sm:w-40">
         {lanes.map(([k, l, c]) => (
           <span key={k} className="flex flex-1 items-center gap-1.5 truncate" title={l}><span className={`h-2.5 w-2.5 shrink-0 rounded-sm ${c}`} />{l}
             <b className="font-normal text-dim">{events.filter((e) => groupOf(e.kind) === k).length}</b></span>
         ))}
       </div>
       <div className="min-w-0 flex-1">
-        <div ref={plot} className="relative h-40 rounded-lg bg-bg2/50" onMouseMove={move} onMouseLeave={() => { setCursor(null); setHot(null); }}>
+        <div ref={plot} className="relative h-36 rounded-lg bg-bg2/50" onMouseMove={move} onMouseLeave={() => { setCursor(null); setHot(null); }}>
           {ticks(from, to).map((t, i) => <span key={t} className="absolute inset-y-0 border-l border-dashed border-line/70" style={{ left: `${(i / 6) * 100}%` }} />)}
           {lanes.map(([k], i) => <span key={k} className="absolute inset-x-0 border-t border-dashed border-line/60" style={{ top: `${(i / lanes.length) * 100}%` }} />)}
           {shownX != null && !point && <span className="pointer-events-none absolute inset-y-0 border-l border-dashed border-link/40" style={{ left: `${shownX}%` }} aria-hidden />}
@@ -117,7 +117,7 @@ export function BarsChart({ data, days, active, onRange }: { data: Bucket[]; day
   const name = (b: Bucket) => (span >= 86400e3 ? longDay(b.start) : `${dateTime(b.start)} – ${hm(b.end)}`);
   return (
     <YAxis ticks={yt} top={top}>
-      <div className="relative flex h-40 items-end gap-[2px]" role="img" aria-label={tx("Événements par période")}>
+      <div className="relative flex h-36 items-end gap-[2px]" role="img" aria-label={tx("Événements par période")}>
         {data.map((b) => {
           const on = active?.from === sec(b.start);
           return (
@@ -150,7 +150,7 @@ export function AreaChart({ data, days }: { data: Bucket[]; days: number }) {
   });
   return (
     <YAxis ticks={yt} top={max}>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="relative h-40 w-full" role="img" aria-label={tx("Événements au fil du temps")}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="relative h-36 w-full" role="img" aria-label={tx("Événements au fil du temps")}>
         {layers.map((l) => <path key={l.k} d={l.path} fill={GROUP_FILL[l.k]} fillOpacity="0.75"><title>{GROUP_NAME[l.k]}</title></path>)}
       </svg>
       <Axis from={data[0].start} to={data.at(-1)!.end} days={days} />
@@ -175,7 +175,7 @@ export function HeatChart({ events, active, onPick }: Readonly<{ events: StoredE
   const days = heatDays();
   return (
     <fieldset className="m-0 min-w-0 border-0 p-0 text-[11px] text-dim" aria-label={tx("Événements par jour de la semaine et par heure")}>
-      <div className="flex h-40 flex-col gap-[3px]">
+      <div className="flex h-36 flex-col gap-[3px]">
       {grid.map((row, d) => (
         <div key={days[d]} className="flex min-h-0 flex-1 items-center gap-[3px]">
           <span className="w-10 shrink-0 capitalize">{days[d]}</span>

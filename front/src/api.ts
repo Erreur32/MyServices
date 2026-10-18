@@ -1,5 +1,5 @@
 // Lecture des fichiers produits par les tâches et de l'API v1 (même origine, cookie de session).
-import type { Backups, Data, Event, Events, Health, Me, StoredEvent } from "./types";
+import type { AddressSheet, Backups, Data, Event, Events, Health, Me, StoredEvent } from "./types";
 import { tx } from "./lib/i18n";
 
 export const ROOT = "/";   // the app is served at the root of the site (before 0.10.2: /myservices/)
@@ -35,10 +35,71 @@ export class NotConfigured extends Error {
   constructor(public me: Me) { super(tx("pas encore configurée")); }
 }
 
+/** Pouls (pulse.json) : l'état du ping de chaque machine, confirmé, bien plus frais que data.json (collecte toutes les 30 min) */
+interface Pulse { ts: number; machines: Record<string, { ping: boolean; ms: number | null; since: number }> }
+const PULSE_MAX_AGE_S = 300;
+
+/** data.json avec le ping du pouls par-dessus, si le pouls est récent ; sinon tel quel */
+export function withPulse(data: Data, p: Pulse | null): Data {
+  if (!p || Date.now() / 1000 - p.ts > PULSE_MAX_AGE_S) return data;
+  let moved = false;
+  const machine_list = data.machine_list.map((m) => {
+    const live = p.machines[m.ip];
+    if (!live || live.ping === m.ping) return m;
+    moved = true;
+    return { ...m, ping: live.ping };
+  });
+  return moved ? { ...data, machine_list } : data;
+}
+
+/** Lectures légères des connecteurs (live.json, toutes les 5 min) : MynetworK (état, ports et date de leur scan), invités Proxmox par API */
+export interface Live {
+  ts: number;
+  sources: Record<string, { at: number; ok: boolean; devices?: Record<string, { status: string; ping_ms: number | null; ports: number[]; ports_at: string | null }>; guests?: Record<string, string>; details?: Record<string, AddressSheet>; status?: Record<string, { status: string; name: string }> }>;
+}
+const LIVE_MAX_AGE_S = 900;
+
+/** data.json avec les lectures rapides par-dessus (appareils du scanner, invités Proxmox par API) ; sans lecture récente, tel quel */
+export function withLive(data: Data, live: Live | null): Data {
+  if (!live || Date.now() / 1000 - live.ts > LIVE_MAX_AGE_S) return data;
+  let moved = false;
+  const sheets = Object.values(live.sources).reduce<Record<string, AddressSheet>>((all, s) => (s.ok ? { ...all, ...s.details } : all), {});
+  const network = data.network?.map((row) => {
+    const src = live.sources[`${row.connector}/${row.name}`];
+    if (row.connector !== "mynetwork" || !src?.ok || !src.devices) return row;
+    moved = true;
+    return { ...row, devices: (row.devices ?? []).map((d) => { const l = src.devices![d.ip]; return l ? { ...d, ...l } : d; }) };
+  });
+  const virtualization = data.virtualization?.map((row) => {
+    const src = live.sources[`${row.connector}/${row.name}`];
+    if (row.via === "ssh" || !src?.ok || !src.guests || !row.guests) return row;
+    moved = true;
+    return { ...row, guests: row.guests.map((g) => { const s = src.guests![`${g.node}/${g.vmid}`]; return s ? { ...g, status: s } : g; }) };
+  });
+  // Beszel: the red or green of its badge follows the status it gives now, not the one of the last full collection
+  const beszel = Object.entries(live.sources).filter(([k, s]) => k.startsWith("beszel/") && s.ok && s.status);
+  let machine_list = data.machine_list;
+  if (beszel.length) {
+    machine_list = data.machine_list.map((m) => {
+      const hit = beszel.map(([k, s]) => ({ inst: k.slice(7), st: s.status![m.ip] })).find((x) => x.st);
+      const src = m.links?.sources.find((x) => x.source === "beszel" && x.instance === hit?.inst);
+      if (!hit || !src || src.ok === (hit.st.status === "up")) return m;
+      moved = true;
+      return { ...m, links: { ...m.links!, sources: m.links!.sources.map((x) => (x === src ? { ...x, ok: hit.st.status === "up" } : x)) } };
+    });
+  }
+  return moved || Object.keys(sheets).length ? { ...data, machine_list, network, virtualization, sheets } : data;
+}
+
+export const loadLive = (): Promise<Live | null> => get<Live>("live.json", true).catch(() => null);
+
+export const loadPulse = (): Promise<Pulse | null> => get<Pulse>("pulse.json", true).catch(() => null);
+
 /** Tout ce que l'accueil lit, en parallèle ; santé, sauvegardes et événements sont facultatifs. */
 export async function loadSnapshot(): Promise<Snapshot> {
-  const [me, data] = await Promise.all([get<Me>("api/v1/me"), get<Data>("data.json", true)]);
-  if (!data) throw new NotConfigured(me!);
+  const [me, raw, pulse, live] = await Promise.all([get<Me>("api/v1/me"), get<Data>("data.json", true), loadPulse(), loadLive()]);
+  if (!raw) throw new NotConfigured(me!);
+  const data = withPulse(withLive(raw, live), pulse);
   const hu = data!.page.health_url, bu = data!.page.backups_url;
   const [health, backups, watch, hev] = await Promise.all([
     hu ? get<Health>(`${hu}stats.json`, true) : null,

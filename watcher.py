@@ -44,10 +44,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import notify
+import pulse
 from config import CFG, next_timer_run
 
 NAME = "myservices-watcher"
 DATA = Path(CFG["web_dir"]) / "data.json"
+PULSE_FILE = DATA.with_name("pulse.json")
 EVENTS = Path(CFG["web_dir"]) / "events.json"  # même dossier que DATA, lu par la page
 STATE_DIR = Path(CFG["state_dir"])
 STATE_FILE = STATE_DIR / f"{NAME}.json"
@@ -151,12 +153,14 @@ def dns_snaps(data: dict) -> dict:
     return out
 
 
-def machine_snaps(data: dict) -> dict:
-    """Ping et sshd par machine. ssh = None si pas d'accès SSH connu : jamais signalé."""
-    out = {}
+def machine_snaps(data: dict, live: dict | None = None) -> dict:
+    """Ping et sshd par machine. ssh = None si pas d'accès SSH connu : jamais signalé. live : le pouls (pulse.json), plus frais que
+    data.json et déjà confirmé : son ping prime, sans second délai de confirmation."""
+    out, live = {}, live or {}
     for m in data.get("machine_list", []):
-        out[f'machine:{m["ip"]}'] = {"label": m["name"], "machine": m["name"], "target": m["ip"],
-                                     "ping": bool(m.get("ping")) or bool(m.get("off")) or bool(m.get("disabled")),  # éteinte voulue ou non suivie : pas d'alerte
+        pl = live.get(m["ip"])
+        out[f'machine:{m["ip"]}'] = {"label": m["name"], "machine": m["name"], "target": m["ip"], "pulse": pl is not None,
+                                     "ping": bool(pl["ping"] if pl else m.get("ping")) or bool(m.get("off")) or bool(m.get("disabled")),  # éteinte voulue ou non suivie : pas d'alerte
                                      "ssh": (m["ssh"].get("methods") is not None) if m.get("ssh") else None}
     return out
 
@@ -219,7 +223,7 @@ def diff_machines(prev: dict, cur: dict, pending: dict) -> tuple[list[dict], dic
                 continue
             pk = f"{k}:{flag}"
             n = pending.get(pk, 0) + 1
-            if n >= CONFIRM_RUNS:
+            if n >= (1 if flag == "ping" and c.get("pulse") else CONFIRM_RUNS):   # a pulse is already confirmed
                 ev.append({"kind": up if c[flag] else down, "key": k, "label": c["label"], "machine": c["machine"],
                            "target": c["target"], "detail": d_up if c[flag] else d_down})
             else:
@@ -443,7 +447,7 @@ def main() -> int:
     baseline = "snap" not in state
 
     events, pending = ([], {}) if baseline else diff(state["snap"], cur, state.get("pending", {}))
-    mcur = machine_snaps(data)
+    mcur = machine_snaps(data, pulse.read(PULSE_FILE))
     if "machines" in state:  # baseline machines à part : ajoutée après le premier déploiement
         mev, mpending = diff_machines(state["machines"], mcur, state.get("mpending", {}))
         events = sorted(mev + events, key=lambda e: -SEVERITY[e["kind"]])
@@ -479,6 +483,18 @@ def main() -> int:
     counts = {"services": len(cur), "en panne": sum(1 for c in cur.values() if c["status"] == "bad"),
               "désactivés": sum(1 for c in cur.values() if c["status"] == "off")}
 
+    # A run between two collections (started by the pulse) sees the same data.json as the one before: only the ping of the machines can
+    # have moved. What needs two collections to be confirmed (services, connectors, SSH...) must not count the same one twice.
+    same_gen = state.get("gen") == data.get("generated") and "snap" in state
+    if same_gen:
+        events = [e for e in events if str(e["key"]).startswith("machine:") and e["kind"] in ("hors_ligne", "en_ligne")]
+        for k, c in mcur.items():
+            c["ssh"] = ((state.get("machines") or {}).get(k) or c).get("ssh", c["ssh"])
+        mpending = {**state.get("mpending", {}), **{k: v for k, v in mpending.items() if not k.endswith(":ping")}}
+        cur, pending, ccur, cpending = state["snap"], state.get("pending", {}), state.get("connectors", ccur), state.get("cpending", {})
+        dcur, vcur, vpending = state.get("dns", dcur), state.get("virt", vcur), state.get("vpending", {})
+        tcur, xcur, ncur = state.get("threats", tcur), state.get("nextcloud", xcur), state.get("network", ncur)
+
     if dry:
         print(f"=== DRY RUN (baseline={baseline}) · {len(events)} événement(s) ===")
         for e in events:
@@ -508,7 +524,8 @@ def main() -> int:
     STATE_FILE.write_text(json.dumps({"snap": cur, "pending": pending, "history": history,  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
                                       "machines": mcur, "mpending": mpending, "dns": dcur,
                                       "connectors": ccur, "cpending": cpending, "network": ncur, "virt": vcur, "vpending": vpending, "threats": tcur, "nextcloud": xcur,
-                                      "stale_reported": age > STALE_MIN, "last_run": now},
+                                      "stale_reported": state.get("stale_reported", False) if same_gen else age > STALE_MIN,
+                                      "gen": data.get("generated"), "last_run": now},
                                      ensure_ascii=False), encoding="utf-8")
     print(f"✓ {EVENTS} · {info} · " + " · ".join(f"{v} {k}" for k, v in counts.items()), file=sys.stderr)
     return 0

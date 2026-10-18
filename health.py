@@ -159,7 +159,7 @@ SYSTEMD_CMD = "systemctl --failed --no-legend --no-pager"
 DOCKER_PS_CMD = "docker ps -a --format '{{.Names}}|{{.Status}}|{{.Image}}' 2>&1"
 DOCKER_STATS_CMD = "docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}' 2>/dev/null"
 APT_CMD = "LC_ALL=C apt list --upgradable 2>/dev/null"
-KERNEL_CMD = "journalctl -k -p err --since '-24h' --no-pager 2>/dev/null | tail -n 50"
+KERNEL_CMD = "journalctl -k -p err --since '-12h' --no-pager 2>/dev/null | tail -n 50"
 REBOOT_CMD = "test -f /var/run/reboot-required && echo yes || echo no"
 LOAD_CMD = "cat /proc/loadavg; nproc"
 VIRT_CMD = "systemd-detect-virt 2>/dev/null"
@@ -331,9 +331,8 @@ def collect_kernel_errors(run) -> dict:
                 continue
             if KERNEL_IGNORE_RE.search(ln):
                 continue
-            if len(lines) < 8:
-                lines.append(ln[:200])
-    return {"has_errors": bool(lines), "samples": lines}
+            lines.append(ln[:200])
+    return {"has_errors": bool(lines), "samples": lines[-8:]}   # the 8 most recent (the journal comes oldest first)
 
 
 def collect_reboot_required(run) -> bool:
@@ -1292,8 +1291,8 @@ def compute_host_blocks(h: dict) -> dict:
     elif kernel.get("available") is False:
         kernel_block = "<div class='muted'>Non relevé (Beszel seul)</div>"
     else:
-        kernel_block = ("<div class='muted'>✅ Aucune erreur critique ou disque (journal Système, 24h)</div>"
-                        if h.get("os") == "windows" else "<div class='muted'>✅ Aucune erreur kernel (24h)</div>")
+        kernel_block = ("<div class='muted'>✅ Aucune erreur critique ou disque (journal Système, 12h)</div>"
+                        if h.get("os") == "windows" else "<div class='muted'>✅ Aucune erreur kernel (12h)</div>")
 
     apt = h["apt"]
     if apt.get("available") is False:
@@ -1503,6 +1502,19 @@ def record_events(hosts: list[dict], prev_levels: dict, ts: str) -> None:
 
 # ───────────── Main ─────────────
 
+def awake_ips(besz: dict) -> set[str]:
+    """IPs of the machines Beszel gives as up right now."""
+    return {ip for ip, s in besz.items() if isinstance(s, dict) and s.get("status") == "up"}
+
+
+def merge_only(previous: list[dict], previous_asleep: list[dict], hosts: list[dict], asleep: list[dict], only: str) -> tuple[list[dict], list[dict]]:
+    """Result of « --only <ip> »: the machine read replaces its old row, the others keep theirs. A machine no longer read at all (switched
+    off in Settings, « often off » without an agent report...) loses its old row instead of keeping a stale « unreachable » for ever."""
+    fresh = {h["id"] for h in hosts} | {a["id"] for a in asleep}
+    return ([h for h in previous if h["id"] not in fresh and not str(h.get("name", "")).endswith(f" · {only}")] + hosts,
+            asleep + [a for a in previous_asleep if a["id"] not in fresh and a.get("ip") != only])
+
+
 def main() -> int:
     dry = "--dry-run" in sys.argv
     ts = datetime.now(timezone.utc).isoformat()
@@ -1520,10 +1532,16 @@ def main() -> int:
             previous, previous_asleep = last.get("hosts", []), last.get("asleep", [])
         except (OSError, ValueError):
             pass
-        candidates = [hc for hc in candidates if hc["ip"] == only]
     asleep = []
     apis = api_systems(meta)
-    besz, _ = beszel_systems(meta) if (not only or any(hc["target"] is None or "beszel" in source_order(hc) for hc in candidates)) else ({}, [])
+    # Beszel is read for a whole pass, or for the one machine asked for (even a « often off » one: Beszel may be telling it is up)
+    needs_beszel = any(hc["target"] is None or "beszel" in source_order(hc) for hc in candidates if not only or hc["ip"] == only)
+    besz, _ = beszel_systems(meta) if (not only or needs_beszel or only in meta.get("machines", {})) else ({}, [])
+    awake = awake_ips(besz)
+    if awake - set(agents):   # a « often off » machine that Beszel sees up is read like the others, from Beszel
+        candidates, meta = load_hosts(set(agents) | awake)
+    if only:
+        candidates = [hc for hc in candidates if hc["ip"] == only]
     for hc in candidates:
         print(f"▸ {hc['name']}...")
         h = read_host(hc, agents.get(hc["ip"]), besz.get(hc["ip"]), api=apis.get(hc["ip"]))
@@ -1537,9 +1555,7 @@ def main() -> int:
         hosts.append(h)
 
     if only:  # relevé d'une machine : elle remplace son ancienne ligne (ou s'ajoute), les autres restent telles quelles
-        fresh = {h["id"] for h in hosts} | {a["id"] for a in asleep}
-        hosts = [h for h in previous if h["id"] not in fresh] + hosts
-        asleep += [a for a in previous_asleep if a["id"] not in fresh]
+        hosts, asleep = merge_only(previous, previous_asleep, hosts, asleep, only)
     overall = worst(*(h["level"] for h in hosts))
     stats = {"timestamp": ts, "hosts": hosts, "asleep": asleep, "overall_level": overall}
     print(f"→ global={overall.upper()}")

@@ -135,11 +135,13 @@ export const KIND_NAME: Record<string, string> = {
 export { exposure };
 
 /** État de la synchro AdGuard (même règle que l'encadré DNS de la page actuelle). */
-export function dnsSync(g: Dns, now = Date.now()): { cls: "ok" | "warn" | "bad"; label: string } {
+/** Sync state of AdGuard. `at` is the moment of the reading (the data's generation time): the last sync is compared with it, not with the clock, because the page
+ *  only learns the sync log at each collection (every 30 min) while the sync itself runs every few minutes. */
+export function dnsSync(g: Dns, at = Date.now()): { cls: "ok" | "warn" | "bad"; label: string } {
   const srv = Object.keys(g.servers), diff = g.rewrites_diff.length + g.user_rules_diff.length;
   const sync = Object.values(g.sync || {})[0];
   const last = sync?.last_done ? Object.values(sync.last_done).map((t) => new Date(t).getTime()) : [];
-  const age = last.length ? Math.min(...last.map((t) => (now - t) / 60000)) : null;
+  const age = last.length ? Math.min(...last.map((t) => (at - t) / 60000)) : null;
   const every = sync?.interval_min, single = srv.length < 2 && !sync;
   const late = !!sync && (!!sync.unreadable || age == null || (!!every && age > every * 1.25 + 5));
   const errs = sync?.errors_open ?? sync?.errors_24h ?? 0;   // only the errors no later sync has closed (older servers send errors_24h alone)

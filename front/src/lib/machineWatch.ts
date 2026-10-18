@@ -6,7 +6,13 @@ import { tx } from "./i18n";
 
 export type WatchTone = "bad" | "warn" | "info";
 export type WatchKind = "down" | "ssh" | "disk" | "systemd" | "docker" | "kernel" | "smart" | "load" | "ssh_auth" | "mem" | "temp" | "reboot" | "updates" | "services" | "connector" | "access";
-export interface WatchItem { tone: WatchTone; kind: WatchKind; text: string }
+export interface WatchItem { tone: WatchTone; kind: WatchKind; text: string; detail?: string[] }   // detail: the messages behind the notice (kernel errors…), shown in its tooltip and in the machine window
+
+/** The section of the machine window where a notice is explained (data-sec), so a badge can lead the eye there */
+export const WATCH_SECTION: Record<WatchKind, "health" | "updates" | "access" | "services"> = {
+  down: "access", ssh: "access", access: "access", disk: "health", systemd: "health", docker: "health", kernel: "health", smart: "health", load: "health",
+  ssh_auth: "health", mem: "health", temp: "health", reboot: "updates", updates: "updates", services: "services", connector: "services",
+};
 
 export const RANK: Record<WatchTone, number> = { bad: 3, warn: 2, info: 1 };
 
@@ -14,14 +20,14 @@ export const RANK: Record<WatchTone, number> = { bad: 3, warn: 2, info: 1 };
 export function healthItems(h: HealthHost): WatchItem[] {
   if (h.reachable === false) return [{ tone: "bad", kind: "down", text: tx("injoignable : ni SSH ni Beszel") }];
   const out: WatchItem[] = [];
-  const add = (tone: WatchTone, kind: WatchKind, text: string) => out.push({ tone, kind, text });
+  const add = (tone: WatchTone, kind: WatchKind, text: string, detail?: string[]) => out.push({ tone, kind, text, ...(detail?.length ? { detail } : {}) });
   for (const d of h.disks || []) if (d.critical || d.warning) add(d.critical ? "bad" : "warn", "disk", tx("disque {0} rempli à {1} %", d.mount, d.used_pct));
   const failed = h.systemd?.failed || [];
   if (failed.length) add("bad", "systemd", tx("{0} service(s) systemd en échec : {1}", failed.length, failed.map((u) => u.unit).join(", ")));
   const dk = h.docker;
   if (dk?.accessible && (dk.unhealthy || dk.restarting)) add("warn", "docker", tx("Docker : {0} unhealthy, {1} en redémarrage", dk.unhealthy || 0, dk.restarting || 0));
   if ((dk?.issues || []).length) add("warn", "docker", tx("Docker : {0}", dk!.issues!.join(", ")));
-  if (h.kernel?.has_errors) add("warn", "kernel", tx("erreurs noyau récentes"));
+  if (h.kernel?.has_errors) add("warn", "kernel", tx("erreurs noyau récentes"), h.kernel.samples);
   for (const d of h.smart?.disks || []) if (d.failed || !d.healthy) add("bad", "smart", tx("SMART : {0} en défaut", d.device));
   if (h.load?.available && h.load.load_1 > h.load.ncpu) add("warn", "load", tx("charge {0} pour {1} CPU", h.load.load_1, h.load.ncpu));
   if (h.ssh_auth?.available && h.ssh_auth.failed_24h > 20) add("warn", "ssh_auth", tx("{0} connexions SSH refusées en 24 h", h.ssh_auth.failed_24h));
@@ -64,3 +70,9 @@ export function watchItems(m: Machine, h: HealthHost | undefined, connectors: Co
 
 /** Gravité la plus haute, 0 si rien */
 export const worst = (items: WatchItem[]): number => items.reduce((n, i) => Math.max(n, RANK[i.tone]), 0);
+
+/** A journalctl line « oct. 17 21:02:11 host kernel: message » split into its time and its message (the host and « kernel: » add nothing here) */
+export function kernelLine(line: string): { when: string; msg: string } {
+  const m = /^(\S+\s+\d+\s+\d{2}:\d{2}:\d{2})\s+\S+\s+(?:kernel:\s*)?(.*)$/.exec(line.trim());
+  return m ? { when: m[1], msg: m[2] } : { when: "", msg: line.trim() };
+}

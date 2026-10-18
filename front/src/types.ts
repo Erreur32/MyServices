@@ -113,7 +113,7 @@ export interface Machine {
   api?: { type: string; name: string; label: string; ok: boolean; stale?: boolean; version?: string | null; message?: string; host?: { cpu?: number; mem_pct?: number; temp?: number; boot?: string } | null }[];   // connecteurs API (Home Assistant…) qui lisent cette machine
   agent?: { os: string; kernel?: string | null; uptime_s?: number | null; hardware?: AgentHardware | null; docker?: number | null; apps?: { key: string; label: string }[]; via: "agent" } | null;  // système lu par l'agent (PC Windows)
   info?: {
-    os?: string; kernel?: string; uptime_s?: number; apache?: boolean; nginx?: boolean; docker?: number; docker_installed?: boolean;
+    os?: string; kernel?: string; uptime_s?: number; gpus?: string[]; apache?: boolean; nginx?: boolean; docker?: number; docker_installed?: boolean;
     sshd?: { permitrootlogin?: string; passwordauthentication?: string };
     vhosts?: unknown[]; vhosts_unreadable?: string[];
   } | null;
@@ -210,7 +210,19 @@ export interface ServiceStatus {
   state?: string | null;                 // RUNNING, NOT_RUNNING, STARTING
   unavailable?: number; unavailable_names?: string[]; batteries_low?: string[];
   automations?: { on: number; total: number };
+  mcp?: HaMcp | null;   // advanced mode (ha-mcp add-on): backups, apps, integrations, configuration check
   host?: { cpu?: number | null; mem_pct?: number | null; temp?: number | null; disks?: { mount: string; used_pct: number; size_gb?: number; used_gb?: number }[]; ips?: string[]; boot?: string | null };
+}
+
+/** What the ha-mcp add-on gives about a Home Assistant (read-only calls); each part is absent when its call failed (see errors) */
+export interface HaMcp {
+  server?: { name?: string; version?: string };
+  errors?: Record<string, string>;
+  backups?: { total: number; items: { id: string; name: string; date: number; size: number; protected?: boolean; database?: boolean; ha_version?: string; auto?: boolean; locations: string[]; offsite?: boolean }[] };
+  overview?: { version?: string; state?: string; notifications?: { title: string; created: number }[]; repairs?: number };
+  health?: { config_ok?: boolean; config_errors?: string[]; repairs?: unknown[]; repairs_count?: number; components?: number };
+  apps?: { total: number; running: number; stopped: number; updates: number; items: { name: string; slug: string; version?: string; state: string; update?: boolean }[] };
+  integrations?: { total: number; states: Record<string, number>; problems: { domain: string; title?: string; state: string }[] };
 }
 
 /** Connecteur à proposer : appli reconnue sur une machine, pas encore réglée (known_apps.py) */
@@ -240,6 +252,7 @@ export interface Data {
   security?: SecurityConnector[];
   containers?: ContainersConnector[];
   virtualization?: VirtualizationConnector[];
+  sheets?: Record<string, AddressSheet>;   // address -> sheet, from the fast reads (live.json), not from data.json
   hosts: Host[];
   dns?: Dns;
   machine_list: Machine[];
@@ -625,7 +638,13 @@ export interface SystemState {
 
 /** Connecteurs d'infrastructure : état de l'instance, puis les données propres à chaque type (data.json) */
 export interface InfraConnector { connector: string; name: string; label: string; ok: boolean; stale: boolean; message: string; version?: string | null; url?: string | null }
-export interface NetDevice { ip: string; mac?: string | null; hostname?: string | null; vendor?: string | null; status: string; ping_ms?: number | null; first_seen?: string | null; last_seen?: string | null; ports: number[] }
+/** Fiche d'une adresse lue par MynetworK (ip-details, 0.10.74+) : scanner, où UniFi la voit branchée, bail et redirections de la Freebox */
+export interface AddressSheet {
+  scan?: { status?: string; ping_ms?: number | null; ports: number[]; ports_at?: string | null };
+  unifi?: { name?: string; wired?: boolean; wireless?: boolean; switch_name?: string; switch_ip?: string; switch_model?: string; switch_port?: number; ap_name?: string; ap_model?: string };
+  freebox?: { dhcp?: { ip?: string; hostname?: string; mac?: string; static?: boolean }; forwards?: Record<string, unknown>[]; name?: string; active?: boolean; type?: string };
+}
+export interface NetDevice { ip: string; mac?: string | null; hostname?: string | null; vendor?: string | null; status: string; ping_ms?: number | null; first_seen?: string | null; last_seen?: string | null; ports: number[]; ports_at?: string | null }
 /** MynetworK : inventaire du réseau (scanner, UniFi) */
 export interface NetworkConnector extends InfraConnector {
   devices?: NetDevice[]; online?: number;
@@ -667,7 +686,8 @@ export interface ContainersConnector extends InfraConnector {
 export interface VirtualizationConnector extends InfraConnector {
   via?: "ssh" | "agent"; ip?: string;   // ssh: read on the host (pvesh, vim-cmd, virsh…), agent: Hyper-V by the Windows agent
   problems?: string[];   // Unraid, Datacenter Manager: what needs a look
-  nodes?: { name: string; online: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null; cpus?: number | null; mem?: number | null; maxmem?: number | null; model?: string | null }[];
+  nodes?: { name: string; online: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null; cpus?: number | null; mem?: number | null; maxmem?: number | null; model?: string | null
+    load?: number[]; iowait_pct?: number; swap_used?: number; swap_total?: number; root_used?: number; root_total?: number; kernel?: string; sockets?: number; cores?: number; temp_c?: number; fans_rpm?: number[] }[];
   guests?: { name?: string; type: "qemu" | "lxc" | "vm"; node?: string; status?: string; template: boolean; cpu_pct?: number | null; mem_pct?: number | null; uptime?: number | null;
     cpus?: number | null; mem?: number | null; maxmem?: number | null; maxdisk?: number | null; tags?: string[]; vmid: number | string; os?: string | null; ip?: string | null; hostname?: string | null }[];
   storage?: { name: string; node?: string; used_pct?: number | null; status?: string; used?: number | null; total?: number | null }[];

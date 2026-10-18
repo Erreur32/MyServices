@@ -11,9 +11,14 @@ Routes lues (enveloppe {"success": true, "result": …}) :
   (GET /api/connection/summary donne aussi, depuis 0.10.68, latest_firmware et update_available de la Freebox)
   GET /api/lan/devices                  hôtes vus par la Freebox (facultatif)
   GET /api/connection/summary           ligne et santé de la Freebox, sans IP ni numéro de série (facultatif, MynetworK 0.10.66+)
+  GET /api/search/ip-details/<ip>       fiche complète d'une adresse en un appel : scan, UniFi, bail Freebox, redirections de ports, ping en direct,
+                                        réservation DHCP (prévu, pas encore ouvert aux jetons API : 403 / 404 = absent, voir ip_details)
 Les routes facultatives qui répondent 403 ou 404 ne sont pas une erreur : MynetworK n'a simplement pas cette source.
 """
 from __future__ import annotations
+
+import ipaddress
+import re
 
 from connectors.base import Connector, ConnectorError, Field, Result
 from connectors.status_kit import duration, fact
@@ -22,6 +27,44 @@ FREEBOX_HOT = (75, 85)   # °C : warn, bad
 
 PAGE = 1000   # maximum accepté par MynetworK
 MAX_ITEMS = 5000  # garde-fou : un réseau plus grand n'est pas lu en entier
+
+
+# Keys never kept from a detail sheet, whatever MynetworK sends (its own filter should have dropped them: a second one here)
+SENSITIVE = re.compile(r"key|pass|token|secret|auth|cookie|psk|serial", re.I)
+MAX_DEPTH = 6
+
+
+def scrub(obj: object, depth: int = 0) -> object:
+    """Copy of a JSON value without the keys that look like a secret; too deep structures are cut."""
+    if depth > MAX_DEPTH:
+        return None
+    if isinstance(obj, dict):
+        return {k: scrub(v, depth + 1) for k, v in obj.items() if not SENSITIVE.search(str(k))}
+    if isinstance(obj, list):
+        return [scrub(v, depth + 1) for v in obj[:200]]
+    return obj
+
+
+def compact_sheet(raw: object) -> dict:
+    """The detail sheet of an address reduced to what the page shows (MynetworK 0.10.74+): scanner reading, where UniFi sees it plugged,
+    the Freebox lease and port redirections. Fields it does not have are left out."""
+    if not isinstance(raw, dict):
+        return {}
+    sc, un = raw.get("scanner") or {}, raw.get("unifi") or {}
+    cl, sw, ap, dev = (un.get(k) or {} for k in ("client", "switch", "ap", "device"))
+    ports = sorted({p if isinstance(p, int) else p.get("port") for p in sc.get("openPorts") or []
+                    if isinstance(p, int) or (isinstance(p, dict) and isinstance(p.get("port"), int))})
+    wired = cl.get("is_wired")
+    unifi = {"name": cl.get("name") or dev.get("name"), "wired": wired, "wireless": cl.get("is_wireless"),
+             "switch_name": sw.get("name"), "switch_ip": sw.get("ip"), "switch_model": sw.get("model"), "switch_port": cl.get("sw_port") if wired else None,
+             "ap_name": (ap.get("name") or cl.get("ap_name")) if wired is False else None, "ap_model": ap.get("model") if wired is False else None}
+    fb = raw.get("freebox") if isinstance(raw.get("freebox"), dict) else {}
+    out = {"scan": {"status": sc.get("status"), "ping_ms": sc.get("pingLatency"), "ports": ports, "ports_at": sc.get("lastPortScan")} if sc else None,
+           "unifi": {k: v for k, v in unifi.items() if v not in (None, "")} or None,
+           "freebox": {"dhcp": fb.get("dhcp"), "forwards": fb.get("portForwarding"), "name": fb.get("name"), "active": fb.get("active"), "type": fb.get("type")}
+           if fb.get("dhcp") or fb.get("portForwarding") else None}
+    out["freebox"] = {k: v for k, v in (out["freebox"] or {}).items() if v not in (None, "", [])} or None
+    return {k: v for k, v in out.items() if v}
 
 
 GATEWAY_KEYS = ("version", "upgradable", "upgrade_to_firmware", "lan_ip", "uptime", "cpu_pct", "mem_pct", "mem_total", "mem_used", "temperature")
@@ -48,10 +91,12 @@ def _result(got: object) -> object:
 def device(d: dict) -> dict:
     """Appareil du scanner réduit à ce que MyServices affiche (pas de champ libre : additionalInfo garde seulement les ports)."""
     info = d.get("additionalInfo") if isinstance(d.get("additionalInfo"), dict) else {}
-    ports = [p for p in info.get("openPorts") or [] if isinstance(p, int)]
+    # openPorts: plain numbers (older MynetworK) or {"port": 445, "protocol": "tcp"} (current one)
+    ports = sorted({p if isinstance(p, int) else p.get("port") for p in info.get("openPorts") or []
+                    if isinstance(p, int) or (isinstance(p, dict) and isinstance(p.get("port"), int))})
     return {"ip": d.get("ip"), "mac": (d.get("mac") or None), "hostname": d.get("hostname") or None, "vendor": d.get("vendor") or None,
             "status": d.get("status") or "unknown", "ping_ms": d.get("pingLatency"), "first_seen": d.get("firstSeen"),
-            "last_seen": d.get("lastSeen"), "ports": ports}
+            "last_seen": d.get("lastSeen"), "ports": ports, "ports_at": info.get("lastPortScan")}
 
 
 class MynetworK(Connector):
@@ -86,6 +131,16 @@ class MynetworK(Connector):
             raise
         return _result(got)
 
+    def ip_details(self, ip: str) -> dict | None:
+        """Detail sheet of one address (scan, UniFi, Freebox lease, port redirections, live ping, DHCP reservation) in one call, secrets
+        removed; None while the route is not open to API tokens (403 / 404 / 503) or when `ip` is not an address."""
+        try:
+            addr = str(ipaddress.ip_address(ip))
+        except ValueError:
+            return None
+        got = self._get(f"/api/search/ip-details/{addr}", optional=True)
+        return scrub(got) if isinstance(got, dict) else None
+
     def version(self) -> str | None:
         """App version from /api/health (public, no token), given since MynetworK 0.10.67; None before."""
         try:
@@ -95,24 +150,28 @@ class MynetworK(Connector):
         v = got.get("version") if isinstance(got, dict) else None
         return str(v).lstrip("v") if v else None
 
-    def collect(self) -> dict:
+    def scan(self) -> list[dict]:
+        """The scanner inventory alone (one paginated call): what the live tier reads often, without UniFi or the Freebox."""
         devices, offset, total = [], 0, None
         while total is None or (offset < total and offset < MAX_ITEMS):
             page = self._get("/api/network-scan/history", {"limit": PAGE, "offset": offset, "sortBy": "ip", "sortOrder": "asc"})
             if not isinstance(page, dict) or not isinstance(page.get("items"), list):
                 raise ConnectorError("réponse sans inventaire (URL de MynetworK ?)")
-            items = [device(d) for d in page["items"] if isinstance(d, dict) and d.get("ip")]
-            devices += items
+            devices += [device(d) for d in page["items"] if isinstance(d, dict) and d.get("ip")]
             total = page.get("total") if isinstance(page.get("total"), int) else len(devices)
             if not page["items"]:
                 break
             offset += PAGE
+        return devices
+
+    def collect(self) -> dict:
+        devices = self.scan()
         out: dict = {"devices": devices, "online": sum(1 for d in devices if d["status"] == "online"), "unifi": None}
         clients = self._get("/api/plugins/unifi/clients", {"limit": PAGE}, optional=True)
         gear = self._get("/api/plugins/unifi/devices", {"limit": PAGE}, optional=True)
         if isinstance(clients, list) or isinstance(gear, list):
             out["unifi"] = {
-                "clients": [{k: c.get(k) for k in ("name", "mac", "ip", "wired", "essid", "signal_dbm", "ap_mac", "switch_mac", "switch_port")}
+                "clients": [{k: c.get(k) for k in ("name", "mac", "ip", "wired", "essid", "signal_dbm", "ap_mac", "switch_mac", "switch_port", "switch_name", "switch_ip")}
                             for c in clients or [] if isinstance(c, dict)],
                 # upgradable / upgrade_to_firmware: kept when MynetworK passes them on from UniFi (the update waiting for a device)
                 "devices": [{k: d.get(k) for k in ("name", "model", "type", "mac", "ip", "state", "version", "clients", "uptime", "cpu_pct", "mem_pct",

@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import type { Snapshot } from "../api";
 import { NoteLine, Switch } from "../components/form";
-import { Badge, Count, Dim } from "../components/ui";
+import { Badge, Count, Dim, TITLE } from "../components/ui";
 import { Action, MODE, MuteButton, Title, useDiscoveries, when, type DiscoveryItem } from "../components/DiscoveryCard";
 import { NetworkStep } from "../components/NetworkStep";
 import { appIcon } from "../lib/appIcons";
@@ -26,12 +26,14 @@ import type { NetScan } from "../types";
 interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean; auto: boolean; ignored: { ip: string; name: string }[] }
 
 const CARD = "rounded-2xl border border-line bg-card p-4";
+/** Header strip of a folding card (a summary): the darkest tone of the theme, like the header of every other card */
+const FOLD_STRIP = "-mx-4 -mt-4 rounded-t-[15px] bg-bg px-4 py-3 group-open:mb-3 group-open:border-b group-open:border-line/60 [details:not([open])_&]:rounded-b-[15px]";
 const byLabel = (a: DiscoveryItem, b: DiscoveryItem) => (a.app || a.title).localeCompare(b.app || b.title, undefined, { sensitivity: "base" }) || (a.machine?.name ?? "").localeCompare(b.machine?.name ?? "");
 
 /** Section : titre avec icône et compteur, une phrase d'aide, le contenu ; `id` sert aux liens directs */
 function Section({ id, icon, title, n, hint, right, children }: { id?: string; icon: ReactNode; title: string; n?: number; hint?: string; right?: ReactNode; children: ReactNode }) {
   return (
-    <section id={id} className={`${CARD} scroll-mt-20`} aria-label={title}>
+    <section id={id} className={`${CARD} ${TITLE} scroll-mt-20`} aria-label={title}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <h2 className="flex items-center gap-2 font-bold">{icon}{title}{n !== undefined && <Count n={n} />}</h2>
         {right && <span className="ml-auto flex flex-wrap items-center gap-2">{right}</span>}
@@ -45,13 +47,13 @@ function Section({ id, icon, title, n, hint, right, children }: { id?: string; i
 /** Section repliable (même cadre neutre) : ouverte par un lien direct vers elle */
 function Fold({ id, icon, title, n, hint, open, onToggle, children }: { id: string; icon: ReactNode; title: string; n?: number; hint?: string; open: boolean; onToggle: (o: boolean) => void; children: ReactNode }) {
   return (
-    <details id={id} open={open} onToggle={(e) => onToggle(e.currentTarget.open)} className={`${CARD} group scroll-mt-20`}>
-      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 [&::-webkit-details-marker]:hidden">
+    <details id={id} open={open} onToggle={(e) => onToggle(e.currentTarget.open)} className={`${CARD} ${TITLE} group scroll-mt-20`}>
+      <summary className={`flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 ${FOLD_STRIP} [&::-webkit-details-marker]:hidden`}>
         <ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
         <h2 className="flex items-center gap-2 font-bold">{icon}{title}{n !== undefined && <Count n={n} />}</h2>
         {hint && <span className="text-sm text-muted">{hint}</span>}
       </summary>
-      <div className="mt-3 border-t border-line/60 pt-1">{children}</div>
+      <div className="pt-1">{children}</div>
     </details>
   );
 }
@@ -159,7 +161,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   return (
     <div className="flex flex-col gap-4">
       {/* 1. En-tête : l'état, le mode, la recherche réseau */}
-      <section className={CARD} aria-label={tx("Découverte")}>
+      <section className={`${CARD} ${TITLE}`} aria-label={tx("Découverte")}>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h2 className="flex items-center gap-2 text-lg font-bold"><Radar size={18} aria-hidden />{tx("Découverte")}</h2>
           {todo.length ? <Badge tone="warn">{tx("{0} chose(s) à faire", todo.length)}</Badge> : <Badge tone="ok">{tx("rien d'obligatoire à faire")}</Badge>}

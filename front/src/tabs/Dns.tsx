@@ -78,7 +78,7 @@ export function Dns({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
     return () => clearTimeout(t);
   }, [want]);
   if (!g) return <Empty>{tx("AdGuard n'est pas configuré.")}</Empty>;
-  const st = dnsSync(g), sync = Object.values(g.sync || {})[0];
+  const st = dnsSync(g, Date.parse(snap.data.generated)), sync = Object.values(g.sync || {})[0];
   const name = (ip?: string) => (ip && g.servers[ip]?.name) || ip || "?";
   const last = sync?.last_done ? Math.max(...Object.values(sync.last_done).map((t) => new Date(t).getTime())) : null;
   const rows = snap.data.hosts.filter((r) => r.dns && r.enabled && r.dns.issues.length);

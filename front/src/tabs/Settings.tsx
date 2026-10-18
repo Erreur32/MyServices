@@ -1,7 +1,7 @@
 // Réglages (admins) : une section à la fois, menu à gauche (en haut sur mobile). Comptes : son mot de passe,
 // les comptes (ajout, rôle, activation, nouveau mot de passe, suppression) et le journal des actions.
 // Menu en quatre groupes (Données, Surveillance, Accès et sécurité, Application). Autres sections : un fichier chacune dans tabs/.
-import { ArrowRight, Bell, Eye, FileText, HardDrive, Info, KeyRound, LifeBuoy, Plug, Plus, Radar, RefreshCw, ScrollText, Server, Settings2, ShieldCheck, Timer, Trash2, UserCheck, UserPlus, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
+import { ArrowRight, Bell, Eye, FileText, HardDrive, Info, KeyRound, LifeBuoy, Plug, Plus, Radar, RefreshCw, ScrollText, Server, SlidersHorizontal, ShieldCheck, Timer, Trash2, UserCheck, UserPlus, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { dateTime } from "../lib/format";
@@ -40,7 +40,7 @@ const GROUPS: { label: string; sections: { id: string; label: string; icon: Luci
     { id: "accounts", label: tx("Comptes"), icon: Users }, { id: "ssh", label: tx("Clé SSH"), icon: KeyRound },
     { id: "audit", label: tx("Journal d'audit"), icon: ScrollText }, { id: "api", label: tx("API et MCP"), icon: Webhook },
   ] },
-  { label: tx("Application"), sections: [{ id: "system", label: tx("Sauvegarde et infos"), icon: Settings2 },
+  { label: tx("Application"), sections: [{ id: "system", label: tx("Sauvegarde et infos"), icon: SlidersHorizontal },
     { id: "logs", label: tx("Journaux"), icon: FileText }, { id: "updates", label: tx("Mises à jour"), icon: RefreshCw },
     { id: "help", label: tx("Aide"), icon: LifeBuoy }, { id: "about", label: tx("À propos"), icon: Info }] },
 ];

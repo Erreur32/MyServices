@@ -31,10 +31,10 @@ from datetime import datetime
 from pathlib import Path
 
 from config import CFG, HERE
-from connectors.backup_apis import HomeAssistant, PbsBackups, Veeam
+from connectors.backup_apis import DSM_FAIL, HomeAssistant, PbsBackups, SynologyBackups, Veeam
 from connectors.base import ConnectorError, Context
 
-CONNECTOR_OF = {Veeam: ("veeam",), HomeAssistant: ("home-assistant",), PbsBackups: ("proxmox-backup",)}  # types de config.json dont un hôte « connector » reprend les réglages
+CONNECTOR_OF = {Veeam: ("veeam",), HomeAssistant: ("home-assistant",), PbsBackups: ("proxmox-backup",), SynologyBackups: ("synology",)}  # types de config.json dont un hôte « connector » reprend les réglages
 META = Path(CFG["backups_meta"])
 OUT_JSON = Path(CFG["web_dir"]) / "backups.json"
 SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=15"]
@@ -367,6 +367,8 @@ def collect(meta: dict) -> tuple[dict, dict]:
             res[hid] = api_collect(Veeam, h, "API Veeam")
         elif h.get("api") == "pbs":
             res[hid] = api_collect(PbsBackups, h, "API Proxmox Backup")
+        elif h.get("api") == "synology":
+            res[hid] = api_collect(SynologyBackups, h, "API Synology")
         elif h.get("api") == "remote":
             res[hid] = remote_collect(h, [(f"{s['id']}#{i}", loc) for s in meta["sets"] for i, loc in enumerate(s["locations"])
                                           if loc["host"] == hid and loc.get("path")])
@@ -381,10 +383,18 @@ def collect(meta: dict) -> tuple[dict, dict]:
 
 # ───────────── Analyse ─────────────
 
+CADENCE_WINDOW_DAYS = 120   # an archive older than this says nothing about the current rhythm (a forgotten file would stretch it)
+CADENCE_RUNS = 8            # the rhythm is read on the most recent runs only
+
+
 def cadence(files: list[dict]) -> float | None:
     """Observed rhythm of a folder, in days: median gap between the days archives were written (several files the same day = one run).
-    None with fewer than 3 runs."""
-    days = sorted({f["mtime"] // 3600 // 6 for f in files}, reverse=True)   # 6-hour slots: one run, even if it writes for a while
+    Only the recent runs count: the files of the last CADENCE_WINDOW_DAYS days before the newest one, and at most CADENCE_RUNS runs. None with fewer than 3 runs."""
+    if not files:
+        return None
+    newest = max(f["mtime"] for f in files)
+    recent = [f for f in files if newest - f["mtime"] <= CADENCE_WINDOW_DAYS * 86400]
+    days = sorted({f["mtime"] // 3600 // 6 for f in recent}, reverse=True)[:CADENCE_RUNS]   # 6-hour slots: one run, even if it writes for a while
     gaps = sorted((a - b) * 0.25 for a, b in zip(days, days[1:]))
     return round(gaps[len(gaps) // 2], 1) if len(gaps) >= 2 else None
 
@@ -440,6 +450,26 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                     L["detail"] = f"dernier passage : {j['result']}" + (f" ({j['status']})" if j["status"] not in (None, "Inactive") else "")
                 # Le job écrit dans un dépôt Veeam (NAS, autre serveur) : copie hors machine, sauf "offsite": false
                 L["offsite"] = loc.get("offsite", True)
+                locs.append(L)
+                continue
+            if loc.get("synology_task") and r:
+                # Hyper Backup task of a Synology: age of the last run; a failed or interrupted last run is critical, an unknown result at least a warning
+                t = r["synology_tasks"].get(loc["synology_task"])
+                if not t:
+                    L["level"], L["detail"] = "crit", f"tâche « {loc['synology_task']} » absente de Hyper Backup"
+                elif not t["last_run"]:
+                    L["level"], L["detail"] = "crit", "tâche jamais lancée"
+                else:
+                    res_word = str(t["result"]).lower()
+                    L["age"] = age_days(t["last_run"], now)
+                    L["newest"] = {"name": loc["synology_task"], "mtime": t["last_run"], "size": 0}
+                    if any(w in res_word for w in DSM_FAIL):
+                        L["level"] = "crit"
+                    else:
+                        L["level"] = max(level_for_age(L["age"], max_age), "ok" if res_word in ("done", "success", "backingup", "resuming") else "warn", key=RANK.get)
+                    L["detail"] = f"dernier passage : {t['result']}"
+                # the task writes to another volume, a USB disk, another NAS or a cloud: a copy outside the machine, unless it is told otherwise or the target is local
+                L["offsite"] = loc.get("offsite", str(t["target_type"] if t else "").lower() not in ("local", "usb", "share", "folder"))
                 locs.append(L)
                 continue
             if loc.get("pbs_group") and r:

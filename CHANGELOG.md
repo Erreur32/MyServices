@@ -11,6 +11,69 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.13.0 (2026-10-18)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+
+- Machines tab, health: a notice with messages behind it (kernel errors) shows them in its tooltip, and a click on its badge opens the machine
+  window at the right row, which flashes. Kernel errors have their own block in the window (time and message in a log, copy button, "Ignore" until
+  a more recent message appears, kept in the browser only). The kernel window is 12 h (it was 24 h) and the 8 most recent lines are kept (the oldest were).
+- Machines tab: a coloured dot on the machine icon (red, yellow, blue) follows its worst notice; the warning badge of the tab is now a button that
+  filters the table on the machines with a notice (new "Alerts" filter).
+- Machines table: a **GPU** column (only when some machine has one): name, load, temperature, memory, power, last 24 h and AI models from GpuViewR
+  in a tooltip; without GpuViewR, the adapters read by `lspci` over SSH (Linux, Proxmox; integrated graphics included, virtual adapters skipped)
+  or the names listed by the Windows agent. A **VM** cube beside the name of a virtual machine. The **Uptime** column is compact (`12j 4h`) and
+  Home Assistant now has one (from its last boot time).
+- Machine window of a UniFi device, like the Freebox's (reading, UniFi info, firmware in Updates); a Docker container list with service logos;
+  the "Services" and "N NPM" counts open the Services tab already filtered.
+- Machine window of Home Assistant (advanced mode): its backups with where each is copied, apps (running, stopped), integrations (failing ones),
+  configuration check and repairs, and its updates by kind (Home Assistant, apps, HACS and others).
+- Machine window of a box, NAS or server that receives copies: a **Share** section (copies hosted, free space, age of each copy), in console style.
+- Backups tab: a summary card (sets OK, late, critical, without copy outside the machine, source volume, free space of the storage machines,
+  where the copies go, time of the reading).
+
+- Backups: **Synology Hyper Backup** tasks can be followed (Settings -> Backups -> Synology, with the account of the Synology DSM connector, read-only):
+  last run, result, next run, volume usage; a failed or interrupted run is critical, a cloud or remote target counts as a copy outside the machine.
+  Tested against a fake DSM only; to confirm on a real NAS.
+- README (EN, FR): how to follow the backups of a box or NAS, either through a share mounted on the host and read **read-only** by the container
+  (one compose volume line, `compose.yaml` shows it commented) or with an account typed in the page (FTP, FTPS, Samba).
+
+- **Live checks**: a pulse pings every followed machine every 30 s (2 in a row to confirm, so one lost packet is not an outage) and writes
+  `pulse.json`; the page reads it every 15 s and the watcher takes the machine up / down events from it, started at once (they used to wait for
+  the next collection, 35 to 65 minutes). The health of a machine that moved is read again alone, and so is the health of a machine that
+  answers the ping while its health says "unreachable". A **fast connector tier** reads MynetworK (devices, ports, date of their last scan; the
+  address sheet when MynetworK 0.10.74+ allows it), Proxmox by API and the Beszel status every 5 minutes into `live.json`. Settings -> Tasks
+  and schedules has a "Live checks" row (pulse period, pulses to confirm, fast connectors period; 0 turns a tier off). The watcher runs right
+  after each collection and never counts the same collection twice.
+- Proxmox: a strip under each node with the load, I/O wait, swap, system disk, kernel, CPU model and guests allocation; the CPU temperature
+  and the fans when `lm-sensors` answers on the host (SSH only). The same figures without temperature for hosts read with an API token. The
+  Proxmox version is in the machine window. The Virtualisation tab has a "Hide stopped" toggle and greys the stopped guests.
+- Machine window, from MynetworK's address sheet: where UniFi sees the address plugged (switch and port, or Wi-Fi access point), its name in
+  UniFi, the Freebox lease and port redirections; the UniFi clients list keeps the switch name and IP. Our own agent is listed as a source of
+  the machine it reports for.
+
+### Changed
+
+- Backups: the observed rhythm of a folder is read on its 8 most recent runs and the last 120 days only (a forgotten old file no longer stretches
+  it to months); the settings page also advises to tighten a threshold that is much looser than the rhythm.
+- DNS: the AdGuard sync state is judged at the time of the collection, not against the clock of the browser (it showed "sync late" a few minutes
+  after each collection although the sync ran every 5 minutes).
+- Services tab: the columns are "Domain" and "Service" (they were swapped in meaning), the service logos are bigger, the rows are striped and
+  lower, and the machine groups are open when you arrive with a filter. Machines, Services and Backups tables are striped; the local backup
+  folders frame is a foldable table (folded at start); the search and filters of Backups sit in the stats frame on one line (they fold behind
+  the Filters button beyond 10 chips or when too wide), and the History hide toggles are on the search line.
+- The settings icon is now a set of sliders everywhere; the "to watch" level badge is outline only; tooltips have a dark heading strip like the card
+  headers; the Infra, Network and Security tabs are shown only on development builds until they are finished.
+
+### Fixed
+
+- MynetworK: the open ports were all dropped (the scanner now sends them as `{port, protocol}`); they are read again, with the date of their
+  last scan.
+- A machine marked "often off" that Beszel sees up is read from Beszel, and a machine no longer read loses its stale "unreachable" health row;
+  the Beszel badge follows its current status instead of the one of the last full collection.
+
 ## v0.12.0 (2026-10-17)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

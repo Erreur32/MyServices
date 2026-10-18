@@ -98,7 +98,7 @@ class Reseau(unittest.TestCase):
 
     def test_mynetwork_inventaire_et_unifi(self):
         item = {"id": 1, "ip": "192.168.1.20", "mac": "aa:bb:cc:dd:ee:ff", "hostname": "nas", "vendor": "Synology", "status": "online",
-                "pingLatency": 1.4, "additionalInfo": {"openPorts": [22, 80, "x"], "secret": "no"}}
+                "pingLatency": 1.4, "additionalInfo": {"openPorts": [22, {"port": 80, "protocol": "tcp"}, {"port": "x"}, "x"], "lastPortScan": "2026-10-17T22:04:57.703Z", "secret": "no"}}
         Fake.routes = {"/api/health": (200, {"status": "ok"}),
                        "/api/network-scan/history": (200, {"success": True, "result": {"items": [item, {"ip": "192.168.1.21", "status": "offline"}], "total": 2}}),
                        "/api/plugins/unifi/clients": (200, {"success": True, "result": [{"name": "Pixel", "mac": "m", "wired": False, "essid": "Home"}]}),
@@ -219,12 +219,14 @@ class Reseau(unittest.TestCase):
                {"type": "qemu", "vmid": 9000, "name": "modele", "node": "pve", "status": "stopped", "template": 1},
                {"type": "storage", "storage": "local", "node": "pve", "disk": 50, "maxdisk": 100}]
         Fake.routes = {"/api2/json/version": (200, {"data": {"version": "8.2.4"}}), "/api2/json/cluster/resources": (200, {"data": res}),
-                       "/api2/json/cluster/tasks": (200, {"data": [{"type": "vzdump", "status": "OK", "endtime": 1760000000}]})}
+                       "/api2/json/cluster/tasks": (200, {"data": [{"type": "vzdump", "status": "OK", "endtime": 1760000000}]}),
+                       "/api2/json/nodes/pve/status": (200, {"data": {"loadavg": ["0.5", "0.4", "0.3"], "kversion": "Linux 6.8.12-1-pve #1", "swap": {"used": 1, "total": 2}}})}
         c = ProxmoxVE({"type": "proxmox", "name": "t", "url": self.url, "user": "u@pve!t", "secret": "s", "verify_tls": False}, Context(timeout=5))
         d = c.collect()
         self.assertEqual(d["totals"], {"vm": 1, "lxc": 1, "running": 1, "stopped": 1})  # le modèle n'est pas compté
         self.assertEqual(d["storage"][0]["used_pct"], 50.0)
         self.assertTrue(d["backups"]["ok"])
+        self.assertEqual((d["nodes"][0]["load"], d["nodes"][0]["kernel"]), ([0.5, 0.4, 0.3], "6.8.12-1-pve"))
         self.assertTrue(all(s[0] == "GET" for s in Fake.seen))
         self.assertEqual(c.test().version, "8.2.4")
         self.assertEqual(c._auth(), {"Authorization": "PVEAPIToken=u@pve!t=s"})
@@ -237,6 +239,23 @@ class Reseau(unittest.TestCase):
         d = c.collect()["datastores"][0]
         self.assertEqual((d["name"], d["used_pct"], d["groups"]), ("main", 25.0, 1))
         self.assertEqual(c._auth(), {"Authorization": "PBSAPIToken=u@pbs!t:s"})  # deux-points chez PBS
+
+    def test_mynetwork_fiche_adresse(self):
+        sheet = {"ip": "192.168.1.20", "scan": {"status": "online", "pingLatency": 1.2}, "freeboxDevice": {"name": "nas", "apiKey": "no", "access": {"token": "no"}},
+                 "dhcpLease": {"mac": "aa:bb", "wifiPassword": "no"}, "redirects": [{"lan_port": 22, "secret": "no"}]}
+        Fake.routes = {"/api/search/ip-details/192.168.1.20": (200, {"success": True, "result": sheet})}
+        c = inst(MynetworK, self.url)
+        got = c.ip_details("192.168.1.20")
+        self.assertEqual(got["scan"]["status"], "online")
+        self.assertEqual(got["dhcpLease"], {"mac": "aa:bb"})
+        self.assertEqual(got["redirects"], [{"lan_port": 22}])
+        self.assertNotIn("no", json.dumps(got))
+        self.assertIsNone(c.ip_details("192.168.1.21"))          # route open but nothing there: 404 is "absent", not an error
+        Fake.seen.clear()
+        self.assertIsNone(c.ip_details("../etc/passwd"))         # not an address: no request at all
+        self.assertEqual(Fake.seen, [])
+        Fake.routes = {"/api/search/ip-details/192.168.1.20": (403, {"success": False, "error": {"code": "API_TOKEN_ROUTE_NOT_ALLOWED"}})}
+        self.assertIsNone(c.ip_details("192.168.1.20"))          # not open to API tokens yet
 
     def test_dockhand(self):
         Fake.routes = {"/api/host": (200, {"hostname": "h"}),

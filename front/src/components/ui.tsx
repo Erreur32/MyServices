@@ -1,6 +1,6 @@
 // Éléments communs des onglets : barre de recherche et pastilles, en-têtes triables, badges d'état.
 import { ChevronDown, ChevronUp, Plus, Search, SlidersHorizontal, X } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Chip, Facet } from "../lib/filter";
 
 import { LEVEL, type Tone } from "../lib/level";
@@ -16,18 +16,18 @@ const TONE: Record<Tone, string> = {
   info: "border-link/40 bg-link/10 text-link",
 };
 
-export function Badge({ tone, children, title }: { tone: Tone; children: ReactNode; title?: string }) {
+export function Badge({ tone, children, title, outline = false, plainText = false }: { tone: Tone; children: ReactNode; title?: string; outline?: boolean; plainText?: boolean }) {   // outline: the border and the text colour only, no filled background ; plainText: the text in the normal colour (white on dark), the state is carried by the border
   return (
-    <span title={title} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-xs font-semibold ${TONE[tone]}`}>
+    <span title={title} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-xs font-semibold ${(outline ? TONE[tone].replace(/bg-\S+/, "bg-transparent") : TONE[tone]).replace(plainText ? /text-\S+/ : /$^/, "text-txt")}`}>
       {children}
     </span>
   );
 }
 
 
-export function Level({ level, children }: { level: string; children?: ReactNode }) {
+export function Level({ level, children, outline, plainText }: { level: string; children?: ReactNode; outline?: boolean; plainText?: boolean }) {   // outline: border and text colour only; always so for « to watch »
   const [tone, label] = LEVEL[level] || ["off", level];
-  return <Badge tone={tone}>{children ?? label}</Badge>;
+  return <Badge tone={tone} outline={outline ?? level === "warn"} plainText={plainText ?? level === "warn"}>{children ?? label}</Badge>;
 }
 
 export type CardTone = "bad" | "warn" | "info" | "ok";
@@ -39,18 +39,22 @@ const BUBBLE: Record<CardTone, "bad" | "warn" | "off" | "ok"> = { bad: "bad", wa
 
 /** Card with a coloured header strip (title, count in a round bubble) over a table with fixed columns and headers. Nothing is shown without a row,
  *  unless `empty` (the "all good" message) is given. `footer` goes under the table. */
-export function TableCard({ title, tone, count, cols, rows, note, empty, footer, className = "" }: {
-  title: ReactNode; tone: CardTone; count?: number; cols: { label: string; className?: string }[]; rows: ReactNode[][]; note?: ReactNode; empty?: ReactNode; footer?: ReactNode; className?: string;
+export function TableCard({ title, tone, count, cols, rows, note, empty, footer, className = "", zebra = false, foldable = false, folded = false }: {
+  title: ReactNode; tone: CardTone; count?: number; cols: { label: string; className?: string }[]; rows: ReactNode[][]; note?: ReactNode; empty?: ReactNode; footer?: ReactNode; className?: string; zebra?: boolean; foldable?: boolean; folded?: boolean;   // zebra: every other row darker; foldable: the header strip folds the frame, `folded` is its starting state
 }) {
+  const [shut, setShut] = useState(foldable && folded);
   const n = count ?? rows.length;
   if (!n && !empty) return null;
   return (
     <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${FRAME[tone]} ${className}`}>
-      <div className={`flex flex-wrap items-center gap-3 px-4 py-3 ${STRIP[tone]}`}>
+      <div className={`flex flex-wrap items-center gap-3 px-4 py-3 ${STRIP[tone]} ${foldable ? "cursor-pointer select-none hover:bg-bg2/40" : ""}`}
+        {...(foldable ? { onClick: () => setShut(!shut), role: "button", tabIndex: 0, "aria-expanded": !shut,
+          onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShut(!shut); } } } : {})}>
         <h3 className="font-bold">{title}</h3><Count n={n} tone={BUBBLE[tone]} />
+        {foldable && <span className="ml-auto text-dim" aria-hidden>{shut ? <ChevronDown size={16} /> : <ChevronUp size={16} />}</span>}
       </div>
-      {note && <p className="border-b border-line/60 px-4 py-2 text-sm text-muted">{note}</p>}
-      {rows.length ? (
+      {!shut && note && <p className="border-b border-line/60 px-4 py-2 text-sm text-muted">{note}</p>}
+      {shut ? null : rows.length ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[420px] table-fixed border-collapse text-sm">
             <thead>
@@ -60,7 +64,7 @@ export function TableCard({ title, tone, count, cols, rows, note, empty, footer,
             </thead>
             <tbody className="divide-y divide-line/60">
               {rows.map((r, i) => (
-                <tr key={i} className="hover:bg-bg2/40">
+                <tr key={i} className={`hover:!bg-bg2/40 ${zebra ? "even:bg-bg/50" : ""}`}>
                   {r.map((cell, j) => <td key={j} className={`break-words px-4 py-2 align-top ${cols[j]?.className ?? ""}`}>{cell}</td>)}
                 </tr>
               ))}
@@ -68,7 +72,7 @@ export function TableCard({ title, tone, count, cols, rows, note, empty, footer,
           </table>
         </div>
       ) : <p className="px-4 py-3 text-sm text-ok">{empty}</p>}
-      {footer && <div className="border-t border-line/60 px-4 py-2 text-xs text-dim">{footer}</div>}
+      {!shut && footer && <div className="border-t border-line/60 px-4 py-2 text-xs text-dim">{footer}</div>}
     </section>
   );
 }
@@ -86,7 +90,7 @@ export function Dim({ children }: { children: ReactNode }) {
 /** Card title (h2): when it opens the card, directly or inside a row that also holds buttons, it becomes a header strip across the card (same look as
  *  TableCard and the card grids); otherwise it is just a larger bold title. The icon takes the link colour; a text colour already set (text-ok…) is kept. */
 // Written out in full: Tailwind only generates classes it finds as complete strings in the source.
-const TITLE =
+export const TITLE =
   "[&_h2]:text-[1.0625rem] [&_h2]:font-extrabold [&_h2]:leading-snug [&_h2]:tracking-tight [&_h2_svg]:text-link " +
   "[&>h2:first-child]:-mx-4 [&>div:first-child:has(>h2)]:-mx-4 [&>h2:first-child]:-mt-4 [&>div:first-child:has(>h2)]:-mt-4 [&>h2:first-child]:mb-3 [&>div:first-child:has(>h2)]:mb-3 [&>h2:first-child]:border-b [&>div:first-child:has(>h2)]:border-b [&>h2:first-child]:border-line/60 [&>div:first-child:has(>h2)]:border-line/60 [&>h2:first-child]:bg-bg [&>div:first-child:has(>h2)]:bg-bg [&>h2:first-child]:px-4 [&>div:first-child:has(>h2)]:px-4 [&>h2:first-child]:py-3 [&>div:first-child:has(>h2)]:py-3 [&>h2:first-child]:rounded-t-[15px] [&>div:first-child:has(>h2)]:rounded-t-[15px] [&>div:first-child>h2]:mb-0";
 
@@ -120,17 +124,38 @@ function ChipButton({ on, count, mark, label, onClick }: Readonly<{ on: boolean;
   );
 }
 
-export function FilterBar<T>({ f, placeholder, extra, side, options = [], primary = [] }: Readonly<{
+export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions = [], optionsLabel, primary: primaryProp = [], oneLine = false }: Readonly<{
   f: { query: string; setQuery: (q: string) => void; shown: unknown[]; total: number; active: number; reset: () => void;
        chips: { facet: Facet<T>; chips: Chip[] }[]; toggle: (k: string, v: string) => void };
   placeholder: string; extra?: ReactNode; side?: ReactNode; options?: FilterOption[];   // side : à droite, sous le bouton « Filtres »
   /** Clés des filtres toujours visibles sous la recherche ; les autres restent derrière le bouton « Filtres » */
   primary?: string[];
+  /** Filtres visibles sur la même ligne que la recherche ; au-delà de 10 pastilles ou si la ligne déborde, ils passent derrière le bouton « Filtres » */
+  oneLine?: boolean;
+  /** Given: the options are toggles shown on the search line under this caption (« Masquer »), not behind the « Filtres » button */
+  optionsLabel?: string;
 }>) {
+  const options = optionsLabel ? [] : allOptions;
   // Filtres repliés d'office (sur tous les écrans) : la barre de recherche suffit le plus souvent ; ce qui est actif
   // reste visible en pastilles retirables, et le bouton « Filtres » déplie le reste.
   const [open, setOpen] = useState(false);
   const shownGroups = f.chips.filter((g) => g.chips.length > 1 || g.chips.some((c) => c.on));
+  // Une seule ligne : si les pastilles demandées sont trop nombreuses (plus de 10) ou ne tiennent pas, elles vont derrière le bouton « Filtres »
+  const wanted = shownGroups.filter((g) => primaryProp.includes(g.facet.key));
+  const rowRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [tooWide, setTooWide] = useState(false);
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!oneLine || !row) return;
+    const check = () => setTooWide(220 + 400 + (measureRef.current?.scrollWidth ?? 0) > row.clientWidth);   // 220 = search field, 400 = counter, buttons and gaps
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(row);
+    return () => ro.disconnect();
+  }, [oneLine, wanted.length]);
+  const collapsed = oneLine && (tooWide || wanted.reduce((n, g) => n + g.chips.length, 0) > 10);
+  const primary = collapsed ? [] : primaryProp;
   const inline = shownGroups.filter((g) => primary.includes(g.facet.key));
   const groups = shownGroups.filter((g) => !primary.includes(g.facet.key));
   const active = f.chips.filter((g) => !primary.includes(g.facet.key)).flatMap((g) => g.chips.filter((c) => c.on).map((c) => ({ facet: g.facet, chip: c })));
@@ -141,15 +166,34 @@ export function FilterBar<T>({ f, placeholder, extra, side, options = [], primar
   const fresh = active.map((a) => keyOf(a.facet, a.chip)).filter((k) => !seen.includes(k));
   if (fresh.length) setSeen([...seen, ...fresh]);   // mise à jour pendant le rendu : autorisée pour un état de ce composant
   const toggles = seen.flatMap((k) => f.chips.flatMap((g) => g.chips.filter((c) => keyOf(g.facet, c) === k).map((c) => ({ facet: g.facet, chip: c }))));
+  const renderInline = (list: typeof inline, nowrap: boolean) => list.length > 0 && (
+    <div className={`flex items-center gap-x-5 gap-y-2 ${nowrap ? "flex-nowrap whitespace-nowrap" : "flex-wrap"}`}>
+      {list.map(({ facet, chips }) => (
+        <div key={facet.key} className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-dim">{facet.label}</span>
+          {chips.map((c) => <ChipButton key={c.value} on={c.on} count={c.count} mark={facet.mark?.(c.value)} label={c.label} onClick={() => f.toggle(facet.key, c.value)} />)}
+        </div>
+      ))}
+    </div>
+  );
+  const inlineFilters = renderInline(inline, oneLine);
   return (
     <div className="my-4 flex flex-col gap-3 rounded-2xl border border-line bg-card/70 p-3">
-      <div className="flex flex-wrap items-center gap-3">
+      <div ref={rowRef} className={`flex items-center gap-3 ${oneLine && !collapsed ? "flex-nowrap" : "flex-wrap"}`}>
         <label className="flex min-w-[220px] max-w-sm flex-1 items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-1.5 focus-within:border-link">
           <Search size={16} className="text-dim" />
           <input value={f.query} onChange={(e) => f.setQuery(e.target.value)} placeholder={placeholder} type="search"
             className="w-full bg-transparent text-sm text-txt outline-none placeholder:text-dim" />
         </label>
         <span className="text-sm text-muted" title={tx("Lignes affichées sur le total, après la recherche et les filtres")}><b className="text-txt">{f.shown.length}</b> {tx("sur")} {f.total}</span>
+        {oneLine && inlineFilters}
+        {optionsLabel && allOptions.length > 0 && (
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-dim">{optionsLabel}</span>
+            {allOptions.map((o) => <ChipButton key={o.id} on={o.on} count={o.count ?? 0} mark={o.mark} label={o.label} onClick={o.toggle} />)}
+          </span>
+        )}
+        {oneLine && <div ref={measureRef} aria-hidden className="pointer-events-none invisible absolute h-0 overflow-hidden">{renderInline(wanted, true)}</div>}
         {f.active > 0 && (
           <button type="button" onClick={f.reset} className="inline-flex items-center gap-1 text-sm text-link hover:underline">
             <X size={14} />{tx("Tout effacer")}
@@ -171,16 +215,7 @@ export function FilterBar<T>({ f, placeholder, extra, side, options = [], primar
           </div>
         )}
       </div>
-      {inline.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          {inline.map(({ facet, chips }) => (
-            <div key={facet.key} className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-dim">{facet.label}</span>
-              {chips.map((c) => <ChipButton key={c.value} on={c.on} count={c.count} mark={facet.mark?.(c.value)} label={c.label} onClick={() => f.toggle(facet.key, c.value)} />)}
-            </div>
-          ))}
-        </div>
-      )}
+      {!oneLine && inlineFilters}
       {!open && (toggles.length > 0 || options.some((o) => o.on)) && (
         <div className="flex flex-wrap items-center gap-1.5">
           {options.filter((o) => o.on).map((o) => (
@@ -230,12 +265,12 @@ export function FilterBar<T>({ f, placeholder, extra, side, options = [], primar
 }
 
 /** En-tête de colonne triable */
-export function Th({ k, sort, children, className = "" }: {
-  k?: string; sort?: { key: string; asc: boolean; by: (k: string) => void }; children?: ReactNode; className?: string;
+export function Th({ k, sort, children, className = "", title }: {
+  title?: string; k?: string; sort?: { key: string; asc: boolean; by: (k: string) => void }; children?: ReactNode; className?: string;
 }) {
   const on = k && sort?.key === k;
   return (
-    <th className={`sticky top-0 z-10 whitespace-nowrap border-b border-line bg-bg2 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-dim ${className}`}>
+    <th title={title} className={`sticky top-0 z-10 whitespace-nowrap border-b border-line bg-bg2 px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-dim ${className}`}>
       {k && sort ? (
         <button type="button" onClick={() => sort.by(k)} className={`inline-flex items-center gap-1 uppercase hover:text-txt ${on ? "text-txt" : ""}`}>
           {children}{on && (sort.asc ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}

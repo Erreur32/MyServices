@@ -226,7 +226,8 @@ class Synology(StatusConnector):
         d = post_form(self.base_url() + "/webapi/entry.cgi", {"api": api, "version": version, "method": method, "_sid": sid, **(extra or {})}, self.tls())
         return (d or {}).get("data") if isinstance(d, dict) and d.get("success") else None
 
-    def collect(self) -> dict:
+    def login(self) -> str:
+        """Session DSM (compte lecture seule) : l'identifiant de session ; à fermer avec logout()."""
         d = post_form(self.base_url() + "/webapi/auth.cgi", {"api": "SYNO.API.Auth", "version": 6, "method": "login", "account": self.conf.get("user", ""),
                                                             "passwd": self.conf.get("password", ""), "session": "myservices", "format": "sid"}, self.tls())
         if not isinstance(d, dict):
@@ -234,7 +235,13 @@ class Synology(StatusConnector):
         if not d.get("success"):
             code = (d.get("error") or {}).get("code")
             raise ConnectorError({400: "compte ou mot de passe refusé", 401: "compte désactivé", 402: "accès refusé", 403: "double authentification : non gérée"}.get(code, f"connexion refusée (code {code})"))
-        sid = str((d.get("data") or {}).get("sid", ""))
+        return str((d.get("data") or {}).get("sid", ""))
+
+    def logout(self, sid: str) -> None:
+        post_form(self.base_url() + "/webapi/auth.cgi", {"api": "SYNO.API.Auth", "version": 6, "method": "logout", "session": "myservices", "_sid": sid}, self.tls())
+
+    def collect(self) -> dict:
+        sid = self.login()
         try:
             info = self._call(sid, "SYNO.DSM.Info", "getinfo", 2) or {}
             sto = self._call(sid, "SYNO.Storage.CGI.Storage", "load_info") or {}
@@ -242,7 +249,7 @@ class Synology(StatusConnector):
             hb = self._call(sid, "SYNO.Backup.Task", "list", 1, {"additional": '["last_bkp_time","last_bkp_result"]'}) or {}
             vmm = self._call(sid, "SYNO.Virtualization.API.Guest", "list", 1) or {}
         finally:
-            post_form(self.base_url() + "/webapi/auth.cgi", {"api": "SYNO.API.Auth", "version": 6, "method": "logout", "session": "myservices", "_sid": sid}, self.tls())
+            self.logout(sid)
         vols, disks = rows(sto.get("volumes")), rows(sto.get("disks"))
         bad_v = [v for v in vols if str(v.get("status", "normal")) not in ("normal",)]
         bad_d = [x for x in disks if str(x.get("status", "normal")) not in ("normal", "initialized") or str(x.get("smart_status", "normal")) not in ("normal", "")]

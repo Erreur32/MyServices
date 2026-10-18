@@ -107,6 +107,39 @@ def _update_config(core, change, secret: bool = False) -> None:
     tmp.replace(f)
 
 
+# Live checks: (lowest, highest) of each setting; 0 = off is also accepted where listed in LIVE_OFF
+LIVE_LIMITS = {"pulse_every": (10, 600), "pulse_confirm": (1, 5), "fast_every": (60, 3600)}
+LIVE_OFF = ("pulse_every", "fast_every")
+
+
+def live_settings(core) -> dict:
+    """Pulse (ping of every machine), its confirmation and the fast connector reads: current values, defaults and limits."""
+    from config import DEFAULTS
+    return {"values": {k: core.CFG[k] for k in LIVE_LIMITS}, "defaults": {k: DEFAULTS[k] for k in LIVE_LIMITS},
+            "limits": {k: list(v) for k, v in LIVE_LIMITS.items()}, "off_allowed": list(LIVE_OFF)}
+
+
+def set_live(core, values: dict) -> dict:
+    """Writes the given live-check settings to config.json, applied at the next pass of each loop (no restart)."""
+    from config import DEFAULTS
+    clean = {}
+    for k, v in values.items():
+        lo, hi = LIVE_LIMITS[k]
+        if isinstance(v, bool) or not isinstance(v, int) or not (lo <= v <= hi or (v == 0 and k in LIVE_OFF)):
+            raise ValueError(f"{k} : entre {lo} et {hi}" + (", ou 0 pour couper" if k in LIVE_OFF else ""))
+        clean[k] = v
+
+    def change(raw: dict) -> None:
+        for k, v in clean.items():
+            if v == DEFAULTS[k]:
+                raw.pop(k, None)
+            else:
+                raw[k] = v
+    _update_config(core, change)
+    core.CFG.update(clean)
+    return live_settings(core)
+
+
 NETSCAN_DEFAULT_H, NETSCAN_MAX_H = 6, 168
 
 

@@ -32,7 +32,9 @@ from pathlib import Path
 if __name__ == "__main__":
     sys.modules.setdefault("server", sys.modules[__name__])
 
+import fast
 import netscan
+import pulse
 from config import CFG
 
 HERE = Path(__file__).resolve().parent
@@ -175,6 +177,8 @@ def _wait(name: str) -> None:
         t.update(proc=None, end=time.time(), result=result)
     save_last_runs()
     log(f"{name} : terminé, {result} ({t['end'] - t['start']:.0f} s)")
+    if name == "collect" and code == 0 and enabled("watch"):
+        run_chain(["watch"], "après la collecte")   # its events at once, not at the next :15 / :45 (a run on the same data.json counts for nothing twice)
 
 
 _AUTO_ADGUARD = threading.Lock()
@@ -229,6 +233,66 @@ def auto_backup_default() -> None:
         log(f"⚠ sauvegardes automatiques : {type(e).__name__}: {e}")
     finally:
         _AUTO_BACKUP.release()
+
+
+PULSE = pulse.Pulse(WEB / "pulse.json", CFG["pulse_confirm"])
+
+
+def pulse_ips() -> list[str]:
+    """Followed machines of the last collection, minus the ones switched off in Settings (no ping for them)."""
+    try:
+        data = json.loads((WEB / "data.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return [m["ip"] for m in data.get("machine_list", []) if m.get("ip") and not m.get("disabled")]
+
+
+HEALTH_TRIED: dict = {}
+
+
+def pulse_stale_health() -> list[str]:
+    """Machines whose health says « unreachable » while they answer the ping: a snapshot older than the machine's return."""
+    if not enabled("health"):
+        return []
+    try:
+        stats = json.loads((WEB / "health" / "stats.json").read_text(encoding="utf-8"))
+        age = time.time() - datetime.fromisoformat(stats["timestamp"]).timestamp()
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+    return pulse.contradicted(stats.get("hosts") or [], PULSE.state, age, HEALTH_TRIED, time.time())
+
+
+def pulse_loop() -> None:
+    """Ping every machine every `pulse_every` s; a confirmed change starts the watcher at once (its events, history and alerts)
+    and a health reading of that machine alone."""
+    owed = pulse.Owed()
+    while True:
+        t0, every = time.time(), CFG["pulse_every"]   # read again at every pass: a change in the settings applies at once
+        PULSE.confirm = max(1, CFG["pulse_confirm"])
+        try:
+            ips = pulse_ips() if every > 0 else []
+            if ips:
+                owed.add(PULSE.tick(ips))
+                owed.health += [ip for ip in pulse_stale_health() if ip not in owed.health]
+            # the machine that moved also gets its health read again at once (not at the next 6 h pass), alone
+            owed.settle(lambda: run_task("watch", "pouls"), lambda ip: run_task("health", f"ping de {ip} changé (pouls)", ("--only", ip)),
+                        enabled("watch"), enabled("health"))
+        except Exception as e:  # a bug here must not stop the pulse
+            log(f"⚠ pouls : {e}")
+        time.sleep(max(1.0, (every or 5) - (time.time() - t0)))
+
+
+def fast_loop() -> None:
+    """Light reads of the connectors every `fast_every` s (live.json): the page and the watcher need not wait for the 30 min collection."""
+    last = {}
+    while True:
+        t0, every = time.time(), CFG["fast_every"]
+        try:
+            if every > 0 and enabled("collect"):
+                last = fast.refresh(CFG, WEB / "live.json", pulse_ips(), last)
+        except Exception as e:  # a bug here must not stop the loop
+            log(f"⚠ connecteurs rapides : {e}")
+        time.sleep(max(5.0, (every or 30) - (time.time() - t0)))
 
 
 def keep_availability() -> None:
@@ -654,6 +718,8 @@ def main() -> int:
     for name in ("watch", "health"):  # reprise de ce que events.json contient déjà (sans doublon)
         keep_history(name)
     threading.Thread(target=scheduler, daemon=True).start()
+    threading.Thread(target=pulse_loop, daemon=True, name="pulse").start()
+    threading.Thread(target=fast_loop, daemon=True, name="fast").start()
     threading.Thread(target=first_runs, daemon=True).start()
     import uvicorn
 

@@ -7,7 +7,7 @@ import { tx } from "./i18n";
 
 export type NoiseId = "menace" | "flap" | "appareil";
 export const NOISE: [NoiseId, string][] = [
-  ["menace", tx("menaces fail2ban (LogviewR)")], ["flap", tx("connecteurs revenus en moins d'une heure")], ["appareil", tx("nouveaux appareils de la recherche réseau")],
+  ["menace", tx("menaces fail2ban")], ["flap", tx("connecteurs revenus < 1 h")], ["appareil", tx("nouveaux appareils")],
 ];
 export const NOISE_DEFAULT: NoiseId[] = ["menace", "flap", "appareil"];
 const FLAP_S = 3600;

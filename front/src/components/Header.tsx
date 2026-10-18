@@ -1,4 +1,4 @@
-import { ArrowUpCircle, ChevronDown, ExternalLink, ListChecks, LogOut, Moon, Settings, Sun, UserRound, X } from "lucide-react";
+import { ArrowUpCircle, ChevronDown, ExternalLink, ListChecks, LogOut, Moon, SlidersHorizontal, Sun, UserRound, X } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { DiscoveryBell } from "./DiscoveryCard";
 import { DropItem, DROP_PANEL, DropSep, useDropdown } from "./Dropdown";
@@ -106,7 +106,7 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
           </div>
           <DropSep />
           <DropItem icon={<UserRound size={15} />} onClick={() => go("profile")}>{tx("Profil")}</DropItem>
-          {admin && <DropItem icon={<Settings size={15} />} onClick={() => go(lastSettingsSection() ? `settings/${lastSettingsSection()}` : "settings")}>{tx("Réglages")}</DropItem>}
+          {admin && <DropItem icon={<SlidersHorizontal size={15} />} onClick={() => go(lastSettingsSection() ? `settings/${lastSettingsSection()}` : "settings")}>{tx("Réglages")}</DropItem>}
           {admin && <DropItem icon={<ListChecks size={15} />} title={tx("Rouvre l'assistant depuis le début")} onClick={() => { setOpen(false); reopenAssistant(); }}>{tx("Revoir l'assistant de démarrage")}</DropItem>}
           <DropItem icon={theme === "dark" ? <Sun size={15} /> : <Moon size={15} />} onClick={toggleTheme}>{tx("Thème")} {theme === "dark" ? tx("clair") : tx("sombre")}</DropItem>
           <DropSep />

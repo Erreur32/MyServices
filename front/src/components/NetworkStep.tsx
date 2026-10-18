@@ -68,7 +68,7 @@ function HostHint({ h }: { h: NetHost }) {
 export const FOLD = "group rounded-xl border border-link/50 bg-link/5 open:bg-link/[0.03] hover:border-link";
 /** Même cadre dépliable quand il y a une action à faire : couleur d'alerte */
 export const FOLD_WARN = "group rounded-xl border border-warn/60 bg-warn/10 hover:border-warn";
-export const FOLD_HEAD = "flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2.5 text-sm font-semibold text-txt [&::-webkit-details-marker]:hidden";
+export const FOLD_HEAD = "flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 rounded-t-[11px] bg-bg px-3 py-2.5 text-sm font-semibold text-txt group-open:border-b group-open:border-line/60 [details:not([open])_&]:rounded-b-[11px] [&::-webkit-details-marker]:hidden";
 
 /** Une ligne de machine trouvée : cadre net, case + infos à gauche, actions à droite ; la ligne cochée prend l'accent */
 const ROW = "flex flex-wrap items-start rounded-lg border";
@@ -338,13 +338,14 @@ export function NetworkStep({ net, reload, machines, connected, onSkip, ignoredL
             <AddedMachine key={h.ip} host={h} linked={!viaMynetwork(h) && !needsLink(h, machines, connected)}
               onDone={() => setAdded((a) => { const n = { ...a }; delete n[h.ip]; return n; })}
               onForget={() => { setJustForgot((f) => [...f, h.ip]); void act(() => send("PUT", "discoveries/muted", { id: `access:${h.ip}`, muted: true }),
-                tx("{0} oublié : il reste dans « machines déjà ajoutées », pour le rappeler", h.name || h.ip), setNote)
+                (noButton ? tx("{0} oublié : il reste dans « Arrêtés et oubliés », pour le rappeler", h.name || h.ip) : tx("{0} oublié : il reste dans « machines déjà ajoutées », pour le rappeler", h.name || h.ip)), setNote)
                 .then((ok) => { if (ok) { setAdded((a) => { const n = { ...a }; delete n[h.ip]; return n; }); reloadDisc(); } else setJustForgot((f) => f.filter((x) => x !== h.ip)); }); }} />
           ))}
           {found.length === 0 && <p className="text-sm text-dim">{tx("Toutes les machines trouvées sont ajoutées. « Terminé » ferme un cadre ; « Relancer la recherche » la refait.")}</p>}
         </div>
       )}
-      {scanned && declared.length > 0 && (
+      {/* Settings -> Discovery lists them elsewhere (the machines list, « Arrêtés et oubliés »): no second frame there */}
+      {scanned && declared.length > 0 && !noButton && (
         <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
           <summary className={FOLD_HEAD}><ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
             {tx("{0} machine(s) déjà ajoutée(s)", declared.length)}

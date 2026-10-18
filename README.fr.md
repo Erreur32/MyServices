@@ -33,7 +33,7 @@
 >
 > Comme il évolue vite, **les pull requests et les issues ne sont pas traitées pour le moment** : merci de les garder pour une version stable.
 >
-> Les versions de développement ne sont pas étiquetées. Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.12.0`, `0.12.1`…).
+> Les versions de développement ne sont pas étiquetées. Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.13.0`, `0.13.1`…).
 > Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 ## En bref
@@ -68,7 +68,7 @@ Puis ouvrez **`http://<IP>:8090/`** (l'appli est à la racine du site ; les anci
 
 > **L'application écoute sur le port `8090`.** C'est un réglage, pas une valeur figée : si le 8090 est déjà pris sur votre machine, mettez **`MYSERVICES_PORT=8095`** (ou un autre port libre) dans un fichier `.env` à côté de `docker-compose.yaml` (exemple : [`deploy/env.example`](deploy/env.example), téléchargé par le second `curl` ci-dessus), puis lancez `docker compose up -d` et ouvrez `http://<IP>:8095/`. Le conteneur utilise le réseau de l'hôte : modifier un `ports:` ne servirait à rien.
 
-Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.12.0` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
+Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.13.0` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
 Mise à jour : `docker compose pull && docker compose up -d` (réglages et données restent dans les volumes `./config` et `./data`).
 
 ---
@@ -205,7 +205,18 @@ Réglages -> Sauvegardes montre un tableau de **sources** (cliquez sur l'une : s
 - **Dossiers sur mes machines** : trouvés par SSH aux endroits habituels (`/home/backup` est suivi automatiquement) ; vous cochez ceux à surveiller.
 - **Veeam Backup & Replication** : API REST (port 9419) avec un compte en lecture seule (rôle *Veeam Backup Viewer*) ; vous choisissez les jobs à suivre.
 - **Proxmox Backup Server** : groupes de sauvegarde (une VM, un conteneur ou un hôte par magasin) lus avec le jeton du connecteur existant (rôle *DatastoreAudit*).
+- **Synology (Hyper Backup)** : les tâches Hyper Backup d'un NAS, lues avec le compte du connecteur Synology DSM existant (utilisateur en lecture seule) ; vous cochez les tâches à suivre, et chacune montre la date et le résultat de son dernier passage (un passage en échec, interrompu ou en retard déclenche une alerte ; une cible cloud ou distante compte comme copie hors machine). Routes écrites d'après l'API web de DSM, à confirmer sur un vrai NAS.
 - **Home Assistant** : sa sauvegarde automatique, avec le jeton du connecteur existant. En option, avec le module communautaire **ha-mcp** installé dans Home Assistant (ce n'est *pas* le MCP natif de Home Assistant), collez son adresse dans le connecteur : MyServices lit alors aussi la liste réelle des sauvegardes (date, taille, chiffrée ou non, où chacune est copiée), les réparations, le contrôle de la configuration et les intégrations en erreur. Il ne lance que six lectures fixes et n'installe, ne supprime ni ne restaure rien ; activez aussi le mode lecture seule de ha-mcp.
+
+- **Un dossier sur une box ou un NAS (FTP, FTPS, Samba)** : un compte saisi dans la page (mot de passe gardé chiffré) permet à MyServices de parcourir un dossier partagé et de le suivre, comme sauvegarde à part entière ou comme **copie de** une autre sauvegarde. Rien n'est écrit sur la box.
+- **Un partage déjà monté sur la machine qui fait tourner MyServices** (Freebox, NAS) : le conteneur le lit en **lecture seule**, sans aucun compte stocké dans MyServices. Montez le partage sur l'hôte (par exemple `/mnt/nas`, avec `/etc/fstab` ou un automount systemd), puis ajoutez une ligne aux volumes de votre fichier compose :
+
+  ```yaml
+      volumes:
+        - /mnt/nas:/mnt/nas:ro,rslave   # lecture seule ; rslave suit le montage / démontage d'un automount
+  ```
+
+  Recréez le conteneur (`docker compose up -d --force-recreate`), puis déclarez la box comme une machine avec `"mount": "/mnt/nas"` dans `backups-meta.json`. Le compte du partage n'a besoin que du droit de lecture. Préférez le montage quand le partage est déjà monté sur l'hôte ; préférez le compte quand il ne l'est pas.
 
 Pour chaque sauvegarde suivie, vous fixez l'âge au-delà duquel une alerte part, et si une copie sur une autre machine est exigée. Les tâches cron et timers qui ressemblent à des sauvegardes sont listées à part.
 

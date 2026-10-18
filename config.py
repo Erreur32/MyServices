@@ -40,6 +40,9 @@ DEFAULTS = {
     "stale_min": 75,                     # min, data.json plus vieux = collecteur arrêté (alerte du watcher)
     "confirm_runs": 2,                   # passages consécutifs avant d'annoncer une panne / un rétablissement
     "retention_days": 90,                # historique du watcher
+    "pulse_every": 30,                   # s, pouls : ping de chaque machine suivie, état en ligne en direct ; 0 = coupé
+    "fast_every": 300,                   # s, connecteurs rapides (MynetworK, Proxmox par API) : lectures légères entre deux collectes ; 0 = coupé
+    "pulse_confirm": 2,                  # pouls consécutifs avant d'annoncer qu'une machine est tombée ou revenue
     "update_header": True,               # en-tête : annonce d'une nouvelle version publiée (Réglages → Mises à jour) ; false = jamais
     "update_check": True,                # Réglages → À propos : lit la dernière version publiée sur GitHub (une requête anonyme, gardée 6 h) ; false = jamais
     "backups_auto": True,                # sauvegardes : /home/backup suivi tout seul à la 1re lecture SSH d'une machine qui l'a ; false = jamais

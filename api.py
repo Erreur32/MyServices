@@ -802,6 +802,32 @@ def network_settings_set(body: NetscanEvery, request: Request):
     return {"ok": True, **(out or system.netscan_settings(core))}
 
 
+class LiveChecks(BaseModel):
+    pulse_every: int | None = None
+    pulse_confirm: int | None = None
+    fast_every: int | None = None
+
+
+@app.get(API + "/system/live-checks", tags=["système"], summary="Pouls et connecteurs rapides : réglages (admin)")
+def live_checks(request: Request):
+    import system
+    return admin_only(request) or system.live_settings(core)
+
+
+@app.put(API + "/system/live-checks", tags=["système"], summary="Changer le pouls (ping des machines) et les connecteurs rapides (admin)")
+def live_checks_set(body: LiveChecks, request: Request):
+    import system
+    if denied := admin_write(request):
+        return denied
+    values = {k: v for k, v in body.model_dump().items() if v is not None}
+    try:
+        out = system.set_live(core, values)
+    except ValueError as e:
+        return deny(400, str(e))
+    store().audit("pouls", request.state.user["username"], ip_of(request), " ; ".join(f"{k} = {v}" for k, v in values.items()))
+    return {"ok": True, **out}
+
+
 class IgnoreBody(BaseModel):
     ip: str
     name: str = ""
@@ -1380,6 +1406,38 @@ class PbsGroup(BaseModel):
 
 class PbsFollow(PbsChoice):
     groups: list[PbsGroup]
+
+
+class SynologyChoice(BaseModel):
+    connector: str
+
+
+class SynologyTask(BaseModel):
+    key: str
+    label: str = ""
+    max_age_days: float = 2.0
+
+
+class SynologyFollow(SynologyChoice):
+    tasks: list[SynologyTask]
+
+
+@app.post(API + "/backups/synology/discover", tags=["sauvegardes"], summary="Lister les tâches Hyper Backup d'un NAS Synology par son connecteur, lecture seule (admin)")
+def backups_synology_discover(body: SynologyChoice, request: Request):
+    return backups_call(request, "", "", lambda b: b.synology_discover(body.connector))
+
+
+@app.put(API + "/backups/synology", tags=["sauvegardes"], summary="Suivre des tâches Hyper Backup d'un NAS Synology (admin)")
+def backups_synology_follow(body: SynologyFollow, request: Request):
+    import system
+
+    def go(b):
+        out = b.synology_follow(body.connector, [t.model_dump() for t in body.tasks])
+        if not core.CFG.get("backups_url"):
+            system.set_backups_url(core, "backups.json")
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (Synology)")
+        return {"ok": True, **out}
+    return backups_call(request, "tâches Hyper Backup suivies", f"{body.connector} : {len(body.tasks)} tâche(s)", go)
 
 
 @app.post(API + "/backups/pbs/discover", tags=["sauvegardes"], summary="Lister les groupes de sauvegarde d'un Proxmox Backup Server par son connecteur, lecture seule (admin)")

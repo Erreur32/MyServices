@@ -1,6 +1,6 @@
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { LOGIN, LoginRequired, NotConfigured, RELOAD_EVENT, loadSnapshot, logout, type Snapshot } from "./api";
+import { LOGIN, LoginRequired, NotConfigured, RELOAD_EVENT, loadLive, loadPulse, loadSnapshot, logout, withLive, withPulse, type Snapshot } from "./api";
 import { Header } from "./components/Header";
 import { Assistant } from "./tabs/Assistant";
 import { Home } from "./components/Home";
@@ -26,6 +26,7 @@ import { tx } from "./lib/i18n";
 import { GREY_CARDS } from "./lib/forms";
 
 const REFRESH_MS = 60_000;
+const PULSE_MS = 15_000;   // the ping state (pulse.json) is read more often than the whole snapshot
 const FAST_MS = 5_000, FAST_FOR_MS = 150_000;   // after a change: data.json read every 5 s for 2 min 30 (304 when unchanged)
 
 const OLD_TABS: Record<string, string> = { fail2ban: "security", health: "machines" };   // removed tabs, now inside another one
@@ -64,6 +65,9 @@ export default function App() {
   useEffect(() => {
     load();
     const id = setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);   // rien quand l'onglet est masqué
+    const live = setInterval(() => {
+      if (!document.hidden) void Promise.all([loadLive(), loadPulse()]).then(([l, p]) => setSnap((s) => { const d = s && withPulse(withLive(s.data, l), p); return s && d !== s.data ? { ...s, data: d! } : s; }));
+    }, PULSE_MS);
     const onHash = () => {   // ancienne page « Installation » -> assistant
       if (location.hash.startsWith("#setup")) location.replace("#assistant");
       setTab(tabFromHash());
@@ -79,7 +83,7 @@ export default function App() {
       stop = setTimeout(() => clearInterval(fast), FAST_FOR_MS);
     };
     addEventListener(RELOAD_EVENT, changed);
-    return () => { clearInterval(id); clearInterval(fast); clearTimeout(stop); removeEventListener("hashchange", onHash); removeEventListener(RELOAD_EVENT, changed); };
+    return () => { clearInterval(id); clearInterval(live); clearInterval(fast); clearTimeout(stop); removeEventListener("hashchange", onHash); removeEventListener(RELOAD_EVENT, changed); };
   }, [load]);
 
   const go = (t: TabId) => { location.hash = t === "home" ? "" : t; setTab(t); setPending((f) => ({ tab: "home", sel: {}, n: f.n })); scrollTo({ top: 0 }); };
@@ -124,7 +128,7 @@ export default function App() {
           </a>
           <Profile username={snap.me.username} role={snap.me.role} email={snap.me.email ?? ""} avatar={snap.me.avatar ?? null} look={{ theme, setTheme, width, setWidth }} />
         </>
-      ) : <Tabs tab={current} snap={snap} badges={badges} onSelect={go} />}
+      ) : <Tabs tab={current} snap={snap} badges={badges} onSelect={go} onBadge={(t) => (t === "machines" ? goFilter("machines", { alert: ["bad", "warn"] }) : go(t))} />}
       {!profile && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} />}
       {current === "history" && <History snap={snap} />}
       {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} onFilter={(sel) => goFilter("services", sel)} />}

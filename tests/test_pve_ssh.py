@@ -35,6 +35,25 @@ class PveSsh(unittest.TestCase):
         self.assertEqual((g["mem_pct"], g["cpus"], g["tags"]), (50.0, 2, ["linux", "media"]))
         self.assertEqual(data["storage"][0]["used_pct"], 30.0)
 
+    def test_etat_du_noeud_et_capteurs(self):
+        status = {"loadavg": ["0.52", "0.40", "0.35"], "wait": 0.012, "swap": {"used": 1 << 20, "total": 8 << 30},
+                  "rootfs": {"used": 10 << 30, "total": 100 << 30}, "kversion": "Linux 6.8.12-1-pve #1 SMP",
+                  "cpuinfo": {"model": "Intel N100", "sockets": 1, "cpus": 4}}
+        sensors = {"coretemp-isa-0000": {"Package id 0": {"temp1_input": 52.0}, "Core 0": {"temp2_input": 49.0}},
+                   "nct6798-isa-0a20": {"fan1": {"fan1_input": 1200.0}, "fan2": {"fan2_input": 0.0}}, "nvme-pci-0100": {"Composite": {"temp1_input": 70.0}}}
+        out = ("pve-manager/8.2.4/x (running kernel: 6.8)\n@@res\n" + json.dumps(RES) + "\n@@node pve\n" + json.dumps(status)
+               + "\n@@sensors pve\n" + json.dumps(sensors))
+        data, err, version = self.run_with(out)
+        n = data["nodes"][0]
+        self.assertEqual((err, version), ("", "8.2.4"))
+        self.assertEqual((n["load"], n["iowait_pct"], n["kernel"], n["model"], n["cores"]), ([0.52, 0.4, 0.35], 1.2, "6.8.12-1-pve", "Intel N100", 4))
+        self.assertEqual((n["swap_total"], n["root_total"]), (8 << 30, 100 << 30))
+        self.assertEqual((n["temp_c"], n["fans_rpm"]), (52.0, [1200]))   # only CPU chips count for the temperature; a stopped fan is not listed
+
+    def test_sans_capteurs_rien_n_est_ajoute(self):
+        data, _, _ = self.run_with("pve-manager/8.2.4/x\n@@res\n" + json.dumps(RES) + "\n@@sensors pve\n")
+        self.assertNotIn("temp_c", data["nodes"][0])
+
     def test_erreur_lisible(self):
         data, err, _ = self.run_with("", "bash: pvesh: command not found")
         self.assertIsNone(data)

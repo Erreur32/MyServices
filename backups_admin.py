@@ -17,6 +17,8 @@ Un « jeu » de sauvegarde = un dossier d'une machine dont le fichier le plus r�
                    set for the folder, or a copy added to a set already followed
   ha_check / ha_follow   sauvegardes de Home Assistant, lues avec l'adresse et le jeton du connecteur « home-assistant »
                    (déjà réglé dans Connecteurs) : un jeu « sauvegarde automatique » rapproché de l'âge de la dernière réussie
+  synology_discover / synology_follow   Hyper Backup tasks of a Synology NAS, read with the account of the « synology » connector (already set in
+                   Connecteurs, read-only): the tasks are listed (nothing saved), then one set per ticked task (last run, result, age)
 
 Un « jeu » de sauvegarde = un dossier d'une machine dont le fichier le plus récent ne doit pas dépasser un certain âge ;
 pour Veeam, le dernier passage d'un job ; pour Home Assistant, sa dernière sauvegarde automatique réussie.
@@ -33,7 +35,7 @@ from pathlib import Path
 
 import setup
 from connectors import settings
-from connectors.backup_apis import HomeAssistant, PbsBackups, Veeam
+from connectors.backup_apis import HomeAssistant, PbsBackups, SynologyBackups, Veeam
 from connectors.base import ConnectorError, Context
 from connectors.remote_folder import RemoteFolder, check_path
 
@@ -146,7 +148,7 @@ def current() -> dict:
         loc = (s.get("locations") or [{}])[0]
         sets.append({"id": s["id"], "label": s.get("label", s["id"]), "origin": hosts.get(s.get("origin"), {}).get("label", s.get("origin", "")),
                      "origin_ip": hosts.get(s.get("origin"), {}).get("ip"),
-                     "path": loc.get("path"), "remote": hosts.get(loc.get("host"), {}).get("api") == "remote", "veeam_job": loc.get("veeam_job"), "pbs_group": loc.get("pbs_group"), "vzdump": loc.get("vzdump"), "max_age_days": s.get("max_age_days", 8),
+                     "path": loc.get("path"), "remote": hosts.get(loc.get("host"), {}).get("api") == "remote", "veeam_job": loc.get("veeam_job"), "pbs_group": loc.get("pbs_group"), "synology_task": loc.get("synology_task"), "vzdump": loc.get("vzdump"), "max_age_days": s.get("max_age_days", 8),
                      "ha": any(l.get("ha_backup") for l in s.get("locations", [])),
                      "expect_offsite": s.get("expect_offsite", True), "editable": bool(loc.get("path")),
                      "copies": [{"index": i, "host": hosts.get(l.get("host"), {}).get("label", l.get("host", "")), "path": l.get("path"),
@@ -156,7 +158,7 @@ def current() -> dict:
     return {"sets": sets, "exists": _path().exists(), "tab": bool(config.CFG.get("backups_url")),
             "patterns": patterns_of(meta), "host_patterns": meta.get("discover_by_host", {}), "default_path": DEFAULT_PATH, "machines": len(_machines()),
             "ssh_machines": [{"ip": ip, "name": m["name"]} for ip, m in sorted(_machines().items(), key=lambda x: x[1]["name"].lower())],
-            "veeam": _veeam_state(), "ha": _ha_state(meta), "pbs": _pbs_state(meta),
+            "veeam": _veeam_state(), "ha": _ha_state(meta), "pbs": _pbs_state(meta), "synology": _synology_state(meta),
             "vzdump": {"followed": sum(1 for s in meta.get("sets", []) if (s.get("locations") or [{}])[0].get("vzdump"))},
             "remote": _remote_state()}
 
@@ -325,7 +327,7 @@ def add_copy(set_id: str, ip: str, path: str, network: bool = False) -> dict:
     if s is None:
         raise BackupError("jeu inconnu")
     if not (s.get("locations") or [{}])[0].get("path"):
-        raise BackupError("copie déclarable seulement pour un dossier (Veeam, PBS et Home Assistant ont déjà leur copie)")
+        raise BackupError("copie déclarable seulement pour un dossier (Veeam, PBS, Synology et Home Assistant ont déjà leur copie)")
     hosts = {h["id"]: h for h in meta.setdefault("hosts", [])}
     hid = _machine_host(meta, hosts, ip, machines[ip])
     if any(l.get("host") == hid and l.get("path") == path for l in s["locations"]):
@@ -645,6 +647,71 @@ def pbs_follow(name: str, groups: list[dict]) -> dict:
     return {"added": added, "updated": updated}
 
 
+# ───────────── Synology Hyper Backup ─────────────
+
+SYNO_HOST, SYNO_SOURCES = "synology", "synology-sources"
+
+
+def _synology_state(meta: dict) -> dict:
+    """Connecteurs « synology » réglés dans Connecteurs (compte déjà géré là) et tâches Hyper Backup déjà suivies."""
+    return {"connectors": settings.names("synology"),
+            "followed": sum(1 for s in meta.get("sets", []) for l in s.get("locations", []) if l.get("synology_task"))}
+
+
+def _synology_conn(name: str) -> SynologyBackups:
+    if name not in settings.names("synology"):
+        raise BackupError(f"connecteur « {name[:64]} » absent ou coupé : le régler dans Réglages → Connecteurs")
+    plain = settings.get("synology", name, plain=True) or {}
+    return SynologyBackups({"name": name, **plain}, Context(timeout=TEST_TIMEOUT))
+
+
+def synology_discover(name: str) -> dict:
+    """Tâches Hyper Backup du NAS (lecture seule, rien n'est enregistré) ; « followed » : déjà suivies."""
+    try:
+        tasks, _ = _synology_conn(name).snapshot()
+    except ConnectorError as e:
+        raise BackupError(str(e)) from None
+    followed = {loc.get("synology_task") for s in _read().get("sets", []) for loc in s.get("locations", [])}
+    return {"tasks": [{**t, "key": t["name"], "followed": t["name"] in followed} for t in tasks]}
+
+
+def synology_follow(name: str, tasks: list[dict]) -> dict:
+    """Un jeu par tâche choisie ; le NAS est relu avant d'écrire (tâche inconnue = rien n'est enregistré)."""
+    if not tasks:
+        raise BackupError("aucune tâche choisie")
+    if len(tasks) > 100:
+        raise BackupError("100 tâches au plus à la fois")
+    known = {t["key"] for t in synology_discover(name)["tasks"]}
+    todo = []
+    for it in tasks:
+        key = str(it.get("key") or "")
+        if key not in known:
+            raise BackupError(f"tâche « {key[:80]} » absente de Hyper Backup")
+        todo.append((key, *_check_age_label(it, f"Synology : {key}")))
+    meta = _read()
+    meta.setdefault("hosts", [])
+    meta.setdefault("sets", [])
+    _ensure_host(meta, {"id": SYNO_HOST, "label": "Synology", "kind": "NAS Synology (Hyper Backup)", "api": "synology", "connector": name})
+    _ensure_host(meta, {"id": SYNO_SOURCES, "label": "Données sauvegardées par Hyper Backup", "kind": "origine des tâches Hyper Backup", "api": "none"})
+    added = updated = 0
+    for key, label, age in todo:
+        existing = next((s for s in meta["sets"] for loc in s.get("locations", []) if loc.get("synology_task") == key), None)
+        if existing:
+            existing["label"], existing["max_age_days"] = label, age
+            updated += 1
+            continue
+        taken = {s["id"] for s in meta["sets"]}
+        base = sid = _slug(f"synology-{key}")
+        n = 2
+        while sid in taken:
+            sid, n = f"{base}-{n}", n + 1
+        meta["sets"].append({"id": sid, "label": label, "origin": SYNO_SOURCES, "schedule": "", "max_age_days": age,
+                             "locations": [{"host": SYNO_HOST, "synology_task": key, "via": "Hyper Backup"}]})
+        added += 1
+    _write(meta)
+    return {"added": added, "updated": updated}
+
+
 # ───────────── Proxmox VE dumps (vzdump) ─────────────
 
 VZDUMP_KINDS = ("qemu", "lxc", "openvz")
@@ -859,7 +926,7 @@ def remote_follow(conf: dict, path: str, label: str = "", max_age_days: float = 
             raise BackupError("jeu inconnu")
         src = (s.get("locations") or [{}])[0]
         if not src.get("path"):
-            raise BackupError("copie déclarable seulement pour un dossier (Veeam, PBS et Home Assistant ont déjà leur copie)")
+            raise BackupError("copie déclarable seulement pour un dossier (Veeam, PBS, Synology et Home Assistant ont déjà leur copie)")
         if any(l.get("host") == hid and l.get("path") == path for l in s["locations"]):
             raise BackupError("cet emplacement est déjà dans le jeu")
         if len(s["locations"]) >= 6:

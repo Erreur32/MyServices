@@ -13,23 +13,24 @@ import { appIcon } from "../lib/appIcons";
 import { BackupsHa, type HaState } from "./BackupsHa";
 import { BackupsVeeam, type VeeamState } from "./BackupsVeeam";
 import { BackupsPbs, type PbsState } from "./BackupsPbs";
+import { BackupsSynology, type SynologyState } from "./BackupsSynology";
 import { BackupsRemote, type RemoteAccountState } from "./BackupsRemote";
 import { BackupsVzdump, type VzdumpState } from "./BackupsVzdump";
 import { MachineIcon } from "../components/MachineIcon";
 import type { Machine } from "../types";
 import { CopyGuesses, SetCopies, type CopyRow, type SshMachine } from "./BackupsCopies";
 
-interface SetRow { id: string; label: string; origin: string; origin_ip?: string | null; path: string | null; veeam_job: string | null; pbs_group: string | null; vzdump?: string | null; remote?: boolean; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean; copies?: CopyRow[]; cadence_days?: number | null }
+interface SetRow { id: string; label: string; origin: string; origin_ip?: string | null; path: string | null; veeam_job: string | null; pbs_group: string | null; synology_task?: string | null; vzdump?: string | null; remote?: boolean; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean; copies?: CopyRow[]; cadence_days?: number | null }
 const AGES = [2, 8, 15, 31];   // paliers proposés : quotidienne, hebdomadaire, tous les 15 jours, mensuelle
-interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; host_patterns?: Record<string, string[]>; default_path: string; machines: number; ssh_machines?: SshMachine[]; veeam: VeeamState; ha: HaState; pbs: PbsState; vzdump: VzdumpState; remote?: RemoteAccountState[] }
+interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; host_patterns?: Record<string, string[]>; default_path: string; machines: number; ssh_machines?: SshMachine[]; veeam: VeeamState; ha: HaState; pbs: PbsState; synology?: SynologyState; vzdump: VzdumpState; remote?: RemoteAccountState[] }
 interface Folder { path: string; size: number | null; newest: number | null; newest_name: string; readable: boolean; followed: boolean; default?: boolean }
 interface Found { ip: string; name: string; ssh: string; ok: boolean; error: string; folders: Folder[] }
 interface Choice { on: boolean; label: string; age: string }
 
 /** Origine d'un jeu suivi : icône (logo ou pictogramme) et nom court */
-const SRC: Record<"folder" | "remote" | "veeam" | "pbs" | "vzdump" | "ha", { icon: string; Icon: LucideIcon; label: string }> = {
+const SRC: Record<"folder" | "remote" | "veeam" | "pbs" | "synology" | "vzdump" | "ha", { icon: string; Icon: LucideIcon; label: string }> = {
   folder: { icon: "", Icon: FolderSearch, label: tx("Dossier") }, remote: { icon: "", Icon: FolderTree, label: tx("Dossier distant") }, veeam: { icon: "Veeam", Icon: ServerCog, label: "Veeam" },
-  pbs: { icon: "Proxmox Backup Server", Icon: DatabaseBackup, label: "Proxmox Backup" },
+  pbs: { icon: "Proxmox Backup Server", Icon: DatabaseBackup, label: "Proxmox Backup" }, synology: { icon: "Synology DSM", Icon: HardDrive, label: "Synology" },
   vzdump: { icon: "Proxmox VE", Icon: Archive, label: "vzdump" }, ha: { icon: "Home Assistant", Icon: Home, label: "Home Assistant" },
 };
 
@@ -229,6 +230,9 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
       hint: tx("API REST, compte en lecture seule"), panel: <BackupsVeeam key={`${cur.veeam.url}|${cur.veeam.user}`} state={cur.veeam} reload={load} /> },
     { id: "pbs", label: "Proxmox Backup Server", icon: "Proxmox Backup Server", Icon: DatabaseBackup, tone: cur.pbs.followed ? "ok" : "warn", state: cur.pbs.followed ? tx("{0} groupe(s) suivi(s)", cur.pbs.followed) : cur.pbs.connectors.length ? tx("Aucun groupe suivi") : tx("Connecteur à ajouter"),
       hint: tx("Groupes de sauvegarde, par le connecteur"), panel: <BackupsPbs state={cur.pbs} reload={load} /> },
+    { id: "synology", label: "Synology (Hyper Backup)", icon: "Synology DSM", Icon: HardDrive, tone: cur.synology?.followed ? "ok" : "warn",
+      state: cur.synology?.followed ? tx("{0} tâche(s) suivie(s)", cur.synology.followed) : cur.synology?.connectors.length ? tx("Aucune tâche suivie") : tx("Connecteur à ajouter"),
+      hint: tx("Tâches Hyper Backup, par le connecteur"), panel: <BackupsSynology state={cur.synology ?? { connectors: [], followed: 0 }} reload={load} /> },
     { id: "vzdump", label: tx("Proxmox VE (vzdump)"), icon: "Proxmox VE", Icon: Archive, tone: cur.vzdump.followed ? "ok" : "warn", state: cur.vzdump.followed ? tx("{0} machine(s) invitée(s) suivie(s)", cur.vzdump.followed) : tx("À chercher"),
       hint: tx("Dumps de VM et conteneurs, lus par SSH sur l'hôte"), panel: <BackupsVzdump state={cur.vzdump} reload={load} /> },
     { id: "remote", label: tx("Dossier distant (FTP, FTPS, Samba)"), icon: "", Icon: FolderTree, tone: remoteSets ? "ok" : "warn",
@@ -249,7 +253,7 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
         {cur.sets.length === 0 ? <Dim>{tx("Aucune sauvegarde suivie pour l'instant.")}</Dim> : (
           <ul className="flex flex-col gap-2">
             {cur.sets.map((s) => {
-              const kind = s.remote ? SRC.remote : s.veeam_job ? SRC.veeam : s.pbs_group ? SRC.pbs : s.vzdump ? SRC.vzdump : s.ha ? SRC.ha : SRC.folder;
+              const kind = s.remote ? SRC.remote : s.veeam_job ? SRC.veeam : s.pbs_group ? SRC.pbs : s.synology_task ? SRC.synology : s.vzdump ? SRC.vzdump : s.ha ? SRC.ha : SRC.folder;
               return (
                 <li key={s.id} className="text-sm">
                 <div className="overflow-hidden rounded-xl border border-line bg-bg2/30">
@@ -264,7 +268,7 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
                     <span className="block min-w-0 flex-1">
                       <span className="flex min-w-0 items-baseline gap-2"><b className="truncate">{s.label}</b>{s.origin_ip && <span className="shrink-0 font-mono text-xs text-dim">{s.origin_ip}</span>}</span>
                       {(() => {   // what is followed, unless the name already says it (« Dev : /home/backup »)
-                        const what = s.path ?? s.veeam_job ?? s.pbs_group ?? (s.ha ? tx("sauvegarde automatique") : "-");
+                        const what = s.path ?? s.veeam_job ?? s.pbs_group ?? s.synology_task ?? (s.ha ? tx("sauvegarde automatique") : "-");
                         return s.label.includes(what) ? null : <span className="block truncate font-mono text-xs text-dim">{what}</span>;
                       })()}
                     </span>
@@ -273,7 +277,7 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
                     <Badge tone="off">{tx("alerte après")} {s.max_age_days} {tx("j")}</Badge>
                     {/* the switch and buttons work from the folded title: outside the fold button, so they never fold or unfold */}
                     <span className="flex flex-wrap items-center gap-2">
-                    {!s.ha && !s.veeam_job && !s.pbs_group && (
+                    {!s.ha && !s.veeam_job && !s.pbs_group && !s.synology_task && (
                       <span className="inline-flex items-center gap-1.5 text-xs text-dim" title={tx("Activé : une copie à jour sur une autre machine est exigée (sinon le jeu est critique). Désactivé : seule la source est surveillée.")}>
                         <Switch on={s.expect_offsite} label={tx("Exiger une copie hors machine")} disabled={s.id === busyId} onChange={(on) => void change(s.id, { expect_offsite: on })} />{tx("copie hors machine exigée")}
                       </span>
@@ -293,14 +297,17 @@ export function BackupsSettings({ machines = [] }: { machines?: Machine[] }) {
                           className={`rounded-full border px-2 py-0.5 text-xs font-medium ${s.max_age_days === d ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>{d} {tx("j")}</button>
                       ))}
                       <CustomAge value={s.max_age_days} disabled={s.id === busyId} onSave={(d) => void change(s.id, { max_age_days: d })} />
-                      {(() => {   // observed rhythm slower than the threshold: one click sets the advised one
+                      {(() => {   // observed rhythm vs the threshold: slower than it = alert between two runs (warn), much faster = alert comes too late (info)
                         const advised = s.cadence_days ? AGES.find((d) => d >= s.cadence_days! * 1.25) ?? AGES[AGES.length - 1] : null;
-                        return advised && advised > s.max_age_days ? (
+                        if (!advised || advised === s.max_age_days) return null;
+                        const tooEarly = advised > s.max_age_days;
+                        return (
                           <button type="button" disabled={s.id === busyId} onClick={() => void change(s.id, { max_age_days: advised })}
-                            className="rounded-full border border-warn/60 bg-warn/10 px-2 py-0.5 text-xs font-medium text-warn hover:bg-warn/20"
-                            title={tx("Les archives arrivent environ tous les {0} j : avec un seuil de {1} j, le jeu est en alerte entre deux passages.", s.cadence_days, s.max_age_days)}>
+                            className={`rounded-full border px-2 py-0.5 text-xs font-medium ${tooEarly ? "border-warn/60 bg-warn/10 text-warn hover:bg-warn/20" : "border-link/60 bg-link/10 text-link hover:bg-link/20"}`}
+                            title={tooEarly ? tx("Les archives arrivent environ tous les {0} j : avec un seuil de {1} j, le jeu est en alerte entre deux passages.", s.cadence_days, s.max_age_days)
+                              : tx("Les archives arrivent environ tous les {0} j : avec un seuil de {1} j, une sauvegarde manquée ne serait signalée que très tard.", s.cadence_days, s.max_age_days)}>
                             {tx("rythme observé ~{0} j : passer à {1} j", s.cadence_days, advised)}</button>
-                        ) : null;
+                        );
                       })()}
                     </span>
                   </div>

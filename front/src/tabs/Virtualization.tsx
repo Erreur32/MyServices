@@ -2,12 +2,13 @@
 // (API), KVM / libvirt, Incus / LXD ou VirtualBox (SSH) et Hyper-V (agent Windows) avec ses VM,
 // reliés à leur fiche Machine (couche de rapprochement), à leur sauvegarde vzdump suivie et à leurs conteneurs Docker (SSH, Dockhand).
 // Plus bas : Proxmox Backup Server, s'il est relié. Dockhand (Docker seulement) reste dans Santé. Lecture seule.
-import { Box, Container, Cpu, HardDrive, Monitor, Server } from "lucide-react";
+import { Box, Container, Cpu, EyeOff, Fan, HardDrive, Monitor, Server, Thermometer } from "lucide-react";
+import { useState } from "react";
 import type { Snapshot } from "../api";
 import { bytes, dur } from "../lib/format";
 import { tx } from "../lib/i18n";
 import type { BackupSet, Machine, VirtualizationConnector } from "../types";
-import { Badge, Card, Count, Dim, Empty, Fill } from "../components/ui";
+import { Badge, Card, Count, Dim, Empty, GradientFill } from "../components/ui";
 import { PbsCard } from "../components/InfraCards";
 
 const HYPERVISORS = ["proxmox", "pulse", "esxi", "vcenter", "pdm", "unraid", "libvirt", "incus", "lxd", "virtualbox", "hyperv"];
@@ -17,13 +18,13 @@ type Guest = NonNullable<VirtualizationConnector["guests"]>[number];
 const LEVEL_TONE: Record<string, "ok" | "warn" | "bad" | "off"> = { ok: "ok", warn: "warn", crit: "bad", down: "bad" };
 
 /** Gauge with its value, « 40 / 64 Go » under it when the totals are known; it fills the width its grid cell gives, so gauges line up */
-function Gauge({ label, pct, used, total, icon }: Readonly<{ label: string; pct?: number | null; used?: number | null; total?: number | null; icon?: React.ReactNode }>) {
+function Gauge({ label, pct, used, total, icon, big = false }: Readonly<{ label: string; pct?: number | null; used?: number | null; total?: number | null; icon?: React.ReactNode; big?: boolean }>) {
   if (pct == null) return null;
   return (
-    <div className="min-w-0 text-xs">
+    <div className={`min-w-0 ${big ? "text-sm" : "text-xs"}`}>
       <div className="flex items-center justify-between gap-2 text-muted"><span className="flex min-w-0 items-center gap-1 truncate">{icon}{label}</span><b className="tabular-nums text-txt">{Math.round(pct)} %</b></div>
-      <Fill pct={pct} />
-      {total ? <div className="truncate text-[11px] text-dim">{bytes(used)} / {bytes(total)}</div> : null}
+      {big ? <span className="my-1 block h-3.5 w-full overflow-hidden rounded-full border border-line bg-bg2"><GradientFill pct={pct} /></span> : <span className="my-0.5 block h-2.5 w-28 overflow-hidden rounded-full border border-line bg-bg2"><GradientFill pct={pct} /></span>}
+      {total ? <div className={`truncate text-dim ${big ? "text-xs" : "text-[11px]"}`}>{bytes(used)} / {bytes(total)}</div> : null}
     </div>
   );
 }
@@ -32,6 +33,31 @@ function Gauge({ label, pct, used, total, icon }: Readonly<{ label: string; pct?
 function GuestLoad({ on, pct, label, used, total, idle }: Readonly<{ on: boolean; pct?: number | null; label: string; used?: number | null; total?: number | null; idle?: string }>) {
   if (on && pct != null) return <Gauge label={label} pct={pct} used={used} total={total} />;
   return <Dim>{idle ?? "-"}</Dim>;
+}
+
+/** One figure of the node strip: small label, value */
+function Stat({ icon, label, children, tone }: Readonly<{ icon?: React.ReactNode; label: string; children: React.ReactNode; tone?: string }>) {
+  return <span className={`inline-flex items-baseline gap-1.5 whitespace-nowrap ${tone ?? ""}`}>{icon}<span className="text-xs text-dim">{label}</span><b className="tabular-nums">{children}</b></span>;
+}
+
+/** Strip under a node: load, I/O wait, swap, system disk, kernel, CPU model, temperature, fans and what its guests take; only what the host gave */
+function NodeStats({ n, list }: Readonly<{ n: NonNullable<VirtualizationConnector["nodes"]>[number]; list: Guest[] }>) {
+  const live = list.filter((g) => !g.template), run = live.filter((g) => g.status === "running");
+  const vcpu = run.reduce((t, g) => t + (g.cpus ?? 0), 0), ram = run.reduce((t, g) => t + (g.maxmem ?? 0), 0);
+  const cpu = [n.model, n.sockets && n.cores ? tx("{0} socket(s), {1} cœurs", n.sockets, n.cores) : ""].filter(Boolean).join(" · ");
+  const hot = n.temp_c != null && n.temp_c >= 85 ? "text-bad" : n.temp_c != null && n.temp_c >= 75 ? "text-warn" : "";
+  const items = [
+    n.load && <Stat key="load" label={tx("Charge")}>{n.load.map((x) => x.toFixed(2)).join(" · ")}</Stat>,
+    n.iowait_pct != null && <Stat key="io" label={tx("Attente disque")} tone={n.iowait_pct >= 20 ? "text-warn" : ""}>{n.iowait_pct} %</Stat>,
+    !!n.swap_total && <Stat key="swap" label="Swap">{bytes(n.swap_used)} / {bytes(n.swap_total)}</Stat>,
+    !!n.root_total && <Stat key="root" icon={<HardDrive size={12} className="text-dim" aria-hidden />} label={tx("Disque système")}>{bytes(n.root_used)} / {bytes(n.root_total)}</Stat>,
+    n.kernel && <Stat key="kernel" label={tx("Noyau")}>{n.kernel}</Stat>,
+    cpu && <Stat key="cpu" icon={<Cpu size={12} className="text-dim" aria-hidden />} label={tx("Processeur")}>{cpu}</Stat>,
+    n.temp_c != null && <Stat key="temp" icon={<Thermometer size={12} className="text-dim" aria-hidden />} label={tx("Température")} tone={hot}>{n.temp_c} °C</Stat>,
+    !!n.fans_rpm?.length && <Stat key="fans" icon={<Fan size={12} className="text-dim" aria-hidden />} label={tx("Ventilateurs")}>{n.fans_rpm.join(" · ")} {tx("tr/min")}</Stat>,
+    live.length > 0 && <Stat key="guests" label={tx("Invités")}>{run.length} / {live.length} {tx("en marche")}{vcpu > 0 && ` · ${vcpu}${n.cpus ? ` / ${n.cpus}` : ""} vCPU`}{ram > 0 && ` · ${bytes(ram)}${n.maxmem ? ` / ${bytes(n.maxmem)}` : ""} RAM`}</Stat>,
+  ].filter(Boolean);
+  return items.length ? <div className="flex flex-wrap gap-x-5 gap-y-1 border-t border-line/60 px-3 py-2 text-sm">{items}</div> : null;
 }
 
 /** Last vzdump of the guest among the followed sets (Sauvegardes) of this Proxmox host: the freshest one wins */
@@ -44,7 +70,7 @@ function backupOf(g: Guest, sets: BackupSet[], hostIds: Set<string>) {
 function GuestRow({ g, m, set, backups, docker, dockhand, onMachine }: { g: Guest; m?: Machine; set?: BackupSet; backups: boolean; docker?: number; dockhand?: { containers?: number; updates: number }; onMachine: (ip: string) => void }) {
   const on = g.status === "running", age = set?.locations[0].age;
   return (
-    <tr className={`hover:bg-bg2/50 ${on ? "" : "text-muted"}`}>
+    <tr className={`hover:bg-bg2/50 ${on ? "" : "bg-bg/40 text-muted opacity-50 grayscale"}`}>
       <td className="px-3 py-2 align-top"><Badge tone={on ? "ok" : "off"}>{on ? tx("en marche") : tx("arrêtée")}</Badge></td>
       <td className="px-3 py-2 align-top">
         <span className="flex items-baseline gap-2"><b className="text-txt">{g.name || g.vmid}</b><Dim>{g.type === "lxc" ? "LXC" : "VM"} {g.vmid}</Dim></span>
@@ -85,8 +111,8 @@ function Category({ icon: Icon, title, count, children }: Readonly<{ icon: typeo
   );
 }
 
-function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapshot; onMachine: (ip: string) => void }) {
-  const guests = (c.guests ?? []).filter((g) => !g.template).sort((a, b) => Number(b.status === "running") - Number(a.status === "running") || String(a.vmid).localeCompare(String(b.vmid), undefined, { numeric: true }));
+function Host({ c, snap, onMachine, hideStopped }: { c: VirtualizationConnector; snap: Snapshot; onMachine: (ip: string) => void; hideStopped: boolean }) {
+  const guests = (c.guests ?? []).filter((g) => !g.template && !(hideStopped && g.status !== "running")).sort((a, b) => Number(b.status === "running") - Number(a.status === "running") || String(a.vmid).localeCompare(String(b.vmid), undefined, { numeric: true }));
   const machines = snap.data.machine_list;
   const sets = snap.backups?.sets ?? [];
   const hostIds = new Set((snap.backups?.hosts ?? []).filter((h) => h.ip === c.ip).map((h) => h.id));
@@ -115,20 +141,21 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
               {(n || storageOf().length > 0) && (
                 <Category icon={Cpu} title={tx("Système")}>
               {n && (
-                <div className="grid items-center gap-x-6 gap-y-2 bg-bg2/50 px-3 py-2.5 md:grid-cols-[minmax(0,1fr)_11rem_11rem]">
+                <div className="grid items-center gap-x-6 gap-y-2 bg-bg2/50 px-3 py-2.5 md:grid-cols-[minmax(0,1fr)_minmax(15rem,1.3fr)_minmax(15rem,1.3fr)]">
                   <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                     <Server size={14} className="text-dim" aria-hidden /><b>{vmware ? tx("Hôte") : tx("Nœud")} {n.name}</b>
                     {c.connector === "vcenter" && <Badge tone={n.online ? "ok" : "bad"}>{n.online ? tx("connecté") : tx("injoignable")}</Badge>}
                     <span className="text-xs text-dim">{[n.model, n.cpus ? tx("{0} CPU", n.cpus) : "", n.uptime ? tx("en marche depuis {0}", dur(n.uptime)) : ""].filter(Boolean).join(" · ")}</span>
                     <Badge tone="off">{tx("{0} invité(s)", list.length)}</Badge>
                   </span>
-                  <Gauge label={tx("CPU")} pct={n.cpu_pct} />
-                  <Gauge label={tx("RAM")} pct={n.mem_pct} used={n.mem} total={n.maxmem} />
+                  <Gauge big label={tx("CPU")} pct={n.cpu_pct} />
+                  <Gauge big label={tx("RAM")} pct={n.mem_pct} used={n.mem} total={n.maxmem} />
                 </div>
               )}
+              {n && <NodeStats n={n} list={list} />}
               {storageOf(n?.name).length > 0 && (
                 <div className="grid gap-x-6 gap-y-2 border-t border-line/60 px-3 py-2.5 sm:grid-cols-2 lg:grid-cols-4 [&:first-child]:border-t-0">
-                  {storageOf(n?.name).map((st) => <Gauge key={`${st.node}/${st.name}`} label={st.name} pct={st.used_pct} used={st.used} total={st.total} icon={<HardDrive size={12} className="shrink-0 text-dim" aria-hidden />} />)}
+                  {storageOf(n?.name).map((st) => <Gauge big key={`${st.node}/${st.name}`} label={st.name} pct={st.used_pct} used={st.used} total={st.total} icon={<HardDrive size={12} className="shrink-0 text-dim" aria-hidden />} />)}
                 </div>
               )}
                 </Category>
@@ -162,13 +189,26 @@ function Host({ c, snap, onMachine }: { c: VirtualizationConnector; snap: Snapsh
   );
 }
 
+const HIDE_KEY = "myservices.virtualization.hideStopped";
+
 export function Virtualization({ snap, onMachine }: { snap: Snapshot; onMachine: (ip: string) => void }) {
+  const [hideStopped, setHide] = useState(() => { try { return localStorage.getItem(HIDE_KEY) === "1"; } catch { return false; } });
+  const toggleHide = () => { setHide(!hideStopped); try { localStorage.setItem(HIDE_KEY, hideStopped ? "0" : "1"); } catch { /* private window: fine */ } };
   const virt = snap.data.virtualization ?? [];
   const pve = virt.filter((c) => HYPERVISORS.includes(c.connector)), pbs = virt.filter((c) => c.connector === "proxmox-backup");
   if (!pve.length && !pbs.length) return <Empty>{tx("Aucun hyperviseur trouvé : Proxmox VE, VMware ESXi, KVM / libvirt, Incus / LXD ou VirtualBox lus par SSH apparaissent ici tout seuls, Hyper-V par l'agent Windows, vCenter, Unraid et Proxmox Datacenter Manager par leur connecteur.")}</Empty>;
+  const stopped = pve.reduce((n, c) => n + (c.guests ?? []).filter((g) => !g.template && g.status !== "running").length, 0);
   return (
     <div className="flex flex-col gap-4 py-1">
-      {pve.map((c) => <Host key={`${c.via ?? "api"}/${c.name}`} c={c} snap={snap} onMachine={onMachine} />)}
+      {stopped > 0 && (
+        <div className="flex justify-end">
+          <button type="button" onClick={toggleHide} aria-pressed={hideStopped} title={tx("Cache les machines virtuelles arrêtées")}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-colors ${hideStopped ? "border-link bg-link/15 text-txt" : "border-line text-link hover:bg-link/10"}`}>
+            <EyeOff size={14} aria-hidden />{tx("Masquer les arrêtées")}<Count n={stopped} tone="off" />
+          </button>
+        </div>
+      )}
+      {pve.map((c) => <Host key={`${c.via ?? "api"}/${c.name}`} c={c} snap={snap} onMachine={onMachine} hideStopped={hideStopped} />)}
       {pbs.length > 0 && (
         <section>
           <h2 className="mb-2 flex items-center gap-2 border-b border-line/60 pb-1 text-xs font-bold uppercase tracking-wider text-dim"><Box size={14} aria-hidden />{tx("Proxmox Backup Server")} <Count n={pbs.length} tone="off" /></h2>
