@@ -33,6 +33,7 @@ if __name__ == "__main__":
     sys.modules.setdefault("server", sys.modules[__name__])
 
 import netscan
+import pulse
 from config import CFG
 
 HERE = Path(__file__).resolve().parent
@@ -229,6 +230,33 @@ def auto_backup_default() -> None:
         log(f"⚠ sauvegardes automatiques : {type(e).__name__}: {e}")
     finally:
         _AUTO_BACKUP.release()
+
+
+PULSE = pulse.Pulse(WEB / "pulse.json", CFG["pulse_confirm"])
+
+
+def pulse_ips() -> list[str]:
+    """Followed machines of the last collection, minus the ones switched off in Settings (no ping for them)."""
+    try:
+        data = json.loads((WEB / "data.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return [m["ip"] for m in data.get("machine_list", []) if m.get("ip") and not m.get("disabled")]
+
+
+def pulse_loop() -> None:
+    """Ping every machine every `pulse_every` s; a confirmed change starts the watcher at once (its events, history and alerts)."""
+    every, owed = CFG["pulse_every"], False
+    while every > 0:
+        t0 = time.time()
+        try:
+            ips = pulse_ips()
+            owed = bool(ips and PULSE.tick(ips)) or owed
+            if owed and enabled("watch") and run_task("watch", "pouls"):
+                owed = False   # watcher busy: asked again at the next pulse
+        except Exception as e:  # a bug here must not stop the pulse
+            log(f"⚠ pouls : {e}")
+        time.sleep(max(1.0, every - (time.time() - t0)))
 
 
 def keep_availability() -> None:
@@ -654,6 +682,7 @@ def main() -> int:
     for name in ("watch", "health"):  # reprise de ce que events.json contient déjà (sans doublon)
         keep_history(name)
     threading.Thread(target=scheduler, daemon=True).start()
+    threading.Thread(target=pulse_loop, daemon=True, name="pulse").start()
     threading.Thread(target=first_runs, daemon=True).start()
     import uvicorn
 

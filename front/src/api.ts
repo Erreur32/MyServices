@@ -35,10 +35,30 @@ export class NotConfigured extends Error {
   constructor(public me: Me) { super(tx("pas encore configurée")); }
 }
 
+/** Pouls (pulse.json) : l'état du ping de chaque machine, confirmé, bien plus frais que data.json (collecte toutes les 30 min) */
+interface Pulse { ts: number; machines: Record<string, { ping: boolean; ms: number | null; since: number }> }
+const PULSE_MAX_AGE_S = 300;
+
+/** data.json avec le ping du pouls par-dessus, si le pouls est récent ; sinon tel quel */
+export function withPulse(data: Data, p: Pulse | null): Data {
+  if (!p || Date.now() / 1000 - p.ts > PULSE_MAX_AGE_S) return data;
+  let moved = false;
+  const machine_list = data.machine_list.map((m) => {
+    const live = p.machines[m.ip];
+    if (!live || live.ping === m.ping) return m;
+    moved = true;
+    return { ...m, ping: live.ping };
+  });
+  return moved ? { ...data, machine_list } : data;
+}
+
+export const loadPulse = (): Promise<Pulse | null> => get<Pulse>("pulse.json", true).catch(() => null);
+
 /** Tout ce que l'accueil lit, en parallèle ; santé, sauvegardes et événements sont facultatifs. */
 export async function loadSnapshot(): Promise<Snapshot> {
-  const [me, data] = await Promise.all([get<Me>("api/v1/me"), get<Data>("data.json", true)]);
-  if (!data) throw new NotConfigured(me!);
+  const [me, raw, pulse] = await Promise.all([get<Me>("api/v1/me"), get<Data>("data.json", true), loadPulse()]);
+  if (!raw) throw new NotConfigured(me!);
+  const data = withPulse(raw, pulse);
   const hu = data!.page.health_url, bu = data!.page.backups_url;
   const [health, backups, watch, hev] = await Promise.all([
     hu ? get<Health>(`${hu}stats.json`, true) : null,

@@ -124,7 +124,7 @@ function ChipButton({ on, count, mark, label, onClick }: Readonly<{ on: boolean;
   );
 }
 
-export function FilterBar<T>({ f, placeholder, extra, side, options = [], primary: primaryProp = [], oneLine = false }: Readonly<{
+export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions = [], optionsLabel, primary: primaryProp = [], oneLine = false }: Readonly<{
   f: { query: string; setQuery: (q: string) => void; shown: unknown[]; total: number; active: number; reset: () => void;
        chips: { facet: Facet<T>; chips: Chip[] }[]; toggle: (k: string, v: string) => void };
   placeholder: string; extra?: ReactNode; side?: ReactNode; options?: FilterOption[];   // side : à droite, sous le bouton « Filtres »
@@ -132,7 +132,10 @@ export function FilterBar<T>({ f, placeholder, extra, side, options = [], primar
   primary?: string[];
   /** Filtres visibles sur la même ligne que la recherche ; au-delà de 10 pastilles ou si la ligne déborde, ils passent derrière le bouton « Filtres » */
   oneLine?: boolean;
+  /** Given: the options are toggles shown on the search line under this caption (« Masquer »), not behind the « Filtres » button */
+  optionsLabel?: string;
 }>) {
+  const options = optionsLabel ? [] : allOptions;
   // Filtres repliés d'office (sur tous les écrans) : la barre de recherche suffit le plus souvent ; ce qui est actif
   // reste visible en pastilles retirables, et le bouton « Filtres » déplie le reste.
   const [open, setOpen] = useState(false);
@@ -184,6 +187,12 @@ export function FilterBar<T>({ f, placeholder, extra, side, options = [], primar
         </label>
         <span className="text-sm text-muted" title={tx("Lignes affichées sur le total, après la recherche et les filtres")}><b className="text-txt">{f.shown.length}</b> {tx("sur")} {f.total}</span>
         {oneLine && inlineFilters}
+        {optionsLabel && allOptions.length > 0 && (
+          <span className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-semibold uppercase tracking-wide text-dim">{optionsLabel}</span>
+            {allOptions.map((o) => <ChipButton key={o.id} on={o.on} count={o.count ?? 0} mark={o.mark} label={o.label} onClick={o.toggle} />)}
+          </span>
+        )}
         {oneLine && <div ref={measureRef} aria-hidden className="pointer-events-none invisible absolute h-0 overflow-hidden">{renderInline(wanted, true)}</div>}
         {f.active > 0 && (
           <button type="button" onClick={f.reset} className="inline-flex items-center gap-1 text-sm text-link hover:underline">

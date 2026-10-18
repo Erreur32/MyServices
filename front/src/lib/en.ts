@@ -879,10 +879,6 @@ export const EN: Record<string, string> = {
   "Entités indisponibles": "Unavailable entities",
   "… et {0} autres": "… and {0} more",
   "Autres mises à jour (modules, appareils)": "Other updates (add-ons, devices)",
-  "menaces fail2ban (LogviewR)": "fail2ban threats (LogviewR)",
-  "connecteurs revenus en moins d'une heure": "connectors back within an hour",
-  "nouveaux appareils de la recherche réseau": "new devices of the network search",
-  "Masquer les {0}": "Hide {0}",
   "Événement": "Event",
   "{0} masqué(s) : tout afficher": "{0} hidden: show all",
   "{0} dossier(s)": "{0} folder(s)",
@@ -2416,4 +2412,7 @@ export const EN: Record<string, string> = {
   "Taille": "Size",
   "Dernière modification": "Last modified",
   "Inventorié": "Inventoried",
+  "menaces fail2ban": "fail2ban threats",
+  "connecteurs revenus < 1 h": "connectors back < 1 h",
+  "nouveaux appareils": "new devices",
 };

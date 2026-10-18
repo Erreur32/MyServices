@@ -44,10 +44,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import notify
+import pulse
 from config import CFG, next_timer_run
 
 NAME = "myservices-watcher"
 DATA = Path(CFG["web_dir"]) / "data.json"
+PULSE_FILE = DATA.with_name("pulse.json")
 EVENTS = Path(CFG["web_dir"]) / "events.json"  # même dossier que DATA, lu par la page
 STATE_DIR = Path(CFG["state_dir"])
 STATE_FILE = STATE_DIR / f"{NAME}.json"
@@ -151,12 +153,14 @@ def dns_snaps(data: dict) -> dict:
     return out
 
 
-def machine_snaps(data: dict) -> dict:
-    """Ping et sshd par machine. ssh = None si pas d'accès SSH connu : jamais signalé."""
-    out = {}
+def machine_snaps(data: dict, live: dict | None = None) -> dict:
+    """Ping et sshd par machine. ssh = None si pas d'accès SSH connu : jamais signalé. live : le pouls (pulse.json), plus frais que
+    data.json et déjà confirmé : son ping prime, sans second délai de confirmation."""
+    out, live = {}, live or {}
     for m in data.get("machine_list", []):
-        out[f'machine:{m["ip"]}'] = {"label": m["name"], "machine": m["name"], "target": m["ip"],
-                                     "ping": bool(m.get("ping")) or bool(m.get("off")) or bool(m.get("disabled")),  # éteinte voulue ou non suivie : pas d'alerte
+        pl = live.get(m["ip"])
+        out[f'machine:{m["ip"]}'] = {"label": m["name"], "machine": m["name"], "target": m["ip"], "pulse": pl is not None,
+                                     "ping": bool(pl["ping"] if pl else m.get("ping")) or bool(m.get("off")) or bool(m.get("disabled")),  # éteinte voulue ou non suivie : pas d'alerte
                                      "ssh": (m["ssh"].get("methods") is not None) if m.get("ssh") else None}
     return out
 
@@ -219,7 +223,7 @@ def diff_machines(prev: dict, cur: dict, pending: dict) -> tuple[list[dict], dic
                 continue
             pk = f"{k}:{flag}"
             n = pending.get(pk, 0) + 1
-            if n >= CONFIRM_RUNS:
+            if n >= (1 if flag == "ping" and c.get("pulse") else CONFIRM_RUNS):   # a pulse is already confirmed
                 ev.append({"kind": up if c[flag] else down, "key": k, "label": c["label"], "machine": c["machine"],
                            "target": c["target"], "detail": d_up if c[flag] else d_down})
             else:
@@ -443,7 +447,7 @@ def main() -> int:
     baseline = "snap" not in state
 
     events, pending = ([], {}) if baseline else diff(state["snap"], cur, state.get("pending", {}))
-    mcur = machine_snaps(data)
+    mcur = machine_snaps(data, pulse.read(PULSE_FILE))
     if "machines" in state:  # baseline machines à part : ajoutée après le premier déploiement
         mev, mpending = diff_machines(state["machines"], mcur, state.get("mpending", {}))
         events = sorted(mev + events, key=lambda e: -SEVERITY[e["kind"]])
