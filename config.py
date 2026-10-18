@@ -84,33 +84,40 @@ def _fail(message: str, fatal: bool) -> None:
     raise ConfigError(message)
 
 
+def _read_user(f: Path, fatal: bool) -> dict:
+    """The settings written in config.json (secrets opened in memory only); an unreadable file goes through _fail."""
+    try:
+        user = json.loads(f.read_text(encoding="utf-8"))
+    except ValueError as e:
+        _fail(f"{f} illisible : {e}", fatal)
+    if any(isinstance(v, (str, list, dict)) and "enc:v1:" in json.dumps(v) for v in user.values()):
+        import secrets_store  # secrets chiffrés (version Docker) : déchiffrés ici, en mémoire seulement
+        try:
+            user = secrets_store.decrypt_all(user, f)
+        except secrets_store.SecretError as e:
+            _fail(f"{f} : {e}", fatal)
+    unknown = sorted(k for k in user if k not in DEFAULTS and not k.startswith("_"))
+    if unknown:
+        print(f"{f} : clé(s) inconnue(s) ignorée(s) : {', '.join(unknown)}", file=sys.stderr)
+    return {k: v for k, v in user.items() if k in DEFAULTS}
+
+
+def _env_value(default, env: str):
+    """A MYSERVICES_<KEY> value read as the type of the setting's default."""
+    if isinstance(default, int):
+        return int(env)
+    return json.loads(env) if isinstance(default, list) else env
+
+
 def load(fatal: bool = True) -> dict:
     cfg = dict(DEFAULTS)
     f = Path(os.environ.get("MYSERVICES_CONFIG") or HERE / "config.json")
     if f.exists():
-        try:
-            user = json.loads(f.read_text(encoding="utf-8"))
-        except ValueError as e:
-            _fail(f"{f} illisible : {e}", fatal)
-        if any(isinstance(v, (str, list, dict)) and "enc:v1:" in json.dumps(v) for v in user.values()):
-            import secrets_store  # secrets chiffrés (version Docker) : déchiffrés ici, en mémoire seulement
-            try:
-                user = secrets_store.decrypt_all(user, f)
-            except secrets_store.SecretError as e:
-                _fail(f"{f} : {e}", fatal)
-        unknown = sorted(k for k in user if k not in DEFAULTS and not k.startswith("_"))
-        if unknown:
-            print(f"{f} : clé(s) inconnue(s) ignorée(s) : {', '.join(unknown)}", file=sys.stderr)
-        cfg.update({k: v for k, v in user.items() if k in DEFAULTS})
+        cfg.update(_read_user(f, fatal))
     for k, default in DEFAULTS.items():
         env = os.environ.get(f"MYSERVICES_{k.upper()}")
         if env is not None:
-            if isinstance(default, int):
-                cfg[k] = int(env)
-            elif isinstance(default, list):
-                cfg[k] = json.loads(env)
-            else:
-                cfg[k] = env
+            cfg[k] = _env_value(default, env)
     for k in PATHS:
         cfg[k] = _path(cfg[k])
     for k in ("npm", "connectors"):  # coupés dans Réglages (« enabled »: false) : réglages gardés, rien de lu
