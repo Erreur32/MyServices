@@ -1,5 +1,5 @@
 // Onglets : ordre, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { ClipboardClock, LayoutGrid, Server, Shield, ShieldCheck, Globe, HardDrive, House, Monitor, Network, Router, SlidersHorizontal, Workflow, type LucideIcon } from "lucide-react";
+import { ClipboardClock, LayoutGrid, Server, Shield, Globe, HardDrive, House, Monitor, Network, Router, SlidersHorizontal, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -19,7 +19,6 @@ export const TABS: { id: TabId; icon: LucideIcon; label: string }[] = [
   { id: "virtualization", icon: Server, label: tx("Virtualisation") },
   { id: "network", icon: Router, label: tx("Réseau") },
   { id: "security", icon: Shield, label: tx("Sécurité") },
-  { id: "security2", icon: ShieldCheck, label: tx("Sécurité (nouvelle)") },
   { id: "dns", icon: Network, label: tx("DNS") },
   { id: "backups", icon: HardDrive, label: tx("Sauvegardes") },
   { id: "diagrams", icon: Workflow, label: tx("Schémas") },
@@ -27,7 +26,7 @@ export const TABS: { id: TabId; icon: LucideIcon; label: string }[] = [
 ];
 
 /** Onglets encore en chantier : visibles seulement sur une image de dev (construite sur place, git-rev), pas publiés. */
-export const UNRELEASED: TabId[] = ["infra", "security", "security2"];
+export const UNRELEASED: TabId[] = ["infra", "security"];
 const isDevBuild = (s: Snapshot) => !!s.me.git || s.me.version === "dev";
 
 /** Onglet affiché seulement si sa source est activée (et Réglages pour les admins). */
@@ -39,8 +38,7 @@ export function visible(id: TabId, s: Snapshot): boolean {
     case "dns": return !!s.data.dns;
     case "virtualization": return (s.data.virtualization ?? []).length > 0; // a hypervisor (Proxmox, ESXi, vCenter) or a Proxmox Backup Server ; Dockhand is in Infra
     case "network": return hasNetwork(s);   // MynetworK, UniFi, Freebox, OPNsense, NetAlertX… answer, or devices were found
-    case "security":
-    case "security2": return (s.data.security ?? []).length > 0 || s.data.hosts.some((r) => r.type === "proxy") || s.data.machine_list.some((m) => !!m.info?.sshd);
+    case "security": return (s.data.security ?? []).length > 0 || s.data.hosts.some((r) => r.type === "proxy") || s.data.machine_list.some((m) => !!m.info?.sshd);
     case "settings": return s.me.role === "admin";
     default: return true;
   }

@@ -12,7 +12,6 @@ import { attention, type TabId } from "./lib/summary";
 import { Backups } from "./tabs/Backups";
 import { Dns } from "./tabs/Dns";
 import { Security } from "./tabs/Security";
-import { SecurityV2 } from "./tabs/SecurityV2";
 import { Virtualization } from "./tabs/Virtualization";
 import { Network } from "./tabs/Network";
 import { Infra } from "./tabs/Infra";
@@ -140,7 +139,6 @@ export default function App() {
       {current === "diagrams" && <DiagramsTab admin={snap.me.role === "admin"} />}
       {current === "settings" && <Settings key={hash} snap={snap} />}
       {current === "security" && <Security snap={snap} />}
-      {current === "security2" && <SecurityV2 snap={snap} />}
       {current === "virtualization" && <Virtualization snap={snap} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
       {current === "network" && <Network snap={snap} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
       </div>
