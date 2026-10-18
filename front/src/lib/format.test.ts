@@ -20,3 +20,14 @@ describe("appVersion", () => {
     expect(appVersion(undefined)).toBe("");
   });
 });
+
+describe("débit en bits par seconde", () => {
+  it("comme la Freebox et MynetworK : unités décimales, bits", async () => {
+    const { rate } = await import("./format");
+    expect(rate(0)).toBe("0 b/s");
+    expect(rate(125)).toBe("1,0 kb/s");         // 125 B/s = 1000 b/s: one decimal below 10
+    expect(rate(1_250_000)).toBe("10 Mb/s");     // 10 Mb/s: a whole number from 10
+    expect(rate(150_000)).toBe("1,2 Mb/s");      // 1,2 Mb/s: one decimal below 10
+    expect(rate(null)).toBe("?");
+  });
+});

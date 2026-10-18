@@ -16,8 +16,8 @@ DEVICES = [
     {"ip": "10.0.0.2", "status": "online", "ping_ms": 0.4, "hostname": "nas", "vendor": None},
     {"ip": "10.0.0.10", "status": "online", "ping_ms": 31.0, "hostname": None, "vendor": "Espressif"},
     {"ip": "10.0.0.3", "status": "online", "ping_ms": 2.5, "hostname": "pc", "vendor": None},
-    {"ip": "10.0.0.9", "status": "offline", "ping_ms": None, "hostname": "old", "vendor": None},
-    {"ip": "10.0.0.4", "status": "offline", "ping_ms": None, "hostname": None, "vendor": "Apple"},
+    {"ip": "10.0.0.9", "status": "offline", "ping_ms": None, "hostname": "old", "vendor": None, "last_seen": {}, "ports_at": "2026-09-13T00:03:23.708Z"},
+    {"ip": "10.0.0.4", "status": "offline", "ping_ms": None, "hostname": None, "vendor": "Apple", "last_seen": "2026-10-17T10:00:00Z", "ports_at": "2026-09-01T00:00:00Z"},
     {"ip": "10.0.0.5", "status": "unknown", "ping_ms": None, "hostname": None, "vendor": None},
 ]
 
@@ -56,6 +56,7 @@ class Stats(unittest.TestCase):
         self.assertEqual([x["ip"] for x in s["offline"]], ["10.0.0.4", "10.0.0.9"])               # by address, not as text
         self.assertEqual([(x["ip"], x["ping_ms"]) for x in s["worst_latency"]], [("10.0.0.10", 31.0), ("10.0.0.3", 2.5), ("10.0.0.2", 0.4)])
         self.assertEqual(s["offline"][0]["name"], "Apple")                                       # no hostname: the maker
+        self.assertEqual([x["last"] for x in s["offline"]], ["2026-10-17T10:00:00Z", "2026-09-13T00:03:23.708Z"])   # last seen, else the last port scan (lastSeen arrives as {})
 
     def test_mynetwork_counters_win_when_given(self):
         s = run(Fake(stats={"total": 60, "online": 50, "offline": 9, "unknown": 1, "last_scan": "2026-10-18T10:00:00Z"}), 100.0)["scan"]
@@ -64,17 +65,28 @@ class Stats(unittest.TestCase):
     def test_traffic_is_absent_without_the_route_and_sorted_when_there(self):
         self.assertIsNone(run(Fake(), 100.0)["traffic"])
         ns.reset()
-        raw = [{"hostname": "tv", "ip": "10.0.0.7", "rxBytes": 100, "txBytes": 20}, {"name": "pc", "total_bytes": 5000}, {"mac": "aa:bb"}]
+        raw = [{"hostname": "tv", "ip": "10.0.0.7", "vendor": "Samsung", "rxBytes": 100, "txBytes": 20}, {"name": "pc", "total_bytes": 5000}, {"mac": "aa:bb"}]
         t = run(Fake(traffic=raw), 100.0, "today")["traffic"]
         self.assertEqual(t["mode"], "today")
-        self.assertEqual([(i["name"], i["total"]) for i in t["items"]], [("pc", 5000), ("tv", 120), ("aa:bb", None)])
+        self.assertEqual([(i["name"], i["total"], i["unit"]) for i in t["items"]], [("pc", 5000, "volume"), ("tv", 120, "volume"), ("aa:bb", None, "volume")])
+        self.assertEqual(t["items"][1]["vendor"], "Samsung")
+
+    def test_live_gives_rates_in_bytes_per_second_from_kib(self):
+        raw = [{"mac": "aa", "name": "tv", "download": 2, "upload": 1}, {"mac": "bb", "name": "pc", "download": 100, "upload": 50}]
+        items = run(Fake(traffic=raw), 100.0, "live")["traffic"]["items"]
+        self.assertEqual([(i["name"], i["rx"], i["tx"], i["total"], i["unit"]) for i in items], [("pc", 102400, 51200, 153600, "rate"), ("tv", 2048, 1024, 3072, "rate")])
 
     def test_a_mode_is_read_once_and_a_wrong_mode_becomes_live(self):
         f = Fake(traffic=[{"name": "pc", "total": 1}])
         run(f, 100.0)
-        run(f, 110.0)
-        self.assertEqual(f.traffic_modes, ["live"])                                               # shared for TTL seconds
-        self.assertEqual(run(f, 110.0, "nonsense")["traffic"]["mode"], "live")
+        run(f, 105.0)
+        self.assertEqual(f.traffic_modes, ["live"])                                               # shared for a few seconds
+        run(f, 120.0)
+        self.assertEqual(f.traffic_modes, ["live", "live"])                                       # the live volume is read again soon
+        run(f, 120.0, "today")
+        run(f, 150.0, "today")
+        self.assertEqual(f.traffic_modes, ["live", "live", "today"])                              # a total is kept longer
+        self.assertEqual(run(f, 150.0, "nonsense")["traffic"]["mode"], "live")
 
     def test_an_error_is_told_never_raised(self):
         doc = run(Fake(boom=ConnectorError("HTTP 500")), 100.0)

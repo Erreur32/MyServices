@@ -2470,4 +2470,7 @@ export const EN: Record<string, string> = {
   "Volume de données par client": "Data volume per client",
   "Aucun trafic.": "No traffic.",
   "Disponible avec MynetworK 0.11.2 ou plus.": "Available with MynetworK 0.11.2 or later.",
+  "Dernier relevé de cette adresse": "Last reading of this address",
+  "Reçu (téléchargement)": "Received (download)",
+  "Envoyé": "Sent",
 };

@@ -1,13 +1,14 @@
 // Cartes UniFi (onglet Réseau) : face avant réaliste des switches, passerelles et bornes (ports, vitesse, PoE, trafic en direct), d'après le
 // composant unifi-device-card (MIT, copie dans src/vendor). Les données viennent de GET unifi/cards (MynetworK) ; l'agencement (ordre, largeur,
 // hauteur, port d'uplink choisi) est gardé dans ce navigateur. Lecture seule.
-import { GripVertical, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronUp, GripVertical, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { read } from "../api";
 import { Badge, Dim, Empty } from "../components/ui";
 import { input, quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { usePoll } from "../lib/polling";
+import { useStoredFlag } from "../lib/storedFlag";
 import { applyOrder, clampSpan, DEFAULT_SPAN, GRID_COLUMNS, useCardLayout } from "../lib/cardLayout";
 import { DEMO_UNIFI_DEVICES } from "../lib/unifiCardsDemo";
 import { createMynetworkHass, type MnDevice } from "../vendor/unifi-device-card/mynetwork-adapter";
@@ -94,7 +95,8 @@ function useIsWide(): boolean {
 export function UnifiCards() {
   const [doc, setDoc] = useState<CardsDoc | null>(null), [failed, setFailed] = useState(false);
   const [preview, setPreview] = useState(false), [cardReady, setCardReady] = useState(false), [showPanel, setShowPanel] = useState(false);
-  const load = useCallback(() => { read<CardsDoc>("unifi/cards").then((d) => { setDoc(d); setFailed(false); }).catch(() => setFailed(true)); }, []);
+  const [folded, setFolded] = useStoredFlag("myservices.network.unifiCardsFolded", false);
+  const load = useCallback(() => { if (!folded) read<CardsDoc>("unifi/cards").then((d) => { setDoc(d); setFailed(false); }).catch(() => setFailed(true)); }, [folded]);   // nothing is read while folded
   usePoll(load, LIVE_REFRESH_MS);
 
   useEffect(() => {   // the card is a plain custom element: loaded only when this part of the page is shown
@@ -130,29 +132,33 @@ export function UnifiCards() {
     });
   };
 
-  if (!doc && !failed && !preview) return null;
+  if (!folded && !doc && !failed && !preview) return null;   // folded: the header stays (nothing was read, so nothing is known)
   const noDevice = devices.length === 0;
+  const live = !preview && (doc?.devices.length ?? 0) > 0;   // real devices are read
   return (
     <section className="mb-4 overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
       <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
         <h3 className="font-bold">{tx("Cartes UniFi")}</h3>
-        <Badge tone={preview ? "warn" : doc?.source ? "ok" : "off"}>{preview ? tx("exemple") : doc?.source === "mynetwork" ? "MynetworK" : tx("aucune source")}</Badge>
-        {!noDevice && (
+        <Badge tone={preview ? "warn" : live ? "ok" : "off"}>{preview ? tx("exemple") : doc?.source === "mynetwork" ? "MynetworK" : tx("aucune source")}</Badge>
+        {!noDevice && !folded && (
           <>
             <label className="flex cursor-pointer items-center gap-2 text-xs text-muted"><input type="checkbox" checked={showPanel} onChange={(e) => setShowPanel(e.target.checked)} />{tx("Vue matérielle")}</label>
             <button type="button" className={`${quiet} !px-2 !py-1 text-xs`} onClick={reset} title={tx("Remet l'ordre, les largeurs et les hauteurs par défaut")}><RotateCcw size={12} aria-hidden />{tx("Réinitialiser")}</button>
             <Dim>{tx("Glisser par la poignée, tirer le bord ou le coin pour redimensionner ; double-clic pour revenir à la taille d'origine.")}</Dim>
           </>
         )}
-        <button type="button" className={`${quiet} ml-auto !px-2 !py-1 text-xs`} aria-pressed={preview} onClick={() => setPreview(!preview)}>{preview ? tx("Quitter l'exemple") : tx("Voir un exemple")}</button>
+        {(preview || noDevice) && <button type="button" className={`${quiet} ml-auto !px-2 !py-1 text-xs`} aria-pressed={preview} onClick={() => setPreview(!preview)}>{preview ? tx("Quitter l'exemple") : tx("Voir un exemple")}</button>}   {/* only while no real device is read: with a source it would be of no use */}
+        <button type="button" className={`text-dim hover:text-txt ${preview || noDevice ? "" : "ml-auto"}`} aria-expanded={!folded} onClick={() => setFolded(!folded)} title={folded ? tx("Déplier") : tx("Replier")}>
+          {folded ? <ChevronDown size={18} aria-hidden /> : <ChevronUp size={18} aria-hidden />}
+        </button>
       </div>
-      <div className="p-4">
+      {!folded && <div className="p-4">
         {noDevice ? (
           <Empty>{failed ? tx("Lecture des cartes impossible pour l'instant.") : doc?.error || tx("Aucun équipement UniFi lisible : il faut MynetworK 0.11.1 ou plus relié à UniFi (ou le contrôleur UniFi lu directement).")}</Empty>
         ) : (
           <div ref={gridRef} className="grid grid-cols-1 items-start gap-4 md:grid-cols-12">
             {ordered.map((d: MnDevice) => (
-              <div key={d.id} className={`relative min-w-0 rounded-xl border border-line bg-bg2/40 ${dragged === d.id ? "opacity-50" : ""}`}
+              <div key={d.id} className={`relative min-w-0 rounded-xl border-2 border-link/40 bg-bg shadow-lg shadow-black/20 transition-colors hover:border-link/70 ${dragged === d.id ? "opacity-50" : ""}`}
                 style={wide ? { gridColumn: `span ${clampSpan(spans[d.id] ?? DEFAULT_SPAN)}` } : undefined}
                 onDragOver={(e) => { if (dragged) e.preventDefault(); }}
                 onDrop={(e) => { e.preventDefault(); if (dragged) move(dragged, d.id); setDragged(null); }}>
@@ -160,7 +166,7 @@ export function UnifiCards() {
                   onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", d.id); setDragged(d.id); }} onDragEnd={() => setDragged(null)}>
                   <GripVertical size={18} aria-hidden />
                 </span>
-                <div className="flex flex-wrap items-center gap-2 px-4 pt-3 pr-10">
+                <div className="flex flex-wrap items-center gap-2 rounded-t-[10px] border-b border-line bg-bg2 px-4 py-2.5 pr-10">
                   <b>{d.name}</b>
                   {d.type !== "access_point" && d.ports.length > 0 && (
                     <label className="flex items-center gap-1 rounded border border-link/60 bg-bg2 px-2 py-0.5 text-xs text-muted">{tx("Uplink")}
@@ -172,7 +178,7 @@ export function UnifiCards() {
                     </label>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-1.5 px-4 py-2 text-xs">
+                <div className="flex flex-wrap gap-1.5 px-4 pb-1 pt-3 text-xs">
                   <Badge tone="off">{tx("Modèle")} : {d.model}</Badge>
                   <Badge tone="off">{d.type}</Badge>
                   <Badge tone={d.exact ? "ok" : "warn"} title={d.exact ? d.modelKey ?? "" : tx("Pas de face avant dédiée à ce modèle : une face générique est dessinée")}>{d.exact ? tx("face avant dédiée") : tx("face générique")}</Badge>
@@ -196,7 +202,7 @@ export function UnifiCards() {
             ))}
           </div>
         )}
-      </div>
+      </div>}
     </section>
   );
 }

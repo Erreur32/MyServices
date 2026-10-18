@@ -11,6 +11,22 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+
+- Network tab (development builds): **UniFi front-panel cards** for switches, gateways and access points (ports, link speed, PoE, live traffic LEDs, uplink
+  selector, hardware view), built on the MIT-licensed [unifi-device-card](https://github.com/bluenazgul/unifi-device-card) through MynetworK's
+  `/api/plugins/unifi/card-devices` (MynetworK 0.11.1+). The cards can be reordered by drag and drop and resized with the mouse (width, height, both);
+  the layout is kept in the browser. The frame can be folded, and a sample preview shows the cards when no source answers.
+- Network tab: a **"Network scan"** frame read through MynetworK: counters (its own from 0.11.2, else counted from its inventory), addresses offline
+  with their last reading, worst latencies, and the data volume per client (live in bits per second with a download / upload arrow, today, all time;
+  from MynetworK 0.11.2). Foldable.
+- An address-sheet and Beszel-status overlay on the Machines tab, and the pulse follow-ups of 0.13.0.
+
+### Fixed
+
+- Settings -> Updates: the "latest published" version was older than the installed one when a tag had no GitHub release; the highest tag now stands
+  in, and an answer kept older than the installed version is checked again at once.
+
 ## v0.13.0 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
