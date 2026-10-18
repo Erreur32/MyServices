@@ -1,25 +1,26 @@
-# Release notes: MyServices 0.14.0
+# Release notes: MyServices 0.15.0
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.14.0** (18 October 2026): the Network tab is public, with UniFi device cards, a network scan summary and a Diagnostic page that spots slow links.
+**0.15.0** (18 October 2026): a new Security page, a redone home page, import and export of the configuration, and shorter default schedules.
 
 ## For everyone
 
 **What's new?**
-- **Network tab, now public**, with a sub-menu: Overview, Equipment and devices (with a search bar and filters), and Diagnostic.
-- **UniFi cards**: your switches, gateway and access points drawn like the real thing (ports, link speed, PoE, live traffic lights). Drag them to reorder, resize them with the mouse, fold the frame. They are read through MynetworK 0.11.1 or later.
-- **Network scan summary**: counters, addresses that are offline with their last reading, worst latencies and the data volume per client. Foldable.
-- **Diagnostic**: ports that negotiated below what they can do, a device or the internet link down, firmware updates, overloaded or hot devices, weak Wi-Fi, an address used by two devices, high latencies. The network cards of your machines (read over SSH or by the Windows agent) are shown next to the switch port, and a machine running at 100 Mb/s or less is flagged, which is rare for a computer. The columns can be sorted. Ports that are fine can be shown on request.
-- **"This is normal"**: on a finding that is expected (a smart-home hub that only does 100 Mb/s, for example), an admin can click the check mark and it stops being reported. The finding can be shown again or brought back at any time.
-- **Live feedback while it works**: a searching orb in the header and a livelier progress bar while a collection or a network search runs.
-- **Fix**: Settings, Updates now shows the right "latest published" version even when a tag has no release.
+- **Security page, redone and public**: an overview that lists what needs a look, worst first, with where it comes from and what to do, then one sub-tab per category: Fail2ban, exposed sites, SSH access, network ports and certificates. The Fail2ban tab has statistics (bans per hour and per day, per jail, the addresses banned most or back again) and shows **which domains were attacked**, read from the web logs LogviewR follows.
+- **Home page, redone**: the counters column is wider and gains Network, Connectors and agents, Virtualisation, and Updates and certificates. The "last 24 hours" card has a chart and one aligned row per kind of event. The paragraphs that repeated the counters are gone.
+- **Import and export of the configuration** (Settings, Backup and info): export everything or only some parts (settings, machines, backups, remembered decisions, accounts and history, encryption key, SSH keys) as a standard ZIP. An import is previewed first, then applied part by part, with your password. Replaced files are kept next to the new ones, and importing the key alone is refused because it would lock your passwords out.
+- **E-mail in one field**: point MyServices at the mail relay of the host (postfix and the like), test before saving, with copyable commands when it fails. The profile has a test button.
+- **Tasks and schedules** page redone. New default schedules: collection every 15 minutes, health every 2 hours, backups checked 4 times a day (schedules you saved are kept).
+- **Network**: the menu is at the top and the counters show on the first page; the Diagnostic lets you mark a finding as normal, and flags machines running at 100 Mb/s or less.
+- **Freebox and other boxes** are no longer reported as "without SSH": they have their own state, "Network equipment".
+- **A click on a card header** opens or closes the card (except on a link or a button in it); explanations now share one look with an icon.
 
 **Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change in your compose file.
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.14.0` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit.
-- **New**: `unifi_cards.py`, `network_stats.py`, `network_diagnostics.py`; routes `GET /api/v1/unifi/cards`, `GET /api/v1/network/stats`, `GET /api/v1/network/diagnostics` and `POST /api/v1/network/diagnostics/accepted` (admin); `MynetworK.card_devices()`; the vendored MIT `unifi-device-card` (`front/src/vendor/`) and the `thinking-orbs` package.
-- **Changed**: `hostinfo.py` and `health.py` report the network cards (`info.nics`, `agent.hardware.nics`); `about.py` falls back to the GitHub tags for the latest version; the header orb and progress bar.
-- **Needs**: MynetworK 0.11.1+ for the cards, 0.11.2+ for traffic per client and scan counters.
+- **Image**: `ghcr.io/erreur32/myservices:0.15.0` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit.
+- **New**: `config_transfer.py` (routes `GET /system/config-parts`, `POST /system/export`, `POST /system/import/preview`, `POST /system/import`), `connectors/logviewr.py` `ban_stats` and `add_domains` (7 days of ban history, aggregates only; `log_search` for the domains), `POST /network/diagnostics/accepted`, `lib/securityFindings.ts`, `lib/foldHeader.ts`.
+- **Changed**: default schedules in `server.py` and `install.sh`; `POST /system/mail/test` accepts the values to try before saving; the machine state `box`; the Security tab is no longer development-only.
+- **Needs**: LogviewR with the ban history for the Fail2ban statistics, and its web log sources for the domains.
