@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.15.7 (2026-10-18)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 
 - API: `POST machines/ssh-alias/test` checks the SSH access of a machine not declared yet (the alias prepared for it), and `DELETE machines/ssh-alias/{ip}` removes an alias the page wrote when the add is cancelled. A hand-written alias, or one used by a declared machine, is never removed.
