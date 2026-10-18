@@ -486,7 +486,10 @@ def last_statuses() -> list[dict]:
     except ValueError:
         at = 0
     saved = {k: v for k, v in _saved().items() if v > at}
-    return [{**st, "pending": True} if f"{st.get('type')}/{st.get('name')}" in saved else st for st in data.get("connectors", [])]
+    rows = list(data.get("connectors", []))
+    import fast
+    rows += fast.statuses_missing(fast.read(core.WEB / "live.json"), {(st.get("type"), st.get("name")) for st in rows})   # read lightly, never by the collection
+    return [{**st, "pending": True} if f"{st.get('type')}/{st.get('name')}" in saved else st for st in rows]
 
 
 def _saved_file() -> Path:
