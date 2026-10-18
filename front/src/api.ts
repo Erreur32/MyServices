@@ -131,6 +131,7 @@ function csrf(): string {
 
 /** Écriture vers l'API v1 (jeton CSRF en en-tête) ; le message d'erreur du serveur est repris tel quel. */
 export async function send<T = { ok: boolean }>(method: "POST" | "PATCH" | "PUT" | "DELETE", path: string, body?: unknown): Promise<T> {
+  inflight.clear();   // a read already running may be from before this change
   const r = await fetch(`${ROOT}api/v1/${path}`, {
     method,
     headers: { "X-CSRF-Token": csrf(), ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
@@ -159,9 +160,17 @@ export async function download(path: string, body: unknown): Promise<{ blob: Blo
   return { blob: await r.blob(), name };
 }
 
+/** Reads of the v1 API that are running now, by path: the same read asked again while it runs (two panels of one screen loading the same data) shares
+ *  the one network call. A write empties it, so nothing read after a change can be an answer from before it. */
+const inflight = new Map<string, Promise<unknown>>();
+
 /** Lecture de l'API v1 (Réglages). */
-export async function read<T>(path: string): Promise<T> {
-  return (await get<T>(`api/v1/${path}`))!;
+export function read<T>(path: string): Promise<T> {
+  const running = inflight.get(path);
+  if (running) return running as Promise<T>;
+  const p = get<T>(`api/v1/${path}`).then((r) => r!).finally(() => { if (inflight.get(path) === p) inflight.delete(path); });
+  inflight.set(path, p);
+  return p;
 }
 
 /** Asks the page to read data.json again now (after a change the server already published), instead of at the next minute; the page

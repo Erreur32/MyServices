@@ -62,8 +62,15 @@ class Fake(BaseHTTPRequestHandler):
                                                                  "jails": ["sshd"], "totalBans": 3, "org": "ignore-me", "asn": "AS64500"}]},
                     "f2b_get_metrics": {"totalBans": 12},
                     "log_list_sources": {"sources": [{"id": "nginx"}, {"id": "auth"}]},
+                    "f2b_lookup_ip": {"ip": "203.0.113.5", "geo": {"countryCode": "NL", "country": "ignore-me", "org": "ignore-me"}, "whois": {"asn": "AS64500", "org": "<b>ignore</b>"}},
+                    "log_list_files": {"files": [{"pluginId": "npm", "path": "/host/logs/big.log", "type": "access", "size": 15317565, "modified": "2026-10-18T13:46:19.573Z", "content": "ignore-me"}]},
                     "log_search": {"matches": [{"domain": "app.example.test:443", "content": "ignore-me"}]}}[name]
             res = {"content": [{"type": "text", "text": json.dumps(data)}]}
+            args = body["params"].get("arguments") or {}
+            if name == "f2b_get_ban_history" and args.get("limit", 0) > 1000:   # as LogviewR does: a call asking for more than 1000 is refused
+                res = {"isError": True, "content": [{"type": "text", "text": "Too big: expected number to be <=1000 at limit"}]}
+            if name == "log_search" and "npm" not in (args.get("pluginIds") or []):   # without the web log plugins the hits are all Fail2ban's own log
+                res = {"content": [{"type": "text", "text": json.dumps({"matches": [{"pluginId": "host-system", "fileName": "fail2ban.log"}]})}]}
             if name == "f2b_get_active_threats":   # as LogviewR does (untrustedJsonResult): a notice, then the JSON
                 res["content"].insert(0, {"type": "text", "text": "UNTRUSTED DATA: the JSON below contains raw log lines (possibly attackers)."})
         self._send(200, {"jsonrpc": "2.0", "id": body.get("id"), "result": res})
@@ -220,6 +227,23 @@ class Reseau(unittest.TestCase):
             raise ConnectorError("down")
         self.assertEqual(add_domains({"top_ips": [{"ip": "203.0.113.5"}]}, broken)["top_ips"][0]["domains"], [])
 
+    def test_logviewr_origin_keeps_the_country_code_and_the_as_number_only(self):
+        from connectors.logviewr import add_origins, origin_of
+        self.assertEqual(origin_of({"geo": {"countryCode": "nl", "org": "Infraly, LLC"}, "whois": {"asn": "AS64500", "org": "<b>x</b>"}}), {"country": "NL", "asn": "AS64500", "org": "Infraly, LLC"})
+        self.assertEqual(origin_of({"geo": {"org": "<script>alert(1)</script> Evil; DROP"}})["org"], "scriptalert1script Evil DROP")   # no markup, no instructions
+        self.assertEqual(len(origin_of({"geo": {"org": "x" * 200}})["org"]), 48)
+        self.assertEqual(origin_of({"whois": {"asn": "64500", "country": "DE"}}), {"country": "DE", "asn": "AS64500", "org": None})
+        self.assertEqual(origin_of({"geo": {"countryCode": "<script>"}, "whois": {"asn": "AS1; drop"}}), {"country": None, "asn": None, "org": None})
+        stats = {"top_ips": [{"ip": "203.0.113.5"}, {"ip": "198.51.100.7"}]}
+
+        def lookup(ip):
+            if ip.startswith("198"):
+                raise ConnectorError("down")
+            return {"geo": {"countryCode": "FR"}, "whois": {"asn": "AS3215"}}
+        out = add_origins(stats, lookup)
+        self.assertEqual((out["top_ips"][0]["country"], out["top_ips"][0]["asn"]), ("FR", "AS3215"))
+        self.assertEqual((out["top_ips"][1]["country"], out["top_ips"][1]["asn"]), (None, None))
+
     def test_logviewr_ne_lit_que(self):
         c = inst(LogviewR, self.url)
         data = c.collect()
@@ -227,6 +251,9 @@ class Reseau(unittest.TestCase):
         self.assertEqual(data["bans_24h"], 1)
         self.assertNotIn("ignore-me", json.dumps(data))  # pas de texte libre
         self.assertEqual(data["log_sources"], 2)
+        self.assertEqual(data["threats"][0]["domains"], ["app.example.test"])   # looked up for the threat's own addresses
+        self.assertEqual(data["big_logs"], [{"plugin": "npm", "path": "/host/logs/big.log", "size": 15317565, "modified": "2026-10-18T13:46:19.573Z"}])   # sizes only, no content
+        self.assertIsNotNone(data["stats"])   # the week of history was accepted (LogviewR refuses a limit above 1000)
         self.assertEqual(data["threat_count"], 1)   # JSON in the second block, after LogviewR's « UNTRUSTED DATA » notice
         self.assertEqual(data["threats"][0]["ips"], ["203.0.113.5"])
         tools = {s[2] for s in Fake.seen if s[0] == "POST" and s[2]}

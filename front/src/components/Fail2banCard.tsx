@@ -3,7 +3,8 @@ import { Ban, ShieldAlert } from "lucide-react";
 import { dateTime } from "../lib/format";
 import { tx } from "../lib/i18n";
 import type { SecurityConnector } from "../types";
-import { Badge, Card, Count, Dim } from "./ui";
+import { FoldPanel } from "./FoldPanel";
+import { Badge, Count, Dim } from "./ui";
 
 const BAN_COLS = "grid items-center gap-x-6 md:grid-cols-[minmax(0,12rem)_10rem_7rem_minmax(0,1fr)]";
 const BANS_SHOWN = 15;
@@ -41,16 +42,43 @@ function LastBans({ bans }: Readonly<{ bans: NonNullable<SecurityConnector["bans
   );
 }
 
+const LOG_COLS = "grid items-center gap-x-6 md:grid-cols-[6rem_minmax(0,1fr)_7rem_10rem]";
+const BIG_LOG = 1024 ** 3;   // a log file over 1 GB is flagged (rotation missing?)
+const sizeText = (n: number) => n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(1)} ${tx("Go")}` : `${Math.max(1, Math.round(n / 1048576))} ${tx("Mo")}`;
+
+/** The biggest log files LogviewR reads, largest first (size and date only) */
+function BigLogs({ files }: Readonly<{ files: NonNullable<SecurityConnector["big_logs"]> }>) {
+  return (
+    <div className="mt-4">
+      <h3 className="mb-1 flex items-center gap-2 text-sm font-bold">{tx("Gros journaux")} <Count n={files.length} tone="off" /></h3>
+      <div className={`${LOG_COLS} border-b border-line px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-dim max-md:hidden`} aria-hidden>
+        <span>{tx("Source")}</span><span>{tx("Fichier")}</span><span className="text-right">{tx("Taille")}</span><span className="text-right">{tx("Modifié")}</span>
+      </div>
+      <ul className="flex flex-col divide-y divide-line/50 text-sm [&>li:nth-child(even)]:bg-bg/50">
+        {files.map((f) => (
+          <li key={`${f.plugin}/${f.path}`} className={`${LOG_COLS} gap-y-1 px-2 py-1.5`}>
+            <span><Badge outline tone="off">{f.plugin}</Badge></span>
+            <code className="truncate font-mono text-xs" title={f.path}>{f.path}</code>
+            <span className={`text-right text-xs tabular-nums ${f.size >= BIG_LOG ? "text-warn" : "text-muted"}`}>{sizeText(f.size)}</span>
+            <span className="text-xs text-dim md:text-right">{f.modified ? dateTime(Date.parse(f.modified)) : ""}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** One Fail2ban / LogviewR connector: jails, active threats and the latest bans (shared with the new security page) */
 export function Fail2banCard({ c }: Readonly<{ c: SecurityConnector }>) {
   const byJail = new Map<string, number>();
   (c.bans ?? []).forEach((b) => byJail.set(b.jail, (byJail.get(b.jail) ?? 0) + 1));
   return (
-    <Card className={c.ok ? "" : "border-bad/40"}>
-      <h2 className="flex flex-wrap items-center gap-2 font-bold"><Ban size={16} aria-hidden />{tx("Fail2ban")} <Dim>· {c.label} {c.name}</Dim>
-        <Badge tone={c.ok ? "ok" : "bad"}>{c.ok ? tx("en ligne") : tx("illisible")}</Badge>{c.stale && <Badge tone="warn">{tx("relevé périmé")}</Badge>}</h2>
-      {!c.ok && !c.stale ? <p className="mt-3 rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{c.message}</p> : <>
-        {(c.jails ?? []).length > 0 && <p className="mt-3 flex flex-wrap items-center gap-1.5 text-sm">{c.jails!.map((j) => <Badge key={j} tone={byJail.has(j) ? "warn" : "off"}>{j}{byJail.has(j) && ` · ${byJail.get(j)}`}</Badge>)}</p>}
+    <FoldPanel id={`security.fail2ban.${c.name}`} icon={Ban} title={tx("Fail2ban")} extra={<>
+      <Dim>· {c.label} {c.name}</Dim>
+      <Badge tone={c.ok ? "ok" : "bad"}>{c.ok ? tx("en ligne") : tx("illisible")}</Badge>{c.stale && <Badge tone="warn">{tx("relevé périmé")}</Badge>}
+    </>}>
+      {!c.ok && !c.stale ? <p className="rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{c.message}</p> : <>
+        {(c.jails ?? []).length > 0 && <p className="flex flex-wrap items-center gap-1.5 text-sm">{c.jails!.map((j) => <Badge key={j} tone={byJail.has(j) ? "warn" : "off"}>{j}{byJail.has(j) && ` · ${byJail.get(j)}`}</Badge>)}</p>}
         {(c.threats ?? []).length > 0 && (
           <div className="mt-3">
             <h3 className="mb-1 flex items-center gap-1.5 text-sm font-bold text-bad"><ShieldAlert size={14} aria-hidden />{tx("Menaces actives")} <Count n={c.threats!.length} tone="bad" /></h3>
@@ -66,8 +94,8 @@ export function Fail2banCard({ c }: Readonly<{ c: SecurityConnector }>) {
           </div>
         )}
         {(c.bans ?? []).length > 0 && <LastBans bans={c.bans!} />}
+        {(c.big_logs ?? []).length > 0 && <BigLogs files={c.big_logs!} />}
       </>}
-    </Card>
+    </FoldPanel>
   );
-
 }

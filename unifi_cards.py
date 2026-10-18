@@ -7,6 +7,7 @@ Every call to a source queries the UniFi controller behind it: the answer is kep
 """
 from __future__ import annotations
 
+import sys
 import threading
 import time
 
@@ -16,6 +17,15 @@ from connectors.base import ConnectorError
 TTL = 8   # s, one reading shared by every page and every viewer
 _lock = threading.Lock()
 _cache: dict = {"at": 0.0, "doc": None}
+
+
+FAILED = "MynetworK ne répond pas (détail dans les journaux)"
+
+
+def _failed(e: Exception) -> str:
+    """Fixed text for the screen; the detail of the error stays in the container log."""
+    print("MynetworK UniFi cards: %s" % e, file=sys.stderr)
+    return FAILED
 
 
 def _from_mynetwork(cfg: dict) -> tuple[list[dict] | None, str]:
@@ -29,7 +39,7 @@ def _from_mynetwork(cfg: dict) -> tuple[list[dict] | None, str]:
         try:
             got = c.card_devices()
         except ConnectorError as e:
-            err = str(e)
+            err = _failed(e)
             continue
         if got is not None:
             return got, ""

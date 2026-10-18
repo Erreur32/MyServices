@@ -11,11 +11,47 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.15.1 (2026-10-18)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+
+- Fail2ban statistics were empty with LogviewR: the week of ban history was asked with a limit above the 1000 LogviewR accepts. The attacked domains were
+  never found either, because the log search was filled by Fail2ban's own log; it now looks only in the Nginx Proxy Manager and Apache logs.
+
+### Changed
+
+- README: two screenshots (home page and history tab, names and addresses blurred) and the note that the release notes are in English.
+- Clicking at random in the menus and table headers no longer leaves a focus ring or a text selection behind (the keyboard keeps its ring).
+- The Fail2ban card and the certificates of the Security page are foldable panels.
+- A new SSH key gets its own comment (`myservices@<machine>-<date>`), so two installations are no longer indistinguishable in `authorized_keys`.
+- The start guide shows the scheduled tasks at a glance (when each runs, and why one is off).
+- The backup scan also reads `/etc/cron.hourly|daily|weekly|monthly`, `/etc/anacrontab` and the account's systemd timers.
+- **Security page, access to MyServices** (admins only, new sub-tab and part of "To handle first"): the accounts, the API and MCP tokens and the agents with when each
+  was last used, and a flag for an account never used after a month or silent for 90 days, a token that is expired but not revoked, never used or unused for 90 days,
+  and an agent that went silent, was never installed, or whose host name changed. The most banned Fail2ban addresses now show their country and the owner's
+  name (read from LogviewR, cleaned of anything but plain text).
+- **AI model to service**: on a machine's sheet, the AI model read by GpuViewR links to the service it runs in (the service of that machine on the model's port,
+  else the one named after its runtime, also when it is declared in NPM), which opens the machine's services. vLLM, LocalAI and KoboldCpp join the
+  recognised AI applications (Ollama, llama.cpp, LM Studio and Open WebUI already were).
+- **Two new alerts**: "Image to update" (a container whose image has a newer version, read from Dockhand, Dozzle, Portainer…: one event per container, the first reading is the
+  reference) and "Jail going up" (a Fail2ban jail with at least 20 bans in 24 hours and 3 times its usual daily number, from the LogviewR statistics). Both
+  can be picked in the alert rules; by default they join "Connectors and collection" and "Security and DNS".
+- Reads of the API that run at the same time share one network call (two panels of one screen loading the same data); a write empties them.
+- Home page: the attention card is sorted into categories (machines, services, health, DNS, backups, connectors), the categories with red points first and
+  the red lines before the orange ones in each; a click on a category header folds it (kept in the browser).
+
 ## v0.15.0 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Added
+
+- Security overview: a threat card (« one address attacks several services ») now names the domains those addresses went after (searched in the web logs LogviewR reads, at most 6 extra searches per reading). In the Fail2ban tab the jail, domain and address panels start folded; the choice of each visitor is remembered.
+- Security, Fail2ban: « By jail » and « Targeted domains » now sit side by side, each with a list / pie chart switch (like MynetworK's analytics). Security overview: one tile per area (points to handle, a fact, a click opens the sub-tab).
+- Security, Fail2ban: a « Biggest logs » table from LogviewR (`log_list_files`: size and date only, never the content), largest first, over 1 GB flagged. Older LogviewR versions without the tool simply show nothing.
+- Machine sheet: a « Biggest logs » row (files over 10 MB under `/var/log`, and the systemd journal size), read over SSH or by the Linux agent with the same read-only command; sizes over 1 GB are flagged.
 
 - **Import and export of the configuration** (Settings -> Backup and info): export everything or pick the parts (settings and connectors, machines and
   services, followed backups, remembered decisions, accounts and history (the database, without current sign-ins), encryption key, SSH keys) as a standard **ZIP**; import a ZIP (or an older `.tar.gz`) in two steps, a preview that reads it without changing anything (parts,

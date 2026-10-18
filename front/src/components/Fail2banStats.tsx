@@ -1,11 +1,13 @@
 // Security -> Fail2ban: the statistics of the bans of the last 7 days (worked out by the connector): bans per hour and per day, per jail, the IPs banned most.
-import { Globe } from "lucide-react";
+import { CalendarDays, Clock, Globe, Radar, ShieldAlert } from "lucide-react";
 import type { Fail2banStats as Stats, SecurityConnector } from "../types";
 import { dateTime } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { InfoNote } from "./InfoNote";
+import { ChartToggle } from "./ChartToggle";
+import { FoldPanel } from "./FoldPanel";
 import { MiniBars } from "./MiniBars";
-import { Badge, Card } from "./ui";
+import { Badge } from "./ui";
 
 /** The same domain seen by several sources counts once, with the numbers added */
 function mergeDomains(rows: NonNullable<Stats["by_domain"]>): NonNullable<Stats["by_domain"]> {
@@ -77,11 +79,13 @@ function TopIps({ ips }: Readonly<{ ips: Stats["top_ips"] }>) {
   return (
     <ul className="flex flex-col divide-y divide-line/50 text-sm [&>li:nth-child(even)]:bg-bg/50">
       {ips.map((w) => (
-        <li key={w.ip} className="grid grid-cols-[minmax(0,11rem)_4rem_minmax(0,1fr)_auto] items-center gap-3 px-2 py-1.5">
-          <code className="truncate font-mono text-xs">{w.ip}</code>
+        <li key={w.ip} className="grid grid-cols-[minmax(0,13rem)_4rem_minmax(0,1fr)_auto] items-center gap-3 px-2 py-1.5">
+          <span className="flex min-w-0 items-center gap-1.5"><code className="truncate font-mono text-xs">{w.ip}</code>
+            {w.country && <Badge outline tone="off" title={[w.country, w.asn, w.org].filter(Boolean).join(" · ")}>{w.country}</Badge>}</span>
           <Badge tone={w.bans > 2 ? "bad" : "warn"}>{w.bans} {tx("ban(s)")}</Badge>
           <span className="flex min-w-0 flex-wrap gap-1">
             {w.jails.map((j) => <Badge key={j} outline tone="off">{j}</Badge>)}
+            {(w.org || w.asn) && <Badge outline tone="off" title={w.asn ?? undefined}>{w.org ?? w.asn}</Badge>}
             {(w.domains ?? []).map((d) => <Badge key={d.domain} outline tone="info" title={tx("{0} ligne(s) de journal", d.hits)}><Globe size={11} aria-hidden />{d.domain}</Badge>)}
           </span>
           <span className="whitespace-nowrap text-xs text-dim">{w.failures ? `${w.failures} ${tx("échecs")} · ` : ""}{dateTime(w.last * 1000)}</span>
@@ -108,22 +112,28 @@ export function Fail2banStats({ sources }: Readonly<{ sources: SecurityConnector
         <Tile value={s.failures_1d} label={tx("échecs de connexion en 24 h")} tone={s.failures_1d ? "warn" : "ok"} />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <h2 className="mb-3 font-bold">{tx("Par heure, sur 24 h")}</h2>
+        <FoldPanel id="security.f2b.hours" icon={Clock} title={tx("Par heure, sur 24 h")}>
           <MiniBars values={s.hours} color="bg-warn" label={tx("Bannissements par heure sur 24 h")} from={tx("il y a 24 h")} to={tx("maintenant")}
             titleOf={(i, n) => tx("{0} bannissement(s), il y a {1} h", n, 23 - i)} />
-        </Card>
-        <Card>
-          <h2 className="mb-3 font-bold">{tx("Par jour, sur 7 jours")}</h2>
+        </FoldPanel>
+        <FoldPanel id="security.f2b.days" icon={CalendarDays} title={tx("Par jour, sur 7 jours")}>
           <MiniBars values={s.days} color="bg-bad/80" label={tx("Bannissements par jour sur 7 jours")} from={tx("il y a 7 j")} to={tx("aujourd'hui")}
             titleOf={(i, n) => tx("{0} bannissement(s), il y a {1} j", n, 6 - i)} />
-        </Card>
+        </FoldPanel>
       </div>
-      {s.by_jail.length > 0 && <Card><h2 className="mb-3 font-bold">{tx("Par jail")}</h2><JailBars jails={s.by_jail} /></Card>}
-      {(s.by_domain ?? []).length > 0
-        ? <Card><h2 className="mb-2 font-bold">{tx("Domaines visés")}</h2><Domains rows={s.by_domain!} /></Card>
-        : s.top_ips.length > 0 && <InfoNote>{tx("Domaine visé inconnu : LogviewR doit lire les journaux de Nginx Proxy Manager ou d'Apache pour relier une adresse à un domaine.")}</InfoNote>}
-      {s.top_ips.length > 0 && <Card><h2 className="mb-2 font-bold">{tx("Adresses les plus bannies")}</h2><TopIps ips={s.top_ips} /></Card>}
+      {(s.by_jail.length > 0 || (s.by_domain ?? []).length > 0) && (
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          {s.by_jail.length > 0 && (
+            <ChartToggle id="security.f2b.jails" icon={ShieldAlert} startFolded title={tx("Par jail")} rows={s.by_jail.map((j) => ({ key: j.jail, label: j.jail, value: j.d7, detail: tx("{0} sur 7 jours, {1} sur 24 h", j.d7, j.d1) }))}
+              list={<JailBars jails={s.by_jail} />} />
+          )}
+          {(s.by_domain ?? []).length > 0 && (
+            <ChartToggle id="security.f2b.domains" icon={Globe} startFolded title={tx("Domaines visés")} rows={s.by_domain!.map((d) => ({ key: d.domain, label: d.domain, value: d.hits }))} list={<Domains rows={s.by_domain!} />} />
+          )}
+        </div>
+      )}
+      {(s.by_domain ?? []).length === 0 && s.top_ips.length > 0 && <InfoNote>{tx("Domaine visé inconnu : LogviewR doit lire les journaux de Nginx Proxy Manager ou d'Apache pour relier une adresse à un domaine.")}</InfoNote>}
+      {s.top_ips.length > 0 && <FoldPanel id="security.f2b.ips" icon={Radar} startFolded title={tx("Adresses les plus bannies")} count={s.top_ips.length}><TopIps ips={s.top_ips} /></FoldPanel>}
     </div>
   );
 }

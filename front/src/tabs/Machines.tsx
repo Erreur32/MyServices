@@ -4,8 +4,9 @@ import { Fragment, createContext, useContext, useRef, useCallback, useEffect, us
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime, dur, durShort, ipNum, splitHostName } from "../lib/format";
-import { status } from "../lib/status";
-import type { AddressSheet, Backups, LinkSource, HealthHost, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
+import { hostName, status } from "../lib/status";
+import { modelService } from "../lib/modelService";
+import type { AddressSheet, Backups, LinkSource, HealthHost, Host, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
 import { freeboxHealth, freeboxOf } from "../lib/freebox";
@@ -580,6 +581,15 @@ function TemperatureRow({ h }: Readonly<{ h: HealthHost }>) {
   );
 }
 
+const LOG_BIG_MB = 1000;   // a log file over 1 GB is worth a look (rotation missing?)
+const sizeText = (mb: number) => mb >= 1024 ? `${(mb / 1024).toFixed(1)} ${tx("Go")}` : `${mb} ${tx("Mo")}`;
+
+function BigLogsRow({ logs }: Readonly<{ logs: NonNullable<HealthHost["logs"]> }>) {
+  const items = logs.files.map((f) => ({ name: f.path.replace("/var/log/", ""), value: sizeText(f.mb), tone: f.mb >= LOG_BIG_MB ? "text-warn" : "" }));
+  if (logs.journal_mb) items.push({ name: "journal", value: sizeText(logs.journal_mb), tone: logs.journal_mb >= 4 * LOG_BIG_MB ? "text-warn" : "" });
+  return <DetailRow k={tx("Gros journaux")} title={tx("Gros journaux")}><ProbeChips items={items} /></DetailRow>;
+}
+
 function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
   const bar = (label: string, pct: number | undefined, extra?: string) => pct == null ? null : (
     <DetailRow key={label} k={label} title={label}><Fill pct={pct} /><span className="tabular-nums">{Math.round(pct)} %</span>{extra && <Dim>{extra}</Dim>}</DetailRow>
@@ -604,6 +614,7 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
           <ProbeChips items={h.fans.map((f) => ({ name: f.name, value: `${Math.round(f.rpm)} ${tx("tr/min")}`, tone: "" }))} />
         </DetailRow>
       )}
+      {!!h.logs?.available && (h.logs.files.length > 0 || !!h.logs.journal_mb) && <BigLogsRow logs={h.logs} />}
       {h.kernel?.has_errors && <KernelBlock id={h.id} lines={h.kernel.samples ?? []} />}
       {h.vmem && bar(tx("Mémoire VM"), h.vmem.pct, `${(h.vmem.used_mb / 1024).toFixed(1)} / ${(h.vmem.total_mb / 1024).toFixed(1)} ${tx("Go")}`)}
       {h.vms && (
@@ -646,7 +657,7 @@ export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, unifiNet, freebox, containers, onFilter, focus, backups, pve, sheet }: Readonly<{ pve?: string; sheet?: AddressSheet; backups?: Backups | null; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; containers?: React.ReactNode; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
+function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, unifiNet, freebox, containers, onFilter, focus, backups, pve, sheet, hosts }: Readonly<{ hosts?: Host[]; pve?: string; sheet?: AddressSheet; backups?: Backups | null; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; containers?: React.ReactNode; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
   const unifiOnly = !!unifi && !m.info && !m.agent;   // read only through UniFi: no SSH, no agent
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) setTimeout(() => showWatch(root.current, focus.kind), 120); }, [focus]);   // opened from a badge: show where its notice is explained
@@ -664,7 +675,7 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, uni
         <Row k={tx("Noyau")}>{i?.kernel || m.agent?.kernel || undefined}</Row>
         <Row k={tx("En marche")}>{uptimeOf(m, unifi, freebox, ha) ? dur(uptimeOf(m, unifi, freebox, ha)!) : undefined}</Row>
         {hw.map(([k, v]) => <Row key={k} k={k}>{v}</Row>)}
-        <GpuRows m={m} />
+        <GpuRows m={m} hosts={hosts} onFilter={onFilter} />
         {!i && !m.agent && !ha?.system && !unifi && !freebox && <Dim>-</Dim>}
       </Section>
 
@@ -686,8 +697,18 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, uni
   );
 }
 
+/** The service an AI model runs in, as a link to the machine's services (a plain label when the page cannot open them) */
+function ModelService({ m, model, hosts, onFilter }: Readonly<{ m: Machine; model: { port?: number | null; runtime?: string | null }; hosts?: Host[]; onFilter?: (sel: Selected) => void }>) {
+  const found = hosts ? modelService(m.ip, model, hosts) : null;
+  if (!found) return null;
+  const label = <><Boxes size={12} className="mr-1 inline" aria-hidden />{hostName(found)}</>;
+  return onFilter
+    ? <button type="button" className="ml-2 text-link hover:underline" title={tx("Voir les services de cette machine")} onClick={() => onFilter({ machine: [m.ip] })}>{label}</button>
+    : <span className="ml-2 text-link">{label}</span>;
+}
+
 /** GPUs read by GpuViewR (matched by the machine's name): model, temperature, load, memory, power */
-function GpuRows({ m }: Readonly<{ m: Machine }>) {
+function GpuRows({ m, hosts, onFilter }: Readonly<{ m: Machine; hosts?: Host[]; onFilter?: (sel: Selected) => void }>) {
   const src = m.links?.sources.find((x) => x.source === "gpuviewr"), gpus = src?.gpus ?? [], models = src?.models ?? [];
   const go = (mb: number) => `${(mb / 1024).toFixed(1)} Go`;
   return <>
@@ -707,7 +728,8 @@ function GpuRows({ m }: Readonly<{ m: Machine }>) {
       <Row key={`${x.model}-${n}`} k={models.length > 1 ? tx("Modèle {0}", n + 1) : tx("Modèle IA")}>
         <span title={x.alias ? `${x.alias} · ${tx("Lu par GpuViewR")}` : tx("Lu par GpuViewR")}>{x.model || "?"}<Dim>{[x.runtime, x.port ? tx("port {0}", x.port) : null,
           x.state === "idle" ? tx("au repos") : x.state, x.mem_mb ? go(x.mem_mb) : null,
-          gpus.length > 1 && x.gpu != null ? `GPU ${x.gpu + 1}` : null].filter(Boolean).map((v) => ` · ${v}`).join("")}</Dim></span>
+          gpus.length > 1 && x.gpu != null ? `GPU ${x.gpu + 1}` : null].filter(Boolean).map((v) => ` · ${v}`).join("")}</Dim>
+          <ModelService m={m} model={x} hosts={hosts} onFilter={onFilter} /></span>
       </Row>
     ))}
   </>;
@@ -1313,7 +1335,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   const admin = snap.me.role === "admin";
   const detailOf = (m: Machine) => {
     const h = hb.get(m.ip);
-    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} containers={<DockerList m={m} snap={snap} />} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} sheet={snap.data.sheets?.[m.ip]} pve={snap.data.virtualization?.find((c) => c.connector === "proxmox" && c.version && (c.ip === m.ip || c.name === m.links?.hypervisor?.instance))?.version ?? undefined} />;
+    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} containers={<DockerList m={m} snap={snap} />} hosts={snap.data.hosts} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} sheet={snap.data.sheets?.[m.ip]} pve={snap.data.virtualization?.find((c) => c.connector === "proxmox" && c.version && (c.ip === m.ip || c.name === m.links?.hypervisor?.instance))?.version ?? undefined} />;
   };
   const [view, pickView] = useStoredView("ms.machines.view", "table");  // Tableau ou Cartes, retenu
 

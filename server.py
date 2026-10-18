@@ -616,7 +616,9 @@ def prepare_ssh() -> None:
     socket Docker, il lit sa machine hôte par SSH. Affiche la commande qui autorise la clé sur l'hôte."""
     Path(os.path.realpath(SSH_DIR)).mkdir(mode=0o700, parents=True, exist_ok=True)  # ~/.ssh : lien vers /config/ssh
     if not KEY.exists():
-        subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "myservices", "-f", str(KEY)], check=True)
+        # one comment per installation (« myservices@<machine>-<date> »): two keys of two installations are no longer indistinguishable in authorized_keys
+        comment = f"myservices@{socket.gethostname()[:40]}-{datetime.now():%Y%m%d}"
+        subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", comment, "-f", str(KEY)], check=True)
         log(f"clé SSH de l'app créée : {KEY}")
     if not KEY_ECDSA.exists():
         subprocess.run(["ssh-keygen", "-q", "-t", "ecdsa", "-b", "256", "-N", "", "-C", "myservices-esxi", "-f", str(KEY_ECDSA)], check=True)

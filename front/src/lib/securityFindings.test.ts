@@ -24,6 +24,14 @@ describe("security findings", () => {
     expect(got[2].detail).toBe("root autorisé · mot de passe autorisé");
     expect(got[3].detail).toBe("445 SMB");
   });
+  it("a threat names the domains its addresses went after, when the statistics know them", () => {
+    const got = securityFindings(snap({ security: [{
+      threats: [{ kind: "ip_escalation", ips: ["203.0.113.5", "203.0.113.6"], ip_count: 2, jails: ["sshd", "npm"] }],
+      stats: { top_ips: [{ ip: "203.0.113.5", domains: [{ domain: "a.example.test", hits: 5 }, { domain: "b.example.test", hits: 9 }] },
+                          { ip: "203.0.113.6", domains: [{ domain: "a.example.test", hits: 7 }] }, { ip: "198.51.100.1", domains: [{ domain: "other.test", hits: 99 }] }] },
+    }] }));
+    expect(got[0].detail).toBe("203.0.113.5, 203.0.113.6 · sshd, npm · a.example.test, b.example.test");
+  });
   it("many refused SSH logins is red", () => {
     const got = securityFindings(snap({ machine_list: [{ name: "srv", ip: "10.0.0.2" }] }, { hosts: [{ name: "srv · 10.0.0.2", ssh_auth: { available: true, failed_24h: 120 } }] }));
     expect(got).toMatchObject([{ sev: "bad", area: "ssh" }]);

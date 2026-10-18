@@ -92,7 +92,7 @@ class Stats(unittest.TestCase):
 
     def test_an_error_is_told_never_raised(self):
         doc = run(Fake(boom=ConnectorError("HTTP 500")), 100.0)
-        self.assertEqual((doc["scan"], doc["traffic"], doc["error"]), (None, None, "HTTP 500"))
+        self.assertEqual((doc["scan"], doc["traffic"], doc["error"]), (None, None, ns.FAILED))
 
 
 class Connector(unittest.TestCase):

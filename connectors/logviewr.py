@@ -17,7 +17,8 @@ import urllib.request
 from connectors.base import Connector, ConnectorError, Field, Result
 
 PROTOCOL = "2025-06-18"
-READ_TOOLS = ("f2b_list_jails", "f2b_get_metrics", "f2b_get_ban_history", "f2b_get_active_threats", "log_list_sources", "log_search")
+BIG_LOGS_MIN, BIG_LOGS_TOP = 10 * 1048576, 8   # biggest log files: over 10 MB, the first 8
+READ_TOOLS = ("f2b_list_jails", "f2b_get_metrics", "f2b_get_ban_history", "f2b_get_active_threats", "log_list_sources", "log_search", "f2b_lookup_ip", "log_list_files")
 
 
 def _body(raw: bytes, ctype: str) -> dict:
@@ -37,6 +38,10 @@ def _body(raw: bytes, ctype: str) -> dict:
 
 IP_RE = re.compile(r"[0-9a-fA-F:.]{3,45}")
 HOST_RE = re.compile(r"[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?")
+WEB_LOGS = ["npm", "apache"]   # the log plugins that know the domain of a request; without this filter the first 100 hits are Fail2ban's own log
+HISTORY_LIMIT = 1000           # the most LogviewR accepts for one call (it refuses more)
+ORIGIN_LOOKUPS = 10   # the most banned addresses whose country and network are asked
+THREAT_LOOKUPS = 6   # addresses of active threats searched for their domains when the statistics do not already know them
 DOMAIN_LOOKUPS = 8   # the most banned addresses whose logs are searched for the domain they went after
 
 
@@ -94,6 +99,32 @@ def ban_stats(events: list, now: float) -> dict:
             "repeat": sum(1 for w in ips.values() if w["bans"] >= 2), "failures_1d": failures_1d}
 
 
+COUNTRY_RE, ASN_RE = re.compile(r"[A-Za-z]{2}"), re.compile(r"(?:AS)?(\d{1,10})", re.I)
+
+
+ORG_UNSAFE = re.compile(r"[^\w .,&'\-]")
+
+
+def origin_of(info: dict) -> dict:
+    """{country, asn, org} of an address from LogviewR's geo / whois lookup. The country code (two letters) and the AS number are strict; the owner's name is
+    third-party text, so it is cut down to letters, digits and plain punctuation and to 48 characters (it cannot carry markup or instructions)."""
+    geo, whois = (info.get("geo") or {}), (info.get("whois") or {})
+    code = str(geo.get("countryCode") or whois.get("country") or "")
+    asn = ASN_RE.fullmatch(str(whois.get("asn") or "").strip())
+    org = " ".join(ORG_UNSAFE.sub("", str(geo.get("org") or whois.get("org") or "")).split())[:48]
+    return {"country": code.upper() if COUNTRY_RE.fullmatch(code) else None, "asn": f"AS{asn.group(1)}" if asn else None, "org": org or None}
+
+
+def add_origins(stats: dict, lookup) -> dict:
+    """Adds `country` and `asn` to the most banned addresses of `stats`. `lookup(ip)` returns LogviewR's answer; one that fails leaves that address without."""
+    for w in stats["top_ips"][:ORIGIN_LOOKUPS]:
+        try:
+            w.update(origin_of(lookup(w["ip"]) or {}))
+        except ConnectorError:
+            w.update({"country": None, "asn": None, "org": None})
+    return stats
+
+
 def attack_domains(matches: list) -> dict[str, int]:
     """{domain: lines} from the matches of a log search. Only the `domain` field LogviewR worked out from a web log (NPM host, Apache vhost) is
     used, and only when it looks like a host name: the text of the log line is written by the attacker and is never kept."""
@@ -122,6 +153,32 @@ def add_domains(stats: dict, search) -> dict:
             row["ips"] += 1
     stats["by_domain"] = sorted(per_domain.values(), key=lambda r: (-r["ips"], -r["hits"]))[:20]
     return stats
+
+
+def _lookup_domains(ip: str, search) -> list[dict]:
+    """The domains one address went after, from a log search; a failing search gives none."""
+    try:
+        found = attack_domains(search(ip))
+    except ConnectorError:
+        return []
+    return [{"domain": d, "hits": n} for d, n in found.items()]
+
+
+def add_threat_domains(threats: list[dict], stats: dict | None, search) -> list[dict]:
+    """Adds `domains` (the domains the addresses of a threat went after) to each threat. Addresses the statistics already looked up are reused;
+    at most THREAT_LOOKUPS others are searched."""
+    known = {w["ip"]: w.get("domains") or [] for w in (stats or {}).get("top_ips", [])}
+    budget = THREAT_LOOKUPS
+    for t in threats:
+        hits: dict[str, int] = {}
+        for ip in t["ips"][:3]:
+            if ip not in known and budget > 0:
+                budget -= 1
+                known[ip] = _lookup_domains(ip, search)
+            for d in known.get(ip, []):
+                hits[d["domain"]] = hits.get(d["domain"], 0) + d["hits"]
+        t["domains"] = [d for d, _ in sorted(hits.items(), key=lambda kv: -kv[1])][:5]
+    return threats
 
 
 def cluster(c: dict) -> dict:
@@ -211,9 +268,12 @@ class LogviewR(Connector):
         threats = self._tool("f2b_get_active_threats")
         metrics = self._tool("f2b_get_metrics")
         sources = (self._tool("log_list_sources") or {}).get("sources") or []
+        def search(ip):
+            return (self._tool("log_search", {"query": ip, "pluginIds": WEB_LOGS, "maxResults": 100}) or {}).get("matches") or []
         try:   # a week of history for the statistics; an older LogviewR that refuses it just has no statistics
-            week = (self._tool("f2b_get_ban_history", {"days": 7, "limit": 5000}) or {}).get("events") or []
-            stats = add_domains(ban_stats(week, time.time()), lambda ip: (self._tool("log_search", {"query": ip, "maxResults": 100}) or {}).get("matches") or [])
+            week = (self._tool("f2b_get_ban_history", {"days": 7, "limit": HISTORY_LIMIT}) or {}).get("events") or []
+            stats = add_origins(add_domains(ban_stats(week, time.time()), search),
+                                lambda ip: self._tool("f2b_lookup_ip", {"ip": ip}))
         except ConnectorError:
             stats = None
         bans = [{"ip": e.get("ip"), "jail": e.get("jail"), "time": e.get("timeofban"), "failures": e.get("failures")}
@@ -221,9 +281,18 @@ class LogviewR(Connector):
         lists = threats if isinstance(threats, list) else [v for v in (threats or {}).values() if isinstance(v, list)] if isinstance(threats, dict) else []
         raw = lists if lists and isinstance(threats, list) else lists[0] if lists else []
         return {"jails": [n for n in names if n], "bans_24h": len(bans), "bans": bans[:200],
-                "threat_count": len(raw), "threats": [cluster(c) for c in raw if isinstance(c, dict)][:50],
+                "threat_count": len(raw), "threats": add_threat_domains([cluster(c) for c in raw if isinstance(c, dict)][:50], stats, search),
                 "metrics": metrics if isinstance(metrics, dict) else None, "stats": stats,
-                "log_sources": len(sources)}
+                "log_sources": len(sources), "big_logs": self.big_logs()}
+
+    def big_logs(self) -> list[dict]:
+        """The biggest log files LogviewR reads (size and date only, never the content); empty with a LogviewR that lacks the tool."""
+        try:
+            files = (self._tool("log_list_files", {"minSizeBytes": BIG_LOGS_MIN, "limit": BIG_LOGS_TOP}) or {}).get("files") or []
+        except ConnectorError:
+            return []
+        return [{"plugin": str(f.get("pluginId"))[:40], "path": str(f.get("path"))[:200], "size": f["size"], "modified": f.get("modified")}
+                for f in files if isinstance(f, dict) and isinstance(f.get("size"), int)][:BIG_LOGS_TOP]
 
     def test(self) -> Result:
         try:

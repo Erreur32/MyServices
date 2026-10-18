@@ -52,7 +52,7 @@ class Cards(unittest.TestCase):
         self.assertIsNone(run([Fake(None)], 100.0)["source"])
         unifi_cards.reset()
         doc = run([Fake(ConnectorError("HTTP 500"))], 100.0)
-        self.assertEqual((doc["source"], doc["devices"], doc["error"]), (None, [], "HTTP 500"))
+        self.assertEqual((doc["source"], doc["devices"], doc["error"]), (None, [], unifi_cards.FAILED))
 
 
 class Connector(unittest.TestCase):

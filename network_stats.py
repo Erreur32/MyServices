@@ -6,6 +6,7 @@ One reading is kept a few seconds and shared by every page.
 """
 from __future__ import annotations
 
+import sys
 import threading
 import time
 
@@ -73,6 +74,15 @@ def _instances(cfg: dict) -> list:
         return []
 
 
+FAILED = "MynetworK ne répond pas (détail dans les journaux)"
+
+
+def _failed(e: Exception) -> str:
+    """Fixed text for the screen; the detail of the error stays in the container log."""
+    print("MynetworK network stats: %s" % e, file=sys.stderr)
+    return FAILED
+
+
 def _read_scan(cfg: dict) -> tuple[dict | None, str]:
     """(scan, error): the first MynetworK instance that answers; the last error when none does."""
     err = ""
@@ -80,7 +90,7 @@ def _read_scan(cfg: dict) -> tuple[dict | None, str]:
         try:
             return _scan(c), err
         except ConnectorError as e:
-            err = str(e)
+            err = _failed(e)
     return None, err
 
 
@@ -91,7 +101,7 @@ def _read_traffic(cfg: dict, mode: str) -> tuple[list | None, str]:
         try:
             got = c.top_traffic(mode, TRAFFIC_MAX)
         except ConnectorError as e:
-            err = str(e)
+            err = _failed(e)
             continue
         return (None if got is None else traffic_items(got)[:TRAFFIC_MAX]), err
     return None, err

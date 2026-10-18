@@ -3,12 +3,12 @@
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import type { Snapshot } from "../api";
-import type { Attention, TabId } from "../lib/summary";
+import { groupAttention, limitGroups, type Attention, type TabId } from "../lib/summary";
 import { AssistantBanner } from "./AssistantBanner";
+import { AttentionGroups } from "./AttentionGroups";
 import { DiscoveryReminder } from "./DiscoveryCard";
 import { LastDay } from "./LastDay";
 import { NewServices } from "./NewServices";
-import { Rich } from "./Rich";
 import { StatsColumn } from "./StatsColumn";
 import { tx } from "../lib/i18n";
 import type { Selected } from "../lib/filter";
@@ -24,7 +24,8 @@ export function Home({ snap, items, go, goFilter, now }: { snap: Snapshot; items
   const fold = (v: boolean) => { setFolded(v); try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch { /* stockage refusé : le choix ne dure que cette visite */ } };
   const [size, setSize] = useState(savedSize);
   const pickSize = (n: number) => { setSize(n); try { localStorage.setItem(SIZE_KEY, String(n)); } catch { /* stockage refusé : le choix ne dure que cette visite */ } };
-  const shown = size ? items.slice(0, size) : items;
+  const visible = limitGroups(groupAttention(items), size);
+  const shownCount = visible.reduce((n, g) => n + g.shown.length, 0);
   const crit = items.filter((i) => i.level === "crit").length;
   const tone = items.length ? (crit ? "bad" : "warn") : "ok";
   const frame = { bad: "border-bad/50", warn: "border-warn/50", ok: "border-ok/40" }[tone];
@@ -67,21 +68,10 @@ export function Home({ snap, items, go, goFilter, now }: { snap: Snapshot; items
           )}
           {items.length > 0 && !folded && (
             <div className="px-3 py-2.5">
-              <ol className="flex flex-col gap-0.5">
-                {shown.map((it, i) => (
-                  <li key={i}>
-                    <button type="button" onClick={() => (it.href ? void (location.hash = it.href) : go(it.tab))}
-                      className="group flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left text-sm text-muted transition-colors hover:bg-bg2">
-                      <span aria-hidden className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${it.level === "crit" ? "bg-bad" : "bg-warn"}`} />
-                      <span className="flex-1"><Rich text={it.text} /></span>
-                      <ChevronRight size={16} className="mt-0.5 shrink-0 text-dim transition-transform group-hover:translate-x-0.5 group-hover:text-link" />
-                    </button>
-                  </li>
-                ))}
-              </ol>
+              <AttentionGroups groups={visible} go={go} />
               {items.length > SIZES[0] && (
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-line/60 px-3 pt-2.5 pb-1 text-xs text-dim">
-                  <span>{shown.length < items.length ? tx("{0} sur {1} affichés", shown.length, items.length) : tx("Tout est affiché ({0})", items.length)}</span>
+                  <span>{shownCount < items.length ? tx("{0} sur {1} affichés", shownCount, items.length) : tx("Tout est affiché ({0})", items.length)}</span>
                   <span className="ml-auto inline-flex items-center gap-1.5" role="group" aria-label={tx("Lignes à afficher")}>
                     {tx("Lignes")}
                     {SIZES.map((n) => (

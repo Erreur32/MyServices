@@ -3,7 +3,8 @@ import { ShieldCheck } from "lucide-react";
 import { useMemo } from "react";
 import type { Snapshot } from "../api";
 import { tx } from "../lib/i18n";
-import { Badge, Count } from "./ui";
+import { FoldPanel } from "./FoldPanel";
+import { Badge } from "./ui";
 
 export const CERT_SOON = 30;   // days
 
@@ -22,9 +23,8 @@ export function Certificates({ snap }: { snap: Snapshot }) {
   if (!certs.length) return null;
   const soon = certs.filter((c) => c.days <= CERT_SOON);
   return (
-    <section className="mt-5 rounded-2xl border border-line bg-card p-4">
-      <h2 className="-mx-4 -mt-4 mb-3 flex flex-wrap items-center gap-2 rounded-t-2xl border-b border-line/60 bg-bg px-4 py-3 font-bold"><ShieldCheck size={16} className="text-link" aria-hidden />{tx("Certificats")} <Count n={certs.length} tone="off" />
-        {soon.length > 0 && <Badge tone="warn">{tx("{0} expirent dans moins de {1} jours", soon.length, CERT_SOON)}</Badge>}</h2>
+    <FoldPanel id="security.certs" icon={ShieldCheck} title={tx("Certificats")} count={certs.length}
+      extra={soon.length > 0 ? <Badge tone="warn">{tx("{0} expirent dans moins de {1} jours", soon.length, CERT_SOON)}</Badge> : null}>
       <ul className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2 xl:grid-cols-3">
         {certs.slice(0, 30).map((c) => (
           <li key={c.name} className="flex min-w-0 items-baseline gap-2" title={tx("lu par {0}", c.by)}>
@@ -34,6 +34,6 @@ export function Certificates({ snap }: { snap: Snapshot }) {
         ))}
       </ul>
       {certs.length > 30 && <p className="mt-1 text-xs text-dim">{tx("Les 30 plus proches de l'expiration.")}</p>}
-    </section>
+    </FoldPanel>
   );
 }

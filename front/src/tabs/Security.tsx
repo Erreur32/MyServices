@@ -1,6 +1,6 @@
 // Sécurité : une vue d'ensemble de ce qu'il faut traiter, puis un sous-onglet par catégorie (Fail2ban, sites exposés, accès SSH,
 // ports du réseau, certificats). Lecture seule.
-import { Ban, FileBadge, Globe, KeyRound, LayoutDashboard, Radar, ShieldAlert, ShieldCheck, Wrench, type LucideIcon } from "lucide-react";
+import { Ban, FileBadge, Globe, KeyRound, LayoutDashboard, Radar, ShieldAlert, ShieldCheck, UserCog, Wrench, type LucideIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { Certificates } from "../components/Certificates";
@@ -8,30 +8,35 @@ import { Fail2banCard } from "../components/Fail2banCard";
 import { Fail2banStats } from "../components/Fail2banStats";
 import { FoldPanel } from "../components/FoldPanel";
 import { InfoNote } from "../components/InfoNote";
-import { Badge, Card, Count, Dim, Empty } from "../components/ui";
+import { Badge, Count, Dim, Empty } from "../components/ui";
 import { splitHostName } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { exposedSites, securityFindings, SENSITIVE, siteIssues, type Area, type Finding } from "../lib/securityFindings";
 import { risky } from "../lib/ssh";
+import { accessFindings } from "../lib/accessFindings";
+import { SecurityAccess, useAccessData } from "../components/SecurityAccess";
 
-type Sub = "overview" | "fail2ban" | "sites" | "access" | "network" | "certs";
+type Sub = "overview" | "fail2ban" | "sites" | "access" | "members" | "network" | "certs";
 const SUBS: { id: Sub; label: string; icon: LucideIcon; area?: Area }[] = [
   { id: "overview", label: tx("Vue d'ensemble"), icon: LayoutDashboard },
   { id: "fail2ban", label: tx("Fail2ban"), icon: Ban, area: "fail2ban" },
   { id: "sites", label: tx("Sites exposés"), icon: Globe, area: "sites" },
   { id: "access", label: tx("Accès SSH"), icon: KeyRound, area: "ssh" },
+  { id: "members", label: tx("Accès à MyServices"), icon: UserCog, area: "access" },
   { id: "network", label: tx("Ports du réseau"), icon: Radar, area: "ports" },
   { id: "certs", label: tx("Certificats"), icon: FileBadge, area: "certs" },
 ];
 const SUB_KEY = "ms.security.sub";
-const AREA_LABEL: Record<Area, string> = { fail2ban: tx("Fail2ban"), sites: tx("Site"), certs: tx("Certificat"), ssh: tx("SSH"), ports: tx("Port") };
-const AREA_SUB: Record<Area, Sub> = { fail2ban: "fail2ban", sites: "sites", certs: "certs", ssh: "access", ports: "network" };
+const AREA_LABEL: Record<Area, string> = { fail2ban: tx("Fail2ban"), sites: tx("Site"), certs: tx("Certificat"), ssh: tx("SSH"), access: tx("Accès"), ports: tx("Port") };
+const AREA_SUB: Record<Area, Sub> = { fail2ban: "fail2ban", sites: "sites", certs: "certs", ssh: "access", access: "members", ports: "network" };
 
 const savedSub = (): Sub => { try { const v = localStorage.getItem(SUB_KEY); return SUBS.some((s) => s.id === v) ? (v as Sub) : "overview"; } catch { return "overview"; } };
 
+type Tone = "ok" | "warn" | "bad";
+
 function Posture({ findings }: Readonly<{ findings: Finding[] }>) {
   const bad = findings.filter((f) => f.sev === "bad").length;
-  let tone: "ok" | "warn" | "bad" = "warn";
+  let tone: Tone = "warn";
   if (findings.length === 0) tone = "ok";
   else if (bad) tone = "bad";
   const frame = { ok: "border-ok/40 bg-ok/10", warn: "border-warn/50 bg-warn/10", bad: "border-bad/50 bg-bad/10" }[tone];
@@ -47,29 +52,60 @@ function Posture({ findings }: Readonly<{ findings: Finding[] }>) {
   );
 }
 
-function FindingRow({ f, open }: Readonly<{ f: Finding; open: (s: Sub) => void }>) {
+/** One point to handle as a card: severity on the left edge, what it is, what to do, and a button to the sub-tab that holds it */
+function FindingCard({ f, open }: Readonly<{ f: Finding; open: (s: Sub) => void }>) {
+  const bad = f.sev === "bad";
   return (
-    <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 px-2 py-3">
-      <span aria-hidden className={`mt-1.5 h-2.5 w-2.5 rounded-full ${f.sev === "bad" ? "bg-bad" : "bg-warn"}`} />
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2"><b className="truncate">{f.title}</b><Badge tone={f.sev === "bad" ? "bad" : "warn"}>{AREA_LABEL[f.area]}</Badge></div>
-        <p className="text-sm text-muted">{f.detail}</p>
-        <p className="mt-0.5 flex items-start gap-1.5 text-xs text-dim"><Wrench size={12} className="mt-0.5 shrink-0" aria-hidden />{f.fix}</p>
-      </div>
-      <button type="button" onClick={() => open(AREA_SUB[f.area])} className="rounded-full border border-line bg-bg2/60 px-2.5 py-1 text-xs font-semibold text-muted hover:border-link hover:text-link">{tx("Voir")}</button>
+    <li className={`flex flex-col gap-2 rounded-xl border border-l-4 bg-card px-4 py-3 ${bad ? "border-bad/40 border-l-bad" : "border-warn/40 border-l-warn"}`}>
+      <div className="flex flex-wrap items-center gap-2"><Badge tone={bad ? "bad" : "warn"}>{AREA_LABEL[f.area]}</Badge><b className="min-w-0 flex-1 truncate" title={f.title}>{f.title}</b></div>
+      <p className="text-sm text-muted">{f.detail}</p>
+      <p className="flex items-start gap-1.5 text-xs text-dim"><Wrench size={12} className="mt-0.5 shrink-0" aria-hidden />{f.fix}</p>
+      <button type="button" onClick={() => open(AREA_SUB[f.area])} className="mt-auto self-start rounded-full border border-line bg-bg2/60 px-2.5 py-1 text-xs font-semibold text-muted hover:border-link hover:text-link">{tx("Voir")}</button>
     </li>
   );
 }
 
-function Overview({ snap, findings, open }: Readonly<{ snap: Snapshot; findings: Finding[]; open: (s: Sub) => void }>) {
+/** One tile per area: its icon, how many points it holds (green when none) and a fact read from the tools; a click opens the sub-tab */
+function AreaTiles({ snap, findings, admin, open }: Readonly<{ snap: Snapshot; findings: Finding[]; admin: boolean; open: (s: Sub) => void }>) {
+  const bans24 = (snap.data.security ?? []).reduce((n, c) => n + (c.stats?.hours ?? []).reduce((a, v) => a + v, 0), 0);
+  const facts: Record<Area, string> = {
+    fail2ban: (snap.data.security ?? []).length ? tx("{0} bannissement(s) en 24 h", bans24) : tx("non relié"),
+    sites: tx("{0} site(s) exposé(s)", exposedSites(snap.data.hosts).length),
+    ssh: tx("{0} machine(s) lue(s)", snap.data.machine_list.filter((m) => !m.disabled && m.info?.sshd).length),
+    access: tx("comptes, jetons, agents"),
+    ports: tx("{0} port(s) sensible(s)", (snap.data.network ?? []).flatMap((c) => c.devices ?? []).reduce((n, d) => n + d.ports.filter((p) => SENSITIVE[p]).length, 0)),
+    certs: tx("expirations"),
+  };
+  return (
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+      {SUBS.filter((x): x is typeof x & { area: Area } => !!x.area && (admin || x.id !== "members")).map(({ id, label, icon: Icon, area }) => {
+        const mine = findings.filter((f) => f.area === area);
+        let tone: Tone = mine.length ? "warn" : "ok";
+        if (mine.some((f) => f.sev === "bad")) tone = "bad";
+        const color = { ok: "text-ok", warn: "text-warn", bad: "text-bad" }[tone];
+        const frame = { ok: "border-line", warn: "border-warn/50", bad: "border-bad/50" }[tone];
+        return (
+          <button key={id} type="button" onClick={() => open(id)} className={`flex flex-col gap-1 rounded-xl border bg-card px-3 py-3 text-left hover:border-link ${frame}`}>
+            <span className="flex items-center gap-2 text-sm font-semibold"><Icon size={16} className={color} aria-hidden />{label}</span>
+            <span className={`font-mono text-2xl font-bold leading-none ${color}`}>{mine.length || "OK"}</span>
+            <span className="truncate text-xs text-dim">{facts[area]}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Overview({ snap, findings, admin, open }: Readonly<{ snap: Snapshot; findings: Finding[]; admin: boolean; open: (s: Sub) => void }>) {
   return (
     <div className="flex flex-col gap-4">
       <Posture findings={findings} />
+      <AreaTiles snap={snap} findings={findings} admin={admin} open={open} />
       {findings.length > 0 && (
-        <Card>
-          <h2 className="mb-1 font-bold">{tx("À traiter d'abord")} <Count n={findings.length} tone="warn" /></h2>
-          <ul className="flex flex-col divide-y divide-line/60 [&>li:nth-child(even)]:bg-bg/50">{findings.map((f) => <FindingRow key={`${f.area}/${f.title}/${f.detail}`} f={f} open={open} />)}</ul>
-        </Card>
+        <section aria-label={tx("À traiter d'abord")}>
+          <h2 className="mb-2 font-bold">{tx("À traiter d'abord")} <Count n={findings.length} tone="warn" /></h2>
+          <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{findings.map((f) => <FindingCard key={`${f.area}/${f.title}/${f.detail}`} f={f} open={open} />)}</ul>
+        </section>
       )}
       <InfoNote>{tx("Cette page lit ce que vos outils savent (Fail2ban par LogviewR, Nginx Proxy Manager, SSH, MynetworK). Elle ne change rien et ne donne pas de note : des faits, du plus grave au moins grave.")}</InfoNote>
       {(snap.data.security ?? []).length === 0 && <InfoNote tone="warn">{tx("Aucun Fail2ban n'est relié : reliez LogviewR (Réglages, Connecteurs) pour voir les bannissements et les menaces.")}</InfoNote>}
@@ -160,10 +196,10 @@ function PortsList({ snap }: Readonly<{ snap: Snapshot }>) {
   );
 }
 
-function Menu({ sub, pick, counts }: Readonly<{ sub: Sub; pick: (s: Sub) => void; counts: Partial<Record<Area, number>> }>) {
+function Menu({ sub, pick, counts, admin }: Readonly<{ sub: Sub; pick: (s: Sub) => void; counts: Partial<Record<Area, number>>; admin: boolean }>) {
   return (
     <fieldset className="m-0 flex min-w-0 max-w-full flex-wrap self-start rounded-lg border border-line bg-card p-0.5" aria-label={tx("Sous-menu de la sécurité")}>
-      {SUBS.map(({ id, label, icon: Icon, area }) => (
+      {SUBS.filter((x) => admin || x.id !== "members").map(({ id, label, icon: Icon, area }) => (
         <button key={id} type="button" aria-pressed={sub === id} onClick={() => pick(id)}
           className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-semibold ${sub === id ? "border-link bg-link/15 text-txt ring-1 ring-link/50" : "border-transparent text-muted hover:text-txt"}`}>
           <Icon size={14} aria-hidden />{label}{area && (counts[area] ?? 0) > 0 && <Badge tone="warn">{counts[area]}</Badge>}
@@ -176,16 +212,18 @@ function Menu({ sub, pick, counts }: Readonly<{ sub: Sub; pick: (s: Sub) => void
 export function Security({ snap }: Readonly<{ snap: Snapshot }>) {
   const [sub, setSub] = useState<Sub>(savedSub);
   const pick = (s: Sub) => { setSub(s); try { localStorage.setItem(SUB_KEY, s); } catch { /* storage refused: the choice lasts this visit */ } };
-  const findings = useMemo(() => securityFindings(snap), [snap]);
+  const admin = snap.me.role === "admin", access = useAccessData(admin), now = Math.floor(Date.now() / 1000);
+  const findings = useMemo(() => securityFindings(snap, access ? accessFindings(access, now) : []), [snap, access, now]);
   const counts = useMemo(() => findings.reduce<Partial<Record<Area, number>>>((n, f) => ({ ...n, [f.area]: (n[f.area] ?? 0) + 1 }), {}), [findings]);
   const sources = snap.data.security ?? [];
   return (
     <div className="flex flex-col gap-4 py-4">
-      <Menu sub={sub} pick={pick} counts={counts} />
-      {sub === "overview" && <Overview snap={snap} findings={findings} open={pick} />}
+      <Menu sub={sub} pick={pick} counts={counts} admin={admin} />
+      {sub === "overview" && <Overview snap={snap} findings={findings} admin={admin} open={pick} />}
       {sub === "fail2ban" && (sources.length ? <><Fail2banStats sources={sources} />{sources.map((c) => <Fail2banCard key={`${c.connector}/${c.name}`} c={c} />)}</> : <Empty>{tx("Aucun Fail2ban n'est relié : reliez LogviewR dans Réglages, Connecteurs.")}</Empty>)}
       {sub === "sites" && <SitesList snap={snap} />}
       {sub === "access" && <AccessList snap={snap} />}
+      {sub === "members" && admin && <SecurityAccess data={access} now={now} />}
       {sub === "network" && <PortsList snap={snap} />}
       {sub === "certs" && <Certificates snap={snap} />}
     </div>

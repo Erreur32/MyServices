@@ -127,11 +127,21 @@ if req.get("crons"):
                 kv = dict(l.split(None, 1) for l in blk.splitlines()[1:] if len(l.split(None, 1)) == 2)
                 out["crons"].append({"src": "Proxmox (jobs.cfg)", "line": "vzdump %s VM %s -> %s (%s, %s)" % (
                     kv.get("schedule", "?"), kv.get("vmid", "?"), kv.get("storage", "?"), kv.get("prune-backups", ""), "actif" if kv.get("enabled", "1") == "1" else "désactivé")})
-    rc, txt = sh("systemctl list-timers --all --no-legend --no-pager 2>/dev/null")
-    for l in txt.splitlines():
-        if RX.search(l) and not NOISE.search(l):
-            unit = [w for w in l.split() if w.endswith(".timer")]
-            out["crons"].append({"src": "timer systemd", "line": unit[0] if unit else l})
+    for period in ("hourly", "daily", "weekly", "monthly"):   # scripts dropped in /etc/cron.<period>: readable by any account, only their name tells what they do
+        folder = "/etc/cron." + period
+        for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+            if RX.search(name) and not NOISE.search(name):
+                out["crons"].append({"src": "cron." + period, "line": name})
+    try:
+        add("/etc/anacrontab", open("/etc/anacrontab").read())
+    except OSError:
+        pass
+    for scope, label in (("", "timer systemd"), ("--user ", "timer systemd (compte)")):
+        rc, txt = sh("systemctl %slist-timers --all --no-legend --no-pager 2>/dev/null" % scope)
+        for l in txt.splitlines():
+            if RX.search(l) and not NOISE.search(l):
+                unit = [w for w in l.split() if w.endswith(".timer")]
+                out["crons"].append({"src": label, "line": unit[0] if unit else l})
 if req.get("discover"):
     # Dossiers de sauvegarde présents sur les disques locaux (pas sur les partages réseau montés)
     import glob

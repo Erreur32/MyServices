@@ -290,6 +290,7 @@ export interface HealthHost {
   res?: { available: boolean; cpu_pct?: number; mem_pct?: number; mem_total_mb?: number; mem_used_mb?: number; swap_total_mb?: number; swap_used_mb?: number };  // CPU et mémoire
   temp?: { available: boolean; celsius?: number; source?: string; virt?: string; sensors?: { name: string; celsius: number }[] };  // température du processeur (capteur de la machine ou Beszel)
   ssh_auth?: { failed_24h: number; available: boolean };
+  logs?: { available: boolean; files: { path: string; mb: number }[]; journal_mb: number | null };   // biggest files of /var/log and the systemd journal
   smart?: { accessible: boolean; disks: { device: string; healthy: boolean; failed?: boolean }[]; vm?: boolean };
   source?: "ssh" | "agent" | "beszel" | "ha";  // source retenue pour la santé de la machine
   sources?: string[];                    // toutes celles qui ont servi (la retenue, puis celles qui ont complété)
@@ -673,13 +674,14 @@ export interface FreeboxInfo {
 /** LogviewR : fail2ban */
 export interface SecurityConnector extends InfraConnector {
   jails?: string[]; bans_24h?: number; bans?: { ip: string; jail: string; time: number; failures?: number }[]; threat_count?: number; log_sources?: number;
+  big_logs?: { plugin: string; path: string; size: number; modified: string | null }[];   // biggest log files LogviewR reads (size only)
   stats?: Fail2banStats | null;   // 7 days of bans, worked out by the connector (connectors/logviewr.py ban_stats)
-  threats?: { key: string; kind: "ip_escalation" | "asn_campaign" | "autre"; ips: string[]; ip_count: number; jails: string[]; bans: number | null; first: number | null; last: number | null; severity: number | null; asn: string | null }[];
+  threats?: { domains?: string[]; key: string; kind: "ip_escalation" | "asn_campaign" | "autre"; ips: string[]; ip_count: number; jails: string[]; bans: number | null; first: number | null; last: number | null; severity: number | null; asn: string | null }[];
 }
 export interface Fail2banStats {
   hours: number[]; days: number[];   // bans per hour over the last 24 h, per day over the last 7 (the last value is the most recent)
   by_jail: { jail: string; d1: number; d7: number }[];
-  top_ips: { ip: string; bans: number; jails: string[]; failures: number; last: number; domains?: { domain: string; hits: number }[] }[];
+  top_ips: { ip: string; bans: number; jails: string[]; failures: number; last: number; domains?: { domain: string; hits: number }[]; country?: string | null; asn?: string | null; org?: string | null }[];
   by_domain?: { domain: string; hits: number; ips: number }[];   // the domains the banned addresses went after (from the web logs LogviewR reads)
   unique_1d: number; unique_7d: number; repeat: number; failures_1d: number;
 }

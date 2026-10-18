@@ -10,11 +10,12 @@ const stats = (n: number): Stats => ({
 const source = (s: Stats | null) => ({ connector: "logviewr", name: "lv", stats: s } as unknown as SecurityConnector);
 
 describe("Fail2ban statistics", () => {
-  it("shows the numbers, the jails and the most banned address", () => {
+  it("shows the numbers; the jail, domain and address panels start folded", () => {
     const html = renderToStaticMarkup(<Fail2banStats sources={[source(stats(4))]} />);
-    expect(html).toContain("203.0.113.5");
-    expect(html).toContain("sshd");
     expect(html).toContain(">4<");
+    expect(html).toContain("Adresses les plus bannies");
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain("203.0.113.5");
   });
   it("says so when the connector sent no statistics", () => {
     expect(renderToStaticMarkup(<Fail2banStats sources={[source(null)]} />)).toContain("role=\"note\"");

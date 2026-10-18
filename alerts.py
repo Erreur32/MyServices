@@ -41,6 +41,7 @@ KINDS = {
     "securite": ("Sécurité (ACL, SSL)", "securite"), "ui_hors": ("Interface sans domaine", "securite"),
     "menace": ("Nouvelle menace (LogviewR)", "securite"),
     "nextcloud": ("Nextcloud : point à regarder", "connecteurs"),
+    "maj_image": ("Image de conteneur à mettre à jour", "connecteurs"), "jail_hausse": ("Jail Fail2ban qui monte", "securite"),
     "dns": ("DNS", "securite"), "connecteur": ("Connecteur en panne", "connecteurs"),
     "connecteur_version": ("Version de service non testée", "connecteurs"),
     "perime": ("Collecte en retard", "connecteurs"),
@@ -62,8 +63,8 @@ PRESETS = [
     {"name": "Pannes de services", "kinds": ["panne", "unhealthy"], "resolved": True, "cooldown_min": 60},
     {"name": "Machines hors ligne", "kinds": ["hors_ligne", "ssh_down", "health_down", "vm_arret"], "resolved": True, "cooldown_min": 60},
     {"name": "Santé critique", "kinds": ["health_crit"], "resolved": True, "cooldown_min": 360},
-    {"name": "Sécurité et DNS", "kinds": ["securite", "ui_hors", "dns", "menace"], "resolved": False, "cooldown_min": 1440},
-    {"name": "Connecteurs et collecte", "kinds": ["connecteur", "connecteur_version", "perime"], "resolved": True, "cooldown_min": 120},
+    {"name": "Sécurité et DNS", "kinds": ["securite", "ui_hors", "dns", "menace", "jail_hausse"], "resolved": False, "cooldown_min": 1440},
+    {"name": "Connecteurs et collecte", "kinds": ["connecteur", "connecteur_version", "perime", "maj_image"], "resolved": True, "cooldown_min": 120},
     {"name": "Nextcloud (mises à jour, liens publics, espace)", "kinds": ["nextcloud"], "resolved": False, "cooldown_min": 0},
     {"name": "Inventaire (nouveaux / disparus)", "kinds": ["nouveau", "disparu", "appareil"], "resolved": False, "cooldown_min": 0},
 ]

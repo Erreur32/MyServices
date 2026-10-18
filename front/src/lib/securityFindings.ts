@@ -1,13 +1,13 @@
 // The security page's findings, worked out from the snapshot: one list of what needs a look, worst first, each with where it comes from and what to do.
 import type { Snapshot } from "../api";
-import type { Host } from "../types";
+import type { Host, SecurityConnector } from "../types";
 import { tx } from "./i18n";
 import { risky } from "./ssh";
 import { splitHostName } from "./format";
 import { certIssue } from "./status";
 
 export type Severity = "bad" | "warn";
-export type Area = "fail2ban" | "sites" | "certs" | "ssh" | "ports";
+export type Area = "fail2ban" | "sites" | "certs" | "ssh" | "access" | "ports";
 export interface Finding { sev: Severity; area: Area; title: string; detail: string; fix: string }
 
 /** Ports that should not be open on a home network without a reason (clear-text or remote-control protocols, databases, Docker API) */
@@ -31,10 +31,23 @@ export const exposedSites = (hosts: Host[]): Host[] => hosts.filter((r) => r.typ
 
 const moreIps = (count: number): string => (count > 3 ? " +" + (count - 3) : "");
 
+const DOMAINS_SHOWN = 4;
+
+/** The domains a threat's addresses went after: the ones the connector looked up for the threat itself, else those the statistics know (web logs LogviewR reads) */
+function threatDomains(c: SecurityConnector, t: NonNullable<SecurityConnector["threats"]>[number]): string[] {
+  if (t.domains?.length) return t.domains.slice(0, DOMAINS_SHOWN);
+  const hits = new Map<string, number>();
+  for (const w of c.stats?.top_ips ?? []) {
+    if (!t.ips.includes(w.ip)) continue;
+    for (const d of w.domains ?? []) hits.set(d.domain, (hits.get(d.domain) ?? 0) + d.hits);
+  }
+  return [...hits].sort((a, b) => b[1] - a[1]).slice(0, DOMAINS_SHOWN).map(([domain]) => domain);
+}
+
 function threatFindings(snap: Snapshot): Finding[] {
   return (snap.data.security ?? []).flatMap((c) => (c.threats ?? []).map((t): Finding => ({
     sev: "bad", area: "fail2ban", title: t.kind === "ip_escalation" ? tx("Une IP attaque plusieurs services") : tx("Campagne d'attaque {0}", t.asn ?? ""),
-    detail: `${t.ips.slice(0, 3).join(", ")}${moreIps(t.ip_count)} · ${t.jails.join(", ")}`,
+    detail: [`${t.ips.slice(0, 3).join(", ")}${moreIps(t.ip_count)}`, t.jails.join(", "), threatDomains(c, t).join(", ")].filter(Boolean).join(" · "),
     fix: tx("Vérifier ces adresses dans Fail2ban et les bloquer au pare-feu si elles reviennent."),
   })));
 }
@@ -70,10 +83,10 @@ function portFindings(snap: Snapshot): Finding[] {
     .map(({ d, hit }): Finding => ({ sev: "warn", area: "ports", title: d.hostname || d.vendor || d.ip, detail: hit.map((p) => `${p} ${SENSITIVE[p]}`).join(" · "), fix: tx("Fermer le port s'il ne sert pas, ou le limiter à un réseau de confiance.") }));
 }
 
-const AREAS: Area[] = ["fail2ban", "certs", "sites", "ssh", "ports"];
+const AREAS: Area[] = ["fail2ban", "certs", "sites", "ssh", "access", "ports"];
 
 /** Everything that needs a look, red first, then by area */
-export function securityFindings(snap: Snapshot): Finding[] {
-  return [...threatFindings(snap), ...certFindings(snap), ...siteFindings(snap), ...sshFindings(snap), ...portFindings(snap)]
+export function securityFindings(snap: Snapshot, access: Finding[] = []): Finding[] {
+  return [...threatFindings(snap), ...certFindings(snap), ...siteFindings(snap), ...sshFindings(snap), ...access, ...portFindings(snap)]
     .sort((a, b) => Number(b.sev === "bad") - Number(a.sev === "bad") || AREAS.indexOf(a.area) - AREAS.indexOf(b.area));
 }

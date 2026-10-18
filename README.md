@@ -23,6 +23,16 @@
   <a href="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml"><img alt="Safety guard" src="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml/badge.svg"></a>
 </p>
 
+<p align="center">
+  <img src="docs/screenshot-home.png" alt="MyServices home page: the points that need attention by category, the last 24 hours, and the counters (names and addresses blurred)" width="900"><br>
+  <sub>The home page, on a test installation (names and addresses blurred).</sub>
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-history.png" alt="MyServices history tab: events over 24 hours (names and addresses blurred)" width="900"><br>
+  <sub>The history tab: what fell, came back, appeared or disappeared (names and addresses blurred).</sub>
+</p>
+
 > ## Still in development
 >
 > MyServices is **under active development** (`0.x`) and is **not ready for everyday use yet**. Screens, settings and stored data change
@@ -33,8 +43,8 @@
 >
 > Because it is still moving fast, **pull requests and issues are not being handled for now**; please hold them until a stable release.
 >
-> Development builds are not tagged. Version numbers stay **below 2.0.0** until it is declared stable (`0.15.0`, `0.15.1`…).
-> Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in French).
+> Development builds are not tagged. Version numbers stay **below 2.0.0** until it is declared stable (`0.15.1`, `0.15.2`…).
+> Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in English).
 
 ## At a glance
 
@@ -68,7 +78,7 @@ Then open **`http://<IP>:8090/`** (the app is at the root of the site; the old `
 
 > **The app listens on port `8090`.** It is a setting, not a fixed value: if 8090 is already taken on your machine, put **`MYSERVICES_PORT=8095`** (or any free port) in a `.env` file next to `docker-compose.yaml` (example: [`deploy/env.example`](deploy/env.example), downloaded by the second `curl` above), then run `docker compose up -d` and open `http://<IP>:8095/`. The container uses the host network, so editing a `ports:` mapping would do nothing.
 
-Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.15.0` pins a version, `:main` tracks the latest commit of the `main` branch (the header then shows e.g. `v0.10.1+ · main · abc1234`).
+Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.15.1` pins a version, `:main` tracks the latest commit of the `main` branch (the header then shows e.g. `v0.10.1+ · main · abc1234`).
 Update: `docker compose pull && docker compose up -d` (settings and data live in the `./config` and `./data` volumes).
 
 ---
