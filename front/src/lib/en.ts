@@ -2529,4 +2529,7 @@ export const EN: Record<string, string> = {
   "Côté switch : négocié / maximum": "Switch side: negotiated / maximum",
   "Côté machine : carte réseau": "Machine side: network card",
   "La machine ne rapporte pas sa carte réseau (SSH ou agent) : rien à comparer": "The machine does not report its network card (SSH or agent): nothing to compare",
+  "Collecte en cours": "Collection running",
+  "identification des machines": "identifying the machines",
+  "recherche des machines allumées": "looking for machines that are on",
 };

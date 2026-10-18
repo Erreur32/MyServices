@@ -40,5 +40,5 @@ export async function rereadMachines(ips: string[]): Promise<void> {
 }
 
 export function useScan(): ScanStatus | null {
-  return useSyncExternalStore((f) => { subs.add(f); return () => { subs.delete(f); }; }, () => current);
+  return useSyncExternalStore((f) => { subs.add(f); return () => { subs.delete(f); }; }, () => current, () => current);   // the last one: the state when rendered without a browser (tests)
 }
