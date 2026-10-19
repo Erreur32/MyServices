@@ -149,8 +149,8 @@ class Context:
             msg = f"HTTP {e.code}{_api_message(e)}"
             retry = _retry_after(e) if e.code == 429 else None
             reqstats.record(self.owner, url, (time.monotonic() - t0) * 1000, e.code, msg, retry)
-            if e.code == 429:   # the service limits its calls: said in the log (the page shows the delay), the caller waits
-                self.log(f"⚠ {self.owner or 'connecteur'} : HTTP 429 sur {reqstats.route_of(url)}, réessai dans {int(retry) if retry else '?'} s")
+            if e.code == 429:   # the service limits its calls: said in the log (without the URL: it may carry a secret; the route is in the counters), the caller waits
+                self.log(f"⚠ {self.owner or 'connecteur'} : HTTP 429 (trop d'appels), réessai dans {int(retry) if retry else '?'} s")
                 raise RateLimited(msg, retry) from None
             raise ConnectorError(msg) from None
         except (OSError, ValueError) as e:
