@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.18.1 (2026-10-19)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 - **Request counters (development builds only)**: the server counts every HTTP call of the connectors per route (calls over the last minute and the last hour, total, last and mean duration, last code, 429 answers with their Retry-After, last error) and the readings served by its caches; a folded « Requests (debugging) » panel under each connector card (Settings › Connectors) and under Network › Diagnostic shows them, with what is to watch (a route near a limit known on the service, a 429 received in the last hour). Route `GET /api/v1/connectors/requests` (admin), 404 on a released image; counters in memory, reset at restart.
 
