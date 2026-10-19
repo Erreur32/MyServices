@@ -12,6 +12,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Added
+- **Backups tab in « state » mode** (fourth step of the ergonomics plan, first page): four figures (up to date with the copies elsewhere, late, missing or failing, latest archive produced), then **« To watch »**: the sets that are not ok, worst first (set, machine, expected, latest archive, state); a row unfolds into what the server holds against the set, every place (source or copy, folder, latest archive, size, state), the cron line that produces it when recognised, « Set up this set » and « Open <machine> ». Folded under it: **« See all »** (every set, with sizes) and **« By machine »** (the former page: filters, disks, latest local backup, copies, sets produced, local backup folders) plus the backup-looking cron lines that no followed set claims.
 - **Page of a machine** (`#machines/<ip>`, third step of the ergonomics plan): a row of the Machines tab now opens a full page instead of a window: the detail sections (identity, system, access, software, backups, health, updates, UniFi or Freebox), the availability of the machine over 30 days (one cell per day, from the availability history) and, for an administrator, its settings (identity, options, access with SSH, agent and connectors) in the page, saved as you go. `#machines/<ip>/access` lands on the Access settings; the old `#settings/machines/<ip>` and `#settings/agents/<ip>` links redirect there. « Add a machine » (the same four-step assistant as in Settings) is also offered from the Machines tab. On the home page, a machine that no longer answers leads straight to its page.
 - Machine page, two more cards: **Open ports** (the ports seen open by the scan and those of the known services, each with its service and the NPM domains that expose it; an unknown port is told so) and **Virtual machines** (the guests of a machine that is a hypervisor host, running first, a guest followed as a machine opens its page).
 
@@ -20,6 +21,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Home page: the counters (machines, NPM, services, health, AdGuard, backups, connectors, network, upkeep, virtualization) are back as a « Statistics » sub-tab (`#stats`), next to Overview and History.
 
 ### Removed
+- Backups tab: the « Attention points » table (its lines are the « To watch » rows and their detail) and the volume tiles (the sizes are in « See all »).
 - Settings → Machines and access no longer lists the machines (their settings live in their page): it keeps adding a machine, redetection, the key to authorize, the devices seen by your tools and the agents, with a link to the Machines tab.
 
 ### Changed

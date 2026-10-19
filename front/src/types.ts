@@ -319,6 +319,13 @@ export interface BackupLocation {
   age?: number | null;
   via?: string;
   vzdump?: string | null;   // « qemu/101 »: dump of this Proxmox guest
+  role?: "source" | "copie" | string;   // where the set is produced, or a copy of it
+  path?: string;
+  detail?: string;          // what the server says of this place (« à jour avec la source », « dossier absent : … »)
+  count?: number;
+  size?: number | null;
+  encrypted?: boolean;
+  newest?: { name: string; mtime: number; size?: number } | null;   // the latest archive found there
 }
 
 export interface BackupSet {
@@ -331,6 +338,13 @@ export interface BackupSet {
   offsite: number;
   expect_offsite?: boolean;  // false : jeu décrit depuis la page, aucune copie ailleurs n'est exigée
   locations: BackupLocation[];
+  origin_label?: string;     // the machine that produces the set, as shown
+  why?: string[];            // what the server holds against the set (empty when ok)
+  size?: number;             // size of the source archive(s)
+  retention?: string;
+  max_age_days?: number;
+  cadence_days?: number | null;
+  mode?: string;
 }
 
 export interface BackupHost {
