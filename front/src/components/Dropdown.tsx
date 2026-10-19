@@ -7,7 +7,7 @@ export const DROP_PANEL = `${DROP_BASE} right-0`;
 /** Same panel, aligned on the left of its button (a button near the left edge, like the tab bar's Inventory menu) */
 export const DROP_PANEL_LEFT = `${DROP_BASE} left-0`;
 /** The tab bar's menu: right under the bar's bottom border, flush with the button's left edge */
-export const DROP_PANEL_TAB = `${DROP_BASE} left-0 !mt-px`;
+export const DROP_PANEL_TAB = `${DROP_BASE} left-0 !mt-px !rounded-t-none`;   // square on top: it hangs from the bar
 /** One line of a menu (button or link) */
 export const DROP_ITEM = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-muted transition-colors hover:bg-bg2 hover:text-txt focus-visible:bg-bg2 focus-visible:text-txt focus-visible:outline-none";
 
