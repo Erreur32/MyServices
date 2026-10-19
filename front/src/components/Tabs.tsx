@@ -1,7 +1,40 @@
+import { ChevronDown, LayoutGrid } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "../lib/summary";
-import { TABS, UNRELEASED, visible } from "../lib/tabs";
+import { INVENTORY, TABS, UNRELEASED, visible } from "../lib/tabs";
 import { tx } from "../lib/i18n";
+import { DROP_ITEM, DROP_PANEL_LEFT, useDropdown } from "./Dropdown";
+
+/** Menu « Inventaire ▾ » : les listes complètes (Infra, Virtualisation, DNS, Schémas), consultées moins souvent que les six onglets de la barre */
+function InventoryMenu({ snap, current, onSelect }: Readonly<{ snap: Snapshot; current: TabId; onSelect: (t: TabId) => void }>) {
+  const { open, setOpen, box } = useDropdown();
+  const items = INVENTORY.filter((t) => visible(t.id, snap));
+  if (items.length === 0) return null;
+  const activeItem = items.find((t) => t.id === current);
+  return (
+    <div ref={box} className="relative ml-1 flex shrink-0 items-center border-l border-line pl-1">
+      <button type="button" onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open}
+        className={`flex items-center gap-1.5 rounded-t-lg py-2.5 pl-3.5 pr-3.5 text-sm font-semibold transition-colors ${
+          activeItem ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
+        <LayoutGrid size={16} strokeWidth={1.75} aria-hidden />
+        {activeItem ? tx("Inventaire · {0}", activeItem.label) : tx("Inventaire")}
+        <ChevronDown size={14} className={`text-dim transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+      </button>
+      {open && (
+        <div role="menu" className={`${DROP_PANEL_LEFT} w-72 p-1.5`}>
+          {items.map((t) => (
+            <button key={t.id} type="button" role="menuitem" onClick={() => { onSelect(t.id); setOpen(false); }}
+              title={UNRELEASED.includes(t.id) ? tx("Pas encore publié : visible seulement sur ce serveur de développement") : undefined}
+              className={`${DROP_ITEM} justify-between ${t.id === current ? "bg-bg2 text-txt" : ""}`}>
+              <span className="flex items-center gap-2.5"><t.icon size={15} aria-hidden />{t.label}</span>
+              {t.hint && <span className="text-xs text-dim">{t.hint}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Tabs({ tab, snap, badges, onSelect, onBadge }: {
   tab: TabId; snap: Snapshot; badges: Partial<Record<TabId, "crit" | "warn">>; onSelect: (t: TabId) => void; onBadge?: (t: TabId, level: "crit" | "warn") => void;
@@ -13,10 +46,8 @@ export function Tabs({ tab, snap, badges, onSelect, onBadge }: {
         return (
           <span key={t.id} className="relative flex shrink-0">
             <button type="button" onClick={() => onSelect(t.id)} aria-current={on ? "page" : undefined}
-              title={UNRELEASED.includes(t.id) ? tx("Pas encore publié : visible seulement sur ce serveur de développement") : undefined}
               className={`flex items-center gap-1.5 rounded-t-lg py-2.5 pl-3.5 text-sm font-semibold transition-colors ${b ? "pr-7" : "pr-3.5"} ${
-                UNRELEASED.includes(t.id) ? `italic opacity-50 hover:opacity-80 ${on ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : "text-dim hover:bg-bg2"}`
-                : on ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
+                on ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
               <t.icon size={16} strokeWidth={1.75} aria-hidden />{t.label}
             </button>
             {b && (
@@ -29,6 +60,7 @@ export function Tabs({ tab, snap, badges, onSelect, onBadge }: {
           </span>
         );
       })}
+      <InventoryMenu snap={snap} current={tab} onSelect={onSelect} />
     </nav>
   );
 }

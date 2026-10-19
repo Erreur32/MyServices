@@ -1,5 +1,5 @@
 // Onglets : ordre, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { LayoutGrid, Server, Shield, Globe, HardDrive, House, Monitor, Network, Router, SlidersHorizontal, Workflow, type LucideIcon } from "lucide-react";
+import { LayoutGrid, Server, Shield, Globe, HardDrive, House, Monitor, Network, Router, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -10,19 +10,26 @@ export const infraCards = (s: Snapshot) => (s.data.services_status ?? []).filter
 export const infraDocker = (s: Snapshot) => (s.data.containers ?? []).filter((c) => !c.links_only);
 
 // Icônes monochromes (lucide, trait fin) : couleur du texte, lisibles en clair comme en sombre
+// Six onglets « Surveiller » dans la barre ; Infra, Virtualisation, DNS et Schémas sont dans le menu « Inventaire » (ci-dessous) ; Réglages est ouvert par l'engrenage de l'en-tête.
 export const TABS: { id: TabId; icon: LucideIcon; label: string }[] = [
   { id: "home", icon: House, label: tx("Accueil") },
   { id: "machines", icon: Monitor, label: tx("Machines") },
   { id: "services", icon: Globe, label: tx("Services") },
-  { id: "infra", icon: LayoutGrid, label: tx("Infra") },
-  { id: "virtualization", icon: Server, label: tx("Virtualisation") },
   { id: "network", icon: Router, label: tx("Réseau") },
-  { id: "security", icon: Shield, label: tx("Sécurité") },
-  { id: "dns", icon: Network, label: tx("DNS") },
   { id: "backups", icon: HardDrive, label: tx("Sauvegardes") },
-  { id: "diagrams", icon: Workflow, label: tx("Schémas") },
-  { id: "settings", icon: SlidersHorizontal, label: tx("Réglages") },
+  { id: "security", icon: Shield, label: tx("Sécurité") },
 ];
+
+/** Menu « Inventaire ▾ » : listes complètes, moins consultées au quotidien que les six onglets ci-dessus */
+export const INVENTORY: { id: TabId; icon: LucideIcon; label: string; hint: string }[] = [
+  { id: "infra", icon: LayoutGrid, label: tx("Infra"), hint: tx("cartes des services et conteneurs") },
+  { id: "virtualization", icon: Server, label: tx("Virtualisation"), hint: tx("Proxmox, ESXi, PBS") },
+  { id: "dns", icon: Network, label: tx("DNS"), hint: tx("AdGuard") },
+  { id: "diagrams", icon: Workflow, label: tx("Schémas"), hint: "" },
+];
+
+/** Tout identifiant d'onglet reconnu par l'adresse : la barre, l'Inventaire, et Réglages (ouvert par l'engrenage, pas par la barre) */
+export const TAB_IDS: TabId[] = [...TABS.map((t) => t.id), ...INVENTORY.map((t) => t.id), "settings"];
 
 /** Onglets encore en chantier : visibles seulement sur une image de dev (construite sur place, git-rev), pas publiés. */
 export const UNRELEASED: TabId[] = ["infra"];
@@ -43,3 +50,11 @@ export function visible(id: TabId, s: Snapshot): boolean {
   }
 }
 
+const OLD_TABS: Record<string, string> = { fail2ban: "security", health: "machines", history: "home" };   // removed tabs, now inside another one (#history: sub-tab of the home page)
+
+/** Onglet visé par l'adresse actuelle (#dns, #settings/api…) ; « home » si l'adresse n'en désigne aucun (y compris les pages à part : #profile, #audit…) */
+export function tabFromHash(): TabId {
+  const raw = location.hash.slice(1).split("/")[0];
+  const h = (OLD_TABS[raw] ?? raw) as TabId;
+  return TAB_IDS.includes(h) ? h : "home";
+}
