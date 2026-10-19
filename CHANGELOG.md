@@ -11,6 +11,22 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.17.0 (2026-10-19)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+- **One reader per connector** (tier 4 of the request plan): the server reads every configured connector at its own period, in parallel, and keeps the reading in the shared state; the collection, the health check and the live picture (`live.json`) reuse it instead of calling the service again. Each connector can have its own period (« Read every », minutes, in its card); the default is « Connector readings » in Settings → System (formerly « Fast connectors », 0 = off: every task reads by itself, as before). NPM and the per-machine SSH readings stay with the collection.
+- Machines table: the CPU, Memory, Disk and GPU columns sort (the busiest first, unread machines last).
+
+### Changed
+- Connectors page: the explanation sentence is gone, « Already read over SSH » sits folded under the title, the cards of « My connectors » are inside their frame, two columns on wide screens, on the mid background.
+- Machines table: no alert dot on the machine icon any more (the « To watch » column says it); the percentages of the meters are smaller than the data.
+- « Seen by your tools, not followed here » moved from the Machines tab to Settings → Machines (folded under the machine cards; « Follow » adds the machine and the list reloads).
+
+### Technical
+- `readers.py` (server loop every 10 s, due connectors read with up to 8 workers, 60 s each); `connectors/base.py`: `period()`, `status_of()`, `merge_state()` (only the entries just read are written: the server and the collection share `connectors.json`), state entries carry `message`, `duration_s`, `found`, `tried`; `fast.py` derives `live.json` from the state (MynetworK detail sheets apart); common connector field `every` (1 to 1440 minutes); `components/UnlinkedDevices.tsx`.
+
 ## v0.16.1 (2026-10-18)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

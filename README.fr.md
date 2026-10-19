@@ -43,7 +43,7 @@
 >
 > Comme il évolue vite, **les pull requests et les issues ne sont pas traitées pour le moment** : merci de les garder pour une version stable.
 >
-> Les versions de développement ne sont pas étiquetées. Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.16.1`, `0.16.2`…).
+> Les versions de développement ne sont pas étiquetées. Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.17.0`, `0.17.1`…).
 > Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (en anglais).
 
 ## En bref
@@ -78,7 +78,7 @@ Puis ouvrez **`http://<IP>:8090/`** (l'appli est à la racine du site ; les anci
 
 > **L'application écoute sur le port `8090`.** C'est un réglage, pas une valeur figée : si le 8090 est déjà pris sur votre machine, mettez **`MYSERVICES_PORT=8095`** (ou un autre port libre) dans un fichier `.env` à côté de `docker-compose.yaml` (exemple : [`deploy/env.example`](deploy/env.example), téléchargé par le second `curl` ci-dessus), puis lancez `docker compose up -d` et ouvrez `http://<IP>:8095/`. Le conteneur utilise le réseau de l'hôte : modifier un `ports:` ne servirait à rien.
 
-Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.16.1` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
+Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.17.0` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
 Mise à jour : `docker compose pull && docker compose up -d` (réglages et données restent dans les volumes `./config` et `./data`).
 
 ---
