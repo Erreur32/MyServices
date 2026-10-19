@@ -1206,7 +1206,10 @@ def main():
                                     machine_role=rows[-1]["machine_role"] + f" · Apache écoute seulement sur {addr}")
     rows.extend(nginx_rows(hinfo, used))
     attach_vhost_domains(rows, hinfo)
+    seen = {(r.get("ip"), int(r["port"])) for r in rows if r.get("ip") and r.get("port")}   # a service detected at the same ip:port wins: no double row
     for x in meta.get("extra", []):
+        if (x["ip"], int(x["port"])) in seen:
+            continue
         rows.append(row("local", f'{x["ip"]}:{x["port"]}', x["ip"], x["port"], name=x["name"],
                         scheme=x.get("scheme", "http"), manual=True,
                         service={"kind": "manuel", "name": x["name"]}))
@@ -1240,7 +1243,7 @@ def main():
         backend = {i: ex.submit(probe_tcp, rows[i]["ip"], rows[i]["port"]) for i in direct}
         public = {i: ex.submit(probe_https, rows[i]["domains"][0]) for i in named}
         web = {i: ex.submit(probe_web, rows[i]["scheme"], rows[i]["ip"], rows[i]["port"], rows[i]["domains"][0] if rows[i]["domains"] else None)
-               for i in direct}
+               for i in direct if rows[i]["scheme"] != "tcp"}   # tcp: a port without a web page, the TCP probe says it all
         follow = {i: ex.submit(probe_follow, rows[i]["domains"][0]) for i in redir}
         for f in (*backend.values(), *public.values(), *web.values(), *follow.values()):
             f.add_done_callback(tick)

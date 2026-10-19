@@ -2,7 +2,7 @@
 // opens the detail window), the services newly seen on the machines (admin), then « See all » folded: every service (NPM and direct)
 // with its state, machine and source, filters, sort, « By machine »; on a phone, one card per service.
 import { foldHeaderProps } from "../lib/foldHeader";
-import { ChevronDown, ChevronRight, ExternalLink, Layers, Server, Boxes } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, Layers, Plus, Server, Boxes } from "lucide-react";
 import { Fragment, useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
@@ -17,6 +17,7 @@ import { dateTime, ipNum } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { FoldPanel } from "../components/FoldPanel";
 import { NewServices } from "../components/NewServices";
+import { ManualService, type ManualInitial } from "../components/ManualService";
 import { StatTile } from "../components/StatTile";
 import { WatchPanel } from "../components/WatchPanel";
 import { quiet, worstTone } from "../lib/forms";
@@ -236,6 +237,7 @@ function Watch({ rows, onOpen }: Readonly<{ rows: Host[]; onOpen: (key: string) 
 
 export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Selected }>) {
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [manual, setManual] = useState<{ initial?: ManualInitial } | null>(null);   // the « + Service » window: empty to declare, filled to edit
   const machines = useMemo(() => new Map(snap.data.machine_list.map((m) => [m.ip, m.name])), [snap.data.machine_list]);
   const facets = useMemo((): Facet<Host>[] => [
     { key: "src", label: tx("Source"), get: (r) => (r.type === "local" ? "local" : "npm"), name: (v) => (v === "npm" ? "NPM" : tx("Services")), order: ["npm", "local"],
@@ -276,6 +278,7 @@ export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?:
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="flex items-center gap-2 text-xl font-bold"><Boxes size={18} aria-hidden />{tx("Services")}</h1>
         <span className="text-sm text-muted">{tx("{0} services · {1} avec domaine · {2} locaux · {3} machines", fig.total, fig.withDomain, fig.local, fig.machines)} · {tx("relevé du {0}, en lecture seule", dateTime(snap.data.generated))}</span>
+        {admin && <button type="button" className={`${quiet} ml-auto py-1`} onClick={() => setManual({})} title={tx("Déclarer un service que la détection ne voit pas")}><Plus size={14} aria-hidden />{tx("Service")}</button>}
       </div>
       <div className="flex gap-2.5 overflow-x-auto pb-1">
         <StatTile n={fig.ok} label={tx("En ligne")} tone="ok" />
@@ -325,9 +328,11 @@ export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?:
       </FoldPanel>
       {opened && (
         <Overlay wide onClose={() => setOpenKey(null)} title={<><ServiceLogo r={opened} />{hostName(opened)} <Badge tone="off">{via(opened)}</Badge></>}>
-          <div className="mt-3"><ServiceDetail r={opened} admin={snap.me.role === "admin"} /></div>
+          <div className="mt-3"><ServiceDetail r={opened} admin={snap.me.role === "admin"}
+            onEdit={opened.manual && opened.ip && opened.port ? () => { setManual({ initial: { name: hostName(opened), ip: opened.ip!, port: opened.port!, scheme: opened.scheme ?? "http" } }); setOpenKey(null); } : undefined} /></div>
         </Overlay>
       )}
+      {manual && <ManualService machines={snap.data.machine_list.filter((m) => !m.disabled)} initial={manual.initial} onDone={() => setOpenKey(null)} onClose={() => setManual(null)} />}
     </div>
   );
 }

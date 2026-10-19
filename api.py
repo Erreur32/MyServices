@@ -456,6 +456,72 @@ def services_new_follow(body: ServiceKeys, request: Request):
     return {"ok": True}
 
 
+class ManualService(BaseModel):
+    name: str = Field(max_length=80)
+    ip: str = Field(max_length=45)
+    port: int = Field(ge=1, le=65535)
+    scheme: str = "http"   # http, https, or tcp (a port without a web page)
+
+
+class ManualServiceChange(BaseModel):
+    name: str | None = Field(None, max_length=80)
+    scheme: str | None = None
+    port: int | None = Field(None, ge=1, le=65535)
+
+
+class ManualServiceTry(BaseModel):
+    ip: str = Field(max_length=45)
+    port: int = Field(ge=1, le=65535)
+    scheme: str = "http"
+
+
+def manual_call(request: Request, action: str, detail: str, fn, collect: bool = True):
+    """A change of the services declared by hand: admin only, readable refusal, audit line, then a collection so the page shows it"""
+    import services_admin
+    if denied := admin_write(request):
+        return denied
+    try:
+        out = fn(services_admin)
+    except services_admin.ServiceError as e:
+        return deny(400, str(e))
+    if action:
+        store().audit(action, request.state.user["username"], ip_of(request), detail)
+    if collect:
+        core.run_chain(["collect"], "Services → déclaré à la main")
+    return out
+
+
+@app.get(API + "/services/manual", tags=["services"], summary="Services déclarés à la main (admin)")
+def services_manual_list(request: Request):
+    import services_admin
+    if denied := admin_only(request):
+        return denied
+    return {"items": services_admin.list_manual()}
+
+
+@app.post(API + "/services/manual", tags=["services"], summary="Déclarer un service à la main : nom, IP, port, protocole ; sondé à chaque relevé (admin)")
+def services_manual_add(body: ManualService, request: Request):
+    return manual_call(request, "service déclaré", f"{body.name} {body.ip}:{body.port}", lambda s: {"ok": True, "item": s.add(body.name, body.ip, body.port, body.scheme)})
+
+
+@app.put(API + "/services/manual/{ip}/{port}", tags=["services"], summary="Modifier un service déclaré à la main (admin)")
+def services_manual_update(ip: str, port: int, body: ManualServiceChange, request: Request):
+    return manual_call(request, "service déclaré modifié", f"{ip}:{port}", lambda s: {"ok": True, "item": s.update(ip, port, body.name, body.scheme, body.port)})
+
+
+@app.delete(API + "/services/manual/{ip}/{port}", tags=["services"], summary="Retirer un service déclaré à la main (admin)")
+def services_manual_remove(ip: str, port: int, request: Request):
+    def go(s):
+        s.remove(ip, port)
+        return {"ok": True}
+    return manual_call(request, "service déclaré retiré", f"{ip}:{port}", go)
+
+
+@app.post(API + "/services/manual/try", tags=["services"], summary="Essayer un service (connexion TCP, page web) sans rien enregistrer (admin)")
+def services_manual_try(body: ManualServiceTry, request: Request):
+    return manual_call(request, "", "", lambda s: s.try_service(body.ip, body.port, body.scheme), collect=False)
+
+
 @app.post(API + "/services/new/ignore", tags=["services"], summary="Ne pas suivre un nouveau service : mis en pause, ni sonde ni alerte (admin)")
 def services_new_ignore(body: ServiceKeys, request: Request):
     import new_services
