@@ -1,5 +1,5 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { ArrowRight, Archive, Puzzle, FolderOpen, Bot, Box, Copy, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronRight, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
+import { Archive, Plus, Puzzle, FolderOpen, Bot, Box, Copy, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronRight, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
 import { Fragment, createContext, useContext, useRef, useCallback, useEffect, useMemo, useState } from "react";
 import { read, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
@@ -12,7 +12,9 @@ import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
 import { freeboxHealth, freeboxOf } from "../lib/freebox";
 import { modelIcon, serviceIcon } from "../lib/appIcons";
-import { MachineModal } from "./MachinesSettings";
+import { MachinePage } from "./MachinePage";
+import { AddMachineOverlay } from "../components/AddMachineOverlay";
+import { machineFromHash } from "../lib/machineHash";
 import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, networkTool, osOfMachine, stateBadge, type MState, type OsKind } from "../lib/machines";
 import { OsGlyph } from "../components/OsGlyph";
 import { shortOs } from "../lib/osName";
@@ -23,14 +25,18 @@ import { rolesOf } from "../lib/ssh";
 import { SshAccess } from "../components/ssh";
 import { SourceBadges } from "../components/SourceBadges";
 import { DetailRow, DetailSection } from "../components/DetailSection";
-import { quiet } from "../lib/forms";
-import { Overlay } from "../components/Overlay";
+import { primary } from "../lib/forms";
 import { WATCH_SECTION, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Table, Td, Th, type Tone } from "../components/ui";
 import { tx } from "../lib/i18n";
 import { hardwareRows } from "../lib/hardware";
 
+
+/** Opens the page of a machine (#machines/<ip>); « access »: scrolled to its settings, Access tab */
+function openPage(ip: string, tab?: "access"): void {
+  location.hash = `machines/${ip}${tab ? "/access" : ""}`;
+}
 
 function healthByIp(hosts: HealthHost[] = []): Map<string, HealthHost> {
   return new Map(hosts.map((h) => [splitHostName(h.name)[1], h]));
@@ -1333,9 +1339,12 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   const sort = useSort(f.shown, keyOf, "ip");
   // Tableau sur une seule ligne par machine ; un clic sur le chevron (ou « Tout déplier ») montre le détail
   const [focus, setFocus] = useState<{ kind: WatchKind; n: number } | null>(null);   // the notice whose section the opened window shows
-  const pickWatch = useCallback((ip: string, kind: WatchKind) => { setFocus((f) => ({ kind, n: (f?.n ?? 0) + 1 })); setDetailIp(ip); }, []);
-  const [detailIp, setDetailIp] = useState<string | null>(null);   // détail d'une machine : dans une fenêtre, plus de ligne qui se déplie
-  const [editIp, setEditIp] = useState<string | null>(null);   // fenêtre de réglages d'une machine (engrenage, admin seulement)
+  const pickWatch = useCallback((ip: string, kind: WatchKind) => { setFocus((f) => ({ kind, n: (f?.n ?? 0) + 1 })); openPage(ip); }, []);
+  // The page of one machine (#machines/<ip>, /access for its settings): the address is the state, so a link, a reload or « back » all work
+  const [target, setTarget] = useState(() => machineFromHash(location.hash));
+  useEffect(() => { const on = () => setTarget(machineFromHash(location.hash)); addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
+  const pageM = target ? snap.data.machine_list.find((x) => x.ip === target.ip) : undefined;
+  const [adding, setAdding] = useState(false);   // « Ajouter une machine » (admin): the assistant of Réglages → Machines, in a window
   const admin = snap.me.role === "admin";
   const detailOf = (m: Machine) => {
     const h = hb.get(m.ip);
@@ -1355,12 +1364,16 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   return (
     <PickWatch.Provider value={pickWatch}>
     <KernelIgnore.Provider value={ignoreCtx}>
-    <div className="py-1">
+    {pageM ? (
+      <MachinePage snap={snap} m={pageM} scan={scanOs[pageM.ip]} model={modelOf(pageM, snap.data.network, unifiOf(pageM))} state={st(pageM, true)} detail={detailOf(pageM)}
+        onMachine={onMachine} focusTab={target?.tab} onBack={() => { location.hash = "machines"; }} />
+    ) : <div className="py-1">
       <FilterBar f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
         options={[
           ...(nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []),
         ]}
         extra={<>
+          {admin && <button type="button" className={primary} onClick={() => setAdding(true)}><Plus size={14} aria-hidden />{tx("Ajouter une machine")}</button>}
           <ViewToggle view={view} onPick={pickView} />
         </>} />
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
@@ -1377,8 +1390,8 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                 <Fragment key={m.ip}>
                   <tr className={`cursor-pointer outline-none even:bg-bg/50 hover:!bg-bg2/60 focus-visible:!bg-bg2/60 [&>td]:!py-3.5 ${isOff(m) ? "opacity-50" : ""}`}
                     tabIndex={0} aria-haspopup="dialog" aria-label={tx("Détails de {0}", m.name)}
-                    onClick={(e) => { if (!(e.target as Element).closest("button, a, input, select, label, summary, [role=button]")) setDetailIp(m.ip); }}
-                    onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) setDetailIp(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
+                    onClick={(e) => { if (!(e.target as Element).closest("button, a, input, select, label, summary, [role=button]")) openPage(m.ip); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) openPage(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
                     <td className="w-14 pl-4 pr-2 py-2 align-middle"><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifiOf(m)) }} scan={scanOs[m.ip]} reserve /></td>
                     <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><VmMark m={m} h={hb.get(m.ip)} /><ProblemFlag h={h} /></span></Td>
                     <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-dim">{m.ip}</Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
@@ -1392,7 +1405,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                       <WatchList ip={m.ip} quiet={!!snap.health} items={watchOf(m).filter((i) => i.kind !== "updates")} /></span></Td>
                     {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="!px-1.5"><GpuCellView list={gpusOf(m, hb.get(m.ip))} /></Td>}
                     <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-xs tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network), haOf(m)); return up ? <span className={up < 3600 ? "text-warn" : "text-muted"} title={`${dur(up)}${up < 3600 ? ` · ${tx("vient de redémarrer")}` : ""}`}>{durShort(up)}</span> : <Dim>-</Dim>; })()}</Td>
-                    {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => setEditIp(m.ip)} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
+                    {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => openPage(m.ip, "access")} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
                       className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><SlidersHorizontal size={14} aria-hidden /></button></td>}
                   </tr>
                 </Fragment>
@@ -1404,19 +1417,15 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
               const h = hb.get(m.ip);
               return (
                 <MachineCard key={m.ip} m={m} h={h} snap={snap} scan={scanOs[m.ip]} os={osOf(m)} watch={watchOf(m)} ha={haOf(m)} unifi={unifiOf(m)} off={isOff(m)}
-                  state={st(m, false)} shown={false} onToggle={() => setDetailIp(m.ip)} onMachine={onMachine}
+                  state={st(m, false)} shown={false} onToggle={() => openPage(m.ip)} onMachine={onMachine}
                   detail={null} />
               );
             })}
           </Cards>
         </>
       )}
-      {detailIp && (() => {
-        const m = snap.data.machine_list.find((x) => x.ip === detailIp);
-        return m && <Overlay wide onClose={() => setDetailIp(null)} title={<><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifiOf(m)) }} scan={scanOs[m.ip]} reserve />{m.name} <Dim>{m.ip}</Dim>{m.services > 0 && <button type="button" onClick={() => onMachine(m.ip)} className={`${quiet} ml-2 py-1 text-sm font-normal`}>{tx("Voir ses services")}<ArrowRight size={14} aria-hidden /></button>}</>}><div className="mt-3 -mx-4 -mb-4 overflow-hidden rounded-b-2xl bg-bg2/40">{detailOf(m)}</div></Overlay>;
-      })()}
-      {editIp && <MachineModal ip={editIp} snap={snap} onClose={() => setEditIp(null)} />}
-    </div>
+      {adding && <AddMachineOverlay onClose={() => setAdding(false)} />}
+    </div>}
     </KernelIgnore.Provider>
     </PickWatch.Provider>
   );

@@ -460,8 +460,9 @@ function AgentOrAccess({ agent, access }: Readonly<{ agent?: AgentInfo; access: 
   return <Badge tone={agent.state === "actif" ? "ok" : "warn"} title={tx("Agent MyServices : {0}", agent.state)}>{tx("agent")}</Badge>;
 }
 
-function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgent, bare, onClosed, scan, unfinished, agent, network }: Readonly<{
+function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgent, bare, inline, onClosed, scan, unfinished, agent, network }: Readonly<{
   bare?: boolean; onClosed?: () => void;  // fenêtre seule, sans la carte (ouverte depuis un autre onglet)
+  inline?: boolean;  // in the machine page (#machines/<ip>): the settings body alone, in the page, no window
   focusTab?: "access"; onAgent: () => void; network?: NetworkConnector[]; agent?: AgentInfo; unfinished?: Unfinished; scan?: ScanInfo; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Live; statuses: Statuses; reload: () => void;
 }>) {
   const fb = live && freeboxOf(live, network) && network?.find((c) => c.freebox?.system);   // la Freebox est lue par MynetworK, rapprochée par son nom
@@ -490,8 +491,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgen
   const access = accessLabel(m, agent);
   const connection = m.os === "windows" || live ? <MachineConnection ip={ip} m={m} st={st} live={live} statuses={statuses} agent={agent} /> : null;
   const iconProps = { name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon };
-  const overlay = open && (
-        <Overlay medium onClose={() => openCard(false)} title={<><MachineIcon m={iconProps} scan={scan} reserve />{m.name} <Dim>{ip}</Dim></>}>
+  const body = (
         <div className="mt-3 flex flex-col gap-3">
           <NoteLine note={note} />
           {lines && <CheckLines lines={lines} />}
@@ -499,6 +499,11 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgen
           <MachineForm tabbed focusTab={focusTab} onAgent={onAgent} agent={agent} connection={connection} report={setNote} onIcon={setIcon} onFollow={(on) => setOff(!on)} ip={ip} m={m} st={st} live={live} scan={scan} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload}
             actions={<RowActions ip={ip} busy={busy} confirm={confirm} setConfirm={setConfirm} setNote={setNote} reload={reload} verify={verify} />} />
         </div>
+  );
+  if (inline) return body;   // machine page: the settings sit in the page
+  const overlay = open && (
+        <Overlay medium onClose={() => openCard(false)} title={<><MachineIcon m={iconProps} scan={scan} reserve />{m.name} <Dim>{ip}</Dim></>}>
+        {body}
         </Overlay>
   );
   if (bare) return <>{overlay}</>;   // fenêtre ouverte depuis l'onglet Machines : pas de carte
@@ -1212,8 +1217,9 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   );
 }
 
-/** La fenêtre d'une machine, ouverte depuis un autre onglet (l'engrenage de l'onglet Machines, admin) : mêmes réglages que dans Réglages → Machines */
-export function MachineModal({ ip, snap, onClose }: Readonly<{ ip: string; snap: Snapshot; onClose: () => void }>) {
+/** The settings of one machine outside Réglages → Machines: in a window (`onClose`), or in the page of the machine (`inline`, #machines/<ip>) ;
+ *  `focusTab`: open on the Access tab (#machines/<ip>/access, old #settings/agents/<ip>) */
+export function MachineModal({ ip, snap, onClose, inline, focusTab }: Readonly<{ ip: string; snap: Snapshot; onClose?: () => void; inline?: boolean; focusTab?: "access" }>) {
   const [st, setSt] = useState<State | null>(null), [agents, setAgents] = useState<AgentInfo[]>([]), [scan, setScan] = useState<NetHost | undefined>();
   const reload = useCallback(() => { read<State>("machines/settings").then(setSt).catch(() => undefined); }, []);
   const loadAgents = useCallback(() => { read<{ agents: AgentInfo[] }>("agents").then((r) => setAgents(r.agents)).catch(() => undefined); }, []);
@@ -1222,6 +1228,6 @@ export function MachineModal({ ip, snap, onClose }: Readonly<{ ip: string; snap:
   if (!st || !m) return null;
   const live = snap.data.machine_list.find((x) => x.ip === ip);
   const statuses = m.os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.ip ? c.ip === ip : c.name === ip || c.name === live?.name));
-  return <MachineRow bare ip={ip} m={m} st={st} live={live} statuses={statuses} reload={reload} onClosed={onClose} onAgent={loadAgents} network={snap.data.network}
+  return <MachineRow bare={!inline} inline={inline} focusTab={focusTab} ip={ip} m={m} st={st} live={live} statuses={statuses} reload={reload} onClosed={onClose} onAgent={loadAgents} network={snap.data.network}
     agent={agents.find((a) => a.ip === ip && a.state !== "révoqué")} scan={scan ? { os: scan.os ?? undefined, apps: scan.apps ?? [], ssh: !!scan.ssh_port, sshPort: scan.ssh_port ?? undefined } : undefined} />;
 }

@@ -2747,4 +2747,12 @@ export const EN: Record<string, string> = {
   "Découverte réseau": "Network discovery",
   "Sauvegarde et infos": "Backup and info",
   "allumée": "on",
+  "Réglages des machines illisibles pour l'instant.": "Machine settings cannot be read for now.",
+  "Disponibilité, {0} jours": "Availability, {0} days",
+  "Pas encore de relevé de disponibilité pour cette machine : il se construit à chaque collecte.": "No availability record for this machine yet: it builds up at each collection.",
+  "{0} relevés, {1} en échec": "{0} samples, {1} failed",
+  "{0} jours, une case par jour": "{0} days, one cell per day",
+  "aucun relevé": "no sample",
+  "il y a {0} jours": "{0} days ago",
+  "Identité, options et accès (SSH, agent, connecteurs) : chaque réglage s'enregistre à la saisie, « Enregistrer » ne sert qu'au nom et aux champs libres.": "Identity, options and access (SSH, agent, connectors): every setting is saved as you go, « Save » is only for the name and the free fields.",
 };

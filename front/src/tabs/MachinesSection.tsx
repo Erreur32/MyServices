@@ -1,9 +1,13 @@
-// Réglages → Machines : une seule page. Chaque machine a sa fenêtre (Identité, Options, Accès avec SSH et agent) ; les liens
-// #settings/agents/<ip> (anciens et ceux des autres onglets) ouvrent la fenêtre de la machine sur l'onglet Accès.
+// Réglages → Machines et accès : ajout, détection, accès par défaut et la liste des machines (MachinesSettings). Les anciens liens vers une machine
+// (#settings/machines/<ip>, #settings/agents/<ip>) ouvrent sa page (#machines/<ip>, onglet Accès pour « agents »), où ses réglages vivent désormais.
+import { useEffect } from "react";
 import type { Snapshot } from "../api";
+import { machineSettingsRedirect } from "../lib/machineHash";
 import { MachinesSettings } from "./MachinesSettings";
 
 export function MachinesSection({ snap }: Readonly<{ snap: Snapshot }>) {
-  const [, section, ip] = location.hash.split("/");   // #settings/machines/<ip> : une machine ; #settings/agents/<ip> : son onglet Accès
-  return <MachinesSettings snap={snap} focusIp={ip} focusTab={section === "agents" ? "access" : undefined} />;
+  const to = machineSettingsRedirect(location.hash);
+  useEffect(() => { if (to) location.replace(`#${to}`); }, [to]);
+  if (to) return null;
+  return <MachinesSettings snap={snap} />;
 }

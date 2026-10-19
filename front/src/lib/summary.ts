@@ -65,7 +65,7 @@ const HEALTH_SEL: Selected = { alert: ["bad", "warn"] };
 export function attention({ data, health, backups }: Inputs): Attention[] {
   const out: Attention[] = [];
   for (const m of data.machine_list)
-    if (!m.ping && !m.off && !m.disabled) out.push({ category: "machines", level: "crit", text: tx("La machine **{0}** ({1}) ne répond plus au ping", m.name, m.ip), tab: "machines", action: tx("Voir la machine"), sel: { state: ["down"] } });
+    if (!m.ping && !m.off && !m.disabled) out.push({ category: "machines", level: "crit", text: tx("La machine **{0}** ({1}) ne répond plus au ping", m.name, m.ip), tab: "machines", action: tx("Voir la machine"), sel: { state: ["down"] }, href: `machines/${m.ip}` });
   // NPM : entrées actives avec un avertissement (accès, SSL, DNS…), en une seule ligne
   const npmWarn = data.hosts.filter((r) => r.type !== "local" && r.enabled && !r.paused && status(r)[0] === "warn");
   if (npmWarn.length)

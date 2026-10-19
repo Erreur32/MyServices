@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+- **Page of a machine** (`#machines/<ip>`, third step of the ergonomics plan): a row of the Machines tab now opens a full page instead of a window: the detail sections (identity, system, access, software, backups, health, updates, UniFi or Freebox), the availability of the machine over 30 days (one cell per day, from the availability history) and, for an administrator, its settings (identity, options, access with SSH, agent and connectors) in the page, saved as you go. `#machines/<ip>/access` lands on the Access settings; the old `#settings/machines/<ip>` and `#settings/agents/<ip>` links redirect there. « Add a machine » (the same four-step assistant as in Settings) is also offered from the Machines tab. On the home page, a machine that no longer answers leads straight to its page.
+
 ### Changed
 - **Second step of the ergonomics plan: tab bar, account menu and Settings.** The tab bar now has six tabs (Home, Machines, Services, Network, Backups, Security) plus an « Inventory ▾ » menu for the less-visited full lists (Infra, Virtualization, DNS, Diagrams), each with a short hint; it shows « Inventory · <page> » when one of those is open. Settings leaves the bar: a gear button next to the avatar (admins) opens it, at the last section visited.
 - Account menu reordered: Profile, Theme, then a « View » group (Audit log and Logs for admins, Help, About, GitHub project), then « Review the setup assistant » (admins), then Sign out.

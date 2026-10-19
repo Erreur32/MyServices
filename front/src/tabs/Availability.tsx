@@ -10,18 +10,18 @@ import { Dim, Empty, FilterBar } from "../components/ui";
 import { InfoNote } from "../components/InfoNote";
 import type { ReactNode } from "react";
 
-interface Cell { t: number; pct: number | null }
-interface Item { key: string; kind: "service" | "machine" | "kuma"; label: string | null; machine: string | null; target: string | null;
+export interface Cell { t: number; pct: number | null }
+export interface Item { key: string; kind: "service" | "machine" | "kuma"; label: string | null; machine: string | null; target: string | null;
   uptime: number; samples: number; down: number; ms: number | null; last: { ts: number; up: boolean } | null; cells: Cell[] }
-interface Report { days: number; step: "hour" | "day"; items: Item[] }
+export interface Report { days: number; step: "hour" | "day"; items: Item[] }
 
 const PERIODS: [number, string][] = [[1, tx("24 h")], [7, tx("7 jours")], [30, tx("30 jours")], [90, tx("90 jours")]];
 const KIND: Record<Item["kind"], [string, typeof Globe]> = { service: [tx("Service"), Globe], machine: [tx("Machine"), Monitor], kuma: ["Uptime Kuma", Activity] };
 const DAYS_KEY = "ms.availability.days";
 
-const cellColor = (p: number | null) => (p == null ? "bg-bg2" : p >= 100 ? "bg-ok" : p >= 95 ? "bg-ok/60" : p >= 80 ? "bg-warn" : "bg-bad");
-const pctTone = (p: number) => (p >= 99.9 ? "text-ok" : p >= 95 ? "text-warn" : "text-bad");
-const pct = (p: number) => `${p >= 99.995 ? "100" : p.toFixed(p >= 99 ? 2 : 1).replace(".", LANG === "fr" ? "," : ".")} %`;
+export const cellColor = (p: number | null) => (p == null ? "bg-bg2" : p >= 100 ? "bg-ok" : p >= 95 ? "bg-ok/60" : p >= 80 ? "bg-warn" : "bg-bad");
+export const pctTone = (p: number) => (p >= 99.9 ? "text-ok" : p >= 95 ? "text-warn" : "text-bad");
+export const pct = (p: number) => `${p >= 99.995 ? "100" : p.toFixed(p >= 99 ? 2 : 1).replace(".", LANG === "fr" ? "," : ".")} %`;
 
 function Strip({ cells, step }: { cells: Cell[]; step: Report["step"] }) {
   return (
