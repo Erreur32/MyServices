@@ -801,8 +801,8 @@ function SshSwitchRow({ ctl, live, ss, proc, autoSave }: Readonly<{ ctl: SshCtl;
       )}
       {!agentMode && sshOn && (
         <label className="flex items-center gap-2 text-sm" title={tx("Ports en écoute hors Docker (ss -tlnp : root, ou une règle sudo sur la machine)")}>
-          <Switch on={proc} disabled={ss.pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Écoute des ports")} />
-          <span><b>{tx("Écoute des ports")}</b> <SavedMark k="proc" s={ss} /></span>
+          <Switch on={proc} disabled={ss.pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Services hors Docker")} />
+          <span><b>{tx("Services hors Docker")}</b> <SavedMark k="proc" s={ss} /> <Dim>· {tx("ports en écoute")}</Dim></span>
         </label>
       )}
       {!agentMode && sshOn && notRoot && <NotRootHint user={ctl.known?.user ?? ""} />}
@@ -993,14 +993,6 @@ function FlagRow({ f, ctx }: Readonly<{ f: FlagDef; ctx: FlagCtx }>) {
   );
 }
 
-function ProcRow({ proc, ss, autoSave }: Readonly<{ proc: boolean; ss: SaveState; autoSave: AutoSave }>) {
-  return (
-    <label className="flex items-start gap-2">
-      <Switch on={proc} disabled={ss.pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Lire les services hors Docker")} />
-      <span>{tx("Lire les services hors Docker")} <SavedMark k="proc" s={ss} /> <Dim>{tx("· ports en écoute (ss -tlnp, root requis sur la machine)")}</Dim></span>
-    </label>
-  );
-}
 
 /** Réglages courants, toujours visibles : suivre la machine, et « souvent éteinte » (PC, portable : pas d'alerte quand elle est éteinte) */
 function QuickSettings({ ctx }: Readonly<{ ctx: FlagCtx }>) {
@@ -1025,8 +1017,8 @@ function Chevron({ open, size }: Readonly<{ open: boolean; size: number }>) {
   return <Icon size={size} className="text-txt" aria-hidden />;
 }
 
-function ManualGroup({ groups, ctx, proc, windows, procOn, menu }: Readonly<{
-  groups: ReturnType<typeof flagGroups>; ctx: FlagCtx; proc: boolean; windows: boolean; procOn: boolean; menu: OptionsState;
+function ManualGroup({ groups, ctx, menu }: Readonly<{
+  groups: ReturnType<typeof flagGroups>; ctx: FlagCtx; menu: OptionsState;
 }>) {
   const { v } = ctx;
   return (
@@ -1037,14 +1029,12 @@ function ManualGroup({ groups, ctx, proc, windows, procOn, menu }: Readonly<{
         {tx("À changer manuellement")}
         <span className="flex flex-wrap items-center gap-1 normal-case tracking-normal">
           {groups.manual.filter((f) => v[f.k]).map((f) => <Badge key={String(f.k)} tone="off">{f.label}</Badge>)}
-          {proc && !windows && !!v.ssh && <Badge tone="off">{tx("services hors Docker")}</Badge>}
         </span>
       </button>
       {menu.manualOpen && (
         <div className="flex flex-col gap-2 border-t border-line/60 p-3">
           <p className="text-xs text-dim">{tx("Non détectables : c'est à vous de choisir.")}</p>
           {groups.manual.map((f) => <FlagRow key={String(f.k)} f={f} ctx={ctx} />)}
-          {!windows && v.ssh && !procOn && <ProcRow proc={proc} ss={ctx.ss} autoSave={ctx.autoSave} />}
         </div>
       )}
     </div>
@@ -1070,31 +1060,29 @@ function MissingGroup({ groups, ctx, menu }: Readonly<{ groups: ReturnType<typeo
   );
 }
 
-function OptionsMenuBody({ groups, ctx, proc, windows, procOn, menu }: Readonly<{
-  groups: ReturnType<typeof flagGroups>; ctx: FlagCtx; proc: boolean; windows: boolean; procOn: boolean; menu: OptionsState;
+function OptionsMenuBody({ groups, ctx, menu }: Readonly<{
+  groups: ReturnType<typeof flagGroups>; ctx: FlagCtx; menu: OptionsState;
 }>) {
   return (
     <div className="flex flex-col gap-3 border-t border-line/60 p-3">
       {groups.detected.length > 0 && (
         <OptionGroup title={tx("Détectés sur cette machine")} tone="ok">{groups.detected.map((f) => <FlagRow key={String(f.k)} f={f} ctx={ctx} />)}</OptionGroup>
       )}
-      <ManualGroup groups={groups} ctx={ctx} proc={proc} windows={windows} procOn={procOn} menu={menu} />
+      <ManualGroup groups={groups} ctx={ctx} menu={menu} />
       {groups.missing.length > 0 && <MissingGroup groups={groups} ctx={ctx} menu={menu} />}
     </div>
   );
 }
 
-function OptionsTab({ ctx, proc, windows, menu }: Readonly<{ ctx: FlagCtx; proc: boolean; windows: boolean; menu: OptionsState }>) {
+function OptionsTab({ ctx, menu }: Readonly<{ ctx: FlagCtx; menu: OptionsState }>) {
   const groups = flagGroups(ctx.v, ctx.found);
-  const procOn = proc && !windows && !!ctx.v.ssh;
-  const count = groups.detected.length + groups.manual.length + groups.missing.length + (!windows && !!ctx.v.ssh && !procOn ? 1 : 0);
+  const count = groups.detected.length + groups.manual.length + groups.missing.length;
   return (
     <>
       <QuickSettings ctx={ctx} />
-      {(groups.active.length > 0 || procOn) && (
+      {groups.active.length > 0 && (
         <OptionGroup title={tx("Options actives")} hint={tx("Allumées pour cette machine ; les autres sont dans « Options de la machine »")}>
           {groups.active.map((f) => <FlagRow key={String(f.k)} f={f} ctx={ctx} />)}
-          {procOn && <ProcRow proc={proc} ss={ctx.ss} autoSave={ctx.autoSave} />}
         </OptionGroup>
       )}
       {/* Menu pliant des autres interrupteurs : replié, sauf à l'ajout d'une machine dont la détection est à confirmer */}
@@ -1105,7 +1093,7 @@ function OptionsTab({ ctx, proc, windows, menu }: Readonly<{ ctx: FlagCtx; proc:
           {tx("Options de la machine")}
           <span className="font-mono text-xs font-normal text-dim">({count})</span>
         </button>
-        {menu.options && <OptionsMenuBody groups={groups} ctx={ctx} proc={proc} windows={windows} procOn={procOn} menu={menu} />}
+        {menu.options && <OptionsMenuBody groups={groups} ctx={ctx} menu={menu} />}
       </div>
     </>
   );
@@ -1161,7 +1149,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
       {show("access") && <AccessTab tabbed={tabbed} agentActive={!!agent && agent.state !== "révoqué"} connectorsActive={linked.length > 0} agentMode={status.agentMode} sshBody={sshBody} agentBody={agentBody} connectorsBody={<ConnectorsBody linked={linked} />}
         sshSummary={<SshSummary sshOn={status.sshOn} agentMode={status.agentMode} refused={status.refusedSsh} />} agentSummary={<AgentSummary agent={agent} />} connectorSummary={<ConnectorSummary linked={linked} />} />}
       {show("identity") && <IdentityTab v={v} setV={setV} isNew={isNew} live={live} scan={scan} found={found} ss={ss} autoSave={autoSave} savedProc={savedProc} />}
-      {show("options") && <OptionsTab ctx={flagCtx} proc={proc} windows={windows} menu={menu} />}
+      {show("options") && <OptionsTab ctx={flagCtx} menu={menu} />}
       <div className="flex flex-wrap items-center gap-1.5">
         <button type="submit" className={primary} disabled={busy || !dirty} title={dirty ? undefined : tx("Rien à enregistrer : l'accès, les options et les étiquettes s'enregistrent tout seuls")}>{tx("Enregistrer")}</button>
         {actions}

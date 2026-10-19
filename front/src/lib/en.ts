@@ -204,7 +204,6 @@ export const EN: Record<string, string> = {
   ": voit la page et peut demander un passage (⟳). Ton propre mot de passe et tes sessions : menu du compte → « Profil ». Un admin ne peut pas se retirer ses droits, et il reste toujours au moins un admin actif.": ": sees the page and can request a run (⟳). Your own account is managed in “My password”: an admin cannot remove their own rights, and there is always at least one active admin.",
   "· créé le": "· created on",
   "· en marche depuis": "· up for",
-  "· ports en écoute (ss -tlnp, root requis sur la machine)": "· listening ports (ss -tlnp, root required on the machine)",
   "· toi": "· you",
   "» créé": "” created",
   "(assistants IA : Claude, Cursor…). Réseau local et Tailscale seulement. Un jeton est montré": "(AI assistants: Claude, Cursor…). Local network and Tailscale only. A token is shown",
@@ -1334,7 +1333,6 @@ export const EN: Record<string, string> = {
   "Plus de filtres": "More filters",
   "Lu via : {0}": "Read via: {0}",
   "Ouvrez la fiche pour le détail de l'accès.": "Open the card for the access details.",
-  "Écoute des ports": "Port listening",
   "Utile quand le SSH est impossible et qu'aucun connecteur ne voit la machine.": "Useful when SSH is not possible and no connector sees the machine.",
   "{0} conteneurs": "{0} containers",
   "Lecture": "Reading",
@@ -2863,4 +2861,6 @@ export const EN: Record<string, string> = {
   "tous suivis": "all followed",
   "Tout le réseau répond, rien à signaler.": "The whole network answers, nothing to report.",
   "Voir": "See",
+  "Services hors Docker": "Services outside Docker",
+  "ports en écoute": "listening ports",
 };
