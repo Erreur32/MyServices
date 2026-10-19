@@ -11,8 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
-### Changed
-- **Fewer options** (fifth step of the ergonomics plan, one commit each): the « health read first by » choice of a machine is gone (the automatic order serves); the integrated health is always on, its switch and route are gone (an external health-watcher still replaces it); one switch « Services outside Docker » in the SSH frame instead of two; the header notice of a new version follows the automatic check; « Hosts NPM » is no longer an option of a machine, the collection sets it. Settings › Tasks and schedules reads as a list (task, schedule in words, last and next run): the schedule fields, the networks walked by the search, the discreet mode and the live checks sit behind « Edit the schedules ». Settings › Backups › Rules: the per-machine searched locations sit behind « Advanced ».
+## v0.18.0 (2026-10-19)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Added
 - **« + Service »** in the Services tab (admin): declare a service the detection does not see (a page on a machine without SSH or agent, a device, a port to watch) with a name, a followed machine or a free IP, a port and a scheme (http, https, or tcp for a port alone); « Try » probes it without saving, « Follow » writes it to the inventory and it is probed at each reading like any other service. The detail of a declared service offers « Edit » and « Remove ». A service detected later at the same address replaces the declared row. API: `/api/services/manual` (list, add, edit, remove) and `/api/services/manual/try`.
@@ -28,6 +29,15 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Page of a machine** (`#machines/<ip>`, third step of the ergonomics plan): a row of the Machines tab now opens a full page instead of a window: the detail sections (identity, system, access, software, backups, health, updates, UniFi or Freebox), the availability of the machine over 30 days (one cell per day, from the availability history) and, for an administrator, its settings (identity, options, access with SSH, agent and connectors) in the page, saved as you go. `#machines/<ip>/access` lands on the Access settings; the old `#settings/machines/<ip>` and `#settings/agents/<ip>` links redirect there. « Add a machine » (the same four-step assistant as in Settings) is also offered from the Machines tab. On the home page, a machine that no longer answers leads straight to its page.
 - Machine page, two more cards: **Open ports** (the ports seen open by the scan and those of the known services, each with its service and the NPM domains that expose it; an unknown port is told so) and **Virtual machines** (the guests of a machine that is a hypervisor host, running first, a guest followed as a machine opens its page).
 
+### Changed
+- **Fewer options** (fifth step of the ergonomics plan, one commit each): the « health read first by » choice of a machine is gone (the automatic order serves); the integrated health is always on, its switch and route are gone (an external health-watcher still replaces it); one switch « Services outside Docker » in the SSH frame instead of two; the header notice of a new version follows the automatic check; « Hosts NPM » is no longer an option of a machine, the collection sets it. Settings › Tasks and schedules reads as a list (task, schedule in words, last and next run): the schedule fields, the networks walked by the search, the discreet mode and the live checks sit behind « Edit the schedules ». Settings › Backups › Rules: the per-machine searched locations sit behind « Advanced ».
+- **Second step of the ergonomics plan: tab bar, account menu and Settings.** The tab bar now has six tabs (Home, Machines, Services, Network, Backups, Security) plus an « Inventory ▾ » menu for the less-visited full lists (Infra, Virtualization, DNS, Diagrams), each with a short hint; it shows « Inventory · <page> » when one of those is open. Settings leaves the bar: a gear button next to the avatar (admins) opens it, at the last section visited.
+- Account menu reordered: Profile, Theme, then a « View » group (Audit log and Logs for admins, Help, About, GitHub project), then « Review the setup assistant » (admins), then Sign out.
+- Audit log, Logs, Help and About are now pages apart like Profile (a Back link, no tab bar), opened from the account menu or `#audit` / `#logs` / `#help` / `#about`; Audit log and Logs stay admin-only.
+- Settings: four groups, ten sections (down from sixteen): Sources (Machines and access, Connectors, Network discovery, Backups), Alerts (Notifications), Accounts and access (Accounts, Keys and API), Application (Backup and info, Tasks and schedules, Updates). The SSH key moved into « Keys and API », above the API and MCP tokens.
+- **Home page rebuilt around three blocks** (first step of the ergonomics plan: Watch / Inventory / Configure). « To deal with now » lists every alert, red first, each with a button that opens its tab already filtered on what it talks about (« See the machine », « See the set »…), 8 lines then « See all ». « What changed since yesterday » lists the events of the last 24 h (the chart stays in History). « Missing » (administrators) names the sources that would unlock a page or a follow-up: machines online without agent or SSH, Backups / Network / DNS pages hidden for lack of a source, no notification channel; each line leads to the setting that fixes it. The header line says how many machines, services and backup sets are followed.
+- History is a sub-tab of the home page (« Overview / History »); the `#history` link still works.
+
 ### Fixed
 - Machines: a health badge « warn » or « crit » always says why. The server publishes the level of each control with the host (`checks`: disk, systemd, docker, kernel, load, ssh_auth, smart, temp, memory) and the page uses the same thresholds (Windows instant CPU, exited containers, load average at 1.5 and 3 times the CPUs, 1 and 3 failing systemd services, 20 and 100 refused SSH logins); a control flagged by the server that the page cannot detail gets a general sentence instead of a mute badge. In the Machines list the reasons stay in the tooltips of the badge and of the icons; in the machine page the « Level » row of the Health section says why (words and tooltip).
 - Home page: the counters (machines, NPM, services, health, AdGuard, backups, connectors, network, upkeep, virtualization) are back as a « Statistics » sub-tab (`#stats`), next to Overview and History.
@@ -35,26 +45,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### Removed
 - Backups tab: the « Attention points » table (its lines are the « To watch » rows and their detail) and the volume tiles (the sizes are in « See all »).
 - Settings → Machines and access no longer lists the machines (their settings live in their page): it keeps adding a machine, redetection, the key to authorize, the devices seen by your tools and the agents, with a link to the Machines tab.
-
-### Changed
-- **Second step of the ergonomics plan: tab bar, account menu and Settings.** The tab bar now has six tabs (Home, Machines, Services, Network, Backups, Security) plus an « Inventory ▾ » menu for the less-visited full lists (Infra, Virtualization, DNS, Diagrams), each with a short hint; it shows « Inventory · <page> » when one of those is open. Settings leaves the bar: a gear button next to the avatar (admins) opens it, at the last section visited.
-- Account menu reordered: Profile, Theme, then a « View » group (Audit log and Logs for admins, Help, About, GitHub project), then « Review the setup assistant » (admins), then Sign out.
-- Audit log, Logs, Help and About are now pages apart like Profile (a Back link, no tab bar), opened from the account menu or `#audit` / `#logs` / `#help` / `#about`; Audit log and Logs stay admin-only.
-- Settings: four groups, ten sections (down from sixteen): Sources (Machines and access, Connectors, Network discovery, Backups), Alerts (Notifications), Accounts and access (Accounts, Keys and API), Application (Backup and info, Tasks and schedules, Updates). The SSH key moved into « Keys and API », above the API and MCP tokens.
-- Machine settings, Access tab: the « read first by » choice (SSH or agent) sits under a folded « Advanced » header; « Automatic » stays the default.
-
-### Removed
 - The Settings entry from the account menu (replaced by the header gear button); the « SSH key », « Audit log », « Logs », « Help » and « About » entries from the Settings menu (moved as described above).
-
-## v0.18.0 (2026-10-19)
-
-> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
-
-### Changed
-- **Home page rebuilt around three blocks** (first step of the ergonomics plan: Watch / Inventory / Configure). « To deal with now » lists every alert, red first, each with a button that opens its tab already filtered on what it talks about (« See the machine », « See the set »…), 8 lines then « See all ». « What changed since yesterday » lists the events of the last 24 h (the chart stays in History). « Missing » (administrators) names the sources that would unlock a page or a follow-up: machines online without agent or SSH, Backups / Network / DNS pages hidden for lack of a source, no notification channel; each line leads to the setting that fixes it. The header line says how many machines, services and backup sets are followed.
-- History is a sub-tab of the home page (« Overview / History »); the `#history` link still works.
-
-### Removed
 - Home page: the counters column, the grouping of alerts by category, the « rows to show » setting. The « machines without usable SSH access » orange alert moves to « Missing ».
 
 ## v0.17.0 (2026-10-19)
