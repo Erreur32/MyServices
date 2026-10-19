@@ -11,8 +11,17 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.18.2 (2026-10-19)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Changed
 - **Settings › Requests**: the request counters of the connectors (0.18.1) are now a section of Settings on every build, measured in real conditions, with « Copy the reading » (JSON, to paste for analysis) and « Reset » (`POST /api/v1/connectors/requests/reset`, admin) buttons; the folded block under the connector cards and the one that sat under the network diagnostic are gone, and `GET /api/v1/connectors/requests` answers on a released image too (admin).
+- **A connector saved, turned on or off, or removed is read at once**: the running configuration is read again in place and the cached readings of the former set go; before, the readers, the machine sheets and the UniFi cards ignored a connector turned back on until a restart.
+- Home, « What changed since yesterday »: every row on one shared grid (mark and label, names, time aligned); History: the Events / Availability switch in the middle of the period row of both views, the three home sub-pages start at the same height; Network: the title line as tags; « To watch » at zero shows a green zero and stays shut; the collection step of the header orb is translated; a « Settings » entry in the account menu (admin).
+
+### Fixed
+- Two React warnings: whitespace text nodes before JSX comments inside table rows (Machines and others), duplicate uplink port choices on the UniFi cards.
 
 ## v0.18.1 (2026-10-19)
 
