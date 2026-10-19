@@ -1,21 +1,24 @@
-# Release notes: MyServices 0.17.0
+# Release notes: MyServices 0.18.0
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.17.0** (19 October 2026): one reader per connector, sortable meters, Connectors and Machines pages tidied.
+**0.18.0** (19 October 2026): the home page rebuilt around three blocks, History as a sub-tab of the home page.
 
 ## For everyone
 
 **What's new?**
-- **One reader per connector**: the server now reads each connector at its own pace and shares the result with the collection, the health check and the live view. A service is called once per period, not by three tasks in a row; a slow controller can be read every 10 minutes while Beszel is read every minute. Set the period in the connector's card (« Read every », minutes); the default is « Connector readings » in Settings → System (0 = off, every task reads by itself as before).
-- **Machines table**: the CPU, Memory, Disk and GPU columns sort; the percentages are smaller than the data; no more dot on the machine icon.
-- **Connectors page**: your connectors sit inside their own frame, two columns on wide screens; « Already read over SSH » is folded under the title.
-- **Seen by your tools, not followed here** now lives in Settings → Machines, where machines are added.
+- **Home page in three blocks**, first step of a larger tidy-up of the screens (watch / inventory / configure):
+  - **To deal with now**: every alert, red first, each with a button that opens the right tab already filtered on what the line talks about (« See the machine », « See the set »…). Eight lines, then « See all ».
+  - **What changed since yesterday**: the events of the last 24 hours, line by line (the hour chart stays in History).
+  - **Missing** (administrators): the sources that would unlock a page or a follow-up: machines online without agent or SSH, Backups / Network / DNS pages hidden for lack of a source, no notification channel. Each line leads to the setting that fixes it. Nothing mandatory.
+- The header line says how many machines, services and backup sets are followed.
+- **History** is now a sub-tab of the home page (« Overview / History »); the `#history` link still works.
+- Gone from the home page: the counters column on the right (the counts are in each tab), the grouping of alerts by category and the « rows to show » setting. The « machines without usable SSH access » orange alert is now a « Missing » line.
 
 **Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change in your compose file.
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.17.0` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit.
-- **Added**: `readers.py` (server loop, due connectors read in parallel into `connectors.json`); `connectors/base.py` `period()`, `status_of()`, `merge_state()`; connector field `every`; `components/UnlinkedDevices.tsx`.
-- **Changed**: `myservices.py`, `health.py` and `fast.py` reuse the shared reading (direct read kept as a fallback); `fast_every` is the default reader period.
+- **Image**: `ghcr.io/erreur32/myservices:0.18.0` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit.
+- **Added**: `lib/missing.ts` (the « Missing » rules), `components/Missing.tsx`; every `Attention` line carries `action` (button label) and `sel` (tab filter) or `href`.
+- **Removed**: `components/StatsColumn.tsx`, `components/AttentionGroups.tsx`, `groupAttention()` and `limitGroups()`; the `history` top tab (`OLD_TABS` maps `#history` to the home page).
