@@ -106,8 +106,9 @@ class Reseau(unittest.TestCase):
         from connectors import reqstats
         reqstats.reset()
         Fake.routes = {"/api/search/ip-details/192.168.1.20": (429, {"success": False, "error": {"code": "RATE_LIMITED", "message": "Too many requests for this API token"}}, {"Retry-After": "7"})}
+        c = inst(MynetworK, self.url)
         with self.assertRaises(RateLimited) as got:
-            inst(MynetworK, self.url).ip_details("192.168.1.20")   # optional routes swallow 403 / 404 / 503, never a 429
+            c.ip_details("192.168.1.20")   # optional routes swallow 403 / 404 / 503, never a 429
         self.assertEqual(got.exception.retry_after, 7)
         self.assertIn("Too many requests", str(got.exception))
         self.assertIsInstance(got.exception, ConnectorError)   # the callers that only know ConnectorError still catch it

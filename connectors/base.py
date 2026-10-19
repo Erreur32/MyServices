@@ -146,13 +146,7 @@ class Context:
             with urllib.request.urlopen(req, timeout=timeout or self.timeout, context=ctx) as r:
                 raw = r.read()
         except urllib.error.HTTPError as e:
-            msg = f"HTTP {e.code}{_api_message(e)}"
-            retry = _retry_after(e) if e.code == 429 else None
-            reqstats.record(self.owner, url, (time.monotonic() - t0) * 1000, e.code, msg, retry)
-            if e.code == 429:   # the service limits its calls: said in the log (without the URL: it may carry a secret; the route is in the counters), the caller waits
-                self.log(f"⚠ {self.owner or 'connecteur'} : HTTP 429 (trop d'appels), réessai dans {int(retry) if retry else '?'} s")
-                raise RateLimited(msg, retry) from None
-            raise ConnectorError(msg) from None
+            raise self._http_failed(url, t0, e) from None
         except (OSError, ValueError) as e:
             msg = f"injoignable ({getattr(e, 'reason', e)})"
             reqstats.record(self.owner, url, (time.monotonic() - t0) * 1000, None, msg)
@@ -162,6 +156,17 @@ class Context:
             return json.loads(raw or b"null")
         except ValueError:
             raise ConnectorError("réponse qui n'est pas du JSON") from None
+
+    def _http_failed(self, url: str, t0: float, e: urllib.error.HTTPError) -> ConnectorError:
+        """The error to raise for an HTTP answer in error, counted; a 429 (the service limits its calls) is a RateLimited with the delay
+        asked, said in the log without the URL (it may carry a secret: the route is in the counters)."""
+        msg = f"HTTP {e.code}{_api_message(e)}"
+        retry = _retry_after(e) if e.code == 429 else None
+        reqstats.record(self.owner, url, (time.monotonic() - t0) * 1000, e.code, msg, retry)
+        if e.code != 429:
+            return ConnectorError(msg)
+        self.log(f"⚠ {self.owner or 'connecteur'} : HTTP 429 (trop d'appels), réessai dans {int(retry) if retry else '?'} s")
+        return RateLimited(msg, retry)
 
     def ssh(self, alias: str, cmd: str, *, stdin: str | None = None, timeout: float | None = None) -> str:
         """Sortie de la commande sur la machine (BatchMode : jamais de mot de passe demandé). Alias « local »

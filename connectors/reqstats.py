@@ -83,6 +83,31 @@ def _type_of(owner: str) -> str:
     return owner.split("/", 1)[0]
 
 
+def _row_out(owner: str, route: str, r: dict, now: float) -> tuple[dict, dict | None]:
+    """(row, watch entry or None): the row of one route as the page shows it; to watch when near or over its known limit, or after a 429
+    in the last hour."""
+    per_min = _count(r["times"], now - MINUTE)
+    limit = ROUTE_LIMITS.get(_type_of(owner), {}).get(route)
+    recent_429 = r["n429"] > 0 and r["last_code"] == 429 and r["last_at"] is not None and now - r["last_at"] < HOUR
+    watch = bool((limit and per_min >= NEAR * limit) or recent_429)
+    row = {"owner": owner, "route": route, "per_min": per_min, "per_hour": _count(r["times"], now - HOUR), "total": r["total"], "hits": r["hits"],
+           "last_ms": r["last_ms"], "avg_ms": round(r["ms_sum"] / r["total"]) if r["total"] else None, "last_code": r["last_code"],
+           "n429": r["n429"], "retry_after": r["retry_after"], "last_error": r["last_error"], "last_at": r["last_at"], "limit": limit, "watch": watch}
+    entry = {"owner": owner, "route": route, "per_min": per_min, "limit": limit, "n429": r["n429"] if recent_429 else 0,
+             "retry_after": r["retry_after"] if recent_429 else None} if watch else None
+    return row, entry
+
+
+def _totals_watch(per_owner: dict[str, int]) -> list[dict]:
+    """The connectors near the total limit of their service (every route together)."""
+    out = []
+    for owner, n in per_owner.items():
+        total = TOTAL_LIMITS.get(_type_of(owner))
+        if total and n >= NEAR * total:
+            out.append({"owner": owner, "route": "*", "per_min": n, "limit": total, "n429": 0, "retry_after": None})
+    return out
+
+
 def snapshot(now: float | None = None) -> dict:
     """{"rows": [...], "watch": [...]}: one row per connector and route, and what is to watch (a route near or over a known limit,
     a 429 received during the last hour, a connector near its total limit)."""
@@ -90,24 +115,13 @@ def snapshot(now: float | None = None) -> dict:
     rows, watch, per_owner = [], [], {}
     with _lock:
         for (owner, route), r in sorted(_rows.items()):
-            per_min, per_hour = _count(r["times"], now - MINUTE), _count(r["times"], now - HOUR)
-            limit = ROUTE_LIMITS.get(_type_of(owner), {}).get(route)
-            recent_429 = r["n429"] > 0 and r["last_code"] == 429 and r["last_at"] is not None and now - r["last_at"] < HOUR
-            row = {"owner": owner, "route": route, "per_min": per_min, "per_hour": per_hour, "total": r["total"], "hits": r["hits"],
-                   "last_ms": r["last_ms"], "avg_ms": round(r["ms_sum"] / r["total"]) if r["total"] else None, "last_code": r["last_code"],
-                   "n429": r["n429"], "retry_after": r["retry_after"], "last_error": r["last_error"], "last_at": r["last_at"], "limit": limit,
-                   "watch": bool((limit and per_min >= NEAR * limit) or recent_429)}
+            row, entry = _row_out(owner, route, r, now)
             rows.append(row)
             if not route.startswith("cache:"):
-                per_owner[owner] = per_owner.get(owner, 0) + per_min
-            if row["watch"]:
-                watch.append({"owner": owner, "route": route, "per_min": per_min, "limit": limit, "n429": r["n429"] if recent_429 else 0,
-                              "retry_after": r["retry_after"] if recent_429 else None})
-    for owner, n in per_owner.items():
-        total = TOTAL_LIMITS.get(_type_of(owner))
-        if total and n >= NEAR * total:
-            watch.append({"owner": owner, "route": "*", "per_min": n, "limit": total, "n429": 0, "retry_after": None})
-    return {"rows": rows, "watch": watch, "at": now}
+                per_owner[owner] = per_owner.get(owner, 0) + row["per_min"]
+            if entry:
+                watch.append(entry)
+    return {"rows": rows, "watch": watch + _totals_watch(per_owner), "at": now}
 
 
 def reset() -> None:

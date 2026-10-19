@@ -105,24 +105,39 @@ def _details(c, followed: list[str], old: dict, now: float, every: float) -> dic
     read_at = {ip: t for ip, t in (old.get("details_read") or {}).items() if ip in followed}
     keep = {"details": details, "details_at": old.get("details_at"), "details_read": read_at, "details_wait": old.get("details_wait")}
     due = [ip for ip in followed if now - (read_at.get(ip) or 0) >= every]
-    if not due or now < (old.get("details_wait") or 0) or (old.get("details_at") and now - old["details_at"] < PASS_GAP):
+    if not due or not _pass_due(old, now):
         return keep
+    wait, closed = _read_sheets(c, due[:DETAILS_PER_PASS], details, read_at, now)
+    if closed:   # closed (or MynetworK too old): not asked for every address, nor before the next period
+        return {"details": {}, "details_at": now, "details_read": dict.fromkeys(followed, now), "details_wait": None}
+    keep.update(details_at=now, details_wait=wait)
+    return keep
+
+
+def _pass_due(old: dict, now: float) -> bool:
+    """No pass while the service asked to wait (429), nor less than PASS_GAP s after the previous one."""
+    if now < (old.get("details_wait") or 0):
+        return False
+    return not (old.get("details_at") and now - old["details_at"] < PASS_GAP)
+
+
+def _read_sheets(c, ips: list[str], details: dict, read_at: dict, now: float) -> tuple[float | None, bool]:
+    """Reads the sheets of `ips` into `details` (and their time into `read_at`): (time to wait until after a 429, route closed).
+    A plain error leaves the address for another time, with its last sheet."""
     got_one = bool(details)
-    for ip in due[:DETAILS_PER_PASS]:
+    for ip in ips:
         try:
             sheet = c.ip_details(ip)
         except RateLimited as e:
-            keep["details_wait"] = now + (e.retry_after or RETRY_DEFAULT)
-            break
+            return now + (e.retry_after or RETRY_DEFAULT), False
         except ConnectorError:
-            continue   # this address another time: its last sheet stays
+            continue
         read_at[ip] = now
-        if sheet is None and not got_one:   # closed (or MynetworK too old): not asked for every address, nor before the next period
-            return {"details": {}, "details_at": now, "details_read": {a: now for a in followed}, "details_wait": None}
+        if sheet is None and not got_one:
+            return None, True
         if sheet is not None:
             details[ip], got_one = compact_sheet(sheet), True
-    keep["details_at"] = now
-    return keep
+    return None, False
 
 
 def _guests(got: dict) -> dict:
