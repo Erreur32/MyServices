@@ -640,7 +640,6 @@ export interface SystemTask {
   name: string; label: string; at: string; default: string; fixed: boolean; enabled: boolean; running: boolean;
   started: number | null; ended: number | null; result: string | null; timeout_s: number;
   next?: number | null;  // prochain passage (epoch), null si coupée
-  switch?: boolean;     // la page propose un interrupteur pour allumer / couper la tâche (santé)
   why?: string | null;  // pourquoi la tâche est coupée et comment l'allumer
 }
 export interface SystemState {

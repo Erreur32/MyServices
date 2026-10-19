@@ -337,17 +337,10 @@ function TaskRow({ t, now, reload }: Readonly<{ t: SystemTask; now: number; relo
   const [at, setAt] = useState(t.at), [note, setNote] = useState<Note>(null);
   const parsed = parseAt(at), changed = at.trim() !== t.at, state = runState(t);
   const save = (spec: string, done: string) => void act(() => send("PUT", `system/tasks/${t.name}/schedule`, { at: spec }), done, setNote).then((ok) => { if (ok) { if (!spec) setAt(t.default); reload(); } });
-  const toggle = (on: boolean) => void act(() => send("PUT", "system/health", { enabled: on }), on ? tx("santé allumée : premier relevé en cours, puis la collecte (une minute environ)") : tx("santé coupée"), setNote).then((ok) => ok && reload());
   return (
     <li className={rowClass(state)}>
       <div className={`flex flex-wrap items-start gap-x-4 gap-y-2 ${ROW_COLS}`}>
         <TaskHead name={t.name} title={t.label} state={state} note={note}
-          extra={t.switch && (
-            <label className="inline-flex items-center gap-1.5 text-xs text-dim">
-              <Switch on={t.enabled} label={t.enabled ? tx("Couper la santé des machines") : tx("Allumer la santé des machines")} onChange={toggle} />
-              {t.enabled ? tx("allumée") : tx("coupée")}
-            </label>
-          )}
           about={<><span>{!t.enabled && t.why ? t.why : desc(t.name)}</span><AlsoFinds task={t.name} /></>}>
           {t.enabled && <LastRun t={t} />}
         </TaskHead>

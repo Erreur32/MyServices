@@ -58,7 +58,7 @@ DEFAULTS = {
     "smtp_host": "", "smtp_port": 587, "smtp_security": "starttls", "smtp_user": "", "smtp_password": "", "smtp_from": "",
     "page_url": "",                      # adresse de la page mise dans les liens des e-mails (jamais prise de la requête)
     # Page web : intégrations facultatives (vide = onglet ou lien masqué)
-    "health_url": "",                    # dossier health-watcher (stats.json, events.json, index) vu de la page
+    "health_url": "health/",             # santé intégrée (health.py) ; une autre URL = health-watcher externe (stats.json, events.json, index)
     "backups_url": "",                   # backups.json vu de la page : "backups.json" (backups.py) ou script externe
     "links": [],                         # liens ajoutés en tête et pied de page : [{"label": "…", "url": "…"}]
     "schedule": {},

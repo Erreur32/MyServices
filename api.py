@@ -1378,25 +1378,6 @@ def system_schedule(name: str, body: Schedule, request: Request):
     return {"ok": True, **out}
 
 
-class HealthSwitch(BaseModel):
-    enabled: bool
-
-
-@app.put(API + "/system/health", tags=["système"], summary="Allumer ou couper la santé des machines (admin)")
-def system_health(body: HealthSwitch, request: Request):
-    import system
-    if denied := admin_write(request):
-        return denied
-    try:
-        out = system.set_health(core, body.enabled)
-    except ValueError as e:
-        return deny(400, str(e))
-    store().audit("santé des machines " + ("allumée" if body.enabled else "coupée"), request.state.user["username"], ip_of(request))
-    if body.enabled:  # premier relevé tout de suite, puis collecte pour que l'onglet Santé apparaisse sans attendre l'horaire
-        core.run_chain(["health", "collect"], "Réglages → Tâches, santé allumée")
-    return {"ok": True, **out, "started": body.enabled}
-
-
 # ── Sauvegardes à suivre, décrites depuis la page (backups-meta.json) ──────────────────────────────
 
 def backups_call(request: Request, action: str, detail: str, fn, write: bool = True):

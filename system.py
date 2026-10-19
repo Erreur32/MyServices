@@ -75,14 +75,20 @@ def tasks(core) -> list[dict]:
 def _why_off(core, name: str) -> dict:
     """Pourquoi une tâche est coupée et comment l'allumer : `switch` = interrupteur proposé dans la page, `why` = explication."""
     if core.enabled(name):
-        return {"switch": name == "health", "why": None}
+        return {"switch": False, "why": None}
     if name == "health":
-        ext = core.CFG["health_url"] not in ("", "health/")
-        return {"switch": not ext, "why": ("Santé lue par un health-watcher externe (health_url dans config.json) : rien à faire ici."
-                                           if ext else "Coupée. Allumez-la pour lire disque, services, mises à jour et SMART des machines en SSH.")}
+        return {"switch": False, "why": "Santé lue par un health-watcher externe (health_url dans config.json) : rien à faire ici."}
     if name == "backups":
         return {"switch": False, "why": "Pas d'inventaire de sauvegardes (backups-meta.json) : rien à surveiller pour l'instant."}
     return {"switch": False, "why": "Aucune machine déclarée : la tâche démarre dès qu'il y en a une."}
+
+
+def set_backups_url(core, url: str) -> None:
+    """Active l'onglet Sauvegardes (backups_url = « backups.json », fichier de backups.py) dans config.json, appliqué aussitôt."""
+    def change(raw: dict) -> None:
+        raw["backups_url"] = url
+    _update_config(core, change)
+    core.CFG["backups_url"] = url
 
 
 def set_backups_url(core, url: str) -> None:

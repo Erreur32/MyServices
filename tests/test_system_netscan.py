@@ -111,29 +111,13 @@ class NetscanEvery(unittest.TestCase):
             system.set_netscan_ignored(self.core, "pas une ip")
 
 
-    def test_sante_allumee_puis_coupee(self):
-        self.core.CFG["health_url"] = ""
-        self.assertEqual(system.set_health(self.core, True), {"enabled": True})
-        self.assertEqual(self.raw()["health_url"], "health/")
-        self.assertEqual(self.core.CFG["health_url"], "health/")
-        system.set_health(self.core, False)
-        self.assertNotIn("health_url", self.raw())
-        self.assertEqual(self.core.CFG["health_url"], "")
-
-    def test_sante_externe_jamais_ecrasee(self):
-        self.core.CFG["health_url"] = "https://health.example/"
-        with self.assertRaises(ValueError):
-            system.set_health(self.core, True)
-        self.assertNotIn("health_url", self.raw())
-
     def test_pourquoi_une_tache_est_coupee(self):
-        core = types.SimpleNamespace(CFG={"health_url": ""}, enabled=lambda n: False)
-        self.assertTrue(system._why_off(core, "health")["switch"])
+        core = types.SimpleNamespace(CFG={"health_url": "https://x/"}, enabled=lambda n: False)
+        self.assertFalse(system._why_off(core, "health")["switch"])   # no switch any more: the integrated health is always on
+        self.assertIn("externe", system._why_off(core, "health")["why"])
         self.assertFalse(system._why_off(core, "backups")["switch"])
-        core.CFG["health_url"] = "https://x/"
-        self.assertFalse(system._why_off(core, "health")["switch"])
         core.enabled = lambda n: True
-        self.assertEqual(system._why_off(core, "health"), {"switch": True, "why": None})
+        self.assertEqual(system._why_off(core, "health"), {"switch": False, "why": None})
         self.assertEqual(system._why_off(core, "collect"), {"switch": False, "why": None})
 
 
