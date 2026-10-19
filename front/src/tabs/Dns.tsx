@@ -25,7 +25,7 @@ const TEXT: Record<RowTone, string> = { ok: "text-ok", warn: "text-warn", bad: "
 
 /** Card of the page header (synchronisation, one per AdGuard server): coloured strip with icon, title, address and state, then label/value rows
  *  in two aligned columns separated by thin lines. */
-function InfoCard({ icon, title, sub, tone, state, rows }: { icon: ReactNode; title: string; sub?: string; tone: "ok" | "warn" | "bad"; state: string; rows: Row[] }) {
+function InfoCard({ icon, title, sub, tone, state, rows }: { icon: ReactNode; title: string; sub?: string; tone: RowTone; state: string; rows: Row[] }) {
   const strip = "border-b border-line/60 bg-bg", frame = { ok: "border-line", warn: "border-warn/50", bad: "border-bad/50" }[tone];
   return (
     <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${frame}`}>
