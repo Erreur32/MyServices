@@ -35,7 +35,7 @@ FORBIDDEN = [
     "*/id_rsa*", "*/id_ed25519*", "*/id_ecdsa*", "authorized_keys", "*/authorized_keys", "known_hosts", "*/known_hosts",
     ".env", ".env.*", "*/.env", "*/.env.*", "*.sqlite", "*.sqlite3", "*.db", "*.db-wal", "*.db-shm",
     "dev-data/*", "*ADMIN-mot-de-passe*", "*.htpasswd", "npm-api.conf", "*/npm-api.conf",
-    "TODO.md", "PLAN.md", "TESTS.md", ".notes.git/*", "web/data.json", "web/events.json", "*.bundle", "*.tar.gz", "*.tgz", "*.zip",
+    "TODO.md", "PLAN.md", "TESTS.md", "BRIEF-*.md", ".notes.git/*", "web/data.json", "web/events.json", "*.bundle", "*.tar.gz", "*.tgz", "*.zip",
     # Test and dev instances: database, state, caches, SSH keys, config (never to be pushed)
     "MyServices-test/*", "*/MyServices-test/*", "*composetest*", "myservices.db*", "*/myservices.db*",
     "data/*", "config/*", "*/data/state/*", "*/data/cache/*", "*/data/web/*", "*/config/ssh/*",

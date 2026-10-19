@@ -13,6 +13,7 @@ web/backups.json
 TODO.md
 PLAN.md
 TESTS.md
+BRIEF-*.md
 .notes.git/
 # v2 Docker : volumes de test locaux (/config, /data) ; jamais versionnés (secrets, clés SSH)
 dev-data/
