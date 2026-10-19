@@ -31,6 +31,7 @@ import { hardwareRows } from "../lib/hardware";
 import { tx } from "../lib/i18n";
 import { InfoNote } from "../components/InfoNote";
 import { AddMachine } from "../components/AddMachine";
+import { UnlinkedDevices } from "../components/UnlinkedDevices";
 
 const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
   { k: "off", label: tx("Souvent éteinte"), help: tx("PC, portable : pas d'alerte si elle ne répond pas") },
@@ -127,6 +128,7 @@ export function MachinesSettings({ snap, focusIp, focusTab }: Readonly<{ snap: S
           return <MachineRow key={ip} agent={agents[ip]} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} focusTab={ip === focusIp ? focusTab : undefined} onAgent={loadAgents} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} network={snap.data.network} />;
         })}
       </div>
+      <UnlinkedDevices snap={snap} onFollowed={reload} />
       <AgentsOverview machines={st.machines} />
     </div>
   );

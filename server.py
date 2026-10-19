@@ -283,16 +283,18 @@ def pulse_loop() -> None:
 
 
 def fast_loop() -> None:
-    """Light reads of the connectors every `fast_every` s (live.json): the page and the watcher need not wait for the 30 min collection."""
-    last = {}
+    """One reader per connector (readers.py): every few seconds the connectors that are due are read, their readings go to the shared
+    state, and live.json is derived from it for the page. `fast_every` (Settings → System) is the default period, 0 = off."""
+    import readers
+    last: dict = {}
     while True:
-        t0, every = time.time(), CFG["fast_every"]
+        t0 = time.time()
         try:
-            if every > 0 and enabled("collect"):
-                last = fast.refresh(CFG, WEB / "live.json", pulse_ips(), last)
+            if readers.on(CFG) and enabled("collect"):
+                last = readers.cycle(CFG, Path(CFG["state_dir"]) / "connectors.json", WEB / "live.json", pulse_ips(), last, log)
         except Exception as e:  # a bug here must not stop the loop
-            log(f"⚠ connecteurs rapides : {e}")
-        time.sleep(max(5.0, (every or 30) - (time.time() - t0)))
+            log(f"⚠ lecteurs de connecteurs : {e}")
+        time.sleep(max(5.0, READERS_TICK - (time.time() - t0)))
 
 
 def keep_availability() -> None:
@@ -556,6 +558,7 @@ def wake_check() -> None:
             run_chain(["collect"], why)
 
 
+READERS_TICK = 10   # s, between two looks at which connectors are due
 SCHED_BEAT = {"ts": None}   # last turn of the scheduler loop: the tasks page shows whether the schedule is alive
 
 

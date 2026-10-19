@@ -1,18 +1,21 @@
-# Release notes: MyServices 0.16.1
+# Release notes: MyServices 0.17.0
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.16.1** (18 October 2026): the backup attention points and their settings are linked both ways.
+**0.17.0** (19 October 2026): one reader per connector, sortable meters, Connectors and Machines pages tidied.
 
 ## For everyone
 
 **What's new?**
-- **From an attention point to its setting**: in the Backups tab, each attention point about a followed set has a small gear that opens Settings → Backups on that very set, unfolded and framed.
-- **From the settings to the attention points**: a followed set listed in the attention points shows a badge with its level (late, critical, unreachable) and the reasons in the tooltip; its source row shows the same badge, and the heading counts the sets to check. Attention points about a machine (full disk, unreachable, Syncthing) stay in the Backups tab, where there is nothing to set.
+- **One reader per connector**: the server now reads each connector at its own pace and shares the result with the collection, the health check and the live view. A service is called once per period, not by three tasks in a row; a slow controller can be read every 10 minutes while Beszel is read every minute. Set the period in the connector's card (« Read every », minutes); the default is « Connector readings » in Settings → System (0 = off, every task reads by itself as before).
+- **Machines table**: the CPU, Memory, Disk and GPU columns sort; the percentages are smaller than the data; no more dot on the machine icon.
+- **Connectors page**: your connectors sit inside their own frame, two columns on wide screens; « Already read over SSH » is folded under the title.
+- **Seen by your tools, not followed here** now lives in Settings → Machines, where machines are added.
 
 **Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change in your compose file.
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.16.1` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit.
-- **Changed**: `backups.json` issues carry `set_id` (followed set) or `host_id` (machine); front `BackupsSettings` takes `issues` from the snapshot, opens `#settings/backups/<set id>` on the set; `IssueBadge` on sets and sources.
+- **Image**: `ghcr.io/erreur32/myservices:0.17.0` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit.
+- **Added**: `readers.py` (server loop, due connectors read in parallel into `connectors.json`); `connectors/base.py` `period()`, `status_of()`, `merge_state()`; connector field `every`; `components/UnlinkedDevices.tsx`.
+- **Changed**: `myservices.py`, `health.py` and `fast.py` reuse the shared reading (direct read kept as a fallback); `fast_every` is the default reader period.

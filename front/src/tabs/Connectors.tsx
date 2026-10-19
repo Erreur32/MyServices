@@ -66,7 +66,29 @@ export function Connectors({ snap }: { snap: Snapshot }) {
             {picking ? <X size={14} /> : <Plus size={14} />}{picking ? tx("Fermer") : tx("Ajouter un connecteur")}
           </button>
         </div>
-        <InfoNote className="mt-1">{tx("Un connecteur lit par son API, en lecture seule, les services d'un outil que vous utilisez déjà (Nginx Proxy Manager, AdGuard Home, Beszel…) : une clé ou un compte sans droit de modification suffit.")}</InfoNote>
+        {bySsh.length > 0 && (   // folded by default, in place of the former explanation: what SSH already reads needs no connector
+          <details className={`mt-3 ${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
+            <summary className={FOLD_HEAD}>
+              <ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
+              <Plug size={16} aria-hidden />{tx("Déjà lus par SSH")} <Count n={bySsh.length} />
+              <span className="font-normal text-muted">{tx("rien à ajouter pour eux")}</span>
+            </summary>
+            <InfoNote className="mt-1">{tx("Trouvés sur une machine suivie et lus par SSH (AdGuard, Proxmox, ESXi, KVM…) : inutile de les ajouter ici. Un connecteur n'apporte quelque chose que s'il lit une API que SSH ne voit pas.")}</InfoNote>
+            <ul className="mt-2 flex flex-col divide-y divide-line/60">
+              {bySsh.map((o) => {
+                const label = st.types.find((t) => t.type === o.type)?.label ?? o.label ?? o.type, icon = appIcon([label]);
+                return (
+                  <li key={`${o.type}/${o.name}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 text-sm">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">{icon ? <img src={icon} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}</span>
+                    <b>{label}</b><Dim>· {o.name}</Dim><Badge tone="off">SSH</Badge>
+                    <span className="ml-auto"><StatusLine s={o} collect={collect} /></span>
+                    <a href="#settings/machines" className="text-xs text-link hover:underline">{tx("Réglages → Machines")}</a>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+        )}
         {picking && (
           <label className="mt-3 flex max-w-md items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-2 focus-within:border-link">
             <Search size={16} className="text-dim" aria-hidden />
@@ -100,32 +122,31 @@ export function Connectors({ snap }: { snap: Snapshot }) {
           </ul>
         )}
         {type && <ConnectorForm key={type.type} type={type} hosts={snap.data.hosts} prefill={prefill?.type === type.type ? prefill : null} onSaved={reload} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
+        {st.instances.length === 0 && !type && (
+          <p className="mt-3 text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p>
+        )}
+        {st.instances.length > 0 && <div className="mt-3 grid gap-3 lg:grid-cols-2">   {/* my connectors, two columns on wide screens; a card being edited or pointed at takes the row */}
+        {[...st.instances].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name)).map((i) => (   // alphabetical, like the picker
+          <InstanceCard key={`${i.type}/${i.name}`} inst={i} hosts={snap.data.hosts} collect={collect} type={st.types.find((t) => t.type === i.type)!} reload={reload}
+            toggling={toggling === `${i.type}/${i.name}`} toggleNote={srcKey === `${i.type}/${i.name}` ? srcNote : null} onForce={() => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: true, force: true }),
+              tx("allumé sans test : relecture lancée"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
+            onCollect={(on) => { setSrcKey(`${i.type}/${i.name}`); setSrcNote(null); setToggling(`${i.type}/${i.name}`); void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
+              on ? tx("allumé : relecture lancée") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { setToggling(""); if (ok) { setChanged(true); reload(); } }); }}
+            focus={focusKey === `${i.type}/${i.name}`} editing={editing === `${i.type}/${i.name}`} locked={(!!editing && editing !== `${i.type}/${i.name}`) || picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
+        ))}
+        {changed && (
+          <div className="lg:col-span-full flex flex-wrap items-center gap-2 rounded-xl border border-line bg-bg2/40 px-4 py-3 text-sm text-muted">
+            {tx("Pris en compte à la prochaine collecte.")}
+            <button type="button" className={primary}
+              onClick={() => void act(() => send("POST", "system/tasks/collect/run"), tx("collecte lancée : la page se met à jour à la fin"), setSrcNote)}>
+              {tx("Lancer la collecte maintenant")}
+            </button>
+          </div>
+        )}
+        </div>}
       </Card>
       <DetectedServices apps={(snap.data.detected_apps ?? []).filter((p) => !saved.includes(discoveryId(p)))} instances={st.instances} types={st.types}
         machines={snap.data.machine_list} dockerOk={new Set((snap.data.connectors ?? []).filter((c) => c.type === "docker" && c.ok && c.ip).map((c) => c.ip!))} onOpen={setOverlay} />
-      {bySsh.length > 0 && (   // folded by default, like the detected services above
-        <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
-          <summary className={FOLD_HEAD}>
-            <ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
-            <Plug size={16} aria-hidden />{tx("Déjà lus par SSH")} <Count n={bySsh.length} />
-            <span className="font-normal text-muted">{tx("rien à ajouter pour eux")}</span>
-          </summary>
-          <InfoNote className="mt-1">{tx("Trouvés sur une machine suivie et lus par SSH (AdGuard, Proxmox, ESXi, KVM…) : inutile de les ajouter ici. Un connecteur n'apporte quelque chose que s'il lit une API que SSH ne voit pas.")}</InfoNote>
-          <ul className="mt-2 flex flex-col divide-y divide-line/60">
-            {bySsh.map((o) => {
-              const label = st.types.find((t) => t.type === o.type)?.label ?? o.label ?? o.type, icon = appIcon([label]);
-              return (
-                <li key={`${o.type}/${o.name}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 text-sm">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">{icon ? <img src={icon} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}</span>
-                  <b>{label}</b><Dim>· {o.name}</Dim><Badge tone="off">SSH</Badge>
-                  <span className="ml-auto"><StatusLine s={o} collect={collect} /></span>
-                  <a href="#settings/machines" className="text-xs text-link hover:underline">{tx("Réglages → Machines")}</a>
-                </li>
-              );
-            })}
-          </ul>
-        </details>
-      )}
       {overlay && st.types.find((t) => t.type === overlay.connector) && (
         <Overlay title={<>{appIcon([overlay.label]) && <img src={appIcon([overlay.label])!} alt="" className="h-6 w-6" />}{tx("Activer")} {overlay.label} <Dim>· {overlay.machine || overlay.ip}</Dim></>} onClose={() => setOverlay(null)}>
           <ConnectorForm key={overlay.connector} type={st.types.find((t) => t.type === overlay.connector)!} prefill={{ type: overlay.connector, name: overlay.connector, url: overlay.url }}
@@ -133,26 +154,6 @@ export function Connectors({ snap }: { snap: Snapshot }) {
             onSaved={() => { setSaved((x) => [...x, discoveryId(overlay)]); reload(); }}
             onDone={() => { setOverlay(null); reload(); }} onCancel={() => setOverlay(null)} />
         </Overlay>
-      )}
-      {st.instances.length === 0 && !type && (
-        <Card><p className="text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p></Card>
-      )}
-      {[...st.instances].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name)).map((i) => (   // alphabetical, like the picker
-        <InstanceCard key={`${i.type}/${i.name}`} inst={i} hosts={snap.data.hosts} collect={collect} type={st.types.find((t) => t.type === i.type)!} reload={reload}
-          toggling={toggling === `${i.type}/${i.name}`} toggleNote={srcKey === `${i.type}/${i.name}` ? srcNote : null} onForce={() => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: true, force: true }),
-            tx("allumé sans test : relecture lancée"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
-          onCollect={(on) => { setSrcKey(`${i.type}/${i.name}`); setSrcNote(null); setToggling(`${i.type}/${i.name}`); void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
-            on ? tx("allumé : relecture lancée") : tx("coupé : réglages gardés, plus rien de lu"), setSrcNote).then((ok) => { setToggling(""); if (ok) { setChanged(true); reload(); } }); }}
-          focus={focusKey === `${i.type}/${i.name}`} editing={editing === `${i.type}/${i.name}`} locked={(!!editing && editing !== `${i.type}/${i.name}`) || picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
-      ))}
-      {changed && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-bg2/40 px-4 py-3 text-sm text-muted">
-          {tx("Pris en compte à la prochaine collecte.")}
-          <button type="button" className={primary}
-            onClick={() => void act(() => send("POST", "system/tasks/collect/run"), tx("collecte lancée : la page se met à jour à la fin"), setSrcNote)}>
-            {tx("Lancer la collecte maintenant")}
-          </button>
-        </div>
       )}
 
 
@@ -346,7 +347,7 @@ function InstanceCard({ inst, hosts, collect, type, reload, onCollect, toggling,
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) box.current?.scrollIntoView({ block: "center" }); }, [focus]);
   return (
-    <div ref={box} id={`connector-${inst.type}-${inst.name}`} className="scroll-mt-24"><Card className={`${inst.enabled ? "" : "opacity-80"} ${edit || focus ? "!border-link ring-2 ring-link bg-link/10" : "!border-dim/50"}`}>
+    <div ref={box} id={`connector-${inst.type}-${inst.name}`} className={`scroll-mt-24 ${edit || focus ? "lg:col-span-full" : ""}`}><Card className={`h-full !bg-bg2 ${inst.enabled ? "" : "opacity-80"} ${edit || focus ? "!border-link ring-2 ring-link bg-link/10" : "!border-dim/50"}`}>
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         <div className="min-w-[220px] flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -377,8 +378,9 @@ function InstanceCard({ inst, hosts, collect, type, reload, onCollect, toggling,
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
         {inst.enabled ? <StatusLine s={inst.status} collect={collect} /> : <Badge tone="off">{tx("collecte coupée")}</Badge>}
+        {inst.enabled && typeof inst.config.every === "number" && inst.config.every > 0 && <span className="text-xs text-dim" title={tx("Période de lecture propre à ce connecteur")}>· {tx("toutes les {0} min", inst.config.every)}</span>}
         <div className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted">
-          <span className="flex items-center gap-2" title={tx("Le connecteur est lu à chaque collecte ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
+          <span className="flex items-center gap-2" title={tx("Le connecteur est lu par le serveur à sa période (voir Modifier) ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
             <Switch on={inst.enabled} disabled={toggling} label={`${tx("Collecte")} ${inst.label} : ${inst.enabled ? tx("coupé") : tx("activé")}`} onChange={onCollect} />{tx("Collecte")}
             {toggling && <output className="inline-flex items-center gap-1.5 text-xs text-warn"><Loader2 size={13} className="animate-spin" aria-hidden />{tx("Test de la connexion en cours, cela peut durer une minute…")}</output>}
           </span>

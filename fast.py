@@ -1,25 +1,22 @@
-"""Fast tier: the light, read-only calls of the connectors, made every few minutes (the full collection stays at 30 min).
+"""Live tier: <web_dir>/live.json, the light picture the page puts over data.json between two collections, now derived from the
+shared readings of the server's readers (readers.py), never from calls of its own:
 
-  MynetworK  the scanner inventory (one call): status, ping, open ports and the date of their last scan
+  MynetworK  the scanner inventory (status, ping, open ports and the date of their last scan) from the last full reading
              + the detail sheet of each followed address (one call each, every `details_every` s), once MynetworK lets API tokens read it
-  Proxmox    guests and nodes by API token (hosts read by SSH are left to the collection: no extra SSH)
-  Beszel     the status (up / down / paused) of each system, matched to the followed machines: one light call
+  Proxmox    guests and nodes from the last reading
+  Beszel     the status (up / down / paused) of each system, matched to the followed machines
 
-The result goes to <web_dir>/live.json with the time of each reading; the page puts it over data.json, a value older than its limit
-is shown as such instead of as fresh.
+Each source carries the time of its reading; the page shows a value older than its limit as such instead of as fresh.
 """
 from __future__ import annotations
 
 import json
-from concurrent.futures import ThreadPoolExecutor
 import time
 from pathlib import Path
 
-import connectors
 from connectors.base import ConnectorError
 from connectors.mynetwork import compact_sheet
 
-VERSION_EVERY = 6 * 3600   # s, between two version readings of a light-read connector
 PORTS_MAX_AGE = 3600   # s, a port list older than this is called old (its scan date, not the time we read it)
 
 
@@ -30,19 +27,16 @@ def _try(fn):
         return None, str(e)
 
 
-def refresh(cfg: dict, path: Path, followed: list[str], prev: dict | None = None, details_every: float = 900, now: float | None = None) -> dict:
-    """Reads the fast connectors once and writes `path`; a source that fails keeps its last reading, marked not ok."""
+def refresh(cfg: dict, path: Path, followed: list[str], state: dict, insts: list, prev: dict | None = None, details_every: float = 900, now: float | None = None) -> dict:
+    """Writes `path` from the shared state of `insts` (the instances the readers handle); a source that failed keeps its last reading, marked not ok."""
     now = time.time() if now is None else now
     prev = prev or {}
     sources: dict[str, dict] = {}
-    try:
-        insts = connectors.instances(cfg, kind="network") + connectors.instances(cfg, kind="virtualization") + connectors.instances(cfg, kind="health")
-    except ConnectorError:
-        insts = []
-    with ThreadPoolExecutor(min(8, len(insts) or 1)) as ex:   # every source at once: one slow controller does not hold the others
-        for key, cur in ex.map(lambda c: _read_one(c, cfg, followed, (prev.get("sources") or {}).get(f"{c.type}/{c.name}", {}), now, details_every), insts):
-            if cur is not None:
-                sources[key] = cur
+    for c in insts:
+        key = f"{c.type}/{c.name}"
+        cur = _from_state(c, cfg, state.get(key) or {}, followed, (prev.get("sources") or {}).get(key, {}), now, details_every)
+        if cur is not None:
+            sources[key] = cur
     doc = {"ts": now, "sources": sources}
     tmp = path.with_suffix(".tmp")
     try:
@@ -53,31 +47,35 @@ def refresh(cfg: dict, path: Path, followed: list[str], prev: dict | None = None
     return doc
 
 
-def _read_one(c, cfg: dict, followed: list[str], old: dict, now: float, details_every: float) -> tuple[str, dict | None]:
-    """One light reading of a fast connector: (key, its live entry), or (key, None) for a type without a light reading."""
-    key = f"{c.type}/{c.name}"
-    cur = None
+def _from_state(c, cfg: dict, entry: dict, followed: list[str], old: dict, now: float, details_every: float) -> dict | None:
+    """One live entry built from the shared reading of a connector, or None for a type without a light picture or never read.
+    Not ok: the last good picture stays, with the error of the last attempt."""
+    if c.type not in ("mynetwork", "beszel", "proxmox") or "tried" not in entry:
+        return None
+    ok = bool(entry.get("ok"))
+    last = entry.get("last") if ok else None
+    cur = {"at": entry.get("at") or entry.get("tried"), "ok": ok, "error": "" if ok else str(entry.get("message") or "")}
     if c.type == "mynetwork":
-        devices, err = _try(c.scan)
-        cur = {"at": now, "ok": devices is not None, "error": err,
-               "devices": {d["ip"]: {k: d.get(k) for k in ("status", "ping_ms", "ports", "ports_at")} for d in devices} if devices is not None else old.get("devices", {})}
-        if devices is not None:
-            cur["details"], cur["details_at"] = _details(c, followed, old, now, details_every)
-        else:
-            cur["details"], cur["details_at"] = old.get("details", {}), old.get("details_at")
+        cur.update(_net_entry(c, last, followed, old, now, details_every))
     elif c.type == "beszel":
-        systems, err = _try(lambda c=c: c._records("systems"))
-        ver, ver_at = old.get("version"), old.get("version_at", 0)
-        if systems is not None and now - ver_at > VERSION_EVERY:   # the version changes rarely: asked again every few hours, not every reading
-            got, _ = _try(c.test)
-            ver, ver_at = (got.version if got else ver), now
-        cur = {"at": now, "ok": systems is not None, "error": err, "version": ver, "version_at": ver_at,
-               "total": len(systems) if systems is not None else old.get("total"),
-               "status": _beszel_by_ip(systems, cfg) if systems is not None else old.get("status", {})}
-    elif c.type == "proxmox":
-        got, err = _try(c.collect)
-        cur = {"at": now, "ok": got is not None, "error": err, **(_guests(got) if got else {k: old.get(k, {}) for k in ("guests", "nodes")})}
-    return key, cur
+        cur.update(_beszel_entry(cfg, entry, last, old))
+    else:
+        cur.update(_guests(last) if last else {k: old.get(k, {}) for k in ("guests", "nodes")})
+    return cur
+
+
+def _net_entry(c, last: dict | None, followed: list[str], old: dict, now: float, details_every: float) -> dict:
+    devices = (last or {}).get("devices")
+    out = {"devices": {d["ip"]: {k: d.get(k) for k in ("status", "ping_ms", "ports", "ports_at")} for d in devices if d.get("ip")} if isinstance(devices, list) else old.get("devices", {})}
+    out["details"], out["details_at"] = _details(c, followed, old, now, details_every) if last is not None else (old.get("details", {}), old.get("details_at"))
+    return out
+
+
+def _beszel_entry(cfg: dict, entry: dict, last: dict | None, old: dict) -> dict:
+    systems = (last or {}).get("systems")
+    return {"version": entry.get("version"), "version_at": entry.get("version_at"),
+            "total": len(systems) if isinstance(systems, list) else old.get("total"),
+            "status": _beszel_by_ip(systems, cfg) if isinstance(systems, list) else old.get("status", {})}
 
 
 def _beszel_by_ip(systems: list[dict], cfg: dict) -> dict:
