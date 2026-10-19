@@ -25,7 +25,7 @@ const TEXT: Record<RowTone, string> = { ok: "text-ok", warn: "text-warn", bad: "
 
 /** Card of the page header (synchronisation, one per AdGuard server): coloured strip with icon, title, address and state, then label/value rows
  *  in two aligned columns separated by thin lines. */
-function InfoCard({ icon, title, sub, tone, state, rows }: { icon: ReactNode; title: string; sub?: string; tone: RowTone; state: string; rows: Row[] }) {
+function InfoCard({ icon, title, sub, tone, state, rows }: Readonly<{ icon: ReactNode; title: string; sub?: string; tone: RowTone; state: string; rows: Row[] }>) {
   const strip = "border-b border-line/60 bg-bg", frame = { ok: "border-line", warn: "border-warn/50", bad: "border-bad/50" }[tone];
   return (
     <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${frame}`}>
@@ -79,7 +79,7 @@ function errorsText(s: { errors_24h?: number; errors_open?: number; last_error?:
 const MACHINE_STATE: Record<string, [Tone, string]> = { ok: ["ok", tx("résout vers la machine")], ailleurs: ["warn", tx("résout ailleurs")], absent: ["off", tx("pas de nom DNS")] };
 
 /** The four figures: resolution, DNS servers, sync, rewrites */
-function Figures({ g, fig, st, last }: Readonly<{ g: Dns; fig: DnsFigures; st: { cls: "ok" | "warn" | "bad"; label: string }; last: number | null }>) {
+function Figures({ g, fig, st, last }: Readonly<{ g: Dns; fig: DnsFigures; st: { cls: RowTone; label: string }; last: number | null }>) {
   let resTone: "ok" | "warn" | undefined;
   if (fig.domains) resTone = fig.domainsOk === fig.domains ? "ok" : "warn";
   let syncSub = tx("adguardhome-sync absent");
@@ -144,7 +144,7 @@ function ServerCard({ ip, v, origin }: Readonly<{ ip: string; v: Dns["servers"][
 }
 
 /** The synchronisation card (AdGuard instances) */
-function SyncCard({ g, st, last, content, diffCount }: Readonly<{ g: Dns; st: { cls: "ok" | "warn" | "bad"; label: string }; last: number | null; content: string; diffCount: number }>) {
+function SyncCard({ g, st, last, content, diffCount }: Readonly<{ g: Dns; st: { cls: RowTone; label: string }; last: number | null; content: string; diffCount: number }>) {
   const sync = Object.values(g.sync || {})[0];
   const name = (ip?: string) => (ip && g.servers[ip]?.name) || ip || "?";
   const rows: Row[] = sync
@@ -159,7 +159,7 @@ function SyncCard({ g, st, last, content, diffCount }: Readonly<{ g: Dns; st: { 
 }
 
 /** « See all »: the detail tables (AdGuard rewrites, NPM domains to check, machine names) */
-function AllTables({ g, hosts, lit, st, diff }: Readonly<{ g: Dns; hosts: Host[]; lit?: string; st: { cls: "ok" | "warn" | "bad" }; diff: Rewrite[] }>) {
+function AllTables({ g, hosts, lit, st, diff }: Readonly<{ g: Dns; hosts: Host[]; lit?: string; st: { cls: RowTone }; diff: Rewrite[] }>) {
   const sync = Object.values(g.sync || {})[0];
   const name = (ip?: string) => (ip && g.servers[ip]?.name) || ip || "?";
   const rows = hosts.filter((r) => r.dns && r.enabled && r.dns.issues.length);
