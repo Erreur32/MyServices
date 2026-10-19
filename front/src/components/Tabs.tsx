@@ -3,7 +3,7 @@ import type { Snapshot } from "../api";
 import type { TabId } from "../lib/summary";
 import { INVENTORY, TABS, UNRELEASED, visible } from "../lib/tabs";
 import { tx } from "../lib/i18n";
-import { DROP_ITEM, DROP_PANEL_LEFT, useDropdown } from "./Dropdown";
+import { DROP_ITEM, DROP_PANEL_TAB, useDropdown } from "./Dropdown";
 
 /** Menu « Inventaire ▾ » : les listes complètes (Infra, Virtualisation, DNS, Schémas), consultées moins souvent que les six onglets de la barre */
 function InventoryMenu({ snap, current, onSelect }: Readonly<{ snap: Snapshot; current: TabId; onSelect: (t: TabId) => void }>) {
@@ -12,7 +12,8 @@ function InventoryMenu({ snap, current, onSelect }: Readonly<{ snap: Snapshot; c
   if (items.length === 0) return null;
   const activeItem = items.find((t) => t.id === current);
   return (
-    <div ref={box} className="relative flex shrink-0 items-center border-l border-line pl-1">
+    <div ref={box} className="flex shrink-0 items-stretch border-l border-line pl-1">
+      <div className="relative flex items-center">   {/* the panel is placed against this box: the button's own edges */}
       <button type="button" onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open}
         className={`flex items-center gap-1.5 rounded-t-lg py-2.5 pl-3.5 pr-3.5 text-sm font-semibold transition-colors ${
           activeItem ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
@@ -21,7 +22,7 @@ function InventoryMenu({ snap, current, onSelect }: Readonly<{ snap: Snapshot; c
         <ChevronDown size={14} className={`text-dim transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
       </button>
       {open && (
-        <div role="menu" className={`${DROP_PANEL_LEFT} w-72 p-1.5`}>
+        <div role="menu" className={`${DROP_PANEL_TAB} w-72 p-1.5`}>
           {items.map((t) => (
             <button key={t.id} type="button" role="menuitem" onClick={() => { onSelect(t.id); setOpen(false); }}
               title={UNRELEASED.includes(t.id) ? tx("Pas encore publié : visible seulement sur ce serveur de développement") : undefined}
@@ -32,6 +33,7 @@ function InventoryMenu({ snap, current, onSelect }: Readonly<{ snap: Snapshot; c
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

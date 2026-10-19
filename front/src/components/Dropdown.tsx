@@ -1,11 +1,13 @@
 // Header dropdowns (account menu, bell): one behaviour and one look. Closes on a click elsewhere, Escape and a page change.
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
 
-const DROP_BASE = "absolute z-30 mt-2 overflow-hidden rounded-xl border border-line bg-card shadow-xl shadow-black/30";
+const DROP_BASE = "absolute top-full z-30 mt-2 overflow-hidden rounded-xl border border-line bg-card shadow-xl shadow-black/30";   // top-full: under the button, whatever the layout of its box
 /** Panel under its button, aligned on the right: same frame, shadow and layer for every header dropdown */
 export const DROP_PANEL = `${DROP_BASE} right-0`;
 /** Same panel, aligned on the left of its button (a button near the left edge, like the tab bar's Inventory menu) */
 export const DROP_PANEL_LEFT = `${DROP_BASE} left-0`;
+/** The tab bar's menu: right under the bar's bottom border, flush with the button's left edge */
+export const DROP_PANEL_TAB = `${DROP_BASE} left-0 !mt-px`;
 /** One line of a menu (button or link) */
 export const DROP_ITEM = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-muted transition-colors hover:bg-bg2 hover:text-txt focus-visible:bg-bg2 focus-visible:text-txt focus-visible:outline-none";
 
