@@ -122,10 +122,10 @@ export function Connectors({ snap }: { snap: Snapshot }) {
           </ul>
         )}
         {type && <ConnectorForm key={type.type} type={type} hosts={snap.data.hosts} prefill={prefill?.type === type.type ? prefill : null} onSaved={reload} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
-        {st.instances.length > 0 && <div className="mt-3 flex flex-col gap-3">   {/* the cards of my connectors, inside their own frame */}
         {st.instances.length === 0 && !type && (
           <p className="mt-3 text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p>
         )}
+        {st.instances.length > 0 && <div className="mt-3 grid gap-3 lg:grid-cols-2">   {/* my connectors, two columns on wide screens; a card being edited or pointed at takes the row */}
         {[...st.instances].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name)).map((i) => (   // alphabetical, like the picker
           <InstanceCard key={`${i.type}/${i.name}`} inst={i} hosts={snap.data.hosts} collect={collect} type={st.types.find((t) => t.type === i.type)!} reload={reload}
             toggling={toggling === `${i.type}/${i.name}`} toggleNote={srcKey === `${i.type}/${i.name}` ? srcNote : null} onForce={() => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: true, force: true }),
@@ -135,7 +135,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
             focus={focusKey === `${i.type}/${i.name}`} editing={editing === `${i.type}/${i.name}`} locked={(!!editing && editing !== `${i.type}/${i.name}`) || picking || !!adding} setEditing={(on) => setEditing(on ? `${i.type}/${i.name}` : "")} />
         ))}
         {changed && (
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-bg2/40 px-4 py-3 text-sm text-muted">
+          <div className="lg:col-span-full flex flex-wrap items-center gap-2 rounded-xl border border-line bg-bg2/40 px-4 py-3 text-sm text-muted">
             {tx("Pris en compte à la prochaine collecte.")}
             <button type="button" className={primary}
               onClick={() => void act(() => send("POST", "system/tasks/collect/run"), tx("collecte lancée : la page se met à jour à la fin"), setSrcNote)}>
@@ -347,7 +347,7 @@ function InstanceCard({ inst, hosts, collect, type, reload, onCollect, toggling,
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) box.current?.scrollIntoView({ block: "center" }); }, [focus]);
   return (
-    <div ref={box} id={`connector-${inst.type}-${inst.name}`} className="scroll-mt-24"><Card className={`${inst.enabled ? "" : "opacity-80"} ${edit || focus ? "!border-link ring-2 ring-link bg-link/10" : "!border-dim/50"}`}>
+    <div ref={box} id={`connector-${inst.type}-${inst.name}`} className={`scroll-mt-24 ${edit || focus ? "lg:col-span-full" : ""}`}><Card className={`h-full !bg-bg2 ${inst.enabled ? "" : "opacity-80"} ${edit || focus ? "!border-link ring-2 ring-link bg-link/10" : "!border-dim/50"}`}>
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         <div className="min-w-[220px] flex-1">
           <div className="flex flex-wrap items-center gap-2">
