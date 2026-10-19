@@ -17,7 +17,7 @@ import { dateTime, ipNum } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { FoldPanel } from "../components/FoldPanel";
 import { NewServices } from "../components/NewServices";
-import { ManualService, type ManualInitial } from "../components/ManualService";
+import { ManualActions, ManualService, type ManualInitial } from "../components/ManualService";
 import { StatTile } from "../components/StatTile";
 import { WatchPanel } from "../components/WatchPanel";
 import { quiet, worstTone } from "../lib/forms";
@@ -328,8 +328,8 @@ export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?:
       </FoldPanel>
       {opened && (
         <Overlay wide onClose={() => setOpenKey(null)} title={<><ServiceLogo r={opened} />{hostName(opened)} <Badge tone="off">{via(opened)}</Badge></>}>
-          <div className="mt-3"><ServiceDetail r={opened} admin={snap.me.role === "admin"}
-            onEdit={opened.manual && opened.ip && opened.port ? () => { setManual({ initial: { name: hostName(opened), ip: opened.ip!, port: opened.port!, scheme: opened.scheme ?? "http" } }); setOpenKey(null); } : undefined} /></div>
+          {admin && opened.manual && opened.ip && opened.port && <ManualActions r={opened} onEdit={() => { setManual({ initial: { name: hostName(opened), ip: opened.ip!, port: opened.port!, scheme: opened.scheme ?? "http" } }); setOpenKey(null); }} />}
+          <div className="mt-3"><ServiceDetail r={opened} admin={snap.me.role === "admin"} /></div>
         </Overlay>
       )}
       {manual && <ManualService machines={snap.data.machine_list.filter((m) => !m.disabled)} initial={manual.initial} onDone={() => setOpenKey(null)} onClose={() => setManual(null)} />}

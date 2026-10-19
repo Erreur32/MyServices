@@ -21,6 +21,16 @@ export function dnsFigures(g: Dns, hosts: Host[], at = Date.now()): DnsFigures {
     sync: dnsSync(g, at), rewrites: counts.length ? Math.max(...counts) : null, diff };
 }
 
+/** Rewrites to look at: differences between instances, orphans, invalid names (one row each) */
+function rewriteRows(g: Dns): DnsRow[] {
+  const out: DnsRow[] = [];
+  const diff = [...g.rewrites_diff, ...g.user_rules_diff].filter((x) => !x.waiting);
+  if (diff.length) out.push({ key: "diff", sev: "warn", area: tx("Réécritures"), title: tx("{0} différence(s) entre instances", diff.length), detail: diff.slice(0, 4).map((x) => x.rule ?? x.domain).join(", ") + (diff.length > 4 ? "…" : ""), anchor: "diff" });
+  if (g.orphans.length) out.push({ key: "orphans", sev: "warn", area: tx("Réécritures"), title: tx("{0} vers un host NPM inactif", g.orphans.length), detail: g.orphans.slice(0, 4).map((x) => x.domain).join(", ") + (g.orphans.length > 4 ? "…" : ""), anchor: "orphans" });
+  if (g.invalid?.length) out.push({ key: "invalid", sev: "warn", area: tx("Réécritures"), title: tx("{0} au nom invalide", g.invalid.length), detail: g.invalid.slice(0, 4).map((x) => x.domain).join(", "), anchor: "invalid" });
+  return out;
+}
+
 export function dnsWatch(g: Dns, hosts: Host[], at = Date.now()): DnsRow[] {
   const out: DnsRow[] = [];
   for (const [ip, s] of Object.entries(g.servers)) {
@@ -36,9 +46,6 @@ export function dnsWatch(g: Dns, hosts: Host[], at = Date.now()): DnsRow[] {
   }
   const elsewhere = (g.machines ?? []).filter((m) => m.state === "ailleurs");
   for (const m of elsewhere) out.push({ key: `m/${m.ip}`, sev: "warn", area: tx("Machine"), title: m.name, detail: tx("son nom résout vers {0}, pas vers {1}", m.answer.join(", "), m.ip), anchor: "machines" });
-  const diff = [...g.rewrites_diff, ...g.user_rules_diff].filter((x) => !x.waiting);
-  if (diff.length) out.push({ key: "diff", sev: "warn", area: tx("Réécritures"), title: tx("{0} différence(s) entre instances", diff.length), detail: diff.slice(0, 4).map((x) => x.rule ?? x.domain).join(", ") + (diff.length > 4 ? "…" : ""), anchor: "diff" });
-  if (g.orphans.length) out.push({ key: "orphans", sev: "warn", area: tx("Réécritures"), title: tx("{0} vers un host NPM inactif", g.orphans.length), detail: g.orphans.slice(0, 4).map((x) => x.domain).join(", ") + (g.orphans.length > 4 ? "…" : ""), anchor: "orphans" });
-  if (g.invalid?.length) out.push({ key: "invalid", sev: "warn", area: tx("Réécritures"), title: tx("{0} au nom invalide", g.invalid.length), detail: g.invalid.slice(0, 4).map((x) => x.domain).join(", "), anchor: "invalid" });
+  out.push(...rewriteRows(g));
   return out.sort((a, b) => Number(b.sev === "bad") - Number(a.sev === "bad"));
 }

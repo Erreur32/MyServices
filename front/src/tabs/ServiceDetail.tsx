@@ -1,9 +1,9 @@
 // Fiche d'un service (ligne dépliée) : identité, service, réseau & NPM.
-import { Pause, PenLine, Play, Trash2 } from "lucide-react";
+import { Pause, Play } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { send } from "../api";
 import { NoteLine } from "../components/form";
-import { act, danger, quiet, type Note } from "../lib/forms";
+import { act, quiet, type Note } from "../lib/forms";
 import { CHECK, KIND_NAME, checks, noIdentity } from "../lib/status";
 import type { Host } from "../types";
 import { tx } from "../lib/i18n";
@@ -53,26 +53,7 @@ function Paused({ r, admin }: { r: Host; admin: boolean }) {
   );
 }
 
-/** A service declared by hand: edit it (the « + Service » window) or stop following it, with a confirmation */
-function ManualActions({ r, onEdit }: Readonly<{ r: Host; onEdit?: () => void }>) {
-  const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null);
-  const remove = () => void act(() => send("DELETE", `services/manual/${r.ip}/${r.port}`), tx("service retiré : il disparaît au relevé en cours"), setNote).then((ok) => ok && setConfirm(false));
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-bg2/40 px-3 py-2 text-sm">
-      <span className="text-muted">{tx("Déclaré à la main : sondé à chaque relevé, jamais lu sur la machine.")}</span>
-      <span className="ml-auto flex flex-wrap gap-2">
-        {onEdit && <button type="button" className={`${quiet} py-1`} onClick={onEdit}><PenLine size={14} aria-hidden />{tx("Modifier")}</button>}
-        {confirm ? <>
-          <button type="button" className={`${danger} py-1`} onClick={remove}>{tx("Confirmer le retrait")}</button>
-          <button type="button" className={`${quiet} py-1`} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
-        </> : <button type="button" className={`${quiet} py-1`} onClick={() => setConfirm(true)}><Trash2 size={14} aria-hidden />{tx("Retirer")}</button>}
-      </span>
-      <NoteLine note={note} />
-    </div>
-  );
-}
-
-export function ServiceDetail({ r, admin = false, onEdit }: { r: Host; admin?: boolean; onEdit?: () => void }) {
+export function ServiceDetail({ r, admin = false }: { r: Host; admin?: boolean }) {
   const s = r.service, b = r.backend || {}, p = r.public || {};
   const npmOnly = r.type === "redirect" || r.type === "dead";
   const ck = checks(r);
@@ -124,7 +105,6 @@ export function ServiceDetail({ r, admin = false, onEdit }: { r: Host; admin?: b
   return (
     <>
     {r.paused && <Paused r={r} admin={admin} />}
-    {admin && r.manual && r.ip && r.port && <ManualActions r={r} onEdit={onEdit} />}
     <div className="grid gap-3 lg:grid-cols-3">
       <Block title={tx("Identité")} tone="link" rows={ident} />
       <Block title={tx("Service")} tone="violet" rows={svc} />

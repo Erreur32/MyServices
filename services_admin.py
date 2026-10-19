@@ -95,8 +95,7 @@ def try_service(ip: str, port, scheme: str = "http") -> dict:
     _, ip, port, scheme = _check("x", ip, port, scheme)
     t = time.monotonic()
     try:
-        with socket.create_connection((ip, port), timeout=TRY_TIMEOUT):
-            pass
+        socket.create_connection((ip, port), timeout=TRY_TIMEOUT).close()
     except OSError as e:
         return {"up": False, "ms": None, "web": None, "title": None, "code": None, "error": type(e).__name__}
     out = {"up": True, "ms": round((time.monotonic() - t) * 1000), "web": None, "title": None, "code": None, "error": None}
@@ -110,7 +109,7 @@ def try_service(ip: str, port, scheme: str = "http") -> dict:
             code, body = r.status, r.read(65536)
     except urllib.error.HTTPError as e:
         code, body = e.code, e.read(65536) if e.fp else b""
-    except (urllib.error.URLError, OSError, ValueError) as e:
+    except (OSError, ValueError) as e:   # URLError is an OSError
         out["error"] = type(getattr(e, "reason", e)).__name__
         return out
     m = TITLE_RE.search(body)

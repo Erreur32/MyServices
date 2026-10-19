@@ -2922,4 +2922,5 @@ export const EN: Record<string, string> = {
   "service modifié : relevé en cours": "service changed: reading in progress",
   "service retiré : il disparaît au relevé en cours": "service removed: it goes at the reading in progress",
   "Une machine suivie": "A followed machine",
+  "adresse IP": "IP address",
 };

@@ -23,11 +23,12 @@ class Base(unittest.TestCase):
         self.addCleanup(p.stop)
         self.addCleanup(self.tmp.cleanup)
 
-    def extra(self):
-        return json.loads(self.meta.read_text(encoding="utf-8"))["extra"]
 
 
 class Manual(Base):
+    def extra(self):
+        return json.loads(self.meta.read_text(encoding="utf-8"))["extra"]
+
     def test_list_add_edit_remove(self):
         self.assertEqual([x["name"] for x in sa.list_manual()], ["Imprimante"])
         self.assertEqual(sa.add(" NAS ", "10.0.0.7", "5000", "https"), {"name": "NAS", "ip": "10.0.0.7", "port": 5000, "scheme": "https"})
@@ -48,10 +49,8 @@ class Manual(Base):
 
     def test_try_closed_port_and_tcp_only(self):
         with mock.patch.object(sa.socket, "create_connection", side_effect=OSError("refused")):
-            self.assertEqual(sa.try_service("10.0.0.7", 9, "tcp")["up"], False)
-        with mock.patch.object(sa.socket, "create_connection") as cc:
-            cc.return_value.__enter__ = lambda s: s
-            cc.return_value.__exit__ = lambda *a: False
+            self.assertFalse(sa.try_service("10.0.0.7", 9, "tcp")["up"])
+        with mock.patch.object(sa.socket, "create_connection"):
             r = sa.try_service("10.0.0.7", 9, "tcp")
         self.assertTrue(r["up"])
         self.assertIsNone(r["web"])
