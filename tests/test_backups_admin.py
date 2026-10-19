@@ -150,6 +150,24 @@ class Seuil(Base):
         with self.assertRaises(ba.BackupError):
             ba.update_set(sid, label="  ")
 
+    def test_archive_attendu_et_dossier_modifiables(self):
+        ba.follow([self.item()])
+        s = ba.current()["sets"][0]
+        self.assertEqual((s["archived"], s["schedule"]), (False, ""))
+        ba.update_set(s["id"], archived=True, schedule=" lun. 01:30 ", path="/srv/save/")
+        s = ba.current()["sets"][0]
+        self.assertEqual((s["archived"], s["schedule"], s["path"]), (True, "lun. 01:30", "/srv/save"))
+        ba.update_set(s["id"], archived=False)
+        self.assertFalse(ba.current()["sets"][0]["archived"])
+        for bad in ({"schedule": "x" * 41}, {"path": "relative"}, {"path": "/a/../b"}, {"path": "/"}):
+            with self.assertRaises(ba.BackupError):
+                ba.update_set(s["id"], **bad)
+        meta = json.loads(self.meta.read_text(encoding="utf-8"))
+        meta["sets"].append({"id": "ha", "label": "HA", "origin": "ha", "max_age_days": 2, "locations": [{"host": "ha", "ha_backup": True}]})
+        self.meta.write_text(json.dumps(meta), encoding="utf-8")
+        with self.assertRaises(ba.BackupError):
+            ba.update_set("ha", path="/x")
+
 
 def time_ago(days):
     import time
