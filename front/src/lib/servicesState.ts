@@ -8,18 +8,23 @@ export interface ServicesFigures { total: number; withDomain: number; local: num
 /** Points to check that are not mere cleanup (an obsolete host, a paused one) */
 export const liveChecks = (r: Host): Check[] => checks(r).filter((k) => !CLEANUP.includes(k));
 
+const pushOnce = <T,>(list: T[], v: T) => { if (!list.includes(v)) list.push(v); };
+
+/** One service counted into the figures: its state and its points to check */
+function count(f: ServicesFigures, r: Host): void {
+  if (r.domains.length || r.vhost_domains?.length) f.withDomain++;
+  if (r.type === "local") f.local++;
+  const [cls, label] = status(r);
+  if (cls === "ok") f.ok++;
+  else if (cls === "bad") f.bad++;
+  else if (cls === "warn") { f.warn++; pushOnce(f.warnWhy, label); }
+  const ck = liveChecks(r);
+  if (ck.length) { f.toCheck++; for (const k of ck) pushOnce(f.checkWhy, k); }
+}
+
 export function figures(hosts: Host[]): ServicesFigures {
   const f: ServicesFigures = { total: hosts.length, withDomain: 0, local: 0, machines: new Set(hosts.map((r) => r.host_ip || r.ip || r.target_ip).filter(Boolean)).size, ok: 0, bad: 0, warn: 0, toCheck: 0, warnWhy: [], checkWhy: [] };
-  for (const r of hosts) {
-    if (r.domains.length || r.vhost_domains?.length) f.withDomain++;
-    if (r.type === "local") f.local++;
-    const [cls, label] = status(r);
-    if (cls === "ok") f.ok++;
-    else if (cls === "bad") f.bad++;
-    else if (cls === "warn") { f.warn++; if (!f.warnWhy.includes(label)) f.warnWhy.push(label); }
-    const ck = liveChecks(r);
-    if (ck.length) { f.toCheck++; for (const k of ck) if (!f.checkWhy.includes(k)) f.checkWhy.push(k); }
-  }
+  for (const r of hosts) count(f, r);
   return f;
 }
 

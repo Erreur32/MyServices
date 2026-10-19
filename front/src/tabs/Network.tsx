@@ -5,8 +5,8 @@
 import { Cable, ChevronDown, ChevronRight, LayoutDashboard, List, Monitor, Network as NetworkIcon, Router, Stethoscope, Wifi, type LucideIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
-import { dur } from "../lib/format";
 import { useFilter, useSort, type Facet } from "../lib/filter";
+import { dateTime, dur } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { NETWORK_CARDS, hasNetwork } from "../lib/network";
 import type { ServiceStatus } from "../types";
@@ -14,7 +14,6 @@ import { Badge, Cards, Count, Dim, Empty, FilterBar, Table, Td, Th } from "../co
 import { quiet, worstTone } from "../lib/forms";
 import { StatTile } from "../components/StatTile";
 import { WatchPanel } from "../components/WatchPanel";
-import { dateTime } from "../lib/format";
 import { Dot } from "../components/marks";
 import { ServiceCard } from "../components/ServiceStatusCards";
 import { NetworkDiagnostic } from "./NetworkDiagnostic";

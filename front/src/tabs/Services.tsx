@@ -6,7 +6,6 @@ import { ChevronDown, ChevronRight, ExternalLink, Layers, Server, Boxes } from "
 import { Fragment, useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
-import { ipNum } from "../lib/format";
 import { Dot, Logo } from "../components/marks";
 import { appIcon, serviceIcon } from "../lib/appIcons";
 import { CHECK, CLEANUP, KIND_NAME, checks, exposure, hostName, noIdentity, status, type Check } from "../lib/status";
@@ -14,8 +13,8 @@ import type { Host } from "../types";
 import { Badge, Cards, Dim, Empty, FilterBar, Table, Td, Th, type Tone } from "../components/ui";
 import { ServiceDetail } from "./ServiceDetail";
 import { Overlay } from "../components/Overlay";
+import { dateTime, ipNum } from "../lib/format";
 import { tx } from "../lib/i18n";
-import { dateTime } from "../lib/format";
 import { FoldPanel } from "../components/FoldPanel";
 import { NewServices } from "../components/NewServices";
 import { StatTile } from "../components/StatTile";
