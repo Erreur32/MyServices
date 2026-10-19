@@ -9,17 +9,21 @@ import { useStoredFlag } from "../lib/storedFlag";
 import { Badge } from "./ui";
 
 export function WatchPanel({ id, tone, count, hint, children }: Readonly<{ id: string; tone: "ok" | "warn" | "bad"; count: number; hint: string; children: ReactNode }>) {
-  const [folded, setFolded] = useStoredFlag(`myservices.watch.${id}.folded`, false);
+  const [stored, setFolded] = useStoredFlag(`myservices.watch.${id}.folded`, false);
+  const empty = count === 0;   // nothing to watch: a green zero, the frame stays shut (nothing to unfold), no alert colour
+  const folded = empty || stored, shown = empty ? "ok" : tone;
   const Chevron = folded ? ChevronDown : ChevronUp;
   return (
-    <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${WATCH_FRAME[tone]}`} aria-label={tx("À surveiller")}>
-      <div className={`flex flex-wrap items-center gap-3 bg-bg px-4 py-3 ${folded ? "" : "border-b border-line/60"} ${FOLD_HEADER}`} {...foldHeaderProps(() => setFolded(!folded))}>
+    <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${WATCH_FRAME[shown]}`} aria-label={tx("À surveiller")}>
+      <div className={`flex flex-wrap items-center gap-3 bg-bg px-4 py-3 ${folded ? "" : "border-b border-line/60"} ${empty ? "" : FOLD_HEADER}`} {...(empty ? {} : foldHeaderProps(() => setFolded(!stored)))}>
         <h2 className="font-bold">{tx("À surveiller")}</h2>
-        <Badge tone={tone}>{count}</Badge>
-        <span className="ml-auto text-xs text-dim">{hint}</span>
-        <button type="button" className="text-dim hover:text-txt" aria-expanded={!folded} onClick={() => setFolded(!folded)} title={folded ? tx("Déplier") : tx("Replier")}>
-          <Chevron size={18} aria-hidden />
-        </button>
+        <Badge tone={shown}>{count}</Badge>
+        <span className="ml-auto text-xs text-dim">{empty ? tx("rien à signaler") : hint}</span>
+        {!empty && (
+          <button type="button" className="text-dim hover:text-txt" aria-expanded={!folded} onClick={() => setFolded(!stored)} title={folded ? tx("Déplier") : tx("Replier")}>
+            <Chevron size={18} aria-hidden />
+          </button>
+        )}
       </div>
       {!folded && children}
     </section>

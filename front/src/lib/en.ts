@@ -2933,6 +2933,7 @@ export const EN: Record<string, string> = {
   "relevé copié": "reading copied",
   "Remet tous les compteurs à zéro (nouvelle mesure)": "Every counter back to zero (new measurement)",
   "Remettre à zéro": "Reset",
+  "relevé du {0}": "read on {0}",
   "Copie impossible ici : sélectionnez le tableau à la main": "Cannot copy here: select the table by hand",
   "429 reçu sur {0} ({1})": "429 received on {0} ({1})",
   "429 reçu sur {0} ({1}), réessai dans {2} s": "429 received on {0} ({1}), retry in {2} s",
