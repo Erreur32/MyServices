@@ -1,9 +1,9 @@
 // Réglages → Machines : équivalent graphique de « setup.py --add ». Détecter (IP, nom ou alias SSH : ping,
 // ports, SSH Linux / Windows, Docker, AdGuard, VM, services web, connecteurs reconnus), relire la proposition,
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
-// Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
-// machine est ici ; Connecteurs ne garde que les services lus par leur API.
-import { Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, Info, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+// Depuis la refonte (étape 3), les réglages de chaque machine sont dans sa page (#machines/<ip>, MachineModal en page) : ici restent
+// l'ajout, la redétection, la clé à autoriser, les appareils vus par les outils et les agents. Connecteurs ne garde que les services lus par leur API.
+import { Check, ChevronDown, ChevronRight, IdCard, Info, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Copyable, Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -53,21 +53,13 @@ function sshWho(st: State, alias: string): string {
   return a ? `${a.user ? `${a.user}@` : ""}${a.ip || a.host}${a.port ? `:${a.port}` : ""}` : alias;
 }
 
-export function MachinesSettings({ snap, focusIp, focusTab }: Readonly<{ snap: Snapshot; focusIp?: string; focusTab?: "access" }>) {
+export function MachinesSettings({ snap }: Readonly<{ snap: Snapshot }>) {
   const [st, setSt] = useState<State | null>(null);
   const [error, setError] = useState("");
   const [detecting, setDetecting] = useState(false);
   const [redetecting, setRedetecting] = useState(false);
-  // Système vu par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas (suggestion)
-  const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean; sshPort?: number }>>({});
-  const [hosts, setHosts] = useState<NetHost[]>([]);
   const [showAccess, setShowAccess] = useState(false);
-  const [agents, setAgents] = useState<Record<string, AgentInfo>>({});  // agent actif par IP
-  const loadAgents = useCallback(() => { read<{ agents: AgentInfo[] }>("agents").then((r) => setAgents(Object.fromEntries(r.agents.filter((a) => a.state !== "révoqué").map((a) => [a.ip, a])))).catch(() => undefined); }, []);
-  useEffect(loadAgents, [loadAgents]);
-  useEffect(() => { read<NetScan>("network/scan").then((n) => { setHosts(n.found || []); setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [], ssh: !!h.ssh_port, sshPort: h.ssh_port ?? undefined }]))); }).catch(() => undefined); }, []);
   const [accepted, setAccepted] = useState<{ gen: string; ips: string[] }>({ gen: "", ips: [] });
-  const [showOff, setShowOff] = useState(false);   // machines not followed: hidden, like in the Machines tab   // clés acceptées depuis le dernier passage : la carte se retire sans attendre le suivant
   const reload = useCallback(() => {
     read<State>("machines/settings")
       .then((s) => { setSt(s); setError(""); })
@@ -75,21 +67,8 @@ export function MachinesSettings({ snap, focusIp, focusTab }: Readonly<{ snap: S
   }, []);
   useEffect(reload, [reload]);
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
-  const live = new Map((snap.data.machine_list || []).map((m) => [m.ip, m]));
-  // « Non terminé » : accès encore à régler (SSH absent alors que la machine l'offre, jeton Home Assistant manquant). Ceux que l'on
-  // a fait « Passer » dans les premiers pas le sont forcément : on le dit aussi ici, pour ne pas les oublier.
-  let passed: string[] = [];
-  try { passed = JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]") as string[]; } catch { /* mémoire du navigateur illisible */ }
-  const asMachines = Object.entries(st.machines).map(([ip, c]) => ({ ip, ssh: c.ssh ?? (typeof c.health === "string" ? c.health : null) }));
-  const unfinished: Record<string, { why: "ha" | "ssh"; passed: boolean }> = {};
-  for (const h of hosts) {
-    if (!st.machines[h.ip] || st.machines[h.ip].disabled) continue;
-    const why = needsLink(h, asMachines, snap.data.services_status ?? []);
-    if (why) unfinished[h.ip] = { why, passed: passed.includes(h.ip) };
-  }
   const all = Object.keys(st.machines).sort((a, b) => ipNum(a) - ipNum(b));
   const nOff = all.filter((ip) => st.machines[ip].disabled).length;
-  const ips = showOff || (focusIp && st.machines[focusIp]?.disabled) ? all : all.filter((ip) => !st.machines[ip].disabled);
   // Machines dont la clé n'est pas autorisée : retrouvées par leur IP (le nom d'un connecteur est celui de la machine, pas son adresse) ; chacune a son compte SSH
   const machineOf = (c: Connector) => (c.ip ? st.machines[c.ip] : Object.values(st.machines).find((x) => x.name === c.name));
   const userOf = (c: Connector) => st.aliases.find((al) => al.alias === machineOf(c)?.ssh)?.user || "root";
@@ -111,24 +90,17 @@ export function MachinesSettings({ snap, focusIp, focusTab }: Readonly<{ snap: S
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => setShowAccess(!showAccess)} aria-pressed={showAccess} aria-label={tx("Accès aux machines")} title={tx("Accès aux machines : agent, SSH ou connecteur, lequel choisir")}
             className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-semibold ${showAccess ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:text-txt"}`}><Info size={12} aria-hidden />{tx("Accès")}</button>
-          {nOff > 0 && <button type="button" onClick={() => setShowOff(!showOff)} aria-pressed={showOff} title={tx("Machines dont « Machine suivie » est coupé : plus lues, cachées ici et dans l'onglet Machines")}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-semibold ${showOff ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:text-txt"}`}>
-            {showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}{tx("Non suivies")} ({nOff})</button>}
+          {nOff > 0 && <Dim>{tx("{0} non suivie(s)", nOff)}</Dim>}
         </div>
 
         {showAccess && <AccessGuide />}
         {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
         {detecting && <AddMachine st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
       </Card>
-      {/* Cartes compactes de hauteur fixe : les réglages s'ouvrent dans une fenêtre, rien ne se déplie ni ne déforme la grille */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {ips.map((ip) => {
-          const lm = live.get(ip);
-          // Un PC Windows n'a ni Docker ni services en écoute à lire : pas d'état de connecteur SSH Linux (reste d'un ancien relevé)
-          const stat = st.machines[ip].os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.ip ? c.ip === ip : c.name === ip || c.name === lm?.name));
-          return <MachineRow key={ip} agent={agents[ip]} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} focusTab={ip === focusIp ? focusTab : undefined} onAgent={loadAgents} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} network={snap.data.network} />;
-        })}
-      </div>
+      <Card>
+        <p className="text-sm text-muted">{tx("Chaque machine suivie a sa page dans l'onglet Machines : son état, sa santé et ses réglages (identité, options, accès) y sont réunis.")}</p>
+        <a href="#machines" className={`${quiet} mt-2 self-start no-underline`}><Server size={14} aria-hidden />{tx("Voir les machines")}</a>
+      </Card>
       <UnlinkedDevices snap={snap} onFollowed={reload} />
       <AgentsOverview machines={st.machines} />
     </div>
@@ -1228,6 +1200,12 @@ export function MachineModal({ ip, snap, onClose, inline, focusTab }: Readonly<{
   if (!st || !m) return null;
   const live = snap.data.machine_list.find((x) => x.ip === ip);
   const statuses = m.os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.ip ? c.ip === ip : c.name === ip || c.name === live?.name));
-  return <MachineRow bare={!inline} inline={inline} focusTab={focusTab} ip={ip} m={m} st={st} live={live} statuses={statuses} reload={reload} onClosed={onClose} onAgent={loadAgents} network={snap.data.network}
+  // « Non terminé » : accès encore à régler (SSH absent alors que la machine l'offre, jeton Home Assistant manquant) ; « passé » dans les premiers pas
+  const asMachines = Object.entries(st.machines).map(([i, c]) => ({ ip: i, ssh: c.ssh ?? (typeof c.health === "string" ? c.health : null) }));
+  const why = scan && !m.disabled ? needsLink(scan, asMachines, snap.data.services_status ?? []) : null;
+  let passed: string[] = [];
+  try { passed = JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]") as string[]; } catch { /* mémoire du navigateur illisible */ }
+  const unfinished = why ? { why, passed: passed.includes(ip) } : undefined;
+  return <MachineRow bare={!inline} inline={inline} focusTab={focusTab} unfinished={unfinished} ip={ip} m={m} st={st} live={live} statuses={statuses} reload={reload} onClosed={onClose} onAgent={loadAgents} network={snap.data.network}
     agent={agents.find((a) => a.ip === ip && a.state !== "révoqué")} scan={scan ? { os: scan.os ?? undefined, apps: scan.apps ?? [], ssh: !!scan.ssh_port, sshPort: scan.ssh_port ?? undefined } : undefined} />;
 }
