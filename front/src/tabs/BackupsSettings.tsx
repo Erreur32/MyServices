@@ -508,8 +508,8 @@ export function BackupsSettings({ machines = [], issues = [] }: { machines?: Mac
             <TagInput label={tx("Emplacements communs à toutes les machines")} value={extras} onChange={setExtra} max={800} placeholder={tx("ex. /srv/sauvegardes, /mnt/*/save*")} />
             <InfoNote className="mt-1">{tx("Un chemin absolu ; * permis (un motif). Entrée ou virgule pour en ajouter. Cherché sur chaque machine lue par SSH.")}</InfoNote>
             {(cur.ssh_machines ?? []).length > 0 && (
-              <div className="mt-3">
-                <b className="text-sm">{tx("Emplacements propres à une machine")}</b>
+              <details className="group mt-3">
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-semibold text-muted hover:text-txt [&::-webkit-details-marker]:hidden"><ChevronRight size={14} className="transition-transform group-open:rotate-90" aria-hidden />{tx("Avancé : emplacements propres à une machine")}</summary>
                 <InfoNote className="mb-2">{tx("Un dossier qui n'existe que sur une machine (ex. la sauvegarde de configuration d'un Proxmox) : il n'est cherché que là.")}</InfoNote>
                 <ul className="flex flex-col gap-2">
                   {(cur.ssh_machines ?? []).map((m) => (
@@ -522,7 +522,7 @@ export function BackupsSettings({ machines = [], issues = [] }: { machines?: Mac
                     </li>
                   ))}
                 </ul>
-              </div>
+              </details>
             )}
             {dirty && <button type="button" className={`${primary} mt-2`} disabled={busy} onClick={() => void savePatterns()}>{tx("Enregistrer les emplacements")}</button>}
           </section>
