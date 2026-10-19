@@ -1,4 +1,4 @@
-"""fast.py: the light connector reads written to live.json, a source that fails keeps its last reading.
+"""fast.py: live.json derived from the shared readings of the readers; a source that failed keeps its last picture.
 
   python3 -m unittest discover -s tests
 """
@@ -8,11 +8,9 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import fast  # noqa: E402
-from connectors.base import ConnectorError  # noqa: E402
 
 DEVICES = [{"ip": "10.0.0.2", "status": "online", "ping_ms": 0.4, "ports": [22, 445], "ports_at": "2026-10-17T22:04:57Z", "hostname": "x"}]
 
@@ -20,13 +18,8 @@ DEVICES = [{"ip": "10.0.0.2", "status": "online", "ping_ms": 0.4, "ports": [22, 
 class Net:
     type, name = "mynetwork", "mynetwork"
 
-    def __init__(self, devices=DEVICES, sheet=None):
-        self.devices, self.sheet, self.asked = devices, sheet, []
-
-    def scan(self):
-        if self.devices is None:
-            raise ConnectorError("HTTP 500")
-        return self.devices
+    def __init__(self, sheet=None):
+        self.sheet, self.asked = sheet, []
 
     def ip_details(self, ip):
         self.asked.append(ip)
@@ -36,44 +29,41 @@ class Net:
 class Pve:
     type, name = "proxmox", "pve"
 
-    def collect(self):
-        return {"guests": [{"node": "pve", "vmid": 101, "status": "running"}, {"node": "pve", "vmid": 102, "status": "stopped"}],
-                "nodes": [{"name": "pve", "online": True}]}
-
-
-def run(insts, prev=None, **kw):
-    with tempfile.TemporaryDirectory() as d, mock.patch.object(fast.connectors, "instances", side_effect=lambda cfg, kind=None, **_: [i for i in insts if (kind == "network") == (i.type == "mynetwork")]):
-        path = Path(d) / "live.json"
-        doc = fast.refresh({}, path, ["10.0.0.2"], prev, **kw)
-        assert json.loads(path.read_text(encoding="utf-8"))["sources"].keys() == doc["sources"].keys()
-        return doc
-
 
 class Bes:
     type, name = "beszel", "beszel"
 
-    def __init__(self):
-        self.tests = 0
 
-    def _records(self, _):
-        return [{"name": "a", "status": "up"}, {"name": "b", "status": "up"}]
+def entry(last, ok=True, at=1e6, message="OK", version=None):
+    """A shared state entry as run_isolated leaves it."""
+    e = {"ok": ok, "tried": at, "message": message, "version": version, "version_at": at}
+    if ok:
+        e.update(at=at, last=last)
+    elif last is not None:
+        e["last"] = last
+    return e
 
-    def test(self):
-        self.tests += 1
-        return mock.Mock(version="0.12.1")
+
+STATE = {"mynetwork/mynetwork": entry({"devices": DEVICES, "online": 1}),
+         "proxmox/pve": entry({"guests": [{"node": "pve", "vmid": 101, "status": "running"}, {"node": "pve", "vmid": 102, "status": "stopped"}], "nodes": [{"name": "pve", "online": True}]}),
+         "beszel/beszel": entry({"systems": [{"name": "a", "status": "up"}, {"name": "b", "status": "up"}]}, version="0.12.1")}
+
+
+def run(insts, prev=None, state=STATE, **kw):
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "live.json"
+        doc = fast.refresh({}, path, ["10.0.0.2"], state, insts, prev, **kw)
+        assert json.loads(path.read_text(encoding="utf-8"))["sources"].keys() == doc["sources"].keys()
+        return doc
 
 
 class Fast(unittest.TestCase):
-    def test_beszel_keeps_total_and_version_and_asks_the_version_rarely(self):
-        bes = Bes()
-        first = run([bes], now=1e6)
-        src = first["sources"]["beszel/beszel"]
-        self.assertEqual((src["total"], src["version"]), (2, "0.12.1"))
-        asked = bes.tests
-        run([bes], prev=first, now=1e6 + 100)
-        self.assertEqual(bes.tests, asked)   # the version is not asked again at the next reading
-        run([bes], prev=first, now=1e6 + fast.VERSION_EVERY + 1)
-        self.assertGreater(bes.tests, asked)
+    def test_beszel_total_and_version_from_the_shared_reading(self):
+        src = run([Bes()])["sources"]["beszel/beszel"]
+        self.assertEqual((src["total"], src["version"], src["ok"], src["at"]), (2, "0.12.1", True, 1e6))
+
+    def test_never_read_gives_no_entry(self):
+        self.assertEqual(run([Net(), Pve(), Bes()], state={})["sources"], {})
 
     def test_devices_ports_and_guests(self):
         doc = run([Net(), Pve()])
@@ -123,12 +113,13 @@ class Fast(unittest.TestCase):
         self.assertEqual(got, {"10.0.0.2": {"status": "up", "name": "[Win] PC Gamer32"}, "10.0.0.3": {"status": "down", "name": "nas"}})   # by address, else by name
         self.assertEqual(fast._beszel_by_ip(systems, {"meta": str(meta) + ".none"}), {})
 
-    def test_a_failing_source_keeps_its_last_reading(self):
+    def test_a_failing_source_keeps_its_last_picture(self):
         first = run([Net()])
-        down = run([Net(devices=None)], prev=first)
+        down = run([Net()], prev=first, state={"mynetwork/mynetwork": entry({"devices": DEVICES}, ok=False, message="HTTP 500")})
         s = down["sources"]["mynetwork/mynetwork"]
         self.assertEqual((s["ok"], "HTTP 500" in s["error"]), (False, True))
-        self.assertEqual(s["devices"]["10.0.0.2"]["ports"], [22, 445])
+        self.assertEqual(s["devices"]["10.0.0.2"]["ports"], [22, 445])   # from the previous live picture
+        self.assertEqual(s["details"], first["sources"]["mynetwork/mynetwork"]["details"])
 
     def test_read_ignores_old_or_missing_files(self):
         with tempfile.TemporaryDirectory() as d:

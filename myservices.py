@@ -44,6 +44,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import connectors
+import readers
 import connectors.base as cbase
 from connectors.uptime_kuma import attach_monitors
 from connectors.docker_ssh import HOST_ADDR
@@ -157,7 +158,7 @@ def read_npm():
         got, st = job.result()
         CONNECTOR_STATUS.append(st)
         if got is None:
-            cbase.save_state(CONNECTORS_STATE, state)
+            cbase.merge_state(CONNECTORS_STATE, state, [f"{c.type}/{c.name}" for c in insts])
             sys.exit(f"NPM {conn.name} : {st.message}")
         if not st.ok:
             print(f"⚠ NPM {conn.name} : {st.message} ; dernier résultat bon réutilisé ({st.failures} passage(s) en échec)",
@@ -170,7 +171,7 @@ def read_npm():
                 if n:
                     x["id"] = f'{conn.name}/{x["id"]}'
                 lists[k].append(x)
-    cbase.save_state(CONNECTORS_STATE, state)
+    cbase.merge_state(CONNECTORS_STATE, state, [f"{c.type}/{c.name}" for c in insts])
     for ip in filter(None, NPM_IPS.values()):  # rôle « hôte NPM » affiché par la page
         if ip in MACHINE_FLAGS:
             MACHINE_FLAGS[ip]["npm"] = True
@@ -843,12 +844,15 @@ def uptime_rows(rows):
         return  # déjà signalé par read_npm (même registre)
     if not kumas:
         return
-    state = cbase.load_state(CONNECTORS_STATE)
+    state, read = cbase.load_state(CONNECTORS_STATE), []
     for c in kumas:
-        data, st = cbase.run_isolated(c, state, 60)
+        data, st = readers.recent(c, state, CFG)   # read by the server's reader a moment ago: no second call
+        if st is None:
+            data, st = cbase.run_isolated(c, state, 60)
+            read.append(f"{c.type}/{c.name}")
         CONNECTOR_STATUS.append(st)
         attach_monitors(rows, (data or {}).get("monitors", []), c.name, st.stale)
-    cbase.save_state(CONNECTORS_STATE, state)
+    cbase.merge_state(CONNECTORS_STATE, state, read)
 
 
 def connector_rows(kinds: tuple[str, ...]) -> dict[str, list[dict]]:
@@ -864,14 +868,17 @@ def connector_rows(kinds: tuple[str, ...]) -> dict[str, list[dict]]:
     if not per_kind:
         return out
     state = cbase.load_state(CONNECTORS_STATE)
-    with ThreadPoolExecutor(min(8, len(per_kind))) as ex:
-        jobs = [(k, c, ex.submit(cbase.run_isolated, c, state, 60)) for k, c in per_kind]
-    for k, c, job in jobs:   # statuses and rows in the declared order, whatever the order the answers came in
-        data, st = job.result()
+    shared = {f"{c.type}/{c.name}": readers.recent(c, state, CFG) for _, c in per_kind}   # read by the server's reader a moment ago: no second call
+    direct = [(k, c) for k, c in per_kind if shared[f"{c.type}/{c.name}"][1] is None]
+    with ThreadPoolExecutor(min(8, len(direct) or 1)) as ex:
+        jobs = {f"{c.type}/{c.name}": ex.submit(cbase.run_isolated, c, state, 60) for _, c in direct}
+    for k, c in per_kind:   # statuses and rows in the declared order, whatever the order the answers came in
+        key = f"{c.type}/{c.name}"
+        data, st = jobs[key].result() if key in jobs else shared[key]
         CONNECTOR_STATUS.append(st)
         out[k].append({"connector": c.type, "name": c.name, "label": c.label, "ok": st.ok, "stale": st.stale, "message": st.message,
                        "version": st.version, "url": c.conf.get("url"), **(data or {}), "instance": c.name})   # instance: data may carry its own « name »
-    cbase.save_state(CONNECTORS_STATE, state)
+    cbase.merge_state(CONNECTORS_STATE, state, list(jobs))
     return out
 
 

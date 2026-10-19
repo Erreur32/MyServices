@@ -19,7 +19,7 @@ from pathlib import Path
 
 import secrets_store
 from connectors import TYPES
-from connectors.base import ConnectorError, Context, tally
+from connectors.base import EVERY_FIELD, ConnectorError, Context, tally
 
 SSH_TYPES = {"docker", "process"}  # découlent des machines (AdGuard : aussi déclaré par une machine, ou ici par son API ou SSH)
 ALERT_TYPES = {"discord", "telegram"}  # section Alertes
@@ -53,8 +53,13 @@ def schema() -> list[dict]:
     """Types réglables et leurs champs : la page en génère les formulaires."""
     return [{"type": t, "label": c.label, "category": category(t), "kinds": list(c.kinds), "tested": list(c.tested), "guide": list(getattr(c, "guide", ())), "modes": list(c.modes),
              "fields": [{"name": f.name, "label": f.label, "kind": f.kind, "required": f.required, "secret": f.secret,
-                         "default": f.default, "help": f.help, "choices": list(f.choices)} for f in c.fields]}
+                         "default": f.default, "help": f.help, "choices": list(f.choices)} for f in fields(t)]}
             for t, c in editable().items()]
+
+
+def fields(type_: str) -> tuple:
+    """The fields of a type plus the common « every » (own reading period of the instance, minutes)."""
+    return (*TYPES[type_].fields, EVERY_FIELD)
 
 
 def _raw() -> dict:
@@ -97,7 +102,7 @@ def listing(statuses: list[dict]) -> list[dict]:
 def _clean(type_: str, conf: dict) -> dict:
     """Champs connus seulement, convertis selon leur sorte ; vides retirés."""
     out = {}
-    for f in TYPES[type_].fields:
+    for f in fields(type_):
         v = conf.get(f.name)
         if v in (None, ""):
             continue
@@ -106,6 +111,8 @@ def _clean(type_: str, conf: dict) -> dict:
                 v = int(v)
             except (TypeError, ValueError):
                 raise SettingsError(f"« {f.label} » : nombre attendu") from None
+            if f is EVERY_FIELD and not (1 <= v <= 1440):
+                raise SettingsError(f"« {f.label} » : entre 1 et 1440 minutes")
         elif f.kind == "bool":
             v = bool(v) if not isinstance(v, str) else v.lower() in ("1", "true", "oui", "on")
         else:

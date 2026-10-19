@@ -169,6 +169,7 @@ class Connector:
     fields: tuple[Field, ...] = ()
     modes: tuple[dict, ...] = ()
     setup_fields: tuple[str, ...] = ()  # réglages demandés par setup.py à la détection (les autres : page Réglages)
+    every: int | None = None  # s, own reading period of the type by the server's readers (None: the default of the settings)
 
     def __init__(self, conf: dict, ctx: Context):
         self.conf = conf
@@ -231,6 +232,18 @@ def tally(data: object) -> list[dict]:
 
 
 VERSION_EVERY = 6 * 3600   # s, between two version readings of a service: it changes rarely, one request less per pass
+EVERY_FIELD = Field("every", "Lecture toutes les (min)", "number", help="Période de lecture de ce connecteur par le serveur, en minutes (vide : la valeur par défaut des Réglages → Système).")
+EVERY_MIN, EVERY_MAX = 60, 24 * 3600   # s, bounds of a period (one minute to one day)
+
+
+def period(conn: Connector, default: float) -> float:
+    """Reading period of this instance in seconds: its own « every » (minutes, from its settings), else its type's, else `default`."""
+    own = conn.conf.get("every")
+    if isinstance(own, (int, float)) and not isinstance(own, bool) and own > 0:
+        return float(min(max(own * 60, EVERY_MIN), EVERY_MAX))
+    if conn.every:
+        return float(conn.every)
+    return float(default)
 
 
 def run_isolated(conn: Connector, state: dict, timeout: float) -> tuple[dict | None, Status]:
@@ -269,12 +282,12 @@ def run_isolated(conn: Connector, state: dict, timeout: float) -> tuple[dict | N
                 version_tested(v, conn.tested), duration_s=round(time.time() - t0, 2))
     if st.ok:
         st.found = tally(box["data"])
-        state[key] = {"ok": True, "failures": 0, "since": None, "last": box["data"], "version": v, "at": t0,
-                      "version_at": ver_at if keep_version else t0}
+        state[key] = {"ok": True, "failures": 0, "since": None, "last": box["data"], "version": v, "at": t0, "tried": t0,
+                      "version_at": ver_at if keep_version else t0, "message": st.message, "duration_s": st.duration_s, "found": st.found}
         return box["data"], st
     st.failures = prev.get("failures", 0) + 1
     st.since = prev.get("since") or t0
-    state[key] = {**prev, "ok": False, "failures": st.failures, "since": st.since}
+    state[key] = {**prev, "ok": False, "failures": st.failures, "since": st.since, "tried": t0, "message": st.message, "duration_s": st.duration_s}
     if prev.get("last") is not None:
         st.stale = True
         st.found = tally(prev["last"])
@@ -294,11 +307,30 @@ def recent(conn: Connector, state: dict, max_age: float) -> dict | None:
     return prev["last"] if prev.get("ok") and prev.get("last") is not None and isinstance(at, (int, float)) and time.time() - at < max_age else None
 
 
+def status_of(conn: Connector, state: dict) -> Status | None:
+    """The Status of this instance as its last reading left it in the state (by the server's reader or another task): what the
+    collection reports when it reuses that reading instead of calling the service again. None when it was never read."""
+    prev = state.get(f"{conn.type}/{conn.name}")
+    if not prev or "tried" not in prev:
+        return None
+    v = prev.get("version")
+    st = Status(conn.type, conn.name, bool(prev.get("ok")), str(prev.get("message") or ("OK" if prev.get("ok") else "lecture en échec")), v,
+                version_tested(v, conn.tested), duration_s=float(prev.get("duration_s") or 0), failures=int(prev.get("failures") or 0), since=prev.get("since"))
+    if st.ok:
+        st.found = prev.get("found") or tally(prev.get("last"))
+    elif prev.get("last") is not None:
+        st.stale, st.found = True, tally(prev["last"])
+    return st
+
+
 def load_state(path: Path) -> dict:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
+
+
+_STATE_LOCK = threading.Lock()
 
 
 def save_state(path: Path, state: dict) -> None:
@@ -307,3 +339,15 @@ def save_state(path: Path, state: dict) -> None:
     tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     tmp.chmod(0o600)
     tmp.replace(path)
+
+
+def merge_state(path: Path, state: dict, keys: list[str] | set[str]) -> dict:
+    """Writes only `keys` of `state` into the file, over what it holds now: the server's readers and the collection (another process)
+    share this file and each one keeps only the entries it just read, never a whole copy loaded minutes ago. Returns the merged state."""
+    with _STATE_LOCK:
+        now = load_state(path)
+        for k in keys:
+            if k in state:
+                now[k] = state[k]
+        save_state(path, now)
+    return now

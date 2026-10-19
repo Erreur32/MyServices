@@ -41,6 +41,7 @@ from pathlib import Path
 
 import notify
 from config import CFG, next_timer_run
+import readers
 
 STATE_FILE = Path(CFG["state_dir"]) / "health.json"
 OUT_DIR = Path(CFG["web_dir"]) / "health"
@@ -932,9 +933,10 @@ def api_systems(meta: dict) -> dict:
     machines, found = meta.get("machines", {}), {}
     state = cbase.load_state(Path(CFG["state_dir"]) / "connectors.json")
     for c in conns:
-        data = cbase.recent(c, state, API_REUSE_S)   # read by the collection a moment ago: no second call for the same data
+        data = cbase.recent(c, state, max(API_REUSE_S, readers.max_age(c, CFG["fast_every"])) if readers.on(CFG) else API_REUSE_S)   # read by the server's reader or the collection a moment ago: no second call for the same data
         if data is None:
             data, st = cbase.run_isolated(c, state, 60)
+            cbase.merge_state(Path(CFG["state_dir"]) / "connectors.json", state, [f"{c.type}/{c.name}"])
             if not (st.ok or st.stale):
                 continue
         host = (data or {}).get("host")
@@ -957,14 +959,17 @@ def beszel_systems(meta: dict) -> tuple[dict, list]:
         print(f"⚠ Beszel : {e}", file=sys.stderr)
         return {}, []
     state_path = Path(CFG["state_dir"]) / "connectors.json"
-    state, found, statuses = cbase.load_state(state_path), {}, []
+    state, found, statuses, read = cbase.load_state(state_path), {}, [], []
     for c in conns:
-        data, st = cbase.run_isolated(c, state, 120)
+        data, st = readers.recent(c, state, CFG)   # read by the server's reader a moment ago: no second call
+        if st is None:
+            data, st = cbase.run_isolated(c, state, 120)
+            read.append(f"{c.type}/{c.name}")
         statuses.append(st)
         print(("✓" if st.ok else "⚠") + f" {c.label} {c.name} : {st.message}" + (" (dernier relevé bon réutilisé)" if st.stale else ""))
         for ip, s in match((data or {}).get("systems", []), meta.get("machines", {})).items():
             found.setdefault(ip, s)
-    cbase.save_state(state_path, state)
+    cbase.merge_state(state_path, state, read)
     return found, statuses
 
 

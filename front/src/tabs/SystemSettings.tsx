@@ -380,7 +380,7 @@ type LiveKey = "pulse_every" | "pulse_confirm" | "fast_every";
 const LIVE_FIELDS: { key: LiveKey; label: string; unit: string; hint: string }[] = [
   { key: "pulse_every", label: tx("Pouls (ping des machines)"), unit: "s", hint: tx("Un ping de chaque machine suivie : l'état en ligne ou hors ligne est vivant. 0 = coupé.") },
   { key: "pulse_confirm", label: tx("Pouls à confirmer"), unit: "×", hint: tx("Nombre de pouls de suite avant d'annoncer qu'une machine est tombée ou revenue (un paquet perdu ne compte pas).") },
-  { key: "fast_every", label: tx("Connecteurs rapides"), unit: "s", hint: tx("Lecture légère de MynetworK (état, ports) et de Proxmox par API, entre deux collectes. 0 = coupé.") },
+  { key: "fast_every", label: tx("Lecture des connecteurs"), unit: "s", hint: tx("Le serveur lit chaque connecteur à cette période, sauf ceux qui ont la leur (Réglages → Connecteurs, « Lecture toutes les »). La collecte, la santé et la page réutilisent ce relevé. 0 = coupé : chaque tâche lit elle-même.") },
 ];
 
 /** Settings of the live checks: the ping of every machine and the light connector reads (PUT system/live-checks, applied at the next pass) */

@@ -378,8 +378,9 @@ function InstanceCard({ inst, hosts, collect, type, reload, onCollect, toggling,
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
         {inst.enabled ? <StatusLine s={inst.status} collect={collect} /> : <Badge tone="off">{tx("collecte coupée")}</Badge>}
+        {inst.enabled && typeof inst.config.every === "number" && inst.config.every > 0 && <span className="text-xs text-dim" title={tx("Période de lecture propre à ce connecteur")}>· {tx("toutes les {0} min", inst.config.every)}</span>}
         <div className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted">
-          <span className="flex items-center gap-2" title={tx("Le connecteur est lu à chaque collecte ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
+          <span className="flex items-center gap-2" title={tx("Le connecteur est lu par le serveur à sa période (voir Modifier) ; coupé, ses réglages sont gardés mais plus rien n'est lu")}>
             <Switch on={inst.enabled} disabled={toggling} label={`${tx("Collecte")} ${inst.label} : ${inst.enabled ? tx("coupé") : tx("activé")}`} onChange={onCollect} />{tx("Collecte")}
             {toggling && <output className="inline-flex items-center gap-1.5 text-xs text-warn"><Loader2 size={13} className="animate-spin" aria-hidden />{tx("Test de la connexion en cours, cela peut durer une minute…")}</output>}
           </span>
