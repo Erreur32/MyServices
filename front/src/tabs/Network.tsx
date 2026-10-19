@@ -278,7 +278,13 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="flex items-center gap-2 text-xl font-bold"><NetworkIcon size={18} aria-hidden />{tx("Réseau")}</h1>
-        <span className="text-sm text-muted">{[gearWords.join(" + "), devAll.length ? tx("{0} appareils", devAll.length) : "", sourceNames.join(", ")].filter(Boolean).join(" · ")} · {tx("relevé du {0}, en lecture seule", dateTime(snap.data.generated))}</span>
+        <span className="flex flex-wrap items-center gap-1.5 text-sm">
+          {gearWords.map((w) => <Badge key={w} tone="info" outline>{w}</Badge>)}
+          {devAll.length > 0 && <Badge tone="off" outline>{tx("{0} appareils", devAll.length)}</Badge>}
+          {sourceNames.map((s) => <Badge key={s} tone="ok" outline>{s}</Badge>)}
+          <Badge tone="off" outline>{tx("relevé du {0}", dateTime(snap.data.generated))}</Badge>
+          <Badge tone="off" outline>{tx("lecture seule")}</Badge>
+        </span>
       </div>
       <Figures box={box} boxFact={boxFact} gearAll={gearAll} gearDown={gearDown} updates={updates} wifi={all("wifi").length} wired={all("wired").length} devAll={devAll} unfollowed={unfollowed} sourceNames={sourceNames} failing={failing} />
 
