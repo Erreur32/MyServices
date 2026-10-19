@@ -226,18 +226,18 @@ class UpdateCheck(unittest.TestCase):
 
 @unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
 class RequestCountersRoute(unittest.TestCase):
-    def test_development_build_only(self):
+    def test_counters_for_admins_on_every_build(self):
         from connectors import reqstats
         req = mock.Mock()
         req.state.user = {"username": "admin", "role": "admin"}
         reqstats.reset()
         reqstats.record("mynetwork/lan", "http://10.0.0.9/api/lan/devices?compact=1", 12, 200)
-        with mock.patch.dict(api.os.environ, {"MYSERVICES_VERSION": "dev", "MYSERVICES_GIT": ""}):
-            self.assertEqual(api.connectors_requests(req)["rows"][0]["route"], "/api/lan/devices")
-        with mock.patch.dict(api.os.environ, {"MYSERVICES_VERSION": "v0.18.1", "MYSERVICES_GIT": "main abc1234"}):
-            self.assertTrue(api.dev_build())   # an image built from a branch is a development one too
-        with mock.patch.dict(api.os.environ, {"MYSERVICES_VERSION": "v0.18.1", "MYSERVICES_GIT": ""}):
-            self.assertEqual(api.connectors_requests(req).status_code, 404)   # a released build: not there
+        with mock.patch.dict(api.os.environ, {"MYSERVICES_VERSION": "v0.18.2"}):
+            got = api.connectors_requests(req)
+        self.assertEqual((got["rows"][0]["route"], got["version"]), ("/api/lan/devices", "v0.18.2"))   # a released build measures too
+        req.state.user = {"username": "bob", "role": "viewer"}
+        with mock.patch.object(api, "AUTH", True):
+            self.assertEqual(api.connectors_requests(req).status_code, 403)
 
 
 @unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
