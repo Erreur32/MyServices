@@ -610,7 +610,6 @@ export const EN: Record<string, string> = {
   "Applis": "Apps",
   "Vue par les services Windows du PC": "Seen through the PC's Windows services",
   "Lecture seule": "Read-only",
-  "Un connecteur lit par son API, en lecture seule, les services d'un outil que vous utilisez déjà (Nginx Proxy Manager, AdGuard Home, Beszel…) : une clé ou un compte sans droit de modification suffit.": "A connector reads, through its API and read-only, the services of a tool you already use (Nginx Proxy Manager, AdGuard Home, Beszel…): a key or account with no right to change anything is enough.",
   "Sur": "On",
   ", connecté en": ", logged in as",
   "port corrigé : test en cours": "port fixed: testing",
