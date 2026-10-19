@@ -583,15 +583,24 @@ def machine_names_check(servers, search, asked):
     for ip, m in sorted(MACHINES.items(), key=lambda x: x[1][0].lower()):
         if ip in DISABLED or not HOST_RE.match(m[0].lower()):
             continue
-        got = []
-        for name in [m[0].lower()] + [f"{m[0].lower()}.{d}" for d in search]:
-            for s in servers:
-                v = asked.get((s, name))
-                if v:
-                    got.extend(v)
-        state = "ok" if ip in got else "ailleurs" if got else "absent"
+        got = _name_answers(m[0].lower(), search, servers, asked)
+        if ip in got:
+            state = "ok"
+        elif got:
+            state = "ailleurs"
+        else:
+            state = "absent"
         out.append({"ip": ip, "name": m[0], "state": state, "answer": sorted(set(got))})
     return out
+
+
+def _name_answers(name, search, servers, asked):
+    """Every address answered for a name, bare and with each search domain, by every server"""
+    got = []
+    for full in [name] + [f"{name}.{d}" for d in search]:
+        for s in servers:
+            got.extend(asked.get((s, full)) or [])
+    return got
 
 
 def dns_check(rows):

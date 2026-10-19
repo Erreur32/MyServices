@@ -6,13 +6,12 @@
 import { Layers, Network as NetworkIcon, RefreshCw } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Snapshot } from "../api";
-import { hm } from "../lib/format";
 import { dnsSync, hostName } from "../lib/status";
 import type { Selected } from "../lib/filter";
 import { Badge, Empty, TableCard, type Tone } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
-import { dateTime } from "../lib/format";
+import { dateTime, hm } from "../lib/format";
 import { FoldPanel } from "../components/FoldPanel";
 import { StatTile } from "../components/StatTile";
 import { WatchPanel } from "../components/WatchPanel";
@@ -155,10 +154,13 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
             [tx("Contenu"), content, diff.length ? "warn" : "ok"] as Row,
           ]} />}
         {Object.entries(g.servers).map(([ip, v]) => {
-          const ok = serverUp(v);
+          const ok = serverUp(v), logo = v.resolver ? null : appIcon(["AdGuard Home"]);
+          let state = tx("config illisible");
+          if (ok) state = tx("répond");
+          else if (v.readable || v.resolver) state = tx("requêtes perdues");
           return (
-            <InfoCard key={ip} icon={v.resolver || !appIcon(["AdGuard Home"]) ? <NetworkIcon size={18} className="text-muted" aria-hidden /> : <img src={appIcon(["AdGuard Home"])!} alt="" className="h-5 w-5" />} title={v.name} sub={`${ip}${sync?.origin === ip ? tx(" · origine") : ""}`}
-              tone={ok ? "ok" : "bad"} state={ok ? tx("répond") : v.readable || v.resolver ? tx("requêtes perdues") : tx("config illisible")}
+            <InfoCard key={ip} icon={logo ? <img src={logo} alt="" className="h-5 w-5" /> : <NetworkIcon size={18} className="text-muted" aria-hidden />} title={v.name} sub={sync?.origin === ip ? ip + tx(" · origine") : ip}
+              tone={ok ? "ok" : "bad"} state={state}
               rows={[
                 ...(v.resolver ? [[tx("Rôle"), tx("résolveur du conteneur, lu dans resolv.conf")] as Row] : [[tx("Réécritures"), v.readable ? String(v.rewrites) : "-"] as Row, [tx("Règles perso"), v.readable ? String(v.user_rules ?? "-") : "-"] as Row]),
                 [tx("Requêtes sans réponse"), String(v.silent), v.silent ? "bad" : "ok"],
@@ -172,21 +174,21 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
         <div className="flex flex-col gap-4">
           {!g.resolver && <>
             <DataCard id="diff" lit={lit} title={tx("Présent sur une seule instance")} tone="bad" cols={[{ label: tx("Entrée"), className: "w-[55%]" }, { label: tx("Seulement sur") }]}
-              rows={diff.map((x) => [x.rule ? <>{tx("règle")} {code(x.rule)}</> : code(`${x.domain} → ${x.answer}`), <b className="font-medium">{name(x.only)}</b>])}
+              rows={diff.map((x) => [<span key="e">{x.rule ? <>{tx("règle")} {code(x.rule)}</> : code(`${x.domain} → ${x.answer}`)}</span>, <b key="o" className="font-medium">{name(x.only)}</b>])}
               note={sync && st.cls === "warn" ? `Synchro à l'heure : sera recopié au prochain passage. Toujours modifier sur ${name(sync.origin)}.` : undefined} />
             <DataCard id="orphans" lit={lit} title={tx("Réécritures vers NPM sans host NPM actif")} tone="warn" cols={[{ label: tx("Domaine"), className: "w-[38%]" }, { label: tx("Réponse"), className: "w-[22%]" }, { label: tx("Pourquoi") }]}
-              rows={g.orphans.map((x) => [<b className="font-medium">{x.domain}</b>, code(x.answer), <span className="text-muted">{x.why}</span>])} />
+              rows={g.orphans.map((x) => [<b key="d" className="font-medium">{x.domain}</b>, <span key="a">{code(x.answer)}</span>, <span key="w" className="text-muted">{x.why}</span>])} />
             <DataCard id="invalid" lit={lit} title={tx("Réécritures au nom invalide (jamais résolues)")} tone="warn" cols={[{ label: tx("Domaine"), className: "w-[55%]" }, { label: tx("Réponse") }]}
-              rows={(g.invalid || []).map((x) => [<b className="font-medium">{x.domain}</b>, code(x.answer)])} />
+              rows={(g.invalid || []).map((x) => [<b key="d" className="font-medium">{x.domain}</b>, <span key="a">{code(x.answer)}</span>])} />
             <DataCard title={tx("Réécritures directes, sans NPM")} tone="info" cols={[{ label: tx("Domaine"), className: "w-[55%]" }, { label: tx("Réponse") }]}
-              rows={(g.direct || []).map((x) => [<b className="font-medium">{x.domain}</b>, code(x.answer)])} />
+              rows={(g.direct || []).map((x) => [<b key="d" className="font-medium">{x.domain}</b>, <span key="a">{code(x.answer)}</span>])} />
           </>}
           <DataCard id="domains" lit={lit} title={tx("Domaines NPM à vérifier")} tone={rows.length ? "warn" : "ok"} cols={[{ label: tx("Domaine"), className: "w-[45%]" }, { label: tx("À vérifier") }]}
-            rows={rows.map((r) => [<b className="font-medium">{hostName(r)}</b>, <span className="flex flex-wrap gap-1">{r.dns!.issues.map((x) => <Badge key={String(x[0])} tone="warn">{String(x[0]).replace("_", " ")}</Badge>)}</span>])}
+            rows={rows.map((r) => [<b key="n" className="font-medium">{hostName(r)}</b>, <span key="i" className="flex flex-wrap gap-1">{r.dns!.issues.map((x) => <Badge key={String(x[0])} tone="warn">{String(x[0]).replace("_", " ")}</Badge>)}</span>])}
             empty={g.resolver ? tx("Tous les domaines NPM actifs résolvent sur le résolveur du réseau.") : tx("Tous les domaines NPM actifs résolvent pareil sur chaque AdGuard.")}
-            note={`${g.resolver ? tx("Chaque domaine des hosts NPM actifs est demandé au résolveur que MyServices utilise.") : tx("Chaque domaine des hosts NPM actifs est demandé à chaque AdGuard ; réécritures et règles perso lues dans AdGuardHome.yaml.")}${g.npm_ip ? ` NPM = ${g.npm_ip}.` : ""}`} />
+            note={[g.resolver ? tx("Chaque domaine des hosts NPM actifs est demandé au résolveur que MyServices utilise.") : tx("Chaque domaine des hosts NPM actifs est demandé à chaque AdGuard ; réécritures et règles perso lues dans AdGuardHome.yaml."), g.npm_ip ? `NPM = ${g.npm_ip}.` : ""].filter(Boolean).join(" ")} />
           <DataCard id="machines" lit={lit} title={tx("Noms des machines suivies")} tone={machines.some((m) => m.state === "ailleurs") ? "warn" : "info"} cols={[{ label: tx("Machine"), className: "w-[30%]" }, { label: "IP", className: "w-[22%]" }, { label: tx("Réponse"), className: "w-[28%]" }, { label: tx("État") }]}
-            rows={machines.map((m) => [<b className="font-medium">{m.name}</b>, code(m.ip), <span className="font-mono text-xs">{m.answer.join(", ") || "-"}</span>, <Badge tone={MACHINE_STATE[m.state][0]} outline plainText>{MACHINE_STATE[m.state][1]}</Badge>])}
+            rows={machines.map((m) => [<b key="n" className="font-medium">{m.name}</b>, <span key="ip">{code(m.ip)}</span>, <span key="a" className="font-mono text-xs">{m.answer.join(", ") || "-"}</span>, <Badge key="s" tone={MACHINE_STATE[m.state][0]} outline plainText>{MACHINE_STATE[m.state][1]}</Badge>])}
             empty={tx("Aucune machine suivie.")} note={tx("Le nom de chaque machine est demandé tel quel, puis avec les domaines de recherche du résolveur. Pas de nom DNS n'est pas une faute : beaucoup de réseaux n'en donnent pas aux machines.")} />
         </div>
       </FoldPanel>

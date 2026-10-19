@@ -154,27 +154,39 @@ type Sub = "overview" | "list" | "diagnostic";
 const SUBS: [Sub, string, LucideIcon][] = [["overview", tx("Cartes"), LayoutDashboard], ["list", tx("Équipements et appareils"), List], ["diagnostic", tx("Diagnostic"), Stethoscope]];
 const SUB_KEY = "ms.network.sub";
 
+type Tone3 = "ok" | "warn" | "bad" | undefined;
+interface Fig { n: string | number; tone: Tone3; sub: string }
+
+/** Internet access: the box or firewall card, its first worrying fact under it */
+function boxFigure(box?: ServiceStatus, fact?: { label: string; value: string }): Fig {
+  if (!box) return { n: "-", tone: undefined, sub: tx("aucune box ni pare-feu relié") };
+  const clean = box.ok && !(box.problems ?? []).length;
+  return { n: box.ok ? "OK" : tx("erreur"), tone: clean ? "ok" : "warn", sub: fact ? `${fact.label} : ${fact.value}` : box.label };
+}
+
+/** Equipment online, with the firmware updates available */
+function gearFigure(gearAll: Row[], gearDown: number, updates: number): Fig {
+  if (!gearAll.length) return { n: "-", tone: undefined, sub: tx("aucun UniFi relié") };
+  return { n: `${gearAll.length - gearDown}/${gearAll.length}`, tone: gearDown ? "bad" : "ok", sub: updates ? tx("{0} mise(s) à jour disponible(s)", updates) : tx("à jour") };
+}
+
+/** Devices online, with the ones not followed as a machine */
+function devFigure(devAll: Row[], unfollowed: number): Fig {
+  if (!devAll.length) return { n: "-", tone: undefined, sub: tx("tous suivis") };
+  return { n: `${devAll.filter((r) => r.up).length}/${devAll.length}`, tone: unfollowed ? "warn" : "ok", sub: unfollowed ? tx("{0} pas suivi(s) comme machine", unfollowed) : tx("tous suivis") };
+}
+
 /** The five figures above the sub-menu */
 function Figures({ box, boxFact, gearAll, gearDown, updates, wifi, wired, devAll, unfollowed, sourceNames, failing }: Readonly<{
   box?: ServiceStatus; boxFact?: { label: string; value: string }; gearAll: Row[]; gearDown: number; updates: number; wifi: number; wired: number; devAll: Row[]; unfollowed: number; sourceNames: string[]; failing: number;
 }>) {
-  let boxN = "-", boxTone: "ok" | "warn" | undefined, boxSub = tx("aucune box ni pare-feu relié");
-  if (box) {
-    boxN = box.ok ? "OK" : tx("erreur");
-    boxTone = box.ok && !(box.problems ?? []).length ? "ok" : "warn";
-    boxSub = boxFact ? `${boxFact.label} : ${boxFact.value}` : box.label;
-  }
-  let gearSub = tx("aucun UniFi relié"), gearTone: "ok" | "bad" | undefined;
-  if (gearAll.length) { gearSub = updates ? tx("{0} mise(s) à jour disponible(s)", updates) : tx("à jour"); gearTone = gearDown ? "bad" : "ok"; }
-  let devTone: "ok" | "warn" | undefined;
-  if (unfollowed) devTone = "warn";
-  else if (devAll.length) devTone = "ok";
+  const b = boxFigure(box, boxFact), g = gearFigure(gearAll, gearDown, updates), d = devFigure(devAll, unfollowed);
   return (
     <div className="flex gap-2.5 overflow-x-auto pb-1">
-      <StatTile n={boxN} label={tx("Accès Internet")} tone={boxTone} sub={boxSub} />
-      <StatTile n={gearAll.length ? `${gearAll.length - gearDown}/${gearAll.length}` : "-"} label={tx("Équipements en ligne")} tone={gearTone} sub={gearSub} />
+      <StatTile n={b.n} label={tx("Accès Internet")} tone={b.tone} sub={b.sub} />
+      <StatTile n={g.n} label={tx("Équipements en ligne")} tone={g.tone} sub={g.sub} />
       <StatTile n={wifi + wired} label={tx("Clients")} sub={tx("{0} wifi · {1} filaires", wifi, wired)} />
-      <StatTile n={devAll.length ? `${devAll.filter((r) => r.up).length}/${devAll.length}` : "-"} label={tx("Appareils en ligne")} tone={devTone} sub={unfollowed ? tx("{0} pas suivi(s) comme machine", unfollowed) : tx("tous suivis")} />
+      <StatTile n={d.n} label={tx("Appareils en ligne")} tone={d.tone} sub={d.sub} />
       <StatTile n={sourceNames.length} label={tx("Sources")} tone={failing ? "bad" : "ok"} sub={failing ? tx("{0} en erreur", failing) : sourceNames.join(", ")} />
     </div>
   );
