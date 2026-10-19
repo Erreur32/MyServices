@@ -1,13 +1,13 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { ArrowRight, Archive, Puzzle, FolderOpen, Bot, Box, Copy, Crosshair, ArrowUpCircle, Boxes, Plus, Bug, Check, ChevronRight, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
+import { ArrowRight, Archive, Puzzle, FolderOpen, Bot, Box, Copy, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronRight, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
 import { Fragment, createContext, useContext, useRef, useCallback, useEffect, useMemo, useState } from "react";
-import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
+import { read, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime, dur, durShort, ipNum, splitHostName } from "../lib/format";
 import { hostName, status } from "../lib/status";
 import { modelService } from "../lib/modelService";
 import { SwitchPanel } from "./UnifiCards";
-import type { AddressSheet, Backups, LinkSource, HealthHost, Host, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem, Unlinked } from "../types";
+import type { AddressSheet, Backups, LinkSource, HealthHost, Host, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
 import { freeboxHealth, freeboxOf } from "../lib/freebox";
@@ -25,14 +25,11 @@ import { SourceBadges } from "../components/SourceBadges";
 import { DetailRow, DetailSection } from "../components/DetailSection";
 import { quiet } from "../lib/forms";
 import { Overlay } from "../components/Overlay";
-import { rereadMachines } from "../lib/scan";
 import { WATCH_SECTION, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Table, Td, Th, type Tone } from "../components/ui";
 import { tx } from "../lib/i18n";
-import { useStoredFlag } from "../lib/storedFlag";
 import { hardwareRows } from "../lib/hardware";
-import { InfoNote } from "../components/InfoNote";
 
 
 function healthByIp(hosts: HealthHost[] = []): Map<string, HealthHost> {
@@ -150,7 +147,7 @@ function Meter({ pct, tone, hint, title, unit = "%" }: Readonly<{ pct: number; t
   return (
     <div className="w-[7rem]" title={title}>
       <div className="flex items-baseline justify-between gap-1 leading-tight">
-        <span className={`shrink-0 whitespace-nowrap text-sm tabular-nums ${METER_TEXT[tone]}`}>{Math.round(pct)} {unit}</span>
+        <span className={`shrink-0 whitespace-nowrap text-xs tabular-nums ${METER_TEXT[tone]}`}>{Math.round(pct)} {unit}</span>
         {hint && <span className="min-w-0 truncate font-mono text-[10px] text-dim">{hint}</span>}
       </div>
       <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-bg2"><GradientFill pct={pct} /></span>
@@ -1312,7 +1309,6 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   const isOff = (m: Machine) => !!m.disabled;
   // Machines non suivies : masquées d'office, un bouton les ramène (grisées)
   const [showOff, setShowOff] = useState(false);
-  const [hideTools, setHideTools] = useStoredFlag("myservices.machines.hideSeenByTools", false);   // « Vus par vos outils, pas suivis ici »
   const nOff = snap.data.machine_list.filter(isOff).length;
   const items = useMemo(() => (showOff ? snap.data.machine_list : snap.data.machine_list.filter((m) => !isOff(m))), [snap.data.machine_list, showOff, isOff]);
   const f = useFilter(items, facets, text, initial);
@@ -1326,6 +1322,10 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       case "svc": return -m.services;
       case "health": return healthRank(m, hb.get(m.ip), !!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))) * 1e10 + ipNum(m.ip);   // les plus graves d'abord, puis par adresse
       case "up": return -(uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network), haOf(m)) ?? -1);   // the longest up first
+      case "cpu": return -(hb.get(m.ip)?.res?.cpu_pct ?? -1);   // the busiest first; unread machines last
+      case "mem": return -(hb.get(m.ip)?.res?.mem_pct ?? -1);
+      case "disk": return -(topDisk(hb.get(m.ip))?.used_pct ?? -1);
+      case "gpu": return -Math.max(-1, ...gpusOf(m, hb.get(m.ip)).map((g) => g.util ?? 0));   // the most used GPU of the machine
       case "watch": { const it = watchItems(m, hb.get(m.ip), snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m), downOf(m, snap.data.hosts)); return -(worst(it) * 100 + it.length); }   // le plus grave d'abord
       default: return ipNum(m.ip);
     }
@@ -1345,32 +1345,6 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
 
   // Inventaire de MynetworK (connecteur « network ») : MAC et fabricant sous l'IP, et les appareils vus mais pas suivis
   const seen = useMemo(() => new Map((snap.data.network ?? []).flatMap((c) => c.devices ?? []).map((d) => [d.ip, d])), [snap.data.network]);
-  // Seen by a tool but not followed here: the matching layer's list (all tools), or MynetworK alone for an older data.json
-  const untracked: Unlinked[] = useMemo(() => snap.data.unlinked
-    ?? [...seen.values()].filter((d) => !snap.data.machine_list.some((m) => m.ip === d.ip))
-      .map((d) => ({ source: "mynetwork", label: "MynetworK", instance: "", ip: d.ip, mac: d.mac ?? undefined, name: d.hostname || d.vendor || undefined, online: d.status === "online" })),
-  [seen, snap.data.unlinked, snap.data.machine_list]);
-  const bySource = useMemo(() => {
-    const g = new Map<string, Unlinked[]>();
-    for (const u of untracked) g.set(u.label, [...(g.get(u.label) ?? []), u]);
-    for (const l of g.values()) l.sort((a, b) => (a.ip && b.ip ? ipNum(a.ip) - ipNum(b.ip) : (a.name ?? "").localeCompare(b.name ?? "")));
-    return [...g.entries()];
-  }, [untracked]);
-  // « Suivre » an untracked device: added like a machine found by the network search, then read and checked (admin only)
-  const [following, setFollowing] = useState<Record<string, "busy" | "done" | string>>({});
-  const follow = async (d: Unlinked) => {
-    if (!d.ip) return;
-    const ip = d.ip;
-    setFollowing((f) => ({ ...f, [ip]: "busy" }));
-    try {
-      await send("PUT", `machines/settings/${ip}`, { machine: { name: (d.name || ip).slice(0, 60), role: "" }, extra: [] });
-      setFollowing((f) => ({ ...f, [ip]: "done" }));
-      await rereadMachines([ip]).catch(() => undefined);
-    } catch (e) {
-      if (e instanceof LoginRequired) location.replace(LOGIN);
-      else setFollowing((f) => ({ ...f, [ip]: (e as Error).message }));
-    }
-  };
   const macOf = (m: Machine) => { const d = seen.get(m.ip); const mac = d?.mac || m.links?.mac, vendor = d?.vendor || m.links?.vendor; return mac || vendor ? [mac, vendor].filter(Boolean).join(" · ") : undefined; };
   // Sources de lecture (SSH, agent, connecteurs), un badge court coloré par source ; la Freebox est lue par MynetworK (rapprochée par son nom)
   const st = (m: Machine, all: boolean) => {
@@ -1385,41 +1359,15 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       <FilterBar f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
         options={[
           ...(nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []),
-          ...(untracked.length > 0 ? [{ id: "tools", label: tx("Masquer « Vus par vos outils »"), on: hideTools, toggle: () => setHideTools(!hideTools), mark: <EyeOff size={12} aria-hidden />, count: untracked.length }] : []),
         ]}
         extra={<>
           <ViewToggle view={view} onPick={pickView} />
         </>} />
-      {untracked.length > 0 && !hideTools && (
-        <details className="mb-3 rounded-xl border border-line bg-bg2/40 px-4 py-2 text-sm">
-          <summary className="cursor-pointer text-muted hover:text-txt">{tx("Vus par vos outils, pas suivis ici")} <b className="text-dim">({untracked.length})</b></summary>
-          {bySource.map(([label, list]) => (
-            <div key={label} className="mt-2">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{label} <span className="font-normal">({list.length})</span></h4>
-              <ul className="mt-1 grid gap-x-6 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">
-                {list.slice(0, 120).map((d, n) => (
-                  <li key={`${d.ip ?? d.name}-${n}`} className="flex min-w-0 items-baseline gap-2 whitespace-nowrap" title={[d.ip, d.name, d.mac].filter(Boolean).join(" · ")}>
-                    {d.online != null && <Badge tone={d.online ? "ok" : "off"}>{d.online ? tx("en ligne") : tx("hors ligne")}</Badge>}
-                    {d.ip && <span className="shrink-0 font-mono text-xs">{d.ip}</span>}<span className="min-w-0 truncate">{d.name ?? ""}</span>
-                    {d.vmid != null && <Dim>{d.type === "lxc" ? "LXC" : "VM"} {d.vmid}{d.node ? ` · ${d.node}` : ""}</Dim>}
-                    {d.mac && <span className="hidden shrink-0 font-mono text-[11px] text-dim 2xl:inline">{d.mac}</span>}
-                    {d.ip && (following[d.ip] === "done" ? <Badge tone="ok">{tx("suivie")}</Badge>
-                      : <button type="button" className={`${quiet} ml-auto shrink-0 px-2 py-0.5 text-xs`} disabled={following[d.ip] === "busy"} onClick={() => void follow(d)}
-                          title={following[d.ip] && following[d.ip] !== "busy" ? following[d.ip] : tx("Ajouter aux machines suivies (relevé et santé lancés)")}>
-                          <Plus size={12} aria-hidden />{following[d.ip] && following[d.ip] !== "busy" ? <span className="text-bad">{tx("refusé")}</span> : tx("Suivre")}</button>)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-          <InfoNote className="mt-2">{tx("« Suivre » l'ajoute aux machines (son accès SSH se règle ensuite dans Réglages → Machines).")}</InfoNote>
-        </details>
-      )}
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
         <>
           {view === "table" && <Table fit head={<>
             <th className="w-14 pl-4 pr-2" aria-label={tx("Icône")} /><Th k="name" sort={sort}>{tx("Machine")}</Th><Th k="ip" sort={sort}>IP</Th><Th k="state" sort={sort}>{tx("Sources")}</Th><Th k="os" sort={sort}>{tx("Système")}</Th>
-            <Th k="svc" sort={sort}>{tx("Services")}</Th><Th k="watch" sort={sort}>{tx("Santé")}</Th>{snap.health && <><Th className="!px-1.5">{tx("CPU")}</Th><Th className="!px-1.5">{tx("Mémoire")}</Th><Th className="!px-1.5">{tx("Disque")}</Th></>}{anyGpu && <Th className="!px-1.5">GPU</Th>}
+            <Th k="svc" sort={sort}>{tx("Services")}</Th><Th k="watch" sort={sort}>{tx("Santé")}</Th>{snap.health && <><Th k="cpu" sort={sort} className="!px-1.5">{tx("CPU")}</Th><Th k="mem" sort={sort} className="!px-1.5">{tx("Mémoire")}</Th><Th k="disk" sort={sort} className="!px-1.5">{tx("Disque")}</Th></>}{anyGpu && <Th k="gpu" sort={sort} className="!px-1.5">GPU</Th>}
             <Th k="up" sort={sort} className="w-px !pl-2 !pr-1 !text-right" title={tx("Temps depuis le dernier démarrage de la machine")}>Uptime</Th>
             {admin && <th className="w-8 px-1" aria-label={tx("Réglages")} />}
           </>}>
