@@ -11,9 +11,10 @@ import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, TableCard, Td,
 import { FoldPanel } from "../components/FoldPanel";
 import { LEVEL } from "../lib/level";
 import { Dot } from "../components/marks";
-import { WATCH_FRAME, quiet, worstTone } from "../lib/forms";
+import { quiet, worstTone } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { StatTile } from "../components/StatTile";
+import { WatchPanel } from "../components/WatchPanel";
 import { cronsOf, figures, newestOf, rank, sourceOf, toWatch, unclaimedCrons } from "../lib/backupsState";
 
 const stateOf = (h: BackupHost) => (h.reachable ? h.level : "down");
@@ -207,14 +208,9 @@ export function Backups({ snap, initial }: Readonly<{ snap: Snapshot; initial?: 
         <StatTile n={fig.last ? dateTime(fig.last.mtime * 1000) : "-"} label={tx("Dernière archive")} sub={fig.last ? `${short(fig.last.set.label)} · ${fig.last.name}` : tx("aucune archive vue")} />
       </div>
 
-      <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${WATCH_FRAME[worst]}`} aria-label={tx("À surveiller")}>
-        <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
-          <h2 className="font-bold">{tx("À surveiller")}</h2>
-          <Badge tone={worst}>{watch.length}</Badge>
-          <span className="ml-auto text-xs text-dim">{tx("jeux en retard, absents, en erreur ou sans copie à jour")}</span>
-        </div>
+      <WatchPanel id="backups" tone={worst} count={watch.length} hint={tx("jeux en retard, absents, en erreur ou sans copie à jour")}>
         {watch.length ? <SetsTable sets={watch} b={b} snap={snap} /> : <p className="px-4 py-3 text-sm text-ok">{tx("Tous les jeux suivis sont à jour.")}</p>}
-      </section>
+      </WatchPanel>
 
       <FoldPanel id="backups-all" icon={Layers} title={tx("Tout voir")} count={all.length} startFolded>
         <SetsTable sets={all} b={b} snap={snap} sizes />

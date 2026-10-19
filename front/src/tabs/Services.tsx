@@ -19,7 +19,8 @@ import { dateTime } from "../lib/format";
 import { FoldPanel } from "../components/FoldPanel";
 import { NewServices } from "../components/NewServices";
 import { StatTile } from "../components/StatTile";
-import { quiet, WATCH_FRAME, worstTone } from "../lib/forms";
+import { WatchPanel } from "../components/WatchPanel";
+import { quiet, worstTone } from "../lib/forms";
 import { figures, liveChecks, toWatch } from "../lib/servicesState";
 
 const ST_TONE: Record<string, Tone> = { ok: "ok", warn: "warn", bad: "bad", off: "off" };
@@ -205,12 +206,7 @@ function ServiceRow({ r, grouped, onOpen }: Readonly<{ r: Host; grouped: boolean
 function Watch({ rows, onOpen }: Readonly<{ rows: Host[]; onOpen: (key: string) => void }>) {
   const worst = worstTone(rows.some((r) => status(r)[0] === "bad"), rows.length > 0);
   return (
-    <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${WATCH_FRAME[worst]}`} aria-label={tx("À surveiller")}>
-      <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
-        <h2 className="font-bold">{tx("À surveiller")}</h2>
-        <Badge tone={worst}>{rows.length}</Badge>
-        <span className="ml-auto text-xs text-dim">{tx("en panne, en avertissement ou avec un point à vérifier")}</span>
-      </div>
+    <WatchPanel id="services" tone={worst} count={rows.length} hint={tx("en panne, en avertissement ou avec un point à vérifier")}>
       {rows.length === 0 ? <p className="px-4 py-3 text-sm text-ok">{tx("Tous les services répondent, rien à vérifier.")}</p> : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] border-collapse text-sm">
@@ -235,7 +231,7 @@ function Watch({ rows, onOpen }: Readonly<{ rows: Host[]; onOpen: (key: string) 
           </table>
         </div>
       )}
-    </section>
+    </WatchPanel>
   );
 }
 

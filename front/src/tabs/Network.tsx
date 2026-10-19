@@ -11,8 +11,9 @@ import { tx } from "../lib/i18n";
 import { NETWORK_CARDS, hasNetwork } from "../lib/network";
 import type { ServiceStatus } from "../types";
 import { Badge, Cards, Count, Dim, Empty, FilterBar, Table, Td, Th } from "../components/ui";
-import { quiet, WATCH_FRAME, worstTone } from "../lib/forms";
+import { quiet, worstTone } from "../lib/forms";
 import { StatTile } from "../components/StatTile";
+import { WatchPanel } from "../components/WatchPanel";
 import { dateTime } from "../lib/format";
 import { Dot } from "../components/marks";
 import { ServiceCard } from "../components/ServiceStatusCards";
@@ -223,12 +224,7 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
         <StatTile n={sourceNames.length} label={tx("Sources")} tone={failing ? "bad" : "ok"} sub={failing ? tx("{0} en erreur", failing) : sourceNames.join(", ")} />
       </div>
 
-      <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${WATCH_FRAME[worst]}`} aria-label={tx("À surveiller")}>
-        <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
-          <h2 className="font-bold">{tx("À surveiller")}</h2>
-          <Badge tone={worst}>{watch.length}</Badge>
-          <span className="ml-auto text-xs text-dim">{tx("équipement hors ligne, source en erreur, box, mises à jour, wifi faible")}</span>
-        </div>
+      <WatchPanel id="network" tone={worst} count={watch.length} hint={tx("équipement hors ligne, source en erreur, box, mises à jour, wifi faible")}>
         {watch.length === 0 ? <p className="px-4 py-3 text-sm text-ok">{tx("Tout le réseau répond, rien à signaler.")}</p> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] border-collapse text-sm">
@@ -248,7 +244,7 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
             </table>
           </div>
         )}
-      </section>
+      </WatchPanel>
 
       <fieldset className="m-0 inline-flex min-w-0 self-start rounded-lg border border-line bg-card p-0.5" aria-label={tx("Sous-menu du réseau")}>
         {SUBS.map(([id, label, Icon]) => (

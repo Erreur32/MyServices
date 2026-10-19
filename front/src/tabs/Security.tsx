@@ -11,8 +11,9 @@ import { FoldPanel } from "../components/FoldPanel";
 import { InfoNote } from "../components/InfoNote";
 import { Badge, Dim, Empty } from "../components/ui";
 import { StatTile } from "../components/StatTile";
+import { WatchPanel } from "../components/WatchPanel";
 import { dateTime, splitHostName } from "../lib/format";
-import { quiet, WATCH_FRAME, worstTone } from "../lib/forms";
+import { quiet, worstTone } from "../lib/forms";
 import { watchRows, type WatchRow } from "../lib/securityWatch";
 import { tx } from "../lib/i18n";
 import { exposedSites, securityFindings, SENSITIVE, siteIssues, type Area, type Finding } from "../lib/securityFindings";
@@ -65,12 +66,7 @@ function Watch({ rows, open }: Readonly<{ rows: WatchRow[]; open: (s: Sub) => vo
   const [on, setOn] = useState<string | null>(null);
   const worst = worstTone(rows.some((r) => r.sev === "bad"), rows.length > 0);
   return (
-    <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${WATCH_FRAME[worst]}`} aria-label={tx("À surveiller")}>
-      <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
-        <h2 className="font-bold">{tx("À surveiller")}</h2>
-        <Badge tone={worst}>{rows.length}</Badge>
-        <span className="ml-auto text-xs text-dim">{tx("le plus grave en haut · un site n'apparaît qu'une fois par manque")}</span>
-      </div>
+    <WatchPanel id="security" tone={worst} count={rows.length} hint={tx("le plus grave en haut · un site n'apparaît qu'une fois par manque")}>
       {rows.length === 0 ? <p className="px-4 py-3 text-sm text-ok">{tx("Aucune exposition ni réglage faible détecté par vos outils.")}</p> : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] border-collapse text-sm">
@@ -112,7 +108,7 @@ function Watch({ rows, open }: Readonly<{ rows: WatchRow[]; open: (s: Sub) => vo
           </table>
         </div>
       )}
-    </section>
+    </WatchPanel>
   );
 }
 
