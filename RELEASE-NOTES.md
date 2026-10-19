@@ -2,7 +2,7 @@
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.17.0** (19 October 2026): the backup attention points and their settings are linked both ways.
+**0.17.0** (19 October 2026): one reader per connector, sortable meters, Connectors and Machines pages tidied.
 
 ## For everyone
 
