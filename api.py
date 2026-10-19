@@ -692,9 +692,21 @@ def connector_call(request: Request, action: str, detail: str, fn) -> JSONRespon
         out = fn(settings)
     except settings.SettingsError as e:
         return deny(400, str(e))
+    settings_applied()
     if action:
         store().audit(action, request.state.user["username"], ip_of(request), detail)
     return out if isinstance(out, dict) else {"ok": True, "message": "enregistré : pris en compte au prochain passage de la collecte"}
+
+
+def settings_applied() -> None:
+    """A connector saved, turned on or off, or removed: the running configuration is read again in place (the readers, the health check
+    and the pages see the change without a restart) and the readings cached from the former set of connectors go."""
+    import network_stats
+    import system
+    import unifi_cards as uc
+    system.reload_config(core)
+    uc.reset()
+    network_stats.reset()
 
 
 @app.put(API + "/connectors/settings/{type_}", tags=["connecteurs"], summary="Ajouter ou modifier une instance (admin ; secret vide = gardé)")
@@ -1005,19 +1017,21 @@ def network_diagnostics_route():
             "ok_ports": nd.ok_ports(doc["devices"], clients, items, machines)}
 
 
-@app.get(API + "/connectors/requests", tags=["connecteurs"], summary="Request counters per connector and route (admin, development build only)")
+@app.get(API + "/connectors/requests", tags=["connecteurs"], summary="Request counters per connector and route since the server started (admin)")
 def connectors_requests(request: Request):
-    """Debugging aid: calls per route over the last minute and hour, durations, HTTP codes, 429s and what is to watch (reqstats). A released
-    build answers 404: the block is for development."""
-    if not dev_build():
-        return deny(404, "introuvable")
+    """Settings > Requests: calls per route over the last minute and hour, durations, HTTP codes, 429s and what is to watch (reqstats),
+    measured in real conditions on any build."""
     from connectors import reqstats
-    return admin_only(request) or reqstats.snapshot()
+    return admin_only(request) or dict(reqstats.snapshot(), version=os.environ.get("MYSERVICES_VERSION", "dev"))
 
 
-def dev_build() -> bool:
-    """An image built on the spot (no release version, or a git revision): the development-only blocks of the page are shown."""
-    return os.environ.get("MYSERVICES_VERSION", "dev") == "dev" or bool(os.environ.get("MYSERVICES_GIT"))
+@app.post(API + "/connectors/requests/reset", tags=["connecteurs"], summary="Request counters back to zero (admin)")
+def connectors_requests_reset(request: Request):
+    from connectors import reqstats
+    if denied := admin_only(request):
+        return denied
+    reqstats.reset()
+    return {"ok": True}
 
 
 def _diag_accepted_file() -> Path:

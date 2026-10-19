@@ -1,7 +1,7 @@
 // Réglages (admins) : une section à la fois, menu à gauche (en haut sur mobile). Comptes : son mot de passe,
 // les comptes (ajout, rôle, activation, nouveau mot de passe, suppression) et le journal des actions.
 // Menu en quatre groupes (Sources, Alertes, Comptes et accès, Application). Autres sections : un fichier chacune dans tabs/.
-import { ArrowRight, Bell, Eye, HardDrive, KeyRound, Plug, Plus, Radar, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Timer, Trash2, UserCheck, UserPlus, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
+import { Activity, ArrowRight, Bell, Eye, HardDrive, KeyRound, Plug, Plus, Radar, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Timer, Trash2, UserCheck, UserPlus, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { dateTime } from "../lib/format";
@@ -16,6 +16,7 @@ import { useDiscoveries } from "../components/DiscoveryCard";
 import { NetworkSettings } from "./NetworkSettings";
 import { IconChoice, type IconOption } from "../components/IconChoice";
 import { UpdatesSettings } from "./UpdatesSettings";
+import { RequestsSettings } from "../components/RequestStats";
 import { ApiMcp } from "./ApiMcp";
 import { BackupsSettings } from "./BackupsSettings";
 import { SystemSettings } from "./SystemSettings";
@@ -37,7 +38,7 @@ const GROUPS: { label: string; sections: { id: string; label: string; icon: Luci
   ] },
   { label: tx("Application"), sections: [
     { id: "system", label: tx("Sauvegarde et infos"), icon: SlidersHorizontal }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer },
-    { id: "updates", label: tx("Mises à jour"), icon: RefreshCw },
+    { id: "updates", label: tx("Mises à jour"), icon: RefreshCw }, { id: "requests", label: tx("Requêtes"), icon: Activity },
   ] },
 ];
 const SECTIONS = GROUPS.flatMap((g) => g.sections);
@@ -59,6 +60,7 @@ function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snaps
     case "machines": return <MachinesSection snap={snap} />;
     case "network": return <NetworkSettings snap={snap} />;
     case "updates": return <UpdatesSettings />;
+    case "requests": return <RequestsSettings />;
     case "api": return <div className="flex flex-col gap-4"><SystemSettings part="ssh" snap={snap} /><ApiMcp /></div>;
     case "backups": return <BackupsSettings machines={snap.data.machine_list} issues={snap.backups?.issues ?? []} />;
     case "tasks": return <SystemSettings part="tasks" snap={snap} />;

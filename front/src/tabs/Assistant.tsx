@@ -258,7 +258,7 @@ function Access({ snap, report, open, rev, accepted, onAccept }: Readonly<{ snap
           {v.explain && <p className="mt-2 rounded-md bg-warn/10 px-2.5 py-1.5 text-sm text-txt">{v.explain}</p>}
           {v.todo && <p className="mt-2 text-sm"><b className="text-txt">{tx("À faire :")}</b> <span className="text-muted">{v.todo}</span></p>}
           {(v.action || v.status === "optimize") && (
-            <div className="mt-3 flex flex-wrap gap-2">   {/* actions alignées : même largeur, même hauteur, icône à gauche */}
+            <div className="mt-3 flex flex-wrap gap-2">{/* actions alignées : même largeur, même hauteur, icône à gauche */}
               {v.action && <button type="button" className={`${primary} ${ACTION}`} onClick={() => open(setupFor(v.action!.setup, m, advice[m.ip]))}>
                 {createElement(SETUP_ICON[v.action.setup], { size: 14, "aria-hidden": true })}{v.action.label}</button>}
               {v.status === "optimize" && <button type="button" className={`${quiet} ${ACTION}`} title={tx("Garder la méthode actuelle : cette machine ne sera plus signalée comme à optimiser.")} onClick={() => onAccept(m.ip, true)}>

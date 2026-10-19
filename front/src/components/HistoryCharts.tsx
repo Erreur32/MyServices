@@ -35,7 +35,7 @@ function YAxis({ ticks: t, top, children }: { ticks: number[]; top: number; chil
       <div className="relative min-w-0 flex-1">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-36" aria-hidden>
           {t.map((v) => <span key={v} className={`absolute inset-x-0 border-t ${v === 0 ? "border-line" : "border-dashed border-line/80"}`} style={{ bottom: `${(v / top) * 100}%` }} />)}
-          {[1, 2, 3, 4, 5].map((i) => <span key={i} className="absolute inset-y-0 border-l border-dashed border-line/60" style={{ left: `${(i / 6) * 100}%` }} />)}  {/* repères verticaux alignés sur l'axe du temps */}
+          {[1, 2, 3, 4, 5].map((i) => <span key={i} className="absolute inset-y-0 border-l border-dashed border-line/60" style={{ left: `${(i / 6) * 100}%` }} />)}{/* repères verticaux alignés sur l'axe du temps */}
         </div>
         {children}
       </div>

@@ -964,7 +964,7 @@ function IdentityTab({ v, setV, isNew, live, scan, found, ss, autoSave, savedPro
         <Field label={tx("Nom")}><input className={input} required maxLength={80} value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>
         <div>
           <TagInput label={tx("Rôle (étiquettes)")} value={v.role || ""} suggestions={roleSuggestionsOf(live, v, found)} placeholder={tx("ex. Docker, NAS…")}
-            onChange={(role) => (isNew ? setV({ ...v, role }) : void autoSave("role", { role }, savedProc, false))} />  {/* chaque étiquette s'enregistre seule, comme un interrupteur */}
+            onChange={(role) => (isNew ? setV({ ...v, role }) : void autoSave("role", { role }, savedProc, false))} />{/* chaque étiquette s'enregistre seule, comme un interrupteur */}
           <SavedMark k="role" s={ss} />
         </div>
       </div>

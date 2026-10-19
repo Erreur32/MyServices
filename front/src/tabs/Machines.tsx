@@ -346,7 +346,7 @@ function WatchList({ items, wrap = false, quiet = false, ip }: Readonly<{ items:
   if (!items.length && quiet) return null;
   if (!items.length) return <span className="inline-flex items-center gap-1 text-xs text-ok" title={tx("Rien à surveiller")}><Check size={14} aria-hidden />{wrap && tx("Rien à surveiller")}</span>;
   return (
-    <div className="flex flex-wrap items-center gap-1" role="list" aria-label={tx("À surveiller")}>   {/* tout est montré, jamais caché : les pastilles passent à la ligne */}
+    <div className="flex flex-wrap items-center gap-1" role="list" aria-label={tx("À surveiller")}>{/* tout est montré, jamais caché : les pastilles passent à la ligne */}
       {items.map((it, i) => {
         const Icon = WATCH_ICON[it.kind], cls = `grid h-6 w-6 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`;
         if (ip && pick) return <button key={i} type="button" role="listitem" title={watchTip(it, tx("Cliquer pour voir où"))} aria-label={it.text} onClick={() => pick(ip, it.kind)} className={`${cls} hover:brightness-125`}><Icon size={14} aria-hidden /></button>;
@@ -1262,7 +1262,7 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
       </div>
       <ResStrip h={h} first={<Stat label={tx("Services")}><span className="inline-flex items-center gap-1"><b>{m.services}</b><DownBadge m={m} snap={snap} /></span></Stat>} />
       <div className="flex min-h-7 items-center justify-between gap-2">
-        {ha?.addons?.length ? <AddonStrip s={ha} max={6} /> : <Servers m={m} snap={snap} max={4} />}   {/* Home Assistant: its add-ons stand for the servers */}
+        {ha?.addons?.length ? <AddonStrip s={ha} max={6} /> : <Servers m={m} snap={snap} max={4} />}{/* Home Assistant: its add-ons stand for the servers */}
         <WatchList ip={m.ip} items={watch} />
       </div>
       <button type="button" onClick={onToggle} aria-expanded={shown} className="flex items-center gap-1.5 border-t border-line/60 pt-2 text-xs text-muted hover:text-txt">
@@ -1398,16 +1398,16 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                   <tr className={`cursor-pointer outline-none even:bg-bg/50 hover:!bg-bg2/60 focus-visible:!bg-bg2/60 [&>td]:!py-3.5 ${isOff(m) ? "opacity-50" : ""}`}
                     tabIndex={0} aria-haspopup="dialog" aria-label={tx("Détails de {0}", m.name)}
                     onClick={(e) => { if (!(e.target as Element).closest("button, a, input, select, label, summary, [role=button]")) openPage(m.ip); }}
-                    onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) openPage(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
+                    onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) openPage(m.ip); }}>{/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
                     <td className="w-14 pl-4 pr-2 py-2 align-middle"><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifiOf(m)) }} scan={scanOs[m.ip]} reserve /></td>
                     <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><VmMark m={m} h={hb.get(m.ip)} /><ProblemFlag h={h} /></span></Td>
-                    <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-dim">{m.ip}</Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
+                    <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-dim">{m.ip}</Td>{/* the tools that see it (can be many): in the unfolded detail only */}
                     <Td>{st(m, false)}</Td>
                     <Td><div className="max-w-[11rem]"><SystemLine m={m} os={osOf(m)} ha={haOf(m)} unifi={unifiOf(m)} freebox={freeboxOf(m, snap.data.network)} /></div></Td>
                     <Td><span className="inline-flex items-center gap-1.5">
                       <button type="button" onClick={() => onMachine(m.ip)} title={tx("Voir ses services")} aria-label={tx("Voir les services de {0}", m.name)}
                         className="rounded-md px-1.5 py-0.5 hover:bg-link/10 hover:text-link"><span className="tabular-nums">{m.services}</span></button><DownBadge m={m} snap={snap} /></span></Td>
-                    <Td><span className="flex flex-wrap items-center gap-1.5 [&>span]:h-6">   {/* same height (24 px) for the level badge and the cause badges; one column: the level, then what explains it (the updates have their flag near the name) */}
+                    <Td><span className="flex flex-wrap items-center gap-1.5 [&>span]:h-6">{/* same height (24 px) for the level badge and the cause badges; one column: the level, then what explains it (the updates have their flag near the name) */}
                       {snap.health && <HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} />}
                       <WatchList ip={m.ip} quiet={!!snap.health} items={watchOf(m).filter((i) => i.kind !== "updates")} /></span></Td>
                     {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="!px-1.5"><GpuCellView list={gpusOf(m, hb.get(m.ip))} /></Td>}

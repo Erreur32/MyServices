@@ -24,8 +24,6 @@ import { serviceAt, setupCommand } from "../lib/connectorSetup";
 import { detectedValue, type DetectedValue } from "../lib/detectedValue";
 import { appIcon } from "../lib/appIcons";
 import { InfoNote } from "../components/InfoNote";
-import { RequestStatsPanel } from "../components/RequestStats";
-import { isDevBuild } from "../lib/tabs";
 
 const KIND: Record<string, string> = {
   services: "services", health: tx("santé"), logs: tx("Docker · journaux"), dns: "DNS", inventory: "inventaire", backups: "sauvegardes", network: tx("réseau"), security: tx("sécurité"), containers: "Docker",
@@ -127,9 +125,9 @@ export function Connectors({ snap }: { snap: Snapshot }) {
         {st.instances.length === 0 && !type && (
           <p className="mt-3 text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p>
         )}
-        {st.instances.length > 0 && <div className="mt-3 grid gap-3 lg:grid-cols-2">   {/* my connectors, two columns on wide screens; a card being edited or pointed at takes the row */}
+        {st.instances.length > 0 && <div className="mt-3 grid gap-3 lg:grid-cols-2">{/* my connectors, two columns on wide screens; a card being edited or pointed at takes the row */}
         {[...st.instances].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name)).map((i) => (   // alphabetical, like the picker
-          <InstanceCard key={`${i.type}/${i.name}`} inst={i} hosts={snap.data.hosts} collect={collect} type={st.types.find((t) => t.type === i.type)!} reload={reload} dev={isDevBuild(snap)}
+          <InstanceCard key={`${i.type}/${i.name}`} inst={i} hosts={snap.data.hosts} collect={collect} type={st.types.find((t) => t.type === i.type)!} reload={reload}
             toggling={toggling === `${i.type}/${i.name}`} toggleNote={srcKey === `${i.type}/${i.name}` ? srcNote : null} onForce={() => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: true, force: true }),
               tx("allumé sans test : relecture lancée"), setSrcNote).then((ok) => { if (ok) { setChanged(true); reload(); } })}
             onCollect={(on) => { setSrcKey(`${i.type}/${i.name}`); setSrcNote(null); setToggling(`${i.type}/${i.name}`); void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: on }),
@@ -340,8 +338,7 @@ function ToggleNote({ note, onForce }: Readonly<{ note: Note; onForce?: () => vo
   );
 }
 
-function InstanceCard({ inst, hosts, collect, type, reload, onCollect, toggling, toggleNote, onForce, focus, editing: edit, locked, setEditing: setEdit, dev = false }: Readonly<{
-  dev?: boolean;   // development build: the request counters of this connector, folded under the card
+function InstanceCard({ inst, hosts, collect, type, reload, onCollect, toggling, toggleNote, onForce, focus, editing: edit, locked, setEditing: setEdit }: Readonly<{
   toggling?: boolean; toggleNote?: Note; onForce?: () => void; focus?: boolean; inst: ConnectorInstance; hosts: Host[]; collect: ReturnType<typeof useCollectTask>; type: ConnectorType; reload: () => void; onCollect: (on: boolean) => void; editing: boolean; locked: boolean; setEditing: (on: boolean) => void;  // locked : un autre formulaire est ouvert
 }>) {
   const [confirm, setConfirm] = useState(false), [note, setNote] = useState<Note>(null), [report, setReport] = useState<TestOut | null>(null), [testing, setTesting] = useState(false);
@@ -393,7 +390,6 @@ function InstanceCard({ inst, hosts, collect, type, reload, onCollect, toggling,
       {report && !edit && <TestReport r={report} onClose={() => setReport(null)} />}
       {edit && <ConnectorForm type={type} inst={inst} hosts={hosts} onSaved={reload} onDone={() => { setEdit(false); reload(); }} onCancel={() => setEdit(false)} />}
       <NoteLine note={note} />
-      {dev && <div className="mt-3"><RequestStatsPanel owner={`${inst.type}/${inst.name}`} id={`${inst.type}-${inst.name}`} /></div>}
     </Card></div>
   );
 }

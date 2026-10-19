@@ -1,12 +1,14 @@
-// Request counters per connector and per route (development builds only): what the server counted since it started (connectors/reqstats.py),
-// in a folded panel under a connector card and in Network > Diagnostic. « To watch »: a route near or over a limit known on the service, or a
-// 429 received during the last hour. RequestTable is pure (tested as is); RequestStatsPanel reads the route every few seconds while open.
-import { Activity } from "lucide-react";
+// Settings > Requests: the calls of every connector to its service, per route, as the server counted them since it started
+// (connectors/reqstats.py), measured in real conditions on any build. « To watch »: a route near or over a limit known on the service,
+// or a 429 received during the last hour. A button copies the whole reading (JSON) to paste for analysis. RequestTable is pure (tested as is).
+import { Activity, Copy, RotateCcw } from "lucide-react";
 import { useCallback, useState } from "react";
-import { read } from "../api";
+import { read, send } from "../api";
+import { copyText } from "../lib/clipboard";
+import { dateTime } from "../lib/format";
+import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { usePoll } from "../lib/polling";
-import { FoldPanel } from "./FoldPanel";
 import { InfoNote } from "./InfoNote";
 import { Badge, Dim, Empty } from "./ui";
 
@@ -15,7 +17,7 @@ export type RequestRow = {
   last_code: number | null; n429: number; retry_after: number | null; last_error: string; last_at: number | null; limit: number | null; watch: boolean;
 };
 export type RequestWatch = { owner: string; route: string; per_min: number; limit: number | null; n429: number; retry_after: number | null };
-export type RequestDoc = { rows: RequestRow[]; watch: RequestWatch[]; at: number };
+export type RequestDoc = { rows: RequestRow[]; watch: RequestWatch[]; at: number; version?: string };
 
 const POLL = 10_000;
 
@@ -70,20 +72,41 @@ export function RequestTable({ doc, owner }: Readonly<{ doc: RequestDoc; owner?:
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-dim">{tx("Compteurs en mémoire depuis le démarrage du serveur, image de développement seulement ; relus toutes les {0} s.", POLL / 1000)}</p>
     </div>
   );
 }
 
-/** Folded panel « Requests (debugging) », read while open; `owner` limits it to one connector. Shown by the caller on a development build only. */
-export function RequestStatsPanel({ owner, id }: Readonly<{ owner?: string; id: string }>) {
-  const [doc, setDoc] = useState<RequestDoc | null>(null), [failed, setFailed] = useState(false);
+/** The Settings section: every connector, read again every few seconds, the reading copied as JSON on a click. */
+export function RequestsSettings() {
+  const [doc, setDoc] = useState<RequestDoc | null>(null), [failed, setFailed] = useState(false), [copied, setCopied] = useState<"" | "ok" | "no">("");
   const load = useCallback(() => { read<RequestDoc>("connectors/requests").then((d) => { setDoc(d); setFailed(false); }).catch(() => setFailed(true)); }, []);
   usePoll(load, POLL);
-  const watch = doc ? doc.watch.filter((w) => !owner || w.owner === owner).length : 0;
+  const copy = async () => {
+    if (!doc) return;
+    setCopied((await copyText(JSON.stringify({ taken: new Date().toISOString(), ...doc }, null, 1))) ? "ok" : "no");
+    setTimeout(() => setCopied(""), 4000);
+  };
+  const reset = () => void send("POST", "connectors/requests/reset").then(load).catch(() => setFailed(true));
   return (
-    <FoldPanel id={`requests-${id}`} icon={Activity} title={tx("Requêtes (débogage)")} count={watch || undefined} tone={watch ? "warn" : "off"} startFolded>
-      {failed && !doc ? <Empty>{tx("Lecture des compteurs impossible.")}</Empty> : doc && <RequestTable doc={doc} owner={owner} />}
-    </FoldPanel>
+    <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
+      <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
+        <Activity size={16} className="text-link" aria-hidden />
+        <h2 className="font-bold">{tx("Requêtes")}</h2>
+        {doc && doc.watch.length > 0 && <Badge tone="warn">{doc.watch.length} {tx("à surveiller")}</Badge>}
+        {doc && <Dim>{tx("relevé à {0}", dateTime(doc.at))}</Dim>}
+        <button type="button" className={`${quiet} ml-auto flex items-center gap-1.5`} disabled={!doc} onClick={() => void copy()} title={tx("Copie le relevé complet (JSON) : à coller pour analyse")}>
+          <Copy size={14} aria-hidden />{tx("Copier le relevé")}
+        </button>
+        <button type="button" className={`${quiet} flex items-center gap-1.5`} disabled={!doc} onClick={reset} title={tx("Remet tous les compteurs à zéro (nouvelle mesure)")}>
+          <RotateCcw size={14} aria-hidden />{tx("Remettre à zéro")}
+        </button>
+        {copied === "ok" && <output className="text-sm text-ok">{tx("relevé copié")}</output>}
+        {copied === "no" && <output className="text-sm text-warn">{tx("Copie impossible ici : sélectionnez le tableau à la main")}</output>}
+      </div>
+      <div className="p-4">
+        <InfoNote className="mb-3">{tx("Appels de chaque connecteur vers son service, comptés par route depuis le démarrage du serveur ; relus toutes les {0} s. Une route proche d'une limite connue du service, ou un 429 reçu dans l'heure, est signalée.", POLL / 1000)}</InfoNote>
+        {failed && !doc ? <Empty>{tx("Lecture des compteurs impossible.")}</Empty> : doc && <RequestTable doc={doc} />}
+      </div>
+    </section>
   );
 }

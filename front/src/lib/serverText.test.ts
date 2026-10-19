@@ -9,6 +9,9 @@ describe("server texts", () => {
     expect(serverText("introuvable", "en")).toBe("not found");
     expect(serverText("réponse inattendue : l'adresse ne mène pas à Jellyfin", "en")).toBe("unexpected answer: the address does not lead to Jellyfin");
   });
+  it("translates the steps of the collection shown by the header orb", () => {
+    expect(serverText("sondes TCP, HTTPS et web (1er passage)", "en")).toBe("TCP, HTTPS and web probes (first pass)");
+  });
   it("a text built with a value stays as it is", () => {
     expect(serverText("quelque chose de 42", "en")).toBe("quelque chose de 42");
   });
