@@ -20,7 +20,6 @@
   <a href="https://github.com/Erreur32/MyServices/pkgs/container/myservices"><img alt="Docker image" src="https://img.shields.io/badge/image-ghcr.io%2Ferreur32%2Fmyservices-2496ED?logo=docker&logoColor=white"></a>
   <img alt="Architectures" src="https://img.shields.io/badge/arch-amd64%20%7C%20arm64-555">
   <a href="https://github.com/Erreur32/MyServices/actions/workflows/docker-publish.yml"><img alt="Tests and Docker image" src="https://github.com/Erreur32/MyServices/actions/workflows/docker-publish.yml/badge.svg"></a>
-  <a href="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml"><img alt="Safety guard" src="https://github.com/Erreur32/MyServices/actions/workflows/safety.yml/badge.svg"></a>
 </p>
 
 <p align="center">
