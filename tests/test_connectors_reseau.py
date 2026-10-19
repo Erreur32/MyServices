@@ -27,9 +27,11 @@ class Fake(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def _send(self, code, obj):
+    def _send(self, code, obj, headers=None):
         raw = json.dumps(obj).encode()
         self.send_response(code)
+        for k, v in (headers or {}).items():
+            self.send_header(k, v)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
@@ -98,6 +100,45 @@ class Reseau(unittest.TestCase):
     def setUp(self):
         Fake.seen = []
         Fake.routes = {}
+
+    def test_mynetwork_429_is_rate_limited_with_its_delay(self):
+        from connectors.base import RateLimited
+        from connectors import reqstats
+        reqstats.reset()
+        Fake.routes = {"/api/search/ip-details/192.168.1.20": (429, {"success": False, "error": {"code": "RATE_LIMITED", "message": "Too many requests for this API token"}}, {"Retry-After": "7"})}
+        c = inst(MynetworK, self.url)
+        with self.assertRaises(RateLimited) as got:
+            c.ip_details("192.168.1.20")   # optional routes swallow 403 / 404 / 503, never a 429
+        self.assertEqual(got.exception.retry_after, 7)
+        self.assertIn("Too many requests", str(got.exception))
+        self.assertIsInstance(got.exception, ConnectorError)   # the callers that only know ConnectorError still catch it
+        [row] = reqstats.snapshot()["rows"]
+        self.assertEqual((row["owner"], row["route"], row["last_code"], row["n429"], row["retry_after"]), ("mynetwork/t", "/api/search/ip-details/*", 429, 1, 7))
+
+    def test_mynetwork_counts_its_calls_and_reads_the_freebox_hosts_compact(self):
+        from connectors import reqstats
+        reqstats.reset()
+        Fake.seen = []
+        Fake.routes = {"/api/network-scan/history": (200, {"success": True, "result": {"items": [], "total": 0}}),
+                       "/api/connection/summary": (200, {"success": True, "result": {"connection": {"state": "up"}, "system": {}}}),
+                       "/api/lan/devices": (200, {"success": True, "result": [{"active": True}], "total": 1})}
+        inst(MynetworK, self.url).collect()
+        self.assertIn(("GET", "/api/lan/devices?compact=1"), Fake.seen)   # the compact form: only counted here
+        rows = {r["route"]: r for r in reqstats.snapshot()["rows"]}
+        self.assertEqual(rows["/api/lan/devices"]["last_code"], 200)
+        self.assertEqual(rows["/api/plugins/unifi/clients"]["last_code"], 404)
+        self.assertGreaterEqual(rows["/api/network-scan/history"]["per_min"], 1)
+
+    def test_mynetwork_inventory_paginated_by_the_real_total(self):
+        from connectors import mynetwork as mn
+        items = [{"id": i, "ip": f"10.0.{i // 250}.{i % 250}", "status": "online"} for i in range(mn.PAGE)]
+        Fake.seen = []
+        Fake.routes = {"/api/network-scan/history": (200, {"success": True, "result": {"items": items, "total": mn.PAGE + 1}})}
+        devices = inst(MynetworK, self.url).scan()
+        asked = [p for m, p in Fake.seen if p.startswith("/api/network-scan/history")]
+        self.assertEqual(len(asked), 2)   # the total says a second page exists: asked with its offset
+        self.assertIn(f"offset={mn.PAGE}", asked[1])
+        self.assertEqual(len(devices), 2 * mn.PAGE)   # the fake server gives the same page twice; a real one gives the last item
 
     def test_registre(self):
         for t in ("mynetwork", "logviewr", "dockhand", "proxmox", "proxmox-backup"):

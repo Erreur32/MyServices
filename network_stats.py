@@ -11,6 +11,7 @@ import threading
 import time
 
 import connectors
+from connectors import reqstats
 from connectors.base import ConnectorError
 from connectors.mynetwork import TRAFFIC_MODES
 
@@ -118,11 +119,15 @@ def read(cfg: dict, traffic: str = "live", now: float | None = None) -> dict:
         if not hit or now - hit["at"] >= TTL:
             scan, err = _read_scan(cfg)
             hit = _cache["scan"] = {"at": now, "scan": scan, "error": err}
+        else:
+            reqstats.hit("cache", "network_stats scan")
         tr = _cache.get(("traffic", mode))
         if not tr or now - tr["at"] >= TRAFFIC_TTL[mode]:
             items, terr = _read_traffic(cfg, mode) if hit["scan"] else (None, "")
             err = terr or err
             tr = _cache[("traffic", mode)] = {"at": now, "items": items}
+        else:
+            reqstats.hit("cache", f"network_stats traffic {mode}")
         return {"scan": hit["scan"], "traffic": None if tr["items"] is None else {"mode": mode, "items": tr["items"]}, "at": max(hit["at"], tr["at"]),
                 "error": err or hit["error"]}
 

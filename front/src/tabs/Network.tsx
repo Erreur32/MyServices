@@ -17,6 +17,8 @@ import { WatchPanel } from "../components/WatchPanel";
 import { Dot } from "../components/marks";
 import { ServiceCard } from "../components/ServiceStatusCards";
 import { NetworkDiagnostic } from "./NetworkDiagnostic";
+import { RequestStatsPanel } from "../components/RequestStats";
+import { isDevBuild } from "../lib/tabs";
 import { NetworkScanStats } from "./NetworkScanStats";
 import { UnifiCards } from "./UnifiCards";
 
@@ -299,6 +301,7 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
       )}
 
       {sub === "diagnostic" && <NetworkDiagnostic admin={snap.me.role === "admin"} />}
+      {sub === "diagnostic" && isDevBuild(snap) && <div className="mt-3"><RequestStatsPanel id="diagnostic" /></div>}
 
       {sub === "list" && (
         <>

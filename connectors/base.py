@@ -26,6 +26,7 @@ de passages en échec ; un connecteur en panne ne bloque pas les autres.
 """
 from __future__ import annotations
 
+import copy
 import json
 import re
 import ssl
@@ -37,11 +38,21 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from connectors import reqstats
+
 KINDS = ("inventory", "services", "dns", "health", "backups", "logs", "alerts", "status", "network", "security", "containers", "virtualization")
 
 
 class ConnectorError(Exception):
     """Lecture impossible : message lisible par l'utilisateur, sans secret."""
+
+
+class RateLimited(ConnectorError):
+    """The service refused the call for now (HTTP 429): `retry_after` is the delay it asked for, in seconds, when it said one."""
+
+    def __init__(self, message: str, retry_after: float | None = None):
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 @dataclass(frozen=True)
@@ -85,10 +96,17 @@ class Context:
     """Ce que le cœur donne aux connecteurs : HTTP (délais, TLS au choix), SSH par alias, journal, cache. Les secrets
     des réglages arrivent déjà déchiffrés (config.load, secrets_store) : un connecteur ne touche jamais au chiffrement."""
 
-    def __init__(self, timeout: float = 15, log=print, cache_dir: str | Path | None = None):
+    def __init__(self, timeout: float = 15, log=print, cache_dir: str | Path | None = None, owner: str = ""):
         self.timeout = timeout
         self.log = log
         self.cache_dir = Path(cache_dir) if cache_dir else None
+        self.owner = owner   # « type/name » of the connector the calls are counted under (reqstats)
+
+    def bound(self, owner: str) -> "Context":
+        """The same context (a shallow copy: a replaced http or ssh stays), with the calls counted under `owner` (one connector instance)."""
+        c = copy.copy(self)
+        c.owner = owner
+        return c
 
     def cached(self, key: str, ttl: float, fn):
         """Résultat de fn() (JSON) gardé ttl secondes sous cache_dir : un service lent ou limité n'est pas interrogé à
@@ -123,17 +141,32 @@ class Context:
             h["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=data, headers=h, method=method)
         ctx = None if verify_tls else ssl._create_unverified_context()  # NOSONAR S5527 ; certificat auto-signé (box, NAS)
+        t0 = time.monotonic()
         try:
             with urllib.request.urlopen(req, timeout=timeout or self.timeout, context=ctx) as r:
                 raw = r.read()
         except urllib.error.HTTPError as e:
-            raise ConnectorError(f"HTTP {e.code}{_api_message(e)}") from None
+            raise self._http_failed(url, t0, e) from None
         except (OSError, ValueError) as e:
-            raise ConnectorError(f"injoignable ({getattr(e, 'reason', e)})") from None
+            msg = f"injoignable ({getattr(e, 'reason', e)})"
+            reqstats.record(self.owner, url, (time.monotonic() - t0) * 1000, None, msg)
+            raise ConnectorError(msg) from None
+        reqstats.record(self.owner, url, (time.monotonic() - t0) * 1000, 200)
         try:
             return json.loads(raw or b"null")
         except ValueError:
             raise ConnectorError("réponse qui n'est pas du JSON") from None
+
+    def _http_failed(self, url: str, t0: float, e: urllib.error.HTTPError) -> ConnectorError:
+        """The error to raise for an HTTP answer in error, counted; a 429 (the service limits its calls) is a RateLimited with the delay
+        asked, said in the log without the URL (it may carry a secret: the route is in the counters)."""
+        msg = f"HTTP {e.code}{_api_message(e)}"
+        retry = _retry_after(e) if e.code == 429 else None
+        reqstats.record(self.owner, url, (time.monotonic() - t0) * 1000, e.code, msg, retry)
+        if e.code != 429:
+            return ConnectorError(msg)
+        self.log(f"⚠ {self.owner or 'connecteur'} : HTTP 429 (trop d'appels), réessai dans {int(retry) if retry else '?'} s")
+        return RateLimited(msg, retry)
 
     def ssh(self, alias: str, cmd: str, *, stdin: str | None = None, timeout: float | None = None) -> str:
         """Sortie de la commande sur la machine (BatchMode : jamais de mot de passe demandé). Alias « local »
@@ -146,6 +179,14 @@ class Context:
         if r.returncode != 0:
             raise ConnectorError(f"SSH {alias} : {(r.stderr.strip() or f'code {r.returncode}')[-200:]}")
         return r.stdout
+
+
+def _retry_after(e: urllib.error.HTTPError) -> float | None:
+    """The Retry-After header in seconds (a number only: a date is rare on an API and left out)."""
+    try:
+        return float(e.headers.get("Retry-After", "").strip())
+    except (ValueError, AttributeError):
+        return None
 
 
 def _api_message(e: urllib.error.HTTPError) -> str:
@@ -174,7 +215,7 @@ class Connector:
     def __init__(self, conf: dict, ctx: Context):
         self.conf = conf
         self.name = conf.get("name") or self.type
-        self.ctx = ctx
+        self.ctx = ctx.bound(f"{self.type}/{self.name}") if isinstance(ctx, Context) else ctx   # a fake context in the tests stays as it is
 
     @classmethod
     def validate(cls, conf: dict) -> list[str]:

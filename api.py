@@ -1005,6 +1005,21 @@ def network_diagnostics_route():
             "ok_ports": nd.ok_ports(doc["devices"], clients, items, machines)}
 
 
+@app.get(API + "/connectors/requests", tags=["connecteurs"], summary="Request counters per connector and route (admin, development build only)")
+def connectors_requests(request: Request):
+    """Debugging aid: calls per route over the last minute and hour, durations, HTTP codes, 429s and what is to watch (reqstats). A released
+    build answers 404: the block is for development."""
+    if not dev_build():
+        return deny(404, "introuvable")
+    from connectors import reqstats
+    return admin_only(request) or reqstats.snapshot()
+
+
+def dev_build() -> bool:
+    """An image built on the spot (no release version, or a git revision): the development-only blocks of the page are shown."""
+    return os.environ.get("MYSERVICES_VERSION", "dev") == "dev" or bool(os.environ.get("MYSERVICES_GIT"))
+
+
 def _diag_accepted_file() -> Path:
     return Path(core.CFG["state_dir"]) / "diagnostic-accepted.json"
 

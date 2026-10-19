@@ -9,7 +9,7 @@ Routes lues (enveloppe {"success": true, "result": …}) :
   GET /api/plugins/unifi/devices        bornes, switches, passerelles UniFi (facultatif)
   GET /api/plugins/unifi/system         UniFi Network (version, mise à jour), UniFi OS, passerelle : firmware, adresse LAN, santé (MynetworK 0.10.68+, facultatif)
   (GET /api/connection/summary donne aussi, depuis 0.10.68, latest_firmware et update_available de la Freebox)
-  GET /api/lan/devices                  hôtes vus par la Freebox (facultatif)
+  GET /api/lan/devices?compact=1        hôtes vus par la Freebox (facultatif ; compact : résumé léger, paramètre ignoré avant MynetworK 0.11.3)
   GET /api/connection/summary           ligne et santé de la Freebox, sans IP ni numéro de série (facultatif, MynetworK 0.10.66+)
   GET /api/network-scan/stats           scan counters: total, online, offline, unknown, last scan (MynetworK 0.11.2+; else counted from the inventory)
   GET /api/plugins/unifi/top-traffic    data volume per client, ?mode=live|today|alltime&limit=1..50 (MynetworK 0.11.2+; 403 / 404 = absent)
@@ -242,12 +242,12 @@ class MynetworK(Connector):
 
     def _freebox(self) -> dict | None:
         """Freebox relayée par MynetworK : None si MynetworK n'a pas de Freebox (ou une version sans ces routes)."""
-        def opt(path):
+        def opt(path, params=None):
             try:
-                return self._get(path, optional=True)
+                return self._get(path, params, optional=True)
             except ConnectorError:   # Freebox non appairée : enveloppe {"success": false} de la Freebox
                 return None
-        summary, hosts = opt("/api/connection/summary"), opt("/api/lan/devices")
+        summary, hosts = opt("/api/connection/summary"), opt("/api/lan/devices", {"compact": 1})   # only counted here: the compact form is enough
         if not isinstance(summary, dict) and not isinstance(hosts, list):
             return None
         out = {"connection": None, "system": None, "hosts": None, "hosts_active": None}
