@@ -2769,7 +2769,6 @@ export const EN: Record<string, string> = {
   "processeur très chaud": "processor very hot",
   "mémoire presque pleine": "memory almost full",
   "Docker : {0} unhealthy, {1} en redémarrage, {2} arrêté(s)": "Docker: {0} unhealthy, {1} restarting, {2} exited",
-  "(+{0})": "(+{0})",
   "🖥 Machines": "🖥 Machines",
   "{0} machines": "{0} machines",
   "éteintes": "switched off",
