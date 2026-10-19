@@ -34,7 +34,7 @@ function Strip({ cells, step }: { cells: Cell[]; step: Report["step"] }) {
   );
 }
 
-export function Availability({ snap }: { snap: Snapshot }) {
+export function Availability({ snap, middle }: { snap: Snapshot; middle?: ReactNode }) {   // middle: the Events / Availability switch, in the period row
   const [days, setDays] = useState(() => { try { const v = Number(localStorage.getItem(DAYS_KEY)); return PERIODS.some(([d]) => d === v) ? v : 7; } catch { return 7; } });
   const [rep, setRep] = useState<Report | null>(null), [error, setError] = useState("");
   useEffect(() => { read<Report>(`availability?days=${days}`).then((r) => { setRep(r); setError(""); }).catch((e) => setError(String(e.message || e))); }, [days, snap.data.generated]);
@@ -59,13 +59,14 @@ export function Availability({ snap }: { snap: Snapshot }) {
   else if (!items.length) notice = <Empty>{tx("Pas encore de relevé : la disponibilité se remplit à chaque collecte (toutes les 15 minutes par défaut).")}</Empty>;
 
   return (
-    <div className="py-4">
+    <div>
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
         {PERIODS.map(([d, l]) => (
           <button key={d} type="button" onClick={() => pick(d)}
             className={`rounded-full border px-3 py-1 text-sm ${days === d ? "border-link bg-link/15 text-txt" : "border-line bg-card text-muted hover:text-txt"}`}>{l}</button>
         ))}
-        <span className="ml-auto flex flex-wrap gap-3 text-sm text-muted">
+        {middle && <span className="mx-auto">{middle}</span>}
+        <span className={`${middle ? "" : "ml-auto "}flex flex-wrap gap-3 text-sm text-muted`}>
           {(["service", "machine", "kuma"] as const).map((k) => { const a = avg(k); return a == null ? null : <span key={k}>{KIND[k][0]} <b className={pctTone(a)}>{pct(a)}</b></span>; })}
         </span>
       </div>

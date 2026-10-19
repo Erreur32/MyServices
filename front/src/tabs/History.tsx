@@ -2,7 +2,7 @@
 // un point ou une barre limite la liste à ce jour ou à cette plage. Source : historique SQLite d'un an (API v1).
 import { Activity, BarChart3, Flame, LineChart, ListOrdered, ScatterChart } from "lucide-react";
 import { Availability } from "./Availability";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { loadHistory, type Snapshot } from "../api";
 import { useFilter, type Facet } from "../lib/filter";
 import { dayKey, hm, longDay, splitHostName } from "../lib/format";
@@ -46,20 +46,19 @@ const VIEW_KEY = "ms.history.view";
 export function History({ snap }: { snap: Snapshot }) {
   const [view, setView] = useState<"events" | "availability">(() => { try { return localStorage.getItem(VIEW_KEY) === "availability" ? "availability" : "events"; } catch { return "events"; } });
   const pickView = (v: typeof view) => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* stockage refusé */ } };
-  return (
-    <>
-      <div className="mt-4 flex justify-end"><fieldset className="m-0 inline-flex rounded-lg border border-line bg-card p-0.5" aria-label={tx("Vue de l'historique")}>
-        {([["events", tx("Événements"), ListOrdered], ["availability", tx("Disponibilité"), Activity]] as const).map(([k, l, Icon]) => (
-          <button key={k} type="button" onClick={() => pickView(k)} aria-pressed={view === k}
-            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm ${view === k ? "bg-link/15 font-semibold text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{l}</button>
-        ))}
-      </fieldset></div>
-      {view === "events" ? <Events snap={snap} /> : <Availability snap={snap} />}
-    </>
+  // the switch sits in the middle of the period / chart-style row of the events view, and in a row of its own above the availability
+  const switcher = (
+    <fieldset className="m-0 inline-flex rounded-lg border border-line bg-card p-0.5" aria-label={tx("Vue de l'historique")}>
+      {([["events", tx("Événements"), ListOrdered], ["availability", tx("Disponibilité"), Activity]] as const).map(([k, l, Icon]) => (
+        <button key={k} type="button" onClick={() => pickView(k)} aria-pressed={view === k}
+          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm ${view === k ? "bg-link/15 font-semibold text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{l}</button>
+      ))}
+    </fieldset>
   );
+  return view === "events" ? <Events snap={snap} middle={switcher} /> : <Availability snap={snap} middle={switcher} />;
 }
 
-function Events({ snap }: { snap: Snapshot }) {
+function Events({ snap, middle }: { snap: Snapshot; middle: ReactNode }) {
   const [days, setDays] = useState(savedDays);
   const [style, setStyle] = useState<ChartStyle>(savedStyle);
   const [range, setRange] = useState<Range | null>(null);
@@ -123,13 +122,14 @@ function Events({ snap }: { snap: Snapshot }) {
   }
 
   return (
-    <div className="py-4">
+    <div>
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
         {PERIODS.map(([d, l]) => (
           <button key={d} type="button" onClick={() => { pickDays(d); setRange(null); setCell(null); }}
             className={`rounded-full border px-3 py-1 text-sm ${days === d ? "border-link bg-link/15 text-txt" : "border-line bg-card text-muted hover:text-txt"}`}>{l}</button>
         ))}
-        <span className="ml-auto inline-flex rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Style du graphique")}>
+        <span className="mx-auto">{middle}</span>
+        <span className="inline-flex rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Style du graphique")}>
           {STYLES.map(([k, l]) => {
             const Icon = STYLE_ICON[k];
             return (
