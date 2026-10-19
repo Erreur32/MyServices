@@ -578,11 +578,11 @@ type FlagCtx = { v: MachineConf; found: Set<string>; unlock: boolean; ss: SaveSt
 // Interrupteurs détectables (passerelle, VM, hôte NPM, poste Windows) : grisés si la détection ne les confirme pas et qu'ils
 // sont éteints. Un interrupteur déjà allumé reste modifiable (pour le retirer). Les autres (NPM seulement, services hors Docker)
 // ne se détectent pas : toujours libres.
-const DETECTABLE = ["gateway", "vm", "off"];
+const DETECTABLE = new Set(["gateway", "vm", "off"]);
 const QUICK = new Set(["off"]);   // réglages courants, montrés en haut de la carte (jamais grisés ni cachés dans le menu des options)
 
 function isLocked(k: string, ctx: FlagCtx): boolean {
-  return !QUICK.has(k) && !ctx.unlock && DETECTABLE.includes(k) && !ctx.found.has(k) && !ctx.v[k as keyof MachineConf];
+  return !QUICK.has(k) && !ctx.unlock && DETECTABLE.has(k) && !ctx.found.has(k) && !ctx.v[k as keyof MachineConf];
 }
 
 /** The switches split by group: on (shown outside the menu), detected but off, not detected, not detectable */
@@ -591,9 +591,9 @@ function flagGroups(v: MachineConf, found: Set<string>) {
   const menu = FLAGS.filter((f) => !QUICK.has(String(f.k)));
   return {
     active: menu.filter((f) => !!v[f.k]),
-    detected: menu.filter((f) => DETECTABLE.includes(String(f.k)) && isOn(String(f.k)) && !v[f.k]),
-    missing: menu.filter((f) => DETECTABLE.includes(String(f.k)) && !isOn(String(f.k))),
-    manual: menu.filter((f) => !DETECTABLE.includes(String(f.k)) && !v[f.k]),
+    detected: menu.filter((f) => DETECTABLE.has(String(f.k)) && isOn(String(f.k)) && !v[f.k]),
+    missing: menu.filter((f) => DETECTABLE.has(String(f.k)) && !isOn(String(f.k))),
+    manual: menu.filter((f) => !DETECTABLE.has(String(f.k)) && !v[f.k]),
   };
 }
 

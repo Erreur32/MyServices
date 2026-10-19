@@ -48,7 +48,7 @@ interface Watch { key: string; sev: "bad" | "warn"; area: string; title: string;
 /** What needs a look on the network, red first: gear offline, a source failing, what the Internet access reports, firmware updates, weak Wi-Fi links */
 function toWatch(rows: Row[], internet: ServiceStatus[], sources: { label: string; ok: boolean; message: string; stale?: boolean }[]): Watch[] {
   const out: Watch[] = [];
-  for (const c of sources.filter((x) => !x.ok)) out.push({ key: `src/${c.label}`, sev: "bad", area: tx("Source"), title: c.label, detail: `${c.message}${c.stale ? ` (${tx("dernier relevé gardé")})` : ""}`, sub: "diagnostic" });
+  for (const c of sources.filter((x) => !x.ok)) out.push({ key: `src/${c.label}`, sev: "bad", area: tx("Source"), title: c.label, detail: c.stale ? c.message + " (" + tx("dernier relevé gardé") + ")" : c.message, sub: "diagnostic" });
   for (const r of rows.filter((x) => x.kind === "gear" && !x.up)) out.push({ key: `down/${r.key}`, sev: "bad", area: tx("Équipement"), title: r.name, detail: tx("hors ligne"), sub: "list", href: r.machine ? `#machines/${r.ip}` : undefined });
   for (const c of internet.filter((x) => x.ok && x.connector !== "unifi")) for (const pb of c.problems ?? []) out.push({ key: `net/${c.name}/${pb}`, sev: "warn", area: c.label, title: pb, detail: "", sub: "list" });
   for (const r of rows.filter((x) => x.kind === "gear" && x.up && x.gear?.updatable)) out.push({ key: `upd/${r.key}`, sev: "warn", area: tx("Équipement"), title: r.name, detail: tx("mise à jour disponible (installée : {0})", r.gear?.version || "?"), sub: "list" });
@@ -154,6 +154,59 @@ type Sub = "overview" | "list" | "diagnostic";
 const SUBS: [Sub, string, LucideIcon][] = [["overview", tx("Cartes"), LayoutDashboard], ["list", tx("Équipements et appareils"), List], ["diagnostic", tx("Diagnostic"), Stethoscope]];
 const SUB_KEY = "ms.network.sub";
 
+/** The five figures above the sub-menu */
+function Figures({ box, boxFact, gearAll, gearDown, updates, wifi, wired, devAll, unfollowed, sourceNames, failing }: Readonly<{
+  box?: ServiceStatus; boxFact?: { label: string; value: string }; gearAll: Row[]; gearDown: number; updates: number; wifi: number; wired: number; devAll: Row[]; unfollowed: number; sourceNames: string[]; failing: number;
+}>) {
+  let boxN = "-", boxTone: "ok" | "warn" | undefined, boxSub = tx("aucune box ni pare-feu relié");
+  if (box) {
+    boxN = box.ok ? "OK" : tx("erreur");
+    boxTone = box.ok && !(box.problems ?? []).length ? "ok" : "warn";
+    boxSub = boxFact ? `${boxFact.label} : ${boxFact.value}` : box.label;
+  }
+  let gearSub = tx("aucun UniFi relié"), gearTone: "ok" | "bad" | undefined;
+  if (gearAll.length) { gearSub = updates ? tx("{0} mise(s) à jour disponible(s)", updates) : tx("à jour"); gearTone = gearDown ? "bad" : "ok"; }
+  let devTone: "ok" | "warn" | undefined;
+  if (unfollowed) devTone = "warn";
+  else if (devAll.length) devTone = "ok";
+  return (
+    <div className="flex gap-2.5 overflow-x-auto pb-1">
+      <StatTile n={boxN} label={tx("Accès Internet")} tone={boxTone} sub={boxSub} />
+      <StatTile n={gearAll.length ? `${gearAll.length - gearDown}/${gearAll.length}` : "-"} label={tx("Équipements en ligne")} tone={gearTone} sub={gearSub} />
+      <StatTile n={wifi + wired} label={tx("Clients")} sub={tx("{0} wifi · {1} filaires", wifi, wired)} />
+      <StatTile n={devAll.length ? `${devAll.filter((r) => r.up).length}/${devAll.length}` : "-"} label={tx("Appareils en ligne")} tone={devTone} sub={unfollowed ? tx("{0} pas suivi(s) comme machine", unfollowed) : tx("tous suivis")} />
+      <StatTile n={sourceNames.length} label={tx("Sources")} tone={failing ? "bad" : "ok"} sub={failing ? tx("{0} en erreur", failing) : sourceNames.join(", ")} />
+    </div>
+  );
+}
+
+/** « To watch », a row per problem */
+function WatchTable({ watch, worst, open }: Readonly<{ watch: Watch[]; worst: "ok" | "warn" | "bad"; open: (w: Watch) => void }>) {
+  return (
+    <WatchPanel id="network" tone={worst} count={watch.length} hint={tx("équipement hors ligne, source en erreur, box, mises à jour, wifi faible")}>
+      {watch.length === 0 ? <p className="px-4 py-3 text-sm text-ok">{tx("Tout le réseau répond, rien à signaler.")}</p> : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] border-collapse text-sm">
+            <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
+              <th className="px-3 py-2">{tx("Domaine")}</th><th className="px-3 py-2">{tx("Quoi")}</th><th className="px-3 py-2">{tx("Détail")}</th><th className="w-28 px-3 py-2" />
+            </tr></thead>
+            <tbody>
+              {watch.map((w) => (
+                <tr key={w.key} className="border-t border-line/60 even:bg-bg/50 hover:bg-bg2/40">
+                  <td className="px-3 py-2"><Badge tone={w.sev}>{w.area}</Badge></td>
+                  <td className="px-3 py-2 font-semibold">{w.title}</td>
+                  <td className="px-3 py-2 text-muted">{w.detail}</td>
+                  <td className="px-3 py-2 text-right"><button type="button" onClick={() => open(w)} className={`${quiet} py-1`}>{w.href ? tx("Ouvrir") : tx("Voir")}</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </WatchPanel>
+  );
+}
+
 export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapshot; onMachine: (ip: string) => void; initialSub?: Sub }>) {
   const [sub, setSub] = useState<Sub>(() => { try { const v = localStorage.getItem(SUB_KEY); return initialSub ?? (v === "list" || v === "diagnostic" ? v : "overview"); } catch { return initialSub ?? "overview"; } });   // the sub-page is kept
   const pickSub = (v: Sub) => { setSub(v); try { localStorage.setItem(SUB_KEY, v); } catch { /* storage refused: the choice lasts this visit */ } };
@@ -215,35 +268,9 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
         <h1 className="flex items-center gap-2 text-xl font-bold"><NetworkIcon size={18} aria-hidden />{tx("Réseau")}</h1>
         <span className="text-sm text-muted">{[gearWords.join(" + "), devAll.length ? tx("{0} appareils", devAll.length) : "", sourceNames.join(", ")].filter(Boolean).join(" · ")} · {tx("relevé du {0}, en lecture seule", dateTime(snap.data.generated))}</span>
       </div>
-      <div className="flex gap-2.5 overflow-x-auto pb-1">
-        <StatTile n={box ? (box.ok ? "OK" : tx("erreur")) : "-"} label={tx("Accès Internet")} tone={box ? (box.ok && !(box.problems ?? []).length ? "ok" : "warn") : undefined} sub={box ? (boxFact ? `${boxFact.label} : ${boxFact.value}` : box.label) : tx("aucune box ni pare-feu relié")} />
-        <StatTile n={gearAll.length ? `${gearAll.length - gearDown}/${gearAll.length}` : "-"} label={tx("Équipements en ligne")} tone={gearAll.length ? (gearDown ? "bad" : "ok") : undefined} sub={updates ? tx("{0} mise(s) à jour disponible(s)", updates) : gearAll.length ? tx("à jour") : tx("aucun UniFi relié")} />
-        <StatTile n={all("wifi").length + all("wired").length} label={tx("Clients")} sub={tx("{0} wifi · {1} filaires", all("wifi").length, all("wired").length)} />
-        <StatTile n={devAll.length ? `${devAll.filter((r) => r.up).length}/${devAll.length}` : "-"} label={tx("Appareils en ligne")} tone={unfollowed ? "warn" : devAll.length ? "ok" : undefined} sub={unfollowed ? tx("{0} pas suivi(s) comme machine", unfollowed) : tx("tous suivis")} />
-        <StatTile n={sourceNames.length} label={tx("Sources")} tone={failing ? "bad" : "ok"} sub={failing ? tx("{0} en erreur", failing) : sourceNames.join(", ")} />
-      </div>
+      <Figures box={box} boxFact={boxFact} gearAll={gearAll} gearDown={gearDown} updates={updates} wifi={all("wifi").length} wired={all("wired").length} devAll={devAll} unfollowed={unfollowed} sourceNames={sourceNames} failing={failing} />
 
-      <WatchPanel id="network" tone={worst} count={watch.length} hint={tx("équipement hors ligne, source en erreur, box, mises à jour, wifi faible")}>
-        {watch.length === 0 ? <p className="px-4 py-3 text-sm text-ok">{tx("Tout le réseau répond, rien à signaler.")}</p> : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] border-collapse text-sm">
-              <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-                <th className="px-3 py-2">{tx("Domaine")}</th><th className="px-3 py-2">{tx("Quoi")}</th><th className="px-3 py-2">{tx("Détail")}</th><th className="w-28 px-3 py-2" />
-              </tr></thead>
-              <tbody>
-                {watch.map((w) => (
-                  <tr key={w.key} className="border-t border-line/60 even:bg-bg/50 hover:bg-bg2/40">
-                    <td className="px-3 py-2"><Badge tone={w.sev}>{w.area}</Badge></td>
-                    <td className="px-3 py-2 font-semibold">{w.title}</td>
-                    <td className="px-3 py-2 text-muted">{w.detail}</td>
-                    <td className="px-3 py-2 text-right"><button type="button" onClick={() => openWatch(w)} className={`${quiet} py-1`}>{w.href ? tx("Ouvrir") : tx("Voir")}</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </WatchPanel>
+      <WatchTable watch={watch} worst={worst} open={openWatch} />
 
       <fieldset className="m-0 inline-flex min-w-0 self-start rounded-lg border border-line bg-card p-0.5" aria-label={tx("Sous-menu du réseau")}>
         {SUBS.map(([id, label, Icon]) => (

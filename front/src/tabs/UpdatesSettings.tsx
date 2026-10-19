@@ -35,7 +35,11 @@ export function UpdatesSettings() {
     setBusy(false);
   };
   const save = (body: { auto: boolean }, done: string) => void act(() => send("PUT", "about/settings", body), done, setNote)
-    .then((ok) => { if (ok) { if (body.auto) forgetDismissed(); load(); } });   // turned back on: the header notice shows again, even for a version hidden before
+    .then((ok) => {
+      if (!ok) return;
+      if (body.auto) forgetDismissed();   // turned back on: the header notice shows again, even for a version hidden before
+      load();
+    });
   const latest = a.latest;
   return (
     <div className="flex flex-col gap-4">

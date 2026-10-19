@@ -48,9 +48,9 @@ class NetscanEvery(unittest.TestCase):
     def test_update_settings_written_and_applied(self):
         out = system.set_update_settings(self.core, auto=False)
         self.assertEqual(out, {"auto": False})
-        self.assertEqual(self.raw()["update_check"], False)
-        self.assertEqual(system.set_update_settings(self.core)["auto"], False)   # nothing given: nothing changes
-        self.assertEqual(system.set_update_settings(self.core, auto=True)["auto"], True)   # on is the default
+        self.assertFalse(self.raw()["update_check"])
+        self.assertFalse(system.set_update_settings(self.core)["auto"])   # nothing given: nothing changes
+        self.assertTrue(system.set_update_settings(self.core, auto=True)["auto"])   # on is the default
         self.assertNotIn("update_check", self.raw())
 
     def test_change_et_applique_tout_de_suite(self):

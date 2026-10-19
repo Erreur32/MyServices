@@ -2,7 +2,7 @@
 const KEY = "ms.settings.last";
 
 export const lastSettingsSection = (): string => { try { return localStorage.getItem(KEY) || ""; } catch { return ""; } };
-export const rememberSettingsSection = (id: string): void => { try { localStorage.setItem(KEY, id); } catch { /* navigation privée : tant pis */ } };
+export const rememberSettingsSection = (id: string): void => { if (!/^[a-z][a-z0-9-]{0,40}$/.test(id)) return; try { localStorage.setItem(KEY, id); } catch { /* navigation privée : tant pis */ } };
 
 // Sous-onglet ouvert de Réglages → Machines (Machines, SSH & Agents) : retrouvé après un rechargement
 

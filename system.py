@@ -91,29 +91,6 @@ def set_backups_url(core, url: str) -> None:
     core.CFG["backups_url"] = url
 
 
-def set_backups_url(core, url: str) -> None:
-    """Active l'onglet Sauvegardes (backups_url = « backups.json », fichier de backups.py) dans config.json, appliqué aussitôt."""
-    def change(raw: dict) -> None:
-        raw["backups_url"] = url
-    _update_config(core, change)
-    core.CFG["backups_url"] = url
-
-
-def set_health(core, on: bool) -> dict:
-    """Allume ou coupe la santé intégrée (health_url = « health/ »), écrite dans config.json et appliquée aussitôt."""
-    if core.CFG["health_url"] not in ("", "health/"):
-        raise ValueError("santé branchée sur un health-watcher externe (health_url) : à changer dans config.json")
-
-    def change(raw: dict) -> None:
-        if on:
-            raw["health_url"] = "health/"
-        else:
-            raw.pop("health_url", None)
-    _update_config(core, change)
-    core.CFG["health_url"] = "health/" if on else ""
-    return {"enabled": on}
-
-
 def _update_config(core, change, secret: bool = False) -> None:
     """Relit config.json, y applique `change(raw)` et le réécrit (secrets rechiffrés, droits 600, remplacement atomique).
     secret : a secret is written, encrypted even when no key exists yet (it is created)."""
