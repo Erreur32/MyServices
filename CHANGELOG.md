@@ -21,6 +21,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### Removed
 - The Settings entry from the account menu (replaced by the header gear button); the « SSH key », « Audit log », « Logs », « Help » and « About » entries from the Settings menu (moved as described above).
 
+## v0.18.0 (2026-10-19)
+
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Changed
