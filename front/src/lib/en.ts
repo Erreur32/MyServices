@@ -1050,7 +1050,6 @@ export const EN: Record<string, string> = {
   "toujours cherché ; s'il existe sur une machine, il est coché d'office.": "always searched; if it exists on a machine, it is ticked by default.",
   "Emplacements communs à toutes les machines": "Locations shared by all machines",
   "Un chemin absolu ; * permis (un motif). Entrée ou virgule pour en ajouter. Cherché sur chaque machine lue par SSH.": "An absolute path; * allowed (a pattern). Enter or comma to add one. Searched on every machine read over SSH.",
-  "Emplacements propres à une machine": "Locations for one machine only",
   "Un dossier qui n'existe que sur une machine (ex. la sauvegarde de configuration d'un Proxmox) : il n'est cherché que là.": "A folder that exists on one machine only (e.g. a Proxmox configuration backup): it is searched there only.",
   "ex. /mnt/nvme0/proxmox-host-backup/config": "e.g. /mnt/nvme0/proxmox-host-backup/config",
   "Emplacements de": "Locations of",
@@ -2857,4 +2856,11 @@ export const EN: Record<string, string> = {
   "Voir": "See",
   "Services hors Docker": "Services outside Docker",
   "ports en écoute": "listening ports",
+  // Step 5 (2026-10-19): schedules and advanced settings folded
+  "Avancé : emplacements propres à une machine": "Advanced: locations of one machine",
+  "Fermer les réglages": "Close the settings",
+  "Les horaires, les réseaux parcourus par la recherche et les contrôles vivants : à changer rarement": "The schedules, the networks the search walks and the live checks: rarely changed",
+  "mode discret": "discreet mode",
+  "modifié": "changed",
+  "Modifier les horaires": "Edit the schedules",
 };
