@@ -106,6 +106,14 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
   const worst = worstTone(watch.some((w) => w.sev === "bad"), watch.length > 0);
   const tools = g.resolver ? tx("résolveur du conteneur : {0}", g.resolver.servers.join(", ")) : tx("AdGuard Home ×{0}", Object.keys(g.servers).length);
   const machines = g.machines ?? [];
+  let syncSub = tx("adguardhome-sync absent");
+  if (g.resolver) syncSub = tx("sans objet");
+  else if (last) syncSub = tx("dernière : {0}", hm(last));
+  let rwTone: "ok" | "warn" | undefined, rwSub = tx("aucune configuration lue");
+  if (fig.rewrites != null) {
+    rwTone = fig.diff ? "warn" : "ok";
+    rwSub = fig.diff ? tx("{0} différence(s) entre instances", fig.diff) : tx("identiques sur chaque instance");
+  }
   const MACHINE_STATE: Record<string, [Tone, string]> = { ok: ["ok", tx("résout vers la machine")], ailleurs: ["warn", tx("résout ailleurs")], absent: ["off", tx("pas de nom DNS")] };
   return (
     <div className="flex flex-col gap-4 py-4">
@@ -117,8 +125,8 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
       <div className="flex gap-2.5 overflow-x-auto pb-1">
         <StatTile n={fig.domains ? `${fig.domainsOk}/${fig.domains}` : "-"} label={tx("Résolution")} tone={fig.domains ? (fig.domainsOk === fig.domains ? "ok" : "warn") : undefined} sub={tx("domaines NPM qui résolvent comme attendu")} />
         <StatTile n={`${fig.serversUp}/${fig.servers}`} label={tx("Serveurs DNS")} tone={fig.serversUp === fig.servers ? "ok" : "bad"} sub={g.resolver ? tx("résolveur du conteneur, aucun outil branché") : tx("instances AdGuard qui répondent")} />
-        <StatTile n={st.label} label={tx("Synchro")} tone={g.resolver ? undefined : st.cls} sub={g.resolver ? tx("sans objet") : last ? tx("dernière : {0}", hm(last)) : tx("adguardhome-sync absent")} />
-        <StatTile n={fig.rewrites ?? "-"} label={tx("Réécritures")} tone={fig.diff ? "warn" : fig.rewrites != null ? "ok" : undefined} sub={fig.rewrites == null ? tx("aucune configuration lue") : fig.diff ? tx("{0} différence(s) entre instances", fig.diff) : tx("identiques sur chaque instance")} />
+        <StatTile n={st.label} label={tx("Synchro")} tone={g.resolver ? undefined : st.cls} sub={syncSub} />
+        <StatTile n={fig.rewrites ?? "-"} label={tx("Réécritures")} tone={rwTone} sub={rwSub} />
       </div>
 
       <WatchPanel id="dns" tone={worst} count={watch.length} hint={tx("instance muette, synchro, domaine qui ne résout pas ou ailleurs, réécritures")}>
