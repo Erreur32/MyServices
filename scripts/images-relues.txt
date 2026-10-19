@@ -185,3 +185,5 @@ a963b01ac719bcd05cffc4cf75235c72  docs/logo.svg
 86958b02004a33225125e8ba8745862b  front/public/icons/unifi-ap.png
 69eae86a33989246e9b3a4d679bdc8ea  docs/screenshot-machines.png
 0ad022d67321ca4cddfcb1a18cb29cf3  docs/screenshot-history.png
+654a62a6310d1e5d7d62c09f23b528aa  docs/screenshot-history.png
+385b9df01f9781ac624f5b9a36dfae7b  docs/screenshot-machines.png
