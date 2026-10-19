@@ -1,7 +1,8 @@
-// Réseau : accès Internet (Freebox, pare-feu, test de débit), équipements (UniFi), clients par borne ou switch, et appareils trouvés sur le réseau
-// (MynetworK). Une barre de recherche et des filtres communs (type, état, suivi, borne ou switch, fabricant, source), comme les autres onglets.
-// Affiché seulement quand une de ces sources répond ou a déjà répondu. Lecture seule.
-import { ArrowUpCircle, Cable, ChevronDown, ChevronRight, LayoutDashboard, List, Monitor, Router, Stethoscope, Wifi, type LucideIcon } from "lucide-react";
+// Network in « state » mode: a title line, five figures and « To watch » (equipment offline, a network connector failing, what the
+// box or firewall reports, firmware updates, weak Wi-Fi links) above the sub-menu: Cards (scan statistics, UniFi cards), Equipment and
+// devices (Internet access, UniFi gear, clients by access point or switch, devices found by MynetworK, with search and filters),
+// Diagnostic. Shown only when one of these sources answers or has answered. Read only.
+import { Cable, ChevronDown, ChevronRight, LayoutDashboard, List, Monitor, Network as NetworkIcon, Router, Stethoscope, Wifi, type LucideIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { dur } from "../lib/format";
@@ -10,7 +11,9 @@ import { tx } from "../lib/i18n";
 import { NETWORK_CARDS, hasNetwork } from "../lib/network";
 import type { ServiceStatus } from "../types";
 import { Badge, Cards, Count, Dim, Empty, FilterBar, Table, Td, Th } from "../components/ui";
-import { quiet } from "../lib/forms";
+import { quiet, WATCH_FRAME, worstTone } from "../lib/forms";
+import { StatTile } from "../components/StatTile";
+import { dateTime } from "../lib/format";
 import { Dot } from "../components/marks";
 import { ServiceCard } from "../components/ServiceStatusCards";
 import { NetworkDiagnostic } from "./NetworkDiagnostic";
@@ -35,20 +38,26 @@ interface Row {
   detail: string;        // port, Wi-Fi network and signal, ping
   machine: string | null; // followed machine of that IP
   gear?: Gear;
+  signal?: number | null; // Wi-Fi client: its signal, dBm
+}
+
+const WEAK_DBM = -75;   // a Wi-Fi link under this is poor (drops, low rate)
+
+interface Watch { key: string; sev: "bad" | "warn"; area: string; title: string; detail: string; sub: Sub; href?: string }
+
+/** What needs a look on the network, red first: gear offline, a source failing, what the Internet access reports, firmware updates, weak Wi-Fi links */
+function toWatch(rows: Row[], internet: ServiceStatus[], sources: { label: string; ok: boolean; message: string; stale?: boolean }[]): Watch[] {
+  const out: Watch[] = [];
+  for (const c of sources.filter((x) => !x.ok)) out.push({ key: `src/${c.label}`, sev: "bad", area: tx("Source"), title: c.label, detail: `${c.message}${c.stale ? ` (${tx("dernier relevé gardé")})` : ""}`, sub: "diagnostic" });
+  for (const r of rows.filter((x) => x.kind === "gear" && !x.up)) out.push({ key: `down/${r.key}`, sev: "bad", area: tx("Équipement"), title: r.name, detail: tx("hors ligne"), sub: "list", href: r.machine ? `#machines/${r.ip}` : undefined });
+  for (const c of internet.filter((x) => x.ok && x.connector !== "unifi")) for (const pb of c.problems ?? []) out.push({ key: `net/${c.name}/${pb}`, sev: "warn", area: c.label, title: pb, detail: "", sub: "list" });
+  for (const r of rows.filter((x) => x.kind === "gear" && x.up && x.gear?.updatable)) out.push({ key: `upd/${r.key}`, sev: "warn", area: tx("Équipement"), title: r.name, detail: tx("mise à jour disponible (installée : {0})", r.gear?.version || "?"), sub: "list" });
+  for (const r of rows.filter((x) => x.kind === "wifi" && x.signal != null && x.signal < WEAK_DBM)) out.push({ key: `wifi/${r.key}`, sev: "warn", area: tx("Wifi"), title: r.name, detail: tx("signal faible, {0} dBm sur {1}", r.signal, r.via), sub: "list", href: r.machine ? `#machines/${r.ip}` : undefined });
+  return out.sort((a, b) => Number(b.sev === "bad") - Number(a.sev === "bad"));
 }
 
 const mac = (m?: string | null) => (m || "").toLowerCase();
 const gearUp = (g: Gear) => g.online ?? !/offline|disconnect|interrupt|isolat/i.test(String(g.state ?? "online"));
-
-function Tile({ value, label, tone, icon: Icon }: { value: number | string; label: string; tone: "ok" | "warn" | "bad" | "off"; icon: LucideIcon }) {
-  const color = tone === "bad" ? "text-bad" : tone === "warn" ? "text-warn" : tone === "ok" ? "text-ok" : "text-muted";
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-3">
-      <Icon size={20} className={color} aria-hidden />
-      <div><div className={`font-mono text-lg font-bold leading-tight ${color}`}>{value}</div><div className="text-xs text-dim">{label}</div></div>
-    </div>
-  );
-}
 
 const FOLD_KEY = "ms.network.folded";
 /** Folded sections when the person never chose: all but the Internet access and gateways */
@@ -101,7 +110,7 @@ function buildRows(snap: Snapshot, cards: ServiceStatus[]): Row[] {
   for (const [k, c] of clients) {
     const via = nameOf(c.wired ? c.switch_mac : c.ap_mac);
     rows.push({ key: `c/${k}`, kind: c.wired ? "wired" : "wifi", name: c.name || c.mac || "?", ip: c.ip || "", mac: c.mac || "", up: true, source: c.source,
-      vendor: "", via: via || (c.wired ? tx("switch inconnu") : tx("borne inconnue")), machine: (c.ip && followed.get(c.ip)) || null,
+      vendor: "", via: via || (c.wired ? tx("switch inconnu") : tx("borne inconnue")), machine: (c.ip && followed.get(c.ip)) || null, signal: c.wired ? null : c.signal_dbm,
       detail: c.wired ? (c.switch_port != null ? tx("port {0}", c.switch_port) : "") : [c.essid, c.signal_dbm != null ? `${c.signal_dbm} dBm` : ""].filter(Boolean).join(" · ") });
   }
   for (const c of net) for (const d of c.devices ?? []) {
@@ -111,12 +120,15 @@ function buildRows(snap: Snapshot, cards: ServiceStatus[]): Row[] {
   return rows;
 }
 
+/** A UniFi gateway (Dream Machine, Cloud Gateway, Security Gateway…), by its type, model or name */
+const isGateway = (r: Row) => /^(ud|ucg|uxg|usg|ugw|udr|ux|cloud gateway)/i.test(`${r.gear?.type ?? ""} ${r.gear?.model ?? ""}`.trim()) || /gateway/i.test(r.name);
+
 /** UniFi at a glance, next to the Freebox: gateway (UniFi OS console), its version and uptime, equipment online, clients, updates. Built from the
  * merged lists, so it shows with MynetworK alone; the UniFi connector's own card replaces it only when that connector fails. */
 function unifiCard(rows: Row[], conn: ServiceStatus | undefined): ServiceStatus | null {
   const gear = rows.filter((r) => r.kind === "gear");
   if (!gear.length) return null;
-  const gw = gear.find((r) => /^(ud|ucg|uxg|usg|ugw|udr|ux|cloud gateway)/i.test(`${r.gear?.type ?? ""} ${r.gear?.model ?? ""}`.trim()) || /gateway/i.test(r.name));
+  const gw = gear.find(isGateway);
   const down = gear.filter((r) => !r.up), upd = gear.filter((r) => r.gear?.updatable);
   const n = (k: Kind) => rows.filter((r) => r.kind === k).length;
   const facts: NonNullable<ServiceStatus["facts"]> = [];
@@ -139,7 +151,7 @@ function MachineLink({ r, onMachine }: { r: Row; onMachine: (ip: string) => void
 }
 
 type Sub = "overview" | "list" | "diagnostic";
-const SUBS: [Sub, string, LucideIcon][] = [["overview", tx("Vue d'ensemble"), LayoutDashboard], ["list", tx("Équipements et appareils"), List], ["diagnostic", tx("Diagnostic"), Stethoscope]];
+const SUBS: [Sub, string, LucideIcon][] = [["overview", tx("Cartes"), LayoutDashboard], ["list", tx("Équipements et appareils"), List], ["diagnostic", tx("Diagnostic"), Stethoscope]];
 const SUB_KEY = "ms.network.sub";
 
 export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapshot; onMachine: (ip: string) => void; initialSub?: Sub }>) {
@@ -188,29 +200,62 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
     { key: "devices", id: "net-devices", icon: Monitor, title: tx("Appareils"), n: devSort.sorted.length },
   ].filter((x) => x.n > 0);
   const jump = (key: string, id: string) => { setFolded([key], false); setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0); };
+  const watch = toWatch(rows, internet, net);
+  const worst = worstTone(watch.some((w) => w.sev === "bad"), watch.length > 0);
+  const box = internet.find((c) => c.connector !== "unifi"), boxFact = box?.facts?.find((x) => x.tone === "bad" || x.tone === "warn") ?? box?.facts?.[0];
+  const gearKinds = { gw: gearAll.filter(isGateway).length, sw: gearAll.filter((r) => /switch|^usw|^us-/i.test(`${r.gear?.type ?? ""} ${r.gear?.model ?? ""}`)).length };
+  const gearWords = [gearKinds.gw ? tx("{0} passerelle(s)", gearKinds.gw) : "", gearKinds.sw ? tx("{0} switch(es)", gearKinds.sw) : "", gearAll.length - gearKinds.gw - gearKinds.sw > 0 ? tx("{0} borne(s)", gearAll.length - gearKinds.gw - gearKinds.sw) : ""].filter(Boolean);
+  const sourceNames = [...new Set([...net.map((c) => c.label), ...cards.map((c) => c.label)])];
+  const failing = net.filter((c) => !c.ok).length;
+  const openWatch = (w: Watch) => { if (w.href) location.hash = w.href.slice(1); else pickSub(w.sub); };
 
   return (
     <div className="flex flex-col gap-4 py-4">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <h1 className="flex items-center gap-2 text-xl font-bold"><NetworkIcon size={18} aria-hidden />{tx("Réseau")}</h1>
+        <span className="text-sm text-muted">{[gearWords.join(" + "), devAll.length ? tx("{0} appareils", devAll.length) : "", sourceNames.join(", ")].filter(Boolean).join(" · ")} · {tx("relevé du {0}, en lecture seule", dateTime(snap.data.generated))}</span>
+      </div>
+      <div className="flex gap-2.5 overflow-x-auto pb-1">
+        <StatTile n={box ? (box.ok ? "OK" : tx("erreur")) : "-"} label={tx("Accès Internet")} tone={box ? (box.ok && !(box.problems ?? []).length ? "ok" : "warn") : undefined} sub={box ? (boxFact ? `${boxFact.label} : ${boxFact.value}` : box.label) : tx("aucune box ni pare-feu relié")} />
+        <StatTile n={gearAll.length ? `${gearAll.length - gearDown}/${gearAll.length}` : "-"} label={tx("Équipements en ligne")} tone={gearAll.length ? (gearDown ? "bad" : "ok") : undefined} sub={updates ? tx("{0} mise(s) à jour disponible(s)", updates) : gearAll.length ? tx("à jour") : tx("aucun UniFi relié")} />
+        <StatTile n={all("wifi").length + all("wired").length} label={tx("Clients")} sub={tx("{0} wifi · {1} filaires", all("wifi").length, all("wired").length)} />
+        <StatTile n={devAll.length ? `${devAll.filter((r) => r.up).length}/${devAll.length}` : "-"} label={tx("Appareils en ligne")} tone={unfollowed ? "warn" : devAll.length ? "ok" : undefined} sub={unfollowed ? tx("{0} pas suivi(s) comme machine", unfollowed) : tx("tous suivis")} />
+        <StatTile n={sourceNames.length} label={tx("Sources")} tone={failing ? "bad" : "ok"} sub={failing ? tx("{0} en erreur", failing) : sourceNames.join(", ")} />
+      </div>
+
+      <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${WATCH_FRAME[worst]}`} aria-label={tx("À surveiller")}>
+        <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
+          <h2 className="font-bold">{tx("À surveiller")}</h2>
+          <Badge tone={worst}>{watch.length}</Badge>
+          <span className="ml-auto text-xs text-dim">{tx("équipement hors ligne, source en erreur, box, mises à jour, wifi faible")}</span>
+        </div>
+        {watch.length === 0 ? <p className="px-4 py-3 text-sm text-ok">{tx("Tout le réseau répond, rien à signaler.")}</p> : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] border-collapse text-sm">
+              <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
+                <th className="px-3 py-2">{tx("Domaine")}</th><th className="px-3 py-2">{tx("Quoi")}</th><th className="px-3 py-2">{tx("Détail")}</th><th className="w-28 px-3 py-2" />
+              </tr></thead>
+              <tbody>
+                {watch.map((w) => (
+                  <tr key={w.key} className="border-t border-line/60 even:bg-bg/50 hover:bg-bg2/40">
+                    <td className="px-3 py-2"><Badge tone={w.sev}>{w.area}</Badge></td>
+                    <td className="px-3 py-2 font-semibold">{w.title}</td>
+                    <td className="px-3 py-2 text-muted">{w.detail}</td>
+                    <td className="px-3 py-2 text-right"><button type="button" onClick={() => openWatch(w)} className={`${quiet} py-1`}>{w.href ? tx("Ouvrir") : tx("Voir")}</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <fieldset className="m-0 inline-flex min-w-0 self-start rounded-lg border border-line bg-card p-0.5" aria-label={tx("Sous-menu du réseau")}>
         {SUBS.map(([id, label, Icon]) => (
           <button key={id} type="button" aria-pressed={sub === id} onClick={() => pickSub(id)}
             className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold ${sub === id ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{label}</button>
         ))}
       </fieldset>
-      {net.filter((c) => !c.ok).map((c) => (
-        <p key={c.name} className="rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">{c.label} : {c.message}{c.stale && ` (${tx("dernier relevé gardé")})`}</p>
-      ))}
-      {sub === "overview" && (
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        <Tile icon={Router} value={gearAll.length ? `${gearAll.length - gearDown}/${gearAll.length}` : "-"} label={tx("équipements en ligne")} tone={gearDown ? "bad" : gearAll.length ? "ok" : "off"} />
-        <Tile icon={ArrowUpCircle} value={updates} label={tx("mises à jour d'équipement")} tone={updates ? "warn" : "off"} />
-        <Tile icon={Wifi} value={all("wifi").length} label={tx("clients wifi")} tone="off" />
-        <Tile icon={Cable} value={all("wired").length} label={tx("clients filaires")} tone="off" />
-        <Tile icon={Monitor} value={devAll.length ? `${devAll.filter((r) => r.up).length}/${devAll.length}` : "-"} label={unfollowed ? tx("appareils en ligne, {0} pas suivis", unfollowed) : tx("appareils en ligne")} tone={unfollowed ? "warn" : "off"} />
-      </div>
-      )}
-
-
       {sub === "overview" && (
         <>
         <NetworkScanStats />
