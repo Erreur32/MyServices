@@ -13,20 +13,11 @@ import { LEVEL } from "../lib/level";
 import { Dot } from "../components/marks";
 import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { StatTile } from "../components/StatTile";
 import { cronsOf, figures, newestOf, rank, sourceOf, toWatch, unclaimedCrons } from "../lib/backupsState";
 
 const stateOf = (h: BackupHost) => (h.reachable ? h.level : "down");
 const short = (label: string) => label.replace(/^[^:]*: /, "");
-
-function Tile({ n, label, sub, tone }: Readonly<{ n: string | number; label: string; sub?: string; tone?: "ok" | "warn" | "bad" }>) {
-  return (
-    <div className="min-w-[8rem] flex-1 rounded-xl border border-line bg-card px-3 py-2.5">
-      <div className="text-xs text-muted">{label}</div>
-      <div className={`font-mono text-xl font-bold ${tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : tone === "bad" ? "text-bad" : ""}`}>{n}</div>
-      {sub && <div className="truncate text-xs text-dim" title={sub}>{sub}</div>}
-    </div>
-  );
-}
 
 /** The unfolded detail of a set: what the server holds against it, every place, the cron line, the settings and the machine */
 function SetDetail({ s, b, snap }: Readonly<{ s: BackupSet; b: BackupsData; snap: Snapshot }>) {
@@ -210,10 +201,10 @@ export function Backups({ snap, initial }: Readonly<{ snap: Snapshot; initial?: 
         {snap.me.role === "admin" && <a href="#settings/backups" className="ml-auto text-sm text-link hover:underline">{tx("Réglages des sauvegardes")} ›</a>}
       </div>
       <div className="flex gap-2.5 overflow-x-auto pb-1">
-        <Tile n={fig.ok} label={tx("À jour")} tone="ok" sub={fig.offsiteExpected ? tx("copie ailleurs : {0} sur {1}", fig.offsiteOk, fig.offsiteExpected) : undefined} />
-        <Tile n={fig.warn} label={tx("En retard")} tone={fig.warn ? "warn" : undefined} />
-        <Tile n={fig.bad} label={tx("Absente ou en erreur")} tone={fig.bad ? "bad" : undefined} sub={sm.no_offsite ? tx("{0} sans copie hors machine", sm.no_offsite) : undefined} />
-        <Tile n={fig.last ? dateTime(fig.last.mtime * 1000) : "-"} label={tx("Dernière archive")} sub={fig.last ? `${short(fig.last.set.label)} · ${fig.last.name}` : tx("aucune archive vue")} />
+        <StatTile n={fig.ok} label={tx("À jour")} tone="ok" sub={fig.offsiteExpected ? tx("copie ailleurs : {0} sur {1}", fig.offsiteOk, fig.offsiteExpected) : undefined} />
+        <StatTile n={fig.warn} label={tx("En retard")} tone={fig.warn ? "warn" : undefined} />
+        <StatTile n={fig.bad} label={tx("Absente ou en erreur")} tone={fig.bad ? "bad" : undefined} sub={sm.no_offsite ? tx("{0} sans copie hors machine", sm.no_offsite) : undefined} />
+        <StatTile n={fig.last ? dateTime(fig.last.mtime * 1000) : "-"} label={tx("Dernière archive")} sub={fig.last ? `${short(fig.last.set.label)} · ${fig.last.name}` : tx("aucune archive vue")} />
       </div>
 
       <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${worstTone === "bad" ? "border-bad/50" : worstTone === "warn" ? "border-warn/50" : "border-ok/40"}`} aria-label={tx("À surveiller")}>

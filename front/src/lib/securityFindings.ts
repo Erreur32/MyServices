@@ -8,7 +8,7 @@ import { certIssue } from "./status";
 
 export type Severity = "bad" | "warn";
 export type Area = "fail2ban" | "sites" | "certs" | "ssh" | "access" | "ports";
-export interface Finding { sev: Severity; area: Area; title: string; detail: string; fix: string }
+export interface Finding { sev: Severity; area: Area; title: string; detail: string; fix: string; sub?: string; href?: string }   // sub: a second line under the title (an address) ; href: the page that holds the thing (a machine)
 
 /** Ports that should not be open on a home network without a reason (clear-text or remote-control protocols, databases, Docker API) */
 export const SENSITIVE: Record<number, string> = {
@@ -54,7 +54,7 @@ function threatFindings(snap: Snapshot): Finding[] {
 
 function siteFindings(snap: Snapshot): Finding[] {
   return exposedSites(snap.data.hosts).map((r) => ({ r, issues: siteIssues(r) })).filter((x) => x.issues.length).map(({ r, issues }): Finding => ({
-    sev: "warn", area: "sites", title: r.domains[0] ?? tx("site sans nom"), detail: issues.join(" · "),
+    sev: "warn", area: "sites", title: r.domains[0] ?? tx("site sans nom"), detail: issues.join(" · "), sub: [r.machine, r.public_ok ? tx("public voulu") : ""].filter(Boolean).join(" · "),
     fix: tx("Dans Nginx Proxy Manager : forcer HTTPS, activer HSTS et « Block exploits », ou protéger par une liste d'accès."),
   }));
 }
@@ -72,8 +72,9 @@ function sshFindings(snap: Snapshot): Finding[] {
     const d = m.info?.sshd, fails = health.get(m.ip)?.ssh_auth;
     const weak = [d && risky(d.permitrootlogin) ? tx("root autorisé") : "", d?.passwordauthentication?.startsWith("yes") ? tx("mot de passe autorisé") : ""].filter(Boolean);
     const out: Finding[] = [];
-    if (weak.length) out.push({ sev: "warn", area: "ssh", title: m.name, detail: weak.join(" · "), fix: tx("Dans sshd_config : PermitRootLogin no et PasswordAuthentication no, avec des clés SSH.") });
-    if (fails?.available && fails.failed_24h > 50) out.push({ sev: "bad", area: "ssh", title: m.name, detail: tx("{0} connexions refusées en 24 h", fails.failed_24h), fix: tx("Quelqu'un essaie des mots de passe : installer Fail2ban ou limiter l'accès SSH au réseau local.") });
+    const where = { sub: m.ip, href: `#machines/${m.ip}` };
+    if (weak.length) out.push({ sev: "warn", area: "ssh", title: m.name, detail: weak.join(" · "), fix: tx("Dans sshd_config : PermitRootLogin no et PasswordAuthentication no, avec des clés SSH."), ...where });
+    if (fails?.available && fails.failed_24h > 50) out.push({ sev: "bad", area: "ssh", title: m.name, detail: tx("{0} connexions refusées en 24 h", fails.failed_24h), fix: tx("Quelqu'un essaie des mots de passe : installer Fail2ban ou limiter l'accès SSH au réseau local."), ...where });
     return out;
   });
 }
@@ -83,7 +84,8 @@ function portFindings(snap: Snapshot): Finding[] {
     .map(({ d, hit }): Finding => ({ sev: "warn", area: "ports", title: d.hostname || d.vendor || d.ip, detail: hit.map((p) => `${p} ${SENSITIVE[p]}`).join(" · "), fix: tx("Fermer le port s'il ne sert pas, ou le limiter à un réseau de confiance.") }));
 }
 
-const AREAS: Area[] = ["fail2ban", "certs", "sites", "ssh", "access", "ports"];
+/** The areas, worst kind first: the order of the lists */
+export const AREAS: Area[] = ["fail2ban", "certs", "sites", "ssh", "access", "ports"];
 
 /** Everything that needs a look, red first, then by area */
 export function securityFindings(snap: Snapshot, access: Finding[] = []): Finding[] {
