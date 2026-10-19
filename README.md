@@ -24,13 +24,13 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-home.png" alt="MyServices home page: the points that need attention by category, the last 24 hours, and the counters (names and addresses blurred)" width="900"><br>
-  <sub>The home page, on a test installation (names and addresses blurred).</sub>
+  <img src="docs/screenshot-machines.png" alt="MyServices machines tab: every machine with its sources, system, services, health, CPU, memory, disk, GPU and uptime (domain names blurred)" width="900"><br>
+  <sub>The machines tab: every machine of the network at a glance, whatever tool reads it (domain names blurred).</sub>
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-history.png" alt="MyServices history tab: events over 24 hours (names and addresses blurred)" width="900"><br>
-  <sub>The history tab: what fell, came back, appeared or disappeared (names and addresses blurred).</sub>
+  <img src="docs/screenshot-history.png" alt="MyServices history tab: events over 24 hours (domain names blurred)" width="900"><br>
+  <sub>The history tab: what fell, came back, appeared or disappeared (domain names blurred).</sub>
 </p>
 
 > ## Still in development

@@ -183,5 +183,5 @@ a963b01ac719bcd05cffc4cf75235c72  docs/logo.svg
 852b7a55a92e43b705132b12e52c8f89  front/public/icons/freebox-ultra.png
 4a31a8832d334b7b96d844f04f205cef  front/public/icons/freebox.svg
 86958b02004a33225125e8ba8745862b  front/public/icons/unifi-ap.png
-0666e64b322f06ce5a5e9c6478d5a853  docs/screenshot-history.png
-36bc0a2405689f0fce1bba1762722508  docs/screenshot-home.png
+385b9df01f9781ac624f5b9a36dfae7b  docs/screenshot-machines.png
+654a62a6310d1e5d7d62c09f23b528aa  docs/screenshot-history.png
