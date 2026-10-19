@@ -1013,6 +1013,15 @@ def connectors_requests(request: Request):
     return admin_only(request) or dict(reqstats.snapshot(), version=os.environ.get("MYSERVICES_VERSION", "dev"))
 
 
+@app.post(API + "/connectors/requests/reset", tags=["connecteurs"], summary="Request counters back to zero (admin)")
+def connectors_requests_reset(request: Request):
+    from connectors import reqstats
+    if denied := admin_only(request):
+        return denied
+    reqstats.reset()
+    return {"ok": True}
+
+
 def _diag_accepted_file() -> Path:
     return Path(core.CFG["state_dir"]) / "diagnostic-accepted.json"
 

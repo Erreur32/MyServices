@@ -12,7 +12,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Changed
-- **Settings › Requests**: the request counters of the connectors (0.18.1) are now a section of Settings on every build, measured in real conditions, with a « Copy the reading » button (JSON, to paste for analysis); the folded block under the connector cards and the one that sat under the network diagnostic are gone, and `GET /api/v1/connectors/requests` answers on a released image too (admin).
+- **Settings › Requests**: the request counters of the connectors (0.18.1) are now a section of Settings on every build, measured in real conditions, with « Copy the reading » (JSON, to paste for analysis) and « Reset » (`POST /api/v1/connectors/requests/reset`, admin) buttons; the folded block under the connector cards and the one that sat under the network diagnostic are gone, and `GET /api/v1/connectors/requests` answers on a released image too (admin).
 
 ## v0.18.1 (2026-10-19)
 

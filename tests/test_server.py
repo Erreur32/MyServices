@@ -235,9 +235,12 @@ class RequestCountersRoute(unittest.TestCase):
         with mock.patch.dict(api.os.environ, {"MYSERVICES_VERSION": "v0.18.2"}):
             got = api.connectors_requests(req)
         self.assertEqual((got["rows"][0]["route"], got["version"]), ("/api/lan/devices", "v0.18.2"))   # a released build measures too
+        self.assertEqual(api.connectors_requests_reset(req), {"ok": True})
+        self.assertEqual(api.connectors_requests(req)["rows"], [])   # back to zero
         req.state.user = {"username": "bob", "role": "viewer"}
         with mock.patch.object(api, "AUTH", True):
             self.assertEqual(api.connectors_requests(req).status_code, 403)
+            self.assertEqual(api.connectors_requests_reset(req).status_code, 403)
 
 
 @unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")

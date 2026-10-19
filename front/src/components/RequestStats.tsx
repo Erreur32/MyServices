@@ -1,9 +1,9 @@
 // Settings > Requests: the calls of every connector to its service, per route, as the server counted them since it started
 // (connectors/reqstats.py), measured in real conditions on any build. « To watch »: a route near or over a limit known on the service,
 // or a 429 received during the last hour. A button copies the whole reading (JSON) to paste for analysis. RequestTable is pure (tested as is).
-import { Activity, Copy } from "lucide-react";
+import { Activity, Copy, RotateCcw } from "lucide-react";
 import { useCallback, useState } from "react";
-import { read } from "../api";
+import { read, send } from "../api";
 import { copyText } from "../lib/clipboard";
 import { dateTime } from "../lib/format";
 import { quiet } from "../lib/forms";
@@ -86,6 +86,7 @@ export function RequestsSettings() {
     setCopied((await copyText(JSON.stringify({ taken: new Date().toISOString(), ...doc }, null, 1))) ? "ok" : "no");
     setTimeout(() => setCopied(""), 4000);
   };
+  const reset = () => void send("POST", "connectors/requests/reset").then(load).catch(() => setFailed(true));
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
       <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
@@ -95,6 +96,9 @@ export function RequestsSettings() {
         {doc && <Dim>{tx("relevé à {0}", dateTime(doc.at))}</Dim>}
         <button type="button" className={`${quiet} ml-auto flex items-center gap-1.5`} disabled={!doc} onClick={() => void copy()} title={tx("Copie le relevé complet (JSON) : à coller pour analyse")}>
           <Copy size={14} aria-hidden />{tx("Copier le relevé")}
+        </button>
+        <button type="button" className={`${quiet} flex items-center gap-1.5`} disabled={!doc} onClick={reset} title={tx("Remet tous les compteurs à zéro (nouvelle mesure)")}>
+          <RotateCcw size={14} aria-hidden />{tx("Remettre à zéro")}
         </button>
         {copied === "ok" && <output className="text-sm text-ok">{tx("relevé copié")}</output>}
         {copied === "no" && <output className="text-sm text-warn">{tx("Copie impossible ici : sélectionnez le tableau à la main")}</output>}

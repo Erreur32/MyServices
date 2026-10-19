@@ -2931,6 +2931,8 @@ export const EN: Record<string, string> = {
   "Copier le relevé": "Copy the reading",
   "Copie le relevé complet (JSON) : à coller pour analyse": "Copies the whole reading (JSON): paste it for analysis",
   "relevé copié": "reading copied",
+  "Remet tous les compteurs à zéro (nouvelle mesure)": "Every counter back to zero (new measurement)",
+  "Remettre à zéro": "Reset",
   "Copie impossible ici : sélectionnez le tableau à la main": "Cannot copy here: select the table by hand",
   "429 reçu sur {0} ({1})": "429 received on {0} ({1})",
   "429 reçu sur {0} ({1}), réessai dans {2} s": "429 received on {0} ({1}), retry in {2} s",
