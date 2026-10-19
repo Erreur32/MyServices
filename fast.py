@@ -2,7 +2,9 @@
 shared readings of the server's readers (readers.py), never from calls of its own:
 
   MynetworK  the scanner inventory (status, ping, open ports and the date of their last scan) from the last full reading
-             + the detail sheet of each followed address (one call each, every `details_every` s), once MynetworK lets API tokens read it
+             + the detail sheet of each followed address (one call each, read again after `details_every` s), once MynetworK lets API
+             tokens read it ; at most DETAILS_PER_PASS sheets per pass and a minute between two passes (MynetworK limits that route to
+             30 calls per minute per token) ; a 429 stops the pass until the delay it asks for
   Proxmox    guests and nodes from the last reading
   Beszel     the status (up / down / paused) of each system, matched to the followed machines
 
@@ -14,10 +16,13 @@ import json
 import time
 from pathlib import Path
 
-from connectors.base import ConnectorError
+from connectors.base import ConnectorError, RateLimited
 from connectors.mynetwork import compact_sheet
 
 PORTS_MAX_AGE = 3600   # s, a port list older than this is called old (its scan date, not the time we read it)
+DETAILS_PER_PASS = 30   # ip-details calls per pass: the limit of MynetworK per minute and per token
+PASS_GAP = 60   # s, between two passes of detail sheets
+RETRY_DEFAULT = 60   # s, after a 429 without Retry-After
 
 
 def _try(fn):
@@ -67,7 +72,7 @@ def _from_state(c, cfg: dict, entry: dict, followed: list[str], old: dict, now: 
 def _net_entry(c, last: dict | None, followed: list[str], old: dict, now: float, details_every: float) -> dict:
     devices = (last or {}).get("devices")
     out = {"devices": {d["ip"]: {k: d.get(k) for k in ("status", "ping_ms", "ports", "ports_at")} for d in devices if d.get("ip")} if isinstance(devices, list) else old.get("devices", {})}
-    out["details"], out["details_at"] = _details(c, followed, old, now, details_every) if last is not None else (old.get("details", {}), old.get("details_at"))
+    out.update(_details(c, followed, old, now, details_every) if last is not None else {k: old.get(k) for k in DETAIL_KEYS})
     return out
 
 
@@ -88,18 +93,36 @@ def _beszel_by_ip(systems: list[dict], cfg: dict) -> dict:
     return {ip: {"status": s.get("status"), "name": s.get("name")} for ip, s in match(systems, machines).items()}
 
 
-def _details(c, followed: list[str], old: dict, now: float, every: float) -> tuple[dict, float | None]:
-    """Detail sheets of the followed addresses, at most every `every` s; {} while the route is closed to API tokens (the first answer tells)."""
-    if old.get("details_at") and now - old["details_at"] < every:
-        return old.get("details", {}), old["details_at"]
-    out: dict[str, dict] = {}
-    for ip in followed:
-        sheet, _ = _try(lambda ip=ip: c.ip_details(ip))
-        if sheet is None and not out:
-            return {}, now   # closed (or MynetworK too old): not asked again for every address, nor before the next period
+DETAIL_KEYS = ("details", "details_at", "details_read", "details_wait")
+
+
+def _details(c, followed: list[str], old: dict, now: float, every: float) -> dict:
+    """The detail sheets of the followed addresses: each one read again after `every` s, at most DETAILS_PER_PASS per pass and PASS_GAP s
+    between two passes; a 429 ends the pass and nothing is asked before the delay the service gave. {} while the route is closed to API
+    tokens (the first answer of a pass with nothing yet tells, and nothing is asked again before the period). The sheets of the
+    addresses not read in this pass are kept, those of addresses no longer followed go."""
+    details = {ip: v for ip, v in (old.get("details") or {}).items() if ip in followed}
+    read_at = {ip: t for ip, t in (old.get("details_read") or {}).items() if ip in followed}
+    keep = {"details": details, "details_at": old.get("details_at"), "details_read": read_at, "details_wait": old.get("details_wait")}
+    due = [ip for ip in followed if now - (read_at.get(ip) or 0) >= every]
+    if not due or now < (old.get("details_wait") or 0) or (old.get("details_at") and now - old["details_at"] < PASS_GAP):
+        return keep
+    got_one = bool(details)
+    for ip in due[:DETAILS_PER_PASS]:
+        try:
+            sheet = c.ip_details(ip)
+        except RateLimited as e:
+            keep["details_wait"] = now + (e.retry_after or RETRY_DEFAULT)
+            break
+        except ConnectorError:
+            continue   # this address another time: its last sheet stays
+        read_at[ip] = now
+        if sheet is None and not got_one:   # closed (or MynetworK too old): not asked for every address, nor before the next period
+            return {"details": {}, "details_at": now, "details_read": {a: now for a in followed}, "details_wait": None}
         if sheet is not None:
-            out[ip] = compact_sheet(sheet)
-    return out, now
+            details[ip], got_one = compact_sheet(sheet), True
+    keep["details_at"] = now
+    return keep
 
 
 def _guests(got: dict) -> dict:

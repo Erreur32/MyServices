@@ -18,11 +18,13 @@ DEVICES = [{"ip": "10.0.0.2", "status": "online", "ping_ms": 0.4, "ports": [22, 
 class Net:
     type, name = "mynetwork", "mynetwork"
 
-    def __init__(self, sheet=None):
-        self.sheet, self.asked = sheet, []
+    def __init__(self, sheet=None, fail=None):
+        self.sheet, self.asked, self.fail = sheet, [], fail   # fail: {ip: exception raised for that address}
 
     def ip_details(self, ip):
         self.asked.append(ip)
+        if self.fail and ip in self.fail:
+            raise self.fail[ip]
         return self.sheet
 
 
@@ -49,10 +51,10 @@ STATE = {"mynetwork/mynetwork": entry({"devices": DEVICES, "online": 1}),
          "beszel/beszel": entry({"systems": [{"name": "a", "status": "up"}, {"name": "b", "status": "up"}]}, version="0.12.1")}
 
 
-def run(insts, prev=None, state=STATE, **kw):
+def run(insts, prev=None, state=STATE, followed=("10.0.0.2",), **kw):
     with tempfile.TemporaryDirectory() as d:
         path = Path(d) / "live.json"
-        doc = fast.refresh({}, path, ["10.0.0.2"], state, insts, prev, **kw)
+        doc = fast.refresh({}, path, list(followed), state, insts, prev, **kw)
         assert json.loads(path.read_text(encoding="utf-8"))["sources"].keys() == doc["sources"].keys()
         return doc
 
@@ -86,6 +88,41 @@ class Fast(unittest.TestCase):
         self.assertEqual(second["sources"]["mynetwork/mynetwork"]["details"]["10.0.0.2"], {"scan": {"status": "online", "ping_ms": 0.6, "ports": [445], "ports_at": "2026-10-17T22:00:00Z"}})
         run([net], prev=second, now=2100.0, details_every=900)
         self.assertEqual(len(net.asked), 2)
+
+    def test_details_read_thirty_per_pass_and_a_minute_apart(self):
+        sheet = {"scanner": {"status": "online"}}
+        many = [f"10.0.1.{i}" for i in range(1, 36)]   # 35 followed: more than one pass
+        net = Net(sheet=sheet)
+        first = run([net], now=1000.0, followed=many, details_every=900)
+        self.assertEqual(len(net.asked), fast.DETAILS_PER_PASS)
+        details = first["sources"]["mynetwork/mynetwork"]["details"]
+        self.assertEqual(len(details), 30)
+        second = run([net], prev=first, now=1030.0, followed=many, details_every=900)   # less than a minute later: nothing asked
+        self.assertEqual(len(net.asked), 30)
+        self.assertEqual(len(second["sources"]["mynetwork/mynetwork"]["details"]), 30)   # the sheets read stay
+        third = run([net], prev=second, now=1061.0, followed=many, details_every=900)   # the five left, the first thirty not due yet
+        self.assertEqual(net.asked[30:], many[30:])
+        self.assertEqual(len(third["sources"]["mynetwork/mynetwork"]["details"]), 35)
+        run([net], prev=third, now=1900.0, followed=many, details_every=900)   # the first thirty are due again, the five others not
+        self.assertEqual(net.asked[35:], many[:30])
+
+    def test_details_stop_on_429_until_the_delay_and_keep_the_rest(self):
+        from connectors.base import ConnectorError, RateLimited
+        sheet = {"scanner": {"status": "online"}}
+        ips = ["10.0.1.1", "10.0.1.2", "10.0.1.3"]
+        net = Net(sheet=sheet, fail={"10.0.1.2": RateLimited("HTTP 429", 120)})
+        first = run([net], now=1000.0, followed=ips, details_every=900)
+        self.assertEqual(net.asked, ips[:2])   # the pass ends on the 429
+        src = first["sources"]["mynetwork/mynetwork"]
+        self.assertEqual((list(src["details"]), src["details_wait"]), (["10.0.1.1"], 1120.0))
+        run([net], prev=first, now=1100.0, followed=ips, details_every=900)
+        self.assertEqual(len(net.asked), 2)   # before the delay: nothing asked
+        net.fail = {"10.0.1.3": ConnectorError("down")}
+        second = run([net], prev=first, now=1130.0, followed=ips, details_every=900)
+        self.assertEqual(net.asked[2:], ["10.0.1.2", "10.0.1.3"])   # after it: the two left (the first is not due), a plain error keeps going
+        self.assertEqual(sorted(second["sources"]["mynetwork/mynetwork"]["details"]), ["10.0.1.1", "10.0.1.2"])
+        third = run([net], prev=second, now=1200.0, followed=ips[1:], details_every=900)   # an address no longer followed goes
+        self.assertEqual(list(third["sources"]["mynetwork/mynetwork"]["details"]), ["10.0.1.2"])
 
     def test_compact_sheet_of_the_real_shape(self):
         from connectors.mynetwork import compact_sheet
