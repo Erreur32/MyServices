@@ -49,12 +49,17 @@ describe("onglet Réseau", () => {
     expect(html.match(/<b class="text-txt">UCG<\/b>/g)?.length).toBe(1);   // MynetworK and the UniFi connector: one row
     expect(html.indexOf("Freebox (via MynetworK)")).toBeLessThan(html.indexOf("UniFi Network"));   // side by side at the top, Freebox first
   });
+  it("« À surveiller » : the access point offline in red, the gateway update in orange, the figures above", () => {
+    const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} />);
+    for (const t of ["À surveiller", "Borne salon", "hors ligne", "mise à jour disponible (installée : 5.1)", "1/2", "Équipements en ligne", "Accès Internet", "Appareils actifs : 3/10", "tous suivis"]) expect(html, t).toContain(t);
+    expect(html.indexOf("Borne salon")).toBeLessThan(html.indexOf("mise à jour disponible"));   // red before orange
+  });
   it("hidden without any network source", () => {
     expect(hasNetwork({ data: { network: [], services_status: [] } } as unknown as Snapshot)).toBe(false);
   });
   it("la vue d'ensemble est la page d'arrivée : les compteurs et le sous-menu, pas la liste", () => {
     const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} />);
-    expect(html).toContain("Vue d");                       // the sub-menu
+    expect(html).toContain("Cartes");                      // the sub-menu
     expect(html).toContain("Équipements et appareils");
     expect(html).not.toContain("Clients par borne ou switch");   // that list lives in the other sub-page
   });

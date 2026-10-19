@@ -42,6 +42,7 @@ from connectors.remote_folder import RemoteFolder, check_path
 AGE_MIN, AGE_MAX = 0.1, 365.0
 AGE_DEFAULT = 2.0
 LABEL_MAX = 80
+SCHEDULE_MAX = 40   # expected schedule, free text (« lun. 01:30 », « chaque jour »)
 AGE_STEPS = (2.0, 8.0, 15.0, 31.0)   # seuils proposés : sauvegarde quotidienne, hebdomadaire, tous les 15 jours, mensuelle
 DEPTH = 3  # un dossier de sauvegarde range souvent ses archives dans des sous-dossiers datés
 
@@ -153,7 +154,8 @@ def current() -> dict:
                      "expect_offsite": s.get("expect_offsite", True), "editable": bool(loc.get("path")),
                      "copies": [{"index": i, "host": hosts.get(l.get("host"), {}).get("label", l.get("host", "")), "path": l.get("path"),
                                  "offsite": l.get("host") != s.get("origin") or bool(l.get("offsite"))} for i, l in enumerate(s.get("locations", [])) if i and l.get("path")],
-                     "cadence_days": seen.get(s["id"], {}).get("cadence_days")})
+                     "cadence_days": seen.get(s["id"], {}).get("cadence_days"),
+                     "archived": bool(s.get("archived")), "schedule": s.get("schedule", "")})
     import config
     return {"sets": sets, "exists": _path().exists(), "tab": bool(config.CFG.get("backups_url")),
             "patterns": patterns_of(meta), "host_patterns": meta.get("discover_by_host", {}), "default_path": DEFAULT_PATH, "machines": len(_machines()),
@@ -234,12 +236,17 @@ def auto_default(state_file: Path) -> list[dict]:
     return added
 
 
+def _check_path(path: str) -> None:
+    """An absolute folder, no « .. », one line, not the root"""
+    if not path.startswith("/") or ".." in path.split("/") or len(path) > 300 or "\n" in path or path == "/":
+        raise BackupError(f"dossier invalide : {path or '?'}")
+
+
 def _check_item(it: dict, machines: dict) -> tuple[str, str, float, str]:
     ip, path, label = str(it.get("ip", "")), str(it.get("path", "")), str(it.get("label", "")).strip()
     if ip not in machines:
         raise BackupError(f"machine {ip or '?'} inconnue ou sans accès SSH")
-    if not path.startswith("/") or ".." in path.split("/") or len(path) > 300 or "\n" in path or path == "/":
-        raise BackupError(f"dossier invalide : {path or '?'}")
+    _check_path(path)
     if not label or len(label) > LABEL_MAX:
         raise BackupError(f"nom : 1 à {LABEL_MAX} caractères")
     try:
@@ -298,22 +305,45 @@ def follow(items: list[dict]) -> dict:
     return {"added": added, "updated": updated}
 
 
-def update_set(set_id: str, label: str | None = None, max_age_days: float | None = None, expect_offsite: bool | None = None) -> None:
-    """Nom, seuil d'âge (jours) et « copie hors machine exigée » d'un jeu déjà suivi."""
-    meta = _read()
-    s = next((x for x in meta.get("sets", []) if x["id"] == set_id), None)
-    if s is None:
-        raise BackupError("jeu inconnu")
+def _set_text(s: dict, label: str | None, schedule: str | None) -> None:
     if label is not None:
         if not label.strip() or len(label.strip()) > LABEL_MAX:
             raise BackupError(f"nom : 1 à {LABEL_MAX} caractères")
         s["label"] = label.strip()
+    if schedule is not None:
+        if len(schedule.strip()) > SCHEDULE_MAX or "\n" in schedule:
+            raise BackupError(f"attendu : {SCHEDULE_MAX} caractères au plus")
+        s["schedule"] = schedule.strip()
+
+
+def _set_folder(s: dict, path: str) -> None:
+    """The folder of a folder set; a set read from a source (vzdump, Veeam, PBS, Synology, Home Assistant) keeps its location"""
+    loc = (s.get("locations") or [{}])[0]
+    if not loc.get("path") or loc.get("vzdump") or loc.get("veeam_job") or loc.get("pbs_group") or loc.get("synology_task"):
+        raise BackupError("ce jeu n'est pas un dossier : son emplacement vient de sa source")
+    _check_path(path)
+    loc["path"] = path.rstrip("/")
+
+
+def update_set(set_id: str, label: str | None = None, max_age_days: float | None = None, expect_offsite: bool | None = None,
+               archived: bool | None = None, schedule: str | None = None, path: str | None = None) -> None:
+    """Name, age threshold (days), « off-machine copy expected », archived flag, expected schedule (free text) and, for a folder set,
+    the folder itself of a set already followed."""
+    meta = _read()
+    s = next((x for x in meta.get("sets", []) if x["id"] == set_id), None)
+    if s is None:
+        raise BackupError("jeu inconnu")
+    _set_text(s, label, schedule)
     if max_age_days is not None:
         if not AGE_MIN <= float(max_age_days) <= AGE_MAX:
             raise BackupError(f"âge maximum : de {AGE_MIN:g} à {AGE_MAX:g} jours")
         s["max_age_days"] = float(max_age_days)
     if expect_offsite is not None:
         s["expect_offsite"] = bool(expect_offsite)
+    if archived is not None:
+        s["archived"] = bool(archived)
+    if path is not None:
+        _set_folder(s, path)
     _write(meta)
 
 

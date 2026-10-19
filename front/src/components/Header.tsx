@@ -1,17 +1,26 @@
-import { ArrowUpCircle, ChevronDown, ExternalLink, ListChecks, LogOut, Moon, SlidersHorizontal, Sun, UserRound, X } from "lucide-react";
+import { ArrowUpCircle, ChevronDown, ExternalLink, FileText, Info, LifeBuoy, ListChecks, LogOut, Moon, ScrollText, SlidersHorizontal, Sun, UserRound, X } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { DiscoveryBell } from "./DiscoveryCard";
 import { DropItem, DROP_PANEL, DropSep, useDropdown } from "./Dropdown";
 import { useState } from "react";
 import { logout, type Snapshot } from "../api";
+import type { TabId } from "../lib/summary";
 import { HEADER_LOGOS, useHeaderLogo, type Theme } from "../theme";
 import { LOCALE, tx } from "../lib/i18n";
 import { appVersion } from "../lib/format";
 import { reopenAssistant } from "../lib/assistant";
 import { GITHUB } from "../lib/links";
-import { lastSettingsSection } from "../lib/settingsNav";
+import { lastSettingsSection, normalizeSection } from "../lib/settingsNav";
 import { dismissTag, dismissedTag } from "../lib/updateNotice";
 import { ScanOrb } from "./ScanOrb";
+
+/** Où ouvrir les Réglages depuis l'engrenage : la dernière section visitée (normalisée : une ancienne section peut avoir déménagé), sinon la page par défaut */
+function settingsHash(): string {
+  const last = lastSettingsSection();
+  if (!last) return "settings";
+  const norm = normalizeSection(last);
+  return norm.redirect ?? (norm.section ? `settings/${norm.section}` : "settings");
+}
 
 function ago(iso: string, now: number): string {
   const min = Math.round((now - new Date(iso).getTime()) / 60000);
@@ -56,7 +65,7 @@ function UpdatePill({ update }: Readonly<{ update?: { available: boolean; tag?: 
   );
 }
 
-export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; theme: Theme; toggleTheme: () => void; now: number }) {
+export function Header({ snap, theme, toggleTheme, now, current }: Readonly<{ snap: Snapshot; theme: Theme; toggleTheme: () => void; now: number; current: TabId }>) {
   const stale = (now - new Date(snap.data.generated).getTime()) / 60000 > snap.data.page.stale_min;
   const logo = useHeaderLogo();
   return (
@@ -78,6 +87,12 @@ export function Header({ snap, theme, toggleTheme, now }: { snap: Snapshot; them
       <div className="flex items-center gap-3">
         <UpdatePill update={snap.me.update} />
         {snap.me.role === "admin" && <DiscoveryBell machines={snap.data.machine_list} />}
+        {snap.me.role === "admin" && (
+          <button type="button" onClick={() => { location.hash = settingsHash(); }} aria-label={tx("Réglages")} aria-current={current === "settings" ? "page" : undefined} title={tx("Réglages")}
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-full border ${current === "settings" ? "border-link bg-link/15 text-link" : "border-line text-muted hover:border-link hover:text-txt"}`}>
+            <SlidersHorizontal size={17} aria-hidden />
+          </button>
+        )}
         <UserMenu snap={snap} theme={theme} toggleTheme={toggleTheme} />
       </div>
     </header>
@@ -108,11 +123,15 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
           </div>
           <DropSep />
           <DropItem icon={<UserRound size={15} />} onClick={() => go("profile")}>{tx("Profil")}</DropItem>
-          {admin && <DropItem icon={<SlidersHorizontal size={15} />} onClick={() => go(lastSettingsSection() ? `settings/${lastSettingsSection()}` : "settings")}>{tx("Réglages")}</DropItem>}
-          {admin && <DropItem icon={<ListChecks size={15} />} title={tx("Rouvre l'assistant depuis le début")} onClick={() => { setOpen(false); reopenAssistant(); }}>{tx("Revoir l'assistant de démarrage")}</DropItem>}
           <DropItem icon={theme === "dark" ? <Sun size={15} /> : <Moon size={15} />} onClick={toggleTheme}>{tx("Thème")} {theme === "dark" ? tx("clair") : tx("sombre")}</DropItem>
           <DropSep />
+          <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-widest text-dim">{tx("Consulter")}</p>
+          {admin && <DropItem icon={<ScrollText size={15} />} onClick={() => go("audit")}>{tx("Journal d'audit")}</DropItem>}
+          {admin && <DropItem icon={<FileText size={15} />} onClick={() => go("logs")}>{tx("Journaux")}</DropItem>}
+          <DropItem icon={<LifeBuoy size={15} />} onClick={() => go("help")}>{tx("Aide")}</DropItem>
+          <DropItem icon={<Info size={15} />} onClick={() => go("about")}>{tx("À propos")}</DropItem>
           <DropItem icon={<ExternalLink size={15} />} href={GITHUB}>{tx("Projet sur GitHub")}</DropItem>
+          {admin && <><DropSep /><DropItem icon={<ListChecks size={15} />} title={tx("Rouvre l'assistant depuis le début")} onClick={() => { setOpen(false); reopenAssistant(); }}>{tx("Revoir l'assistant de démarrage")}</DropItem></>}
           <DropSep />
           <DropItem icon={<LogOut size={15} />} danger onClick={() => void logout()}>{tx("Se déconnecter")}</DropItem>
         </div>

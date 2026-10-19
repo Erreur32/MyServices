@@ -555,16 +555,71 @@ def _rewrite_hits(rewrite, name):
     return name == rewrite or rewrite.startswith("*.") and name.endswith(rewrite[1:])
 
 
+RESOLV_CONF = "/etc/resolv.conf"
+
+
+def resolvers():
+    """The DNS servers the container itself uses (resolv.conf): IPv4 nameservers and the search domains. Without AdGuard the DNS
+    control asks them, so the page stays useful on any network."""
+    servers, search = [], []
+    try:
+        with open(RESOLV_CONF, encoding="utf-8") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2 and parts[0] == "nameserver" and re.match(r"^\d+\.\d+\.\d+\.\d+$", parts[1]):
+                    servers.append(parts[1])
+                elif parts and parts[0] in ("search", "domain"):
+                    search.extend(parts[1:])
+    except OSError:
+        pass
+    return servers, list(dict.fromkeys(search))
+
+
+def machine_names_check(servers, search, asked):
+    """Each followed machine's name asked to each server (bare, then with the search domains): ok when an answer holds its IP,
+    « ailleurs » when it resolves to another address, « absent » when nothing answers. Resolved apart, so the NPM domains keep
+    their own rules."""
+    out = []
+    for ip, m in sorted(MACHINES.items(), key=lambda x: x[1][0].lower()):
+        if ip in DISABLED or not HOST_RE.match(m[0].lower()):
+            continue
+        got = _name_answers(m[0].lower(), search, servers, asked)
+        lan = [a for a in got if _private(a)]   # a home network: a bare name landing on a public address is no LAN name at all, not a wrong one
+        if ip in got:
+            state = "ok"
+        elif lan:
+            state = "ailleurs"
+        else:
+            state = "absent"
+        out.append({"ip": ip, "name": m[0], "state": state, "answer": sorted(set(lan))})
+    return out
+
+
+def _name_answers(name, search, servers, asked):
+    """Every address answered for a name, bare and with each search domain, by every server"""
+    got = []
+    for full in [name] + [f"{name}.{d}" for d in search]:
+        for s in servers:
+            got.extend(asked.get((s, full)) or [])
+    return got
+
+
 def dns_check(rows):
-    """Contrôle DNS AdGuard, lecture seule : chaque domaine NPM est demandé à chaque AdGuard, et les
-    réécritures sont comparées entre instances et aux hosts NPM. Problèmes par ligne dans r["dns"]."""
-    servers = sorted(ADGUARD)
+    """Contrôle DNS, lecture seule : chaque domaine NPM (et chaque nom de machine suivie) est demandé à chaque serveur DNS,
+    les AdGuard branchés, sinon les résolveurs du conteneur ; les réécritures AdGuard sont comparées entre instances et aux
+    hosts NPM. Problèmes par ligne dans r["dns"]. None quand aucun serveur DNS n'est joignable."""
+    resolv, search = ([], []) if ADGUARD else resolvers()
+    servers = sorted(ADGUARD) or resolv
+    if not servers:
+        return None
     npm_rows = [r for r in rows if r["type"] in ("proxy", "redirect", "dead")]
     names = sorted({d.lower() for r in npm_rows if r["enabled"] for d in r["domains"]})
+    machine_names = sorted({n for ip, m in MACHINES.items() if ip not in DISABLED and HOST_RE.match(m[0].lower())
+                            for n in [m[0].lower()] + [f"{m[0].lower()}.{d}" for d in search]})
     with ThreadPoolExecutor(2 * len(servers) + len(ADGUARD_SYNC)) as ex:  # une file de requêtes par serveur DNS
         state = cbase.load_state(CONNECTORS_STATE)
         confs = {ip: ex.submit(cbase.run_isolated, c, state, 60) for ip, c in ADGUARD.items()}
-        asked = {s: ex.submit(dns_ask_all, s, names) for s in servers}
+        asked = {s: ex.submit(dns_ask_all, s, names + machine_names) for s in servers}
         syncs = {ip: ex.submit(adguard_sync_state, MACHINES[ip][2], c) for ip, c in ADGUARD_SYNC.items()}
     confs = {ip: f.result() for ip, f in confs.items()}
     cbase.save_state(CONNECTORS_STATE, state)
@@ -614,12 +669,15 @@ def dns_check(rows):
     return {
         "npm_ip": next(iter(NPM_IPS.values()), None),
         "npm_ips": NPM_IPS,
-        "servers": {ip: {"name": MACHINES[ip][0] if ip in MACHINES else ADGUARD[ip].conf.get("label", ip),
-                         "container": ADGUARD[ip].conf.get("target") or ADGUARD[ip].conf.get("url"),
-                         "readable": confs[ip] is not None,
-                         "rewrites": len(confs[ip]["rewrites"]) if confs[ip] else None,
-                         "user_rules": len(confs[ip]["user_rules"]) if confs[ip] else None,
-                         "silent": sum(1 for d in names if ans[(ip, d)] is None)} for ip in servers},
+        "resolver": None if ADGUARD else {"servers": resolv, "search": search},   # no DNS tool wired: the container's own resolvers
+        "servers": {ip: ({"name": MACHINES[ip][0] if ip in MACHINES else ADGUARD[ip].conf.get("label", ip),
+                          "container": ADGUARD[ip].conf.get("target") or ADGUARD[ip].conf.get("url"),
+                          "readable": confs[ip] is not None,
+                          "rewrites": len(confs[ip]["rewrites"]) if confs[ip] else None,
+                          "user_rules": len(confs[ip]["user_rules"]) if confs[ip] else None}
+                         if ip in ADGUARD else {"name": MACHINES[ip][0] if ip in MACHINES else "résolveur du conteneur", "resolver": True, "readable": False, "rewrites": None, "user_rules": None})
+                        | {"silent": sum(1 for d in names if ans[(ip, d)] is None)} for ip in servers},
+        "machines": machine_names_check(servers, search, ans),
         "sync": sync,
         **report,
     }
@@ -1158,7 +1216,10 @@ def main():
                                     machine_role=rows[-1]["machine_role"] + f" · Apache écoute seulement sur {addr}")
     rows.extend(nginx_rows(hinfo, used))
     attach_vhost_domains(rows, hinfo)
+    seen = {(r.get("ip"), int(r["port"])) for r in rows if r.get("ip") and r.get("port")}   # a service detected at the same ip:port wins: no double row
     for x in meta.get("extra", []):
+        if (x["ip"], int(x["port"])) in seen:
+            continue
         rows.append(row("local", f'{x["ip"]}:{x["port"]}', x["ip"], x["port"], name=x["name"],
                         scheme=x.get("scheme", "http"), manual=True,
                         service={"kind": "manuel", "name": x["name"]}))
@@ -1192,7 +1253,7 @@ def main():
         backend = {i: ex.submit(probe_tcp, rows[i]["ip"], rows[i]["port"]) for i in direct}
         public = {i: ex.submit(probe_https, rows[i]["domains"][0]) for i in named}
         web = {i: ex.submit(probe_web, rows[i]["scheme"], rows[i]["ip"], rows[i]["port"], rows[i]["domains"][0] if rows[i]["domains"] else None)
-               for i in direct}
+               for i in direct if rows[i]["scheme"] != "tcp"}   # tcp: a port without a web page, the TCP probe says it all
         follow = {i: ex.submit(probe_follow, rows[i]["domains"][0]) for i in redir}
         for f in (*backend.values(), *public.values(), *web.values(), *follow.values()):
             f.add_done_callback(tick)
@@ -1252,9 +1313,9 @@ def main():
     webcheck_rows(rows)
     uptime_rows(rows)
 
-    progress(7, "DNS AdGuard : réécritures et réponses de chaque instance")
+    progress(7, "DNS : réponses de chaque serveur, réécritures AdGuard")
     adguard_sync_detect(dock)
-    dns = dns_check(rows) if ADGUARD else None
+    dns = dns_check(rows)   # AdGuard when wired, else the resolvers of the container
 
     progress(8, "machines : SSH et écriture de data.json")
     sshc = hostinfo.ssh_config()

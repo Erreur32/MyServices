@@ -1,7 +1,7 @@
 // Réglages (admins) : une section à la fois, menu à gauche (en haut sur mobile). Comptes : son mot de passe,
 // les comptes (ajout, rôle, activation, nouveau mot de passe, suppression) et le journal des actions.
-// Menu en quatre groupes (Données, Surveillance, Accès et sécurité, Application). Autres sections : un fichier chacune dans tabs/.
-import { ArrowRight, Bell, Eye, FileText, HardDrive, Info, KeyRound, LifeBuoy, Plug, Plus, Radar, RefreshCw, ScrollText, Server, SlidersHorizontal, ShieldCheck, Timer, Trash2, UserCheck, UserPlus, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
+// Menu en quatre groupes (Sources, Alertes, Comptes et accès, Application). Autres sections : un fichier chacune dans tabs/.
+import { ArrowRight, Bell, Eye, HardDrive, KeyRound, Plug, Plus, Radar, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Timer, Trash2, UserCheck, UserPlus, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { dateTime } from "../lib/format";
@@ -16,34 +16,29 @@ import { useDiscoveries } from "../components/DiscoveryCard";
 import { NetworkSettings } from "./NetworkSettings";
 import { IconChoice, type IconOption } from "../components/IconChoice";
 import { UpdatesSettings } from "./UpdatesSettings";
-import { AboutSettings } from "./About";
-import { Help } from "./Help";
 import { ApiMcp } from "./ApiMcp";
-import { AuditLog } from "./AuditLog";
-import { Logs } from "./Logs";
 import { BackupsSettings } from "./BackupsSettings";
 import { SystemSettings } from "./SystemSettings";
 import { tx } from "../lib/i18n";
-import { lastSettingsSection, rememberSettingsSection, showInUrl } from "../lib/settingsNav";
+import { lastSettingsSection, normalizeSection, rememberSettingsSection, showInUrl } from "../lib/settingsNav";
 import { checkPassword, okField, PASSWORD_MIN } from "../lib/password";
 import { PasswordRules } from "../components/PasswordRules";
 import { InfoNote } from "../components/InfoNote";
 
 /** Menu en quatre groupes ; les identifiants restent ceux des liens directs (#settings/<section>) */
 const GROUPS: { label: string; sections: { id: string; label: string; icon: LucideIcon }[] }[] = [
-  { label: tx("Données"), sections: [
-    { id: "machines", label: tx("Machines"), icon: Server }, { id: "connectors", label: tx("Connecteurs"), icon: Plug },
+  { label: tx("Sources"), sections: [
+    { id: "machines", label: tx("Machines et accès"), icon: Server }, { id: "connectors", label: tx("Connecteurs"), icon: Plug },
+    { id: "network", label: tx("Découverte réseau"), icon: Radar }, { id: "backups", label: tx("Sauvegardes"), icon: HardDrive },
   ] },
-  { label: tx("Surveillance"), sections: [
-    { id: "network", label: tx("Découverte"), icon: Radar }, { id: "backups", label: tx("Sauvegardes"), icon: HardDrive }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer }, { id: "alerts", label: tx("Notifications"), icon: Bell },
+  { label: tx("Alertes"), sections: [{ id: "alerts", label: tx("Notifications"), icon: Bell }] },
+  { label: tx("Comptes et accès"), sections: [
+    { id: "accounts", label: tx("Comptes"), icon: Users }, { id: "api", label: tx("Clés et API"), icon: Webhook },
   ] },
-  { label: tx("Accès et sécurité"), sections: [
-    { id: "accounts", label: tx("Comptes"), icon: Users }, { id: "ssh", label: tx("Clé SSH"), icon: KeyRound },
-    { id: "audit", label: tx("Journal d'audit"), icon: ScrollText }, { id: "api", label: tx("API et MCP"), icon: Webhook },
+  { label: tx("Application"), sections: [
+    { id: "system", label: tx("Sauvegarde et infos"), icon: SlidersHorizontal }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer },
+    { id: "updates", label: tx("Mises à jour"), icon: RefreshCw },
   ] },
-  { label: tx("Application"), sections: [{ id: "system", label: tx("Sauvegarde et infos"), icon: SlidersHorizontal },
-    { id: "logs", label: tx("Journaux"), icon: FileText }, { id: "updates", label: tx("Mises à jour"), icon: RefreshCw },
-    { id: "help", label: tx("Aide"), icon: LifeBuoy }, { id: "about", label: tx("À propos"), icon: Info }] },
 ];
 const SECTIONS = GROUPS.flatMap((g) => g.sections);
 
@@ -57,24 +52,32 @@ const ROLE_CHOICE: IconOption<User["role"]>[] = [
 
 /** The panel of the open section; Settings → System is the fallback (an unknown or old section id) */
 function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snapshot }>) {
-  const panels: Record<string, () => React.ReactNode> = {
-    accounts: () => <Accounts me={snap.me.username} />, alerts: () => <NotificationsHub />, connectors: () => <Connectors snap={snap} />,
-    machines: () => <MachinesSection snap={snap} />, api: () => <ApiMcp />, network: () => <NetworkSettings snap={snap} />, help: () => <Help />,
-    about: () => <AboutSettings />, updates: () => <UpdatesSettings />, audit: () => <AuditLog />, logs: () => <Logs />,
-    backups: () => <BackupsSettings machines={snap.data.machine_list} issues={snap.backups?.issues ?? []} />, tasks: () => <SystemSettings part="tasks" snap={snap} />,
-    ssh: () => <SystemSettings part="ssh" snap={snap} />,
-  };
-  // own keys only: a section read from the address (#settings/constructor…) never reaches Object's own methods
-  const panel = Object.hasOwn(panels, section) ? panels[section] : () => <SystemSettings part="system" snap={snap} />;
-  return <>{panel()}</>;
+  switch (section) {
+    case "accounts": return <Accounts me={snap.me.username} />;
+    case "alerts": return <NotificationsHub />;
+    case "connectors": return <Connectors snap={snap} />;
+    case "machines": return <MachinesSection snap={snap} />;
+    case "network": return <NetworkSettings snap={snap} />;
+    case "updates": return <UpdatesSettings />;
+    case "api": return <div className="flex flex-col gap-4"><SystemSettings part="ssh" snap={snap} /><ApiMcp /></div>;
+    case "backups": return <BackupsSettings machines={snap.data.machine_list} issues={snap.backups?.issues ?? []} />;
+    case "tasks": return <SystemSettings part="tasks" snap={snap} />;
+    default: return <SystemSettings part="system" snap={snap} />;   // an unknown or old section id
+  }
+}
+
+/** The section wanted by an id read from the address or from memory: follows a redirect (an old section, now a page apart), else a known section, else the fallback */
+function sectionFromId(id: string): string {
+  const norm = normalizeSection(id);
+  if (norm.redirect) { location.hash = norm.redirect; return "accounts"; }
+  return SECTIONS.some((x) => x.id === norm.section) ? norm.section! : "accounts";
 }
 
 export function Settings({ snap }: { snap: Snapshot }) {
   const [section, setSection] = useState(() => {
     const s = location.hash.split("/")[1]; // lien direct : #settings/<section> (menu du compte)
-    if (s === "look") { location.hash = "profile"; }   // Appearance moved to the profile (old link)
-    const wanted = s === "sources" ? "connectors" : s === "agents" ? "machines" : s || lastSettingsSection(); // « sources » : ancien lien, fondu dans Connecteurs
-    return SECTIONS.some((x) => x.id === wanted) ? wanted : "accounts";
+    if (s === "look") { location.hash = "profile"; return "accounts"; }   // Appearance moved to the profile (old link)
+    return sectionFromId(s || lastSettingsSection());
   });
   useEffect(() => {
     rememberSettingsSection(section);
@@ -83,11 +86,13 @@ export function Settings({ snap }: { snap: Snapshot }) {
     const s = location.hash.split("/")[1];
     if (s !== section && !(section === "machines" && s === "agents")) showInUrl(`settings/${section}`, !s);   // first opening of #settings: replaced, not one more step back
   }, [section]);
-  useEffect(() => {   // a link to another section (#settings/tasks from Discovery…) while Settings is open: follow it
+  useEffect(() => {   // a link to another section (#settings/connectors from Discovery…) while Settings is open: follow it
     const go = () => {
+      if (!location.hash.startsWith("#settings/")) return;
       const s = location.hash.split("/")[1];
-      const wanted = s === "sources" ? "connectors" : s === "agents" ? "machines" : s;
-      if (location.hash.startsWith("#settings/") && SECTIONS.some((x) => x.id === wanted)) setSection(wanted);
+      const norm = normalizeSection(s);
+      if (norm.redirect) { location.hash = norm.redirect; return; }
+      if (SECTIONS.some((x) => x.id === norm.section)) setSection(norm.section!);
     };
     addEventListener("hashchange", go);
     return () => removeEventListener("hashchange", go);

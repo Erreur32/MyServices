@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Data, Host } from "../types";
 import { checks, status } from "./status";
-import { attention, groupAttention, limitGroups, names, type Attention } from "./summary";
+import { attention, names } from "./summary";
 
 const NOW = new Date("2026-10-10T12:00:00+02:00").getTime();
 
@@ -76,14 +76,10 @@ describe("accueil", () => {
 
 describe("avertissements de l'accueil", () => {
   const base = () => data([host({})]);
-  it("machines en ligne sans SSH : une seule ligne orange, sans la box ni l'éteinte", () => {
+  it("machines en ligne sans SSH : plus une alerte, la ligne est dans « Il manque » (lib/missing.ts)", () => {
     const d = base();
-    d.machine_list.push({ ip: "10.0.0.5", name: "nas", ping: true, off: false, services: 0, npm: 0, down: 0 },
-      { ip: "10.0.0.1", name: "box", ping: true, off: false, gateway: true, services: 0, npm: 0, down: 0 });
-    const a = attention({ data: d, now: NOW }).filter((x) => x.level === "warn" && x.tab === "machines");
-    expect(a).toHaveLength(1);
-    expect(a[0].text).toContain("nas");
-    expect(a[0].text).not.toContain("box");
+    d.machine_list.push({ ip: "10.0.0.5", name: "nas", ping: true, off: false, services: 0, npm: 0, down: 0 });
+    expect(attention({ data: d, now: NOW }).filter((x) => x.tab === "machines")).toEqual([]);
   });
   it("Docker illisible : phrase claire, pas de doublon avec le connecteur", () => {
     const d = base();
@@ -101,32 +97,15 @@ describe("avertissements de l'accueil", () => {
   });
 });
 
-describe("attention sorted by category and severity", () => {
-  const item = (category: Attention["category"], level: Attention["level"], text: string): Attention => ({ category, level, text, tab: "machines" });
-  it("the categories with red points come first, then by orange count; red before orange inside", () => {
-    const got = groupAttention([
-      item("dns", "warn", "d1"), item("machines", "warn", "m1"), item("services", "crit", "s1"), item("machines", "crit", "m2"),
-      item("services", "warn", "s2"), item("sauvegardes", "warn", "b1"), item("sauvegardes", "warn", "b2"),
-    ]);
-    expect(got.map((g) => [g.category, g.crit, g.warn])).toEqual([["machines", 1, 1], ["services", 1, 1], ["sauvegardes", 0, 2], ["dns", 0, 1]]);
-    expect(got[0].items.map((i) => i.text)).toEqual(["m2", "m1"]);
-    expect(got[1].items.map((i) => i.text)).toEqual(["s1", "s2"]);
-  });
-  it("nothing to say, no group", () => {
-    expect(groupAttention([])).toEqual([]);
-  });
-  it("every line found by attention() has a category", () => {
-    const d = { generated: "", hosts: [], machine_list: [{ name: "pc", ip: "10.0.0.2", ping: false, off: false, services: 0, npm: 0, down: 0 }], connectors: [{ type: "x", name: "c", ok: false, message: "m" }] } as unknown as Data;
-    expect(attention({ data: d, now: NOW }).every((i) => !!i.category)).toBe(true);
-  });
-});
-
-describe("the attention card's line limit", () => {
-  const item = (category: Attention["category"], level: Attention["level"], text: string): Attention => ({ category, level, text, tab: "machines" });
-  it("cuts across the groups in order, and a group with no line left disappears", () => {
-    const groups = groupAttention([item("machines", "crit", "m1"), item("machines", "warn", "m2"), item("dns", "warn", "d1"), item("dns", "warn", "d2")]);
-    expect(limitGroups(groups, 3).map((g) => g.shown.map((i) => i.text))).toEqual([["m1", "m2"], ["d1"]]);
-    expect(limitGroups(groups, 2).map((g) => g.category)).toEqual(["machines"]);
-    expect(limitGroups(groups, 0).reduce((n, g) => n + g.shown.length, 0)).toBe(4);
+describe("every attention line leads somewhere", () => {
+  it("has a category, a button label and a target (filter or exact address)", () => {
+    const d = { generated: "", hosts: [host({ backend: { up: false }, public: { code: 502 } })], machine_list: [{ name: "pc", ip: "10.0.0.2", ping: false, off: false, services: 0, npm: 0, down: 0 }],
+      connectors: [{ type: "x", name: "c", ok: false, message: "m" }, { type: "docker", name: "d", ok: false, message: "m" }] } as unknown as Data;
+    const got = attention({ data: d, now: NOW, backups: { generated: "", summary: { ok: 0, warn: 0, crit: 1, sets: 1, hosts: 1, volume: 0, no_offsite: 0 }, issues: [{ level: "crit", set: "s", text: "absente" }] } });
+    expect(got.length).toBeGreaterThanOrEqual(5);
+    expect(got.every((i) => !!i.category && i.action.length > 0 && (!!i.sel || !!i.href || i.tab))).toBe(true);
+    expect(got.find((i) => i.category === "machines")?.sel).toEqual({ state: ["down"] });
+    expect(got.find((i) => i.text.startsWith("Docker illisible"))?.href).toBe("settings/machines");
+    expect(got.find((i) => i.category === "sauvegardes")?.action).toBe("Voir le jeu");
   });
 });

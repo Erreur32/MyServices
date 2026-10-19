@@ -34,4 +34,12 @@ export const OPEN_DETAIL = "[&>td]:shadow-[inset_2px_-2px_0_rgb(var(--link)),ins
 /** Unfolded card: full blue frame (wins over GREY_CARDS) */
 export const OPEN_CARD = "!border-link ring-1 ring-link";
 
+/** Border of a « To watch » frame by its worst state */
+export const WATCH_FRAME: Record<"ok" | "warn" | "bad", string> = { bad: "border-bad/50", warn: "border-warn/50", ok: "border-ok/40" };
+/** The worst state of a list: red if any is red, orange if anything is listed, green otherwise */
+export function worstTone(anyBad: boolean, any: boolean): "ok" | "warn" | "bad" {
+  if (anyBad) return "bad";
+  return any ? "warn" : "ok";
+}
+
 export const GREY_CARDS = "[&_:where(.rounded-xl.border-line:not(.border-l-4))]:border-dim/50 [&_:where(.rounded-2xl.border-line:not(.border-l-4))]:border-dim/50";

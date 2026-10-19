@@ -46,12 +46,11 @@ class NetscanEvery(unittest.TestCase):
         self.assertNotIn("netscan_every", self.raw())
 
     def test_update_settings_written_and_applied(self):
-        out = system.set_update_settings(self.core, auto=False, header=False)
-        self.assertEqual(out, {"auto": False, "header": False})
-        self.assertEqual((self.raw()["update_check"], self.raw()["update_header"]), (False, False))
-        self.assertEqual(system.set_update_settings(self.core, header=True), {"auto": False, "header": True})   # only what is given changes
-        self.assertNotIn("update_header", self.raw())                                                          # on is the default
-        self.assertEqual(system.set_update_settings(self.core, auto=True)["auto"], True)
+        out = system.set_update_settings(self.core, auto=False)
+        self.assertEqual(out, {"auto": False})
+        self.assertFalse(self.raw()["update_check"])
+        self.assertFalse(system.set_update_settings(self.core)["auto"])   # nothing given: nothing changes
+        self.assertTrue(system.set_update_settings(self.core, auto=True)["auto"])   # on is the default
         self.assertNotIn("update_check", self.raw())
 
     def test_change_et_applique_tout_de_suite(self):
@@ -111,29 +110,13 @@ class NetscanEvery(unittest.TestCase):
             system.set_netscan_ignored(self.core, "pas une ip")
 
 
-    def test_sante_allumee_puis_coupee(self):
-        self.core.CFG["health_url"] = ""
-        self.assertEqual(system.set_health(self.core, True), {"enabled": True})
-        self.assertEqual(self.raw()["health_url"], "health/")
-        self.assertEqual(self.core.CFG["health_url"], "health/")
-        system.set_health(self.core, False)
-        self.assertNotIn("health_url", self.raw())
-        self.assertEqual(self.core.CFG["health_url"], "")
-
-    def test_sante_externe_jamais_ecrasee(self):
-        self.core.CFG["health_url"] = "https://health.example/"
-        with self.assertRaises(ValueError):
-            system.set_health(self.core, True)
-        self.assertNotIn("health_url", self.raw())
-
     def test_pourquoi_une_tache_est_coupee(self):
-        core = types.SimpleNamespace(CFG={"health_url": ""}, enabled=lambda n: False)
-        self.assertTrue(system._why_off(core, "health")["switch"])
+        core = types.SimpleNamespace(CFG={"health_url": "https://x/"}, enabled=lambda n: False)
+        self.assertFalse(system._why_off(core, "health")["switch"])   # no switch any more: the integrated health is always on
+        self.assertIn("externe", system._why_off(core, "health")["why"])
         self.assertFalse(system._why_off(core, "backups")["switch"])
-        core.CFG["health_url"] = "https://x/"
-        self.assertFalse(system._why_off(core, "health")["switch"])
         core.enabled = lambda n: True
-        self.assertEqual(system._why_off(core, "health"), {"switch": True, "why": None})
+        self.assertEqual(system._why_off(core, "health"), {"switch": False, "why": None})
         self.assertEqual(system._why_off(core, "collect"), {"switch": False, "why": None})
 
 

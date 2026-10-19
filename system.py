@@ -75,11 +75,9 @@ def tasks(core) -> list[dict]:
 def _why_off(core, name: str) -> dict:
     """Pourquoi une tâche est coupée et comment l'allumer : `switch` = interrupteur proposé dans la page, `why` = explication."""
     if core.enabled(name):
-        return {"switch": name == "health", "why": None}
+        return {"switch": False, "why": None}
     if name == "health":
-        ext = core.CFG["health_url"] not in ("", "health/")
-        return {"switch": not ext, "why": ("Santé lue par un health-watcher externe (health_url dans config.json) : rien à faire ici."
-                                           if ext else "Coupée. Allumez-la pour lire disque, services, mises à jour et SMART des machines en SSH.")}
+        return {"switch": False, "why": "Santé lue par un health-watcher externe (health_url dans config.json) : rien à faire ici."}
     if name == "backups":
         return {"switch": False, "why": "Pas d'inventaire de sauvegardes (backups-meta.json) : rien à surveiller pour l'instant."}
     return {"switch": False, "why": "Aucune machine déclarée : la tâche démarre dès qu'il y en a une."}
@@ -91,21 +89,6 @@ def set_backups_url(core, url: str) -> None:
         raw["backups_url"] = url
     _update_config(core, change)
     core.CFG["backups_url"] = url
-
-
-def set_health(core, on: bool) -> dict:
-    """Allume ou coupe la santé intégrée (health_url = « health/ »), écrite dans config.json et appliquée aussitôt."""
-    if core.CFG["health_url"] not in ("", "health/"):
-        raise ValueError("santé branchée sur un health-watcher externe (health_url) : à changer dans config.json")
-
-    def change(raw: dict) -> None:
-        if on:
-            raw["health_url"] = "health/"
-        else:
-            raw.pop("health_url", None)
-    _update_config(core, change)
-    core.CFG["health_url"] = "health/" if on else ""
-    return {"enabled": on}
 
 
 def _update_config(core, change, secret: bool = False) -> None:
@@ -291,22 +274,19 @@ def set_diagram_extra(core, key: str, on: bool) -> list[str]:
     return kept
 
 
-def set_update_settings(core, auto: bool | None = None, header: bool | None = None) -> dict:
-    """Settings → Updates: the automatic check (update_check, every 6 h by the scheduler) and the notice in the header (update_header)."""
+def set_update_settings(core, auto: bool | None = None) -> dict:
+    """Settings → Updates: the automatic check (update_check, every 6 h by the scheduler); the notice in the header follows it."""
     def change(raw: dict) -> None:
-        for key, val in (("update_check", auto), ("update_header", header)):
-            if val is None:
-                continue
-            if val:
-                raw.pop(key, None)   # on is the default
-            else:
-                raw[key] = False
+        if auto is None:
+            return
+        if auto:
+            raw.pop("update_check", None)   # on is the default
+        else:
+            raw["update_check"] = False
     _update_config(core, change)
     if auto is not None:
         core.CFG["update_check"] = auto
-    if header is not None:
-        core.CFG["update_header"] = header
-    return {"auto": bool(core.CFG.get("update_check", True)), "header": bool(core.CFG.get("update_header", True))}
+    return {"auto": bool(core.CFG.get("update_check", True))}
 
 
 def set_auto_mode(core, on: bool) -> dict:

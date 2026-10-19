@@ -12,6 +12,7 @@ import { Badge, Card, Count, Dim, type Tone } from "../components/ui";
 import { bytes, dateTime, dur, hm } from "../lib/format";
 import type { SystemState, SystemTask } from "../types";
 import { usePoll } from "../lib/polling";
+import { useStoredFlag } from "../lib/storedFlag";
 import { tx } from "../lib/i18n";
 import { MachineIcon } from "../components/MachineIcon";
 import { GITHUB, releaseOf } from "../lib/links";
@@ -230,11 +231,12 @@ function Tasks({ tasks, netscan, beat, reload }: Readonly<{ tasks: SystemTask[];
     sections[group] ??= [];
     sections[group].push(row);
   };
-  tasks.forEach((t) => add(groupOf(t.name), <TaskRow key={t.name} t={t} now={now} reload={reload} />));
-  if (netscan) add(groupOf("netscan"), <NetscanRow key="netscan" n={netscan} now={now} reload={reload} />);
-  add(groupOf("live"), <LiveChecksRow key="live" />);
+  const [edit, setEdit] = useStoredFlag("myservices.tasks.edit", false);   // the schedules as words by default; the fields behind « Edit the schedules »
+  tasks.forEach((t) => add(groupOf(t.name), <TaskRow key={t.name} t={t} now={now} reload={reload} edit={edit} />));
+  if (netscan) add(groupOf("netscan"), <NetscanRow key="netscan" n={netscan} now={now} reload={reload} edit={edit} />);
+  if (edit) add(groupOf("live"), <LiveChecksRow key="live" />);
   return <>
-    <TasksHeader tasks={tasks} netscan={netscan} ago={ago} alive={alive} now={now} />
+    <TasksHeader tasks={tasks} netscan={netscan} ago={ago} alive={alive} now={now} edit={edit} setEdit={setEdit} />
     {TASK_GROUPS.filter((g) => sections[g.id]?.length).map((g) => (
       <Card key={g.id}>
         <h3 className={`${STRIP} text-xs font-bold uppercase tracking-wider text-muted`}>{g.title()}</h3>
@@ -248,7 +250,7 @@ function Tasks({ tasks, netscan, beat, reload }: Readonly<{ tasks: SystemTask[];
 }
 
 /** Title, scheduler heartbeat and a one-line summary: how many tasks are on, which one is running or failed, which is next */
-function TasksHeader({ tasks, netscan, ago, alive, now }: Readonly<{ tasks: SystemTask[]; netscan: SystemState["netscan"]; ago: number | null; alive: boolean; now: number }>) {
+function TasksHeader({ tasks, netscan, ago, alive, now, edit, setEdit }: Readonly<{ tasks: SystemTask[]; netscan: SystemState["netscan"]; ago: number | null; alive: boolean; now: number; edit: boolean; setEdit: (on: boolean) => void }>) {
   const items = netscan ? [...tasks, { name: "netscan", label: tx("Recherche réseau"), enabled: netscan.enabled, running: netscan.running, result: netscan.ended ? "success" : null, next: netscan.next }] : tasks;
   const sum = summarize(items), label = items.find((t) => t.name === sum.next?.name)?.label;
   return (
@@ -259,6 +261,8 @@ function TasksHeader({ tasks, netscan, ago, alive, now }: Readonly<{ tasks: Syst
         <Badge tone={alive ? "ok" : "bad"} title={alive ? tx("Vérifié il y a {0} s. Il lance chaque tâche à son horaire, comme une crontab.", ago) : tx("Plus aucun tour depuis {0} s : redémarrez le conteneur.", ago ?? "?")}>
           {alive ? <span className="h-1.5 w-1.5 rounded-full bg-ok motion-safe:animate-pulse" aria-hidden /> : <TriangleAlert size={12} aria-hidden />}
           {alive ? tx("planificateur actif") : tx("planificateur arrêté")}</Badge>
+        <button type="button" aria-pressed={edit} onClick={() => setEdit(!edit)} className={`${quiet} ml-auto py-1 text-xs`} title={tx("Les horaires, les réseaux parcourus par la recherche et les contrôles vivants : à changer rarement")}>
+          <Clock size={13} aria-hidden />{edit ? tx("Fermer les réglages") : tx("Modifier les horaires")}</button>
       </div>
       <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted" aria-live="polite">
         <span>{tx("{0} tâche(s) active(s) sur {1}", sum.enabled, items.length)}</span>
@@ -333,26 +337,21 @@ function RunButton({ label, busy, disabled, onRun }: Readonly<{ label: string; b
   );
 }
 
-function TaskRow({ t, now, reload }: Readonly<{ t: SystemTask; now: number; reload: () => void }>) {
+function TaskRow({ t, now, reload, edit }: Readonly<{ t: SystemTask; now: number; reload: () => void; edit: boolean }>) {
   const [at, setAt] = useState(t.at), [note, setNote] = useState<Note>(null);
   const parsed = parseAt(at), changed = at.trim() !== t.at, state = runState(t);
   const save = (spec: string, done: string) => void act(() => send("PUT", `system/tasks/${t.name}/schedule`, { at: spec }), done, setNote).then((ok) => { if (ok) { if (!spec) setAt(t.default); reload(); } });
-  const toggle = (on: boolean) => void act(() => send("PUT", "system/health", { enabled: on }), on ? tx("santé allumée : premier relevé en cours, puis la collecte (une minute environ)") : tx("santé coupée"), setNote).then((ok) => ok && reload());
   return (
     <li className={rowClass(state)}>
       <div className={`flex flex-wrap items-start gap-x-4 gap-y-2 ${ROW_COLS}`}>
         <TaskHead name={t.name} title={t.label} state={state} note={note}
-          extra={t.switch && (
-            <label className="inline-flex items-center gap-1.5 text-xs text-dim">
-              <Switch on={t.enabled} label={t.enabled ? tx("Couper la santé des machines") : tx("Allumer la santé des machines")} onChange={toggle} />
-              {t.enabled ? tx("allumée") : tx("coupée")}
-            </label>
-          )}
           about={<><span>{!t.enabled && t.why ? t.why : desc(t.name)}</span><AlsoFinds task={t.name} /></>}>
           {t.enabled && <LastRun t={t} />}
         </TaskHead>
         <div>
           <span className="mb-1 block text-xs text-dim lg:hidden">{tx("Horaire")}</span>
+          {!edit && <p className="text-sm">{parsed ? period(parsed) : t.at}{t.at !== t.default && <Dim> · {tx("modifié")}</Dim>}</p>}
+          {edit && <>
           <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (parsed) save(at.trim(), tx("horaire enregistré")); }}>
             <input className={`${input} h-9 w-36 font-mono ${parsed ? "" : "border-bad"}`} value={at} disabled={t.fixed} onChange={(e) => setAt(e.target.value)} aria-label={tx("Horaire de {0}", t.label)}
               aria-invalid={!parsed} title={t.fixed ? tx("fixé par la variable d'environnement du conteneur") : tx("défaut : {0}", t.default)} />
@@ -366,6 +365,7 @@ function TaskRow({ t, now, reload }: Readonly<{ t: SystemTask; now: number; relo
             {parsed ? period(parsed) : tx("format attendu : minutes (0-59) puis heures (0-23 ou *), séparées par des virgules")}
           </p>
           {t.fixed && <p className="mt-0.5 text-xs text-dim">{tx("Fixé par MYSERVICES_")}{t.name.toUpperCase()}{tx("_AT dans le compose.")}</p>}
+          </>}
         </div>
         <NextRun on={t.enabled} t={{ running: t.running, started: t.started, next: t.next ?? null }} now={now} />
         <RunButton label={t.label} busy={t.running} disabled={!t.enabled}
@@ -424,7 +424,7 @@ function LiveChecksRow() {
 interface NetCfg { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean }
 
 /** The network search runs every N hours: the same setting as Discovery (PUT network/settings), so both pages stay in step */
-function NetscanRow({ n, now, reload }: Readonly<{ n: NonNullable<SystemState["netscan"]>; now: number; reload: () => void }>) {
+function NetscanRow({ n, now, reload, edit }: Readonly<{ n: NonNullable<SystemState["netscan"]>; now: number; reload: () => void; edit: boolean }>) {
   const state = runState({ enabled: n.enabled, running: n.running, result: n.ended ? "success" : null });
   const [cfg, setCfg] = useState<NetCfg | null>(null), [hostNet, setHostNet] = useState("");
   const [hours, setHours] = useState(""), [nets, setNets] = useState<string | null>(null), [note, setNote] = useState<Note>(null);
@@ -448,6 +448,8 @@ function NetscanRow({ n, now, reload }: Readonly<{ n: NonNullable<SystemState["n
         </TaskHead>
         <div>
           <span className="mb-1 block text-xs text-dim lg:hidden">{tx("Horaire")}</span>
+          {!edit && cfg && <p className="text-sm">{cfg.every_h ? tx("toutes les {0} h", cfg.every_h) : tx("coupée")}{cfg.nets.length > 0 && <Dim> · {cfg.nets.join(", ")}</Dim>}{cfg.discreet && <Dim> · {tx("mode discret")}</Dim>}</p>}
+          {edit && <>
           <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (valid) save(h); }}>
             <span className="flex items-center gap-1.5">
               <input className={`${input} h-9 w-20 font-mono ${valid || hours === "" ? "" : "border-bad"}`} type="number" min={0} max={cfg?.max_h} step={1} value={hours}
@@ -465,12 +467,13 @@ function NetscanRow({ n, now, reload }: Readonly<{ n: NonNullable<SystemState["n
             {!valid && hours !== "" ? tx("Un nombre entier de 0 à {0}.", cfg?.max_h ?? "?") : h === 0 ? tx("coupée") : tx("toutes les {0} h", h)}
           </p>
           {cfg?.fixed && <p className="mt-0.5 text-xs text-dim">{tx("Fixée par MYSERVICES_NETSCAN_EVERY dans le compose.")}</p>}
+          </>}
         </div>
         <NextRun on={n.enabled} t={n} now={now} />
         <RunButton label={tx("Recherche réseau")} busy={n.running}
           onRun={() => void act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setNote).then(() => reload())} />
       </div>
-      {cfg && (   /* what the search reads: the networks and the discreet mode (moved from Discovery: every setting of a job lives here) */
+      {cfg && edit && (   /* what the search reads: the networks and the discreet mode, behind « Edit the schedules » */
         <div className="mt-3 grid gap-4 rounded-lg bg-bg2/50 p-3 md:ml-11 md:grid-cols-[minmax(0,1fr)_minmax(0,18rem)]">
           <form className="flex flex-col gap-1.5" onSubmit={(e) => { e.preventDefault(); saveNets(); }}>
             <label className="flex flex-col gap-1 text-xs font-semibold text-muted">{tx("Réseaux à parcourir")}

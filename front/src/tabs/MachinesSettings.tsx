@@ -1,9 +1,9 @@
 // Réglages → Machines : équivalent graphique de « setup.py --add ». Détecter (IP, nom ou alias SSH : ping,
 // ports, SSH Linux / Windows, Docker, AdGuard, VM, services web, connecteurs reconnus), relire la proposition,
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
-// Chaque carte porte aussi l'accès SSH relevé par la collecte (résumé plié, détail déplié) : tout ce qui touche une
-// machine est ici ; Connecteurs ne garde que les services lus par leur API.
-import { Check, ChevronDown, ChevronRight, Eye, EyeOff, IdCard, Info, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+// Depuis la refonte (étape 3), les réglages de chaque machine sont dans sa page (#machines/<ip>, MachineModal en page) : ici restent
+// l'ajout, la redétection, la clé à autoriser, les appareils vus par les outils et les agents. Connecteurs ne garde que les services lus par leur API.
+import { Check, ChevronDown, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Copyable, Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -16,7 +16,6 @@ import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
 import { Overlay } from "../components/Overlay";
 import { AccessGuide, AgentBlock, AgentsOverview } from "./Agents";
-import { IconChoice } from "../components/IconChoice";
 import { IconPicker } from "../components/IconPicker";
 import { mState, osOfMachine } from "../lib/machines";
 import { AuthorizeKey } from "../components/AuthorizeKey";
@@ -36,7 +35,6 @@ import { UnlinkedDevices } from "../components/UnlinkedDevices";
 const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
   { k: "off", label: tx("Souvent éteinte"), help: tx("PC, portable : pas d'alerte si elle ne répond pas") },
   { k: "gateway", label: tx("Passerelle"), help: tx("box / routeur : sous-titre de la page") },
-  { k: "npm", label: tx("Héberge NPM"), help: tx("sous-titre de la page") },
   { k: "npm_only", label: tx("Joignable seulement par NPM"), help: tx("pare-feu : ses services sont testés via NPM") },
   { k: "vm", label: tx("Machine virtuelle"), help: tx("pas de SMART ni de température du processeur : le disque et le processeur sont virtuels, rien de réel à lire (se coche seule si détectée)") },
 ];
@@ -52,21 +50,13 @@ function sshWho(st: State, alias: string): string {
   return a ? `${a.user ? `${a.user}@` : ""}${a.ip || a.host}${a.port ? `:${a.port}` : ""}` : alias;
 }
 
-export function MachinesSettings({ snap, focusIp, focusTab }: Readonly<{ snap: Snapshot; focusIp?: string; focusTab?: "access" }>) {
+export function MachinesSettings({ snap }: Readonly<{ snap: Snapshot }>) {
   const [st, setSt] = useState<State | null>(null);
   const [error, setError] = useState("");
   const [detecting, setDetecting] = useState(false);
   const [redetecting, setRedetecting] = useState(false);
-  // Système vu par le dernier scan du réseau, pour les machines que le SSH ne renseigne pas (suggestion)
-  const [scanOs, setScanOs] = useState<Record<string, { os?: string; apps: string[]; ssh?: boolean; sshPort?: number }>>({});
-  const [hosts, setHosts] = useState<NetHost[]>([]);
   const [showAccess, setShowAccess] = useState(false);
-  const [agents, setAgents] = useState<Record<string, AgentInfo>>({});  // agent actif par IP
-  const loadAgents = useCallback(() => { read<{ agents: AgentInfo[] }>("agents").then((r) => setAgents(Object.fromEntries(r.agents.filter((a) => a.state !== "révoqué").map((a) => [a.ip, a])))).catch(() => undefined); }, []);
-  useEffect(loadAgents, [loadAgents]);
-  useEffect(() => { read<NetScan>("network/scan").then((n) => { setHosts(n.found || []); setScanOs(Object.fromEntries((n.found || []).map((h) => [h.ip, { os: h.os ?? undefined, apps: h.apps ?? [], ssh: !!h.ssh_port, sshPort: h.ssh_port ?? undefined }]))); }).catch(() => undefined); }, []);
   const [accepted, setAccepted] = useState<{ gen: string; ips: string[] }>({ gen: "", ips: [] });
-  const [showOff, setShowOff] = useState(false);   // machines not followed: hidden, like in the Machines tab   // clés acceptées depuis le dernier passage : la carte se retire sans attendre le suivant
   const reload = useCallback(() => {
     read<State>("machines/settings")
       .then((s) => { setSt(s); setError(""); })
@@ -74,21 +64,8 @@ export function MachinesSettings({ snap, focusIp, focusTab }: Readonly<{ snap: S
   }, []);
   useEffect(reload, [reload]);
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
-  const live = new Map((snap.data.machine_list || []).map((m) => [m.ip, m]));
-  // « Non terminé » : accès encore à régler (SSH absent alors que la machine l'offre, jeton Home Assistant manquant). Ceux que l'on
-  // a fait « Passer » dans les premiers pas le sont forcément : on le dit aussi ici, pour ne pas les oublier.
-  let passed: string[] = [];
-  try { passed = JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]") as string[]; } catch { /* mémoire du navigateur illisible */ }
-  const asMachines = Object.entries(st.machines).map(([ip, c]) => ({ ip, ssh: c.ssh ?? (typeof c.health === "string" ? c.health : null) }));
-  const unfinished: Record<string, { why: "ha" | "ssh"; passed: boolean }> = {};
-  for (const h of hosts) {
-    if (!st.machines[h.ip] || st.machines[h.ip].disabled) continue;
-    const why = needsLink(h, asMachines, snap.data.services_status ?? []);
-    if (why) unfinished[h.ip] = { why, passed: passed.includes(h.ip) };
-  }
   const all = Object.keys(st.machines).sort((a, b) => ipNum(a) - ipNum(b));
   const nOff = all.filter((ip) => st.machines[ip].disabled).length;
-  const ips = showOff || (focusIp && st.machines[focusIp]?.disabled) ? all : all.filter((ip) => !st.machines[ip].disabled);
   // Machines dont la clé n'est pas autorisée : retrouvées par leur IP (le nom d'un connecteur est celui de la machine, pas son adresse) ; chacune a son compte SSH
   const machineOf = (c: Connector) => (c.ip ? st.machines[c.ip] : Object.values(st.machines).find((x) => x.name === c.name));
   const userOf = (c: Connector) => st.aliases.find((al) => al.alias === machineOf(c)?.ssh)?.user || "root";
@@ -110,31 +87,24 @@ export function MachinesSettings({ snap, focusIp, focusTab }: Readonly<{ snap: S
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => setShowAccess(!showAccess)} aria-pressed={showAccess} aria-label={tx("Accès aux machines")} title={tx("Accès aux machines : agent, SSH ou connecteur, lequel choisir")}
             className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-semibold ${showAccess ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:text-txt"}`}><Info size={12} aria-hidden />{tx("Accès")}</button>
-          {nOff > 0 && <button type="button" onClick={() => setShowOff(!showOff)} aria-pressed={showOff} title={tx("Machines dont « Machine suivie » est coupé : plus lues, cachées ici et dans l'onglet Machines")}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-semibold ${showOff ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:text-txt"}`}>
-            {showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}{tx("Non suivies")} ({nOff})</button>}
+          {nOff > 0 && <Dim>{tx("{0} non suivie(s)", nOff)}</Dim>}
         </div>
 
         {showAccess && <AccessGuide />}
         {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
         {detecting && <AddMachine st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
       </Card>
-      {/* Cartes compactes de hauteur fixe : les réglages s'ouvrent dans une fenêtre, rien ne se déplie ni ne déforme la grille */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {ips.map((ip) => {
-          const lm = live.get(ip);
-          // Un PC Windows n'a ni Docker ni services en écoute à lire : pas d'état de connecteur SSH Linux (reste d'un ancien relevé)
-          const stat = st.machines[ip].os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.ip ? c.ip === ip : c.name === ip || c.name === lm?.name));
-          return <MachineRow key={ip} agent={agents[ip]} unfinished={unfinished[ip]} scan={scanOs[ip]} focus={ip === focusIp} focusTab={ip === focusIp ? focusTab : undefined} onAgent={loadAgents} ip={ip} m={st.machines[ip]} st={st} live={lm} statuses={stat} reload={reload} network={snap.data.network} />;
-        })}
-      </div>
+      <Card>
+        <p className="text-sm text-muted">{tx("Chaque machine suivie a sa page dans l'onglet Machines : son état, sa santé et ses réglages (identité, options, accès) y sont réunis.")}</p>
+        <a href="#machines" className={`${quiet} mt-2 self-start no-underline`}><Server size={14} aria-hidden />{tx("Voir les machines")}</a>
+      </Card>
       <UnlinkedDevices snap={snap} onFollowed={reload} />
       <AgentsOverview machines={st.machines} />
     </div>
   );
 }
 
-const REDETECT_FLAGS: Record<string, string> = { vm: tx("Machine virtuelle"), gateway: tx("Passerelle"), npm: tx("Héberge NPM"), off: tx("Souvent éteinte") };
+const REDETECT_FLAGS: Record<string, string> = { vm: tx("Machine virtuelle"), gateway: tx("Passerelle"), off: tx("Souvent éteinte") };
 
 /** Écarts d'un item en lignes cochables : clé stable, texte, effet sur la machine (ou sur « process_hosts ») */
 function redetectChanges(r: RedetectItem): { key: string; text: string }[] {
@@ -459,8 +429,9 @@ function AgentOrAccess({ agent, access }: Readonly<{ agent?: AgentInfo; access: 
   return <Badge tone={agent.state === "actif" ? "ok" : "warn"} title={tx("Agent MyServices : {0}", agent.state)}>{tx("agent")}</Badge>;
 }
 
-function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgent, bare, onClosed, scan, unfinished, agent, network }: Readonly<{
+function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgent, bare, inline, onClosed, scan, unfinished, agent, network }: Readonly<{
   bare?: boolean; onClosed?: () => void;  // fenêtre seule, sans la carte (ouverte depuis un autre onglet)
+  inline?: boolean;  // in the machine page (#machines/<ip>): the settings body alone, in the page, no window
   focusTab?: "access"; onAgent: () => void; network?: NetworkConnector[]; agent?: AgentInfo; unfinished?: Unfinished; scan?: ScanInfo; focus?: boolean; ip: string; m: MachineConf; st: State; live?: Live; statuses: Statuses; reload: () => void;
 }>) {
   const fb = live && freeboxOf(live, network) && network?.find((c) => c.freebox?.system);   // la Freebox est lue par MynetworK, rapprochée par son nom
@@ -489,8 +460,7 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgen
   const access = accessLabel(m, agent);
   const connection = m.os === "windows" || live ? <MachineConnection ip={ip} m={m} st={st} live={live} statuses={statuses} agent={agent} /> : null;
   const iconProps = { name: m.name, role: m.role, os: m.os, info: live?.info, ttl: live?.ttl, icon: icon };
-  const overlay = open && (
-        <Overlay medium onClose={() => openCard(false)} title={<><MachineIcon m={iconProps} scan={scan} reserve />{m.name} <Dim>{ip}</Dim></>}>
+  const body = (
         <div className="mt-3 flex flex-col gap-3">
           <NoteLine note={note} />
           {lines && <CheckLines lines={lines} />}
@@ -498,6 +468,11 @@ function MachineRow({ ip, m, st, live, statuses, reload, focus, focusTab, onAgen
           <MachineForm tabbed focusTab={focusTab} onAgent={onAgent} agent={agent} connection={connection} report={setNote} onIcon={setIcon} onFollow={(on) => setOff(!on)} ip={ip} m={m} st={st} live={live} scan={scan} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload}
             actions={<RowActions ip={ip} busy={busy} confirm={confirm} setConfirm={setConfirm} setNote={setNote} reload={reload} verify={verify} />} />
         </div>
+  );
+  if (inline) return body;   // machine page: the settings sit in the page
+  const overlay = open && (
+        <Overlay medium onClose={() => openCard(false)} title={<><MachineIcon m={iconProps} scan={scan} reserve />{m.name} <Dim>{ip}</Dim></>}>
+        {body}
         </Overlay>
   );
   if (bare) return <>{overlay}</>;   // fenêtre ouverte depuis l'onglet Machines : pas de carte
@@ -603,11 +578,11 @@ type FlagCtx = { v: MachineConf; found: Set<string>; unlock: boolean; ss: SaveSt
 // Interrupteurs détectables (passerelle, VM, hôte NPM, poste Windows) : grisés si la détection ne les confirme pas et qu'ils
 // sont éteints. Un interrupteur déjà allumé reste modifiable (pour le retirer). Les autres (NPM seulement, services hors Docker)
 // ne se détectent pas : toujours libres.
-const DETECTABLE = ["gateway", "vm", "npm", "off"];
+const DETECTABLE = new Set(["gateway", "vm", "off"]);
 const QUICK = new Set(["off"]);   // réglages courants, montrés en haut de la carte (jamais grisés ni cachés dans le menu des options)
 
 function isLocked(k: string, ctx: FlagCtx): boolean {
-  return !QUICK.has(k) && !ctx.unlock && DETECTABLE.includes(k) && !ctx.found.has(k) && !ctx.v[k as keyof MachineConf];
+  return !QUICK.has(k) && !ctx.unlock && DETECTABLE.has(k) && !ctx.found.has(k) && !ctx.v[k as keyof MachineConf];
 }
 
 /** The switches split by group: on (shown outside the menu), detected but off, not detected, not detectable */
@@ -616,9 +591,9 @@ function flagGroups(v: MachineConf, found: Set<string>) {
   const menu = FLAGS.filter((f) => !QUICK.has(String(f.k)));
   return {
     active: menu.filter((f) => !!v[f.k]),
-    detected: menu.filter((f) => DETECTABLE.includes(String(f.k)) && isOn(String(f.k)) && !v[f.k]),
-    missing: menu.filter((f) => DETECTABLE.includes(String(f.k)) && !isOn(String(f.k))),
-    manual: menu.filter((f) => !DETECTABLE.includes(String(f.k)) && !v[f.k]),
+    detected: menu.filter((f) => DETECTABLE.has(String(f.k)) && isOn(String(f.k)) && !v[f.k]),
+    missing: menu.filter((f) => DETECTABLE.has(String(f.k)) && !isOn(String(f.k))),
+    manual: menu.filter((f) => !DETECTABLE.has(String(f.k)) && !v[f.k]),
   };
 }
 
@@ -825,8 +800,8 @@ function SshSwitchRow({ ctl, live, ss, proc, autoSave }: Readonly<{ ctl: SshCtl;
       )}
       {!agentMode && sshOn && (
         <label className="flex items-center gap-2 text-sm" title={tx("Ports en écoute hors Docker (ss -tlnp : root, ou une règle sudo sur la machine)")}>
-          <Switch on={proc} disabled={ss.pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Écoute des ports")} />
-          <span><b>{tx("Écoute des ports")}</b> <SavedMark k="proc" s={ss} /></span>
+          <Switch on={proc} disabled={ss.pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Services hors Docker")} />
+          <span><b>{tx("Services hors Docker")}</b> <SavedMark k="proc" s={ss} /> <Dim>· {tx("ports en écoute")}</Dim></span>
         </label>
       )}
       {!agentMode && sshOn && notRoot && <NotRootHint user={ctl.known?.user ?? ""} />}
@@ -915,9 +890,8 @@ function SshBody({ ctl, ip, v, setV, live, scan, windowsGuess, hasAdguard, conne
   );
 }
 
-function AgentBody({ ip, v, windowsGuess, agent, agentMode, sshAccess, isNew, onAgent, connection, ss, autoSave }: Readonly<{
-  ip: string; v: MachineConf; windowsGuess?: boolean; agent?: AgentInfo; agentMode: boolean; sshAccess: boolean; isNew?: boolean; onAgent?: () => void;
-  connection?: React.ReactNode; ss: SaveState; autoSave: AutoSave;
+function AgentBody({ ip, v, windowsGuess, agent, agentMode, isNew, onAgent, connection }: Readonly<{
+  ip: string; v: MachineConf; windowsGuess?: boolean; agent?: AgentInfo; agentMode: boolean; isNew?: boolean; onAgent?: () => void; connection?: React.ReactNode;
 }>) {
   const windows = v.os === "windows";
   return (
@@ -926,19 +900,6 @@ function AgentBody({ ip, v, windowsGuess, agent, agentMode, sshAccess, isNew, on
           <div className="rounded-lg border border-line/60 bg-bg2/70 p-3">
             <h5 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("Lecture par l'agent")}</h5>
             {connection}
-          </div>
-        )}
-        {agent && sshAccess && (
-          <div className="flex flex-col gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
-            <div className="flex flex-wrap items-center gap-2"><b>{tx("Lu d'abord par")}</b> <SavedMark k="health_sources" s={ss} /></div>
-            <IconChoice label={tx("Santé lue d'abord par")} disabled={ss.pending === "health_sources"} value={((v.health_sources as string[] | undefined)?.[0] ?? "") as "" | "ssh" | "agent"}
-              onPick={(src) => void autoSave("health_sources", { health_sources: src ? [src] : undefined })}
-              options={[
-                { value: "", label: tx("Automatique"), hint: windows ? tx("Automatique (l'agent, puis SSH)") : tx("Automatique (SSH, puis l'agent)"), icon: <Sparkles size={24} className="text-link" aria-hidden /> },
-                { value: "ssh", label: "SSH", hint: tx("Lire d'abord par SSH"), icon: <KeyRound size={24} className="text-ok" aria-hidden /> },
-                { value: "agent", label: tx("L'agent"), hint: tx("Lire d'abord par l'agent MyServices"), icon: <Monitor size={24} className="text-warn" aria-hidden /> },
-              ]} />
-            <Dim>{tx("la première source qui répond fait foi, l'autre prend le relais si elle se tait et complète ce qui manque")}</Dim>
           </div>
         )}
         {!isNew && onAgent && !agent && <InfoNote>{AGENT_HINT()}</InfoNote>}
@@ -1031,14 +992,6 @@ function FlagRow({ f, ctx }: Readonly<{ f: FlagDef; ctx: FlagCtx }>) {
   );
 }
 
-function ProcRow({ proc, ss, autoSave }: Readonly<{ proc: boolean; ss: SaveState; autoSave: AutoSave }>) {
-  return (
-    <label className="flex items-start gap-2">
-      <Switch on={proc} disabled={ss.pending === "proc"} onChange={(on) => void autoSave("proc", {}, on)} label={tx("Lire les services hors Docker")} />
-      <span>{tx("Lire les services hors Docker")} <SavedMark k="proc" s={ss} /> <Dim>{tx("· ports en écoute (ss -tlnp, root requis sur la machine)")}</Dim></span>
-    </label>
-  );
-}
 
 /** Réglages courants, toujours visibles : suivre la machine, et « souvent éteinte » (PC, portable : pas d'alerte quand elle est éteinte) */
 function QuickSettings({ ctx }: Readonly<{ ctx: FlagCtx }>) {
@@ -1063,8 +1016,8 @@ function Chevron({ open, size }: Readonly<{ open: boolean; size: number }>) {
   return <Icon size={size} className="text-txt" aria-hidden />;
 }
 
-function ManualGroup({ groups, ctx, proc, windows, procOn, menu }: Readonly<{
-  groups: ReturnType<typeof flagGroups>; ctx: FlagCtx; proc: boolean; windows: boolean; procOn: boolean; menu: OptionsState;
+function ManualGroup({ groups, ctx, menu }: Readonly<{
+  groups: ReturnType<typeof flagGroups>; ctx: FlagCtx; menu: OptionsState;
 }>) {
   const { v } = ctx;
   return (
@@ -1075,14 +1028,12 @@ function ManualGroup({ groups, ctx, proc, windows, procOn, menu }: Readonly<{
         {tx("À changer manuellement")}
         <span className="flex flex-wrap items-center gap-1 normal-case tracking-normal">
           {groups.manual.filter((f) => v[f.k]).map((f) => <Badge key={String(f.k)} tone="off">{f.label}</Badge>)}
-          {proc && !windows && !!v.ssh && <Badge tone="off">{tx("services hors Docker")}</Badge>}
         </span>
       </button>
       {menu.manualOpen && (
         <div className="flex flex-col gap-2 border-t border-line/60 p-3">
           <p className="text-xs text-dim">{tx("Non détectables : c'est à vous de choisir.")}</p>
           {groups.manual.map((f) => <FlagRow key={String(f.k)} f={f} ctx={ctx} />)}
-          {!windows && v.ssh && !procOn && <ProcRow proc={proc} ss={ctx.ss} autoSave={ctx.autoSave} />}
         </div>
       )}
     </div>
@@ -1108,31 +1059,29 @@ function MissingGroup({ groups, ctx, menu }: Readonly<{ groups: ReturnType<typeo
   );
 }
 
-function OptionsMenuBody({ groups, ctx, proc, windows, procOn, menu }: Readonly<{
-  groups: ReturnType<typeof flagGroups>; ctx: FlagCtx; proc: boolean; windows: boolean; procOn: boolean; menu: OptionsState;
+function OptionsMenuBody({ groups, ctx, menu }: Readonly<{
+  groups: ReturnType<typeof flagGroups>; ctx: FlagCtx; menu: OptionsState;
 }>) {
   return (
     <div className="flex flex-col gap-3 border-t border-line/60 p-3">
       {groups.detected.length > 0 && (
         <OptionGroup title={tx("Détectés sur cette machine")} tone="ok">{groups.detected.map((f) => <FlagRow key={String(f.k)} f={f} ctx={ctx} />)}</OptionGroup>
       )}
-      <ManualGroup groups={groups} ctx={ctx} proc={proc} windows={windows} procOn={procOn} menu={menu} />
+      <ManualGroup groups={groups} ctx={ctx} menu={menu} />
       {groups.missing.length > 0 && <MissingGroup groups={groups} ctx={ctx} menu={menu} />}
     </div>
   );
 }
 
-function OptionsTab({ ctx, proc, windows, menu }: Readonly<{ ctx: FlagCtx; proc: boolean; windows: boolean; menu: OptionsState }>) {
+function OptionsTab({ ctx, menu }: Readonly<{ ctx: FlagCtx; menu: OptionsState }>) {
   const groups = flagGroups(ctx.v, ctx.found);
-  const procOn = proc && !windows && !!ctx.v.ssh;
-  const count = groups.detected.length + groups.manual.length + groups.missing.length + (!windows && !!ctx.v.ssh && !procOn ? 1 : 0);
+  const count = groups.detected.length + groups.manual.length + groups.missing.length;
   return (
     <>
       <QuickSettings ctx={ctx} />
-      {(groups.active.length > 0 || procOn) && (
+      {groups.active.length > 0 && (
         <OptionGroup title={tx("Options actives")} hint={tx("Allumées pour cette machine ; les autres sont dans « Options de la machine »")}>
           {groups.active.map((f) => <FlagRow key={String(f.k)} f={f} ctx={ctx} />)}
-          {procOn && <ProcRow proc={proc} ss={ctx.ss} autoSave={ctx.autoSave} />}
         </OptionGroup>
       )}
       {/* Menu pliant des autres interrupteurs : replié, sauf à l'ajout d'une machine dont la détection est à confirmer */}
@@ -1143,7 +1092,7 @@ function OptionsTab({ ctx, proc, windows, menu }: Readonly<{ ctx: FlagCtx; proc:
           {tx("Options de la machine")}
           <span className="font-mono text-xs font-normal text-dim">({count})</span>
         </button>
-        {menu.options && <OptionsMenuBody groups={groups} ctx={ctx} proc={proc} windows={windows} procOn={procOn} menu={menu} />}
+        {menu.options && <OptionsMenuBody groups={groups} ctx={ctx} menu={menu} />}
       </div>
     </>
   );
@@ -1192,14 +1141,14 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   const dirty = isDirty(isNew, v, saved);
   const flagCtx: FlagCtx = { v, found, unlock: menu.unlock, ss, autoSave };
   const sshBody = <SshBody ctl={ctl} ip={ip} v={v} setV={setV} live={live} scan={scan} windowsGuess={windowsGuess} hasAdguard={hasAdguard} connection={connection} ss={ss} autoSave={autoSave} proc={proc} />;
-  const agentBody = <AgentBody ip={ip} v={v} windowsGuess={windowsGuess} agent={agent} agentMode={status.agentMode} sshAccess={status.sshAccess} isNew={isNew} onAgent={onAgent} connection={connection} ss={ss} autoSave={autoSave} />;
+  const agentBody = <AgentBody ip={ip} v={v} windowsGuess={windowsGuess} agent={agent} agentMode={status.agentMode} isNew={isNew} onAgent={onAgent} connection={connection} />;
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
       {tabbed && <TabBar tab={tab} setTab={setTab} />}
       {show("access") && <AccessTab tabbed={tabbed} agentActive={!!agent && agent.state !== "révoqué"} connectorsActive={linked.length > 0} agentMode={status.agentMode} sshBody={sshBody} agentBody={agentBody} connectorsBody={<ConnectorsBody linked={linked} />}
         sshSummary={<SshSummary sshOn={status.sshOn} agentMode={status.agentMode} refused={status.refusedSsh} />} agentSummary={<AgentSummary agent={agent} />} connectorSummary={<ConnectorSummary linked={linked} />} />}
       {show("identity") && <IdentityTab v={v} setV={setV} isNew={isNew} live={live} scan={scan} found={found} ss={ss} autoSave={autoSave} savedProc={savedProc} />}
-      {show("options") && <OptionsTab ctx={flagCtx} proc={proc} windows={windows} menu={menu} />}
+      {show("options") && <OptionsTab ctx={flagCtx} menu={menu} />}
       <div className="flex flex-wrap items-center gap-1.5">
         <button type="submit" className={primary} disabled={busy || !dirty} title={dirty ? undefined : tx("Rien à enregistrer : l'accès, les options et les étiquettes s'enregistrent tout seuls")}>{tx("Enregistrer")}</button>
         {actions}
@@ -1209,8 +1158,9 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   );
 }
 
-/** La fenêtre d'une machine, ouverte depuis un autre onglet (l'engrenage de l'onglet Machines, admin) : mêmes réglages que dans Réglages → Machines */
-export function MachineModal({ ip, snap, onClose }: Readonly<{ ip: string; snap: Snapshot; onClose: () => void }>) {
+/** The settings of one machine outside Réglages → Machines: in a window (`onClose`), or in the page of the machine (`inline`, #machines/<ip>) ;
+ *  `focusTab`: open on the Access tab (#machines/<ip>/access, old #settings/agents/<ip>) */
+export function MachineModal({ ip, snap, onClose, inline, focusTab }: Readonly<{ ip: string; snap: Snapshot; onClose?: () => void; inline?: boolean; focusTab?: "access" }>) {
   const [st, setSt] = useState<State | null>(null), [agents, setAgents] = useState<AgentInfo[]>([]), [scan, setScan] = useState<NetHost | undefined>();
   const reload = useCallback(() => { read<State>("machines/settings").then(setSt).catch(() => undefined); }, []);
   const loadAgents = useCallback(() => { read<{ agents: AgentInfo[] }>("agents").then((r) => setAgents(r.agents)).catch(() => undefined); }, []);
@@ -1219,6 +1169,12 @@ export function MachineModal({ ip, snap, onClose }: Readonly<{ ip: string; snap:
   if (!st || !m) return null;
   const live = snap.data.machine_list.find((x) => x.ip === ip);
   const statuses = m.os === "windows" ? [] : (snap.data.connectors || []).filter((c) => ["docker", "process", "adguard"].includes(c.type) && (c.ip ? c.ip === ip : c.name === ip || c.name === live?.name));
-  return <MachineRow bare ip={ip} m={m} st={st} live={live} statuses={statuses} reload={reload} onClosed={onClose} onAgent={loadAgents} network={snap.data.network}
+  // « Non terminé » : accès encore à régler (SSH absent alors que la machine l'offre, jeton Home Assistant manquant) ; « passé » dans les premiers pas
+  const asMachines = Object.entries(st.machines).map(([i, c]) => ({ ip: i, ssh: c.ssh ?? (typeof c.health === "string" ? c.health : null) }));
+  const why = scan && !m.disabled ? needsLink(scan, asMachines, snap.data.services_status ?? []) : null;
+  let passed: string[] = [];
+  try { passed = JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]") as string[]; } catch { /* mémoire du navigateur illisible */ }
+  const unfinished = why ? { why, passed: passed.includes(ip) } : undefined;
+  return <MachineRow bare={!inline} inline={inline} focusTab={focusTab} unfinished={unfinished} ip={ip} m={m} st={st} live={live} statuses={statuses} reload={reload} onClosed={onClose} onAgent={loadAgents} network={snap.data.network}
     agent={agents.find((a) => a.ip === ip && a.state !== "révoqué")} scan={scan ? { os: scan.os ?? undefined, apps: scan.apps ?? [], ssh: !!scan.ssh_port, sshPort: scan.ssh_port ?? undefined } : undefined} />;
 }

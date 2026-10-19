@@ -43,7 +43,6 @@ DEFAULTS = {
     "pulse_every": 30,                   # s, pouls : ping de chaque machine suivie, état en ligne en direct ; 0 = coupé
     "fast_every": 300,                   # s, lecteurs de connecteurs (readers.py) : période par défaut, chaque connecteur peut avoir la sienne ; 0 = coupé
     "pulse_confirm": 2,                  # pouls consécutifs avant d'annoncer qu'une machine est tombée ou revenue
-    "update_header": True,               # en-tête : annonce d'une nouvelle version publiée (Réglages → Mises à jour) ; false = jamais
     "update_check": True,                # Réglages → À propos : lit la dernière version publiée sur GitHub (une requête anonyme, gardée 6 h) ; false = jamais
     "backups_auto": True,                # sauvegardes : /home/backup suivi tout seul à la 1re lecture SSH d'une machine qui l'a ; false = jamais
     "auto_mode": True,                   # mode automatique (Réglages -> Découverte) : machines trouvées ajoutées et SSH activé tout seuls ; false = tout à la main
@@ -58,7 +57,7 @@ DEFAULTS = {
     "smtp_host": "", "smtp_port": 587, "smtp_security": "starttls", "smtp_user": "", "smtp_password": "", "smtp_from": "",
     "page_url": "",                      # adresse de la page mise dans les liens des e-mails (jamais prise de la requête)
     # Page web : intégrations facultatives (vide = onglet ou lien masqué)
-    "health_url": "",                    # dossier health-watcher (stats.json, events.json, index) vu de la page
+    "health_url": "health/",             # santé intégrée (health.py) ; une autre URL = health-watcher externe (stats.json, events.json, index)
     "backups_url": "",                   # backups.json vu de la page : "backups.json" (backups.py) ou script externe
     "links": [],                         # liens ajoutés en tête et pied de page : [{"label": "…", "url": "…"}]
     "schedule": {},

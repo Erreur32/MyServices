@@ -152,5 +152,5 @@ export function dnsSync(g: Dns, at = Date.now()): { cls: "ok" | "warn" | "bad"; 
 }
 
 export function dnsDown(g: Dns): string[] {
-  return Object.values(g.servers).filter((s) => !s.readable || s.silent).map((s) => s.name);
+  return Object.values(g.servers).filter((s) => (s.resolver ? s.silent : !s.readable || s.silent)).map((s) => s.name);
 }

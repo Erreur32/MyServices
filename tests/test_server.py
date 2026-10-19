@@ -230,14 +230,14 @@ class UpdateSettingsRoute(unittest.TestCase):
         req = mock.Mock()
         req.state.user = {"username": "admin", "role": "admin"}
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(api, "admin_write", return_value=None), mock.patch.object(api, "store"), \
-                mock.patch.object(api, "ip_of", return_value="10.0.0.9"), mock.patch("system.set_update_settings", return_value={"auto": True, "header": False}) as setter, \
-                mock.patch.dict(api.core.CFG, {"state_dir": tmp, "update_header": True}), mock.patch.dict(api.os.environ, {"MYSERVICES_VERSION": "v0.11.9"}):
-            self.assertEqual(api.about_settings(api.UpdateSettings(header=False), req), {"auto": True, "header": False})
-            setter.assert_called_once_with(api.core, auto=None, header=False)
+                mock.patch.object(api, "ip_of", return_value="10.0.0.9"), mock.patch("system.set_update_settings", return_value={"auto": True}) as setter, \
+                mock.patch.dict(api.core.CFG, {"state_dir": tmp, "update_check": True}), mock.patch.dict(api.os.environ, {"MYSERVICES_VERSION": "v0.11.9"}):
+            self.assertEqual(api.about_settings(api.UpdateSettings(auto=True), req), {"auto": True})
+            setter.assert_called_once_with(api.core, auto=True)
             (Path(tmp) / "update-check.json").write_text(json.dumps({"release": {"tag": "v99.0.0", "url": "u"}}))
             self.assertEqual(api.me(req)["update"], {"available": True, "tag": "v99.0.0", "url": "u"})
-            with mock.patch.dict(api.core.CFG, {"update_header": False}):
-                self.assertIsNone(api.me(req)["update"])   # notice off: nothing for the header
+            with mock.patch.dict(api.core.CFG, {"update_check": False}):
+                self.assertIsNone(api.me(req)["update"])   # automatic check off: nothing for the header
 
 
 class Chain(unittest.TestCase):

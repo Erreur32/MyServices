@@ -464,8 +464,7 @@ def setup_config() -> dict:
     val["discord_webhook"] = ask("Webhook Discord des alertes (vide = aucun)", val["discord_webhook"])
     # Santé des machines : health.py intégré (health_url "health/") ou health-watcher externe (autre URL)
     if val["health_url"] in ("", "health/"):
-        val["health_url"] = "health/" if yes("Santé des machines (health.py : disque, systemd, maj, SMART…, toutes les 2 h) ?",
-                                             val["health_url"] != "" or not CONFIG.exists()) else ""
+        val["health_url"] = "health/"   # intégrée, toujours allumée (plus d'interrupteur depuis la refonte)
     else:
         ok(f"santé : health-watcher externe ({val['health_url']}), gardé")
     if val["discord_webhook"] and yes("Envoyer un message de test sur ce webhook ?", False):
@@ -963,7 +962,7 @@ def check_machine(mip: str, m: dict, aliases: dict[str, str]) -> None:
                  "(image autre que adguard/adguardhome ?)")
     if "adguard_sync" not in m and any("adguardhome-sync" in f"{c[0]} {c[1]}" for c in conts or []):
         ok(f"{label} : adguardhome-sync détecté (lu automatiquement ; \"adguard_sync\": false pour l'ignorer)")
-    if CFG["health_url"] == "health/" and m.get("health") is not False and not m.get("off"):
+    if CFG["health_url"] in ("", "health/") and m.get("health") is not False and not m.get("off"):
         check_health(alias, label, m)
 
 

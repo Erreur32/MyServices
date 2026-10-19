@@ -102,12 +102,12 @@ def log(msg: str) -> None:
 
 
 def enabled(name: str) -> bool:
-    """Rien sans services-meta.json (installation pas encore configurée) ; santé : seulement avec
-    health_url "health/" ; sauvegardes : seulement si backups-meta.json existe."""
+    """Rien sans services-meta.json (installation pas encore configurée) ; santé : toujours, sauf quand un
+    health-watcher externe est branché (health_url autre que vide ou "health/") ; sauvegardes : seulement si backups-meta.json existe."""
     if not Path(CFG["meta"]).exists():
         return False
     if name == "health":
-        return CFG["health_url"] == "health/"
+        return CFG["health_url"] in ("", "health/")
     if name == "backups":
         return Path(CFG["backups_meta"]).exists()
     return True

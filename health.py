@@ -1038,11 +1038,17 @@ def smart_level(smart: dict) -> str:
     return "crit" if any(d["failed"] for d in smart["disks"]) else "ok"
 
 
+def host_checks(h: dict) -> dict[str, str]:
+    """Level of each control of a reachable machine (Linux or Windows): disk, systemd, docker, kernel, load, ssh_auth, smart, temp, res.
+    Published with the host (`checks`) so the page can say why a machine is « warn » without repeating the thresholds."""
+    return {"disk": disk_level(h["disks"]), "systemd": systemd_level(h["systemd"]), "docker": docker_level(h["docker"]),
+            "kernel": kernel_level(h["kernel"]), "load": load_level(h["load"]), "ssh_auth": ssh_auth_level(h["ssh_auth"]),
+            "smart": smart_level(h["smart"]), "temp": temp_level(h.get("temp")), "res": resources_level(h.get("res"))}
+
+
 def host_level(h: dict) -> str:
     """Pire niveau des contrôles d'une machine joignable (Linux ou Windows)."""
-    return worst(disk_level(h["disks"]), systemd_level(h["systemd"]), docker_level(h["docker"]),
-                 kernel_level(h["kernel"]), load_level(h["load"]), ssh_auth_level(h["ssh_auth"]),
-                 smart_level(h["smart"]), temp_level(h.get("temp")), resources_level(h.get("res")))
+    return worst(*host_checks(h).values())
 
 
 _EMPTY_HOST_EXTRAS = {
@@ -1637,6 +1643,9 @@ def main() -> int:
 
     if only:  # relevé d'une machine : elle remplace son ancienne ligne (ou s'ajoute), les autres restent telles quelles
         hosts, asleep = merge_only(previous, previous_asleep, hosts, asleep, only)
+    for h in hosts:   # the controls that are not « ok »: what the page shows next to a « warn » or « crit » badge
+        if h.get("reachable") and "disks" in h:
+            h["checks"] = {k: v for k, v in host_checks(h).items() if v in ("warn", "crit")}
     overall = worst(*(h["level"] for h in hosts))
     stats = {"timestamp": ts, "hosts": hosts, "asleep": asleep, "overall_level": overall}
     print(f"→ global={overall.upper()}")

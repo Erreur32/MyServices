@@ -1,4 +1,3 @@
-import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LOGIN, LoginRequired, NotConfigured, RELOAD_EVENT, loadSnapshot, logout, type Snapshot } from "./api";
 import { Header } from "./components/Header";
@@ -6,7 +5,7 @@ import { Assistant } from "./tabs/Assistant";
 import { Home } from "./components/Home";
 import { ScanBar } from "./components/ScanBar";
 import { Tabs } from "./components/Tabs";
-import { TABS, visible } from "./lib/tabs";
+import { tabFromHash, visible } from "./lib/tabs";
 import type { Selected } from "./lib/filter";
 import { attention, type TabId } from "./lib/summary";
 import { Backups } from "./tabs/Backups";
@@ -15,12 +14,16 @@ import { Security } from "./tabs/Security";
 import { Virtualization } from "./tabs/Virtualization";
 import { Network } from "./tabs/Network";
 import { Infra } from "./tabs/Infra";
-import { History } from "./tabs/History";
 import { Machines } from "./tabs/Machines";
 import { Services } from "./tabs/Services";
 import { Profile } from "./tabs/Profile";
 import { Settings } from "./tabs/Settings";
 import { DiagramsTab } from "./tabs/DiagramsTab";
+import { AuditLog } from "./tabs/AuditLog";
+import { Logs } from "./tabs/Logs";
+import { Help } from "./tabs/Help";
+import { AboutSettings } from "./tabs/About";
+import { SidePage } from "./components/SidePage";
 import { useContentWidth, useTheme } from "./theme";
 import { tx } from "./lib/i18n";
 import { onStream, streamConnected } from "./lib/stream";
@@ -29,13 +32,13 @@ import { GREY_CARDS } from "./lib/forms";
 const REFRESH_MS = 15_000;      // without the event stream: one small manifest request, the files that moved are read again
 const STREAM_REFRESH_MS = 120_000;   // with the stream, which says when a file moved: a safety read only
 
-const OLD_TABS: Record<string, string> = { fail2ban: "security", health: "machines" };   // removed tabs, now inside another one
-
-function tabFromHash(): TabId {
-  const raw = location.hash.slice(1).split("/")[0];
-  const h = (OLD_TABS[raw] ?? raw) as TabId; // « settings/accounts » : onglet puis section ; #fail2ban : ancien onglet, dans Sécurité
-  return TABS.some((t) => t.id === h) ? h : "home";
-}
+/** Pages à part comme #profile : pas d'onglet, pas de barre ; Audit et Journaux demandent un compte admin */
+const SIDE_PAGES: Record<string, { admin?: boolean; render: () => React.ReactNode }> = {
+  audit: { admin: true, render: () => <AuditLog /> },
+  logs: { admin: true, render: () => <Logs /> },
+  help: { render: () => <Help /> },
+  about: { render: () => <AboutSettings /> },
+};
 
 export default function App() {
   const [theme, toggleTheme, setTheme] = useTheme();
@@ -113,23 +116,24 @@ export default function App() {
   const current = visible(tab, snap) ? tab : "home";
   if (hash.startsWith("#assistant") && snap.me.role === "admin") return <><ScanBar onFinished={load} /><Assistant snap={snap} /></>;
   const profile = hash.startsWith("#profile"); // page à part (tout compte), indépendante des Réglages et de la gestion des comptes
+  const sideId = Object.keys(SIDE_PAGES).find((k) => hash.startsWith(`#${k}`));
+  const side = sideId && (!SIDE_PAGES[sideId].admin || snap.me.role === "admin") ? SIDE_PAGES[sideId] : null; // un non-admin qui tape #audit ou #logs revient à l'accueil
+
+  let top = <Tabs tab={current} snap={snap} badges={badges} onSelect={go} onBadge={(t) => (t === "machines" ? goFilter("machines", { alert: ["bad", "warn"] }) : go(t))} />;   // what sits above the content: the tab bar, or the « Back » link of a page apart
+  if (profile) top = <SidePage><Profile username={snap.me.username} role={snap.me.role} email={snap.me.email ?? ""} mailReady={snap.me.mail_ready !== false} mailError={snap.me.mail_error ?? ""} avatar={snap.me.avatar ?? null} look={{ theme, setTheme, width, setWidth }} /></SidePage>;
+  else if (side) top = <SidePage>{side.render()}</SidePage>;
+  let homeSub: "history" | "stats" | "overview" = "overview";
+  if (hash.startsWith("#history")) homeSub = "history";
+  else if (hash.startsWith("#stats")) homeSub = "stats";
 
   return (
     <div className="mx-auto max-w-[var(--content-max)] px-4 pb-10 sm:px-6">
       <ScanBar onFinished={load} />
-      <Header snap={snap} theme={theme} toggleTheme={toggleTheme} now={now} />
+      <Header snap={snap} theme={theme} toggleTheme={toggleTheme} now={now} current={current} />
       {error && <p className="mb-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">{tx("⚠ Mise à jour impossible :")} {error}</p>}
       <div className={GREY_CARDS}>
-      {profile ? (
-        <>
-          <a href="#" className="group mt-4 inline-flex items-center gap-2 rounded-full border border-line bg-card py-1.5 pl-2.5 pr-4 text-sm font-semibold text-muted transition-colors hover:border-link hover:text-txt">
-            <ArrowLeft size={16} aria-hidden className="transition-transform group-hover:-translate-x-0.5" />{tx("Retour")}
-          </a>
-          <Profile username={snap.me.username} role={snap.me.role} email={snap.me.email ?? ""} mailReady={snap.me.mail_ready !== false} mailError={snap.me.mail_error ?? ""} avatar={snap.me.avatar ?? null} look={{ theme, setTheme, width, setWidth }} />
-        </>
-      ) : <Tabs tab={current} snap={snap} badges={badges} onSelect={go} onBadge={(t) => (t === "machines" ? goFilter("machines", { alert: ["bad", "warn"] }) : go(t))} />}
-      {!profile && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} />}
-      {current === "history" && <History snap={snap} />}
+      {top}
+      {!profile && !side && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} sub={homeSub} />}
       {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} onFilter={(sel) => goFilter("services", sel)} />}
       {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} />}
       {current === "infra" && <Infra snap={snap} />}

@@ -122,8 +122,9 @@ export interface Machine {
 export interface DnsServer {
   name: string;
   readable: boolean;
-  rewrites: number;
+  rewrites: number | null;
   silent: number;
+  resolver?: boolean;   // a resolver of the container itself (no DNS tool wired): it answers, but holds no configuration to read
 }
 
 export interface Rewrite {
@@ -139,6 +140,8 @@ export interface Rewrite {
 
 export interface Dns {
   npm_ip?: string;
+  resolver?: { servers: string[]; search: string[] } | null;   // set when no DNS tool is wired: the resolvers asked and the search domains
+  machines?: { ip: string; name: string; state: "ok" | "ailleurs" | "absent"; answer: string[] }[];   // each followed machine's name asked to the servers
   servers: Record<string, DnsServer & { container?: string; user_rules?: number }>;
   sync?: Record<string, { container: string; origin?: string; last_done?: Record<string, string>; errors_24h?: number; errors_open?: number; last_error?: string | null; interval_min?: number; unreadable?: boolean }>;
   rewrites_diff: Rewrite[];
@@ -283,10 +286,11 @@ export interface HealthHost {
   reboot_required?: boolean;
   disks?: { mount: string; used_pct: number; size_gb?: number; avail_gb?: number; warning?: boolean; critical?: boolean }[];
   systemd?: { failed: { unit: string }[] };
-  docker?: { accessible: boolean; total?: number; stopped?: number; unhealthy?: number; restarting?: number; issues?: string[] };
+  docker?: { accessible: boolean; total?: number; stopped?: number; unhealthy?: number; restarting?: number; exited?: number; issues?: string[] };
   apt?: { upgradable: number; sample?: string[]; available?: boolean; security?: number | null; firmware?: boolean };   // packages (apt) or Windows updates; sample: up to 30 named
   kernel?: { has_errors: boolean; samples?: string[] };
-  load?: { load_1: number; ncpu: number; available: boolean };
+  load?: { load_1: number; ncpu: number; available: boolean; cpu_pct?: number | null };   // cpu_pct: Windows, instant CPU instead of a load average
+  checks?: Record<string, string>;   // the controls not « ok » (disk, systemd, docker, kernel, load, ssh_auth, smart, temp, res -> warn | crit), from health.py host_checks
   res?: { available: boolean; cpu_pct?: number; mem_pct?: number; mem_total_mb?: number; mem_used_mb?: number; swap_total_mb?: number; swap_used_mb?: number };  // CPU et mémoire
   gpu?: { available: boolean; gpus: { name: string; util: number | null; temp: number | null; mem_used: number | null; mem_total: number | null; power: number | null }[] };   // nvidia-smi / rocm-smi (SSH or Linux agent)
   temp?: { available: boolean; celsius?: number; source?: string; virt?: string; sensors?: { name: string; celsius: number }[] };  // température du processeur (capteur de la machine ou Beszel)
@@ -318,6 +322,13 @@ export interface BackupLocation {
   age?: number | null;
   via?: string;
   vzdump?: string | null;   // « qemu/101 »: dump of this Proxmox guest
+  role?: string;   // « source » where the set is produced, « copie » for a copy of it
+  path?: string;
+  detail?: string;          // what the server says of this place (« à jour avec la source », « dossier absent : … »)
+  count?: number;
+  size?: number | null;
+  encrypted?: boolean;
+  newest?: { name: string; mtime: number; size?: number } | null;   // the latest archive found there
 }
 
 export interface BackupSet {
@@ -330,6 +341,13 @@ export interface BackupSet {
   offsite: number;
   expect_offsite?: boolean;  // false : jeu décrit depuis la page, aucune copie ailleurs n'est exigée
   locations: BackupLocation[];
+  origin_label?: string;     // the machine that produces the set, as shown
+  why?: string[];            // what the server holds against the set (empty when ok)
+  size?: number;             // size of the source archive(s)
+  retention?: string;
+  max_age_days?: number;
+  cadence_days?: number | null;
+  mode?: string;
 }
 
 export interface BackupHost {
@@ -625,7 +643,6 @@ export interface SystemTask {
   name: string; label: string; at: string; default: string; fixed: boolean; enabled: boolean; running: boolean;
   started: number | null; ended: number | null; result: string | null; timeout_s: number;
   next?: number | null;  // prochain passage (epoch), null si coupée
-  switch?: boolean;     // la page propose un interrupteur pour allumer / couper la tâche (santé)
   why?: string | null;  // pourquoi la tâche est coupée et comment l'allumer
 }
 export interface SystemState {

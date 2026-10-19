@@ -5,13 +5,16 @@ import { Backups } from "./Backups";
 
 // Rendu de l'onglet sur un backups.json du format de backups.py (sans navigateur)
 const snap = {
-  data: { page: { map: true } },
+  me: { username: "a", role: "admin" },
+  data: { page: { map: true }, machine_list: [{ ip: "10.0.0.2", name: "srv", ping: true, off: false, services: 0, npm: 0, down: 0 }] },
   backups: {
     generated: "2026-10-10T07:05:00+02:00",
     summary: { ok: 1, warn: 0, crit: 1, sets: 2, hosts: 2, volume: 5e9, no_offsite: 1, local_dirs: 1, local_unlisted: 1 },
     issues: [{ level: "crit", set: "HA", text: "aucune copie hors machine à jour" }],
-    sets: [{ id: "a", label: "srv: base", origin: "srv", schedule: "03:00", level: "ok", archived: false, offsite: 1, locations: [] },
-           { id: "b", label: "srv: ha", origin: "srv", schedule: "04:00", level: "crit", archived: false, offsite: 0, locations: [] }],
+    sets: [{ id: "a", label: "srv: base", origin: "srv", origin_label: "srv", schedule: "03:00", level: "ok", archived: false, offsite: 1,
+             locations: [{ host: "srv", label: "srv", level: "ok", role: "source", path: "/backup", newest: { name: "base.tar.gz", mtime: 1791600000 } }] },
+           { id: "b", label: "srv: ha", origin: "srv", origin_label: "srv", schedule: "04:00", level: "crit", archived: false, offsite: 0, why: ["aucune copie hors machine à jour"], locations: [] },
+           { id: "c", label: "srv: old", origin: "srv", origin_label: "srv", schedule: "", level: "archive", archived: true, offsite: 0, locations: [] }],
     hosts: [
       { id: "srv", label: "srv", ip: "10.0.0.2", kind: "serveur", reachable: true, level: "crit",
         disks: [{ mount: "/", pct: 91, avail: 1e9, size: 1e10, level: "crit" }], sets: ["a", "b"],
@@ -25,11 +28,14 @@ const snap = {
 } as unknown as Snapshot;
 
 describe("onglet Sauvegardes", () => {
-  it("synthèse, alertes, machines et dossiers locaux", () => {
+  it("figures, the sets to watch, the folded views", () => {
     const html = renderToStaticMarkup(<Backups snap={snap} />);
-    for (const t of ["jeux critiques", "aucune copie hors machine à jour", "🔒 NAS", "base", "91 %", "Dossiers de sauvegarde locaux", "injoignable"])
+    for (const t of ["À jour", "Absente ou en erreur", "Dernière archive", "base.tar.gz", "À surveiller", "aucune copie hors machine à jour", "Tout voir", "Par machine", "Réglages des sauvegardes"])
       expect(html).toContain(t);
-    expect(html).toContain('aria-expanded="false"');   // the local folders frame starts folded: its rows are not in the markup
-    expect(html).not.toContain("/backup/x");
+    expect(html).not.toContain("srv: base</b>");   // the ok set sits in « Tout voir », folded
+    expect(html).not.toContain("91 %");   // the view by machine starts folded
+    expect(html).toContain(">ha<");   // the set to watch, its label without the machine prefix
+    expect(html).not.toContain(">old<");   // an archived set is neither to watch nor counted; it sits in « Tout voir » (folded)
+    expect(html).toContain("Tout voir</h2>");
   });
 });
