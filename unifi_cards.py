@@ -12,6 +12,7 @@ import threading
 import time
 
 import connectors
+from connectors import reqstats
 from connectors.base import ConnectorError
 
 TTL = 30   # s, one reading shared by every page and every viewer (each one asks the controller behind the source)
@@ -73,6 +74,7 @@ def read(cfg: dict, now: float | None = None) -> dict:
     with _lock:
         kept = TTL if _cache["doc"] is None or _cache["doc"]["source"] else TTL_FAILED
         if _cache["doc"] is not None and now - _cache["at"] < kept:
+            reqstats.hit("cache", "unifi_cards")
             return _cache["doc"]
         devices, err = _from_mynetwork(cfg)
         source = "mynetwork"
