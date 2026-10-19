@@ -93,9 +93,10 @@ def _row_out(owner: str, route: str, r: dict, now: float) -> tuple[dict, dict | 
     row = {"owner": owner, "route": route, "per_min": per_min, "per_hour": _count(r["times"], now - HOUR), "total": r["total"], "hits": r["hits"],
            "last_ms": r["last_ms"], "avg_ms": round(r["ms_sum"] / r["total"]) if r["total"] else None, "last_code": r["last_code"],
            "n429": r["n429"], "retry_after": r["retry_after"], "last_error": r["last_error"], "last_at": r["last_at"], "limit": limit, "watch": watch}
-    entry = {"owner": owner, "route": route, "per_min": per_min, "limit": limit, "n429": r["n429"] if recent_429 else 0,
-             "retry_after": r["retry_after"] if recent_429 else None} if watch else None
-    return row, entry
+    if not watch:
+        return row, None
+    n429, retry_after = (r["n429"], r["retry_after"]) if recent_429 else (0, None)
+    return row, {"owner": owner, "route": route, "per_min": per_min, "limit": limit, "n429": n429, "retry_after": retry_after}
 
 
 def _totals_watch(per_owner: dict[str, int]) -> list[dict]:
