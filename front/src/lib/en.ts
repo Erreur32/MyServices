@@ -2745,6 +2745,6 @@ export const EN: Record<string, string> = {
   "Clés et API": "Keys and API",
   "Machines et accès": "Machines and access",
   "Découverte réseau": "Network discovery",
-  "Sauvegarde et base": "Backup and database",
-  "Tâches de fond et horaires": "Background tasks and schedules",
+  "Sauvegarde et infos": "Backup and info",
+  "allumée": "on",
 };

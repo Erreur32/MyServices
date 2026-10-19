@@ -14,7 +14,7 @@ describe("normalizeSection", () => {
     expect(normalizeSection("about")).toEqual({ redirect: "about" });
   });
   it("Tâches et horaires : panneau d'un autre onglet", () => {
-    expect(normalizeSection("tasks")).toEqual({ redirect: "network/diagnostic" });
+    expect(normalizeSection("tasks")).toEqual({ section: "tasks" });   // Tasks and schedules stays a Settings section
   });
   it("une section inconnue ou toujours à sa place revient telle quelle", () => {
     expect(normalizeSection("machines")).toEqual({ section: "machines" });

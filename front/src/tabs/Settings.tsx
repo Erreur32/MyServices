@@ -36,7 +36,8 @@ const GROUPS: { label: string; sections: { id: string; label: string; icon: Luci
     { id: "accounts", label: tx("Comptes"), icon: Users }, { id: "api", label: tx("Clés et API"), icon: Webhook },
   ] },
   { label: tx("Application"), sections: [
-    { id: "system", label: tx("Sauvegarde et base"), icon: SlidersHorizontal }, { id: "updates", label: tx("Mises à jour"), icon: RefreshCw },
+    { id: "system", label: tx("Sauvegarde et infos"), icon: SlidersHorizontal }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer },
+    { id: "updates", label: tx("Mises à jour"), icon: RefreshCw },
   ] },
 ];
 const SECTIONS = GROUPS.flatMap((g) => g.sections);
@@ -55,7 +56,7 @@ function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snaps
     accounts: () => <Accounts me={snap.me.username} />, alerts: () => <NotificationsHub />, connectors: () => <Connectors snap={snap} />,
     machines: () => <MachinesSection snap={snap} />, network: () => <NetworkSettings snap={snap} />, updates: () => <UpdatesSettings />,
     api: () => <div className="flex flex-col gap-4"><SystemSettings part="ssh" snap={snap} /><ApiMcp /></div>,
-    backups: () => <BackupsSettings machines={snap.data.machine_list} issues={snap.backups?.issues ?? []} />,
+    backups: () => <BackupsSettings machines={snap.data.machine_list} issues={snap.backups?.issues ?? []} />, tasks: () => <SystemSettings part="tasks" snap={snap} />,
   };
   // own keys only: a section read from the address (#settings/constructor…) never reaches Object's own methods
   const panel = Object.hasOwn(panels, section) ? panels[section] : () => <SystemSettings part="system" snap={snap} />;
