@@ -12,7 +12,7 @@ import { forgetDismissed } from "../lib/updateNotice";
 import { InfoNote } from "../components/InfoNote";
 
 interface Release { tag: string; name: string; url: string; published: string | null; prerelease: boolean; notes: string }
-interface About { version: string; released?: string | null; running: string | null; latest: Release | null; checked_at: number | null; error: string | null; enabled: boolean; header: boolean; update_available: boolean }
+interface About { version: string; released?: string | null; running: string | null; latest: Release | null; checked_at: number | null; error: string | null; enabled: boolean; update_available: boolean }
 
 /** State of the version installed against the latest one published */
 function Status({ a }: Readonly<{ a: About }>) {
@@ -34,12 +34,8 @@ export function UpdatesSettings() {
     await act(async () => { setA(await send<About>("POST", "about/check")); }, tx("vérifié"), setNote);
     setBusy(false);
   };
-  const saved = (header?: boolean) => {
-    if (header) forgetDismissed();   // turned back on: show the notice even for a version hidden before
-    load();
-  };
-  const save = (body: { auto?: boolean; header?: boolean }, done: string) => void act(() => send("PUT", "about/settings", body), done, setNote)
-    .then((ok) => ok && saved(body.header));
+  const save = (body: { auto: boolean }, done: string) => void act(() => send("PUT", "about/settings", body), done, setNote)
+    .then((ok) => { if (ok) { if (body.auto) forgetDismissed(); load(); } });   // turned back on: the header notice shows again, even for a version hidden before
   const latest = a.latest;
   return (
     <div className="flex flex-col gap-4">
@@ -75,11 +71,6 @@ export function UpdatesSettings() {
             <span><b className="text-sm">{tx("Vérification automatique")}</b>
               <span className="block text-xs text-muted">{tx("Le serveur regarde la dernière version publiée sur GitHub au plus toutes les 6 h (une requête anonyme, aucune donnée envoyée). Coupée : seulement quand vous cliquez sur « Vérifier maintenant ».")}</span></span>
             <Switch on={a.enabled} label={tx("Vérification automatique")} onChange={(on) => save({ auto: on }, on ? tx("vérification automatique activée") : tx("vérification automatique coupée"))} />
-          </label>
-          <label className="flex items-start justify-between gap-4 py-2.5">
-            <span><b className="text-sm">{tx("Annonce dans l'en-tête")}</b>
-              <span className="block text-xs text-muted">{tx("Une pastille dans l'en-tête quand une nouvelle version est publiée. Sa croix la masque pour cette version seulement.")}</span></span>
-            <Switch on={a.header} label={tx("Annonce dans l'en-tête")} onChange={(on) => save({ header: on }, on ? tx("annonce affichée") : tx("annonce masquée"))} />
           </label>
         </div>
       </Card>
