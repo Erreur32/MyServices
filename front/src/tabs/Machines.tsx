@@ -1401,7 +1401,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                     onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) openPage(m.ip); }}>   {/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
                     <td className="w-14 pl-4 pr-2 py-2 align-middle"><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifiOf(m)) }} scan={scanOs[m.ip]} reserve /></td>
                     <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><VmMark m={m} h={hb.get(m.ip)} /><ProblemFlag h={h} /></span></Td>
-                    <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-dim">{m.ip}</Td>   {/* the tools that see it (can be many): in the unfolded detail only */}
+                    <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-dim">{m.ip}</Td>{/* the tools that see it (can be many): in the unfolded detail only */}
                     <Td>{st(m, false)}</Td>
                     <Td><div className="max-w-[11rem]"><SystemLine m={m} os={osOf(m)} ha={haOf(m)} unifi={unifiOf(m)} freebox={freeboxOf(m, snap.data.network)} /></div></Td>
                     <Td><span className="inline-flex items-center gap-1.5">
