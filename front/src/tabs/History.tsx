@@ -58,7 +58,51 @@ export function History({ snap }: { snap: Snapshot }) {
   return view === "events" ? <Events snap={snap} middle={switcher} /> : <Availability snap={snap} middle={switcher} />;
 }
 
-function Events({ snap, middle }: { snap: Snapshot; middle: ReactNode }) {
+/** Period chips, the view switch in the middle, the chart style on the right */
+function Toolbar({ days, onDays, style, onStyle, middle }: Readonly<{ days: number; onDays: (d: number) => void; style: ChartStyle; onStyle: (k: ChartStyle) => void; middle: ReactNode }>) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-1.5">
+      {PERIODS.map(([d, l]) => (
+        <button key={d} type="button" onClick={() => onDays(d)}
+          className={`rounded-full border px-3 py-1 text-sm ${days === d ? "border-link bg-link/15 text-txt" : "border-line bg-card text-muted hover:text-txt"}`}>{l}</button>
+      ))}
+      <span className="mx-auto">{middle}</span>
+      <span className="inline-flex rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Style du graphique")}>
+        {STYLES.map(([k, l]) => {
+          const Icon = STYLE_ICON[k];
+          return (
+            <button key={k} type="button" onClick={() => onStyle(k)} aria-pressed={style === k} title={l}
+              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm ${style === k ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{l}</button>
+          );
+        })}
+      </span>
+    </div>
+  );
+}
+
+/** The chart of the chosen style, or the empty note */
+function Chart({ style, events, bars, from, to, days, range, setRange, cell, setCell }: Readonly<{
+  style: ChartStyle; events: StoredEvent[]; bars: ReturnType<typeof buckets>; from: number; to: number; days: number; range: Range | null; setRange: (r: Range | null) => void; cell: HeatCell | null; setCell: (c: HeatCell | null) => void;
+}>) {
+  if (events.length === 0) return <p className="flex h-[180px] items-center justify-center text-sm text-muted">{tx("Aucun événement sur cette période.")}</p>;
+  if (style === "points") return <PointsChart events={events} from={from} to={to} days={days} onRange={setRange} />;
+  if (style === "bars") return <BarsChart data={bars} days={days} active={range} onRange={setRange} />;
+  if (style === "area") return <AreaChart data={bars} days={days} />;
+  return <HeatChart events={events} active={cell} onPick={setCell} />;
+}
+
+/** The events grouped by day, in the order given */
+function groupByDay(listed: StoredEvent[]): [string, StoredEvent[]][] {
+  const byDay: [string, StoredEvent[]][] = [];
+  for (const e of listed) {
+    const k = dayKey(e.ts * 1000);
+    if (byDay.at(-1)?.[0] !== k) byDay.push([k, []]);
+    byDay.at(-1)![1].push(e);
+  }
+  return byDay;
+}
+
+function Events({ snap, middle }: Readonly<{ snap: Snapshot; middle: ReactNode }>) {
   const [days, setDays] = useState(savedDays);
   const [style, setStyle] = useState<ChartStyle>(savedStyle);
   const [range, setRange] = useState<Range | null>(null);
@@ -114,31 +158,11 @@ function Events({ snap, middle }: { snap: Snapshot; middle: ReactNode }) {
     const r = localRows.get(e.key);
     return r ? localVia(r.service?.kind, agentIps.has(r.host_ip || r.ip || "")) : undefined;
   };
-  const byDay: [string, StoredEvent[]][] = [];
-  for (const e of listed) {
-    const k = dayKey(e.ts * 1000);
-    if (byDay.at(-1)?.[0] !== k) byDay.push([k, []]);
-    byDay.at(-1)![1].push(e);
-  }
+  const byDay = groupByDay(listed);
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-1.5">
-        {PERIODS.map(([d, l]) => (
-          <button key={d} type="button" onClick={() => { pickDays(d); setRange(null); setCell(null); }}
-            className={`rounded-full border px-3 py-1 text-sm ${days === d ? "border-link bg-link/15 text-txt" : "border-line bg-card text-muted hover:text-txt"}`}>{l}</button>
-        ))}
-        <span className="mx-auto">{middle}</span>
-        <span className="inline-flex rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Style du graphique")}>
-          {STYLES.map(([k, l]) => {
-            const Icon = STYLE_ICON[k];
-            return (
-              <button key={k} type="button" onClick={() => pick(k)} aria-pressed={style === k} title={l}
-                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm ${style === k ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{l}</button>
-            );
-          })}
-        </span>
-      </div>
+      <Toolbar days={days} onDays={(d) => { pickDays(d); setRange(null); setCell(null); }} style={style} onStyle={pick} middle={middle} />
 
       <div className="rounded-2xl border border-line bg-card p-4">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
@@ -150,11 +174,7 @@ function Events({ snap, middle }: { snap: Snapshot; middle: ReactNode }) {
             </div>
           )}
         </div>
-        {f.shown.length === 0 ? <p className="flex h-[180px] items-center justify-center text-sm text-muted">{tx("Aucun événement sur cette période.")}</p>
-          : style === "points" ? <PointsChart events={f.shown} from={from} to={to} days={days} onRange={setRange} />
-          : style === "bars" ? <BarsChart data={bars} days={days} active={range} onRange={setRange} />
-          : style === "area" ? <AreaChart data={bars} days={days} />
-          : <HeatChart events={f.shown} active={cell} onPick={setCell} />}
+        <Chart style={style} events={f.shown} bars={bars} from={from} to={to} days={days} range={range} setRange={setRange} cell={cell} setCell={setCell} />
         {busiest.length > 1 && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line/60 pt-3 text-xs">
             <span className="text-dim">{tx("Les plus actifs :")}</span>
