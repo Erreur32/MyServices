@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+- **Request counters (development builds only)**: the server counts every HTTP call of the connectors per route (calls over the last minute and the last hour, total, last and mean duration, last code, 429 answers with their Retry-After, last error) and the readings served by its caches; a folded « Requests (debugging) » panel under each connector card (Settings › Connectors) and under Network › Diagnostic shows them, with what is to watch (a route near a limit known on the service, a 429 received in the last hour). Route `GET /api/v1/connectors/requests` (admin), 404 on a released image; counters in memory, reset at restart.
+
+### Changed
+- **MynetworK, limits per API token** (MynetworK 0.11.3: 300 calls per minute, 30 on `ip-details` and `top-traffic` in live mode): a 429 answer is now told apart (`RateLimited`, with the delay asked by Retry-After) and written in the log; the detail sheets of the followed machines are read thirty per pass, a minute at least between two passes, each sheet read again after its period; a 429 ends the pass until the delay given, the sheets already read stay and an address in error keeps its last sheet. More than thirty followed machines no longer hit the limit.
+- MynetworK: the Freebox hosts are read in the compact form (`?compact=1`, ignored by older versions) since only their number and the active ones are used; the inventory pagination relies on the real total given by MynetworK since its fix.
+
 ## v0.18.0 (2026-10-19)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

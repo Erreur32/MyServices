@@ -33,7 +33,7 @@ export const TAB_IDS: TabId[] = [...TABS.map((t) => t.id), ...INVENTORY.map((t) 
 
 /** Onglets encore en chantier : visibles seulement sur une image de dev (construite sur place, git-rev), pas publiés. */
 export const UNRELEASED: TabId[] = ["infra"];
-const isDevBuild = (s: Snapshot) => !!s.me.git || s.me.version === "dev";
+export const isDevBuild = (s: Snapshot) => !!s.me.git || s.me.version === "dev";
 
 /** Onglet affiché seulement si sa source est activée (et Réglages pour les admins). */
 export function visible(id: TabId, s: Snapshot): boolean {
