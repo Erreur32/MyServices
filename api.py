@@ -692,9 +692,21 @@ def connector_call(request: Request, action: str, detail: str, fn) -> JSONRespon
         out = fn(settings)
     except settings.SettingsError as e:
         return deny(400, str(e))
+    settings_applied()
     if action:
         store().audit(action, request.state.user["username"], ip_of(request), detail)
     return out if isinstance(out, dict) else {"ok": True, "message": "enregistré : pris en compte au prochain passage de la collecte"}
+
+
+def settings_applied() -> None:
+    """A connector saved, turned on or off, or removed: the running configuration is read again in place (the readers, the health check
+    and the pages see the change without a restart) and the readings cached from the former set of connectors go."""
+    import network_stats
+    import system
+    import unifi_cards as uc
+    system.reload_config(core)
+    uc.reset()
+    network_stats.reset()
 
 
 @app.put(API + "/connectors/settings/{type_}", tags=["connecteurs"], summary="Ajouter ou modifier une instance (admin ; secret vide = gardé)")

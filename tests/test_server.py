@@ -225,6 +225,28 @@ class UpdateCheck(unittest.TestCase):
 
 
 @unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
+class ConnectorChangeApplied(unittest.TestCase):
+    def test_configuration_read_again_and_caches_dropped(self):
+        import system
+        import unifi_cards as uc
+        import network_stats
+        req = mock.Mock()
+        req.state.user = {"username": "admin", "role": "admin"}
+        with mock.patch.object(api, "admin_write", return_value=None), mock.patch.object(api, "store"), mock.patch.object(api, "ip_of", return_value="10.0.0.9"), \
+                mock.patch.object(system, "reload_config", return_value=True) as rc, mock.patch.object(uc, "reset") as cards, mock.patch.object(network_stats, "reset") as stats:
+            self.assertEqual(api.connector_call(req, "connecteur allumé", "mynetwork lan", lambda s: {"ok": True}), {"ok": True})
+            rc.assert_called_once_with(api.core)   # a connector turned on is read by the readers at once, not after a restart
+            cards.assert_called_once()
+            stats.assert_called_once()
+            from connectors import settings as cs
+
+            def refused(_s):
+                raise cs.SettingsError("bad")
+            self.assertEqual(api.connector_call(req, "", "", refused).status_code, 400)
+            rc.assert_called_once()   # a refused change reloads nothing
+
+
+@unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
 class RequestCountersRoute(unittest.TestCase):
     def test_counters_for_admins_on_every_build(self):
         from connectors import reqstats
