@@ -584,13 +584,14 @@ def machine_names_check(servers, search, asked):
         if ip in DISABLED or not HOST_RE.match(m[0].lower()):
             continue
         got = _name_answers(m[0].lower(), search, servers, asked)
+        lan = [a for a in got if _private(a)]   # a home network: a bare name landing on a public address is no LAN name at all, not a wrong one
         if ip in got:
             state = "ok"
-        elif got:
+        elif lan:
             state = "ailleurs"
         else:
             state = "absent"
-        out.append({"ip": ip, "name": m[0], "state": state, "answer": sorted(set(got))})
+        out.append({"ip": ip, "name": m[0], "state": state, "answer": sorted(set(lan))})
     return out
 
 

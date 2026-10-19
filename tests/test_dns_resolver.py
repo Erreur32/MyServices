@@ -55,5 +55,10 @@ class WithoutAdGuard(unittest.TestCase):
         self.assertEqual(d["sync"], {})
         self.assertEqual(d["rewrites_diff"], [])
 
+    def test_public_answer_is_no_lan_name(self):
+        rows = [row("app.example.org")]
+        d = self.run_check({"app.example.org": ["10.0.0.5"], "pc": ["203.0.113.9"], "srv": ["203.0.113.9"]}, rows)   # a bare name caught by a public domain
+        self.assertEqual([(m["name"], m["state"], m["answer"]) for m in d["machines"]], [("pc", "absent", []), ("srv", "absent", [])])
+
     def test_no_resolver_no_control(self):
         self.assertIsNone(self.run_check({}, [row("a.example.org")], resolv=([], [])))
