@@ -355,6 +355,16 @@ function WatchList({ items, wrap = false, quiet = false, ip }: Readonly<{ items:
     </div>
   );
 }
+/** Under the badges of the Santé column: the first notice in words (the others in the tooltip), so « à surveiller » always says what */
+function WatchHint({ items }: Readonly<{ items: WatchItem[] }>) {
+  if (!items.length) return null;
+  return (
+    <div className="basis-full truncate text-[11px] leading-tight text-muted" title={items.map((i) => i.text).join("\n")}>
+      {items[0].text}{items.length > 1 && <span className="text-dim"> {tx("(+{0})", items.length - 1)}</span>}
+    </div>
+  );
+}
+
 /** Scrolls the machine window to what explains a notice (the exact row when there is one, else its section) and makes it flash */
 function showWatch(root: HTMLElement | null, kind: WatchKind) {
   const el = root?.querySelector<HTMLElement>(`[data-watch="${kind}"]`) ?? root?.querySelector<HTMLElement>(`[data-sec="${WATCH_SECTION[kind]}"]`);
@@ -1402,7 +1412,8 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                         className="rounded-md px-1.5 py-0.5 hover:bg-link/10 hover:text-link"><span className="tabular-nums">{m.services}</span></button><DownBadge m={m} snap={snap} /></span></Td>
                     <Td><span className="flex flex-wrap items-center gap-1.5 [&>span]:h-6">   {/* same height (24 px) for the level badge and the cause badges; one column: the level, then what explains it (the updates have their flag near the name) */}
                       {snap.health && <HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} />}
-                      <WatchList ip={m.ip} quiet={!!snap.health} items={watchOf(m).filter((i) => i.kind !== "updates")} /></span></Td>
+                      <WatchList ip={m.ip} quiet={!!snap.health} items={watchOf(m).filter((i) => i.kind !== "updates")} />
+                      <WatchHint items={watchOf(m).filter((i) => i.kind !== "updates")} /></span></Td>
                     {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="!px-1.5"><GpuCellView list={gpusOf(m, hb.get(m.ip))} /></Td>}
                     <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-xs tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network), haOf(m)); return up ? <span className={up < 3600 ? "text-warn" : "text-muted"} title={`${dur(up)}${up < 3600 ? ` · ${tx("vient de redémarrer")}` : ""}`}>{durShort(up)}</span> : <Dim>-</Dim>; })()}</Td>
                     {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => openPage(m.ip, "access")} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
