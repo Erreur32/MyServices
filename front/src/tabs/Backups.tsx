@@ -199,7 +199,7 @@ export function Backups({ snap, initial }: Readonly<{ snap: Snapshot; initial?: 
   if (!b) return <Empty>{tx("Sauvegardes pas encore relevées.")}</Empty>;
   const sm = b.summary, fig = figures(b);
   const watch = toWatch(b.sets ?? []);
-  const all = [...(b.sets ?? [])].filter((s) => !s.archived).sort((a, x) => rank(x.level) - rank(a.level) || a.label.localeCompare(x.label));
+  const all = [...(b.sets ?? [])].sort((a, x) => Number(a.archived) - Number(x.archived) || rank(x.level) - rank(a.level) || a.label.localeCompare(x.label));   // archived sets last, kept visible here
   const worstTone = watch.some((s) => s.level === "crit" || s.level === "down") ? "bad" : watch.length ? "warn" : "ok";
   const sources = [...new Set((b.hosts ?? []).map((h) => h.kind).filter(Boolean))];
   return (

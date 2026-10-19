@@ -13,7 +13,8 @@ const snap = {
     issues: [{ level: "crit", set: "HA", text: "aucune copie hors machine à jour" }],
     sets: [{ id: "a", label: "srv: base", origin: "srv", origin_label: "srv", schedule: "03:00", level: "ok", archived: false, offsite: 1,
              locations: [{ host: "srv", label: "srv", level: "ok", role: "source", path: "/backup", newest: { name: "base.tar.gz", mtime: 1791600000 } }] },
-           { id: "b", label: "srv: ha", origin: "srv", origin_label: "srv", schedule: "04:00", level: "crit", archived: false, offsite: 0, why: ["aucune copie hors machine à jour"], locations: [] }],
+           { id: "b", label: "srv: ha", origin: "srv", origin_label: "srv", schedule: "04:00", level: "crit", archived: false, offsite: 0, why: ["aucune copie hors machine à jour"], locations: [] },
+           { id: "c", label: "srv: old", origin: "srv", origin_label: "srv", schedule: "", level: "archive", archived: true, offsite: 0, locations: [] }],
     hosts: [
       { id: "srv", label: "srv", ip: "10.0.0.2", kind: "serveur", reachable: true, level: "crit",
         disks: [{ mount: "/", pct: 91, avail: 1e9, size: 1e10, level: "crit" }], sets: ["a", "b"],
@@ -34,5 +35,7 @@ describe("onglet Sauvegardes", () => {
     expect(html).not.toContain("srv: base</b>");   // the ok set sits in « Tout voir », folded
     expect(html).not.toContain("91 %");   // the view by machine starts folded
     expect(html).toContain(">ha<");   // the set to watch, its label without the machine prefix
+    expect(html).not.toContain(">old<");   // an archived set is neither to watch nor counted; it sits in « Tout voir » (folded)
+    expect(html).toContain("Tout voir</h2>");
   });
 });
