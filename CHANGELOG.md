@@ -11,7 +11,15 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
-## v0.18.0 (2026-10-19)
+### Changed
+- **Second step of the ergonomics plan: tab bar, account menu and Settings.** The tab bar now has six tabs (Home, Machines, Services, Network, Backups, Security) plus an « Inventory ▾ » menu for the less-visited full lists (Infra, Virtualization, DNS, Diagrams), each with a short hint; it shows « Inventory · <page> » when one of those is open. Settings leaves the bar: a gear button next to the avatar (admins) opens it, at the last section visited.
+- Account menu reordered: Profile, Theme, then a « View » group (Audit log and Logs for admins, Help, About, GitHub project), then « Review the setup assistant » (admins), then Sign out.
+- Audit log, Logs, Help and About are now pages apart like Profile (a Back link, no tab bar), opened from the account menu or `#audit` / `#logs` / `#help` / `#about`; Audit log and Logs stay admin-only.
+- Settings: four groups, nine sections (down from sixteen): Sources (Machines and access, Connectors, Network discovery, Backups), Alerts (Notifications), Accounts and access (Accounts, Keys and API), Application (Backup and database, Updates). The SSH key moved into « Keys and API », above the API and MCP tokens.
+- « Background tasks and schedules » moved out of Settings into a folded panel at the bottom of Network → Diagnostic (admins); the machine health on/off switch moved into Settings → Machines and access, under a folded « Advanced » header, next to the per-machine read-order choice (also moved under « Advanced »).
+
+### Removed
+- The Settings entry from the account menu (replaced by the header gear button); the « Tasks and schedules », « SSH key », « Audit log », « Logs », « Help » and « About » entries from the Settings menu (moved as described above).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
