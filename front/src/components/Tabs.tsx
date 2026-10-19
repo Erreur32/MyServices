@@ -5,7 +5,7 @@ import { INVENTORY, TABS, UNRELEASED, visible } from "../lib/tabs";
 import { tx } from "../lib/i18n";
 import { DROP_ITEM, DROP_PANEL_TAB, useDropdown } from "./Dropdown";
 
-/** Menu « Inventaire ▾ » : les listes complètes (Infra, Virtualisation, DNS, Schémas), consultées moins souvent que les six onglets de la barre */
+/** Menu « Inventaire ▾ » : les listes complètes (Infra, Virtualisation, Schémas), consultées moins souvent que les sept onglets de la barre */
 function InventoryMenu({ snap, current, onSelect }: Readonly<{ snap: Snapshot; current: TabId; onSelect: (t: TabId) => void }>) {
   const { open, setOpen, box } = useDropdown();
   const items = INVENTORY.filter((t) => visible(t.id, snap));

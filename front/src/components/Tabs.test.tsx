@@ -21,8 +21,9 @@ describe("Tabs", () => {
     expect(html).toContain("Inventaire");
     expect(html).not.toContain("Inventaire · ");
   });
-  it("le bouton Inventaire porte « Inventaire · DNS » quand l'onglet courant est dns", () => {
+  it("DNS est dans la barre dès qu'un serveur DNS répond, pas dans l'Inventaire", () => {
     const html = renderToStaticMarkup(<Tabs tab={"dns" as TabId} snap={snap({ dns: { ok: true } })} badges={{}} onSelect={() => undefined} />);
-    expect(html).toContain("Inventaire · DNS");
+    expect(html).not.toContain("Inventaire · DNS");
+    expect(html).toContain(">DNS<");
   });
 });

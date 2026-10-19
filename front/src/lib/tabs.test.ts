@@ -9,11 +9,11 @@ const snap = (over: Record<string, unknown> = {}, meOver: Record<string, unknown
   ({ me: { role: "admin", ...meOver }, backups: null, data: { machine_list: [], hosts: [], services_status: [], containers: [], network: [], virtualization: [], security: [], dns: null, ...over } } as unknown as Snapshot);
 
 describe("lib/tabs", () => {
-  it("TABS a six entrées, dans l'ordre", () => {
-    expect(TABS.map((t) => t.id)).toEqual(["home", "machines", "services", "network", "backups", "security"]);
+  it("TABS a sept entrées, dans l'ordre", () => {
+    expect(TABS.map((t) => t.id)).toEqual(["home", "machines", "services", "network", "dns", "backups", "security"]);
   });
-  it("INVENTORY a quatre entrées", () => {
-    expect(INVENTORY.map((t) => t.id)).toEqual(["infra", "virtualization", "dns", "diagrams"]);
+  it("INVENTORY a trois entrées", () => {
+    expect(INVENTORY.map((t) => t.id)).toEqual(["infra", "virtualization", "diagrams"]);
   });
   it("visible() cache une entrée sans source", () => {
     expect(visible("dns", snap())).toBe(false);

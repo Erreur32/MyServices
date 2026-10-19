@@ -2889,7 +2889,6 @@ export const EN: Record<string, string> = {
   "pas de nom DNS": "no DNS name",
   "réponses différentes selon le serveur": "answers differ by server",
   "Résolution": "Resolution",
-  "résolution des noms, AdGuard": "name resolution, AdGuard",
   "résolveur du conteneur : {0}": "resolver of the container: {0}",
   "résolveur du conteneur, aucun outil branché": "resolver of the container, no tool wired",
   "résolveur du conteneur, lu dans resolv.conf": "resolver of the container, read in resolv.conf",

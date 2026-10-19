@@ -10,12 +10,13 @@ export const infraCards = (s: Snapshot) => (s.data.services_status ?? []).filter
 export const infraDocker = (s: Snapshot) => (s.data.containers ?? []).filter((c) => !c.links_only);
 
 // Icônes monochromes (lucide, trait fin) : couleur du texte, lisibles en clair comme en sombre
-// Six onglets « Surveiller » dans la barre ; Infra, Virtualisation, DNS et Schémas sont dans le menu « Inventaire » (ci-dessous) ; Réglages est ouvert par l'engrenage de l'en-tête.
+// Sept onglets « Surveiller » dans la barre ; Infra, Virtualisation et Schémas sont dans le menu « Inventaire » (ci-dessous) ; Réglages est ouvert par l'engrenage de l'en-tête.
 export const TABS: { id: TabId; icon: LucideIcon; label: string }[] = [
   { id: "home", icon: House, label: tx("Accueil") },
   { id: "machines", icon: Monitor, label: tx("Machines") },
   { id: "services", icon: Globe, label: tx("Services") },
   { id: "network", icon: Router, label: tx("Réseau") },
+  { id: "dns", icon: Network, label: tx("DNS") },
   { id: "backups", icon: HardDrive, label: tx("Sauvegardes") },
   { id: "security", icon: Shield, label: tx("Sécurité") },
 ];
@@ -24,7 +25,6 @@ export const TABS: { id: TabId; icon: LucideIcon; label: string }[] = [
 export const INVENTORY: { id: TabId; icon: LucideIcon; label: string; hint: string }[] = [
   { id: "infra", icon: LayoutGrid, label: tx("Infra"), hint: tx("cartes des services et conteneurs") },
   { id: "virtualization", icon: Server, label: tx("Virtualisation"), hint: tx("Proxmox, ESXi, PBS") },
-  { id: "dns", icon: Network, label: tx("DNS"), hint: tx("résolution des noms, AdGuard") },
   { id: "diagrams", icon: Workflow, label: tx("Schémas"), hint: "" },
 ];
 
