@@ -193,7 +193,7 @@ export function UnifiCards() {
                       <select className={`${input} !w-auto !border-0 !bg-transparent !px-1 !py-0 text-xs`} value={uplinks[d.id] ?? ""}
                         onChange={(e) => setUplink(d.id, e.target.value === "" ? null : Number(e.target.value))}>
                         <option value="">{d.uplinkPort == null ? tx("auto (aucun détecté)") : tx("auto (port {0})", d.uplinkPort)}</option>
-                        {[...new Set(d.ports)].map((n) => <option key={n} value={n}>{n}</option>)}   {/* a port listed twice by the adapter (combo port) is one choice */}
+                        {[...new Set(d.ports)].map((n) => <option key={n} value={n}>{n}</option>)}{/* a port listed twice by the adapter (combo port) is one choice */}
                       </select>
                     </label>
                   )}

@@ -13,7 +13,7 @@ function InventoryMenu({ snap, current, onSelect }: Readonly<{ snap: Snapshot; c
   const activeItem = items.find((t) => t.id === current);
   return (
     <div ref={box} className="flex shrink-0 items-stretch border-l border-line pl-1">
-      <div className="relative flex items-center">   {/* the panel is placed against this box: the button's own edges */}
+      <div className="relative flex items-center">{/* the panel is placed against this box: the button's own edges */}
       <button type="button" onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open}
         className={`flex items-center gap-1.5 rounded-t-lg py-2.5 pl-3.5 pr-3.5 text-sm font-semibold transition-colors ${
           activeItem ? "bg-card text-txt shadow-[inset_0_-1.5px_0_rgb(var(--link))]" : "text-muted hover:bg-bg2 hover:text-txt"}`}>

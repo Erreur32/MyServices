@@ -125,7 +125,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
         {st.instances.length === 0 && !type && (
           <p className="mt-3 text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p>
         )}
-        {st.instances.length > 0 && <div className="mt-3 grid gap-3 lg:grid-cols-2">   {/* my connectors, two columns on wide screens; a card being edited or pointed at takes the row */}
+        {st.instances.length > 0 && <div className="mt-3 grid gap-3 lg:grid-cols-2">{/* my connectors, two columns on wide screens; a card being edited or pointed at takes the row */}
         {[...st.instances].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name)).map((i) => (   // alphabetical, like the picker
           <InstanceCard key={`${i.type}/${i.name}`} inst={i} hosts={snap.data.hosts} collect={collect} type={st.types.find((t) => t.type === i.type)!} reload={reload}
             toggling={toggling === `${i.type}/${i.name}`} toggleNote={srcKey === `${i.type}/${i.name}` ? srcNote : null} onForce={() => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: true, force: true }),

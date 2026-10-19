@@ -45,7 +45,7 @@ function Group({ title, n, hint, fold, folded, rows, children }: Readonly<{ titl
         ) : <span className="flex items-center gap-2">{title} <Dim>· {n}</Dim></span>}
       </h3>
       {shown && hint && n > 0 && <InfoNote className="mb-2">{hint}</InfoNote>}
-      {shown && <ul className={rows ? "flex flex-col gap-2" : "grid gap-2 sm:grid-cols-2 lg:grid-cols-3"}>{children}</ul>}   {/* rows : une ligne par élément */}
+      {shown && <ul className={rows ? "flex flex-col gap-2" : "grid gap-2 sm:grid-cols-2 lg:grid-cols-3"}>{children}</ul>}{/* rows : une ligne par élément */}
     </section>
   );
 }

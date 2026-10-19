@@ -46,7 +46,7 @@ function Counter({ icon: Icon, value, label, tone }: Readonly<{ icon: typeof Rad
 /** An inner frame: icon and title strip (with room for a control on the right), column heads, then striped rows */
 function Panel({ icon: Icon, title, head, control, footer, empty, children }: Readonly<{ icon: typeof Radar; title: string; head?: React.ReactNode; control?: React.ReactNode; footer?: React.ReactNode; empty: string; children: React.ReactNode[] }>) {
   return (
-    <div className="flex h-[24rem] min-w-0 flex-col overflow-hidden rounded-xl border-2 border-line bg-bg2/30">   {/* same height for the three: a long list scrolls inside, it never stretches its neighbours */}
+    <div className="flex h-[24rem] min-w-0 flex-col overflow-hidden rounded-xl border-2 border-line bg-bg2/30">{/* same height for the three: a long list scrolls inside, it never stretches its neighbours */}
       <div className="flex flex-wrap items-center gap-2 border-b border-line bg-bg px-3 py-2">
         <Icon size={15} className="text-link" aria-hidden />
         <h4 className="text-xs font-bold uppercase tracking-wider text-muted">{title}</h4>

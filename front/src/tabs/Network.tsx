@@ -308,7 +308,7 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
 
       {sub === "list" && (
         <>
-        {rows.length > 0 && <FilterBar f={f} placeholder={tx("Nom, IP, MAC, fabricant, borne…")} primary={["kind", "state"]} oneLine />}   {/* right under the menu, with its main filters shown */}
+        {rows.length > 0 && <FilterBar f={f} placeholder={tx("Nom, IP, MAC, fabricant, borne…")} primary={["kind", "state"]} oneLine />}{/* right under the menu, with its main filters shown */}
 
         {sections.length > 1 && (
           <nav aria-label={tx("Sections de la page")} className="flex flex-wrap items-center gap-1.5">
