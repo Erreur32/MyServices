@@ -4,7 +4,7 @@
 import { Ban, ChevronDown, ChevronUp, FileBadge, Globe, KeyRound, Radar, ShieldCheck, UserCog, Wrench, type LucideIcon } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
-import { Certificates } from "../components/Certificates";
+import { Certificates, CERT_SOON } from "../components/Certificates";
 import { Fail2banCard } from "../components/Fail2banCard";
 import { Fail2banStats } from "../components/Fail2banStats";
 import { FoldPanel } from "../components/FoldPanel";
@@ -14,7 +14,6 @@ import { StatTile } from "../components/StatTile";
 import { dateTime, splitHostName } from "../lib/format";
 import { quiet, WATCH_FRAME, worstTone } from "../lib/forms";
 import { watchRows, type WatchRow } from "../lib/securityWatch";
-import { CERT_SOON } from "../components/Certificates";
 import { tx } from "../lib/i18n";
 import { exposedSites, securityFindings, SENSITIVE, siteIssues, type Area, type Finding } from "../lib/securityFindings";
 import { risky } from "../lib/ssh";
