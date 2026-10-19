@@ -67,7 +67,7 @@ function Toolbar({ days, onDays, style, onStyle, middle }: Readonly<{ days: numb
           className={`rounded-full border px-3 py-1 text-sm ${days === d ? "border-link bg-link/15 text-txt" : "border-line bg-card text-muted hover:text-txt"}`}>{l}</button>
       ))}
       <span className="mx-auto">{middle}</span>
-      <span className="inline-flex rounded-lg border border-line bg-card p-0.5" role="group" aria-label={tx("Style du graphique")}>
+      <fieldset className="m-0 inline-flex rounded-lg border border-line bg-card p-0.5" aria-label={tx("Style du graphique")}>
         {STYLES.map(([k, l]) => {
           const Icon = STYLE_ICON[k];
           return (
@@ -75,7 +75,7 @@ function Toolbar({ days, onDays, style, onStyle, middle }: Readonly<{ days: numb
               className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm ${style === k ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{l}</button>
           );
         })}
-      </span>
+      </fieldset>
     </div>
   );
 }
