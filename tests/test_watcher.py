@@ -42,10 +42,11 @@ class Connectors(unittest.TestCase):
 class SameCollection(unittest.TestCase):
     """A run started by the pulse sees the data.json of the run before: it must not confirm a service outage by itself."""
 
-    @staticmethod
-    def gen(n):
+    def gen(self, n):
         from datetime import datetime, timedelta, timezone
-        return (datetime.now(timezone.utc) - timedelta(minutes=10 - n)).isoformat(timespec="seconds")   # n-th collection, all recent
+        if not hasattr(self, "_t0"):   # one clock reading per test: two calls with the same n must give the same collection time
+            self._t0 = datetime.now(timezone.utc)
+        return (self._t0 - timedelta(minutes=10 - n)).isoformat(timespec="seconds")   # n-th collection, all recent
 
     def run_main(self, d, generated, up, pulse_ping=None):
         import json
