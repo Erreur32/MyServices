@@ -24,13 +24,13 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-machines.png" alt="MyServices machines tab: every machine with its sources, system, services, health, CPU, memory, disk, GPU and uptime (domain names blurred)" width="900"><br>
-  <sub>The machines tab: every machine of the network at a glance, whatever tool reads it (domain names blurred).</sub>
+  <img src="docs/screenshot-machines.png" alt="MyServices machines tab: every machine with its sources, system, services, health, CPU, memory, disk, GPU and uptime (domain names and public address blurred)" width="900"><br>
+  <sub>The machines tab: every machine of the network at a glance, whatever tool reads it (domain names and public address blurred).</sub>
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-history.png" alt="MyServices history tab: events over 24 hours (domain names blurred)" width="900"><br>
-  <sub>The history tab: what fell, came back, appeared or disappeared (domain names blurred).</sub>
+  <img src="docs/screenshot-history.png" alt="MyServices history tab: events over 24 hours (domain names and public address blurred)" width="900"><br>
+  <sub>The history tab: what fell, came back, appeared or disappeared (domain names and public address blurred).</sub>
 </p>
 
 > ## Still in development

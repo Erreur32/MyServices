@@ -24,13 +24,13 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-machines.png" alt="Onglet Machines de MyServices : chaque machine avec ses sources, son système, ses services, sa santé, CPU, mémoire, disque, GPU et uptime (noms de domaine floutés)" width="900"><br>
-  <sub>L'onglet Machines : toutes les machines du réseau d'un coup d'œil, quel que soit l'outil qui les lit (noms de domaine floutés).</sub>
+  <img src="docs/screenshot-machines.png" alt="Onglet Machines de MyServices : chaque machine avec ses sources, son système, ses services, sa santé, CPU, mémoire, disque, GPU et uptime (noms de domaine et adresse publique floutés)" width="900"><br>
+  <sub>L'onglet Machines : toutes les machines du réseau d'un coup d'œil, quel que soit l'outil qui les lit (noms de domaine et adresse publique floutés).</sub>
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-history.png" alt="Onglet Historique de MyServices : les événements sur 24 h (noms de domaine floutés)" width="900"><br>
-  <sub>L'onglet Historique : ce qui est tombé, revenu, apparu ou disparu (noms de domaine floutés).</sub>
+  <img src="docs/screenshot-history.png" alt="Onglet Historique de MyServices : les événements sur 24 h (noms de domaine et adresse publique floutés)" width="900"><br>
+  <sub>L'onglet Historique : ce qui est tombé, revenu, apparu ou disparu (noms de domaine et adresse publique floutés).</sub>
 </p>
 
 > ## Encore en développement
