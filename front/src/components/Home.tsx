@@ -1,7 +1,7 @@
 // Home page, three fixed blocks: « À traiter maintenant » (every alert with a button to the place that fixes it), « Ce qui a changé depuis
 // hier » (events of the last 24 h) and, for an administrator, « Il manque » (sources that would unlock a page). The inventory counters live in
 // their tabs; the header line only says how many things are followed.
-import { ChevronDown, ChevronUp, CircleCheck, ClipboardClock, House, Siren } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronUp, CircleCheck, ClipboardClock, House, Siren } from "lucide-react";
 import { useState } from "react";
 import type { Snapshot } from "../api";
 import { hm, longDay } from "../lib/format";
@@ -15,6 +15,7 @@ import { LastDay } from "./LastDay";
 import { Missing } from "./Missing";
 import { NewServices } from "./NewServices";
 import { Rich } from "./Rich";
+import { StatsColumn } from "./StatsColumn";
 
 /** Lines shown before « Tout voir » */
 const LIMIT = 8;
@@ -50,12 +51,13 @@ function Line({ it, go, goFilter }: Readonly<{ it: Attention; go: (t: TabId) => 
   );
 }
 
-export type HomeSub = "overview" | "history";
+export type HomeSub = "overview" | "history" | "stats";
 
-/** Two sub-tabs: the overview (this page) and the full history (#history, kept as a direct link) */
+/** Three sub-tabs: the overview (this page), the full history (#history) and the counters (#stats), both kept as direct links */
 function SubMenu({ sub }: Readonly<{ sub: HomeSub }>) {
   const items: { id: HomeSub; label: string; icon: typeof House; href: string }[] = [
     { id: "overview", label: tx("Vue d'ensemble"), icon: House, href: "#" }, { id: "history", label: tx("Historique"), icon: ClipboardClock, href: "#history" },
+    { id: "stats", label: tx("Statistiques"), icon: BarChart3, href: "#stats" },
   ];
   return (
     <nav className="flex flex-wrap gap-1" aria-label={tx("Accueil")}>
@@ -78,6 +80,7 @@ export function Home({ snap, items, go, goFilter, now, sub = "overview" }: Reado
   const admin = snap.me.role === "admin";
   const day = longDay(now);
   if (sub === "history") return <div className="flex flex-col gap-5 py-5"><SubMenu sub={sub} /><History snap={snap} /></div>;
+  if (sub === "stats") return <div className="flex flex-col gap-5 py-5"><SubMenu sub={sub} /><StatsColumn snap={snap} go={go} goFilter={goFilter} /></div>;
   return (
     <div className="flex flex-col gap-5 py-5">
       <SubMenu sub={sub} />

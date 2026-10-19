@@ -50,7 +50,7 @@ export function visible(id: TabId, s: Snapshot): boolean {
   }
 }
 
-const OLD_TABS: Record<string, string> = { fail2ban: "security", health: "machines", history: "home" };   // removed tabs, now inside another one (#history: sub-tab of the home page)
+const OLD_TABS: Record<string, string> = { fail2ban: "security", health: "machines", history: "home", stats: "home" };   // removed tabs, now inside another one (#history, #stats: sub-tabs of the home page)
 
 /** Onglet visé par l'adresse actuelle (#dns, #settings/api…) ; « home » si l'adresse n'en désigne aucun (y compris les pages à part : #profile, #audit…) */
 export function tabFromHash(): TabId {

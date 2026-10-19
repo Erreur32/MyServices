@@ -1172,10 +1172,17 @@ export function UpdatesSection({ h, windows, from, freebox, unifi, unifiSys, ha 
 /** Detail, « Health »: level, resources, failed systemd units, updates */
 export function HealthSection({ h, from }: Readonly<{ h?: HealthHost; from: Origin[] }>) {
   const failed = h?.systemd?.failed.length || 0;
+  // Why the level is not « ok »: the controls in alert, in words (the same sentences as the « À surveiller » column); updates and reboot have their own section
+  const why = h ? healthItems(h).filter((i) => i.kind !== "updates" && i.kind !== "reboot") : [];
   return (
       <Section sec="health" icon={HeartPulse} title={tx("Santé")} tone="bad" from={from}>
         {h ? <>
-          <Row k={tx("Niveau")}><Level level={h.reachable === false ? "down" : h.level} /></Row>
+          <Row k={tx("Niveau")}>
+            <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1" title={why.length ? `${tx("Pourquoi")} :\n${why.map((i) => `• ${i.text}`).join("\n")}` : undefined}>
+              <Level level={h.reachable === false ? "down" : h.level} />
+              {why.length > 0 && <span className="text-xs text-muted">{why.map((i) => i.text).join(" · ")}</span>}
+            </span>
+          </Row>
           <HealthRows h={h} />
           <Row k="Systemd">{failed ? <span className="text-bad">{tx("{0} service(s) en échec", failed)}</span> : undefined}</Row>
         </> : <Dim>{tx("non suivie")}</Dim>}

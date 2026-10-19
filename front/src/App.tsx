@@ -130,7 +130,7 @@ export default function App() {
       ) : side ? (
         <SidePage>{side.render()}</SidePage>
       ) : <Tabs tab={current} snap={snap} badges={badges} onSelect={go} onBadge={(t) => (t === "machines" ? goFilter("machines", { alert: ["bad", "warn"] }) : go(t))} />}
-      {!profile && !side && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} sub={hash.startsWith("#history") ? "history" : "overview"} />}
+      {!profile && !side && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} sub={hash.startsWith("#history") ? "history" : hash.startsWith("#stats") ? "stats" : "overview"} />}
       {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} onFilter={(sel) => goFilter("services", sel)} />}
       {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} />}
       {current === "infra" && <Infra snap={snap} />}
