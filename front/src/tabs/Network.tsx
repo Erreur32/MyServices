@@ -142,8 +142,20 @@ type Sub = "overview" | "list" | "diagnostic";
 const SUBS: [Sub, string, LucideIcon][] = [["overview", tx("Vue d'ensemble"), LayoutDashboard], ["list", tx("Équipements et appareils"), List], ["diagnostic", tx("Diagnostic"), Stethoscope]];
 const SUB_KEY = "ms.network.sub";
 
+/** #network/<sub> (a direct link, or the redirect of the old « Tâches et horaires ») : the sub-tab it names, if it names one */
+const hashSub = (): Sub | null => {
+  if (typeof location === "undefined") return null;   // hors navigateur (tests de rendu statique)
+  const h = location.hash.split("/")[1];
+  return h === "list" || h === "diagnostic" || h === "overview" ? h : null;
+};
+
 export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapshot; onMachine: (ip: string) => void; initialSub?: Sub }>) {
-  const [sub, setSub] = useState<Sub>(() => { try { const v = localStorage.getItem(SUB_KEY); return initialSub ?? (v === "list" || v === "diagnostic" ? v : "overview"); } catch { return initialSub ?? "overview"; } });   // the sub-page is kept
+  const [sub, setSub] = useState<Sub>(() => {
+    const fromHash = hashSub();
+    if (fromHash) return fromHash;
+    if (initialSub) return initialSub;
+    try { const v = localStorage.getItem(SUB_KEY); return v === "list" || v === "diagnostic" ? v : "overview"; } catch { return "overview"; }
+  });   // the sub-page is kept
   const pickSub = (v: Sub) => { setSub(v); try { localStorage.setItem(SUB_KEY, v); } catch { /* storage refused: the choice lasts this visit */ } };
   const cards = useMemo(() => (snap.data.services_status ?? []).filter((c) => NETWORK_CARDS.includes(c.connector)), [snap.data.services_status]);
   const rows = useMemo(() => buildRows(snap, cards), [snap, cards]);
@@ -219,7 +231,7 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
         </>
       )}
 
-      {sub === "diagnostic" && <NetworkDiagnostic admin={snap.me.role === "admin"} />}
+      {sub === "diagnostic" && <NetworkDiagnostic snap={snap} />}
 
       {sub === "list" && (
         <>

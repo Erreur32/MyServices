@@ -1,14 +1,16 @@
 // Réseau, sous-page « Diagnostic » : problèmes possibles lus sur les équipements UniFi (via MynetworK). Surtout les ports qui ont négocié une
 // vitesse plus basse que leur maximum (câble, port, ou carte réseau de l'appareil branché) ; aussi équipement hors ligne, lien WAN coupé,
 // mise à jour en attente, équipement très chargé. Lecture seule, relue toutes les 30 s.
-import { Check, CircleCheck, CircleHelp, OctagonAlert, TriangleAlert, Undo2 } from "lucide-react";
+import { Check, CircleCheck, CircleHelp, OctagonAlert, Timer, TriangleAlert, Undo2 } from "lucide-react";
 import { useCallback, useState } from "react";
-import { read, send } from "../api";
+import { read, send, type Snapshot } from "../api";
 import { Badge, Dim, Empty, Th } from "../components/ui";
+import { FoldPanel } from "../components/FoldPanel";
 import { useSort } from "../lib/filter";
 import { useStoredFlag } from "../lib/storedFlag";
 import { tx } from "../lib/i18n";
 import { usePoll } from "../lib/polling";
+import { SystemSettings } from "./SystemSettings";
 
 type Severity = "bad" | "warn" | "info";
 interface Nic { machine: string | null; name: string | null; speed: number | null; max: number | null; duplex: "full" | "half" | null; setting: string | null }
@@ -76,7 +78,13 @@ function NicCell({ nic, portSpeed }: Readonly<{ nic: Nic | null; portSpeed: numb
   );
 }
 
-export function NetworkDiagnostic({ admin }: Readonly<{ admin: boolean }>) {
+export function NetworkDiagnostic({ snap }: Readonly<{ snap: Snapshot }>) {
+  const admin = snap.me.role === "admin";
+  const tasksFold = admin && (
+    <FoldPanel id="network-tasks" icon={Timer} title={tx("Tâches de fond et horaires")} startFolded>
+      <SystemSettings part="tasks" snap={snap} />
+    </FoldPanel>
+  );
   const [doc, setDoc] = useState<Doc | null>(null), [failed, setFailed] = useState(false), [showOk, setShowOk] = useStoredFlag("myservices.network.diagShowOk", false);
   const [showAccepted, setShowAccepted] = useStoredFlag("myservices.network.diagShowAccepted", false);
   const load = useCallback(() => { read<Doc>("network/diagnostics").then((d) => { setDoc(d); setFailed(false); }).catch(() => setFailed(true)); }, []);
@@ -101,11 +109,12 @@ export function NetworkDiagnostic({ admin }: Readonly<{ admin: boolean }>) {
     }
   }, []);
   const sort = useSort(rows, keyOf, "level");
-  if (failed && !doc) return <Empty>{tx("Lecture du diagnostic impossible pour l'instant.")}</Empty>;
-  if (!doc) return null;
-  if (!doc.source) return <Empty>{doc.error || tx("Aucun équipement UniFi lisible : le diagnostic des ports demande MynetworK 0.11.1 ou plus relié à UniFi.")}</Empty>;
+  if (failed && !doc) return <><Empty>{tx("Lecture du diagnostic impossible pour l'instant.")}</Empty>{tasksFold}</>;
+  if (!doc) return <>{tasksFold}</>;
+  if (!doc.source) return <><Empty>{doc.error || tx("Aucun équipement UniFi lisible : le diagnostic des ports demande MynetworK 0.11.1 ou plus relié à UniFi.")}</Empty>{tasksFold}</>;
   const s = doc.summary, nOk = doc.ok_ports?.length ?? 0;
   return (
+    <>
     <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
       <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
         <h3 className="font-bold">{tx("Diagnostic du réseau")}</h3>
@@ -164,5 +173,7 @@ export function NetworkDiagnostic({ admin }: Readonly<{ admin: boolean }>) {
       )}
       <p className="border-t border-line/60 px-4 py-2 text-xs text-dim">{tx("Le maximum d'un port vient de son type (100 Mb/s, 1, 2,5, 10 Gb/s). Un appareil qui n'a qu'une carte à 1 Gb/s ou à 100 Mb/s (pont, concentrateur d'objets connectés) donne un constat « à vérifier » normal.")}</p>
     </section>
+    {tasksFold}
+    </>
   );
 }

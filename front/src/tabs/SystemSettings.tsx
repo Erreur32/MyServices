@@ -42,6 +42,28 @@ export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh
   );
 }
 
+/** The health switch, moved out of Tasks (Réglages → Réseau → Diagnostic) into Settings → Machines, under « Avancé »: its own small reload, so it does not need the rest of the system state */
+export function HealthSwitch() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [note, setNote] = useState<Note>(null);
+  const load = useCallback(() => {
+    read<SystemState>("system").then((s) => setEnabled(s.tasks.find((t) => t.name === "health")?.enabled ?? null)).catch(() => undefined);
+  }, []);
+  useEffect(load, [load]);
+  if (enabled === null) return null;
+  const toggle = (on: boolean) => void act(() => send("PUT", "system/health", { enabled: on }),
+    on ? tx("santé allumée : premier relevé en cours, puis la collecte (une minute environ)") : tx("santé coupée"), setNote).then((ok) => ok && load());
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="inline-flex items-center gap-2 text-sm">
+        <Switch on={enabled} label={enabled ? tx("Couper la santé des machines") : tx("Allumer la santé des machines")} onChange={toggle} />
+        <span className="text-muted">{tx("Disques, services, mises à jour et SMART de chaque machine, lus par SSH.")}</span>
+      </label>
+      <NoteLine note={note} />
+    </div>
+  );
+}
+
 /** Clé publique avec un début et une fin lisibles et le milieu masqué : « ssh-ed25519 AAAAC3Nz…kSLsU myservices » */
 function maskKey(key: string): string {
   const [type, body, ...comment] = key.trim().split(/\s+/);
@@ -201,8 +223,8 @@ function TaskIcon({ name, state }: Readonly<{ name: string; state: RunState }>) 
 }
 
 /** Left part of every row: icon, name, state, short description and the last run */
-function TaskHead({ name, title, state, badge, note, extra, about, children }: Readonly<{
-  name: string; title: string; state: RunState; badge?: ReactNode; note: Note; extra?: ReactNode; about: ReactNode; children?: ReactNode;
+function TaskHead({ name, title, state, badge, note, about, children }: Readonly<{
+  name: string; title: string; state: RunState; badge?: ReactNode; note: Note; about: ReactNode; children?: ReactNode;
 }>) {
   return (
     <div className="flex min-w-[220px] gap-3">
@@ -212,7 +234,6 @@ function TaskHead({ name, title, state, badge, note, extra, about, children }: R
           <b>{title}</b>
           {badge ?? <StateBadge state={state} />}
           <NoteLine inline note={note} />
-          {extra}
         </div>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">{about}</p>
         {children}
@@ -337,17 +358,10 @@ function TaskRow({ t, now, reload }: Readonly<{ t: SystemTask; now: number; relo
   const [at, setAt] = useState(t.at), [note, setNote] = useState<Note>(null);
   const parsed = parseAt(at), changed = at.trim() !== t.at, state = runState(t);
   const save = (spec: string, done: string) => void act(() => send("PUT", `system/tasks/${t.name}/schedule`, { at: spec }), done, setNote).then((ok) => { if (ok) { if (!spec) setAt(t.default); reload(); } });
-  const toggle = (on: boolean) => void act(() => send("PUT", "system/health", { enabled: on }), on ? tx("santé allumée : premier relevé en cours, puis la collecte (une minute environ)") : tx("santé coupée"), setNote).then((ok) => ok && reload());
   return (
     <li className={rowClass(state)}>
       <div className={`flex flex-wrap items-start gap-x-4 gap-y-2 ${ROW_COLS}`}>
         <TaskHead name={t.name} title={t.label} state={state} note={note}
-          extra={t.switch && (
-            <label className="inline-flex items-center gap-1.5 text-xs text-dim">
-              <Switch on={t.enabled} label={t.enabled ? tx("Couper la santé des machines") : tx("Allumer la santé des machines")} onChange={toggle} />
-              {t.enabled ? tx("allumée") : tx("coupée")}
-            </label>
-          )}
           about={<><span>{!t.enabled && t.why ? t.why : desc(t.name)}</span><AlsoFinds task={t.name} /></>}>
           {t.enabled && <LastRun t={t} />}
         </TaskHead>

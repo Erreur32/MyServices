@@ -14,6 +14,7 @@ import type { AgentInfo, Connector, NetworkConnector, Detection, MachineConf, Ma
 import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
+import { FoldPanel } from "../components/FoldPanel";
 import { Overlay } from "../components/Overlay";
 import { AccessGuide, AgentBlock, AgentsOverview } from "./Agents";
 import { IconChoice } from "../components/IconChoice";
@@ -929,17 +930,19 @@ function AgentBody({ ip, v, windowsGuess, agent, agentMode, sshAccess, isNew, on
           </div>
         )}
         {agent && sshAccess && (
-          <div className="flex flex-col gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
-            <div className="flex flex-wrap items-center gap-2"><b>{tx("Lu d'abord par")}</b> <SavedMark k="health_sources" s={ss} /></div>
-            <IconChoice label={tx("Santé lue d'abord par")} disabled={ss.pending === "health_sources"} value={((v.health_sources as string[] | undefined)?.[0] ?? "") as "" | "ssh" | "agent"}
-              onPick={(src) => void autoSave("health_sources", { health_sources: src ? [src] : undefined })}
-              options={[
-                { value: "", label: tx("Automatique"), hint: windows ? tx("Automatique (l'agent, puis SSH)") : tx("Automatique (SSH, puis l'agent)"), icon: <Sparkles size={24} className="text-link" aria-hidden /> },
-                { value: "ssh", label: "SSH", hint: tx("Lire d'abord par SSH"), icon: <KeyRound size={24} className="text-ok" aria-hidden /> },
-                { value: "agent", label: tx("L'agent"), hint: tx("Lire d'abord par l'agent MyServices"), icon: <Monitor size={24} className="text-warn" aria-hidden /> },
-              ]} />
-            <Dim>{tx("la première source qui répond fait foi, l'autre prend le relais si elle se tait et complète ce qui manque")}</Dim>
-          </div>
+          <FoldPanel id="machine-health-source" icon={SlidersHorizontal} title={tx("Avancé")} startFolded>
+            <div className="flex flex-col gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
+              <div className="flex flex-wrap items-center gap-2"><b>{tx("Lu d'abord par")}</b> <SavedMark k="health_sources" s={ss} /></div>
+              <IconChoice label={tx("Santé lue d'abord par")} disabled={ss.pending === "health_sources"} value={((v.health_sources as string[] | undefined)?.[0] ?? "") as "" | "ssh" | "agent"}
+                onPick={(src) => void autoSave("health_sources", { health_sources: src ? [src] : undefined })}
+                options={[
+                  { value: "", label: tx("Automatique"), hint: windows ? tx("Automatique (l'agent, puis SSH)") : tx("Automatique (SSH, puis l'agent)"), icon: <Sparkles size={24} className="text-link" aria-hidden /> },
+                  { value: "ssh", label: "SSH", hint: tx("Lire d'abord par SSH"), icon: <KeyRound size={24} className="text-ok" aria-hidden /> },
+                  { value: "agent", label: tx("L'agent"), hint: tx("Lire d'abord par l'agent MyServices"), icon: <Monitor size={24} className="text-warn" aria-hidden /> },
+                ]} />
+              <Dim>{tx("la première source qui répond fait foi, l'autre prend le relais si elle se tait et complète ce qui manque")}</Dim>
+            </div>
+          </FoldPanel>
         )}
         {!isNew && onAgent && !agent && <InfoNote>{AGENT_HINT()}</InfoNote>}
         {!isNew && onAgent && <AgentBlock ip={ip} name={v.name} kind={osKind(windows, windowsGuess)} agent={agent} onChanged={onAgent} />}
