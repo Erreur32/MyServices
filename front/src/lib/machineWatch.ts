@@ -17,24 +17,41 @@ export const WATCH_SECTION: Record<WatchKind, "health" | "updates" | "access" | 
 export const RANK: Record<WatchTone, number> = { bad: 3, warn: 2, info: 1 };
 
 /** Ce que la santé relevée reproche à une machine, en phrases courtes (vide = rien à signaler) */
+/** The same thresholds as health.py (host_checks): the sentence says what the server measured */
+const LOAD_WARN_MULT = 1.5, LOAD_CRIT_MULT = 3, CPU_WARN_PCT = 90, SYSTEMD_CRIT_N = 3, DOCKER_CRIT_N = 3, SSH_AUTH_WARN_N = 20, SSH_AUTH_CRIT_N = 100;
+const CHECK_KIND: Record<string, WatchKind> = { disk: "disk", systemd: "systemd", docker: "docker", kernel: "kernel", load: "load", ssh_auth: "ssh_auth", smart: "smart", temp: "temp", res: "mem" };
+const CHECK_TEXT: Record<string, () => string> = {
+  disk: () => tx("un disque se remplit"), systemd: () => tx("des services systemd sont en échec"), docker: () => tx("des conteneurs Docker sont arrêtés ou en défaut"),
+  kernel: () => tx("erreurs noyau récentes"), load: () => tx("processeur très sollicité"), ssh_auth: () => tx("beaucoup de connexions SSH refusées"),
+  smart: () => tx("un disque est en défaut (SMART)"), temp: () => tx("processeur très chaud"), res: () => tx("mémoire presque pleine"),
+};
+
 export function healthItems(h: HealthHost): WatchItem[] {
   if (h.reachable === false) return [{ tone: "bad", kind: "down", text: tx("injoignable : ni SSH ni Beszel") }];
   const out: WatchItem[] = [];
   const add = (tone: WatchTone, kind: WatchKind, text: string, detail?: string[]) => out.push({ tone, kind, text, ...(detail?.length ? { detail } : {}) });
   for (const d of h.disks || []) if (d.critical || d.warning) add(d.critical ? "bad" : "warn", "disk", tx("disque {0} rempli à {1} %", d.mount, d.used_pct));
   const failed = h.systemd?.failed || [];
-  if (failed.length) add("bad", "systemd", tx("{0} service(s) systemd en échec : {1}", failed.length, failed.map((u) => u.unit).join(", ")));
-  const dk = h.docker;
-  if (dk?.accessible && (dk.unhealthy || dk.restarting)) add("warn", "docker", tx("Docker : {0} unhealthy, {1} en redémarrage", dk.unhealthy || 0, dk.restarting || 0));
+  if (failed.length) add(failed.length >= SYSTEMD_CRIT_N ? "bad" : "warn", "systemd", tx("{0} service(s) systemd en échec : {1}", failed.length, failed.map((u) => u.unit).join(", ")));
+  const dk = h.docker, dkN = (dk?.unhealthy || 0) + (dk?.restarting || 0) + (dk?.exited || 0);
+  if (dk?.accessible && dkN) add(dkN >= DOCKER_CRIT_N ? "bad" : "warn", "docker", tx("Docker : {0} unhealthy, {1} en redémarrage, {2} arrêté(s)", dk.unhealthy || 0, dk.restarting || 0, dk.exited || 0));
   if ((dk?.issues || []).length) add("warn", "docker", tx("Docker : {0}", dk!.issues!.join(", ")));
   if (h.kernel?.has_errors) add("warn", "kernel", tx("erreurs noyau récentes"), h.kernel.samples);
   for (const d of h.smart?.disks || []) if (d.failed || !d.healthy) add("bad", "smart", tx("SMART : {0} en défaut", d.device));
-  if (h.load?.available && h.load.load_1 > h.load.ncpu) add("warn", "load", tx("charge {0} pour {1} CPU", h.load.load_1, h.load.ncpu));
-  if (h.ssh_auth?.available && h.ssh_auth.failed_24h > 20) add("warn", "ssh_auth", tx("{0} connexions SSH refusées en 24 h", h.ssh_auth.failed_24h));
+  if (h.load?.available) {
+    if (h.load.cpu_pct != null) { if (h.load.cpu_pct >= CPU_WARN_PCT) add("warn", "load", tx("processeur à {0} %", Math.round(h.load.cpu_pct))); }   // Windows: instant CPU
+    else if (h.load.load_1 >= LOAD_WARN_MULT * h.load.ncpu) add(h.load.load_1 >= LOAD_CRIT_MULT * h.load.ncpu ? "bad" : "warn", "load", tx("charge {0} pour {1} CPU", h.load.load_1, h.load.ncpu));
+  }
+  if (h.ssh_auth?.available && h.ssh_auth.failed_24h >= SSH_AUTH_WARN_N) add(h.ssh_auth.failed_24h >= SSH_AUTH_CRIT_N ? "bad" : "warn", "ssh_auth", tx("{0} connexions SSH refusées en 24 h", h.ssh_auth.failed_24h));
   if (h.res?.available && (h.res.mem_pct ?? 0) >= 90) add(h.res.mem_pct! >= 97 ? "bad" : "warn", "mem", tx("mémoire utilisée à {0} %", Math.round(h.res.mem_pct!)));
   if (h.temp?.available && h.temp.celsius! >= 85) add(h.temp.celsius! >= 95 ? "bad" : "warn", "temp", tx("processeur à {0} °C", h.temp.celsius));
   if (h.reboot_required) add("warn", "reboot", tx("redémarrage requis"));
   if (h.apt?.upgradable) add("warn", "updates", tx("{0} mise(s) à jour en attente", h.apt.upgradable));
+  // A control the server flags that nothing above explained (another threshold, a datum this page does not read): said anyway, in general terms
+  for (const [check, level] of Object.entries(h.checks ?? {})) {
+    const kind = CHECK_KIND[check];
+    if (kind && (level === "warn" || level === "crit") && !out.some((i) => i.kind === kind)) add(level === "crit" ? "bad" : "warn", kind, CHECK_TEXT[check]());
+  }
   return out;
 }
 

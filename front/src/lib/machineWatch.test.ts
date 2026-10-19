@@ -56,4 +56,22 @@ describe("à surveiller", () => {
     expect(it?.detail).toEqual(["nvme0: I/O error", "EXT4-fs error"]);
     expect(WATCH_SECTION.kernel).toBe("health");
   });
+
+  it("Windows : le CPU instantané fait une ligne ; conteneurs arrêtés comptés ; seuils de charge du serveur", () => {
+    expect(healthItems(health({ load: { available: true, load_1: 0, ncpu: 8, cpu_pct: 93 } }))).toEqual([{ tone: "warn", kind: "load", text: "processeur à 93 %" }]);
+    expect(healthItems(health({ load: { available: true, load_1: 0, ncpu: 8, cpu_pct: 40 } }))).toEqual([]);
+    expect(healthItems(health({ docker: { accessible: true, exited: 1 } }))).toMatchObject([{ tone: "warn", kind: "docker" }]);
+    expect(healthItems(health({ load: { available: true, load_1: 7, ncpu: 4 } }))[0]).toMatchObject({ tone: "warn", kind: "load" });
+    expect(healthItems(health({ load: { available: true, load_1: 13, ncpu: 4 } }))[0]).toMatchObject({ tone: "bad", kind: "load" });
+    expect(healthItems(health({ load: { available: true, load_1: 7, ncpu: 4 } }))).toHaveLength(1);
+    expect(healthItems(health({ load: { available: true, load_1: 4.5, ncpu: 4 } }))).toEqual([]);
+  });
+
+  it("un contrôle en alerte côté serveur sans détail connu : une phrase générale, jamais un badge muet", () => {
+    const items = healthItems(health({ level: "warn", checks: { temp: "warn", disk: "crit" } }));
+    expect(items.map((i) => [i.tone, i.kind])).toEqual([["warn", "temp"], ["bad", "disk"]]);
+    const explained = healthItems(health({ level: "warn", checks: { res: "warn" }, res: { available: true, mem_pct: 92 } }));
+    expect(explained).toHaveLength(1);   // the measured sentence, not the general one too
+    expect(explained[0].text).toBe("mémoire utilisée à 92 %");
+  });
 });
