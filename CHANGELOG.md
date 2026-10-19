@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+- **Fewer options** (fifth step of the ergonomics plan, one commit each): the « health read first by » choice of a machine is gone (the automatic order serves); the integrated health is always on, its switch and route are gone (an external health-watcher still replaces it); one switch « Services outside Docker » in the SSH frame instead of two; the header notice of a new version follows the automatic check; « Hosts NPM » is no longer an option of a machine, the collection sets it. Settings › Tasks and schedules reads as a list (task, schedule in words, last and next run): the schedule fields, the networks walked by the search, the discreet mode and the live checks sit behind « Edit the schedules ». Settings › Backups › Rules: the per-machine searched locations sit behind « Advanced ».
+
 ### Added
 - **State pages**: the « To watch » frame of the Backups, Security, Services and Network tabs folds and unfolds on a click of its header, the choice kept in the browser.
 - **Network tab in « state » mode** (fourth step of the ergonomics plan, last page): a title line (gateways, switches, access points, devices, sources, reading time), five figures above the sub-menu (Internet access with a fact of the box or firewall, equipment online with the updates available, clients, devices online with the ones not followed, sources), then **« To watch »**: a network source failing or a piece of equipment offline in red, then what the box or firewall reports, firmware updates and weak Wi-Fi links (under -75 dBm) in orange, each with a button to its sub-tab or to the machine. The « Overview » sub-tab becomes « Cards » (scan statistics and UniFi cards, its former tiles replaced by the figures above); the other sub-tabs do not change.
