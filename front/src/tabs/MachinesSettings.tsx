@@ -3,7 +3,7 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Depuis la refonte (étape 3), les réglages de chaque machine sont dans sa page (#machines/<ip>, MachineModal en page) : ici restent
 // l'ajout, la redétection, la clé à autoriser, les appareils vus par les outils et les agents. Connecteurs ne garde que les services lus par leur API.
-import { Check, ChevronDown, ChevronRight, IdCard, Info, KeyRound, Loader2, Monitor, MonitorUp, Plug, Plus, Power, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Copyable, Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -14,10 +14,8 @@ import type { AgentInfo, Connector, NetworkConnector, Detection, MachineConf, Ma
 import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
 import { MachineIcon } from "../components/MachineIcon";
-import { FoldPanel } from "../components/FoldPanel";
 import { Overlay } from "../components/Overlay";
 import { AccessGuide, AgentBlock, AgentsOverview } from "./Agents";
-import { IconChoice } from "../components/IconChoice";
 import { IconPicker } from "../components/IconPicker";
 import { mState, osOfMachine } from "../lib/machines";
 import { AuthorizeKey } from "../components/AuthorizeKey";
@@ -893,9 +891,8 @@ function SshBody({ ctl, ip, v, setV, live, scan, windowsGuess, hasAdguard, conne
   );
 }
 
-function AgentBody({ ip, v, windowsGuess, agent, agentMode, sshAccess, isNew, onAgent, connection, ss, autoSave }: Readonly<{
-  ip: string; v: MachineConf; windowsGuess?: boolean; agent?: AgentInfo; agentMode: boolean; sshAccess: boolean; isNew?: boolean; onAgent?: () => void;
-  connection?: React.ReactNode; ss: SaveState; autoSave: AutoSave;
+function AgentBody({ ip, v, windowsGuess, agent, agentMode, isNew, onAgent, connection }: Readonly<{
+  ip: string; v: MachineConf; windowsGuess?: boolean; agent?: AgentInfo; agentMode: boolean; isNew?: boolean; onAgent?: () => void; connection?: React.ReactNode;
 }>) {
   const windows = v.os === "windows";
   return (
@@ -905,21 +902,6 @@ function AgentBody({ ip, v, windowsGuess, agent, agentMode, sshAccess, isNew, on
             <h5 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-dim">{tx("Lecture par l'agent")}</h5>
             {connection}
           </div>
-        )}
-        {agent && sshAccess && (
-          <FoldPanel id="machine-health-source" icon={SlidersHorizontal} title={tx("Avancé")} startFolded>
-            <div className="flex flex-col gap-2 rounded-lg border border-line/60 bg-bg2/70 p-3">
-              <div className="flex flex-wrap items-center gap-2"><b>{tx("Lu d'abord par")}</b> <SavedMark k="health_sources" s={ss} /></div>
-              <IconChoice label={tx("Santé lue d'abord par")} disabled={ss.pending === "health_sources"} value={((v.health_sources as string[] | undefined)?.[0] ?? "") as "" | "ssh" | "agent"}
-                onPick={(src) => void autoSave("health_sources", { health_sources: src ? [src] : undefined })}
-                options={[
-                  { value: "", label: tx("Automatique"), hint: windows ? tx("Automatique (l'agent, puis SSH)") : tx("Automatique (SSH, puis l'agent)"), icon: <Sparkles size={24} className="text-link" aria-hidden /> },
-                  { value: "ssh", label: "SSH", hint: tx("Lire d'abord par SSH"), icon: <KeyRound size={24} className="text-ok" aria-hidden /> },
-                  { value: "agent", label: tx("L'agent"), hint: tx("Lire d'abord par l'agent MyServices"), icon: <Monitor size={24} className="text-warn" aria-hidden /> },
-                ]} />
-              <Dim>{tx("la première source qui répond fait foi, l'autre prend le relais si elle se tait et complète ce qui manque")}</Dim>
-            </div>
-          </FoldPanel>
         )}
         {!isNew && onAgent && !agent && <InfoNote>{AGENT_HINT()}</InfoNote>}
         {!isNew && onAgent && <AgentBlock ip={ip} name={v.name} kind={osKind(windows, windowsGuess)} agent={agent} onChanged={onAgent} />}
@@ -1172,7 +1154,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   const dirty = isDirty(isNew, v, saved);
   const flagCtx: FlagCtx = { v, found, unlock: menu.unlock, ss, autoSave };
   const sshBody = <SshBody ctl={ctl} ip={ip} v={v} setV={setV} live={live} scan={scan} windowsGuess={windowsGuess} hasAdguard={hasAdguard} connection={connection} ss={ss} autoSave={autoSave} proc={proc} />;
-  const agentBody = <AgentBody ip={ip} v={v} windowsGuess={windowsGuess} agent={agent} agentMode={status.agentMode} sshAccess={status.sshAccess} isNew={isNew} onAgent={onAgent} connection={connection} ss={ss} autoSave={autoSave} />;
+  const agentBody = <AgentBody ip={ip} v={v} windowsGuess={windowsGuess} agent={agent} agentMode={status.agentMode} isNew={isNew} onAgent={onAgent} connection={connection} />;
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
       {tabbed && <TabBar tab={tab} setTab={setTab} />}
