@@ -1,13 +1,14 @@
 // Home page, three fixed blocks: « À traiter maintenant » (every alert with a button to the place that fixes it), « Ce qui a changé depuis
 // hier » (events of the last 24 h) and, for an administrator, « Il manque » (sources that would unlock a page). The inventory counters live in
 // their tabs; the header line only says how many things are followed.
-import { ChevronDown, ChevronUp, CircleCheck, Siren } from "lucide-react";
+import { ChevronDown, ChevronUp, CircleCheck, ClipboardClock, House, Siren } from "lucide-react";
 import { useState } from "react";
 import type { Snapshot } from "../api";
 import { hm, longDay } from "../lib/format";
 import type { Selected } from "../lib/filter";
 import { tx } from "../lib/i18n";
 import type { Attention, Category, TabId } from "../lib/summary";
+import { History } from "../tabs/History";
 import { AssistantBanner } from "./AssistantBanner";
 import { DiscoveryReminder } from "./DiscoveryCard";
 import { LastDay } from "./LastDay";
@@ -49,7 +50,26 @@ function Line({ it, go, goFilter }: Readonly<{ it: Attention; go: (t: TabId) => 
   );
 }
 
-export function Home({ snap, items, go, goFilter, now }: Readonly<{ snap: Snapshot; items: Attention[]; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void; now: number }>) {
+export type HomeSub = "overview" | "history";
+
+/** Two sub-tabs: the overview (this page) and the full history (#history, kept as a direct link) */
+function SubMenu({ sub }: Readonly<{ sub: HomeSub }>) {
+  const items: { id: HomeSub; label: string; icon: typeof House; href: string }[] = [
+    { id: "overview", label: tx("Vue d'ensemble"), icon: House, href: "#" }, { id: "history", label: tx("Historique"), icon: ClipboardClock, href: "#history" },
+  ];
+  return (
+    <nav className="flex flex-wrap gap-1" aria-label={tx("Accueil")}>
+      {items.map(({ id, label, icon: Icon, href }) => (
+        <a key={id} href={href} aria-current={sub === id ? "page" : undefined}
+          className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-semibold no-underline ${sub === id ? "border-link bg-link/15 text-txt ring-1 ring-link/50" : "border-transparent text-muted hover:text-txt"}`}>
+          <Icon size={15} aria-hidden />{label}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+export function Home({ snap, items, go, goFilter, now, sub = "overview" }: Readonly<{ snap: Snapshot; items: Attention[]; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void; now: number; sub?: HomeSub }>) {
   const [all, setAll] = useState(false);
   const shown = all ? items : items.slice(0, LIMIT);
   const crit = items.filter((i) => i.level === "crit").length;
@@ -57,8 +77,10 @@ export function Home({ snap, items, go, goFilter, now }: Readonly<{ snap: Snapsh
   const frame = { bad: "border-l-4 border-l-bad border-bad/40", warn: "border-l-4 border-l-warn border-warn/40", ok: "border-ok/40" }[tone];
   const admin = snap.me.role === "admin";
   const day = longDay(now);
+  if (sub === "history") return <div className="flex flex-col gap-5 py-5"><SubMenu sub={sub} /><History snap={snap} /></div>;
   return (
     <div className="flex flex-col gap-5 py-5">
+      <SubMenu sub={sub} />
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="text-xl font-bold">{day.charAt(0).toUpperCase() + day.slice(1)}, {hm(now)}</h1>
         <span className="text-sm text-muted">{followedLine(snap)}</span>

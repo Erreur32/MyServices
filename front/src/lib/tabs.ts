@@ -1,5 +1,5 @@
 // Onglets : ordre, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { ClipboardClock, LayoutGrid, Server, Shield, Globe, HardDrive, House, Monitor, Network, Router, SlidersHorizontal, Workflow, type LucideIcon } from "lucide-react";
+import { LayoutGrid, Server, Shield, Globe, HardDrive, House, Monitor, Network, Router, SlidersHorizontal, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -12,7 +12,6 @@ export const infraDocker = (s: Snapshot) => (s.data.containers ?? []).filter((c)
 // Icônes monochromes (lucide, trait fin) : couleur du texte, lisibles en clair comme en sombre
 export const TABS: { id: TabId; icon: LucideIcon; label: string }[] = [
   { id: "home", icon: House, label: tx("Accueil") },
-  { id: "history", icon: ClipboardClock, label: tx("Historique") },
   { id: "machines", icon: Monitor, label: tx("Machines") },
   { id: "services", icon: Globe, label: tx("Services") },
   { id: "infra", icon: LayoutGrid, label: tx("Infra") },

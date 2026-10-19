@@ -15,7 +15,6 @@ import { Security } from "./tabs/Security";
 import { Virtualization } from "./tabs/Virtualization";
 import { Network } from "./tabs/Network";
 import { Infra } from "./tabs/Infra";
-import { History } from "./tabs/History";
 import { Machines } from "./tabs/Machines";
 import { Services } from "./tabs/Services";
 import { Profile } from "./tabs/Profile";
@@ -29,7 +28,7 @@ import { GREY_CARDS } from "./lib/forms";
 const REFRESH_MS = 15_000;      // without the event stream: one small manifest request, the files that moved are read again
 const STREAM_REFRESH_MS = 120_000;   // with the stream, which says when a file moved: a safety read only
 
-const OLD_TABS: Record<string, string> = { fail2ban: "security", health: "machines" };   // removed tabs, now inside another one
+const OLD_TABS: Record<string, string> = { fail2ban: "security", health: "machines", history: "home" };   // removed tabs, now inside another one (#history: sub-tab of the home page)
 
 function tabFromHash(): TabId {
   const raw = location.hash.slice(1).split("/")[0];
@@ -128,8 +127,7 @@ export default function App() {
           <Profile username={snap.me.username} role={snap.me.role} email={snap.me.email ?? ""} mailReady={snap.me.mail_ready !== false} mailError={snap.me.mail_error ?? ""} avatar={snap.me.avatar ?? null} look={{ theme, setTheme, width, setWidth }} />
         </>
       ) : <Tabs tab={current} snap={snap} badges={badges} onSelect={go} onBadge={(t) => (t === "machines" ? goFilter("machines", { alert: ["bad", "warn"] }) : go(t))} />}
-      {!profile && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} />}
-      {current === "history" && <History snap={snap} />}
+      {!profile && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} sub={hash.startsWith("#history") ? "history" : "overview"} />}
       {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} onFilter={(sel) => goFilter("services", sel)} />}
       {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} />}
       {current === "infra" && <Infra snap={snap} />}

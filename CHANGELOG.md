@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+- **Home page rebuilt around three blocks** (first step of the ergonomics plan: Watch / Inventory / Configure). « To deal with now » lists every alert, red first, each with a button that opens its tab already filtered on what it talks about (« See the machine », « See the set »…), 8 lines then « See all ». « What changed since yesterday » lists the events of the last 24 h (the chart stays in History). « Missing » (administrators) names the sources that would unlock a page or a follow-up: machines online without agent or SSH, Backups / Network / DNS pages hidden for lack of a source, no notification channel; each line leads to the setting that fixes it. The header line says how many machines, services and backup sets are followed.
+- History is a sub-tab of the home page (« Overview / History »); the `#history` link still works.
+
+### Removed
+- Home page: the counters column, the grouping of alerts by category, the « rows to show » setting. The « machines without usable SSH access » orange alert moves to « Missing ».
+
 ## v0.17.0 (2026-10-19)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
