@@ -29,7 +29,7 @@ export function missing(snap: Snapshot, channels: number | null): Missing[] {
   }
   if (!snap.backups) out.push({ key: "backups", text: tx("Page Sauvegardes cachée : aucune source branchée (Freebox, Proxmox Backup, Veeam, Synology…)"), action: tx("Ajouter une source"), href: "settings/backups" });
   if (!hasNetwork(snap)) out.push({ key: "network", text: tx("Page Réseau cachée : aucun MynetworK, UniFi, Freebox ou OPNsense branché"), action: tx("Ajouter un connecteur"), href: "settings/connectors" });
-  if (!data.dns) out.push({ key: "dns", text: tx("Page DNS cachée : aucun AdGuard Home branché"), action: tx("Ajouter un connecteur"), href: "settings/connectors" });
+  if (!data.dns) out.push({ key: "dns", text: tx("Page DNS cachée : aucun serveur DNS joignable (ni outil DNS branché, ni résolveur dans le conteneur)"), action: tx("Ajouter un connecteur"), href: "settings/connectors" });
   if (channels === 0) out.push({ key: "channels", text: tx("Notifications : aucun canal, les alertes restent sur cette page"), action: tx("Choisir un canal"), href: "settings/alerts" });
   return out;
 }

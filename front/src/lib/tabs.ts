@@ -24,7 +24,7 @@ export const TABS: { id: TabId; icon: LucideIcon; label: string }[] = [
 export const INVENTORY: { id: TabId; icon: LucideIcon; label: string; hint: string }[] = [
   { id: "infra", icon: LayoutGrid, label: tx("Infra"), hint: tx("cartes des services et conteneurs") },
   { id: "virtualization", icon: Server, label: tx("Virtualisation"), hint: tx("Proxmox, ESXi, PBS") },
-  { id: "dns", icon: Network, label: tx("DNS"), hint: tx("AdGuard") },
+  { id: "dns", icon: Network, label: tx("DNS"), hint: tx("résolution des noms, AdGuard") },
   { id: "diagrams", icon: Workflow, label: tx("Schémas"), hint: "" },
 ];
 

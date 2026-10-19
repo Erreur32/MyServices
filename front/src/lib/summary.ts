@@ -85,7 +85,7 @@ export function attention({ data, health, backups }: Inputs): Attention[] {
   const reboot = (health?.hosts || []).filter((h) => h.reboot_required).map(machineOf);
   if (reboot.length) out.push({ category: "sante", level: "warn", text: tx("Redémarrage demandé sur {0}", names(reboot)), tab: "machines", action: tx("Voir les machines") });
   if (data.dns) {
-    for (const n of dnsDown(data.dns)) out.push({ category: "dns", level: "crit", text: tx("AdGuard **{0}** ne répond pas", n), tab: "dns", action: tx("Voir le DNS") });
+    for (const n of dnsDown(data.dns)) out.push({ category: "dns", level: "crit", text: tx("Le serveur DNS **{0}** ne répond pas", n), tab: "dns", action: tx("Voir le DNS") });
     const s = dnsSync(data.dns, Date.parse(data.generated));
     if (s.cls !== "ok") out.push({ category: "dns", level: s.cls === "bad" ? "crit" : "warn", text: tx("DNS AdGuard : {0}", s.label), tab: "dns", action: tx("Voir le DNS") });
     if (data.dns.orphans.length) out.push({ category: "dns", level: "warn", text: tx("{0}, sans host NPM actif ({1})", plural(data.dns.orphans.length, "réécriture AdGuard orpheline", "réécritures AdGuard orphelines"), names(data.dns.orphans.map((o) => o.domain))), tab: "dns", action: tx("Voir les réécritures") });

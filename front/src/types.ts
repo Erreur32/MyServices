@@ -122,8 +122,9 @@ export interface Machine {
 export interface DnsServer {
   name: string;
   readable: boolean;
-  rewrites: number;
+  rewrites: number | null;
   silent: number;
+  resolver?: boolean;   // a resolver of the container itself (no DNS tool wired): it answers, but holds no configuration to read
 }
 
 export interface Rewrite {
@@ -139,6 +140,8 @@ export interface Rewrite {
 
 export interface Dns {
   npm_ip?: string;
+  resolver?: { servers: string[]; search: string[] } | null;   // set when no DNS tool is wired: the resolvers asked and the search domains
+  machines?: { ip: string; name: string; state: "ok" | "ailleurs" | "absent"; answer: string[] }[];   // each followed machine's name asked to the servers
   servers: Record<string, DnsServer & { container?: string; user_rules?: number }>;
   sync?: Record<string, { container: string; origin?: string; last_done?: Record<string, string>; errors_24h?: number; errors_open?: number; last_error?: string | null; interval_min?: number; unreadable?: boolean }>;
   rewrites_diff: Rewrite[];
