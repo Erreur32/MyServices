@@ -3,7 +3,7 @@
 // under the tiles, one at a time) and « Rules », folded (copies elsewhere, searched locations, archived sets). The wizards themselves
 // (Veeam, PBS, Synology, vzdump, remote folder, Home Assistant, SSH search) do not change.
 import { Archive, ArchiveRestore, ChevronRight, Copy, FolderPen, FolderSearch, FolderTree, HardDrive, Home, Loader2, MoreHorizontal, Pencil, PenLine, ServerCog, DatabaseBackup, SlidersHorizontal, Trash2, X, type LucideIcon } from "lucide-react";
-import { Fragment, useCallback, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { NoteLine, Switch, TagInput } from "../components/form";
 import { Badge, Card, Count, Dim } from "../components/ui";
@@ -40,6 +40,18 @@ const SRC: Record<SourceId, { icon: string; Icon: LucideIcon; label: string }> =
 };
 
 const keyOf = (ip: string, path: string) => `${ip}${path}`;
+
+/** State line of a source tile that works through a connector or an account: what is followed, else why nothing is */
+function sourceState(followed: number, some: string, none: string, ready: boolean, missing: string): string {
+  if (followed) return some;
+  return ready ? none : missing;
+}
+
+/** Look of a filter chip: the one chosen, one with sets behind it, or an empty one */
+function chipLook(on: boolean, count: number): string {
+  if (on) return "border-link bg-link/15 text-txt";
+  return count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60";
+}
 
 type Issue = Backups["issues"][number];
 const ISSUE_TONE: Record<string, "warn" | "bad"> = { warn: "warn", crit: "bad", down: "bad" };
@@ -89,7 +101,10 @@ function InlineField({ value, onSave, type = "text", min, max, placeholder, labe
     <span className="inline-flex items-center gap-1">
       <input type={type} min={min} max={max} step={type === "number" ? "any" : undefined} value={v} placeholder={placeholder} aria-label={label} disabled={disabled} maxLength={40}
         className={`${input.replace("w-full", width)} py-1 text-xs ${ok ? "" : "border-bad"}`} onChange={(e) => setV(e.target.value)} onBlur={save}
-        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setV(value); (e.target as HTMLInputElement).blur(); } }} />
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); }
+          else if (e.key === "Escape") { setV(value); (e.target as HTMLInputElement).blur(); }
+        }} />
       {suffix && <span className="text-xs text-dim">{suffix}</span>}
     </span>
   );
@@ -98,11 +113,16 @@ function InlineField({ value, onSave, type = "text", min, max, placeholder, labe
 /** A one-line field opened by the row menu (rename, change the folder): Enter saves, Escape closes */
 function EditLine({ initial, label, onSave, onClose, mono = false }: Readonly<{ initial: string; label: string; onSave: (v: string) => void; onClose: () => void; mono?: boolean }>) {
   const [v, setV] = useState(initial);
+  const box = useRef<HTMLInputElement>(null);
+  useEffect(() => box.current?.focus(), []);   // the field was asked for from the row menu: the keyboard goes there
   const ok = v.trim().length > 0 && v.trim().length <= (mono ? 300 : 80);
   return (
     <span className="flex items-center gap-1.5">
-      <input autoFocus value={v} aria-label={label} className={`${input} py-1 text-xs ${mono ? "font-mono" : ""} ${ok ? "" : "border-bad"}`} onChange={(e) => setV(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter" && ok) onSave(v.trim()); if (e.key === "Escape") onClose(); }} />
+      <input ref={box} value={v} aria-label={label} className={`${input} py-1 text-xs ${mono ? "font-mono" : ""} ${ok ? "" : "border-bad"}`} onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && ok) { onSave(v.trim()); }
+          else if (e.key === "Escape") { onClose(); }
+        }} />
       <button type="button" className={`${primary} py-1`} disabled={!ok} onClick={() => onSave(v.trim())}>{tx("OK")}</button>
       <button type="button" className={`${quiet} py-1`} onClick={onClose} aria-label={tx("Annuler")}><X size={14} aria-hidden /></button>
     </span>
@@ -340,9 +360,9 @@ export function BackupsSettings({ machines = [], issues = [] }: { machines?: Mac
     { id: "ha", label: "Home Assistant", icon: "Home Assistant", Icon: Home, hint: tx("par le connecteur"), state: cur.ha.followed ? tx("{0} jeu(x)", 1) : tx("pas suivi"), missing: cur.ha.connectors.length === 0 && !cur.ha.followed, action: tx("Vérifier"), panel: <BackupsHa key={`${cur.ha.connector}|${cur.ha.connectors.join()}`} state={cur.ha} reload={load} /> },
     { id: "remote", label: tx("Dossier distant"), icon: "", Icon: FolderTree, hint: tx("FTP, FTPS, Samba"), state: tx("{0} compte(s)", (cur.remote ?? []).length) + (remoteSets ? ` · ${tx("{0} jeu(x)", remoteSets)}` : ""), action: tx("Ajouter un compte"),
       panel: <BackupsRemote accounts={cur.remote ?? []} sets={live.filter((x) => x.path && !x.vzdump && !x.remote).map((x) => ({ id: x.id, label: x.label }))} reload={load} /> },
-    { id: "veeam", label: "Veeam", icon: "Veeam", Icon: ServerCog, hint: tx("API REST"), state: veeamSets ? tx("{0} job(s) suivi(s)", veeamSets) : cur.veeam.configured ? tx("aucun job suivi") : tx("compte à saisir"), action: tx("Chercher les jobs"), panel: <BackupsVeeam key={`${cur.veeam.url}|${cur.veeam.user}`} state={cur.veeam} reload={load} /> },
-    { id: "pbs", label: "Proxmox Backup Server", icon: "Proxmox Backup Server", Icon: DatabaseBackup, hint: tx("par le connecteur"), state: cur.pbs.followed ? tx("{0} groupe(s) suivi(s)", cur.pbs.followed) : cur.pbs.connectors.length ? tx("aucun groupe suivi") : tx("connecteur absent"), missing: cur.pbs.connectors.length === 0, action: tx("Chercher"), panel: <BackupsPbs state={cur.pbs} reload={load} /> },
-    { id: "synology", label: "Synology Hyper Backup", icon: "Synology DSM", Icon: HardDrive, hint: tx("par le connecteur"), state: cur.synology?.followed ? tx("{0} tâche(s) suivie(s)", cur.synology.followed) : cur.synology?.connectors.length ? tx("aucune tâche suivie") : tx("connecteur absent"), missing: !cur.synology?.connectors.length, action: tx("Chercher"), panel: <BackupsSynology state={cur.synology ?? { connectors: [], followed: 0 }} reload={load} /> },
+    { id: "veeam", label: "Veeam", icon: "Veeam", Icon: ServerCog, hint: tx("API REST"), state: sourceState(veeamSets, tx("{0} job(s) suivi(s)", veeamSets), tx("aucun job suivi"), cur.veeam.configured, tx("compte à saisir")), action: tx("Chercher les jobs"), panel: <BackupsVeeam key={`${cur.veeam.url}|${cur.veeam.user}`} state={cur.veeam} reload={load} /> },
+    { id: "pbs", label: "Proxmox Backup Server", icon: "Proxmox Backup Server", Icon: DatabaseBackup, hint: tx("par le connecteur"), state: sourceState(cur.pbs.followed, tx("{0} groupe(s) suivi(s)", cur.pbs.followed), tx("aucun groupe suivi"), cur.pbs.connectors.length > 0, tx("connecteur absent")), missing: cur.pbs.connectors.length === 0, action: tx("Chercher"), panel: <BackupsPbs state={cur.pbs} reload={load} /> },
+    { id: "synology", label: "Synology Hyper Backup", icon: "Synology DSM", Icon: HardDrive, hint: tx("par le connecteur"), state: sourceState(cur.synology?.followed ?? 0, tx("{0} tâche(s) suivie(s)", cur.synology?.followed ?? 0), tx("aucune tâche suivie"), (cur.synology?.connectors.length ?? 0) > 0, tx("connecteur absent")), missing: !cur.synology?.connectors.length, action: tx("Chercher"), panel: <BackupsSynology state={cur.synology ?? { connectors: [], followed: 0 }} reload={load} /> },
     { id: "manual", label: tx("À la main"), icon: "", Icon: PenLine, hint: tx("un dossier que la recherche n'a pas vu"), state: cur.machines ? tx("{0} machine(s) lues par SSH", cur.machines) : tx("aucune machine lue par SSH"), missing: cur.machines === 0, action: tx("Déclarer un dossier"), panel: MANUAL },
   ].sort((a, b) => Number(!!a.missing) - Number(!!b.missing));   // the wired sources first, the ones needing a connector last
   const opened = tiles.find((t) => t.id === open);
@@ -352,7 +372,7 @@ export function BackupsSettings({ machines = [], issues = [] }: { machines?: Mac
     const src = SRC[sourceOf(s)], list = issuesOf(s.id), managed = !!(s.ha || s.veeam_job || s.pbs_group || s.synology_task);
     const editing = edit?.id === s.id ? edit.what : null, busyRow = s.id === busyId;
     const what = whatOf(s);
-    const advised = s.cadence_days ? AGES.find((d) => d >= s.cadence_days! * 1.25) ?? AGES[AGES.length - 1] : null;   // observed rhythm vs the threshold
+    const advised = s.cadence_days ? AGES.find((d) => d >= s.cadence_days! * 1.25) ?? AGES.at(-1)! : null;   // observed rhythm vs the threshold
     const detail = editing === "copies" && s.path;
     return (
       <Fragment key={s.id}>
@@ -361,12 +381,12 @@ export function BackupsSettings({ machines = [], issues = [] }: { machines?: Mac
             <div className="flex items-center gap-2">
               <SetIcon s={s} m={machineOf(s.origin_ip)} />
               <div className="min-w-0 flex-1">
-                {editing === "rename" ? <EditLine initial={s.label} label={tx("Nom")} onSave={(v) => void change(s.id, { label: v }, tx("jeu renommé"))} onClose={() => setEdit(null)} />
-                  : editing === "path" ? <EditLine initial={s.path ?? ""} label={tx("Dossier")} mono onSave={(v) => void change(s.id, { path: v }, tx("dossier modifié : relevé en cours"))} onClose={() => setEdit(null)} />
-                  : <>
-                    <b className="block truncate font-semibold" title={s.label}>{s.label}</b>
-                    {!s.label.includes(what) && <span className="block truncate font-mono text-[11px] text-dim" title={what}>{what}</span>}
-                  </>}
+                {editing === "rename" && <EditLine initial={s.label} label={tx("Nom")} onSave={(v) => void change(s.id, { label: v }, tx("jeu renommé"))} onClose={() => setEdit(null)} />}
+                {editing === "path" && <EditLine initial={s.path ?? ""} label={tx("Dossier")} mono onSave={(v) => void change(s.id, { path: v }, tx("dossier modifié : relevé en cours"))} onClose={() => setEdit(null)} />}
+                {editing !== "rename" && editing !== "path" && <>
+                  <b className="block truncate font-semibold" title={s.label}>{s.label}</b>
+                  {!s.label.includes(what) && <span className="block truncate font-mono text-[11px] text-dim" title={what}>{what}</span>}
+                </>}
               </div>
             </div>
           </td>
@@ -421,7 +441,7 @@ export function BackupsSettings({ machines = [], issues = [] }: { machines?: Mac
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {chips.map((c) => (
                   <button key={c.id} type="button" aria-pressed={filter === c.id} onClick={() => setFilter(c.id)}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${filter === c.id ? "border-link bg-link/15 text-txt" : c.n ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60"}`}>
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${chipLook(filter === c.id, c.n)}`}>
                     {c.label}<span className="font-mono text-[11px] text-dim">{c.n}</span>
                   </button>
                 ))}

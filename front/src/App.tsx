@@ -119,18 +119,21 @@ export default function App() {
   const sideId = Object.keys(SIDE_PAGES).find((k) => hash.startsWith(`#${k}`));
   const side = sideId && (!SIDE_PAGES[sideId].admin || snap.me.role === "admin") ? SIDE_PAGES[sideId] : null; // un non-admin qui tape #audit ou #logs revient à l'accueil
 
+  let top = <Tabs tab={current} snap={snap} badges={badges} onSelect={go} onBadge={(t) => (t === "machines" ? goFilter("machines", { alert: ["bad", "warn"] }) : go(t))} />;   // what sits above the content: the tab bar, or the « Back » link of a page apart
+  if (profile) top = <SidePage><Profile username={snap.me.username} role={snap.me.role} email={snap.me.email ?? ""} mailReady={snap.me.mail_ready !== false} mailError={snap.me.mail_error ?? ""} avatar={snap.me.avatar ?? null} look={{ theme, setTheme, width, setWidth }} /></SidePage>;
+  else if (side) top = <SidePage>{side.render()}</SidePage>;
+  let homeSub: "history" | "stats" | "overview" = "overview";
+  if (hash.startsWith("#history")) homeSub = "history";
+  else if (hash.startsWith("#stats")) homeSub = "stats";
+
   return (
     <div className="mx-auto max-w-[var(--content-max)] px-4 pb-10 sm:px-6">
       <ScanBar onFinished={load} />
       <Header snap={snap} theme={theme} toggleTheme={toggleTheme} now={now} current={current} />
       {error && <p className="mb-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">{tx("⚠ Mise à jour impossible :")} {error}</p>}
       <div className={GREY_CARDS}>
-      {profile ? (
-        <SidePage><Profile username={snap.me.username} role={snap.me.role} email={snap.me.email ?? ""} mailReady={snap.me.mail_ready !== false} mailError={snap.me.mail_error ?? ""} avatar={snap.me.avatar ?? null} look={{ theme, setTheme, width, setWidth }} /></SidePage>
-      ) : side ? (
-        <SidePage>{side.render()}</SidePage>
-      ) : <Tabs tab={current} snap={snap} badges={badges} onSelect={go} onBadge={(t) => (t === "machines" ? goFilter("machines", { alert: ["bad", "warn"] }) : go(t))} />}
-      {!profile && !side && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} sub={hash.startsWith("#history") ? "history" : hash.startsWith("#stats") ? "stats" : "overview"} />}
+      {top}
+      {!profile && !side && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} sub={homeSub} />}
       {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} onFilter={(sel) => goFilter("services", sel)} />}
       {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} />}
       {current === "infra" && <Infra snap={snap} />}

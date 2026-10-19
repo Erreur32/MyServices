@@ -65,7 +65,7 @@ function UpdatePill({ update }: Readonly<{ update?: { available: boolean; tag?: 
   );
 }
 
-export function Header({ snap, theme, toggleTheme, now, current }: { snap: Snapshot; theme: Theme; toggleTheme: () => void; now: number; current: TabId }) {
+export function Header({ snap, theme, toggleTheme, now, current }: Readonly<{ snap: Snapshot; theme: Theme; toggleTheme: () => void; now: number; current: TabId }>) {
   const stale = (now - new Date(snap.data.generated).getTime()) / 60000 > snap.data.page.stale_min;
   const logo = useHeaderLogo();
   return (

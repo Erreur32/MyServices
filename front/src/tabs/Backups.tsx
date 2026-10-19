@@ -11,7 +11,7 @@ import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, TableCard, Td,
 import { FoldPanel } from "../components/FoldPanel";
 import { LEVEL } from "../lib/level";
 import { Dot } from "../components/marks";
-import { quiet } from "../lib/forms";
+import { WATCH_FRAME, quiet, worstTone } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { StatTile } from "../components/StatTile";
 import { cronsOf, figures, newestOf, rank, sourceOf, toWatch, unclaimedCrons } from "../lib/backupsState";
@@ -179,7 +179,7 @@ function ByMachine({ b, initial }: Readonly<{ b: BackupsData; initial?: Selected
         <TableCard zebra foldable folded title={tx("Tâches cron de sauvegarde sans jeu suivi")} tone="info"
           note={tx("Des lignes cron trouvées sur vos machines qu'aucun jeu suivi ne réclame : peut-être une sauvegarde à déclarer dans Réglages → Sauvegardes.")}
           cols={[{ label: tx("Machine"), className: "w-[16%]" }, { label: tx("Source"), className: "w-36" }, { label: tx("Ligne") }]}
-          rows={orphans.map((c) => [<b className="font-semibold">{c.host}</b>, <Dim>{c.src ?? "cron"}</Dim>, <code className="break-all font-mono text-xs">{c.line}</code>])} />
+          rows={orphans.map((c) => [<b key="h" className="font-semibold">{c.host}</b>, <Dim key="s">{c.src ?? "cron"}</Dim>, <code key="l" className="break-all font-mono text-xs">{c.line}</code>])} />
       )}
     </div>
   );
@@ -191,7 +191,7 @@ export function Backups({ snap, initial }: Readonly<{ snap: Snapshot; initial?: 
   const sm = b.summary, fig = figures(b);
   const watch = toWatch(b.sets ?? []);
   const all = [...(b.sets ?? [])].sort((a, x) => Number(a.archived) - Number(x.archived) || rank(x.level) - rank(a.level) || a.label.localeCompare(x.label));   // archived sets last, kept visible here
-  const worstTone = watch.some((s) => s.level === "crit" || s.level === "down") ? "bad" : watch.length ? "warn" : "ok";
+  const worst = worstTone(watch.some((s) => s.level === "crit" || s.level === "down"), watch.length > 0);
   const sources = [...new Set((b.hosts ?? []).map((h) => h.kind).filter(Boolean))];
   return (
     <div className="flex flex-col gap-4 py-4">
@@ -207,10 +207,10 @@ export function Backups({ snap, initial }: Readonly<{ snap: Snapshot; initial?: 
         <StatTile n={fig.last ? dateTime(fig.last.mtime * 1000) : "-"} label={tx("Dernière archive")} sub={fig.last ? `${short(fig.last.set.label)} · ${fig.last.name}` : tx("aucune archive vue")} />
       </div>
 
-      <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${worstTone === "bad" ? "border-bad/50" : worstTone === "warn" ? "border-warn/50" : "border-ok/40"}`} aria-label={tx("À surveiller")}>
+      <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${WATCH_FRAME[worst]}`} aria-label={tx("À surveiller")}>
         <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
           <h2 className="font-bold">{tx("À surveiller")}</h2>
-          <Badge tone={worstTone === "ok" ? "ok" : worstTone}>{watch.length}</Badge>
+          <Badge tone={worst}>{watch.length}</Badge>
           <span className="ml-auto text-xs text-dim">{tx("jeux en retard, absents, en erreur ou sans copie à jour")}</span>
         </div>
         {watch.length ? <SetsTable sets={watch} b={b} snap={snap} /> : <p className="px-4 py-3 text-sm text-ok">{tx("Tous les jeux suivis sont à jour.")}</p>}

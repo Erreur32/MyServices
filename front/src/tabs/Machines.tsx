@@ -1168,7 +1168,7 @@ export function HealthSection({ h, from }: Readonly<{ h?: HealthHost; from: Orig
       <Section sec="health" icon={HeartPulse} title={tx("Santé")} tone="bad" from={from}>
         {h ? <>
           <Row k={tx("Niveau")}>
-            <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1" title={why.length ? `${tx("Pourquoi")} :\n${why.map((i) => `• ${i.text}`).join("\n")}` : undefined}>
+            <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1" title={why.length ? [tx("Pourquoi") + " :", ...why.map((i) => "• " + i.text)].join("\n") : undefined}>
               <Level level={h.reachable === false ? "down" : h.level} />
               {why.length > 0 && <span className="text-xs text-muted">{why.map((i) => i.text).join(" · ")}</span>}
             </span>

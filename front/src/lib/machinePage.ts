@@ -21,7 +21,8 @@ export function portRows(m: Machine, hosts: Host[], sheet?: AddressSheet): PortR
     const onPort = mine.filter((r) => r.port === port);
     const local = onPort.find((r) => r.type === "local") ?? onPort.find((r) => r.type !== "proxy");
     const domains = onPort.filter((r) => r.type === "proxy" && r.enabled && !r.paused).flatMap((r) => r.domains);
-    return { port, name: local ? serviceName(local) : (onPort[0] ? serviceName(onPort[0]) : null), domains: [...new Set(domains)], listening: scanned.has(port) };
+    const named = local ?? onPort[0];   // the service on this machine, else the first thing seen on the port
+    return { port, name: named ? serviceName(named) : null, domains: [...new Set(domains)], listening: scanned.has(port) };
   });
 }
 

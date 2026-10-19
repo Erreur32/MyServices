@@ -319,7 +319,7 @@ export interface BackupLocation {
   age?: number | null;
   via?: string;
   vzdump?: string | null;   // « qemu/101 »: dump of this Proxmox guest
-  role?: "source" | "copie" | string;   // where the set is produced, or a copy of it
+  role?: string;   // « source » where the set is produced, « copie » for a copy of it
   path?: string;
   detail?: string;          // what the server says of this place (« à jour avec la source », « dossier absent : … »)
   count?: number;

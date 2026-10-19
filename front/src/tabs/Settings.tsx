@@ -52,15 +52,18 @@ const ROLE_CHOICE: IconOption<User["role"]>[] = [
 
 /** The panel of the open section; Settings → System is the fallback (an unknown or old section id) */
 function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snapshot }>) {
-  const panels: Record<string, () => React.ReactNode> = {
-    accounts: () => <Accounts me={snap.me.username} />, alerts: () => <NotificationsHub />, connectors: () => <Connectors snap={snap} />,
-    machines: () => <MachinesSection snap={snap} />, network: () => <NetworkSettings snap={snap} />, updates: () => <UpdatesSettings />,
-    api: () => <div className="flex flex-col gap-4"><SystemSettings part="ssh" snap={snap} /><ApiMcp /></div>,
-    backups: () => <BackupsSettings machines={snap.data.machine_list} issues={snap.backups?.issues ?? []} />, tasks: () => <SystemSettings part="tasks" snap={snap} />,
-  };
-  // own keys only: a section read from the address (#settings/constructor…) never reaches Object's own methods
-  const panel = Object.hasOwn(panels, section) ? panels[section] : () => <SystemSettings part="system" snap={snap} />;
-  return <>{panel()}</>;
+  switch (section) {
+    case "accounts": return <Accounts me={snap.me.username} />;
+    case "alerts": return <NotificationsHub />;
+    case "connectors": return <Connectors snap={snap} />;
+    case "machines": return <MachinesSection snap={snap} />;
+    case "network": return <NetworkSettings snap={snap} />;
+    case "updates": return <UpdatesSettings />;
+    case "api": return <div className="flex flex-col gap-4"><SystemSettings part="ssh" snap={snap} /><ApiMcp /></div>;
+    case "backups": return <BackupsSettings machines={snap.data.machine_list} issues={snap.backups?.issues ?? []} />;
+    case "tasks": return <SystemSettings part="tasks" snap={snap} />;
+    default: return <SystemSettings part="system" snap={snap} />;   // an unknown or old section id
+  }
 }
 
 /** The section wanted by an id read from the address or from memory: follows a redirect (an old section, now a page apart), else a known section, else the fallback */

@@ -12,7 +12,7 @@ import { InfoNote } from "../components/InfoNote";
 import { Badge, Dim, Empty } from "../components/ui";
 import { StatTile } from "../components/StatTile";
 import { dateTime, splitHostName } from "../lib/format";
-import { quiet } from "../lib/forms";
+import { quiet, WATCH_FRAME, worstTone } from "../lib/forms";
 import { watchRows, type WatchRow } from "../lib/securityWatch";
 import { CERT_SOON } from "../components/Certificates";
 import { tx } from "../lib/i18n";
@@ -47,7 +47,7 @@ function Figures({ snap, findings, admin }: Readonly<{ snap: Snapshot; findings:
   const soon = certs.filter((c) => c.days <= CERT_SOON).length;
   const ports = findings.filter((f) => f.area === "ports").length, access = findings.filter((f) => f.area === "access");
   const n = (area: Area) => findings.filter((f) => f.area === area).length;
-  const tone = (area: Area): "ok" | "warn" | "bad" => (findings.some((f) => f.area === area && f.sev === "bad") ? "bad" : n(area) ? "warn" : "ok");
+  const tone = (area: Area) => worstTone(findings.some((f) => f.area === area && f.sev === "bad"), n(area) > 0);
   return (
     <div className="flex gap-2.5 overflow-x-auto pb-1">
       <StatTile n={sites.length} label={tx("Sites exposés")} tone={tone("sites")} sub={sites.length ? tx("{0} avec un manque · {1} « public voulu »", gaps, wanted) : tx("tous derrière une liste d'accès")} />
@@ -64,9 +64,9 @@ function Figures({ snap, findings, admin }: Readonly<{ snap: Snapshot; findings:
 /** « To watch »: one row per problem, the detail unfolding in the row with the things it covers and the way to the sub-tab or the machine */
 function Watch({ rows, open }: Readonly<{ rows: WatchRow[]; open: (s: Sub) => void }>) {
   const [on, setOn] = useState<string | null>(null);
-  const worst = rows.some((r) => r.sev === "bad") ? "bad" : rows.length ? "warn" : "ok";
+  const worst = worstTone(rows.some((r) => r.sev === "bad"), rows.length > 0);
   return (
-    <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${worst === "bad" ? "border-bad/50" : worst === "warn" ? "border-warn/50" : "border-ok/40"}`} aria-label={tx("À surveiller")}>
+    <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${WATCH_FRAME[worst]}`} aria-label={tx("À surveiller")}>
       <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
         <h2 className="font-bold">{tx("À surveiller")}</h2>
         <Badge tone={worst}>{rows.length}</Badge>
