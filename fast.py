@@ -48,27 +48,34 @@ def refresh(cfg: dict, path: Path, followed: list[str], state: dict, insts: list
 
 
 def _from_state(c, cfg: dict, entry: dict, followed: list[str], old: dict, now: float, details_every: float) -> dict | None:
-    """One live entry built from the shared reading of a connector: (its live entry), or None for a type without a light picture
-    or never read. Not ok: the last good picture stays, with the error of the last attempt."""
+    """One live entry built from the shared reading of a connector, or None for a type without a light picture or never read.
+    Not ok: the last good picture stays, with the error of the last attempt."""
     if c.type not in ("mynetwork", "beszel", "proxmox") or "tried" not in entry:
         return None
-    ok, at, last = bool(entry.get("ok")), entry.get("at") or entry.get("tried"), entry.get("last") if entry.get("ok") else None
-    cur = {"at": at, "ok": ok, "error": "" if ok else str(entry.get("message") or "")}
+    ok = bool(entry.get("ok"))
+    last = entry.get("last") if ok else None
+    cur = {"at": entry.get("at") or entry.get("tried"), "ok": ok, "error": "" if ok else str(entry.get("message") or "")}
     if c.type == "mynetwork":
-        devices = (last or {}).get("devices")
-        cur["devices"] = {d["ip"]: {k: d.get(k) for k in ("status", "ping_ms", "ports", "ports_at")} for d in devices if d.get("ip")} if isinstance(devices, list) else old.get("devices", {})
-        if ok:
-            cur["details"], cur["details_at"] = _details(c, followed, old, now, details_every)
-        else:
-            cur["details"], cur["details_at"] = old.get("details", {}), old.get("details_at")
+        cur.update(_net_entry(c, last, followed, old, now, details_every))
     elif c.type == "beszel":
-        systems = (last or {}).get("systems")
-        cur.update({"version": entry.get("version"), "version_at": entry.get("version_at"),
-                    "total": len(systems) if isinstance(systems, list) else old.get("total"),
-                    "status": _beszel_by_ip(systems, cfg) if isinstance(systems, list) else old.get("status", {})})
+        cur.update(_beszel_entry(cfg, entry, last, old))
     else:
         cur.update(_guests(last) if last else {k: old.get(k, {}) for k in ("guests", "nodes")})
     return cur
+
+
+def _net_entry(c, last: dict | None, followed: list[str], old: dict, now: float, details_every: float) -> dict:
+    devices = (last or {}).get("devices")
+    out = {"devices": {d["ip"]: {k: d.get(k) for k in ("status", "ping_ms", "ports", "ports_at")} for d in devices if d.get("ip")} if isinstance(devices, list) else old.get("devices", {})}
+    out["details"], out["details_at"] = _details(c, followed, old, now, details_every) if last is not None else (old.get("details", {}), old.get("details_at"))
+    return out
+
+
+def _beszel_entry(cfg: dict, entry: dict, last: dict | None, old: dict) -> dict:
+    systems = (last or {}).get("systems")
+    return {"version": entry.get("version"), "version_at": entry.get("version_at"),
+            "total": len(systems) if isinstance(systems, list) else old.get("total"),
+            "status": _beszel_by_ip(systems, cfg) if isinstance(systems, list) else old.get("status", {})}
 
 
 def _beszel_by_ip(systems: list[dict], cfg: dict) -> dict:

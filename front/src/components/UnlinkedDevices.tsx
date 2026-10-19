@@ -29,7 +29,7 @@ export function UnlinkedDevices({ snap, onFollowed }: Readonly<{ snap: Snapshot;
     return [...g.entries()];
   }, [untracked]);
   // « Suivre » an untracked device: added like a machine found by the network search, then read and checked (admin only)
-  const [following, setFollowing] = useState<Record<string, "busy" | "done" | string>>({});
+  const [following, setFollowing] = useState<Record<string, string>>({});   // "busy", "done" or the refusal text
   const follow = async (d: Unlinked) => {
     if (!d.ip) return;
     const ip = d.ip;

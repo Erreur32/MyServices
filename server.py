@@ -32,7 +32,6 @@ from pathlib import Path
 if __name__ == "__main__":
     sys.modules.setdefault("server", sys.modules[__name__])
 
-import connectors.base as cbase
 import fast
 import netscan
 import pulse
@@ -292,13 +291,7 @@ def fast_loop() -> None:
         t0 = time.time()
         try:
             if readers.on(CFG) and enabled("collect"):
-                read = readers.tick(CFG, Path(CFG["state_dir"]) / "connectors.json", default=CFG["fast_every"])
-                for c, st in read:
-                    if not st.ok:
-                        log(f"⚠ lecteur {c.type}/{c.name} : {st.message}")
-                if read or not last:
-                    state = cbase.load_state(Path(CFG["state_dir"]) / "connectors.json")
-                    last = fast.refresh(CFG, WEB / "live.json", pulse_ips(), state, readers.instances(CFG), last)
+                last = readers.cycle(CFG, Path(CFG["state_dir"]) / "connectors.json", WEB / "live.json", pulse_ips(), last, log)
         except Exception as e:  # a bug here must not stop the loop
             log(f"⚠ lecteurs de connecteurs : {e}")
         time.sleep(max(5.0, READERS_TICK - (time.time() - t0)))

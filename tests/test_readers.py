@@ -126,3 +126,18 @@ class Tick(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Cycle(unittest.TestCase):
+    def test_one_turn_reads_logs_and_derives_live(self):
+        logs = []
+        with tempfile.TemporaryDirectory() as d, patched([Fake("a"), Fake("b", fail=True)]):
+            state, live = Path(d) / "connectors.json", Path(d) / "live.json"
+            with mock.patch("time.time", return_value=1000):
+                last = readers.cycle({"fast_every": 300}, state, live, [], {}, logs.append)
+            self.assertEqual(last["ts"], 1000)
+            self.assertTrue(live.exists())
+            self.assertEqual(len(logs), 1)
+            self.assertIn("fake/b", logs[0])
+            with mock.patch("time.time", return_value=1100):   # nothing due: the live document is handed back as it is
+                self.assertIs(readers.cycle({"fast_every": 300}, state, live, [], last, logs.append), last)

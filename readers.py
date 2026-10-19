@@ -15,6 +15,7 @@ from pathlib import Path
 
 import connectors
 import connectors.base as cbase
+import fast
 
 KINDS = ("services", "status", "network", "security", "containers", "logs", "virtualization", "health", "backups", "dns", "inventory")
 SKIP_TYPES = {"npm", "docker", "process"}   # read by the collection itself
@@ -77,3 +78,15 @@ def recent(conn: cbase.Connector, state: dict, cfg: dict) -> tuple[dict | None, 
     if data is None:
         return None, None
     return data, cbase.status_of(conn, state)
+
+
+def cycle(cfg: dict, state_path: Path, live_path: Path, followed: list[str], last: dict, log=print) -> dict:
+    """One turn of the server loop: the due connectors are read, a failure is logged, and live.json is derived again from the
+    shared state when something was read (or never derived yet). Returns the live document to hand back at the next turn."""
+    read = tick(cfg, state_path, default=cfg["fast_every"])
+    for c, st in read:
+        if not st.ok:
+            log(f"⚠ lecteur {c.type}/{c.name} : {st.message}")
+    if read or not last:
+        last = fast.refresh(cfg, live_path, followed, cbase.load_state(state_path), instances(cfg), last)
+    return last
