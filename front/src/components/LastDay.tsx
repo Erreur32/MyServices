@@ -11,19 +11,22 @@ import { Badge } from "./ui";
 const WHO_SHOWN = 4;
 const GO = "group/go inline-flex items-center gap-1 rounded-full border border-line bg-bg2/60 px-2.5 py-1 text-xs font-semibold text-muted transition-colors hover:border-link hover:bg-link/10 hover:text-link";
 
+/** One row on a grid shared by every row: colour mark and label in a fixed first column, the names in the middle, the time on the right;
+ *  on a narrow screen the names take a line of their own under the label. */
 function Row({ row, now }: Readonly<{ row: Last24hRow; now: number }>) {
   const more = row.who.length - WHO_SHOWN;
   return (
-    <li className="flex flex-wrap items-start gap-x-3 gap-y-1.5 py-2.5">
-      <span aria-hidden className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-sm ${row.color}`} />
-      <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="flex flex-wrap items-center gap-2 font-semibold text-txt">{row.label}<Badge tone={row.severity >= 2 ? "warn" : "off"}>{row.count}</Badge>
-          <span className="ml-auto whitespace-nowrap text-xs font-normal text-dim">{sinceText(row.last, now)}</span></span>
-        <span className="flex min-w-0 flex-wrap gap-1.5 text-[13px]">
-          {row.who.slice(0, WHO_SHOWN).map((w) => <span key={w} className="max-w-[14rem] truncate rounded-md border border-line bg-bg2/60 px-1.5 py-0.5 text-muted"><Rich text={`**${w}**`} /></span>)}
-          {more > 0 && <span className="px-1 py-0.5 text-dim">{tx("+ {0} autre(s)", more)}</span>}
-        </span>
+    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 py-2.5 sm:grid-cols-[13rem_minmax(0,1fr)_6.5rem]">
+      <span className="flex min-w-0 items-center gap-2.5 font-semibold text-txt">
+        <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-sm ${row.color}`} />
+        <span className="truncate">{row.label}</span>
+        <Badge tone={row.severity >= 2 ? "warn" : "off"}>{row.count}</Badge>
       </span>
+      <span className="col-span-2 flex min-w-0 flex-wrap gap-1.5 pl-5 text-[13px] sm:col-span-1 sm:pl-0">
+        {row.who.slice(0, WHO_SHOWN).map((w) => <span key={w} className="max-w-[14rem] truncate rounded-md border border-line bg-bg2/60 px-1.5 py-0.5 text-muted"><Rich text={`**${w}**`} /></span>)}
+        {more > 0 && <span className="px-1 py-0.5 text-dim">{tx("+ {0} autre(s)", more)}</span>}
+      </span>
+      <span className="row-start-1 col-start-2 whitespace-nowrap text-right text-xs tabular-nums text-dim sm:col-start-3">{sinceText(row.last, now)}</span>
     </li>
   );
 }
