@@ -101,8 +101,6 @@ def detect(target: str) -> dict:
             m["ssh"] = alias
             roles = setup.roles(conts or [])
             m.update(roles)
-            if roles.get("npm") and not known:
-                detected.append("npm")
             if setup.is_vm(alias) and "vm" not in m:
                 m["vm"] = True
                 detected.append("vm")
@@ -132,7 +130,7 @@ def detect(target: str) -> dict:
     return {"ip": ip, "alias": alias, "up": up, "dns": dns, "hints": hints, "known": known is not None,
             "machine": m, "notes": notes, "detected": detected, "connectors": found, "web": web}
 
-REDETECT_OFF = ("vm", "npm", "gateway")  # drapeaux que la détection peut retirer ; « off » (poste souvent éteint) reste un choix de l'utilisateur
+REDETECT_OFF = ("vm", "gateway")  # drapeaux que la détection peut retirer ; « off » (poste souvent éteint) reste un choix de l'utilisateur ; « npm » est posé par la collecte, jamais proposé
 
 
 def role_tags(role: str | None) -> list[str]:
@@ -187,7 +185,7 @@ def _redetect_one(ip: str, m: dict, process_hosts: dict) -> dict:
     ssh = m.get("ssh")
     info = hostinfo.host_info(ssh) if ssh else None  # None : pas d'accès SSH ou machine muette, rien n'est retiré
     flags = set(hostinfo.detected_flags(ip, info, {**m, **({"os": out["os"]} if out["os"] else {})}))
-    out["flags_on"] = [f for f in FLAGS if f in flags and not m.get(f)]
+    out["flags_on"] = [f for f in FLAGS if f in flags and not m.get(f) and f != "npm"]
     if info is not None:  # fiable : lu par SSH et la machine répond
         out["flags_off"] = [f for f in REDETECT_OFF if m.get(f) and f not in flags]
         try:

@@ -127,7 +127,7 @@ class Redetection(unittest.TestCase):
         r, out = self.run_redetect({"10.0.0.1": {"name": "box", "ssh": "box"}}, {}, info={"virt": "kvm", "npm": True},
                                    ports={8080: {"name": "app", "lan": True}, 9000: {"name": "loc", "lan": False}})
         x = r["10.0.0.1"]
-        self.assertEqual(set(x["flags_on"]), {"gateway", "vm", "npm"})
+        self.assertEqual(set(x["flags_on"]), {"gateway", "vm"})   # « npm » is set by the collection, never proposed
         self.assertEqual(x["flags_off"], [])
         self.assertTrue(x["process"])
         self.assertEqual([p["port"] for p in x["ports"]], [8080])
@@ -136,7 +136,7 @@ class Redetection(unittest.TestCase):
     def test_drapeaux_a_eteindre_si_lu_par_ssh(self):
         m = {"name": "a", "ssh": "a", "vm": True, "npm": True, "gateway": True}
         r, _ = self.run_redetect({"10.0.0.5": m}, {}, info={"virt": None, "npm": False}, ports={}, ph={"10.0.0.5": "a"})
-        self.assertEqual(set(r["10.0.0.5"]["flags_off"]), {"vm", "npm", "gateway"})
+        self.assertEqual(set(r["10.0.0.5"]["flags_off"]), {"vm", "gateway"})
 
     def test_sans_ssh_rien_n_est_eteint(self):
         r, _ = self.run_redetect({"10.0.0.5": {"name": "a", "vm": True}}, {}, info=None)

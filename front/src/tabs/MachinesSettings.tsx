@@ -35,7 +35,6 @@ import { UnlinkedDevices } from "../components/UnlinkedDevices";
 const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
   { k: "off", label: tx("Souvent éteinte"), help: tx("PC, portable : pas d'alerte si elle ne répond pas") },
   { k: "gateway", label: tx("Passerelle"), help: tx("box / routeur : sous-titre de la page") },
-  { k: "npm", label: tx("Héberge NPM"), help: tx("sous-titre de la page") },
   { k: "npm_only", label: tx("Joignable seulement par NPM"), help: tx("pare-feu : ses services sont testés via NPM") },
   { k: "vm", label: tx("Machine virtuelle"), help: tx("pas de SMART ni de température du processeur : le disque et le processeur sont virtuels, rien de réel à lire (se coche seule si détectée)") },
 ];
@@ -105,7 +104,7 @@ export function MachinesSettings({ snap }: Readonly<{ snap: Snapshot }>) {
   );
 }
 
-const REDETECT_FLAGS: Record<string, string> = { vm: tx("Machine virtuelle"), gateway: tx("Passerelle"), npm: tx("Héberge NPM"), off: tx("Souvent éteinte") };
+const REDETECT_FLAGS: Record<string, string> = { vm: tx("Machine virtuelle"), gateway: tx("Passerelle"), off: tx("Souvent éteinte") };
 
 /** Écarts d'un item en lignes cochables : clé stable, texte, effet sur la machine (ou sur « process_hosts ») */
 function redetectChanges(r: RedetectItem): { key: string; text: string }[] {
@@ -579,7 +578,7 @@ type FlagCtx = { v: MachineConf; found: Set<string>; unlock: boolean; ss: SaveSt
 // Interrupteurs détectables (passerelle, VM, hôte NPM, poste Windows) : grisés si la détection ne les confirme pas et qu'ils
 // sont éteints. Un interrupteur déjà allumé reste modifiable (pour le retirer). Les autres (NPM seulement, services hors Docker)
 // ne se détectent pas : toujours libres.
-const DETECTABLE = ["gateway", "vm", "npm", "off"];
+const DETECTABLE = ["gateway", "vm", "off"];
 const QUICK = new Set(["off"]);   // réglages courants, montrés en haut de la carte (jamais grisés ni cachés dans le menu des options)
 
 function isLocked(k: string, ctx: FlagCtx): boolean {
