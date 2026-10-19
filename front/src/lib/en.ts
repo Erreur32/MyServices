@@ -2856,4 +2856,12 @@ export const EN: Record<string, string> = {
   "sur {0} machine(s), un réglage faible": "of {0} machine(s), a weak setting",
   "tous derrière une liste d'accès": "all behind an access list",
   "Voir dans {0}": "See in {0}",
+  // Services in state mode (2026-10-19)
+  "{0} services · {1} avec domaine · {2} locaux · {3} machines": "{0} services · {1} with a domain · {2} local · {3} machines",
+  "Avertissement": "Warning",
+  "En ligne": "Online",
+  "En panne": "Down",
+  "en panne, en avertissement ou avec un point à vérifier": "down, in warning or with a point to check",
+  "rien à confirmer": "nothing to confirm",
+  "Tous les services répondent, rien à vérifier.": "Every service answers, nothing to check.",
 };

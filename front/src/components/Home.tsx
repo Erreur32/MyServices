@@ -13,7 +13,6 @@ import { AssistantBanner } from "./AssistantBanner";
 import { DiscoveryReminder } from "./DiscoveryCard";
 import { LastDay } from "./LastDay";
 import { Missing } from "./Missing";
-import { NewServices } from "./NewServices";
 import { Rich } from "./Rich";
 import { StatsColumn } from "./StatsColumn";
 
@@ -116,7 +115,6 @@ export function Home({ snap, items, go, goFilter, now, sub = "overview" }: Reado
         {admin && <Missing snap={snap} />}
       </div>
       {admin && <DiscoveryReminder machines={snap.data.machine_list} />}
-      {admin && <NewServices generated={snap.data.generated} />}
     </div>
   );
 }

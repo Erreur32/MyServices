@@ -1,4 +1,4 @@
-// Accueil : services apparus sur les machines ces 7 derniers jours (conteneurs, process), « les suivre ? » (GET services/new).
+// Services tab (formerly on the home page): services that appeared sur les machines ces 7 derniers jours (conteneurs, process), « les suivre ? » (GET services/new).
 // Suivre = rien ne change, ils ne sont plus proposés ; ne pas suivre = en pause (ni sonde ni alerte), à reprendre depuis leur fiche.
 import { Boxes, Check, ChevronRight, Cpu, EyeOff, Package } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";

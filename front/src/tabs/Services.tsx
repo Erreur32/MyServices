@@ -1,7 +1,8 @@
-// Services : tous les services (NPM et directs) avec leur état, leur machine et leur source ; clic sur une ligne
-// = fiche détaillée dans une fenêtre (comme Machines). Sur mobile, une fiche par service.
+// Services in « state » mode: a title line, four figures, « To watch » (down, warning or with a point to check, worst first, a row
+// opens the detail window), the services newly seen on the machines (admin), then « See all » folded: every service (NPM and direct)
+// with its state, machine and source, filters, sort, « By machine »; on a phone, one card per service.
 import { foldHeaderProps } from "../lib/foldHeader";
-import { ChevronDown, ChevronRight, ExternalLink, Server } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, Layers, Server, Boxes } from "lucide-react";
 import { Fragment, useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
@@ -14,6 +15,12 @@ import { Badge, Cards, Dim, Empty, FilterBar, Table, Td, Th, type Tone } from ".
 import { ServiceDetail } from "./ServiceDetail";
 import { Overlay } from "../components/Overlay";
 import { tx } from "../lib/i18n";
+import { dateTime } from "../lib/format";
+import { FoldPanel } from "../components/FoldPanel";
+import { NewServices } from "../components/NewServices";
+import { StatTile } from "../components/StatTile";
+import { quiet, WATCH_FRAME, worstTone } from "../lib/forms";
+import { figures, liveChecks, toWatch } from "../lib/servicesState";
 
 const ST_TONE: Record<string, Tone> = { ok: "ok", warn: "warn", bad: "bad", off: "off" };
 const ST_NAME: Record<string, string> = { ok: "OK", warn: "avertissement", bad: tx("en panne"), off: tx("désactivé / non testé") };
@@ -194,7 +201,45 @@ function ServiceRow({ r, grouped, onOpen }: Readonly<{ r: Host; grouped: boolean
   );
 }
 
-export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected }) {
+/** « To watch »: the services down, in warning or with a point to check; a row opens the detail window */
+function Watch({ rows, onOpen }: Readonly<{ rows: Host[]; onOpen: (key: string) => void }>) {
+  const worst = worstTone(rows.some((r) => status(r)[0] === "bad"), rows.length > 0);
+  return (
+    <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${WATCH_FRAME[worst]}`} aria-label={tx("À surveiller")}>
+      <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
+        <h2 className="font-bold">{tx("À surveiller")}</h2>
+        <Badge tone={worst}>{rows.length}</Badge>
+        <span className="ml-auto text-xs text-dim">{tx("en panne, en avertissement ou avec un point à vérifier")}</span>
+      </div>
+      {rows.length === 0 ? <p className="px-4 py-3 text-sm text-ok">{tx("Tous les services répondent, rien à vérifier.")}</p> : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] border-collapse text-sm">
+            <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
+              <th className="px-3 py-2">{tx("Service")}</th><th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Accès")}</th><th className="px-3 py-2">{tx("État")}</th><th className="w-24 px-3 py-2" />
+            </tr></thead>
+            <tbody>
+              {rows.map((r) => {
+                const [cls, label, why] = status(r), ex = exposure(r), flags = liveChecks(r).filter((k) => k !== "down").map((k) => CHECK[k][0]), domain = declaredDomains(r)[0];
+                return (
+                  <tr key={keyOfRow(r)} className="border-t border-line/60 even:bg-bg/50 hover:bg-bg2/40">
+                    <td className="px-3 py-2"><span className="flex items-center gap-2"><ServiceLogo r={r} /><span className="min-w-0"><b className="block truncate font-semibold">{hostName(r)}</b>
+                      {domain && domain !== hostName(r) && <span className="block truncate font-mono text-[11px] text-dim">{domain}</span>}</span></span></td>
+                    <td className="px-3 py-2">{r.machine || <Dim>{tx("machine inconnue")}</Dim>}</td>
+                    <td className="px-3 py-2">{ex ? <Badge tone={EXPO[ex][0]} outline plainText title={EXPO[ex][2]}>{EXPO[ex][1]}</Badge> : <Dim>-</Dim>}</td>
+                    <td className="px-3 py-2"><Badge tone={ST_TONE[cls]} title={why}>{label}</Badge>{flags.length > 0 && <span className="ml-1.5 text-xs text-muted">{flags.join(" · ")}</span>}</td>
+                    <td className="px-3 py-2 text-right"><button type="button" onClick={() => onOpen(keyOfRow(r))} aria-haspopup="dialog" className={`${quiet} py-1`}>{tx("Détail")}</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Selected }>) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const machines = useMemo(() => new Map(snap.data.machine_list.map((m) => [m.ip, m.name])), [snap.data.machine_list]);
   const facets = useMemo((): Facet<Host>[] => [
@@ -229,8 +274,23 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
   const [grouped, setGrouped] = useGrouped(), [expanded, setExpanded] = useState<string[]>(() => (initial && Object.keys(initial).length ? groupByMachine(f.shown).map((g) => g.name) : []));   // groups are folded until opened, except when arriving with a filter (link from a machine): then they are already open
   const groups = useMemo(() => (grouped ? groupByMachine(sort.sorted) : [{ name: "", ip: "", rows: sort.sorted }]), [grouped, sort.sorted]);
 
+  const fig = figures(snap.data.hosts), watch = toWatch(snap.data.hosts), admin = snap.me.role === "admin";
+  const filtered = !!initial && Object.keys(initial).length > 0;   // came with a filter (home counter, a machine): the list is wanted open
   return (
-    <div className="py-1">
+    <div className="flex flex-col gap-4 py-4">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <h1 className="flex items-center gap-2 text-xl font-bold"><Boxes size={18} aria-hidden />{tx("Services")}</h1>
+        <span className="text-sm text-muted">{tx("{0} services · {1} avec domaine · {2} locaux · {3} machines", fig.total, fig.withDomain, fig.local, fig.machines)} · {tx("relevé du {0}, en lecture seule", dateTime(snap.data.generated))}</span>
+      </div>
+      <div className="flex gap-2.5 overflow-x-auto pb-1">
+        <StatTile n={fig.ok} label={tx("En ligne")} tone="ok" />
+        <StatTile n={fig.bad} label={tx("En panne")} tone={fig.bad ? "bad" : undefined} />
+        <StatTile n={fig.warn} label={tx("Avertissement")} tone={fig.warn ? "warn" : undefined} sub={fig.warnWhy.join(", ") || undefined} />
+        <StatTile n={fig.toCheck} label={tx("À vérifier")} tone={fig.toCheck ? "warn" : undefined} sub={fig.checkWhy.map((k) => CHECK[k][0]).join(", ") || tx("rien à confirmer")} />
+      </div>
+      <Watch rows={watch} onOpen={setOpenKey} />
+      {admin && <NewServices generated={snap.data.generated} />}
+      <FoldPanel id="services-all" icon={Layers} title={tx("Tout voir")} count={snap.data.hosts.length} startFolded={!filtered}>
       <FilterBar f={f} primary={["status", "domain", "machine"]} placeholder={tx("Domaine, IP, port, conteneur, image…")}
         side={<button type="button" onClick={() => setGrouped(!grouped)} aria-pressed={grouped} title={tx("Regrouper les services sous le nom de leur machine")}
           className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-colors ${grouped ? "border-link bg-link/15 text-txt" : "border-line text-link hover:bg-link/10"}`}>
@@ -267,6 +327,7 @@ export function Services({ snap, initial }: { snap: Snapshot; initial?: Selected
           </Cards>
         </>
       )}
+      </FoldPanel>
       {opened && (
         <Overlay wide onClose={() => setOpenKey(null)} title={<><ServiceLogo r={opened} />{hostName(opened)} <Badge tone="off">{via(opened)}</Badge></>}>
           <div className="mt-3"><ServiceDetail r={opened} admin={snap.me.role === "admin"} /></div>
