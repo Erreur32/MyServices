@@ -210,11 +210,16 @@ function relatedOf(r: Host, hosts: Host[]): Host[] {
     && ((name && h.service?.name === name) || (h.port != null && ports.has(h.port))));
 }
 
+/** Port chips stay on one line while the address and the ports fit the Target column (about 38 characters, 4 ports at most), else they wrap */
+const ONE_LINE_CHARS = 38;
+const oneLine = (ip: string | null | undefined, ports: Host[]): boolean =>
+  ports.length <= 4 && (ip ?? "").length + ports.reduce((n, p) => n + String(p.port ?? "").length + 3, 0) <= ONE_LINE_CHARS;
+
 /** The target of a service on several ports: its address, then one chip per port in the colour of that port's state; a chip opens that port's detail */
 function PortChips({ ip, ports, onPort }: Readonly<{ ip?: string | null; ports: Host[]; onPort?: (p: Host) => void }>) {
   const edge: Record<string, string> = { bad: "border-bad/60 text-bad", warn: "border-warn/60 text-warn", ok: "border-ok/40", off: "border-line text-dim" };
   return (
-    <span className={`inline-flex items-center gap-1 ${ports.length > 4 ? "flex-wrap" : "flex-nowrap"}`}>{/* one line up to 4 ports, then they wrap */}
+    <span className={`inline-flex items-center gap-1 ${oneLine(ip, ports) ? "flex-nowrap" : "flex-wrap"}`}>
       <span>{ip}</span>
       {ports.map((p) => (
         <button key={p.port} type="button" className={`shrink-0 rounded border px-1 text-[11px] leading-5 hover:border-link ${edge[status(p)[0]] ?? "border-line"}`} title={`${status(p)[1]} · ${status(p)[2]}`}
@@ -237,7 +242,7 @@ function ServiceRow({ r, ports = [r], grouped, hidden, onOpen, onPort, onEdit }:
       <Td className={`!py-1 overflow-hidden align-middle whitespace-nowrap ${edge}`}><State r={r} ck={checks(r)} source={<Badge tone="off" title={sourceTip(r)}>{via(r)}</Badge>} />{hidden && <span className="ml-1.5" title={tx("Masqué de « À surveiller » : son état reste ici")}><Badge tone="off" outline>{tx("masqué")}</Badge></span>}</Td>
       <Td className="!py-1 overflow-hidden !pl-10 align-middle"><span className="flex items-center gap-2"><Name r={r} />{ports.length > 1 && <Badge tone="info" outline>{tx("{0} ports", ports.length)}</Badge>}</span></Td>
       <Td className="!py-1 overflow-hidden whitespace-nowrap !pl-6 align-middle font-mono text-xs text-muted">
-        {ports.length > 1 ? <PortChips ip={r.ip} ports={ports} onPort={onPort} /> : targetOf(r)}
+        {ports.length > 1 ? <PortChips ip={r.ip} ports={ports} onPort={onPort} /> : <span className="block truncate" title={targetOf(r)}>{targetOf(r)}</span>}
       </Td>
       {!grouped && <Td className="!py-1 !pl-6 align-middle">{r.machine ? <><b className="font-medium">{r.machine}</b>{r.category && <span className="block text-xs text-dim">{r.category}</span>}</> : <Dim>-</Dim>}</Td>}
       <Td className="!py-1 overflow-hidden !pl-10 align-middle"><div className="flex items-center gap-2.5"><ServiceLogo r={r} /><Tech r={r} />
@@ -364,7 +369,7 @@ export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?:
       {sort.sorted.length === 0 ? <Empty>{tx("Aucun service pour ce filtre.")}</Empty> : (
         <>
           <Table fixed head={<>
-            <Th k="status" sort={sort} className={grouped ? "w-[24rem] !pl-9" : "w-80"}>{tx("État")}</Th><Th k="name" sort={sort} className="w-[30%] !pl-10">{tx("Domaine")}</Th><Th k="target" sort={sort} className="w-72 !pl-6">{tx("Cible")}</Th>
+            <Th k="status" sort={sort} className={grouped ? "w-[24rem] !pl-9" : "w-80"}>{tx("État")}</Th><Th k="name" sort={sort} className="w-[26%] !pl-10">{tx("Domaine")}</Th><Th k="target" sort={sort} className="w-80 !pl-6">{tx("Cible")}</Th>
             {!grouped && <Th k="machine" sort={sort} className="w-[16%] !pl-6">{tx("Machine")}</Th>}<Th k="kind" sort={sort} className="!pl-10">{tx("Service")}</Th>
           </>}>
             {groups.map((g) => (
