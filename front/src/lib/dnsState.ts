@@ -42,7 +42,9 @@ export function dnsWatch(g: Dns, hosts: Host[], at = Date.now()): DnsRow[] {
   if (sync.cls === "bad") out.push({ key: "sync", sev: "bad", area: tx("Synchro"), title: sync.label, detail: Object.values(g.sync ?? {})[0]?.last_error?.split("\t")[0] ?? "", anchor: "servers" });
   for (const r of hosts.filter((x) => x.enabled && x.dns?.issues.length)) {
     const kinds = r.dns!.issues.map((i) => String(i[0]));
-    out.push({ key: `host/${r.type}${r.id}`, sev: kinds.includes("absent") ? "bad" : "warn", area: tx("Domaine"), title: hostName(r), detail: kinds.map((k) => ISSUE[k] ?? k).join(" · "), anchor: "domains" });
+    // the domain each issue is about: a host with several names can fail on its second one while the title shows the first
+    const detail = r.dns!.issues.map(([k, name]) => (typeof name === "string" && name ? `${ISSUE[k] ?? k} : ${name}` : ISSUE[k] ?? k)).join(" · ");
+    out.push({ key: `host/${r.type}${r.id}`, sev: kinds.includes("absent") ? "bad" : "warn", area: tx("Domaine"), title: hostName(r), detail, anchor: "domains" });
   }
   const elsewhere = (g.machines ?? []).filter((m) => m.state === "ailleurs");
   for (const m of elsewhere) out.push({ key: `m/${m.ip}`, sev: "warn", area: tx("Machine"), title: m.name, detail: tx("son nom résout vers {0}, pas vers {1}", m.answer.join(", "), m.ip), anchor: "machines" });

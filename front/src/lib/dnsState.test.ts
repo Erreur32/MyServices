@@ -14,6 +14,10 @@ describe("DNS in state mode", () => {
     expect([f.domains, f.domainsOk, f.servers, f.serversUp, f.rewrites, f.diff]).toEqual([2, 1, 1, 1, null, 0]);
     expect(dnsWatch(d, hosts).map((r) => [r.sev, r.title])).toEqual([["bad", "h2.lan"], ["warn", "pc"]]);
   });
+  it("a host with several names: the detail names the one that fails, not only the title (its first name)", () => {
+    const hosts = [host(3, [["absent", "way.example.info"]])];
+    expect(dnsWatch(g({}), hosts)[0].detail).toBe("ne résout pas : way.example.info");
+  });
   it("AdGuard: a silent instance and the differences between instances, red first", () => {
     const d = g({ servers: { "10.0.0.2": { name: "A", readable: true, rewrites: 10, silent: 0 }, "10.0.0.3": { name: "B", readable: true, rewrites: 9, silent: 2 } },
       rewrites_diff: [{ domain: "x.lan", answer: "10.0.0.1", only: "10.0.0.2" }, { domain: "y.lan", answer: "10.0.0.1", only: "10.0.0.2", waiting: true }] });
