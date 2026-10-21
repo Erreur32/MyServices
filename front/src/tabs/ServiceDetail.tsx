@@ -112,10 +112,10 @@ function RelatedRow({ related, onOpen }: Readonly<{ related: Host[]; onOpen?: (h
 function identRows(r: Host, ports: Host[], related: Host[], onOpen?: (h: Host) => void): Row[] {
   const s = r.service, ck = checks(r), desc = r.description || s?.description;
   return [
-    ...optRows(ck.length, [[tx("À vérifier"), <ul className="flex flex-col gap-0.5">{ck.map((k) => <li key={k}><b className="text-warn">⚑ {CHECK[k][0]}</b> <span className="text-dim">{CHECK[k][1]}</span></li>)}</ul>]]),
+    ...optRows(ck.length, [[tx("À vérifier"), <ul key="checks" className="flex flex-col gap-0.5">{ck.map((k) => <li key={k}><b className="text-warn">⚑ {CHECK[k][0]}</b> <span className="text-dim">{CHECK[k][1]}</span></li>)}</ul>]]),
     ["Domaines", r.domains.join(", ") || "-", r.domains.length ? undefined : "mut"],
-    ...optRows(ports.length > 1, [[tx("Ports"), <PortsRow r={r} ports={ports} onOpen={onOpen} />]]),
-    ...optRows(related.length, [[tx("Associé à"), <RelatedRow related={related} onOpen={onOpen} />]]),
+    ...optRows(ports.length > 1, [[tx("Ports"), <PortsRow key="ports" r={r} ports={ports} onOpen={onOpen} />]]),
+    ...optRows(related.length, [[tx("Associé à"), <RelatedRow key="related" related={related} onOpen={onOpen} />]]),
     [tx("Catégorie"), [r.category, ...(r.tags || [])].filter(Boolean).join(" · ") || "-"],
     ["Description", desc || "-", desc ? undefined : "mut"],
     [tx("Titre de page"), r.page_title || "-", r.page_title ? undefined : "mut"],
@@ -128,7 +128,10 @@ function identRows(r: Host, ports: Host[], related: Host[], onOpen?: (h: Host) =
 /** The « Service » line: what runs behind, or why there is nothing to identify */
 function serviceLine(r: Host): [string, Tone] {
   const s = r.service;
-  if (s?.name) return [`${KIND_NAME[s.kind] || s.kind} · ${s.name}${s.stale ? ` (${tx("dernière identification connue")})` : ""}`, s.stale ? "mut" : undefined];
+  if (s?.name) {
+    const stale = s.stale ? ` (${tx("dernière identification connue")})` : "";
+    return [`${KIND_NAME[s.kind] || s.kind} · ${s.name}${stale}`, s.stale ? "mut" : undefined];
+  }
   const none = noIdentity(r);
   return [none ?? tx("non identifié"), none ? "mut" : "warn"];
 }
