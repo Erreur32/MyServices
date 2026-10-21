@@ -9,5 +9,7 @@ export const tipAction = (text: string): string => `${OPEN}${text}${CLOSE}`;
 export function splitAction(tip: string): [string, string | undefined] {
   const i = tip.lastIndexOf("\n"), last = tip.slice(i + 1);
   if (!last.startsWith(OPEN) || !last.endsWith(CLOSE) || last.length <= OPEN.length + CLOSE.length) return [tip, undefined];
-  return [i < 0 ? "" : tip.slice(0, i).replace(/\n+$/, ""), last.slice(OPEN.length, -CLOSE.length)];
+  let end = Math.max(i, 0);
+  while (end > 0 && tip[end - 1] === "\n") end--;   // the blank lines before the action are dropped
+  return [tip.slice(0, end), last.slice(OPEN.length, -CLOSE.length)];
 }
