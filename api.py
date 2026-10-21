@@ -1014,7 +1014,7 @@ def network_diagnostics_route():
                 for m in data.get("machine_list") or [] if not m.get("disabled")]
     items = nd.mark_accepted(nd.findings(doc["devices"], clients, scan, machines), nd.accepted_keys(_diag_accepted_file()))
     return {"source": doc["source"], "at": doc["at"], "error": doc["error"], "devices": len(doc["devices"]), "summary": nd.summary(items), "findings": items,
-            "ok_ports": nd.ok_ports(doc["devices"], clients, items, machines)}
+            "ok_ports": nd.ok_ports(doc["devices"], clients, items, machines), "sfp": nd.sfp_modules(doc["devices"]), "port_errors": nd.port_errors(doc["devices"])}
 
 
 @app.get(API + "/connectors/requests", tags=["connecteurs"], summary="Request counters per connector and route since the server started (admin)")
