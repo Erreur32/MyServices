@@ -22,13 +22,15 @@ import { ViewToggle, useStoredView } from "../components/ViewToggle";
 import { Dot } from "../components/marks";
 import { LEVEL } from "../lib/level";
 import { rolesOf } from "../lib/ssh";
+import { tipAction } from "../lib/tip";
+import { isHidden, useServicesHidden, type HiddenMap } from "../lib/servicesHidden";
 import { SshAccess } from "../components/ssh";
 import { SourceBadges } from "../components/SourceBadges";
 import { DetailRow, DetailSection } from "../components/DetailSection";
 import { primary } from "../lib/forms";
 import { WATCH_SECTION, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
-import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Table, Td, Th, type Tone } from "../components/ui";
+import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Pct, Table, Td, Th, type Tone } from "../components/ui";
 import { tx } from "../lib/i18n";
 import { hardwareRows } from "../lib/hardware";
 
@@ -139,7 +141,7 @@ export function ResCell({ h, what }: { h?: HealthHost; what: "cpu" | "mem" }) {
   const v = what === "cpu" ? h?.res?.cpu_pct : h?.res?.mem_pct;
   if (!h?.res?.available || v == null) return <Dim>-</Dim>;
   const tone = what === "mem" && v >= 97 ? "text-bad" : (what === "mem" && v >= 90) || (what === "cpu" && v >= 90) ? "text-warn" : "text-ok";
-  return <b className={tone} title={what === "mem" && h.res?.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} Go` : undefined}>{Math.round(v)} %</b>;
+  return <b className={tone} title={what === "mem" && h.res?.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} Go` : undefined}><Pct value={Math.round(v)} /></b>;
 }
 type MeterTone = "ok" | "warn" | "bad";
 const METER_TEXT: Record<MeterTone, string> = { ok: "text-txt", warn: "font-bold text-warn", bad: "font-bold text-bad" };   // plain when fine, bold and coloured only when it needs a look
@@ -153,7 +155,7 @@ function Meter({ pct, tone, hint, title, unit = "%" }: Readonly<{ pct: number; t
   return (
     <div className="w-[7rem]" title={title}>
       <div className="flex items-baseline justify-between gap-1 leading-tight">
-        <span className={`shrink-0 whitespace-nowrap text-xs tabular-nums ${METER_TEXT[tone]}`}>{Math.round(pct)} {unit}</span>
+        <span className={`shrink-0 text-xs ${METER_TEXT[tone]}`}><Pct value={Math.round(pct)} unit={unit} /></span>
         {hint && <span className="min-w-0 truncate font-mono text-[10px] text-dim">{hint}</span>}
       </div>
       <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-bg2"><GradientFill pct={pct} /></span>
@@ -249,7 +251,7 @@ function AlertDot({ items, children }: Readonly<{ items: WatchItem[]; children: 
 }
 
 /** The tooltip of a notice, in the tooltip layer's own layout: its sentence as the heading, the messages behind it as code lines (time dimmed), then a hint */
-const MAX_TIP_LINES = 5;
+const MAX_TIP_LINES = 6;
 const plain = (t: string) => t.replace(/[`*[\]]/g, "").slice(0, 120);
 function watchTip(it: WatchItem, hint?: string): string {
   const all = it.detail ?? [], lines = all.slice(0, MAX_TIP_LINES).map((l) => {
@@ -258,11 +260,13 @@ function watchTip(it: WatchItem, hint?: string): string {
     return `${when ? `[[off:${plain(when)}]] ` : ""}\`${plain(msg)}\``;
   });
   const more = all.length > MAX_TIP_LINES ? [tx("… et {0} autres", all.length - MAX_TIP_LINES)] : [];
-  return [it.text, ...lines, ...more, ...(hint ? ["", `[[off:${hint}]]`] : [])].join("\n");
+  return [it.text, ...lines, ...more, ...(hint ? [tipAction(hint)] : [])].join("\n");
 }
 
 /** A virtual machine (Proxmox / ESXi guest, flagged or seen by the health check): a small cube beside its name */
 const isVm = (m: Machine, h?: HealthHost): boolean => !!(m.links?.guest || m.detected?.includes("vm") || h?.smart?.vm || h?.temp?.virt);
+/** The name of a virtual machine is underlined with dashes, its cube in front */
+const vmName = (m: Machine, h?: HealthHost): string => (isVm(m, h) ? "underline decoration-link/70 decoration-dashed underline-offset-4" : "");
 function VmMark({ m, h }: Readonly<{ m: Machine; h?: HealthHost }>) {
   if (!isVm(m, h)) return null;
   const g = m.links?.guest;
@@ -317,9 +321,10 @@ function GpuCellView({ list }: Readonly<{ list: GpuCell[] }>) {
         <span key={`${g.name}-${i}`} className="flex flex-col text-xs leading-tight" title={gpuTip(g)} tabIndex={0}>
           <span className="flex items-baseline gap-2">
             <span className="truncate font-medium">{shortGpu(g.name)}</span>
-            {g.util != null && <span className="shrink-0 tabular-nums text-muted">{Math.round(g.util)} %</span>}
-            {g.temp != null && <span className={`shrink-0 tabular-nums ${heatClass(g.temp)}`}>{Math.round(g.temp)} °C</span>}
+            {g.util != null && <span className="shrink-0 text-muted"><Pct value={Math.round(g.util)} /></span>}
+            {g.temp != null && <span className={`shrink-0 ${heatClass(g.temp)}`}><Pct value={Math.round(g.temp)} unit="°C" /></span>}
           </span>
+          {g.util != null && <span className="my-0.5 block h-1.5 w-[7rem] overflow-hidden rounded-full bg-bg2"><GradientFill pct={g.util} /></span>}
           {(g.memTotal || g.power != null || g.models.length > 0) && (
             <span className="flex items-center gap-2 text-[11px] text-dim">
               {g.memTotal ? <span className="shrink-0 tabular-nums">{gb(g.memUsed ?? 0)} / {gb(g.memTotal)}</span> : null}
@@ -346,13 +351,18 @@ function WatchList({ items, wrap = false, quiet = false, ip }: Readonly<{ items:
   if (!items.length && quiet) return null;
   if (!items.length) return <span className="inline-flex items-center gap-1 text-xs text-ok" title={tx("Rien à surveiller")}><Check size={14} aria-hidden />{wrap && tx("Rien à surveiller")}</span>;
   return (
-    <div className="flex flex-wrap items-center gap-1" role="list" aria-label={tx("À surveiller")}>{/* tout est montré, jamais caché : les pastilles passent à la ligne */}
-      {items.map((it, i) => {
+    <ul className="flex flex-wrap items-center gap-1" aria-label={tx("À surveiller")}>{/* tout est montré, jamais caché : les pastilles passent à la ligne */}
+      {items.map((it) => {
         const Icon = WATCH_ICON[it.kind], cls = `grid h-6 w-6 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`;
-        if (ip && pick) return <button key={i} type="button" role="listitem" title={watchTip(it, tx("Cliquer pour voir où"))} aria-label={it.text} onClick={() => pick(ip, it.kind)} className={`${cls} hover:brightness-125`}><Icon size={14} aria-hidden /></button>;
-        return <span key={i} role="listitem" tabIndex={0} title={watchTip(it)} className={cls}><Icon size={14} aria-hidden /></span>;
+        return (
+          <li key={`${it.kind}:${it.text}`} className="flex">
+            {ip && pick
+              ? <button type="button" title={watchTip(it, tx("Clic sur la pastille : la fiche, à cet endroit"))} aria-label={it.text} onClick={() => pick(ip, it.kind)} className={`${cls} hover:brightness-125`}><Icon size={14} aria-hidden /></button>
+              : <span role="img" title={watchTip(it)} aria-label={it.text} className={cls}><Icon size={14} aria-hidden /></span>}
+          </li>
+        );
       })}
-    </div>
+    </ul>
   );
 }
 /** Scrolls the machine window to what explains a notice (the exact row when there is one, else its section) and makes it flash */
@@ -364,31 +374,30 @@ function showWatch(root: HTMLElement | null, kind: WatchKind) {
   setTimeout(() => el.classList.remove("ring-2", "ring-warn", "animate-pulse"), 2600);
 }
 function WatchSummary({ items, onShow }: { items: WatchItem[]; onShow?: (kind: WatchKind) => void }) {
+  if (!items.length) return null;   // nothing to watch: no block
   const count = (t: WatchTone) => items.filter((i) => i.tone === t).length;
   return (
     <details open={worst(items) >= 2} className="group rounded-lg border border-line/60 bg-card/60 p-3 text-xs sm:col-span-2 xl:col-span-3">
       <summary className="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-dim [&::-webkit-details-marker]:hidden">
         <ChevronRight size={13} className="shrink-0 transition-transform group-open:rotate-90" aria-hidden /><Eye size={13} aria-hidden />{tx("À surveiller")}
         <span className="ml-auto flex items-center gap-1.5 normal-case tracking-normal">
-          {items.length === 0 ? <Badge tone="ok">{tx("rien")}</Badge> : (["bad", "warn", "info"] as WatchTone[]).filter(count).map((t) => <Badge key={t} tone={t === "info" ? "info" : t}>{count(t)}</Badge>)}
+          {(["bad", "warn", "info"] as WatchTone[]).filter(count).map((t) => <Badge key={t} tone={t === "info" ? "info" : t}>{count(t)}</Badge>)}
         </span>
       </summary>
-      {items.length === 0 ? <p className="mt-2 text-ok">{tx("Rien à surveiller sur cette machine.")}</p> : (
-        <ul className="mt-2 flex flex-col gap-1.5">
-          {items.map((it, i) => {
-            const Icon = WATCH_ICON[it.kind];
-            return (
-              <li key={i} className="flex items-start gap-2">
-                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`}><Icon size={13} aria-hidden /></span>
-                <span className="min-w-0 flex-1 pt-0.5 text-muted">{it.text}
-                  {it.detail?.length ? <KernelLines lines={it.detail.slice(0, 4)} /> : null}
-                </span>
-                {onShow && <button type="button" onClick={() => onShow(it.kind)} title={tx("Voir où dans cette fenêtre")} aria-label={tx("Voir où dans cette fenêtre")} className="shrink-0 rounded p-1 text-dim hover:text-txt"><Crosshair size={13} aria-hidden /></button>}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <ul className="mt-2 flex flex-col gap-1.5">
+        {items.map((it, i) => {
+          const Icon = WATCH_ICON[it.kind];
+          return (
+            <li key={i} className="flex items-start gap-2">
+              <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`}><Icon size={13} aria-hidden /></span>
+              <span className="min-w-0 flex-1 pt-0.5 text-muted">{it.text}
+                {it.detail?.length ? <KernelLines lines={it.detail.slice(0, 4)} /> : null}
+              </span>
+              {onShow && <button type="button" onClick={() => onShow(it.kind)} title={tx("Voir où dans cette fenêtre")} aria-label={tx("Voir où dans cette fenêtre")} className="shrink-0 rounded p-1 text-dim hover:text-txt"><Crosshair size={13} aria-hidden /></button>}
+            </li>
+          );
+        })}
+      </ul>
     </details>
   );
 }
@@ -597,7 +606,7 @@ function BigLogsRow({ logs }: Readonly<{ logs: NonNullable<HealthHost["logs"]> }
 
 function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
   const bar = (label: string, pct: number | undefined, extra?: string) => pct == null ? null : (
-    <DetailRow key={label} k={label} title={label}><Fill pct={pct} /><span className="tabular-nums">{Math.round(pct)} %</span>{extra && <Dim>{extra}</Dim>}</DetailRow>
+    <DetailRow key={label} k={label} title={label}><Fill pct={pct} /><Pct value={Math.round(pct)} />{extra && <Dim>{extra}</Dim>}</DetailRow>
   );
   return (
     <>
@@ -642,7 +651,7 @@ export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine
   return (
     <Section sec="share" icon={FolderOpen} title={tx("Partage")} tone={worst >= 2 ? "bad" : "link"} from={from}>
       <Row k={tx("Copies hébergées")}>{hosted.length ? tx("{0} jeu(x)", hosted.length) : <Dim>{tx("aucune")}</Dim>}</Row>
-      {disk && <Row k={tx("Espace")}><Fill pct={disk.pct} /><span className="tabular-nums">{disk.pct} %</span><Dim>{bytes(disk.avail)} {tx("libres")} · {disk.mount}</Dim></Row>}
+      {disk && <Row k={tx("Espace")}><Fill pct={disk.pct} /><Pct value={disk.pct} /><Dim>{bytes(disk.avail)} {tx("libres")} · {disk.mount}</Dim></Row>}
       {hosted.length > 0 && (
         <Row k={tx("Détail")}>
           <ConsoleBox cols="minmax(0,1fr) auto auto">
@@ -1208,9 +1217,10 @@ function ProblemFlag({ h }: Readonly<{ h?: HealthHost }>) {
   return <span className="text-xs text-warn" title={[tx("{0} mise(s) à jour en attente", n), names].filter(Boolean).join("\n")}>⚑ {n}</span>;
 }
 
-function HealthLevel({ m, h, followed }: Readonly<{ m: Machine; h?: HealthHost; followed: boolean }>) {
+function HealthLevel({ m, h, followed, pills = false }: Readonly<{ m: Machine; h?: HealthHost; followed: boolean; pills?: boolean }>) {   // pills: the cause pills follow in the cell
   if (h) {
     const key = levelKey(h), [tone, label] = LEVEL[key] ?? ["off", key], items = key === "ok" ? [] : healthItems(h);
+    if (key === "warn" && pills) return null;   // « à surveiller » is what the orange and blue pills already say; kept only when there is none
     // not OK: the tooltip says why (the same sentences as the « À surveiller » column)
     const title = items.length ? [label.charAt(0).toUpperCase() + label.slice(1), ...items.map((i) => `• ${i.text}`)].join("\n") : undefined;
     return <Badge tone={tone} title={title} outline={key === "warn"} plainText={key === "warn"}>{label}</Badge>;   // « à surveiller »: outline only
@@ -1222,18 +1232,37 @@ function HealthLevel({ m, h, followed }: Readonly<{ m: Machine; h?: HealthHost; 
   return <Badge tone="off" title={tx("Pas de santé relevée : ni SSH, ni agent, ni Beszel, ni Home Assistant pour cette machine")}>{tx("non suivie")}</Badge>;
 }
 
-/** Services of a machine that are down, each with its problem: the tooltip of the red count */
-function downOf(m: Machine, hosts: Host[]): string[] {
-  return hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.enabled && status(r)[0] === "bad")
-    .map((r) => [r.domains?.[0] || r.service?.name || [r.ip, r.port].join(":"), status(r)[2]].join(" : "));
+/** Services of a machine that are down (or, with "warn", that have a problem), those hidden from « To watch » left out (with how many) */
+function troubleOf(m: Machine, hosts: Host[], hidden: HiddenMap, cls: "bad" | "warn" = "bad"): { list: string[]; hidden: number } {
+  const mine = hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.enabled && status(r)[0] === cls);
+  const shown = mine.filter((r) => !isHidden(r, hidden));
+  return { list: shown.map((r) => [r.domains?.[0] || r.service?.name || [r.ip, r.port].join(":"), status(r)[2]].join(" : ")), hidden: mine.length - shown.length };
 }
 
-/** Red count of the services down on a machine; what fails is in the tooltip */
-function DownBadge({ m, snap }: Readonly<{ m: Machine; snap: Snapshot }>) {
-  if (!m.down) return null;
-  const list = downOf(m, snap.data.hosts);
-  const tip = [tx("{0} en panne", m.down), ...list].join("\n");
-  return <span className="rounded-md border border-bad/50 bg-bad/10 px-1.5 py-px text-[11px] font-semibold tabular-nums text-bad" title={tip}>{m.down}</span>;
+/** The machine as « To watch » sees it: its services down minus those hidden there, each with its problem */
+function withShownDown(m: Machine, hosts: Host[], hidden: HiddenMap): [Machine, string[]] {
+  const down = troubleOf(m, hosts, hidden);
+  return [down.hidden ? { ...m, down: Math.max(0, m.down - down.hidden) } : m, down.list];
+}
+
+const MAX_SVC_LINES = 8;
+/** Services of a machine: the total, then +N in red (down) and +N in orange (a problem); which ones in the tooltip. onOpen: the whole count opens its services */
+function ServiceCount({ m, snap, onOpen }: Readonly<{ m: Machine; snap: Snapshot; onOpen?: () => void }>) {
+  const hiddenMap = useServicesHidden();
+  const [shownM, down] = withShownDown(m, snap.data.hosts, hiddenMap), nDown = shownM.down;
+  const { list: warn, hidden: warnHidden } = troubleOf(m, snap.data.hosts, hiddenMap, "warn");
+  const nHidden = m.down - nDown + warnHidden;
+  const rows = [...down.map((l) => `[[bad:${tx("panne")}]]\t${l}`), ...warn.map((l) => `[[warn:${tx("souci")}]]\t${l}`)];
+  const more = rows.length > MAX_SVC_LINES ? [tx("… et {0} autres", rows.length - MAX_SVC_LINES)] : [];
+  const head = [tx("{0} services", m.services), nDown ? tx("{0} en panne", nDown) : "", warn.length ? tx("{0} à souci", warn.length) : ""].filter(Boolean).join(" · ");
+  const tip = [head, ...rows.slice(0, MAX_SVC_LINES), ...more, ...(nHidden ? [`[[off:${tx("{0} masqué(s) de « À surveiller »", nHidden)}]]`] : []), ...(onOpen ? [tipAction(tx("Clic : liste des services de {0}", m.name))] : [])].join("\n");
+  const inner = <>
+    <span className="tabular-nums group-hover:text-link">{m.services}</span>
+    {nDown > 0 && <span className="text-xs font-semibold tabular-nums text-bad">+{nDown}</span>}
+    {warn.length > 0 && <span className="text-xs font-semibold tabular-nums text-warn">+{warn.length}</span>}
+  </>;
+  if (!onOpen) return <span className="inline-flex items-baseline gap-1.5" title={tip}>{inner}</span>;
+  return <button type="button" onClick={onOpen} title={tip} aria-label={tx("Voir les services de {0}", m.name)} className="group inline-flex items-baseline gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-link/10">{inner}</button>;
 }
 
 /** Compact machine card: who, state, system, figures, servers and what to watch; « Details » unfolds the same detail as the table,
@@ -1248,8 +1277,8 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
     <div className={`flex flex-col gap-2.5 overflow-hidden rounded-xl border border-l-[3px] border-line bg-card p-3 transition-colors hover:border-link/50 ${edge} ${shown ? "col-span-full" : ""} ${off ? "opacity-50" : ""}`}>
       <div className="-mx-3 -mt-3 flex items-center gap-2.5 border-b border-line/60 bg-bg px-3 py-2.5">
         <AlertDot items={watch}><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifi) }} scan={scan} reserve /></AlertDot>
-        <button type="button" onClick={() => onMachine(m.ip)} className="min-w-0 flex-1 text-left" title={tx("Voir ses services")}>
-          <b className="flex items-center gap-1.5 truncate font-semibold hover:text-link"><span className="truncate">{m.name}</span><VmMark m={m} h={h} /></b>
+        <button type="button" onClick={() => onMachine(m.ip)} className="min-w-0 flex-1 text-left" title={tipAction(tx("Clic : liste des services de {0}", m.name))}>
+          <b className="flex items-center gap-1.5 truncate font-semibold hover:text-link"><VmMark m={m} h={h} /><span className={`truncate ${vmName(m, h)}`}>{m.name}</span></b>
           <span className="block truncate font-mono text-[11px] text-dim">{m.ip}</span>
         </button>
         {state}
@@ -1260,7 +1289,7 @@ function MachineCard({ m, h, snap, scan, os, watch, ha, unifi, off, state, shown
         <UpdatesChip h={h} />
         {rolesOf(m.role).slice(0, 1).map((t) => <span key={t} className="ml-auto min-w-0 truncate rounded border border-line px-1.5 py-px text-[11px] text-dim" title={m.role}>{t}</span>)}
       </div>
-      <ResStrip h={h} first={<Stat label={tx("Services")}><span className="inline-flex items-center gap-1"><b>{m.services}</b><DownBadge m={m} snap={snap} /></span></Stat>} />
+      <ResStrip h={h} first={<Stat label={tx("Services")}><b><ServiceCount m={m} snap={snap} /></b></Stat>} />
       <div className="flex min-h-7 items-center justify-between gap-2">
         {ha?.addons?.length ? <AddonStrip s={ha} max={6} /> : <Servers m={m} snap={snap} max={4} />}{/* Home Assistant: its add-ons stand for the servers */}
         <WatchList ip={m.ip} items={watch} />
@@ -1301,10 +1330,12 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   }), []);
   const anyGpu = useMemo(() => snap.data.machine_list.some((m) => !m.disabled && gpusOf(m, hb.get(m.ip)).length > 0), [snap.data.machine_list, hb]);   // the column exists only when some machine has a GPU to show
   const ignoreCtx = useMemo(() => ({ ignored, set: setIgnore }), [ignored, setIgnore]);
+  const hiddenSvc = useServicesHidden();   // a service hidden from « To watch » no longer counts here either
   const watchOf = useCallback((m: Machine) => {
-    const h = hb.get(m.ip), items = watchItems(m, h, snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m), downOf(m, snap.data.hosts));
+    const h = hb.get(m.ip), [shownM, downList] = withShownDown(m, snap.data.hosts, hiddenSvc);
+    const items = watchItems(shownM, h, snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m), downList);
     return h && ignored[h.id] === kernelSig(h.kernel?.samples) ? items.filter((i) => i.kind !== "kernel") : items;   // set aside by the viewer, until a newer message
-  }, [hb, snap.data.connectors, snap.data.network, snap.data.hosts, unifiOf, ignored]);
+  }, [hb, snap.data.connectors, snap.data.network, snap.data.hosts, unifiOf, ignored, hiddenSvc]);
   const facets = useMemo((): Facet<Machine>[] => [
     { key: "state", label: tx("État"), get: mState, name: (v) => MSTATE[v as MState][1], order: ORDER, mark: (v) => <Dot tone={MSTATE[v as MState][0]} /> },
     { key: "health", label: tx("Santé"), get: (m) => { const h = hb.get(m.ip); return h ? (h.reachable === false ? "down" : h.level) : ""; },
@@ -1339,10 +1370,10 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
       case "mem": return -(hb.get(m.ip)?.res?.mem_pct ?? -1);
       case "disk": return -(topDisk(hb.get(m.ip))?.used_pct ?? -1);
       case "gpu": return -Math.max(-1, ...gpusOf(m, hb.get(m.ip)).map((g) => g.util ?? 0));   // the most used GPU of the machine
-      case "watch": { const it = watchItems(m, hb.get(m.ip), snap.data.connectors ?? [], !!freeboxOf(m, snap.data.network) || !!unifiOf(m), downOf(m, snap.data.hosts)); return -(worst(it) * 100 + it.length); }   // le plus grave d'abord
+      case "watch": { const it = watchOf(m); return -(worst(it) * 100 + it.length); }   // le plus grave d'abord
       default: return ipNum(m.ip);
     }
-  }, [hb, snap.data.connectors, snap.data.services_status]);
+  }, [hb, snap.data.network, snap.data.services_status, unifiOf, watchOf]);
   const sort = useSort(f.shown, keyOf, "ip");
   // Tableau sur une seule ligne par machine ; un clic sur le chevron (ou « Tout déplier ») montre le détail
   const [focus, setFocus] = useState<{ kind: WatchKind; n: number } | null>(null);   // the notice whose section the opened window shows
@@ -1392,7 +1423,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
             {admin && <th className="w-8 px-1" aria-label={tx("Réglages")} />}
           </>}>
             {sort.sorted.map((m) => {
-              const h = hb.get(m.ip);
+              const h = hb.get(m.ip), pills = watchOf(m).filter((i) => i.kind !== "updates");
               return (
                 <Fragment key={m.ip}>
                   <tr className={`cursor-pointer outline-none even:bg-bg/50 hover:!bg-bg2/60 focus-visible:!bg-bg2/60 [&>td]:!py-3.5 ${isOff(m) ? "opacity-50" : ""}`}
@@ -1400,16 +1431,14 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                     onClick={(e) => { if (!(e.target as Element).closest("button, a, input, select, label, summary, [role=button]")) openPage(m.ip); }}
                     onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) openPage(m.ip); }}>{/* toute la ligne ouvre le détail, sauf ses boutons et liens ; au clavier : Entrée sur la ligne */}
                     <td className="w-14 pl-4 pr-2 py-2 align-middle"><MachineIcon m={{ ...m, model: modelOf(m, snap.data.network, unifiOf(m)) }} scan={scanOs[m.ip]} reserve /></td>
-                    <Td><span className="flex items-baseline gap-2"><b className="font-semibold">{m.name}</b><VmMark m={m} h={hb.get(m.ip)} /><ProblemFlag h={h} /></span></Td>
+                    <Td><span className="flex items-center gap-2"><VmMark m={m} h={h} /><b className={`font-semibold ${vmName(m, h)}`}>{m.name}</b><ProblemFlag h={h} /></span></Td>
                     <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-dim">{m.ip}</Td>{/* the tools that see it (can be many): in the unfolded detail only */}
                     <Td>{st(m, false)}</Td>
                     <Td><div className="max-w-[11rem]"><SystemLine m={m} os={osOf(m)} ha={haOf(m)} unifi={unifiOf(m)} freebox={freeboxOf(m, snap.data.network)} /></div></Td>
-                    <Td><span className="inline-flex items-center gap-1.5">
-                      <button type="button" onClick={() => onMachine(m.ip)} title={tx("Voir ses services")} aria-label={tx("Voir les services de {0}", m.name)}
-                        className="rounded-md px-1.5 py-0.5 hover:bg-link/10 hover:text-link"><span className="tabular-nums">{m.services}</span></button><DownBadge m={m} snap={snap} /></span></Td>
+                    <Td><ServiceCount m={m} snap={snap} onOpen={() => onMachine(m.ip)} /></Td>
                     <Td><span className="flex flex-wrap items-center gap-1.5 [&>span]:h-6">{/* same height (24 px) for the level badge and the cause badges; one column: the level, then what explains it (the updates have their flag near the name) */}
-                      {snap.health && <HealthLevel m={m} h={h} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} />}
-                      <WatchList ip={m.ip} quiet={!!snap.health} items={watchOf(m).filter((i) => i.kind !== "updates")} /></span></Td>
+                      {snap.health && <HealthLevel m={m} h={h} pills={pills.length > 0} followed={!!(m.ssh || m.agent || haOf(m) || m.links?.sources.some((x) => x.source === "beszel"))} />}
+                      <WatchList ip={m.ip} quiet={!!snap.health} items={pills} /></span></Td>
                     {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="!px-1.5"><GpuCellView list={gpusOf(m, hb.get(m.ip))} /></Td>}
                     <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-xs tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network), haOf(m)); return up ? <span className={up < 3600 ? "text-warn" : "text-muted"} title={`${dur(up)}${up < 3600 ? ` · ${tx("vient de redémarrer")}` : ""}`}>{durShort(up)}</span> : <Dim>-</Dim>; })()}</Td>
                     {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => openPage(m.ip, "access")} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}

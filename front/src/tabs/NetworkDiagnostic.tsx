@@ -4,7 +4,7 @@
 import { Check, CircleCheck, CircleHelp, OctagonAlert, TriangleAlert, Undo2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { read, send } from "../api";
-import { Badge, Dim, Empty, Th } from "../components/ui";
+import { Badge, Dim, Empty, Pct, Th } from "../components/ui";
 import { useSort } from "../lib/filter";
 import { useStoredFlag } from "../lib/storedFlag";
 import { tx } from "../lib/i18n";
@@ -14,14 +14,17 @@ type Severity = "bad" | "warn" | "info";
 interface Nic { machine: string | null; name: string | null; speed: number | null; max: number | null; duplex: "full" | "half" | null; setting: string | null }
 interface Finding { key: string; accepted: boolean; nic?: Nic | null; severity: Severity; kind: string; code: string; args: Record<string, string | number | null>; device: string; mac: string | null; port: number | null; speed: number | null; max: number | null; peer: string | null; text: string }
 interface OkPort { nic?: Nic | null; device: string; mac: string | null; port: number | null; speed: number | null; max: number | null; peer: string | null; name: string | null }
-interface Doc { source: string | null; at: number; error: string; devices: number; summary: Record<Severity, number>; findings: Finding[]; ok_ports: OkPort[] }
+interface Sfp { device: string; mac: string | null; port: number | null; part: string | null; vendor: string | null; compliance: string | null; copper: boolean; temp: number | null; voltage: number | null; current: number | null;
+  rx: number | null; tx: number | null; los: boolean; fault: boolean; state: Severity | "ok"; codes: string[] }
+interface PortError { device: string; mac: string | null; port: number | null; rx_errors: number; tx_errors: number; rx_dropped: number; tx_dropped: number }
+interface Doc { source: string | null; at: number; error: string; devices: number; summary: Record<Severity, number>; findings: Finding[]; ok_ports: OkPort[]; sfp?: Sfp[]; port_errors?: { known: boolean; ports: PortError[] } }
 
 /** One line of the table: a finding, or (on request) a port that is up and fine */
 interface Row { nic: Nic | null; accept: { key: string; label: string; accepted: boolean } | null; level: 0 | 1 | 2 | 3; severity: Severity | "ok"; kind: string; device: string; port: number | null; speed: number | null; max: number | null; peer: string | null; text: string; key: string }
 const RANK: Record<Severity | "ok", 0 | 1 | 2 | 3> = { bad: 0, warn: 1, info: 2, ok: 3 };
 
 const KIND: Record<string, string> = { speed: tx("Vitesse du port"), link: tx("Liaison entre équipements"), offline: tx("Équipement hors ligne"), wan: tx("Lien WAN"), firmware: tx("Mise à jour"), load: tx("Charge"),
-  mesh: tx("Liaison radio"), nic: tx("Carte réseau de la machine"), temp: tx("Température"), reboot: tx("Redémarrage"), clients: tx("Clients"), wifi: tx("Wi-Fi"), conflict: tx("Adresse IP"), latency: tx("Latence") };
+  mesh: tx("Liaison radio"), nic: tx("Carte réseau de la machine"), temp: tx("Température"), reboot: tx("Redémarrage"), clients: tx("Clients"), wifi: tx("Wi-Fi"), conflict: tx("Adresse IP"), latency: tx("Latence"), sfp: tx("Module SFP"), errors: tx("Erreurs de port") };
 const ICON = { bad: OctagonAlert, warn: TriangleAlert, info: CircleHelp, ok: CircleCheck };
 const TONE: Record<Severity, "bad" | "warn" | "off"> = { bad: "bad", warn: "warn", info: "off" };
 const LABEL: Record<Severity, string> = { bad: tx("à corriger"), warn: tx("à vérifier"), info: tx("pour info") };
@@ -57,6 +60,13 @@ const textOf = (f: Finding): string => {
     case "nic_forced": return tx("vitesse et duplex forcés sur la carte ({0}) : repasser en négociation automatique", String(a.setting));
     case "nic_slow": return tx("la carte réseau de la machine tourne à {0} : rare pour une machine, câble, port ou carte à vérifier", link(f.speed));
     case "nic_low": return tx("la carte sait faire plus que ce qu'elle négocie : câble ou port à vérifier");
+    case "errors_rise": return tx("{0} erreurs en {1} min : câble, prise ou module à vérifier", String(a.value), String(a.minutes));
+    case "sfp_los": return tx("{0} : le module ne reçoit aucun signal (perte de signal) : fibre, connecteur ou autre bout à vérifier", String(a.module));
+    case "sfp_fault": return tx("{0} : le module signale un défaut d'émission", String(a.module));
+    case "sfp_temp": return tx("{0} : module chaud ({1} °C, seuil {2} °C) : vérifier l'aération ; un module 10GBASE-T chauffe beaucoup", String(a.module), String(a.value), String(a.limit));
+    case "sfp_rx_low": return tx("{0} : lumière reçue faible ({1} dBm) : fibre, connecteur ou autre bout à vérifier", String(a.module), String(a.value));
+    case "sfp_rx_high": return tx("{0} : lumière reçue trop forte ({1} dBm) : il manque un atténuateur", String(a.module), String(a.value));
+    case "sfp_volt": return tx("{0} : alimentation du module à {1} V (attendu 3,3 V)", String(a.module), String(a.value));
     case "nic_mismatch": return tx("la carte annonce {0} et le port du switch {1} : les deux ne s'accordent pas", link(f.speed), link(Number(a.port_speed)));
     default: return f.text;
   }
@@ -106,6 +116,7 @@ export function NetworkDiagnostic({ admin }: Readonly<{ admin: boolean }>) {
   if (!doc.source) return <Empty>{doc.error || tx("Aucun équipement UniFi lisible : le diagnostic des ports demande MynetworK 0.11.1 ou plus relié à UniFi.")}</Empty>;
   const s = doc.summary, nOk = doc.ok_ports?.length ?? 0;
   return (
+    <div className="flex flex-col gap-4">
     <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
       <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
         <h3 className="font-bold">{tx("Diagnostic du réseau")}</h3>
@@ -163,6 +174,115 @@ export function NetworkDiagnostic({ admin }: Readonly<{ admin: boolean }>) {
         </div>
       )}
       <p className="border-t border-line/60 px-4 py-2 text-xs text-dim">{tx("Le maximum d'un port vient de son type (100 Mb/s, 1, 2,5, 10 Gb/s). Un appareil qui n'a qu'une carte à 1 Gb/s ou à 100 Mb/s (pont, concentrateur d'objets connectés) donne un constat « à vérifier » normal.")}</p>
+    </section>
+    {(doc.sfp ?? []).length > 0 && <SfpModules list={doc.sfp!} findings={doc.findings} admin={admin} accept={accept} />}
+    <PortErrors doc={doc.port_errors} />
+    </div>
+  );
+}
+
+const STATE: Record<Severity | "ok", [string, "ok" | "warn" | "bad" | "off"]> = { ok: ["OK", "ok"], info: [tx("pour info"), "off"], warn: [tx("à vérifier"), "warn"], bad: [tx("à corriger"), "bad"] };
+const num = (v: number | null, digits: number) => (v == null ? null : v.toFixed(digits).replace(".", ","));
+
+/** One reading with its unit, coloured when one of the module's problem codes is about it */
+function Reading({ value, unit, flagged, tone }: Readonly<{ value: string | null; unit: string; flagged: boolean; tone: Severity | "ok" }>) {
+  if (value == null) return <Dim>-</Dim>;
+  const colour = tone === "bad" ? "text-bad" : "text-warn";
+  return <span className={flagged ? `font-bold ${colour}` : ""}><Pct value={value} unit={unit} /></span>;
+}
+
+/** Every transceiver with its sensors (DOM): temperature, light received and sent, supply voltage and laser current. A module whose findings are
+ *  all accepted (« this is normal ») shows « accepted » and no longer counts; the button accepts or reports again every finding of the module at once. */
+function SfpModules({ list, findings, admin, accept }: Readonly<{ list: Sfp[]; findings: Finding[]; admin: boolean; accept: (key: string, label: string, on: boolean) => void }>) {
+  const own = (m: Sfp) => findings.filter((f) => f.kind === "sfp" && f.mac === m.mac && f.port === m.port);
+  const isAccepted = (m: Sfp) => { const fs = own(m); return fs.length > 0 && fs.every((f) => f.accepted); };
+  const shown = (m: Sfp): Sfp["state"] => (isAccepted(m) ? "ok" : m.state);
+  const count = (st: Sfp["state"]) => list.filter((m) => !isAccepted(m) && m.state === st).length;
+  const nAccepted = list.filter(isAccepted).length;
+  const toggle = (m: Sfp, on: boolean) => { for (const f of own(m)) accept(f.key, `${f.device} ${f.port ?? ""} ${tx("Module SFP")}`.trim(), on); };
+  const th = "px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-dim";
+  return (
+    <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
+      <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
+        <h3 className="font-bold">{tx("Modules SFP")}</h3>
+        <Badge tone="off" outline>{tx("{0} module(s)", list.length)}</Badge>
+        {count("ok") > 0 && <Badge tone="ok" outline>{count("ok")} OK</Badge>}
+        {count("warn") > 0 && <Badge tone="warn" outline>{count("warn")} {tx("à vérifier")}</Badge>}
+        {count("bad") > 0 && <Badge tone="bad" outline>{count("bad")} {tx("à corriger")}</Badge>}
+        {nAccepted > 0 && <Badge tone="off" outline>{nAccepted} {tx("accepté(s)")}</Badge>}
+        <Dim>{tx("sondes des modules (DOM), lues par UniFi via MynetworK")}</Dim>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[760px] border-collapse text-sm tabular-nums">
+          <thead><tr className="border-b border-line">
+            <th className={`${th} !px-4`}>{tx("Équipement")}</th><th className={th}>{tx("Port")}</th><th className={th}>{tx("Module")}</th><th className={th}>{tx("Température")}</th>
+            <th className={th}>{tx("Reçu")}</th><th className={th}>{tx("Émis")}</th><th className={th}>{tx("Tension")}</th><th className={th}>{tx("Courant")}</th><th className={th}>{tx("État")}</th>{admin && <th className={th}><span className="sr-only">{tx("Action")}</span></th>}
+          </tr></thead>
+          <tbody className="[&>tr:nth-child(even)]:bg-bg/50 [&>tr]:border-b [&>tr]:border-line/60">
+            {list.map((m) => {
+              const ok = isAccepted(m), tone = shown(m), fs = own(m);
+              const has = (...c: string[]) => !ok && c.some((x) => m.codes.includes(x));
+              return (
+                <tr key={`${m.mac}/${m.port}`}>
+                  <td className="px-4 py-2 font-semibold">{m.device}</td>
+                  <td className="px-3 py-2">{m.port ?? "-"}</td>
+                  <td className="px-3 py-2">{m.part ?? "?"} <Dim>{[m.vendor, m.compliance].filter(Boolean).join(" · ")}</Dim></td>
+                  <td className="px-3 py-2"><Reading value={num(m.temp, 0)} unit="°C" flagged={has("sfp_temp")} tone={tone} /></td>
+                  <td className="px-3 py-2"><Reading value={num(m.rx, 1)} unit="dBm" flagged={has("sfp_rx_low", "sfp_rx_high", "sfp_los")} tone={tone} /></td>
+                  <td className="px-3 py-2"><Reading value={num(m.tx, 1)} unit="dBm" flagged={has("sfp_fault")} tone={tone} /></td>
+                  <td className="px-3 py-2"><Reading value={num(m.voltage, 2)} unit="V" flagged={has("sfp_volt")} tone={tone} /></td>
+                  <td className="px-3 py-2"><Reading value={num(m.current, 1)} unit="mA" flagged={false} tone={tone} /></td>
+                  <td className="px-3 py-2">{ok ? <Badge tone="off" outline>{tx("accepté")}</Badge> : <Badge tone={STATE[tone][1]}>{STATE[tone][0]}</Badge>}</td>
+                  {admin && (
+                    <td className="whitespace-nowrap px-3 py-2">
+                      {fs.length > 0 && (ok
+                        ? <button type="button" className="text-dim hover:text-ink" title={tx("Signaler de nouveau ce module")} aria-label={tx("Signaler de nouveau ce module")} onClick={() => toggle(m, false)}><Undo2 size={15} aria-hidden /></button>
+                        : <button type="button" className="text-dim hover:text-ok" title={tx("C'est normal : ne plus signaler ce module")} aria-label={tx("C'est normal : ne plus signaler ce module")} onClick={() => toggle(m, true)}><Check size={15} aria-hidden /></button>)}
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="border-t border-line/60 px-4 py-2 text-xs text-dim">{tx("Seuils : température à vérifier dès 75 °C, à corriger dès 85 °C ; lumière reçue à vérifier sous -14 dBm, à corriger sous -18 dBm ou au-dessus de +0,5 dBm ; tension hors de 3,13 à 3,47 V. Perte de signal ou défaut d'émission : à corriger. Un module cuivre (10GBASE-T) n'a pas de lumière : « - ».")}</p>
+    </section>
+  );
+}
+
+/** The error counters of the ports (received and sent errors, packets dropped), once the source gives them */
+function PortErrors({ doc }: Readonly<{ doc?: { known: boolean; ports: PortError[] } }>) {
+  const th = "px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-dim";
+  let body: React.ReactNode;
+  if (!doc?.known) body = <p className="px-4 py-3 text-sm text-dim">{tx("En attente de MynetworK : sa route card-devices ne transmet pas encore les compteurs d'erreurs des ports (rx_errors, tx_errors, paquets perdus).")}</p>;
+  else if (!doc.ports.length) body = <p className="flex items-center gap-2 px-4 py-3 text-sm text-ok"><CircleCheck size={16} aria-hidden />{tx("Aucune erreur sur les ports.")}</p>;
+  else body = (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[560px] border-collapse text-sm tabular-nums">
+        <thead><tr className="border-b border-line">
+          <th className={`${th} !px-4`}>{tx("Équipement")}</th><th className={th}>{tx("Port")}</th><th className={th}>{tx("Erreurs reçues")}</th><th className={th}>{tx("Erreurs émises")}</th><th className={th}>{tx("Perdus en réception")}</th><th className={th}>{tx("Perdus en émission")}</th>
+        </tr></thead>
+        <tbody className="[&>tr:nth-child(even)]:bg-bg/50 [&>tr]:border-b [&>tr]:border-line/60">
+          {doc.ports.map((p) => (
+            <tr key={`${p.mac}/${p.port}`}>
+              <td className="px-4 py-2 font-semibold">{p.device}</td><td className="px-3 py-2">{p.port ?? "-"}</td>
+              <td className={`px-3 py-2 ${p.rx_errors ? "font-bold text-warn" : ""}`}>{p.rx_errors.toLocaleString()}</td><td className={`px-3 py-2 ${p.tx_errors ? "font-bold text-warn" : ""}`}>{p.tx_errors.toLocaleString()}</td>
+              <td className="px-3 py-2">{p.rx_dropped.toLocaleString()}</td><td className="px-3 py-2">{p.tx_dropped.toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+  return (
+    <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
+      <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
+        <h3 className="font-bold">{tx("Erreurs de ports")}</h3>
+        <Dim>{tx("erreurs en réception et en émission, par port, depuis le dernier démarrage de l'équipement")}</Dim>
+      </div>
+      {body}
+      {doc?.known && <p className="border-t border-line/60 px-4 py-2 text-xs text-dim">{tx("Une hausse d'au moins 10 erreurs par rapport à un relevé de 10 min à 2 h plus tôt devient un constat (à corriger dès 1 000). Les paquets perdus ne déclenchent rien : un port saturé ou du multicast en perd normalement.")}</p>}
     </section>
   );
 }

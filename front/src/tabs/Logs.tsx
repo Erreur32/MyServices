@@ -1,11 +1,12 @@
-// Réglages → Journaux : ce que le conteneur écrit (le même texte que « docker logs »), depuis son démarrage, relu toutes les 5 s.
+// Réglages → Requêtes et journaux → Journaux : ce que le conteneur écrit (le même texte que « docker logs »), depuis son démarrage, relu toutes les 5 s.
 // Filtré par origine (serveur ou tâche : collecte, veille, santé, sauvegardes), erreurs seulement, texte ; téléchargeable.
-import { Download, Pause, Play, ScrollText, Search } from "lucide-react";
+import { Download, Pause, Play, ScrollText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LOGIN, LoginRequired, read } from "../api";
-import { Card, Count, Dim } from "../components/ui";
-import { dateTime, norm } from "../lib/format";
-import { input, quiet } from "../lib/forms";
+import { Card, Count, Dim, SearchBox } from "../components/ui";
+import { dateTime } from "../lib/format";
+import { searchHit } from "../lib/filter";
+import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { isProblem, sourceOf } from "../lib/logs";
 import { usePoll } from "../lib/polling";
@@ -39,8 +40,7 @@ export function Logs() {
   const all = useMemo(() => lines ?? [], [lines]);
   const sources = useMemo(() => [...new Set(all.map((l) => sourceOf(l.text)))].sort((a, b) => (a === "server" ? -1 : b === "server" ? 1 : a.localeCompare(b))), [all]);
   const shown = useMemo(() => {
-    const n = norm(q);
-    return all.filter((l) => (!src || sourceOf(l.text) === src) && (!problems || isProblem(l)) && (!n || norm(l.text).includes(n)));
+    return all.filter((l) => (!src || sourceOf(l.text) === src) && (!problems || isProblem(l)) && searchHit(l.text, q));
   }, [all, src, problems, q]);
   const nProblems = useMemo(() => all.filter(isProblem).length, [all]);
   useEffect(() => { if (follow && box.current) box.current.scrollTop = box.current.scrollHeight; }, [shown, follow]);
@@ -71,10 +71,7 @@ export function Logs() {
         <button type="button" className={chip(!src)} onClick={() => setSrc("")}>{tx("Tout")}</button>
         {sources.map((s) => <button key={s} type="button" className={chip(src === s)} onClick={() => setSrc(src === s ? "" : s)}>{SOURCES[s] ?? s}</button>)}
         <button type="button" className={`${chip(problems)} ${nProblems && !problems ? "border-warn/60 text-warn" : ""}`} onClick={() => setProblems(!problems)}>{tx("Erreurs et avertissements ({0})", nProblems)}</button>
-        <label className="relative ml-auto min-w-[12rem] flex-1 sm:max-w-xs">
-          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-dim" aria-hidden />
-          <input className={`${input} py-1.5 pl-8`} value={q} onChange={(e) => setQ(e.target.value)} placeholder={tx("Chercher dans les journaux")} aria-label={tx("Chercher dans les journaux")} />
-        </label>
+        <SearchBox value={q} onChange={setQ} placeholder={tx("Chercher dans les journaux")} count={[shown.length, all.length]} className="ml-auto" />
       </div>
       {error && <p className="mb-2 text-xs text-warn">⚠ {error}</p>}
       <div ref={box} onScroll={(e) => { const el = e.currentTarget; if (follow && el.scrollHeight - el.scrollTop - el.clientHeight > 40) setFollow(false); }}

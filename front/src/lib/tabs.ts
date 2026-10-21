@@ -52,7 +52,7 @@ export function visible(id: TabId, s: Snapshot): boolean {
 
 const OLD_TABS: Record<string, string> = { fail2ban: "security", health: "machines", history: "home", stats: "home" };   // removed tabs, now inside another one (#history, #stats: sub-tabs of the home page)
 
-/** Onglet visé par l'adresse actuelle (#dns, #settings/api…) ; « home » si l'adresse n'en désigne aucun (y compris les pages à part : #profile, #audit…) */
+/** Onglet visé par l'adresse actuelle (#dns, #settings/api…) ; « home » si l'adresse n'en désigne aucun (y compris les pages à part : #profile, #help…) */
 export function tabFromHash(): TabId {
   const raw = location.hash.slice(1).split("/")[0];
   const h = (OLD_TABS[raw] ?? raw) as TabId;

@@ -15,13 +15,15 @@ describe("ports of a machine", () => {
     ];
     const rows = portRows(m, hosts, { scan: { ports: [22, 8096, 9000] } });
     expect(rows.map((r) => r.port)).toEqual([22, 8096, 9000]);
-    expect(rows[1]).toEqual({ port: 8096, name: "jellyfin", domains: ["tv.lan"], listening: true });
-    expect(rows[0].name).toBeNull();
+    expect(rows[1]).toMatchObject({ port: 8096, name: "jellyfin", domains: ["tv.lan"], listening: true, guess: null });
+    expect(rows[1].host?.id).toBe(1);
+    expect(rows[0]).toMatchObject({ name: null, host: null, guess: "SSH" });   // unknown: what usually listens there
+    expect(rows[2].guess).toBe("Portainer");
     expect(rows[2].domains).toEqual([]);
   });
   it("without a scan: the service ports only, not marked as listening", () => {
     const rows = portRows(m, [host({ host_ip: "10.0.0.20", port: 445, name: "smb" })]);
-    expect(rows).toEqual([{ port: 445, name: "smb", domains: [], listening: false }]);
+    expect(rows).toMatchObject([{ port: 445, name: "smb", domains: [], listening: false, guess: null }]);
   });
 });
 

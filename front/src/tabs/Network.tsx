@@ -2,11 +2,11 @@
 // box or firewall reports, firmware updates, weak Wi-Fi links) above the sub-menu: Cards (scan statistics, UniFi cards), Equipment and
 // devices (Internet access, UniFi gear, clients by access point or switch, devices found by MynetworK, with search and filters),
 // Diagnostic. Shown only when one of these sources answers or has answered. Read only.
-import { Cable, ChevronDown, ChevronRight, LayoutDashboard, List, Monitor, Network as NetworkIcon, Router, Stethoscope, Wifi, type LucideIcon } from "lucide-react";
+import { Cable, ChevronDown, ChevronRight, House, LayoutDashboard, List, Monitor, Network as NetworkIcon, Radar, Router, Stethoscope, Wifi, type LucideIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { useFilter, useSort, type Facet } from "../lib/filter";
-import { dateTime, dur } from "../lib/format";
+import { dur } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { NETWORK_CARDS, hasNetwork } from "../lib/network";
 import type { ServiceStatus } from "../types";
@@ -19,6 +19,7 @@ import { ServiceCard } from "../components/ServiceStatusCards";
 import { NetworkDiagnostic } from "./NetworkDiagnostic";
 import { NetworkScanStats } from "./NetworkScanStats";
 import { UnifiCards } from "./UnifiCards";
+import { HeadTags } from "../components/HeadTags";
 
 const INTERNET = ["freebox", "opnsense", "speedtest-tracker"];
 type Kind = "gear" | "wifi" | "wired" | "device";
@@ -46,11 +47,17 @@ const WEAK_DBM = -75;   // a Wi-Fi link under this is poor (drops, low rate)
 interface Watch { key: string; sev: "bad" | "warn"; area: string; title: string; detail: string; sub: Sub; href?: string }
 
 /** What needs a look on the network, red first: gear offline, a source failing, what the Internet access reports, firmware updates, weak Wi-Fi links */
+/** What the Internet access cards report (the Freebox ones open its own sub-tab) */
+function internetWatch(internet: ServiceStatus[]): Watch[] {
+  return internet.filter((x) => x.ok && x.connector !== "unifi").flatMap((c) => (c.problems ?? []).map((pb): Watch => (
+    { key: `net/${c.name}/${pb}`, sev: "warn", area: c.label, title: pb, detail: "", sub: c.connector === "freebox" ? "freebox" : "list" })));
+}
+
 function toWatch(rows: Row[], internet: ServiceStatus[], sources: { label: string; ok: boolean; message: string; stale?: boolean }[]): Watch[] {
   const out: Watch[] = [];
   for (const c of sources.filter((x) => !x.ok)) out.push({ key: `src/${c.label}`, sev: "bad", area: tx("Source"), title: c.label, detail: c.stale ? c.message + " (" + tx("dernier relevé gardé") + ")" : c.message, sub: "diagnostic" });
   for (const r of rows.filter((x) => x.kind === "gear" && !x.up)) out.push({ key: `down/${r.key}`, sev: "bad", area: tx("Équipement"), title: r.name, detail: tx("hors ligne"), sub: "list", href: r.machine ? `#machines/${r.ip}` : undefined });
-  for (const c of internet.filter((x) => x.ok && x.connector !== "unifi")) for (const pb of c.problems ?? []) out.push({ key: `net/${c.name}/${pb}`, sev: "warn", area: c.label, title: pb, detail: "", sub: "list" });
+  out.push(...internetWatch(internet));
   for (const r of rows.filter((x) => x.kind === "gear" && x.up && x.gear?.updatable)) out.push({ key: `upd/${r.key}`, sev: "warn", area: tx("Équipement"), title: r.name, detail: tx("mise à jour disponible (installée : {0})", r.gear?.version || "?"), sub: "list" });
   for (const r of rows.filter((x) => x.kind === "wifi" && x.signal != null && x.signal < WEAK_DBM)) out.push({ key: `wifi/${r.key}`, sev: "warn", area: tx("Wifi"), title: r.name, detail: tx("signal faible, {0} dBm sur {1}", r.signal, r.via), sub: "list", href: r.machine ? `#machines/${r.ip}` : undefined });
   return out.sort((a, b) => Number(b.sev === "bad") - Number(a.sev === "bad"));
@@ -150,8 +157,11 @@ function MachineLink({ r, onMachine }: { r: Row; onMachine: (ip: string) => void
     : <Dim>{tx("pas suivie")}</Dim>;
 }
 
-type Sub = "overview" | "list" | "diagnostic";
-const SUBS: [Sub, string, LucideIcon][] = [["overview", tx("Cartes"), LayoutDashboard], ["list", tx("Équipements et appareils"), List], ["diagnostic", tx("Diagnostic"), Stethoscope]];
+type Sub = "unifi" | "freebox" | "scan" | "list" | "diagnostic";
+/** One sub-tab per kind of source; UniFi, Freebox and Scan only when their source is there */
+const SUBS: [Sub, string, LucideIcon][] = [["unifi", tx("UniFi"), LayoutDashboard], ["freebox", tx("Freebox"), House], ["scan", tx("Scan"), Radar],
+  ["list", tx("Équipements et appareils"), List], ["diagnostic", tx("Diagnostic"), Stethoscope]];
+const isSub = (v: string | null): v is Sub => SUBS.some(([id]) => id === v);
 const SUB_KEY = "ms.network.sub";
 
 type Tone3 = "ok" | "warn" | "bad" | undefined;
@@ -196,31 +206,29 @@ function Figures({ box, boxFact, gearAll, gearDown, updates, wifi, wired, devAll
 function WatchTable({ watch, worst, open }: Readonly<{ watch: Watch[]; worst: "ok" | "warn" | "bad"; open: (w: Watch) => void }>) {
   return (
     <WatchPanel id="network" tone={worst} count={watch.length} hint={tx("équipement hors ligne, source en erreur, box, mises à jour, wifi faible")}>
-      {watch.length === 0 ? <p className="px-4 py-3 text-sm text-ok">{tx("Tout le réseau répond, rien à signaler.")}</p> : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] border-collapse text-sm">
-            <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-              <th className="px-3 py-2">{tx("Domaine")}</th><th className="px-3 py-2">{tx("Quoi")}</th><th className="px-3 py-2">{tx("Détail")}</th><th className="w-28 px-3 py-2" />
-            </tr></thead>
-            <tbody>
-              {watch.map((w) => (
-                <tr key={w.key} className="border-t border-line/60 even:bg-bg/50 hover:bg-bg2/40">
-                  <td className="px-3 py-2"><Badge tone={w.sev}>{w.area}</Badge></td>
-                  <td className="px-3 py-2 font-semibold">{w.title}</td>
-                  <td className="px-3 py-2 text-muted">{w.detail}</td>
-                  <td className="px-3 py-2 text-right"><button type="button" onClick={() => open(w)} className={`${quiet} py-1`}>{w.href ? tx("Ouvrir") : tx("Voir")}</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] border-collapse text-sm">
+          <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
+            <th className="px-3 py-2">{tx("Domaine")}</th><th className="px-3 py-2">{tx("Quoi")}</th><th className="px-3 py-2">{tx("Détail")}</th><th className="w-28 px-3 py-2" />
+          </tr></thead>
+          <tbody>
+            {watch.map((w) => (
+              <tr key={w.key} className="border-t border-line/60 even:bg-bg/50 hover:bg-bg2/40">
+                <td className="px-3 py-2"><Badge tone={w.sev}>{w.area}</Badge></td>
+                <td className="px-3 py-2 font-semibold">{w.title}</td>
+                <td className="px-3 py-2 text-muted">{w.detail}</td>
+                <td className="px-3 py-2 text-right"><button type="button" onClick={() => open(w)} className={`${quiet} py-1`}>{w.href ? tx("Ouvrir") : tx("Voir")}</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </WatchPanel>
   );
 }
 
 export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapshot; onMachine: (ip: string) => void; initialSub?: Sub }>) {
-  const [sub, setSub] = useState<Sub>(() => { try { const v = localStorage.getItem(SUB_KEY); return initialSub ?? (v === "list" || v === "diagnostic" ? v : "overview"); } catch { return initialSub ?? "overview"; } });   // the sub-page is kept
+  const [sub, setSub] = useState<Sub>(() => { try { const v = localStorage.getItem(SUB_KEY); return initialSub ?? (isSub(v) ? v : "unifi"); } catch { return initialSub ?? "unifi"; } });   // the sub-page is kept (the old « overview » leads to UniFi)
   const pickSub = (v: Sub) => { setSub(v); try { localStorage.setItem(SUB_KEY, v); } catch { /* storage refused: the choice lasts this visit */ } };
   const cards = useMemo(() => (snap.data.services_status ?? []).filter((c) => NETWORK_CARDS.includes(c.connector)), [snap.data.services_status]);
   const rows = useMemo(() => buildRows(snap, cards), [snap, cards]);
@@ -246,6 +254,10 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
   const unifi = unifiConn && !unifiConn.ok && !unifiConn.stale ? unifiConn : unifiCard(rows, unifiConn);   // a failing connector shows its error
   const internet = [...cards.filter((c) => c.connector === "freebox"), ...(unifi ? [unifi] : []), ...cards.filter((c) => INTERNET.includes(c.connector) && c.connector !== "freebox")];
   const others = cards.filter((c) => !INTERNET.includes(c.connector) && c.connector !== "unifi");
+  const freebox = cards.find((c) => c.connector === "freebox");
+  const has: Record<Sub, boolean> = { unifi: !!unifi, freebox: !!freebox, scan: net.some((c) => c.connector === "mynetwork"), list: true, diagnostic: true };
+  const subs = SUBS.filter(([id]) => has[id]);
+  const current: Sub = has[sub] ? sub : subs[0][0];   // a source gone (no UniFi, no Freebox): the first sub-tab there is
   const all = (k: Kind) => rows.filter((r) => r.kind === k);
   const gearAll = all("gear"), gearDown = gearAll.filter((r) => !r.up).length, updates = gearAll.filter((r) => r.gear?.updatable).length;
   const devAll = all("device"), unfollowed = devAll.filter((r) => r.up && !r.machine).length;
@@ -278,35 +290,25 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="flex items-center gap-2 text-xl font-bold"><NetworkIcon size={18} aria-hidden />{tx("Réseau")}</h1>
-        <span className="flex flex-wrap items-center gap-1.5 text-sm">
-          {gearWords.map((w) => <Badge key={w} tone="info" outline>{w}</Badge>)}
-          {devAll.length > 0 && <Badge tone="off" outline>{tx("{0} appareils", devAll.length)}</Badge>}
-          {sourceNames.map((s) => <Badge key={s} tone="ok" outline>{s}</Badge>)}
-          <Badge tone="off" outline>{tx("relevé du {0}", dateTime(snap.data.generated))}</Badge>
-          <Badge tone="off" outline>{tx("lecture seule")}</Badge>
-        </span>
+        <HeadTags counts={gearWords} others={devAll.length > 0 ? [tx("{0} appareils", devAll.length)] : []} sources={sourceNames} at={snap.data.generated} />
       </div>
       <Figures box={box} boxFact={boxFact} gearAll={gearAll} gearDown={gearDown} updates={updates} wifi={all("wifi").length} wired={all("wired").length} devAll={devAll} unfollowed={unfollowed} sourceNames={sourceNames} failing={failing} />
 
       <WatchTable watch={watch} worst={worst} open={openWatch} />
 
       <fieldset className="m-0 inline-flex min-w-0 self-start rounded-lg border border-line bg-card p-0.5" aria-label={tx("Sous-menu du réseau")}>
-        {SUBS.map(([id, label, Icon]) => (
-          <button key={id} type="button" aria-pressed={sub === id} onClick={() => pickSub(id)}
-            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold ${sub === id ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{label}</button>
+        {subs.map(([id, label, Icon]) => (
+          <button key={id} type="button" aria-pressed={current === id} onClick={() => pickSub(id)}
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold ${current === id ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{label}</button>
         ))}
       </fieldset>
-      {sub === "overview" && (
-        <>
-        <NetworkScanStats />
+      {current === "unifi" && <UnifiCards />}
+      {current === "freebox" && freebox && <div className="grid items-start gap-3 lg:grid-cols-2"><ServiceCard s={freebox} /></div>}
+      {current === "scan" && <NetworkScanStats />}
 
-        <UnifiCards />
-        </>
-      )}
+      {current === "diagnostic" && <NetworkDiagnostic admin={snap.me.role === "admin"} />}
 
-      {sub === "diagnostic" && <NetworkDiagnostic admin={snap.me.role === "admin"} />}
-
-      {sub === "list" && (
+      {current === "list" && (
         <>
         {rows.length > 0 && <FilterBar f={f} placeholder={tx("Nom, IP, MAC, fabricant, borne…")} primary={["kind", "state"]} oneLine />}{/* right under the menu, with its main filters shown */}
 

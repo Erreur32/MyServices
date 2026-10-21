@@ -56,11 +56,17 @@ def tick(cfg: dict, state_path: Path, now: float | None = None, default: float =
     todo = [c for c in instances(cfg) if due(c, state, now, default)]
     if not todo:
         return []
-    with ThreadPoolExecutor(min(WORKERS, len(todo))) as ex:
-        jobs = [(c, ex.submit(cbase.run_isolated, c, state, timeout)) for c in todo]
-    out = [(c, job.result()[1]) for c, job in jobs]
-    cbase.merge_state(state_path, state, [f"{c.type}/{c.name}" for c in todo])
-    return out
+    # The attempt is noted before reading: a pass that fails before the end (no thread left) must not make every connector due
+    # again at the next tick, i.e. read every 10 s
+    keys = [f"{c.type}/{c.name}" for c in todo]
+    for key in keys:
+        state[key] = {**(state.get(key) or {"ok": False, "failures": 0, "since": None, "message": "lecture non lancée"}), "tried": now}
+    try:
+        with ThreadPoolExecutor(min(WORKERS, len(todo))) as ex:
+            jobs = [(c, ex.submit(cbase.run_isolated, c, state, timeout)) for c in todo]
+        return [(c, job.result()[1]) for c, job in jobs]
+    finally:
+        cbase.merge_state(state_path, state, keys)
 
 
 def on(cfg: dict) -> bool:

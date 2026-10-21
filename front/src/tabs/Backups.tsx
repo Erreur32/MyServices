@@ -7,7 +7,7 @@ import { type Snapshot } from "../api";
 import { useFilter, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime } from "../lib/format";
 import type { BackupHost, BackupSet, Backups as BackupsData } from "../types";
-import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, TableCard, Td, Th } from "../components/ui";
+import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Pct, Table, TableCard, Td, Th } from "../components/ui";
 import { FoldPanel } from "../components/FoldPanel";
 import { LEVEL } from "../lib/level";
 import { Dot } from "../components/marks";
@@ -16,6 +16,7 @@ import { tx } from "../lib/i18n";
 import { StatTile } from "../components/StatTile";
 import { WatchPanel } from "../components/WatchPanel";
 import { cronsOf, figures, newestOf, rank, sourceOf, toWatch, unclaimedCrons } from "../lib/backupsState";
+import { HeadTags } from "../components/HeadTags";
 
 const stateOf = (h: BackupHost) => (h.reachable ? h.level : "down");
 const short = (label: string) => label.replace(/^[^:]*: /, "");
@@ -133,8 +134,8 @@ function ByMachine({ b, initial }: Readonly<{ b: BackupsData; initial?: Selected
       {h.disks.map((d) => (
         <span key={d.mount} className="flex items-center gap-2 text-xs">
           <span className="w-20 truncate font-mono" title={d.mount}>{d.mount}</span>
-          <Fill pct={d.pct} /><span>{d.pct} %</span>
-          <Dim>{bytes(d.avail)} {tx("libres")}</Dim>
+          <Fill pct={d.pct} /><Pct value={d.pct} />
+          <span className="whitespace-nowrap"><Dim>{bytes(d.avail)} {tx("libres")}</Dim></span>
         </span>
       ))}
     </div>
@@ -198,7 +199,7 @@ export function Backups({ snap, initial }: Readonly<{ snap: Snapshot; initial?: 
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="flex items-center gap-2 text-xl font-bold"><HardDrive size={18} aria-hidden />{tx("Sauvegardes")}</h1>
-        <span className="text-sm text-muted">{tx("{0} jeux sur {1} machines", sm.sets, sm.hosts)}{sources.length > 0 && ` · ${sources.join(", ")}`} · {tx("relevé du {0}, en lecture seule", dateTime(b.generated))}</span>
+        <HeadTags counts={[tx("{0} jeux", sm.sets), { text: tx("{0} machines", sm.hosts), title: sources.join(", ") || undefined }]} at={b.generated} />
         {snap.me.role === "admin" && <a href="#settings/backups" className="ml-auto text-sm text-link hover:underline">{tx("Réglages des sauvegardes")} ›</a>}
       </div>
       <div className="flex gap-2.5 overflow-x-auto pb-1">

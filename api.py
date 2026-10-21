@@ -538,6 +538,74 @@ def services_new_ignore(body: ServiceKeys, request: Request):
     return {"ok": True, "paused": done}
 
 
+class ServiceMeta(BaseModel):
+    type: str = Field(max_length=20)
+    id: str = Field(max_length=120)
+    category: str | None = Field(default=None, max_length=80)
+    description: str | None = Field(default=None, max_length=300)
+    tags: list[str] = Field(default_factory=list, max_length=12)
+    web: Literal["ui", "api", "none"] | None = None
+    public: bool = False
+    direct_ok: bool = False
+    pause: bool = False
+
+
+@app.get(API + "/services/meta", tags=["services"], summary="Réglages à la main d'un service (son entrée de services-meta.json) et les catégories qu'on peut lui donner (admin)")
+def services_meta_read(type: str, id: str, request: Request):
+    import new_services
+    import setup
+    if denied := admin_only(request):
+        return denied
+    data = read_produced("data.json") or {}
+    row = next((r for r in data.get("hosts") or [] if (r.get("type"), str(r.get("id"))) == (type, id)), None)
+    if not row:
+        return deny(404, "service introuvable (déjà disparu ?)")
+    key, entry = new_services.current_entry(setup.META, row)
+    return {"key": key, "entry": {k: v for k, v in entry.items() if k in new_services.EDITABLE}, "categories": new_services.categories(setup.META, data)}
+
+
+@app.put(API + "/services/meta", tags=["services"], summary="Modifier les réglages d'un service : catégorie, description, étiquettes, interface, public, accès direct, pause (admin)")
+def services_meta_edit(body: ServiceMeta, request: Request):
+    import new_services
+    import setup
+    if denied := admin_write(request):
+        return denied
+    data = read_produced("data.json") or {}
+    row = next((r for r in data.get("hosts") or [] if (r.get("type"), str(r.get("id"))) == (body.type, body.id)), None)
+    if not row:
+        return deny(404, "service introuvable (déjà disparu ?)")
+    if body.category and body.category not in new_services.categories(setup.META, data):
+        return deny(400, "catégorie inconnue : choisir parmi les catégories existantes")
+    tags = [t.strip()[:30] for t in body.tags if t.strip()]
+    fields = {"category": body.category, "description": (body.description or "").strip(), "tags": tags, "web": body.web,
+              "public": body.public, "direct_ok": body.direct_ok, "pause": body.pause}
+    try:
+        key = new_services.edit_meta(setup.META, core.WEB, row, fields)
+    except LookupError as e:
+        return deny(400, str(e))
+    store().audit("service modifié", request.state.user["username"], ip_of(request), key)
+    return {"ok": True, "key": key}
+
+
+class ServicePublic(BaseModel):
+    domain: str = Field(max_length=253)
+    public: bool = True
+
+
+@app.put(API + "/services/public", tags=["services"], summary="Déclarer un site public voulu (hôte NPM sans liste d'accès), ou retirer la déclaration (admin)")
+def services_public(body: ServicePublic, request: Request):
+    import new_services
+    import setup
+    if denied := admin_write(request):
+        return denied
+    data = read_produced("data.json") or {}
+    if not any(body.domain in (r.get("domains") or []) for r in data.get("hosts") or [] if r.get("type") == "proxy"):
+        return deny(404, "aucun hôte NPM ne porte ce domaine")
+    new_services.set_public(setup.META, core.WEB, body.domain, body.public)
+    store().audit("site déclaré public" if body.public else "site public retiré", request.state.user["username"], ip_of(request), body.domain)
+    return {"ok": True}
+
+
 @app.delete(API + "/services/pause/{target}", tags=["services"], summary="Reprendre le suivi d'un service en pause (ip:port) (admin)")
 def services_resume(target: str, request: Request):
     import new_services
@@ -1012,9 +1080,14 @@ def network_diagnostics_route():
     scan = [{**d, **{k: live[d["ip"]][k] for k in ("status", "ping_ms") if k in live.get(d["ip"], {})}} for row in data.get("network") or [] for d in row.get("devices") or [] if d.get("ip")]
     machines = [{"name": m.get("name"), "ip": m.get("ip"), "nics": ((m.get("info") or {}).get("nics")) or (((m.get("agent") or {}).get("hardware") or {}).get("nics")) or []}
                 for m in data.get("machine_list") or [] if not m.get("disabled")]
-    items = nd.mark_accepted(nd.findings(doc["devices"], clients, scan, machines), nd.accepted_keys(_diag_accepted_file()))
+    now = time.time()
+    samples = nd.error_samples(_read_json(_port_errors_file(), []), doc["devices"], now)
+    _write_json(_port_errors_file(), samples)
+    found = nd.findings(doc["devices"], clients, scan, machines) + nd.error_rise_findings(samples, doc["devices"], clients, now)
+    found.sort(key=lambda f: nd.SEVERITY[f["severity"]])
+    items = nd.mark_accepted(found, nd.accepted_keys(_diag_accepted_file()))
     return {"source": doc["source"], "at": doc["at"], "error": doc["error"], "devices": len(doc["devices"]), "summary": nd.summary(items), "findings": items,
-            "ok_ports": nd.ok_ports(doc["devices"], clients, items, machines)}
+            "ok_ports": nd.ok_ports(doc["devices"], clients, items, machines), "sfp": nd.sfp_modules(doc["devices"]), "port_errors": nd.port_errors(doc["devices"])}
 
 
 @app.get(API + "/connectors/requests", tags=["connecteurs"], summary="Request counters per connector and route since the server started (admin)")
@@ -1032,6 +1105,28 @@ def connectors_requests_reset(request: Request):
         return denied
     reqstats.reset()
     return {"ok": True}
+
+
+def _port_errors_file() -> Path:
+    return Path(core.CFG["state_dir"]) / "port-errors-samples.json"
+
+
+def _read_json(path: Path, default):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return default
+
+
+def _write_json(path: Path, value) -> None:
+    """Written whole then renamed; a state that cannot be written only costs the comparison"""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps(value), encoding="utf-8")  # NOSONAR S2083: path from the config (state_dir), never from a request; only the content is computed
+        tmp.replace(path)
+    except OSError:
+        pass
 
 
 def _diag_accepted_file() -> Path:
@@ -1054,6 +1149,36 @@ def network_diagnostics_accept(body: DiagAccept, request: Request):
     except ValueError as e:
         return deny(400, str(e))
     store().audit("diagnostic : constat accepté" if body.accepted else "diagnostic : constat rappelé", request.state.user["username"], ip_of(request), body.label or body.key)
+    return {"ok": True}
+
+
+def _services_hidden_file() -> Path:
+    return Path(core.CFG["state_dir"]) / "services-watch-hidden.json"
+
+
+class ServiceHide(BaseModel):
+    key: str
+    sig: str = ""
+    name: str = ""
+    hidden: bool = True
+
+
+@app.get(API + "/services/watch-hidden", tags=["services"], summary="Services masqués de « À surveiller » (et du point de l'onglet), avec la signature de leur problème")
+def services_watch_hidden():
+    import services_hidden
+    return services_hidden.read(_services_hidden_file())
+
+
+@app.post(API + "/services/watch-hidden", tags=["services"], summary="Masquer un service de « À surveiller », ou l'afficher de nouveau (admin)")
+def services_watch_hide(body: ServiceHide, request: Request):
+    import services_hidden
+    if denied := admin_only(request):
+        return denied
+    try:
+        services_hidden.set_hidden(_services_hidden_file(), body.key, body.sig, body.name, body.hidden)
+    except ValueError as e:
+        return deny(400, str(e))
+    store().audit("services : masqué de « À surveiller »" if body.hidden else "services : affiché de nouveau", request.state.user["username"], ip_of(request), body.name or body.key)
     return {"ok": True}
 
 

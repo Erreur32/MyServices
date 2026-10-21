@@ -12,12 +12,13 @@ import type { Selected } from "../lib/filter";
 import { Badge, Empty, TableCard, type Tone } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
-import { dateTime, hm } from "../lib/format";
+import { hm } from "../lib/format";
 import { FoldPanel } from "../components/FoldPanel";
 import { StatTile } from "../components/StatTile";
 import { WatchPanel } from "../components/WatchPanel";
 import { quiet, worstTone } from "../lib/forms";
 import { dnsFigures, dnsWatch, serverUp, type DnsFigures, type DnsRow } from "../lib/dnsState";
+import { HeadTags } from "../components/HeadTags";
 
 type RowTone = "ok" | "warn" | "bad";
 type Row = [label: string, value: string, tone?: RowTone];
@@ -105,25 +106,23 @@ function Watch({ watch, onShow }: Readonly<{ watch: DnsRow[]; onShow: (anchor: s
   const worst = worstTone(watch.some((w) => w.sev === "bad"), watch.length > 0);
   return (
     <WatchPanel id="dns" tone={worst} count={watch.length} hint={tx("instance muette, synchro, domaine qui ne résout pas ou ailleurs, réécritures")}>
-      {watch.length === 0 ? <p className="px-4 py-3 text-sm text-ok">{tx("Tout résout comme attendu, rien à signaler.")}</p> : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] border-collapse text-sm">
-            <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-              <th className="px-3 py-2">{tx("Domaine")}</th><th className="px-3 py-2">{tx("Quoi")}</th><th className="px-3 py-2">{tx("Détail")}</th><th className="w-24 px-3 py-2" />
-            </tr></thead>
-            <tbody>
-              {watch.map((w) => (
-                <tr key={w.key} className="border-t border-line/60 even:bg-bg/50 hover:bg-bg2/40">
-                  <td className="px-3 py-2"><Badge tone={w.sev}>{w.area}</Badge></td>
-                  <td className="px-3 py-2 font-semibold">{w.title}</td>
-                  <td className="px-3 py-2 text-muted">{w.detail}</td>
-                  <td className="px-3 py-2 text-right"><button type="button" onClick={() => onShow(w.anchor)} className={`${quiet} py-1`}>{tx("Voir")}</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] border-collapse text-sm">
+          <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
+            <th className="px-3 py-2">{tx("Domaine")}</th><th className="px-3 py-2">{tx("Quoi")}</th><th className="px-3 py-2">{tx("Détail")}</th><th className="w-24 px-3 py-2" />
+          </tr></thead>
+          <tbody>
+            {watch.map((w) => (
+              <tr key={w.key} className="border-t border-line/60 even:bg-bg/50 hover:bg-bg2/40">
+                <td className="px-3 py-2"><Badge tone={w.sev}>{w.area}</Badge></td>
+                <td className="px-3 py-2 font-semibold">{w.title}</td>
+                <td className="px-3 py-2 text-muted">{w.detail}</td>
+                <td className="px-3 py-2 text-right"><button type="button" onClick={() => onShow(w.anchor)} className={`${quiet} py-1`}>{tx("Voir")}</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </WatchPanel>
   );
 }
@@ -179,7 +178,7 @@ function AllTables({ g, hosts, lit, st, diff }: Readonly<{ g: Dns; hosts: Host[]
           rows={(g.direct || []).map((x) => [<b key="d" className="font-medium">{x.domain}</b>, <span key="a">{code(x.answer)}</span>])} />
       </>}
       <DataCard id="domains" lit={lit} title={tx("Domaines NPM à vérifier")} tone={rows.length ? "warn" : "ok"} cols={[{ label: tx("Domaine"), className: "w-[45%]" }, { label: tx("À vérifier") }]}
-        rows={rows.map((r) => [<b key="n" className="font-medium">{hostName(r)}</b>, <span key="i" className="flex flex-wrap gap-1">{r.dns!.issues.map((x) => <Badge key={String(x[0])} tone="warn">{String(x[0]).replace("_", " ")}</Badge>)}</span>])}
+        rows={rows.map((r) => [<b key="n" className="font-medium">{hostName(r)}</b>, <span key="i" className="flex flex-wrap gap-1">{r.dns!.issues.map((x) => <span key={`${String(x[0])}-${typeof x[1] === "string" ? x[1] : ""}`} className="inline-flex items-center gap-1.5"><Badge tone="warn">{String(x[0]).replace("_", " ")}</Badge>{typeof x[1] === "string" && x[1] !== hostName(r) && <code className="font-mono text-xs">{x[1]}</code>}</span>)}</span>])}
         empty={g.resolver ? tx("Tous les domaines NPM actifs résolvent sur le résolveur du réseau.") : tx("Tous les domaines NPM actifs résolvent pareil sur chaque AdGuard.")} note={domainsNote} />
       <DataCard id="machines" lit={lit} title={tx("Noms des machines suivies")} tone={machines.some((m) => m.state === "ailleurs") ? "warn" : "info"} cols={[{ label: tx("Machine"), className: "w-[30%]" }, { label: "IP", className: "w-[22%]" }, { label: tx("Réponse"), className: "w-[28%]" }, { label: tx("État") }]}
         rows={machines.map((m) => [<b key="n" className="font-medium">{m.name}</b>, <span key="ip">{code(m.ip)}</span>, <span key="a" className="font-mono text-xs">{m.answer.join(", ") || "-"}</span>, <Badge key="s" tone={MACHINE_STATE[m.state][0]} outline plainText>{MACHINE_STATE[m.state][1]}</Badge>])}
@@ -219,7 +218,7 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="flex items-center gap-2 text-xl font-bold"><NetworkIcon size={18} aria-hidden />{tx("DNS")}</h1>
-        <span className="text-sm text-muted">{tools} · {tx("{0} domaine(s) contrôlé(s)", fig.domains)}{machines.length > 0 && ` · ${tx("{0} nom(s) de machine", machines.length)}`} · {tx("relevé du {0}, en lecture seule", dateTime(snap.data.generated))}</span>
+        <HeadTags counts={[tx("{0} domaine(s) contrôlé(s)", fig.domains), machines.length > 0 ? tx("{0} nom(s) de machine", machines.length) : ""]} sources={[tools]} at={snap.data.generated} />
         {snap.me.role === "admin" && <a href="#settings/connectors" className="ml-auto text-sm text-link hover:underline">{tx("Connecteurs")} ›</a>}
       </div>
       <Figures g={g} fig={fig} st={st} last={last} />

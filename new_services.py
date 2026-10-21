@@ -72,34 +72,139 @@ def _target(data: dict, key: str) -> str:
     return f'{r["ip"]}:{r["port"]}'
 
 
-def set_pause(meta_path: Path, web_dir: str | Path, target: str, reason: str | None) -> None:
-    """Pause (reason) or resume (None) the service at « ip:port »: services-meta.json for the next collections, and the published
-    data.json at once so the pages show it without waiting."""
+def _set_meta(meta_path: Path, target: str, field: str, value) -> None:
+    """One field of the services-meta.json entry of `target` (a domain, « ip:port »…); None removes it, an empty entry goes."""
     import setup
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
     services = meta.setdefault("services", {})
     entry = dict(services.get(target) or {})
-    if reason:
-        entry["pause"] = reason
+    if value is None:
+        entry.pop(field, None)
     else:
-        entry.pop("pause", None)
+        entry[field] = value
     if entry:
         services[target] = entry
     else:
         services.pop(target, None)
     with contextlib.redirect_stdout(io.StringIO()):
         setup.save(meta_path, meta)
+
+
+def set_pause(meta_path: Path, web_dir: str | Path, target: str, reason: str | None) -> None:
+    """Pause (reason) or resume (None) the service at « ip:port »: services-meta.json for the next collections, and the published
+    data.json at once so the pages show it without waiting."""
+    _set_meta(meta_path, target, "pause", reason or None)
+
+    def apply(r: dict) -> None:
+        if r.get("type") == "local" and f'{r.get("ip")}:{r.get("port")}' == target:
+            if reason:
+                r["paused"] = reason
+            else:
+                r.pop("paused", None)
+    _rewrite_hosts(web_dir, apply)
+
+
+def set_public(meta_path: Path, web_dir: str | Path, domain: str, public: bool) -> None:
+    """« Public site, on purpose » (an NPM host without access list that is meant to be reached from the Internet), set or removed under its
+    domain in services-meta.json, and in the published data.json at once."""
+    _set_meta(meta_path, domain, "public", True if public else None)
+
+    def apply(r: dict) -> None:
+        if domain in (r.get("domains") or []):
+            r["public_ok"] = public
+    _rewrite_hosts(web_dir, apply)
+
+
+EDITABLE = ("category", "description", "tags", "web", "public", "direct_ok", "pause")
+HAND_PAUSE = "paused by hand"
+
+
+def meta_keys(r: dict) -> list[str]:
+    """The services-meta.json keys a row is looked up under, in the collector's order (myservices.meta_for): its domains, « ip:port », its service name."""
+    return [*(r.get("domains") or []), f'{r.get("ip")}:{r.get("port")}', str((r.get("service") or {}).get("name") or "")]
+
+
+def categories(meta_path: Path, data: dict) -> list[str]:
+    """The categories a service can be given: the rules of services-meta.json and the ones already on a service, sorted."""
+    meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+    names = {c[0] for c in meta.get("categories") or [] if isinstance(c, list) and c and isinstance(c[0], str)}
+    names |= {r["category"] for r in data.get("hosts") or [] if isinstance(r.get("category"), str) and r["category"]}
+    return sorted(names, key=str.lower)
+
+
+def current_entry(meta_path: Path, r: dict) -> tuple[str | None, dict]:
+    """The services-meta.json entry a row uses (the collector's order), and its key; (None, {}) when it has none."""
+    meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+    services = meta.get("services") or {}
+    key = next((k for k in meta_keys(r) if k in services), None)
+    return key, dict(services[key]) if key else {}
+
+
+def _entry_value(field: str, value, old: dict):
+    """What one edited field writes (None: the field goes, back to what the detection finds)."""
+    if field in ("public", "direct_ok"):
+        return True if value else None
+    if field == "pause":
+        return (old.get("pause") or HAND_PAUSE) if value else None
+    if field == "tags":
+        return [t for t in value or [] if t] or None
+    return value or None
+
+
+def _meta_target(services: dict, r: dict) -> str:
+    """The services-meta.json key to edit: the entry the row already uses, else its first domain, else « ip:port »."""
+    keys = [k for k in meta_keys(r) if k and k != "None:None"]
+    target = next((k for k in keys if k in services), keys[0] if keys else None)
+    if not target:
+        raise LookupError("service sans domaine ni adresse")
+    return target
+
+
+def _apply_entry(h: dict, entry: dict) -> None:
+    """One published row following its edited entry (a category back to automatic waits for the next collection)."""
+    if entry.get("category"):
+        h["category"] = entry["category"]
+    h["description"] = entry.get("description") or ((h.get("service") or {}).get("description")) or None
+    h["tags"] = entry.get("tags", [])
+    if entry.get("web"):
+        h["web"] = entry["web"]
+    h["public_ok"], h["direct_ok"] = bool(entry.get("public")), bool(entry.get("direct_ok"))
+    if entry.get("pause"):
+        h["paused"] = entry["pause"]
+    else:
+        h.pop("paused", None)
+
+
+def edit_meta(meta_path: Path, web_dir: str | Path, r: dict, fields: dict) -> str:
+    """The hand-set fields of one service (EDITABLE), written in its existing services-meta.json entry (else a new one under its first domain,
+    or « ip:port »), and in the published data.json at once. Returns the key used."""
+    import setup
+    meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+    services = meta.setdefault("services", {})
+    target = _meta_target(services, r)
+    old = dict(services.get(target) or {})
+    entry = {k: v for k, v in old.items() if k not in EDITABLE}
+    entry.update({f: v for f in EDITABLE if (v := _entry_value(f, fields.get(f), old)) is not None})
+    if entry:
+        services[target] = entry
+    else:
+        services.pop(target, None)
+    with contextlib.redirect_stdout(io.StringIO()):
+        setup.save(meta_path, meta)
+    key = (r.get("type"), str(r.get("id")))
+    _rewrite_hosts(web_dir, lambda h: _apply_entry(h, entry) if (h.get("type"), str(h.get("id"))) == key else None)
+    return target
+
+
+def _rewrite_hosts(web_dir: str | Path, apply) -> None:
+    """Applies `apply` to every host of the published data.json, written whole then renamed (no data.json yet: nothing to do)."""
     p = Path(web_dir) / "data.json"
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
     for r in data.get("hosts") or []:
-        if r.get("type") == "local" and f'{r.get("ip")}:{r.get("port")}' == target:
-            if reason:
-                r["paused"] = reason
-            else:
-                r.pop("paused", None)
+        apply(r)
     tmp = p.with_name(p.name + ".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     os.chmod(tmp, p.stat().st_mode & 0o777)

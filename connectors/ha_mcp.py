@@ -32,6 +32,9 @@ READ_CALLS: dict[str, tuple[str, dict]] = {
     "apps": ("ha_get_app", {"source": "installed"}),
     "integrations": ("ha_get_integration", {"limit": 200}),
 }
+# Appels lus moins souvent que les autres (s) : ha_get_system_health fait tester par Home Assistant l'accès à GitHub (api.github.com,
+# github.com), ce qui compte dans le quota GitHub de toute l'IP publique (60 requêtes par heure sans jeton)
+SLOW_CALLS: dict[str, float] = {"health": 3600}
 WRITE_ACTIONS = {"create", "restore", "delete", "install", "skip", "clear_skipped", "ignore_repair", "unignore_repair"}
 
 
@@ -211,8 +214,9 @@ class HaMcp:
     def get(self, key: str) -> dict:
         return PARSERS[key](self.call(key))
 
-    def collect(self) -> dict:
-        """Tous les blocs ; un outil qui échoue ne gâche pas les autres (son erreur est notée dans « errors »)."""
+    def collect(self, cached=None) -> dict:
+        """Tous les blocs ; un outil qui échoue ne gâche pas les autres (son erreur est notée dans « errors »).
+        cached(clé, ttl, fn) : le cache du connecteur, pour les appels de SLOW_CALLS (sans lui, tout est relu)."""
         out: dict = {"errors": {}}
         try:
             out["server"] = self.start()
@@ -220,7 +224,10 @@ class HaMcp:
             return {"errors": {"connexion": str(e)}}
         for key in READ_CALLS:
             try:
-                out[key] = self.get(key)
+                if cached and key in SLOW_CALLS:
+                    out[key] = cached(f"ha-mcp-{key}", SLOW_CALLS[key], lambda k=key: self.get(k))
+                else:
+                    out[key] = self.get(key)
             except ConnectorError as e:
                 out["errors"][key] = str(e)
         return out

@@ -39,7 +39,7 @@ const FIXES: { problem: string; fix: ReactNode }[] = [
   { problem: tx("Une machine n'est pas lue"), fix: tx("Pour SSH, autorisez la clé de l'app sur la machine (Réglages → Clé SSH) et vérifiez le compte et le port. Pour un agent, vérifiez qu'il a envoyé un premier relevé.") },
   { problem: tx("Les chiffres ne bougent pas"), fix: tx("La collecte passe à heures fixes : Réglages → Tâches et horaires, bouton « Relancer », ou le bouton d'actualisation de la page.") },
   { problem: tx("Un service apparaît ou disparaît"), fix: tx("C'est normal : les nouveautés et les disparitions sont notées dans l'onglet Historique (« Nouveau », « Disparu »).") },
-  { problem: tx("Qui a changé quoi ?"), fix: tx("Réglages → Journal d'audit liste chaque action des comptes, filtrable et exportable en CSV.") },
+  { problem: tx("Qui a changé quoi ?"), fix: tx("Réglages → Requêtes et journaux → Journal d'audit liste chaque action des comptes, filtrable et exportable en CSV.") },
 ];
 
 function Block({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children: ReactNode }) {

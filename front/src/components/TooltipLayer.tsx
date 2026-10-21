@@ -1,10 +1,12 @@
 // Info-bulles aux couleurs du thème, pour toute la page : les attributs `title` natifs (gris, lents, sans mise en forme) sont repris au survol
 // et au clavier. Le texte passe en `data-tip` pour que le navigateur n'affiche pas aussi la sienne ; un bouton sans texte garde son nom accessible.
+import { MousePointerClick } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { splitAction } from "../lib/tip";
 
 interface Tip { text: string; x: number; y: number; below: boolean }
 
-const DELAY_MS = 250, GAP = 8, MARGIN = 8;
+const DELAY_MS = 150, GAP = 8, MARGIN = 8;
 
 /** Convention: on a multi-line tip the first line is a short heading (bold), the rest is the explanation (muted); a one-line tip stays plain */
 function splitTip(text: string): [string, string] {
@@ -45,6 +47,12 @@ function body(text: string): React.ReactNode {
   }
   flush();
   return out;
+}
+
+/** The arrow takes the colour of the part it touches: the heading strip below, the action strip above, else the body */
+function arrowBg(below: boolean, heading: boolean, action: boolean): string {
+  if (below) return heading ? "bg-bg" : "bg-card";
+  return action ? "bg-[color-mix(in_srgb,rgb(var(--link))_10%,rgb(var(--card)))]" : "bg-card";
 }
 
 export function TooltipLayer() {
@@ -102,13 +110,14 @@ export function TooltipLayer() {
   }, [tip]);
 
   if (!tip) return null;
-  const [head, rest] = splitTip(tip.text);
+  const [text, action] = splitAction(tip.text), [head, rest] = splitTip(text);
   return (
-    <div ref={box} role="tooltip" className="pointer-events-none fixed z-[100] w-max max-w-[min(36rem,calc(100vw-1rem))] animate-[tip-in_.12s_ease-out] whitespace-pre-line overflow-hidden rounded-lg border border-line bg-card px-2.5 py-1.5 text-xs leading-snug text-txt shadow-lg shadow-black/30"
+    <div ref={box} role="tooltip" className="pointer-events-none fixed z-[100] w-max max-w-[min(28rem,calc(100vw-1rem))] animate-[tip-in_.12s_ease-out] whitespace-pre-line overflow-hidden rounded-lg border border-line bg-card px-2.5 py-1.5 text-xs leading-snug text-txt shadow-lg shadow-black/30"
       style={{ left: tip.x + shift, top: tip.below ? tip.y + GAP : tip.y - GAP, transform: `translate(-50%, ${tip.below ? "0" : "-100%"})` }}>
       {head && <b className={`block text-txt ${rest ? "-mx-2.5 -mt-1.5 mb-1.5 border-b border-line/60 bg-bg px-2.5 py-1.5" : ""}`}>{head}</b>}{/* heading = the darkest tone of the theme, like the card header strips */}
       {rest && <span className={head ? "block text-muted" : ""}>{body(rest)}</span>}
-      <span aria-hidden className={`absolute h-2 w-2 rotate-45 border border-line ${tip.below && head && rest ? "bg-bg" : "bg-card"} ${tip.below ? "-top-1 border-b-0 border-r-0" : "-bottom-1 border-l-0 border-t-0"}`} style={{ left: `calc(50% - ${shift}px - 4px)` }} />
+      {action && <span className={`-mx-2.5 -mb-1.5 flex items-center gap-1.5 border-t border-line bg-link/10 px-2.5 py-1 text-[11.5px] font-semibold text-link ${text ? "mt-1.5" : "-mt-1.5"}`}><MousePointerClick size={13} aria-hidden className="shrink-0" />{action}</span>}{/* what a click on the element does: a strip, so nobody tries to click the bubble */}
+      <span aria-hidden className={`absolute h-2 w-2 rotate-45 border border-line ${arrowBg(tip.below, !!(head && rest), !!action)} ${tip.below ? "-top-1 border-b-0 border-r-0" : "-bottom-1 border-l-0 border-t-0"}`} style={{ left: `calc(50% - ${shift}px - 4px)` }} />
     </div>
   );
 }

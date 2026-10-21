@@ -313,8 +313,11 @@ def run_isolated(conn: Connector, state: dict, timeout: float) -> tuple[dict | N
             box["error"] = f"erreur interne du connecteur ({type(e).__name__}: {e})"
 
     th = threading.Thread(target=work, daemon=True)
-    th.start()
-    th.join(timeout)
+    try:
+        th.start()
+        th.join(timeout)
+    except RuntimeError as e:  # plus de thread disponible (limite de processus atteinte) : un échec de lecture comme un autre
+        box["error"] = f"lecture impossible à lancer ({e})"
     if th.is_alive():
         box["error"] = f"délai dépassé ({timeout:.0f} s)"
     # Status connectors (status_kit) find the app version while collecting, not in version()

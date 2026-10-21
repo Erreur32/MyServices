@@ -17,6 +17,20 @@ const TONE: Record<Tone, string> = {
   info: "border-link/40 bg-link/10 text-link",
 };
 
+/** The search field of every list (all the words, in any order, without accents nor case: searchHit), then « N of M » when given */
+export function SearchBox({ value, onChange, placeholder, count, className = "" }: Readonly<{ value: string; onChange: (q: string) => void; placeholder: string; count?: [number, number]; className?: string }>) {
+  return (
+    <>
+      <label className={`flex min-w-[220px] max-w-sm flex-1 items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-1.5 focus-within:border-link ${className}`}>
+        <Search size={16} className="text-dim" aria-hidden />
+        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={placeholder} type="search"
+          className="w-full bg-transparent text-sm text-txt outline-none placeholder:text-dim" />
+      </label>
+      {count && <span className="whitespace-nowrap text-sm text-muted" title={tx("Lignes affichées sur le total, après la recherche et les filtres")}><b className="text-txt">{count[0]}</b> {tx("sur")} {count[1]}</span>}
+    </>
+  );
+}
+
 export function Badge({ tone, children, title, outline = false, plainText = false }: { tone: Tone; children: ReactNode; title?: string; outline?: boolean; plainText?: boolean }) {   // outline: the border and the text colour only, no filled background ; plainText: the text in the normal colour (white on dark), the state is carried by the border
   return (
     <span title={title} className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-xs font-semibold ${(outline ? TONE[tone].replace(/bg-\S+/, "bg-transparent") : TONE[tone]).replace(plainText ? /text-\S+/ : /$^/, "text-txt")}`}>
@@ -180,12 +194,7 @@ export function FilterBar<T>({ f, placeholder, extra, side, options: allOptions 
   return (
     <div className="my-4 flex flex-col gap-3 rounded-2xl border border-line bg-card/70 p-3">
       <div ref={rowRef} className={`flex items-center gap-3 ${oneLine && !collapsed ? "flex-nowrap" : "flex-wrap"}`}>
-        <label className="flex min-w-[220px] max-w-sm flex-1 items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-1.5 focus-within:border-link">
-          <Search size={16} className="text-dim" />
-          <input value={f.query} onChange={(e) => f.setQuery(e.target.value)} placeholder={placeholder} type="search"
-            className="w-full bg-transparent text-sm text-txt outline-none placeholder:text-dim" />
-        </label>
-        <span className="text-sm text-muted" title={tx("Lignes affichées sur le total, après la recherche et les filtres")}><b className="text-txt">{f.shown.length}</b> {tx("sur")} {f.total}</span>
+        <SearchBox value={f.query} onChange={f.setQuery} placeholder={placeholder} count={[f.shown.length, f.total]} />
         {oneLine && inlineFilters}
         {optionsLabel && allOptions.length > 0 && (
           <span className="flex flex-wrap items-center gap-1.5">
@@ -310,6 +319,11 @@ export function Td({ children, className = "" }: { children?: ReactNode; classNa
 export function GradientFill({ pct }: Readonly<{ pct: number }>) {
   const fill = Math.min(100, Math.max(2, pct));
   return <span className="block h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-500 saturate-150" style={{ width: `${fill}%`, backgroundSize: `${10000 / fill}% 100%` }} />;
+}
+
+/** A value next to a bar: the number on one line with its unit (« % », « °C »), the unit smaller and dimmed than the value */
+export function Pct({ value, unit = "%" }: Readonly<{ value: number | string; unit?: string }>) {
+  return <span className="whitespace-nowrap tabular-nums">{value}<span className="ml-0.5 text-[0.8em] text-dim">{unit}</span></span>;
 }
 
 export function Fill({ pct }: Readonly<{ pct: number }>) {

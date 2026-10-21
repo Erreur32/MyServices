@@ -174,5 +174,77 @@ class SlowMachineCard(unittest.TestCase):
         self.assertEqual([f for f in got if f["kind"] == "nic"], [])
 
 
+def sfp_port(idx, **kw):
+    return {"port_idx": idx, "up": True, "speed": 10000, "media": "SFP+", "sfp_found": True, "sfp_part": "8SN-400", "sfp_vendor": "Accedian",
+            "sfp_temperature": 60, "sfp_voltage": 3.3, "sfp_current": 30, "sfp_rxpower": -3, "sfp_txpower": -2.5, **kw}
+
+
+class Sfp(unittest.TestCase):
+    def codes(self, *ports):
+        return [(f["severity"], f["code"], f["port"]) for f in nd.findings([{"name": "UCG", "mac": "aa", "port_table": list(ports)}]) if f["kind"] == "sfp"]
+
+    def test_a_healthy_module_says_nothing(self):
+        self.assertEqual(self.codes(sfp_port(1)), [])
+
+    def test_hot_then_too_hot(self):
+        self.assertEqual(self.codes(sfp_port(1, sfp_temperature=81.4), sfp_port(2, sfp_temperature=88)), [("bad", "sfp_temp", 2), ("warn", "sfp_temp", 1)])
+
+    def test_light_and_faults(self):
+        got = self.codes(sfp_port(1, sfp_rxpower=-15), sfp_port(2, sfp_rxpower=-20), sfp_port(3, sfp_rxpower=1.2), sfp_port(4, sfp_rx_los=True), sfp_port(5, sfp_txfault=True), sfp_port(6, sfp_voltage=3.0))
+        self.assertEqual(sorted(got), sorted([("warn", "sfp_rx_low", 1), ("bad", "sfp_rx_low", 2), ("bad", "sfp_rx_high", 3), ("bad", "sfp_los", 4), ("bad", "sfp_fault", 5), ("warn", "sfp_volt", 6)]))
+
+    def test_copper_module_has_no_light(self):
+        """A 10GBASE-T module reports made-up light figures: they are dropped, never judged."""
+        r = nd.sfp_reading(sfp_port(7, sfp_part="SFP-10G-T", sfp_rxpower=-30))
+        self.assertEqual((r["copper"], r["rx"], r["tx"]), (True, None, None))
+        self.assertEqual(self.codes(sfp_port(7, sfp_part="SFP-10G-T", sfp_rxpower=-30)), [])
+
+    def test_modules_table_and_empty_ports(self):
+        dev = [{"name": "UCG", "mac": "aa", "port_table": [sfp_port(7, sfp_temperature=81), sfp_port(6), {"port_idx": 8, "sfp_found": False}, {"port_idx": 1, "up": True}]}]
+        mods = nd.sfp_modules(dev)
+        self.assertEqual([(m["port"], m["state"], m["codes"]) for m in mods], [(6, "ok", []), (7, "warn", ["sfp_temp"])])
+
+
+class PortErrors(unittest.TestCase):
+    def test_unknown_while_the_source_gives_no_counter(self):
+        self.assertEqual(nd.port_errors([{"name": "SW", "port_table": [{"port_idx": 1}]}]), {"known": False, "ports": []})
+
+    def test_only_ports_with_errors_most_first(self):
+        dev = [{"name": "SW", "mac": "bb", "port_table": [{"port_idx": 1, "rx_errors": 0, "tx_errors": 0}, {"port_idx": 2, "rx_errors": 3}, {"port_idx": 3, "rx_errors": 10, "tx_dropped": 5}]}]
+        got = nd.port_errors(dev)
+        self.assertTrue(got["known"])
+        self.assertEqual([(x["port"], x["rx_errors"], x["tx_dropped"]) for x in got["ports"]], [(3, 10, 5), (2, 3, 0)])
+
+
+class ErrorRise(unittest.TestCase):
+    def dev(self, rx):
+        return [{"name": "SW", "mac": "BB", "port_table": [{"port_idx": 9, "rx_errors": rx, "tx_errors": 0, "rx_dropped": 0, "tx_dropped": 0}]}]
+
+    def test_a_rise_since_the_reference_reading_is_a_finding(self):
+        samples = nd.error_samples([], self.dev(100), 1000)
+        self.assertEqual(nd.error_rise_findings(samples, self.dev(100), None, 1000), [])   # no reading old enough yet
+        got = nd.error_rise_findings(samples, self.dev(160), None, 1000 + 1200)
+        self.assertEqual([(f["severity"], f["code"], f["port"], f["args"]["value"], f["args"]["minutes"]) for f in got], [("warn", "errors_rise", 9, 60, 20)])
+        self.assertEqual(nd.error_rise_findings(samples, self.dev(2000), None, 2200)[0]["severity"], "bad")
+
+    def test_small_rise_and_restart_say_nothing(self):
+        samples = nd.error_samples([], self.dev(100), 1000)
+        self.assertEqual(nd.error_rise_findings(samples, self.dev(105), None, 2200), [])
+        self.assertEqual(nd.error_rise_findings(samples, self.dev(3), None, 2200), [])   # counter went down: the device restarted
+
+    def test_samples_every_half_hour_old_ones_dropped(self):
+        s = nd.error_samples([], self.dev(1), 0)
+        s = nd.error_samples(s, self.dev(2), 600)
+        self.assertEqual(len(s), 1)
+        s = nd.error_samples(s, self.dev(3), 1800)
+        self.assertEqual(len(s), 2)
+        s = nd.error_samples(s, self.dev(4), 20000)
+        self.assertEqual([x["at"] for x in s], [20000])
+
+    def test_errors_sorted_before_drops(self):
+        dev = [{"name": "SW", "mac": "bb", "port_table": [{"port_idx": 4, "rx_errors": 0, "tx_errors": 0, "rx_dropped": 0, "tx_dropped": 1772743}, {"port_idx": 9, "rx_errors": 109, "tx_errors": 0}]}]
+        self.assertEqual([x["port"] for x in nd.port_errors(dev)["ports"]], [9, 4])
+
+
 if __name__ == "__main__":
     unittest.main()

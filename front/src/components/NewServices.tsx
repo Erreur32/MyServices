@@ -9,7 +9,6 @@ import { act, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { NoteLine } from "./form";
 import { Badge, Count } from "./ui";
-import { InfoNote } from "./InfoNote";
 import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 
 export interface NewService {
@@ -38,13 +37,13 @@ export function NewServices({ generated }: { generated?: string }) {   // genera
   };
   return (
     <section className="overflow-hidden rounded-2xl border border-link/40 bg-card shadow-sm" aria-label={tx("Nouveaux services sur les machines")}>
-      <div className={`flex flex-wrap items-center gap-3 bg-link/10 px-5 py-3.5 ${FOLD_HEADER}`} {...foldHeaderProps(() => fold(!folded))}>
+      <div className={`flex flex-wrap items-center gap-3 bg-link/10 px-4 py-2 ${FOLD_HEADER}`} {...foldHeaderProps(() => fold(!folded))}>
         <button type="button" onClick={() => fold(!folded)} aria-expanded={!folded} title={folded ? tx("Déplier") : tx("Replier")}
-          className="flex min-w-0 flex-1 items-center gap-3 text-left">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-link/20 text-link"><Boxes size={18} aria-hidden /></span>
-          <span className="min-w-0 flex-1">
-            <h2 className="flex items-center gap-2 text-base font-bold">{tx("Nouveaux services sur les machines")} <Count n={items.length} /></h2>
-            <InfoNote>{tx("Apparus ces 7 derniers jours : les suivre ? Sans réponse, ils sont suivis comme les autres.")}</InfoNote>
+          className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-link/20 text-link"><Boxes size={15} aria-hidden /></span>
+          <h2 className="flex shrink-0 items-center gap-2 text-base font-bold">{tx("Nouveaux services sur les machines")} <Count n={items.length} /></h2>
+          <span className="min-w-0 flex-1 truncate text-xs text-dim" title={tx("Un service est suivi dès qu'il est détecté ; il reste proposé ici 7 jours, le temps de choisir.")}>
+            {tx("Apparus ces 7 derniers jours et déjà suivis : « Ne pas suivre » les met en pause.")}
           </span>
           <ChevronRight size={18} className={`shrink-0 text-txt transition-transform ${folded ? "" : "rotate-90"}`} aria-hidden />
         </button>

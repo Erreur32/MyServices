@@ -18,6 +18,7 @@ import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorType, 
 import { configFor, modeOf } from "../lib/connectorModes";
 import { takeFocus, takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
+import { searchHit } from "../lib/filter";
 import { savedFor } from "../lib/savedFor";
 import { runningTip, stoppedTip } from "../lib/runState";
 import { serviceAt, setupCommand } from "../lib/connectorSetup";
@@ -99,7 +100,7 @@ export function Connectors({ snap }: { snap: Snapshot }) {
         {picking && <CategoryChips types={st.types} cat={cat} setCat={setCat} />}
         {picking && (
           <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label={tx("Connecteurs disponibles")}>
-            {st.types.filter((t) => (!cat || t.category === cat) && hits(query, t.label, t.type, catName(t.category ?? ""), ...t.kinds.map((k) => KIND[k] || k)))
+            {st.types.filter((t) => (!cat || t.category === cat) && searchHit([t.label, t.type, catName(t.category ?? ""), ...t.kinds.map((k) => KIND[k] || k)].join(" "), query))
               .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })).map((t) => {
               const icon = appIcon([t.label]), n = st.instances.filter((i) => i.type === t.type).length, ssh = bySsh.filter((o) => o.type === t.type).length;
               return (
@@ -162,8 +163,6 @@ export function Connectors({ snap }: { snap: Snapshot }) {
 }
 
 /** Every word of the search found in one of the texts (accents and case ignored) */
-const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-const hits = (q: string, ...texts: string[]) => { const all = fold(texts.join(" ")); return fold(q).split(/\s+/).every((w) => all.includes(w)); };
 
 // Categories sent by the server (connectors/settings.py: category), translated here
 const CATEGORY: Record<string, string> = {

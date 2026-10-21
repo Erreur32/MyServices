@@ -57,10 +57,19 @@ describe("onglet Réseau", () => {
   it("hidden without any network source", () => {
     expect(hasNetwork({ data: { network: [], services_status: [] } } as unknown as Snapshot)).toBe(false);
   });
-  it("la vue d'ensemble est la page d'arrivée : les compteurs et le sous-menu, pas la liste", () => {
+  it("un sous-onglet par source, UniFi en premier et page d'arrivée, pas la liste", () => {
     const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} />);
-    expect(html).toContain("Cartes");                      // the sub-menu
-    expect(html).toContain("Équipements et appareils");
-    expect(html).not.toContain("Clients par borne ou switch");   // that list lives in the other sub-page
+    const tabs = [...html.matchAll(/aria-pressed="(true|false)"[^>]*>(?:<svg[\s\S]*?<\/svg>)?([^<]+)<\/button>/g)].map((m) => [m[2], m[1]]);
+    expect(tabs).toEqual([["UniFi", "true"], ["Freebox", "false"], ["Scan", "false"], ["Équipements et appareils", "false"], ["Diagnostic", "false"]]);
+    expect(html).not.toContain("Clients par borne ou switch");   // that list lives in its own sub-tab
+  });
+  it("sans UniFi, Freebox ni MynetworK : seulement la liste et le diagnostic, la page s'ouvre sur la liste", () => {
+    const bare = { ...snap, data: { ...snap.data, services_status: [], network: [{ connector: "netalertx", name: "n", label: "NetAlertX", ok: true, stale: false, message: "OK",
+      devices: [{ ip: "10.0.0.9", hostname: "tv", vendor: "LG", status: "online", ports: [] }] }] } } as unknown as Snapshot;
+    stored.set("ms.network.sub", "unifi");   // chosen earlier, the source is gone since
+    const html = renderToStaticMarkup(<Network snap={bare} onMachine={() => undefined} />);
+    expect(html).not.toContain(">UniFi</button>");
+    expect(html).not.toContain(">Freebox</button>");
+    expect(html).toContain("Appareils du réseau");
   });
 });

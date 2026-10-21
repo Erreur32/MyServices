@@ -23,6 +23,12 @@ REBOOT_S = 600   # a device restarted less than this long ago
 WIFI_WARN, WIFI_BAD = -75, -85   # dBm
 CLIENTS_HIGH = 50   # clients on one access point
 LATENCY_WIRED, LATENCY_OTHER = 50, 300   # ms
+SFP_TEMP_WARN, SFP_TEMP_BAD = 75, 85   # °C, the case of a transceiver (most are rated 0-70 °C, 10GBASE-T copper ones run hotter)
+SFP_RX_WARN, SFP_RX_BAD, SFP_RX_HIGH = -14, -18, 0.5   # dBm received: little margin left, no light to speak of, enough to blind the receiver
+SFP_VOLT_LOW, SFP_VOLT_HIGH = 3.13, 3.47   # V, the 3.3 V supply ± 5 %
+PORT_COUNTERS = ("rx_errors", "tx_errors", "rx_dropped", "tx_dropped")
+ERROR_RISE_WARN, ERROR_RISE_BAD = 10, 1000   # receive + send errors gained since the reference reading
+SAMPLE_EVERY, SAMPLE_MIN_AGE, SAMPLE_MAX_AGE = 1800, 600, 7200   # s: a reading kept every 30 min, compared with one 10 min to 2 h old
 
 
 def port_max(row: dict) -> int | None:
@@ -171,6 +177,60 @@ def _check_devices(ctx: _Ctx) -> None:
         _check_load(ctx, d)
         for p in d.get("port_table") or []:
             _check_port(ctx, mac, d, p)
+            _check_sfp(ctx, d, p)
+
+
+def _copper(p: dict) -> bool:
+    """A 10GBASE-T (RJ45) module: no light, its « received » and « sent » figures mean nothing."""
+    return "BASE-T" in str(p.get("sfp_compliance") or "").upper() or bool(re.search(r"10G-?T\b", str(p.get("sfp_part") or ""), re.I))
+
+
+def sfp_reading(p: dict) -> dict | None:
+    """The sensors of the transceiver in a port (DOM), None when the port has none."""
+    if not isinstance(p, dict) or p.get("sfp_found") is not True:
+        return None
+    copper = _copper(p)
+    return {"part": p.get("sfp_part"), "vendor": p.get("sfp_vendor"), "compliance": p.get("sfp_compliance"), "copper": copper,
+            "temp": _num(p.get("sfp_temperature")), "voltage": _num(p.get("sfp_voltage")), "current": _num(p.get("sfp_current")),
+            "rx": None if copper else _num(p.get("sfp_rxpower")), "tx": None if copper else _num(p.get("sfp_txpower")),
+            "los": p.get("sfp_rx_los") is True or p.get("sfp_rxfault") is True, "fault": p.get("sfp_tx_fault") is True or p.get("sfp_txfault") is True}
+
+
+def _sfp_light(rx: float | None) -> list[tuple[str, str, str, dict]]:
+    if rx is None:
+        return []
+    if rx > SFP_RX_HIGH:
+        return [("bad", "sfp_rx_high", f"received light too strong ({rx:.1f} dBm): an attenuator is missing", {"value": round(rx, 1)})]
+    if rx < SFP_RX_WARN:
+        sev = "bad" if rx < SFP_RX_BAD else "warn"
+        return [(sev, "sfp_rx_low", f"received light weak ({rx:.1f} dBm): fibre, connector or far end to check", {"value": round(rx, 1)})]
+    return []
+
+
+def sfp_problems(r: dict) -> list[tuple[str, str, str, dict]]:
+    """(severity, code, text, args) of each problem of one transceiver reading."""
+    out = []
+    if r["los"]:
+        out.append(("bad", "sfp_los", "the transceiver receives no signal (loss of signal)", {}))
+    if r["fault"]:
+        out.append(("bad", "sfp_fault", "the transceiver reports a transmit fault", {}))
+    t = r["temp"]
+    if t is not None and t >= SFP_TEMP_WARN:
+        out.append(("bad" if t >= SFP_TEMP_BAD else "warn", "sfp_temp", f"transceiver hot ({t:.0f} °C)", {"value": round(t), "limit": SFP_TEMP_WARN}))
+    out += _sfp_light(r["rx"])
+    v = r["voltage"]
+    if v is not None and not SFP_VOLT_LOW <= v <= SFP_VOLT_HIGH:
+        out.append(("warn", "sfp_volt", f"transceiver supply at {v:.2f} V", {"value": round(v, 2)}))
+    return out
+
+
+def _check_sfp(ctx: _Ctx, d: dict, p: dict) -> None:
+    r = sfp_reading(p)
+    if not r:
+        return
+    module = " ".join(x for x in (r["part"], f"({r['vendor']})" if r["vendor"] else "") if x)
+    for sev, code, text, args in sfp_problems(r):
+        ctx.add(sev, "sfp", d, p.get("port_idx"), text, code=code, module=module, **args)
 
 
 def _temperature(d: dict) -> float | None:
@@ -334,6 +394,81 @@ def ok_ports(devices: list[dict], clients: list[dict] | None, items: list[dict],
             out.append(_ok_port_row(d, mac, p, peer, cards, seen_mac))
     out.sort(key=lambda r: (str(r["device"]), r["port"] if isinstance(r["port"], int) else -1))
     return out
+
+
+def _device_name(d: dict) -> str:
+    return d.get("name") or d.get("model") or d.get("mac") or "?"
+
+
+def sfp_modules(devices: list[dict]) -> list[dict]:
+    """Every transceiver found, with its readings and its state (« ok », « warn », « bad ») and problem codes, for the « SFP modules » table."""
+    out = []
+    for d, p in _ports(devices):
+        r = sfp_reading(p)
+        if r:
+            probs = sfp_problems(r)
+            state = min((x[0] for x in probs), key=SEVERITY.get, default="ok")
+            out.append({"device": _device_name(d), "mac": d.get("mac"), "port": p.get("port_idx"), **r, "state": state, "codes": [x[1] for x in probs]})
+    return sorted(out, key=lambda m: (str(m["device"]), m["port"] if isinstance(m["port"], int) else -1))
+
+
+def _ports(devices: list[dict]):
+    """(device, port row) of every port of every device, odd entries left out"""
+    for d in devices:
+        if isinstance(d, dict):
+            yield from ((d, p) for p in d.get("port_table") or [] if isinstance(p, dict))
+
+
+def port_errors(devices: list[dict]) -> dict:
+    """The error counters of the ports, when the source gives them: {known, ports: [{device, port, rx_errors, tx_errors, rx_dropped, tx_dropped}]}
+    with only the ports that have some, the most affected first. known is False while no port reports any counter (MynetworK without them)."""
+    known, ports = False, []
+    for d, p in _ports(devices):
+        counts = {k: _num(p.get(k)) for k in PORT_COUNTERS}
+        if all(v is None for v in counts.values()):
+            continue
+        known = True
+        if any(counts.values()):
+            ports.append({"device": _device_name(d), "mac": d.get("mac"), "port": p.get("port_idx"), **{k: v or 0 for k, v in counts.items()}})
+    ports.sort(key=lambda x: (-(x["rx_errors"] + x["tx_errors"]), -(x["rx_dropped"] + x["tx_dropped"])))   # errors first: drops are often normal
+    return {"known": known, "ports": ports}
+
+
+def _error_counts(devices: list[dict]) -> dict[str, int]:
+    """{« mac|port »: receive + send errors} of every port that reports them"""
+    out = {}
+    for d, p in _ports(devices):
+        rx, tx = _num(p.get("rx_errors")), _num(p.get("tx_errors"))
+        if rx is not None or tx is not None:
+            out[f"{str(d.get('mac') or '').lower()}|{p.get('port_idx')}"] = int((rx or 0) + (tx or 0))
+    return out
+
+
+def error_samples(samples: list[dict], devices: list[dict], now: float) -> list[dict]:
+    """The readings of the error counters to compare with: one added every SAMPLE_EVERY, the ones older than SAMPLE_MAX_AGE dropped."""
+    kept = [x for x in samples if isinstance(x, dict) and isinstance(x.get("at"), (int, float)) and now - x["at"] <= SAMPLE_MAX_AGE + SAMPLE_EVERY]
+    counts = _error_counts(devices)
+    if counts and (not kept or now - kept[-1]["at"] >= SAMPLE_EVERY):
+        kept.append({"at": now, "ports": counts})
+    return kept
+
+
+def error_rise_findings(samples: list[dict], devices: list[dict], clients: list[dict] | None, now: float) -> list[dict]:
+    """A finding for each port whose errors rose since the oldest reading 10 min to 2 h old (a counter that went down: the device restarted)."""
+    ref = next((x for x in samples if SAMPLE_MIN_AGE <= now - x["at"] <= SAMPLE_MAX_AGE + SAMPLE_EVERY), None)
+    if not ref:
+        return []
+    ctx, minutes = _Ctx(devices, clients, None, None), max(1, round((now - ref["at"]) / 60))
+    for key, n in _error_counts(devices).items():
+        before = (ref.get("ports") or {}).get(key)
+        gained = n - before if isinstance(before, int) and n >= before else 0
+        if gained >= ERROR_RISE_WARN:
+            mac, _, port = key.partition("|")
+            port_idx = int(port) if port.isdigit() else port
+            ctx.add("bad" if gained >= ERROR_RISE_BAD else "warn", "errors", ctx.by_mac.get(mac, {"mac": mac}), port_idx,
+                    f"{gained} port errors in {minutes} min: cable, connector or module to check", peer=ctx.seen.get((mac, port_idx)),
+                    code="errors_rise", value=gained, minutes=minutes)
+    return ctx.out
 
 
 def summary(items: list[dict]) -> dict:

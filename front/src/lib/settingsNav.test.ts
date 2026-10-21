@@ -8,8 +8,8 @@ describe("normalizeSection", () => {
     expect(normalizeSection("agents")).toEqual({ section: "machines" });
   });
   it("une ancienne section devenue une page à part", () => {
-    expect(normalizeSection("audit")).toEqual({ redirect: "audit" });
-    expect(normalizeSection("logs")).toEqual({ redirect: "logs" });
+    expect(normalizeSection("audit")).toEqual({ redirect: "settings/requests/audit" });
+    expect(normalizeSection("logs")).toEqual({ redirect: "settings/requests/logs" });
     expect(normalizeSection("help")).toEqual({ redirect: "help" });
     expect(normalizeSection("about")).toEqual({ redirect: "about" });
   });
