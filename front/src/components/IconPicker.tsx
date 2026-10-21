@@ -2,7 +2,7 @@
 import { ChevronDown } from "lucide-react";
 import { useMemo, useState } from "react";
 import { MACHINE_ICONS, chosenIcon, type ChosenIcon } from "../lib/machineIcons";
-import { norm } from "../lib/format";
+import { searchHit } from "../lib/filter";
 import { tx } from "../lib/i18n";
 import { input } from "../lib/forms";
 
@@ -21,7 +21,7 @@ export function IconPicker({ value, onPick, disabled, autoHint, auto }: {
 }) {
   const [open, setOpen] = useState(false), [q, setQ] = useState("");
   const current = chosenIcon(value);
-  const shown = useMemo(() => MACHINE_ICONS.filter((i) => !q.trim() || norm(`${i.label} ${i.key}`).includes(norm(q))), [q]);
+  const shown = useMemo(() => MACHINE_ICONS.filter((i) => searchHit(`${i.label} ${i.key}`, q)), [q]);
   const pick = (key?: string) => { onPick(key); setOpen(false); setQ(""); };
   return (
     <div>

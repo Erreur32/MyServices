@@ -524,7 +524,7 @@ export const EN: Record<string, string> = {
   "expire le {0}": "expires on {0}",
   "Exporter la configuration": "Export configuration",
   "Fichiers servis": "Served files",
-  "Filtrer (compte, IP, action…)": "Filter (account, IP, action…)",
+  "Compte, IP, action, détail…": "Account, IP, action, detail…",
   "Filtres": "Filters",
   "fixé par la variable d'environnement du conteneur": "set by the container's environment variable",
   "garde LAN (advanced_config)": "LAN guard (advanced_config)",

@@ -1,10 +1,11 @@
 // Réglages → Requêtes et journaux → Journal d'audit : les actions (connexions, échecs, changements), filtrées par type, compte et texte, exportables en CSV.
-import { Download, ScrollText, Search } from "lucide-react";
+import { Download, ScrollText } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { LOGIN, LoginRequired, read } from "../api";
-import { Badge, Card, Count, Dim } from "../components/ui";
+import { Badge, Card, Count, Dim, SearchBox } from "../components/ui";
 import { auditTone, counted, inPeriod, type AuditTone } from "../lib/audit";
-import { dateTime, norm } from "../lib/format";
+import { dateTime } from "../lib/format";
+import { searchHit } from "../lib/filter";
 import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import type { AuditEntry } from "../types";
@@ -34,8 +35,7 @@ export function AuditLog() {
   const actions = useMemo(() => counted(period.map((a) => a.action)), [period]);
   const users = useMemo(() => counted(period.map((a) => a.username)), [period]);
   const shown = useMemo(() => {
-    const n = norm(q);
-    return period.filter((a) => (!action || a.action === action) && (!user || a.username === user) && (!n || norm(`${a.username} ${a.ip} ${a.action} ${a.detail}`).includes(n)));
+    return period.filter((a) => (!action || a.action === action) && (!user || a.username === user) && searchHit(`${a.username} ${a.ip} ${a.action} ${a.detail}`, q));
   }, [period, q, action, user]);
   const exportCsv = () => {
     const rows = [["date", "compte", "action", "détail", "ip"], ...shown.map((a) => [new Date(a.ts * 1000).toISOString(), a.username, a.action, a.detail, a.ip])];
@@ -69,10 +69,7 @@ export function AuditLog() {
             <div className="flex flex-wrap gap-1.5" role="group" aria-label={tx("Période")}>
               {PERIODS.map(([d, l]) => <button key={d} type="button" aria-pressed={days === d} onClick={() => setDays(d)} className={chip(days === d)}>{l}</button>)}
             </div>
-            <label className="ml-auto flex min-w-[200px] max-w-xs flex-1 items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-1.5 focus-within:border-link">
-              <Search size={14} className="text-dim" aria-hidden />
-              <input className="w-full bg-transparent text-sm outline-none placeholder:text-dim" type="search" placeholder={tx("Filtrer (compte, IP, action…)")} value={q} onChange={(e) => setQ(e.target.value)} />
-            </label>
+            <SearchBox value={q} onChange={setQ} placeholder={tx("Compte, IP, action, détail…")} count={[shown.length, period.length]} className="ml-auto" />
           </div>
           <fieldset>
             <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-dim">{tx("Type d'action")}</legend>
