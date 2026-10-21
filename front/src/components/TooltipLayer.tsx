@@ -49,6 +49,12 @@ function body(text: string): React.ReactNode {
   return out;
 }
 
+/** The arrow takes the colour of the part it touches: the heading strip below, the action strip above, else the body */
+function arrowBg(below: boolean, heading: boolean, action: boolean): string {
+  if (below) return heading ? "bg-bg" : "bg-card";
+  return action ? "bg-[color-mix(in_srgb,rgb(var(--link))_10%,rgb(var(--card)))]" : "bg-card";
+}
+
 export function TooltipLayer() {
   const [tip, setTip] = useState<Tip | null>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -111,7 +117,7 @@ export function TooltipLayer() {
       {head && <b className={`block text-txt ${rest ? "-mx-2.5 -mt-1.5 mb-1.5 border-b border-line/60 bg-bg px-2.5 py-1.5" : ""}`}>{head}</b>}{/* heading = the darkest tone of the theme, like the card header strips */}
       {rest && <span className={head ? "block text-muted" : ""}>{body(rest)}</span>}
       {action && <span className={`-mx-2.5 -mb-1.5 flex items-center gap-1.5 border-t border-line bg-link/10 px-2.5 py-1 text-[11.5px] font-semibold text-link ${text ? "mt-1.5" : "-mt-1.5"}`}><MousePointerClick size={13} aria-hidden className="shrink-0" />{action}</span>}{/* what a click on the element does: a strip, so nobody tries to click the bubble */}
-      <span aria-hidden className={`absolute h-2 w-2 rotate-45 border border-line ${tip.below && head && rest ? "bg-bg" : tip.below || !action ? "bg-card" : "bg-[color-mix(in_srgb,rgb(var(--link))_10%,rgb(var(--card)))]"} ${tip.below ? "-top-1 border-b-0 border-r-0" : "-bottom-1 border-l-0 border-t-0"}`} style={{ left: `calc(50% - ${shift}px - 4px)` }} />
+      <span aria-hidden className={`absolute h-2 w-2 rotate-45 border border-line ${arrowBg(tip.below, !!(head && rest), !!action)} ${tip.below ? "-top-1 border-b-0 border-r-0" : "-bottom-1 border-l-0 border-t-0"}`} style={{ left: `calc(50% - ${shift}px - 4px)` }} />
     </div>
   );
 }

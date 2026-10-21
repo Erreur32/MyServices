@@ -351,13 +351,18 @@ function WatchList({ items, wrap = false, quiet = false, ip }: Readonly<{ items:
   if (!items.length && quiet) return null;
   if (!items.length) return <span className="inline-flex items-center gap-1 text-xs text-ok" title={tx("Rien à surveiller")}><Check size={14} aria-hidden />{wrap && tx("Rien à surveiller")}</span>;
   return (
-    <div className="flex flex-wrap items-center gap-1" role="list" aria-label={tx("À surveiller")}>{/* tout est montré, jamais caché : les pastilles passent à la ligne */}
-      {items.map((it, i) => {
+    <ul className="flex flex-wrap items-center gap-1" aria-label={tx("À surveiller")}>{/* tout est montré, jamais caché : les pastilles passent à la ligne */}
+      {items.map((it) => {
         const Icon = WATCH_ICON[it.kind], cls = `grid h-6 w-6 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`;
-        if (ip && pick) return <button key={i} type="button" role="listitem" title={watchTip(it, tx("Clic sur la pastille : la fiche, à cet endroit"))} aria-label={it.text} onClick={() => pick(ip, it.kind)} className={`${cls} hover:brightness-125`}><Icon size={14} aria-hidden /></button>;
-        return <span key={i} role="listitem" tabIndex={0} title={watchTip(it)} className={cls}><Icon size={14} aria-hidden /></span>;
+        return (
+          <li key={`${it.kind}:${it.text}`} className="flex">
+            {ip && pick
+              ? <button type="button" title={watchTip(it, tx("Clic sur la pastille : la fiche, à cet endroit"))} aria-label={it.text} onClick={() => pick(ip, it.kind)} className={`${cls} hover:brightness-125`}><Icon size={14} aria-hidden /></button>
+              : <span role="img" title={watchTip(it)} aria-label={it.text} className={cls}><Icon size={14} aria-hidden /></span>}
+          </li>
+        );
       })}
-    </div>
+    </ul>
   );
 }
 /** Scrolls the machine window to what explains a notice (the exact row when there is one, else its section) and makes it flash */
@@ -1256,7 +1261,7 @@ function ServiceCount({ m, snap, onOpen }: Readonly<{ m: Machine; snap: Snapshot
     {nDown > 0 && <span className="text-xs font-semibold tabular-nums text-bad">+{nDown}</span>}
     {warn.length > 0 && <span className="text-xs font-semibold tabular-nums text-warn">+{warn.length}</span>}
   </>;
-  if (!onOpen) return <span className="inline-flex items-baseline gap-1.5" title={tip} tabIndex={0}>{inner}</span>;
+  if (!onOpen) return <span className="inline-flex items-baseline gap-1.5" title={tip}>{inner}</span>;
   return <button type="button" onClick={onOpen} title={tip} aria-label={tx("Voir les services de {0}", m.name)} className="group inline-flex items-baseline gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-link/10">{inner}</button>;
 }
 

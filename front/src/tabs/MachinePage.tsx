@@ -66,17 +66,24 @@ function PortsCard({ snap, m, onMachine }: Readonly<{ snap: Snapshot; m: Machine
                 <td className="py-1.5 pr-2" title={unseen ? tx("pas vu ouvert au dernier scan") : label}><Dot tone={unseen ? "off" : cls} /></td>
                 <td className="py-1.5 pr-3"><PortService r={r} /></td>
                 <td className="py-1.5 pr-3 font-mono text-xs tabular-nums text-muted">:{r.port}</td>
-                <td className="py-1.5">{unseen ? <span className="text-xs text-dim">{tx("pas vu ouvert au dernier scan")}</span>
-                  : r.domains.length ? <span className="flex flex-wrap gap-1">{r.domains.map((d) => (
-                      <a key={d} href={`https://${d}`} target="_blank" rel="noreferrer" title={tx("Exposé sur Internet par NPM")} className="inline-flex items-center gap-1 rounded-md border border-link/40 bg-link/10 px-1.5 py-0.5 text-xs text-link no-underline hover:border-link"><Globe size={11} aria-hidden />{d}</a>
-                    ))}</span>
-                  : <span className="rounded-md border border-line px-1.5 py-0.5 text-xs text-dim" title={tx("Joignable seulement depuis le réseau local")}>LAN</span>}</td>
+                <td className="py-1.5"><PortExposure r={r} unseen={unseen} /></td>
               </tr>
             );
           })}
         </tbody>
       </table>
     </section>
+  );
+}
+
+/** Where a port is reached from: the NPM domains that expose it (each opens the site), else the LAN; not seen by the last scan: said so */
+function PortExposure({ r, unseen }: Readonly<{ r: PortRow; unseen: boolean }>) {
+  if (unseen) return <span className="text-xs text-dim">{tx("pas vu ouvert au dernier scan")}</span>;
+  if (!r.domains.length) return <span className="rounded-md border border-line px-1.5 py-0.5 text-xs text-dim" title={tx("Joignable seulement depuis le réseau local")}>LAN</span>;
+  return (
+    <span className="flex flex-wrap gap-1">{r.domains.map((d) => (
+      <a key={d} href={`https://${d}`} target="_blank" rel="noreferrer" title={tx("Exposé sur Internet par NPM")} className="inline-flex items-center gap-1 rounded-md border border-link/40 bg-link/10 px-1.5 py-0.5 text-xs text-link no-underline hover:border-link"><Globe size={11} aria-hidden />{d}</a>
+    ))}</span>
   );
 }
 
