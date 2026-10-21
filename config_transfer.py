@@ -27,7 +27,7 @@ MANIFEST = "MANIFEST.json"
 CONFIG_FILE = "config.json"
 KEY_FILE = "secret.key"
 DB_REL = "data/myservices.db"
-DECISIONS = tuple(f"state/{n}.json" for n in ("services-decided", "diagnostic-accepted", "assistant", "auto-mode", "connectors-saved"))
+DECISIONS = tuple(f"state/{n}.json" for n in ("services-decided", "diagnostic-accepted", "services-watch-hidden", "assistant", "auto-mode", "connectors-saved"))
 FILES = {"settings": (CONFIG_FILE,), "machines": ("services-meta.json",), "backups": ("backups-meta.json",), "decisions": DECISIONS,
          "accounts": (DB_REL,), "secrets": (KEY_FILE,)}
 PARTS = (*FILES, "ssh")

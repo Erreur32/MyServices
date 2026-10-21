@@ -1057,6 +1057,36 @@ def network_diagnostics_accept(body: DiagAccept, request: Request):
     return {"ok": True}
 
 
+def _services_hidden_file() -> Path:
+    return Path(core.CFG["state_dir"]) / "services-watch-hidden.json"
+
+
+class ServiceHide(BaseModel):
+    key: str
+    sig: str = ""
+    name: str = ""
+    hidden: bool = True
+
+
+@app.get(API + "/services/watch-hidden", tags=["services"], summary="Services masqués de « À surveiller » (et du point de l'onglet), avec la signature de leur problème")
+def services_watch_hidden():
+    import services_hidden
+    return services_hidden.read(_services_hidden_file())
+
+
+@app.post(API + "/services/watch-hidden", tags=["services"], summary="Masquer un service de « À surveiller », ou l'afficher de nouveau (admin)")
+def services_watch_hide(body: ServiceHide, request: Request):
+    import services_hidden
+    if denied := admin_only(request):
+        return denied
+    try:
+        services_hidden.set_hidden(_services_hidden_file(), body.key, body.sig, body.name, body.hidden)
+    except ValueError as e:
+        return deny(400, str(e))
+    store().audit("services : masqué de « À surveiller »" if body.hidden else "services : affiché de nouveau", request.state.user["username"], ip_of(request), body.name or body.key)
+    return {"ok": True}
+
+
 class LiveChecks(BaseModel):
     pulse_every: int | None = None
     pulse_confirm: int | None = None

@@ -26,6 +26,7 @@ import { useContentWidth, useTheme } from "./theme";
 import { tx } from "./lib/i18n";
 import { onStream, streamConnected } from "./lib/stream";
 import { GREY_CARDS } from "./lib/forms";
+import { isHidden, useServicesHidden } from "./lib/servicesHidden";
 
 const REFRESH_MS = 15_000;      // without the event stream: one small manifest request, the files that moved are read again
 const STREAM_REFRESH_MS = 120_000;   // with the stream, which says when a file moved: a safety read only
@@ -45,6 +46,7 @@ export default function App() {
   const [tab, setTab] = useState<TabId>(tabFromHash);
   const [hash, setHash] = useState(location.hash); // section des Réglages dans le lien (#settings/api)
   const [now, setNow] = useState(Date.now());
+  const hiddenServices = useServicesHidden();
   // Filtre posé en ouvrant Services depuis une machine (clic sur son nom) ; la clé recrée l'onglet
   // Filtre demandé à l'ouverture d'un onglet (clic sur un compteur, sur une machine…) : lu une fois à l'affichage, effacé dès qu'on change d'onglet à la main
   const [pending, setPending] = useState<{ tab: TabId; sel: Selected; n: number }>({ tab: "home", sel: {}, n: 0 });
@@ -107,7 +109,7 @@ export default function App() {
   if (!snap)
     return <p className="p-8 text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 
-  const items = attention({ ...snap, now });
+  const items = attention({ ...snap, data: { ...snap.data, hosts: snap.data.hosts.filter((r) => !isHidden(r, hiddenServices)) }, now });   // a service hidden from « To watch » leaves the tab's dot and the home page too
   const badges: Partial<Record<TabId, "crit" | "warn">> = {};
   for (const a of items) if (badges[a.tab] !== "crit") badges[a.tab] = a.level;
   const current = visible(tab, snap) ? tab : "home";
