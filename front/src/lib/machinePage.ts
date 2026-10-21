@@ -1,5 +1,6 @@
 // The machine page: the open ports of a machine matched to its known services and to the NPM entries that expose them, and the guests
 // (VMs, containers) of a machine that is a hypervisor host. Pure functions over the snapshot, tested apart.
+import { SENSITIVE } from "./securityFindings";
 import type { AddressSheet, Host, Machine, VirtualizationConnector } from "../types";
 
 export interface PortRow {
@@ -7,7 +8,15 @@ export interface PortRow {
   name: string | null;        // service known on this port (its name, app label or image), null = unknown
   domains: string[];          // NPM domains pointing to this port (exposed through the proxy)
   listening: boolean;         // seen open by the last scan
+  host: Host | null;          // the service row behind the port (its icon, kind and state), null = unknown
+  guess: string | null;       // unknown port: what usually listens there (a guess, said so)
 }
+
+/** What usually listens on a port, for an unknown one; the sensitive ports of the Security page come on top */
+const WELL_KNOWN: Record<number, string> = {
+  22: "SSH", 53: "DNS", 80: "HTTP", 111: "rpcbind", 443: "HTTPS", 631: "CUPS", 2049: "NFS", 3000: "Grafana", 5353: "mDNS", 8006: "Proxmox",
+  8123: "Home Assistant", 9000: "Portainer", 9090: "Prometheus / Cockpit", 9100: "node_exporter", 9443: "Portainer", 19999: "Netdata", ...SENSITIVE,
+};
 
 const hostIp = (r: Host) => r.host_ip || r.ip || r.target_ip || "";
 const serviceName = (r: Host) => r.app?.label || r.service?.name || r.name || r.service?.image || null;
@@ -22,7 +31,8 @@ export function portRows(m: Machine, hosts: Host[], sheet?: AddressSheet): PortR
     const local = onPort.find((r) => r.type === "local") ?? onPort.find((r) => r.type !== "proxy");
     const domains = onPort.filter((r) => r.type === "proxy" && r.enabled && !r.paused).flatMap((r) => r.domains);
     const named = local ?? onPort[0];   // the service on this machine, else the first thing seen on the port
-    return { port, name: named ? serviceName(named) : null, domains: [...new Set(domains)], listening: scanned.has(port) };
+    const name = named ? serviceName(named) : null;
+    return { port, name, domains: [...new Set(domains)], listening: scanned.has(port), host: named ?? null, guess: name ? null : WELL_KNOWN[port] ?? null };
   });
 }
 

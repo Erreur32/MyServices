@@ -23,7 +23,7 @@ function Row({ row, now }: Readonly<{ row: Last24hRow; now: number }>) {
         <Badge tone={row.severity >= 2 ? "warn" : "off"}>{row.count}</Badge>
       </span>
       <span className="col-span-2 flex min-w-0 flex-wrap gap-1.5 pl-5 text-[13px] sm:col-span-1 sm:pl-0">
-        {row.who.slice(0, WHO_SHOWN).map((w) => <span key={w} className="max-w-[14rem] truncate rounded-md border border-line bg-bg2/60 px-1.5 py-0.5 text-muted"><Rich text={`**${w}**`} /></span>)}
+        {row.who.slice(0, WHO_SHOWN).map((w) => <span key={w} className="max-w-[14rem] truncate rounded-md border border-line/70 bg-bg px-1.5 py-0.5 text-muted"><Rich text={w} /></span>)}
         {more > 0 && <span className="px-1 py-0.5 text-dim">{tx("+ {0} autre(s)", more)}</span>}
       </span>
       <span className="row-start-1 col-start-2 whitespace-nowrap text-right text-xs tabular-nums text-dim sm:col-start-3">{sinceText(row.last, now)}</span>

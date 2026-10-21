@@ -1,7 +1,7 @@
 // The page of one machine (#machines/<ip>): what the Machines tab showed in a window (identity, system, access, software, backups, health,
 // updates, UniFi or Freebox), its availability over 30 days, and, for an administrator, its settings (identity, options, access) in the page:
 // the window of Réglages → Machines is no longer needed for a machine that exists. Back to the list with « Machines ».
-import { ArrowLeft, ArrowRight, Boxes, CalendarCheck, EthernetPort, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, ArrowRight, Boxes, CalendarCheck, EthernetPort, Globe, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { read, type Snapshot } from "../api";
 import { MachineIcon } from "../components/MachineIcon";
@@ -9,7 +9,9 @@ import { dateTime } from "../lib/format";
 import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { availabilityOf } from "../lib/machineHash";
-import { guestsOf, portRows } from "../lib/machinePage";
+import { guestsOf, portRows, type PortRow } from "../lib/machinePage";
+import { serviceIcon } from "../lib/appIcons";
+import { KIND_NAME, status, type StatusClass } from "../lib/status";
 import { Dot } from "../components/marks";
 import type { Machine } from "../types";
 import { cellColor, pct, pctTone, type Item, type Report } from "./Availability";
@@ -41,29 +43,60 @@ function AvailabilityCard({ item }: Readonly<{ item: Item | null | undefined }>)
   );
 }
 
-/** The open ports of the machine, each matched to its service and to the NPM domains that expose it; an unknown port is told so */
+/** The open ports of the machine, each matched to its service (its icon, kind and state) and to the NPM domains that expose it; an unknown port is told so,
+ *  with what usually listens there. A port of a known service not seen open by the last scan is faded. */
 function PortsCard({ snap, m, onMachine }: Readonly<{ snap: Snapshot; m: Machine; onMachine: (ip: string) => void }>) {
-  const rows = portRows(m, snap.data.hosts, snap.data.sheets?.[m.ip]);
+  const sheet = snap.data.sheets?.[m.ip], rows = portRows(m, snap.data.hosts, sheet);
   if (!rows.length) return null;
+  const scanned = !!sheet?.scan, at = sheet?.scan?.ports_at;
   return (
     <section className="rounded-2xl border border-line bg-card p-4 shadow-sm" aria-label={tx("Ports ouverts")}>
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex items-center gap-2 font-bold"><EthernetPort size={16} aria-hidden />{tx("Ports ouverts")} <span className="text-sm font-normal text-dim">{rows.length}</span></h2>
+        <h2 className="flex items-center gap-2 font-bold"><EthernetPort size={16} aria-hidden />{tx("Ports ouverts")} <span className="text-sm font-normal text-dim">{rows.length}{at && ` · ${tx("scannés le {0}", dateTime(at))}`}</span></h2>
         <button type="button" onClick={() => onMachine(m.ip)} className={`${quiet} ml-auto`}>{tx("Ses services")}<ArrowRight size={14} aria-hidden /></button>
       </div>
       <table className="mt-2 w-full text-sm">
-        <thead><tr className="text-left text-xs text-muted"><th className="py-1 pr-3 font-semibold">{tx("Port")}</th><th className="py-1 pr-3 font-semibold">{tx("Service")}</th><th className="py-1 font-semibold">{tx("Exposé")}</th></tr></thead>
+        <thead><tr className="text-left text-xs text-muted"><th className="w-4 py-1 pr-2" aria-label={tx("État")} /><th className="py-1 pr-3 font-semibold">{tx("Service")}</th><th className="py-1 pr-3 font-semibold">{tx("Port")}</th><th className="py-1 font-semibold">{tx("Exposé")}</th></tr></thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.port} className="border-t border-line/60 even:bg-bg/50">
-              <td className="py-1.5 pr-3 font-mono tabular-nums">{r.port}</td>
-              <td className="py-1.5 pr-3">{r.name ?? <span className="text-warn">{tx("inconnu")}</span>}{!r.listening && r.name && <span className="ml-1.5 text-xs text-dim">{tx("(pas vu ouvert au dernier scan)")}</span>}</td>
-              <td className="py-1.5">{r.domains.length ? r.domains.map((d) => <span key={d} className="mr-1 rounded-md border border-line bg-bg2 px-1.5 py-0.5 text-xs">{tx("Internet via NPM")} · {d}</span>) : <span className="rounded-md border border-line bg-bg2 px-1.5 py-0.5 text-xs text-muted">LAN</span>}</td>
-            </tr>
-          ))}
+          {rows.map((r) => {
+            const unseen = scanned && !r.listening && !!r.host, st = r.host ? status(r.host) : null;
+            const cls: StatusClass = st?.[0] ?? "warn", label = st?.[1] ?? tx("port inconnu");
+            return (
+              <tr key={r.port} className={`border-t border-line/60 even:bg-bg/50 ${unseen ? "opacity-55" : ""}`}>
+                <td className="py-1.5 pr-2" title={unseen ? tx("pas vu ouvert au dernier scan") : label}><Dot tone={unseen ? "off" : cls} /></td>
+                <td className="py-1.5 pr-3"><PortService r={r} /></td>
+                <td className="py-1.5 pr-3 font-mono text-xs tabular-nums text-muted">:{r.port}</td>
+                <td className="py-1.5">{unseen ? <span className="text-xs text-dim">{tx("pas vu ouvert au dernier scan")}</span>
+                  : r.domains.length ? <span className="flex flex-wrap gap-1">{r.domains.map((d) => (
+                      <a key={d} href={`https://${d}`} target="_blank" rel="noreferrer" title={tx("Exposé sur Internet par NPM")} className="inline-flex items-center gap-1 rounded-md border border-link/40 bg-link/10 px-1.5 py-0.5 text-xs text-link no-underline hover:border-link"><Globe size={11} aria-hidden />{d}</a>
+                    ))}</span>
+                  : <span className="rounded-md border border-line px-1.5 py-0.5 text-xs text-dim" title={tx("Joignable seulement depuis le réseau local")}>LAN</span>}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </section>
+  );
+}
+
+/** The service of a port: its icon (or a generic mark), its name and its kind; unknown: a « ? » and what usually listens there */
+function PortService({ r }: Readonly<{ r: PortRow }>) {
+  const box = "grid h-5 w-5 shrink-0 place-items-center rounded border";
+  if (!r.host || !r.name) return (
+    <span className="inline-flex items-center gap-2">
+      <span className={`${box} border-warn/50 text-[11px] font-bold text-warn`} aria-hidden>?</span>
+      <span className="text-warn">{tx("inconnu")}</span>
+      {r.guess && <span className="text-xs text-dim" title={tx("Supposition d'après le numéro de port, rien n'a été vérifié")}>{tx("souvent : {0}", r.guess)}</span>}
+    </span>
+  );
+  const icon = serviceIcon(r.host), kind = r.host.service?.kind;
+  return (
+    <span className="inline-flex items-center gap-2">
+      {icon ? <img src={icon} alt="" aria-hidden className="h-5 w-5 shrink-0 object-contain" /> : <span className={`${box} border-line bg-bg2 text-dim`} aria-hidden><EthernetPort size={11} /></span>}
+      <b className="font-semibold">{r.name}</b>
+      {kind && KIND_NAME[kind] && kind !== "inconnu" && <span className="rounded border border-line px-1 text-[10.5px] text-dim">{KIND_NAME[kind]}</span>}
+    </span>
   );
 }
 
