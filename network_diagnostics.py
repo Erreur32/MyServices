@@ -403,27 +403,33 @@ def _device_name(d: dict) -> str:
 def sfp_modules(devices: list[dict]) -> list[dict]:
     """Every transceiver found, with its readings and its state (« ok », « warn », « bad ») and problem codes, for the « SFP modules » table."""
     out = []
-    for d in devices:
-        for p in (d.get("port_table") or []) if isinstance(d, dict) else []:
-            r = sfp_reading(p)
-            if r:
-                probs = sfp_problems(r)
-                state = min((x[0] for x in probs), key=SEVERITY.get, default="ok")
-                out.append({"device": _device_name(d), "mac": d.get("mac"), "port": p.get("port_idx"), **r, "state": state, "codes": [x[1] for x in probs]})
+    for d, p in _ports(devices):
+        r = sfp_reading(p)
+        if r:
+            probs = sfp_problems(r)
+            state = min((x[0] for x in probs), key=SEVERITY.get, default="ok")
+            out.append({"device": _device_name(d), "mac": d.get("mac"), "port": p.get("port_idx"), **r, "state": state, "codes": [x[1] for x in probs]})
     return sorted(out, key=lambda m: (str(m["device"]), m["port"] if isinstance(m["port"], int) else -1))
+
+
+def _ports(devices: list[dict]):
+    """(device, port row) of every port of every device, odd entries left out"""
+    for d in devices:
+        if isinstance(d, dict):
+            yield from ((d, p) for p in d.get("port_table") or [] if isinstance(p, dict))
 
 
 def port_errors(devices: list[dict]) -> dict:
     """The error counters of the ports, when the source gives them: {known, ports: [{device, port, rx_errors, tx_errors, rx_dropped, tx_dropped}]}
     with only the ports that have some, the most affected first. known is False while no port reports any counter (MynetworK without them)."""
     known, ports = False, []
-    for d in devices:
-        for p in (d.get("port_table") or []) if isinstance(d, dict) else []:
-            counts = {k: _num(p.get(k)) for k in PORT_COUNTERS} if isinstance(p, dict) else {}
-            if any(v is not None for v in counts.values()):
-                known = True
-                if any(counts.values()):
-                    ports.append({"device": _device_name(d), "mac": d.get("mac"), "port": p.get("port_idx"), **{k: v or 0 for k, v in counts.items()}})
+    for d, p in _ports(devices):
+        counts = {k: _num(p.get(k)) for k in PORT_COUNTERS}
+        if all(v is None for v in counts.values()):
+            continue
+        known = True
+        if any(counts.values()):
+            ports.append({"device": _device_name(d), "mac": d.get("mac"), "port": p.get("port_idx"), **{k: v or 0 for k, v in counts.items()}})
     ports.sort(key=lambda x: (-(x["rx_errors"] + x["tx_errors"]), -(x["rx_dropped"] + x["tx_dropped"])))   # errors first: drops are often normal
     return {"known": known, "ports": ports}
 
@@ -431,10 +437,10 @@ def port_errors(devices: list[dict]) -> dict:
 def _error_counts(devices: list[dict]) -> dict[str, int]:
     """{« mac|port »: receive + send errors} of every port that reports them"""
     out = {}
-    for d in devices:
-        for p in (d.get("port_table") or []) if isinstance(d, dict) else []:
-            if isinstance(p, dict) and (_num(p.get("rx_errors")) is not None or _num(p.get("tx_errors")) is not None):
-                out[f"{str(d.get('mac') or '').lower()}|{p.get('port_idx')}"] = int((_num(p.get("rx_errors")) or 0) + (_num(p.get("tx_errors")) or 0))
+    for d, p in _ports(devices):
+        rx, tx = _num(p.get("rx_errors")), _num(p.get("tx_errors"))
+        if rx is not None or tx is not None:
+            out[f"{str(d.get('mac') or '').lower()}|{p.get('port_idx')}"] = int((rx or 0) + (tx or 0))
     return out
 
 

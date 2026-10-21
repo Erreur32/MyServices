@@ -1,7 +1,7 @@
 // The « Edit » window of a service (pencil in the Services list and in the detail): category (one of the existing ones), description, tags,
 // kind of interface, public on purpose, direct access on purpose, pause. Written in services-meta.json by PUT services/meta; the page follows at once.
 import { Globe, Pause, Plug, Save, Unplug, Webhook } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type SyntheticEvent } from "react";
 import { read, send } from "../api";
 import { tx } from "../lib/i18n";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
@@ -35,7 +35,7 @@ export function ServiceEdit({ r, name, onClose }: Readonly<{ r: Host; name: stri
     }).catch((err) => { setCats([]); setNote({ ok: false, text: (err as Error).message }); });
   }, [r.type, r.id]);
   const npmOpen = r.type === "proxy" && !r.acl && !r.acl_adv;   // « public on purpose » only means something for an NPM host without protection
-  const save = async (e: FormEvent) => {
+  const save = async (e: SyntheticEvent) => {
     e.preventDefault();
     setBusy(true);
     const ok = await act(() => send("PUT", "services/meta", {
@@ -80,8 +80,8 @@ export function ServiceEdit({ r, name, onClose }: Readonly<{ r: Host; name: stri
 
 function Check({ on, set, label, hint, icon }: Readonly<{ on: boolean; set: (v: boolean) => void; label: string; hint: string; icon: React.ReactNode }>) {
   return (
-    <label className="flex cursor-pointer items-start gap-2">
-      <input type="checkbox" className="mt-1" checked={on} onChange={(e) => set(e.target.checked)} />
+    <label className="flex cursor-pointer items-start gap-2" aria-label={label}>
+      <input type="checkbox" className="mt-1" checked={on} onChange={(e) => set(e.target.checked)} aria-label={label} />
       <span><span className="inline-flex items-center gap-1.5 font-semibold text-txt">{icon}{label}</span><span className="block text-xs text-dim">{hint}</span></span>
     </label>
   );

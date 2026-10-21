@@ -187,7 +187,8 @@ const num = (v: number | null, digits: number) => (v == null ? null : v.toFixed(
 /** One reading with its unit, coloured when one of the module's problem codes is about it */
 function Reading({ value, unit, flagged, tone }: Readonly<{ value: string | null; unit: string; flagged: boolean; tone: Severity | "ok" }>) {
   if (value == null) return <Dim>-</Dim>;
-  return <span className={flagged ? `font-bold ${tone === "bad" ? "text-bad" : "text-warn"}` : ""}><Pct value={value} unit={unit} /></span>;
+  const colour = tone === "bad" ? "text-bad" : "text-warn";
+  return <span className={flagged ? `font-bold ${colour}` : ""}><Pct value={value} unit={unit} /></span>;
 }
 
 /** Every transceiver with its sensors (DOM): temperature, light received and sent, supply voltage and laser current. A module whose findings are

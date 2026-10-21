@@ -151,44 +151,48 @@ def _entry_value(field: str, value, old: dict):
     return value or None
 
 
+def _meta_target(services: dict, r: dict) -> str:
+    """The services-meta.json key to edit: the entry the row already uses, else its first domain, else « ip:port »."""
+    keys = [k for k in meta_keys(r) if k and k != "None:None"]
+    target = next((k for k in keys if k in services), keys[0] if keys else None)
+    if not target:
+        raise LookupError("service sans domaine ni adresse")
+    return target
+
+
+def _apply_entry(h: dict, entry: dict) -> None:
+    """One published row following its edited entry (a category back to automatic waits for the next collection)."""
+    if entry.get("category"):
+        h["category"] = entry["category"]
+    h["description"] = entry.get("description") or ((h.get("service") or {}).get("description")) or None
+    h["tags"] = entry.get("tags", [])
+    if entry.get("web"):
+        h["web"] = entry["web"]
+    h["public_ok"], h["direct_ok"] = bool(entry.get("public")), bool(entry.get("direct_ok"))
+    if entry.get("pause"):
+        h["paused"] = entry["pause"]
+    else:
+        h.pop("paused", None)
+
+
 def edit_meta(meta_path: Path, web_dir: str | Path, r: dict, fields: dict) -> str:
     """The hand-set fields of one service (EDITABLE), written in its existing services-meta.json entry (else a new one under its first domain,
     or « ip:port »), and in the published data.json at once. Returns the key used."""
     import setup
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
     services = meta.setdefault("services", {})
-    keys = [k for k in meta_keys(r) if k and k != "None:None"]
-    target = next((k for k in keys if k in services), keys[0] if keys else None)
-    if not target:
-        raise LookupError("service sans domaine ni adresse")
+    target = _meta_target(services, r)
     old = dict(services.get(target) or {})
     entry = {k: v for k, v in old.items() if k not in EDITABLE}
-    for f in EDITABLE:
-        v = _entry_value(f, fields.get(f), old)
-        if v is not None:
-            entry[f] = v
+    entry.update({f: v for f in EDITABLE if (v := _entry_value(f, fields.get(f), old)) is not None})
     if entry:
         services[target] = entry
     else:
         services.pop(target, None)
     with contextlib.redirect_stdout(io.StringIO()):
         setup.save(meta_path, meta)
-
-    def apply(h: dict) -> None:
-        if (h.get("type"), str(h.get("id"))) != (r.get("type"), str(r.get("id"))):
-            return
-        if entry.get("category"):
-            h["category"] = entry["category"]
-        h["description"] = entry.get("description") or ((h.get("service") or {}).get("description")) or None
-        h["tags"] = entry.get("tags", [])
-        if entry.get("web"):
-            h["web"] = entry["web"]
-        h["public_ok"], h["direct_ok"] = bool(entry.get("public")), bool(entry.get("direct_ok"))
-        if entry.get("pause"):
-            h["paused"] = entry["pause"]
-        else:
-            h.pop("paused", None)
-    _rewrite_hosts(web_dir, apply)
+    key = (r.get("type"), str(r.get("id")))
+    _rewrite_hosts(web_dir, lambda h: _apply_entry(h, entry) if (h.get("type"), str(h.get("id"))) == key else None)
     return target
 
 

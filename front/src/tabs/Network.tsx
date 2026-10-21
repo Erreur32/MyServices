@@ -47,11 +47,17 @@ const WEAK_DBM = -75;   // a Wi-Fi link under this is poor (drops, low rate)
 interface Watch { key: string; sev: "bad" | "warn"; area: string; title: string; detail: string; sub: Sub; href?: string }
 
 /** What needs a look on the network, red first: gear offline, a source failing, what the Internet access reports, firmware updates, weak Wi-Fi links */
+/** What the Internet access cards report (the Freebox ones open its own sub-tab) */
+function internetWatch(internet: ServiceStatus[]): Watch[] {
+  return internet.filter((x) => x.ok && x.connector !== "unifi").flatMap((c) => (c.problems ?? []).map((pb): Watch => (
+    { key: `net/${c.name}/${pb}`, sev: "warn", area: c.label, title: pb, detail: "", sub: c.connector === "freebox" ? "freebox" : "list" })));
+}
+
 function toWatch(rows: Row[], internet: ServiceStatus[], sources: { label: string; ok: boolean; message: string; stale?: boolean }[]): Watch[] {
   const out: Watch[] = [];
   for (const c of sources.filter((x) => !x.ok)) out.push({ key: `src/${c.label}`, sev: "bad", area: tx("Source"), title: c.label, detail: c.stale ? c.message + " (" + tx("dernier relevé gardé") + ")" : c.message, sub: "diagnostic" });
   for (const r of rows.filter((x) => x.kind === "gear" && !x.up)) out.push({ key: `down/${r.key}`, sev: "bad", area: tx("Équipement"), title: r.name, detail: tx("hors ligne"), sub: "list", href: r.machine ? `#machines/${r.ip}` : undefined });
-  for (const c of internet.filter((x) => x.ok && x.connector !== "unifi")) for (const pb of c.problems ?? []) out.push({ key: `net/${c.name}/${pb}`, sev: "warn", area: c.label, title: pb, detail: "", sub: c.connector === "freebox" ? "freebox" : "list" });
+  out.push(...internetWatch(internet));
   for (const r of rows.filter((x) => x.kind === "gear" && x.up && x.gear?.updatable)) out.push({ key: `upd/${r.key}`, sev: "warn", area: tx("Équipement"), title: r.name, detail: tx("mise à jour disponible (installée : {0})", r.gear?.version || "?"), sub: "list" });
   for (const r of rows.filter((x) => x.kind === "wifi" && x.signal != null && x.signal < WEAK_DBM)) out.push({ key: `wifi/${r.key}`, sev: "warn", area: tx("Wifi"), title: r.name, detail: tx("signal faible, {0} dBm sur {1}", r.signal, r.via), sub: "list", href: r.machine ? `#machines/${r.ip}` : undefined });
   return out.sort((a, b) => Number(b.sev === "bad") - Number(a.sev === "bad"));

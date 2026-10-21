@@ -71,18 +71,31 @@ function Paused({ r, admin }: { r: Host; admin: boolean }) {
   );
 }
 
-export function ServiceDetail({ r, admin = false, ports = [], related = [], onOpen }: { r: Host; admin?: boolean; ports?: Host[]; related?: Host[]; onOpen?: (h: Host) => void }) {
-  const s = r.service, b = r.backend || {}, p = r.public || {};
-  const npmOnly = r.type === "redirect" || r.type === "dead";
-  const ck = checks(r);
-  const ident: Row[] = [
-    ...(ck.length ? [[tx("À vérifier"), <ul className="flex flex-col gap-0.5">{ck.map((k) => <li key={k}><b className="text-warn">⚑ {CHECK[k][0]}</b> <span className="text-dim">{CHECK[k][1]}</span></li>)}</ul>] as Row] : []),
-    ["Domaines", r.domains.join(", ") || "-", r.domains.length ? undefined : "mut"],
-    ...(ports.length > 1 ? [[tx("Ports"), <span key="p" className="flex flex-wrap gap-1">{ports.map((p) => (
+type Tone = Row[2];
+const optRows = (on: unknown, rows: Row[]): Row[] => (on ? rows : []);
+
+/** Where a row goes: the redirect target, nothing for a 404 host, the incoming port of a stream, else the backend URL */
+function targetText(r: Host): string {
+  if (r.type === "redirect") return r.target ?? "-";
+  if (r.type === "dead") return tx("aucune (404)");
+  if (r.type === "stream") return `:${r.incoming_port} → ${r.ip}:${r.port}`;
+  return `${r.scheme}://${r.ip}:${r.port}`;
+}
+
+/** The ports of the service as chips, the open one marked */
+function PortsRow({ r, ports, onOpen }: Readonly<{ r: Host; ports: Host[]; onOpen?: (h: Host) => void }>) {
+  return (
+    <span className="flex flex-wrap gap-1">{ports.map((p) => (
       <button key={p.port} type="button" onClick={() => onOpen?.(p)} disabled={p === r} title={`${status(p)[1]} · ${status(p)[2]}`}
         className={`rounded border px-1.5 font-mono text-xs leading-5 ${p === r ? "border-link bg-link/15" : "border-line hover:border-link"} ${PORT_TONE[status(p)[0]] ?? ""}`}>:{p.port}</button>
-    ))}</span>] as Row] : []),
-    ...(related.length ? [[tx("Associé à"), <span key="r" className="flex flex-col gap-1">{mergePorts(related).map(({ lead: h, ports: hp }) => (
+    ))}</span>
+  );
+}
+
+/** The rows that are the same service seen from elsewhere (an NPM host, the container behind it), one line each, a machine's service with its ports */
+function RelatedRow({ related, onOpen }: Readonly<{ related: Host[]; onOpen?: (h: Host) => void }>) {
+  return (
+    <span className="flex flex-col gap-1">{mergePorts(related).map(({ lead: h, ports: hp }) => (
       <span key={`${h.type}${h.id}`} className="inline-flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => onOpen?.(h)} className="font-semibold hover:text-link">{h.domains[0] ?? h.service?.name ?? `${h.ip}:${h.port}`}</button>
         {h.type === "local"
@@ -92,57 +105,137 @@ export function ServiceDetail({ r, admin = false, ports = [], related = [], onOp
           : <span className="text-xs text-dim">{tx("Proxy NPM → {0}:{1}", h.ip ?? "?", h.port ?? "?")}</span>}
         <span className={`text-xs ${PORT_TONE[status(h)[0]] ?? ""}`}>{status(h)[1]}</span>
       </span>
-    ))}</span>] as Row] : []),
+    ))}</span>
+  );
+}
+
+function identRows(r: Host, ports: Host[], related: Host[], onOpen?: (h: Host) => void): Row[] {
+  const s = r.service, ck = checks(r), desc = r.description || s?.description;
+  return [
+    ...optRows(ck.length, [[tx("À vérifier"), <ul className="flex flex-col gap-0.5">{ck.map((k) => <li key={k}><b className="text-warn">⚑ {CHECK[k][0]}</b> <span className="text-dim">{CHECK[k][1]}</span></li>)}</ul>]]),
+    ["Domaines", r.domains.join(", ") || "-", r.domains.length ? undefined : "mut"],
+    ...optRows(ports.length > 1, [[tx("Ports"), <PortsRow r={r} ports={ports} onOpen={onOpen} />]]),
+    ...optRows(related.length, [[tx("Associé à"), <RelatedRow related={related} onOpen={onOpen} />]]),
     [tx("Catégorie"), [r.category, ...(r.tags || [])].filter(Boolean).join(" · ") || "-"],
-    ["Description", r.description || s?.description || "-", r.description || s?.description ? undefined : "mut"],
+    ["Description", desc || "-", desc ? undefined : "mut"],
     [tx("Titre de page"), r.page_title || "-", r.page_title ? undefined : "mut"],
     ["Machine", r.machine ? `${r.machine}${r.machine_role ? ` · ${r.machine_role}` : ""}` : "inconnue", r.machine ? undefined : "bad"],
-    ["Cible", r.type === "redirect" ? r.target : r.type === "dead" ? tx("aucune (404)") : r.type === "stream" ? `:${r.incoming_port} → ${r.ip}:${r.port}` : `${r.scheme}://${r.ip}:${r.port}`, "mono"],
+    ["Cible", targetText(r), "mono"],
     [tx("Référence"), r.type === "local" ? String(r.id) : tx("NPM #{0}{1}", String(r.id).split("/").pop(), r.npm ? ` · ${r.npm}` : ""), "mono"],
   ];
-  const svc: Row[] = [
-    ...(!s?.name && r.app ? [["Appli devinée", `${r.app.label} (${r.app.confidence === "possible" ? tx("possible : port ou serveur web") : tx("probable : page ou en-têtes HTTP")})`, "mut"] as Row] : []),
-    ["Service", s?.name ? `${KIND_NAME[s.kind] || s.kind} · ${s.name}${s.stale ? ` (${tx("dernière identification connue")})` : ""}` : noIdentity(r) ?? tx("non identifié"), s?.name ? (s.stale ? "mut" : undefined) : noIdentity(r) ? "mut" : "warn"],
-    ...(r.app?.agent_of ? [[tx("Agent de"), tx("{0} (pas de page, envoie ses données au serveur central)", r.app.agent_of)] as Row] : []),
-    ...(s?.kind === "apache" ? [["Vhost", s.vhost || "-"], [tx("Fichiers servis"), s.docroot || "-", "mono"], ["Config", s.conf || "-", "mono"]] as Row[] : []),
+}
+
+/** The « Service » line: what runs behind, or why there is nothing to identify */
+function serviceLine(r: Host): [string, Tone] {
+  const s = r.service;
+  if (s?.name) return [`${KIND_NAME[s.kind] || s.kind} · ${s.name}${s.stale ? ` (${tx("dernière identification connue")})` : ""}`, s.stale ? "mut" : undefined];
+  const none = noIdentity(r);
+  return [none ?? tx("non identifié"), none ? "mut" : "warn"];
+}
+
+function stateTone(state?: string | null): Tone {
+  if (!state) return "mut";
+  if (/unhealthy/.test(state)) return "bad";
+  return /healthy/.test(state) ? "ok" : undefined;
+}
+
+function webcheckRow(r: Host): Row {
+  const w = r.webcheck;
+  if (!w) return ["Web-Check", "-", "mut"];
+  let cert = tx("certificat : ?");
+  if (w.cert_valid === false) cert = tx("certificat invalide");
+  else if (w.cert_days != null) cert = tx("certificat : {0} j", w.cert_days);
+  const text = [cert, w.hsts != null && tx("HSTS : {0}", yn(w.hsts)), w.headers_total ? tx("en-têtes : {0}/{1}", w.headers_ok, w.headers_total) : ""].filter(Boolean).join(" · ");
+  return ["Web-Check", text, w.cert_valid === false || (w.cert_days ?? 99) < 21 ? "warn" : undefined];
+}
+
+const KUMA: Record<string, string> = { up: tx("en ligne"), down: tx("en panne"), pending: tx("en attente"), maintenance: "maintenance" };
+const WEB: Record<string, string> = { ui: tx("interface web"), api: tx("API / sans page"), none: tx("pas de HTTP"), inconnu: "injoignable" };
+
+function kumaRow(r: Host): Row {
+  const list = r.uptime || [];
+  const text = list.map((u) => `${u.name || "?"} : ${KUMA[u.status] || "?"}${u.response_ms != null ? tx(" · {0} ms", u.response_ms) : ""}`).join(" ; ") || "-";
+  let tone: Tone = list.length ? undefined : "mut";
+  if (list.some((u) => u.status === "down")) tone = "bad";
+  return [tx("Uptime Kuma"), text, tone];
+}
+
+const httpUrl = (u?: string | null) => !!u && /^https?:\/\//.test(u);
+
+function serviceRows(r: Host): Row[] {
+  const s = r.service, [svcText, svcTone] = serviceLine(r);
+  return [
+    ...optRows(!s?.name && r.app, [["Appli devinée", `${r.app?.label} (${r.app?.confidence === "possible" ? tx("possible : port ou serveur web") : tx("probable : page ou en-têtes HTTP")})`, "mut"]]),
+    ["Service", svcText, svcTone],
+    ...optRows(r.app?.agent_of, [[tx("Agent de"), tx("{0} (pas de page, envoie ses données au serveur central)", r.app?.agent_of)]]),
+    ...optRows(s?.kind === "apache", [["Vhost", s?.vhost || "-"], [tx("Fichiers servis"), s?.docroot || "-", "mono"], ["Config", s?.conf || "-", "mono"]]),
     ["Image", s?.image || "-", s?.image ? "mono" : "mut"],
     ["Version", s?.version || "-", s?.version ? undefined : "mut"],
-    [tx("État"), s?.state || "-", !s?.state ? "mut" : /unhealthy/.test(s.state) ? "bad" : /healthy/.test(s.state) ? "ok" : undefined],
+    [tx("État"), s?.state || "-", stateTone(s?.state)],
     ["Compose", s?.compose || "-", s?.compose ? undefined : "mut"],
-    ["Projet", s?.url && /^https?:\/\//.test(s.url) ? link(s.url, s.url.replace(/^https?:\/\//, "")) : "-", s?.url ? undefined : "mut"],
-    ["Journaux", s?.logs_url && /^https?:\/\//.test(s.logs_url) ? link(s.logs_url, tx("ouvrir dans Dozzle")) : "-", s?.logs_url ? undefined : "mut"],
-    ["Web-Check", r.webcheck ? [
-      r.webcheck.cert_valid === false ? tx("certificat invalide") : r.webcheck.cert_days != null ? tx("certificat : {0} j", r.webcheck.cert_days) : tx("certificat : ?"),
-      r.webcheck.hsts != null && tx("HSTS : {0}", yn(r.webcheck.hsts)),
-      r.webcheck.headers_total ? tx("en-têtes : {0}/{1}", r.webcheck.headers_ok, r.webcheck.headers_total) : "",
-    ].filter(Boolean).join(" · ") : "-", r.webcheck ? (r.webcheck.cert_valid === false || (r.webcheck.cert_days ?? 99) < 21 ? "warn" : undefined) : "mut"],
-    [tx("Uptime Kuma"), (r.uptime || []).map((u) => `${u.name || "?"} : ${({ up: tx("en ligne"), down: tx("en panne"), pending: tx("en attente"), maintenance: "maintenance" } as Record<string, string>)[u.status] || "?"}${u.response_ms != null ? tx(" · {0} ms", u.response_ms) : ""}`).join(" ; ") || "-",
-      (r.uptime || []).some((u) => u.status === "down") ? "bad" : r.uptime?.length ? undefined : "mut"],
-    [tx("Interface web"), ({ ui: tx("interface web"), api: tx("API / sans page"), none: tx("pas de HTTP"), inconnu: "injoignable" } as Record<string, string>)[r.web || ""] || "-", r.web === "ui" ? "ok" : "mut"],
+    ["Projet", httpUrl(s?.url) ? link(s!.url!, s!.url!.replace(/^https?:\/\//, "")) : "-", s?.url ? undefined : "mut"],
+    ["Journaux", httpUrl(s?.logs_url) ? link(s!.logs_url!, tx("ouvrir dans Dozzle")) : "-", s?.logs_url ? undefined : "mut"],
+    webcheckRow(r),
+    kumaRow(r),
+    [tx("Interface web"), WEB[r.web || ""] || "-", r.web === "ui" ? "ok" : "mut"],
   ];
-  const net: Row[] = [
-    [tx("Backend TCP"), npmOnly ? "-" : b.internal ? tx("interne, testé via NPM") : b.up ? tx("joignable · {0} ms", b.ms) : tx("injoignable · {0}", b.err || "?"), npmOnly || b.internal ? "mut" : b.up ? "ok" : "bad"],
-  ];
-  if (r.type !== "local" && r.type !== "stream") net.push(
-    [tx("HTTPS via NPM"), p.code ? tx("{0} · {1} ms{2}", p.code, p.ms, p.cert_ok === false ? tx(" · certificat ≠ nom") : "") : p.err || "-", !p.code ? (p.err ? "bad" : "mut") : p.code >= 500 ? "bad" : p.cert_ok === false || p.code >= 400 ? "warn" : "ok"],
-    [tx("Access list"), r.acl || r.acl_adv || r.type !== "proxy" ? (r.acl || (r.acl_adv ? tx("garde LAN (advanced_config)") : r.public_ok ? tx("site public (voulu)") : "aucune")) : <PublicOnPurpose r={r} admin={admin} />,
-      r.acl || r.acl_adv ? "ok" : r.public_ok || npmOnly ? "mut" : "bad"],
-    [tx("Certificat SSL"), yn(r.ssl), yes(r.ssl, true)],
-    [tx("SSL forcé"), yn(r.ssl_forced), yes(r.ssl_forced, true)],
-  );
+}
+
+function backendRow(r: Host, npmOnly: boolean): Row {
+  const b = r.backend || {};
+  if (npmOnly) return [tx("Backend TCP"), "-", "mut"];
+  if (b.internal) return [tx("Backend TCP"), tx("interne, testé via NPM"), "mut"];
+  return b.up ? [tx("Backend TCP"), tx("joignable · {0} ms", b.ms), "ok"] : [tx("Backend TCP"), tx("injoignable · {0}", b.err || "?"), "bad"];
+}
+
+function httpsRow(r: Host): Row {
+  const p = r.public || {};
+  if (!p.code) return [tx("HTTPS via NPM"), p.err || "-", p.err ? "bad" : "mut"];
+  let tone: Tone = "ok";
+  if (p.code >= 500) tone = "bad";
+  else if (p.cert_ok === false || p.code >= 400) tone = "warn";
+  return [tx("HTTPS via NPM"), tx("{0} · {1} ms{2}", p.code, p.ms, p.cert_ok === false ? tx(" · certificat ≠ nom") : ""), tone];
+}
+
+function aclRow(r: Host, npmOnly: boolean, admin: boolean): Row {
+  let value: ReactNode;
+  if (r.acl) value = r.acl;
+  else if (r.acl_adv) value = tx("garde LAN (advanced_config)");
+  else if (r.type === "proxy") value = <PublicOnPurpose r={r} admin={admin} />;
+  else value = r.public_ok ? tx("site public (voulu)") : "aucune";
+  let tone: Tone = "bad";
+  if (r.acl || r.acl_adv) tone = "ok";
+  else if (r.public_ok || npmOnly) tone = "mut";
+  return [tx("Access list"), value, tone];
+}
+
+function nginxTone(r: Host): Tone {
+  if (r.nginx_online === false) return "bad";
+  return r.nginx_online ? "ok" : "mut";
+}
+
+function networkRows(r: Host, admin: boolean): Row[] {
+  const npmOnly = r.type === "redirect" || r.type === "dead";
+  const net: Row[] = [backendRow(r, npmOnly)];
+  if (r.type !== "local" && r.type !== "stream") net.push(httpsRow(r), aclRow(r, npmOnly, admin),
+    [tx("Certificat SSL"), yn(r.ssl), yes(r.ssl, true)], [tx("SSL forcé"), yn(r.ssl_forced), yes(r.ssl_forced, true)]);
   if (r.type === "proxy") net.push(
-    [tx("Config nginx"), r.nginx_online === false ? tx("en erreur : {0}", r.nginx_err || "?") : r.nginx_online ? "OK" : "-", r.nginx_online === false ? "bad" : r.nginx_online ? "ok" : "mut"],
+    [tx("Config nginx"), r.nginx_online === false ? tx("en erreur : {0}", r.nginx_err || "?") : (r.nginx_online && "OK") || "-", nginxTone(r)],
     ["HTTP/2", yn(r.http2), yes(r.http2, true)], ["HSTS", yn(r.hsts), yes(r.hsts, null)], ["Websocket", yn(r.websocket), yes(r.websocket, null)],
     [tx("Block exploits"), yn(r.block_exploits), yes(r.block_exploits, true)], [tx("Real IP Cloudflare"), yn(r.cloudflare), yes(r.cloudflare, null)],
     [tx("Créé"), r.created || "-", "mut"], [tx("Modifié"), r.modified || "-", "mut"],
   );
+  return net;
+}
+
+export function ServiceDetail({ r, admin = false, ports = [], related = [], onOpen }: Readonly<{ r: Host; admin?: boolean; ports?: Host[]; related?: Host[]; onOpen?: (h: Host) => void }>) {
   return (
     <>
     {r.paused && <Paused r={r} admin={admin} />}
     <div className="grid gap-3 lg:grid-cols-3">
-      <Block title={tx("Identité")} tone="link" rows={ident} />
-      <Block title={tx("Service")} tone="violet" rows={svc} />
-      <Block title={r.type === "local" ? tx("Réseau") : tx("Réseau & NPM")} tone="ok" rows={net} />
+      <Block title={tx("Identité")} tone="link" rows={identRows(r, ports, related, onOpen)} />
+      <Block title={tx("Service")} tone="violet" rows={serviceRows(r)} />
+      <Block title={r.type === "local" ? tx("Réseau") : tx("Réseau & NPM")} tone="ok" rows={networkRows(r, admin)} />
     </div>
     </>
   );

@@ -1123,7 +1123,7 @@ def _write_json(path: Path, value) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_name(path.name + ".tmp")
-        tmp.write_text(json.dumps(value), encoding="utf-8")
+        tmp.write_text(json.dumps(value), encoding="utf-8")  # NOSONAR S2083: path from the config (state_dir), never from a request; only the content is computed
         tmp.replace(path)
     except OSError:
         pass

@@ -13,7 +13,7 @@ export type HiddenMap = Record<string, HiddenEntry>;
 /** Stable key of a service row (NPM host or local service) */
 export const serviceKey = (r: Host): string => `${r.type}${r.id}`;
 /** What the hidden problem was: a change of state, label or points to check makes another signature */
-export const problemSig = (r: Host): string => { const [cls, label] = status(r); return `${cls}|${label}|${[...liveChecks(r)].sort().join(",")}`; };
+export const problemSig = (r: Host): string => { const [cls, label] = status(r); return `${cls}|${label}|${[...liveChecks(r)].sort((a, b) => a.localeCompare(b)).join(",")}`; };
 export const isHidden = (r: Host, map: HiddenMap): boolean => map[serviceKey(r)]?.sig === problemSig(r);
 
 let current: HiddenMap = {};
