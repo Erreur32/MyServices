@@ -35,7 +35,7 @@ class StateJson(unittest.TestCase):
             blocker = Path(d) / "file"
             blocker.write_text("", encoding="utf-8")
             api._write_json(blocker / "sub" / "samples.json", [1])   # parent is a file: OSError swallowed
-            self.assertEqual(api._read_json(blocker / "sub" / "samples.json", None), None)
+            self.assertIsNone(api._read_json(blocker / "sub" / "samples.json", None))
 
 
 if __name__ == "__main__":
