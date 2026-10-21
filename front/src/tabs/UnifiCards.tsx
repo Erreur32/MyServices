@@ -152,7 +152,7 @@ export function UnifiCards() {
   return (
     <section className="mb-4 overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
       <div className={`flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3 ${FOLD_HEADER}`} {...foldHeaderProps(() => setFolded(!folded))}>
-        <h3 className="font-bold">{tx("Cartes UniFi")}</h3>
+        <h3 className="font-bold">{tx("UniFi")}</h3>
         <Badge tone={badge.tone} title={badge.title}>{badge.label}</Badge>
         {!noDevice && !folded && (
           <>

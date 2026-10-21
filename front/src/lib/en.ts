@@ -2,7 +2,7 @@
 // propres, chemins) : à lister dans SAME, sinon le test i18n.test.ts échoue. Les {0}, {1}… sont des paramètres.
 
 export const SAME = new Set([
-  "RAM",
+  "RAM", "UniFi", "Freebox", "Scan",
   "./config", "/config", "/data/myservices.db", "~/.ssh/authorized_keys", "authorized_keys", "ACL", "Access list", "admin",
   "Admin", "AdGuard", "Apache", "Apache ·", "API", "API (REST)", "Block exploits", "Claude Code", "CPU", "Discord", "DNS",
   "Docker ·", "Fail2ban", "HSTS", "MCP", "msv_", "MyServices", "nginx", "NPM", "nt", "OK", "OpenAPI", "Port", "Python",
@@ -2472,7 +2472,6 @@ export const EN: Record<string, string> = {
   "Redirections de ports": "Port redirections",
   "réservation fixe": "fixed reservation",
   "adresse attribuée": "assigned address",
-  "Cartes UniFi": "UniFi cards",
   "Vue matérielle": "Hardware view",
   "Remet l'ordre, les largeurs et les hauteurs par défaut": "Puts the order, widths and heights back to default",
   "Réinitialiser": "Reset",

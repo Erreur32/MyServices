@@ -19,6 +19,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Page titles carry badges, as on Network**: DNS, Security, Backups and Services show their counts (blue), the tools read (green), the time of the reading and « read only » as badges next to the title, instead of a grey sentence.
 - **« To watch » hidden when empty**: on Network, DNS, Backups, Services, Security and a machine page, a « To watch » frame with nothing in it is no longer shown.
 - **Home: « To deal with now » folds**: a click on its header or chevron folds it to its title and count; the choice is kept in the browser.
+- **Network: one sub-tab per source**: UniFi (first, the cards now titled « UniFi »), Freebox (its card, when a Freebox is linked), Scan (the network scan, moved out of « Cards »), then Devices and Diagnostic unchanged. A sub-tab whose source is gone leaves the bar and the page opens on the first one there; a Freebox notice in « To watch » opens the Freebox sub-tab.
 
 ### Fixed
 - **Zombie processes filled the container**: `server.py` ran as PID 1 and never reaped the orphaned `ssh` processes of the tasks; after about a day they reached the container's process limit and the server could no longer start a thread (« can't start new thread »). The image now runs `tini` as PID 1.

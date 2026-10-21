@@ -2,7 +2,7 @@
 // box or firewall reports, firmware updates, weak Wi-Fi links) above the sub-menu: Cards (scan statistics, UniFi cards), Equipment and
 // devices (Internet access, UniFi gear, clients by access point or switch, devices found by MynetworK, with search and filters),
 // Diagnostic. Shown only when one of these sources answers or has answered. Read only.
-import { Cable, ChevronDown, ChevronRight, LayoutDashboard, List, Monitor, Network as NetworkIcon, Router, Stethoscope, Wifi, type LucideIcon } from "lucide-react";
+import { Cable, ChevronDown, ChevronRight, House, LayoutDashboard, List, Monitor, Network as NetworkIcon, Radar, Router, Stethoscope, Wifi, type LucideIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { useFilter, useSort, type Facet } from "../lib/filter";
@@ -51,7 +51,7 @@ function toWatch(rows: Row[], internet: ServiceStatus[], sources: { label: strin
   const out: Watch[] = [];
   for (const c of sources.filter((x) => !x.ok)) out.push({ key: `src/${c.label}`, sev: "bad", area: tx("Source"), title: c.label, detail: c.stale ? c.message + " (" + tx("dernier relevé gardé") + ")" : c.message, sub: "diagnostic" });
   for (const r of rows.filter((x) => x.kind === "gear" && !x.up)) out.push({ key: `down/${r.key}`, sev: "bad", area: tx("Équipement"), title: r.name, detail: tx("hors ligne"), sub: "list", href: r.machine ? `#machines/${r.ip}` : undefined });
-  for (const c of internet.filter((x) => x.ok && x.connector !== "unifi")) for (const pb of c.problems ?? []) out.push({ key: `net/${c.name}/${pb}`, sev: "warn", area: c.label, title: pb, detail: "", sub: "list" });
+  for (const c of internet.filter((x) => x.ok && x.connector !== "unifi")) for (const pb of c.problems ?? []) out.push({ key: `net/${c.name}/${pb}`, sev: "warn", area: c.label, title: pb, detail: "", sub: c.connector === "freebox" ? "freebox" : "list" });
   for (const r of rows.filter((x) => x.kind === "gear" && x.up && x.gear?.updatable)) out.push({ key: `upd/${r.key}`, sev: "warn", area: tx("Équipement"), title: r.name, detail: tx("mise à jour disponible (installée : {0})", r.gear?.version || "?"), sub: "list" });
   for (const r of rows.filter((x) => x.kind === "wifi" && x.signal != null && x.signal < WEAK_DBM)) out.push({ key: `wifi/${r.key}`, sev: "warn", area: tx("Wifi"), title: r.name, detail: tx("signal faible, {0} dBm sur {1}", r.signal, r.via), sub: "list", href: r.machine ? `#machines/${r.ip}` : undefined });
   return out.sort((a, b) => Number(b.sev === "bad") - Number(a.sev === "bad"));
@@ -151,8 +151,11 @@ function MachineLink({ r, onMachine }: { r: Row; onMachine: (ip: string) => void
     : <Dim>{tx("pas suivie")}</Dim>;
 }
 
-type Sub = "overview" | "list" | "diagnostic";
-const SUBS: [Sub, string, LucideIcon][] = [["overview", tx("Cartes"), LayoutDashboard], ["list", tx("Équipements et appareils"), List], ["diagnostic", tx("Diagnostic"), Stethoscope]];
+type Sub = "unifi" | "freebox" | "scan" | "list" | "diagnostic";
+/** One sub-tab per kind of source; UniFi, Freebox and Scan only when their source is there */
+const SUBS: [Sub, string, LucideIcon][] = [["unifi", tx("UniFi"), LayoutDashboard], ["freebox", tx("Freebox"), House], ["scan", tx("Scan"), Radar],
+  ["list", tx("Équipements et appareils"), List], ["diagnostic", tx("Diagnostic"), Stethoscope]];
+const isSub = (v: string | null): v is Sub => SUBS.some(([id]) => id === v);
 const SUB_KEY = "ms.network.sub";
 
 type Tone3 = "ok" | "warn" | "bad" | undefined;
@@ -219,7 +222,7 @@ function WatchTable({ watch, worst, open }: Readonly<{ watch: Watch[]; worst: "o
 }
 
 export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapshot; onMachine: (ip: string) => void; initialSub?: Sub }>) {
-  const [sub, setSub] = useState<Sub>(() => { try { const v = localStorage.getItem(SUB_KEY); return initialSub ?? (v === "list" || v === "diagnostic" ? v : "overview"); } catch { return initialSub ?? "overview"; } });   // the sub-page is kept
+  const [sub, setSub] = useState<Sub>(() => { try { const v = localStorage.getItem(SUB_KEY); return initialSub ?? (isSub(v) ? v : "unifi"); } catch { return initialSub ?? "unifi"; } });   // the sub-page is kept (the old « overview » leads to UniFi)
   const pickSub = (v: Sub) => { setSub(v); try { localStorage.setItem(SUB_KEY, v); } catch { /* storage refused: the choice lasts this visit */ } };
   const cards = useMemo(() => (snap.data.services_status ?? []).filter((c) => NETWORK_CARDS.includes(c.connector)), [snap.data.services_status]);
   const rows = useMemo(() => buildRows(snap, cards), [snap, cards]);
@@ -245,6 +248,10 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
   const unifi = unifiConn && !unifiConn.ok && !unifiConn.stale ? unifiConn : unifiCard(rows, unifiConn);   // a failing connector shows its error
   const internet = [...cards.filter((c) => c.connector === "freebox"), ...(unifi ? [unifi] : []), ...cards.filter((c) => INTERNET.includes(c.connector) && c.connector !== "freebox")];
   const others = cards.filter((c) => !INTERNET.includes(c.connector) && c.connector !== "unifi");
+  const freebox = cards.find((c) => c.connector === "freebox");
+  const has: Record<Sub, boolean> = { unifi: !!unifi, freebox: !!freebox, scan: net.some((c) => c.connector === "mynetwork"), list: true, diagnostic: true };
+  const subs = SUBS.filter(([id]) => has[id]);
+  const current: Sub = has[sub] ? sub : subs[0][0];   // a source gone (no UniFi, no Freebox): the first sub-tab there is
   const all = (k: Kind) => rows.filter((r) => r.kind === k);
   const gearAll = all("gear"), gearDown = gearAll.filter((r) => !r.up).length, updates = gearAll.filter((r) => r.gear?.updatable).length;
   const devAll = all("device"), unfollowed = devAll.filter((r) => r.up && !r.machine).length;
@@ -284,22 +291,18 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
       <WatchTable watch={watch} worst={worst} open={openWatch} />
 
       <fieldset className="m-0 inline-flex min-w-0 self-start rounded-lg border border-line bg-card p-0.5" aria-label={tx("Sous-menu du réseau")}>
-        {SUBS.map(([id, label, Icon]) => (
-          <button key={id} type="button" aria-pressed={sub === id} onClick={() => pickSub(id)}
-            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold ${sub === id ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{label}</button>
+        {subs.map(([id, label, Icon]) => (
+          <button key={id} type="button" aria-pressed={current === id} onClick={() => pickSub(id)}
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold ${current === id ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{label}</button>
         ))}
       </fieldset>
-      {sub === "overview" && (
-        <>
-        <NetworkScanStats />
+      {current === "unifi" && <UnifiCards />}
+      {current === "freebox" && freebox && <div className="grid items-start gap-3 lg:grid-cols-2"><ServiceCard s={freebox} /></div>}
+      {current === "scan" && <NetworkScanStats />}
 
-        <UnifiCards />
-        </>
-      )}
+      {current === "diagnostic" && <NetworkDiagnostic admin={snap.me.role === "admin"} />}
 
-      {sub === "diagnostic" && <NetworkDiagnostic admin={snap.me.role === "admin"} />}
-
-      {sub === "list" && (
+      {current === "list" && (
         <>
         {rows.length > 0 && <FilterBar f={f} placeholder={tx("Nom, IP, MAC, fabricant, borne…")} primary={["kind", "state"]} oneLine />}{/* right under the menu, with its main filters shown */}
 
