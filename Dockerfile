@@ -12,7 +12,7 @@ RUN npm test && npm run build
 FROM python:3.14-slim-trixie
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends openssh-client smbclient iputils-ping iproute2 ca-certificates tzdata nodejs \
+ && apt-get install -y --no-install-recommends tini openssh-client smbclient iputils-ping iproute2 ca-certificates tzdata nodejs \
  && rm -rf /var/lib/apt/lists/*
 
 # Archify (carte de l'infra en HTML, archify_map.py) : version figée, empreinte vérifiée
@@ -66,5 +66,7 @@ VOLUME ["/config", "/data"]
 EXPOSE 8090
 HEALTHCHECK --interval=60s --timeout=5s --start-period=20s \
   CMD python3 -c "import urllib.request,os; urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"MYSERVICES_PORT\"]}/healthz', timeout=4)"
-ENTRYPOINT ["/app/entrypoint.sh"]
+# tini en PID 1 : récupère les processus orphelins (ssh lancés par les tâches), sinon ils restent zombies sous server.py jusqu'à
+# remplir la limite de processus du conteneur (« can't start new thread »)
+ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]
 CMD ["python3", "/app/server.py"]

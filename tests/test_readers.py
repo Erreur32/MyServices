@@ -123,6 +123,19 @@ class Tick(unittest.TestCase):
         ev.set()
         self.assertFalse(got[0][1].ok)
 
+    def test_no_thread_left_is_a_failure_not_a_hot_loop(self):
+        a = Fake("a")
+        no_thread = mock.patch.object(threading.Thread, "start", side_effect=RuntimeError("can't start new thread"))
+        with no_thread:
+            data, st = cbase.run_isolated(a, {}, 1)
+        self.assertEqual((data, st.ok, "impossible" in st.message), (None, False, True))
+        with patched([a]), no_thread, self.assertRaises(RuntimeError):   # the pool itself cannot start a worker
+            tick(self.path, 1000)
+        self.assertEqual(cbase.load_state(self.path)["fake/a"]["tried"], 1000)   # the attempt is noted all the same
+        with patched([a]):
+            self.assertEqual(tick(self.path, 1000 + 10, default=300), [])   # so it waits for its period, not the next tick
+        self.assertEqual(a.calls, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

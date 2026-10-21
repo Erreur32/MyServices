@@ -11,6 +11,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Fixed
+- **Zombie processes filled the container**: `server.py` ran as PID 1 and never reaped the orphaned `ssh` processes of the tasks; after about a day they reached the container's process limit and the server could no longer start a thread (« can't start new thread »). The image now runs `tini` as PID 1.
+- **A failed pass of the connector readers no longer re-reads every connector every 10 s**: the attempt is noted before the reading, and a reading that cannot start is an ordinary failure. Before, a pass that broke before the end left the state untouched, so every connector was due again at the next tick.
+- **Home Assistant with ha-mcp**: the system health (`ha_get_system_health`) is read once an hour instead of at every reading. Each call makes Home Assistant test whether GitHub answers, which counts against the GitHub quota of the whole public IP (60 requests an hour without a token) and could block other tools on the network.
+
 ## v0.18.2 (2026-10-19)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

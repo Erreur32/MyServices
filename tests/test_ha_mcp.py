@@ -144,6 +144,18 @@ class Client(unittest.TestCase):
             if name in ("ha_manage_backup", "ha_manage_updates"):
                 self.assertEqual(args["action"], "list")
 
+    def test_slow_calls_go_through_the_cache(self):
+        seen = []
+
+        def cached(key, ttl, fn):
+            seen.append((key, ttl))
+            return {"kept": True}
+        got = ha_mcp.HaMcp(self.url, 5).collect(cached=cached)
+        self.assertEqual(seen, [("ha-mcp-health", 3600)])
+        self.assertEqual(got["health"], {"kept": True})
+        self.assertNotIn("ha_get_system_health", {c[0] for c in FakeMcp.calls})   # Home Assistant does not test GitHub again
+        self.assertEqual(len(FakeMcp.calls), 5)
+
     def test_one_failing_tool_does_not_spoil_the_others(self):
         FakeMcp.fail = {"ha_get_app"}
         got = ha_mcp.HaMcp(self.url, 5).collect()
