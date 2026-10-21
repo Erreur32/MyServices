@@ -54,6 +54,16 @@ class NewServices(unittest.TestCase):
         self.assertEqual(json.loads(self.meta.read_text())["services"]["10.0.0.2:8080"], {"description": "kept"})
         self.assertNotIn("paused", json.loads((self.d / "data.json").read_text())["hosts"][0])
 
+    def test_public_on_purpose_set_then_removed(self):
+        """« Public site, on purpose »: under the host's domain in services-meta.json, and in the published data.json at once."""
+        new_services.set_public(self.meta, self.d, "a.lan", True)
+        self.assertEqual(json.loads(self.meta.read_text())["services"]["a.lan"], {"public": True})
+        self.assertTrue(json.loads((self.d / "data.json").read_text())["hosts"][2]["public_ok"])
+        new_services.set_public(self.meta, self.d, "a.lan", False)
+        self.assertNotIn("a.lan", json.loads(self.meta.read_text())["services"])   # an empty entry goes
+        self.assertFalse(json.loads((self.d / "data.json").read_text())["hosts"][2]["public_ok"])
+        self.assertEqual(json.loads(self.meta.read_text())["services"]["10.0.0.2:8080"], {"description": "kept"})   # the others untouched
+
     def test_machine_ssh_never_proposed(self):
         data = {"hosts": self.data["hosts"] + [{"type": "local", "id": "10.0.0.3:22", "ip": "10.0.0.3", "port": 22, "app": {"key": "openssh"},
                                                 "service": {"kind": "process", "name": "sshd"}}]}

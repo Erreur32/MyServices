@@ -27,6 +27,7 @@
   "adresse du serveur NUT requise": "NUT server address required",
   "archive illisible (base64 invalide)": "unreadable archive (invalid base64)",
   "aucun avatar": "no avatar",
+  "aucun hôte NPM ne porte ce domaine": "no NPM host has this domain",
   "aucun onduleur déclaré dans NUT": "no UPS declared in NUT",
   "aucun système visible : partager les systèmes avec ce compte (ou SHARE_ALL_SYSTEMS)": "no system visible: share the systems with this account (or SHARE_ALL_SYSTEMS)",
   "borgmatic : réponse illisible (borgmatic installé, configuration lisible par ce compte ?)": "borgmatic: unreadable answer (borgmatic installed, configuration readable by this account?)",

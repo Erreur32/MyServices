@@ -538,6 +538,25 @@ def services_new_ignore(body: ServiceKeys, request: Request):
     return {"ok": True, "paused": done}
 
 
+class ServicePublic(BaseModel):
+    domain: str = Field(max_length=253)
+    public: bool = True
+
+
+@app.put(API + "/services/public", tags=["services"], summary="Déclarer un site public voulu (hôte NPM sans liste d'accès), ou retirer la déclaration (admin)")
+def services_public(body: ServicePublic, request: Request):
+    import new_services
+    import setup
+    if denied := admin_write(request):
+        return denied
+    data = read_produced("data.json") or {}
+    if not any(body.domain in (r.get("domains") or []) for r in data.get("hosts") or [] if r.get("type") == "proxy"):
+        return deny(404, "aucun hôte NPM ne porte ce domaine")
+    new_services.set_public(setup.META, core.WEB, body.domain, body.public)
+    store().audit("site déclaré public" if body.public else "site public retiré", request.state.user["username"], ip_of(request), body.domain)
+    return {"ok": True}
+
+
 @app.delete(API + "/services/pause/{target}", tags=["services"], summary="Reprendre le suivi d'un service en pause (ip:port) (admin)")
 def services_resume(target: str, request: Request):
     import new_services

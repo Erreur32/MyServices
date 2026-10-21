@@ -72,34 +72,58 @@ def _target(data: dict, key: str) -> str:
     return f'{r["ip"]}:{r["port"]}'
 
 
-def set_pause(meta_path: Path, web_dir: str | Path, target: str, reason: str | None) -> None:
-    """Pause (reason) or resume (None) the service at « ip:port »: services-meta.json for the next collections, and the published
-    data.json at once so the pages show it without waiting."""
+def _set_meta(meta_path: Path, target: str, field: str, value) -> None:
+    """One field of the services-meta.json entry of `target` (a domain, « ip:port »…); None removes it, an empty entry goes."""
     import setup
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
     services = meta.setdefault("services", {})
     entry = dict(services.get(target) or {})
-    if reason:
-        entry["pause"] = reason
+    if value is None:
+        entry.pop(field, None)
     else:
-        entry.pop("pause", None)
+        entry[field] = value
     if entry:
         services[target] = entry
     else:
         services.pop(target, None)
     with contextlib.redirect_stdout(io.StringIO()):
         setup.save(meta_path, meta)
+
+
+def set_pause(meta_path: Path, web_dir: str | Path, target: str, reason: str | None) -> None:
+    """Pause (reason) or resume (None) the service at « ip:port »: services-meta.json for the next collections, and the published
+    data.json at once so the pages show it without waiting."""
+    _set_meta(meta_path, target, "pause", reason or None)
+
+    def apply(r: dict) -> None:
+        if r.get("type") == "local" and f'{r.get("ip")}:{r.get("port")}' == target:
+            if reason:
+                r["paused"] = reason
+            else:
+                r.pop("paused", None)
+    _rewrite_hosts(web_dir, apply)
+
+
+def set_public(meta_path: Path, web_dir: str | Path, domain: str, public: bool) -> None:
+    """« Public site, on purpose » (an NPM host without access list that is meant to be reached from the Internet), set or removed under its
+    domain in services-meta.json, and in the published data.json at once."""
+    _set_meta(meta_path, domain, "public", True if public else None)
+
+    def apply(r: dict) -> None:
+        if domain in (r.get("domains") or []):
+            r["public_ok"] = public
+    _rewrite_hosts(web_dir, apply)
+
+
+def _rewrite_hosts(web_dir: str | Path, apply) -> None:
+    """Applies `apply` to every host of the published data.json, written whole then renamed (no data.json yet: nothing to do)."""
     p = Path(web_dir) / "data.json"
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
     for r in data.get("hosts") or []:
-        if r.get("type") == "local" and f'{r.get("ip")}:{r.get("port")}' == target:
-            if reason:
-                r["paused"] = reason
-            else:
-                r.pop("paused", None)
+        apply(r)
     tmp = p.with_name(p.name + ".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")  # NOSONAR S2083: path from the config or environment, never from a request; only the content comes from the user
     os.chmod(tmp, p.stat().st_mode & 0o777)

@@ -2,9 +2,9 @@
 // opens the detail window), the services newly seen on the machines (admin), then « See all » folded: every service (NPM and direct)
 // with its state, machine and source, filters, sort, « By machine »; on a phone, one card per service.
 import { foldHeaderProps } from "../lib/foldHeader";
-import { ChevronDown, ChevronRight, ExternalLink, EyeOff, Layers, Plus, Server, Boxes, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, EyeOff, Globe, Layers, Search, Plus, Server, Boxes, Undo2 } from "lucide-react";
 import { Fragment, useCallback, useMemo, useState } from "react";
-import type { Snapshot } from "../api";
+import { send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { Dot, Logo } from "../components/marks";
 import { appIcon, serviceIcon } from "../lib/appIcons";
@@ -32,7 +32,7 @@ const TYPE_NAME: Record<string, string> = { proxy: tx("Proxy NPM"), redirect: "R
 const EXPO: Record<string, [Tone, string, string]> = {
   prive: ["ok", tx("🔒 protégé"), tx("Seul le réseau local ou le VPN peut l'ouvrir, grâce à une liste d'accès NPM (ACL) ou à une garde LAN dans la configuration.")],
   public: ["info", tx("🌍 public"), tx("Ouvert à Internet volontairement : le site est déclaré public, sans liste d'accès.")],
-  ouvert: ["bad", tx("⚠ ouvert ?"), tx("Ni liste d'accès ni déclaration « public » : le site est peut-être joignable depuis Internet sans aucune restriction. À vérifier.")],
+  ouvert: ["warn", tx("⚠ public ?"), tx("Public à confirmer : ni liste d'accès ni déclaration « public », le site est joignable depuis Internet. Si c'est voulu, « Site public voulu » dans sa fiche (Détail).")],
 };
 const domainMark = (v: string) => <Dot tone={v === "with" ? "info" : "off"} />;
 
@@ -237,10 +237,14 @@ function Watch({ rows, hidden, map, admin, onOpen }: Readonly<{ rows: Host[]; hi
                     <td className="px-3 py-2">{ex ? <Badge tone={EXPO[ex][0]} outline plainText title={EXPO[ex][2]}>{EXPO[ex][1]}</Badge> : <Dim>-</Dim>}</td>
                     <td className="px-3 py-2"><Badge tone={ST_TONE[cls]} title={why}>{label}</Badge>{flags.length > 0 && <span className="ml-1.5 text-xs text-muted">{flags.join(" · ")}</span>}</td>
                     <td className="px-3 py-2 text-right"><span className="inline-flex items-center gap-2">
+                      {admin && ex === "ouvert" && r.domains[0] && (
+                        <button type="button" className="text-dim hover:text-ok" title={tx("Ouvert à Internet volontairement (site, blog, page de contact) : ne plus le signaler")} aria-label={tx("Site public voulu")}
+                          onClick={() => void send("PUT", "services/public", { domain: r.domains[0], public: true }).catch(() => undefined)}><Globe size={15} aria-hidden /></button>
+                      )}
                       {admin && (off
                         ? <button type="button" className="text-dim hover:text-txt" title={tx("Afficher de nouveau dans « À surveiller »")} aria-label={tx("Afficher de nouveau dans « À surveiller »")} onClick={() => void setServiceHidden(r, hostName(r), false)}><Undo2 size={15} aria-hidden /></button>
                         : <button type="button" className="text-dim hover:text-txt" title={tx("Ne plus afficher ici, ni dans le point de l'onglet, tant que le problème ne change pas")} aria-label={tx("Masquer de « À surveiller »")} onClick={() => void setServiceHidden(r, hostName(r), true)}><EyeOff size={15} aria-hidden /></button>)}
-                      <button type="button" onClick={() => onOpen(keyOfRow(r))} aria-haspopup="dialog" className={`${quiet} py-1`}>{tx("Détail")}</button>
+                      <button type="button" onClick={() => onOpen(keyOfRow(r))} aria-haspopup="dialog" title={tx("Détail")} aria-label={tx("Détail")} className="text-dim hover:text-link"><Search size={16} aria-hidden /></button>
                     </span></td>
                   </tr>
                 );

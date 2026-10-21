@@ -1,5 +1,5 @@
 // Fiche d'un service (ligne dépliée) : identité, service, réseau & NPM.
-import { Pause, Play } from "lucide-react";
+import { Globe, Pause, Play, Undo2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { send } from "../api";
 import { NoteLine } from "../components/form";
@@ -37,6 +37,22 @@ function Block({ title, tone, rows }: { title: string; tone: keyof typeof TONES;
 
 function link(url: string, text: string) {
   return <a href={url} target="_blank" rel="noopener" className="text-link hover:underline">{text}</a>;
+}
+
+/** An NPM host without access list nor LAN guard: « public site, on purpose » said once (services-meta « public »), or taken back (admin) */
+function PublicOnPurpose({ r, admin }: Readonly<{ r: Host; admin: boolean }>) {
+  const [note, setNote] = useState<Note>(null);
+  const domain = r.domains[0];
+  const set = (on: boolean) => act(() => send("PUT", "services/public", { domain, public: on }), on ? tx("déclaré public : il quitte « À surveiller »") : tx("déclaration retirée"), setNote);
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <span className={r.public_ok ? "text-dim" : ""}>{r.public_ok ? tx("site public (voulu)") : tx("aucune")}</span>
+      {admin && domain && (r.public_ok
+        ? <button type="button" className={`${quiet} py-0.5 text-xs`} onClick={() => void set(false)} title={tx("Le site n'est plus censé être public : il revient dans « À surveiller » tant qu'il n'a pas de liste d'accès")}><Undo2 size={13} aria-hidden />{tx("Ce n'est plus public")}</button>
+        : <button type="button" className={`${quiet} py-0.5 text-xs`} onClick={() => void set(true)} title={tx("Ouvert à Internet volontairement (site, blog, page de contact) : ne plus le signaler")}><Globe size={13} aria-hidden />{tx("Site public voulu")}</button>)}
+      <NoteLine note={note} />
+    </span>
+  );
 }
 
 /** A service of a machine in pause (not followed, or « pause » set by hand): why, and the way back (admin) */
@@ -92,7 +108,8 @@ export function ServiceDetail({ r, admin = false }: { r: Host; admin?: boolean }
   ];
   if (r.type !== "local" && r.type !== "stream") net.push(
     [tx("HTTPS via NPM"), p.code ? tx("{0} · {1} ms{2}", p.code, p.ms, p.cert_ok === false ? tx(" · certificat ≠ nom") : "") : p.err || "-", !p.code ? (p.err ? "bad" : "mut") : p.code >= 500 ? "bad" : p.cert_ok === false || p.code >= 400 ? "warn" : "ok"],
-    [tx("Access list"), r.acl ? r.acl : r.acl_adv ? tx("garde LAN (advanced_config)") : r.public_ok ? tx("site public (voulu)") : "aucune", r.acl || r.acl_adv ? "ok" : r.public_ok || npmOnly ? "mut" : "bad"],
+    [tx("Access list"), r.acl || r.acl_adv || r.type !== "proxy" ? (r.acl || (r.acl_adv ? tx("garde LAN (advanced_config)") : r.public_ok ? tx("site public (voulu)") : "aucune")) : <PublicOnPurpose r={r} admin={admin} />,
+      r.acl || r.acl_adv ? "ok" : r.public_ok || npmOnly ? "mut" : "bad"],
     [tx("Certificat SSL"), yn(r.ssl), yes(r.ssl, true)],
     [tx("SSL forcé"), yn(r.ssl_forced), yes(r.ssl_forced, true)],
   );
