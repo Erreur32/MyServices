@@ -139,7 +139,7 @@ export function ResCell({ h, what }: { h?: HealthHost; what: "cpu" | "mem" }) {
   const v = what === "cpu" ? h?.res?.cpu_pct : h?.res?.mem_pct;
   if (!h?.res?.available || v == null) return <Dim>-</Dim>;
   const tone = what === "mem" && v >= 97 ? "text-bad" : (what === "mem" && v >= 90) || (what === "cpu" && v >= 90) ? "text-warn" : "text-ok";
-  return <b className={tone} title={what === "mem" && h.res?.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} Go` : undefined}>{Math.round(v)} %</b>;
+  return <b className={tone} title={what === "mem" && h.res?.mem_total_mb ? `${((h.res.mem_used_mb ?? 0) / 1024).toFixed(1)} / ${(h.res.mem_total_mb / 1024).toFixed(1)} Go` : undefined}><Pct value={Math.round(v)} /></b>;
 }
 type MeterTone = "ok" | "warn" | "bad";
 const METER_TEXT: Record<MeterTone, string> = { ok: "text-txt", warn: "font-bold text-warn", bad: "font-bold text-bad" };   // plain when fine, bold and coloured only when it needs a look
@@ -153,7 +153,7 @@ function Meter({ pct, tone, hint, title, unit = "%" }: Readonly<{ pct: number; t
   return (
     <div className="w-[7rem]" title={title}>
       <div className="flex items-baseline justify-between gap-1 leading-tight">
-        <span className={`shrink-0 whitespace-nowrap text-xs tabular-nums ${METER_TEXT[tone]}`}>{Math.round(pct)} {unit}</span>
+        <span className={`shrink-0 text-xs ${METER_TEXT[tone]}`}><Pct value={Math.round(pct)} unit={unit} /></span>
         {hint && <span className="min-w-0 truncate font-mono text-[10px] text-dim">{hint}</span>}
       </div>
       <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-bg2"><GradientFill pct={pct} /></span>
@@ -317,9 +317,10 @@ function GpuCellView({ list }: Readonly<{ list: GpuCell[] }>) {
         <span key={`${g.name}-${i}`} className="flex flex-col text-xs leading-tight" title={gpuTip(g)} tabIndex={0}>
           <span className="flex items-baseline gap-2">
             <span className="truncate font-medium">{shortGpu(g.name)}</span>
-            {g.util != null && <span className="shrink-0 tabular-nums text-muted">{Math.round(g.util)} %</span>}
-            {g.temp != null && <span className={`shrink-0 tabular-nums ${heatClass(g.temp)}`}>{Math.round(g.temp)} °C</span>}
+            {g.util != null && <span className="shrink-0 text-muted"><Pct value={Math.round(g.util)} /></span>}
+            {g.temp != null && <span className={`shrink-0 ${heatClass(g.temp)}`}><Pct value={Math.round(g.temp)} unit="°C" /></span>}
           </span>
+          {g.util != null && <span className="my-0.5 block h-1.5 w-[7rem] overflow-hidden rounded-full bg-bg2"><GradientFill pct={g.util} /></span>}
           {(g.memTotal || g.power != null || g.models.length > 0) && (
             <span className="flex items-center gap-2 text-[11px] text-dim">
               {g.memTotal ? <span className="shrink-0 tabular-nums">{gb(g.memUsed ?? 0)} / {gb(g.memTotal)}</span> : null}

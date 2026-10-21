@@ -312,9 +312,9 @@ export function GradientFill({ pct }: Readonly<{ pct: number }>) {
   return <span className="block h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-500 saturate-150" style={{ width: `${fill}%`, backgroundSize: `${10000 / fill}% 100%` }} />;
 }
 
-/** A percentage next to a bar: the number on one line with its « % », the sign smaller and dimmed than the value */
-export function Pct({ value }: Readonly<{ value: number | string }>) {
-  return <span className="whitespace-nowrap tabular-nums">{value}<span className="ml-0.5 text-[0.8em] text-dim">%</span></span>;
+/** A value next to a bar: the number on one line with its unit (« % », « °C »), the unit smaller and dimmed than the value */
+export function Pct({ value, unit = "%" }: Readonly<{ value: number | string; unit?: string }>) {
+  return <span className="whitespace-nowrap tabular-nums">{value}<span className="ml-0.5 text-[0.8em] text-dim">{unit}</span></span>;
 }
 
 export function Fill({ pct }: Readonly<{ pct: number }>) {

@@ -13,7 +13,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Changed
 - **Audit log and Logs moved into Settings**: they leave the account menu and join Requests in Settings → Application → « Requests and logs », as three sub-tabs (Requests, Audit log, Logs). The old addresses (`#audit`, `#logs`, `#settings/audit`, `#settings/logs`) open the matching sub-tab.
-- **Disk percentages on one line**: in Backups › By machine and on a machine page (Health, Share), the percentage and the free space no longer break over two lines, and the « % » sign is smaller than the value.
+- **Percentages on one line, unit smaller**: in Backups › By machine, on a machine page (Health, Share) and in the Machines table (CPU, memory, disk, GPU), the value keeps its « % » or « °C » on the same line, the unit smaller than the value; the free space no longer wraps.
+- **Machines table: a load bar for each GPU**, under its name, the same width as the CPU and memory bars.
 
 ### Fixed
 - **Zombie processes filled the container**: `server.py` ran as PID 1 and never reaped the orphaned `ssh` processes of the tasks; after about a day they reached the container's process limit and the server could no longer start a thread (« can't start new thread »). The image now runs `tini` as PID 1.
