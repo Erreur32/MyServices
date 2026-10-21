@@ -114,19 +114,20 @@ function State({ r, ck, source }: Readonly<{ r: Host; ck: Check[]; source?: Reac
   const flags = ck.filter((k) => !CLEANUP.includes(k)).map((k) => `⚑ ${CHECK[k][0]}`);
   return (
     <span className="inline-flex items-center gap-1">
-      <StateBadges cls={cls} label={label} title={[label, why, ...flags].filter(Boolean).join("\n")} flagged={flags.length > 0} />
-      {source}
+      <StateBadges cls={cls} label={label} title={[label, why, ...flags].filter(Boolean).join("\n")} flagged={flags.length > 0} source={source} />
       <Marks r={r} />
     </span>
   );
 }
 
-/** The state as one badge per piece of information (« OK · redirige » -> « OK » and « redirige »): the first in the colour of the state, the others plain */
-function StateBadges({ cls, label, title, flagged = false }: Readonly<{ cls: string; label: string; title?: string; flagged?: boolean }>) {
+/** The state as one badge per piece of information (« OK · redirige » -> « OK » and « redirige »): the first in the colour of the state, then where it
+ *  is read (`source`: Proxy NPM, Apache, nginx, Docker…), then the other pieces, plain */
+function StateBadges({ cls, label, title, flagged = false, source }: Readonly<{ cls: string; label: string; title?: string; flagged?: boolean; source?: React.ReactNode }>) {
   const [head, ...rest] = label.split(" · ");
   return (
     <span className="inline-flex flex-wrap items-center gap-1" title={title}>
       <Badge tone={ST_TONE[cls]}>{head}{flagged && <span className="ml-1">⚑</span>}</Badge>
+      {source}
       {rest.map((x) => <Badge key={x} tone="off" outline>{x}</Badge>)}
     </span>
   );
