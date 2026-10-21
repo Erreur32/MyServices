@@ -388,7 +388,7 @@ class BeszelTests(unittest.TestCase):
     def test_kept_token_refused_signs_in_again(self):
         from connectors import beszel
         c = self.conn()
-        beszel._tokens[c._key()] = ("revoked", time.time() + 3600)
+        beszel._tokens[c._key()] = ("revoked", time.time() + 3600, "bon")
         self.assertTrue(run_isolated(c, {}, 10)[1].ok)
         self.assertEqual((FakeBeszel.signins, beszel._tokens[c._key()][0]), (1, "tok"))
 
