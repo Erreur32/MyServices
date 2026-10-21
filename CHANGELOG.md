@@ -16,6 +16,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Percentages on one line, unit smaller**: in Backups › By machine, on a machine page (Health, Share) and in the Machines table (CPU, memory, disk, GPU), the value keeps its « % » or « °C » on the same line, the unit smaller than the value; the free space no longer wraps.
 - **Machines table: a load bar for each GPU**, under its name, the same width as the CPU and memory bars.
 - **DNS: a domain row names the name that fails**: an NPM host with several names showed its first one (which resolved) with « does not resolve »; the row now says which name, e.g. « does not resolve : way.example.info », in « To watch » and in the domains table.
+- **Page titles carry badges, as on Network**: DNS, Security, Backups and Services show their counts (blue), the tools read (green), the time of the reading and « read only » as badges next to the title, instead of a grey sentence.
+- **« To watch » hidden when empty**: on Network, DNS, Backups, Services, Security and a machine page, a « To watch » frame with nothing in it is no longer shown.
 
 ### Fixed
 - **Zombie processes filled the container**: `server.py` ran as PID 1 and never reaped the orphaned `ssh` processes of the tasks; after about a day they reached the container's process limit and the server could no longer start a thread (« can't start new thread »). The image now runs `tini` as PID 1.

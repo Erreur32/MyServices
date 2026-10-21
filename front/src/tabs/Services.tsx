@@ -13,7 +13,7 @@ import type { Host } from "../types";
 import { Badge, Cards, Dim, Empty, FilterBar, Table, Td, Th, type Tone } from "../components/ui";
 import { ServiceDetail } from "./ServiceDetail";
 import { Overlay } from "../components/Overlay";
-import { dateTime, ipNum } from "../lib/format";
+import { ipNum } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { FoldPanel } from "../components/FoldPanel";
 import { NewServices } from "../components/NewServices";
@@ -22,6 +22,7 @@ import { StatTile } from "../components/StatTile";
 import { WatchPanel } from "../components/WatchPanel";
 import { quiet, worstTone } from "../lib/forms";
 import { figures, liveChecks, toWatch } from "../lib/servicesState";
+import { HeadTags } from "../components/HeadTags";
 
 const ST_TONE: Record<string, Tone> = { ok: "ok", warn: "warn", bad: "bad", off: "off" };
 const ST_NAME: Record<string, string> = { ok: "OK", warn: "avertissement", bad: tx("en panne"), off: tx("désactivé / non testé") };
@@ -277,7 +278,7 @@ export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?:
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="flex items-center gap-2 text-xl font-bold"><Boxes size={18} aria-hidden />{tx("Services")}</h1>
-        <span className="text-sm text-muted">{tx("{0} services · {1} avec domaine · {2} locaux · {3} machines", fig.total, fig.withDomain, fig.local, fig.machines)} · {tx("relevé du {0}, en lecture seule", dateTime(snap.data.generated))}</span>
+        <HeadTags counts={[tx("{0} services", fig.total), tx("{0} avec domaine", fig.withDomain), tx("{0} locaux", fig.local), tx("{0} machines", fig.machines)]} at={snap.data.generated} />
         {admin && <button type="button" className={`${quiet} ml-auto py-1`} onClick={() => setManual({})} title={tx("Déclarer un service que la détection ne voit pas")}><Plus size={14} aria-hidden />{tx("Service")}</button>}
       </div>
       <div className="flex gap-2.5 overflow-x-auto pb-1">

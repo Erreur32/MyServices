@@ -6,7 +6,7 @@ import { Cable, ChevronDown, ChevronRight, LayoutDashboard, List, Monitor, Netwo
 import { useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { useFilter, useSort, type Facet } from "../lib/filter";
-import { dateTime, dur } from "../lib/format";
+import { dur } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { NETWORK_CARDS, hasNetwork } from "../lib/network";
 import type { ServiceStatus } from "../types";
@@ -19,6 +19,7 @@ import { ServiceCard } from "../components/ServiceStatusCards";
 import { NetworkDiagnostic } from "./NetworkDiagnostic";
 import { NetworkScanStats } from "./NetworkScanStats";
 import { UnifiCards } from "./UnifiCards";
+import { HeadTags } from "../components/HeadTags";
 
 const INTERNET = ["freebox", "opnsense", "speedtest-tracker"];
 type Kind = "gear" | "wifi" | "wired" | "device";
@@ -196,25 +197,23 @@ function Figures({ box, boxFact, gearAll, gearDown, updates, wifi, wired, devAll
 function WatchTable({ watch, worst, open }: Readonly<{ watch: Watch[]; worst: "ok" | "warn" | "bad"; open: (w: Watch) => void }>) {
   return (
     <WatchPanel id="network" tone={worst} count={watch.length} hint={tx("équipement hors ligne, source en erreur, box, mises à jour, wifi faible")}>
-      {watch.length === 0 ? <p className="px-4 py-3 text-sm text-ok">{tx("Tout le réseau répond, rien à signaler.")}</p> : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] border-collapse text-sm">
-            <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-              <th className="px-3 py-2">{tx("Domaine")}</th><th className="px-3 py-2">{tx("Quoi")}</th><th className="px-3 py-2">{tx("Détail")}</th><th className="w-28 px-3 py-2" />
-            </tr></thead>
-            <tbody>
-              {watch.map((w) => (
-                <tr key={w.key} className="border-t border-line/60 even:bg-bg/50 hover:bg-bg2/40">
-                  <td className="px-3 py-2"><Badge tone={w.sev}>{w.area}</Badge></td>
-                  <td className="px-3 py-2 font-semibold">{w.title}</td>
-                  <td className="px-3 py-2 text-muted">{w.detail}</td>
-                  <td className="px-3 py-2 text-right"><button type="button" onClick={() => open(w)} className={`${quiet} py-1`}>{w.href ? tx("Ouvrir") : tx("Voir")}</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] border-collapse text-sm">
+          <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
+            <th className="px-3 py-2">{tx("Domaine")}</th><th className="px-3 py-2">{tx("Quoi")}</th><th className="px-3 py-2">{tx("Détail")}</th><th className="w-28 px-3 py-2" />
+          </tr></thead>
+          <tbody>
+            {watch.map((w) => (
+              <tr key={w.key} className="border-t border-line/60 even:bg-bg/50 hover:bg-bg2/40">
+                <td className="px-3 py-2"><Badge tone={w.sev}>{w.area}</Badge></td>
+                <td className="px-3 py-2 font-semibold">{w.title}</td>
+                <td className="px-3 py-2 text-muted">{w.detail}</td>
+                <td className="px-3 py-2 text-right"><button type="button" onClick={() => open(w)} className={`${quiet} py-1`}>{w.href ? tx("Ouvrir") : tx("Voir")}</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </WatchPanel>
   );
 }
@@ -278,13 +277,7 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="flex items-center gap-2 text-xl font-bold"><NetworkIcon size={18} aria-hidden />{tx("Réseau")}</h1>
-        <span className="flex flex-wrap items-center gap-1.5 text-sm">
-          {gearWords.map((w) => <Badge key={w} tone="info" outline>{w}</Badge>)}
-          {devAll.length > 0 && <Badge tone="off" outline>{tx("{0} appareils", devAll.length)}</Badge>}
-          {sourceNames.map((s) => <Badge key={s} tone="ok" outline>{s}</Badge>)}
-          <Badge tone="off" outline>{tx("relevé du {0}", dateTime(snap.data.generated))}</Badge>
-          <Badge tone="off" outline>{tx("lecture seule")}</Badge>
-        </span>
+        <HeadTags counts={gearWords} others={devAll.length > 0 ? [tx("{0} appareils", devAll.length)] : []} sources={sourceNames} at={snap.data.generated} />
       </div>
       <Figures box={box} boxFact={boxFact} gearAll={gearAll} gearDown={gearDown} updates={updates} wifi={all("wifi").length} wired={all("wired").length} devAll={devAll} unfollowed={unfollowed} sourceNames={sourceNames} failing={failing} />
 

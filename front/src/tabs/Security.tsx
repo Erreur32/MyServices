@@ -12,7 +12,7 @@ import { InfoNote } from "../components/InfoNote";
 import { Badge, Dim, Empty } from "../components/ui";
 import { StatTile } from "../components/StatTile";
 import { WatchPanel } from "../components/WatchPanel";
-import { dateTime, splitHostName } from "../lib/format";
+import { splitHostName } from "../lib/format";
 import { quiet, worstTone } from "../lib/forms";
 import { watchRows, type WatchRow } from "../lib/securityWatch";
 import { tx } from "../lib/i18n";
@@ -20,6 +20,7 @@ import { exposedSites, securityFindings, SENSITIVE, siteIssues, type Area, type 
 import { risky } from "../lib/ssh";
 import { accessFindings } from "../lib/accessFindings";
 import { SecurityAccess, useAccessData } from "../components/SecurityAccess";
+import { HeadTags } from "../components/HeadTags";
 
 type Sub = "fail2ban" | "sites" | "access" | "members" | "network" | "certs";
 const SUBS: { id: Sub; label: string; icon: LucideIcon; area: Area }[] = [
@@ -217,12 +218,13 @@ export function Security({ snap }: Readonly<{ snap: Snapshot }>) {
   const counts = useMemo(() => findings.reduce<Partial<Record<Area, number>>>((n, f) => ({ ...n, [f.area]: (n[f.area] ?? 0) + 1 }), {}), [findings]);
   const sources = snap.data.security ?? [];
   const tools = [sources.length ? tx("Fail2ban par {0}", [...new Set(sources.map((c) => c.name))].join(", ")) : "", Object.keys(snap.data.npm_instances ?? {}).length ? tx("Nginx Proxy Manager ({0})", Object.keys(snap.data.npm_instances).length) : "",
-    tx("{0} machine(s) lue(s) par SSH", snap.data.machine_list.filter((m) => !m.disabled && m.info?.sshd).length), (snap.data.network ?? []).length ? "MynetworK" : ""].filter(Boolean);
+    (snap.data.network ?? []).length ? "MynetworK" : ""];
+  const bySsh = tx("{0} machine(s) lue(s) par SSH", snap.data.machine_list.filter((m) => !m.disabled && m.info?.sshd).length);
   return (
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="flex items-center gap-2 text-xl font-bold"><ShieldCheck size={18} aria-hidden />{tx("Sécurité")}</h1>
-        <span className="text-sm text-muted">{tools.join(" · ")} · {tx("relevé du {0}, en lecture seule", dateTime(snap.data.generated))}</span>
+        <HeadTags counts={[bySsh]} sources={tools} at={snap.data.generated} />
         {admin && <a href="#settings/connectors" className="ml-auto text-sm text-link hover:underline">{tx("Connecteurs")} ›</a>}
       </div>
       <Figures snap={snap} findings={findings} admin={admin} />

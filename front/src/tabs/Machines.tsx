@@ -365,31 +365,30 @@ function showWatch(root: HTMLElement | null, kind: WatchKind) {
   setTimeout(() => el.classList.remove("ring-2", "ring-warn", "animate-pulse"), 2600);
 }
 function WatchSummary({ items, onShow }: { items: WatchItem[]; onShow?: (kind: WatchKind) => void }) {
+  if (!items.length) return null;   // nothing to watch: no block
   const count = (t: WatchTone) => items.filter((i) => i.tone === t).length;
   return (
     <details open={worst(items) >= 2} className="group rounded-lg border border-line/60 bg-card/60 p-3 text-xs sm:col-span-2 xl:col-span-3">
       <summary className="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-dim [&::-webkit-details-marker]:hidden">
         <ChevronRight size={13} className="shrink-0 transition-transform group-open:rotate-90" aria-hidden /><Eye size={13} aria-hidden />{tx("À surveiller")}
         <span className="ml-auto flex items-center gap-1.5 normal-case tracking-normal">
-          {items.length === 0 ? <Badge tone="ok">{tx("rien")}</Badge> : (["bad", "warn", "info"] as WatchTone[]).filter(count).map((t) => <Badge key={t} tone={t === "info" ? "info" : t}>{count(t)}</Badge>)}
+          {(["bad", "warn", "info"] as WatchTone[]).filter(count).map((t) => <Badge key={t} tone={t === "info" ? "info" : t}>{count(t)}</Badge>)}
         </span>
       </summary>
-      {items.length === 0 ? <p className="mt-2 text-ok">{tx("Rien à surveiller sur cette machine.")}</p> : (
-        <ul className="mt-2 flex flex-col gap-1.5">
-          {items.map((it, i) => {
-            const Icon = WATCH_ICON[it.kind];
-            return (
-              <li key={i} className="flex items-start gap-2">
-                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`}><Icon size={13} aria-hidden /></span>
-                <span className="min-w-0 flex-1 pt-0.5 text-muted">{it.text}
-                  {it.detail?.length ? <KernelLines lines={it.detail.slice(0, 4)} /> : null}
-                </span>
-                {onShow && <button type="button" onClick={() => onShow(it.kind)} title={tx("Voir où dans cette fenêtre")} aria-label={tx("Voir où dans cette fenêtre")} className="shrink-0 rounded p-1 text-dim hover:text-txt"><Crosshair size={13} aria-hidden /></button>}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <ul className="mt-2 flex flex-col gap-1.5">
+        {items.map((it, i) => {
+          const Icon = WATCH_ICON[it.kind];
+          return (
+            <li key={i} className="flex items-start gap-2">
+              <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`}><Icon size={13} aria-hidden /></span>
+              <span className="min-w-0 flex-1 pt-0.5 text-muted">{it.text}
+                {it.detail?.length ? <KernelLines lines={it.detail.slice(0, 4)} /> : null}
+              </span>
+              {onShow && <button type="button" onClick={() => onShow(it.kind)} title={tx("Voir où dans cette fenêtre")} aria-label={tx("Voir où dans cette fenêtre")} className="shrink-0 rounded p-1 text-dim hover:text-txt"><Crosshair size={13} aria-hidden /></button>}
+            </li>
+          );
+        })}
+      </ul>
     </details>
   );
 }
