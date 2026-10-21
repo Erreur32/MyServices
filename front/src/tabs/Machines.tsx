@@ -28,7 +28,7 @@ import { DetailRow, DetailSection } from "../components/DetailSection";
 import { primary } from "../lib/forms";
 import { WATCH_SECTION, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
-import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Table, Td, Th, type Tone } from "../components/ui";
+import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Pct, Table, Td, Th, type Tone } from "../components/ui";
 import { tx } from "../lib/i18n";
 import { hardwareRows } from "../lib/hardware";
 
@@ -597,7 +597,7 @@ function BigLogsRow({ logs }: Readonly<{ logs: NonNullable<HealthHost["logs"]> }
 
 function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
   const bar = (label: string, pct: number | undefined, extra?: string) => pct == null ? null : (
-    <DetailRow key={label} k={label} title={label}><Fill pct={pct} /><span className="tabular-nums">{Math.round(pct)} %</span>{extra && <Dim>{extra}</Dim>}</DetailRow>
+    <DetailRow key={label} k={label} title={label}><Fill pct={pct} /><Pct value={Math.round(pct)} />{extra && <Dim>{extra}</Dim>}</DetailRow>
   );
   return (
     <>
@@ -642,7 +642,7 @@ export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine
   return (
     <Section sec="share" icon={FolderOpen} title={tx("Partage")} tone={worst >= 2 ? "bad" : "link"} from={from}>
       <Row k={tx("Copies hébergées")}>{hosted.length ? tx("{0} jeu(x)", hosted.length) : <Dim>{tx("aucune")}</Dim>}</Row>
-      {disk && <Row k={tx("Espace")}><Fill pct={disk.pct} /><span className="tabular-nums">{disk.pct} %</span><Dim>{bytes(disk.avail)} {tx("libres")} · {disk.mount}</Dim></Row>}
+      {disk && <Row k={tx("Espace")}><Fill pct={disk.pct} /><Pct value={disk.pct} /><Dim>{bytes(disk.avail)} {tx("libres")} · {disk.mount}</Dim></Row>}
       {hosted.length > 0 && (
         <Row k={tx("Détail")}>
           <ConsoleBox cols="minmax(0,1fr) auto auto">

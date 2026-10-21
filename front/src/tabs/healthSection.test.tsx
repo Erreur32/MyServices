@@ -16,7 +16,7 @@ const h = freeboxHealth(m, {
 describe("section Santé de la fiche d'une Freebox", () => {
   it("montre le niveau, la partition, la température du processeur, la mémoire VM et l'état des VM", () => {
     const html = renderToStaticMarkup(<HealthSection h={h} from={[]} />);
-    for (const t of ["NVME 32", "55 %", "411 Go libres", "État du disque", "WD_BLACK SN770", "actif", "62 °C", "SMART en défaut", "60 °C", "Sondes", "Ventilateur", "600", "Mémoire VM", "0 en marche sur 1"]) expect(html, t).toContain(t);
+    for (const t of ["NVME 32", "55<span class=\"ml-0.5 text-[0.8em] text-dim\">%</span>", "411 Go libres", "État du disque", "WD_BLACK SN770", "actif", "62 °C", "SMART en défaut", "60 °C", "Sondes", "Ventilateur", "600", "Mémoire VM", "0 en marche sur 1"]) expect(html, t).toContain(t);
   });
 });
 

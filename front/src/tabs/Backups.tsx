@@ -7,7 +7,7 @@ import { type Snapshot } from "../api";
 import { useFilter, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime } from "../lib/format";
 import type { BackupHost, BackupSet, Backups as BackupsData } from "../types";
-import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Table, TableCard, Td, Th } from "../components/ui";
+import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Pct, Table, TableCard, Td, Th } from "../components/ui";
 import { FoldPanel } from "../components/FoldPanel";
 import { LEVEL } from "../lib/level";
 import { Dot } from "../components/marks";
@@ -133,8 +133,8 @@ function ByMachine({ b, initial }: Readonly<{ b: BackupsData; initial?: Selected
       {h.disks.map((d) => (
         <span key={d.mount} className="flex items-center gap-2 text-xs">
           <span className="w-20 truncate font-mono" title={d.mount}>{d.mount}</span>
-          <Fill pct={d.pct} /><span>{d.pct} %</span>
-          <Dim>{bytes(d.avail)} {tx("libres")}</Dim>
+          <Fill pct={d.pct} /><Pct value={d.pct} />
+          <span className="whitespace-nowrap"><Dim>{bytes(d.avail)} {tx("libres")}</Dim></span>
         </span>
       ))}
     </div>
