@@ -11,6 +11,10 @@ Champs lus d'après le code source de Beszel v0.21.0 (internal/entities/system, 
 """
 from __future__ import annotations
 
+import base64
+import hashlib
+import json
+import time
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 
@@ -18,6 +22,21 @@ from connectors.base import Connector, ConnectorError, Field, Result
 
 SERVICE_FAILED = 2  # systemd_services.state : 0 actif, 1 inactif, 2 en échec, 3-5 transitions
 HEALTH = {1: "starting", 2: "healthy", 3: "unhealthy"}  # containers.health ; 0 : no health check
+TOKEN_MARGIN = 600      # a kept token is dropped 10 min before it expires
+TOKEN_FALLBACK = 3600   # token without a readable expiry: kept an hour
+# (url, user, password digest) -> (token, drop after) ; a changed password is a new key. Kept by the server process, so a pass does not sign in again (memory only, never on disk).
+# Kept to its expiry, not « until refused »: an expired token can get an empty list from PocketBase instead of a 401.
+_tokens: dict[tuple[str, str], tuple[str, float]] = {}
+
+
+def _expiry(token: str) -> float | None:
+    """The « exp » claim of a PocketBase token (a JWT), read without checking the signature: only to know when to sign in again."""
+    try:
+        part = token.split(".")[1]
+        exp = json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4))).get("exp")
+    except (IndexError, ValueError, AttributeError):
+        return None
+    return float(exp) if isinstance(exp, (int, float)) and not isinstance(exp, bool) else None
 
 
 def _num(v):
@@ -49,7 +68,13 @@ class Beszel(Connector):
     def _http(self, path: str, **kw) -> object:
         return self.ctx.http(self._base() + path, verify_tls=self.conf.get("verify_tls", True) is not False, **kw)
 
+    def _key(self) -> tuple[str, str, str]:
+        return self._base(), self.conf["user"], hashlib.sha256(str(self.conf["password"]).encode()).hexdigest()
+
     def _token(self) -> str:
+        key = self._key()
+        if not getattr(self, "_tok", None) and key in _tokens and _tokens[key][1] > time.time():
+            self._tok, self._kept = _tokens[key][0], True
         if not getattr(self, "_tok", None):
             try:
                 got = self._http("/api/collections/users/auth-with-password", method="POST",
@@ -61,10 +86,20 @@ class Beszel(Connector):
             self._tok = (got or {}).get("token")
             if not self._tok:
                 raise ConnectorError("connexion refusée (compte ou mot de passe ?)")
+            self._kept = False
+            exp = _expiry(self._tok)
+            _tokens[key] = (self._tok, exp - TOKEN_MARGIN if exp else time.time() + TOKEN_FALLBACK)
         return self._tok
 
     def _get(self, path: str) -> object:
-        return self._http(path, headers={"Authorization": self._token()})
+        try:
+            return self._http(path, headers={"Authorization": self._token()})
+        except ConnectorError as e:
+            if not (getattr(self, "_kept", False) and str(e).startswith(("HTTP 401", "HTTP 403"))):
+                raise
+            _tokens.pop(self._key(), None)   # token revoked or the password changed: sign in again, once
+            self._tok = None
+            return self._http(path, headers={"Authorization": self._token()})
 
     def _records(self, coll: str, flt: str | None = None) -> list[dict]:
         out, page = [], 1

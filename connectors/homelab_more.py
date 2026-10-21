@@ -226,6 +226,10 @@ class Arcane(StatusConnector):
         return {"url": f"http://{ip}:{host_port(ports, 3552) or 3552}"}
 
 
+GLANCES_OFF_RETRY = 3600   # a plugin switched off in Glances is asked again after an hour, not at every pass
+_glances_off: dict[tuple[str, str], float] = {}   # (url, plugin) -> when to ask again ; kept by the server process between passes
+
+
 class Glances(StatusConnector):
     """Glances: processor, memory, load, fullest disk and active alerts of one machine. No account by default (optional web password).
     Routes (GET): /api/4/status, quicklook, load, fs, system, uptime, alert (/api/3 for Glances 3)."""
@@ -257,11 +261,15 @@ class Glances(StatusConnector):
         if not isinstance(ql, dict) or "cpu" not in ql:
             raise ConnectorError("réponse inattendue : l'adresse ne mène pas à Glances")
         def opt(plugin: str):   # a plugin can be switched off in Glances (--disable-plugin): its route answers 404, or 400 « Unknown plugin »
+            off = (self.conf["url"], plugin)
+            if _glances_off.get(off, 0) > time.time():
+                return None
             try:
                 return self.get(f"{api}/{plugin}", h)
             except ConnectorError as e:
                 if not str(e).startswith(("HTTP 404", "HTTP 400")):
                     raise
+                _glances_off[off] = time.time() + GLANCES_OFF_RETRY
                 return None
         load = opt("load") or {}
         system = opt("system") or {}

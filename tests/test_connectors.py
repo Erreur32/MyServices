@@ -3,6 +3,7 @@ NPM qui rejoue de vraies réponses anonymisées (tests/fixtures/npm/lists.json).
 
   python3 -m unittest discover -s tests
 """
+import base64
 import json
 import sys
 import threading
@@ -310,9 +311,12 @@ BESZEL = {
 class FakeBeszel(BaseHTTPRequestHandler):
     """Hub Beszel (PocketBase) : connexion, /api/beszel/info, listes paginées avec filtre state=2."""
 
+    signins = 0
+
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         if self.path == "/api/collections/users/auth-with-password" and body == {"identity": "ro@x", "password": "bon"}:
+            FakeBeszel.signins += 1
             return FakeNPM.reply(self, 200, {"token": "tok", "record": {"role": "readonly"}})
         return FakeNPM.reply(self, 400, {"message": "Failed to authenticate.", "status": 400})
 
@@ -349,6 +353,11 @@ class BeszelTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.srv.shutdown()
 
+    def setUp(self):
+        from connectors import beszel
+        beszel._tokens.clear()
+        FakeBeszel.signins = 0
+
     def conn(self, password="bon"):
         cfg = {"connectors": [{"type": "beszel", "name": "hub", "url": self.url, "user": "ro@x", "password": password}]}
         return connectors.instances(cfg, kind="health")[0]
@@ -368,6 +377,26 @@ class BeszelTests(unittest.TestCase):
                                        {"mount": "data", "size_gb": 1000.0, "used_gb": 550.0, "used_pct": 55}])
         # champ illisible : None, sans faire échouer le connecteur
         self.assertEqual((s2["status"], s2["services_total"], s2["cpu"], s2["smart"]), ("down", None, None, []))
+
+    def test_token_kept_between_passes(self):
+        """One sign-in for several passes (a new instance each time), not one per pass; a changed password signs in again."""
+        for _ in range(3):
+            self.assertTrue(run_isolated(self.conn(), {}, 10)[1].ok)
+        self.assertEqual(FakeBeszel.signins, 1)
+        self.assertFalse(self.conn("faux").test().ok)
+
+    def test_kept_token_refused_signs_in_again(self):
+        from connectors import beszel
+        c = self.conn()
+        beszel._tokens[c._key()] = ("revoked", time.time() + 3600)
+        self.assertTrue(run_isolated(c, {}, 10)[1].ok)
+        self.assertEqual((FakeBeszel.signins, beszel._tokens[c._key()][0]), (1, "tok"))
+
+    def test_token_expiry_read_from_the_jwt(self):
+        from connectors.beszel import _expiry
+        part = base64.urlsafe_b64encode(json.dumps({"exp": 1900000000}).encode()).decode().rstrip("=")
+        self.assertEqual(_expiry(f"h.{part}.s"), 1900000000.0)
+        self.assertIsNone(_expiry("tok"))
 
     def test_wrong_password(self):
         r = self.conn("faux").test()

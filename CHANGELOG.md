@@ -18,6 +18,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Zombie processes filled the container**: `server.py` ran as PID 1 and never reaped the orphaned `ssh` processes of the tasks; after about a day they reached the container's process limit and the server could no longer start a thread (« can't start new thread »). The image now runs `tini` as PID 1.
 - **A failed pass of the connector readers no longer re-reads every connector every 10 s**: the attempt is noted before the reading, and a reading that cannot start is an ordinary failure. Before, a pass that broke before the end left the state untouched, so every connector was due again at the next tick.
 - **Home Assistant with ha-mcp**: the system health (`ha_get_system_health`) is read once an hour instead of at every reading. Each call makes Home Assistant test whether GitHub answers, which counts against the GitHub quota of the whole public IP (60 requests an hour without a token) and could block other tools on the network.
+- **Glances: a plugin switched off is no longer asked at every pass**: a route answering 400 or 404 (« Unknown plugin », such as `sensors` without sensors) is asked again after an hour instead of every 5 minutes.
+- **Beszel: one sign-in per token, not one per pass**: the hub token is kept in memory until shortly before it expires (read from the token), and a kept token that is refused signs in again once. A changed password signs in again at once.
 
 ## v0.18.2 (2026-10-19)
 

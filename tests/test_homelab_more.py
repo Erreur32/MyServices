@@ -112,6 +112,26 @@ class Arcane(Base):
         self.assertFalse(self.conn("arcane", api_key=KEY).test().ok)
 
 class Glances(Base):
+    def setUp(self):
+        super().setUp()
+        from connectors import homelab_more
+        homelab_more._glances_off.clear()
+
+    def test_plugin_off_not_asked_again_for_an_hour(self):
+        """A plugin switched off in Glances (400 « Unknown plugin ») is not asked at every pass, only again after an hour."""
+        from connectors import homelab_more
+        self.route("/api/4/status", {"version": "4.5.8"})
+        self.route("/api/4/quicklook", {"cpu": 5, "mem": 20})
+        self.route("/api/4/sensors", {"error": "Unknown plugin sensors"}, code=400)
+        def sensors():
+            return sum(1 for x in SEEN if "/api/4/sensors" in x[1])
+        self.conn("glances").collect()
+        self.conn("glances").collect()
+        self.assertEqual(sensors(), 1)
+        homelab_more._glances_off[(self.url, "sensors")] = 0   # the hour is over
+        self.conn("glances").collect()
+        self.assertEqual(sensors(), 2)
+
     def test_v4(self):
         self.route("/api/4/status", {"version": "4.5.8"})
         self.route("/api/4/quicklook", {"cpu": 12.5, "mem": 85.0})
