@@ -35,3 +35,35 @@ export function toWatch(hosts: Host[]): Host[] {
   return hosts.filter((r) => { const c = status(r)[0]; return c === "bad" || c === "warn" || liveChecks(r).length > 0; })
     .sort((a, b) => RANK[status(a)[0]] - RANK[status(b)[0]] || liveChecks(b).length - liveChecks(a).length);
 }
+
+/** Process names that several programs share (an interpreter, a shell): their ports are never merged, they may be different programs */
+const GENERIC_PROCESS = new Set(["python", "python3", "node", "nodejs", "java", "php", "php-fpm", "ruby", "dotnet", "bash", "sh", "perl", "deno", "bun"]);
+
+/** What makes two rows the same service on several ports: a container by its name, a process by its name (unless generic), on the same machine */
+export function portGroupKey(r: Host): string | null {
+  if (r.type !== "local" || !r.service?.name) return null;
+  const kind = r.service.kind;
+  if (kind !== "docker" && kind !== "process") return null;
+  if (kind === "process" && GENERIC_PROCESS.has(r.service.name.toLowerCase())) return null;
+  return `${r.host_ip || r.ip || r.machine || "?"}|${kind}|${r.service.name}`;
+}
+
+/** One line per service: the rows of the same service on several ports become one line, in the place of its first row; `lead` is the row the line
+ *  shows and opens (its worst port, else its first), `ports` every row of the line, by port number. A lone row is a line of one. */
+export function mergePorts(rows: Host[]): { lead: Host; ports: Host[] }[] {
+  const out: { lead: Host; ports: Host[] }[] = [], at = new Map<string, number>();
+  for (const r of rows) {
+    const k = portGroupKey(r);
+    const i = k ? at.get(k) : undefined;
+    if (i === undefined) {
+      if (k) at.set(k, out.length);
+      out.push({ lead: r, ports: [r] });
+    } else out[i].ports.push(r);
+  }
+  for (const line of out) {
+    if (line.ports.length < 2) continue;
+    line.ports.sort((a, b) => (a.port ?? 0) - (b.port ?? 0));
+    line.lead = line.ports.reduce((w, r) => (RANK[status(r)[0]] < RANK[status(w)[0]] ? r : w), line.ports[0]);
+  }
+  return out;
+}

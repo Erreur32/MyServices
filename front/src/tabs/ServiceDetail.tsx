@@ -4,12 +4,14 @@ import { useState, type ReactNode } from "react";
 import { send } from "../api";
 import { NoteLine } from "../components/form";
 import { act, quiet, type Note } from "../lib/forms";
-import { CHECK, KIND_NAME, checks, noIdentity } from "../lib/status";
+import { CHECK, KIND_NAME, checks, noIdentity, status } from "../lib/status";
+import { mergePorts } from "../lib/servicesState";
 import type { Host } from "../types";
 import { tx } from "../lib/i18n";
 import { TONES } from "../lib/tones";
 
 type Row = [string, ReactNode, ("ok" | "warn" | "bad" | "mut" | "mono")?];
+const PORT_TONE: Record<string, string> = { bad: "text-bad", warn: "text-warn", ok: "text-ok", off: "text-dim" };
 
 const CLS = { ok: "text-ok", warn: "text-warn", bad: "text-bad", mut: "text-dim", mono: "font-mono text-xs" };
 
@@ -69,13 +71,28 @@ function Paused({ r, admin }: { r: Host; admin: boolean }) {
   );
 }
 
-export function ServiceDetail({ r, admin = false }: { r: Host; admin?: boolean }) {
+export function ServiceDetail({ r, admin = false, ports = [], related = [], onOpen }: { r: Host; admin?: boolean; ports?: Host[]; related?: Host[]; onOpen?: (h: Host) => void }) {
   const s = r.service, b = r.backend || {}, p = r.public || {};
   const npmOnly = r.type === "redirect" || r.type === "dead";
   const ck = checks(r);
   const ident: Row[] = [
     ...(ck.length ? [[tx("À vérifier"), <ul className="flex flex-col gap-0.5">{ck.map((k) => <li key={k}><b className="text-warn">⚑ {CHECK[k][0]}</b> <span className="text-dim">{CHECK[k][1]}</span></li>)}</ul>] as Row] : []),
     ["Domaines", r.domains.join(", ") || "-", r.domains.length ? undefined : "mut"],
+    ...(ports.length > 1 ? [[tx("Ports"), <span key="p" className="flex flex-wrap gap-1">{ports.map((p) => (
+      <button key={p.port} type="button" onClick={() => onOpen?.(p)} disabled={p === r} title={`${status(p)[1]} · ${status(p)[2]}`}
+        className={`rounded border px-1.5 font-mono text-xs leading-5 ${p === r ? "border-link bg-link/15" : "border-line hover:border-link"} ${PORT_TONE[status(p)[0]] ?? ""}`}>:{p.port}</button>
+    ))}</span>] as Row] : []),
+    ...(related.length ? [[tx("Associé à"), <span key="r" className="flex flex-col gap-1">{mergePorts(related).map(({ lead: h, ports: hp }) => (
+      <span key={`${h.type}${h.id}`} className="inline-flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => onOpen?.(h)} className="font-semibold hover:text-link">{h.domains[0] ?? h.service?.name ?? `${h.ip}:${h.port}`}</button>
+        {h.type === "local"
+          ? <span className="inline-flex items-center gap-1 font-mono text-xs text-dim">{h.ip}{hp.map((x) => (
+              <button key={x.port} type="button" onClick={() => onOpen?.(x)} title={status(x)[1]} className={`rounded border border-line px-1 leading-5 hover:border-link ${PORT_TONE[status(x)[0]] ?? ""}`}>:{x.port}</button>
+            ))}</span>
+          : <span className="text-xs text-dim">{tx("Proxy NPM → {0}:{1}", h.ip ?? "?", h.port ?? "?")}</span>}
+        <span className={`text-xs ${PORT_TONE[status(h)[0]] ?? ""}`}>{status(h)[1]}</span>
+      </span>
+    ))}</span>] as Row] : []),
     [tx("Catégorie"), [r.category, ...(r.tags || [])].filter(Boolean).join(" · ") || "-"],
     ["Description", r.description || s?.description || "-", r.description || s?.description ? undefined : "mut"],
     [tx("Titre de page"), r.page_title || "-", r.page_title ? undefined : "mut"],

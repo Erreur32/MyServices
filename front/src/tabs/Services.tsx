@@ -22,7 +22,7 @@ import { ManualActions, ManualService, type ManualInitial } from "../components/
 import { StatTile } from "../components/StatTile";
 import { WatchPanel } from "../components/WatchPanel";
 import { quiet, worstTone } from "../lib/forms";
-import { figures, liveChecks, toWatch } from "../lib/servicesState";
+import { figures, liveChecks, mergePorts, toWatch } from "../lib/servicesState";
 import { HeadTags } from "../components/HeadTags";
 import { isHidden, serviceKey, setServiceHidden, useServicesHidden, type HiddenMap } from "../lib/servicesHidden";
 import { useStoredFlag } from "../lib/storedFlag";
@@ -90,34 +90,44 @@ function Name({ r }: Readonly<{ r: Host }>) {
         </a>
       ) : <b>{hostName(r)}</b>}
       {r.domains.length > 1 && <span className="ml-1 text-xs text-dim" title={r.domains.slice(1).join(", ")}>+{r.domains.length - 1}</span>}
-      <span className="ml-2 inline-flex flex-wrap items-center gap-1 align-middle">
-        <Badge tone="off" title={sourceTip(r)}>{via(r)}</Badge>
-      </span>
     </div>
   );
 }
 
 /** Icon-only marks next to the state, in fixed slots so they line up from row to row: exposure (private, public, open) and SSL */
+/** The small icons after the state, one gap apart: access (protected, public, public?), domains found for a machine's service (an NPM host
+ *  always has its own, the « Proxy NPM » badge says it), weak HTTPS */
 function Marks({ r }: Readonly<{ r: Host }>) {
-  const e = exposure(r), risk = sslRisk(r), domains = declaredDomains(r);
-  const slot = "inline-flex w-7 justify-center";
+  const e = exposure(r), risk = sslRisk(r), domains = r.type === "local" ? declaredDomains(r) : [];
   return (
     <>
-      <span className={slot}>{e && <Badge tone={EXPO[e][0]} title={`${EXPO[e][1].replace(/^\S+\s/, "")}\n${EXPO[e][2]}`}>{EXPO[e][1].split(" ")[0]}</Badge>}</span>
-      <span className={slot}>{domains.length > 0 && <Badge tone="info" title={`${tx("Domaines déclarés ({0})", domainSource(r))}\n${domains.join("\n")}`}>🌐</Badge>}</span>
-      <span className={slot}>{risk && <Badge tone={r.ssl ? "warn" : "bad"} title={`${risk}\n${tx("Ouvrez la fiche pour le détail de l'accès.")}`}>🔓</Badge>}</span>
+      {e && <Badge tone={EXPO[e][0]} title={`${EXPO[e][1].replace(/^\S+\s/, "")}\n${EXPO[e][2]}`}>{EXPO[e][1].split(" ")[0]}</Badge>}
+      {domains.length > 0 && <Badge tone="info" title={`${tx("Domaines déclarés ({0})", domainSource(r))}\n${domains.join("\n")}`}>🌐</Badge>}
+      {risk && <Badge tone={r.ssl ? "warn" : "bad"} title={`${risk}\n${tx("Ouvrez la fiche pour le détail de l'accès.")}`}>🔓</Badge>}
     </>
   );
 }
 
 /** One readable state; the reason and the flags to check are in the tooltip */
-function State({ r, ck }: Readonly<{ r: Host; ck: Check[] }>) {
+function State({ r, ck, source }: Readonly<{ r: Host; ck: Check[]; source?: React.ReactNode }>) {
   const [cls, label, why] = status(r);
   const flags = ck.filter((k) => !CLEANUP.includes(k)).map((k) => `⚑ ${CHECK[k][0]}`);
   return (
     <span className="inline-flex items-center gap-1">
+      <StateBadges cls={cls} label={label} title={[label, why, ...flags].filter(Boolean).join("\n")} flagged={flags.length > 0} />
+      {source}
       <Marks r={r} />
-      <Badge tone={ST_TONE[cls]} title={[label, why, ...flags].filter(Boolean).join("\n")}>{label}{flags.length > 0 && <span className="ml-1">⚑</span>}</Badge>
+    </span>
+  );
+}
+
+/** The state as one badge per piece of information (« OK · redirige » -> « OK » and « redirige »): the first in the colour of the state, the others plain */
+function StateBadges({ cls, label, title, flagged = false }: Readonly<{ cls: string; label: string; title?: string; flagged?: boolean }>) {
+  const [head, ...rest] = label.split(" · ");
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1" title={title}>
+      <Badge tone={ST_TONE[cls]}>{head}{flagged && <span className="ml-1">⚑</span>}</Badge>
+      {rest.map((x) => <Badge key={x} tone="off" outline>{x}</Badge>)}
     </span>
   );
 }
@@ -185,20 +195,48 @@ function GroupHeader({ g, folded, onToggle, cols }: Readonly<{ g: { name: string
   );
 }
 
+/** Every port of the service a row belongs to (itself alone when it has one port) */
+function portsOf(r: Host, hosts: Host[]): Host[] {
+  return mergePorts(hosts.filter((h) => h.type === "local")).find((l) => l.ports.includes(r))?.ports ?? [r];
+}
+
+/** The rows that are the same service seen from elsewhere: an NPM host and the container or process behind it (same machine, same service
+ *  name, or a target on one of its ports), in both directions */
+function relatedOf(r: Host, hosts: Host[]): Host[] {
+  const ip = (h: Host) => h.host_ip || h.ip;
+  const mine = portsOf(r, hosts), ports = new Set(mine.map((h) => h.port)), name = r.service?.name;
+  return hosts.filter((h) => !mine.includes(h) && h.type !== r.type && (h.type === "local" || r.type === "local") && ip(h) && ip(h) === ip(r)
+    && ((name && h.service?.name === name) || (h.port != null && ports.has(h.port))));
+}
+
+/** The target of a service on several ports: its address, then one chip per port in the colour of that port's state; a chip opens that port's detail */
+function PortChips({ ip, ports, onPort }: Readonly<{ ip?: string | null; ports: Host[]; onPort?: (p: Host) => void }>) {
+  const edge: Record<string, string> = { bad: "border-bad/60 text-bad", warn: "border-warn/60 text-warn", ok: "border-ok/40", off: "border-line text-dim" };
+  return (
+    <span className={`inline-flex items-center gap-1 ${ports.length > 4 ? "flex-wrap" : "flex-nowrap"}`}>{/* one line up to 4 ports, then they wrap */}
+      <span>{ip}</span>
+      {ports.map((p) => (
+        <button key={p.port} type="button" className={`shrink-0 rounded border px-1 text-[11px] leading-5 hover:border-link ${edge[status(p)[0]] ?? "border-line"}`} title={`${status(p)[1]} · ${status(p)[2]}`}
+          onClick={(e) => { e.stopPropagation(); onPort?.(p); }}>:{p.port}</button>
+      ))}
+    </span>
+  );
+}
+
 /** The target column: where the service listens, or where a redirect goes */
 function targetOf(r: Host): string {
   if (r.type === "redirect") return `→ ${r.target}`;
   return r.type === "dead" ? tx("aucune (404)") : `${r.ip}:${r.port}`;
 }
 
-function ServiceRow({ r, grouped, hidden, onOpen, onEdit }: Readonly<{ r: Host; grouped: boolean; hidden: boolean; onOpen: () => void; onEdit?: () => void }>) {   // grouped: the rows of an opened group sit on a darker background with a coloured edge
-  const edge = grouped ? `${OPEN_EDGE} !pl-14` : "";
+function ServiceRow({ r, ports = [r], grouped, hidden, onOpen, onPort, onEdit }: Readonly<{ r: Host; ports?: Host[]; grouped: boolean; hidden: boolean; onOpen: () => void; onPort?: (p: Host) => void; onEdit?: () => void }>) {   // grouped: the rows of an opened group sit on a darker background with a coloured edge
+  const edge = grouped ? `${OPEN_EDGE} !pl-9` : "";   // the state lines up under the server icon of the group header
   return (
     <tr onClick={onOpen} className={`cursor-pointer ${grouped ? "bg-bg/30 even:bg-bg/70" : "even:bg-bg/50"} hover:!bg-bg2/60 ${r.enabled ? "" : "opacity-60"}`}>
-      <Td className={`!py-1 overflow-hidden align-middle whitespace-nowrap ${edge}`}><State r={r} ck={checks(r)} />{hidden && <span className="ml-1.5" title={tx("Masqué de « À surveiller » : son état reste ici")}><Badge tone="off" outline>{tx("masqué")}</Badge></span>}</Td>
-      <Td className="!py-1 overflow-hidden !pl-10 align-middle"><Name r={r} /></Td>
+      <Td className={`!py-1 overflow-hidden align-middle whitespace-nowrap ${edge}`}><State r={r} ck={checks(r)} source={<Badge tone="off" title={sourceTip(r)}>{via(r)}</Badge>} />{hidden && <span className="ml-1.5" title={tx("Masqué de « À surveiller » : son état reste ici")}><Badge tone="off" outline>{tx("masqué")}</Badge></span>}</Td>
+      <Td className="!py-1 overflow-hidden !pl-10 align-middle"><span className="flex items-center gap-2"><Name r={r} />{ports.length > 1 && <Badge tone="info" outline>{tx("{0} ports", ports.length)}</Badge>}</span></Td>
       <Td className="!py-1 overflow-hidden whitespace-nowrap !pl-6 align-middle font-mono text-xs text-muted">
-        {targetOf(r)}
+        {ports.length > 1 ? <PortChips ip={r.ip} ports={ports} onPort={onPort} /> : targetOf(r)}
       </Td>
       {!grouped && <Td className="!py-1 !pl-6 align-middle">{r.machine ? <><b className="font-medium">{r.machine}</b>{r.category && <span className="block text-xs text-dim">{r.category}</span>}</> : <Dim>-</Dim>}</Td>}
       <Td className="!py-1 overflow-hidden !pl-10 align-middle"><div className="flex items-center gap-2.5"><ServiceLogo r={r} /><Tech r={r} />
@@ -238,7 +276,7 @@ function Watch({ rows, hidden, map, admin, onOpen }: Readonly<{ rows: Host[]; hi
                       {off && <span className="block text-[11px] text-dim">{tx("masqué le {0}", dateTime(off.at * 1000))}</span>}</span></span></td>
                     <td className="px-3 py-2">{r.machine || <Dim>{tx("machine inconnue")}</Dim>}</td>
                     <td className="px-3 py-2">{ex ? <Badge tone={EXPO[ex][0]} outline plainText title={EXPO[ex][2]}>{EXPO[ex][1]}</Badge> : <Dim>-</Dim>}</td>
-                    <td className="px-3 py-2"><Badge tone={ST_TONE[cls]} title={why}>{label}</Badge>{flags.length > 0 && <span className="ml-1.5 text-xs text-muted">{flags.join(" · ")}</span>}</td>
+                    <td className="px-3 py-2"><StateBadges cls={cls} label={label} title={why} />{flags.length > 0 && <span className="ml-1.5 text-xs text-muted">{flags.join(" · ")}</span>}</td>
                     <td className="px-3 py-2 text-right"><span className="inline-flex items-center gap-2">
                       {admin && ex === "ouvert" && r.domains[0] && (
                         <button type="button" className="text-dim hover:text-ok" title={tx("Ouvert à Internet volontairement (site, blog, page de contact) : ne plus le signaler")} aria-label={tx("Site public voulu")}
@@ -325,13 +363,13 @@ export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?:
       {sort.sorted.length === 0 ? <Empty>{tx("Aucun service pour ce filtre.")}</Empty> : (
         <>
           <Table fixed head={<>
-            <Th k="status" sort={sort} className={grouped ? "w-[19.5rem] !pl-14" : "w-64"}>{tx("État")}</Th><Th k="name" sort={sort} className="w-[30%] !pl-10">{tx("Domaine")}</Th><Th k="target" sort={sort} className="w-60 !pl-6">{tx("Cible")}</Th>
+            <Th k="status" sort={sort} className={grouped ? "w-[24rem] !pl-9" : "w-80"}>{tx("État")}</Th><Th k="name" sort={sort} className="w-[30%] !pl-10">{tx("Domaine")}</Th><Th k="target" sort={sort} className="w-72 !pl-6">{tx("Cible")}</Th>
             {!grouped && <Th k="machine" sort={sort} className="w-[16%] !pl-6">{tx("Machine")}</Th>}<Th k="kind" sort={sort} className="!pl-10">{tx("Service")}</Th>
           </>}>
             {groups.map((g) => (
               <Fragment key={g.name}>
                 {grouped && <GroupHeader g={g} cols={4} folded={!expanded.includes(g.name)} onToggle={() => setExpanded(expanded.includes(g.name) ? expanded.filter((n) => n !== g.name) : [...expanded, g.name])} />}
-                {(!grouped || expanded.includes(g.name)) && g.rows.map((r) => <ServiceRow key={keyOfRow(r)} r={r} grouped={grouped} hidden={isHidden(r, hiddenMap)} onOpen={() => setOpenKey(keyOfRow(r))} onEdit={admin ? () => setEditKey(keyOfRow(r)) : undefined} />)}
+                {(!grouped || expanded.includes(g.name)) && mergePorts(g.rows).map(({ lead: r, ports }) => <ServiceRow key={keyOfRow(r)} r={r} ports={ports} grouped={grouped} hidden={isHidden(r, hiddenMap)} onOpen={() => setOpenKey(keyOfRow(r))} onPort={(x) => setOpenKey(keyOfRow(x))} onEdit={admin ? () => setEditKey(keyOfRow(r)) : undefined} />)}
               </Fragment>
             ))}
           </Table>
@@ -359,7 +397,7 @@ export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?:
         <Overlay wide onClose={() => setOpenKey(null)} title={<><ServiceLogo r={opened} />{hostName(opened)} <Badge tone="off">{via(opened)}</Badge></>}
           actions={admin && <button type="button" className={quiet} onClick={() => setEditKey(keyOfRow(opened))}><Pencil size={14} aria-hidden />{tx("Modifier")}</button>}>
           {admin && opened.manual && opened.ip && opened.port && <ManualActions r={opened} onEdit={() => { setManual({ initial: { name: hostName(opened), ip: opened.ip!, port: opened.port!, scheme: opened.scheme ?? "http" } }); setOpenKey(null); }} />}
-          <div className="mt-3"><ServiceDetail r={opened} admin={snap.me.role === "admin"} /></div>
+          <div className="mt-3"><ServiceDetail r={opened} admin={snap.me.role === "admin"} ports={portsOf(opened, snap.data.hosts)} related={relatedOf(opened, snap.data.hosts)} onOpen={(x) => setOpenKey(keyOfRow(x))} /></div>
         </Overlay>
       )}
       {editing && <ServiceEdit r={editing} name={hostName(editing)} onClose={() => setEditKey(null)} />}
