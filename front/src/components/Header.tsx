@@ -1,4 +1,4 @@
-import { ArrowUpCircle, ChevronDown, ExternalLink, FileText, Info, LifeBuoy, ListChecks, LogOut, Moon, ScrollText, SlidersHorizontal, Sun, UserRound, X } from "lucide-react";
+import { ArrowUpCircle, ChevronDown, ExternalLink, Info, LifeBuoy, ListChecks, LogOut, Moon, SlidersHorizontal, Sun, UserRound, X } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { DiscoveryBell } from "./DiscoveryCard";
 import { DropItem, DROP_PANEL, DropSep, useDropdown } from "./Dropdown";
@@ -127,8 +127,6 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
           <DropItem icon={theme === "dark" ? <Sun size={15} /> : <Moon size={15} />} onClick={toggleTheme}>{tx("Thème")} {theme === "dark" ? tx("clair") : tx("sombre")}</DropItem>
           <DropSep />
           <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-widest text-dim">{tx("Consulter")}</p>
-          {admin && <DropItem icon={<ScrollText size={15} />} onClick={() => go("audit")}>{tx("Journal d'audit")}</DropItem>}
-          {admin && <DropItem icon={<FileText size={15} />} onClick={() => go("logs")}>{tx("Journaux")}</DropItem>}
           <DropItem icon={<LifeBuoy size={15} />} onClick={() => go("help")}>{tx("Aide")}</DropItem>
           <DropItem icon={<Info size={15} />} onClick={() => go("about")}>{tx("À propos")}</DropItem>
           <DropItem icon={<ExternalLink size={15} />} href={GITHUB}>{tx("Projet sur GitHub")}</DropItem>

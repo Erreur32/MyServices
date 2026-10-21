@@ -1,4 +1,4 @@
-// Réglages → Journaux : ce que le conteneur écrit (le même texte que « docker logs »), depuis son démarrage, relu toutes les 5 s.
+// Réglages → Requêtes et journaux → Journaux : ce que le conteneur écrit (le même texte que « docker logs »), depuis son démarrage, relu toutes les 5 s.
 // Filtré par origine (serveur ou tâche : collecte, veille, santé, sauvegardes), erreurs seulement, texte ; téléchargeable.
 import { Download, Pause, Play, ScrollText, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

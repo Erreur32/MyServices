@@ -19,8 +19,6 @@ import { Services } from "./tabs/Services";
 import { Profile } from "./tabs/Profile";
 import { Settings } from "./tabs/Settings";
 import { DiagramsTab } from "./tabs/DiagramsTab";
-import { AuditLog } from "./tabs/AuditLog";
-import { Logs } from "./tabs/Logs";
 import { Help } from "./tabs/Help";
 import { AboutSettings } from "./tabs/About";
 import { SidePage } from "./components/SidePage";
@@ -32,10 +30,8 @@ import { GREY_CARDS } from "./lib/forms";
 const REFRESH_MS = 15_000;      // without the event stream: one small manifest request, the files that moved are read again
 const STREAM_REFRESH_MS = 120_000;   // with the stream, which says when a file moved: a safety read only
 
-/** Pages à part comme #profile : pas d'onglet, pas de barre ; Audit et Journaux demandent un compte admin */
+/** Pages à part comme #profile : pas d'onglet, pas de barre */
 const SIDE_PAGES: Record<string, { admin?: boolean; render: () => React.ReactNode }> = {
-  audit: { admin: true, render: () => <AuditLog /> },
-  logs: { admin: true, render: () => <Logs /> },
   help: { render: () => <Help /> },
   about: { render: () => <AboutSettings /> },
 };
@@ -78,6 +74,7 @@ export default function App() {
     const offOpen = onStream("open", () => load());   // (re)connected: catch up with what may have moved meanwhile
     const onHash = () => {   // ancienne page « Installation » -> assistant
       if (location.hash.startsWith("#setup")) location.replace("#assistant");
+      else if (location.hash === "#audit" || location.hash === "#logs") location.replace(`#settings/requests/${location.hash.slice(1)}`);   // old pages apart, now sub-tabs of Settings → Requests and logs
       setTab(tabFromHash());
       setHash(location.hash);
     };
@@ -117,7 +114,7 @@ export default function App() {
   if (hash.startsWith("#assistant") && snap.me.role === "admin") return <><ScanBar onFinished={load} /><Assistant snap={snap} /></>;
   const profile = hash.startsWith("#profile"); // page à part (tout compte), indépendante des Réglages et de la gestion des comptes
   const sideId = Object.keys(SIDE_PAGES).find((k) => hash.startsWith(`#${k}`));
-  const side = sideId && (!SIDE_PAGES[sideId].admin || snap.me.role === "admin") ? SIDE_PAGES[sideId] : null; // un non-admin qui tape #audit ou #logs revient à l'accueil
+  const side = sideId && (!SIDE_PAGES[sideId].admin || snap.me.role === "admin") ? SIDE_PAGES[sideId] : null; // a non-admin typing an admin-only page comes back to home
 
   let top = <Tabs tab={current} snap={snap} badges={badges} onSelect={go} onBadge={(t) => (t === "machines" ? goFilter("machines", { alert: ["bad", "warn"] }) : go(t))} />;   // what sits above the content: the tab bar, or the « Back » link of a page apart
   if (profile) top = <SidePage><Profile username={snap.me.username} role={snap.me.role} email={snap.me.email ?? ""} mailReady={snap.me.mail_ready !== false} mailError={snap.me.mail_error ?? ""} avatar={snap.me.avatar ?? null} look={{ theme, setTheme, width, setWidth }} /></SidePage>;

@@ -1,4 +1,4 @@
-// A page apart from the tabs (Profile, Audit log, Logs, Help, About): no tab bar, just a "Back" link above its content.
+// A page apart from the tabs (Profile, Help, About): no tab bar, just a "Back" link above its content.
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 import { tx } from "../lib/i18n";

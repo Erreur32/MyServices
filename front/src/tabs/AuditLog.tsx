@@ -1,4 +1,4 @@
-// Réglages → Journal d'audit : les actions (connexions, échecs, changements), filtrées par type, compte et texte, exportables en CSV.
+// Réglages → Requêtes et journaux → Journal d'audit : les actions (connexions, échecs, changements), filtrées par type, compte et texte, exportables en CSV.
 import { Download, ScrollText, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { LOGIN, LoginRequired, read } from "../api";

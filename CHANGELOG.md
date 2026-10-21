@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+- **Audit log and Logs moved into Settings**: they leave the account menu and join Requests in Settings → Application → « Requests and logs », as three sub-tabs (Requests, Audit log, Logs). The old addresses (`#audit`, `#logs`, `#settings/audit`, `#settings/logs`) open the matching sub-tab.
+
 ### Fixed
 - **Zombie processes filled the container**: `server.py` ran as PID 1 and never reaped the orphaned `ssh` processes of the tasks; after about a day they reached the container's process limit and the server could no longer start a thread (« can't start new thread »). The image now runs `tini` as PID 1.
 - **A failed pass of the connector readers no longer re-reads every connector every 10 s**: the attempt is noted before the reading, and a reading that cannot start is an ordinary failure. Before, a pass that broke before the end left the state untouched, so every connector was due again at the next tick.

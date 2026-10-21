@@ -16,7 +16,7 @@ import { useDiscoveries } from "../components/DiscoveryCard";
 import { NetworkSettings } from "./NetworkSettings";
 import { IconChoice, type IconOption } from "../components/IconChoice";
 import { UpdatesSettings } from "./UpdatesSettings";
-import { RequestsSettings } from "../components/RequestStats";
+import { ActivityHub } from "./ActivityHub";
 import { ApiMcp } from "./ApiMcp";
 import { BackupsSettings } from "./BackupsSettings";
 import { SystemSettings } from "./SystemSettings";
@@ -38,7 +38,7 @@ const GROUPS: { label: string; sections: { id: string; label: string; icon: Luci
   ] },
   { label: tx("Application"), sections: [
     { id: "system", label: tx("Sauvegarde et infos"), icon: SlidersHorizontal }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer },
-    { id: "updates", label: tx("Mises à jour"), icon: RefreshCw }, { id: "requests", label: tx("Requêtes"), icon: Activity },
+    { id: "updates", label: tx("Mises à jour"), icon: RefreshCw }, { id: "requests", label: tx("Requêtes et journaux"), icon: Activity },
   ] },
 ];
 const SECTIONS = GROUPS.flatMap((g) => g.sections);
@@ -60,7 +60,7 @@ function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snaps
     case "machines": return <MachinesSection snap={snap} />;
     case "network": return <NetworkSettings snap={snap} />;
     case "updates": return <UpdatesSettings />;
-    case "requests": return <RequestsSettings />;
+    case "requests": return <ActivityHub />;
     case "api": return <div className="flex flex-col gap-4"><SystemSettings part="ssh" snap={snap} /><ApiMcp /></div>;
     case "backups": return <BackupsSettings machines={snap.data.machine_list} issues={snap.backups?.issues ?? []} />;
     case "tasks": return <SystemSettings part="tasks" snap={snap} />;
@@ -84,7 +84,7 @@ export function Settings({ snap }: { snap: Snapshot }) {
   useEffect(() => {
     rememberSettingsSection(section);
     // The address follows the section; a deeper part already there (#settings/machines/<ip>, #settings/network/hosts) is kept;
-    // Machines and Notifications write their own sub-tab
+    // Machines, Notifications and Requests write their own sub-tab
     const s = location.hash.split("/")[1];
     if (s !== section && !(section === "machines" && s === "agents")) showInUrl(`settings/${section}`, !s);   // first opening of #settings: replaced, not one more step back
   }, [section]);
