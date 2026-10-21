@@ -2,7 +2,7 @@
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.18.3** (21 October 2026): Network in one sub-tab per source with SFP modules and port errors in its diagnostic, services you can edit, declare public or hide from « To watch » right from the page, and a container that no longer fills with zombie processes.
+**0.18.3** (21 October 2026): Network in one sub-tab per source with SFP modules and port errors in its diagnostic, services you can edit, declare public or hide from « To watch » right from the page, one line per service on several ports, and a container that no longer fills with zombie processes.
 
 ## For everyone
 
@@ -12,6 +12,8 @@
   - a **pencil** (in the full list and in the detail) edits a service: category among the existing ones, description, tags, kind of interface, public on purpose, direct access on purpose, pause;
   - an NPM site without access list shows « ⚠ public? » and is **declared public on purpose** in one click (globe icon) or from its detail;
   - a service can be **hidden from « To watch »**, the tab's dot and the home page until its problem changes, then found again with « Show hidden ».
+  - a service on **several ports is one line**, its ports as chips (each opens that port); its detail shows the ports and **what goes with it** (the NPM host and the container behind it, both ways);
+  - the **State column** reads « OK », then where it is read (Proxy NPM, Apache, Docker…), then « redirige » or « protégé », then the access icons.
 - **Settings**: the Audit log and the Logs leave the account menu and join Requests in Settings › Application › « Requests and logs », as three sub-tabs; the old links still work.
 - **Pages**: DNS, Security, Backups and Services carry badges next to their title as Network does; an empty « To watch » frame is no longer shown; « To deal with now » on the home page folds; a DNS row names the very domain that does not resolve; percentages keep their unit on one line, and each GPU of the Machines table has its load bar.
 - **Fixed**: the container no longer fills with zombie `ssh` processes after a day (the server could no longer start a thread); a failed reading pass no longer re-reads every connector every 10 s; Home Assistant's system health (which tests GitHub, against the quota of your public IP) is read hourly; Glances no longer asks a switched-off plugin at every pass; Beszel signs in once per token instead of at every pass.
