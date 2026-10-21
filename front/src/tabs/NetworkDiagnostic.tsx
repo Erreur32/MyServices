@@ -174,7 +174,7 @@ export function NetworkDiagnostic({ admin }: Readonly<{ admin: boolean }>) {
       )}
       <p className="border-t border-line/60 px-4 py-2 text-xs text-dim">{tx("Le maximum d'un port vient de son type (100 Mb/s, 1, 2,5, 10 Gb/s). Un appareil qui n'a qu'une carte à 1 Gb/s ou à 100 Mb/s (pont, concentrateur d'objets connectés) donne un constat « à vérifier » normal.")}</p>
     </section>
-    {(doc.sfp ?? []).length > 0 && <SfpModules list={doc.sfp!} />}
+    {(doc.sfp ?? []).length > 0 && <SfpModules list={doc.sfp!} findings={doc.findings} admin={admin} accept={accept} />}
     <PortErrors doc={doc.port_errors} />
     </div>
   );
@@ -189,9 +189,15 @@ function Reading({ value, unit, flagged, tone }: Readonly<{ value: string | null
   return <span className={flagged ? `font-bold ${tone === "bad" ? "text-bad" : "text-warn"}` : ""}><Pct value={value} unit={unit} /></span>;
 }
 
-/** Every transceiver with its sensors (DOM): temperature, light received and sent, supply voltage and laser current */
-function SfpModules({ list }: Readonly<{ list: Sfp[] }>) {
-  const count = (st: Sfp["state"]) => list.filter((m) => m.state === st).length;
+/** Every transceiver with its sensors (DOM): temperature, light received and sent, supply voltage and laser current. A module whose findings are
+ *  all accepted (« this is normal ») shows « accepted » and no longer counts; the button accepts or reports again every finding of the module at once. */
+function SfpModules({ list, findings, admin, accept }: Readonly<{ list: Sfp[]; findings: Finding[]; admin: boolean; accept: (key: string, label: string, on: boolean) => void }>) {
+  const own = (m: Sfp) => findings.filter((f) => f.kind === "sfp" && f.mac === m.mac && f.port === m.port);
+  const isAccepted = (m: Sfp) => { const fs = own(m); return fs.length > 0 && fs.every((f) => f.accepted); };
+  const shown = (m: Sfp): Sfp["state"] => (isAccepted(m) ? "ok" : m.state);
+  const count = (st: Sfp["state"]) => list.filter((m) => !isAccepted(m) && m.state === st).length;
+  const nAccepted = list.filter(isAccepted).length;
+  const toggle = (m: Sfp, on: boolean) => { for (const f of own(m)) accept(f.key, `${f.device} ${f.port ?? ""} ${tx("Module SFP")}`.trim(), on); };
   const th = "px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-dim";
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
@@ -201,28 +207,37 @@ function SfpModules({ list }: Readonly<{ list: Sfp[] }>) {
         {count("ok") > 0 && <Badge tone="ok" outline>{count("ok")} OK</Badge>}
         {count("warn") > 0 && <Badge tone="warn" outline>{count("warn")} {tx("à vérifier")}</Badge>}
         {count("bad") > 0 && <Badge tone="bad" outline>{count("bad")} {tx("à corriger")}</Badge>}
+        {nAccepted > 0 && <Badge tone="off" outline>{nAccepted} {tx("accepté(s)")}</Badge>}
         <Dim>{tx("sondes des modules (DOM), lues par UniFi via MynetworK")}</Dim>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] border-collapse text-sm tabular-nums">
           <thead><tr className="border-b border-line">
             <th className={`${th} !px-4`}>{tx("Équipement")}</th><th className={th}>{tx("Port")}</th><th className={th}>{tx("Module")}</th><th className={th}>{tx("Température")}</th>
-            <th className={th}>{tx("Reçu")}</th><th className={th}>{tx("Émis")}</th><th className={th}>{tx("Tension")}</th><th className={th}>{tx("Courant")}</th><th className={th}>{tx("État")}</th>
+            <th className={th}>{tx("Reçu")}</th><th className={th}>{tx("Émis")}</th><th className={th}>{tx("Tension")}</th><th className={th}>{tx("Courant")}</th><th className={th}>{tx("État")}</th>{admin && <th className={th}><span className="sr-only">{tx("Action")}</span></th>}
           </tr></thead>
           <tbody className="[&>tr:nth-child(even)]:bg-bg/50 [&>tr]:border-b [&>tr]:border-line/60">
             {list.map((m) => {
-              const has = (...c: string[]) => c.some((x) => m.codes.includes(x));
+              const ok = isAccepted(m), tone = shown(m), fs = own(m);
+              const has = (...c: string[]) => !ok && c.some((x) => m.codes.includes(x));
               return (
                 <tr key={`${m.mac}/${m.port}`}>
                   <td className="px-4 py-2 font-semibold">{m.device}</td>
                   <td className="px-3 py-2">{m.port ?? "-"}</td>
                   <td className="px-3 py-2">{m.part ?? "?"} <Dim>{[m.vendor, m.compliance].filter(Boolean).join(" · ")}</Dim></td>
-                  <td className="px-3 py-2"><Reading value={num(m.temp, 0)} unit="°C" flagged={has("sfp_temp")} tone={m.state} /></td>
-                  <td className="px-3 py-2"><Reading value={num(m.rx, 1)} unit="dBm" flagged={has("sfp_rx_low", "sfp_rx_high", "sfp_los")} tone={m.state} /></td>
-                  <td className="px-3 py-2"><Reading value={num(m.tx, 1)} unit="dBm" flagged={has("sfp_fault")} tone={m.state} /></td>
-                  <td className="px-3 py-2"><Reading value={num(m.voltage, 2)} unit="V" flagged={has("sfp_volt")} tone={m.state} /></td>
-                  <td className="px-3 py-2"><Reading value={num(m.current, 1)} unit="mA" flagged={false} tone={m.state} /></td>
-                  <td className="px-3 py-2"><Badge tone={STATE[m.state][1]}>{STATE[m.state][0]}</Badge></td>
+                  <td className="px-3 py-2"><Reading value={num(m.temp, 0)} unit="°C" flagged={has("sfp_temp")} tone={tone} /></td>
+                  <td className="px-3 py-2"><Reading value={num(m.rx, 1)} unit="dBm" flagged={has("sfp_rx_low", "sfp_rx_high", "sfp_los")} tone={tone} /></td>
+                  <td className="px-3 py-2"><Reading value={num(m.tx, 1)} unit="dBm" flagged={has("sfp_fault")} tone={tone} /></td>
+                  <td className="px-3 py-2"><Reading value={num(m.voltage, 2)} unit="V" flagged={has("sfp_volt")} tone={tone} /></td>
+                  <td className="px-3 py-2"><Reading value={num(m.current, 1)} unit="mA" flagged={false} tone={tone} /></td>
+                  <td className="px-3 py-2">{ok ? <Badge tone="off" outline>{tx("accepté")}</Badge> : <Badge tone={STATE[tone][1]}>{STATE[tone][0]}</Badge>}</td>
+                  {admin && (
+                    <td className="whitespace-nowrap px-3 py-2">
+                      {fs.length > 0 && (ok
+                        ? <button type="button" className="text-dim hover:text-ink" title={tx("Signaler de nouveau ce module")} aria-label={tx("Signaler de nouveau ce module")} onClick={() => toggle(m, false)}><Undo2 size={15} aria-hidden /></button>
+                        : <button type="button" className="text-dim hover:text-ok" title={tx("C'est normal : ne plus signaler ce module")} aria-label={tx("C'est normal : ne plus signaler ce module")} onClick={() => toggle(m, true)}><Check size={15} aria-hidden /></button>)}
+                    </td>
+                  )}
                 </tr>
               );
             })}
