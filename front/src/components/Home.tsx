@@ -14,6 +14,8 @@ import { DiscoveryReminder } from "./DiscoveryCard";
 import { LastDay } from "./LastDay";
 import { Missing } from "./Missing";
 import { Rich } from "./Rich";
+import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
+import { useStoredFlag } from "../lib/storedFlag";
 import { StatsColumn } from "./StatsColumn";
 
 /** Lines shown before « Tout voir » */
@@ -72,6 +74,7 @@ function SubMenu({ sub }: Readonly<{ sub: HomeSub }>) {
 
 export function Home({ snap, items, go, goFilter, now, sub = "overview" }: Readonly<{ snap: Snapshot; items: Attention[]; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void; now: number; sub?: HomeSub }>) {
   const [all, setAll] = useState(false);
+  const [folded, setFolded] = useStoredFlag("myservices.home.todo.folded", false);   // « À traiter maintenant » folded: the choice kept in this browser
   const shown = all ? items : items.slice(0, LIMIT);
   const crit = items.filter((i) => i.level === "crit").length;
   const tone = items.length ? (crit ? "bad" : "warn") : "ok";
@@ -90,14 +93,19 @@ export function Home({ snap, items, go, goFilter, now, sub = "overview" }: Reado
       {admin && <AssistantBanner snap={snap} />}
 
       <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${frame}`} aria-label={tx("À traiter maintenant")}>
-        <div className="flex items-center gap-3 px-5 py-3.5">
+        <div className={`flex items-center gap-3 px-5 py-3.5 ${items.length ? FOLD_HEADER : ""}`} {...(items.length ? foldHeaderProps(() => setFolded(!folded)) : {})}>
           {items.length > 0
             ? <span className={`grid h-7 min-w-7 shrink-0 place-items-center rounded-full px-2 text-sm font-bold leading-none text-bg ${crit ? "bg-bad" : "bg-warn"}`}>{items.length}</span>
             : <CircleCheck size={22} className="shrink-0 text-ok" aria-hidden />}
           <h2 className={`text-lg font-bold ${items.length ? "" : "text-ok"}`}>{items.length ? tx("À traiter maintenant") : tx("Rien à traiter")}</h2>
           {items.length > 0 && <Siren size={18} className="ml-auto shrink-0 text-dim" aria-hidden />}
+          {items.length > 0 && (
+            <button type="button" className="text-dim hover:text-txt" aria-expanded={!folded} onClick={() => setFolded(!folded)} title={folded ? tx("Déplier") : tx("Replier")}>
+              {folded ? <ChevronDown size={18} aria-hidden /> : <ChevronUp size={18} aria-hidden />}
+            </button>
+          )}
         </div>
-        {items.length > 0 && (
+        {items.length > 0 && !folded && (
           <div className="flex flex-col gap-1.5 px-3 pb-3">
             <ol className="flex flex-col gap-1">{shown.map((it) => <Line key={`${it.category}/${it.text}`} it={it} go={go} goFilter={goFilter} />)}</ol>
             {items.length > LIMIT && (
