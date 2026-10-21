@@ -2,7 +2,7 @@
 // opens the detail window), the services newly seen on the machines (admin), then « See all » folded: every service (NPM and direct)
 // with its state, machine and source, filters, sort, « By machine »; on a phone, one card per service.
 import { foldHeaderProps } from "../lib/foldHeader";
-import { ChevronDown, ChevronRight, ExternalLink, EyeOff, Globe, Layers, Search, Plus, Server, Boxes, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, EyeOff, Globe, Layers, Pencil, Search, Plus, Server, Boxes, Undo2 } from "lucide-react";
 import { Fragment, useCallback, useMemo, useState } from "react";
 import { send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
@@ -12,6 +12,7 @@ import { CHECK, CLEANUP, KIND_NAME, checks, exposure, hostName, noIdentity, stat
 import type { Host } from "../types";
 import { Badge, Cards, Dim, Empty, FilterBar, Table, Td, Th, type Tone } from "../components/ui";
 import { ServiceDetail } from "./ServiceDetail";
+import { ServiceEdit } from "../components/ServiceEdit";
 import { Overlay } from "../components/Overlay";
 import { dateTime, ipNum } from "../lib/format";
 import { tx } from "../lib/i18n";
@@ -190,7 +191,7 @@ function targetOf(r: Host): string {
   return r.type === "dead" ? tx("aucune (404)") : `${r.ip}:${r.port}`;
 }
 
-function ServiceRow({ r, grouped, hidden, onOpen }: Readonly<{ r: Host; grouped: boolean; hidden: boolean; onOpen: () => void }>) {   // grouped: the rows of an opened group sit on a darker background with a coloured edge
+function ServiceRow({ r, grouped, hidden, onOpen, onEdit }: Readonly<{ r: Host; grouped: boolean; hidden: boolean; onOpen: () => void; onEdit?: () => void }>) {   // grouped: the rows of an opened group sit on a darker background with a coloured edge
   const edge = grouped ? `${OPEN_EDGE} !pl-14` : "";
   return (
     <tr onClick={onOpen} className={`cursor-pointer ${grouped ? "bg-bg/30 even:bg-bg/70" : "even:bg-bg/50"} hover:!bg-bg2/60 ${r.enabled ? "" : "opacity-60"}`}>
@@ -200,7 +201,9 @@ function ServiceRow({ r, grouped, hidden, onOpen }: Readonly<{ r: Host; grouped:
         {targetOf(r)}
       </Td>
       {!grouped && <Td className="!py-1 !pl-6 align-middle">{r.machine ? <><b className="font-medium">{r.machine}</b>{r.category && <span className="block text-xs text-dim">{r.category}</span>}</> : <Dim>-</Dim>}</Td>}
-      <Td className="!py-1 overflow-hidden !pl-10 align-middle"><div className="flex items-center gap-2.5"><ServiceLogo r={r} /><Tech r={r} /></div></Td>
+      <Td className="!py-1 overflow-hidden !pl-10 align-middle"><div className="flex items-center gap-2.5"><ServiceLogo r={r} /><Tech r={r} />
+        {onEdit && <button type="button" className="ml-auto shrink-0 text-dim hover:text-link" title={tx("Modifier")} aria-label={tx("Modifier")} onClick={(e) => { e.stopPropagation(); onEdit(); }}><Pencil size={15} aria-hidden /></button>}
+      </div></Td>
     </tr>
   );
 }
@@ -260,6 +263,7 @@ function Watch({ rows, hidden, map, admin, onOpen }: Readonly<{ rows: Host[]; hi
 export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Selected }>) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const hiddenMap = useServicesHidden();
+  const [editKey, setEditKey] = useState<string | null>(null);   // the « Edit » window (pencil of a row or of the detail)
   const [manual, setManual] = useState<{ initial?: ManualInitial } | null>(null);   // the « + Service » window: empty to declare, filled to edit
   const machines = useMemo(() => new Map(snap.data.machine_list.map((m) => [m.ip, m.name])), [snap.data.machine_list]);
   const facets = useMemo((): Facet<Host>[] => [
@@ -291,6 +295,7 @@ export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?:
   }, []);
   const sort = useSort(f.shown, keyOf, "status");
   const opened = sort.sorted.find((r) => keyOfRow(r) === openKey);
+  const editing = editKey ? snap.data.hosts.find((r) => keyOfRow(r) === editKey) : undefined;
   const [grouped, setGrouped] = useGrouped(), [expanded, setExpanded] = useState<string[]>(() => (initial && Object.keys(initial).length ? groupByMachine(f.shown).map((g) => g.name) : []));   // groups are folded until opened, except when arriving with a filter (link from a machine): then they are already open
   const groups = useMemo(() => (grouped ? groupByMachine(sort.sorted) : [{ name: "", ip: "", rows: sort.sorted }]), [grouped, sort.sorted]);
 
@@ -326,7 +331,7 @@ export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?:
             {groups.map((g) => (
               <Fragment key={g.name}>
                 {grouped && <GroupHeader g={g} cols={4} folded={!expanded.includes(g.name)} onToggle={() => setExpanded(expanded.includes(g.name) ? expanded.filter((n) => n !== g.name) : [...expanded, g.name])} />}
-                {(!grouped || expanded.includes(g.name)) && g.rows.map((r) => <ServiceRow key={keyOfRow(r)} r={r} grouped={grouped} hidden={isHidden(r, hiddenMap)} onOpen={() => setOpenKey(keyOfRow(r))} />)}
+                {(!grouped || expanded.includes(g.name)) && g.rows.map((r) => <ServiceRow key={keyOfRow(r)} r={r} grouped={grouped} hidden={isHidden(r, hiddenMap)} onOpen={() => setOpenKey(keyOfRow(r))} onEdit={admin ? () => setEditKey(keyOfRow(r)) : undefined} />)}
               </Fragment>
             ))}
           </Table>
@@ -351,11 +356,13 @@ export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?:
       )}
       </FoldPanel>
       {opened && (
-        <Overlay wide onClose={() => setOpenKey(null)} title={<><ServiceLogo r={opened} />{hostName(opened)} <Badge tone="off">{via(opened)}</Badge></>}>
+        <Overlay wide onClose={() => setOpenKey(null)} title={<><ServiceLogo r={opened} />{hostName(opened)} <Badge tone="off">{via(opened)}</Badge></>}
+          actions={admin && <button type="button" className={quiet} onClick={() => setEditKey(keyOfRow(opened))}><Pencil size={14} aria-hidden />{tx("Modifier")}</button>}>
           {admin && opened.manual && opened.ip && opened.port && <ManualActions r={opened} onEdit={() => { setManual({ initial: { name: hostName(opened), ip: opened.ip!, port: opened.port!, scheme: opened.scheme ?? "http" } }); setOpenKey(null); }} />}
           <div className="mt-3"><ServiceDetail r={opened} admin={snap.me.role === "admin"} /></div>
         </Overlay>
       )}
+      {editing && <ServiceEdit r={editing} name={hostName(editing)} onClose={() => setEditKey(null)} />}
       {manual && <ManualService machines={snap.data.machine_list.filter((m) => !m.disabled)} initial={manual.initial} onDone={() => setOpenKey(null)} onClose={() => setManual(null)} />}
     </div>
   );

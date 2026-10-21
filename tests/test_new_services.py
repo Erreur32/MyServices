@@ -64,6 +64,28 @@ class NewServices(unittest.TestCase):
         self.assertFalse(json.loads((self.d / "data.json").read_text())["hosts"][2]["public_ok"])
         self.assertEqual(json.loads(self.meta.read_text())["services"]["10.0.0.2:8080"], {"description": "kept"})   # the others untouched
 
+    def test_edit_meta_keeps_the_entry_and_updates_the_page(self):
+        r = self.data["hosts"][0]   # local 10.0.0.2:8080, entry « kept » under ip:port
+        key = new_services.edit_meta(self.meta, self.d, r, {"category": "Réseau", "description": "Débit de la ligne", "tags": ["box", ""], "web": "ui",
+                                                            "public": False, "direct_ok": True, "pause": True})
+        self.assertEqual(key, "10.0.0.2:8080")   # the existing entry, not a new one
+        entry = json.loads(self.meta.read_text())["services"]["10.0.0.2:8080"]
+        self.assertEqual(entry, {"category": "Réseau", "description": "Débit de la ligne", "tags": ["box"], "web": "ui", "direct_ok": True, "pause": "paused by hand"})
+        h = json.loads((self.d / "data.json").read_text())["hosts"][0]
+        self.assertEqual((h["category"], h["description"], h["tags"], h["web"], h["direct_ok"], h["paused"]), ("Réseau", "Débit de la ligne", ["box"], "ui", True, "paused by hand"))
+        new_services.edit_meta(self.meta, self.d, r, {"category": None, "description": "", "tags": [], "web": None, "public": False, "direct_ok": False, "pause": False})
+        self.assertNotIn("10.0.0.2:8080", json.loads(self.meta.read_text())["services"])   # every field back to the detection: the entry goes
+        self.assertNotIn("paused", json.loads((self.d / "data.json").read_text())["hosts"][0])
+
+    def test_edit_meta_new_entry_under_the_domain_and_categories(self):
+        self.assertEqual(new_services.edit_meta(self.meta, self.d, self.data["hosts"][2], {"public": True}), "a.lan")
+        self.assertEqual(new_services.current_entry(self.meta, self.data["hosts"][2]), ("a.lan", {"public": True}))
+        self.assertEqual(new_services.current_entry(self.meta, self.data["hosts"][1]), (None, {}))
+        meta = json.loads(self.meta.read_text())
+        meta["categories"] = [["IA", "ollama"], ["Médias", "plex"]]
+        self.meta.write_text(json.dumps(meta))
+        self.assertEqual(new_services.categories(self.meta, {"hosts": [{"category": "Infra"}, {"category": None}]}), ["IA", "Infra", "Médias"])
+
     def test_machine_ssh_never_proposed(self):
         data = {"hosts": self.data["hosts"] + [{"type": "local", "id": "10.0.0.3:22", "ip": "10.0.0.3", "port": 22, "app": {"key": "openssh"},
                                                 "service": {"kind": "process", "name": "sshd"}}]}

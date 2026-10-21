@@ -10,7 +10,7 @@ function widthClass(wide?: boolean, medium?: boolean): string {
 }
 
 /** Fenêtre par-dessus la page : se ferme avec Échap, le bouton ou un clic à côté. Fond presque opaque et flou : la page derrière ne distrait pas de la fenêtre. */
-export function Overlay({ title, onClose, children, wide, medium }: Readonly<{ title: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean; medium?: boolean }>) {
+export function Overlay({ title, onClose, children, wide, medium, actions }: Readonly<{ title: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean; medium?: boolean; actions?: ReactNode }>) {
   useEffect(() => {
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     addEventListener("keydown", key);
@@ -23,7 +23,7 @@ export function Overlay({ title, onClose, children, wide, medium }: Readonly<{ t
       <dialog open aria-modal="true" className={`relative m-0 w-full ${widthClass(wide, medium)} rounded-2xl border border-link/40 bg-card p-4 text-txt shadow-2xl ring-1 ring-black/40`}>
         <div className="flex items-start justify-between gap-3">
           <h2 className="flex items-center gap-2 text-lg font-bold">{title}</h2>
-          <button type="button" className={quiet} onClick={onClose} aria-label={tx("Fermer")}><X size={14} />{tx("Fermer")}</button>
+          <span className="flex shrink-0 items-center gap-2">{actions}<button type="button" className={quiet} onClick={onClose} aria-label={tx("Fermer")}><X size={14} />{tx("Fermer")}</button></span>
         </div>
         {children}
       </dialog>

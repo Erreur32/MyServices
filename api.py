@@ -538,6 +538,55 @@ def services_new_ignore(body: ServiceKeys, request: Request):
     return {"ok": True, "paused": done}
 
 
+class ServiceMeta(BaseModel):
+    type: str = Field(max_length=20)
+    id: str = Field(max_length=120)
+    category: str | None = Field(default=None, max_length=80)
+    description: str | None = Field(default=None, max_length=300)
+    tags: list[str] = Field(default_factory=list, max_length=12)
+    web: Literal["ui", "api", "none"] | None = None
+    public: bool = False
+    direct_ok: bool = False
+    pause: bool = False
+
+
+@app.get(API + "/services/meta", tags=["services"], summary="Réglages à la main d'un service (son entrée de services-meta.json) et les catégories qu'on peut lui donner (admin)")
+def services_meta_read(type: str, id: str, request: Request):
+    import new_services
+    import setup
+    if denied := admin_only(request):
+        return denied
+    data = read_produced("data.json") or {}
+    row = next((r for r in data.get("hosts") or [] if (r.get("type"), str(r.get("id"))) == (type, id)), None)
+    if not row:
+        return deny(404, "service introuvable (déjà disparu ?)")
+    key, entry = new_services.current_entry(setup.META, row)
+    return {"key": key, "entry": {k: v for k, v in entry.items() if k in new_services.EDITABLE}, "categories": new_services.categories(setup.META, data)}
+
+
+@app.put(API + "/services/meta", tags=["services"], summary="Modifier les réglages d'un service : catégorie, description, étiquettes, interface, public, accès direct, pause (admin)")
+def services_meta_edit(body: ServiceMeta, request: Request):
+    import new_services
+    import setup
+    if denied := admin_write(request):
+        return denied
+    data = read_produced("data.json") or {}
+    row = next((r for r in data.get("hosts") or [] if (r.get("type"), str(r.get("id"))) == (body.type, body.id)), None)
+    if not row:
+        return deny(404, "service introuvable (déjà disparu ?)")
+    if body.category and body.category not in new_services.categories(setup.META, data):
+        return deny(400, "catégorie inconnue : choisir parmi les catégories existantes")
+    tags = [t.strip()[:30] for t in body.tags if t.strip()]
+    fields = {"category": body.category, "description": (body.description or "").strip(), "tags": tags, "web": body.web,
+              "public": body.public, "direct_ok": body.direct_ok, "pause": body.pause}
+    try:
+        key = new_services.edit_meta(setup.META, core.WEB, row, fields)
+    except LookupError as e:
+        return deny(400, str(e))
+    store().audit("service modifié", request.state.user["username"], ip_of(request), key)
+    return {"ok": True, "key": key}
+
+
 class ServicePublic(BaseModel):
     domain: str = Field(max_length=253)
     public: bool = True
