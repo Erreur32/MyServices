@@ -24,7 +24,7 @@ interface Row { nic: Nic | null; accept: { key: string; label: string; accepted:
 const RANK: Record<Severity | "ok", 0 | 1 | 2 | 3> = { bad: 0, warn: 1, info: 2, ok: 3 };
 
 const KIND: Record<string, string> = { speed: tx("Vitesse du port"), link: tx("Liaison entre équipements"), offline: tx("Équipement hors ligne"), wan: tx("Lien WAN"), firmware: tx("Mise à jour"), load: tx("Charge"),
-  mesh: tx("Liaison radio"), nic: tx("Carte réseau de la machine"), temp: tx("Température"), reboot: tx("Redémarrage"), clients: tx("Clients"), wifi: tx("Wi-Fi"), conflict: tx("Adresse IP"), latency: tx("Latence"), sfp: tx("Module SFP") };
+  mesh: tx("Liaison radio"), nic: tx("Carte réseau de la machine"), temp: tx("Température"), reboot: tx("Redémarrage"), clients: tx("Clients"), wifi: tx("Wi-Fi"), conflict: tx("Adresse IP"), latency: tx("Latence"), sfp: tx("Module SFP"), errors: tx("Erreurs de port") };
 const ICON = { bad: OctagonAlert, warn: TriangleAlert, info: CircleHelp, ok: CircleCheck };
 const TONE: Record<Severity, "bad" | "warn" | "off"> = { bad: "bad", warn: "warn", info: "off" };
 const LABEL: Record<Severity, string> = { bad: tx("à corriger"), warn: tx("à vérifier"), info: tx("pour info") };
@@ -60,6 +60,7 @@ const textOf = (f: Finding): string => {
     case "nic_forced": return tx("vitesse et duplex forcés sur la carte ({0}) : repasser en négociation automatique", String(a.setting));
     case "nic_slow": return tx("la carte réseau de la machine tourne à {0} : rare pour une machine, câble, port ou carte à vérifier", link(f.speed));
     case "nic_low": return tx("la carte sait faire plus que ce qu'elle négocie : câble ou port à vérifier");
+    case "errors_rise": return tx("{0} erreurs en {1} min : câble, prise ou module à vérifier", String(a.value), String(a.minutes));
     case "sfp_los": return tx("{0} : le module ne reçoit aucun signal (perte de signal) : fibre, connecteur ou autre bout à vérifier", String(a.module));
     case "sfp_fault": return tx("{0} : le module signale un défaut d'émission", String(a.module));
     case "sfp_temp": return tx("{0} : module chaud ({1} °C, seuil {2} °C) : vérifier l'aération ; un module 10GBASE-T chauffe beaucoup", String(a.module), String(a.value), String(a.limit));
@@ -280,6 +281,7 @@ function PortErrors({ doc }: Readonly<{ doc?: { known: boolean; ports: PortError
         <Dim>{tx("erreurs en réception et en émission, par port, depuis le dernier démarrage de l'équipement")}</Dim>
       </div>
       {body}
+      {doc?.known && <p className="border-t border-line/60 px-4 py-2 text-xs text-dim">{tx("Une hausse d'au moins 10 erreurs par rapport à un relevé de 10 min à 2 h plus tôt devient un constat (à corriger dès 1 000). Les paquets perdus ne déclenchent rien : un port saturé ou du multicast en perd normalement.")}</p>}
     </section>
   );
 }

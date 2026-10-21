@@ -27,6 +27,8 @@ SFP_TEMP_WARN, SFP_TEMP_BAD = 75, 85   # °C, the case of a transceiver (most ar
 SFP_RX_WARN, SFP_RX_BAD, SFP_RX_HIGH = -14, -18, 0.5   # dBm received: little margin left, no light to speak of, enough to blind the receiver
 SFP_VOLT_LOW, SFP_VOLT_HIGH = 3.13, 3.47   # V, the 3.3 V supply ± 5 %
 PORT_COUNTERS = ("rx_errors", "tx_errors", "rx_dropped", "tx_dropped")
+ERROR_RISE_WARN, ERROR_RISE_BAD = 10, 1000   # receive + send errors gained since the reference reading
+SAMPLE_EVERY, SAMPLE_MIN_AGE, SAMPLE_MAX_AGE = 1800, 600, 7200   # s: a reading kept every 30 min, compared with one 10 min to 2 h old
 
 
 def port_max(row: dict) -> int | None:
@@ -422,8 +424,45 @@ def port_errors(devices: list[dict]) -> dict:
                 known = True
                 if any(counts.values()):
                     ports.append({"device": _device_name(d), "mac": d.get("mac"), "port": p.get("port_idx"), **{k: v or 0 for k, v in counts.items()}})
-    ports.sort(key=lambda x: -sum(x[k] for k in PORT_COUNTERS))
+    ports.sort(key=lambda x: (-(x["rx_errors"] + x["tx_errors"]), -(x["rx_dropped"] + x["tx_dropped"])))   # errors first: drops are often normal
     return {"known": known, "ports": ports}
+
+
+def _error_counts(devices: list[dict]) -> dict[str, int]:
+    """{« mac|port »: receive + send errors} of every port that reports them"""
+    out = {}
+    for d in devices:
+        for p in (d.get("port_table") or []) if isinstance(d, dict) else []:
+            if isinstance(p, dict) and (_num(p.get("rx_errors")) is not None or _num(p.get("tx_errors")) is not None):
+                out[f"{str(d.get('mac') or '').lower()}|{p.get('port_idx')}"] = int((_num(p.get("rx_errors")) or 0) + (_num(p.get("tx_errors")) or 0))
+    return out
+
+
+def error_samples(samples: list[dict], devices: list[dict], now: float) -> list[dict]:
+    """The readings of the error counters to compare with: one added every SAMPLE_EVERY, the ones older than SAMPLE_MAX_AGE dropped."""
+    kept = [x for x in samples if isinstance(x, dict) and isinstance(x.get("at"), (int, float)) and now - x["at"] <= SAMPLE_MAX_AGE + SAMPLE_EVERY]
+    counts = _error_counts(devices)
+    if counts and (not kept or now - kept[-1]["at"] >= SAMPLE_EVERY):
+        kept.append({"at": now, "ports": counts})
+    return kept
+
+
+def error_rise_findings(samples: list[dict], devices: list[dict], clients: list[dict] | None, now: float) -> list[dict]:
+    """A finding for each port whose errors rose since the oldest reading 10 min to 2 h old (a counter that went down: the device restarted)."""
+    ref = next((x for x in samples if SAMPLE_MIN_AGE <= now - x["at"] <= SAMPLE_MAX_AGE + SAMPLE_EVERY), None)
+    if not ref:
+        return []
+    ctx, minutes = _Ctx(devices, clients, None, None), max(1, round((now - ref["at"]) / 60))
+    for key, n in _error_counts(devices).items():
+        before = (ref.get("ports") or {}).get(key)
+        gained = n - before if isinstance(before, int) and n >= before else 0
+        if gained >= ERROR_RISE_WARN:
+            mac, _, port = key.partition("|")
+            port_idx = int(port) if port.isdigit() else port
+            ctx.add("bad" if gained >= ERROR_RISE_BAD else "warn", "errors", ctx.by_mac.get(mac, {"mac": mac}), port_idx,
+                    f"{gained} port errors in {minutes} min: cable, connector or module to check", peer=ctx.seen.get((mac, port_idx)),
+                    code="errors_rise", value=gained, minutes=minutes)
+    return ctx.out
 
 
 def summary(items: list[dict]) -> dict:

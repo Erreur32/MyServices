@@ -216,5 +216,35 @@ class PortErrors(unittest.TestCase):
         self.assertEqual([(x["port"], x["rx_errors"], x["tx_dropped"]) for x in got["ports"]], [(3, 10, 5), (2, 3, 0)])
 
 
+class ErrorRise(unittest.TestCase):
+    def dev(self, rx):
+        return [{"name": "SW", "mac": "BB", "port_table": [{"port_idx": 9, "rx_errors": rx, "tx_errors": 0, "rx_dropped": 0, "tx_dropped": 0}]}]
+
+    def test_a_rise_since_the_reference_reading_is_a_finding(self):
+        samples = nd.error_samples([], self.dev(100), 1000)
+        self.assertEqual(nd.error_rise_findings(samples, self.dev(100), None, 1000), [])   # no reading old enough yet
+        got = nd.error_rise_findings(samples, self.dev(160), None, 1000 + 1200)
+        self.assertEqual([(f["severity"], f["code"], f["port"], f["args"]["value"], f["args"]["minutes"]) for f in got], [("warn", "errors_rise", 9, 60, 20)])
+        self.assertEqual(nd.error_rise_findings(samples, self.dev(2000), None, 2200)[0]["severity"], "bad")
+
+    def test_small_rise_and_restart_say_nothing(self):
+        samples = nd.error_samples([], self.dev(100), 1000)
+        self.assertEqual(nd.error_rise_findings(samples, self.dev(105), None, 2200), [])
+        self.assertEqual(nd.error_rise_findings(samples, self.dev(3), None, 2200), [])   # counter went down: the device restarted
+
+    def test_samples_every_half_hour_old_ones_dropped(self):
+        s = nd.error_samples([], self.dev(1), 0)
+        s = nd.error_samples(s, self.dev(2), 600)
+        self.assertEqual(len(s), 1)
+        s = nd.error_samples(s, self.dev(3), 1800)
+        self.assertEqual(len(s), 2)
+        s = nd.error_samples(s, self.dev(4), 20000)
+        self.assertEqual([x["at"] for x in s], [20000])
+
+    def test_errors_sorted_before_drops(self):
+        dev = [{"name": "SW", "mac": "bb", "port_table": [{"port_idx": 4, "rx_errors": 0, "tx_errors": 0, "rx_dropped": 0, "tx_dropped": 1772743}, {"port_idx": 9, "rx_errors": 109, "tx_errors": 0}]}]
+        self.assertEqual([x["port"] for x in nd.port_errors(dev)["ports"]], [9, 4])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1012,7 +1012,12 @@ def network_diagnostics_route():
     scan = [{**d, **{k: live[d["ip"]][k] for k in ("status", "ping_ms") if k in live.get(d["ip"], {})}} for row in data.get("network") or [] for d in row.get("devices") or [] if d.get("ip")]
     machines = [{"name": m.get("name"), "ip": m.get("ip"), "nics": ((m.get("info") or {}).get("nics")) or (((m.get("agent") or {}).get("hardware") or {}).get("nics")) or []}
                 for m in data.get("machine_list") or [] if not m.get("disabled")]
-    items = nd.mark_accepted(nd.findings(doc["devices"], clients, scan, machines), nd.accepted_keys(_diag_accepted_file()))
+    now = time.time()
+    samples = nd.error_samples(_read_json(_port_errors_file(), []), doc["devices"], now)
+    _write_json(_port_errors_file(), samples)
+    found = nd.findings(doc["devices"], clients, scan, machines) + nd.error_rise_findings(samples, doc["devices"], clients, now)
+    found.sort(key=lambda f: nd.SEVERITY[f["severity"]])
+    items = nd.mark_accepted(found, nd.accepted_keys(_diag_accepted_file()))
     return {"source": doc["source"], "at": doc["at"], "error": doc["error"], "devices": len(doc["devices"]), "summary": nd.summary(items), "findings": items,
             "ok_ports": nd.ok_ports(doc["devices"], clients, items, machines), "sfp": nd.sfp_modules(doc["devices"]), "port_errors": nd.port_errors(doc["devices"])}
 
@@ -1032,6 +1037,28 @@ def connectors_requests_reset(request: Request):
         return denied
     reqstats.reset()
     return {"ok": True}
+
+
+def _port_errors_file() -> Path:
+    return Path(core.CFG["state_dir"]) / "port-errors-samples.json"
+
+
+def _read_json(path: Path, default):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return default
+
+
+def _write_json(path: Path, value) -> None:
+    """Written whole then renamed; a state that cannot be written only costs the comparison"""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps(value), encoding="utf-8")
+        tmp.replace(path)
+    except OSError:
+        pass
 
 
 def _diag_accepted_file() -> Path:
