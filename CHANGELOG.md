@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.18.3 (2026-10-21)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Changed
 - **Audit log and Logs moved into Settings**: they leave the account menu and join Requests in Settings → Application → « Requests and logs », as three sub-tabs (Requests, Audit log, Logs). The old addresses (`#audit`, `#logs`, `#settings/audit`, `#settings/logs`) open the matching sub-tab.
 - **Percentages on one line, unit smaller**: in Backups › By machine, on a machine page (Health, Share) and in the Machines table (CPU, memory, disk, GPU), the value keeps its « % » or « °C » on the same line, the unit smaller than the value; the free space no longer wraps.
