@@ -1,5 +1,5 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { Archive, Plus, Puzzle, FolderOpen, Bot, Box, Copy, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronRight, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
+import { Archive, Plus, Puzzle, FolderOpen, Bot, Box, Copy, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronRight, Container, Clock, Cpu, Database, Eye, EyeOff, FolderSync, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, Layers, MemoryStick, Plug, RefreshCw, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Timer, Unplug, WifiOff, Workflow, type LucideIcon } from "lucide-react";
 import { Fragment, createContext, useContext, useRef, useCallback, useEffect, useMemo, useState } from "react";
 import { read, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
@@ -7,7 +7,7 @@ import { ageDays, bytes, dateTime, dur, durShort, ipNum, splitHostName } from ".
 import { hostName, status } from "../lib/status";
 import { modelService } from "../lib/modelService";
 import { SwitchPanel } from "./UnifiCards";
-import type { AddressSheet, Backups, LinkSource, HealthHost, Host, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem } from "../types";
+import type { AddressSheet, Backups, LinkSource, HealthHost, Host, HostSystem, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
 import { freeboxHealth, freeboxOf } from "../lib/freebox";
@@ -28,7 +28,7 @@ import { SshAccess } from "../components/ssh";
 import { SourceBadges } from "../components/SourceBadges";
 import { DetailRow, DetailSection } from "../components/DetailSection";
 import { primary } from "../lib/forms";
-import { WATCH_SECTION, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
+import { SHARE_STATE, UU_STALE_DAYS, WATCH_SECTION, ZFS_BAD, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Pct, Table, Td, Th, type Tone } from "../components/ui";
 import { tx } from "../lib/i18n";
@@ -230,6 +230,7 @@ const levelKey = (h?: HealthHost): string => (h?.reachable === false ? "down" : 
 const WATCH_ICON: Record<WatchKind, LucideIcon> = {
   down: WifiOff, ssh: KeyRound, disk: HardDrive, systemd: ServerCrash, docker: Container, kernel: Bug, smart: ScanSearch, load: Gauge, ssh_auth: ShieldAlert,
   mem: MemoryStick, temp: Thermometer, reboot: RotateCw, updates: ArrowUpCircle, services: Globe, connector: Plug, access: Unplug,
+  pm2: Workflow, raid: Layers, zfs: Database, mounts: FolderSync, ntp: Clock, timers: Timer, auto_upd: RefreshCw,
 };
 const WATCH_STYLE: Record<WatchTone, string> = { bad: "border-bad/60 bg-bad/15 text-bad", warn: "border-warn/60 bg-warn/15 text-warn", info: "border-link/50 bg-link/10 text-link" };
 
@@ -604,6 +605,64 @@ function BigLogsRow({ logs }: Readonly<{ logs: NonNullable<HealthHost["logs"]> }
   return <DetailRow k={tx("Gros journaux")} title={tx("Gros journaux")}><ProbeChips items={items} /></DetailRow>;
 }
 
+const SHARE_TONE: Record<string, string> = { ok: "text-ok", hang: "text-bad", error: "text-warn", missing: "text-warn" };
+
+/** Services and storage of a Linux machine (PM2, RAID, ZFS, network shares, clock, timers, open sessions): a row each, only for what the machine has */
+function SystemRows({ s }: Readonly<{ s: HostSystem }>) {
+  const pm2 = s.pm2;
+  const pm2Items = pm2?.available ? [
+    ...(pm2.units ?? []).filter((u) => u.enabled).map((u) => ({ name: u.unit.replace(/\.service$/, ""), value: u.active ? tx("en marche") : tx("arrêté"), tone: u.active ? "text-ok" : "text-warn" })),
+    ...(pm2.home && !(pm2.units ?? []).length ? [{ name: tx("compte"), value: pm2.running ? tx("en marche") : tx("arrêté"), tone: pm2.running ? "text-ok" : "text-dim" }] : []),
+    ...(pm2.apps ?? []).map((a) => ({ name: a.name, value: a.up ? tx("en marche") : tx("arrêtée"), tone: a.up ? "text-ok" : "text-warn" })),
+  ] : [];
+  const raid = (s.raid?.arrays ?? []).map((a) => {
+    const state = a.rebuild ? `${a.rebuild.kind} ${a.rebuild.pct} %` : a.degraded ? tx("dégradé") : tx("sain");
+    return { name: [a.name, a.level].filter(Boolean).join(" "), value: [state, a.members].filter(Boolean).join(" · "), tone: a.degraded && !a.rebuild ? "text-bad" : a.degraded || a.rebuild ? "text-warn" : "text-ok" };
+  });
+  const zfs = (s.zfs?.pools ?? []).map((p) => ({ name: p.name, value: p.health, tone: p.health === "ONLINE" ? "text-ok" : ZFS_BAD.includes(p.health) ? "text-bad" : "text-warn" }));
+  const shares = (s.mounts?.shares ?? []).map((m) => ({ name: m.path, value: SHARE_STATE[m.state]?.() ?? m.state, tone: SHARE_TONE[m.state] ?? "" }));
+  const sessions = (s.sessions?.sessions ?? []).map((x) => ({ name: `${x.user} ${x.tty}`, value: x.from || tx("local"), tone: "" }));
+  return (
+    <>
+      {pm2Items.length > 0 && <DetailRow k="PM2" title={tx("PM2, lu sans la commande pm2 : il n'est jamais relancé par MyServices")} watch="pm2"><ProbeChips items={pm2Items} /></DetailRow>}
+      {raid.length > 0 && <DetailRow k="RAID" title={tx("RAID logiciel (mdadm)")} watch="raid"><ProbeChips items={raid} /></DetailRow>}
+      {zfs.length > 0 && <DetailRow k="ZFS" title={tx("Pools ZFS")} watch="zfs"><ProbeChips items={zfs} /></DetailRow>}
+      {shares.length > 0 && <DetailRow k={tx("Partages réseau")} title={tx("Partages réseau montés (NFS, SMB, SSHFS) et ceux de /etc/fstab")} watch="mounts"><ProbeChips items={shares} /></DetailRow>}
+      {s.ntp?.available && (
+        <DetailRow k={tx("Heure")} title={tx("Synchronisation de l'heure")} watch="ntp">
+          {s.ntp.synced ? <span className="text-ok">{tx("synchronisée")}</span> : <span className="text-warn">{s.ntp.service ? tx("non synchronisée") : tx("non synchronisée, aucun service de synchronisation actif")}</span>}
+        </DetailRow>
+      )}
+      {s.timers?.available && (
+        <DetailRow k={tx("Tâches planifiées")} title={tx("Timers systemd")} watch="timers">
+          <span>{tx("{0} actives", s.timers.total ?? 0)}</span>
+          {!!s.timers.failed?.length && <ProbeChips items={s.timers.failed.map((u) => ({ name: u.replace(/\.service$/, ""), value: tx("en échec"), tone: "text-warn" }))} />}
+        </DetailRow>
+      )}
+      {sessions.length > 0 && <DetailRow k={tx("Sessions ouvertes")} title={tx("Sessions ouvertes")}><ProbeChips items={sessions} /></DetailRow>}
+    </>
+  );
+}
+
+/** Detail, « Updates »: automatic updates (unattended-upgrades) and snaps waiting, when the machine has them */
+function SystemUpdates({ s }: Readonly<{ s?: HostSystem }>) {
+  const u = s?.auto_upd, snap = s?.snap;
+  return (
+    <>
+      {u?.available && (
+        <Row k={tx("Automatiques")}>
+          {!u.enabled ? <Dim>{tx("désactivées")}</Dim> : (
+            <span className={u.errors?.length || (u.days ?? 0) > UU_STALE_DAYS ? "text-warn" : ""} title={u.errors?.join("\n") || undefined}>
+              {u.days == null ? tx("activées, jamais passées") : tx("dernier passage il y a {0}", durShort(u.days * 86400))}{u.errors?.length ? ` · ${tx("{0} erreur(s)", u.errors.length)}` : ""}
+            </span>
+          )}
+        </Row>
+      )}
+      {snap?.available && !!snap.pending && <Row k="Snap"><span className="text-warn" title={snap.names?.join("\n")}>{tx("{0} à mettre à jour", snap.pending)}</span></Row>}
+    </>
+  );
+}
+
 function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
   const bar = (label: string, pct: number | undefined, extra?: string) => pct == null ? null : (
     <DetailRow key={label} k={label} title={label}><Fill pct={pct} /><Pct value={Math.round(pct)} />{extra && <Dim>{extra}</Dim>}</DetailRow>
@@ -629,6 +688,7 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
         </DetailRow>
       )}
       {!!h.logs?.available && (h.logs.files.length > 0 || !!h.logs.journal_mb) && <BigLogsRow logs={h.logs} />}
+      {h.system && <SystemRows s={h.system} />}
       {h.kernel?.has_errors && <KernelBlock id={h.id} lines={h.kernel.samples ?? []} />}
       {h.vmem && bar(tx("Mémoire VM"), h.vmem.pct, `${(h.vmem.used_mb / 1024).toFixed(1)} / ${(h.vmem.total_mb / 1024).toFixed(1)} ${tx("Go")}`)}
       {h.vms && (
@@ -1164,6 +1224,7 @@ export function UpdatesSection({ h, windows, from, freebox, unifi, unifiSys, ha 
       {ha && <HaUpdates ha={ha} />}
       {h?.reboot_required && <Row k={tx("Redémarrage")}><span className="text-warn">{tx("redémarrage requis")}</span></Row>}
       {h && <UpdatesFold h={h} windows={windows} />}
+      <SystemUpdates s={h?.system} />
     </Section>
   );
 }

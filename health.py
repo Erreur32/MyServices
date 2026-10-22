@@ -548,16 +548,7 @@ def collect_smart(run) -> dict:
     if rc != 0 or not out.strip():
         return {"accessible": False, "disks": []}
     disks = []
-    seen = set()
-    for dev in out.strip().splitlines():
-        dev = dev.strip()
-        if not dev:
-            continue
-        m = re.match(r"^(nvme\d+)n\d+$", dev)
-        target = m.group(1) if m else dev
-        if target in seen:
-            continue
-        seen.add(target)
+    for target in smart_targets(out):
         _, out2 = run(smart_cmd(target), timeout=10)
         low = out2.lower()
         # Deux formats selon le type de disque : ATA/NVMe ("overall-health ... PASSED/FAILED")
@@ -569,6 +560,274 @@ def collect_smart(run) -> dict:
         failed = "failed" in low or ("health status" in low and "ok" not in low)
         disks.append({"device": target, "healthy": healthy, "failed": failed})
     return {"accessible": True, "disks": disks}
+
+
+def smart_targets(out: str) -> list[str]:
+    """Disks to ask SMART about, from SMART_LIST_CMD's output: an NVMe namespace (nvme0n1) is asked through its controller (nvme0)."""
+    seen = []
+    for dev in out.split():
+        m = re.match(r"^(nvme\d+)n\d+$", dev)
+        target = m.group(1) if m else dev
+        if target not in seen and re.fullmatch(r"[A-Za-z0-9_-]{1,32}", target):
+            seen.append(target)
+    return seen
+
+# ───────────── Services and storage (PM2, RAID, ZFS, network shares, clock, timers, automatic updates, Snap, sessions) ─────────────
+
+# One read-only script, sections introduced by « @@name ». Nothing needs sudo, and nothing is started: PM2 is read from its processes
+# and its files, never through the pm2 command (which starts its daemon when it is down). A network share is tested in the background with
+# a short limit, so a share that hangs is reported without blocking the rest. Absent tools print nothing.
+NET_FS = "nfs,nfs4,cifs,smb3,sshfs,fuse.sshfs"
+SYSTEM_CMD = (
+    "export PATH=\"$PATH:/usr/sbin:/sbin\"; echo \"@@now $(date +%s)\"; "
+    "echo @@pm2; pgrep -af '^PM2 v[0-9.]+: God Daemon' 2>/dev/null | sed 's/^[0-9]* /D /'; "
+    "systemctl list-unit-files --no-legend --plain 'pm2-*' 2>/dev/null | awk '{print \"E\",$1,$2}'; "
+    "systemctl list-units --all --type=service --no-legend --plain 'pm2-*' 2>/dev/null | awk '{print \"U\",$1,$3}'; "
+    "d=\"$HOME/.pm2\"; if [ -d \"$d\" ]; then echo \"H $d\"; for f in \"$d\"/pids/*.pid; do [ -f \"$f\" ] || continue; p=$(cat \"$f\" 2>/dev/null); "
+    "if [ -n \"$p\" ] && [ -d \"/proc/$p\" ]; then echo \"P up $(basename \"$f\" .pid)\"; else echo \"P down $(basename \"$f\" .pid)\"; fi; done; "
+    "[ -r \"$d/dump.pm2\" ] && python3 -c 'import json,sys;[print(\"S\",a.get(\"name\",\"\")) for a in json.load(open(sys.argv[1]))]' \"$d/dump.pm2\" 2>/dev/null; fi; "
+    "echo @@md; grep -E '^md|blocks|recovery|resync|reshape' /proc/mdstat 2>/dev/null; "
+    "echo @@zfs; command -v zpool >/dev/null 2>&1 && timeout 8 zpool list -H -o name,health 2>/dev/null; "
+    f"echo @@mnt; ts=$(findmnt -rn -t {NET_FS} -o TARGET 2>/dev/null); if [ -n \"$ts\" ]; then m=$(mktemp); n=0; "
+    "while read -r t; do n=$((n+1)); ( timeout -k 1 4 stat -t -- \"$(printf '%b' \"$t\")\" >/dev/null 2>&1; echo \"$? $t\" >>\"$m\" ) </dev/null >/dev/null 2>&1 & "
+    "done <<< \"$ts\"; i=0; while [ $i -lt 12 ] && [ \"$(wc -l <\"$m\")\" -lt $n ]; do sleep 0.5; i=$((i+1)); done; "
+    "echo \"$ts\" | sed 's/^/T /'; sed 's/^/R /' \"$m\"; rm -f \"$m\"; fi; "
+    f"findmnt -rn -s -t {NET_FS} -o TARGET,OPTIONS 2>/dev/null | awk '$2 !~ /noauto|x-systemd.automount/ {{print \"F\",$1}}'; "
+    "echo @@ntp; echo \"C $(systemd-detect-virt -c 2>/dev/null || true)\"; timedatectl show -p NTP -p NTPSynchronized 2>/dev/null; "
+    "echo @@tim; u=$(systemctl list-timers --no-legend --plain 2>/dev/null | awk '{print $NF}' | sort -u | head -n 60); "
+    "[ -n \"$u\" ] && systemctl show -p Id -p Result -p ActiveState $u 2>/dev/null; "
+    "echo @@uu; dpkg-query -W -f='I ${Status}\\n' unattended-upgrades 2>/dev/null; "
+    "apt-config dump 2>/dev/null | grep -E '^APT::Periodic::Unattended-Upgrade '; "
+    "stat -c 'S %Y' /var/lib/apt/periodic/unattended-upgrades-stamp 2>/dev/null; "
+    "grep -h ' ERROR ' /var/log/unattended-upgrades/unattended-upgrades.log 2>/dev/null | tail -n 5 | sed 's/^/X /'; "
+    "echo @@snap; command -v snap >/dev/null 2>&1 && timeout 10 snap refresh --list 2>&1 | head -n 30; "
+    "echo @@who; who 2>/dev/null | head -n 20; "
+    "echo @@dkr; command -v docker >/dev/null 2>&1 && docker ps -q 2>/dev/null | head -n 200 "
+    "| xargs -r docker inspect --format '{{.Name}}|{{.RestartCount}}|{{.State.StartedAt}}' 2>/dev/null; true"
+)
+UU_STALE_DAYS = 3          # automatic updates that have not run for this long
+DOCKER_LOOP_N = 3          # restarts of a container that started again within the last hour: a loop
+
+
+def _sections(out: str) -> dict[str, list[str]]:
+    secs, cur = {}, None
+    for ln in out.splitlines():
+        if ln.startswith("@@"):
+            name, _, rest = ln[2:].partition(" ")
+            cur = secs.setdefault(name, [])
+            if rest:
+                cur.append(rest)
+        elif cur is not None and ln.strip():
+            cur.append(ln.rstrip())
+    return secs
+
+
+def _iso_epoch(s: str) -> int | None:
+    try:
+        return int(datetime.strptime(s[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).timestamp())
+    except ValueError:
+        return None
+
+
+def parse_pm2(lines: list[str]) -> dict:
+    """PM2 without the pm2 command: the daemons running (by their home), the pm2-<user> units, and for the account's own home the apps
+    saved by « pm2 save » and those whose process is alive. Nothing of PM2 on the machine: available False."""
+    daemons, units, enabled, apps, saved, home = [], {}, {}, {}, [], None
+    for ln in lines:
+        tag, _, rest = ln.partition(" ")
+        if tag == "D":
+            m = re.search(r"\((/[^)]+)\)", rest)
+            daemons.append(m.group(1) if m else rest[:120])
+        elif tag == "E":
+            unit, _, state = rest.partition(" ")
+            enabled[unit] = state
+        elif tag == "U":
+            unit, _, active = rest.partition(" ")
+            units[unit] = active
+        elif tag == "H":
+            home = rest
+        elif tag == "P":
+            state, _, pid_file = rest.partition(" ")
+            name = re.sub(r"-\d+$", "", pid_file)   # <name>-<pm_id>.pid
+            apps[name] = apps.get(name, False) or state == "up"
+        elif tag == "S" and rest:
+            saved.append(rest[:80])
+    us = [{"unit": u, "enabled": s == "enabled", "active": units.get(u, "inactive") == "active"} for u, s in sorted(enabled.items()) if u.endswith(".service")]
+    if not (daemons or us or home):
+        return {"available": False}
+    running = home in daemons if home else None
+    names = sorted(set(saved) | set(apps))
+    return {"available": True, "daemons": daemons, "units": us, "home": home, "running": running,
+            "apps": [{"name": n, "up": bool(running and apps.get(n)), "saved": n in saved} for n in names][:40]}
+
+
+def parse_mdstat(lines: list[str]) -> dict:
+    """Software RAID arrays of /proc/mdstat: state, members seen, and a rebuild in progress (its percentage)."""
+    arrays = []
+    for ln in lines:
+        m = re.match(r"^(md\S+)\s*:\s*(\S+)\s*(\S*)", ln)
+        if m:
+            arrays.append({"name": m.group(1), "state": m.group(2), "level": m.group(3) if m.group(3).startswith("raid") else "", "degraded": m.group(2) != "active"})
+            continue
+        if not arrays:
+            continue
+        m = re.search(r"\[(\d+)/(\d+)\]\s*\[([U_]+)\]", ln)
+        if m:
+            arrays[-1]["members"] = f"{m.group(2)}/{m.group(1)}"
+            arrays[-1]["degraded"] = arrays[-1]["degraded"] or "_" in m.group(3)
+        m = re.search(r"(recovery|resync|reshape|check)\s*=\s*([\d.]+)%", ln)
+        if m:
+            arrays[-1]["rebuild"] = {"kind": m.group(1), "pct": float(m.group(2))}
+    return {"available": bool(arrays), "arrays": arrays}
+
+
+def parse_zfs(lines: list[str]) -> dict:
+    pools = [{"name": c[0], "health": c[1]} for c in map(str.split, lines) if len(c) >= 2]
+    return {"available": bool(pools), "pools": pools}
+
+
+def _unescape(target: str) -> str:
+    return re.sub(r"\\x([0-9a-fA-F]{2})", lambda m: chr(int(m.group(1), 16)), target)
+
+
+def parse_mounts(lines: list[str]) -> dict:
+    """Network shares: mounted ones that answer or not (a share whose test did not come back in time hangs), and those of /etc/fstab
+    that are not mounted (noauto and automount left aside: not mounted is normal for them)."""
+    mounted, results, fstab = [], {}, []
+    for ln in lines:
+        tag, _, rest = ln.partition(" ")
+        if tag == "T":
+            mounted.append(rest)
+        elif tag == "R":
+            rc, _, t = rest.partition(" ")
+            results[t] = rc
+        elif tag == "F":
+            fstab.append(rest)
+    shares = [{"path": _unescape(t), "ok": results.get(t) == "0", "state": "ok" if results.get(t) == "0" else ("hang" if t not in results else "error")} for t in mounted]
+    shares += [{"path": _unescape(t), "ok": False, "state": "missing"} for t in dict.fromkeys(fstab) if t not in mounted]
+    return {"available": bool(shares), "shares": shares}
+
+
+def parse_ntp(lines: list[str]) -> dict:
+    """Clock synchronisation (timedatectl); a container takes its clock from its host: not read there."""
+    kv = dict(ln.split("=", 1) for ln in lines if "=" in ln)
+    container = next((ln[2:].strip() for ln in lines if ln.startswith("C ")), "")
+    if "NTPSynchronized" not in kv or (container and container != "none"):
+        return {"available": False}
+    return {"available": True, "synced": kv["NTPSynchronized"] == "yes", "service": kv.get("NTP") == "yes"}
+
+
+def parse_timers(lines: list[str]) -> dict:
+    """Active timers and, for each, whether the last run of the service it starts went well (Result of systemctl show)."""
+    blocks, cur = [], {}
+    for ln in lines + ["Id="]:
+        k, _, v = ln.partition("=")
+        if k in cur:
+            blocks.append(cur)
+            cur = {}
+        cur[k] = v
+    units = [b for b in blocks if b.get("Id")]
+    failed = [b["Id"] for b in units if b.get("Result") not in ("success", "", None)]
+    return {"available": bool(units), "total": len(units), "failed": failed[:20]}
+
+
+def parse_unattended(lines: list[str], now: int | None) -> dict:
+    """Automatic updates (unattended-upgrades): installed, enabled, days since the last run, the errors of its log in the last 48 hours."""
+    inst = any(ln.startswith("I ") and ln.endswith("install ok installed") for ln in lines)
+    if not inst:
+        return {"available": False}
+    m = re.search(r'Unattended-Upgrade "(\d+)"', "\n".join(lines))
+    stamp = next((int(ln[2:]) for ln in lines if ln.startswith("S ") and ln[2:].isdigit()), None)
+    errors = []
+    for ln in lines:
+        if ln.startswith("X "):
+            when = ln[2:21]
+            try:
+                t = int(datetime.strptime(when, "%Y-%m-%d %H:%M:%S").timestamp())
+            except ValueError:
+                continue
+            if now and now - t <= 48 * 3600:
+                errors.append(ln[2:][:200])
+    days = round((now - stamp) / 86400, 1) if now and stamp else None
+    return {"available": True, "enabled": bool(m and m.group(1) != "0"), "days": days, "errors": errors}
+
+
+def parse_snap(lines: list[str]) -> dict:
+    """Snaps with an update waiting (snap refresh --list: a table, or « All snaps up to date. »); snapd absent or silent: not read."""
+    if lines and lines[0].startswith("Name"):
+        rows = [ln.split()[0] for ln in lines[1:] if ln.split()]
+        return {"available": True, "pending": len(rows), "names": rows[:10]}
+    if any("up to date" in ln for ln in lines):
+        return {"available": True, "pending": 0, "names": []}
+    return {"available": False}
+
+
+def parse_sessions(lines: list[str]) -> dict:
+    sessions = []
+    for ln in lines:
+        c = ln.split()
+        if len(c) >= 2:
+            m = re.search(r"\(([^)]*)\)\s*$", ln)
+            sessions.append({"user": c[0][:40], "tty": c[1][:20], "from": m.group(1)[:80] if m else ""})
+    return {"available": True, "sessions": sessions}
+
+
+def parse_docker_loops(lines: list[str], now: int | None) -> list[dict]:
+    """Containers that restart in a loop: restarted DOCKER_LOOP_N times or more, and started again within the last hour."""
+    out = []
+    for ln in lines:
+        c = ln.split("|")
+        if len(c) == 3 and c[1].isdigit():
+            started = _iso_epoch(c[2])
+            if int(c[1]) >= DOCKER_LOOP_N and now and started and now - started <= 3600:
+                out.append({"name": c[0].lstrip("/"), "restarts": int(c[1])})
+    return out
+
+
+def collect_system(run) -> dict:
+    """The services and storage checks, in one command. A machine where it cannot run (old shell, agent of an older version): {}."""
+    rc, out = run(SYSTEM_CMD, timeout=20)
+    if rc != 0 or "@@now" not in out:
+        return {}
+    s = _sections(out)
+    now = int(s["now"][0]) if s.get("now") and s["now"][0].isdigit() else None
+    return {"pm2": parse_pm2(s.get("pm2", [])), "raid": parse_mdstat(s.get("md", [])), "zfs": parse_zfs(s.get("zfs", [])),
+            "mounts": parse_mounts(s.get("mnt", [])), "ntp": parse_ntp(s.get("ntp", [])), "timers": parse_timers(s.get("tim", [])),
+            "auto_upd": parse_unattended(s.get("uu", []), now), "snap": parse_snap(s.get("snap", [])),
+            "sessions": parse_sessions(s.get("who", [])), "docker_loops": parse_docker_loops(s.get("dkr", []), now)}
+
+
+def system_levels(sys_: dict) -> dict[str, str]:
+    """Level of each services and storage check (na: nothing of it on the machine)."""
+    sys_ = sys_ or {}
+    lv = {}
+    p = sys_.get("pm2") or {}
+    if p.get("available"):
+        down_unit = any(u["enabled"] and not u["active"] for u in p["units"])
+        stopped = p["running"] is False and any(a["saved"] for a in p["apps"])
+        app_down = p["running"] and any(not a["up"] for a in p["apps"])
+        lv["pm2"] = "warn" if down_unit or stopped or app_down else "ok"
+    r = sys_.get("raid") or {}
+    if r.get("available"):
+        lv["raid"] = "crit" if any(a["degraded"] and not a.get("rebuild") for a in r["arrays"]) else (
+            "warn" if any(a["degraded"] or (a.get("rebuild") and a["rebuild"]["kind"] != "check") for a in r["arrays"]) else "ok")
+    z = sys_.get("zfs") or {}
+    if z.get("available"):
+        hs = {p_["health"] for p_ in z["pools"]}
+        lv["zfs"] = "crit" if hs & {"FAULTED", "UNAVAIL", "SUSPENDED"} else ("warn" if hs - {"ONLINE"} else "ok")
+    mo = sys_.get("mounts") or {}
+    if mo.get("available"):
+        lv["mounts"] = "crit" if any(x["state"] == "hang" for x in mo["shares"]) else ("warn" if any(not x["ok"] for x in mo["shares"]) else "ok")
+    n = sys_.get("ntp") or {}
+    if n.get("available"):
+        lv["ntp"] = "ok" if n["synced"] else "warn"
+    t = sys_.get("timers") or {}
+    if t.get("available"):
+        lv["timers"] = "warn" if t["failed"] else "ok"
+    u = sys_.get("auto_upd") or {}
+    if u.get("available") and u["enabled"]:
+        lv["auto_upd"] = "warn" if u["errors"] or (u["days"] is not None and u["days"] > UU_STALE_DAYS) else "ok"
+    return lv
 
 # ───────────── Windows (OpenSSH Server + PowerShell) ─────────────
 
@@ -995,7 +1254,7 @@ def systemd_level(systemd: dict) -> str:
 def docker_level(docker: dict) -> str:
     if not docker.get("accessible"):
         return "na"
-    n = docker.get("unhealthy", 0) + docker.get("restarting", 0) + docker.get("exited", 0)
+    n = docker.get("unhealthy", 0) + docker.get("restarting", 0) + docker.get("exited", 0) + len(docker.get("loops") or [])
     if n >= DOCKER_CRIT_N:
         return "crit"
     if n >= DOCKER_WARN_N:
@@ -1039,11 +1298,13 @@ def smart_level(smart: dict) -> str:
 
 
 def host_checks(h: dict) -> dict[str, str]:
-    """Level of each control of a reachable machine (Linux or Windows): disk, systemd, docker, kernel, load, ssh_auth, smart, temp, res.
+    """Level of each control of a reachable machine (Linux or Windows): disk, systemd, docker, kernel, load, ssh_auth, smart, temp, res,
+    and the services and storage ones a Linux machine has (pm2, raid, zfs, mounts, ntp, timers, auto_upd).
     Published with the host (`checks`) so the page can say why a machine is « warn » without repeating the thresholds."""
     return {"disk": disk_level(h["disks"]), "systemd": systemd_level(h["systemd"]), "docker": docker_level(h["docker"]),
             "kernel": kernel_level(h["kernel"]), "load": load_level(h["load"]), "ssh_auth": ssh_auth_level(h["ssh_auth"]),
-            "smart": smart_level(h["smart"]), "temp": temp_level(h.get("temp")), "res": resources_level(h.get("res"))}
+            "smart": smart_level(h["smart"]), "temp": temp_level(h.get("temp")), "res": resources_level(h.get("res")),
+            **system_levels(h.get("system"))}
 
 
 def host_level(h: dict) -> str:
@@ -1063,22 +1324,69 @@ def collect_host(host: dict) -> dict:
     if host.get("os") == "windows":
         return collect_windows(host)
     run = make_runner(host)
-    rc, _ = run("echo ok", timeout=6)
-    if rc != 0:
+    # One connection says whether the machine answers and whether it is an ESXi (no bash there: the batch below is not for it)
+    rc, first = run("echo ok; vmware -v 2>/dev/null; true", timeout=8)
+    if rc != 0 or not first.startswith("ok"):
         return {"id": host["id"], "name": host["name"], "reachable": False,
                 "disks": [], "systemd": {"failed": []}, "docker": {"accessible": False},
                 "level": "down", **_EMPTY_HOST_EXTRAS}
-    rc, esxi = run("vmware -v 2>/dev/null", timeout=6)
-    if rc == 0 and esxi.startswith("VMware ESXi"):
+    esxi = first[2:].strip()
+    if esxi.startswith("VMware ESXi"):
         # ESXi: no apt, systemd nor Docker; its VMs and datastores are read by the collection (esxi_ssh.py, Virtualization tab)
         return {"id": host["id"], "name": host["name"], "reachable": True, "os": "esxi", "esxi": esxi.strip()[:80],
                 "disks": [], "systemd": {"failed": []}, "docker": {"accessible": False, "reason": "esxi"}, "level": "ok", **_EMPTY_HOST_EXTRAS}
-    return collect_linux(host, run)
+    # Every command in one connection, then SMART for all the disks in a second one; the collectors read the outputs like an agent report
+    recorded = run_batch(run, LINUX_AGENT_COMMANDS)
+    rc, out = recorded.get(SMART_LIST_CMD, [1, ""])
+    if rc == 0 and not host.get("vm"):
+        recorded.update(run_batch(run, [smart_cmd(t) for t in smart_targets(out)]))
+    return collect_linux(host, replay_runner(recorded))
 
 
 # Commands the Linux agent runs on its own machine (the SSH collectors' commands, fixed); smart_cmd(<disk>) is added per disk it finds.
 LINUX_AGENT_COMMANDS = [DISKS_CMD, SYSTEMD_CMD, DOCKER_PS_CMD, DOCKER_STATS_CMD, APT_CMD, KERNEL_CMD, REBOOT_CMD, LOAD_CMD,
-                        _RES_CMD, _TEMP_CMD, VIRT_CMD, SSH_AUTH_CMD, SMART_LIST_CMD, LOGS_CMD, GPU_CMD]
+                        _RES_CMD, _TEMP_CMD, VIRT_CMD, SSH_AUTH_CMD, SMART_LIST_CMD, LOGS_CMD, GPU_CMD, SYSTEM_CMD]
+SLOW_CMDS = ("docker stats", "apt list", "snap refresh")   # allowed 40 s instead of 20 (the same rule in agent.py)
+
+
+def _limit(cmd: str) -> int:
+    return 40 if any(s in cmd for s in SLOW_CMDS) else 20
+
+
+def batch_script(cmds: list[str]) -> str:
+    """One bash script that runs each command with its own time limit, then prints « @@<n> <rc> » and its output in base64 on one line:
+    stdout, plus stderr when it failed, as run() gives it. Nothing in an output can be mistaken for the next marker."""
+    lines = ['t=$(mktemp -d) || exit 1']
+    for i, c in enumerate(cmds):
+        quoted = "'" + c.replace("'", "'\\''") + "'"
+        lines.append(f"timeout -k 2 {_limit(c)} bash -c {quoted} >$t/o 2>$t/e </dev/null; r=$?; [ $r = 0 ] || cat $t/e >>$t/o; "
+                     f"printf '@@%d %d\\n' {i} $r; base64 -w0 <$t/o; echo")
+    lines.append('rm -rf "$t"')
+    return "\n".join(lines)
+
+
+def parse_batch(cmds: list[str], out: str) -> dict:
+    """{command: [rc, output]} from batch_script's output; a command missing (the connection cut short) is left out."""
+    recorded, lines = {}, out.splitlines()
+    for i, ln in enumerate(lines[:-1]):
+        m = re.fullmatch(r"@@(\d+) (\d+)", ln)
+        if not m or int(m.group(1)) >= len(cmds):
+            continue
+        try:
+            text = base64.b64decode(lines[i + 1], validate=True).decode("utf-8", "replace")
+        except ValueError:
+            continue
+        rc = int(m.group(2))
+        recorded[cmds[int(m.group(1))]] = [rc, text if rc == 0 else text.strip()]
+    return recorded
+
+
+def run_batch(run, cmds: list[str]) -> dict:
+    """Runs the commands in a single call of run() (one SSH connection) and returns their outputs."""
+    if not cmds:
+        return {}
+    _, out = run(batch_script(cmds), timeout=min(150, sum(map(_limit, cmds)) + 10))
+    return parse_batch(cmds, out)
 
 
 def replay_runner(recorded):
@@ -1110,9 +1418,14 @@ def collect_linux(host: dict, run) -> dict:
     logs = collect_big_logs(run)
     # SMART non pertinent sur une VM (disque virtualisé, pas de hardware physique dédié)
     smart = {"accessible": False, "disks": [], "vm": True} if host.get("vm") else collect_smart(run)
+    system = collect_system(run)
+    if docker.get("accessible") and system.get("docker_loops"):
+        docker["loops"] = system["docker_loops"]
+    system.pop("docker_loops", None)
     h = {"id": host["id"], "name": host["name"], "reachable": True,
          "disks": disks, "systemd": systemd, "docker": docker, "apt": apt, "kernel": kernel,
-         "reboot_required": reboot_required, "load": load, "ssh_auth": ssh_auth, "smart": smart, "temp": temp, "gpu": gpu, "res": res, "logs": logs}
+         "reboot_required": reboot_required, "load": load, "ssh_auth": ssh_auth, "smart": smart, "temp": temp, "gpu": gpu, "res": res, "logs": logs,
+         "system": system}
     h["level"] = host_level(h)
     return h
 

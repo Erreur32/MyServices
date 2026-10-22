@@ -286,11 +286,12 @@ export interface HealthHost {
   reboot_required?: boolean;
   disks?: { mount: string; used_pct: number; size_gb?: number; avail_gb?: number; warning?: boolean; critical?: boolean }[];
   systemd?: { failed: { unit: string }[] };
-  docker?: { accessible: boolean; total?: number; stopped?: number; unhealthy?: number; restarting?: number; exited?: number; issues?: string[] };
+  docker?: { accessible: boolean; total?: number; stopped?: number; unhealthy?: number; restarting?: number; exited?: number; issues?: string[]; loops?: { name: string; restarts: number }[] };
   apt?: { upgradable: number; sample?: string[]; available?: boolean; security?: number | null; firmware?: boolean };   // packages (apt) or Windows updates; sample: up to 30 named
   kernel?: { has_errors: boolean; samples?: string[] };
   load?: { load_1: number; ncpu: number; available: boolean; cpu_pct?: number | null };   // cpu_pct: Windows, instant CPU instead of a load average
-  checks?: Record<string, string>;   // the controls not « ok » (disk, systemd, docker, kernel, load, ssh_auth, smart, temp, res -> warn | crit), from health.py host_checks
+  checks?: Record<string, string>;   // the controls not « ok » (disk, systemd, docker, kernel, load, ssh_auth, smart, temp, res, pm2, raid, zfs, mounts, ntp, timers, auto_upd -> warn | crit), from health.py host_checks
+  system?: HostSystem;   // services and storage of a Linux machine (SSH or Linux agent); a part not on the machine has available false
   res?: { available: boolean; cpu_pct?: number; mem_pct?: number; mem_total_mb?: number; mem_used_mb?: number; swap_total_mb?: number; swap_used_mb?: number };  // CPU et mémoire
   gpu?: { available: boolean; gpus: { name: string; util: number | null; temp: number | null; mem_used: number | null; mem_total: number | null; power: number | null }[] };   // nvidia-smi / rocm-smi (SSH or Linux agent)
   temp?: { available: boolean; celsius?: number; source?: string; virt?: string; sensors?: { name: string; celsius: number }[] };  // température du processeur (capteur de la machine ou Beszel)
@@ -304,6 +305,20 @@ export interface HealthHost {
   fans?: { name: string; rpm: number }[];       // Freebox: its fans
   vms?: { running: number; total: number };   // Freebox: its virtual machines, how many run   // Freebox: memory given to its virtual machines (the box itself reports no load)
   api_name?: string;                     // source « ha » : the service whose API was read (Glances, Home Assistant)
+}
+
+/** Services and storage read in one command (health.py collect_system): PM2 read without the pm2 command, RAID, ZFS, network shares, clock,
+ *  timers, automatic updates, Snap, open sessions */
+export interface HostSystem {
+  pm2?: { available: boolean; daemons?: string[]; units?: { unit: string; enabled: boolean; active: boolean }[]; home?: string | null; running?: boolean | null; apps?: { name: string; up: boolean; saved: boolean }[] };
+  raid?: { available: boolean; arrays?: { name: string; state: string; level: string; degraded: boolean; members?: string; rebuild?: { kind: string; pct: number } }[] };
+  zfs?: { available: boolean; pools?: { name: string; health: string }[] };
+  mounts?: { available: boolean; shares?: { path: string; ok: boolean; state: "ok" | "hang" | "error" | "missing" }[] };
+  ntp?: { available: boolean; synced?: boolean; service?: boolean };
+  timers?: { available: boolean; total?: number; failed?: string[] };
+  auto_upd?: { available: boolean; enabled?: boolean; days?: number | null; errors?: string[] };
+  snap?: { available: boolean; pending?: number; names?: string[] };
+  sessions?: { available: boolean; sessions?: { user: string; tty: string; from: string }[] };
 }
 
 /** Poste « souvent éteint » qui ne répond pas : fiche grisée, sans alerte (last_seen : dernier relevé de son agent, en secondes) */

@@ -28,7 +28,7 @@ SMART_FMT = __SMART_FMT__
 DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_PATH = os.path.join(DIR, "agent.log")
 MAX_OUT = 50000                          # characters kept per command (the server accepts 60000)
-SLOW = ("docker stats", "apt list")      # commands allowed more time
+SLOW = ("docker stats", "apt list", "snap refresh")   # commands allowed more time (health.SLOW_CMDS)
 
 
 def log(msg):

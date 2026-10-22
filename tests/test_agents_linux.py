@@ -33,6 +33,8 @@ OUTPUTS = {
     health.SMART_LIST_CMD: (0, "sda\nnvme0n1\n"),
     health.GPU_CMD: (0, "NVIDIA T400, 9, 40, 200, 4096, 12.0\n---\n"),
     health.LOGS_CMD: (0, "3145728000 /var/log/big.log\n---\nArchived and active journals take up 1.5G in the file system.\n"),
+    health.SYSTEM_CMD: (0, "@@now 1792678313\n@@pm2\nD 1158684 PM2 v5.4.3: God Daemon (/root/.pm2)\nE pm2-root.service enabled\n"
+                           "U pm2-root.service active\n@@md\n@@zfs\n@@mnt\n@@ntp\nC none\nNTP=yes\nNTPSynchronized=yes\n@@tim\n@@uu\n@@snap\n@@who\n@@dkr\n"),
     health.smart_cmd("sda"): (0, "SMART overall-health self-assessment test result: PASSED\n"),
     health.smart_cmd("nvme0"): (0, "SMART overall-health self-assessment test result: PASSED\n"),
 }
@@ -61,6 +63,8 @@ class LinuxAgent(unittest.TestCase):
         self.assertEqual([d["mount"] for d in direct["disks"]], ["/", "/data"])
         self.assertTrue(direct["smart"]["accessible"])
         self.assertEqual(direct["gpu"]["gpus"][0]["name"], "NVIDIA T400")   # same reading over SSH and through the agent
+        self.assertTrue(direct["system"]["pm2"]["units"][0]["active"])
+        self.assertTrue(all(len(c) <= agents.MAX_LINUX_CMD for c in health.LINUX_AGENT_COMMANDS))   # a report the server accepts
 
     def test_commande_non_relevee_echoue_comme_un_outil_absent(self):
         run = health.replay_runner({health.REBOOT_CMD: [0, "no\n"]})
@@ -79,7 +83,7 @@ class LinuxAgent(unittest.TestCase):
                     {"kind": "linux", "cmds": {"a": ["0", "x"]}}, {"kind": "linux", "cmds": {"a": [True, "x"]}},
                     {"kind": "linux", "cmds": {"a": [0, 5]}}, {"kind": "linux", "cmds": {1: [0, "x"]}},
                     {"kind": "linux", "cmds": {"a": [0, "x" * (agents.MAX_LINUX_OUT + 1)]}},
-                    {"kind": "linux", "cmds": {"c" * 1001: [0, "x"]}},
+                    {"kind": "linux", "cmds": {"c" * (agents.MAX_LINUX_CMD + 1): [0, "x"]}},
                     {"kind": "linux", "cmds": {f"c{i}": [0, "x"] for i in range(agents.MAX_LINUX_CMDS + 1)}}):
             with self.assertRaises(agents.AgentError, msg=str(bad)[:60]):
                 agents.validate_report({"data": bad})

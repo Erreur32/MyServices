@@ -18,6 +18,29 @@ describe("à surveiller", () => {
     expect(worst(items)).toBe(3);
   });
 
+  it("services et stockage : PM2, RAID, ZFS, partages, heure, tâches, mises à jour automatiques, Docker en boucle", () => {
+    const h = health({
+      docker: { accessible: true, loops: [{ name: "web", restarts: 7 }] },
+      system: {
+        pm2: { available: true, units: [{ unit: "pm2-root.service", enabled: true, active: false }], running: true, apps: [{ name: "api", up: false, saved: true }] },
+        raid: { available: true, arrays: [{ name: "md0", state: "active", level: "raid1", degraded: true }, { name: "md1", state: "active", level: "raid1", degraded: true, rebuild: { kind: "recovery", pct: 40 } }] },
+        zfs: { available: true, pools: [{ name: "tank", health: "DEGRADED" }, { name: "ok", health: "ONLINE" }] },
+        mounts: { available: true, shares: [{ path: "/mnt/nas", ok: false, state: "hang" }, { path: "/mnt/fb", ok: false, state: "missing" }] },
+        ntp: { available: true, synced: false }, timers: { available: true, total: 3, failed: ["backup.service"] },
+        auto_upd: { available: true, enabled: true, days: 6, errors: [] }, snap: { available: true, pending: 2 },
+      },
+    });
+    const items = healthItems(h);
+    expect(items.map((i) => i.kind)).toEqual(["docker", "pm2", "pm2", "raid", "raid", "zfs", "mounts", "mounts", "ntp", "timers", "auto_upd", "updates"]);
+    expect(items.find((i) => i.kind === "raid")).toMatchObject({ tone: "bad", text: "RAID md0 dégradé" });
+    expect(items.find((i) => i.kind === "mounts")!.tone).toBe("bad");
+    expect(items.at(-1)!.tone).toBe("info");
+    expect(WATCH_SECTION.auto_upd).toBe("updates");
+    const stopped = healthItems(health({ system: { pm2: { available: true, running: false, apps: [{ name: "api", up: false, saved: true }] }, auto_upd: { available: true, enabled: true, days: 0, errors: ["x"] } } }));
+    expect(stopped.map((i) => i.text)).toEqual(["PM2 arrêté : 1 appli(s) enregistrée(s) ne tournent pas", "mises à jour automatiques en erreur"]);
+    expect(healthItems(health({ checks: { mounts: "crit" } }))[0]).toMatchObject({ tone: "bad", kind: "mounts" });
+  });
+
   it("services en panne : la liste (nom : cause) accompagne l'avertissement", () => {
     const list = ["app.exemple.fr : backend down"];
     expect(watchItems(machine({ down: 1 }), health(), [], false, list)[0]).toMatchObject({ kind: "services", detail: list });
