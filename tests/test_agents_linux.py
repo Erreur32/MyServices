@@ -33,6 +33,8 @@ OUTPUTS = {
     health.SMART_LIST_CMD: (0, "sda\nnvme0n1\n"),
     health.GPU_CMD: (0, "NVIDIA T400, 9, 40, 200, 4096, 12.0\n---\n"),
     health.LOGS_CMD: (0, "3145728000 /var/log/big.log\n---\nArchived and active journals take up 1.5G in the file system.\n"),
+    health.SYSTEM_CMD: (0, "@@now 1792678313\n@@pm2\nD 1158684 PM2 v5.4.3: God Daemon (/root/.pm2)\nE pm2-root.service enabled\n"
+                           "U pm2-root.service active\n@@md\n@@zfs\n@@mnt\n@@ntp\nC none\nNTP=yes\nNTPSynchronized=yes\n@@tim\n@@uu\n@@snap\n@@who\n@@dkr\n"),
     health.smart_cmd("sda"): (0, "SMART overall-health self-assessment test result: PASSED\n"),
     health.smart_cmd("nvme0"): (0, "SMART overall-health self-assessment test result: PASSED\n"),
 }
@@ -61,6 +63,8 @@ class LinuxAgent(unittest.TestCase):
         self.assertEqual([d["mount"] for d in direct["disks"]], ["/", "/data"])
         self.assertTrue(direct["smart"]["accessible"])
         self.assertEqual(direct["gpu"]["gpus"][0]["name"], "NVIDIA T400")   # same reading over SSH and through the agent
+        self.assertTrue(direct["system"]["pm2"]["units"][0]["active"])
+        self.assertTrue(all(len(c) <= agents.MAX_LINUX_CMD for c in health.LINUX_AGENT_COMMANDS))   # a report the server accepts
 
     def test_commande_non_relevee_echoue_comme_un_outil_absent(self):
         run = health.replay_runner({health.REBOOT_CMD: [0, "no\n"]})
@@ -79,7 +83,7 @@ class LinuxAgent(unittest.TestCase):
                     {"kind": "linux", "cmds": {"a": ["0", "x"]}}, {"kind": "linux", "cmds": {"a": [True, "x"]}},
                     {"kind": "linux", "cmds": {"a": [0, 5]}}, {"kind": "linux", "cmds": {1: [0, "x"]}},
                     {"kind": "linux", "cmds": {"a": [0, "x" * (agents.MAX_LINUX_OUT + 1)]}},
-                    {"kind": "linux", "cmds": {"c" * 1001: [0, "x"]}},
+                    {"kind": "linux", "cmds": {"c" * (agents.MAX_LINUX_CMD + 1): [0, "x"]}},
                     {"kind": "linux", "cmds": {f"c{i}": [0, "x"] for i in range(agents.MAX_LINUX_CMDS + 1)}}):
             with self.assertRaises(agents.AgentError, msg=str(bad)[:60]):
                 agents.validate_report({"data": bad})
@@ -113,13 +117,13 @@ class LinuxAgentScripts(unittest.TestCase):
 
     def test_agent_py_rendu_est_du_python_valide(self):
         text = agents.script("agent.py")
-        for marker in ("__VERSION__", "__COMMANDS__", "__SMART_LIST__", "__SMART_FMT__"):
+        for marker in ("__VERSION__", "__COMMANDS__", "__SMART_LIST__", "__SMART_FMT__", "__CACHED__", "__SMART_CACHE__"):
             self.assertNotIn(marker, text)
         code = compile(text, "agent.py", "exec")          # must be valid Python once rendered
         ns: dict = {"__name__": "agent_under_test", "__file__": "/nonexistent/agent.py"}
         exec(code, ns)
         self.assertEqual(ns["VERSION"], agents.LINUX_VERSION)
-        self.assertEqual(ns["COMMANDS"], health.LINUX_AGENT_COMMANDS)
+        self.assertEqual(ns["COMMANDS"], health.LINUX_AGENT_COMMANDS + agents.inventory_commands())
         self.assertEqual(ns["SMART_LIST"], health.SMART_LIST_CMD)
         self.assertEqual(ns["SMART_FMT"].format(target="sda"), health.smart_cmd("sda"))   # same SMART command as the SSH collection
 
@@ -129,7 +133,8 @@ class LinuxAgentScripts(unittest.TestCase):
         asked = []
         ns["run"] = lambda cmd, timeout: (asked.append(cmd) or (0, "sda\nnvme0n1\nnvme0n1\n" if cmd == health.SMART_LIST_CMD else "x"))
         cmds = ns["collect"]()
-        self.assertEqual(asked, health.LINUX_AGENT_COMMANDS + [health.smart_cmd("sda"), health.smart_cmd("nvme0")])   # one per disk, deduplicated
+        self.assertEqual(asked, health.LINUX_AGENT_COMMANDS + agents.inventory_commands()
+                         + [health.smart_cmd("sda"), health.smart_cmd("nvme0")])   # one per disk, deduplicated
         self.assertEqual(set(cmds), set(asked))
 
     def test_agent_refuse_un_nom_de_disque_etrange(self):
@@ -141,6 +146,59 @@ class LinuxAgentScripts(unittest.TestCase):
         self.assertEqual(asked[-1], health.smart_cmd("sdb"))
         self.assertFalse([c for c in asked if "sda;reboot" in c or "$(id)" in c])           # a disk name is never interpolated unchecked
 
+    def agent(self, cache_path):
+        ns: dict = {"__name__": "agent_under_test", "__file__": "/nonexistent/agent.py"}
+        exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
+        ns["CACHE_PATH"] = cache_path
+        return ns
+
+    def test_v3_commandes_lentes_gardees_en_cache(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            ns = self.agent(str(Path(d) / "cache.json"))
+            asked = []
+            ns["run"] = lambda cmd, timeout: (asked.append(cmd) or (0, "sda\n" if cmd == health.SMART_LIST_CMD else "x"))
+            first = ns["collect"]()
+            asked.clear()
+            second = ns["collect"]()
+            slow = set(health.LINUX_AGENT_CACHE) | set(agents.inventory_cache()) | {health.smart_cmd("sda")}
+            self.assertFalse(slow & set(asked))                       # apt, big logs, machine info and SMART: not run again within their lifetime
+            self.assertEqual(set(asked), set(health.LINUX_AGENT_COMMANDS + agents.inventory_commands()) - slow)
+            self.assertEqual(first, second)                           # their outputs are sent again, the report stays complete
+            asked.clear()
+            from unittest import mock
+            with mock.patch.object(ns["time"], "time", return_value=10 ** 10):   # far later: everything is run again
+                ns["collect"]()
+            self.assertLessEqual(slow, set(asked))
+
+    def test_v3_un_echec_n_est_pas_garde(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            ns = self.agent(str(Path(d) / "cache.json"))
+            asked = []
+            ns["run"] = lambda cmd, timeout: (asked.append(cmd) or ((100, "E: lock") if cmd == health.APT_CMD else (0, "")))
+            ns["collect"]()
+            asked.clear()
+            ns["collect"]()
+            self.assertIn(health.APT_CMD, asked)
+
+    def test_v3_releve_compresse_et_coupe_si_trop_gros(self):
+        import gzip
+        import json
+        import random
+        ns = self.agent("/nonexistent/cache.json")
+        meta = {"version": "3", "host": "box"}
+        small = json.loads(gzip.decompress(ns["pack"](meta, {"a": [0, "x" * 1000]})))
+        self.assertEqual((small["data"]["kind"], small["data"]["cmds"]["a"][1]), ("linux", "x" * 1000))
+        rnd = random.Random(1)
+        noise = lambda n: "".join(rnd.choice("abcdefghijklmnopqrstuvwxyz0123456789") for _ in range(n))   # noqa: E731 (does not compress)
+        big = {f"c{i}": [0, noise(49000)] for i in range(8)}
+        body = ns["pack"](meta, big)
+        self.assertLessEqual(len(body), ns["MAX_BODY"])
+        got = json.loads(gzip.decompress(body))["data"]["cmds"]
+        self.assertTrue(any("[cut by the agent" in v[1] for v in got.values()))
+        self.assertEqual(set(got), set(big))                          # every command is still there, only some outputs are shorter
+
     def test_install_sh_syntaxe_et_contenu(self):
         text = agents.script("install.sh")
         self.assertTrue(text.startswith("#!/usr/bin/env bash"))
@@ -151,6 +209,51 @@ class LinuxAgentScripts(unittest.TestCase):
         if shutil.which("bash"):
             r = subprocess.run(["bash", "-n"], input=text.encode(), capture_output=True)
             self.assertEqual(r.returncode, 0, r.stderr.decode())
+
+    def test_install_sh_regles_sudo_exactes(self):
+        """MSV_SUDO=1 allows exactly the commands the collection runs through sudo -n: a rule that drifts would silently stop working."""
+        from connectors.process import LISTEN_SH
+        text = agents.script("install.sh")
+        for cmd in (health.NEEDRESTART_ARGS, health.FAIL2BAN_ARGS):
+            self.assertIn(f'"{cmd}"', text)
+            self.assertIn(f"sudo -n {cmd}", health.as_root(cmd))
+        self.assertIn("sudo -n ss -tlnpH", LISTEN_SH)
+        self.assertIn(') -tlnpH"', text)
+        self.assertNotIn("ALL=(root) NOPASSWD: ALL", text)
+
+    def test_v4_inventaire_lu_comme_par_ssh(self):
+        import hostinfo
+        from connectors import docker_ssh, process
+        remote = ("##OS Debian GNU/Linux 12 (bookworm)\n##KERNEL 6.1.0\n##UP 3600\n##SVC apache2=active nginx=inactive\n"
+                  "##SSHDR no\n##DOCKERBIN yes\n##DOCKER 1\n##VIRT kvm\n")
+        ps = "web|nginx:1|0.0.0.0:8080->80/tcp, 127.0.0.1:3011->3000/tcp|Up 2 days|site||||\n" + docker_ssh.ENV_MARK + "\n"
+        ss = 'LISTEN 0 511 0.0.0.0:80 0.0.0.0:* users:(("apache2",pid=1,fd=4))\nLISTEN 0 5 127.0.0.1:3011 0.0.0.0:*\n'
+        report = {"data": {"kind": "linux", "cmds": {hostinfo.REMOTE: [0, remote], docker_ssh.DOCKER_SH: [0, ps],
+                                                      docker_ssh.NET_SH: [0, "_host=192.168.1.61/24\n"], process.LISTEN_SH: [0, ss]}}}
+        inv = agents.linux_inventory(report)
+        self.assertEqual(inv["info"], {**hostinfo.parse_host_info(remote), "via": "agent"})
+        self.assertEqual((inv["info"]["os"], inv["info"]["apache"]), ("Debian GNU/Linux 12 (bookworm)", True))
+        self.assertEqual(inv["containers"], docker_ssh.parse_containers(ps))
+        self.assertEqual((inv["containers"][0]["ports"], inv["containers"][0]["local_ports"]), ([(8080, 80)], [3011]))
+        self.assertEqual(inv["internal"], {"192.168.1.61": "_host"})
+        self.assertEqual(inv["ports"], {80: {"name": "apache2", "lan": True}})
+
+    def test_v4_inventaire_absent_ou_docker_refuse(self):
+        from connectors import docker_ssh
+        self.assertIsNone(agents.linux_inventory({"data": {"disks": []}}))   # Windows report
+        old = agents.linux_inventory({"data": {"kind": "linux", "cmds": {health.REBOOT_CMD: [0, "no\n"]}}})   # agent 3: nothing to read
+        self.assertEqual(old, {"info": None, "containers": None, "internal": None, "ports": None})
+        denied = {docker_ssh.DOCKER_SH: [1, "permission denied while trying to connect to the Docker daemon socket"]}
+        self.assertIsNone(agents.linux_inventory({"data": {"kind": "linux", "cmds": denied}})["containers"])   # inaccessible, not absent
+        missing = {docker_ssh.DOCKER_SH: [127, "sh: 1: docker: not found"]}
+        self.assertEqual(agents.linux_inventory({"data": {"kind": "linux", "cmds": missing}})["containers"], [])   # no Docker here
+
+    def test_v4_info_machine_gardee_une_heure(self):
+        import hostinfo
+        ns: dict = {"__name__": "agent_under_test", "__file__": "/nonexistent/agent.py"}
+        exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
+        self.assertEqual(ns["CACHED"][hostinfo.REMOTE], 3600)
+        self.assertTrue(all(len(c) <= agents.MAX_LINUX_CMD for c in ns["COMMANDS"]))   # every command fits the server limit
 
     def test_commande_d_installation(self):
         win = agents.install_command("http://192.168.1.10:8090", "msv_agent_x")

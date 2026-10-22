@@ -1,17 +1,18 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { Archive, Plus, Puzzle, FolderOpen, Bot, Box, Copy, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronRight, Container, Cpu, Eye, EyeOff, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, MemoryStick, Plug, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Unplug, WifiOff, type LucideIcon } from "lucide-react";
+import { Archive, Plus, Puzzle, FolderOpen, Bot, Box, Copy, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronRight, Container, Clock, Cpu, Database, Eye, EyeOff, FolderSync, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, Layers, MemoryStick, Plug, RefreshCw, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Timer, Unplug, WifiOff, Workflow, type LucideIcon } from "lucide-react";
 import { Fragment, createContext, useContext, useRef, useCallback, useEffect, useMemo, useState } from "react";
 import { read, type Snapshot } from "../api";
+import { Copyable } from "../components/form";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime, dur, durShort, ipNum, splitHostName } from "../lib/format";
 import { hostName, status } from "../lib/status";
 import { modelService } from "../lib/modelService";
 import { SwitchPanel } from "./UnifiCards";
-import type { AddressSheet, Backups, LinkSource, HealthHost, Host, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem } from "../types";
+import type { AddressSheet, Backups, LinkSource, HealthHost, Host, HostSystem, Machine, MachineLinks, NetDevice, NetScan, NetworkConnector, FreeboxInfo, ServiceStatus, UnifiDevice, UnifiSystem } from "../types";
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
 import { freeboxHealth, freeboxOf } from "../lib/freebox";
-import { modelIcon, serviceIcon } from "../lib/appIcons";
+import { appIcon, modelIcon } from "../lib/appIcons";
 import { MachinePage } from "./MachinePage";
 import { AddMachineOverlay } from "../components/AddMachineOverlay";
 import { machineFromHash } from "../lib/machineHash";
@@ -27,8 +28,9 @@ import { isHidden, useServicesHidden, type HiddenMap } from "../lib/servicesHidd
 import { SshAccess } from "../components/ssh";
 import { SourceBadges } from "../components/SourceBadges";
 import { DetailRow, DetailSection } from "../components/DetailSection";
+import { ContainerList, SitePaths, WebServersTable, modeLabel } from "../components/WebServers";
 import { primary } from "../lib/forms";
-import { WATCH_SECTION, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
+import { SHARE_STATE, UU_STALE_DAYS, WATCH_SECTION, ZFS_BAD, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Pct, Table, Td, Th, type Tone } from "../components/ui";
 import { tx } from "../lib/i18n";
@@ -48,59 +50,39 @@ function topDisk(h?: HealthHost) {
   return (h?.disks || []).reduce<NonNullable<HealthHost["disks"]>[number] | null>((a, d) => (!a || d.used_pct > a.used_pct ? d : a), null);
 }
 
-/** Logiciels de service détectés sur la machine, en icônes ; les nombres (conteneurs, vhosts) sont dans l'info-bulle.
- *  max : au-delà, une pastille « +N » (la liste complète est dans le détail déplié) */
+/** Web servers of the machine (NPM, Anubis, Apache, nginx…) then Docker, as icons; each tooltip lists the instances (port, how it runs,
+ *  what it forwards to). max: beyond, a « +N » chip (the full list is in the unfolded detail) */
+/** One web server in the tooltip of its chip: ports, how it runs, where it sends to, its vhosts and whether it is stopped */
+function webLine(w: NonNullable<Machine["web"]>[number]): string {
+  const ports = w.ports.map((p) => ":" + p).join(" ") || "-";
+  const behind = w.behind ? " → " + (w.behind.name ?? w.behind.addr) : "";
+  const vhosts = w.vhosts ? " · " + tx("{0} vhost(s)", w.vhosts) : "";
+  const stopped = w.up ? "" : " · " + tx("arrêté");
+  return `${ports}  ${modeLabel(w.mode)} · ${w.name}${behind}${vhosts}${stopped}`;
+}
+
 function Servers({ m, snap, max }: { m: Machine; snap: Snapshot; max?: number }) {
-  const rows = snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.service);
-  const npm = rows.some((r) => /nginx-proxy-manager/.test(r.service!.image || ""));
-  const apDown = rows.filter((r) => r.enabled && r.service!.kind === "apache" && status(r)[0] === "bad").length;
-  const i = m.info || {}, vh = (i.vhosts || []).length, unread = (i.vhosts_unreadable || []).length;
-  const chips: { key: string; icon: string; tip: string; bad?: boolean }[] = [
-    ...(npm ? [{ key: "npm", icon: "nginx-proxy-manager", tip: tx("Nginx Proxy Manager : la machine héberge un NPM") }] : []),
-    ...(i.apache ? [{ key: "apache", icon: "apache", bad: apDown > 0,
-      tip: tx("Apache : {0} vhost(s)", vh) + (unread ? `\n${tx("Vhosts actifs dont la config n'est pas lisible par le compte SSH : {0}. Leurs domaines et ports restent inconnus.", (i.vhosts_unreadable || []).join(", "))}` : "") + (apDown ? `\n${tx("{0} en panne", apDown)}` : "") }] : []),
-    ...(i.nginx ? [{ key: "nginx", icon: "nginx", tip: tx("nginx installé et actif sur la machine (hors conteneur)") }] : []),
-    ...(i.docker ? [{ key: "docker", icon: "docker", tip: tx("Docker : {0} conteneur(s) en cours", i.docker) }] : []),
-  ];
+  const apDown = snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.enabled && r.service?.kind === "apache" && status(r)[0] === "bad").length;
+  const i = m.info || {}, groups = new Map<string, NonNullable<Machine["web"]>>();
+  for (const w of m.web ?? []) groups.set(w.key, [...(groups.get(w.key) ?? []), w]);
+  const chips: { key: string; icon: string | null; label: string; tip: string; bad?: boolean }[] = [...groups].map(([key, ws]) => {
+    const stopped = ws.filter((w) => !w.up).length, down = stopped + (key === "apache" ? apDown : 0);
+    const head = [ws[0].label, ws.length > 1 ? tx("{0} instances", ws.length) : "", stopped ? tx("{0} arrêtée(s)", stopped) : "", key === "apache" && apDown ? tx("{0} en panne", apDown) : ""].filter(Boolean).join(" · ");
+    const lines = ws.map(webLine);
+    return { key, icon: appIcon([ws[0].label]), label: ws[0].label, tip: [head, ...lines].join("\n"), bad: down > 0 };
+  });
+  if (i.docker) chips.push({ key: "docker", icon: appIcon(["Docker"]), label: "Docker", tip: tx("Docker : {0} conteneur(s) en cours", i.docker) });
   const shown = max && chips.length > max ? chips.slice(0, max) : chips, more = chips.slice(shown.length);
   return chips.length ? (
     <div className={`flex items-center gap-1 ${max ? "flex-nowrap" : "flex-wrap"}`}>
       {shown.map((c) => (
         <span key={c.key} title={c.tip} tabIndex={0} className={`grid h-7 w-7 place-items-center rounded-md border ${c.bad ? "border-bad/60 bg-bad/10" : "border-line bg-bg2"}`}>
-          <img src={`${import.meta.env.BASE_URL}icons/${c.icon}.svg`} alt="" className="h-4 w-4" />
+          {c.icon ? <img src={c.icon} alt="" className="h-4 w-4" /> : <span className="text-[11px] font-bold text-muted">{c.label.slice(0, 2)}</span>}
         </span>
       ))}
-      {more.length > 0 && <span title={tx("Aussi : {0} (détail déplié)", more.map((c) => c.key).join(", "))} className="grid h-7 min-w-7 place-items-center rounded-md border border-line bg-bg2 px-1 text-[11px] font-bold text-muted">+{more.length}</span>}
+      {more.length > 0 && <span title={tx("Aussi : {0} (détail déplié)", more.map((c) => c.label).join(", "))} className="grid h-7 min-w-7 place-items-center rounded-md border border-line bg-bg2 px-1 text-[11px] font-bold text-muted">+{more.length}</span>}
     </div>
   ) : <Dim>-</Dim>;
-}
-
-/** The Docker containers behind the services of a machine (name, image, state), each with its service logo, one line each */
-function DockerList({ m, snap }: Readonly<{ m: Machine; snap: Snapshot }>) {
-  const seen = new Set<string>();
-  const rows = snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.service?.kind === "docker").filter((r) => {
-    const k = r.service!.name || r.service!.image || "";
-    return k && !seen.has(k) && !!seen.add(k);
-  });
-  if (!rows.length) return null;
-  return (
-    <div className="py-1">
-      <div className="mb-1 text-xs text-dim">{tx("Conteneurs Docker")} · {rows.length}</div>
-      <ul className="flex flex-col gap-0.5">
-        {rows.map((r) => {
-          const sv = r.service!, icon = serviceIcon(r), up = !sv.state || /^(?:up|running)/i.test(sv.state);
-          return (
-            <li key={sv.name || sv.image} className="flex items-center gap-2 text-xs" title={[sv.image, sv.state].filter(Boolean).join(" · ")}>
-              {icon ? <img src={icon} alt="" className="h-4 w-4 shrink-0" /> : <span className="h-4 w-4 shrink-0" />}
-              <b className="truncate font-medium">{sv.name || sv.image}</b>
-              {sv.image && <span className="truncate font-mono text-[11px] text-dim">{sv.image}</span>}
-              <span className={`ml-auto shrink-0 ${up ? "text-ok" : "text-warn"}`}>{sv.state ? sv.state.replace(/^Up /i, "") : tx("en marche")}</span>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
 }
 
 /** Clé utilisée par l'alias (chemin et début d'empreinte) */
@@ -230,6 +212,7 @@ const levelKey = (h?: HealthHost): string => (h?.reachable === false ? "down" : 
 const WATCH_ICON: Record<WatchKind, LucideIcon> = {
   down: WifiOff, ssh: KeyRound, disk: HardDrive, systemd: ServerCrash, docker: Container, kernel: Bug, smart: ScanSearch, load: Gauge, ssh_auth: ShieldAlert,
   mem: MemoryStick, temp: Thermometer, reboot: RotateCw, updates: ArrowUpCircle, services: Globe, connector: Plug, access: Unplug,
+  pm2: Workflow, raid: Layers, zfs: Database, mounts: FolderSync, ntp: Clock, timers: Timer, auto_upd: RefreshCw,
 };
 const WATCH_STYLE: Record<WatchTone, string> = { bad: "border-bad/60 bg-bad/15 text-bad", warn: "border-warn/60 bg-warn/15 text-warn", info: "border-link/50 bg-link/10 text-link" };
 
@@ -412,6 +395,13 @@ function OsShort({ m, kind }: { m: Machine; kind: OsKind | null }) {
 /** Origine d'une donnée : le connecteur ou la source qui l'a lue (rouge si en panne) */
 export interface Origin { label: string; ok?: boolean; tip?: string; href?: string }  // href : où régler cette source (Réglages)
 
+/** Where the OS of the machine was read: SSH, the MyServices agent or the network search */
+function osOrigins(m: Machine, here: string, scanned: boolean): Origin[] {
+  if (m.info?.os && m.info.via !== "agent") return [{ label: "SSH", href: here }];
+  if (m.info?.os || m.agent) return [{ label: tx("agent MyServices"), href: `#settings/agents/${m.ip}` }];
+  return scanned ? [{ label: tx("recherche réseau"), href: "#settings/network" }] : [];
+}
+
 /** D'où viennent les données de la machine : SSH, agent, recherche réseau, MynetworK, Beszel et connecteurs visant son IP */
 function originsOf(m: Machine, snap: Snapshot, h: HealthHost | undefined, scanned: boolean, seen: boolean) {
   const linked = (types: string[]): Origin[] => (snap.data.connectors ?? []).filter((c) => c.ip === m.ip && types.includes(c.type))
@@ -423,7 +413,7 @@ function originsOf(m: Machine, snap: Snapshot, h: HealthHost | undefined, scanne
     role: [{ label: tx("Réglages → Machines"), href: here }] as Origin[],
     mac: seen ? [{ label: "MynetworK", href: connectors }] : [],
     ssh: m.ssh ? [{ label: tx("alias SSH de MyServices"), href: here }] : [],
-    os: m.info?.os ? [{ label: "SSH", href: here }] : m.agent ? [{ label: tx("agent MyServices"), href: `#settings/agents/${m.ip}` }] : scanned ? [{ label: tx("recherche réseau"), href: "#settings/network" }] : [],
+    os: osOrigins(m, here, scanned),
     services: [...(m.npm ? [{ label: "NPM", href: connectors }] : []), ...linked(["docker", "process", "adguard"]),
                ...(m.api ?? []).map((a) => ({ label: a.label, ok: a.ok || !!a.stale, tip: `${a.name} : ${a.message ?? ""}`, href: connectors }))],
     health,
@@ -604,6 +594,107 @@ function BigLogsRow({ logs }: Readonly<{ logs: NonNullable<HealthHost["logs"]> }
   return <DetailRow k={tx("Gros journaux")} title={tx("Gros journaux")}><ProbeChips items={items} /></DetailRow>;
 }
 
+const SHARE_TONE: Record<string, string> = { ok: "text-ok", hang: "text-bad", error: "text-warn", missing: "text-warn" };
+type RaidArray = NonNullable<NonNullable<HostSystem["raid"]>["arrays"]>[number];
+function raidState(a: RaidArray): string {
+  if (a.rebuild) return `${a.rebuild.kind} ${a.rebuild.pct} %`;
+  return a.degraded ? tx("dégradé") : tx("sain");
+}
+function raidTone(a: RaidArray): string {
+  if (a.degraded && !a.rebuild) return "text-bad";
+  return a.degraded || a.rebuild ? "text-warn" : "text-ok";
+}
+function zfsTone(health: string): string {
+  if (health === "ONLINE") return "text-ok";
+  return ZFS_BAD.includes(health) ? "text-bad" : "text-warn";
+}
+
+/** Services and storage of a Linux machine (PM2, RAID, ZFS, network shares, clock, timers, open sessions): a row each, only for what the machine has */
+function SystemRows({ s }: Readonly<{ s: HostSystem }>) {
+  const pm2 = s.pm2;
+  const pm2Items = pm2?.available ? [
+    ...(pm2.units ?? []).filter((u) => u.enabled).map((u) => ({ name: u.unit.replace(/\.service$/, ""), value: u.active ? tx("en marche") : tx("arrêté"), tone: u.active ? "text-ok" : "text-warn" })),
+    ...(pm2.home && !(pm2.units ?? []).length ? [{ name: tx("compte"), value: pm2.running ? tx("en marche") : tx("arrêté"), tone: pm2.running ? "text-ok" : "text-dim" }] : []),
+    ...(pm2.apps ?? []).map((a) => ({ name: a.name, value: a.up ? tx("en marche") : tx("arrêtée"), tone: a.up ? "text-ok" : "text-warn" })),
+  ] : [];
+  const raid = (s.raid?.arrays ?? []).map((a) => ({ name: [a.name, a.level].filter(Boolean).join(" "), value: [raidState(a), a.members].filter(Boolean).join(" · "), tone: raidTone(a) }));
+  const zfs = (s.zfs?.pools ?? []).map((p) => ({ name: p.name, value: p.health, tone: zfsTone(p.health) }));
+  const shares = (s.mounts?.shares ?? []).map((m) => ({ name: m.path, value: SHARE_STATE[m.state]?.() ?? m.state, tone: SHARE_TONE[m.state] ?? "" }));
+  const sessions = (s.sessions?.sessions ?? []).map((x) => ({ name: `${x.user} ${x.tty}`, value: x.from || tx("local"), tone: "" }));
+  return (
+    <>
+      {pm2Items.length > 0 && <DetailRow k="PM2" title={tx("PM2, lu sans la commande pm2 : il n'est jamais relancé par MyServices")} watch="pm2"><ProbeChips items={pm2Items} /></DetailRow>}
+      {raid.length > 0 && <DetailRow k="RAID" title={tx("RAID logiciel (mdadm)")} watch="raid"><ProbeChips items={raid} /></DetailRow>}
+      {zfs.length > 0 && <DetailRow k="ZFS" title={tx("Pools ZFS")} watch="zfs"><ProbeChips items={zfs} /></DetailRow>}
+      {shares.length > 0 && <DetailRow k={tx("Partages réseau")} title={tx("Partages réseau montés (NFS, SMB, SSHFS) et ceux de /etc/fstab")} watch="mounts"><ProbeChips items={shares} /></DetailRow>}
+      {s.ntp?.available && (
+        <DetailRow k={tx("Heure")} title={tx("Synchronisation de l'heure")} watch="ntp">
+          {s.ntp.synced ? <span className="text-ok">{tx("synchronisée")}</span> : <span className="text-warn">{s.ntp.service ? tx("non synchronisée") : tx("non synchronisée, aucun service de synchronisation actif")}</span>}
+        </DetailRow>
+      )}
+      {s.timers?.available && (
+        <DetailRow k={tx("Tâches planifiées")} title={tx("Timers systemd")} watch="timers">
+          <span>{tx("{0} actives", s.timers.total ?? 0)}</span>
+          {!!s.timers.failed?.length && <ProbeChips items={s.timers.failed.map((u) => ({ name: u.replace(/\.service$/, ""), value: tx("en échec"), tone: "text-warn" }))} />}
+        </DetailRow>
+      )}
+      {sessions.length > 0 && <DetailRow k={tx("Sessions ouvertes")} title={tx("Sessions ouvertes")}><ProbeChips items={sessions} /></DetailRow>}
+      {s.fail2ban?.available && (
+        <DetailRow k="Fail2ban" title={tx("Prisons Fail2ban et adresses bannies en ce moment")}>
+          {s.fail2ban.access ? <ProbeChips items={(s.fail2ban.jails ?? []).map((j) => ({ name: j.name, value: tx("{0} bannie(s)", j.banned), tone: "", dim: !j.banned }))} />
+            : <SudoHint rule={s.fail2ban.rule} file="myservices-fail2ban" note={tx("Inutile si LogviewR lit déjà le Fail2ban de cette machine.")} />}
+        </DetailRow>
+      )}
+    </>
+  );
+}
+
+/** A read that needs root and has no sudo rule yet: « not read », and behind a link the exact rule to add on the machine (one command, read-only) */
+function SudoHint({ rule, file, note }: Readonly<{ rule?: string; file: string; note?: string }>) {
+  const [how, setHow] = useState(false);
+  const cmd = `echo '${rule ?? ""}' | sudo tee /etc/sudoers.d/${file} >/dev/null && sudo chmod 440 /etc/sudoers.d/${file} && sudo visudo -cf /etc/sudoers.d/${file}`;
+  return (
+    <span className="flex min-w-0 flex-col gap-1">
+      <span><Dim>{tx("non lu : règle sudo absente")}</Dim> <button type="button" className="text-xs text-link hover:underline" aria-expanded={how} onClick={() => setHow(!how)}>{how ? tx("Masquer") : tx("Comment faire sur la machine ?")}</button></span>
+      {how && <>
+        <Dim>{tx("Sur la machine, avec sudo : autorise cette seule commande, en lecture, sans mot de passe. La santé la lit au passage suivant.")}{note ? ` ${note}` : ""}</Dim>
+        <Copyable text={cmd} />
+      </>}
+    </span>
+  );
+}
+
+/** The services to restart after an update (needrestart), or the sudo rule it needs */
+function NeedRestart({ nr }: Readonly<{ nr: NonNullable<HostSystem["needrestart"]> }>) {
+  if (!nr.access) return <SudoHint rule={nr.rule} file="myservices-needrestart" />;
+  if (nr.services?.length) return <span className="text-warn" title={nr.services.join("\n")}>{tx("{0} service(s) : {1}", nr.services.length, nr.services.slice(0, 4).join(", "))}</span>;
+  return <Dim>{tx("aucun service")}</Dim>;
+}
+
+/** Detail, « Updates »: automatic updates (unattended-upgrades) and snaps waiting, when the machine has them */
+function SystemUpdates({ s }: Readonly<{ s?: HostSystem }>) {
+  const u = s?.auto_upd, snap = s?.snap;
+  return (
+    <>
+      {u?.available && (
+        <Row k={tx("Automatiques")}>
+          {!u.enabled ? <Dim>{tx("désactivées")}</Dim> : (
+            <span className={u.errors?.length || (u.days ?? 0) > UU_STALE_DAYS ? "text-warn" : ""} title={u.errors?.join("\n") || undefined}>
+              {u.days == null ? tx("activées, jamais passées") : tx("dernier passage il y a {0}", durShort(u.days * 86400))}{u.errors?.length ? ` · ${tx("{0} erreur(s)", u.errors.length)}` : ""}
+            </span>
+          )}
+        </Row>
+      )}
+      {s?.needrestart?.available && (
+        <Row k={tx("À redémarrer")}>
+          <NeedRestart nr={s.needrestart} />
+        </Row>
+      )}
+      {snap?.available && !!snap.pending && <Row k="Snap"><span className="text-warn" title={snap.names?.join("\n")}>{tx("{0} à mettre à jour", snap.pending)}</span></Row>}
+    </>
+  );
+}
+
 function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
   const bar = (label: string, pct: number | undefined, extra?: string) => pct == null ? null : (
     <DetailRow key={label} k={label} title={label}><Fill pct={pct} /><Pct value={Math.round(pct)} />{extra && <Dim>{extra}</Dim>}</DetailRow>
@@ -629,6 +720,7 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
         </DetailRow>
       )}
       {!!h.logs?.available && (h.logs.files.length > 0 || !!h.logs.journal_mb) && <BigLogsRow logs={h.logs} />}
+      {h.system && <SystemRows s={h.system} />}
       {h.kernel?.has_errors && <KernelBlock id={h.id} lines={h.kernel.samples ?? []} />}
       {h.vmem && bar(tx("Mémoire VM"), h.vmem.pct, `${(h.vmem.used_mb / 1024).toFixed(1)} / ${(h.vmem.total_mb / 1024).toFixed(1)} ${tx("Go")}`)}
       {h.vms && (
@@ -637,6 +729,70 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
         </DetailRow>
       )}
     </>
+  );
+}
+
+const BK_TONE: Record<string, "ok" | "warn" | "bad"> = { ok: "ok", warn: "warn", crit: "bad", down: "bad" };
+const bkText = (level: string) => ({ ok: "text-dim", warn: "text-warn" } as Record<string, string>)[level] ?? "text-bad";
+
+/** « Backups » section: what the machine backs up (the sets it produces), the backup folders that hold them, and where the copies go
+ *  (replication), from the Backups page data. Untracked folders and cron lines stay on the Backups page. Nothing when there is none. */
+export function MachineBackupsSection({ m, backups }: Readonly<{ m: Machine; backups?: Backups | null }>) {
+  const host = backups?.hosts?.find((h) => h.ip === m.ip);
+  if (!host) return null;
+  const sets = (backups?.sets ?? []).filter((s) => s.origin === host.id);
+  const dirs = host.local.filter((d) => d.covered.length);
+  if (!sets.length && !dirs.length && !host.copies.length) return null;
+  const ok = sets.filter((s) => s.level === "ok").length;
+  return (
+    <Section sec="backups" icon={Archive} title={tx("Sauvegardes")} tone={BK_TONE[host.level] ?? "warn"} from={[{ label: tx("Sauvegardes"), href: "#backups" }]}>
+      <Row k={tx("État")}>
+        <span>{tx("{0} jeu(x) sur {1} à jour", ok, sets.length)}</span>
+        {host.last_local && <Dim>· {tx("dernière sauvegarde il y a {0}", ageDays(host.last_local.age))}</Dim>}
+        {host.copies.length > 0 && <Dim>· {tx("{0} lieu(x) de copie", host.copies.length)}</Dim>}
+      </Row>
+      {sets.length > 0 && <Row k={tx("Jeux produits ici")}>
+        <ConsoleBox cols="auto minmax(0,1fr) auto auto auto">
+          {sets.map((s) => {
+            const src = s.locations.find((l) => l.role === "source"), copies = s.locations.filter((l) => l.role !== "source");
+            const locked = copies.filter((l) => l.encrypted).length, missing = s.expect_offsite !== false && !s.offsite;
+            return (
+              <Fragment key={s.id}>
+                <span className="self-center" title={s.why?.join("\n") || undefined}><Dot tone={BK_TONE[s.level] ?? "warn"} /></span>
+                <span className="truncate text-txt" title={s.label}>{s.label.replace(/^[^:]*: /, "")}<span className="text-dim"> · {s.schedule}</span></span>
+                <span className={`whitespace-nowrap text-right ${bkText(src?.level ?? s.level)}`}>{src?.age != null ? ageDays(src.age) : tx("jamais vue")}</span>
+                <span className="whitespace-nowrap text-right text-dim">{s.size ? bytes(s.size) : ""}</span>
+                <span className={`whitespace-nowrap text-right ${missing ? "text-warn" : "text-dim"}`} title={tx("Copies ailleurs (🔒 = chiffrées)")}>{missing ? tx("aucune copie") : tx("{0} copie(s)", copies.length)}{locked ? ` · ${locked} 🔒` : ""}</span>
+              </Fragment>
+            );
+          })}
+        </ConsoleBox>
+      </Row>}
+      {dirs.length > 0 && <Row k={tx("Dossiers")}>
+        <ConsoleBox cols="minmax(0,1fr) auto auto">
+          {dirs.map((d) => (
+            <Fragment key={d.path}>
+              <span className="truncate" title={d.covered.join(", ")}><span className="font-mono text-txt">{d.path}</span><span className="text-dim"> · {d.covered.join(", ")}</span></span>
+              <span className="whitespace-nowrap text-right text-dim">{d.age != null ? ageDays(d.age) : ""}</span>
+              <span className="whitespace-nowrap text-right text-dim">{d.size ? bytes(d.size) : ""}</span>
+            </Fragment>
+          ))}
+        </ConsoleBox>
+      </Row>}
+      {host.copies.length > 0 && <Row k={tx("Réplication")}>
+        <ConsoleBox cols="auto minmax(0,1fr) auto auto">
+          {host.copies.map((c) => (
+            <Fragment key={c.host}>
+              <span className="self-center"><Dot tone={BK_TONE[c.level] ?? "warn"} /></span>
+              <span className="truncate" title={c.vias.join("\n")}><span className="text-txt">→ {c.label}</span><span className="text-dim"> · {c.vias.join(", ")}</span>{c.encrypted && <span className="text-violet-400"> · 🔒 {tx("chiffré")}</span>}</span>
+              <span className="whitespace-nowrap text-right text-dim">{tx("{0} jeu(x)", c.sets)}</span>
+              <span className={`whitespace-nowrap text-right ${bkText(c.level)}`}>{c.age != null ? ageDays(c.age) : tx("jamais vue")}</span>
+            </Fragment>
+          ))}
+        </ConsoleBox>
+      </Row>}
+      <Row k=""><a href="#backups" className="text-xs text-link hover:underline">{tx("Voir dans Sauvegardes")} ›</a></Row>
+    </Section>
   );
 }
 
@@ -659,7 +815,7 @@ export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine
               <Fragment key={`${s.id}-${l.label}`}>
                 <span className="truncate text-txt" title={s.label}>{s.label.replace(/^[^:]*: /, "")}<span className="text-dim"> ← {s.label.split(":")[0].trim()}</span></span>
                 <span className="whitespace-nowrap text-dim">{l.via ?? ""}</span>
-                <span className={`whitespace-nowrap text-right ${l.level === "ok" ? "text-dim" : l.level === "warn" ? "text-warn" : "text-bad"}`}>{l.age != null ? ageDays(l.age) : tx("jamais vue")}</span>
+                <span className={`whitespace-nowrap text-right ${bkText(l.level)}`}>{l.age != null ? ageDays(l.age) : tx("jamais vue")}</span>
               </Fragment>
             ))}
           </ConsoleBox>
@@ -671,7 +827,7 @@ export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, unifiNet, freebox, containers, onFilter, focus, backups, pve, sheet, hosts }: Readonly<{ hosts?: Host[]; pve?: string; sheet?: AddressSheet; backups?: Backups | null; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; containers?: React.ReactNode; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
+function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unifiNet, freebox, onFilter, focus, backups, pve, sheet, hosts }: Readonly<{ hosts?: Host[]; pve?: string; sheet?: AddressSheet; backups?: Backups | null; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; npmIps?: Record<string, string>; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
   const unifiOnly = !!unifi && !m.info && !m.agent;   // read only through UniFi: no SSH, no agent
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) setTimeout(() => showWatch(root.current, focus.kind), 120); }, [focus]);   // opened from a badge: show where its notice is explained
@@ -699,10 +855,11 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, uni
 
       {freebox && (freebox.vms || freebox.vm_system) && <FreeboxVmSection fb={freebox} from={from.services} />}
       {!freebox && unifiOnly && <UnifiNetworkSection d={unifi} sys={unifiSys} net={unifiNet} from={from.services} />}
-      {!(freebox && (freebox.vms || freebox.vm_system)) && !(!freebox && unifiOnly) && <SoftwareSection m={m} down={watch.find((w) => w.kind === "services")?.detail} servers={servers} ha={ha} from={from.services} containers={containers} onFilter={onFilter} />}
+      {!(freebox && (freebox.vms || freebox.vm_system)) && !(!freebox && unifiOnly) && <SoftwareSection m={m} down={watch.find((w) => w.kind === "services")?.detail} hosts={hosts ?? []} npmIps={npmIps} ha={ha} from={from.services} onFilter={onFilter} />}
 
       {ha && <HaBackupsSection ha={ha} from={from.services} />}
       {ha && <HaInsideSection ha={ha} from={from.services} />}
+      <MachineBackupsSection m={m} backups={backups} />
       <SharedBackupsSection m={m} backups={backups} from={from.services} />
 
       <HealthSection h={h} from={from.health} />
@@ -1025,26 +1182,44 @@ function AccessSection({ m, from }: Readonly<{ m: Machine; from: Origin[] }>) {
   );
 }
 
-/** Detail, « Software and services »: servers, services, Docker, linked APIs, Home Assistant add-ons, Apache and nginx */
-function SoftwareSection({ m, down, servers, ha, from, containers, onFilter }: Readonly<{ down?: string[]; onFilter?: (sel: Selected) => void; m: Machine; servers?: React.ReactNode; ha?: ServiceStatus; from: Origin[]; containers?: React.ReactNode }>) {
+/** The Docker line of a machine without a container list: docker unreachable, running count (SSH or agent), none, absent, or undefined (no line) */
+function dockerValue(m: Machine): React.ReactNode {
   const i = m.info;
-  const vhosts = (i?.vhosts ?? []) as { port?: number; names?: string[] }[];
+  if (m.containers === null) return <span className="text-warn">{tx("docker inaccessible (SSH ou groupe docker)")}</span>;
+  if (i?.docker) return tx("{0} conteneur(s) en cours", i.docker);
+  if (m.agent?.docker != null) return m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>;
+  return i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined;
+}
+
+/** The services count of a machine, its NPM ones and those down, each a filter link when the page can filter */
+function ServicesValue({ m, onFilter }: Readonly<{ m: Machine; onFilter?: (sel: Selected) => void }>) {
+  return (
+    <>
+      {onFilter && m.services > 0 ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services")} onClick={() => onFilter({ machine: [m.ip] })}>{m.services}</button> : m.services}
+      {m.npm > 0 && <Dim> · {onFilter ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services NPM")} onClick={() => onFilter({ machine: [m.ip], src: ["npm"] })}>{m.npm} NPM</button> : `${m.npm} NPM`}</Dim>}{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}
+    </>
+  );
+}
+
+/** Nothing at all to show in « Software and services » */
+const noSoftware = (m: Machine): boolean =>
+  !m.services && !m.web?.length && !m.containers?.length && !m.info?.docker && !m.agent?.docker && !m.agent?.apps?.length && !m.api?.length;
+
+/** Detail, « Software and services »: services, web servers (Docker, service or binary), path of each site, every container, linked APIs,
+ *  Home Assistant add-ons and Windows apps */
+function SoftwareSection({ m, down, hosts, npmIps, ha, from, onFilter }: Readonly<{ down?: string[]; onFilter?: (sel: Selected) => void; m: Machine; hosts: Host[]; npmIps?: Record<string, string>; ha?: ServiceStatus; from: Origin[] }>) {
   return (
       <Section sec="services" icon={Boxes} title={tx("Logiciels et services")} tone="warn" from={from}>
-        <Row k={tx("Serveurs")}>{servers}</Row>
-        <Row k={tx("Services")}>
-          {onFilter && m.services > 0 ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services")} onClick={() => onFilter({ machine: [m.ip] })}>{m.services}</button> : m.services}
-          {m.npm > 0 && <Dim> · {onFilter ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services NPM")} onClick={() => onFilter({ machine: [m.ip], src: ["npm"] })}>{m.npm} NPM</button> : `${m.npm} NPM`}</Dim>}{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</Row>
+        <Row k={tx("Services")}><ServicesValue m={m} onFilter={onFilter} /></Row>
         {down?.map((d) => <Row key={d} k=""><span className="text-[11px] text-bad">• {d}</span></Row>)}
-        <Row k="Docker">{i?.docker ? tx("{0} conteneur(s) en cours", i.docker) : m.agent?.docker != null ? (m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>) : i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined}</Row>
-        {containers}
+        <WebServersTable m={m} hosts={hosts} npmIps={npmIps} />
+        <SitePaths m={m} hosts={hosts} />
+        {m.containers?.length ? <ContainerList m={m} hosts={hosts} />
+          : <Row k="Docker">{dockerValue(m)}</Row>}
         <Row k="API">{m.api?.length ? <span className="flex flex-wrap gap-1">{m.api.map((a) => <Badge key={`${a.type}/${a.name}`} tone={a.ok ? "ok" : a.stale ? "warn" : "bad"} title={`${a.name} : ${a.message ?? ""}`}>{a.label}{a.version ? ` ${a.version}` : ""}</Badge>)}</span> : undefined}</Row>
         {ha?.addons?.length ? <div className="py-1"><HaAddons s={ha} /></div> : null}
         <Row k={tx("Applis")}>{m.agent?.apps?.length ? <span className="flex flex-wrap gap-1">{m.agent.apps.map((a) => <Badge key={a.key} tone="info" title={tx("Vue par les services Windows du PC")}>{a.label}</Badge>)}</span> : undefined}</Row>
-        <Row k="Apache">{i?.apache ? <>{tx("{0} vhost(s)", vhosts.length)}{!!i.vhosts_unreadable?.length && <span className="text-warn"> · {i.vhosts_unreadable.length} {tx("illisible(s)")}</span>}</> : undefined}</Row>
-        {i?.apache && vhosts.slice(0, 6).map((v, n) => <Row key={n} k=""><span className="font-mono text-[11px] text-muted">:{v.port} {(v.names ?? []).join(", ") || "-"}</span></Row>)}
-        <Row k="nginx">{i?.nginx ? tx("actif sur la machine (hors conteneur)") : undefined}</Row>
-        {!m.services && !i?.docker && !i?.apache && !i?.nginx && !m.agent?.docker && !m.agent?.apps?.length && !m.api?.length && <Dim>-</Dim>}
+        {noSoftware(m) && <Dim>-</Dim>}
       </Section>
   );
 }
@@ -1164,6 +1339,7 @@ export function UpdatesSection({ h, windows, from, freebox, unifi, unifiSys, ha 
       {ha && <HaUpdates ha={ha} />}
       {h?.reboot_required && <Row k={tx("Redémarrage")}><span className="text-warn">{tx("redémarrage requis")}</span></Row>}
       {h && <UpdatesFold h={h} windows={windows} />}
+      <SystemUpdates s={h?.system} />
     </Section>
   );
 }
@@ -1386,7 +1562,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   const admin = snap.me.role === "admin";
   const detailOf = (m: Machine) => {
     const h = hb.get(m.ip);
-    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} containers={<DockerList m={m} snap={snap} />} hosts={snap.data.hosts} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} sheet={snap.data.sheets?.[m.ip]} pve={snap.data.virtualization?.find((c) => c.connector === "proxmox" && c.version && (c.ip === m.ip || c.name === m.links?.hypervisor?.instance))?.version ?? undefined} />;
+    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} npmIps={snap.data.npm_instances} hosts={snap.data.hosts} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} sheet={snap.data.sheets?.[m.ip]} pve={snap.data.virtualization?.find((c) => c.connector === "proxmox" && c.version && (c.ip === m.ip || c.name === m.links?.hypervisor?.instance))?.version ?? undefined} />;
   };
   const [view, pickView] = useStoredView("ms.machines.view", "table");  // Tableau ou Cartes, retenu
 

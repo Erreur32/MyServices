@@ -5,10 +5,13 @@
 - It never runs anything it is told by the server. The server only answers "ok", and may offer a newer version of this very script
   (self-update, below).
 - MyServices reads the outputs with the same code as an SSH session, so the machine looks the same whichever way it is followed.
+- Slow commands (apt list, the big files of /var/log, SMART) run at most once per hour or every 6 h: their last output is kept in cache.json
+  and sent again in between. The report is sent compressed (gzip).
 
 Config: config.json next to this script ({url, token, interval}). Python 3.6 or newer, standard library only.
 Started by a systemd timer (see install.sh).
 """
+import gzip
 import hashlib
 import json
 import os
@@ -25,10 +28,15 @@ VERSION = "__VERSION__"
 COMMANDS = __COMMANDS__                  # filled in by the server when it serves this file
 SMART_LIST = __SMART_LIST__              # lists the disks; one SMART command per disk follows
 SMART_FMT = __SMART_FMT__
+CACHED = __CACHED__                      # {command: seconds}: outputs kept and sent again for that long instead of running the command
+SMART_CACHE = __SMART_CACHE__            # seconds: SMART of each disk
 DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_PATH = os.path.join(DIR, "agent.log")
+CACHE_PATH = os.path.join(DIR, "cache.json")
 MAX_OUT = 50000                          # characters kept per command (the server accepts 60000)
-SLOW = ("docker stats", "apt list")      # commands allowed more time
+MAX_BODY = 240 * 1024                    # bytes: compressed report size kept under the server limit (256 KiB)
+CUT_TO = 12000                           # characters an output is cut to, longest first, when the report is still too big
+SLOW = ("docker stats", "apt list", "snap refresh")   # commands allowed more time (health.SLOW_CMDS)
 
 
 def log(msg):
@@ -57,11 +65,41 @@ def run(cmd, timeout):
     return r.returncode, (out + r.stderr.decode("utf-8", "replace")).strip()
 
 
+def load_cache():
+    try:
+        with open(CACHE_PATH) as f:
+            got = json.load(f)
+        return got if isinstance(got, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_cache(cache):
+    try:
+        tmp = CACHE_PATH + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(cache, f)
+        os.replace(tmp, CACHE_PATH)
+    except OSError:
+        pass   # no cache: the slow commands simply run again next time
+
+
+def run_cached(cmd, timeout, ttl, cache, now):
+    """(rc, output) of the command, from cache.json while it is younger than ttl seconds; only a success is kept."""
+    hit = cache.get(cmd)
+    if ttl and isinstance(hit, list) and len(hit) == 3 and now - hit[0] < ttl:
+        return hit[1], hit[2]
+    rc, out = run(cmd, timeout)
+    out = out[:MAX_OUT]
+    if ttl and rc == 0:
+        cache[cmd] = [now, rc, out]
+    return rc, out
+
+
 def collect():
-    cmds = {}
+    cmds, cache, now = {}, load_cache(), time.time()
     for cmd in COMMANDS:
-        rc, out = run(cmd, 40 if any(s in cmd for s in SLOW) else 20)
-        cmds[cmd] = [rc, out[:MAX_OUT]]
+        cmds[cmd] = list(run_cached(cmd, 40 if any(s in cmd for s in SLOW) else 20, CACHED.get(cmd), cache, now))
     # SMART: one command per disk found (an NVMe namespace is asked through its controller), same rule as the SSH collection
     rc, out = cmds.get(SMART_LIST, [1, ""])
     seen = set()
@@ -73,9 +111,20 @@ def collect():
                 continue
             seen.add(target)
             cmd = SMART_FMT.format(target=target)
-            rc2, out2 = run(cmd, 20)
-            cmds[cmd] = [rc2, out2[:MAX_OUT]]
+            cmds[cmd] = list(run_cached(cmd, 20, SMART_CACHE, cache, now))
+    save_cache({k: v for k, v in cache.items() if k in cmds})   # a disk or a command gone: its output is dropped
     return cmds
+
+
+def pack(meta, cmds):
+    """The report as gzip-compressed JSON; when it is still bigger than MAX_BODY, the longest outputs are cut (marked) one by one
+    rather than losing the whole report."""
+    while True:
+        body = gzip.compress(json.dumps(dict(meta, data={"kind": "linux", "cmds": cmds})).encode("utf-8"))
+        longest = max(cmds, key=lambda c: len(cmds[c][1]), default=None)
+        if len(body) <= MAX_BODY or longest is None or len(cmds[longest][1]) <= CUT_TO:
+            return body
+        cmds[longest] = [cmds[longest][0], cmds[longest][1][:CUT_TO] + "\n[cut by the agent: report too big]"]
 
 
 def os_name():
@@ -92,7 +141,8 @@ def os_name():
 def post(cfg, body):
     """Sends the report; returns the server's answer. Raises HTTPError (4xx/5xx), URLError or OSError."""
     req = urllib.request.Request(cfg["url"].rstrip("/") + "/myservices/api/v1/agent/report", data=body, method="POST",  # NOSONAR S5144: address written by the installer in config.json, checked in load_config()
-                                 headers={"Authorization": "Bearer " + cfg["token"], "Content-Type": "application/json; charset=utf-8"})
+                                 headers={"Authorization": "Bearer " + cfg["token"], "Content-Type": "application/json; charset=utf-8",
+                                          "Content-Encoding": "gzip"})
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.loads(r.read().decode("utf-8"))
 
@@ -158,8 +208,7 @@ def main():
     cfg = load_config()
     if cfg is None:
         return 1
-    body = json.dumps({"version": VERSION, "os": os_name(), "host": socket.gethostname(), "interval": int(cfg.get("interval") or 900),
-                       "data": {"kind": "linux", "cmds": collect()}}).encode("utf-8")
+    body = pack({"version": VERSION, "os": os_name(), "host": socket.gethostname(), "interval": int(cfg.get("interval") or 900)}, collect())
     answer = send(cfg, body)
     if answer is None:
         return 1

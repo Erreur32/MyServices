@@ -64,9 +64,11 @@ class ScriptParSsh(unittest.TestCase):
         with mock.patch.object(npmapi.subprocess, "run", fake):
             npmapi._script("/home/u/npm-api/npm-api.sh", "--host-list", "nas")
             npmapi._script("/opt/npm-api/npm-api.sh", "--host-list")
-        self.assertEqual(seen[0][:5], ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5"])
-        self.assertEqual(seen[0][5], "nas")
-        self.assertIn("--json --host-list", seen[0][6])
+        from sshmux import SSH_MUX
+        n = 1 + len(SSH_MUX)
+        self.assertEqual(seen[0][:n + 4], ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5"])   # one shared connection per machine
+        self.assertEqual(seen[0][n + 4], "nas")
+        self.assertIn("--json --host-list", seen[0][n + 5])
         self.assertEqual(seen[1], ["/opt/npm-api/npm-api.sh", "--json", "--host-list"])
 
     def test_fetch_transmet_la_machine(self):

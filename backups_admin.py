@@ -149,7 +149,7 @@ def current() -> dict:
         loc = (s.get("locations") or [{}])[0]
         sets.append({"id": s["id"], "label": s.get("label", s["id"]), "origin": hosts.get(s.get("origin"), {}).get("label", s.get("origin", "")),
                      "origin_ip": hosts.get(s.get("origin"), {}).get("ip"),
-                     "path": loc.get("path"), "remote": hosts.get(loc.get("host"), {}).get("api") == "remote", "veeam_job": loc.get("veeam_job"), "pbs_group": loc.get("pbs_group"), "synology_task": loc.get("synology_task"), "vzdump": loc.get("vzdump"), "max_age_days": s.get("max_age_days", 8),
+                     "path": loc.get("path"), "remote": hosts.get(loc.get("host"), {}).get("api") == "remote", "veeam_job": loc.get("veeam_job"), "agent_backup": loc.get("agent_backup"), "pbs_group": loc.get("pbs_group"), "synology_task": loc.get("synology_task"), "vzdump": loc.get("vzdump"), "max_age_days": s.get("max_age_days", 8),
                      "ha": any(l.get("ha_backup") for l in s.get("locations", [])),
                      "expect_offsite": s.get("expect_offsite", True), "editable": bool(loc.get("path")),
                      "copies": [{"index": i, "host": hosts.get(l.get("host"), {}).get("label", l.get("host", "")), "path": l.get("path"),
@@ -319,7 +319,7 @@ def _set_text(s: dict, label: str | None, schedule: str | None) -> None:
 def _set_folder(s: dict, path: str) -> None:
     """The folder of a folder set; a set read from a source (vzdump, Veeam, PBS, Synology, Home Assistant) keeps its location"""
     loc = (s.get("locations") or [{}])[0]
-    if not loc.get("path") or loc.get("vzdump") or loc.get("veeam_job") or loc.get("pbs_group") or loc.get("synology_task"):
+    if not loc.get("path") or loc.get("vzdump") or loc.get("veeam_job") or loc.get("agent_backup") or loc.get("pbs_group") or loc.get("synology_task"):
         raise BackupError("ce jeu n'est pas un dossier : son emplacement vient de sa source")
     _check_path(path)
     loc["path"] = path.rstrip("/")
@@ -526,7 +526,7 @@ def veeam_discover(conf: dict) -> dict:
     """Jobs et dépôts du serveur Veeam (lecture seule, rien n'est enregistré). Les dépôts n'ont rien à cocher :
     leur espace libre est lu à chaque relevé dès que le serveur Veeam est suivi."""
     try:
-        jobs, repos = _veeam_conn(conf).fetch()
+        jobs, repos, _ = _veeam_conn(conf).fetch()
     except ConnectorError as e:
         raise BackupError(str(e)) from None
     followed = {loc.get("veeam_job") for s in _read().get("sets", []) for loc in s.get("locations", [])}
@@ -560,39 +560,28 @@ def _check_age_label(it: dict, default_label: str) -> tuple[str, float]:
     return label, age
 
 
-def veeam_follow(conf: dict, jobs: list[dict]) -> dict:
-    """Enregistre le compte Veeam (connecteur « veeam », mot de passe chiffré) puis un jeu par job choisi. Le serveur est relu avant
-    d'écrire : compte refusé ou job inconnu = rien n'est enregistré."""
-    if not jobs:
-        raise BackupError("aucun job choisi")
-    if len(jobs) > 50:
-        raise BackupError("50 jobs au plus à la fois")
-    conn = _veeam_conn(conf)
-    try:
-        known = {j.get("name") for j in conn.fetch()[0]}
-    except ConnectorError as e:
-        raise BackupError(str(e)) from None
-    todo = []
+def _veeam_split_jobs(jobs: list[dict], known: set) -> tuple[list[tuple], list[tuple]]:
+    """Chosen jobs checked against Veeam: (sets to follow as (name, label, age), copies as (name, copy_of))."""
+    todo, copies = [], []
     for it in jobs:
-        name = str(it.get("name") or "")
+        name, copy_of = str(it.get("name") or ""), str(it.get("copy_of") or "")
         if name not in known:
             raise BackupError(f"job « {name[:80]} » absent de Veeam")
-        todo.append((name, *_check_age_label(it, f"Veeam : {name}")))
-    name = _veeam_name()
-    exists = settings.get("veeam", name) is not None
-    try:
-        settings.save("veeam", name, {"url": conn.conf["url"], "user": conn.conf["user"], "password": conn.conf["password"]},
-                      name if exists else None)
-    except settings.SettingsError as e:
-        raise BackupError(str(e)) from None
-    meta = _read()
-    meta.setdefault("hosts", [])
-    meta.setdefault("sets", [])
-    old = next((h for h in meta["hosts"] if h["id"] == VEEAM_HOST), {})
-    old.pop("secrets", None)  # l'ancien fichier de secrets cède la place au compte réglé ici
-    _ensure_host(meta, {**old, "id": VEEAM_HOST, "label": old.get("label", "Serveur Veeam"), "kind": "Veeam Backup & Replication",
-                        "api": "veeam", "url": conn.conf["url"], "connector": name})
-    _ensure_host(meta, {"id": VEEAM_SOURCES, "label": "Machines sauvegardées par Veeam", "kind": "origine des jobs Veeam", "api": "none"})
+        if copy_of:
+            if copy_of not in known or copy_of == name:
+                raise BackupError(f"job copié « {copy_of[:80]} » absent de Veeam")
+            copies.append((name, copy_of))
+        else:
+            todo.append((name, *_check_age_label(it, f"Veeam : {name}")))
+    heads = {t[0] for t in todo} | {s["locations"][0].get("veeam_job") for s in _read().get("sets", []) if s.get("locations")}
+    for _name, copy_of in copies:   # checked before anything is written: the copied job must be followed, or chosen now
+        if copy_of not in heads:
+            raise BackupError(f"« {copy_of[:80]} » n'est pas suivi : cochez-le aussi pour y rattacher sa copie")
+    return todo, copies
+
+
+def _veeam_add_sets(meta: dict, todo: list[tuple]) -> tuple[int, int]:
+    """One set per followed job (label and age updated if the job already has one): (added, updated)."""
     added = updated = 0
     for name, label, age in todo:
         existing = next((s for s in meta["sets"] for loc in s.get("locations", []) if loc.get("veeam_job") == name), None)
@@ -608,11 +597,121 @@ def veeam_follow(conf: dict, jobs: list[dict]) -> dict:
         meta["sets"].append({"id": sid, "label": label, "origin": VEEAM_SOURCES, "schedule": "", "max_age_days": age,
                              "locations": [{"host": VEEAM_HOST, "veeam_job": name, "via": "job Veeam"}]})
         added += 1
+    return added, updated
+
+
+def _veeam_attach_copies(meta: dict, copies: list[tuple]) -> int:
+    """Each Backup Copy job becomes a copy location of the set of the job it copies: number of copies attached."""
+    updated = 0
+    for name, copy_of in copies:   # after the sets: the copied job may be chosen in the same go
+        target = next(s for s in meta["sets"] if s.get("locations") and s["locations"][0].get("veeam_job") == copy_of)
+        if any(loc.get("veeam_job") == name for s in meta["sets"] for loc in s.get("locations", [])):
+            continue   # already followed (as a set or a copy): left as it is
+        target["locations"].append({"host": VEEAM_HOST, "veeam_job": name, "via": "copie Veeam"})
+        updated += 1
+    return updated
+
+
+def veeam_follow(conf: dict, jobs: list[dict]) -> dict:
+    """Enregistre le compte Veeam (connecteur « veeam », mot de passe chiffré) puis un jeu par job choisi. Le serveur est relu avant
+    d'écrire : compte refusé ou job inconnu = rien n'est enregistré. A job given « copy_of » (a Backup Copy job and the job it copies,
+    chosen by the user: Veeam does not say it) becomes a copy location of that job's set instead of a set of its own."""
+    if not jobs:
+        raise BackupError("aucun job choisi")
+    if len(jobs) > 50:
+        raise BackupError("50 jobs au plus à la fois")
+    conn = _veeam_conn(conf)
+    try:
+        known = {j.get("name") for j in conn.fetch()[0]}
+    except ConnectorError as e:
+        raise BackupError(str(e)) from None
+    todo, copies = _veeam_split_jobs(jobs, known)
+    name = _veeam_name()
+    exists = settings.get("veeam", name) is not None
+    try:
+        settings.save("veeam", name, {"url": conn.conf["url"], "user": conn.conf["user"], "password": conn.conf["password"]},
+                      name if exists else None)
+    except settings.SettingsError as e:
+        raise BackupError(str(e)) from None
+    meta = _read()
+    meta.setdefault("hosts", [])
+    meta.setdefault("sets", [])
+    old = next((h for h in meta["hosts"] if h["id"] == VEEAM_HOST), {})
+    old.pop("secrets", None)  # l'ancien fichier de secrets cède la place au compte réglé ici
+    _ensure_host(meta, {**old, "id": VEEAM_HOST, "label": old.get("label", "Serveur Veeam"), "kind": "Veeam Backup & Replication",
+                        "api": "veeam", "url": conn.conf["url"], "connector": name})
+    _ensure_host(meta, {"id": VEEAM_SOURCES, "label": "Machines sauvegardées par Veeam", "kind": "origine des jobs Veeam", "api": "none"})
+    added, updated = _veeam_add_sets(meta, todo)
+    updated += _veeam_attach_copies(meta, copies)
     _write(meta)
     return {"added": added, "updated": updated}
 
 
 # ───────────── Proxmox Backup Server ─────────────
+
+AGENT_TOOLS = ("Veeam Agent", "Sauvegarde Windows Server")   # agents.windows_backups_of
+
+
+def _agent_reports() -> dict:
+    import agents
+    from auth import db_path
+    from config import CFG
+    try:
+        return agents.Agents(db_path(CFG)).fresh_reports()
+    except Exception:  # no agent database (installation without agents): nothing to offer
+        return {}
+
+
+def agent_backups_discover() -> dict:
+    """Veeam Agent and Windows Server Backup runs seen by the Windows agents (their last report), read only: nothing is saved."""
+    import agents
+    meta = _read()
+    followed = {(h.get("ip"), loc.get("agent_backup")) for s in meta.get("sets", []) for loc in s.get("locations", [])
+                for h in meta.get("hosts", []) if h["id"] == loc.get("host") and loc.get("agent_backup")}
+    names = json.loads(setup.META.read_text(encoding="utf-8")).get("machines", {}) if setup.META.exists() else {}
+    out = []
+    for ip, a in sorted(_agent_reports().items()):
+        for b in agents.windows_backups_of(a["report"]):
+            out.append({"ip": ip, "machine": (names.get(ip) or {}).get("name") or str((a["report"] or {}).get("host") or ip),
+                        "tool": b["tool"], "last_run": b["at"], "ok": b["ok"], "warn": b["warn"], "followed": (ip, b["tool"]) in followed})
+    return {"runs": out}
+
+
+def agent_backups_follow(items: list[dict]) -> dict:
+    """One set per chosen (PC, tool): the PC becomes a backups host read from its agent's report (api « agent », with its IP, so the set
+    shows in its machine window). The agent does not say where the backup goes: no copy elsewhere is asked for."""
+    if not items:
+        raise BackupError("aucune sauvegarde choisie")
+    seen = {(r["ip"], r["tool"]): r for r in agent_backups_discover()["runs"]}
+    todo = []
+    for it in items:
+        key = (str(it.get("ip") or ""), str(it.get("tool") or ""))
+        if key not in seen:
+            raise BackupError(f"« {key[1][:40]} » de {key[0][:40]} absent des relevés des agents")
+        todo.append((key, *_check_age_label(it, f"{seen[key]['machine']} : {key[1]}")))
+    meta = _read()
+    meta.setdefault("hosts", [])
+    meta.setdefault("sets", [])
+    added = updated = 0
+    for (ip, tool), label, age in todo:
+        hid = _slug(f"agent-{ip}")
+        _ensure_host(meta, {"id": hid, "label": seen[(ip, tool)]["machine"], "ip": ip, "kind": "PC Windows (agent MyServices)", "api": "agent"})
+        existing = next((s for s in meta["sets"] for loc in s.get("locations", []) if loc.get("host") == hid and loc.get("agent_backup") == tool), None)
+        if existing:
+            existing["label"], existing["max_age_days"] = label, age
+            updated += 1
+            continue
+        taken = {s["id"] for s in meta["sets"]}
+        base = sid = _slug(f"{hid}-{tool}")
+        n = 2
+        while sid in taken:
+            sid, n = f"{base}-{n}", n + 1
+        meta["sets"].append({"id": sid, "label": label, "origin": hid, "schedule": "", "max_age_days": age, "expect_offsite": False,
+                             "locations": [{"host": hid, "agent_backup": tool, "via": "agent Windows"}]})
+        added += 1
+    _write(meta)
+    return {"added": added, "updated": updated}
+
 
 PBS_HOST, PBS_SOURCES = "pbs", "pbs-sources"
 

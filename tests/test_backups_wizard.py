@@ -51,7 +51,7 @@ class FakeServer(BaseHTTPRequestHandler):
         if self.path.startswith("/api/v1/"):
             if self.headers.get("Authorization") != "Bearer t":
                 return self.reply(401, {})
-            return self.reply(200, VEEAM["jobs"] if self.path.endswith("jobs/states") else VEEAM["repos"])
+            return self.reply(200, VEEAM["jobs"] if self.path.endswith("jobs/states") else VEEAM["sessions"] if "/sessions" in self.path else VEEAM["repos"])
         if self.headers.get("Authorization") != "Bearer " + TOKEN:
             return self.reply(401, {})
         self.reply(200, HA_STATES if self.path == "/api/states" else {"version": "2026.10.1"})
@@ -150,10 +150,33 @@ class VeeamAssistant(Base):
         found = {j["name"]: j["followed"] for j in ba.veeam_discover(self.acct(password=""))["jobs"]}  # compte enregistré réutilisé
         self.assertEqual(found, {"PC-Jeu image": True, "Serveur fichiers": True, "Ancien job": False})
 
+    def test_job_de_copie_rattache_au_jeu_du_job_copie(self):
+        """The user says which job a Backup Copy job copies: it becomes a copy location of that set, not a set of its own."""
+        jobs = [{"name": "PC-Jeu image", "label": "PC de jeu"}, {"name": "Serveur fichiers", "copy_of": "PC-Jeu image"}]
+        self.assertEqual(ba.veeam_follow(self.acct(), jobs), {"added": 1, "updated": 1})
+        meta = self.meta_json()
+        self.assertEqual(len(meta["sets"]), 1)
+        self.assertEqual([(l["veeam_job"], l["via"]) for l in meta["sets"][0]["locations"]],
+                         [("PC-Jeu image", "job Veeam"), ("Serveur fichiers", "copie Veeam")])
+        found = {j["name"]: j["followed"] for j in ba.veeam_discover(self.acct(password=""))["jobs"]}
+        self.assertTrue(found["Serveur fichiers"])   # a copy counts as followed
+        self.assertEqual(ba.veeam_follow(self.acct(password=""), [{"name": "Serveur fichiers", "copy_of": "PC-Jeu image"}]),
+                         {"added": 0, "updated": 0})   # no second copy location
+
+    def test_job_de_copie_refuse_sans_le_job_copie(self):
+        for jobs in ([{"name": "Serveur fichiers", "copy_of": "PC-Jeu image"}],    # copied job not followed
+                     [{"name": "Serveur fichiers", "copy_of": "Inconnu"}], [{"name": "Serveur fichiers", "copy_of": "Serveur fichiers"}]):
+            acct = self.acct()
+            with self.assertRaises(ba.BackupError, msg=str(jobs)):
+                ba.veeam_follow(acct, jobs)
+        self.assertFalse(self.meta.exists())
+        self.assertEqual(self.config.read_text(encoding="utf-8"), "{}")   # not even the account
+
     def test_refus_sans_rien_ecrire(self):
         for jobs in ([], [{"name": "Inconnu"}], [{"name": "PC-Jeu image", "max_age_days": 0}], [{"name": "PC-Jeu image", "label": "x" * 81}]):
+            acct = self.acct()
             with self.assertRaises(ba.BackupError, msg=str(jobs)):
-                ba.veeam_follow(self.acct(), jobs)
+                ba.veeam_follow(acct, jobs)
         with self.assertRaises(ba.BackupError):
             ba.veeam_follow(self.acct(password="faux"), [{"name": "PC-Jeu image"}])
         self.assertEqual(self.config.read_text(encoding="utf-8"), "{}")
@@ -268,6 +291,59 @@ class HomeAssistantAssistant(Base):
             out = backups.analyse(meta, res, {}, ok_at + days * 86400)
             self.assertEqual(out["sets"][0]["level"], expected, days)
         self.assertEqual(backups.analyse(meta, res, {}, ok_at + 3600)["summary"]["ok"], 1)
+
+
+
+class AgentBackups(Base):
+    """Veeam Agent / Windows Server Backup seen by a Windows agent: followed as sets of the PC, read from its last report."""
+    REPORT = {"data": {"va": {"t": "2026-10-09T02:00:00Z", "l": 4, "m": "Job PC-Jeu finished with Success"},
+                       "wb": {"t": "2026-10-01T02:00:00Z", "l": 2, "m": "The backup operation failed"}}, "host": "GAMER32"}
+
+    def reports(self, report=None):
+        return mock.patch.object(ba, "_agent_reports", return_value={"192.168.1.40": {"report": report or self.REPORT, "seen": 1, "fresh": True}})
+
+    def test_liste_puis_suivi_dans_la_fiche_du_pc(self):
+        (Path(self.tmp.name) / "services-meta.json").write_text(json.dumps({"machines": {"192.168.1.40": {"name": "Gamer32"}}}), encoding="utf-8")
+        with self.reports():
+            runs = ba.agent_backups_discover()["runs"]
+            self.assertEqual([(r["machine"], r["tool"], r["ok"], r["followed"]) for r in runs],
+                             [("Gamer32", "Veeam Agent", True, False), ("Gamer32", "Sauvegarde Windows Server", False, False)])
+            self.assertEqual(ba.agent_backups_follow([{"ip": "192.168.1.40", "tool": "Veeam Agent", "max_age_days": 2}]), {"added": 1, "updated": 0})
+            self.assertTrue(ba.agent_backups_discover()["runs"][0]["followed"])
+            self.assertEqual(ba.agent_backups_follow([{"ip": "192.168.1.40", "tool": "Veeam Agent", "label": "PC", "max_age_days": 3}]),
+                             {"added": 0, "updated": 1})
+            for bad in ([], [{"ip": "192.168.1.41", "tool": "Veeam Agent"}], [{"ip": "192.168.1.40", "tool": "Autre"}]):
+                with self.assertRaises(ba.BackupError, msg=str(bad)):
+                    ba.agent_backups_follow(bad)
+        meta = self.meta_json()
+        host = meta["hosts"][0]
+        self.assertEqual((host["api"], host["ip"], host["label"]), ("agent", "192.168.1.40", "Gamer32"))
+        s = meta["sets"][0]
+        self.assertEqual((s["origin"], s["label"], s["max_age_days"], s["expect_offsite"]), (host["id"], "PC", 3.0, False))
+        self.assertEqual(s["locations"], [{"host": host["id"], "agent_backup": "Veeam Agent", "via": "agent Windows"}])
+
+    def test_niveau_d_apres_le_releve(self):
+        import backups
+        with self.reports():
+            ba.agent_backups_follow([{"ip": "192.168.1.40", "tool": "Veeam Agent", "max_age_days": 2},
+                                     {"ip": "192.168.1.40", "tool": "Sauvegarde Windows Server", "max_age_days": 2}])
+        meta = self.meta_json()
+        host = meta["hosts"][0]
+        fake = mock.MagicMock()
+        fake.return_value.fresh_reports.return_value = {"192.168.1.40": {"report": self.REPORT, "seen": 1, "fresh": True}}
+        import types
+        no_auth = mock.patch.dict(sys.modules, {"auth": types.SimpleNamespace(db_path=lambda cfg: "/nulle/part")})   # argon2 absent outside the image
+        no_auth.start()
+        self.addCleanup(no_auth.stop)
+        with mock.patch("agents.Agents", fake):
+            got, err = backups.agent_collect(host)
+        self.assertEqual(err, "")
+        now = datetime.fromisoformat("2026-10-09T12:00:00+00:00").timestamp()
+        out = backups.analyse(meta, {host["id"]: (got, "")}, {}, now)
+        lv = {s["locations"][0]["detail"].split(" (")[0]: s["level"] for s in out["sets"]}
+        self.assertEqual(lv, {"dernier passage : réussi": "ok", "dernier passage : échec": "crit"})   # no copy elsewhere asked: ok stays ok
+        with mock.patch("agents.Agents", mock.MagicMock(**{"return_value.fresh_reports.return_value": {}})):
+            self.assertEqual(backups.agent_collect(host), (None, "agent : aucun relevé de l'agent MyServices de ce PC"))
 
 
 if __name__ == "__main__":

@@ -626,7 +626,7 @@ class BackupApis(unittest.TestCase):
                     return FakeNPM.reply(self, 200, {"version": "2026.10.1"})
                 if self.headers.get("x-api-version") != "1.1-rev0":
                     return FakeNPM.reply(self, 400, {})
-                FakeNPM.reply(self, 200, v["jobs"] if self.path.endswith("jobs/states") else v["repos"])
+                FakeNPM.reply(self, 200, v["jobs"] if self.path.endswith("jobs/states") else v["sessions"] if "/sessions" in self.path else v["repos"])
         cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
         threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
         cls.url = f"http://127.0.0.1:{cls.srv.server_port}"
@@ -649,6 +649,12 @@ class BackupApis(unittest.TestCase):
         self.assertEqual(sorted(got["veeam_jobs"]), ["Ancien job", "PC-Jeu image", "Serveur fichiers"])
         self.assertEqual(got["veeam_jobs"]["Serveur fichiers"]["result"], "Warning")
         self.assertEqual(got["veeam_jobs"]["Ancien job"]["result"], "None")
+        hist = got["veeam_jobs"]["PC-Jeu image"]["history"]   # matched by jobId, newest first
+        self.assertEqual([h["result"] for h in hist], ["Success", "Failed", "Success", "Success"])
+        self.assertGreater(hist[0]["start"], hist[1]["start"])
+        self.assertEqual(got["veeam_jobs"]["PC-Jeu image"]["repository"], "NAS")
+        self.assertEqual([h["result"] for h in got["veeam_jobs"]["Serveur fichiers"]["history"]], ["Warning"])   # no jobId: by name
+        self.assertEqual(got["veeam_jobs"]["Ancien job"]["history"], [])
         self.assertEqual([d["dev"] for d in got["disks"]], ["NAS"])  # dépôt sans capacité ignoré
         self.assertEqual(got["disks"][0]["pct"], 67.7)
         got, err = backups.api_collect(backups.Veeam, {"id": "v", "url": self.url, "secrets": str(self.dir / "vbad")}, "API Veeam")
@@ -656,6 +662,20 @@ class BackupApis(unittest.TestCase):
         self.assertIn("401", err)
         got, err = backups.api_collect(backups.Veeam, {"id": "v", "url": self.url, "secrets": "/nulle/part"}, "API Veeam")
         self.assertIn("secrets illisibles", err)
+
+    def test_veeam_historique_dans_le_jeu(self):
+        """The recent failures show in the set's detail, and the runs give the observed rhythm (one a day here)."""
+        import backups
+        got, _ = backups.api_collect(backups.Veeam, {"id": "v", "url": self.url, "secrets": str(self.dir / "v")}, "API Veeam")
+        meta = {"hosts": [{"id": "veeam-sources", "label": "Sources Veeam", "api": "none"}, {"id": "veeam", "label": "Veeam", "api": "veeam"}],
+                "sets": [{"id": "pc", "label": "PC de jeu", "origin": "veeam-sources", "max_age_days": 2,
+                          "locations": [{"host": "veeam", "veeam_job": "PC-Jeu image"}]}]}
+        now = got["veeam_jobs"]["PC-Jeu image"]["last_run"] + 3600
+        out = backups.analyse(meta, {"veeam": (got, "")}, {}, now)
+        st = next(x for x in out["sets"] if x["id"] == "pc")
+        loc = st["locations"][0]
+        self.assertIn("1 échec sur les 4 derniers passages", loc["detail"])
+        self.assertEqual((loc["level"], loc["repository"], st["cadence_days"]), ("ok", "NAS", 1.0))
 
     def test_home_assistant(self):
         import backups

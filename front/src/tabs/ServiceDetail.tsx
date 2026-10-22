@@ -8,6 +8,7 @@ import { CHECK, KIND_NAME, checks, noIdentity, status } from "../lib/status";
 import { mergePorts } from "../lib/servicesState";
 import type { Host } from "../types";
 import { tx } from "../lib/i18n";
+import { dateTime } from "../lib/format";
 import { TONES } from "../lib/tones";
 
 type Row = [string, ReactNode, ("ok" | "warn" | "bad" | "mut" | "mono")?];
@@ -121,6 +122,7 @@ function identRows(r: Host, ports: Host[], related: Host[], onOpen?: (h: Host) =
     [tx("Titre de page"), r.page_title || "-", r.page_title ? undefined : "mut"],
     ["Machine", r.machine ? `${r.machine}${r.machine_role ? ` · ${r.machine_role}` : ""}` : "inconnue", r.machine ? undefined : "bad"],
     ["Cible", targetText(r), "mono"],
+    ...optRows(!!r.target_changed, [[tx("Cible changée"), <span key="moved" className="text-link">{tx("le {0}, avant {1}", dateTime(r.target_changed ?? 0), r.target_before ?? "?")}</span>]]),
     [tx("Référence"), r.type === "local" ? String(r.id) : tx("NPM #{0}{1}", String(r.id).split("/").pop(), r.npm ? ` · ${r.npm}` : ""), "mono"],
   ];
 }
@@ -130,7 +132,8 @@ function serviceLine(r: Host): [string, Tone] {
   const s = r.service;
   if (s?.name) {
     const stale = s.stale ? ` (${tx("dernière identification connue")})` : "";
-    return [`${KIND_NAME[s.kind] || s.kind} · ${s.name}${stale}`, s.stale ? "mut" : undefined];
+    const behind = s.behind ? ` → ${[s.behind.name, s.behind.addr].filter(Boolean).join(" ")}` : "";
+    return [`${KIND_NAME[s.kind] || s.kind} · ${s.name}${behind}${stale}`, s.stale ? "mut" : undefined];
   }
   const none = noIdentity(r);
   return [none ?? tx("non identifié"), none ? "mut" : "warn"];

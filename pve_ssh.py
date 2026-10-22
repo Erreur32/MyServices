@@ -8,6 +8,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 
 from connectors.proxmox import node_extra, resources as pve_resources
+from sshmux import SSH_MUX
 
 # One SSH run, sections introduced by « @@name » lines: cluster resources, per-node status (load, swap, root disk, kernel, CPU) and, if
 # lm-sensors is installed on the host, its readings (CPU temperature, fans). Everything is read only.
@@ -65,7 +66,7 @@ def sensor_readings(data: object) -> dict:
 
 def read(alias: str) -> tuple[dict | None, str, str | None]:
     """Guests, nodes and storages of a Proxmox VE host, read on the host itself by SSH (pvesh, read only): (data, error, version)."""
-    cmd = ["bash", "-c", PVE_CMD] if alias == "local" else ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, PVE_CMD]
+    cmd = ["bash", "-c", PVE_CMD] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, PVE_CMD]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     except subprocess.TimeoutExpired:

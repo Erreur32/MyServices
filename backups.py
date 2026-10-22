@@ -34,11 +34,12 @@ from pathlib import Path
 from config import CFG, HERE
 from connectors.backup_apis import DSM_FAIL, HomeAssistant, PbsBackups, SynologyBackups, Veeam
 from connectors.base import ConnectorError, Context
+from sshmux import SSH_MUX
 
 CONNECTOR_OF = {Veeam: ("veeam",), HomeAssistant: ("home-assistant",), PbsBackups: ("proxmox-backup",), SynologyBackups: ("synology",)}  # types de config.json dont un hôte « connector » reprend les réglages
 META = Path(CFG["backups_meta"])
 OUT_JSON = Path(CFG["web_dir"]) / "backups.json"
-SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=15"]
+SSH_OPTS = [*SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=15"]
 TIMEOUT = 240
 DISK_WARN, DISK_CRIT = 80, 90
 GRACE_H = 6  # une copie a ce délai pour rattraper une archive toute neuve
@@ -330,6 +331,22 @@ def api_collect(cls, h: dict, prefix: str) -> tuple[dict | None, str]:
         return None, f"{prefix} : erreur interne ({type(e).__name__}: {e})"[:200]
 
 
+def agent_collect(h: dict) -> tuple[dict | None, str]:
+    """Windows PC followed by its MyServices agent: the last Veeam Agent and Windows Server Backup runs of its last report (nothing is
+    asked of the PC, the agent sends them anyway). The report is used even when the agent went silent: the age of the run says it."""
+    import agents
+    from auth import db_path
+    try:
+        rep = agents.Agents(db_path(CFG)).fresh_reports().get(h.get("ip") or "")
+    except Exception as e:  # base absente ou illisible
+        return None, f"agent : base illisible ({type(e).__name__})"
+    if not rep or not rep["report"]:
+        return None, "agent : aucun relevé de l'agent MyServices de ce PC"
+    runs = {b["tool"]: {"last_run": b["at"], "ok": b["ok"], "warn": b["warn"], "message": b["message"]}
+            for b in agents.windows_backups_of(rep["report"])}
+    return {"user": "agent MyServices", "locs": {}, "disks": [], "crons": [], "cron_root": None, "agent_backups": runs}, ""
+
+
 def remote_collect(h: dict, locs: list[tuple[str, dict]]) -> tuple[dict | None, str]:
     """Box read over FTP / FTPS / Samba (connector « backup-folder » of config.json): the followed folders in the shape of the SSH agent."""
     from connectors.remote_folder import RemoteFolder
@@ -418,6 +435,8 @@ def collect(meta: dict) -> tuple[dict, dict]:
             res[hid] = api_collect(PbsBackups, h, "API Proxmox Backup")
         elif h.get("api") == "synology":
             res[hid] = api_collect(SynologyBackups, h, "API Synology")
+        elif h.get("api") == "agent":
+            res[hid] = agent_collect(h)
         elif h.get("api") == "remote":
             res[hid] = remote_collect(h, [(f"{s['id']}#{i}", loc) for s in meta["sets"] for i, loc in enumerate(s["locations"])
                                           if loc["host"] == hid and loc.get("path")])
@@ -463,7 +482,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
 
     for s in meta["sets"]:
         archived, max_age, each = s.get("archived", False), s.get("max_age_days", 8), s.get("mode") == "each"
-        locs, src_files = [], None
+        locs, src_files, api_runs = [], None, None
         for i, loc in enumerate(s["locations"]):
             L = {"host": loc["host"], "label": hosts[loc["host"]]["label"], "path": loc.get("path"), "via": loc.get("via", ""),
                  "role": "source" if i == 0 else "copie", "level": "na", "detail": "", "encrypted": bool(loc.get("encrypted")), "vzdump": loc.get("vzdump"),
@@ -497,6 +516,13 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                     L["level"] = "crit" if j["result"] == "Failed" else \
                         max(level_for_age(L["age"], max_age), "warn" if j["result"] == "Warning" else "ok", key=RANK.get)
                     L["detail"] = f"dernier passage : {j['result']}" + (f" ({j['status']})" if j["status"] not in (None, "Inactive") else "")
+                    hist = j.get("history") or []
+                    if fails := sum(1 for h in hist if h["result"] == "Failed"):
+                        L["detail"] += f", {fails} échec{'s' if fails > 1 else ''} sur les {len(hist)} derniers passages"
+                    if j.get("repository"):
+                        L["repository"] = j["repository"]
+                    if i == 0:
+                        api_runs = [{"name": loc["veeam_job"], "mtime": h["start"], "size": 0} for h in hist]
                 # Le job écrit dans un dépôt Veeam (NAS, autre serveur) : copie hors machine, sauf "offsite": false
                 L["offsite"] = loc.get("offsite", True)
                 locs.append(L)
@@ -519,6 +545,25 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                     L["detail"] = f"dernier passage : {t['result']}"
                 # the task writes to another volume, a USB disk, another NAS or a cloud: a copy outside the machine, unless it is told otherwise or the target is local
                 L["offsite"] = loc.get("offsite", str(t["target_type"] if t else "").lower() not in ("local", "usb", "share", "folder"))
+                locs.append(L)
+                continue
+            if loc.get("agent_backup") and r:
+                # Veeam Agent / Windows Server Backup seen by the Windows agent: age of the last run; a failure is critical
+                b = r["agent_backups"].get(loc["agent_backup"])
+                if not b or not b["last_run"]:
+                    L["level"], L["detail"] = "crit", f"aucun passage de {loc['agent_backup']} dans le dernier relevé de l'agent"
+                else:
+                    L["age"] = age_days(b["last_run"], now)
+                    L["newest"] = {"name": loc["agent_backup"], "mtime": b["last_run"], "size": 0}
+                    if not b["ok"]:
+                        L["level"], outcome = "crit", "échec"
+                    elif b["warn"]:
+                        L["level"], outcome = max(level_for_age(L["age"], max_age), "warn", key=RANK.get), "avertissements"
+                    else:
+                        L["level"], outcome = max(level_for_age(L["age"], max_age), "ok", key=RANK.get), "réussi"
+                    L["detail"] = ("dernier passage : " + outcome
+                                   + (f" ({b['message'][:120]})" if b["message"] and (not b["ok"] or b["warn"]) else ""))
+                # the agent does not say where the backup is written (NAS, USB disk): its set asks for no copy elsewhere (expect_offsite false)
                 locs.append(L)
                 continue
             if loc.get("pbs_group") and r:
@@ -647,7 +692,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                          "schedule": s.get("schedule", ""), "retention": s.get("retention", ""), "max_age_days": max_age,
                          "mode": "each" if each else "latest", "archived": archived, "level": level,
                          "offsite": len(offsite), "expect_offsite": expect, "locations": locs, "why": why, "size": src.get("size", 0),
-                         "cadence_days": cadence(src_files) if src_files else None})
+                         "cadence_days": cadence(src_files or api_runs) if src_files or api_runs else None})
         for w in why:
             issues.append({"level": level, "set": s["label"], "set_id": s["id"], "text": w})
 

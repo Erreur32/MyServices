@@ -11,6 +11,46 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.19.0 (2026-10-22)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+- **Services and storage checks on Linux machines** (SSH and Linux agent, no sudo needed), in the machine window and in « To watch »: PM2 (daemons, `pm2-<user>` units, saved apps and whether they run), software RAID (degraded, rebuilding), ZFS pools, network shares (NFS, SMB, SSHFS: not answering, in error, or in `/etc/fstab` but not mounted), clock synchronisation, systemd timers whose last run failed, automatic updates (unattended-upgrades: errors, last run too old), snaps waiting for an update, open sessions, and Docker containers restarting in a loop.
+- **Services to restart after an update (needrestart) and Fail2ban bans**, each read through one exact read-only sudo rule (`needrestart -b -r l`, list mode, never restarts anything; `fail2ban-client banned`, every jail in one command). Without the rule the machine window says « not read » and gives the exact rule to add for the SSH account.
+- **Web servers of a machine** (machine window, « Software and services »): one line per web server found (Nginx Proxy Manager, Anubis, Apache, nginx, Caddy, Traefik, HAProxy, lighttpd) with how it runs (Docker container, systemd service, or binary listening without either), the ports it listens on and what it forwards to. Only known web server binaries are listed; any other process is left out.
+- **Site paths**: for each domain served by the machine, NPM → the service it reaches (an Anubis relay…) → what runs behind it (container, Apache vhost, process), a stopped step in red.
+- **Every container of the machine**, even the ones no service points to (databases, watchtower, stopped ones), folded by default.
+- **Containers in host network are recognised by their port**: Anubis is read from its `BIND` and `TARGET`, other apps from `PORT`. Only these variables are read, filtered on the machine itself: the others (passwords, tokens) never leave it. Ports published on the loopback (`127.0.0.1:3011`) are kept to name what a relay of the same machine forwards to.
+- **Backups section in the machine window**: the sets the machine produces (schedule, age of the last archive, size, copies elsewhere, 🔒 when encrypted, « no copy » in orange), the backup folders that hold them, and the replication (each place the copies go, how: rsync, pulled by another machine, vzdump, encrypted or not, and how old). From the Backups page data, nothing new is read on the machines; untracked folders and cron lines stay on the Backups page.
+- Anubis icon in the Servers column, with one tooltip line per instance (port, how it runs, what it forwards to).
+- **PM2 is never started by MyServices**: it is read from its processes and files, never through the `pm2` command (any `pm2` command starts its daemon again when it is down).
+
+- **Veeam: history of each job**: the last 10 runs are read (optional, like the repositories); a Veeam set says how many recent runs failed (in its detail only, its level is unchanged), gets an observed rhythm (so the threshold suggestion works for Veeam too) and names the repository the job writes to.
+- **Veeam: a Backup Copy job attached to the job it copies**: Veeam does not say which job a copy job copies, so the Veeam wizard asks (« copy of »). The copy job then becomes a copy of that job's set, judged like any copy, instead of a set of its own.
+- **Veeam Agent and Windows Server Backup as backup sets**: in the Veeam wizard, « Veeam Agent for Windows (MyServices agents) » lists the last run each Windows agent saw and follows the chosen ones, with no account to enter. The set belongs to the PC (it shows in its machine window); a failure is critical; the agent does not say where the backup is written, so no copy elsewhere is required.
+- **Linux agent version 4, the same inventory as over SSH**: it also sends the machine info, the Docker containers and networks and the listening ports, read on the server with the same code as an SSH session, so a machine looks the same whichever way it is followed (the machine window says « MyServices agent » as the source).
+- **`MSV_SUDO=1` for the Linux agent installer**: exact sudo rules for the three read-only commands that need root (needrestart in list mode, Fail2ban bans, `ss -tlnpH` for the process names behind the ports), in one sudoers file with `MSV_SMART`. As root, or with the rules, the agent reads them; without, the machine window gives the rule to add.
+
+### Changed
+- **One SSH connection per machine for the whole health collection** instead of one per command: about 20 connections per machine and per pass become 3 (access check, every command, SMART for all the disks). Each command keeps its own time limit, and the outputs are read exactly as before.
+- **Fewer requests to the machines**: every SSH read of a pass (health, listening ports, Docker, machine info, hypervisors, NPM, AdGuard, backups) shares one connection per machine (ControlMaster, 60 s); the listening ports are read every other collection (30 min); an agent report re-reads only its own machine, from the report, with no SSH and no new API call, even when its level changed (before: a full health pass of every machine).
+- The Servers column of the Machines table comes from the same web server list: one icon per kind of server, a red frame when an instance is stopped.
+- The Services page shows what a relay forwards to (« → apache2 · rss.example.fr »).
+- An agent report sent too soon after the last one is answered « already received » (200) instead of 429: the agent no longer retries it and its scheduled task no longer runs again.
+- Linux agent version 2 (the new checks; it updates itself when automatic updates are on). A report may carry commands up to 4000 characters long.
+- **Linux agent version 3, lighter**: `apt list` and the search for big log files run at most once per hour, SMART every 6 h (their last output is kept in `cache.json` next to the agent and sent again in between); the report is sent gzip-compressed, and when it is still too big the longest outputs are cut rather than the whole report being refused.
+- **Windows agent version 9, lighter**: hardware, physical disks and running services are read every 6 h (the server keeps the last ones in between); one query for stopped and running services; failed logons are counted up to 1000 instead of reading them all; the system name and boot time come from the report instead of two more queries.
+- **Agents still need a click to get the new version**: automatic update is off by default, so use « Update now » (or turn automatic update on) in Settings → Agents. Older agents keep sending their reports and are read as before.
+- Agent reports are handled in a worker thread (the server keeps answering meanwhile); the health level of the last report is kept in the database instead of parsing the previous report again at each one; the agents list no longer loads every report.
+
+### Fixed
+- **A Windows PC read over SSH could not answer** when its OpenSSH shell is cmd.exe (the default): the health script, passed on the command line, was 12 462 characters long, over cmd.exe's 8191 limit. It now goes through stdin behind a short loader, and the Windows Update titles are reused for an hour instead of searching at every read.
+- Home Assistant in advanced mode (ha-mcp) failed on every read with « internal connector error (AttributeError: 'HomeAssistantAPI' object has no attribute 'cached') »: the slow ha-mcp calls now go through the connector cache as intended.
+- A service whose target changed (an NPM host moved from Apache to an Anubis relay) no longer keeps the name of what ran there before (« apache2 · rss »): the name is only kept when the target is the same, and a « changed recently » badge (date and previous target in its tooltip) is shown for 7 days.
+- An NPM host pointing at the Docker bridge of its own machine now finds the container listening on that port (published, or in host network) before looking for a service of the host.
+- « To watch » showed « Docker : [object Object] » instead of the containers in trouble: it now names each one with its status.
+
 ## v0.18.4 (2026-10-22)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

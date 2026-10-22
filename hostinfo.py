@@ -13,6 +13,7 @@ import subprocess
 from pathlib import Path
 
 from config import CFG
+from sshmux import SSH_MUX
 
 SSH_DIR = Path.home() / ".ssh"
 
@@ -21,7 +22,7 @@ REMOTE = r"""
 echo "##OS $(. /etc/os-release 2>/dev/null; echo "$PRETTY_NAME")"
 echo "##KERNEL $(uname -r)"
 echo "##UP $(cut -d. -f1 /proc/uptime)"
-echo "##SVC apache2=$(systemctl is-active apache2 2>/dev/null) nginx=$(systemctl is-active nginx 2>/dev/null)"
+echo "##SVC$(for u in apache2 nginx httpd caddy traefik haproxy lighttpd; do printf ' %s=%s' $u "$(systemctl is-active $u 2>/dev/null)"; done)"
 echo "##SSHDR $( [ -r /etc/ssh/sshd_config ] && echo yes || echo no)"
 echo "##SSHD $(grep -h -E -i '^[[:space:]]*(Port|PermitRootLogin|PasswordAuthentication)[[:space:]]' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null | tr -s ' \t' ' ' | paste -sd';')"
 echo "##DOCKERBIN $(command -v docker >/dev/null 2>&1 && echo yes || echo no)"
@@ -277,15 +278,28 @@ def parse_nics(raw: str) -> list[dict]:
 def host_info(alias: str) -> dict | None:
     """Infos d'une machine : 1 commande SSH (ou locale). None si injoignable."""
     cmd = ["bash", "-c", REMOTE] if alias == "local" else \
-        ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, REMOTE]
+        ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, REMOTE]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
     except subprocess.TimeoutExpired:
         return None
-    if r.returncode == 255 or "##OS" not in r.stdout:
-        return None
-    tag = {m.group(1): m.group(2).strip() for m in re.finditer(r"^##(\w+) ?(.*)$", r.stdout, re.M)}
-    svc = dict(kv.split("=", 1) for kv in tag.get("SVC", "").split() if "=" in kv)
+    return None if r.returncode == 255 else parse_host_info(r.stdout)
+
+
+_TAG_NAME = re.compile(r"\w+")
+
+
+def _host_tags(out: str) -> dict:
+    """{NAME: value} of the « ##NAME value » lines of REMOTE (the last one wins), read line by line without a backtracking regex."""
+    tag = {}
+    for line in out.split("\n"):
+        if line.startswith("##") and (m := _TAG_NAME.match(line, 2)):
+            tag[m.group()] = line[m.end():].strip()
+    return tag
+
+
+def _host_sshd(tag: dict) -> dict:
+    """Options of sshd from the ##SSHD line; OpenSSH defaults for the missing ones when the file was readable (##SSHDR yes)."""
     sshd = {}
     for kv in filter(None, tag.get("SSHD", "").split(";")):
         k, _, v = kv.strip().partition(" ")
@@ -295,14 +309,25 @@ def host_info(alias: str) -> dict | None:
         for k, v in (("port", "22"), ("permitrootlogin", "prohibit-password"), ("passwordauthentication", "yes")):
             if k not in sshd:
                 sshd[k] = v + " (défaut)"
-    vhosts, unreadable, listen, listen_addr = parse_apache(r.stdout)
-    nginx_vhosts, nginx_unreadable = parse_nginx(r.stdout)
+    return sshd
+
+
+def parse_host_info(out: str) -> dict | None:
+    """Infos d'une machine d'après la sortie de REMOTE (lue par SSH, en local ou envoyée par l'agent Linux) ; None si elle est illisible."""
+    if "##OS" not in out:
+        return None
+    tag = _host_tags(out)
+    svc = dict(kv.split("=", 1) for kv in tag.get("SVC", "").split() if "=" in kv)
+    sshd = _host_sshd(tag)
+    vhosts, unreadable, listen, listen_addr = parse_apache(out)
+    nginx_vhosts, nginx_unreadable = parse_nginx(out)
     return {
         "os": tag.get("OS") or (tag.get("ESXI") if tag.get("ESXI", "").startswith("VMware ESXi") else None),
         "kernel": tag.get("KERNEL") or None,
         "uptime_s": int(tag["UP"]) if tag.get("UP", "").isdigit() else None,
         "apache": svc.get("apache2") == "active",
         "nginx": svc.get("nginx") == "active",
+        "web_units": [u for u, st in svc.items() if st == "active"],  # web servers running as a systemd service (the others are binaries)
         "docker": int(tag["DOCKER"]) if tag.get("DOCKER", "").isdigit() else 0,
         "docker_installed": tag.get("DOCKERBIN") != "no",  # False : pas de Docker sur la machine (jamais une panne d'accès)
         "virt": tag.get("VIRT") if re.fullmatch(r"[a-z0-9-]{2,20}", tag.get("VIRT", "")) and tag.get("VIRT") != "none" else None,  # kvm, vmware, lxc…
@@ -310,7 +335,7 @@ def host_info(alias: str) -> dict | None:
         "proxmox": tag.get("PVE") == "yes",
         "esxi": tag.get("ESXI", "").startswith("VMware ESXi"),  # VMware ESXi host: its VMs and datastores are read by vim-cmd  # Proxmox VE host: its guests and storages are read by pvesh at each collection
         "hypervisors": [t for t in tag.get("HV", "").split() if t in ("virsh", "incus", "lxc", "VBoxManage")],  # other hypervisors read by virt_ssh.py
-        "nics": parse_nics(r.stdout),  # wired network cards: negotiated speed / duplex, and the maximum when ethtool says it
+        "nics": parse_nics(out),  # wired network cards: negotiated speed / duplex, and the maximum when ethtool says it
         "gpus": parse_gpus(tag.get("GPU", "")),  # lspci: the graphics adapters (iGPU included), names only, no load
         "sshd": sshd,  # vide si /etc/ssh/sshd_config illisible pour ce compte
         "vhosts": vhosts,

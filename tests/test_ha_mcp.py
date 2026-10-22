@@ -156,6 +156,26 @@ class Client(unittest.TestCase):
         self.assertNotIn("ha_get_system_health", {c[0] for c in FakeMcp.calls})   # Home Assistant does not test GitHub again
         self.assertEqual(len(FakeMcp.calls), 5)
 
+    def test_connector_uses_the_context_cache(self):
+        """Regression: the Home Assistant connector called self.cached (AttributeError on every advanced-mode read): the cache is the context's."""
+        import tempfile
+        from unittest import mock
+        from connectors.home_assistant import HomeAssistantAPI
+        calls = []
+
+        class Mcp:
+            def __init__(self, *_a):
+                pass
+
+            def collect(self, cached):
+                return {"health": cached("ha-mcp-health", 3600, lambda: calls.append(1) or {"n": len(calls)})}
+        with tempfile.TemporaryDirectory() as d:
+            conn = HomeAssistantAPI({"name": "ha", "url": "http://ha:8123", "token": "t", "mcp_url": self.url}, Context(cache_dir=d))
+            answers = {"/api/config": {"version": "2026.10.1"}, "/api/states": []}
+            with mock.patch.object(conn, "_get", side_effect=answers.get), mock.patch("connectors.home_assistant.HaMcp", Mcp):
+                first, second = conn.collect()["mcp"], conn.collect()["mcp"]
+        self.assertEqual((first, second, len(calls)), ({"health": {"n": 1}}, {"health": {"n": 1}}, 1))
+
     def test_one_failing_tool_does_not_spoil_the_others(self):
         FakeMcp.fail = {"ha_get_app"}
         got = ha_mcp.HaMcp(self.url, 5).collect()

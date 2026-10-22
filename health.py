@@ -26,6 +26,7 @@ Usage : python3 health.py [--dry-run]
 """
 from __future__ import annotations
 
+import ast
 import base64
 import hashlib
 import html as html_lib
@@ -34,6 +35,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -42,6 +44,7 @@ from pathlib import Path
 import notify
 from config import CFG, next_timer_run
 import readers
+from sshmux import SSH_MUX
 
 STATE_FILE = Path(CFG["state_dir"]) / "health.json"
 CONNECTORS_STATE = Path(CFG["state_dir"]) / "connectors.json"   # shared readings of the connectors (readers.py, the collection)
@@ -121,9 +124,9 @@ def worst(*levels: str) -> str:
 def make_runner(host: dict):
     """Retourne run(cmd, timeout) -> (rc, stdout) local ou via SSH selon host['mode']."""
     if host["mode"] == "local":
-        def run(cmd: str, timeout: int = 15) -> tuple[int, str]:
+        def run(cmd: str, timeout: int = 15, data: str | None = None) -> tuple[int, str]:
             try:
-                r = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, timeout=timeout)
+                r = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, timeout=timeout, input=data)
             except subprocess.TimeoutExpired:
                 return 124, f"timeout après {timeout}s"
             except Exception as e:
@@ -132,12 +135,12 @@ def make_runner(host: dict):
     else:
         target = host["target"]
 
-        def run(cmd: str, timeout: int = 15) -> tuple[int, str]:
+        def run(cmd: str, timeout: int = 15, data: str | None = None) -> tuple[int, str]:   # data: sent on the command's stdin
             # Repère avant la commande : un bandeau d'accueil (fastfetch, motd dans ~/.bashrc) précède sinon la sortie
             marked = host.get("os") != "windows"  # PowerShell n'a pas printf : Windows garde sa commande telle quelle
-            full = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", target, f"printf '%s\\n' {SSH_MARK}; {cmd}" if marked else cmd]
+            full = ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", target, f"printf '%s\\n' {SSH_MARK}; {cmd}" if marked else cmd]
             try:
-                r = subprocess.run(full, capture_output=True, text=True, timeout=timeout)
+                r = subprocess.run(full, capture_output=True, text=True, timeout=timeout, input=data)
             except subprocess.TimeoutExpired:
                 return 124, f"timeout après {timeout}s"
             except Exception as e:
@@ -548,16 +551,7 @@ def collect_smart(run) -> dict:
     if rc != 0 or not out.strip():
         return {"accessible": False, "disks": []}
     disks = []
-    seen = set()
-    for dev in out.strip().splitlines():
-        dev = dev.strip()
-        if not dev:
-            continue
-        m = re.match(r"^(nvme\d+)n\d+$", dev)
-        target = m.group(1) if m else dev
-        if target in seen:
-            continue
-        seen.add(target)
+    for target in smart_targets(out):
         _, out2 = run(smart_cmd(target), timeout=10)
         low = out2.lower()
         # Deux formats selon le type de disque : ATA/NVMe ("overall-health ... PASSED/FAILED")
@@ -570,47 +564,404 @@ def collect_smart(run) -> dict:
         disks.append({"device": target, "healthy": healthy, "failed": failed})
     return {"accessible": True, "disks": disks}
 
+
+def smart_targets(out: str) -> list[str]:
+    """Disks to ask SMART about, from SMART_LIST_CMD's output: an NVMe namespace (nvme0n1) is asked through its controller (nvme0)."""
+    seen = []
+    for dev in out.split():
+        m = re.match(r"^(nvme\d+)n\d+$", dev)
+        target = m.group(1) if m else dev
+        if target not in seen and re.fullmatch(r"[A-Za-z0-9_-]{1,32}", target):
+            seen.append(target)
+    return seen
+
+# ───────────── Services and storage (PM2, RAID, ZFS, network shares, clock, timers, automatic updates, Snap, sessions) ─────────────
+
+# One read-only script, sections introduced by « @@name ». Nothing needs sudo, and nothing is started: PM2 is read from its processes
+# and its files, never through the pm2 command (which starts its daemon when it is down). A network share is tested in the background with
+# a short limit, so a share that hangs is reported without blocking the rest. Absent tools print nothing.
+NET_FS = "nfs,nfs4,cifs,smb3,sshfs,fuse.sshfs"
+# The two reads that need root, each through one exact sudo rule (no wildcard), read-only: needrestart in list mode (it never restarts
+# anything), and the bans of every Fail2ban jail in one command. Without the rule: « NOSUDO », and the page gives the rule to add.
+NEEDRESTART, NEEDRESTART_ARGS = "/usr/sbin/needrestart", "/usr/sbin/needrestart -b -r l"
+FAIL2BAN, FAIL2BAN_ARGS = "/usr/bin/fail2ban-client", "/usr/bin/fail2ban-client banned"
+
+
+def as_root(cmd: str) -> str:
+    """cmd as is for root, else through sudo -n (fails at once without the rule, never asks a password)."""
+    return f"if [ \"$(id -u)\" = 0 ]; then timeout 15 {cmd}; else timeout 15 sudo -n {cmd}; fi 2>/dev/null"
+
+
+def sudo_rule(user: str, cmd: str) -> str:
+    """The sudoers line that lets `user` run `cmd` alone, without password."""
+    return f"{user} ALL=(root) NOPASSWD: {cmd}"
+SYSTEM_CMD = (
+    "export PATH=\"$PATH:/usr/sbin:/sbin\"; echo \"@@now $(date +%s)\"; echo \"@@user $(id -un)\"; "
+    "echo @@pm2; pgrep -af '^PM2 v[0-9.]+: God Daemon' 2>/dev/null | sed 's/^[0-9]* /D /'; "
+    "systemctl list-unit-files --no-legend --plain 'pm2-*' 2>/dev/null | awk '{print \"E\",$1,$2}'; "
+    "systemctl list-units --all --type=service --no-legend --plain 'pm2-*' 2>/dev/null | awk '{print \"U\",$1,$3}'; "
+    "d=\"$HOME/.pm2\"; if [ -d \"$d\" ]; then echo \"H $d\"; for f in \"$d\"/pids/*.pid; do [ -f \"$f\" ] || continue; p=$(cat \"$f\" 2>/dev/null); "
+    "if [ -n \"$p\" ] && [ -d \"/proc/$p\" ]; then echo \"P up $(basename \"$f\" .pid)\"; else echo \"P down $(basename \"$f\" .pid)\"; fi; done; "
+    "[ -r \"$d/dump.pm2\" ] && python3 -c 'import json,sys;[print(\"S\",a.get(\"name\",\"\")) for a in json.load(open(sys.argv[1]))]' \"$d/dump.pm2\" 2>/dev/null; fi; "
+    "echo @@md; grep -E '^md|blocks|recovery|resync|reshape' /proc/mdstat 2>/dev/null; "
+    "echo @@zfs; command -v zpool >/dev/null 2>&1 && timeout 8 zpool list -H -o name,health 2>/dev/null; "
+    f"echo @@mnt; ts=$(findmnt -rn -t {NET_FS} -o TARGET 2>/dev/null); if [ -n \"$ts\" ]; then m=$(mktemp); n=0; "
+    "while read -r t; do n=$((n+1)); ( timeout -k 1 4 stat -t -- \"$(printf '%b' \"$t\")\" >/dev/null 2>&1; echo \"$? $t\" >>\"$m\" ) </dev/null >/dev/null 2>&1 & "
+    "done <<< \"$ts\"; i=0; while [ $i -lt 12 ] && [ \"$(wc -l <\"$m\")\" -lt $n ]; do sleep 0.5; i=$((i+1)); done; "
+    "echo \"$ts\" | sed 's/^/T /'; sed 's/^/R /' \"$m\"; rm -f \"$m\"; fi; "
+    f"findmnt -rn -s -t {NET_FS} -o TARGET,OPTIONS 2>/dev/null | awk '$2 !~ /noauto|x-systemd.automount/ {{print \"F\",$1}}'; "
+    "echo @@ntp; echo \"C $(systemd-detect-virt -c 2>/dev/null || true)\"; timedatectl show -p NTP -p NTPSynchronized 2>/dev/null; "
+    "echo @@tim; u=$(systemctl list-timers --no-legend --plain 2>/dev/null | awk '{print $NF}' | sort -u | head -n 60); "
+    "[ -n \"$u\" ] && systemctl show -p Id -p Result -p ActiveState $u 2>/dev/null; "
+    "echo @@uu; dpkg-query -W -f='I ${Status}\\n' unattended-upgrades 2>/dev/null; "
+    "apt-config dump 2>/dev/null | grep -E '^APT::Periodic::Unattended-Upgrade '; "
+    "stat -c 'S %Y' /var/lib/apt/periodic/unattended-upgrades-stamp 2>/dev/null; "
+    "grep -h ' ERROR ' /var/log/unattended-upgrades/unattended-upgrades.log 2>/dev/null | tail -n 5 | sed 's/^/X /'; "
+    "echo @@snap; command -v snap >/dev/null 2>&1 && timeout 10 snap refresh --list 2>&1 | head -n 30; "
+    "echo @@who; who 2>/dev/null | head -n 20; "
+    f"echo @@nr; [ -x {NEEDRESTART} ] && {{ {as_root(NEEDRESTART_ARGS)} || echo NOSUDO; }}; "
+    f"echo @@f2b; [ -x {FAIL2BAN} ] && {{ {as_root(FAIL2BAN_ARGS)} || echo NOSUDO; }}; "
+    "echo @@dkr; command -v docker >/dev/null 2>&1 && docker ps -q 2>/dev/null | head -n 200 "
+    "| xargs -r docker inspect --format '{{.Name}}|{{.RestartCount}}|{{.State.StartedAt}}' 2>/dev/null; true"
+)
+UU_STALE_DAYS = 3          # automatic updates that have not run for this long
+DOCKER_LOOP_N = 3          # restarts of a container that started again within the last hour: a loop
+
+
+def _sections(out: str) -> dict[str, list[str]]:
+    secs, cur = {}, None
+    for ln in out.splitlines():
+        if ln.startswith("@@"):
+            name, _, rest = ln[2:].partition(" ")
+            cur = secs.setdefault(name, [])
+            if rest:
+                cur.append(rest)
+        elif cur is not None and ln.strip():
+            cur.append(ln.rstrip())
+    return secs
+
+
+def _iso_epoch(s: str) -> int | None:
+    try:
+        return int(datetime.strptime(s[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).timestamp())
+    except ValueError:
+        return None
+
+
+def _pm2_read(lines: list[str]) -> tuple[list, dict, dict, dict, list, str | None]:
+    """The tagged lines of the pm2 section: (daemons, units active state, units enabled state, apps alive, apps saved, home)."""
+    daemons, units, enabled, apps, saved, home = [], {}, {}, {}, [], None
+    for ln in lines:
+        tag, _, rest = ln.partition(" ")
+        if tag == "D":
+            m = re.search(r"\((/[^)]+)\)", rest)
+            daemons.append(m.group(1) if m else rest[:120])
+        elif tag == "E":
+            unit, _, state = rest.partition(" ")
+            enabled[unit] = state
+        elif tag == "U":
+            unit, _, active = rest.partition(" ")
+            units[unit] = active
+        elif tag == "H":
+            home = rest
+        elif tag == "P":
+            state, _, pid_file = rest.partition(" ")
+            name = re.sub(r"-\d+$", "", pid_file)   # <name>-<pm_id>.pid
+            apps[name] = apps.get(name, False) or state == "up"
+        elif tag == "S" and rest:
+            saved.append(rest[:80])
+    return daemons, units, enabled, apps, saved, home
+
+
+def parse_pm2(lines: list[str]) -> dict:
+    """PM2 without the pm2 command: the daemons running (by their home), the pm2-<user> units, and for the account's own home the apps
+    saved by « pm2 save » and those whose process is alive. Nothing of PM2 on the machine: available False."""
+    daemons, units, enabled, apps, saved, home = _pm2_read(lines)
+    us = [{"unit": u, "enabled": s == "enabled", "active": units.get(u, "inactive") == "active"} for u, s in sorted(enabled.items()) if u.endswith(".service")]
+    if not (daemons or us or home):
+        return {"available": False}
+    running = home in daemons if home else None
+    names = sorted(set(saved) | set(apps))
+    return {"available": True, "daemons": daemons, "units": us, "home": home, "running": running,
+            "apps": [{"name": n, "up": bool(running and apps.get(n)), "saved": n in saved} for n in names][:40]}
+
+
+def parse_mdstat(lines: list[str]) -> dict:
+    """Software RAID arrays of /proc/mdstat: state, members seen, and a rebuild in progress (its percentage)."""
+    arrays = []
+    for ln in lines:
+        m = re.match(r"^(md\S+)\s*:\s*(\S+)\s*(\S*)", ln)
+        if m:
+            arrays.append({"name": m.group(1), "state": m.group(2), "level": m.group(3) if m.group(3).startswith("raid") else "", "degraded": m.group(2) != "active"})
+            continue
+        if not arrays:
+            continue
+        m = re.search(r"\[(\d+)/(\d+)\]\s*\[([U_]+)\]", ln)
+        if m:
+            arrays[-1]["members"] = f"{m.group(2)}/{m.group(1)}"
+            arrays[-1]["degraded"] = arrays[-1]["degraded"] or "_" in m.group(3)
+        m = re.search(r"(recovery|resync|reshape|check)\s*=\s*([\d.]+)%", ln)
+        if m:
+            arrays[-1]["rebuild"] = {"kind": m.group(1), "pct": float(m.group(2))}
+    return {"available": bool(arrays), "arrays": arrays}
+
+
+def parse_zfs(lines: list[str]) -> dict:
+    pools = [{"name": c[0], "health": c[1]} for c in map(str.split, lines) if len(c) >= 2]
+    return {"available": bool(pools), "pools": pools}
+
+
+def _unescape(target: str) -> str:
+    return re.sub(r"\\x([0-9a-fA-F]{2})", lambda m: chr(int(m.group(1), 16)), target)
+
+
+def parse_mounts(lines: list[str]) -> dict:
+    """Network shares: mounted ones that answer or not (a share whose test did not come back in time hangs), and those of /etc/fstab
+    that are not mounted (noauto and automount left aside: not mounted is normal for them)."""
+    mounted, results, fstab = [], {}, []
+    for ln in lines:
+        tag, _, rest = ln.partition(" ")
+        if tag == "T":
+            mounted.append(rest)
+        elif tag == "R":
+            rc, _, t = rest.partition(" ")
+            results[t] = rc
+        elif tag == "F":
+            fstab.append(rest)
+    shares = [{"path": _unescape(t), "ok": results.get(t) == "0", "state": "ok" if results.get(t) == "0" else ("hang" if t not in results else "error")} for t in mounted]
+    shares += [{"path": _unescape(t), "ok": False, "state": "missing"} for t in dict.fromkeys(fstab) if t not in mounted]
+    return {"available": bool(shares), "shares": shares}
+
+
+def parse_ntp(lines: list[str]) -> dict:
+    """Clock synchronisation (timedatectl); a container takes its clock from its host: not read there."""
+    kv = {k: v for k, _, v in (ln.partition("=") for ln in lines if "=" in ln)}
+    container = next((ln[2:].strip() for ln in lines if ln.startswith("C ")), "")
+    if "NTPSynchronized" not in kv or (container and container != "none"):
+        return {"available": False}
+    return {"available": True, "synced": kv["NTPSynchronized"] == "yes", "service": kv.get("NTP") == "yes"}
+
+
+def parse_timers(lines: list[str]) -> dict:
+    """Active timers and, for each, whether the last run of the service it starts went well (Result of systemctl show)."""
+    blocks, cur = [], {}
+    for ln in lines + ["Id="]:
+        k, _, v = ln.partition("=")
+        if k in cur:
+            blocks.append(cur)
+            cur = {}
+        cur[k] = v
+    units = [b for b in blocks if b.get("Id")]
+    failed = [b["Id"] for b in units if b.get("Result") not in ("success", "", None)]
+    return {"available": bool(units), "total": len(units), "failed": failed[:20]}
+
+
+def parse_unattended(lines: list[str], now: int | None) -> dict:
+    """Automatic updates (unattended-upgrades): installed, enabled, days since the last run, the errors of its log in the last 48 hours."""
+    inst = any(ln.startswith("I ") and ln.endswith("install ok installed") for ln in lines)
+    if not inst:
+        return {"available": False}
+    m = re.search(r'Unattended-Upgrade "(\d+)"', "\n".join(lines))
+    stamp = next((int(ln[2:]) for ln in lines if ln.startswith("S ") and ln[2:].isdigit()), None)
+    days = round((now - stamp) / 86400, 1) if now and stamp else None
+    return {"available": True, "enabled": bool(m and m.group(1) != "0"), "days": days, "errors": _uu_errors(lines, now)}
+
+
+def _uu_errors(lines: list[str], now: int | None) -> list[str]:
+    """The errors of the unattended-upgrades log (« X <date> <text> » lines) in the last 48 hours."""
+    errors = []
+    for ln in lines:
+        if ln.startswith("X "):
+            when = ln[2:21]
+            try:
+                t = int(datetime.strptime(when, "%Y-%m-%d %H:%M:%S").timestamp())
+            except ValueError:
+                continue
+            if now and now - t <= 48 * 3600:
+                errors.append(ln[2:][:200])
+    return errors
+
+
+def parse_snap(lines: list[str]) -> dict:
+    """Snaps with an update waiting (snap refresh --list: a table, or « All snaps up to date. »); snapd absent or silent: not read."""
+    if lines and lines[0].startswith("Name"):
+        rows = [ln.split()[0] for ln in lines[1:] if ln.split()]
+        return {"available": True, "pending": len(rows), "names": rows[:10]}
+    if any("up to date" in ln for ln in lines):
+        return {"available": True, "pending": 0, "names": []}
+    return {"available": False}
+
+
+def parse_sessions(lines: list[str]) -> dict:
+    sessions = []
+    for ln in lines:
+        c = ln.split()
+        if len(c) >= 2:
+            m = re.search(r"\(([^)]*)\)\s*$", ln)
+            sessions.append({"user": c[0][:40], "tty": c[1][:20], "from": m.group(1)[:80] if m else ""})
+    return {"available": True, "sessions": sessions}
+
+
+def parse_docker_loops(lines: list[str], now: int | None) -> list[dict]:
+    """Containers that restart in a loop: restarted DOCKER_LOOP_N times or more, and started again within the last hour."""
+    out = []
+    for ln in lines:
+        c = ln.split("|")
+        if len(c) == 3 and c[1].isdigit():
+            started = _iso_epoch(c[2])
+            if int(c[1]) >= DOCKER_LOOP_N and now and started and now - started <= 3600:
+                out.append({"name": c[0].lstrip("/"), "restarts": int(c[1])})
+    return out
+
+
+def parse_needrestart(lines: list[str], user: str) -> dict:
+    """Services still running old libraries after an update (needrestart -b): their names, and whether the running kernel is the newest."""
+    if not lines:
+        return {"available": False}
+    if "NOSUDO" in lines or not any(ln.startswith("NEEDRESTART-") for ln in lines):
+        return {"available": True, "access": False, "rule": sudo_rule(user or "<compte>", NEEDRESTART_ARGS)}
+    kv = [ln.partition(":")[::2] for ln in lines]
+    services = [v.strip() for k, v in kv if k == "NEEDRESTART-SVC"]
+    ksta = next((v.strip() for k, v in kv if k == "NEEDRESTART-KSTA"), "")
+    return {"available": True, "access": True, "services": services[:40], "kernel_pending": ksta in ("2", "3")}
+
+
+def parse_fail2ban(lines: list[str], user: str) -> dict:
+    """Bans of every jail (fail2ban-client banned: a list of {jail: [IP…]}); read as a literal, never evaluated."""
+    if not lines:
+        return {"available": False}
+    if "NOSUDO" in lines:
+        return {"available": True, "access": False, "rule": sudo_rule(user or "<compte>", FAIL2BAN_ARGS)}
+    try:
+        data = ast.literal_eval(" ".join(lines)[:200000])
+    except (ValueError, SyntaxError, MemoryError, RecursionError):
+        return {"available": False}
+    jails = [{"name": str(name)[:60], "banned": len(ips) if isinstance(ips, list) else 0}
+             for item in (data if isinstance(data, list) else []) if isinstance(item, dict) for name, ips in item.items()]
+    return {"available": True, "access": True, "jails": sorted(jails, key=lambda j: j["name"])[:40], "total": sum(j["banned"] for j in jails)}
+
+
+def collect_system(run) -> dict:
+    """The services and storage checks, in one command. A machine where it cannot run (old shell, agent of an older version): {}."""
+    rc, out = run(SYSTEM_CMD, timeout=20)
+    if rc != 0 or "@@now" not in out:
+        return {}
+    s = _sections(out)
+    now = int(s["now"][0]) if s.get("now") and s["now"][0].isdigit() else None
+    user = (s.get("user") or [""])[0][:40]
+    return {"pm2": parse_pm2(s.get("pm2", [])), "raid": parse_mdstat(s.get("md", [])), "zfs": parse_zfs(s.get("zfs", [])),
+            "mounts": parse_mounts(s.get("mnt", [])), "ntp": parse_ntp(s.get("ntp", [])), "timers": parse_timers(s.get("tim", [])),
+            "auto_upd": parse_unattended(s.get("uu", []), now), "snap": parse_snap(s.get("snap", [])),
+            "sessions": parse_sessions(s.get("who", [])), "docker_loops": parse_docker_loops(s.get("dkr", []), now),
+            "needrestart": parse_needrestart(s.get("nr", []), user), "fail2ban": parse_fail2ban(s.get("f2b", []), user)}
+
+
+def _pm2_level(p: dict) -> str:
+    down_unit = any(u["enabled"] and not u["active"] for u in p["units"])
+    stopped = p["running"] is False and any(a["saved"] for a in p["apps"])
+    app_down = p["running"] and any(not a["up"] for a in p["apps"])
+    return "warn" if down_unit or stopped or app_down else "ok"
+
+
+def _raid_level(r: dict) -> str:
+    """A degraded array not being rebuilt is critical; degraded and rebuilding, or a resync / reshape (not a check), is a warning."""
+    if any(a["degraded"] and not a.get("rebuild") for a in r["arrays"]):
+        return "crit"
+    if any(a["degraded"] or (a.get("rebuild") and a["rebuild"]["kind"] != "check") for a in r["arrays"]):
+        return "warn"
+    return "ok"
+
+
+def _zfs_level(z: dict) -> str:
+    hs = {p_["health"] for p_ in z["pools"]}
+    if hs & {"FAULTED", "UNAVAIL", "SUSPENDED"}:
+        return "crit"
+    return "warn" if hs - {"ONLINE"} else "ok"
+
+
+def _mounts_level(mo: dict) -> str:
+    if any(x["state"] == "hang" for x in mo["shares"]):
+        return "crit"
+    return "warn" if any(not x["ok"] for x in mo["shares"]) else "ok"
+
+
+def _auto_upd_level(u: dict) -> str | None:
+    """None when automatic updates are installed but turned off: no level for them."""
+    if not u["enabled"]:
+        return None
+    return "warn" if u["errors"] or (u["days"] is not None and u["days"] > UU_STALE_DAYS) else "ok"
+
+
+# Each check with the level of what was read on the machine, in the order of the page
+_SYSTEM_LEVELS = (("pm2", _pm2_level), ("raid", _raid_level), ("zfs", _zfs_level), ("mounts", _mounts_level),
+                  ("ntp", lambda n: "ok" if n["synced"] else "warn"), ("timers", lambda t: "warn" if t["failed"] else "ok"),
+                  ("auto_upd", _auto_upd_level))
+
+
+def system_levels(sys_: dict) -> dict[str, str]:
+    """Level of each services and storage check (na: nothing of it on the machine)."""
+    sys_ = sys_ or {}
+    lv = {}
+    for key, level_of in _SYSTEM_LEVELS:
+        d = sys_.get(key) or {}
+        if d.get("available") and (level := level_of(d)):
+            lv[key] = level
+    return lv
+
 # ───────────── Windows (OpenSSH Server + PowerShell) ─────────────
 
 # Un seul script, en lecture. Erreurs ignorées une à une : un contrôle refusé ne masque pas les autres.
 # 4625 (échecs de connexion) : journal Sécurité, administrateurs seulement ; -1 = non lisible.
-# MSV_UPD (agent) : titres de la dernière recherche Windows Update, réutilisés pour ne la refaire qu'une fois par heure.
+# MSV_UPD (agent, et SSH par le cache du serveur) : titres de la dernière recherche Windows Update, réutilisés pour ne la refaire qu'une fois par heure.
+# MSV_SKIP (agent) : le matériel, les disques physiques et les services en marche changent peu ; l'agent ne les relit que toutes les 6 h et le
+# serveur garde ceux du relevé précédent (agents.SLOW_KEYS). Une seule requête Win32_Service pour les services arrêtés et en marche.
 # Matériel (lecture seule, sans droits particuliers) : m=fabricant, mo=modèle, bios, cpu, cc/cl=cœurs physiques/logiques, ram=Go,
 # gpu=[{n=nom, r=résolution}], net=[{n=carte, ip=IPv4}] (jamais d'adresse MAC), dom=domaine ou groupe de travail, wu=dernière mise à jour installée.
 WIN_PS = r"""
 $ErrorActionPreference='SilentlyContinue';$ProgressPreference='SilentlyContinue';$o=@{};$t=(Get-Date).AddHours(-24)
 $o.disks=@(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3'|%{@{m=$_.DeviceID;s=[double]$_.Size;f=[double]$_.FreeSpace}})
-$o.svc=@(Get-CimInstance Win32_Service -Filter "StartMode='Auto' AND State<>'Running'"|?{$_.ExitCode -ne 0}|%{@{n=$_.Name;d=$_.DisplayName;e=$_.ExitCode}})
+$sa=@(Get-CimInstance Win32_Service);$o.svc=@($sa|?{$_.StartMode -eq 'Auto' -and $_.State -ne 'Running' -and $_.ExitCode -ne 0}|%{@{n=$_.Name;d=$_.DisplayName;e=$_.ExitCode}})
 $p=@(Get-CimInstance Win32_Processor);$o.cpu=($p|Measure-Object LoadPercentage -Average).Average;$o.ncpu=($p|Measure-Object NumberOfLogicalProcessors -Sum).Sum
 $w=Get-CimInstance Win32_OperatingSystem;$o.boot=$w.LastBootUpTime.ToUniversalTime().ToString('o');if($w.TotalVisibleMemorySize){$o.mem=[math]::Round(100*($w.TotalVisibleMemorySize-$w.FreePhysicalMemory)/$w.TotalVisibleMemorySize,1)}
 $o.os=@{n=$w.Caption;v=$w.Version;b=$w.BuildNumber;h=$env:COMPUTERNAME}
 $pm=@{};Get-Process|%{$pm[[int]$_.Id]=$_.ProcessName};$o.ports=@(Get-NetTCPConnection -State Listen|Select-Object -First 400|%{@{p=[int]$_.LocalPort;a=[string]$_.LocalAddress;n=$pm[[int]$_.OwningProcess]}})
 $k='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion';$o.reboot=(Test-Path "$k\WindowsUpdate\Auto Update\RebootRequired") -or (Test-Path "$k\Component Based Servicing\RebootPending")
-$o.pd=@(Get-PhysicalDisk|%{@{n=$_.FriendlyName;h=[string]$_.HealthStatus}})
+$slow=-not $env:MSV_SKIP
+if($slow){$o.pd=@(Get-PhysicalDisk|%{@{n=$_.FriendlyName;h=[string]$_.HealthStatus}})}
 $o.ev=@(Get-WinEvent -FilterHashtable @{LogName='System';Level=1,2;StartTime=$t} -MaxEvents 300|?{$_.Level -eq 1 -or $_.ProviderName -match 'disk|Ntfs|volmgr|stor|WHEA'}|Select-Object -First 8|%{'{0} {1} {2}' -f $_.TimeCreated.ToString('dd/MM HH:mm'),$_.ProviderName,(($_.Message -split "`n")[0]).Trim()})
-try{$o.fail=@(Get-WinEvent -FilterHashtable @{LogName='Security';Id=4625;StartTime=$t} -ErrorAction Stop).Count}catch{$o.fail=$(if($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*'){0}else{-1})}
+try{$o.fail=@(Get-WinEvent -FilterHashtable @{LogName='Security';Id=4625;StartTime=$t} -MaxEvents 1000 -ErrorAction Stop).Count}catch{$o.fail=$(if($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*'){0}else{-1})}
 if($env:MSV_UPD){$o.upd=@($env:MSV_UPD|ConvertFrom-Json)}else{try{$r=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0 and IsHidden=0 and Type='Software'");$o.upd=@($r.Updates|%{$_.Title})}catch{$o.upd=$null}}
-$h=@{};try{$cs=Get-CimInstance Win32_ComputerSystem;$h.m=[string]$cs.Manufacturer;$h.mo=[string]$cs.Model;$h.ram=[math]::Round($cs.TotalPhysicalMemory/1GB,1);$h.dom=$(if($cs.PartOfDomain){[string]$cs.Domain}else{'WORKGROUP: '+$cs.Workgroup})}catch{}
+$h=@{};if($slow){try{$cs=Get-CimInstance Win32_ComputerSystem;$h.m=[string]$cs.Manufacturer;$h.mo=[string]$cs.Model;$h.ram=[math]::Round($cs.TotalPhysicalMemory/1GB,1);$h.dom=$(if($cs.PartOfDomain){[string]$cs.Domain}else{'WORKGROUP: '+$cs.Workgroup})}catch{}
 try{$h.bios=[string](Get-CimInstance Win32_BIOS|Select-Object -First 1).SMBIOSBIOSVersion}catch{}
 try{$h.cpu=[string]($p|Select-Object -First 1).Name;$h.cc=($p|Measure-Object NumberOfCores -Sum).Sum;$h.cl=$o.ncpu}catch{}
 try{$h.gpu=@(Get-CimInstance Win32_VideoController|?{$_.Name}|Select-Object -First 4|%{@{n=[string]$_.Name;r=$(if($_.CurrentHorizontalResolution){'{0}x{1}' -f $_.CurrentHorizontalResolution,$_.CurrentVerticalResolution}else{''})}})}catch{}
 try{$h.net=@(Get-CimInstance Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=True'|?{$_.IPAddress}|Select-Object -First 8|%{$d=$_.Description;@($_.IPAddress|?{$_ -match '^\d+\.\d+\.\d+\.\d+$'}|%{@{n=[string]$d;ip=[string]$_}})})}catch{}
 try{$h.nic=@(Get-NetAdapter -Physical -ErrorAction Stop|?{$_.Status -eq 'Up'}|Select-Object -First 6|%{$a=$_;$sd=$null;try{$sd=(Get-NetAdapterAdvancedProperty -Name $a.Name -RegistryKeyword '*SpeedDuplex' -ErrorAction Stop).DisplayValue}catch{};@{n=[string]$a.Name;mac=[string]$a.MacAddress;sp=[int64]$a.Speed;fd=[bool]$a.FullDuplex;sd=[string]$sd}})}catch{}
 try{$q=Get-HotFix|Where-Object{$_.InstalledOn}|Sort-Object InstalledOn -Descending|Select-Object -First 1;if($q){$h.wu=$q.InstalledOn.ToString('yyyy-MM-dd')}}catch{}
-try{$o.sv=@(Get-CimInstance Win32_Service -Filter "State='Running'"|Select-Object -First 300|%{@{n=[string]$_.Name;d=[string]$_.DisplayName}})}catch{}
+$o.sv=@($sa|?{$_.State -eq 'Running'}|Select-Object -First 300|%{@{n=[string]$_.Name;d=[string]$_.DisplayName}})}
 try{if(Get-Command docker.exe -ErrorAction Stop){$l=@(& docker.exe ps -a --format '{{.Names}}|{{.Image}}|{{.Ports}}|{{.Status}}|{{.Networks}}' 2>$null);if($LASTEXITCODE -eq 0){$o.dk=@($l|Select-Object -First 200|%{[string]$_})}}}catch{}
 try{if(Get-Command Get-VM -ErrorAction Stop){$o.hv=@(Get-VM|Select-Object -First 200|%{@{n=[string]$_.Name;s=[string]$_.State;c=[int]$_.ProcessorCount;m=[double]$_.MemoryAssigned;x=[double]$_.MemoryStartup;u=[int]$_.Uptime.TotalSeconds}})}}catch{}
 $ev={param($l,$f)try{Get-WinEvent -FilterHashtable @{LogName=$l} -MaxEvents 50 -ErrorAction Stop|?{& $f $_}|Select-Object -First 1|%{@{t=$_.TimeCreated.ToUniversalTime().ToString('o');i=$_.Id;l=$_.Level;m=(($_.Message -split "`n")[0]).Trim()}}}catch{}}
 $o.va=& $ev 'Veeam Agent' {param($e)$e.Id -eq 190}
 $o.wb=& $ev 'Microsoft-Windows-Backup' {param($e)$e.Id -eq 4 -or $e.Level -le 2}
-$o.hw=$h
+if($slow){$o.hw=$h}
 ConvertTo-Json -InputObject $o -Depth 5 -Compress
 """
 
 
 def ps_command(script: str) -> str:
-    """powershell -EncodedCommand : aucun guillemet à protéger, que le shell OpenSSH soit cmd ou PowerShell."""
+    """powershell -EncodedCommand : aucun guillemet à protéger, que le shell OpenSSH soit cmd ou PowerShell. Pour un script court seulement :
+    l'encodage triple la taille, et cmd.exe (shell OpenSSH par défaut de Windows) refuse une ligne de plus de 8191 caractères."""
     return "powershell -NoProfile -NonInteractive -EncodedCommand " + base64.b64encode(script.encode("utf-16-le")).decode()
+
+
+# A long script goes through stdin, in base64 (ASCII: no console code page can spoil it); this short loader reads and runs it
+PS_STDIN = ps_command("$s=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([Console]::In.ReadToEnd().Trim()));& ([scriptblock]::Create($s))")
+
+
+def ps_stdin(script: str) -> str:
+    """Ce que PS_STDIN attend sur son entrée : le script en UTF-8, encodé en base64."""
+    return base64.b64encode(script.encode("utf-8")).decode()
 
 
 def _txt(d: dict, k: str, n: int = 120):
@@ -703,14 +1054,55 @@ def parse_windows(raw: dict) -> dict:
     }
 
 
+WIN_UPD_CACHE = os.path.join(CFG["cache_dir"], "windows-updates.json")
+WIN_UPD_EVERY = 3600   # s: the Windows Update search can take a minute, its titles are reused for an hour (as the agent does)
+
+
+def _win_upd_cached(key: str) -> list | None:
+    """Titres Windows Update de la dernière lecture SSH de cette machine s'ils ont moins d'une heure ; None sinon (nouvelle recherche)."""
+    try:
+        got = json.load(open(WIN_UPD_CACHE, encoding="utf-8")).get(key) or {}
+    except (OSError, ValueError, AttributeError):
+        return None
+    return got.get("upd") if isinstance(got.get("upd"), list) and time.time() - float(got.get("at") or 0) < WIN_UPD_EVERY else None
+
+
+def _win_upd_store(key: str, titles: list) -> None:
+    try:
+        cache = json.load(open(WIN_UPD_CACHE, encoding="utf-8"))
+    except (OSError, ValueError):
+        cache = {}
+    cache = cache if isinstance(cache, dict) else {}
+    cache[key] = {"at": time.time(), "upd": [str(t)[:300] for t in titles][:100]}
+    try:
+        os.makedirs(os.path.dirname(WIN_UPD_CACHE), exist_ok=True)
+        tmp = f"{WIN_UPD_CACHE}.{os.getpid()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False)
+        os.replace(tmp, WIN_UPD_CACHE)
+    except OSError:
+        pass   # no cache: the search simply runs again next time
+
+
+def win_script(upd: list | None) -> str:
+    """WIN_PS, précédé des titres Windows Update encore frais (MSV_UPD) : la recherche lente n'est alors pas refaite."""
+    if upd is None:
+        return WIN_PS
+    return "$env:MSV_UPD='" + json.dumps(upd, ensure_ascii=False).replace("'", "''") + "'\n" + WIN_PS
+
+
 def collect_windows(host: dict) -> dict:
     run = make_runner(host)
-    rc, out = run(ps_command(WIN_PS), timeout=180)  # la recherche Windows Update peut prendre une minute
+    key = str(host.get("target") or host["id"])
+    upd = _win_upd_cached(key)
+    rc, out = run(PS_STDIN, timeout=180, data=ps_stdin(win_script(upd)))  # la recherche Windows Update peut prendre une minute
     base = {"id": host["id"], "name": host["name"], "os": "windows"}
     try:
         raw = json.loads(out.strip().lstrip("\ufeff")) if rc == 0 else None
     except ValueError:
         raw = None
+    if isinstance(raw, dict) and upd is None and isinstance(raw.get("upd"), list):
+        _win_upd_store(key, raw["upd"])
     if not isinstance(raw, dict):
         return {**base, "reachable": False, "disks": [], "systemd": {"failed": []},
                 "docker": {"accessible": False, "reason": "windows"}, "level": "down", **_EMPTY_HOST_EXTRAS,
@@ -921,9 +1313,21 @@ def host_from_api(hc: dict, b: dict) -> dict:
 API_REUSE_S = 600   # a service's API read less than 10 minutes ago is not read again for the health
 
 
-def api_systems(meta: dict) -> dict:
+def _api_data(c, state: dict, cached_only: bool) -> dict | None:
+    """What a status connector read: its result of a moment ago, else a new call (never with cached_only); None if nothing usable."""
+    import connectors.base as cbase
+    data = cbase.recent(c, state, max(API_REUSE_S, readers.max_age(c, CFG["fast_every"])) if readers.on(CFG) else API_REUSE_S)   # read by the server's reader or the collection a moment ago: no second call for the same data
+    if data is not None or cached_only:
+        return data
+    data, st = cbase.run_isolated(c, state, 60)
+    cbase.merge_state(CONNECTORS_STATE, state, [f"{c.type}/{c.name}"])
+    return data if st.ok or st.stale else None
+
+
+def api_systems(meta: dict, cached_only: bool = False) -> dict:
     """{IP: système au format Beszel} des machines lues par l'API d'un service relié : Glances ou Netdata (sur la machine même), puis
-    Home Assistant (capteurs System Monitor / Supervisor de la machine hôte)."""
+    Home Assistant (capteurs System Monitor / Supervisor de la machine hôte). cached_only: what was read a moment ago, never a new call
+    (the pass of one machine after an agent report)."""
     import connectors
     import connectors.base as cbase
     from api_link import host_ip
@@ -934,13 +1338,7 @@ def api_systems(meta: dict) -> dict:
     machines, found = meta.get("machines", {}), {}
     state = cbase.load_state(CONNECTORS_STATE)
     for c in conns:
-        data = cbase.recent(c, state, max(API_REUSE_S, readers.max_age(c, CFG["fast_every"])) if readers.on(CFG) else API_REUSE_S)   # read by the server's reader or the collection a moment ago: no second call for the same data
-        if data is None:
-            data, st = cbase.run_isolated(c, state, 60)
-            cbase.merge_state(CONNECTORS_STATE, state, [f"{c.type}/{c.name}"])
-            if not (st.ok or st.stale):
-                continue
-        host = (data or {}).get("host")
+        host = (_api_data(c, state, cached_only) or {}).get("host")
         if not host:
             continue
         ip = next((i for i in [host_ip(c.conf.get("url")), *host.get("ips", [])] if i in machines), None)
@@ -995,7 +1393,7 @@ def systemd_level(systemd: dict) -> str:
 def docker_level(docker: dict) -> str:
     if not docker.get("accessible"):
         return "na"
-    n = docker.get("unhealthy", 0) + docker.get("restarting", 0) + docker.get("exited", 0)
+    n = docker.get("unhealthy", 0) + docker.get("restarting", 0) + docker.get("exited", 0) + len(docker.get("loops") or [])
     if n >= DOCKER_CRIT_N:
         return "crit"
     if n >= DOCKER_WARN_N:
@@ -1039,11 +1437,13 @@ def smart_level(smart: dict) -> str:
 
 
 def host_checks(h: dict) -> dict[str, str]:
-    """Level of each control of a reachable machine (Linux or Windows): disk, systemd, docker, kernel, load, ssh_auth, smart, temp, res.
+    """Level of each control of a reachable machine (Linux or Windows): disk, systemd, docker, kernel, load, ssh_auth, smart, temp, res,
+    and the services and storage ones a Linux machine has (pm2, raid, zfs, mounts, ntp, timers, auto_upd).
     Published with the host (`checks`) so the page can say why a machine is « warn » without repeating the thresholds."""
     return {"disk": disk_level(h["disks"]), "systemd": systemd_level(h["systemd"]), "docker": docker_level(h["docker"]),
             "kernel": kernel_level(h["kernel"]), "load": load_level(h["load"]), "ssh_auth": ssh_auth_level(h["ssh_auth"]),
-            "smart": smart_level(h["smart"]), "temp": temp_level(h.get("temp")), "res": resources_level(h.get("res"))}
+            "smart": smart_level(h["smart"]), "temp": temp_level(h.get("temp")), "res": resources_level(h.get("res")),
+            **system_levels(h.get("system"))}
 
 
 def host_level(h: dict) -> str:
@@ -1063,22 +1463,72 @@ def collect_host(host: dict) -> dict:
     if host.get("os") == "windows":
         return collect_windows(host)
     run = make_runner(host)
-    rc, _ = run("echo ok", timeout=6)
-    if rc != 0:
+    # One connection says whether the machine answers and whether it is an ESXi (no bash there: the batch below is not for it)
+    rc, first = run("echo ok; vmware -v 2>/dev/null; true", timeout=8)
+    if rc != 0 or not first.startswith("ok"):
         return {"id": host["id"], "name": host["name"], "reachable": False,
                 "disks": [], "systemd": {"failed": []}, "docker": {"accessible": False},
                 "level": "down", **_EMPTY_HOST_EXTRAS}
-    rc, esxi = run("vmware -v 2>/dev/null", timeout=6)
-    if rc == 0 and esxi.startswith("VMware ESXi"):
+    esxi = first[2:].strip()
+    if esxi.startswith("VMware ESXi"):
         # ESXi: no apt, systemd nor Docker; its VMs and datastores are read by the collection (esxi_ssh.py, Virtualization tab)
         return {"id": host["id"], "name": host["name"], "reachable": True, "os": "esxi", "esxi": esxi.strip()[:80],
                 "disks": [], "systemd": {"failed": []}, "docker": {"accessible": False, "reason": "esxi"}, "level": "ok", **_EMPTY_HOST_EXTRAS}
-    return collect_linux(host, run)
+    # Every command in one connection, then SMART for all the disks in a second one; the collectors read the outputs like an agent report
+    recorded = run_batch(run, LINUX_AGENT_COMMANDS)
+    rc, out = recorded.get(SMART_LIST_CMD, [1, ""])
+    if rc == 0 and not host.get("vm"):
+        recorded.update(run_batch(run, [smart_cmd(t) for t in smart_targets(out)]))
+    return collect_linux(host, replay_runner(recorded))
 
 
 # Commands the Linux agent runs on its own machine (the SSH collectors' commands, fixed); smart_cmd(<disk>) is added per disk it finds.
 LINUX_AGENT_COMMANDS = [DISKS_CMD, SYSTEMD_CMD, DOCKER_PS_CMD, DOCKER_STATS_CMD, APT_CMD, KERNEL_CMD, REBOOT_CMD, LOAD_CMD,
-                        _RES_CMD, _TEMP_CMD, VIRT_CMD, SSH_AUTH_CMD, SMART_LIST_CMD, LOGS_CMD, GPU_CMD]
+                        _RES_CMD, _TEMP_CMD, VIRT_CMD, SSH_AUTH_CMD, SMART_LIST_CMD, LOGS_CMD, GPU_CMD, SYSTEM_CMD]
+SLOW_CMDS = ("docker stats", "apt list", "snap refresh")   # allowed 40 s instead of 20 (the same rule in agent.py)
+# Linux agent (version 3): outputs it keeps and sends again instead of running the command at each report, with their lifetime (s)
+LINUX_AGENT_CACHE = {APT_CMD: 3600, LOGS_CMD: 3600}
+SMART_CACHE = 6 * 3600   # SMART of each disk: every 6 h
+
+
+def _limit(cmd: str) -> int:
+    return 40 if any(s in cmd for s in SLOW_CMDS) else 20
+
+
+def batch_script(cmds: list[str]) -> str:
+    """One bash script that runs each command with its own time limit, then prints « @@<n> <rc> » and its output in base64 on one line:
+    stdout, plus stderr when it failed, as run() gives it. Nothing in an output can be mistaken for the next marker."""
+    lines = ['t=$(mktemp -d) || exit 1']
+    for i, c in enumerate(cmds):
+        quoted = "'" + c.replace("'", "'\\''") + "'"
+        lines.append(f"timeout -k 2 {_limit(c)} bash -c {quoted} >$t/o 2>$t/e </dev/null; r=$?; [ $r = 0 ] || cat $t/e >>$t/o; "
+                     f"printf '@@%d %d\\n' {i} $r; base64 -w0 <$t/o; echo")
+    lines.append('rm -rf "$t"')
+    return "\n".join(lines)
+
+
+def parse_batch(cmds: list[str], out: str) -> dict:
+    """{command: [rc, output]} from batch_script's output; a command missing (the connection cut short) is left out."""
+    recorded, lines = {}, out.splitlines()
+    for i, ln in enumerate(lines[:-1]):
+        m = re.fullmatch(r"@@(\d+) (\d+)", ln)
+        if not m or int(m.group(1)) >= len(cmds):
+            continue
+        try:
+            text = base64.b64decode(lines[i + 1], validate=True).decode("utf-8", "replace")
+        except ValueError:
+            continue
+        rc = int(m.group(2))
+        recorded[cmds[int(m.group(1))]] = [rc, text if rc == 0 else text.strip()]
+    return recorded
+
+
+def run_batch(run, cmds: list[str]) -> dict:
+    """Runs the commands in a single call of run() (one SSH connection) and returns their outputs."""
+    if not cmds:
+        return {}
+    _, out = run(batch_script(cmds), timeout=min(150, sum(map(_limit, cmds)) + 10))
+    return parse_batch(cmds, out)
 
 
 def replay_runner(recorded):
@@ -1110,9 +1560,14 @@ def collect_linux(host: dict, run) -> dict:
     logs = collect_big_logs(run)
     # SMART non pertinent sur une VM (disque virtualisé, pas de hardware physique dédié)
     smart = {"accessible": False, "disks": [], "vm": True} if host.get("vm") else collect_smart(run)
+    system = collect_system(run)
+    if docker.get("accessible") and system.get("docker_loops"):
+        docker["loops"] = system["docker_loops"]
+    system.pop("docker_loops", None)
     h = {"id": host["id"], "name": host["name"], "reachable": True,
          "disks": disks, "systemd": systemd, "docker": docker, "apt": apt, "kernel": kernel,
-         "reboot_required": reboot_required, "load": load, "ssh_auth": ssh_auth, "smart": smart, "temp": temp, "gpu": gpu, "res": res, "logs": logs}
+         "reboot_required": reboot_required, "load": load, "ssh_auth": ssh_auth, "smart": smart, "temp": temp, "gpu": gpu, "res": res, "logs": logs,
+         "system": system}
     h["level"] = host_level(h)
     return h
 
@@ -1612,6 +2067,10 @@ def main() -> int:
     agents = agent_reports()
     candidates, meta = load_hosts(set(agents))
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv[:-1] else None  # une seule machine (IP) : les autres gardent leur dernier relevé
+    # After an agent report (--agent): a machine read over SSH first keeps its SSH reading until the next pass (the report only complements it)
+    if only and "--agent" in sys.argv and any(hc["ip"] == only and hc["target"] and source_order(hc)[0] == "ssh" for hc in candidates):
+        print(f"= relevé d'agent de {only} : machine lue en SSH, rien à relire")
+        return 0
     previous, previous_asleep = [], []
     if only:
         try:
@@ -1620,7 +2079,7 @@ def main() -> int:
         except (OSError, ValueError):
             pass
     asleep = []
-    apis = api_systems(meta)
+    apis = api_systems(meta, cached_only=bool(only))
     # Beszel is read for a whole pass, or for the one machine asked for (even a « often off » one: Beszel may be telling it is up)
     needs_beszel = any(hc["target"] is None or "beszel" in source_order(hc) for hc in candidates if not only or hc["ip"] == only)
     besz, _ = beszel_systems(meta) if (not only or needs_beszel or only in meta.get("machines", {})) else ({}, [])

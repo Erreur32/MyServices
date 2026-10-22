@@ -15,17 +15,18 @@ from __future__ import annotations
 
 import ipaddress
 import json
-import math
 import mimetypes
 import os
 import secrets
 import threading
 import time
+import zlib
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
 from urllib.parse import quote
 
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.gzip import GZipMiddleware
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -1381,27 +1382,37 @@ class NewAgent(BaseModel):
 PLAIN = "text/plain; charset=utf-8"   # scripts d'agent servis tels quels
 
 
-def too_soon(a: dict) -> JSONResponse | None:
-    """Réponse 429 si cet agent a déjà envoyé un relevé il y a moins de MIN_GAP secondes."""
+def too_soon(a: dict) -> dict | None:
+    """A report sent less than MIN_GAP seconds after the last one (a run at boot then one at sign-in): answered « already received »
+    with a 200, not a 429, so an agent does not retry it nor its scheduled task run the whole collection again."""
     import agents
-    remaining = agents.MIN_GAP - (time.time() - a["last_seen"]) if a["last_seen"] else 0
-    if remaining <= 0:
-        return None
-    wait = math.ceil(remaining)
-    return JSONResponse({"error": f"trop tôt, réessayer dans {wait} s", "code": "TOO_SOON"}, status_code=429, headers={**SECURITY_HEADERS, "Retry-After": str(wait)})
+    if a["last_seen"] and time.time() - a["last_seen"] < agents.MIN_GAP:
+        return {"ok": True, "skipped": True, "interval": agents.DEFAULT_INTERVAL}
+    return None
 
 
 def refresh_after_report(a: dict, report: dict, before, now) -> None:
-    """Relit la santé (et, au premier relevé ou après une mise à jour d'agent, la collecte) sans attendre le prochain horaire."""
+    """Relit la santé (et, au premier relevé ou après une mise à jour d'agent, la collecte) sans attendre le prochain horaire.
+    Only this machine is read again, from its report (--only, --agent: no SSH, no new call to an API), even when its level changed: its events
+    and alerts come from that pass as from a full one."""
     first, upgraded = not a["last_seen"], str(report.get("version") or "") != (a.get("version") or "")
     if core.enabled("health"):
-        if first or before != now:   # premier relevé ou niveau de la machine changé
-            core.run_task("health", f"relevé de l'agent {a['name']} : {before or 'premier'} → {now}")
-        else:   # chaque relevé rafraîchit la fiche de cette machine seule (lecture du relevé, sans SSH) : un poste rallumé réapparaît tout de suite
-            core.run_task("health", f"relevé de l'agent {a['name']}", ("--only", a["ip"]))
+        why = f"relevé de l'agent {a['name']}" + (f" : {before or 'premier'} → {now}" if first or before != now else "")
+        core.run_task("health", why, ("--only", a["ip"], "--agent"))
     # Premier relevé ou agent réinstallé dans une autre version : système, matériel et ports (lus à la collecte) apparaissent sans attendre l'horaire
     if (first or upgraded) and core.enabled("collect"):
         core.run_chain(["collect"], f"relevé de l'agent {a['name']} (version {report.get('version')})")
+
+
+def unzip_report(raw: bytes, limit: int) -> bytes | None:
+    """Corps gzip d'un relevé (agent Linux 3 et plus), décompressé au plus jusqu'à `limit` octets ; None s'il est plus gros ou illisible
+    (jamais décompressé en entier : une archive piégée ne remplit pas la mémoire)."""
+    try:
+        d = zlib.decompressobj(16 + zlib.MAX_WBITS)
+        out = d.decompress(raw, limit + 1)
+        return None if len(out) > limit or d.unconsumed_tail or not d.eof else out
+    except zlib.error:
+        return None
 
 
 @app.post(AGENT_REPORT, tags=["agents"], summary="Relevé de santé envoyé par un agent (jeton msv_agent_)")
@@ -1413,6 +1424,14 @@ async def agent_report(request: Request):
     raw = await request.body()
     if len(raw) > agents.MAX_BODY:
         return deny(413, "relevé trop gros")
+    if request.headers.get("content-encoding", "").lower() == "gzip" and (raw := unzip_report(raw, agents.MAX_UNZIPPED)) is None:
+        return deny(413, "relevé compressé illisible ou trop gros une fois décompressé")
+    # Parsing, the database and the health level are slow, blocking work: done in a worker thread, the server keeps answering meanwhile
+    return await run_in_threadpool(_agent_report, a, raw, ip_of(request))
+
+
+def _agent_report(a: dict, raw: bytes, ip: str):
+    import agents
     try:
         report = agents.validate_report(json.loads(raw))
     except ValueError:
@@ -1422,10 +1441,10 @@ async def agent_report(request: Request):
     if (report["data"].get("kind") == "linux") != (a.get("kind") == "linux"):
         return deny(400, "relevé d'un autre type que cet agent (Windows ou Linux)")
     if not agents_store().claim_host(a["id"], report.get("host")):
-        store().audit("agent : nom de poste différent, relevé refusé", "agent", ip_of(request), f"« {a['name']} » ({a['ip']}) : {str(report.get('host'))[:64]}")
+        store().audit("agent : nom de poste différent, relevé refusé", "agent", ip, f"« {a['name']} » ({a['ip']}) : {str(report.get('host'))[:64]}")
         return JSONResponse({"error": "nom de poste différent de celui connu : à confirmer dans MyServices (Réglages → Agents)", "code": "HOST_CHANGED"},
                             status_code=409, headers=SECURITY_HEADERS)
-    before, now = agents_store().store_report(a["id"], report, ip_of(request))
+    before, now = agents_store().store_report(a["id"], report, ip)
     refresh_after_report(a, report, before, now)
     out = {"ok": True, "interval": agents.DEFAULT_INTERVAL}
     if upd := agents_store().update_for(a["id"], str(report.get("version") or "")):   # mise à jour automatique ou demandée : l'agent s'en charge
@@ -1676,6 +1695,7 @@ class VeeamJob(BaseModel):
     name: str
     label: str = ""
     max_age_days: float = 2.0
+    copy_of: str = ""   # Backup Copy job: the job it copies (its set gets this job as a copy location)
 
 
 class VeeamFollow(VeeamAccount):
@@ -1817,6 +1837,35 @@ def backups_pbs_follow(body: PbsFollow, request: Request):
         core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (Proxmox Backup)")
         return {"ok": True, **out}
     return backups_call(request, "groupes Proxmox Backup suivis", f"{body.connector} : {len(body.groups)} groupe(s)", go)
+
+
+class AgentBackup(BaseModel):
+    ip: str
+    tool: str
+    label: str = ""
+    max_age_days: float = 2.0
+
+
+class AgentBackupsFollow(BaseModel):
+    runs: list[AgentBackup]
+
+
+@app.get(API + "/backups/agents/discover", tags=["sauvegardes"], summary="Veeam Agent et Sauvegarde Windows Server vus par les agents Windows, lecture seule (admin)")
+def backups_agents_discover(request: Request):
+    return backups_call(request, "", "", lambda b: b.agent_backups_discover(), write=False)
+
+
+@app.put(API + "/backups/agents", tags=["sauvegardes"], summary="Suivre les sauvegardes Veeam Agent / Windows Server vues par les agents Windows (admin)")
+def backups_agents_follow(body: AgentBackupsFollow, request: Request):
+    import system
+
+    def go(b):
+        out = b.agent_backups_follow([r.model_dump() for r in body.runs])
+        if not core.CFG.get("backups_url"):
+            system.set_backups_url(core, "backups.json")
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (agents Windows)")
+        return {"ok": True, **out}
+    return backups_call(request, "sauvegardes des agents Windows suivies", f"{len(body.runs)} sauvegarde(s)", go)
 
 
 class VzdumpGroup(BaseModel):

@@ -49,6 +49,7 @@ import hostinfo
 import notify
 import npmapi
 from config import CFG, DEFAULTS, HERE
+from sshmux import SSH_MUX
 
 CONFIG = Path(os.environ.get("MYSERVICES_CONFIG") or HERE / "config.json")
 META = Path(CFG["meta"])
@@ -103,7 +104,7 @@ def save(path: Path, data: dict) -> None:
 
 def run(alias: str, cmd: str, timeout: int = 20) -> subprocess.CompletedProcess | None:
     """Commande locale (alias "local") ou via SSH, sans mot de passe ni question."""
-    argv = ["sh", "-c", cmd] if alias == "local" else ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", alias, cmd]
+    argv = ["sh", "-c", cmd] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", alias, cmd]
     try:
         return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired):

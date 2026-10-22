@@ -37,6 +37,8 @@ export interface Service {
   vhost?: string;
   docroot?: string;
   conf?: string;
+  target?: string;   // relay (Anubis): the host:port it forwards to (its TARGET)
+  behind?: { kind: string | null; name: string | null; addr: string; image?: string } | null;   // what runs at that target
 }
 
 export interface Host {
@@ -91,6 +93,19 @@ export interface Host {
   dns?: { issues: [string, ...unknown[]][]; rewrites?: unknown[] };
   web?: string;
   direct_ok?: boolean;
+  target_changed?: string;   // ISO date: the target (ip:port) changed less than 7 days ago
+  target_before?: string;    // the previous target
+}
+
+/** A web server of a machine (webservers.py): how it runs, where it listens, what it forwards to */
+export interface WebServer {
+  key: string; label: string; mode: "docker" | "service" | "binary"; name: string; ports: number[]; up: boolean; host_net: boolean;
+  target: string | null; behind: Service["behind"]; vhosts?: number; vhosts_unreadable?: number;
+}
+
+/** Every container of a machine, with or without a service (webservers.container_list) */
+export interface MachineContainer {
+  name: string; image: string; status: string; up: boolean; host_net: boolean; ports: number[]; local_ports: number[]; compose: string | null;
 }
 
 export interface Machine {
@@ -113,10 +128,13 @@ export interface Machine {
   api?: { type: string; name: string; label: string; ok: boolean; stale?: boolean; version?: string | null; message?: string; host?: { cpu?: number; mem_pct?: number; temp?: number; boot?: string } | null }[];   // connecteurs API (Home Assistant…) qui lisent cette machine
   agent?: { os: string; kernel?: string | null; uptime_s?: number | null; hardware?: AgentHardware | null; docker?: number | null; apps?: { key: string; label: string }[]; via: "agent" } | null;  // système lu par l'agent (PC Windows)
   info?: {
+    via?: "agent";   // read by the Linux agent (absent: over SSH)
     os?: string; kernel?: string; uptime_s?: number; gpus?: string[]; apache?: boolean; nginx?: boolean; docker?: number; docker_installed?: boolean;
     sshd?: { permitrootlogin?: string; passwordauthentication?: string };
     vhosts?: unknown[]; vhosts_unreadable?: string[];
   } | null;
+  web?: WebServer[];   // web servers: Docker, service or binary
+  containers?: MachineContainer[] | null;   // null: Docker not readable; absent: no Docker reading for this machine
 }
 
 export interface DnsServer {
@@ -286,11 +304,12 @@ export interface HealthHost {
   reboot_required?: boolean;
   disks?: { mount: string; used_pct: number; size_gb?: number; avail_gb?: number; warning?: boolean; critical?: boolean }[];
   systemd?: { failed: { unit: string }[] };
-  docker?: { accessible: boolean; total?: number; stopped?: number; unhealthy?: number; restarting?: number; exited?: number; issues?: string[] };
+  docker?: { accessible: boolean; total?: number; stopped?: number; unhealthy?: number; restarting?: number; exited?: number; issues?: (DockerIssue | string)[]; loops?: { name: string; restarts: number }[] };
   apt?: { upgradable: number; sample?: string[]; available?: boolean; security?: number | null; firmware?: boolean };   // packages (apt) or Windows updates; sample: up to 30 named
   kernel?: { has_errors: boolean; samples?: string[] };
   load?: { load_1: number; ncpu: number; available: boolean; cpu_pct?: number | null };   // cpu_pct: Windows, instant CPU instead of a load average
-  checks?: Record<string, string>;   // the controls not « ok » (disk, systemd, docker, kernel, load, ssh_auth, smart, temp, res -> warn | crit), from health.py host_checks
+  checks?: Record<string, string>;   // the controls not « ok » (disk, systemd, docker, kernel, load, ssh_auth, smart, temp, res, pm2, raid, zfs, mounts, ntp, timers, auto_upd -> warn | crit), from health.py host_checks
+  system?: HostSystem;   // services and storage of a Linux machine (SSH or Linux agent); a part not on the machine has available false
   res?: { available: boolean; cpu_pct?: number; mem_pct?: number; mem_total_mb?: number; mem_used_mb?: number; swap_total_mb?: number; swap_used_mb?: number };  // CPU et mémoire
   gpu?: { available: boolean; gpus: { name: string; util: number | null; temp: number | null; mem_used: number | null; mem_total: number | null; power: number | null }[] };   // nvidia-smi / rocm-smi (SSH or Linux agent)
   temp?: { available: boolean; celsius?: number; source?: string; virt?: string; sensors?: { name: string; celsius: number }[] };  // température du processeur (capteur de la machine ou Beszel)
@@ -304,6 +323,26 @@ export interface HealthHost {
   fans?: { name: string; rpm: number }[];       // Freebox: its fans
   vms?: { running: number; total: number };   // Freebox: its virtual machines, how many run   // Freebox: memory given to its virtual machines (the box itself reports no load)
   api_name?: string;                     // source « ha » : the service whose API was read (Glances, Home Assistant)
+}
+
+/** A container that is stopped, restarting or unhealthy (health.py collect_docker): its name, status and image */
+export interface DockerIssue { name: string; status: string; image?: string }
+
+/** Services and storage read in one command (health.py collect_system): PM2 read without the pm2 command, RAID, ZFS, network shares, clock,
+ *  timers, automatic updates, Snap, open sessions */
+export interface HostSystem {
+  pm2?: { available: boolean; daemons?: string[]; units?: { unit: string; enabled: boolean; active: boolean }[]; home?: string | null; running?: boolean | null; apps?: { name: string; up: boolean; saved: boolean }[] };
+  raid?: { available: boolean; arrays?: { name: string; state: string; level: string; degraded: boolean; members?: string; rebuild?: { kind: string; pct: number } }[] };
+  zfs?: { available: boolean; pools?: { name: string; health: string }[] };
+  mounts?: { available: boolean; shares?: { path: string; ok: boolean; state: "ok" | "hang" | "error" | "missing" }[] };
+  ntp?: { available: boolean; synced?: boolean; service?: boolean };
+  timers?: { available: boolean; total?: number; failed?: string[] };
+  auto_upd?: { available: boolean; enabled?: boolean; days?: number | null; errors?: string[] };
+  snap?: { available: boolean; pending?: number; names?: string[] };
+  sessions?: { available: boolean; sessions?: { user: string; tty: string; from: string }[] };
+  // need root: read through one exact sudo rule; access false = the rule is missing, `rule` is the sudoers line to add
+  needrestart?: { available: boolean; access?: boolean; rule?: string; services?: string[]; kernel_pending?: boolean };
+  fail2ban?: { available: boolean; access?: boolean; rule?: string; jails?: { name: string; banned: number }[]; total?: number };
 }
 
 /** Poste « souvent éteint » qui ne répond pas : fiche grisée, sans alerte (last_seen : dernier relevé de son agent, en secondes) */

@@ -9,6 +9,8 @@
 #   MSV_MINUTES=15     interval between two reports (1 to 1440)
 #   MSV_DOCKER=1       also put the agent user in the docker group (read Docker containers). Warning: the docker group is root-equivalent
 #   MSV_SMART=1        allow `sudo -n smartctl -H /dev/*` for the agent user (SMART health of the disks)
+#   MSV_SUDO=1         allow the three read-only commands that need root, each alone (exact sudo rules): services to restart after an
+#                      update (needrestart, list mode), Fail2ban bans, and the process names behind the listening ports (ss)
 #   MSV_UNINSTALL=1    remove the agent (revoke its token in MyServices: Settings -> Agents)
 # Re-running is safe: it downloads the agent again and renews the config and the timer.
 set -euo pipefail
@@ -16,7 +18,8 @@ set -euo pipefail
 DIR=/opt/myservices-agent
 USER_NAME=myservices-agent
 UNIT=myservices-agent
-SUDOERS=/etc/sudoers.d/myservices-agent-smart
+SUDOERS=/etc/sudoers.d/myservices-agent
+OLD_SUDOERS=/etc/sudoers.d/myservices-agent-smart   # name used up to agent 3 (SMART only)
 
 die() { echo "x $*" >&2; exit 1; }
 ok() { echo "+ $*"; }
@@ -27,7 +30,7 @@ command -v systemctl >/dev/null || die "systemd is required (systemctl not found
 if [[ "${MSV_UNINSTALL:-}" = 1 ]]; then
   systemctl disable --now "$UNIT.timer" >/dev/null 2>&1 || true
   systemctl stop "$UNIT.service" >/dev/null 2>&1 || true
-  rm -f "/etc/systemd/system/$UNIT.service" "/etc/systemd/system/$UNIT.timer" "$SUDOERS"
+  rm -f "/etc/systemd/system/$UNIT.service" "/etc/systemd/system/$UNIT.timer" "$SUDOERS" "$OLD_SUDOERS"
   systemctl daemon-reload
   systemctl reset-failed "$UNIT.service" "$UNIT.timer" >/dev/null 2>&1 || true   # else a removed unit stays listed as « not-found failed » in systemctl --failed
   id "$USER_NAME" >/dev/null 2>&1 && userdel "$USER_NAME" >/dev/null 2>&1 || true
@@ -78,12 +81,21 @@ chmod 600 "$DIR/config.json"
 ok "Agent installed in $DIR"
 
 NNP="NoNewPrivileges=true"
+RULES=()
 if [[ "${MSV_SMART:-}" = 1 ]]; then
-  echo "$USER_NAME ALL=(root) NOPASSWD: /usr/sbin/smartctl -H /dev/*" > "$SUDOERS.tmp"
+  RULES+=("/usr/sbin/smartctl -H /dev/*")
+fi
+if [[ "${MSV_SUDO:-}" = 1 ]]; then
+  # The exact commands MyServices runs through sudo -n (health.NEEDRESTART_ARGS, health.FAIL2BAN_ARGS, connectors/process.LISTEN_SH)
+  RULES+=("/usr/sbin/needrestart -b -r l" "/usr/bin/fail2ban-client banned" "$(command -v ss || echo /usr/bin/ss) -tlnpH")
+fi
+rm -f "$OLD_SUDOERS"
+if (( ${#RULES[@]} )); then
+  for r in "${RULES[@]}"; do echo "$USER_NAME ALL=(root) NOPASSWD: $r"; done > "$SUDOERS.tmp"
   visudo -cf "$SUDOERS.tmp" >/dev/null || { rm -f "$SUDOERS.tmp"; die "sudoers rule rejected"; }
   chmod 440 "$SUDOERS.tmp"; mv "$SUDOERS.tmp" "$SUDOERS"
-  NNP="# NoNewPrivileges is left off: sudo (SMART) needs to gain privileges"
-  ok "SMART allowed: $SUDOERS"
+  NNP="# NoNewPrivileges is left off: sudo needs to gain privileges"
+  ok "sudo allowed for ${#RULES[@]} exact read-only command(s): $SUDOERS"
 else
   rm -f "$SUDOERS"
 fi
