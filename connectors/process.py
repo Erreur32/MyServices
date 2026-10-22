@@ -15,6 +15,9 @@ from sshmux import SSH_MUX
 # Process locaux sans intérêt dans l'annuaire (ports RPC/NFS éphémères, résolveur, docker)
 NOISE_PORTS = {53, 111, 631, 2049, 5355}  # même chose vue par le port seul : DNS local, RPC, CUPS, NFS, LLMNR
 NOISE_PROCS = {"docker-proxy", "rpcbind", "rpc.statd", "rpc.mountd", "systemd-resolve", "master"}
+# Not root on the machine: a sudoers rule for « ss -tlnpH » alone (given in the page, or MSV_SUDO=1 for the agent) shows every
+# process; without one, plain ss. The Linux agent runs this same command
+LISTEN_SH = "sudo -n ss -tlnpH 2>/dev/null || ss -tlnpH"
 
 
 def listening_processes(alias):
@@ -26,17 +29,21 @@ def listening_processes(alias):
 def listening_read(alias):
     """(ports, hidden) : comme listening_processes, plus le nombre de ports en écoute dont `ss` cache le nom du process
     (compte sans root : il ne voit que ses propres process), pour dire que la lecture est partielle."""
-    # Not root on the machine: a sudoers rule for « ss -tlnpH » alone (given in the page) shows every process; without one, plain ss
     cmd = ["ss", "-tlnpH"] if alias == "local" else \
-        ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, "sudo -n ss -tlnpH 2>/dev/null || ss -tlnpH"]
+        ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, LISTEN_SH]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
     except subprocess.TimeoutExpired:
         raise ConnectorError(f"{alias} : délai dépassé") from None
     if r.returncode != 0:
         raise ConnectorError(f"{alias} : {(r.stderr.strip() or f'code {r.returncode}')[-160:]}")
+    return parse_listening(r.stdout)
+
+
+def parse_listening(out: str):
+    """(ports, hidden) d'après la sortie de `ss -tlnpH` (lue par SSH ou envoyée par l'agent Linux)."""
     ports, hidden = {}, set()
-    for line in r.stdout.splitlines():
+    for line in out.splitlines():
         cols = line.split()
         m = re.match(r"(.*):(\d+)$", cols[3]) if len(cols) > 3 else None
         p = re.search(r'\(\("([^"]+)"', line)

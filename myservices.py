@@ -1021,6 +1021,18 @@ def main():
     internal = dock.pop("_internal", {})
     hinfo = dock.pop("_hostinfo", {})
     adopt_ssh(hinfo)
+    # Linux machines followed by their agent: the same inventory as over SSH (machine info, Docker, ports), where SSH read nothing
+    reports, agent_ports = agent_reports(), {}
+    for ip, a in reports.items():
+        if a["fresh"] and (inv := agents.linux_inventory(a["report"])):
+            if not hinfo.get(ip) and inv["info"]:
+                hinfo[ip] = inv["info"]
+            if dock.get(ip) is None and inv["containers"] is not None:
+                dock[ip] = inv["containers"]
+            if not internal.get(ip) and inv["internal"]:
+                internal[ip] = inv["internal"]
+            if inv["ports"]:
+                agent_ports[ip] = inv["ports"]
     # Vhosts Apache : (ip, port, nom) -> vhost ; Apache sert des fichiers locaux derrière NPM
     vhost_by = {}
     for ip, info in hinfo.items():
@@ -1055,6 +1067,8 @@ def main():
                 for ip, c in ((c.conf["ip"], c) for c in connectors.instances(CFG, kind="inventory", meta=META_RAW)
                               if c.type == "process")}
     procs = {ip: j.result() for ip, j in jobs.items()}
+    for ip, ports in agent_ports.items():
+        procs[ip] = procs.get(ip) or ports
     if fresh_ports:
         try:
             _process_store(fresh_ports)
@@ -1062,7 +1076,7 @@ def main():
             print(f"⚠ cache des ports non écrit : {e}", file=sys.stderr)
     # PC Windows lus par leur agent : ports à l'écoute et système viennent de son dernier relevé frais (rien lu par SSH)
     agent_sys, agent_apps, agent_fresh = {}, {}, {}
-    for ip, a in agent_reports().items():
+    for ip, a in reports.items():
         if a["fresh"]:
             agent_fresh[ip] = a["report"]
             agent_sys[ip] = agents.system_of(a["report"])

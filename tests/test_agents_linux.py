@@ -123,7 +123,7 @@ class LinuxAgentScripts(unittest.TestCase):
         ns: dict = {"__name__": "agent_under_test", "__file__": "/nonexistent/agent.py"}
         exec(code, ns)
         self.assertEqual(ns["VERSION"], agents.LINUX_VERSION)
-        self.assertEqual(ns["COMMANDS"], health.LINUX_AGENT_COMMANDS)
+        self.assertEqual(ns["COMMANDS"], health.LINUX_AGENT_COMMANDS + agents.inventory_commands())
         self.assertEqual(ns["SMART_LIST"], health.SMART_LIST_CMD)
         self.assertEqual(ns["SMART_FMT"].format(target="sda"), health.smart_cmd("sda"))   # same SMART command as the SSH collection
 
@@ -133,7 +133,8 @@ class LinuxAgentScripts(unittest.TestCase):
         asked = []
         ns["run"] = lambda cmd, timeout: (asked.append(cmd) or (0, "sda\nnvme0n1\nnvme0n1\n" if cmd == health.SMART_LIST_CMD else "x"))
         cmds = ns["collect"]()
-        self.assertEqual(asked, health.LINUX_AGENT_COMMANDS + [health.smart_cmd("sda"), health.smart_cmd("nvme0")])   # one per disk, deduplicated
+        self.assertEqual(asked, health.LINUX_AGENT_COMMANDS + agents.inventory_commands()
+                         + [health.smart_cmd("sda"), health.smart_cmd("nvme0")])   # one per disk, deduplicated
         self.assertEqual(set(cmds), set(asked))
 
     def test_agent_refuse_un_nom_de_disque_etrange(self):
@@ -160,9 +161,9 @@ class LinuxAgentScripts(unittest.TestCase):
             first = ns["collect"]()
             asked.clear()
             second = ns["collect"]()
-            slow = set(health.LINUX_AGENT_CACHE) | {health.smart_cmd("sda")}
-            self.assertFalse(slow & set(asked))                       # apt, big logs and SMART: not run again within their lifetime
-            self.assertEqual(set(asked), set(health.LINUX_AGENT_COMMANDS) - slow)
+            slow = set(health.LINUX_AGENT_CACHE) | set(agents.inventory_cache()) | {health.smart_cmd("sda")}
+            self.assertFalse(slow & set(asked))                       # apt, big logs, machine info and SMART: not run again within their lifetime
+            self.assertEqual(set(asked), set(health.LINUX_AGENT_COMMANDS + agents.inventory_commands()) - slow)
             self.assertEqual(first, second)                           # their outputs are sent again, the report stays complete
             asked.clear()
             from unittest import mock
@@ -208,6 +209,51 @@ class LinuxAgentScripts(unittest.TestCase):
         if shutil.which("bash"):
             r = subprocess.run(["bash", "-n"], input=text.encode(), capture_output=True)
             self.assertEqual(r.returncode, 0, r.stderr.decode())
+
+    def test_install_sh_regles_sudo_exactes(self):
+        """MSV_SUDO=1 allows exactly the commands the collection runs through sudo -n: a rule that drifts would silently stop working."""
+        from connectors.process import LISTEN_SH
+        text = agents.script("install.sh")
+        for cmd in (health.NEEDRESTART_ARGS, health.FAIL2BAN_ARGS):
+            self.assertIn(f'"{cmd}"', text)
+            self.assertIn(f"sudo -n {cmd}", health.as_root(cmd))
+        self.assertIn("sudo -n ss -tlnpH", LISTEN_SH)
+        self.assertIn(') -tlnpH"', text)
+        self.assertNotIn("ALL=(root) NOPASSWD: ALL", text)
+
+    def test_v4_inventaire_lu_comme_par_ssh(self):
+        import hostinfo
+        from connectors import docker_ssh, process
+        remote = ("##OS Debian GNU/Linux 12 (bookworm)\n##KERNEL 6.1.0\n##UP 3600\n##SVC apache2=active nginx=inactive\n"
+                  "##SSHDR no\n##DOCKERBIN yes\n##DOCKER 1\n##VIRT kvm\n")
+        ps = "web|nginx:1|0.0.0.0:8080->80/tcp, 127.0.0.1:3011->3000/tcp|Up 2 days|site||||\n" + docker_ssh.ENV_MARK + "\n"
+        ss = 'LISTEN 0 511 0.0.0.0:80 0.0.0.0:* users:(("apache2",pid=1,fd=4))\nLISTEN 0 5 127.0.0.1:3011 0.0.0.0:*\n'
+        report = {"data": {"kind": "linux", "cmds": {hostinfo.REMOTE: [0, remote], docker_ssh.DOCKER_SH: [0, ps],
+                                                      docker_ssh.NET_SH: [0, "_host=192.168.1.61/24\n"], process.LISTEN_SH: [0, ss]}}}
+        inv = agents.linux_inventory(report)
+        self.assertEqual(inv["info"], {**hostinfo.parse_host_info(remote), "via": "agent"})
+        self.assertEqual((inv["info"]["os"], inv["info"]["apache"]), ("Debian GNU/Linux 12 (bookworm)", True))
+        self.assertEqual(inv["containers"], docker_ssh.parse_containers(ps))
+        self.assertEqual((inv["containers"][0]["ports"], inv["containers"][0]["local_ports"]), ([(8080, 80)], [3011]))
+        self.assertEqual(inv["internal"], {"192.168.1.61": "_host"})
+        self.assertEqual(inv["ports"], {80: {"name": "apache2", "lan": True}})
+
+    def test_v4_inventaire_absent_ou_docker_refuse(self):
+        from connectors import docker_ssh
+        self.assertIsNone(agents.linux_inventory({"data": {"disks": []}}))   # Windows report
+        old = agents.linux_inventory({"data": {"kind": "linux", "cmds": {health.REBOOT_CMD: [0, "no\n"]}}})   # agent 3: nothing to read
+        self.assertEqual(old, {"info": None, "containers": None, "internal": None, "ports": None})
+        denied = {docker_ssh.DOCKER_SH: [1, "permission denied while trying to connect to the Docker daemon socket"]}
+        self.assertIsNone(agents.linux_inventory({"data": {"kind": "linux", "cmds": denied}})["containers"])   # inaccessible, not absent
+        missing = {docker_ssh.DOCKER_SH: [127, "sh: 1: docker: not found"]}
+        self.assertEqual(agents.linux_inventory({"data": {"kind": "linux", "cmds": missing}})["containers"], [])   # no Docker here
+
+    def test_v4_info_machine_gardee_une_heure(self):
+        import hostinfo
+        ns: dict = {"__name__": "agent_under_test", "__file__": "/nonexistent/agent.py"}
+        exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
+        self.assertEqual(ns["CACHED"][hostinfo.REMOTE], 3600)
+        self.assertTrue(all(len(c) <= agents.MAX_LINUX_CMD for c in ns["COMMANDS"]))   # every command fits the server limit
 
     def test_commande_d_installation(self):
         win = agents.install_command("http://192.168.1.10:8090", "msv_agent_x")

@@ -283,9 +283,14 @@ def host_info(alias: str) -> dict | None:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
     except subprocess.TimeoutExpired:
         return None
-    if r.returncode == 255 or "##OS" not in r.stdout:
+    return None if r.returncode == 255 else parse_host_info(r.stdout)
+
+
+def parse_host_info(out: str) -> dict | None:
+    """Infos d'une machine d'après la sortie de REMOTE (lue par SSH, en local ou envoyée par l'agent Linux) ; None si elle est illisible."""
+    if "##OS" not in out:
         return None
-    tag = {m.group(1): m.group(2).strip() for m in re.finditer(r"^##(\w+) ?(.*)$", r.stdout, re.M)}
+    tag = {m.group(1): m.group(2).strip() for m in re.finditer(r"^##(\w+) ?(.*)$", out, re.M)}
     svc = dict(kv.split("=", 1) for kv in tag.get("SVC", "").split() if "=" in kv)
     sshd = {}
     for kv in filter(None, tag.get("SSHD", "").split(";")):
@@ -296,8 +301,8 @@ def host_info(alias: str) -> dict | None:
         for k, v in (("port", "22"), ("permitrootlogin", "prohibit-password"), ("passwordauthentication", "yes")):
             if k not in sshd:
                 sshd[k] = v + " (défaut)"
-    vhosts, unreadable, listen, listen_addr = parse_apache(r.stdout)
-    nginx_vhosts, nginx_unreadable = parse_nginx(r.stdout)
+    vhosts, unreadable, listen, listen_addr = parse_apache(out)
+    nginx_vhosts, nginx_unreadable = parse_nginx(out)
     return {
         "os": tag.get("OS") or (tag.get("ESXI") if tag.get("ESXI", "").startswith("VMware ESXi") else None),
         "kernel": tag.get("KERNEL") or None,
@@ -312,7 +317,7 @@ def host_info(alias: str) -> dict | None:
         "proxmox": tag.get("PVE") == "yes",
         "esxi": tag.get("ESXI", "").startswith("VMware ESXi"),  # VMware ESXi host: its VMs and datastores are read by vim-cmd  # Proxmox VE host: its guests and storages are read by pvesh at each collection
         "hypervisors": [t for t in tag.get("HV", "").split() if t in ("virsh", "incus", "lxc", "VBoxManage")],  # other hypervisors read by virt_ssh.py
-        "nics": parse_nics(r.stdout),  # wired network cards: negotiated speed / duplex, and the maximum when ethtool says it
+        "nics": parse_nics(out),  # wired network cards: negotiated speed / duplex, and the maximum when ethtool says it
         "gpus": parse_gpus(tag.get("GPU", "")),  # lspci: the graphics adapters (iGPU included), names only, no load
         "sshd": sshd,  # vide si /etc/ssh/sshd_config illisible pour ce compte
         "vhosts": vhosts,

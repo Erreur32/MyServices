@@ -72,6 +72,9 @@ def parse_env(text: str) -> dict:
     return out
 
 
+DOCKER_SH = f"docker ps -a --format '{DOCKER_FMT}' && {{ {ENV_SH}; }}"   # the Linux agent runs this same command
+
+
 def docker_absent(rc: int, stderr: str) -> bool:
     """Le shell distant n'a pas trouvé la commande docker (code 127) : Docker n'est pas installé, ce n'est pas une panne d'accès."""
     low = (stderr or "").lower()
@@ -81,8 +84,7 @@ def docker_absent(rc: int, stderr: str) -> bool:
 def docker_containers(alias, absent: list | None = None):
     """Liste des conteneurs d'une machine (docker ps local ou via SSH). None = inaccessible ; [] si Docker n'est pas installé
     (`absent` reçoit alors True : l'appelant le distingue d'une machine Docker sans conteneur)."""
-    sh = f"docker ps -a --format '{DOCKER_FMT}' && {{ {ENV_SH}; }}"
-    cmd = ["sh", "-c", sh] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, sh]
+    cmd = ["sh", "-c", DOCKER_SH] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, DOCKER_SH]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
     except subprocess.TimeoutExpired:
@@ -93,7 +95,12 @@ def docker_containers(alias, absent: list | None = None):
                 absent.append(True)
             return []
         return None
-    ps, _, env = r.stdout.partition(f"{ENV_MARK}\n")
+    return parse_containers(r.stdout)
+
+
+def parse_containers(out: str) -> list[dict]:
+    """Conteneurs d'après la sortie de DOCKER_SH (lue par SSH ou envoyée par l'agent Linux)."""
+    ps, _, env = out.partition(f"{ENV_MARK}\n")
     env = parse_env(env)
     out = []
     for line in ps.splitlines():
@@ -113,19 +120,24 @@ NET_FMT = "{{range .Containers}}{{.Name}}={{.IPv4Address}} {{end}}"
 
 
 HOST_ADDR = "_host"  # adresse de la machine elle-même (pont docker, IP secondaire) : service de l'hôte
+NET_SH = (f"docker network ls -q --filter driver=bridge | xargs -r docker network inspect --format '{NET_FMT}'; "
+          f"ip -4 -o addr show scope global | awk '{{print \"{HOST_ADDR}=\" $4}}'")
 
 
 def docker_internal_ips(alias):
     """{ip_interne: nom_conteneur} des réseaux docker bridge d'une machine, plus ses propres adresses
     (HOST_ADDR) : un NPM qui vise 172.x.0.1 ou une IP du pont joint un service de l'hôte, pas un conteneur."""
-    sh = (f"docker network ls -q --filter driver=bridge | xargs -r docker network inspect --format '{NET_FMT}'; "
-          f"ip -4 -o addr show scope global | awk '{{print \"{HOST_ADDR}=\" $4}}'")
-    cmd = ["sh", "-c", sh] if alias == "local" else \
-        ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, sh]
+    cmd = ["sh", "-c", NET_SH] if alias == "local" else \
+        ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, NET_SH]
     try:
         out = subprocess.run(cmd, capture_output=True, text=True, timeout=20).stdout
     except subprocess.TimeoutExpired:
         return {}
+    return parse_internal(out)
+
+
+def parse_internal(out: str) -> dict:
+    """{ip_interne: nom_conteneur} d'après la sortie de NET_SH (lue par SSH ou envoyée par l'agent Linux)."""
     return {ip: name for name, ip in re.findall(r"(\S+)=([\d.]+)/\d+", out)}
 
 

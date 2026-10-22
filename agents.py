@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 VERSION = "9"                # Windows agent (agent.ps1)
-LINUX_VERSION = "3"          # Linux agent (agent.py)
+LINUX_VERSION = "4"          # Linux agent (agent.py)
 KINDS = ("windows", "linux")
 PS_AGENT = "agent.ps1"       # script de l'agent Windows
 SCRIPT_OF = {"windows": PS_AGENT, "linux": "agent.py"}
@@ -269,6 +269,41 @@ def docker_of(report: dict | None) -> list[dict] | None:
     return out
 
 
+def inventory_commands() -> list[str]:
+    """Commands of the SSH inventory the Linux agent runs too (version 4): machine info, Docker containers and networks, listening ports."""
+    import hostinfo
+    from connectors.docker_ssh import DOCKER_SH, NET_SH
+    from connectors.process import LISTEN_SH
+    return [hostinfo.REMOTE, DOCKER_SH, NET_SH, LISTEN_SH]
+
+
+def inventory_cache() -> dict[str, int]:
+    """Machine info changes seldom: the agent sends its last output again for an hour (the SSH inventory is kept 2 h)."""
+    import hostinfo
+    return {hostinfo.REMOTE: 3600}
+
+
+def linux_inventory(report: dict | None) -> dict | None:
+    """Inventaire d'un relevé d'agent Linux, lu avec le code de la lecture SSH : {"info", "containers", "internal", "ports"} (None pour ce
+    qui manque ou n'a pas pu être lu : agent ancien, Docker inaccessible au compte de l'agent) ; None si ce n'est pas un relevé Linux."""
+    import hostinfo
+    from connectors import docker_ssh, process
+    data = (report or {}).get("data") or {}
+    if data.get("kind") != "linux" or not isinstance(data.get("cmds"), dict):
+        return None
+    cmds = data["cmds"]
+    got = lambda cmd: cmds[cmd] if isinstance(cmds.get(cmd), list) and len(cmds[cmd]) == 2 else (None, "")  # noqa: E731
+    info = hostinfo.parse_host_info(got(hostinfo.REMOTE)[1])
+    if info:
+        info["via"] = "agent"   # the page says where it was read
+    rc, out = got(docker_ssh.DOCKER_SH)
+    containers = docker_ssh.parse_containers(out) if rc == 0 else [] if rc is not None and docker_ssh.docker_absent(rc, out) else None
+    rc_net, out_net = got(docker_ssh.NET_SH)
+    rc_ss, out_ss = got(process.LISTEN_SH)
+    return {"info": info, "containers": containers, "internal": docker_ssh.parse_internal(out_net) if rc_net is not None else None,
+            "ports": process.parse_listening(out_ss)[0] if rc_ss == 0 else None}
+
+
 def services_of(report: dict | None) -> list[dict]:
     """Services Windows en marche d'un relevé d'agent : [{"name", "display"}] (300 au plus), vide pour un agent ancien."""
     out = []
@@ -465,9 +500,9 @@ def script(name: str) -> str:
         text = text.replace("#__COLLECT__", health.WIN_PS.strip()).replace("__VERSION__", VERSION)
     elif name == "agent.py":   # the Linux agent runs the commands the SSH collection runs: one list, here
         import health
-        text = (text.replace("__VERSION__", LINUX_VERSION).replace("__COMMANDS__", json.dumps(health.LINUX_AGENT_COMMANDS))
+        text = (text.replace("__VERSION__", LINUX_VERSION).replace("__COMMANDS__", json.dumps(health.LINUX_AGENT_COMMANDS + inventory_commands()))
                 .replace("__SMART_LIST__", json.dumps(health.SMART_LIST_CMD)).replace("__SMART_FMT__", json.dumps(health.smart_cmd("{target}")))
-                .replace("__CACHED__", json.dumps(health.LINUX_AGENT_CACHE)).replace("__SMART_CACHE__", str(health.SMART_CACHE)))
+                .replace("__CACHED__", json.dumps({**health.LINUX_AGENT_CACHE, **inventory_cache()})).replace("__SMART_CACHE__", str(health.SMART_CACHE)))
     return text
 
 
