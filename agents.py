@@ -19,15 +19,19 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-VERSION = "8"                # Windows agent (agent.ps1)
-LINUX_VERSION = "2"          # Linux agent (agent.py)
+VERSION = "9"                # Windows agent (agent.ps1)
+LINUX_VERSION = "3"          # Linux agent (agent.py)
 KINDS = ("windows", "linux")
 PS_AGENT = "agent.ps1"       # script de l'agent Windows
 SCRIPT_OF = {"windows": PS_AGENT, "linux": "agent.py"}
 SCRIPTS = Path(__file__).resolve().parent / "agent"
 PREFIX = "msv_agent_"
 NAME_RE = re.compile(r"^[\w .@-]{2,64}$")
-MAX_BODY = 256 * 1024     # octets : un relevé fait quelques ko
+MAX_BODY = 256 * 1024     # octets : un relevé fait quelques ko (compressé en gzip par l'agent Linux depuis sa version 3)
+MAX_UNZIPPED = 2 * 1024 * 1024   # octets : un relevé gzip une fois décompressé (au-delà : refusé, jamais décompressé en entier)
+# Windows report blocks the agent reads only every 6 h (hardware, physical disks, running services): absent from a report, they are kept
+# from the previous one, so the machine does not lose them between two full reads
+SLOW_KEYS = ("hw", "pd", "sv")
 DEFAULT_INTERVAL = 900    # s : 15 min
 MIN_INTERVAL, MAX_INTERVAL = 60, 86400
 FRESH_MULT = 2.5          # un relevé plus vieux que 2,5 × l'intervalle est périmé
@@ -59,7 +63,7 @@ class Agents:
             db.executescript(SCHEMA)
             have = {r["name"] for r in db.execute("PRAGMA table_info(agents)")}
             for col, ddl in (("auto_update", "INTEGER NOT NULL DEFAULT 0"), ("update_requested", "REAL"),
-                             ("hostname", "TEXT"), ("host_pending", "TEXT"), ("kind", "TEXT NOT NULL DEFAULT 'windows'")):   # databases created before these columns
+                             ("hostname", "TEXT"), ("host_pending", "TEXT"), ("kind", "TEXT NOT NULL DEFAULT 'windows'"), ("level", "TEXT")):   # databases created before these columns
                 if col not in have:
                     db.execute(f"ALTER TABLE agents ADD COLUMN {col} {ddl}")
 
@@ -100,8 +104,9 @@ class Agents:
         return _public(r)
 
     def listing(self) -> list[dict]:
+        """Every agent, without its last report (a few dozen kB each, never shown in the list)."""
         with self._db() as db:
-            return [_public(r) for r in db.execute("SELECT * FROM agents ORDER BY revoked IS NOT NULL, created DESC")]
+            return [_public(r) for r in db.execute(f"SELECT {PUBLIC_COLS} FROM agents ORDER BY revoked IS NOT NULL, created DESC")]
 
     def set_auto_update(self, aid: int, on: bool) -> None:
         """Mise à jour automatique d'un agent : à son prochain relevé, il récupère le script du serveur s'il est plus ancien."""
@@ -204,12 +209,17 @@ class Agents:
         interval = report.get("interval")
         interval = interval if isinstance(interval, int) and MIN_INTERVAL <= interval <= MAX_INTERVAL else DEFAULT_INTERVAL
         with self._db() as db:
-            old = db.execute("SELECT report FROM agents WHERE id = ?", (aid,)).fetchone()
-            db.execute("UPDATE agents SET last_seen = ?, last_ip = ?, interval = ?, version = ?, os_name = ?, report = ? "
+            old = db.execute("SELECT report, level FROM agents WHERE id = ?", (aid,)).fetchone()
+            prev = json.loads(old["report"]) if old and old["report"] and (old["level"] is None or _partial(report)) else None
+            if prev is not None:
+                keep_slow_keys(report, prev)
+            level = report_level(report)
+            before = old["level"] if old and old["level"] is not None else report_level(prev) if prev else None
+            db.execute("UPDATE agents SET last_seen = ?, last_ip = ?, interval = ?, version = ?, os_name = ?, report = ?, level = ? "
                        "WHERE id = ? AND revoked IS NULL",
                        (time.time(), ip, interval, str(report.get("version") or "")[:32], str(report.get("os") or "")[:120],
-                        json.dumps(report, ensure_ascii=False), aid))
-        return report_level(json.loads(old["report"])) if old and old["report"] else None, report_level(report)
+                        json.dumps(report, ensure_ascii=False), level, aid))
+        return before, level
 
     def fresh_reports(self) -> dict[str, dict]:
         """{IP: {"report": relevé, "seen": date, "fresh": bool}} pour les agents actifs ayant déjà envoyé un relevé."""
@@ -350,6 +360,26 @@ def windows_backup_card(b: dict, machine: str) -> dict:
             "problems": problems}
 
 
+PUBLIC_COLS = ("id, ip, name, hint, created, created_by, revoked, last_seen, last_ip, interval, version, os_name, auto_update, "
+               "update_requested, hostname, host_pending, kind")   # what _public reads: the report stays in the database
+
+
+def _partial(report: dict) -> bool:
+    """Relevé Windows sans un des blocs lus toutes les 6 h (SLOW_KEYS) : il faut le compléter avec le précédent."""
+    data = report.get("data") or {}
+    return data.get("kind") != "linux" and any(k not in data for k in SLOW_KEYS)
+
+
+def keep_slow_keys(report: dict, prev: dict) -> None:
+    """Complète un relevé Windows avec les blocs lents (SLOW_KEYS) du relevé précédent quand l'agent ne les a pas relus cette fois."""
+    data, old = report.get("data"), (prev or {}).get("data")
+    if not isinstance(data, dict) or not isinstance(old, dict) or data.get("kind") == "linux":
+        return
+    for k in SLOW_KEYS:
+        if k not in data and k in old:
+            data[k] = old[k]
+
+
 def report_level(report: dict) -> str | None:
     """Niveau de santé (ok, warn, crit) que donne un relevé, avec les mêmes règles que la page Santé ; None s'il est illisible."""
     import health
@@ -436,7 +466,8 @@ def script(name: str) -> str:
     elif name == "agent.py":   # the Linux agent runs the commands the SSH collection runs: one list, here
         import health
         text = (text.replace("__VERSION__", LINUX_VERSION).replace("__COMMANDS__", json.dumps(health.LINUX_AGENT_COMMANDS))
-                .replace("__SMART_LIST__", json.dumps(health.SMART_LIST_CMD)).replace("__SMART_FMT__", json.dumps(health.smart_cmd("{target}"))))
+                .replace("__SMART_LIST__", json.dumps(health.SMART_LIST_CMD)).replace("__SMART_FMT__", json.dumps(health.smart_cmd("{target}")))
+                .replace("__CACHED__", json.dumps(health.LINUX_AGENT_CACHE)).replace("__SMART_CACHE__", str(health.SMART_CACHE)))
     return text
 
 

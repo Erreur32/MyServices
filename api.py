@@ -20,11 +20,13 @@ import os
 import secrets
 import threading
 import time
+import zlib
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
 from urllib.parse import quote
 
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.gzip import GZipMiddleware
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -1402,6 +1404,17 @@ def refresh_after_report(a: dict, report: dict, before, now) -> None:
         core.run_chain(["collect"], f"relevé de l'agent {a['name']} (version {report.get('version')})")
 
 
+def unzip_report(raw: bytes, limit: int) -> bytes | None:
+    """Corps gzip d'un relevé (agent Linux 3 et plus), décompressé au plus jusqu'à `limit` octets ; None s'il est plus gros ou illisible
+    (jamais décompressé en entier : une archive piégée ne remplit pas la mémoire)."""
+    try:
+        d = zlib.decompressobj(16 + zlib.MAX_WBITS)
+        out = d.decompress(raw, limit + 1)
+        return None if len(out) > limit or d.unconsumed_tail or not d.eof else out
+    except zlib.error:
+        return None
+
+
 @app.post(AGENT_REPORT, tags=["agents"], summary="Relevé de santé envoyé par un agent (jeton msv_agent_)")
 async def agent_report(request: Request):
     import agents
@@ -1411,6 +1424,14 @@ async def agent_report(request: Request):
     raw = await request.body()
     if len(raw) > agents.MAX_BODY:
         return deny(413, "relevé trop gros")
+    if request.headers.get("content-encoding", "").lower() == "gzip" and (raw := unzip_report(raw, agents.MAX_UNZIPPED)) is None:
+        return deny(413, "relevé compressé illisible ou trop gros une fois décompressé")
+    # Parsing, the database and the health level are slow, blocking work: done in a worker thread, the server keeps answering meanwhile
+    return await run_in_threadpool(_agent_report, a, raw, ip_of(request))
+
+
+def _agent_report(a: dict, raw: bytes, ip: str):
+    import agents
     try:
         report = agents.validate_report(json.loads(raw))
     except ValueError:
@@ -1420,10 +1441,10 @@ async def agent_report(request: Request):
     if (report["data"].get("kind") == "linux") != (a.get("kind") == "linux"):
         return deny(400, "relevé d'un autre type que cet agent (Windows ou Linux)")
     if not agents_store().claim_host(a["id"], report.get("host")):
-        store().audit("agent : nom de poste différent, relevé refusé", "agent", ip_of(request), f"« {a['name']} » ({a['ip']}) : {str(report.get('host'))[:64]}")
+        store().audit("agent : nom de poste différent, relevé refusé", "agent", ip, f"« {a['name']} » ({a['ip']}) : {str(report.get('host'))[:64]}")
         return JSONResponse({"error": "nom de poste différent de celui connu : à confirmer dans MyServices (Réglages → Agents)", "code": "HOST_CHANGED"},
                             status_code=409, headers=SECURITY_HEADERS)
-    before, now = agents_store().store_report(a["id"], report, ip_of(request))
+    before, now = agents_store().store_report(a["id"], report, ip)
     refresh_after_report(a, report, before, now)
     out = {"ok": True, "interval": agents.DEFAULT_INTERVAL}
     if upd := agents_store().update_for(a["id"], str(report.get("version") or "")):   # mise à jour automatique ou demandée : l'agent s'en charge

@@ -117,7 +117,7 @@ class LinuxAgentScripts(unittest.TestCase):
 
     def test_agent_py_rendu_est_du_python_valide(self):
         text = agents.script("agent.py")
-        for marker in ("__VERSION__", "__COMMANDS__", "__SMART_LIST__", "__SMART_FMT__"):
+        for marker in ("__VERSION__", "__COMMANDS__", "__SMART_LIST__", "__SMART_FMT__", "__CACHED__", "__SMART_CACHE__"):
             self.assertNotIn(marker, text)
         code = compile(text, "agent.py", "exec")          # must be valid Python once rendered
         ns: dict = {"__name__": "agent_under_test", "__file__": "/nonexistent/agent.py"}
@@ -144,6 +144,59 @@ class LinuxAgentScripts(unittest.TestCase):
         ns["collect"]()
         self.assertEqual(asked[-1], health.smart_cmd("sdb"))
         self.assertFalse([c for c in asked if "sda;reboot" in c or "$(id)" in c])           # a disk name is never interpolated unchecked
+
+    def agent(self, cache_path):
+        ns: dict = {"__name__": "agent_under_test", "__file__": "/nonexistent/agent.py"}
+        exec(compile(agents.script("agent.py"), "agent.py", "exec"), ns)
+        ns["CACHE_PATH"] = cache_path
+        return ns
+
+    def test_v3_commandes_lentes_gardees_en_cache(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            ns = self.agent(str(Path(d) / "cache.json"))
+            asked = []
+            ns["run"] = lambda cmd, timeout: (asked.append(cmd) or (0, "sda\n" if cmd == health.SMART_LIST_CMD else "x"))
+            first = ns["collect"]()
+            asked.clear()
+            second = ns["collect"]()
+            slow = set(health.LINUX_AGENT_CACHE) | {health.smart_cmd("sda")}
+            self.assertFalse(slow & set(asked))                       # apt, big logs and SMART: not run again within their lifetime
+            self.assertEqual(set(asked), set(health.LINUX_AGENT_COMMANDS) - slow)
+            self.assertEqual(first, second)                           # their outputs are sent again, the report stays complete
+            asked.clear()
+            from unittest import mock
+            with mock.patch.object(ns["time"], "time", lambda: 10 ** 10):   # far later: everything is run again
+                ns["collect"]()
+            self.assertTrue(slow <= set(asked))
+
+    def test_v3_un_echec_n_est_pas_garde(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            ns = self.agent(str(Path(d) / "cache.json"))
+            asked = []
+            ns["run"] = lambda cmd, timeout: (asked.append(cmd) or ((100, "E: lock") if cmd == health.APT_CMD else (0, "")))
+            ns["collect"]()
+            asked.clear()
+            ns["collect"]()
+            self.assertIn(health.APT_CMD, asked)
+
+    def test_v3_releve_compresse_et_coupe_si_trop_gros(self):
+        import gzip
+        import json
+        import random
+        ns = self.agent("/nonexistent/cache.json")
+        meta = {"version": "3", "host": "box"}
+        small = json.loads(gzip.decompress(ns["pack"](meta, {"a": [0, "x" * 1000]})))
+        self.assertEqual((small["data"]["kind"], small["data"]["cmds"]["a"][1]), ("linux", "x" * 1000))
+        rnd = random.Random(1)
+        noise = lambda n: "".join(rnd.choice("abcdefghijklmnopqrstuvwxyz0123456789") for _ in range(n))   # noqa: E731 (does not compress)
+        big = {f"c{i}": [0, noise(49000)] for i in range(8)}
+        body = ns["pack"](meta, big)
+        self.assertLessEqual(len(body), ns["MAX_BODY"])
+        got = json.loads(gzip.decompress(body))["data"]["cmds"]
+        self.assertTrue(any("[cut by the agent" in v[1] for v in got.values()))
+        self.assertEqual(set(got), set(big))                          # every command is still there, only some outputs are shorter
 
     def test_install_sh_syntaxe_et_contenu(self):
         text = agents.script("install.sh")

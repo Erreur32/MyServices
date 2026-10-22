@@ -7,6 +7,7 @@ $Dir = $PSScriptRoot  # the folder this script lives in (installed: %ProgramData
 $LogPath = Join-Path $Dir 'agent.log'
 $StatePath = Join-Path $Dir 'state.json'
 $UpdateEvery = 3600  # s: the Windows Update search is slow, so it runs at most once per hour
+$SlowEvery = 21600   # s: hardware, physical disks and running services change little: read every 6 h (the server keeps the last ones)
 
 function Log($msg) {
   $line = '{0} {1}' -f (Get-Date -Format 's'), $msg
@@ -27,12 +28,16 @@ try {
   # Windows Update titles: reuse the last search while it is recent
   $state = $null
   if (Test-Path $StatePath) { try { $state = Get-Content $StatePath -Raw | ConvertFrom-Json } catch { } }
-  $env:MSV_UPD = ''
-  if ($state -and $state.upd_at -and ((Get-Date) - [datetime]$state.upd_at).TotalSeconds -lt $UpdateEvery -and $null -ne $state.upd) {
+  $updAt = $null; $titles = $null
+  if ($state -and $state.upd_at -and $null -ne $state.upd) {
     # Windows PowerShell 5.1 turns an array read back from a JSON file into {"value":[...],"Count":n}: unwrap it and force strings
     $u = $state.upd; if ($u -and $u.value) { $u = $u.value }
-    $env:MSV_UPD = ConvertTo-Json -InputObject ([string[]]@($u | ForEach-Object { "$_" })) -Compress
+    $titles = [string[]]@($u | ForEach-Object { "$_" }); $updAt = [string]$state.upd_at
   }
+  $env:MSV_UPD = ''
+  if ($updAt -and ((Get-Date) - [datetime]$updAt).TotalSeconds -lt $UpdateEvery) { $env:MSV_UPD = ConvertTo-Json -InputObject $titles -Compress }
+  $env:MSV_SKIP = ''
+  if ($state -and $state.slow_at -and ((Get-Date) - [datetime]$state.slow_at).TotalSeconds -lt $SlowEvery) { $env:MSV_SKIP = '1' }
 
   $collect = {
 #__COLLECT__
@@ -41,21 +46,19 @@ try {
   $data = $data.Trim()
   if (-not $data.StartsWith('{')) { throw 'collection returned no data' }
 
-  if (-not $env:MSV_UPD) {  # fresh search: keep its titles for the next runs
-    try {
-      $o = $data | ConvertFrom-Json
-      if ($null -ne $o.upd) {
-        $titles = [string[]]@($o.upd | ForEach-Object { "$_" })
-        ConvertTo-Json -InputObject @{ upd_at = (Get-Date).ToString('o'); upd = $titles } -Depth 3 | Set-Content $StatePath
-      }
-    } catch { }
-  }
-  $env:MSV_UPD = ''
+  $o = $null; try { $o = $data | ConvertFrom-Json } catch { }   # read once: the state below, the system name and the boot time come from it
+  # Keep for the next runs: the Windows Update titles of a fresh search, and when the slow blocks were last read
+  if (-not $env:MSV_UPD -and $o -and $null -ne $o.upd) { $updAt = (Get-Date).ToString('o'); $titles = [string[]]@($o.upd | ForEach-Object { "$_" }) }
+  $slowAt = if ($env:MSV_SKIP) { [string]$state.slow_at } else { (Get-Date).ToString('o') }
+  try { ConvertTo-Json -InputObject @{ upd_at = $updAt; upd = $titles; slow_at = $slowAt } -Depth 3 | Set-Content $StatePath } catch { }
+  $env:MSV_UPD = ''; $env:MSV_SKIP = ''
 
-  $os = (Get-CimInstance Win32_OperatingSystem).Caption
+  $w = if (-not ($o -and $o.os.n -and $o.boot)) { Get-CimInstance Win32_OperatingSystem }   # only when the report lacks them
+  $os = if ($w) { $w.Caption } else { [string]$o.os.n }
+  $boot = if ($w) { $w.LastBootUpTime } else { [datetime]$o.boot }
   $body = '{{"version":{0},"os":{1},"host":{2},"interval":{3},"data":{4}}}' -f (Json $Version), (Json $os), (Json ([Environment]::MachineName)), [int]$cfg.interval, $data
   # Right after a boot the network (DNS, DHCP) is often not ready yet: retry instead of waiting for the next scheduled run
-  $uptime = ((Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime).TotalMinutes
+  $uptime = ((Get-Date) - $boot).TotalMinutes
   $tries = if ($uptime -lt 15) { 24 } else { 3 }  # just booted: up to ~6 min (24 x 15 s); otherwise 3 tries
   $sent = $false
   for ($i = 1; $i -le $tries -and -not $sent; $i++) {

@@ -29,8 +29,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - The Services page shows what a relay forwards to (« → apache2 · rss.example.fr »).
 - An agent report sent too soon after the last one is answered « already received » (200) instead of 429: the agent no longer retries it and its scheduled task no longer runs again.
 - Linux agent version 2 (the new checks; it updates itself when automatic updates are on). A report may carry commands up to 4000 characters long.
+- **Linux agent version 3, lighter**: `apt list` and the search for big log files run at most once per hour, SMART every 6 h (their last output is kept in `cache.json` next to the agent and sent again in between); the report is sent gzip-compressed, and when it is still too big the longest outputs are cut rather than the whole report being refused.
+- **Windows agent version 9, lighter**: hardware, physical disks and running services are read every 6 h (the server keeps the last ones in between); one query for stopped and running services; failed logons are counted up to 1000 instead of reading them all; the system name and boot time come from the report instead of two more queries.
+- **Agents still need a click to get the new version**: automatic update is off by default, so use « Update now » (or turn automatic update on) in Settings → Agents. Older agents keep sending their reports and are read as before.
+- Agent reports are handled in a worker thread (the server keeps answering meanwhile); the health level of the last report is kept in the database instead of parsing the previous report again at each one; the agents list no longer loads every report.
 
 ### Fixed
+- **A Windows PC read over SSH could not answer** when its OpenSSH shell is cmd.exe (the default): the health script, passed on the command line, was 12 462 characters long, over cmd.exe's 8191 limit. It now goes through stdin behind a short loader, and the Windows Update titles are reused for an hour instead of searching at every read.
 - Home Assistant in advanced mode (ha-mcp) failed on every read with « internal connector error (AttributeError: 'HomeAssistantAPI' object has no attribute 'cached') »: the slow ha-mcp calls now go through the connector cache as intended.
 - A service whose target changed (an NPM host moved from Apache to an Anubis relay) no longer keeps the name of what ran there before (« apache2 · rss »): the name is only kept when the target is the same, and a « changed recently » badge (date and previous target in its tooltip) is shown for 7 days.
 - An NPM host pointing at the Docker bridge of its own machine now finds the container listening on that port (published, or in host network) before looking for a service of the host.

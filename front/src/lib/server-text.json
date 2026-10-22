@@ -74,6 +74,7 @@
   "relevé d'un autre type que cet agent (Windows ou Linux)": "report of a different type than this agent (Windows or Linux)",
   "relevé invalide : JSON attendu": "invalid report: JSON expected",
   "relevé trop gros": "report too big",
+  "relevé compressé illisible ou trop gros une fois décompressé": "compressed report unreadable or too big once decompressed",
   "réponse MCP inattendue": "unexpected MCP answer",
   "réponse inattendue de /api/v1/results/latest": "unexpected answer from /api/v1/results/latest",
   "réponse inattendue de /control/rewrite/list": "unexpected answer from /control/rewrite/list",

@@ -35,6 +35,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -123,9 +124,9 @@ def worst(*levels: str) -> str:
 def make_runner(host: dict):
     """Retourne run(cmd, timeout) -> (rc, stdout) local ou via SSH selon host['mode']."""
     if host["mode"] == "local":
-        def run(cmd: str, timeout: int = 15) -> tuple[int, str]:
+        def run(cmd: str, timeout: int = 15, data: str | None = None) -> tuple[int, str]:
             try:
-                r = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, timeout=timeout)
+                r = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, timeout=timeout, input=data)
             except subprocess.TimeoutExpired:
                 return 124, f"timeout après {timeout}s"
             except Exception as e:
@@ -134,12 +135,12 @@ def make_runner(host: dict):
     else:
         target = host["target"]
 
-        def run(cmd: str, timeout: int = 15) -> tuple[int, str]:
+        def run(cmd: str, timeout: int = 15, data: str | None = None) -> tuple[int, str]:   # data: sent on the command's stdin
             # Repère avant la commande : un bandeau d'accueil (fastfetch, motd dans ~/.bashrc) précède sinon la sortie
             marked = host.get("os") != "windows"  # PowerShell n'a pas printf : Windows garde sa commande telle quelle
             full = ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", target, f"printf '%s\\n' {SSH_MARK}; {cmd}" if marked else cmd]
             try:
-                r = subprocess.run(full, capture_output=True, text=True, timeout=timeout)
+                r = subprocess.run(full, capture_output=True, text=True, timeout=timeout, input=data)
             except subprocess.TimeoutExpired:
                 return 124, f"timeout après {timeout}s"
             except Exception as e:
@@ -880,43 +881,56 @@ def system_levels(sys_: dict) -> dict[str, str]:
 
 # Un seul script, en lecture. Erreurs ignorées une à une : un contrôle refusé ne masque pas les autres.
 # 4625 (échecs de connexion) : journal Sécurité, administrateurs seulement ; -1 = non lisible.
-# MSV_UPD (agent) : titres de la dernière recherche Windows Update, réutilisés pour ne la refaire qu'une fois par heure.
+# MSV_UPD (agent, et SSH par le cache du serveur) : titres de la dernière recherche Windows Update, réutilisés pour ne la refaire qu'une fois par heure.
+# MSV_SKIP (agent) : le matériel, les disques physiques et les services en marche changent peu ; l'agent ne les relit que toutes les 6 h et le
+# serveur garde ceux du relevé précédent (agents.SLOW_KEYS). Une seule requête Win32_Service pour les services arrêtés et en marche.
 # Matériel (lecture seule, sans droits particuliers) : m=fabricant, mo=modèle, bios, cpu, cc/cl=cœurs physiques/logiques, ram=Go,
 # gpu=[{n=nom, r=résolution}], net=[{n=carte, ip=IPv4}] (jamais d'adresse MAC), dom=domaine ou groupe de travail, wu=dernière mise à jour installée.
 WIN_PS = r"""
 $ErrorActionPreference='SilentlyContinue';$ProgressPreference='SilentlyContinue';$o=@{};$t=(Get-Date).AddHours(-24)
 $o.disks=@(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3'|%{@{m=$_.DeviceID;s=[double]$_.Size;f=[double]$_.FreeSpace}})
-$o.svc=@(Get-CimInstance Win32_Service -Filter "StartMode='Auto' AND State<>'Running'"|?{$_.ExitCode -ne 0}|%{@{n=$_.Name;d=$_.DisplayName;e=$_.ExitCode}})
+$sa=@(Get-CimInstance Win32_Service);$o.svc=@($sa|?{$_.StartMode -eq 'Auto' -and $_.State -ne 'Running' -and $_.ExitCode -ne 0}|%{@{n=$_.Name;d=$_.DisplayName;e=$_.ExitCode}})
 $p=@(Get-CimInstance Win32_Processor);$o.cpu=($p|Measure-Object LoadPercentage -Average).Average;$o.ncpu=($p|Measure-Object NumberOfLogicalProcessors -Sum).Sum
 $w=Get-CimInstance Win32_OperatingSystem;$o.boot=$w.LastBootUpTime.ToUniversalTime().ToString('o');if($w.TotalVisibleMemorySize){$o.mem=[math]::Round(100*($w.TotalVisibleMemorySize-$w.FreePhysicalMemory)/$w.TotalVisibleMemorySize,1)}
 $o.os=@{n=$w.Caption;v=$w.Version;b=$w.BuildNumber;h=$env:COMPUTERNAME}
 $pm=@{};Get-Process|%{$pm[[int]$_.Id]=$_.ProcessName};$o.ports=@(Get-NetTCPConnection -State Listen|Select-Object -First 400|%{@{p=[int]$_.LocalPort;a=[string]$_.LocalAddress;n=$pm[[int]$_.OwningProcess]}})
 $k='HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion';$o.reboot=(Test-Path "$k\WindowsUpdate\Auto Update\RebootRequired") -or (Test-Path "$k\Component Based Servicing\RebootPending")
-$o.pd=@(Get-PhysicalDisk|%{@{n=$_.FriendlyName;h=[string]$_.HealthStatus}})
+$slow=-not $env:MSV_SKIP
+if($slow){$o.pd=@(Get-PhysicalDisk|%{@{n=$_.FriendlyName;h=[string]$_.HealthStatus}})}
 $o.ev=@(Get-WinEvent -FilterHashtable @{LogName='System';Level=1,2;StartTime=$t} -MaxEvents 300|?{$_.Level -eq 1 -or $_.ProviderName -match 'disk|Ntfs|volmgr|stor|WHEA'}|Select-Object -First 8|%{'{0} {1} {2}' -f $_.TimeCreated.ToString('dd/MM HH:mm'),$_.ProviderName,(($_.Message -split "`n")[0]).Trim()})
-try{$o.fail=@(Get-WinEvent -FilterHashtable @{LogName='Security';Id=4625;StartTime=$t} -ErrorAction Stop).Count}catch{$o.fail=$(if($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*'){0}else{-1})}
+try{$o.fail=@(Get-WinEvent -FilterHashtable @{LogName='Security';Id=4625;StartTime=$t} -MaxEvents 1000 -ErrorAction Stop).Count}catch{$o.fail=$(if($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*'){0}else{-1})}
 if($env:MSV_UPD){$o.upd=@($env:MSV_UPD|ConvertFrom-Json)}else{try{$r=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search("IsInstalled=0 and IsHidden=0 and Type='Software'");$o.upd=@($r.Updates|%{$_.Title})}catch{$o.upd=$null}}
-$h=@{};try{$cs=Get-CimInstance Win32_ComputerSystem;$h.m=[string]$cs.Manufacturer;$h.mo=[string]$cs.Model;$h.ram=[math]::Round($cs.TotalPhysicalMemory/1GB,1);$h.dom=$(if($cs.PartOfDomain){[string]$cs.Domain}else{'WORKGROUP: '+$cs.Workgroup})}catch{}
+$h=@{};if($slow){try{$cs=Get-CimInstance Win32_ComputerSystem;$h.m=[string]$cs.Manufacturer;$h.mo=[string]$cs.Model;$h.ram=[math]::Round($cs.TotalPhysicalMemory/1GB,1);$h.dom=$(if($cs.PartOfDomain){[string]$cs.Domain}else{'WORKGROUP: '+$cs.Workgroup})}catch{}
 try{$h.bios=[string](Get-CimInstance Win32_BIOS|Select-Object -First 1).SMBIOSBIOSVersion}catch{}
 try{$h.cpu=[string]($p|Select-Object -First 1).Name;$h.cc=($p|Measure-Object NumberOfCores -Sum).Sum;$h.cl=$o.ncpu}catch{}
 try{$h.gpu=@(Get-CimInstance Win32_VideoController|?{$_.Name}|Select-Object -First 4|%{@{n=[string]$_.Name;r=$(if($_.CurrentHorizontalResolution){'{0}x{1}' -f $_.CurrentHorizontalResolution,$_.CurrentVerticalResolution}else{''})}})}catch{}
 try{$h.net=@(Get-CimInstance Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=True'|?{$_.IPAddress}|Select-Object -First 8|%{$d=$_.Description;@($_.IPAddress|?{$_ -match '^\d+\.\d+\.\d+\.\d+$'}|%{@{n=[string]$d;ip=[string]$_}})})}catch{}
 try{$h.nic=@(Get-NetAdapter -Physical -ErrorAction Stop|?{$_.Status -eq 'Up'}|Select-Object -First 6|%{$a=$_;$sd=$null;try{$sd=(Get-NetAdapterAdvancedProperty -Name $a.Name -RegistryKeyword '*SpeedDuplex' -ErrorAction Stop).DisplayValue}catch{};@{n=[string]$a.Name;mac=[string]$a.MacAddress;sp=[int64]$a.Speed;fd=[bool]$a.FullDuplex;sd=[string]$sd}})}catch{}
 try{$q=Get-HotFix|Where-Object{$_.InstalledOn}|Sort-Object InstalledOn -Descending|Select-Object -First 1;if($q){$h.wu=$q.InstalledOn.ToString('yyyy-MM-dd')}}catch{}
-try{$o.sv=@(Get-CimInstance Win32_Service -Filter "State='Running'"|Select-Object -First 300|%{@{n=[string]$_.Name;d=[string]$_.DisplayName}})}catch{}
+$o.sv=@($sa|?{$_.State -eq 'Running'}|Select-Object -First 300|%{@{n=[string]$_.Name;d=[string]$_.DisplayName}})}
 try{if(Get-Command docker.exe -ErrorAction Stop){$l=@(& docker.exe ps -a --format '{{.Names}}|{{.Image}}|{{.Ports}}|{{.Status}}|{{.Networks}}' 2>$null);if($LASTEXITCODE -eq 0){$o.dk=@($l|Select-Object -First 200|%{[string]$_})}}}catch{}
 try{if(Get-Command Get-VM -ErrorAction Stop){$o.hv=@(Get-VM|Select-Object -First 200|%{@{n=[string]$_.Name;s=[string]$_.State;c=[int]$_.ProcessorCount;m=[double]$_.MemoryAssigned;x=[double]$_.MemoryStartup;u=[int]$_.Uptime.TotalSeconds}})}}catch{}
 $ev={param($l,$f)try{Get-WinEvent -FilterHashtable @{LogName=$l} -MaxEvents 50 -ErrorAction Stop|?{& $f $_}|Select-Object -First 1|%{@{t=$_.TimeCreated.ToUniversalTime().ToString('o');i=$_.Id;l=$_.Level;m=(($_.Message -split "`n")[0]).Trim()}}}catch{}}
 $o.va=& $ev 'Veeam Agent' {param($e)$e.Id -eq 190}
 $o.wb=& $ev 'Microsoft-Windows-Backup' {param($e)$e.Id -eq 4 -or $e.Level -le 2}
-$o.hw=$h
+if($slow){$o.hw=$h}
 ConvertTo-Json -InputObject $o -Depth 5 -Compress
 """
 
 
 def ps_command(script: str) -> str:
-    """powershell -EncodedCommand : aucun guillemet à protéger, que le shell OpenSSH soit cmd ou PowerShell."""
+    """powershell -EncodedCommand : aucun guillemet à protéger, que le shell OpenSSH soit cmd ou PowerShell. Pour un script court seulement :
+    l'encodage triple la taille, et cmd.exe (shell OpenSSH par défaut de Windows) refuse une ligne de plus de 8191 caractères."""
     return "powershell -NoProfile -NonInteractive -EncodedCommand " + base64.b64encode(script.encode("utf-16-le")).decode()
+
+
+# A long script goes through stdin, in base64 (ASCII: no console code page can spoil it); this short loader reads and runs it
+PS_STDIN = ps_command("$s=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([Console]::In.ReadToEnd().Trim()));& ([scriptblock]::Create($s))")
+
+
+def ps_stdin(script: str) -> str:
+    """Ce que PS_STDIN attend sur son entrée : le script en UTF-8, encodé en base64."""
+    return base64.b64encode(script.encode("utf-8")).decode()
 
 
 def _txt(d: dict, k: str, n: int = 120):
@@ -1009,14 +1023,55 @@ def parse_windows(raw: dict) -> dict:
     }
 
 
+WIN_UPD_CACHE = os.path.join(CFG["cache_dir"], "windows-updates.json")
+WIN_UPD_EVERY = 3600   # s: the Windows Update search can take a minute, its titles are reused for an hour (as the agent does)
+
+
+def _win_upd_cached(key: str) -> list | None:
+    """Titres Windows Update de la dernière lecture SSH de cette machine s'ils ont moins d'une heure ; None sinon (nouvelle recherche)."""
+    try:
+        got = json.load(open(WIN_UPD_CACHE, encoding="utf-8")).get(key) or {}
+    except (OSError, ValueError, AttributeError):
+        return None
+    return got.get("upd") if isinstance(got.get("upd"), list) and time.time() - float(got.get("at") or 0) < WIN_UPD_EVERY else None
+
+
+def _win_upd_store(key: str, titles: list) -> None:
+    try:
+        cache = json.load(open(WIN_UPD_CACHE, encoding="utf-8"))
+    except (OSError, ValueError):
+        cache = {}
+    cache = cache if isinstance(cache, dict) else {}
+    cache[key] = {"at": time.time(), "upd": [str(t)[:300] for t in titles][:100]}
+    try:
+        os.makedirs(os.path.dirname(WIN_UPD_CACHE), exist_ok=True)
+        tmp = f"{WIN_UPD_CACHE}.{os.getpid()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False)
+        os.replace(tmp, WIN_UPD_CACHE)
+    except OSError:
+        pass   # no cache: the search simply runs again next time
+
+
+def win_script(upd: list | None) -> str:
+    """WIN_PS, précédé des titres Windows Update encore frais (MSV_UPD) : la recherche lente n'est alors pas refaite."""
+    if upd is None:
+        return WIN_PS
+    return "$env:MSV_UPD='" + json.dumps(upd, ensure_ascii=False).replace("'", "''") + "'\n" + WIN_PS
+
+
 def collect_windows(host: dict) -> dict:
     run = make_runner(host)
-    rc, out = run(ps_command(WIN_PS), timeout=180)  # la recherche Windows Update peut prendre une minute
+    key = str(host.get("target") or host["id"])
+    upd = _win_upd_cached(key)
+    rc, out = run(PS_STDIN, timeout=180, data=ps_stdin(win_script(upd)))  # la recherche Windows Update peut prendre une minute
     base = {"id": host["id"], "name": host["name"], "os": "windows"}
     try:
         raw = json.loads(out.strip().lstrip("\ufeff")) if rc == 0 else None
     except ValueError:
         raw = None
+    if isinstance(raw, dict) and upd is None and isinstance(raw.get("upd"), list):
+        _win_upd_store(key, raw["upd"])
     if not isinstance(raw, dict):
         return {**base, "reachable": False, "disks": [], "systemd": {"failed": []},
                 "docker": {"accessible": False, "reason": "windows"}, "level": "down", **_EMPTY_HOST_EXTRAS,
@@ -1397,6 +1452,9 @@ def collect_host(host: dict) -> dict:
 LINUX_AGENT_COMMANDS = [DISKS_CMD, SYSTEMD_CMD, DOCKER_PS_CMD, DOCKER_STATS_CMD, APT_CMD, KERNEL_CMD, REBOOT_CMD, LOAD_CMD,
                         _RES_CMD, _TEMP_CMD, VIRT_CMD, SSH_AUTH_CMD, SMART_LIST_CMD, LOGS_CMD, GPU_CMD, SYSTEM_CMD]
 SLOW_CMDS = ("docker stats", "apt list", "snap refresh")   # allowed 40 s instead of 20 (the same rule in agent.py)
+# Linux agent (version 3): outputs it keeps and sends again instead of running the command at each report, with their lifetime (s)
+LINUX_AGENT_CACHE = {APT_CMD: 3600, LOGS_CMD: 3600}
+SMART_CACHE = 6 * 3600   # SMART of each disk: every 6 h
 
 
 def _limit(cmd: str) -> int:

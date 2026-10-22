@@ -85,6 +85,40 @@ class Agents(unittest.TestCase):
         a = self.c.get(BASE + "/agents").json()["agents"][0]
         self.assertEqual((a["state"], a["os"], a["interval"]), ("actif", "Windows 11", 900))
 
+    def test_v3_releve_compresse_accepte_et_archive_piegee_refusee(self):
+        import gzip
+        import json
+        r = self.c.post(BASE + "/agents", json={"ip": "192.168.1.61", "name": "Box", "kind": "linux"}, headers=self.h)
+        token = r.json()["token"]
+        body = {"version": "3", "os": "Debian 12", "host": "box", "interval": 900, "data": {"kind": "linux", "cmds": {health.REBOOT_CMD: [0, "yes\n"]}}}
+        hdr = {"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Content-Encoding": "gzip"}
+        ok = self.anon.post(BASE + "/agent/report", content=gzip.compress(json.dumps(body).encode()), headers=hdr)
+        self.assertEqual(ok.status_code, 200, ok.text)
+        self.assertEqual(api.agents_store().fresh_reports()["192.168.1.61"]["report"]["version"], "3")
+        bomb = gzip.compress(b"0" * (agents.MAX_UNZIPPED + 10))   # a few kB that would fill 2 MB
+        self.assertLess(len(bomb), agents.MAX_BODY)
+        self.assertEqual(self.anon.post(BASE + "/agent/report", content=bomb, headers=hdr).status_code, 413)
+        self.assertEqual(self.anon.post(BASE + "/agent/report", content=b"pas du gzip", headers=hdr).status_code, 413)
+
+    def test_v3_blocs_lents_windows_repris_du_releve_precedent(self):
+        token, info = self.create()
+        full = {**REPORT, "data": {**DATA, "hw": {"m": "ASUS"}, "sv": [{"n": "Plex", "d": "Plex"}]}}
+        self.assertEqual(self.send(token, full).status_code, 200)
+        light = {**REPORT, "data": {k: v for k, v in DATA.items() if k != "pd"}}   # a run without the slow blocks (MSV_SKIP)
+        self.assertEqual(self.send(token, light).status_code, 200)
+        data = api.agents_store().fresh_reports()["192.168.1.60"]["report"]["data"]
+        self.assertEqual((data["hw"], data["sv"][0]["n"], data["pd"][0]["n"]), ({"m": "ASUS"}, "Plex", "Samsung"))
+        listed = self.c.get(BASE + "/agents").json()["agents"][0]
+        self.assertNotIn("report", listed)
+
+    def test_v3_niveau_garde_en_base(self):
+        token, info = self.create()
+        self.assertEqual(self.send(token).status_code, 200)
+        with api.agents_store()._db() as db:
+            self.assertEqual(db.execute("SELECT level FROM agents").fetchone()["level"], agents.report_level(REPORT))
+        before, now = api.agents_store().store_report(info["id"], REPORT, "192.168.1.60")
+        self.assertEqual(before, now)   # the previous level comes from the column, the old report is not parsed again
+
     def test_sans_jeton_ou_mauvais_jeton_refuse(self):
         self.assertEqual(self.anon.post(BASE + "/agent/report", json=REPORT).status_code, 401)
         self.assertEqual(self.send("msv_agent_faux").status_code, 401)
@@ -288,9 +322,9 @@ class Agents(unittest.TestCase):
             self.send(token)
         finally:
             server.run_task, server.enabled, server.run_chain = old
-        # 1er relevé : passage complet de la santé ; relevés suivants : seulement la fiche de cette machine (--only)
+        # Each report re-reads only this machine, from the report (--only, --agent: no SSH, no API call), the first one included
         # only the health calls count here: a background thread left by another test can call the patched run_task with "collect" in the same window
-        self.assertEqual([c for c in calls if c[0] == "health"], [("health", ()), ("health", ("--only", "192.168.1.60"))])
+        self.assertEqual([c for c in calls if c[0] == "health"], [("health", ("--only", "192.168.1.60", "--agent"))] * 2)
         self.assertEqual(chains, [["collect"]])   # le premier relevé lance aussi la collecte (système, matériel, ports), une seule fois
 
     def test_verifier_une_machine_lue_par_son_agent(self):
@@ -322,11 +356,12 @@ class Agents(unittest.TestCase):
             server.run_task, server.enabled, server.run_chain = old
         self.assertEqual(len(chains), 2)           # premier relevé, puis changement de version (pas à chaque relevé)
         self.assertIn("version 9", chains[1])
-        full = [why for why, args in calls if not args]
-        self.assertEqual(len(full), 3)             # passage complet : 1er relevé et chaque changement de niveau
-        self.assertIn("ok → crit", full[1])
-        self.assertIn("crit → ok", full[2])
-        self.assertEqual(len(calls) - len(full), 3)  # les autres relevés rafraîchissent seulement la fiche de la machine
+        self.assertEqual({args for _, args in calls}, {("--only", "192.168.1.60", "--agent")})   # never a full pass, even when the level changes
+        self.assertEqual(len(calls), 6)
+        moved = [why for why, _ in calls if "→" in why]
+        self.assertEqual(len(moved), 3)            # the reason names the first report and each change of level
+        self.assertIn("ok → crit", moved[1])
+        self.assertIn("crit → ok", moved[2])
 
     def test_systeme_et_ports_du_releve(self):
         data = {**DATA, "os": {"n": "Microsoft Windows 11 Professionnel", "v": "10.0.26100", "b": "26100", "h": "GAMER32"},
@@ -411,7 +446,7 @@ class Agents(unittest.TestCase):
         self.assertEqual(agents.docker_of({"data": {"dk": "seule|ligne|0.0.0.0:80->80/tcp|Up|bridge"}})[0]["ports"], [(80, 80)])   # PowerShell : un seul élément = texte
 
     def test_script_ascii_et_version(self):
-        self.assertEqual(agents.VERSION, "8")
+        self.assertEqual(agents.VERSION, "9")
         agents.script("agent.ps1").encode("ascii")
 
     def test_titres_de_mises_a_jour_au_format_powershell_5_1(self):
