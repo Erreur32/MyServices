@@ -9,13 +9,16 @@ RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY front/ ./
 RUN npm test && npm run build
 
+# Node du runtime (Archify, server.py : `node archify.mjs`) : le binaire officiel de l'étape front (même base trixie, même glibc),
+# pas le paquet Debian (trixie : Node 20, fin de vie, CVE-2026-111497 non corrigée). Archify n'a pas besoin de npm.
 FROM python:3.14-slim-trixie
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends tini openssh-client smbclient iputils-ping iproute2 ca-certificates tzdata nodejs \
+ && apt-get install -y --no-install-recommends tini openssh-client smbclient iputils-ping iproute2 ca-certificates tzdata \
  && rm -rf /var/lib/apt/lists/*
 
 # Archify (carte de l'infra en HTML, archify_map.py) : version figée, empreinte vérifiée
+COPY --from=front /usr/local/bin/node /usr/local/bin/node
 ARG ARCHIFY_VERSION=3.0.1
 ARG ARCHIFY_SHA256=b0b23bd28db314f04ca8ab9620fe20f8c1ac6474a3546bd8fe4679508aa1b7f5
 COPY deploy/fetch_archify.py /tmp/fetch_archify.py

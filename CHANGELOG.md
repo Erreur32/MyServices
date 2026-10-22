@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.18.4 (2026-10-22)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Security
+- **Node.js 22.23.4 in the image instead of Debian's Node 20.19.2** (CVE-2026-111497, out-of-bounds write in the Brotli decoder, possible remote code execution; Node 20 is end of life and will not be fixed). Node is only used to draw the infrastructure map with Archify (`server.py` runs `node archify.mjs`): the image no longer installs the Debian `nodejs` package and copies the official `node` binary from the `node:22-trixie-slim` build stage (same trixie base and glibc). npm is not needed and not shipped.
+
 ## v0.18.3 (2026-10-21)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
