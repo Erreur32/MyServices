@@ -464,7 +464,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
 
     for s in meta["sets"]:
         archived, max_age, each = s.get("archived", False), s.get("max_age_days", 8), s.get("mode") == "each"
-        locs, src_files = [], None
+        locs, src_files, api_runs = [], None, None
         for i, loc in enumerate(s["locations"]):
             L = {"host": loc["host"], "label": hosts[loc["host"]]["label"], "path": loc.get("path"), "via": loc.get("via", ""),
                  "role": "source" if i == 0 else "copie", "level": "na", "detail": "", "encrypted": bool(loc.get("encrypted")), "vzdump": loc.get("vzdump"),
@@ -498,6 +498,13 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                     L["level"] = "crit" if j["result"] == "Failed" else \
                         max(level_for_age(L["age"], max_age), "warn" if j["result"] == "Warning" else "ok", key=RANK.get)
                     L["detail"] = f"dernier passage : {j['result']}" + (f" ({j['status']})" if j["status"] not in (None, "Inactive") else "")
+                    hist = j.get("history") or []
+                    if fails := sum(1 for h in hist if h["result"] == "Failed"):
+                        L["detail"] += f", {fails} échec{'s' if fails > 1 else ''} sur les {len(hist)} derniers passages"
+                    if j.get("repository"):
+                        L["repository"] = j["repository"]
+                    if i == 0:
+                        api_runs = [{"name": loc["veeam_job"], "mtime": h["start"], "size": 0} for h in hist]
                 # Le job écrit dans un dépôt Veeam (NAS, autre serveur) : copie hors machine, sauf "offsite": false
                 L["offsite"] = loc.get("offsite", True)
                 locs.append(L)
@@ -648,7 +655,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                          "schedule": s.get("schedule", ""), "retention": s.get("retention", ""), "max_age_days": max_age,
                          "mode": "each" if each else "latest", "archived": archived, "level": level,
                          "offsite": len(offsite), "expect_offsite": expect, "locations": locs, "why": why, "size": src.get("size", 0),
-                         "cadence_days": cadence(src_files) if src_files else None})
+                         "cadence_days": cadence(src_files or api_runs) if src_files or api_runs else None})
         for w in why:
             issues.append({"level": level, "set": s["label"], "set_id": s["id"], "text": w})
 

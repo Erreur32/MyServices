@@ -526,7 +526,7 @@ def veeam_discover(conf: dict) -> dict:
     """Jobs et dépôts du serveur Veeam (lecture seule, rien n'est enregistré). Les dépôts n'ont rien à cocher :
     leur espace libre est lu à chaque relevé dès que le serveur Veeam est suivi."""
     try:
-        jobs, repos = _veeam_conn(conf).fetch()
+        jobs, repos, _ = _veeam_conn(conf).fetch()
     except ConnectorError as e:
         raise BackupError(str(e)) from None
     followed = {loc.get("veeam_job") for s in _read().get("sets", []) for loc in s.get("locations", [])}

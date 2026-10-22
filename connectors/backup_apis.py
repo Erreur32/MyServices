@@ -38,8 +38,20 @@ def _fmt(t):
     return datetime.fromtimestamp(t).strftime("%d/%m %H:%M") if t else "?"
 
 
-def veeam_parse(jobs: list, repos: list) -> dict:
-    """Réponses de l'API Veeam -> forme commune (disques = dépôts, crons = jobs, veeam_jobs par nom)."""
+VEEAM_HISTORY = 10   # runs kept per job: failures among the recent ones, observed rhythm
+
+
+def veeam_history(job: dict, sessions: list, ts) -> list[dict]:
+    """The job's last runs, newest first: [{"start", "end", "result"}]. A session belongs to the job by its jobId, or by its name
+    (the session name is the job name) when the version gives no id."""
+    mine = [x for x in sessions if (x.get("jobId") and x.get("jobId") == job.get("id")) or (not x.get("jobId") and x.get("name") == job.get("name"))]
+    runs = [{"start": ts(x.get("creationTime")), "end": ts(x.get("endTime")), "result": (x.get("result") or {}).get("result") or "None"}
+            for x in mine]
+    return sorted((r for r in runs if r["start"]), key=lambda r: -r["start"])[:VEEAM_HISTORY]
+
+
+def veeam_parse(jobs: list, repos: list, sessions: list | None = None) -> dict:
+    """Réponses de l'API Veeam -> forme commune (disques = dépôts, crons = jobs, veeam_jobs par nom, avec ses derniers passages)."""
     def ts(v):
         try:
             return int(datetime.fromisoformat(v.replace("Z", "+00:00")).timestamp())
@@ -55,7 +67,8 @@ def veeam_parse(jobs: list, repos: list) -> dict:
     out = {"user": "API REST Veeam", "locs": {}, "cron_root": None, "disks": disks, "crons": [], "veeam_jobs": {}}
     for j in jobs:
         last, res, nxt = ts(j.get("lastRun")), j.get("lastResult") or "None", ts(j.get("nextRun"))
-        out["veeam_jobs"][j.get("name", "?")] = {"last_run": last, "result": res, "status": j.get("status"), "next": nxt}
+        out["veeam_jobs"][j.get("name", "?")] = {"last_run": last, "result": res, "status": j.get("status"), "next": nxt,
+                                                 "repository": j.get("repositoryName"), "history": veeam_history(j, sessions or [], ts)}
         out["crons"].append({"src": "job Veeam " + (j.get("type") or ""),
                              "line": f"{j.get('name')} : dernier {_fmt(last)} ({res}), prochain {_fmt(nxt)}"})
     return out
@@ -103,8 +116,8 @@ class Veeam(Connector):
             raise ConnectorError(f"VEEAM_USER / VEEAM_PASS absents de {self.conf['secrets']}")
         return env["VEEAM_USER"], env["VEEAM_PASS"]
 
-    def fetch(self) -> tuple[list, list]:
-        """(jobs, dépôts) bruts de l'API : lecture seule (un jeton d'accès, puis deux GET)."""
+    def fetch(self) -> tuple[list, list, list]:
+        """(jobs, dépôts, sessions) bruts de l'API : lecture seule (un jeton d'accès, puis trois GET)."""
         user, pw = self._credentials()
         form = urllib.parse.urlencode({"grant_type": "password", "username": user, "password": pw}).encode()
         try:
@@ -122,13 +135,18 @@ class Veeam(Connector):
             repos = self._call("/api/v1/backupInfrastructure/repositories/states", token=token).get("data", [])
         except (OSError, ValueError):
             repos = []
-        return jobs, repos
+        try:  # last runs of every job (history, rhythm): optional too
+            sessions = self._call(f"/api/v1/sessions?limit={VEEAM_HISTORY * max(len(jobs), 1) * 3}&orderColumn=CreationTime&orderAsc=false",
+                                  token=token).get("data", [])
+        except (OSError, ValueError):
+            sessions = []
+        return jobs, repos, sessions
 
     def collect(self) -> dict:
         return veeam_parse(*self.fetch())
 
     def test(self) -> Result:
-        jobs, repos = self.fetch()
+        jobs, repos, _ = self.fetch()
         return Result(True, f"connecté : {len(jobs)} job(s), {len(repos)} dépôt(s) lus")
 
 

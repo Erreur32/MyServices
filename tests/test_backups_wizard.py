@@ -51,7 +51,7 @@ class FakeServer(BaseHTTPRequestHandler):
         if self.path.startswith("/api/v1/"):
             if self.headers.get("Authorization") != "Bearer t":
                 return self.reply(401, {})
-            return self.reply(200, VEEAM["jobs"] if self.path.endswith("jobs/states") else VEEAM["repos"])
+            return self.reply(200, VEEAM["jobs"] if self.path.endswith("jobs/states") else VEEAM["sessions"] if "/sessions" in self.path else VEEAM["repos"])
         if self.headers.get("Authorization") != "Bearer " + TOKEN:
             return self.reply(401, {})
         self.reply(200, HA_STATES if self.path == "/api/states" else {"version": "2026.10.1"})
