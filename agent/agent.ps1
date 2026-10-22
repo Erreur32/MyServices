@@ -46,11 +46,11 @@ try {
   $data = $data.Trim()
   if (-not $data.StartsWith('{')) { throw 'collection returned no data' }
 
-  $o = $null; try { $o = $data | ConvertFrom-Json } catch { }   # read once: the state below, the system name and the boot time come from it
+  $o = $null; try { $o = $data | ConvertFrom-Json } catch { Write-Verbose "report not parsed: $_" }   # read once: the state below, the system name and the boot time come from it
   # Keep for the next runs: the Windows Update titles of a fresh search, and when the slow blocks were last read
   if (-not $env:MSV_UPD -and $o -and $null -ne $o.upd) { $updAt = (Get-Date).ToString('o'); $titles = [string[]]@($o.upd | ForEach-Object { "$_" }) }
   $slowAt = if ($env:MSV_SKIP) { [string]$state.slow_at } else { (Get-Date).ToString('o') }
-  try { ConvertTo-Json -InputObject @{ upd_at = $updAt; upd = $titles; slow_at = $slowAt } -Depth 3 | Set-Content $StatePath } catch { }
+  try { ConvertTo-Json -InputObject @{ upd_at = $updAt; upd = $titles; slow_at = $slowAt } -Depth 3 | Set-Content $StatePath } catch { Write-Verbose "state not saved: $_" }
   $env:MSV_UPD = ''; $env:MSV_SKIP = ''
 
   $w = if (-not ($o -and $o.os.n -and $o.boot)) { Get-CimInstance Win32_OperatingSystem }   # only when the report lacks them

@@ -555,8 +555,13 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                 else:
                     L["age"] = age_days(b["last_run"], now)
                     L["newest"] = {"name": loc["agent_backup"], "mtime": b["last_run"], "size": 0}
-                    L["level"] = "crit" if not b["ok"] else max(level_for_age(L["age"], max_age), "warn" if b["warn"] else "ok", key=RANK.get)
-                    L["detail"] = ("dernier passage : " + ("échec" if not b["ok"] else "avertissements" if b["warn"] else "réussi")
+                    if not b["ok"]:
+                        L["level"], outcome = "crit", "échec"
+                    elif b["warn"]:
+                        L["level"], outcome = max(level_for_age(L["age"], max_age), "warn", key=RANK.get), "avertissements"
+                    else:
+                        L["level"], outcome = max(level_for_age(L["age"], max_age), "ok", key=RANK.get), "réussi"
+                    L["detail"] = ("dernier passage : " + outcome
                                    + (f" ({b['message'][:120]})" if b["message"] and (not b["ok"] or b["warn"]) else ""))
                 # the agent does not say where the backup is written (NAS, USB disk): its set asks for no copy elsewhere (expect_offsite false)
                 locs.append(L)

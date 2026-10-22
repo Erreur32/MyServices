@@ -35,6 +35,8 @@ LISTS = {
     "acls": ("nginx/access-lists", "--access-list"),
 }
 TIMEOUT = 30
+SSH_BATCH = "BatchMode=yes"   # ssh options of every call to a remote NPM
+SSH_CONNECT_TIMEOUT = "ConnectTimeout=5"
 
 
 class NPMError(Exception):
@@ -101,7 +103,7 @@ def _request(inst: dict, path: str, body: dict | None = None, token: str | None 
         curl = ["curl", "-sS", "--fail-with-body", "--max-time", str(TIMEOUT), "-H", "Content-Type: application/json"]
         curl += ["--data-binary", "@-", url] if body is not None else ["-H", "@-", url]
         try:
-            r = subprocess.run(["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", inst["ssh"], shlex.join(curl)],
+            r = subprocess.run(["ssh", *SSH_MUX, "-o", SSH_BATCH, "-o", SSH_CONNECT_TIMEOUT, inst["ssh"], shlex.join(curl)],
                                input=stdin, capture_output=True, text=True, timeout=TIMEOUT + 10)
         except (OSError, subprocess.TimeoutExpired) as e:
             raise NPMError(f"{what} : {e}") from e
@@ -128,7 +130,7 @@ def _request(inst: dict, path: str, body: dict | None = None, token: str | None 
 
 def _script(path: str, opt: str, ssh: str | None = None):
     cmd = f"npm-api.sh {opt}" + (f" (via ssh {ssh})" if ssh else "")
-    argv = [path, "--json", opt] if not ssh else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", ssh, shlex.join([path, "--json", opt])]
+    argv = [path, "--json", opt] if not ssh else ["ssh", *SSH_MUX, "-o", SSH_BATCH, "-o", SSH_CONNECT_TIMEOUT, ssh, shlex.join([path, "--json", opt])]
     try:
         r = subprocess.run(argv, capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired) as e:
@@ -168,7 +170,7 @@ _USER_RE = re.compile(r"^[^\s'\"\\$`]{1,120}$")
 
 def _run_remote(ssh: str | None, script: str, stdin: str | None = None, timeout: int = 60) -> tuple[int, str]:
     """Exécute un petit script sh sur la machine (SSH, sans mot de passe demandé) ou ici ; (code, sortie). Les secrets passent par stdin."""
-    argv = ["sh", "-c", script] if not ssh else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", ssh, shlex.join(["sh", "-c", script])]
+    argv = ["sh", "-c", script] if not ssh else ["ssh", *SSH_MUX, "-o", SSH_BATCH, "-o", SSH_CONNECT_TIMEOUT, ssh, shlex.join(["sh", "-c", script])]
     try:
         r = subprocess.run(argv, input=stdin, capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired) as e:

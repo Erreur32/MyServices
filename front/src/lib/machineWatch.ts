@@ -1,6 +1,6 @@
 // « À surveiller » : tout ce qui demande un coup d'œil sur une machine, avec sa gravité et une icône. Sert à la colonne de l'onglet Machines et,
 // pour la partie santé, à la liste de problèmes de l'onglet Machines (mêmes phrases aux deux endroits).
-import type { Connector, HealthHost, Machine } from "../types";
+import type { Connector, HealthHost, HostSystem, Machine } from "../types";
 import { MSTATE, mState } from "./machines";
 import { tx } from "./i18n";
 
@@ -36,27 +36,43 @@ const CHECK_TEXT: Record<string, () => string> = {
 
 export const SHARE_STATE: Record<string, () => string> = { ok: () => tx("répond"), hang: () => tx("ne répond pas"), error: () => tx("en erreur"), missing: () => tx("non monté") };
 
-/** Services and storage (health.py collect_system), with the same levels as system_levels */
-function systemItems(h: HealthHost, add: (tone: WatchTone, kind: WatchKind, text: string, detail?: string[]) => void) {
-  const s = h.system;
-  if (!s) return;
+type AddItem = (tone: WatchTone, kind: WatchKind, text: string, detail?: string[]) => void;
+
+/** PM2: its systemd units, then the saved apps that do not run (or the stopped apps of a running PM2) */
+function pm2Items(s: HostSystem, add: AddItem) {
   for (const u of s.pm2?.units ?? []) if (u.enabled && !u.active) add("warn", "pm2", tx("PM2 arrêté ({0})", u.unit.replace(/\.service$/, "")));
   const apps = s.pm2?.apps ?? [];
   if (s.pm2?.running === false && apps.some((a) => a.saved)) add("warn", "pm2", tx("PM2 arrêté : {0} appli(s) enregistrée(s) ne tournent pas", apps.filter((a) => a.saved).length));
   else if (s.pm2?.running && apps.some((a) => !a.up)) add("warn", "pm2", tx("PM2 : appli arrêtée : {0}", apps.filter((a) => !a.up).map((a) => a.name).join(", ")));
+}
+
+/** Storage: RAID arrays, ZFS pools and network shares */
+function storageItems(s: HostSystem, add: AddItem) {
   for (const a of s.raid?.arrays ?? []) {
     if (a.degraded && !a.rebuild) add("bad", "raid", tx("RAID {0} dégradé", a.name));
     else if (a.rebuild && a.rebuild.kind !== "check") add("warn", "raid", tx("RAID {0} en reconstruction ({1} %)", a.name, a.rebuild.pct));
   }
   for (const p of s.zfs?.pools ?? []) if (p.health !== "ONLINE") add(ZFS_BAD.includes(p.health) ? "bad" : "warn", "zfs", tx("pool ZFS {0} : {1}", p.name, p.health));
   for (const m of s.mounts?.shares ?? []) if (!m.ok) add(m.state === "hang" ? "bad" : "warn", "mounts", tx("partage {0} : {1}", m.path, SHARE_STATE[m.state]?.() ?? m.state));
+}
+
+/** Automatic updates (unattended-upgrades): in error, or not run for too long */
+function autoUpdItems(s: HostSystem, add: AddItem) {
+  const u = s.auto_upd;
+  if (!u?.available || !u.enabled) return;
+  if (u.errors?.length) add("warn", "auto_upd", tx("mises à jour automatiques en erreur"), u.errors);
+  else if (u.days != null && u.days > UU_STALE_DAYS) add("warn", "auto_upd", tx("mises à jour automatiques : dernier passage il y a {0} jours", Math.floor(u.days)));
+}
+
+/** Services and storage (health.py collect_system), with the same levels as system_levels */
+function systemItems(h: HealthHost, add: AddItem) {
+  const s = h.system;
+  if (!s) return;
+  pm2Items(s, add);
+  storageItems(s, add);
   if (s.ntp?.available && !s.ntp.synced) add("warn", "ntp", tx("l'heure n'est pas synchronisée"));
   if (s.timers?.failed?.length) add("warn", "timers", tx("tâche(s) planifiée(s) en échec : {0}", s.timers.failed.join(", ")));
-  const u = s.auto_upd;
-  if (u?.available && u.enabled) {
-    if (u.errors?.length) add("warn", "auto_upd", tx("mises à jour automatiques en erreur"), u.errors);
-    else if (u.days != null && u.days > UU_STALE_DAYS) add("warn", "auto_upd", tx("mises à jour automatiques : dernier passage il y a {0} jours", Math.floor(u.days)));
-  }
+  autoUpdItems(s, add);
   if (s.snap?.pending) add("info", "updates", tx("{0} snap(s) à mettre à jour", s.snap.pending));
   const nr = s.needrestart?.services ?? [];
   if (nr.length) add("warn", "updates", tx("{0} service(s) à redémarrer après une mise à jour", nr.length), nr);

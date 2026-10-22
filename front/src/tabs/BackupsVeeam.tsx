@@ -161,8 +161,14 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
 
 interface AgentRun { ip: string; machine: string; tool: string; last_run: number | null; ok: boolean; warn: boolean; followed: boolean }
 
+/** The outcome of an agent run: failed, with warnings or succeeded */
+function runOutcome(r: AgentRun): string {
+  if (!r.ok) return tx("échec");
+  return r.warn ? tx("avertissements") : tx("réussi");
+}
+
 // Veeam Agent (and Windows Server Backup) on a PC followed by its MyServices agent: the last run comes with each report, no account needed
-function AgentBackups({ reload }: { reload: () => void }) {
+function AgentBackups({ reload }: Readonly<{ reload: () => void }>) {
   const [runs, setRuns] = useState<AgentRun[] | null>(null), [pick, setPick] = useState<Record<string, Choice>>({});
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const key = (r: AgentRun) => `${r.ip}|${r.tool}`;
@@ -205,7 +211,7 @@ function AgentBackups({ reload }: { reload: () => void }) {
                   <span className="min-w-0">
                     <b>{r.machine}</b> <Dim>· {r.tool}</Dim>
                     <span className="block text-xs text-dim">
-                      {r.last_run ? `${tx("dernier passage")} ${dateTime(r.last_run * 1000)} (${r.ok ? (r.warn ? tx("avertissements") : tx("réussi")) : tx("échec")})` : tx("jamais lancé")}
+                      {r.last_run ? `${tx("dernier passage")} ${dateTime(r.last_run * 1000)} (${runOutcome(r)})` : tx("jamais lancé")}
                     </span>
                   </span>
                 </label>

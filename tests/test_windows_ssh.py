@@ -61,7 +61,7 @@ class CollectWindows(unittest.TestCase):
         return run
 
     def test_par_l_entree_puis_titres_en_cache(self):
-        with mock.patch.object(health, "make_runner", lambda host: self.runner()):
+        with mock.patch.object(health, "make_runner", return_value=self.runner()):
             first = health.collect_windows(HOST)
             second = health.collect_windows(HOST)
         self.assertTrue(first["reachable"] and second["reachable"])
@@ -72,11 +72,11 @@ class CollectWindows(unittest.TestCase):
         self.assertTrue(script2.endswith(health.WIN_PS))
 
     def test_titres_trop_vieux_ou_machine_muette(self):
-        with mock.patch.object(health, "make_runner", lambda host: self.runner()):
+        with mock.patch.object(health, "make_runner", return_value=self.runner()):
             health.collect_windows(HOST)
-        with mock.patch.object(health.time, "time", lambda: 10 ** 10):
+        with mock.patch.object(health.time, "time", return_value=10 ** 10):
             self.assertIsNone(health._win_upd_cached("pc"))
-        with mock.patch.object(health, "make_runner", lambda host: self.runner(255, "Connection refused")):
+        with mock.patch.object(health, "make_runner", return_value=self.runner(255, "Connection refused")):
             h = health.collect_windows({**HOST, "target": "autre"})
         self.assertEqual((h["reachable"], h["level"]), (False, "down"))
         self.assertIsNone(health._win_upd_cached("autre"))

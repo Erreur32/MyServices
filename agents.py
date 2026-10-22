@@ -214,7 +214,10 @@ class Agents:
             if prev is not None:
                 keep_slow_keys(report, prev)
             level = report_level(report)
-            before = old["level"] if old and old["level"] is not None else report_level(prev) if prev else None
+            if old and old["level"] is not None:
+                before = old["level"]
+            else:
+                before = report_level(prev) if prev else None
             db.execute("UPDATE agents SET last_seen = ?, last_ip = ?, interval = ?, version = ?, os_name = ?, report = ?, level = ? "
                        "WHERE id = ? AND revoked IS NULL",
                        (time.time(), ip, interval, str(report.get("version") or "")[:32], str(report.get("os") or "")[:120],
@@ -297,7 +300,12 @@ def linux_inventory(report: dict | None) -> dict | None:
     if info:
         info["via"] = "agent"   # the page says where it was read
     rc, out = got(docker_ssh.DOCKER_SH)
-    containers = docker_ssh.parse_containers(out) if rc == 0 else [] if rc is not None and docker_ssh.docker_absent(rc, out) else None
+    if rc == 0:
+        containers = docker_ssh.parse_containers(out)
+    elif rc is not None and docker_ssh.docker_absent(rc, out):
+        containers = []   # Docker is not installed: no container, not an unknown list
+    else:
+        containers = None
     rc_net, out_net = got(docker_ssh.NET_SH)
     rc_ss, out_ss = got(process.LISTEN_SH)
     return {"info": info, "containers": containers, "internal": docker_ssh.parse_internal(out_net) if rc_net is not None else None,

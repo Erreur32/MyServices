@@ -167,9 +167,9 @@ class LinuxAgentScripts(unittest.TestCase):
             self.assertEqual(first, second)                           # their outputs are sent again, the report stays complete
             asked.clear()
             from unittest import mock
-            with mock.patch.object(ns["time"], "time", lambda: 10 ** 10):   # far later: everything is run again
+            with mock.patch.object(ns["time"], "time", return_value=10 ** 10):   # far later: everything is run again
                 ns["collect"]()
-            self.assertTrue(slow <= set(asked))
+            self.assertLessEqual(slow, set(asked))
 
     def test_v3_un_echec_n_est_pas_garde(self):
         import tempfile

@@ -648,9 +648,8 @@ def _iso_epoch(s: str) -> int | None:
         return None
 
 
-def parse_pm2(lines: list[str]) -> dict:
-    """PM2 without the pm2 command: the daemons running (by their home), the pm2-<user> units, and for the account's own home the apps
-    saved by « pm2 save » and those whose process is alive. Nothing of PM2 on the machine: available False."""
+def _pm2_read(lines: list[str]) -> tuple[list, dict, dict, dict, list, str | None]:
+    """The tagged lines of the pm2 section: (daemons, units active state, units enabled state, apps alive, apps saved, home)."""
     daemons, units, enabled, apps, saved, home = [], {}, {}, {}, [], None
     for ln in lines:
         tag, _, rest = ln.partition(" ")
@@ -671,6 +670,13 @@ def parse_pm2(lines: list[str]) -> dict:
             apps[name] = apps.get(name, False) or state == "up"
         elif tag == "S" and rest:
             saved.append(rest[:80])
+    return daemons, units, enabled, apps, saved, home
+
+
+def parse_pm2(lines: list[str]) -> dict:
+    """PM2 without the pm2 command: the daemons running (by their home), the pm2-<user> units, and for the account's own home the apps
+    saved by « pm2 save » and those whose process is alive. Nothing of PM2 on the machine: available False."""
+    daemons, units, enabled, apps, saved, home = _pm2_read(lines)
     us = [{"unit": u, "enabled": s == "enabled", "active": units.get(u, "inactive") == "active"} for u, s in sorted(enabled.items()) if u.endswith(".service")]
     if not (daemons or us or home):
         return {"available": False}
@@ -729,7 +735,7 @@ def parse_mounts(lines: list[str]) -> dict:
 
 def parse_ntp(lines: list[str]) -> dict:
     """Clock synchronisation (timedatectl); a container takes its clock from its host: not read there."""
-    kv = dict(ln.split("=", 1) for ln in lines if "=" in ln)
+    kv = {k: v for k, _, v in (ln.partition("=") for ln in lines if "=" in ln)}
     container = next((ln[2:].strip() for ln in lines if ln.startswith("C ")), "")
     if "NTPSynchronized" not in kv or (container and container != "none"):
         return {"available": False}
@@ -757,6 +763,12 @@ def parse_unattended(lines: list[str], now: int | None) -> dict:
         return {"available": False}
     m = re.search(r'Unattended-Upgrade "(\d+)"', "\n".join(lines))
     stamp = next((int(ln[2:]) for ln in lines if ln.startswith("S ") and ln[2:].isdigit()), None)
+    days = round((now - stamp) / 86400, 1) if now and stamp else None
+    return {"available": True, "enabled": bool(m and m.group(1) != "0"), "days": days, "errors": _uu_errors(lines, now)}
+
+
+def _uu_errors(lines: list[str], now: int | None) -> list[str]:
+    """The errors of the unattended-upgrades log (« X <date> <text> » lines) in the last 48 hours."""
     errors = []
     for ln in lines:
         if ln.startswith("X "):
@@ -767,8 +779,7 @@ def parse_unattended(lines: list[str], now: int | None) -> dict:
                 continue
             if now and now - t <= 48 * 3600:
                 errors.append(ln[2:][:200])
-    days = round((now - stamp) / 86400, 1) if now and stamp else None
-    return {"available": True, "enabled": bool(m and m.group(1) != "0"), "days": days, "errors": errors}
+    return errors
 
 
 def parse_snap(lines: list[str]) -> dict:
@@ -845,36 +856,56 @@ def collect_system(run) -> dict:
             "needrestart": parse_needrestart(s.get("nr", []), user), "fail2ban": parse_fail2ban(s.get("f2b", []), user)}
 
 
+def _pm2_level(p: dict) -> str:
+    down_unit = any(u["enabled"] and not u["active"] for u in p["units"])
+    stopped = p["running"] is False and any(a["saved"] for a in p["apps"])
+    app_down = p["running"] and any(not a["up"] for a in p["apps"])
+    return "warn" if down_unit or stopped or app_down else "ok"
+
+
+def _raid_level(r: dict) -> str:
+    """A degraded array not being rebuilt is critical; degraded and rebuilding, or a resync / reshape (not a check), is a warning."""
+    if any(a["degraded"] and not a.get("rebuild") for a in r["arrays"]):
+        return "crit"
+    if any(a["degraded"] or (a.get("rebuild") and a["rebuild"]["kind"] != "check") for a in r["arrays"]):
+        return "warn"
+    return "ok"
+
+
+def _zfs_level(z: dict) -> str:
+    hs = {p_["health"] for p_ in z["pools"]}
+    if hs & {"FAULTED", "UNAVAIL", "SUSPENDED"}:
+        return "crit"
+    return "warn" if hs - {"ONLINE"} else "ok"
+
+
+def _mounts_level(mo: dict) -> str:
+    if any(x["state"] == "hang" for x in mo["shares"]):
+        return "crit"
+    return "warn" if any(not x["ok"] for x in mo["shares"]) else "ok"
+
+
+def _auto_upd_level(u: dict) -> str | None:
+    """None when automatic updates are installed but turned off: no level for them."""
+    if not u["enabled"]:
+        return None
+    return "warn" if u["errors"] or (u["days"] is not None and u["days"] > UU_STALE_DAYS) else "ok"
+
+
+# Each check with the level of what was read on the machine, in the order of the page
+_SYSTEM_LEVELS = (("pm2", _pm2_level), ("raid", _raid_level), ("zfs", _zfs_level), ("mounts", _mounts_level),
+                  ("ntp", lambda n: "ok" if n["synced"] else "warn"), ("timers", lambda t: "warn" if t["failed"] else "ok"),
+                  ("auto_upd", _auto_upd_level))
+
+
 def system_levels(sys_: dict) -> dict[str, str]:
     """Level of each services and storage check (na: nothing of it on the machine)."""
     sys_ = sys_ or {}
     lv = {}
-    p = sys_.get("pm2") or {}
-    if p.get("available"):
-        down_unit = any(u["enabled"] and not u["active"] for u in p["units"])
-        stopped = p["running"] is False and any(a["saved"] for a in p["apps"])
-        app_down = p["running"] and any(not a["up"] for a in p["apps"])
-        lv["pm2"] = "warn" if down_unit or stopped or app_down else "ok"
-    r = sys_.get("raid") or {}
-    if r.get("available"):
-        lv["raid"] = "crit" if any(a["degraded"] and not a.get("rebuild") for a in r["arrays"]) else (
-            "warn" if any(a["degraded"] or (a.get("rebuild") and a["rebuild"]["kind"] != "check") for a in r["arrays"]) else "ok")
-    z = sys_.get("zfs") or {}
-    if z.get("available"):
-        hs = {p_["health"] for p_ in z["pools"]}
-        lv["zfs"] = "crit" if hs & {"FAULTED", "UNAVAIL", "SUSPENDED"} else ("warn" if hs - {"ONLINE"} else "ok")
-    mo = sys_.get("mounts") or {}
-    if mo.get("available"):
-        lv["mounts"] = "crit" if any(x["state"] == "hang" for x in mo["shares"]) else ("warn" if any(not x["ok"] for x in mo["shares"]) else "ok")
-    n = sys_.get("ntp") or {}
-    if n.get("available"):
-        lv["ntp"] = "ok" if n["synced"] else "warn"
-    t = sys_.get("timers") or {}
-    if t.get("available"):
-        lv["timers"] = "warn" if t["failed"] else "ok"
-    u = sys_.get("auto_upd") or {}
-    if u.get("available") and u["enabled"]:
-        lv["auto_upd"] = "warn" if u["errors"] or (u["days"] is not None and u["days"] > UU_STALE_DAYS) else "ok"
+    for key, level_of in _SYSTEM_LEVELS:
+        d = sys_.get(key) or {}
+        if d.get("available") and (level := level_of(d)):
+            lv[key] = level
     return lv
 
 # ───────────── Windows (OpenSSH Server + PowerShell) ─────────────
@@ -1282,6 +1313,17 @@ def host_from_api(hc: dict, b: dict) -> dict:
 API_REUSE_S = 600   # a service's API read less than 10 minutes ago is not read again for the health
 
 
+def _api_data(c, state: dict, cached_only: bool) -> dict | None:
+    """What a status connector read: its result of a moment ago, else a new call (never with cached_only); None if nothing usable."""
+    import connectors.base as cbase
+    data = cbase.recent(c, state, max(API_REUSE_S, readers.max_age(c, CFG["fast_every"])) if readers.on(CFG) else API_REUSE_S)   # read by the server's reader or the collection a moment ago: no second call for the same data
+    if data is not None or cached_only:
+        return data
+    data, st = cbase.run_isolated(c, state, 60)
+    cbase.merge_state(CONNECTORS_STATE, state, [f"{c.type}/{c.name}"])
+    return data if st.ok or st.stale else None
+
+
 def api_systems(meta: dict, cached_only: bool = False) -> dict:
     """{IP: système au format Beszel} des machines lues par l'API d'un service relié : Glances ou Netdata (sur la machine même), puis
     Home Assistant (capteurs System Monitor / Supervisor de la machine hôte). cached_only: what was read a moment ago, never a new call
@@ -1296,15 +1338,7 @@ def api_systems(meta: dict, cached_only: bool = False) -> dict:
     machines, found = meta.get("machines", {}), {}
     state = cbase.load_state(CONNECTORS_STATE)
     for c in conns:
-        data = cbase.recent(c, state, max(API_REUSE_S, readers.max_age(c, CFG["fast_every"])) if readers.on(CFG) else API_REUSE_S)   # read by the server's reader or the collection a moment ago: no second call for the same data
-        if data is None and cached_only:
-            continue
-        if data is None:
-            data, st = cbase.run_isolated(c, state, 60)
-            cbase.merge_state(CONNECTORS_STATE, state, [f"{c.type}/{c.name}"])
-            if not (st.ok or st.stale):
-                continue
-        host = (data or {}).get("host")
+        host = (_api_data(c, state, cached_only) or {}).get("host")
         if not host:
             continue
         ip = next((i for i in [host_ip(c.conf.get("url")), *host.get("ips", [])] if i in machines), None)

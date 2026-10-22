@@ -63,9 +63,12 @@ export function WebServersTable({ m, hosts, npmIps }: Readonly<{ m: Machine; hos
           <tbody className="[&>tr:nth-child(even)]:bg-bg/50">
             {web.map((w) => {
               const [mode, cls, tip] = MODE[w.mode];
+              let tone: "bad" | "warn" | "ok" = "ok";
+              if (!w.up) tone = "bad";
+              else if (w.mode === "binary") tone = "warn";
               return (
                 <tr key={`${w.key}/${w.mode}/${w.name}`} className="align-middle">
-                  <td className="px-2 py-1.5"><Dot tone={!w.up ? "bad" : w.mode === "binary" ? "warn" : "ok"} /></td>
+                  <td className="px-2 py-1.5"><Dot tone={tone} /></td>
                   <td className="whitespace-nowrap px-2 py-1.5"><span className="inline-flex items-center gap-2"><Icon src={appIcon([w.label])} /><b className="font-medium">{w.label}</b>{!w.up && <span className="text-xs text-bad">{tx("arrêté")}</span>}</span></td>
                   <td className="whitespace-nowrap px-2 py-1.5">
                     <span className={`inline-flex items-center gap-1 rounded border px-1.5 text-xs ${cls}`} title={tip}>{mode} · <span className="font-mono">{w.name}</span></span>

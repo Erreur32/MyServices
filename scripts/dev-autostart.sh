@@ -6,7 +6,10 @@
 set -u
 HERDR=${HERDR:-/root/.local/bin/herdr}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-log() { echo "$(date -Is) $*"; }
+log() {
+  echo "$(date -Is) $*"
+  return 0
+}
 
 if ss -ltn 'sport = :5180' 2>/dev/null | grep -q LISTEN; then
   log "Vite :5180 already running, nothing to do"
@@ -14,7 +17,7 @@ if ss -ltn 'sport = :5180' 2>/dev/null | grep -q LISTEN; then
 fi
 # Pane found by its label, like scripts/dev-stop.sh: its id may change
 pane=$("$HERDR" pane list 2>/dev/null | jq -r '.result.panes[] | select(.label == "MyServices dev") | .pane_id' | head -n 1)
-if [ -z "$pane" ]; then
+if [[ -z "$pane" ]]; then
   log "pane « MyServices dev » not found, Vite not started"
   exit 1
 fi

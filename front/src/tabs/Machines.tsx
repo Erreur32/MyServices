@@ -52,6 +52,15 @@ function topDisk(h?: HealthHost) {
 
 /** Web servers of the machine (NPM, Anubis, Apache, nginx…) then Docker, as icons; each tooltip lists the instances (port, how it runs,
  *  what it forwards to). max: beyond, a « +N » chip (the full list is in the unfolded detail) */
+/** One web server in the tooltip of its chip: ports, how it runs, where it sends to, its vhosts and whether it is stopped */
+function webLine(w: NonNullable<Machine["web"]>[number]): string {
+  const ports = w.ports.map((p) => ":" + p).join(" ") || "-";
+  const behind = w.behind ? " → " + (w.behind.name ?? w.behind.addr) : "";
+  const vhosts = w.vhosts ? " · " + tx("{0} vhost(s)", w.vhosts) : "";
+  const stopped = w.up ? "" : " · " + tx("arrêté");
+  return `${ports}  ${modeLabel(w.mode)} · ${w.name}${behind}${vhosts}${stopped}`;
+}
+
 function Servers({ m, snap, max }: { m: Machine; snap: Snapshot; max?: number }) {
   const apDown = snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.enabled && r.service?.kind === "apache" && status(r)[0] === "bad").length;
   const i = m.info || {}, groups = new Map<string, NonNullable<Machine["web"]>>();
@@ -59,7 +68,7 @@ function Servers({ m, snap, max }: { m: Machine; snap: Snapshot; max?: number })
   const chips: { key: string; icon: string | null; label: string; tip: string; bad?: boolean }[] = [...groups].map(([key, ws]) => {
     const stopped = ws.filter((w) => !w.up).length, down = stopped + (key === "apache" ? apDown : 0);
     const head = [ws[0].label, ws.length > 1 ? tx("{0} instances", ws.length) : "", stopped ? tx("{0} arrêtée(s)", stopped) : "", key === "apache" && apDown ? tx("{0} en panne", apDown) : ""].filter(Boolean).join(" · ");
-    const lines = ws.map((w) => `${w.ports.map((p) => `:${p}`).join(" ") || "-"}  ${modeLabel(w.mode)} · ${w.name}${w.behind ? ` → ${w.behind.name ?? w.behind.addr}` : ""}${w.vhosts ? ` · ${tx("{0} vhost(s)", w.vhosts)}` : ""}${w.up ? "" : ` · ${tx("arrêté")}`}`);
+    const lines = ws.map(webLine);
     return { key, icon: appIcon([ws[0].label]), label: ws[0].label, tip: [head, ...lines].join("\n"), bad: down > 0 };
   });
   if (i.docker) chips.push({ key: "docker", icon: appIcon(["Docker"]), label: "Docker", tip: tx("Docker : {0} conteneur(s) en cours", i.docker) });
@@ -386,6 +395,13 @@ function OsShort({ m, kind }: { m: Machine; kind: OsKind | null }) {
 /** Origine d'une donnée : le connecteur ou la source qui l'a lue (rouge si en panne) */
 export interface Origin { label: string; ok?: boolean; tip?: string; href?: string }  // href : où régler cette source (Réglages)
 
+/** Where the OS of the machine was read: SSH, the MyServices agent or the network search */
+function osOrigins(m: Machine, here: string, scanned: boolean): Origin[] {
+  if (m.info?.os && m.info.via !== "agent") return [{ label: "SSH", href: here }];
+  if (m.info?.os || m.agent) return [{ label: tx("agent MyServices"), href: `#settings/agents/${m.ip}` }];
+  return scanned ? [{ label: tx("recherche réseau"), href: "#settings/network" }] : [];
+}
+
 /** D'où viennent les données de la machine : SSH, agent, recherche réseau, MynetworK, Beszel et connecteurs visant son IP */
 function originsOf(m: Machine, snap: Snapshot, h: HealthHost | undefined, scanned: boolean, seen: boolean) {
   const linked = (types: string[]): Origin[] => (snap.data.connectors ?? []).filter((c) => c.ip === m.ip && types.includes(c.type))
@@ -397,7 +413,7 @@ function originsOf(m: Machine, snap: Snapshot, h: HealthHost | undefined, scanne
     role: [{ label: tx("Réglages → Machines"), href: here }] as Origin[],
     mac: seen ? [{ label: "MynetworK", href: connectors }] : [],
     ssh: m.ssh ? [{ label: tx("alias SSH de MyServices"), href: here }] : [],
-    os: m.info?.os && m.info.via !== "agent" ? [{ label: "SSH", href: here }] : m.info?.os || m.agent ? [{ label: tx("agent MyServices"), href: `#settings/agents/${m.ip}` }] : scanned ? [{ label: tx("recherche réseau"), href: "#settings/network" }] : [],
+    os: osOrigins(m, here, scanned),
     services: [...(m.npm ? [{ label: "NPM", href: connectors }] : []), ...linked(["docker", "process", "adguard"]),
                ...(m.api ?? []).map((a) => ({ label: a.label, ok: a.ok || !!a.stale, tip: `${a.name} : ${a.message ?? ""}`, href: connectors }))],
     health,
@@ -579,6 +595,19 @@ function BigLogsRow({ logs }: Readonly<{ logs: NonNullable<HealthHost["logs"]> }
 }
 
 const SHARE_TONE: Record<string, string> = { ok: "text-ok", hang: "text-bad", error: "text-warn", missing: "text-warn" };
+type RaidArray = NonNullable<NonNullable<HostSystem["raid"]>["arrays"]>[number];
+function raidState(a: RaidArray): string {
+  if (a.rebuild) return `${a.rebuild.kind} ${a.rebuild.pct} %`;
+  return a.degraded ? tx("dégradé") : tx("sain");
+}
+function raidTone(a: RaidArray): string {
+  if (a.degraded && !a.rebuild) return "text-bad";
+  return a.degraded || a.rebuild ? "text-warn" : "text-ok";
+}
+function zfsTone(health: string): string {
+  if (health === "ONLINE") return "text-ok";
+  return ZFS_BAD.includes(health) ? "text-bad" : "text-warn";
+}
 
 /** Services and storage of a Linux machine (PM2, RAID, ZFS, network shares, clock, timers, open sessions): a row each, only for what the machine has */
 function SystemRows({ s }: Readonly<{ s: HostSystem }>) {
@@ -588,11 +617,8 @@ function SystemRows({ s }: Readonly<{ s: HostSystem }>) {
     ...(pm2.home && !(pm2.units ?? []).length ? [{ name: tx("compte"), value: pm2.running ? tx("en marche") : tx("arrêté"), tone: pm2.running ? "text-ok" : "text-dim" }] : []),
     ...(pm2.apps ?? []).map((a) => ({ name: a.name, value: a.up ? tx("en marche") : tx("arrêtée"), tone: a.up ? "text-ok" : "text-warn" })),
   ] : [];
-  const raid = (s.raid?.arrays ?? []).map((a) => {
-    const state = a.rebuild ? `${a.rebuild.kind} ${a.rebuild.pct} %` : a.degraded ? tx("dégradé") : tx("sain");
-    return { name: [a.name, a.level].filter(Boolean).join(" "), value: [state, a.members].filter(Boolean).join(" · "), tone: a.degraded && !a.rebuild ? "text-bad" : a.degraded || a.rebuild ? "text-warn" : "text-ok" };
-  });
-  const zfs = (s.zfs?.pools ?? []).map((p) => ({ name: p.name, value: p.health, tone: p.health === "ONLINE" ? "text-ok" : ZFS_BAD.includes(p.health) ? "text-bad" : "text-warn" }));
+  const raid = (s.raid?.arrays ?? []).map((a) => ({ name: [a.name, a.level].filter(Boolean).join(" "), value: [raidState(a), a.members].filter(Boolean).join(" · "), tone: raidTone(a) }));
+  const zfs = (s.zfs?.pools ?? []).map((p) => ({ name: p.name, value: p.health, tone: zfsTone(p.health) }));
   const shares = (s.mounts?.shares ?? []).map((m) => ({ name: m.path, value: SHARE_STATE[m.state]?.() ?? m.state, tone: SHARE_TONE[m.state] ?? "" }));
   const sessions = (s.sessions?.sessions ?? []).map((x) => ({ name: `${x.user} ${x.tty}`, value: x.from || tx("local"), tone: "" }));
   return (
@@ -638,6 +664,13 @@ function SudoHint({ rule, file, note }: Readonly<{ rule?: string; file: string; 
   );
 }
 
+/** The services to restart after an update (needrestart), or the sudo rule it needs */
+function NeedRestart({ nr }: Readonly<{ nr: NonNullable<HostSystem["needrestart"]> }>) {
+  if (!nr.access) return <SudoHint rule={nr.rule} file="myservices-needrestart" />;
+  if (nr.services?.length) return <span className="text-warn" title={nr.services.join("\n")}>{tx("{0} service(s) : {1}", nr.services.length, nr.services.slice(0, 4).join(", "))}</span>;
+  return <Dim>{tx("aucun service")}</Dim>;
+}
+
 /** Detail, « Updates »: automatic updates (unattended-upgrades) and snaps waiting, when the machine has them */
 function SystemUpdates({ s }: Readonly<{ s?: HostSystem }>) {
   const u = s?.auto_upd, snap = s?.snap;
@@ -654,9 +687,7 @@ function SystemUpdates({ s }: Readonly<{ s?: HostSystem }>) {
       )}
       {s?.needrestart?.available && (
         <Row k={tx("À redémarrer")}>
-          {!s.needrestart.access ? <SudoHint rule={s.needrestart.rule} file="myservices-needrestart" />
-            : s.needrestart.services?.length ? <span className="text-warn" title={s.needrestart.services.join("\n")}>{tx("{0} service(s) : {1}", s.needrestart.services.length, s.needrestart.services.slice(0, 4).join(", "))}</span>
-            : <Dim>{tx("aucun service")}</Dim>}
+          <NeedRestart nr={s.needrestart} />
         </Row>
       )}
       {snap?.available && !!snap.pending && <Row k="Snap"><span className="text-warn" title={snap.names?.join("\n")}>{tx("{0} à mettre à jour", snap.pending)}</span></Row>}
@@ -1151,24 +1182,44 @@ function AccessSection({ m, from }: Readonly<{ m: Machine; from: Origin[] }>) {
   );
 }
 
+/** The Docker line of a machine without a container list: docker unreachable, running count (SSH or agent), none, absent, or undefined (no line) */
+function dockerValue(m: Machine): React.ReactNode {
+  const i = m.info;
+  if (m.containers === null) return <span className="text-warn">{tx("docker inaccessible (SSH ou groupe docker)")}</span>;
+  if (i?.docker) return tx("{0} conteneur(s) en cours", i.docker);
+  if (m.agent?.docker != null) return m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>;
+  return i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined;
+}
+
+/** The services count of a machine, its NPM ones and those down, each a filter link when the page can filter */
+function ServicesValue({ m, onFilter }: Readonly<{ m: Machine; onFilter?: (sel: Selected) => void }>) {
+  return (
+    <>
+      {onFilter && m.services > 0 ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services")} onClick={() => onFilter({ machine: [m.ip] })}>{m.services}</button> : m.services}
+      {m.npm > 0 && <Dim> · {onFilter ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services NPM")} onClick={() => onFilter({ machine: [m.ip], src: ["npm"] })}>{m.npm} NPM</button> : `${m.npm} NPM`}</Dim>}{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}
+    </>
+  );
+}
+
+/** Nothing at all to show in « Software and services » */
+const noSoftware = (m: Machine): boolean =>
+  !m.services && !m.web?.length && !m.containers?.length && !m.info?.docker && !m.agent?.docker && !m.agent?.apps?.length && !m.api?.length;
+
 /** Detail, « Software and services »: services, web servers (Docker, service or binary), path of each site, every container, linked APIs,
  *  Home Assistant add-ons and Windows apps */
 function SoftwareSection({ m, down, hosts, npmIps, ha, from, onFilter }: Readonly<{ down?: string[]; onFilter?: (sel: Selected) => void; m: Machine; hosts: Host[]; npmIps?: Record<string, string>; ha?: ServiceStatus; from: Origin[] }>) {
-  const i = m.info;
   return (
       <Section sec="services" icon={Boxes} title={tx("Logiciels et services")} tone="warn" from={from}>
-        <Row k={tx("Services")}>
-          {onFilter && m.services > 0 ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services")} onClick={() => onFilter({ machine: [m.ip] })}>{m.services}</button> : m.services}
-          {m.npm > 0 && <Dim> · {onFilter ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services NPM")} onClick={() => onFilter({ machine: [m.ip], src: ["npm"] })}>{m.npm} NPM</button> : `${m.npm} NPM`}</Dim>}{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</Row>
+        <Row k={tx("Services")}><ServicesValue m={m} onFilter={onFilter} /></Row>
         {down?.map((d) => <Row key={d} k=""><span className="text-[11px] text-bad">• {d}</span></Row>)}
         <WebServersTable m={m} hosts={hosts} npmIps={npmIps} />
         <SitePaths m={m} hosts={hosts} />
         {m.containers?.length ? <ContainerList m={m} hosts={hosts} />
-          : <Row k="Docker">{m.containers === null ? <span className="text-warn">{tx("docker inaccessible (SSH ou groupe docker)")}</span> : i?.docker ? tx("{0} conteneur(s) en cours", i.docker) : m.agent?.docker != null ? (m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>) : i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined}</Row>}
+          : <Row k="Docker">{dockerValue(m)}</Row>}
         <Row k="API">{m.api?.length ? <span className="flex flex-wrap gap-1">{m.api.map((a) => <Badge key={`${a.type}/${a.name}`} tone={a.ok ? "ok" : a.stale ? "warn" : "bad"} title={`${a.name} : ${a.message ?? ""}`}>{a.label}{a.version ? ` ${a.version}` : ""}</Badge>)}</span> : undefined}</Row>
         {ha?.addons?.length ? <div className="py-1"><HaAddons s={ha} /></div> : null}
         <Row k={tx("Applis")}>{m.agent?.apps?.length ? <span className="flex flex-wrap gap-1">{m.agent.apps.map((a) => <Badge key={a.key} tone="info" title={tx("Vue par les services Windows du PC")}>{a.label}</Badge>)}</span> : undefined}</Row>
-        {!m.services && !m.web?.length && !m.containers?.length && !i?.docker && !m.agent?.docker && !m.agent?.apps?.length && !m.api?.length && <Dim>-</Dim>}
+        {noSoftware(m) && <Dim>-</Dim>}
       </Section>
   );
 }

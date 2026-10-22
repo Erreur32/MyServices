@@ -51,8 +51,10 @@ def env_port(value: str) -> int | None:
 
 def env_target(value: str) -> str | None:
     """« hôte:port » visé par un TARGET http(s) (Anubis) ; None pour un socket unix ou une valeur illisible."""
-    m = re.fullmatch(r"https?://([\w.\-]+|\[[0-9a-f:]+\])(?::(\d{1,5}))?/?\S*", value.strip(), re.I)
-    if not m:
+    value = value.strip()
+    # host and optional port at the start, then any path without blanks (a looser tail would backtrack on long values)
+    m = re.match(r"https?://([\w.\-]+|\[[0-9a-f:]+\])(?::(\d{1,5}))?", value, re.I)
+    if not m or re.search(r"\s", value):
         return None
     return f"{m.group(1)}:{m.group(2) or (443 if value.strip().lower().startswith('https') else 80)}"
 

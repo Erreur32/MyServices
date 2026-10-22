@@ -81,23 +81,26 @@ def behind(target: str | None, ip: str, containers: list | None, internal: dict 
         return {**out, "kind": "docker", "name": seen, **({"image": c["image"]} if c else {})}
     if host not in LOOPBACK and seen != HOST_ADDR and host != ip:
         return out   # another machine: the address is shown as it is
+    return {**out, **_local_server(port, conts, procs, info, domains)}
+
+
+def _local_server(port: int | None, conts: list, procs: dict, info: dict, domains: list | None) -> dict:
+    """What listens on `port` of the machine itself (a container, Apache, nginx, a process): {kind, name(, image)}, {} if unknown."""
     c = next((c for c in conts if port in _host_ports(c)), None)
     if c:
-        return {**out, "kind": "docker", "name": c["name"], "image": c["image"]}
+        return {"kind": "docker", "name": c["name"], "image": c["image"]}
     if info.get("apache") and port in _apache_ports(info):
-        return {**out, "kind": "apache", "name": _vhost("apache2", info.get("vhosts"), port, domains)}
+        return {"kind": "apache", "name": _vhost("apache2", info.get("vhosts"), port, domains)}
     if info.get("nginx") and port in _nginx_ports(info):
-        return {**out, "kind": "nginx", "name": _vhost("nginx", info.get("nginx_vhosts"), port, domains)}
+        return {"kind": "nginx", "name": _vhost("nginx", info.get("nginx_vhosts"), port, domains)}
     p = procs.get(port)
     if p and not p.get("port_only"):
-        return {**out, "kind": "process", "name": p["name"]}
-    return out
+        return {"kind": "process", "name": p["name"]}
+    return {}
 
 
-def machine_web(ip: str, containers: list | None, internal: dict | None, procs: dict | None, info: dict | None) -> list[dict]:
-    """Serveurs web de la machine, dans l'ordre de WEB_IMAGES : [{key, label, mode, name, ports, up, host_net, target, behind, vhosts}].
-    mode : « docker » (conteneur), « service » (unité systemd active), « binary » (process qui écoute sans service ni conteneur)."""
-    conts, procs, info = containers or [], procs or {}, info or {}
+def _docker_servers(ip: str, conts: list, internal: dict | None, procs: dict, info: dict) -> tuple[list[dict], set[int], set[str]]:
+    """Web servers running in a container: (rows, ports held by a container, keys running in a host-network container)."""
     out: list[dict] = []
     claimed: set[int] = set()       # ports held by a container: the process seen there is that container
     in_docker: set[str] = set()     # keys running in a host-network container: their process is that container
@@ -113,12 +116,17 @@ def machine_web(ip: str, containers: list | None, internal: dict | None, procs: 
         out.append({"key": k, "label": LABELS[k], "mode": "docker", "name": c["name"], "ports": ports, "up": _up(c),
                     "host_net": host_net, "target": c.get("target"),
                     "behind": behind(c.get("target"), ip, conts, internal, procs, info) if c.get("target") else None})
+    return out, claimed, in_docker
+
+
+def _service_servers(procs: dict, info: dict) -> list[dict]:
+    """Web servers running as an active systemd unit (Apache and nginx also when only their service is seen as active)."""
+    out: list[dict] = []
     units = [u for u in info.get("web_units") or [] if u in UNITS]
     if info.get("apache") and "apache2" not in units:
         units.append("apache2")
     if info.get("nginx") and "nginx" not in units:
         units.append("nginx")
-    as_unit = {UNITS[u] for u in units}
     for u in units:
         k = UNITS[u]
         if k == "apache":
@@ -127,19 +135,38 @@ def machine_web(ip: str, containers: list | None, internal: dict | None, procs: 
             ports, vh = sorted(_nginx_ports(info)), info.get("nginx_vhosts") or []
         else:
             ports, vh = sorted(p for p, v in procs.items() if BINARIES.get(_proc(v)) == k), []
-        out.append({"key": k, "label": LABELS[k], "mode": "service", "name": u, "ports": ports, "up": True,
-                    "host_net": False, "target": None, "behind": None,
-                    **({"vhosts": len(vh), "vhosts_unreadable": len(info.get("vhosts_unreadable") or []) if k == "apache" else 0} if vh else {})})
+        row = {"key": k, "label": LABELS[k], "mode": "service", "name": u, "ports": ports, "up": True,
+               "host_net": False, "target": None, "behind": None}
+        if vh:
+            row["vhosts"] = len(vh)
+            row["vhosts_unreadable"] = len(info.get("vhosts_unreadable") or []) if k == "apache" else 0
+        out.append(row)
+    return out
+
+
+def _binary_servers(procs: dict, skip: set[str], claimed: set[int]) -> list[dict]:
+    """Web servers seen only as a listening process (no service, no container): one row per binary with all its ports."""
     binaries: dict[str, dict] = {}
     for port, p in sorted(procs.items()):
         name = _proc(p)
         k = BINARIES.get(name)
-        if not k or k in as_unit or k in in_docker or port in claimed or p.get("port_only"):
+        if not k or k in skip or port in claimed or p.get("port_only"):
             continue
         b = binaries.setdefault(name, {"key": k, "label": LABELS[k], "mode": "binary", "name": name, "ports": [], "up": True,
                                        "host_net": False, "target": None, "behind": None})
         b["ports"].append(port)
-    out += binaries.values()
+    return list(binaries.values())
+
+
+def machine_web(ip: str, containers: list | None, internal: dict | None, procs: dict | None, info: dict | None) -> list[dict]:
+    """Serveurs web de la machine, dans l'ordre de WEB_IMAGES : [{key, label, mode, name, ports, up, host_net, target, behind, vhosts}].
+    mode : « docker » (conteneur), « service » (unité systemd active), « binary » (process qui écoute sans service ni conteneur)."""
+    conts, procs, info = containers or [], procs or {}, info or {}
+    out, claimed, in_docker = _docker_servers(ip, conts, internal, procs, info)
+    services = _service_servers(procs, info)
+    as_unit = {w["key"] for w in services}
+    out += services
+    out += _binary_servers(procs, as_unit | in_docker, claimed)
     order = [k for k, _, _ in WEB_IMAGES]
     return sorted(out, key=lambda w: order.index(w["key"]))
 

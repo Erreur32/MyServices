@@ -286,12 +286,20 @@ def host_info(alias: str) -> dict | None:
     return None if r.returncode == 255 else parse_host_info(r.stdout)
 
 
-def parse_host_info(out: str) -> dict | None:
-    """Infos d'une machine d'après la sortie de REMOTE (lue par SSH, en local ou envoyée par l'agent Linux) ; None si elle est illisible."""
-    if "##OS" not in out:
-        return None
-    tag = {m.group(1): m.group(2).strip() for m in re.finditer(r"^##(\w+) ?(.*)$", out, re.M)}
-    svc = dict(kv.split("=", 1) for kv in tag.get("SVC", "").split() if "=" in kv)
+_TAG_NAME = re.compile(r"\w+")
+
+
+def _host_tags(out: str) -> dict:
+    """{NAME: value} of the « ##NAME value » lines of REMOTE (the last one wins), read line by line without a backtracking regex."""
+    tag = {}
+    for line in out.split("\n"):
+        if line.startswith("##") and (m := _TAG_NAME.match(line, 2)):
+            tag[m.group()] = line[m.end():].strip()
+    return tag
+
+
+def _host_sshd(tag: dict) -> dict:
+    """Options of sshd from the ##SSHD line; OpenSSH defaults for the missing ones when the file was readable (##SSHDR yes)."""
     sshd = {}
     for kv in filter(None, tag.get("SSHD", "").split(";")):
         k, _, v = kv.strip().partition(" ")
@@ -301,6 +309,16 @@ def parse_host_info(out: str) -> dict | None:
         for k, v in (("port", "22"), ("permitrootlogin", "prohibit-password"), ("passwordauthentication", "yes")):
             if k not in sshd:
                 sshd[k] = v + " (défaut)"
+    return sshd
+
+
+def parse_host_info(out: str) -> dict | None:
+    """Infos d'une machine d'après la sortie de REMOTE (lue par SSH, en local ou envoyée par l'agent Linux) ; None si elle est illisible."""
+    if "##OS" not in out:
+        return None
+    tag = _host_tags(out)
+    svc = dict(kv.split("=", 1) for kv in tag.get("SVC", "").split() if "=" in kv)
+    sshd = _host_sshd(tag)
     vhosts, unreadable, listen, listen_addr = parse_apache(out)
     nginx_vhosts, nginx_unreadable = parse_nginx(out)
     return {

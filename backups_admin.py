@@ -560,19 +560,8 @@ def _check_age_label(it: dict, default_label: str) -> tuple[str, float]:
     return label, age
 
 
-def veeam_follow(conf: dict, jobs: list[dict]) -> dict:
-    """Enregistre le compte Veeam (connecteur « veeam », mot de passe chiffré) puis un jeu par job choisi. Le serveur est relu avant
-    d'écrire : compte refusé ou job inconnu = rien n'est enregistré. A job given « copy_of » (a Backup Copy job and the job it copies,
-    chosen by the user: Veeam does not say it) becomes a copy location of that job's set instead of a set of its own."""
-    if not jobs:
-        raise BackupError("aucun job choisi")
-    if len(jobs) > 50:
-        raise BackupError("50 jobs au plus à la fois")
-    conn = _veeam_conn(conf)
-    try:
-        known = {j.get("name") for j in conn.fetch()[0]}
-    except ConnectorError as e:
-        raise BackupError(str(e)) from None
+def _veeam_split_jobs(jobs: list[dict], known: set) -> tuple[list[tuple], list[tuple]]:
+    """Chosen jobs checked against Veeam: (sets to follow as (name, label, age), copies as (name, copy_of))."""
     todo, copies = [], []
     for it in jobs:
         name, copy_of = str(it.get("name") or ""), str(it.get("copy_of") or "")
@@ -585,24 +574,14 @@ def veeam_follow(conf: dict, jobs: list[dict]) -> dict:
         else:
             todo.append((name, *_check_age_label(it, f"Veeam : {name}")))
     heads = {t[0] for t in todo} | {s["locations"][0].get("veeam_job") for s in _read().get("sets", []) if s.get("locations")}
-    for name, copy_of in copies:   # checked before anything is written: the copied job must be followed, or chosen now
+    for _name, copy_of in copies:   # checked before anything is written: the copied job must be followed, or chosen now
         if copy_of not in heads:
             raise BackupError(f"« {copy_of[:80]} » n'est pas suivi : cochez-le aussi pour y rattacher sa copie")
-    name = _veeam_name()
-    exists = settings.get("veeam", name) is not None
-    try:
-        settings.save("veeam", name, {"url": conn.conf["url"], "user": conn.conf["user"], "password": conn.conf["password"]},
-                      name if exists else None)
-    except settings.SettingsError as e:
-        raise BackupError(str(e)) from None
-    meta = _read()
-    meta.setdefault("hosts", [])
-    meta.setdefault("sets", [])
-    old = next((h for h in meta["hosts"] if h["id"] == VEEAM_HOST), {})
-    old.pop("secrets", None)  # l'ancien fichier de secrets cède la place au compte réglé ici
-    _ensure_host(meta, {**old, "id": VEEAM_HOST, "label": old.get("label", "Serveur Veeam"), "kind": "Veeam Backup & Replication",
-                        "api": "veeam", "url": conn.conf["url"], "connector": name})
-    _ensure_host(meta, {"id": VEEAM_SOURCES, "label": "Machines sauvegardées par Veeam", "kind": "origine des jobs Veeam", "api": "none"})
+    return todo, copies
+
+
+def _veeam_add_sets(meta: dict, todo: list[tuple]) -> tuple[int, int]:
+    """One set per followed job (label and age updated if the job already has one): (added, updated)."""
     added = updated = 0
     for name, label, age in todo:
         existing = next((s for s in meta["sets"] for loc in s.get("locations", []) if loc.get("veeam_job") == name), None)
@@ -618,12 +597,52 @@ def veeam_follow(conf: dict, jobs: list[dict]) -> dict:
         meta["sets"].append({"id": sid, "label": label, "origin": VEEAM_SOURCES, "schedule": "", "max_age_days": age,
                              "locations": [{"host": VEEAM_HOST, "veeam_job": name, "via": "job Veeam"}]})
         added += 1
+    return added, updated
+
+
+def _veeam_attach_copies(meta: dict, copies: list[tuple]) -> int:
+    """Each Backup Copy job becomes a copy location of the set of the job it copies: number of copies attached."""
+    updated = 0
     for name, copy_of in copies:   # after the sets: the copied job may be chosen in the same go
         target = next(s for s in meta["sets"] if s.get("locations") and s["locations"][0].get("veeam_job") == copy_of)
         if any(loc.get("veeam_job") == name for s in meta["sets"] for loc in s.get("locations", [])):
             continue   # already followed (as a set or a copy): left as it is
         target["locations"].append({"host": VEEAM_HOST, "veeam_job": name, "via": "copie Veeam"})
         updated += 1
+    return updated
+
+
+def veeam_follow(conf: dict, jobs: list[dict]) -> dict:
+    """Enregistre le compte Veeam (connecteur « veeam », mot de passe chiffré) puis un jeu par job choisi. Le serveur est relu avant
+    d'écrire : compte refusé ou job inconnu = rien n'est enregistré. A job given « copy_of » (a Backup Copy job and the job it copies,
+    chosen by the user: Veeam does not say it) becomes a copy location of that job's set instead of a set of its own."""
+    if not jobs:
+        raise BackupError("aucun job choisi")
+    if len(jobs) > 50:
+        raise BackupError("50 jobs au plus à la fois")
+    conn = _veeam_conn(conf)
+    try:
+        known = {j.get("name") for j in conn.fetch()[0]}
+    except ConnectorError as e:
+        raise BackupError(str(e)) from None
+    todo, copies = _veeam_split_jobs(jobs, known)
+    name = _veeam_name()
+    exists = settings.get("veeam", name) is not None
+    try:
+        settings.save("veeam", name, {"url": conn.conf["url"], "user": conn.conf["user"], "password": conn.conf["password"]},
+                      name if exists else None)
+    except settings.SettingsError as e:
+        raise BackupError(str(e)) from None
+    meta = _read()
+    meta.setdefault("hosts", [])
+    meta.setdefault("sets", [])
+    old = next((h for h in meta["hosts"] if h["id"] == VEEAM_HOST), {})
+    old.pop("secrets", None)  # l'ancien fichier de secrets cède la place au compte réglé ici
+    _ensure_host(meta, {**old, "id": VEEAM_HOST, "label": old.get("label", "Serveur Veeam"), "kind": "Veeam Backup & Replication",
+                        "api": "veeam", "url": conn.conf["url"], "connector": name})
+    _ensure_host(meta, {"id": VEEAM_SOURCES, "label": "Machines sauvegardées par Veeam", "kind": "origine des jobs Veeam", "api": "none"})
+    added, updated = _veeam_add_sets(meta, todo)
+    updated += _veeam_attach_copies(meta, copies)
     _write(meta)
     return {"added": added, "updated": updated}
 

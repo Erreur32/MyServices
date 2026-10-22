@@ -166,15 +166,17 @@ class VeeamAssistant(Base):
     def test_job_de_copie_refuse_sans_le_job_copie(self):
         for jobs in ([{"name": "Serveur fichiers", "copy_of": "PC-Jeu image"}],    # copied job not followed
                      [{"name": "Serveur fichiers", "copy_of": "Inconnu"}], [{"name": "Serveur fichiers", "copy_of": "Serveur fichiers"}]):
+            acct = self.acct()
             with self.assertRaises(ba.BackupError, msg=str(jobs)):
-                ba.veeam_follow(self.acct(), jobs)
+                ba.veeam_follow(acct, jobs)
         self.assertFalse(self.meta.exists())
         self.assertEqual(self.config.read_text(encoding="utf-8"), "{}")   # not even the account
 
     def test_refus_sans_rien_ecrire(self):
         for jobs in ([], [{"name": "Inconnu"}], [{"name": "PC-Jeu image", "max_age_days": 0}], [{"name": "PC-Jeu image", "label": "x" * 81}]):
+            acct = self.acct()
             with self.assertRaises(ba.BackupError, msg=str(jobs)):
-                ba.veeam_follow(self.acct(), jobs)
+                ba.veeam_follow(acct, jobs)
         with self.assertRaises(ba.BackupError):
             ba.veeam_follow(self.acct(password="faux"), [{"name": "PC-Jeu image"}])
         self.assertEqual(self.config.read_text(encoding="utf-8"), "{}")
@@ -298,7 +300,7 @@ class AgentBackups(Base):
                        "wb": {"t": "2026-10-01T02:00:00Z", "l": 2, "m": "The backup operation failed"}}, "host": "GAMER32"}
 
     def reports(self, report=None):
-        return mock.patch.object(ba, "_agent_reports", lambda: {"192.168.1.40": {"report": report or self.REPORT, "seen": 1, "fresh": True}})
+        return mock.patch.object(ba, "_agent_reports", return_value={"192.168.1.40": {"report": report or self.REPORT, "seen": 1, "fresh": True}})
 
     def test_liste_puis_suivi_dans_la_fiche_du_pc(self):
         (Path(self.tmp.name) / "services-meta.json").write_text(json.dumps({"machines": {"192.168.1.40": {"name": "Gamer32"}}}), encoding="utf-8")
