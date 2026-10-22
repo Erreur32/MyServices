@@ -237,7 +237,7 @@ class HomeAssistantAPI(Connector):
             out["host"] = host
         if str(self.conf.get("mcp_url") or "").strip():   # mode avancé : un échec de ha-mcp ne gâche pas la lecture par l'API REST
             out["mcp"] = HaMcp(self.conf["mcp_url"], self.ctx.timeout).collect(
-                cached=lambda key, ttl, fn: self.cached(f"{self.name}-{key}", ttl, fn))
+                cached=lambda key, ttl, fn: self.ctx.cached(f"{self.name}-{key}", ttl, fn))
         return out
 
     def test(self) -> Result:

@@ -31,6 +31,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - Linux agent version 2 (the new checks; it updates itself when automatic updates are on). A report may carry commands up to 4000 characters long.
 
 ### Fixed
+- Home Assistant in advanced mode (ha-mcp) failed on every read with « internal connector error (AttributeError: 'HomeAssistantAPI' object has no attribute 'cached') »: the slow ha-mcp calls now go through the connector cache as intended.
 - A service whose target changed (an NPM host moved from Apache to an Anubis relay) no longer keeps the name of what ran there before (« apache2 · rss »): the name is only kept when the target is the same, and a « changed recently » badge (date and previous target in its tooltip) is shown for 7 days.
 - An NPM host pointing at the Docker bridge of its own machine now finds the container listening on that port (published, or in host network) before looking for a service of the host.
 - « To watch » showed « Docker : [object Object] » instead of the containers in trouble: it now names each one with its status.
