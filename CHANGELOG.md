@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.19.0 (2026-10-22)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 - **Services and storage checks on Linux machines** (SSH and Linux agent, no sudo needed), in the machine window and in « To watch »: PM2 (daemons, `pm2-<user>` units, saved apps and whether they run), software RAID (degraded, rebuilding), ZFS pools, network shares (NFS, SMB, SSHFS: not answering, in error, or in `/etc/fstab` but not mounted), clock synchronisation, systemd timers whose last run failed, automatic updates (unattended-upgrades: errors, last run too old), snaps waiting for an update, open sessions, and Docker containers restarting in a loop.
 - **Services to restart after an update (needrestart) and Fail2ban bans**, each read through one exact read-only sudo rule (`needrestart -b -r l`, list mode, never restarts anything; `fail2ban-client banned`, every jail in one command). Without the rule the machine window says « not read » and gives the exact rule to add for the SSH account.
@@ -21,6 +25,12 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Backups section in the machine window**: the sets the machine produces (schedule, age of the last archive, size, copies elsewhere, 🔒 when encrypted, « no copy » in orange), the backup folders that hold them, and the replication (each place the copies go, how: rsync, pulled by another machine, vzdump, encrypted or not, and how old). From the Backups page data, nothing new is read on the machines; untracked folders and cron lines stay on the Backups page.
 - Anubis icon in the Servers column, with one tooltip line per instance (port, how it runs, what it forwards to).
 - **PM2 is never started by MyServices**: it is read from its processes and files, never through the `pm2` command (any `pm2` command starts its daemon again when it is down).
+
+- **Veeam: history of each job**: the last 10 runs are read (optional, like the repositories); a Veeam set says how many recent runs failed (in its detail only, its level is unchanged), gets an observed rhythm (so the threshold suggestion works for Veeam too) and names the repository the job writes to.
+- **Veeam: a Backup Copy job attached to the job it copies**: Veeam does not say which job a copy job copies, so the Veeam wizard asks (« copy of »). The copy job then becomes a copy of that job's set, judged like any copy, instead of a set of its own.
+- **Veeam Agent and Windows Server Backup as backup sets**: in the Veeam wizard, « Veeam Agent for Windows (MyServices agents) » lists the last run each Windows agent saw and follows the chosen ones, with no account to enter. The set belongs to the PC (it shows in its machine window); a failure is critical; the agent does not say where the backup is written, so no copy elsewhere is required.
+- **Linux agent version 4, the same inventory as over SSH**: it also sends the machine info, the Docker containers and networks and the listening ports, read on the server with the same code as an SSH session, so a machine looks the same whichever way it is followed (the machine window says « MyServices agent » as the source).
+- **`MSV_SUDO=1` for the Linux agent installer**: exact sudo rules for the three read-only commands that need root (needrestart in list mode, Fail2ban bans, `ss -tlnpH` for the process names behind the ports), in one sudoers file with `MSV_SMART`. As root, or with the rules, the agent reads them; without, the machine window gives the rule to add.
 
 ### Changed
 - **One SSH connection per machine for the whole health collection** instead of one per command: about 20 connections per machine and per pass become 3 (access check, every command, SMART for all the disks). Each command keeps its own time limit, and the outputs are read exactly as before.
