@@ -19,6 +19,19 @@ interface Choice { on: boolean; label: string; age: string; copyOf: string }   /
 
 const isCopy = (j: Job) => /copy/i.test(j.type);
 
+/** Name and alert threshold of a chosen job or run. */
+function ChoiceFields({ c, set }: Readonly<{ c: Choice; set: (c: Choice) => void }>) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <input className={`${input} w-56 py-1 text-xs`} value={c.label} maxLength={80} aria-label={tx("Nom")} onChange={(e) => set({ ...c, label: e.target.value })} />
+      <label className="flex items-center gap-1 text-xs text-dim">{tx("alerte après")}
+        <input className={`${input} w-16 py-1 text-xs`} type="number" min={0.1} max={365} step="any" value={c.age} aria-label={tx("Âge maximum en jours")}
+          onChange={(e) => set({ ...c, age: e.target.value })} />{tx("j")}
+      </label>
+    </div>
+  );
+}
+
 export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () => void }) {
   const [url, setUrl] = useState(state.url), [user, setUser] = useState(state.user), [password, setPassword] = useState("");
   const [jobs, setJobs] = useState<Job[] | null>(null), [repos, setRepos] = useState<Repo[]>([]);
@@ -122,16 +135,7 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
                       </select>
                     </label>
                   )}
-                  {c?.on && !c.copyOf && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <input className={`${input} w-56 py-1 text-xs`} value={c.label} maxLength={80} aria-label={tx("Nom")}
-                        onChange={(e) => setPick({ ...pick, [j.name]: { ...c, label: e.target.value } })} />
-                      <label className="flex items-center gap-1 text-xs text-dim">{tx("alerte après")}
-                        <input className={`${input} w-16 py-1 text-xs`} type="number" min={0.1} max={365} step="any" value={c.age} aria-label={tx("Âge maximum en jours")}
-                          onChange={(e) => setPick({ ...pick, [j.name]: { ...c, age: e.target.value } })} />{tx("j")}
-                      </label>
-                    </div>
-                  )}
+                  {c?.on && !c.copyOf && <ChoiceFields c={c} set={(v) => setPick({ ...pick, [j.name]: v })} />}
                 </li>
               );
             })}
@@ -206,16 +210,7 @@ function AgentBackups({ reload }: { reload: () => void }) {
                   </span>
                 </label>
                 {r.followed && <Badge tone="ok">{tx("déjà suivi")}</Badge>}
-                {c?.on && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input className={`${input} w-56 py-1 text-xs`} value={c.label} maxLength={80} aria-label={tx("Nom")}
-                      onChange={(e) => setPick({ ...pick, [k]: { ...c, label: e.target.value } })} />
-                    <label className="flex items-center gap-1 text-xs text-dim">{tx("alerte après")}
-                      <input className={`${input} w-16 py-1 text-xs`} type="number" min={0.1} max={365} step="any" value={c.age} aria-label={tx("Âge maximum en jours")}
-                        onChange={(e) => setPick({ ...pick, [k]: { ...c, age: e.target.value } })} />{tx("j")}
-                    </label>
-                  </div>
-                )}
+                {c?.on && <ChoiceFields c={c} set={(v) => setPick({ ...pick, [k]: v })} />}
               </li>
             );
           })}
