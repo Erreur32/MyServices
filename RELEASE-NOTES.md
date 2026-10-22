@@ -1,30 +1,17 @@
-# Release notes: MyServices 0.18.3
+# Release notes: MyServices 0.18.4
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.18.3** (21 October 2026): Network in one sub-tab per source with SFP modules and port errors in its diagnostic, services you can edit, declare public or hide from « To watch » right from the page, one line per service on several ports, and a container that no longer fills with zombie processes.
+**0.18.4** (22 October 2026): security update: the image moves from Node.js 20 (end of life) to Node.js 22.23.4, fixed for CVE-2026-111497.
 
 ## For everyone
 
 **What's new?**
-- **Network**: one sub-tab per source, UniFi first, then Freebox (when one is linked), Scan, Devices and Diagnostic. The **Diagnostic** lists every SFP module with its sensors (temperature, light received and sent, voltage, current) and raises a finding for a loss of signal, a fault, a hot module or weak light; a module can be accepted as normal. A **Port errors** frame lists the ports with errors or dropped packets, and a rise of the errors between two readings becomes a finding.
-- **Services**:
-  - a **pencil** (in the full list and in the detail) edits a service: category among the existing ones, description, tags, kind of interface, public on purpose, direct access on purpose, pause;
-  - an NPM site without access list shows « ⚠ public? » and is **declared public on purpose** in one click (globe icon) or from its detail;
-  - a service can be **hidden from « To watch »**, the tab's dot and the home page until its problem changes, then found again with « Show hidden ».
-  - a service on **several ports is one line**, its ports as chips (each opens that port); its detail shows the ports and **what goes with it** (the NPM host and the container behind it, both ways);
-  - the **State column** reads « OK », then where it is read (Proxy NPM, Apache, Docker…), then « redirige » or « protégé », then the access icons.
-- **Machines**: the Health column drops the « to watch » badge when its pills say it, the Services column reads « 12 +1 +2 » (red: down, orange: a problem), a virtual machine has its cube before its dashed name; services hidden from « To watch » no longer count there either. Tooltips of clickable things end with a « Click: ... » strip. A machine page shows its **open ports** with the service icon, its state, its kind, the domains that expose it and, for an unknown port, what usually listens there.
-- **Search**: every search field (lists, Audit log, Logs, connector and icon pickers) works the same way, word by word, in any order, without accents nor case; the Audit log and the Logs show « N of M » like the lists.
-- **Settings**: the Audit log and the Logs leave the account menu and join Requests in Settings › Application › « Requests and logs », as three sub-tabs; the old links still work.
-- **Pages**: DNS, Security, Backups and Services carry badges next to their title as Network does; an empty « To watch » frame is no longer shown; « To deal with now » on the home page folds; a DNS row names the very domain that does not resolve; percentages keep their unit on one line, and each GPU of the Machines table has its load bar.
-- **Fixed**: the container no longer fills with zombie `ssh` processes after a day (the server could no longer start a thread); a failed reading pass no longer re-reads every connector every 10 s; Home Assistant's system health (which tests GitHub, against the quota of your public IP) is read hourly; Glances no longer asks a switched-off plugin at every pass; Beszel signs in once per token instead of at every pass.
+- **Security**: the image now runs Node.js **22.23.4** instead of 20.19.2. Node 20 (the version Debian trixie ships) has an out-of-bounds write in its Brotli decoder (CVE-2026-111497, possible remote code execution) and, being end of life, will not be fixed. Node only draws the infrastructure map (Archify); nothing else changes.
 
-**Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change in your compose file. The Port errors frame needs a MynetworK that passes the port counters in `card-devices`; without it, the frame says it is waiting.
+**Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change in your compose file.
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.18.3` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit. `tini` is now PID 1.
-- **Added**: `GET`/`PUT /api/v1/services/meta` (a service's hand-set entry, the categories, the edit), `PUT /api/v1/services/public`, `GET`/`POST /api/v1/services/watch-hidden` (state `services-watch-hidden.json`, part of the configuration export), `sfp` and `port_errors` in `GET /api/v1/network/diagnostics` (state `port-errors-samples.json`); `services_hidden.py`; front `HeadTags`, `SubTabNav`, `Pct`, `ServiceEdit`, `ActivityHub`, `lib/servicesHidden`.
-- **Changed**: `Overlay` has an `actions` slot, `WatchPanel` renders nothing at zero unless `keep`; the Network sub-tabs are `unifi`, `freebox`, `scan`, `list`, `diagnostic` (a remembered « overview » leads to UniFi).
-- **Fixed**: readers note the attempt before the reading, `run_isolated` turns a thread that cannot start into a failed reading, `ha_get_system_health` cached one hour, Glances plugin 400/404 remembered one hour, Beszel token kept in memory until its expiry (per URL and account, reused only with the password it was got with).
+- **Image**: `ghcr.io/erreur32/myservices:0.18.4` (amd64 and arm64); `:latest` follows the latest tag, `:main` the latest commit.
+- **Changed**: the Debian `nodejs` package is no longer installed; the runtime stage copies `/usr/local/bin/node` from the `node:22-trixie-slim` build stage (same trixie base and glibc). npm is not shipped (Archify needs none).
