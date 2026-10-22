@@ -286,7 +286,7 @@ export interface HealthHost {
   reboot_required?: boolean;
   disks?: { mount: string; used_pct: number; size_gb?: number; avail_gb?: number; warning?: boolean; critical?: boolean }[];
   systemd?: { failed: { unit: string }[] };
-  docker?: { accessible: boolean; total?: number; stopped?: number; unhealthy?: number; restarting?: number; exited?: number; issues?: string[]; loops?: { name: string; restarts: number }[] };
+  docker?: { accessible: boolean; total?: number; stopped?: number; unhealthy?: number; restarting?: number; exited?: number; issues?: (DockerIssue | string)[]; loops?: { name: string; restarts: number }[] };
   apt?: { upgradable: number; sample?: string[]; available?: boolean; security?: number | null; firmware?: boolean };   // packages (apt) or Windows updates; sample: up to 30 named
   kernel?: { has_errors: boolean; samples?: string[] };
   load?: { load_1: number; ncpu: number; available: boolean; cpu_pct?: number | null };   // cpu_pct: Windows, instant CPU instead of a load average
@@ -307,6 +307,9 @@ export interface HealthHost {
   api_name?: string;                     // source « ha » : the service whose API was read (Glances, Home Assistant)
 }
 
+/** A container that is stopped, restarting or unhealthy (health.py collect_docker): its name, status and image */
+export interface DockerIssue { name: string; status: string; image?: string }
+
 /** Services and storage read in one command (health.py collect_system): PM2 read without the pm2 command, RAID, ZFS, network shares, clock,
  *  timers, automatic updates, Snap, open sessions */
 export interface HostSystem {
@@ -319,6 +322,9 @@ export interface HostSystem {
   auto_upd?: { available: boolean; enabled?: boolean; days?: number | null; errors?: string[] };
   snap?: { available: boolean; pending?: number; names?: string[] };
   sessions?: { available: boolean; sessions?: { user: string; tty: string; from: string }[] };
+  // need root: read through one exact sudo rule; access false = the rule is missing, `rule` is the sudoers line to add
+  needrestart?: { available: boolean; access?: boolean; rule?: string; services?: string[]; kernel_pending?: boolean };
+  fail2ban?: { available: boolean; access?: boolean; rule?: string; jails?: { name: string; banned: number }[]; total?: number };
 }
 
 /** Poste « souvent éteint » qui ne répond pas : fiche grisée, sans alerte (last_seen : dernier relevé de son agent, en secondes) */

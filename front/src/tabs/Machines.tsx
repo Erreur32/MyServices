@@ -2,6 +2,7 @@
 import { Archive, Plus, Puzzle, FolderOpen, Bot, Box, Copy, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronRight, Container, Clock, Cpu, Database, Eye, EyeOff, FolderSync, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, Layers, MemoryStick, Plug, RefreshCw, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Timer, Unplug, WifiOff, Workflow, type LucideIcon } from "lucide-react";
 import { Fragment, createContext, useContext, useRef, useCallback, useEffect, useMemo, useState } from "react";
 import { read, type Snapshot } from "../api";
+import { Copyable } from "../components/form";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime, dur, durShort, ipNum, splitHostName } from "../lib/format";
 import { hostName, status } from "../lib/status";
@@ -640,7 +641,28 @@ function SystemRows({ s }: Readonly<{ s: HostSystem }>) {
         </DetailRow>
       )}
       {sessions.length > 0 && <DetailRow k={tx("Sessions ouvertes")} title={tx("Sessions ouvertes")}><ProbeChips items={sessions} /></DetailRow>}
+      {s.fail2ban?.available && (
+        <DetailRow k="Fail2ban" title={tx("Prisons Fail2ban et adresses bannies en ce moment")}>
+          {s.fail2ban.access ? <ProbeChips items={(s.fail2ban.jails ?? []).map((j) => ({ name: j.name, value: tx("{0} bannie(s)", j.banned), tone: "", dim: !j.banned }))} />
+            : <SudoHint rule={s.fail2ban.rule} file="myservices-fail2ban" note={tx("Inutile si LogviewR lit déjà le Fail2ban de cette machine.")} />}
+        </DetailRow>
+      )}
     </>
+  );
+}
+
+/** A read that needs root and has no sudo rule yet: « not read », and behind a link the exact rule to add on the machine (one command, read-only) */
+function SudoHint({ rule, file, note }: Readonly<{ rule?: string; file: string; note?: string }>) {
+  const [how, setHow] = useState(false);
+  const cmd = `echo '${rule ?? ""}' | sudo tee /etc/sudoers.d/${file} >/dev/null && sudo chmod 440 /etc/sudoers.d/${file} && sudo visudo -cf /etc/sudoers.d/${file}`;
+  return (
+    <span className="flex min-w-0 flex-col gap-1">
+      <span><Dim>{tx("non lu : règle sudo absente")}</Dim> <button type="button" className="text-xs text-link hover:underline" aria-expanded={how} onClick={() => setHow(!how)}>{how ? tx("Masquer") : tx("Comment faire sur la machine ?")}</button></span>
+      {how && <>
+        <Dim>{tx("Sur la machine, avec sudo : autorise cette seule commande, en lecture, sans mot de passe. La santé la lit au passage suivant.")}{note ? ` ${note}` : ""}</Dim>
+        <Copyable text={cmd} />
+      </>}
+    </span>
   );
 }
 
@@ -656,6 +678,13 @@ function SystemUpdates({ s }: Readonly<{ s?: HostSystem }>) {
               {u.days == null ? tx("activées, jamais passées") : tx("dernier passage il y a {0}", durShort(u.days * 86400))}{u.errors?.length ? ` · ${tx("{0} erreur(s)", u.errors.length)}` : ""}
             </span>
           )}
+        </Row>
+      )}
+      {s?.needrestart?.available && (
+        <Row k={tx("À redémarrer")}>
+          {!s.needrestart.access ? <SudoHint rule={s.needrestart.rule} file="myservices-needrestart" />
+            : s.needrestart.services?.length ? <span className="text-warn" title={s.needrestart.services.join("\n")}>{tx("{0} service(s) : {1}", s.needrestart.services.length, s.needrestart.services.slice(0, 4).join(", "))}</span>
+            : <Dim>{tx("aucun service")}</Dim>}
         </Row>
       )}
       {snap?.available && !!snap.pending && <Row k="Snap"><span className="text-warn" title={snap.names?.join("\n")}>{tx("{0} à mettre à jour", snap.pending)}</span></Row>}

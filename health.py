@@ -26,6 +26,7 @@ Usage : python3 health.py [--dry-run]
 """
 from __future__ import annotations
 
+import ast
 import base64
 import hashlib
 import html as html_lib
@@ -578,8 +579,22 @@ def smart_targets(out: str) -> list[str]:
 # and its files, never through the pm2 command (which starts its daemon when it is down). A network share is tested in the background with
 # a short limit, so a share that hangs is reported without blocking the rest. Absent tools print nothing.
 NET_FS = "nfs,nfs4,cifs,smb3,sshfs,fuse.sshfs"
+# The two reads that need root, each through one exact sudo rule (no wildcard), read-only: needrestart in list mode (it never restarts
+# anything), and the bans of every Fail2ban jail in one command. Without the rule: « NOSUDO », and the page gives the rule to add.
+NEEDRESTART, NEEDRESTART_ARGS = "/usr/sbin/needrestart", "/usr/sbin/needrestart -b -r l"
+FAIL2BAN, FAIL2BAN_ARGS = "/usr/bin/fail2ban-client", "/usr/bin/fail2ban-client banned"
+
+
+def as_root(cmd: str) -> str:
+    """cmd as is for root, else through sudo -n (fails at once without the rule, never asks a password)."""
+    return f"if [ \"$(id -u)\" = 0 ]; then timeout 15 {cmd}; else timeout 15 sudo -n {cmd}; fi 2>/dev/null"
+
+
+def sudo_rule(user: str, cmd: str) -> str:
+    """The sudoers line that lets `user` run `cmd` alone, without password."""
+    return f"{user} ALL=(root) NOPASSWD: {cmd}"
 SYSTEM_CMD = (
-    "export PATH=\"$PATH:/usr/sbin:/sbin\"; echo \"@@now $(date +%s)\"; "
+    "export PATH=\"$PATH:/usr/sbin:/sbin\"; echo \"@@now $(date +%s)\"; echo \"@@user $(id -un)\"; "
     "echo @@pm2; pgrep -af '^PM2 v[0-9.]+: God Daemon' 2>/dev/null | sed 's/^[0-9]* /D /'; "
     "systemctl list-unit-files --no-legend --plain 'pm2-*' 2>/dev/null | awk '{print \"E\",$1,$2}'; "
     "systemctl list-units --all --type=service --no-legend --plain 'pm2-*' 2>/dev/null | awk '{print \"U\",$1,$3}'; "
@@ -602,6 +617,8 @@ SYSTEM_CMD = (
     "grep -h ' ERROR ' /var/log/unattended-upgrades/unattended-upgrades.log 2>/dev/null | tail -n 5 | sed 's/^/X /'; "
     "echo @@snap; command -v snap >/dev/null 2>&1 && timeout 10 snap refresh --list 2>&1 | head -n 30; "
     "echo @@who; who 2>/dev/null | head -n 20; "
+    f"echo @@nr; [ -x {NEEDRESTART} ] && {{ {as_root(NEEDRESTART_ARGS)} || echo NOSUDO; }}; "
+    f"echo @@f2b; [ -x {FAIL2BAN} ] && {{ {as_root(FAIL2BAN_ARGS)} || echo NOSUDO; }}; "
     "echo @@dkr; command -v docker >/dev/null 2>&1 && docker ps -q 2>/dev/null | head -n 200 "
     "| xargs -r docker inspect --format '{{.Name}}|{{.RestartCount}}|{{.State.StartedAt}}' 2>/dev/null; true"
 )
@@ -784,6 +801,33 @@ def parse_docker_loops(lines: list[str], now: int | None) -> list[dict]:
     return out
 
 
+def parse_needrestart(lines: list[str], user: str) -> dict:
+    """Services still running old libraries after an update (needrestart -b): their names, and whether the running kernel is the newest."""
+    if not lines:
+        return {"available": False}
+    if "NOSUDO" in lines or not any(ln.startswith("NEEDRESTART-") for ln in lines):
+        return {"available": True, "access": False, "rule": sudo_rule(user or "<compte>", NEEDRESTART_ARGS)}
+    kv = [ln.partition(":")[::2] for ln in lines]
+    services = [v.strip() for k, v in kv if k == "NEEDRESTART-SVC"]
+    ksta = next((v.strip() for k, v in kv if k == "NEEDRESTART-KSTA"), "")
+    return {"available": True, "access": True, "services": services[:40], "kernel_pending": ksta in ("2", "3")}
+
+
+def parse_fail2ban(lines: list[str], user: str) -> dict:
+    """Bans of every jail (fail2ban-client banned: a list of {jail: [IP…]}); read as a literal, never evaluated."""
+    if not lines:
+        return {"available": False}
+    if "NOSUDO" in lines:
+        return {"available": True, "access": False, "rule": sudo_rule(user or "<compte>", FAIL2BAN_ARGS)}
+    try:
+        data = ast.literal_eval(" ".join(lines)[:200000])
+    except (ValueError, SyntaxError, MemoryError, RecursionError):
+        return {"available": False}
+    jails = [{"name": str(name)[:60], "banned": len(ips) if isinstance(ips, list) else 0}
+             for item in (data if isinstance(data, list) else []) if isinstance(item, dict) for name, ips in item.items()]
+    return {"available": True, "access": True, "jails": sorted(jails, key=lambda j: j["name"])[:40], "total": sum(j["banned"] for j in jails)}
+
+
 def collect_system(run) -> dict:
     """The services and storage checks, in one command. A machine where it cannot run (old shell, agent of an older version): {}."""
     rc, out = run(SYSTEM_CMD, timeout=20)
@@ -791,10 +835,12 @@ def collect_system(run) -> dict:
         return {}
     s = _sections(out)
     now = int(s["now"][0]) if s.get("now") and s["now"][0].isdigit() else None
+    user = (s.get("user") or [""])[0][:40]
     return {"pm2": parse_pm2(s.get("pm2", [])), "raid": parse_mdstat(s.get("md", [])), "zfs": parse_zfs(s.get("zfs", [])),
             "mounts": parse_mounts(s.get("mnt", [])), "ntp": parse_ntp(s.get("ntp", [])), "timers": parse_timers(s.get("tim", [])),
             "auto_upd": parse_unattended(s.get("uu", []), now), "snap": parse_snap(s.get("snap", [])),
-            "sessions": parse_sessions(s.get("who", [])), "docker_loops": parse_docker_loops(s.get("dkr", []), now)}
+            "sessions": parse_sessions(s.get("who", [])), "docker_loops": parse_docker_loops(s.get("dkr", []), now),
+            "needrestart": parse_needrestart(s.get("nr", []), user), "fail2ban": parse_fail2ban(s.get("f2b", []), user)}
 
 
 def system_levels(sys_: dict) -> dict[str, str]:

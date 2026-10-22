@@ -58,6 +58,8 @@ function systemItems(h: HealthHost, add: (tone: WatchTone, kind: WatchKind, text
     else if (u.days != null && u.days > UU_STALE_DAYS) add("warn", "auto_upd", tx("mises à jour automatiques : dernier passage il y a {0} jours", Math.floor(u.days)));
   }
   if (s.snap?.pending) add("info", "updates", tx("{0} snap(s) à mettre à jour", s.snap.pending));
+  const nr = s.needrestart?.services ?? [];
+  if (nr.length) add("warn", "updates", tx("{0} service(s) à redémarrer après une mise à jour", nr.length), nr);
 }
 
 export function healthItems(h: HealthHost): WatchItem[] {
@@ -69,7 +71,7 @@ export function healthItems(h: HealthHost): WatchItem[] {
   if (failed.length) add(failed.length >= SYSTEMD_CRIT_N ? "bad" : "warn", "systemd", tx("{0} service(s) systemd en échec : {1}", failed.length, failed.map((u) => u.unit).join(", ")));
   const dk = h.docker, dkN = (dk?.unhealthy || 0) + (dk?.restarting || 0) + (dk?.exited || 0);
   if (dk?.accessible && dkN) add(dkN >= DOCKER_CRIT_N ? "bad" : "warn", "docker", tx("Docker : {0} unhealthy, {1} en redémarrage, {2} arrêté(s)", dk.unhealthy || 0, dk.restarting || 0, dk.exited || 0));
-  if ((dk?.issues || []).length) add("warn", "docker", tx("Docker : {0}", dk!.issues!.join(", ")));
+  if (dk?.issues?.length) add("warn", "docker", tx("Docker : {0}", dk.issues.map((c) => typeof c === "string" ? c : `${c.name} (${c.status})`).join(", ")));
   if (dk?.loops?.length) add("warn", "docker", tx("Docker : redémarre en boucle : {0}", dk.loops.map((c) => `${c.name} (${c.restarts})`).join(", ")));
   if (h.kernel?.has_errors) add("warn", "kernel", tx("erreurs noyau récentes"), h.kernel.samples);
   for (const d of h.smart?.disks || []) if (d.failed || !d.healthy) add("bad", "smart", tx("SMART : {0} en défaut", d.device));

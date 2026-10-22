@@ -117,6 +117,28 @@ class System(unittest.TestCase):
         self.assertIn("@@dkr", r.stdout)
 
 
+class NeedsRoot(unittest.TestCase):
+    def test_needrestart(self):
+        n = health.parse_needrestart(["NEEDRESTART-VER: 3.11", "NEEDRESTART-KSTA: 3", "NEEDRESTART-SVC: nginx.service", "NEEDRESTART-SVC: dbus.service"], "u")
+        self.assertEqual((n["services"], n["kernel_pending"]), (["nginx.service", "dbus.service"], True))
+        self.assertEqual(health.parse_needrestart(["NEEDRESTART-VER: 3.11", "NEEDRESTART-KSTA: 1"], "u")["services"], [])
+        self.assertFalse(health.parse_needrestart([], "u")["available"])
+
+    def test_regle_sudo_exacte_quand_refuse(self):
+        n = health.parse_needrestart(["NOSUDO"], "debian32")
+        self.assertEqual((n["access"], n["rule"]), (False, "debian32 ALL=(root) NOPASSWD: /usr/sbin/needrestart -b -r l"))
+        f = health.parse_fail2ban(["NOSUDO"], "debian32")
+        self.assertEqual(f["rule"], "debian32 ALL=(root) NOPASSWD: /usr/bin/fail2ban-client banned")
+        self.assertNotIn("*", f["rule"] + n["rule"])                           # one exact command, never a wildcard
+        self.assertIn("-r l", health.SYSTEM_CMD)                                 # needrestart in list mode: it never restarts anything
+
+    def test_fail2ban(self):
+        f = health.parse_fail2ban(["[{'sshd': ['1.2.3.4', '5.6.7.8']}, {'nginx': []}]"], "u")
+        self.assertEqual((f["jails"], f["total"]), ([{"name": "nginx", "banned": 0}, {"name": "sshd", "banned": 2}], 2))
+        self.assertFalse(health.parse_fail2ban(["__import__('os').system('id')"], "u")["available"])   # read as a literal, never run
+        self.assertFalse(health.parse_fail2ban([], "u")["available"])
+
+
 class OneConnection(unittest.TestCase):
     def test_lot_rejoue_chaque_commande(self):
         cmds = ["echo \"it's\"", "echo out; echo err >&2; exit 3", "printf '@@0 0\\nZm9v\\n'", "true"]

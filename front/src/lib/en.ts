@@ -3062,4 +3062,13 @@ export const EN: Record<string, string> = {
   "dernier passage il y a {0}": "last run {0} ago",
   "{0} erreur(s)": "{0} error(s)",
   "{0} à mettre à jour": "{0} to update",
+  "{0} service(s) à redémarrer après une mise à jour": "{0} service(s) to restart after an update",
+  "Prisons Fail2ban et adresses bannies en ce moment": "Fail2ban jails and the addresses banned right now",
+  "{0} bannie(s)": "{0} banned",
+  "Inutile si LogviewR lit déjà le Fail2ban de cette machine.": "Not needed if LogviewR already reads this machine's Fail2ban.",
+  "non lu : règle sudo absente": "not read: sudo rule missing",
+  "Sur la machine, avec sudo : autorise cette seule commande, en lecture, sans mot de passe. La santé la lit au passage suivant.": "On the machine, with sudo: allows this one read-only command, without a password. Health reads it at the next pass.",
+  "À redémarrer": "To restart",
+  "{0} service(s) : {1}": "{0} service(s): {1}",
+  "aucun service": "no service",
 };

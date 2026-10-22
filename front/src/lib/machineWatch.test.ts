@@ -41,6 +41,11 @@ describe("à surveiller", () => {
     expect(healthItems(health({ checks: { mounts: "crit" } }))[0]).toMatchObject({ tone: "bad", kind: "mounts" });
   });
 
+  it("Docker : les conteneurs en défaut par leur nom et leur état, jamais [object Object]", () => {
+    const items = healthItems(health({ docker: { accessible: true, exited: 1, issues: [{ name: "db", status: "Exited (1) 3 hours ago", image: "postgres:16" }, "old-text"] } }));
+    expect(items.map((i) => i.text)).toContain("Docker : db (Exited (1) 3 hours ago), old-text");
+  });
+
   it("services en panne : la liste (nom : cause) accompagne l'avertissement", () => {
     const list = ["app.exemple.fr : backend down"];
     expect(watchItems(machine({ down: 1 }), health(), [], false, list)[0]).toMatchObject({ kind: "services", detail: list });

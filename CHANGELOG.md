@@ -13,11 +13,15 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 - **Services and storage checks on Linux machines** (SSH and Linux agent, no sudo needed), in the machine window and in « To watch »: PM2 (daemons, `pm2-<user>` units, saved apps and whether they run), software RAID (degraded, rebuilding), ZFS pools, network shares (NFS, SMB, SSHFS: not answering, in error, or in `/etc/fstab` but not mounted), clock synchronisation, systemd timers whose last run failed, automatic updates (unattended-upgrades: errors, last run too old), snaps waiting for an update, open sessions, and Docker containers restarting in a loop.
+- **Services to restart after an update (needrestart) and Fail2ban bans**, each read through one exact read-only sudo rule (`needrestart -b -r l`, list mode, never restarts anything; `fail2ban-client banned`, every jail in one command). Without the rule the machine window says « not read » and gives the exact rule to add for the SSH account.
 - **PM2 is never started by MyServices**: it is read from its processes and files, never through the `pm2` command (any `pm2` command starts its daemon again when it is down).
 
 ### Changed
 - **One SSH connection per machine for the whole health collection** instead of one per command: about 20 connections per machine and per pass become 3 (access check, every command, SMART for all the disks). Each command keeps its own time limit, and the outputs are read exactly as before.
 - Linux agent version 2 (the new checks; it updates itself when automatic updates are on). A report may carry commands up to 4000 characters long.
+
+### Fixed
+- « To watch » showed « Docker : [object Object] » instead of the containers in trouble: it now names each one with its status.
 
 ## v0.18.4 (2026-10-22)
 
