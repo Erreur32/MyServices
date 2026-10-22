@@ -562,7 +562,8 @@ def _check_age_label(it: dict, default_label: str) -> tuple[str, float]:
 
 def veeam_follow(conf: dict, jobs: list[dict]) -> dict:
     """Enregistre le compte Veeam (connecteur « veeam », mot de passe chiffré) puis un jeu par job choisi. Le serveur est relu avant
-    d'écrire : compte refusé ou job inconnu = rien n'est enregistré."""
+    d'écrire : compte refusé ou job inconnu = rien n'est enregistré. A job given « copy_of » (a Backup Copy job and the job it copies,
+    chosen by the user: Veeam does not say it) becomes a copy location of that job's set instead of a set of its own."""
     if not jobs:
         raise BackupError("aucun job choisi")
     if len(jobs) > 50:
@@ -572,12 +573,21 @@ def veeam_follow(conf: dict, jobs: list[dict]) -> dict:
         known = {j.get("name") for j in conn.fetch()[0]}
     except ConnectorError as e:
         raise BackupError(str(e)) from None
-    todo = []
+    todo, copies = [], []
     for it in jobs:
-        name = str(it.get("name") or "")
+        name, copy_of = str(it.get("name") or ""), str(it.get("copy_of") or "")
         if name not in known:
             raise BackupError(f"job « {name[:80]} » absent de Veeam")
-        todo.append((name, *_check_age_label(it, f"Veeam : {name}")))
+        if copy_of:
+            if copy_of not in known or copy_of == name:
+                raise BackupError(f"job copié « {copy_of[:80]} » absent de Veeam")
+            copies.append((name, copy_of))
+        else:
+            todo.append((name, *_check_age_label(it, f"Veeam : {name}")))
+    heads = {t[0] for t in todo} | {s["locations"][0].get("veeam_job") for s in _read().get("sets", []) if s.get("locations")}
+    for name, copy_of in copies:   # checked before anything is written: the copied job must be followed, or chosen now
+        if copy_of not in heads:
+            raise BackupError(f"« {copy_of[:80]} » n'est pas suivi : cochez-le aussi pour y rattacher sa copie")
     name = _veeam_name()
     exists = settings.get("veeam", name) is not None
     try:
@@ -608,6 +618,12 @@ def veeam_follow(conf: dict, jobs: list[dict]) -> dict:
         meta["sets"].append({"id": sid, "label": label, "origin": VEEAM_SOURCES, "schedule": "", "max_age_days": age,
                              "locations": [{"host": VEEAM_HOST, "veeam_job": name, "via": "job Veeam"}]})
         added += 1
+    for name, copy_of in copies:   # after the sets: the copied job may be chosen in the same go
+        target = next(s for s in meta["sets"] if s.get("locations") and s["locations"][0].get("veeam_job") == copy_of)
+        if any(loc.get("veeam_job") == name for s in meta["sets"] for loc in s.get("locations", [])):
+            continue   # already followed (as a set or a copy): left as it is
+        target["locations"].append({"host": VEEAM_HOST, "veeam_job": name, "via": "copie Veeam"})
+        updated += 1
     _write(meta)
     return {"added": added, "updated": updated}
 

@@ -150,6 +150,27 @@ class VeeamAssistant(Base):
         found = {j["name"]: j["followed"] for j in ba.veeam_discover(self.acct(password=""))["jobs"]}  # compte enregistré réutilisé
         self.assertEqual(found, {"PC-Jeu image": True, "Serveur fichiers": True, "Ancien job": False})
 
+    def test_job_de_copie_rattache_au_jeu_du_job_copie(self):
+        """The user says which job a Backup Copy job copies: it becomes a copy location of that set, not a set of its own."""
+        jobs = [{"name": "PC-Jeu image", "label": "PC de jeu"}, {"name": "Serveur fichiers", "copy_of": "PC-Jeu image"}]
+        self.assertEqual(ba.veeam_follow(self.acct(), jobs), {"added": 1, "updated": 1})
+        meta = self.meta_json()
+        self.assertEqual(len(meta["sets"]), 1)
+        self.assertEqual([(l["veeam_job"], l["via"]) for l in meta["sets"][0]["locations"]],
+                         [("PC-Jeu image", "job Veeam"), ("Serveur fichiers", "copie Veeam")])
+        found = {j["name"]: j["followed"] for j in ba.veeam_discover(self.acct(password=""))["jobs"]}
+        self.assertTrue(found["Serveur fichiers"])   # a copy counts as followed
+        self.assertEqual(ba.veeam_follow(self.acct(password=""), [{"name": "Serveur fichiers", "copy_of": "PC-Jeu image"}]),
+                         {"added": 0, "updated": 0})   # no second copy location
+
+    def test_job_de_copie_refuse_sans_le_job_copie(self):
+        for jobs in ([{"name": "Serveur fichiers", "copy_of": "PC-Jeu image"}],    # copied job not followed
+                     [{"name": "Serveur fichiers", "copy_of": "Inconnu"}], [{"name": "Serveur fichiers", "copy_of": "Serveur fichiers"}]):
+            with self.assertRaises(ba.BackupError, msg=str(jobs)):
+                ba.veeam_follow(self.acct(), jobs)
+        self.assertFalse(self.meta.exists())
+        self.assertEqual(self.config.read_text(encoding="utf-8"), "{}")   # not even the account
+
     def test_refus_sans_rien_ecrire(self):
         for jobs in ([], [{"name": "Inconnu"}], [{"name": "PC-Jeu image", "max_age_days": 0}], [{"name": "PC-Jeu image", "label": "x" * 81}]):
             with self.assertRaises(ba.BackupError, msg=str(jobs)):

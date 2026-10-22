@@ -15,7 +15,9 @@ import { InfoNote } from "../components/InfoNote";
 export interface VeeamState { configured: boolean; url: string; user: string; password_set: boolean }
 interface Job { name: string; type: string; status: string; last_result: string; last_run: number | null; disabled: boolean; followed: boolean }
 interface Repo { name: string; type: string; size_gb: number | null; free_gb: number | null }
-interface Choice { on: boolean; label: string; age: string }
+interface Choice { on: boolean; label: string; age: string; copyOf: string }   // copyOf: the job a Backup Copy job copies ("" = a set of its own)
+
+const isCopy = (j: Job) => /copy/i.test(j.type);
 
 export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () => void }) {
   const [url, setUrl] = useState(state.url), [user, setUser] = useState(state.user), [password, setPassword] = useState("");
@@ -40,16 +42,18 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
     try {
       const r = await send<{ jobs: Job[]; repos: Repo[] }>("POST", "backups/veeam/discover", account);
       setJobs(r.jobs); setRepos(r.repos);
-      setPick(Object.fromEntries(r.jobs.filter((j) => !j.followed).map((j) => [j.name, { on: false, label: `Veeam : ${j.name}`, age: "2" }])));
+      setPick(Object.fromEntries(r.jobs.filter((j) => !j.followed).map((j) => [j.name, { on: false, label: `Veeam : ${j.name}`, age: "2", copyOf: "" }])));
       if (r.jobs.length === 0) setNote({ ok: true, text: tx("Connexion réussie, mais aucun job n'est visible pour ce compte.") });
     } catch (e) { fail(e); }
     setBusy("");
   };
   const chosen = Object.entries(pick).filter(([, c]) => c.on);
-  const valid = chosen.length > 0 && chosen.every(([, c]) => c.label.trim() && Number(c.age) >= 0.1 && Number(c.age) <= 365);
+  const valid = chosen.length > 0 && chosen.every(([, c]) => c.copyOf || (c.label.trim() && Number(c.age) >= 0.1 && Number(c.age) <= 365));
+  // jobs a copy can be attached to: the backup jobs already followed or chosen now
+  const copied = (jobs ?? []).filter((j) => !isCopy(j) && (j.followed || pick[j.name]?.on)).map((j) => j.name);
   const follow = async () => {
     setBusy("follow");
-    const items = chosen.map(([name, c]) => ({ name, label: c.label.trim(), max_age_days: Number(c.age) }));
+    const items = chosen.map(([name, c]) => (c.copyOf ? { name, copy_of: c.copyOf } : { name, label: c.label.trim(), max_age_days: Number(c.age) }));
     const ok = await act(() => send("PUT", "backups/veeam", { ...account, jobs: items }), tx("{0} job(s) suivi(s) : premier relevé en cours, l'onglet Sauvegardes apparaît ensuite", items.length), setNote);
     setBusy("");
     if (ok) { setJobs(null); setPick({}); setPassword(""); reload(); }
@@ -109,7 +113,16 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
                     </span>
                   </label>
                   {j.followed ? <Badge tone="ok">{tx("déjà suivi")}</Badge> : j.disabled && <Badge tone="warn">{tx("job désactivé")}</Badge>}
-                  {c?.on && (
+                  {c?.on && isCopy(j) && (
+                    <label className="flex items-center gap-1 text-xs text-dim">{tx("copie de")}
+                      <select className={`${input} w-48 py-1 text-xs`} value={c.copyOf} aria-label={tx("Job copié")}
+                        onChange={(e) => setPick({ ...pick, [j.name]: { ...c, copyOf: e.target.value } })}>
+                        <option value="">{tx("aucun : jeu séparé")}</option>
+                        {copied.map((n) => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    </label>
+                  )}
+                  {c?.on && !c.copyOf && (
                     <div className="flex flex-wrap items-center gap-2">
                       <input className={`${input} w-56 py-1 text-xs`} value={c.label} maxLength={80} aria-label={tx("Nom")}
                         onChange={(e) => setPick({ ...pick, [j.name]: { ...c, label: e.target.value } })} />

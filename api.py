@@ -1695,6 +1695,7 @@ class VeeamJob(BaseModel):
     name: str
     label: str = ""
     max_age_days: float = 2.0
+    copy_of: str = ""   # Backup Copy job: the job it copies (its set gets this job as a copy location)
 
 
 class VeeamFollow(VeeamAccount):
