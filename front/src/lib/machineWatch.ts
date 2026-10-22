@@ -46,12 +46,17 @@ function pm2Items(s: HostSystem, add: AddItem) {
   else if (s.pm2?.running && apps.some((a) => !a.up)) add("warn", "pm2", tx("PM2 : appli arrêtée : {0}", apps.filter((a) => !a.up).map((a) => a.name).join(", ")));
 }
 
-/** Storage: RAID arrays, ZFS pools and network shares */
-function storageItems(s: HostSystem, add: AddItem) {
+/** Software RAID arrays: degraded, or rebuilding (a scheduled check is not a rebuild) */
+function raidItems(s: HostSystem, add: AddItem) {
   for (const a of s.raid?.arrays ?? []) {
     if (a.degraded && !a.rebuild) add("bad", "raid", tx("RAID {0} dégradé", a.name));
     else if (a.rebuild && a.rebuild.kind !== "check") add("warn", "raid", tx("RAID {0} en reconstruction ({1} %)", a.name, a.rebuild.pct));
   }
+}
+
+/** Storage: RAID arrays, ZFS pools and network shares */
+function storageItems(s: HostSystem, add: AddItem) {
+  raidItems(s, add);
   for (const p of s.zfs?.pools ?? []) if (p.health !== "ONLINE") add(ZFS_BAD.includes(p.health) ? "bad" : "warn", "zfs", tx("pool ZFS {0} : {1}", p.name, p.health));
   for (const m of s.mounts?.shares ?? []) if (!m.ok) add(m.state === "hang" ? "bad" : "warn", "mounts", tx("partage {0} : {1}", m.path, SHARE_STATE[m.state]?.() ?? m.state));
 }

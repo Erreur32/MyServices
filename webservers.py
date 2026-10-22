@@ -119,22 +119,30 @@ def _docker_servers(ip: str, conts: list, internal: dict | None, procs: dict, in
     return out, claimed, in_docker
 
 
-def _service_servers(procs: dict, info: dict) -> list[dict]:
-    """Web servers running as an active systemd unit (Apache and nginx also when only their service is seen as active)."""
-    out: list[dict] = []
+def _active_units(info: dict) -> list[str]:
+    """Active web units of the machine; Apache and nginx also when only their service is seen as active."""
     units = [u for u in info.get("web_units") or [] if u in UNITS]
-    if info.get("apache") and "apache2" not in units:
-        units.append("apache2")
-    if info.get("nginx") and "nginx" not in units:
-        units.append("nginx")
-    for u in units:
+    for flag, unit in (("apache", "apache2"), ("nginx", "nginx")):
+        if info.get(flag) and unit not in units:
+            units.append(unit)
+    return units
+
+
+def _unit_ports(k: str, procs: dict, info: dict) -> tuple[list[int], list]:
+    """(ports, vhosts) of a web server run by a unit: from its configuration for Apache and nginx, else from the listening processes."""
+    if k == "apache":
+        return sorted(_apache_ports(info)), info.get("vhosts") or []
+    if k == "nginx":
+        return sorted(_nginx_ports(info)), info.get("nginx_vhosts") or []
+    return sorted(p for p, v in procs.items() if BINARIES.get(_proc(v)) == k), []
+
+
+def _service_servers(procs: dict, info: dict) -> list[dict]:
+    """Web servers running as an active systemd unit."""
+    out: list[dict] = []
+    for u in _active_units(info):
         k = UNITS[u]
-        if k == "apache":
-            ports, vh = sorted(_apache_ports(info)), info.get("vhosts") or []
-        elif k == "nginx":
-            ports, vh = sorted(_nginx_ports(info)), info.get("nginx_vhosts") or []
-        else:
-            ports, vh = sorted(p for p, v in procs.items() if BINARIES.get(_proc(v)) == k), []
+        ports, vh = _unit_ports(k, procs, info)
         row = {"key": k, "label": LABELS[k], "mode": "service", "name": u, "ports": ports, "up": True,
                "host_net": False, "target": None, "behind": None}
         if vh:
