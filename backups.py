@@ -331,6 +331,22 @@ def api_collect(cls, h: dict, prefix: str) -> tuple[dict | None, str]:
         return None, f"{prefix} : erreur interne ({type(e).__name__}: {e})"[:200]
 
 
+def agent_collect(h: dict) -> tuple[dict | None, str]:
+    """Windows PC followed by its MyServices agent: the last Veeam Agent and Windows Server Backup runs of its last report (nothing is
+    asked of the PC, the agent sends them anyway). The report is used even when the agent went silent: the age of the run says it."""
+    import agents
+    from auth import db_path
+    try:
+        rep = agents.Agents(db_path(CFG)).fresh_reports().get(h.get("ip") or "")
+    except Exception as e:  # base absente ou illisible
+        return None, f"agent : base illisible ({type(e).__name__})"
+    if not rep or not rep["report"]:
+        return None, "agent : aucun relevé de l'agent MyServices de ce PC"
+    runs = {b["tool"]: {"last_run": b["at"], "ok": b["ok"], "warn": b["warn"], "message": b["message"]}
+            for b in agents.windows_backups_of(rep["report"])}
+    return {"user": "agent MyServices", "locs": {}, "disks": [], "crons": [], "cron_root": None, "agent_backups": runs}, ""
+
+
 def remote_collect(h: dict, locs: list[tuple[str, dict]]) -> tuple[dict | None, str]:
     """Box read over FTP / FTPS / Samba (connector « backup-folder » of config.json): the followed folders in the shape of the SSH agent."""
     from connectors.remote_folder import RemoteFolder
@@ -419,6 +435,8 @@ def collect(meta: dict) -> tuple[dict, dict]:
             res[hid] = api_collect(PbsBackups, h, "API Proxmox Backup")
         elif h.get("api") == "synology":
             res[hid] = api_collect(SynologyBackups, h, "API Synology")
+        elif h.get("api") == "agent":
+            res[hid] = agent_collect(h)
         elif h.get("api") == "remote":
             res[hid] = remote_collect(h, [(f"{s['id']}#{i}", loc) for s in meta["sets"] for i, loc in enumerate(s["locations"])
                                           if loc["host"] == hid and loc.get("path")])
@@ -527,6 +545,20 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                     L["detail"] = f"dernier passage : {t['result']}"
                 # the task writes to another volume, a USB disk, another NAS or a cloud: a copy outside the machine, unless it is told otherwise or the target is local
                 L["offsite"] = loc.get("offsite", str(t["target_type"] if t else "").lower() not in ("local", "usb", "share", "folder"))
+                locs.append(L)
+                continue
+            if loc.get("agent_backup") and r:
+                # Veeam Agent / Windows Server Backup seen by the Windows agent: age of the last run; a failure is critical
+                b = r["agent_backups"].get(loc["agent_backup"])
+                if not b or not b["last_run"]:
+                    L["level"], L["detail"] = "crit", f"aucun passage de {loc['agent_backup']} dans le dernier relevé de l'agent"
+                else:
+                    L["age"] = age_days(b["last_run"], now)
+                    L["newest"] = {"name": loc["agent_backup"], "mtime": b["last_run"], "size": 0}
+                    L["level"] = "crit" if not b["ok"] else max(level_for_age(L["age"], max_age), "warn" if b["warn"] else "ok", key=RANK.get)
+                    L["detail"] = ("dernier passage : " + ("échec" if not b["ok"] else "avertissements" if b["warn"] else "réussi")
+                                   + (f" ({b['message'][:120]})" if b["message"] and (not b["ok"] or b["warn"]) else ""))
+                # the agent does not say where the backup is written (NAS, USB disk): its set asks for no copy elsewhere (expect_offsite false)
                 locs.append(L)
                 continue
             if loc.get("pbs_group") and r:

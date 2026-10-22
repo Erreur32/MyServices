@@ -149,7 +149,7 @@ def current() -> dict:
         loc = (s.get("locations") or [{}])[0]
         sets.append({"id": s["id"], "label": s.get("label", s["id"]), "origin": hosts.get(s.get("origin"), {}).get("label", s.get("origin", "")),
                      "origin_ip": hosts.get(s.get("origin"), {}).get("ip"),
-                     "path": loc.get("path"), "remote": hosts.get(loc.get("host"), {}).get("api") == "remote", "veeam_job": loc.get("veeam_job"), "pbs_group": loc.get("pbs_group"), "synology_task": loc.get("synology_task"), "vzdump": loc.get("vzdump"), "max_age_days": s.get("max_age_days", 8),
+                     "path": loc.get("path"), "remote": hosts.get(loc.get("host"), {}).get("api") == "remote", "veeam_job": loc.get("veeam_job"), "agent_backup": loc.get("agent_backup"), "pbs_group": loc.get("pbs_group"), "synology_task": loc.get("synology_task"), "vzdump": loc.get("vzdump"), "max_age_days": s.get("max_age_days", 8),
                      "ha": any(l.get("ha_backup") for l in s.get("locations", [])),
                      "expect_offsite": s.get("expect_offsite", True), "editable": bool(loc.get("path")),
                      "copies": [{"index": i, "host": hosts.get(l.get("host"), {}).get("label", l.get("host", "")), "path": l.get("path"),
@@ -319,7 +319,7 @@ def _set_text(s: dict, label: str | None, schedule: str | None) -> None:
 def _set_folder(s: dict, path: str) -> None:
     """The folder of a folder set; a set read from a source (vzdump, Veeam, PBS, Synology, Home Assistant) keeps its location"""
     loc = (s.get("locations") or [{}])[0]
-    if not loc.get("path") or loc.get("vzdump") or loc.get("veeam_job") or loc.get("pbs_group") or loc.get("synology_task"):
+    if not loc.get("path") or loc.get("vzdump") or loc.get("veeam_job") or loc.get("agent_backup") or loc.get("pbs_group") or loc.get("synology_task"):
         raise BackupError("ce jeu n'est pas un dossier : son emplacement vient de sa source")
     _check_path(path)
     loc["path"] = path.rstrip("/")
@@ -629,6 +629,70 @@ def veeam_follow(conf: dict, jobs: list[dict]) -> dict:
 
 
 # ───────────── Proxmox Backup Server ─────────────
+
+AGENT_TOOLS = ("Veeam Agent", "Sauvegarde Windows Server")   # agents.windows_backups_of
+
+
+def _agent_reports() -> dict:
+    import agents
+    from auth import db_path
+    from config import CFG
+    try:
+        return agents.Agents(db_path(CFG)).fresh_reports()
+    except Exception:  # no agent database (installation without agents): nothing to offer
+        return {}
+
+
+def agent_backups_discover() -> dict:
+    """Veeam Agent and Windows Server Backup runs seen by the Windows agents (their last report), read only: nothing is saved."""
+    import agents
+    meta = _read()
+    followed = {(h.get("ip"), loc.get("agent_backup")) for s in meta.get("sets", []) for loc in s.get("locations", [])
+                for h in meta.get("hosts", []) if h["id"] == loc.get("host") and loc.get("agent_backup")}
+    names = json.loads(setup.META.read_text(encoding="utf-8")).get("machines", {}) if setup.META.exists() else {}
+    out = []
+    for ip, a in sorted(_agent_reports().items()):
+        for b in agents.windows_backups_of(a["report"]):
+            out.append({"ip": ip, "machine": (names.get(ip) or {}).get("name") or str((a["report"] or {}).get("host") or ip),
+                        "tool": b["tool"], "last_run": b["at"], "ok": b["ok"], "warn": b["warn"], "followed": (ip, b["tool"]) in followed})
+    return {"runs": out}
+
+
+def agent_backups_follow(items: list[dict]) -> dict:
+    """One set per chosen (PC, tool): the PC becomes a backups host read from its agent's report (api « agent », with its IP, so the set
+    shows in its machine window). The agent does not say where the backup goes: no copy elsewhere is asked for."""
+    if not items:
+        raise BackupError("aucune sauvegarde choisie")
+    seen = {(r["ip"], r["tool"]): r for r in agent_backups_discover()["runs"]}
+    todo = []
+    for it in items:
+        key = (str(it.get("ip") or ""), str(it.get("tool") or ""))
+        if key not in seen:
+            raise BackupError(f"« {key[1][:40]} » de {key[0][:40]} absent des relevés des agents")
+        todo.append((key, *_check_age_label(it, f"{seen[key]['machine']} : {key[1]}")))
+    meta = _read()
+    meta.setdefault("hosts", [])
+    meta.setdefault("sets", [])
+    added = updated = 0
+    for (ip, tool), label, age in todo:
+        hid = _slug(f"agent-{ip}")
+        _ensure_host(meta, {"id": hid, "label": seen[(ip, tool)]["machine"], "ip": ip, "kind": "PC Windows (agent MyServices)", "api": "agent"})
+        existing = next((s for s in meta["sets"] for loc in s.get("locations", []) if loc.get("host") == hid and loc.get("agent_backup") == tool), None)
+        if existing:
+            existing["label"], existing["max_age_days"] = label, age
+            updated += 1
+            continue
+        taken = {s["id"] for s in meta["sets"]}
+        base = sid = _slug(f"{hid}-{tool}")
+        n = 2
+        while sid in taken:
+            sid, n = f"{base}-{n}", n + 1
+        meta["sets"].append({"id": sid, "label": label, "origin": hid, "schedule": "", "max_age_days": age, "expect_offsite": False,
+                             "locations": [{"host": hid, "agent_backup": tool, "via": "agent Windows"}]})
+        added += 1
+    _write(meta)
+    return {"added": added, "updated": updated}
+
 
 PBS_HOST, PBS_SOURCES = "pbs", "pbs-sources"
 

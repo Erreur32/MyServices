@@ -1839,6 +1839,35 @@ def backups_pbs_follow(body: PbsFollow, request: Request):
     return backups_call(request, "groupes Proxmox Backup suivis", f"{body.connector} : {len(body.groups)} groupe(s)", go)
 
 
+class AgentBackup(BaseModel):
+    ip: str
+    tool: str
+    label: str = ""
+    max_age_days: float = 2.0
+
+
+class AgentBackupsFollow(BaseModel):
+    runs: list[AgentBackup]
+
+
+@app.get(API + "/backups/agents/discover", tags=["sauvegardes"], summary="Veeam Agent et Sauvegarde Windows Server vus par les agents Windows, lecture seule (admin)")
+def backups_agents_discover(request: Request):
+    return backups_call(request, "", "", lambda b: b.agent_backups_discover(), write=False)
+
+
+@app.put(API + "/backups/agents", tags=["sauvegardes"], summary="Suivre les sauvegardes Veeam Agent / Windows Server vues par les agents Windows (admin)")
+def backups_agents_follow(body: AgentBackupsFollow, request: Request):
+    import system
+
+    def go(b):
+        out = b.agent_backups_follow([r.model_dump() for r in body.runs])
+        if not core.CFG.get("backups_url"):
+            system.set_backups_url(core, "backups.json")
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes (agents Windows)")
+        return {"ok": True, **out}
+    return backups_call(request, "sauvegardes des agents Windows suivies", f"{len(body.runs)} sauvegarde(s)", go)
+
+
 class VzdumpGroup(BaseModel):
     ip: str
     dir: str

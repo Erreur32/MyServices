@@ -24,7 +24,7 @@ import type { Backups, Machine } from "../types";
 import { CopyGuesses, SetCopies, type CopyRow, type SshMachine } from "./BackupsCopies";
 import { InfoNote } from "../components/InfoNote";
 
-export interface SetRow { id: string; label: string; origin: string; origin_ip?: string | null; path: string | null; veeam_job: string | null; pbs_group: string | null; synology_task?: string | null; vzdump?: string | null; remote?: boolean; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean; copies?: CopyRow[]; cadence_days?: number | null; archived?: boolean; schedule?: string }
+export interface SetRow { id: string; label: string; origin: string; origin_ip?: string | null; path: string | null; veeam_job: string | null; agent_backup?: string | null; pbs_group: string | null; synology_task?: string | null; vzdump?: string | null; remote?: boolean; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean; copies?: CopyRow[]; cadence_days?: number | null; archived?: boolean; schedule?: string }
 const AGES = [2, 8, 15, 31];   // thresholds advised from the observed rhythm: daily, weekly, every 15 days, monthly
 interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; host_patterns?: Record<string, string[]>; default_path: string; machines: number; ssh_machines?: SshMachine[]; veeam: VeeamState; ha: HaState; pbs: PbsState; synology?: SynologyState; vzdump: VzdumpState; remote?: RemoteAccountState[] }
 interface Folder { path: string; size: number | null; newest: number | null; newest_name: string; readable: boolean; followed: boolean; default?: boolean }
@@ -64,7 +64,7 @@ function worstOf(list: Issue[]): Issue | undefined {
 /** Source of a followed set, as the tiles name them */
 export function sourceOf(s: SetRow): SourceId {
   if (s.remote) return "remote";
-  if (s.veeam_job) return "veeam";
+  if (s.veeam_job || s.agent_backup) return "veeam";
   if (s.pbs_group) return "pbs";
   if (s.synology_task) return "synology";
   if (s.vzdump) return "vzdump";
@@ -72,7 +72,7 @@ export function sourceOf(s: SetRow): SourceId {
 }
 
 /** What is followed: the folder, the job, the group… */
-const whatOf = (s: SetRow) => s.path ?? s.veeam_job ?? s.pbs_group ?? s.synology_task ?? (s.ha ? tx("sauvegarde automatique") : "-");
+const whatOf = (s: SetRow) => s.path ?? s.veeam_job ?? s.agent_backup ?? s.pbs_group ?? s.synology_task ?? (s.ha ? tx("sauvegarde automatique") : "-");
 
 /** Attention badge of a set: its worst level, the texts in the tooltip */
 function IssueBadge({ list }: Readonly<{ list: Issue[] }>) {
