@@ -20,6 +20,7 @@ import { FoldPanel } from "../components/FoldPanel";
 import { NewServices } from "../components/NewServices";
 import { ManualActions, ManualService, type ManualInitial } from "../components/ManualService";
 import { StatTile } from "../components/StatTile";
+import { TargetChanged } from "../components/TargetChanged";
 import { WatchPanel } from "../components/WatchPanel";
 import { quiet, worstTone } from "../lib/forms";
 import { figures, liveChecks, mergePorts, toWatch } from "../lib/servicesState";
@@ -145,10 +146,13 @@ function Tech({ r }: { r: Host }) {
     const how = CONFIDENCE[r.app.confidence];
     return <div className="min-w-0"><span className="font-medium">{r.app.label}</span><span className="block truncate text-xs text-dim" title={how[1]}>{how[0]}</span></div>;
   }
-  if (!s) return <Dim>{noIdentity(r) ?? tx("non identifié")}</Dim>;
+  if (!s) return <span className="inline-flex flex-wrap items-center gap-1.5"><Dim>{noIdentity(r) ?? tx("non identifié")}</Dim><TargetChanged r={r} /></span>;
   return (
     <div className="min-w-0">
-      <span className="font-medium">{s.title || s.name}{s.stale && <span className="ml-1.5 text-xs font-normal text-dim" title={tx("Le backend ne répond plus : identification du dernier passage où il répondait")}>⏳ {tx("dernière connue")}</span>}</span>
+      <span className="inline-flex flex-wrap items-center gap-x-1.5 font-medium">{s.title || s.name}
+        {s.behind?.name && <span className="text-xs font-normal text-dim" title={tx("Relais : envoie vers {0}", s.behind.addr)}>→ {s.behind.name}</span>}
+        {s.stale && <span className="text-xs font-normal text-dim" title={tx("Le backend ne répond plus : identification du dernier passage où il répondait")}>⏳ {tx("dernière connue")}</span>}
+        <TargetChanged r={r} /></span>
       <span className="block truncate text-xs text-dim">{KIND_NAME[s.kind] || s.kind}{s.version ? ` · ${s.version}` : ""}{s.image ? ` · ${s.image}` : ""}</span>
     </div>
   );

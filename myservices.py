@@ -58,6 +58,7 @@ import inventory_cache
 import api_link
 import known_apps
 import last_known as last_known_services
+import webservers
 import matching
 from connectors import mynetwork as mynetwork_conn
 import npmapi
@@ -873,6 +874,8 @@ def docker_service(c, how):
     svc = {"kind": "docker", "name": c["name"], "image": c["image"], "inner": c.get("inner"),
            "state": c["status"], "compose": c["compose"], "title": c["title"],
            "description": c["description"], "version": c["version"], "url": c["url"], "match": how}
+    if c.get("target"):  # relay (Anubis): what it forwards to, resolved later by webservers.add_behind
+        svc["target"] = c["target"]
     if LOGS:  # connecteur Dozzle : lien vers les journaux du conteneur (aucun journal lu ici)
         svc["logs_url"] = LOGS[0].link(c["name"])
     return svc
@@ -1088,6 +1091,8 @@ def main():
             by_name.setdefault(ip, {})[c["name"].lower()] = c
             for hp, inner in c["ports"]:
                 by_port[(ip, hp)] = dict(c, inner=inner)
+            for hp in c.get("listen") or []:   # host network: port read in its configuration (Anubis BIND)
+                by_port.setdefault((ip, hp), dict(c, inner=hp))
 
     rows, used = [], set()
     for h in hosts:
@@ -1105,6 +1110,8 @@ def main():
         elif ip != npm_host and seen_by_npm == HOST_ADDR:  # service de l'hôte NPM via son pont docker
             via = hip = npm_host
             how = "service de l'hôte (pont docker)"
+            if (hip, port) in by_port:   # a container of the host (published port, or host network) reached through the bridge
+                svc = docker_service(by_port[(hip, port)], "port (pont docker)")
         elif seen_by_npm and seen_by_npm != HOST_ADDR:  # conteneur sur un réseau docker interne de l'hôte NPM
             via, cname, how = npm_host, seen_by_npm, "réseau docker interne"
             c = by_name.get(via, {}).get(cname.lower())
@@ -1232,7 +1239,7 @@ def main():
     # Hors NPM : ports docker publiés non proxifiés, process LAN des process_hosts, ajouts manuels
     for ip, conts in dock.items():
         for c in conts or []:
-            for hp, inner in c["ports"]:
+            for hp, inner in [*c["ports"], *((p, p) for p in c.get("listen") or [])]:
                 if (ip, hp) not in used:
                     used.add((ip, hp))
                     rows.append(row("local", f"{ip}:{hp}", ip, hp, name=c["name"],
@@ -1259,6 +1266,7 @@ def main():
                                     machine_role=rows[-1]["machine_role"] + f" · Apache écoute seulement sur {addr}")
     rows.extend(nginx_rows(hinfo, used))
     attach_vhost_domains(rows, hinfo)
+    webservers.add_behind(rows, dock, internal, procs, hinfo)
     seen = {(r.get("ip"), int(r["port"])) for r in rows if r.get("ip") and r.get("port")}   # a service detected at the same ip:port wins: no double row
     for x in meta.get("extra", []):
         if (x["ip"], int(x["port"])) in seen:
@@ -1317,7 +1325,7 @@ def main():
     for src, dst in ((rb, backend), (rp, public), (rw, web), (rf, follow)):
         for i, f in src.items():
             dst[i] = f.result()
-    last_known = last_known_services.previous_services(OUT)
+    last_known = last_known_services.previous_rows(OUT)
     for i, r in enumerate(rows):
         if i in backend:
             r["backend"] = backend[i]
@@ -1340,8 +1348,10 @@ def main():
         s = r.get("service") or {}
         if not s and r["page_title"]:
             r["service"] = s = {"kind": "web", "name": r["page_title"]}
-        if not s and r["enabled"] and not r.get("backend", {}).get("up") and (r["type"], str(r["id"])) in last_known:
-            r["service"] = s = {**last_known[(r["type"], str(r["id"]))], "stale": True}  # backend muet : dernière identification connue
+        prev = last_known.get((r["type"], str(r["id"])))
+        same_target = last_known_services.mark_target_change(r, prev)   # target changed: dated, and the old name is not kept
+        if not s and same_target and prev["service"] and r["enabled"] and not r.get("backend", {}).get("up"):
+            r["service"] = s = {**prev["service"], "stale": True}  # backend muet : dernière identification connue
         m = r.pop("_meta") or meta_for(r)
         r["category"] = m.get("category") or categorize(" ".join(r["domains"]), r.get("name"), s.get("name"),
                                                          s.get("image"), s.get("title"), r["page_title"])
@@ -1383,6 +1393,8 @@ def main():
                     "methods": ssh_methods(ssh_cache, ip, sc["port"], ip in changed),
                     "note": notes.get(f'{sc["user"]}@{ip}:{sc["port"]}') or sc.get("note")} if sc and ip not in DISABLED | SSH_OFF else None,
             "info": info,
+            "web": webservers.machine_web(ip, dock.get(ip), internal.get(ip), procs.get(ip), info),   # web servers: Docker, service or binary
+            "containers": webservers.container_list(dock.get(ip)) if ip in dock else None,   # every container, with or without a service
             "agent": ({**agent_sys[ip], "via": "agent"} if agent_sys.get(ip) else None),  # système lu par l'agent (info = lu par SSH)
             "services": len(rs), "npm": sum(1 for r in rs if r["type"] != "local"),
             "down": sum(1 for r in rs if r.get("enabled") and not r.get("paused") and not r.get("machine_off")

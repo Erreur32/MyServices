@@ -14,15 +14,24 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 ### Added
 - **Services and storage checks on Linux machines** (SSH and Linux agent, no sudo needed), in the machine window and in « To watch »: PM2 (daemons, `pm2-<user>` units, saved apps and whether they run), software RAID (degraded, rebuilding), ZFS pools, network shares (NFS, SMB, SSHFS: not answering, in error, or in `/etc/fstab` but not mounted), clock synchronisation, systemd timers whose last run failed, automatic updates (unattended-upgrades: errors, last run too old), snaps waiting for an update, open sessions, and Docker containers restarting in a loop.
 - **Services to restart after an update (needrestart) and Fail2ban bans**, each read through one exact read-only sudo rule (`needrestart -b -r l`, list mode, never restarts anything; `fail2ban-client banned`, every jail in one command). Without the rule the machine window says « not read » and gives the exact rule to add for the SSH account.
+- **Web servers of a machine** (machine window, « Software and services »): one line per web server found (Nginx Proxy Manager, Anubis, Apache, nginx, Caddy, Traefik, HAProxy, lighttpd) with how it runs (Docker container, systemd service, or binary listening without either), the ports it listens on and what it forwards to. Only known web server binaries are listed; any other process is left out.
+- **Site paths**: for each domain served by the machine, NPM → the service it reaches (an Anubis relay…) → what runs behind it (container, Apache vhost, process), a stopped step in red.
+- **Every container of the machine**, even the ones no service points to (databases, watchtower, stopped ones), folded by default.
+- **Containers in host network are recognised by their port**: Anubis is read from its `BIND` and `TARGET`, other apps from `PORT`. Only these variables are read, filtered on the machine itself: the others (passwords, tokens) never leave it. Ports published on the loopback (`127.0.0.1:3011`) are kept to name what a relay of the same machine forwards to.
+- Anubis icon in the Servers column, with one tooltip line per instance (port, how it runs, what it forwards to).
 - **PM2 is never started by MyServices**: it is read from its processes and files, never through the `pm2` command (any `pm2` command starts its daemon again when it is down).
 
 ### Changed
 - **One SSH connection per machine for the whole health collection** instead of one per command: about 20 connections per machine and per pass become 3 (access check, every command, SMART for all the disks). Each command keeps its own time limit, and the outputs are read exactly as before.
 - **Fewer requests to the machines**: every SSH read of a pass (health, listening ports, Docker, machine info, hypervisors, NPM, AdGuard, backups) shares one connection per machine (ControlMaster, 60 s); the listening ports are read every other collection (30 min); an agent report re-reads only its own machine, from the report, with no SSH and no new API call, even when its level changed (before: a full health pass of every machine).
+- The Servers column of the Machines table comes from the same web server list: one icon per kind of server, a red frame when an instance is stopped.
+- The Services page shows what a relay forwards to (« → apache2 · rss.example.fr »).
 - An agent report sent too soon after the last one is answered « already received » (200) instead of 429: the agent no longer retries it and its scheduled task no longer runs again.
 - Linux agent version 2 (the new checks; it updates itself when automatic updates are on). A report may carry commands up to 4000 characters long.
 
 ### Fixed
+- A service whose target changed (an NPM host moved from Apache to an Anubis relay) no longer keeps the name of what ran there before (« apache2 · rss »): the name is only kept when the target is the same, and a « changed recently » badge (date and previous target in its tooltip) is shown for 7 days.
+- An NPM host pointing at the Docker bridge of its own machine now finds the container listening on that port (published, or in host network) before looking for a service of the host.
 - « To watch » showed « Docker : [object Object] » instead of the containers in trouble: it now names each one with its status.
 
 ## v0.18.4 (2026-10-22)

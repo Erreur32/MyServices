@@ -22,7 +22,7 @@ REMOTE = r"""
 echo "##OS $(. /etc/os-release 2>/dev/null; echo "$PRETTY_NAME")"
 echo "##KERNEL $(uname -r)"
 echo "##UP $(cut -d. -f1 /proc/uptime)"
-echo "##SVC apache2=$(systemctl is-active apache2 2>/dev/null) nginx=$(systemctl is-active nginx 2>/dev/null)"
+echo "##SVC$(for u in apache2 nginx httpd caddy traefik haproxy lighttpd; do printf ' %s=%s' $u "$(systemctl is-active $u 2>/dev/null)"; done)"
 echo "##SSHDR $( [ -r /etc/ssh/sshd_config ] && echo yes || echo no)"
 echo "##SSHD $(grep -h -E -i '^[[:space:]]*(Port|PermitRootLogin|PasswordAuthentication)[[:space:]]' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null | tr -s ' \t' ' ' | paste -sd';')"
 echo "##DOCKERBIN $(command -v docker >/dev/null 2>&1 && echo yes || echo no)"
@@ -304,6 +304,7 @@ def host_info(alias: str) -> dict | None:
         "uptime_s": int(tag["UP"]) if tag.get("UP", "").isdigit() else None,
         "apache": svc.get("apache2") == "active",
         "nginx": svc.get("nginx") == "active",
+        "web_units": [u for u, st in svc.items() if st == "active"],  # web servers running as a systemd service (the others are binaries)
         "docker": int(tag["DOCKER"]) if tag.get("DOCKER", "").isdigit() else 0,
         "docker_installed": tag.get("DOCKERBIN") != "no",  # False : pas de Docker sur la machine (jamais une panne d'accès)
         "virt": tag.get("VIRT") if re.fullmatch(r"[a-z0-9-]{2,20}", tag.get("VIRT", "")) and tag.get("VIRT") != "none" else None,  # kvm, vmware, lxc…

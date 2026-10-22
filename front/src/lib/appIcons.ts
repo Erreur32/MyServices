@@ -2,7 +2,7 @@
 // Les machines portent le nom lisible de l'appli (« Proxmox VE »), pas sa clé : la table part du nom.
 const FILES: Record<string, string> = {
   "nginx proxy manager": "nginx-proxy-manager", "adguard home": "adguard-home", beszel: "beszel", "uptime kuma": "uptime-kuma",
-  dozzle: "dozzle", docker: "docker", nginx: "nginx", apache: "apache", syncthing: "syncthing", grafana: "grafana", plex: "plex",
+  dozzle: "dozzle", docker: "docker", nginx: "nginx", apache: "apache", anubis: "anubis", caddy: "caddy", traefik: "traefik", syncthing: "syncthing", grafana: "grafana", plex: "plex",
   "home assistant": "home-assistant", "proxmox ve": "proxmox", proxmox: "proxmox", unifi: "unifi",
   "proxmox backup server": "proxmox", "proxmox backup": "proxmox", dockhand: "dockhand", logviewr: "logviewr", mynetwork: "mynetwork",
   frigate: "frigate", opnsense: "opnsense", "pi-hole": "pihole", pihole: "pihole", portainer: "portainer", truenas: "truenas", "synology dsm": "synology", synology: "synology",

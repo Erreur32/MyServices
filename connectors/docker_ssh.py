@@ -29,6 +29,49 @@ def publish_ports(spec):
     return sorted(out)
 
 
+def loopback_ports(spec):
+    """Ports TCP publiés sur la boucle locale de l'hôte (127.0.0.1:3011->3000/tcp) : invisibles du LAN, mais un relais de la même
+    machine (Anubis, Apache, nginx) peut les viser ; servent à nommer ce qu'il y a derrière lui."""
+    return sorted({int(h) for h in re.findall(r"(?:127\.\d+\.\d+\.\d+|\[::1\]):(\d+)->\d+/tcp", spec)})
+
+
+# Host network: no published port, the listening port is in the configuration. Only these variables are read, and they are filtered
+# ON the machine (grep), so that the other ones (passwords, tokens) never leave it. BIND / TARGET: Anubis; PORT: many web apps
+ENV_KEYS = ("BIND", "PORT", "TARGET")
+ENV_MARK = "@@ENV"
+ENV_SH = (f"echo {ENV_MARK}; docker ps -aq --filter network=host | xargs -r docker inspect --format "
+          "'{{range .Config.Env}}{{$.Name}}={{.}}{{println}}{{end}}' | grep -E '^/[^=]+=(" + "|".join(ENV_KEYS) + ")=' ; true")
+
+
+def env_port(value: str) -> int | None:
+    """Port d'écoute d'une valeur BIND / PORT (« :8445 », « 0.0.0.0:8445 », « 8445 ») ; None pour un socket unix ou une valeur sans port."""
+    m = re.fullmatch(r"(?:(?:[\w.\-]*|\[[0-9a-f:]*\]):)?(\d{1,5})", value.strip(), re.I)
+    return int(m.group(1)) if m and 0 < int(m.group(1)) < 65536 else None
+
+
+def env_target(value: str) -> str | None:
+    """« hôte:port » visé par un TARGET http(s) (Anubis) ; None pour un socket unix ou une valeur illisible."""
+    m = re.fullmatch(r"https?://([\w.\-]+|\[[0-9a-f:]+\])(?::(\d{1,5}))?/?\S*", value.strip(), re.I)
+    if not m:
+        return None
+    return f"{m.group(1)}:{m.group(2) or (443 if value.strip().lower().startswith('https') else 80)}"
+
+
+def parse_env(text: str) -> dict:
+    """{nom du conteneur: {listen: [ports], target: "hôte:port"}} d'après les lignes « /nom=CLÉ=valeur » de ENV_SH."""
+    out: dict = {}
+    for line in text.splitlines():
+        m = re.match(r"/([^=]+)=(" + "|".join(ENV_KEYS) + r")=(.*)$", line)
+        if not m:
+            continue
+        c = out.setdefault(m.group(1), {"listen": [], "target": None})
+        if m.group(2) == "TARGET":
+            c["target"] = env_target(m.group(3))
+        elif (port := env_port(m.group(3))) and port not in c["listen"]:
+            c["listen"].append(port)
+    return out
+
+
 def docker_absent(rc: int, stderr: str) -> bool:
     """Le shell distant n'a pas trouvé la commande docker (code 127) : Docker n'est pas installé, ce n'est pas une panne d'accès."""
     low = (stderr or "").lower()
@@ -38,10 +81,8 @@ def docker_absent(rc: int, stderr: str) -> bool:
 def docker_containers(alias, absent: list | None = None):
     """Liste des conteneurs d'une machine (docker ps local ou via SSH). None = inaccessible ; [] si Docker n'est pas installé
     (`absent` reçoit alors True : l'appelant le distingue d'une machine Docker sans conteneur)."""
-    if alias == "local":
-        cmd = ["docker", "ps", "-a", "--format", DOCKER_FMT]
-    else:
-        cmd = ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, f"docker ps -a --format '{DOCKER_FMT}'"]
+    sh = f"docker ps -a --format '{DOCKER_FMT}' && {{ {ENV_SH}; }}"
+    cmd = ["sh", "-c", sh] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, sh]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
     except subprocess.TimeoutExpired:
@@ -52,14 +93,19 @@ def docker_containers(alias, absent: list | None = None):
                 absent.append(True)
             return []
         return None
+    ps, _, env = r.stdout.partition(f"{ENV_MARK}\n")
+    env = parse_env(env)
     out = []
-    for line in r.stdout.splitlines():
+    for line in ps.splitlines():
         f = (line.split("|") + [""] * 10)[:10]
-        out.append({
+        c = {
             "name": f[0], "image": f[1], "status": f[3], "compose": f[4], "title": f[5],
             "description": f[6], "version": f[7], "url": f[8], "network": f[9],
-            "ports": publish_ports(f[2]),
-        })
+            "ports": publish_ports(f[2]), "local_ports": loopback_ports(f[2]),
+        }
+        if f[0] in env:   # host network: listening port and target read in its configuration
+            c.update(env[f[0]])
+        out.append(c)
     return out
 
 

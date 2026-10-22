@@ -12,7 +12,7 @@ import type { AddressSheet, Backups, LinkSource, HealthHost, Host, HostSystem, M
 import { AddonStrip, HaAddons } from "../components/ServiceStatusCards";
 import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } from "../lib/unifi";
 import { freeboxHealth, freeboxOf } from "../lib/freebox";
-import { modelIcon, serviceIcon } from "../lib/appIcons";
+import { appIcon, modelIcon } from "../lib/appIcons";
 import { MachinePage } from "./MachinePage";
 import { AddMachineOverlay } from "../components/AddMachineOverlay";
 import { machineFromHash } from "../lib/machineHash";
@@ -28,6 +28,7 @@ import { isHidden, useServicesHidden, type HiddenMap } from "../lib/servicesHidd
 import { SshAccess } from "../components/ssh";
 import { SourceBadges } from "../components/SourceBadges";
 import { DetailRow, DetailSection } from "../components/DetailSection";
+import { ContainerList, SitePaths, WebServersTable, modeLabel } from "../components/WebServers";
 import { primary } from "../lib/forms";
 import { SHARE_STATE, UU_STALE_DAYS, WATCH_SECTION, ZFS_BAD, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
@@ -49,59 +50,30 @@ function topDisk(h?: HealthHost) {
   return (h?.disks || []).reduce<NonNullable<HealthHost["disks"]>[number] | null>((a, d) => (!a || d.used_pct > a.used_pct ? d : a), null);
 }
 
-/** Logiciels de service détectés sur la machine, en icônes ; les nombres (conteneurs, vhosts) sont dans l'info-bulle.
- *  max : au-delà, une pastille « +N » (la liste complète est dans le détail déplié) */
+/** Web servers of the machine (NPM, Anubis, Apache, nginx…) then Docker, as icons; each tooltip lists the instances (port, how it runs,
+ *  what it forwards to). max: beyond, a « +N » chip (the full list is in the unfolded detail) */
 function Servers({ m, snap, max }: { m: Machine; snap: Snapshot; max?: number }) {
-  const rows = snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.service);
-  const npm = rows.some((r) => /nginx-proxy-manager/.test(r.service!.image || ""));
-  const apDown = rows.filter((r) => r.enabled && r.service!.kind === "apache" && status(r)[0] === "bad").length;
-  const i = m.info || {}, vh = (i.vhosts || []).length, unread = (i.vhosts_unreadable || []).length;
-  const chips: { key: string; icon: string; tip: string; bad?: boolean }[] = [
-    ...(npm ? [{ key: "npm", icon: "nginx-proxy-manager", tip: tx("Nginx Proxy Manager : la machine héberge un NPM") }] : []),
-    ...(i.apache ? [{ key: "apache", icon: "apache", bad: apDown > 0,
-      tip: tx("Apache : {0} vhost(s)", vh) + (unread ? `\n${tx("Vhosts actifs dont la config n'est pas lisible par le compte SSH : {0}. Leurs domaines et ports restent inconnus.", (i.vhosts_unreadable || []).join(", "))}` : "") + (apDown ? `\n${tx("{0} en panne", apDown)}` : "") }] : []),
-    ...(i.nginx ? [{ key: "nginx", icon: "nginx", tip: tx("nginx installé et actif sur la machine (hors conteneur)") }] : []),
-    ...(i.docker ? [{ key: "docker", icon: "docker", tip: tx("Docker : {0} conteneur(s) en cours", i.docker) }] : []),
-  ];
+  const apDown = snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.enabled && r.service?.kind === "apache" && status(r)[0] === "bad").length;
+  const i = m.info || {}, groups = new Map<string, NonNullable<Machine["web"]>>();
+  for (const w of m.web ?? []) groups.set(w.key, [...(groups.get(w.key) ?? []), w]);
+  const chips: { key: string; icon: string | null; label: string; tip: string; bad?: boolean }[] = [...groups].map(([key, ws]) => {
+    const stopped = ws.filter((w) => !w.up).length, down = stopped + (key === "apache" ? apDown : 0);
+    const head = [ws[0].label, ws.length > 1 ? tx("{0} instances", ws.length) : "", stopped ? tx("{0} arrêtée(s)", stopped) : "", key === "apache" && apDown ? tx("{0} en panne", apDown) : ""].filter(Boolean).join(" · ");
+    const lines = ws.map((w) => `${w.ports.map((p) => `:${p}`).join(" ") || "-"}  ${modeLabel(w.mode)} · ${w.name}${w.behind ? ` → ${w.behind.name ?? w.behind.addr}` : ""}${w.vhosts ? ` · ${tx("{0} vhost(s)", w.vhosts)}` : ""}${w.up ? "" : ` · ${tx("arrêté")}`}`);
+    return { key, icon: appIcon([ws[0].label]), label: ws[0].label, tip: [head, ...lines].join("\n"), bad: down > 0 };
+  });
+  if (i.docker) chips.push({ key: "docker", icon: appIcon(["Docker"]), label: "Docker", tip: tx("Docker : {0} conteneur(s) en cours", i.docker) });
   const shown = max && chips.length > max ? chips.slice(0, max) : chips, more = chips.slice(shown.length);
   return chips.length ? (
     <div className={`flex items-center gap-1 ${max ? "flex-nowrap" : "flex-wrap"}`}>
       {shown.map((c) => (
         <span key={c.key} title={c.tip} tabIndex={0} className={`grid h-7 w-7 place-items-center rounded-md border ${c.bad ? "border-bad/60 bg-bad/10" : "border-line bg-bg2"}`}>
-          <img src={`${import.meta.env.BASE_URL}icons/${c.icon}.svg`} alt="" className="h-4 w-4" />
+          {c.icon ? <img src={c.icon} alt="" className="h-4 w-4" /> : <span className="text-[11px] font-bold text-muted">{c.label.slice(0, 2)}</span>}
         </span>
       ))}
-      {more.length > 0 && <span title={tx("Aussi : {0} (détail déplié)", more.map((c) => c.key).join(", "))} className="grid h-7 min-w-7 place-items-center rounded-md border border-line bg-bg2 px-1 text-[11px] font-bold text-muted">+{more.length}</span>}
+      {more.length > 0 && <span title={tx("Aussi : {0} (détail déplié)", more.map((c) => c.label).join(", "))} className="grid h-7 min-w-7 place-items-center rounded-md border border-line bg-bg2 px-1 text-[11px] font-bold text-muted">+{more.length}</span>}
     </div>
   ) : <Dim>-</Dim>;
-}
-
-/** The Docker containers behind the services of a machine (name, image, state), each with its service logo, one line each */
-function DockerList({ m, snap }: Readonly<{ m: Machine; snap: Snapshot }>) {
-  const seen = new Set<string>();
-  const rows = snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.service?.kind === "docker").filter((r) => {
-    const k = r.service!.name || r.service!.image || "";
-    return k && !seen.has(k) && !!seen.add(k);
-  });
-  if (!rows.length) return null;
-  return (
-    <div className="py-1">
-      <div className="mb-1 text-xs text-dim">{tx("Conteneurs Docker")} · {rows.length}</div>
-      <ul className="flex flex-col gap-0.5">
-        {rows.map((r) => {
-          const sv = r.service!, icon = serviceIcon(r), up = !sv.state || /^(?:up|running)/i.test(sv.state);
-          return (
-            <li key={sv.name || sv.image} className="flex items-center gap-2 text-xs" title={[sv.image, sv.state].filter(Boolean).join(" · ")}>
-              {icon ? <img src={icon} alt="" className="h-4 w-4 shrink-0" /> : <span className="h-4 w-4 shrink-0" />}
-              <b className="truncate font-medium">{sv.name || sv.image}</b>
-              {sv.image && <span className="truncate font-mono text-[11px] text-dim">{sv.image}</span>}
-              <span className={`ml-auto shrink-0 ${up ? "text-ok" : "text-warn"}`}>{sv.state ? sv.state.replace(/^Up /i, "") : tx("en marche")}</span>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
 }
 
 /** Clé utilisée par l'alias (chemin et début d'empreinte) */
@@ -760,7 +732,7 @@ export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, unifiNet, freebox, containers, onFilter, focus, backups, pve, sheet, hosts }: Readonly<{ hosts?: Host[]; pve?: string; sheet?: AddressSheet; backups?: Backups | null; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; containers?: React.ReactNode; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; servers?: React.ReactNode; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
+function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unifiNet, freebox, onFilter, focus, backups, pve, sheet, hosts }: Readonly<{ hosts?: Host[]; pve?: string; sheet?: AddressSheet; backups?: Backups | null; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; npmIps?: Record<string, string>; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
   const unifiOnly = !!unifi && !m.info && !m.agent;   // read only through UniFi: no SSH, no agent
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) setTimeout(() => showWatch(root.current, focus.kind), 120); }, [focus]);   // opened from a badge: show where its notice is explained
@@ -788,7 +760,7 @@ function Detail({ m, h, mac, net, from, watch, servers, ha, unifi, unifiSys, uni
 
       {freebox && (freebox.vms || freebox.vm_system) && <FreeboxVmSection fb={freebox} from={from.services} />}
       {!freebox && unifiOnly && <UnifiNetworkSection d={unifi} sys={unifiSys} net={unifiNet} from={from.services} />}
-      {!(freebox && (freebox.vms || freebox.vm_system)) && !(!freebox && unifiOnly) && <SoftwareSection m={m} down={watch.find((w) => w.kind === "services")?.detail} servers={servers} ha={ha} from={from.services} containers={containers} onFilter={onFilter} />}
+      {!(freebox && (freebox.vms || freebox.vm_system)) && !(!freebox && unifiOnly) && <SoftwareSection m={m} down={watch.find((w) => w.kind === "services")?.detail} hosts={hosts ?? []} npmIps={npmIps} ha={ha} from={from.services} onFilter={onFilter} />}
 
       {ha && <HaBackupsSection ha={ha} from={from.services} />}
       {ha && <HaInsideSection ha={ha} from={from.services} />}
@@ -1114,26 +1086,24 @@ function AccessSection({ m, from }: Readonly<{ m: Machine; from: Origin[] }>) {
   );
 }
 
-/** Detail, « Software and services »: servers, services, Docker, linked APIs, Home Assistant add-ons, Apache and nginx */
-function SoftwareSection({ m, down, servers, ha, from, containers, onFilter }: Readonly<{ down?: string[]; onFilter?: (sel: Selected) => void; m: Machine; servers?: React.ReactNode; ha?: ServiceStatus; from: Origin[]; containers?: React.ReactNode }>) {
+/** Detail, « Software and services »: services, web servers (Docker, service or binary), path of each site, every container, linked APIs,
+ *  Home Assistant add-ons and Windows apps */
+function SoftwareSection({ m, down, hosts, npmIps, ha, from, onFilter }: Readonly<{ down?: string[]; onFilter?: (sel: Selected) => void; m: Machine; hosts: Host[]; npmIps?: Record<string, string>; ha?: ServiceStatus; from: Origin[] }>) {
   const i = m.info;
-  const vhosts = (i?.vhosts ?? []) as { port?: number; names?: string[] }[];
   return (
       <Section sec="services" icon={Boxes} title={tx("Logiciels et services")} tone="warn" from={from}>
-        <Row k={tx("Serveurs")}>{servers}</Row>
         <Row k={tx("Services")}>
           {onFilter && m.services > 0 ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services")} onClick={() => onFilter({ machine: [m.ip] })}>{m.services}</button> : m.services}
           {m.npm > 0 && <Dim> · {onFilter ? <button type="button" className="text-link hover:underline" title={tx("Voir ses services NPM")} onClick={() => onFilter({ machine: [m.ip], src: ["npm"] })}>{m.npm} NPM</button> : `${m.npm} NPM`}</Dim>}{m.down > 0 && <span className="text-bad"> · {m.down} {tx("en panne")}</span>}</Row>
         {down?.map((d) => <Row key={d} k=""><span className="text-[11px] text-bad">• {d}</span></Row>)}
-        <Row k="Docker">{i?.docker ? tx("{0} conteneur(s) en cours", i.docker) : m.agent?.docker != null ? (m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>) : i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined}</Row>
-        {containers}
+        <WebServersTable m={m} hosts={hosts} npmIps={npmIps} />
+        <SitePaths m={m} hosts={hosts} />
+        {m.containers?.length ? <ContainerList m={m} hosts={hosts} />
+          : <Row k="Docker">{m.containers === null ? <span className="text-warn">{tx("docker inaccessible (SSH ou groupe docker)")}</span> : i?.docker ? tx("{0} conteneur(s) en cours", i.docker) : m.agent?.docker != null ? (m.agent.docker ? tx("{0} conteneur(s) (lus par l'agent)", m.agent.docker) : <Dim>{tx("aucun conteneur")}</Dim>) : i?.docker_installed === false ? <Dim>{tx("absent")}</Dim> : undefined}</Row>}
         <Row k="API">{m.api?.length ? <span className="flex flex-wrap gap-1">{m.api.map((a) => <Badge key={`${a.type}/${a.name}`} tone={a.ok ? "ok" : a.stale ? "warn" : "bad"} title={`${a.name} : ${a.message ?? ""}`}>{a.label}{a.version ? ` ${a.version}` : ""}</Badge>)}</span> : undefined}</Row>
         {ha?.addons?.length ? <div className="py-1"><HaAddons s={ha} /></div> : null}
         <Row k={tx("Applis")}>{m.agent?.apps?.length ? <span className="flex flex-wrap gap-1">{m.agent.apps.map((a) => <Badge key={a.key} tone="info" title={tx("Vue par les services Windows du PC")}>{a.label}</Badge>)}</span> : undefined}</Row>
-        <Row k="Apache">{i?.apache ? <>{tx("{0} vhost(s)", vhosts.length)}{!!i.vhosts_unreadable?.length && <span className="text-warn"> · {i.vhosts_unreadable.length} {tx("illisible(s)")}</span>}</> : undefined}</Row>
-        {i?.apache && vhosts.slice(0, 6).map((v, n) => <Row key={n} k=""><span className="font-mono text-[11px] text-muted">:{v.port} {(v.names ?? []).join(", ") || "-"}</span></Row>)}
-        <Row k="nginx">{i?.nginx ? tx("actif sur la machine (hors conteneur)") : undefined}</Row>
-        {!m.services && !i?.docker && !i?.apache && !i?.nginx && !m.agent?.docker && !m.agent?.apps?.length && !m.api?.length && <Dim>-</Dim>}
+        {!m.services && !m.web?.length && !m.containers?.length && !i?.docker && !m.agent?.docker && !m.agent?.apps?.length && !m.api?.length && <Dim>-</Dim>}
       </Section>
   );
 }
@@ -1476,7 +1446,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   const admin = snap.me.role === "admin";
   const detailOf = (m: Machine) => {
     const h = hb.get(m.ip);
-    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} servers={<Servers m={m} snap={snap} />} containers={<DockerList m={m} snap={snap} />} hosts={snap.data.hosts} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} sheet={snap.data.sheets?.[m.ip]} pve={snap.data.virtualization?.find((c) => c.connector === "proxmox" && c.version && (c.ip === m.ip || c.name === m.links?.hypervisor?.instance))?.version ?? undefined} />;
+    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} npmIps={snap.data.npm_instances} hosts={snap.data.hosts} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} sheet={snap.data.sheets?.[m.ip]} pve={snap.data.virtualization?.find((c) => c.connector === "proxmox" && c.version && (c.ip === m.ip || c.name === m.links?.hypervisor?.instance))?.version ?? undefined} />;
   };
   const [view, pickView] = useStoredView("ms.machines.view", "table");  // Tableau ou Cartes, retenu
 

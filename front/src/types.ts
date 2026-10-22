@@ -37,6 +37,8 @@ export interface Service {
   vhost?: string;
   docroot?: string;
   conf?: string;
+  target?: string;   // relay (Anubis): the host:port it forwards to (its TARGET)
+  behind?: { kind: string | null; name: string | null; addr: string; image?: string } | null;   // what runs at that target
 }
 
 export interface Host {
@@ -91,6 +93,19 @@ export interface Host {
   dns?: { issues: [string, ...unknown[]][]; rewrites?: unknown[] };
   web?: string;
   direct_ok?: boolean;
+  target_changed?: string;   // ISO date: the target (ip:port) changed less than 7 days ago
+  target_before?: string;    // the previous target
+}
+
+/** A web server of a machine (webservers.py): how it runs, where it listens, what it forwards to */
+export interface WebServer {
+  key: string; label: string; mode: "docker" | "service" | "binary"; name: string; ports: number[]; up: boolean; host_net: boolean;
+  target: string | null; behind: Service["behind"]; vhosts?: number; vhosts_unreadable?: number;
+}
+
+/** Every container of a machine, with or without a service (webservers.container_list) */
+export interface MachineContainer {
+  name: string; image: string; status: string; up: boolean; host_net: boolean; ports: number[]; local_ports: number[]; compose: string | null;
 }
 
 export interface Machine {
@@ -117,6 +132,8 @@ export interface Machine {
     sshd?: { permitrootlogin?: string; passwordauthentication?: string };
     vhosts?: unknown[]; vhosts_unreadable?: string[];
   } | null;
+  web?: WebServer[];   // web servers: Docker, service or binary
+  containers?: MachineContainer[] | null;   // null: Docker not readable; absent: no Docker reading for this machine
 }
 
 export interface DnsServer {
