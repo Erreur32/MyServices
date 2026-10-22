@@ -3093,4 +3093,12 @@ export const EN: Record<string, string> = {
   "Relais : envoie vers {0}": "Relay: forwards to {0}",
   "Cible changée": "Target changed",
   "le {0}, avant {1}": "on {0}, before {1}",
+  "{0} jeu(x) sur {1} à jour": "{0} of {1} set(s) up to date",
+  "dernière sauvegarde il y a {0}": "last backup {0} ago",
+  "{0} lieu(x) de copie": "{0} copy place(s)",
+  "Copies ailleurs (🔒 = chiffrées)": "Copies elsewhere (🔒 = encrypted)",
+  "Dossiers": "Folders",
+  "Réplication": "Replication",
+  "chiffré": "encrypted",
+  "Voir dans Sauvegardes": "See in Backups",
 };

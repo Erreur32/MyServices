@@ -701,6 +701,70 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
   );
 }
 
+const BK_TONE: Record<string, "ok" | "warn" | "bad"> = { ok: "ok", warn: "warn", crit: "bad", down: "bad" };
+const bkText = (level: string) => ({ ok: "text-dim", warn: "text-warn" } as Record<string, string>)[level] ?? "text-bad";
+
+/** « Backups » section: what the machine backs up (the sets it produces), the backup folders that hold them, and where the copies go
+ *  (replication), from the Backups page data. Untracked folders and cron lines stay on the Backups page. Nothing when there is none. */
+export function MachineBackupsSection({ m, backups }: Readonly<{ m: Machine; backups?: Backups | null }>) {
+  const host = backups?.hosts?.find((h) => h.ip === m.ip);
+  if (!host) return null;
+  const sets = (backups?.sets ?? []).filter((s) => s.origin === host.id);
+  const dirs = host.local.filter((d) => d.covered.length);
+  if (!sets.length && !dirs.length && !host.copies.length) return null;
+  const ok = sets.filter((s) => s.level === "ok").length;
+  return (
+    <Section sec="backups" icon={Archive} title={tx("Sauvegardes")} tone={BK_TONE[host.level] ?? "warn"} from={[{ label: tx("Sauvegardes"), href: "#backups" }]}>
+      <Row k={tx("État")}>
+        <span>{tx("{0} jeu(x) sur {1} à jour", ok, sets.length)}</span>
+        {host.last_local && <Dim>· {tx("dernière sauvegarde il y a {0}", ageDays(host.last_local.age))}</Dim>}
+        {host.copies.length > 0 && <Dim>· {tx("{0} lieu(x) de copie", host.copies.length)}</Dim>}
+      </Row>
+      {sets.length > 0 && <Row k={tx("Jeux produits ici")}>
+        <ConsoleBox cols="auto minmax(0,1fr) auto auto auto">
+          {sets.map((s) => {
+            const src = s.locations.find((l) => l.role === "source"), copies = s.locations.filter((l) => l.role !== "source");
+            const locked = copies.filter((l) => l.encrypted).length, missing = s.expect_offsite !== false && !s.offsite;
+            return (
+              <Fragment key={s.id}>
+                <span className="self-center" title={s.why?.join("\n") || undefined}><Dot tone={BK_TONE[s.level] ?? "warn"} /></span>
+                <span className="truncate text-txt" title={s.label}>{s.label.replace(/^[^:]*: /, "")}<span className="text-dim"> · {s.schedule}</span></span>
+                <span className={`whitespace-nowrap text-right ${bkText(src?.level ?? s.level)}`}>{src?.age != null ? ageDays(src.age) : tx("jamais vue")}</span>
+                <span className="whitespace-nowrap text-right text-dim">{s.size ? bytes(s.size) : ""}</span>
+                <span className={`whitespace-nowrap text-right ${missing ? "text-warn" : "text-dim"}`} title={tx("Copies ailleurs (🔒 = chiffrées)")}>{missing ? tx("aucune copie") : tx("{0} copie(s)", copies.length)}{locked ? ` · ${locked} 🔒` : ""}</span>
+              </Fragment>
+            );
+          })}
+        </ConsoleBox>
+      </Row>}
+      {dirs.length > 0 && <Row k={tx("Dossiers")}>
+        <ConsoleBox cols="minmax(0,1fr) auto auto">
+          {dirs.map((d) => (
+            <Fragment key={d.path}>
+              <span className="truncate" title={d.covered.join(", ")}><span className="font-mono text-txt">{d.path}</span><span className="text-dim"> · {d.covered.join(", ")}</span></span>
+              <span className="whitespace-nowrap text-right text-dim">{d.age != null ? ageDays(d.age) : ""}</span>
+              <span className="whitespace-nowrap text-right text-dim">{d.size ? bytes(d.size) : ""}</span>
+            </Fragment>
+          ))}
+        </ConsoleBox>
+      </Row>}
+      {host.copies.length > 0 && <Row k={tx("Réplication")}>
+        <ConsoleBox cols="auto minmax(0,1fr) auto auto">
+          {host.copies.map((c) => (
+            <Fragment key={c.host}>
+              <span className="self-center"><Dot tone={BK_TONE[c.level] ?? "warn"} /></span>
+              <span className="truncate" title={c.vias.join("\n")}><span className="text-txt">→ {c.label}</span><span className="text-dim"> · {c.vias.join(", ")}</span>{c.encrypted && <span className="text-violet-400"> · 🔒 {tx("chiffré")}</span>}</span>
+              <span className="whitespace-nowrap text-right text-dim">{tx("{0} jeu(x)", c.sets)}</span>
+              <span className={`whitespace-nowrap text-right ${bkText(c.level)}`}>{c.age != null ? ageDays(c.age) : tx("jamais vue")}</span>
+            </Fragment>
+          ))}
+        </ConsoleBox>
+      </Row>}
+      <Row k=""><a href="#backups" className="text-xs text-link hover:underline">{tx("Voir dans Sauvegardes")} ›</a></Row>
+    </Section>
+  );
+}
+
 /** « Share » section: a machine that holds backups of others (a box, a NAS: a followed shared folder, or a machine that receives rsync copies) shows what it hosts,
  *  its free space and, for each set, how old its copy is. Nothing for a machine that holds no copy. */
 export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine; backups?: Backups | null; from: Origin[] }>) {
@@ -720,7 +784,7 @@ export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine
               <Fragment key={`${s.id}-${l.label}`}>
                 <span className="truncate text-txt" title={s.label}>{s.label.replace(/^[^:]*: /, "")}<span className="text-dim"> ← {s.label.split(":")[0].trim()}</span></span>
                 <span className="whitespace-nowrap text-dim">{l.via ?? ""}</span>
-                <span className={`whitespace-nowrap text-right ${l.level === "ok" ? "text-dim" : l.level === "warn" ? "text-warn" : "text-bad"}`}>{l.age != null ? ageDays(l.age) : tx("jamais vue")}</span>
+                <span className={`whitespace-nowrap text-right ${bkText(l.level)}`}>{l.age != null ? ageDays(l.age) : tx("jamais vue")}</span>
               </Fragment>
             ))}
           </ConsoleBox>
@@ -764,6 +828,7 @@ function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unif
 
       {ha && <HaBackupsSection ha={ha} from={from.services} />}
       {ha && <HaInsideSection ha={ha} from={from.services} />}
+      <MachineBackupsSection m={m} backups={backups} />
       <SharedBackupsSection m={m} backups={backups} from={from.services} />
 
       <HealthSection h={h} from={from.health} />

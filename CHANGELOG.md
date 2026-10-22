@@ -18,6 +18,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Site paths**: for each domain served by the machine, NPM → the service it reaches (an Anubis relay…) → what runs behind it (container, Apache vhost, process), a stopped step in red.
 - **Every container of the machine**, even the ones no service points to (databases, watchtower, stopped ones), folded by default.
 - **Containers in host network are recognised by their port**: Anubis is read from its `BIND` and `TARGET`, other apps from `PORT`. Only these variables are read, filtered on the machine itself: the others (passwords, tokens) never leave it. Ports published on the loopback (`127.0.0.1:3011`) are kept to name what a relay of the same machine forwards to.
+- **Backups section in the machine window**: the sets the machine produces (schedule, age of the last archive, size, copies elsewhere, 🔒 when encrypted, « no copy » in orange), the backup folders that hold them, and the replication (each place the copies go, how: rsync, pulled by another machine, vzdump, encrypted or not, and how old). From the Backups page data, nothing new is read on the machines; untracked folders and cron lines stay on the Backups page.
 - Anubis icon in the Servers column, with one tooltip line per instance (port, how it runs, what it forwards to).
 - **PM2 is never started by MyServices**: it is read from its processes and files, never through the `pm2` command (any `pm2` command starts its daemon again when it is down).
 
