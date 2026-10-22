@@ -39,6 +39,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from connectors import reqstats
+from sshmux import SSH_MUX
 
 KINDS = ("inventory", "services", "dns", "health", "backups", "logs", "alerts", "status", "network", "security", "containers", "virtualization")
 
@@ -171,7 +172,7 @@ class Context:
     def ssh(self, alias: str, cmd: str, *, stdin: str | None = None, timeout: float | None = None) -> str:
         """Sortie de la commande sur la machine (BatchMode : jamais de mot de passe demandé). Alias « local »
         (installation classique : la collectrice elle-même) : commande lancée sur place."""
-        argv = ["bash", "-c", cmd] if alias == "local" else ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", alias, cmd]
+        argv = ["bash", "-c", cmd] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", alias, cmd]
         try:
             r = subprocess.run(argv, input=stdin, capture_output=True, text=True, timeout=timeout or self.timeout)
         except subprocess.TimeoutExpired:

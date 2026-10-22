@@ -63,11 +63,14 @@ from connectors import mynetwork as mynetwork_conn
 import npmapi
 
 from config import CFG, next_timer_run
+from sshmux import SSH_MUX
 
 OUT = os.path.join(CFG["web_dir"], "data.json")
 META = CFG["meta"]
 DOCKER_CACHE = os.path.join(CFG["cache_dir"], "docker.json")
 DOCKER_CACHE_TTL = CFG["docker_cache_ttl"]
+PROCESS_CACHE = os.path.join(CFG["cache_dir"], "process.json")   # listening ports (ss) per machine: read every other collection
+PROCESS_CACHE_TTL = 30 * 60
 SSH_CACHE = os.path.join(CFG["cache_dir"], "ssh.json")
 SSH_CACHE_TTL = CFG["ssh_cache_ttl"]
 CACHE_SLACK = CFG["cache_slack"]  # marge : un cache de 30 min doit être périmé au passage suivant (cron 30 min)
@@ -188,13 +191,47 @@ def agent_reports() -> dict:
         return {}
 
 
-def _process_read(conn):
-    """Connecteur « process » d'une machine : {port: process} ; état ajouté au passage."""
-    t0, warning = time.time(), ""
+def _process_cached(ip: str) -> dict | None:
+    """The ports read less than PROCESS_CACHE_TTL ago for this machine ({"ports", "hidden", "t"}), else None."""
     try:
-        read = conn.collect()
+        with open(PROCESS_CACHE, encoding="utf-8") as f:
+            c = json.load(f).get(ip)
+    except (OSError, ValueError, AttributeError):
+        return None
+    if not isinstance(c, dict) or time.time() - c.get("t", 0) > PROCESS_CACHE_TTL - CACHE_SLACK:
+        return None
+    return {"ports": {int(p): v for p, v in (c.get("ports") or {}).items()}, "hidden": c.get("hidden", 0), "t": c["t"]}
+
+
+def _process_store(fresh: dict) -> None:
+    """Keeps the ports just read ({ip: read}) next to the others, written whole (tmp then replace)."""
+    try:
+        with open(PROCESS_CACHE, encoding="utf-8") as f:
+            all_ = json.load(f)
+    except (OSError, ValueError):
+        all_ = {}
+    all_ = all_ if isinstance(all_, dict) else {}
+    all_.update(fresh)
+    tmp = PROCESS_CACHE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(all_, f)
+    os.replace(tmp, PROCESS_CACHE)
+
+
+def _process_read(conn, fresh: dict | None = None):
+    """Connecteur « process » d'une machine : {port: process} ; état ajouté au passage. The listening ports change seldom: read over SSH
+    every other collection (PROCESS_CACHE_TTL), the last reading in between; what was read goes into `fresh` for the cache
+    (fresh None: read now, no cache)."""
+    t0, warning, ip = time.time(), "", conn.conf.get("ip")
+    try:
+        if fresh is not None and (cached := _process_cached(ip)):
+            read, age = cached, round((time.time() - cached["t"]) / 60)
+        else:
+            read, age = conn.collect(), None
+            if fresh is not None:
+                fresh[ip] = {"ports": read["ports"], "hidden": read.get("hidden", 0), "t": time.time()}
         got, hidden = read["ports"], read.get("hidden", 0)
-        ok, msg = True, f"{len(got)} port(s) en écoute"
+        ok, msg = True, f"{len(got)} port(s) en écoute" + (f" (relus il y a {age} min)" if age is not None else "")
         if hidden:   # ss sans root : les ports des autres comptes n'ont pas de nom
             warning = f"lecture partielle : {hidden} port(s) sans nom de processus, un accès root est nécessaire"
     except Exception as e:  # SSH coupé, ss absent, bug : machine sans process ce passage, comme avant
@@ -427,7 +464,7 @@ DNS_QPS = CFG["dns_qps"]
 
 def _on(alias, sh):
     """Commande shell sur la machine : en local pour la collectrice ("local"), sinon par SSH."""
-    return ["bash", "-c", sh] if alias == "local" else ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, sh]
+    return ["bash", "-c", sh] if alias == "local" else ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, sh]
 
 
 def adguard_sync_detect(dock):
@@ -1009,11 +1046,17 @@ def main():
                 "note": "vhost non trouvé (config non lisible : " + ", ".join(info.get("vhosts_unreadable", [])) + ")"
                 if info.get("vhosts_unreadable") else "vhost non trouvé"}
     progress(4, "process hors Docker")
+    fresh_ports = {}
     with ThreadPoolExecutor(4) as ex:
-        jobs = {ip: ex.submit(_process_read, c)
+        jobs = {ip: ex.submit(_process_read, c, fresh_ports)
                 for ip, c in ((c.conf["ip"], c) for c in connectors.instances(CFG, kind="inventory", meta=META_RAW)
                               if c.type == "process")}
     procs = {ip: j.result() for ip, j in jobs.items()}
+    if fresh_ports:
+        try:
+            _process_store(fresh_ports)
+        except OSError as e:   # no cache: the ports are simply read again next time
+            print(f"⚠ cache des ports non écrit : {e}", file=sys.stderr)
     # PC Windows lus par leur agent : ports à l'écoute et système viennent de son dernier relevé frais (rien lu par SSH)
     agent_sys, agent_apps, agent_fresh = {}, {}, {}
     for ip, a in agent_reports().items():

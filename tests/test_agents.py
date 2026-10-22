@@ -168,8 +168,7 @@ class Agents(unittest.TestCase):
         token, _ = self.create()
         self.assertEqual(self.send(token).status_code, 200)
         r = self.send(token)
-        self.assertEqual((r.status_code, r.json()["code"]), (429, "TOO_SOON"))
-        self.assertGreater(int(r.headers["Retry-After"]), 0)
+        self.assertEqual((r.status_code, r.json().get("skipped")), (200, True))   # « already received »: no retry, no new run of the agent's task
         agents.MIN_GAP = 0
         self.assertEqual(self.send(token).status_code, 200)
 

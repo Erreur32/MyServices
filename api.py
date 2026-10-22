@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import ipaddress
 import json
-import math
 import mimetypes
 import os
 import secrets
@@ -1381,24 +1380,23 @@ class NewAgent(BaseModel):
 PLAIN = "text/plain; charset=utf-8"   # scripts d'agent servis tels quels
 
 
-def too_soon(a: dict) -> JSONResponse | None:
-    """Réponse 429 si cet agent a déjà envoyé un relevé il y a moins de MIN_GAP secondes."""
+def too_soon(a: dict) -> dict | None:
+    """A report sent less than MIN_GAP seconds after the last one (a run at boot then one at sign-in): answered « already received »
+    with a 200, not a 429, so an agent does not retry it nor its scheduled task run the whole collection again."""
     import agents
-    remaining = agents.MIN_GAP - (time.time() - a["last_seen"]) if a["last_seen"] else 0
-    if remaining <= 0:
-        return None
-    wait = math.ceil(remaining)
-    return JSONResponse({"error": f"trop tôt, réessayer dans {wait} s", "code": "TOO_SOON"}, status_code=429, headers={**SECURITY_HEADERS, "Retry-After": str(wait)})
+    if a["last_seen"] and time.time() - a["last_seen"] < agents.MIN_GAP:
+        return {"ok": True, "skipped": True, "interval": agents.DEFAULT_INTERVAL}
+    return None
 
 
 def refresh_after_report(a: dict, report: dict, before, now) -> None:
-    """Relit la santé (et, au premier relevé ou après une mise à jour d'agent, la collecte) sans attendre le prochain horaire."""
+    """Relit la santé (et, au premier relevé ou après une mise à jour d'agent, la collecte) sans attendre le prochain horaire.
+    Only this machine is read again, from its report (--only, --agent: no SSH, no new call to an API), even when its level changed: its events
+    and alerts come from that pass as from a full one."""
     first, upgraded = not a["last_seen"], str(report.get("version") or "") != (a.get("version") or "")
     if core.enabled("health"):
-        if first or before != now:   # premier relevé ou niveau de la machine changé
-            core.run_task("health", f"relevé de l'agent {a['name']} : {before or 'premier'} → {now}")
-        else:   # chaque relevé rafraîchit la fiche de cette machine seule (lecture du relevé, sans SSH) : un poste rallumé réapparaît tout de suite
-            core.run_task("health", f"relevé de l'agent {a['name']}", ("--only", a["ip"]))
+        why = f"relevé de l'agent {a['name']}" + (f" : {before or 'premier'} → {now}" if first or before != now else "")
+        core.run_task("health", why, ("--only", a["ip"], "--agent"))
     # Premier relevé ou agent réinstallé dans une autre version : système, matériel et ports (lus à la collecte) apparaissent sans attendre l'horaire
     if (first or upgraded) and core.enabled("collect"):
         core.run_chain(["collect"], f"relevé de l'agent {a['name']} (version {report.get('version')})")

@@ -10,6 +10,7 @@ import re
 import subprocess
 
 from connectors.base import Connector, ConnectorError, Field
+from sshmux import SSH_MUX
 
 # Process locaux sans intérêt dans l'annuaire (ports RPC/NFS éphémères, résolveur, docker)
 NOISE_PORTS = {53, 111, 631, 2049, 5355}  # même chose vue par le port seul : DNS local, RPC, CUPS, NFS, LLMNR
@@ -27,7 +28,7 @@ def listening_read(alias):
     (compte sans root : il ne voit que ses propres process), pour dire que la lecture est partielle."""
     # Not root on the machine: a sudoers rule for « ss -tlnpH » alone (given in the page) shows every process; without one, plain ss
     cmd = ["ss", "-tlnpH"] if alias == "local" else \
-        ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, "sudo -n ss -tlnpH 2>/dev/null || ss -tlnpH"]
+        ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, "sudo -n ss -tlnpH 2>/dev/null || ss -tlnpH"]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
     except subprocess.TimeoutExpired:

@@ -10,6 +10,7 @@ import re
 import subprocess
 
 from connectors.base import Connector, Field, Result
+from sshmux import SSH_MUX
 
 DOCKER_FMT = ("{{.Names}}|{{.Image}}|{{.Ports}}|{{.Status}}|{{.Label \"com.docker.compose.project\"}}|"
               "{{.Label \"org.opencontainers.image.title\"}}|{{.Label \"org.opencontainers.image.description\"}}|"
@@ -40,7 +41,7 @@ def docker_containers(alias, absent: list | None = None):
     if alias == "local":
         cmd = ["docker", "ps", "-a", "--format", DOCKER_FMT]
     else:
-        cmd = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, f"docker ps -a --format '{DOCKER_FMT}'"]
+        cmd = ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, f"docker ps -a --format '{DOCKER_FMT}'"]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
     except subprocess.TimeoutExpired:
@@ -74,7 +75,7 @@ def docker_internal_ips(alias):
     sh = (f"docker network ls -q --filter driver=bridge | xargs -r docker network inspect --format '{NET_FMT}'; "
           f"ip -4 -o addr show scope global | awk '{{print \"{HOST_ADDR}=\" $4}}'")
     cmd = ["sh", "-c", sh] if alias == "local" else \
-        ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, sh]
+        ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, sh]
     try:
         out = subprocess.run(cmd, capture_output=True, text=True, timeout=20).stdout
     except subprocess.TimeoutExpired:

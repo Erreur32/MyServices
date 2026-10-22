@@ -13,6 +13,7 @@ import subprocess
 from pathlib import Path
 
 from config import CFG
+from sshmux import SSH_MUX
 
 SSH_DIR = Path.home() / ".ssh"
 
@@ -277,7 +278,7 @@ def parse_nics(raw: str) -> list[dict]:
 def host_info(alias: str) -> dict | None:
     """Infos d'une machine : 1 commande SSH (ou locale). None si injoignable."""
     cmd = ["bash", "-c", REMOTE] if alias == "local" else \
-        ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, REMOTE]
+        ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", alias, REMOTE]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
     except subprocess.TimeoutExpired:

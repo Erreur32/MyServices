@@ -43,6 +43,7 @@ from pathlib import Path
 import notify
 from config import CFG, next_timer_run
 import readers
+from sshmux import SSH_MUX
 
 STATE_FILE = Path(CFG["state_dir"]) / "health.json"
 CONNECTORS_STATE = Path(CFG["state_dir"]) / "connectors.json"   # shared readings of the connectors (readers.py, the collection)
@@ -136,7 +137,7 @@ def make_runner(host: dict):
         def run(cmd: str, timeout: int = 15) -> tuple[int, str]:
             # Repère avant la commande : un bandeau d'accueil (fastfetch, motd dans ~/.bashrc) précède sinon la sortie
             marked = host.get("os") != "windows"  # PowerShell n'a pas printf : Windows garde sa commande telle quelle
-            full = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", target, f"printf '%s\\n' {SSH_MARK}; {cmd}" if marked else cmd]
+            full = ["ssh", *SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", target, f"printf '%s\\n' {SSH_MARK}; {cmd}" if marked else cmd]
             try:
                 r = subprocess.run(full, capture_output=True, text=True, timeout=timeout)
             except subprocess.TimeoutExpired:
@@ -1226,9 +1227,10 @@ def host_from_api(hc: dict, b: dict) -> dict:
 API_REUSE_S = 600   # a service's API read less than 10 minutes ago is not read again for the health
 
 
-def api_systems(meta: dict) -> dict:
+def api_systems(meta: dict, cached_only: bool = False) -> dict:
     """{IP: système au format Beszel} des machines lues par l'API d'un service relié : Glances ou Netdata (sur la machine même), puis
-    Home Assistant (capteurs System Monitor / Supervisor de la machine hôte)."""
+    Home Assistant (capteurs System Monitor / Supervisor de la machine hôte). cached_only: what was read a moment ago, never a new call
+    (the pass of one machine after an agent report)."""
     import connectors
     import connectors.base as cbase
     from api_link import host_ip
@@ -1240,6 +1242,8 @@ def api_systems(meta: dict) -> dict:
     state = cbase.load_state(CONNECTORS_STATE)
     for c in conns:
         data = cbase.recent(c, state, max(API_REUSE_S, readers.max_age(c, CFG["fast_every"])) if readers.on(CFG) else API_REUSE_S)   # read by the server's reader or the collection a moment ago: no second call for the same data
+        if data is None and cached_only:
+            continue
         if data is None:
             data, st = cbase.run_isolated(c, state, 60)
             cbase.merge_state(CONNECTORS_STATE, state, [f"{c.type}/{c.name}"])
@@ -1971,6 +1975,10 @@ def main() -> int:
     agents = agent_reports()
     candidates, meta = load_hosts(set(agents))
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv[:-1] else None  # une seule machine (IP) : les autres gardent leur dernier relevé
+    # After an agent report (--agent): a machine read over SSH first keeps its SSH reading until the next pass (the report only complements it)
+    if only and "--agent" in sys.argv and any(hc["ip"] == only and hc["target"] and source_order(hc)[0] == "ssh" for hc in candidates):
+        print(f"= relevé d'agent de {only} : machine lue en SSH, rien à relire")
+        return 0
     previous, previous_asleep = [], []
     if only:
         try:
@@ -1979,7 +1987,7 @@ def main() -> int:
         except (OSError, ValueError):
             pass
     asleep = []
-    apis = api_systems(meta)
+    apis = api_systems(meta, cached_only=bool(only))
     # Beszel is read for a whole pass, or for the one machine asked for (even a « often off » one: Beszel may be telling it is up)
     needs_beszel = any(hc["target"] is None or "beszel" in source_order(hc) for hc in candidates if not only or hc["ip"] == only)
     besz, _ = beszel_systems(meta) if (not only or needs_beszel or only in meta.get("machines", {})) else ({}, [])

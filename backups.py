@@ -34,11 +34,12 @@ from pathlib import Path
 from config import CFG, HERE
 from connectors.backup_apis import DSM_FAIL, HomeAssistant, PbsBackups, SynologyBackups, Veeam
 from connectors.base import ConnectorError, Context
+from sshmux import SSH_MUX
 
 CONNECTOR_OF = {Veeam: ("veeam",), HomeAssistant: ("home-assistant",), PbsBackups: ("proxmox-backup",), SynologyBackups: ("synology",)}  # types de config.json dont un hôte « connector » reprend les réglages
 META = Path(CFG["backups_meta"])
 OUT_JSON = Path(CFG["web_dir"]) / "backups.json"
-SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=15"]
+SSH_OPTS = [*SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=15"]
 TIMEOUT = 240
 DISK_WARN, DISK_CRIT = 80, 90
 GRACE_H = 6  # une copie a ce délai pour rattraper une archive toute neuve

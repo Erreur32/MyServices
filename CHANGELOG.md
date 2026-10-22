@@ -18,6 +18,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Changed
 - **One SSH connection per machine for the whole health collection** instead of one per command: about 20 connections per machine and per pass become 3 (access check, every command, SMART for all the disks). Each command keeps its own time limit, and the outputs are read exactly as before.
+- **Fewer requests to the machines**: every SSH read of a pass (health, listening ports, Docker, machine info, hypervisors, NPM, AdGuard, backups) shares one connection per machine (ControlMaster, 60 s); the listening ports are read every other collection (30 min); an agent report re-reads only its own machine, from the report, with no SSH and no new API call, even when its level changed (before: a full health pass of every machine).
+- An agent report sent too soon after the last one is answered « already received » (200) instead of 429: the agent no longer retries it and its scheduled task no longer runs again.
 - Linux agent version 2 (the new checks; it updates itself when automatic updates are on). A report may carry commands up to 4000 characters long.
 
 ### Fixed
