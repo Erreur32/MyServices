@@ -19,5 +19,5 @@ if [ -z "$pane" ]; then
   exit 1
 fi
 log "starting MyServices dev (npm run dev) in $pane"
-"$HERDR" pane send-keys "$pane" C-u >/dev/null # text left on the prompt line (seen after a reboot) would be glued to the command
+"$HERDR" pane send-keys "$pane" ctrl+u >/dev/null # text left on the prompt line (seen after a reboot) would be glued to the command
 "$HERDR" pane run "$pane" "cd $ROOT && npm run dev"
