@@ -23,7 +23,8 @@ const KIND_CHOICE = [
 const chip = (on: boolean) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`;
 const toggled = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
-export function Notifications() {
+/** One part of the notifications, a sub-page of « Alertes » in the side menu: mine, the ready-made examples, or what was sent */
+export function Notifications({ part }: Readonly<{ part: "notifications" | "examples" | "sent" }>) {
   const [st, setSt] = useState<NotificationsState | null>(null), [error, setError] = useState("");
   const reload = useCallback(() => {
     read<NotificationsState>("notifications").then((s) => { setSt(s); setError(""); })
@@ -33,14 +34,14 @@ export function Notifications() {
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   return (
     <div className="flex flex-col gap-4">
-      <Card>
+      {part === "notifications" && <Card>
         <h2 className="flex items-center gap-2 font-bold"><Send size={16} />{tx("Notifications")}</h2>
-        <InfoNote className="mt-1">{tx("Des messages que vous composez : un rapport de vos machines à heure fixe, ou les événements d'un service ou d'une machine en direct. Ils partent sur les canaux de l'onglet Alertes (Discord, Telegram, webhook).")}</InfoNote>
-        {st.channels.filter((c) => c.enabled).length === 0 && <p className="mt-2 text-sm text-warn">{tx("Aucun canal actif : ajoutez-en un dans l'onglet Alertes pour recevoir quoi que ce soit.")}</p>}
-      </Card>
-      <List st={st} reload={reload} />
-      <Examples st={st} reload={reload} />
-      <Sent st={st} />
+        <InfoNote className="mt-1">{tx("Des messages que vous composez : un rapport de vos machines à heure fixe, ou les événements d'un service ou d'une machine en direct. Ils partent sur vos canaux (Alertes › Canaux : Discord, Telegram, webhook).")}</InfoNote>
+        {st.channels.filter((c) => c.enabled).length === 0 && <p className="mt-2 text-sm text-warn">{tx("Aucun canal actif : ajoutez-en un dans Alertes › Canaux pour recevoir quoi que ce soit.")}</p>}
+      </Card>}
+      {part === "notifications" && <List st={st} reload={reload} />}
+      {part === "examples" && <Examples st={st} reload={reload} />}
+      {part === "sent" && <Sent st={st} />}
     </div>
   );
 }
@@ -230,7 +231,7 @@ function Sent({ st }: { st: NotificationsState }) {
   if (!st.sent.length) return null;
   return (
     <Card>
-      <h2 className="mb-2 flex items-center gap-2 font-bold"><History size={16} aria-hidden />{tx("Derniers envois")} <Count n={st.sent.length} /></h2>
+      <h2 className="mb-2 flex items-center gap-2 font-bold"><History size={16} aria-hidden />{tx("Notifications envoyées")} <Count n={st.sent.length} /></h2>
       <ul className="flex flex-col divide-y divide-line/60 text-sm">
         {st.sent.map((s, i) => (
           <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">

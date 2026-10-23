@@ -14,7 +14,7 @@ describe("lib/tabs", () => {
     const security = NAV.flatMap((g) => g.items).find((i) => i.id === "security")!;
     expect(security.subs!.map((x) => x.id)).toContain("fail2ban");
     const hashes = NAV.flatMap((g) => g.items.flatMap((i) => i.subs ?? [i])).map((i) => i.hash);
-    for (const sec of ["machines", "connectors", "network", "backups", "alerts/alerts", "accounts", "api", "ssh", "tasks", "updates", "mail", "export", "requests"])
+    for (const sec of ["machines", "connectors", "network", "backups", "alerts/channels", "accounts", "api", "ssh", "tasks", "updates", "mail", "export", "requests"])
       expect(hashes).toContain(`settings/${sec}`);
   });
   it("TAB_IDS reprend chaque onglet une seule fois", () => {
