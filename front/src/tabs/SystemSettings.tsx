@@ -23,8 +23,9 @@ import { useDiscoveries } from "../components/DiscoveryCard";
 import { MailSettings } from "../components/MailSettings";
 import { ConfigTransfer } from "../components/ConfigTransfer";
 import { ScheduleHelp } from "../components/ScheduleHelp";
+import { OtherSchedules } from "../components/OtherSchedules";
 
-export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh"; snap: Snapshot }) {
+export function SystemSettings({ part, snap }: Readonly<{ part: "mail" | "export" | "info" | "tasks" | "ssh"; snap: Snapshot }>) {
   const [st, setSt] = useState<SystemState | null>(null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
@@ -37,8 +38,10 @@ export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh
   return (
     <div className="flex flex-col gap-4">
       {part === "ssh" && <SshKey ssh={st.ssh} snap={snap} />}
-      {part === "tasks" && <><Tasks tasks={st.tasks} netscan={st.netscan} beat={st.scheduler?.beat ?? null} reload={reload} /><AutoDiscoveries machines={snap.data.machine_list} /></>}
-      {part === "system" && <><MailSettings /><ConfigTransfer /><Info info={st.info} /></>}
+      {part === "tasks" && <><Tasks tasks={st.tasks} netscan={st.netscan} beat={st.scheduler?.beat ?? null} reload={reload} /><OtherSchedules /><AutoDiscoveries machines={snap.data.machine_list} /></>}
+      {part === "mail" && <MailSettings />}
+      {part === "export" && <ConfigTransfer />}
+      {part === "info" && <Info info={st.info} />}
     </div>
   );
 }
@@ -112,7 +115,7 @@ function SshKey({ ssh, snap }: { ssh: SystemState["ssh"]; snap: Snapshot }) {
           <ol className="flex flex-col gap-2.5">
             <li className={step}><span className={num}>1</span><span>{tx("Copiez la commande ci-dessus (le bouton « copier » fonctionne même clé masquée).")}</span></li>
             <li className={step}><span className={num}>2</span><span>{tx("Collez-la dans un terminal de la machine, connecté avec le compte que MyServices doit utiliser. Elle ajoute la clé à")} <code className="font-mono text-xs">~/.ssh/authorized_keys</code>.</span></li>
-            <li className={step}><span className={num}>3</span><span>{tx("Dans")} <a className="text-link hover:underline" href="#settings/machines">{tx("Réglages → Machines")}</a>, {tx("ouvrez la machine : « Autoriser la clé » vérifie la connexion.")}</span></li>
+            <li className={step}><span className={num}>3</span><span>{tx("Dans")} <a className="text-link hover:underline" href="#machines">{tx("Machines")}</a>, {tx("ouvrez la machine : « Autoriser la clé » vérifie la connexion.")}</span></li>
           </ol>
           <p className="mt-3 rounded-lg bg-bg2/60 px-3 py-2 text-xs text-muted">{tx("Le plus sûr : un compte dédié, dans les groupes docker et adm, plutôt que root (voir le README). Pour retirer l'accès, supprimez cette ligne de authorized_keys sur la machine.")}</p>
         </Card>

@@ -7,21 +7,24 @@ import { tx } from "../lib/i18n";
 import { useStoredFlag } from "../lib/storedFlag";
 import { Count } from "./ui";
 
-export function FoldPanel({ id, icon: Icon, title, count, tone = "off", extra, startFolded = false, children }: Readonly<{
-  id: string; icon: LucideIcon; title: string; count?: number; tone?: "off" | "warn" | "bad" | "ok"; extra?: ReactNode; startFolded?: boolean; children: ReactNode;
+export function FoldPanel({ id, icon: Icon, title, count, tone = "off", extra, startFolded = false, pinned = false, children }: Readonly<{
+  id: string; icon: LucideIcon; title: string; count?: number; tone?: "off" | "warn" | "bad" | "ok"; extra?: ReactNode; startFolded?: boolean; pinned?: boolean; children: ReactNode;
 }>) {
-  const [folded, setFolded] = useStoredFlag(`myservices.panel.${id}.folded`, startFolded);
+  const [stored, setFolded] = useStoredFlag(`myservices.panel.${id}.folded`, startFolded);
+  const folded = stored && !pinned;   // pinned: the panel is the page (a sub-page of the side menu), always open
   const Chevron = folded ? ChevronDown : ChevronUp;
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
-      <div className={`flex flex-wrap items-center gap-2 bg-bg px-4 py-3 ${folded ? "" : "border-b border-line/60"} ${FOLD_HEADER}`} {...foldHeaderProps(() => setFolded(!folded))}>
+      <div className={`flex flex-wrap items-center gap-2 bg-bg px-4 py-3 ${folded ? "" : "border-b border-line/60"} ${pinned ? "" : FOLD_HEADER}`} {...(pinned ? {} : foldHeaderProps(() => setFolded(!folded)))}>
         <Icon size={16} className="text-link" aria-hidden />
         <h2 className="font-bold">{title}</h2>
         {count != null && <Count n={count} tone={tone} />}
         {extra}
-        <button type="button" className="ml-auto text-dim hover:text-txt" aria-expanded={!folded} onClick={() => setFolded(!folded)} title={folded ? tx("Déplier") : tx("Replier")}>
-          <Chevron size={18} aria-hidden />
-        </button>
+        {!pinned && (
+          <button type="button" className="ml-auto text-dim hover:text-txt" aria-expanded={!folded} onClick={() => setFolded(!folded)} title={folded ? tx("Déplier") : tx("Replier")}>
+            <Chevron size={18} aria-hidden />
+          </button>
+        )}
       </div>
       {!folded && <div className="p-4">{children}</div>}
     </section>

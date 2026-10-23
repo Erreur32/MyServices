@@ -1,4 +1,6 @@
 // Dernière section des Réglages ouverte, retenue par le navigateur : « Réglages » du menu du compte y revient.
+import { notifyRoute } from "./route";
+
 const KEY = "ms.settings.last";
 
 export const lastSettingsSection = (): string => { try { return localStorage.getItem(KEY) || ""; } catch { return ""; } };
@@ -15,13 +17,14 @@ export function showInUrl(hash: string, replace = false): void {
   if (location.hash.slice(1) === hash) return;
   if (replace) history.replaceState(history.state, "", `#${hash}`);
   else history.pushState(history.state, "", `#${hash}`);
+  notifyRoute();
 }
 
 /** An old section id, moved elsewhere in Settings (`section`) or become a page apart (`redirect`, a full address without the leading « # »). */
 export interface SectionTarget { section?: string; redirect?: string }
 
-/** Settings sections that moved under another id (SSH key: now part of « Clés et API » ; Connecteurs and Machines kept their old menu-link ids) */
-const SECTION_ALIAS: Record<string, string> = { ssh: "api", sources: "connectors", agents: "machines" };
+/** Settings sections that moved under another id (« Sauvegarde et infos » split into E-mail, Export and Informations; Connecteurs and Machines kept their old menu-link ids) */
+const SECTION_ALIAS: Record<string, string> = { system: "mail", sources: "connectors", agents: "machines" };
 /** Old Settings sections, now a page apart (#help…) or a sub-tab of Requests and logs (#settings/requests/audit) ; « tasks » (Tâches et horaires) stays a section */
 const PAGE_REDIRECT: Record<string, string> = { audit: "settings/requests/audit", logs: "settings/requests/logs", help: "help", about: "about" };
 
@@ -31,3 +34,4 @@ export function normalizeSection(id: string): SectionTarget {
   if (Object.hasOwn(PAGE_REDIRECT, id)) return { redirect: PAGE_REDIRECT[id] };
   return { section: Object.hasOwn(SECTION_ALIAS, id) ? SECTION_ALIAS[id] : id };
 }
+

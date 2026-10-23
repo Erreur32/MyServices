@@ -9,8 +9,7 @@ import { tx } from "../lib/i18n";
 import type { Host, Machine } from "../types";
 import { NoteLine } from "./form";
 import { InfoNote } from "./InfoNote";
-import { Overlay } from "./Overlay";
-import { Badge } from "./ui";
+import { Badge, Card } from "./ui";
 
 export interface ManualInitial { name: string; ip: string; port: number; scheme: string }
 interface TryResult { up: boolean; ms: number | null; web: "ui" | "api" | null; title: string | null; code: number | null; error: string | null }
@@ -86,7 +85,8 @@ export function ManualService({ machines, initial, onDone, onClose }: Readonly<{
     if (okSaved) { onDone(); onClose(); }
   };
   return (
-    <Overlay medium onClose={onClose} title={<><PenLine size={16} aria-hidden />{initial ? tx("Modifier le service") : tx("Déclarer un service")}</>}>
+    <Card>
+      <h2 className="flex items-center gap-2 font-bold"><PenLine size={16} aria-hidden />{initial ? tx("Modifier le service") : tx("Déclarer un service")}</h2>
       <div className="mt-3 flex flex-col gap-3">
         <InfoNote>{tx("Pour un service que la détection ne voit pas : une page sur une machine sans SSH ni agent, un appareil, un port à surveiller. Il est sondé à chaque relevé comme les autres (joignable ou non, page web, titre).")}</InfoNote>
         <label className="flex flex-col gap-1 text-sm text-muted">{tx("Nom")}
@@ -110,6 +110,6 @@ export function ManualService({ machines, initial, onDone, onClose }: Readonly<{
         </div>
         <NoteLine note={note} />
       </div>
-    </Overlay>
+    </Card>
   );
 }

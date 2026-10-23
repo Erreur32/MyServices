@@ -8,7 +8,7 @@ import { act, input, primary, quiet, type Note } from "../lib/forms";
 import type { Host } from "../types";
 import { Field, NoteLine, TagInput } from "./form";
 import { IconChoice, type IconOption } from "./IconChoice";
-import { Overlay } from "./Overlay";
+import { Card } from "./ui";
 
 type Web = "auto" | "ui" | "api" | "none";
 const WEB: IconOption<Web>[] = [
@@ -46,7 +46,8 @@ export function ServiceEdit({ r, name, onClose }: Readonly<{ r: Host; name: stri
     if (ok) onClose();
   };
   return (
-    <Overlay medium onClose={onClose} title={<>{tx("Modifier")} {name}</>}>
+    <Card>
+      <h2 className="flex items-center gap-2 font-bold">{tx("Modifier")} {name}</h2>
       <form className="mt-3 flex flex-col gap-4" onSubmit={(e) => void save(e)}>
         <Field label={tx("Catégorie")}>
           <select className={input} value={category} onChange={(e) => setCategory(e.target.value)} disabled={!cats}>
@@ -74,7 +75,7 @@ export function ServiceEdit({ r, name, onClose }: Readonly<{ r: Host; name: stri
           <button type="submit" className={primary} disabled={busy}><Save size={14} aria-hidden />{tx("Enregistrer")}</button>
         </div>
       </form>
-    </Overlay>
+    </Card>
   );
 }
 

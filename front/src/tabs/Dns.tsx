@@ -3,7 +3,7 @@
 // rewrites differing between instances or orphaned), then the synchronisation and instance cards (kept, the same frame for
 // AdGuard or another local DNS cluster) and « See all », folded: the detail tables and the machine names. Without a DNS tool
 // wired the page stays: the server asks the resolvers of the container.
-import { Layers, Network as NetworkIcon, RefreshCw } from "lucide-react";
+import { Network as NetworkIcon, RefreshCw } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { Snapshot } from "../api";
 import type { Dns, Host, Rewrite } from "../types";
@@ -13,7 +13,7 @@ import { Badge, Empty, TableCard, type Tone } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
 import { tx } from "../lib/i18n";
 import { hm } from "../lib/format";
-import { FoldPanel } from "../components/FoldPanel";
+import { usePageView, useRoute } from "../lib/route";
 import { StatTile } from "../components/StatTile";
 import { WatchPanel } from "../components/WatchPanel";
 import { quiet, worstTone } from "../lib/forms";
@@ -187,14 +187,27 @@ function AllTables({ g, hosts, lit, st, diff }: Readonly<{ g: Dns; hosts: Host[]
   );
 }
 
+/** Sub-pages of DNS in the side menu (#dns/<view>) */
+const VIEWS = ["watch", "servers", "all"] as const;
+type View = (typeof VIEWS)[number];
+/** The sub-page holding a section: the servers, or one of the tables of « Details » */
+const viewOf = (anchor: string): View => (anchor === "servers" ? "servers" : "all");
+/** Opened without a view: the one of the section asked for, else « To watch » when something is */
+function openingView(want: string | undefined, watching: number): View {
+  if (want) return viewOf(want);
+  return watching ? "watch" : "servers";
+}
+
 export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Selected }>) {
   const g = snap.data.dns;
   const want = initial?.anchor?.[0];
   const [lit, setLit] = useState(want);
-  const [allKey, setAllKey] = useState(0);   // bumped to remount « See all » open when a row leads into it
-  const show = (anchor: string) => {   // a row of « To watch » leads to its section: « See all » opens first when the section lives there
-    if (!document.getElementById(`dns-${anchor}`)) { try { localStorage.setItem("myservices.panel.dns-all.folded", "0"); } catch { /* storage refused */ } setAllKey((n) => n + 1); }
-    setTimeout(() => { document.getElementById(`dns-${anchor}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); setLit(anchor); setTimeout(() => setLit(undefined), 2500); }, 50);
+  const at = Date.parse(snap.data.generated);
+  const watch = g ? dnsWatch(g, snap.data.hosts, at) : [];
+  const view = usePageView(useRoute(), "dns", VIEWS, openingView(want, watch.length));
+  const show = (anchor: string) => {   // a row of « To watch » leads to the sub-page of its section
+    location.hash = `dns/${viewOf(anchor)}`;
+    setTimeout(() => { document.getElementById(`dns-${anchor}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); setLit(anchor); setTimeout(() => setLit(undefined), 2500); }, 150);
   };
   useEffect(() => {
     if (!want) return;
@@ -203,7 +216,6 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
     return () => clearTimeout(t);
   }, [want]);
   if (!g) return <Empty>{tx("Aucun serveur DNS joignable depuis MyServices : ni outil DNS branché, ni résolveur dans le conteneur.")}</Empty>;
-  const at = Date.parse(snap.data.generated);
   const st = dnsSync(g, at), sync = Object.values(g.sync || {})[0];
   const last = sync?.last_done ? Math.max(...Object.values(sync.last_done).map((t) => new Date(t).getTime())) : null;
   const all = [...g.rewrites_diff, ...g.user_rules_diff];
@@ -211,9 +223,9 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
   let content = tx("identique");
   if (diff.length) content = tx("{0} différence(s)", diff.length);
   else if (waiting) content = tx("{0} en attente de la synchro", waiting);
-  const fig = dnsFigures(g, snap.data.hosts, at), watch = dnsWatch(g, snap.data.hosts, at);
+  const fig = dnsFigures(g, snap.data.hosts, at);
   const tools = g.resolver ? tx("résolveur du conteneur : {0}", g.resolver.servers.join(", ")) : tx("AdGuard Home ×{0}", Object.keys(g.servers).length);
-  const machines = g.machines ?? [], issues = snap.data.hosts.filter((r) => r.dns && r.enabled && r.dns.issues.length).length;
+  const machines = g.machines ?? [];
   return (
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
@@ -222,14 +234,12 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
         {snap.me.role === "admin" && <a href="#settings/connectors" className="ml-auto text-sm text-link hover:underline">{tx("Connecteurs")} ›</a>}
       </div>
       <Figures g={g} fig={fig} st={st} last={last} />
-      <Watch watch={watch} onShow={show} />
-      <Anchor id="servers" lit={lit}><div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {view === "watch" && <Watch watch={watch} onShow={show} />}
+      {view === "servers" && <Anchor id="servers" lit={lit}><div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
         {!g.resolver && <SyncCard g={g} st={st} last={last} content={content} diffCount={diff.length} />}
         {Object.entries(g.servers).map(([ip, v]) => <ServerCard key={ip} ip={ip} v={v} origin={sync?.origin} />)}
-      </div></Anchor>
-      <FoldPanel key={allKey} id="dns-all" icon={Layers} title={tx("Tout voir")} count={diff.length + g.orphans.length + (g.invalid?.length ?? 0) + (g.direct?.length ?? 0) + issues + machines.length} startFolded>
-        <AllTables g={g} hosts={snap.data.hosts} lit={lit} st={st} diff={diff} />
-      </FoldPanel>
+      </div></Anchor>}
+      {view === "all" && <AllTables g={g} hosts={snap.data.hosts} lit={lit} st={st} diff={diff} />}
     </div>
   );
 }

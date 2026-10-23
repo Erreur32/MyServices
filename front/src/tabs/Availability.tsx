@@ -1,5 +1,6 @@
 // Historique → Disponibilité : taux de disponibilité de chaque service, machine et sonde Uptime Kuma, relevé à chaque collecte
 // (availability.py, SQLite). Une case par heure (24 h) ou par jour ; le pire en premier. Les certificats sont dans l'onglet Sécurité.
+import { StatTile } from "../components/StatTile";
 import { Activity, Globe, Monitor } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { read, type Snapshot } from "../api";
@@ -34,7 +35,13 @@ function Strip({ cells, step }: { cells: Cell[]; step: Report["step"] }) {
   );
 }
 
-export function Availability({ snap, middle }: { snap: Snapshot; middle?: ReactNode }) {   // middle: the Events / Availability switch, in the period row
+/** Colour of an availability in a figure */
+export const tileTone = (p: number): "ok" | "warn" | "bad" => {
+  if (p >= 99.9) return "ok";
+  return p >= 95 ? "warn" : "bad";
+};
+
+export function Availability({ snap }: Readonly<{ snap: Snapshot }>) {
   const [days, setDays] = useState(() => { try { const v = Number(localStorage.getItem(DAYS_KEY)); return PERIODS.some(([d]) => d === v) ? v : 7; } catch { return 7; } });
   const [rep, setRep] = useState<Report | null>(null), [error, setError] = useState("");
   useEffect(() => { read<Report>(`availability?days=${days}`).then((r) => { setRep(r); setError(""); }).catch((e) => setError(String(e.message || e))); }, [days, snap.data.generated]);
@@ -58,17 +65,21 @@ export function Availability({ snap, middle }: { snap: Snapshot; middle?: ReactN
   else if (!rep) notice = <p className="py-8 text-muted">{tx("Chargement…")}</p>;
   else if (!items.length) notice = <Empty>{tx("Pas encore de relevé : la disponibilité se remplit à chaque collecte (toutes les 15 minutes par défaut).")}</Empty>;
 
+  const downNow = items.filter((x) => x.last && !x.last.up).length, under = items.filter((x) => x.uptime < 95).length;
   return (
     <div>
+      {items.length > 0 && (
+        <div className="mb-3 flex gap-2.5 overflow-x-auto pb-1">
+          {(["service", "machine", "kuma"] as const).map((k) => { const a = avg(k); return a == null ? null : <StatTile key={k} n={pct(a)} label={KIND[k][0]} tone={tileTone(a)} sub={tx("moyenne sur la période")} />; })}
+          <StatTile n={downNow} label={tx("En panne maintenant")} tone={downNow ? "bad" : "ok"} />
+          <StatTile n={under} label={tx("Sous 95 %")} tone={under ? "warn" : "ok"} />
+        </div>
+      )}
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
         {PERIODS.map(([d, l]) => (
           <button key={d} type="button" onClick={() => pick(d)}
             className={`rounded-full border px-3 py-1 text-sm ${days === d ? "border-link bg-link/15 text-txt" : "border-line bg-card text-muted hover:text-txt"}`}>{l}</button>
         ))}
-        {middle && <span className="mx-auto">{middle}</span>}
-        <span className={`${middle ? "" : "ml-auto "}flex flex-wrap gap-3 text-sm text-muted`}>
-          {(["service", "machine", "kuma"] as const).map((k) => { const a = avg(k); return a == null ? null : <span key={k}>{KIND[k][0]} <b className={pctTone(a)}>{pct(a)}</b></span>; })}
-        </span>
       </div>
       {notice ?? (rep && <>
           <FilterBar f={f} placeholder={tx("Service, machine, adresse…")} />

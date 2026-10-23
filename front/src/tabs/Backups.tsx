@@ -1,6 +1,7 @@
 // Sauvegardes (backups.py) in « state » mode: four figures, then the sets to watch (each unfolds: what is wrong, every place of the set, the cron
 // line that produces it, the settings), then, folded, every set and the view by machine (disks, latest local backup, copies, sets produced,
 // local backup folders, unclaimed cron lines). The settings stay in Réglages → Sauvegardes (« Régler ce jeu »).
+import { usePageView } from "../lib/route";
 import { ChevronDown, ChevronUp, HardDrive, Layers, Monitor, Settings2, Terminal } from "lucide-react";
 import { Fragment, useCallback, useMemo, useState } from "react";
 import { type Snapshot } from "../api";
@@ -187,11 +188,20 @@ function ByMachine({ b, initial }: Readonly<{ b: BackupsData; initial?: Selected
   );
 }
 
-export function Backups({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Selected }>) {
+const VIEWS = ["watch", "all", "machines"] as const;
+type View = (typeof VIEWS)[number];
+
+/** Opened without a view: « To watch » when something is (and no filter came with it), else the main view, by machine */
+function defaultView(watched: number, filtered: boolean): View {
+  return watched && !filtered ? "watch" : "machines";
+}
+
+export function Backups({ snap, initial, route }: Readonly<{ snap: Snapshot; initial?: Selected; route: string }>) {
   const b = snap.backups;
+  const watch = toWatch(b?.sets ?? []);
+  const view = usePageView(route, "backups", VIEWS, defaultView(watch.length, !!initial && Object.keys(initial).length > 0));
   if (!b) return <Empty>{tx("Sauvegardes pas encore relevées.")}</Empty>;
   const sm = b.summary, fig = figures(b);
-  const watch = toWatch(b.sets ?? []);
   const all = [...(b.sets ?? [])].sort((a, x) => Number(a.archived) - Number(x.archived) || rank(x.level) - rank(a.level) || a.label.localeCompare(x.label));   // archived sets last, kept visible here
   const worst = worstTone(watch.some((s) => s.level === "crit" || s.level === "down"), watch.length > 0);
   const sources = [...new Set((b.hosts ?? []).map((h) => h.kind).filter(Boolean))];
@@ -200,7 +210,6 @@ export function Backups({ snap, initial }: Readonly<{ snap: Snapshot; initial?: 
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="flex items-center gap-2 text-xl font-bold"><HardDrive size={18} aria-hidden />{tx("Sauvegardes")}</h1>
         <HeadTags counts={[tx("{0} jeux", sm.sets), { text: tx("{0} machines", sm.hosts), title: sources.join(", ") || undefined }]} at={b.generated} />
-        {snap.me.role === "admin" && <a href="#settings/backups" className="ml-auto text-sm text-link hover:underline">{tx("Réglages des sauvegardes")} ›</a>}
       </div>
       <div className="flex gap-2.5 overflow-x-auto pb-1">
         <StatTile n={fig.ok} label={tx("À jour")} tone="ok" sub={fig.offsiteExpected ? tx("copie ailleurs : {0} sur {1}", fig.offsiteOk, fig.offsiteExpected) : undefined} />
@@ -209,16 +218,21 @@ export function Backups({ snap, initial }: Readonly<{ snap: Snapshot; initial?: 
         <StatTile n={fig.last ? dateTime(fig.last.mtime * 1000) : "-"} label={tx("Dernière archive")} sub={fig.last ? `${short(fig.last.set.label)} · ${fig.last.name}` : tx("aucune archive vue")} />
       </div>
 
-      <WatchPanel id="backups" tone={worst} count={watch.length} hint={tx("jeux en retard, absents, en erreur ou sans copie à jour")}>
-        {watch.length ? <SetsTable sets={watch} b={b} snap={snap} /> : <p className="px-4 py-3 text-sm text-ok">{tx("Tous les jeux suivis sont à jour.")}</p>}
-      </WatchPanel>
-
-      <FoldPanel id="backups-all" icon={Layers} title={tx("Tout voir")} count={all.length} startFolded>
-        <SetsTable sets={all} b={b} snap={snap} sizes />
-      </FoldPanel>
-      <FoldPanel id="backups-hosts" icon={Monitor} title={tx("Par machine")} count={b.hosts?.length ?? 0} startFolded>
-        <ByMachine b={b} initial={initial} />
-      </FoldPanel>
+      {view === "watch" && (
+        <WatchPanel id="backups" tone={worst} count={watch.length} keep pinned hint={tx("jeux en retard, absents, en erreur ou sans copie à jour")}>
+          {watch.length ? <SetsTable sets={watch} b={b} snap={snap} /> : <p className="px-4 py-3 text-sm text-ok">{tx("Tous les jeux suivis sont à jour.")}</p>}
+        </WatchPanel>
+      )}
+      {view === "all" && (
+        <FoldPanel id="backups-all" icon={Layers} title={tx("Tous les jeux")} count={all.length} pinned>
+          <SetsTable sets={all} b={b} snap={snap} sizes />
+        </FoldPanel>
+      )}
+      {view === "machines" && (
+        <FoldPanel id="backups-hosts" icon={Monitor} title={tx("Par machine")} count={b.hosts?.length ?? 0} pinned>
+          <ByMachine b={b} initial={initial} />
+        </FoldPanel>
+      )}
     </div>
   );
 }

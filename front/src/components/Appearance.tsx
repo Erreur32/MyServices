@@ -1,21 +1,18 @@
-// Apparence (thème, logo de l'en-tête, langue, largeur de la page), retenue par le navigateur : dans le profil de chaque compte,
+// Apparence (thème, logo de l'en-tête, langue, menu replié), retenue par le navigateur : dans le profil de chaque compte,
 // lecture seule comprise (c'est un choix personnel, pas un réglage de l'application).
-import { Image, Languages, Moon, MoveHorizontal, Palette, RotateCcw, Sun } from "lucide-react";
+import { Image, Languages, Moon, MousePointer2, MousePointerClick, Palette, PanelLeft, Sun } from "lucide-react";
 import type { ReactNode } from "react";
-import { CONTENT_WIDTH, setHeaderLogo, useHeaderLogo, type HeaderLogo, type Theme } from "../theme";
+import { setFlyout, setHeaderLogo, useFlyout, useHeaderLogo, type FlyoutMode, type HeaderLogo, type Theme } from "../theme";
 import { LANG, setLang, tx, type Lang } from "../lib/i18n";
 import { Flag } from "./Flag";
 import { Card } from "./ui";
 import { IconChoice, type IconOption } from "./IconChoice";
-import { quiet } from "../lib/forms";
 import { InfoNote } from "./InfoNote";
 
 /** Réglages d'apparence tenus par App (appliqués à toute la page). */
 export interface Look {
   theme: Theme;
   setTheme: (t: Theme) => void;
-  width: number;
-  setWidth: (px: number) => void;
 }
 
 const LOGO_OPTIONS: IconOption<HeaderLogo>[] = [
@@ -23,14 +20,16 @@ const LOGO_OPTIONS: IconOption<HeaderLogo>[] = [
   { value: "grid", label: tx("Grille sans fond"), hint: tx("La même grille, sans le carré sombre : lisible sur clair comme sur sombre"), icon: <img src={`${import.meta.env.BASE_URL}logo-grid.svg`} alt="" className="h-9 w-9" /> },
 ];
 
-export function Appearance({ look }: { look: Look }) {
+const FLYOUT_OPTIONS: IconOption<FlyoutMode>[] = [
+  { value: "hover", label: tx("Au survol"), hint: tx("Les sous-pages s'ouvrent dès que la souris passe sur l'icône"), icon: <MousePointer2 size={26} aria-hidden /> },
+  { value: "click", label: tx("Au clic"), hint: tx("Les sous-pages s'ouvrent seulement en cliquant sur l'icône"), icon: <MousePointerClick size={26} aria-hidden /> },
+];
+
+export function Appearance({ look }: Readonly<{ look: Look }>) {
   const themes: { id: Theme; label: string; icon: ReactNode; swatch: string }[] = [
     { id: "dark", label: tx("Sombre"), icon: <Moon size={16} />, swatch: "bg-[#0c0e14]" },
     { id: "light", label: tx("Clair"), icon: <Sun size={16} />, swatch: "bg-[#f4f6fa]" },
   ];
-  // Le dernier cran (max + un pas) = pleine largeur, stockée 0
-  const fullNotch = CONTENT_WIDTH.max + CONTENT_WIDTH.step;
-  const full = look.width === CONTENT_WIDTH.full;
   return (
     <div className="flex flex-col gap-4">
       <Card>
@@ -62,21 +61,9 @@ export function Appearance({ look }: { look: Look }) {
         </div>
       </Card>
       <Card>
-        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="inline-flex items-center gap-2 font-bold"><MoveHorizontal size={16} />{tx("Largeur de la page")}</h2>
-          <button type="button" className={quiet} onClick={() => look.setWidth(CONTENT_WIDTH.default)} disabled={look.width === CONTENT_WIDTH.default}>
-            <RotateCcw size={14} />{tx("Par défaut")}
-          </button>
-        </div>
-        <InfoNote className="mb-3">
-          {tx("Largeur maximale du contenu (en-tête, onglets, pages). Le cran le plus à droite utilise toute la largeur de l'écran.")}
-        </InfoNote>
-        <div className="flex items-center gap-4">
-          <input type="range" className="range flex-1" min={CONTENT_WIDTH.min} max={fullNotch} step={CONTENT_WIDTH.step}
-            value={full ? fullNotch : look.width} aria-label={tx("Largeur de la page")}
-            onChange={(e) => { const px = Number(e.target.value); look.setWidth(px >= fullNotch ? CONTENT_WIDTH.full : px); }} />
-          <span className="w-32 whitespace-nowrap text-right font-mono text-sm tabular-nums">{full ? tx("Pleine largeur") : `${look.width} px`}</span>
-        </div>
+        <h2 className="mb-1 flex items-center gap-2 font-bold"><PanelLeft size={16} aria-hidden />{tx("Menu replié")}</h2>
+        <InfoNote className="mb-3">{tx("Quand le menu de gauche est réduit en icônes, ses sous-pages s'ouvrent dans un petit panneau à côté de l'icône.")}</InfoNote>
+        <IconChoice label={tx("Menu replié")} value={useFlyout()} onPick={setFlyout} options={FLYOUT_OPTIONS} />
       </Card>
       <InfoNote>{tx("Retenus par ce navigateur seulement.")}</InfoNote>
     </div>

@@ -10,7 +10,6 @@
   --ok: 76 208 127; --warn: 232 163 61; --bad: 240 106 106; --link: 36 150 237;
   --npm: 250 164 47; --loc: 56 189 248; --apache: 192 132 252;
   color-scheme: dark;
-  --content-max: 1760px; /* largeur de la page, réglable (Réglages → Apparence) */
 }
 :root.light {
   --bg: 244 246 250; --bg2: 236 239 245; --card: 255 255 255; --line: 218 223 232;

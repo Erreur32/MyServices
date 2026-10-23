@@ -1,20 +1,19 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { Check, ChevronRight, EyeOff, HelpCircle, Loader2, Package, Pencil, Play, Plug, Plus, RotateCcw, ScanSearch, Search, ShieldCheck, Trash2, X } from "lucide-react";
+import { Check, EyeOff, HelpCircle, Loader2, Package, Pencil, Play, Plug, Plus, RotateCcw, ScanSearch, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Overlay } from "../components/Overlay";
 import { Copyable, Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { SecretInput } from "../components/SecretInput";
-import { FOLD, FOLD_HEAD } from "../components/NetworkStep";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
-import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service } from "../types";
+import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service } from "../types";
 import { configFor, modeOf } from "../lib/connectorModes";
 import { takeFocus, takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
@@ -31,16 +30,44 @@ const KIND: Record<string, string> = {
 };
 
 // Proposé depuis « Premiers pas » : lu une seule fois, à l'ouverture de l'onglet
-export function Connectors({ snap }: { snap: Snapshot }) {
+/** Sub-page of Connectors in the address (#settings/connectors/available): my connectors, the catalogue, or the services found on the network */
+export type ConnectorsPart = "mine" | "available" | "detected" | "read";
+export const connectorsPart = (v?: string): ConnectorsPart => (v === "available" || v === "detected" || v === "read" ? v : "mine");
+const MINE = "settings/connectors";
+
+/** Tools already read over SSH or by an agent on a followed machine (AdGuard, Proxmox, ESXi, KVM, Hyper-V…): a connector would add nothing */
+function ReadElsewhere({ list, types, collect }: Readonly<{ list: ConnectorStatus[]; types: ConnectorType[]; collect: ReturnType<typeof useCollectTask> }>) {
+  return (
+    <Card>
+      <h2 className="flex items-center gap-2 font-bold"><Plug size={16} aria-hidden />{tx("Déjà lus par SSH ou agent")} <Count n={list.length} /></h2>
+      <InfoNote className="mt-1">{tx("Trouvés sur une machine suivie et lus par SSH ou par l'agent (AdGuard, Proxmox, ESXi, KVM, Hyper-V…) : inutile de les ajouter comme connecteur. Un connecteur n'apporte quelque chose que s'il lit une API que la machine ne montre pas.")}</InfoNote>
+      {list.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucun outil lu de cette façon pour l'instant.")}</p>}
+      <ul className="mt-2 flex flex-col divide-y divide-line/60">
+        {list.map((o) => {
+          const label = types.find((t) => t.type === o.type)?.label ?? o.label ?? o.type, icon = appIcon([label]);
+          return (
+            <li key={`${o.type}/${o.name}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 text-sm">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">{icon ? <img src={icon} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}</span>
+              <b>{label}</b><Dim>· {o.name}</Dim><Badge tone="off">{o.via === "agent" ? tx("agent") : "SSH"}</Badge>
+              <span className="ml-auto"><StatusLine s={o} collect={collect} /></span>
+              <a href="#machines" className="text-xs text-link hover:underline">{tx("Machines")} ›</a>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
+export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: ConnectorsPart }>) {
   const [prefill] = useState(takePrefill);
   const [focusKey] = useState(takeFocus);   // « type/nom » du connecteur à montrer (venu de Réglages → Agents)
   const [st, setSt] = useState<ConnectorsState | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
   const [edited, setEditing] = useState("");  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
-  const [overlay, setOverlay] = useState<Proposal | null>(null);   // service détecté à activer : son formulaire s'ouvre par-dessus
+  const [linking, setLinking] = useState<Proposal | null>(null);   // service détecté à activer : son formulaire prend la place de la liste
   const [saved, setSaved] = useState<string[]>([]);   // detected services just activated: hidden at once, before any reload
-  const [picking, setPicking] = useState(false);  // mini cartes des connecteurs disponibles, ouvertes par le « + »
   const [cat, setCat] = useState(""), [query, setQuery] = useState("");   // category and search of the picker (empty: all)
   const [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false), [srcKey, setSrcKey] = useState(""), [toggling, setToggling] = useState("");   // toggling: the connector whose switch waits for the answer
   const collect = useCollectTask();
@@ -53,80 +80,13 @@ export function Connectors({ snap }: { snap: Snapshot }) {
 
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   const type = st.types.find((t) => t.type === adding);
-  // Read over SSH because a machine declares it (AdGuard): shown with « My connectors », nothing to add for them
-  const bySsh = st.others.filter((o) => o.via === "ssh" || st.types.some((t) => t.type === o.type));
+  // Read over SSH or by an agent because a machine declares it (AdGuard, Proxmox by pvesh, Hyper-V): nothing to add for them
+  const readElsewhere = st.others.filter((o) => o.via === "ssh" || o.via === "agent" || st.types.some((t) => t.type === o.type));
   // An instance deleted (or renamed) while its form was open no longer locks the other buttons
   const editing = st.instances.some((i) => `${i.type}/${i.name}` === edited) ? edited : "";
-  return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Mes connecteurs")} <Count n={st.instances.length} /></h2>
-          <button type="button" className={`${primary} disabled:opacity-50`} aria-expanded={picking} disabled={!!editing && !picking}
-            title={editing ? tx("Terminez ou annulez la modification en cours avant d'ajouter un connecteur") : undefined} onClick={() => setPicking(!picking)}>
-            {picking ? <X size={14} /> : <Plus size={14} />}{picking ? tx("Fermer") : tx("Ajouter un connecteur")}
-          </button>
-        </div>
-        {bySsh.length > 0 && (   // folded by default, in place of the former explanation: what SSH already reads needs no connector
-          <details className={`mt-3 ${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
-            <summary className={FOLD_HEAD}>
-              <ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
-              <Plug size={16} aria-hidden />{tx("Déjà lus par SSH")} <Count n={bySsh.length} />
-              <span className="font-normal text-muted">{tx("rien à ajouter pour eux")}</span>
-            </summary>
-            <InfoNote className="mt-1">{tx("Trouvés sur une machine suivie et lus par SSH (AdGuard, Proxmox, ESXi, KVM…) : inutile de les ajouter ici. Un connecteur n'apporte quelque chose que s'il lit une API que SSH ne voit pas.")}</InfoNote>
-            <ul className="mt-2 flex flex-col divide-y divide-line/60">
-              {bySsh.map((o) => {
-                const label = st.types.find((t) => t.type === o.type)?.label ?? o.label ?? o.type, icon = appIcon([label]);
-                return (
-                  <li key={`${o.type}/${o.name}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 text-sm">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">{icon ? <img src={icon} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}</span>
-                    <b>{label}</b><Dim>· {o.name}</Dim><Badge tone="off">SSH</Badge>
-                    <span className="ml-auto"><StatusLine s={o} collect={collect} /></span>
-                    <a href="#settings/machines" className="text-xs text-link hover:underline">{tx("Réglages → Machines")}</a>
-                  </li>
-                );
-              })}
-            </ul>
-          </details>
-        )}
-        {picking && (
-          <label className="mt-3 flex max-w-md items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-2 focus-within:border-link">
-            <Search size={16} className="text-dim" aria-hidden />
-            <input type="search" autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tx("Chercher un connecteur (nom, catégorie…)")}
-              className="w-full bg-transparent text-sm text-txt outline-none placeholder:text-dim" />
-          </label>
-        )}
-        {picking && <CategoryChips types={st.types} cat={cat} setCat={setCat} />}
-        {picking && (
-          <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label={tx("Connecteurs disponibles")}>
-            {st.types.filter((t) => (!cat || t.category === cat) && searchHit([t.label, t.type, catName(t.category ?? ""), ...t.kinds.map((k) => KIND[k] || k)].join(" "), query))
-              .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })).map((t) => {
-              const icon = appIcon([t.label]), n = st.instances.filter((i) => i.type === t.type).length, ssh = bySsh.filter((o) => o.type === t.type).length;
-              return (
-                <li key={t.type}>
-                  <button type="button" onClick={() => { setAdding(t.type); setPicking(false); }}
-                    className="flex h-full w-full items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 text-left transition-colors hover:border-link hover:bg-link/10">
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
-                      {icon ? <img src={icon} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <b className="block truncate text-sm text-txt">{t.label}</b>
-                      <span className="block truncate text-xs text-dim">{t.kinds.map((k) => KIND[k] || k).join(" · ")}{n > 0 && ` · ${tx("{0} déjà", n)}`}</span>
-                      {ssh > 0 && <span className="block truncate text-xs font-semibold text-ok" title={tx("Déjà lu par SSH sur sa machine : un connecteur ferait doublon, sauf pour un autre serveur")}>{tx("déjà lu par SSH ({0})", ssh)}</span>}
-                    </span>
-                    <Plus size={15} className="shrink-0 text-dim" aria-hidden />
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {type && <ConnectorForm key={type.type} type={type} hosts={snap.data.hosts} prefill={prefill?.type === type.type ? prefill : null} onSaved={reload} onDone={() => { setAdding(""); reload(); }} onCancel={() => setAdding("")} />}
-        {st.instances.length === 0 && !type && (
-          <p className="mt-3 text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p>
-        )}
-        {st.instances.length > 0 && <div className="mt-3 grid gap-3 lg:grid-cols-2">{/* my connectors, two columns on wide screens; a card being edited or pointed at takes the row */}
+  const picking = part === "available";
+  const activating = linking ? st.types.find((t) => t.type === linking.connector) : undefined;
+  const mine = (<div className="mt-3 grid gap-3 lg:grid-cols-2">{/* my connectors, two columns on wide screens; a card being edited or pointed at takes the row */}
         {[...st.instances].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name)).map((i) => (   // alphabetical, like the picker
           <InstanceCard key={`${i.type}/${i.name}`} inst={i} hosts={snap.data.hosts} collect={collect} type={st.types.find((t) => t.type === i.type)!} reload={reload}
             toggling={toggling === `${i.type}/${i.name}`} toggleNote={srcKey === `${i.type}/${i.name}` ? srcNote : null} onForce={() => void act(() => send("PATCH", `connectors/settings/${i.type}/${encodeURIComponent(i.name)}`, { enabled: true, force: true }),
@@ -144,17 +104,69 @@ export function Connectors({ snap }: { snap: Snapshot }) {
             </button>
           </div>
         )}
-        </div>}
-      </Card>
-      <DetectedServices apps={(snap.data.detected_apps ?? []).filter((p) => !saved.includes(discoveryId(p)))} instances={st.instances} types={st.types}
-        machines={snap.data.machine_list} dockerOk={new Set((snap.data.connectors ?? []).filter((c) => c.type === "docker" && c.ok && c.ip).map((c) => c.ip!))} onOpen={setOverlay} />
-      {overlay && st.types.find((t) => t.type === overlay.connector) && (
-        <Overlay title={<>{appIcon([overlay.label]) && <img src={appIcon([overlay.label])!} alt="" className="h-6 w-6" />}{tx("Activer")} {overlay.label} <Dim>· {overlay.machine || overlay.ip}</Dim></>} onClose={() => setOverlay(null)}>
-          <ConnectorForm key={overlay.connector} type={st.types.find((t) => t.type === overlay.connector)!} prefill={{ type: overlay.connector, name: overlay.connector, url: overlay.url }}
-            found={snap.data.hosts.find((h) => String(h.id) === String(overlay.service))?.service} hosts={snap.data.hosts}
-            onSaved={() => { setSaved((x) => [...x, discoveryId(overlay)]); reload(); }}
-            onDone={() => { setOverlay(null); reload(); }} onCancel={() => setOverlay(null)} />
-        </Overlay>
+        </div>);
+  const done = () => { setAdding(""); reload(); if (picking) location.hash = MINE; };   // a connector added from the catalogue: back to « My connectors »
+  const form = type && <ConnectorForm key={type.type} type={type} hosts={snap.data.hosts} prefill={prefill?.type === type.type ? prefill : null} onSaved={reload} onDone={done} onCancel={() => setAdding("")} />;
+  return (
+    <div className="flex flex-col gap-4">
+      {part === "mine" && <Card>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Mes connecteurs")} <Count n={st.instances.length} /></h2>
+          <a href={`#${MINE}/available`} className={`${primary} no-underline`}><Plus size={14} />{tx("Ajouter un connecteur")}</a>
+        </div>
+        {form}
+        {st.instances.length === 0 && !type && (
+          <p className="mt-3 text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p>
+        )}
+        {st.instances.length > 0 && mine}
+      </Card>}
+      {part === "read" && <ReadElsewhere list={readElsewhere} types={st.types} collect={collect} />}
+      {picking && <Card>
+        <h2 className="flex items-center gap-2 font-bold"><Plus size={16} />{tx("Connecteurs disponibles")}</h2>
+        {form}
+        {!type && (
+          <label className="mt-3 flex max-w-md items-center gap-2 rounded-lg border border-line bg-bg2 px-3 py-2 focus-within:border-link">
+            <Search size={16} className="text-dim" aria-hidden />
+            <input type="search" autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tx("Chercher un connecteur (nom, catégorie…)")}
+              className="w-full bg-transparent text-sm text-txt outline-none placeholder:text-dim" />
+          </label>
+        )}
+        {!type && <CategoryChips types={st.types} cat={cat} setCat={setCat} />}
+        {!type && (
+          <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label={tx("Connecteurs disponibles")}>
+            {st.types.filter((t) => (!cat || t.category === cat) && searchHit([t.label, t.type, catName(t.category ?? ""), ...t.kinds.map((k) => KIND[k] || k)].join(" "), query))
+              .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })).map((t) => {
+              const icon = appIcon([t.label]), n = st.instances.filter((i) => i.type === t.type).length, ssh = readElsewhere.filter((o) => o.type === t.type).length;
+              return (
+                <li key={t.type}>
+                  <button type="button" onClick={() => setAdding(t.type)}
+                    className="flex h-full w-full items-center gap-3 rounded-xl border border-dim/50 bg-bg2 p-3 text-left transition-colors hover:border-link hover:bg-link/10">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">
+                      {icon ? <img src={icon} alt="" className="h-6 w-6" /> : <Plug size={18} className="text-muted" aria-hidden />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <b className="block truncate text-sm text-txt">{t.label}</b>
+                      <span className="block truncate text-xs text-dim">{t.kinds.map((k) => KIND[k] || k).join(" · ")}{n > 0 && ` · ${tx("{0} déjà", n)}`}</span>
+                      {ssh > 0 && <span className="block truncate text-xs font-semibold text-ok" title={tx("Déjà lu par SSH sur sa machine : un connecteur ferait doublon, sauf pour un autre serveur")}>{tx("déjà lu par SSH ({0})", ssh)}</span>}
+                    </span>
+                    <Plus size={15} className="shrink-0 text-dim" aria-hidden />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>}
+      {part === "detected" && !activating && <DetectedServices apps={(snap.data.detected_apps ?? []).filter((p) => !saved.includes(discoveryId(p)))} instances={st.instances} types={st.types}
+        machines={snap.data.machine_list} dockerOk={new Set((snap.data.connectors ?? []).filter((c) => c.type === "docker" && c.ok && c.ip).map((c) => c.ip!))} onOpen={setLinking} />}
+      {part === "detected" && activating && linking && (   // a found service to link: its form in the page, in place of the list
+        <Card>
+          <h2 className="flex items-center gap-2 font-bold">{appIcon([linking.label]) && <img src={appIcon([linking.label])!} alt="" className="h-6 w-6" />}{tx("Activer")} {linking.label} <Dim>· {linking.machine || linking.ip}</Dim></h2>
+          <ConnectorForm key={linking.connector} type={activating} prefill={{ type: linking.connector, name: linking.connector, url: linking.url }}
+            found={snap.data.hosts.find((h) => String(h.id) === String(linking.service))?.service} hosts={snap.data.hosts}
+            onSaved={() => { setSaved((x) => [...x, discoveryId(linking)]); reload(); }}
+            onDone={() => { setLinking(null); reload(); }} onCancel={() => setLinking(null)} />
+        </Card>
       )}
 
 
@@ -257,14 +269,13 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
   const rows = all.filter((p) => !muted.has(discoveryId(p))).sort((a, b) => rank(a) - rank(b)), forgotten = all.filter((p) => muted.has(discoveryId(p)));
   const forget = (p: Proposal, on: boolean) => void act(() => send("PUT", "discoveries/muted", { id: discoveryId(p), muted: on }),
     on ? tx("{0} oublié : plus proposé", p.label) : tx("{0} rappelé : de nouveau proposé", p.label), setNote).then(() => reloadDisc());
-  if (!all.length) return null;
   return (
-    <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
-      <summary className={FOLD_HEAD}>
-        <ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
+    <Card>
+      <h2 className="flex flex-wrap items-center gap-2 font-bold">
         <ScanSearch size={16} aria-hidden />{tx("Services détectés non configurés")} <Count n={rows.length} />
         <span className="font-normal text-muted">{tx("facultatif : à activer quand vous voulez")}</span>
-      </summary>
+      </h2>
+      {all.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucun service détecté à relier pour l'instant.")}</p>}
       <InfoNote className="mt-1">{tx("MyServices a reconnu ces applis mais ne les lit pas encore. Cliquez sur l'une d'elles pour renseigner son accès en lecture.")}</InfoNote>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full min-w-[480px] text-sm">
@@ -312,7 +323,7 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
         </div>
       )}
       <NoteLine note={note} />
-    </details>
+    </Card>
   );
 }
 

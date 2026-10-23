@@ -28,14 +28,19 @@ const snap = {
 } as unknown as Snapshot;
 
 describe("onglet Sauvegardes", () => {
-  it("figures, the sets to watch, the folded views", () => {
-    const html = renderToStaticMarkup(<Backups snap={snap} />);
-    for (const t of ["À jour", "Absente ou en erreur", "Dernière archive", "base.tar.gz", "À surveiller", "aucune copie hors machine à jour", "Tout voir", "Par machine", "Réglages des sauvegardes"])
+  it("opened bare: the figures and « To watch », the other views are sub-pages of the menu", () => {
+    const html = renderToStaticMarkup(<Backups snap={snap} route="#backups" />);
+    for (const t of ["À jour", "Absente ou en erreur", "Dernière archive", "base.tar.gz", "À surveiller", "aucune copie hors machine à jour"])
       expect(html).toContain(t);
-    expect(html).not.toContain("srv: base</b>");   // the ok set sits in « Tout voir », folded
-    expect(html).not.toContain("91 %");   // the view by machine starts folded
     expect(html).toContain(">ha<");   // the set to watch, its label without the machine prefix
-    expect(html).not.toContain(">old<");   // an archived set is neither to watch nor counted; it sits in « Tout voir » (folded)
-    expect(html).toContain("Tout voir</h2>");
+    expect(html).not.toContain(">old<");   // an archived set is not to watch
+    expect(html).not.toContain("Tous les jeux</h2>");
+    expect(html).not.toContain("91 %");
+  });
+  it("#backups/all: every set, archived ones included; #backups/machines: the view by machine", () => {
+    const all = renderToStaticMarkup(<Backups snap={snap} route="#backups/all" />);
+    expect(all).toContain("Tous les jeux</h2>");
+    expect(all).toContain(">old<");
+    expect(renderToStaticMarkup(<Backups snap={snap} route="#backups/machines" />)).toContain("Par machine</h2>");
   });
 });

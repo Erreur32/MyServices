@@ -3,7 +3,8 @@ import { normalizeSection } from "./settingsNav";
 
 describe("normalizeSection", () => {
   it("une ancienne section déménagée dans Réglages", () => {
-    expect(normalizeSection("ssh")).toEqual({ section: "api" });
+    expect(normalizeSection("system")).toEqual({ section: "mail" });
+    expect(normalizeSection("ssh")).toEqual({ section: "ssh" });
     expect(normalizeSection("sources")).toEqual({ section: "connectors" });
     expect(normalizeSection("agents")).toEqual({ section: "machines" });
   });
@@ -21,3 +22,4 @@ describe("normalizeSection", () => {
     expect(normalizeSection("constructor")).toEqual({ section: "constructor" });
   });
 });
+

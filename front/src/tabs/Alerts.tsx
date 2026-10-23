@@ -65,7 +65,8 @@ function Status({ active }: { active: boolean }) {
   );
 }
 
-export function Alerts() {
+/** One part of the alerts, a sub-page of « Alertes » in the side menu: the channels (with the state), the rules, or what was sent */
+export function Alerts({ part }: Readonly<{ part: "channels" | "rules" | "sent" }>) {
   const [st, setSt] = useState<AlertsState | null>(null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
@@ -78,10 +79,9 @@ export function Alerts() {
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   return (
     <div className="flex flex-col gap-4">
-      <Status active={st.active} />
-      <Channels st={st} reload={reload} />
-      <Rules st={st} reload={reload} />
-      <Sent st={st} />
+      {part === "channels" && <><Status active={st.active} /><Channels st={st} reload={reload} /></>}
+      {part === "rules" && <Rules st={st} reload={reload} />}
+      {part === "sent" && <Sent st={st} />}
     </div>
   );
 }
@@ -361,7 +361,7 @@ function Sent({ st }: { st: AlertsState }) {
   const [open, setOpen] = useState<number | null>(null), [doc, setDoc] = useState(false);
   return (
     <Card>
-      <h2 className="mb-2 flex items-center gap-2 font-bold"><History size={16} aria-hidden />{tx("Derniers envois")} <Count n={st.sent.length} /></h2>
+      <h2 className="mb-2 flex items-center gap-2 font-bold"><History size={16} aria-hidden />{tx("Alertes envoyées")} <Count n={st.sent.length} /></h2>
       {st.sent.length === 0 ? <p className="text-sm text-muted">{tx("Rien envoyé pour l'instant.")}</p> : (
         <ul className="flex max-h-[420px] flex-col divide-y divide-line/60 overflow-y-auto text-sm">
           {st.sent.map((s, i) => (

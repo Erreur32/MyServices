@@ -3,11 +3,11 @@
 import { useEffect } from "react";
 import type { Snapshot } from "../api";
 import { machineSettingsRedirect } from "../lib/machineHash";
-import { MachinesSettings } from "./MachinesSettings";
+import { MachinesSettings, machinesPart } from "./MachinesSettings";
 
 export function MachinesSection({ snap }: Readonly<{ snap: Snapshot }>) {
   const to = machineSettingsRedirect(location.hash);
   useEffect(() => { if (to) location.replace(`#${to}`); }, [to]);
   if (to) return null;
-  return <MachinesSettings snap={snap} />;
+  return <MachinesSettings snap={snap} part={machinesPart(location.hash.split("/")[2])} />;
 }

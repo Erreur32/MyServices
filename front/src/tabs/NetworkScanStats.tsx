@@ -1,7 +1,8 @@
 // Réseau : statistiques du scan de MynetworK (compteurs, adresses hors ligne, pires latences) et volume de données par client.
 // Les compteurs viennent de MynetworK quand il les donne (0.11.2+), sinon ils sont comptés d'après son inventaire ; le volume par client
 // n'apparaît qu'avec sa route top-traffic (0.11.2+). Lecture seule, relue toutes les 30 s.
-import { Activity, ArrowDown, ArrowUp, ChevronDown, ChevronUp, CircleHelp, CircleOff, Radar, Timer, Wifi } from "lucide-react";
+import { StatTile } from "../components/StatTile";
+import { Activity, ArrowDown, ArrowUp, CircleOff, Radar, Timer } from "lucide-react";
 import { useCallback, useState } from "react";
 import { read } from "../api";
 import { Overlay } from "../components/Overlay";
@@ -9,8 +10,6 @@ import { Badge, Dim } from "../components/ui";
 import { bytes, dateTime, hm, rate } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { usePoll } from "../lib/polling";
-import { useStoredFlag } from "../lib/storedFlag";
-import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 
 type Mode = "live" | "today" | "alltime";
 interface Row { ip: string; name: string | null; ping_ms: number | null; last: string | null }
@@ -33,15 +32,6 @@ const readTime = (when: number | string | null | undefined, doc: { at: number } 
   if (when) return dateTime(when);
   return doc ? `${tx("lu à")} ${hm(doc.at * 1000)}` : "-";
 };
-
-function Counter({ icon: Icon, value, label, tone }: Readonly<{ icon: typeof Radar; value: number | string; label: string; tone: string }>) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-line bg-bg2/40 px-4 py-2.5">
-      <Icon size={18} className={tone} aria-hidden />
-      <div><div className={`font-mono text-lg font-bold leading-tight ${tone}`}>{value}</div><div className="text-xs text-dim">{label}</div></div>
-    </div>
-  );
-}
 
 /** An inner frame: icon and title strip (with room for a control on the right), column heads, then striped rows */
 function Panel({ icon: Icon, title, head, control, footer, empty, children }: Readonly<{ icon: typeof Radar; title: string; head?: React.ReactNode; control?: React.ReactNode; footer?: React.ReactNode; empty: string; children: React.ReactNode[] }>) {
@@ -93,27 +83,24 @@ function ModeButtons({ mode, setMode }: Readonly<{ mode: Mode; setMode: (m: Mode
 }
 
 export function NetworkScanStats() {
-  const [mode, setMode] = useState<Mode>("live"), [doc, setDoc] = useState<StatsDoc | null>(null), [folded, setFolded] = useStoredFlag("myservices.network.scanStatsFolded", false), [all, setAll] = useState(false);
-  const load = useCallback(() => { if (!folded) read<StatsDoc>(`network/stats?traffic=${mode}`).then(setDoc).catch(() => undefined); }, [mode, folded]);   // nothing is read while folded
+  const [mode, setMode] = useState<Mode>("live"), [doc, setDoc] = useState<StatsDoc | null>(null), [all, setAll] = useState(false);
+  const load = useCallback(() => { read<StatsDoc>(`network/stats?traffic=${mode}`).then(setDoc).catch(() => undefined); }, [mode]);
   usePoll(load, mode === "live" ? 20_000 : 30_000);   // the live volume follows the traffic; the rest hardly moves
   const scan = doc?.scan;
-  if (!scan && !folded) return null;   // no MynetworK (or not readable): nothing to show ; folded: the header stays, nothing was read
+  if (!scan) return null;   // no MynetworK (or not readable): nothing to show
   const c = scan?.counters;
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm">
-      <div className={`flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3 ${FOLD_HEADER}`} {...foldHeaderProps(() => setFolded(!folded))}>
+      <div className="flex flex-wrap items-center gap-3 border-b border-line/60 bg-bg px-4 py-3">
         <h3 className="font-bold">{tx("Scan du réseau")}</h3>
         {c && <Dim>{c.source === "mynetwork" ? tx("compteurs de MynetworK") : tx("comptés d'après l'inventaire de MynetworK")}</Dim>}
         {c?.last_scan && <Dim>· {tx("dernier scan")} {dateTime(c.last_scan)}</Dim>}
-        <button type="button" className="ml-auto text-dim hover:text-txt" aria-expanded={!folded} onClick={() => setFolded(!folded)} title={folded ? tx("Déplier") : tx("Replier")}>
-          {folded ? <ChevronDown size={18} aria-hidden /> : <ChevronUp size={18} aria-hidden />}
-        </button>
       </div>
-      {!folded && c && scan && <><div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Counter icon={Radar} value={c.total} label={tx("adresses vues")} tone="text-muted" />
-        <Counter icon={Wifi} value={c.online} label={tx("en ligne")} tone="text-ok" />
-        <Counter icon={CircleOff} value={c.offline} label={tx("hors ligne")} tone={c.offline ? "text-warn" : "text-muted"} />
-        <Counter icon={CircleHelp} value={c.unknown} label={tx("inconnues")} tone="text-muted" />
+      {c && <><div className="flex gap-2.5 overflow-x-auto p-4">
+        <StatTile n={c.total} label={tx("adresses vues")} />
+        <StatTile n={c.online} label={tx("en ligne")} tone="ok" />
+        <StatTile n={c.offline} label={tx("hors ligne")} tone={c.offline ? "warn" : undefined} />
+        <StatTile n={c.unknown} label={tx("inconnues")} />
       </div>
       <div className="grid gap-3 px-4 pb-4 lg:grid-cols-3">
         <Panel icon={CircleOff} title={tx("Adresses hors ligne")} empty={tx("Aucune.")}

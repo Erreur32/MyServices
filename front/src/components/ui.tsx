@@ -97,6 +97,11 @@ export function Count({ n, tone = "info" }: { n: ReactNode; tone?: "info" | "ok"
   return <span className={`inline-grid h-[22px] min-w-[22px] shrink-0 place-items-center rounded-full px-1.5 align-middle font-mono text-xs font-bold leading-none ${c}`}>{n}</span>;
 }
 
+/** What a page shows before its data: « Loading… », or the error that stopped it */
+export function Loading({ error }: Readonly<{ error?: string }>) {
+  return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
+}
+
 export function Dim({ children }: { children: ReactNode }) {
   return <span className="text-dim">{children}</span>;
 }

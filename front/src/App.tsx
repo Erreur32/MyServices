@@ -4,7 +4,7 @@ import { Header } from "./components/Header";
 import { Assistant } from "./tabs/Assistant";
 import { Home } from "./components/Home";
 import { ScanBar } from "./components/ScanBar";
-import { Tabs } from "./components/Tabs";
+import { Sidebar } from "./components/Sidebar";
 import { tabFromHash, visible } from "./lib/tabs";
 import type { Selected } from "./lib/filter";
 import { attention, type TabId } from "./lib/summary";
@@ -22,7 +22,7 @@ import { DiagramsTab } from "./tabs/DiagramsTab";
 import { Help } from "./tabs/Help";
 import { AboutSettings } from "./tabs/About";
 import { SidePage } from "./components/SidePage";
-import { useContentWidth, useTheme } from "./theme";
+import { useTheme } from "./theme";
 import { tx } from "./lib/i18n";
 import { onStream, streamConnected } from "./lib/stream";
 import { GREY_CARDS } from "./lib/forms";
@@ -32,14 +32,13 @@ const REFRESH_MS = 15_000;      // without the event stream: one small manifest 
 const STREAM_REFRESH_MS = 120_000;   // with the stream, which says when a file moved: a safety read only
 
 /** Pages à part comme #profile : pas d'onglet, pas de barre */
-const SIDE_PAGES: Record<string, { admin?: boolean; render: () => React.ReactNode }> = {
+const SIDE_PAGES: Record<string, { admin?: boolean; render: (snap: Snapshot) => React.ReactNode }> = {
   help: { render: () => <Help /> },
-  about: { render: () => <AboutSettings /> },
+  about: { render: (snap) => <AboutSettings snap={snap} /> },
 };
 
 export default function App() {
   const [theme, toggleTheme, setTheme] = useTheme();
-  const [width, setWidth] = useContentWidth();
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [error, setError] = useState("");
   const [fresh, setFresh] = useState<NotConfigured | null>(null);
@@ -47,6 +46,7 @@ export default function App() {
   const [hash, setHash] = useState(location.hash); // section des Réglages dans le lien (#settings/api)
   const [now, setNow] = useState(Date.now());
   const hiddenServices = useServicesHidden();
+  const [menuOpen, setMenuOpen] = useState(false);   // the menu drawer, on a phone
   // Filtre posé en ouvrant Services depuis une machine (clic sur son nom) ; la clé recrée l'onglet
   // Filtre demandé à l'ouverture d'un onglet (clic sur un compteur, sur une machine…) : lu une fois à l'affichage, effacé dès qu'on change d'onglet à la main
   const [pending, setPending] = useState<{ tab: TabId; sel: Selected; n: number }>({ tab: "home", sel: {}, n: 0 });
@@ -89,6 +89,7 @@ export default function App() {
 
   const go = (t: TabId) => { location.hash = t === "home" ? "" : t; setTab(t); setPending((f) => ({ tab: "home", sel: {}, n: f.n })); scrollTo({ top: 0 }); };
   const goFilter = (t: TabId, sel: Selected) => { go(t); setPending((f) => ({ tab: t, sel, n: f.n + 1 })); };
+  const navigated = () => { setPending((f) => ({ tab: "home", sel: {}, n: f.n })); setMenuOpen(false); scrollTo({ top: 0 }); };   // a menu link: the address does the rest
   const initialFor = (t: TabId): Selected => (pending.tab === t ? pending.sel : {});
 
   if (!snap && fresh)
@@ -118,31 +119,35 @@ export default function App() {
   const sideId = Object.keys(SIDE_PAGES).find((k) => hash.startsWith(`#${k}`));
   const side = sideId && (!SIDE_PAGES[sideId].admin || snap.me.role === "admin") ? SIDE_PAGES[sideId] : null; // a non-admin typing an admin-only page comes back to home
 
-  let top = <Tabs tab={current} snap={snap} badges={badges} onSelect={go} onBadge={(t) => (t === "machines" ? goFilter("machines", { alert: ["bad", "warn"] }) : go(t))} />;   // what sits above the content: the tab bar, or the « Back » link of a page apart
-  if (profile) top = <SidePage><Profile username={snap.me.username} role={snap.me.role} email={snap.me.email ?? ""} mailReady={snap.me.mail_ready !== false} mailError={snap.me.mail_error ?? ""} avatar={snap.me.avatar ?? null} look={{ theme, setTheme, width, setWidth }} /></SidePage>;
-  else if (side) top = <SidePage>{side.render()}</SidePage>;
+  let top: React.ReactNode = null;   // a page apart (Profile, Help, About) with its « Back » link
+  if (profile) top = <SidePage><Profile username={snap.me.username} role={snap.me.role} email={snap.me.email ?? ""} mailReady={snap.me.mail_ready !== false} mailError={snap.me.mail_error ?? ""} avatar={snap.me.avatar ?? null} look={{ theme, setTheme }} /></SidePage>;
+  else if (side) top = <SidePage>{side.render(snap)}</SidePage>;
   let homeSub: "history" | "stats" | "overview" = "overview";
   if (hash.startsWith("#history")) homeSub = "history";
   else if (hash.startsWith("#stats")) homeSub = "stats";
 
   return (
-    <div className="mx-auto max-w-[var(--content-max)] px-4 pb-10 sm:px-6">
+    <div className="flex min-h-screen">
+      <Sidebar snap={snap} badges={badges} onNavigate={navigated} mobileOpen={menuOpen} onClose={() => setMenuOpen(false)}
+        onBadge={(t) => { setMenuOpen(false); if (t === "machines") goFilter("machines", { alert: ["bad", "warn"] }); else go(t); }} />
+      <div className="min-w-0 flex-1 px-4 pb-10 sm:px-6">
       <ScanBar onFinished={load} />
-      <Header snap={snap} theme={theme} toggleTheme={toggleTheme} now={now} current={current} />
+      <Header snap={snap} theme={theme} toggleTheme={toggleTheme} now={now} onMenu={() => setMenuOpen(true)} />
       {error && <p className="mb-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">{tx("⚠ Mise à jour impossible :")} {error}</p>}
       <div className={GREY_CARDS}>
       {top}
       {!profile && !side && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} sub={homeSub} />}
       {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} onFilter={(sel) => goFilter("services", sel)} />}
-      {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} />}
+      {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} route={hash} />}
       {current === "infra" && <Infra snap={snap} />}
       {current === "dns" && <Dns key={pending.tab === "dns" ? pending.n : 0} snap={snap} initial={initialFor("dns")} />}
-      {current === "backups" && <Backups key={pending.tab === "backups" ? pending.n : 0} snap={snap} initial={initialFor("backups")} />}
+      {current === "backups" && <Backups key={pending.tab === "backups" ? pending.n : 0} snap={snap} initial={initialFor("backups")} route={hash} />}
       {current === "diagrams" && <DiagramsTab admin={snap.me.role === "admin"} />}
       {current === "settings" && <Settings key={hash} snap={snap} />}
-      {current === "security" && <Security snap={snap} />}
+      {current === "security" && <Security snap={snap} route={hash} />}
       {current === "virtualization" && <Virtualization snap={snap} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
-      {current === "network" && <Network snap={snap} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
+      {current === "network" && <Network snap={snap} route={hash} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
+      </div>
       </div>
     </div>
   );

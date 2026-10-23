@@ -1,7 +1,10 @@
-// Compteurs de l'en-tête de la page actuelle (NPM, directs, santé, sauvegardes, AdGuard), en colonne à droite
-// de l'accueil ; clic sur le titre = ouvrir l'onglet, clic sur un compteur = l'ouvrir déjà filtré sur ce qu'il compte.
+// Accueil → Statistiques : une ligne de chiffres clés, puis les compteurs de chaque sujet en grille (deux colonnes, trois sur
+// un très grand écran) et les horaires ; clic sur le titre d'un groupe = ouvrir sa page, clic sur un compteur = l'ouvrir filtrée.
 import { Boxes, HardDrive, HeartPulse, Layers, Monitor, PackageCheck, Plug } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { read } from "../api";
+import { StatTile } from "./StatTile";
+import { pct, tileTone, type Report } from "../tabs/Availability";
 import type { Snapshot } from "../api";
 import { CLEANUP, checks, dnsSync, status } from "../lib/status";
 import { mState } from "../lib/machines";
@@ -47,7 +50,13 @@ export function statGroups(snap: Snapshot, nav: Open): Partial<Record<TabId, Rea
     ...extraGroups(snap, nav),
   ];
   const byTab: Partial<Record<TabId, ReactNode[]>> = {};
-  for (const g of groups) if (g && typeof g === "object" && "props" in g) (byTab[g.props.tab as TabId] ??= []).push(g);
+  for (const g of groups) {
+    if (!g || typeof g !== "object" || !("props" in g)) continue;
+    const tab = g.props.tab as TabId;
+    const list = byTab[tab] ?? [];
+    list.push(g);
+    byTab[tab] = list;
+  }
   return byTab;
 }
 
@@ -66,6 +75,53 @@ function extraGroups(snap: Snapshot, nav: Open): ReactNode[] {
   return out;
 }
 
-export function StatsColumn({ snap, go, goFilter }: { snap: Snapshot; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void }) {
-  return <aside className="flex flex-col gap-2.5" aria-label={tx("Compteurs")}>{Object.values(statGroups(snap, { go, goFilter })).flat()}<ScheduleCard /></aside>;
+type Tone = "ok" | "warn" | "bad";
+/** Part that is fine: green when all, orange from one problem, red under 80 % */
+function ratioTone(good: number, total: number): Tone | undefined {
+  if (!total) return undefined;
+  if (good === total) return "ok";
+  return good / total >= 0.8 ? "warn" : "bad";
+}
+
+/** Average availability over 7 days (services and machines, weighted by their readings); null while unread or without readings */
+function useWeekAvailability(generated: string): number | null {
+  const [avg, setAvg] = useState<number | null>(null);
+  useEffect(() => {
+    read<Report>("availability?days=7").then((r) => {
+      const n = r.items.reduce((s, x) => s + x.samples, 0);
+      setAvg(n ? (100 * r.items.reduce((s, x) => s + x.samples - x.down, 0)) / n : null);
+    }).catch(() => setAvg(null));
+  }, [generated]);
+  return avg;
+}
+
+/** The key figures on top: each one a ratio of what is fine */
+function KeyFigures({ snap }: Readonly<{ snap: Snapshot }>) {
+  const { data, health, backups } = snap;
+  const ms = (data.machine_list || []).filter((m) => !m.disabled), up = ms.filter((m) => mState(m) !== "down").length;
+  const hosts = data.hosts.filter((r) => r.enabled && status(r)[0] !== "off"), online = hosts.filter((r) => status(r)[0] === "ok").length;
+  const hOk = (health?.hosts ?? []).filter((h) => h.reachable !== false && h.level === "ok").length, hAll = health?.hosts.length ?? 0;
+  const c = connectorCounts(snap), week = useWeekAvailability(data.generated);
+  return (
+    <div className="flex gap-2.5 overflow-x-auto pb-1">
+      <StatTile n={`${up}/${ms.length}`} label={tx("Machines joignables")} tone={ratioTone(up, ms.length)} />
+      <StatTile n={`${online}/${hosts.length}`} label={tx("Services en ligne")} tone={ratioTone(online, hosts.length)} />
+      {hAll > 0 && <StatTile n={`${hOk}/${hAll}`} label={tx("Santé OK")} tone={ratioTone(hOk, hAll)} />}
+      {backups && <StatTile n={`${backups.summary.ok}/${backups.summary.sets}`} label={tx("Sauvegardes à jour")} tone={ratioTone(backups.summary.ok, backups.summary.sets)} />}
+      {c.ok + c.failing > 0 && <StatTile n={`${c.ok}/${c.ok + c.failing}`} label={tx("Connecteurs qui répondent")} tone={ratioTone(c.ok, c.ok + c.failing)} />}
+      {week != null && <StatTile n={pct(week)} label={tx("Disponibilité sur 7 jours")} tone={tileTone(week)} sub={tx("services et machines")} />}
+    </div>
+  );
+}
+
+export function StatsPage({ snap, go, goFilter }: Readonly<{ snap: Snapshot; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void }>) {
+  return (
+    <div className="flex flex-col gap-4">
+      <KeyFigures snap={snap} />
+      <section className="grid items-start gap-3 md:grid-cols-2 2xl:grid-cols-3" aria-label={tx("Compteurs")}>
+        {Object.values(statGroups(snap, { go, goFilter })).flat()}
+      </section>
+      <ScheduleCard />
+    </div>
+  );
 }

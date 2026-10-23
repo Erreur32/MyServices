@@ -2,7 +2,8 @@
 // box or firewall reports, firmware updates, weak Wi-Fi links) above the sub-menu: Cards (scan statistics, UniFi cards), Equipment and
 // devices (Internet access, UniFi gear, clients by access point or switch, devices found by MynetworK, with search and filters),
 // Diagnostic. Shown only when one of these sources answers or has answered. Read only.
-import { Cable, ChevronDown, ChevronRight, House, LayoutDashboard, List, Monitor, Network as NetworkIcon, Radar, Router, Stethoscope, Wifi, type LucideIcon } from "lucide-react";
+import { usePageView } from "../lib/route";
+import { Cable, ChevronDown, ChevronRight, Monitor, Network as NetworkIcon, Router, Wifi, type LucideIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { useFilter, useSort, type Facet } from "../lib/filter";
@@ -157,12 +158,9 @@ function MachineLink({ r, onMachine }: { r: Row; onMachine: (ip: string) => void
     : <Dim>{tx("pas suivie")}</Dim>;
 }
 
-type Sub = "unifi" | "freebox" | "scan" | "list" | "diagnostic";
-/** One sub-tab per kind of source; UniFi, Freebox and Scan only when their source is there */
-const SUBS: [Sub, string, LucideIcon][] = [["unifi", tx("UniFi"), LayoutDashboard], ["freebox", tx("Freebox"), House], ["scan", tx("Scan"), Radar],
-  ["list", tx("Équipements et appareils"), List], ["diagnostic", tx("Diagnostic"), Stethoscope]];
-const isSub = (v: string | null): v is Sub => SUBS.some(([id]) => id === v);
-const SUB_KEY = "ms.network.sub";
+/** The views of the page, sub-pages of « Réseau › Vue » in the side menu (#network/<view>); UniFi, Freebox and Scan only when their source is there */
+const SUBS = ["watch", "unifi", "freebox", "scan", "list", "diagnostic"] as const;
+type Sub = (typeof SUBS)[number];
 
 type Tone3 = "ok" | "warn" | "bad" | undefined;
 interface Fig { n: string | number; tone: Tone3; sub: string }
@@ -205,7 +203,7 @@ function Figures({ box, boxFact, gearAll, gearDown, updates, wifi, wired, devAll
 /** « To watch », a row per problem */
 function WatchTable({ watch, worst, open }: Readonly<{ watch: Watch[]; worst: "ok" | "warn" | "bad"; open: (w: Watch) => void }>) {
   return (
-    <WatchPanel id="network" tone={worst} count={watch.length} hint={tx("équipement hors ligne, source en erreur, box, mises à jour, wifi faible")}>
+    <WatchPanel id="network" tone={worst} count={watch.length} pinned hint={tx("équipement hors ligne, source en erreur, box, mises à jour, wifi faible")}>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[560px] border-collapse text-sm">
           <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
@@ -227,9 +225,8 @@ function WatchTable({ watch, worst, open }: Readonly<{ watch: Watch[]; worst: "o
   );
 }
 
-export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapshot; onMachine: (ip: string) => void; initialSub?: Sub }>) {
-  const [sub, setSub] = useState<Sub>(() => { try { const v = localStorage.getItem(SUB_KEY); return initialSub ?? (isSub(v) ? v : "unifi"); } catch { return initialSub ?? "unifi"; } });   // the sub-page is kept (the old « overview » leads to UniFi)
-  const pickSub = (v: Sub) => { setSub(v); try { localStorage.setItem(SUB_KEY, v); } catch { /* storage refused: the choice lasts this visit */ } };
+export function Network({ snap, onMachine, route }: Readonly<{ snap: Snapshot; onMachine: (ip: string) => void; route: string }>) {
+  const pickSub = (v: Sub) => { location.hash = `network/${v}`; };
   const cards = useMemo(() => (snap.data.services_status ?? []).filter((c) => NETWORK_CARDS.includes(c.connector)), [snap.data.services_status]);
   const rows = useMemo(() => buildRows(snap, cards), [snap, cards]);
   const facets = useMemo<Facet<Row>[]>(() => [
@@ -247,17 +244,13 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
   const [stored, saveFolded] = useFolded();
   const gearSort = useSort(f.shown.filter((r) => r.kind === "gear"), keyOf, "state");
   const devSort = useSort(f.shown.filter((r) => r.kind === "device"), keyOf, "ip");
-  if (!hasNetwork(snap)) return <Empty>{tx("Aucune source réseau : reliez MynetworK, UniFi, OPNsense ou NetAlertX dans Réglages → Connecteurs.")}</Empty>;
-
   const net = snap.data.network ?? [];
   const unifiConn = cards.find((c) => c.connector === "unifi");
   const unifi = unifiConn && !unifiConn.ok && !unifiConn.stale ? unifiConn : unifiCard(rows, unifiConn);   // a failing connector shows its error
   const internet = [...cards.filter((c) => c.connector === "freebox"), ...(unifi ? [unifi] : []), ...cards.filter((c) => INTERNET.includes(c.connector) && c.connector !== "freebox")];
   const others = cards.filter((c) => !INTERNET.includes(c.connector) && c.connector !== "unifi");
   const freebox = cards.find((c) => c.connector === "freebox");
-  const has: Record<Sub, boolean> = { unifi: !!unifi, freebox: !!freebox, scan: net.some((c) => c.connector === "mynetwork"), list: true, diagnostic: true };
-  const subs = SUBS.filter(([id]) => has[id]);
-  const current: Sub = has[sub] ? sub : subs[0][0];   // a source gone (no UniFi, no Freebox): the first sub-tab there is
+  const has: Record<Sub, boolean> = { watch: true, unifi: !!unifi, freebox: !!freebox, scan: net.some((c) => c.connector === "mynetwork"), list: true, diagnostic: true };
   const all = (k: Kind) => rows.filter((r) => r.kind === k);
   const gearAll = all("gear"), gearDown = gearAll.filter((r) => !r.up).length, updates = gearAll.filter((r) => r.gear?.updatable).length;
   const devAll = all("device"), unfollowed = devAll.filter((r) => r.up && !r.machine).length;
@@ -285,6 +278,10 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
   const sourceNames = [...new Set([...net.map((c) => c.label), ...cards.map((c) => c.label)])];
   const failing = net.filter((c) => !c.ok).length;
   const openWatch = (w: Watch) => { if (w.href) location.hash = w.href.slice(1); else pickSub(w.sub); };
+  const firstView = SUBS.find((v) => v !== "watch" && has[v])!;
+  const view = usePageView(route, "network", SUBS, watch.length ? "watch" : firstView);
+  const current: Sub = has[view] ? view : firstView;   // a source gone (no UniFi, no Freebox): the first view there is
+  if (!hasNetwork(snap)) return <Empty>{tx("Aucune source réseau : reliez MynetworK, UniFi, OPNsense ou NetAlertX dans Réglages → Connecteurs.")}</Empty>;
 
   return (
     <div className="flex flex-col gap-4 py-4">
@@ -294,14 +291,7 @@ export function Network({ snap, onMachine, initialSub }: Readonly<{ snap: Snapsh
       </div>
       <Figures box={box} boxFact={boxFact} gearAll={gearAll} gearDown={gearDown} updates={updates} wifi={all("wifi").length} wired={all("wired").length} devAll={devAll} unfollowed={unfollowed} sourceNames={sourceNames} failing={failing} />
 
-      <WatchTable watch={watch} worst={worst} open={openWatch} />
-
-      <fieldset className="m-0 inline-flex min-w-0 self-start rounded-lg border border-line bg-card p-0.5" aria-label={tx("Sous-menu du réseau")}>
-        {subs.map(([id, label, Icon]) => (
-          <button key={id} type="button" aria-pressed={current === id} onClick={() => pickSub(id)}
-            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold ${current === id ? "bg-link/15 text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{label}</button>
-        ))}
-      </fieldset>
+      {current === "watch" && <WatchTable watch={watch} worst={worst} open={openWatch} />}
       {current === "unifi" && <UnifiCards />}
       {current === "freebox" && freebox && <div className="grid items-start gap-3 lg:grid-cols-2"><ServiceCard s={freebox} /></div>}
       {current === "scan" && <NetworkScanStats />}

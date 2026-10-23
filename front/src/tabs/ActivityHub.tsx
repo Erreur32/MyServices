@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { RequestsSettings } from "../components/RequestStats";
 import { showInUrl } from "../lib/settingsNav";
 import { tx } from "../lib/i18n";
-import { SubTabNav } from "../components/SubTabNav";
+import { InfoNote } from "../components/InfoNote";
 import { AuditLog } from "./AuditLog";
 import { Logs } from "./Logs";
 
@@ -19,16 +19,15 @@ const PARTS: [Part, string, LucideIcon, string][] = [
 const isPart = (v: string | null | undefined): v is Part => PARTS.some(([id]) => id === v);
 
 export function ActivityHub() {
-  const [part, setPart] = useState<Part>(() => {
+  const [part] = useState<Part>(() => {
     const inUrl = location.hash.split("/")[2];   // #settings/requests/audit: the address wins over the last choice
     if (isPart(inUrl)) return inUrl;
     try { const kept = localStorage.getItem(KEY); return isPart(kept) ? kept : "requests"; } catch { return "requests"; }
   });
-  useEffect(() => showInUrl(part === "requests" ? "settings/requests" : `settings/requests/${part}`, true), [part]);
-  const pick = (p: Part) => { setPart(p); try { localStorage.setItem(KEY, p); } catch { /* stockage refusé : le choix ne dure que cette visite */ } };
+  useEffect(() => { try { localStorage.setItem(KEY, part); } catch { /* storage refused: the choice lasts this visit */ } showInUrl(part === "requests" ? "settings/requests" : `settings/requests/${part}`, true); }, [part]);
   return (
     <div className="flex flex-col gap-4">
-      <SubTabNav parts={PARTS} part={part} onPick={pick} />
+      <InfoNote>{PARTS.find(([id]) => id === part)![3]}</InfoNote>
       {part === "requests" && <RequestsSettings />}
       {part === "audit" && <AuditLog />}
       {part === "logs" && <Logs />}

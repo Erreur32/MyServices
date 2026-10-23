@@ -1,7 +1,7 @@
 // Home page, three fixed blocks: « À traiter maintenant » (every alert with a button to the place that fixes it), « Ce qui a changé depuis
 // hier » (events of the last 24 h) and, for an administrator, « Il manque » (sources that would unlock a page). The inventory counters live in
 // their tabs; the header line only says how many things are followed.
-import { BarChart3, ChevronDown, ChevronUp, CircleCheck, ClipboardClock, House, Siren } from "lucide-react";
+import { ChevronDown, ChevronUp, CircleCheck, Siren } from "lucide-react";
 import { useState } from "react";
 import type { Snapshot } from "../api";
 import { hm, longDay } from "../lib/format";
@@ -16,7 +16,7 @@ import { Missing } from "./Missing";
 import { Rich } from "./Rich";
 import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 import { useStoredFlag } from "../lib/storedFlag";
-import { StatsColumn } from "./StatsColumn";
+import { StatsPage } from "./StatsPage";
 
 /** Lines shown before « Tout voir » */
 const LIMIT = 8;
@@ -53,24 +53,6 @@ function Line({ it, go, goFilter }: Readonly<{ it: Attention; go: (t: TabId) => 
 }
 
 export type HomeSub = "overview" | "history" | "stats";
-
-/** Three sub-tabs: the overview (this page), the full history (#history) and the counters (#stats), both kept as direct links */
-function SubMenu({ sub }: Readonly<{ sub: HomeSub }>) {
-  const items: { id: HomeSub; label: string; icon: typeof House; href: string }[] = [
-    { id: "overview", label: tx("Vue d'ensemble"), icon: House, href: "#" }, { id: "history", label: tx("Historique"), icon: ClipboardClock, href: "#history" },
-    { id: "stats", label: tx("Statistiques"), icon: BarChart3, href: "#stats" },
-  ];
-  return (
-    <nav className="flex flex-wrap gap-1" aria-label={tx("Accueil")}>
-      {items.map(({ id, label, icon: Icon, href }) => (
-        <a key={id} href={href} aria-current={sub === id ? "page" : undefined}
-          className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-semibold no-underline ${sub === id ? "border-link bg-link/15 text-txt ring-1 ring-link/50" : "border-transparent text-muted hover:text-txt"}`}>
-          <Icon size={15} aria-hidden />{label}
-        </a>
-      ))}
-    </nav>
-  );
-}
 
 const FRAME = { bad: "border-l-4 border-l-bad border-bad/40", warn: "border-l-4 border-l-warn border-warn/40", ok: "border-ok/40" };
 
@@ -115,11 +97,10 @@ function ToDeal({ items, go, goFilter }: Readonly<{ items: Attention[]; go: (t: 
 export function Home({ snap, items, go, goFilter, now, sub = "overview" }: Readonly<{ snap: Snapshot; items: Attention[]; go: (t: TabId) => void; goFilter: (t: TabId, sel: Selected) => void; now: number; sub?: HomeSub }>) {
   const admin = snap.me.role === "admin";
   const day = longDay(now);
-  if (sub === "history") return <div className="flex flex-col gap-5 py-5"><SubMenu sub={sub} /><History snap={snap} /></div>;
-  if (sub === "stats") return <div className="flex flex-col gap-5 py-5"><SubMenu sub={sub} /><StatsColumn snap={snap} go={go} goFilter={goFilter} /></div>;
+  if (sub === "history") return <div className="flex flex-col gap-5 py-5"><History snap={snap} /></div>;
+  if (sub === "stats") return <div className="flex flex-col gap-5 py-5"><StatsPage snap={snap} go={go} goFilter={goFilter} /></div>;
   return (
     <div className="flex flex-col gap-5 py-5">
-      <SubMenu sub={sub} />
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="text-xl font-bold">{day.charAt(0).toUpperCase() + day.slice(1)}, {hm(now)}</h1>
         <span className="text-sm text-muted">{followedLine(snap)}</span>
