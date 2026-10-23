@@ -510,8 +510,8 @@ def _first_key(agg: dict | None) -> str | None:
 class Wazuh(StatusConnector):
     """Wazuh (server API, 55000): version, agents active / disconnected / never connected. Read-only API user (Basic, then a JWT).
     Routes: POST /security/user/authenticate, GET /, /agents/summary/status, /agents?status=disconnected.
-    With the indexer set (9200, its own read-only user): the security alerts of the last 24 h, the serious ones (level 12 and more,
-    « high » and « critical » in the dashboard) named. Route: POST /wazuh-alerts-*/_search (counts only, no alert read).
+    With the indexer set (9200, its own read-only user): the security alerts of the last 24 h, the serious ones (level 13 and more:
+    level 12 holds routine rules such as a system user logging in) named. Route: POST /wazuh-alerts-*/_search (counts only, no alert read).
     Per machine (« machines », by the IP of its Wazuh agent, shown on the machine page): the configuration score of each SCA policy
     and what syscollector saw (hardware, packages, listening ports), read for the active agents and kept an hour; with the indexer,
     the vulnerabilities by severity and the worst CVE (POST /wazuh-states-vulnerabilities-*/_search), kept half an hour.
@@ -537,7 +537,7 @@ class Wazuh(StatusConnector):
              "« myservices », et dans son champ « Backend roles » : readall. (Ajouter l'utilisateur au rôle « readall » par Roles → Mapped users "
              "échoue : cette association est réservée.) Adresse de l'indexeur : https://<IP>:9200.",
              "MyServices ne fait que lire : des nombres, le nom des règles graves et des CVE, jamais le détail d'une alerte.")
-    SERIOUS = 12   # rule level from which the dashboard says « high » (15: « critical »)
+    SERIOUS = 13   # rule level from which an alert counts as serious (12 holds routine ones, « System user successfully logged »)
     MAX_AGENTS = 50   # per-agent reads (SCA, inventory) beyond: left out, a big fleet is not what MyServices is for
     INVENTORY_TTL, VULNS_TTL = 3600, 1800
 

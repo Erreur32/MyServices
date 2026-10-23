@@ -7,8 +7,8 @@ import { scoreTone, vulnTone, wazuhOf } from "../lib/wazuh";
 import { DetailRow, DetailSection } from "./DetailSection";
 import { COLOR } from "./StatTile";
 
-export function WazuhCard({ snap, ip }: Readonly<{ snap: Snapshot; ip: string }>) {
-  const w = wazuhOf(snap.data.services_status, ip);
+export function WazuhCard({ snap, ip, name }: Readonly<{ snap: Snapshot; ip: string; name: string }>) {
+  const w = wazuhOf(snap.data.services_status, ip, name, new Set(snap.data.machine_list.map((x) => x.ip)));
   if (!w) return null;
   const { m } = w, v = m.vulns, hw = m.hardware;
   const active = m.status === "active";

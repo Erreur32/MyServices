@@ -11,6 +11,12 @@ describe("wazuhOf", () => {
     expect(wazuhOf(list, "10.0.0.9")).toBeNull();
     expect(wazuhOf(undefined, "10.0.0.5")).toBeNull();
   });
+  it("falls back on the name when the agent gives an IP no machine has", () => {
+    const list = [st({ machines: { "172.30.33.3": { agent: "HomeAssistant" }, "10.0.0.7": { agent: "nas" } } })];
+    expect(wazuhOf(list, "10.0.0.20", "Home Assistant", new Set(["10.0.0.7", "10.0.0.20"]))?.m.agent).toBe("HomeAssistant");
+    expect(wazuhOf(list, "10.0.0.30", "NAS", new Set(["10.0.0.7", "10.0.0.30"]))).toBeNull();   // that agent is another machine's
+    expect(wazuhOf(list, "10.0.0.20", "", new Set())).toBeNull();
+  });
 });
 
 describe("tones", () => {

@@ -220,7 +220,7 @@ function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, h
       </div>
       {detail(<>
         <PortsCard snap={snap} m={m} onMachine={onMachine} />
-        <WazuhCard snap={snap} ip={m.ip} />
+        <WazuhCard snap={snap} ip={m.ip} name={m.name} />
         <GuestsCard snap={snap} m={m} />
       </>)}
     </div>

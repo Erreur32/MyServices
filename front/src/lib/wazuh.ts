@@ -3,11 +3,20 @@ import type { ServiceStatus, WazuhMachine } from "../types";
 
 export interface WazuhOfMachine { instance: string; stale: boolean; m: WazuhMachine }
 
-/** The first Wazuh instance that has an agent on this IP; null when none (the card is left out) */
-export function wazuhOf(statuses: ServiceStatus[] | undefined, ip: string): WazuhOfMachine | null {
-  for (const s of statuses ?? []) {
-    const m = s.connector === "wazuh" ? s.machines?.[ip] : undefined;
-    if (m) return { instance: s.instance ?? s.name, stale: s.stale, m };
+/** A name compared without case, spaces or signs: « Home Assistant » and « HomeAssistant » are the same */
+const plain = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/** The first Wazuh instance that has an agent on this IP; failing that, an agent of the same name whose own IP is no known machine's
+ *  (an agent in a container gives its inner IP, 172.x); null when none (the card is left out) */
+export function wazuhOf(statuses: ServiceStatus[] | undefined, ip: string, name?: string, knownIps: ReadonlySet<string> = new Set()): WazuhOfMachine | null {
+  const wz = (statuses ?? []).filter((s) => s.connector === "wazuh" && s.machines);
+  const hit = (s: ServiceStatus, m: WazuhMachine) => ({ instance: s.instance ?? s.name, stale: s.stale, m });
+  for (const s of wz) if (s.machines![ip]) return hit(s, s.machines![ip]);
+  const want = plain(name);
+  if (!want) return null;
+  for (const s of wz) {
+    const found = Object.entries(s.machines!).find(([at, m]) => !knownIps.has(at) && plain(m.agent) === want);
+    if (found) return hit(s, found[1]);
   }
   return null;
 }
