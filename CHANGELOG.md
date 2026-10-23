@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+- **Side menu, one category open at a time**: opening a page folds every other category, only the one holding the page stays open; a category opened by hand closes the others.
+
 ## v0.20.2 (2026-10-23)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
