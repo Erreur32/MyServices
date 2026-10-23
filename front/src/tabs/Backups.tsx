@@ -2,7 +2,7 @@
 // produced), to watch, and the sets (filters: in use, flagged, archived), each unfolding its detail; « Set » opens the page of the set in
 // Backups → Settings. The local folders and cron lines no set claims are listed there too (« To link »).
 import { usePageView } from "../lib/route";
-import { ChevronDown, ChevronUp, HardDrive, Layers, Monitor, Settings2, Terminal } from "lucide-react";
+import { ChevronDown, ChevronUp, HardDrive, Layers, Monitor, Terminal, SlidersHorizontal } from "lucide-react";
 import { Fragment, useCallback, useMemo, useState } from "react";
 import { type Snapshot } from "../api";
 import { useFilter, type Facet, type Selected } from "../lib/filter";
@@ -14,6 +14,7 @@ import { LEVEL } from "../lib/level";
 import { Dot } from "../components/marks";
 import { quiet, worstTone } from "../lib/forms";
 import { tx } from "../lib/i18n";
+import { SettingsLink } from "../components/SettingsLink";
 import { StatTile } from "../components/StatTile";
 import { WatchPanel } from "../components/WatchPanel";
 import { cronsOf, figures, newestOf, rank, sourceOf, toWatch, unclaimedCrons } from "../lib/backupsState";
@@ -57,7 +58,7 @@ function SetDetail({ s, b, snap }: Readonly<{ s: BackupSet; b: BackupsData; snap
         </div>
       )}
       <div className="flex flex-wrap gap-2">
-        {snap.me.role === "admin" && <a href={`#settings/backups/${s.id}`} className={`${quiet} no-underline`}><Settings2 size={14} aria-hidden />{tx("Régler ce jeu")}</a>}
+        {snap.me.role === "admin" && <a href={`#settings/backups/${s.id}`} className={`${quiet} no-underline`}><SlidersHorizontal size={14} aria-hidden />{tx("Régler ce jeu")}</a>}
         {machine && <a href={`#machines/${machine.ip}`} className={`${quiet} no-underline`}><Monitor size={14} aria-hidden />{tx("Ouvrir {0}", machine.name)}</a>}
       </div>
     </div>
@@ -87,7 +88,7 @@ function SetsTable({ sets, b, snap, sizes = false }: Readonly<{ sets: BackupSet[
                   <td className="px-3 py-2"><Level level={s.level} />{s.why?.[0] && !on && <span className="ml-1.5 hidden text-xs text-muted xl:inline" title={s.why.join("\n")}>{s.why[0]}</span>}</td>
                   <td className="px-3 py-2 text-right"><span className="inline-flex items-center gap-2">
                     <button type="button" onClick={() => setOpen(on ? null : s.id)} aria-expanded={on} className={`${quiet} py-1`}>{on ? tx("Replier") : tx("Détail")}{on ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}</button>
-                    {snap.me.role === "admin" && <a href={`#settings/backups/${s.id}`} className="text-xs text-link hover:underline">{tx("Régler")} ›</a>}
+                    {snap.me.role === "admin" && <SettingsLink href={`#settings/backups/${s.id}`} of={s.label} />}
                   </span></td>
                 </tr>
                 {on && <tr><td colSpan={sizes ? 7 : 6} className="p-0"><SetDetail s={s} b={b} snap={snap} /></td></tr>}

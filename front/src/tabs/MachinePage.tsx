@@ -1,7 +1,7 @@
 // The page of one machine (#machines/<ip>): what the Machines tab showed in a window (identity, system, access, software, backups, health,
 // updates, UniFi or Freebox), its availability over 30 days, and, for an administrator, its settings (identity, options, access) in the page:
 // the window of Réglages → Machines is no longer needed for a machine that exists. Back to the list with « Machines ».
-import { ArrowLeft, ArrowRight, Boxes, EthernetPort, Globe, SlidersHorizontal } from "lucide-react";
+import { ArrowRight, Boxes, EthernetPort, Globe, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { read, type Snapshot } from "../api";
 import { MachineIcon } from "../components/MachineIcon";
@@ -18,6 +18,7 @@ import type { Machine } from "../types";
 import { cellColor, pct, pctTone, type Item, type Report } from "./Availability";
 import { MachineModal } from "./MachinesSettings";
 import { COLOR, StatTile } from "../components/StatTile";
+import { BackButton } from "../components/BackButton";
 import { WazuhCard } from "../components/WazuhCard";
 import type { MachineFigure } from "../lib/machineFigures";
 import { METRIC_COLUMN, minMax, spanStart, sparkPath, SPAN_S, type MetricKey, type MetricPoint } from "../lib/sparkline";
@@ -193,11 +194,7 @@ export function MachinePage({ snap, m, scan, model, state, detail, figures, onMa
 
 type Head = (back: ReactNode, right: ReactNode) => ReactNode;
 
-const backButton = (label: string, onClick: () => void) => (
-  <button type="button" onClick={onClick} className="group inline-flex items-center gap-2 rounded-full border border-line bg-card py-1.5 pl-2.5 pr-4 text-sm font-semibold text-muted transition-colors hover:border-link hover:text-txt">
-    <ArrowLeft size={16} aria-hidden className="transition-transform group-hover:-translate-x-0.5" />{label}
-  </button>
-);
+const backButton = (label: string, onClick: () => void) => <BackButton label={label} onClick={onClick} />;
 
 /** What MyServices knows of the machine: state, health, software, backups, availability, ports, guests; its settings are one click away */
 function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, head }: Readonly<{

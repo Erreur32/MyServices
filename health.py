@@ -1180,10 +1180,17 @@ def parse_agent_data(hc: dict, data: dict) -> dict:
 SOURCES = ("ssh", "agent", "beszel", "ha")   # ha : l'API d'un connecteur (Home Assistant : capteurs de la machine hôte)
 
 
-def source_order(hc: dict) -> list[str]:
+def agent_fresh(agent: dict | None) -> bool:
+    """The machine's agent sent a recent report (health.agent_reports): its health can be read from it, without SSH."""
+    return bool(agent and agent.get("fresh") and isinstance((agent.get("report") or {}).get("data"), dict))
+
+
+def source_order(hc: dict, agent: dict | None = None) -> list[str]:
     """Priorité de lecture de la santé d'une machine : « health_sources » de services-meta, puis l'ordre par défaut pour
-    les sources non citées. Par défaut SSH, agent, Beszel ; Windows : agent d'abord (c'est son accès recommandé)."""
-    default = ["agent", "ssh", "beszel", "ha"] if hc.get("os") == "windows" else ["ssh", "agent", "beszel", "ha"]
+    les sources non citées. Par défaut SSH, agent, Beszel ; agent d'abord quand il a un relevé frais (il relit la machine chaque minute,
+    sans clé SSH : le SSH n'est plus ouvert que s'il se tait) et toujours pour Windows (c'est son accès recommandé)."""
+    first_agent = hc.get("os") == "windows" or agent_fresh(agent)
+    default = ["agent", "ssh", "beszel", "ha"] if first_agent else ["ssh", "agent", "beszel", "ha"]
     wanted = [x for x in hc.get("sources") or [] if x in SOURCES]
     return list(dict.fromkeys(wanted + default))
 
@@ -1237,7 +1244,7 @@ def read_host(hc: dict, agent: dict | None, beszel: dict | None, ssh=None, api: 
                "beszel": lambda: host_from_beszel(hc, beszel) if beszel else None,
                "ha": lambda: host_from_api(hc, api) if api else None}
     silent, primary = None, None
-    for name in source_order(hc):
+    for name in source_order(hc, agent):
         h = readers[name]()
         if h is None:
             continue
@@ -1250,10 +1257,10 @@ def read_host(hc: dict, agent: dict | None, beszel: dict | None, ssh=None, api: 
         return None if hc.get("off") else silent
     # parties lisibles à peu de frais (relevé d'agent frais, Beszel qui répond), sans relancer de lecture SSH
     cheap = {}
-    for name in source_order(hc):
+    for name in source_order(hc, agent):
         if name == primary["source"]:
             continue
-        if name == "agent" and agent and agent["fresh"] and isinstance((agent["report"] or {}).get("data"), dict):
+        if name == "agent" and agent_fresh(agent):
             cheap[name] = parse_agent_data(hc, agent["report"]["data"])
         elif name == "beszel" and beszel and beszel.get("status") == "up":
             cheap[name] = parse_beszel(beszel)
@@ -2092,7 +2099,7 @@ def main() -> int:
     candidates, meta = load_hosts(set(agents))
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv[:-1] else None  # une seule machine (IP) : les autres gardent leur dernier relevé
     # After an agent report (--agent): a machine read over SSH first keeps its SSH reading until the next pass (the report only complements it)
-    ssh_first = [hc for hc in candidates if hc["ip"] == only and hc["target"] and source_order(hc)[0] == "ssh"] if only and "--agent" in sys.argv else []
+    ssh_first = [hc for hc in candidates if hc["ip"] == only and hc["target"] and source_order(hc, agents.get(only))[0] == "ssh"] if only and "--agent" in sys.argv else []
     if ssh_first:
         print(f"= relevé d'agent de {only} : machine lue en SSH, rien à relire" + (" (un point pour les courbes)" if agent_figures(ssh_first[0], agents.get(only), ts) else ""))
         return 0
@@ -2106,7 +2113,7 @@ def main() -> int:
     asleep = []
     apis = api_systems(meta, cached_only=bool(only))
     # Beszel is read for a whole pass, or for the one machine asked for (even a « often off » one: Beszel may be telling it is up)
-    needs_beszel = any(hc["target"] is None or "beszel" in source_order(hc) for hc in candidates if not only or hc["ip"] == only)
+    needs_beszel = any(hc["target"] is None or "beszel" in source_order(hc, agents.get(hc["ip"])) for hc in candidates if not only or hc["ip"] == only)
     besz, _ = beszel_systems(meta) if (not only or needs_beszel or only in meta.get("machines", {})) else ({}, [])
     awake = awake_ips(besz)
     if awake - set(agents):   # a « often off » machine that Beszel sees up is read like the others, from Beszel

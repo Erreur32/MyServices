@@ -6,6 +6,7 @@ import { read } from "../api";
 import type { NotificationItem, NotificationsState } from "../types";
 import { dateTime } from "../lib/format";
 import { tx } from "../lib/i18n";
+import { SettingsLink } from "./SettingsLink";
 import { DAYS } from "../tabs/Notifications";
 import { InfoNote } from "./InfoNote";
 import { Card, Dim } from "./ui";
@@ -32,7 +33,7 @@ function Line({ icon: Icon, name, when, last, href }: Readonly<{ icon: LucideIco
       <span className="flex min-w-0 items-center gap-2 font-semibold"><Icon size={15} className="shrink-0 text-muted" aria-hidden /><span className="truncate">{name}</span></span>
       <span className="text-muted">{when}</span>
       <span className="text-dim">{last ? dateTime(last * 1000) : <Dim>-</Dim>}</span>
-      <a href={href} className="text-link hover:underline">{tx("Régler")} ›</a>
+      <SettingsLink href={href} of={name} />
     </li>
   );
 }

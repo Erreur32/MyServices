@@ -12,6 +12,7 @@ import { InfoNote } from "../components/InfoNote";
 import { MachineIcon } from "../components/MachineIcon";
 import { sshRows, type SshState } from "../lib/accessLists";
 import { tx } from "../lib/i18n";
+import { SettingsLink } from "../components/SettingsLink";
 import { primary } from "../lib/forms";
 
 /** What needs SSH on a machine, in words (codes from the server, access_advice.ssh_uses) */
@@ -62,7 +63,7 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
             <a href="#settings/machines/ssh/new" className={`${primary} no-underline`}><Plus size={14} aria-hidden />{tx("Connexion SSH")}</a>
           </span>
         </div>
-        <InfoNote className="mt-2">{tx("L'agent MyServices fait les mêmes relevés de santé chaque minute, sans clé SSH sur la machine. Gardez le SSH seulement pour ce que l'agent ne lit pas : sauvegardes, Proxmox ou ESXi, NPM, AdGuard. « Régler » ouvre son réglage.")}</InfoNote>
+        <InfoNote className="mt-2">{tx("L'agent MyServices fait les mêmes relevés de santé chaque minute, sans clé SSH sur la machine. Gardez le SSH seulement pour ce que l'agent ne lit pas : sauvegardes, Proxmox ou ESXi, NPM, AdGuard. L'icône de réglage ouvre l'accès d'une machine.")}</InfoNote>
         {rows.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucune machine lue par SSH pour l'instant : l'accès s'active sur la page d'une machine, onglet Accès.")}</p>}
         {rows.length > 0 && (
           <div className="mt-3 overflow-x-auto">
@@ -82,7 +83,7 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
                       <td className="px-3 py-2 font-mono text-xs">{r.access || <Dim>-</Dim>}</td>
                       <td className="px-3 py-2"><Badge tone={tone} title={r.message || undefined}>{label}</Badge></td>
                       <td className="px-3 py-2"><AgentAdvice ip={r.ip} agent={withAgent.has(r.ip)} uses={st.ssh_uses?.[r.ip] ?? []} /></td>
-                      <td className="px-3 py-2 text-right"><a href={`#settings/machines/ssh/${r.ip}`} className="text-xs text-link hover:underline">{tx("Régler")} ›</a></td>
+                      <td className="px-3 py-2 text-right"><SettingsLink href={`#settings/machines/ssh/${r.ip}`} of={r.name} /></td>
                     </tr>
                   );
                 })}

@@ -7,8 +7,8 @@ Règle (la même que dans le README) :
 - box, passerelle, appli fermée (Freebox, UniFi…) : le connecteur, jamais d'agent ;
 - Home Assistant OS : son API (connecteur), ni SSH ni agent : l'accès SSH y est effacé à chaque redémarrage (constat de l'auteur) ;
 - PC Windows : l'agent ;
-- machine Linux où le SSH est possible : le SSH (l'agent n'y sert que de secours) ;
-- machine où le SSH est impossible : l'agent ;
+- machine Linux : l'agent (il relit la machine chaque minute, sans clé SSH ; décidé le 2026-10-23), le SSH en alternative et gardé pour ce
+  que l'agent ne lit pas (sauvegardes, Proxmox ou ESXi, NPM, AdGuard : ssh_uses) ; une machine déjà lue par SSH n'est pas signalée pour autant ;
 - le reste : ping seul.
 """
 from __future__ import annotations
@@ -101,10 +101,10 @@ def _plan(f: dict, kind: str, connectors: list[str]) -> tuple[str, str, list[str
 
 
 def _plan_linux(f: dict, kind: str, connectors: list[str], ssh_possible: bool) -> tuple[str, str, list[str], bool, str | None]:
-    """Linux ou système inconnu : SSH si possible, sinon un outil, sinon l'agent, sinon le ping."""
+    """Linux ou système inconnu : l'agent (SSH en alternative quand il est possible), un outil seul s'il n'y a que lui, sinon le ping."""
     if ssh_possible:
-        why = "ssh_configured" if f.get("ssh_ok") or f.get("ssh_alias") else "ssh_port"
-        return "ssh", why, ["agent"] + (["connector"] if connectors else []), True, "linux"
+        why = "agent_linux_ssh" if f.get("ssh_ok") or f.get("ssh_alias") else "agent_linux"
+        return "agent", why, ["ssh"] + (["connector"] if connectors else []), True, "linux"
     if connectors:
         return "connector", "connector_only", ["agent"], True, "linux"
     if f.get("ping") is False:

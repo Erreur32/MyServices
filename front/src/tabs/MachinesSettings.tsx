@@ -3,7 +3,7 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Les réglages de chaque machine sont dans sa page (#machines/<ip>) ; ici, trois sous-pages du menu Machines : ajouter et détecter,
 // les appareils vus par les outils et pas suivis, les agents. La clé refusée par une machine est signalée sur la page de la clé SSH.
-import { Check, ChevronDown, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, ShieldCheck, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Monitor, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, ShieldCheck, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Copyable, Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -13,6 +13,7 @@ import { dateTime } from "../lib/format";
 import type { AgentInfo, Connector, Detection, MachineConf, MachinesSettings as State, NetHost, NetScan, Redetection, RedetectItem } from "../types";
 import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
+import { BackButton } from "../components/BackButton";
 import { MachineIcon } from "../components/MachineIcon";
 import { AccessGuide, AgentBlock, AgentsOverview } from "./Agents";
 import { IconPicker } from "../components/IconPicker";
@@ -103,16 +104,31 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
 }
 
 /** The SSH access of one machine on a page of its own (the other machines are not listed while it is set), from Machines → SSH connections */
+const toSshList = () => { location.hash = "settings/machines/ssh"; };
+
+/** Head of an SSH page: the way back on the left, the machine (icon, name, address) as the title */
+function SshHead({ title, m, ip }: Readonly<{ title: string; m?: MachineConf; ip?: string }>) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <BackButton label={tx("Connexions SSH")} onClick={toSshList} />
+      <h2 className="flex items-center gap-2 text-lg font-bold">
+        {m ? <MachineIcon m={{ name: m.name, os: m.os }} reserve /> : <KeyRound size={16} aria-hidden />}
+        {m ? <>{m.name}<Dim>{ip}</Dim><span className="text-sm font-normal text-muted">· {title}</span></> : title}
+      </h2>
+      {m && ip && <a href={`#machines/${ip}`} className={`${quiet} ml-auto no-underline`}><Monitor size={14} aria-hidden />{tx("Page de la machine")}</a>}
+    </div>
+  );
+}
+
+/** Settings are saved as they are typed: « Done » only goes back to the list */
+const DoneButton = () => <div className="mt-3 flex justify-end"><button type="button" className={quiet} onClick={toSshList}><Check size={14} aria-hidden />{tx("Terminé")}</button></div>;
+
 function SshPage({ ip, snap, st }: Readonly<{ ip: string; snap: Snapshot; st: State }>) {
-  const name = st.machines[ip]?.name ?? ip;
   return (
     <Card>
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 className="flex items-center gap-2 font-bold"><KeyRound size={16} aria-hidden />{tx("Connexion SSH de {0}", name)}<Dim>{ip}</Dim></h2>
-        <a href="#settings/machines/ssh" className="ml-auto text-sm text-link hover:underline">‹ {tx("Connexions SSH")}</a>
-        <a href={`#machines/${ip}`} className="text-sm text-link hover:underline">{tx("Page de la machine")} ›</a>
-      </div>
+      <SshHead title={tx("Connexion SSH")} m={st.machines[ip] ?? { name: ip }} ip={ip} />
       <MachineModal ip={ip} snap={snap} only="ssh" />
+      <DoneButton />
     </Card>
   );
 }
@@ -123,10 +139,7 @@ function NewSshPage({ snap, st }: Readonly<{ snap: Snapshot; st: State }>) {
   const [ip, setIp] = useState("");
   return (
     <Card>
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 className="flex items-center gap-2 font-bold"><Plus size={16} aria-hidden />{tx("Nouvelle connexion SSH")}</h2>
-        <a href="#settings/machines/ssh" className="ml-auto text-sm text-link hover:underline">‹ {tx("Connexions SSH")}</a>
-      </div>
+      <SshHead title={tx("Nouvelle connexion SSH")} m={ip ? st.machines[ip] : undefined} ip={ip || undefined} />
       {free.length === 0 ? <p className="text-sm text-dim">{tx("Toutes les machines suivies ont déjà une connexion SSH. Une machine nouvelle s'ajoute dans Machines, « Ajouter une machine ».")}</p> : (
         <label className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted">{tx("Machine")}</span>
@@ -136,7 +149,7 @@ function NewSshPage({ snap, st }: Readonly<{ snap: Snapshot; st: State }>) {
           </select>
         </label>
       )}
-      {ip && <div className="mt-3"><MachineModal key={ip} ip={ip} snap={snap} only="ssh" /></div>}
+      {ip && <><div className="mt-3"><MachineModal key={ip} ip={ip} snap={snap} only="ssh" /></div><DoneButton /></>}
     </Card>
   );
 }
