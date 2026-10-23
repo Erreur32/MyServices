@@ -1,6 +1,6 @@
 // Accueil → Statistiques : une ligne de chiffres clés, puis les compteurs de chaque sujet en grille (deux colonnes, trois sur
 // un très grand écran) et les horaires ; clic sur le titre d'un groupe = ouvrir sa page, clic sur un compteur = l'ouvrir filtrée.
-import { Boxes, HardDrive, HeartPulse, Layers, Monitor, PackageCheck, Plug } from "lucide-react";
+import { Boxes, HardDrive, HeartPulse, Layers, Monitor, PackageCheck, Plug, ShieldCheck } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { read } from "../api";
 import { StatTile } from "./StatTile";
@@ -12,9 +12,9 @@ import type { TabId } from "../lib/summary";
 import { tx } from "../lib/i18n";
 import { ScheduleCard } from "./ScheduleCard";
 import { hasNetwork } from "../lib/network";
-import { connectorCounts, networkCounts, upkeepCounts, virtualCounts } from "../lib/statsExtra";
+import { connectorCounts, networkCounts, upkeepCounts, virtualCounts, wazuhCounts } from "../lib/statsExtra";
 import { NetworkGroup } from "./NetworkGroup";
-import { Group, Mark, type Open } from "./StatGroup";
+import { Group, Mark, type Cell, type Open } from "./StatGroup";
 import type { Selected } from "../lib/filter";
 
 /** Groupes de compteurs, par onglet : la colonne de droite les empile tous, l'accueil range chacun sous son paragraphe */
@@ -69,6 +69,12 @@ function extraGroups(snap: Snapshot, nav: Open): ReactNode[] {
   if (v.guests + v.nodesDown > 0)
     out.push(<Group key="vi" mark={<Mark Icon={Layers} />} title={tx("Virtualisation")} sub={tx("{0} invités", v.guests)} accent="border-l-loc" tab="virtualization" nav={nav} cells={[
       ["ok", v.running, tx("en marche")], ["off", v.stopped, tx("arrêtés")], ["bad", v.nodesDown, tx("nœuds hors ligne")], ["warn", v.problems, tx("à voir")]]} />);
+  const w = wazuhCounts(snap);
+  if (w)
+    out.push(<Group key="wz" mark={<Mark app="Wazuh" Icon={ShieldCheck} />} title="Wazuh" sub={tx("{0} agents", w.total)} accent="border-l-link" tab="security" href="security/wazuh" nav={nav} cells={[
+      ["ok", w.active, tx("actifs")], ["bad", w.disconnected, tx("déconnectés")],
+      ...(w.serious != null ? [["bad", w.serious, tx("alertes graves 24 h")] as Cell] : [["warn", w.never, tx("jamais connectés")] as Cell]),
+      ...(w.critical != null ? [["bad", w.critical, tx("vulnérabilités critiques")] as Cell] : [])]} />);
   if (snap.health || snap.data.hosts.length > 0)
     out.push(<Group key="up" mark={<Mark Icon={PackageCheck} />} title={tx("Mises à jour et certificats")} sub={tx("{0} machines relevées", snap.health?.hosts.length ?? 0)} accent="border-l-apache" tab="machines" nav={nav} cells={[
       ["warn", u.updates, tx("à mettre à jour")], ["warn", u.reboot, tx("à redémarrer")], ["warn", u.certSoon, tx("certificats bientôt")], ["bad", u.certBad, tx("certificats invalides")]]} />);
