@@ -16,7 +16,7 @@ import { Missing } from "./Missing";
 import { Rich } from "./Rich";
 import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 import { useStoredFlag } from "../lib/storedFlag";
-import { StatsColumn } from "./StatsColumn";
+import { StatsPage } from "./StatsPage";
 
 /** Lines shown before « Tout voir » */
 const LIMIT = 8;
@@ -98,7 +98,7 @@ export function Home({ snap, items, go, goFilter, now, sub = "overview" }: Reado
   const admin = snap.me.role === "admin";
   const day = longDay(now);
   if (sub === "history") return <div className="flex flex-col gap-5 py-5"><History snap={snap} /></div>;
-  if (sub === "stats") return <div className="flex flex-col gap-5 py-5"><StatsColumn snap={snap} go={go} goFilter={goFilter} /></div>;
+  if (sub === "stats") return <div className="flex flex-col gap-5 py-5"><StatsPage snap={snap} go={go} goFilter={goFilter} /></div>;
   return (
     <div className="flex flex-col gap-5 py-5">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">

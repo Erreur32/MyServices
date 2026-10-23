@@ -36,7 +36,7 @@ function Strip({ cells, step }: { cells: Cell[]; step: Report["step"] }) {
 }
 
 /** Colour of an availability in a figure */
-const tileTone = (p: number): "ok" | "warn" | "bad" => {
+export const tileTone = (p: number): "ok" | "warn" | "bad" => {
   if (p >= 99.9) return "ok";
   return p >= 95 ? "warn" : "bad";
 };
