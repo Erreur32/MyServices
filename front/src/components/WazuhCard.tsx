@@ -43,11 +43,7 @@ export function WazuhCard({ snap, ip, name }: Readonly<{ snap: Snapshot; ip: str
       ))}
       {hw && <DetailRow k={tx("Matériel")}>{[hw.cpu, hw.cores && tx("{0} cœurs", hw.cores), hw.ram_gb && `${hw.ram_gb} Go`].filter(Boolean).join(" · ")}</DetailRow>}
       {m.packages != null && <DetailRow k={tx("Paquets")}>{m.packages}</DetailRow>}
-      {!!m.ports?.length && (
-        <DetailRow k={tx("Ports en écoute")}>
-          {m.ports.map((p) => <span key={`${p.proto}/${p.port}`} className="rounded border border-line bg-bg2 px-1 font-mono text-[11px]" title={p.process ?? undefined}>{p.port}/{p.proto}</span>)}
-        </DetailRow>
-      )}
+      {!!m.ports?.length && <DetailRow k={tx("Ports en écoute")}>{tx("{0}, dans la carte Ports ouverts", m.ports.length)}</DetailRow>}
     </DetailSection>
   );
 }

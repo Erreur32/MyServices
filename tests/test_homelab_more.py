@@ -308,7 +308,8 @@ class Wazuh(Base):
         self.route("/syscollector/001/packages", {"data": {"affected_items": [{}], "total_affected_items": 812}})
         self.route("/syscollector/001/ports", {"data": {"affected_items": [{"local": {"port": 22}, "protocol": "tcp", "process": "sshd"},
                                                                          {"local": {"port": 22}, "protocol": "tcp", "process": "sshd"},
-                                                                         {"local": {"port": 443}, "protocol": "tcp"}]}})
+                                                                         {"local": {"port": 443}, "protocol": "tcp"},
+                                                                         {"local": {"ip": "127.0.0.1", "port": 6379}, "protocol": "tcp", "process": "redis-server"}]}})
         self.route("/wazuh-alerts-*/_search", {"hits": {"total": {"value": 0}}}, method="POST")
         self.route("/wazuh-states-vulnerabilities-*/_search", {"aggregations": {"agents": {"buckets": [
             {"key": "001", "sev": {"buckets": [{"key": "Critical", "doc_count": 2}, {"key": "Medium", "doc_count": 9}]},
@@ -321,7 +322,8 @@ class Wazuh(Base):
         self.assertEqual(srv["sca"], [{"name": "CIS Debian 12", "score": 62, "pass": 120, "fail": 73}])
         self.assertEqual(srv["hardware"], {"cpu": "Intel N100", "cores": 4, "ram_gb": 16.0})
         self.assertEqual(srv["packages"], 812)
-        self.assertEqual(srv["ports"], [{"port": 22, "proto": "tcp", "process": "sshd"}, {"port": 443, "proto": "tcp", "process": None}])
+        self.assertEqual(srv["ports"], [{"port": 22, "proto": "tcp", "process": "sshd"}, {"port": 443, "proto": "tcp", "process": None},
+                                        {"port": 6379, "proto": "tcp", "process": "redis-server", "local": True}])
         self.assertEqual(srv["vulns"], {"critical": 2, "high": 0, "medium": 9, "low": 0, "worst": [
             {"id": "CVE-2025-2", "severity": "Critical", "package": "openssl"}, {"id": "CVE-2025-1", "severity": "High", "package": "curl"}]})
         self.assertEqual(d["machines"]["10.0.0.6"], {"agent": "pc", "status": "disconnected"})

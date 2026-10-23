@@ -7,10 +7,17 @@ export interface PortRow {
   port: number;
   name: string | null;        // service known on this port (its name, app label or image), null = unknown
   domains: string[];          // NPM domains pointing to this port (exposed through the proxy)
-  listening: boolean;         // seen open by the last scan
+  listening: boolean;         // seen open by a scan (MyServices, MynetworK) or listening for Wazuh
   host: Host | null;          // the service row behind the port (its icon, kind and state), null = unknown
   guess: string | null;       // unknown port: what usually listens there (a guess, said so)
+  process: string | null;     // the program listening, as Wazuh saw it
+  local: boolean;             // listening on the machine only (127.0.0.1 / ::1, Wazuh): not reachable from the network
+  seen: PortSource[];         // who saw it open
 }
+
+export type PortSource = "scan" | "mynetwork" | "wazuh";
+/** Ports seen by the other readers of the machine: the scan of MynetworK and the listening ports of Wazuh */
+export interface MorePorts { mynetwork?: number[]; wazuh?: { port: number; process?: string | null; local?: boolean }[] }
 
 /** What usually listens on a port, for an unknown one; the sensitive ports of the Security page come on top */
 const WELL_KNOWN: Record<number, string> = {
@@ -22,17 +29,25 @@ const hostIp = (r: Host) => r.host_ip || r.ip || r.target_ip || "";
 const serviceName = (r: Host) => r.app?.label || r.service?.name || r.name || r.service?.image || null;
 
 /** The ports of a machine: those seen open by the scan and those of its known services, each with its service and the domains that expose it */
-export function portRows(m: Machine, hosts: Host[], sheet?: AddressSheet): PortRow[] {
+export function portRows(m: Machine, hosts: Host[], sheet?: AddressSheet, more: MorePorts = {}): PortRow[] {
   const mine = hosts.filter((r) => hostIp(r) === m.ip);
-  const scanned = new Set(sheet?.scan?.ports ?? []);
-  const ports = new Set<number>([...scanned, ...mine.map((r) => r.port).filter((p): p is number => typeof p === "number")]);
+  const scanned = new Set(sheet?.scan?.ports ?? []), byNet = new Set(more.mynetwork ?? []);
+  const wz = new Map<number, { process: string | null; local: boolean }>();
+  for (const p of more.wazuh ?? []) {   // a port on both 127.0.0.1 and 0.0.0.0 is not local; the first program named is kept
+    const had = wz.get(p.port);
+    wz.set(p.port, { process: had?.process ?? p.process ?? null, local: (had?.local ?? true) && !!p.local });
+  }
+  const ports = new Set<number>([...scanned, ...byNet, ...wz.keys(), ...mine.map((r) => r.port).filter((p): p is number => typeof p === "number")]);
   return [...ports].sort((a, b) => a - b).map((port) => {
     const onPort = mine.filter((r) => r.port === port);
     const local = onPort.find((r) => r.type === "local") ?? onPort.find((r) => r.type !== "proxy");
     const domains = onPort.filter((r) => r.type === "proxy" && r.enabled && !r.paused).flatMap((r) => r.domains);
     const named = local ?? onPort[0];   // the service on this machine, else the first thing seen on the port
     const name = named ? serviceName(named) : null;
-    return { port, name, domains: [...new Set(domains)], listening: scanned.has(port), host: named ?? null, guess: name ? null : WELL_KNOWN[port] ?? null };
+    const seen: PortSource[] = [...(scanned.has(port) ? ["scan" as const] : []), ...(byNet.has(port) ? ["mynetwork" as const] : []), ...(wz.has(port) ? ["wazuh" as const] : [])];
+    const w = wz.get(port);
+    return { port, name, domains: [...new Set(domains)], listening: seen.length > 0, host: named ?? null, guess: name ? null : WELL_KNOWN[port] ?? null,
+             process: w?.process ?? null, local: !!w?.local && !scanned.has(port) && !byNet.has(port), seen };
   });
 }
 

@@ -243,7 +243,7 @@ export interface WazuhMachine {
   sca?: { name: string; score: number; pass: number; fail: number }[];
   hardware?: { cpu?: string | null; cores?: number | null; ram_gb?: number | null } | null;
   packages?: number | null;
-  ports?: { port: number; proto: string; process?: string | null }[];
+  ports?: { port: number; proto: string; process?: string | null; local?: boolean }[];   // local: listening on 127.0.0.1 / ::1 only
   vulns?: { critical: number; high: number; medium: number; low: number; worst: { id: string; severity: string | null; package: string | null }[] };
 }
 

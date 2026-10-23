@@ -606,11 +606,13 @@ class Wazuh(StatusConnector):
         cpu, ram = hw.get("cpu") or {}, hw.get("ram") or {}
         pk = _data(self.get_opt(f"/syscollector/{aid}/packages?limit=1", h)) or {}
         ports = rows((_data(self.get_opt(f"/syscollector/{aid}/ports?state=listening&limit=100", h)) or {}).get("affected_items"))
-        listen = sorted({(int(num((p.get("local") or {}).get("port"), 0)), str(p.get("protocol") or ""), str(p.get("process") or "")) for p in ports} - {(0, "", "")})
+        loop = ("127.", "::1", "localhost")   # listening on the machine only: not reachable from the network
+        listen = sorted({(int(num((p.get("local") or {}).get("port"), 0)), str(p.get("protocol") or ""), str(p.get("process") or ""),
+                          str((p.get("local") or {}).get("ip") or "").startswith(loop)) for p in ports})
         return {"sca": sca,
                 "hardware": {"cpu": cpu.get("name"), "cores": cpu.get("cores"), "ram_gb": round(num(ram.get("total"), 0) / 1024 ** 2, 1) or None} if hw else None,
                 "packages": pk.get("total_affected_items") if isinstance(pk.get("total_affected_items"), int) else None,
-                "ports": [{"port": p, "proto": pr, "process": pc or None} for p, pr, pc in listen if p][:50]}
+                "ports": [{"port": p, "proto": pr, "process": pc or None, **({"local": True} if lo else {})} for p, pr, pc, lo in listen if p][:80]}
 
     def indexer(self, path: str, body: dict) -> dict:
         url = str(self.conf.get("indexer_url")).strip().rstrip("/")

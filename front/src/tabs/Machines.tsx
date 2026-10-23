@@ -1251,7 +1251,6 @@ function IdentitySection({ m, mac, net, from, tool, pve, sheet }: Readonly<{ m: 
         <Row k={tx("État")}><Badge tone={stTone} title={stTip}>{stLabel}</Badge></Row>
         <Row k={tx("Rôle")}>{roles.length ? <span className="flex flex-wrap gap-1">{roles.map((t) => <Badge key={t} tone="off">{t}</Badge>)}</span> : undefined}</Row>
         <Row k="MAC">{mac && <span className="font-mono">{mac}</span>}</Row>
-        <Row k={tx("Ports ouverts")}>{net?.ports.length ? <span className="font-mono" title={tx("Vus par le scanner de MynetworK")}>{net.ports.join(", ")}{net.ports_at && <Dim> · {tx("scannés le {0}", dateTime(net.ports_at))}</Dim>}</span> : undefined}</Row>
         <Row k={tx("Sur le réseau")}>{isDate(net?.first_seen) ? <span title={tx("Vue par MynetworK")}>{tx("depuis le {0}", dateTime(net.first_seen))}{isDate(net.last_seen) && <Dim> · {tx("vue le {0}", dateTime(net.last_seen))}</Dim>}{net.ping_ms != null && <Dim> · {Math.round(net.ping_ms)} ms</Dim>}</span> : undefined}</Row>
         <Row k={tx("Autres noms")}>{otherNames(m).join(", ") || undefined}</Row>
         <Row k={tx("Branchement")}>{sheet?.unifi && (sheet.unifi.wired || sheet.unifi.wireless) ? <PlugLine u={sheet.unifi} /> : undefined}</Row>

@@ -9,7 +9,8 @@ import { dateTime } from "../lib/format";
 import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { availabilityOf } from "../lib/machineHash";
-import { guestsOf, portRows, type PortRow } from "../lib/machinePage";
+import { guestsOf, portRows, type PortRow, type PortSource } from "../lib/machinePage";
+import { wazuhOf } from "../lib/wazuh";
 import { serviceIcon } from "../lib/appIcons";
 import { KIND_NAME, status, type StatusClass } from "../lib/status";
 import { Dot } from "../components/marks";
@@ -67,9 +68,11 @@ function AvailabilityTile({ item }: Readonly<{ item: Item | null | undefined }>)
 /** The open ports of the machine, each matched to its service (its icon, kind and state) and to the NPM domains that expose it; an unknown port is told so,
  *  with what usually listens there. A port of a known service not seen open by the last scan is faded. */
 function PortsCard({ snap, m, onMachine }: Readonly<{ snap: Snapshot; m: Machine; onMachine: (ip: string) => void }>) {
-  const sheet = snap.data.sheets?.[m.ip], rows = portRows(m, snap.data.hosts, sheet);
+  const net = (snap.data.network ?? []).flatMap((c) => c.devices ?? []).find((d) => d.ip === m.ip);
+  const wz = wazuhOf(snap.data.services_status, m.ip, m.name, new Set(snap.data.machine_list.map((x) => x.ip)));
+  const sheet = snap.data.sheets?.[m.ip], rows = portRows(m, snap.data.hosts, sheet, { mynetwork: net?.ports, wazuh: wz?.m.ports });
   if (!rows.length) return null;
-  const scanned = !!sheet?.scan, at = sheet?.scan?.ports_at;
+  const scanned = !!sheet?.scan, at = sheet?.scan?.ports_at ?? net?.ports_at;
   return (
     <section className="mb-4 break-inside-avoid overflow-hidden rounded-xl border border-line bg-card p-4 shadow-sm" aria-label={tx("Ports ouverts")}>
       <div className="-mx-4 -mt-4 mb-2 flex flex-wrap items-center gap-2 border-b border-line/60 bg-bg px-4 py-2">
@@ -86,7 +89,7 @@ function PortsCard({ snap, m, onMachine }: Readonly<{ snap: Snapshot; m: Machine
               <tr key={r.port} className={`border-t border-line/60 even:bg-bg/50 ${unseen ? "opacity-55" : ""}`}>
                 <td className="py-1.5 pr-2" title={unseen ? tx("pas vu ouvert au dernier scan") : label}><Dot tone={unseen ? "off" : cls} /></td>
                 <td className="py-1.5 pr-3"><PortService r={r} /></td>
-                <td className="py-1.5 pr-3 font-mono text-xs tabular-nums text-muted">:{r.port}</td>
+                <td className="py-1.5 pr-3 font-mono text-xs tabular-nums text-muted" title={r.seen.length ? tx("Vu par : {0}", r.seen.map((x) => SEEN_BY[x]).join(", ")) : undefined}>:{r.port}</td>
                 <td className="py-1.5"><PortExposure r={r} unseen={unseen} /></td>
               </tr>
             );
@@ -97,9 +100,13 @@ function PortsCard({ snap, m, onMachine }: Readonly<{ snap: Snapshot; m: Machine
   );
 }
 
-/** Where a port is reached from: the NPM domains that expose it (each opens the site), else the LAN; not seen by the last scan: said so */
+const SEEN_BY: Record<PortSource, string> = { scan: "MyServices", mynetwork: "MynetworK", wazuh: "Wazuh" };
+
+/** Where a port is reached from: the NPM domains that expose it (each opens the site), else the LAN, or the machine alone (Wazuh sees it
+ *  listen on 127.0.0.1 only); not seen by the last scan: said so */
 function PortExposure({ r, unseen }: Readonly<{ r: PortRow; unseen: boolean }>) {
   if (unseen) return <span className="text-xs text-dim">{tx("pas vu ouvert au dernier scan")}</span>;
+  if (r.local && !r.domains.length) return <span className="rounded-md border border-line px-1.5 py-0.5 text-xs text-dim" title={tx("Écoute seulement sur 127.0.0.1 : rien ne l'atteint depuis le réseau")}>{tx("machine seule")}</span>;
   if (!r.domains.length) return <span className="rounded-md border border-line px-1.5 py-0.5 text-xs text-dim" title={tx("Joignable seulement depuis le réseau local")}>LAN</span>;
   return (
     <span className="flex flex-wrap gap-1">{r.domains.map((d) => (
@@ -111,6 +118,12 @@ function PortExposure({ r, unseen }: Readonly<{ r: PortRow; unseen: boolean }>) 
 /** The service of a port: its icon (or a generic mark), its name and its kind; unknown: a « ? » and what usually listens there */
 function PortService({ r }: Readonly<{ r: PortRow }>) {
   const box = "grid h-5 w-5 shrink-0 place-items-center rounded border";
+  if ((!r.host || !r.name) && r.process) return (   // no service known here, but Wazuh names the program
+    <span className="inline-flex items-center gap-2">
+      <span className={`${box} border-line bg-bg2 text-dim`} aria-hidden><EthernetPort size={11} /></span>
+      <span className="font-mono text-[13px]" title={tx("Programme qui écoute, vu par Wazuh")}>{r.process}</span>
+    </span>
+  );
   if (!r.host || !r.name) return (
     <span className="inline-flex items-center gap-2">
       <span className={`${box} border-warn/50 text-[11px] font-bold text-warn`} aria-hidden>?</span>
