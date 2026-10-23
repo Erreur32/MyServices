@@ -17,6 +17,7 @@ import type { Machine } from "../types";
 import { cellColor, pct, pctTone, type Item, type Report } from "./Availability";
 import { MachineModal } from "./MachinesSettings";
 import { COLOR, StatTile } from "../components/StatTile";
+import { WazuhCard } from "../components/WazuhCard";
 import type { MachineFigure } from "../lib/machineFigures";
 import { METRIC_COLUMN, minMax, sparkPath, type MetricKey, type MetricPoint } from "../lib/sparkline";
 
@@ -214,6 +215,7 @@ function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, h
       </div>
       {detail(<>
         <PortsCard snap={snap} m={m} onMachine={onMachine} />
+        <WazuhCard snap={snap} ip={m.ip} />
         <GuestsCard snap={snap} m={m} />
       </>)}
     </div>

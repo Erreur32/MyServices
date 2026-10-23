@@ -294,6 +294,40 @@ class Wazuh(Base):
         # without the indexer: the agents only, no call to it
         self.assertNotIn("Alertes 24 h", facts(self.conn("wazuh", username="myservices", password=KEY).collect()))
 
+    def test_per_machine(self):
+        """SCA, syscollector and vulnerabilities by the IP of the agent; a disconnected agent and the manager are not read."""
+        self.route("/security/user/authenticate", {"data": {"token": "jwt"}}, method="POST")
+        self.route("/", {"data": {"api_version": "4.14.1"}})
+        self.route("/agents/summary/status", {"data": {"connection": {"active": 1, "disconnected": 1, "total": 2}}})
+        self.route("/agents", {"data": {"affected_items": [{"id": "000", "name": "manager", "ip": "127.0.0.1", "status": "active"},
+                                                           {"id": "001", "name": "srv", "ip": "10.0.0.5", "status": "active"},
+                                                           {"id": "002", "name": "pc", "ip": "10.0.0.6", "status": "disconnected"},
+                                                           {"id": "003", "name": "any", "ip": "any", "status": "active"}]}})
+        self.route("/sca/001", {"data": {"affected_items": [{"policy_id": "cis_debian12", "name": "CIS Debian 12", "score": 62, "pass": 120, "fail": 73}]}})
+        self.route("/syscollector/001/hardware", {"data": {"affected_items": [{"cpu": {"name": "Intel N100", "cores": 4}, "ram": {"total": 16 * 1024 ** 2}}]}})
+        self.route("/syscollector/001/packages", {"data": {"affected_items": [{}], "total_affected_items": 812}})
+        self.route("/syscollector/001/ports", {"data": {"affected_items": [{"local": {"port": 22}, "protocol": "tcp", "process": "sshd"},
+                                                                         {"local": {"port": 22}, "protocol": "tcp", "process": "sshd"},
+                                                                         {"local": {"port": 443}, "protocol": "tcp"}]}})
+        self.route("/wazuh-alerts-*/_search", {"hits": {"total": {"value": 0}}}, method="POST")
+        self.route("/wazuh-states-vulnerabilities-*/_search", {"aggregations": {"agents": {"buckets": [
+            {"key": "001", "sev": {"buckets": [{"key": "Critical", "doc_count": 2}, {"key": "Medium", "doc_count": 9}]},
+             "worst": {"cve": {"buckets": [{"key": "CVE-2025-1", "sev": {"buckets": [{"key": "High"}]}, "pkg": {"buckets": [{"key": "curl"}]}},
+                                           {"key": "CVE-2025-2", "sev": {"buckets": [{"key": "Critical"}]}, "pkg": {"buckets": [{"key": "openssl"}]}}]}}},
+            {"key": "999", "sev": {"buckets": [{"key": "Critical", "doc_count": 5}]}}]}}}, method="POST")
+        d = self.conn("wazuh", username="myservices", password=KEY, indexer_url=self.url, indexer_username="r", indexer_password=KEY).collect()
+        self.assertEqual(set(d["machines"]), {"10.0.0.5", "10.0.0.6"})
+        srv = d["machines"]["10.0.0.5"]
+        self.assertEqual(srv["sca"], [{"name": "CIS Debian 12", "score": 62, "pass": 120, "fail": 73}])
+        self.assertEqual(srv["hardware"], {"cpu": "Intel N100", "cores": 4, "ram_gb": 16.0})
+        self.assertEqual(srv["packages"], 812)
+        self.assertEqual(srv["ports"], [{"port": 22, "proto": "tcp", "process": "sshd"}, {"port": 443, "proto": "tcp", "process": None}])
+        self.assertEqual(srv["vulns"], {"critical": 2, "high": 0, "medium": 9, "low": 0, "worst": [
+            {"id": "CVE-2025-2", "severity": "Critical", "package": "openssl"}, {"id": "CVE-2025-1", "severity": "High", "package": "curl"}]})
+        self.assertEqual(d["machines"]["10.0.0.6"], {"agent": "pc", "status": "disconnected"})
+        self.assertEqual((facts(d)["Vulnérabilités critiques"]["value"], facts(d)["Vulnérabilités critiques"]["tone"]), ("2", "bad"))
+        self.assertNotIn("/sca/002", [x[1] for x in SEEN])
+
     def test_dashboard_or_http_address(self):
         with self.assertRaisesRegex(ConnectorError, "le tableau de bord"):   # no API route here: the dashboard's address
             self.conn("wazuh", username="myservices", password=KEY).collect()

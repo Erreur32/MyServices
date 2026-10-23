@@ -225,6 +225,7 @@ export interface ServiceStatus {
   problems?: string[];                                                       // et ce qui est à regarder
   updates?: { name: string; installed?: string | null; latest?: string | null; group?: "core" | "addon" | "other" }[];
   instance?: string;                     // connector instance name (« name » can be the app's own, Home Assistant's place)
+  machines?: Record<string, WazuhMachine>;   // Wazuh only: what it knows of each machine, by the IP of its agent
   // Home Assistant only
   addons?: { name: string; slug: string; version?: string | null; latest?: string | null }[];   // add-ons installed
   system?: { method?: string; core?: string | null; supervisor?: string; os?: string };            // what Home Assistant runs on
@@ -233,6 +234,17 @@ export interface ServiceStatus {
   automations?: { on: number; total: number };
   mcp?: HaMcp | null;   // advanced mode (ha-mcp add-on): backups, apps, integrations, configuration check
   host?: { cpu?: number | null; mem_pct?: number | null; temp?: number | null; disks?: { mount: string; used_pct: number; size_gb?: number; used_gb?: number }[]; ips?: string[]; boot?: string | null };
+}
+
+/** What Wazuh knows of one machine: its agent, SCA scores, syscollector inventory, vulnerabilities (with the indexer) */
+export interface WazuhMachine {
+  agent?: string | null;
+  status?: string | null;   // active, disconnected, never_connected, pending
+  sca?: { name: string; score: number; pass: number; fail: number }[];
+  hardware?: { cpu?: string | null; cores?: number | null; ram_gb?: number | null } | null;
+  packages?: number | null;
+  ports?: { port: number; proto: string; process?: string | null }[];
+  vulns?: { critical: number; high: number; medium: number; low: number; worst: { id: string; severity: string | null; package: string | null }[] };
 }
 
 /** What the ha-mcp add-on gives about a Home Assistant (read-only calls); each part is absent when its call failed (see errors) */
