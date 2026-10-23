@@ -4,7 +4,7 @@ import { DiscoveryBell } from "./DiscoveryCard";
 import { DropItem, DROP_PANEL, DropSep, useDropdown } from "./Dropdown";
 import { useState } from "react";
 import { logout, type Snapshot } from "../api";
-import { HEADER_LOGOS, useHeaderLogo, type Theme } from "../theme";
+import type { Theme } from "../theme";
 import { LOCALE, tx } from "../lib/i18n";
 import { appVersion } from "../lib/format";
 import { reopenAssistant } from "../lib/assistant";
@@ -57,7 +57,6 @@ function UpdatePill({ update }: Readonly<{ update?: { available: boolean; tag?: 
 
 export function Header({ snap, theme, toggleTheme, now, onMenu }: Readonly<{ snap: Snapshot; theme: Theme; toggleTheme: () => void; now: number; onMenu: () => void }>) {
   const stale = (now - new Date(snap.data.generated).getTime()) / 60000 > snap.data.page.stale_min;
-  const logo = useHeaderLogo();
   return (
     <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 py-4">
       <div className="flex min-w-0 items-center gap-3">
@@ -72,11 +71,10 @@ export function Header({ snap, theme, toggleTheme, now, onMenu }: Readonly<{ sna
               {tx("Données")} {ago(snap.data.generated, now)}{stale && tx(" · en retard")}
             </span>
           </div>
-          <h1 className="flex flex-wrap items-center gap-2 text-2xl font-bold tracking-tight">
-            <img src={`${import.meta.env.BASE_URL}${HEADER_LOGOS.find((l) => l.id === logo)!.file}`} alt="" width={30} height={30} className="shrink-0" />{tx("MyServices")}
+          <div className="mt-1 flex flex-wrap items-center gap-2">
             {snap.me.version && <span className="rounded-md border border-line bg-card px-1.5 py-0.5 font-mono text-xs font-semibold tracking-normal text-dim" title={snap.me.released && snap.me.version !== "dev" && !/^v\d+\.\d+\.\d+/.test(snap.me.version) ? tx("Image construite depuis une branche, après la version {0} : {1}", snap.me.released, snap.me.version) : snap.me.version}>{appVersion(snap.me.version, snap.me.released)}</span>}
             {snap.me.version === "dev" && <DevState git={snap.me.git} released={snap.me.released} planned={snap.me.planned} />}
-          </h1>
+          </div>
         </div>
       </div>
       <ScanOrb />

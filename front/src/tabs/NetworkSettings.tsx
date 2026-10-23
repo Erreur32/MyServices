@@ -5,8 +5,8 @@
 // No job setting here: the search frequency, networks and discreet mode live in Settings → Tasks and schedules, with every job.
 // Cadres neutres, jamais un cadre coloré dans un autre : la couleur reste dans les pastilles. Liens directs gardés :
 // #settings/network/<hosts|scan|services|backups> fait défiler jusqu'à la section (et ouvre les machines trouvées).
-import { Bell, Boxes, ChevronRight, EyeOff, ListChecks, Lightbulb, Radar, RefreshCw, Search, Timer } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Bell, Boxes, EyeOff, ListChecks, Lightbulb, Radar, RefreshCw, Search, Timer } from "lucide-react";
+import { useCallback, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import type { Snapshot } from "../api";
 import { NoteLine, Switch } from "../components/form";
@@ -27,8 +27,6 @@ import { InfoNote } from "../components/InfoNote";
 interface NetSettings { every_h: number; default_h: number; max_h: number; fixed: boolean; nets: string[]; discreet: boolean; auto: boolean; ignored: { ip: string; name: string }[] }
 
 const CARD = "rounded-2xl border border-line bg-card p-4";
-/** Header strip of a folding card (a summary): the darkest tone of the theme, like the header of every other card */
-const FOLD_STRIP = "-mx-4 -mt-4 rounded-t-[15px] bg-bg px-4 py-3 group-open:mb-3 group-open:border-b group-open:border-line/60 [details:not([open])_&]:rounded-b-[15px]";
 const byLabel = (a: DiscoveryItem, b: DiscoveryItem) => (a.app || a.title).localeCompare(b.app || b.title, undefined, { sensitivity: "base" }) || (a.machine?.name ?? "").localeCompare(b.machine?.name ?? "");
 
 /** Section : titre avec icône et compteur, une phrase d'aide, le contenu ; `id` sert aux liens directs */
@@ -42,20 +40,6 @@ function Section({ id, icon, title, n, hint, right, children }: { id?: string; i
       {hint && <InfoNote className="mt-1">{hint}</InfoNote>}
       <div className="mt-3">{children}</div>
     </section>
-  );
-}
-
-/** Section repliable (même cadre neutre) : ouverte par un lien direct vers elle */
-function Fold({ id, icon, title, n, hint, open, onToggle, children }: { id: string; icon: ReactNode; title: string; n?: number; hint?: string; open: boolean; onToggle: (o: boolean) => void; children: ReactNode }) {
-  return (
-    <details id={id} open={open} onToggle={(e) => onToggle(e.currentTarget.open)} className={`${CARD} ${TITLE} group scroll-mt-20`}>
-      <summary className={`flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 ${FOLD_STRIP} [&::-webkit-details-marker]:hidden`}>
-        <ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
-        <h2 className="flex items-center gap-2 font-bold">{icon}{title}{n !== undefined && <Count n={n} />}</h2>
-        {hint && <span className="text-sm text-muted">{hint}</span>}
-      </summary>
-      <div className="pt-1">{children}</div>
-    </details>
   );
 }
 
@@ -109,27 +93,20 @@ function AsideGroup({ title, n, hint, children }: Readonly<{ title: string; n: n
   );
 }
 
-/** Lien direct #settings/network/<part> : défile jusqu'à la section, même si la page est déjà ouverte */
-function usePart(ready: boolean, onPart: (part: string) => void) {
-  useEffect(() => {
-    if (!ready) return;
-    const go = () => {
-      const part = location.hash.split("/")[2];
-      if (!part) return;
-      onPart(part);
-      setTimeout(() => document.getElementById(`net-${part === "network" ? "hosts" : part}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
-    };
-    go();
-    addEventListener("hashchange", go);
-    return () => removeEventListener("hashchange", go);
-  }, [ready, onPart]);
+/** Sub-pages of Network → Discovery in the side menu (#settings/network/<part>; the old « network » is the machines found) */
+type Part = "mode" | "hosts" | "services" | "suggestions" | "forgotten";
+function partOf(hash: string): Part {
+  const v = hash.split("/")[2];
+  if (v === "network") return "hosts";
+  return v === "hosts" || v === "services" || v === "suggestions" || v === "forgotten" ? v : "mode";
 }
 
-export function NetworkSettings({ snap }: { snap: Snapshot }) {
+export function NetworkSettings({ snap }: Readonly<{ snap: Snapshot }>) {
+  const part = partOf(location.hash);
   const [disc, reloadDisc] = useDiscoveries();
   const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
   const [note, setNote] = useState<Note>(null), [error, setError] = useState("");
-  const [hostsOpen, setHostsOpen] = useState(false), [forgotOpen, setForgotOpen] = useState(false), [appsOpen, setAppsOpen] = useState(true), [picked, setPicked] = useState(0);
+  const [picked, setPicked] = useState(0);
   const load = useCallback(() => {
     Promise.all([read<NetSettings>("network/settings"), read<NetScan>("network/scan")])
       .then(([c, s]) => { setCfg(c); setScan(s); setError(""); })
@@ -139,8 +116,6 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   usePoll(load, running ? 10_000 : 60_000);   // 10 s seulement pour suivre une recherche en cours
   const [searchNote, setSearchNote] = useState<Note>(null);   // shown under the search line, next to its button
   const scanNow = () => act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setSearchNote).then(() => load());
-  const onPart = useCallback((part: string) => { if (part === "hosts" || part === "network") setHostsOpen(true); if (part === "forgotten") setForgotOpen(true); if (part === "services") setAppsOpen(true); load(); }, [load]);
-  usePart(!!cfg && !!scan && !!disc, onPart);
   if (!cfg || !scan) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 
   const items = disc?.items ?? [];
@@ -162,7 +137,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
   return (
     <div className="flex flex-col gap-4">
       {/* 1. En-tête : l'état, le mode, la recherche réseau */}
-      <section className={`${CARD} ${TITLE}`} aria-label={tx("Découverte")}>
+      {part === "mode" && <section className={`${CARD} ${TITLE}`} aria-label={tx("Découverte")}>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h2 className="flex items-center gap-2 text-lg font-bold"><Radar size={18} aria-hidden />{tx("Découverte")}</h2>
           {todo.length ? <Badge tone="warn">{tx("{0} chose(s) à faire", todo.length)}</Badge> : <Badge tone="ok">{tx("rien d'obligatoire à faire")}</Badge>}
@@ -192,20 +167,19 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
           <button type="button" className={quiet} onClick={reopenAssistant} title={tx("Rouvre l'assistant depuis le début")}><ListChecks size={14} aria-hidden />{tx("Revoir l'assistant de démarrage")}</button>
         </div>
         <NoteLine note={note} />
-      </section>
+      </section>}
 
       {/* 2. À faire */}
-      {todo.length > 0 && (
+      {part === "mode" && todo.length > 0 && (
         <Section icon={<Bell size={16} className="text-warn" aria-hidden />} title={tx("À faire")} n={todo.length} hint={tx("Nécessaire : sans ça, MyServices ne voit pas tout.")}>
           <ul className="flex flex-col divide-y divide-line/60">{todo.map((x) => <Row key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} />)}</ul>
         </Section>
       )}
 
       {/* 3. Machines sur le réseau */}
-      <Fold id="net-hosts" icon={<Radar size={16} aria-hidden />} title={tx("Machines sur le réseau")} n={scan.found.filter((h) => !h.known).length || undefined}
+      {part === "hosts" && <Section id="net-hosts" icon={<Radar size={16} aria-hidden />} title={tx("Machines sur le réseau")} n={scan.found.filter((h) => !h.known).length || undefined}
         hint={picked ? tx("{0} cochée(s)", picked) : [last ? tx("dernière recherche : {0}", dateTime(last)) : tx("aucune recherche faite"),
-          hostsItem?.note || (cfg.auto ? tx("le mode automatique ajoute seul les plus utiles") : tx("à cocher pour les suivre, ou à ignorer"))].join(" · ")}
-        open={hostsOpen} onToggle={setHostsOpen}>
+          hostsItem?.note || (cfg.auto ? tx("le mode automatique ajoute seul les plus utiles") : tx("à cocher pour les suivre, ou à ignorer"))].join(" · ")}>
         {/* the network search fills this frame: its state and settings here, its button just below */}
         <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line/60 pb-3 text-sm">
           <Search size={15} className="text-muted" aria-hidden /><b>{tx("Recherche sur le réseau")}</b>
@@ -223,28 +197,28 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
         </div>
         <NoteLine note={searchNote} />
         <NetworkStep noButton net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} onCount={setPicked} />
-      </Fold>
+      </Section>}
 
       {/* 4. Applis à activer : only those that run (stopped and forgotten ones are put aside, below) */}
-      {apps.length > 0 && (
-        <Fold id="net-services" icon={<Boxes size={16} aria-hidden />} title={tx("Applis à activer")} n={apps.length}
-          hint={tx("Applis reconnues sur vos machines, qu'un connecteur peut lire. Facultatif : « Oublier » range celles qui ne vous servent pas, « Rappeler » les fait revenir.")}
-          open={appsOpen} onToggle={setAppsOpen}>
-          <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{apps.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul>
-        </Fold>
+      {part === "services" && (
+        <Section id="net-services" icon={<Boxes size={16} aria-hidden />} title={tx("Applis à activer")} n={apps.length}
+          hint={tx("Applis reconnues sur vos machines, qu'un connecteur peut lire. Facultatif : « Oublier » range celles qui ne vous servent pas, « Rappeler » les fait revenir.")}>
+          {apps.length ? <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{apps.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul> : <Dim>{tx("Rien ici pour l'instant.")}</Dim>}
+        </Section>
       )}
 
       {/* 5. Autres suggestions */}
-      {others.length > 0 && (
+      {part === "suggestions" && (
         <Section id="net-backups" icon={<Lightbulb size={16} aria-hidden />} title={tx("Autres suggestions")} n={others.length} hint={tx("Facultatif : pour en voir davantage.")}>
-          <ul className="flex flex-col divide-y divide-line/60">{others.map((x) => <Row key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} />)}</ul>
+          {others.length ? <ul className="flex flex-col divide-y divide-line/60">{others.map((x) => <Row key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} />)}</ul> : <Dim>{tx("Rien ici pour l'instant.")}</Dim>}
         </Section>
       )}
 
       {/* 6. Mis de côté : stopped containers and what was forgotten, grouped by category, each with its button */}
-      {aside > 0 && (
-        <Fold id="net-forgotten" icon={<EyeOff size={16} className="text-muted" aria-hidden />} title={tx("Arrêtés et oubliés")} n={aside}
-          hint={tx("mis de côté : rien à activer tant qu'un conteneur est arrêté ; « Rappeler » fait revenir ce qui a été oublié")} open={forgotOpen} onToggle={setForgotOpen}>
+      {part === "forgotten" && (
+        <Section id="net-forgotten" icon={<EyeOff size={16} className="text-muted" aria-hidden />} title={tx("Arrêtés et oubliés")} n={aside}
+          hint={tx("mis de côté : rien à activer tant qu'un conteneur est arrêté ; « Rappeler » fait revenir ce qui a été oublié")}>
+          {aside === 0 && <Dim>{tx("Rien ici pour l'instant.")}</Dim>}
           <div className="flex flex-col gap-4">
             {stopped.length > 0 && (
               <AsideGroup title={tx("Conteneurs arrêtés")} n={stopped.length} hint={tx("vus par docker ps -a mais pas lancés")}>
@@ -262,7 +236,7 @@ export function NetworkSettings({ snap }: { snap: Snapshot }) {
               </AsideGroup>
             )}
           </div>
-        </Fold>
+        </Section>
       )}
 
     </div>

@@ -191,10 +191,9 @@ function ByMachine({ b, initial }: Readonly<{ b: BackupsData; initial?: Selected
 const VIEWS = ["watch", "all", "machines"] as const;
 type View = (typeof VIEWS)[number];
 
-/** Opened without a view: by machine when a filter came with it (a machine), « To watch » when something is, else every set */
+/** Opened without a view: « To watch » when something is (and no filter came with it), else the main view, by machine */
 function defaultView(watched: number, filtered: boolean): View {
-  if (filtered) return "machines";
-  return watched ? "watch" : "all";
+  return watched && !filtered ? "watch" : "machines";
 }
 
 export function Backups({ snap, initial, route }: Readonly<{ snap: Snapshot; initial?: Selected; route: string }>) {

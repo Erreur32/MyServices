@@ -1,5 +1,5 @@
 // Menu de gauche : groupes, entrées, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Activity, ArrowDownUp, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, Archive, ArrowDownUp, Boxes, EyeOff, Lightbulb, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -17,8 +17,9 @@ export interface NavItem { id: string; hash: string; tab: TabId; icon: LucideIco
 export interface NavGroup { id: string; label: string; items: NavItem[] }
 
 const sub = (id: string, hash: string, tab: TabId, icon: LucideIcon, label: string, show?: (s: Snapshot) => boolean): NavItem => ({ id, hash, tab, icon, label, show });
-/** A sub-page made of views (« Vue » of Network or Backups): no page of its own, it opens its first view */
-const views = (id: string, tab: TabId, subs: NavItem[]): NavItem => ({ id, hash: subs[0].hash, tab, icon: Eye, label: tx("Vue"), subs });
+/** A sub-page made of pages (« Vue », « Réglages »): no page of its own, it opens its first one */
+const group = (id: string, tab: TabId, icon: LucideIcon, label: string, subs: NavItem[]): NavItem => ({ id, hash: subs[0].hash, tab, icon, label, subs });
+const views = (id: string, tab: TabId, subs: NavItem[]): NavItem => group(id, tab, Eye, tx("Vue"), subs);
 const unifiShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => c.connector === "unifi") || (s.data.network ?? []).some((c) => !!c.unifi);
 const freeboxShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => c.connector === "freebox");
 const scanShown = (s: Snapshot) => (s.data.network ?? []).some((c) => c.connector === "mynetwork");
@@ -52,7 +53,13 @@ export const NAV: NavGroup[] = [
         sub("network-list", "network/list", "network", List, tx("Équipements et appareils")),
         sub("network-diagnostic", "network/diagnostic", "network", Stethoscope, tx("Diagnostic")),
       ]),
-      sub("network-discovery", "settings/network", "settings", ScanSearch, tx("Découverte")),
+      group("network-discovery", "settings", ScanSearch, tx("Découverte"), [
+        sub("discovery-mode", "settings/network", "settings", SlidersHorizontal, tx("Mode et à faire")),
+        sub("discovery-hosts", "settings/network/hosts", "settings", Radar, tx("Machines sur le réseau")),
+        sub("discovery-apps", "settings/network/services", "settings", Boxes, tx("Applis à activer")),
+        sub("discovery-suggestions", "settings/network/suggestions", "settings", Lightbulb, tx("Autres suggestions")),
+        sub("discovery-forgotten", "settings/network/forgotten", "settings", EyeOff, tx("Arrêtés et oubliés")),
+      ]),
     ] },
     { id: "dns", hash: "dns", tab: "dns", icon: Network, label: tx("DNS") },
     { id: "virtualization", hash: "virtualization", tab: "virtualization", icon: Server, label: tx("Virtualisation") },
@@ -66,7 +73,13 @@ export const NAV: NavGroup[] = [
         sub("backups-all", "backups/all", "backups", Layers, tx("Tous les jeux")),
         sub("backups-machines", "backups/machines", "backups", Monitor, tx("Par machine")),
       ]),
-      sub("backups-settings", "settings/backups", "settings", Settings, tx("Réglages")),
+      group("backups-settings", "settings", Settings, tx("Réglages"), [
+        sub("backups-sets", "settings/backups", "settings", HardDrive, tx("Jeux suivis")),
+        sub("backups-add", "settings/backups/add", "settings", Plus, tx("Ajouter des sauvegardes")),
+        sub("backups-copies", "settings/backups/copies", "settings", Copy, tx("Copies ailleurs")),
+        sub("backups-paths", "settings/backups/paths", "settings", FolderSearch, tx("Emplacements cherchés")),
+        sub("backups-archived", "settings/backups/archived", "settings", Archive, tx("Jeux archivés")),
+      ]),
     ] },
     { id: "security", hash: "security", tab: "security", icon: Shield, label: tx("Sécurité"), subs: [
       sub("security-watch", "security/watch", "security", Eye, WATCH),
@@ -129,13 +142,13 @@ export function visible(id: TabId, s: Snapshot): boolean {
 
 const OLD_TABS: Record<string, string> = { fail2ban: "security", health: "machines", history: "home", stats: "home" };   // removed tabs, now inside another one (#history, #stats: sub-tabs of the home page)
 
-const shown = (i: NavItem, s: Snapshot) => visible(i.tab, s) && (!i.show || i.show(s));
+const shown = (i: NavItem, s: Snapshot, hide: ReadonlySet<string>) => visible(i.tab, s) && (!i.show || i.show(s)) && !hide.has(i.id);
 
 /** An entry as this account sees it: its sub-pages left to show; none left, the entry goes; a single one, it takes its place
  *  (and brings its own sub-pages up) */
-function seen(i: NavItem, s: Snapshot): NavItem | null {
-  if (!i.subs) return shown(i, s) ? i : null;
-  const subs = i.subs.map((x) => seen(x, s)).filter((x): x is NavItem => x !== null);
+function seen(i: NavItem, s: Snapshot, hide: ReadonlySet<string>): NavItem | null {
+  if (!i.subs) return shown(i, s, hide) ? i : null;
+  const subs = i.subs.map((x) => seen(x, s, hide)).filter((x): x is NavItem => x !== null);
   if (subs.length === 0) return null;
   if (subs.length === 1) return { ...i, hash: subs[0].hash, subs: subs[0].subs };
   return { ...i, hash: subs[0].hash, subs };
@@ -144,9 +157,10 @@ function seen(i: NavItem, s: Snapshot): NavItem | null {
 /** The pages under an entry (itself when it has no sub-pages) */
 export const leaves = (i: NavItem): NavItem[] => (i.subs ? i.subs.flatMap(leaves) : [i]);
 
-/** The menu as this account sees it: entries without a source (or without their tool) left out, then empty groups */
-export function navGroups(s: Snapshot): NavGroup[] {
-  return NAV.map((g) => ({ ...g, items: g.items.map((i) => seen(i, s)).filter((i): i is NavItem => i !== null) })).filter((g) => g.items.length > 0);
+/** The menu as this account sees it: entries without a source (or without their tool) left out, then empty groups;
+ *  `hide`: pages left out besides (a « To watch » with nothing to watch) */
+export function navGroups(s: Snapshot, hide: ReadonlySet<string> = new Set()): NavGroup[] {
+  return NAV.map((g) => ({ ...g, items: g.items.map((i) => seen(i, s, hide)).filter((i): i is NavItem => i !== null) })).filter((g) => g.items.length > 0);
 }
 
 const HOME_HASHES = new Set(["", "home", "stats"]);   // the home page and its statistics

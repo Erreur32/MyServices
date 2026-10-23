@@ -7,7 +7,7 @@ import type { Snapshot } from "../api";
 import type { TabId } from "../lib/summary";
 import { activeNav, leaves, navGroups, type NavItem } from "../lib/tabs";
 import { useRoute } from "../lib/route";
-import { useFlyout } from "../theme";
+import { HEADER_LOGOS, useFlyout, useHeaderLogo } from "../theme";
 import { securityFindings, type Area } from "../lib/securityFindings";
 import { useDiscoveries } from "./DiscoveryCard";
 import { tx } from "../lib/i18n";
@@ -162,7 +162,8 @@ export function Sidebar({ snap, badges, onNavigate, onBadge, mobileOpen, onClose
 }>) {
   const [collapsed, setCollapsed] = useState(savedCollapsed);
   const route = useRoute();
-  const groups = navGroups(snap);
+  // « To watch » only when something is: the same reading as the dots of the menu
+  const groups = navGroups(snap, new Set(["services", "network", "backups", "security"].filter((t) => !badges[t as TabId]).map((t) => `${t}-watch`)));
   const active = activeNav(route, groups);
   const narrow = collapsed && !mobileOpen;   // the phone drawer always shows the names
   const [todo, setTodo] = useState(0);
@@ -172,6 +173,7 @@ export function Sidebar({ snap, badges, onNavigate, onBadge, mobileOpen, onClose
     try { localStorage.setItem(KEY, c ? "0" : "1"); } catch { /* storage refused: the choice lasts this visit */ }
     return !c;
   });
+  const logo = useHeaderLogo();
   const toggleLabel = collapsed ? tx("Déplier le menu") : tx("Réduire le menu");
   const place = mobileOpen ? "fixed inset-y-0 left-0 z-50 flex shadow-2xl" : "sticky top-0 hidden md:flex";
   return (
@@ -179,7 +181,11 @@ export function Sidebar({ snap, badges, onNavigate, onBadge, mobileOpen, onClose
       {snap.me.role === "admin" && <DiscoveryTodo onTodo={setTodo} />}
       {mobileOpen && <button type="button" aria-label={tx("Fermer le menu")} onClick={onClose} className="fixed inset-0 z-40 bg-black/50 md:hidden" />}
       <nav aria-label={tx("Menu principal")} className={`${place} h-screen shrink-0 flex-col border-r border-line bg-bg2 ${narrow ? "w-16 px-2" : "w-60 px-3"}`}>
-        <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1 pb-2 pt-3">
+        <a href="#" onClick={onNavigate} title={tx("Accueil")} className={`flex shrink-0 items-center gap-2.5 border-b border-line py-4 text-xl font-bold tracking-tight text-txt no-underline ${narrow ? "justify-center" : "px-2"}`}>
+          <img src={`${import.meta.env.BASE_URL}${HEADER_LOGOS.find((l) => l.id === logo)!.file}`} alt="" width={30} height={30} className="shrink-0" />
+          {narrow ? <span className="sr-only">{tx("MyServices")}</span> : tx("MyServices")}
+        </a>
+        <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1 pb-2 pt-1">
           {groups.map((g) => (
             <div key={g.id} className="flex flex-col gap-0.5">
               {narrow
