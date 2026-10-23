@@ -1,5 +1,5 @@
 // Menu de gauche : groupes, entrées, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Activity, ArrowDownUp, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, List, Mail, Monitor, Network, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, ArrowDownUp, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, List, Mail, Monitor, Network, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -34,7 +34,9 @@ export const NAV: NavGroup[] = [
   { id: "inventory", label: tx("Inventaire"), items: [
     { id: "machines", hash: "machines", tab: "machines", icon: Monitor, label: tx("Machines"), subs: [
       sub("machines-list", "machines", "machines", List, tx("Toutes les machines")),
-      sub("machines-settings", "settings/machines", "settings", Settings, tx("Réglages")),
+      sub("machines-add", "settings/machines", "settings", Plus, tx("Ajouter et détecter")),
+      sub("machines-devices", "settings/machines/devices", "settings", Radar, tx("Appareils non suivis")),
+      sub("machines-agents", "settings/machines/agents", "settings", Cpu, tx("Agents")),
     ] },
     { id: "services", hash: "services", tab: "services", icon: Globe, label: tx("Services"), subs: [
       sub("services-watch", "services/watch", "services", Eye, WATCH),

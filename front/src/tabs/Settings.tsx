@@ -11,6 +11,7 @@ import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { NotificationsHub } from "./NotificationsHub";
 import { Connectors, connectorsPart } from "./Connectors";
 import { MachinesSection } from "./MachinesSection";
+import { KeyRefusedAlert } from "./MachinesSettings";
 import { NetworkSettings } from "./NetworkSettings";
 import { IconChoice, type IconOption } from "../components/IconChoice";
 import { UpdatesSettings } from "./UpdatesSettings";
@@ -45,7 +46,7 @@ function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snaps
     case "updates": return <UpdatesSettings />;
     case "requests": return <ActivityHub />;
     case "api": return <ApiMcp />;
-    case "ssh": return <SystemSettings part="ssh" snap={snap} />;
+    case "ssh": return <div className="flex flex-col gap-4"><KeyRefusedAlert snap={snap} /><SystemSettings part="ssh" snap={snap} /></div>;
     case "mail": return <SystemSettings part="mail" snap={snap} />;
     case "export": return <SystemSettings part="export" snap={snap} />;
     case "backups": return <BackupsSettings machines={snap.data.machine_list} issues={snap.backups?.issues ?? []} />;

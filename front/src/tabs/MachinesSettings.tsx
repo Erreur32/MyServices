@@ -1,15 +1,15 @@
 // Réglages → Machines : équivalent graphique de « setup.py --add ». Détecter (IP, nom ou alias SSH : ping,
 // ports, SSH Linux / Windows, Docker, AdGuard, VM, services web, connecteurs reconnus), relire la proposition,
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
-// Depuis la refonte (étape 3), les réglages de chaque machine sont dans sa page (#machines/<ip>, MachineModal en page) : ici restent
-// l'ajout, la redétection, la clé à autoriser, les appareils vus par les outils et les agents. Connecteurs ne garde que les services lus par leur API.
+// Les réglages de chaque machine sont dans sa page (#machines/<ip>) ; ici, trois sous-pages du menu Machines : ajouter et détecter,
+// les appareils vus par les outils et pas suivis, les agents. La clé refusée par une machine est signalée sur la page de la clé SSH.
 import { Check, ChevronDown, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Copyable, Field, NoteLine, Switch, TagInput } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
-import { dateTime, ipNum } from "../lib/format";
+import { dateTime } from "../lib/format";
 import type { AgentInfo, Connector, NetworkConnector, Detection, MachineConf, MachinesSettings as State, NetHost, NetScan, Redetection, RedetectItem } from "../types";
 import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
@@ -50,54 +50,66 @@ function sshWho(st: State, alias: string): string {
   return a ? `${a.user ? `${a.user}@` : ""}${a.ip || a.host}${a.port ? `:${a.port}` : ""}` : alias;
 }
 
-export function MachinesSettings({ snap }: Readonly<{ snap: Snapshot }>) {
+/** Sub-page of Machines in the address (#settings/machines/devices): add and detect (/new: its form open), devices seen by the tools, agents */
+export type MachinesPart = "add" | "devices" | "agents";
+export const machinesPart = (v?: string): MachinesPart => (v === "devices" || v === "agents" ? v : "add");
+
+function useMachinesState(): [State | null, string, () => void] {
   const [st, setSt] = useState<State | null>(null);
   const [error, setError] = useState("");
-  const [detecting, setDetecting] = useState(false);
-  const [redetecting, setRedetecting] = useState(false);
-  const [showAccess, setShowAccess] = useState(false);
-  const [accepted, setAccepted] = useState<{ gen: string; ips: string[] }>({ gen: "", ips: [] });
   const reload = useCallback(() => {
     read<State>("machines/settings")
       .then((s) => { setSt(s); setError(""); })
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
   }, []);
   useEffect(reload, [reload]);
+  return [st, error, reload];
+}
+
+export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part: MachinesPart }>) {
+  const [st, error, reload] = useMachinesState();
+  const [detecting, setDetecting] = useState(() => location.hash.endsWith("/machines/new"));
+  const [redetecting, setRedetecting] = useState(false);
+  const [showAccess, setShowAccess] = useState(false);
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
-  const all = Object.keys(st.machines).sort((a, b) => ipNum(a) - ipNum(b));
+  if (part === "devices") return <UnlinkedDevices snap={snap} onFollowed={reload} />;
+  if (part === "agents") return <AgentsOverview machines={st.machines} />;
+  const all = Object.keys(st.machines);
   const nOff = all.filter((ip) => st.machines[ip].disabled).length;
-  // Machines dont la clé n'est pas autorisée : retrouvées par leur IP (le nom d'un connecteur est celui de la machine, pas son adresse) ; chacune a son compte SSH
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 font-bold"><Server size={16} aria-hidden />{tx("Machines")} <Count n={all.length - nOff} /></h2>
+        {!detecting && (
+          <div className="flex flex-wrap gap-2">
+            {!redetecting && <button type="button" className={quiet} onClick={() => setRedetecting(true)}><RefreshCw size={14} />{tx("Redétecter")}</button>}
+            <button type="button" className={primary} onClick={() => setDetecting(true)}><Plus size={14} />{tx("Ajouter une machine")}</button>
+          </div>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => setShowAccess(!showAccess)} aria-pressed={showAccess} aria-label={tx("Accès aux machines")} title={tx("Accès aux machines : agent, SSH ou connecteur, lequel choisir")}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-semibold ${showAccess ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:text-txt"}`}><Info size={12} aria-hidden />{tx("Accès")}</button>
+        {nOff > 0 && <Dim>{tx("{0} non suivie(s)", nOff)}</Dim>}
+      </div>
+      {showAccess && <AccessGuide />}
+      {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
+      {detecting && <AddMachine st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
+    </Card>
+  );
+}
+
+/** Machines whose Docker read is refused because the app's key is not authorised there: shown on the SSH key page, with the command and a new test */
+export function KeyRefusedAlert({ snap }: Readonly<{ snap: Snapshot }>) {
+  const [st] = useMachinesState();
+  const [accepted, setAccepted] = useState<{ gen: string; ips: string[] }>({ gen: "", ips: [] });
+  if (!st) return null;
+  // Retrouvées par leur IP (le nom d'un connecteur est celui de la machine, pas son adresse) ; chacune a son compte SSH
   const machineOf = (c: Connector) => (c.ip ? st.machines[c.ip] : Object.values(st.machines).find((x) => x.name === c.name));
   const userOf = (c: Connector) => st.aliases.find((al) => al.alias === machineOf(c)?.ssh)?.user || "root";
   const hidden = accepted.gen === snap.data.generated ? accepted.ips : [];
-  const failingKey = (snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok && !isWindowsConf(machineOf(c)) && !hidden.includes(c.ip ?? c.name));
-  return (
-    <div className="flex flex-col gap-4">
-      <div id="authorize-key" className="scroll-mt-24"><AuthorizeKey userOf={userOf} failing={failingKey} onAccepted={() => setAccepted({ gen: snap.data.generated, ips: [...hidden, ...failingKey.map((c) => c.ip ?? c.name)] })} /></div>
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-bold"><Server size={16} aria-hidden />{tx("Machines")} <Count n={all.length - nOff} /></h2>
-          {!detecting && (
-            <div className="flex flex-wrap gap-2">
-              {!redetecting && <button type="button" className={quiet} onClick={() => setRedetecting(true)}><RefreshCw size={14} />{tx("Redétecter")}</button>}
-              <button type="button" className={primary} onClick={() => setDetecting(true)}><Plus size={14} />{tx("Ajouter une machine")}</button>
-            </div>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => setShowAccess(!showAccess)} aria-pressed={showAccess} aria-label={tx("Accès aux machines")} title={tx("Accès aux machines : agent, SSH ou connecteur, lequel choisir")}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-semibold ${showAccess ? "border-link bg-link/15 text-txt" : "border-line text-muted hover:text-txt"}`}><Info size={12} aria-hidden />{tx("Accès")}</button>
-          {nOff > 0 && <Dim>{tx("{0} non suivie(s)", nOff)}</Dim>}
-        </div>
-
-        {showAccess && <AccessGuide />}
-        {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
-        {detecting && <AddMachine st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
-      </Card>
-      <UnlinkedDevices snap={snap} onFollowed={reload} />
-      <AgentsOverview machines={st.machines} />
-    </div>
-  );
+  const failing = (snap.data.connectors || []).filter((c) => c.type === "docker" && !c.ok && !isWindowsConf(machineOf(c)) && !hidden.includes(c.ip ?? c.name));
+  return <AuthorizeKey userOf={userOf} failing={failing} onAccepted={() => setAccepted({ gen: snap.data.generated, ips: [...hidden, ...failing.map((c) => c.ip ?? c.name)] })} />;
 }
 
 const REDETECT_FLAGS: Record<string, string> = { vm: tx("Machine virtuelle"), gateway: tx("Passerelle"), off: tx("Souvent éteinte") };

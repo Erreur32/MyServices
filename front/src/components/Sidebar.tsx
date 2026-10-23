@@ -1,13 +1,15 @@
 // Side menu, always on the left: four groups of pages, an alert dot per page, the sub-pages of the open page under it. Folded to
 // icons on demand (kept by this browser): the sub-pages of an icon then open in a small panel, on hover or on a click (Profile → Appearance).
 // On a phone it is a drawer opened from the header.
-import { useEffect, useRef, useState, type FocusEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent } from "react";
 import { ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "../lib/summary";
 import { activeNav, leaves, navGroups, type NavItem } from "../lib/tabs";
 import { useRoute } from "../lib/route";
 import { useFlyout } from "../theme";
+import { securityFindings, type Area } from "../lib/securityFindings";
+import { useDiscoveries } from "./DiscoveryCard";
 import { tx } from "../lib/i18n";
 
 const KEY = "ms.nav.collapsed";
@@ -19,6 +21,29 @@ function savedCollapsed(): boolean {
     const v = localStorage.getItem(KEY);
     return v === null ? innerWidth < 1280 : v === "1";
   } catch { return false; }
+}
+
+/** Findings of Security per sub-page: the number shown next to it in the menu */
+const AREA_PAGE: Partial<Record<Area, string>> = { sites: "security-sites", ssh: "security-access", ports: "security-ports", certs: "security-certs", fail2ban: "fail2ban" };
+type Counts = Record<string, number>;
+
+function securityCounts(snap: Snapshot): Counts {
+  const n: Counts = {};
+  for (const f of securityFindings(snap)) { const id = AREA_PAGE[f.area]; if (id) n[id] = (n[id] ?? 0) + 1; }
+  return n;
+}
+
+/** What is left to do to complete the discovery (admins only: its list is theirs), told to the menu */
+function DiscoveryTodo({ onTodo }: Readonly<{ onTodo: (n: number) => void }>) {
+  const [disc] = useDiscoveries();
+  const todo = disc?.todo ?? 0;
+  useEffect(() => onTodo(todo), [todo, onTodo]);
+  return null;
+}
+
+function CountChip({ n }: Readonly<{ n?: number }>) {
+  if (!n) return null;
+  return <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-warn/20 px-1.5 text-[11px] font-bold leading-none text-warn">{n}</span>;
 }
 
 const levelText = (b: Level) => (b === "crit" ? tx("problème à regarder") : tx("à surveiller"));
@@ -42,7 +67,7 @@ function subTone(group: boolean, on: boolean): string {
 }
 
 /** The sub-pages of an entry, a level deeper for the views of a sub-page (« Vue » › UniFi…): all shown */
-function SubLinks({ subs, active, depth, onNavigate, inPanel }: Readonly<{ subs: NavItem[]; active: string; depth: number; onNavigate: () => void; inPanel?: boolean }>) {
+function SubLinks({ subs, active, depth, counts, onNavigate, inPanel }: Readonly<{ subs: NavItem[]; active: string; depth: number; counts: Counts; onNavigate: () => void; inPanel?: boolean }>) {
   const pad = inPanel ? ["pl-3", "pl-8"] : ["pl-7", "pl-12"];
   return (
     <>
@@ -52,9 +77,9 @@ function SubLinks({ subs, active, depth, onNavigate, inPanel }: Readonly<{ subs:
           <div key={x.id} className="flex flex-col gap-0.5">
             <a role={inPanel ? "menuitem" : undefined} href={`#${x.hash}`} onClick={onNavigate} aria-current={!x.subs && on ? "page" : undefined}
               className={`${ROW} py-1.5 pr-3 text-[13px] ${pad[Math.min(depth, 1)]} ${subTone(!!x.subs, on)}`}>
-              <x.icon size={15} strokeWidth={1.75} aria-hidden className="shrink-0" />{x.label}
+              <x.icon size={15} strokeWidth={1.75} aria-hidden className="shrink-0" />{x.label}<CountChip n={counts[x.id]} />
             </a>
-            {x.subs && <SubLinks subs={x.subs} active={active} depth={depth + 1} onNavigate={onNavigate} inPanel={inPanel} />}
+            {x.subs && <SubLinks subs={x.subs} active={active} depth={depth + 1} counts={counts} onNavigate={onNavigate} inPanel={inPanel} />}
           </div>
         );
       })}
@@ -62,20 +87,23 @@ function SubLinks({ subs, active, depth, onNavigate, inPanel }: Readonly<{ subs:
   );
 }
 
+/** Against the icon: downwards from its top, or upwards from its bottom in the lower half of the screen (never cut by the bottom edge) */
+const flyoutPlace = (at: DOMRect) => (at.top > innerHeight / 2 ? { bottom: innerHeight - at.bottom, left: at.right } : { top: at.top, left: at.right });
+
 /** The sub-pages of a folded entry, in a panel against its icon (fixed: the menu's scrolling box would clip it) */
-function Flyout({ item, active, at, onNavigate }: Readonly<{ item: NavItem; active: string; at: DOMRect; onNavigate: () => void }>) {
+function Flyout({ item, active, at, counts, onNavigate }: Readonly<{ item: NavItem; active: string; at: DOMRect; counts: Counts; onNavigate: () => void }>) {
   return (
-    <div role="menu" aria-label={item.label} style={{ top: at.top, left: at.right }} className="fixed z-50 pl-2">
+    <div role="menu" aria-label={item.label} style={flyoutPlace(at)} className="fixed z-50 pl-2">
       <div className="w-56 rounded-xl border border-line bg-card p-1.5 shadow-2xl">
         <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-widest text-dim">{item.label}</p>
-        <SubLinks subs={item.subs!} active={active} depth={0} onNavigate={onNavigate} inPanel />
+        <SubLinks subs={item.subs!} active={active} depth={0} counts={counts} onNavigate={onNavigate} inPanel />
       </div>
     </div>
   );
 }
 
-function NavEntry({ item, active, narrow, badge, onNavigate, onBadge }: Readonly<{
-  item: NavItem; active: string; narrow: boolean; badge?: Level; onNavigate: () => void; onBadge: (t: TabId) => void;
+function NavEntry({ item, active, narrow, badge, counts, onNavigate, onBadge }: Readonly<{
+  item: NavItem; active: string; narrow: boolean; badge?: Level; counts: Counts; onNavigate: () => void; onBadge: (t: TabId) => void;
 }>) {
   const mode = useFlyout();
   const box = useRef<HTMLDivElement>(null);
@@ -122,9 +150,9 @@ function NavEntry({ item, active, narrow, badge, onNavigate, onBadge }: Readonly
         )}
       </span>
       {!narrow && expanded && item.subs && (
-        <div className="mt-0.5 flex flex-col gap-0.5"><SubLinks subs={item.subs} active={active} depth={0} onNavigate={onNavigate} /></div>
+        <div className="mt-0.5 flex flex-col gap-0.5"><SubLinks subs={item.subs} active={active} depth={0} counts={counts} onNavigate={onNavigate} /></div>
       )}
-      {fly && <Flyout item={item} active={active} at={fly} onNavigate={() => { setFly(null); onNavigate(); }} />}
+      {fly && <Flyout item={item} active={active} at={fly} counts={counts} onNavigate={() => { setFly(null); onNavigate(); }} />}
     </div>
   );
 }
@@ -137,6 +165,9 @@ export function Sidebar({ snap, badges, onNavigate, onBadge, mobileOpen, onClose
   const groups = navGroups(snap);
   const active = activeNav(route, groups);
   const narrow = collapsed && !mobileOpen;   // the phone drawer always shows the names
+  const [todo, setTodo] = useState(0);
+  const security = useMemo(() => securityCounts(snap), [snap]);
+  const counts = useMemo(() => ({ ...security, "network-discovery": todo }), [security, todo]);
   const toggle = () => setCollapsed((c) => {
     try { localStorage.setItem(KEY, c ? "0" : "1"); } catch { /* storage refused: the choice lasts this visit */ }
     return !c;
@@ -145,6 +176,7 @@ export function Sidebar({ snap, badges, onNavigate, onBadge, mobileOpen, onClose
   const place = mobileOpen ? "fixed inset-y-0 left-0 z-50 flex shadow-2xl" : "sticky top-0 hidden md:flex";
   return (
     <>
+      {snap.me.role === "admin" && <DiscoveryTodo onTodo={setTodo} />}
       {mobileOpen && <button type="button" aria-label={tx("Fermer le menu")} onClick={onClose} className="fixed inset-0 z-40 bg-black/50 md:hidden" />}
       <nav aria-label={tx("Menu principal")} className={`${place} h-screen shrink-0 flex-col border-r border-line bg-bg2 ${narrow ? "w-16 px-2" : "w-60 px-3"}`}>
         <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1 pb-2 pt-3">
@@ -154,7 +186,7 @@ export function Sidebar({ snap, badges, onNavigate, onBadge, mobileOpen, onClose
                 ? <span aria-hidden className="mx-auto my-2 h-px w-8 bg-line" />
                 : <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-widest text-dim">{g.label}</p>}
               {g.items.map((i) => (
-                <NavEntry key={i.id} item={i} active={active} narrow={narrow} badge={i.id === i.tab ? badges[i.tab] : undefined}
+                <NavEntry key={i.id} item={i} active={active} narrow={narrow} badge={i.id === i.tab ? badges[i.tab] : undefined} counts={counts}
                   onNavigate={onNavigate} onBadge={onBadge} />
               ))}
             </div>

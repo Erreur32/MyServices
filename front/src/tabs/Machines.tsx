@@ -14,7 +14,6 @@ import { unifiDeviceOf, unifiDevices, unifiHealth, unifiSystem, withSystem } fro
 import { freeboxHealth, freeboxOf } from "../lib/freebox";
 import { appIcon, modelIcon } from "../lib/appIcons";
 import { MachinePage } from "./MachinePage";
-import { AddMachineOverlay } from "../components/AddMachineOverlay";
 import { machineFromHash } from "../lib/machineHash";
 import { MSTATE, ORDER, OS_LABEL, OS_ORDER, mState, networkTool, osOfMachine, stateBadge, type MState, type OsKind } from "../lib/machines";
 import { OsGlyph } from "../components/OsGlyph";
@@ -1613,7 +1612,6 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   const [target, setTarget] = useState(() => machineFromHash(location.hash));
   useEffect(() => { const on = () => setTarget(machineFromHash(location.hash)); addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
   const pageM = target ? snap.data.machine_list.find((x) => x.ip === target.ip) : undefined;
-  const [adding, setAdding] = useState(false);   // « Ajouter une machine » (admin): the assistant of Réglages → Machines, in a window
   const admin = snap.me.role === "admin";
   const detailOf = (m: Machine) => {
     const h = hb.get(m.ip);
@@ -1642,7 +1640,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
           ...(nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []),
         ]}
         extra={<>
-          {admin && <button type="button" className={primary} onClick={() => setAdding(true)}><Plus size={14} aria-hidden />{tx("Ajouter une machine")}</button>}
+          {admin && <a href="#settings/machines/new" className={`${primary} no-underline`}><Plus size={14} aria-hidden />{tx("Ajouter une machine")}</a>}{/* the page « Add and detect », its form open */}
           <ViewToggle view={view} onPick={pickView} />
         </>} />
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (
@@ -1691,7 +1689,6 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
           </Cards>
         </>
       )}
-      {adding && <AddMachineOverlay onClose={() => setAdding(false)} />}
     </div>}
     </KernelIgnore.Provider>
     </PickWatch.Provider>

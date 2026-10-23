@@ -52,7 +52,8 @@ describe("lib/tabs", () => {
     expect(activeNav("#stats", g)).toBe("home");
     expect(activeNav("#history", g)).toBe("history");
     expect(activeNav("#machines/10.0.0.5/access", g)).toBe("machines-list");
-    expect(activeNav("#settings/machines", g)).toBe("machines-settings");
+    expect(activeNav("#settings/machines", g)).toBe("machines-add");
+    expect(activeNav("#settings/machines/agents", g)).toBe("machines-agents");
     expect(activeNav("#security/fail2ban", g)).toBe("fail2ban");
     expect(activeNav("#settings/alerts/notifications", g)).toBe("alerts-notifications");
     expect(activeNav("#settings/connectors", g)).toBe("connectors-mine");
