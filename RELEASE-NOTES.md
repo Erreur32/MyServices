@@ -22,4 +22,5 @@
 - **Image**: `ghcr.io/erreur32/myservices:0.19.1` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
 - **Veeam reads** (all optional, kept 30 min when a cache is available): `GET /api/v1/jobs` (VMs per job), `/api/v1/backups`, `/api/v1/backups/{id}/objects` (restore point counts), and for a backup without a job `objectRestorePoints?backupIdFilter=` (else `backupObjects/{id}/restorePoints`).
 - **backups.json**: a Veeam location gives `job`, `repository` and `objects` (`name`, `host`, `size`, `points`, `machine`, `machine_by`, `runs_on`); a set location may hold `machines` (object name → machine IP, `""` = none), set by `PUT /backups/veeam`.
+- **Security**: certifi 2026.10.19 (compromised emSign intermediate CAs removed from the bundle).
 - **Full list**: see [CHANGELOG.md](CHANGELOG.md).

@@ -20,6 +20,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Veeam wizard: the machine of each VM**: under each job, its VMs with the machine found by name, another one or « no machine » chosen in a menu; « Change the machines » on a followed job keeps its name and threshold. The choice wins over the name.
 - **Veeam: backups without a job**: Veeam B&R 12.0 leaves computers backed up by Veeam Agent out of its job list; their backup is now read as a job (date of the newest restore point, result of its last session when there is one). Imported backups are left out. Job contents, backups and restore points are optional reads, kept 30 min when a cache is available.
 
+### Security
+- **certifi 2026.10.19** (Dependabot alert, critical): the CA bundle no longer trusts the emSign roots whose intermediate keys were compromised.
+
 ### Fixed
 - **Veeam: « (inactive) » no longer shown after the last result**: Veeam 12 writes the state in lower case (« inactive », « disabled »); a disabled job is recognised whatever its case.
 
