@@ -49,7 +49,7 @@ function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snaps
     case "ssh": return <div className="flex flex-col gap-4"><KeyRefusedAlert snap={snap} /><SystemSettings part="ssh" snap={snap} /></div>;
     case "mail": return <SystemSettings part="mail" snap={snap} />;
     case "export": return <SystemSettings part="export" snap={snap} />;
-    case "backups": return <BackupsSettings machines={snap.data.machine_list} issues={snap.backups?.issues ?? []} />;
+    case "backups": return <BackupsSettings machines={snap.data.machine_list} issues={snap.backups?.issues ?? []} backups={snap.backups} />;
     default: return <SystemSettings part="tasks" snap={snap} />;
   }
 }

@@ -1,6 +1,6 @@
-// Sauvegardes (backups.py) in « state » mode: four figures, then the sets to watch (each unfolds: what is wrong, every place of the set, the cron
-// line that produces it, the settings), then, folded, every set and the view by machine (disks, latest local backup, copies, sets produced,
-// local backup folders, unclaimed cron lines). The settings stay in Réglages → Sauvegardes (« Régler ce jeu »).
+// Sauvegardes (backups.py) in « state » mode: four figures, then one view at a time: by machine (disks, latest local backup, copies, sets
+// produced), to watch, and the sets (filters: in use, flagged, archived), each unfolding its detail; « Set » opens the page of the set in
+// Backups → Settings. The local folders and cron lines no set claims are listed there too (« To link »).
 import { usePageView } from "../lib/route";
 import { ChevronDown, ChevronUp, HardDrive, Layers, Monitor, Settings2, Terminal } from "lucide-react";
 import { Fragment, useCallback, useMemo, useState } from "react";
@@ -71,7 +71,7 @@ function SetsTable({ sets, b, snap, sizes = false }: Readonly<{ sets: BackupSet[
     <div className="overflow-x-auto">
       <table className="w-full min-w-[560px] border-collapse text-sm">
         <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-          <th className="px-3 py-2">{tx("Jeu")}</th><th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Attendu")}</th><th className="px-3 py-2">{tx("Dernière archive")}</th>{sizes && <th className="px-3 py-2">{tx("Taille")}</th>}<th className="px-3 py-2">{tx("État")}</th><th className="w-24 px-3 py-2" />
+          <th className="px-3 py-2">{tx("Jeu")}</th><th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Attendu")}</th><th className="px-3 py-2">{tx("Dernière archive")}</th>{sizes && <th className="px-3 py-2">{tx("Taille")}</th>}<th className="px-3 py-2">{tx("État")}</th><th className="w-40 px-3 py-2" />
         </tr></thead>
         <tbody>
           {sets.map((s) => {
@@ -85,7 +85,10 @@ function SetsTable({ sets, b, snap, sizes = false }: Readonly<{ sets: BackupSet[
                   <td className="px-3 py-2 whitespace-nowrap">{n ? <>{dateTime(n.mtime * 1000)}<span className="block text-[11px] text-dim">{n.where}</span></> : <span className="text-bad">{tx("aucune")}</span>}</td>
                   {sizes && <td className="px-3 py-2 tabular-nums text-muted">{s.size ? bytes(s.size) : "-"}</td>}
                   <td className="px-3 py-2"><Level level={s.level} />{s.why?.[0] && !on && <span className="ml-1.5 hidden text-xs text-muted xl:inline" title={s.why.join("\n")}>{s.why[0]}</span>}</td>
-                  <td className="px-3 py-2 text-right"><button type="button" onClick={() => setOpen(on ? null : s.id)} aria-expanded={on} className={`${quiet} py-1`}>{on ? tx("Replier") : tx("Détail")}{on ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}</button></td>
+                  <td className="px-3 py-2 text-right"><span className="inline-flex items-center gap-2">
+                    <button type="button" onClick={() => setOpen(on ? null : s.id)} aria-expanded={on} className={`${quiet} py-1`}>{on ? tx("Replier") : tx("Détail")}{on ? <ChevronUp size={14} aria-hidden /> : <ChevronDown size={14} aria-hidden />}</button>
+                    {snap.me.role === "admin" && <a href={`#settings/backups/${s.id}`} className="text-xs text-link hover:underline">{tx("Régler")} ›</a>}
+                  </span></td>
                 </tr>
                 {on && <tr><td colSpan={sizes ? 7 : 6} className="p-0"><SetDetail s={s} b={b} snap={snap} /></td></tr>}
               </Fragment>
@@ -99,7 +102,6 @@ function SetsTable({ sets, b, snap, sizes = false }: Readonly<{ sets: BackupSet[
 
 /** The view by machine (the former page): filters, one row per machine, local folders, unclaimed cron lines */
 function ByMachine({ b, initial }: Readonly<{ b: BackupsData; initial?: Selected }>) {
-  const sm = b.summary;
   const sets = useMemo(() => new Map((b.sets || []).map((s) => [s.id, s])), [b]);
   const facets = useMemo((): Facet<BackupHost>[] => [
     { key: "state", label: tx("État"), get: stateOf, name: (v) => LEVEL[v]?.[1] || v, order: ["crit", "down", "warn", "ok", "na"], mark: (v) => <Dot tone={LEVEL[v]?.[0] ?? "off"} /> },
@@ -107,29 +109,27 @@ function ByMachine({ b, initial }: Readonly<{ b: BackupsData; initial?: Selected
   ], []);
   const text = useCallback((h: BackupHost) => [h.label, h.ip, h.kind, ...h.sets.map((id) => sets.get(id)?.label), ...h.copies.map((c) => c.label), ...h.local.map((x) => x.path)].join(" "), [sets]);
   const f = useFilter(b.hosts || [], facets, text, initial);
-  const local = f.shown.flatMap((h) => h.local.filter((x) => x.size || x.covered.length).map((x) => ({ h, x })));
-  const orphans = unclaimedCrons(b.sets ?? [], b.hosts);
 
-  const copies = (h: BackupHost) => h.copies.length ? (
-    <div className="flex flex-col gap-1">
-      {h.copies.map((c) => (
-        <span key={c.host} className="text-sm">
-          <Level level={c.level} outline plainText>{c.encrypted ? "🔒 " : ""}{c.label}</Level> <Dim>{ageDays(c.age)} · {c.vias.join(", ")}</Dim>
-        </span>
-      ))}
-    </div>
-  ) : h.sets.length ? <Badge tone="bad" outline plainText>{tx("aucune copie ailleurs")}</Badge> : <Dim>-</Dim>;
+  const copies = (h: BackupHost) => {
+    if (!h.copies.length) return h.sets.length ? <Badge tone="bad" outline plainText>{tx("aucune copie ailleurs")}</Badge> : <Dim>-</Dim>;
+    return (
+      <span className="flex flex-wrap gap-1">
+        {h.copies.map((c) => (
+          <span key={c.host} title={`${ageDays(c.age)} · ${c.vias.join(", ")}`}><Level level={c.level} outline plainText>{c.encrypted ? "🔒 " : ""}{c.label}</Level></span>
+        ))}
+      </span>
+    );
+  };
   const last = (h: BackupHost) => h.last_local ? (
     <span className="text-sm"><Level level={h.last_local.level}>{ageDays(h.last_local.age)}</Level>
       <span className="block text-xs text-dim">{dateTime(h.last_local.mtime * 1000)} · {short(h.last_local.set)}</span></span>
   ) : <Dim>{tx("aucun")}</Dim>;
-  const produced = (h: BackupHost) => h.sets.length ? (
-    <ul className="flex flex-col gap-1 text-sm">
-      {h.sets.map((id) => { const s = sets.get(id); return s && (
-        <li key={id}><Level level={s.level} outline plainText>{short(s.label)}</Level> <Dim>{s.schedule} · {s.offsite || s.expect_offsite !== false ? `${s.offsite} ${tx("copie(s) hors machine")}` : tx("copie ailleurs non déclarée")}</Dim></li>
-      ); })}
-    </ul>
-  ) : <Dim>{tx("aucun jeu produit")}</Dim>;
+  const produced = (h: BackupHost) => {
+    const own = h.sets.map((id) => sets.get(id)).filter((x): x is BackupSet => !!x);
+    if (!own.length) return <Dim>{tx("aucun")}</Dim>;
+    const worst = own.reduce((w, x) => (rank(x.level) > rank(w.level) ? x : w), own[0]);
+    return <span title={own.map((x) => `${short(x.label)} · ${x.schedule ?? ""}`).join("\n")}><Level level={worst.level} outline plainText>{tx("{0} jeu(x)", own.length)}</Level></span>;
+  };
   const disks = (h: BackupHost) => h.disks.length ? (
     <div className="flex flex-col gap-1">
       {h.disks.map((d) => (
@@ -166,29 +166,70 @@ function ByMachine({ b, initial }: Readonly<{ b: BackupsData; initial?: Selected
           </Cards>
         </>
       )}
-      {local.length > 0 && (   // framed table like « Points d'attention »; the warning tone shows when some folders are not inventoried
-        <TableCard zebra foldable folded title={tx("Dossiers de sauvegarde locaux")} tone={(sm.local_unlisted ?? 0) > 0 ? "warn" : "info"}
-          note={<>{sm.local_dirs ?? local.length} {tx("trouvés,")} <b className={sm.local_unlisted ? "text-warn" : "text-txt"}>{sm.local_unlisted ?? 0}</b> {tx("non inventoriés")}</>}
-          cols={[{ label: tx("Machine"), className: "w-[16%]" }, { label: tx("Dossier") }, { label: tx("Taille"), className: "w-28" }, { label: tx("Dernière modification"), className: "w-40" }, { label: tx("Inventorié"), className: "w-36" }]}
-          rows={local.map(({ h, x }) => [
-            <b className="font-semibold">{h.label}</b>,
-            <code className="break-all font-mono text-xs">{x.path}</code>,
-            <span className="tabular-nums">{x.size ? bytes(x.size) : <Dim>-</Dim>}</span>,
-            x.age == null ? <Dim>-</Dim> : <span className="whitespace-nowrap">{tx("il y a {0}", ageDays(x.age))}</span>,
-            x.covered.length ? <Badge tone="ok">{x.covered.join(", ")}</Badge> : <Badge tone="warn">{tx("non inventorié")}</Badge>,
-          ])} />
-      )}
-      {orphans.length > 0 && (
-        <TableCard zebra foldable folded title={tx("Tâches cron de sauvegarde sans jeu suivi")} tone="info"
-          note={tx("Des lignes cron trouvées sur vos machines qu'aucun jeu suivi ne réclame : peut-être une sauvegarde à déclarer dans Réglages → Sauvegardes.")}
-          cols={[{ label: tx("Machine"), className: "w-[16%]" }, { label: tx("Source"), className: "w-36" }, { label: tx("Ligne") }]}
-          rows={orphans.map((c) => [<b key="h" className="font-semibold">{c.host}</b>, <Dim key="s">{c.src ?? "cron"}</Dim>, <code key="l" className="break-all font-mono text-xs">{c.line}</code>])} />
-      )}
     </div>
   );
 }
 
-const VIEWS = ["watch", "all", "machines"] as const;
+/** Backups → Settings → To link: local backup folders (inventoried by a set or not) and cron lines that no followed set claims */
+export function UnlinkedBackups({ b }: Readonly<{ b?: BackupsData | null }>) {
+  if (!b) return <Empty>{tx("Sauvegardes pas encore relevées.")}</Empty>;
+  const sm = b.summary;
+  const local = (b.hosts ?? []).flatMap((h) => h.local.filter((x) => x.size || x.covered.length).map((x) => ({ h, x })));
+  const orphans = unclaimedCrons(b.sets ?? [], b.hosts);
+  return (
+    <div className="flex flex-col gap-4">
+      <TableCard zebra title={tx("Dossiers de sauvegarde locaux")} tone={(sm.local_unlisted ?? 0) > 0 ? "warn" : "info"} empty={tx("Aucun dossier de sauvegarde local vu sur les machines lues par SSH.")}
+        note={<>{sm.local_dirs ?? local.length} {tx("trouvés,")} <b className={sm.local_unlisted ? "text-warn" : "text-txt"}>{sm.local_unlisted ?? 0}</b> {tx("non inventoriés")}</>}
+        cols={[{ label: tx("Machine"), className: "w-[16%]" }, { label: tx("Dossier") }, { label: tx("Taille"), className: "w-28" }, { label: tx("Dernière modification"), className: "w-40" }, { label: tx("Inventorié"), className: "w-36" }]}
+        rows={local.map(({ h, x }) => [
+          <b key="h" className="font-semibold">{h.label}</b>,
+          <code key="p" className="break-all font-mono text-xs">{x.path}</code>,
+          <span key="s" className="tabular-nums">{x.size ? bytes(x.size) : <Dim>-</Dim>}</span>,
+          x.age == null ? <Dim key="a">-</Dim> : <span key="a" className="whitespace-nowrap">{tx("il y a {0}", ageDays(x.age))}</span>,
+          x.covered.length ? <Badge key="c" tone="ok">{x.covered.join(", ")}</Badge> : <Badge key="c" tone="warn">{tx("non inventorié")}</Badge>,
+        ])} />
+      <TableCard zebra title={tx("Tâches cron de sauvegarde sans jeu suivi")} tone="info" empty={tx("Chaque ligne cron de sauvegarde trouvée est réclamée par un jeu suivi.")}
+        note={tx("Des lignes cron trouvées sur vos machines qu'aucun jeu suivi ne réclame : peut-être une sauvegarde à déclarer dans « Ajouter des sauvegardes ».")}
+        cols={[{ label: tx("Machine"), className: "w-[16%]" }, { label: tx("Source"), className: "w-36" }, { label: tx("Ligne") }]}
+        rows={orphans.map((c) => [<b key="h" className="font-semibold">{c.host}</b>, <Dim key="s">{c.src ?? "cron"}</Dim>, <code key="l" className="break-all font-mono text-xs">{c.line}</code>])} />
+    </div>
+  );
+}
+
+type SetFilter = "live" | "flagged" | "archived";
+const SET_FILTERS: { id: SetFilter; label: string; keep: (s: BackupSet) => boolean }[] = [
+  { id: "live", label: tx("En service"), keep: (s) => !s.archived },
+  { id: "flagged", label: tx("Signalés"), keep: (s) => !s.archived && ["warn", "crit", "down"].includes(s.level) },
+  { id: "archived", label: tx("Archivés"), keep: (s) => s.archived },
+];
+
+/** Backups → Sets: every set, three chips (in use, flagged, archived); each row unfolds its detail, « Set » opens its settings page */
+function SetsView({ sets, b, snap }: Readonly<{ sets: BackupSet[]; b: BackupsData; snap: Snapshot }>) {
+  const [pick, setPick] = useState<SetFilter>("live");
+  const filter = SET_FILTERS.find((x) => x.id === pick)!;
+  const shown = sets.filter(filter.keep);
+  return (
+    <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm" aria-label={tx("Jeux")}>
+      <div className="flex flex-wrap items-center gap-2 border-b border-line/60 bg-bg px-4 py-3">
+        <h2 className="flex items-center gap-2 font-bold"><Layers size={16} aria-hidden />{tx("Jeux")}</h2>
+        <span className="ml-auto flex flex-wrap gap-1.5">
+          {SET_FILTERS.map((x) => {
+            const n = sets.filter(x.keep).length, on = x.id === pick;
+            return (
+              <button key={x.id} type="button" aria-pressed={on} onClick={() => setPick(x.id)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
+                {x.label}<span className="font-mono text-[11px] text-dim">{n}</span>
+              </button>
+            );
+          })}
+        </span>
+      </div>
+      {shown.length ? <SetsTable sets={shown} b={b} snap={snap} sizes /> : <p className="px-4 py-3 text-sm text-dim">{tx("Aucun jeu dans ce filtre.")}</p>}
+    </section>
+  );
+}
+
+const VIEWS = ["machines", "watch", "all"] as const;
 type View = (typeof VIEWS)[number];
 
 /** Opened without a view: « To watch » when something is (and no filter came with it), else the main view, by machine */
@@ -223,11 +264,7 @@ export function Backups({ snap, initial, route }: Readonly<{ snap: Snapshot; ini
           {watch.length ? <SetsTable sets={watch} b={b} snap={snap} /> : <p className="px-4 py-3 text-sm text-ok">{tx("Tous les jeux suivis sont à jour.")}</p>}
         </WatchPanel>
       )}
-      {view === "all" && (
-        <FoldPanel id="backups-all" icon={Layers} title={tx("Tous les jeux")} count={all.length} pinned>
-          <SetsTable sets={all} b={b} snap={snap} sizes />
-        </FoldPanel>
-      )}
+      {view === "all" && <SetsView sets={all} b={b} snap={snap} />}
       {view === "machines" && (
         <FoldPanel id="backups-hosts" icon={Monitor} title={tx("Par machine")} count={b.hosts?.length ?? 0} pinned>
           <ByMachine b={b} initial={initial} />

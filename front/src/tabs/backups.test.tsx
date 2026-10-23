@@ -37,10 +37,11 @@ describe("onglet Sauvegardes", () => {
     expect(html).not.toContain("Tous les jeux</h2>");
     expect(html).not.toContain("91 %");
   });
-  it("#backups/all: every set, archived ones included; #backups/machines: the view by machine", () => {
+  it("#backups/all: the sets in use, the archived ones behind their chip; #backups/machines: the view by machine", () => {
     const all = renderToStaticMarkup(<Backups snap={snap} route="#backups/all" />);
-    expect(all).toContain("Tous les jeux</h2>");
-    expect(all).toContain(">old<");
+    expect(all).toContain("Jeux</h2>");
+    expect(all).not.toContain(">old<");
+    expect(all).toContain("Archivés<");
     expect(renderToStaticMarkup(<Backups snap={snap} route="#backups/machines" />)).toContain("Par machine</h2>");
   });
 });

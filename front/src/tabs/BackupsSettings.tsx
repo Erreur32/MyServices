@@ -1,13 +1,12 @@
-// Settings → Backups: three blocks instead of a stack of cards. « My followed sets » (one line per set, every field saved as typed,
-// all sources together), « Add backups » (the sources as tiles, the wired ones first; a click opens the existing wizard of that source
-// under the tiles, one at a time) and « Rules », folded (copies elsewhere, searched locations, archived sets). The wizards themselves
-// (Veeam, PBS, Synology, vzdump, remote folder, Home Assistant, SSH search) do not change.
-import { Archive, ArchiveRestore, ChevronRight, Copy, FolderPen, FolderSearch, FolderTree, HardDrive, Home, Loader2, MoreHorizontal, Pencil, PenLine, ServerCog, DatabaseBackup, SlidersHorizontal, Trash2, X, type LucideIcon } from "lucide-react";
-import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+// Backups → Settings: « Add backups » (the sources as tiles, the wired ones first; a click opens the wizard of that source under the
+// tiles), « To link » (local backup folders and cron lines no followed set claims), copies elsewhere, searched locations, and the page of
+// one followed set (#settings/backups/<set id>), opened by « Set » in Backups → Sets. The wizards themselves (Veeam, PBS, Synology,
+// vzdump, remote folder, Home Assistant, SSH search) do not change.
+import { Archive, ArchiveRestore, ChevronRight, Copy, FolderPen, FolderSearch, FolderTree, HardDrive, Home, Loader2, Pencil, PenLine, ServerCog, DatabaseBackup, SlidersHorizontal, Trash2, X, type LucideIcon } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { NoteLine, Switch, TagInput } from "../components/form";
-import { Badge, Card, Count, Dim, Loading } from "../components/ui";
-import { DROP_PANEL, DropItem, DropSep, useDropdown } from "../components/Dropdown";
+import { Badge, Card, Dim, Loading } from "../components/ui";
 import { bytes, dateTime } from "../lib/format";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
@@ -21,6 +20,8 @@ import { BackupsVzdump, type VzdumpState } from "./BackupsVzdump";
 import { MachineIcon } from "../components/MachineIcon";
 import type { Backups, Machine } from "../types";
 import { CopyGuesses, SetCopies, type CopyRow, type SshMachine } from "./BackupsCopies";
+import { UnlinkedBackups } from "./Backups";
+import { useRoute } from "../lib/route";
 import { InfoNote } from "../components/InfoNote";
 
 export interface SetRow { id: string; label: string; origin: string; origin_ip?: string | null; path: string | null; veeam_job: string | null; agent_backup?: string | null; pbs_group: string | null; synology_task?: string | null; vzdump?: string | null; remote?: boolean; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean; copies?: CopyRow[]; cadence_days?: number | null; archived?: boolean; schedule?: string }
@@ -44,12 +45,6 @@ const keyOf = (ip: string, path: string) => `${ip}${path}`;
 function sourceState(followed: number, some: string, none: string, ready: boolean, missing: string): string {
   if (followed) return some;
   return ready ? none : missing;
-}
-
-/** Look of a filter chip: the one chosen, one with sets behind it, or an empty one */
-function chipLook(on: boolean, count: number): string {
-  if (on) return "border-link bg-link/15 text-txt";
-  return count ? "border-line bg-bg2 text-muted hover:border-link hover:text-txt" : "border-line bg-bg2 text-dim opacity-60";
 }
 
 type Issue = Backups["issues"][number];
@@ -138,47 +133,108 @@ function RemoveConfirm({ onConfirm, onCancel }: Readonly<{ onConfirm: () => void
   );
 }
 
-/** The « ⋯ » menu of a set: rename, change the folder, copies elsewhere, archive, remove */
-function RowMenu({ s, onPick }: Readonly<{ s: SetRow; onPick: (what: "rename" | "path" | "copies" | "archive" | "remove") => void }>) {
-  const d = useDropdown();
-  const pick = (w: Parameters<typeof onPick>[0]) => { d.setOpen(false); onPick(w); };
-  const folder = !!s.path && !s.vzdump;
+/** The threshold advised from the observed rhythm of a set (a quarter more than the time between two archives), or null */
+function advisedAge(s: SetRow): number | null {
+  if (!s.cadence_days) return null;
+  return AGES.find((d) => d >= s.cadence_days! * 1.25) ?? AGES.at(-1)!;
+}
+
+type SetChange = { label?: string; max_age_days?: number; expect_offsite?: boolean; archived?: boolean; schedule?: string; path?: string };
+
+/** One line of the set page: its name on the left, its control on the right */
+function SetField({ k, children }: Readonly<{ k: string; children: ReactNode }>) {
   return (
-    <div ref={d.box} className="relative inline-block">
-      <button type="button" className={`${quiet} px-2 py-1`} aria-haspopup="menu" aria-expanded={d.open} aria-label={tx("Actions sur {0}", s.label)} onClick={() => d.setOpen(!d.open)}><MoreHorizontal size={15} aria-hidden /></button>
-      {d.open && (
-        <div role="menu" className={`${DROP_PANEL} w-56 p-1`}>
-          <DropItem icon={<Pencil size={14} aria-hidden />} onClick={() => pick("rename")}>{tx("Renommer")}</DropItem>
-          {folder && <DropItem icon={<FolderPen size={14} aria-hidden />} onClick={() => pick("path")}>{tx("Modifier le dossier")}</DropItem>}
-          {s.path && <DropItem icon={<Copy size={14} aria-hidden />} onClick={() => pick("copies")}>{tx("Copies ailleurs")}</DropItem>}
-          <DropSep />
-          <DropItem icon={<Archive size={14} aria-hidden />} onClick={() => pick("archive")} title={tx("Gardé dans l'inventaire, plus surveillé ; retrouvé dans Règles › Jeux archivés")}>{tx("Archiver")}</DropItem>
-          <DropItem icon={<Trash2 size={14} aria-hidden />} onClick={() => pick("remove")} danger>{tx("Retirer")}</DropItem>
-        </div>
-      )}
+    <div className="grid gap-1 border-t border-line/60 py-2.5 sm:grid-cols-[12rem_1fr] sm:items-center">
+      <span className="text-sm text-muted">{k}</span>
+      <div className="flex flex-wrap items-center gap-2 text-sm">{children}</div>
     </div>
   );
 }
 
-/** Sub-pages of Backups → Settings in the side menu (#settings/backups/<part>); any other last part is a set to show (#settings/backups/<set id>) */
-const PARTS = ["add", "copies", "paths", "archived"] as const;
-type Part = "sets" | (typeof PARTS)[number];
-
-/** The sub-page shown: the one named in the address, else the one that lists the set named there (#settings/backups/<set id>) */
-function partOf(named: Part | undefined, focus: string, archived: SetRow[]): Part {
-  if (named) return named;
-  return focus && archived.some((x) => x.id === focus) ? "archived" : "sets";
+/** One followed set on a settings page of its own (#settings/backups/<set id>), opened by « Set » in Backups → Sets */
+function SetPage({ s, m, issues, sshMachines, found, busy, onChange, onRemove, onDone, setNote }: Readonly<{
+  s: SetRow; m?: Machine; issues: Issue[]; sshMachines: SshMachine[]; found: Found[] | null; busy: boolean;
+  onChange: (body: SetChange, done?: string) => Promise<boolean>; onRemove: () => void; onDone: () => void; setNote: (n: Note) => void;
+}>) {
+  const [edit, setEdit] = useState<"" | "rename" | "path" | "remove">("");
+  const advised = advisedAge(s), managed = !!(s.ha || s.veeam_job || s.pbs_group || s.synology_task);
+  const save = (body: SetChange, done?: string) => void onChange(body, done).then((ok) => ok && setEdit(""));
+  const raise = advised !== null && advised > s.max_age_days;
+  return (
+    <Card>
+      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <SetIcon s={s} m={m} />
+        <h2 className="font-bold">{s.label}</h2>
+        <Badge tone="off">{SRC[sourceOf(s)].label}</Badge>
+        {s.archived ? <Badge tone="off">{tx("archivé")}</Badge> : <IssueBadge list={issues} />}
+        <a href="#backups/all" className="ml-auto text-sm text-link hover:underline">‹ {tx("Jeux")}</a>
+        {m && <a href={`#machines/${m.ip}`} className="text-sm text-link hover:underline">{tx("Page de la machine")} ›</a>}
+      </div>
+      <SetField k={tx("Nom")}>
+        {edit === "rename" ? <EditLine initial={s.label} label={tx("Nom")} onSave={(v) => save({ label: v }, tx("jeu renommé"))} onClose={() => setEdit("")} />
+          : <><b>{s.label}</b><button type="button" className={`${quiet} py-1`} onClick={() => setEdit("rename")}><Pencil size={14} aria-hidden />{tx("Renommer")}</button></>}
+      </SetField>
+      <SetField k={tx("Ce qui est suivi")}>
+        {edit === "path" ? <EditLine initial={s.path ?? ""} label={tx("Dossier")} mono onSave={(v) => save({ path: v }, tx("dossier modifié : relevé en cours"))} onClose={() => setEdit("")} />
+          : <><code className="break-all font-mono text-xs">{whatOf(s)}</code><Dim>· {s.origin || "-"}</Dim>
+            {s.path && !s.vzdump && <button type="button" className={`${quiet} py-1`} onClick={() => setEdit("path")}><FolderPen size={14} aria-hidden />{tx("Modifier le dossier")}</button>}</>}
+      </SetField>
+      <SetField k={tx("Attendu")}>
+        <InlineField value={s.schedule ?? ""} label={tx("Attendu")} width="w-48" placeholder={tx("ex. lun. 01:30")} disabled={busy} onSave={(v) => save({ schedule: v }, tx("horaire attendu noté"))} />
+      </SetField>
+      <SetField k={tx("Âge maximum")}>
+        <InlineField value={String(s.max_age_days)} type="number" min={0.1} max={365} label={tx("Âge maximum en jours")} width="w-20" suffix={tx("j")} disabled={busy} onSave={(v) => save({ max_age_days: Number(v) })} />
+        {advised !== null && advised !== s.max_age_days && (
+          <button type="button" disabled={busy} onClick={() => save({ max_age_days: advised })}
+            className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${raise ? "border-warn/60 bg-warn/10 text-warn hover:bg-warn/20" : "border-link/60 bg-link/10 text-link hover:bg-link/20"}`}
+            title={raise ? tx("Les archives arrivent environ tous les {0} j : avec un seuil de {1} j, le jeu est en alerte entre deux passages.", s.cadence_days, s.max_age_days)
+              : tx("Les archives arrivent environ tous les {0} j : avec un seuil de {1} j, une sauvegarde manquée ne serait signalée que très tard.", s.cadence_days, s.max_age_days)}>
+            {tx("rythme ~{0} j : passer à {1} j", s.cadence_days, advised)}</button>
+        )}
+      </SetField>
+      {!managed && (
+        <SetField k={tx("Copie hors machine")}>
+          <Switch on={s.expect_offsite} label={tx("Exiger une copie hors machine")} disabled={busy} onChange={(on) => save({ expect_offsite: on })} />
+          <Dim>{tx("Activé : une copie à jour sur une autre machine est exigée (sinon le jeu est critique). Désactivé : seule la source est surveillée.")}</Dim>
+        </SetField>
+      )}
+      {s.path && (
+        <div className="border-t border-line/60 pt-3">
+          <h3 className="mb-2 flex items-center gap-2 text-sm font-bold"><Copy size={14} aria-hidden />{tx("Copies ailleurs")}</h3>
+          <SetCopies setId={s.id} origin={s.origin} copies={s.copies ?? []} machines={sshMachines} found={found} busy={busy} onDone={onDone} setNote={setNote} />
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line/60 pt-3">
+        <ArchiveButton archived={!!s.archived} busy={busy} onClick={() => save({ archived: !s.archived }, s.archived ? tx("jeu de nouveau surveillé : relevé en cours") : tx("jeu archivé : gardé dans la liste, plus surveillé"))} />
+        <span className="ml-auto">{edit === "remove" ? <RemoveConfirm onConfirm={onRemove} onCancel={() => setEdit("")} />
+          : <button type="button" className={danger} onClick={() => setEdit("remove")}><Trash2 size={14} aria-hidden />{tx("Retirer")}</button>}</span>
+      </div>
+    </Card>
+  );
 }
 
-export function BackupsSettings({ machines = [], issues = [] }: Readonly<{ machines?: Machine[]; issues?: Issue[] }>) {
+/** Archive (kept in the list, no longer watched) or watch again */
+function ArchiveButton({ archived, busy, onClick }: Readonly<{ archived: boolean; busy: boolean; onClick: () => void }>) {
+  if (archived) return <button type="button" className={quiet} disabled={busy} onClick={onClick}><ArchiveRestore size={14} aria-hidden />{tx("Désarchiver")}</button>;
+  return <button type="button" className={quiet} disabled={busy} onClick={onClick} title={tx("Gardé dans la liste des jeux, plus surveillé")}><Archive size={14} aria-hidden />{tx("Archiver")}</button>;
+}
+
+/** Sub-pages of Backups → Settings in the side menu (#settings/backups/<part>); any other last part is a set (#settings/backups/<set id>) */
+const PARTS = ["add", "unlinked", "copies", "paths"] as const;
+type Part = "set" | (typeof PARTS)[number];
+
+/** The sub-page shown: the one named in the address, else the page of the set named there, else « Add backups » */
+function partOf(last: string): Part {
+  return PARTS.find((x) => x === last) ?? (last ? "set" : "add");
+}
+
+export function BackupsSettings({ machines = [], issues = [], backups }: Readonly<{ machines?: Machine[]; issues?: Issue[]; backups?: Backups | null }>) {
   const machineOf = (ip?: string | null) => machines.find((m) => m.ip === ip);
   const [cur, setCur] = useState<Current | null>(null), [error, setError] = useState("");
   const [found, setFound] = useState<Found[] | null>(null), [searching, setSearching] = useState(false);
   const [pick, setPick] = useState<Record<string, Choice>>({});
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false), [busyId, setBusyId] = useState("");
   const [open, setOpen] = useState("");   // source tile opened (one wizard at a time)
-  const [filter, setFilter] = useState("all");   // all | flagged | a source id
-  const [edit, setEdit] = useState<{ id: string; what: "rename" | "path" | "copies" | "remove" } | null>(null);   // what the row menu opened on a set
   const [extra, setExtra] = useState<string | null>(null);  // locations searched besides the default folder (null = the server's)
   const [hostExtra, setHostExtra] = useState<Record<string, string>>({});  // per machine (ip), only the lists edited and not saved yet
   const [manual, setManual] = useState({ ip: "", path: "", label: "", age: "2" });
@@ -187,14 +243,8 @@ export function BackupsSettings({ machines = [], issues = [] }: Readonly<{ machi
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
   }, []);
   useEffect(load, [load]);
-  const last = location.hash.split("/")[2] || "";
-  const named = PARTS.find((x) => x === last);
-  const [focus] = useState(() => (named ? "" : last));   // #settings/backups/<set id> from a « To watch » row: that set shown and framed
-  useEffect(() => {
-    if (!cur || !focus || !cur.sets.some((x) => x.id === focus)) return;
-    setTimeout(() => document.getElementById(`set-${focus}`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [!!cur, focus]);
+  const route = useRoute(), last = route.split("/")[2] || "";   // a sub-page, or the id of a set (#settings/backups/<set id>)
+  useEffect(() => { if (route === "#settings/backups") location.replace("#settings/backups/add"); }, [route]);   // bare address only (never while leaving): its first page
   const issuesOf = (id: string) => issues.filter((i) => i.set_id === id);
 
   const search = async () => {
@@ -212,14 +262,15 @@ export function BackupsSettings({ machines = [], issues = [] }: Readonly<{ machi
     }
     setSearching(false);
   };
-  const change = async (id: string, body: { label?: string; max_age_days?: number; expect_offsite?: boolean; archived?: boolean; schedule?: string; path?: string }, done = tx("jeu modifié : relevé en cours")) => {
+  const change = async (id: string, body: SetChange, done = tx("jeu modifié : relevé en cours")) => {
     setBusyId(id);
     const ok = await act(() => send("PATCH", `backups/settings/${id}`, body), done, setNote);
     setBusyId("");
-    if (ok) { setEdit(null); load(); }
+    if (ok) load();
+    return ok;
   };
   const remove = async (id: string) => {
-    if (await act(() => send("DELETE", `backups/settings/${id}`), tx("sauvegarde retirée"), setNote)) { setEdit(null); load(); }
+    if (await act(() => send("DELETE", `backups/settings/${id}`), tx("sauvegarde retirée"), setNote)) location.hash = "backups/all";
   };
   const chosen = Object.entries(pick).filter(([, c]) => c.on);
   const valid = chosen.length > 0 && chosen.every(([, c]) => c.label.trim() && Number(c.age) >= 0.1 && Number(c.age) <= 365);
@@ -255,15 +306,8 @@ export function BackupsSettings({ machines = [], issues = [] }: Readonly<{ machi
   };
 
   if (!cur) return <Loading error={error} />;
-  const live = cur.sets.filter((s) => !s.archived), archived = cur.sets.filter((s) => s.archived);
+  const live = cur.sets.filter((s) => !s.archived);
   const countOf = (src: SourceId) => live.filter((s) => sourceOf(s) === src).length;
-  const flagged = live.filter((s) => issuesOf(s.id).length > 0);
-  const shown = live.filter((s) => filter === "all" || (filter === "flagged" ? issuesOf(s.id).length > 0 : sourceOf(s) === filter));
-  const chips: { id: string; label: string; n: number }[] = [
-    { id: "all", label: tx("Toutes"), n: live.length },
-    ...(Object.keys(SRC) as SourceId[]).filter((k) => countOf(k) > 0).map((k) => ({ id: k, label: SRC[k].label, n: countOf(k) })),
-    { id: "flagged", label: tx("Signalées"), n: flagged.length },
-  ];
 
   const SEARCH = (
     <div>
@@ -274,7 +318,7 @@ export function BackupsSettings({ machines = [], issues = [] }: Readonly<{ machi
         <span className="text-xs text-dim">
           {cur.machines === 0 ? tx("Aucune machine n'est lue par SSH : activez l'accès SSH d'une machine (Réglages → Machines) pour y chercher des sauvegardes.")
             : tx("Cherche, sur les {0} machine(s) lues par SSH, les dossiers de sauvegarde habituels :", cur.machines)} {cur.machines > 0 && <code className="font-mono text-xs">{cur.patterns.join("  ")}</code>}
-          {cur.machines > 0 && <> · <a href="#settings/backups" className="text-link hover:underline" onClick={(e) => { e.preventDefault(); document.getElementById("backups-rules")?.scrollIntoView({ block: "start", behavior: "smooth" }); }}>{tx("autres emplacements : Règles")}</a></>}
+          {cur.machines > 0 && <> · <a href="#settings/backups/paths" className="text-link hover:underline">{tx("autres emplacements : Emplacements cherchés")}</a></>}
         </span>
       </div>
       {searching && <p className="mt-2 text-sm text-dim">{tx("Lecture des dossiers en cours (taille et fichier le plus récent) : jusqu'à une minute.")}</p>}
@@ -379,92 +423,8 @@ export function BackupsSettings({ machines = [], issues = [] }: Readonly<{ machi
   const opened = tiles.find((t) => t.id === open);
   const wired = tiles.filter((t) => t.id !== "manual" && !t.missing).length;
 
-  const row = (s: SetRow) => {
-    const src = SRC[sourceOf(s)], list = issuesOf(s.id), managed = !!(s.ha || s.veeam_job || s.pbs_group || s.synology_task);
-    const editing = edit?.id === s.id ? edit.what : null, busyRow = s.id === busyId;
-    const what = whatOf(s);
-    const advised = s.cadence_days ? AGES.find((d) => d >= s.cadence_days! * 1.25) ?? AGES.at(-1)! : null;   // observed rhythm vs the threshold
-    const detail = editing === "copies" && s.path;
-    return (
-      <Fragment key={s.id}>
-        <tr id={`set-${s.id}`} className={`border-t border-line/60 align-middle even:bg-bg/50 hover:bg-bg2/40 ${focus === s.id ? "bg-link/5 [&>td]:shadow-[inset_0_2px_0_rgb(var(--link))]" : ""} ${busyRow ? "opacity-60" : ""}`}>
-          <td className="px-3 py-1.5">
-            <div className="flex items-center gap-2">
-              <SetIcon s={s} m={machineOf(s.origin_ip)} />
-              <div className="min-w-0 flex-1">
-                {editing === "rename" && <EditLine initial={s.label} label={tx("Nom")} onSave={(v) => void change(s.id, { label: v }, tx("jeu renommé"))} onClose={() => setEdit(null)} />}
-                {editing === "path" && <EditLine initial={s.path ?? ""} label={tx("Dossier")} mono onSave={(v) => void change(s.id, { path: v }, tx("dossier modifié : relevé en cours"))} onClose={() => setEdit(null)} />}
-                {editing !== "rename" && editing !== "path" && <>
-                  <b className="block truncate font-semibold" title={s.label}>{s.label}</b>
-                  {!s.label.includes(what) && <span className="block truncate font-mono text-[11px] text-dim" title={what}>{what}</span>}
-                </>}
-              </div>
-            </div>
-          </td>
-          <td className="px-3 py-1.5 text-xs text-muted"><span className="inline-flex items-center gap-1.5">{appIcon([src.icon]) ? <img src={appIcon([src.icon])!} alt="" className="h-3.5 w-3.5" /> : <src.Icon size={13} className="text-dim" aria-hidden />}{src.label}</span></td>
-          <td className="px-3 py-1.5 text-xs">{s.origin || <Dim>-</Dim>}</td>
-          <td className="px-3 py-1.5"><InlineField value={s.schedule ?? ""} label={tx("Attendu")} width="w-28" placeholder={tx("ex. lun. 01:30")} disabled={busyRow} onSave={(v) => void change(s.id, { schedule: v }, tx("horaire attendu noté"))} /></td>
-          <td className="px-3 py-1.5">
-            <InlineField value={String(s.max_age_days)} type="number" min={0.1} max={365} label={tx("Âge maximum en jours")} width="w-16" suffix={tx("j")} disabled={busyRow} onSave={(v) => void change(s.id, { max_age_days: Number(v) })} />
-            {advised && advised !== s.max_age_days && (
-              <button type="button" disabled={busyRow} onClick={() => void change(s.id, { max_age_days: advised })}
-                className={`mt-1 block rounded-full border px-2 py-0.5 text-[11px] font-medium ${advised > s.max_age_days ? "border-warn/60 bg-warn/10 text-warn hover:bg-warn/20" : "border-link/60 bg-link/10 text-link hover:bg-link/20"}`}
-                title={advised > s.max_age_days ? tx("Les archives arrivent environ tous les {0} j : avec un seuil de {1} j, le jeu est en alerte entre deux passages.", s.cadence_days, s.max_age_days)
-                  : tx("Les archives arrivent environ tous les {0} j : avec un seuil de {1} j, une sauvegarde manquée ne serait signalée que très tard.", s.cadence_days, s.max_age_days)}>
-                {tx("rythme ~{0} j : passer à {1} j", s.cadence_days, advised)}</button>
-            )}
-          </td>
-          <td className="px-3 py-1.5">
-            {managed ? <Dim>-</Dim> : (
-              <span className="inline-flex items-center gap-1.5 text-xs text-dim" title={tx("Activé : une copie à jour sur une autre machine est exigée (sinon le jeu est critique). Désactivé : seule la source est surveillée.")}>
-                <Switch on={s.expect_offsite} label={tx("Exiger une copie hors machine")} disabled={busyRow} onChange={(on) => void change(s.id, { expect_offsite: on })} />
-                {s.path && <button type="button" className="text-link hover:underline" onClick={() => setEdit(detail ? null : { id: s.id, what: "copies" })}>{(s.copies ?? []).length ? tx("{0} copie(s)", (s.copies ?? []).length) : tx("aucune copie")}</button>}
-              </span>
-            )}
-          </td>
-          <td className="px-3 py-1.5"><IssueBadge list={list} /></td>
-          <td className="px-3 py-1.5 text-right">
-            {editing === "remove" ? <RemoveConfirm onConfirm={() => void remove(s.id)} onCancel={() => setEdit(null)} /> : <RowMenu s={s} onPick={(w) => (w === "archive" ? void change(s.id, { archived: true }, tx("jeu archivé : retrouvé dans Règles › Jeux archivés")) : setEdit({ id: s.id, what: w }))} />}
-          </td>
-        </tr>
-        {detail && <tr className="bg-bg2/30"><td colSpan={8} className="px-3 pb-2">
-          <SetCopies setId={s.id} origin={s.origin} copies={s.copies ?? []} machines={cur.ssh_machines ?? []} found={found} busy={busyRow} onDone={load} setNote={setNote} />
-        </td></tr>}
-      </Fragment>
-    );
-  };
-
+  const one = cur.sets.find((x) => x.id === last);
   const pages: Record<Part, ReactNode> = {
-      sets: <Card>
-        <h2 className="mb-1 flex items-center gap-2 font-bold"><HardDrive size={16} />{tx("Mes jeux suivis")} <Count n={live.length} />
-          {flagged.length > 0 && <Badge tone="warn" title={tx("Jeux signalés dans « À surveiller » de l'onglet Sauvegardes")}>{tx("{0} à voir", flagged.length)}</Badge>}</h2>
-        <InfoNote className="mb-3">{tx("Chaque champ s'enregistre à la saisie. MyServices regarde l'âge du fichier le plus récent de chaque jeu et vous prévient s'il est trop vieux ; lecture seule, rien n'est modifié sur les machines. Le menu ⋯ d'une ligne : renommer, modifier le dossier, copies ailleurs, archiver, retirer.")}</InfoNote>
-        {live.length === 0 ? <Dim>{tx("Aucune sauvegarde suivie pour l'instant : ajoutez-en depuis une source ci-dessous.")}</Dim> : (
-          <>
-            {chips.length > 3 && (
-              <div className="mb-2 flex flex-wrap gap-1.5">
-                {chips.map((c) => (
-                  <button key={c.id} type="button" aria-pressed={filter === c.id} onClick={() => setFilter(c.id)}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${chipLook(filter === c.id, c.n)}`}>
-                    {c.label}<span className="font-mono text-[11px] text-dim">{c.n}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] border-collapse text-sm">
-                <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-                  <th className="px-3 py-2">{tx("Jeu")}</th><th className="px-3 py-2">{tx("Source")}</th><th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Attendu")}</th>
-                  <th className="px-3 py-2">{tx("Âge max")}</th><th className="px-3 py-2">{tx("Copie exigée")}</th><th className="px-3 py-2">{tx("État")}</th><th className="w-12 px-3 py-2" />
-                </tr></thead>
-                <tbody>{shown.map(row)}</tbody>
-              </table>
-              {shown.length === 0 && <p className="px-3 py-2 text-sm text-dim">{tx("Aucun jeu dans ce filtre.")}</p>}
-            </div>
-          </>
-        )}
-      </Card>,
-
       add: <Card>
         <h2 className="mb-1 flex items-center gap-2 font-bold"><SlidersHorizontal size={16} />{tx("Ajouter des sauvegardes")}</h2>
         <InfoNote className="mb-3">{tx("Les sources branchées d'abord ; une source grisée demande un connecteur. Un clic ouvre l'assistant de la source sous les tuiles.")}</InfoNote>
@@ -526,29 +486,16 @@ export function BackupsSettings({ machines = [], issues = [] }: Readonly<{ machi
             )}
             {dirty && <button type="button" className={`${primary} mt-2`} disabled={busy} onClick={() => void savePatterns()}>{tx("Enregistrer les emplacements")}</button>}
       </Card>,
-      archived: <Card>
-            <h2 className="mb-1 flex items-center gap-2 font-bold"><Archive size={16} aria-hidden />{tx("Jeux archivés")} <Count n={archived.length} tone="off" /></h2>
-            <InfoNote className="mb-2">{tx("Gardés dans l'inventaire et en fin de « Tout voir » de l'onglet, plus surveillés (une VM arrêtée, un ancien dossier).")}</InfoNote>
-            {archived.length === 0 ? <Dim>{tx("Aucun jeu archivé.")}</Dim> : (
-              <ul className="flex flex-col gap-1.5">
-                {archived.map((s) => (
-                  <li key={s.id} id={`set-${s.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-bg2/40 px-3 py-1.5 text-sm">
-                    <SetIcon s={s} m={machineOf(s.origin_ip)} />
-                    <span className="min-w-0 flex-1 truncate"><b>{s.label}</b> <span className="font-mono text-xs text-dim">{whatOf(s)}</span></span>
-                    <Badge tone="off">{SRC[sourceOf(s)].label}</Badge>
-                    <button type="button" className={`${quiet} py-1`} disabled={s.id === busyId} onClick={() => void change(s.id, { archived: false }, tx("jeu de nouveau surveillé : relevé en cours"))}><ArchiveRestore size={14} aria-hidden />{tx("Désarchiver")}</button>
-                    {edit?.id === s.id && edit.what === "remove" ? <RemoveConfirm onConfirm={() => void remove(s.id)} onCancel={() => setEdit(null)} /> : <button type="button" className={`${quiet} py-1`} onClick={() => setEdit({ id: s.id, what: "remove" })} aria-label={tx("Ne plus suivre {0}", s.label)}><Trash2 size={14} aria-hidden />{tx("Retirer")}</button>}
-                  </li>
-                ))}
-              </ul>
-            )}
-      </Card>,
+      unlinked: <UnlinkedBackups b={backups} />,
+      set: one ? <SetPage s={one} m={machineOf(one.origin_ip)} issues={issuesOf(one.id)} sshMachines={cur.ssh_machines ?? []} found={found} busy={busyId === one.id}
+        onChange={(body, done) => change(one.id, body, done)} onRemove={() => void remove(one.id)} onDone={load} setNote={setNote} />
+        : <Card><p className="text-sm text-muted">{tx("Ce jeu n'existe plus.")} <a href="#backups/all" className="text-link hover:underline">{tx("Jeux")} ›</a></p></Card>,
   };
   return (
     <div className="flex flex-col gap-4">
       <span className="text-sm text-muted">{tx("{0} jeu(x) suivi(s)", live.length)} · {tx("{0} source(s) branchée(s)", wired)}</span>
       <NoteLine note={note} />
-      {pages[partOf(named, focus, archived)]}
+      {pages[partOf(last)]}
     </div>
   );
 }

@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+- **Backups, simpler**: « All sets » and Settings → « Followed sets » were the same list twice; there is now one « Sets » view (chips: in use, flagged, archived) where « Set » opens the page of one set (name, what is followed, expected schedule, maximum age with the advised rhythm, copy off the machine, copies elsewhere, archive, remove). The « Archived sets » page and the « ⋯ » menu of the rows are gone. « By machine » comes first and shows its copies as chips and its sets as a count; the local backup folders and the cron lines no set claims move to a new Settings page, « To link », no longer folded.
+
 ### Fixed
 - **« Invalid Date » on the page of a machine** (« On the network since… »): some MynetworK versions send an empty object instead of the first and last seen dates; the connector now keeps a date only when it is one, and the page hides a date it cannot read.
 

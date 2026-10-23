@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../api";
-import { NAV, TAB_IDS, activeNav, navGroups, navTrail, tabFromHash, visible } from "./tabs";
+import { NAV, TAB_IDS, activeNav, leaves, navGroups, navTrail, tabFromHash, visible } from "./tabs";
 
 const fakeLocation = { hash: "" };
 Object.defineProperty(globalThis, "location", { value: fakeLocation, configurable: true });
@@ -13,7 +13,7 @@ describe("lib/tabs", () => {
     expect(NAV.map((g) => g.id)).toEqual(["overview", "inventory", "protection", "admin"]);
     const security = NAV.flatMap((g) => g.items).find((i) => i.id === "security")!;
     expect(security.subs!.map((x) => x.id)).toContain("fail2ban");
-    const hashes = NAV.flatMap((g) => g.items.flatMap((i) => i.subs ?? [i])).flatMap((i) => [i.hash, ...(i.also ?? [])]);   // also: Machines settings, opened by the buttons of « All machines »
+    const hashes = NAV.flatMap((g) => g.items.flatMap(leaves)).flatMap((i) => [i.hash, ...(i.also ?? [])]);   // also: Machines settings (buttons of « All machines »), the page of a set (« Sets »)
     for (const sec of ["machines", "connectors", "network", "backups", "alerts/channels", "accounts", "api", "ssh", "tasks", "updates", "mail", "export", "requests"])
       expect(hashes).toContain(`settings/${sec}`);
   });
