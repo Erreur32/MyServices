@@ -43,6 +43,7 @@ export const NAV: NavGroup[] = [
       { ...sub("machines-list", "machines", "machines", List, tx("Toutes les machines")), also: ["settings/machines"] },   // its « Add » and « Redetect » buttons open #settings/machines
       sub("machines-devices", "settings/machines/devices", "settings", Radar, tx("Appareils non suivis")),
       sub("machines-agents", "settings/machines/agents", "settings", Cpu, tx("Agents")),
+      sub("machines-ssh", "settings/machines/ssh", "settings", KeyRound, tx("Connexions SSH")),
     ] },
     { id: "services", hash: "services", tab: "services", icon: Globe, label: tx("Services"), subs: [
       sub("services-watch", "services/watch", "services", Eye, WATCH),

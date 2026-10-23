@@ -28,6 +28,7 @@ import { tx } from "../lib/i18n";
 import { InfoNote } from "../components/InfoNote";
 import { AddMachine } from "../components/AddMachine";
 import { UnlinkedDevices } from "../components/UnlinkedDevices";
+import { SshConnections } from "./SshConnections";
 
 const FLAGS: { k: keyof MachineConf; label: string; help: string }[] = [
   { k: "off", label: tx("Souvent éteinte"), help: tx("PC, portable : pas d'alerte si elle ne répond pas") },
@@ -47,9 +48,9 @@ function sshWho(st: State, alias: string): string {
   return a ? `${a.user ? `${a.user}@` : ""}${a.ip || a.host}${a.port ? `:${a.port}` : ""}` : alias;
 }
 
-/** Sub-page of Machines in the address (#settings/machines/devices): add and detect (/new: its form open, /redetect: the redetection run), devices seen by the tools, agents */
-export type MachinesPart = "add" | "devices" | "agents";
-export const machinesPart = (v?: string): MachinesPart => (v === "devices" || v === "agents" ? v : "add");
+/** Sub-page of Machines in the address (#settings/machines/devices): add and detect (/new: its form open, /redetect: the redetection run), devices seen by the tools, agents, SSH connections */
+export type MachinesPart = "add" | "devices" | "agents" | "ssh";
+export const machinesPart = (v?: string): MachinesPart => (v === "devices" || v === "agents" || v === "ssh" ? v : "add");
 
 function useMachinesState(): [State | null, string, () => void] {
   const [st, setSt] = useState<State | null>(null);
@@ -71,6 +72,7 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   if (part === "devices") return <UnlinkedDevices snap={snap} onFollowed={reload} />;
   if (part === "agents") return <AgentsOverview machines={st.machines} />;
+  if (part === "ssh") return <SshConnections st={st} snap={snap} />;
   const all = Object.keys(st.machines);
   const nOff = all.filter((ip) => st.machines[ip].disabled).length;
   return (
