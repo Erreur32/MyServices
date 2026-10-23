@@ -13,7 +13,7 @@ describe("lib/tabs", () => {
     expect(NAV.map((g) => g.id)).toEqual(["overview", "inventory", "protection", "admin"]);
     const security = NAV.flatMap((g) => g.items).find((i) => i.id === "security")!;
     expect(security.subs!.map((x) => x.id)).toContain("fail2ban");
-    const hashes = NAV.flatMap((g) => g.items.flatMap((i) => i.subs ?? [i])).map((i) => i.hash);
+    const hashes = NAV.flatMap((g) => g.items.flatMap((i) => i.subs ?? [i])).flatMap((i) => [i.hash, ...(i.also ?? [])]);   // also: Machines settings, opened by the buttons of « All machines »
     for (const sec of ["machines", "connectors", "network", "backups", "alerts/channels", "accounts", "api", "ssh", "tasks", "updates", "mail", "export", "requests"])
       expect(hashes).toContain(`settings/${sec}`);
   });
@@ -53,7 +53,8 @@ describe("lib/tabs", () => {
     expect(activeNav("#stats", g)).toBe("home-stats");
     expect(activeNav("#history/availability", g)).toBe("history-availability");
     expect(activeNav("#machines/10.0.0.5/access", g)).toBe("machines-list");
-    expect(activeNav("#settings/machines", g)).toBe("machines-add");
+    expect(activeNav("#settings/machines", g)).toBe("machines-list");   // the page of its « Add » and « Redetect » buttons
+    expect(activeNav("#settings/machines/redetect", g)).toBe("machines-list");
     expect(activeNav("#settings/machines/agents", g)).toBe("machines-agents");
     expect(activeNav("#security/fail2ban", g)).toBe("fail2ban");
     expect(activeNav("#settings/alerts/notifications", g)).toBe("alerts-notifications");
@@ -67,8 +68,10 @@ describe("lib/tabs", () => {
   it("navTrail : l'entrée et la sous-page d'une adresse (titre de page)", () => {
     expect(navTrail("#settings/tasks").item?.id).toBe("app");
     expect(navTrail("#settings/tasks").sub?.id).toBe("tasks");
-    expect(navTrail("#dns").item?.id).toBe("dns");
-    expect(navTrail("#dns").sub).toBeUndefined();
+    expect(navTrail("#virtualization").item?.id).toBe("virtualization");
+    expect(navTrail("#virtualization").sub).toBeUndefined();
+    expect(navTrail("#dns/servers").item?.id).toBe("dns");
+    expect(navTrail("#dns/servers").sub?.id).toBe("dns-servers");
     expect(navTrail("#profile")).toEqual({});
   });
   it("tabFromHash lit l'adresse (ancien lien, onglet connu, inconnu)", () => {

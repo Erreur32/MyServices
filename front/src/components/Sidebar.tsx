@@ -191,7 +191,7 @@ export function Sidebar({ snap, badges, onNavigate, onBadge, mobileOpen, onClose
   const [collapsed, setCollapsed] = useState(savedCollapsed);
   const route = useRoute();
   // « To watch » only when something is: the same reading as the dots of the menu
-  const groups = navGroups(snap, new Set(["services", "network", "backups", "security"].filter((t) => !badges[t as TabId]).map((t) => `${t}-watch`)));
+  const groups = navGroups(snap, new Set(["services", "network", "dns", "backups", "security"].filter((t) => !badges[t as TabId]).map((t) => `${t}-watch`)));
   const active = activeNav(route, groups);
   const narrow = collapsed && !mobileOpen;   // the phone drawer always shows the names
   const [todo, setTodo] = useState(0);

@@ -1,6 +1,6 @@
 // Services tab (formerly on the home page): services that appeared sur les machines ces 7 derniers jours (conteneurs, process), « les suivre ? » (GET services/new).
 // Suivre = rien ne change, ils ne sont plus proposés ; ne pas suivre = en pause (ni sonde ni alerte), à reprendre depuis leur fiche.
-import { Boxes, Check, ChevronRight, Cpu, EyeOff, Package } from "lucide-react";
+import { Boxes, Check, Cpu, EyeOff, Package } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { appIcon, appIconByText } from "../lib/appIcons";
@@ -9,25 +9,19 @@ import { act, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { NoteLine } from "./form";
 import { Badge, Count } from "./ui";
-import { FOLD_HEADER, foldHeaderProps } from "../lib/foldHeader";
 
 export interface NewService {
   key: string; name: string; kind: string; image?: string | null; app?: string | null;
   machine?: string | null; ip?: string | null; port?: number | null; since?: number | null;
 }
 
-const FOLD_KEY = "ms.home.newservices.folded";
-
 export function NewServices({ generated }: { generated?: string }) {   // generated: read again when a collection ends
   const [items, setItems] = useState<NewService[]>([]), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
-  const [folded, setFolded] = useState(() => { try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; } });
-  const fold = (v: boolean) => { setFolded(v); try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch { /* storage refused: the choice lasts this visit */ } };
   const load = useCallback(() => {
     read<{ items: NewService[] }>("services/new").then((d) => setItems(d.items))
       .catch((e) => { if (e instanceof LoginRequired) location.replace(LOGIN); });
   }, []);
   useEffect(load, [load, generated]);
-  if (!items.length) return null;
   const decide = async (how: "follow" | "ignore", keys: string[]) => {
     setBusy(true);
     const ok = await act(() => send("POST", `services/new/${how}`, { keys }),
@@ -37,19 +31,18 @@ export function NewServices({ generated }: { generated?: string }) {   // genera
   };
   return (
     <section className="overflow-hidden rounded-2xl border border-link/40 bg-card shadow-sm" aria-label={tx("Nouveaux services sur les machines")}>
-      <div className={`flex flex-wrap items-center gap-3 bg-link/10 px-4 py-2 ${FOLD_HEADER}`} {...foldHeaderProps(() => fold(!folded))}>
-        <button type="button" onClick={() => fold(!folded)} aria-expanded={!folded} title={folded ? tx("Déplier") : tx("Replier")}
-          className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+      <div className="flex flex-wrap items-center gap-3 bg-link/10 px-4 py-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-link/20 text-link"><Boxes size={15} aria-hidden /></span>
           <h2 className="flex shrink-0 items-center gap-2 text-base font-bold">{tx("Nouveaux services sur les machines")} <Count n={items.length} /></h2>
           <span className="min-w-0 flex-1 truncate text-xs text-dim" title={tx("Un service est suivi dès qu'il est détecté ; il reste proposé ici 7 jours, le temps de choisir.")}>
             {tx("Apparus ces 7 derniers jours et déjà suivis : « Ne pas suivre » les met en pause.")}
           </span>
-          <ChevronRight size={18} className={`shrink-0 text-txt transition-transform ${folded ? "" : "rotate-90"}`} aria-hidden />
-        </button>
+        </div>
         {items.length > 1 && <button type="button" className={quiet} disabled={busy} onClick={() => void decide("follow", items.map((x) => x.key))}><Check size={14} aria-hidden />{tx("Tout suivre")}</button>}
       </div>
-      {!folded && <ul className="flex flex-col divide-y divide-line/60">
+      {items.length === 0 && <p className="px-5 py-3 text-sm text-dim">{tx("Aucun nouveau service ces 7 derniers jours.")}</p>}
+      <ul className="flex flex-col divide-y divide-line/60">
         {items.map((x) => {
           const icon = appIcon(x.app ? [x.app] : undefined) ?? appIconByText(x.name, x.image);
           return (
@@ -75,7 +68,7 @@ export function NewServices({ generated }: { generated?: string }) {   // genera
             </li>
           );
         })}
-      </ul>}
+      </ul>
       {note && <div className="px-5 pb-3"><NoteLine note={note} /></div>}
     </section>
   );

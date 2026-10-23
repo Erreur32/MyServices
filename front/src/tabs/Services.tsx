@@ -308,7 +308,7 @@ function Watch({ rows, hidden, map, admin, onOpen }: Readonly<{ rows: Host[]; hi
   );
 }
 
-const SERVICE_VIEWS = ["watch", "all", "item", "edit", "manual", "new"] as const;
+const SERVICE_VIEWS = ["watch", "all", "fresh", "item", "edit", "manual", "new"] as const;
 /** The page of one service and its settings: #services/item/<key>, #services/edit/<key> (meta), #services/manual/<key> (a declared one) */
 const servicePage = (view: string, r: Host) => `services/${view}/${encodeURIComponent(keyOfRow(r))}`;
 const openService = (r: Host) => { location.hash = servicePage("item", r); };
@@ -355,7 +355,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   const page = ["item", "edit", "manual"].includes(view) ? snap.data.hosts.find((r) => keyOfRow(r) === pageKey) : undefined;
   if (view === "new" || (page && view !== "item")) return <ServicePageSettings view={view} r={page} snap={snap} />;
   if (page) return <ServicePage r={page} snap={snap} admin={admin} />;
-  if (view !== "watch" && view !== "all") return <Empty>{tx("Ce service n'existe plus.")} <a href="#services/all" className="text-link hover:underline">{tx("Tous les services")}</a></Empty>;
+  if (view !== "watch" && view !== "all" && view !== "fresh") return <Empty>{tx("Ce service n'existe plus.")} <a href="#services/all" className="text-link hover:underline">{tx("Tous les services")}</a></Empty>;
   return (
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
@@ -370,7 +370,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
         <StatTile n={fig.toCheck} label={tx("À vérifier")} tone={fig.toCheck ? "warn" : undefined} sub={fig.checkWhy.map((k) => CHECK[k][0]).join(", ") || tx("rien à confirmer")} />
       </div>
       {view === "watch" && <Watch rows={watch} hidden={hiddenRows} map={hiddenMap} admin={admin} onOpen={(k) => { const r = snap.data.hosts.find((x) => keyOfRow(x) === k); if (r) openService(r); }} />}
-      {view === "all" && admin && <NewServices generated={snap.data.generated} />}
+      {view === "fresh" && admin && <NewServices generated={snap.data.generated} />}
       {view === "all" && <FoldPanel id="services-all" icon={Layers} title={tx("Tous les services")} count={snap.data.hosts.length} pinned>
       <FilterBar f={f} primary={["status", "domain", "machine"]} placeholder={tx("Domaine, IP, port, conteneur, image…")}
         side={<button type="button" onClick={() => setGrouped(!grouped)} aria-pressed={grouped} title={tx("Regrouper les services sous le nom de leur machine")}

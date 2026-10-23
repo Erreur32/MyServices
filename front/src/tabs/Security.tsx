@@ -10,6 +10,7 @@ import { Fail2banStats } from "../components/Fail2banStats";
 import { FoldPanel } from "../components/FoldPanel";
 import { InfoNote } from "../components/InfoNote";
 import { Badge, Dim, Empty } from "../components/ui";
+import { pageViewTarget } from "../lib/route";
 import { StatTile } from "../components/StatTile";
 import { WatchPanel } from "../components/WatchPanel";
 import { splitHostName } from "../lib/format";
@@ -200,8 +201,10 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
   const [sub, setSub] = useState<Sub>(() => routeSub(route) ?? "sites");
   useEffect(() => {   // the address follows the sub-tab (the side menu lights the right entry); a menu link sets the sub-tab
     const named = routeSub(route);
-    if (named) setSub(named);
-    else location.replace(`#security/${rows.length ? "watch" : "sites"}`);   // opened bare: « To watch » when something is
+    if (named) { setSub(named); return; }
+    const opening = rows.length ? "watch" : "sites";   // opened bare: « To watch » when something is
+    const target = route === "#fail2ban" ? "#security/fail2ban" : pageViewTarget(route, "security", null, opening);
+    if (target) location.replace(target);
   }, [route]);   // eslint-disable-line react-hooks/exhaustive-deps
   const pick = (s: Sub) => {   // a finding's « See in »: accounts and tokens are in Administration
     if (s === "members") { location.hash = "settings/accounts"; return; }

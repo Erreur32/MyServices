@@ -40,14 +40,14 @@ export const NAV: NavGroup[] = [
   ] },
   { id: "inventory", label: tx("Inventaire"), items: [
     { id: "machines", hash: "machines", tab: "machines", icon: Monitor, label: tx("Machines"), subs: [
-      sub("machines-list", "machines", "machines", List, tx("Toutes les machines")),
-      sub("machines-add", "settings/machines", "settings", Plus, tx("Ajouter et détecter")),
+      { ...sub("machines-list", "machines", "machines", List, tx("Toutes les machines")), also: ["settings/machines"] },   // its « Add » and « Redetect » buttons open #settings/machines
       sub("machines-devices", "settings/machines/devices", "settings", Radar, tx("Appareils non suivis")),
       sub("machines-agents", "settings/machines/agents", "settings", Cpu, tx("Agents")),
     ] },
     { id: "services", hash: "services", tab: "services", icon: Globe, label: tx("Services"), subs: [
       sub("services-watch", "services/watch", "services", Eye, WATCH),
       { ...sub("services-all", "services/all", "services", Layers, tx("Tous les services")), also: ["services/item", "services/edit", "services/manual"] },
+      sub("services-fresh", "services/fresh", "services", Sparkles, tx("Nouveaux services"), (s) => s.me.role === "admin"),   // found these 7 days, to keep or pause
       sub("services-new", "services/new", "settings", PenLine, tx("Déclarer un service")),
     ] },
     { id: "network", hash: "network", tab: "network", icon: Router, label: tx("Réseau"), subs: [
@@ -67,7 +67,11 @@ export const NAV: NavGroup[] = [
         sub("discovery-forgotten", "settings/network/forgotten", "settings", EyeOff, tx("Arrêtés et oubliés")),
       ]),
     ] },
-    { id: "dns", hash: "dns", tab: "dns", icon: Network, label: tx("DNS") },
+    { id: "dns", hash: "dns", tab: "dns", icon: Network, label: tx("DNS"), subs: [
+      sub("dns-watch", "dns/watch", "dns", Eye, WATCH),
+      sub("dns-servers", "dns/servers", "dns", Server, tx("Serveurs")),
+      sub("dns-all", "dns/all", "dns", Layers, tx("Détails")),
+    ] },
     { id: "virtualization", hash: "virtualization", tab: "virtualization", icon: Server, label: tx("Virtualisation") },
     { id: "infra", hash: "infra", tab: "infra", icon: LayoutGrid, label: tx("Infra") },
     { id: "diagrams", hash: "diagrams", tab: "diagrams", icon: Workflow, label: tx("Schémas") },

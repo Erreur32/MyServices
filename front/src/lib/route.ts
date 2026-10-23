@@ -20,10 +20,18 @@ export function routeView<V extends string>(route: string, views: readonly V[]):
   return views.includes(v as V) ? (v as V) : null;
 }
 
+/** The address to write for a page shown without one of its views named (#history -> #history/events); null when a view is
+ *  named, or when the address already belongs to another page: the page is being left and must not pull the address back */
+export function pageViewTarget(route: string, base: string, named: string | null, fallback: string): string | null {
+  const own = route === `#${base}` || route.startsWith(`#${base}/`);
+  return own && !named ? `#${base}/${fallback}` : null;
+}
+
 /** The view of a page (a sub-page of the side menu): the one in the address, else `fallback`, written in the address
  *  (replaced, not one more step back) so the menu lights it */
 export function usePageView<V extends string>(route: string, base: string, views: readonly V[], fallback: V): V {
   const named = routeView(route, views);
-  useEffect(() => { if (!named) location.replace(`#${base}/${fallback}`); }, [named, base, fallback]);
+  const target = pageViewTarget(route, base, named, fallback);
+  useEffect(() => { if (target) location.replace(target); }, [target]);
   return named ?? fallback;
 }

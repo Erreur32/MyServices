@@ -29,7 +29,7 @@ import { SourceBadges } from "../components/SourceBadges";
 import { DetailRow, DetailSection } from "../components/DetailSection";
 import { ContainerList, SitePaths, WebServersTable, modeLabel } from "../components/WebServers";
 import { veeamOf, type VeeamRow } from "../lib/veeamMachines";
-import { primary } from "../lib/forms";
+import { primary, quiet } from "../lib/forms";
 import { SHARE_STATE, UU_STALE_DAYS, WATCH_SECTION, ZFS_BAD, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Pct, Table, Td, Th, type Tone } from "../components/ui";
@@ -1640,7 +1640,8 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
           ...(nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []),
         ]}
         extra={<>
-          {admin && <a href="#settings/machines/new" className={`${primary} no-underline`}><Plus size={14} aria-hidden />{tx("Ajouter une machine")}</a>}{/* the page « Add and detect », its form open */}
+          {admin && <a href="#settings/machines/redetect" className={`${quiet} no-underline`} title={tx("Relit toutes les machines et propose les écarts (rôles, système, services hors Docker)")}><RefreshCw size={14} aria-hidden />{tx("Redétecter")}</a>}
+          {admin && <a href="#settings/machines/new" className={`${primary} no-underline`}><Plus size={14} aria-hidden />{tx("Ajouter une machine")}</a>}{/* the page « Add and detect », its form or the redetection open */}
           <ViewToggle view={view} onPick={pickView} />
         </>} />
       {sort.sorted.length === 0 ? <Empty>{tx("Aucune machine pour ce filtre.")}</Empty> : (

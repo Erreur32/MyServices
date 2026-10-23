@@ -1,6 +1,6 @@
 // Devices seen by a tool (MynetworK, Proxmox, Dockhand, Beszel…) but not followed here, with « Suivre » to add one as a machine.
 // Shown in Settings → Machines (where machines are added), folded by default.
-import { ChevronRight, Plus, Radar } from "lucide-react";
+import { Plus, Radar } from "lucide-react";
 import { useMemo, useState } from "react";
 import { LOGIN, LoginRequired, send, type Snapshot } from "../api";
 import { ipNum } from "../lib/format";
@@ -9,8 +9,7 @@ import { tx } from "../lib/i18n";
 import { rereadMachines } from "../lib/scan";
 import type { Unlinked } from "../types";
 import { InfoNote } from "./InfoNote";
-import { FOLD, FOLD_HEAD } from "./NetworkStep";
-import { Badge, Count, Dim } from "./ui";
+import { Badge, Card, Count, Dim } from "./ui";
 
 /** The matching layer's list (all tools), or MynetworK's inventory alone for an older data.json */
 export function unlinkedOf(snap: Snapshot): Unlinked[] {
@@ -44,14 +43,13 @@ export function UnlinkedDevices({ snap, onFollowed }: Readonly<{ snap: Snapshot;
       else setFollowing((f) => ({ ...f, [ip]: (e as Error).message }));
     }
   };
-  if (untracked.length === 0) return null;
   return (
-    <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
-      <summary className={FOLD_HEAD}>
-        <ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
+    <Card>
+      <h2 className="flex flex-wrap items-center gap-2 font-bold">
         <Radar size={16} aria-hidden />{tx("Vus par vos outils, pas suivis ici")} <Count n={untracked.length} />
         <span className="font-normal text-muted">{tx("« Suivre » en fait une machine")}</span>
-      </summary>
+      </h2>
+      {untracked.length === 0 && <Dim>{tx("Aucun appareil vu par vos outils en dehors des machines suivies.")}</Dim>}
       {bySource.map(([label, list]) => (
         <div key={label} className="mt-2 text-sm">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-dim">{label} <span className="font-normal">({list.length})</span></h4>
@@ -72,6 +70,6 @@ export function UnlinkedDevices({ snap, onFollowed }: Readonly<{ snap: Snapshot;
         </div>
       ))}
       <InfoNote className="mt-2">{tx("« Suivre » l'ajoute aux machines (son accès SSH se règle ensuite dans sa carte).")}</InfoNote>
-    </details>
+    </Card>
   );
 }

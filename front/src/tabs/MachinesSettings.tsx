@@ -47,7 +47,7 @@ function sshWho(st: State, alias: string): string {
   return a ? `${a.user ? `${a.user}@` : ""}${a.ip || a.host}${a.port ? `:${a.port}` : ""}` : alias;
 }
 
-/** Sub-page of Machines in the address (#settings/machines/devices): add and detect (/new: its form open), devices seen by the tools, agents */
+/** Sub-page of Machines in the address (#settings/machines/devices): add and detect (/new: its form open, /redetect: the redetection run), devices seen by the tools, agents */
 export type MachinesPart = "add" | "devices" | "agents";
 export const machinesPart = (v?: string): MachinesPart => (v === "devices" || v === "agents" ? v : "add");
 
@@ -66,7 +66,7 @@ function useMachinesState(): [State | null, string, () => void] {
 export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part: MachinesPart }>) {
   const [st, error, reload] = useMachinesState();
   const [detecting, setDetecting] = useState(() => location.hash.endsWith("/machines/new"));
-  const [redetecting, setRedetecting] = useState(false);
+  const [redetecting, setRedetecting] = useState(() => location.hash.endsWith("/machines/redetect"));
   const [showAccess, setShowAccess] = useState(false);
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   if (part === "devices") return <UnlinkedDevices snap={snap} onFollowed={reload} />;
