@@ -1,6 +1,7 @@
 // Historique : un graphique au choix (points à l'heure exacte, barres, courbe, chaleur) au-dessus de la liste des événements. Un clic sur
 // un point ou une barre limite la liste à ce jour ou à cette plage. Source : historique SQLite d'un an (API v1).
-import { Activity, BarChart3, Flame, LineChart, ListOrdered, ScatterChart } from "lucide-react";
+import { usePageView, useRoute } from "../lib/route";
+import { BarChart3, Flame, LineChart, ScatterChart } from "lucide-react";
 import { Availability } from "./Availability";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { loadHistory, type Snapshot } from "../api";
@@ -40,22 +41,12 @@ const savedDays = (): number => {
 
 type Loaded = Awaited<ReturnType<typeof loadHistory>> & { days: number; at: number };
 
-const VIEW_KEY = "ms.history.view";
+const VIEWS = ["events", "availability"] as const;
 
-/** Historique : les événements, ou la disponibilité dans le temps (choix gardé) */
-export function History({ snap }: { snap: Snapshot }) {
-  const [view, setView] = useState<"events" | "availability">(() => { try { return localStorage.getItem(VIEW_KEY) === "availability" ? "availability" : "events"; } catch { return "events"; } });
-  const pickView = (v: typeof view) => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* stockage refusé */ } };
-  // the switch sits in the middle of the period / chart-style row of the events view, and in a row of its own above the availability
-  const switcher = (
-    <fieldset className="m-0 inline-flex rounded-lg border border-line bg-card p-0.5" aria-label={tx("Vue de l'historique")}>
-      {([["events", tx("Événements"), ListOrdered], ["availability", tx("Disponibilité"), Activity]] as const).map(([k, l, Icon]) => (
-        <button key={k} type="button" onClick={() => pickView(k)} aria-pressed={view === k}
-          className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm ${view === k ? "bg-link/15 font-semibold text-txt" : "text-muted hover:text-txt"}`}><Icon size={14} aria-hidden />{l}</button>
-      ))}
-    </fieldset>
-  );
-  return view === "events" ? <Events snap={snap} middle={switcher} /> : <Availability snap={snap} middle={switcher} />;
+/** Historique : les événements, ou la disponibilité dans le temps ; deux sous-pages du menu (#history/events, #history/availability) */
+export function History({ snap }: Readonly<{ snap: Snapshot }>) {
+  const view = usePageView(useRoute(), "history", VIEWS, "events");
+  return view === "events" ? <Events snap={snap} middle={null} /> : <Availability snap={snap} />;
 }
 
 /** Period chips, the view switch in the middle, the chart style on the right */

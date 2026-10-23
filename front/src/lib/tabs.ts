@@ -1,5 +1,5 @@
 // Menu de gauche : groupes, entrées, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Activity, Archive, ListChecks, Radio, Sparkles, ArrowDownUp, Boxes, EyeOff, Lightbulb, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, Archive, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Boxes, EyeOff, Lightbulb, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -29,8 +29,14 @@ const WATCH = tx("À surveiller");
  *  Settings (#settings/<section>[/<part>]) are spread over the topic they set and the Administration group. */
 export const NAV: NavGroup[] = [
   { id: "overview", label: tx("Vue d'ensemble"), items: [
-    { id: "home", hash: "", tab: "home", icon: House, label: tx("Accueil") },
-    { id: "history", hash: "history", tab: "home", icon: History, label: tx("Historique") },
+    { id: "home", hash: "", tab: "home", icon: House, label: tx("Accueil"), subs: [
+      { ...sub("home-overview", "", "home", LayoutDashboard, tx("Vue d'ensemble")), also: ["home"] },
+      sub("home-stats", "stats", "home", BarChart3, tx("Statistiques")),
+    ] },
+    { id: "history", hash: "history", tab: "home", icon: History, label: tx("Historique"), subs: [
+      sub("history-events", "history/events", "home", ListOrdered, tx("Événements")),
+      sub("history-availability", "history/availability", "home", Activity, tx("Disponibilité")),
+    ] },
   ] },
   { id: "inventory", label: tx("Inventaire"), items: [
     { id: "machines", hash: "machines", tab: "machines", icon: Monitor, label: tx("Machines"), subs: [
@@ -166,13 +172,10 @@ export function navGroups(s: Snapshot, hide: ReadonlySet<string> = new Set()): N
   return NAV.map((g) => ({ ...g, items: g.items.map((i) => seen(i, s, hide)).filter((i): i is NavItem => i !== null) })).filter((g) => g.items.length > 0);
 }
 
-const HOME_HASHES = new Set(["", "home", "stats"]);   // the home page and its statistics
-
 /** Page of an address: the entry (or sub-page) with the longest address it starts with (#settings/alerts/rules -> Alertes,
  *  #machines/10.0.0.5 -> Machines); the home page for #, #home and #stats; none ("") for a page apart (#profile, #help…) */
 export function activeNav(hash: string, groups: NavGroup[]): string {
-  const h = hash.replace(/^#/, "");
-  if (HOME_HASHES.has(h)) return "home";
+  const h = hash.replace(/^#/, "") || "home";   // « # » alone: the home page
   let best: { id: string; len: number } | undefined;
   for (const i of groups.flatMap((g) => g.items.flatMap(leaves)))
     for (const x of [i.hash, ...(i.also ?? [])])

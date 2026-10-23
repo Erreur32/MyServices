@@ -13,7 +13,7 @@ import type { AlertChannel, NotificationItem, NotificationsState } from "../type
 import { CHANNEL_ICON } from "./Alerts";
 import { InfoNote } from "../components/InfoNote";
 
-const DAYS = [tx("Lun"), tx("Mar"), tx("Mer"), tx("Jeu"), tx("Ven"), tx("Sam"), tx("Dim")];
+export const DAYS = [tx("Lun"), tx("Mar"), tx("Mer"), tx("Jeu"), tx("Ven"), tx("Sam"), tx("Dim")];
 const COOLDOWNS: [number, string][] = [[0, tx("aucun")], [5, "5 min"], [60, "1 h"], [360, "6 h"], [1440, "24 h"]];
 const KIND_CHOICE = [
   { value: "report" as const, label: tx("Rapport de machines"), hint: tx("Un message à heure fixe avec les capteurs de votre choix"), icon: <BarChart3 size={26} className="text-link" aria-hidden /> },

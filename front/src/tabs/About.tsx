@@ -2,17 +2,15 @@
 // puis le journal des changements (une version à la fois, choisie par un bouton).
 import { ExternalLink, Github, RefreshCw, ScrollText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
+import { LOGIN, LoginRequired, read, type Snapshot } from "../api";
 import { SystemSettings } from "./SystemSettings";
 import { Markdown } from "../components/Markdown";
-import { NoteLine } from "../components/form";
 import { Badge, Card, Dim } from "../components/ui";
 import { parseChangelog } from "../lib/changelog";
-import { appVersion, dateTime } from "../lib/format";
-import { act, quiet, type Note } from "../lib/forms";
+import { appVersion } from "../lib/format";
+import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { GITHUB } from "../lib/links";
-import { InfoNote } from "../components/InfoNote";
 
 interface Release { tag: string; name: string; url: string; published: string | null; prerelease: boolean; notes: string }
 interface About {
@@ -21,7 +19,7 @@ interface About {
 }
 
 export function AboutSettings({ snap }: Readonly<{ snap: Snapshot }>) {
-  const [a, setA] = useState<About | null>(null), [error, setError] = useState(""), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
+  const [a, setA] = useState<About | null>(null), [error, setError] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
   const load = useCallback(() => {
     read<About>("about").then((r) => { setA(r); setError(""); })
@@ -31,11 +29,6 @@ export function AboutSettings({ snap }: Readonly<{ snap: Snapshot }>) {
   const sections = useMemo(() => parseChangelog(a?.changelog ?? ""), [a?.changelog]);
   if (!a) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
 
-  const check = async () => {
-    setBusy(true); setNote(null);
-    await act(async () => { setA(await send<About>("POST", "about/check")); }, tx("vérifié"), setNote);
-    setBusy(false);
-  };
   const cur = sections.find((s) => s.id === (picked ?? sections.find((x) => !x.unreleased)?.id)) ?? sections[0];
   const latest = a.latest;
   return (
@@ -51,10 +44,7 @@ export function AboutSettings({ snap }: Readonly<{ snap: Snapshot }>) {
               {a.update_available && latest && <> · {tx("Dernière publiée")} : <code className="font-mono font-semibold text-link">{latest.tag}</code></>}
             </p>
           </div>
-          <button type="button" className={quiet} disabled={busy || !a.enabled} onClick={() => void check()}
-            title={a.enabled ? tx("Interroger GitHub maintenant (une requête anonyme)") : tx("Vérification coupée dans la configuration (update_check)")}>
-            <RefreshCw size={14} className={busy ? "animate-spin" : ""} aria-hidden />{tx("Vérifier les mises à jour")}
-          </button>
+          {snap.me.role === "admin" && <a href="#settings/updates" className={`${quiet} no-underline`}><RefreshCw size={14} aria-hidden />{tx("Mises à jour")} ›</a>}{/* the check and its setting: Application → Updates */}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <Badge tone="warn" title={tx("Version en ligne, à un stade précoce : des écrans et des réglages peuvent encore changer")}>BETA</Badge>
@@ -62,33 +52,9 @@ export function AboutSettings({ snap }: Readonly<{ snap: Snapshot }>) {
           <Badge tone="info">Docker · amd64 · arm64</Badge>
           <Badge tone="off">{tx("licence MIT")}</Badge>
         </div>
-        <NoteLine note={note} />
       </Card>
 
       {snap.me.role === "admin" && <SystemSettings part="info" snap={snap} />}{/* the former « Informations » of Settings: one page with About */}
-      <Card className={a.update_available ? "border-link/50" : ""}>
-        <h2 className="mb-2 flex items-center gap-2 font-bold"><RefreshCw size={16} aria-hidden />{tx("Mises à jour")}</h2>
-        {!a.enabled ? <p className="text-sm text-muted">{tx("La vérification des mises à jour est coupée (configuration « update_check »). Aucune requête n'est envoyée à GitHub.")}</p>
-          : !latest ? <p className="text-sm text-muted">{a.error ?? tx("Pas encore vérifié.")}</p> : (
-            <div className="flex flex-col gap-2 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                {a.update_available
-                  ? <Badge tone="info">{tx("Mise à jour disponible")}</Badge>
-                  : a.running ? <Badge tone="ok">{tx("À jour")}</Badge> : <Badge tone="off" title={tx("Image de développement : pas de numéro de version à comparer")}>{tx("version de développement")}</Badge>}
-                <span>{tx("Dernière version publiée")} : <b>{latest.tag}</b>{latest.prerelease && <Dim> ({tx("préversion")})</Dim>}{latest.published && <Dim> · {dateTime(latest.published)}</Dim>}</span>
-                <a className="inline-flex items-center gap-1 text-link hover:underline" href={latest.url} target="_blank" rel="noopener noreferrer">{tx("Notes de version")}<ExternalLink size={12} aria-hidden /></a>
-              </div>
-              {a.update_available && (
-                <InfoNote>{tx("Pour mettre à jour : sauvegardez config/ et data/, puis récupérez la nouvelle image et relancez le conteneur.")}</InfoNote>
-              )}
-              <p className="text-xs text-dim">
-                {a.checked_at ? tx("Dernière vérification : {0}", dateTime(a.checked_at * 1000)) : null}{a.error ? <span className="text-warn"> · {a.error}</span> : null}
-                {" "}{tx("Vérifié depuis le serveur, au plus toutes les 6 h ; aucune donnée n'est envoyée.")}
-              </p>
-            </div>
-          )}
-      </Card>
-
       <Card>
         <h2 className="mb-1 flex items-center gap-2 font-bold"><ScrollText size={16} aria-hidden />{tx("Journal des changements")}</h2>
         {sections.length === 0 ? <Dim>{tx("Journal indisponible dans cette image.")}</Dim> : (

@@ -48,9 +48,10 @@ describe("lib/tabs", () => {
   });
   it("activeNav : l'entrée la plus précise de l'adresse", () => {
     const g = navGroups(snap({ security: [{ id: "f2b" }], machine_list: [{ info: { sshd: true } }] }));
-    expect(activeNav("", g)).toBe("home");
-    expect(activeNav("#stats", g)).toBe("home");
-    expect(activeNav("#history", g)).toBe("history");
+    expect(activeNav("", g)).toBe("home-overview");
+    expect(activeNav("#home", g)).toBe("home-overview");
+    expect(activeNav("#stats", g)).toBe("home-stats");
+    expect(activeNav("#history/availability", g)).toBe("history-availability");
     expect(activeNav("#machines/10.0.0.5/access", g)).toBe("machines-list");
     expect(activeNav("#settings/machines", g)).toBe("machines-add");
     expect(activeNav("#settings/machines/agents", g)).toBe("machines-agents");
