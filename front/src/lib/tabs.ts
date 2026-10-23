@@ -1,5 +1,5 @@
 // Menu de gauche : groupes, entrées, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Activity, ArrowDownUp, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, List, Mail, Monitor, Network, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, ArrowDownUp, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -13,7 +13,7 @@ export const infraDocker = (s: Snapshot) => (s.data.containers ?? []).filter((c)
 
 /** One entry of the side menu: the address it opens (without « # »), the tab it belongs to (visibility, alert dot), an extra
  *  condition (`show`) for an entry that only exists when a tool was found, and its sub-pages (`subs`), listed under it while it is open. */
-export interface NavItem { id: string; hash: string; tab: TabId; icon: LucideIcon; label: string; show?: (s: Snapshot) => boolean; subs?: NavItem[] }
+export interface NavItem { id: string; hash: string; tab: TabId; icon: LucideIcon; label: string; show?: (s: Snapshot) => boolean; subs?: NavItem[]; also?: string[] }   // also: other addresses it lights (the page of one item)
 export interface NavGroup { id: string; label: string; items: NavItem[] }
 
 const sub = (id: string, hash: string, tab: TabId, icon: LucideIcon, label: string, show?: (s: Snapshot) => boolean): NavItem => ({ id, hash, tab, icon, label, show });
@@ -40,7 +40,8 @@ export const NAV: NavGroup[] = [
     ] },
     { id: "services", hash: "services", tab: "services", icon: Globe, label: tx("Services"), subs: [
       sub("services-watch", "services/watch", "services", Eye, WATCH),
-      sub("services-all", "services/all", "services", Layers, tx("Tous les services")),
+      { ...sub("services-all", "services/all", "services", Layers, tx("Tous les services")), also: ["services/item", "services/edit", "services/manual"] },
+      sub("services-new", "services/new", "settings", PenLine, tx("Déclarer un service")),
     ] },
     { id: "network", hash: "network", tab: "network", icon: Router, label: tx("Réseau"), subs: [
       views("network-view", "network", [
@@ -155,9 +156,10 @@ const HOME_HASHES = new Set(["", "home", "stats"]);   // the home page and its s
 export function activeNav(hash: string, groups: NavGroup[]): string {
   const h = hash.replace(/^#/, "");
   if (HOME_HASHES.has(h)) return "home";
-  let best: NavItem | undefined;
+  let best: { id: string; len: number } | undefined;
   for (const i of groups.flatMap((g) => g.items.flatMap(leaves)))
-    if (i.hash && (h === i.hash || h.startsWith(`${i.hash}/`)) && (!best || i.hash.length > best.hash.length)) best = i;
+    for (const x of [i.hash, ...(i.also ?? [])])
+      if (x && (h === x || h.startsWith(`${x}/`)) && (!best || x.length > best.len)) best = { id: i.id, len: x.length };
   return best?.id ?? "";
 }
 

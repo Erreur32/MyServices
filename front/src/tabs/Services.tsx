@@ -3,7 +3,7 @@
 // with its state, machine and source, filters, sort, « By machine »; on a phone, one card per service.
 import { usePageView } from "../lib/route";
 import { foldHeaderProps } from "../lib/foldHeader";
-import { ChevronDown, ChevronRight, ExternalLink, EyeOff, Globe, Layers, Pencil, Search, Plus, Server, Boxes, Undo2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, ExternalLink, EyeOff, Globe, Layers, Pencil, Search, Plus, Server, Boxes, Undo2 } from "lucide-react";
 import { Fragment, useCallback, useMemo, useState } from "react";
 import { send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
@@ -14,7 +14,6 @@ import type { Host } from "../types";
 import { Badge, Cards, Dim, Empty, FilterBar, Table, Td, Th, type Tone } from "../components/ui";
 import { ServiceDetail } from "./ServiceDetail";
 import { ServiceEdit } from "../components/ServiceEdit";
-import { Overlay } from "../components/Overlay";
 import { dateTime, ipNum } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { FoldPanel } from "../components/FoldPanel";
@@ -309,13 +308,13 @@ function Watch({ rows, hidden, map, admin, onOpen }: Readonly<{ rows: Host[]; hi
   );
 }
 
-const SERVICE_VIEWS = ["watch", "all"] as const;
+const SERVICE_VIEWS = ["watch", "all", "item", "edit", "manual", "new"] as const;
+/** The page of one service and its settings: #services/item/<key>, #services/edit/<key> (meta), #services/manual/<key> (a declared one) */
+const servicePage = (view: string, r: Host) => `services/${view}/${encodeURIComponent(keyOfRow(r))}`;
+const openService = (r: Host) => { location.hash = servicePage("item", r); };
 
 export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; initial?: Selected; route: string }>) {
-  const [openKey, setOpenKey] = useState<string | null>(null);
   const hiddenMap = useServicesHidden();
-  const [editKey, setEditKey] = useState<string | null>(null);   // the « Edit » window (pencil of a row or of the detail)
-  const [manual, setManual] = useState<{ initial?: ManualInitial } | null>(null);   // the « + Service » window: empty to declare, filled to edit
   const machines = useMemo(() => new Map(snap.data.machine_list.map((m) => [m.ip, m.name])), [snap.data.machine_list]);
   const facets = useMemo((): Facet<Host>[] => [
     { key: "src", label: tx("Source"), get: (r) => (r.type === "local" ? "local" : "npm"), name: (v) => (v === "npm" ? "NPM" : tx("Services")), order: ["npm", "local"],
@@ -345,8 +344,6 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
     }
   }, []);
   const sort = useSort(f.shown, keyOf, "status");
-  const opened = sort.sorted.find((r) => keyOfRow(r) === openKey);
-  const editing = editKey ? snap.data.hosts.find((r) => keyOfRow(r) === editKey) : undefined;
   const [grouped, setGrouped] = useGrouped(), [expanded, setExpanded] = useState<string[]>(() => (initial && Object.keys(initial).length ? groupByMachine(f.shown).map((g) => g.name) : []));   // groups are folded until opened, except when arriving with a filter (link from a machine): then they are already open
   const groups = useMemo(() => (grouped ? groupByMachine(sort.sorted) : [{ name: "", ip: "", rows: sort.sorted }]), [grouped, sort.sorted]);
 
@@ -354,12 +351,17 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   const watch = watchAll.filter((r) => !isHidden(r, hiddenMap)), hiddenRows = watchAll.filter((r) => isHidden(r, hiddenMap));
   const filtered = !!initial && Object.keys(initial).length > 0;   // came with a filter (home counter, a machine): the list is wanted
   const view = usePageView(route, "services", SERVICE_VIEWS, filtered || watch.length === 0 ? "all" : "watch");
+  const pageKey = decodeURIComponent(route.split("/")[2] ?? "");
+  const page = ["item", "edit", "manual"].includes(view) ? snap.data.hosts.find((r) => keyOfRow(r) === pageKey) : undefined;
+  if (view === "new" || (page && view !== "item")) return <ServicePageSettings view={view} r={page} snap={snap} />;
+  if (page) return <ServicePage r={page} snap={snap} admin={admin} />;
+  if (view !== "watch" && view !== "all") return <Empty>{tx("Ce service n'existe plus.")} <a href="#services/all" className="text-link hover:underline">{tx("Tous les services")}</a></Empty>;
   return (
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="flex items-center gap-2 text-xl font-bold"><Boxes size={18} aria-hidden />{tx("Services")}</h1>
         <HeadTags counts={[tx("{0} services", fig.total), tx("{0} avec domaine", fig.withDomain), tx("{0} locaux", fig.local), tx("{0} machines", fig.machines)]} at={snap.data.generated} />
-        {admin && <button type="button" className={`${quiet} ml-auto py-1`} onClick={() => setManual({})} title={tx("Déclarer un service que la détection ne voit pas")}><Plus size={14} aria-hidden />{tx("Service")}</button>}
+        {admin && <a href="#services/new" className={`${quiet} ml-auto py-1 no-underline`} title={tx("Déclarer un service que la détection ne voit pas")}><Plus size={14} aria-hidden />{tx("Service")}</a>}
       </div>
       <div className="flex gap-2.5 overflow-x-auto pb-1">
         <StatTile n={fig.ok} label={tx("En ligne")} tone="ok" />
@@ -367,7 +369,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
         <StatTile n={fig.warn} label={tx("Avertissement")} tone={fig.warn ? "warn" : undefined} sub={fig.warnWhy.join(", ") || undefined} />
         <StatTile n={fig.toCheck} label={tx("À vérifier")} tone={fig.toCheck ? "warn" : undefined} sub={fig.checkWhy.map((k) => CHECK[k][0]).join(", ") || tx("rien à confirmer")} />
       </div>
-      {view === "watch" && <Watch rows={watch} hidden={hiddenRows} map={hiddenMap} admin={admin} onOpen={setOpenKey} />}
+      {view === "watch" && <Watch rows={watch} hidden={hiddenRows} map={hiddenMap} admin={admin} onOpen={(k) => { const r = snap.data.hosts.find((x) => keyOfRow(x) === k); if (r) openService(r); }} />}
       {view === "all" && admin && <NewServices generated={snap.data.generated} />}
       {view === "all" && <FoldPanel id="services-all" icon={Layers} title={tx("Tous les services")} count={snap.data.hosts.length} pinned>
       <FilterBar f={f} primary={["status", "domain", "machine"]} placeholder={tx("Domaine, IP, port, conteneur, image…")}
@@ -383,7 +385,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
             {groups.map((g) => (
               <Fragment key={g.name}>
                 {grouped && <GroupHeader g={g} cols={4} folded={!expanded.includes(g.name)} onToggle={() => setExpanded(expanded.includes(g.name) ? expanded.filter((n) => n !== g.name) : [...expanded, g.name])} />}
-                {(!grouped || expanded.includes(g.name)) && mergePorts(g.rows).map(({ lead: r, ports }) => <ServiceRow key={keyOfRow(r)} r={r} ports={ports} grouped={grouped} hidden={isHidden(r, hiddenMap)} onOpen={() => setOpenKey(keyOfRow(r))} onPort={(x) => setOpenKey(keyOfRow(x))} onEdit={admin ? () => setEditKey(keyOfRow(r)) : undefined} />)}
+                {(!grouped || expanded.includes(g.name)) && mergePorts(g.rows).map(({ lead: r, ports }) => <ServiceRow key={keyOfRow(r)} r={r} ports={ports} grouped={grouped} hidden={isHidden(r, hiddenMap)} onOpen={() => openService(r)} onPort={openService} onEdit={admin ? () => { location.hash = servicePage("edit", r); } : undefined} />)}
               </Fragment>
             ))}
           </Table>
@@ -392,7 +394,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
               const k = keyOfRow(r), [cls, label] = status(r);
               return (
                 <div key={k} className={`rounded-2xl border border-line bg-card p-3.5 ${r.enabled ? "" : "opacity-70"}`}>
-                  <button type="button" onClick={() => setOpenKey(k)} aria-haspopup="dialog" className="flex w-full items-start justify-between gap-2 text-left">
+                  <button type="button" onClick={() => openService(r)} className="flex w-full items-start justify-between gap-2 text-left">
                     <ServiceLogo r={r} />
                     <span className="min-w-0 flex-1">
                       <b className="block truncate">{hostName(r)}</b>
@@ -407,15 +409,33 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
         </>
       )}
       </FoldPanel>}
-      {opened && (
-        <Overlay wide onClose={() => setOpenKey(null)} title={<><ServiceLogo r={opened} />{hostName(opened)} <Badge tone="off">{via(opened)}</Badge></>}
-          actions={admin && <button type="button" className={quiet} onClick={() => setEditKey(keyOfRow(opened))}><Pencil size={14} aria-hidden />{tx("Modifier")}</button>}>
-          {admin && opened.manual && opened.ip && opened.port && <ManualActions r={opened} onEdit={() => { setManual({ initial: { name: hostName(opened), ip: opened.ip!, port: opened.port!, scheme: opened.scheme ?? "http" } }); setOpenKey(null); }} />}
-          <div className="mt-3"><ServiceDetail r={opened} admin={snap.me.role === "admin"} ports={portsOf(opened, snap.data.hosts)} related={relatedOf(opened, snap.data.hosts)} onOpen={(x) => setOpenKey(keyOfRow(x))} /></div>
-        </Overlay>
-      )}
-      {editing && <ServiceEdit r={editing} name={hostName(editing)} onClose={() => setEditKey(null)} />}
-      {manual && <ManualService machines={snap.data.machine_list.filter((m) => !m.disabled)} initial={manual.initial} onDone={() => setOpenKey(null)} onClose={() => setManual(null)} />}
+    </div>
+  );
+}
+
+/** The page of one service (#services/item/<key>): what it is and how it answers; « Edit » for admins */
+function ServicePage({ r, snap, admin }: Readonly<{ r: Host; snap: Snapshot; admin: boolean }>) {
+  return (
+    <div className="flex flex-col gap-4 py-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <a href="#services/all" className={`${quiet} py-1 no-underline`}><ArrowLeft size={14} aria-hidden />{tx("Tous les services")}</a>
+        <h1 className="flex items-center gap-2 text-xl font-bold"><ServiceLogo r={r} />{hostName(r)} <Badge tone="off">{via(r)}</Badge></h1>
+        {admin && <a href={`#${servicePage("edit", r)}`} className={`${quiet} ml-auto py-1 no-underline`}><Pencil size={14} aria-hidden />{tx("Modifier")}</a>}
+      </div>
+      {admin && r.manual && r.ip && r.port && <ManualActions r={r} onEdit={() => { location.hash = servicePage("manual", r); }} />}
+      <ServiceDetail r={r} admin={admin} ports={portsOf(r, snap.data.hosts)} related={relatedOf(r, snap.data.hosts)} onOpen={openService} />
+    </div>
+  );
+}
+
+/** The settings of a service (#services/edit/<key>), of a declared one (#services/manual/<key>), or a new one to declare (#services/new) */
+function ServicePageSettings({ view, r, snap }: Readonly<{ view: string; r?: Host; snap: Snapshot }>) {
+  const back = () => { location.hash = r ? servicePage("item", r) : "services/all"; };
+  const initial: ManualInitial | undefined = view === "manual" && r?.ip && r.port ? { name: hostName(r), ip: r.ip, port: r.port, scheme: r.scheme ?? "http" } : undefined;
+  return (
+    <div className="flex flex-col gap-4 py-4">
+      {view === "edit" && r && <ServiceEdit r={r} name={hostName(r)} onClose={back} />}
+      {view !== "edit" && <ManualService machines={snap.data.machine_list.filter((m) => !m.disabled)} initial={initial} onDone={back} onClose={back} />}
     </div>
   );
 }

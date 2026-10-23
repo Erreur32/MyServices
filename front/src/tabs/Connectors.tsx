@@ -43,7 +43,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   const [error, setError] = useState("");
   const [adding, setAdding] = useState<string>(() => prefill?.type ?? "");
   const [edited, setEditing] = useState("");  // « type/nom » de l'instance en cours de modification : un seul formulaire à la fois
-  const [overlay, setOverlay] = useState<Proposal | null>(null);   // service détecté à activer : son formulaire s'ouvre par-dessus
+  const [linking, setLinking] = useState<Proposal | null>(null);   // service détecté à activer : son formulaire prend la place de la liste
   const [saved, setSaved] = useState<string[]>([]);   // detected services just activated: hidden at once, before any reload
   const [cat, setCat] = useState(""), [query, setQuery] = useState("");   // category and search of the picker (empty: all)
   const [srcNote, setSrcNote] = useState<Note>(null), [changed, setChanged] = useState(false), [srcKey, setSrcKey] = useState(""), [toggling, setToggling] = useState("");   // toggling: the connector whose switch waits for the answer
@@ -62,6 +62,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
   // An instance deleted (or renamed) while its form was open no longer locks the other buttons
   const editing = st.instances.some((i) => `${i.type}/${i.name}` === edited) ? edited : "";
   const picking = part === "available";
+  const activating = linking ? st.types.find((t) => t.type === linking.connector) : undefined;
   const mine = (<div className="mt-3 grid gap-3 lg:grid-cols-2">{/* my connectors, two columns on wide screens; a card being edited or pointed at takes the row */}
         {[...st.instances].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) || a.name.localeCompare(b.name)).map((i) => (   // alphabetical, like the picker
           <InstanceCard key={`${i.type}/${i.name}`} inst={i} hosts={snap.data.hosts} collect={collect} type={st.types.find((t) => t.type === i.type)!} reload={reload}
@@ -155,15 +156,16 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
           </ul>
         )}
       </Card>}
-      {part === "detected" && <DetectedServices apps={(snap.data.detected_apps ?? []).filter((p) => !saved.includes(discoveryId(p)))} instances={st.instances} types={st.types}
-        machines={snap.data.machine_list} dockerOk={new Set((snap.data.connectors ?? []).filter((c) => c.type === "docker" && c.ok && c.ip).map((c) => c.ip!))} onOpen={setOverlay} />}
-      {overlay && st.types.find((t) => t.type === overlay.connector) && (
-        <Overlay title={<>{appIcon([overlay.label]) && <img src={appIcon([overlay.label])!} alt="" className="h-6 w-6" />}{tx("Activer")} {overlay.label} <Dim>· {overlay.machine || overlay.ip}</Dim></>} onClose={() => setOverlay(null)}>
-          <ConnectorForm key={overlay.connector} type={st.types.find((t) => t.type === overlay.connector)!} prefill={{ type: overlay.connector, name: overlay.connector, url: overlay.url }}
-            found={snap.data.hosts.find((h) => String(h.id) === String(overlay.service))?.service} hosts={snap.data.hosts}
-            onSaved={() => { setSaved((x) => [...x, discoveryId(overlay)]); reload(); }}
-            onDone={() => { setOverlay(null); reload(); }} onCancel={() => setOverlay(null)} />
-        </Overlay>
+      {part === "detected" && !activating && <DetectedServices apps={(snap.data.detected_apps ?? []).filter((p) => !saved.includes(discoveryId(p)))} instances={st.instances} types={st.types}
+        machines={snap.data.machine_list} dockerOk={new Set((snap.data.connectors ?? []).filter((c) => c.type === "docker" && c.ok && c.ip).map((c) => c.ip!))} onOpen={setLinking} />}
+      {part === "detected" && activating && linking && (   // a found service to link: its form in the page, in place of the list
+        <Card>
+          <h2 className="flex items-center gap-2 font-bold">{appIcon([linking.label]) && <img src={appIcon([linking.label])!} alt="" className="h-6 w-6" />}{tx("Activer")} {linking.label} <Dim>· {linking.machine || linking.ip}</Dim></h2>
+          <ConnectorForm key={linking.connector} type={activating} prefill={{ type: linking.connector, name: linking.connector, url: linking.url }}
+            found={snap.data.hosts.find((h) => String(h.id) === String(linking.service))?.service} hosts={snap.data.hosts}
+            onSaved={() => { setSaved((x) => [...x, discoveryId(linking)]); reload(); }}
+            onDone={() => { setLinking(null); reload(); }} onCancel={() => setLinking(null)} />
+        </Card>
       )}
 
 

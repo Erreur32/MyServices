@@ -169,7 +169,7 @@ export function MachinePage({ snap, m, scan, model, state, detail, onMachine, fo
         <section ref={settings} className="scroll-mt-24 rounded-2xl border border-line bg-card p-4 shadow-sm" aria-label={tx("Réglages de cette machine")}>
           <h2 className="flex items-center gap-2 font-bold"><SlidersHorizontal size={16} aria-hidden />{tx("Réglages de cette machine")}</h2>
           <p className="mt-1 text-sm text-muted">{tx("Identité, options et accès (SSH, agent, connecteurs) : chaque réglage s'enregistre à la saisie, « Enregistrer » ne sert qu'au nom et aux champs libres.")}</p>
-          <MachineModal inline ip={m.ip} snap={snap} focusTab={focusTab} />
+          <MachineModal ip={m.ip} snap={snap} focusTab={focusTab} />
         </section>
       )}
     </div>
