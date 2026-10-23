@@ -7,6 +7,10 @@ Versioning: the first pre-releases were called `2.0.0-alpha.N`, `-beta.N` and `-
 numbering restarts **below 2.0.0** with **0.9.0** (2.0.0 is reserved for a version judged stable). The `:latest` image tag follows the
 latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
+## Unreleased (next version, not tagged yet)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ## v0.20.2 (2026-10-23)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
