@@ -19,15 +19,17 @@ import { MachineModal } from "./MachinesSettings";
 import { COLOR, StatTile } from "../components/StatTile";
 import { WazuhCard } from "../components/WazuhCard";
 import type { MachineFigure } from "../lib/machineFigures";
-import { METRIC_COLUMN, minMax, sparkPath, type MetricKey, type MetricPoint } from "../lib/sparkline";
+import { METRIC_COLUMN, minMax, spanStart, sparkPath, SPAN_S, type MetricKey, type MetricPoint } from "../lib/sparkline";
 
 const DAYS = 30;
+const METRICS_EVERY_MS = 4 * 60_000;   // metrics.py keeps a point every 4 minutes at most
 
 /** The last 24 hours of one figure under its value, in the colour of its state; the lowest and highest in the tooltip */
 function Sparkline({ points, k, tone, unit }: Readonly<{ points: MetricPoint[]; k: MetricKey; tone: MachineFigure["tone"]; unit: string }>) {
   const now = Date.now() / 1000, d = sparkPath(points, k, now), range = minMax(points, k, now);
   if (!d || !range) return null;
-  const title = tx("24 h : de {0} à {1}", `${Math.round(range[0])}${unit}`, `${Math.round(range[1])}${unit}`);
+  const start = spanStart(points, k, now), lo = `${Math.round(range[0])}${unit}`, hi = `${Math.round(range[1])}${unit}`;
+  const title = start > now - SPAN_S + 60 ? tx("depuis {0} : de {1} à {2}", dateTime(start * 1000), lo, hi) : tx("24 h : de {0} à {1}", lo, hi);
   return (
     <svg viewBox="0 0 100 24" preserveAspectRatio="none" className={`mt-auto h-6 w-full pt-1 ${tone ? COLOR[tone] : "text-muted"}`} role="img" aria-label={title}>
       <title>{title}</title>
@@ -195,8 +197,11 @@ function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, h
   const readAt = figures.find((f) => f.key === "health")?.at;
   const [points, setPoints] = useState<MetricPoint[]>([]);
   useEffect(() => {
-    read<{ points: MetricPoint[] }>(`machines/${m.ip}/metrics`).then((r) => setPoints(r.points ?? [])).catch(() => setPoints([]));
-  }, [m.ip, readAt]);   // read again after each reading of this machine
+    const load = () => { read<{ points: MetricPoint[] }>(`machines/${m.ip}/metrics`).then((r) => setPoints(r.points ?? [])).catch(() => setPoints([])); };
+    load();
+    const t = setInterval(load, METRICS_EVERY_MS);   // an agent's reports add points without any new health reading of the page
+    return () => clearInterval(t);
+  }, [m.ip, readAt]);   // and at once after a reading of this machine
   const right = <>
     {m.services > 0 && <button type="button" onClick={() => onMachine(m.ip)} className={quiet}>{tx("Voir ses services")}<ArrowRight size={14} aria-hidden /></button>}
     {admin && <a href={`#machines/${m.ip}/settings`} className={`${quiet} no-underline`}><SlidersHorizontal size={14} aria-hidden />{tx("Réglages")} ›</a>}

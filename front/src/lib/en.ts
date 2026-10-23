@@ -2303,6 +2303,7 @@ export const EN: Record<string, string> = {
   "En marche depuis": "Up for",
   "il y a {0} jours": "{0} days ago",
   "24 h : de {0} à {1}": "24 h: from {0} to {1}",
+  "depuis {0} : de {1} à {2}": "since {0}: from {1} to {2}",
   "relevé le {0}": "read {0}",
   "Agent Wazuh": "Wazuh agent",
   "Vulnérabilités": "Vulnerabilities",

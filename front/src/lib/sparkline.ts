@@ -15,13 +15,21 @@ export function domain(key: MetricKey, values: number[]): [number, number] {
   return [Math.floor(lo - pad), Math.ceil(hi + pad)];
 }
 
-/** The path of one figure over the 24 hours before `now`, in a box of w × h; "" with fewer than two points to draw */
+/** Where the curve starts: 24 hours before `now`, or the first point when the history is younger (a new machine, a new MyServices):
+ *  a curve of 20 minutes is not squeezed into the last pixels of the tile */
+export function spanStart(points: MetricPoint[], key: MetricKey, now: number): number {
+  const col = METRIC_COLUMN[key];
+  const first = points.find((p) => p[0] >= now - SPAN_S && p[col] != null);
+  return first ? Math.max(now - SPAN_S, first[0]) : now - SPAN_S;
+}
+
+/** The path of one figure from spanStart() to `now`, in a box of w × h; "" with fewer than two points to draw */
 export function sparkPath(points: MetricPoint[], key: MetricKey, now: number, w = 100, h = 24): string {
-  const col = METRIC_COLUMN[key], start = now - SPAN_S;
+  const col = METRIC_COLUMN[key], start = spanStart(points, key, now), span = now - start || 1;
   const kept = points.filter((p) => p[0] >= start && p[col] != null) as [number, ...number[]][];
   if (kept.length < 2) return "";
   const [lo, hi] = domain(key, kept.map((p) => p[col]));
-  const x = (t: number) => ((t - start) / SPAN_S) * w, y = (v: number) => h - ((Math.min(Math.max(v, lo), hi) - lo) / (hi - lo || 1)) * h;
+  const x = (t: number) => ((t - start) / span) * w, y = (v: number) => h - ((Math.min(Math.max(v, lo), hi) - lo) / (hi - lo || 1)) * h;
   return kept.map((p, i) => `${i === 0 || p[0] - kept[i - 1][0] > GAP_S ? "M" : "L"}${x(p[0]).toFixed(1)} ${y(p[col]).toFixed(1)}`).join(" ");
 }
 

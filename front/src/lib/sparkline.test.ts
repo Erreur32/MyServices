@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { domain, minMax, sparkPath, SPAN_S, type MetricPoint } from "./sparkline";
+import { domain, minMax, spanStart, sparkPath, SPAN_S, type MetricPoint } from "./sparkline";
 
 const NOW = 1_800_000_000;
 const pts: MetricPoint[] = [
@@ -10,11 +10,16 @@ const pts: MetricPoint[] = [
 ];
 
 describe("sparkPath", () => {
-  it("draws the 24 hours, 0-100 for a filling", () => {
-    expect(sparkPath(pts, "cpu", NOW)).toBe("M97.2 24.0 L98.6 0.0 L100.0 12.0");
+  it("starts at the first point when the history is younger than 24 h", () => {
+    expect(spanStart(pts, "cpu", NOW)).toBe(NOW - 2400);
+    expect(spanStart([[NOW - SPAN_S + 60, 1, null, null, null], [NOW - 30 * 3600, 1, null, null, null]], "cpu", NOW)).toBe(NOW - SPAN_S + 60);
+    expect(spanStart([], "cpu", NOW)).toBe(NOW - SPAN_S);
+  });
+  it("draws the history, 0-100 for a filling", () => {
+    expect(sparkPath(pts, "cpu", NOW)).toBe("M0.0 24.0 L50.0 0.0 L100.0 12.0");
   });
   it("skips a figure not reported, needs two points", () => {
-    expect(sparkPath(pts, "mem", NOW)).toBe("M97.2 12.0 M100.0 12.0");   // 40 min without it: two pieces
+    expect(sparkPath(pts, "mem", NOW)).toBe("M0.0 12.0 M100.0 12.0");   // 40 min without it: two pieces
     expect(sparkPath(pts.slice(0, 2), "cpu", NOW)).toBe("");
     expect(sparkPath([], "temp", NOW)).toBe("");
   });
@@ -23,7 +28,7 @@ describe("sparkPath", () => {
     expect(sparkPath(gap, "cpu", NOW).split("M")).toHaveLength(3);
   });
   it("keeps the values of a temperature in its box", () => {
-    expect(sparkPath(pts, "temp", NOW)).toBe("M97.2 24.0 L98.6 0.0 L100.0 12.0");
+    expect(sparkPath(pts, "temp", NOW)).toBe("M0.0 24.0 L50.0 0.0 L100.0 12.0");
   });
 });
 
