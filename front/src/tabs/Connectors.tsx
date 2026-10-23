@@ -1,20 +1,19 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { Check, ChevronRight, EyeOff, HelpCircle, Loader2, Package, Pencil, Play, Plug, Plus, RotateCcw, ScanSearch, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { Check, EyeOff, HelpCircle, Loader2, Package, Pencil, Play, Plug, Plus, RotateCcw, ScanSearch, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Overlay } from "../components/Overlay";
 import { Copyable, Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { SecretInput } from "../components/SecretInput";
-import { FOLD, FOLD_HEAD } from "../components/NetworkStep";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
-import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service } from "../types";
+import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus, ConnectorType, Host, Machine, MachinesSettings, Proposal, ScriptTip, Service } from "../types";
 import { configFor, modeOf } from "../lib/connectorModes";
 import { takeFocus, takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
@@ -32,9 +31,33 @@ const KIND: Record<string, string> = {
 
 // Proposé depuis « Premiers pas » : lu une seule fois, à l'ouverture de l'onglet
 /** Sub-page of Connectors in the address (#settings/connectors/available): my connectors, the catalogue, or the services found on the network */
-export type ConnectorsPart = "mine" | "available" | "detected";
-export const connectorsPart = (v?: string): ConnectorsPart => (v === "available" || v === "detected" ? v : "mine");
+export type ConnectorsPart = "mine" | "available" | "detected" | "read";
+export const connectorsPart = (v?: string): ConnectorsPart => (v === "available" || v === "detected" || v === "read" ? v : "mine");
 const MINE = "settings/connectors";
+
+/** Tools already read over SSH or by an agent on a followed machine (AdGuard, Proxmox, ESXi, KVM, Hyper-V…): a connector would add nothing */
+function ReadElsewhere({ list, types, collect }: Readonly<{ list: ConnectorStatus[]; types: ConnectorType[]; collect: ReturnType<typeof useCollectTask> }>) {
+  return (
+    <Card>
+      <h2 className="flex items-center gap-2 font-bold"><Plug size={16} aria-hidden />{tx("Déjà lus par SSH ou agent")} <Count n={list.length} /></h2>
+      <InfoNote className="mt-1">{tx("Trouvés sur une machine suivie et lus par SSH ou par l'agent (AdGuard, Proxmox, ESXi, KVM, Hyper-V…) : inutile de les ajouter comme connecteur. Un connecteur n'apporte quelque chose que s'il lit une API que la machine ne montre pas.")}</InfoNote>
+      {list.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucun outil lu de cette façon pour l'instant.")}</p>}
+      <ul className="mt-2 flex flex-col divide-y divide-line/60">
+        {list.map((o) => {
+          const label = types.find((t) => t.type === o.type)?.label ?? o.label ?? o.type, icon = appIcon([label]);
+          return (
+            <li key={`${o.type}/${o.name}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 text-sm">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">{icon ? <img src={icon} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}</span>
+              <b>{label}</b><Dim>· {o.name}</Dim><Badge tone="off">{o.via === "agent" ? tx("agent") : "SSH"}</Badge>
+              <span className="ml-auto"><StatusLine s={o} collect={collect} /></span>
+              <a href="#machines" className="text-xs text-link hover:underline">{tx("Machines")} ›</a>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
 
 export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: ConnectorsPart }>) {
   const [prefill] = useState(takePrefill);
@@ -57,8 +80,8 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
 
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   const type = st.types.find((t) => t.type === adding);
-  // Read over SSH because a machine declares it (AdGuard): shown with « My connectors », nothing to add for them
-  const bySsh = st.others.filter((o) => o.via === "ssh" || st.types.some((t) => t.type === o.type));
+  // Read over SSH or by an agent because a machine declares it (AdGuard, Proxmox by pvesh, Hyper-V): nothing to add for them
+  const readElsewhere = st.others.filter((o) => o.via === "ssh" || o.via === "agent" || st.types.some((t) => t.type === o.type));
   // An instance deleted (or renamed) while its form was open no longer locks the other buttons
   const editing = st.instances.some((i) => `${i.type}/${i.name}` === edited) ? edited : "";
   const picking = part === "available";
@@ -91,35 +114,13 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
           <h2 className="flex items-center gap-2 font-bold"><Plug size={16} />{tx("Mes connecteurs")} <Count n={st.instances.length} /></h2>
           <a href={`#${MINE}/available`} className={`${primary} no-underline`}><Plus size={14} />{tx("Ajouter un connecteur")}</a>
         </div>
-        {bySsh.length > 0 && (   // folded by default, in place of the former explanation: what SSH already reads needs no connector
-          <details className={`mt-3 ${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
-            <summary className={FOLD_HEAD}>
-              <ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
-              <Plug size={16} aria-hidden />{tx("Déjà lus par SSH")} <Count n={bySsh.length} />
-              <span className="font-normal text-muted">{tx("rien à ajouter pour eux")}</span>
-            </summary>
-            <InfoNote className="mt-1">{tx("Trouvés sur une machine suivie et lus par SSH (AdGuard, Proxmox, ESXi, KVM…) : inutile de les ajouter ici. Un connecteur n'apporte quelque chose que s'il lit une API que SSH ne voit pas.")}</InfoNote>
-            <ul className="mt-2 flex flex-col divide-y divide-line/60">
-              {bySsh.map((o) => {
-                const label = st.types.find((t) => t.type === o.type)?.label ?? o.label ?? o.type, icon = appIcon([label]);
-                return (
-                  <li key={`${o.type}/${o.name}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 text-sm">
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-bg2">{icon ? <img src={icon} alt="" className="h-5 w-5" /> : <Plug size={16} className="text-muted" aria-hidden />}</span>
-                    <b>{label}</b><Dim>· {o.name}</Dim><Badge tone="off">SSH</Badge>
-                    <span className="ml-auto"><StatusLine s={o} collect={collect} /></span>
-                    <a href="#settings/machines" className="text-xs text-link hover:underline">{tx("Réglages → Machines")}</a>
-                  </li>
-                );
-              })}
-            </ul>
-          </details>
-        )}
         {form}
         {st.instances.length === 0 && !type && (
           <p className="mt-3 text-sm text-muted">{tx("Aucun connecteur pour l'instant. Cliquez sur « Ajouter un connecteur » : les outils que MyServices sait lire s'affichent en petites cartes.")}</p>
         )}
         {st.instances.length > 0 && mine}
       </Card>}
+      {part === "read" && <ReadElsewhere list={readElsewhere} types={st.types} collect={collect} />}
       {picking && <Card>
         <h2 className="flex items-center gap-2 font-bold"><Plus size={16} />{tx("Connecteurs disponibles")}</h2>
         {form}
@@ -135,7 +136,7 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
           <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label={tx("Connecteurs disponibles")}>
             {st.types.filter((t) => (!cat || t.category === cat) && searchHit([t.label, t.type, catName(t.category ?? ""), ...t.kinds.map((k) => KIND[k] || k)].join(" "), query))
               .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })).map((t) => {
-              const icon = appIcon([t.label]), n = st.instances.filter((i) => i.type === t.type).length, ssh = bySsh.filter((o) => o.type === t.type).length;
+              const icon = appIcon([t.label]), n = st.instances.filter((i) => i.type === t.type).length, ssh = readElsewhere.filter((o) => o.type === t.type).length;
               return (
                 <li key={t.type}>
                   <button type="button" onClick={() => setAdding(t.type)}
@@ -268,14 +269,13 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
   const rows = all.filter((p) => !muted.has(discoveryId(p))).sort((a, b) => rank(a) - rank(b)), forgotten = all.filter((p) => muted.has(discoveryId(p)));
   const forget = (p: Proposal, on: boolean) => void act(() => send("PUT", "discoveries/muted", { id: discoveryId(p), muted: on }),
     on ? tx("{0} oublié : plus proposé", p.label) : tx("{0} rappelé : de nouveau proposé", p.label), setNote).then(() => reloadDisc());
-  if (!all.length) return null;
   return (
-    <details className={`${FOLD} [&>:not(summary)]:mx-3 [&>:last-child]:mb-3`}>
-      <summary className={FOLD_HEAD}>
-        <ChevronRight size={16} className="shrink-0 text-link transition-transform group-open:rotate-90" aria-hidden />
+    <Card>
+      <h2 className="flex flex-wrap items-center gap-2 font-bold">
         <ScanSearch size={16} aria-hidden />{tx("Services détectés non configurés")} <Count n={rows.length} />
         <span className="font-normal text-muted">{tx("facultatif : à activer quand vous voulez")}</span>
-      </summary>
+      </h2>
+      {all.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucun service détecté à relier pour l'instant.")}</p>}
       <InfoNote className="mt-1">{tx("MyServices a reconnu ces applis mais ne les lit pas encore. Cliquez sur l'une d'elles pour renseigner son accès en lecture.")}</InfoNote>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full min-w-[480px] text-sm">
@@ -323,7 +323,7 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
         </div>
       )}
       <NoteLine note={note} />
-    </details>
+    </Card>
   );
 }
 

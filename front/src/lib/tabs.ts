@@ -112,6 +112,7 @@ export const NAV: NavGroup[] = [
       sub("connectors-mine", "settings/connectors", "settings", Plug, tx("Mes connecteurs")),
       sub("connectors-available", "settings/connectors/available", "settings", Plus, tx("Disponibles")),
       sub("connectors-detected", "settings/connectors/detected", "settings", Radar, tx("Détectés à relier")),
+      sub("connectors-read", "settings/connectors/read", "settings", Server, tx("Déjà lus par SSH ou agent")),
     ] },
     { id: "access", hash: "settings/accounts", tab: "settings", icon: Users, label: tx("Comptes et accès"), subs: [
       sub("accounts", "settings/accounts", "settings", Users, tx("Comptes et sessions")),
