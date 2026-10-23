@@ -12,6 +12,7 @@ Home Assistant : /api/states (capteurs du gestionnaire de sauvegardes, disque de
 from __future__ import annotations
 
 import json
+import re
 import ssl
 import urllib.error
 import urllib.parse
@@ -39,6 +40,43 @@ def _fmt(t):
 
 
 VEEAM_HISTORY = 10   # runs kept per job: failures among the recent ones, observed rhythm
+VEEAM_DETAILS_TTL = 1800   # job contents, backups and restore point counts: read again every 30 min at most
+VEEAM_NO_ID = "-".join("0" * n for n in (8, 4, 4, 4, 12))   # Veeam's empty id (all zeros): an imported backup has no job
+_UNITS = {"B": 0, "KB": 1, "MB": 2, "GB": 3, "TB": 4, "PB": 5}
+
+
+def veeam_size(v) -> int | None:
+    """Bytes of a size Veeam writes as text in the server's language: « 129,7 GB », « 120 GB », « 1.5 TB », « 1 024,5 MB »."""
+    m = re.fullmatch(r"([\d\s\u00a0\u202f.,]+?)\s*([KMGTP]?B)", str(v or "").strip(), re.I)
+    if not m:
+        return None
+    n = re.sub(r"[\s\u00a0\u202f]", "", m.group(1))
+    if "," in n and "." in n:   # both: the last one is the decimal mark
+        n = n.replace(".", "").replace(",", ".") if n.rfind(",") > n.rfind(".") else n.replace(",", "")
+    try:
+        return int(float(n.replace(",", ".")) * 1024 ** _UNITS[m.group(2).upper()])
+    except ValueError:
+        return None
+
+
+def _newest(dates: list[str]) -> str | None:
+    """The latest of ISO dates as Veeam writes them (offsets may differ), or None."""
+    return max(dates, key=lambda d: datetime.fromisoformat(d.replace("Z", "+00:00"))) if dates else None
+
+
+def veeam_objects(job_conf: dict | None, points: dict, backup_objects: list | None = None) -> list[dict]:
+    """What a job backs up: [{"name", "host", "type", "size", "points"}]. VMs come from the job's settings (name, host they run on, size);
+    a job without VMs there (a physical computer) gives the objects of its backup. « points »: restore points kept, when the backup is known."""
+    out = []
+    for inc in ((job_conf or {}).get("virtualMachines") or {}).get("includes") or []:
+        io = inc.get("inventoryObject") or {}
+        if io.get("name"):
+            out.append({"name": io["name"], "host": io.get("hostName") or "", "type": io.get("type") or "", "size": veeam_size(inc.get("size"))})
+    if not out:
+        out = [{"name": o["name"], "host": "", "type": o.get("type") or "", "size": None} for o in backup_objects or [] if o.get("name")]
+    for o in out:
+        o["points"] = points.get(o["name"])
+    return out
 
 
 def veeam_history(job: dict, sessions: list, ts) -> list[dict]:
@@ -66,9 +104,11 @@ def veeam_parse(jobs: list, repos: list, sessions: list | None = None) -> dict:
                           "pct": round((size - (free or 0)) * 100 / size, 1)})
     out = {"user": "API REST Veeam", "locs": {}, "cron_root": None, "disks": disks, "crons": [], "veeam_jobs": {}}
     for j in jobs:
-        last, res, nxt = ts(j.get("lastRun")), j.get("lastResult") or "None", ts(j.get("nextRun"))
+        hist = veeam_history(j, sessions or [], ts)
+        last, nxt = ts(j.get("lastRun")) or (hist[0]["start"] if hist else None), ts(j.get("nextRun"))
+        res = j.get("lastResult") or (hist[0]["result"] if hist else "None")   # a backup without job: its last session, when there is one
         out["veeam_jobs"][j.get("name", "?")] = {"last_run": last, "result": res, "status": j.get("status"), "next": nxt,
-                                                 "repository": j.get("repositoryName"), "history": veeam_history(j, sessions or [], ts)}
+                                                 "repository": j.get("repositoryName"), "history": hist, "objects": j.get("objects") or []}
         out["crons"].append({"src": "job Veeam " + (j.get("type") or ""),
                              "line": f"{j.get('name')} : dernier {_fmt(last)} ({res}), prochain {_fmt(nxt)}"})
     return out
@@ -140,7 +180,54 @@ class Veeam(Connector):
                                   token=token).get("data", [])
         except (OSError, ValueError):
             sessions = []
+        known = {j.get("id") for j in jobs if j.get("id")}
+        det = self.ctx.cached(f"veeam-details-{self.conf['url']}", VEEAM_DETAILS_TTL, lambda: self._details(token, known))
+        repo_names = {r.get("id"): r.get("name") for r in repos if r.get("id")}
+        for j in jobs:
+            j["objects"] = det["objects"].get(j.get("id")) or []
+        for o in det["orphans"]:   # a backup whose job is not in jobs/states (Veeam 12.0: computers backed up by Veeam Agent)
+            if o["name"] not in {j.get("name") for j in jobs}:
+                jobs.append({**o, "repositoryName": repo_names.get(o.get("repositoryId"))})
         return jobs, repos, sessions
+
+    def _data(self, path: str, token: str) -> list:
+        """data of a GET, or [] when the version or the role does not give it (each detail is optional)."""
+        try:
+            return self._call(path, token=token).get("data") or []
+        except (OSError, ValueError):
+            return []
+
+    def _last_point(self, token: str, backup_id: str, objects: list) -> str | None:
+        """Date of the newest restore point of a backup: by the backup, else by each of its objects (the route differs between versions)."""
+        q = "orderColumn=CreationTime&orderAsc=false&limit=1"
+        got = self._data(f"/api/v1/objectRestorePoints?backupIdFilter={backup_id}&{q}", token)
+        if not got:
+            got = [p for o in objects if o.get("id") for p in self._data(f"/api/v1/backupObjects/{o['id']}/restorePoints?{q}", token)]
+        return _newest([p["creationTime"] for p in got if p.get("creationTime")])
+
+    def _details(self, token: str, known: set) -> dict:
+        """What each job backs up (by job id) and the backups no job of jobs/states owns. One GET for the jobs' settings, one for the backups,
+        one per backup for its objects (restore point counts) and, for a backup without a known job, one or two for its newest restore point."""
+        conf = {j.get("id"): j for j in self._data("/api/v1/jobs?limit=500", token)}
+        per_job: dict[str, dict] = {}
+        for b in self._data("/api/v1/backups?limit=500", token):
+            jid = b.get("jobId")
+            if b.get("id") and jid and jid != VEEAM_NO_ID:
+                per_job.setdefault(jid, []).append({**b, "objects": self._data(f"/api/v1/backups/{b['id']}/objects", token)})
+        objects, orphans = {}, []
+        for jid in set(conf) | set(per_job) | known:
+            bks = per_job.get(jid, [])
+            objs = [o for b in bks for o in b["objects"]]
+            points = {}
+            for o in objs:
+                if o.get("name") and o.get("restorePointsCount") is not None:
+                    points[o["name"]] = points.get(o["name"], 0) + o["restorePointsCount"]
+            objects[jid] = veeam_objects(conf.get(jid), points, objs)
+            if jid not in known and jid not in conf and bks:
+                orphans.append({"id": jid, "name": bks[0].get("name") or jid, "type": bks[0].get("platformName") or "", "status": None,
+                                "lastRun": _newest([d for b in bks if (d := self._last_point(token, b["id"], b["objects"]))]),
+                                "repositoryId": bks[0].get("repositoryId"), "objects": objects[jid]})
+        return {"objects": objects, "orphans": orphans}
 
     def collect(self) -> dict:
         return veeam_parse(*self.fetch())

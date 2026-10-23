@@ -1696,6 +1696,7 @@ class VeeamJob(BaseModel):
     label: str = ""
     max_age_days: float = 2.0
     copy_of: str = ""   # Backup Copy job: the job it copies (its set gets this job as a copy location)
+    machines: dict[str, str] = {}   # VM (object) name -> machine IP, "" = none: wins over the match by name
 
 
 class VeeamFollow(VeeamAccount):

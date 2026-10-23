@@ -91,6 +91,11 @@ class _Index:
         return (hit, "name") if hit else (None, None)
 
 
+def index(machines: list[dict]) -> _Index:
+    """Lookup of the given machines by address, MAC or name: index(machines).find(ip=..., names=(...)) -> (machine IP, how)."""
+    return _Index(machines)
+
+
 def link(machines: list[dict], network: list[dict] | None = None, virtualization: list[dict] | None = None,
          containers: list[dict] | None = None, beszel: list[dict] | None = None, services: list[dict] | None = None) -> dict:
     """{"machines": {ip: {mac, vendor, names, sources, guest, hypervisor}}, "unlinked": [...]}.

@@ -529,10 +529,18 @@ def veeam_discover(conf: dict) -> dict:
         jobs, repos, _ = _veeam_conn(conf).fetch()
     except ConnectorError as e:
         raise BackupError(str(e)) from None
-    followed = {loc.get("veeam_job") for s in _read().get("sets", []) for loc in s.get("locations", [])}
+    import backups
+    sets = _read().get("sets", [])
+    locs = {loc.get("veeam_job"): loc for s in sets for loc in s.get("locations", []) if loc.get("veeam_job")}
+    heads = {s["locations"][0]["veeam_job"]: s for s in sets if s.get("locations") and s["locations"][0].get("veeam_job")}
+    idx = backups.machine_index()
     return {"jobs": [{"name": j.get("name", "?"), "type": j.get("type") or "", "status": j.get("status") or "",
                       "last_result": j.get("lastResult") or "", "last_run": _epoch(j.get("lastRun")),
-                      "disabled": j.get("status") == "Disabled", "followed": j.get("name") in followed} for j in jobs],
+                      "disabled": str(j.get("status") or "").lower() == "disabled", "followed": j.get("name") in locs,
+                      "objects": backups.veeam_machines(j.get("objects") or [], (locs.get(j.get("name")) or {}).get("machines") or {}, idx),
+                      # a followed job's set: its name and threshold, sent back as they are when only its machines change
+                      **({"set_label": heads[j["name"]]["label"], "max_age_days": heads[j["name"]].get("max_age_days")} if j.get("name") in heads else {})}
+                     for j in jobs],
             "repos": [{"name": r.get("name", "?"), "type": r.get("type") or "", "size_gb": r.get("capacityGB"), "free_gb": r.get("freeGB")}
                       for r in repos]}
 
@@ -560,8 +568,25 @@ def _check_age_label(it: dict, default_label: str) -> tuple[str, float]:
     return label, age
 
 
+def _veeam_chosen_machines(it: dict) -> dict:
+    """« machines » of a chosen job, checked: {object name: machine IP, or "" for « no machine »}."""
+    import ipaddress
+    got = it.get("machines") or {}
+    if not isinstance(got, dict) or len(got) > 500:
+        raise BackupError("machines : 500 au plus")
+    for k, v in got.items():
+        if not isinstance(k, str) or not 0 < len(k) <= 200 or not isinstance(v, str):
+            raise BackupError("machines : nom d'objet ou adresse invalide")
+        if v:
+            try:
+                ipaddress.ip_address(v)
+            except ValueError:
+                raise BackupError(f"machines : « {v[:60]} » n'est pas une adresse") from None
+    return dict(got)
+
+
 def _veeam_split_jobs(jobs: list[dict], known: set) -> tuple[list[tuple], list[tuple]]:
-    """Chosen jobs checked against Veeam: (sets to follow as (name, label, age), copies as (name, copy_of))."""
+    """Chosen jobs checked against Veeam: (sets to follow as (name, label, age, machines), copies as (name, copy_of))."""
     todo, copies = [], []
     for it in jobs:
         name, copy_of = str(it.get("name") or ""), str(it.get("copy_of") or "")
@@ -572,7 +597,7 @@ def _veeam_split_jobs(jobs: list[dict], known: set) -> tuple[list[tuple], list[t
                 raise BackupError(f"job copié « {copy_of[:80]} » absent de Veeam")
             copies.append((name, copy_of))
         else:
-            todo.append((name, *_check_age_label(it, f"Veeam : {name}")))
+            todo.append((name, *_check_age_label(it, f"Veeam : {name}"), _veeam_chosen_machines(it)))
     heads = {t[0] for t in todo} | {s["locations"][0].get("veeam_job") for s in _read().get("sets", []) if s.get("locations")}
     for _name, copy_of in copies:   # checked before anything is written: the copied job must be followed, or chosen now
         if copy_of not in heads:
@@ -583,10 +608,15 @@ def _veeam_split_jobs(jobs: list[dict], known: set) -> tuple[list[tuple], list[t
 def _veeam_add_sets(meta: dict, todo: list[tuple]) -> tuple[int, int]:
     """One set per followed job (label and age updated if the job already has one): (added, updated)."""
     added = updated = 0
-    for name, label, age in todo:
+    for name, label, age, machines in todo:
         existing = next((s for s in meta["sets"] for loc in s.get("locations", []) if loc.get("veeam_job") == name), None)
         if existing:
             existing["label"], existing["max_age_days"] = label, age
+            loc = next(loc for loc in existing["locations"] if loc.get("veeam_job") == name)
+            if machines:
+                loc["machines"] = machines
+            else:
+                loc.pop("machines", None)
             updated += 1
             continue
         taken = {s["id"] for s in meta["sets"]}
@@ -595,7 +625,7 @@ def _veeam_add_sets(meta: dict, todo: list[tuple]) -> tuple[int, int]:
         while sid in taken:
             sid, n = f"{base}-{n}", n + 1
         meta["sets"].append({"id": sid, "label": label, "origin": VEEAM_SOURCES, "schedule": "", "max_age_days": age,
-                             "locations": [{"host": VEEAM_HOST, "veeam_job": name, "via": "job Veeam"}]})
+                             "locations": [{"host": VEEAM_HOST, "veeam_job": name, "via": "job Veeam", **({"machines": machines} if machines else {})}]})
         added += 1
     return added, updated
 

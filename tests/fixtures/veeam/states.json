@@ -3,11 +3,23 @@
   {"name": "Serveur fichiers", "type": "BackupCopy", "status": "Running", "lastRun": "2026-10-08T22:00:00Z", "lastResult": "Warning", "nextRun": null},
   {"name": "Ancien job", "status": "Disabled"}]},
  "repos": {"data": [
-  {"name": "NAS", "type": "Nfs", "path": "/volume1/veeam", "capacityGB": 3725.3, "freeGB": 1203.9},
+  {"id": "r1", "name": "NAS", "type": "Nfs", "path": "/volume1/veeam", "capacityGB": 3725.3, "freeGB": 1203.9},
   {"name": "Local", "type": "WinLocal", "capacityGB": 0}]},
  "sessions": {"data": [
   {"id": "s1", "name": "PC-Jeu image", "jobId": "a1", "sessionType": "BackupJob", "creationTime": "2026-10-09T03:00:12+02:00", "endTime": "2026-10-09T03:20:00+02:00", "result": {"result": "Success"}},
   {"id": "s2", "name": "PC-Jeu image", "jobId": "a1", "sessionType": "BackupJob", "creationTime": "2026-10-08T03:00:00+02:00", "endTime": "2026-10-08T03:19:00+02:00", "result": {"result": "Failed", "message": "disk full"}},
   {"id": "s3", "name": "PC-Jeu image", "jobId": "a1", "sessionType": "BackupJob", "creationTime": "2026-10-07T03:00:00+02:00", "endTime": "2026-10-07T03:18:00+02:00", "result": {"result": "Success"}},
   {"id": "s4", "name": "PC-Jeu image", "jobId": "a1", "sessionType": "BackupJob", "creationTime": "2026-10-06T03:00:00+02:00", "endTime": "2026-10-06T03:21:00+02:00", "result": {"result": "Success"}},
-  {"id": "s5", "name": "Serveur fichiers", "sessionType": "BackupCopyJob", "creationTime": "2026-10-08T22:00:00Z", "endTime": null, "result": {"result": "Warning"}}]}}
+  {"id": "s5", "name": "Serveur fichiers", "sessionType": "BackupCopyJob", "creationTime": "2026-10-08T22:00:00Z", "endTime": null, "result": {"result": "Warning"}}]},
+ "config": {"data": [
+  {"id": "a1", "name": "PC-Jeu image", "type": "Backup", "virtualMachines": {"includes": [
+    {"inventoryObject": {"type": "VirtualMachine", "hostName": "10.0.0.10", "name": "pc-jeu", "objectId": "8"}, "size": "129,7 GB"},
+    {"inventoryObject": {"type": "VirtualMachine", "hostName": "esx2.lan", "name": "Mediacenter", "objectId": "9"}, "size": "1.5 TB"}]}}]},
+ "backups": {"data": [
+  {"id": "b1", "jobId": "a1", "name": "PC-Jeu image", "platformName": "VMware", "repositoryId": "r1", "creationTime": "2026-02-19T16:25:02+01:00"},
+  {"id": "b2", "jobId": "p1", "name": "Backup Physical Windows - portable", "platformName": "WindowsPhysical", "repositoryId": "r1", "creationTime": "2026-09-01T12:14:00+02:00"},
+  {"id": "b3", "jobId": "NO_ID", "name": "Ancien_imported", "platformName": "VMware", "repositoryId": "NO_ID"}]},
+ "objects": {
+  "b1": {"data": [{"id": "o1", "name": "pc-jeu", "type": "VM", "restorePointsCount": 4}, {"id": "o2", "name": "Mediacenter", "type": "VM", "restorePointsCount": 2}]},
+  "b2": {"data": [{"id": "o3", "name": "portable", "type": "Directory", "restorePointsCount": 2}]}},
+ "points": {"b2": {"data": [{"id": "rp1", "backupId": "b2", "creationTime": "2026-10-09T12:14:00+02:00"}]}}}

@@ -29,6 +29,7 @@ import { SshAccess } from "../components/ssh";
 import { SourceBadges } from "../components/SourceBadges";
 import { DetailRow, DetailSection } from "../components/DetailSection";
 import { ContainerList, SitePaths, WebServersTable, modeLabel } from "../components/WebServers";
+import { veeamOf, type VeeamRow } from "../lib/veeamMachines";
 import { primary } from "../lib/forms";
 import { SHARE_STATE, UU_STALE_DAYS, WATCH_SECTION, ZFS_BAD, healthItems, kernelLine, watchItems, worst, type WatchItem, type WatchKind, type WatchTone } from "../lib/machineWatch";
 import { MachineIcon } from "../components/MachineIcon";
@@ -733,24 +734,78 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
 }
 
 const BK_TONE: Record<string, "ok" | "warn" | "bad"> = { ok: "ok", warn: "warn", crit: "bad", down: "bad" };
+const BK_RANK: Record<string, number> = { na: 0, ok: 1, warn: 2, crit: 3, down: 4 };
 const bkText = (level: string) => ({ ok: "text-dim", warn: "text-warn" } as Record<string, string>)[level] ?? "text-bad";
 
 /** « Backups » section: what the machine backs up (the sets it produces), the backup folders that hold them, and where the copies go
  *  (replication), from the Backups page data. Untracked folders and cron lines stay on the Backups page. Nothing when there is none. */
+/** Jobs of a Veeam server that back up this machine (a VM, or a computer with Veeam Agent). */
+function VeeamBackedUp({ rows }: Readonly<{ rows: VeeamRow[] }>) {
+  const byName = [...new Set(rows.filter((r) => r.obj.machine_by === "name").map((r) => r.obj.name))];
+  return (
+    <Row k={tx("Sauvegardée par Veeam")}>
+      <ConsoleBox cols="auto minmax(0,1fr) auto auto auto">
+        {rows.map(({ set, loc, obj }) => (
+          <Fragment key={`${set.id}/${obj.name}`}>
+            <span className="self-center" title={loc.detail || undefined}><Dot tone={BK_TONE[loc.level] ?? "warn"} /></span>
+            <span className="truncate" title={loc.detail || undefined}>
+              <span className="text-txt">{tx("job « {0} »", loc.job ?? set.label)}</span>
+              <span className="text-dim">{obj.host && ` · ${tx("sur {0}", obj.host)}`}{loc.repository && ` · ${tx("dépôt {0}", loc.repository)}`}</span>
+            </span>
+            <span className={`whitespace-nowrap text-right ${bkText(loc.level)}`}>{loc.age == null ? tx("jamais vue") : ageDays(loc.age)}</span>
+            <span className="whitespace-nowrap text-right text-dim">{obj.size ? tx("VM {0}", bytes(obj.size)) : ""}</span>
+            <span className="whitespace-nowrap text-right text-dim">{obj.points == null ? "" : tx("{0} point(s)", obj.points)}</span>
+          </Fragment>
+        ))}
+      </ConsoleBox>
+      {byName.length > 0 && <Dim>{tx("Rattachée par le nom (« {0} » dans Veeam)", byName.join(", "))} · <a href="#settings/backups" className="text-link hover:underline">{tx("changer dans l'assistant Veeam")}</a></Dim>}
+    </Row>
+  );
+}
+
+/** VMs backed up by Veeam that run on this machine (a hypervisor), linked to a machine or not. */
+function VeeamHosted({ rows }: Readonly<{ rows: VeeamRow[] }>) {
+  const unlinked = rows.some((r) => !r.obj.machine);
+  return (
+    <Row k={tx("VM sauvegardées ici")}>
+      <ConsoleBox cols="auto minmax(0,1fr) auto auto auto">
+        {rows.map(({ set, loc, obj }) => (
+          <Fragment key={`${set.id}/${obj.name}`}>
+            <span className="self-center"><Dot tone={obj.machine ? BK_TONE[loc.level] ?? "warn" : "warn"} /></span>
+            <span className="truncate" title={loc.detail || undefined}>
+              <span className="text-txt">{obj.name}</span>
+              {!obj.machine && <span className="text-warn"> · {tx("non rattachée")}</span>}
+              <span className="text-dim"> · {tx("job « {0} »", loc.job ?? set.label)}</span>
+            </span>
+            <span className={`whitespace-nowrap text-right ${bkText(loc.level)}`}>{loc.age == null ? tx("jamais vue") : ageDays(loc.age)}</span>
+            <span className="whitespace-nowrap text-right text-dim">{obj.size ? bytes(obj.size) : ""}</span>
+            <span className="whitespace-nowrap text-right text-dim">{obj.points == null ? "" : tx("{0} point(s)", obj.points)}</span>
+          </Fragment>
+        ))}
+      </ConsoleBox>
+      {unlinked && <Dim>{tx("Une VM « non rattachée » n'a pas de machine du même nom : la choisir dans l'assistant Veeam.")}</Dim>}
+    </Row>
+  );
+}
+
 export function MachineBackupsSection({ m, backups }: Readonly<{ m: Machine; backups?: Backups | null }>) {
   const host = backups?.hosts?.find((h) => h.ip === m.ip);
-  if (!host) return null;
-  const sets = (backups?.sets ?? []).filter((s) => s.origin === host.id);
-  const dirs = host.local.filter((d) => d.covered.length);
-  if (!sets.length && !dirs.length && !host.copies.length) return null;
+  const veeam = veeamOf(backups, m.ip);
+  const sets = host ? (backups?.sets ?? []).filter((s) => s.origin === host.id) : [];
+  const dirs = host ? host.local.filter((d) => d.covered.length) : [];
+  const copies = host?.copies ?? [];
+  if (!sets.length && !dirs.length && !copies.length && !veeam.mine.length && !veeam.hosted.length) return null;
   const ok = sets.filter((s) => s.level === "ok").length;
+  const level = host?.level ?? [...veeam.mine, ...veeam.hosted].reduce((w, r) => ((BK_RANK[r.loc.level] ?? 0) > (BK_RANK[w] ?? 0) ? r.loc.level : w), "na");
   return (
-    <Section sec="backups" icon={Archive} title={tx("Sauvegardes")} tone={BK_TONE[host.level] ?? "warn"} from={[{ label: tx("Sauvegardes"), href: "#backups" }]}>
-      <Row k={tx("État")}>
+    <Section sec="backups" icon={Archive} title={tx("Sauvegardes")} tone={BK_TONE[level] ?? "warn"} from={[{ label: tx("Sauvegardes"), href: "#backups" }]}>
+      {host && (sets.length > 0 || copies.length > 0 || host.last_local) && <Row k={tx("État")}>
         <span>{tx("{0} jeu(x) sur {1} à jour", ok, sets.length)}</span>
         {host.last_local && <Dim>· {tx("dernière sauvegarde il y a {0}", ageDays(host.last_local.age))}</Dim>}
-        {host.copies.length > 0 && <Dim>· {tx("{0} lieu(x) de copie", host.copies.length)}</Dim>}
-      </Row>
+        {copies.length > 0 && <Dim>· {tx("{0} lieu(x) de copie", copies.length)}</Dim>}
+      </Row>}
+      {veeam.mine.length > 0 && <VeeamBackedUp rows={veeam.mine} />}
+      {veeam.hosted.length > 0 && <VeeamHosted rows={veeam.hosted} />}
       {sets.length > 0 && <Row k={tx("Jeux produits ici")}>
         <ConsoleBox cols="auto minmax(0,1fr) auto auto auto">
           {sets.map((s) => {
@@ -779,9 +834,9 @@ export function MachineBackupsSection({ m, backups }: Readonly<{ m: Machine; bac
           ))}
         </ConsoleBox>
       </Row>}
-      {host.copies.length > 0 && <Row k={tx("Réplication")}>
+      {copies.length > 0 && <Row k={tx("Réplication")}>
         <ConsoleBox cols="auto minmax(0,1fr) auto auto">
-          {host.copies.map((c) => (
+          {copies.map((c) => (
             <Fragment key={c.host}>
               <span className="self-center"><Dot tone={BK_TONE[c.level] ?? "warn"} /></span>
               <span className="truncate" title={c.vias.join("\n")}><span className="text-txt">→ {c.label}</span><span className="text-dim"> · {c.vias.join(", ")}</span>{c.encrypted && <span className="text-violet-400"> · 🔒 {tx("chiffré")}</span>}</span>

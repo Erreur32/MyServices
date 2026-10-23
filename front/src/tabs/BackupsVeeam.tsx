@@ -2,7 +2,7 @@
 // seule, on essaie la connexion SANS rien enregistrer, on cherche les jobs, puis on coche ceux à suivre (même logique que les
 // dossiers). Le mot de passe n'est enregistré (chiffré) qu'au moment de « Suivre » ; il n'est jamais renvoyé par le serveur.
 import { Laptop, Loader2, PlugZap, Search, ServerCog } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine } from "../components/form";
 import { Badge, Card, Dim } from "../components/ui";
@@ -11,13 +11,82 @@ import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { SecretInput } from "../components/SecretInput";
 import { InfoNote } from "../components/InfoNote";
+import { bytes } from "../lib/format";
+import type { MachinesSettings, VeeamObject } from "../types";
 
 export interface VeeamState { configured: boolean; url: string; user: string; password_set: boolean }
-interface Job { name: string; type: string; status: string; last_result: string; last_run: number | null; disabled: boolean; followed: boolean }
+interface Job {
+  name: string; type: string; status: string; last_result: string; last_run: number | null; disabled: boolean; followed: boolean;
+  objects: VeeamObject[];   // what the job backs up, with the machine each one is
+  set_label?: string; max_age_days?: number | null;   // a followed job: its set, sent back as it is when only the machines change
+}
 interface Repo { name: string; type: string; size_gb: number | null; free_gb: number | null }
-interface Choice { on: boolean; label: string; age: string; copyOf: string }   // copyOf: the job a Backup Copy job copies ("" = a set of its own)
+// copyOf: the job a Backup Copy job copies ("" = a set of its own); machines: object name -> machine IP ("" = none), only the ones changed by hand
+interface Choice { on: boolean; label: string; age: string; copyOf: string; machines?: Record<string, string> }
+type Names = Record<string, string>;   // machine IP -> name
+const AUTO = "auto";
+const OBJECT_COLS = "grid grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,14rem)] items-center gap-x-3";   // name, where it runs, size, machine   // select value: the machine found by name (or none found)
+
+const chosenOf = (j: Job): Record<string, string> =>
+  Object.fromEntries(j.objects.filter((o) => o.machine_by === "chosen").map((o) => [o.name, o.machine ?? ""]));
 
 const isCopy = (j: Job) => /copy/i.test(j.type);
+
+/** What a job backs up, each one with its machine: the one found by name, another chosen here, or none. */
+function ObjectMachines({ job, c, names, set }: Readonly<{ job: Job; c: Choice; names: Names; set: (c: Choice) => void }>) {
+  const pick = (name: string, v: string) => {
+    const others = Object.entries(c.machines ?? {}).filter(([k]) => k !== name);   // the choice of the other objects stays
+    set({ ...c, machines: Object.fromEntries(v === AUTO ? others : [...others, [name, v]]) });
+  };
+  return (
+    <div className="ml-6 flex w-full flex-col gap-1.5">
+      <span className="text-[11px] uppercase tracking-wide text-dim">{tx("Sauvegarde {0} élément(s)", job.objects.length)}</span>
+      <div className={`${OBJECT_COLS} gap-y-1.5 text-xs`}>
+        {job.objects.map((o) => {
+          const found = o.machine_by === "chosen" ? null : o.machine, mine = c.machines ?? {};
+          return (
+            <ObjectLine key={o.name} o={o}>
+              <select className={`${input} py-1 text-xs ${found || o.name in mine ? "" : "text-warn"}`} aria-label={tx("Machine de {0}", o.name)}
+                value={o.name in mine ? mine[o.name] : AUTO} onChange={(e) => pick(o.name, e.target.value)}>
+                <option value={AUTO}>{found ? tx("{0} (par le nom)", names[found] ?? found) : tx("aucune trouvée : choisir…")}</option>
+                <option value="">{tx("aucune machine")}</option>
+                {Object.entries(names).map(([ip, n]) => <option key={ip} value={ip}>{n} · {ip}</option>)}
+              </select>
+            </ObjectLine>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** One backed up object: name, where it runs, size and restore points, then what is shown for its machine. */
+function ObjectLine({ o, children }: Readonly<{ o: VeeamObject; children: React.ReactNode }>) {
+  return (
+    <>
+      <span className="truncate font-mono" title={o.name}>{o.name}</span>
+      <span className="text-dim">{o.host ? tx("sur {0}", o.host) : o.type}</span>
+      <span className="whitespace-nowrap text-dim">{[o.size ? bytes(o.size) : "", o.points == null ? "" : tx("{0} point(s)", o.points)].filter(Boolean).join(" · ")}</span>
+      {children}
+    </>
+  );
+}
+
+/** A followed job's objects and their machines, read only. */
+function ObjectsFollowed({ job, names }: Readonly<{ job: Job; names: Names }>) {
+  return (
+    <div className={`ml-6 w-full ${OBJECT_COLS} gap-y-1 text-xs`}>
+      {job.objects.map((o) => (
+        <ObjectLine key={o.name} o={o}>
+          <span className={o.machine ? "text-dim" : "text-warn"}>
+            {o.machine ? `→ ${names[o.machine] ?? o.machine}` : tx("aucune machine")}
+            {o.machine_by === "name" && <span className="text-dim"> ({tx("par le nom")})</span>}
+          </span>
+        </ObjectLine>
+      ))}
+    </div>
+  );
+}
 
 /** Name and alert threshold of a chosen job or run. */
 function ChoiceFields({ c, set }: Readonly<{ c: Choice; set: (c: Choice) => void }>) {
@@ -38,6 +107,12 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
   const [pick, setPick] = useState<Record<string, Choice>>({});
   const [change, setChange] = useState(false);   // compte déjà réglé (ici ou dans Connecteurs) : repris tel quel, formulaire seulement à la demande
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState<"" | "test" | "search" | "follow">("");
+  const [names, setNames] = useState<Names>({});
+  useEffect(() => {
+    read<MachinesSettings>("machines/settings")
+      .then((st) => setNames(Object.fromEntries(Object.entries(st.machines).map(([ip, m]) => [ip, m.name || ip]).sort((a, b) => a[1].localeCompare(b[1])))))
+      .catch(() => undefined);   // no list: the machine found by name is still shown, by its address
+  }, []);
   const account = { url: url.trim(), user: user.trim(), password };
   const filled = account.url !== "" && account.user !== "" && (password !== "" || state.password_set);
   const fail = (e: unknown) => { if (e instanceof LoginRequired) location.replace(LOGIN); else setNote({ ok: false, text: (e as Error).message }); };
@@ -55,7 +130,7 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
     try {
       const r = await send<{ jobs: Job[]; repos: Repo[] }>("POST", "backups/veeam/discover", account);
       setJobs(r.jobs); setRepos(r.repos);
-      setPick(Object.fromEntries(r.jobs.filter((j) => !j.followed).map((j) => [j.name, { on: false, label: `Veeam : ${j.name}`, age: "2", copyOf: "" }])));
+      setPick(Object.fromEntries(r.jobs.filter((j) => !j.followed).map((j) => [j.name, { on: false, label: `Veeam : ${j.name}`, age: "2", copyOf: "", machines: {} }])));
       if (r.jobs.length === 0) setNote({ ok: true, text: tx("Connexion réussie, mais aucun job n'est visible pour ce compte.") });
     } catch (e) { fail(e); }
     setBusy("");
@@ -64,9 +139,11 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
   const valid = chosen.length > 0 && chosen.every(([, c]) => c.copyOf || (c.label.trim() && Number(c.age) >= 0.1 && Number(c.age) <= 365));
   // jobs a copy can be attached to: the backup jobs already followed or chosen now
   const copied = (jobs ?? []).filter((j) => !isCopy(j) && (j.followed || pick[j.name]?.on)).map((j) => j.name);
+  // a followed job: only its machines change, its set keeps its name and threshold
+  const editMachines = (j: Job) => setPick({ ...pick, [j.name]: { on: true, label: j.set_label ?? `Veeam : ${j.name}`, age: String(j.max_age_days ?? 2), copyOf: "", machines: chosenOf(j) } });
   const follow = async () => {
     setBusy("follow");
-    const items = chosen.map(([name, c]) => (c.copyOf ? { name, copy_of: c.copyOf } : { name, label: c.label.trim(), max_age_days: Number(c.age) }));
+    const items = chosen.map(([name, c]) => (c.copyOf ? { name, copy_of: c.copyOf } : { name, label: c.label.trim(), max_age_days: Number(c.age), machines: c.machines ?? {} }));
     const ok = await act(() => send("PUT", "backups/veeam", { ...account, jobs: items }), tx("{0} job(s) suivi(s) : premier relevé en cours, l'onglet Sauvegardes apparaît ensuite", items.length), setNote);
     setBusy("");
     if (ok) { setJobs(null); setPick({}); setPassword(""); reload(); }
@@ -114,7 +191,7 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
             {jobs.map((j) => {
               const c = pick[j.name];
               return (
-                <li key={j.name} className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-bg2/50 px-3 py-2 text-sm ${j.followed ? "opacity-60" : ""}`}>
+                <li key={j.name} className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-bg2/50 px-3 py-2 text-sm ${j.followed && !c ? "opacity-60" : ""}`}>
                   <label className="flex min-w-[220px] flex-1 items-start gap-2">
                     <input type="checkbox" className="mt-1 h-4 w-4 accent-[rgb(var(--link))]" disabled={j.followed} checked={!!c?.on} aria-label={j.name}
                       onChange={(e) => setPick({ ...pick, [j.name]: { ...c, on: e.target.checked } })} />
@@ -126,6 +203,9 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
                     </span>
                   </label>
                   {j.followed ? <Badge tone="ok">{tx("déjà suivi")}</Badge> : j.disabled && <Badge tone="warn">{tx("job désactivé")}</Badge>}
+                  {j.followed && j.objects.length > 0 && !c && (
+                    <button type="button" className={quiet} onClick={() => editMachines(j)}>{tx("Modifier les machines")}</button>
+                  )}
                   {c?.on && isCopy(j) && (
                     <label className="flex items-center gap-1 text-xs text-dim">{tx("copie de")}
                       <select className={`${input} w-48 py-1 text-xs`} value={c.copyOf} aria-label={tx("Job copié")}
@@ -135,7 +215,9 @@ export function BackupsVeeam({ state, reload }: { state: VeeamState; reload: () 
                       </select>
                     </label>
                   )}
-                  {c?.on && !c.copyOf && <ChoiceFields c={c} set={(v) => setPick({ ...pick, [j.name]: v })} />}
+                  {c?.on && !c.copyOf && !j.followed && <ChoiceFields c={c} set={(v) => setPick({ ...pick, [j.name]: v })} />}
+                  {c?.on && !c.copyOf && j.objects.length > 0 && <ObjectMachines job={j} c={c} names={names} set={(v) => setPick({ ...pick, [j.name]: v })} />}
+                  {j.followed && !c && j.objects.length > 0 && <ObjectsFollowed job={j} names={names} />}
                 </li>
               );
             })}

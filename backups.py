@@ -381,6 +381,31 @@ def ssh_aliases() -> set[str]:
     return names
 
 
+def machine_index():
+    """Name and address index of the machines the app follows (services-meta): links a VM backed up by Veeam to its machine."""
+    import matching
+    try:
+        machines = json.loads(Path(CFG["meta"]).read_text(encoding="utf-8")).get("machines", {})
+    except (OSError, ValueError, KeyError, AttributeError):
+        machines = {}
+    return matching.index([{**m, "ip": ip} for ip, m in machines.items() if isinstance(m, dict)])
+
+
+def veeam_machines(objects: list[dict], chosen: dict, idx) -> list[dict]:
+    """Each object a Veeam job backs up, with the machine it is (« machine », « machine_by »: chosen, ip or name) and the machine it runs on
+    (« runs_on »: the hypervisor, by the host address or name Veeam gives). A choice made in the wizard (« machines »: {object name: ip, or ""
+    for none}) wins over the guess: Veeam names the VM, which may differ from the machine's name."""
+    out = []
+    for o in objects:
+        if o["name"] in chosen:
+            ip, by = chosen[o["name"]] or None, "chosen"   # "" = « no machine », chosen too
+        else:
+            ip, by = idx.find(ip=o["name"], names=(o["name"],))
+        host = o.get("host")
+        out.append({**o, "machine": ip, "machine_by": by, "runs_on": idx.find(ip=host, names=(host,))[0] if host else None})
+    return out
+
+
 def machine_aliases() -> dict[str, str]:
     """{ip: SSH alias} of the machines the app follows (services-meta), the ones with an access."""
     try:
@@ -479,6 +504,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
     hosts = {h["id"]: h for h in meta["hosts"]}
     devmap = meta.get("syncthing_devices", {})
     sets_out, issues = [], []
+    midx = None   # machines by name and address, read at the first Veeam job that backs up VMs
 
     for s in meta["sets"]:
         archived, max_age, each = s.get("archived", False), s.get("max_age_days", 8), s.get("mode") == "each"
@@ -506,6 +532,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
             if loc.get("veeam_job") and r:
                 # Job Veeam : âge du dernier passage ; Failed = crit, Warning = au moins warn
                 j = r["veeam_jobs"].get(loc["veeam_job"])
+                L["job"] = loc["veeam_job"]
                 if not j:
                     L["level"], L["detail"] = "crit", f"job « {loc['veeam_job']} » absent de Veeam"
                 elif not j["last_run"]:
@@ -515,12 +542,15 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                     L["newest"] = {"name": loc["veeam_job"], "mtime": j["last_run"], "size": 0}
                     L["level"] = "crit" if j["result"] == "Failed" else \
                         max(level_for_age(L["age"], max_age), "warn" if j["result"] == "Warning" else "ok", key=RANK.get)
-                    L["detail"] = f"dernier passage : {j['result']}" + (f" ({j['status']})" if j["status"] not in (None, "Inactive") else "")
+                    L["detail"] = f"dernier passage : {j['result']}" + (f" ({j['status']})" if str(j["status"] or "inactive").lower() != "inactive" else "")
                     hist = j.get("history") or []
                     if fails := sum(1 for h in hist if h["result"] == "Failed"):
                         L["detail"] += f", {fails} échec{'s' if fails > 1 else ''} sur les {len(hist)} derniers passages"
                     if j.get("repository"):
                         L["repository"] = j["repository"]
+                if j and j.get("objects"):
+                    midx = midx or machine_index()
+                    L["objects"] = veeam_machines(j["objects"], loc.get("machines") or {}, midx)
                     if i == 0:
                         api_runs = [{"name": loc["veeam_job"], "mtime": h["start"], "size": 0} for h in hist]
                 # Le job écrit dans un dépôt Veeam (NAS, autre serveur) : copie hors machine, sauf "offsite": false
