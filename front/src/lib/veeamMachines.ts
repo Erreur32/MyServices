@@ -5,15 +5,7 @@ import type { BackupLocation, BackupSet, Backups, VeeamObject } from "../types";
 export interface VeeamRow { set: BackupSet; loc: BackupLocation; obj: VeeamObject }
 
 export function veeamOf(backups: Backups | null | undefined, ip: string): { mine: VeeamRow[]; hosted: VeeamRow[] } {
-  const mine: VeeamRow[] = [], hosted: VeeamRow[] = [];
-  for (const set of backups?.sets ?? []) {
-    if (set.archived) continue;
-    for (const loc of set.locations) {
-      for (const obj of loc.objects ?? []) {
-        if (obj.machine === ip) mine.push({ set, loc, obj });
-        if (obj.runs_on === ip) hosted.push({ set, loc, obj });
-      }
-    }
-  }
-  return { mine, hosted };
+  const rows = (backups?.sets ?? []).filter((set) => !set.archived)
+    .flatMap((set) => set.locations.flatMap((loc) => (loc.objects ?? []).map((obj): VeeamRow => ({ set, loc, obj }))));
+  return { mine: rows.filter((r) => r.obj.machine === ip), hosted: rows.filter((r) => r.obj.runs_on === ip) };
 }

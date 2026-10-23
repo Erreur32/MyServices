@@ -47,14 +47,15 @@ _UNITS = {"B": 0, "KB": 1, "MB": 2, "GB": 3, "TB": 4, "PB": 5}
 
 def veeam_size(v) -> int | None:
     """Bytes of a size Veeam writes as text in the server's language: « 129,7 GB », « 120 GB », « 1.5 TB », « 1 024,5 MB »."""
-    m = re.fullmatch(r"([\d\s\u00a0\u202f.,]+?)\s*([KMGTP]?B)", str(v or "").strip(), re.I)
-    if not m:
+    text = str(v or "").strip()
+    unit = re.search(r"[KMGTP]?B$", text, re.I)
+    n = re.sub(r"\s", "", text[:unit.start()]) if unit else ""   # \s also takes the no-break spaces of « 1 024 »
+    if not re.fullmatch(r"[\d.,]+", n):
         return None
-    n = re.sub(r"[\s\u00a0\u202f]", "", m.group(1))
     if "," in n and "." in n:   # both: the last one is the decimal mark
         n = n.replace(".", "").replace(",", ".") if n.rfind(",") > n.rfind(".") else n.replace(",", "")
     try:
-        return int(float(n.replace(",", ".")) * 1024 ** _UNITS[m.group(2).upper()])
+        return int(float(n.replace(",", ".")) * 1024 ** _UNITS[unit.group().upper()])
     except ValueError:
         return None
 
@@ -62,6 +63,15 @@ def veeam_size(v) -> int | None:
 def _newest(dates: list[str]) -> str | None:
     """The latest of ISO dates as Veeam writes them (offsets may differ), or None."""
     return max(dates, key=lambda d: datetime.fromisoformat(d.replace("Z", "+00:00"))) if dates else None
+
+
+def _points(objects: list) -> dict:
+    """Restore points kept per object name, added up over the backups of a job."""
+    points: dict[str, int] = {}
+    for o in objects:
+        if o.get("name") and o.get("restorePointsCount") is not None:
+            points[o["name"]] = points.get(o["name"], 0) + o["restorePointsCount"]
+    return points
 
 
 def veeam_objects(job_conf: dict | None, points: dict, backup_objects: list | None = None) -> list[dict]:
@@ -88,6 +98,14 @@ def veeam_history(job: dict, sessions: list, ts) -> list[dict]:
     return sorted((r for r in runs if r["start"]), key=lambda r: -r["start"])[:VEEAM_HISTORY]
 
 
+def _veeam_job(j: dict, sessions: list, ts) -> dict:
+    """One job of veeam_parse: last run and result (for a backup without a job, those of its last session when jobs/states gives none)."""
+    hist = veeam_history(j, sessions, ts)
+    last = ts(j.get("lastRun")) or (hist[0]["start"] if hist else None)
+    return {"last_run": last, "result": j.get("lastResult") or (hist[0]["result"] if hist else "None"), "status": j.get("status"),
+            "next": ts(j.get("nextRun")), "repository": j.get("repositoryName"), "history": hist, "objects": j.get("objects") or []}
+
+
 def veeam_parse(jobs: list, repos: list, sessions: list | None = None) -> dict:
     """Réponses de l'API Veeam -> forme commune (disques = dépôts, crons = jobs, veeam_jobs par nom, avec ses derniers passages)."""
     def ts(v):
@@ -104,13 +122,9 @@ def veeam_parse(jobs: list, repos: list, sessions: list | None = None) -> dict:
                           "pct": round((size - (free or 0)) * 100 / size, 1)})
     out = {"user": "API REST Veeam", "locs": {}, "cron_root": None, "disks": disks, "crons": [], "veeam_jobs": {}}
     for j in jobs:
-        hist = veeam_history(j, sessions or [], ts)
-        last, nxt = ts(j.get("lastRun")) or (hist[0]["start"] if hist else None), ts(j.get("nextRun"))
-        res = j.get("lastResult") or (hist[0]["result"] if hist else "None")   # a backup without job: its last session, when there is one
-        out["veeam_jobs"][j.get("name", "?")] = {"last_run": last, "result": res, "status": j.get("status"), "next": nxt,
-                                                 "repository": j.get("repositoryName"), "history": hist, "objects": j.get("objects") or []}
+        vj = out["veeam_jobs"][j.get("name", "?")] = _veeam_job(j, sessions or [], ts)
         out["crons"].append({"src": "job Veeam " + (j.get("type") or ""),
-                             "line": f"{j.get('name')} : dernier {_fmt(last)} ({res}), prochain {_fmt(nxt)}"})
+                             "line": f"{j.get('name')} : dernier {_fmt(vj['last_run'])} ({vj['result']}), prochain {_fmt(vj['next'])}"})
     return out
 
 
@@ -218,11 +232,7 @@ class Veeam(Connector):
         for jid in set(conf) | set(per_job) | known:
             bks = per_job.get(jid, [])
             objs = [o for b in bks for o in b["objects"]]
-            points = {}
-            for o in objs:
-                if o.get("name") and o.get("restorePointsCount") is not None:
-                    points[o["name"]] = points.get(o["name"], 0) + o["restorePointsCount"]
-            objects[jid] = veeam_objects(conf.get(jid), points, objs)
+            objects[jid] = veeam_objects(conf.get(jid), _points(objs), objs)
             if jid not in known and jid not in conf and bks:
                 orphans.append({"id": jid, "name": bks[0].get("name") or jid, "type": bks[0].get("platformName") or "", "status": None,
                                 "lastRun": _newest([d for b in bks if (d := self._last_point(token, b["id"], b["objects"]))]),

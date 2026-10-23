@@ -175,8 +175,9 @@ class VeeamAssistant(Base):
         ba.veeam_follow(self.acct(password=""), [{"name": "PC-Jeu image"}])
         self.assertNotIn("machines", self.meta_json()["sets"][0]["locations"][0])
         for bad in ({"pc-jeu": "pas-une-ip"}, {"": "10.0.0.1"}, {"pc-jeu": 5}, ["pc-jeu"]):
+            acct, jobs = self.acct(password=""), [{"name": "PC-Jeu image", "machines": bad}]
             with self.assertRaises(ba.BackupError, msg=str(bad)):
-                ba.veeam_follow(self.acct(password=""), [{"name": "PC-Jeu image", "machines": bad}])
+                ba.veeam_follow(acct, jobs)
 
     def test_job_de_copie_refuse_sans_le_job_copie(self):
         for jobs in ([{"name": "Serveur fichiers", "copy_of": "PC-Jeu image"}],    # copied job not followed

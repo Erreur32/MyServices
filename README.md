@@ -155,14 +155,14 @@ The Windows agent is one small script. The table lists what it reads on a PC and
 | Presence: on, asleep or silent | Yes (the agent reports itself) | Uptime Kuma (ping or port), MynetworK |
 | Installation | One script, one scheduled task, one outgoing connection to MyServices | One service per tool, its own account or key, a port to open on the network |
 
-For Linux machines, the same information comes from SSH, with nothing to install on the machine, or from the Linux agent (Python 3.6+, systemd) when SSH is not an option: pick **Linux** when creating the agent in Settings -> Agents, then paste the command in a terminal on the machine.
+For Linux machines, the same information comes from SSH, with nothing to install on the machine, or from the Linux agent (Python 3.6+, systemd) when SSH is not an option: pick **Linux** when installing the agent (the machine's window, **Access** tab), then paste the command in a terminal on the machine.
 
 </details>
 
 <details>
 <summary><b>Windows agent: install, security, updates</b></summary>
 
-**Install.** In **Settings -> Agents**, add an agent for the PC (its IP and a name). MyServices shows a one-line command, with the token, **once**. Paste it in an **administrator** PowerShell on the PC. The installer downloads the agent from MyServices, writes its settings, creates the scheduled task *MyServices Agent* (runs as SYSTEM at startup, at logon and every 15 minutes by default; `-Minutes` changes it) and sends a first report. Only SYSTEM and Administrators can read the agent folder (`C:\ProgramData\MyServices-Agent`), because the token is in it. To remove it: run the installer with `-Uninstall`, then revoke the token in Settings -> Agents.
+**Install.** Open the PC's window (Machines tab, or Settings -> Machines and access), **Access** tab, then « Install the Windows agent ». MyServices shows a one-line command, with the token, **once**. Paste it in an **administrator** PowerShell on the PC. The installer downloads the agent from MyServices, writes its settings, creates the scheduled task *MyServices Agent* (runs as SYSTEM at startup, at logon and every 15 minutes by default; `-Minutes` changes it) and sends a first report. Only SYSTEM and Administrators can read the agent folder (`C:\ProgramData\MyServices-Agent`), because the token is in it. To remove it: run the installer with `-Uninstall`, then revoke the token in the same **Access** tab.
 
 **What it can and cannot do.** The agent only reads the PC and **sends** its report to MyServices (nothing is opened on the PC). It runs no command received from the server, listens on no port and installs nothing else.
 

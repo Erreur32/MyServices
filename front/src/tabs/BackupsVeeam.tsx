@@ -6,12 +6,11 @@ import { useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { Field, NoteLine } from "../components/form";
 import { Badge, Card, Dim } from "../components/ui";
-import { dateTime } from "../lib/format";
+import { bytes, dateTime } from "../lib/format";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { SecretInput } from "../components/SecretInput";
 import { InfoNote } from "../components/InfoNote";
-import { bytes } from "../lib/format";
 import type { MachinesSettings, VeeamObject } from "../types";
 
 export interface VeeamState { configured: boolean; url: string; user: string; password_set: boolean }

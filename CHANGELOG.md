@@ -24,6 +24,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **certifi 2026.10.19** (Dependabot alert, critical): the CA bundle no longer trusts the emSign roots whose intermediate keys were compromised.
 
 ### Fixed
+- **Menu paths brought up to date**: the agent of a machine lives in its window (« Access » tab), not in a Settings → Agents page any more (README EN and FR, the « computer name changed » message of an agent); e-mail settings are in Settings → Backup and info; a task run by hand is logged under « Tasks and schedules ».
 - **Veeam: « (inactive) » no longer shown after the last result**: Veeam 12 writes the state in lower case (« inactive », « disabled »); a disabled job is recognised whatever its case.
 
 ## v0.19.0 (2026-10-22)
