@@ -73,7 +73,9 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   if (part === "devices") return <UnlinkedDevices snap={snap} onFollowed={reload} />;
   const one = location.hash.split("/")[3];   // #settings/machines/ssh/<ip> | new: that SSH access alone; #settings/machines/agents/<ip>: the list, that row lit
-  const open = one ? decodeURIComponent(one) : undefined;
+  // The address only picks a known machine: its IP is then taken from the list, never from the address (nothing typed in the URL reaches the page)
+  const wanted = one ? decodeURIComponent(one) : undefined;
+  const open = wanted === "new" ? "new" : Object.keys(st.machines).find((ip) => ip === wanted);
   if (part === "agents") return <AgentsOverview machines={st.machines} open={open} />;
   if (part === "ssh" && open === "new") return <NewSshPage snap={snap} st={st} />;
   if (part === "ssh" && open) return <SshPage ip={open} snap={snap} st={st} />;
