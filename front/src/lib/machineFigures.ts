@@ -1,6 +1,6 @@
 // The page of a machine: the figures on top (health, processor, memory, fullest disk, temperature, uptime) and the short names of its temperature probes.
 import type { HealthHost } from "../types";
-import { dur } from "./format";
+import { dateTime, dur } from "./format";
 import { tx } from "./i18n";
 
 export type FigureTone = "ok" | "warn" | "bad" | undefined;
@@ -40,7 +40,7 @@ export function machineFigures(h: HealthHost | undefined, uptimeS: number | null
   }
   const c = h?.temp?.available ? h.temp.celsius : undefined;
   if (c != null) out.push({ key: "temp", label: tx("Température"), value: `${Math.round(c)} °C`, tone: tempTone(c) });
-  if (uptimeS) out.push({ key: "uptime", label: tx("En marche depuis"), value: dur(uptimeS), tone: undefined });
+  if (uptimeS) out.push({ key: "uptime", label: tx("En marche depuis"), value: dur(uptimeS), sub: tx("depuis le {0}", dateTime(Date.now() - uptimeS * 1000)), tone: undefined });
   return out;
 }
 

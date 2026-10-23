@@ -7,7 +7,7 @@ export const SAME = new Set([
   "Admin", "AdGuard", "Apache", "Apache ·", "API", "API (REST)", "Block exploits", "Claude Code", "CPU", "Discord", "DNS",
   "Docker ·", "Fail2ban", "HSTS", "MCP", "msv_", "MyServices", "nginx", "NPM", "nt", "OK", "OpenAPI", "Port", "Python",
   "Real IP Cloudflare", "root", "SMART ·", "SSH", "SSH OK", "sshd", "SSL", "Telegram", "Uptime Kuma", "vhosts", "Webhook",
-  "15 min", "min", "{0} h", "_AT dans le compose.", "Fixé par MYSERVICES_", "MCP (assistant IA)", "HSTS : {0}",
+  "15 min", "min", "{0} h", "{0} h {1} min", "{0} min", "_AT dans le compose.", "Fixé par MYSERVICES_", "MCP (assistant IA)", "HSTS : {0}",
   "FTP, FTPS, Samba", "OK · {0}", "{0} : HTTP {1}", "Docker : {0}", "NPM #{0}{1}", "{0}:{1} injoignable",
 ]);
 
@@ -2300,7 +2300,7 @@ export const EN: Record<string, string> = {
   "Injoignable": "Unreachable",
   "{0} Go libres": "{0} GB free",
   "Disque le plus plein": "Fullest disk",
-  "En marche depuis": "Up for",
+  "En marche depuis": "Uptime",
   "il y a {0} jours": "{0} days ago",
   "24 h : de {0} à {1}": "24 h: from {0} to {1}",
   "depuis {0} : de {1} à {2}": "since {0}: from {1} to {2}",

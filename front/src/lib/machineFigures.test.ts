@@ -26,6 +26,8 @@ describe("machineFigures", () => {
     expect(f.map((x) => x.key)).toEqual(["health", "cpu", "mem", "disk", "temp", "uptime"]);
     expect(f[0]).toMatchObject({ value: "À surveiller", sub: "processeur à 89 °C", tone: "warn", at: "2026-10-23T14:50:00+00:00" });
     expect(f[4]).toMatchObject({ value: "89 °C", tone: "warn" });
+    expect(f[5].value).toBe("1 j 4 h");
+    expect(f[5].sub).toMatch(/^depuis le /);
     expect(f[1]).toMatchObject({ value: "11 %", tone: "ok" });
     expect(f[2].sub).toBe("38,3 / 62,5 Go");
     expect(f[3]).toMatchObject({ value: "92 %", sub: "/data · 10 Go libres", tone: "bad" });

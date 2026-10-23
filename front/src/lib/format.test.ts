@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appVersion, isDate } from "./format";
+import { appVersion, isDate, dur } from "./format";
 
 describe("appVersion", () => {
   const sha = "8bb46cc28d56110fe3562d8654fbfde93de798c0";
@@ -41,5 +41,11 @@ describe("isDate", () => {
     expect(isDate("")).toBe(false);
     expect(isDate("not a date")).toBe(false);
     expect(isDate(null)).toBe(false);
+  });
+});
+
+describe("dur", () => {
+  it("keeps the two largest units, minutes under a day", () => {
+    expect([dur(12 * 86400 + 4 * 3600 + 59), dur(4 * 3600 + 20 * 60), dur(12 * 60 + 5), dur(30), dur(null)]).toEqual(["12 j 4 h", "4 h 20 min", "12 min", "0 min", "-"]);
   });
 });

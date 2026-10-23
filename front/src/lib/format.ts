@@ -23,10 +23,12 @@ export function rate(bytesPerSec: number | null | undefined): string {
   return `${LANG === "fr" ? txt.replace(".", ",") : txt} ${u[i]}`;
 }
 
+/** A duration in its two largest units: « 12 j 4 h », « 4 h 20 min », « 12 min » (no more « 0 h » under an hour) */
 export function dur(sec: number | null | undefined): string {
   if (sec == null) return "-";
-  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600);
-  return d ? tx("{0} j {1} h", d, h) : tx("{0} h", h);
+  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+  if (d) return tx("{0} j {1} h", d, h);
+  return h ? tx("{0} h {1} min", h, m) : tx("{0} min", m);
 }
 
 /** Uptime in a few characters for a table cell: « 12j 4h », « 4h 20m », « 12m » */
