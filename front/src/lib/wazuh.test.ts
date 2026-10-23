@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scoreTone, vulnTone, wazuhOf } from "./wazuh";
+import { scoreTone, vulnTone, wazuhOf, wazuhToWatch } from "./wazuh";
 import type { ServiceStatus } from "../types";
 
 const st = (more: Partial<ServiceStatus>): ServiceStatus => ({ connector: "wazuh", name: "w", label: "Wazuh", ok: true, stale: false, message: "", ...more });
@@ -25,5 +25,16 @@ describe("tones", () => {
     expect(vulnTone({ critical: 1, high: 0, medium: 0, low: 0, worst: [] })).toBe("bad");
     expect(vulnTone({ critical: 0, high: 2, medium: 0, low: 0, worst: [] })).toBe("warn");
     expect(vulnTone({ critical: 0, high: 0, medium: 5, low: 1, worst: [] })).toBe("ok");
+  });
+});
+
+describe("wazuhToWatch", () => {
+  it("disconnected agents and serious rules, only for a Wazuh that answers", () => {
+    const agents = { active: 6, total: 7, disconnected: 1, never: 0 };
+    const alerts = { total: 9, serious: 13, level: 13, rules: [{ name: "a", count: 12, level: 13 }, { name: "b", count: 1, level: 14 }], hours: [] };
+    expect(wazuhToWatch([st({ agents, alerts })])).toBe(3);
+    expect(wazuhToWatch([st({ agents, alerts, ok: false })])).toBe(0);
+    expect(wazuhToWatch([st({ agents, stale: true })])).toBe(0);
+    expect(wazuhToWatch(undefined)).toBe(0);
   });
 });

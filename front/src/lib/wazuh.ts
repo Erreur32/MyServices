@@ -32,3 +32,10 @@ export function vulnTone(v: NonNullable<WazuhMachine["vulns"]>): "ok" | "warn" |
   if (v.critical) return "bad";
   return v.high ? "warn" : "ok";
 }
+
+/** The menu's number next to Security › Wazuh: disconnected agents and serious alert rules of the last 24 h, for a Wazuh that answers
+ *  (vulnerabilities are left out: hundreds are always there, the number would say nothing) */
+export function wazuhToWatch(statuses: ServiceStatus[] | undefined): number {
+  return (statuses ?? []).filter((s) => s.connector === "wazuh" && s.ok && !s.stale)
+    .reduce((n, s) => n + (s.agents?.disconnected ?? 0) + (s.alerts?.rules.length ?? 0), 0);
+}

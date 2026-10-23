@@ -9,6 +9,7 @@ import { activeNav, leaves, navGroups, type NavItem } from "../lib/tabs";
 import { useRoute } from "../lib/route";
 import { HEADER_LOGOS, useFlyout, useHeaderLogo } from "../theme";
 import { securityFindings, type Area } from "../lib/securityFindings";
+import { wazuhToWatch } from "../lib/wazuh";
 import { useDiscoveries } from "./DiscoveryCard";
 import { tx } from "../lib/i18n";
 
@@ -28,7 +29,7 @@ const AREA_PAGE: Partial<Record<Area, string>> = { sites: "security-sites", ssh:
 type Counts = Record<string, number>;
 
 function securityCounts(snap: Snapshot): Counts {
-  const n: Counts = {};
+  const n: Counts = { "security-wazuh": wazuhToWatch(snap.data.services_status) };
   for (const f of securityFindings(snap)) { const id = AREA_PAGE[f.area]; if (id) n[id] = (n[id] ?? 0) + 1; }
   return n;
 }
