@@ -2,7 +2,7 @@
 // updates, UniFi or Freebox), its availability over 30 days, and, for an administrator, its settings (identity, options, access) in the page:
 // the window of Réglages → Machines is no longer needed for a machine that exists. Back to the list with « Machines ».
 import { ArrowLeft, ArrowRight, Boxes, CalendarCheck, EthernetPort, Globe, SlidersHorizontal } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { read, type Snapshot } from "../api";
 import { MachineIcon } from "../components/MachineIcon";
 import { dateTime } from "../lib/format";
@@ -136,42 +136,69 @@ function GuestsCard({ snap, m }: Readonly<{ snap: Snapshot; m: Machine }>) {
   );
 }
 
+/** The page of one machine: its information (#machines/<ip>), or its settings alone (#machines/<ip>/settings; /access opens them on the Access tab) */
 export function MachinePage({ snap, m, scan, model, state, detail, onMachine, focusTab, onBack }: Readonly<{
   snap: Snapshot; m: Machine; scan?: { os?: string; apps: string[]; ssh?: boolean }; model?: string; state: ReactNode; detail: ReactNode;
-  onMachine: (ip: string) => void; focusTab?: "access"; onBack: () => void;
+  onMachine: (ip: string) => void; focusTab?: "settings" | "access"; onBack: () => void;
 }>) {
   const admin = snap.me.role === "admin";
+  const head = (back: ReactNode, right: ReactNode) => (
+    <div className="flex flex-wrap items-center gap-3">
+      {back}
+      <MachineIcon m={{ ...m, model }} scan={scan} reserve />
+      <h1 className="text-xl font-bold">{m.name}</h1>
+      <span className="font-mono text-sm text-dim">{m.ip}</span>
+      <span className="flex flex-wrap items-center gap-1">{state}</span>
+      <span className="ml-auto flex flex-wrap gap-2">{right}</span>
+    </div>
+  );
+  if (focusTab && admin) return <MachineSettingsPage m={m} snap={snap} head={head} access={focusTab === "access"} />;
+  return <MachineInfoPage m={m} snap={snap} detail={detail} admin={admin} onMachine={onMachine} onBack={onBack} head={head} />;
+}
+
+type Head = (back: ReactNode, right: ReactNode) => ReactNode;
+
+const backButton = (label: string, onClick: () => void) => (
+  <button type="button" onClick={onClick} className="group inline-flex items-center gap-2 rounded-full border border-line bg-card py-1.5 pl-2.5 pr-4 text-sm font-semibold text-muted transition-colors hover:border-link hover:text-txt">
+    <ArrowLeft size={16} aria-hidden className="transition-transform group-hover:-translate-x-0.5" />{label}
+  </button>
+);
+
+/** What MyServices knows of the machine: state, health, software, backups, availability, ports, guests; its settings are one click away */
+function MachineInfoPage({ m, snap, detail, admin, onMachine, onBack, head }: Readonly<{
+  m: Machine; snap: Snapshot; detail: ReactNode; admin: boolean; onMachine: (ip: string) => void; onBack: () => void; head: Head;
+}>) {
   const [avail, setAvail] = useState<Item | null | undefined>(undefined);
   useEffect(() => {
     read<Report>(`availability?days=${DAYS}`).then((r) => setAvail(availabilityOf(r.items, m) ?? null)).catch(() => setAvail(null));
   }, [m.ip, m.name, snap.data.generated]);   // eslint-disable-line react-hooks/exhaustive-deps -- m.ip and m.name are what the lookup needs
-  const settings = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (focusTab) setTimeout(() => settings.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150); }, [focusTab]);   // #machines/<ip>/access : the settings, Access tab
+  const right = <>
+    {m.services > 0 && <button type="button" onClick={() => onMachine(m.ip)} className={quiet}>{tx("Voir ses services")}<ArrowRight size={14} aria-hidden /></button>}
+    {admin && <a href={`#machines/${m.ip}/settings`} className={`${quiet} no-underline`}><SlidersHorizontal size={14} aria-hidden />{tx("Réglages")} ›</a>}
+  </>;
   return (
     <div className="flex flex-col gap-4 py-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={onBack} className="group inline-flex items-center gap-2 rounded-full border border-line bg-card py-1.5 pl-2.5 pr-4 text-sm font-semibold text-muted transition-colors hover:border-link hover:text-txt">
-          <ArrowLeft size={16} aria-hidden className="transition-transform group-hover:-translate-x-0.5" />{tx("Machines")}
-        </button>
-        <MachineIcon m={{ ...m, model }} scan={scan} reserve />
-        <h1 className="text-xl font-bold">{m.name}</h1>
-        <span className="font-mono text-sm text-dim">{m.ip}</span>
-        <span className="flex flex-wrap items-center gap-1">{state}</span>
-        {m.services > 0 && <button type="button" onClick={() => onMachine(m.ip)} className={`${quiet} ml-auto`}>{tx("Voir ses services")}<ArrowRight size={14} aria-hidden /></button>}
-      </div>
+      {head(backButton(tx("Machines"), onBack), right)}
       <div className="overflow-hidden rounded-2xl border border-line bg-bg2/40 shadow-sm">{detail}</div>
       <div className="grid gap-4 lg:grid-cols-2">
         <AvailabilityCard item={avail} />
         <PortsCard snap={snap} m={m} onMachine={onMachine} />
         <GuestsCard snap={snap} m={m} />
       </div>
-      {admin && (
-        <section ref={settings} className="scroll-mt-24 rounded-2xl border border-line bg-card p-4 shadow-sm" aria-label={tx("Réglages de cette machine")}>
-          <h2 className="flex items-center gap-2 font-bold"><SlidersHorizontal size={16} aria-hidden />{tx("Réglages de cette machine")}</h2>
-          <p className="mt-1 text-sm text-muted">{tx("Identité, options et accès (SSH, agent, connecteurs) : chaque réglage s'enregistre à la saisie, « Enregistrer » ne sert qu'au nom et aux champs libres.")}</p>
-          <MachineModal ip={m.ip} snap={snap} focusTab={focusTab} />
-        </section>
-      )}
+    </div>
+  );
+}
+
+/** The settings of the machine alone: identity, options and access (SSH, agent, connectors), opened on the Access tab for /access */
+function MachineSettingsPage({ m, snap, head, access }: Readonly<{ m: Machine; snap: Snapshot; head: Head; access: boolean }>) {
+  return (
+    <div className="flex flex-col gap-4 py-4">
+      {head(backButton(m.name, () => { location.hash = `machines/${m.ip}`; }), null)}
+      <section className="rounded-2xl border border-line bg-card p-4 shadow-sm" aria-label={tx("Réglages de cette machine")}>
+        <h2 className="flex items-center gap-2 font-bold"><SlidersHorizontal size={16} aria-hidden />{tx("Réglages de cette machine")}</h2>
+        <p className="mt-1 text-sm text-muted">{tx("Identité, options et accès (SSH, agent, connecteurs) : chaque réglage s'enregistre à la saisie, « Enregistrer » ne sert qu'au nom et aux champs libres.")}</p>
+        <MachineModal ip={m.ip} snap={snap} focusTab={access ? "access" : undefined} />
+      </section>
     </div>
   );
 }

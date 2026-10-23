@@ -6,6 +6,7 @@ describe("machine page address", () => {
   it("names a machine, with or without the Access part", () => {
     expect(machineFromHash("#machines/10.0.0.5")).toEqual({ ip: "10.0.0.5" });
     expect(machineFromHash("#machines/10.0.0.5/access")).toEqual({ ip: "10.0.0.5", tab: "access" });
+    expect(machineFromHash("#machines/10.0.0.5/settings")).toEqual({ ip: "10.0.0.5", tab: "settings" });
   });
   it("the list, another tab or a bad address: nothing", () => {
     expect(machineFromHash("#machines")).toBeNull();
