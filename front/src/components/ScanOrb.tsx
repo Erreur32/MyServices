@@ -20,7 +20,7 @@ export function ScanOrb() {
   const title = st?.running ? tx("Collecte en cours") : tx("Recherche réseau en cours");
   const step = p ? `${p.step}/${p.steps} · ${serverText(p.label)}` : netStep(net);   // the step label comes from the server, in French
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-1/2 hidden -translate-y-1/2 items-center justify-center gap-3 md:flex" role="status" aria-live="polite" aria-label={`${title} : ${step}`}>
+    <div className="pointer-events-none hidden items-center justify-center gap-3 md:flex" role="status" aria-live="polite" aria-label={`${title} : ${step}`}>
       <Suspense fallback={<span className="block h-16 w-16" aria-hidden />}><Orb state="searching" size={64} theme="auto" /></Suspense>
       <span className="flex min-w-0 max-w-[16rem] flex-col text-xs leading-tight">
         <b className="text-sm text-txt">{title}</b>

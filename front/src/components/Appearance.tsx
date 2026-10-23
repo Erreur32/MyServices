@@ -1,21 +1,18 @@
-// Apparence (thème, logo de l'en-tête, langue, largeur de la page), retenue par le navigateur : dans le profil de chaque compte,
+// Apparence (thème, logo de l'en-tête, langue), retenue par le navigateur : dans le profil de chaque compte,
 // lecture seule comprise (c'est un choix personnel, pas un réglage de l'application).
-import { Image, Languages, Moon, MoveHorizontal, Palette, RotateCcw, Sun } from "lucide-react";
+import { Image, Languages, Moon, Palette, Sun } from "lucide-react";
 import type { ReactNode } from "react";
-import { CONTENT_WIDTH, setHeaderLogo, useHeaderLogo, type HeaderLogo, type Theme } from "../theme";
+import { setHeaderLogo, useHeaderLogo, type HeaderLogo, type Theme } from "../theme";
 import { LANG, setLang, tx, type Lang } from "../lib/i18n";
 import { Flag } from "./Flag";
 import { Card } from "./ui";
 import { IconChoice, type IconOption } from "./IconChoice";
-import { quiet } from "../lib/forms";
 import { InfoNote } from "./InfoNote";
 
 /** Réglages d'apparence tenus par App (appliqués à toute la page). */
 export interface Look {
   theme: Theme;
   setTheme: (t: Theme) => void;
-  width: number;
-  setWidth: (px: number) => void;
 }
 
 const LOGO_OPTIONS: IconOption<HeaderLogo>[] = [
@@ -28,9 +25,6 @@ export function Appearance({ look }: { look: Look }) {
     { id: "dark", label: tx("Sombre"), icon: <Moon size={16} />, swatch: "bg-[#0c0e14]" },
     { id: "light", label: tx("Clair"), icon: <Sun size={16} />, swatch: "bg-[#f4f6fa]" },
   ];
-  // Le dernier cran (max + un pas) = pleine largeur, stockée 0
-  const fullNotch = CONTENT_WIDTH.max + CONTENT_WIDTH.step;
-  const full = look.width === CONTENT_WIDTH.full;
   return (
     <div className="flex flex-col gap-4">
       <Card>
@@ -59,23 +53,6 @@ export function Appearance({ look }: { look: Look }) {
               <Flag lang={l} className="h-6 w-9" />{label}
             </button>
           ))}
-        </div>
-      </Card>
-      <Card>
-        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="inline-flex items-center gap-2 font-bold"><MoveHorizontal size={16} />{tx("Largeur de la page")}</h2>
-          <button type="button" className={quiet} onClick={() => look.setWidth(CONTENT_WIDTH.default)} disabled={look.width === CONTENT_WIDTH.default}>
-            <RotateCcw size={14} />{tx("Par défaut")}
-          </button>
-        </div>
-        <InfoNote className="mb-3">
-          {tx("Largeur maximale du contenu (en-tête, onglets, pages). Le cran le plus à droite utilise toute la largeur de l'écran.")}
-        </InfoNote>
-        <div className="flex items-center gap-4">
-          <input type="range" className="range flex-1" min={CONTENT_WIDTH.min} max={fullNotch} step={CONTENT_WIDTH.step}
-            value={full ? fullNotch : look.width} aria-label={tx("Largeur de la page")}
-            onChange={(e) => { const px = Number(e.target.value); look.setWidth(px >= fullNotch ? CONTENT_WIDTH.full : px); }} />
-          <span className="w-32 whitespace-nowrap text-right font-mono text-sm tabular-nums">{full ? tx("Pleine largeur") : `${look.width} px`}</span>
         </div>
       </Card>
       <InfoNote>{tx("Retenus par ce navigateur seulement.")}</InfoNote>

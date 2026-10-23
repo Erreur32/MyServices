@@ -2,7 +2,7 @@
 // detail unfolding in the row) and, under it, one sub-tab per area (Fail2ban, public sites, SSH access, access to MyServices, network
 // ports, certificates). Read only.
 import { Ban, ChevronDown, ChevronUp, FileBadge, Globe, KeyRound, Radar, ShieldCheck, UserCog, Wrench, type LucideIcon } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { Certificates, CERT_SOON } from "../components/Certificates";
 import { Fail2banCard } from "../components/Fail2banCard";
@@ -35,7 +35,9 @@ const SUB_KEY = "ms.security.sub";
 const AREA_LABEL: Record<Area, string> = { fail2ban: tx("Fail2ban"), sites: tx("Site"), certs: tx("Certificat"), ssh: tx("SSH"), access: tx("Accès"), ports: tx("Port") };
 const AREA_SUB: Record<Area, Sub> = { fail2ban: "fail2ban", sites: "sites", certs: "certs", ssh: "access", access: "members", ports: "network" };
 
-const savedSub = (): Sub => { try { const v = localStorage.getItem(SUB_KEY); return SUBS.some((s) => s.id === v) ? (v as Sub) : "fail2ban"; } catch { return "fail2ban"; } };
+/** Sub-tab named by the address (#security/certs), if any: the side menu's Fail2ban entry opens #security/fail2ban */
+const routeSub = (route: string): Sub | null => { const v = route.split("/")[1]; return SUBS.some((s) => s.id === v) ? (v as Sub) : null; };
+const savedSub = (): Sub => { try { const v = localStorage.getItem(SUB_KEY); return SUBS.some((s) => s.id === v) ? (v as Sub) : "sites"; } catch { return "sites"; } };
 
 /** The six figures: one per area, the number in the colour of its findings, a fact read from the tools under it */
 function Figures({ snap, findings, admin }: Readonly<{ snap: Snapshot; findings: Finding[]; admin: boolean }>) {
@@ -199,7 +201,7 @@ function PortsList({ snap }: Readonly<{ snap: Snapshot }>) {
 function Menu({ sub, pick, counts, admin }: Readonly<{ sub: Sub; pick: (s: Sub) => void; counts: Partial<Record<Area, number>>; admin: boolean }>) {
   return (
     <fieldset className="m-0 flex min-w-0 max-w-full flex-wrap self-start rounded-lg border border-line bg-card p-0.5" aria-label={tx("Sous-menu de la sécurité")}>
-      {SUBS.filter((x) => admin || x.id !== "members").map(({ id, label, icon: Icon, area }) => (
+      {SUBS.filter((x) => x.id !== "fail2ban" && (admin || x.id !== "members")).map(({ id, label, icon: Icon, area }) => (
         <button key={id} type="button" aria-pressed={sub === id} onClick={() => pick(id)}
           className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-semibold ${sub === id ? "border-link bg-link/15 text-txt ring-1 ring-link/50" : "border-transparent text-muted hover:text-txt"}`}>
           <Icon size={14} aria-hidden />{label}{(counts[area] ?? 0) > 0 && <Badge tone="warn">{counts[area]}</Badge>}
@@ -209,9 +211,14 @@ function Menu({ sub, pick, counts, admin }: Readonly<{ sub: Sub; pick: (s: Sub) 
   );
 }
 
-export function Security({ snap }: Readonly<{ snap: Snapshot }>) {
-  const [sub, setSub] = useState<Sub>(savedSub);
-  const pick = (s: Sub) => { setSub(s); try { localStorage.setItem(SUB_KEY, s); } catch { /* storage refused: the choice lasts this visit */ } };
+export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: string }>) {
+  const [sub, setSub] = useState<Sub>(() => routeSub(route) ?? savedSub());
+  useEffect(() => {   // the address follows the sub-tab (the side menu lights the right entry); a menu link sets the sub-tab
+    const named = routeSub(route);
+    if (named) setSub(named);
+    else location.replace(`#security/${sub === "fail2ban" ? "sites" : sub}`);   // Fail2ban has its own menu entry
+  }, [route]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const pick = (s: Sub) => { setSub(s); location.hash = `security/${s}`; try { localStorage.setItem(SUB_KEY, s); } catch { /* storage refused: the choice lasts this visit */ } };
   const admin = snap.me.role === "admin", access = useAccessData(admin), now = Math.floor(Date.now() / 1000);
   const findings = useMemo(() => securityFindings(snap, access ? accessFindings(access, now) : []), [snap, access, now]);
   const rows = useMemo(() => watchRows(findings), [findings]);
@@ -220,6 +227,16 @@ export function Security({ snap }: Readonly<{ snap: Snapshot }>) {
   const tools = [sources.length ? tx("Fail2ban par {0}", [...new Set(sources.map((c) => c.name))].join(", ")) : "", Object.keys(snap.data.npm_instances ?? {}).length ? tx("Nginx Proxy Manager ({0})", Object.keys(snap.data.npm_instances).length) : "",
     (snap.data.network ?? []).length ? "MynetworK" : ""];
   const bySsh = tx("{0} machine(s) lue(s) par SSH", snap.data.machine_list.filter((m) => !m.disabled && m.info?.sshd).length);
+  if (sub === "fail2ban") return (   // its own entry of the side menu, under Security: Fail2ban only
+    <div className="flex flex-col gap-4 py-4">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <h1 className="flex items-center gap-2 text-xl font-bold"><Ban size={18} aria-hidden />{tx("Fail2ban")}</h1>
+        <HeadTags sources={[tools[0]]} at={snap.data.generated} />
+        {admin && <a href="#settings/connectors" className="ml-auto text-sm text-link hover:underline">{tx("Connecteurs")} ›</a>}
+      </div>
+      {sources.length ? <><Fail2banStats sources={sources} />{sources.map((c) => <Fail2banCard key={`${c.connector}/${c.name}`} c={c} />)}</> : <Empty>{tx("Aucun Fail2ban n'est relié : reliez LogviewR dans Réglages, Connecteurs.")}</Empty>}
+    </div>
+  );
   return (
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
@@ -230,7 +247,6 @@ export function Security({ snap }: Readonly<{ snap: Snapshot }>) {
       <Figures snap={snap} findings={findings} admin={admin} />
       <Watch rows={rows} open={pick} />
       <Menu sub={sub} pick={pick} counts={counts} admin={admin} />
-      {sub === "fail2ban" && (sources.length ? <><Fail2banStats sources={sources} />{sources.map((c) => <Fail2banCard key={`${c.connector}/${c.name}`} c={c} />)}</> : <Empty>{tx("Aucun Fail2ban n'est relié : reliez LogviewR dans Réglages, Connecteurs.")}</Empty>)}
       {sub === "sites" && <SitesList snap={snap} />}
       {sub === "access" && <AccessList snap={snap} />}
       {sub === "members" && admin && <SecurityAccess data={access} now={now} />}

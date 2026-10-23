@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeSection } from "./settingsNav";
+import { normalizeSection, rememberSettingsSection, settingsHash } from "./settingsNav";
 
 describe("normalizeSection", () => {
   it("une ancienne section déménagée dans Réglages", () => {
@@ -19,5 +19,20 @@ describe("normalizeSection", () => {
   it("une section inconnue ou toujours à sa place revient telle quelle", () => {
     expect(normalizeSection("machines")).toEqual({ section: "machines" });
     expect(normalizeSection("constructor")).toEqual({ section: "constructor" });
+  });
+});
+
+describe("settingsHash", () => {
+  const store = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v); } } });
+  it("la page par défaut, puis la dernière section, normalisée", () => {
+    store.clear();
+    expect(settingsHash()).toBe("settings");
+    rememberSettingsSection("connectors");
+    expect(settingsHash()).toBe("settings/connectors");
+    rememberSettingsSection("ssh");
+    expect(settingsHash()).toBe("settings/api");
+    rememberSettingsSection("audit");
+    expect(settingsHash()).toBe("settings/requests/audit");
   });
 });

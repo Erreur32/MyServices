@@ -1,4 +1,6 @@
 // Dernière section des Réglages ouverte, retenue par le navigateur : « Réglages » du menu du compte y revient.
+import { notifyRoute } from "./route";
+
 const KEY = "ms.settings.last";
 
 export const lastSettingsSection = (): string => { try { return localStorage.getItem(KEY) || ""; } catch { return ""; } };
@@ -15,6 +17,7 @@ export function showInUrl(hash: string, replace = false): void {
   if (location.hash.slice(1) === hash) return;
   if (replace) history.replaceState(history.state, "", `#${hash}`);
   else history.pushState(history.state, "", `#${hash}`);
+  notifyRoute();
 }
 
 /** An old section id, moved elsewhere in Settings (`section`) or become a page apart (`redirect`, a full address without the leading « # »). */
@@ -30,4 +33,12 @@ const PAGE_REDIRECT: Record<string, string> = { audit: "settings/requests/audit"
 export function normalizeSection(id: string): SectionTarget {
   if (Object.hasOwn(PAGE_REDIRECT, id)) return { redirect: PAGE_REDIRECT[id] };
   return { section: Object.hasOwn(SECTION_ALIAS, id) ? SECTION_ALIAS[id] : id };
+}
+
+/** Where « Réglages » opens (side menu, account menu): the last section visited (normalised: an old section may have moved), else the default page */
+export function settingsHash(): string {
+  const last = lastSettingsSection();
+  if (!last) return "settings";
+  const norm = normalizeSection(last);
+  return norm.redirect ?? (norm.section ? `settings/${norm.section}` : "settings");
 }

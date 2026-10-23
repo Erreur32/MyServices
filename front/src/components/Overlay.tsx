@@ -3,9 +3,9 @@ import { X } from "lucide-react";
 import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 
-/** Max width of the window: the content width (wide), a large window (medium) or the default one */
+/** Max width of the window: very large (wide), large (medium) or the default one */
 function widthClass(wide?: boolean, medium?: boolean): string {
-  if (wide) return "max-w-[var(--content-max,72rem)]";
+  if (wide) return "max-w-[110rem]";
   return medium ? "max-w-6xl" : "max-w-2xl";
 }
 
