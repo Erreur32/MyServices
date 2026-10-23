@@ -60,10 +60,10 @@ function Badge({ level, tab, onBadge }: Readonly<{ level: Level; tab: TabId; onB
   );
 }
 
-/** A view group (« Vue ») is a heading, not a page: never lit as the open one */
+/** A group of pages (« Vue », « Réglages ») is a heading, not a link: never lit as the open one */
 function subTone(group: boolean, on: boolean): string {
   if (!group) return rowTone(on);
-  return on ? "text-txt" : "text-muted hover:text-txt";
+  return on ? "text-txt" : "text-muted";
 }
 
 /** The sub-pages of an entry, a level deeper for the views of a sub-page (« Vue » › UniFi…): all shown */
@@ -73,12 +73,13 @@ function SubLinks({ subs, active, depth, counts, onNavigate, inPanel }: Readonly
     <>
       {subs.map((x) => {
         const on = x.subs ? leaves(x).some((y) => y.id === active) : x.id === active;
+        const inner = <><x.icon size={15} strokeWidth={1.75} aria-hidden className="shrink-0" />{x.label}<CountChip n={counts[x.id]} /></>;
+        const look = `${ROW} py-1.5 pr-3 text-[13px] ${pad[Math.min(depth, 1)]} ${subTone(!!x.subs, on)}`;
         return (
           <div key={x.id} className="flex flex-col gap-0.5">
-            <a role={inPanel ? "menuitem" : undefined} href={`#${x.hash}`} onClick={onNavigate} aria-current={!x.subs && on ? "page" : undefined}
-              className={`${ROW} py-1.5 pr-3 text-[13px] ${pad[Math.min(depth, 1)]} ${subTone(!!x.subs, on)}`}>
-              <x.icon size={15} strokeWidth={1.75} aria-hidden className="shrink-0" />{x.label}<CountChip n={counts[x.id]} />
-            </a>
+            {x.subs
+              ? <span className={look}>{inner}</span>   /* « Vue », « Réglages »: a heading over its pages, always shown open */
+              : <a role={inPanel ? "menuitem" : undefined} href={`#${x.hash}`} onClick={onNavigate} aria-current={on ? "page" : undefined} className={look}>{inner}</a>}
             {x.subs && <SubLinks subs={x.subs} active={active} depth={depth + 1} counts={counts} onNavigate={onNavigate} inPanel={inPanel} />}
           </div>
         );
@@ -110,7 +111,7 @@ function NavEntry({ item, active, narrow, badge, counts, onNavigate, onBadge }: 
   const [fly, setFly] = useState<DOMRect | null>(null);
   const flies = narrow && !!item.subs;   // folded, with sub-pages: they open in a panel
   const open = leaves(item).some((x) => x.id === active);
-  const [fold, setFold] = useState<boolean | null>(null);   // chosen with the chevron; follows the open page again when it changes
+  const [fold, setFold] = useState<boolean | null>(null);   // chosen with the name or the chevron; follows the open page again when it changes
   useEffect(() => setFold(null), [open]);
   const expanded = fold ?? open;
   const show = () => setFly(box.current?.getBoundingClientRect() ?? null);
@@ -124,6 +125,7 @@ function NavEntry({ item, active, narrow, badge, counts, onNavigate, onBadge }: 
   }, [fly]);
   const click = (e: MouseEvent) => {
     if (flies && mode === "click") { e.preventDefault(); if (fly) setFly(null); else show(); return; }
+    if (!narrow && item.subs) { e.preventDefault(); setFold(!expanded); return; }   // a category: its name opens (or closes) its sub-pages, the page stays
     setFly(null);
     onNavigate();
   };
