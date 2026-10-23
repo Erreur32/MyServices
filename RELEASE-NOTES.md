@@ -26,4 +26,5 @@
 - **Health sources**: a fresh agent report goes first; an order set by hand for a machine (`health_sources`) still wins.
 - **Wazuh connector**: optional `indexer_url`, `indexer_username`, `indexer_password`; reads counts only (`wazuh-alerts-*`, `wazuh-states-vulnerabilities-*`), SCA and syscollector cached an hour, vulnerabilities half an hour; serious alerts from level 13.
 - **Development**: Vite waits for a file to be fully written before reading it again.
+- **Migration**: nothing to change from 0.20.1, see [MIGRATION.md](MIGRATION.md).
 - **Full list**: see [CHANGELOG.md](CHANGELOG.md).
