@@ -9,6 +9,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -272,6 +273,14 @@ class Wazuh(Base):
         self.assertEqual(SEEN[0][0], "POST")
         self.assertTrue(SEEN[0][2].get("Authorization", "").startswith("Basic "))
         self.assertEqual(SEEN[-1][2].get("Authorization"), "Bearer jwt")
+
+    def test_dashboard_or_http_address(self):
+        with self.assertRaisesRegex(ConnectorError, "le tableau de bord"):   # no API route here: the dashboard's address
+            self.conn("wazuh", username="myservices", password=KEY).collect()
+        c = self.conn("wazuh", username="myservices", password=KEY)
+        with patch.object(c.ctx, "http", side_effect=ConnectorError("injoignable (Remote end closed connection without response)")), \
+                self.assertRaisesRegex(ConnectorError, "qu'en https"):
+            c.collect()
 
 
 class Analytics(Base):

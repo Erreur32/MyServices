@@ -523,8 +523,13 @@ class Wazuh(StatusConnector):
             auth = self.ctx.http(self.base_url() + "/security/user/authenticate", method="POST", headers={"Authorization": f"Basic {basic}"},
                                  verify_tls=self.tls())
         except ConnectorError as e:
-            if str(e).startswith(("HTTP 401", "HTTP 403")):
+            msg = str(e)
+            if msg.startswith(("HTTP 401", "HTTP 403")):
                 raise ConnectorError("accès refusé : utilisateur ou mot de passe de l'API Wazuh") from None
+            if msg.startswith("HTTP 404"):   # the dashboard (what NPM usually publishes) answers, not the API
+                raise ConnectorError("pas d'API Wazuh à cette adresse (le tableau de bord ?) : l'API répond sur le port 55000, https://<IP>:55000") from None
+            if "closed connection" in msg and self.base_url().startswith("http:"):
+                raise ConnectorError("l'API Wazuh ne répond qu'en https : https://<IP>:55000") from None
             raise
         token = ((auth or {}).get("data") or {}).get("token") if isinstance(auth, dict) else None
         if not token:

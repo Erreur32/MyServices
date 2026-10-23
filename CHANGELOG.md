@@ -22,6 +22,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Side menu, one category open at a time**: opening a page folds every other category, only the one holding the page stays open; a category opened by hand closes the others.
 
 ### Fixed
+- **Wazuh connector, clearer errors on a wrong address**: the address of the dashboard (the one a reverse proxy publishes) gave a bare « HTTP 404 », an `http://` address a « Remote end closed connection »; both now say that the API answers on port 55000, over https (`https://<IP>:55000`).
 - **Fail2ban « sudo rule missing » when Fail2ban was only stopped**: when `fail2ban-client` fails, the check now asks sudo whether the rule exists (`sudo -n -l`, nothing run); with the rule in place the page says « does not answer (service stopped?) ».
 
 ## v0.20.2 (2026-10-23)
