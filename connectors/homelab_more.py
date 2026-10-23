@@ -503,7 +503,9 @@ class NetAlertX(StatusConnector):
 
 class Wazuh(StatusConnector):
     """Wazuh (server API, 55000): version, agents active / disconnected / never connected. Read-only API user (Basic, then a JWT).
-    Routes: POST /security/user/authenticate, GET /, /agents/summary/status, /agents?status=disconnected."""
+    Routes: POST /security/user/authenticate, GET /, /agents/summary/status, /agents?status=disconnected.
+    With the indexer set (9200, its own read-only user): the security alerts of the last 24 h, the serious ones (level 12 and more,
+    « high » and « critical » in the dashboard) named. Route: POST /wazuh-alerts-*/_search (counts only, no alert read)."""
     type = "wazuh"
     label = "Wazuh"
     images = ("wazuh/wazuh-manager",)
@@ -512,10 +514,16 @@ class Wazuh(StatusConnector):
         Field("username", "Utilisateur d'API", required=True, help="un utilisateur avec le rôle « readonly »"),
         Field("password", "Mot de passe", "password", required=True, secret=True),
         Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=False, help="certificat auto-signé par défaut chez Wazuh"),
+        Field("indexer_url", "Adresse de l'indexeur (alertes)", "url", help="https://<IP>:9200 ; vide : pas d'alertes"),
+        Field("indexer_username", "Utilisateur de l'indexeur", help="un utilisateur avec le rôle « readall »"),
+        Field("indexer_password", "Mot de passe de l'indexeur", "password", secret=True),
     )
     setup_fields = ("url", "username", "password")
     guide = ("Dans le tableau de bord Wazuh : Server management → Security → Users → nouvel utilisateur « myservices », rôle « readonly ».",
-             "L'API du serveur répond sur le port 55000 (pas celui du tableau de bord). MyServices ne fait que lire.")
+             "L'API du serveur répond sur le port 55000 (pas celui du tableau de bord). MyServices ne fait que lire.",
+             "Alertes (facultatif) : Indexer management → Security → Internal users → utilisateur « myservices-read », puis Roles → « readall » → "
+             "Mapped users → l'ajouter. Adresse de l'indexeur : https://<IP>:9200.")
+    SERIOUS = 12   # rule level from which the dashboard says « high » (15: « critical »)
 
     def collect(self) -> dict:
         basic = base64.b64encode(f"{self.conf.get('username', '')}:{self.conf.get('password', '')}".encode()).decode()
@@ -549,7 +557,32 @@ class Wazuh(StatusConnector):
                 problems = [f"{disc} agent(s) déconnecté(s)"]
         if never:
             problems.append(f"{never} agent(s) jamais connecté(s)")
+        if str(self.conf.get("indexer_url") or "").strip():
+            self.alerts(facts, problems)
         return self.out(str(info.get("api_version") or "").lstrip("v") or None, facts, problems)
+
+    def alerts(self, facts: list, problems: list) -> None:
+        """The alerts of the last 24 h from the indexer: how many, how many serious, the serious rules by name. An indexer that does not
+        answer is told in the facts, the agents above stay read."""
+        url = str(self.conf.get("indexer_url")).strip().rstrip("/")
+        basic = base64.b64encode(f"{self.conf.get('indexer_username', '')}:{self.conf.get('indexer_password', '')}".encode()).decode()
+        body = {"size": 0, "track_total_hits": True, "query": {"range": {"timestamp": {"gte": "now-24h"}}},
+                "aggs": {"serious": {"filter": {"range": {"rule.level": {"gte": self.SERIOUS}}},
+                                     "aggs": {"rules": {"terms": {"field": "rule.description", "size": 5}, "aggs": {"level": {"max": {"field": "rule.level"}}}}}}}}
+        try:
+            got = self.ctx.http(url + "/wazuh-alerts-*/_search", method="POST", body=body, headers={"Authorization": f"Basic {basic}"}, verify_tls=self.tls())
+        except ConnectorError as e:
+            why = "accès refusé (utilisateur de l'indexeur)" if str(e).startswith(("HTTP 401", "HTTP 403")) else str(e)
+            facts.append(fact("Alertes 24 h", "illisibles", "warn"))
+            problems.append(f"alertes Wazuh illisibles : {why}")
+            return
+        got = got if isinstance(got, dict) else {}
+        total = int(num(((got.get("hits") or {}).get("total") or {}).get("value"), 0))
+        serious = (got.get("aggregations") or {}).get("serious") or {}
+        n = int(num(serious.get("doc_count"), 0))
+        facts += [fact("Alertes 24 h", total), fact("Graves (24 h)", n, "bad" if n else "ok")]
+        for b in rows((serious.get("rules") or {}).get("buckets")):
+            problems.append(f"alerte « {b.get('key')} » : {int(num(b.get('doc_count'), 0))} fois en 24 h (niveau {int(num((b.get('level') or {}).get('value'), 0))})")
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:

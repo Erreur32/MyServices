@@ -274,6 +274,26 @@ class Wazuh(Base):
         self.assertTrue(SEEN[0][2].get("Authorization", "").startswith("Basic "))
         self.assertEqual(SEEN[-1][2].get("Authorization"), "Bearer jwt")
 
+    def test_alerts_of_the_indexer(self):
+        self.route("/security/user/authenticate", {"data": {"token": "jwt"}}, method="POST")
+        self.route("/", {"data": {"api_version": "4.14.1"}})
+        self.route("/agents/summary/status", {"data": {"connection": {"active": 2, "total": 2}}})
+        self.route("/wazuh-alerts-*/_search", {"hits": {"total": {"value": 41}}, "aggregations": {"serious": {"doc_count": 3, "rules": {"buckets": [
+            {"key": "Multiple authentication failures", "doc_count": 3, "level": {"value": 12.0}}]}}}}, method="POST")
+        c = self.conn("wazuh", username="myservices", password=KEY, indexer_url=self.url, indexer_username="r", indexer_password=KEY)
+        d = c.collect()
+        f = facts(d)
+        self.assertEqual((f["Alertes 24 h"]["value"], f["Graves (24 h)"]["value"], f["Graves (24 h)"]["tone"]), ("41", "3", "bad"))
+        self.assertEqual(d["problems"], ["alerte « Multiple authentication failures » : 3 fois en 24 h (niveau 12)"])
+        self.assertEqual(SEEN[-1][0], "POST")
+        self.assertTrue(SEEN[-1][2].get("Authorization", "").startswith("Basic "))
+        self.route("/wazuh-alerts-*/_search", {"error": "denied"}, method="POST", code=403)
+        d = c.collect()
+        self.assertEqual(facts(d)["Alertes 24 h"]["value"], "illisibles")
+        self.assertEqual(d["problems"], ["alertes Wazuh illisibles : accès refusé (utilisateur de l'indexeur)"])
+        # without the indexer: the agents only, no call to it
+        self.assertNotIn("Alertes 24 h", facts(self.conn("wazuh", username="myservices", password=KEY).collect()))
+
     def test_dashboard_or_http_address(self):
         with self.assertRaisesRegex(ConnectorError, "le tableau de bord"):   # no API route here: the dashboard's address
             self.conn("wazuh", username="myservices", password=KEY).collect()
