@@ -7,7 +7,7 @@ Versioning: the first pre-releases were called `2.0.0-alpha.N`, `-beta.N` and `-
 numbering restarts **below 2.0.0** with **0.9.0** (2.0.0 is reserved for a version judged stable). The `:latest` image tag follows the
 latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
-## Unreleased (next version, not tagged yet)
+## v0.20.2 (2026-10-23)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
@@ -33,20 +33,12 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Availability on the machine page back to its former height**: day cells as tall as before, with the « 30 days ago / today » line under them.
 - **The page of a machine, reworked**: a row of figures on top (health, processor, memory, fullest disk, uptime, and availability over 30 days with a cell per day), the « To watch » strip open (it can be reduced), then a wall of cards in two columns with no empty space: Updates first (left out when nothing is pending), Health (only its checks: logs, services, clock, sessions, Fail2ban), Card (identity and network), System (system, kernel, hardware, and the measures: processor, memory, disks, temperature, probes), Access, Software and services, Backups, Shares, Open ports, Virtual machines. Each card has a dark title strip; sources are a short grey line instead of badges; long values (keys, paths, MAC, backup names) wrap instead of being cut; temperature probes have short names (full name on hover); big logs and Fail2ban jails are compact tables.
 - **Side menu, one category open at a time**: opening a page folds every other category, only the one holding the page stays open; a category opened by hand closes the others.
+- **Backups, simpler**: « All sets » and Settings → « Followed sets » were the same list twice; there is now one « Sets » view (chips: in use, flagged, archived) where « Set » opens the page of one set (name, what is followed, expected schedule, maximum age with the advised rhythm, copy off the machine, copies elsewhere, archive, remove). The « Archived sets » page and the « ⋯ » menu of the rows are gone. « By machine » comes first and shows its copies as chips and its sets as a count; the local backup folders and the cron lines no set claims move to a new Settings page, « To link », no longer folded.
 
 ### Fixed
 - **New services: what a connector already reads is no longer proposed**: Services › New services listed the ports of a tool set as a connector (Wazuh's 55000, 1514, 1515 and its indexer's 9200). A service at a connector's address, or a container of one of its type's images on that machine, is now left out.
 - **Wazuh connector, clearer errors on a wrong address**: the address of the dashboard (the one a reverse proxy publishes) gave a bare « HTTP 404 », an `http://` address a « Remote end closed connection »; both now say that the API answers on port 55000, over https (`https://<IP>:55000`).
 - **Fail2ban « sudo rule missing » when Fail2ban was only stopped**: when `fail2ban-client` fails, the check now asks sudo whether the rule exists (`sudo -n -l`, nothing run); with the rule in place the page says « does not answer (service stopped?) ».
-
-## v0.20.2 (2026-10-23)
-
-> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
-
-### Changed
-- **Backups, simpler**: « All sets » and Settings → « Followed sets » were the same list twice; there is now one « Sets » view (chips: in use, flagged, archived) where « Set » opens the page of one set (name, what is followed, expected schedule, maximum age with the advised rhythm, copy off the machine, copies elsewhere, archive, remove). The « Archived sets » page and the « ⋯ » menu of the rows are gone. « By machine » comes first and shows its copies as chips and its sets as a count; the local backup folders and the cron lines no set claims move to a new Settings page, « To link », no longer folded.
-
-### Fixed
 - **« Invalid Date » on the page of a machine** (« On the network since… »): some MynetworK versions send an empty object instead of the first and last seen dates; the connector now keeps a date only when it is one, and the page hides a date it cannot read.
 
 ## v0.20.1 (2026-10-23)
