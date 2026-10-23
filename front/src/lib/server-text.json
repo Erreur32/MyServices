@@ -51,6 +51,7 @@
   "installation sur une machine : session requise": "installation on a machine: sign-in session required",
   "introuvable": "not found",
   "inventaire Docker et machines (SSH, cache 2 h)": "Docker and machines inventory (SSH, 2 h cache)",
+  "IP attendue": "IP expected",
   "ip:port attendu": "ip:port expected",
   "jeton CSRF absent ou faux : recharger la page": "CSRF token missing or wrong: reload the page",
   "jeton refusé (jeton API mwk_api_… en lecture seule ?)": "token refused (read-only mwk_api_… API token?)",

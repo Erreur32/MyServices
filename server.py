@@ -173,6 +173,8 @@ def _wait(name: str) -> None:
         build_map()  # avant de libérer la tâche : les cartes suivent toujours les fichiers qu'elles montrent
     if name in ("watch", "health") and code == 0:
         keep_history(name, alert=True)
+    if name == "health" and code == 0:
+        keep_metrics()
     with LOCK:
         t.update(proc=None, end=time.time(), result=result)
     save_last_runs()
@@ -308,6 +310,16 @@ def keep_availability() -> None:
         return
     if n:
         log(f"disponibilité : {n} point(s)")
+
+
+def keep_metrics() -> None:
+    """The figures of each machine after a health pass (24 h, the small curves of the machine page)."""
+    import metrics
+    from auth import db_path
+    try:
+        metrics.sample(db_path(CFG), WEB / "health" / "stats.json")
+    except Exception as e:  # base unavailable: only the curves miss a point
+        log(f"⚠ mesures des machines : {e}")
 
 
 def keep_history(name: str, alert: bool = False) -> None:

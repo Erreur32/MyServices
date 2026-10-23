@@ -73,6 +73,7 @@ class Health(_Model):
     disks: list[Disk] = []
     source: Literal["ssh", "agent", "beszel"] | None = None
     sources: list[str] = []
+    read_at: str | None = None   # when this machine was last read (ISO 8601)
 
 
 class BackupLocation(_Model):

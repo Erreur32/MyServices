@@ -2116,6 +2116,16 @@ def availability_report(days: int = 30):
     return availability.report(db_path(core.CFG), days)
 
 
+@app.get(API + "/machines/{ip}/metrics", tags=["historique"], summary="Processeur, mémoire, disque le plus plein et température d'une machine sur 24 h")
+def machine_metrics(ip: str):
+    import metrics
+    try:
+        ipaddress.ip_address(ip)
+    except ValueError:
+        return deny(400, "IP attendue")
+    return metrics.series(db_path(core.CFG), ip)
+
+
 # ── Comptes et sessions ───────────────────────────────────────────────────────────────────────────
 
 class Login(BaseModel):

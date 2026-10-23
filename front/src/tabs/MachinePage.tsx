@@ -16,12 +16,25 @@ import { Dot } from "../components/marks";
 import type { Machine } from "../types";
 import { cellColor, pct, pctTone, type Item, type Report } from "./Availability";
 import { MachineModal } from "./MachinesSettings";
-import { StatTile } from "../components/StatTile";
+import { COLOR, StatTile } from "../components/StatTile";
 import type { MachineFigure } from "../lib/machineFigures";
+import { METRIC_COLUMN, minMax, sparkPath, type MetricKey, type MetricPoint } from "../lib/sparkline";
 
 const DAYS = 30;
 
-/** One cell per day over 30 days (the same cells as Historique → Disponibilité), the rate and the last state */
+/** The last 24 hours of one figure under its value, in the colour of its state; the lowest and highest in the tooltip */
+function Sparkline({ points, k, tone, unit }: Readonly<{ points: MetricPoint[]; k: MetricKey; tone: MachineFigure["tone"]; unit: string }>) {
+  const now = Date.now() / 1000, d = sparkPath(points, k, now), range = minMax(points, k, now);
+  if (!d || !range) return null;
+  const title = tx("24 h : de {0} à {1}", `${Math.round(range[0])}${unit}`, `${Math.round(range[1])}${unit}`);
+  return (
+    <svg viewBox="0 0 100 24" preserveAspectRatio="none" className={`mt-auto h-6 w-full pt-1 ${tone ? COLOR[tone] : "text-muted"}`} role="img" aria-label={title}>
+      <title>{title}</title>
+      <path d={d} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
 /** Availability over 30 days as one more tile of the figures, wider: the share answered, the samples, and a cell per day */
 function AvailabilityTile({ item }: Readonly<{ item: Item | null | undefined }>) {
   return (
@@ -39,8 +52,9 @@ function AvailabilityTile({ item }: Readonly<{ item: Item | null | undefined }>)
             <span className="truncate text-[11px] text-dim">{tx("{0} relevés, {1} en échec", item.samples, item.down)}{item.ms != null && ` · ${item.ms} ms`}</span>
           </div>
           <div className="mt-auto grid gap-0.5 pt-1" style={{ gridTemplateColumns: `repeat(${item.cells.length}, minmax(0, 1fr))` }} role="img" aria-label={tx("{0} jours, une case par jour", item.cells.length)}>
-            {item.cells.map((c) => <span key={c.t} className={`h-2.5 rounded-sm ${cellColor(c.pct)}`} title={`${dateTime(c.t * 1000)} : ${c.pct == null ? tx("aucun relevé") : pct(c.pct)}`} />)}
+            {item.cells.map((c) => <span key={c.t} className={`h-5 rounded-sm ${cellColor(c.pct)}`} title={`${dateTime(c.t * 1000)} : ${c.pct == null ? tx("aucun relevé") : pct(c.pct)}`} />)}
           </div>
+          <p className="mt-0.5 flex justify-between text-[10px] uppercase tracking-wide text-dim"><span>{tx("il y a {0} jours", DAYS)}</span><span>{tx("aujourd'hui")}</span></p>
         </>
       )}
     </div>
@@ -177,6 +191,11 @@ function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, h
   useEffect(() => {
     read<Report>(`availability?days=${DAYS}`).then((r) => setAvail(availabilityOf(r.items, m) ?? null)).catch(() => setAvail(null));
   }, [m.ip, m.name, snap.data.generated]);   // eslint-disable-line react-hooks/exhaustive-deps -- m.ip and m.name are what the lookup needs
+  const readAt = figures.find((f) => f.key === "health")?.at;
+  const [points, setPoints] = useState<MetricPoint[]>([]);
+  useEffect(() => {
+    read<{ points: MetricPoint[] }>(`machines/${m.ip}/metrics`).then((r) => setPoints(r.points ?? [])).catch(() => setPoints([]));
+  }, [m.ip, readAt]);   // read again after each reading of this machine
   const right = <>
     {m.services > 0 && <button type="button" onClick={() => onMachine(m.ip)} className={quiet}>{tx("Voir ses services")}<ArrowRight size={14} aria-hidden /></button>}
     {admin && <a href={`#machines/${m.ip}/settings`} className={`${quiet} no-underline`}><SlidersHorizontal size={14} aria-hidden />{tx("Réglages")} ›</a>}
@@ -185,7 +204,12 @@ function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, h
     <div className="flex flex-col gap-4 py-4">
       {head(backButton(tx("Machines"), onBack), right)}
       <div className="flex flex-wrap items-stretch gap-2">
-        {figures.map((f) => <StatTile key={f.key} small n={f.value} label={f.label} sub={f.sub} tone={f.tone} />)}
+        {figures.map((f) => (
+          <StatTile key={f.key} small n={f.value} label={f.label} sub={f.sub} tone={f.tone}>
+            {f.key in METRIC_COLUMN && <Sparkline points={points} k={f.key as MetricKey} tone={f.tone} unit={f.key === "temp" ? " °C" : " %"} />}
+            {f.at && <div className="mt-auto truncate pt-1 text-[11px] text-dim">{tx("relevé le {0}", dateTime(f.at))}</div>}
+          </StatTile>
+        ))}
         <AvailabilityTile item={avail} />
       </div>
       {detail(<>

@@ -2106,6 +2106,7 @@ def main() -> int:
         if h.get("sources"):
             print("  sources : " + " + ".join(h["sources"]))
         print(f"  → {h['level'].upper()}" + ("" if h["reachable"] else " (injoignable)"))
+        h["read_at"] = ts   # when this machine was read: a pass of --only leaves the others with theirs (machine page, metrics.py)
         hosts.append(h)
 
     if only:  # relevé d'une machine : elle remplace son ancienne ligne (ou s'ajoute), les autres restent telles quelles

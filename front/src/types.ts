@@ -298,6 +298,7 @@ export type Level = "ok" | "warn" | "crit" | "down";
 export interface HealthHost {
   id: string;
   name: string; // « Nom · IP »
+  read_at?: string;   // ISO 8601: when this machine was last read (health.py)
   os?: string;
   reachable: boolean;
   level: Level | "na";
