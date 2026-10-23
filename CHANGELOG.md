@@ -19,6 +19,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **A Temperature tile** among the figures of the machine page (orange from 85 °C, red from 95 °C, as the health check).
 
 ### Changed
+- **Sources at the head of the machine page, without colour**: SSH, agent and connectors are told apart by their logo instead of a green badge each; a source that does not answer keeps a small ⚠ or ✕. The Sources column of the Machines table is unchanged.
 - **One list of open ports on the machine page**: the Open ports card now merges the MyServices scan, the MynetworK scan and the ports Wazuh sees listening, with the program behind each port (Wazuh), who saw it (on hover) and « machine only » for a port listening on 127.0.0.1 alone. The open ports line of the Card and the ports of the Wazuh card are gone (they repeated it).
 - **Uptime, clearer**: durations keep their two largest units (« 12 d 4 h », « 4 h 20 min », « 12 min ») instead of « 0 h » under an hour, everywhere they are shown; the Uptime tile of the machine page (« Up for » renamed « Uptime ») also gives the start date.
 - **Availability on the machine page back to its former height**: day cells as tall as before, with the « 30 days ago / today » line under them.

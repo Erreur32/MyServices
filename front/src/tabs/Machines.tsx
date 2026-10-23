@@ -1681,17 +1681,18 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   // Inventaire de MynetworK (connecteur « network ») : MAC et fabricant sous l'IP, et les appareils vus mais pas suivis
   const seen = useMemo(() => new Map((snap.data.network ?? []).flatMap((c) => c.devices ?? []).map((d) => [d.ip, d])), [snap.data.network]);
   const macOf = (m: Machine) => { const d = seen.get(m.ip); const mac = d?.mac || m.links?.mac, vendor = d?.vendor || m.links?.vendor; return mac || vendor ? [mac, vendor].filter(Boolean).join(" · ") : undefined; };
-  // Sources de lecture (SSH, agent, connecteurs), un badge court coloré par source ; la Freebox est lue par MynetworK (rapprochée par son nom)
-  const st = (m: Machine, all: boolean) => {
+  // Sources de lecture (SSH, agent, connecteurs), un badge court coloré par source (plain : sans couleur, par logo, en tête de la page d'une machine) ;
+  // la Freebox est lue par MynetworK (rapprochée par son nom)
+  const st = (m: Machine, all: boolean, plain = false) => {
     const fb = freeboxOf(m, snap.data.network) && snap.data.network?.find((c) => c.freebox?.system);
-    return <SourceBadges all={all} m={m} extra={fb ? [{ type: fb.connector, name: fb.name, label: fb.label }] : []} />;
+    return <SourceBadges all={all} plain={plain} m={m} extra={fb ? [{ type: fb.connector, name: fb.name, label: fb.label }] : []} />;
   };
 
   return (
     <PickWatch.Provider value={pickWatch}>
     <KernelIgnore.Provider value={ignoreCtx}>
     {pageM ? (
-      <MachinePage snap={snap} m={pageM} scan={scanOs[pageM.ip]} model={modelOf(pageM, snap.data.network, unifiOf(pageM))} state={st(pageM, true)} detail={(extra) => detailOf(pageM, extra)}
+      <MachinePage snap={snap} m={pageM} scan={scanOs[pageM.ip]} model={modelOf(pageM, snap.data.network, unifiOf(pageM))} state={st(pageM, true, true)} detail={(extra) => detailOf(pageM, extra)}
         figures={machineFigures(hb.get(pageM.ip), uptimeOf(pageM, unifiOf(pageM), freeboxOf(pageM, snap.data.network), haOf(pageM)) ?? null, watchOf(pageM).find((w) => w.tone !== "info")?.text)}
         onMachine={onMachine} focusTab={target?.tab} onBack={() => { location.hash = "machines"; }} />
     ) : <div className="py-1">
