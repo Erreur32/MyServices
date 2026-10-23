@@ -1,5 +1,5 @@
 // Menu de gauche : groupes, entrées, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Activity, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Boxes, EyeOff, Lightbulb, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Boxes, EyeOff, Lightbulb, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -98,6 +98,7 @@ export const NAV: NavGroup[] = [
       sub("security-ports", "security/network", "security", Radar, tx("Ports du réseau")),
       sub("security-certs", "security/certs", "security", FileBadge, tx("Certificats")),
       sub("fail2ban", "security/fail2ban", "security", Ban, tx("Fail2ban"), (s) => (s.data.security ?? []).length > 0),   // a Fail2ban read (LogviewR)
+      sub("security-wazuh", "security/wazuh", "security", ShieldCheck, "Wazuh", (s) => (s.data.services_status ?? []).some((c) => c.connector === "wazuh")),   // a Wazuh connector
     ] },
     { id: "alerts", hash: "settings/alerts/channels", tab: "settings", icon: Bell, label: tx("Alertes"), subs: [
       sub("alerts-channels", "settings/alerts/channels", "settings", Radio, tx("Canaux")),

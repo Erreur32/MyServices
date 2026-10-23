@@ -22,8 +22,9 @@ import { risky } from "../lib/ssh";
 import { accessFindings } from "../lib/accessFindings";
 import { useAccessData } from "../components/SecurityAccess";
 import { HeadTags } from "../components/HeadTags";
+import { WazuhPage } from "../components/WazuhPage";
 
-type Sub = "watch" | "fail2ban" | "sites" | "access" | "members" | "network" | "certs";
+type Sub = "watch" | "fail2ban" | "wazuh" | "sites" | "access" | "members" | "network" | "certs";
 const SUBS: { id: Sub; label: string; icon: LucideIcon; area: Area }[] = [
   { id: "fail2ban", label: tx("Fail2ban"), icon: Ban, area: "fail2ban" },
   { id: "sites", label: tx("Sites exposés"), icon: Globe, area: "sites" },
@@ -36,7 +37,7 @@ const AREA_LABEL: Record<Area, string> = { fail2ban: tx("Fail2ban"), sites: tx("
 const AREA_SUB: Record<Area, Sub> = { fail2ban: "fail2ban", sites: "sites", certs: "certs", ssh: "access", access: "members", ports: "network" };
 
 /** Sub-tab named by the address (#security/certs), if any: the side menu's Fail2ban entry opens #security/fail2ban */
-const routeSub = (route: string): Sub | null => { const v = route.split("/")[1]; return v === "watch" || (v !== "members" && SUBS.some((s) => s.id === v)) ? (v as Sub) : null; };
+const routeSub = (route: string): Sub | null => { const v = route.split("/")[1]; return v === "watch" || v === "wazuh" || (v !== "members" && SUBS.some((s) => s.id === v)) ? (v as Sub) : null; };
 
 /** The six figures: one per area, the number in the colour of its findings, a fact read from the tools under it */
 function Figures({ snap, findings, admin }: Readonly<{ snap: Snapshot; findings: Finding[]; admin: boolean }>) {
@@ -217,6 +218,7 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
   const tools = [sources.length ? tx("Fail2ban par {0}", [...new Set(sources.map((c) => c.name))].join(", ")) : "", Object.keys(snap.data.npm_instances ?? {}).length ? tx("Nginx Proxy Manager ({0})", Object.keys(snap.data.npm_instances).length) : "",
     (snap.data.network ?? []).length ? "MynetworK" : ""];
   const bySsh = tx("{0} machine(s) lue(s) par SSH", snap.data.machine_list.filter((m) => !m.disabled && m.info?.sshd).length);
+  if (sub === "wazuh") return <WazuhPage snap={snap} admin={admin} />;   // its own entry of the side menu, shown when a Wazuh is read
   if (sub === "fail2ban") return (   // its own entry of the side menu, under Security: Fail2ban only
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">

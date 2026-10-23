@@ -226,6 +226,8 @@ export interface ServiceStatus {
   updates?: { name: string; installed?: string | null; latest?: string | null; group?: "core" | "addon" | "other" }[];
   instance?: string;                     // connector instance name (« name » can be the app's own, Home Assistant's place)
   machines?: Record<string, WazuhMachine>;   // Wazuh only: what it knows of each machine, by the IP of its agent
+  agents?: { active: number; disconnected: number; never: number; total: number };   // Wazuh only: its agents
+  alerts?: { total: number; serious: number; level: number; rules: { name: string; count: number; level: number }[]; hours: { t: number; n: number; serious: number }[] };   // Wazuh with the indexer: 24 h
   // Home Assistant only
   addons?: { name: string; slug: string; version?: string | null; latest?: string | null }[];   // add-ons installed
   system?: { method?: string; core?: string | null; supervisor?: string; os?: string };            // what Home Assistant runs on

@@ -279,18 +279,23 @@ class Wazuh(Base):
         self.route("/", {"data": {"api_version": "4.14.1"}})
         self.route("/agents/summary/status", {"data": {"connection": {"active": 2, "total": 2}}})
         self.route("/wazuh-alerts-*/_search", {"hits": {"total": {"value": 41}}, "aggregations": {"serious": {"doc_count": 3, "rules": {"buckets": [
-            {"key": "Multiple authentication failures", "doc_count": 3, "level": {"value": 13.0}}]}}}}, method="POST")
+            {"key": "Multiple authentication failures", "doc_count": 3, "level": {"value": 13.0}}]}},
+            "hours": {"buckets": [{"key": 1792764000000, "doc_count": 40, "serious": {"doc_count": 3}}, {"key": 1792767600000, "doc_count": 1, "serious": {"doc_count": 0}}]}}}, method="POST")
         c = self.conn("wazuh", username="myservices", password=KEY, indexer_url=self.url, indexer_username="r", indexer_password=KEY)
         d = c.collect()
         f = facts(d)
         self.assertEqual((f["Alertes 24 h"]["value"], f["Graves (24 h)"]["value"], f["Graves (24 h)"]["tone"]), ("41", "3", "bad"))
         self.assertEqual(d["problems"], ["alerte « Multiple authentication failures » : 3 fois en 24 h (niveau 13)"])
+        self.assertEqual(d["alerts"], {"total": 41, "serious": 3, "level": 13, "rules": [{"name": "Multiple authentication failures", "count": 3, "level": 13}],
+                                       "hours": [{"t": 1792764000, "n": 40, "serious": 3}, {"t": 1792767600, "n": 1, "serious": 0}]})
+        self.assertEqual(d["agents"], {"active": 2, "disconnected": 0, "never": 0, "total": 2})
         self.assertEqual(SEEN[-1][0], "POST")
         self.assertTrue(SEEN[-1][2].get("Authorization", "").startswith("Basic "))
         self.route("/wazuh-alerts-*/_search", {"error": "denied"}, method="POST", code=403)
         d = c.collect()
         self.assertEqual(facts(d)["Alertes 24 h"]["value"], "illisibles")
         self.assertEqual(d["problems"], ["alertes Wazuh illisibles : accès refusé (utilisateur de l'indexeur)"])
+        self.assertNotIn("alerts", d)
         # without the indexer: the agents only, no call to it
         self.assertNotIn("Alertes 24 h", facts(self.conn("wazuh", username="myservices", password=KEY).collect()))
 

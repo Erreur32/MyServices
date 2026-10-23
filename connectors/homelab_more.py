@@ -577,10 +577,13 @@ class Wazuh(StatusConnector):
         read = {a["id"] for a in agents if a.get("status") == "active"}
         read = set(sorted(read)[:self.MAX_AGENTS])
         machines = {a["ip"]: {"agent": a.get("name"), "status": a.get("status"), **(self.inventory(h, a["id"]) if a["id"] in read else {})} for a in agents}
+        summary = {"active": int(num(conn.get("active"), 0)), "disconnected": disc, "never": never, "total": int(num(conn.get("total"), 0))}
+        alerts = None
         if str(self.conf.get("indexer_url") or "").strip():
-            self.alerts(facts, problems)
+            alerts = self.alerts(facts, problems)
             self.vulnerabilities(agents, machines, facts)
-        return {**self.out(str(info.get("api_version") or "").lstrip("v") or None, facts, problems), "machines": machines}
+        return {**self.out(str(info.get("api_version") or "").lstrip("v") or None, facts, problems), "machines": machines, "agents": summary,
+                **({"alerts": alerts} if alerts else {})}
 
     def agents(self, h: dict) -> list[dict]:
         """The Wazuh agents with a usable IP (the manager itself, 000, left out): [{id, name, ip, status}]."""
@@ -645,25 +648,34 @@ class Wazuh(StatusConnector):
             critical += sev.get("critical", 0)
         facts.append(fact("Vulnérabilités critiques", critical, "bad" if critical else "ok"))
 
-    def alerts(self, facts: list, problems: list) -> None:
-        """The alerts of the last 24 h from the indexer: how many, how many serious, the serious rules by name. An indexer that does not
-        answer is told in the facts, the agents above stay read."""
+    def alerts(self, facts: list, problems: list) -> dict | None:
+        """The alerts of the last 24 h from the indexer: how many, how many serious, the serious rules by name, and per hour (all and serious,
+        for the Security › Wazuh chart). An indexer that does not answer is told in the facts (None), the agents above stay read."""
+        serious_f = {"range": {"rule.level": {"gte": self.SERIOUS}}}
         body = {"size": 0, "track_total_hits": True, "query": {"range": {"timestamp": {"gte": "now-24h"}}},
-                "aggs": {"serious": {"filter": {"range": {"rule.level": {"gte": self.SERIOUS}}},
-                                     "aggs": {"rules": {"terms": {"field": "rule.description", "size": 5}, "aggs": {"level": {"max": {"field": "rule.level"}}}}}}}}
+                "aggs": {"serious": {"filter": serious_f,
+                                     "aggs": {"rules": {"terms": {"field": "rule.description", "size": 10}, "aggs": {"level": {"max": {"field": "rule.level"}}}}}},
+                         "hours": {"date_histogram": {"field": "timestamp", "fixed_interval": "1h", "min_doc_count": 0,
+                                                      "extended_bounds": {"min": "now-24h", "max": "now"}},
+                                   "aggs": {"serious": {"filter": serious_f}}}}}
         try:
             got = self.indexer("/wazuh-alerts-*/_search", body)
         except ConnectorError as e:
             why = "accès refusé (utilisateur de l'indexeur)" if str(e).startswith(("HTTP 401", "HTTP 403")) else str(e)
             facts.append(fact("Alertes 24 h", "illisibles", "warn"))
             problems.append(f"alertes Wazuh illisibles : {why}")
-            return
+            return None
+        aggs = got.get("aggregations") or {}
         total = int(num(((got.get("hits") or {}).get("total") or {}).get("value"), 0))
-        serious = (got.get("aggregations") or {}).get("serious") or {}
+        serious = aggs.get("serious") or {}
         n = int(num(serious.get("doc_count"), 0))
         facts += [fact("Alertes 24 h", total), fact("Graves (24 h)", n, "bad" if n else "ok")]
-        for b in rows((serious.get("rules") or {}).get("buckets")):
-            problems.append(f"alerte « {b.get('key')} » : {int(num(b.get('doc_count'), 0))} fois en 24 h (niveau {int(num((b.get('level') or {}).get('value'), 0))})")
+        rules = [{"name": str(b.get("key")), "count": int(num(b.get("doc_count"), 0)), "level": int(num((b.get("level") or {}).get("value"), 0))}
+                 for b in rows((serious.get("rules") or {}).get("buckets"))]
+        problems += [f"alerte « {r['name']} » : {r['count']} fois en 24 h (niveau {r['level']})" for r in rules[:5]]
+        hours = [{"t": int(num(b.get("key"), 0) // 1000), "n": int(num(b.get("doc_count"), 0)), "serious": int(num((b.get("serious") or {}).get("doc_count"), 0))}
+                 for b in rows((aggs.get("hours") or {}).get("buckets"))]
+        return {"total": total, "serious": n, "level": self.SERIOUS, "rules": rules, "hours": hours[-25:]}
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:
