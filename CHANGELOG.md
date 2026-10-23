@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.20.0 (2026-10-23)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Changed
 - **Navigation: one menu on the left**: the tab bar, the « Inventory » menu and the Settings gear give way to a side menu in four groups (Overview, Inventory, Protection, Administration), always visible, folded to icons on demand (kept by the browser, folded by default under 1280 px) and opened as a drawer on a phone. An entry without a source is left out, and so is an empty group; the alert dots stay on the entries. History is its own entry.
 - **Fail2ban: its own page**, listed under Security in the menu when a Fail2ban is read; Security keeps its other sub-tabs, and its open sub-tab is now in the address (`#security/certs`), so « back » and links work.

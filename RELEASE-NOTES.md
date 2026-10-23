@@ -1,26 +1,30 @@
-# Release notes: MyServices 0.19.1
+# Release notes: MyServices 0.20.0
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.19.1** (23 October 2026): Veeam says which machines each job backs up, the machine window shows it, and computers backed up by Veeam Agent are no longer missing.
+**0.20.0** (23 October 2026): a new navigation. One menu on the left holds every page and its sub-pages; the Settings page, the tabs inside the pages and the settings windows are gone.
 
 ## For everyone
 
 **What's new?**
-- **Veeam, on the machines**:
-  - each job now gives what it backs up: every VM (or computer), the host it runs on, its size and its restore points;
-  - a VM goes to the machine of the same name: its window shows « Backed up by Veeam » (job, host, repository, age, VM size, points);
-  - a hypervisor (ESXi, Hyper-V) lists the « VMs backed up here », the ones with no machine of the same name flagged « not linked ».
-- **Veeam wizard**: under each job, its VMs and a « machine » menu (the one found by name, another one, or « no machine »). « Change the machines » on a job already followed keeps its name and alert threshold.
-- **Computers backed up by Veeam Agent** (managed by B&R): Veeam 12.0 leaves them out of its job list; MyServices now reads them from their backups, with the date of the newest restore point.
-- **Fix**: « (inactive) » no longer follows the last result of a Veeam job (Veeam 12 writes its states in lower case), and a disabled job is recognised again.
+- **One menu on the left**, in four groups (Overview, Inventory, Protection, Administration):
+  - always visible, folded to icons on demand (folded by default under 1280 px), a drawer on a phone;
+  - the views of a page are sub-pages listed under its entry, each with its own address (`#network/unifi`, `#dns/servers`), so « back » and links work;
+  - folded to icons, the sub-pages open in a small panel, on hover or on a click (Profile → Appearance → Folded menu);
+  - « To watch » is the first sub-page of Services, Network, DNS, Backups and Security, and leaves the menu when nothing is to watch;
+  - the alert dots stay on the entries, with a count next to Network → Discovery and each Security sub-page.
+- **Settings spread over the menu**: each setting now sits under the topic it sets (Machines, Network → Discovery, Backups → Settings, Alerts) or in Administration (Connectors, Accounts and access, Application). Old `#settings/...` links still lead to the right page.
+- **Pages instead of windows**: a service, its settings, « Declare a service », adding a machine and linking a found connector all open as pages. The start assistant keeps its windows.
+- **No more folded blocks used as pages**: Backups and Network → Discovery settings, Alerts, Home, History, DNS, the devices not followed, the new services, the connectors already read over SSH or by an agent, and the found connectors to link are each a sub-page, shown directly.
+- **Figures on top**: Statistics opens on a row of key figures, then the counters of each topic in a grid; Availability and the network scan start with figures too.
+- **Full width**: the « Page width » setting is removed; the pages follow the screen. The header keeps the data age, the version and the scan.
+- **Fix**: leaving History, Services, Network, Backups or Security by the menu could bring back to the page just left; it no longer does.
 
-**Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change in your compose file. To link the VMs to your machines, open Settings → Backups → Veeam and search the jobs again.
+**Updating**: `docker compose pull`, then `docker compose up -d` (with the `:latest` image). Nothing to change in your compose file or your settings: only the front end changes. A bookmark to an old address still opens the right page.
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.19.1` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
-- **Veeam reads** (all optional, kept 30 min when a cache is available): `GET /api/v1/jobs` (VMs per job), `/api/v1/backups`, `/api/v1/backups/{id}/objects` (restore point counts), and for a backup without a job `objectRestorePoints?backupIdFilter=` (else `backupObjects/{id}/restorePoints`).
-- **backups.json**: a Veeam location gives `job`, `repository` and `objects` (`name`, `host`, `size`, `points`, `machine`, `machine_by`, `runs_on`); a set location may hold `machines` (object name → machine IP, `""` = none), set by `PUT /backups/veeam`.
-- **Security**: certifi 2026.10.19 (compromised emSign intermediate CAs removed from the bundle).
+- **Image**: `ghcr.io/erreur32/myservices:0.20.0` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
+- **Front only**: no API, configuration or data change. The menu is described in `front/src/lib/tabs.ts` (`NAV`), drawn by `components/Sidebar.tsx`; the address of a sub-page is read by `lib/route.ts` (`usePageView`).
+- **Quality**: SonarCloud quality gate passed with no open issue on the pull request.
 - **Full list**: see [CHANGELOG.md](CHANGELOG.md).
