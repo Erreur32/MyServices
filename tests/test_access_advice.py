@@ -115,5 +115,17 @@ class Advice(unittest.TestCase):
         self.assertEqual({k: v["agent_state"] for k, v in out.items()}, {"192.168.1.1": None, "192.168.1.2": "silencieux"})
 
 
+
+class SshUses(unittest.TestCase):
+    def test_what_needs_ssh_beyond_the_agent(self):
+        machines = {"10.0.0.2": {"name": "srv", "ssh": "srv"}, "10.0.0.3": {"name": "pve", "ssh": "pve"}, "10.0.0.4": {"name": "plain", "ssh": "plain"},
+                    "10.0.0.5": {"name": "dns", "ssh": "dns", "adguard": "docker"}, "10.0.0.6": {"name": "old", "ssh": "old", "disabled": True}}
+        conns = [{"type": "npm", "name": "npm", "ssh": "srv"}, {"type": "docker", "name": "x", "ssh": "plain"}, {"type": "borgmatic", "name": "b", "ssh": "old"}]
+        hosts = [{"id": "srv", "ssh": "srv"}, {"id": "nas", "ssh": "plain", "mount": "/mnt/nas"}, {"id": "vm", "ssh": None, "cron_via": "pve:101"}]
+        virt = [{"connector": "proxmox", "ip": "10.0.0.3", "via": "ssh"}, {"connector": "proxmox", "ip": "10.0.0.4", "via": "api"}]
+        self.assertEqual(adv.ssh_uses(machines, conns, hosts, virt),
+                         {"10.0.0.2": ["backups", "npm"], "10.0.0.3": ["backups", "proxmox"], "10.0.0.5": ["adguard"]})
+
+
 if __name__ == "__main__":
     unittest.main()

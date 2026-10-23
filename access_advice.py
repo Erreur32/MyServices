@@ -149,3 +149,36 @@ def advise_all(machines: list[dict], confs: dict[str, dict] | None = None, scan_
     """Recommandation de chaque machine suivie : {ip: advise(...)}. `agents` : {ip: état de l'agent installé}."""
     scans = {h.get("ip"): h for h in scan_found or []}
     return {m["ip"]: advise(facts_of(m, (confs or {}).get(m["ip"]), scans.get(m["ip"]), network, (agents or {}).get(m["ip"]))) for m in machines if m.get("ip")}
+
+
+# What the Linux agent reads as well as SSH: the health and the inventory (Docker, listening ports, services out of Docker). Anything else
+# read over SSH on a machine needs its SSH access even when an agent runs there.
+AGENT_COVERS = ("docker", "process")
+
+
+def ssh_uses(machines: dict, connectors: list[dict], backup_hosts: list[dict], virtualization: list[dict]) -> dict[str, list[str]]:
+    """{IP: [what needs SSH there]} for Machines › SSH connections: « backups » (backups.py reads its folders or crontab), the type of a
+    connector set on its SSH alias (npm, adguard, borgmatic…), « adguard » for the AdGuard of a machine, and the hypervisor read by SSH
+    (proxmox, esxi, virsh, incus, lxc, vboxmanage). A machine absent here is read over SSH for its health and inventory only, which an agent
+    also does. Pure: it gets the settings and the rows already read."""
+    ip_of = {m["ssh"]: ip for ip, m in machines.items() if isinstance(m.get("ssh"), str) and not m.get("disabled")}
+    out: dict[str, list[str]] = {}
+
+    def add(ip: str | None, what: str) -> None:
+        if ip and what not in out.setdefault(ip, []):
+            out[ip].append(what)
+
+    for h in backup_hosts:
+        if not h.get("api") and not h.get("mount"):
+            add(ip_of.get(str(h.get("ssh"))), "backups")
+        add(ip_of.get(str(h.get("cron_via") or "").split(":")[0]), "backups")
+    for c in connectors:
+        if isinstance(c.get("ssh"), str) and c.get("type") not in AGENT_COVERS:
+            add(ip_of.get(c["ssh"]), str(c.get("type")))
+    for ip, m in machines.items():
+        if m.get("adguard") and isinstance(m.get("ssh"), str):
+            add(ip, "adguard")
+    for r in virtualization:
+        if r.get("via") == "ssh":
+            add(r.get("ip"), str(r.get("connector")))
+    return {ip: v for ip, v in out.items() if v}

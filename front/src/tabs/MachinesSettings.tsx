@@ -71,10 +71,11 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
   const [showAccess, setShowAccess] = useState(false);
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   if (part === "devices") return <UnlinkedDevices snap={snap} onFollowed={reload} />;
-  const one = location.hash.split("/")[3];   // #settings/machines/ssh/<ip>, #settings/machines/agents/<ip>: that access alone
-  if (one && (part === "ssh" || part === "agents")) return <AccessPage ip={decodeURIComponent(one)} only={part === "ssh" ? "ssh" : "agent"} snap={snap} st={st} />;
-  if (part === "agents") return <AgentsOverview machines={st.machines} />;
-  if (part === "ssh") return <SshConnections st={st} snap={snap} />;
+  const one = location.hash.split("/")[3];   // #settings/machines/ssh/<ip>, #settings/machines/agents/<ip>: the list, that row unfolded
+  const open = one ? decodeURIComponent(one) : undefined;
+  const editor = (ip: string, only: AccessOnly) => <MachineModal ip={ip} snap={snap} only={only} />;   // the access of one machine, under its row
+  if (part === "agents") return <AgentsOverview machines={st.machines} editor={(ip) => editor(ip, "agent")} open={open} />;
+  if (part === "ssh") return <SshConnections st={st} snap={snap} editor={editor} open={open} />;
   const all = Object.keys(st.machines);
   const nOff = all.filter((ip) => st.machines[ip].disabled).length;
   return (
@@ -96,21 +97,6 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
       {showAccess && <AccessGuide />}
       {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
       {detecting && <AddMachine st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
-    </Card>
-  );
-}
-
-/** The SSH access or the agent of one machine on a settings page of its own, opened from Machines → SSH connections or Agents */
-function AccessPage({ ip, only, snap, st }: Readonly<{ ip: string; only: AccessOnly; snap: Snapshot; st: State }>) {
-  const name = st.machines[ip]?.name ?? ip, ssh = only === "ssh";
-  return (
-    <Card>
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 className="flex items-center gap-2 font-bold">{ssh ? <KeyRound size={16} aria-hidden /> : <MonitorUp size={16} aria-hidden />}{ssh ? tx("Connexion SSH de {0}", name) : tx("Agent de {0}", name)}<Dim>{ip}</Dim></h2>
-        <a href={`#settings/machines/${ssh ? "ssh" : "agents"}`} className="ml-auto text-sm text-link hover:underline">‹ {ssh ? tx("Connexions SSH") : tx("Agents")}</a>
-        <a href={`#machines/${ip}`} className="text-sm text-link hover:underline">{tx("Page de la machine")} ›</a>
-      </div>
-      <MachineModal ip={ip} snap={snap} only={only} />
     </Card>
   );
 }

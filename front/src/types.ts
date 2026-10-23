@@ -620,6 +620,7 @@ export interface MachinesSettings {
   process_hosts: Record<string, string>;
   aliases: SshAlias[];
   ssh_conf: string;
+  ssh_uses?: Record<string, string[]>;   // per IP, what needs SSH beyond what an agent reads (backups, npm, adguard, proxmox…)
 }
 export interface Detection {
   ip: string;

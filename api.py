@@ -909,7 +909,28 @@ def machine_call(request: Request, action: str, detail: str, fn, write: bool = T
 
 @app.get(API + "/machines/settings", tags=["machines"], summary="Machines déclarées, alias SSH connus (admin)")
 def machines_settings(request: Request):
-    return machine_call(request, "", "", lambda m: m.listing(), write=False)
+    return machine_call(request, "", "", _listing_with_ssh_uses, write=False)
+
+
+def _listing_with_ssh_uses(m) -> dict:
+    out = m.listing()
+    out["ssh_uses"] = _ssh_uses(out["machines"])
+    return out
+
+
+def _ssh_uses(machines: dict) -> dict[str, list[str]]:
+    """What needs SSH on each machine beyond what an agent reads (Machines › SSH connections: « SSH optional » otherwise)."""
+    import access_advice
+    import connectors
+    try:
+        hosts = json.loads(Path(core.CFG["backups_meta"]).read_text(encoding="utf-8")).get("hosts") or []
+    except (OSError, ValueError, AttributeError):
+        hosts = []
+    try:
+        declared = connectors.declared(core.CFG)
+    except connectors.ConnectorError:
+        declared = []
+    return access_advice.ssh_uses(machines, declared, hosts if isinstance(hosts, list) else [], (read_produced("data.json") or {}).get("virtualization") or [])
 
 
 @app.get(API + "/machines/advice", tags=["machines"], summary="Méthode de lecture recommandée pour chaque machine suivie : SSH, agent, connecteur ou ping (admin)")

@@ -2,7 +2,7 @@
 // Machines → Agents (tous les agents avec leurs gestes, agents révoqués). Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller.
 // Gérés seulement depuis une session admin.
 import { ArrowUpCircle, Check, MonitorUp, Plus, RefreshCw, RotateCw, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { read, send } from "../api";
 import { NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
@@ -137,25 +137,31 @@ export function AccessGuide() {
 }
 
 /** Vue d'ensemble, en bas de Réglages → Machines : comment choisir entre agent, SSH et connecteur, et les agents révoqués */
-/** One agent in the list of Machines → Agents: its machine, type, state, version and last report; « Régler » opens its own page */
-function AgentRow({ a, conf }: Readonly<{ a: AgentInfo; conf?: MachineConf }>) {
+/** One agent in the list of Machines → Agents: its machine, type, state, version and last report; « Régler » unfolds its setting under the row */
+function AgentRow({ a, conf, open, onToggle, editor }: Readonly<{ a: AgentInfo; conf?: MachineConf; open: boolean; onToggle: () => void; editor: (ip: string) => ReactNode }>) {
   const [tone, label] = STATE[a.state], name = conf?.name ?? a.name;
   return (
+    <>
     <tr className="border-t border-line/60 align-middle even:bg-bg/50 hover:bg-bg2/40">
       <td className="px-3 py-2"><span className="flex items-center gap-2"><MachineIcon m={{ name, os: conf?.os ?? a.kind ?? "windows", osName: a.os }} reserve /><b className="truncate">{name}</b><Dim>{a.ip}</Dim></span></td>
       <td className="px-3 py-2 text-xs">{a.kind === "linux" ? "Linux" : "Windows"}</td>
       <td className="px-3 py-2"><span className="flex flex-wrap gap-1"><Badge tone={tone}>{label}</Badge>{a.host_pending && <Badge tone="warn">{tx("nom à confirmer")}</Badge>}</span></td>
       <td className="px-3 py-2 text-xs"><span className="inline-flex items-center gap-1">{a.version ? <>v{a.version}<VersionMark outdated={!!a.outdated} /></> : "-"}</span></td>
       <td className="px-3 py-2 text-xs text-dim">{a.last_seen ? dateTime(a.last_seen * 1000) : tx("en attente du premier relevé")}</td>
-      <td className="px-3 py-2 text-right"><a href={`#settings/machines/agents/${a.ip}`} className="text-xs text-link hover:underline">{tx("Régler")} ›</a></td>
+      <td className="px-3 py-2 text-right">
+        <button type="button" className="text-xs text-link hover:underline" aria-expanded={open} onClick={onToggle}>{open ? tx("Fermer") : tx("Régler")} {open ? "▴" : "›"}</button>
+      </td>
     </tr>
+    {open && <tr><td colSpan={6} className="border-t border-line/60 bg-bg/40 px-3 py-3">{editor(a.ip)}</td></tr>}
+    </>
   );
 }
 
 /** Machines → Agents: every agent in use with its gestures (the same block as on the machine's page), figures on top, one button to update
  *  the late ones, then the revoked ones. An agent is installed from the page of its machine, Access tab. */
-export function AgentsOverview({ machines }: Readonly<{ machines: Record<string, MachineConf> }>) {
+export function AgentsOverview({ machines, editor, open }: Readonly<{ machines: Record<string, MachineConf>; editor: (ip: string) => ReactNode; open?: string }>) {
   const [st, setSt] = useState<AgentsState | null>(null), [install, setInstall] = useState<InstallTarget | null>(null);
+  const [unfolded, setUnfolded] = useState<string | null>(open ?? null);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const reload = useCallback(() => { read<AgentsState>("agents").then(setSt).catch(() => undefined); }, []);
   useEffect(reload, [reload]);
@@ -191,7 +197,7 @@ export function AgentsOverview({ machines }: Readonly<{ machines: Record<string,
                 <th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Type")}</th><th className="px-3 py-2">{tx("État")}</th>
                 <th className="px-3 py-2">{tx("Version")}</th><th className="px-3 py-2">{tx("Dernier relevé")}</th><th className="px-3 py-2" />
               </tr></thead>
-              <tbody>{s.live.map((a) => <AgentRow key={a.id} a={a} conf={machines[a.ip]} />)}</tbody>
+              <tbody>{s.live.map((a) => <AgentRow key={a.id} a={a} conf={machines[a.ip]} editor={editor} open={unfolded === a.ip} onToggle={() => setUnfolded(unfolded === a.ip ? null : a.ip)} />)}</tbody>
             </table>
           </div>
         )}
