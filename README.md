@@ -23,13 +23,13 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-machines.png" alt="MyServices machines tab: every machine with its sources, system, services, health, CPU, memory, disk, GPU and uptime (domain names and public address blurred)" width="900"><br>
-  <sub>The machines tab: every machine of the network at a glance, whatever tool reads it (domain names and public address blurred).</sub>
+  <img src="docs/screenshot-machines.png" alt="MyServices, All machines page with the side menu: every machine with its sources, system, services, health, CPU, memory, disk, GPU and uptime (domain names and public address blurred)" width="900"><br>
+  <sub>Machines › All machines: every machine of the network at a glance, whatever tool reads it (domain names and public address blurred).</sub>
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-history.png" alt="MyServices history tab: events over 24 hours (domain names and public address blurred)" width="900"><br>
-  <sub>The history tab: what fell, came back, appeared or disappeared (domain names and public address blurred).</sub>
+  <img src="docs/screenshot-history.png" alt="MyServices, History › Events page: events over 24 hours (domain names and public address blurred)" width="900"><br>
+  <sub>History › Events: what fell, came back, appeared or disappeared (domain names and public address blurred).</sub>
 </p>
 
 > ## Still in development
@@ -73,7 +73,7 @@ docker compose logs myservices        # the app's public key and the command to 
 ```
 
 Then open **`http://<IP>:8090/`** (the app is at the root of the site; the old `/myservices/…` addresses still work and redirect) **within 30 minutes** to create the admin account (after that delay:
-`docker compose restart myservices`) and follow the **setup assistant**, which opens by itself the first time (six short steps: this machine, the network, how to read each machine, your tools, alerts; every step can be skipped and redone, from the account menu: "Review the setup assistant"), then the **Help** page in Settings.
+`docker compose restart myservices`) and follow the **setup assistant**, which opens by itself the first time (six short steps: this machine, the network, how to read each machine, your tools, alerts; every step can be skipped and redone, from the account menu: "Review the setup assistant"), then the **Help** page of the account menu.
 
 > **The app listens on port `8090`.** It is a setting, not a fixed value: if 8090 is already taken on your machine, put **`MYSERVICES_PORT=8095`** (or any free port) in a `.env` file next to `docker-compose.yaml` (example: [`deploy/env.example`](deploy/env.example), downloaded by the second `curl` above), then run `docker compose up -d` and open `http://<IP>:8095/`. The container uses the host network, so editing a `ports:` mapping would do nothing.
 
@@ -94,20 +94,18 @@ Pull requests are not handled for now (see the notice at the top).
 ## Learn more
 
 <details>
-<summary><b>What you see: the tabs</b></summary>
+<summary><b>What you see: the menu</b></summary>
 
-| Tab | What it shows |
+One menu on the left holds every page, in four groups; the views of a page are its sub-pages, listed under it, each with its own address. « To watch » is the first sub-page of Services, Network, DNS, Backups and Security, and leaves the menu when nothing is to watch. An entry appears once its source is linked.
+
+| Group | Pages |
 |---|---|
-| **Home** | What needs your attention (12 rows by default), a paragraph per tab, and counters on the right that open the tab already filtered |
-| **History** | Events of the last 24 h to one year, as dots, bars, curve or heat map; each says what detected it and what read it |
-| **Machines** | Every machine with its state, system, access (SSH, agent, API), roles and details; a PC often switched off keeps a greyed card |
-| **Services** | NPM hosts and local services (Docker, Apache, ports), status, what to check, filters |
-| **Infra** | Cards of the services read through their API (Dockhand, Home Assistant, Uptime Kuma…) and of containers; machine health (CPU, memory, disks, SMART, temperature, failed services, updates) is in **Machines** and summarized on the home page |
-| **Fail2ban** | Bans and jails, once a LogviewR connector is linked |
-| **DNS** | AdGuard Home: synchronisation, rewrites, domains to check |
-| **Backups** | Which backup sets exist, how old the latest copy is, where the copies live |
-| **Diagrams** | Generated diagrams, plus ones you create with a click |
-| **Settings** | Machines, connectors, discovery, notifications, backups, accounts, SSH key, schedules, API and MCP, help |
+| **Overview** | **Home** (what needs your attention, then counters that open the page already filtered; Statistics), **History** (events of the last 24 h to one year as dots, bars, curve or heat map; availability) |
+| **Inventory** | **Machines** (every machine with its state, system, access and details; devices seen by your tools but not followed; agents), **Services** (NPM hosts and local services, new services, declare a service), **Network** (UniFi, Freebox, scan, devices, discovery), **DNS** (AdGuard Home: servers, rewrites, domains to check), **Virtualization**, **Infra** (services read through their API, containers), **Diagrams** |
+| **Protection** | **Backups** (sets, age of the latest copy, copies elsewhere, their settings), **Security** (sites, access, ports, certificates, Fail2ban), **Alerts** (channels, rules, notifications, last sent) |
+| **Administration** | **Connectors** (mine, available, found to link, already read over SSH or by an agent), **Accounts and access** (accounts and sessions, API and MCP tokens, the app's SSH key), **Application** (tasks and schedules, updates, e-mail, export and import, requests, audit, logs, information) |
+
+Profile, Help and About are in the account menu, top right.
 
 Every filter is a toggle: click to turn it off, click again to turn it back on; several can be on together.
 
@@ -119,7 +117,7 @@ Every filter is a toggle: click to turn it off, click again to turn it back on; 
 A machine can be followed in three ways, which can be combined. The first source that answers is used, and the next ones fill in what it could not read (the order is set per machine).
 
 1. **MyServices itself**, nothing else to install:
-   - **SSH** (Linux): MyServices connects with its **own key** (shown in Settings -> SSH key) and reads health, Docker, listening services and web servers. The key is never sent anywhere; you authorize it on each machine with one command. A dedicated non-root account in the `docker` and `adm` groups is the safest.
+   - **SSH** (Linux): MyServices connects with its **own key** (shown in Administration › Accounts and access › App's SSH key) and reads health, Docker, listening services and web servers. The key is never sent anywhere; you authorize it on each machine with one command. A dedicated non-root account in the `docker` and `adm` groups is the safest.
    - **Agent** (Windows or Linux): a small read-only script (PowerShell as a scheduled task, or Python as a systemd timer) sends the machine's own health, disks, ports, services, hardware and Docker containers. Nothing to open on the PC.
 2. **External services already on your network** (connectors): if you already run Beszel, Proxmox, Uptime Kuma, MynetworK… MyServices reads their API with a read-only key. Nothing is installed on the machine.
 3. **Ping and network scan**: only tell whether a machine is up and which apps answer on it. The first scan of your local network runs on its own, then repeats at the frequency you set. In manual mode you choose which machines to follow; in automatic mode the useful ones are added for you.
@@ -155,14 +153,14 @@ The Windows agent is one small script. The table lists what it reads on a PC and
 | Presence: on, asleep or silent | Yes (the agent reports itself) | Uptime Kuma (ping or port), MynetworK |
 | Installation | One script, one scheduled task, one outgoing connection to MyServices | One service per tool, its own account or key, a port to open on the network |
 
-For Linux machines, the same information comes from SSH, with nothing to install on the machine, or from the Linux agent (Python 3.6+, systemd) when SSH is not an option: pick **Linux** when installing the agent (the machine's window, **Access** tab), then paste the command in a terminal on the machine.
+For Linux machines, the same information comes from SSH, with nothing to install on the machine, or from the Linux agent (Python 3.6+, systemd) when SSH is not an option: pick **Linux** when installing the agent (the machine's page, **Access** tab), then paste the command in a terminal on the machine.
 
 </details>
 
 <details>
 <summary><b>Windows agent: install, security, updates</b></summary>
 
-**Install.** Open the PC's window (Machines tab, or Settings -> Machines and access), **Access** tab, then « Install the Windows agent ». MyServices shows a one-line command, with the token, **once**. Paste it in an **administrator** PowerShell on the PC. The installer downloads the agent from MyServices, writes its settings, creates the scheduled task *MyServices Agent* (runs as SYSTEM at startup, at logon and every 15 minutes by default; `-Minutes` changes it) and sends a first report. Only SYSTEM and Administrators can read the agent folder (`C:\ProgramData\MyServices-Agent`), because the token is in it. To remove it: run the installer with `-Uninstall`, then revoke the token in the same **Access** tab.
+**Install.** Open the PC's page (Machines › All machines, then the PC), **Access** tab, then « Install the Windows agent ». MyServices shows a one-line command, with the token, **once**. Paste it in an **administrator** PowerShell on the PC. The installer downloads the agent from MyServices, writes its settings, creates the scheduled task *MyServices Agent* (runs as SYSTEM at startup, at logon and every 15 minutes by default; `-Minutes` changes it) and sends a first report. Only SYSTEM and Administrators can read the agent folder (`C:\ProgramData\MyServices-Agent`), because the token is in it. To remove it: run the installer with `-Uninstall`, then revoke the token in the same **Access** tab.
 
 **What it can and cannot do.** The agent only reads the PC and **sends** its report to MyServices (nothing is opened on the PC). It runs no command received from the server, listens on no port and installs nothing else.
 
@@ -178,14 +176,14 @@ For Linux machines, the same information comes from SSH, with nothing to install
 
 </details>
 
-Machines found but not yet followed, SSH keys to authorize and agents not yet installed are listed under **Settings -> Discovery** and counted in the bell of the header.
+Machines found but not yet followed, SSH keys to authorize and agents not yet installed are listed under **Network › Discovery** and counted in the bell of the header.
 
 </details>
 
 <details>
 <summary><b>Connectors (more than 50)</b></summary>
 
-A connector lets MyServices read a tool through its API, **read-only**: give it a key or account that cannot change anything. Settings -> Connectors lists them, tests each (button **Test**), and shows what the last collection read. A **"Detected services not configured"** table at the top proposes the ones it recognised on your network, with the form already filled.
+A connector lets MyServices read a tool through its API, **read-only**: give it a key or account that cannot change anything. Administration › Connectors › My connectors lists them, tests each (button **Test**), and shows what the last collection read. The **Found, to link** sub-page proposes the ones it recognised on your network, with the form already filled; **Already read over SSH or by an agent** lists the tools a followed machine already gives.
 
 | Family | Connectors |
 |---|---|
@@ -209,7 +207,7 @@ Writing a connector: [docs/CONNECTEURS.md](docs/CONNECTEURS.md) (in French). Ide
 <details>
 <summary><b>Backups</b></summary>
 
-Settings -> Backups shows a table of **sources** (click one to unfold its fields):
+Backups › Settings › Add backups shows the **sources** as tiles (click one to open its wizard under the tiles):
 
 - **Folders on my machines**: found over SSH in the usual places (`/home/backup` is followed automatically); you tick the ones to watch.
 - **Veeam Backup & Replication**: REST API (port 9419) with a read-only account (role *Veeam Backup Viewer*); pick the jobs to follow.
@@ -247,7 +245,7 @@ Failures are confirmed over several passes before an alert is sent.
 
 Generated with [Archify](https://github.com/tt-a1i/archify) after each collection: the **network map**, **machine access** (every machine under SSH, agent, connector or no access), **backups** and the **alert chain**.
 
-The **Diagrams** tab also proposes ones you create with a click, built from what MyServices already knows: **network equipment and devices** (gateway, switches, Wi-Fi access points and what is plugged into each, read by MynetworK and UniFi), **services per machine**, **domains and their path** (under each NPM and each Apache) and **virtual machines and containers** (Proxmox).
+The **Diagrams** page also proposes ones you create with a click, built from what MyServices already knows: **network equipment and devices** (gateway, switches, Wi-Fi access points and what is plugged into each, read by MynetworK and UniFi), **services per machine**, **domains and their path** (under each NPM and each Apache) and **virtual machines and containers** (Proxmox).
 
 </details>
 
@@ -277,14 +275,14 @@ Almost everything is set in the page (Settings). Files and variables, for refere
 | `MYSERVICES_COLLECT_AT` | schedule of the collection, `minutes hours` (default `0,15,30,45 *`); same for the watcher and health |
 | `TZ` | time zone |
 
-Schedules can also be edited live in Settings -> Tasks and schedules. A full example is in [`deploy/compose.example.yaml`](deploy/compose.example.yaml).
+Schedules can also be edited live in Administration › Application › Tasks and schedules. A full example is in [`deploy/compose.example.yaml`](deploy/compose.example.yaml).
 
 </details>
 
 <details>
 <summary><b>API and MCP</b></summary>
 
-A REST API (`/api/v1/…`, OpenAPI documentation at `/api/v1/docs`) and an **MCP server** (`/mcp`, `msv_mcp_` token) let your tools and AI assistants read the same data. Create tokens in Settings -> API and MCP, with a validity you choose: **read** (the default), **runs** (read + ask for a collection) or **admin** (settings included; a duration is required and your password is asked). Each MCP tool has its own switch.
+A REST API (`/api/v1/…`, OpenAPI documentation at `/api/v1/docs`) and an **MCP server** (`/mcp`, `msv_mcp_` token) let your tools and AI assistants read the same data. Create tokens in Administration › Accounts and access › API and MCP tokens, with a validity you choose: **read** (the default), **runs** (read + ask for a collection) or **admin** (settings included; a duration is required and your password is asked). Each MCP tool has its own switch.
 
 </details>
 
@@ -302,4 +300,4 @@ Versions: `python3 scripts/release.py` checks that the version, both READMEs, th
 
 </details>
 
-> Full documentation (detailed installation, every connector, API and MCP) will be written as the project matures; the **Help** page in Settings covers the first steps today.
+> Full documentation (detailed installation, every connector, API and MCP) will be written as the project matures; the **Help** page (account menu, top right) covers the first steps today.

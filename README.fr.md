@@ -23,13 +23,13 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-machines.png" alt="Onglet Machines de MyServices : chaque machine avec ses sources, son système, ses services, sa santé, CPU, mémoire, disque, GPU et uptime (noms de domaine et adresse publique floutés)" width="900"><br>
-  <sub>L'onglet Machines : toutes les machines du réseau d'un coup d'œil, quel que soit l'outil qui les lit (noms de domaine et adresse publique floutés).</sub>
+  <img src="docs/screenshot-machines.png" alt="Page « Toutes les machines » de MyServices, avec le menu de gauche : chaque machine avec ses sources, son système, ses services, sa santé, CPU, mémoire, disque, GPU et uptime (noms de domaine et adresse publique floutés)" width="900"><br>
+  <sub>Machines › Toutes les machines : toutes les machines du réseau d'un coup d'œil, quel que soit l'outil qui les lit (noms de domaine et adresse publique floutés).</sub>
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-history.png" alt="Onglet Historique de MyServices : les événements sur 24 h (noms de domaine et adresse publique floutés)" width="900"><br>
-  <sub>L'onglet Historique : ce qui est tombé, revenu, apparu ou disparu (noms de domaine et adresse publique floutés).</sub>
+  <img src="docs/screenshot-history.png" alt="Page Historique › Événements de MyServices : les événements sur 24 h (noms de domaine et adresse publique floutés)" width="900"><br>
+  <sub>Historique › Événements : ce qui est tombé, revenu, apparu ou disparu (noms de domaine et adresse publique floutés).</sub>
 </p>
 
 > ## Encore en développement
@@ -73,7 +73,7 @@ docker compose logs myservices        # clé publique de l'app et commande pour 
 ```
 
 Puis ouvrez **`http://<IP>:8090/`** (l'appli est à la racine du site ; les anciennes adresses `/myservices/…` marchent toujours et redirigent) **dans les 30 minutes** pour créer le compte admin (passé ce délai :
-`docker compose restart myservices`), et suivez l'**assistant de démarrage**, qui s'ouvre tout seul la première fois (six courtes étapes : cette machine, le réseau, la façon de lire chaque machine, vos outils, les alertes ; chaque étape se passe et se refait, depuis le menu du compte : « Revoir l'assistant de démarrage »), puis la page **Aide** des Réglages.
+`docker compose restart myservices`), et suivez l'**assistant de démarrage**, qui s'ouvre tout seul la première fois (six courtes étapes : cette machine, le réseau, la façon de lire chaque machine, vos outils, les alertes ; chaque étape se passe et se refait, depuis le menu du compte : « Revoir l'assistant de démarrage »), puis la page **Aide** du menu du compte.
 
 > **L'application écoute sur le port `8090`.** C'est un réglage, pas une valeur figée : si le 8090 est déjà pris sur votre machine, mettez **`MYSERVICES_PORT=8095`** (ou un autre port libre) dans un fichier `.env` à côté de `docker-compose.yaml` (exemple : [`deploy/env.example`](deploy/env.example), téléchargé par le second `curl` ci-dessus), puis lancez `docker compose up -d` et ouvrez `http://<IP>:8095/`. Le conteneur utilise le réseau de l'hôte : modifier un `ports:` ne servirait à rien.
 
@@ -94,20 +94,18 @@ Les pull requests ne sont pas traitées pour le moment (voir l'avertissement en 
 ## En savoir plus
 
 <details>
-<summary><b>Ce que l'on voit : les onglets</b></summary>
+<summary><b>Ce que l'on voit : le menu</b></summary>
 
-| Onglet | Ce qu'il montre |
+Un menu à gauche réunit toutes les pages, en quatre groupes ; les vues d'une page sont ses sous-pages, rangées dessous, chacune avec son adresse. « À surveiller » est la première sous-page de Services, Réseau, DNS, Sauvegardes et Sécurité, et quitte le menu quand il n'y a rien à surveiller. Une entrée apparaît dès que sa source est reliée.
+
+| Groupe | Pages |
 |---|---|
-| **Accueil** | Ce qui demande votre attention (12 lignes par défaut), un paragraphe par onglet, et des compteurs à droite qui ouvrent l'onglet déjà filtré |
-| **Historique** | Les événements de 24 h à un an, en points, barres, courbe ou carte de chaleur ; chacun dit ce qui l'a détecté et ce qui l'a lu |
-| **Machines** | Chaque machine avec son état, son système, son accès (SSH, agent, API), ses rôles et ses détails ; un PC souvent éteint garde une fiche grisée |
-| **Services** | Hôtes NPM et services locaux (Docker, Apache, ports), état, points à vérifier, filtres |
-| **Infra** | Cartes des services lus par leur API (Dockhand, Home Assistant, Uptime Kuma…) et des conteneurs ; la santé des machines (processeur, mémoire, disques, SMART, température, services en échec, mises à jour) est dans **Machines** et résumée sur l'accueil |
-| **Fail2ban** | Bannissements et prisons, dès qu'un connecteur LogviewR est relié |
-| **DNS** | AdGuard Home : synchronisation, réécritures, domaines à vérifier |
-| **Sauvegardes** | Quels jeux existent, l'âge de la copie la plus récente, où vivent les copies |
-| **Schémas** | Schémas générés, plus ceux que vous créez en un clic |
-| **Réglages** | Machines, connecteurs, découverte, notifications, sauvegardes, comptes, clé SSH, horaires, API et MCP, aide |
+| **Vue d'ensemble** | **Accueil** (ce qui demande votre attention, puis des compteurs qui ouvrent la page déjà filtrée ; Statistiques), **Historique** (les événements de 24 h à un an, en points, barres, courbe ou carte de chaleur ; disponibilité) |
+| **Inventaire** | **Machines** (chaque machine avec son état, son système, son accès et ses détails ; appareils vus par vos outils mais pas suivis ; agents), **Services** (hôtes NPM et services locaux, nouveaux services, déclarer un service), **Réseau** (UniFi, Freebox, scan, appareils, découverte), **DNS** (AdGuard Home : serveurs, réécritures, domaines à vérifier), **Virtualisation**, **Infra** (services lus par leur API, conteneurs), **Schémas** |
+| **Protection** | **Sauvegardes** (jeux, âge de la copie la plus récente, copies ailleurs, leurs réglages), **Sécurité** (sites, accès, ports, certificats, Fail2ban), **Alertes** (canaux, règles, notifications, derniers envois) |
+| **Administration** | **Connecteurs** (les miens, disponibles, détectés à relier, déjà lus par SSH ou agent), **Comptes et accès** (comptes et sessions, jetons API et MCP, clé SSH de l'app), **Application** (tâches et horaires, mises à jour, e-mail, export et import, requêtes, audit, journaux, informations) |
+
+Profil, Aide et À propos sont dans le menu du compte, en haut à droite.
 
 Chaque filtre est un interrupteur : un clic le coupe, un autre le rallume ; plusieurs peuvent être actifs ensemble.
 
@@ -119,7 +117,7 @@ Chaque filtre est un interrupteur : un clic le coupe, un autre le rallume ; plus
 Une machine peut être suivie de trois façons, qui se combinent. La première source qui répond fait foi, les suivantes complètent ce qu'elle n'a pas lu (l'ordre se règle machine par machine).
 
 1. **MyServices lui-même**, rien d'autre à installer :
-   - **SSH** (Linux) : MyServices se connecte avec **sa propre clé** (montrée dans Réglages -> Clé SSH) et lit la santé, Docker, les services en écoute et les serveurs web. Vous l'autorisez sur chaque machine avec une commande. Un compte dédié non root, dans les groupes `docker` et `adm`, est le plus sûr.
+   - **SSH** (Linux) : MyServices se connecte avec **sa propre clé** (montrée dans Administration › Comptes et accès › Clé SSH de l'app) et lit la santé, Docker, les services en écoute et les serveurs web. Vous l'autorisez sur chaque machine avec une commande. Un compte dédié non root, dans les groupes `docker` et `adm`, est le plus sûr.
    - **Agent** (Windows ou Linux) : un petit script en lecture seule (PowerShell en tâche planifiée, ou Python en minuteur systemd) envoie la santé de la machine, ses disques, ses ports, ses services, son matériel et ses conteneurs Docker. Rien à ouvrir côté PC.
 2. **Services externes déjà installés sur le réseau** (connecteurs) : si vous faites déjà tourner Beszel, Proxmox, Uptime Kuma, MynetworK… MyServices lit leur API avec une clé en lecture seule. Rien n'est installé sur la machine.
 3. **Ping et recherche réseau** : indiquent seulement si une machine est allumée et quelles applis y répondent. La première recherche sur le réseau local se lance toute seule, puis se répète à la fréquence choisie. En mode manuel, vous choisissez les machines à suivre ; en mode automatique, les plus utiles sont ajoutées pour vous.
@@ -162,7 +160,7 @@ Pour les machines Linux, les mêmes informations viennent de SSH, sans rien inst
 <details>
 <summary><b>Agent Windows : installation, sécurité, mises à jour</b></summary>
 
-**Installation.** Ouvrez la fiche du PC (onglet Machines, ou Réglages -> Machines et accès), onglet **Accès**, puis « Installer l'agent Windows ». MyServices affiche une commande d'une ligne, avec le jeton, **une seule fois**. Collez-la dans un PowerShell **administrateur** sur le PC. L'installateur télécharge l'agent depuis MyServices, écrit ses réglages, crée la tâche planifiée *MyServices Agent* (exécutée en SYSTEM au démarrage, à l'ouverture de session et toutes les 15 minutes par défaut ; `-Minutes` change cela) et envoie un premier relevé. Seuls SYSTEM et les Administrateurs peuvent lire le dossier de l'agent (`C:\ProgramData\MyServices-Agent`), car le jeton s'y trouve. Pour le retirer : lancez l'installateur avec `-Uninstall`, puis révoquez le jeton dans ce même onglet **Accès**.
+**Installation.** Ouvrez la page du PC (Machines › Toutes les machines, puis le PC), onglet **Accès**, puis « Installer l'agent Windows ». MyServices affiche une commande d'une ligne, avec le jeton, **une seule fois**. Collez-la dans un PowerShell **administrateur** sur le PC. L'installateur télécharge l'agent depuis MyServices, écrit ses réglages, crée la tâche planifiée *MyServices Agent* (exécutée en SYSTEM au démarrage, à l'ouverture de session et toutes les 15 minutes par défaut ; `-Minutes` change cela) et envoie un premier relevé. Seuls SYSTEM et les Administrateurs peuvent lire le dossier de l'agent (`C:\ProgramData\MyServices-Agent`), car le jeton s'y trouve. Pour le retirer : lancez l'installateur avec `-Uninstall`, puis révoquez le jeton dans ce même onglet **Accès**.
 
 **Ce qu'il fait et ne fait pas.** L'agent lit seulement le PC et **envoie** son relevé à MyServices (rien n'est ouvert sur le PC). Il n'exécute aucune commande reçue du serveur, n'écoute sur aucun port et n'installe rien d'autre.
 
@@ -178,14 +176,14 @@ Pour les machines Linux, les mêmes informations viennent de SSH, sans rien inst
 
 </details>
 
-Les machines trouvées mais pas suivies, les clés SSH à autoriser et les agents pas encore installés sont listés dans **Réglages -> Découverte** et comptés dans la cloche de l'en-tête.
+Les machines trouvées mais pas suivies, les clés SSH à autoriser et les agents pas encore installés sont listés dans **Réseau › Découverte** et comptés dans la cloche de l'en-tête.
 
 </details>
 
 <details>
 <summary><b>Connecteurs (plus de 50)</b></summary>
 
-Un connecteur laisse MyServices lire un outil par son API, **en lecture seule** : donnez-lui une clé ou un compte qui ne peut rien modifier. Réglages -> Connecteurs les liste, teste chacun (bouton **Tester**) et montre ce que la dernière collecte a lu. Un tableau **« Services détectés non configurés »** en haut propose ceux qu'il a reconnus sur votre réseau, avec le formulaire déjà rempli.
+Un connecteur laisse MyServices lire un outil par son API, **en lecture seule** : donnez-lui une clé ou un compte qui ne peut rien modifier. Administration › Connecteurs › Mes connecteurs les liste, teste chacun (bouton **Tester**) et montre ce que la dernière collecte a lu. La sous-page **Détectés à relier** propose ceux qu'il a reconnus sur votre réseau, avec le formulaire déjà rempli ; **Déjà lus par SSH ou agent** liste les outils qu'une machine suivie donne déjà.
 
 | Famille | Connecteurs |
 |---|---|
@@ -209,7 +207,7 @@ Un connecteur laisse MyServices lire un outil par son API, **en lecture seule** 
 <details>
 <summary><b>Sauvegardes</b></summary>
 
-Réglages -> Sauvegardes montre un tableau de **sources** (cliquez sur l'une : ses champs se déplient) :
+Sauvegardes › Réglages › Ajouter des sauvegardes montre les **sources** en tuiles (cliquez sur l'une : son assistant s'ouvre sous les tuiles) :
 
 - **Dossiers sur mes machines** : trouvés par SSH aux endroits habituels (`/home/backup` est suivi automatiquement) ; vous cochez ceux à surveiller.
 - **Veeam Backup & Replication** : API REST (port 9419) avec un compte en lecture seule (rôle *Veeam Backup Viewer*) ; vous choisissez les jobs à suivre.
@@ -247,7 +245,7 @@ Les pannes sont confirmées sur plusieurs passages avant qu'une alerte parte.
 
 Générés avec [Archify](https://github.com/tt-a1i/archify) après chaque collecte : la **carte du réseau**, l'**accès aux machines** (chaque machine sous SSH, agent, connecteur ou aucun accès), les **sauvegardes** et la **chaîne d'alertes**.
 
-L'onglet **Schémas** en propose aussi que vous créez en un clic, construits avec ce que MyServices sait déjà : **équipements et appareils du réseau** (passerelle, switchs, bornes Wi-Fi et ce qui est branché sur chacun, lus par MynetworK et UniFi), **services par machine**, **domaines et leur chemin** (sous chaque NPM et chaque Apache) et **machines virtuelles et conteneurs** (Proxmox).
+La page **Schémas** en propose aussi que vous créez en un clic, construits avec ce que MyServices sait déjà : **équipements et appareils du réseau** (passerelle, switchs, bornes Wi-Fi et ce qui est branché sur chacun, lus par MynetworK et UniFi), **services par machine**, **domaines et leur chemin** (sous chaque NPM et chaque Apache) et **machines virtuelles et conteneurs** (Proxmox).
 
 </details>
 
@@ -277,14 +275,14 @@ Presque tout se règle dans la page (Réglages). Fichiers et variables, pour mé
 | `MYSERVICES_COLLECT_AT` | horaire de la collecte, `minutes heures` (défaut `0,15,30,45 *`) ; idem pour la veille et la santé |
 | `TZ` | fuseau horaire |
 
-Les horaires se modifient aussi à chaud dans Réglages -> Tâches et horaires. Un exemple complet : [`deploy/compose.example.yaml`](deploy/compose.example.yaml).
+Les horaires se modifient aussi à chaud dans Administration › Application › Tâches et horaires. Un exemple complet : [`deploy/compose.example.yaml`](deploy/compose.example.yaml).
 
 </details>
 
 <details>
 <summary><b>API et MCP</b></summary>
 
-Une API REST (`/api/v1/…`, documentation OpenAPI à `/api/v1/docs`) et un **serveur MCP** (`/mcp`, jeton `msv_mcp_`) laissent vos outils et assistants IA lire les mêmes données. Créez des jetons dans Réglages -> API et MCP, avec la durée de validité de votre choix : **read** (par défaut), **runs** (lecture + demander une collecte) ou **admin** (réglages compris ; une durée est obligatoire et votre mot de passe est demandé). Chaque outil MCP a son interrupteur.
+Une API REST (`/api/v1/…`, documentation OpenAPI à `/api/v1/docs`) et un **serveur MCP** (`/mcp`, jeton `msv_mcp_`) laissent vos outils et assistants IA lire les mêmes données. Créez des jetons dans Administration › Comptes et accès › Jetons API et MCP, avec la durée de validité de votre choix : **read** (par défaut), **runs** (lecture + demander une collecte) ou **admin** (réglages compris ; une durée est obligatoire et votre mot de passe est demandé). Chaque outil MCP a son interrupteur.
 
 </details>
 
@@ -302,4 +300,4 @@ Versions : `python3 scripts/release.py` vérifie que la version, les deux README
 
 </details>
 
-> La documentation complète (installation détaillée, chaque connecteur, API et MCP) sera écrite à mesure que le projet mûrit ; la page **Aide** des Réglages couvre aujourd'hui les premiers pas.
+> La documentation complète (installation détaillée, chaque connecteur, API et MCP) sera écrite à mesure que le projet mûrit ; la page **Aide** (menu du compte, en haut à droite) couvre aujourd'hui les premiers pas.
