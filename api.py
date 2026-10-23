@@ -444,7 +444,16 @@ def services_new(request: Request):
     if denied := admin_only(request):
         return denied
     events = history.query(db_path(core.CFG), since=time.time() - new_services.WINDOW_DAYS * 86400, kind="nouveau", limit=5000)
-    return {"items": new_services.pending(read_produced("data.json") or {}, events, core.CFG["state_dir"])}
+    return {"items": new_services.pending(read_produced("data.json") or {}, events, core.CFG["state_dir"], _connector_endpoints())}
+
+
+def _connector_endpoints() -> list[tuple[dict, tuple[str, ...]]]:
+    """The set connectors with the Docker images of their type: what they read is not a « new service » to decide on."""
+    import connectors
+    try:
+        return [(c, getattr(connectors.TYPES.get(c.get("type", "")), "images", ())) for c in connectors.declared(core.CFG)]
+    except connectors.ConnectorError:
+        return []
 
 
 @app.post(API + "/services/new/follow", tags=["services"], summary="Suivre ces nouveaux services tels quels : plus proposés (admin)")

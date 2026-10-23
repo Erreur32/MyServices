@@ -38,6 +38,14 @@ class NewServices(unittest.TestCase):
         self.assertEqual([x["key"] for x in got], ["local:10.0.0.3:18991", "local:10.0.0.2:8080"])   # gone and NPM hosts left out
         self.assertEqual((got[1]["name"], got[1]["kind"], got[1]["app"], got[1]["since"]), ("speedtest", "docker", "Speedtest Tracker", 200.0))
 
+    def test_a_service_a_connector_reads_is_not_proposed(self):
+        by_url = [({"type": "speedtest-tracker", "url": "http://10.0.0.2:8080/"}, ())]
+        self.assertEqual([x["key"] for x in new_services.pending(self.data, EVENTS, self.d, by_url)], ["local:10.0.0.3:18991"])
+        by_image = [({"type": "x", "url": "https://10.0.0.2:55000"}, ("lscr.io/speedtest",))]   # another port of the same image's machine
+        self.assertEqual(new_services.covered(ROWS, by_image), {"local:10.0.0.2:8080"})
+        elsewhere = [({"type": "x", "url": "https://10.0.0.9:55000", "indexer_url": "bad url"}, ("lscr.io/speedtest",))]
+        self.assertEqual(new_services.covered(ROWS, elsewhere), set())
+
     def test_follow_is_remembered(self):
         new_services.follow(["local:10.0.0.3:18991"], self.d)
         self.assertEqual(self.keys(), ["local:10.0.0.2:8080"])
