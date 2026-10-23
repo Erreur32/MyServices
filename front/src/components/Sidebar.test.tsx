@@ -12,10 +12,10 @@ const noop = () => undefined;
 describe("Sidebar", () => {
   it("les groupes et leurs entrées, dans l'ordre", () => {
     const html = renderToStaticMarkup(<Sidebar snap={snap()} badges={{}} onNavigate={noop} onBadge={noop} mobileOpen={false} onClose={noop} />);
-    const order = ["ensemble", "Accueil", "Inventaire", "Machines", "Réseau", "Protection", "Sauvegardes", "Sécurité", "Fail2ban", "Alertes", "Administration", "Connecteurs", "Réglages"].map((l) => html.indexOf(l));
+    const order = ["ensemble", "Accueil", "Inventaire", "Machines", "Réseau", "Protection", "Sauvegardes", "Sécurité", "Alertes", "Administration", "Connecteurs", "Comptes et accès", "Application"].map((l) => html.indexOf(l));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
-    expect(html).toContain('href="#security/fail2ban"');
+    expect(html).toContain('href="#security/watch"');   // an entry with sub-pages opens its first one
   });
   it("une pastille cliquable sur l'entrée de l'onglet en alerte", () => {
     const html = renderToStaticMarkup(<Sidebar snap={snap()} badges={{ backups: "crit" }} onNavigate={noop} onBadge={noop} mobileOpen={false} onClose={noop} />);

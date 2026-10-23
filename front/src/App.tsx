@@ -32,9 +32,9 @@ const REFRESH_MS = 15_000;      // without the event stream: one small manifest 
 const STREAM_REFRESH_MS = 120_000;   // with the stream, which says when a file moved: a safety read only
 
 /** Pages à part comme #profile : pas d'onglet, pas de barre */
-const SIDE_PAGES: Record<string, { admin?: boolean; render: () => React.ReactNode }> = {
+const SIDE_PAGES: Record<string, { admin?: boolean; render: (snap: Snapshot) => React.ReactNode }> = {
   help: { render: () => <Help /> },
-  about: { render: () => <AboutSettings /> },
+  about: { render: (snap) => <AboutSettings snap={snap} /> },
 };
 
 export default function App() {
@@ -121,7 +121,7 @@ export default function App() {
 
   let top: React.ReactNode = null;   // a page apart (Profile, Help, About) with its « Back » link
   if (profile) top = <SidePage><Profile username={snap.me.username} role={snap.me.role} email={snap.me.email ?? ""} mailReady={snap.me.mail_ready !== false} mailError={snap.me.mail_error ?? ""} avatar={snap.me.avatar ?? null} look={{ theme, setTheme }} /></SidePage>;
-  else if (side) top = <SidePage>{side.render()}</SidePage>;
+  else if (side) top = <SidePage>{side.render(snap)}</SidePage>;
   let homeSub: "history" | "stats" | "overview" = "overview";
   if (hash.startsWith("#history")) homeSub = "history";
   else if (hash.startsWith("#stats")) homeSub = "stats";
@@ -138,15 +138,15 @@ export default function App() {
       {top}
       {!profile && !side && current === "home" && <Home snap={snap} items={items} go={go} goFilter={goFilter} now={now} sub={homeSub} />}
       {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} onFilter={(sel) => goFilter("services", sel)} />}
-      {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} />}
+      {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} route={hash} />}
       {current === "infra" && <Infra snap={snap} />}
       {current === "dns" && <Dns key={pending.tab === "dns" ? pending.n : 0} snap={snap} initial={initialFor("dns")} />}
-      {current === "backups" && <Backups key={pending.tab === "backups" ? pending.n : 0} snap={snap} initial={initialFor("backups")} />}
+      {current === "backups" && <Backups key={pending.tab === "backups" ? pending.n : 0} snap={snap} initial={initialFor("backups")} route={hash} />}
       {current === "diagrams" && <DiagramsTab admin={snap.me.role === "admin"} />}
       {current === "settings" && <Settings key={hash} snap={snap} />}
       {current === "security" && <Security snap={snap} route={hash} />}
       {current === "virtualization" && <Virtualization snap={snap} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
-      {current === "network" && <Network snap={snap} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
+      {current === "network" && <Network snap={snap} route={hash} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
       </div>
       </div>
     </div>

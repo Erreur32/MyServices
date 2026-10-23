@@ -4,7 +4,7 @@ import { Bell, Send, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { showInUrl } from "../lib/settingsNav";
 import { tx } from "../lib/i18n";
-import { SubTabNav } from "../components/SubTabNav";
+import { InfoNote } from "../components/InfoNote";
 import { Alerts } from "./Alerts";
 import { Notifications } from "./Notifications";
 
@@ -16,16 +16,15 @@ const PARTS: [Part, string, LucideIcon, string][] = [
 ];
 
 export function NotificationsHub() {
-  const [part, setPart] = useState<Part>(() => {
+  const [part] = useState<Part>(() => {
     const inUrl = location.hash.split("/")[2];   // #settings/alerts/notifications: the address wins over the last choice
     if (inUrl === "alerts" || inUrl === "notifications") return inUrl;
     try { return localStorage.getItem(KEY) === "notifications" ? "notifications" : "alerts"; } catch { return "alerts"; }
   });
-  useEffect(() => showInUrl(`settings/alerts/${part}`, true), [part]);
-  const pick = (p: Part) => { setPart(p); try { localStorage.setItem(KEY, p); } catch { /* stockage refusé : le choix ne dure que cette visite */ } };
+  useEffect(() => { try { localStorage.setItem(KEY, part); } catch { /* storage refused: the choice lasts this visit */ } showInUrl(`settings/alerts/${part}`, true); }, [part]);
   return (
     <div className="flex flex-col gap-4">
-      <SubTabNav parts={PARTS} part={part} onPick={pick} />
+      <InfoNote>{PARTS.find(([id]) => id === part)![3]}</InfoNote>
       {part === "alerts" ? <Alerts /> : <Notifications />}
     </div>
   );

@@ -24,7 +24,7 @@ import { MailSettings } from "../components/MailSettings";
 import { ConfigTransfer } from "../components/ConfigTransfer";
 import { ScheduleHelp } from "../components/ScheduleHelp";
 
-export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh"; snap: Snapshot }) {
+export function SystemSettings({ part, snap }: Readonly<{ part: "mail" | "export" | "info" | "tasks" | "ssh"; snap: Snapshot }>) {
   const [st, setSt] = useState<SystemState | null>(null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
@@ -38,7 +38,9 @@ export function SystemSettings({ part, snap }: { part: "system" | "tasks" | "ssh
     <div className="flex flex-col gap-4">
       {part === "ssh" && <SshKey ssh={st.ssh} snap={snap} />}
       {part === "tasks" && <><Tasks tasks={st.tasks} netscan={st.netscan} beat={st.scheduler?.beat ?? null} reload={reload} /><AutoDiscoveries machines={snap.data.machine_list} /></>}
-      {part === "system" && <><MailSettings /><ConfigTransfer /><Info info={st.info} /></>}
+      {part === "mail" && <MailSettings />}
+      {part === "export" && <ConfigTransfer />}
+      {part === "info" && <Info info={st.info} />}
     </div>
   );
 }

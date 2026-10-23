@@ -23,8 +23,8 @@ export function showInUrl(hash: string, replace = false): void {
 /** An old section id, moved elsewhere in Settings (`section`) or become a page apart (`redirect`, a full address without the leading « # »). */
 export interface SectionTarget { section?: string; redirect?: string }
 
-/** Settings sections that moved under another id (SSH key: now part of « Clés et API » ; Connecteurs and Machines kept their old menu-link ids) */
-const SECTION_ALIAS: Record<string, string> = { ssh: "api", sources: "connectors", agents: "machines" };
+/** Settings sections that moved under another id (« Sauvegarde et infos » split into E-mail, Export and Informations; Connecteurs and Machines kept their old menu-link ids) */
+const SECTION_ALIAS: Record<string, string> = { system: "mail", sources: "connectors", agents: "machines" };
 /** Old Settings sections, now a page apart (#help…) or a sub-tab of Requests and logs (#settings/requests/audit) ; « tasks » (Tâches et horaires) stays a section */
 const PAGE_REDIRECT: Record<string, string> = { audit: "settings/requests/audit", logs: "settings/requests/logs", help: "help", about: "about" };
 
@@ -35,10 +35,3 @@ export function normalizeSection(id: string): SectionTarget {
   return { section: Object.hasOwn(SECTION_ALIAS, id) ? SECTION_ALIAS[id] : id };
 }
 
-/** Where « Réglages » opens (side menu, account menu): the last section visited (normalised: an old section may have moved), else the default page */
-export function settingsHash(): string {
-  const last = lastSettingsSection();
-  if (!last) return "settings";
-  const norm = normalizeSection(last);
-  return norm.redirect ?? (norm.section ? `settings/${norm.section}` : "settings");
-}

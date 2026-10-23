@@ -94,10 +94,6 @@ export function MachinesSettings({ snap }: Readonly<{ snap: Snapshot }>) {
         {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
         {detecting && <AddMachine st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
       </Card>
-      <Card>
-        <p className="text-sm text-muted">{tx("Chaque machine suivie a sa page dans l'onglet Machines : son état, sa santé et ses réglages (identité, options, accès) y sont réunis.")}</p>
-        <a href="#machines" className={`${quiet} mt-2 self-start no-underline`}><Server size={14} aria-hidden />{tx("Voir les machines")}</a>
-      </Card>
       <UnlinkedDevices snap={snap} onFollowed={reload} />
       <AgentsOverview machines={st.machines} />
     </div>

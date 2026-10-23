@@ -1,7 +1,6 @@
-// Réglages (admins) : une section à la fois, menu à gauche (en haut sur mobile). Comptes : son mot de passe,
-// les comptes (ajout, rôle, activation, nouveau mot de passe, suppression) et le journal des actions.
-// Menu en quatre groupes (Sources, Alertes, Comptes et accès, Application). Autres sections : un fichier chacune dans tabs/.
-import { Activity, ArrowRight, Bell, Eye, HardDrive, KeyRound, Plug, Plus, Radar, RefreshCw, Server, SlidersHorizontal, ShieldCheck, Timer, Trash2, UserCheck, UserPlus, UserRound, Users, UserX, Webhook, type LucideIcon } from "lucide-react";
+// Réglages (admins) : une section à la fois, ouverte depuis le menu de gauche (Administration, ou le sujet qu'elle règle).
+// Comptes : les comptes (ajout, rôle, activation, nouveau mot de passe, suppression). Autres sections : un fichier chacune dans tabs/.
+import { ArrowRight, Eye, KeyRound, Plus, ShieldCheck, Timer, Trash2, UserCheck, UserPlus, UserRound, Users, UserX } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { dateTime } from "../lib/format";
@@ -10,9 +9,8 @@ import { Badge, Card, Count, Dim } from "../components/ui";
 import { Field, NoteLine } from "../components/form";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { NotificationsHub } from "./NotificationsHub";
-import { Connectors } from "./Connectors";
+import { Connectors, connectorsPart } from "./Connectors";
 import { MachinesSection } from "./MachinesSection";
-import { useDiscoveries } from "../components/DiscoveryCard";
 import { NetworkSettings } from "./NetworkSettings";
 import { IconChoice, type IconOption } from "../components/IconChoice";
 import { UpdatesSettings } from "./UpdatesSettings";
@@ -22,28 +20,13 @@ import { BackupsSettings } from "./BackupsSettings";
 import { SystemSettings } from "./SystemSettings";
 import { tx } from "../lib/i18n";
 import { lastSettingsSection, normalizeSection, rememberSettingsSection, showInUrl } from "../lib/settingsNav";
+import { navTrail } from "../lib/tabs";
 import { checkPassword, okField, PASSWORD_MIN } from "../lib/password";
 import { PasswordRules } from "../components/PasswordRules";
 import { InfoNote } from "../components/InfoNote";
 
-/** Menu en quatre groupes ; les identifiants restent ceux des liens directs (#settings/<section>) */
-const GROUPS: { label: string; sections: { id: string; label: string; icon: LucideIcon }[] }[] = [
-  { label: tx("Sources"), sections: [
-    { id: "machines", label: tx("Machines et accès"), icon: Server }, { id: "connectors", label: tx("Connecteurs"), icon: Plug },
-    { id: "network", label: tx("Découverte réseau"), icon: Radar }, { id: "backups", label: tx("Sauvegardes"), icon: HardDrive },
-  ] },
-  { label: tx("Alertes"), sections: [{ id: "alerts", label: tx("Notifications"), icon: Bell }] },
-  { label: tx("Comptes et accès"), sections: [
-    { id: "accounts", label: tx("Comptes"), icon: Users }, { id: "api", label: tx("Clés et API"), icon: Webhook },
-  ] },
-  { label: tx("Application"), sections: [
-    { id: "system", label: tx("Sauvegarde et infos"), icon: SlidersHorizontal }, { id: "tasks", label: tx("Tâches et horaires"), icon: Timer },
-    { id: "updates", label: tx("Mises à jour"), icon: RefreshCw }, { id: "requests", label: tx("Requêtes et journaux"), icon: Activity },
-  ] },
-];
-const SECTIONS = GROUPS.flatMap((g) => g.sections);
-
-
+/** The sections, reached from the side menu (#settings/<section>[/<part>]); their place in the menu: lib/tabs.ts (NAV) */
+const SECTIONS = ["machines", "connectors", "network", "backups", "alerts", "accounts", "api", "ssh", "tasks", "updates", "requests", "mail", "export"];
 
 const ROLE: Record<User["role"], string> = { admin: "admin", viewer: tx("lecture seule") };
 const ROLE_CHOICE: IconOption<User["role"]>[] = [
@@ -51,20 +34,22 @@ const ROLE_CHOICE: IconOption<User["role"]>[] = [
   { value: "admin", label: tx("Admin"), hint: tx("Tout, réglages compris"), icon: <ShieldCheck size={26} className="text-link" aria-hidden /> },
 ];
 
-/** The panel of the open section; Settings → System is the fallback (an unknown or old section id) */
+/** The panel of the open section; Tasks and schedules is the fallback */
 function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snapshot }>) {
   switch (section) {
     case "accounts": return <Accounts me={snap.me.username} />;
     case "alerts": return <NotificationsHub />;
-    case "connectors": return <Connectors snap={snap} />;
+    case "connectors": return <Connectors snap={snap} part={connectorsPart(location.hash.split("/")[2])} />;
     case "machines": return <MachinesSection snap={snap} />;
     case "network": return <NetworkSettings snap={snap} />;
     case "updates": return <UpdatesSettings />;
     case "requests": return <ActivityHub />;
-    case "api": return <div className="flex flex-col gap-4"><SystemSettings part="ssh" snap={snap} /><ApiMcp /></div>;
+    case "api": return <ApiMcp />;
+    case "ssh": return <SystemSettings part="ssh" snap={snap} />;
+    case "mail": return <SystemSettings part="mail" snap={snap} />;
+    case "export": return <SystemSettings part="export" snap={snap} />;
     case "backups": return <BackupsSettings machines={snap.data.machine_list} issues={snap.backups?.issues ?? []} />;
-    case "tasks": return <SystemSettings part="tasks" snap={snap} />;
-    default: return <SystemSettings part="system" snap={snap} />;   // an unknown or old section id
+    default: return <SystemSettings part="tasks" snap={snap} />;
   }
 }
 
@@ -72,7 +57,7 @@ function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snaps
 function sectionFromId(id: string): string {
   const norm = normalizeSection(id);
   if (norm.redirect) { location.hash = norm.redirect; return "accounts"; }
-  return SECTIONS.some((x) => x.id === norm.section) ? norm.section! : "accounts";
+  return SECTIONS.includes(norm.section!) ? norm.section! : "accounts";
 }
 
 export function Settings({ snap }: { snap: Snapshot }) {
@@ -94,34 +79,16 @@ export function Settings({ snap }: { snap: Snapshot }) {
       const s = location.hash.split("/")[1];
       const norm = normalizeSection(s);
       if (norm.redirect) { location.hash = norm.redirect; return; }
-      if (SECTIONS.some((x) => x.id === norm.section)) setSection(norm.section!);
+      if (SECTIONS.includes(norm.section!)) setSection(norm.section!);
     };
     addEventListener("hashchange", go);
     return () => removeEventListener("hashchange", go);
   }, []);
-  const [disc] = useDiscoveries();   // « Découverte » est colorée quand il y a quelque chose à faire
+  const { item, sub } = navTrail(location.hash);
   return (
-    <div className="flex flex-col gap-4 py-4 md:flex-row">
-      <nav className="flex shrink-0 gap-3 overflow-x-auto md:w-60 md:flex-col md:overflow-visible" aria-label={tx("Sections des réglages")}>
-        {GROUPS.map((g) => (
-          <div key={g.label} role="group" aria-label={g.label} className="flex shrink-0 gap-1 rounded-xl border border-line bg-card/60 p-1.5 transition-[border-color,box-shadow] duration-200 hover:border-link/70 hover:shadow-[0_0_12px_rgb(var(--link)/0.35)] md:flex-col">
-            <p className="hidden px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-widest text-dim md:block">{g.label}</p>
-            {g.sections.map((s) => {
-              const on = s.id === section, todo = s.id === "network" && !!disc && disc.todo > 0;
-              return (
-                <button key={s.id} type="button" onClick={() => setSection(s.id)} aria-current={on ? "page" : undefined}
-                  className={`flex shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors ${on ? "bg-link/15 text-txt shadow-[inset_2px_0_0_rgb(var(--link))]" : todo ? "bg-warn/10 text-warn hover:bg-warn/20" : "text-muted hover:bg-bg2 hover:text-txt"}`}>
-                  <s.icon size={16} className={on ? "text-link" : todo ? "text-warn" : "text-dim"} aria-hidden />{s.label}
-                  {todo && <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-warn px-1 text-[11px] font-bold leading-none text-bg" title={tx("{0} chose(s) à faire pour compléter la découverte", disc!.todo)}>{disc!.todo}</span>}
-                </button>
-              );
-            })}
-          </div>
-        ))}
-      </nav>
-      <div className="min-w-0 flex-1">
-        <SectionPanel section={section} snap={snap} />
-      </div>
+    <div className="flex flex-col gap-4 py-4">
+      {item && <h1 className="text-xl font-bold">{sub ? <><span className="font-normal text-muted">{item.label} ›</span> {sub.label}</> : item.label}</h1>}
+      <SectionPanel section={section} snap={snap} />
     </div>
   );
 }

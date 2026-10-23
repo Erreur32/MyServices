@@ -19,10 +19,10 @@ import { tx } from "../lib/i18n";
 import { exposedSites, securityFindings, SENSITIVE, siteIssues, type Area, type Finding } from "../lib/securityFindings";
 import { risky } from "../lib/ssh";
 import { accessFindings } from "../lib/accessFindings";
-import { SecurityAccess, useAccessData } from "../components/SecurityAccess";
+import { useAccessData } from "../components/SecurityAccess";
 import { HeadTags } from "../components/HeadTags";
 
-type Sub = "fail2ban" | "sites" | "access" | "members" | "network" | "certs";
+type Sub = "watch" | "fail2ban" | "sites" | "access" | "members" | "network" | "certs";
 const SUBS: { id: Sub; label: string; icon: LucideIcon; area: Area }[] = [
   { id: "fail2ban", label: tx("Fail2ban"), icon: Ban, area: "fail2ban" },
   { id: "sites", label: tx("Sites exposés"), icon: Globe, area: "sites" },
@@ -31,13 +31,11 @@ const SUBS: { id: Sub; label: string; icon: LucideIcon; area: Area }[] = [
   { id: "network", label: tx("Ports du réseau"), icon: Radar, area: "ports" },
   { id: "certs", label: tx("Certificats"), icon: FileBadge, area: "certs" },
 ];
-const SUB_KEY = "ms.security.sub";
 const AREA_LABEL: Record<Area, string> = { fail2ban: tx("Fail2ban"), sites: tx("Site"), certs: tx("Certificat"), ssh: tx("SSH"), access: tx("Accès"), ports: tx("Port") };
 const AREA_SUB: Record<Area, Sub> = { fail2ban: "fail2ban", sites: "sites", certs: "certs", ssh: "access", access: "members", ports: "network" };
 
 /** Sub-tab named by the address (#security/certs), if any: the side menu's Fail2ban entry opens #security/fail2ban */
-const routeSub = (route: string): Sub | null => { const v = route.split("/")[1]; return SUBS.some((s) => s.id === v) ? (v as Sub) : null; };
-const savedSub = (): Sub => { try { const v = localStorage.getItem(SUB_KEY); return SUBS.some((s) => s.id === v) ? (v as Sub) : "sites"; } catch { return "sites"; } };
+const routeSub = (route: string): Sub | null => { const v = route.split("/")[1]; return v === "watch" || (v !== "members" && SUBS.some((s) => s.id === v)) ? (v as Sub) : null; };
 
 /** The six figures: one per area, the number in the colour of its findings, a fact read from the tools under it */
 function Figures({ snap, findings, admin }: Readonly<{ snap: Snapshot; findings: Finding[]; admin: boolean }>) {
@@ -69,7 +67,7 @@ function Watch({ rows, open }: Readonly<{ rows: WatchRow[]; open: (s: Sub) => vo
   const [on, setOn] = useState<string | null>(null);
   const worst = worstTone(rows.some((r) => r.sev === "bad"), rows.length > 0);
   return (
-    <WatchPanel id="security" tone={worst} count={rows.length} hint={tx("le plus grave en haut · un site n'apparaît qu'une fois par manque")}>
+    <WatchPanel id="security" tone={worst} count={rows.length} pinned hint={tx("le plus grave en haut · un site n'apparaît qu'une fois par manque")}>
       {rows.length === 0 ? <p className="px-4 py-3 text-sm text-ok">{tx("Aucune exposition ni réglage faible détecté par vos outils.")}</p> : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] border-collapse text-sm">
@@ -198,31 +196,20 @@ function PortsList({ snap }: Readonly<{ snap: Snapshot }>) {
   );
 }
 
-function Menu({ sub, pick, counts, admin }: Readonly<{ sub: Sub; pick: (s: Sub) => void; counts: Partial<Record<Area, number>>; admin: boolean }>) {
-  return (
-    <fieldset className="m-0 flex min-w-0 max-w-full flex-wrap self-start rounded-lg border border-line bg-card p-0.5" aria-label={tx("Sous-menu de la sécurité")}>
-      {SUBS.filter((x) => x.id !== "fail2ban" && (admin || x.id !== "members")).map(({ id, label, icon: Icon, area }) => (
-        <button key={id} type="button" aria-pressed={sub === id} onClick={() => pick(id)}
-          className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-semibold ${sub === id ? "border-link bg-link/15 text-txt ring-1 ring-link/50" : "border-transparent text-muted hover:text-txt"}`}>
-          <Icon size={14} aria-hidden />{label}{(counts[area] ?? 0) > 0 && <Badge tone="warn">{counts[area]}</Badge>}
-        </button>
-      ))}
-    </fieldset>
-  );
-}
-
 export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: string }>) {
-  const [sub, setSub] = useState<Sub>(() => routeSub(route) ?? savedSub());
+  const [sub, setSub] = useState<Sub>(() => routeSub(route) ?? "sites");
   useEffect(() => {   // the address follows the sub-tab (the side menu lights the right entry); a menu link sets the sub-tab
     const named = routeSub(route);
     if (named) setSub(named);
-    else location.replace(`#security/${sub === "fail2ban" ? "sites" : sub}`);   // Fail2ban has its own menu entry
+    else location.replace(`#security/${rows.length ? "watch" : "sites"}`);   // opened bare: « To watch » when something is
   }, [route]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const pick = (s: Sub) => { setSub(s); location.hash = `security/${s}`; try { localStorage.setItem(SUB_KEY, s); } catch { /* storage refused: the choice lasts this visit */ } };
+  const pick = (s: Sub) => {   // a finding's « See in »: accounts and tokens are in Administration
+    if (s === "members") { location.hash = "settings/accounts"; return; }
+    setSub(s); location.hash = `security/${s}`;
+  };
   const admin = snap.me.role === "admin", access = useAccessData(admin), now = Math.floor(Date.now() / 1000);
   const findings = useMemo(() => securityFindings(snap, access ? accessFindings(access, now) : []), [snap, access, now]);
   const rows = useMemo(() => watchRows(findings), [findings]);
-  const counts = useMemo(() => findings.reduce<Partial<Record<Area, number>>>((n, f) => ({ ...n, [f.area]: (n[f.area] ?? 0) + 1 }), {}), [findings]);
   const sources = snap.data.security ?? [];
   const tools = [sources.length ? tx("Fail2ban par {0}", [...new Set(sources.map((c) => c.name))].join(", ")) : "", Object.keys(snap.data.npm_instances ?? {}).length ? tx("Nginx Proxy Manager ({0})", Object.keys(snap.data.npm_instances).length) : "",
     (snap.data.network ?? []).length ? "MynetworK" : ""];
@@ -245,11 +232,9 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
         {admin && <a href="#settings/connectors" className="ml-auto text-sm text-link hover:underline">{tx("Connecteurs")} ›</a>}
       </div>
       <Figures snap={snap} findings={findings} admin={admin} />
-      <Watch rows={rows} open={pick} />
-      <Menu sub={sub} pick={pick} counts={counts} admin={admin} />
+      {sub === "watch" && <Watch rows={rows} open={pick} />}
       {sub === "sites" && <SitesList snap={snap} />}
       {sub === "access" && <AccessList snap={snap} />}
-      {sub === "members" && admin && <SecurityAccess data={access} now={now} />}
       {sub === "network" && <PortsList snap={snap} />}
       {sub === "certs" && <Certificates snap={snap} />}
       <InfoNote>{tx("Cette page lit ce que vos outils savent (Fail2ban par LogviewR, Nginx Proxy Manager, SSH, MynetworK). Elle ne change rien et ne donne pas de note : des faits, du plus grave au moins grave.")}</InfoNote>

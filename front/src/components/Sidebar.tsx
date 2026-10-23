@@ -1,12 +1,13 @@
-// Side menu, always on the left: four groups of pages, an alert dot per page, folded to icons on demand (kept by this browser).
+// Side menu, always on the left: four groups of pages, an alert dot per page, the sub-pages of the open page under it. Folded to
+// icons on demand (kept by this browser): the sub-pages of an icon then open in a small panel, on hover or on a click (Profile → Appearance).
 // On a phone it is a drawer opened from the header.
-import { useState } from "react";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useEffect, useRef, useState, type FocusEvent, type MouseEvent } from "react";
+import { ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "../lib/summary";
-import { activeNav, navGroups, type NavItem } from "../lib/tabs";
-import { settingsHash } from "../lib/settingsNav";
+import { activeNav, leaves, navGroups, type NavItem } from "../lib/tabs";
 import { useRoute } from "../lib/route";
+import { useFlyout } from "../theme";
 import { tx } from "../lib/i18n";
 
 const KEY = "ms.nav.collapsed";
@@ -21,37 +22,110 @@ function savedCollapsed(): boolean {
 }
 
 const levelText = (b: Level) => (b === "crit" ? tx("problème à regarder") : tx("à surveiller"));
+const ROW = "flex w-full items-center gap-2.5 rounded-lg text-sm font-semibold no-underline transition-colors";
+const rowTone = (on: boolean) => (on ? "bg-link/15 text-txt ring-1 ring-link/50" : "text-muted hover:bg-card hover:text-txt");
 
-function itemPad(narrow: boolean, child?: boolean): string {
-  if (narrow) return "justify-center px-0";
-  return child ? "pl-9 pr-3" : "px-3";
+function Badge({ level, tab, onBadge }: Readonly<{ level: Level; tab: TabId; onBadge: (t: TabId) => void }>) {
+  return (
+    <button type="button" onClick={() => onBadge(tab)} aria-label={level === "crit" ? tx("Voir les problèmes") : tx("Voir ce qui est à surveiller")}
+      title={`${levelText(level)}\n${tx("Cliquer pour voir les éléments concernés")}`}
+      className="absolute right-8 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full hover:bg-bg">{/* one column for every dot, left of the chevrons */}
+      <span className={`h-2.5 w-2.5 rounded-full ${level === "crit" ? "bg-bad" : "bg-warn"}`} />
+    </button>
+  );
 }
 
-function NavLink({ item, on, narrow, badge, onNavigate, onBadge }: Readonly<{
-  item: NavItem; on: boolean; narrow: boolean; badge?: Level; onNavigate: () => void; onBadge: (t: TabId) => void;
-}>) {
-  const href = `#${item.id === "settings" ? settingsHash() : item.hash}`;
-  const Icon = item.icon;
-  const named = badge ? [item.label, levelText(badge)].join(", ") : item.label;   // folded: the name (and the dot's meaning) for screen readers
-  const dot = badge === "crit" ? "bg-bad" : "bg-warn";
+/** A view group (« Vue ») is a heading, not a page: never lit as the open one */
+function subTone(group: boolean, on: boolean): string {
+  if (!group) return rowTone(on);
+  return on ? "text-txt" : "text-muted hover:text-txt";
+}
+
+/** The sub-pages of an entry, a level deeper for the views of a sub-page (« Vue » › UniFi…): all shown */
+function SubLinks({ subs, active, depth, onNavigate, inPanel }: Readonly<{ subs: NavItem[]; active: string; depth: number; onNavigate: () => void; inPanel?: boolean }>) {
+  const pad = inPanel ? ["pl-3", "pl-8"] : ["pl-7", "pl-12"];
   return (
-    <span className="relative flex">
-      <a href={href} onClick={onNavigate} aria-current={on ? "page" : undefined} title={narrow ? item.label : undefined}
-        aria-label={narrow ? named : undefined}
-        className={`flex w-full items-center gap-2.5 rounded-lg py-2 text-sm font-semibold no-underline transition-colors ${itemPad(narrow, item.child)} ${badge && !narrow ? "pr-8" : ""} ${
-          on ? "bg-link/15 text-txt ring-1 ring-link/50" : "text-muted hover:bg-card hover:text-txt"}`}>
-        <Icon size={item.child ? 15 : 17} strokeWidth={1.75} aria-hidden className="shrink-0" />
-        {!narrow && <span className="truncate">{item.label}</span>}
-      </a>
-      {badge && narrow && <span aria-hidden className={`pointer-events-none absolute right-2 top-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg2 ${dot}`} />}
-      {badge && !narrow && (
-        <button type="button" onClick={() => onBadge(item.tab)} aria-label={badge === "crit" ? tx("Voir les problèmes") : tx("Voir ce qui est à surveiller")}
-          title={`${levelText(badge)}\n${tx("Cliquer pour voir les éléments concernés")}`}
-          className="absolute right-1.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full hover:bg-bg">
-          <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
-        </button>
+    <>
+      {subs.map((x) => {
+        const on = x.subs ? leaves(x).some((y) => y.id === active) : x.id === active;
+        return (
+          <div key={x.id} className="flex flex-col gap-0.5">
+            <a role={inPanel ? "menuitem" : undefined} href={`#${x.hash}`} onClick={onNavigate} aria-current={!x.subs && on ? "page" : undefined}
+              className={`${ROW} py-1.5 pr-3 text-[13px] ${pad[Math.min(depth, 1)]} ${subTone(!!x.subs, on)}`}>
+              <x.icon size={15} strokeWidth={1.75} aria-hidden className="shrink-0" />{x.label}
+            </a>
+            {x.subs && <SubLinks subs={x.subs} active={active} depth={depth + 1} onNavigate={onNavigate} inPanel={inPanel} />}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/** The sub-pages of a folded entry, in a panel against its icon (fixed: the menu's scrolling box would clip it) */
+function Flyout({ item, active, at, onNavigate }: Readonly<{ item: NavItem; active: string; at: DOMRect; onNavigate: () => void }>) {
+  return (
+    <div role="menu" aria-label={item.label} style={{ top: at.top, left: at.right }} className="fixed z-50 pl-2">
+      <div className="w-56 rounded-xl border border-line bg-card p-1.5 shadow-2xl">
+        <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-widest text-dim">{item.label}</p>
+        <SubLinks subs={item.subs!} active={active} depth={0} onNavigate={onNavigate} inPanel />
+      </div>
+    </div>
+  );
+}
+
+function NavEntry({ item, active, narrow, badge, onNavigate, onBadge }: Readonly<{
+  item: NavItem; active: string; narrow: boolean; badge?: Level; onNavigate: () => void; onBadge: (t: TabId) => void;
+}>) {
+  const mode = useFlyout();
+  const box = useRef<HTMLDivElement>(null);
+  const [fly, setFly] = useState<DOMRect | null>(null);
+  const flies = narrow && !!item.subs;   // folded, with sub-pages: they open in a panel
+  const open = leaves(item).some((x) => x.id === active);
+  const [fold, setFold] = useState<boolean | null>(null);   // chosen with the chevron; follows the open page again when it changes
+  useEffect(() => setFold(null), [open]);
+  const expanded = fold ?? open;
+  const show = () => setFly(box.current?.getBoundingClientRect() ?? null);
+  useEffect(() => {
+    if (!fly) return;
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") setFly(null); };
+    const away = (e: Event) => { if (!box.current?.contains(e.target as Node)) setFly(null); };
+    addEventListener("keydown", key);
+    addEventListener("mousedown", away);
+    return () => { removeEventListener("keydown", key); removeEventListener("mousedown", away); };
+  }, [fly]);
+  const click = (e: MouseEvent) => {
+    if (flies && mode === "click") { e.preventDefault(); if (fly) setFly(null); else show(); return; }
+    setFly(null);
+    onNavigate();
+  };
+  const blur = (e: FocusEvent) => { if (!box.current?.contains(e.relatedTarget as Node)) setFly(null); };
+  const hover = flies && mode === "hover";
+  const named = badge ? [item.label, levelText(badge)].join(", ") : item.label;   // folded: the name (and the dot's meaning) for screen readers
+  const Icon = item.icon;
+  return (
+    <div ref={box} onMouseEnter={hover ? show : undefined} onMouseLeave={flies ? () => setFly(null) : undefined} onFocus={hover ? show : undefined} onBlur={flies ? blur : undefined}>
+      <span className="relative flex">
+        <a href={`#${item.hash}`} onClick={click} aria-current={open && !item.subs ? "page" : undefined} title={narrow ? item.label : undefined}
+          aria-label={narrow ? named : undefined} aria-haspopup={flies ? "menu" : undefined} aria-expanded={flies ? !!fly : undefined}
+          className={`${ROW} py-2 ${narrow ? "justify-center" : "px-3"} ${!narrow && (badge || item.subs) ? "pr-16" : ""} ${rowTone(open)}`}>
+          <Icon size={17} strokeWidth={1.75} aria-hidden className="shrink-0" />
+          {!narrow && <span className="truncate">{item.label}</span>}
+        </a>
+        {badge && narrow && <span aria-hidden className={`pointer-events-none absolute right-2 top-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg2 ${badge === "crit" ? "bg-bad" : "bg-warn"}`} />}
+        {badge && !narrow && <Badge level={badge} tab={item.tab} onBadge={onBadge} />}
+        {!narrow && item.subs && (
+          <button type="button" onClick={() => setFold(!expanded)} aria-expanded={expanded} aria-label={expanded ? tx("Replier") : tx("Déplier")} title={expanded ? tx("Replier") : tx("Déplier")}
+            className="absolute right-1.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-dim hover:bg-bg hover:text-txt">
+            <ChevronRight size={14} aria-hidden className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
+          </button>
+        )}
+      </span>
+      {!narrow && expanded && item.subs && (
+        <div className="mt-0.5 flex flex-col gap-0.5"><SubLinks subs={item.subs} active={active} depth={0} onNavigate={onNavigate} /></div>
       )}
-    </span>
+      {fly && <Flyout item={item} active={active} at={fly} onNavigate={() => { setFly(null); onNavigate(); }} />}
+    </div>
   );
 }
 
@@ -80,7 +154,7 @@ export function Sidebar({ snap, badges, onNavigate, onBadge, mobileOpen, onClose
                 ? <span aria-hidden className="mx-auto my-2 h-px w-8 bg-line" />
                 : <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-widest text-dim">{g.label}</p>}
               {g.items.map((i) => (
-                <NavLink key={i.id} item={i} on={i.id === active} narrow={narrow} badge={i.id === i.tab ? badges[i.tab] : undefined}
+                <NavEntry key={i.id} item={i} active={active} narrow={narrow} badge={i.id === i.tab ? badges[i.tab] : undefined}
                   onNavigate={onNavigate} onBadge={onBadge} />
               ))}
             </div>

@@ -29,7 +29,7 @@ afterEach(() => stored.clear());
 
 describe("onglet Réseau", () => {
   it("par défaut tout est plié sauf l'accès Internet et les passerelles ; le menu reste là", () => {
-    const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} initialSub="list" />);
+    const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} route="#network/list" />);
     expect(html).toContain("Freebox (via MynetworK)");              // the open section
     expect(html).not.toContain('<b class="text-txt">UCG</b>');       // the equipment table is folded
     expect(html).not.toContain("LG");                               // so is the device list
@@ -39,37 +39,34 @@ describe("onglet Réseau", () => {
   });
   it("si la personne a tout déplié, tout s'affiche", () => {
     stored.set("ms.network.folded", "[]");
-    expect(renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} initialSub="list" />)).toContain("LG");
+    expect(renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} route="#network/list" />)).toContain("LG");
   });
   it("tiles, Internet card, equipment merged by MAC, clients by uplink, devices", () => {
     stored.set("ms.network.folded", "[]");   // everything unfolded to read it all
     expect(hasNetwork(snap)).toBe(true);
-    const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} initialSub="list" />);
+    const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} route="#network/list" />);
     for (const t of ["Freebox (via MynetworK)", "UniFi Network", "Passerelle", "1/2 en ligne", "« Borne salon » hors ligne", "« UCG » : mise à jour disponible", "UDMA6A8", "Borne salon", "port 5", "Maison · -60 dBm", "LG", "Monitor", "1/2"]) expect(html, t).toContain(t);
     expect(html.match(/<b class="text-txt">UCG<\/b>/g)?.length).toBe(1);   // MynetworK and the UniFi connector: one row
     expect(html.indexOf("Freebox (via MynetworK)")).toBeLessThan(html.indexOf("UniFi Network"));   // side by side at the top, Freebox first
   });
   it("« À surveiller » : the access point offline in red, the gateway update in orange, the figures above", () => {
-    const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} />);
+    const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} route="#network" />);
     for (const t of ["À surveiller", "Borne salon", "hors ligne", "mise à jour disponible (installée : 5.1)", "1/2", "Équipements en ligne", "Accès Internet", "Appareils actifs : 3/10", "tous suivis"]) expect(html, t).toContain(t);
     expect(html.indexOf("Borne salon")).toBeLessThan(html.indexOf("mise à jour disponible"));   // red before orange
   });
   it("hidden without any network source", () => {
     expect(hasNetwork({ data: { network: [], services_status: [] } } as unknown as Snapshot)).toBe(false);
   });
-  it("un sous-onglet par source, UniFi en premier et page d'arrivée, pas la liste", () => {
-    const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} />);
-    const tabs = [...html.matchAll(/aria-pressed="(true|false)"[^>]*>(?:<svg[\s\S]*?<\/svg>)?([^<]+)<\/button>/g)].map((m) => [m[2], m[1]]);
-    expect(tabs).toEqual([["UniFi", "true"], ["Freebox", "false"], ["Scan", "false"], ["Équipements et appareils", "false"], ["Diagnostic", "false"]]);
-    expect(html).not.toContain("Clients par borne ou switch");   // that list lives in its own sub-tab
+  it("plus de sous-menu dans la page : une vue par adresse, choisie dans le menu de gauche", () => {
+    const html = renderToStaticMarkup(<Network snap={snap} onMachine={() => undefined} route="#network/unifi" />);
+    expect(html).not.toContain("Sous-menu du réseau");
+    expect(html).not.toContain("Clients par borne ou switch");   // that list is its own view
+    expect(html).not.toContain("Borne salon</");   // « To watch » too
   });
-  it("sans UniFi, Freebox ni MynetworK : seulement la liste et le diagnostic, la page s'ouvre sur la liste", () => {
+  it("sans UniFi, Freebox ni MynetworK : une adresse vers UniFi ouvre la liste", () => {
     const bare = { ...snap, data: { ...snap.data, services_status: [], network: [{ connector: "netalertx", name: "n", label: "NetAlertX", ok: true, stale: false, message: "OK",
       devices: [{ ip: "10.0.0.9", hostname: "tv", vendor: "LG", status: "online", ports: [] }] }] } } as unknown as Snapshot;
-    stored.set("ms.network.sub", "unifi");   // chosen earlier, the source is gone since
-    const html = renderToStaticMarkup(<Network snap={bare} onMachine={() => undefined} />);
-    expect(html).not.toContain(">UniFi</button>");
-    expect(html).not.toContain(">Freebox</button>");
+    const html = renderToStaticMarkup(<Network snap={bare} onMachine={() => undefined} route="#network/unifi" />);   // a link to UniFi, the source is gone since
     expect(html).toContain("Appareils du réseau");
   });
 });

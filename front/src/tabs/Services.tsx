@@ -1,6 +1,7 @@
 // Services in « state » mode: a title line, four figures, « To watch » (down, warning or with a point to check, worst first, a row
 // opens the detail window), the services newly seen on the machines (admin), then « See all » folded: every service (NPM and direct)
 // with its state, machine and source, filters, sort, « By machine »; on a phone, one card per service.
+import { usePageView } from "../lib/route";
 import { foldHeaderProps } from "../lib/foldHeader";
 import { ChevronDown, ChevronRight, ExternalLink, EyeOff, Globe, Layers, Pencil, Search, Plus, Server, Boxes, Undo2 } from "lucide-react";
 import { Fragment, useCallback, useMemo, useState } from "react";
@@ -268,7 +269,7 @@ function Watch({ rows, hidden, map, admin, onOpen }: Readonly<{ rows: Host[]; hi
     </label>
   );
   return (
-    <WatchPanel id="services" tone={worst} count={rows.length} keep={hidden.length > 0} extra={extra} hint={tx("en panne, en avertissement ou avec un point à vérifier")}>
+    <WatchPanel id="services" tone={worst} count={rows.length} keep={hidden.length > 0} pinned extra={extra} hint={tx("en panne, en avertissement ou avec un point à vérifier")}>
       {list.length === 0 ? <p className="px-4 py-3 text-sm text-dim">{tx("Les services à surveiller sont tous masqués.")}</p> : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] border-collapse text-sm">
@@ -308,7 +309,9 @@ function Watch({ rows, hidden, map, admin, onOpen }: Readonly<{ rows: Host[]; hi
   );
 }
 
-export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Selected }>) {
+const SERVICE_VIEWS = ["watch", "all"] as const;
+
+export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; initial?: Selected; route: string }>) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const hiddenMap = useServicesHidden();
   const [editKey, setEditKey] = useState<string | null>(null);   // the « Edit » window (pencil of a row or of the detail)
@@ -349,7 +352,8 @@ export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?:
 
   const fig = figures(snap.data.hosts), watchAll = toWatch(snap.data.hosts), admin = snap.me.role === "admin";
   const watch = watchAll.filter((r) => !isHidden(r, hiddenMap)), hiddenRows = watchAll.filter((r) => isHidden(r, hiddenMap));
-  const filtered = !!initial && Object.keys(initial).length > 0;   // came with a filter (home counter, a machine): the list is wanted open
+  const filtered = !!initial && Object.keys(initial).length > 0;   // came with a filter (home counter, a machine): the list is wanted
+  const view = usePageView(route, "services", SERVICE_VIEWS, filtered || watch.length === 0 ? "all" : "watch");
   return (
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
@@ -363,9 +367,9 @@ export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?:
         <StatTile n={fig.warn} label={tx("Avertissement")} tone={fig.warn ? "warn" : undefined} sub={fig.warnWhy.join(", ") || undefined} />
         <StatTile n={fig.toCheck} label={tx("À vérifier")} tone={fig.toCheck ? "warn" : undefined} sub={fig.checkWhy.map((k) => CHECK[k][0]).join(", ") || tx("rien à confirmer")} />
       </div>
-      <Watch rows={watch} hidden={hiddenRows} map={hiddenMap} admin={admin} onOpen={setOpenKey} />
-      {admin && <NewServices generated={snap.data.generated} />}
-      <FoldPanel id="services-all" icon={Layers} title={tx("Tout voir")} count={snap.data.hosts.length} startFolded={!filtered}>
+      {view === "watch" && <Watch rows={watch} hidden={hiddenRows} map={hiddenMap} admin={admin} onOpen={setOpenKey} />}
+      {view === "all" && admin && <NewServices generated={snap.data.generated} />}
+      {view === "all" && <FoldPanel id="services-all" icon={Layers} title={tx("Tous les services")} count={snap.data.hosts.length} pinned>
       <FilterBar f={f} primary={["status", "domain", "machine"]} placeholder={tx("Domaine, IP, port, conteneur, image…")}
         side={<button type="button" onClick={() => setGrouped(!grouped)} aria-pressed={grouped} title={tx("Regrouper les services sous le nom de leur machine")}
           className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-colors ${grouped ? "border-link bg-link/15 text-txt" : "border-line text-link hover:bg-link/10"}`}>
@@ -402,7 +406,7 @@ export function Services({ snap, initial }: Readonly<{ snap: Snapshot; initial?:
           </Cards>
         </>
       )}
-      </FoldPanel>
+      </FoldPanel>}
       {opened && (
         <Overlay wide onClose={() => setOpenKey(null)} title={<><ServiceLogo r={opened} />{hostName(opened)} <Badge tone="off">{via(opened)}</Badge></>}
           actions={admin && <button type="button" className={quiet} onClick={() => setEditKey(keyOfRow(opened))}><Pencil size={14} aria-hidden />{tx("Modifier")}</button>}>

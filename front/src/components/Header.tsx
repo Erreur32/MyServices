@@ -1,4 +1,4 @@
-import { ArrowUpCircle, ChevronDown, ExternalLink, Info, LifeBuoy, ListChecks, LogOut, Menu, Moon, SlidersHorizontal, Sun, UserRound, X } from "lucide-react";
+import { ArrowUpCircle, ChevronDown, ExternalLink, Info, LifeBuoy, ListChecks, LogOut, Menu, Moon, Sun, UserRound, X } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { DiscoveryBell } from "./DiscoveryCard";
 import { DropItem, DROP_PANEL, DropSep, useDropdown } from "./Dropdown";
@@ -9,7 +9,6 @@ import { LOCALE, tx } from "../lib/i18n";
 import { appVersion } from "../lib/format";
 import { reopenAssistant } from "../lib/assistant";
 import { GITHUB } from "../lib/links";
-import { settingsHash } from "../lib/settingsNav";
 import { dismissTag, dismissedTag } from "../lib/updateNotice";
 import { ScanOrb } from "./ScanOrb";
 
@@ -114,7 +113,6 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
           </div>
           <DropSep />
           <DropItem icon={<UserRound size={15} />} onClick={() => go("profile")}>{tx("Profil")}</DropItem>
-          {admin && <DropItem icon={<SlidersHorizontal size={15} />} onClick={() => { setOpen(false); location.hash = settingsHash(); }}>{tx("Réglages")}</DropItem>}
           <DropItem icon={theme === "dark" ? <Sun size={15} /> : <Moon size={15} />} onClick={toggleTheme}>{tx("Thème")} {theme === "dark" ? tx("clair") : tx("sombre")}</DropItem>
           <DropSep />
           <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-widest text-dim">{tx("Consulter")}</p>

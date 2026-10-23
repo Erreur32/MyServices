@@ -2,7 +2,8 @@
 // puis le journal des changements (une version à la fois, choisie par un bouton).
 import { ExternalLink, Github, RefreshCw, ScrollText } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { LOGIN, LoginRequired, read, send } from "../api";
+import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
+import { SystemSettings } from "./SystemSettings";
 import { Markdown } from "../components/Markdown";
 import { NoteLine } from "../components/form";
 import { Badge, Card, Dim } from "../components/ui";
@@ -19,7 +20,7 @@ interface About {
   update_available: boolean; changelog: string; repo: string;
 }
 
-export function AboutSettings() {
+export function AboutSettings({ snap }: Readonly<{ snap: Snapshot }>) {
   const [a, setA] = useState<About | null>(null), [error, setError] = useState(""), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const load = useCallback(() => {
@@ -64,6 +65,7 @@ export function AboutSettings() {
         <NoteLine note={note} />
       </Card>
 
+      {snap.me.role === "admin" && <SystemSettings part="info" snap={snap} />}{/* the former « Informations » of Settings: one page with About */}
       <Card className={a.update_available ? "border-link/50" : ""}>
         <h2 className="mb-2 flex items-center gap-2 font-bold"><RefreshCw size={16} aria-hidden />{tx("Mises à jour")}</h2>
         {!a.enabled ? <p className="text-sm text-muted">{tx("La vérification des mises à jour est coupée (configuration « update_check »). Aucune requête n'est envoyée à GitHub.")}</p>

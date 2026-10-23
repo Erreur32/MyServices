@@ -38,3 +38,21 @@ export function setHeaderLogo(id: HeaderLogo): void {
 export function useHeaderLogo(): HeaderLogo {
   return useSyncExternalStore((f) => { logoSubs.add(f); return () => { logoSubs.delete(f); }; }, savedLogo, () => "favicon");
 }
+
+/** Folded side menu: the sub-pages of an icon open when the pointer rests on it, or only on a click */
+export type FlyoutMode = "hover" | "click";
+const FLYOUT_KEY = "myservices-menu-flyout";
+const flyoutSubs = new Set<() => void>();
+
+export function savedFlyout(): FlyoutMode {
+  try { return localStorage.getItem(FLYOUT_KEY) === "click" ? "click" : "hover"; } catch { return "hover"; }
+}
+
+export function setFlyout(m: FlyoutMode): void {
+  try { localStorage.setItem(FLYOUT_KEY, m); } catch { /* storage refused: the choice lasts this visit */ }
+  flyoutSubs.forEach((f) => f());
+}
+
+export function useFlyout(): FlyoutMode {
+  return useSyncExternalStore((f) => { flyoutSubs.add(f); return () => { flyoutSubs.delete(f); }; }, savedFlyout, () => "hover");
+}
