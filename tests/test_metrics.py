@@ -2,12 +2,14 @@
 
   python3 -m unittest discover -s tests
 """
+import importlib.util
 import json
 import sys
 import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import metrics  # noqa: E402
@@ -67,6 +69,21 @@ class Metrics(unittest.TestCase):
         self.assertEqual(metrics.sample(self.db, self.file, now=NOW), 0)
         self.file.write_text("{", encoding="utf-8")
         self.assertEqual(metrics.sample(self.db, self.file, now=NOW), 0)
+
+
+@unittest.skipUnless(importlib.util.find_spec("argon2"), "auth.py needs argon2 (in the image)")
+class AgentOfSshMachine(unittest.TestCase):
+    """health.agent_figures: a machine read over SSH first keeps its SSH health, its agent's report still gives a point."""
+    def test_point_du_releve_d_agent(self):
+        import health
+        hc = {"id": "pc", "name": "pc · 10.0.0.7", "ip": "10.0.0.7", "os": "windows"}
+        report = {"report": {"data": {"cpu": 12, "mem": 40, "disks": [{"m": "C:", "s": 100, "f": 20}]}}, "fresh": True}
+        with tempfile.TemporaryDirectory() as tmp, patch("auth.db_path", return_value=Path(tmp) / "t.db"):
+            self.assertTrue(health.agent_figures(hc, report, iso(NOW)))
+            self.assertFalse(health.agent_figures(hc, report, iso(NOW + 60)))      # under MIN_GAP
+            self.assertFalse(health.agent_figures(hc, {**report, "fresh": False}, iso(NOW + 600)))
+            self.assertFalse(health.agent_figures(hc, None, iso(NOW + 600)))
+            self.assertEqual(metrics.series(Path(tmp) / "t.db", "10.0.0.7", now=NOW)["points"], [[int(NOW), 12.0, 40.0, 80.0, None]])
 
 
 if __name__ == "__main__":

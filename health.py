@@ -1152,6 +1152,22 @@ def host_from_agent(hc: dict, a: dict) -> dict:
     return h
 
 
+def agent_figures(hc: dict, a: dict | None, ts: str) -> bool:
+    """A machine read over SSH first keeps its SSH health, but its agent's fresh report still gives a point to its 24 h curves (metrics.py);
+    True when one was stored."""
+    data = ((a or {}).get("report") or {}).get("data")
+    if not (a and a.get("fresh") and isinstance(data, dict)):
+        return False
+    try:
+        import metrics
+        from auth import db_path
+        h = {"name": hc["name"], "reachable": True, "read_at": ts, **parse_agent_data(hc, data)}
+        return metrics.store(db_path(CFG), metrics.points({"hosts": [h]})) > 0
+    except Exception as e:  # base unavailable: only the curves miss a point
+        print(f"⚠ courbes : {e}", file=sys.stderr)
+        return False
+
+
 def parse_agent_data(hc: dict, data: dict) -> dict:
     """Champs de santé lus dans le relevé d'un agent, Linux (sorties rejouées) ou Windows (PowerShell)."""
     if data.get("kind") == "linux":
@@ -2076,8 +2092,9 @@ def main() -> int:
     candidates, meta = load_hosts(set(agents))
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv[:-1] else None  # une seule machine (IP) : les autres gardent leur dernier relevé
     # After an agent report (--agent): a machine read over SSH first keeps its SSH reading until the next pass (the report only complements it)
-    if only and "--agent" in sys.argv and any(hc["ip"] == only and hc["target"] and source_order(hc)[0] == "ssh" for hc in candidates):
-        print(f"= relevé d'agent de {only} : machine lue en SSH, rien à relire")
+    ssh_first = [hc for hc in candidates if hc["ip"] == only and hc["target"] and source_order(hc)[0] == "ssh"] if only and "--agent" in sys.argv else []
+    if ssh_first:
+        print(f"= relevé d'agent de {only} : machine lue en SSH, rien à relire" + (" (un point pour les courbes)" if agent_figures(ssh_first[0], agents.get(only), ts) else ""))
         return 0
     previous, previous_asleep = [], []
     if only:

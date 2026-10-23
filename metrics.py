@@ -3,7 +3,8 @@
 After each health pass, sample() reads health/stats.json and stores one point per machine read since its last point: the key is the
 machine's IP (« Name · IP » in stats.json), the time is the host's own `read_at` (a pass of « --only <ip> » leaves the other machines
 with their old time, so they get no new point). One point every MIN_GAP s at most (an agent reports every minute): about 360 points
-a machine a day. Points older than KEEP_S are purged at each sample(). The machine page draws them as small curves in its tiles.
+a machine a day. A machine read over SSH first that also has an agent keeps its SSH health, but each agent report still gives a
+point (health.py, agent_figures()). Points older than KEEP_S are purged at each store(). The machine page draws them as small curves in its tiles.
 """
 from __future__ import annotations
 
@@ -71,11 +72,16 @@ def sample(db_path: str | Path, stats_file: Path, now: float | None = None) -> i
         stats = json.loads(stats_file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return 0
+    return store(db_path, points(stats), now)
+
+
+def store(db_path: str | Path, pts: list[dict], now: float | None = None) -> int:
+    """Points not stored yet (and not within MIN_GAP s of the machine's last one); how many were added. Purges what is past KEEP_S."""
     oldest = int((now or time.time()) - KEEP_S)
     n = 0
     with _db(db_path) as db:
         db.execute("DELETE FROM metric_samples WHERE ts < ?", (oldest,))
-        for p in points(stats):
+        for p in pts:
             last = db.execute("SELECT MAX(ts) FROM metric_samples WHERE machine = ?", (p["machine"],)).fetchone()[0]
             if p["ts"] < oldest or (last is not None and p["ts"] < last + MIN_GAP):
                 continue

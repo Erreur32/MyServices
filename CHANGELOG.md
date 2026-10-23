@@ -12,7 +12,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Added
-- **The last 24 hours of each machine, as small curves**: after each health reading, MyServices keeps the processor, memory, fullest disk and temperature of each machine for 24 hours (one point every 4 minutes at most, in the SQLite base; route `GET /api/v1/machines/{ip}/metrics`). The figures of the machine page draw them under their value, in the colour of their state (lowest and highest on hover). A machine read by an agent gets a point every 4 minutes; one read over SSH only gets one at each health pass.
+- **The last 24 hours of each machine, as small curves**: after each health reading, MyServices keeps the processor, memory, fullest disk and temperature of each machine for 24 hours (one point every 4 minutes at most, in the SQLite base; route `GET /api/v1/machines/{ip}/metrics`). The figures of the machine page draw them under their value, in the colour of their state (lowest and highest on hover). A machine with an agent gets a point every 4 minutes, even when its health is read over SSH first (the SSH reading stays the health; the agent's report only feeds the curves); one read over SSH only gets one at each health pass.
 - **When the machine was last read**: the Health tile of the machine page gives the time of the last reading of this machine (each machine of `health/stats.json` now carries its own `read_at`; a pass for one machine leaves the others with theirs).
 - **A Temperature tile** among the figures of the machine page (orange from 85 °C, red from 95 °C, as the health check).
 
