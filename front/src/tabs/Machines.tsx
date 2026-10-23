@@ -1,5 +1,5 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { Archive, Plus, Puzzle, FolderOpen, Bot, Box, Copy, Cpu, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronDown, ChevronRight, ChevronUp, Container, Clock, Database, Eye, EyeOff, FolderSync, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, Layers, MemoryStick, Plug, RefreshCw, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Timer, Unplug, WifiOff, Workflow, type LucideIcon } from "lucide-react";
+import { Archive, Monitor, Plus, Puzzle, FolderOpen, Bot, Box, Copy, Cpu, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronDown, ChevronRight, ChevronUp, Container, Clock, Database, Eye, EyeOff, FolderSync, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, Layers, MemoryStick, Plug, RefreshCw, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Timer, Unplug, WifiOff, Workflow, type LucideIcon } from "lucide-react";
 import { Fragment, createContext, useContext, useRef, useCallback, useEffect, useMemo, useState } from "react";
 import { read, type Snapshot } from "../api";
 import { Copyable } from "../components/form";
@@ -27,6 +27,8 @@ import { tipAction } from "../lib/tip";
 import { isHidden, useServicesHidden, type HiddenMap } from "../lib/servicesHidden";
 import { SshAccess } from "../components/ssh";
 import { SourceBadges } from "../components/SourceBadges";
+import { HeadTags } from "../components/HeadTags";
+import { StatTile } from "../components/StatTile";
 import { DetailRow, DetailSection } from "../components/DetailSection";
 import { ContainerList, SitePaths, WebServersTable, modeLabel } from "../components/WebServers";
 import { veeamOf, type VeeamRow } from "../lib/veeamMachines";
@@ -37,6 +39,30 @@ import { Badge, Cards, Dim, Empty, Fill, FilterBar, GradientFill, Level, Pct, Ta
 import { tx } from "../lib/i18n";
 import { hardwareRows } from "../lib/hardware";
 
+
+/** Head of the Machines list, as the other pages: the title and its counts, then the figures (reachable, health OK, to watch, unreachable, off) */
+function MachinesHead({ snap, health, watching }: Readonly<{ snap: Snapshot; health: Map<string, HealthHost>; watching: (m: Machine) => boolean }>) {
+  const ms = snap.data.machine_list.filter((m) => !m.disabled), st = ms.map((m) => mState(m));
+  const down = st.filter((x) => x === "down").length, off = st.filter((x) => x === "off").length, up = ms.length - down - off;
+  const read = ms.map((m) => health.get(m.ip)).filter((h): h is HealthHost => !!h && h.level !== "na");
+  const ok = read.filter((h) => h.reachable !== false && h.level === "ok").length, watch = ms.filter(watching).length;
+  const ssh = ms.filter((m) => m.info && m.info.via !== "agent").length, agents = ms.filter((m) => m.agent).length;
+  return (
+    <div className="flex flex-col gap-4 pb-1 pt-3">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <h1 className="flex items-center gap-2 text-xl font-bold"><Monitor size={18} aria-hidden />{tx("Machines")}</h1>
+        <HeadTags counts={[tx("{0} machines", ms.length), tx("{0} lues par SSH", ssh), tx("{0} avec agent", agents)]} at={snap.data.generated} />
+      </div>
+      <div className="flex gap-2.5 overflow-x-auto pb-1">
+        <StatTile n={`${up}/${ms.length - off}`} label={tx("Joignables")} tone={down ? "warn" : "ok"} />
+        {read.length > 0 && <StatTile n={`${ok}/${read.length}`} label={tx("Santé OK")} tone={ok === read.length ? "ok" : "warn"} />}
+        <StatTile n={watch} label={tx("À surveiller")} tone={watch ? "warn" : undefined} />
+        <StatTile n={down} label={tx("Injoignables")} tone={down ? "bad" : undefined} />
+        <StatTile n={off} label={tx("Éteintes")} sub={tx("souvent éteintes, au repos")} />
+      </div>
+    </div>
+  );
+}
 
 /** Opens the page of a machine (#machines/<ip>), or its settings page (#machines/<ip>/settings) */
 function openPage(ip: string, tab?: "settings"): void {
@@ -1696,6 +1722,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
         figures={machineFigures(hb.get(pageM.ip), uptimeOf(pageM, unifiOf(pageM), freeboxOf(pageM, snap.data.network), haOf(pageM)) ?? null, watchOf(pageM).find((w) => w.tone !== "info")?.text)}
         onMachine={onMachine} focusTab={target?.tab} onBack={() => { location.hash = "machines"; }} />
     ) : <div className="py-1">
+      <MachinesHead snap={snap} health={hb} watching={(m) => watchOf(m).some((w) => w.tone !== "info")} />
       <FilterBar bare f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
         options={[
           ...(nOff > 0 ? [{ id: "off", label: tx("Désactivées"), on: showOff, toggle: () => setShowOff(!showOff), mark: showOff ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />, count: nOff }] : []),

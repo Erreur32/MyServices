@@ -26,6 +26,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **A Temperature tile** among the figures of the machine page (orange from 85 °C, red from 95 °C, as the health check).
 
 ### Changed
+- **Machines page, a head as the other pages**: the title with its counts (machines, read over SSH, with an agent) and a row of figures (reachable, health OK, to watch, unreachable, off) above the list.
 - **Machines page, one frame less**: the search and filters above the Machines table lose their own frame; the table keeps its.
 - **The agent first**: the health of a Linux machine with a fresh agent report is read from its agent (every minute, no SSH connection opened); SSH takes over when the agent goes silent and keeps what only it reads. An order set by hand for a machine still wins. The first-steps assistant now advises the agent for a Linux machine (SSH as the alternative; a machine already read over SSH is not flagged), with a « Which one to choose? » box, the same in Settings › Machines; README (EN and FR) aligned, and its outdated « no Linux agent yet » line fixed.
 - **One settings icon**: « Set › » links (SSH connections, Backups, other schedules) are the sliders icon of the Machines table, the name in its tooltip; the backup set's « Set this set » uses it too. SSH pages get a round back button, the machine's icon and name as title, a « Machine page » button and « Done ».
