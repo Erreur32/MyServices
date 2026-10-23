@@ -188,3 +188,5 @@ a963b01ac719bcd05cffc4cf75235c72  docs/logo.svg
 654a62a6310d1e5d7d62c09f23b528aa  docs/screenshot-history.png
 385b9df01f9781ac624f5b9a36dfae7b  docs/screenshot-machines.png
 cc63de8e407f82121ae35ffa0bbd371d  front/public/icons/anubis.svg
+8c600bb174c218a3f43924eb94443fba  docs/screenshot-machines.png
+9d97aa783b927afdaf0e53e66b046829  docs/screenshot-history.png
