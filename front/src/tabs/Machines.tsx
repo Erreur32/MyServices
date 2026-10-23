@@ -37,9 +37,9 @@ import { tx } from "../lib/i18n";
 import { hardwareRows } from "../lib/hardware";
 
 
-/** Opens the page of a machine (#machines/<ip>); « access »: scrolled to its settings, Access tab */
-function openPage(ip: string, tab?: "access"): void {
-  location.hash = `machines/${ip}${tab ? "/access" : ""}`;
+/** Opens the page of a machine (#machines/<ip>), or its settings page (#machines/<ip>/settings) */
+function openPage(ip: string, tab?: "settings"): void {
+  location.hash = `machines/${ip}${tab ? "/settings" : ""}`;
 }
 
 function healthByIp(hosts: HealthHost[] = []): Map<string, HealthHost> {
@@ -1671,7 +1671,7 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
                       <WatchList ip={m.ip} quiet={!!snap.health} items={pills} /></span></Td>
                     {snap.health && <><Td className="!px-1.5"><MeterCell h={h} what="cpu" /></Td><Td className="!px-1.5"><MeterCell h={h} what="mem" /></Td><Td className="!px-1.5"><MeterCell h={h} what="disk" /></Td></>}{anyGpu && <Td className="!px-1.5"><GpuCellView list={gpusOf(m, hb.get(m.ip))} /></Td>}
                     <Td className="w-px whitespace-nowrap !pl-2 !pr-1 text-right text-xs tabular-nums">{(() => { const up = uptimeOf(m, unifiOf(m), freeboxOf(m, snap.data.network), haOf(m)); return up ? <span className={up < 3600 ? "text-warn" : "text-muted"} title={`${dur(up)}${up < 3600 ? ` · ${tx("vient de redémarrer")}` : ""}`}>{durShort(up)}</span> : <Dim>-</Dim>; })()}</Td>
-                    {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => openPage(m.ip, "access")} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
+                    {admin && <td className="w-8 px-1 py-2 align-middle"><button type="button" onClick={() => openPage(m.ip, "settings")} aria-label={tx("Réglages de {0}", m.name)} title={tx("Réglages de cette machine")}
                       className="grid h-6 w-6 place-items-center rounded-md text-dim hover:bg-bg2 hover:text-txt"><SlidersHorizontal size={14} aria-hidden /></button></td>}
                   </tr>
                 </Fragment>

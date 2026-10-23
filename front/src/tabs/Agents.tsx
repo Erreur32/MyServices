@@ -1,14 +1,16 @@
-// Gestion des agents MyServices (petit script en lecture seule, sans SSH) : le bloc d'une machine (dans sa fenêtre, onglet Accès) et la vue d'ensemble
-// en bas de Réglages → Machines (comment choisir, agents révoqués). Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller.
+// Gestion des agents MyServices (petit script en lecture seule, sans SSH) : le bloc d'une machine (sa page, onglet Accès) et la page
+// Machines → Agents (tous les agents avec leurs gestes, agents révoqués). Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller.
 // Gérés seulement depuis une session admin.
-import { ArrowUpCircle, Check, ChevronDown, ChevronRight, MonitorUp, Plus, RefreshCw, RotateCw, Trash2 } from "lucide-react";
+import { ArrowUpCircle, Check, MonitorUp, Plus, RefreshCw, RotateCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { read, send } from "../api";
 import { NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
 import { AgentInstall, type AgentKind, type InstallTarget } from "../components/AgentInstall";
 import { act, danger, quiet, type Note } from "../lib/forms";
-import { Badge, Dim } from "../components/ui";
+import { Badge, Card, Count, Dim, Loading } from "../components/ui";
+import { StatTile } from "../components/StatTile";
+import { agentSummary } from "../lib/accessLists";
 import { dateTime } from "../lib/format";
 import type { AgentInfo, AgentsState, MachineConf } from "../types";
 import { tx } from "../lib/i18n";
@@ -28,24 +30,14 @@ const VersionMark = ({ outdated }: Readonly<{ outdated: boolean }>) => outdated
   : <Check size={13} className="text-ok" aria-hidden />;
 
 
-/** Groupe de cartes : titre, compte, texte d'aide, grille (ou le texte « vide ») ; pliable (chevron, comme « Agent créé ») si fold */
-function Group({ title, n, hint, fold, folded, rows, children }: Readonly<{ title: string; n: number; hint?: string; fold?: boolean; folded?: boolean; rows?: boolean; children: React.ReactNode }>) {
-  const [choice, setChoice] = useState<boolean | null>(null);  // null : pas touché, donc ouvert s'il y a des cartes, replié s'il est vide
-  const open = choice ?? (n > 0 && !folded);  // folded : replié d'office même s'il a des cartes (agents révoqués)
-  const shown = !fold || open;
-  if (n === 0) return null;   // catégorie vide : pas affichée
+/** Groupe de cartes : titre, compte, texte d'aide et grille ; absent quand il est vide */
+function Group({ title, n, hint, children }: Readonly<{ title: string; n: number; hint?: string; children: React.ReactNode }>) {
+  if (n === 0) return null;
   return (
     <section aria-label={title}>
-      <h3 className="mb-2 px-1 text-sm font-bold">
-        {fold ? (
-          <button type="button" onClick={() => setChoice(!open)} aria-expanded={open} className="flex items-center gap-2 text-left">
-            {open ? <ChevronDown size={16} className="shrink-0 text-txt" aria-hidden /> : <ChevronRight size={16} className="shrink-0 text-txt" aria-hidden />}
-            {title} <Dim>· {n}</Dim>
-          </button>
-        ) : <span className="flex items-center gap-2">{title} <Dim>· {n}</Dim></span>}
-      </h3>
-      {shown && hint && n > 0 && <InfoNote className="mb-2">{hint}</InfoNote>}
-      {shown && <ul className={rows ? "flex flex-col gap-2" : "grid gap-2 sm:grid-cols-2 lg:grid-cols-3"}>{children}</ul>}{/* rows : une ligne par élément */}
+      <h3 className="mb-2 flex items-center gap-2 px-1 text-sm font-bold">{title} <Dim>· {n}</Dim></h3>
+      {hint && <InfoNote className="mb-2">{hint}</InfoNote>}
+      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{children}</ul>
     </section>
   );
 }
@@ -145,20 +137,71 @@ export function AccessGuide() {
 }
 
 /** Vue d'ensemble, en bas de Réglages → Machines : comment choisir entre agent, SSH et connecteur, et les agents révoqués */
+/** One agent in the list of Machines → Agents: its machine, type, state, version and last report; « Régler » opens its own page */
+function AgentRow({ a, conf }: Readonly<{ a: AgentInfo; conf?: MachineConf }>) {
+  const [tone, label] = STATE[a.state], name = conf?.name ?? a.name;
+  return (
+    <tr className="border-t border-line/60 align-middle even:bg-bg/50 hover:bg-bg2/40">
+      <td className="px-3 py-2"><span className="flex items-center gap-2"><MachineIcon m={{ name, os: conf?.os ?? a.kind ?? "windows", osName: a.os }} reserve /><b className="truncate">{name}</b><Dim>{a.ip}</Dim></span></td>
+      <td className="px-3 py-2 text-xs">{a.kind === "linux" ? "Linux" : "Windows"}</td>
+      <td className="px-3 py-2"><span className="flex flex-wrap gap-1"><Badge tone={tone}>{label}</Badge>{a.host_pending && <Badge tone="warn">{tx("nom à confirmer")}</Badge>}</span></td>
+      <td className="px-3 py-2 text-xs"><span className="inline-flex items-center gap-1">{a.version ? <>v{a.version}<VersionMark outdated={!!a.outdated} /></> : "-"}</span></td>
+      <td className="px-3 py-2 text-xs text-dim">{a.last_seen ? dateTime(a.last_seen * 1000) : tx("en attente du premier relevé")}</td>
+      <td className="px-3 py-2 text-right"><a href={`#settings/machines/agents/${a.ip}`} className="text-xs text-link hover:underline">{tx("Régler")} ›</a></td>
+    </tr>
+  );
+}
+
+/** Machines → Agents: every agent in use with its gestures (the same block as on the machine's page), figures on top, one button to update
+ *  the late ones, then the revoked ones. An agent is installed from the page of its machine, Access tab. */
 export function AgentsOverview({ machines }: Readonly<{ machines: Record<string, MachineConf> }>) {
   const [st, setSt] = useState<AgentsState | null>(null), [install, setInstall] = useState<InstallTarget | null>(null);
+  const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const reload = useCallback(() => { read<AgentsState>("agents").then(setSt).catch(() => undefined); }, []);
   useEffect(reload, [reload]);
-  const revoked = st?.agents.filter((a) => a.state === "révoqué") ?? [];
+  if (!st) return <Loading />;
+  const s = agentSummary(st.agents);
+  const updateLate = async () => {
+    setBusy(true);
+    await act(() => Promise.all(s.outdated.map((a) => send("POST", `agents/${a.id}/update`))), tx("demandée pour {0} agent(s) : chacun se met à jour à son prochain relevé", s.outdated.length), setNote);
+    setBusy(false);
+    reload();
+  };
   return (
-    <>
+    <div className="flex flex-col gap-4">
+      <div className="flex gap-2.5 overflow-x-auto pb-1">
+        <StatTile n={s.active} label={tx("Actifs")} tone="ok" />
+        <StatTile n={s.silent} label={tx("Silencieux")} tone={s.silent ? "warn" : undefined} />
+        <StatTile n={s.pending} label={tx("En attente")} />
+        <StatTile n={s.outdated.length} label={tx("À mettre à jour")} tone={s.outdated.length ? "warn" : undefined} />
+      </div>
       {install && <AgentInstall key={`${install.ip}-auto`} target={install} onChanged={reload} onClose={() => setInstall(null)} />}
-      <Group title={tx("Agents révoqués")} n={revoked.length} fold folded
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 font-bold"><MonitorUp size={16} aria-hidden />{tx("Agents")} <Count n={s.live.length} /></h2>
+          {s.outdated.length > 0 && <button type="button" className={quiet} disabled={busy} onClick={() => void updateLate()}><ArrowUpCircle size={14} aria-hidden />{tx("Mettre à jour les agents en retard ({0})", s.outdated.length)}</button>}
+        </div>
+        <InfoNote className="mt-2">{tx("Un agent s'installe depuis la page d'une machine, onglet Accès. « Régler » ouvre ses gestes : mise à jour automatique ou immédiate, nouveau jeton, révocation.")}</InfoNote>
+        <NoteLine note={note} />
+        {s.live.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucun agent installé : le SSH lit déjà vos machines, ou aucun PC n'en a besoin.")}</p>}
+        {s.live.length > 0 && (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[720px] border-collapse text-sm">
+              <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
+                <th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Type")}</th><th className="px-3 py-2">{tx("État")}</th>
+                <th className="px-3 py-2">{tx("Version")}</th><th className="px-3 py-2">{tx("Dernier relevé")}</th><th className="px-3 py-2" />
+              </tr></thead>
+              <tbody>{s.live.map((a) => <AgentRow key={a.id} a={a} conf={machines[a.ip]} />)}</tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+      <Group title={tx("Agents révoqués")} n={s.revoked.length}
         hint={tx("Leur jeton ne marche plus. « Nouvel agent » en crée un autre pour ce PC ; « Supprimer » les retire de la liste pour de bon.")}>
-        {revoked.map((a) => <RevokedCard key={a.id} a={a} conf={machines[a.ip]} ip={a.ip} busy={install?.ip === a.ip && !!install.auto}
+        {s.revoked.map((a) => <RevokedCard key={a.id} a={a} conf={machines[a.ip]} ip={a.ip} busy={install?.ip === a.ip && !!install.auto}
           onNew={() => setInstall({ ip: a.ip, name: machines[a.ip]?.name ?? a.name, kind: a.kind ?? "windows", auto: true })} reload={reload} />)}
       </Group>
-    </>
+    </div>
   );
 }
 

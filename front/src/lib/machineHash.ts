@@ -1,15 +1,15 @@
-// The page of one machine (#machines/<ip>, #machines/<ip>/access): what the address names, and the redirects of the old settings links.
+// The pages of one machine (#machines/<ip> its information, #machines/<ip>/settings its settings, /access on the Access tab): what the address names, and the redirects of the old settings links.
 import type { Item } from "../tabs/Availability";
 
-export interface MachineTarget { ip: string; tab?: "access" }
+export interface MachineTarget { ip: string; tab?: "settings" | "access" }
 
 const IP = /^\d{1,3}(\.\d{1,3}){3}$/;
 
-/** `#machines/<ip>[/access]` -> the machine and the part to open; null for the list (`#machines`) or another tab */
+/** `#machines/<ip>[/settings|/access]` -> the machine and the page to open; null for the list (`#machines`) or another tab */
 export function machineFromHash(hash: string): MachineTarget | null {
   const [tab, ip, part] = hash.replace(/^#/, "").split("/");
   if (tab !== "machines" || !ip || !IP.test(ip)) return null;
-  return part === "access" ? { ip, tab: "access" } : { ip };
+  return part === "access" || part === "settings" ? { ip, tab: part } : { ip };
 }
 
 /** Old settings links of one machine: `#settings/machines/<ip>` -> `machines/<ip>`, `#settings/agents/<ip>` -> `machines/<ip>/access`; else null */
