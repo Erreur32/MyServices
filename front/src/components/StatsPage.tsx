@@ -50,7 +50,13 @@ export function statGroups(snap: Snapshot, nav: Open): Partial<Record<TabId, Rea
     ...extraGroups(snap, nav),
   ];
   const byTab: Partial<Record<TabId, ReactNode[]>> = {};
-  for (const g of groups) if (g && typeof g === "object" && "props" in g) (byTab[g.props.tab as TabId] ??= []).push(g);
+  for (const g of groups) {
+    if (!g || typeof g !== "object" || !("props" in g)) continue;
+    const tab = g.props.tab as TabId;
+    const list = byTab[tab] ?? [];
+    list.push(g);
+    byTab[tab] = list;
+  }
   return byTab;
 }
 

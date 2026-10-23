@@ -27,7 +27,7 @@ import { PasswordRules } from "../components/PasswordRules";
 import { InfoNote } from "../components/InfoNote";
 
 /** The sections, reached from the side menu (#settings/<section>[/<part>]); their place in the menu: lib/tabs.ts (NAV) */
-const SECTIONS = ["machines", "connectors", "network", "backups", "alerts", "accounts", "api", "ssh", "tasks", "updates", "requests", "mail", "export"];
+const SECTIONS = new Set(["machines", "connectors", "network", "backups", "alerts", "accounts", "api", "ssh", "tasks", "updates", "requests", "mail", "export"]);
 
 const ROLE: Record<User["role"], string> = { admin: "admin", viewer: tx("lecture seule") };
 const ROLE_CHOICE: IconOption<User["role"]>[] = [
@@ -58,7 +58,7 @@ function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snaps
 function sectionFromId(id: string): string {
   const norm = normalizeSection(id);
   if (norm.redirect) { location.hash = norm.redirect; return "accounts"; }
-  return SECTIONS.includes(norm.section!) ? norm.section! : "accounts";
+  return SECTIONS.has(norm.section!) ? norm.section! : "accounts";
 }
 
 export function Settings({ snap }: { snap: Snapshot }) {
@@ -80,7 +80,7 @@ export function Settings({ snap }: { snap: Snapshot }) {
       const s = location.hash.split("/")[1];
       const norm = normalizeSection(s);
       if (norm.redirect) { location.hash = norm.redirect; return; }
-      if (SECTIONS.includes(norm.section!)) setSection(norm.section!);
+      if (SECTIONS.has(norm.section!)) setSection(norm.section!);
     };
     addEventListener("hashchange", go);
     return () => removeEventListener("hashchange", go);

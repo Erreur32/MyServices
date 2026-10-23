@@ -10,7 +10,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import type { Snapshot } from "../api";
 import { NoteLine, Switch } from "../components/form";
-import { Badge, Count, Dim, TITLE } from "../components/ui";
+import { Badge, Count, Dim, Loading, TITLE } from "../components/ui";
 import { Action, MODE, MuteButton, Title, useDiscoveries, when, type DiscoveryItem } from "../components/DiscoveryCard";
 import { NetworkStep } from "../components/NetworkStep";
 import { appIcon } from "../lib/appIcons";
@@ -101,6 +101,22 @@ function partOf(hash: string): Part {
   return v === "hosts" || v === "services" || v === "suggestions" || v === "forgotten" ? v : "mode";
 }
 
+/** The line under « Machines on the network »: the ticked count while choosing, else the last search and what happens to the machines found */
+function hostsHint(picked: number, last: number | null, note: string | undefined, auto: boolean): string {
+  if (picked) return tx("{0} cochée(s)", picked);
+  const when = last ? tx("dernière recherche : {0}", dateTime(last)) : tx("aucune recherche faite");
+  const what = note || (auto ? tx("le mode automatique ajoute seul les plus utiles") : tx("à cocher pour les suivre, ou à ignorer"));
+  return [when, what].join(" · ");
+}
+
+/** The state of the network search: running, turned off, waiting for its first pass, or its rhythm */
+function SearchState({ running, everyH, last }: Readonly<{ running: boolean; everyH: number; last: number | null }>) {
+  if (running) return <Badge tone="info"><RefreshCw size={11} className="mr-1 inline animate-spin" aria-hidden />{tx("en cours")}</Badge>;
+  if (everyH === 0) return <Badge tone="off">{tx("automatique coupée")}</Badge>;
+  if (!last) return <Badge tone="info">{tx("première recherche dans la minute")}</Badge>;
+  return <Badge tone="ok">{tx("toutes les {0} h", everyH)}</Badge>;
+}
+
 export function NetworkSettings({ snap }: Readonly<{ snap: Snapshot }>) {
   const part = partOf(location.hash);
   const [disc, reloadDisc] = useDiscoveries();
@@ -116,7 +132,7 @@ export function NetworkSettings({ snap }: Readonly<{ snap: Snapshot }>) {
   usePoll(load, running ? 10_000 : 60_000);   // 10 s seulement pour suivre une recherche en cours
   const [searchNote, setSearchNote] = useState<Note>(null);   // shown under the search line, next to its button
   const scanNow = () => act(async () => { await send("POST", "network/scan"); pokeScan(); }, tx("recherche lancée"), setSearchNote).then(() => load());
-  if (!cfg || !scan) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
+  if (!cfg || !scan) return <Loading error={error} />;
 
   const items = disc?.items ?? [];
   const todo = items.filter((x) => x.state === "todo" && x.id !== "hosts").sort(byLabel);
@@ -134,10 +150,10 @@ export function NetworkSettings({ snap }: Readonly<{ snap: Snapshot }>) {
   const saveAuto = (on: boolean) => act(() => send("PUT", "network/settings", { auto: on }), on ? tx("mode automatique activé") : tx("mode manuel : rien n'est plus ajouté tout seul"), setNote)
     .then((ok) => { if (ok) { load(); reloadDisc(); } });
 
-  return (
-    <div className="flex flex-col gap-4">
-      {/* 1. En-tête : l'état, le mode, la recherche réseau */}
-      {part === "mode" && <section className={`${CARD} ${TITLE}`} aria-label={tx("Découverte")}>
+  const pages: Record<Part, ReactNode> = {
+      // 1. En-tête : l'état, le mode, la recherche réseau
+      mode: <>
+      <section className={`${CARD} ${TITLE}`} aria-label={tx("Découverte")}>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h2 className="flex items-center gap-2 text-lg font-bold"><Radar size={18} aria-hidden />{tx("Découverte")}</h2>
           {todo.length ? <Badge tone="warn">{tx("{0} chose(s) à faire", todo.length)}</Badge> : <Badge tone="ok">{tx("rien d'obligatoire à faire")}</Badge>}
@@ -167,55 +183,52 @@ export function NetworkSettings({ snap }: Readonly<{ snap: Snapshot }>) {
           <button type="button" className={quiet} onClick={reopenAssistant} title={tx("Rouvre l'assistant depuis le début")}><ListChecks size={14} aria-hidden />{tx("Revoir l'assistant de démarrage")}</button>
         </div>
         <NoteLine note={note} />
-      </section>}
+      </section>
 
       {/* 2. À faire */}
-      {part === "mode" && todo.length > 0 && (
+      {todo.length > 0 && (
         <Section icon={<Bell size={16} className="text-warn" aria-hidden />} title={tx("À faire")} n={todo.length} hint={tx("Nécessaire : sans ça, MyServices ne voit pas tout.")}>
           <ul className="flex flex-col divide-y divide-line/60">{todo.map((x) => <Row key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} />)}</ul>
         </Section>
       )}
+      </>,
 
-      {/* 3. Machines sur le réseau */}
-      {part === "hosts" && <Section id="net-hosts" icon={<Radar size={16} aria-hidden />} title={tx("Machines sur le réseau")} n={scan.found.filter((h) => !h.known).length || undefined}
-        hint={picked ? tx("{0} cochée(s)", picked) : [last ? tx("dernière recherche : {0}", dateTime(last)) : tx("aucune recherche faite"),
-          hostsItem?.note || (cfg.auto ? tx("le mode automatique ajoute seul les plus utiles") : tx("à cocher pour les suivre, ou à ignorer"))].join(" · ")}>
+      // 3. Machines sur le réseau
+      hosts: <Section id="net-hosts" icon={<Radar size={16} aria-hidden />} title={tx("Machines sur le réseau")} n={scan.found.filter((h) => !h.known).length || undefined}
+        hint={hostsHint(picked, last, hostsItem?.note, cfg.auto)}>
         {/* the network search fills this frame: its state and settings here, its button just below */}
         <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line/60 pb-3 text-sm">
           <Search size={15} className="text-muted" aria-hidden /><b>{tx("Recherche sur le réseau")}</b>
-          {running ? <Badge tone="info"><RefreshCw size={11} className="mr-1 inline animate-spin" aria-hidden />{tx("en cours")}</Badge>
-            : cfg.every_h === 0 ? <Badge tone="off">{tx("automatique coupée")}</Badge>
-            : !last ? <Badge tone="info">{tx("première recherche dans la minute")}</Badge>
-            : <Badge tone="ok">{tx("toutes les {0} h", cfg.every_h)}</Badge>}
+          <SearchState running={running} everyH={cfg.every_h} last={last} />
           {last ? <span className="text-dim">{tx("dernière :")} {dateTime(last)} · {scan.found.length} {tx("appareils")}</span> : <Dim>{tx("aucune recherche faite")}</Dim>}
           {next && !running && <span className="text-dim">{tx("prochaine à partir de {0}", dateTime(next))}</span>}
           <span className="ml-auto flex flex-wrap gap-2">
             <button type="button" className={primary} disabled={running} onClick={() => void scanNow()}>
-              {last ? <RefreshCw size={14} aria-hidden /> : <Search size={14} aria-hidden />}{last ? tx("Relancer la recherche") : tx("Chercher maintenant")}</button>
+              {last ? <><RefreshCw size={14} aria-hidden />{tx("Relancer la recherche")}</> : <><Search size={14} aria-hidden />{tx("Chercher maintenant")}</>}</button>
             <a href="#settings/tasks" className={`${quiet} no-underline`} title={tx("Fréquence, réseaux à parcourir et mode discret : dans Tâches et horaires")}><Timer size={14} aria-hidden />{tx("Réglages de la recherche")}</a>
           </span>
         </div>
         <NoteLine note={searchNote} />
         <NetworkStep noButton net={scan} reload={load} machines={snap.data.machine_list} connected={snap.data.services_status ?? []} ignoredList={cfg.ignored} onCount={setPicked} />
-      </Section>}
+      </Section>,
 
-      {/* 4. Applis à activer : only those that run (stopped and forgotten ones are put aside, below) */}
-      {part === "services" && (
+      // 4. Applis à activer : only those that run (stopped and forgotten ones are put aside, below)
+      services: (
         <Section id="net-services" icon={<Boxes size={16} aria-hidden />} title={tx("Applis à activer")} n={apps.length}
           hint={tx("Applis reconnues sur vos machines, qu'un connecteur peut lire. Facultatif : « Oublier » range celles qui ne vous servent pas, « Rappeler » les fait revenir.")}>
           {apps.length ? <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{apps.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul> : <Dim>{tx("Rien ici pour l'instant.")}</Dim>}
         </Section>
-      )}
+      ),
 
-      {/* 5. Autres suggestions */}
-      {part === "suggestions" && (
+      // 5. Autres suggestions
+      suggestions: (
         <Section id="net-backups" icon={<Lightbulb size={16} aria-hidden />} title={tx("Autres suggestions")} n={others.length} hint={tx("Facultatif : pour en voir davantage.")}>
           {others.length ? <ul className="flex flex-col divide-y divide-line/60">{others.map((x) => <Row key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} />)}</ul> : <Dim>{tx("Rien ici pour l'instant.")}</Dim>}
         </Section>
-      )}
+      ),
 
-      {/* 6. Mis de côté : stopped containers and what was forgotten, grouped by category, each with its button */}
-      {part === "forgotten" && (
+      // 6. Mis de côté : stopped containers and what was forgotten, grouped by category, each with its button
+      forgotten: (
         <Section id="net-forgotten" icon={<EyeOff size={16} className="text-muted" aria-hidden />} title={tx("Arrêtés et oubliés")} n={aside}
           hint={tx("mis de côté : rien à activer tant qu'un conteneur est arrêté ; « Rappeler » fait revenir ce qui a été oublié")}>
           {aside === 0 && <Dim>{tx("Rien ici pour l'instant.")}</Dim>}
@@ -237,8 +250,8 @@ export function NetworkSettings({ snap }: Readonly<{ snap: Snapshot }>) {
             )}
           </div>
         </Section>
-      )}
+      ),
+  };
 
-    </div>
-  );
+  return <div className="flex flex-col gap-4">{pages[part]}</div>;
 }

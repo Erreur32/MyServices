@@ -103,18 +103,13 @@ function Flyout({ item, active, at, counts, onNavigate }: Readonly<{ item: NavIt
   );
 }
 
-function NavEntry({ item, active, narrow, badge, counts, onNavigate, onBadge }: Readonly<{
-  item: NavItem; active: string; narrow: boolean; badge?: Level; counts: Counts; onNavigate: () => void; onBadge: (t: TabId) => void;
-}>) {
+/** The panel of a folded entry with sub-pages: opened on hover or on a click (Profile → Appearance), closed by Escape, a click elsewhere or the focus leaving */
+function useFlyoutPanel(flies: boolean) {
   const mode = useFlyout();
   const box = useRef<HTMLDivElement>(null);
   const [fly, setFly] = useState<DOMRect | null>(null);
-  const flies = narrow && !!item.subs;   // folded, with sub-pages: they open in a panel
-  const open = leaves(item).some((x) => x.id === active);
-  const [fold, setFold] = useState<boolean | null>(null);   // chosen with the name or the chevron; follows the open page again when it changes
-  useEffect(() => setFold(null), [open]);
-  const expanded = fold ?? open;
   const show = () => setFly(box.current?.getBoundingClientRect() ?? null);
+  const hide = () => setFly(null);
   useEffect(() => {
     if (!fly) return;
     const key = (e: KeyboardEvent) => { if (e.key === "Escape") setFly(null); };
@@ -123,38 +118,69 @@ function NavEntry({ item, active, narrow, badge, counts, onNavigate, onBadge }: 
     addEventListener("mousedown", away);
     return () => { removeEventListener("keydown", key); removeEventListener("mousedown", away); };
   }, [fly]);
-  const click = (e: MouseEvent) => {
-    if (flies && mode === "click") { e.preventDefault(); if (fly) setFly(null); else show(); return; }
-    if (!narrow && item.subs) { e.preventDefault(); setFold(!expanded); return; }   // a category: its name opens (or closes) its sub-pages, the page stays
-    setFly(null);
-    onNavigate();
-  };
   const blur = (e: FocusEvent) => { if (!box.current?.contains(e.relatedTarget as Node)) setFly(null); };
-  const hover = flies && mode === "hover";
-  const named = badge ? [item.label, levelText(badge)].join(", ") : item.label;   // folded: the name (and the dot's meaning) for screen readers
+  const onShow = mode === "hover" ? show : undefined;
+  const bind = flies ? { onMouseEnter: onShow, onMouseLeave: hide, onFocus: onShow, onBlur: blur } : {};
+  const toggle = () => (fly ? hide() : show());
+  return { box, fly, hide, toggle, byClick: flies && mode === "click", bind };
+}
+
+/** The link of an entry: its icon, and its name when the menu is unfolded (folded: the name and the dot's meaning for screen readers) */
+function EntryLink({ item, open, narrow, flies, flown, badge, onClick }: Readonly<{
+  item: NavItem; open: boolean; narrow: boolean; flies: boolean; flown: boolean; badge?: Level; onClick: (e: MouseEvent) => void;
+}>) {
+  const named = badge ? [item.label, levelText(badge)].join(", ") : item.label;
+  const room = !narrow && (badge || item.subs) ? "pr-16" : "";   // room for the dot and the chevron
   const Icon = item.icon;
   return (
-    <div ref={box} onMouseEnter={hover ? show : undefined} onMouseLeave={flies ? () => setFly(null) : undefined} onFocus={hover ? show : undefined} onBlur={flies ? blur : undefined}>
+    <a href={`#${item.hash}`} onClick={onClick} aria-current={open && !item.subs ? "page" : undefined} title={narrow ? item.label : undefined}
+      aria-label={narrow ? named : undefined} aria-haspopup={flies ? "menu" : undefined} aria-expanded={flies ? flown : undefined}
+      className={`${ROW} py-2 ${narrow ? "justify-center" : "px-3"} ${room} ${rowTone(open)}`}>
+      <Icon size={17} strokeWidth={1.75} aria-hidden className="shrink-0" />
+      {!narrow && <span className="truncate">{item.label}</span>}
+    </a>
+  );
+}
+
+/** The chevron that opens or closes the sub-pages of a category */
+function FoldButton({ expanded, onToggle }: Readonly<{ expanded: boolean; onToggle: () => void }>) {
+  const label = expanded ? tx("Replier") : tx("Déplier");
+  return (
+    <button type="button" onClick={onToggle} aria-expanded={expanded} aria-label={label} title={label}
+      className="absolute right-1.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-dim hover:bg-bg hover:text-txt">
+      <ChevronRight size={14} aria-hidden className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
+    </button>
+  );
+}
+
+function NavEntry({ item, active, narrow, badge, counts, onNavigate, onBadge }: Readonly<{
+  item: NavItem; active: string; narrow: boolean; badge?: Level; counts: Counts; onNavigate: () => void; onBadge: (t: TabId) => void;
+}>) {
+  const flies = narrow && !!item.subs;   // folded, with sub-pages: they open in a panel
+  const panel = useFlyoutPanel(flies);
+  const open = leaves(item).some((x) => x.id === active);
+  const [fold, setFold] = useState<boolean | null>(null);   // chosen with the name or the chevron; follows the open page again when it changes
+  useEffect(() => setFold(null), [open]);
+  const expanded = fold ?? open;
+  const category = !narrow && !!item.subs;
+  const click = (e: MouseEvent) => {
+    if (panel.byClick) { e.preventDefault(); panel.toggle(); return; }
+    if (category) { e.preventDefault(); setFold(!expanded); return; }   // a category: its name opens (or closes) its sub-pages, the page stays
+    panel.hide();
+    onNavigate();
+  };
+  return (
+    <div ref={panel.box} {...panel.bind}>
       <span className="relative flex">
-        <a href={`#${item.hash}`} onClick={click} aria-current={open && !item.subs ? "page" : undefined} title={narrow ? item.label : undefined}
-          aria-label={narrow ? named : undefined} aria-haspopup={flies ? "menu" : undefined} aria-expanded={flies ? !!fly : undefined}
-          className={`${ROW} py-2 ${narrow ? "justify-center" : "px-3"} ${!narrow && (badge || item.subs) ? "pr-16" : ""} ${rowTone(open)}`}>
-          <Icon size={17} strokeWidth={1.75} aria-hidden className="shrink-0" />
-          {!narrow && <span className="truncate">{item.label}</span>}
-        </a>
+        <EntryLink item={item} open={open} narrow={narrow} flies={flies} flown={!!panel.fly} badge={badge} onClick={click} />
         {badge && narrow && <span aria-hidden className={`pointer-events-none absolute right-2 top-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg2 ${badge === "crit" ? "bg-bad" : "bg-warn"}`} />}
         {badge && !narrow && <Badge level={badge} tab={item.tab} onBadge={onBadge} />}
-        {!narrow && item.subs && (
-          <button type="button" onClick={() => setFold(!expanded)} aria-expanded={expanded} aria-label={expanded ? tx("Replier") : tx("Déplier")} title={expanded ? tx("Replier") : tx("Déplier")}
-            className="absolute right-1.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-dim hover:bg-bg hover:text-txt">
-            <ChevronRight size={14} aria-hidden className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
-          </button>
-        )}
+        {category && <FoldButton expanded={expanded} onToggle={() => setFold(!expanded)} />}
       </span>
-      {!narrow && expanded && item.subs && (
-        <div className="mt-0.5 flex flex-col gap-0.5"><SubLinks subs={item.subs} active={active} depth={0} counts={counts} onNavigate={onNavigate} /></div>
+      {category && expanded && (
+        <div className="mt-0.5 flex flex-col gap-0.5"><SubLinks subs={item.subs!} active={active} depth={0} counts={counts} onNavigate={onNavigate} /></div>
       )}
-      {fly && <Flyout item={item} active={active} at={fly} counts={counts} onNavigate={() => { setFly(null); onNavigate(); }} />}
+      {panel.fly && <Flyout item={item} active={active} at={panel.fly} counts={counts} onNavigate={() => { panel.hide(); onNavigate(); }} />}
     </div>
   );
 }
@@ -183,7 +209,7 @@ export function Sidebar({ snap, badges, onNavigate, onBadge, mobileOpen, onClose
       {snap.me.role === "admin" && <DiscoveryTodo onTodo={setTodo} />}
       {mobileOpen && <button type="button" aria-label={tx("Fermer le menu")} onClick={onClose} className="fixed inset-0 z-40 bg-black/50 md:hidden" />}
       <nav aria-label={tx("Menu principal")} className={`${place} h-screen shrink-0 flex-col border-r border-line bg-bg2 ${narrow ? "w-16 px-2" : "w-60 px-3"}`}>
-        <a href="#" onClick={onNavigate} title={tx("Accueil")} className={`flex shrink-0 items-center gap-2.5 border-b border-line py-4 text-xl font-bold tracking-tight text-txt no-underline ${narrow ? "justify-center" : "px-2"}`}>
+        <a href="#home" onClick={onNavigate} title={tx("Accueil")} className={`flex shrink-0 items-center gap-2.5 border-b border-line py-4 text-xl font-bold tracking-tight text-txt no-underline ${narrow ? "justify-center" : "px-2"}`}>
           <img src={`${import.meta.env.BASE_URL}${HEADER_LOGOS.find((l) => l.id === logo)!.file}`} alt="" width={30} height={30} className="shrink-0" />
           {narrow ? <span className="sr-only">{tx("MyServices")}</span> : tx("MyServices")}
         </a>

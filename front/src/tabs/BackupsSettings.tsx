@@ -6,7 +6,7 @@ import { Archive, ArchiveRestore, ChevronRight, Copy, FolderPen, FolderSearch, F
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import { NoteLine, Switch, TagInput } from "../components/form";
-import { Badge, Card, Count, Dim } from "../components/ui";
+import { Badge, Card, Count, Dim, Loading } from "../components/ui";
 import { DROP_PANEL, DropItem, DropSep, useDropdown } from "../components/Dropdown";
 import { bytes, dateTime } from "../lib/format";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
@@ -164,6 +164,12 @@ function RowMenu({ s, onPick }: Readonly<{ s: SetRow; onPick: (what: "rename" | 
 const PARTS = ["add", "copies", "paths", "archived"] as const;
 type Part = "sets" | (typeof PARTS)[number];
 
+/** The sub-page shown: the one named in the address, else the one that lists the set named there (#settings/backups/<set id>) */
+function partOf(named: Part | undefined, focus: string, archived: SetRow[]): Part {
+  if (named) return named;
+  return focus && archived.some((x) => x.id === focus) ? "archived" : "sets";
+}
+
 export function BackupsSettings({ machines = [], issues = [] }: Readonly<{ machines?: Machine[]; issues?: Issue[] }>) {
   const machineOf = (ip?: string | null) => machines.find((m) => m.ip === ip);
   const [cur, setCur] = useState<Current | null>(null), [error, setError] = useState("");
@@ -248,7 +254,7 @@ export function BackupsSettings({ machines = [], issues = [] }: Readonly<{ machi
     if (ok) { setExtra(null); setHostExtra({}); setFound(null); load(); }
   };
 
-  if (!cur) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
+  if (!cur) return <Loading error={error} />;
   const live = cur.sets.filter((s) => !s.archived), archived = cur.sets.filter((s) => s.archived);
   const countOf = (src: SourceId) => live.filter((s) => sourceOf(s) === src).length;
   const flagged = live.filter((s) => issuesOf(s.id).length > 0);
@@ -263,7 +269,7 @@ export function BackupsSettings({ machines = [], issues = [] }: Readonly<{ machi
     <div>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={primary} disabled={searching || cur.machines === 0} onClick={() => void search()}>
-          {searching ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <FolderSearch size={14} aria-hidden />}{searching ? tx("Recherche…") : tx("Chercher")}
+          {searching ? <><Loader2 size={14} className="animate-spin" aria-hidden />{tx("Recherche…")}</> : <><FolderSearch size={14} aria-hidden />{tx("Chercher")}</>}
         </button>
         <span className="text-xs text-dim">
           {cur.machines === 0 ? tx("Aucune machine n'est lue par SSH : activez l'accès SSH d'une machine (Réglages → Machines) pour y chercher des sauvegardes.")
@@ -428,13 +434,8 @@ export function BackupsSettings({ machines = [], issues = [] }: Readonly<{ machi
     );
   };
 
-  const part: Part = named ?? (focus && archived.some((x) => x.id === focus) ? "archived" : "sets");   // a set named in the address: the page that lists it
-  return (
-    <div className="flex flex-col gap-4">
-      <span className="text-sm text-muted">{tx("{0} jeu(x) suivi(s)", live.length)} · {tx("{0} source(s) branchée(s)", wired)}</span>
-      <NoteLine note={note} />
-
-      {part === "sets" && <Card>
+  const pages: Record<Part, ReactNode> = {
+      sets: <Card>
         <h2 className="mb-1 flex items-center gap-2 font-bold"><HardDrive size={16} />{tx("Mes jeux suivis")} <Count n={live.length} />
           {flagged.length > 0 && <Badge tone="warn" title={tx("Jeux signalés dans « À surveiller » de l'onglet Sauvegardes")}>{tx("{0} à voir", flagged.length)}</Badge>}</h2>
         <InfoNote className="mb-3">{tx("Chaque champ s'enregistre à la saisie. MyServices regarde l'âge du fichier le plus récent de chaque jeu et vous prévient s'il est trop vieux ; lecture seule, rien n'est modifié sur les machines. Le menu ⋯ d'une ligne : renommer, modifier le dossier, copies ailleurs, archiver, retirer.")}</InfoNote>
@@ -462,9 +463,9 @@ export function BackupsSettings({ machines = [], issues = [] }: Readonly<{ machi
             </div>
           </>
         )}
-      </Card>}
+      </Card>,
 
-      {part === "add" && <Card>
+      add: <Card>
         <h2 className="mb-1 flex items-center gap-2 font-bold"><SlidersHorizontal size={16} />{tx("Ajouter des sauvegardes")}</h2>
         <InfoNote className="mb-3">{tx("Les sources branchées d'abord ; une source grisée demande un connecteur. Un clic ouvre l'assistant de la source sous les tuiles.")}</InfoNote>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -493,14 +494,14 @@ export function BackupsSettings({ machines = [], issues = [] }: Readonly<{ machi
             <div className="[&_h2]:hidden [&>section]:border-0 [&>section]:bg-transparent [&>section]:p-0 [&>section]:shadow-none">{opened.panel}</div>
           </div>
         )}
-      </Card>}
+      </Card>,
 
-      {part === "copies" && <Card>
+      copies: <Card>
             <h2 className="mb-1 flex items-center gap-2 font-bold"><Copy size={16} aria-hidden />{tx("Copies ailleurs")}</h2>
             <InfoNote className="mb-2">{tx("Où vos sauvegardes sont copiées (autre machine, NAS, box) : comparées à la source à chaque relevé. Pour un jeu précis : menu ⋯ › Copies ailleurs.")}</InfoNote>
             {live.some((x) => x.path) && cur.machines > 0 ? <CopyGuesses onDone={load} setNote={setNote} /> : <Dim>{tx("Rien à chercher : aucun dossier suivi sur une machine lue par SSH.")}</Dim>}
-      </Card>}
-      {part === "paths" && <Card>
+      </Card>,
+      paths: <Card>
             <h2 className="mb-1 flex items-center gap-2 font-bold"><FolderSearch size={16} aria-hidden />{tx("Emplacements cherchés")}</h2>
             <div className="mb-1 flex flex-wrap items-center gap-2 text-sm"><b>{tx("Dossier par défaut")}</b><code className="font-mono text-xs">{cur.default_path}</code>
               <Dim>{tx("toujours cherché ; s'il existe sur une machine, il est coché d'office.")}</Dim></div>
@@ -524,8 +525,8 @@ export function BackupsSettings({ machines = [], issues = [] }: Readonly<{ machi
               </details>
             )}
             {dirty && <button type="button" className={`${primary} mt-2`} disabled={busy} onClick={() => void savePatterns()}>{tx("Enregistrer les emplacements")}</button>}
-      </Card>}
-      {part === "archived" && <Card>
+      </Card>,
+      archived: <Card>
             <h2 className="mb-1 flex items-center gap-2 font-bold"><Archive size={16} aria-hidden />{tx("Jeux archivés")} <Count n={archived.length} tone="off" /></h2>
             <InfoNote className="mb-2">{tx("Gardés dans l'inventaire et en fin de « Tout voir » de l'onglet, plus surveillés (une VM arrêtée, un ancien dossier).")}</InfoNote>
             {archived.length === 0 ? <Dim>{tx("Aucun jeu archivé.")}</Dim> : (
@@ -541,7 +542,13 @@ export function BackupsSettings({ machines = [], issues = [] }: Readonly<{ machi
                 ))}
               </ul>
             )}
-      </Card>}
+      </Card>,
+  };
+  return (
+    <div className="flex flex-col gap-4">
+      <span className="text-sm text-muted">{tx("{0} jeu(x) suivi(s)", live.length)} · {tx("{0} source(s) branchée(s)", wired)}</span>
+      <NoteLine note={note} />
+      {pages[partOf(named, focus, archived)]}
     </div>
   );
 }
