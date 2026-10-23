@@ -11,6 +11,22 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.19.1 (2026-10-23)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Added
+- **Veeam: what each job backs up, on the machines**: the job settings give each VM (or computer) with the host it runs on, its size (Veeam writes it as text in the server's language: « 129,7 GB », « 1.5 TB ») and its restore points. A VM goes to the machine of the same name; the machine window shows « Backed up by Veeam » (job, host, repository, age, VM size, points) and a hypervisor lists the « VMs backed up here », the ones with no machine flagged « not linked ».
+- **Veeam wizard: the machine of each VM**: under each job, its VMs with the machine found by name, another one or « no machine » chosen in a menu; « Change the machines » on a followed job keeps its name and threshold. The choice wins over the name.
+- **Veeam: backups without a job**: Veeam B&R 12.0 leaves computers backed up by Veeam Agent out of its job list; their backup is now read as a job (date of the newest restore point, result of its last session when there is one). Imported backups are left out. Job contents, backups and restore points are optional reads, kept 30 min when a cache is available.
+
+### Security
+- **certifi 2026.10.19** (Dependabot alert, critical): the CA bundle no longer trusts the emSign roots whose intermediate keys were compromised.
+
+### Fixed
+- **Menu paths brought up to date**: the agent of a machine lives in its window (« Access » tab), not in a Settings → Agents page any more (README EN and FR, the « computer name changed » message of an agent); e-mail settings are in Settings → Backup and info; a task run by hand is logged under « Tasks and schedules ».
+- **Veeam: « (inactive) » no longer shown after the last result**: Veeam 12 writes the state in lower case (« inactive », « disabled »); a disabled job is recognised whatever its case.
+
 ## v0.19.0 (2026-10-22)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

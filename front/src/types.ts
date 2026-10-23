@@ -368,6 +368,21 @@ export interface BackupLocation {
   size?: number | null;
   encrypted?: boolean;
   newest?: { name: string; mtime: number; size?: number } | null;   // the latest archive found there
+  job?: string;             // Veeam job followed at this place
+  repository?: string;      // Veeam repository the job writes to
+  objects?: VeeamObject[];  // what the Veeam job backs up, with the machine each one is
+}
+
+/** A VM or computer backed up by a Veeam job. machine: the machine it is (chosen in the wizard, or by name); runs_on: the hypervisor it runs on. */
+export interface VeeamObject {
+  name: string;
+  host: string;             // host (ESXi, Hyper-V) as Veeam names it: address or name
+  type: string;
+  size: number | null;      // VM size, not the backup's
+  points: number | null;    // restore points kept
+  machine: string | null;
+  machine_by: "chosen" | "ip" | "name" | null;
+  runs_on: string | null;
 }
 
 export interface BackupSet {

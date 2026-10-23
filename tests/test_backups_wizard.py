@@ -163,6 +163,22 @@ class VeeamAssistant(Base):
         self.assertEqual(ba.veeam_follow(self.acct(password=""), [{"name": "Serveur fichiers", "copy_of": "PC-Jeu image"}]),
                          {"added": 0, "updated": 0})   # no second copy location
 
+    def test_machines_choisies_gardees_par_job(self):
+        """The wizard's choice VM -> machine is kept on the job's location (replaced on a new follow, dropped when empty); a bad address is refused."""
+        jobs = [{"name": "PC-Jeu image", "machines": {"pc-jeu": "10.0.0.20", "Mediacenter": ""}}]
+        ba.veeam_follow(self.acct(), jobs)
+        self.assertEqual(self.meta_json()["sets"][0]["locations"][0]["machines"], {"pc-jeu": "10.0.0.20", "Mediacenter": ""})
+        ba.veeam_follow(self.acct(password=""), [{"name": "PC-Jeu image", "machines": {"pc-jeu": "10.0.0.21"}}])
+        self.assertEqual(self.meta_json()["sets"][0]["locations"][0]["machines"], {"pc-jeu": "10.0.0.21"})
+        job = next(j for j in ba.veeam_discover(self.acct(password=""))["jobs"] if j["name"] == "PC-Jeu image")
+        self.assertEqual((job["set_label"], job["max_age_days"]), ("Veeam : PC-Jeu image", 2.0))   # given back to the wizard as they are
+        ba.veeam_follow(self.acct(password=""), [{"name": "PC-Jeu image"}])
+        self.assertNotIn("machines", self.meta_json()["sets"][0]["locations"][0])
+        for bad in ({"pc-jeu": "pas-une-ip"}, {"": "10.0.0.1"}, {"pc-jeu": 5}, ["pc-jeu"]):
+            acct, jobs = self.acct(password=""), [{"name": "PC-Jeu image", "machines": bad}]
+            with self.assertRaises(ba.BackupError, msg=str(bad)):
+                ba.veeam_follow(acct, jobs)
+
     def test_job_de_copie_refuse_sans_le_job_copie(self):
         for jobs in ([{"name": "Serveur fichiers", "copy_of": "PC-Jeu image"}],    # copied job not followed
                      [{"name": "Serveur fichiers", "copy_of": "Inconnu"}], [{"name": "Serveur fichiers", "copy_of": "Serveur fichiers"}]):

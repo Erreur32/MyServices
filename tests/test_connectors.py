@@ -9,8 +9,10 @@ import sys
 import threading
 import time
 import unittest
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -601,13 +603,36 @@ class ProcessTests(unittest.TestCase):
             self.assertIn("Permission denied", str(e.exception))
 
 
+def veeam_route(v: dict, path: str) -> tuple[int, dict]:
+    """Fake Veeam 12.0 (shapes of a real server): jobs/states, job settings, backups and their objects, restore points by backup."""
+    p = path.split("?")[0]
+    if p.endswith("jobs/states"):
+        return 200, v["jobs"]
+    if "/sessions" in p:
+        return 200, v["sessions"]
+    if p == "/api/v1/jobs":
+        return 200, v["config"]
+    if p == "/api/v1/backups":
+        return 200, v["backups"]
+    if p.startswith("/api/v1/backups/") and p.endswith("/objects"):
+        return 200, v["objects"].get(p.split("/")[4], {"data": []})
+    if p == "/api/v1/objectRestorePoints":
+        bid = urllib.parse.parse_qs(path.split("?", 1)[1]).get("backupIdFilter", [""])[0]
+        return 200, v["points"].get(bid, {"data": []})
+    if p.startswith("/api/v1/backupInfrastructure/repositories"):
+        return 200, v["repos"]
+    return 404, {}
+
+
 class BackupApis(unittest.TestCase):
     """Veeam et Home Assistant : vraies formes de réponse (fixtures), même résultat que l'ancien backups.py
     (vérifié par comparaison directe avant son retrait, 2026-10-10)."""
 
     @classmethod
     def setUpClass(cls):
-        v = json.loads((ROOT / "tests/fixtures/veeam/states.json").read_text())
+        from connectors.backup_apis import VEEAM_NO_ID
+        # Veeam's empty id stands as « NO_ID » in the fixture (an all-zero UUID looks like a key to the secret scanners)
+        v = json.loads((ROOT / "tests/fixtures/veeam/states.json").read_text().replace('"NO_ID"', json.dumps(VEEAM_NO_ID)))
         ha = json.loads((ROOT / "tests/fixtures/ha/states.json").read_text())
 
         class H(BaseHTTPRequestHandler):
@@ -626,7 +651,7 @@ class BackupApis(unittest.TestCase):
                     return FakeNPM.reply(self, 200, {"version": "2026.10.1"})
                 if self.headers.get("x-api-version") != "1.1-rev0":
                     return FakeNPM.reply(self, 400, {})
-                FakeNPM.reply(self, 200, v["jobs"] if self.path.endswith("jobs/states") else v["sessions"] if "/sessions" in self.path else v["repos"])
+                FakeNPM.reply(self, *veeam_route(v, self.path))
         cls.srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
         threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
         cls.url = f"http://127.0.0.1:{cls.srv.server_port}"
@@ -646,7 +671,7 @@ class BackupApis(unittest.TestCase):
         import backups
         got, err = backups.api_collect(backups.Veeam, {"id": "v", "url": self.url, "secrets": str(self.dir / "v")}, "API Veeam")
         self.assertEqual(err, "")
-        self.assertEqual(sorted(got["veeam_jobs"]), ["Ancien job", "PC-Jeu image", "Serveur fichiers"])
+        self.assertEqual(sorted(got["veeam_jobs"]), ["Ancien job", "Backup Physical Windows - portable", "PC-Jeu image", "Serveur fichiers"])
         self.assertEqual(got["veeam_jobs"]["Serveur fichiers"]["result"], "Warning")
         self.assertEqual(got["veeam_jobs"]["Ancien job"]["result"], "None")
         hist = got["veeam_jobs"]["PC-Jeu image"]["history"]   # matched by jobId, newest first
@@ -662,6 +687,78 @@ class BackupApis(unittest.TestCase):
         self.assertIn("401", err)
         got, err = backups.api_collect(backups.Veeam, {"id": "v", "url": self.url, "secrets": "/nulle/part"}, "API Veeam")
         self.assertIn("secrets illisibles", err)
+
+    def test_veeam_contenu_des_jobs_et_sauvegardes_sans_job(self):
+        """Veeam 12.0: the job settings name the VMs (host they run on, size as localized text), the backups count the restore points,
+        and a computer backed up by Veeam Agent (no job in jobs/states) is read from its backup. An imported backup (no job) is left out."""
+        import backups
+        got, err = backups.api_collect(backups.Veeam, {"id": "v", "url": self.url, "secrets": str(self.dir / "v")}, "API Veeam")
+        self.assertEqual(err, "")
+        objs = got["veeam_jobs"]["PC-Jeu image"]["objects"]
+        self.assertEqual([(o["name"], o["host"], o["points"]) for o in objs], [("pc-jeu", "10.0.0.10", 4), ("Mediacenter", "esx2.lan", 2)])
+        self.assertEqual([o["size"] for o in objs], [int(129.7 * 1024 ** 3), int(1.5 * 1024 ** 4)])
+        pc = got["veeam_jobs"]["Backup Physical Windows - portable"]
+        from datetime import datetime
+        self.assertEqual(pc["last_run"], int(datetime.fromisoformat("2026-10-09T12:14:00+02:00").timestamp()))   # newest restore point
+        self.assertEqual((pc["result"], pc["repository"]), ("None", "NAS"))
+        self.assertEqual([(o["name"], o["points"]) for o in pc["objects"]], [("portable", 2)])
+        self.assertNotIn("Ancien_imported", got["veeam_jobs"])
+        self.assertEqual(got["veeam_jobs"]["Serveur fichiers"]["objects"], [])
+
+    def test_veeam_vm_rattachees_aux_machines(self):
+        """A VM goes to the machine of the same name, a choice of the wizard wins, the host address gives the machine it runs on."""
+        import backups
+        import matching
+        got, _ = backups.api_collect(backups.Veeam, {"id": "v", "url": self.url, "secrets": str(self.dir / "v")}, "API Veeam")
+        meta = {"hosts": [{"id": "veeam-sources", "label": "Sources Veeam", "api": "none"}, {"id": "veeam", "label": "Veeam", "api": "veeam"}],
+                "sets": [{"id": "pc", "label": "PC de jeu", "origin": "veeam-sources", "max_age_days": 2,
+                          "locations": [{"host": "veeam", "veeam_job": "PC-Jeu image"}]}]}
+        idx = matching.index([{"ip": "10.0.0.20", "name": "PC-JEU"}, {"ip": "10.0.0.10", "name": "esx1"}, {"ip": "10.0.0.30", "name": "salon"}])
+        now = got["veeam_jobs"]["PC-Jeu image"]["last_run"] + 3600
+        with mock.patch.object(backups, "machine_index", return_value=idx):
+            loc = backups.analyse(meta, {"veeam": (got, "")}, {}, now)["sets"][0]["locations"][0]
+            self.assertEqual([(o["name"], o["machine"], o["machine_by"], o["runs_on"]) for o in loc["objects"]],
+                             [("pc-jeu", "10.0.0.20", "name", "10.0.0.10"), ("Mediacenter", None, None, None)])
+            meta["sets"][0]["locations"][0]["machines"] = {"Mediacenter": "10.0.0.30", "pc-jeu": ""}
+            loc = backups.analyse(meta, {"veeam": (got, "")}, {}, now)["sets"][0]["locations"][0]
+            self.assertEqual([(o["machine"], o["machine_by"]) for o in loc["objects"]], [(None, "chosen"), ("10.0.0.30", "chosen")])
+
+    def test_veeam_etat_en_minuscules(self):
+        """Veeam 12.0 writes « inactive » (idle): not repeated in the detail; another state (running) is."""
+        import backups
+        got, _ = backups.api_collect(backups.Veeam, {"id": "v", "url": self.url, "secrets": str(self.dir / "v")}, "API Veeam")
+        meta = {"hosts": [{"id": "veeam-sources", "label": "Sources Veeam", "api": "none"}, {"id": "veeam", "label": "Veeam", "api": "veeam"}],
+                "sets": [{"id": "pc", "label": "PC", "origin": "veeam-sources", "max_age_days": 2, "locations": [{"host": "veeam", "veeam_job": "PC-Jeu image"}]}]}
+        now = got["veeam_jobs"]["PC-Jeu image"]["last_run"] + 3600
+        for status, shown in (("inactive", False), ("Inactive", False), (None, False), ("running", True)):
+            got["veeam_jobs"]["PC-Jeu image"]["status"] = status
+            detail = backups.analyse(meta, {"veeam": (got, "")}, {}, now)["sets"][0]["locations"][0]["detail"]
+            self.assertEqual("(" in detail, shown, detail)
+
+    def test_veeam_taille_localisee(self):
+        from connectors.backup_apis import veeam_size
+        gb = 1024 ** 3
+        for text, want in (("129,7 GB", int(129.7 * gb)), ("120 GB", 120 * gb), ("1.5 TB", int(1.5 * 1024 ** 4)), ("1 024,5 MB", int(1024.5 * 1024 ** 2)),
+                           ("1,024.5 MB", int(1024.5 * 1024 ** 2)), ("1.024,5 mb", int(1024.5 * 1024 ** 2)), ("512 B", 512), ("", None), ("? GB", None), (None, None)):
+            self.assertEqual(veeam_size(text), want, text)
+
+    def test_veeam_dernier_point_par_objet_si_la_route_manque(self):
+        """When objectRestorePoints is not there (another version), the newest point is read object by object."""
+        from connectors.backup_apis import Veeam
+        calls = []
+
+        def data(path, token):
+            calls.append(path)
+            if path.startswith("/api/v1/backupObjects/o3/"):
+                return [{"creationTime": "2026-10-08T01:00:00Z"}]
+            if path.startswith("/api/v1/backupObjects/o4/"):
+                return [{"creationTime": "2026-10-09T01:00:00Z"}]
+            return []
+        conn = Veeam({"name": "v", "url": "https://x:9419"}, Context())
+        with mock.patch.object(conn, "_data", side_effect=data):
+            self.assertEqual(conn._last_point("t", "b2", [{"id": "o3"}, {"id": "o4"}]), "2026-10-09T01:00:00Z")
+            self.assertIsNone(conn._last_point("t", "b9", []))
+        self.assertTrue(calls[0].startswith("/api/v1/objectRestorePoints?backupIdFilter=b2"))
 
     def test_veeam_historique_dans_le_jeu(self):
         """The recent failures show in the set's detail, and the runs give the observed rhythm (one a day here)."""

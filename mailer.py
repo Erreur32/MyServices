@@ -28,7 +28,7 @@ def ready(cfg: dict) -> bool:
 
 def _send(cfg: dict, to: str, subject: str, text: str) -> None:
     if not ready(cfg):
-        raise MailError("envoi d'e-mails non réglé (Réglages → Système → E-mail)")
+        raise MailError("envoi d'e-mails non réglé (Réglages → Sauvegarde et infos → E-mail)")
     msg = EmailMessage()
     msg["From"] = formataddr(("MyServices", cfg["smtp_from"]))
     msg["To"] = to

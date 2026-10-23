@@ -1442,7 +1442,7 @@ def _agent_report(a: dict, raw: bytes, ip: str):
         return deny(400, "relevé d'un autre type que cet agent (Windows ou Linux)")
     if not agents_store().claim_host(a["id"], report.get("host")):
         store().audit("agent : nom de poste différent, relevé refusé", "agent", ip, f"« {a['name']} » ({a['ip']}) : {str(report.get('host'))[:64]}")
-        return JSONResponse({"error": "nom de poste différent de celui connu : à confirmer dans MyServices (Réglages → Agents)", "code": "HOST_CHANGED"},
+        return JSONResponse({"error": "nom de poste différent de celui connu : à confirmer dans MyServices (fiche de la machine, onglet Accès)", "code": "HOST_CHANGED"},
                             status_code=409, headers=SECURITY_HEADERS)
     before, now = agents_store().store_report(a["id"], report, ip)
     refresh_after_report(a, report, before, now)
@@ -1696,6 +1696,7 @@ class VeeamJob(BaseModel):
     label: str = ""
     max_age_days: float = 2.0
     copy_of: str = ""   # Backup Copy job: the job it copies (its set gets this job as a copy location)
+    machines: dict[str, str] = {}   # VM (object) name -> machine IP, "" = none: wins over the match by name
 
 
 class VeeamFollow(VeeamAccount):
@@ -1988,7 +1989,7 @@ def system_run(name: str, request: Request):
         return deny(400, "tâche inconnue")
     if not core.enabled(name):
         return deny(409, "tâche non configurée (rien à faire pour l'instant)")
-    if not core.run_task(name, f"Réglages → Système, {request.state.user['username']}"):
+    if not core.run_task(name, f"Réglages → Tâches et horaires, {request.state.user['username']}"):
         return deny(409, "déjà en cours")
     store().audit("tâche lancée", request.state.user["username"], ip_of(request), name)
     return {"ok": True}
