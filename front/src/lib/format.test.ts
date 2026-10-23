@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appVersion } from "./format";
+import { appVersion, isDate } from "./format";
 
 describe("appVersion", () => {
   const sha = "8bb46cc28d56110fe3562d8654fbfde93de798c0";
@@ -29,5 +29,17 @@ describe("débit en bits par seconde", () => {
     expect(rate(1_250_000)).toBe("10 Mb/s");     // 10 Mb/s: a whole number from 10
     expect(rate(150_000)).toBe("1,2 Mb/s");      // 1,2 Mb/s: one decimal below 10
     expect(rate(null)).toBe("?");
+  });
+});
+
+describe("isDate", () => {
+  it("keeps a text the browser reads as a date", () => {
+    expect(isDate("2026-10-22T22:03:21Z")).toBe(true);
+  });
+  it("drops an empty object, an empty text, a broken text or nothing", () => {
+    expect(isDate({})).toBe(false);
+    expect(isDate("")).toBe(false);
+    expect(isDate("not a date")).toBe(false);
+    expect(isDate(null)).toBe(false);
   });
 });

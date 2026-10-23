@@ -47,6 +47,9 @@ export function hm(d: Date | number): string {
   return new Date(d).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" });
 }
 
+/** A date that can be shown: a text the browser reads as a date (a tool may send an empty or broken value) */
+export const isDate = (v: unknown): v is string => typeof v === "string" && !Number.isNaN(Date.parse(v));
+
 export function dateTime(d: Date | number | string): string {
   return new Date(d).toLocaleString(LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }

@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Fixed
+- **« Invalid Date » on the page of a machine** (« On the network since… »): some MynetworK versions send an empty object instead of the first and last seen dates; the connector now keeps a date only when it is one, and the page hides a date it cannot read.
+
 ## v0.20.1 (2026-10-23)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**

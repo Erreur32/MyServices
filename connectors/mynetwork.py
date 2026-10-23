@@ -96,6 +96,11 @@ def _result(got: object) -> object:
     return got
 
 
+def _when(v):
+    """A date of MynetworK kept only when it is one (text): some versions send an empty object for firstSeen / lastSeen."""
+    return v if isinstance(v, str) and v else None
+
+
 def device(d: dict) -> dict:
     """Appareil du scanner réduit à ce que MyServices affiche (pas de champ libre : additionalInfo garde seulement les ports)."""
     info = d.get("additionalInfo") if isinstance(d.get("additionalInfo"), dict) else {}
@@ -103,8 +108,8 @@ def device(d: dict) -> dict:
     ports = sorted({p if isinstance(p, int) else p.get("port") for p in info.get("openPorts") or []
                     if isinstance(p, int) or (isinstance(p, dict) and isinstance(p.get("port"), int))})
     return {"ip": d.get("ip"), "mac": (d.get("mac") or None), "hostname": d.get("hostname") or None, "vendor": d.get("vendor") or None,
-            "status": d.get("status") or "unknown", "ping_ms": d.get("pingLatency"), "first_seen": d.get("firstSeen"),
-            "last_seen": d.get("lastSeen"), "ports": ports, "ports_at": info.get("lastPortScan")}
+            "status": d.get("status") or "unknown", "ping_ms": d.get("pingLatency"), "first_seen": _when(d.get("firstSeen")),
+            "last_seen": _when(d.get("lastSeen")), "ports": ports, "ports_at": _when(info.get("lastPortScan"))}
 
 
 class MynetworK(Connector):

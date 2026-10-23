@@ -140,6 +140,11 @@ class Reseau(unittest.TestCase):
         self.assertIn(f"offset={mn.PAGE}", asked[1])
         self.assertEqual(len(devices), 2 * mn.PAGE)   # the fake server gives the same page twice; a real one gives the last item
 
+    def test_mynetwork_device_drops_dates_that_are_not_dates(self):
+        from connectors.mynetwork import device
+        d = device({"ip": "10.0.0.7", "firstSeen": {}, "lastSeen": "2026-10-22T22:03:21Z", "additionalInfo": {"lastPortScan": {}}})
+        self.assertEqual((d["first_seen"], d["last_seen"], d["ports_at"]), (None, "2026-10-22T22:03:21Z", None))
+
     def test_registre(self):
         for t in ("mynetwork", "logviewr", "dockhand", "proxmox", "proxmox-backup"):
             self.assertIn(t, connectors.TYPES)
