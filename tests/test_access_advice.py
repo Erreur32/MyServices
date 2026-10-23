@@ -19,15 +19,15 @@ class Advice(unittest.TestCase):
 
     def test_linux_read_by_ssh(self):
         m = machine(info={"os": "Debian GNU/Linux 13"}, ssh={"alias": "srv", "port": 22})
-        a = self.check(adv.facts_of(m), "ssh", "ssh_configured", True, "linux", ["ssh"])
-        self.assertEqual(a["alternatives"], ["agent"])
+        a = self.check(adv.facts_of(m), "agent", "agent_linux_ssh", True, "linux", ["ssh"])
+        self.assertEqual(a["alternatives"], ["ssh"])
 
     def test_vps_with_unusual_ssh_port(self):
         m = machine(info={"os": "Debian GNU/Linux 12"}, ssh={"alias": "vps", "port": 22232}, ttl=52)
-        self.check(adv.facts_of(m), "ssh", "ssh_configured", True, "linux", ["ssh"])
+        self.check(adv.facts_of(m), "agent", "agent_linux_ssh", True, "linux", ["ssh"])
 
     def test_linux_with_ssh_port_seen_by_the_scan_only(self):
-        self.check(adv.facts_of(machine(), scan={"os": "linux", "ssh_port": 22}), "ssh", "ssh_port", True, "linux", [])
+        self.check(adv.facts_of(machine(), scan={"os": "linux", "ssh_port": 22}), "agent", "agent_linux", True, "linux", [])
 
     def test_windows_pc_with_agent(self):
         m = machine(ttl=128, agent={"via": "agent", "os": "Windows 11"})
@@ -64,12 +64,12 @@ class Advice(unittest.TestCase):
 
     def test_home_assistant_in_a_container_on_a_normal_linux_is_a_normal_linux(self):
         m = machine(info={"os": "Debian GNU/Linux 12"}, ssh={"alias": "srv"}, api=[{"label": "Home Assistant", "ok": True}])
-        a = self.check(adv.facts_of(m), "ssh", "ssh_configured", True, "linux", ["ssh", "connector"])
-        self.assertEqual(a["alternatives"], ["agent", "connector"])
+        a = self.check(adv.facts_of(m), "agent", "agent_linux_ssh", True, "linux", ["ssh", "connector"])
+        self.assertEqual(a["alternatives"], ["ssh", "connector"])
 
     def test_hypervisor_with_ssh(self):
         m = machine(info={"os": "Debian GNU/Linux 12"}, ssh={"alias": "pve"}, api=[{"label": "Hypervisor", "ok": True}])
-        self.check(adv.facts_of(m), "ssh", "ssh_configured", True, "linux", ["ssh", "connector"])
+        self.check(adv.facts_of(m), "agent", "agent_linux_ssh", True, "linux", ["ssh", "connector"])
 
     def test_linux_without_ssh_gets_the_linux_agent(self):
         self.check(adv.facts_of(machine(), scan={"os": "linux", "ssh_port": None}), "agent", "no_ssh_port", True, "linux", [])
@@ -111,8 +111,20 @@ class Advice(unittest.TestCase):
     def test_all_machines(self):
         ms = [machine(ip="192.168.1.1", icon="freebox"), machine(ip="192.168.1.2", info={"os": "Debian"}, ssh={"alias": "a"}), {"name": "no ip"}]
         out = adv.advise_all(ms, agents={"192.168.1.2": "silencieux"})
-        self.assertEqual({k: v["method"] for k, v in out.items()}, {"192.168.1.1": "ping", "192.168.1.2": "ssh"})
+        self.assertEqual({k: v["method"] for k, v in out.items()}, {"192.168.1.1": "ping", "192.168.1.2": "agent"})
         self.assertEqual({k: v["agent_state"] for k, v in out.items()}, {"192.168.1.1": None, "192.168.1.2": "silencieux"})
+
+
+
+class SshUses(unittest.TestCase):
+    def test_what_needs_ssh_beyond_the_agent(self):
+        machines = {"10.0.0.2": {"name": "srv", "ssh": "srv"}, "10.0.0.3": {"name": "pve", "ssh": "pve"}, "10.0.0.4": {"name": "plain", "ssh": "plain"},
+                    "10.0.0.5": {"name": "dns", "ssh": "dns", "adguard": "docker"}, "10.0.0.6": {"name": "old", "ssh": "old", "disabled": True}}
+        conns = [{"type": "npm", "name": "npm", "ssh": "srv"}, {"type": "docker", "name": "x", "ssh": "plain"}, {"type": "borgmatic", "name": "b", "ssh": "old"}]
+        hosts = [{"id": "srv", "ssh": "srv"}, {"id": "nas", "ssh": "plain", "mount": "/mnt/nas"}, {"id": "vm", "ssh": None, "cron_via": "pve:101"}]
+        virt = [{"connector": "proxmox", "ip": "10.0.0.3", "via": "ssh"}, {"connector": "proxmox", "ip": "10.0.0.4", "via": "api"}]
+        self.assertEqual(adv.ssh_uses(machines, conns, hosts, virt),
+                         {"10.0.0.2": ["backups", "npm"], "10.0.0.3": ["backups", "proxmox"], "10.0.0.5": ["adguard"]})
 
 
 if __name__ == "__main__":

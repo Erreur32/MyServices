@@ -1,0 +1,40 @@
+import { describe, expect, it } from "vitest";
+import { scoreTone, vulnTone, wazuhOf, wazuhToWatch } from "./wazuh";
+import type { ServiceStatus } from "../types";
+
+const st = (more: Partial<ServiceStatus>): ServiceStatus => ({ connector: "wazuh", name: "w", label: "Wazuh", ok: true, stale: false, message: "", ...more });
+
+describe("wazuhOf", () => {
+  it("finds the machine in the first Wazuh instance that knows it", () => {
+    const list = [st({ connector: "glances", machines: { "10.0.0.5": { agent: "x" } } }), st({ instance: "wz", machines: { "10.0.0.5": { agent: "srv", status: "active" } } })];
+    expect(wazuhOf(list, "10.0.0.5")).toEqual({ instance: "wz", stale: false, m: { agent: "srv", status: "active" } });
+    expect(wazuhOf(list, "10.0.0.9")).toBeNull();
+    expect(wazuhOf(undefined, "10.0.0.5")).toBeNull();
+  });
+  it("falls back on the name when the agent gives an IP no machine has", () => {
+    const list = [st({ machines: { "172.30.0.3": { agent: "HomeAssistant" }, "10.0.0.7": { agent: "nas" } } })];
+    expect(wazuhOf(list, "10.0.0.20", "Home Assistant", new Set(["10.0.0.7", "10.0.0.20"]))?.m.agent).toBe("HomeAssistant");
+    expect(wazuhOf(list, "10.0.0.30", "NAS", new Set(["10.0.0.7", "10.0.0.30"]))).toBeNull();   // that agent is another machine's
+    expect(wazuhOf(list, "10.0.0.20", "", new Set())).toBeNull();
+  });
+});
+
+describe("tones", () => {
+  it("scores and vulnerabilities", () => {
+    expect([scoreTone(85), scoreTone(62), scoreTone(30)]).toEqual(["ok", "warn", "bad"]);
+    expect(vulnTone({ critical: 1, high: 0, medium: 0, low: 0, worst: [] })).toBe("bad");
+    expect(vulnTone({ critical: 0, high: 2, medium: 0, low: 0, worst: [] })).toBe("warn");
+    expect(vulnTone({ critical: 0, high: 0, medium: 5, low: 1, worst: [] })).toBe("ok");
+  });
+});
+
+describe("wazuhToWatch", () => {
+  it("disconnected agents and serious rules, only for a Wazuh that answers", () => {
+    const agents = { active: 6, total: 7, disconnected: 1, never: 0 };
+    const alerts = { total: 9, serious: 13, level: 13, rules: [{ name: "a", count: 12, level: 13 }, { name: "b", count: 1, level: 14 }], hours: [] };
+    expect(wazuhToWatch([st({ agents, alerts })])).toBe(3);
+    expect(wazuhToWatch([st({ agents, alerts, ok: false })])).toBe(0);
+    expect(wazuhToWatch([st({ agents, stale: true })])).toBe(0);
+    expect(wazuhToWatch(undefined)).toBe(0);
+  });
+});

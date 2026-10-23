@@ -1,5 +1,5 @@
 // Menu de gauche : groupes, entrées, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Activity, Archive, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Boxes, EyeOff, Lightbulb, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Boxes, EyeOff, Lightbulb, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -80,16 +80,15 @@ export const NAV: NavGroup[] = [
   { id: "protection", label: tx("Protection"), items: [
     { id: "backups", hash: "backups", tab: "backups", icon: HardDrive, label: tx("Sauvegardes"), subs: [
       views("backups-view", "backups", [
-        sub("backups-watch", "backups/watch", "backups", Eye, WATCH),
-        sub("backups-all", "backups/all", "backups", Layers, tx("Tous les jeux")),
         sub("backups-machines", "backups/machines", "backups", Monitor, tx("Par machine")),
+        sub("backups-watch", "backups/watch", "backups", Eye, WATCH),
+        { ...sub("backups-all", "backups/all", "backups", Layers, tx("Jeux")), also: ["settings/backups"] }   // the page of one set: #settings/backups/<set id>,
       ]),
       group("backups-settings", "settings", Settings, tx("Réglages"), [
-        sub("backups-sets", "settings/backups", "settings", HardDrive, tx("Jeux suivis")),
         sub("backups-add", "settings/backups/add", "settings", Plus, tx("Ajouter des sauvegardes")),
+        sub("backups-unlinked", "settings/backups/unlinked", "settings", Link2, tx("À relier")),
         sub("backups-copies", "settings/backups/copies", "settings", Copy, tx("Copies ailleurs")),
         sub("backups-paths", "settings/backups/paths", "settings", FolderSearch, tx("Emplacements cherchés")),
-        sub("backups-archived", "settings/backups/archived", "settings", Archive, tx("Jeux archivés")),
       ]),
     ] },
     { id: "security", hash: "security", tab: "security", icon: Shield, label: tx("Sécurité"), subs: [
@@ -99,6 +98,7 @@ export const NAV: NavGroup[] = [
       sub("security-ports", "security/network", "security", Radar, tx("Ports du réseau")),
       sub("security-certs", "security/certs", "security", FileBadge, tx("Certificats")),
       sub("fail2ban", "security/fail2ban", "security", Ban, tx("Fail2ban"), (s) => (s.data.security ?? []).length > 0),   // a Fail2ban read (LogviewR)
+      sub("security-wazuh", "security/wazuh", "security", ShieldCheck, "Wazuh", (s) => (s.data.services_status ?? []).some((c) => c.connector === "wazuh")),   // a Wazuh connector
     ] },
     { id: "alerts", hash: "settings/alerts/channels", tab: "settings", icon: Bell, label: tx("Alertes"), subs: [
       sub("alerts-channels", "settings/alerts/channels", "settings", Radio, tx("Canaux")),

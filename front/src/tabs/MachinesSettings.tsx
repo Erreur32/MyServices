@@ -3,7 +3,7 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Les réglages de chaque machine sont dans sa page (#machines/<ip>) ; ici, trois sous-pages du menu Machines : ajouter et détecter,
 // les appareils vus par les outils et pas suivis, les agents. La clé refusée par une machine est signalée sur la page de la clé SSH.
-import { Check, ChevronDown, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, ShieldCheck, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Monitor, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, ShieldCheck, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
 import { Copyable, Field, NoteLine, Switch, TagInput } from "../components/form";
@@ -13,6 +13,7 @@ import { dateTime } from "../lib/format";
 import type { AgentInfo, Connector, Detection, MachineConf, MachinesSettings as State, NetHost, NetScan, Redetection, RedetectItem } from "../types";
 import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
+import { BackButton } from "../components/BackButton";
 import { MachineIcon } from "../components/MachineIcon";
 import { AccessGuide, AgentBlock, AgentsOverview } from "./Agents";
 import { IconPicker } from "../components/IconPicker";
@@ -71,9 +72,13 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
   const [showAccess, setShowAccess] = useState(false);
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   if (part === "devices") return <UnlinkedDevices snap={snap} onFollowed={reload} />;
-  const one = location.hash.split("/")[3];   // #settings/machines/ssh/<ip>, #settings/machines/agents/<ip>: that access alone
-  if (one && (part === "ssh" || part === "agents")) return <AccessPage ip={decodeURIComponent(one)} only={part === "ssh" ? "ssh" : "agent"} snap={snap} st={st} />;
-  if (part === "agents") return <AgentsOverview machines={st.machines} />;
+  const one = location.hash.split("/")[3];   // #settings/machines/ssh/<ip> | new: that SSH access alone; #settings/machines/agents/<ip>: the list, that row lit
+  // The address only picks a known machine: its IP is then taken from the list, never from the address (nothing typed in the URL reaches the page)
+  const wanted = one ? decodeURIComponent(one) : undefined;
+  const open = wanted === "new" ? "new" : Object.keys(st.machines).find((ip) => ip === wanted);
+  if (part === "agents") return <AgentsOverview machines={st.machines} open={open} />;
+  if (part === "ssh" && open === "new") return <NewSshPage snap={snap} st={st} />;
+  if (part === "ssh" && open) return <SshPage ip={open} snap={snap} st={st} />;
   if (part === "ssh") return <SshConnections st={st} snap={snap} />;
   const all = Object.keys(st.machines);
   const nOff = all.filter((ip) => st.machines[ip].disabled).length;
@@ -100,17 +105,53 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
   );
 }
 
-/** The SSH access or the agent of one machine on a settings page of its own, opened from Machines → SSH connections or Agents */
-function AccessPage({ ip, only, snap, st }: Readonly<{ ip: string; only: AccessOnly; snap: Snapshot; st: State }>) {
-  const name = st.machines[ip]?.name ?? ip, ssh = only === "ssh";
+/** The SSH access of one machine on a page of its own (the other machines are not listed while it is set), from Machines → SSH connections */
+const toSshList = () => { location.hash = "settings/machines/ssh"; };
+
+/** Head of an SSH page: the way back on the left, the machine (icon, name, address) as the title */
+function SshHead({ title, m, ip }: Readonly<{ title: string; m?: MachineConf; ip?: string }>) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <BackButton label={tx("Connexions SSH")} onClick={toSshList} />
+      <h2 className="flex items-center gap-2 text-lg font-bold">
+        {m ? <MachineIcon m={{ name: m.name, os: m.os }} reserve /> : <KeyRound size={16} aria-hidden />}
+        {m ? <>{m.name}<Dim>{ip}</Dim><span className="text-sm font-normal text-muted">· {title}</span></> : title}
+      </h2>
+      {m && ip && <button type="button" onClick={() => { location.hash = `machines/${ip}`; }} className={`${quiet} ml-auto`}><Monitor size={14} aria-hidden />{tx("Page de la machine")}</button>}
+    </div>
+  );
+}
+
+/** Settings are saved as they are typed: « Done » only goes back to the list */
+const DoneButton = () => <div className="mt-3 flex justify-end"><button type="button" className={quiet} onClick={toSshList}><Check size={14} aria-hidden />{tx("Terminé")}</button></div>;
+
+function SshPage({ ip, snap, st }: Readonly<{ ip: string; snap: Snapshot; st: State }>) {
   return (
     <Card>
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 className="flex items-center gap-2 font-bold">{ssh ? <KeyRound size={16} aria-hidden /> : <MonitorUp size={16} aria-hidden />}{ssh ? tx("Connexion SSH de {0}", name) : tx("Agent de {0}", name)}<Dim>{ip}</Dim></h2>
-        <a href={`#settings/machines/${ssh ? "ssh" : "agents"}`} className="ml-auto text-sm text-link hover:underline">‹ {ssh ? tx("Connexions SSH") : tx("Agents")}</a>
-        <a href={`#machines/${ip}`} className="text-sm text-link hover:underline">{tx("Page de la machine")} ›</a>
-      </div>
-      <MachineModal ip={ip} snap={snap} only={only} />
+      <SshHead title={tx("Connexion SSH")} m={st.machines[ip] ?? { name: ip }} ip={ip} />
+      <MachineModal ip={ip} snap={snap} only="ssh" />
+      <DoneButton />
+    </Card>
+  );
+}
+
+/** A new SSH connection: pick a followed machine that has none, then set its access on the same page */
+function NewSshPage({ snap, st }: Readonly<{ snap: Snapshot; st: State }>) {
+  const free = Object.entries(st.machines).filter(([, m]) => !m.disabled && typeof m.ssh !== "string").sort(([, a], [, b]) => a.name.localeCompare(b.name));
+  const [ip, setIp] = useState("");
+  return (
+    <Card>
+      <SshHead title={tx("Nouvelle connexion SSH")} m={ip ? st.machines[ip] : undefined} ip={ip || undefined} />
+      {free.length === 0 ? <p className="text-sm text-dim">{tx("Toutes les machines suivies ont déjà une connexion SSH. Une machine nouvelle s'ajoute dans Machines, « Ajouter une machine ».")}</p> : (
+        <label className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted">{tx("Machine")}</span>
+          <select className={input} value={ip} onChange={(e) => setIp(e.target.value)}>
+            <option value="">{tx("Choisir la machine…")}</option>
+            {free.map(([at, m]) => <option key={at} value={at}>{m.name} · {at}</option>)}
+          </select>
+        </label>
+      )}
+      {ip && <><div className="mt-3"><MachineModal key={ip} ip={ip} snap={snap} only="ssh" /></div><DoneButton /></>}
     </Card>
   );
 }
@@ -289,7 +330,7 @@ function WindowsConnection({ ip, m, st, agent, hw }: Readonly<{ ip: string; m: M
   }
   return (
     <p className="text-dim">{tx("Pas d'agent : ping et services web seulement.")}{" "}
-      <a className="text-link hover:underline" href={`#settings/agents/${ip}`}>{tx("Installer l'agent")}</a>{tx(" pour lire sa santé sans SSH.")}</p>
+      <button type="button" className="text-link hover:underline" onClick={() => { location.hash = `settings/agents/${ip}`; }}>{tx("Installer l'agent")}</button>{tx(" pour lire sa santé sans SSH.")}</p>
   );
 }
 

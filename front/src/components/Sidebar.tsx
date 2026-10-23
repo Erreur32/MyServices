@@ -9,6 +9,7 @@ import { activeNav, leaves, navGroups, type NavItem } from "../lib/tabs";
 import { useRoute } from "../lib/route";
 import { HEADER_LOGOS, useFlyout, useHeaderLogo } from "../theme";
 import { securityFindings, type Area } from "../lib/securityFindings";
+import { wazuhToWatch } from "../lib/wazuh";
 import { useDiscoveries } from "./DiscoveryCard";
 import { tx } from "../lib/i18n";
 
@@ -28,7 +29,7 @@ const AREA_PAGE: Partial<Record<Area, string>> = { sites: "security-sites", ssh:
 type Counts = Record<string, number>;
 
 function securityCounts(snap: Snapshot): Counts {
-  const n: Counts = {};
+  const n: Counts = { "security-wazuh": wazuhToWatch(snap.data.services_status) };
   for (const f of securityFindings(snap)) { const id = AREA_PAGE[f.area]; if (id) n[id] = (n[id] ?? 0) + 1; }
   return n;
 }
@@ -152,19 +153,18 @@ function FoldButton({ expanded, onToggle }: Readonly<{ expanded: boolean; onTogg
   );
 }
 
-function NavEntry({ item, active, narrow, badge, counts, onNavigate, onBadge }: Readonly<{
+function NavEntry({ item, active, narrow, badge, counts, picked, onPick, onNavigate, onBadge }: Readonly<{
   item: NavItem; active: string; narrow: boolean; badge?: Level; counts: Counts; onNavigate: () => void; onBadge: (t: TabId) => void;
+  picked: string | null; onPick: (id: string) => void;   // the category opened by hand (one at a time), null: the one of the open page
 }>) {
   const flies = narrow && !!item.subs;   // folded, with sub-pages: they open in a panel
   const panel = useFlyoutPanel(flies);
   const open = leaves(item).some((x) => x.id === active);
-  const [fold, setFold] = useState<boolean | null>(null);   // chosen with the name or the chevron; follows the open page again when it changes
-  useEffect(() => setFold(null), [open]);
-  const expanded = fold ?? open;
+  const expanded = picked === null ? open : picked === item.id;
   const category = !narrow && !!item.subs;
   const click = (e: MouseEvent) => {
     if (panel.byClick) { e.preventDefault(); panel.toggle(); return; }
-    if (category) { e.preventDefault(); setFold(!expanded); return; }   // a category: its name opens (or closes) its sub-pages, the page stays
+    if (category) { e.preventDefault(); onPick(expanded ? "" : item.id); return; }   // a category: its name opens (or closes) its sub-pages, the page stays
     panel.hide();
     onNavigate();
   };
@@ -174,7 +174,7 @@ function NavEntry({ item, active, narrow, badge, counts, onNavigate, onBadge }: 
         <EntryLink item={item} open={open} narrow={narrow} flies={flies} flown={!!panel.fly} badge={badge} onClick={click} />
         {badge && narrow && <span aria-hidden className={`pointer-events-none absolute right-2 top-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg2 ${badge === "crit" ? "bg-bad" : "bg-warn"}`} />}
         {badge && !narrow && <Badge level={badge} tab={item.tab} onBadge={onBadge} />}
-        {category && <FoldButton expanded={expanded} onToggle={() => setFold(!expanded)} />}
+        {category && <FoldButton expanded={expanded} onToggle={() => onPick(expanded ? "" : item.id)} />}
       </span>
       {category && expanded && (
         <div className="mt-0.5 flex flex-col gap-0.5"><SubLinks subs={item.subs!} active={active} depth={0} counts={counts} onNavigate={onNavigate} /></div>
@@ -192,6 +192,8 @@ export function Sidebar({ snap, badges, onNavigate, onBadge, mobileOpen, onClose
   // « To watch » only when something is: the same reading as the dots of the menu
   const groups = navGroups(snap, new Set(["services", "network", "dns", "backups", "security"].filter((t) => !badges[t as TabId]).map((t) => `${t}-watch`)));
   const active = activeNav(route, groups);
+  const [picked, setPicked] = useState<string | null>(null);   // one category open at a time: the one opened by hand, else the one of the open page
+  useEffect(() => setPicked(null), [active]);   // a page opened: only its category stays open
   const narrow = collapsed && !mobileOpen;   // the phone drawer always shows the names
   const [todo, setTodo] = useState(0);
   const security = useMemo(() => securityCounts(snap), [snap]);
@@ -220,7 +222,7 @@ export function Sidebar({ snap, badges, onNavigate, onBadge, mobileOpen, onClose
                 : <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-widest text-dim">{g.label}</p>}
               {g.items.map((i) => (
                 <NavEntry key={i.id} item={i} active={active} narrow={narrow} badge={i.id === i.tab ? badges[i.tab] : undefined} counts={counts}
-                  onNavigate={onNavigate} onBadge={onBadge} />
+                  picked={picked} onPick={setPicked} onNavigate={onNavigate} onBadge={onBadge} />
               ))}
             </div>
           ))}

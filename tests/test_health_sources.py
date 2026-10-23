@@ -54,11 +54,21 @@ class Sources(unittest.TestCase):
         self.assertEqual(health.source_order(hc(os="windows")), ["agent", "ssh", "beszel", "ha"])
         self.assertEqual(health.source_order(hc(sources=["beszel"])), ["beszel", "ssh", "agent", "ha"])
         self.assertEqual(health.source_order(hc(sources=["agent", "agent", "nimporte"])), ["agent", "ssh", "beszel", "ha"])
+        # a fresh agent goes first; a stale one does not; an order set by hand stays
+        self.assertEqual(health.source_order(hc(), agent()), ["agent", "ssh", "beszel", "ha"])
+        self.assertEqual(health.source_order(hc(), agent(fresh=False)), ["ssh", "agent", "beszel", "ha"])
+        self.assertEqual(health.source_order(hc(sources=["ssh"]), agent()), ["ssh", "agent", "beszel", "ha"])
 
     def test_la_premiere_source_qui_repond_fait_foi(self):
-        h = health.read_host(hc(), agent(), beszel(), ssh=ssh_ok)
+        h = health.read_host(hc(), agent(fresh=False), beszel(), ssh=ssh_ok)
         self.assertEqual(h["source"], "ssh")
         self.assertEqual(h["sources"][0], "ssh")
+
+    def test_agent_frais_d_abord_sans_ouvrir_le_ssh(self):
+        calls = []
+        h = health.read_host(hc(), agent(), beszel(), ssh=lambda x: calls.append(1) or ssh_ok(x))
+        self.assertEqual(h["source"], "agent")
+        self.assertEqual(calls, [])
 
     def test_priorite_changee_agent_d_abord(self):
         calls = []
@@ -88,7 +98,7 @@ class Sources(unittest.TestCase):
         self.assertIsNone(health.read_host(hc(target=None), None, None))
 
     def test_complement_seulement_ce_qui_manque(self):
-        h = health.read_host(hc(), agent(), beszel(), ssh=ssh_ok)
+        h = health.read_host(hc(sources=["ssh"]), agent(), beszel(), ssh=ssh_ok)   # SSH first by hand: the fresh agent only complements
         self.assertEqual(h["res"], {"available": True, "cpu_pct": 12.0, "mem_pct": 41.5})  # agent, 1re source qui sait
         self.assertEqual(h["temp"]["celsius"], 51.0)                                       # Beszel : l'agent n'a pas de température
         self.assertTrue(h["smart"]["accessible"])

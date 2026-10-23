@@ -10,9 +10,9 @@ export type WatchKind = "down" | "ssh" | "disk" | "systemd" | "docker" | "kernel
 export interface WatchItem { tone: WatchTone; kind: WatchKind; text: string; detail?: string[] }   // detail: the messages behind the notice (kernel errors…), shown in its tooltip and in the machine window
 
 /** The section of the machine window where a notice is explained (data-sec), so a badge can lead the eye there */
-export const WATCH_SECTION: Record<WatchKind, "health" | "updates" | "access" | "services"> = {
-  down: "access", ssh: "access", access: "access", disk: "health", systemd: "health", docker: "health", kernel: "health", smart: "health", load: "health",
-  ssh_auth: "health", mem: "health", temp: "health", reboot: "updates", updates: "updates", services: "services", connector: "services",
+export const WATCH_SECTION: Record<WatchKind, "system" | "health" | "updates" | "access" | "services"> = {   // system: the measures (processor, memory, disks, temperature)
+  down: "access", ssh: "access", access: "access", disk: "system", systemd: "health", docker: "health", kernel: "health", smart: "system", load: "system",
+  ssh_auth: "health", mem: "system", temp: "system", reboot: "updates", updates: "updates", services: "services", connector: "services",
   pm2: "health", raid: "health", zfs: "health", mounts: "health", ntp: "health", timers: "health", auto_upd: "updates",
 };
 

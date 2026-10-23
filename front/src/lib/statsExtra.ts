@@ -38,3 +38,13 @@ export function upkeepCounts(snap: Snapshot): { updates: number; reboot: number;
     certBad: certs.filter((c) => c.includes("invalide")).length,
   };
 }
+
+/** Wazuh on the statistics page: only when a Wazuh connector is set and answers (never an empty frame). Its agents, and with its indexer
+ *  the serious alerts of the last 24 h and the critical vulnerabilities; without the indexer, the agents never connected instead */
+export function wazuhCounts(snap: Snapshot): { active: number; total: number; disconnected: number; never: number; serious: number | null; critical: number | null } | null {
+  const w = (snap.data.services_status ?? []).find((s) => s.connector === "wazuh" && s.ok && !s.stale && s.agents);
+  if (!w?.agents) return null;
+  const vulns = Object.values(w.machines ?? {}).map((m) => m.vulns).filter((v) => !!v);
+  return { active: w.agents.active, total: w.agents.total, disconnected: w.agents.disconnected, never: w.agents.never,
+           serious: w.alerts ? w.alerts.serious : null, critical: vulns.length ? vulns.reduce((n, v) => n + v!.critical, 0) : null };
+}

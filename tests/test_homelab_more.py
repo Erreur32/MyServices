@@ -9,6 +9,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -272,6 +273,75 @@ class Wazuh(Base):
         self.assertEqual(SEEN[0][0], "POST")
         self.assertTrue(SEEN[0][2].get("Authorization", "").startswith("Basic "))
         self.assertEqual(SEEN[-1][2].get("Authorization"), "Bearer jwt")
+
+    def test_alerts_of_the_indexer(self):
+        self.route("/security/user/authenticate", {"data": {"token": "jwt"}}, method="POST")
+        self.route("/", {"data": {"api_version": "4.14.1"}})
+        self.route("/agents/summary/status", {"data": {"connection": {"active": 2, "total": 2}}})
+        self.route("/wazuh-alerts-*/_search", {"hits": {"total": {"value": 41}}, "aggregations": {"serious": {"doc_count": 3, "rules": {"buckets": [
+            {"key": "Multiple authentication failures", "doc_count": 3, "level": {"value": 13.0}}]}},
+            "hours": {"buckets": [{"key": 1792764000000, "doc_count": 40, "serious": {"doc_count": 3}}, {"key": 1792767600000, "doc_count": 1, "serious": {"doc_count": 0}}]}}}, method="POST")
+        c = self.conn("wazuh", username="myservices", password=KEY, indexer_url=self.url, indexer_username="r", indexer_password=KEY)
+        d = c.collect()
+        f = facts(d)
+        self.assertEqual((f["Alertes 24 h"]["value"], f["Graves (24 h)"]["value"], f["Graves (24 h)"]["tone"]), ("41", "3", "bad"))
+        self.assertEqual(d["problems"], ["alerte « Multiple authentication failures » : 3 fois en 24 h (niveau 13)"])
+        self.assertEqual(d["alerts"], {"total": 41, "serious": 3, "level": 13, "rules": [{"name": "Multiple authentication failures", "count": 3, "level": 13}],
+                                       "hours": [{"t": 1792764000, "n": 40, "serious": 3}, {"t": 1792767600, "n": 1, "serious": 0}]})
+        self.assertEqual(d["agents"], {"active": 2, "disconnected": 0, "never": 0, "total": 2})
+        self.assertEqual(SEEN[-1][0], "POST")
+        self.assertTrue(SEEN[-1][2].get("Authorization", "").startswith("Basic "))
+        self.route("/wazuh-alerts-*/_search", {"error": "denied"}, method="POST", code=403)
+        d = c.collect()
+        self.assertEqual(facts(d)["Alertes 24 h"]["value"], "illisibles")
+        self.assertEqual(d["problems"], ["alertes Wazuh illisibles : accès refusé (utilisateur de l'indexeur)"])
+        self.assertNotIn("alerts", d)
+        # without the indexer: the agents only, no call to it
+        self.assertNotIn("Alertes 24 h", facts(self.conn("wazuh", username="myservices", password=KEY).collect()))
+
+    def test_per_machine(self):
+        """SCA, syscollector and vulnerabilities by the IP of the agent; a disconnected agent and the manager are not read."""
+        self.route("/security/user/authenticate", {"data": {"token": "jwt"}}, method="POST")
+        self.route("/", {"data": {"api_version": "4.14.1"}})
+        self.route("/agents/summary/status", {"data": {"connection": {"active": 1, "disconnected": 1, "total": 2}}})
+        self.route("/agents", {"data": {"affected_items": [{"id": "000", "name": "manager", "ip": "127.0.0.1", "status": "active"},
+                                                           {"id": "001", "name": "srv", "ip": "10.0.0.5", "status": "active"},
+                                                           {"id": "002", "name": "pc", "ip": "10.0.0.6", "status": "disconnected"},
+                                                           {"id": "003", "name": "any", "ip": "any", "status": "active"}]}})
+        self.route("/sca/001", {"data": {"affected_items": [{"policy_id": "cis_debian12", "name": "CIS Debian 12", "score": 62, "pass": 120, "fail": 73}]}})
+        self.route("/syscollector/001/hardware", {"data": {"affected_items": [{"cpu": {"name": "Intel N100", "cores": 4}, "ram": {"total": 16 * 1024 ** 2}}]}})
+        self.route("/syscollector/001/packages", {"data": {"affected_items": [{}], "total_affected_items": 812}})
+        self.route("/syscollector/001/ports", {"data": {"affected_items": [{"local": {"port": 22}, "protocol": "tcp", "process": "sshd"},
+                                                                         {"local": {"port": 22}, "protocol": "tcp", "process": "sshd"},
+                                                                         {"local": {"port": 443}, "protocol": "tcp"},
+                                                                         {"local": {"ip": "127.0.0.1", "port": 6379}, "protocol": "tcp", "process": "redis-server"}]}})
+        self.route("/wazuh-alerts-*/_search", {"hits": {"total": {"value": 0}}}, method="POST")
+        self.route("/wazuh-states-vulnerabilities-*/_search", {"aggregations": {"agents": {"buckets": [
+            {"key": "001", "sev": {"buckets": [{"key": "Critical", "doc_count": 2}, {"key": "Medium", "doc_count": 9}]},
+             "worst": {"cve": {"buckets": [{"key": "CVE-2025-1", "sev": {"buckets": [{"key": "High"}]}, "pkg": {"buckets": [{"key": "curl"}]}},
+                                           {"key": "CVE-2025-2", "sev": {"buckets": [{"key": "Critical"}]}, "pkg": {"buckets": [{"key": "openssl"}]}}]}}},
+            {"key": "999", "sev": {"buckets": [{"key": "Critical", "doc_count": 5}]}}]}}}, method="POST")
+        d = self.conn("wazuh", username="myservices", password=KEY, indexer_url=self.url, indexer_username="r", indexer_password=KEY).collect()
+        self.assertEqual(set(d["machines"]), {"10.0.0.5", "10.0.0.6"})
+        srv = d["machines"]["10.0.0.5"]
+        self.assertEqual(srv["sca"], [{"name": "CIS Debian 12", "score": 62, "pass": 120, "fail": 73}])
+        self.assertEqual(srv["hardware"], {"cpu": "Intel N100", "cores": 4, "ram_gb": 16.0})
+        self.assertEqual(srv["packages"], 812)
+        self.assertEqual(srv["ports"], [{"port": 22, "proto": "tcp", "process": "sshd"}, {"port": 443, "proto": "tcp", "process": None},
+                                        {"port": 6379, "proto": "tcp", "process": "redis-server", "local": True}])
+        self.assertEqual(srv["vulns"], {"critical": 2, "high": 0, "medium": 9, "low": 0, "worst": [
+            {"id": "CVE-2025-2", "severity": "Critical", "package": "openssl"}, {"id": "CVE-2025-1", "severity": "High", "package": "curl"}]})
+        self.assertEqual(d["machines"]["10.0.0.6"], {"agent": "pc", "status": "disconnected"})
+        self.assertEqual((facts(d)["Vulnérabilités critiques"]["value"], facts(d)["Vulnérabilités critiques"]["tone"]), ("2", "bad"))
+        self.assertNotIn("/sca/002", [x[1] for x in SEEN])
+
+    def test_dashboard_or_http_address(self):
+        with self.assertRaisesRegex(ConnectorError, "le tableau de bord"):   # no API route here: the dashboard's address
+            self.conn("wazuh", username="myservices", password=KEY).collect()
+        c = self.conn("wazuh", username="myservices", password=KEY)
+        with patch.object(c.ctx, "http", side_effect=ConnectorError("injoignable (Remote end closed connection without response)")), \
+                self.assertRaisesRegex(ConnectorError, "qu'en https"):
+            c.collect()
 
 
 class Analytics(Base):

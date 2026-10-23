@@ -42,7 +42,7 @@
 >
 > Comme il évolue vite, **les pull requests et les issues ne sont pas traitées pour le moment** : merci de les garder pour une version stable.
 >
-> Les versions de développement ne sont pas étiquetées. Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.20.1`, `0.20.2`…).
+> Les versions de développement ne sont pas étiquetées. Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.20.2`, `0.20.3`…).
 > Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (en anglais).
 
 ## En bref
@@ -77,7 +77,7 @@ Puis ouvrez **`http://<IP>:8090/`** (l'appli est à la racine du site ; les anci
 
 > **L'application écoute sur le port `8090`.** C'est un réglage, pas une valeur figée : si le 8090 est déjà pris sur votre machine, mettez **`MYSERVICES_PORT=8095`** (ou un autre port libre) dans un fichier `.env` à côté de `docker-compose.yaml` (exemple : [`deploy/env.example`](deploy/env.example), téléchargé par le second `curl` ci-dessus), puis lancez `docker compose up -d` et ouvrez `http://<IP>:8095/`. Le conteneur utilise le réseau de l'hôte : modifier un `ports:` ne servirait à rien.
 
-Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.20.1` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
+Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.20.2` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
 Mise à jour : `docker compose pull && docker compose up -d` (réglages et données restent dans les volumes `./config` et `./data`).
 
 ---
@@ -123,11 +123,11 @@ Une machine peut être suivie de trois façons, qui se combinent. La première s
 3. **Ping et recherche réseau** : indiquent seulement si une machine est allumée et quelles applis y répondent. La première recherche sur le réseau local se lance toute seule, puis se répète à la fréquence choisie. En mode manuel, vous choisissez les machines à suivre ; en mode automatique, les plus utiles sont ajoutées pour vous.
 
 > **Lequel choisir ? Une règle simple.**
-> - **Une machine Linux que vous administrez** : le SSH suffit. Un agent n'y sert que de filet de sécurité (si le SSH ne répond plus, l'agent prend le relais).
-> - **Une machine où le SSH est impossible** (aucune clé autorisée, port fermé, NAT, VPN) : l'agent, Windows ou Linux.
+> - **Un PC Windows ou une machine Linux** : l'agent. Il relit la machine chaque minute et l'envoie lui-même, sans clé SSH sur la machine.
+> - **SSH** : gardé pour ce que l'agent ne lit pas (sauvegardes, Proxmox ou ESXi, NPM, AdGuard), pour un Mac (pas d'agent macOS), ou si l'agent ne peut pas être installé. Machines › Connexions SSH dit, machine par machine, si le SSH sert encore.
 > - **Une box, une passerelle, une appli** (Freebox, UniFi, Home Assistant...) : le connecteur, pas d'agent.
 >
-> SSH, agent et connecteurs peuvent tourner ensemble sur une même machine. SSH et agent lisent la santé de la machine ; un connecteur ajoute ce que lui seul connaît (machines virtuelles, clients réseau, GPU...), affiché en un badge par outil.
+> SSH, agent et connecteurs peuvent tourner ensemble sur une même machine. La santé vient de l'agent tant qu'il répond (le SSH prend le relais s'il se tait) ; un connecteur ajoute ce que lui seul connaît (machines virtuelles, clients réseau, GPU...), affiché en un badge par outil.
 
 <details>
 <summary><b>Agent ou services externes ? Ce que l'agent lit déjà</b></summary>
@@ -153,7 +153,7 @@ L'agent Windows est un seul petit script. Le tableau montre ce qu'il lit sur un 
 | Présence : allumé, en veille ou muet | Oui (l'agent se signale lui-même) | Uptime Kuma (ping ou port), MynetworK |
 | Installation | Un script, une tâche planifiée, une seule connexion sortante vers MyServices | Un service par outil, son propre compte ou sa clé, un port à ouvrir sur le réseau |
 
-Pour les machines Linux, les mêmes informations viennent de SSH, sans rien installer sur la machine.
+Pour les machines Linux, l'agent Linux (Python 3.6+, systemd) donne les mêmes informations : choisir **Linux** à l'installation de l'agent (page de la machine, onglet **Accès**), puis coller la commande dans un terminal de la machine. Le SSH les donne aussi, sans rien installer, et reste nécessaire pour les sauvegardes, Proxmox ou ESXi, NPM et AdGuard.
 
 </details>
 
@@ -172,7 +172,7 @@ Pour les machines Linux, les mêmes informations viennent de SSH, sans rien inst
 
 **Mises à jour.** La carte de l'agent affiche sa version. **Mettre à jour maintenant** ou l'interrupteur **Automatique** par agent (coupé par défaut) fait récupérer le nouveau script à MyServices au prochain relevé ; l'agent contrôle le SHA-256 et la syntaxe avant de se remplacer. Le script n'est pas signé : MyServices est la seule source de confiance.
 
-**Linux et macOS.** Pas encore d'agent pour eux : les machines Linux sont lues par SSH.
+**macOS.** Pas d'agent pour macOS : un Mac est lu par SSH.
 
 </details>
 

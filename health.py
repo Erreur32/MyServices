@@ -592,6 +592,12 @@ def as_root(cmd: str) -> str:
     return f"if [ \"$(id -u)\" = 0 ]; then timeout 15 {cmd}; else timeout 15 sudo -n {cmd}; fi 2>/dev/null"
 
 
+def root_or_why(cmd: str) -> str:
+    """cmd as root (as_root); when it fails, why: NOANSWER when root or the sudo rule allows it (the tool itself did not answer), else NOSUDO.
+    `sudo -n -l <cmd>` only checks the rule, it runs nothing."""
+    return f"{as_root(cmd)} || {{ {{ [ \"$(id -u)\" = 0 ] || sudo -n -l {cmd} >/dev/null 2>&1; }} && echo NOANSWER || echo NOSUDO; }}"
+
+
 def sudo_rule(user: str, cmd: str) -> str:
     """The sudoers line that lets `user` run `cmd` alone, without password."""
     return f"{user} ALL=(root) NOPASSWD: {cmd}"
@@ -620,7 +626,7 @@ SYSTEM_CMD = (
     "echo @@snap; command -v snap >/dev/null 2>&1 && timeout 10 snap refresh --list 2>&1 | head -n 30; "
     "echo @@who; who 2>/dev/null | head -n 20; "
     f"echo @@nr; [ -x {NEEDRESTART} ] && {{ {as_root(NEEDRESTART_ARGS)} || echo NOSUDO; }}; "
-    f"echo @@f2b; [ -x {FAIL2BAN} ] && {{ {as_root(FAIL2BAN_ARGS)} || echo NOSUDO; }}; "
+    f"echo @@f2b; [ -x {FAIL2BAN} ] && {{ {root_or_why(FAIL2BAN_ARGS)}; }}; "
     "echo @@dkr; command -v docker >/dev/null 2>&1 && docker ps -q 2>/dev/null | head -n 200 "
     "| xargs -r docker inspect --format '{{.Name}}|{{.RestartCount}}|{{.State.StartedAt}}' 2>/dev/null; true"
 )
@@ -832,6 +838,8 @@ def parse_fail2ban(lines: list[str], user: str) -> dict:
         return {"available": False}
     if "NOSUDO" in lines:
         return {"available": True, "access": False, "rule": sudo_rule(user or "<compte>", FAIL2BAN_ARGS)}
+    if "NOANSWER" in lines:   # allowed, but fail2ban-client got no answer: the service is stopped or its socket gone
+        return {"available": True, "access": True, "down": True, "jails": [], "total": 0}
     try:
         data = ast.literal_eval(" ".join(lines)[:200000])
     except (ValueError, SyntaxError, MemoryError, RecursionError):
@@ -1144,6 +1152,22 @@ def host_from_agent(hc: dict, a: dict) -> dict:
     return h
 
 
+def agent_figures(hc: dict, a: dict | None, ts: str) -> bool:
+    """A machine read over SSH first keeps its SSH health, but its agent's fresh report still gives a point to its 24 h curves (metrics.py);
+    True when one was stored."""
+    data = ((a or {}).get("report") or {}).get("data")
+    if not (a and a.get("fresh") and isinstance(data, dict)):
+        return False
+    try:
+        import metrics
+        from auth import db_path
+        h = {"name": hc["name"], "reachable": True, "read_at": ts, **parse_agent_data(hc, data)}
+        return metrics.store(db_path(CFG), metrics.points({"hosts": [h]})) > 0
+    except Exception as e:  # base unavailable: only the curves miss a point
+        print(f"⚠ courbes : {e}", file=sys.stderr)
+        return False
+
+
 def parse_agent_data(hc: dict, data: dict) -> dict:
     """Champs de santé lus dans le relevé d'un agent, Linux (sorties rejouées) ou Windows (PowerShell)."""
     if data.get("kind") == "linux":
@@ -1156,10 +1180,17 @@ def parse_agent_data(hc: dict, data: dict) -> dict:
 SOURCES = ("ssh", "agent", "beszel", "ha")   # ha : l'API d'un connecteur (Home Assistant : capteurs de la machine hôte)
 
 
-def source_order(hc: dict) -> list[str]:
+def agent_fresh(agent: dict | None) -> bool:
+    """The machine's agent sent a recent report (health.agent_reports): its health can be read from it, without SSH."""
+    return bool(agent and agent.get("fresh") and isinstance((agent.get("report") or {}).get("data"), dict))
+
+
+def source_order(hc: dict, agent: dict | None = None) -> list[str]:
     """Priorité de lecture de la santé d'une machine : « health_sources » de services-meta, puis l'ordre par défaut pour
-    les sources non citées. Par défaut SSH, agent, Beszel ; Windows : agent d'abord (c'est son accès recommandé)."""
-    default = ["agent", "ssh", "beszel", "ha"] if hc.get("os") == "windows" else ["ssh", "agent", "beszel", "ha"]
+    les sources non citées. Par défaut SSH, agent, Beszel ; agent d'abord quand il a un relevé frais (il relit la machine chaque minute,
+    sans clé SSH : le SSH n'est plus ouvert que s'il se tait) et toujours pour Windows (c'est son accès recommandé)."""
+    first_agent = hc.get("os") == "windows" or agent_fresh(agent)
+    default = ["agent", "ssh", "beszel", "ha"] if first_agent else ["ssh", "agent", "beszel", "ha"]
     wanted = [x for x in hc.get("sources") or [] if x in SOURCES]
     return list(dict.fromkeys(wanted + default))
 
@@ -1213,7 +1244,7 @@ def read_host(hc: dict, agent: dict | None, beszel: dict | None, ssh=None, api: 
                "beszel": lambda: host_from_beszel(hc, beszel) if beszel else None,
                "ha": lambda: host_from_api(hc, api) if api else None}
     silent, primary = None, None
-    for name in source_order(hc):
+    for name in source_order(hc, agent):
         h = readers[name]()
         if h is None:
             continue
@@ -1226,10 +1257,10 @@ def read_host(hc: dict, agent: dict | None, beszel: dict | None, ssh=None, api: 
         return None if hc.get("off") else silent
     # parties lisibles à peu de frais (relevé d'agent frais, Beszel qui répond), sans relancer de lecture SSH
     cheap = {}
-    for name in source_order(hc):
+    for name in source_order(hc, agent):
         if name == primary["source"]:
             continue
-        if name == "agent" and agent and agent["fresh"] and isinstance((agent["report"] or {}).get("data"), dict):
+        if name == "agent" and agent_fresh(agent):
             cheap[name] = parse_agent_data(hc, agent["report"]["data"])
         elif name == "beszel" and beszel and beszel.get("status") == "up":
             cheap[name] = parse_beszel(beszel)
@@ -2068,8 +2099,9 @@ def main() -> int:
     candidates, meta = load_hosts(set(agents))
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv[:-1] else None  # une seule machine (IP) : les autres gardent leur dernier relevé
     # After an agent report (--agent): a machine read over SSH first keeps its SSH reading until the next pass (the report only complements it)
-    if only and "--agent" in sys.argv and any(hc["ip"] == only and hc["target"] and source_order(hc)[0] == "ssh" for hc in candidates):
-        print(f"= relevé d'agent de {only} : machine lue en SSH, rien à relire")
+    ssh_first = [hc for hc in candidates if hc["ip"] == only and hc["target"] and source_order(hc, agents.get(only))[0] == "ssh"] if only and "--agent" in sys.argv else []
+    if ssh_first:
+        print(f"= relevé d'agent de {only} : machine lue en SSH, rien à relire" + (" (un point pour les courbes)" if agent_figures(ssh_first[0], agents.get(only), ts) else ""))
         return 0
     previous, previous_asleep = [], []
     if only:
@@ -2081,7 +2113,7 @@ def main() -> int:
     asleep = []
     apis = api_systems(meta, cached_only=bool(only))
     # Beszel is read for a whole pass, or for the one machine asked for (even a « often off » one: Beszel may be telling it is up)
-    needs_beszel = any(hc["target"] is None or "beszel" in source_order(hc) for hc in candidates if not only or hc["ip"] == only)
+    needs_beszel = any(hc["target"] is None or "beszel" in source_order(hc, agents.get(hc["ip"])) for hc in candidates if not only or hc["ip"] == only)
     besz, _ = beszel_systems(meta) if (not only or needs_beszel or only in meta.get("machines", {})) else ({}, [])
     awake = awake_ips(besz)
     if awake - set(agents):   # a « often off » machine that Beszel sees up is read like the others, from Beszel
@@ -2098,6 +2130,7 @@ def main() -> int:
         if h.get("sources"):
             print("  sources : " + " + ".join(h["sources"]))
         print(f"  → {h['level'].upper()}" + ("" if h["reachable"] else " (injoignable)"))
+        h["read_at"] = ts   # when this machine was read: a pass of --only leaves the others with theirs (machine page, metrics.py)
         hosts.append(h)
 
     if only:  # relevé d'une machine : elle remplace son ancienne ligne (ou s'ajoute), les autres restent telles quelles

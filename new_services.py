@@ -1,7 +1,7 @@
 """New services found on the machines (containers, processes): « follow it? » on the home page.
 
 A service of a machine (type « local ») first seen in the last WINDOW_DAYS days (watcher event « nouveau ») is proposed until an
-admin decides. Follow = keep it as it is, the choice is only remembered (state_dir/services-decided.json). Don't follow = the
+admin decides, unless a connector already reads it (its address, or its Docker image on that machine: covered()). Follow = keep it as it is, the choice is only remembered (state_dir/services-decided.json). Don't follow = the
 existing « pause » of services-meta.json, written under « ip:port »: no probe, no alert, still listed in Services as paused, and
 resumed from its detail. A container name is not used as the key: the same name can run on two machines.
 """
@@ -12,6 +12,7 @@ import io
 import json
 import os
 import time
+import urllib.parse
 from pathlib import Path
 
 WINDOW_DAYS = 7
@@ -42,10 +43,39 @@ def _write_json(f: Path, data: object) -> None:
     tmp.replace(f)
 
 
-def pending(data: dict, events: list[dict], state_dir: str | Path) -> list[dict]:
-    """Services to propose, newest first. events: the « nouveau » events of the window (history.query)."""
+def _endpoints(conf: dict) -> set[tuple[str, int | None]]:
+    """(host, port) of every address set in a connector (url, indexer_url…); port None when the address gives none."""
+    out = set()
+    for v in conf.values():
+        if isinstance(v, str) and v.startswith(("http://", "https://")):
+            u = urllib.parse.urlsplit(v)
+            try:
+                port = u.port
+            except ValueError:
+                port = None
+            if u.hostname:
+                out.add((u.hostname, port))
+    return out
+
+
+def covered(rows: list[dict], connectors: list[tuple[dict, tuple[str, ...]]]) -> set[str]:
+    """Keys of the services a set connector already reads: the same address and port, or a container of one of its images on the machine
+    its address points to (Wazuh's manager also listens on 1514 and 1515). connectors: (settings, Docker images of its type)."""
+    out = set()
+    for conf, images in connectors:
+        ends = _endpoints(conf)
+        hosts = {h for h, _ in ends}
+        for r in rows:
+            image = str((r.get("service") or {}).get("image") or "").split(":")[0]
+            if (r.get("ip"), r.get("port")) in ends or (r.get("ip") in hosts and image and image in images):
+                out.add(_key(r))
+    return out
+
+
+def pending(data: dict, events: list[dict], state_dir: str | Path, connectors: list[tuple[dict, tuple[str, ...]]] | None = None) -> list[dict]:
+    """Services to propose, newest first. events: the « nouveau » events of the window (history.query); connectors: see covered()."""
     rows = {_key(r): r for r in data.get("hosts") or [] if r.get("type") == "local"}
-    decided, out, seen = _decided(state_dir), [], set()
+    decided, out, seen = _decided(state_dir), [], set(covered(list(rows.values()), connectors or []))
     for e in events:
         k, r = e.get("key"), rows.get(e.get("key"))
         if not r or k in seen or k in decided or r.get("paused") or (r.get("app") or {}).get("key") in MACHINE_OWN:

@@ -1,10 +1,21 @@
 import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../api";
-import { connectorCounts, networkCounts, upkeepCounts, virtualCounts } from "./statsExtra";
+import { connectorCounts, networkCounts, upkeepCounts, virtualCounts, wazuhCounts } from "./statsExtra";
 
 const snap = (data: object, health?: object): Snapshot => ({ data: { hosts: [], machine_list: [], ...data }, health } as unknown as Snapshot);
 
 describe("counters of the home page", () => {
+  it("Wazuh only when set and answering, alerts and vulnerabilities with its indexer", () => {
+    const agents = { active: 6, total: 7, disconnected: 1, never: 0 };
+    const v = (critical: number) => ({ critical, high: 0, medium: 0, low: 0, worst: [] });
+    expect(wazuhCounts(snap({}))).toBeNull();
+    expect(wazuhCounts(snap({ services_status: [{ connector: "wazuh", ok: false, stale: false, agents }] }))).toBeNull();
+    expect(wazuhCounts(snap({ services_status: [{ connector: "wazuh", ok: true, stale: true, agents }] }))).toBeNull();
+    expect(wazuhCounts(snap({ services_status: [{ connector: "wazuh", ok: true, stale: false, agents }] })))
+      .toEqual({ active: 6, total: 7, disconnected: 1, never: 0, serious: null, critical: null });
+    const full = { connector: "wazuh", ok: true, stale: false, agents, alerts: { serious: 4 }, machines: { a: { vulns: v(3) }, b: { vulns: v(2) }, c: {} } };
+    expect(wazuhCounts(snap({ services_status: [full] }))).toMatchObject({ serious: 4, critical: 5 });
+  });
   it("network equipment: connected means state 1", () => {
     const s = snap({ network: [{ unifi: { clients: [], devices: [{ state: "1" }, { state: 1 }, { state: "0" }] } }, { devices: [] }] });
     expect(networkCounts(s)).toEqual({ devices: 3, online: 2 });

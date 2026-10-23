@@ -9,6 +9,7 @@ import { MachineIcon } from "../components/MachineIcon";
 import { AssistantNetwork, proposedFrom } from "../components/AssistantNetwork";
 import { SetupModal, type Setup } from "../components/SetupModal";
 import { SourceBadges } from "../components/SourceBadges";
+import { AccessChoice } from "../components/AccessChoice";
 import { Badge, Card, Dim } from "../components/ui";
 import { appIcon } from "../lib/appIcons";
 import { STEPS, advance, isFinished, type AssistantStep, loadProgress, normalizeProgress, previousStep, resetProgress, saveProgress, thisMachine, type AssistantProgress } from "../lib/assistant";
@@ -238,6 +239,7 @@ function Access({ snap, report, open, rev, accepted, onAccept }: Readonly<{ snap
     <div>
       <h2 className="text-xl font-bold">{tx("Lire chaque machine")}</h2>
       <InfoNote className="mt-2">{tx("Pour chaque machine, MyServices vous recommande la méthode la plus simple. Rien ne change tant que vous ne lancez pas l'action proposée.")}</InfoNote>
+      <AccessChoice className="mt-2" />
       <p className="mt-2 text-xs text-dim">{tx("{0} machines suivies, {1} déjà lues par la méthode recommandée. Les machines à finir ou à optimiser passent en premier.", sum.total, sum.read)}
         {asleep > 0 && <> {tx("{0} éteintes ou hors ligne ne sont pas proposées : à régler quand elles seront allumées.", asleep)}</>}</p>
       {/* Hauteur minimale fixe : les boutons « Machine précédente / suivante » restent à la même place d'une machine à l'autre */}

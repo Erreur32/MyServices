@@ -225,6 +225,9 @@ export interface ServiceStatus {
   problems?: string[];                                                       // et ce qui est à regarder
   updates?: { name: string; installed?: string | null; latest?: string | null; group?: "core" | "addon" | "other" }[];
   instance?: string;                     // connector instance name (« name » can be the app's own, Home Assistant's place)
+  machines?: Record<string, WazuhMachine>;   // Wazuh only: what it knows of each machine, by the IP of its agent
+  agents?: { active: number; disconnected: number; never: number; total: number };   // Wazuh only: its agents
+  alerts?: { total: number; serious: number; level: number; rules: { name: string; count: number; level: number }[]; hours: { t: number; n: number; serious: number }[] };   // Wazuh with the indexer: 24 h
   // Home Assistant only
   addons?: { name: string; slug: string; version?: string | null; latest?: string | null }[];   // add-ons installed
   system?: { method?: string; core?: string | null; supervisor?: string; os?: string };            // what Home Assistant runs on
@@ -233,6 +236,17 @@ export interface ServiceStatus {
   automations?: { on: number; total: number };
   mcp?: HaMcp | null;   // advanced mode (ha-mcp add-on): backups, apps, integrations, configuration check
   host?: { cpu?: number | null; mem_pct?: number | null; temp?: number | null; disks?: { mount: string; used_pct: number; size_gb?: number; used_gb?: number }[]; ips?: string[]; boot?: string | null };
+}
+
+/** What Wazuh knows of one machine: its agent, SCA scores, syscollector inventory, vulnerabilities (with the indexer) */
+export interface WazuhMachine {
+  agent?: string | null;
+  status?: string | null;   // active, disconnected, never_connected, pending
+  sca?: { name: string; score: number; pass: number; fail: number }[];
+  hardware?: { cpu?: string | null; cores?: number | null; ram_gb?: number | null } | null;
+  packages?: number | null;
+  ports?: { port: number; proto: string; process?: string | null; local?: boolean }[];   // local: listening on 127.0.0.1 / ::1 only
+  vulns?: { critical: number; high: number; medium: number; low: number; worst: { id: string; severity: string | null; package: string | null }[] };
 }
 
 /** What the ha-mcp add-on gives about a Home Assistant (read-only calls); each part is absent when its call failed (see errors) */
@@ -298,6 +312,7 @@ export type Level = "ok" | "warn" | "crit" | "down";
 export interface HealthHost {
   id: string;
   name: string; // « Nom · IP »
+  read_at?: string;   // ISO 8601: when this machine was last read (health.py)
   os?: string;
   reachable: boolean;
   level: Level | "na";
@@ -342,7 +357,7 @@ export interface HostSystem {
   sessions?: { available: boolean; sessions?: { user: string; tty: string; from: string }[] };
   // need root: read through one exact sudo rule; access false = the rule is missing, `rule` is the sudoers line to add
   needrestart?: { available: boolean; access?: boolean; rule?: string; services?: string[]; kernel_pending?: boolean };
-  fail2ban?: { available: boolean; access?: boolean; rule?: string; jails?: { name: string; banned: number }[]; total?: number };
+  fail2ban?: { available: boolean; access?: boolean; down?: boolean; rule?: string; jails?: { name: string; banned: number }[]; total?: number };   // down: allowed, but fail2ban did not answer (service stopped)
 }
 
 /** Poste « souvent éteint » qui ne répond pas : fiche grisée, sans alerte (last_seen : dernier relevé de son agent, en secondes) */
@@ -605,6 +620,7 @@ export interface MachinesSettings {
   process_hosts: Record<string, string>;
   aliases: SshAlias[];
   ssh_conf: string;
+  ssh_uses?: Record<string, string[]>;   // per IP, what needs SSH beyond what an agent reads (backups, npm, adguard, proxmox…)
 }
 export interface Detection {
   ip: string;

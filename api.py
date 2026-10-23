@@ -444,7 +444,16 @@ def services_new(request: Request):
     if denied := admin_only(request):
         return denied
     events = history.query(db_path(core.CFG), since=time.time() - new_services.WINDOW_DAYS * 86400, kind="nouveau", limit=5000)
-    return {"items": new_services.pending(read_produced("data.json") or {}, events, core.CFG["state_dir"])}
+    return {"items": new_services.pending(read_produced("data.json") or {}, events, core.CFG["state_dir"], _connector_endpoints())}
+
+
+def _connector_endpoints() -> list[tuple[dict, tuple[str, ...]]]:
+    """The set connectors with the Docker images of their type: what they read is not a « new service » to decide on."""
+    import connectors
+    try:
+        return [(c, getattr(connectors.TYPES.get(c.get("type", "")), "images", ())) for c in connectors.declared(core.CFG)]
+    except connectors.ConnectorError:
+        return []
 
 
 @app.post(API + "/services/new/follow", tags=["services"], summary="Suivre ces nouveaux services tels quels : plus proposés (admin)")
@@ -909,7 +918,28 @@ def machine_call(request: Request, action: str, detail: str, fn, write: bool = T
 
 @app.get(API + "/machines/settings", tags=["machines"], summary="Machines déclarées, alias SSH connus (admin)")
 def machines_settings(request: Request):
-    return machine_call(request, "", "", lambda m: m.listing(), write=False)
+    return machine_call(request, "", "", _listing_with_ssh_uses, write=False)
+
+
+def _listing_with_ssh_uses(m) -> dict:
+    out = m.listing()
+    out["ssh_uses"] = _ssh_uses(out["machines"])
+    return out
+
+
+def _ssh_uses(machines: dict) -> dict[str, list[str]]:
+    """What needs SSH on each machine beyond what an agent reads (Machines › SSH connections: « SSH optional » otherwise)."""
+    import access_advice
+    import connectors
+    try:
+        hosts = json.loads(Path(core.CFG["backups_meta"]).read_text(encoding="utf-8")).get("hosts") or []
+    except (OSError, ValueError, AttributeError):
+        hosts = []
+    try:
+        declared = connectors.declared(core.CFG)
+    except connectors.ConnectorError:
+        declared = []
+    return access_advice.ssh_uses(machines, declared, hosts if isinstance(hosts, list) else [], (read_produced("data.json") or {}).get("virtualization") or [])
 
 
 @app.get(API + "/machines/advice", tags=["machines"], summary="Méthode de lecture recommandée pour chaque machine suivie : SSH, agent, connecteur ou ping (admin)")
@@ -2114,6 +2144,16 @@ def events_per_day(days: int = 30):
 def availability_report(days: int = 30):
     import availability
     return availability.report(db_path(core.CFG), days)
+
+
+@app.get(API + "/machines/{ip}/metrics", tags=["historique"], summary="Processeur, mémoire, disque le plus plein et température d'une machine sur 24 h")
+def machine_metrics(ip: str):
+    import metrics
+    try:
+        ipaddress.ip_address(ip)
+    except ValueError:
+        return deny(400, "IP attendue")
+    return metrics.series(db_path(core.CFG), ip)
 
 
 # ── Comptes et sessions ───────────────────────────────────────────────────────────────────────────

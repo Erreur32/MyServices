@@ -42,7 +42,7 @@
 >
 > Because it is still moving fast, **pull requests and issues are not being handled for now**; please hold them until a stable release.
 >
-> Development builds are not tagged. Version numbers stay **below 2.0.0** until it is declared stable (`0.20.1`, `0.20.2`…).
+> Development builds are not tagged. Version numbers stay **below 2.0.0** until it is declared stable (`0.20.2`, `0.20.3`…).
 > Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in English).
 
 ## At a glance
@@ -77,7 +77,7 @@ Then open **`http://<IP>:8090/`** (the app is at the root of the site; the old `
 
 > **The app listens on port `8090`.** It is a setting, not a fixed value: if 8090 is already taken on your machine, put **`MYSERVICES_PORT=8095`** (or any free port) in a `.env` file next to `docker-compose.yaml` (example: [`deploy/env.example`](deploy/env.example), downloaded by the second `curl` above), then run `docker compose up -d` and open `http://<IP>:8095/`. The container uses the host network, so editing a `ports:` mapping would do nothing.
 
-Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.20.1` pins a version, `:main` tracks the latest commit of the `main` branch (the header then shows e.g. `v0.10.1+ · main · abc1234`).
+Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.20.2` pins a version, `:main` tracks the latest commit of the `main` branch (the header then shows e.g. `v0.10.1+ · main · abc1234`).
 Update: `docker compose pull && docker compose up -d` (settings and data live in the `./config` and `./data` volumes).
 
 ---
@@ -123,11 +123,11 @@ A machine can be followed in three ways, which can be combined. The first source
 3. **Ping and network scan**: only tell whether a machine is up and which apps answer on it. The first scan of your local network runs on its own, then repeats at the frequency you set. In manual mode you choose which machines to follow; in automatic mode the useful ones are added for you.
 
 > **Which one to use? A simple rule.**
-> - **A Linux machine you administer**: SSH is enough. An agent is only useful as a safety net (if SSH stops answering, the agent takes over).
-> - **A machine where SSH is not possible** (no key allowed, closed port, NAT, VPN): the agent, Windows or Linux.
+> - **A Windows PC or a Linux machine**: the agent. It reads the machine every minute and sends it itself, with no SSH key on the machine.
+> - **SSH**: kept for what the agent does not read (backups, Proxmox or ESXi, NPM, AdGuard), for a Mac (no macOS agent), or when the agent cannot be installed. Machines › SSH connections tells, per machine, whether SSH is still useful.
 > - **A box, a gateway, an app** (Freebox, UniFi, Home Assistant...): the connector, no agent.
 >
-> SSH, agent and connectors can run together on the same machine. SSH and agent read the machine's health; a connector adds what only it knows (virtual machines, network clients, GPU...), shown as one badge per tool.
+> SSH, agent and connectors can run together on the same machine. The health comes from the agent while it answers (SSH takes over if it goes silent); a connector adds what only it knows (virtual machines, network clients, GPU...), shown as one badge per tool.
 
 <details>
 <summary><b>Agent or external services? What the agent already reads</b></summary>
@@ -153,7 +153,7 @@ The Windows agent is one small script. The table lists what it reads on a PC and
 | Presence: on, asleep or silent | Yes (the agent reports itself) | Uptime Kuma (ping or port), MynetworK |
 | Installation | One script, one scheduled task, one outgoing connection to MyServices | One service per tool, its own account or key, a port to open on the network |
 
-For Linux machines, the same information comes from SSH, with nothing to install on the machine, or from the Linux agent (Python 3.6+, systemd) when SSH is not an option: pick **Linux** when installing the agent (the machine's page, **Access** tab), then paste the command in a terminal on the machine.
+For Linux machines, the Linux agent (Python 3.6+, systemd) gives the same information: pick **Linux** when installing the agent (the machine's page, **Access** tab), then paste the command in a terminal on the machine. SSH gives it too, with nothing to install, and stays needed for backups, Proxmox or ESXi, NPM and AdGuard.
 
 </details>
 
@@ -172,7 +172,7 @@ For Linux machines, the same information comes from SSH, with nothing to install
 
 **Updates.** The agent card shows its version. **Update now** or the per-agent **Automatic** switch (off by default) makes the agent fetch the new script from MyServices at its next report; it checks the SHA-256 and the syntax before replacing itself. The script is not signed: MyServices is the only source of trust.
 
-**Linux and macOS.** There is no agent for them yet: Linux machines are read over SSH.
+**macOS.** There is no agent for macOS: a Mac is read over SSH.
 
 </details>
 

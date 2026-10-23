@@ -23,7 +23,20 @@ describe("ports of a machine", () => {
   });
   it("without a scan: the service ports only, not marked as listening", () => {
     const rows = portRows(m, [host({ host_ip: "10.0.0.20", port: 445, name: "smb" })]);
-    expect(rows).toMatchObject([{ port: 445, name: "smb", domains: [], listening: false, guess: null }]);
+    expect(rows).toMatchObject([{ port: 445, name: "smb", domains: [], listening: false, guess: null, seen: [] }]);
+  });
+  it("adds what MynetworK and Wazuh saw: who saw it, the program, listening on the machine only", () => {
+    const rows = portRows(m, [], { scan: { ports: [22] } }, {
+      mynetwork: [22, 80],
+      wazuh: [{ port: 22, process: "sshd" }, { port: 6379, process: "redis-server", local: true }, { port: 53, local: true }, { port: 53, process: "dnsmasq" }],
+    });
+    expect(rows.map((r) => [r.port, r.seen, r.process, r.local])).toEqual([
+      [22, ["scan", "mynetwork", "wazuh"], "sshd", false],
+      [53, ["wazuh"], "dnsmasq", false],          // on 127.0.0.1 and on the network: not local
+      [80, ["mynetwork"], null, false],
+      [6379, ["wazuh"], "redis-server", true],
+    ]);
+    expect(rows.every((r) => r.listening)).toBe(true);
   });
 });
 

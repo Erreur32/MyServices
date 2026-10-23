@@ -8,6 +8,7 @@ no secret in error messages.
 from __future__ import annotations
 
 import base64
+import ipaddress
 import re
 import ssl
 import time
@@ -501,9 +502,20 @@ class NetAlertX(StatusConnector):
         return {"url": f"http://{ip}:{host_port(ports, 20212) or 20212}"}
 
 
+def _first_key(agg: dict | None) -> str | None:
+    """Key of the first bucket of an indexer terms aggregation."""
+    return next((str(x.get("key")) for x in rows((agg or {}).get("buckets"))), None)
+
+
 class Wazuh(StatusConnector):
     """Wazuh (server API, 55000): version, agents active / disconnected / never connected. Read-only API user (Basic, then a JWT).
-    Routes: POST /security/user/authenticate, GET /, /agents/summary/status, /agents?status=disconnected."""
+    Routes: POST /security/user/authenticate, GET /, /agents/summary/status, /agents?status=disconnected.
+    With the indexer set (9200, its own read-only user): the security alerts of the last 24 h, the serious ones (level 13 and more:
+    level 12 holds routine rules such as a system user logging in) named. Route: POST /wazuh-alerts-*/_search (counts only, no alert read).
+    Per machine (« machines », by the IP of its Wazuh agent, shown on the machine page): the configuration score of each SCA policy
+    and what syscollector saw (hardware, packages, listening ports), read for the active agents and kept an hour; with the indexer,
+    the vulnerabilities by severity and the worst CVE (POST /wazuh-states-vulnerabilities-*/_search), kept half an hour.
+    Routes: /agents?select=…, /sca/<id>, /syscollector/<id>/hardware|packages|ports."""
     type = "wazuh"
     label = "Wazuh"
     images = ("wazuh/wazuh-manager",)
@@ -512,10 +524,22 @@ class Wazuh(StatusConnector):
         Field("username", "Utilisateur d'API", required=True, help="un utilisateur avec le rôle « readonly »"),
         Field("password", "Mot de passe", "password", required=True, secret=True),
         Field("verify_tls", "Vérifier le certificat HTTPS", "bool", default=False, help="certificat auto-signé par défaut chez Wazuh"),
+        Field("indexer_url", "Adresse de l'indexeur (alertes)", "url", help="https://<IP>:9200 ; vide : pas d'alertes"),
+        Field("indexer_username", "Utilisateur de l'indexeur", help="un utilisateur avec le rôle « readall »"),
+        Field("indexer_password", "Mot de passe de l'indexeur", "password", secret=True),
     )
     setup_fields = ("url", "username", "password")
-    guide = ("Dans le tableau de bord Wazuh : Server management → Security → Users → nouvel utilisateur « myservices », rôle « readonly ».",
-             "L'API du serveur répond sur le port 55000 (pas celui du tableau de bord). MyServices ne fait que lire.")
+    guide = ("Wazuh a deux listes d'utilisateurs séparées : celle de l'API du serveur (port 55000) et celle de l'indexeur (port 9200). "
+             "Un utilisateur de l'une n'existe pas dans l'autre : il en faut un dans chacune (le même nom convient).",
+             "1. API (agents, conformité, matériel, paquets, ports) : tableau de bord → Server management → Security → Users → nouvel utilisateur "
+             "« myservices », rôle « readonly ». Adresse : https://<IP>:55000 (pas celle du tableau de bord ni celle publiée par un proxy).",
+             "2. Indexeur, facultatif (alertes 24 h, vulnérabilités) : Indexer management → Security → Internal users → nouvel utilisateur "
+             "« myservices », et dans son champ « Backend roles » : readall. (Ajouter l'utilisateur au rôle « readall » par Roles → Mapped users "
+             "échoue : cette association est réservée.) Adresse de l'indexeur : https://<IP>:9200.",
+             "MyServices ne fait que lire : des nombres, le nom des règles graves et des CVE, jamais le détail d'une alerte.")
+    SERIOUS = 13   # rule level from which an alert counts as serious (12 holds routine ones, « System user successfully logged »)
+    MAX_AGENTS = 50   # per-agent reads (SCA, inventory) beyond: left out, a big fleet is not what MyServices is for
+    INVENTORY_TTL, VULNS_TTL = 3600, 1800
 
     def collect(self) -> dict:
         basic = base64.b64encode(f"{self.conf.get('username', '')}:{self.conf.get('password', '')}".encode()).decode()
@@ -523,8 +547,13 @@ class Wazuh(StatusConnector):
             auth = self.ctx.http(self.base_url() + "/security/user/authenticate", method="POST", headers={"Authorization": f"Basic {basic}"},
                                  verify_tls=self.tls())
         except ConnectorError as e:
-            if str(e).startswith(("HTTP 401", "HTTP 403")):
+            msg = str(e)
+            if msg.startswith(("HTTP 401", "HTTP 403")):
                 raise ConnectorError("accès refusé : utilisateur ou mot de passe de l'API Wazuh") from None
+            if msg.startswith("HTTP 404"):   # the dashboard (what NPM usually publishes) answers, not the API
+                raise ConnectorError("pas d'API Wazuh à cette adresse (le tableau de bord ?) : l'API répond sur le port 55000, https://<IP>:55000") from None
+            if "closed connection" in msg and self.base_url().startswith("http:"):
+                raise ConnectorError("l'API Wazuh ne répond qu'en https : https://<IP>:55000") from None
             raise
         token = ((auth or {}).get("data") or {}).get("token") if isinstance(auth, dict) else None
         if not token:
@@ -544,7 +573,109 @@ class Wazuh(StatusConnector):
                 problems = [f"{disc} agent(s) déconnecté(s)"]
         if never:
             problems.append(f"{never} agent(s) jamais connecté(s)")
-        return self.out(str(info.get("api_version") or "").lstrip("v") or None, facts, problems)
+        agents = self.agents(h)
+        read = {a["id"] for a in agents if a.get("status") == "active"}
+        read = set(sorted(read)[:self.MAX_AGENTS])
+        machines = {a["ip"]: {"agent": a.get("name"), "status": a.get("status"), **(self.inventory(h, a["id"]) if a["id"] in read else {})} for a in agents}
+        summary = {"active": int(num(conn.get("active"), 0)), "disconnected": disc, "never": never, "total": int(num(conn.get("total"), 0))}
+        alerts = None
+        if str(self.conf.get("indexer_url") or "").strip():
+            alerts = self.alerts(facts, problems)
+            self.vulnerabilities(agents, machines, facts)
+        return {**self.out(str(info.get("api_version") or "").lstrip("v") or None, facts, problems), "machines": machines, "agents": summary,
+                **({"alerts": alerts} if alerts else {})}
+
+    def agents(self, h: dict) -> list[dict]:
+        """The Wazuh agents with a usable IP (the manager itself, 000, left out): [{id, name, ip, status}]."""
+        got = rows((_data(self.get_opt("/agents?select=id,name,ip,status&limit=500", h)) or {}).get("affected_items"))
+        out = []
+        for a in got:
+            try:
+                ip = str(ipaddress.ip_address(str(a.get("ip") or "")))
+            except ValueError:
+                continue
+            if a.get("id") != "000" and not ipaddress.ip_address(ip).is_loopback:
+                out.append({"id": str(a.get("id")), "name": a.get("name"), "ip": ip, "status": a.get("status")})
+        return out
+
+    def inventory(self, h: dict, aid: str) -> dict:
+        """SCA scores and syscollector of an active agent, kept INVENTORY_TTL s (a disconnected agent's data is old: not read)."""
+        return self.ctx.cached(f"wazuh-{self.conf.get('url')}-{aid}", self.INVENTORY_TTL, lambda: self._inventory(h, aid))
+
+    def _inventory(self, h: dict, aid: str) -> dict:
+        sca = [{"name": p.get("name") or p.get("policy_id"), "score": int(num(p.get("score"), 0)), "pass": int(num(p.get("pass"), 0)),
+                "fail": int(num(p.get("fail"), 0))} for p in rows((_data(self.get_opt(f"/sca/{aid}", h)) or {}).get("affected_items"))]
+        hw = next(iter(rows((_data(self.get_opt(f"/syscollector/{aid}/hardware", h)) or {}).get("affected_items"))), {})
+        cpu, ram = hw.get("cpu") or {}, hw.get("ram") or {}
+        pk = _data(self.get_opt(f"/syscollector/{aid}/packages?limit=1", h)) or {}
+        ports = rows((_data(self.get_opt(f"/syscollector/{aid}/ports?state=listening&limit=100", h)) or {}).get("affected_items"))
+        loop = ("127.", "::1", "localhost")   # listening on the machine only: not reachable from the network
+        listen = sorted({(int(num((p.get("local") or {}).get("port"), 0)), str(p.get("protocol") or ""), str(p.get("process") or ""),
+                          str((p.get("local") or {}).get("ip") or "").startswith(loop)) for p in ports})
+        return {"sca": sca,
+                "hardware": {"cpu": cpu.get("name"), "cores": cpu.get("cores"), "ram_gb": round(num(ram.get("total"), 0) / 1024 ** 2, 1) or None} if hw else None,
+                "packages": pk.get("total_affected_items") if isinstance(pk.get("total_affected_items"), int) else None,
+                "ports": [{"port": p, "proto": pr, "process": pc or None, **({"local": True} if lo else {})} for p, pr, pc, lo in listen if p][:80]}
+
+    def indexer(self, path: str, body: dict) -> dict:
+        url = str(self.conf.get("indexer_url")).strip().rstrip("/")
+        basic = base64.b64encode(f"{self.conf.get('indexer_username', '')}:{self.conf.get('indexer_password', '')}".encode()).decode()
+        got = self.ctx.http(url + path, method="POST", body=body, headers={"Authorization": f"Basic {basic}"}, verify_tls=self.tls())
+        return got if isinstance(got, dict) else {}
+
+    def vulnerabilities(self, agents: list[dict], machines: dict, facts: list) -> None:
+        """Vulnerabilities by severity and the worst CVE (critical, then high) of each machine, kept VULNS_TTL s; nothing on an error
+        (the alerts above already tell an indexer that does not answer)."""
+        body = {"size": 0, "aggs": {"agents": {"terms": {"field": "agent.id", "size": 500}, "aggs": {
+            "sev": {"terms": {"field": "vulnerability.severity", "size": 5}},
+            "worst": {"filter": {"terms": {"vulnerability.severity": ["Critical", "High"]}}, "aggs": {"cve": {"terms": {"field": "vulnerability.id", "size": 5}, "aggs": {
+                "sev": {"terms": {"field": "vulnerability.severity", "size": 1}}, "pkg": {"terms": {"field": "package.name", "size": 1}}}}}}}}}}
+        try:
+            got = self.ctx.cached(f"wazuh-vulns-{self.conf.get('indexer_url')}", self.VULNS_TTL,
+                                  lambda: self.indexer("/wazuh-states-vulnerabilities-*/_search", body))
+        except ConnectorError:
+            return
+        ip_of = {a["id"]: a["ip"] for a in agents}
+        critical = 0
+        for b in rows(((got.get("aggregations") or {}).get("agents") or {}).get("buckets")):
+            ip = ip_of.get(str(b.get("key")))
+            if not ip:
+                continue
+            sev = {str(s.get("key")).lower(): int(num(s.get("doc_count"), 0)) for s in rows((b.get("sev") or {}).get("buckets"))}
+            worst = [{"id": c.get("key"), "severity": _first_key(c.get("sev")), "package": _first_key(c.get("pkg"))} for c in rows(((b.get("worst") or {}).get("cve") or {}).get("buckets"))]
+            worst.sort(key=lambda c: c["severity"] != "Critical")
+            machines.setdefault(ip, {})["vulns"] = {**{k: sev.get(k, 0) for k in ("critical", "high", "medium", "low")}, "worst": worst}
+            critical += sev.get("critical", 0)
+        facts.append(fact("Vulnérabilités critiques", critical, "bad" if critical else "ok"))
+
+    def alerts(self, facts: list, problems: list) -> dict | None:
+        """The alerts of the last 24 h from the indexer: how many, how many serious, the serious rules by name, and per hour (all and serious,
+        for the Security › Wazuh chart). An indexer that does not answer is told in the facts (None), the agents above stay read."""
+        serious_f = {"range": {"rule.level": {"gte": self.SERIOUS}}}
+        body = {"size": 0, "track_total_hits": True, "query": {"range": {"timestamp": {"gte": "now-24h"}}},
+                "aggs": {"serious": {"filter": serious_f,
+                                     "aggs": {"rules": {"terms": {"field": "rule.description", "size": 10}, "aggs": {"level": {"max": {"field": "rule.level"}}}}}},
+                         "hours": {"date_histogram": {"field": "timestamp", "fixed_interval": "1h", "min_doc_count": 0,
+                                                      "extended_bounds": {"min": "now-24h", "max": "now"}},
+                                   "aggs": {"serious": {"filter": serious_f}}}}}
+        try:
+            got = self.indexer("/wazuh-alerts-*/_search", body)
+        except ConnectorError as e:
+            why = "accès refusé (utilisateur de l'indexeur)" if str(e).startswith(("HTTP 401", "HTTP 403")) else str(e)
+            facts.append(fact("Alertes 24 h", "illisibles", "warn"))
+            problems.append(f"alertes Wazuh illisibles : {why}")
+            return None
+        aggs = got.get("aggregations") or {}
+        total = int(num(((got.get("hits") or {}).get("total") or {}).get("value"), 0))
+        serious = aggs.get("serious") or {}
+        n = int(num(serious.get("doc_count"), 0))
+        facts += [fact("Alertes 24 h", total), fact("Graves (24 h)", n, "bad" if n else "ok")]
+        rules = [{"name": str(b.get("key")), "count": int(num(b.get("doc_count"), 0)), "level": int(num((b.get("level") or {}).get("value"), 0))}
+                 for b in rows((serious.get("rules") or {}).get("buckets"))]
+        problems += [f"alerte « {r['name']} » : {r['count']} fois en 24 h (niveau {r['level']})" for r in rules[:5]]
+        hours = [{"t": int(num(b.get("key"), 0) // 1000), "n": int(num(b.get("doc_count"), 0)), "serious": int(num((b.get("serious") or {}).get("doc_count"), 0))}
+                 for b in rows((aggs.get("hours") or {}).get("buckets"))]
+        return {"total": total, "serious": n, "level": self.SERIOUS, "rules": rules, "hours": hours[-25:]}
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:

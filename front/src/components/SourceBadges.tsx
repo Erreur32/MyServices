@@ -1,6 +1,7 @@
 // Qui lit une machine : un badge court par source (SSH, agent, connecteurs), vert si tout va bien, d'une autre couleur sinon ; le détail est dans
 // l'infobulle. Utilisé par la page Machines (colonne « Sources ») et la carte de Réglages → Machines. L'accès SSH détaillé (compte, port, clé)
 // reste dans le détail déplié.
+import { Bot } from "lucide-react";
 import { Badge, type Tone } from "./ui";
 import { MSTATE, mState, stateBadge } from "../lib/machines";
 import { dateTime } from "../lib/format";
@@ -85,12 +86,28 @@ function listTip(list: Src[], first: Src): string {
   return [tx("Sources de lecture"), ...lines].join("\n");
 }
 
-/** all : toutes les sources (carte dépliée) ; sinon seulement la prioritaire, avec « +N » (infobulle : les autres) */
-export function SourceBadges({ m, agent, extra, all }: Readonly<{ m: Machine; agent?: AgentInfo | null; extra?: Extra[]; all?: boolean }>) {
+const MARK_TONE: Partial<Record<Tone, string>> = { warn: "text-warn", bad: "text-bad", info: "text-link", off: "text-dim" };
+
+/** A source without colour (head of the machine page): told apart by its logo (SSH, agent, the connector's app); one that does not answer
+ *  keeps a small coloured mark. The access state (off, unreachable) stays a coloured badge: it is not a source */
+function PlainSource({ s }: Readonly<{ s: Src }>) {
+  if (s.key === "state") return <Badge tone={s.tone} title={s.tip}>{s.label}</Badge>;
+  const icon = s.key === "ssh" ? ICON_SSH : s.key === "agent" ? null : appIcon([s.label]);
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md border border-line bg-card px-1.5 py-0.5 text-xs font-semibold text-muted" title={s.tip}>
+      {s.key === "agent" ? <Bot size={13} aria-hidden /> : icon && <img src={icon} alt="" aria-hidden className="h-3.5 w-3.5 object-contain" />}
+      {s.label}
+      {s.tone !== "ok" && <span className={MARK_TONE[s.tone]} aria-label={s.tip}>{MARK[s.tone]}</span>}
+    </span>
+  );
+}
+
+/** all : toutes les sources (carte dépliée) ; sinon seulement la prioritaire, avec « +N » (infobulle : les autres) ; plain : sans couleur, par logo */
+export function SourceBadges({ m, agent, extra, all, plain }: Readonly<{ m: Machine; agent?: AgentInfo | null; extra?: Extra[]; all?: boolean; plain?: boolean }>) {
   const list = sourcesOf(m, agent, extra), first = primaryOf(list), shown = all ? list : [first], rest = list.filter((s) => s !== first);
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
-      {shown.map((s) => <Badge key={s.key} tone={s.tone} title={s.tip}>{s.label}</Badge>)}
+      {shown.map((s) => plain ? <PlainSource key={s.key} s={s} /> : <Badge key={s.key} tone={s.tone} title={s.tip}>{s.label}</Badge>)}
       {!all && rest.length > 0 && <span className="inline-flex cursor-help items-center rounded-md border border-line bg-bg2 px-1.5 py-0.5 text-xs font-semibold text-muted hover:border-link hover:text-txt" title={listTip(list, first)}>+{rest.length}</span>}
     </span>
   );

@@ -7,8 +7,8 @@ Règle (la même que dans le README) :
 - box, passerelle, appli fermée (Freebox, UniFi…) : le connecteur, jamais d'agent ;
 - Home Assistant OS : son API (connecteur), ni SSH ni agent : l'accès SSH y est effacé à chaque redémarrage (constat de l'auteur) ;
 - PC Windows : l'agent ;
-- machine Linux où le SSH est possible : le SSH (l'agent n'y sert que de secours) ;
-- machine où le SSH est impossible : l'agent ;
+- machine Linux : l'agent (il relit la machine chaque minute, sans clé SSH ; décidé le 2026-10-23), le SSH en alternative et gardé pour ce
+  que l'agent ne lit pas (sauvegardes, Proxmox ou ESXi, NPM, AdGuard : ssh_uses) ; une machine déjà lue par SSH n'est pas signalée pour autant ;
 - le reste : ping seul.
 """
 from __future__ import annotations
@@ -101,10 +101,10 @@ def _plan(f: dict, kind: str, connectors: list[str]) -> tuple[str, str, list[str
 
 
 def _plan_linux(f: dict, kind: str, connectors: list[str], ssh_possible: bool) -> tuple[str, str, list[str], bool, str | None]:
-    """Linux ou système inconnu : SSH si possible, sinon un outil, sinon l'agent, sinon le ping."""
+    """Linux ou système inconnu : l'agent (SSH en alternative quand il est possible), un outil seul s'il n'y a que lui, sinon le ping."""
     if ssh_possible:
-        why = "ssh_configured" if f.get("ssh_ok") or f.get("ssh_alias") else "ssh_port"
-        return "ssh", why, ["agent"] + (["connector"] if connectors else []), True, "linux"
+        why = "agent_linux_ssh" if f.get("ssh_ok") or f.get("ssh_alias") else "agent_linux"
+        return "agent", why, ["ssh"] + (["connector"] if connectors else []), True, "linux"
     if connectors:
         return "connector", "connector_only", ["agent"], True, "linux"
     if f.get("ping") is False:
@@ -149,3 +149,36 @@ def advise_all(machines: list[dict], confs: dict[str, dict] | None = None, scan_
     """Recommandation de chaque machine suivie : {ip: advise(...)}. `agents` : {ip: état de l'agent installé}."""
     scans = {h.get("ip"): h for h in scan_found or []}
     return {m["ip"]: advise(facts_of(m, (confs or {}).get(m["ip"]), scans.get(m["ip"]), network, (agents or {}).get(m["ip"]))) for m in machines if m.get("ip")}
+
+
+# What the Linux agent reads as well as SSH: the health and the inventory (Docker, listening ports, services out of Docker). Anything else
+# read over SSH on a machine needs its SSH access even when an agent runs there.
+AGENT_COVERS = ("docker", "process")
+
+
+def ssh_uses(machines: dict, connectors: list[dict], backup_hosts: list[dict], virtualization: list[dict]) -> dict[str, list[str]]:
+    """{IP: [what needs SSH there]} for Machines › SSH connections: « backups » (backups.py reads its folders or crontab), the type of a
+    connector set on its SSH alias (npm, adguard, borgmatic…), « adguard » for the AdGuard of a machine, and the hypervisor read by SSH
+    (proxmox, esxi, virsh, incus, lxc, vboxmanage). A machine absent here is read over SSH for its health and inventory only, which an agent
+    also does. Pure: it gets the settings and the rows already read."""
+    ip_of = {m["ssh"]: ip for ip, m in machines.items() if isinstance(m.get("ssh"), str) and not m.get("disabled")}
+    out: dict[str, list[str]] = {}
+
+    def add(ip: str | None, what: str) -> None:
+        if ip and what not in out.setdefault(ip, []):
+            out[ip].append(what)
+
+    for h in backup_hosts:
+        if not h.get("api") and not h.get("mount"):
+            add(ip_of.get(str(h.get("ssh"))), "backups")
+        add(ip_of.get(str(h.get("cron_via") or "").split(":")[0]), "backups")
+    for c in connectors:
+        if isinstance(c.get("ssh"), str) and c.get("type") not in AGENT_COVERS:
+            add(ip_of.get(c["ssh"]), str(c.get("type")))
+    for ip, m in machines.items():
+        if m.get("adguard") and isinstance(m.get("ssh"), str):
+            add(ip, "adguard")
+    for r in virtualization:
+        if r.get("via") == "ssh":
+            add(r.get("ip"), str(r.get("connector")))
+    return {ip: v for ip, v in out.items() if v}

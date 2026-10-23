@@ -127,6 +127,9 @@ class NeedsRoot(unittest.TestCase):
     def test_regle_sudo_exacte_quand_refuse(self):
         n = health.parse_needrestart(["NOSUDO"], "debian32")
         self.assertEqual((n["access"], n["rule"]), (False, "debian32 ALL=(root) NOPASSWD: /usr/sbin/needrestart -b -r l"))
+        down = health.parse_fail2ban(["NOANSWER"], "debian32")
+        self.assertEqual((down["access"], down.get("down")), (True, True))   # the rule is there, fail2ban did not answer
+        self.assertIn("sudo -n -l /usr/bin/fail2ban-client banned", health.root_or_why(health.FAIL2BAN_ARGS))
         f = health.parse_fail2ban(["NOSUDO"], "debian32")
         self.assertEqual(f["rule"], "debian32 ALL=(root) NOPASSWD: /usr/bin/fail2ban-client banned")
         self.assertNotIn("*", f["rule"] + n["rule"])                           # one exact command, never a wildcard

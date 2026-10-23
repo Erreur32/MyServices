@@ -23,10 +23,12 @@ export function rate(bytesPerSec: number | null | undefined): string {
   return `${LANG === "fr" ? txt.replace(".", ",") : txt} ${u[i]}`;
 }
 
+/** A duration in its two largest units: « 12 j 4 h », « 4 h 20 min », « 12 min » (no more « 0 h » under an hour) */
 export function dur(sec: number | null | undefined): string {
   if (sec == null) return "-";
-  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600);
-  return d ? tx("{0} j {1} h", d, h) : tx("{0} h", h);
+  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+  if (d) return tx("{0} j {1} h", d, h);
+  return h ? tx("{0} h {1} min", h, m) : tx("{0} min", m);
 }
 
 /** Uptime in a few characters for a table cell: « 12j 4h », « 4h 20m », « 12m » */
@@ -46,6 +48,9 @@ export function ageDays(a: number | null | undefined): string {
 export function hm(d: Date | number): string {
   return new Date(d).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" });
 }
+
+/** A date that can be shown: a text the browser reads as a date (a tool may send an empty or broken value) */
+export const isDate = (v: unknown): v is string => typeof v === "string" && !Number.isNaN(Date.parse(v));
 
 export function dateTime(d: Date | number | string): string {
   return new Date(d).toLocaleString(LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });

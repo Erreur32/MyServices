@@ -34,6 +34,9 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: ["localhost", ...(process.env.MS_DEV_HOSTS ?? "").split(",").filter(Boolean)], // ex. MS_DEV_HOSTS=192.168.1.20
     headers: { "Cache-Control": "no-store" },
+    // A file is read again only once its size has stopped changing: a file caught half-written (a script that empties it then writes it,
+    // a git checkout) was served empty and stayed so until the next change (« does not provide an export named … »)
+    watch: { awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 } },
     proxy: {
       // Everything the container serves (API, MCP, agent scripts, sign-in page, produced files, diagrams); Vite keeps /, /src, /assets, /icons…
       "^/(api/|mcp|agent/|healthz|login\\.|data\\.json|events\\.json|backups\\.json|health/|.*\\.html$)": {
