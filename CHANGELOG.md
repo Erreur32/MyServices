@@ -12,8 +12,8 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Changed
-- **Machines → Agents lists every agent**, not only the revoked ones: figures on top (active, silent, pending, to update), each agent with its machine and the same gestures as on the machine's page (automatic or immediate update, new token, revocation, host name to confirm), one button to update the late agents, the revoked ones below.
-- **Machines → SSH connections**, a new sub-page: every machine read over SSH with the account and address it uses (`account@address:port`) and whether its last read went through, was refused or has not happened yet, the ones turned off by hand, and a link to set each access on its machine's page.
+- **Machines → Agents lists every agent**, not only the revoked ones: figures on top (active, silent, pending, to update), a table (machine, type, state, version, last report), one button to update the late agents, the revoked ones below. « Set » opens the agent's own settings page (`#settings/machines/agents/<ip>`) with its gestures: automatic or immediate update, new token, revocation, host name to confirm.
+- **Machines → SSH connections**, a new sub-page: every machine read over SSH with the account and address it uses (`account@address:port`) and whether its last read went through, was refused or has not happened yet, the ones turned off by hand. « Set » opens the SSH settings of that machine alone, on a page of its own (`#settings/machines/ssh/<ip>`), without the other tabs of the machine.
 
 ## v0.20.0 (2026-10-23)
 

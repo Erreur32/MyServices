@@ -137,6 +137,21 @@ export function AccessGuide() {
 }
 
 /** Vue d'ensemble, en bas de Réglages → Machines : comment choisir entre agent, SSH et connecteur, et les agents révoqués */
+/** One agent in the list of Machines → Agents: its machine, type, state, version and last report; « Régler » opens its own page */
+function AgentRow({ a, conf }: Readonly<{ a: AgentInfo; conf?: MachineConf }>) {
+  const [tone, label] = STATE[a.state], name = conf?.name ?? a.name;
+  return (
+    <tr className="border-t border-line/60 align-middle even:bg-bg/50 hover:bg-bg2/40">
+      <td className="px-3 py-2"><span className="flex items-center gap-2"><MachineIcon m={{ name, os: conf?.os ?? a.kind ?? "windows", osName: a.os }} reserve /><b className="truncate">{name}</b><Dim>{a.ip}</Dim></span></td>
+      <td className="px-3 py-2 text-xs">{a.kind === "linux" ? "Linux" : "Windows"}</td>
+      <td className="px-3 py-2"><span className="flex flex-wrap gap-1"><Badge tone={tone}>{label}</Badge>{a.host_pending && <Badge tone="warn">{tx("nom à confirmer")}</Badge>}</span></td>
+      <td className="px-3 py-2 text-xs"><span className="inline-flex items-center gap-1">{a.version ? <>v{a.version}<VersionMark outdated={!!a.outdated} /></> : "-"}</span></td>
+      <td className="px-3 py-2 text-xs text-dim">{a.last_seen ? dateTime(a.last_seen * 1000) : tx("en attente du premier relevé")}</td>
+      <td className="px-3 py-2 text-right"><a href={`#settings/machines/agents/${a.ip}`} className="text-xs text-link hover:underline">{tx("Régler")} ›</a></td>
+    </tr>
+  );
+}
+
 /** Machines → Agents: every agent in use with its gestures (the same block as on the machine's page), figures on top, one button to update
  *  the late ones, then the revoked ones. An agent is installed from the page of its machine, Access tab. */
 export function AgentsOverview({ machines }: Readonly<{ machines: Record<string, MachineConf> }>) {
@@ -166,24 +181,20 @@ export function AgentsOverview({ machines }: Readonly<{ machines: Record<string,
           <h2 className="flex items-center gap-2 font-bold"><MonitorUp size={16} aria-hidden />{tx("Agents")} <Count n={s.live.length} /></h2>
           {s.outdated.length > 0 && <button type="button" className={quiet} disabled={busy} onClick={() => void updateLate()}><ArrowUpCircle size={14} aria-hidden />{tx("Mettre à jour les agents en retard ({0})", s.outdated.length)}</button>}
         </div>
-        <InfoNote className="mt-2">{tx("Un agent s'installe depuis la page d'une machine, onglet Accès. Ici, chacun avec ses gestes : mise à jour automatique ou immédiate, nouveau jeton, révocation.")}</InfoNote>
+        <InfoNote className="mt-2">{tx("Un agent s'installe depuis la page d'une machine, onglet Accès. « Régler » ouvre ses gestes : mise à jour automatique ou immédiate, nouveau jeton, révocation.")}</InfoNote>
         <NoteLine note={note} />
         {s.live.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucun agent installé : le SSH lit déjà vos machines, ou aucun PC n'en a besoin.")}</p>}
-        <ul className="mt-3 flex flex-col gap-3">
-          {s.live.map((a) => {
-            const conf = machines[a.ip], name = conf?.name ?? a.name;
-            return (
-              <li key={a.id} className="flex flex-col gap-1.5">
-                <div className="flex items-center gap-2 text-sm">
-                  <MachineIcon m={{ name, os: conf?.os ?? a.kind ?? "windows", osName: a.os }} reserve />
-                  <b className="truncate">{name}</b><Dim>{a.ip}</Dim>
-                  <a href={`#machines/${a.ip}/access`} className="ml-auto text-xs text-link hover:underline">{tx("Page de la machine")} ›</a>
-                </div>
-                <AgentBlock ip={a.ip} name={name} kind={a.kind ?? "windows"} agent={a} onChanged={reload} />
-              </li>
-            );
-          })}
-        </ul>
+        {s.live.length > 0 && (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[720px] border-collapse text-sm">
+              <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
+                <th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Type")}</th><th className="px-3 py-2">{tx("État")}</th>
+                <th className="px-3 py-2">{tx("Version")}</th><th className="px-3 py-2">{tx("Dernier relevé")}</th><th className="px-3 py-2" />
+              </tr></thead>
+              <tbody>{s.live.map((a) => <AgentRow key={a.id} a={a} conf={machines[a.ip]} />)}</tbody>
+            </table>
+          </div>
+        )}
       </Card>
       <Group title={tx("Agents révoqués")} n={s.revoked.length}
         hint={tx("Leur jeton ne marche plus. « Nouvel agent » en crée un autre pour ce PC ; « Supprimer » les retire de la liste pour de bon.")}>

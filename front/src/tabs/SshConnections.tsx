@@ -35,7 +35,7 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
           <h2 className="flex items-center gap-2 font-bold"><Terminal size={16} aria-hidden />{tx("Connexions SSH")} <Count n={rows.length} /></h2>
           <a href="#settings/ssh" className="inline-flex items-center gap-1.5 text-sm text-link hover:underline"><KeyRound size={14} aria-hidden />{tx("Clé SSH de l'app")} ›</a>
         </div>
-        <InfoNote className="mt-2">{tx("Chaque machine lue par SSH : le compte et l'adresse utilisés, et si le dernier relevé est passé. L'accès se règle sur la page de la machine, onglet Accès.")}</InfoNote>
+        <InfoNote className="mt-2">{tx("Chaque machine lue par SSH : le compte et l'adresse utilisés, et si le dernier relevé est passé. « Régler » ouvre le réglage de chaque accès.")}</InfoNote>
         {rows.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucune machine lue par SSH pour l'instant : l'accès s'active sur la page d'une machine, onglet Accès.")}</p>}
         {rows.length > 0 && (
           <div className="mt-3 overflow-x-auto">
@@ -54,7 +54,7 @@ export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; sn
                       </td>
                       <td className="px-3 py-2 font-mono text-xs">{r.access || <Dim>-</Dim>}</td>
                       <td className="px-3 py-2"><Badge tone={tone} title={r.message || undefined}>{label}</Badge></td>
-                      <td className="px-3 py-2 text-right"><a href={`#machines/${r.ip}/access`} className="text-xs text-link hover:underline">{tx("Régler")} ›</a></td>
+                      <td className="px-3 py-2 text-right"><a href={`#settings/machines/ssh/${r.ip}`} className="text-xs text-link hover:underline">{tx("Régler")} ›</a></td>
                     </tr>
                   );
                 })}

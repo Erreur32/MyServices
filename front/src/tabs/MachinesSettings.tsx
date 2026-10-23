@@ -71,6 +71,8 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
   const [showAccess, setShowAccess] = useState(false);
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   if (part === "devices") return <UnlinkedDevices snap={snap} onFollowed={reload} />;
+  const one = location.hash.split("/")[3];   // #settings/machines/ssh/<ip>, #settings/machines/agents/<ip>: that access alone
+  if (one && (part === "ssh" || part === "agents")) return <AccessPage ip={decodeURIComponent(one)} only={part === "ssh" ? "ssh" : "agent"} snap={snap} st={st} />;
   if (part === "agents") return <AgentsOverview machines={st.machines} />;
   if (part === "ssh") return <SshConnections st={st} snap={snap} />;
   const all = Object.keys(st.machines);
@@ -94,6 +96,21 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
       {showAccess && <AccessGuide />}
       {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
       {detecting && <AddMachine st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
+    </Card>
+  );
+}
+
+/** The SSH access or the agent of one machine on a settings page of its own, opened from Machines → SSH connections or Agents */
+function AccessPage({ ip, only, snap, st }: Readonly<{ ip: string; only: AccessOnly; snap: Snapshot; st: State }>) {
+  const name = st.machines[ip]?.name ?? ip, ssh = only === "ssh";
+  return (
+    <Card>
+      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h2 className="flex items-center gap-2 font-bold">{ssh ? <KeyRound size={16} aria-hidden /> : <MonitorUp size={16} aria-hidden />}{ssh ? tx("Connexion SSH de {0}", name) : tx("Agent de {0}", name)}<Dim>{ip}</Dim></h2>
+        <a href={`#settings/machines/${ssh ? "ssh" : "agents"}`} className="ml-auto text-sm text-link hover:underline">‹ {ssh ? tx("Connexions SSH") : tx("Agents")}</a>
+        <a href={`#machines/${ip}`} className="text-sm text-link hover:underline">{tx("Page de la machine")} ›</a>
+      </div>
+      <MachineModal ip={ip} snap={snap} only={only} />
     </Card>
   );
 }
@@ -332,19 +349,19 @@ function RowNotices({ keyMissing, wrongPort, unfinished, live, scan, sshUser, st
   );
 }
 
-function RowActions({ ip, busy, confirm, setConfirm, setNote, reload, verify }: Readonly<{
-  ip: string; busy: boolean; confirm: boolean; setConfirm: (on: boolean) => void; setNote: (n: Note) => void; reload: () => void; verify: () => Promise<void>;
+function RowActions({ ip, busy, confirm, setConfirm, setNote, reload, verify, canRemove = true }: Readonly<{
+  canRemove?: boolean; ip: string; busy: boolean; confirm: boolean; setConfirm: (on: boolean) => void; setNote: (n: Note) => void; reload: () => void; verify: () => Promise<void>;
 }>) {
   return (
     <>
       <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
-      <span className="ml-auto flex items-center gap-1.5">
+      {canRemove && <span className="ml-auto flex items-center gap-1.5">
         {confirm ? <>
           <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `machines/settings/${ip}`), tx("machine retirée : la recherche réseau ne la proposera plus (Réglages → Découverte pour la faire revenir)"), setNote).then((ok) => ok && reload())}>{tx("Confirmer le retrait")}</button>
           <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
         </> : <button type="button" className={`${danger} px-2`} onClick={() => setConfirm(true)} aria-label={tx("Retirer")}
           title={tx("Retirer : MyServices ne suit plus cette machine et la recherche réseau ne la propose plus (une confirmation est demandée)")}><Trash2 size={15} aria-hidden /></button>}
-      </span>
+      </span>}
     </>
   );
 }
@@ -363,8 +380,8 @@ export function RoleBadges({ roles }: Readonly<{ roles: string[] }>) {
 }
 
 /** The settings of one machine, in its page (#machines/<ip>): the access check, the notices and the form */
-function MachineRow({ ip, m, st, live, statuses, reload, focusTab, onAgent, scan, unfinished, agent }: Readonly<{
-  focusTab?: "access"; onAgent: () => void; agent?: AgentInfo; unfinished?: Unfinished; scan?: ScanInfo; ip: string; m: MachineConf; st: State; live?: Live; statuses: Statuses; reload: () => void;
+function MachineRow({ ip, m, st, live, statuses, reload, focusTab, onAgent, scan, unfinished, agent, only }: Readonly<{
+  focusTab?: "access"; only?: AccessOnly; onAgent: () => void; agent?: AgentInfo; unfinished?: Unfinished; scan?: ScanInfo; ip: string; m: MachineConf; st: State; live?: Live; statuses: Statuses; reload: () => void;
 }>) {
   const [confirm, setConfirm] = useState(false);
   const [note, setNote] = useState<Note>(null);
@@ -385,8 +402,8 @@ function MachineRow({ ip, m, st, live, statuses, reload, focusTab, onAgent, scan
       <NoteLine note={note} />
       {lines && <CheckLines lines={lines} />}
       <RowNotices keyMissing={keyMissing} wrongPort={wrongPort} unfinished={unfinished} live={live} scan={scan} sshUser={sshUser} statuses={statuses} busy={busy} onFixPort={() => void fixPort()} />
-      <MachineForm tabbed focusTab={focusTab} onAgent={onAgent} agent={agent} connection={connection} report={setNote} ip={ip} m={m} st={st} live={live} scan={scan} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload}
-        actions={<RowActions ip={ip} busy={busy} confirm={confirm} setConfirm={setConfirm} setNote={setNote} reload={reload} verify={verify} />} />
+      <MachineForm tabbed focusTab={focusTab} only={only} onAgent={onAgent} agent={agent} connection={connection} report={setNote} ip={ip} m={m} st={st} live={live} scan={scan} windowsGuess={osOfMachine({ os: m.os, info: live?.info, ttl: live?.ttl }, scan?.os, scan?.ssh)?.kind === "windows"} process={!!st.process_hosts[ip]} onDone={reload}
+        actions={<RowActions ip={ip} busy={busy} confirm={confirm} setConfirm={setConfirm} setNote={setNote} reload={reload} verify={verify} canRemove={!only} />} />
     </div>
   );
 }
@@ -814,6 +831,14 @@ function ConnectorsBody({ linked }: Readonly<{ linked: Linked }>) {
   );
 }
 
+type AccessOnly = "ssh" | "agent";
+
+/** One access alone, on its own settings page: the SSH block (or why the machine has none), or the agent's */
+function OnlyAccess({ only, agentMode, sshBody, agentBody }: Readonly<{ only: AccessOnly; agentMode: boolean; sshBody: React.ReactNode; agentBody: React.ReactNode }>) {
+  if (only === "agent") return <>{agentBody}</>;
+  return agentMode ? <p className="text-sm text-muted">{tx("Cette machine est lue par son agent, sans SSH.")}</p> : <>{sshBody}</>;
+}
+
 /** L'accès d'une machine en trois catégories distinctes : SSH, agent, connecteurs (dans la fenêtre) ; à l'ajout, une seule section comme avant */
 function AccessTab({ tabbed, agentMode, sshBody, agentBody, connectorsBody, sshSummary, agentSummary, connectorSummary, agentActive, connectorsActive }: Readonly<{
   tabbed?: boolean; agentActive: boolean; connectorsActive: boolean; agentMode: boolean; sshBody: React.ReactNode; agentBody: React.ReactNode; connectorsBody: React.ReactNode;
@@ -986,8 +1011,9 @@ function OptionsTab({ ctx, menu }: Readonly<{ ctx: FlagCtx; menu: OptionsState }
   );
 }
 
-function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, scan, actions, windowsGuess, report, onDone, agent, connection, tabbed, focusTab, onAgent }: Readonly<{
+function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, scan, actions, windowsGuess, report, onDone, agent, connection, tabbed, focusTab, onAgent, only }: Readonly<{
   focusTab?: "access"; onAgent?: () => void;
+  only?: AccessOnly;  // a settings page of its own (Machines → SSH connections or Agents): that access alone, no tabs
   tabbed?: boolean;  // dans la fenêtre d'une machine : Identité, Options et Accès en onglets
   scan?: ScanInfo;  // ce que le dernier scan du réseau a vu : aperçu de l'icône automatique
   connection?: React.ReactNode;  // ce qui a été lu de la connexion (SSH ou agent), montré dans le cadre « Accès »
@@ -1001,7 +1027,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   const [hasAdguard] = useState(() => !!m.adguard);  // figé à l'ouverture : vider le champ ne le fait pas disparaître
   const menu = useOptionsState(isNew, detected);
   const [tab, setTab] = useState<Tab>(focusTab ?? "identity");
-  const show = (t: Tab) => !tabbed || tab === t;   // dans la fenêtre d'une machine : un onglet à la fois ; à l'ajout, tout d'un coup
+  const show = (t: Tab) => !only && (!tabbed || tab === t);   // dans la fenêtre d'une machine : un onglet à la fois ; à l'ajout, tout d'un coup
   const [localNote, setLocalNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const setNote = report ?? setLocalNote;
   const windows = v.os === "windows";
@@ -1030,7 +1056,8 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
   const agentBody = <AgentBody ip={ip} v={v} windowsGuess={windowsGuess} agent={agent} agentMode={status.agentMode} isNew={isNew} onAgent={onAgent} connection={connection} />;
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
-      {tabbed && <TabBar tab={tab} setTab={setTab} />}
+      {tabbed && !only && <TabBar tab={tab} setTab={setTab} />}
+      {only && <OnlyAccess only={only} agentMode={status.agentMode} sshBody={sshBody} agentBody={agentBody} />}
       {show("access") && <AccessTab tabbed={tabbed} agentActive={!!agent && agent.state !== "révoqué"} connectorsActive={linked.length > 0} agentMode={status.agentMode} sshBody={sshBody} agentBody={agentBody} connectorsBody={<ConnectorsBody linked={linked} />}
         sshSummary={<SshSummary sshOn={status.sshOn} agentMode={status.agentMode} refused={status.refusedSsh} />} agentSummary={<AgentSummary agent={agent} />} connectorSummary={<ConnectorSummary linked={linked} />} />}
       {show("identity") && <IdentityTab v={v} setV={setV} isNew={isNew} live={live} scan={scan} found={found} ss={ss} autoSave={autoSave} savedProc={savedProc} />}
@@ -1046,7 +1073,7 @@ function MachineForm({ ip, m, st, isNew, process, extra, detected = [], live, sc
 
 /** The settings of one machine, in its page (#machines/<ip>) ;
  *  `focusTab`: open on the Access tab (#machines/<ip>/access, old #settings/agents/<ip>) */
-export function MachineModal({ ip, snap, focusTab }: Readonly<{ ip: string; snap: Snapshot; focusTab?: "access" }>) {
+export function MachineModal({ ip, snap, focusTab, only }: Readonly<{ ip: string; snap: Snapshot; focusTab?: "access"; only?: AccessOnly }>) {
   const [st, setSt] = useState<State | null>(null), [agents, setAgents] = useState<AgentInfo[]>([]), [scan, setScan] = useState<NetHost | undefined>();
   const reload = useCallback(() => { read<State>("machines/settings").then(setSt).catch(() => undefined); }, []);
   const loadAgents = useCallback(() => { read<{ agents: AgentInfo[] }>("agents").then((r) => setAgents(r.agents)).catch(() => undefined); }, []);
@@ -1061,6 +1088,6 @@ export function MachineModal({ ip, snap, focusTab }: Readonly<{ ip: string; snap
   let passed: string[] = [];
   try { passed = JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]") as string[]; } catch { /* mémoire du navigateur illisible */ }
   const unfinished = why ? { why, passed: passed.includes(ip) } : undefined;
-  return <MachineRow focusTab={focusTab} unfinished={unfinished} ip={ip} m={m} st={st} live={live} statuses={statuses} reload={reload} onAgent={loadAgents}
+  return <MachineRow focusTab={focusTab} only={only} unfinished={unfinished} ip={ip} m={m} st={st} live={live} statuses={statuses} reload={reload} onAgent={loadAgents}
     agent={agents.find((a) => a.ip === ip && a.state !== "révoqué")} scan={scan ? { os: scan.os ?? undefined, apps: scan.apps ?? [], ssh: !!scan.ssh_port, sshPort: scan.ssh_port ?? undefined } : undefined} />;
 }
