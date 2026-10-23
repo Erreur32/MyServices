@@ -342,7 +342,7 @@ export interface HostSystem {
   sessions?: { available: boolean; sessions?: { user: string; tty: string; from: string }[] };
   // need root: read through one exact sudo rule; access false = the rule is missing, `rule` is the sudoers line to add
   needrestart?: { available: boolean; access?: boolean; rule?: string; services?: string[]; kernel_pending?: boolean };
-  fail2ban?: { available: boolean; access?: boolean; rule?: string; jails?: { name: string; banned: number }[]; total?: number };
+  fail2ban?: { available: boolean; access?: boolean; down?: boolean; rule?: string; jails?: { name: string; banned: number }[]; total?: number };   // down: allowed, but fail2ban did not answer (service stopped)
 }
 
 /** Poste « souvent éteint » qui ne répond pas : fiche grisée, sans alerte (last_seen : dernier relevé de son agent, en secondes) */

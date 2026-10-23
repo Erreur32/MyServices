@@ -1,7 +1,7 @@
 // The page of one machine (#machines/<ip>): what the Machines tab showed in a window (identity, system, access, software, backups, health,
 // updates, UniFi or Freebox), its availability over 30 days, and, for an administrator, its settings (identity, options, access) in the page:
 // the window of Réglages → Machines is no longer needed for a machine that exists. Back to the list with « Machines ».
-import { ArrowLeft, ArrowRight, Boxes, CalendarCheck, EthernetPort, Globe, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, ArrowRight, Boxes, EthernetPort, Globe, SlidersHorizontal } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { read, type Snapshot } from "../api";
 import { MachineIcon } from "../components/MachineIcon";
@@ -16,30 +16,34 @@ import { Dot } from "../components/marks";
 import type { Machine } from "../types";
 import { cellColor, pct, pctTone, type Item, type Report } from "./Availability";
 import { MachineModal } from "./MachinesSettings";
+import { StatTile } from "../components/StatTile";
+import type { MachineFigure } from "../lib/machineFigures";
 
 const DAYS = 30;
 
 /** One cell per day over 30 days (the same cells as Historique → Disponibilité), the rate and the last state */
-function AvailabilityCard({ item }: Readonly<{ item: Item | null | undefined }>) {
+/** Availability over 30 days as one more tile of the figures, wider: the share answered, the samples, and a cell per day */
+function AvailabilityTile({ item }: Readonly<{ item: Item | null | undefined }>) {
   return (
-    <section className="rounded-2xl border border-line bg-card p-4 shadow-sm" aria-label={tx("Disponibilité, {0} jours", DAYS)}>
-      <h2 className="flex items-center gap-2 font-bold"><CalendarCheck size={16} aria-hidden />{tx("Disponibilité, {0} jours", DAYS)}</h2>
-      {item === undefined && <p className="mt-2 text-sm text-dim">{tx("Chargement…")}</p>}
-      {item === null && <p className="mt-2 text-sm text-muted">{tx("Pas encore de relevé de disponibilité pour cette machine : il se construit à chaque collecte.")}</p>}
+    <div className="flex min-w-[15rem] flex-[2.5] flex-col rounded-xl border border-line bg-card px-2 py-1.5" aria-label={tx("Disponibilité, {0} jours", DAYS)}>
+      <div className="flex flex-wrap items-baseline gap-x-2 text-[11px] text-muted">
+        {tx("Disponibilité, {0} jours", DAYS)}
+        {item?.last && <span className="ml-auto text-dim">{item.last.up ? tx("répond") : tx("ne répond pas")} · {dateTime(item.last.ts * 1000)}</span>}
+      </div>
+      {item === undefined && <span className="text-[11px] text-dim">{tx("Chargement…")}</span>}
+      {item === null && <span className="text-[11px] text-muted">{tx("Pas encore de relevé de disponibilité pour cette machine : il se construit à chaque collecte.")}</span>}
       {item && (
         <>
-          <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <span className={`text-2xl font-bold tabular-nums ${pctTone(item.uptime)}`}>{pct(item.uptime)}</span>
-            <span className="text-sm text-muted">{tx("{0} relevés, {1} en échec", item.samples, item.down)}{item.ms != null && ` · ${item.ms} ms`}</span>
-            {item.last && <span className="ml-auto text-xs text-dim">{item.last.up ? tx("répond") : tx("ne répond pas")} · {dateTime(item.last.ts * 1000)}</span>}
+          <div className="flex items-baseline gap-2">
+            <span className={`font-mono text-base font-bold leading-tight ${pctTone(item.uptime)}`}>{pct(item.uptime)}</span>
+            <span className="truncate text-[11px] text-dim">{tx("{0} relevés, {1} en échec", item.samples, item.down)}{item.ms != null && ` · ${item.ms} ms`}</span>
           </div>
-          <div className="mt-3 grid gap-0.5" style={{ gridTemplateColumns: `repeat(${item.cells.length}, minmax(0, 1fr))` }} role="img" aria-label={tx("{0} jours, une case par jour", item.cells.length)}>
-            {item.cells.map((c) => <span key={c.t} className={`h-5 rounded-sm ${cellColor(c.pct)}`} title={`${dateTime(c.t * 1000)} : ${c.pct == null ? tx("aucun relevé") : pct(c.pct)}`} />)}
+          <div className="mt-auto grid gap-0.5 pt-1" style={{ gridTemplateColumns: `repeat(${item.cells.length}, minmax(0, 1fr))` }} role="img" aria-label={tx("{0} jours, une case par jour", item.cells.length)}>
+            {item.cells.map((c) => <span key={c.t} className={`h-2.5 rounded-sm ${cellColor(c.pct)}`} title={`${dateTime(c.t * 1000)} : ${c.pct == null ? tx("aucun relevé") : pct(c.pct)}`} />)}
           </div>
-          <p className="mt-1 flex justify-between text-[10px] uppercase tracking-wide text-dim"><span>{tx("il y a {0} jours", DAYS)}</span><span>{tx("aujourd'hui")}</span></p>
         </>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -50,8 +54,8 @@ function PortsCard({ snap, m, onMachine }: Readonly<{ snap: Snapshot; m: Machine
   if (!rows.length) return null;
   const scanned = !!sheet?.scan, at = sheet?.scan?.ports_at;
   return (
-    <section className="rounded-2xl border border-line bg-card p-4 shadow-sm" aria-label={tx("Ports ouverts")}>
-      <div className="flex flex-wrap items-center gap-2">
+    <section className="mb-4 break-inside-avoid overflow-hidden rounded-xl border border-line bg-card p-4 shadow-sm" aria-label={tx("Ports ouverts")}>
+      <div className="-mx-4 -mt-4 mb-2 flex flex-wrap items-center gap-2 border-b border-line/60 bg-bg px-4 py-2">
         <h2 className="flex items-center gap-2 font-bold"><EthernetPort size={16} aria-hidden />{tx("Ports ouverts")} <span className="text-sm font-normal text-dim">{rows.length}{at && ` · ${tx("scannés le {0}", dateTime(at))}`}</span></h2>
         <button type="button" onClick={() => onMachine(m.ip)} className={`${quiet} ml-auto`}>{tx("Ses services")}<ArrowRight size={14} aria-hidden /></button>
       </div>
@@ -115,8 +119,8 @@ function GuestsCard({ snap, m }: Readonly<{ snap: Snapshot; m: Machine }>) {
   if (!rows.length) return null;
   const running = rows.filter((r) => r.guest.status === "running").length;
   return (
-    <section className="rounded-2xl border border-line bg-card p-4 shadow-sm" aria-label={tx("Machines virtuelles")}>
-      <div className="flex flex-wrap items-center gap-2">
+    <section className="mb-4 break-inside-avoid overflow-hidden rounded-xl border border-line bg-card p-4 shadow-sm" aria-label={tx("Machines virtuelles")}>
+      <div className="-mx-4 -mt-4 mb-2 flex flex-wrap items-center gap-2 border-b border-line/60 bg-bg px-4 py-2">
         <h2 className="flex items-center gap-2 font-bold"><Boxes size={16} aria-hidden />{tx("Machines virtuelles")} <span className="text-sm font-normal text-dim">{tx("{0} en marche sur {1}", running, rows.length)}</span></h2>
         <a href="#virtualization" className={`${quiet} ml-auto no-underline`}>{tx("Virtualisation")}<ArrowRight size={14} aria-hidden /></a>
       </div>
@@ -137,8 +141,9 @@ function GuestsCard({ snap, m }: Readonly<{ snap: Snapshot; m: Machine }>) {
 }
 
 /** The page of one machine: its information (#machines/<ip>), or its settings alone (#machines/<ip>/settings; /access opens them on the Access tab) */
-export function MachinePage({ snap, m, scan, model, state, detail, onMachine, focusTab, onBack }: Readonly<{
-  snap: Snapshot; m: Machine; scan?: { os?: string; apps: string[]; ssh?: boolean }; model?: string; state: ReactNode; detail: ReactNode;
+export function MachinePage({ snap, m, scan, model, state, detail, figures, onMachine, focusTab, onBack }: Readonly<{
+  snap: Snapshot; m: Machine; scan?: { os?: string; apps: string[]; ssh?: boolean }; model?: string; state: ReactNode;
+  detail: (extra: ReactNode) => ReactNode; figures: MachineFigure[];   // detail: the wall of cards, `extra` the cards of this page added at its end
   onMachine: (ip: string) => void; focusTab?: "settings" | "access"; onBack: () => void;
 }>) {
   const admin = snap.me.role === "admin";
@@ -153,7 +158,7 @@ export function MachinePage({ snap, m, scan, model, state, detail, onMachine, fo
     </div>
   );
   if (focusTab && admin) return <MachineSettingsPage m={m} snap={snap} head={head} access={focusTab === "access"} />;
-  return <MachineInfoPage m={m} snap={snap} detail={detail} admin={admin} onMachine={onMachine} onBack={onBack} head={head} />;
+  return <MachineInfoPage m={m} snap={snap} detail={detail} figures={figures} admin={admin} onMachine={onMachine} onBack={onBack} head={head} />;
 }
 
 type Head = (back: ReactNode, right: ReactNode) => ReactNode;
@@ -165,8 +170,8 @@ const backButton = (label: string, onClick: () => void) => (
 );
 
 /** What MyServices knows of the machine: state, health, software, backups, availability, ports, guests; its settings are one click away */
-function MachineInfoPage({ m, snap, detail, admin, onMachine, onBack, head }: Readonly<{
-  m: Machine; snap: Snapshot; detail: ReactNode; admin: boolean; onMachine: (ip: string) => void; onBack: () => void; head: Head;
+function MachineInfoPage({ m, snap, detail, figures, admin, onMachine, onBack, head }: Readonly<{
+  m: Machine; snap: Snapshot; detail: (extra: ReactNode) => ReactNode; figures: MachineFigure[]; admin: boolean; onMachine: (ip: string) => void; onBack: () => void; head: Head;
 }>) {
   const [avail, setAvail] = useState<Item | null | undefined>(undefined);
   useEffect(() => {
@@ -179,12 +184,14 @@ function MachineInfoPage({ m, snap, detail, admin, onMachine, onBack, head }: Re
   return (
     <div className="flex flex-col gap-4 py-4">
       {head(backButton(tx("Machines"), onBack), right)}
-      <div className="overflow-hidden rounded-2xl border border-line bg-bg2/40 shadow-sm">{detail}</div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <AvailabilityCard item={avail} />
+      <div className="flex flex-wrap items-stretch gap-2">
+        {figures.map((f) => <StatTile key={f.key} small n={f.value} label={f.label} sub={f.sub} tone={f.tone} />)}
+        <AvailabilityTile item={avail} />
+      </div>
+      {detail(<>
         <PortsCard snap={snap} m={m} onMachine={onMachine} />
         <GuestsCard snap={snap} m={m} />
-      </div>
+      </>)}
     </div>
   );
 }

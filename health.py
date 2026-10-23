@@ -592,6 +592,12 @@ def as_root(cmd: str) -> str:
     return f"if [ \"$(id -u)\" = 0 ]; then timeout 15 {cmd}; else timeout 15 sudo -n {cmd}; fi 2>/dev/null"
 
 
+def root_or_why(cmd: str) -> str:
+    """cmd as root (as_root); when it fails, why: NOANSWER when root or the sudo rule allows it (the tool itself did not answer), else NOSUDO.
+    `sudo -n -l <cmd>` only checks the rule, it runs nothing."""
+    return f"{as_root(cmd)} || {{ {{ [ \"$(id -u)\" = 0 ] || sudo -n -l {cmd} >/dev/null 2>&1; }} && echo NOANSWER || echo NOSUDO; }}"
+
+
 def sudo_rule(user: str, cmd: str) -> str:
     """The sudoers line that lets `user` run `cmd` alone, without password."""
     return f"{user} ALL=(root) NOPASSWD: {cmd}"
@@ -620,7 +626,7 @@ SYSTEM_CMD = (
     "echo @@snap; command -v snap >/dev/null 2>&1 && timeout 10 snap refresh --list 2>&1 | head -n 30; "
     "echo @@who; who 2>/dev/null | head -n 20; "
     f"echo @@nr; [ -x {NEEDRESTART} ] && {{ {as_root(NEEDRESTART_ARGS)} || echo NOSUDO; }}; "
-    f"echo @@f2b; [ -x {FAIL2BAN} ] && {{ {as_root(FAIL2BAN_ARGS)} || echo NOSUDO; }}; "
+    f"echo @@f2b; [ -x {FAIL2BAN} ] && {{ {root_or_why(FAIL2BAN_ARGS)}; }}; "
     "echo @@dkr; command -v docker >/dev/null 2>&1 && docker ps -q 2>/dev/null | head -n 200 "
     "| xargs -r docker inspect --format '{{.Name}}|{{.RestartCount}}|{{.State.StartedAt}}' 2>/dev/null; true"
 )
@@ -832,6 +838,8 @@ def parse_fail2ban(lines: list[str], user: str) -> dict:
         return {"available": False}
     if "NOSUDO" in lines:
         return {"available": True, "access": False, "rule": sudo_rule(user or "<compte>", FAIL2BAN_ARGS)}
+    if "NOANSWER" in lines:   # allowed, but fail2ban-client got no answer: the service is stopped or its socket gone
+        return {"available": True, "access": True, "down": True, "jails": [], "total": 0}
     try:
         data = ast.literal_eval(" ".join(lines)[:200000])
     except (ValueError, SyntaxError, MemoryError, RecursionError):

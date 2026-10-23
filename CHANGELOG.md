@@ -12,7 +12,11 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Changed
+- **The page of a machine, reworked**: a row of figures on top (health, processor, memory, fullest disk, uptime, and availability over 30 days with a cell per day), the « To watch » strip open (it can be reduced), then a wall of cards in two columns with no empty space: Updates first (left out when nothing is pending), Health (only its checks: logs, services, clock, sessions, Fail2ban), Card (identity and network), System (system, kernel, hardware, and the measures: processor, memory, disks, temperature, probes), Access, Software and services, Backups, Shares, Open ports, Virtual machines. Each card has a dark title strip; sources are a short grey line instead of badges; long values (keys, paths, MAC, backup names) wrap instead of being cut; temperature probes have short names (full name on hover); big logs and Fail2ban jails are compact tables.
 - **Side menu, one category open at a time**: opening a page folds every other category, only the one holding the page stays open; a category opened by hand closes the others.
+
+### Fixed
+- **Fail2ban « sudo rule missing » when Fail2ban was only stopped**: when `fail2ban-client` fails, the check now asks sudo whether the rule exists (`sudo -n -l`, nothing run); with the rule in place the page says « does not answer (service stopped?) ».
 
 ## v0.20.2 (2026-10-23)
 

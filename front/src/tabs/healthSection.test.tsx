@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Machine } from "../types";
 import { freeboxHealth } from "../lib/freebox";
-import { DriveStatus, FreeboxAccessSection, FreeboxFirmware, FreeboxNetwork, FreeboxWifi, HealthSection, ProbeChips, UpdatesSection } from "./Machines";
+import { DriveStatus, FreeboxAccessSection, FreeboxFirmware, FreeboxNetwork, FreeboxWifi, HealthSection, ProbeChips, SystemSection, UpdatesSection } from "./Machines";
 
 const m = { ip: "10.0.0.254", name: "Freebox", ping: true, off: false, services: 0, npm: 0, down: 0 } as Machine;
 const h = freeboxHealth(m, {
@@ -14,8 +14,9 @@ const h = freeboxHealth(m, {
 });
 
 describe("section Santé de la fiche d'une Freebox", () => {
-  it("montre le niveau, la partition, la température du processeur, la mémoire VM et l'état des VM", () => {
-    const html = renderToStaticMarkup(<HealthSection h={h} from={[]} />);
+  it("Système montre la partition, la température du processeur, la mémoire VM et l'état des VM ; Santé garde le niveau", () => {
+    expect(renderToStaticMarkup(<HealthSection h={h} from={[]} />)).toContain("Niveau");
+    const html = renderToStaticMarkup(<SystemSection h={h} from={[]} />);
     for (const t of ["NVME 32", "55<span class=\"ml-0.5 text-[0.8em] text-dim\">%</span>", "411 Go libres", "État du disque", "WD_BLACK SN770", "actif", "62 °C", "SMART en défaut", "60 °C", "Sondes", "Ventilateur", "600", "Mémoire VM", "0 en marche sur 1"]) expect(html, t).toContain(t);
   });
 });
@@ -28,8 +29,8 @@ describe("section Mises à jour de la fiche d'une Freebox", () => {
     expect(html).toContain("firmware → 4.14.0");
     expect(html).not.toContain("paquet");
   });
-  it("dit « à jour » sans mise à jour", () => {
-    expect(renderToStaticMarkup(<UpdatesSection h={h} windows={false} from={[]} />)).toContain("à jour");
+  it("n'affiche rien sans mise à jour, redémarrage ni firmware proposé", () => {
+    expect(renderToStaticMarkup(<UpdatesSection h={h} windows={false} from={[]} />)).toBe("");
   });
 });
 

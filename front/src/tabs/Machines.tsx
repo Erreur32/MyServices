@@ -1,10 +1,11 @@
 // Machines : accès (ping, SSH), système, serveurs (NPM, Apache, Docker), services et santé de chaque machine.
-import { Archive, Plus, Puzzle, FolderOpen, Bot, Box, Copy, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronRight, Container, Clock, Cpu, Database, Eye, EyeOff, FolderSync, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, Layers, MemoryStick, Plug, RefreshCw, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Timer, Unplug, WifiOff, Workflow, type LucideIcon } from "lucide-react";
+import { Archive, Plus, Puzzle, FolderOpen, Bot, Box, Copy, Cpu, Crosshair, ArrowUpCircle, Boxes, Bug, Check, ChevronDown, ChevronRight, ChevronUp, Container, Clock, Database, Eye, EyeOff, FolderSync, Gauge, Globe, HardDrive, HeartPulse, IdCard, Info, KeyRound, Layers, MemoryStick, Plug, RefreshCw, RotateCw, ScanSearch, SlidersHorizontal, ServerCrash, ShieldAlert, Thermometer, Timer, Unplug, WifiOff, Workflow, type LucideIcon } from "lucide-react";
 import { Fragment, createContext, useContext, useRef, useCallback, useEffect, useMemo, useState } from "react";
 import { read, type Snapshot } from "../api";
 import { Copyable } from "../components/form";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime, dur, durShort, ipNum, isDate, splitHostName } from "../lib/format";
+import { machineFigures, shortProbe } from "../lib/machineFigures";
 import { hostName, status } from "../lib/status";
 import { modelService } from "../lib/modelService";
 import { SwitchPanel } from "./UnifiCards";
@@ -90,7 +91,7 @@ function KeyCell({ m }: { m: Machine }) {
   const s = m.ssh;
   if (!s) return <Dim>-</Dim>;
   if (!s.identity) return <Dim>{tx("aucune (accès manuel)")}</Dim>;
-  return <div className="flex flex-col"><code className="break-all text-xs">{s.identity}</code>{s.key_fp && <span className="truncate font-mono text-[11px] text-dim" title={s.key_fp}>{s.key_fp.slice(0, 22)}…</span>}</div>;
+  return <div className="flex flex-col"><code className="break-all text-xs">{s.identity}</code>{s.key_fp && <span className="break-all font-mono text-[11px] text-dim">{s.key_fp}</span>}</div>;
 }
 
 /** ✓ vert = sûr, ⚠ orange = à revoir, - = inconnu ; l'explication est au survol */
@@ -356,32 +357,39 @@ function showWatch(root: HTMLElement | null, kind: WatchKind) {
   el.classList.add("ring-2", "ring-warn", "animate-pulse");
   setTimeout(() => el.classList.remove("ring-2", "ring-warn", "animate-pulse"), 2600);
 }
+const WATCH_SMALL_KEY = "ms.machine.watch.small";
+
 function WatchSummary({ items, onShow }: { items: WatchItem[]; onShow?: (kind: WatchKind) => void }) {
+  const [small, setSmall] = useState(() => { try { return localStorage.getItem(WATCH_SMALL_KEY) === "1"; } catch { return false; } });   // reduced to its title line, kept by this browser
+  const pick = (v: boolean) => { setSmall(v); try { localStorage.setItem(WATCH_SMALL_KEY, v ? "1" : "0"); } catch { /* storage refused: the choice lasts this visit */ } };
   if (!items.length) return null;   // nothing to watch: no block
   const count = (t: WatchTone) => items.filter((i) => i.tone === t).length;
   return (
-    <details open={worst(items) >= 2} className="group rounded-lg border border-line/60 bg-card/60 p-3 text-xs sm:col-span-2 xl:col-span-3">
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-dim [&::-webkit-details-marker]:hidden">
-        <ChevronRight size={13} className="shrink-0 transition-transform group-open:rotate-90" aria-hidden /><Eye size={13} aria-hidden />{tx("À surveiller")}
+    <section aria-label={tx("À surveiller")} className={`rounded-xl border p-3 text-sm ${worst(items) >= 2 ? "border-warn/40 bg-warn/5" : "border-line bg-card"}`}>
+      <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-dim">
+        <Eye size={13} aria-hidden />{tx("À surveiller")}
         <span className="ml-auto flex items-center gap-1.5 normal-case tracking-normal">
           {(["bad", "warn", "info"] as WatchTone[]).filter(count).map((t) => <Badge key={t} tone={t === "info" ? "info" : t}>{count(t)}</Badge>)}
+          <button type="button" onClick={() => pick(!small)} aria-expanded={!small} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted hover:bg-bg2 hover:text-txt">
+            {small ? <><ChevronDown size={13} aria-hidden />{tx("Afficher")}</> : <><ChevronUp size={13} aria-hidden />{tx("Réduire")}</>}
+          </button>
         </span>
-      </summary>
-      <ul className="mt-2 flex flex-col gap-1.5">
+      </h3>
+      {!small && <ul className="mt-2 flex flex-col gap-1.5">
         {items.map((it, i) => {
           const Icon = WATCH_ICON[it.kind];
           return (
-            <li key={i} className="flex items-start gap-2">
+            <li key={i} className={`flex gap-2 ${it.detail?.length ? "items-start" : "items-center"}`}>
               <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md border ${WATCH_STYLE[it.tone]}`}><Icon size={13} aria-hidden /></span>
-              <span className="min-w-0 flex-1 pt-0.5 text-muted">{it.text}
+              <span className="min-w-0 flex-1 text-muted">{it.text}
                 {it.detail?.length ? <KernelLines lines={it.detail.slice(0, 4)} /> : null}
               </span>
               {onShow && <button type="button" onClick={() => onShow(it.kind)} title={tx("Voir où dans cette fenêtre")} aria-label={tx("Voir où dans cette fenêtre")} className="shrink-0 rounded p-1 text-dim hover:text-txt"><Crosshair size={13} aria-hidden /></button>}
             </li>
           );
         })}
-      </ul>
-    </details>
+      </ul>}
+    </section>
   );
 }
 
@@ -423,10 +431,11 @@ function originsOf(m: Machine, snap: Snapshot, h: HealthHost | undefined, scanne
 function From({ list }: { list: Origin[] }) {
   if (!list.length) return null;
   return (
-    <span className="flex flex-wrap items-center gap-1 text-[11px] font-normal normal-case tracking-normal text-dim">
-      {tx("source")} : {list.map((o) => {
-        const badge = <Badge tone={o.ok === false ? "bad" : "info"} title={o.tip ?? (o.href ? tx("Ouvrir les réglages de cette source") : undefined)}>{o.label}</Badge>;
-        return o.href ? <a key={o.label} href={o.href} className="rounded-md outline-offset-2 hover:brightness-125 focus-visible:outline focus-visible:outline-2 focus-visible:outline-link">{badge}</a> : <span key={o.label}>{badge}</span>;
+    <span className="flex flex-wrap items-center gap-x-1.5 text-xs font-normal text-dim">
+      {list.map((o, n) => {
+        const tip = o.tip ?? (o.href ? tx("Ouvrir les réglages de cette source") : undefined), look = o.ok === false ? "text-bad" : "";
+        const label = o.href ? <a href={o.href} title={tip} className={`hover:text-link hover:underline ${look}`}>{o.label}</a> : <span title={tip} className={look}>{o.label}</span>;
+        return <span key={o.label}>{n > 0 && "· "}{label}</span>;
       })}
     </span>
   );
@@ -560,12 +569,12 @@ function KernelBlock({ id, lines }: Readonly<{ id: string; lines: string[] }>) {
 }
 
 /** Readings side by side, one small box each (name, then value), in name order: easier to tell apart than a line of values */
-export function ProbeChips({ items }: Readonly<{ items: { name: string; value: string; tone: string; dim?: boolean }[] }>) {
-  const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+export function ProbeChips({ items }: Readonly<{ items: { name: string; full?: string; value: string; tone: string; dim?: boolean }[] }>) {
+  const sorted = [...items].sort((a, b) => (a.full ?? a.name).localeCompare(b.full ?? b.name, undefined, { numeric: true }));
   return (
     <span className="flex flex-wrap gap-1.5">
       {sorted.map((x) => (
-        <span key={x.name} className={`inline-flex items-baseline gap-1.5 rounded-md border border-line/60 bg-bg2/40 px-1.5 py-0.5 ${x.dim ? "opacity-50" : ""}`}>
+        <span key={x.full ?? x.name} title={x.full} className={`inline-flex items-baseline gap-1.5 rounded-md border border-line/60 bg-bg2/40 px-1.5 py-0.5 ${x.dim ? "opacity-50" : ""}`}>
           <span className="text-dim">{x.name}</span><span className={`tabular-nums ${x.tone}`}>{x.value}</span>
         </span>
       ))}
@@ -588,10 +597,27 @@ function TemperatureRow({ h }: Readonly<{ h: HealthHost }>) {
 const LOG_BIG_MB = 1000;   // a log file over 1 GB is worth a look (rotation missing?)
 const sizeText = (mb: number) => mb >= 1024 ? `${(mb / 1024).toFixed(1)} ${tx("Go")}` : `${mb} ${tx("Mo")}`;
 
+/** A compact two-column table inside a line of a card: a name (never cut) and its value on the right, in the colour of its state */
+function MiniTable({ rows }: Readonly<{ rows: { name: string; value: string; tone?: string; dim?: boolean }[] }>) {
+  return (
+    <table className="w-full text-xs">
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.name} className={`border-t border-line/40 first:border-t-0 ${r.dim ? "text-dim" : ""}`}>
+            <td className="py-0.5 pr-3 font-mono [overflow-wrap:anywhere]">{r.name}</td>
+            <td className={`whitespace-nowrap py-0.5 text-right tabular-nums ${r.tone ?? ""}`}>{r.value}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function BigLogsRow({ logs }: Readonly<{ logs: NonNullable<HealthHost["logs"]> }>) {
-  const items = logs.files.map((f) => ({ name: f.path.replace("/var/log/", ""), value: sizeText(f.mb), tone: f.mb >= LOG_BIG_MB ? "text-warn" : "" }));
-  if (logs.journal_mb) items.push({ name: "journal", value: sizeText(logs.journal_mb), tone: logs.journal_mb >= 4 * LOG_BIG_MB ? "text-warn" : "" });
-  return <DetailRow k={tx("Gros journaux")} title={tx("Gros journaux")}><ProbeChips items={items} /></DetailRow>;
+  const files = [...logs.files.map((f) => ({ name: f.path.replace("/var/log/", ""), mb: f.mb, warn: f.mb >= LOG_BIG_MB }))];
+  if (logs.journal_mb) files.push({ name: "journal (systemd)", mb: logs.journal_mb, warn: logs.journal_mb >= 4 * LOG_BIG_MB });
+  const rows = files.sort((a, b) => b.mb - a.mb).map((f) => ({ name: f.name, value: sizeText(f.mb), tone: f.warn ? "text-warn" : "" }));
+  return <DetailRow k={tx("Gros journaux")} title={tx("Gros journaux")}><MiniTable rows={rows} /></DetailRow>;
 }
 
 const SHARE_TONE: Record<string, string> = { ok: "text-ok", hang: "text-bad", error: "text-warn", missing: "text-warn" };
@@ -641,8 +667,9 @@ function SystemRows({ s }: Readonly<{ s: HostSystem }>) {
       {sessions.length > 0 && <DetailRow k={tx("Sessions ouvertes")} title={tx("Sessions ouvertes")}><ProbeChips items={sessions} /></DetailRow>}
       {s.fail2ban?.available && (
         <DetailRow k="Fail2ban" title={tx("Prisons Fail2ban et adresses bannies en ce moment")}>
-          {s.fail2ban.access ? <ProbeChips items={(s.fail2ban.jails ?? []).map((j) => ({ name: j.name, value: tx("{0} bannie(s)", j.banned), tone: "", dim: !j.banned }))} />
-            : <SudoHint rule={s.fail2ban.rule} file="myservices-fail2ban" note={tx("Inutile si LogviewR lit déjà le Fail2ban de cette machine.")} />}
+          {s.fail2ban.down && <span className="text-warn" title={tx("La règle sudo est en place, mais fail2ban-client ne répond pas : le service est arrêté ou son socket absent.")}>{tx("ne répond pas (service arrêté ?)")}</span>}
+          {!s.fail2ban.down && (s.fail2ban.access ? <MiniTable rows={(s.fail2ban.jails ?? []).map((j) => ({ name: j.name, value: tx("{0} bannie(s)", j.banned), tone: j.banned ? "text-warn" : "", dim: !j.banned }))} />
+            : <SudoHint rule={s.fail2ban.rule} file="myservices-fail2ban" note={tx("Inutile si LogviewR lit déjà le Fail2ban de cette machine.")} />)}
         </DetailRow>
       )}
     </>
@@ -695,10 +722,13 @@ function SystemUpdates({ s }: Readonly<{ s?: HostSystem }>) {
   );
 }
 
-function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
-  const bar = (label: string, pct: number | undefined, extra?: string) => pct == null ? null : (
-    <DetailRow key={label} k={label} title={label}><Fill pct={pct} /><Pct value={Math.round(pct)} />{extra && <Dim>{extra}</Dim>}</DetailRow>
-  );
+/** A measure as a bar: its label, the gauge, the percentage and what it means (free space, used memory) */
+const bar = (label: string, pct: number | undefined, extra?: string) => pct == null ? null : (
+  <DetailRow key={label} k={label} title={label}><Fill pct={pct} /><Pct value={Math.round(pct)} />{extra && <Dim>{extra}</Dim>}</DetailRow>
+);
+
+/** The measures of the machine, in its « System » card: processor, memory, disks, temperature and probes, fans, memory and guests of a box */
+function ResourceRows({ h }: Readonly<{ h: HealthHost }>) {
   return (
     <>
       {h.res?.available && bar(tx("CPU"), h.res.cpu_pct)}
@@ -711,7 +741,7 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
       ))}
       {!!h.temp?.sensors?.length && (
         <DetailRow k={tx("Sondes")} title={tx("Sondes")}>
-          <ProbeChips items={h.temp.sensors.map((x) => ({ name: x.name, value: `${Math.round(x.celsius)} °C`, tone: heatClass(x.celsius) }))} />
+          <ProbeChips items={h.temp.sensors.map((x) => ({ name: shortProbe(x.name), full: x.name, value: `${Math.round(x.celsius)} °C`, tone: heatClass(x.celsius) }))} />
         </DetailRow>
       )}
       {!!h.fans?.length && (
@@ -719,9 +749,6 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
           <ProbeChips items={h.fans.map((f) => ({ name: f.name, value: `${Math.round(f.rpm)} ${tx("tr/min")}`, tone: "" }))} />
         </DetailRow>
       )}
-      {!!h.logs?.available && (h.logs.files.length > 0 || !!h.logs.journal_mb) && <BigLogsRow logs={h.logs} />}
-      {h.system && <SystemRows s={h.system} />}
-      {h.kernel?.has_errors && <KernelBlock id={h.id} lines={h.kernel.samples ?? []} />}
       {h.vmem && bar(tx("Mémoire VM"), h.vmem.pct, `${(h.vmem.used_mb / 1024).toFixed(1)} / ${(h.vmem.total_mb / 1024).toFixed(1)} ${tx("Go")}`)}
       {h.vms && (
         <DetailRow k={tx("Machines virtuelles")} title={tx("Machines virtuelles")}>
@@ -729,6 +756,27 @@ function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
         </DetailRow>
       )}
     </>
+  );
+}
+
+/** The checks of the machine, in its « Health » card: big logs, services, storage and clock of the system, kernel errors */
+function HealthRows({ h }: Readonly<{ h: HealthHost }>) {
+  return (
+    <>
+      {!!h.logs?.available && (h.logs.files.length > 0 || !!h.logs.journal_mb) && <BigLogsRow logs={h.logs} />}
+      {h.system && <SystemRows s={h.system} />}
+      {h.kernel?.has_errors && <KernelBlock id={h.id} lines={h.kernel.samples ?? []} />}
+    </>
+  );
+}
+
+/** « System »: what runs on the machine (system, kernel, uptime, hardware, GPU) and its measures (processor, memory, disks, temperature) */
+export function SystemSection({ h, from, children }: Readonly<{ h?: HealthHost; from: Origin[]; children?: React.ReactNode }>) {
+  return (
+    <Section sec="system" icon={Cpu} title={tx("Système")} tone="violet" from={from}>
+      {children}
+      {h && <ResourceRows h={h} />}
+    </Section>
   );
 }
 
@@ -742,12 +790,12 @@ const bkText = (level: string) => ({ ok: "text-dim", warn: "text-warn" } as Reco
 function VeeamBackedUp({ rows }: Readonly<{ rows: VeeamRow[] }>) {
   const byName = [...new Set(rows.filter((r) => r.obj.machine_by === "name").map((r) => r.obj.name))];
   return (
-    <Row k={tx("Sauvegardée par Veeam")}>
+    <Row wide k={tx("Sauvegardée par Veeam")}>
       <ConsoleBox cols="auto minmax(0,1fr) auto auto auto">
         {rows.map(({ set, loc, obj }) => (
           <Fragment key={`${set.id}/${obj.name}`}>
             <span className="self-center" title={loc.detail || undefined}><Dot tone={BK_TONE[loc.level] ?? "warn"} /></span>
-            <span className="truncate" title={loc.detail || undefined}>
+            <span className="min-w-0 [overflow-wrap:anywhere]" title={loc.detail || undefined}>
               <span className="text-txt">{tx("job « {0} »", loc.job ?? set.label)}</span>
               <span className="text-dim">{obj.host && ` · ${tx("sur {0}", obj.host)}`}{loc.repository && ` · ${tx("dépôt {0}", loc.repository)}`}</span>
             </span>
@@ -766,12 +814,12 @@ function VeeamBackedUp({ rows }: Readonly<{ rows: VeeamRow[] }>) {
 function VeeamHosted({ rows }: Readonly<{ rows: VeeamRow[] }>) {
   const unlinked = rows.some((r) => !r.obj.machine);
   return (
-    <Row k={tx("VM sauvegardées ici")}>
+    <Row wide k={tx("VM sauvegardées ici")}>
       <ConsoleBox cols="auto minmax(0,1fr) auto auto auto">
         {rows.map(({ set, loc, obj }) => (
           <Fragment key={`${set.id}/${obj.name}`}>
             <span className="self-center"><Dot tone={obj.machine ? BK_TONE[loc.level] ?? "warn" : "warn"} /></span>
-            <span className="truncate" title={loc.detail || undefined}>
+            <span className="min-w-0 [overflow-wrap:anywhere]" title={loc.detail || undefined}>
               <span className="text-txt">{obj.name}</span>
               {!obj.machine && <span className="text-warn"> · {tx("non rattachée")}</span>}
               <span className="text-dim"> · {tx("job « {0} »", loc.job ?? set.label)}</span>
@@ -805,7 +853,7 @@ export function MachineBackupsSection({ m, backups }: Readonly<{ m: Machine; bac
       </Row>}
       {veeam.mine.length > 0 && <VeeamBackedUp rows={veeam.mine} />}
       {veeam.hosted.length > 0 && <VeeamHosted rows={veeam.hosted} />}
-      {sets.length > 0 && <Row k={tx("Jeux produits ici")}>
+      {sets.length > 0 && <Row wide k={tx("Jeux produits ici")}>
         <ConsoleBox cols="auto minmax(0,1fr) auto auto auto">
           {sets.map((s) => {
             const src = s.locations.find((l) => l.role === "source"), copies = s.locations.filter((l) => l.role !== "source");
@@ -813,7 +861,7 @@ export function MachineBackupsSection({ m, backups }: Readonly<{ m: Machine; bac
             return (
               <Fragment key={s.id}>
                 <span className="self-center" title={s.why?.join("\n") || undefined}><Dot tone={BK_TONE[s.level] ?? "warn"} /></span>
-                <span className="truncate text-txt" title={s.label}>{s.label.replace(/^[^:]*: /, "")}<span className="text-dim"> · {s.schedule}</span></span>
+                <span className="min-w-0 [overflow-wrap:anywhere] text-txt" title={s.label}>{s.label.replace(/^[^:]*: /, "")}<span className="text-dim"> · {s.schedule}</span></span>
                 <span className={`whitespace-nowrap text-right ${bkText(src?.level ?? s.level)}`}>{src?.age != null ? ageDays(src.age) : tx("jamais vue")}</span>
                 <span className="whitespace-nowrap text-right text-dim">{s.size ? bytes(s.size) : ""}</span>
                 <span className={`whitespace-nowrap text-right ${missing ? "text-warn" : "text-dim"}`} title={tx("Copies ailleurs (🔒 = chiffrées)")}>{missing ? tx("aucune copie") : tx("{0} copie(s)", copies.length)}{locked ? ` · ${locked} 🔒` : ""}</span>
@@ -822,23 +870,23 @@ export function MachineBackupsSection({ m, backups }: Readonly<{ m: Machine; bac
           })}
         </ConsoleBox>
       </Row>}
-      {dirs.length > 0 && <Row k={tx("Dossiers")}>
+      {dirs.length > 0 && <Row wide k={tx("Dossiers")}>
         <ConsoleBox cols="minmax(0,1fr) auto auto">
           {dirs.map((d) => (
             <Fragment key={d.path}>
-              <span className="truncate" title={d.covered.join(", ")}><span className="font-mono text-txt">{d.path}</span><span className="text-dim"> · {d.covered.join(", ")}</span></span>
+              <span className="min-w-0 [overflow-wrap:anywhere]" title={d.covered.join(", ")}><span className="font-mono text-txt">{d.path}</span><span className="text-dim"> · {d.covered.join(", ")}</span></span>
               <span className="whitespace-nowrap text-right text-dim">{d.age != null ? ageDays(d.age) : ""}</span>
               <span className="whitespace-nowrap text-right text-dim">{d.size ? bytes(d.size) : ""}</span>
             </Fragment>
           ))}
         </ConsoleBox>
       </Row>}
-      {copies.length > 0 && <Row k={tx("Réplication")}>
+      {copies.length > 0 && <Row wide k={tx("Réplication")}>
         <ConsoleBox cols="auto minmax(0,1fr) auto auto">
           {copies.map((c) => (
             <Fragment key={c.host}>
               <span className="self-center"><Dot tone={BK_TONE[c.level] ?? "warn"} /></span>
-              <span className="truncate" title={c.vias.join("\n")}><span className="text-txt">→ {c.label}</span><span className="text-dim"> · {c.vias.join(", ")}</span>{c.encrypted && <span className="text-violet-400"> · 🔒 {tx("chiffré")}</span>}</span>
+              <span className="min-w-0 [overflow-wrap:anywhere]" title={c.vias.join("\n")}><span className="text-txt">→ {c.label}</span><span className="text-dim"> · {c.vias.join(", ")}</span>{c.encrypted && <span className="text-violet-400"> · 🔒 {tx("chiffré")}</span>}</span>
               <span className="whitespace-nowrap text-right text-dim">{tx("{0} jeu(x)", c.sets)}</span>
               <span className={`whitespace-nowrap text-right ${bkText(c.level)}`}>{c.age != null ? ageDays(c.age) : tx("jamais vue")}</span>
             </Fragment>
@@ -863,12 +911,12 @@ export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine
       <Row k={tx("Copies hébergées")}>{hosted.length ? tx("{0} jeu(x)", hosted.length) : <Dim>{tx("aucune")}</Dim>}</Row>
       {disk && <Row k={tx("Espace")}><Fill pct={disk.pct} /><Pct value={disk.pct} /><Dim>{bytes(disk.avail)} {tx("libres")} · {disk.mount}</Dim></Row>}
       {hosted.length > 0 && (
-        <Row k={tx("Détail")}>
-          <ConsoleBox cols="minmax(0,1fr) auto auto">
+        <Row wide k={tx("Détail")}>
+          <ConsoleBox cols="minmax(0,3fr) minmax(0,2fr) auto">
             {hosted.map(({ s, l }) => (
               <Fragment key={`${s.id}-${l.label}`}>
-                <span className="truncate text-txt" title={s.label}>{s.label.replace(/^[^:]*: /, "")}<span className="text-dim"> ← {s.label.split(":")[0].trim()}</span></span>
-                <span className="whitespace-nowrap text-dim">{l.via ?? ""}</span>
+                <span className="min-w-0 [overflow-wrap:anywhere] text-txt" title={s.label}>{s.label.replace(/^[^:]*: /, "")}<span className="text-dim"> ← {s.label.split(":")[0].trim()}</span></span>
+                <span className="min-w-0 text-dim">{l.via ?? ""}</span>
                 <span className={`whitespace-nowrap text-right ${bkText(l.level)}`}>{l.age != null ? ageDays(l.age) : tx("jamais vue")}</span>
               </Fragment>
             ))}
@@ -881,17 +929,19 @@ export function SharedBackupsSection({ m, backups, from }: Readonly<{ m: Machine
 }
 
 /** Ligne dépliée à la demande : cinq rubriques (identité, système, accès, logiciels, santé), chacune avec l'origine de ses données */
-function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unifiNet, freebox, onFilter, focus, backups, pve, sheet, hosts }: Readonly<{ hosts?: Host[]; pve?: string; sheet?: AddressSheet; backups?: Backups | null; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; npmIps?: Record<string, string>; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
+function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unifiNet, freebox, onFilter, focus, backups, pve, sheet, hosts, extra }: Readonly<{ hosts?: Host[]; pve?: string; sheet?: AddressSheet; backups?: Backups | null; extra?: React.ReactNode; focus?: { kind: WatchKind; n: number } | null; onFilter?: (sel: Selected) => void; m: Machine; h?: HealthHost; mac?: string; net?: NetDevice; from: ReturnType<typeof originsOf>; watch: WatchItem[]; npmIps?: Record<string, string>; ha?: ServiceStatus; unifi?: UnifiDevice; unifiSys?: UnifiSystem; unifiNet?: UnifiNet; freebox?: FreeboxInfo }>) {
   const unifiOnly = !!unifi && !m.info && !m.agent;   // read only through UniFi: no SSH, no agent
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => { if (focus) setTimeout(() => showWatch(root.current, focus.kind), 120); }, [focus]);   // opened from a badge: show where its notice is explained
   const i = m.info, hw = hardwareRows(m.agent?.hardware);
   return (
-    <div ref={root} className="grid gap-3 px-3 py-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div ref={root} className="flex flex-col gap-4">
       <WatchSummary items={watch} onShow={(kind) => showWatch(root.current, kind)} />
-      <IdentitySection m={m} mac={mac} net={net} from={[...from.role, ...from.mac]} tool={freebox || unifi ? "MynetworK" : undefined} pve={pve} sheet={sheet} />
-
-      <Section icon={Cpu} title={tx("Système")} tone="violet" from={from.os}>
+      <div className="columns-1 gap-4 xl:columns-2">
+      <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} freebox={freebox} unifi={unifi} unifiSys={unifiSys} ha={ha} />
+      <HealthSection h={h} from={from.health} />
+      <IdentitySection m={m} mac={mac} net={net} from={uniqueOrigins([...from.role, ...from.mac])} tool={freebox || unifi ? "MynetworK" : undefined} pve={pve} sheet={sheet} />
+      <SystemSection h={h} from={uniqueOrigins([...from.os, ...from.health])}>
         <Row k={tx("Système")}>{i?.os || m.agent?.os || haSystemName(ha) || undefined}</Row>
         {ha?.system && <HaSystemRows sys={ha.system} />}
         {unifi && <UnifiRows d={unifi} sys={unifiSys} />}
@@ -900,8 +950,7 @@ function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unif
         <Row k={tx("En marche")}>{uptimeOf(m, unifi, freebox, ha) ? dur(uptimeOf(m, unifi, freebox, ha)!) : undefined}</Row>
         {hw.map(([k, v]) => <Row key={k} k={k}>{v}</Row>)}
         <GpuRows m={m} hosts={hosts} onFilter={onFilter} />
-        {!i && !m.agent && !ha?.system && !unifi && !freebox && <Dim>-</Dim>}
-      </Section>
+      </SystemSection>
 
       {freebox && <FreeboxAccessSection fb={freebox} from={from.ssh} />}
       {!freebox && unifiOnly && <UnifiAccessSection d={unifi} sys={unifiSys} mac={mac} from={from.ssh} />}
@@ -916,10 +965,15 @@ function Detail({ m, h, mac, net, from, watch, npmIps, ha, unifi, unifiSys, unif
       <MachineBackupsSection m={m} backups={backups} />
       <SharedBackupsSection m={m} backups={backups} from={from.services} />
 
-      <HealthSection h={h} from={from.health} />
-      <UpdatesSection h={h} windows={!!m.agent || h?.os === "windows"} from={from.health} freebox={freebox} unifi={unifi} unifiSys={unifiSys} ha={ha} />
+      {extra}
+      </div>
     </div>
   );
+}
+
+/** Sources named once, in their first order (the role, the MAC address and the system often come from the same tool) */
+function uniqueOrigins(list: Origin[]): Origin[] {
+  return list.filter((o, n) => list.findIndex((x) => x.label === o.label) === n);
 }
 
 /** The service an AI model runs in, as a link to the machine's services (a plain label when the page cannot open them) */
@@ -1193,9 +1247,7 @@ function IdentitySection({ m, mac, net, from, tool, pve, sheet }: Readonly<{ m: 
   const viaTool = tool && mState(m) === "nossh";
   const [stTone, stLabel, stTip]: [Tone, string, string] = viaTool ? ["ok", tx("Par le connecteur {0}", tool), tx("Lue par le connecteur {0} (son API) : en ligne, sans SSH ni agent", tool)] : stateBadge(m);
   return (
-      <Section icon={IdCard} title={tx("Identité")} tone="link" from={from}>
-        <Row k={tx("Nom")}><b>{m.name}</b></Row>
-        <Row k="IP"><span className="font-mono">{m.ip}</span></Row>
+      <Section icon={IdCard} title={tx("Fiche")} tone="link" from={from}>
         <Row k={tx("État")}><Badge tone={stTone} title={stTip}>{stLabel}</Badge></Row>
         <Row k={tx("Rôle")}>{roles.length ? <span className="flex flex-wrap gap-1">{roles.map((t) => <Badge key={t} tone="off">{t}</Badge>)}</span> : undefined}</Row>
         <Row k="MAC">{mac && <span className="font-mono">{mac}</span>}</Row>
@@ -1385,6 +1437,9 @@ function UpdatesChip({ h }: Readonly<{ h?: HealthHost }>) {
 export function UpdatesSection({ h, windows, from, freebox, unifi, unifiSys, ha }: Readonly<{ h?: HealthHost; windows: boolean; from: Origin[]; freebox?: FreeboxInfo; unifi?: UnifiDevice; unifiSys?: UnifiSystem; ha?: ServiceStatus }>) {
   if (!h && !ha) return null;
   const haN = ha?.updates?.length ?? 0, n = (h?.apt?.upgradable ?? 0) + haN;
+  // nothing to update, no reboot, no firmware offered: no card (the page stays short)
+  const firmware = !!freebox?.system?.update_available || !!unifi?.upgradable || !!(unifi && unifiSys?.update_available && isGateway(unifi, unifiSys));
+  if (!n && !h?.reboot_required && !firmware) return null;
   return (
     <Section sec="updates" icon={ArrowUpCircle} title={tx("Mises à jour")} tone={n || h?.reboot_required ? "warn" : "ok"} from={from}>
       {freebox && <FreeboxFirmware fb={freebox} />}
@@ -1398,7 +1453,7 @@ export function UpdatesSection({ h, windows, from, freebox, unifi, unifiSys, ha 
   );
 }
 
-/** Detail, « Health »: level, resources, failed systemd units, updates */
+/** Detail, « Health »: the level and why, then the checks (logs, system services and storage, kernel, failed systemd units); the measures are in « System » */
 export function HealthSection({ h, from }: Readonly<{ h?: HealthHost; from: Origin[] }>) {
   const failed = h?.systemd?.failed.length || 0;
   // Why the level is not « ok »: the controls in alert, in words (the same sentences as the « À surveiller » column); updates and reboot have their own section
@@ -1613,9 +1668,9 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
   useEffect(() => { const on = () => setTarget(machineFromHash(location.hash)); addEventListener("hashchange", on); return () => removeEventListener("hashchange", on); }, []);
   const pageM = target ? snap.data.machine_list.find((x) => x.ip === target.ip) : undefined;
   const admin = snap.me.role === "admin";
-  const detailOf = (m: Machine) => {
+  const detailOf = (m: Machine, extra?: React.ReactNode) => {
     const h = hb.get(m.ip);
-    return <Detail m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} npmIps={snap.data.npm_instances} hosts={snap.data.hosts} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} sheet={snap.data.sheets?.[m.ip]} pve={snap.data.virtualization?.find((c) => c.connector === "proxmox" && c.version && (c.ip === m.ip || c.name === m.links?.hypervisor?.instance))?.version ?? undefined} />;
+    return <Detail extra={extra} m={m} h={h} watch={watchOf(m)} mac={macOf(m)} net={seen.get(m.ip)} from={originsOf(m, snap, h, !!scanOs[m.ip]?.os, seen.has(m.ip))} npmIps={snap.data.npm_instances} hosts={snap.data.hosts} onFilter={onFilter} focus={focus} backups={snap.backups} ha={haOf(m)} unifi={unifiOf(m)} unifiSys={unifiOf(m) ? sysUnifi : undefined} unifiNet={unifiNetwork} freebox={freeboxOf(m, snap.data.network)} sheet={snap.data.sheets?.[m.ip]} pve={snap.data.virtualization?.find((c) => c.connector === "proxmox" && c.version && (c.ip === m.ip || c.name === m.links?.hypervisor?.instance))?.version ?? undefined} />;
   };
   const [view, pickView] = useStoredView("ms.machines.view", "table");  // Tableau ou Cartes, retenu
 
@@ -1632,7 +1687,8 @@ export function Machines({ snap, onMachine, onFilter, initial }: { snap: Snapsho
     <PickWatch.Provider value={pickWatch}>
     <KernelIgnore.Provider value={ignoreCtx}>
     {pageM ? (
-      <MachinePage snap={snap} m={pageM} scan={scanOs[pageM.ip]} model={modelOf(pageM, snap.data.network, unifiOf(pageM))} state={st(pageM, true)} detail={detailOf(pageM)}
+      <MachinePage snap={snap} m={pageM} scan={scanOs[pageM.ip]} model={modelOf(pageM, snap.data.network, unifiOf(pageM))} state={st(pageM, true)} detail={(extra) => detailOf(pageM, extra)}
+        figures={machineFigures(hb.get(pageM.ip), uptimeOf(pageM, unifiOf(pageM), freeboxOf(pageM, snap.data.network), haOf(pageM)) ?? null, watchOf(pageM).find((w) => w.tone !== "info")?.text)}
         onMachine={onMachine} focusTab={target?.tab} onBack={() => { location.hash = "machines"; }} />
     ) : <div className="py-1">
       <FilterBar f={f} placeholder={tx("Nom, IP, rôle, système, compte SSH…")}
