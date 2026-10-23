@@ -573,8 +573,8 @@ export function ProbeChips({ items }: Readonly<{ items: { name: string; full?: s
   const sorted = [...items].sort((a, b) => (a.full ?? a.name).localeCompare(b.full ?? b.name, undefined, { numeric: true }));
   return (
     <span className="flex flex-wrap gap-1.5">
-      {sorted.map((x) => (
-        <span key={x.full ?? x.name} title={x.full} className={`inline-flex items-baseline gap-1.5 rounded-md border border-line/60 bg-bg2/40 px-1.5 py-0.5 ${x.dim ? "opacity-50" : ""}`}>
+      {sorted.map((x, i) => (
+        <span key={`${x.full ?? x.name}#${i}`} title={x.full} className={`inline-flex items-baseline gap-1.5 rounded-md border border-line/60 bg-bg2/40 px-1.5 py-0.5 ${x.dim ? "opacity-50" : ""}`}>
           <span className="text-dim">{x.name}</span><span className={`tabular-nums ${x.tone}`}>{x.value}</span>
         </span>
       ))}
@@ -646,7 +646,12 @@ function SystemRows({ s }: Readonly<{ s: HostSystem }>) {
   const raid = (s.raid?.arrays ?? []).map((a) => ({ name: [a.name, a.level].filter(Boolean).join(" "), value: [raidState(a), a.members].filter(Boolean).join(" · "), tone: raidTone(a) }));
   const zfs = (s.zfs?.pools ?? []).map((p) => ({ name: p.name, value: p.health, tone: zfsTone(p.health) }));
   const shares = (s.mounts?.shares ?? []).map((m) => ({ name: m.path, value: SHARE_STATE[m.state]?.() ?? m.state, tone: SHARE_TONE[m.state] ?? "" }));
-  const sessions = (s.sessions?.sessions ?? []).map((x) => ({ name: `${x.user} ${x.tty}`, value: x.from || tx("local"), tone: "" }));
+  const opened = new Map<string, { name: string; value: string; n: number }>();   // two SSH sessions of the same user from the same place: one chip « ×2 »
+  for (const x of s.sessions?.sessions ?? []) {
+    const name = `${x.user} ${x.tty}`, value = x.from || tx("local"), had = opened.get(`${name}|${value}`);
+    opened.set(`${name}|${value}`, { name, value, n: (had?.n ?? 0) + 1 });
+  }
+  const sessions = [...opened.values()].map((x) => ({ name: x.name, full: `${x.name} ${x.value}`, value: x.n > 1 ? `${x.value} ×${x.n}` : x.value, tone: "" }));
   return (
     <>
       {pm2Items.length > 0 && <DetailRow k="PM2" title={tx("PM2, lu sans la commande pm2 : il n'est jamais relancé par MyServices")} watch="pm2"><ProbeChips items={pm2Items} /></DetailRow>}
