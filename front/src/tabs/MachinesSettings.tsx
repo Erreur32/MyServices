@@ -117,7 +117,7 @@ function SshHead({ title, m, ip }: Readonly<{ title: string; m?: MachineConf; ip
         {m ? <MachineIcon m={{ name: m.name, os: m.os }} reserve /> : <KeyRound size={16} aria-hidden />}
         {m ? <>{m.name}<Dim>{ip}</Dim><span className="text-sm font-normal text-muted">· {title}</span></> : title}
       </h2>
-      {m && ip && <a href={`#machines/${ip}`} className={`${quiet} ml-auto no-underline`}><Monitor size={14} aria-hidden />{tx("Page de la machine")}</a>}
+      {m && ip && <button type="button" onClick={() => { location.hash = `machines/${ip}`; }} className={`${quiet} ml-auto`}><Monitor size={14} aria-hidden />{tx("Page de la machine")}</button>}
     </div>
   );
 }
@@ -330,7 +330,7 @@ function WindowsConnection({ ip, m, st, agent, hw }: Readonly<{ ip: string; m: M
   }
   return (
     <p className="text-dim">{tx("Pas d'agent : ping et services web seulement.")}{" "}
-      <a className="text-link hover:underline" href={`#settings/agents/${ip}`}>{tx("Installer l'agent")}</a>{tx(" pour lire sa santé sans SSH.")}</p>
+      <button type="button" className="text-link hover:underline" onClick={() => { location.hash = `settings/agents/${ip}`; }}>{tx("Installer l'agent")}</button>{tx(" pour lire sa santé sans SSH.")}</p>
   );
 }
 
