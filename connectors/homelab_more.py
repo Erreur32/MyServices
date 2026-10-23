@@ -529,10 +529,14 @@ class Wazuh(StatusConnector):
         Field("indexer_password", "Mot de passe de l'indexeur", "password", secret=True),
     )
     setup_fields = ("url", "username", "password")
-    guide = ("Dans le tableau de bord Wazuh : Server management → Security → Users → nouvel utilisateur « myservices », rôle « readonly ».",
-             "L'API du serveur répond sur le port 55000 (pas celui du tableau de bord). MyServices ne fait que lire.",
-             "Alertes (facultatif) : Indexer management → Security → Internal users → utilisateur « myservices-read », puis Roles → « readall » → "
-             "Mapped users → l'ajouter. Adresse de l'indexeur : https://<IP>:9200.")
+    guide = ("Wazuh a deux listes d'utilisateurs séparées : celle de l'API du serveur (port 55000) et celle de l'indexeur (port 9200). "
+             "Un utilisateur de l'une n'existe pas dans l'autre : il en faut un dans chacune (le même nom convient).",
+             "1. API (agents, conformité, matériel, paquets, ports) : tableau de bord → Server management → Security → Users → nouvel utilisateur "
+             "« myservices », rôle « readonly ». Adresse : https://<IP>:55000 (pas celle du tableau de bord ni celle publiée par un proxy).",
+             "2. Indexeur, facultatif (alertes 24 h, vulnérabilités) : Indexer management → Security → Internal users → nouvel utilisateur "
+             "« myservices », et dans son champ « Backend roles » : readall. (Ajouter l'utilisateur au rôle « readall » par Roles → Mapped users "
+             "échoue : cette association est réservée.) Adresse de l'indexeur : https://<IP>:9200.",
+             "MyServices ne fait que lire : des nombres, le nom des règles graves et des CVE, jamais le détail d'une alerte.")
     SERIOUS = 12   # rule level from which the dashboard says « high » (15: « critical »)
     MAX_AGENTS = 50   # per-agent reads (SCA, inventory) beyond: left out, a big fleet is not what MyServices is for
     INVENTORY_TTL, VULNS_TTL = 3600, 1800
