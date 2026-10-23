@@ -74,7 +74,7 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
   const one = location.hash.split("/")[3];   // #settings/machines/ssh/<ip>, #settings/machines/agents/<ip>: the list, that row unfolded
   const open = one ? decodeURIComponent(one) : undefined;
   const editor = (ip: string, only: AccessOnly) => <MachineModal ip={ip} snap={snap} only={only} />;   // the access of one machine, under its row
-  if (part === "agents") return <AgentsOverview machines={st.machines} editor={(ip) => editor(ip, "agent")} open={open} />;
+  if (part === "agents") return <AgentsOverview machines={st.machines} open={open} />;
   if (part === "ssh") return <SshConnections st={st} snap={snap} editor={editor} open={open} />;
   const all = Object.keys(st.machines);
   const nOff = all.filter((ip) => st.machines[ip].disabled).length;

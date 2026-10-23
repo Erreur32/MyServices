@@ -2375,7 +2375,7 @@ export const EN: Record<string, string> = {
   "En attente": "Pending",
   "À mettre à jour": "To update",
   "Mettre à jour les agents en retard ({0})": "Update the late agents ({0})",
-  "Un agent s'installe depuis la page d'une machine, onglet Accès. « Régler » ouvre ses gestes : mise à jour automatique ou immédiate, nouveau jeton, révocation.": "An agent is installed from the page of a machine, Access tab. « Set » opens its gestures: automatic or immediate update, new token, revocation.",
+  "Un agent s'installe depuis la page d'une machine, onglet Accès. Ses gestes sont sur sa ligne : mise à jour automatique ou immédiate, nouveau jeton, révocation.": "An agent is installed from the page of a machine, Access tab. Its gestures are on its row: automatic or immediate update, new token, revocation.",
   "Aucun agent installé : le SSH lit déjà vos machines, ou aucun PC n'en a besoin.": "No agent installed: SSH already reads your machines, or no PC needs one.",
   "Page de la machine": "Machine page",
   "lue": "read",

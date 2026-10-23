@@ -1,8 +1,8 @@
 // Gestion des agents MyServices (petit script en lecture seule, sans SSH) : le bloc d'une machine (sa page, onglet Accès) et la page
 // Machines → Agents (tous les agents avec leurs gestes, agents révoqués). Un agent = un jeton lié à la machine, montré une seule fois avec la commande à coller.
 // Gérés seulement depuis une session admin.
-import { ArrowUpCircle, Check, MonitorUp, Plus, RefreshCw, RotateCw, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { ArrowUpCircle, Check, KeyRound, MonitorUp, Plus, RotateCw, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { read, send } from "../api";
 import { NoteLine } from "../components/form";
 import { MachineIcon } from "../components/MachineIcon";
@@ -58,10 +58,44 @@ function HostConfirm({ a, reload, setNote }: Readonly<{ a: AgentInfo; reload: ()
 
 
 /** L'agent d'une machine, dans sa fenêtre (onglet Accès) : état, version, dernier relevé et gestes (mise à jour, nouveau jeton, révocation), ou son installation */
-export function AgentBlock({ ip, name, kind, agent, onChanged }: Readonly<{ ip: string; name: string; kind: AgentKind; agent?: AgentInfo; onChanged: () => void }>) {
+/** The gestures of an agent, as buttons: automatic update, update now, new command (a new token), revoke (with a confirmation). On the machine's
+ *  page (its Access block) and on its row of Machines → Agents; the new command is shown by the caller (onInstall) */
+function AgentActions({ a, kind, onChanged, onInstall }: Readonly<{ a: AgentInfo; kind: AgentKind; onChanged: () => void; onInstall: (t: InstallTarget) => void }>) {
   const [confirm, setConfirm] = useState<"" | "renew" | "revoke">(""), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
-  const [install, setInstall] = useState<InstallTarget | null>(null);
   const run = async (fn: () => Promise<unknown>, done: string) => { setBusy(true); const ok = await act(fn, done, setNote); setBusy(false); if (ok) onChanged(); };
+  return (
+    <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {confirm === "" && <>
+            <button type="button" disabled={busy} aria-pressed={!!a.auto_update} aria-label={tx("Automatique")}
+              title={a.auto_update ? tx("Mise à jour automatique activée : l'agent prend le nouveau script dès qu'il est plus ancien. Cliquer pour couper.") : tx("Activer la mise à jour automatique de cet agent")}
+              onClick={() => void run(() => send("PATCH", `agents/${a.id}`, { auto_update: !a.auto_update }), a.auto_update ? tx("mise à jour automatique coupée") : tx("mise à jour automatique activée"))}
+              className={`${iconBtn} ${a.auto_update ? "border-ok/60 bg-ok/15 text-ok" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}><RotateCw size={14} aria-hidden /></button>
+            {(a.outdated || a.update_requested) && <button type="button" disabled={busy || !!a.update_requested} aria-label={tx("Mettre à jour maintenant")}
+              title={a.update_requested ? tx("Demandée : l'agent se mettra à jour à son prochain relevé") : tx("Mettre à jour maintenant : l'agent récupère le nouveau script à son prochain relevé (au plus tard dans {0} min)", Math.round(a.interval / 60))}
+              onClick={() => void run(() => send("POST", `agents/${a.id}/update`), tx("demandée : l'agent se mettra à jour à son prochain relevé"))}
+              className={`${iconBtn} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`}><ArrowUpCircle size={14} aria-hidden /></button>}
+            <button type="button" disabled={busy} aria-label={tx("Nouvelle commande")} title={tx("Crée un nouveau jeton et révoque l'ancien : à refaire sur le PC avec la nouvelle commande")}
+              onClick={() => setConfirm("renew")} className={`${iconBtn} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`}><KeyRound size={14} aria-hidden /></button>
+            <button type="button" aria-label={tx("Révoquer")} title={tx("Révoquer")} onClick={() => setConfirm("revoke")}
+              className={`${iconBtn} border-bad/50 text-bad hover:bg-bad/10`}><Trash2 size={14} aria-hidden /></button>
+          </>}
+          {confirm !== "" && <>
+            <span className="text-xs text-muted">{confirm === "renew" ? tx("L'ancien jeton cessera de marcher.") : tx("La machine n'enverra plus rien.")}</span>
+            <button type="button" className={danger} onClick={() => {
+              if (confirm === "renew") { setConfirm(""); onInstall({ ip: a.ip, name: a.name, kind: a.kind ?? kind, auto: true }); }
+              else void act(() => send("DELETE", `agents/${a.id}`), tx("révoqué"), setNote).then((ok) => ok && onChanged());
+            }}>{tx("Confirmer")}</button>
+            <button type="button" className={quiet} onClick={() => setConfirm("")}>{tx("Annuler")}</button>
+          </>}
+        </div>
+      <NoteLine note={note} />
+    </div>
+  );
+}
+
+export function AgentBlock({ ip, name, kind, agent, onChanged }: Readonly<{ ip: string; name: string; kind: AgentKind; agent?: AgentInfo; onChanged: () => void }>) {
+  const [install, setInstall] = useState<InstallTarget | null>(null), [note, setNote] = useState<Note>(null);
   if (install) return <AgentInstall key={install.auto ? "renew" : "new"} target={install} onChanged={onChanged} onClose={() => setInstall(null)} />;
   if (!agent) {
     return (
@@ -84,31 +118,8 @@ export function AgentBlock({ ip, name, kind, agent, onChanged }: Readonly<{ ip: 
         <code className="font-mono text-xs text-dim" title={tx("Jeton")}>{tx("msv_")}agent_…{agent.hint}</code>
       </div>
       {agent.host_pending && <HostConfirm a={agent} reload={onChanged} setNote={setNote} />}
-      <div className="flex flex-wrap items-center justify-end gap-1.5">
-        {confirm === "" && <>
-          <button type="button" disabled={busy} aria-pressed={!!agent.auto_update} aria-label={tx("Automatique")}
-            title={agent.auto_update ? tx("Mise à jour automatique activée : l'agent prend le nouveau script dès qu'il est plus ancien. Cliquer pour couper.") : tx("Activer la mise à jour automatique de cet agent")}
-            onClick={() => void run(() => send("PATCH", `agents/${agent.id}`, { auto_update: !agent.auto_update }), agent.auto_update ? tx("mise à jour automatique coupée") : tx("mise à jour automatique activée"))}
-            className={`${iconBtn} ${agent.auto_update ? "border-ok/60 bg-ok/15 text-ok" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}><RotateCw size={14} aria-hidden /></button>
-          {(agent.outdated || agent.update_requested) && <button type="button" disabled={busy || !!agent.update_requested} aria-label={tx("Mettre à jour maintenant")}
-            title={agent.update_requested ? tx("Demandée : l'agent se mettra à jour à son prochain relevé") : tx("Mettre à jour maintenant : l'agent récupère le nouveau script à son prochain relevé (au plus tard dans {0} min)", Math.round(agent.interval / 60))}
-            onClick={() => void run(() => send("POST", `agents/${agent.id}/update`), tx("demandée : l'agent se mettra à jour à son prochain relevé"))}
-            className={`${iconBtn} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`}><ArrowUpCircle size={14} aria-hidden /></button>}
-          <button type="button" disabled={busy} aria-label={tx("Nouvelle commande")} title={tx("Crée un nouveau jeton et révoque l'ancien : à refaire sur le PC avec la nouvelle commande")}
-            onClick={() => setConfirm("renew")} className={`${iconBtn} border-txt/30 bg-bg2 text-txt hover:border-link hover:bg-link/10`}><RefreshCw size={14} aria-hidden /></button>
-          <button type="button" aria-label={tx("Révoquer")} title={tx("Révoquer")} onClick={() => setConfirm("revoke")}
-            className={`${iconBtn} border-bad/50 text-bad hover:bg-bad/10`}><Trash2 size={14} aria-hidden /></button>
-        </>}
-        {confirm !== "" && <>
-          <span className="text-xs text-muted">{confirm === "renew" ? tx("L'ancien jeton cessera de marcher.") : tx("La machine n'enverra plus rien.")}</span>
-          <button type="button" className={danger} onClick={() => {
-            if (confirm === "renew") { setConfirm(""); setInstall({ ip, name, kind: agent.kind ?? kind, auto: true }); }
-            else void act(() => send("DELETE", `agents/${agent.id}`), tx("révoqué"), setNote).then((ok) => ok && onChanged());
-          }}>{tx("Confirmer")}</button>
-          <button type="button" className={quiet} onClick={() => setConfirm("")}>{tx("Annuler")}</button>
-        </>}
-      </div>
       <NoteLine note={note} />
+      <AgentActions a={agent} kind={kind} onChanged={onChanged} onInstall={setInstall} />
     </div>
   );
 }
@@ -137,31 +148,30 @@ export function AccessGuide() {
 }
 
 /** Vue d'ensemble, en bas de Réglages → Machines : comment choisir entre agent, SSH et connecteur, et les agents révoqués */
-/** One agent in the list of Machines → Agents: its machine, type, state, version and last report; « Régler » unfolds its setting under the row */
-function AgentRow({ a, conf, open, onToggle, editor }: Readonly<{ a: AgentInfo; conf?: MachineConf; open: boolean; onToggle: () => void; editor: (ip: string) => ReactNode }>) {
+/** One agent in the list of Machines → Agents: its machine, type, state, version, last report and its gestures in the row; a new command
+ *  (new token) is shown under the row */
+function AgentRow({ a, conf, onChanged, lit }: Readonly<{ a: AgentInfo; conf?: MachineConf; onChanged: () => void; lit: boolean }>) {
   const [tone, label] = STATE[a.state], name = conf?.name ?? a.name;
+  const [install, setInstall] = useState<InstallTarget | null>(null);
   return (
     <>
-    <tr className="border-t border-line/60 align-middle even:bg-bg/50 hover:bg-bg2/40">
-      <td className="px-3 py-2"><span className="flex items-center gap-2"><MachineIcon m={{ name, os: conf?.os ?? a.kind ?? "windows", osName: a.os }} reserve /><b className="truncate">{name}</b><Dim>{a.ip}</Dim></span></td>
+    <tr className={`border-t border-line/60 align-middle even:bg-bg/50 hover:bg-bg2/40 ${lit ? "ring-2 ring-inset ring-link/60" : ""}`}>
+      <td className="px-3 py-2"><a href={`#machines/${a.ip}`} className="flex items-center gap-2 text-txt no-underline hover:text-link"><MachineIcon m={{ name, os: conf?.os ?? a.kind ?? "windows", osName: a.os }} reserve /><b className="truncate">{name}</b><Dim>{a.ip}</Dim></a></td>
       <td className="px-3 py-2 text-xs">{a.kind === "linux" ? "Linux" : "Windows"}</td>
       <td className="px-3 py-2"><span className="flex flex-wrap gap-1"><Badge tone={tone}>{label}</Badge>{a.host_pending && <Badge tone="warn">{tx("nom à confirmer")}</Badge>}</span></td>
       <td className="px-3 py-2 text-xs"><span className="inline-flex items-center gap-1">{a.version ? <>v{a.version}<VersionMark outdated={!!a.outdated} /></> : "-"}</span></td>
       <td className="px-3 py-2 text-xs text-dim">{a.last_seen ? dateTime(a.last_seen * 1000) : tx("en attente du premier relevé")}</td>
-      <td className="px-3 py-2 text-right">
-        <button type="button" className="text-xs text-link hover:underline" aria-expanded={open} onClick={onToggle}>{open ? tx("Fermer") : tx("Régler")} {open ? "▴" : "›"}</button>
-      </td>
+      <td className="px-3 py-2"><AgentActions a={a} kind={a.kind ?? "windows"} onChanged={onChanged} onInstall={setInstall} /></td>
     </tr>
-    {open && <tr><td colSpan={6} className="border-t border-line/60 bg-bg/40 px-3 py-3">{editor(a.ip)}</td></tr>}
+    {install && <tr><td colSpan={6} className="border-t border-line/60 bg-bg/40 px-3 py-3"><AgentInstall target={install} onChanged={onChanged} onClose={() => setInstall(null)} /></td></tr>}
     </>
   );
 }
 
 /** Machines → Agents: every agent in use with its gestures (the same block as on the machine's page), figures on top, one button to update
  *  the late ones, then the revoked ones. An agent is installed from the page of its machine, Access tab. */
-export function AgentsOverview({ machines, editor, open }: Readonly<{ machines: Record<string, MachineConf>; editor: (ip: string) => ReactNode; open?: string }>) {
+export function AgentsOverview({ machines, open }: Readonly<{ machines: Record<string, MachineConf>; open?: string }>) {
   const [st, setSt] = useState<AgentsState | null>(null), [install, setInstall] = useState<InstallTarget | null>(null);
-  const [unfolded, setUnfolded] = useState<string | null>(open ?? null);
   const [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
   const reload = useCallback(() => { read<AgentsState>("agents").then(setSt).catch(() => undefined); }, []);
   useEffect(reload, [reload]);
@@ -187,7 +197,7 @@ export function AgentsOverview({ machines, editor, open }: Readonly<{ machines: 
           <h2 className="flex items-center gap-2 font-bold"><MonitorUp size={16} aria-hidden />{tx("Agents")} <Count n={s.live.length} /></h2>
           {s.outdated.length > 0 && <button type="button" className={quiet} disabled={busy} onClick={() => void updateLate()}><ArrowUpCircle size={14} aria-hidden />{tx("Mettre à jour les agents en retard ({0})", s.outdated.length)}</button>}
         </div>
-        <InfoNote className="mt-2">{tx("Un agent s'installe depuis la page d'une machine, onglet Accès. « Régler » ouvre ses gestes : mise à jour automatique ou immédiate, nouveau jeton, révocation.")}</InfoNote>
+        <InfoNote className="mt-2">{tx("Un agent s'installe depuis la page d'une machine, onglet Accès. Ses gestes sont sur sa ligne : mise à jour automatique ou immédiate, nouveau jeton, révocation.")}</InfoNote>
         <NoteLine note={note} />
         {s.live.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucun agent installé : le SSH lit déjà vos machines, ou aucun PC n'en a besoin.")}</p>}
         {s.live.length > 0 && (
@@ -197,7 +207,7 @@ export function AgentsOverview({ machines, editor, open }: Readonly<{ machines: 
                 <th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Type")}</th><th className="px-3 py-2">{tx("État")}</th>
                 <th className="px-3 py-2">{tx("Version")}</th><th className="px-3 py-2">{tx("Dernier relevé")}</th><th className="px-3 py-2" />
               </tr></thead>
-              <tbody>{s.live.map((a) => <AgentRow key={a.id} a={a} conf={machines[a.ip]} editor={editor} open={unfolded === a.ip} onToggle={() => setUnfolded(unfolded === a.ip ? null : a.ip)} />)}</tbody>
+              <tbody>{s.live.map((a) => <AgentRow key={a.id} a={a} conf={machines[a.ip]} onChanged={reload} lit={open === a.ip} />)}</tbody>
             </table>
           </div>
         )}
