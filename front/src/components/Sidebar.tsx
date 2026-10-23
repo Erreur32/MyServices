@@ -60,10 +60,10 @@ function Badge({ level, tab, onBadge }: Readonly<{ level: Level; tab: TabId; onB
   );
 }
 
-/** A group of pages (« Vue », « Réglages ») is a heading, not a link: never lit as the open one */
+/** A group of pages (« Vue », « Réglages ») opens its first page but is never lit as the open one */
 function subTone(group: boolean, on: boolean): string {
   if (!group) return rowTone(on);
-  return on ? "text-txt" : "text-muted";
+  return on ? "text-txt hover:bg-card" : "text-muted hover:bg-card hover:text-txt";
 }
 
 /** The sub-pages of an entry, a level deeper for the views of a sub-page (« Vue » › UniFi…): all shown */
@@ -77,9 +77,8 @@ function SubLinks({ subs, active, depth, counts, onNavigate, inPanel }: Readonly
         const look = `${ROW} py-1.5 pr-3 text-[13px] ${pad[Math.min(depth, 1)]} ${subTone(!!x.subs, on)}`;
         return (
           <div key={x.id} className="flex flex-col gap-0.5">
-            {x.subs
-              ? <span className={look}>{inner}</span>   /* « Vue », « Réglages »: a heading over its pages, always shown open */
-              : <a role={inPanel ? "menuitem" : undefined} href={`#${x.hash}`} onClick={onNavigate} aria-current={on ? "page" : undefined} className={look}>{inner}</a>}
+            {/* « Vue », « Réglages »: a heading over its pages, always shown open, that opens the first one shown (« To watch » may be left out) */}
+            <a role={inPanel ? "menuitem" : undefined} href={`#${x.subs ? leaves(x)[0].hash : x.hash}`} onClick={onNavigate} aria-current={on && !x.subs ? "page" : undefined} className={look}>{inner}</a>
             {x.subs && <SubLinks subs={x.subs} active={active} depth={depth + 1} counts={counts} onNavigate={onNavigate} inPanel={inPanel} />}
           </div>
         );
