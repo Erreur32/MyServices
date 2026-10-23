@@ -11,6 +11,8 @@ import { localVia, originOf } from "../lib/eventOrigin";
 import type { StoredEvent } from "../types";
 import { AreaChart, BarsChart, HeatChart, PointsChart, heatDays, type HeatCell, type Range } from "../components/HistoryCharts";
 import { Badge, Count, Empty, FilterBar } from "../components/ui";
+import { StatTile } from "../components/StatTile";
+import { periodFigures } from "../lib/historyFigures";
 import { Square } from "../components/marks";
 import { tx } from "../lib/i18n";
 import { NOISE, collapse, saveHidden, savedHidden, unmasked, type NoiseId } from "../lib/historyNoise";
@@ -150,10 +152,18 @@ function Events({ snap, middle }: Readonly<{ snap: Snapshot; middle: ReactNode }
     return r ? localVia(r.service?.kind, agentIps.has(r.host_ip || r.ip || "")) : undefined;
   };
   const byDay = groupByDay(listed);
+  const fig = periodFigures(f.shown, days, snap.severity), period = PERIODS.find(([d]) => d === days)?.[1] ?? "";
 
   return (
     <div>
       <Toolbar days={days} onDays={(d) => { pickDays(d); setRange(null); setCell(null); }} style={style} onStyle={pick} middle={middle} />
+      <div className="mb-3 flex gap-2.5 overflow-x-auto pb-1" aria-label={tx("Chiffres de la période")}>
+        <StatTile n={fig.total} label={tx("Événements, {0}", period)} sub={days > 1 ? tx("{0} par jour en moyenne", String(fig.perDay).replace(".", ",")) : undefined} />
+        <StatTile n={fig.outages} label={tx("Pannes")} tone={fig.outages ? "bad" : "ok"} sub={tx("services et machines")} />
+        <StatTile n={fig.serious} label={tx("Graves")} tone={fig.serious ? "bad" : "ok"} />
+        <StatTile n={fig.back} label={tx("Retours à la normale")} tone={fig.back ? "ok" : undefined} />
+        {fig.top && <StatTile n={fig.top.machine} label={tx("Machine la plus touchée")} sub={tx("{0} événement(s)", fig.top.n)} />}
+      </div>
 
       <div className="rounded-2xl border border-line bg-card p-4">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
