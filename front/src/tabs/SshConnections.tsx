@@ -1,8 +1,9 @@
 // Machines → SSH connections: every machine read over SSH, where it connects (account@address:port), whether its last read went through,
 // and whether SSH is still needed there: an agent reads the same health every minute, SSH stays useful only for what the agent does not read
-// (backups, NPM, AdGuard, a hypervisor). Its access is set in place, under its row; the app's key lives in Administration → Accounts and access.
-import { KeyRound, Terminal } from "lucide-react";
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+// (backups, NPM, AdGuard, a hypervisor). Each access is set on a page of its own (#settings/machines/ssh/<ip>, « + » for a new one: the
+// other machines are not listed meanwhile); the app's key lives in Administration → Accounts and access.
+import { KeyRound, Plus, Terminal } from "lucide-react";
+import { useEffect, useState } from "react";
 import { read, type Snapshot } from "../api";
 import type { AgentInfo, MachinesSettings } from "../types";
 import { Badge, Card, Count, Dim, type Tone } from "../components/ui";
@@ -11,6 +12,7 @@ import { InfoNote } from "../components/InfoNote";
 import { MachineIcon } from "../components/MachineIcon";
 import { sshRows, type SshState } from "../lib/accessLists";
 import { tx } from "../lib/i18n";
+import { primary } from "../lib/forms";
 
 /** What needs SSH on a machine, in words (codes from the server, access_advice.ssh_uses) */
 const USE: Record<string, string> = { backups: tx("sauvegardes"), npm: "NPM", adguard: "AdGuard", borgmatic: "borgmatic", proxmox: "Proxmox", esxi: "ESXi",
@@ -25,23 +27,21 @@ const STATE: Record<SshState, [Tone, string]> = {
 };
 
 /** Whether SSH is still needed: with an agent and nothing that needs SSH, it is optional; without an agent, the agent is offered */
-function AgentAdvice({ agent, uses, onOpen }: Readonly<{ agent: boolean; uses: string[]; onOpen: (only: "ssh" | "agent") => void }>) {
-  if (!agent) return <button type="button" className="text-xs text-link hover:underline" onClick={() => onOpen("agent")}>{tx("Installer l'agent")} ›</button>;
+function AgentAdvice({ ip, agent, uses }: Readonly<{ ip: string; agent: boolean; uses: string[] }>) {
+  if (!agent) return <a href={`#machines/${ip}/access`} className="text-xs text-link hover:underline">{tx("Installer l'agent")} ›</a>;
   if (uses.length) return <span className="text-xs text-muted" title={tx("L'agent ne lit pas cela : gardez le SSH")}>{tx("agent installé · SSH utile : {0}", useText(uses))}</span>;
   return (
     <span className="text-xs">
       <Badge tone="info">{tx("SSH facultatif : l'agent suffit")}</Badge>{" "}
-      <button type="button" className="text-link hover:underline" onClick={() => onOpen("ssh")}>{tx("Couper le SSH")} ›</button>
+      <a href={`#settings/machines/ssh/${ip}`} className="text-link hover:underline">{tx("Couper le SSH")} ›</a>
     </span>
   );
 }
 
-export function SshConnections({ st, snap, editor, open }: Readonly<{ st: MachinesSettings; snap: Snapshot; editor: (ip: string, only: "ssh" | "agent") => ReactNode; open?: string }>) {
-  const [unfolded, setUnfolded] = useState<{ ip: string; only: "ssh" | "agent" } | null>(open ? { ip: open, only: "ssh" } : null);
+export function SshConnections({ st, snap }: Readonly<{ st: MachinesSettings; snap: Snapshot }>) {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   useEffect(() => { read<{ agents: AgentInfo[] }>("agents").then((r) => setAgents(r.agents)).catch(() => undefined); }, []);
   const withAgent = new Set(agents.filter((a) => a.state !== "révoqué").map((a) => a.ip));
-  const toggle = (ip: string, only: "ssh" | "agent") => setUnfolded(unfolded?.ip === ip && unfolded.only === only ? null : { ip, only });
   const list = snap.data.machine_list ?? [];
   const rows = sshRows(st.machines, st.aliases, list, snap.data.connectors ?? []);
   const count = (s: SshState) => rows.filter((r) => r.state === s).length;
@@ -57,9 +57,12 @@ export function SshConnections({ st, snap, editor, open }: Readonly<{ st: Machin
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 font-bold"><Terminal size={16} aria-hidden />{tx("Connexions SSH")} <Count n={rows.length} /></h2>
-          <a href="#settings/ssh" className="inline-flex items-center gap-1.5 text-sm text-link hover:underline"><KeyRound size={14} aria-hidden />{tx("Clé SSH de l'app")} ›</a>
+          <span className="flex flex-wrap items-center gap-3">
+            <a href="#settings/ssh" className="inline-flex items-center gap-1.5 text-sm text-link hover:underline"><KeyRound size={14} aria-hidden />{tx("Clé SSH de l'app")} ›</a>
+            <a href="#settings/machines/ssh/new" className={`${primary} no-underline`}><Plus size={14} aria-hidden />{tx("Connexion SSH")}</a>
+          </span>
         </div>
-        <InfoNote className="mt-2">{tx("L'agent MyServices fait les mêmes relevés de santé chaque minute, sans clé SSH sur la machine. Gardez le SSH seulement pour ce que l'agent ne lit pas : sauvegardes, Proxmox ou ESXi, NPM, AdGuard. « Régler » ouvre l'accès sous sa ligne.")}</InfoNote>
+        <InfoNote className="mt-2">{tx("L'agent MyServices fait les mêmes relevés de santé chaque minute, sans clé SSH sur la machine. Gardez le SSH seulement pour ce que l'agent ne lit pas : sauvegardes, Proxmox ou ESXi, NPM, AdGuard. « Régler » ouvre son réglage.")}</InfoNote>
         {rows.length === 0 && <p className="mt-2 text-sm text-dim">{tx("Aucune machine lue par SSH pour l'instant : l'accès s'active sur la page d'une machine, onglet Accès.")}</p>}
         {rows.length > 0 && (
           <div className="mt-3 overflow-x-auto">
@@ -71,22 +74,16 @@ export function SshConnections({ st, snap, editor, open }: Readonly<{ st: Machin
                 {rows.map((r) => {
                   const [tone, label] = STATE[r.state];
                   const seen = list.find((x) => x.ip === r.ip);
-                  const here = unfolded?.ip === r.ip;
                   return (
-                    <Fragment key={r.ip}>
-                    <tr className="border-t border-line/60 align-middle even:bg-bg/50 hover:bg-bg2/40">
+                    <tr key={r.ip} className="border-t border-line/60 align-middle even:bg-bg/50 hover:bg-bg2/40">
                       <td className="px-3 py-2">
                         <span className="flex items-center gap-2"><MachineIcon m={{ ...seen, name: r.name, os: st.machines[r.ip]?.os }} reserve /><b className="truncate">{r.name}</b><Dim>{r.ip}</Dim></span>
                       </td>
                       <td className="px-3 py-2 font-mono text-xs">{r.access || <Dim>-</Dim>}</td>
                       <td className="px-3 py-2"><Badge tone={tone} title={r.message || undefined}>{label}</Badge></td>
-                      <td className="px-3 py-2"><AgentAdvice agent={withAgent.has(r.ip)} uses={st.ssh_uses?.[r.ip] ?? []} onOpen={(only) => toggle(r.ip, only)} /></td>
-                      <td className="px-3 py-2 text-right">
-                        <button type="button" className="text-xs text-link hover:underline" aria-expanded={here} onClick={() => toggle(r.ip, "ssh")}>{here ? tx("Fermer") : tx("Régler")} {here ? "▴" : "›"}</button>
-                      </td>
+                      <td className="px-3 py-2"><AgentAdvice ip={r.ip} agent={withAgent.has(r.ip)} uses={st.ssh_uses?.[r.ip] ?? []} /></td>
+                      <td className="px-3 py-2 text-right"><a href={`#settings/machines/ssh/${r.ip}`} className="text-xs text-link hover:underline">{tx("Régler")} ›</a></td>
                     </tr>
-                    {here && <tr><td colSpan={5} className="border-t border-line/60 bg-bg/40 px-3 py-3">{editor(r.ip, unfolded.only)}</td></tr>}
-                    </Fragment>
                   );
                 })}
               </tbody>

@@ -71,11 +71,12 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
   const [showAccess, setShowAccess] = useState(false);
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   if (part === "devices") return <UnlinkedDevices snap={snap} onFollowed={reload} />;
-  const one = location.hash.split("/")[3];   // #settings/machines/ssh/<ip>, #settings/machines/agents/<ip>: the list, that row unfolded
+  const one = location.hash.split("/")[3];   // #settings/machines/ssh/<ip> | new: that SSH access alone; #settings/machines/agents/<ip>: the list, that row lit
   const open = one ? decodeURIComponent(one) : undefined;
-  const editor = (ip: string, only: AccessOnly) => <MachineModal ip={ip} snap={snap} only={only} />;   // the access of one machine, under its row
   if (part === "agents") return <AgentsOverview machines={st.machines} open={open} />;
-  if (part === "ssh") return <SshConnections st={st} snap={snap} editor={editor} open={open} />;
+  if (part === "ssh" && open === "new") return <NewSshPage snap={snap} st={st} />;
+  if (part === "ssh" && open) return <SshPage ip={open} snap={snap} st={st} />;
+  if (part === "ssh") return <SshConnections st={st} snap={snap} />;
   const all = Object.keys(st.machines);
   const nOff = all.filter((ip) => st.machines[ip].disabled).length;
   return (
@@ -97,6 +98,45 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
       {showAccess && <AccessGuide />}
       {redetecting && <Redetect st={st} onDone={() => { setRedetecting(false); reload(); }} />}
       {detecting && <AddMachine st={st} onDone={() => { setDetecting(false); reload(); }} onCancel={() => setDetecting(false)} />}
+    </Card>
+  );
+}
+
+/** The SSH access of one machine on a page of its own (the other machines are not listed while it is set), from Machines → SSH connections */
+function SshPage({ ip, snap, st }: Readonly<{ ip: string; snap: Snapshot; st: State }>) {
+  const name = st.machines[ip]?.name ?? ip;
+  return (
+    <Card>
+      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h2 className="flex items-center gap-2 font-bold"><KeyRound size={16} aria-hidden />{tx("Connexion SSH de {0}", name)}<Dim>{ip}</Dim></h2>
+        <a href="#settings/machines/ssh" className="ml-auto text-sm text-link hover:underline">‹ {tx("Connexions SSH")}</a>
+        <a href={`#machines/${ip}`} className="text-sm text-link hover:underline">{tx("Page de la machine")} ›</a>
+      </div>
+      <MachineModal ip={ip} snap={snap} only="ssh" />
+    </Card>
+  );
+}
+
+/** A new SSH connection: pick a followed machine that has none, then set its access on the same page */
+function NewSshPage({ snap, st }: Readonly<{ snap: Snapshot; st: State }>) {
+  const free = Object.entries(st.machines).filter(([, m]) => !m.disabled && typeof m.ssh !== "string").sort(([, a], [, b]) => a.name.localeCompare(b.name));
+  const [ip, setIp] = useState("");
+  return (
+    <Card>
+      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h2 className="flex items-center gap-2 font-bold"><Plus size={16} aria-hidden />{tx("Nouvelle connexion SSH")}</h2>
+        <a href="#settings/machines/ssh" className="ml-auto text-sm text-link hover:underline">‹ {tx("Connexions SSH")}</a>
+      </div>
+      {free.length === 0 ? <p className="text-sm text-dim">{tx("Toutes les machines suivies ont déjà une connexion SSH. Une machine nouvelle s'ajoute dans Machines, « Ajouter une machine ».")}</p> : (
+        <label className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted">{tx("Machine")}</span>
+          <select className={input} value={ip} onChange={(e) => setIp(e.target.value)}>
+            <option value="">{tx("Choisir la machine…")}</option>
+            {free.map(([at, m]) => <option key={at} value={at}>{m.name} · {at}</option>)}
+          </select>
+        </label>
+      )}
+      {ip && <div className="mt-3"><MachineModal key={ip} ip={ip} snap={snap} only="ssh" /></div>}
     </Card>
   );
 }
