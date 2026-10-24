@@ -194,3 +194,12 @@ cc63de8e407f82121ae35ffa0bbd371d  front/public/icons/anubis.svg
 12a0812e247cef4b31160e0d0267142f  front/public/icons/vllm.svg
 b169a6930ee68b2ab2c59fd9b16177c7  front/public/icons/localai.svg
 8a6030406f34ee761c3d60dd95cc49af  front/public/icons/openai.svg
+1ea61264f004f3b57e126e858730e29d  front/public/icons/kerberos.svg
+5c6e13de141a3b071e7c541ac5b5c0bf  front/public/icons/motioneye.svg
+4efe920039541ad2fa19c74083f0de99  front/public/icons/owncast.svg
+5542e974129600d5e6ca48e8cfe66288  front/public/icons/restreamer.svg
+cb5dd42b47c84ae628331a2d0307c62c  front/public/icons/shinobi.png
+52073dbee084023762ac95b1d2aeaa44  front/public/icons/go2rtc.png
+d84f17ed65dfce55bc284928c0708d40  front/public/icons/zoneminder.png
+c88b98eb796ec9754780b09c9f9e4c48  front/public/icons/scrypted.png
+e1350d6a076b29f10fd50a4c9bbdae93  front/public/icons/agent-dvr.png

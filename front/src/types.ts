@@ -242,10 +242,25 @@ export interface ServiceStatus {
   mcp?: HaMcp | null;   // advanced mode (ha-mcp add-on): backups, apps, integrations, configuration check
   host?: { cpu?: number | null; mem_pct?: number | null; temp?: number | null; disks?: { mount: string; used_pct: number; size_gb?: number; used_gb?: number }[]; ips?: string[]; boot?: string | null };
   ai?: AiBlock;   // AI connectors (connectors/homelab_ai.py): what the « IA et agents » page shows
+  stream?: StreamBlock;   // video connectors (connectors/homelab_stream.py, Frigate): what the « Vidéo et caméras » page shows
 }
 
 /** One model of an AI connector: only what the server said (size and vram in bytes) */
 export interface AiModel { name: string; size?: number; quant?: string; family?: string; params?: string; context?: number; loaded?: boolean; vram?: number; cloud?: boolean }
+/** One camera of a recorder (Frigate, Shinobi): its name only, never its address */
+export interface StreamCamera { name: string; up: boolean | null; fps?: number | null; detect?: boolean | null; record?: boolean | null; events?: number | null; last?: number | null }
+/** One stream of a relay (go2rtc, MediaMTX) */
+export interface StreamFlow { name: string; ready: boolean | null; codec?: string | null; readers: number; kinds: string[] }
+/** The « stream » block of a video connector, the same shape for all (connectors/homelab_stream.py) */
+export interface StreamBlock {
+  role: "nvr" | "relay" | "live"; engine: string;
+  cameras?: StreamCamera[]; streams?: StreamFlow[];
+  storage?: { used: number; total: number } | null;
+  events?: number | null; labels?: Record<string, number>; detector_ms?: number | null;
+  live?: { online: boolean; viewers: number; since?: string | null; last?: string | null };
+  snapshot?: boolean;   // an admin may ask for the picture of a camera (never kept)
+}
+
 /** The « ai » block of an AI connector, the same shape for all (connectors/homelab_ai.py) */
 export interface AiBlock {
   role: "engine" | "agent" | "interface";
