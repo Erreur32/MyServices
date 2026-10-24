@@ -10,7 +10,7 @@ import threading
 import time
 from collections import deque
 
-MAX = 3000
+MAX = 10000   # about 1.5 MB of text at most; Settings -> Logs shows the last 200 to all of them
 _lines: deque = deque(maxlen=MAX)
 _lock = threading.Lock()
 _seq = 0

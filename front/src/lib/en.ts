@@ -3237,4 +3237,5 @@ export const EN: Record<string, string> = {
   "Voir la mise à jour": "See the update",
   "Notifications dans l'en-tête": "Notices in the header",
   "La pastille de la nouvelle version et l'annonce animée en haut de la page. Réglage de ce navigateur.": "The new version's pill and the animated notice at the top of the page. A setting of this browser.",
+  "Lignes": "Lines",
 };
