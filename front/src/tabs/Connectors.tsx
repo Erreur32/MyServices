@@ -1,7 +1,6 @@
 // Réglages → Connecteurs : services lus par leur API (NPM, Beszel, Uptime Kuma, Dozzle, Web-Check…), en
 // lecture seule. Formulaire généré depuis les champs déclarés par chaque connecteur, bouton Tester (sans
 // enregistrer), état au dernier passage. Ce qui est lu par SSH (Docker, process, AdGuard) : section Machines.
-import { NetworkSettings } from "./NetworkSettings";
 import { Check, EyeOff, HelpCircle, Loader2, Package, Pencil, Play, Plug, Plus, RotateCcw, ScanSearch, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
@@ -32,8 +31,8 @@ const KIND: Record<string, string> = {
 
 // Proposé depuis « Premiers pas » : lu une seule fois, à l'ouverture de l'onglet
 /** Sub-page of Connectors in the address (#settings/connectors/available): my connectors, the catalogue, or the services found on the network */
-export type ConnectorsPart = "mine" | "available" | "detected" | "apps" | "read";
-export const connectorsPart = (v?: string): ConnectorsPart => (v === "available" || v === "detected" || v === "apps" || v === "read" ? v : "mine");
+export type ConnectorsPart = "mine" | "available" | "detected" | "read";
+export const connectorsPart = (v?: string): ConnectorsPart => (v === "apps" ? "detected" : v === "available" || v === "detected" || v === "read" ? v : "mine");   // « apps »: the former Recognised apps, merged here
 const MINE = "settings/connectors";
 
 /** Tools already read over SSH or by an agent on a followed machine (AdGuard, Proxmox, ESXi, KVM, Hyper-V…): a connector would add nothing */
@@ -158,7 +157,6 @@ export function Connectors({ snap, part }: Readonly<{ snap: Snapshot; part: Conn
           </ul>
         )}
       </Card>}
-      {part === "apps" && <NetworkSettings snap={snap} parts={["services", "forgotten"]} />}{/* the apps recognised by the discovery: to activate, stopped, forgotten */}
       {part === "detected" && !activating && <DetectedServices apps={(snap.data.detected_apps ?? []).filter((p) => !saved.includes(discoveryId(p)))} instances={st.instances} types={st.types}
         machines={snap.data.machine_list} dockerOk={new Set((snap.data.connectors ?? []).filter((c) => c.type === "docker" && c.ok && c.ip).map((c) => c.ip!))} onOpen={setLinking} />}
       {part === "detected" && activating && linking && (   // a found service to link: its form in the page, in place of the list

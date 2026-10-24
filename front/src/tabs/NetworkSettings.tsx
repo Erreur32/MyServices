@@ -5,7 +5,7 @@
 // No job setting here: the search frequency, networks and discreet mode live in Settings → Tasks and schedules, with every job.
 // Cadres neutres, jamais un cadre coloré dans un autre : la couleur reste dans les pastilles. Liens directs gardés :
 // Each part is now shown with its subject (see DiscoveryPart); the old #settings/network/<part> addresses lead there (discoveryMoved).
-import { Bell, Boxes, EyeOff, ListChecks, Lightbulb, Radar, RefreshCw, Search, Timer } from "lucide-react";
+import { Bell, EyeOff, ListChecks, Lightbulb, Radar, RefreshCw, Search, Timer } from "lucide-react";
 import { Fragment, useCallback, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import type { Snapshot } from "../api";
@@ -13,14 +13,12 @@ import { NoteLine, Switch } from "../components/form";
 import { Badge, Count, Dim, Loading, TITLE } from "../components/ui";
 import { Action, MODE, MuteButton, Title, useDiscoveries, when, type DiscoveryItem } from "../components/DiscoveryCard";
 import { NetworkStep } from "../components/NetworkStep";
-import { appIcon } from "../lib/appIcons";
 import { dateTime } from "../lib/format";
 import { reopenAssistant } from "../lib/assistant";
 import { act, primary, quiet, type Note } from "../lib/forms";
 import { pokeScan } from "../lib/scan";
 import { usePoll } from "../lib/polling";
 import { tx } from "../lib/i18n";
-import { runningTip, stoppedTip } from "../lib/runState";
 import type { NetScan } from "../types";
 import { InfoNote } from "../components/InfoNote";
 
@@ -63,45 +61,16 @@ function Row({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; ma
   );
 }
 
-/** Appli reconnue à activer : une tuile (logo, appli, machine), « Activer » ouvre le connecteur déjà rempli */
-function AppTile({ x, reload }: { x: DiscoveryItem; reload: () => void }) {
-  const icon = x.app ? appIcon([x.app]) : null;
-  return (
-    <li className={`rounded-xl border border-line bg-bg2/40 p-3 ${x.muted || x.running === false ? "opacity-70" : ""}`}>
-      <div className="flex items-center gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-card">{icon ? <img src={icon} alt="" className="h-6 w-6" /> : <Boxes size={18} className="text-muted" aria-hidden />}</span>
-        <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-center gap-1.5"><b className="truncate text-sm">{x.app || x.title}</b>
-            {x.running === true && <Badge tone="ok" title={runningTip()}>{tx("actif")}</Badge>}
-            {x.running === false && <Badge tone="off" title={stoppedTip(x.note)}>{tx("arrêté")}</Badge>}</span>
-          <span className="block truncate text-xs text-dim">{x.machine ? `${x.machine.name || x.machine.ip}${x.machine.name ? ` · ${x.machine.ip}` : ""}` : x.note}</span>
-        </span>
-        {/* buttons on the top line, at the right of the card */}
-        <span className="flex shrink-0 items-center gap-1.5">{x.action && <Action a={x.action} reload={reload} />}<MuteButton x={x} reload={reload} /></span>
-      </div>
-    </li>
-  );
-}
 
-/** One category inside « Stopped and forgotten »: a small title with its count and what it holds */
-function AsideGroup({ title, n, hint, children }: Readonly<{ title: string; n: number; hint: string; children: React.ReactNode }>) {
-  return (
-    <section>
-      <h3 className="mb-2 flex flex-wrap items-baseline gap-2 border-b border-line/60 pb-1 text-sm font-semibold">{title} <Count n={n} /><span className="font-normal text-muted">{hint}</span></h3>
-      {children}
-    </section>
-  );
-}
-
-/** The parts of the discovery, each shown with its subject: the machines found in Machines › Untracked devices, the apps (to activate,
- *  stopped, forgotten) in Connectors › Recognised apps, the mode and other suggestions in Application › Automatic discovery */
-export type DiscoveryPart = "mode" | "hosts" | "services" | "suggestions" | "forgotten";
+/** The parts of the discovery, each shown with its subject: the machines found in Machines › Untracked devices, the mode, the other
+ *  suggestions and those forgotten in Application › Automatic discovery; the apps (to activate, stopped, forgotten) are Connectors › Detected to link */
+export type DiscoveryPart = "mode" | "hosts" | "suggestions" | "forgotten";
 type Part = DiscoveryPart;
 /** Where an old #settings/network/<part> address now lives (null: Application › Automatic discovery, #settings/network itself) */
 export function discoveryMoved(hash: string): string | null {
   const v = hash.split("/")[2];
   if (v === "hosts" || v === "network" || v === "scan") return "#settings/machines/devices";
-  if (v === "services" || v === "forgotten") return "#settings/connectors/apps";
+  if (v === "services") return "#settings/connectors/detected";
   return null;
 }
 
@@ -140,12 +109,10 @@ export function NetworkSettings({ snap, parts }: Readonly<{ snap: Snapshot; part
   const items = disc?.items ?? [];
   const todo = items.filter((x) => x.state === "todo" && x.id !== "hosts").sort(byLabel);
   const apps = items.filter((x) => x.state === "suggest" && x.id.startsWith("connector:") && x.running !== false).sort(byLabel);
-  const stopped = items.filter((x) => x.running === false && !x.muted && x.id.startsWith("connector:")).sort(byLabel);   // container not running
   const others = items.filter((x) => x.state === "suggest" && !x.id.startsWith("connector:") && x.id !== "hosts").sort(byLabel);
   const forgotten = items.filter((x) => x.muted).sort(byLabel);   // « Forget »: out of every list above, back with « Recall »
   // put aside, one frame by category: stopped containers, forgotten apps, other forgotten suggestions
-  const forgotApps = forgotten.filter((x) => x.id.startsWith("connector:")), forgotOthers = forgotten.filter((x) => !x.id.startsWith("connector:"));
-  const aside = stopped.length + forgotten.length;
+  const forgotOthers = forgotten.filter((x) => !x.id.startsWith("connector:"));   // the apps forgotten are in Connectors › Detected to link
   const hostsItem = items.find((x) => x.id === "hosts");
 
   const last = scan.ended ? scan.ended * 1000 : null;
@@ -216,13 +183,6 @@ export function NetworkSettings({ snap, parts }: Readonly<{ snap: Snapshot; part
       </Section>,
 
       // 4. Applis à activer : only those that run (stopped and forgotten ones are put aside, below)
-      services: (
-        <Section id="net-services" icon={<Boxes size={16} aria-hidden />} title={tx("Applis à activer")} n={apps.length}
-          hint={tx("Applis reconnues sur vos machines, qu'un connecteur peut lire. Facultatif : « Oublier » range celles qui ne vous servent pas, « Rappeler » les fait revenir.")}>
-          {apps.length ? <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{apps.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul> : <Dim>{tx("Rien ici pour l'instant.")}</Dim>}
-        </Section>
-      ),
-
       // 5. Autres suggestions
       suggestions: (
         <Section id="net-backups" icon={<Lightbulb size={16} aria-hidden />} title={tx("Autres suggestions")} n={others.length} hint={tx("Facultatif : pour en voir davantage.")}>
@@ -230,28 +190,11 @@ export function NetworkSettings({ snap, parts }: Readonly<{ snap: Snapshot; part
         </Section>
       ),
 
-      // 6. Mis de côté : stopped containers and what was forgotten, grouped by category, each with its button
-      forgotten: (
-        <Section id="net-forgotten" icon={<EyeOff size={16} className="text-muted" aria-hidden />} title={tx("Arrêtés et oubliés")} n={aside}
-          hint={tx("mis de côté : rien à activer tant qu'un conteneur est arrêté ; « Rappeler » fait revenir ce qui a été oublié")}>
-          {aside === 0 && <Dim>{tx("Rien ici pour l'instant.")}</Dim>}
-          <div className="flex flex-col gap-4">
-            {stopped.length > 0 && (
-              <AsideGroup title={tx("Conteneurs arrêtés")} n={stopped.length} hint={tx("vus par docker ps -a mais pas lancés")}>
-                <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{stopped.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul>
-              </AsideGroup>
-            )}
-            {forgotApps.length > 0 && (
-              <AsideGroup title={tx("Applis oubliées")} n={forgotApps.length} hint={tx("plus proposées à activer")}>
-                <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{forgotApps.map((x) => <AppTile key={x.id} x={x} reload={reloadDisc} />)}</ul>
-              </AsideGroup>
-            )}
-            {forgotOthers.length > 0 && (
-              <AsideGroup title={tx("Autres suggestions oubliées")} n={forgotOthers.length} hint={tx("plus rappelées dans la cloche ni sur l'accueil")}>
-                <ul className="flex flex-col divide-y divide-line/60">{forgotOthers.map((x) => <Row key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} />)}</ul>
-              </AsideGroup>
-            )}
-          </div>
+      // 6. Other suggestions forgotten (the apps forgotten are in Connectors › Detected to link, with their « Recall »)
+      forgotten: forgotOthers.length > 0 && (
+        <Section id="net-forgotten" icon={<EyeOff size={16} className="text-muted" aria-hidden />} title={tx("Suggestions oubliées")} n={forgotOthers.length}
+          hint={tx("plus rappelées dans la cloche ni sur l'accueil ; « Rappeler » les fait revenir")}>
+          <ul className="flex flex-col divide-y divide-line/60">{forgotOthers.map((x) => <Row key={x.id} x={x} reload={reloadDisc} machines={snap.data.machine_list} />)}</ul>
         </Section>
       ),
   };

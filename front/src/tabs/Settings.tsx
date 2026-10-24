@@ -40,7 +40,7 @@ const ROLE_CHOICE: IconOption<User["role"]>[] = [
 function DiscoveryPage({ snap }: Readonly<{ snap: Snapshot }>) {
   const moved = discoveryMoved(location.hash);
   useEffect(() => { if (moved) location.replace(moved); }, [moved]);
-  return moved ? null : <NetworkSettings snap={snap} parts={["mode", "suggestions"]} />;
+  return moved ? null : <NetworkSettings snap={snap} parts={["mode", "suggestions", "forgotten"]} />;
 }
 
 /** The panel of the open section; Tasks and schedules is the fallback */

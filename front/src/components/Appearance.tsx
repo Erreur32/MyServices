@@ -28,6 +28,9 @@ const FLYOUT_OPTIONS: IconOption<FlyoutMode>[] = [
 export function Appearance({ look }: Readonly<{ look: Look }>) {
   const themes: { id: Theme; label: string; icon: ReactNode; swatch: string }[] = [
     { id: "dark", label: tx("Sombre"), icon: <Moon size={16} />, swatch: "bg-[#0c0e14]" },
+    { id: "github-dark", label: "GitHub Dark", icon: <Moon size={16} />, swatch: "bg-[#0d1117]" },
+    { id: "night-owl", label: "Night Owl", icon: <Moon size={16} />, swatch: "bg-[#011627]" },
+    { id: "ayu-mirage", label: "Ayu Mirage", icon: <Moon size={16} />, swatch: "bg-[#1f2430]" },
     { id: "light", label: tx("Clair"), icon: <Sun size={16} />, swatch: "bg-[#f4f6fa]" },
   ];
   return (

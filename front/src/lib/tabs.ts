@@ -1,5 +1,5 @@
 // Menu de gauche : groupes, entrées, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Activity, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Boxes, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -101,7 +101,6 @@ export const NAV: NavGroup[] = [
       sub("connectors-mine", "settings/connectors", "settings", Plug, tx("Mes connecteurs")),
       sub("connectors-available", "settings/connectors/available", "settings", Plus, tx("Disponibles")),
       sub("connectors-detected", "settings/connectors/detected", "settings", Radar, tx("Détectés à relier")),
-      sub("connectors-apps", "settings/connectors/apps", "settings", Boxes, tx("Applis reconnues")),   // the discovery's apps: to activate, stopped, forgotten
       sub("connectors-read", "settings/connectors/read", "settings", Server, tx("Déjà lus par SSH ou agent")),
     ] },
     { id: "access", hash: "settings/accounts", tab: "settings", icon: Users, label: tx("Comptes et accès"), subs: [

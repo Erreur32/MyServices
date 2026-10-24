@@ -18,6 +18,25 @@
   --npm: 214 128 10; --loc: 8 140 196; --apache: 147 84 220;
   color-scheme: light;
 }
+/* Other dark themes (Réglages → Apparence), after their public palettes; the state colours are picked to stay apart */
+:root.theme-github-dark {
+  --bg: 13 17 23; --bg2: 1 4 9; --card: 22 27 34; --line: 48 54 61;
+  --txt: 230 237 243; --muted: 139 148 158; --dim: 110 118 129;
+  --ok: 63 185 80; --warn: 210 153 34; --bad: 248 81 73; --link: 47 129 247;
+  --npm: 219 109 40; --loc: 86 212 221; --apache: 188 140 255;
+}
+:root.theme-night-owl {
+  --bg: 1 22 39; --bg2: 1 17 29; --card: 11 41 66; --line: 29 59 83;
+  --txt: 214 222 235; --muted: 137 164 187; --dim: 95 126 151;
+  --ok: 173 219 103; --warn: 255 203 107; --bad: 239 83 80; --link: 130 170 255;
+  --npm: 247 140 108; --loc: 127 219 202; --apache: 199 146 234;
+}
+:root.theme-ayu-mirage {
+  --bg: 31 36 48; --bg2: 25 30 42; --card: 36 41 54; --line: 52 61 79;
+  --txt: 204 202 194; --muted: 138 145 153; --dim: 92 103 115;
+  --ok: 135 217 108; --warn: 255 204 102; --bad: 255 102 102; --link: 115 208 255;
+  --npm: 255 166 89; --loc: 149 230 203; --apache: 223 191 255;
+}
 
 /* App icons drawn only in black: white on the dark theme, kept black on the light one (one line per file of public/icons) */
 :root:not(.light) img:is([src$="/icons/hermes-agent.svg"], [src$="/icons/rybbit.svg"], [src$="/icons/umami.svg"],

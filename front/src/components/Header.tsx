@@ -111,7 +111,7 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
           </div>
           <DropSep />
           <DropItem icon={<UserRound size={15} />} onClick={() => go("profile")}>{tx("Profil")}</DropItem>
-          <DropItem icon={theme === "dark" ? <Sun size={15} /> : <Moon size={15} />} onClick={toggleTheme}>{tx("Thème")} {theme === "dark" ? tx("clair") : tx("sombre")}</DropItem>
+          <DropItem icon={theme === "light" ? <Moon size={15} /> : <Sun size={15} />} onClick={toggleTheme}>{tx("Thème")} {theme === "light" ? tx("sombre") : tx("clair")}</DropItem>
           <DropSep />
           <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-widest text-dim">{tx("Consulter")}</p>
           <DropItem icon={<LifeBuoy size={15} />} onClick={() => go("help")}>{tx("Aide")}</DropItem>
