@@ -275,7 +275,7 @@ export const EN: Record<string, string> = {
   "Sous 95 %": "Under 95 %",
   "Machines joignables": "Machines reachable",
   "Services en ligne": "Services online",
-  "Santé OK": "Health OK",
+  "Machines dont tous les contrôles de santé sont bons : disques, SMART, mémoire, charge, température, noyau, systemd, Docker, SSH": "Machines whose health checks are all good: disks, SMART, memory, load, temperature, kernel, systemd, Docker, SSH",
   "Sauvegardes à jour": "Backups up to date",
   "Connecteurs qui répondent": "Connectors answering",
   "Disponibilité sur 7 jours": "Availability over 7 days",

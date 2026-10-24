@@ -114,7 +114,7 @@ function KeyFigures({ snap }: Readonly<{ snap: Snapshot }>) {
     <div className="flex gap-2.5 overflow-x-auto pb-1">
       <StatTile n={`${up}/${ms.length}`} label={tx("Machines joignables")} tone={ratioTone(up, ms.length)} />
       <StatTile n={`${online}/${hosts.length}`} label={tx("Services en ligne")} tone={ratioTone(online, hosts.length)} />
-      {hAll > 0 && <StatTile n={`${hOk}/${hAll}`} label={tx("Santé OK")} tone={ratioTone(hOk, hAll)} />}
+      {hAll > 0 && <StatTile n={`${hOk}/${hAll}`} label={tx("Santé")} hint={tx("Machines dont tous les contrôles de santé sont bons : disques, SMART, mémoire, charge, température, noyau, systemd, Docker, SSH")} tone={ratioTone(hOk, hAll)} />}
       {backups && <StatTile n={`${backups.summary.ok}/${backups.summary.sets}`} label={tx("Sauvegardes à jour")} tone={ratioTone(backups.summary.ok, backups.summary.sets)} />}
       {c.ok + c.failing > 0 && <StatTile n={`${c.ok}/${c.ok + c.failing}`} label={tx("Connecteurs qui répondent")} tone={ratioTone(c.ok, c.ok + c.failing)} />}
       {week != null && <StatTile n={pct(week)} label={tx("Disponibilité sur 7 jours")} tone={tileTone(week)} sub={tx("services et machines")} />}

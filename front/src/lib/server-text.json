@@ -130,7 +130,19 @@
   "🟢 Rétabli": "🟢 Back up",
   "🧭 DNS": "🧭 DNS",
   "adresse à ouvrir : commencer par http:// ou https://": "address to open: start with http:// or https://",
-  "appli inconnue : choisir dans la liste": "unknown app: pick one in the list"
+  "appli inconnue : choisir dans la liste": "unknown app: pick one in the list",
+  "🩺 Santé bonne": "🩺 Health good",
+  "🩺 Santé à surveiller": "🩺 Health to watch",
+  "🩺 Santé critique": "🩺 Health critical",
+  "🩺 Machine injoignable": "🩺 Machine unreachable",
+  "🩺 Santé OK": "🩺 Health good",
+  "🩺 Santé WARN": "🩺 Health to watch",
+  "🩺 Santé CRIT": "🩺 Health critical",
+  "🩺 Machine injoignable (health)": "🩺 Machine unreachable",
+  "Santé bonne": "Health good",
+  "Santé à surveiller": "Health to watch",
+  "Santé critique": "Health critical",
+  "Machine injoignable (santé)": "Machine unreachable (health)"
  },
  "templates": [
   [

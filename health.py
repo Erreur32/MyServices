@@ -2030,8 +2030,8 @@ def render_html(stats: dict) -> str:
 
 # ───────────── Historique (events.json) ─────────────
 
-EVENT_LABELS = {"health_ok": "🩺 Santé OK", "health_warn": "🩺 Santé WARN",
-                "health_crit": "🩺 Santé CRIT", "health_down": "🩺 Machine injoignable (health)"}
+EVENT_LABELS = {"health_ok": "🩺 Santé bonne", "health_warn": "🩺 Santé à surveiller",
+                "health_crit": "🩺 Santé critique", "health_down": "🩺 Machine injoignable"}
 EVENT_SEVERITY = {"health_ok": 0, "health_warn": 1, "health_crit": 3, "health_down": 3}
 
 
