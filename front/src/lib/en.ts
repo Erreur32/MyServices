@@ -1792,8 +1792,6 @@ export const EN: Record<string, string> = {
   "Le serveur de MyServices n'a pas répondu": "The MyServices server did not answer",
   "Ni MynetworK ni un contrôleur UniFi (accès par compte) ne donne la liste des équipements": "Neither MynetworK nor a UniFi controller (account access) gives the list of devices",
   "Tâches planifiées": "Scheduled tasks",
-  "MyServices relit tout seul vos machines et vos outils. Voici quand, et pourquoi une tâche ne tourne pas si elle est coupée.": "MyServices reads your machines and tools by itself. Here is when, and why a task does not run when it is off.",
-  "Régler les horaires": "Set the schedules",
   "Voir les services de cette machine": "See this machine's services",
   "il y a {0} j": "{0} d ago",
   "Qui peut entrer dans MyServices lui-même : comptes, jetons d'API et de MCP, agents. Ce qui n'est plus utilisé est signalé dans « À traiter d'abord ».": "Who can get into MyServices itself: accounts, API and MCP tokens, agents. What is no longer used is flagged in \"To handle first\".",
