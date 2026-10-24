@@ -282,8 +282,11 @@ def annotate(row: dict, keep_category: bool = False, app_key: str | None = None)
     s = row.get("service") or {}
     fp = row.pop("fingerprint", None)
     forced = app_key in _BY_KEY
-    hit = (_BY_KEY[app_key], SURE) if forced else identify(image=s.get("image"), title=row.get("page_title"), port=row.get("port"), fingerprint=fp,
-                                                          proc=s.get("name") if s.get("kind") == "process" else None, inner=s.get("inner"))
+    if forced:
+        hit = (_BY_KEY[app_key], SURE)
+    else:
+        proc = s.get("name") if s.get("kind") == "process" else None
+        hit = identify(image=s.get("image"), title=row.get("page_title"), port=row.get("port"), fingerprint=fp, proc=proc, inner=s.get("inner"))
     if hit is None:
         return
     app, how = hit

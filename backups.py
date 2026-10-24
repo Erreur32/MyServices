@@ -514,6 +514,15 @@ def level_for_age(age: float, max_age: float) -> str:
     return "ok" if age <= max_age else "warn" if age <= max_age * 2 else "crit"
 
 
+def _host_level(off: bool, reachable: bool, levels: list) -> str:
+    """Level of a backup host: « off » when stopped on purpose, « down » when unreachable, else the worst of its disks and sets."""
+    if off:
+        return "off"
+    if not reachable:
+        return "down"
+    return max(levels, key=RANK.get)
+
+
 def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
     hosts = {h["id"]: h for h in meta["hosts"]}
     devmap = meta.get("syncthing_devices", {})
@@ -787,7 +796,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                 if l.get("age") is not None:
                     dd["age"] = l["age"] if dd["age"] is None else min(dd["age"], l["age"])
         off = r is None and err.endswith(STOPPED)
-        lv = "off" if off else "down" if r is None else max([dlevel] + [x["level"] for x in mine], key=RANK.get)
+        lv = _host_level(off, r is not None, [dlevel] + [x["level"] for x in mine])
         hosts_out.append({"id": h["id"], "label": h["label"], "ip": h.get("ip", ""), "kind": h.get("kind", ""), "note": h.get("note", ""),
                           "storage": bool(h.get("storage") or h.get("mount")),
                           "reachable": r is not None, "stopped": off, "error": "" if r else err, "user": (r or {}).get("user"),

@@ -151,8 +151,9 @@ class Stream(unittest.TestCase):
         self.assertEqual(Fake.logins, 0, "no account, no sign-in (port 5000)")
         Fake.token = "jwt-" + "a" * 12
         try:
+            anonymous = self.make(Frigate)
             with self.assertRaises(ConnectorError) as e:
-                self.make(Frigate).collect()
+                anonymous.collect()
             self.assertIn("accès refusé", str(e.exception))
             c = self.make(Frigate, user="viewer", password=PW)
             d = c.collect()
@@ -162,8 +163,9 @@ class Stream(unittest.TestCase):
             Fake.token = "jwt-" + "b" * 12   # expired: one new sign-in
             c.collect()
             self.assertEqual(Fake.logins, 2)
+            wrong = self.make(Frigate, user="viewer", password="wrong")
             with self.assertRaises(ConnectorError) as e:
-                self.make(Frigate, user="viewer", password="wrong").collect()
+                wrong.collect()
             self.assertIn("compte refusé", str(e.exception))
             self.assertNotIn(PW, json.dumps(d))
             self.assertFalse(any(PW in route for _, route in reqstats._rows))
