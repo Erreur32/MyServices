@@ -18,6 +18,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **GpuViewR, more per GPU**: index, driver, fan, power cap, throttle temperature, shared memory of an APU, and the processes on the GPUs of each machine online (`/api/v1/processes`).
 
 ### Changed
+- **The service page, read and edited in place**: « Edit » no longer opens a separate form; the same three blocks turn each value that can be set into its field, and say where each value comes from (detected, automatic, set by hand) with « Reset ». New settings: a **display name**, an **icon** (the machines' picker), the **app** (to fix a wrongly recognised one or name an unknown one: it changes the logo and the connector offered), the **address to open** (the « Open » button, new on the page, and the name in the list lead there) and an **alerts level** kept on the server (all, outage only, none) that the notifications follow. A line counts the unsaved changes.
 - **Assistant › Tools**: the « Scheduled tasks » block is gone; they stay in Application › Tasks and schedules.
 
 ### Fixed

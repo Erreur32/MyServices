@@ -9,9 +9,23 @@ const KIND_LABEL: Record<string, string> = {
   apache: "Apache", docker: "Docker", process: "process", web: "web", manuel: tx("manuel"), npm: "NPM", inconnu: tx("non identifié"),
 };
 
-export function hostName(r: Host): string {
+/** The name the detection gives: the first domain, else the service's name, else « ip:port » */
+export function detectedName(r: Host): string {
   return r.domains.length ? r.domains[0] : r.name || `${r.ip}:${r.port}`;
 }
+
+export function hostName(r: Host): string {
+  return r.display_name || detectedName(r);
+}
+
+/** The address the detection opens: the first domain in HTTPS, else the backend */
+export function autoUrl(r: Host): string | null {
+  if (r.domains.length) return `https://${r.domains[0]}/`;
+  return r.ip ? `${r.scheme || "http"}://${r.ip}:${r.port}/` : null;
+}
+
+/** Where « Open » and the name lead: the address set by hand, else the automatic one */
+export const openUrl = (r: Host): string | null => r.open_url || autoUrl(r);
 
 function httpLabel(c: number): string {
   return c < 300 ? "OK" : c < 400 ? tx("OK · redirige") : c === 401 || c === 403 ? tx("OK · protégé") : c === 404 ? "OK · 404" : tx("OK · {0}", c);

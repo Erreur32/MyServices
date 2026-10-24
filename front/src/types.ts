@@ -49,9 +49,14 @@ export interface Host {
   npm?: string;
   scheme?: string;
   category?: string;
-  app?: { key: string; label: string; confidence: "sure" | "probable" | "possible"; connector: string | null; agent_of?: string };
+  app?: { key: string; label: string; confidence: "sure" | "probable" | "possible"; connector: string | null; agent_of?: string; hand?: boolean };
   tags?: string[];
   description?: string;
+  display_name?: string;   // set by hand on the service page (services-meta « name »)
+  icon?: string;           // a key of MACHINE_ICONS, set by hand
+  open_url?: string;       // where « Open » and the name lead, set by hand
+  alerts?: "down" | "none";   // alerts level set by hand; absent: every alert
+  hand?: string[];         // the fields of services-meta.json set by hand for this service
   page_title?: string;
   machine_role?: string;
   manual?: boolean;

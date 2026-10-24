@@ -9,11 +9,13 @@ import { send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { Dot, Logo } from "../components/marks";
 import { appIcon, serviceIcon } from "../lib/appIcons";
-import { CHECK, CLEANUP, KIND_NAME, checks, exposure, hostName, noIdentity, status, type Check } from "../lib/status";
+import { CHECK, CLEANUP, KIND_NAME, checks, exposure, hostName, noIdentity, openUrl, status, type Check } from "../lib/status";
 import type { Host } from "../types";
 import { Badge, Cards, Dim, Empty, FilterBar, Table, Td, Th, type Tone } from "../components/ui";
 import { ServiceDetail } from "./ServiceDetail";
 import { ServiceEdit } from "../components/ServiceEdit";
+import { IconGlyph } from "../components/IconPicker";
+import { chosenIcon } from "../lib/machineIcons";
 import { ipNum } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { FoldPanel } from "../components/FoldPanel";
@@ -57,11 +59,6 @@ function useGrouped(): [boolean, (on: boolean) => void] {
   return [on, set];
 }
 
-function url(r: Host): string | null {
-  if (r.domains.length) return `https://${r.domains[0]}/`;
-  return r.ip ? `${r.scheme || "http"}://${r.ip}:${r.port}/` : null;
-}
-
 /** Where the service is read from: its NPM entry, or the kind of service found on the machine */
 const via = (r: Host) => (r.type === "local" ? KIND_NAME[r.service?.kind ?? ""] || TYPE_NAME.local : TYPE_NAME[r.type]);
 
@@ -80,7 +77,7 @@ function sourceTip(r: Host): string {
 }
 
 function Name({ r }: Readonly<{ r: Host }>) {
-  const u = url(r);
+  const u = openUrl(r);
   return (
     <div className="min-w-0">
       {u ? (
@@ -133,7 +130,9 @@ function StateBadges({ cls, label, title, flagged = false, source }: Readonly<{ 
 }
 
 /** Logo du service, dans sa propre colonne pour ne pas déformer le nom ; la place est gardée quand il n'y en a pas */
-function ServiceLogo({ r }: { r: Host }) {
+function ServiceLogo({ r, auto = false }: { r: Host; auto?: boolean }) {
+  const chosen = auto ? undefined : chosenIcon(r.icon);   // auto: the logo the detection picks, shown by the icon picker
+  if (chosen) return <span className="grid h-10 w-10 min-w-10 shrink-0 place-items-center rounded-md bg-bg2" title={chosen.label}><IconGlyph icon={chosen} size={28} /></span>;
   const src = serviceIcon(r);
   return src ? <span className="grid h-10 w-10 min-w-10 shrink-0 place-items-center rounded-md bg-bg2" title={r.app?.label || r.service?.name}><img src={src} alt="" className="h-7 w-7" /></span> : <span className="block h-10 w-10 shrink-0" aria-hidden />;
 }
@@ -320,8 +319,8 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   const view = usePageView(route, "services", SERVICE_VIEWS, "all");   // « To watch » is no longer a page: the alerts are a filter of the list
   const pageKey = decodeURIComponent(route.split("/")[2] ?? "");
   const page = ["item", "edit", "manual"].includes(view) ? snap.data.hosts.find((r) => keyOfRow(r) === pageKey) : undefined;
-  if (view === "new" || (page && view !== "item")) return <ServicePageSettings view={view} r={page} snap={snap} />;
-  if (page) return <ServicePage r={page} snap={snap} admin={admin} />;
+  if (view === "new" || (page && view === "manual")) return <ServicePageSettings r={page} snap={snap} />;
+  if (page) return <ServicePage r={page} snap={snap} admin={admin} editing={admin && view === "edit"} />;
   if (view !== "watch" && view !== "all" && view !== "fresh") return <Empty>{tx("Ce service n'existe plus.")} <a href="#services/all" className="text-link hover:underline">{tx("Tous les services")}</a></Empty>;
   return (
     <div className="flex flex-col gap-4 py-4">
@@ -380,29 +379,36 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   );
 }
 
-/** The page of one service (#services/item/<key>): what it is and how it answers; « Edit » for admins */
-function ServicePage({ r, snap, admin }: Readonly<{ r: Host; snap: Snapshot; admin: boolean }>) {
+/** The page of one service (#services/item/<key>): what it is and how it answers; « Edit » (#services/edit/<key>) turns the same blocks into fields */
+function ServicePage({ r, snap, admin, editing }: Readonly<{ r: Host; snap: Snapshot; admin: boolean; editing: boolean }>) {
+  const u = openUrl(r), back = () => { location.hash = servicePage("item", r); };
   return (
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <a href="#services/all" className={`${quiet} py-1 no-underline`}><ArrowLeft size={14} aria-hidden />{tx("Tous les services")}</a>
-        <h1 className="flex items-center gap-2 text-xl font-bold"><ServiceLogo r={r} />{hostName(r)} <Badge tone="off">{via(r)}</Badge></h1>
-        {admin && <a href={`#${servicePage("edit", r)}`} className={`${quiet} ml-auto py-1 no-underline`}><Pencil size={14} aria-hidden />{tx("Modifier")}</a>}
+        <h1 className="flex items-center gap-2 text-xl font-bold"><ServiceLogo r={r} />{editing && `${tx("Modifier")} `}{hostName(r)} <Badge tone="off">{via(r)}</Badge></h1>
+        {!editing && <span className="ml-auto flex gap-2">
+          {u && <a href={u} target="_blank" rel="noopener" className={`${quiet} py-1 no-underline`}><ExternalLink size={14} aria-hidden />{tx("Ouvrir")}</a>}
+          {admin && <a href={`#${servicePage("edit", r)}`} className={`${quiet} py-1 no-underline`}><Pencil size={14} aria-hidden />{tx("Modifier")}</a>}
+        </span>}
       </div>
-      {admin && r.manual && r.ip && r.port && <ManualActions r={r} onEdit={() => { location.hash = servicePage("manual", r); }} />}
-      <ServiceDetail r={r} admin={admin} ports={portsOf(r, snap.data.hosts)} related={relatedOf(r, snap.data.hosts)} onOpen={openService} />
+      {editing
+        ? <ServiceEdit r={r} logo={<ServiceLogo r={r} auto />} onClose={back} />
+        : <>
+          {admin && r.manual && r.ip && r.port && <ManualActions r={r} onEdit={() => { location.hash = servicePage("manual", r); }} />}
+          <ServiceDetail r={r} admin={admin} ports={portsOf(r, snap.data.hosts)} related={relatedOf(r, snap.data.hosts)} onOpen={openService} />
+        </>}
     </div>
   );
 }
 
-/** The settings of a service (#services/edit/<key>), of a declared one (#services/manual/<key>), or a new one to declare (#services/new) */
-function ServicePageSettings({ view, r, snap }: Readonly<{ view: string; r?: Host; snap: Snapshot }>) {
+/** The settings of a declared service (#services/manual/<key>), or a new one to declare (#services/new) */
+function ServicePageSettings({ r, snap }: Readonly<{ r?: Host; snap: Snapshot }>) {
   const back = () => { location.hash = r ? servicePage("item", r) : "services/all"; };
-  const initial: ManualInitial | undefined = view === "manual" && r?.ip && r.port ? { name: hostName(r), ip: r.ip, port: r.port, scheme: r.scheme ?? "http" } : undefined;
+  const initial: ManualInitial | undefined = r?.ip && r.port ? { name: hostName(r), ip: r.ip, port: r.port, scheme: r.scheme ?? "http" } : undefined;
   return (
     <div className="flex flex-col gap-4 py-4">
-      {view === "edit" && r && <ServiceEdit r={r} name={hostName(r)} onClose={back} />}
-      {view !== "edit" && <ManualService machines={snap.data.machine_list.filter((m) => !m.disabled)} initial={initial} onDone={back} onClose={back} />}
+      <ManualService machines={snap.data.machine_list.filter((m) => !m.disabled)} initial={initial} onDone={back} onClose={back} />
     </div>
   );
 }
