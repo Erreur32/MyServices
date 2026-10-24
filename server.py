@@ -426,6 +426,18 @@ def build_map() -> None:
             return
 
 
+def archify_why(stdout: str, stderr: str) -> str:
+    """Why Archify refused a map, in one line: its « error », else its error diagnostics, never the raw tail of its JSON."""
+    try:
+        d = json.loads(stdout)
+    except ValueError:   # no JSON at all (node missing, a crash): what it wrote
+        return (stdout or stderr).strip()[-300:]
+    if not isinstance(d, dict):
+        return str(d)[-300:]
+    errs = [str(x.get("message", "")) for x in d.get("diagnostics") or [] if isinstance(x, dict) and x.get("severity") == "error"]
+    return str(d.get("error") or "; ".join(errs[:3]) or f"stage {d.get('stage') or '?'}, {(stderr or '').strip()[-200:] or 'no detail'}")
+
+
 def _build_map() -> None:
     """Cartes de l'infra (carte.html, sauvegardes.html ; Archify) depuis les fichiers de la page. Facultatif :
     sans Archify ou en échec, la carte précédente reste, les tâches n'en dépendent pas."""
@@ -456,7 +468,7 @@ def _build_map() -> None:
         if ok:
             log(f"carte : régénérée ({out})")
         elif r is not None:
-            log(f"⚠ carte {out} : non régénérée (Archify) : " + (r.stdout or r.stderr)[-300:])
+            log(f"⚠ carte {out} : non régénérée (Archify) : {archify_why(r.stdout, r.stderr)}")
     refresh_nav()
 
 

@@ -25,6 +25,18 @@ except ImportError:  # hors image (bibliothèque standard seule) : ces tests son
 
 
 @unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
+class ArchifyWhy(unittest.TestCase):
+    def test_error_and_diagnostics(self):
+        out = json.dumps({"ok": False, "stage": "validate", "diagnostics": [{"severity": "warning", "message": "rendered successfully"},
+                                                                         {"severity": "error", "message": "edge to a missing node"}]})
+        self.assertEqual(server.archify_why(out, ""), "edge to a missing node")   # the error, not a warning that « succeeded »
+        self.assertEqual(server.archify_why(json.dumps({"ok": False, "error": "Could not read input"}), ""), "Could not read input")
+
+    def test_not_json(self):
+        self.assertEqual(server.archify_why("", "node: not found\n"), "node: not found")
+        self.assertIn("stage input", server.archify_why(json.dumps({"ok": False, "stage": "input"}), ""))
+
+
 class Files(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
