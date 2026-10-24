@@ -60,7 +60,7 @@ export function Appearance({ look }: Readonly<{ look: Look }>) {
     <div className="flex flex-col gap-4">
       <Card>
         <h2 className="mb-3 flex items-center gap-2 font-bold"><Palette size={16} aria-hidden />{tx("Thème")}</h2>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-8">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
           {THEME_CHOICES.map((t) => <ThemeCard key={t.id} {...t} on={look.theme === t.id} pick={() => look.setTheme(t.id)} />)}
         </div>
       </Card>
