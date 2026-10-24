@@ -11,6 +11,18 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Added
+- **AI and agents, a new menu entry** (Inventory group, shown as soon as Services finds an AI service or an AI connector is set): what the AI services hold, without a probe or a form of its own (their state is the one of Services, every card leads to the service's page). Four sub-pages: **Overview** (engines, models, agents, GPU memory, what to watch, one card per service; a service no connector reads is drawn dotted, with « Add a connector » opening the right connector already filled with its address), **Models** (every model of every engine in one sortable table: size, quantization, family, parameters, context, loaded or on disk, GPU memory; plus what GpuViewR sees running on a GPU without a connector), **Agents and MCP** (Hermes and the state of each platform, the MCP servers, and « who talks to whom »: Open WebUI's model and tool servers read in its settings, an agent's model matched by name on an engine, marked « deduced »), **GPU** (each GPU with memory, compute, temperature, power, fan, driver and what takes it).
+- **Two AI connectors**: **Open WebUI** (version without a key; with an API key the models it offers; with an admin's key the Ollama, OpenAI and tool servers it is linked to, of which only the addresses are kept, never the keys) and **OpenAI-compatible API** for vLLM, LM Studio, LocalAI, KoboldCpp and LiteLLM (models served, loaded or not when the server says it, version when there is one). vLLM, LM Studio, LocalAI, KoboldCpp, LiteLLM and Open WebUI now propose their connector when found; LiteLLM is recognised by its page and image.
+- **Ollama, llama.cpp, Hermes: more read**: Ollama gives each model's size, quantization, family, parameters and context, and tells the « cloud » ones (run on ollama.com); llama.cpp its model's size, parameters and quantization (`/v1/models`); Hermes, at the dashboard address, each platform and the model in use (`/api/model/info`, public).
+- **GpuViewR, more per GPU**: index, driver, fan, power cap, throttle temperature, shared memory of an APU, and the processes on the GPUs of each machine online (`/api/v1/processes`).
+
+### Changed
+- **Assistant › Tools**: the « Scheduled tasks » block is gone; they stay in Application › Tasks and schedules.
+
+### Fixed
+- **Backups, a connector switched off on purpose no longer raises an alert**: a machine read by a connector switched off in Settings (to spare its API) was « unreachable » in To deal with now. Its sets and the machine now say « connector off », with no alert and no « no copy elsewhere » check until it is on again; a connector really missing from config.json still says so.
+
 ## v0.21.0 (2026-10-24)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
