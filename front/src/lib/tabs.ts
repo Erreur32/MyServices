@@ -27,9 +27,9 @@ const scanShown = (s: Snapshot) => (s.data.network ?? []).some((c) => c.connecto
 /** The side menu, in four groups; an entry whose source is missing is left out, and so is a group left empty. The pages of
  *  Settings (#settings/<section>[/<part>]) are spread over the topic they set and the Administration group. */
 export const NAV: NavGroup[] = [
-  { id: "overview", label: tx("Vue d'ensemble"), items: [
+  { id: "overview", label: tx("En bref"), items: [   // « Vue d'ensemble » is Security's page alone
     { id: "home", hash: "", tab: "home", icon: House, label: tx("Accueil"), subs: [
-      { ...sub("home-overview", "", "home", LayoutDashboard, tx("Vue d'ensemble")), also: ["home"] },
+      { ...sub("home-overview", "", "home", LayoutDashboard, tx("Tableau de bord")), also: ["home"] },
       sub("home-stats", "stats", "home", BarChart3, tx("Statistiques")),
     ] },
     { id: "history", hash: "history", tab: "home", icon: History, label: tx("Historique"), subs: [
