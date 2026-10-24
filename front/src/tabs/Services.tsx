@@ -130,7 +130,7 @@ function StateBadges({ cls, label, title, flagged = false, source }: Readonly<{ 
 }
 
 /** Logo du service, dans sa propre colonne pour ne pas déformer le nom ; la place est gardée quand il n'y en a pas */
-function ServiceLogo({ r, auto = false }: { r: Host; auto?: boolean }) {
+function ServiceLogo({ r, auto = false }: Readonly<{ r: Host; auto?: boolean }>) {
   const chosen = auto ? undefined : chosenIcon(r.icon);   // auto: the logo the detection picks, shown by the icon picker
   if (chosen) return <span className="grid h-10 w-10 min-w-10 shrink-0 place-items-center rounded-md bg-bg2" title={chosen.label}><IconGlyph icon={chosen} size={28} /></span>;
   const src = serviceIcon(r);

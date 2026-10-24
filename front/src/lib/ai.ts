@@ -76,22 +76,27 @@ export interface AiLink { from: AiCard; to?: AiCard; toLabel: string; toSub?: st
 
 const KIND: Record<string, string> = { ollama: "Ollama", openai: "API OpenAI", mcp: tx("serveur MCP"), tools: tx("serveur d'outils") };
 
+type AiUse = NonNullable<NonNullable<ServiceStatus["ai"]>["uses"]>[number];
+
+/** A link set in the settings of « c » (an address): to the card at that address, else to the address itself */
+function urlLink(c: AiCard, url: string, kind: string | undefined, byAddr: Map<string, AiCard>): AiLink {
+  const a = addrOf(url), to = a ? byAddr.get(`${a.host}:${a.port}`) : undefined;
+  const addr = a ? `${a.host}:${a.port}` : url;
+  return { from: c, to, toLabel: to?.title ?? addr, toSub: to?.machine ?? KIND[kind ?? ""], via: tx("réglage de {0}", c.title), guess: false };
+}
+
+/** A link through a model « c » uses: to the engine that serves the same model (a guess), else to the model and its provider */
+function modelLink(c: AiCard, model: string, provider: string | undefined, engines: AiCard[]): AiLink {
+  const name = model.toLowerCase(), to = engines.find((e) => e.models.some((m) => m.name.toLowerCase() === name));
+  if (to) return { from: c, to, toLabel: to.title, toSub: to.machine, via: tx("même modèle « {0} »", model), guess: true };
+  return { from: c, toLabel: model, toSub: provider ? tx("fournisseur « {0} »", provider) : undefined, via: tx("modèle de {0}", c.title), guess: false };
+}
+
 export function aiLinks(snap: Snapshot, cards = aiCards(snap)): AiLink[] {
   const byAddr = new Map(cards.filter((c) => c.ip && c.port).map((c) => [`${c.ip}:${c.port}`, c]));
   const engines = cards.filter((c) => c.role === "engine");
-  const out: AiLink[] = [];
-  for (const c of cards)
-    for (const u of c.conn?.ai?.uses ?? []) {
-      if ("url" in u) {
-        const a = addrOf(u.url), to = a ? byAddr.get(`${a.host}:${a.port}`) : undefined;
-        out.push({ from: c, to, toLabel: to?.title ?? (a ? `${a.host}:${a.port}` : u.url), toSub: to?.machine ?? KIND[u.kind], via: tx("réglage de {0}", c.title), guess: false });
-      } else {
-        const name = u.model.toLowerCase(), to = engines.find((e) => e.models.some((m) => m.name.toLowerCase() === name));
-        out.push(to ? { from: c, to, toLabel: to.title, toSub: to.machine, via: tx("même modèle « {0} »", u.model), guess: true }
-          : { from: c, toLabel: u.model, toSub: u.provider ? tx("fournisseur « {0} »", u.provider) : undefined, via: tx("modèle de {0}", c.title), guess: false });
-      }
-    }
-  return out;
+  const linkOf = (c: AiCard, u: AiUse): AiLink => ("url" in u ? urlLink(c, u.url, u.kind, byAddr) : modelLink(c, u.model, u.provider, engines));
+  return cards.flatMap((c) => (c.conn?.ai?.uses ?? []).map((u) => linkOf(c, u)));
 }
 
 /** One GPU of the GPU page, with its machine and what takes it */

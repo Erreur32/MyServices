@@ -47,6 +47,13 @@ function formOf(e: Entry, cats: string[]): Form {
   };
 }
 
+/** The machine of a row, with its address when it has one */
+function machineLabel(r: Host): string {
+  if (!r.machine) return tx("inconnue");
+  const ip = r.host_ip || r.ip;
+  return ip ? `${r.machine} · ${ip}` : r.machine;
+}
+
 const changed = (a: Form, b: Form) => (Object.keys(a) as (keyof Form)[]).filter((k) => a[k] !== b[k]).length;
 
 export function ServiceEdit({ r, logo, onClose }: Readonly<{ r: Host; logo: ReactNode; onClose: () => void }>) {
@@ -99,7 +106,7 @@ export function ServiceEdit({ r, logo, onClose }: Readonly<{ r: Host; logo: Reac
             </Item>
             <TagInput label={tx("Étiquettes")} value={f.tags} onChange={(v) => set("tags", v)} max={300} placeholder={tx("Entrée ou virgule pour ajouter")} />
             <Item label="Machine">
-              <span className="text-sm text-txt">{r.machine ? `${r.machine}${r.host_ip || r.ip ? ` · ${r.host_ip || r.ip}` : ""}` : tx("inconnue")}</span>
+              <span className="text-sm text-txt">{machineLabel(r)}</span>
               <Src>{tx("détecté, non modifiable")}</Src>
             </Item>
           </Fields>

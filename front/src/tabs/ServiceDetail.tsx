@@ -162,6 +162,12 @@ function stateTone(state?: string | null): Tone {
   return /healthy/.test(state) ? "ok" : undefined;
 }
 
+/** Where the address to open comes from: set by hand, else the first domain or the backend */
+function openSource(r: Host): string {
+  if (r.open_url) return tx("réglé à la main");
+  return tx("automatique : {0}", r.domains.length ? tx("le premier domaine") : tx("le backend"));
+}
+
 function webcheckRow(r: Host): Row {
   const w = r.webcheck;
   if (!w) return ["Web-Check", "-", "mut"];
@@ -203,7 +209,7 @@ function serviceRows(r: Host): Row[] {
     webcheckRow(r),
     kumaRow(r),
     [tx("Interface web"), WEB[r.web || ""] || "-", r.web === "ui" ? "ok" : "mut"],
-    ...optRows(open, [[tx("Adresse à ouvrir"), <span key="open">{open && link(open, open.replace(/^https?:\/\//, ""))}<Src>{r.open_url ? tx("réglé à la main") : tx("automatique : {0}", r.domains.length ? tx("le premier domaine") : tx("le backend"))}</Src></span>]]),
+    ...optRows(open, [[tx("Adresse à ouvrir"), <span key="open">{open && link(open, open.replace(/^https?:\/\//, ""))}<Src>{openSource(r)}</Src></span>]]),
     ...optRows(r.alerts, [[tx("Alertes"), <span key="alerts">{ALERT_NAME[r.alerts ?? ""]}<Src>{tx("réglé à la main")}</Src></span>, "mut"]]),
   ];
 }

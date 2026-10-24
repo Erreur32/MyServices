@@ -68,37 +68,58 @@ function connTone(c: ServiceStatus, r?: Host): [Tone, string] {
   return (c.problems ?? []).length ? ["warn", tx("à regarder")] : ["ok", tx("en ligne")];
 }
 
+const itemHash = (r: Host) => `#services/item/${encodeURIComponent(serviceKey(r))}`;
+
+/** What the cards built so far cover: « ip:port » of a connector, « connector type @ ip » to skip the other ports of the same app */
+interface Covered { addr: Set<string>; readOn: Set<string> }
+
+/** The card of one connector of the family, marking what it covers */
+function connectorCard<R extends string>(c: ServiceStatus, kind: { role: R; title: string; partial?: boolean }, ctx: { byAddr: Map<string, Host>; hosts: Host[]; names: Map<string, string> }, cov: Covered): ServiceCard<R> {
+  const a = addrOf(c.url), r = rowOf(c.url, ctx.byAddr, ctx.hosts), ip = r ? rowIp(r) : a?.host;
+  const [tone, state] = connTone(c, r);
+  if (r) cov.addr.add(`${rowIp(r)}:${r.port}`);
+  if (a) cov.addr.add(`${a.host}:${a.port}`);
+  if (ip) cov.readOn.add(`${c.connector}@${ip}`);
+  return {
+    key: `c:${c.connector}/${c.instance ?? c.name}`, title: kind.title, role: kind.role, engine: kind.title, ip, port: a?.port,
+    machine: r?.machine || (ip ? ctx.names.get(ip) : undefined), version: c.version, tone, state, conn: c, host: r,
+    serviceHash: r ? itemHash(r) : undefined, problems: c.problems ?? [], unread: false, partial: !!kind.partial,
+  };
+}
+
+/** The connector form of an unread row, filled with its address, when a connector would read it */
+function rowPrefill(best: Host, machine?: string): Prefill | undefined {
+  const ip = rowIp(best);
+  if (!best.app?.connector || !ip) return undefined;
+  return { type: best.app.connector, name: (machine || ip).toLowerCase(), url: `http://${ip}:${best.port}` };
+}
+
+/** The card of a row of Services that no connector reads (« k »: its « ip:port ») */
+function rowCard<R extends string>(r: Host, k: string, fam: Family<R>, byAddr: Map<string, Host>, names: Map<string, string>): ServiceCard<R> {
+  const best = byAddr.get(k) ?? r, [cls, label] = status(best), machine = best.machine || names.get(rowIp(best));
+  return {
+    key: `h:${k}`, title: best.app?.label ?? best.name ?? hostName(best), app: best.app?.key, role: fam.roleOfApp(best.app?.key),
+    ip: rowIp(best), port: best.port, machine, tone: cls, state: label, host: best,
+    serviceHash: itemHash(best), problems: [], unread: true, partial: false, connector: best.app?.connector ?? null,
+    prefill: rowPrefill(best, machine),
+  };
+}
+
 /** Every service of the family, one card each (unsorted): its connectors, then its rows of Services that none of them covers */
 export function serviceCards<R extends string>(snap: Snapshot, fam: Family<R>): ServiceCard<R>[] {
   const hosts = snap.data.hosts ?? [], byAddr = rowsByAddr(hosts), names = machinesByIp(snap);
-  const out: ServiceCard<R>[] = [], covered = new Set<string>(), readOn = new Set<string>();   // readOn: « connector type @ ip », to skip the other ports of the same app
+  const out: ServiceCard<R>[] = [], cov: Covered = { addr: new Set<string>(), readOn: new Set<string>() };
   for (const c of snap.data.services_status ?? []) {
     const kind = fam.conn(c);
-    if (!kind) continue;
-    const a = addrOf(c.url), r = rowOf(c.url, byAddr, hosts), ip = r ? rowIp(r) : a?.host;
-    const [tone, state] = connTone(c, r);
-    if (r) covered.add(`${rowIp(r)}:${r.port}`);
-    if (a) covered.add(`${a.host}:${a.port}`);
-    if (ip) readOn.add(`${c.connector}@${ip}`);
-    out.push({
-      key: `c:${c.connector}/${c.instance ?? c.name}`, title: kind.title, role: kind.role, engine: kind.title, ip, port: a?.port,
-      machine: r?.machine || (ip ? names.get(ip) : undefined), version: c.version, tone, state, conn: c, host: r,
-      serviceHash: r ? `#services/item/${encodeURIComponent(serviceKey(r))}` : undefined, problems: c.problems ?? [], unread: false, partial: !!kind.partial,
-    });
+    if (kind) out.push(connectorCard(c, kind, { byAddr, hosts, names }, cov));
   }
   const seen = new Set<string>();
   for (const r of hosts) {
     const k = `${rowIp(r)}:${r.port}`;
-    if (!fam.row(r) || covered.has(k) || seen.has(k)) continue;
-    if (r.app?.connector && readOn.has(`${r.app.connector}@${rowIp(r)}`)) continue;   // another port of an app already read on this machine
+    if (!fam.row(r) || cov.addr.has(k) || seen.has(k)) continue;
+    if (r.app?.connector && cov.readOn.has(`${r.app.connector}@${rowIp(r)}`)) continue;   // another port of an app already read on this machine
     seen.add(k);
-    const best = byAddr.get(k) ?? r, [cls, label] = status(best), machine = best.machine || names.get(rowIp(best));
-    out.push({
-      key: `h:${k}`, title: best.app?.label ?? best.name ?? hostName(best), app: best.app?.key, role: fam.roleOfApp(best.app?.key),
-      ip: rowIp(best), port: best.port, machine, tone: cls, state: label, host: best,
-      serviceHash: `#services/item/${encodeURIComponent(serviceKey(best))}`, problems: [], unread: true, partial: false, connector: best.app?.connector ?? null,
-      prefill: best.app?.connector && rowIp(best) ? { type: best.app.connector, name: (machine || rowIp(best)).toLowerCase(), url: `http://${rowIp(best)}:${best.port}` } : undefined,
-    });
+    out.push(rowCard(r, k, fam, byAddr, names));
   }
   return out;
 }
