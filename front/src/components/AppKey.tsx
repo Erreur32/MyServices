@@ -65,7 +65,7 @@ export function AppKeyBand({ ssh }: Readonly<{ ssh: SystemState["ssh"] }>) {
         {!ssh.public ? <span className="text-sm text-warn">{tx("Pas encore créée : elle l'est au démarrage du conteneur.")}</span> : (
           <span className="flex flex-wrap items-center gap-2">
             {algo && <Badge tone="info" title={tx("Type de clé")}>{algo}</Badge>}
-            {ssh.fingerprint && <Badge tone="off" title={tx("Empreinte (SHA256) : sert à reconnaître la clé sans la montrer")}><span className="font-mono">{ssh.fingerprint}</span></Badge>}
+            {ssh.fingerprint && <Badge tone="off" title={tx("Empreinte (SHA256) : sert à reconnaître la clé sans la montrer")}><span className="font-mono">{shown ? ssh.fingerprint : `${ssh.fingerprint.slice(0, 11)}${"•".repeat(10)}${ssh.fingerprint.slice(-4)}`}</span></Badge>}
             <Badge tone="off">{ssh.known_hosts} {tx("machine(s) connue(s)")}</Badge>
             <button type="button" className={quiet} onClick={() => { setShown(!shown); setOpen(!shown); }} aria-pressed={shown} title={shown ? tx("Masquer la clé") : tx("Afficher la clé")}>
               {shown ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}{shown ? tx("Masquer") : tx("Afficher")}
