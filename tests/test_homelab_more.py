@@ -215,6 +215,23 @@ class GpuViewR(Base):
         self.assertEqual(d["app_update"], "0.14.0")
         self.assertIn("mise à jour de GpuViewR disponible : 0.14.0", d["problems"])
 
+    def test_gpu_details_and_processes(self):
+        self.route("/api/v1/health", {"version": "0.13.3", "gpu_count": 1, "hosts_total": 2, "hosts_online": 1})
+        self.route("/api/v1/hosts", {"hosts": [{"id": "a1", "label": "Jarvis", "status": "online"}, {"id": "b2", "label": "Tower", "status": "offline"}]})
+        self.route("/api/v1/gpus", {"gpus": [{"host_id": "a1", "gpu_index": 0, "name": "Radeon 8060S", "temperature": 30, "driver_version": "6.4",
+                                              "fan_speed": None, "power_limit": 120, "temp_limit": 100, "memory_shared": True}]})
+        self.route("/api/v1/processes?host=a1", {"processes": [{"process_name": "Xorg", "gpu_index": 0, "used_memory": 90},
+                                                               {"process_name": "llama-server", "gpu_index": 0, "used_memory": 2, "gtt_memory": 20000,
+                                                                "llm_runtime": "llamacpp", "llm_model": "Qwen3-Coder"}]})
+        jarvis, tower = self.conn("gpuviewr", token=KEY).collect()["machines"]
+        g = jarvis["gpus"][0]
+        self.assertEqual((g["index"], g["driver"], g["power_limit"], g["temp_limit"], g["shared"]), (0, "6.4", 120.0, 100.0, True))
+        self.assertNotIn("fan", g)
+        self.assertEqual(jarvis["processes"], [{"name": "llama-server", "gpu": 0, "mem_mb": 20002.0, "runtime": "llamacpp", "model": "Qwen3-Coder"},
+                                               {"name": "Xorg", "gpu": 0, "mem_mb": 90.0}])
+        self.assertEqual(tower["processes"], [])   # offline: not asked
+        self.assertNotIn("/api/v1/processes?host=b2", [x[1] for x in SEEN])
+
     def test_api_off(self):
         self.route("/api/v1/health", {"error": "API access is disabled (Settings > API)"}, code=403)
         with self.assertRaises(ConnectorError) as e:
