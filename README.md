@@ -100,7 +100,7 @@ One menu on the left holds every page, in four groups; the views of a page are i
 | Group | Pages |
 |---|---|
 | **Overview** | **Home** (dashboard: what needs your attention, then counters that open the page already filtered; statistics), **History** (events of the last 24 h to one year as dots, bars, curve or heat map; availability) |
-| **Inventory** | **Machines** (every machine, each with its own page and settings; devices seen by your tools but not followed; agents; SSH connections and the app's SSH key), **Services** (NPM hosts and local services, each with its page, read and edited in place; new services; declare a service), **Network** (UniFi, Freebox, scan, devices, diagnostic), **DNS** (AdGuard Home: servers, details), **Virtualization**, **AI and agents** (overview, models, agents and MCP, GPU; shown once an AI service or connector exists), **Infra** (services read through their API, containers), **Diagrams** |
+| **Inventory** | **Machines** (every machine, each with its own page and settings; devices seen by your tools but not followed; agents; SSH connections and the app's SSH key), **Services** (NPM hosts and local services, each with its page, read and edited in place; new services; declare a service), **Network** (UniFi, Freebox, scan, devices, diagnostic), **DNS** (AdGuard Home: servers, details), **Virtualization**, **AI and agents** (overview, models, agents and MCP, GPU; shown once an AI service or connector exists), **Video and cameras** (overview, cameras, streams, recordings; shown once a Stream service or a video connector exists), **Infra** (services read through their API, containers), **Diagrams** |
 | **Protection** | **Backups** (by machine, sets, add backups, to link, copies elsewhere, paths searched), **Security** (overview, exposed sites, SSH access, network ports, certificates, Fail2ban, Wazuh) |
 | **Administration** | **Connectors** (mine, available, found to link, already read over SSH or by an agent), **Notifications** (channels, alert rules, my notifications, examples, last sent), **Accounts and access** (accounts and sessions, API and MCP tokens), **Application** (tasks and schedules, automatic discovery, updates, e-mail, export and import, information), **Activity** (requests, audit log, logs) |
 
@@ -189,7 +189,8 @@ A connector lets MyServices read a tool through its API, **read-only**: give it 
 | **Web and proxies** | Nginx Proxy Manager, Web-Check |
 | **DNS** | AdGuard Home, Pi-hole, Technitium DNS |
 | **Monitoring** | Beszel, Uptime Kuma, Dozzle, Prometheus, Healthchecks, Netdata, LogviewR |
-| **Home and media** | Home Assistant, Jellyfin, Sonarr / Radarr / Prowlarr…, Frigate |
+| **Home and media** | Home Assistant, Jellyfin, Sonarr / Radarr / Prowlarr… |
+| **Video and cameras** | Frigate, Shinobi, go2rtc, MediaMTX, Owncast |
 | **AI** | Ollama, llama.cpp, Open WebUI, OpenAI-compatible API (vLLM, LM Studio, LocalAI, KoboldCpp, LiteLLM), Hermes Agent, GpuViewR |
 | **Network** | MynetworK, UniFi Network, Tailscale / Headscale, OPNsense |
 | **Security** | CrowdSec |
