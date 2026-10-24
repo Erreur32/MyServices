@@ -89,7 +89,8 @@ function webLine(w: NonNullable<Machine["web"]>[number]): string {
 }
 
 function Servers({ m, snap, max }: { m: Machine; snap: Snapshot; max?: number }) {
-  const apDown = snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.enabled && r.service?.kind === "apache" && status(r)[0] === "bad").length;
+  const hidden = useServicesHidden();   // a site hidden in Services no longer turns the Apache chip red
+  const apDown = snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.enabled && r.service?.kind === "apache" && status(r)[0] === "bad" && !isHidden(r, hidden)).length;
   const i = m.info || {}, groups = new Map<string, NonNullable<Machine["web"]>>();
   for (const w of m.web ?? []) groups.set(w.key, [...(groups.get(w.key) ?? []), w]);
   const chips: { key: string; icon: string | null; label: string; tip: string; bad?: boolean }[] = [...groups].map(([key, ws]) => {
