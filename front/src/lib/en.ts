@@ -3239,4 +3239,5 @@ export const EN: Record<string, string> = {
   "La collecte passe à heures fixes : Application › Tâches et horaires, bouton « Relancer », ou le bouton d'actualisation de la page.": "Collection runs at set times: Application › Tasks and schedules, « Rerun » button, or the page's refresh button.",
   "C'est normal : les nouveautés et les disparitions sont notées dans l'Historique (« Nouveau », « Disparu »).": "That is normal: what is new and what is gone are noted in History (« New », « Gone »).",
   "Activité › Journal d'audit liste chaque action des comptes (et des jetons MCP), filtrable et exportable en CSV. Activité › Journaux montre ce que le conteneur écrit.": "Activity › Audit log lists each action of the accounts (and of MCP tokens), filterable and exportable as CSV. Activity › Logs shows what the container writes.",
+  "connecteur coupé": "connector off",
 };

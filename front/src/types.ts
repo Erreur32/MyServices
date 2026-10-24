@@ -425,6 +425,7 @@ export interface BackupHost {
   ip: string;
   kind: string;
   reachable: boolean;
+  stopped?: boolean;   // read by a connector switched off in Settings: level « off », no alert
   level: string;
   storage?: boolean;
   disks: { mount: string; pct: number; avail: number; size: number; level: string }[];
