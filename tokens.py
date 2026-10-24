@@ -138,7 +138,7 @@ API_ROUTES: list[tuple[str, re.Pattern, str]] = [
     ("POST", re.compile(r"^refresh$"), "runs"),
     ("GET", re.compile(r"^(audit|alerts|connectors/settings|machines/settings|system)$"), "admin"),
     ("*", re.compile(r"^system/tasks/.+$"), "admin"),
-    ("*", re.compile(r"^(alerts/.+|connectors/settings/.+|machines/.+)$"), "admin"),
+    ("*", re.compile(r"^(alerts/.+|connectors/settings/.+|machines/.+|backups/.+|agents(/.+)?)$"), "admin"),
 ]
 
 

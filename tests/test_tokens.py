@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
     from fastapi.testclient import TestClient
 
+    import agents
     import api
     import auth
     import server
@@ -31,6 +32,7 @@ class Tokens(unittest.TestCase):
         api.AUTH = True
         api.STORE = auth.Store(d / "myservices.db")
         api.TOKENS = tokens.Tokens(d / "myservices.db")
+        api.AGENTS = agents.Agents(d / "myservices.db")
         api.STORE.create_user("admin", PW, "admin")
         self.c = TestClient(api.app, client=("192.168.1.50", 50000))
         self.c.post("/myservices/api/v1/login", json={"username": "admin", "password": PW})
@@ -89,6 +91,35 @@ class Tokens(unittest.TestCase):
         self.assertNotIn("status", [t["name"] for t in call("tools/list")["result"]["tools"]])
         self.assertIn("error", call("tools/call", {"name": "status"}))
         self.assertEqual(self.anon.post("/myservices/mcp", json={}).status_code, 401)  # sans jeton
+
+    def test_mcp_config_tools_run_the_rest_routes(self):
+        tok = self.make("mcp", level="admin", days=30, password=PW)
+        call = lambda m, p=None: self.get("mcp", tok, "POST", json={"jsonrpc": "2.0", "id": 1, "method": m, "params": p or {}}).json()
+        tool = lambda name, args: call("tools/call", {"name": name, "arguments": args})["result"]
+        self.assertNotIn("agents_config", [t["name"] for t in call("tools/list")["result"]["tools"]])  # off by default
+        self.assertEqual(self.c.patch("/myservices/api/v1/tokens/tools/agents_config", json={"enabled": True}, headers=self.h).status_code, 200)
+        self.c.patch("/myservices/api/v1/tokens/tools/connectors_config", json={"enabled": True}, headers=self.h)
+        helped = tool("agents_config", {"action": "help"})["structuredContent"]["actions"]
+        self.assertIn("ip", helped["create"]["params"]["properties"])
+        self.assertEqual(helped["revoke"]["params"]["required"], ["aid"])
+        made = tool("agents_config", {"action": "create", "params": {"ip": "10.0.0.7", "name": "pc-test"}})
+        self.assertFalse(made.get("isError"), made)
+        self.assertTrue(made["structuredContent"]["token"].startswith("msv_agent_"))
+        listed = tool("agents_config", {"action": "list"})["structuredContent"]["agents"]
+        self.assertEqual([a["name"] for a in listed], ["pc-test"])
+        self.assertFalse(tool("agents_config", {"action": "revoke", "params": {"aid": listed[0]["id"]}}).get("isError"))
+        bad = tool("agents_config", {"action": "revoke", "params": {}})
+        self.assertIn("aid", bad["content"][0]["text"])
+        self.assertIn("switch", tool("connectors_config", {"action": "help"})["structuredContent"]["actions"])
+        who = {e["username"] for e in self.c.get("/myservices/api/v1/audit").json()["audit"]}
+        self.assertIn("mcp:t-mcp-admin", who)   # audited as the token, like from the page
+
+    def test_admin_api_token_reaches_agents_and_backups(self):
+        adm = self.make(level="admin", days=30, password=PW)
+        self.assertEqual(self.get("api/v1/agents", adm).status_code, 200)
+        self.assertEqual(self.get("api/v1/backups/patterns", adm, "PUT", json={}).status_code, 422)   # past the token guard
+        ro = self.make(level="runs")
+        self.assertEqual(self.get("api/v1/agents", ro).json()["code"], "API_TOKEN_LEVEL")
 
 
 if __name__ == "__main__":

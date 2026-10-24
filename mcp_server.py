@@ -1,12 +1,13 @@
-"""Serveur MCP de MyServices (/mcp) : transport « Streamable HTTP » en mode sans état, réponses JSON.
+"""MyServices MCP server (/mcp): "Streamable HTTP" transport, stateless, JSON answers.
 
-Un assistant IA (Claude Code, Claude Desktop, Cursor…) s'y branche avec un jeton msv_mcp_ :
-  claude mcp add --transport http myservices http://<hôte>:8090/mcp \\
-    --header "Authorization: Bearer msv_mcp_…"
+An AI assistant (Claude Code, Claude Desktop, Cursor...) connects with a msv_mcp_ token:
+  claude mcp add --transport http myservices http://<host>:8090/mcp \\
+    --header "Authorization: Bearer msv_mcp_..."
 
-Chaque requête est authentifiée et son niveau relu (tokens.check) : rien n'est gardé entre deux appels, un jeton
-révoqué tombe aussitôt. Outils en lecture sur ce que montre la page ; « run_collect » demande un passage
-(niveau runs). Chaque outil a un interrupteur dans Réglages → API et MCP. Réponses sans secret ni chemin de clé.
+Each request is authenticated and its level read again (tokens.check): nothing is kept between two calls, a revoked
+token fails at once. Read tools show what the page shows; "run_collect" asks for a pass (level runs). The *_config
+tools (level admin, off until switched on) run the same REST routes as the Settings page, through ctx["route"]: same
+checks, same audit, same side effects. Each tool has a switch in Settings -> API and MCP. No secret or key path in answers.
 """
 from __future__ import annotations
 
@@ -103,7 +104,108 @@ def t_run_collect(core, args, ctx):
     return {"started": True, **core.status()}
 
 
+class ToolError(Exception):
+    """A refusal to show the assistant as a tool error (isError), not a protocol error."""
+
+
+# Settings reachable by the *_config tools: action -> (method, REST route under api/v1). Left out on purpose: showing a
+# saved secret, installing npm-api.sh on a machine, accounts, tokens, the configuration import.
+CONFIG = {
+    "connectors_config": {
+        "list": ("GET", "/connectors/settings"),
+        "test": ("POST", "/connectors/settings/{type_}/test"),
+        "save": ("PUT", "/connectors/settings/{type_}"),
+        "switch": ("PATCH", "/connectors/settings/{type_}/{name}"),
+        "delete": ("DELETE", "/connectors/settings/{type_}/{name}"),
+        "npm_script_check": ("POST", "/connectors/settings/npm/script/check"),
+    },
+    "backups_config": {
+        "list": ("GET", "/backups/settings"),
+        "discover": ("POST", "/backups/discover"),
+        "set_patterns": ("PUT", "/backups/patterns"),
+        "follow_folders": ("PUT", "/backups/settings"),
+        "update_set": ("PATCH", "/backups/settings/{set_id}"),
+        "update_location": ("PATCH", "/backups/settings/{set_id}/locations/{index}"),
+        "unfollow": ("DELETE", "/backups/settings/{set_id}"),
+        "find_copies": ("POST", "/backups/copies/find"),
+        "add_copy": ("POST", "/backups/settings/{set_id}/copies"),
+        "remove_copy": ("DELETE", "/backups/settings/{set_id}/copies/{index}"),
+        "veeam_test": ("POST", "/backups/veeam/test"),
+        "veeam_discover": ("POST", "/backups/veeam/discover"),
+        "veeam_follow": ("PUT", "/backups/veeam"),
+        "remote_test": ("POST", "/backups/remote/test"),
+        "remote_browse": ("POST", "/backups/remote/browse"),
+        "remote_follow": ("PUT", "/backups/remote"),
+        "synology_discover": ("POST", "/backups/synology/discover"),
+        "synology_follow": ("PUT", "/backups/synology"),
+        "pbs_discover": ("POST", "/backups/pbs/discover"),
+        "pbs_follow": ("PUT", "/backups/pbs"),
+        "agents_discover": ("GET", "/backups/agents/discover"),
+        "agents_follow": ("PUT", "/backups/agents"),
+        "vzdump_discover": ("POST", "/backups/vzdump/discover"),
+        "vzdump_follow": ("PUT", "/backups/vzdump"),
+        "ha_check": ("POST", "/backups/ha/check"),
+        "ha_follow": ("PUT", "/backups/ha"),
+    },
+    "agents_config": {
+        "list": ("GET", "/agents"),
+        "create": ("POST", "/agents"),
+        "auto_update": ("PATCH", "/agents/{aid}"),
+        "update_now": ("POST", "/agents/{aid}/update"),
+        "confirm_host": ("POST", "/agents/{aid}/confirm-host"),
+        "revoke": ("DELETE", "/agents/{aid}"),
+        "purge": ("DELETE", "/agents/{aid}/purge"),
+    },
+}
+
+
+def config_tool(name: str):
+    """One *_config tool: "help" describes each action and its params, any other action runs its REST route."""
+    def run(core, args, ctx):
+        actions, action = CONFIG[name], args.get("action")
+        if action == "help":
+            return {"actions": {a: ctx["route_help"](*r) for a, r in actions.items()}}
+        if action not in actions:
+            raise ValueError(f"action inconnue {action!r} : l'action « help » les liste")
+        params = args.get("params") or {}
+        if not isinstance(params, dict):
+            raise ValueError("params : objet attendu")
+        status, out = ctx["route"](*actions[action], params)
+        if status >= 400:
+            raise ToolError(f"HTTP {status}: {(out or {}).get('error') or (out or {}).get('detail') or out}")
+        return out if isinstance(out, dict) else {"result": out}
+    return run
+
+
+def t_validate(core, args, ctx):
+    """Test every saved connector (or one type) as the Settings page does, without saving anything."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from connectors import settings
+    only = args.get("type") or None
+    items = [i for i in settings.listing([]) if not only or i["type"] == only]
+
+    def check(i):
+        try:
+            ok, msg = settings.check_saved(i["type"], i["name"])
+        except settings.SettingsError as e:
+            ok, msg = False, str(e)
+        return {"type": i["type"], "name": i["name"], "enabled": i["enabled"], "ok": ok, "message": msg}
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        out = list(pool.map(check, items))
+    return {"checked": len(out), "failed": sum(not o["ok"] for o in out), "connectors": out}
+
+
 OBJ = {"type": "object", "additionalProperties": False}
+
+
+def config_schema(name: str) -> dict:
+    return {**OBJ, "required": ["action"],
+            "properties": {"action": {"type": "string", "enum": ["help", *CONFIG[name]]},
+                           "params": {"type": "object", "description": "paramètres de l'action, listés par l'action « help »"}}}
+
+
+CONFIG_HELP = " L'action « help » liste chaque action et ses paramètres (schéma JSON) ; essayer ou chercher avant d'enregistrer."
 TOOLS = {
     "status": ("read", "État général : fraîcheur des données, passage en cours, nombre de machines et services, "
                "état de chaque connecteur.", {**OBJ, "properties": {}}, t_status),
@@ -123,12 +225,30 @@ TOOLS = {
                                            "limit": {"type": "integer", "minimum": 1, "maximum": 1000}}}, t_events),
     "run_collect": ("runs", "Demande un passage de la collecte (comme le bouton ⟳ ; délai minimal entre deux).",
                     {**OBJ, "properties": {}}, t_run_collect),
+    "connectors_config": ("admin", "Réglages des connecteurs : lister, essayer sans enregistrer, enregistrer (testé d'abord, collecte "
+                          "coupée si le test échoue), allumer ou couper, supprimer." + CONFIG_HELP, config_schema("connectors_config"),
+                          config_tool("connectors_config")),
+    "backups_config": ("admin", "Réglages des sauvegardes : dossiers par SSH, Veeam, distant (SFTP…), Synology, PBS, agents, "
+                       "vzdump, Home Assistant ; copies, seuils d'âge, arrêt du suivi." + CONFIG_HELP, config_schema("backups_config"),
+                       config_tool("backups_config")),
+    "agents_config": ("admin", "Agents de santé : lister, créer (commande d'installation affichée une seule fois), mise à jour "
+                      "automatique, mise à jour immédiate, nom de poste confirmé, révoquer, effacer." + CONFIG_HELP, config_schema("agents_config"),
+                      config_tool("agents_config")),
+    "validate_config": ("admin", "Essayer tous les connecteurs enregistrés (ou un type) sans rien changer : ce qui échoue et pourquoi.",
+                        {**OBJ, "properties": {"type": {"type": "string", "description": "un seul type de connecteur (proxmox, npm…)"}}},
+                        t_validate),
 }
+# Tools that change the configuration: off until an admin switches them on in Settings -> API and MCP
+OFF_BY_DEFAULT = {"connectors_config", "backups_config", "agents_config", "validate_config"}
+
+
+def enabled(states: dict[str, bool], name: str) -> bool:
+    return states.get(name, name not in OFF_BY_DEFAULT)
 
 
 def tools_info(states: dict[str, bool]) -> list[dict]:
-    """Pour la page : chaque outil, son niveau et son interrupteur (actif par défaut)."""
-    return [{"name": n, "level": t[0], "description": t[1], "enabled": states.get(n, True)} for n, t in TOOLS.items()]
+    """For the page: each tool, its level and its switch (on by default, except OFF_BY_DEFAULT)."""
+    return [{"name": n, "level": t[0], "description": t[1], "enabled": enabled(states, n)} for n, t in TOOLS.items()]
 
 
 def handle(msg: dict, ctx: dict, core, states: dict[str, bool]) -> dict | None:
@@ -145,26 +265,29 @@ def handle(msg: dict, ctx: dict, core, states: dict[str, bool]) -> dict | None:
         return {"jsonrpc": "2.0", "id": mid, "error": {"code": code, "message": text}}
 
     level = ctx["token"]["level"]
-    usable = {n: t for n, t in TOOLS.items() if states.get(n, True) and tokens.allows(level, t[0])}
+    usable = {n: t for n, t in TOOLS.items() if enabled(states, n) and tokens.allows(level, t[0])}
     if method == "initialize":
         asked = params.get("protocolVersion")
         return ok({"protocolVersion": asked if asked in SUPPORTED else PROTOCOL,
                    "capabilities": {"tools": {"listChanged": False}},
                    "serverInfo": {"name": "myservices", "title": "MyServices", "version": "2"},
                    "instructions": "Inventaire et état d'un réseau domestique / homelab : machines, services, santé, "
-                                   "historique. Lecture seule, sauf run_collect (niveau runs)."})
+                                   "historique. Lecture, run_collect (niveau runs) ; réglages des connecteurs, sauvegardes et agents "
+                                   "par les outils *_config (niveau admin, action « help » d'abord)."})
     if method == "ping":
         return ok({})
     if method == "tools/list":
         return ok({"tools": [{"name": n, "description": t[1], "inputSchema": t[2]} for n, t in usable.items()]})
     if method == "tools/call":
         name = params.get("name")
-        if name not in TOOLS or not states.get(name, True):
+        if name not in TOOLS or not enabled(states, name):
             return err(-32602, f"outil inconnu ou désactivé : {name}")
         if name not in usable:
             return ok({"isError": True, "content": [{"type": "text", "text": f"MCP_TOKEN_LEVEL : niveau « {TOOLS[name][0]} » requis"}]})
         try:
             out = TOOLS[name][3](core, params.get("arguments") or {}, ctx)
+        except ToolError as e:
+            return ok({"isError": True, "content": [{"type": "text", "text": str(e)}]})
         except (ValueError, TypeError) as e:
             return ok({"isError": True, "content": [{"type": "text", "text": f"arguments invalides : {e}"}]})
         return ok({"content": [{"type": "text", "text": tokens.dumps(out)}], "structuredContent": out})
