@@ -7,7 +7,7 @@ import { Fragment, useCallback, useMemo, useState } from "react";
 import { type Snapshot } from "../api";
 import { useFilter, type Facet, type Selected } from "../lib/filter";
 import { ageDays, bytes, dateTime } from "../lib/format";
-import type { BackupHost, BackupSet, Backups as BackupsData } from "../types";
+import type { BackupHost, BackupSet, Backups as BackupsData, Machine } from "../types";
 import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Pct, Table, TableCard, Td, Th } from "../components/ui";
 import { FoldPanel } from "../components/FoldPanel";
 import { LEVEL } from "../lib/level";
@@ -19,6 +19,8 @@ import { StatTile } from "../components/StatTile";
 import { WatchPanel } from "../components/WatchPanel";
 import { cronsOf, figures, newestOf, rank, sourceOf, toWatch, unclaimedCrons } from "../lib/backupsState";
 import { HeadTags } from "../components/HeadTags";
+import { MachineIcon } from "../components/MachineIcon";
+import { useStoredFlag } from "../lib/storedFlag";
 
 const stateOf = (h: BackupHost) => (h.reachable ? h.level : "down");
 const short = (label: string) => label.replace(/^[^:]*: /, "");
@@ -65,23 +67,42 @@ function SetDetail({ s, b, snap }: Readonly<{ s: BackupSet; b: BackupsData; snap
   );
 }
 
-/** A table of sets (to watch, or all): set, machine, expected, latest archive, state, a Detail button that unfolds the row */
-function SetsTable({ sets, b, snap, sizes = false }: Readonly<{ sets: BackupSet[]; b: BackupsData; snap: Snapshot; sizes?: boolean }>) {
+/** The machine a set is produced on, as the Machines page knows it (for its icon), or none (Home Assistant, a Veeam server…) */
+function machineOfSet(s: BackupSet, b: BackupsData, snap: Snapshot) {
+  const ip = b.hosts?.find((h) => h.id === s.origin)?.ip;
+  return ip ? snap.data.machine_list.find((m) => m.ip === ip) : undefined;
+}
+
+/** The sets one after the other by machine (the machines by name), each keeping its order inside */
+function byMachine(sets: BackupSet[]): { name: string; sets: BackupSet[] }[] {
+  const groups = new Map<string, BackupSet[]>();
+  for (const s of sets) { const k = s.origin_label ?? s.origin; groups.set(k, [...(groups.get(k) ?? []), s]); }
+  return [...groups].sort(([a], [x]) => a.localeCompare(x)).map(([name, list]) => ({ name, sets: list }));
+}
+
+/** A table of sets (to watch, or all): set, machine, expected, latest archive, state, a Detail button that unfolds the row.
+ *  Grouped: one header row per machine (icon, name, sets, worst state) set apart by a thicker line, the machine column then left out */
+function SetsTable({ sets, b, snap, sizes = false, grouped = false }: Readonly<{ sets: BackupSet[]; b: BackupsData; snap: Snapshot; sizes?: boolean; grouped?: boolean }>) {
   const [open, setOpen] = useState<string | null>(null);
+  const cols = 6 + (sizes ? 1 : 0) - (grouped ? 1 : 0);
+  const groups = grouped ? byMachine(sets) : [{ name: "", sets }];
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[560px] border-collapse text-sm">
         <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-          <th className="px-3 py-2">{tx("Jeu")}</th><th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Attendu")}</th><th className="px-3 py-2">{tx("Dernière archive")}</th>{sizes && <th className="px-3 py-2">{tx("Taille")}</th>}<th className="px-3 py-2">{tx("État")}</th><th className="w-40 px-3 py-2" />
+          <th className="px-3 py-2">{tx("Jeu")}</th>{!grouped && <th className="px-3 py-2">{tx("Machine")}</th>}<th className="px-3 py-2">{tx("Attendu")}</th><th className="px-3 py-2">{tx("Dernière archive")}</th>{sizes && <th className="px-3 py-2">{tx("Taille")}</th>}<th className="px-3 py-2">{tx("État")}</th><th className="w-40 px-3 py-2" />
         </tr></thead>
         <tbody>
-          {sets.map((s) => {
-            const n = newestOf(s), on = open === s.id, src = sourceOf(s);
+          {groups.map((g) => (
+            <Fragment key={g.name}>
+              {grouped && <MachineHeader name={g.name} sets={g.sets} m={machineOfSet(g.sets[0], b, snap)} cols={cols} />}
+          {g.sets.map((s) => {
+            const n = newestOf(s), on = open === s.id, src = sourceOf(s), m = machineOfSet(s, b, snap);
             return (
               <Fragment key={s.id}>
                 <tr className={`border-t border-line/60 ${on ? "bg-bg2/40" : "even:bg-bg/50 hover:bg-bg2/40"}`}>
                   <td className="px-3 py-2"><b className="font-semibold">{short(s.label)}</b>{src?.path && <span className="block truncate font-mono text-[11px] text-dim" title={src.path}>{src.path}</span>}</td>
-                  <td className="px-3 py-2">{s.origin_label ?? s.origin}</td>
+                  {!grouped && <td className="px-3 py-2"><span className="flex items-center gap-2">{m ? <MachineIcon m={m} /> : <span className="h-6 w-6 shrink-0" aria-hidden />}{s.origin_label ?? s.origin}</span></td>}
                   <td className="px-3 py-2 text-muted">{s.schedule || "-"}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{n ? <>{dateTime(n.mtime * 1000)}<span className="block text-[11px] text-dim">{n.where}</span></> : <span className="text-bad">{tx("aucune")}</span>}</td>
                   {sizes && <td className="px-3 py-2 tabular-nums text-muted">{s.size ? bytes(s.size) : "-"}</td>}
@@ -91,13 +112,32 @@ function SetsTable({ sets, b, snap, sizes = false }: Readonly<{ sets: BackupSet[
                     {snap.me.role === "admin" && <SettingsLink href={`#settings/backups/${s.id}`} of={s.label} />}
                   </span></td>
                 </tr>
-                {on && <tr><td colSpan={sizes ? 7 : 6} className="p-0"><SetDetail s={s} b={b} snap={snap} /></td></tr>}
+                {on && <tr><td colSpan={cols} className="p-0"><SetDetail s={s} b={b} snap={snap} /></td></tr>}
               </Fragment>
             );
           })}
+            </Fragment>
+          ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** The header row of one machine in the grouped table: its icon and name, how many sets, the worst state among them */
+function MachineHeader({ name, sets, m, cols }: Readonly<{ name: string; sets: BackupSet[]; m?: Machine; cols: number }>) {
+  const worst = sets.reduce((w, x) => (rank(x.level) > rank(w.level) ? x : w), sets[0]);
+  return (
+    <tr className="border-t-2 border-line bg-bg2/70">
+      <td colSpan={cols} className="px-3 py-2">
+        <span className="flex flex-wrap items-center gap-2.5">
+          {m ? <MachineIcon m={m} /> : <Monitor size={16} className="text-dim" aria-hidden />}
+          <b>{name}</b>{m && m.ip !== name && <Dim>{m.ip}</Dim>}
+          <Badge tone="off">{tx("{0} jeu(x)", sets.length)}</Badge>
+          {worst.level !== "ok" && <Level level={worst.level} />}
+        </span>
+      </td>
+    </tr>
   );
 }
 
@@ -185,13 +225,13 @@ export function UnlinkedBackups({ b }: Readonly<{ b?: BackupsData | null }>) {
     <div className="flex flex-col gap-4">
       <TableCard zebra title={tx("Dossiers de sauvegarde locaux")} tone={(sm.local_unlisted ?? 0) > 0 ? "warn" : "info"} empty={tx("Aucun dossier de sauvegarde local vu sur les machines lues par SSH.")}
         note={<>{sm.local_dirs ?? local.length} {tx("trouvés,")} <b className={sm.local_unlisted ? "text-warn" : "text-txt"}>{sm.local_unlisted ?? 0}</b> {tx("non inventoriés")}</>}
-        cols={[{ label: tx("Machine"), className: "w-[16%]" }, { label: tx("Dossier") }, { label: tx("Taille"), className: "w-28" }, { label: tx("Dernière modification"), className: "w-40" }, { label: tx("Inventorié"), className: "w-36" }]}
+        cols={[{ label: tx("Machine"), className: "w-[14%]" }, { label: tx("Dossier"), className: "w-[28%]" }, { label: tx("Taille"), className: "w-24" }, { label: tx("Dernière modification"), className: "w-36" }, { label: tx("Inventorié") }]}   // the folder no longer takes the room left: the sets covering it do
         rows={local.map(({ h, x }) => [
           <b key="h" className="font-semibold">{h.label}</b>,
           <code key="p" className="break-all font-mono text-xs">{x.path}</code>,
           <span key="s" className="tabular-nums">{x.size ? bytes(x.size) : <Dim>-</Dim>}</span>,
           x.age == null ? <Dim key="a">-</Dim> : <span key="a" className="whitespace-nowrap">{tx("il y a {0}", ageDays(x.age))}</span>,
-          x.covered.length ? <Badge key="c" tone="ok">{x.covered.join(", ")}</Badge> : <Badge key="c" tone="warn">{tx("non inventorié")}</Badge>,
+          x.covered.length ? <span key="c" className="flex flex-wrap gap-1">{x.covered.map((c) => <Badge key={c} tone="ok">{c}</Badge>)}</span> : <Badge key="c" tone="warn">{tx("non inventorié")}</Badge>,
         ])} />
       <TableCard zebra title={tx("Tâches cron de sauvegarde sans jeu suivi")} tone="info" empty={tx("Chaque ligne cron de sauvegarde trouvée est réclamée par un jeu suivi.")}
         note={tx("Des lignes cron trouvées sur vos machines qu'aucun jeu suivi ne réclame : peut-être une sauvegarde à déclarer dans « Ajouter des sauvegardes ».")}
@@ -212,6 +252,7 @@ const SET_FILTERS: { id: SetFilter; label: string; keep: (s: BackupSet) => boole
  *  (in use, flagged, archived); each row unfolds its detail, « Set » opens its settings page */
 function SetsView({ sets, b, snap, initial }: Readonly<{ sets: BackupSet[]; b: BackupsData; snap: Snapshot; initial?: Selected }>) {
   const [pick, setPick] = useState<SetFilter>("live");
+  const [grouped, setGrouped] = useStoredFlag("myservices.backups.setsByMachine", true);   // by machine unless turned off
   const facets = useMemo((): Facet<BackupSet>[] => {
     const hosts = b.hosts ?? [], names = new Map(hosts.map((h) => [h.id, h.label]));
     return [{ key: "machine", label: tx("Machine"), get: (s) => hosts.filter((h) => h.sets.includes(s.id)).map((h) => h.id), name: (v) => names.get(v) || v }];
@@ -237,8 +278,11 @@ function SetsView({ sets, b, snap, initial }: Readonly<{ sets: BackupSet[]; b: B
           })}
         </span>
       </div>
-      <div className="border-b border-line/60 px-4 py-3"><FilterBar f={f} placeholder={tx("Jeu, machine, dossier, horaire…")} primary={["machine"]} oneLine bare /></div>
-      {shown.length ? <SetsTable sets={shown} b={b} snap={snap} sizes /> : <p className="px-4 py-3 text-sm text-dim">{tx("Aucun jeu dans ce filtre.")}</p>}
+      <div className="border-b border-line/60 px-4 py-3"><FilterBar f={f} placeholder={tx("Jeu, machine, dossier, horaire…")} primary={["machine"]} oneLine bare
+        side={<button type="button" onClick={() => setGrouped(!grouped)} aria-pressed={grouped} title={tx("Regrouper les jeux sous le nom de leur machine")}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-colors ${grouped ? "border-link bg-link/15 text-txt" : "border-line text-link hover:bg-link/10"}`}>
+          <Monitor size={14} aria-hidden />{tx("Par machine")}</button>} /></div>
+      {shown.length ? <SetsTable sets={shown} b={b} snap={snap} sizes grouped={grouped} /> : <p className="px-4 py-3 text-sm text-dim">{tx("Aucun jeu dans ce filtre.")}</p>}
     </section>
   );
 }

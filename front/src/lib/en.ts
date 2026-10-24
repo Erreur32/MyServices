@@ -3239,4 +3239,5 @@ export const EN: Record<string, string> = {
   "Comparer les copies": "Compare the copies",
   "Comparer chaque archive": "Compare each archive",
   "Activé : chaque archive de la source doit se trouver sur les copies (dossier de fichiers qui ne changent pas). Désactivé : seule la plus récente est comparée.": "On: each archive of the source must be on the copies (a folder of files that do not change). Off: only the newest one is compared.",
+  "Regrouper les jeux sous le nom de leur machine": "Group the sets under the name of their machine",
 };

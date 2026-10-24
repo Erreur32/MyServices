@@ -12,10 +12,14 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Added
+- **Backups › Sets, grouped by machine**: the sets sit under one header row per machine (its icon, name, number of sets and worst state), set apart by a thicker line; « By machine » turns it off (remembered). The machine column, kept when not grouped and on « To watch », shows the machine's icon.
 - **Backups › a set's page, every setting**: besides name, folder, schedule, age and copies, a set's page now edits its retention, its note and how copies are compared (newest archive or each one); the source of a folder set and each of its copies open a form with the machine (moving the source moves the set), the folder, the archive names read, the depth, how they get there and « encrypted ». Places read from a source (vzdump, Veeam, PBS, Synology, Home Assistant) stay as their source gives them.
 - **Side menu, the alerts in the dot's tooltip**: hovering the dot of an entry lists the alerts behind it (as the home page words them, up to 8, then « and N more »), instead of only « to watch ».
 - **Services › All services, stop following a known alert**: a service down (even on purpose), in warning or with a point to check gets the same button as on « To watch » (admin only, also on the phone cards): it hides it from « To watch », the tab's dot and the home page until its problem changes; once hidden, the button shows it back. On any other row (online, stopped on purpose) the same button stops following the service for good, until shown back. A hidden service is no longer counted as down or to fix: tiles of the Services page, counts of a machine group, NPM and Services groups of the home and Statistics pages, the « services online » key figure; its state is greyed on the row.
 - **Backups › Sets, a search**: a search field (set, machine, folder, schedule, place of a copy) and a machine filter in chips, above the three chips (in use, flagged, archived), whose counts follow it. On Backups › By machine, the « Sets produced » badge of a machine opens the sets filtered on that machine.
+
+### Changed
+- **Backups › Settings › To link, local backup folders**: the Folder column gets a set width instead of all the room left; the sets that cover a folder take it, one badge each.
 
 ## v0.20.2 (2026-10-23)
 
