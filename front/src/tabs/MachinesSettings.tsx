@@ -11,7 +11,7 @@ import { Copyable, Field, NoteLine, Switch, TagInput } from "../components/form"
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { Badge, Card, Count, Dim } from "../components/ui";
 import { dateTime } from "../lib/format";
-import type { AgentInfo, Connector, Detection, MachineConf, MachinesSettings as State, NetHost, NetScan, Redetection, RedetectItem } from "../types";
+import type { Advice, AgentInfo, Connector, Detection, MachineConf, MachinesSettings as State, NetHost, NetScan, Redetection, RedetectItem } from "../types";
 import { DISMISSED_KEY } from "../lib/firstSteps";
 import { needsLink } from "../lib/netScan";
 import { BackButton } from "../components/BackButton";
@@ -28,6 +28,7 @@ import { pokeScan } from "../lib/scan";
 import { hardwareRows } from "../lib/hardware";
 import { tx } from "../lib/i18n";
 import { InfoNote } from "../components/InfoNote";
+import { describeAdvice } from "../lib/access";
 import { AddMachine } from "../components/AddMachine";
 import { UnlinkedDevices } from "../components/UnlinkedDevices";
 import { SshConnections } from "./SshConnections";
@@ -837,10 +838,23 @@ function SshBody({ ctl, ip, v, setV, live, scan, windowsGuess, hasAdguard, conne
   );
 }
 
+/** The server advice for this machine (access_advice.py); null until it is read or when the read fails */
+function useAdvice(ip: string, skip?: boolean): Advice | null {
+  const [advice, setAdvice] = useState<Advice | null>(null);
+  useEffect(() => {
+    if (skip) return;
+    read<{ advice: Record<string, Advice> }>("machines/advice").then((r) => setAdvice(r.advice[ip] ?? null)).catch(() => undefined);
+  }, [ip, skip]);
+  return advice;
+}
+
 function AgentBody({ ip, v, windowsGuess, agent, agentMode, isNew, onAgent, connection }: Readonly<{
   ip: string; v: MachineConf; windowsGuess?: boolean; agent?: AgentInfo; agentMode: boolean; isNew?: boolean; onAgent?: () => void; connection?: React.ReactNode;
 }>) {
   const windows = v.os === "windows";
+  const advice = useAdvice(ip, isNew || !onAgent || !!agent);
+  if (!agent && advice && !advice.agent_possible)   // Freebox, ESXi, Home Assistant OS, closed NAS: nothing to install, say why
+    return <InfoNote>{tx("Pas d'agent possible sur cette machine.")} {describeAdvice(ip, advice).why}</InfoNote>;
   return (
     <>
         {connection && agentMode && (

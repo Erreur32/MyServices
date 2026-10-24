@@ -36,7 +36,7 @@ describe("recommandation de méthode de lecture : présentation", () => {
   });
 
   it("chaque motif connu du serveur a une phrase", () => {
-    for (const why of ["appliance", "windows", "home_assistant", "device", "macos", "macos_no_ssh", "agent_linux_ssh", "agent_linux", "connector_only", "unreachable", "no_ssh_port", "unknown_system"])
+    for (const why of ["appliance", "windows", "home_assistant", "esxi", "nas", "device", "macos", "macos_no_ssh", "agent_linux_ssh", "agent_linux", "connector_only", "unreachable", "no_ssh_port", "unknown_system"])
       expect(describeAdvice("1.1.1.1", adv({ why })).why, why).not.toBe("");
   });
 

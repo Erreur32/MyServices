@@ -47,6 +47,8 @@ const WHY: Record<string, () => string> = {
   appliance: () => tx("Box, passerelle ou équipement fermé : on n'y installe rien. MyServices la lit par un outil déjà en place (un connecteur)."),
   windows: () => tx("PC Windows : un petit agent envoie sa santé à MyServices, sans rien ouvrir sur le PC."),
   home_assistant: () => tx("Home Assistant OS : on le lit par son API (un jeton), ni par SSH ni par un agent."),
+  esxi: () => tx("VMware ESXi : on n'y installe rien. MyServices le lit par SSH ou par un connecteur, jamais par un agent."),
+  nas: () => tx("NAS fermé (Synology, QNAP, TrueNAS, Unraid…) : on n'y installe pas d'agent. MyServices le lit par son connecteur ou par SSH."),
   device: () => tx("Appareil fermé (téléphone, objet connecté) : seul le ping est possible."),
   macos: () => tx("Mac : par SSH (il n'existe pas d'agent pour macOS)."),
   macos_no_ssh: () => tx("Mac sans SSH ouvert : ping seul pour l'instant. Activez la session à distance pour le lire."),
