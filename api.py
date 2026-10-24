@@ -558,6 +558,11 @@ class ServiceMeta(BaseModel):
     public: bool = False
     direct_ok: bool = False
     pause: bool = False
+    name: str | None = Field(default=None, max_length=80)
+    icon: str | None = Field(default=None, max_length=40, pattern=r"^[a-z0-9-]+$")
+    app: str | None = Field(default=None, max_length=60)
+    open_url: str | None = Field(default=None, max_length=300)
+    alerts: Literal["down", "none"] | None = None
 
 
 @app.get(API + "/services/meta", tags=["services"], summary="Réglages à la main d'un service (son entrée de services-meta.json) et les catégories qu'on peut lui donner (admin)")
@@ -571,10 +576,12 @@ def services_meta_read(type: str, id: str, request: Request):
     if not row:
         return deny(404, "service introuvable (déjà disparu ?)")
     key, entry = new_services.current_entry(setup.META, row)
-    return {"key": key, "entry": {k: v for k, v in entry.items() if k in new_services.EDITABLE}, "categories": new_services.categories(setup.META, data)}
+    import known_apps
+    return {"key": key, "entry": {k: v for k, v in entry.items() if k in new_services.EDITABLE}, "categories": new_services.categories(setup.META, data),
+            "apps": known_apps.choices()}
 
 
-@app.put(API + "/services/meta", tags=["services"], summary="Modifier les réglages d'un service : catégorie, description, étiquettes, interface, public, accès direct, pause (admin)")
+@app.put(API + "/services/meta", tags=["services"], summary="Modifier les réglages d'un service : nom, icône, catégorie, description, étiquettes, appli, interface, adresse à ouvrir, public, accès direct, pause, alertes (admin)")
 def services_meta_edit(body: ServiceMeta, request: Request):
     import new_services
     import setup
@@ -586,9 +593,16 @@ def services_meta_edit(body: ServiceMeta, request: Request):
         return deny(404, "service introuvable (déjà disparu ?)")
     if body.category and body.category not in new_services.categories(setup.META, data):
         return deny(400, "catégorie inconnue : choisir parmi les catégories existantes")
+    import known_apps
+    if body.app and body.app not in {a["key"] for a in known_apps.choices()}:
+        return deny(400, "appli inconnue : choisir dans la liste")
+    open_url = (body.open_url or "").strip()
+    if open_url and (not open_url.startswith(("http://", "https://")) or any(c.isspace() for c in open_url)):
+        return deny(400, "adresse à ouvrir : commencer par http:// ou https://")
     tags = [t.strip()[:30] for t in body.tags if t.strip()]
     fields = {"category": body.category, "description": (body.description or "").strip(), "tags": tags, "web": body.web,
-              "public": body.public, "direct_ok": body.direct_ok, "pause": body.pause}
+              "public": body.public, "direct_ok": body.direct_ok, "pause": body.pause, "name": (body.name or "").strip(), "icon": body.icon,
+              "app": body.app, "open_url": open_url, "alerts": body.alerts}
     try:
         key = new_services.edit_meta(setup.META, core.WEB, row, fields)
     except LookupError as e:

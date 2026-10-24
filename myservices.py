@@ -57,6 +57,7 @@ import hostinfo
 import inventory_cache
 import api_link
 import known_apps
+import new_services
 import last_known as last_known_services
 import webservers
 import matching
@@ -1369,13 +1370,14 @@ def main():
         m = r.pop("_meta") or meta_for(r)
         r["category"] = m.get("category") or categorize(" ".join(r["domains"]), r.get("name"), s.get("name"),
                                                          s.get("image"), s.get("title"), r["page_title"])
-        known_apps.annotate(r, keep_category=bool(m.get("category")))
+        known_apps.annotate(r, keep_category=bool(m.get("category")), app_key=m.get("app"))
         r["description"] = m.get("description") or s.get("description") or None
         r["tags"] = m.get("tags", [])
         if "web" in m:  # surcharge manuelle : "ui" / "api" / "none"
             r["web"] = m["web"]
         r["direct_ok"] = bool(m.get("direct_ok"))  # UI hors NPM voulue : exclue du compteur
         r["public_ok"] = bool(m.get("public"))  # site public voulu : pas d'ACL attendue
+        new_services.apply_hand(r, m)
 
     webcheck_rows(rows)
     uptime_rows(rows)

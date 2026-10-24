@@ -128,7 +128,9 @@
   "🚨 Nouvelle menace": "🚨 New threat",
   "🛡️ Sécurité": "🛡️ Security",
   "🟢 Rétabli": "🟢 Back up",
-  "🧭 DNS": "🧭 DNS"
+  "🧭 DNS": "🧭 DNS",
+  "adresse à ouvrir : commencer par http:// ou https://": "address to open: start with http:// or https://",
+  "appli inconnue : choisir dans la liste": "unknown app: pick one in the list"
  },
  "templates": [
   [

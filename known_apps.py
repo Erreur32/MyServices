@@ -262,18 +262,21 @@ def identify(image: str | None = None, title: str | None = None, port: int | Non
     return (weak, POSSIBLE) if weak else None
 
 
-def annotate(row: dict, keep_category: bool = False) -> None:
+def annotate(row: dict, keep_category: bool = False, app_key: str | None = None) -> None:
     """Ajoute row["app"] ({key, label, confidence, connector}) si l'appli est reconnue, et complète ce qui manque :
     nom « port N » -> nom de l'appli, catégorie « Autre » -> celle de l'appli, interface non sondée -> son type.
-    Un simple port (« possible ») ne change rien d'autre que row["app"]. keep_category : catégorie réglée à la main."""
+    Un simple port (« possible ») ne change rien d'autre que row["app"]. keep_category : catégorie réglée à la main.
+    app_key : the app set by hand (services-meta.json « app »), taken as sure and marked « hand »."""
     s = row.get("service") or {}
-    hit = identify(image=s.get("image"), title=row.get("page_title"), port=row.get("port"), fingerprint=row.pop("fingerprint", None),
-                   proc=s.get("name") if s.get("kind") == "process" else None, inner=s.get("inner"))
+    fp = row.pop("fingerprint", None)
+    forced = app_key in _BY_KEY
+    hit = (_BY_KEY[app_key], SURE) if forced else identify(image=s.get("image"), title=row.get("page_title"), port=row.get("port"), fingerprint=fp,
+                                                          proc=s.get("name") if s.get("kind") == "process" else None, inner=s.get("inner"))
     if hit is None:
         return
     app, how = hit
     row["app"] = {"key": app.key, "label": app.label, "confidence": how, "connector": app.connector,
-                  **({"agent_of": _BY_KEY[app.agent_of].label} if app.agent_of else {})}
+                  **({"agent_of": _BY_KEY[app.agent_of].label} if app.agent_of else {}), **({"hand": True} if forced else {})}
     if how == POSSIBLE:
         return
     if not keep_category and row.get("category") == "Autre":
@@ -294,6 +297,11 @@ WINDOWS_SERVICES: tuple[tuple[str, str], ...] = (
 WEB_PORTS = {"adguard": 3000, "plex": 32400, "jellyfin": 8096, "grafana": 3000, "prometheus": 9090, "sonarr": 8989, "radarr": 7878, "uptime-kuma": 3001}   # port web par défaut quand l'appli n'en déclare pas
 _WIN = [(re.compile(rx, re.I), key) for rx, key in WINDOWS_SERVICES]
 _BY_KEY = {a.key: a for a in APPS}
+
+
+def choices() -> list[dict]:
+    """The apps a service can be told it runs, by name: [{key, label}]."""
+    return sorted(({"key": a.key, "label": a.label} for a in APPS if not a.agent_of), key=lambda a: a["label"].lower())
 
 
 def apps_from_services(services: list[dict]) -> list[App]:

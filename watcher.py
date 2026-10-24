@@ -87,6 +87,8 @@ def key(r: dict) -> str:
 
 
 def label(r: dict) -> str:
+    if r.get("display_name"):   # the name set by hand on the service page
+        return r["display_name"]
     return r["domains"][0] if r.get("domains") else (r.get("name") or f'{r.get("ip")}:{r.get("port")}')
 
 
@@ -130,6 +132,7 @@ def snapshot(r: dict) -> dict:
         "unhealthy": "(unhealthy)" in state,
         "dns": sorted(f"{c}:{d}" for c, d in (r.get("dns") or {}).get("issues", [])),
         "service": s.get("name"),
+        "alerts": r.get("alerts"),
     }
 
 
@@ -208,8 +211,18 @@ def diff(prev: dict, cur: dict, pending: dict) -> tuple[list[dict], dict]:
     for k, p in prev.items():
         if k not in cur:
             add("disparu", k, p, f'{p["type"]} retiré')
+    ev = [e for e in ev if wanted(e, cur.get(e["key"]) or prev.get(e["key"]) or {})]
     ev.sort(key=lambda e: -SEVERITY[e["kind"]])
     return ev, new_pending
+
+
+OUTAGE = ("panne", "retabli")
+
+
+def wanted(e: dict, snap: dict) -> bool:
+    """The alerts level set on the service page: « none » keeps no event of it, « down » only its outages and returns."""
+    level = snap.get("alerts")
+    return level != "none" and (level != "down" or e["kind"] in OUTAGE)
 
 
 def diff_machines(prev: dict, cur: dict, pending: dict) -> tuple[list[dict], dict]:

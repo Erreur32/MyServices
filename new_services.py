@@ -145,7 +145,8 @@ def set_public(meta_path: Path, web_dir: str | Path, domain: str, public: bool) 
     _rewrite_hosts(web_dir, apply)
 
 
-EDITABLE = ("category", "description", "tags", "web", "public", "direct_ok", "pause")
+EDITABLE = ("name", "icon", "category", "description", "tags", "app", "web", "open_url", "public", "direct_ok", "pause", "alerts")
+ALERTS = ("down", "none")   # « alerts »: outage only, or none; absent: every alert
 HAND_PAUSE = "paused by hand"
 
 
@@ -190,8 +191,20 @@ def _meta_target(services: dict, r: dict) -> str:
     return target
 
 
+def apply_hand(r: dict, m: dict) -> None:
+    """The hand-set fields the collector and the edit write the same way: display name, icon, address to open, alerts level, and the list
+    of the fields set by hand (the page says where each value comes from)."""
+    for field, out in (("name", "display_name"), ("icon", "icon"), ("open_url", "open_url"), ("alerts", "alerts")):
+        if m.get(field):
+            r[out] = m[field]
+        else:
+            r.pop(out, None)
+    r["hand"] = [f for f in EDITABLE if m.get(f) not in (None, "", [], False)]
+
+
 def _apply_entry(h: dict, entry: dict) -> None:
-    """One published row following its edited entry (a category back to automatic waits for the next collection)."""
+    """One published row following its edited entry (a category or an app back to automatic waits for the next collection)."""
+    import known_apps
     if entry.get("category"):
         h["category"] = entry["category"]
     h["description"] = entry.get("description") or ((h.get("service") or {}).get("description")) or None
@@ -203,6 +216,9 @@ def _apply_entry(h: dict, entry: dict) -> None:
         h["paused"] = entry["pause"]
     else:
         h.pop("paused", None)
+    if entry.get("app"):
+        known_apps.annotate(h, keep_category=bool(entry.get("category")), app_key=entry["app"])
+    apply_hand(h, entry)
 
 
 def edit_meta(meta_path: Path, web_dir: str | Path, r: dict, fields: dict) -> str:

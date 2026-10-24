@@ -94,6 +94,19 @@ class NewServices(unittest.TestCase):
         self.meta.write_text(json.dumps(meta))
         self.assertEqual(new_services.categories(self.meta, {"hosts": [{"category": "Infra"}, {"category": None}]}), ["IA", "Infra", "Médias"])
 
+    def test_edit_meta_name_icon_app_address_alerts(self):
+        r = self.data["hosts"][2]
+        new_services.edit_meta(self.meta, self.d, r, {"name": "Films", "icon": "jellyfin", "app": "jellyfin", "open_url": "https://tv.lan/web", "alerts": "down"})
+        self.assertEqual(new_services.current_entry(self.meta, r)[1], {"name": "Films", "icon": "jellyfin", "app": "jellyfin", "open_url": "https://tv.lan/web", "alerts": "down"})
+        h = json.loads((self.d / "data.json").read_text())["hosts"][2]
+        self.assertEqual((h["display_name"], h["icon"], h["open_url"], h["alerts"]), ("Films", "jellyfin", "https://tv.lan/web", "down"))
+        self.assertEqual((h["app"]["key"], h["app"]["confidence"], h["app"]["hand"]), ("jellyfin", "sure", True))
+        self.assertEqual(h["hand"], ["name", "icon", "app", "open_url", "alerts"])   # the page says these come from the hand
+        new_services.edit_meta(self.meta, self.d, r, {})
+        h = json.loads((self.d / "data.json").read_text())["hosts"][2]
+        self.assertFalse({"display_name", "icon", "open_url", "alerts"} & set(h))
+        self.assertEqual(h["hand"], [])
+
     def test_machine_ssh_never_proposed(self):
         data = {"hosts": self.data["hosts"] + [{"type": "local", "id": "10.0.0.3:22", "ip": "10.0.0.3", "port": 22, "app": {"key": "openssh"},
                                                 "service": {"kind": "process", "name": "sshd"}}]}

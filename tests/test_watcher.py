@@ -235,5 +235,28 @@ class JailSurges(unittest.TestCase):
         self.assertIn("jail_hausse", __import__("alerts").KINDS)
 
 
+class AlertsLevel(unittest.TestCase):
+    """The alerts level set on the service page: « down » keeps only outages and returns, « none » keeps nothing."""
+    def rows(self, alerts, up):
+        r = {"type": "local", "id": "10.0.0.2:80", "ip": "10.0.0.2", "port": 80, "enabled": True, "domains": [], "web": None if up else "ui",
+             "backend": {"up": up}, "display_name": "Films", **({"alerts": alerts} if alerts else {})}
+        return {watcher.key(r): watcher.snapshot(r)}
+
+    def kinds(self, alerts):
+        prev, pending, got = self.rows(alerts, True), {}, []
+        for _ in range(watcher.CONFIRM_RUNS):
+            ev, pending = watcher.diff(prev, self.rows(alerts, False), pending)
+            got += ev
+        return sorted(e["kind"] for e in got), got
+
+    def test_levels(self):
+        kinds, got = self.kinds(None)
+        self.assertIn("panne", kinds)
+        self.assertIn("ui_hors", kinds)
+        self.assertEqual(got[0]["label"], "Films")   # the name set by hand
+        self.assertEqual(self.kinds("down")[0], ["panne"])
+        self.assertEqual(self.kinds("none")[0], [])
+
+
 if __name__ == "__main__":
     unittest.main()
