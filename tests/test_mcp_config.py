@@ -60,6 +60,12 @@ class McpConfig(unittest.TestCase):
         r = call(Ctx(), "agents_config", {"action": "list", "params": [1]})
         self.assertIn("objet attendu", r["result"]["content"][0]["text"])
 
+    def test_validate_has_help_too(self):
+        r = call(Ctx(), "validate_config", {"action": "help"})["result"]["structuredContent"]
+        self.assertEqual(list(r["actions"]), ["run"])   # described, not run
+        self.assertIn("type", r["actions"]["run"]["params"]["properties"])
+        self.assertIn("action inconnue", call(Ctx(), "validate_config", {"action": "nope"})["result"]["content"][0]["text"])
+
     def test_schema_offers_help_and_actions(self):
         s = mcp_server.config_schema("agents_config")
         self.assertEqual(s["properties"]["action"]["enum"][0], "help")

@@ -177,9 +177,18 @@ def config_tool(name: str):
     return run
 
 
+VALIDATE_TYPE = {"type": "string", "description": "un seul type de connecteur (proxmox, npm…)"}
+
+
 def t_validate(core, args, ctx):
-    """Test every saved connector (or one type) as the Settings page does, without saving anything."""
+    """Test every saved connector (or one type) as the Settings page does, without saving anything; « help » describes it, like the *_config tools."""
     from concurrent.futures import ThreadPoolExecutor
+
+    if args.get("action") == "help":
+        return {"actions": {"run": {"summary": "essayer les connecteurs enregistrés, sans rien changer (action par défaut)",
+                                    "params": {**OBJ, "properties": {"type": VALIDATE_TYPE}}}}}
+    if args.get("action") not in (None, "run"):
+        raise ValueError(f"action inconnue {args['action']!r} : l'action « help » les liste")
 
     from connectors import settings
     only = args.get("type") or None
@@ -235,8 +244,8 @@ TOOLS = {
                       "automatique, mise à jour immédiate, nom de poste confirmé, révoquer, effacer." + CONFIG_HELP, config_schema("agents_config"),
                       config_tool("agents_config")),
     "validate_config": ("admin", "Essayer tous les connecteurs enregistrés (ou un type) sans rien changer : ce qui échoue et pourquoi.",
-                        {**OBJ, "properties": {"type": {"type": "string", "description": "un seul type de connecteur (proxmox, npm…)"}}},
-                        t_validate),
+                        {**OBJ, "properties": {"action": {"type": "string", "enum": ["run", "help"], "description": "run (par défaut) ou help"},
+                                               "type": VALIDATE_TYPE}}, t_validate),
 }
 # Tools that change the configuration: off until an admin switches them on in Settings -> API and MCP
 OFF_BY_DEFAULT = {"connectors_config", "backups_config", "agents_config", "validate_config"}
