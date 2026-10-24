@@ -84,7 +84,19 @@ APPS: tuple[App, ...] = (
     App("veeam-m365", "Veeam Backup for Microsoft 365", "Infra / virtualisation", connector="veeam-m365"),   # 4443 is too common to name it
     App("unifi", "UniFi", "Réseau / DNS", title=r"unifi", host=r"^(unifi|udm|ucg|usg)", images=("linuxserver/unifi-network-application", "jacobalberty/unifi"), connector="unifi"),  # MynetworK lit aussi UniFi
     App("synology", "Synology DSM", "Fichiers / sync", title=r"synology"),
-    App("frigate", "Frigate", "Domotique", title=r"^frigate", images=("ghcr.io/blakeblackshear/frigate", "blakeblackshear/frigate"), connector="frigate"),  # port 5000 : trop courant pour l'identifier seul
+    App("frigate", "Frigate", "Stream", title=r"^frigate", images=("ghcr.io/blakeblackshear/frigate", "blakeblackshear/frigate"), connector="frigate"),  # port 5000 : trop courant pour l'identifier seul
+    # Video and cameras (the « Stream » category): camera recorders, camera gateways, stream relays, live broadcast
+    App("agent-dvr", "Agent DVR", "Stream", title=r"agent ?dvr|ispy", images=("doitandbedone/ispyagentdvr", "mekayelanik/ispyagentdvr")),
+    App("go2rtc", "go2rtc", "Stream", ports=(1984,), title=r"^go2rtc", images=("alexxit/go2rtc",), connector="go2rtc"),
+    App("kerberos", "Kerberos.io", "Stream", title=r"kerberos", images=("kerberos/agent", "kerberos/kerberos")),
+    App("mediamtx", "MediaMTX", "Stream", ui="api", images=("bluenviron/mediamtx", "aler9/rtsp-simple-server"), proc=r"^mediamtx\b", connector="mediamtx"),
+    App("motioneye", "motionEye", "Stream", ports=(8765,), title=r"motioneye", images=("ccrisan/motioneye", "ghcr.io/motioneye-project/motioneye")),
+    App("owncast", "Owncast", "Stream", title=r"owncast", images=("owncast/owncast", "gabekangas/owncast"), connector="owncast"),
+    App("restreamer", "Restreamer", "Stream", title=r"restreamer", images=("datarhei/restreamer",)),
+    App("scrypted", "Scrypted", "Stream", ports=(10443,), title=r"^scrypted", images=("koush/scrypted", "ghcr.io/koush/scrypted")),
+    App("shinobi", "Shinobi", "Stream", title=r"^shinobi", images=("shinobisystems/shinobi", "registry.gitlab.com/shinobi-systems/shinobi", "migoller/shinobidocker"), connector="shinobi"),
+    App("viseron", "Viseron", "Stream", title=r"^viseron", images=("roflcoopter/viseron", "roflcoopter/amd64-viseron")),
+    App("zoneminder", "ZoneMinder", "Stream", title=r"zoneminder", images=("zoneminderhq/zoneminder", "dlandon/zoneminder.machine.learning")),
     App("myelectricaldata", "MyElectricalData", "Domotique", title=r"myelectricaldata"),
     # Reconnues par leur page ou leur empreinte HTTP (en-têtes, cookies), sans SSH
     App("pihole", "Pi-hole", "Réseau / DNS", title=r"pi-?hole", fp=r"x-pi-hole", images=("pihole/pihole",), connector="pihole"),

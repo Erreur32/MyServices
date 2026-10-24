@@ -42,6 +42,7 @@ from connectors import reqstats
 from sshmux import SSH_MUX
 
 KINDS = ("inventory", "services", "dns", "health", "backups", "logs", "alerts", "status", "network", "security", "containers", "virtualization")
+MAX_BINARY = 3 * 1024 * 1024   # a camera image read for an admin, never kept
 
 
 class ConnectorError(Exception):
@@ -133,8 +134,9 @@ class Context:
         return value
 
     def http(self, url: str, *, method: str = "GET", body: dict | None = None, headers: dict | None = None,
-             verify_tls: bool = True, timeout: float | None = None) -> object:
-        """Réponse JSON décodée ; ConnectorError lisible (code HTTP, message de l'API) sinon."""
+             verify_tls: bool = True, timeout: float | None = None, binary: bool = False) -> object:
+        """Réponse JSON décodée ; ConnectorError lisible (code HTTP, message de l'API) sinon. binary : the bytes as they come (a camera
+        image), at most MAX_BINARY."""
         h = {"Accept": "application/json", "User-Agent": "myservices", **(headers or {})}
         data = None
         if body is not None:
@@ -145,7 +147,7 @@ class Context:
         t0 = time.monotonic()
         try:
             with urllib.request.urlopen(req, timeout=timeout or self.timeout, context=ctx) as r:
-                raw = r.read()
+                raw = r.read(MAX_BINARY + 1) if binary else r.read()
         except urllib.error.HTTPError as e:
             raise self._http_failed(url, t0, e) from None
         except (OSError, ValueError) as e:
@@ -153,6 +155,10 @@ class Context:
             reqstats.record(self.owner, url, (time.monotonic() - t0) * 1000, None, msg)
             raise ConnectorError(msg) from None
         reqstats.record(self.owner, url, (time.monotonic() - t0) * 1000, 200)
+        if binary:
+            if len(raw) > MAX_BINARY:
+                raise ConnectorError("réponse trop grosse")
+            return raw
         try:
             return json.loads(raw or b"null")
         except ValueError:

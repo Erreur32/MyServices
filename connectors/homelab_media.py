@@ -2,15 +2,24 @@
 from __future__ import annotations
 
 import time
+import urllib.parse
+from collections import Counter
 
 from connectors.base import ConnectorError, Field
 from connectors.status_kit import StatusConnector, fact, num, size, duration, rows
 
 
+def _enabled(cam: dict, part: str) -> bool | None:
+    """Whether a part of a Frigate camera's config (detect, record) is on; None when the config does not say."""
+    v = cam.get(part)
+    return v.get("enabled") if isinstance(v, dict) else None
+
+
 class Frigate(StatusConnector):
     """Frigate NVR : caméras (images par seconde), détecteurs, stockage, événements des 24 dernières heures.
 
-    Routes lues (GET) : /api/version, /api/stats, /api/events. Le port 5000 de Frigate (interne, sans authentification) est celui à utiliser ;
+    Routes lues (GET) : /api/version, /api/stats, /api/config (detection and recording of each camera), /api/events,
+    /api/<camera>/latest.jpg (the picture an admin asks for, never kept). Le port 5000 de Frigate (interne, sans authentification) est celui à utiliser ;
     le port 8971 (avec connexion, Frigate 0.14+) n'est pas géré. D'après la documentation de Frigate (API HTTP) : à confirmer sur un vrai Frigate."""
     type = "frigate"
     label = "Frigate"
@@ -33,11 +42,13 @@ class Frigate(StatusConnector):
         down = sorted(k for k, v in cams.items() if num(v.get("camera_fps"), 0) == 0)
         dets = [v for v in (stats.get("detectors") or {}).values() if isinstance(v, dict)]
         speeds = [num(d.get("inference_speed")) for d in dets if num(d.get("inference_speed")) is not None]
-        free = None
-        for v in (service.get("storage") or {}).values():
+        free, rec = None, None
+        for path, v in (service.get("storage") or {}).items():
             if isinstance(v, dict) and num(v.get("total")) and num(v.get("free")) is not None:   # Mo
                 free = (num(v["free"]) * 1048576, num(v["total"]) * 1048576) if free is None else free
-        events = None
+                if "recordings" in str(path) and rec is None:
+                    rec = {"used": (num(v["total"]) - num(v["free"])) * 1048576, "total": num(v["total"]) * 1048576}
+        events, ev = None, []
         try:
             ev = rows(self.get(f"/api/events?limit=100&after={int(time.time()) - 86400}"))
             events = len(ev)
@@ -53,7 +64,32 @@ class Frigate(StatusConnector):
             facts.append(fact("Événements 24 h", f"{events}{'+' if events >= 100 else ''}"))
         if service.get("uptime") is not None:
             facts.append(fact("En marche", duration(num(service.get("uptime")))))
-        return self.out(service.get("version"), facts, [f"caméra « {c} » sans image (0 image/s)" for c in down])
+        out = self.out(service.get("version"), facts, [f"caméra « {c} » sans image (0 image/s)" for c in down])
+        out["stream"] = self._block(cams, ev, events, rec or ({"used": free[1] - free[0], "total": free[1]} if free else None), max(speeds) if speeds else None)
+        return out
+
+    def _block(self, cams: dict, ev: list[dict], events: int | None, storage: dict | None, speed: float | None) -> dict:
+        """The « stream » block (see homelab_stream): each camera with what its config says it does, its events of the last 24 h."""
+        conf = self.get_opt("/api/config") or {}
+        cc = conf.get("cameras") if isinstance(conf, dict) and isinstance(conf.get("cameras"), dict) else {}
+        per = Counter(str(e.get("camera")) for e in ev)
+        last: dict[str, float] = {}
+        for e in ev:
+            t = num(e.get("start_time"))
+            if t is not None and t > last.get(str(e.get("camera")), 0):
+                last[str(e.get("camera"))] = t
+        out = []
+        for name, v in list(cams.items())[:64]:
+            c = cc.get(name) if isinstance(cc.get(name), dict) else {}
+            fps = num(v.get("camera_fps"))
+            out.append({"name": name, "up": fps is None or fps > 0, "fps": fps, "detect": _enabled(c, "detect"), "record": _enabled(c, "record"),
+                        "events": per.get(name, 0) if events is not None else None, "last": last.get(name)})
+        labels = dict(Counter(str(e.get("label")) for e in ev if e.get("label")).most_common(6))
+        return {"role": "nvr", "engine": "Frigate", "cameras": out, "events": events, "labels": labels, "storage": storage,
+                "detector_ms": speed, "snapshot": True}
+
+    def snapshot(self, cam: str) -> bytes:
+        return self.get(f"/api/{urllib.parse.quote(cam, safe='')}/latest.jpg?h=360", binary=True)
 
     @classmethod
     def discover(cls, image: str, ip: str, ports: list) -> dict | None:

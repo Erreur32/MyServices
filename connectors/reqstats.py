@@ -7,6 +7,7 @@ kept for top-traffic (MynetworK limits its « live » mode on its own).
 """
 from __future__ import annotations
 
+import re
 import threading
 import time
 from collections import deque
@@ -15,6 +16,7 @@ from urllib.parse import parse_qs, urlsplit
 MINUTE, HOUR = 60.0, 3600.0
 MAX_ROUTES = 300   # rows kept in all: beyond, the oldest untouched row goes
 KEEP = 600         # call times kept per route: enough for the hour window of a route called every few seconds
+KEY_IN_PATH = re.compile(r"/[A-Za-z0-9_-]{20,}(?=/|$)")
 GROUPED = ("/api/search/ip-details/",)   # the address at the end is not part of the route
 MODE_ROUTES = ("/api/plugins/unifi/top-traffic",)   # the mode parameter makes a route of its own
 
@@ -30,7 +32,7 @@ _rows: dict[tuple[str, str], dict] = {}
 def route_of(url: str) -> str:
     """The route a URL counts under: path without the query, grouped address, `mode` kept where it matters."""
     u = urlsplit(url)
-    path = u.path
+    path = KEY_IN_PATH.sub("/*", u.path)   # a key in the path (Shinobi: /<api key>/monitor/<group>) never reaches the counters
     for prefix in GROUPED:
         if path.startswith(prefix):
             path = prefix + "*"

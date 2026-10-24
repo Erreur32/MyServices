@@ -611,6 +611,30 @@ def services_meta_edit(body: ServiceMeta, request: Request):
     return {"ok": True, "key": key}
 
 
+@app.get(API + "/stream/snapshot", tags=["services"], summary="Image du moment d'une caméra, lue à la demande et jamais gardée (admin)")
+def stream_snapshot(connector: str, name: str, camera: str, request: Request):
+    import connectors
+    if denied := admin_only(request):
+        return denied
+    data = read_produced("data.json") or {}
+    status = next((c for c in data.get("services_status") or [] if c.get("connector") == connector and c.get("name") == name), None)
+    block = (status or {}).get("stream") or {}
+    known = {c.get("name") for c in block.get("cameras") or []} | {x.get("name") for x in block.get("streams") or []}
+    if not block.get("snapshot") or camera not in known:
+        return deny(404, "caméra inconnue (pas vue à la dernière collecte)")
+    try:
+        inst = next((c for c in connectors.instances(core.CFG, kind="status") if c.type == connector and c.name == name), None)
+        if inst is None or not hasattr(inst, "snapshot"):
+            return deny(404, "connecteur introuvable")
+        img = inst.snapshot(camera)
+    except connectors.ConnectorError as e:
+        return deny(502, str(e))
+    if img[:3] != b"\xff\xd8\xff" and img[:8] != b"\x89PNG\r\n\x1a\n":   # JPEG or PNG only
+        return deny(502, "la réponse n'est pas une image")
+    store().audit("image de caméra vue", request.state.user["username"], ip_of(request), f"{name} · {camera}"[:200])
+    return Response(img, media_type="image/png" if img[:4] == b"\x89PNG" else "image/jpeg", headers={"Cache-Control": "no-store"})
+
+
 class ServicePublic(BaseModel):
     domain: str = Field(max_length=253)
     public: bool = True
