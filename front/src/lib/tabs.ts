@@ -79,7 +79,7 @@ export const NAV: NavGroup[] = [
       sub("backups-paths", "settings/backups/paths", "settings", FolderSearch, tx("Emplacements cherchés")),
     ] },
     { id: "security", hash: "security", tab: "security", icon: Shield, label: tx("Sécurité"), subs: [
-      sub("security-watch", "security/watch", "security", Eye, tx("Vue d'ensemble")),   // the findings of every page below, always shown
+      sub("security-overview", "security/overview", "security", Eye, tx("Vue d'ensemble")),   // the findings of every page below, always shown
       sub("security-sites", "security/sites", "security", Globe, tx("Sites exposés")),
       sub("security-access", "security/access", "security", KeyRound, tx("Accès SSH")),
       sub("security-ports", "security/network", "security", Radar, tx("Ports du réseau")),
@@ -108,7 +108,7 @@ export const NAV: NavGroup[] = [
     ] },
     { id: "app", hash: "settings/tasks", tab: "settings", icon: SlidersHorizontal, label: tx("Application"), subs: [
       sub("tasks", "settings/tasks", "settings", Timer, tx("Tâches et horaires")),
-      sub("discovery", "settings/network", "settings", ScanSearch, tx("Découverte automatique")),   // its mode, what to do, the other suggestions
+      sub("discovery", "settings/discovery", "settings", ScanSearch, tx("Découverte automatique")),   // its mode, what to do, the other suggestions
       sub("updates", "settings/updates", "settings", RefreshCw, tx("Mises à jour")),
       sub("mail", "settings/mail", "settings", Mail, tx("E-mail")),
       sub("export", "settings/export", "settings", ArrowDownUp, tx("Export et import")),

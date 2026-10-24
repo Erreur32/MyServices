@@ -15,9 +15,9 @@ describe("Sidebar", () => {
     const order = ["MyServices", "En bref", ">Accueil<", "Inventaire", "Machines", "Réseau", "Protection", "Sauvegardes", "Sécurité", "Administration", "Connecteurs", "Notifications", "Comptes et accès", "Application"].map((l) => html.indexOf(l));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
-    expect(html).toContain('href="#security/watch"');   // Security opens its Overview, even with nothing to report
+    expect(html).toContain('href="#security/overview"');   // Security opens its Overview, even with nothing to report
     const watched = renderToStaticMarkup(<Sidebar snap={snap()} badges={{ security: "warn" }} onNavigate={noop} onBadge={noop} mobileOpen={false} onClose={noop} />);
-    expect(watched).toContain('href="#security/watch"');   // an entry with sub-pages opens its first one
+    expect(watched).toContain('href="#security/overview"');   // an entry with sub-pages opens its first one
   });
   it("une pastille cliquable sur l'entrée de l'onglet en alerte", () => {
     const html = renderToStaticMarkup(<Sidebar snap={snap()} badges={{ backups: "crit" }} onNavigate={noop} onBadge={noop} mobileOpen={false} onClose={noop} />);

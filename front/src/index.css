@@ -86,7 +86,7 @@ body {
 .nudge { animation: nudge 1.8s ease-out infinite; }
 @media (prefers-reduced-motion: reduce) { .nudge { animation: none; box-shadow: 0 0 0 2px rgb(var(--link) / .6); } }
 
-/* Cadre visé par un lien de découverte (#settings/network/scan) : il s'allume quelques secondes pour qu'on le repère */
+/* Cadre visé par un lien de découverte (#settings/discovery/suggestions) : il s'allume quelques secondes pour qu'on le repère */
 @keyframes flash { 0%, 100% { box-shadow: 0 0 0 0 rgb(var(--link) / 0); } 30%, 70% { box-shadow: 0 0 0 3px rgb(var(--link) / .7); } }
 .flash { animation: flash 1.2s ease-in-out 2; }
 @media (prefers-reduced-motion: reduce) { .flash { animation: none; box-shadow: 0 0 0 3px rgb(var(--link) / .7); } }

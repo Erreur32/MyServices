@@ -64,7 +64,7 @@ function Row({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; ma
  *  suggestions and those forgotten in Application › Automatic discovery; the apps (to activate, stopped, forgotten) are Connectors › Detected to link */
 export type DiscoveryPart = "mode" | "hosts" | "suggestions" | "forgotten";
 type Part = DiscoveryPart;
-/** Where an old #settings/network/<part> address now lives (null: Application › Automatic discovery, #settings/network itself) */
+/** Where an old #settings/network/<part> address now lives (null: Application › Automatic discovery, #settings/discovery) */
 export function discoveryMoved(hash: string): string | null {
   const v = hash.split("/")[2];
   if (v === "hosts" || v === "network" || v === "scan") return "#settings/machines/devices";

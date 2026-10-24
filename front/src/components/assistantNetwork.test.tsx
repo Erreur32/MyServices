@@ -33,7 +33,7 @@ describe("étape réseau de l'assistant", () => {
     expect(html).not.toContain("camera");   // pas dans l'assistant : seulement un ping possible, à ajouter plus tard depuis Découverte
     expect(html).not.toContain("Autres appareils");
     expect(html).toContain("Une machine manque ?");
-    expect(html).not.toContain('href="#settings/network"');   // la phrase sur les autres appareils n'est pas un lien (on la prendrait pour un bouton)
+    expect(html).not.toContain('href="#settings/discovery"');   // la phrase sur les autres appareils n'est pas un lien (on la prendrait pour un bouton)
     expect(html).not.toContain("deja");     // déjà suivie : pas proposée
   });
 
