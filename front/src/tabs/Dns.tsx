@@ -15,9 +15,7 @@ import { tx } from "../lib/i18n";
 import { hm } from "../lib/format";
 import { usePageView, useRoute } from "../lib/route";
 import { StatTile } from "../components/StatTile";
-import { WatchPanel } from "../components/WatchPanel";
-import { quiet, worstTone } from "../lib/forms";
-import { dnsFigures, dnsWatch, serverUp, type DnsFigures, type DnsRow } from "../lib/dnsState";
+import { dnsFigures, dnsWatch, serverUp, type DnsFigures } from "../lib/dnsState";
 import { HeadTags } from "../components/HeadTags";
 
 type RowTone = "ok" | "warn" | "bad";
@@ -101,32 +99,6 @@ function Figures({ g, fig, st, last }: Readonly<{ g: Dns; fig: DnsFigures; st: {
   );
 }
 
-/** « To watch », one row per problem, a button to its section */
-function Watch({ watch, onShow }: Readonly<{ watch: DnsRow[]; onShow: (anchor: string) => void }>) {
-  const worst = worstTone(watch.some((w) => w.sev === "bad"), watch.length > 0);
-  return (
-    <WatchPanel id="dns" tone={worst} count={watch.length} hint={tx("instance muette, synchro, domaine qui ne résout pas ou ailleurs, réécritures")}>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[560px] border-collapse text-sm">
-          <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-            <th className="px-3 py-2">{tx("Domaine")}</th><th className="px-3 py-2">{tx("Quoi")}</th><th className="px-3 py-2">{tx("Détail")}</th><th className="w-24 px-3 py-2" />
-          </tr></thead>
-          <tbody>
-            {watch.map((w) => (
-              <tr key={w.key} className="border-t border-line/60 even:bg-bg/50 hover:bg-bg2/40">
-                <td className="px-3 py-2"><Badge tone={w.sev}>{w.area}</Badge></td>
-                <td className="px-3 py-2 font-semibold">{w.title}</td>
-                <td className="px-3 py-2 text-muted">{w.detail}</td>
-                <td className="px-3 py-2 text-right"><button type="button" onClick={() => onShow(w.anchor)} className={`${quiet} py-1`}>{tx("Voir")}</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </WatchPanel>
-  );
-}
-
 /** One card per DNS server: an AdGuard instance (its configuration) or the container's resolver */
 function ServerCard({ ip, v, origin }: Readonly<{ ip: string; v: Dns["servers"][string]; origin?: string }>) {
   const ok = serverUp(v), logo = v.resolver ? null : appIcon(["AdGuard Home"]);
@@ -158,7 +130,8 @@ function SyncCard({ g, st, last, content, diffCount }: Readonly<{ g: Dns; st: { 
 }
 
 /** « See all »: the detail tables (AdGuard rewrites, NPM domains to check, machine names) */
-function AllTables({ g, hosts, lit, st, diff }: Readonly<{ g: Dns; hosts: Host[]; lit?: string; st: { cls: RowTone }; diff: Rewrite[] }>) {
+function AllTables({ g, hosts, lit, st, diff, only }: Readonly<{ g: Dns; hosts: Host[]; lit?: string; st: { cls: RowTone }; diff: Rewrite[]; only?: Set<string> }>) {
+  const shown = (id: string) => !only || only.has(id);   // « Alerts »: only the tables an alert points to
   const sync = Object.values(g.sync || {})[0];
   const name = (ip?: string) => (ip && g.servers[ip]?.name) || ip || "?";
   const rows = hosts.filter((r) => r.dns && r.enabled && r.dns.issues.length);
@@ -167,35 +140,35 @@ function AllTables({ g, hosts, lit, st, diff }: Readonly<{ g: Dns; hosts: Host[]
   return (
     <div className="flex flex-col gap-4">
       {!g.resolver && <>
-        <DataCard id="diff" lit={lit} title={tx("Présent sur une seule instance")} tone="bad" cols={[{ label: tx("Entrée"), className: "w-[55%]" }, { label: tx("Seulement sur") }]}
+        {shown("diff") && <DataCard id="diff" lit={lit} title={tx("Présent sur une seule instance")} tone="bad" cols={[{ label: tx("Entrée"), className: "w-[55%]" }, { label: tx("Seulement sur") }]}
           rows={diff.map((x) => [<span key="e">{x.rule ? <>{tx("règle")} {code(x.rule)}</> : code(`${x.domain} → ${x.answer}`)}</span>, <b key="o" className="font-medium">{name(x.only)}</b>])}
-          note={sync && st.cls === "warn" ? `Synchro à l'heure : sera recopié au prochain passage. Toujours modifier sur ${name(sync.origin)}.` : undefined} />
-        <DataCard id="orphans" lit={lit} title={tx("Réécritures vers NPM sans host NPM actif")} tone="warn" cols={[{ label: tx("Domaine"), className: "w-[38%]" }, { label: tx("Réponse"), className: "w-[22%]" }, { label: tx("Pourquoi") }]}
-          rows={g.orphans.map((x) => [<b key="d" className="font-medium">{x.domain}</b>, <span key="a">{code(x.answer)}</span>, <span key="w" className="text-muted">{x.why}</span>])} />
-        <DataCard id="invalid" lit={lit} title={tx("Réécritures au nom invalide (jamais résolues)")} tone="warn" cols={[{ label: tx("Domaine"), className: "w-[55%]" }, { label: tx("Réponse") }]}
-          rows={(g.invalid || []).map((x) => [<b key="d" className="font-medium">{x.domain}</b>, <span key="a">{code(x.answer)}</span>])} />
-        <DataCard title={tx("Réécritures directes, sans NPM")} tone="info" cols={[{ label: tx("Domaine"), className: "w-[55%]" }, { label: tx("Réponse") }]}
-          rows={(g.direct || []).map((x) => [<b key="d" className="font-medium">{x.domain}</b>, <span key="a">{code(x.answer)}</span>])} />
+          note={sync && st.cls === "warn" ? `Synchro à l'heure : sera recopié au prochain passage. Toujours modifier sur ${name(sync.origin)}.` : undefined} />}
+        {shown("orphans") && <DataCard id="orphans" lit={lit} title={tx("Réécritures vers NPM sans host NPM actif")} tone="warn" cols={[{ label: tx("Domaine"), className: "w-[38%]" }, { label: tx("Réponse"), className: "w-[22%]" }, { label: tx("Pourquoi") }]}
+          rows={g.orphans.map((x) => [<b key="d" className="font-medium">{x.domain}</b>, <span key="a">{code(x.answer)}</span>, <span key="w" className="text-muted">{x.why}</span>])} />}
+        {shown("invalid") && <DataCard id="invalid" lit={lit} title={tx("Réécritures au nom invalide (jamais résolues)")} tone="warn" cols={[{ label: tx("Domaine"), className: "w-[55%]" }, { label: tx("Réponse") }]}
+          rows={(g.invalid || []).map((x) => [<b key="d" className="font-medium">{x.domain}</b>, <span key="a">{code(x.answer)}</span>])} />}
+        {!only && <DataCard title={tx("Réécritures directes, sans NPM")} tone="info" cols={[{ label: tx("Domaine"), className: "w-[55%]" }, { label: tx("Réponse") }]}
+          rows={(g.direct || []).map((x) => [<b key="d" className="font-medium">{x.domain}</b>, <span key="a">{code(x.answer)}</span>])} />}
       </>}
-      <DataCard id="domains" lit={lit} title={tx("Domaines NPM à vérifier")} tone={rows.length ? "warn" : "ok"} cols={[{ label: tx("Domaine"), className: "w-[45%]" }, { label: tx("À vérifier") }]}
+      {shown("domains") && <DataCard id="domains" lit={lit} title={tx("Domaines NPM à vérifier")} tone={rows.length ? "warn" : "ok"} cols={[{ label: tx("Domaine"), className: "w-[45%]" }, { label: tx("À vérifier") }]}
         rows={rows.map((r) => [<b key="n" className="font-medium">{hostName(r)}</b>, <span key="i" className="flex flex-wrap gap-1">{r.dns!.issues.map((x) => <span key={`${String(x[0])}-${typeof x[1] === "string" ? x[1] : ""}`} className="inline-flex items-center gap-1.5"><Badge tone="warn">{String(x[0]).replace("_", " ")}</Badge>{typeof x[1] === "string" && x[1] !== hostName(r) && <code className="font-mono text-xs">{x[1]}</code>}</span>)}</span>])}
-        empty={g.resolver ? tx("Tous les domaines NPM actifs résolvent sur le résolveur du réseau.") : tx("Tous les domaines NPM actifs résolvent pareil sur chaque AdGuard.")} note={domainsNote} />
-      <DataCard id="machines" lit={lit} title={tx("Noms des machines suivies")} tone={machines.some((m) => m.state === "ailleurs") ? "warn" : "info"} cols={[{ label: tx("Machine"), className: "w-[30%]" }, { label: "IP", className: "w-[22%]" }, { label: tx("Réponse"), className: "w-[28%]" }, { label: tx("État") }]}
+        empty={g.resolver ? tx("Tous les domaines NPM actifs résolvent sur le résolveur du réseau.") : tx("Tous les domaines NPM actifs résolvent pareil sur chaque AdGuard.")} note={domainsNote} />}
+      {shown("machines") && <DataCard id="machines" lit={lit} title={tx("Noms des machines suivies")} tone={machines.some((m) => m.state === "ailleurs") ? "warn" : "info"} cols={[{ label: tx("Machine"), className: "w-[30%]" }, { label: "IP", className: "w-[22%]" }, { label: tx("Réponse"), className: "w-[28%]" }, { label: tx("État") }]}
         rows={machines.map((m) => [<b key="n" className="font-medium">{m.name}</b>, <span key="ip">{code(m.ip)}</span>, <span key="a" className="font-mono text-xs">{m.answer.join(", ") || "-"}</span>, <Badge key="s" tone={MACHINE_STATE[m.state][0]} outline plainText>{MACHINE_STATE[m.state][1]}</Badge>])}
-        empty={tx("Aucune machine suivie.")} note={tx("Le nom de chaque machine est demandé tel quel, puis avec les domaines de recherche du résolveur. Pas de nom DNS n'est pas une faute : beaucoup de réseaux n'en donnent pas aux machines.")} />
+        empty={tx("Aucune machine suivie.")} note={tx("Le nom de chaque machine est demandé tel quel, puis avec les domaines de recherche du résolveur. Pas de nom DNS n'est pas une faute : beaucoup de réseaux n'en donnent pas aux machines.")} />}
     </div>
   );
 }
 
-/** Sub-pages of DNS in the side menu (#dns/<view>) */
+/** Sub-pages of DNS in the side menu (#dns/<view>); « watch » is no longer in the menu: its old address opens Details on « Alerts » */
 const VIEWS = ["watch", "servers", "all"] as const;
 type View = (typeof VIEWS)[number];
 /** The sub-page holding a section: the servers, or one of the tables of « Details » */
 const viewOf = (anchor: string): View => (anchor === "servers" ? "servers" : "all");
-/** Opened without a view: the one of the section asked for, else « To watch » when something is */
-function openingView(want: string | undefined, watching: number): View {
+/** Opened without a view: the one of the section asked for, Details when the alerts are asked for (the menu's dot, the home page), else the servers */
+function openingView(want: string | undefined, alerts: boolean): View {
   if (want) return viewOf(want);
-  return watching ? "watch" : "servers";
+  return alerts ? "all" : "servers";
 }
 
 export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Selected }>) {
@@ -204,11 +177,9 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
   const [lit, setLit] = useState(want);
   const at = Date.parse(snap.data.generated);
   const watch = g ? dnsWatch(g, snap.data.hosts, at) : [];
-  const view = usePageView(useRoute(), "dns", VIEWS, openingView(want, watch.length));
-  const show = (anchor: string) => {   // a row of « To watch » leads to the sub-page of its section
-    location.hash = `dns/${viewOf(anchor)}`;
-    setTimeout(() => { document.getElementById(`dns-${anchor}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); setLit(anchor); setTimeout(() => setLit(undefined), 2500); }, 150);
-  };
+  const view = usePageView(useRoute(), "dns", VIEWS, openingView(want, !!initial?.alerts));
+  const [alertsOnly, setAlertsOnly] = useState(view === "watch" || !!initial?.alerts);
+  const anchors = new Set(watch.map((w) => w.anchor));
   useEffect(() => {
     if (!want) return;
     document.getElementById(`dns-${want}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -226,6 +197,10 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
   const fig = dnsFigures(g, snap.data.hosts, at);
   const tools = g.resolver ? tx("résolveur du conteneur : {0}", g.resolver.servers.join(", ")) : tx("AdGuard Home ×{0}", Object.keys(g.servers).length);
   const machines = g.machines ?? [];
+  const servers = <Anchor id="servers" lit={lit}><div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+    {!g.resolver && <SyncCard g={g} st={st} last={last} content={content} diffCount={diff.length} />}
+    {Object.entries(g.servers).map(([ip, v]) => <ServerCard key={ip} ip={ip} v={v} origin={sync?.origin} />)}
+  </div></Anchor>;
   return (
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
@@ -234,12 +209,20 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
         {snap.me.role === "admin" && <a href="#settings/connectors" className="ml-auto text-sm text-link hover:underline">{tx("Connecteurs")} ›</a>}
       </div>
       <Figures g={g} fig={fig} st={st} last={last} />
-      {view === "watch" && <Watch watch={watch} onShow={show} />}
-      {view === "servers" && <Anchor id="servers" lit={lit}><div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {!g.resolver && <SyncCard g={g} st={st} last={last} content={content} diffCount={diff.length} />}
-        {Object.entries(g.servers).map(([ip, v]) => <ServerCard key={ip} ip={ip} v={v} origin={sync?.origin} />)}
-      </div></Anchor>}
-      {view === "all" && <AllTables g={g} hosts={snap.data.hosts} lit={lit} st={st} diff={diff} />}
+      {view === "servers" && servers}
+      {(view === "all" || view === "watch") && <>
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={tx("Afficher")}>
+          {[[false, tx("Tout"), null], [true, tx("Alertes"), watch.length]].map(([on, label, n]) => (
+            <button key={String(on)} type="button" aria-pressed={alertsOnly === on} onClick={() => setAlertsOnly(on as boolean)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${alertsOnly === on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
+              {label as string}{n !== null && <span className="font-mono text-[11px] text-dim">{n as number}</span>}
+            </button>
+          ))}
+        </div>
+        {alertsOnly && watch.length === 0 && <Empty>{tx("Aucune alerte DNS : tout répond et résout comme attendu.")}</Empty>}
+        {alertsOnly && anchors.has("servers") && servers}
+        <AllTables g={g} hosts={snap.data.hosts} lit={lit} st={st} diff={diff} only={alertsOnly ? anchors : undefined} />
+      </>}
     </div>
   );
 }

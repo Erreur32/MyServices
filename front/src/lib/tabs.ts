@@ -69,7 +69,6 @@ export const NAV: NavGroup[] = [
       ]),
     ] },
     { id: "dns", hash: "dns", tab: "dns", icon: Network, label: tx("DNS"), subs: [
-      sub("dns-watch", "dns/watch", "dns", Eye, WATCH),
       sub("dns-servers", "dns/servers", "dns", Server, tx("Serveurs")),
       sub("dns-all", "dns/all", "dns", Layers, tx("Détails")),
     ] },
@@ -81,7 +80,6 @@ export const NAV: NavGroup[] = [
     { id: "backups", hash: "backups", tab: "backups", icon: HardDrive, label: tx("Sauvegardes"), subs: [
       views("backups-view", "backups", [
         sub("backups-machines", "backups/machines", "backups", Monitor, tx("Par machine")),
-        sub("backups-watch", "backups/watch", "backups", Eye, WATCH),
         { ...sub("backups-all", "backups/all", "backups", Layers, tx("Jeux")), also: ["settings/backups"] }   // the page of one set: #settings/backups/<set id>,
       ]),
       group("backups-settings", "settings", Settings, tx("Réglages"), [

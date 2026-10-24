@@ -12,12 +12,11 @@ import { Badge, Cards, Dim, Empty, Fill, FilterBar, Level, Pct, Table, TableCard
 import { FoldPanel } from "../components/FoldPanel";
 import { LEVEL } from "../lib/level";
 import { Dot } from "../components/marks";
-import { quiet, worstTone } from "../lib/forms";
+import { quiet } from "../lib/forms";
 import { tx } from "../lib/i18n";
 import { SettingsLink } from "../components/SettingsLink";
 import { StatTile } from "../components/StatTile";
-import { WatchPanel } from "../components/WatchPanel";
-import { cronsOf, figures, newestOf, rank, sourceOf, toWatch, unclaimedCrons } from "../lib/backupsState";
+import { cronsOf, figures, newestOf, rank, sourceOf, unclaimedCrons } from "../lib/backupsState";
 import { HeadTags } from "../components/HeadTags";
 import { MachineIcon } from "../components/MachineIcon";
 import { useStoredFlag } from "../lib/storedFlag";
@@ -241,17 +240,17 @@ export function UnlinkedBackups({ b }: Readonly<{ b?: BackupsData | null }>) {
   );
 }
 
-type SetFilter = "live" | "flagged" | "archived";
+type SetFilter = "live" | "alerts" | "archived";
 const SET_FILTERS: { id: SetFilter; label: string; keep: (s: BackupSet) => boolean }[] = [
   { id: "live", label: tx("En service"), keep: (s) => !s.archived },
-  { id: "flagged", label: tx("Signalés"), keep: (s) => !s.archived && ["warn", "crit", "down"].includes(s.level) },
+  { id: "alerts", label: tx("Alertes"), keep: (s) => !s.archived && s.level !== "ok" },   // the same sets as the menu's dot (toWatch)
   { id: "archived", label: tx("Archivés"), keep: (s) => s.archived },
 ];
 
-/** Backups → Sets: every set, a search (set, machine, folder, schedule…) with a machine filter (set by the link of a machine), three chips
+/** Backups → Sets (also the old « To watch » address, opened on « Alerts »): every set, a search (set, machine, folder, schedule…) with a machine filter (set by the link of a machine), three chips
  *  (in use, flagged, archived); each row unfolds its detail, « Set » opens its settings page */
-function SetsView({ sets, b, snap, initial }: Readonly<{ sets: BackupSet[]; b: BackupsData; snap: Snapshot; initial?: Selected }>) {
-  const [pick, setPick] = useState<SetFilter>("live");
+function SetsView({ sets, b, snap, initial, alerts = false }: Readonly<{ sets: BackupSet[]; b: BackupsData; snap: Snapshot; initial?: Selected; alerts?: boolean }>) {
+  const [pick, setPick] = useState<SetFilter>(alerts ? "alerts" : "live");   // alerts: opened from the menu's dot or the home page
   const [grouped, setGrouped] = useStoredFlag("myservices.backups.setsByMachine", true);   // by machine unless turned off
   const facets = useMemo((): Facet<BackupSet>[] => {
     const hosts = b.hosts ?? [], names = new Map(hosts.map((h) => [h.id, h.label]));
@@ -290,20 +289,20 @@ function SetsView({ sets, b, snap, initial }: Readonly<{ sets: BackupSet[]; b: B
 const VIEWS = ["machines", "watch", "all"] as const;
 type View = (typeof VIEWS)[number];
 
-/** Opened without a view: « To watch » when something is (and no filter came with it), else the main view, by machine */
-function defaultView(watched: number, filtered: boolean): View {
-  return watched && !filtered ? "watch" : "machines";
+/** Opened without a view: the sets on « Alerts » when asked (the menu's dot, the home page), else the main view, by machine.
+ *  « To watch » is no longer in the menu: its old address shows the sets on « Alerts » too */
+function defaultView(alerts: boolean): View {
+  return alerts ? "all" : "machines";
 }
 
 export function Backups({ snap, initial, route }: Readonly<{ snap: Snapshot; initial?: Selected; route: string }>) {
   const b = snap.backups;
-  const watch = toWatch(b?.sets ?? []);
-  const view = usePageView(route, "backups", VIEWS, defaultView(watch.length, !!initial && Object.keys(initial).length > 0));
+  const { alerts, ...hostSel } = initial ?? {};   // « alerts »: the sets on Alerts; the rest filters the machines
+  const view = usePageView(route, "backups", VIEWS, defaultView(!!alerts));
   const [setsFrom, setSetsFrom] = useState<{ sel: Selected; n: number }>({ sel: {}, n: 0 });   // the machine filter brought by « Sets produced » (By machine)
   if (!b) return <Empty>{tx("Sauvegardes pas encore relevées.")}</Empty>;
   const sm = b.summary, fig = figures(b);
   const all = [...(b.sets ?? [])].sort((a, x) => Number(a.archived) - Number(x.archived) || rank(x.level) - rank(a.level) || a.label.localeCompare(x.label));   // archived sets last, kept visible here
-  const worst = worstTone(watch.some((s) => s.level === "crit" || s.level === "down"), watch.length > 0);
   const sources = [...new Set((b.hosts ?? []).map((h) => h.kind).filter(Boolean))];
   return (
     <div className="flex flex-col gap-4 py-4">
@@ -318,15 +317,10 @@ export function Backups({ snap, initial, route }: Readonly<{ snap: Snapshot; ini
         <StatTile n={fig.last ? dateTime(fig.last.mtime * 1000) : "-"} label={tx("Dernière archive")} sub={fig.last ? `${short(fig.last.set.label)} · ${fig.last.name}` : tx("aucune archive vue")} />
       </div>
 
-      {view === "watch" && (
-        <WatchPanel id="backups" tone={worst} count={watch.length} keep pinned hint={tx("jeux en retard, absents, en erreur ou sans copie à jour")}>
-          {watch.length ? <SetsTable sets={watch} b={b} snap={snap} /> : <p className="px-4 py-3 text-sm text-ok">{tx("Tous les jeux suivis sont à jour.")}</p>}
-        </WatchPanel>
-      )}
-      {view === "all" && <SetsView key={setsFrom.n} sets={all} b={b} snap={snap} initial={setsFrom.sel} />}
+      {(view === "all" || view === "watch") && <SetsView key={setsFrom.n} sets={all} b={b} snap={snap} initial={setsFrom.sel} alerts={view === "watch" || !!alerts} />}
       {view === "machines" && (
         <FoldPanel id="backups-hosts" icon={Monitor} title={tx("Par machine")} count={b.hosts?.length ?? 0} pinned>
-          <ByMachine b={b} initial={initial} onSets={(h) => { setSetsFrom((x) => ({ sel: { machine: [h.id] }, n: x.n + 1 })); location.hash = "backups/all"; }} />
+          <ByMachine b={b} initial={hostSel} onSets={(h) => { setSetsFrom((x) => ({ sel: { machine: [h.id] }, n: x.n + 1 })); location.hash = "backups/all"; }} />
         </FoldPanel>
       )}
     </div>

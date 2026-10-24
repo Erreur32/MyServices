@@ -2378,7 +2378,6 @@ export const EN: Record<string, string> = {
   "Chaque ligne cron de sauvegarde trouvée est réclamée par un jeu suivi.": "Every backup cron line found is claimed by a followed set.",
   "Des lignes cron trouvées sur vos machines qu'aucun jeu suivi ne réclame : peut-être une sauvegarde à déclarer dans « Ajouter des sauvegardes ».": "Cron lines found on your machines that no followed set claims: maybe a backup to declare in « Add backups ».",
   "En service": "In use",
-  "Signalés": "Flagged",
   "Archivés": "Archived",
   "archivé": "archived",
   "Ce qui est suivi": "What is followed",
@@ -2853,8 +2852,6 @@ export const EN: Record<string, string> = {
   "Absente ou en erreur": "Missing or failing",
   "{0} sans copie hors machine": "{0} with no copy off the machine",
   "aucune archive vue": "no archive seen",
-  "jeux en retard, absents, en erreur ou sans copie à jour": "sets late, missing, failing or without an up-to-date copy",
-  "Tous les jeux suivis sont à jour.": "Every followed set is up to date.",
   // Settings › Backups (2026-10-19): sets in a list, sources as tiles, rules folded
   "{0} copie(s)": "{0} copy(ies)",
   "{0} jeu(x) suivi(s)": "{0} set(s) followed",
@@ -2972,7 +2969,6 @@ export const EN: Record<string, string> = {
   "domaines NPM qui résolvent comme attendu": "NPM domains resolving as expected",
   "identiques sur chaque instance": "identical on every instance",
   "Instance": "Instance",
-  "instance muette, synchro, domaine qui ne résout pas ou ailleurs, réécritures": "silent instance, sync, domain not resolving or elsewhere, rewrites",
   "instances AdGuard qui répondent": "AdGuard instances answering",
   "Le nom de chaque machine est demandé tel quel, puis avec les domaines de recherche du résolveur. Pas de nom DNS n'est pas une faute : beaucoup de réseaux n'en donnent pas aux machines.": "Each machine name is asked as is, then with the resolver's search domains. No DNS name is not a fault: many networks give none to machines.",
   "ne résout pas": "does not resolve",
@@ -3240,4 +3236,5 @@ export const EN: Record<string, string> = {
   "Comparer chaque archive": "Compare each archive",
   "Activé : chaque archive de la source doit se trouver sur les copies (dossier de fichiers qui ne changent pas). Désactivé : seule la plus récente est comparée.": "On: each archive of the source must be on the copies (a folder of files that do not change). Off: only the newest one is compared.",
   "Regrouper les jeux sous le nom de leur machine": "Group the sets under the name of their machine",
+  "Aucune alerte DNS : tout répond et résout comme attendu.": "No DNS alert: everything answers and resolves as expected.",
 };

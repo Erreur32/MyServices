@@ -28,14 +28,18 @@ const snap = {
 } as unknown as Snapshot;
 
 describe("onglet Sauvegardes", () => {
-  it("opened bare: the figures and « To watch », the other views are sub-pages of the menu", () => {
-    const html = renderToStaticMarkup(<Backups snap={snap} route="#backups" />);
-    for (const t of ["À jour", "Absente ou en erreur", "Dernière archive", "base.tar.gz", "À surveiller", "aucune copie hors machine à jour"])
+  it("opened from the menu's dot: the figures and the sets on « Alerts », no « To watch » page any more", () => {
+    const html = renderToStaticMarkup(<Backups snap={snap} route="#backups" initial={{ alerts: ["on"] }} />);
+    for (const t of ["À jour", "Absente ou en erreur", "Dernière archive", "base.tar.gz", "Jeux</h2>", "aucune copie hors machine à jour"])
       expect(html).toContain(t);
-    expect(html).toContain(">ha<");   // the set to watch, its label without the machine prefix
-    expect(html).not.toContain(">old<");   // an archived set is not to watch
-    expect(html).not.toContain("Tous les jeux</h2>");
-    expect(html).not.toContain("91 %");
+    expect(html).toMatch(/aria-pressed="true"[^>]*>Alertes</);   // the Alerts chip is the one picked
+    expect(html).toContain(">ha<");   // the set in alert, its label without the machine prefix
+    expect(html).not.toContain(">old<");   // an archived set is no alert
+    expect(html).not.toContain("À surveiller");
+  });
+  it("opened bare: the view by machine; the old #backups/watch address shows the sets on « Alerts »", () => {
+    expect(renderToStaticMarkup(<Backups snap={snap} route="#backups" />)).toContain("Par machine</h2>");
+    expect(renderToStaticMarkup(<Backups snap={snap} route="#backups/watch" />)).toMatch(/aria-pressed="true"[^>]*>Alertes</);
   });
   it("#backups/all: the sets in use, the archived ones behind their chip; #backups/machines: the view by machine", () => {
     const all = renderToStaticMarkup(<Backups snap={snap} route="#backups/all" />);

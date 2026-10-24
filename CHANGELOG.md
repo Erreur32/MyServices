@@ -19,6 +19,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 - **Backups › Sets, a search**: a search field (set, machine, folder, schedule, place of a copy) and a machine filter in chips, above the three chips (in use, flagged, archived), whose counts follow it. On Backups › By machine, the « Sets produced » badge of a machine opens the sets filtered on that machine.
 
 ### Changed
+- **Backups and DNS, no « To watch » page in the menu any more**: the alerts are a filter of the pages. The menu's dot (and the home page lines) open Backups › Sets on the new « Alerts » chip (the sets not ok, archived ones left out; it replaces « Flagged ») and DNS › Details on « Alerts » (only the tables an alert points to, and the server and sync cards when the alert is there; « All » shows everything again). The old #backups/watch and #dns/watch addresses still open these filtered views. Opened bare, Backups shows By machine and DNS its servers.
 - **Backups › Settings › To link, local backup folders**: the Folder column gets a set width instead of all the room left; the sets that cover a folder take it, one badge each.
 
 ## v0.20.2 (2026-10-23)
