@@ -114,7 +114,7 @@ export function Header({ snap, theme, toggleTheme, now, onMenu }: Readonly<{ sna
           </div>
         </div>
       </div>
-      <div className="flex items-center justify-center gap-6">{/* the middle: a pass running, an update notice */}
+      <div className="flex h-0 items-center justify-center gap-6">{/* the middle: a pass running, an update notice; no height of its own, the 64 px orb spills into the header's padding instead of making it taller */}
         <ScanOrb />
         {updates.toast && <UpdateToast news={updates.toast} version={version} onClose={updates.close} />}
       </div>
