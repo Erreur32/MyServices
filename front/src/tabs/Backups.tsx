@@ -128,7 +128,7 @@ function SetsTable({ sets, b, snap, sizes = false, grouped = false }: Readonly<{
 function MachineHeader({ name, sets, m, cols }: Readonly<{ name: string; sets: BackupSet[]; m?: Machine; cols: number }>) {
   const worst = sets.reduce((w, x) => (rank(x.level) > rank(w.level) ? x : w), sets[0]);
   return (
-    <tr className="border-t-2 border-line bg-bg2/70">
+    <tr className="border-t-2 border-line bg-bg">
       <td colSpan={cols} className="px-3 py-2">
         <span className="flex flex-wrap items-center gap-2.5">
           {m ? <MachineIcon m={m} /> : <Monitor size={16} className="text-dim" aria-hidden />}
