@@ -16,12 +16,14 @@ import { connectorCounts, networkCounts, upkeepCounts, virtualCounts, wazuhCount
 import { NetworkGroup } from "./NetworkGroup";
 import { Group, Mark, type Cell, type Open } from "./StatGroup";
 import type { Selected } from "../lib/filter";
+import { hiddenNow, isHidden } from "../lib/servicesHidden";
 
 /** Groupes de compteurs, par onglet : la colonne de droite les empile tous, l'accueil range chacun sous son paragraphe */
 export function statGroups(snap: Snapshot, nav: Open): Partial<Record<TabId, ReactNode[]>> {
   const { data, health, backups } = snap;
   const npm = data.hosts.filter((r) => r.type !== "local"), local = data.hosts.filter((r) => r.type === "local");
-  const n = (rows: typeof npm, cls: string) => rows.filter((r) => r.enabled && status(r)[0] === cls).length;
+  const hidden = hiddenNow(), followed = (r: (typeof npm)[number]) => !isHidden(r, hidden);   // a service hidden from « To watch » is no longer counted as down or to fix
+  const n = (rows: typeof npm, cls: string) => rows.filter((r) => r.enabled && status(r)[0] === cls && (cls !== "bad" || followed(r))).length;
   const hl = (l: string) => (health?.hosts || []).filter((h) => (h.reachable === false ? "down" : h.level) === l).length;
   const dns = data.dns;
   const ms = (data.machine_list || []).filter((m) => !m.disabled), ml = (...st: ReturnType<typeof mState>[]) => ms.filter((m) => st.includes(mState(m))).length;
@@ -31,7 +33,7 @@ export function statGroups(snap: Snapshot, nav: Open): Partial<Record<TabId, Rea
       ["off", ml("off"), tx("éteintes"), { state: ["off"] }], ["bad", ml("down"), tx("injoignables"), { state: ["down"] }]]} />,
     npm.length > 0 && <Group key="npm" mark={<Mark app="Nginx Proxy Manager" Icon={Boxes} />} title={tx("NPM")} sub={tx("{0} entrées", npm.length)} accent="border-l-npm" tab="services" nav={nav} cells={[
       ["ok", n(npm, "ok"), tx("OK"), { src: ["npm"], status: ["ok"] }], ["bad", n(npm, "bad"), tx("en panne"), { src: ["npm"], status: ["bad"] }],
-      ["warn", npm.filter((r) => checks(r).some((c) => !CLEANUP.includes(c))).length, tx("à corriger"), { src: ["npm"], check: [...new Set(npm.flatMap(checks).filter((c) => !CLEANUP.includes(c)))] }],
+      ["warn", npm.filter((r) => followed(r) && checks(r).some((c) => !CLEANUP.includes(c))).length, tx("à corriger"), { src: ["npm"], check: [...new Set(npm.flatMap(checks).filter((c) => !CLEANUP.includes(c)))] }],
       ["off", npm.filter((r) => !r.enabled).length, tx("désactivés"), { src: ["npm"], status: ["off"] }]]} />,
     local.length > 0 && <Group key="loc" mark={<Mark app="Docker" Icon={Boxes} />} title={tx("Services")} sub={tx("{0} services", local.length)} accent="border-l-loc" tab="services" nav={nav} cells={[
       ["ok", n(local, "ok"), tx("en ligne"), { src: ["local"], status: ["ok"] }], ["bad", n(local, "bad"), "down", { src: ["local"], status: ["bad"] }],
@@ -105,7 +107,7 @@ function useWeekAvailability(generated: string): number | null {
 function KeyFigures({ snap }: Readonly<{ snap: Snapshot }>) {
   const { data, health, backups } = snap;
   const ms = (data.machine_list || []).filter((m) => !m.disabled), up = ms.filter((m) => mState(m) !== "down").length;
-  const hosts = data.hosts.filter((r) => r.enabled && status(r)[0] !== "off"), online = hosts.filter((r) => status(r)[0] === "ok").length;
+  const hidden = hiddenNow(), hosts = data.hosts.filter((r) => r.enabled && status(r)[0] !== "off" && !isHidden(r, hidden)), online = hosts.filter((r) => status(r)[0] === "ok").length;
   const hOk = (health?.hosts ?? []).filter((h) => h.reachable !== false && h.level === "ok").length, hAll = health?.hosts.length ?? 0;
   const c = connectorCounts(snap), week = useWeekAvailability(data.generated);
   return (

@@ -1,5 +1,5 @@
 // Menu de gauche : groupes, entrées, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Activity, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Boxes, EyeOff, Lightbulb, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -23,14 +23,13 @@ const views = (id: string, tab: TabId, subs: NavItem[]): NavItem => group(id, ta
 const unifiShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => c.connector === "unifi") || (s.data.network ?? []).some((c) => !!c.unifi);
 const freeboxShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => c.connector === "freebox");
 const scanShown = (s: Snapshot) => (s.data.network ?? []).some((c) => c.connector === "mynetwork");
-const WATCH = tx("À surveiller");
 
 /** The side menu, in four groups; an entry whose source is missing is left out, and so is a group left empty. The pages of
  *  Settings (#settings/<section>[/<part>]) are spread over the topic they set and the Administration group. */
 export const NAV: NavGroup[] = [
-  { id: "overview", label: tx("Vue d'ensemble"), items: [
+  { id: "overview", label: tx("En bref"), items: [   // « Vue d'ensemble » is Security's page alone
     { id: "home", hash: "", tab: "home", icon: House, label: tx("Accueil"), subs: [
-      { ...sub("home-overview", "", "home", LayoutDashboard, tx("Vue d'ensemble")), also: ["home"] },
+      { ...sub("home-overview", "", "home", LayoutDashboard, tx("Tableau de bord")), also: ["home"] },
       sub("home-stats", "stats", "home", BarChart3, tx("Statistiques")),
     ] },
     { id: "history", hash: "history", tab: "home", icon: History, label: tx("Historique"), subs: [
@@ -46,30 +45,20 @@ export const NAV: NavGroup[] = [
       sub("machines-ssh", "settings/machines/ssh", "settings", KeyRound, tx("Connexions SSH")),
     ] },
     { id: "services", hash: "services", tab: "services", icon: Globe, label: tx("Services"), subs: [
-      sub("services-watch", "services/watch", "services", Eye, WATCH),
       { ...sub("services-all", "services/all", "services", Layers, tx("Tous les services")), also: ["services/item", "services/edit", "services/manual"] },
       sub("services-fresh", "services/fresh", "services", Sparkles, tx("Nouveaux services"), (s) => s.me.role === "admin"),   // found these 7 days, to keep or pause
       sub("services-new", "services/new", "settings", PenLine, tx("Déclarer un service")),
     ] },
     { id: "network", hash: "network", tab: "network", icon: Router, label: tx("Réseau"), subs: [
       views("network-view", "network", [
-        sub("network-watch", "network/watch", "network", Eye, WATCH),
         sub("network-unifi", "network/unifi", "network", LayoutDashboard, tx("UniFi"), unifiShown),
         sub("network-freebox", "network/freebox", "network", House, tx("Freebox"), freeboxShown),
         sub("network-scan", "network/scan", "network", Radar, tx("Scan"), scanShown),
         sub("network-list", "network/list", "network", List, tx("Équipements et appareils")),
         sub("network-diagnostic", "network/diagnostic", "network", Stethoscope, tx("Diagnostic")),
       ]),
-      group("network-discovery", "settings", ScanSearch, tx("Découverte"), [
-        sub("discovery-mode", "settings/network", "settings", SlidersHorizontal, tx("Mode et à faire")),
-        sub("discovery-hosts", "settings/network/hosts", "settings", Radar, tx("Machines sur le réseau")),
-        sub("discovery-apps", "settings/network/services", "settings", Boxes, tx("Applis à activer")),
-        sub("discovery-suggestions", "settings/network/suggestions", "settings", Lightbulb, tx("Autres suggestions")),
-        sub("discovery-forgotten", "settings/network/forgotten", "settings", EyeOff, tx("Arrêtés et oubliés")),
-      ]),
     ] },
     { id: "dns", hash: "dns", tab: "dns", icon: Network, label: tx("DNS"), subs: [
-      sub("dns-watch", "dns/watch", "dns", Eye, WATCH),
       sub("dns-servers", "dns/servers", "dns", Server, tx("Serveurs")),
       sub("dns-all", "dns/all", "dns", Layers, tx("Détails")),
     ] },
@@ -81,31 +70,21 @@ export const NAV: NavGroup[] = [
     { id: "backups", hash: "backups", tab: "backups", icon: HardDrive, label: tx("Sauvegardes"), subs: [
       views("backups-view", "backups", [
         sub("backups-machines", "backups/machines", "backups", Monitor, tx("Par machine")),
-        sub("backups-watch", "backups/watch", "backups", Eye, WATCH),
         { ...sub("backups-all", "backups/all", "backups", Layers, tx("Jeux")), also: ["settings/backups"] }   // the page of one set: #settings/backups/<set id>,
       ]),
-      group("backups-settings", "settings", Settings, tx("Réglages"), [
-        sub("backups-add", "settings/backups/add", "settings", Plus, tx("Ajouter des sauvegardes")),
-        sub("backups-unlinked", "settings/backups/unlinked", "settings", Link2, tx("À relier")),
-        sub("backups-copies", "settings/backups/copies", "settings", Copy, tx("Copies ailleurs")),
-        sub("backups-paths", "settings/backups/paths", "settings", FolderSearch, tx("Emplacements cherchés")),
-      ]),
+      sub("backups-add", "settings/backups/add", "settings", Plus, tx("Ajouter des sauvegardes")),
+      sub("backups-unlinked", "settings/backups/unlinked", "settings", Link2, tx("À relier")),
+      sub("backups-copies", "settings/backups/copies", "settings", Copy, tx("Copies ailleurs")),
+      sub("backups-paths", "settings/backups/paths", "settings", FolderSearch, tx("Emplacements cherchés")),
     ] },
     { id: "security", hash: "security", tab: "security", icon: Shield, label: tx("Sécurité"), subs: [
-      sub("security-watch", "security/watch", "security", Eye, WATCH),
+      sub("security-overview", "security/overview", "security", Eye, tx("Vue d'ensemble")),   // the findings of every page below, always shown
       sub("security-sites", "security/sites", "security", Globe, tx("Sites exposés")),
       sub("security-access", "security/access", "security", KeyRound, tx("Accès SSH")),
       sub("security-ports", "security/network", "security", Radar, tx("Ports du réseau")),
       sub("security-certs", "security/certs", "security", FileBadge, tx("Certificats")),
       sub("fail2ban", "security/fail2ban", "security", Ban, tx("Fail2ban"), (s) => (s.data.security ?? []).length > 0),   // a Fail2ban read (LogviewR)
       sub("security-wazuh", "security/wazuh", "security", ShieldCheck, "Wazuh", (s) => (s.data.services_status ?? []).some((c) => c.connector === "wazuh")),   // a Wazuh connector
-    ] },
-    { id: "alerts", hash: "settings/alerts/channels", tab: "settings", icon: Bell, label: tx("Alertes"), subs: [
-      sub("alerts-channels", "settings/alerts/channels", "settings", Radio, tx("Canaux")),
-      sub("alerts-rules", "settings/alerts/rules", "settings", ListChecks, tx("Règles d'alerte")),
-      sub("alerts-notifications", "settings/alerts/notifications", "settings", Send, tx("Mes notifications")),
-      sub("alerts-examples", "settings/alerts/examples", "settings", Sparkles, tx("Exemples")),
-      sub("alerts-sent", "settings/alerts/sent", "settings", History, tx("Derniers envois")),
     ] },
   ] },
   { id: "admin", label: tx("Administration"), items: [
@@ -115,20 +94,29 @@ export const NAV: NavGroup[] = [
       sub("connectors-detected", "settings/connectors/detected", "settings", Radar, tx("Détectés à relier")),
       sub("connectors-read", "settings/connectors/read", "settings", Server, tx("Déjà lus par SSH ou agent")),
     ] },
+    { id: "alerts", hash: "settings/alerts/channels", tab: "settings", icon: Bell, label: tx("Notifications"), subs: [   // where and when the alerts are sent
+      sub("alerts-channels", "settings/alerts/channels", "settings", Radio, tx("Canaux")),
+      sub("alerts-rules", "settings/alerts/rules", "settings", ListChecks, tx("Règles d'alerte")),
+      sub("alerts-notifications", "settings/alerts/notifications", "settings", Send, tx("Mes notifications")),
+      sub("alerts-examples", "settings/alerts/examples", "settings", Sparkles, tx("Exemples")),
+      sub("alerts-sent", "settings/alerts/sent", "settings", History, tx("Derniers envois")),
+    ] },
     { id: "access", hash: "settings/accounts", tab: "settings", icon: Users, label: tx("Comptes et accès"), subs: [
       sub("accounts", "settings/accounts", "settings", Users, tx("Comptes et sessions")),
       sub("api", "settings/api", "settings", Webhook, tx("Jetons API et MCP")),
-      sub("ssh", "settings/ssh", "settings", KeyRound, tx("Clé SSH de l'app")),
     ] },
     { id: "app", hash: "settings/tasks", tab: "settings", icon: SlidersHorizontal, label: tx("Application"), subs: [
       sub("tasks", "settings/tasks", "settings", Timer, tx("Tâches et horaires")),
+      sub("discovery", "settings/discovery", "settings", ScanSearch, tx("Découverte automatique")),   // its mode, what to do, the other suggestions
       sub("updates", "settings/updates", "settings", RefreshCw, tx("Mises à jour")),
       sub("mail", "settings/mail", "settings", Mail, tx("E-mail")),
       sub("export", "settings/export", "settings", ArrowDownUp, tx("Export et import")),
+      sub("about", "about", "settings", Info, tx("Informations")),
+    ] },
+    { id: "activity", hash: "settings/requests", tab: "settings", icon: Activity, label: tx("Activité"), subs: [   // what the app does, apart from its settings
       sub("requests", "settings/requests", "settings", Activity, tx("Requêtes")),
       sub("audit", "settings/requests/audit", "settings", ScrollText, tx("Journal d'audit")),
       sub("logs", "settings/requests/logs", "settings", FileText, tx("Journaux")),
-      sub("about", "about", "settings", Info, tx("Informations")),
     ] },
   ] },
 ];

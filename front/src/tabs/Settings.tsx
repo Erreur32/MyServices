@@ -11,8 +11,7 @@ import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { NotificationsHub } from "./NotificationsHub";
 import { Connectors, connectorsPart } from "./Connectors";
 import { MachinesSection } from "./MachinesSection";
-import { KeyRefusedAlert } from "./MachinesSettings";
-import { NetworkSettings } from "./NetworkSettings";
+import { discoveryMoved, NetworkSettings } from "./NetworkSettings";
 import { IconChoice, type IconOption } from "../components/IconChoice";
 import { UpdatesSettings } from "./UpdatesSettings";
 import { ActivityHub } from "./ActivityHub";
@@ -27,13 +26,17 @@ import { PasswordRules } from "../components/PasswordRules";
 import { InfoNote } from "../components/InfoNote";
 
 /** The sections, reached from the side menu (#settings/<section>[/<part>]); their place in the menu: lib/tabs.ts (NAV) */
-const SECTIONS = new Set(["machines", "connectors", "network", "backups", "alerts", "accounts", "api", "ssh", "tasks", "updates", "requests", "mail", "export"]);
+const SECTIONS = new Set(["machines", "connectors", "discovery", "backups", "alerts", "accounts", "api", "tasks", "updates", "requests", "mail", "export"]);
 
 const ROLE: Record<User["role"], string> = { admin: "admin", viewer: tx("lecture seule") };
 const ROLE_CHOICE: IconOption<User["role"]>[] = [
   { value: "viewer", label: tx("Lecture seule"), hint: tx("Voit la page et peut demander un passage (⟳)"), icon: <Eye size={26} className="text-ok" aria-hidden /> },
   { value: "admin", label: tx("Admin"), hint: tx("Tout, réglages compris"), icon: <ShieldCheck size={26} className="text-link" aria-hidden /> },
 ];
+
+/** Where a section id read from the address or from memory leads; the old #settings/network[/<part>] goes to Automatic discovery,
+ *  or to the new page of a part that moved (the machines found, the apps) */
+const sectionTarget = (id: string) => id === "network" ? { redirect: (discoveryMoved(location.hash) ?? "#settings/discovery").slice(1) } : normalizeSection(id);
 
 /** The panel of the open section; Tasks and schedules is the fallback */
 function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snapshot }>) {
@@ -42,11 +45,10 @@ function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snaps
     case "alerts": return <NotificationsHub />;
     case "connectors": return <Connectors snap={snap} part={connectorsPart(location.hash.split("/")[2])} />;
     case "machines": return <MachinesSection snap={snap} />;
-    case "network": return <NetworkSettings snap={snap} />;
+    case "discovery": return <NetworkSettings snap={snap} parts={["mode", "suggestions", "forgotten"]} />;   // Application › Automatic discovery
     case "updates": return <UpdatesSettings />;
     case "requests": return <ActivityHub />;
     case "api": return <ApiMcp />;
-    case "ssh": return <div className="flex flex-col gap-4"><KeyRefusedAlert snap={snap} /><SystemSettings part="ssh" snap={snap} /></div>;
     case "mail": return <SystemSettings part="mail" snap={snap} />;
     case "export": return <SystemSettings part="export" snap={snap} />;
     case "backups": return <BackupsSettings machines={snap.data.machine_list} issues={snap.backups?.issues ?? []} backups={snap.backups} />;
@@ -56,7 +58,7 @@ function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snaps
 
 /** The section wanted by an id read from the address or from memory: follows a redirect (an old section, now a page apart), else a known section, else the fallback */
 function sectionFromId(id: string): string {
-  const norm = normalizeSection(id);
+  const norm = sectionTarget(id);
   if (norm.redirect) { location.hash = norm.redirect; return "accounts"; }
   return SECTIONS.has(norm.section!) ? norm.section! : "accounts";
 }
@@ -69,7 +71,7 @@ export function Settings({ snap }: { snap: Snapshot }) {
   });
   useEffect(() => {
     rememberSettingsSection(section);
-    // The address follows the section; a deeper part already there (#settings/machines/<ip>, #settings/network/hosts) is kept;
+    // The address follows the section; a deeper part already there (#settings/machines/<ip>, #settings/discovery/suggestions) is kept;
     // Machines, Notifications and Requests write their own sub-tab
     const s = location.hash.split("/")[1];
     if (s !== section && !(section === "machines" && s === "agents")) showInUrl(`settings/${section}`, !s);   // first opening of #settings: replaced, not one more step back
@@ -78,7 +80,7 @@ export function Settings({ snap }: { snap: Snapshot }) {
     const go = () => {
       if (!location.hash.startsWith("#settings/")) return;
       const s = location.hash.split("/")[1];
-      const norm = normalizeSection(s);
+      const norm = sectionTarget(s);
       if (norm.redirect) { location.hash = norm.redirect; return; }
       if (SECTIONS.has(norm.section!)) setSection(norm.section!);
     };

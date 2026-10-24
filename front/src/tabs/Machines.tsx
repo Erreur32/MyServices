@@ -89,7 +89,8 @@ function webLine(w: NonNullable<Machine["web"]>[number]): string {
 }
 
 function Servers({ m, snap, max }: { m: Machine; snap: Snapshot; max?: number }) {
-  const apDown = snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.enabled && r.service?.kind === "apache" && status(r)[0] === "bad").length;
+  const hidden = useServicesHidden();   // a site hidden in Services no longer turns the Apache chip red
+  const apDown = snap.data.hosts.filter((r) => (r.host_ip || r.ip || r.target_ip) === m.ip && r.enabled && r.service?.kind === "apache" && status(r)[0] === "bad" && !isHidden(r, hidden)).length;
   const i = m.info || {}, groups = new Map<string, NonNullable<Machine["web"]>>();
   for (const w of m.web ?? []) groups.set(w.key, [...(groups.get(w.key) ?? []), w]);
   const chips: { key: string; icon: string | null; label: string; tip: string; bad?: boolean }[] = [...groups].map(([key, ws]) => {
@@ -433,7 +434,7 @@ export interface Origin { label: string; ok?: boolean; tip?: string; href?: stri
 function osOrigins(m: Machine, here: string, scanned: boolean): Origin[] {
   if (m.info?.os && m.info.via !== "agent") return [{ label: "SSH", href: here }];
   if (m.info?.os || m.agent) return [{ label: tx("agent MyServices"), href: `#settings/agents/${m.ip}` }];
-  return scanned ? [{ label: tx("recherche réseau"), href: "#settings/network" }] : [];
+  return scanned ? [{ label: tx("recherche réseau"), href: "#settings/machines/devices" }] : [];
 }
 
 /** D'où viennent les données de la machine : SSH, agent, recherche réseau, MynetworK, Beszel et connecteurs visant son IP */
@@ -1570,7 +1571,7 @@ function ServiceCount({ m, snap, onOpen }: Readonly<{ m: Machine; snap: Snapshot
   const rows = [...down.map((l) => `[[bad:${tx("panne")}]]\t${l}`), ...warn.map((l) => `[[warn:${tx("souci")}]]\t${l}`)];
   const more = rows.length > MAX_SVC_LINES ? [tx("… et {0} autres", rows.length - MAX_SVC_LINES)] : [];
   const head = [tx("{0} services", m.services), nDown ? tx("{0} en panne", nDown) : "", warn.length ? tx("{0} à souci", warn.length) : ""].filter(Boolean).join(" · ");
-  const tip = [head, ...rows.slice(0, MAX_SVC_LINES), ...more, ...(nHidden ? [`[[off:${tx("{0} masqué(s) de « À surveiller »", nHidden)}]]`] : []), ...(onOpen ? [tipAction(tx("Clic : liste des services de {0}", m.name))] : [])].join("\n");
+  const tip = [head, ...rows.slice(0, MAX_SVC_LINES), ...more, ...(nHidden ? [`[[off:${tx("{0} masqué(s) des alertes", nHidden)}]]`] : []), ...(onOpen ? [tipAction(tx("Clic : liste des services de {0}", m.name))] : [])].join("\n");
   const inner = <>
     <span className="tabular-nums group-hover:text-link">{m.services}</span>
     {nDown > 0 && <span className="text-xs font-semibold tabular-nums text-bad">+{nDown}</span>}

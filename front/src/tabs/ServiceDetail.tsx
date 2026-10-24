@@ -46,12 +46,12 @@ function link(url: string, text: string) {
 function PublicOnPurpose({ r, admin }: Readonly<{ r: Host; admin: boolean }>) {
   const [note, setNote] = useState<Note>(null);
   const domain = r.domains[0];
-  const set = (on: boolean) => act(() => send("PUT", "services/public", { domain, public: on }), on ? tx("déclaré public : il quitte « À surveiller »") : tx("déclaration retirée"), setNote);
+  const set = (on: boolean) => act(() => send("PUT", "services/public", { domain, public: on }), on ? tx("déclaré public : il quitte les alertes") : tx("déclaration retirée"), setNote);
   return (
     <span className="flex flex-wrap items-center gap-2">
       <span className={r.public_ok ? "text-dim" : ""}>{r.public_ok ? tx("site public (voulu)") : tx("aucune")}</span>
       {admin && domain && (r.public_ok
-        ? <button type="button" className={`${quiet} py-0.5 text-xs`} onClick={() => void set(false)} title={tx("Le site n'est plus censé être public : il revient dans « À surveiller » tant qu'il n'a pas de liste d'accès")}><Undo2 size={13} aria-hidden />{tx("Ce n'est plus public")}</button>
+        ? <button type="button" className={`${quiet} py-0.5 text-xs`} onClick={() => void set(false)} title={tx("Le site n'est plus censé être public : il revient dans les alertes tant qu'il n'a pas de liste d'accès")}><Undo2 size={13} aria-hidden />{tx("Ce n'est plus public")}</button>
         : <button type="button" className={`${quiet} py-0.5 text-xs`} onClick={() => void set(true)} title={tx("Ouvert à Internet volontairement (site, blog, page de contact) : ne plus le signaler")}><Globe size={13} aria-hidden />{tx("Site public voulu")}</button>)}
       <NoteLine note={note} />
     </span>

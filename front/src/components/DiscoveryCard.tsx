@@ -79,9 +79,11 @@ export function MuteButton({ x, reload }: { x: DiscoveryItem; reload: () => void
   const [note, setNote] = useState<Note>(null);
   if (!x.mutable) return null;
   const mute = !x.muted;
+  const forgotWhere = x.id.startsWith("connector:") ? tx("oublié : rangé dans « Oubliés », sous Connecteurs › Détectés à relier") : tx("oublié : rangé dans « Suggestions oubliées », sous Application › Découverte automatique");
+  const done = mute ? forgotWhere : tx("rappelé : de nouveau proposé");
   return (
     <>
-      <button type="button" className={`${button} border-line bg-bg2 text-txt hover:border-link`} onClick={() => void act(() => send("PUT", "discoveries/muted", { id: x.id, muted: mute }), mute ? tx("oublié : rangé dans « Oubliés », en bas de Réglages → Découverte") : tx("rappelé : de nouveau proposé"), setNote).then(() => reload())}
+      <button type="button" className={`${button} border-line bg-bg2 text-txt hover:border-link`} onClick={() => void act(() => send("PUT", "discoveries/muted", { id: x.id, muted: mute }), done, setNote).then(() => reload())}
         title={mute ? tx("Ne plus le proposer, ni dans la cloche ni sur l'accueil. Il reste dans « Oubliés » pour le rappeler plus tard.") : tx("Le proposer de nouveau")}>
         {mute ? <EyeOff size={13} aria-hidden /> : <RotateCcw size={13} aria-hidden />}{mute ? tx("Oublier") : tx("Rappeler")}
       </button>
@@ -129,7 +131,7 @@ export const groupOf = (x: DiscoveryItem) => GROUPS.find((g) => g.has(x.id)) ?? 
 function Item({ x, reload, machines, extra }: { x: DiscoveryItem; reload: () => void; machines?: Machine[]; extra?: (onCount: (n: number) => void) => ReactNode }) {
   const [picked, setPicked] = useState(0);   // machines cochées dans la liste repliée : montré sur l'en-tête du cadre
   const m = MODE[x.mode], todo = x.state === "todo", suggest = x.state === "suggest";
-  const wanted = () => location.hash.split("/")[2] === x.id;   // lien #settings/network/hosts : le cadre s'ouvre
+  const wanted = () => location.hash.split("/")[2] === x.id;   // lien #settings/discovery/<id> : le cadre s'ouvre
   const [open, setOpen] = useState(false);   // plié par défaut, même si le lien du rappel est encore dans l'adresse ; un clic sur le lien l'ouvre
   useEffect(() => {
     const on = () => { if (wanted()) setOpen(true); };
@@ -248,7 +250,7 @@ export function DiscoveryReminder({ machines }: { machines?: Machine[] }) {
           </span>
           <ChevronRight size={18} className={`shrink-0 text-txt transition-transform ${folded ? "" : "rotate-90"}`} aria-hidden />
         </button>
-        <a href="#settings/network" className="group/go inline-flex items-center gap-1 rounded-full border border-warn/40 bg-bg2/60 px-2.5 py-1 text-xs font-semibold text-muted no-underline transition-colors hover:border-warn hover:text-txt">
+        <a href="#settings/discovery" className="group/go inline-flex items-center gap-1 rounded-full border border-warn/40 bg-bg2/60 px-2.5 py-1 text-xs font-semibold text-muted no-underline transition-colors hover:border-warn hover:text-txt">
           {tx("Tout voir")}<ChevronRight size={13} className="transition-transform group-hover/go:translate-x-0.5" aria-hidden />
         </a>
       </div>
@@ -304,7 +306,7 @@ export function DiscoveryBell({ machines }: { machines?: Machine[] }) {
               ))}
             </ul>
           )}
-          <a href="#settings/network" onClick={() => setOpen(false)}
+          <a href="#settings/discovery" onClick={() => setOpen(false)}
             className="flex items-center gap-2 border-t border-line/70 px-4 py-2.5 text-sm text-muted no-underline hover:bg-bg2 hover:text-txt">
             {sug > 0 ? <><Lightbulb size={14} className="text-link" aria-hidden />{tx("{0} suggestion(s) facultative(s)", sug)}</> : tx("Tout voir")}
             <ChevronRight size={14} className="ml-auto" aria-hidden />

@@ -3,6 +3,7 @@
 // enregistrer ; modifier, vérifier (mêmes contrôles que setup.py --check) ou retirer une machine déclarée.
 // Les réglages de chaque machine sont dans sa page (#machines/<ip>) ; ici, trois sous-pages du menu Machines : ajouter et détecter,
 // les appareils vus par les outils et pas suivis, les agents. La clé refusée par une machine est signalée sur la page de la clé SSH.
+import { NetworkSettings } from "./NetworkSettings";
 import { Check, ChevronDown, Monitor, ChevronRight, IdCard, Info, KeyRound, Loader2, MonitorUp, Plug, Plus, Power, RefreshCw, Server, ShieldCheck, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
@@ -71,7 +72,7 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
   const [redetecting, setRedetecting] = useState(() => location.hash.endsWith("/machines/redetect"));
   const [showAccess, setShowAccess] = useState(false);
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
-  if (part === "devices") return <UnlinkedDevices snap={snap} onFollowed={reload} />;
+  if (part === "devices") return <div className="flex flex-col gap-4"><NetworkSettings snap={snap} parts={["hosts"]} /><UnlinkedDevices snap={snap} onFollowed={reload} /></div>;   // the network search, then what the tools see
   const one = location.hash.split("/")[3];   // #settings/machines/ssh/<ip> | new: that SSH access alone; #settings/machines/agents/<ip>: the list, that row lit
   // The address only picks a known machine: its IP is then taken from the list, never from the address (nothing typed in the URL reaches the page)
   const wanted = one ? decodeURIComponent(one) : undefined;
@@ -79,7 +80,7 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
   if (part === "agents") return <AgentsOverview machines={st.machines} open={open} />;
   if (part === "ssh" && open === "new") return <NewSshPage snap={snap} st={st} />;
   if (part === "ssh" && open) return <SshPage ip={open} snap={snap} st={st} />;
-  if (part === "ssh") return <SshConnections st={st} snap={snap} />;
+  if (part === "ssh") return <div className="flex flex-col gap-4"><KeyRefusedAlert snap={snap} /><SshConnections st={st} snap={snap} /></div>;
   const all = Object.keys(st.machines);
   const nOff = all.filter((ip) => st.machines[ip].disabled).length;
   return (
@@ -156,8 +157,8 @@ function NewSshPage({ snap, st }: Readonly<{ snap: Snapshot; st: State }>) {
   );
 }
 
-/** Machines whose Docker read is refused because the app's key is not authorised there: shown on the SSH key page, with the command and a new test */
-export function KeyRefusedAlert({ snap }: Readonly<{ snap: Snapshot }>) {
+/** Machines whose Docker read is refused because the app's key is not authorised there: on top of SSH connections, with the command and a new test */
+function KeyRefusedAlert({ snap }: Readonly<{ snap: Snapshot }>) {
   const [st] = useMachinesState();
   const [accepted, setAccepted] = useState<{ gen: string; ips: string[] }>({ gen: "", ips: [] });
   if (!st) return null;
@@ -398,7 +399,7 @@ function RowActions({ ip, busy, confirm, setConfirm, setNote, reload, verify, ca
       <button type="button" className={quiet} disabled={busy} onClick={() => void verify()}><ShieldCheck size={14} />{busy ? tx("Vérification…") : tx("Vérifier")}</button>
       {canRemove && <span className="ml-auto flex items-center gap-1.5">
         {confirm ? <>
-          <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `machines/settings/${ip}`), tx("machine retirée : la recherche réseau ne la proposera plus (Réglages → Découverte pour la faire revenir)"), setNote).then((ok) => ok && reload())}>{tx("Confirmer le retrait")}</button>
+          <button type="button" className={danger} onClick={() => void act(() => send("DELETE", `machines/settings/${ip}`), tx("machine retirée : la recherche réseau ne la proposera plus (Machines › Appareils non suivis pour la faire revenir)"), setNote).then((ok) => ok && reload())}>{tx("Confirmer le retrait")}</button>
           <button type="button" className={quiet} onClick={() => setConfirm(false)}>{tx("Annuler")}</button>
         </> : <button type="button" className={`${danger} px-2`} onClick={() => setConfirm(true)} aria-label={tx("Retirer")}
           title={tx("Retirer : MyServices ne suit plus cette machine et la recherche réseau ne la propose plus (une confirmation est demandée)")}><Trash2 size={15} aria-hidden /></button>}

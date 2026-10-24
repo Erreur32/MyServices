@@ -24,6 +24,18 @@ except ImportError:  # hors image (bibliothèque standard seule) : ces tests son
     api = None
 
 
+class ArchifyWhy(unittest.TestCase):   # server only: runs without FastAPI
+    def test_error_and_diagnostics(self):
+        out = json.dumps({"ok": False, "stage": "validate", "diagnostics": [{"severity": "warning", "message": "rendered successfully"},
+                                                                         {"severity": "error", "message": "edge to a missing node"}]})
+        self.assertEqual(server.archify_why(out, ""), "edge to a missing node")   # the error, not a warning that « succeeded »
+        self.assertEqual(server.archify_why(json.dumps({"ok": False, "error": "Could not read input"}), ""), "Could not read input")
+
+    def test_not_json(self):
+        self.assertEqual(server.archify_why("", "node: not found\n"), "node: not found")
+        self.assertIn("stage input", server.archify_why(json.dumps({"ok": False, "stage": "input"}), ""))
+
+
 @unittest.skipIf(api is None, "FastAPI absent : tests à lancer dans l'image")
 class Files(unittest.TestCase):
     def setUp(self):
@@ -278,7 +290,7 @@ class UpdateSettingsRoute(unittest.TestCase):
             (Path(tmp) / "update-check.json").write_text(json.dumps({"release": {"tag": "v99.0.0", "url": "u"}}))
             self.assertEqual(api.me(req)["update"], {"available": True, "tag": "v99.0.0", "url": "u"})
             with mock.patch.dict(api.core.CFG, {"update_check": False}):
-                self.assertIsNone(api.me(req)["update"])   # automatic check off: nothing for the header
+                self.assertEqual(api.me(req)["update"]["tag"], "v99.0.0")   # automatic check off: a check by hand still reaches the header
 
 
 class Chain(unittest.TestCase):

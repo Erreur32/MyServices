@@ -111,7 +111,7 @@ export function AssistantNetwork({ net, reload, known, onManual }: Readonly<{ ne
         <ul className="flex flex-col gap-1.5">{proposed.map((h) => <Row key={h.ip} h={h} on={picked.has(h.ip)} toggle={() => toggle(h.ip)} />)}</ul>
       )}
       {others.length > 0 && (   // caméras, objets connectés, téléphones : seulement un ping possible, pas dans l'assistant ; ajoutables après, depuis Découverte
-        <InfoNote>{plural(others.length, "autre appareil", "autres appareils")} {tx("(caméras, objets connectés…) : à ajouter plus tard, en simple ping, dans Réglages → Découverte.")}</InfoNote>
+        <InfoNote>{plural(others.length, "autre appareil", "autres appareils")} {tx("(caméras, objets connectés…) : à ajouter plus tard, en simple ping, dans Machines › Appareils non suivis.")}</InfoNote>
       )}
       {added > 0 && <output className="block rounded-lg bg-ok/10 px-3 py-2 text-sm font-semibold text-ok"><Check size={14} className="mr-1 inline" aria-hidden />{tx("{0} ajoutées. À l'étape suivante, vous choisissez comment les lire.", plural(added, "machine"))}</output>}
       <div className="flex flex-wrap items-center gap-2">

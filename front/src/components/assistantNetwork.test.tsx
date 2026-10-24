@@ -29,11 +29,11 @@ describe("étape réseau de l'assistant", () => {
     expect(html).toContain("4 machines trouvées");
     expect(html).toContain("1 déjà suivies");
     expect(html).toContain("2 à suivre");
-    for (const t of ["srv", "plex", "Plex", "SSH", "1 autre appareil (caméras", "Réglages → Découverte", "Relancer la recherche"]) expect(html, t).toContain(t);
+    for (const t of ["srv", "plex", "Plex", "SSH", "1 autre appareil (caméras", "Machines › Appareils non suivis", "Relancer la recherche"]) expect(html, t).toContain(t);
     expect(html).not.toContain("camera");   // pas dans l'assistant : seulement un ping possible, à ajouter plus tard depuis Découverte
     expect(html).not.toContain("Autres appareils");
     expect(html).toContain("Une machine manque ?");
-    expect(html).not.toContain('href="#settings/network"');   // la phrase sur les autres appareils n'est pas un lien (on la prendrait pour un bouton)
+    expect(html).not.toContain('href="#settings/discovery"');   // la phrase sur les autres appareils n'est pas un lien (on la prendrait pour un bouton)
     expect(html).not.toContain("deja");     // déjà suivie : pas proposée
   });
 

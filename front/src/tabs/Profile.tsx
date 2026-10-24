@@ -1,6 +1,6 @@
 // Profil (tout compte, admin ou lecture seule) : apparence de la page, changer son mot de passe, voir ses sessions ouvertes, fermer celles des autres appareils.
 // Affiché par #profile (menu du compte), hors des onglets et des Réglages : un compte en lecture seule n'a pas accès aux Réglages.
-import { ImagePlus, KeyRound, LogOut, Mail, MonitorSmartphone, Send, Trash2 } from "lucide-react";
+import { ImagePlus, KeyRound, LogOut, Mail, MonitorSmartphone, Send, Trash2, UserRound } from "lucide-react";
 import { Avatar, setAvatarVersion } from "../components/Avatar";
 import { useCallback, useEffect, useState } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
@@ -18,15 +18,15 @@ interface MySession { created: number; expires: number; ip: string | null; curre
 
 export function Profile({ username, role, email, mailReady, mailError, avatar, look }: Readonly<{ username: string; role: "admin" | "viewer"; email: string; mailReady: boolean; mailError: string; avatar: string | null; look: Look }>) {
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-4 py-4">
-      <header className="flex items-center gap-4 rounded-2xl border border-line bg-card p-4">
-        <Avatar username={username} version={avatar} size={56} />
-        <div className="min-w-0">
-          <h1 className="truncate text-xl font-bold">{username}</h1>
-          <div className="mt-0.5 flex items-center gap-2 text-sm text-dim"><Badge tone="off">{role === "admin" ? "admin" : tx("lecture seule")}</Badge>{tx("Mon profil")}</div>
-        </div>
-      </header>
-      <div className="grid items-start gap-4 lg:grid-cols-2">
+    <div className="flex flex-col gap-4 py-4">{/* full width, the title line of every page */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <h1 className="flex items-center gap-2 text-xl font-bold"><UserRound size={18} aria-hidden />{tx("Mon profil")}</h1>
+        <span className="flex min-w-0 items-center gap-2 text-sm text-muted">
+          <Avatar username={username} version={avatar} size={24} /><b className="truncate text-txt">{username}</b>
+          <Badge tone="off">{role === "admin" ? "admin" : tx("lecture seule")}</Badge>
+        </span>
+      </div>
+      <div className="grid items-start gap-4 xl:grid-cols-2">
         <div className="flex flex-col gap-4"><MyAvatar username={username} initial={avatar} /><MyEmail initial={email} admin={role === "admin"} mailReady={mailReady} mailError={mailError} /><MyPassword /><Sessions /></div>
         <section aria-label={tx("Apparence")}><h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-widest text-dim">{tx("Apparence")}</h2><Appearance look={look} /></section>
       </div>

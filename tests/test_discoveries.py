@@ -17,7 +17,7 @@ class Discoveries(unittest.TestCase):
         self.assertEqual((x["mode"], x["state"]), (d.AUTO, "ok"))              # la première se lance toute seule : rien à faire
         off = by(d.build({"net_has_run": False, "net_every_h": 0}))["network"]
         self.assertEqual((off["mode"], off["state"]), (d.MANUAL, "info"))
-        self.assertEqual((x["action"]["run"], x["action"]["href"]), ("netscan", "#settings/network/hosts"))   # launches, then shows the machines found
+        self.assertEqual((x["action"]["run"], x["action"]["href"]), ("netscan", "#settings/machines/devices"))   # launches, then shows the machines found
 
     def test_recherche_reseau_deja_faite_se_repete_seule(self):
         x = by(d.build({"net_has_run": True, "net_last": 1000.0, "net_every_h": 6}))["network"]
@@ -70,7 +70,7 @@ class Discoveries(unittest.TestCase):
     def test_autres_notifications_a_faire(self):
         m = by(d.build({"unknown_hosts": 3, "net_has_run": True, "net_last": 5.0, "net_every_h": 6,
                         "key_refused": [{"ip": "10.0.0.7", "name": "Serveur"}], "agents_waiting": [{"ip": "10.0.0.50", "name": "Gamer32"}]}))
-        self.assertEqual((m["hosts"]["state"], m["hosts"]["action"]["href"]), ("suggest", "#settings/network/hosts"))
+        self.assertEqual((m["hosts"]["state"], m["hosts"]["action"]["href"]), ("suggest", "#settings/machines/devices"))
         self.assertEqual((m["ssh:10.0.0.7"]["state"], m["agent:10.0.0.50"]["state"]), ("todo", "todo"))        # une machine qui n'est plus lue : nécessaire
         self.assertEqual(m["ssh:10.0.0.7"]["title"], "Clé SSH à autoriser sur Serveur")
         self.assertEqual(m["ssh:10.0.0.7"]["action"]["href"], "#settings/machines/10.0.0.7")

@@ -1,20 +1,32 @@
 // Apparence retenue par le navigateur : thème (sombre par défaut) et logo. La page prend toute la largeur de l'écran.
 import { useEffect, useState, useSyncExternalStore } from "react";
 
-export type Theme = "dark" | "light";
+/** "dark" is the original palette; the other dark themes each get a class « theme-<id> » on <html> (colours in index.css). */
+export type Theme = "dark" | "light" | "github-dark" | "night-owl" | "ayu-mirage" | "one-dark" | "nord" | "dracula";
+export const THEMES: Theme[] = ["dark", "github-dark", "night-owl", "ayu-mirage", "one-dark", "nord", "dracula", "light"];
 const KEY = "myservices-theme";
 
+const isTheme = (v: string | null): v is Theme => THEMES.includes(v as Theme);
+
 export function savedTheme(): Theme {
-  return localStorage.getItem(KEY) === "light" ? "light" : "dark";
+  const v = localStorage.getItem(KEY);
+  return isTheme(v) ? v : "dark";
 }
 
-export function useTheme(): [Theme, () => void, (t: Theme) => void] {
+export function applyTheme(t: Theme): void {
+  const root = document.documentElement;
+  root.classList.toggle("light", t === "light");
+  for (const id of THEMES) root.classList.toggle(`theme-${id}`, id === t && id !== "dark" && id !== "light");
+}
+
+/** The theme, picked in the profile (Appearance) only: the header has no switch any more */
+export function useTheme(): [Theme, (t: Theme) => void] {
   const [theme, setTheme] = useState<Theme>(savedTheme);
   useEffect(() => {
-    document.documentElement.classList.toggle("light", theme === "light");
+    applyTheme(theme);
     localStorage.setItem(KEY, theme);
   }, [theme]);
-  return [theme, () => setTheme((t) => (t === "dark" ? "light" : "dark")), setTheme];
+  return [theme, setTheme];
 }
 
 /** Logo avant le titre de l'en-tête : le favicon tel quel (grille sur carré sombre) ou la même grille sans fond. */

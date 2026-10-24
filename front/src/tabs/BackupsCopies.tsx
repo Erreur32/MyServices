@@ -1,14 +1,17 @@
 // Réglages → Sauvegardes : « copié ailleurs ». Un dossier suivi n'est sûr que s'il existe une copie à jour sur une autre machine :
 // on la déclare ici (machine + dossier), et MyServices compare ensuite la copie à la source à chaque relevé (archive manquante ou en retard).
 // « Trouver les copies » cherche sur les machines, partages réseau compris, la dernière archive de chaque dossier suivi : rien n'est relié sans clic.
-import { Copy, FolderSearch, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { Copy, FolderSearch, Loader2, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { send } from "../api";
 import { Badge, Dim } from "../components/ui";
 import { act, input, primary, quiet, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
 
 export interface CopyRow { index: number; host: string; path: string; offsite: boolean }
+/** One place of a set (0 = the source, then its copies), as the settings page edits it */
+export interface LocRow { index: number; host: string; ip?: string | null; path: string | null; pattern: string; depth: number; via: string; encrypted: boolean; offsite: boolean; editable: boolean; remote?: boolean }
+type LocChange = Partial<{ ip: string; path: string; pattern: string; depth: number; via: string; encrypted: boolean }>;
 export interface SshMachine { ip: string; name: string }
 export interface CopyGuess { set_id: string; set_label: string; ip: string; name: string; path: string; archive: string; network: boolean; offsite: boolean }
 interface Folder { path: string; readable: boolean }
@@ -17,11 +20,68 @@ export interface FoundFolders { ip: string; ok: boolean; folders: Folder[] }
 const pill = (on: boolean) =>
   `rounded-full border px-2.5 py-0.5 text-xs font-medium ${on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`;
 
-/** Copies of one followed folder: list, remove, and a small form to add one (machine as pills, folder typed or picked from the search) */
-export function SetCopies({ setId, origin, copies, machines, found, busy, onDone, setNote }: {
-  setId: string; origin: string; copies: CopyRow[]; machines: SshMachine[]; found: FoundFolders[] | null; busy: boolean;
+/** A labelled field of the place form */
+function LocField({ k, children }: Readonly<{ k: string; children: ReactNode }>) {
+  return <label className="grid gap-1 sm:grid-cols-[9rem_1fr] sm:items-center"><span className="text-dim">{k}</span>{children}</label>;
+}
+
+/** Every setting of one folder place of a set (the source or a copy): machine, folder, archive names read, depth, how it gets there, encrypted;
+ *  only what changed is sent, the server reads the set again after */
+export function LocationForm({ setId, loc, machines, busy, onDone, onCancel, setNote }: Readonly<{
+  setId: string; loc: LocRow; machines: SshMachine[]; busy: boolean; onDone: () => void; onCancel: () => void; setNote: (n: Note) => void;
+}>) {
+  const [v, setV] = useState({ ip: loc.ip ?? "", path: loc.path ?? "", pattern: loc.pattern, depth: String(loc.depth), via: loc.via, encrypted: loc.encrypted });
+  const [saving, setSaving] = useState(false);
+  const put = (k: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value });
+  const depth = Number(v.depth), ok = v.path.trim().startsWith("/") && v.pattern.trim() !== "" && !v.pattern.includes("/") && Number.isInteger(depth) && depth >= 1 && depth <= 5;
+  const save = async () => {
+    const body: LocChange = {};
+    if (v.ip && v.ip !== loc.ip) body.ip = v.ip;
+    if (v.path.trim() !== loc.path) body.path = v.path.trim();
+    if (v.pattern.trim() !== loc.pattern) body.pattern = v.pattern.trim();
+    if (depth !== loc.depth) body.depth = depth;
+    if (v.via.trim() !== loc.via) body.via = v.via.trim();
+    if (v.encrypted !== loc.encrypted) body.encrypted = v.encrypted;
+    if (!Object.keys(body).length) { onCancel(); return; }
+    setSaving(true);
+    const done = await act(() => send("PATCH", `backups/settings/${setId}/locations/${loc.index}`, body), tx("emplacement modifié : relevé en cours"), setNote);
+    setSaving(false);
+    if (done) onDone();
+  };
+  const known = machines.some((m) => m.ip === loc.ip);
+  return (
+    <div className="mt-2 flex flex-col gap-2 rounded-lg bg-bg2/60 p-2.5 text-xs">
+      <LocField k={tx("Machine")}>
+        {loc.remote ? <span>{loc.host} <Dim>({tx("compte distant")})</Dim></span> : (
+          <select className={`${input} py-1 text-xs`} value={v.ip} onChange={put("ip")} aria-label={tx("Machine")}>
+            {!known && <option value={loc.ip ?? ""}>{loc.host}</option>}
+            {machines.map((m) => <option key={m.ip} value={m.ip}>{m.name} ({m.ip})</option>)}
+          </select>
+        )}
+      </LocField>
+      <LocField k={tx("Dossier")}><input className={`${input} py-1 font-mono text-xs`} value={v.path} maxLength={300} onChange={put("path")} aria-label={tx("Dossier")} /></LocField>
+      <LocField k={tx("Fichiers lus")}><input className={`${input} py-1 font-mono text-xs`} value={v.pattern} maxLength={120} placeholder="*.tar.gz" onChange={put("pattern")} aria-label={tx("Fichiers lus")}
+        title={tx("Nom ou motif des archives dans le dossier : * pour tout, *.tar.gz, db-*.sql.gz")} /></LocField>
+      <LocField k={tx("Profondeur")}><span className="flex items-center gap-2"><input type="number" min={1} max={5} className={`${input.replace("w-full", "w-16")} py-1 text-xs`} value={v.depth} onChange={put("depth")} aria-label={tx("Profondeur")} />
+        <Dim>{tx("niveaux de sous-dossiers lus (1 = le dossier seul)")}</Dim></span></LocField>
+      <LocField k={tx("Moyen")}><input className={`${input} py-1 text-xs`} value={v.via} maxLength={80} placeholder={tx("ex. rsync 04:00, tar, Syncthing")} onChange={put("via")} aria-label={tx("Moyen")} /></LocField>
+      <LocField k={tx("Chiffré")}><span className="flex items-center gap-2"><input type="checkbox" checked={v.encrypted} onChange={(e) => setV({ ...v, encrypted: e.target.checked })} aria-label={tx("Chiffré")} />
+        <Dim>{tx("archives chiffrées ici : leur taille n'est pas comparée à la source")}</Dim></span></LocField>
+      <div className="flex items-center gap-2">
+        <button type="button" className={`${primary} py-1 text-xs`} disabled={busy || saving || !ok} onClick={() => void save()}>{saving && <Loader2 size={12} className="animate-spin" aria-hidden />}{tx("Enregistrer")}</button>
+        <button type="button" className={`${quiet} py-1 text-xs`} onClick={onCancel}>{tx("Annuler")}</button>
+      </div>
+    </div>
+  );
+}
+
+/** Copies of one followed folder: list, edit, remove, and a small form to add one (machine as pills, folder typed or picked from the search) */
+export function SetCopies({ setId, origin, copies, locations = [], machines, found, busy, onDone, setNote }: Readonly<{
+  setId: string; origin: string; copies: CopyRow[]; locations?: LocRow[]; machines: SshMachine[]; found: FoundFolders[] | null; busy: boolean;
   onDone: () => void; setNote: (n: Note) => void;
-}) {
+}>) {
+  const [editing, setEditing] = useState<number | null>(null);   // the copy whose form is open
+  const open = locations.find((l) => l.index === editing && l.editable);
   const [adding, setAdding] = useState(false), [ip, setIp] = useState(""), [path, setPath] = useState(""), [saving, setSaving] = useState(false);
   const offsite = copies.filter((c) => c.offsite).length;
   const folders = (found ?? []).find((m) => m.ip === ip)?.folders.filter((f) => f.readable) ?? [];
@@ -44,11 +104,15 @@ export function SetCopies({ setId, origin, copies, machines, found, busy, onDone
           <span key={c.index} className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-bg2 px-2 py-0.5">
             <b className="font-semibold">{c.host}</b><code className="font-mono text-[11px] text-dim">{c.path}</code>
             {!c.offsite && <Badge tone="off">{tx("même machine")}</Badge>}
+            {locations.some((l) => l.index === c.index && l.editable) && (
+              <button type="button" className="text-dim hover:text-link" disabled={busy} onClick={() => setEditing(editing === c.index ? null : c.index)} aria-label={tx("Modifier la copie {0}", c.path)} title={tx("Modifier cette copie")}><Pencil size={12} /></button>
+            )}
             <button type="button" className="text-dim hover:text-bad" disabled={busy} onClick={() => void remove(c.index)} aria-label={tx("Retirer la copie {0}", c.path)} title={tx("Retirer cette copie")}><Trash2 size={12} /></button>
           </span>
         ))}
         {!adding && <button type="button" className={`${quiet} ml-auto px-2 py-0.5 text-xs`} disabled={busy} onClick={() => setAdding(true)}><Plus size={12} />{tx("Ajouter une copie")}</button>}
       </div>
+      {open && <LocationForm key={open.index} setId={setId} loc={open} machines={machines} busy={busy} onDone={() => { setEditing(null); onDone(); }} onCancel={() => setEditing(null)} setNote={setNote} />}
       {adding && (
         <div className="mt-2 flex flex-col gap-2 rounded-lg bg-bg2/60 p-2.5">
           <div className="flex flex-wrap items-center gap-1.5">

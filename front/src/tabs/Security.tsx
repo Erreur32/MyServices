@@ -24,7 +24,7 @@ import { useAccessData } from "../components/SecurityAccess";
 import { HeadTags } from "../components/HeadTags";
 import { WazuhPage } from "../components/WazuhPage";
 
-type Sub = "watch" | "fail2ban" | "wazuh" | "sites" | "access" | "members" | "network" | "certs";
+type Sub = "overview" | "fail2ban" | "wazuh" | "sites" | "access" | "members" | "network" | "certs";
 const SUBS: { id: Sub; label: string; icon: LucideIcon; area: Area }[] = [
   { id: "fail2ban", label: tx("Fail2ban"), icon: Ban, area: "fail2ban" },
   { id: "sites", label: tx("Sites exposés"), icon: Globe, area: "sites" },
@@ -37,7 +37,7 @@ const AREA_LABEL: Record<Area, string> = { fail2ban: tx("Fail2ban"), sites: tx("
 const AREA_SUB: Record<Area, Sub> = { fail2ban: "fail2ban", sites: "sites", certs: "certs", ssh: "access", access: "members", ports: "network" };
 
 /** Sub-tab named by the address (#security/certs), if any: the side menu's Fail2ban entry opens #security/fail2ban */
-const routeSub = (route: string): Sub | null => { const v = route.split("/")[1]; return v === "watch" || v === "wazuh" || (v !== "members" && SUBS.some((s) => s.id === v)) ? (v as Sub) : null; };
+const routeSub = (route: string): Sub | null => { const v = route.split("/")[1]; return v === "overview" || v === "wazuh" || (v !== "members" && SUBS.some((s) => s.id === v)) ? (v as Sub) : null; };
 
 /** The six figures: one per area, the number in the colour of its findings, a fact read from the tools under it */
 function Figures({ snap, findings, admin }: Readonly<{ snap: Snapshot; findings: Finding[]; admin: boolean }>) {
@@ -69,7 +69,7 @@ function Watch({ rows, open }: Readonly<{ rows: WatchRow[]; open: (s: Sub) => vo
   const [on, setOn] = useState<string | null>(null);
   const worst = worstTone(rows.some((r) => r.sev === "bad"), rows.length > 0);
   return (
-    <WatchPanel id="security" tone={worst} count={rows.length} pinned hint={tx("le plus grave en haut · un site n'apparaît qu'une fois par manque")}>
+    <WatchPanel id="security" title={tx("Vue d'ensemble")} tone={worst} count={rows.length} pinned hint={tx("le plus grave en haut · un site n'apparaît qu'une fois par manque")}>
       {rows.length === 0 ? <p className="px-4 py-3 text-sm text-ok">{tx("Aucune exposition ni réglage faible détecté par vos outils.")}</p> : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] border-collapse text-sm">
@@ -203,7 +203,8 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
   useEffect(() => {   // the address follows the sub-tab (the side menu lights the right entry); a menu link sets the sub-tab
     const named = routeSub(route);
     if (named) { setSub(named); return; }
-    const opening = rows.length ? "watch" : "sites";   // opened bare: « To watch » when something is
+    if (route.split("/")[1] === "watch") { location.replace("#security/overview"); return; }   // its old address
+    const opening = "overview";   // opened bare (and by the menu's dot): the Overview, every finding of every page
     const target = route === "#fail2ban" ? "#security/fail2ban" : pageViewTarget(route, "security", null, opening);
     if (target) location.replace(target);
   }, [route]);   // eslint-disable-line react-hooks/exhaustive-deps
@@ -237,7 +238,7 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
         {admin && <a href="#settings/connectors" className="ml-auto text-sm text-link hover:underline">{tx("Connecteurs")} ›</a>}
       </div>
       <Figures snap={snap} findings={findings} admin={admin} />
-      {sub === "watch" && <Watch rows={rows} open={pick} />}
+      {sub === "overview" && <Watch rows={rows} open={pick} />}
       {sub === "sites" && <SitesList snap={snap} />}
       {sub === "access" && <AccessList snap={snap} />}
       {sub === "network" && <PortsList snap={snap} />}

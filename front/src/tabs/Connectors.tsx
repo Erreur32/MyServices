@@ -9,7 +9,7 @@ import { Copyable, Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { SecretInput } from "../components/SecretInput";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
-import { Badge, Card, Count, Dim } from "../components/ui";
+import { Badge, Card, Count, Dim, Th } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
@@ -17,13 +17,14 @@ import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus
 import { configFor, modeOf } from "../lib/connectorModes";
 import { takeFocus, takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
-import { searchHit } from "../lib/filter";
+import { searchHit, useSort } from "../lib/filter";
 import { savedFor } from "../lib/savedFor";
 import { runningTip, stoppedTip } from "../lib/runState";
 import { serviceAt, setupCommand } from "../lib/connectorSetup";
 import { detectedValue, type DetectedValue } from "../lib/detectedValue";
 import { appIcon } from "../lib/appIcons";
 import { InfoNote } from "../components/InfoNote";
+import { MachineIcon } from "../components/MachineIcon";
 
 const KIND: Record<string, string> = {
   services: "services", health: tx("santé"), logs: tx("Docker · journaux"), dns: "DNS", inventory: "inventaire", backups: "sauvegardes", network: tx("réseau"), security: tx("sécurité"), containers: "Docker",
@@ -32,7 +33,12 @@ const KIND: Record<string, string> = {
 // Proposé depuis « Premiers pas » : lu une seule fois, à l'ouverture de l'onglet
 /** Sub-page of Connectors in the address (#settings/connectors/available): my connectors, the catalogue, or the services found on the network */
 export type ConnectorsPart = "mine" | "available" | "detected" | "read";
-export const connectorsPart = (v?: string): ConnectorsPart => (v === "available" || v === "detected" || v === "read" ? v : "mine");
+const PARTS: ConnectorsPart[] = ["available", "detected", "read"];
+export const connectorsPart = (v?: string): ConnectorsPart => {
+  if (v === "apps") return "detected";   // « apps »: the former Recognised apps, merged here
+  return PARTS.find((p) => p === v) ?? "mine";
+};
+const RUN_RANK: Record<string, number> = { true: 0, false: 2 };
 const MINE = "settings/connectors";
 
 /** Tools already read over SSH or by an agent on a followed machine (AdGuard, Proxmox, ESXi, KVM, Hyper-V…): a connector would add nothing */
@@ -267,6 +273,14 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
   // what nobody reads yet first, then what is already covered; a stopped container last in each
   const rank = (p: Proposal) => (value.get(discoveryId(p))!.coveredBy.length ? 2 : 0) + Number(p.running === false);
   const rows = all.filter((p) => !muted.has(discoveryId(p))).sort((a, b) => rank(a) - rank(b)), forgotten = all.filter((p) => muted.has(discoveryId(p)));
+  // every column sorts; by machine at first (equal keys keep the order above: what nobody reads first, a stopped container last)
+  const keyOf = (p: Proposal, k: string): string | number => {
+    if (k === "service") return p.label.toLowerCase();
+    if (k === "state") return RUN_RANK[String(p.running)] ?? 1;   // running, unknown, stopped
+    if (k === "value") return rank(p);
+    return (p.machine || p.ip || "~").toLowerCase();
+  };
+  const sort = useSort(rows, keyOf, "machine");
   const forget = (p: Proposal, on: boolean) => void act(() => send("PUT", "discoveries/muted", { id: discoveryId(p), muted: on }),
     on ? tx("{0} oublié : plus proposé", p.label) : tx("{0} rappelé : de nouveau proposé", p.label), setNote).then(() => reloadDisc());
   return (
@@ -280,12 +294,13 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
       <div className="mt-2 overflow-x-auto">
         <table className="w-full min-w-[480px] text-sm">
           <thead>
-            <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-dim">
-              <th className="py-2 pr-3 font-semibold">{tx("Service")}</th><th className="px-3 py-2 font-semibold">{tx("Machine")}</th><th className="px-3 py-2 font-semibold">{tx("État")}</th><th className="px-3 py-2 text-right font-semibold">{tx("Activation")}</th>
+            <tr>
+              <Th k="service" sort={sort} className="!pl-1">{tx("Service")}</Th><Th k="machine" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("État")}</Th>
+              <Th k="value" sort={sort} className="!text-right" title={tx("Ce que personne ne lit encore d'abord, puis ce qui est déjà couvert")}>{tx("Activation")}</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line/60">
-            {rows.map((p) => (
+            {sort.sorted.map((p) => (
               <tr key={`${p.connector}@${p.ip}`} className={p.running === false ? "opacity-70" : ""}>
                 <td className="py-1 pr-3">
                   <button type="button" onClick={() => onOpen(p)} title={tx("Renseigner l'accès et activer")} className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left hover:bg-link/10">
@@ -295,7 +310,8 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
                     <b className="underline decoration-dotted underline-offset-2">{p.label}</b>
                   </button>
                 </td>
-                <td className="px-3 py-2.5"><b className="font-semibold">{p.machine || p.ip}</b>{p.machine && <Dim> · {p.ip}</Dim>}</td>
+                <td className="px-3 py-2.5"><span className="flex items-center gap-2">{(() => { const m = machines.find((x) => x.ip === p.ip); return m ? <MachineIcon m={m} /> : <span className="h-6 w-6 shrink-0" aria-hidden />; })()}
+                  <span><b className="font-semibold">{p.machine || p.ip}</b>{p.machine && <Dim> · {p.ip}</Dim>}</span></span></td>
                 <td className="px-3 py-2.5">{p.running === true ? <Badge tone="ok" title={runningTip(p.state)}>{tx("actif")}</Badge>
                   : p.running === false ? <Badge tone="off" title={stoppedTip(p.state)}>{tx("arrêté")}</Badge> : <Dim>-</Dim>}</td>
                 <td className="px-3 py-2.5 text-right">

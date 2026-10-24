@@ -38,7 +38,7 @@ const SIDE_PAGES: Record<string, { admin?: boolean; render: (snap: Snapshot) => 
 };
 
 export default function App() {
-  const [theme, toggleTheme, setTheme] = useTheme();
+  const [theme, setTheme] = useTheme();
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [error, setError] = useState("");
   const [fresh, setFresh] = useState<NotConfigured | null>(null);
@@ -112,7 +112,13 @@ export default function App() {
 
   const items = attention({ ...snap, data: { ...snap.data, hosts: snap.data.hosts.filter((r) => !isHidden(r, hiddenServices)) }, now });   // a service hidden from « To watch » leaves the tab's dot and the home page too
   const badges: Partial<Record<TabId, "crit" | "warn">> = {};
-  for (const a of items) if (badges[a.tab] !== "crit") badges[a.tab] = a.level;
+  const why: Partial<Record<TabId, string[]>> = {};   // the alerts behind each dot, listed in its tooltip
+  for (const a of items) {
+    if (badges[a.tab] !== "crit") { badges[a.tab] = a.level; }
+    const list = why[a.tab] ?? [];
+    list.push(a.text);
+    why[a.tab] = list;
+  }
   const current = visible(tab, snap) ? tab : "home";
   if (hash.startsWith("#assistant") && snap.me.role === "admin") return <><ScanBar onFinished={load} /><Assistant snap={snap} /></>;
   const profile = hash.startsWith("#profile"); // page à part (tout compte), indépendante des Réglages et de la gestion des comptes
@@ -128,11 +134,11 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar snap={snap} badges={badges} onNavigate={navigated} mobileOpen={menuOpen} onClose={() => setMenuOpen(false)}
-        onBadge={(t) => { setMenuOpen(false); if (t === "machines") goFilter("machines", { alert: ["bad", "warn"] }); else go(t); }} />
+      <Sidebar snap={snap} badges={badges} why={why} onNavigate={navigated} mobileOpen={menuOpen} onClose={() => setMenuOpen(false)}
+        onBadge={(t) => { setMenuOpen(false); if (t === "machines") goFilter("machines", { alert: ["bad", "warn"] }); else if (t === "backups" || t === "dns") goFilter(t, { alerts: ["on"] }); else if (t === "services" || t === "network") goFilter(t, { alert: ["on"] }); else go(t); }} />
       <div className="min-w-0 flex-1 px-4 pb-10 sm:px-6">
       <ScanBar onFinished={load} />
-      <Header snap={snap} theme={theme} toggleTheme={toggleTheme} now={now} onMenu={() => setMenuOpen(true)} />
+      <Header snap={snap} now={now} onMenu={() => setMenuOpen(true)} />
       {error && <p className="mb-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">{tx("⚠ Mise à jour impossible :")} {error}</p>}
       <div className={GREY_CARDS}>
       {top}
@@ -146,7 +152,7 @@ export default function App() {
       {current === "settings" && <Settings key={hash} snap={snap} />}
       {current === "security" && <Security snap={snap} route={hash} />}
       {current === "virtualization" && <Virtualization snap={snap} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
-      {current === "network" && <Network snap={snap} route={hash} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
+      {current === "network" && <Network key={pending.tab === "network" ? pending.n : 0} snap={snap} route={hash} initial={initialFor("network")} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
       </div>
       </div>
     </div>

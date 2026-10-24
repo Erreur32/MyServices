@@ -42,7 +42,7 @@
 >
 > Because it is still moving fast, **pull requests and issues are not being handled for now**; please hold them until a stable release.
 >
-> Development builds are not tagged. Version numbers stay **below 2.0.0** until it is declared stable (`0.20.2`, `0.20.3`…).
+> Development builds are not tagged. Version numbers stay **below 2.0.0** until it is declared stable (`0.21.0`, `0.21.1`…).
 > Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in English).
 
 ## At a glance
@@ -69,15 +69,14 @@ curl -fsSLo docker-compose.yaml https://raw.githubusercontent.com/Erreur32/MySer
 # optional: change the port (default 8090), see the note below
 curl -fsSLo .env https://raw.githubusercontent.com/Erreur32/MyServices/main/deploy/env.example && nano .env      # edit MYSERVICES_PORT
 docker compose up -d
-docker compose logs myservices        # the app's public key and the command to authorize it on the host
 ```
 
 Then open **`http://<IP>:8090/`** (the app is at the root of the site; the old `/myservices/…` addresses still work and redirect) **within 30 minutes** to create the admin account (after that delay:
-`docker compose restart myservices`) and follow the **setup assistant**, which opens by itself the first time (six short steps: this machine, the network, how to read each machine, your tools, alerts; every step can be skipped and redone, from the account menu: "Review the setup assistant"), then the **Help** page of the account menu.
+`docker compose restart myservices`) and follow the **setup assistant**, which opens by itself the first time (six short steps: this machine, the network, how to read each machine, your tools, alerts; every step can be skipped and redone, from the account menu: "Review the setup assistant"), then the **Help** page of the account menu. The app's SSH key and the command to authorize it on a machine are in **Machines › SSH connections**.
 
 > **The app listens on port `8090`.** It is a setting, not a fixed value: if 8090 is already taken on your machine, put **`MYSERVICES_PORT=8095`** (or any free port) in a `.env` file next to `docker-compose.yaml` (example: [`deploy/env.example`](deploy/env.example), downloaded by the second `curl` above), then run `docker compose up -d` and open `http://<IP>:8095/`. The container uses the host network, so editing a `ports:` mapping would do nothing.
 
-Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.20.2` pins a version, `:main` tracks the latest commit of the `main` branch (the header then shows e.g. `v0.10.1+ · main · abc1234`).
+Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.21.0` pins a version, `:main` tracks the latest commit of the `main` branch (the header then shows e.g. `v0.10.1+ · main · abc1234`).
 Update: `docker compose pull && docker compose up -d` (settings and data live in the `./config` and `./data` volumes).
 
 ---

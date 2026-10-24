@@ -3,7 +3,7 @@
 // with its state, machine and source, filters, sort, « By machine »; on a phone, one card per service.
 import { usePageView } from "../lib/route";
 import { foldHeaderProps } from "../lib/foldHeader";
-import { ArrowLeft, ChevronDown, ChevronRight, ExternalLink, EyeOff, Globe, Layers, Pencil, Search, Plus, Server, Boxes, Undo2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, ExternalLink, EyeOff, Globe, Layers, Pencil, Plus, Server, Boxes, Undo2 } from "lucide-react";
 import { Fragment, useCallback, useMemo, useState } from "react";
 import { send, type Snapshot } from "../api";
 import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
@@ -14,19 +14,17 @@ import type { Host } from "../types";
 import { Badge, Cards, Dim, Empty, FilterBar, Table, Td, Th, type Tone } from "../components/ui";
 import { ServiceDetail } from "./ServiceDetail";
 import { ServiceEdit } from "../components/ServiceEdit";
-import { dateTime, ipNum } from "../lib/format";
+import { ipNum } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { FoldPanel } from "../components/FoldPanel";
 import { NewServices } from "../components/NewServices";
 import { ManualActions, ManualService, type ManualInitial } from "../components/ManualService";
 import { StatTile } from "../components/StatTile";
 import { TargetChanged } from "../components/TargetChanged";
-import { WatchPanel } from "../components/WatchPanel";
-import { quiet, worstTone } from "../lib/forms";
+import { quiet } from "../lib/forms";
 import { figures, liveChecks, mergePorts, toWatch } from "../lib/servicesState";
 import { HeadTags } from "../components/HeadTags";
 import { isHidden, serviceKey, setServiceHidden, useServicesHidden, type HiddenMap } from "../lib/servicesHidden";
-import { useStoredFlag } from "../lib/storedFlag";
 
 const ST_TONE: Record<string, Tone> = { ok: "ok", warn: "warn", bad: "bad", off: "off" };
 const ST_NAME: Record<string, string> = { ok: "OK", warn: "avertissement", bad: tx("en panne"), off: tx("désactivé / non testé") };
@@ -177,8 +175,8 @@ function groupByMachine(rows: Host[]): { name: string; ip: string; rows: Host[] 
   return [...groups.values()];
 }
 
-function GroupHeader({ g, folded, onToggle, cols }: Readonly<{ g: { name: string; ip: string; rows: Host[] }; folded: boolean; onToggle: () => void; cols: number }>) {
-  const count = (c: string) => g.rows.filter((r) => status(r)[0] === c).length;
+function GroupHeader({ g, folded, onToggle, cols, map }: Readonly<{ g: { name: string; ip: string; rows: Host[] }; folded: boolean; onToggle: () => void; cols: number; map: HiddenMap }>) {
+  const count = (c: string) => g.rows.filter((r) => status(r)[0] === c && !isHidden(r, map)).length;   // a service hidden from « To watch » is no longer counted down here
   return (
     <tr {...foldHeaderProps(onToggle)} className={`cursor-pointer hover:bg-bg2 ${folded ? "bg-bg2/70" : "bg-link/15"}`}>
       <td className={`p-0 ${folded ? "" : OPEN_EDGE}`}>
@@ -239,84 +237,54 @@ function targetOf(r: Host): string {
   return r.type === "dead" ? tx("aucune (404)") : `${r.ip}:${r.port}`;
 }
 
-function ServiceRow({ r, ports = [r], grouped, hidden, onOpen, onPort, onEdit }: Readonly<{ r: Host; ports?: Host[]; grouped: boolean; hidden: boolean; onOpen: () => void; onPort?: (p: Host) => void; onEdit?: () => void }>) {   // grouped: the rows of an opened group sit on a darker background with a coloured edge
+/** Hide a service from « To watch » or show it back, the same button as there: a service with a known problem (down, warning, point to check)
+ *  is hidden until its problem changes, any other one (online, stopped on purpose) is no longer followed at all until shown back */
+function HideToggle({ r, hidden, watched }: Readonly<{ r: Host; hidden: boolean; watched: boolean }>) {
+  const toggle = (e: { stopPropagation: () => void }) => { e.stopPropagation(); void setServiceHidden(r, hostName(r), !hidden, !watched); };
+  if (hidden) return <button type="button" className="shrink-0 text-dim hover:text-txt" title={tx("Afficher de nouveau dans les alertes")} aria-label={tx("Afficher de nouveau dans les alertes")} onClick={toggle}><Undo2 size={15} aria-hidden /></button>;
+  const tip = watched ? tx("Masquer des alertes et du point du menu tant que le problème ne change pas")
+    : tx("Ne plus suivre ce service : plus jamais dans les alertes ni dans le point du menu, même en panne, jusqu'à ce qu'il soit réaffiché");
+  return <button type="button" className="shrink-0 text-dim hover:text-txt" title={tip} aria-label={tx("Masquer des alertes")} onClick={toggle}><EyeOff size={15} aria-hidden /></button>;
+}
+
+function ServiceRow({ r, ports = [r], grouped, hidden, watched, admin, onOpen, onPort, onEdit }: Readonly<{ r: Host; ports?: Host[]; grouped: boolean; hidden: boolean; watched: boolean; admin: boolean; onOpen: () => void; onPort?: (p: Host) => void; onEdit?: () => void }>) {   // watched: in « To watch »; admin: can hide it from there   // grouped: the rows of an opened group sit on a darker background with a coloured edge
   const edge = grouped ? `${OPEN_EDGE} !pl-9` : "";   // the state lines up under the server icon of the group header
   return (
     <tr onClick={onOpen} className={`cursor-pointer ${grouped ? "bg-bg/30 even:bg-bg/70" : "even:bg-bg/50"} hover:!bg-bg2/60 ${r.enabled ? "" : "opacity-60"}`}>
-      <Td className={`!py-1 overflow-hidden align-middle whitespace-nowrap ${edge}`}><State r={r} ck={checks(r)} source={<Badge tone="off" title={sourceTip(r)}>{via(r)}</Badge>} />{hidden && <span className="ml-1.5" title={tx("Masqué de « À surveiller » : son état reste ici")}><Badge tone="off" outline>{tx("masqué")}</Badge></span>}</Td>
+      <Td className={`!py-1 overflow-hidden align-middle whitespace-nowrap ${edge}`}><span className={hidden ? "opacity-40 grayscale" : ""}><State r={r} ck={checks(r)} source={<Badge tone="off" title={sourceTip(r)}>{via(r)}</Badge>} /></span>{hidden && <span className="ml-1.5" title={tx("Masqué des alertes : son état reste ici")}><Badge tone="off" outline>{tx("masqué")}</Badge></span>}</Td>
       <Td className="!py-1 overflow-hidden !pl-10 align-middle"><span className="flex items-center gap-2"><Name r={r} />{ports.length > 1 && <Badge tone="info" outline>{tx("{0} ports", ports.length)}</Badge>}</span></Td>
       <Td className="!py-1 overflow-hidden whitespace-nowrap !pl-6 align-middle font-mono text-xs text-muted">
         {ports.length > 1 ? <PortChips ip={r.ip} ports={ports} onPort={onPort} /> : <span className="block truncate" title={targetOf(r)}>{targetOf(r)}</span>}
       </Td>
       {!grouped && <Td className="!py-1 !pl-6 align-middle">{r.machine ? <><b className="font-medium">{r.machine}</b>{r.category && <span className="block text-xs text-dim">{r.category}</span>}</> : <Dim>-</Dim>}</Td>}
       <Td className="!py-1 overflow-hidden !pl-10 align-middle"><div className="flex items-center gap-2.5"><ServiceLogo r={r} /><Tech r={r} />
-        {onEdit && <button type="button" className="ml-auto shrink-0 text-dim hover:text-link" title={tx("Modifier")} aria-label={tx("Modifier")} onClick={(e) => { e.stopPropagation(); onEdit(); }}><Pencil size={15} aria-hidden /></button>}
+        {admin && <span className="ml-auto flex items-center gap-2">
+          {watched && exposure(r) === "ouvert" && r.domains[0] && (
+            <button type="button" className="text-dim hover:text-ok" title={tx("Ouvert à Internet volontairement (site, blog, page de contact) : ne plus le signaler")} aria-label={tx("Site public voulu")}
+              onClick={(e) => { e.stopPropagation(); void send("PUT", "services/public", { domain: r.domains[0], public: true }).catch(() => undefined); }}><Globe size={15} aria-hidden /></button>
+          )}
+          <HideToggle r={r} hidden={hidden} watched={watched} /></span>}
+        {onEdit && <button type="button" className={`${admin ? "" : "ml-auto "}shrink-0 text-dim hover:text-link`} title={tx("Modifier")} aria-label={tx("Modifier")} onClick={(e) => { e.stopPropagation(); onEdit(); }}><Pencil size={15} aria-hidden /></button>}
       </div></Td>
     </tr>
   );
 }
 
-/** « To watch »: the services down, in warning or with a point to check; a row opens the detail window. An admin can hide a service from here
- *  (and from the tab's dot and the home page) until its problem changes; « Show hidden » lists them again, greyed, with a button to show them back. */
-function Watch({ rows, hidden, map, admin, onOpen }: Readonly<{ rows: Host[]; hidden: Host[]; map: HiddenMap; admin: boolean; onOpen: (key: string) => void }>) {
-  const [showHidden, setShowHidden] = useStoredFlag("myservices.services.showHidden", false);
-  const worst = worstTone(rows.some((r) => status(r)[0] === "bad"), rows.length > 0);
-  const list = showHidden ? [...rows, ...hidden] : rows;
-  const extra = hidden.length > 0 && (
-    <label className="flex cursor-pointer items-center gap-2 text-sm text-muted" data-no-fold>
-      <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />{tx("Afficher les masqués")} <Dim>({hidden.length})</Dim>
-    </label>
-  );
-  return (
-    <WatchPanel id="services" tone={worst} count={rows.length} keep={hidden.length > 0} pinned extra={extra} hint={tx("en panne, en avertissement ou avec un point à vérifier")}>
-      {list.length === 0 ? <p className="px-4 py-3 text-sm text-dim">{tx("Les services à surveiller sont tous masqués.")}</p> : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
-            <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
-              <th className="px-3 py-2">{tx("Service")}</th><th className="px-3 py-2">{tx("Machine")}</th><th className="px-3 py-2">{tx("Accès")}</th><th className="px-3 py-2">{tx("État")}</th><th className="w-24 px-3 py-2" />
-            </tr></thead>
-            <tbody>
-              {list.map((r) => {
-                const [cls, label, why] = status(r), ex = exposure(r), flags = liveChecks(r).filter((k) => k !== "down").map((k) => CHECK[k][0]), domain = declaredDomains(r)[0];
-                const off = map[keyOfRow(r)] && isHidden(r, map) ? map[keyOfRow(r)] : null;
-                return (
-                  <tr key={keyOfRow(r)} className={`border-t border-line/60 even:bg-bg/50 hover:bg-bg2/40 ${off ? "opacity-60" : ""}`}>
-                    <td className="px-3 py-2"><span className="flex items-center gap-2"><ServiceLogo r={r} /><span className="min-w-0"><b className="block truncate font-semibold">{hostName(r)}</b>
-                      {domain && domain !== hostName(r) && <span className="block truncate font-mono text-[11px] text-dim">{domain}</span>}
-                      {off && <span className="block text-[11px] text-dim">{tx("masqué le {0}", dateTime(off.at * 1000))}</span>}</span></span></td>
-                    <td className="px-3 py-2">{r.machine || <Dim>{tx("machine inconnue")}</Dim>}</td>
-                    <td className="px-3 py-2">{ex ? <Badge tone={EXPO[ex][0]} outline plainText title={EXPO[ex][2]}>{EXPO[ex][1]}</Badge> : <Dim>-</Dim>}</td>
-                    <td className="px-3 py-2"><StateBadges cls={cls} label={label} title={why} />{flags.length > 0 && <span className="ml-1.5 text-xs text-muted">{flags.join(" · ")}</span>}</td>
-                    <td className="px-3 py-2 text-right"><span className="inline-flex items-center gap-2">
-                      {admin && ex === "ouvert" && r.domains[0] && (
-                        <button type="button" className="text-dim hover:text-ok" title={tx("Ouvert à Internet volontairement (site, blog, page de contact) : ne plus le signaler")} aria-label={tx("Site public voulu")}
-                          onClick={() => void send("PUT", "services/public", { domain: r.domains[0], public: true }).catch(() => undefined)}><Globe size={15} aria-hidden /></button>
-                      )}
-                      {admin && (off
-                        ? <button type="button" className="text-dim hover:text-txt" title={tx("Afficher de nouveau dans « À surveiller »")} aria-label={tx("Afficher de nouveau dans « À surveiller »")} onClick={() => void setServiceHidden(r, hostName(r), false)}><Undo2 size={15} aria-hidden /></button>
-                        : <button type="button" className="text-dim hover:text-txt" title={tx("Ne plus afficher ici, ni dans le point de l'onglet, tant que le problème ne change pas")} aria-label={tx("Masquer de « À surveiller »")} onClick={() => void setServiceHidden(r, hostName(r), true)}><EyeOff size={15} aria-hidden /></button>)}
-                      <button type="button" onClick={() => onOpen(keyOfRow(r))} aria-haspopup="dialog" title={tx("Détail")} aria-label={tx("Détail")} className="text-dim hover:text-link"><Search size={16} aria-hidden /></button>
-                    </span></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </WatchPanel>
-  );
-}
 
 const SERVICE_VIEWS = ["watch", "all", "fresh", "item", "edit", "manual", "new"] as const;
 /** The page of one service and its settings: #services/item/<key>, #services/edit/<key> (meta), #services/manual/<key> (a declared one) */
 const servicePage = (view: string, r: Host) => `services/${view}/${encodeURIComponent(keyOfRow(r))}`;
 const openService = (r: Host) => { location.hash = servicePage("item", r); };
 
+/** In alert, as the menu's dot counts it: down, in warning or with a point to check, unless hidden from the alerts */
+const alertMark = () => <Dot tone="bad" />;
+const alerting = (r: Host, hidden: HiddenMap) => { const c = status(r)[0]; return (c === "bad" || c === "warn" || liveChecks(r).length > 0) && !isHidden(r, hidden); };
+
 export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; initial?: Selected; route: string }>) {
   const hiddenMap = useServicesHidden();
   const machines = useMemo(() => new Map(snap.data.machine_list.map((m) => [m.ip, m.name])), [snap.data.machine_list]);
   const facets = useMemo((): Facet<Host>[] => [
+    { key: "alert", label: tx("Alertes"), get: (r) => (alerting(r, hiddenMap) ? "on" : ""), name: () => tx("en alerte"), mark: alertMark },   // ticked by the menu's dot
     { key: "src", label: tx("Source"), get: (r) => (r.type === "local" ? "local" : "npm"), name: (v) => (v === "npm" ? "NPM" : tx("Services")), order: ["npm", "local"],
       mark: (v) => (v === "npm" ? <Logo src={`${import.meta.env.BASE_URL}icons/nginx-proxy-manager.svg`} /> : <Dot tone="info" />) },
     { key: "status", label: tx("État"), get: (r) => status(r)[0], name: (v) => ST_NAME[v] || v, order: ["bad", "warn", "ok", "off"], mark: (v) => <Dot tone={v as Tone} /> },
@@ -328,12 +296,12 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
     { key: "app", label: tx("Appli"), get: (r) => r.app?.label || "", mark: (v) => { const i = appIcon([v]); return i ? <Logo src={i} /> : null; } },
     { key: "kind", label: tx("Type"), get: (r) => r.service?.kind || "", name: (v) => KIND_NAME[v] || v,
       mark: (v) => (KIND_LOGO.has(v) ? <Logo src={`${import.meta.env.BASE_URL}icons/${v}.svg`} /> : null) },
-  ], [machines]);
+  ], [machines, hiddenMap]);
   const text = useCallback((r: Host) => [
     ...declaredDomains(r), r.name, r.ip, r.port, r.target, r.machine, r.category, r.service?.name, r.service?.image, r.service?.title, r.description,
   ].join(" "), []);
   // Tout s'affiche par défaut, les pannes d'abord (tri par état) ; un filtre demandé ailleurs (compteur de l'accueil, machine) est gardé tel quel
-  const f = useFilter(snap.data.hosts, facets, text, initial);
+  const f = useFilter(snap.data.hosts, facets, text, route.startsWith("#services/watch") ? { alert: ["on"] } : initial);   // the old « To watch » address: the alerts
   const keyOf = useCallback((r: Host, k: string): string | number => {
     switch (k) {
       case "status": return ["bad", "warn", "ok", "off"].indexOf(status(r)[0]);
@@ -347,10 +315,9 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   const [grouped, setGrouped] = useGrouped(), [expanded, setExpanded] = useState<string[]>(() => (initial && Object.keys(initial).length ? groupByMachine(f.shown).map((g) => g.name) : []));   // groups are folded until opened, except when arriving with a filter (link from a machine): then they are already open
   const groups = useMemo(() => (grouped ? groupByMachine(sort.sorted) : [{ name: "", ip: "", rows: sort.sorted }]), [grouped, sort.sorted]);
 
-  const fig = figures(snap.data.hosts), watchAll = toWatch(snap.data.hosts), admin = snap.me.role === "admin";
-  const watch = watchAll.filter((r) => !isHidden(r, hiddenMap)), hiddenRows = watchAll.filter((r) => isHidden(r, hiddenMap));
-  const filtered = !!initial && Object.keys(initial).length > 0;   // came with a filter (home counter, a machine): the list is wanted
-  const view = usePageView(route, "services", SERVICE_VIEWS, filtered || watch.length === 0 ? "all" : "watch");
+  const every = figures(snap.data.hosts), fig = figures(snap.data.hosts.filter((r) => !isHidden(r, hiddenMap))), watchAll = toWatch(snap.data.hosts), admin = snap.me.role === "admin";   // the tiles leave out the services hidden from « To watch », the header counts them all
+  const watchKeys = new Set(watchAll.map(keyOfRow));
+  const view = usePageView(route, "services", SERVICE_VIEWS, "all");   // « To watch » is no longer a page: the alerts are a filter of the list
   const pageKey = decodeURIComponent(route.split("/")[2] ?? "");
   const page = ["item", "edit", "manual"].includes(view) ? snap.data.hosts.find((r) => keyOfRow(r) === pageKey) : undefined;
   if (view === "new" || (page && view !== "item")) return <ServicePageSettings view={view} r={page} snap={snap} />;
@@ -360,7 +327,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="flex items-center gap-2 text-xl font-bold"><Boxes size={18} aria-hidden />{tx("Services")}</h1>
-        <HeadTags counts={[tx("{0} services", fig.total), tx("{0} avec domaine", fig.withDomain), tx("{0} locaux", fig.local), tx("{0} machines", fig.machines)]} at={snap.data.generated} />
+        <HeadTags counts={[tx("{0} services", every.total), tx("{0} avec domaine", every.withDomain), tx("{0} locaux", every.local), tx("{0} machines", every.machines)]} at={snap.data.generated} />
         {admin && <a href="#services/new" className={`${quiet} ml-auto py-1 no-underline`} title={tx("Déclarer un service que la détection ne voit pas")}><Plus size={14} aria-hidden />{tx("Service")}</a>}
       </div>
       <div className="flex gap-2.5 overflow-x-auto pb-1">
@@ -369,11 +336,10 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
         <StatTile n={fig.warn} label={tx("Avertissement")} tone={fig.warn ? "warn" : undefined} sub={fig.warnWhy.join(", ") || undefined} />
         <StatTile n={fig.toCheck} label={tx("À vérifier")} tone={fig.toCheck ? "warn" : undefined} sub={fig.checkWhy.map((k) => CHECK[k][0]).join(", ") || tx("rien à confirmer")} />
       </div>
-      {view === "watch" && <Watch rows={watch} hidden={hiddenRows} map={hiddenMap} admin={admin} onOpen={(k) => { const r = snap.data.hosts.find((x) => keyOfRow(x) === k); if (r) openService(r); }} />}
       {view === "fresh" && admin && <NewServices generated={snap.data.generated} />}
-      {view === "all" && <FoldPanel id="services-all" icon={Layers} title={tx("Tous les services")} count={snap.data.hosts.length} pinned>
-      <FilterBar f={f} primary={["status", "domain", "machine"]} placeholder={tx("Domaine, IP, port, conteneur, image…")}
-        side={<button type="button" onClick={() => setGrouped(!grouped)} aria-pressed={grouped} title={tx("Regrouper les services sous le nom de leur machine")}
+      {(view === "all" || view === "watch") && <FoldPanel id="services-all" icon={Layers} title={tx("Tous les services")} count={snap.data.hosts.length} pinned>
+      <FilterBar f={f} primary={["alert", "status", "domain"]} oneLine bare placeholder={tx("Domaine, IP, port, conteneur, image…")}   // one line in the panel's frame; Machine behind « More filters »
+        extra={<button type="button" onClick={() => setGrouped(!grouped)} aria-pressed={grouped} title={tx("Regrouper les services sous le nom de leur machine")}
           className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-colors ${grouped ? "border-link bg-link/15 text-txt" : "border-line text-link hover:bg-link/10"}`}>
           <Server size={14} aria-hidden />{tx("Par machine")}</button>} />
       {sort.sorted.length === 0 ? <Empty>{tx("Aucun service pour ce filtre.")}</Empty> : (
@@ -384,8 +350,8 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
           </>}>
             {groups.map((g) => (
               <Fragment key={g.name}>
-                {grouped && <GroupHeader g={g} cols={4} folded={!expanded.includes(g.name)} onToggle={() => setExpanded(expanded.includes(g.name) ? expanded.filter((n) => n !== g.name) : [...expanded, g.name])} />}
-                {(!grouped || expanded.includes(g.name)) && mergePorts(g.rows).map(({ lead: r, ports }) => <ServiceRow key={keyOfRow(r)} r={r} ports={ports} grouped={grouped} hidden={isHidden(r, hiddenMap)} onOpen={() => openService(r)} onPort={openService} onEdit={admin ? () => { location.hash = servicePage("edit", r); } : undefined} />)}
+                {grouped && <GroupHeader g={g} cols={4} map={hiddenMap} folded={!expanded.includes(g.name)} onToggle={() => setExpanded(expanded.includes(g.name) ? expanded.filter((n) => n !== g.name) : [...expanded, g.name])} />}
+                {(!grouped || expanded.includes(g.name)) && mergePorts(g.rows).map(({ lead: r, ports }) => <ServiceRow key={keyOfRow(r)} r={r} ports={ports} grouped={grouped} hidden={isHidden(r, hiddenMap)} watched={watchKeys.has(keyOfRow(r))} admin={admin} onOpen={() => openService(r)} onPort={openService} onEdit={admin ? () => { location.hash = servicePage("edit", r); } : undefined} />)}
               </Fragment>
             ))}
           </Table>
@@ -402,6 +368,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
                     </span>
                     <Badge tone={ST_TONE[cls]}>{label}</Badge>
                   </button>
+                  {admin && <div className="mt-2 flex justify-end"><HideToggle r={r} hidden={isHidden(r, hiddenMap)} watched={watchKeys.has(k)} /></div>}
                 </div>
               );
             })}

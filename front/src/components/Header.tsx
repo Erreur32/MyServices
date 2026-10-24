@@ -1,15 +1,15 @@
-import { ArrowUpCircle, ChevronDown, ExternalLink, Info, LifeBuoy, ListChecks, LogOut, Menu, Moon, Sun, UserRound, X } from "lucide-react";
+import { ArrowUpCircle, ChevronDown, ExternalLink, Info, LifeBuoy, ListChecks, LogOut, Menu, UserRound, X } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { DiscoveryBell } from "./DiscoveryCard";
 import { DropItem, DROP_PANEL, DropSep, useDropdown } from "./Dropdown";
-import { useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { logout, type Snapshot } from "../api";
-import type { Theme } from "../theme";
-import { LOCALE, tx } from "../lib/i18n";
+import { LANG, LOCALE, setLang, tx } from "../lib/i18n";
+import { Flag } from "./Flag";
 import { appVersion } from "../lib/format";
 import { reopenAssistant } from "../lib/assistant";
 import { GITHUB } from "../lib/links";
-import { dismissTag, dismissedTag } from "../lib/updateNotice";
+import { announcedTag, dismissTag, dismissedTag, markAnnounced, noticesOn, onCheck, onNotices, type UpdateNews } from "../lib/updateNotice";
 import { ScanOrb } from "./ScanOrb";
 
 function ago(iso: string, now: number): string {
@@ -39,15 +39,18 @@ function DevState({ git, released, planned }: Readonly<{ git?: string; released?
   );
 }
 
-/** A new release published: a pill that opens Settings → Updates; its cross hides it for this version only */
-function UpdatePill({ update }: Readonly<{ update?: { available: boolean; tag?: string | null } | null }>) {
+/** A new release published: a pill that opens Settings → Updates, with a beacon while it is new; its cross hides it for this version only */
+function UpdatePill({ update }: Readonly<{ update?: UpdateNews | null }>) {
   const [hidden, setHidden] = useState(dismissedTag());
   if (!update?.available || !update.tag || hidden === update.tag) return null;
-  const tag = update.tag;
+  const tag = update.tag, fresh = announcedTag() !== tag;
   return (
-    <span className="hidden items-center overflow-hidden rounded-full border border-link/50 bg-link/10 text-xs sm:inline-flex">
+    <span className="hidden items-center overflow-hidden rounded-full border border-link/50 bg-link/10 text-xs motion-safe:animate-[ms-pop_.45s_ease-out] sm:inline-flex">
       <a href="#settings/updates" className="inline-flex items-center gap-1.5 py-1 pl-2.5 pr-1.5 font-semibold text-link no-underline hover:bg-link/15" title={tx("Nouvelle version publiée : voir Réglages → Mises à jour")}>
-        <ArrowUpCircle size={14} aria-hidden />{tx("{0} disponible", tag)}
+        <span className="relative grid place-items-center">
+          {fresh && <span className="absolute h-3.5 w-3.5 rounded-full bg-link/50 motion-safe:animate-ping" aria-hidden />}
+          <ArrowUpCircle size={14} aria-hidden />
+        </span>{tx("{0} disponible", tag)}
       </a>
       <button type="button" onClick={() => { dismissTag(tag); setHidden(tag); }} aria-label={tx("Masquer pour cette version")} title={tx("Masquer pour cette version")}
         className="grid h-full place-items-center px-1.5 text-dim hover:bg-link/15 hover:text-txt"><X size={12} aria-hidden /></button>
@@ -55,8 +58,45 @@ function UpdatePill({ update }: Readonly<{ update?: { available: boolean; tag?: 
   );
 }
 
-export function Header({ snap, theme, toggleTheme, now, onMenu }: Readonly<{ snap: Snapshot; theme: Theme; toggleTheme: () => void; now: number; onMenu: () => void }>) {
+const Orb = lazy(() => import("thinking-orbs").then((m) => ({ default: m.ThinkingOrb })));   // the scan's orb library, another pattern
+
+/** The notice in the middle of the header, where the scan's orb shows, for a few seconds: what « Check now » found (new release or up to
+ *  date), or a release the automatic check just brought (once per version) */
+function UpdateToast({ news, version, onClose }: Readonly<{ news: UpdateNews; version: string; onClose: () => void }>) {
+  useEffect(() => { const t = setTimeout(onClose, news.available ? 9000 : 5000); return () => clearTimeout(t); }, [news]);   // one timer per notice (onClose is a new function on every render)
+  return (
+    <div role="status" aria-live="polite" className="hidden items-center gap-3 motion-safe:animate-[ms-toast_.4s_cubic-bezier(.2,.9,.3,1.2)] md:flex">
+      <Suspense fallback={<span className="block h-16 w-16" aria-hidden />}><Orb state={news.available ? "shaping" : "breathing"} size={64} theme="auto" /></Suspense>
+      <span className="flex min-w-0 max-w-[18rem] flex-col text-xs leading-tight">
+        <b className={`text-sm ${news.available ? "text-link" : "text-ok"}`}>{news.available ? tx("Nouvelle version : {0}", news.tag ?? "") : tx("MyServices est à jour")}</b>
+        <span className="text-dim">{news.available ? tx("Installée : {0}.", version) : tx("{0} est la dernière version publiée.", news.tag || version)}</span>
+        {news.available && <a href="#settings/updates" onClick={onClose} className="mt-0.5 font-semibold text-link hover:underline">{tx("Voir la mise à jour")} ›</a>}
+      </span>
+      <button type="button" onClick={onClose} aria-label={tx("Fermer")} title={tx("Fermer")} className="self-start rounded-md p-1 text-dim hover:bg-bg2 hover:text-txt"><X size={14} aria-hidden /></button>
+    </div>
+  );
+}
+
+/** The header's update notices: the pill (from the snapshot, or from a check just made) and the notice; none when switched off */
+function useUpdateNotices(update?: UpdateNews | null) {
+  const [checked, setChecked] = useState<UpdateNews | null>(null), [toast, setToast] = useState<UpdateNews | null>(null), [on, setOn] = useState(noticesOn());
+  useEffect(() => onCheck((n) => { setChecked(n); if (n.manual || n.available) setToast(n); }), []);
+  useEffect(() => onNotices(() => setOn(noticesOn())), []);
+  useEffect(() => {   // a release brought by the automatic check: announced once
+    if (!on || checked || !update?.available || !update.tag || announcedTag() === update.tag || dismissedTag() === update.tag) return;
+    setToast(update);
+  }, [on, checked, update]);
+  const close = () => {
+    if (toast?.tag && toast.available) { markAnnounced(toast.tag); }
+    setToast(null);
+  };
+  return { pill: on ? checked ?? update : null, toast: on ? toast : null, close };
+}
+
+export function Header({ snap, now, onMenu }: Readonly<{ snap: Snapshot; now: number; onMenu: () => void }>) {
   const stale = (now - new Date(snap.data.generated).getTime()) / 60000 > snap.data.page.stale_min;
+  const updates = useUpdateNotices(snap.me.update);
+  const version = appVersion(snap.me.version, snap.me.released) || snap.me.version || "";
   return (
     <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 py-4">
       <div className="flex min-w-0 items-center gap-3">
@@ -77,18 +117,21 @@ export function Header({ snap, theme, toggleTheme, now, onMenu }: Readonly<{ sna
           </div>
         </div>
       </div>
-      <ScanOrb />
+      <div className="flex h-0 items-center justify-center gap-6">{/* the middle: a pass running, an update notice; no height of its own, the 64 px orb spills into the header's padding instead of making it taller */}
+        <ScanOrb />
+        {updates.toast && <UpdateToast news={updates.toast} version={version} onClose={updates.close} />}
+      </div>
       <div className="col-start-3 flex items-center justify-end gap-3">
-        <UpdatePill update={snap.me.update} />
+        <UpdatePill update={updates.pill} />
         {snap.me.role === "admin" && <DiscoveryBell machines={snap.data.machine_list} />}
-        <UserMenu snap={snap} theme={theme} toggleTheme={toggleTheme} />
+        <UserMenu snap={snap} />
       </div>
     </header>
   );
 }
 
 /** Menu du compte, à droite : qui est connecté, réglages, profil, premiers pas, thème, projet, déconnexion. */
-function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; toggleTheme: () => void }) {
+function UserMenu({ snap }: Readonly<{ snap: Snapshot }>) {
   const { open, setOpen, box } = useDropdown();
   const admin = snap.me.role === "admin";
   const go = (hash: string) => { location.hash = hash; setOpen(false); };
@@ -111,7 +154,7 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
           </div>
           <DropSep />
           <DropItem icon={<UserRound size={15} />} onClick={() => go("profile")}>{tx("Profil")}</DropItem>
-          <DropItem icon={theme === "dark" ? <Sun size={15} /> : <Moon size={15} />} onClick={toggleTheme}>{tx("Thème")} {theme === "dark" ? tx("clair") : tx("sombre")}</DropItem>
+          <DropItem icon={<Flag lang={LANG === "fr" ? "en" : "fr"} className="h-3.5 w-5" />} onClick={() => setLang(LANG === "fr" ? "en" : "fr")}>{LANG === "fr" ? "English" : "Français"}</DropItem>{/* the other language, named in itself; the theme is chosen in the profile */}
           <DropSep />
           <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-widest text-dim">{tx("Consulter")}</p>
           <DropItem icon={<LifeBuoy size={15} />} onClick={() => go("help")}>{tx("Aide")}</DropItem>

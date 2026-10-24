@@ -1326,13 +1326,77 @@ async def mcp_endpoint(request: Request):
         return JSONResponse({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "JSON illisible"}}, status_code=400)
     u = request.state.user or {}
     ctx = {"token": u.get("token") or {"name": "?", "level": "read"},
-           "audit": lambda action: store().audit(action, u.get("username"), ip_of(request))}
+           "audit": lambda action: store().audit(action, u.get("username"), ip_of(request)),
+           "route": lambda method, path, params: mcp_route(request, method, path, params), "route_help": mcp_route_help}
     states = tokens_store().tool_states()
     msgs = body if isinstance(body, list) else [body]
-    out = [r for m in msgs if isinstance(m, dict) and (r := mcp_server.handle(m, ctx, core, states)) is not None]
+    # in a worker thread: the *_config tools run blocking routes (connector tests, SSH)
+    out = await run_in_threadpool(lambda: [r for m in msgs if isinstance(m, dict) and (r := mcp_server.handle(m, ctx, core, states)) is not None])
     if not out:
         return Response(status_code=202)
     return JSONResponse(out if isinstance(body, list) else out[0])
+
+
+def _route(method: str, path: str):
+    """The REST route behind an MCP *_config action, and its parameters as (name, type)."""
+    import inspect
+    import typing
+    from fastapi.routing import APIRoute
+    for r in app.routes:
+        if isinstance(r, APIRoute) and r.path == API + path and method in r.methods:
+            hints = typing.get_type_hints(r.endpoint)
+            return r, [(name, hints.get(name)) for name in inspect.signature(r.endpoint).parameters]
+    raise ValueError(f"route inconnue : {method} {path}")
+
+
+def _is_model(kind) -> bool:
+    return isinstance(kind, type) and issubclass(kind, BaseModel)
+
+
+def mcp_route(request: Request, method: str, path: str, params: dict) -> tuple[int, object]:
+    """Run a REST route for an MCP *_config tool, as the token's user: same checks, audit and side effects as from the page.
+    Path parameters are taken from params by name (« type_ » as « type »), the rest is the body. A bad body raises ValueError."""
+    from fastapi import HTTPException
+    route, args = _route(method, path)
+    body, kwargs, model = dict(params), {}, None
+    for name, kind in args:
+        if name == "request":
+            kwargs[name] = request
+        elif _is_model(kind):
+            model = (name, kind)
+        elif (key := name.rstrip("_")) in body:
+            value = body.pop(key)
+            kwargs[name] = kind(value) if kind in (int, str) else value
+        elif "{" + name + "}" in path:
+            raise ValueError(f"paramètre « {key} » requis")
+    if model:
+        kwargs[model[0]] = model[1].model_validate(body)
+    try:
+        out = route.endpoint(**kwargs)
+    except HTTPException as e:
+        return e.status_code, {"error": e.detail}
+    if isinstance(out, Response):
+        try:
+            return out.status_code, json.loads(out.body)
+        except ValueError:
+            return out.status_code, {}
+    return 200, {"ok": True} if out is None else out
+
+
+def mcp_route_help(method: str, path: str) -> dict:
+    """What an MCP *_config action does and the JSON schema of its parameters (path parameters and body fields together)."""
+    route, args = _route(method, path)
+    props, required, defs = {}, [], {}
+    for name, kind in args:
+        if _is_model(kind):
+            schema = kind.model_json_schema()
+            props.update(schema.get("properties", {}))
+            required += schema.get("required", [])
+            defs.update(schema.get("$defs", {}))
+        elif "{" + name + "}" in path:
+            props[name.rstrip("_")] = {"type": "integer" if kind is int else "string"}
+            required.append(name.rstrip("_"))
+    return {"summary": route.summary, "params": {"type": "object", "properties": props, "required": required, **({"$defs": defs} if defs else {})}}
 
 
 @app.get(MCP, include_in_schema=False)
@@ -1508,19 +1572,17 @@ def base_url(request: Request) -> str:
     return f"{proto}://{request.headers.get('x-forwarded-host') or request.headers.get('host')}"
 
 
-@app.get(API + "/agents", tags=["agents"], summary="Agents et leur dernier relevé (session admin)")
+@app.get(API + "/agents", tags=["agents"], summary="Agents et leur dernier relevé (admin)")
 def agents_list(request: Request):
-    if denied := admin_only(request):
+    if denied := admin_write(request):
         return denied
-    if (request.state.user or {}).get("token"):
-        return deny(403, "gestion des agents : session requise")
     return {"agents": agents_store().listing(), "report_path": AGENT_REPORT}
 
 
 @app.post(API + "/agents", tags=["agents"], summary="Créer un agent pour une machine (jeton affiché une seule fois)")
 def agents_create(body: NewAgent, request: Request):
     import agents
-    if denied := session_admin(request):
+    if denied := admin_write(request):
         return denied
     u, ip = request.state.user, ip_of(request)
     try:
@@ -1536,10 +1598,10 @@ class AgentChange(BaseModel):
     auto_update: bool
 
 
-@app.patch(API + "/agents/{aid}", tags=["agents"], summary="Mise à jour automatique d'un agent : activer ou couper (session admin)")
+@app.patch(API + "/agents/{aid}", tags=["agents"], summary="Mise à jour automatique d'un agent : activer ou couper (admin)")
 def agents_change(aid: int, body: AgentChange, request: Request):
     import agents
-    if denied := session_admin(request):
+    if denied := admin_write(request):
         return denied
     try:
         agents_store().set_auto_update(aid, body.auto_update)
@@ -1549,10 +1611,10 @@ def agents_change(aid: int, body: AgentChange, request: Request):
     return {"ok": True}
 
 
-@app.post(API + "/agents/{aid}/update", tags=["agents"], summary="Mettre à jour un agent maintenant : il récupère le script à son prochain relevé (session admin)")
+@app.post(API + "/agents/{aid}/update", tags=["agents"], summary="Mettre à jour un agent maintenant : il récupère le script à son prochain relevé (admin)")
 def agents_update(aid: int, request: Request):
     import agents
-    if denied := session_admin(request):
+    if denied := admin_write(request):
         return denied
     try:
         agents_store().request_update(aid)
@@ -1562,10 +1624,10 @@ def agents_update(aid: int, request: Request):
     return {"ok": True, "message": "l'agent se mettra à jour à son prochain relevé"}
 
 
-@app.post(API + "/agents/{aid}/confirm-host", tags=["agents"], summary="Accepter le nouveau nom de poste d'un agent (machine renommée ; session admin)")
+@app.post(API + "/agents/{aid}/confirm-host", tags=["agents"], summary="Accepter le nouveau nom de poste d'un agent (machine renommée ; admin)")
 def agents_confirm_host(aid: int, request: Request):
     import agents
-    if denied := session_admin(request):
+    if denied := admin_write(request):
         return denied
     try:
         agents_store().confirm_host(aid)
@@ -1575,10 +1637,10 @@ def agents_confirm_host(aid: int, request: Request):
     return {"ok": True}
 
 
-@app.delete(API + "/agents/{aid}", tags=["agents"], summary="Révoquer un agent (session admin)")
+@app.delete(API + "/agents/{aid}", tags=["agents"], summary="Révoquer un agent (admin)")
 def agents_revoke(aid: int, request: Request):
     import agents
-    if denied := session_admin(request):
+    if denied := admin_write(request):
         return denied
     try:
         agents_store().revoke(aid)
@@ -1588,10 +1650,10 @@ def agents_revoke(aid: int, request: Request):
     return {"ok": True}
 
 
-@app.delete(API + "/agents/{aid}/purge", tags=["agents"], summary="Effacer un agent déjà révoqué de la liste (session admin)")
+@app.delete(API + "/agents/{aid}/purge", tags=["agents"], summary="Effacer un agent déjà révoqué de la liste (admin)")
 def agents_purge(aid: int, request: Request):
     import agents
-    if denied := session_admin(request):
+    if denied := admin_write(request):
         return denied
     try:
         agents_store().purge(aid)
@@ -1956,15 +2018,36 @@ class BackupSetChange(BaseModel):
     archived: bool | None = None   # kept in the inventory and shown last, no longer watched
     schedule: str | None = Field(None, max_length=40, description="Expected schedule, free text")
     path: str | None = Field(None, max_length=300, description="Folder sets only: the folder read on the machine")
+    retention: str | None = Field(None, max_length=60, description="How many archives are kept, free text")
+    note: str | None = Field(None, max_length=300)
+    mode: str | None = Field(None, description="« latest »: copies compared on the newest archive; « each »: on every archive")
 
 
-@app.patch(API + "/backups/settings/{set_id}", tags=["sauvegardes"], summary="Modifier un jeu suivi : nom, seuil d'âge, copie hors machine exigée, archivé, attendu, dossier (admin)")
+@app.patch(API + "/backups/settings/{set_id}", tags=["sauvegardes"], summary="Modifier un jeu suivi : nom, seuil d'âge, copie hors machine exigée, archivé, attendu, dossier, rétention, note, comparaison (admin)")
 def backups_set_update(set_id: str, body: BackupSetChange, request: Request):
     def go(b):
-        b.update_set(set_id, body.label, body.max_age_days, body.expect_offsite, body.archived, body.schedule, body.path)
+        b.update_set(set_id, body.label, body.max_age_days, body.expect_offsite, body.archived, body.schedule, body.path, body.retention, body.note, body.mode)
         core.run_chain(["backups", "collect"], "Réglages → Sauvegardes")
         return {"ok": True}
     return backups_call(request, "sauvegarde modifiée", set_id, go)
+
+
+class BackupLocationChange(BaseModel):
+    ip: str | None = Field(None, max_length=64, description="Machine (with SSH access) that holds the folder")
+    path: str | None = Field(None, max_length=300)
+    pattern: str | None = Field(None, max_length=120, description="Archive names read in the folder, a glob (« *.tar.gz »)")
+    depth: int | None = Field(None, ge=1, le=5, description="Sub-folder levels searched")
+    via: str | None = Field(None, max_length=80, description="How the archives get there, free text (« rsync 04:00 »)")
+    encrypted: bool | None = None
+
+
+@app.patch(API + "/backups/settings/{set_id}/locations/{index}", tags=["sauvegardes"], summary="Modifier un emplacement d'un jeu (0 = la source, puis ses copies) : machine, dossier, fichiers lus, profondeur, moyen, chiffré (admin)")
+def backups_location_update(set_id: str, index: int, body: BackupLocationChange, request: Request):
+    def go(b):
+        b.update_location(set_id, index, body.ip, body.path, body.pattern, body.depth, body.via, body.encrypted)
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes")
+        return {"ok": True}
+    return backups_call(request, "emplacement de sauvegarde modifié", set_id, go)
 
 
 class BackupCopy(BaseModel):
@@ -2255,8 +2338,8 @@ def me(request: Request):
             "git": os.environ.get("MYSERVICES_GIT", ""), "planned": about.planned(about.changelog(Path(core.HERE) / "CHANGELOG.md")),
             # last release written in this build's changelog: an image built from a branch shows it (« 0.10.1+ · main abc1234 »)
             "released": about.released(about.changelog(Path(core.HERE) / "CHANGELOG.md")),
-            # a newer release published, from the last check kept (no request here); nothing when the automatic check is off
-            "update": about.cached(Path(core.CFG["state_dir"]), os.environ.get("MYSERVICES_VERSION", "dev")) if core.CFG.get("update_check", True) else None}
+            # a newer release published, from the last check kept (no request here), automatic or by « Check now »
+            "update": about.cached(Path(core.CFG["state_dir"]), os.environ.get("MYSERVICES_VERSION", "dev"))}
 
 
 def admin_only(request: Request) -> JSONResponse | None:

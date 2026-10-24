@@ -52,9 +52,9 @@ function PartCheck({ part, checked, onChange, extra, disabled }: Readonly<{ part
   );
 }
 
-/** A card that opens on its title and stays folded by default; the choice is remembered in this browser */
+/** A card open by default, folded on its title; the choice is remembered in this browser */
 function FoldCard({ id, icon: Icon, title, children }: Readonly<{ id: string; icon: LucideIcon; title: string; children: ReactNode }>) {
-  const [folded, setFolded] = useStoredFlag(`myservices.settings.${id}Folded`, true);
+  const [folded, setFolded] = useStoredFlag(`myservices.settings.${id}.folded`, false);   // a new key: the cards folded by the old default open again
   const Chevron = folded ? ChevronRight : ChevronDown;
   return (
     <Card>

@@ -7,7 +7,7 @@ import { Card, Count, Dim, SearchBox } from "../components/ui";
 import { dateTime } from "../lib/format";
 import { searchHit } from "../lib/filter";
 import { quiet } from "../lib/forms";
-import { tx } from "../lib/i18n";
+import { LOCALE, tx } from "../lib/i18n";
 import { isProblem, sourceOf } from "../lib/logs";
 import { usePoll } from "../lib/polling";
 import { InfoNote } from "../components/InfoNote";
@@ -15,7 +15,10 @@ import { InfoNote } from "../components/InfoNote";
 interface Line { n: number; t: number; err: boolean; text: string }
 interface Logs { lines: Line[]; last: number; started: number; kept: number }
 
-const KEEP = 3000;
+const KEEP = 10000;   // as many as the server keeps (applog.MAX)
+const SIZES = [200, 500, 1000, 5000, 0] as const;   // lines shown, the last ones; 0: all of them
+const SIZE_KEY = "ms.logs.size";
+const storedSize = (): number => { try { const n = Number(localStorage.getItem(SIZE_KEY)); return (SIZES as readonly number[]).includes(n) ? n : 1000; } catch { return 1000; } };
 const SOURCES: Record<string, string> = { server: tx("Serveur"), collect: tx("Collecte"), watch: tx("Veille"), health: tx("Santé"), backups: tx("Sauvegardes") };
 const chip = (on: boolean) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`;
 
@@ -24,6 +27,8 @@ export function Logs() {
   const [started, setStarted] = useState(0);
   const [error, setError] = useState("");
   const [src, setSrc] = useState(""), [problems, setProblems] = useState(false), [q, setQ] = useState(""), [follow, setFollow] = useState(true);
+  const [size, setSize] = useState(storedSize);
+  const pickSize = (n: number) => { setSize(n); try { localStorage.setItem(SIZE_KEY, String(n)); } catch { /* private browsing: for this visit */ } };
   const last = useRef(0), box = useRef<HTMLDivElement>(null);
   const load = useCallback(() => {
     read<Logs>(`system/logs?after=${last.current}`)
@@ -40,8 +45,9 @@ export function Logs() {
   const all = useMemo(() => lines ?? [], [lines]);
   const sources = useMemo(() => [...new Set(all.map((l) => sourceOf(l.text)))].sort((a, b) => (a === "server" ? -1 : b === "server" ? 1 : a.localeCompare(b))), [all]);
   const shown = useMemo(() => {
-    return all.filter((l) => (!src || sourceOf(l.text) === src) && (!problems || isProblem(l)) && searchHit(l.text, q));
-  }, [all, src, problems, q]);
+    const hits = all.filter((l) => (!src || sourceOf(l.text) === src) && (!problems || isProblem(l)) && searchHit(l.text, q));
+    return size ? hits.slice(-size) : hits;
+  }, [all, src, problems, q, size]);
   const nProblems = useMemo(() => all.filter(isProblem).length, [all]);
   useEffect(() => { if (follow && box.current) box.current.scrollTop = box.current.scrollHeight; }, [shown, follow]);
   const download = () => {
@@ -71,6 +77,10 @@ export function Logs() {
         <button type="button" className={chip(!src)} onClick={() => setSrc("")}>{tx("Tout")}</button>
         {sources.map((s) => <button key={s} type="button" className={chip(src === s)} onClick={() => setSrc(src === s ? "" : s)}>{SOURCES[s] ?? s}</button>)}
         <button type="button" className={`${chip(problems)} ${nProblems && !problems ? "border-warn/60 text-warn" : ""}`} onClick={() => setProblems(!problems)}>{tx("Erreurs et avertissements ({0})", nProblems)}</button>
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-semibold uppercase tracking-wide text-dim">{tx("Lignes")}</span>
+          {SIZES.map((n) => <button key={n} type="button" className={chip(size === n)} aria-pressed={size === n} onClick={() => pickSize(n)}>{n ? n.toLocaleString(LOCALE) : tx("Toutes")}</button>)}
+        </span>
         <SearchBox value={q} onChange={setQ} placeholder={tx("Chercher dans les journaux")} count={[shown.length, all.length]} className="ml-auto" />
       </div>
       {error && <p className="mb-2 text-xs text-warn">⚠ {error}</p>}

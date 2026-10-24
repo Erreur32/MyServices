@@ -43,6 +43,13 @@ AGE_MIN, AGE_MAX = 0.1, 365.0
 AGE_DEFAULT = 2.0
 LABEL_MAX = 80
 SCHEDULE_MAX = 40   # expected schedule, free text (« lun. 01:30 », « chaque jour »)
+RETENTION_MAX = 60   # how many archives are kept, free text (« 3 », « keep-last=1 »)
+NOTE_MAX = 300
+MODES = ("latest", "each")   # copies compared on the newest archive only, or on every archive (a folder of files that do not change)
+PATTERN_MAX = 120
+VIA_MAX = 80
+DEPTH_MAX = 5
+SOURCE_KEYS = ("vzdump", "veeam_job", "agent_backup", "pbs_group", "synology_task", "ha_backup")   # a location read from a source, not a folder
 AGE_STEPS = (2.0, 8.0, 15.0, 31.0)   # seuils proposés : sauvegarde quotidienne, hebdomadaire, tous les 15 jours, mensuelle
 DEPTH = 3  # un dossier de sauvegarde range souvent ses archives dans des sous-dossiers datés
 
@@ -58,6 +65,9 @@ TEST_TIMEOUT = 20
 
 class BackupError(Exception):
     """Refus lisible (dossier invalide, machine inconnue…)."""
+
+
+ALREADY_IN_SET = "cet emplacement est déjà dans le jeu"
 
 
 def _path() -> Path:
@@ -155,7 +165,9 @@ def current() -> dict:
                      "copies": [{"index": i, "host": hosts.get(l.get("host"), {}).get("label", l.get("host", "")), "path": l.get("path"),
                                  "offsite": l.get("host") != s.get("origin") or bool(l.get("offsite"))} for i, l in enumerate(s.get("locations", [])) if i and l.get("path")],
                      "cadence_days": seen.get(s["id"], {}).get("cadence_days"),
-                     "archived": bool(s.get("archived")), "schedule": s.get("schedule", "")})
+                     "archived": bool(s.get("archived")), "schedule": s.get("schedule", ""),
+                     "retention": s.get("retention", ""), "note": s.get("note", ""), "mode": s.get("mode", "latest"),
+                     "locations": [_location_out(i, l, s, hosts) for i, l in enumerate(s.get("locations", []))]})
     import config
     return {"sets": sets, "exists": _path().exists(), "tab": bool(config.CFG.get("backups_url")),
             "patterns": patterns_of(meta), "host_patterns": meta.get("discover_by_host", {}), "default_path": DEFAULT_PATH, "machines": len(_machines()),
@@ -163,6 +175,15 @@ def current() -> dict:
             "veeam": _veeam_state(), "ha": _ha_state(meta), "pbs": _pbs_state(meta), "synology": _synology_state(meta),
             "vzdump": {"followed": sum(1 for s in meta.get("sets", []) if (s.get("locations") or [{}])[0].get("vzdump"))},
             "remote": _remote_state()}
+
+
+def _location_out(i: int, loc: dict, s: dict, hosts: dict) -> dict:
+    """One place of a set as the settings page shows it: where, what is read there, and whether the page may change it (a folder only)"""
+    h = hosts.get(loc.get("host"), {})
+    return {"index": i, "host": h.get("label", loc.get("host", "")), "ip": h.get("ip"), "path": loc.get("path"), "pattern": loc.get("pattern", "*"),
+            "depth": loc.get("depth", 1), "via": loc.get("via", ""), "encrypted": bool(loc.get("encrypted")),
+            "offsite": i > 0 and (loc.get("host") != s.get("origin") or bool(loc.get("offsite"))),
+            "editable": bool(loc.get("path")) and not any(loc.get(k) for k in SOURCE_KEYS), "remote": h.get("api") == "remote"}
 
 
 def _last_report() -> dict:
@@ -305,6 +326,13 @@ def follow(items: list[dict]) -> dict:
     return {"added": added, "updated": updated}
 
 
+def _text(value: str, most: int, what: str) -> str:
+    """A one-line free text, trimmed; too long or on several lines: refused"""
+    if len(value.strip()) > most or "\n" in value:
+        raise BackupError(f"{what} : {most} caractères au plus, sur une ligne")
+    return value.strip()
+
+
 def _set_text(s: dict, label: str | None, schedule: str | None) -> None:
     if label is not None:
         if not label.strip() or len(label.strip()) > LABEL_MAX:
@@ -326,9 +354,10 @@ def _set_folder(s: dict, path: str) -> None:
 
 
 def update_set(set_id: str, label: str | None = None, max_age_days: float | None = None, expect_offsite: bool | None = None,
-               archived: bool | None = None, schedule: str | None = None, path: str | None = None) -> None:
-    """Name, age threshold (days), « off-machine copy expected », archived flag, expected schedule (free text) and, for a folder set,
-    the folder itself of a set already followed."""
+               archived: bool | None = None, schedule: str | None = None, path: str | None = None,
+               retention: str | None = None, note: str | None = None, mode: str | None = None) -> None:
+    """Name, age threshold (days), « off-machine copy expected », archived flag, expected schedule, retention and note (free text),
+    the way copies are compared (newest archive or each one) and, for a folder set, the folder itself of a set already followed."""
     meta = _read()
     s = next((x for x in meta.get("sets", []) if x["id"] == set_id), None)
     if s is None:
@@ -344,6 +373,75 @@ def update_set(set_id: str, label: str | None = None, max_age_days: float | None
         s["archived"] = bool(archived)
     if path is not None:
         _set_folder(s, path)
+    if retention is not None:
+        s["retention"] = _text(retention, RETENTION_MAX, "rétention")
+    if note is not None:
+        if text := _text(note, NOTE_MAX, "note"):
+            s["note"] = text
+        else:
+            s.pop("note", None)
+    if mode is not None:
+        if mode not in MODES:
+            raise BackupError("comparaison : « latest » ou « each »")
+        s["mode"] = mode
+    _write(meta)
+
+
+def _move_location(meta: dict, s: dict, index: int, ip: str, path: str | None) -> None:
+    """A folder place of a set goes to another machine (SSH); the source takes the set's origin with it."""
+    loc, hosts = s["locations"][index], {h["id"]: h for h in meta.setdefault("hosts", [])}
+    if ip == hosts.get(loc.get("host"), {}).get("ip"):
+        return
+    if hosts.get(loc.get("host"), {}).get("api"):
+        raise BackupError("dossier lu par un compte distant : sa machine ne change pas ici")
+    machines = _machines()
+    if ip not in machines:
+        raise BackupError(f"machine {ip or '?'} inconnue ou sans accès SSH")
+    hid = _machine_host(meta, hosts, ip, machines[ip])
+    if any(j != index and l.get("host") == hid and l.get("path") == (path or loc["path"]).rstrip("/") for j, l in enumerate(s["locations"])):
+        raise BackupError(ALREADY_IN_SET)
+    loc["host"] = hid
+    if index == 0:
+        s["origin"] = hid
+
+
+def _location_fields(loc: dict, path: str | None, pattern: str | None, depth: int | None, via: str | None, encrypted: bool | None) -> None:
+    """The other fields of a folder place, each checked; None leaves a field as it is."""
+    if path is not None:
+        _check_path(path)
+        loc["path"] = path.rstrip("/")
+    if pattern is not None:
+        pattern = _text(pattern, PATTERN_MAX, "fichiers lus")
+        if not pattern or "/" in pattern:
+            raise BackupError("fichiers lus : un nom ou un motif (ex. *.tar.gz), sans dossier")
+        loc["pattern"] = pattern
+    if depth is not None:
+        if not 1 <= int(depth) <= DEPTH_MAX:
+            raise BackupError(f"profondeur : de 1 à {DEPTH_MAX}")
+        loc["depth"] = int(depth)
+    if via is not None:
+        loc["via"] = _text(via, VIA_MAX, "moyen")
+    if encrypted is not None:
+        loc["encrypted"] = bool(encrypted)
+
+
+def update_location(set_id: str, index: int, ip: str | None = None, path: str | None = None, pattern: str | None = None,
+                    depth: int | None = None, via: str | None = None, encrypted: bool | None = None) -> None:
+    """One folder place of a set (0 = the source, then its copies): machine (SSH), folder, archive names read (a glob), depth of the search,
+    how it gets there (free text) and « encrypted » (sizes not compared). Moving the source to another machine moves the set's origin with it.
+    A place read from a source (vzdump, Veeam, PBS, Synology, Home Assistant) is not a folder: refused."""
+    meta = _read()
+    s = next((x for x in meta.get("sets", []) if x["id"] == set_id), None)
+    if s is None:
+        raise BackupError("jeu inconnu")
+    if not 0 <= index < len(s.get("locations", [])):
+        raise BackupError("emplacement inconnu")
+    loc = s["locations"][index]
+    if not loc.get("path") or any(loc.get(k) for k in SOURCE_KEYS):
+        raise BackupError("cet emplacement n'est pas un dossier : il vient de sa source")
+    if ip is not None:
+        _move_location(meta, s, index, ip, path)
+    _location_fields(loc, path, pattern, depth, via, encrypted)
     _write(meta)
 
 
@@ -361,7 +459,7 @@ def add_copy(set_id: str, ip: str, path: str, network: bool = False) -> dict:
     hosts = {h["id"]: h for h in meta.setdefault("hosts", [])}
     hid = _machine_host(meta, hosts, ip, machines[ip])
     if any(l.get("host") == hid and l.get("path") == path for l in s["locations"]):
-        raise BackupError("cet emplacement est déjà dans le jeu")
+        raise BackupError(ALREADY_IN_SET)
     if len(s["locations"]) >= 6:
         raise BackupError("5 copies au plus par jeu")
     src = s["locations"][0]
@@ -1087,7 +1185,7 @@ def remote_follow(conf: dict, path: str, label: str = "", max_age_days: float = 
         if not src.get("path"):
             raise BackupError("copie déclarable seulement pour un dossier (Veeam, PBS, Synology et Home Assistant ont déjà leur copie)")
         if any(l.get("host") == hid and l.get("path") == path for l in s["locations"]):
-            raise BackupError("cet emplacement est déjà dans le jeu")
+            raise BackupError(ALREADY_IN_SET)
         if len(s["locations"]) >= 6:
             raise BackupError("5 copies au plus par jeu")
         s["locations"].append({"host": hid, "path": path, "pattern": src.get("pattern", "*"), "depth": src.get("depth", DEPTH), "via": "copie",

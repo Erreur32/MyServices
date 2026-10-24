@@ -13,6 +13,9 @@ AUTO, FIRST, MANUAL = "auto", "first", "manual"      # mode : toute seule / une 
 TODO, SUGGEST = "todo", "suggest"                    # nécessaire / facultatif
 
 
+DEVICES_PAGE = "#settings/machines/devices"   # Machines › Devices not followed: where the network search lands
+
+
 def build(i: dict) -> list[dict]:
     """Entrées pour la page. `i` : collect_last / collect_next / collect_ok (epoch, bool), net_last, net_every_h, net_has_run,
     backups_last, backups_next, backups_enabled, backups_search_last, backups_auto (bool), ssh_machines, auto_checked,
@@ -38,12 +41,12 @@ def build(i: dict) -> list[dict]:
             f"Se lance toute seule : la première dans la minute, puis toutes les {net_every:g} h (lecture seule, un /24 au plus)." if net_every
             else "Répétition automatique coupée (Réglages → Découverte) : à lancer à la main.",
             None, None, "ok" if net_every else "info", "première recherche dans la minute" if net_every else "jamais lancée",
-            {"label": "Chercher maintenant", "run": "netscan", "href": "#settings/network/hosts"})
+            {"label": "Chercher maintenant", "run": "netscan", "href": DEVICES_PAGE})
     else:
         nxt = (i["net_last"] + net_every * 3600) if net_every and i.get("net_last") else None
         add("network", "Machines du réseau (recherche réseau)", AUTO if net_every else MANUAL,
             f"Se répète toute seule toutes les {net_every:g} h (lecture seule, un /24 au plus)." if net_every else "Répétition automatique coupée : à relancer à la main.",
-            i.get("net_last"), nxt, "ok" if net_every else "info", "", {"label": "Chercher maintenant", "run": "netscan", "href": "#settings/network/hosts"})
+            i.get("net_last"), nxt, "ok" if net_every else "info", "", {"label": "Chercher maintenant", "run": "netscan", "href": DEVICES_PAGE})
 
     add("redetect", "Réglages des machines déjà enregistrées (rôle, système, applis)", MANUAL,
         "Ne se met pas à jour tout seul : après un changement (nouvelle appli, passage à Windows, nouveau port), cliquer sur « Redétecter » dans Réglages → Machines.",
@@ -73,7 +76,7 @@ def build(i: dict) -> list[dict]:
             "ne les ajoute pas. Choisissez celles à suivre (ou à ignorer)." if i.get("auto_mode")
             else "La recherche réseau les a vues. Choisissez celles à suivre (ou à ignorer) : en mode manuel, MyServices ne les ajoute jamais seul.",
             i.get("net_last"), None, SUGGEST,
-            "à choisir", {"label": "Choisir", "href": "#settings/network/hosts"})
+            "à choisir", {"label": "Choisir", "href": DEVICES_PAGE})
     for k in i.get("key_refused") or []:   # accès SSH activé mais la clé de l'app n'est pas autorisée (ou port faux)
         add(f"ssh:{k['ip']}", f"Clé SSH à autoriser sur {k.get('name') or k['ip']}", AUTO,
             "L'accès SSH est activé, mais la connexion échoue : la clé de l'app n'est pas autorisée sur cette machine (ou le port est faux). Ses conteneurs et sa santé ne sont pas lus tant que ce n'est pas fait.",

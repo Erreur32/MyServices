@@ -87,7 +87,7 @@ export function SshGuide({ ip, user: knownUser, guess, port, onReady, onCancel }
               </div>
             </li>
             <li>{tx("Sur la machine, en root ou connecté avec ce compte, ajoutez la clé de l'app dans")} <code className="font-mono text-xs text-txt">{homeOf(user || "root")}/.ssh/authorized_keys</code> :
-              {authorize ? <Copyable text={authorizeFor(authorize, user, esxiKey)} /> : <span className="block text-warn">{tx("Clé de l'app introuvable : voir")} <a className="underline hover:text-txt" href="#settings/ssh">{tx("Réglages → Clé SSH")}</a>.</span>}
+              {authorize ? <Copyable text={authorizeFor(authorize, user, esxiKey)} /> : <span className="block text-warn">{tx("Clé de l'app introuvable : voir")} <a className="underline hover:text-txt" href="#settings/machines/ssh">{tx("Machines › Connexions SSH")}</a>.</span>}
               {(user || "root") === "root" && <span className="mt-1 block text-xs text-dim">{tx("Sur un VMware ESXi, la commande met la clé ECDSA de l'app dans /etc/ssh/keys-root/authorized_keys (ESXi ignore ~/.ssh et refuse les clés ed25519).")}</span>}</li>
           </ol>
           <InfoNote>💡 {tx("Astuce : si la connexion est refusée, vérifiez que le serveur SSH est installé et démarré sur la machine.")}</InfoNote>

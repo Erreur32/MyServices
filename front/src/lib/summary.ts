@@ -85,13 +85,13 @@ export function attention({ data, health, backups }: Inputs): Attention[] {
   const reboot = (health?.hosts || []).filter((h) => h.reboot_required).map(machineOf);
   if (reboot.length) out.push({ category: "sante", level: "warn", text: tx("Redémarrage demandé sur {0}", names(reboot)), tab: "machines", action: tx("Voir les machines") });
   if (data.dns) {
-    for (const n of dnsDown(data.dns)) out.push({ category: "dns", level: "crit", text: tx("Le serveur DNS **{0}** ne répond pas", n), tab: "dns", action: tx("Voir le DNS") });
+    for (const n of dnsDown(data.dns)) out.push({ category: "dns", level: "crit", text: tx("Le serveur DNS **{0}** ne répond pas", n), tab: "dns", action: tx("Voir le DNS"), sel: { alerts: ["on"] } });
     const s = dnsSync(data.dns, Date.parse(data.generated));
-    if (s.cls !== "ok") out.push({ category: "dns", level: s.cls === "bad" ? "crit" : "warn", text: tx("DNS AdGuard : {0}", s.label), tab: "dns", action: tx("Voir le DNS") });
-    if (data.dns.orphans.length) out.push({ category: "dns", level: "warn", text: tx("{0}, sans host NPM actif ({1})", plural(data.dns.orphans.length, "réécriture AdGuard orpheline", "réécritures AdGuard orphelines"), names(data.dns.orphans.map((o) => o.domain))), tab: "dns", action: tx("Voir les réécritures") });
+    if (s.cls !== "ok") out.push({ category: "dns", level: s.cls === "bad" ? "crit" : "warn", text: tx("DNS AdGuard : {0}", s.label), tab: "dns", action: tx("Voir le DNS"), sel: { alerts: ["on"] } });
+    if (data.dns.orphans.length) out.push({ category: "dns", level: "warn", text: tx("{0}, sans host NPM actif ({1})", plural(data.dns.orphans.length, "réécriture AdGuard orpheline", "réécritures AdGuard orphelines"), names(data.dns.orphans.map((o) => o.domain))), tab: "dns", action: tx("Voir les réécritures"), sel: { alerts: ["on"] } });
   }
   for (const i of backups?.issues || [])
-    out.push({ category: "sauvegardes", level: i.level === "warn" ? "warn" : "crit", text: tx("Sauvegarde **{0}** : {1}", i.set, i.text), tab: "backups", action: tx("Voir le jeu"), sel: { state: ["crit", "down", "warn"] } });
+    out.push({ category: "sauvegardes", level: i.level === "warn" ? "warn" : "crit", text: tx("Sauvegarde **{0}** : {1}", i.set, i.text), tab: "backups", action: tx("Voir le jeu"), sel: i.set_id ? { alerts: ["on"] } : { state: ["crit", "down", "warn"] } });   // a set: the sets on Alerts; a machine (disk, unreachable): the machines in trouble
   const dockerOff = (data.connectors || []).filter((c) => c.type === "docker" && !c.ok);
   if (dockerOff.length)
     out.push({ category: "connecteurs", level: "warn", text: tx("Docker illisible sur {0} : leurs conteneurs ne sont pas à jour", names(dockerOff.map((c) => c.name))), tab: "settings", action: tx("Voir l'accès"), href: "settings/machines" });

@@ -426,6 +426,18 @@ def build_map() -> None:
             return
 
 
+def archify_why(stdout: str, stderr: str) -> str:
+    """Why Archify refused a map, in one line: its « error », else its error diagnostics, never the raw tail of its JSON."""
+    try:
+        d = json.loads(stdout)
+    except ValueError:   # no JSON at all (node missing, a crash): what it wrote
+        return (stdout or stderr).strip()[-300:]
+    if not isinstance(d, dict):
+        return str(d)[-300:]
+    errs = [str(x.get("message", "")) for x in d.get("diagnostics") or [] if isinstance(x, dict) and x.get("severity") == "error"]
+    return str(d.get("error") or "; ".join(errs[:3]) or f"stage {d.get('stage') or '?'}, {(stderr or '').strip()[-200:] or 'no detail'}")
+
+
 def _build_map() -> None:
     """Cartes de l'infra (carte.html, sauvegardes.html ; Archify) depuis les fichiers de la page. Facultatif :
     sans Archify ou en échec, la carte précédente reste, les tâches n'en dépendent pas."""
@@ -456,7 +468,7 @@ def _build_map() -> None:
         if ok:
             log(f"carte : régénérée ({out})")
         elif r is not None:
-            log(f"⚠ carte {out} : non régénérée (Archify) : " + (r.stdout or r.stderr)[-300:])
+            log(f"⚠ carte {out} : non régénérée (Archify) : {archify_why(r.stdout, r.stderr)}")
     refresh_nav()
 
 
@@ -658,9 +670,12 @@ def prepare_ssh() -> None:
         conf.write_text(re.sub(r"(?m)^(Host hote\n)", r"\1    StrictHostKeyChecking accept-new\n", text, count=1), encoding="utf-8")
         conf.chmod(0o600)
         log("alias SSH « hote » : StrictHostKeyChecking accept-new ajouté")
-    pub = (KEY.with_suffix(".pub")).read_text().strip()
-    log("clé publique de l'app (à autoriser sur l'hôte et sur chaque machine lue par SSH) :\n"
-        f"    {pub}\n  sur l'hôte : echo '{pub}' | sudo tee -a /root/.ssh/authorized_keys")
+    try:   # the fingerprint only: the key and the command to authorise it are on the SSH connections page, masked there too
+        fp = subprocess.run(["ssh-keygen", "-lf", str(KEY.with_suffix(".pub"))], capture_output=True, text=True, timeout=10).stdout.split()
+    except (OSError, subprocess.SubprocessError):
+        fp = []
+    log(f"clé SSH de l'app : {fp[1] if len(fp) > 1 else '?'} ; la clé publique et la commande pour l'autoriser (sur l'hôte et sur "
+        "chaque machine lue par SSH) sont dans la page, Machines › Connexions SSH")
 
 
 def first_meta() -> None:

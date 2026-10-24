@@ -14,7 +14,7 @@ describe("lib/tabs", () => {
     const security = NAV.flatMap((g) => g.items).find((i) => i.id === "security")!;
     expect(security.subs!.map((x) => x.id)).toContain("fail2ban");
     const hashes = NAV.flatMap((g) => g.items.flatMap(leaves)).flatMap((i) => [i.hash, ...(i.also ?? [])]);   // also: Machines settings (buttons of « All machines »), the page of a set (« Sets »)
-    for (const sec of ["machines", "connectors", "network", "backups", "alerts/channels", "accounts", "api", "ssh", "tasks", "updates", "mail", "export", "requests"])
+    for (const sec of ["machines", "connectors", "discovery", "backups", "alerts/channels", "accounts", "api", "machines/ssh", "tasks", "updates", "mail", "export", "requests"])
       expect(hashes).toContain(`settings/${sec}`);
   });
   it("TAB_IDS reprend chaque onglet une seule fois", () => {
