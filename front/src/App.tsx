@@ -112,7 +112,8 @@ export default function App() {
 
   const items = attention({ ...snap, data: { ...snap.data, hosts: snap.data.hosts.filter((r) => !isHidden(r, hiddenServices)) }, now });   // a service hidden from « To watch » leaves the tab's dot and the home page too
   const badges: Partial<Record<TabId, "crit" | "warn">> = {};
-  for (const a of items) if (badges[a.tab] !== "crit") badges[a.tab] = a.level;
+  const why: Partial<Record<TabId, string[]>> = {};   // the alerts behind each dot, listed in its tooltip
+  for (const a of items) { if (badges[a.tab] !== "crit") badges[a.tab] = a.level; (why[a.tab] ??= []).push(a.text); }
   const current = visible(tab, snap) ? tab : "home";
   if (hash.startsWith("#assistant") && snap.me.role === "admin") return <><ScanBar onFinished={load} /><Assistant snap={snap} /></>;
   const profile = hash.startsWith("#profile"); // page à part (tout compte), indépendante des Réglages et de la gestion des comptes
@@ -128,7 +129,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar snap={snap} badges={badges} onNavigate={navigated} mobileOpen={menuOpen} onClose={() => setMenuOpen(false)}
+      <Sidebar snap={snap} badges={badges} why={why} onNavigate={navigated} mobileOpen={menuOpen} onClose={() => setMenuOpen(false)}
         onBadge={(t) => { setMenuOpen(false); if (t === "machines") goFilter("machines", { alert: ["bad", "warn"] }); else go(t); }} />
       <div className="min-w-0 flex-1 px-4 pb-10 sm:px-6">
       <ScanBar onFinished={load} />

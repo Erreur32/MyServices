@@ -51,10 +51,19 @@ const levelText = (b: Level) => (b === "crit" ? tx("problème à regarder") : tx
 const ROW = "flex w-full items-center gap-2.5 rounded-lg text-sm font-semibold no-underline transition-colors";
 const rowTone = (on: boolean) => (on ? "bg-link/15 text-txt ring-1 ring-link/50" : "text-muted hover:bg-card hover:text-txt");
 
-function Badge({ level, tab, onBadge }: Readonly<{ level: Level; tab: TabId; onBadge: (t: TabId) => void }>) {
+const SHOWN = 8;   // alerts listed in the dot's tooltip, then « and N more »
+
+/** The tooltip of a dot: what it means, the alerts behind it (as the home page words them, without the bold marks), then what a click does */
+function dotTip(level: Level, why: string[] = []): string {
+  const lines = why.slice(0, SHOWN).map((t) => `• ${t.replaceAll("**", "")}`);
+  if (why.length > SHOWN) lines.push(tx("… et {0} autres", why.length - SHOWN));
+  return [levelText(level), ...lines, tx("Cliquer pour voir les éléments concernés")].join("\n");
+}
+
+function Badge({ level, tab, why, onBadge }: Readonly<{ level: Level; tab: TabId; why?: string[]; onBadge: (t: TabId) => void }>) {
   return (
     <button type="button" onClick={() => onBadge(tab)} aria-label={level === "crit" ? tx("Voir les problèmes") : tx("Voir ce qui est à surveiller")}
-      title={`${levelText(level)}\n${tx("Cliquer pour voir les éléments concernés")}`}
+      title={dotTip(level, why)}
       className="absolute right-8 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full hover:bg-bg">{/* one column for every dot, left of the chevrons */}
       <span className={`h-2.5 w-2.5 rounded-full ${level === "crit" ? "bg-bad" : "bg-warn"}`} />
     </button>
@@ -153,8 +162,8 @@ function FoldButton({ expanded, onToggle }: Readonly<{ expanded: boolean; onTogg
   );
 }
 
-function NavEntry({ item, active, narrow, badge, counts, picked, onPick, onNavigate, onBadge }: Readonly<{
-  item: NavItem; active: string; narrow: boolean; badge?: Level; counts: Counts; onNavigate: () => void; onBadge: (t: TabId) => void;
+function NavEntry({ item, active, narrow, badge, why, counts, picked, onPick, onNavigate, onBadge }: Readonly<{
+  item: NavItem; active: string; narrow: boolean; badge?: Level; why?: string[]; counts: Counts; onNavigate: () => void; onBadge: (t: TabId) => void;
   picked: string | null; onPick: (id: string) => void;   // the category opened by hand (one at a time), null: the one of the open page
 }>) {
   const flies = narrow && !!item.subs;   // folded, with sub-pages: they open in a panel
@@ -173,7 +182,7 @@ function NavEntry({ item, active, narrow, badge, counts, picked, onPick, onNavig
       <span className="relative flex">
         <EntryLink item={item} open={open} narrow={narrow} flies={flies} flown={!!panel.fly} badge={badge} onClick={click} />
         {badge && narrow && <span aria-hidden className={`pointer-events-none absolute right-2 top-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg2 ${badge === "crit" ? "bg-bad" : "bg-warn"}`} />}
-        {badge && !narrow && <Badge level={badge} tab={item.tab} onBadge={onBadge} />}
+        {badge && !narrow && <Badge level={badge} tab={item.tab} why={why} onBadge={onBadge} />}
         {category && <FoldButton expanded={expanded} onToggle={() => onPick(expanded ? "" : item.id)} />}
       </span>
       {category && expanded && (
@@ -184,8 +193,8 @@ function NavEntry({ item, active, narrow, badge, counts, picked, onPick, onNavig
   );
 }
 
-export function Sidebar({ snap, badges, onNavigate, onBadge, mobileOpen, onClose }: Readonly<{
-  snap: Snapshot; badges: Partial<Record<TabId, Level>>; onNavigate: () => void; onBadge: (t: TabId) => void; mobileOpen: boolean; onClose: () => void;
+export function Sidebar({ snap, badges, why = {}, onNavigate, onBadge, mobileOpen, onClose }: Readonly<{
+  snap: Snapshot; badges: Partial<Record<TabId, Level>>; why?: Partial<Record<TabId, string[]>>; onNavigate: () => void; onBadge: (t: TabId) => void; mobileOpen: boolean; onClose: () => void;
 }>) {
   const [collapsed, setCollapsed] = useState(savedCollapsed);
   const route = useRoute();
@@ -221,7 +230,7 @@ export function Sidebar({ snap, badges, onNavigate, onBadge, mobileOpen, onClose
                 ? <span aria-hidden className="mx-auto my-2 h-px w-8 bg-line" />
                 : <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-widest text-dim">{g.label}</p>}
               {g.items.map((i) => (
-                <NavEntry key={i.id} item={i} active={active} narrow={narrow} badge={i.id === i.tab ? badges[i.tab] : undefined} counts={counts}
+                <NavEntry key={i.id} item={i} active={active} narrow={narrow} badge={i.id === i.tab ? badges[i.tab] : undefined} why={why[i.tab]} counts={counts}
                   picked={picked} onPick={setPicked} onNavigate={onNavigate} onBadge={onBadge} />
               ))}
             </div>

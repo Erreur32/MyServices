@@ -12,6 +12,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Added
+- **Side menu, the alerts in the dot's tooltip**: hovering the dot of an entry lists the alerts behind it (as the home page words them, up to 8, then « and N more »), instead of only « to watch ».
 - **Services › All services, stop following a known alert**: a service down (even on purpose), in warning or with a point to check gets the same button as on « To watch » (admin only, also on the phone cards): it hides it from « To watch », the tab's dot and the home page until its problem changes; once hidden, the button shows it back. On any other row (online, stopped on purpose) the same button stops following the service for good, until shown back. A hidden service is no longer counted as down or to fix: tiles of the Services page, counts of a machine group, NPM and Services groups of the home and Statistics pages, the « services online » key figure; its state is greyed on the row.
 - **Backups › Sets, a search**: a search field (set, machine, folder, schedule, place of a copy) and a machine filter in chips, above the three chips (in use, flagged, archived), whose counts follow it. On Backups › By machine, the « Sets produced » badge of a machine opens the sets filtered on that machine.
 
