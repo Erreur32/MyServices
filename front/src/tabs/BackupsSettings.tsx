@@ -19,12 +19,12 @@ import { BackupsRemote, type RemoteAccountState } from "./BackupsRemote";
 import { BackupsVzdump, type VzdumpState } from "./BackupsVzdump";
 import { MachineIcon } from "../components/MachineIcon";
 import type { Backups, Machine } from "../types";
-import { CopyGuesses, SetCopies, type CopyRow, type SshMachine } from "./BackupsCopies";
+import { CopyGuesses, LocationForm, SetCopies, type CopyRow, type LocRow, type SshMachine } from "./BackupsCopies";
 import { UnlinkedBackups } from "./Backups";
 import { useRoute } from "../lib/route";
 import { InfoNote } from "../components/InfoNote";
 
-export interface SetRow { id: string; label: string; origin: string; origin_ip?: string | null; path: string | null; veeam_job: string | null; agent_backup?: string | null; pbs_group: string | null; synology_task?: string | null; vzdump?: string | null; remote?: boolean; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean; copies?: CopyRow[]; cadence_days?: number | null; archived?: boolean; schedule?: string }
+export interface SetRow { id: string; label: string; origin: string; origin_ip?: string | null; path: string | null; veeam_job: string | null; agent_backup?: string | null; pbs_group: string | null; synology_task?: string | null; vzdump?: string | null; remote?: boolean; max_age_days: number; ha: boolean; editable: boolean; expect_offsite: boolean; copies?: CopyRow[]; cadence_days?: number | null; archived?: boolean; schedule?: string; retention?: string; note?: string; mode?: "latest" | "each"; locations?: LocRow[] }
 const AGES = [2, 8, 15, 31];   // thresholds advised from the observed rhythm: daily, weekly, every 15 days, monthly
 interface Current { sets: SetRow[]; exists: boolean; tab: boolean; patterns: string[]; host_patterns?: Record<string, string[]>; default_path: string; machines: number; ssh_machines?: SshMachine[]; veeam: VeeamState; ha: HaState; pbs: PbsState; synology?: SynologyState; vzdump: VzdumpState; remote?: RemoteAccountState[] }
 interface Folder { path: string; size: number | null; newest: number | null; newest_name: string; readable: boolean; followed: boolean; default?: boolean }
@@ -84,8 +84,8 @@ function SetIcon({ s, m }: Readonly<{ s: SetRow; m?: Machine }>) {
 }
 
 /** A text or number field saved when leaving it or on Enter, only if the value changed; Escape puts the old value back */
-function InlineField({ value, onSave, type = "text", min, max, placeholder, label, width, disabled, suffix }: Readonly<{
-  value: string; onSave: (v: string) => void; type?: "text" | "number"; min?: number; max?: number; placeholder?: string; label: string; width: string; disabled?: boolean; suffix?: string;
+function InlineField({ value, onSave, type = "text", min, max, placeholder, label, width, disabled, suffix, maxLength = 40 }: Readonly<{
+  value: string; onSave: (v: string) => void; type?: "text" | "number"; min?: number; max?: number; placeholder?: string; label: string; width: string; disabled?: boolean; suffix?: string; maxLength?: number;
 }>) {
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
@@ -93,7 +93,7 @@ function InlineField({ value, onSave, type = "text", min, max, placeholder, labe
   const save = () => { if (ok && v.trim() !== value) onSave(v.trim()); else if (!ok) setV(value); };
   return (
     <span className="inline-flex items-center gap-1">
-      <input type={type} min={min} max={max} step={type === "number" ? "any" : undefined} value={v} placeholder={placeholder} aria-label={label} disabled={disabled} maxLength={40}
+      <input type={type} min={min} max={max} step={type === "number" ? "any" : undefined} value={v} placeholder={placeholder} aria-label={label} disabled={disabled} maxLength={maxLength}
         className={`${input.replace("w-full", width)} py-1 text-xs ${ok ? "" : "border-bad"}`} onChange={(e) => setV(e.target.value)} onBlur={save}
         onKeyDown={(e) => {
           if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); }
@@ -139,7 +139,7 @@ function advisedAge(s: SetRow): number | null {
   return AGES.find((d) => d >= s.cadence_days! * 1.25) ?? AGES.at(-1)!;
 }
 
-type SetChange = { label?: string; max_age_days?: number; expect_offsite?: boolean; archived?: boolean; schedule?: string; path?: string };
+type SetChange = { label?: string; max_age_days?: number; expect_offsite?: boolean; archived?: boolean; schedule?: string; path?: string; retention?: string; note?: string; mode?: "latest" | "each" };
 
 /** One line of the set page: its name on the left, its control on the right */
 function SetField({ k, children }: Readonly<{ k: string; children: ReactNode }>) {
@@ -159,6 +159,7 @@ function SetPage({ s, m, issues, sshMachines, found, busy, onChange, onRemove, o
   const [edit, setEdit] = useState<"" | "rename" | "path" | "remove">("");
   const advised = advisedAge(s), managed = !!(s.ha || s.veeam_job || s.pbs_group || s.synology_task);
   const save = (body: SetChange, done?: string) => void onChange(body, done).then((ok) => ok && setEdit(""));
+  const source = s.locations?.[0], folder = !!source?.editable;   // a folder place: every setting of it can change
   const raise = advised !== null && advised > s.max_age_days;
   return (
     <Card>
@@ -175,9 +176,11 @@ function SetPage({ s, m, issues, sshMachines, found, busy, onChange, onRemove, o
           : <><b>{s.label}</b><button type="button" className={`${quiet} py-1`} onClick={() => setEdit("rename")}><Pencil size={14} aria-hidden />{tx("Renommer")}</button></>}
       </SetField>
       <SetField k={tx("Ce qui est suivi")}>
-        {edit === "path" ? <EditLine initial={s.path ?? ""} label={tx("Dossier")} mono onSave={(v) => save({ path: v }, tx("dossier modifié : relevé en cours"))} onClose={() => setEdit("")} />
-          : <><code className="break-all font-mono text-xs">{whatOf(s)}</code><Dim>· {s.origin || "-"}</Dim>
-            {s.path && !s.vzdump && <button type="button" className={`${quiet} py-1`} onClick={() => setEdit("path")}><FolderPen size={14} aria-hidden />{tx("Modifier le dossier")}</button>}</>}
+        <code className="break-all font-mono text-xs">{whatOf(s)}</code><Dim>· {s.origin || "-"}</Dim>
+        {folder ? <button type="button" className={`${quiet} py-1`} onClick={() => setEdit(edit === "path" ? "" : "path")}><FolderPen size={14} aria-hidden />{tx("Modifier l'emplacement")}</button>
+          : s.path && !s.vzdump && <Dim>{tx("emplacement donné par sa source")}</Dim>}
+        {source && folder && <Dim>{tx("fichiers {0} · profondeur {1}{2}", source.pattern, source.depth, source.via ? ` · ${source.via}` : "")}</Dim>}
+        {edit === "path" && source && folder && <div className="w-full"><LocationForm setId={s.id} loc={source} machines={sshMachines} busy={busy} onDone={() => { setEdit(""); onDone(); }} onCancel={() => setEdit("")} setNote={setNote} /></div>}
       </SetField>
       <SetField k={tx("Attendu")}>
         <InlineField value={s.schedule ?? ""} label={tx("Attendu")} width="w-48" placeholder={tx("ex. lun. 01:30")} disabled={busy} onSave={(v) => save({ schedule: v }, tx("horaire attendu noté"))} />
@@ -192,6 +195,18 @@ function SetPage({ s, m, issues, sshMachines, found, busy, onChange, onRemove, o
             {tx("rythme ~{0} j : passer à {1} j", s.cadence_days, advised)}</button>
         )}
       </SetField>
+      <SetField k={tx("Rétention")}>
+        <InlineField value={s.retention ?? ""} label={tx("Rétention")} width="w-48" maxLength={60} placeholder={tx("ex. 3 archives, keep-last=7")} disabled={busy} onSave={(v) => save({ retention: v }, tx("rétention notée"))} />
+      </SetField>
+      <SetField k={tx("Note")}>
+        <InlineField value={s.note ?? ""} label={tx("Note")} width="w-full max-w-xl" maxLength={300} placeholder={tx("ce qu'il faut savoir sur ce jeu")} disabled={busy} onSave={(v) => save({ note: v }, tx("note enregistrée"))} />
+      </SetField>
+      {s.path && (s.copies?.length ?? 0) > 0 && (
+        <SetField k={tx("Comparer les copies")}>
+          <Switch on={s.mode === "each"} label={tx("Comparer chaque archive")} disabled={busy} onChange={(on) => save({ mode: on ? "each" : "latest" })} />
+          <Dim>{tx("Activé : chaque archive de la source doit se trouver sur les copies (dossier de fichiers qui ne changent pas). Désactivé : seule la plus récente est comparée.")}</Dim>
+        </SetField>
+      )}
       {!managed && (
         <SetField k={tx("Copie hors machine")}>
           <Switch on={s.expect_offsite} label={tx("Exiger une copie hors machine")} disabled={busy} onChange={(on) => save({ expect_offsite: on })} />
@@ -201,7 +216,7 @@ function SetPage({ s, m, issues, sshMachines, found, busy, onChange, onRemove, o
       {s.path && (
         <div className="border-t border-line/60 pt-3">
           <h3 className="mb-2 flex items-center gap-2 text-sm font-bold"><Copy size={14} aria-hidden />{tx("Copies ailleurs")}</h3>
-          <SetCopies setId={s.id} origin={s.origin} copies={s.copies ?? []} machines={sshMachines} found={found} busy={busy} onDone={onDone} setNote={setNote} />
+          <SetCopies setId={s.id} origin={s.origin} copies={s.copies ?? []} locations={s.locations} machines={sshMachines} found={found} busy={busy} onDone={onDone} setNote={setNote} />
         </div>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line/60 pt-3">

@@ -168,6 +168,42 @@ class Seuil(Base):
         with self.assertRaises(ba.BackupError):
             ba.update_set("ha", path="/x")
 
+    def test_retention_note_et_comparaison_modifiables(self):
+        ba.follow([self.item()])
+        sid = ba.current()["sets"][0]["id"]
+        ba.update_set(sid, retention=" 3 archives ", note="disque externe", mode="each")
+        s = ba.current()["sets"][0]
+        self.assertEqual((s["retention"], s["note"], s["mode"]), ("3 archives", "disque externe", "each"))
+        ba.update_set(sid, note="  ")
+        self.assertNotIn("note", json.loads(self.meta.read_text(encoding="utf-8"))["sets"][0])   # note vidée : retirée du fichier
+        for bad in ({"mode": "tout"}, {"retention": "x" * 61}, {"note": "a\nb"}):
+            with self.assertRaises(ba.BackupError):
+                ba.update_set(sid, **bad)
+
+    def test_emplacement_modifiable_et_source_deplacee(self):
+        self.services.write_text(json.dumps({"machines": {"10.0.0.2": {"name": "Serveur", "role": "", "ssh": "srv"},
+                                                          "10.0.0.5": {"name": "NAS", "role": "", "ssh": "nas"}}}), encoding="utf-8")
+        ba.follow([self.item()])
+        sid = ba.current()["sets"][0]["id"]
+        ba.update_location(sid, 0, pattern="*.tar.gz", depth=2, via="tar 01:30", encrypted=True)
+        loc = ba.current()["sets"][0]["locations"][0]
+        self.assertEqual((loc["pattern"], loc["depth"], loc["via"], loc["encrypted"], loc["editable"]), ("*.tar.gz", 2, "tar 01:30", True, True))
+        ba.update_location(sid, 0, ip="10.0.0.5", path="/volume1/save/")
+        s = ba.current()["sets"][0]
+        self.assertEqual((s["origin"], s["locations"][0]["ip"], s["locations"][0]["path"]), ("NAS", "10.0.0.5", "/volume1/save"))   # l'origine suit la source
+        for args in ((sid, 3), (sid, 0, "10.0.0.3"), (sid, 0, None, "relatif"), (sid, 0, None, None, "a/b"), (sid, 0, None, None, ""), ("inconnu", 0)):
+            with self.assertRaises(ba.BackupError):
+                ba.update_location(*args)
+        with self.assertRaises(ba.BackupError):
+            ba.update_location(sid, 0, depth=6)
+
+    def test_emplacement_d_une_source_non_modifiable(self):
+        meta = {"hosts": [], "sets": [{"id": "ha", "label": "HA", "origin": "ha", "max_age_days": 2, "locations": [{"host": "ha", "path": "/backup", "ha_backup": True}]}]}
+        self.meta.write_text(json.dumps(meta), encoding="utf-8")
+        self.assertFalse(ba.current()["sets"][0]["locations"][0]["editable"])
+        with self.assertRaises(ba.BackupError):
+            ba.update_location("ha", 0, pattern="*.tar")
+
 
 def time_ago(days):
     import time

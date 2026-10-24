@@ -1956,15 +1956,36 @@ class BackupSetChange(BaseModel):
     archived: bool | None = None   # kept in the inventory and shown last, no longer watched
     schedule: str | None = Field(None, max_length=40, description="Expected schedule, free text")
     path: str | None = Field(None, max_length=300, description="Folder sets only: the folder read on the machine")
+    retention: str | None = Field(None, max_length=60, description="How many archives are kept, free text")
+    note: str | None = Field(None, max_length=300)
+    mode: str | None = Field(None, description="« latest »: copies compared on the newest archive; « each »: on every archive")
 
 
-@app.patch(API + "/backups/settings/{set_id}", tags=["sauvegardes"], summary="Modifier un jeu suivi : nom, seuil d'âge, copie hors machine exigée, archivé, attendu, dossier (admin)")
+@app.patch(API + "/backups/settings/{set_id}", tags=["sauvegardes"], summary="Modifier un jeu suivi : nom, seuil d'âge, copie hors machine exigée, archivé, attendu, dossier, rétention, note, comparaison (admin)")
 def backups_set_update(set_id: str, body: BackupSetChange, request: Request):
     def go(b):
-        b.update_set(set_id, body.label, body.max_age_days, body.expect_offsite, body.archived, body.schedule, body.path)
+        b.update_set(set_id, body.label, body.max_age_days, body.expect_offsite, body.archived, body.schedule, body.path, body.retention, body.note, body.mode)
         core.run_chain(["backups", "collect"], "Réglages → Sauvegardes")
         return {"ok": True}
     return backups_call(request, "sauvegarde modifiée", set_id, go)
+
+
+class BackupLocationChange(BaseModel):
+    ip: str | None = Field(None, max_length=64, description="Machine (with SSH access) that holds the folder")
+    path: str | None = Field(None, max_length=300)
+    pattern: str | None = Field(None, max_length=120, description="Archive names read in the folder, a glob (« *.tar.gz »)")
+    depth: int | None = Field(None, ge=1, le=5, description="Sub-folder levels searched")
+    via: str | None = Field(None, max_length=80, description="How the archives get there, free text (« rsync 04:00 »)")
+    encrypted: bool | None = None
+
+
+@app.patch(API + "/backups/settings/{set_id}/locations/{index}", tags=["sauvegardes"], summary="Modifier un emplacement d'un jeu (0 = la source, puis ses copies) : machine, dossier, fichiers lus, profondeur, moyen, chiffré (admin)")
+def backups_location_update(set_id: str, index: int, body: BackupLocationChange, request: Request):
+    def go(b):
+        b.update_location(set_id, index, body.ip, body.path, body.pattern, body.depth, body.via, body.encrypted)
+        core.run_chain(["backups", "collect"], "Réglages → Sauvegardes")
+        return {"ok": True}
+    return backups_call(request, "emplacement de sauvegarde modifié", set_id, go)
 
 
 class BackupCopy(BaseModel):
