@@ -11,6 +11,10 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.21.0 (2026-10-24)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
 ### Added
 - **MCP, configure the app from an AI assistant**: four new tools at the admin level (an MCP token made with the password and an expiry), off until switched on in Settings › API and MCP. `connectors_config` lists, tests without saving, saves (tested first: collection off if the test fails), switches and deletes connectors; `backups_config` covers every backup setting (folders by SSH, Veeam, remote, Synology, PBS, agents, vzdump, Home Assistant, copies, thresholds, unfollow); `agents_config` lists, creates (install command shown once), updates and revokes agents; `validate_config` tests every saved connector and says what fails. Each tool's « help » action gives every action with its parameters as a JSON schema. They run the same routes as the Settings page: same checks, same audit log (as « mcp:<token> »), same reread. Showing a saved secret, installing npm-api.sh on a machine, accounts, tokens and the configuration import stay out of reach.
 - **REST API, admin tokens reach backups and agents**: the `backups/…` and `agents` routes are now open to admin API tokens, like connectors and machines already were.
