@@ -1,19 +1,18 @@
 // « IA et agents »: what the AI services contain (models, agents and their platforms, MCP servers, who talks to whom, GPUs), from the AI
 // connectors and GpuViewR. No probe and no form of its own: the state is the one of Services, a service is declared in Services or
 // Connectors, and every card and row leads to the page of its service. Four sub-pages of the side menu: #ai/overview, models, agents, gpu.
-import { ArrowRight, Bot, Cpu, Eye, Fan, Gauge, MemoryStick, Plug, Thermometer, Workflow, Zap } from "lucide-react";
+import { ArrowRight, Bot, Cpu, Fan, Gauge, MemoryStick, Thermometer, Workflow, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Snapshot } from "../api";
 import { aiAlerts, aiCards, aiGpus, aiLinks, aiModels, GPU_FULL, memPct, type AiCard, type AiRole, type GpuCard, type ModelRow } from "../lib/ai";
-import { appIcon } from "../lib/appIcons";
-import { openConnector } from "../lib/connectorPrefill";
 import { useSort } from "../lib/filter";
 import { bytes } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { usePageView } from "../lib/route";
 import { Badge, Dim, Empty, GradientFill, Pct, Td, Th } from "../components/ui";
-import { Dot, Logo } from "../components/marks";
+import { Dot } from "../components/marks";
 import { FoldPanel } from "../components/FoldPanel";
+import { FamilyCard, WatchPanel } from "../components/FamilyCards";
 import { HeadTags } from "../components/HeadTags";
 import { InfoNote } from "../components/InfoNote";
 import { StatTile } from "../components/StatTile";
@@ -64,20 +63,7 @@ function Overview({ cards, models, gpus, admin }: Readonly<{ cards: AiCard[]; mo
         <StatTile n={agents.length} label={tx("Agents")} tone={plats.length && up < plats.length ? "warn" : undefined} sub={plats.length ? tx("{0} plateformes sur {1}", up, plats.length) : tx("aucune plateforme lue")} />
         <StatTile n={gpuPct == null ? "-" : `${gpuPct} %`} label={tx("Mémoire GPU")} tone={gpuPct != null && gpuPct >= GPU_FULL ? "warn" : undefined} sub={gpus.length ? tx("{0} GPU, lus par GpuViewR", gpus.length) : tx("GpuViewR non relié")} />
       </div>
-      {alerts.length > 0 && (
-        <FoldPanel id="ai-watch" icon={Eye} title={tx("À surveiller")} count={alerts.length} tone={alerts.some((a) => a.tone === "bad") ? "bad" : "warn"}>
-          <ul className="flex flex-col [&>li:nth-child(even)]:bg-bg/50">
-            {alerts.map((a) => (
-              <li key={a.title} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-2 py-2">
-                <Dot tone={a.tone} />
-                <span className="min-w-0 flex-1"><b className="block font-semibold">{a.title}</b>{a.detail && <span className="text-sm text-muted">{a.detail}</span>}</span>
-                {a.prefill && admin && <AddConnector prefill={a.prefill} />}
-                {a.hash && <a href={a.hash} className="text-sm text-link hover:underline">{tx("Voir")} ›</a>}
-              </li>
-            ))}
-          </ul>
-        </FoldPanel>
-      )}
+      <WatchPanel id="ai-watch" lines={alerts} admin={admin} />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {cards.map((c) => <ServiceCard key={c.key} c={c} admin={admin} />)}
       </div>
@@ -110,36 +96,11 @@ function cardFacts(c: AiCard): [string, string][] {
 }
 
 function ServiceCard({ c, admin }: Readonly<{ c: AiCard; admin: boolean }>) {
-  const icon = appIcon([c.title, c.engine ?? "", c.conn?.label ?? ""]);
   return (
-    <article className={`flex h-56 min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm ${c.unread ? "border-dashed border-line" : "border-line"}`}>
-      <div className="flex items-center gap-2 border-b border-line/60 bg-bg px-4 py-2.5">
-        <Dot tone={c.tone} />
-        {icon ? <Logo src={icon} /> : <Bot size={14} className="text-muted" aria-hidden />}
-        <h2 className="min-w-0 truncate font-bold" title={c.title}>{c.title}</h2>
-        <Badge tone="off" outline>{ROLE[c.role]}</Badge>
-        <span className="ml-auto truncate text-xs text-dim" title={c.state}>{c.state}</span>
-      </div>
-      <dl className="grid flex-1 grid-cols-[max-content_minmax(0,1fr)] content-start gap-x-4 gap-y-1 px-4 py-3 text-sm">
-        {cardFacts(c).map(([k, v]) => <div key={k} className="contents"><dt className="text-muted">{k}</dt><dd className="truncate tabular-nums" title={v}>{v}</dd></div>)}
-      </dl>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line/60 px-4 py-2 text-sm">
-        {c.serviceHash && <a href={c.serviceHash} className="text-link hover:underline">{tx("Fiche du service")} ›</a>}
-        {c.prefill && admin && <AddConnector prefill={c.prefill} />}
-        {c.unread && !c.connector && <Dim>{tx("pas de connecteur pour cette appli")}</Dim>}
-        {!c.unread && c.role === "engine" && c.models.length > 0 && <a href="#ai/models" className="text-link hover:underline">{tx("Ses modèles")} ›</a>}
-        {!c.unread && (c.role === "agent" || c.role === "interface") && <a href="#ai/agents" className="text-link hover:underline">{tx("Agents et MCP")} ›</a>}
-      </div>
-    </article>
-  );
-}
-
-/** Opens Connectors on the form of the connector this service needs, already filled with its address */
-function AddConnector({ prefill }: Readonly<{ prefill: NonNullable<AiCard["prefill"]> }>) {
-  return (
-    <button type="button" onClick={() => openConnector(prefill)} className="inline-flex items-center gap-1 text-sm text-link hover:underline">
-      <Plug size={13} aria-hidden />{tx("Ajouter un connecteur")} ›
-    </button>
+    <FamilyCard c={c} role={ROLE[c.role]} facts={cardFacts(c)} icon={Bot} admin={admin} links={<>
+      {!c.unread && c.role === "engine" && c.models.length > 0 && <a href="#ai/models" className="text-link hover:underline">{tx("Ses modèles")} ›</a>}
+      {!c.unread && (c.role === "agent" || c.role === "interface") && <a href="#ai/agents" className="text-link hover:underline">{tx("Agents et MCP")} ›</a>}
+    </>} />
   );
 }
 
