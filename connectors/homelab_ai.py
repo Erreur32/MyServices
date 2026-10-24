@@ -319,7 +319,7 @@ class OpenWebUI(StatusConnector):
                 admin = False   # not an admin's key, or the route is gone: the links stay unknown
                 continue
             if isinstance(cfg, dict) and cfg.get(f"ENABLE_{kind.upper()}_API") is not False:
-                uses += [{"url": u, "kind": kind} for u in dict.fromkeys(filter(None, map(bare_url, cfg.get(key) or [])))]
+                uses.extend({"url": u, "kind": kind} for u in dict.fromkeys(filter(None, map(bare_url, cfg.get(key) or []))))
         return admin
 
     def _tool_links(self, h: dict) -> list:
