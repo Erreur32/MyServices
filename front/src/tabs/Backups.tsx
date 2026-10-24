@@ -169,7 +169,7 @@ function ByMachine({ b, initial, onSets }: Readonly<{ b: BackupsData; initial?: 
     if (!own.length) return <Dim>{tx("aucun")}</Dim>;
     const worst = own.reduce((w, x) => (rank(x.level) > rank(w.level) ? x : w), own[0]);
     return (
-      <button type="button" className="hover:opacity-80" title={`${own.map((x) => `${short(x.label)} · ${x.schedule ?? ""}`).join("\n")}\n${tx("Voir ses jeux")}`} onClick={() => onSets(h)}>
+      <button type="button" className="hover:opacity-80" title={[...own.map((x) => short(x.label) + " · " + (x.schedule ?? "")), tx("Voir ses jeux")].join("\n")} onClick={() => onSets(h)}>
         <Level level={worst.level} outline plainText>{tx("{0} jeu(x)", own.length)}</Level>
       </button>
     );

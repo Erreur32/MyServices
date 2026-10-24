@@ -67,6 +67,9 @@ class BackupError(Exception):
     """Refus lisible (dossier invalide, machine inconnue…)."""
 
 
+ALREADY_IN_SET = "cet emplacement est déjà dans le jeu"
+
+
 def _path() -> Path:
     import config
     return Path(config.CFG["backups_meta"])
@@ -384,32 +387,26 @@ def update_set(set_id: str, label: str | None = None, max_age_days: float | None
     _write(meta)
 
 
-def update_location(set_id: str, index: int, ip: str | None = None, path: str | None = None, pattern: str | None = None,
-                    depth: int | None = None, via: str | None = None, encrypted: bool | None = None) -> None:
-    """One folder place of a set (0 = the source, then its copies): machine (SSH), folder, archive names read (a glob), depth of the search,
-    how it gets there (free text) and « encrypted » (sizes not compared). Moving the source to another machine moves the set's origin with it.
-    A place read from a source (vzdump, Veeam, PBS, Synology, Home Assistant) is not a folder: refused."""
-    meta = _read()
-    s = next((x for x in meta.get("sets", []) if x["id"] == set_id), None)
-    if s is None:
-        raise BackupError("jeu inconnu")
-    if not 0 <= index < len(s.get("locations", [])):
-        raise BackupError("emplacement inconnu")
+def _move_location(meta: dict, s: dict, index: int, ip: str, path: str | None) -> None:
+    """A folder place of a set goes to another machine (SSH); the source takes the set's origin with it."""
     loc, hosts = s["locations"][index], {h["id"]: h for h in meta.setdefault("hosts", [])}
-    if not loc.get("path") or any(loc.get(k) for k in SOURCE_KEYS):
-        raise BackupError("cet emplacement n'est pas un dossier : il vient de sa source")
-    if ip is not None and ip != hosts.get(loc.get("host"), {}).get("ip"):
-        if hosts.get(loc.get("host"), {}).get("api"):
-            raise BackupError("dossier lu par un compte distant : sa machine ne change pas ici")
-        machines = _machines()
-        if ip not in machines:
-            raise BackupError(f"machine {ip or '?'} inconnue ou sans accès SSH")
-        hid = _machine_host(meta, hosts, ip, machines[ip])
-        if any(j != index and l.get("host") == hid and l.get("path") == (path or loc["path"]).rstrip("/") for j, l in enumerate(s["locations"])):
-            raise BackupError("cet emplacement est déjà dans le jeu")
-        loc["host"] = hid
-        if index == 0:
-            s["origin"] = hid
+    if ip == hosts.get(loc.get("host"), {}).get("ip"):
+        return
+    if hosts.get(loc.get("host"), {}).get("api"):
+        raise BackupError("dossier lu par un compte distant : sa machine ne change pas ici")
+    machines = _machines()
+    if ip not in machines:
+        raise BackupError(f"machine {ip or '?'} inconnue ou sans accès SSH")
+    hid = _machine_host(meta, hosts, ip, machines[ip])
+    if any(j != index and l.get("host") == hid and l.get("path") == (path or loc["path"]).rstrip("/") for j, l in enumerate(s["locations"])):
+        raise BackupError(ALREADY_IN_SET)
+    loc["host"] = hid
+    if index == 0:
+        s["origin"] = hid
+
+
+def _location_fields(loc: dict, path: str | None, pattern: str | None, depth: int | None, via: str | None, encrypted: bool | None) -> None:
+    """The other fields of a folder place, each checked; None leaves a field as it is."""
     if path is not None:
         _check_path(path)
         loc["path"] = path.rstrip("/")
@@ -426,6 +423,25 @@ def update_location(set_id: str, index: int, ip: str | None = None, path: str | 
         loc["via"] = _text(via, VIA_MAX, "moyen")
     if encrypted is not None:
         loc["encrypted"] = bool(encrypted)
+
+
+def update_location(set_id: str, index: int, ip: str | None = None, path: str | None = None, pattern: str | None = None,
+                    depth: int | None = None, via: str | None = None, encrypted: bool | None = None) -> None:
+    """One folder place of a set (0 = the source, then its copies): machine (SSH), folder, archive names read (a glob), depth of the search,
+    how it gets there (free text) and « encrypted » (sizes not compared). Moving the source to another machine moves the set's origin with it.
+    A place read from a source (vzdump, Veeam, PBS, Synology, Home Assistant) is not a folder: refused."""
+    meta = _read()
+    s = next((x for x in meta.get("sets", []) if x["id"] == set_id), None)
+    if s is None:
+        raise BackupError("jeu inconnu")
+    if not 0 <= index < len(s.get("locations", [])):
+        raise BackupError("emplacement inconnu")
+    loc = s["locations"][index]
+    if not loc.get("path") or any(loc.get(k) for k in SOURCE_KEYS):
+        raise BackupError("cet emplacement n'est pas un dossier : il vient de sa source")
+    if ip is not None:
+        _move_location(meta, s, index, ip, path)
+    _location_fields(loc, path, pattern, depth, via, encrypted)
     _write(meta)
 
 
@@ -443,7 +459,7 @@ def add_copy(set_id: str, ip: str, path: str, network: bool = False) -> dict:
     hosts = {h["id"]: h for h in meta.setdefault("hosts", [])}
     hid = _machine_host(meta, hosts, ip, machines[ip])
     if any(l.get("host") == hid and l.get("path") == path for l in s["locations"]):
-        raise BackupError("cet emplacement est déjà dans le jeu")
+        raise BackupError(ALREADY_IN_SET)
     if len(s["locations"]) >= 6:
         raise BackupError("5 copies au plus par jeu")
     src = s["locations"][0]
@@ -1169,7 +1185,7 @@ def remote_follow(conf: dict, path: str, label: str = "", max_age_days: float = 
         if not src.get("path"):
             raise BackupError("copie déclarable seulement pour un dossier (Veeam, PBS, Synology et Home Assistant ont déjà leur copie)")
         if any(l.get("host") == hid and l.get("path") == path for l in s["locations"]):
-            raise BackupError("cet emplacement est déjà dans le jeu")
+            raise BackupError(ALREADY_IN_SET)
         if len(s["locations"]) >= 6:
             raise BackupError("5 copies au plus par jeu")
         s["locations"].append({"host": hid, "path": path, "pattern": src.get("pattern", "*"), "depth": src.get("depth", DEPTH), "via": "copie",

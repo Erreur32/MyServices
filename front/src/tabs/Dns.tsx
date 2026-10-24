@@ -211,14 +211,14 @@ export function Dns({ snap, initial }: Readonly<{ snap: Snapshot; initial?: Sele
       <Figures g={g} fig={fig} st={st} last={last} />
       {view === "servers" && servers}
       {(view === "all" || view === "watch") && <>
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={tx("Afficher")}>
+        <fieldset className="flex flex-wrap items-center gap-1.5" aria-label={tx("Afficher")}>
           {[[false, tx("Tout"), null], [true, tx("Alertes"), watch.length]].map(([on, label, n]) => (
             <button key={String(on)} type="button" aria-pressed={alertsOnly === on} onClick={() => setAlertsOnly(on as boolean)}
               className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${alertsOnly === on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
               {label as string}{n !== null && <span className="font-mono text-[11px] text-dim">{n as number}</span>}
             </button>
           ))}
-        </div>
+        </fieldset>
         {alertsOnly && watch.length === 0 && <Empty>{tx("Aucune alerte DNS : tout répond et résout comme attendu.")}</Empty>}
         {alertsOnly && anchors.has("servers") && servers}
         <AllTables g={g} hosts={snap.data.hosts} lit={lit} st={st} diff={diff} only={alertsOnly ? anchors : undefined} />

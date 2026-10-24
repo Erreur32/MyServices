@@ -86,7 +86,10 @@ function useUpdateNotices(update?: UpdateNews | null) {
     if (!on || checked || !update?.available || !update.tag || announcedTag() === update.tag || dismissedTag() === update.tag) return;
     setToast(update);
   }, [on, checked, update]);
-  const close = () => { if (toast?.tag && toast.available) markAnnounced(toast.tag); setToast(null); };
+  const close = () => {
+    if (toast?.tag && toast.available) { markAnnounced(toast.tag); }
+    setToast(null);
+  };
   return { pill: on ? checked ?? update : null, toast: on ? toast : null, close };
 }
 

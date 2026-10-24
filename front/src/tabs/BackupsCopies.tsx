@@ -76,10 +76,10 @@ export function LocationForm({ setId, loc, machines, busy, onDone, onCancel, set
 }
 
 /** Copies of one followed folder: list, edit, remove, and a small form to add one (machine as pills, folder typed or picked from the search) */
-export function SetCopies({ setId, origin, copies, locations = [], machines, found, busy, onDone, setNote }: {
+export function SetCopies({ setId, origin, copies, locations = [], machines, found, busy, onDone, setNote }: Readonly<{
   setId: string; origin: string; copies: CopyRow[]; locations?: LocRow[]; machines: SshMachine[]; found: FoundFolders[] | null; busy: boolean;
   onDone: () => void; setNote: (n: Note) => void;
-}) {
+}>) {
   const [editing, setEditing] = useState<number | null>(null);   // the copy whose form is open
   const open = locations.find((l) => l.index === editing && l.editable);
   const [adding, setAdding] = useState(false), [ip, setIp] = useState(""), [path, setPath] = useState(""), [saving, setSaving] = useState(false);

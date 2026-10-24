@@ -63,7 +63,6 @@ function Row({ x, reload, machines }: { x: DiscoveryItem; reload: () => void; ma
 /** The parts of the discovery, each shown with its subject: the machines found in Machines › Untracked devices, the mode, the other
  *  suggestions and those forgotten in Application › Automatic discovery; the apps (to activate, stopped, forgotten) are Connectors › Detected to link */
 export type DiscoveryPart = "mode" | "hosts" | "suggestions" | "forgotten";
-type Part = DiscoveryPart;
 /** Where an old #settings/network/<part> address now lives (null: Application › Automatic discovery, #settings/discovery) */
 export function discoveryMoved(hash: string): string | null {
   const v = hash.split("/")[2];
@@ -88,7 +87,7 @@ function SearchState({ running, everyH, last }: Readonly<{ running: boolean; eve
   return <Badge tone="ok">{tx("toutes les {0} h", everyH)}</Badge>;
 }
 
-export function NetworkSettings({ snap, parts }: Readonly<{ snap: Snapshot; parts: Part[] }>) {
+export function NetworkSettings({ snap, parts }: Readonly<{ snap: Snapshot; parts: DiscoveryPart[] }>) {
   const [disc, reloadDisc] = useDiscoveries();
   const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
   const [note, setNote] = useState<Note>(null), [error, setError] = useState("");
@@ -118,7 +117,7 @@ export function NetworkSettings({ snap, parts }: Readonly<{ snap: Snapshot; part
   const saveAuto = (on: boolean) => act(() => send("PUT", "network/settings", { auto: on }), on ? tx("mode automatique activé") : tx("mode manuel : rien n'est plus ajouté tout seul"), setNote)
     .then((ok) => { if (ok) { load(); reloadDisc(); } });
 
-  const pages: Record<Part, ReactNode> = {
+  const pages: Record<DiscoveryPart, ReactNode> = {
       // 1. En-tête : l'état, le mode, la recherche réseau
       mode: <>
       <section className={`${CARD} ${TITLE}`} aria-label={tx("Découverte")}>

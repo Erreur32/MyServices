@@ -33,7 +33,12 @@ const KIND: Record<string, string> = {
 // Proposé depuis « Premiers pas » : lu une seule fois, à l'ouverture de l'onglet
 /** Sub-page of Connectors in the address (#settings/connectors/available): my connectors, the catalogue, or the services found on the network */
 export type ConnectorsPart = "mine" | "available" | "detected" | "read";
-export const connectorsPart = (v?: string): ConnectorsPart => (v === "apps" ? "detected" : v === "available" || v === "detected" || v === "read" ? v : "mine");   // « apps »: the former Recognised apps, merged here
+const PARTS: ConnectorsPart[] = ["available", "detected", "read"];
+export const connectorsPart = (v?: string): ConnectorsPart => {
+  if (v === "apps") return "detected";   // « apps »: the former Recognised apps, merged here
+  return PARTS.find((p) => p === v) ?? "mine";
+};
+const RUN_RANK: Record<string, number> = { true: 0, false: 2 };
 const MINE = "settings/connectors";
 
 /** Tools already read over SSH or by an agent on a followed machine (AdGuard, Proxmox, ESXi, KVM, Hyper-V…): a connector would add nothing */
@@ -271,7 +276,7 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
   // every column sorts; by machine at first (equal keys keep the order above: what nobody reads first, a stopped container last)
   const keyOf = (p: Proposal, k: string): string | number => {
     if (k === "service") return p.label.toLowerCase();
-    if (k === "state") return p.running === true ? 0 : p.running === false ? 2 : 1;
+    if (k === "state") return RUN_RANK[String(p.running)] ?? 1;   // running, unknown, stopped
     if (k === "value") return rank(p);
     return (p.machine || p.ip || "~").toLowerCase();
   };

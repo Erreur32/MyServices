@@ -13,7 +13,8 @@ import { tx } from "../lib/i18n";
 function maskKey(key: string): string {
   const [type, body, ...comment] = key.trim().split(/\s+/);
   if (!body) return "•".repeat(24);
-  return `${type} ${body.slice(0, 8)}${"•".repeat(24)}${body.slice(-5)}${comment.length ? ` ${comment.join(" ")}` : ""}`;
+  const tail = comment.length ? " " + comment.join(" ") : "";
+  return `${type} ${body.slice(0, 8)}${"•".repeat(24)}${body.slice(-5)}${tail}`;
 }
 const maskCommand = (t: string) => t.replace(/'([^']*)'/g, (_, k: string) => `'${maskKey(k)}'`);
 
@@ -52,48 +53,63 @@ export function keyOf(ssh: SystemState["ssh"] | null, identity?: string | null, 
   return ssh?.fingerprint && fp?.includes(ssh.fingerprint) ? "app" : "other";
 }
 
-export function AppKeyBand({ ssh }: Readonly<{ ssh: SystemState["ssh"] }>) {
-  const [shown, setShown] = useState(false), [open, setOpen] = useState(false);
+const maskFp = (fp: string) => fp.slice(0, 11) + "•".repeat(10) + fp.slice(-4);
+
+/** The line of the band: type, fingerprint (masked until « Show »), known hosts, show or hide, copy the command */
+function KeyTools({ ssh, shown, onShow }: Readonly<{ ssh: SystemState["ssh"]; shown: boolean; onShow: () => void }>) {
   const [note, copy] = useCopy();
   const algo = ssh.public?.split(/\s+/)[0]?.replace(/^ssh-/, "").toUpperCase();
+  return (
+    <span className="flex flex-col items-end gap-1">
+      <span className="flex flex-wrap items-center gap-2">
+        {algo && <Badge tone="info" title={tx("Type de clé")}>{algo}</Badge>}
+        {ssh.fingerprint && <Badge tone="off" title={tx("Empreinte (SHA256) : sert à reconnaître la clé sans la montrer")}><span className="font-mono">{shown ? ssh.fingerprint : maskFp(ssh.fingerprint)}</span></Badge>}
+        <Badge tone="off">{ssh.known_hosts} {tx("machine(s) connue(s)")}</Badge>
+        <button type="button" className={quiet} onClick={onShow} aria-pressed={shown} title={shown ? tx("Masquer la clé") : tx("Afficher la clé")}>
+          {shown ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}{shown ? tx("Masquer") : tx("Afficher")}
+        </button>
+        <button type="button" onClick={() => void copy(ssh.authorize!)} className={note?.ok ? `${button} border-ok bg-ok/15 text-ok` : primary}>
+          {note?.ok ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}{note?.ok ? tx("copiée") : tx("Copier la commande")}
+        </button>
+      </span>
+      <NoteLine note={note} />
+    </span>
+  );
+}
+
+/** Unfolded: the three steps to authorise the key, the public keys and the command (masked unless shown), the advice */
+function AuthorizeSteps({ ssh, shown }: Readonly<{ ssh: SystemState["ssh"]; shown: boolean }>) {
   const step = "flex gap-3 text-sm text-muted";
   const num = "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-link/15 text-xs font-bold text-link";
+  return (
+    <div className="mt-3 flex flex-col gap-3">
+      <ol className="flex flex-col gap-2.5">
+        <li className={step}><span className={num}>1</span><span>{tx("Copiez la commande (le bouton « copier » fonctionne même clé masquée).")}</span></li>
+        <li className={step}><span className={num}>2</span><span>{tx("Collez-la dans un terminal de la machine, connecté avec le compte que MyServices doit utiliser. Elle ajoute la clé à")} <code className="font-mono text-xs">~/.ssh/authorized_keys</code>.</span></li>
+        <li className={step}><span className={num}>3</span><span>{tx("Sur la ligne de la machine ci-dessous, l'icône de réglage vérifie la connexion.")}</span></li>
+      </ol>
+      <Secretish text={ssh.public!} label={tx("Clé publique")} shown={shown} mask={maskKey} />
+      <Secretish text={ssh.authorize!} label={tx("Commande à lancer sur la machine, avec le compte visé")} shown={shown} mask={maskCommand} />
+      {ssh.public_esxi && <Secretish text={ssh.public_esxi} label={tx("Clé publique ECDSA, pour VMware ESXi (à mettre dans /etc/ssh/keys-root/authorized_keys)")} shown={shown} mask={maskKey} />}
+      <p className="rounded-lg bg-bg2/60 px-3 py-2 text-xs text-muted">{tx("La clé privée reste dans /config/ssh et ne quitte jamais le conteneur. Le plus sûr : un compte dédié, dans les groupes docker et adm, plutôt que root (voir le README). Pour retirer l'accès, supprimez cette ligne de authorized_keys sur la machine.")}</p>
+    </div>
+  );
+}
+
+export function AppKeyBand({ ssh }: Readonly<{ ssh: SystemState["ssh"] }>) {
+  const [shown, setShown] = useState(false), [open, setOpen] = useState(false);
   return (
     <Card className="border-l-4 border-l-link">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 font-bold"><KeyRound size={16} aria-hidden />{tx("Clé de l'app")}</h2>
-        {!ssh.public ? <span className="text-sm text-warn">{tx("Pas encore créée : elle l'est au démarrage du conteneur.")}</span> : (
-          <span className="flex flex-wrap items-center gap-2">
-            {algo && <Badge tone="info" title={tx("Type de clé")}>{algo}</Badge>}
-            {ssh.fingerprint && <Badge tone="off" title={tx("Empreinte (SHA256) : sert à reconnaître la clé sans la montrer")}><span className="font-mono">{shown ? ssh.fingerprint : `${ssh.fingerprint.slice(0, 11)}${"•".repeat(10)}${ssh.fingerprint.slice(-4)}`}</span></Badge>}
-            <Badge tone="off">{ssh.known_hosts} {tx("machine(s) connue(s)")}</Badge>
-            <button type="button" className={quiet} onClick={() => { setShown(!shown); setOpen(!shown); }} aria-pressed={shown} title={shown ? tx("Masquer la clé") : tx("Afficher la clé")}>
-              {shown ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}{shown ? tx("Masquer") : tx("Afficher")}
-            </button>
-            <button type="button" onClick={() => void copy(ssh.authorize!)} className={note?.ok ? `${button} border-ok bg-ok/15 text-ok` : primary}>
-              {note?.ok ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}{note?.ok ? tx("copiée") : tx("Copier la commande")}
-            </button>
-          </span>
-        )}
+        {ssh.public ? <KeyTools ssh={ssh} shown={shown} onShow={() => { setShown(!shown); setOpen(!shown); }} />
+          : <span className="text-sm text-warn">{tx("Pas encore créée : elle l'est au démarrage du conteneur.")}</span>}
       </div>
-      <NoteLine note={note} />
       {ssh.public && <>
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="mt-2 inline-flex items-center gap-1 text-sm text-link hover:underline">
           {open ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}{tx("Autoriser la clé sur une machine")}
         </button>
-        {open && (
-          <div className="mt-3 flex flex-col gap-3">
-            <ol className="flex flex-col gap-2.5">
-              <li className={step}><span className={num}>1</span><span>{tx("Copiez la commande (le bouton « copier » fonctionne même clé masquée).")}</span></li>
-              <li className={step}><span className={num}>2</span><span>{tx("Collez-la dans un terminal de la machine, connecté avec le compte que MyServices doit utiliser. Elle ajoute la clé à")} <code className="font-mono text-xs">~/.ssh/authorized_keys</code>.</span></li>
-              <li className={step}><span className={num}>3</span><span>{tx("Sur la ligne de la machine ci-dessous, l'icône de réglage vérifie la connexion.")}</span></li>
-            </ol>
-            <Secretish text={ssh.public} label={tx("Clé publique")} shown={shown} mask={maskKey} />
-            <Secretish text={ssh.authorize!} label={tx("Commande à lancer sur la machine, avec le compte visé")} shown={shown} mask={maskCommand} />
-            {ssh.public_esxi && <Secretish text={ssh.public_esxi} label={tx("Clé publique ECDSA, pour VMware ESXi (à mettre dans /etc/ssh/keys-root/authorized_keys)")} shown={shown} mask={maskKey} />}
-            <p className="rounded-lg bg-bg2/60 px-3 py-2 text-xs text-muted">{tx("La clé privée reste dans /config/ssh et ne quitte jamais le conteneur. Le plus sûr : un compte dédié, dans les groupes docker et adm, plutôt que root (voir le README). Pour retirer l'accès, supprimez cette ligne de authorized_keys sur la machine.")}</p>
-          </div>
-        )}
+        {open && <AuthorizeSteps ssh={ssh} shown={shown} />}
       </>}
     </Card>
   );

@@ -79,9 +79,11 @@ export function MuteButton({ x, reload }: { x: DiscoveryItem; reload: () => void
   const [note, setNote] = useState<Note>(null);
   if (!x.mutable) return null;
   const mute = !x.muted;
+  const forgotWhere = x.id.startsWith("connector:") ? tx("oublié : rangé dans « Oubliés », sous Connecteurs › Détectés à relier") : tx("oublié : rangé dans « Suggestions oubliées », sous Application › Découverte automatique");
+  const done = mute ? forgotWhere : tx("rappelé : de nouveau proposé");
   return (
     <>
-      <button type="button" className={`${button} border-line bg-bg2 text-txt hover:border-link`} onClick={() => void act(() => send("PUT", "discoveries/muted", { id: x.id, muted: mute }), mute ? (x.id.startsWith("connector:") ? tx("oublié : rangé dans « Oubliés », sous Connecteurs › Détectés à relier") : tx("oublié : rangé dans « Suggestions oubliées », sous Application › Découverte automatique")) : tx("rappelé : de nouveau proposé"), setNote).then(() => reload())}
+      <button type="button" className={`${button} border-line bg-bg2 text-txt hover:border-link`} onClick={() => void act(() => send("PUT", "discoveries/muted", { id: x.id, muted: mute }), done, setNote).then(() => reload())}
         title={mute ? tx("Ne plus le proposer, ni dans la cloche ni sur l'accueil. Il reste dans « Oubliés » pour le rappeler plus tard.") : tx("Le proposer de nouveau")}>
         {mute ? <EyeOff size={13} aria-hidden /> : <RotateCcw size={13} aria-hidden />}{mute ? tx("Oublier") : tx("Rappeler")}
       </button>

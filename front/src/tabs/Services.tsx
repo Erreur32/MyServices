@@ -277,13 +277,14 @@ const servicePage = (view: string, r: Host) => `services/${view}/${encodeURIComp
 const openService = (r: Host) => { location.hash = servicePage("item", r); };
 
 /** In alert, as the menu's dot counts it: down, in warning or with a point to check, unless hidden from the alerts */
+const alertMark = () => <Dot tone="bad" />;
 const alerting = (r: Host, hidden: HiddenMap) => { const c = status(r)[0]; return (c === "bad" || c === "warn" || liveChecks(r).length > 0) && !isHidden(r, hidden); };
 
 export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; initial?: Selected; route: string }>) {
   const hiddenMap = useServicesHidden();
   const machines = useMemo(() => new Map(snap.data.machine_list.map((m) => [m.ip, m.name])), [snap.data.machine_list]);
   const facets = useMemo((): Facet<Host>[] => [
-    { key: "alert", label: tx("Alertes"), get: (r) => (alerting(r, hiddenMap) ? "on" : ""), name: () => tx("en alerte"), mark: () => <Dot tone="bad" /> },   // ticked by the menu's dot
+    { key: "alert", label: tx("Alertes"), get: (r) => (alerting(r, hiddenMap) ? "on" : ""), name: () => tx("en alerte"), mark: alertMark },   // ticked by the menu's dot
     { key: "src", label: tx("Source"), get: (r) => (r.type === "local" ? "local" : "npm"), name: (v) => (v === "npm" ? "NPM" : tx("Services")), order: ["npm", "local"],
       mark: (v) => (v === "npm" ? <Logo src={`${import.meta.env.BASE_URL}icons/nginx-proxy-manager.svg`} /> : <Dot tone="info" />) },
     { key: "status", label: tx("État"), get: (r) => status(r)[0], name: (v) => ST_NAME[v] || v, order: ["bad", "warn", "ok", "off"], mark: (v) => <Dot tone={v as Tone} /> },

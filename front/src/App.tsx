@@ -113,7 +113,12 @@ export default function App() {
   const items = attention({ ...snap, data: { ...snap.data, hosts: snap.data.hosts.filter((r) => !isHidden(r, hiddenServices)) }, now });   // a service hidden from « To watch » leaves the tab's dot and the home page too
   const badges: Partial<Record<TabId, "crit" | "warn">> = {};
   const why: Partial<Record<TabId, string[]>> = {};   // the alerts behind each dot, listed in its tooltip
-  for (const a of items) { if (badges[a.tab] !== "crit") badges[a.tab] = a.level; (why[a.tab] ??= []).push(a.text); }
+  for (const a of items) {
+    if (badges[a.tab] !== "crit") { badges[a.tab] = a.level; }
+    const list = why[a.tab] ?? [];
+    list.push(a.text);
+    why[a.tab] = list;
+  }
   const current = visible(tab, snap) ? tab : "home";
   if (hash.startsWith("#assistant") && snap.me.role === "admin") return <><ScanBar onFinished={load} /><Assistant snap={snap} /></>;
   const profile = hash.startsWith("#profile"); // page à part (tout compte), indépendante des Réglages et de la gestion des comptes

@@ -230,22 +230,30 @@ function AlertsAbove({ watch, open }: Readonly<{ watch: Watch[]; open: (w: Watch
   );
 }
 
+const alertMark = () => <Dot tone="bad" />;
+const FACETS: Facet<Row>[] = [   // the filters of the list; « Alerts » is ticked by the menu's dot
+  { key: "alert", label: tx("Alertes"), get: (r) => (rowAlert(r) ? "on" : ""), name: () => tx("en alerte"), mark: alertMark },
+  { key: "kind", label: tx("Type"), get: (r) => r.kind, name: (v) => KIND[v as Kind], order: ["gear", "wifi", "wired", "device"] },
+  { key: "state", label: tx("État"), get: (r) => (r.up ? "up" : "down"), name: (v) => (v === "up" ? tx("en ligne") : tx("hors ligne")), order: ["up", "down"],
+    mark: (v) => <Dot tone={v === "up" ? "ok" : "off"} /> },
+  { key: "followed", label: tx("Suivi"), get: (r) => (r.machine ? "yes" : "no"), name: (v) => (v === "yes" ? tx("machine suivie") : tx("pas suivie")), order: ["yes", "no"] },
+  { key: "via", label: tx("Borne ou switch"), get: (r) => r.via },
+  { key: "vendor", label: tx("Fabricant ou modèle"), get: (r) => r.vendor },
+  { key: "source", label: tx("Source"), get: (r) => r.source },
+];
+
+/** The view shown: « To watch » is no longer a page (the list on « Alerts »); a source gone (no UniFi, no Freebox): the first view there is */
+function currentView(view: Sub, has: Record<Sub, boolean>, first: Sub): Sub {
+  if (view === "watch") return "list";
+  return has[view] ? view : first;
+}
+
 export function Network({ snap, onMachine, route, initial }: Readonly<{ snap: Snapshot; onMachine: (ip: string) => void; route: string; initial?: Selected }>) {
   const pickSub = (v: Sub) => { location.hash = `network/${v}`; };
   const cards = useMemo(() => (snap.data.services_status ?? []).filter((c) => NETWORK_CARDS.includes(c.connector)), [snap.data.services_status]);
   const rows = useMemo(() => buildRows(snap, cards), [snap, cards]);
-  const facets = useMemo<Facet<Row>[]>(() => [
-    { key: "alert", label: tx("Alertes"), get: (r) => (rowAlert(r) ? "on" : ""), name: () => tx("en alerte"), mark: () => <Dot tone="bad" /> },   // ticked by the menu's dot
-    { key: "kind", label: tx("Type"), get: (r) => r.kind, name: (v) => KIND[v as Kind], order: ["gear", "wifi", "wired", "device"] },
-    { key: "state", label: tx("État"), get: (r) => (r.up ? "up" : "down"), name: (v) => (v === "up" ? tx("en ligne") : tx("hors ligne")), order: ["up", "down"],
-      mark: (v) => <Dot tone={v === "up" ? "ok" : "off"} /> },
-    { key: "followed", label: tx("Suivi"), get: (r) => (r.machine ? "yes" : "no"), name: (v) => (v === "yes" ? tx("machine suivie") : tx("pas suivie")), order: ["yes", "no"] },
-    { key: "via", label: tx("Borne ou switch"), get: (r) => r.via },
-    { key: "vendor", label: tx("Fabricant ou modèle"), get: (r) => r.vendor },
-    { key: "source", label: tx("Source"), get: (r) => r.source },
-  ], []);
   const text = useCallback((r: Row) => [r.name, r.ip, r.mac, r.vendor, r.via, r.detail, r.machine ?? "", r.gear?.version ?? ""].join(" "), []);
-  const f = useFilter(rows, facets, text, route.startsWith("#network/watch") ? { alert: ["on"] } : initial);   // the old « To watch » address: the alerts
+  const f = useFilter(rows, FACETS, text, route.startsWith("#network/watch") ? { alert: ["on"] } : initial);   // the old « To watch » address: the alerts
   const alertOn = !!f.sel.alert?.length;
   const keyOf = useCallback((r: Row, k: string): string | number => k === "ip" ? ipKey(r.ip) : k === "state" ? Number(!r.up) : k === "machine" ? r.machine ?? "~" : String(r[k as keyof Row] ?? "").toLowerCase(), []);
   const [stored, saveFolded] = useFolded();
@@ -286,7 +294,7 @@ export function Network({ snap, onMachine, route, initial }: Readonly<{ snap: Sn
   const openWatch = (w: Watch) => { if (w.href) location.hash = w.href.slice(1); else pickSub(w.sub); };
   const firstView = SUBS.find((v) => v !== "watch" && has[v])!;
   const view = usePageView(route, "network", SUBS, initial?.alert ? "list" : firstView);   // the menu's dot: the list on « Alerts »
-  const current: Sub = view === "watch" ? "list" : has[view] ? view : firstView;   // « To watch » is no longer a page: the list on « Alerts »   // a source gone (no UniFi, no Freebox): the first view there is
+  const current = currentView(view, has, firstView);
   if (!hasNetwork(snap)) return <Empty>{tx("Aucune source réseau : reliez MynetworK, UniFi, OPNsense ou NetAlertX dans Réglages → Connecteurs.")}</Empty>;
 
   return (
