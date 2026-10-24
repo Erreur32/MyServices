@@ -11,6 +11,13 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+## v0.22.1 (2026-10-24)
+
+> **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
+
+### Fixed
+- **Release build**: a test of the 24 h curves (`test_metrics`) depended on the day it ran and failed from 24 October 2026 on, which stopped the 0.22.0 image from being built; it now fixes its clock. No change to the app itself: 0.22.1 is 0.22.0 with its image.
+
 ## v0.22.0 (2026-10-24)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
