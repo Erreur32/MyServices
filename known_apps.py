@@ -71,13 +71,14 @@ APPS: tuple[App, ...] = (
     App("pbs", "Proxmox Backup Server", "Infra / virtualisation", ports=(8007,), title=r"proxmox backup server", host=r"^(pbs|proxmox-?backup)", connector="proxmox-backup"),
     # IA locale : Ollama et LM Studio ont un port à eux ; llama.cpp (8080) et Open WebUI (3000 / 8080) partagent des ports trop courants, d'où le titre de la page
     App("ollama", "Ollama", "IA", ui="api", ports=(11434,), images=("ollama/ollama",), proc=r"^ollama\b", connector="ollama"),
-    App("lmstudio", "LM Studio", "IA", ports=(1234,)),
+    App("lmstudio", "LM Studio", "IA", ports=(1234,), connector="openai-compatible"),
     App("llamacpp", "llama.cpp", "IA", title=r"^llama\.cpp", images=("ghcr.io/ggml-org/llama.cpp", "ghcr.io/ggerganov/llama.cpp"), proc=r"^llama-server\b", connector="llamacpp"),
-    App("vllm", "vLLM", "IA", ui="api", images=("vllm/vllm-openai",), proc=r"^vllm\b"),
-    App("localai", "LocalAI", "IA", ui="api", images=("localai/localai", "quay.io/go-skynet/local-ai"), proc=r"^local-ai\b"),
-    App("koboldcpp", "KoboldCpp", "IA", ports=(5001,), proc=r"^koboldcpp"),
+    App("vllm", "vLLM", "IA", ui="api", images=("vllm/vllm-openai",), proc=r"^vllm\b", connector="openai-compatible"),
+    App("localai", "LocalAI", "IA", ui="api", images=("localai/localai", "quay.io/go-skynet/local-ai"), proc=r"^local-ai\b", connector="openai-compatible"),
+    App("koboldcpp", "KoboldCpp", "IA", ports=(5001,), images=("koboldcpp/koboldcpp",), proc=r"^koboldcpp", connector="openai-compatible"),
+    App("litellm", "LiteLLM", "IA", title=r"litellm", images=("ghcr.io/berriai/litellm",), connector="openai-compatible"),
     App("hermes", "Hermes Agent", "IA", ports=(8642, 19119), proc=r"^hermes\b", connector="hermes"),
-    App("open-webui", "Open WebUI", "IA", title=r"open webui", images=("ghcr.io/open-webui/open-webui",)),
+    App("open-webui", "Open WebUI", "IA", title=r"open webui", images=("ghcr.io/open-webui/open-webui",), connector="open-webui"),
     # Veeam Backup & Replication : API REST 9419 (lue par Sauvegardes), service 9392, serveur de montage 9401. Ports d'après la doc Veeam, à confirmer sur un vrai serveur
     App("veeam", "Veeam Backup & Replication", "Infra / virtualisation", ports=(9419, 9392, 9401)),
     App("veeam-m365", "Veeam Backup for Microsoft 365", "Infra / virtualisation", connector="veeam-m365"),   # 4443 is too common to name it
