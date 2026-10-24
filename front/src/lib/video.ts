@@ -82,7 +82,7 @@ export function streamFigures(cards: StreamCard[], cams = streamCameras(cards)):
   return {
     cameras: cams.length, filming: cams.filter((c) => c.up !== false).length, recording: cams.filter((c) => c.record).length,
     detecting: cams.filter((c) => c.detect).length, events: read.length ? read.reduce((a, b) => a + b, 0) : null, labels,
-    fullest: storage.length ? storage.reduce((a, b) => (b.pct > a.pct ? b : a)) : null,
+    fullest: storage.reduce<StorageRow | null>((a, b) => (a == null || b.pct > a.pct ? b : a), null),
   };
 }
 
