@@ -130,7 +130,7 @@ export default function App() {
   return (
     <div className="flex min-h-screen">
       <Sidebar snap={snap} badges={badges} why={why} onNavigate={navigated} mobileOpen={menuOpen} onClose={() => setMenuOpen(false)}
-        onBadge={(t) => { setMenuOpen(false); if (t === "machines") goFilter("machines", { alert: ["bad", "warn"] }); else if (t === "backups" || t === "dns") goFilter(t, { alerts: ["on"] }); else if (t === "services") goFilter(t, { alert: ["on"] }); else go(t); }} />
+        onBadge={(t) => { setMenuOpen(false); if (t === "machines") goFilter("machines", { alert: ["bad", "warn"] }); else if (t === "backups" || t === "dns") goFilter(t, { alerts: ["on"] }); else if (t === "services" || t === "network") goFilter(t, { alert: ["on"] }); else go(t); }} />
       <div className="min-w-0 flex-1 px-4 pb-10 sm:px-6">
       <ScanBar onFinished={load} />
       <Header snap={snap} theme={theme} toggleTheme={toggleTheme} now={now} onMenu={() => setMenuOpen(true)} />
@@ -147,7 +147,7 @@ export default function App() {
       {current === "settings" && <Settings key={hash} snap={snap} />}
       {current === "security" && <Security snap={snap} route={hash} />}
       {current === "virtualization" && <Virtualization snap={snap} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
-      {current === "network" && <Network snap={snap} route={hash} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
+      {current === "network" && <Network key={pending.tab === "network" ? pending.n : 0} snap={snap} route={hash} initial={initialFor("network")} onMachine={(ip) => goFilter("services", { machine: [ip] })} />}
       </div>
       </div>
     </div>

@@ -6,15 +6,14 @@ import { usePageView } from "../lib/route";
 import { Cable, ChevronDown, ChevronRight, Monitor, Network as NetworkIcon, Router, Wifi, type LucideIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import type { Snapshot } from "../api";
-import { useFilter, useSort, type Facet } from "../lib/filter";
+import { useFilter, useSort, type Facet, type Selected } from "../lib/filter";
 import { dur } from "../lib/format";
 import { tx } from "../lib/i18n";
 import { NETWORK_CARDS, hasNetwork } from "../lib/network";
 import type { ServiceStatus } from "../types";
 import { Badge, Cards, Count, Dim, Empty, FilterBar, Table, Td, Th } from "../components/ui";
-import { quiet, worstTone } from "../lib/forms";
+import { quiet } from "../lib/forms";
 import { StatTile } from "../components/StatTile";
-import { WatchPanel } from "../components/WatchPanel";
 import { Dot } from "../components/marks";
 import { ServiceCard } from "../components/ServiceStatusCards";
 import { NetworkDiagnostic } from "./NetworkDiagnostic";
@@ -200,10 +199,16 @@ function Figures({ box, boxFact, gearAll, gearDown, updates, wifi, wired, devAll
   );
 }
 
-/** « To watch », a row per problem */
-function WatchTable({ watch, worst, open }: Readonly<{ watch: Watch[]; worst: "ok" | "warn" | "bad"; open: (w: Watch) => void }>) {
+/** A row of the list in alert, as the menu's dot counts it: gear offline or with an update, weak Wi-Fi */
+const rowAlert = (r: Row) => (r.kind === "gear" && (!r.up || !!r.gear?.updatable)) || (r.kind === "wifi" && r.signal != null && r.signal < WEAK_DBM);
+/** The alerts that are not rows of the list (a source failing, what the Internet access reports): shown above it on « Alerts » */
+const outsideList = (w: Watch) => w.key.startsWith("src/") || w.key.startsWith("net/");
+
+/** The alerts that are no row of the list, one row each, with a button to where they are */
+function AlertsAbove({ watch, open }: Readonly<{ watch: Watch[]; open: (w: Watch) => void }>) {
+  const bad = watch.some((w) => w.sev === "bad");
   return (
-    <WatchPanel id="network" tone={worst} count={watch.length} pinned hint={tx("équipement hors ligne, source en erreur, box, mises à jour, wifi faible")}>
+    <section className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${bad ? "border-bad/50" : "border-warn/50"}`} aria-label={tx("Alertes hors liste")}>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[560px] border-collapse text-sm">
           <thead><tr className="border-b border-line text-left text-[11px] font-bold uppercase tracking-wider text-dim">
@@ -221,15 +226,16 @@ function WatchTable({ watch, worst, open }: Readonly<{ watch: Watch[]; worst: "o
           </tbody>
         </table>
       </div>
-    </WatchPanel>
+    </section>
   );
 }
 
-export function Network({ snap, onMachine, route }: Readonly<{ snap: Snapshot; onMachine: (ip: string) => void; route: string }>) {
+export function Network({ snap, onMachine, route, initial }: Readonly<{ snap: Snapshot; onMachine: (ip: string) => void; route: string; initial?: Selected }>) {
   const pickSub = (v: Sub) => { location.hash = `network/${v}`; };
   const cards = useMemo(() => (snap.data.services_status ?? []).filter((c) => NETWORK_CARDS.includes(c.connector)), [snap.data.services_status]);
   const rows = useMemo(() => buildRows(snap, cards), [snap, cards]);
   const facets = useMemo<Facet<Row>[]>(() => [
+    { key: "alert", label: tx("Alertes"), get: (r) => (rowAlert(r) ? "on" : ""), name: () => tx("en alerte"), mark: () => <Dot tone="bad" /> },   // ticked by the menu's dot
     { key: "kind", label: tx("Type"), get: (r) => r.kind, name: (v) => KIND[v as Kind], order: ["gear", "wifi", "wired", "device"] },
     { key: "state", label: tx("État"), get: (r) => (r.up ? "up" : "down"), name: (v) => (v === "up" ? tx("en ligne") : tx("hors ligne")), order: ["up", "down"],
       mark: (v) => <Dot tone={v === "up" ? "ok" : "off"} /> },
@@ -239,7 +245,8 @@ export function Network({ snap, onMachine, route }: Readonly<{ snap: Snapshot; o
     { key: "source", label: tx("Source"), get: (r) => r.source },
   ], []);
   const text = useCallback((r: Row) => [r.name, r.ip, r.mac, r.vendor, r.via, r.detail, r.machine ?? "", r.gear?.version ?? ""].join(" "), []);
-  const f = useFilter(rows, facets, text);
+  const f = useFilter(rows, facets, text, route.startsWith("#network/watch") ? { alert: ["on"] } : initial);   // the old « To watch » address: the alerts
+  const alertOn = !!f.sel.alert?.length;
   const keyOf = useCallback((r: Row, k: string): string | number => k === "ip" ? ipKey(r.ip) : k === "state" ? Number(!r.up) : k === "machine" ? r.machine ?? "~" : String(r[k as keyof Row] ?? "").toLowerCase(), []);
   const [stored, saveFolded] = useFolded();
   const gearSort = useSort(f.shown.filter((r) => r.kind === "gear"), keyOf, "state");
@@ -258,7 +265,7 @@ export function Network({ snap, onMachine, route }: Readonly<{ snap: Snapshot; o
   for (const r of f.shown) if (r.kind === "wifi" || r.kind === "wired") groups.set(`${r.kind}/${r.via}`, [...(groups.get(`${r.kind}/${r.via}`) ?? []), r]);
   const clientsShown = [...groups.values()].reduce((n, l) => n + l.length, 0);
   const effective = stored ?? ALL_BUT_INTERNET;   // never chosen: everything starts folded except the Internet access and gateways
-  const isFolded = (id: string) => effective.includes(id);
+  const isFolded = (id: string) => !alertOn && effective.includes(id);   // on « Alerts », every section open: the rows in alert are seen at once
   const toggleFold = (id: string) => saveFolded(isFolded(id) ? effective.filter((x) => x !== id) : [...effective, id]);
   const setFolded = (ids: string[], on: boolean) => saveFolded(on ? [...new Set([...effective, ...ids])] : effective.filter((x) => !ids.includes(x)));
   // The menu: every section that has something to show, to jump to it (it unfolds first) or to fold them all
@@ -271,7 +278,6 @@ export function Network({ snap, onMachine, route }: Readonly<{ snap: Snapshot; o
   ].filter((x) => x.n > 0);
   const jump = (key: string, id: string) => { setFolded([key], false); setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0); };
   const watch = toWatch(rows, internet, net);
-  const worst = worstTone(watch.some((w) => w.sev === "bad"), watch.length > 0);
   const box = internet.find((c) => c.connector !== "unifi"), boxFact = box?.facts?.find((x) => x.tone === "bad" || x.tone === "warn") ?? box?.facts?.[0];
   const gearKinds = { gw: gearAll.filter(isGateway).length, sw: gearAll.filter((r) => /switch|^usw|^us-/i.test(`${r.gear?.type ?? ""} ${r.gear?.model ?? ""}`)).length };
   const gearWords = [gearKinds.gw ? tx("{0} passerelle(s)", gearKinds.gw) : "", gearKinds.sw ? tx("{0} switch(es)", gearKinds.sw) : "", gearAll.length - gearKinds.gw - gearKinds.sw > 0 ? tx("{0} borne(s)", gearAll.length - gearKinds.gw - gearKinds.sw) : ""].filter(Boolean);
@@ -279,8 +285,8 @@ export function Network({ snap, onMachine, route }: Readonly<{ snap: Snapshot; o
   const failing = net.filter((c) => !c.ok).length;
   const openWatch = (w: Watch) => { if (w.href) location.hash = w.href.slice(1); else pickSub(w.sub); };
   const firstView = SUBS.find((v) => v !== "watch" && has[v])!;
-  const view = usePageView(route, "network", SUBS, watch.length ? "watch" : firstView);
-  const current: Sub = has[view] ? view : firstView;   // a source gone (no UniFi, no Freebox): the first view there is
+  const view = usePageView(route, "network", SUBS, initial?.alert ? "list" : firstView);   // the menu's dot: the list on « Alerts »
+  const current: Sub = view === "watch" ? "list" : has[view] ? view : firstView;   // « To watch » is no longer a page: the list on « Alerts »   // a source gone (no UniFi, no Freebox): the first view there is
   if (!hasNetwork(snap)) return <Empty>{tx("Aucune source réseau : reliez MynetworK, UniFi, OPNsense ou NetAlertX dans Réglages → Connecteurs.")}</Empty>;
 
   return (
@@ -291,7 +297,6 @@ export function Network({ snap, onMachine, route }: Readonly<{ snap: Snapshot; o
       </div>
       <Figures box={box} boxFact={boxFact} gearAll={gearAll} gearDown={gearDown} updates={updates} wifi={all("wifi").length} wired={all("wired").length} devAll={devAll} unfollowed={unfollowed} sourceNames={sourceNames} failing={failing} />
 
-      {current === "watch" && <WatchTable watch={watch} worst={worst} open={openWatch} />}
       {current === "unifi" && <UnifiCards />}
       {current === "freebox" && freebox && <div className="grid items-start gap-3 lg:grid-cols-2"><ServiceCard s={freebox} /></div>}
       {current === "scan" && <NetworkScanStats />}
@@ -300,7 +305,8 @@ export function Network({ snap, onMachine, route }: Readonly<{ snap: Snapshot; o
 
       {current === "list" && (
         <>
-        {rows.length > 0 && <FilterBar f={f} placeholder={tx("Nom, IP, MAC, fabricant, borne…")} primary={["kind", "state"]} oneLine />}{/* right under the menu, with its main filters shown */}
+        {alertOn && watch.some(outsideList) && <AlertsAbove watch={watch.filter(outsideList)} open={openWatch} />}
+        {rows.length > 0 && <FilterBar f={f} placeholder={tx("Nom, IP, MAC, fabricant, borne…")} primary={["alert", "kind", "state"]} oneLine />}{/* right under the menu, with its main filters shown */}
 
         {sections.length > 1 && (
           <nav aria-label={tx("Sections de la page")} className="flex flex-wrap items-center gap-1.5">

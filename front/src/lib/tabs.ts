@@ -52,7 +52,6 @@ export const NAV: NavGroup[] = [
     ] },
     { id: "network", hash: "network", tab: "network", icon: Router, label: tx("Réseau"), subs: [
       views("network-view", "network", [
-        sub("network-watch", "network/watch", "network", Eye, WATCH),
         sub("network-unifi", "network/unifi", "network", LayoutDashboard, tx("UniFi"), unifiShown),
         sub("network-freebox", "network/freebox", "network", House, tx("Freebox"), freeboxShown),
         sub("network-scan", "network/scan", "network", Radar, tx("Scan"), scanShown),

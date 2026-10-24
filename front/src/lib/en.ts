@@ -2933,7 +2933,6 @@ export const EN: Record<string, string> = {
   "Appareils en ligne": "Devices online",
   "aucune box ni pare-feu relié": "no box or firewall wired",
   "aucun UniFi relié": "no UniFi wired",
-  "équipement hors ligne, source en erreur, box, mises à jour, wifi faible": "equipment offline, source failing, box, updates, weak Wi-Fi",
   "Équipements en ligne": "Equipment online",
   "mise à jour disponible (installée : {0})": "update available (installed: {0})",
   "signal faible, {0} dBm sur {1}": "weak signal, {0} dBm on {1}",
@@ -3233,4 +3232,5 @@ export const EN: Record<string, string> = {
   "Masquer des alertes et du point du menu tant que le problème ne change pas": "Hide from the alerts and the menu's dot while the problem stays the same",
   "Ne plus suivre ce service : plus jamais dans les alertes ni dans le point du menu, même en panne, jusqu'à ce qu'il soit réaffiché": "Stop following this service: never in the alerts or the menu's dot again, even when down, until shown back",
   "en alerte": "in alert",
+  "Alertes hors liste": "Alerts outside the list",
 };
