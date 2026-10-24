@@ -236,7 +236,31 @@ export interface ServiceStatus {
   automations?: { on: number; total: number };
   mcp?: HaMcp | null;   // advanced mode (ha-mcp add-on): backups, apps, integrations, configuration check
   host?: { cpu?: number | null; mem_pct?: number | null; temp?: number | null; disks?: { mount: string; used_pct: number; size_gb?: number; used_gb?: number }[]; ips?: string[]; boot?: string | null };
+  ai?: AiBlock;   // AI connectors (connectors/homelab_ai.py): what the « IA et agents » page shows
 }
+
+/** One model of an AI connector: only what the server said (size and vram in bytes) */
+export interface AiModel { name: string; size?: number; quant?: string; family?: string; params?: string; context?: number; loaded?: boolean; vram?: number; cloud?: boolean }
+/** The « ai » block of an AI connector, the same shape for all (connectors/homelab_ai.py) */
+export interface AiBlock {
+  role: "engine" | "agent" | "interface";
+  engine: string;
+  models?: AiModel[];
+  platforms?: { name: string; state: string; error?: string }[];   // Hermes: its gateway's platforms
+  uses?: ({ model: string; provider?: string; context?: number } | { url: string; kind: "ollama" | "openai" | "mcp" | "tools" })[];   // the model an agent uses, the servers an interface talks to
+  sessions?: number;
+  partial?: boolean;   // the address gives less than it could (Hermes gateway, Open WebUI without an admin key)
+}
+/** One GPU read by GpuViewR, and what takes it */
+export interface GpuRead {
+  name?: string; temp?: number | null; util?: number | null; mem_used?: number | null; mem_total?: number | null; power?: number | null;
+  index?: number; driver?: string; fan?: number; power_limit?: number; temp_limit?: number; shared?: boolean;   // shared: an APU, the memory is VRAM + system memory
+  day?: { temp_max?: number; util_avg?: number; util_max?: number; mem_max?: number; pow_avg?: number };   // last 24 h
+}
+export interface GpuModel { model?: string; alias?: string | null; port?: number | null; runtime?: string | null; state?: string | null; gpu?: number | null; mem_mb?: number }
+export interface GpuProcess { name: string; gpu?: number | null; mem_mb: number; runtime?: string; model?: string }
+/** One machine of GpuViewR (the « machines » of its connector row) */
+export interface GpuMachine { name: string; hostname?: string | null; online: boolean; ips: string[]; gpus: GpuRead[]; models: GpuModel[]; processes?: GpuProcess[] }
 
 /** What Wazuh knows of one machine: its agent, SCA scores, syscollector inventory, vulnerabilities (with the indexer) */
 export interface WazuhMachine {
@@ -296,9 +320,8 @@ export interface Data {
 
 /** One tool that sees a machine, and how it was tied to it (address is sure, name is a guess) */
 export interface LinkSource { source: string; label: string; instance: string; by: "ip" | "mac" | "name"; ok: boolean; vmid?: number | string; node?: string; environment?: string; containers?: number; kind?: string;
-  gpus?: { name?: string; temp?: number | null; util?: number | null; mem_used?: number | null; mem_total?: number | null; power?: number | null;
-    day?: { temp_max?: number; util_avg?: number; util_max?: number; mem_max?: number; pow_avg?: number } }[];   // GpuViewR, day: last 24 h
-  models?: { model?: string; alias?: string | null; port?: number | null; runtime?: string | null; state?: string | null; gpu?: number | null; mem_mb?: number }[] }   // AI models running (GpuViewR)
+  gpus?: GpuRead[];   // GpuViewR
+  models?: GpuModel[] }   // AI models running (GpuViewR)
 /** Matching layer (matching.py): the same machine as seen by the other tools */
 export interface MachineLinks {
   mac: string | null; vendor: string | null; names: string[]; sources: LinkSource[];

@@ -6,7 +6,7 @@ import { splitHostName } from "./format";
 import { certIssue, dnsDown, dnsSync, hostName, status } from "./status";
 import { tx } from "./i18n";
 
-export type TabId = "home" | "history" | "machines" | "services" | "infra" | "security" | "virtualization" | "network" | "dns" | "backups" | "diagrams" | "settings";
+export type TabId = "home" | "history" | "machines" | "services" | "infra" | "ai" | "security" | "virtualization" | "network" | "dns" | "backups" | "diagrams" | "settings";
 
 /** The families the attention card is sorted into */
 export type Category = "machines" | "services" | "sante" | "dns" | "sauvegardes" | "connecteurs";
