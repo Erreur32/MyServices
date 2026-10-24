@@ -1,5 +1,7 @@
 # Pages à construire avec les connecteurs
 
+> **Document historique (0.10.3, octobre 2026).** Ces propositions ont depuis été construites ou remplacées. Le menu et les pages actuels sont décrits dans le README (« Ce que l'on voit : le menu ») ; la liste des connecteurs, dans le README et `docs/CONNECTEURS.md`.
+
 Résumé du plan en cours et propositions pour les nouvelles pages. **Rien de tout cela n'est écrit** : c'est une base de discussion.
 Les routes des API sont décrites dans chaque connecteur (`connectors/*.py`) ; certaines restent à valider sur de vrais services.
 
