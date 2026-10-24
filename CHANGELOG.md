@@ -11,6 +11,9 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
+### Changed
+- Access advice: VMware ESXi and closed NAS systems (Synology, QNAP, WD My Cloud, TrueNAS, Unraid) are read by their connector or over SSH, never by an agent. The machine page › Access › Agent now says « No agent possible on this machine » and why (box, ESXi, Home Assistant OS, closed NAS) instead of offering an install, unless an agent already exists.
+
 ## v0.22.1 (2026-10-24)
 
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
