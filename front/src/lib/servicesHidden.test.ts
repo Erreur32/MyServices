@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Host } from "../types";
-import { isHidden, problemSig, serviceKey, setServiceHidden } from "./servicesHidden";
+import { ALWAYS, isHidden, problemSig, serviceKey, setServiceHidden } from "./servicesHidden";
 
 const api = vi.hoisted(() => ({ read: vi.fn(), send: vi.fn() }));
 vi.mock("../api", () => api);
@@ -16,6 +16,12 @@ describe("services masqués de « À surveiller »", () => {
     expect(problemSig(other)).not.toBe(problemSig(down));
     expect(isHidden(other, map)).toBe(false);
   });
+  it("plus suivi (signature ALWAYS) : masqué quel que soit son état", () => {
+    const ok = host({ status: "ok", alive: true } as Partial<Host>), down = host({ status: "down", alive: false } as Partial<Host>);
+    const map = { [serviceKey(ok)]: { sig: ALWAYS, name: "mail.lan", at: 0 } };
+    expect(isHidden(ok, map)).toBe(true);
+    expect(isHidden(down, map)).toBe(true);
+  });
   it("un service jamais masqué ne l'est pas", () => {
     expect(isHidden(host({}), {})).toBe(false);
   });
@@ -30,6 +36,10 @@ describe("masquer ou réafficher un service", () => {
     await setServiceHidden(down, "mail.lan", false);
     expect(api.send).toHaveBeenLastCalledWith("POST", "services/watch-hidden", expect.objectContaining({ hidden: false }));
     expect(api.read).not.toHaveBeenCalled();
+  });
+  it("ne plus suivre : envoie la signature ALWAYS", async () => {
+    await setServiceHidden(host({}), "mail.lan", true, true);
+    expect(api.send).toHaveBeenCalledWith("POST", "services/watch-hidden", expect.objectContaining({ sig: ALWAYS, hidden: true }));
   });
   it("refusé par le serveur : relit ce qu'il garde", async () => {
     api.send.mockRejectedValue(new Error("403"));

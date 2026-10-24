@@ -3065,6 +3065,7 @@ export const EN: Record<string, string> = {
   "Afficher de nouveau dans « À surveiller »": "Show again in « To watch »",
   "Ne plus afficher ici, ni dans le point de l'onglet, tant que le problème ne change pas": "Stop showing it here and in the tab's dot while the problem stays the same",
   "Ne plus afficher dans « À surveiller », ni dans le point de l'onglet, tant que le problème ne change pas": "Stop showing it in « To watch » and in the tab's dot while the problem stays the same",
+  "Ne plus suivre ce service : plus jamais signalé dans « À surveiller » ni dans le point de l'onglet, même en panne, jusqu'à ce qu'il soit affiché de nouveau": "Stop following this service: never shown again in « To watch » or in the tab's dot, even when down, until it is shown back",
   "Masquer de « À surveiller »": "Hide from « To watch »",
   "accepté(s)": "accepted",
   "accepté": "accepted",
