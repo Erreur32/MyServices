@@ -337,8 +337,8 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
       </div>
       {view === "fresh" && admin && <NewServices generated={snap.data.generated} />}
       {(view === "all" || view === "watch") && <FoldPanel id="services-all" icon={Layers} title={tx("Tous les services")} count={snap.data.hosts.length} pinned>
-      <FilterBar f={f} primary={["alert", "status", "domain", "machine"]} placeholder={tx("Domaine, IP, port, conteneur, image…")}
-        side={<button type="button" onClick={() => setGrouped(!grouped)} aria-pressed={grouped} title={tx("Regrouper les services sous le nom de leur machine")}
+      <FilterBar f={f} primary={["alert", "status", "domain"]} oneLine bare placeholder={tx("Domaine, IP, port, conteneur, image…")}   // one line in the panel's frame; Machine behind « More filters »
+        extra={<button type="button" onClick={() => setGrouped(!grouped)} aria-pressed={grouped} title={tx("Regrouper les services sous le nom de leur machine")}
           className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-semibold transition-colors ${grouped ? "border-link bg-link/15 text-txt" : "border-line text-link hover:bg-link/10"}`}>
           <Server size={14} aria-hidden />{tx("Par machine")}</button>} />
       {sort.sorted.length === 0 ? <Empty>{tx("Aucun service pour ce filtre.")}</Empty> : (
