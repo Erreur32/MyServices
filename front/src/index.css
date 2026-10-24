@@ -78,6 +78,9 @@ body {
 
 /* Machine qui arrive pendant la recherche réseau */
 .row-in { animation: row-in .4s ease-out; }
+/* Header notices of a new release: the pill pops in, the toast drops from under the header */
+@keyframes ms-pop { 0% { opacity: 0; transform: scale(.7); } 60% { opacity: 1; transform: scale(1.08); } 100% { transform: scale(1); } }
+@keyframes ms-toast { from { opacity: 0; transform: translateY(-14px) scale(.96); } to { opacity: 1; transform: none; } }
 @keyframes row-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .row-in { animation: none; } }
 

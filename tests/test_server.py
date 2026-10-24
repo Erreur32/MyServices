@@ -290,7 +290,7 @@ class UpdateSettingsRoute(unittest.TestCase):
             (Path(tmp) / "update-check.json").write_text(json.dumps({"release": {"tag": "v99.0.0", "url": "u"}}))
             self.assertEqual(api.me(req)["update"], {"available": True, "tag": "v99.0.0", "url": "u"})
             with mock.patch.dict(api.core.CFG, {"update_check": False}):
-                self.assertIsNone(api.me(req)["update"])   # automatic check off: nothing for the header
+                self.assertEqual(api.me(req)["update"]["tag"], "v99.0.0")   # automatic check off: a check by hand still reaches the header
 
 
 class Chain(unittest.TestCase):

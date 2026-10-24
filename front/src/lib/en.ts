@@ -3230,4 +3230,11 @@ export const EN: Record<string, string> = {
   "clé de l'app": "app key",
   "clé ESXi": "ESXi key",
   "autre clé": "other key",
+  "Nouvelle version : {0}": "New version: {0}",
+  "MyServices est à jour": "MyServices is up to date",
+  "Installée : {0}.": "Installed: {0}.",
+  "{0} est la dernière version publiée.": "{0} is the latest release.",
+  "Voir la mise à jour": "See the update",
+  "Notifications dans l'en-tête": "Notices in the header",
+  "La pastille de la nouvelle version et l'annonce animée en haut de la page. Réglage de ce navigateur.": "The new version's pill and the animated notice at the top of the page. A setting of this browser.",
 };

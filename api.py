@@ -2338,8 +2338,8 @@ def me(request: Request):
             "git": os.environ.get("MYSERVICES_GIT", ""), "planned": about.planned(about.changelog(Path(core.HERE) / "CHANGELOG.md")),
             # last release written in this build's changelog: an image built from a branch shows it (« 0.10.1+ · main abc1234 »)
             "released": about.released(about.changelog(Path(core.HERE) / "CHANGELOG.md")),
-            # a newer release published, from the last check kept (no request here); nothing when the automatic check is off
-            "update": about.cached(Path(core.CFG["state_dir"]), os.environ.get("MYSERVICES_VERSION", "dev")) if core.CFG.get("update_check", True) else None}
+            # a newer release published, from the last check kept (no request here), automatic or by « Check now »
+            "update": about.cached(Path(core.CFG["state_dir"]), os.environ.get("MYSERVICES_VERSION", "dev"))}
 
 
 def admin_only(request: Request) -> JSONResponse | None:

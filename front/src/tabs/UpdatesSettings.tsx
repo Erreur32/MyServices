@@ -8,7 +8,7 @@ import { Badge, Card, Dim } from "../components/ui";
 import { appVersion, dateTime } from "../lib/format";
 import { act, primary, type Note } from "../lib/forms";
 import { tx } from "../lib/i18n";
-import { forgetDismissed } from "../lib/updateNotice";
+import { announceCheck, forgetDismissed, noticesOn, setNoticesOn } from "../lib/updateNotice";
 import { InfoNote } from "../components/InfoNote";
 
 interface Release { tag: string; name: string; url: string; published: string | null; prerelease: boolean; notes: string }
@@ -23,6 +23,7 @@ function Status({ a }: Readonly<{ a: About }>) {
 
 export function UpdatesSettings() {
   const [a, setA] = useState<About | null>(null), [error, setError] = useState(""), [note, setNote] = useState<Note>(null), [busy, setBusy] = useState(false);
+  const [notices, setNotices] = useState(noticesOn());
   const load = useCallback(() => {
     read<About>("about").then((r) => { setA(r); setError(""); })
       .catch((e) => (e instanceof LoginRequired ? location.replace(LOGIN) : setError(String(e.message || e))));
@@ -31,7 +32,11 @@ export function UpdatesSettings() {
   if (!a) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   const check = async () => {
     setBusy(true);
-    await act(async () => { setA(await send<About>("POST", "about/check")); }, tx("vérifié"), setNote);
+    await act(async () => {
+      const r = await send<About>("POST", "about/check");
+      setA(r);
+      if (!r.error) announceCheck({ available: r.update_available, tag: r.latest?.tag, url: r.latest?.url, manual: true });   // the header tells what was found, and shows the new version
+    }, tx("vérifié"), setNote);
     setBusy(false);
   };
   const save = (body: { auto: boolean }, done: string) => void act(() => send("PUT", "about/settings", body), done, setNote)
@@ -65,19 +70,21 @@ export function UpdatesSettings() {
         {a.update_available && (
           <InfoNote className="mt-3">{tx("Pour mettre à jour : sauvegardez config/ et data/, puis récupérez la nouvelle image et relancez le conteneur.")} <code className="font-mono">docker compose pull && docker compose up -d</code></InfoNote>
         )}
-        <NoteLine note={note} />
-      </Card>
-
-      <Card>
-        <h2 className="mb-3 font-bold">{tx("Réglages")}</h2>
-        <div className="flex flex-col divide-y divide-line/60">
+        <div className="mt-3 flex flex-col divide-y divide-line/60 border-t border-line/60">
           <label className="flex items-start justify-between gap-4 py-2.5">
             <span><b className="text-sm">{tx("Vérification automatique")}</b>
               <span className="block text-xs text-muted">{tx("Le serveur regarde la dernière version publiée sur GitHub au plus toutes les 6 h (une requête anonyme, aucune donnée envoyée). Coupée : seulement quand vous cliquez sur « Vérifier maintenant ».")}</span></span>
             <Switch on={a.enabled} label={tx("Vérification automatique")} onChange={(on) => save({ auto: on }, on ? tx("vérification automatique activée") : tx("vérification automatique coupée"))} />
           </label>
+          <label className="flex items-start justify-between gap-4 py-2.5">
+            <span><b className="text-sm">{tx("Notifications dans l'en-tête")}</b>
+              <span className="block text-xs text-muted">{tx("La pastille de la nouvelle version et l'annonce animée en haut de la page. Réglage de ce navigateur.")}</span></span>
+            <Switch on={notices} label={tx("Notifications dans l'en-tête")} onChange={(on) => { setNoticesOn(on); setNotices(on); }} />
+          </label>
         </div>
+        <NoteLine note={note} />
       </Card>
+
     </div>
   );
 }
