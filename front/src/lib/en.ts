@@ -3227,4 +3227,5 @@ export const EN: Record<string, string> = {
   "Suggestions oubliées": "Forgotten suggestions",
   "plus rappelées dans la cloche ni sur l'accueil ; « Rappeler » les fait revenir": "no longer recalled in the bell or on the home page; « Recall » brings them back",
   "{0} appli(s) à activer": "{0} app(s) to activate",
+  "Ce que personne ne lit encore d'abord, puis ce qui est déjà couvert": "What nobody reads yet first, then what is already covered",
 };

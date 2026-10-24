@@ -9,7 +9,7 @@ import { Copyable, Field, NoteLine, Switch } from "../components/form";
 import { IconChoice } from "../components/IconChoice";
 import { SecretInput } from "../components/SecretInput";
 import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
-import { Badge, Card, Count, Dim } from "../components/ui";
+import { Badge, Card, Count, Dim, Th } from "../components/ui";
 import { StatusLine } from "../components/ssh";
 import { useCollectTask } from "../components/ScheduleCard";
 import { useDiscoveries } from "../components/DiscoveryCard";
@@ -17,7 +17,7 @@ import type { ConnectorInstance, ConnectorMode, ConnectorsState, ConnectorStatus
 import { configFor, modeOf } from "../lib/connectorModes";
 import { takeFocus, takePrefill, type Prefill } from "../lib/connectorPrefill";
 import { tx } from "../lib/i18n";
-import { searchHit } from "../lib/filter";
+import { searchHit, useSort } from "../lib/filter";
 import { savedFor } from "../lib/savedFor";
 import { runningTip, stoppedTip } from "../lib/runState";
 import { serviceAt, setupCommand } from "../lib/connectorSetup";
@@ -267,6 +267,14 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
   // what nobody reads yet first, then what is already covered; a stopped container last in each
   const rank = (p: Proposal) => (value.get(discoveryId(p))!.coveredBy.length ? 2 : 0) + Number(p.running === false);
   const rows = all.filter((p) => !muted.has(discoveryId(p))).sort((a, b) => rank(a) - rank(b)), forgotten = all.filter((p) => muted.has(discoveryId(p)));
+  // every column sorts; by machine at first (equal keys keep the order above: what nobody reads first, a stopped container last)
+  const keyOf = (p: Proposal, k: string): string | number => {
+    if (k === "service") return p.label.toLowerCase();
+    if (k === "state") return p.running === true ? 0 : p.running === false ? 2 : 1;
+    if (k === "value") return rank(p);
+    return (p.machine || p.ip || "~").toLowerCase();
+  };
+  const sort = useSort(rows, keyOf, "machine");
   const forget = (p: Proposal, on: boolean) => void act(() => send("PUT", "discoveries/muted", { id: discoveryId(p), muted: on }),
     on ? tx("{0} oublié : plus proposé", p.label) : tx("{0} rappelé : de nouveau proposé", p.label), setNote).then(() => reloadDisc());
   return (
@@ -280,12 +288,13 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
       <div className="mt-2 overflow-x-auto">
         <table className="w-full min-w-[480px] text-sm">
           <thead>
-            <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-dim">
-              <th className="py-2 pr-3 font-semibold">{tx("Service")}</th><th className="px-3 py-2 font-semibold">{tx("Machine")}</th><th className="px-3 py-2 font-semibold">{tx("État")}</th><th className="px-3 py-2 text-right font-semibold">{tx("Activation")}</th>
+            <tr>
+              <Th k="service" sort={sort} className="!pl-1">{tx("Service")}</Th><Th k="machine" sort={sort}>{tx("Machine")}</Th><Th k="state" sort={sort}>{tx("État")}</Th>
+              <Th k="value" sort={sort} className="!text-right" title={tx("Ce que personne ne lit encore d'abord, puis ce qui est déjà couvert")}>{tx("Activation")}</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line/60">
-            {rows.map((p) => (
+            {sort.sorted.map((p) => (
               <tr key={`${p.connector}@${p.ip}`} className={p.running === false ? "opacity-70" : ""}>
                 <td className="py-1 pr-3">
                   <button type="button" onClick={() => onOpen(p)} title={tx("Renseigner l'accès et activer")} className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left hover:bg-link/10">
