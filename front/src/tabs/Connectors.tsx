@@ -24,6 +24,7 @@ import { serviceAt, setupCommand } from "../lib/connectorSetup";
 import { detectedValue, type DetectedValue } from "../lib/detectedValue";
 import { appIcon } from "../lib/appIcons";
 import { InfoNote } from "../components/InfoNote";
+import { MachineIcon } from "../components/MachineIcon";
 
 const KIND: Record<string, string> = {
   services: "services", health: tx("santé"), logs: tx("Docker · journaux"), dns: "DNS", inventory: "inventaire", backups: "sauvegardes", network: tx("réseau"), security: tx("sécurité"), containers: "Docker",
@@ -304,7 +305,8 @@ function DetectedServices({ apps, instances, types, machines, dockerOk, onOpen }
                     <b className="underline decoration-dotted underline-offset-2">{p.label}</b>
                   </button>
                 </td>
-                <td className="px-3 py-2.5"><b className="font-semibold">{p.machine || p.ip}</b>{p.machine && <Dim> · {p.ip}</Dim>}</td>
+                <td className="px-3 py-2.5"><span className="flex items-center gap-2">{(() => { const m = machines.find((x) => x.ip === p.ip); return m ? <MachineIcon m={m} /> : <span className="h-6 w-6 shrink-0" aria-hidden />; })()}
+                  <span><b className="font-semibold">{p.machine || p.ip}</b>{p.machine && <Dim> · {p.ip}</Dim>}</span></span></td>
                 <td className="px-3 py-2.5">{p.running === true ? <Badge tone="ok" title={runningTip(p.state)}>{tx("actif")}</Badge>
                   : p.running === false ? <Badge tone="off" title={stoppedTip(p.state)}>{tx("arrêté")}</Badge> : <Dim>-</Dim>}</td>
                 <td className="px-3 py-2.5 text-right">
