@@ -1,5 +1,5 @@
 // Menu de gauche : groupes, entrées, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Activity, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Boxes, EyeOff, Lightbulb, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Boxes, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -57,13 +57,6 @@ export const NAV: NavGroup[] = [
         sub("network-list", "network/list", "network", List, tx("Équipements et appareils")),
         sub("network-diagnostic", "network/diagnostic", "network", Stethoscope, tx("Diagnostic")),
       ]),
-      group("network-discovery", "settings", ScanSearch, tx("Découverte"), [
-        sub("discovery-mode", "settings/network", "settings", SlidersHorizontal, tx("Mode et à faire")),
-        sub("discovery-hosts", "settings/network/hosts", "settings", Radar, tx("Machines sur le réseau")),
-        sub("discovery-apps", "settings/network/services", "settings", Boxes, tx("Applis à activer")),
-        sub("discovery-suggestions", "settings/network/suggestions", "settings", Lightbulb, tx("Autres suggestions")),
-        sub("discovery-forgotten", "settings/network/forgotten", "settings", EyeOff, tx("Arrêtés et oubliés")),
-      ]),
     ] },
     { id: "dns", hash: "dns", tab: "dns", icon: Network, label: tx("DNS"), subs: [
       sub("dns-servers", "dns/servers", "dns", Server, tx("Serveurs")),
@@ -108,6 +101,7 @@ export const NAV: NavGroup[] = [
       sub("connectors-mine", "settings/connectors", "settings", Plug, tx("Mes connecteurs")),
       sub("connectors-available", "settings/connectors/available", "settings", Plus, tx("Disponibles")),
       sub("connectors-detected", "settings/connectors/detected", "settings", Radar, tx("Détectés à relier")),
+      sub("connectors-apps", "settings/connectors/apps", "settings", Boxes, tx("Applis reconnues")),   // the discovery's apps: to activate, stopped, forgotten
       sub("connectors-read", "settings/connectors/read", "settings", Server, tx("Déjà lus par SSH ou agent")),
     ] },
     { id: "access", hash: "settings/accounts", tab: "settings", icon: Users, label: tx("Comptes et accès"), subs: [
@@ -117,6 +111,7 @@ export const NAV: NavGroup[] = [
     ] },
     { id: "app", hash: "settings/tasks", tab: "settings", icon: SlidersHorizontal, label: tx("Application"), subs: [
       sub("tasks", "settings/tasks", "settings", Timer, tx("Tâches et horaires")),
+      sub("discovery", "settings/network", "settings", ScanSearch, tx("Découverte automatique")),   // its mode, what to do, the other suggestions
       sub("updates", "settings/updates", "settings", RefreshCw, tx("Mises à jour")),
       sub("mail", "settings/mail", "settings", Mail, tx("E-mail")),
       sub("export", "settings/export", "settings", ArrowDownUp, tx("Export et import")),

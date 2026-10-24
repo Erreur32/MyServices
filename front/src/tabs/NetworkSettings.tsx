@@ -1,12 +1,12 @@
-// Réglages → Découverte : ce que MyServices trouve tout seul et ce qui demande un clic, sur une page à lire de haut en bas.
+// The discovery: what MyServices finds by itself et ce qui demande un clic, sur une page à lire de haut en bas.
 //   1. En-tête : l'état en une phrase, le mode automatique (la recherche réseau est en tête de « Machines sur le réseau »)
 //   2. À faire (seulement s'il y en a)   3. Machines sur le réseau (replié)   4. Applis à activer (tuiles, ordre alphabétique)
 //   5. Autres suggestions   6. Oubliés (replié)
 // No job setting here: the search frequency, networks and discreet mode live in Settings → Tasks and schedules, with every job.
 // Cadres neutres, jamais un cadre coloré dans un autre : la couleur reste dans les pastilles. Liens directs gardés :
-// #settings/network/<hosts|scan|services|backups> fait défiler jusqu'à la section (et ouvre les machines trouvées).
+// Each part is now shown with its subject (see DiscoveryPart); the old #settings/network/<part> addresses lead there (discoveryMoved).
 import { Bell, Boxes, EyeOff, ListChecks, Lightbulb, Radar, RefreshCw, Search, Timer } from "lucide-react";
-import { useCallback, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
 import type { Snapshot } from "../api";
 import { NoteLine, Switch } from "../components/form";
@@ -93,12 +93,16 @@ function AsideGroup({ title, n, hint, children }: Readonly<{ title: string; n: n
   );
 }
 
-/** Sub-pages of Network → Discovery in the side menu (#settings/network/<part>; the old « network » is the machines found) */
-type Part = "mode" | "hosts" | "services" | "suggestions" | "forgotten";
-function partOf(hash: string): Part {
+/** The parts of the discovery, each shown with its subject: the machines found in Machines › Untracked devices, the apps (to activate,
+ *  stopped, forgotten) in Connectors › Recognised apps, the mode and other suggestions in Application › Automatic discovery */
+export type DiscoveryPart = "mode" | "hosts" | "services" | "suggestions" | "forgotten";
+type Part = DiscoveryPart;
+/** Where an old #settings/network/<part> address now lives (null: Application › Automatic discovery, #settings/network itself) */
+export function discoveryMoved(hash: string): string | null {
   const v = hash.split("/")[2];
-  if (v === "network") return "hosts";
-  return v === "hosts" || v === "services" || v === "suggestions" || v === "forgotten" ? v : "mode";
+  if (v === "hosts" || v === "network" || v === "scan") return "#settings/machines/devices";
+  if (v === "services" || v === "forgotten") return "#settings/connectors/apps";
+  return null;
 }
 
 /** The line under « Machines on the network »: the ticked count while choosing, else the last search and what happens to the machines found */
@@ -117,8 +121,7 @@ function SearchState({ running, everyH, last }: Readonly<{ running: boolean; eve
   return <Badge tone="ok">{tx("toutes les {0} h", everyH)}</Badge>;
 }
 
-export function NetworkSettings({ snap }: Readonly<{ snap: Snapshot }>) {
-  const part = partOf(location.hash);
+export function NetworkSettings({ snap, parts }: Readonly<{ snap: Snapshot; parts: Part[] }>) {
   const [disc, reloadDisc] = useDiscoveries();
   const [cfg, setCfg] = useState<NetSettings | null>(null), [scan, setScan] = useState<NetScan | null>(null);
   const [note, setNote] = useState<Note>(null), [error, setError] = useState("");
@@ -253,5 +256,5 @@ export function NetworkSettings({ snap }: Readonly<{ snap: Snapshot }>) {
       ),
   };
 
-  return <div className="flex flex-col gap-4">{pages[part]}</div>;
+  return <div className="flex flex-col gap-4">{parts.map((p) => <Fragment key={p}>{pages[p]}</Fragment>)}</div>;
 }

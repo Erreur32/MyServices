@@ -433,7 +433,7 @@ export interface Origin { label: string; ok?: boolean; tip?: string; href?: stri
 function osOrigins(m: Machine, here: string, scanned: boolean): Origin[] {
   if (m.info?.os && m.info.via !== "agent") return [{ label: "SSH", href: here }];
   if (m.info?.os || m.agent) return [{ label: tx("agent MyServices"), href: `#settings/agents/${m.ip}` }];
-  return scanned ? [{ label: tx("recherche réseau"), href: "#settings/network" }] : [];
+  return scanned ? [{ label: tx("recherche réseau"), href: "#settings/machines/devices" }] : [];
 }
 
 /** D'où viennent les données de la machine : SSH, agent, recherche réseau, MynetworK, Beszel et connecteurs visant son IP */

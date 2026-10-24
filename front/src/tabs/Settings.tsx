@@ -12,7 +12,7 @@ import { NotificationsHub } from "./NotificationsHub";
 import { Connectors, connectorsPart } from "./Connectors";
 import { MachinesSection } from "./MachinesSection";
 import { KeyRefusedAlert } from "./MachinesSettings";
-import { NetworkSettings } from "./NetworkSettings";
+import { discoveryMoved, NetworkSettings } from "./NetworkSettings";
 import { IconChoice, type IconOption } from "../components/IconChoice";
 import { UpdatesSettings } from "./UpdatesSettings";
 import { ActivityHub } from "./ActivityHub";
@@ -35,6 +35,14 @@ const ROLE_CHOICE: IconOption<User["role"]>[] = [
   { value: "admin", label: tx("Admin"), hint: tx("Tout, réglages compris"), icon: <ShieldCheck size={26} className="text-link" aria-hidden /> },
 ];
 
+/** Application › Automatic discovery (#settings/network): the mode, what to do and the other suggestions; an old address of a part
+ *  that moved (the machines found, the apps) goes to its new page */
+function DiscoveryPage({ snap }: Readonly<{ snap: Snapshot }>) {
+  const moved = discoveryMoved(location.hash);
+  useEffect(() => { if (moved) location.replace(moved); }, [moved]);
+  return moved ? null : <NetworkSettings snap={snap} parts={["mode", "suggestions"]} />;
+}
+
 /** The panel of the open section; Tasks and schedules is the fallback */
 function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snapshot }>) {
   switch (section) {
@@ -42,7 +50,7 @@ function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snaps
     case "alerts": return <NotificationsHub />;
     case "connectors": return <Connectors snap={snap} part={connectorsPart(location.hash.split("/")[2])} />;
     case "machines": return <MachinesSection snap={snap} />;
-    case "network": return <NetworkSettings snap={snap} />;
+    case "network": return <DiscoveryPage snap={snap} />;
     case "updates": return <UpdatesSettings />;
     case "requests": return <ActivityHub />;
     case "api": return <ApiMcp />;

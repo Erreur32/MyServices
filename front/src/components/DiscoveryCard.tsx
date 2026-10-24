@@ -81,7 +81,7 @@ export function MuteButton({ x, reload }: { x: DiscoveryItem; reload: () => void
   const mute = !x.muted;
   return (
     <>
-      <button type="button" className={`${button} border-line bg-bg2 text-txt hover:border-link`} onClick={() => void act(() => send("PUT", "discoveries/muted", { id: x.id, muted: mute }), mute ? tx("oublié : rangé dans « Oubliés », en bas de Réglages → Découverte") : tx("rappelé : de nouveau proposé"), setNote).then(() => reload())}
+      <button type="button" className={`${button} border-line bg-bg2 text-txt hover:border-link`} onClick={() => void act(() => send("PUT", "discoveries/muted", { id: x.id, muted: mute }), mute ? tx("oublié : rangé dans « Arrêtés et oubliés », sous Connecteurs › Applis reconnues") : tx("rappelé : de nouveau proposé"), setNote).then(() => reload())}
         title={mute ? tx("Ne plus le proposer, ni dans la cloche ni sur l'accueil. Il reste dans « Oubliés » pour le rappeler plus tard.") : tx("Le proposer de nouveau")}>
         {mute ? <EyeOff size={13} aria-hidden /> : <RotateCcw size={13} aria-hidden />}{mute ? tx("Oublier") : tx("Rappeler")}
       </button>
