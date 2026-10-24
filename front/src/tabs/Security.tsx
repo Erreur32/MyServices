@@ -69,7 +69,7 @@ function Watch({ rows, open }: Readonly<{ rows: WatchRow[]; open: (s: Sub) => vo
   const [on, setOn] = useState<string | null>(null);
   const worst = worstTone(rows.some((r) => r.sev === "bad"), rows.length > 0);
   return (
-    <WatchPanel id="security" tone={worst} count={rows.length} pinned hint={tx("le plus grave en haut · un site n'apparaît qu'une fois par manque")}>
+    <WatchPanel id="security" title={tx("Vue d'ensemble")} tone={worst} count={rows.length} pinned hint={tx("le plus grave en haut · un site n'apparaît qu'une fois par manque")}>
       {rows.length === 0 ? <p className="px-4 py-3 text-sm text-ok">{tx("Aucune exposition ni réglage faible détecté par vos outils.")}</p> : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] border-collapse text-sm">
@@ -203,7 +203,7 @@ export function Security({ snap, route }: Readonly<{ snap: Snapshot; route: stri
   useEffect(() => {   // the address follows the sub-tab (the side menu lights the right entry); a menu link sets the sub-tab
     const named = routeSub(route);
     if (named) { setSub(named); return; }
-    const opening = rows.length ? "watch" : "sites";   // opened bare: « To watch » when something is
+    const opening = "watch";   // opened bare (and by the menu's dot): the Overview, every finding of every page
     const target = route === "#fail2ban" ? "#security/fail2ban" : pageViewTarget(route, "security", null, opening);
     if (target) location.replace(target);
   }, [route]);   // eslint-disable-line react-hooks/exhaustive-deps

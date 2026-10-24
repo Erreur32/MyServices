@@ -198,8 +198,7 @@ export function Sidebar({ snap, badges, why = {}, onNavigate, onBadge, mobileOpe
 }>) {
   const [collapsed, setCollapsed] = useState(savedCollapsed);
   const route = useRoute();
-  // « To watch » only when something is: the same reading as the dots of the menu
-  const groups = navGroups(snap, new Set(["services", "network", "dns", "backups", "security"].filter((t) => !badges[t as TabId]).map((t) => `${t}-watch`)));
+  const groups = navGroups(snap);   // no « To watch » sub-pages any more: the dot opens the page on its alerts
   const active = activeNav(route, groups);
   const [picked, setPicked] = useState<string | null>(null);   // one category open at a time: the one opened by hand, else the one of the open page
   useEffect(() => setPicked(null), [active]);   // a page opened: only its category stays open

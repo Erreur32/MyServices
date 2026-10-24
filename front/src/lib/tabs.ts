@@ -23,7 +23,6 @@ const views = (id: string, tab: TabId, subs: NavItem[]): NavItem => group(id, ta
 const unifiShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => c.connector === "unifi") || (s.data.network ?? []).some((c) => !!c.unifi);
 const freeboxShown = (s: Snapshot) => (s.data.services_status ?? []).some((c) => c.connector === "freebox");
 const scanShown = (s: Snapshot) => (s.data.network ?? []).some((c) => c.connector === "mynetwork");
-const WATCH = tx("À surveiller");
 
 /** The side menu, in four groups; an entry whose source is missing is left out, and so is a group left empty. The pages of
  *  Settings (#settings/<section>[/<part>]) are spread over the topic they set and the Administration group. */
@@ -88,7 +87,7 @@ export const NAV: NavGroup[] = [
       ]),
     ] },
     { id: "security", hash: "security", tab: "security", icon: Shield, label: tx("Sécurité"), subs: [
-      sub("security-watch", "security/watch", "security", Eye, WATCH),
+      sub("security-watch", "security/watch", "security", Eye, tx("Vue d'ensemble")),   // the findings of every page below, always shown
       sub("security-sites", "security/sites", "security", Globe, tx("Sites exposés")),
       sub("security-access", "security/access", "security", KeyRound, tx("Accès SSH")),
       sub("security-ports", "security/network", "security", Radar, tx("Ports du réseau")),

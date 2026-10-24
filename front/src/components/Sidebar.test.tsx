@@ -15,7 +15,7 @@ describe("Sidebar", () => {
     const order = ["MyServices", "ensemble", ">Accueil<", "Inventaire", "Machines", "Réseau", "Protection", "Sauvegardes", "Sécurité", "Alertes", "Administration", "Connecteurs", "Comptes et accès", "Application"].map((l) => html.indexOf(l));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
-    expect(html).toContain('href="#security/sites"');   // nothing to watch: « To watch » is left out, the entry opens its first page
+    expect(html).toContain('href="#security/watch"');   // Security opens its Overview, even with nothing to report
     const watched = renderToStaticMarkup(<Sidebar snap={snap()} badges={{ security: "warn" }} onNavigate={noop} onBadge={noop} mobileOpen={false} onClose={noop} />);
     expect(watched).toContain('href="#security/watch"');   // an entry with sub-pages opens its first one
   });
