@@ -2,7 +2,7 @@
 // and whether SSH is still needed there: an agent reads the same health every minute, SSH stays useful only for what the agent does not read
 // (backups, NPM, AdGuard, a hypervisor). Each access is set on a page of its own (#settings/machines/ssh/<ip>, « + » for a new one: the
 // other machines are not listed meanwhile). The app's key is the band on top, and each row tells which key the machine signs in with.
-import { Plus, Terminal } from "lucide-react";
+import { Cpu, Plus, Terminal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { read, type Snapshot } from "../api";
 import type { AgentInfo, MachinesSettings, SystemState } from "../types";
@@ -30,7 +30,7 @@ const STATE: Record<SshState, [Tone, string]> = {
 
 /** Whether SSH is still needed: with an agent and nothing that needs SSH, it is optional; without an agent, the agent is offered */
 function AgentAdvice({ ip, agent, uses }: Readonly<{ ip: string; agent: boolean; uses: string[] }>) {
-  if (!agent) return <a href={`#machines/${ip}/access`} className="text-xs text-link hover:underline">{tx("Installer l'agent")} ›</a>;
+  if (!agent) return <a href={`#machines/${ip}/access`} className="inline-flex items-center gap-1 text-xs text-link hover:underline"><Cpu size={13} aria-hidden />{tx("Installer l'agent")} ›</a>;
   if (uses.length) return <span className="text-xs text-muted" title={tx("L'agent ne lit pas cela : gardez le SSH")}>{tx("agent installé · SSH utile : {0}", useText(uses))}</span>;
   return (
     <span className="text-xs">
