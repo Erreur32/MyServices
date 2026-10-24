@@ -670,9 +670,12 @@ def prepare_ssh() -> None:
         conf.write_text(re.sub(r"(?m)^(Host hote\n)", r"\1    StrictHostKeyChecking accept-new\n", text, count=1), encoding="utf-8")
         conf.chmod(0o600)
         log("alias SSH « hote » : StrictHostKeyChecking accept-new ajouté")
-    pub = (KEY.with_suffix(".pub")).read_text().strip()
-    log("clé publique de l'app (à autoriser sur l'hôte et sur chaque machine lue par SSH) :\n"
-        f"    {pub}\n  sur l'hôte : echo '{pub}' | sudo tee -a /root/.ssh/authorized_keys")
+    try:   # the fingerprint only: the key and the command to authorise it are on the SSH connections page, masked there too
+        fp = subprocess.run(["ssh-keygen", "-lf", str(KEY.with_suffix(".pub"))], capture_output=True, text=True, timeout=10).stdout.split()
+    except (OSError, subprocess.SubprocessError):
+        fp = []
+    log(f"clé SSH de l'app : {fp[1] if len(fp) > 1 else '?'} ; la clé publique et la commande pour l'autoriser (sur l'hôte et sur "
+        "chaque machine lue par SSH) sont dans la page, Machines › Connexions SSH")
 
 
 def first_meta() -> None:

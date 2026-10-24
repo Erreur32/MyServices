@@ -69,11 +69,10 @@ curl -fsSLo docker-compose.yaml https://raw.githubusercontent.com/Erreur32/MySer
 # optional: change the port (default 8090), see the note below
 curl -fsSLo .env https://raw.githubusercontent.com/Erreur32/MyServices/main/deploy/env.example && nano .env      # edit MYSERVICES_PORT
 docker compose up -d
-docker compose logs myservices        # the app's public key and the command to authorize it on the host
 ```
 
 Then open **`http://<IP>:8090/`** (the app is at the root of the site; the old `/myservices/…` addresses still work and redirect) **within 30 minutes** to create the admin account (after that delay:
-`docker compose restart myservices`) and follow the **setup assistant**, which opens by itself the first time (six short steps: this machine, the network, how to read each machine, your tools, alerts; every step can be skipped and redone, from the account menu: "Review the setup assistant"), then the **Help** page of the account menu.
+`docker compose restart myservices`) and follow the **setup assistant**, which opens by itself the first time (six short steps: this machine, the network, how to read each machine, your tools, alerts; every step can be skipped and redone, from the account menu: "Review the setup assistant"), then the **Help** page of the account menu. The app's SSH key and the command to authorize it on a machine are in **Machines › SSH connections**.
 
 > **The app listens on port `8090`.** It is a setting, not a fixed value: if 8090 is already taken on your machine, put **`MYSERVICES_PORT=8095`** (or any free port) in a `.env` file next to `docker-compose.yaml` (example: [`deploy/env.example`](deploy/env.example), downloaded by the second `curl` above), then run `docker compose up -d` and open `http://<IP>:8095/`. The container uses the host network, so editing a `ports:` mapping would do nothing.
 
