@@ -3226,4 +3226,5 @@ export const EN: Record<string, string> = {
   "Un rappel qui revient trop ? « Ne plus me le rappeler » le coupe, et vous pouvez le réafficher dans Application › Découverte automatique (une appli : Connecteurs › Détectés à relier).": "A reminder that keeps coming back? « Stop reminding me » turns it off, and you can show it again in Application › Automatic discovery (an app: Connectors › Found, to link).",
   "Suggestions oubliées": "Forgotten suggestions",
   "plus rappelées dans la cloche ni sur l'accueil ; « Rappeler » les fait revenir": "no longer recalled in the bell or on the home page; « Recall » brings them back",
+  "{0} appli(s) à activer": "{0} app(s) to activate",
 };

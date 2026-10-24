@@ -1,10 +1,8 @@
-// The discovery: what MyServices finds by itself et ce qui demande un clic, sur une page à lire de haut en bas.
-//   1. En-tête : l'état en une phrase, le mode automatique (la recherche réseau est en tête de « Machines sur le réseau »)
-//   2. À faire (seulement s'il y en a)   3. Machines sur le réseau (replié)   4. Applis à activer (tuiles, ordre alphabétique)
-//   5. Autres suggestions   6. Oubliés (replié)
+// The discovery: what MyServices finds by itself and what needs a click. Each part is shown with its subject (DiscoveryPart):
+//   Application › Automatic discovery: the state and the automatic mode, what to do, the other suggestions, those forgotten
+//   Machines › Devices not followed: the machines found by the network search; the apps recognised: Connectors › Found, to link
 // No job setting here: the search frequency, networks and discreet mode live in Settings → Tasks and schedules, with every job.
-// Cadres neutres, jamais un cadre coloré dans un autre : la couleur reste dans les pastilles. Liens directs gardés :
-// Each part is now shown with its subject (see DiscoveryPart); the old #settings/network/<part> addresses lead there (discoveryMoved).
+// Neutral frames, never a coloured frame inside another: the colour stays in the badges.
 import { Bell, EyeOff, ListChecks, Lightbulb, Radar, RefreshCw, Search, Timer } from "lucide-react";
 import { Fragment, useCallback, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send } from "../api";
@@ -127,7 +125,8 @@ export function NetworkSettings({ snap, parts }: Readonly<{ snap: Snapshot; part
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h2 className="flex items-center gap-2 text-lg font-bold"><Radar size={18} aria-hidden />{tx("Découverte")}</h2>
           {todo.length ? <Badge tone="warn">{tx("{0} chose(s) à faire", todo.length)}</Badge> : <Badge tone="ok">{tx("rien d'obligatoire à faire")}</Badge>}
-          {apps.length + others.length > 0 && <Badge tone="info">{tx("{0} suggestion(s) facultative(s)", apps.length + others.length)}</Badge>}
+          {others.length > 0 && <Badge tone="info">{tx("{0} suggestion(s) facultative(s)", others.length)}</Badge>}
+          {apps.length > 0 && <a href="#settings/connectors/detected" className="text-sm text-link hover:underline">{tx("{0} appli(s) à activer", apps.length)} ›</a>}{/* the apps live in Connectors › Found, to link */}
           <span className="ml-auto flex items-center gap-2 text-sm font-semibold">{tx("Mode automatique")}<Switch on={cfg.auto} onChange={(on) => void saveAuto(on)} label={tx("Mode automatique")} /></span>
         </div>
         {/* what the mode does by itself, then what is always left to do by hand */}
