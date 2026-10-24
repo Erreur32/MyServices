@@ -144,6 +144,7 @@
   "Santé critique": "Health critical",
   "Machine injoignable (santé)": "Machine unreachable (health)",
   "accès refusé : clé d'API ou clé de groupe à vérifier": "access refused: check the API key or the group key",
+  "connexion refusée : ce Frigate ne renvoie pas de jeton": "sign-in refused: this Frigate gives no token",
   "caméra inconnue": "unknown camera",
   "caméra inconnue (pas vue à la dernière collecte)": "unknown camera (not seen at the last collection)",
   "connecteur introuvable": "connector not found",

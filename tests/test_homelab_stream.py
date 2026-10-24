@@ -28,13 +28,28 @@ BASE = "/myservices/api/v1"
 
 KEY = "k" * 12 + "0123456789"   # built at run time: no secret-looking literal in the repository
 JPEG = b"\xff\xd8\xff\xe0" + b"0" * 32
+PW = "pw-" + "f" * 10   # built at run time, like KEY
 
 
 class Fake(BaseHTTPRequestHandler):
     routes: dict = {}
+    token: str | None = None   # set: GET needs « Bearer <token> », and POST /api/login with PW gives it
+    logins = 0
+
+    def do_POST(self):
+        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+        Fake.logins += 1
+        ok = self.path == "/api/login" and body.get("password") == PW
+        self.send_response(200 if ok else 401)
+        if ok:
+            self.send_header("Set-Cookie", f"frigate_token={self.token}; Path=/; HttpOnly")
+        self.end_headers()
+        self.wfile.write(b"{}")
 
     def do_GET(self):
         code, obj = self.routes.get(self.path, (404, {"error": "not found"}))
+        if self.token and self.headers.get("Authorization") != f"Bearer {self.token}":
+            code, obj = 401, {"message": "unauthorized"}
         body = obj if isinstance(obj, bytes) else json.dumps(obj).encode()
         self.send_response(code)
         self.send_header("Content-Type", "image/jpeg" if isinstance(obj, bytes) else "application/json")
@@ -127,6 +142,33 @@ class Stream(unittest.TestCase):
         self.assertEqual([(x["name"], x["up"], x["detect"], x["record"], x["events"], x["last"]) for x in b["cameras"]],
                          [("entree", True, True, True, 2, 200.0), ("jardin", False, False, None, 0, None)])
         self.assertEqual((b["events"], b["labels"], b["detector_ms"], b["storage"]["total"]), (2, {"person": 1, "car": 1}, 9.2, 1000.0 * 1048576))
+
+    def test_frigate_account(self):
+        stats = {"service": {"version": "0.16.2"}, "cameras": {"entree": {"camera_fps": 5.0}}}
+        Fake.routes = {"/api/stats": (200, stats)}
+        Fake.token, Fake.logins = None, 0
+        self.assertEqual(self.make(Frigate).collect()["version"], "0.16.2")
+        self.assertEqual(Fake.logins, 0, "no account, no sign-in (port 5000)")
+        Fake.token = "jwt-" + "a" * 12
+        try:
+            with self.assertRaises(ConnectorError) as e:
+                self.make(Frigate).collect()
+            self.assertIn("accès refusé", str(e.exception))
+            c = self.make(Frigate, user="viewer", password=PW)
+            d = c.collect()
+            self.assertEqual((d["version"], Fake.logins), ("0.16.2", 1))
+            c.collect()
+            self.assertEqual(Fake.logins, 1, "the token is kept between calls")
+            Fake.token = "jwt-" + "b" * 12   # expired: one new sign-in
+            c.collect()
+            self.assertEqual(Fake.logins, 2)
+            with self.assertRaises(ConnectorError) as e:
+                self.make(Frigate, user="viewer", password="wrong").collect()
+            self.assertIn("compte refusé", str(e.exception))
+            self.assertNotIn(PW, json.dumps(d))
+            self.assertFalse(any(PW in route for _, route in reqstats._rows))
+        finally:
+            Fake.token = None
 
     def test_codec_and_route(self):
         self.assertEqual([codec_of("video, recvonly, HEVC"), codec_of("MJPEG"), codec_of("audio, Opus")], ["H.265", "MJPEG", None])
