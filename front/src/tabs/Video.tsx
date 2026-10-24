@@ -2,7 +2,7 @@
 // connectors. No probe and no form of its own: the state is the one of Services, and every card and row leads to the page of its service.
 // The picture of a camera is shown only to an admin who asks for it, read at that moment and never kept. Four sub-pages of the side menu:
 // #stream/overview, cameras, flows, recordings.
-import { Camera, Film, HardDrive, ImageOff, Radio, Video as VideoIcon, X } from "lucide-react";
+import { Film, HardDrive, ImageOff, Play, Radio, Video as VideoIcon, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ROOT, type Snapshot } from "../api";
 import { useSort } from "../lib/filter";
@@ -100,14 +100,15 @@ function ServiceCard({ c, admin }: Readonly<{ c: StreamCard; admin: boolean }>) 
   );
 }
 
-/** The picture of a camera, asked by an admin: read by the server at that moment, never kept (no-store), closed with the cross */
+/** The picture of a camera, asked by an admin: read by the server at that moment, never kept (no-store), closed with the cross.
+ *  Rule: nothing from a camera ever loads or plays by itself, only after a click on this play button. */
 function Picture({ cam }: Readonly<{ cam: CameraRow }>) {
   const [at, setAt] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
   const conn = cam.card.conn;
   if (!conn?.stream?.snapshot) return null;
   if (at == null) {
-    return <button type="button" onClick={() => { setFailed(false); setAt(Date.now()); }} className="inline-flex items-center gap-1 text-sm text-link hover:underline"><Camera size={13} aria-hidden />{tx("Voir l'image")}</button>;
+    return <button type="button" onClick={() => { setFailed(false); setAt(Date.now()); }} className="inline-flex items-center gap-1 text-sm text-link hover:underline"><Play size={13} aria-hidden />{tx("Voir l'image")}</button>;
   }
   const q = new URLSearchParams({ connector: conn.connector, name: conn.name, camera: cam.name, t: String(at) });
   return (
