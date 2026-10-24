@@ -1,5 +1,5 @@
 // Menu de gauche : groupes, entrées, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Activity, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Settings, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
@@ -43,6 +43,7 @@ export const NAV: NavGroup[] = [
       sub("machines-devices", "settings/machines/devices", "settings", Radar, tx("Appareils non suivis")),
       sub("machines-agents", "settings/machines/agents", "settings", Cpu, tx("Agents")),
       sub("machines-ssh", "settings/machines/ssh", "settings", KeyRound, tx("Connexions SSH")),
+      sub("ssh", "settings/ssh", "settings", KeyRound, tx("Clé SSH de l'app")),   // the key it signs in with, beside the connections
     ] },
     { id: "services", hash: "services", tab: "services", icon: Globe, label: tx("Services"), subs: [
       { ...sub("services-all", "services/all", "services", Layers, tx("Tous les services")), also: ["services/item", "services/edit", "services/manual"] },
@@ -72,12 +73,10 @@ export const NAV: NavGroup[] = [
         sub("backups-machines", "backups/machines", "backups", Monitor, tx("Par machine")),
         { ...sub("backups-all", "backups/all", "backups", Layers, tx("Jeux")), also: ["settings/backups"] }   // the page of one set: #settings/backups/<set id>,
       ]),
-      group("backups-settings", "settings", Settings, tx("Réglages"), [
-        sub("backups-add", "settings/backups/add", "settings", Plus, tx("Ajouter des sauvegardes")),
-        sub("backups-unlinked", "settings/backups/unlinked", "settings", Link2, tx("À relier")),
-        sub("backups-copies", "settings/backups/copies", "settings", Copy, tx("Copies ailleurs")),
-        sub("backups-paths", "settings/backups/paths", "settings", FolderSearch, tx("Emplacements cherchés")),
-      ]),
+      sub("backups-add", "settings/backups/add", "settings", Plus, tx("Ajouter des sauvegardes")),
+      sub("backups-unlinked", "settings/backups/unlinked", "settings", Link2, tx("À relier")),
+      sub("backups-copies", "settings/backups/copies", "settings", Copy, tx("Copies ailleurs")),
+      sub("backups-paths", "settings/backups/paths", "settings", FolderSearch, tx("Emplacements cherchés")),
     ] },
     { id: "security", hash: "security", tab: "security", icon: Shield, label: tx("Sécurité"), subs: [
       sub("security-watch", "security/watch", "security", Eye, tx("Vue d'ensemble")),   // the findings of every page below, always shown
@@ -88,13 +87,6 @@ export const NAV: NavGroup[] = [
       sub("fail2ban", "security/fail2ban", "security", Ban, tx("Fail2ban"), (s) => (s.data.security ?? []).length > 0),   // a Fail2ban read (LogviewR)
       sub("security-wazuh", "security/wazuh", "security", ShieldCheck, "Wazuh", (s) => (s.data.services_status ?? []).some((c) => c.connector === "wazuh")),   // a Wazuh connector
     ] },
-    { id: "alerts", hash: "settings/alerts/channels", tab: "settings", icon: Bell, label: tx("Alertes"), subs: [
-      sub("alerts-channels", "settings/alerts/channels", "settings", Radio, tx("Canaux")),
-      sub("alerts-rules", "settings/alerts/rules", "settings", ListChecks, tx("Règles d'alerte")),
-      sub("alerts-notifications", "settings/alerts/notifications", "settings", Send, tx("Mes notifications")),
-      sub("alerts-examples", "settings/alerts/examples", "settings", Sparkles, tx("Exemples")),
-      sub("alerts-sent", "settings/alerts/sent", "settings", History, tx("Derniers envois")),
-    ] },
   ] },
   { id: "admin", label: tx("Administration"), items: [
     { id: "connectors", hash: "settings/connectors", tab: "settings", icon: Plug, label: tx("Connecteurs"), subs: [
@@ -103,10 +95,16 @@ export const NAV: NavGroup[] = [
       sub("connectors-detected", "settings/connectors/detected", "settings", Radar, tx("Détectés à relier")),
       sub("connectors-read", "settings/connectors/read", "settings", Server, tx("Déjà lus par SSH ou agent")),
     ] },
+    { id: "alerts", hash: "settings/alerts/channels", tab: "settings", icon: Bell, label: tx("Notifications"), subs: [   // where and when the alerts are sent
+      sub("alerts-channels", "settings/alerts/channels", "settings", Radio, tx("Canaux")),
+      sub("alerts-rules", "settings/alerts/rules", "settings", ListChecks, tx("Règles d'alerte")),
+      sub("alerts-notifications", "settings/alerts/notifications", "settings", Send, tx("Mes notifications")),
+      sub("alerts-examples", "settings/alerts/examples", "settings", Sparkles, tx("Exemples")),
+      sub("alerts-sent", "settings/alerts/sent", "settings", History, tx("Derniers envois")),
+    ] },
     { id: "access", hash: "settings/accounts", tab: "settings", icon: Users, label: tx("Comptes et accès"), subs: [
       sub("accounts", "settings/accounts", "settings", Users, tx("Comptes et sessions")),
       sub("api", "settings/api", "settings", Webhook, tx("Jetons API et MCP")),
-      sub("ssh", "settings/ssh", "settings", KeyRound, tx("Clé SSH de l'app")),
     ] },
     { id: "app", hash: "settings/tasks", tab: "settings", icon: SlidersHorizontal, label: tx("Application"), subs: [
       sub("tasks", "settings/tasks", "settings", Timer, tx("Tâches et horaires")),

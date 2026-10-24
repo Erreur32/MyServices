@@ -12,7 +12,7 @@ const noop = () => undefined;
 describe("Sidebar", () => {
   it("les groupes et leurs entrées, dans l'ordre", () => {
     const html = renderToStaticMarkup(<Sidebar snap={snap()} badges={{}} onNavigate={noop} onBadge={noop} mobileOpen={false} onClose={noop} />);
-    const order = ["MyServices", "En bref", ">Accueil<", "Inventaire", "Machines", "Réseau", "Protection", "Sauvegardes", "Sécurité", "Alertes", "Administration", "Connecteurs", "Comptes et accès", "Application"].map((l) => html.indexOf(l));
+    const order = ["MyServices", "En bref", ">Accueil<", "Inventaire", "Machines", "Réseau", "Protection", "Sauvegardes", "Sécurité", "Administration", "Connecteurs", "Notifications", "Comptes et accès", "Application"].map((l) => html.indexOf(l));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(html).toContain('href="#security/watch"');   // Security opens its Overview, even with nothing to report
