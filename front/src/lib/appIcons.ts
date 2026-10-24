@@ -25,6 +25,9 @@ const FILES: Record<string, string> = {
   unraid: "unraid", "proxmox datacenter manager": "proxmox", "xen orchestra": "xen-orchestra", "kvm / libvirt": "kvm", libvirt: "kvm",
   incus: "incus", lxd: "lxd", virtualbox: "virtualbox", "hyper-v": "hyper-v",
   ollama: "ollama", "llama.cpp": "llama-cpp", "hermes agent": "hermes-agent", hermes: "hermes-agent",
+  "open webui": "open-webui", vllm: "vllm", localai: "localai", "api compatible openai": "openai", "lm studio": "openai", litellm: "openai", koboldcpp: "openai",
+  shinobi: "shinobi.png", go2rtc: "go2rtc.png", owncast: "owncast", zoneminder: "zoneminder.png", motioneye: "motioneye", "agent dvr": "agent-dvr.png",
+  scrypted: "scrypted.png", "kerberos.io": "kerberos", kerberos: "kerberos", restreamer: "restreamer",
 };
 
 /** File of public/icons: SVG by default, or the given name when it has its own extension (a PNG favicon) */

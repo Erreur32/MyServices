@@ -55,7 +55,7 @@ function MachinesHead({ snap, health, watching }: Readonly<{ snap: Snapshot; hea
       </div>
       <div className="flex gap-2.5 overflow-x-auto pb-1">
         <StatTile n={`${up}/${ms.length - off}`} label={tx("Joignables")} tone={down ? "warn" : "ok"} />
-        {read.length > 0 && <StatTile n={`${ok}/${read.length}`} label={tx("Santé OK")} tone={ok === read.length ? "ok" : "warn"} />}
+        {read.length > 0 && <StatTile n={`${ok}/${read.length}`} label={tx("Santé")} hint={tx("Machines dont tous les contrôles de santé sont bons : disques, SMART, mémoire, charge, température, noyau, systemd, Docker, SSH")} tone={ok === read.length ? "ok" : "warn"} />}
         <StatTile n={watch} label={tx("À surveiller")} tone={watch ? "warn" : undefined} />
         <StatTile n={down} label={tx("Injoignables")} tone={down ? "bad" : undefined} />
         <StatTile n={off} label={tx("Éteintes")} sub={tx("souvent éteintes, au repos")} />

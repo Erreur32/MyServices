@@ -21,7 +21,7 @@ import { HeadTags } from "../components/HeadTags";
 import { MachineIcon } from "../components/MachineIcon";
 import { useStoredFlag } from "../lib/storedFlag";
 
-const stateOf = (h: BackupHost) => (h.reachable ? h.level : "down");
+const stateOf = (h: BackupHost) => (h.reachable || h.stopped ? h.level : "down");   // stopped: its connector switched off on purpose, not unreachable
 const short = (label: string) => label.replace(/^[^:]*: /, "");
 
 /** The unfolded detail of a set: what the server holds against it, every place, the cron line, the settings and the machine */
@@ -144,7 +144,7 @@ function MachineHeader({ name, sets, m, cols }: Readonly<{ name: string; sets: B
 function ByMachine({ b, initial, onSets }: Readonly<{ b: BackupsData; initial?: Selected; onSets: (h: BackupHost) => void }>) {
   const sets = useMemo(() => new Map((b.sets || []).map((s) => [s.id, s])), [b]);
   const facets = useMemo((): Facet<BackupHost>[] => [
-    { key: "state", label: tx("État"), get: stateOf, name: (v) => LEVEL[v]?.[1] || v, order: ["crit", "down", "warn", "ok", "na"], mark: (v) => <Dot tone={LEVEL[v]?.[0] ?? "off"} /> },
+    { key: "state", label: tx("État"), get: stateOf, name: (v) => LEVEL[v]?.[1] || v, order: ["crit", "down", "warn", "ok", "off", "na"], mark: (v) => <Dot tone={LEVEL[v]?.[0] ?? "off"} /> },
     { key: "kind", label: tx("Type"), get: (h) => h.kind || "" },
   ], []);
   const text = useCallback((h: BackupHost) => [h.label, h.ip, h.kind, ...h.sets.map((id) => sets.get(id)?.label), ...h.copies.map((c) => c.label), ...h.local.map((x) => x.path)].join(" "), [sets]);

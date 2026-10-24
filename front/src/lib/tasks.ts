@@ -92,12 +92,3 @@ export function inText(ms: number): string {
   return tx("dans {0} h {1}", Math.floor(min / 60), pad(min % 60));
 }
 
-export interface ScheduleRow { name: string; label: string; when: string; on: boolean; why: string | null }
-
-/** What the start guide shows of the scheduled tasks: name, when, and whether it runs (else why not) */
-export function scheduleRows(tasks: { name: string; label: string; at: string; enabled: boolean; why?: string | null }[]): ScheduleRow[] {
-  return tasks.map((t) => {
-    const parsed = parseAt(t.at);
-    return { name: t.name, label: t.label, when: parsed ? period(parsed) : t.at, on: t.enabled, why: t.enabled ? null : (t.why ?? null) };
-  });
-}

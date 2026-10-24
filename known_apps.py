@@ -71,19 +71,32 @@ APPS: tuple[App, ...] = (
     App("pbs", "Proxmox Backup Server", "Infra / virtualisation", ports=(8007,), title=r"proxmox backup server", host=r"^(pbs|proxmox-?backup)", connector="proxmox-backup"),
     # IA locale : Ollama et LM Studio ont un port à eux ; llama.cpp (8080) et Open WebUI (3000 / 8080) partagent des ports trop courants, d'où le titre de la page
     App("ollama", "Ollama", "IA", ui="api", ports=(11434,), images=("ollama/ollama",), proc=r"^ollama\b", connector="ollama"),
-    App("lmstudio", "LM Studio", "IA", ports=(1234,)),
+    App("lmstudio", "LM Studio", "IA", ports=(1234,), connector="openai-compatible"),
     App("llamacpp", "llama.cpp", "IA", title=r"^llama\.cpp", images=("ghcr.io/ggml-org/llama.cpp", "ghcr.io/ggerganov/llama.cpp"), proc=r"^llama-server\b", connector="llamacpp"),
-    App("vllm", "vLLM", "IA", ui="api", images=("vllm/vllm-openai",), proc=r"^vllm\b"),
-    App("localai", "LocalAI", "IA", ui="api", images=("localai/localai", "quay.io/go-skynet/local-ai"), proc=r"^local-ai\b"),
-    App("koboldcpp", "KoboldCpp", "IA", ports=(5001,), proc=r"^koboldcpp"),
+    App("vllm", "vLLM", "IA", ui="api", images=("vllm/vllm-openai",), proc=r"^vllm\b", connector="openai-compatible"),
+    App("localai", "LocalAI", "IA", ui="api", images=("localai/localai", "quay.io/go-skynet/local-ai"), proc=r"^local-ai\b", connector="openai-compatible"),
+    App("koboldcpp", "KoboldCpp", "IA", ports=(5001,), images=("koboldcpp/koboldcpp",), proc=r"^koboldcpp", connector="openai-compatible"),
+    App("litellm", "LiteLLM", "IA", title=r"litellm", images=("ghcr.io/berriai/litellm",), connector="openai-compatible"),
     App("hermes", "Hermes Agent", "IA", ports=(8642, 19119), proc=r"^hermes\b", connector="hermes"),
-    App("open-webui", "Open WebUI", "IA", title=r"open webui", images=("ghcr.io/open-webui/open-webui",)),
+    App("open-webui", "Open WebUI", "IA", title=r"open webui", images=("ghcr.io/open-webui/open-webui",), connector="open-webui"),
     # Veeam Backup & Replication : API REST 9419 (lue par Sauvegardes), service 9392, serveur de montage 9401. Ports d'après la doc Veeam, à confirmer sur un vrai serveur
     App("veeam", "Veeam Backup & Replication", "Infra / virtualisation", ports=(9419, 9392, 9401)),
     App("veeam-m365", "Veeam Backup for Microsoft 365", "Infra / virtualisation", connector="veeam-m365"),   # 4443 is too common to name it
     App("unifi", "UniFi", "Réseau / DNS", title=r"unifi", host=r"^(unifi|udm|ucg|usg)", images=("linuxserver/unifi-network-application", "jacobalberty/unifi"), connector="unifi"),  # MynetworK lit aussi UniFi
     App("synology", "Synology DSM", "Fichiers / sync", title=r"synology"),
-    App("frigate", "Frigate", "Domotique", title=r"^frigate", images=("ghcr.io/blakeblackshear/frigate", "blakeblackshear/frigate"), connector="frigate"),  # port 5000 : trop courant pour l'identifier seul
+    App("frigate", "Frigate", "Stream", title=r"^frigate", images=("ghcr.io/blakeblackshear/frigate", "blakeblackshear/frigate"), connector="frigate"),  # port 5000 : trop courant pour l'identifier seul
+    # Video and cameras (the « Stream » category): camera recorders, camera gateways, stream relays, live broadcast
+    App("agent-dvr", "Agent DVR", "Stream", title=r"agent ?dvr|ispy", images=("doitandbedone/ispyagentdvr", "mekayelanik/ispyagentdvr")),
+    App("go2rtc", "go2rtc", "Stream", ports=(1984,), title=r"^go2rtc", images=("alexxit/go2rtc",), connector="go2rtc"),
+    App("kerberos", "Kerberos.io", "Stream", title=r"kerberos", images=("kerberos/agent", "kerberos/kerberos")),
+    App("mediamtx", "MediaMTX", "Stream", ui="api", images=("bluenviron/mediamtx", "aler9/rtsp-simple-server"), proc=r"^mediamtx\b", connector="mediamtx"),
+    App("motioneye", "motionEye", "Stream", ports=(8765,), title=r"motioneye", images=("ccrisan/motioneye", "ghcr.io/motioneye-project/motioneye")),
+    App("owncast", "Owncast", "Stream", title=r"owncast", images=("owncast/owncast", "gabekangas/owncast"), connector="owncast"),
+    App("restreamer", "Restreamer", "Stream", title=r"restreamer", images=("datarhei/restreamer",)),
+    App("scrypted", "Scrypted", "Stream", ports=(10443,), title=r"^scrypted", images=("koush/scrypted", "ghcr.io/koush/scrypted")),
+    App("shinobi", "Shinobi", "Stream", title=r"^shinobi", images=("shinobisystems/shinobi", "registry.gitlab.com/shinobi-systems/shinobi", "migoller/shinobidocker"), connector="shinobi"),
+    App("viseron", "Viseron", "Stream", title=r"^viseron", images=("roflcoopter/viseron", "roflcoopter/amd64-viseron")),
+    App("zoneminder", "ZoneMinder", "Stream", title=r"zoneminder", images=("zoneminderhq/zoneminder", "dlandon/zoneminder.machine.learning")),
     App("myelectricaldata", "MyElectricalData", "Domotique", title=r"myelectricaldata"),
     # Reconnues par leur page ou leur empreinte HTTP (en-têtes, cookies), sans SSH
     App("pihole", "Pi-hole", "Réseau / DNS", title=r"pi-?hole", fp=r"x-pi-hole", images=("pihole/pihole",), connector="pihole"),
@@ -261,18 +274,24 @@ def identify(image: str | None = None, title: str | None = None, port: int | Non
     return (weak, POSSIBLE) if weak else None
 
 
-def annotate(row: dict, keep_category: bool = False) -> None:
+def annotate(row: dict, keep_category: bool = False, app_key: str | None = None) -> None:
     """Ajoute row["app"] ({key, label, confidence, connector}) si l'appli est reconnue, et complète ce qui manque :
     nom « port N » -> nom de l'appli, catégorie « Autre » -> celle de l'appli, interface non sondée -> son type.
-    Un simple port (« possible ») ne change rien d'autre que row["app"]. keep_category : catégorie réglée à la main."""
+    Un simple port (« possible ») ne change rien d'autre que row["app"]. keep_category : catégorie réglée à la main.
+    app_key : the app set by hand (services-meta.json « app »), taken as sure and marked « hand »."""
     s = row.get("service") or {}
-    hit = identify(image=s.get("image"), title=row.get("page_title"), port=row.get("port"), fingerprint=row.pop("fingerprint", None),
-                   proc=s.get("name") if s.get("kind") == "process" else None, inner=s.get("inner"))
+    fp = row.pop("fingerprint", None)
+    forced = app_key in _BY_KEY
+    if forced:
+        hit = (_BY_KEY[app_key], SURE)
+    else:
+        proc = s.get("name") if s.get("kind") == "process" else None
+        hit = identify(image=s.get("image"), title=row.get("page_title"), port=row.get("port"), fingerprint=fp, proc=proc, inner=s.get("inner"))
     if hit is None:
         return
     app, how = hit
     row["app"] = {"key": app.key, "label": app.label, "confidence": how, "connector": app.connector,
-                  **({"agent_of": _BY_KEY[app.agent_of].label} if app.agent_of else {})}
+                  **({"agent_of": _BY_KEY[app.agent_of].label} if app.agent_of else {}), **({"hand": True} if forced else {})}
     if how == POSSIBLE:
         return
     if not keep_category and row.get("category") == "Autre":
@@ -293,6 +312,11 @@ WINDOWS_SERVICES: tuple[tuple[str, str], ...] = (
 WEB_PORTS = {"adguard": 3000, "plex": 32400, "jellyfin": 8096, "grafana": 3000, "prometheus": 9090, "sonarr": 8989, "radarr": 7878, "uptime-kuma": 3001}   # port web par défaut quand l'appli n'en déclare pas
 _WIN = [(re.compile(rx, re.I), key) for rx, key in WINDOWS_SERVICES]
 _BY_KEY = {a.key: a for a in APPS}
+
+
+def choices() -> list[dict]:
+    """The apps a service can be told it runs, by name: [{key, label}]."""
+    return sorted(({"key": a.key, "label": a.label} for a in APPS if not a.agent_of), key=lambda a: a["label"].lower())
 
 
 def apps_from_services(services: list[dict]) -> list[App]:

@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { send } from "../api";
 import { NoteLine } from "../components/form";
 import { act, quiet, type Note } from "../lib/forms";
-import { CHECK, KIND_NAME, checks, noIdentity, status } from "../lib/status";
+import { CHECK, KIND_NAME, checks, detectedName, noIdentity, openUrl, status } from "../lib/status";
 import { mergePorts } from "../lib/servicesState";
 import type { Host } from "../types";
 import { tx } from "../lib/i18n";
@@ -21,11 +21,27 @@ function yes(v: boolean | undefined, good: boolean | null): Row[2] {
 }
 const yn = (v: boolean | undefined) => (v ? "oui" : "non");
 
-function Block({ title, tone, rows }: { title: string; tone: keyof typeof TONES; rows: Row[] }) {
+/** The frame of one block of the service page, the same in reading and in editing */
+export function BlockFrame({ title, tone, children }: Readonly<{ title: string; tone: keyof typeof TONES; children: ReactNode }>) {
   const t = TONES[tone];
   return (
     <section className={`min-w-0 overflow-hidden rounded-lg border border-line/60 border-l-4 ${t.box}`}>
       <h4 className={`px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ${t.head}`}>{title}</h4>
+      {children}
+    </section>
+  );
+}
+
+/** Where a value comes from, under it: detected, automatic, or set by hand */
+export function Src({ children }: Readonly<{ children: ReactNode }>) {
+  return <span className="block text-xs text-dim">{children}</span>;
+}
+
+const handSet = (r: Host, field: string) => !!r.hand?.includes(field);
+
+function Block({ title, tone, rows }: { title: string; tone: keyof typeof TONES; rows: Row[] }) {
+  return (
+    <BlockFrame title={title} tone={tone}>
       <dl className="mx-3 mb-3 mt-2 grid grid-cols-[minmax(90px,auto)_1fr] overflow-hidden rounded-md text-sm">
         {rows.map(([k, v, c], i) => (
           <div key={i} className="contents">
@@ -34,7 +50,7 @@ function Block({ title, tone, rows }: { title: string; tone: keyof typeof TONES;
           </div>
         ))}
       </dl>
-    </section>
+    </BlockFrame>
   );
 }
 
@@ -114,10 +130,11 @@ function identRows(r: Host, ports: Host[], related: Host[], onOpen?: (h: Host) =
   const s = r.service, ck = checks(r), desc = r.description || s?.description;
   return [
     ...optRows(ck.length, [[tx("À vérifier"), <ul key="checks" className="flex flex-col gap-0.5">{ck.map((k) => <li key={k}><b className="text-warn">⚑ {CHECK[k][0]}</b> <span className="text-dim">{CHECK[k][1]}</span></li>)}</ul>]]),
+    ...optRows(r.display_name, [[tx("Nom affiché"), <span key="name">{r.display_name}<Src>{tx("réglé à la main (détecté : {0})", detectedName(r))}</Src></span>]]),
     ["Domaines", r.domains.join(", ") || "-", r.domains.length ? undefined : "mut"],
     ...optRows(ports.length > 1, [[tx("Ports"), <PortsRow key="ports" r={r} ports={ports} onOpen={onOpen} />]]),
     ...optRows(related.length, [[tx("Associé à"), <RelatedRow key="related" related={related} onOpen={onOpen} />]]),
-    [tx("Catégorie"), [r.category, ...(r.tags || [])].filter(Boolean).join(" · ") || "-"],
+    [tx("Catégorie"), <span key="cat">{[r.category, ...(r.tags || [])].filter(Boolean).join(" · ") || "-"}<Src>{handSet(r, "category") ? tx("réglé à la main") : tx("automatique, d'après les règles")}</Src></span>],
     ["Description", desc || "-", desc ? undefined : "mut"],
     [tx("Titre de page"), r.page_title || "-", r.page_title ? undefined : "mut"],
     ["Machine", r.machine ? `${r.machine}${r.machine_role ? ` · ${r.machine_role}` : ""}` : "inconnue", r.machine ? undefined : "bad"],
@@ -145,6 +162,12 @@ function stateTone(state?: string | null): Tone {
   return /healthy/.test(state) ? "ok" : undefined;
 }
 
+/** Where the address to open comes from: set by hand, else the first domain or the backend */
+function openSource(r: Host): string {
+  if (r.open_url) return tx("réglé à la main");
+  return tx("automatique : {0}", r.domains.length ? tx("le premier domaine") : tx("le backend"));
+}
+
 function webcheckRow(r: Host): Row {
   const w = r.webcheck;
   if (!w) return ["Web-Check", "-", "mut"];
@@ -166,12 +189,14 @@ function kumaRow(r: Host): Row {
   return [tx("Uptime Kuma"), text, tone];
 }
 
+const ALERT_NAME: Record<string, string> = { down: tx("panne seulement"), none: tx("aucune") };
 const httpUrl = (u?: string | null) => !!u && /^https?:\/\//.test(u);
 
 function serviceRows(r: Host): Row[] {
-  const s = r.service, [svcText, svcTone] = serviceLine(r);
+  const s = r.service, [svcText, svcTone] = serviceLine(r), open = openUrl(r);
   return [
     ...optRows(!s?.name && r.app, [["Appli devinée", `${r.app?.label} (${r.app?.confidence === "possible" ? tx("possible : port ou serveur web") : tx("probable : page ou en-têtes HTTP")})`, "mut"]]),
+    ...optRows(r.app?.hand, [[tx("Appli"), <span key="app">{r.app?.label}<Src>{tx("réglé à la main")}</Src></span>]]),
     ["Service", svcText, svcTone],
     ...optRows(r.app?.agent_of, [[tx("Agent de"), tx("{0} (pas de page, envoie ses données au serveur central)", r.app?.agent_of)]]),
     ...optRows(s?.kind === "apache", [["Vhost", s?.vhost || "-"], [tx("Fichiers servis"), s?.docroot || "-", "mono"], ["Config", s?.conf || "-", "mono"]]),
@@ -184,6 +209,8 @@ function serviceRows(r: Host): Row[] {
     webcheckRow(r),
     kumaRow(r),
     [tx("Interface web"), WEB[r.web || ""] || "-", r.web === "ui" ? "ok" : "mut"],
+    ...optRows(open, [[tx("Adresse à ouvrir"), <span key="open">{open && link(open, open.replace(/^https?:\/\//, ""))}<Src>{openSource(r)}</Src></span>]]),
+    ...optRows(r.alerts, [[tx("Alertes"), <span key="alerts">{ALERT_NAME[r.alerts ?? ""]}<Src>{tx("réglé à la main")}</Src></span>, "mut"]]),
   ];
 }
 

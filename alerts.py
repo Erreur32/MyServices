@@ -334,7 +334,7 @@ def label(kind: str) -> str:
     if kind in KINDS:
         return KINDS[kind][0]
     return {"retabli": "Service rétabli", "en_ligne": "Machine en ligne", "ssh_ok": "SSH rétabli",
-            "connecteur_ok": "Connecteur rétabli", "health_ok": "Santé OK", "vm_marche": "VM en marche", "stockage_ok": "Stockage dégagé", "essai": "Essai"}.get(kind, kind)
+            "connecteur_ok": "Connecteur rétabli", "health_ok": "Santé bonne", "vm_marche": "VM en marche", "stockage_ok": "Stockage dégagé", "essai": "Essai"}.get(kind, kind)
 
 
 def line(e: dict) -> str:

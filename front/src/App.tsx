@@ -14,6 +14,8 @@ import { Security } from "./tabs/Security";
 import { Virtualization } from "./tabs/Virtualization";
 import { Network } from "./tabs/Network";
 import { Infra } from "./tabs/Infra";
+import { Ai } from "./tabs/Ai";
+import { Video } from "./tabs/Video";
 import { Machines } from "./tabs/Machines";
 import { Services } from "./tabs/Services";
 import { Profile } from "./tabs/Profile";
@@ -146,6 +148,8 @@ export default function App() {
       {current === "machines" && <Machines key={pending.tab === "machines" ? pending.n : 0} snap={snap} initial={initialFor("machines")} onMachine={(ip) => goFilter("services", { machine: [ip] })} onFilter={(sel) => goFilter("services", sel)} />}
       {current === "services" && <Services key={pending.tab === "services" ? pending.n : 0} snap={snap} initial={initialFor("services")} route={hash} />}
       {current === "infra" && <Infra snap={snap} />}
+      {current === "ai" && <Ai snap={snap} route={hash} />}
+      {current === "stream" && <Video snap={snap} route={hash} />}
       {current === "dns" && <Dns key={pending.tab === "dns" ? pending.n : 0} snap={snap} initial={initialFor("dns")} />}
       {current === "backups" && <Backups key={pending.tab === "backups" ? pending.n : 0} snap={snap} initial={initialFor("backups")} route={hash} />}
       {current === "diagrams" && <DiagramsTab admin={snap.me.role === "admin"} />}

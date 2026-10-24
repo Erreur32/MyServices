@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupOf, liveText, period, runLength, runState, scheduleRows, summarize, type TaskInfo } from "./tasks";
+import { groupOf, liveText, period, runLength, runState, summarize, type TaskInfo } from "./tasks";
 
 const task = (o: Partial<TaskInfo> = {}): TaskInfo => ({
   label: "Collecte", at: "10,40 *", next: null, minutes: [10, 40], hours: null, enabled: true, running: false, started: null, ended: null, result: null, ...o,
@@ -51,19 +51,5 @@ describe("tâches planifiées", () => {
     expect(groupOf("netscan")).toBe("network");
     expect(groupOf("unknown")).toBe("keep");
     expect(runLength(10, 52)).toContain("42");
-  });
-});
-
-describe("the schedule shown in the start guide", () => {
-  it("each task with its period, and the reason when it does not run", () => {
-    const rows = scheduleRows([
-      { name: "collect", label: "Collecte", at: "0,15,30,45 *", enabled: true },
-      { name: "backups", label: "Sauvegardes", at: "5 1,7,13,19", enabled: false, why: "aucune sauvegarde suivie" },
-      { name: "odd", label: "Autre", at: "pas un horaire", enabled: true },
-    ]);
-    expect(rows[0]).toMatchObject({ name: "collect", on: true, why: null });
-    expect(rows[0].when).toContain(":00");
-    expect(rows[1]).toMatchObject({ on: false, why: "aucune sauvegarde suivie" });
-    expect(rows[2].when).toBe("pas un horaire");   // an unreadable schedule is shown as written
   });
 });

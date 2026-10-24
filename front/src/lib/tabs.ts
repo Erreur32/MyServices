@@ -1,9 +1,11 @@
 // Menu de gauche : groupes, entrées, icône, libellé, visibilité (hors composants, voir lib/forms.ts).
-import { Activity, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Webhook, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, Bot, Boxes, Camera, Film, BarChart3, ListOrdered, ListChecks, Radio, Sparkles, ArrowDownUp, Copy, FolderSearch, Cpu, Ban, Bell, Eye, FileBadge, FileText, Globe, HardDrive, History, House, Info, KeyRound, Layers, LayoutDashboard, LayoutGrid, Link2, List, Mail, Monitor, Network, PenLine, Plug, Plus, Radar, RefreshCw, Router, ScanSearch, ScrollText, Send, Server, Shield, ShieldCheck, SlidersHorizontal, Stethoscope, Timer, Users, Video, Webhook, Workflow, type LucideIcon } from "lucide-react";
 import type { Snapshot } from "../api";
 import type { TabId } from "./summary";
 import { tx } from "./i18n";
 import { NETWORK_CARDS, hasNetwork } from "./network";
+import { aiCards, aiGpus, aiModels, hasAi } from "./ai";
+import { hasStream, streamCameras, streamCards, streamFlows } from "./video";
 
 /** Cartes de services (hors outils réseau, qui ont leur onglet) et conteneurs lus par une API : l'onglet Infra */
 export const infraCards = (s: Snapshot) => (s.data.services_status ?? []).filter((c) => !NETWORK_CARDS.includes(c.connector));
@@ -63,6 +65,18 @@ export const NAV: NavGroup[] = [
       sub("dns-all", "dns/all", "dns", Layers, tx("Détails")),
     ] },
     { id: "virtualization", hash: "virtualization", tab: "virtualization", icon: Server, label: tx("Virtualisation") },
+    { id: "ai", hash: "ai", tab: "ai", icon: Bot, label: tx("IA et agents"), subs: [
+      sub("ai-overview", "ai/overview", "ai", LayoutDashboard, tx("Vue d'ensemble")),
+      sub("ai-models", "ai/models", "ai", Boxes, tx("Modèles"), (s) => aiModels(s).length > 0),
+      sub("ai-agents", "ai/agents", "ai", Workflow, tx("Agents et MCP"), (s) => aiCards(s).some((c) => c.role === "agent" || c.role === "interface" || c.role === "mcp")),
+      sub("ai-gpu", "ai/gpu", "ai", Cpu, "GPU", (s) => aiGpus(s).length > 0 || aiModels(s).some((m) => !!m.vram)),
+    ] },
+    { id: "stream", hash: "stream", tab: "stream", icon: Video, label: tx("Vidéo et caméras"), subs: [
+      sub("stream-overview", "stream/overview", "stream", LayoutDashboard, tx("Vue d'ensemble")),
+      sub("stream-cameras", "stream/cameras", "stream", Camera, tx("Caméras"), (s) => streamCameras(streamCards(s)).length > 0),
+      sub("stream-flows", "stream/flows", "stream", Radio, tx("Flux"), (s) => streamFlows(streamCards(s)).length > 0),
+      sub("stream-recordings", "stream/recordings", "stream", Film, tx("Enregistrements"), (s) => streamCards(s).some((c) => c.role === "nvr" && !c.unread)),
+    ] },
     { id: "infra", hash: "infra", tab: "infra", icon: LayoutGrid, label: tx("Infra") },
     { id: "diagrams", hash: "diagrams", tab: "diagrams", icon: Workflow, label: tx("Schémas") },
   ] },
@@ -132,6 +146,8 @@ export const isDevBuild = (s: Snapshot) => !!s.me.git || s.me.version === "dev";
 export function visible(id: TabId, s: Snapshot): boolean {
   if (UNRELEASED.includes(id) && !isDevBuild(s)) return false;
   switch (id) {
+    case "ai": return hasAi(s);   // an AI service in Services, an AI connector or GpuViewR
+    case "stream": return hasStream(s);   // a « Stream » service in Services or a video connector
     case "infra": return infraCards(s).length > 0 || infraDocker(s).length > 0;   // cartes des services lus par leur API (Dockhand, Home Assistant, Uptime Kuma…)
     case "backups": return !!s.backups;
     case "dns": return !!s.data.dns;

@@ -246,5 +246,16 @@ class StillProposed(unittest.TestCase):
         self.assertEqual(ka.still_proposed(props, saved), props[1:])
         self.assertEqual(ka.still_proposed(props, []), props)
 
+class HandApp(unittest.TestCase):
+    def test_app_set_by_hand_wins(self):
+        row = {"service": {"image": "lscr.io/linuxserver/plex"}, "category": "Autre", "port": 9999}
+        ka.annotate(row, app_key="jellyfin")
+        self.assertEqual((row["app"]["key"], row["app"]["hand"], row["category"]), ("jellyfin", True, "Médias"))
+        row = {"service": {}, "port": 9999}
+        ka.annotate(row, app_key="nope")   # unknown key: the detection as before
+        self.assertNotIn("app", row)
+        self.assertTrue(all(a["key"] for a in ka.choices()))
+
+
 if __name__ == "__main__":
     unittest.main()

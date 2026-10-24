@@ -5,6 +5,24 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.21.0 → 0.22.0
+
+**Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
+
+- **Agents**: the Windows and Linux agent scripts are unchanged (Linux agent 4). Installed agents keep running as they are.
+- **Optional, `services-meta.json`**: a new category rule **« Stream »** (camera recorders, stream relays, live broadcasts) is in `services-meta.example.json`. To use it in your own file, add the rule before « Médias » and remove `frigate` from the « Domotique » rule:
+  `["Stream", "frigate|shinobi|zoneminder|motioneye|agent-?dvr|ispy|viseron|kerberos|scrypted|go2rtc|mediamtx|rtsp-simple|restreamer|owncast|webcam|camera|\\bnvr\\b"]`.
+  Without it, Frigate stays in Home automation in Services; the new « Video and cameras » page recognises these apps anyway.
+- **Optional, connectors**:
+  - **Frigate** has two new optional fields, `user` and `password`, for its signed-in port 8971 (Frigate 0.14+, a « viewer » account is enough; untick « Verify the HTTPS certificate » for its self-signed certificate). Without them, port 5000 works as before.
+  - New connectors, none set by default: **Shinobi**, **go2rtc**, **MediaMTX**, **Owncast** (video), **Open WebUI** and **OpenAI-compatible API** (AI).
+- **Optional, per service**: Services › a service's page › « Edit » can now set a display name, an icon, the app, the address to open and an alerts level. They are saved in `services-meta.json` under that service's key, next to what was already there.
+- **Behaviour that changes by itself**:
+  - Two new menu entries in Inventory, shown only when they have something to show: « AI and agents » and « Video and cameras ».
+  - Health alerts use short labels (« Health good », « Health to watch », « Health critical », « Machine unreachable »); notifications, the audit log and the history show them, in both languages.
+  - A machine read by a connector switched off on purpose in Settings is « connector off » in Backups, with no alert.
+  - An admin can see the picture of a camera on the Video page, only after clicking its play button; it is never kept and each view is written to the audit log.
+
 ## 0.20.2 → 0.21.0
 
 **Nothing to do.** No change to the compose file, the image's volumes or variables, `config.json` or `services-meta.json`.

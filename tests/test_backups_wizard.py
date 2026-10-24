@@ -253,6 +253,22 @@ class VeeamAssistant(Base):
         self.assertIsNone(got)
         self.assertIn("absent de config.json", err)
 
+    def test_connecteur_coupe_ni_injoignable_ni_alerte(self):
+        """A connector switched off on purpose (to spare its API) is not « unreachable »: the set and the machine say « switched off », no alert."""
+        import backups
+        with mock.patch("connectors.settings.get", return_value={"type": "home-assistant", "name": "maison", "enabled": False}):
+            got, err = backups.api_collect(backups.HomeAssistant, {"id": "ha", "api": "ha", "connector": "maison"}, "API HA")
+        self.assertIsNone(got)
+        self.assertEqual(err, "API HA : connecteur « maison » coupé dans Réglages")
+        meta = {"hosts": [{"id": "ha", "label": "Home Assistant", "api": "ha"}],
+                "sets": [{"id": "ha-backup", "label": "Backup Home Assistant", "origin": "ha", "max_age_days": 8,
+                          "locations": [{"host": "ha", "path": "/backup", "pattern": "*"}]}]}
+        out = backups.analyse(meta, {"ha": (None, err)}, {}, 1_800_000_000)
+        s, h = out["sets"][0], out["hosts"][0]
+        self.assertEqual((s["level"], s["why"], s["locations"][0]["level"]), ("off", [], "off"))
+        self.assertEqual((h["level"], h["stopped"], h["reachable"]), ("off", True, False))
+        self.assertEqual(out["issues"], [])
+
 
 class HomeAssistantAssistant(Base):
     def add_connector(self, **kw):

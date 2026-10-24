@@ -42,7 +42,7 @@
 >
 > Comme il évolue vite, **les pull requests et les issues ne sont pas traitées pour le moment** : merci de les garder pour une version stable.
 >
-> Les versions de développement ne sont pas étiquetées. Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.21.0`, `0.21.1`…).
+> Les versions de développement ne sont pas étiquetées. Les numéros de version restent **sous la 2.0.0** tant qu'il n'est pas déclaré stable (`0.22.0`, `0.22.1`…).
 > Détail : [CHANGELOG.md](CHANGELOG.md) (en anglais) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (en anglais).
 
 ## En bref
@@ -76,7 +76,7 @@ Puis ouvrez **`http://<IP>:8090/`** (l'appli est à la racine du site ; les anci
 
 > **L'application écoute sur le port `8090`.** C'est un réglage, pas une valeur figée : si le 8090 est déjà pris sur votre machine, mettez **`MYSERVICES_PORT=8095`** (ou un autre port libre) dans un fichier `.env` à côté de `docker-compose.yaml` (exemple : [`deploy/env.example`](deploy/env.example), téléchargé par le second `curl` ci-dessus), puis lancez `docker compose up -d` et ouvrez `http://<IP>:8095/`. Le conteneur utilise le réseau de l'hôte : modifier un `ports:` ne servirait à rien.
 
-Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.21.0` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
+Image : `ghcr.io/erreur32/myservices` (amd64 et arm64). `:latest` suit le dernier tag, `:0.22.0` une version précise, `:main` le dernier commit de la branche `main` (l'en-tête affiche alors par exemple `v0.10.1+ · main · abc1234`).
 Mise à jour : `docker compose pull && docker compose up -d` (réglages et données restent dans les volumes `./config` et `./data`).
 
 ---
@@ -95,14 +95,14 @@ Les pull requests ne sont pas traitées pour le moment (voir l'avertissement en 
 <details>
 <summary><b>Ce que l'on voit : le menu</b></summary>
 
-Un menu à gauche réunit toutes les pages, en quatre groupes ; les vues d'une page sont ses sous-pages, rangées dessous, chacune avec son adresse. « À surveiller » est la première sous-page de Services, Réseau, DNS, Sauvegardes et Sécurité, et quitte le menu quand il n'y a rien à surveiller. Une entrée apparaît dès que sa source est reliée.
+Un menu à gauche réunit toutes les pages, en quatre groupes ; les vues d'une page sont ses sous-pages, rangées dessous, chacune avec son adresse. Ce qui demande votre attention est le filtre « Alertes » de chaque liste (Sécurité : sa Vue d'ensemble). Une entrée apparaît dès que sa source est reliée.
 
 | Groupe | Pages |
 |---|---|
-| **Vue d'ensemble** | **Accueil** (ce qui demande votre attention, puis des compteurs qui ouvrent la page déjà filtrée ; Statistiques), **Historique** (les événements de 24 h à un an, en points, barres, courbe ou carte de chaleur ; disponibilité) |
-| **Inventaire** | **Machines** (chaque machine avec son état, son système, son accès et ses détails ; appareils vus par vos outils mais pas suivis ; agents), **Services** (hôtes NPM et services locaux, nouveaux services, déclarer un service), **Réseau** (UniFi, Freebox, scan, appareils, découverte), **DNS** (AdGuard Home : serveurs, réécritures, domaines à vérifier), **Virtualisation**, **Infra** (services lus par leur API, conteneurs), **Schémas** |
-| **Protection** | **Sauvegardes** (jeux, âge de la copie la plus récente, copies ailleurs, leurs réglages), **Sécurité** (sites, accès, ports, certificats, Fail2ban), **Alertes** (canaux, règles, notifications, derniers envois) |
-| **Administration** | **Connecteurs** (les miens, disponibles, détectés à relier, déjà lus par SSH ou agent), **Comptes et accès** (comptes et sessions, jetons API et MCP, clé SSH de l'app), **Application** (tâches et horaires, mises à jour, e-mail, export et import, requêtes, audit, journaux, informations) |
+| **En bref** | **Accueil** (tableau de bord : ce qui demande votre attention, puis des compteurs qui ouvrent la page déjà filtrée ; statistiques), **Historique** (les événements de 24 h à un an, en points, barres, courbe ou carte de chaleur ; disponibilité) |
+| **Inventaire** | **Machines** (chaque machine, avec sa page et ses réglages ; appareils vus par vos outils mais pas suivis ; agents ; connexions SSH et clé SSH de l'app), **Services** (hôtes NPM et services locaux, chacun avec sa page, lue et modifiée sur place ; nouveaux services ; déclarer un service), **Réseau** (UniFi, Freebox, scan, équipements et appareils, diagnostic), **DNS** (AdGuard Home : serveurs, détails), **Virtualisation**, **IA et agents** (vue d'ensemble, modèles, agents et MCP, GPU ; visible dès qu'un service ou un connecteur IA existe), **Vidéo et caméras** (vue d'ensemble, caméras, flux, enregistrements ; visible dès qu'un service Stream ou un connecteur vidéo existe), **Infra** (services lus par leur API, conteneurs), **Schémas** |
+| **Protection** | **Sauvegardes** (par machine, jeux, ajouter des sauvegardes, à relier, copies ailleurs, emplacements cherchés), **Sécurité** (vue d'ensemble, sites exposés, accès SSH, ports du réseau, certificats, Fail2ban, Wazuh) |
+| **Administration** | **Connecteurs** (les miens, disponibles, détectés à relier, déjà lus par SSH ou agent), **Notifications** (canaux, règles d'alerte, mes notifications, exemples, derniers envois), **Comptes et accès** (comptes et sessions, jetons API et MCP), **Application** (tâches et horaires, découverte automatique, mises à jour, e-mail, export et import, informations), **Activité** (requêtes, journal d'audit, journaux) |
 
 Profil, Aide et À propos sont dans le menu du compte, en haut à droite.
 
@@ -116,7 +116,7 @@ Chaque filtre est un interrupteur : un clic le coupe, un autre le rallume ; plus
 Une machine peut être suivie de trois façons, qui se combinent. La première source qui répond fait foi, les suivantes complètent ce qu'elle n'a pas lu (l'ordre se règle machine par machine).
 
 1. **MyServices lui-même**, rien d'autre à installer :
-   - **SSH** (Linux) : MyServices se connecte avec **sa propre clé** (montrée dans Administration › Comptes et accès › Clé SSH de l'app) et lit la santé, Docker, les services en écoute et les serveurs web. Vous l'autorisez sur chaque machine avec une commande. Un compte dédié non root, dans les groupes `docker` et `adm`, est le plus sûr.
+   - **SSH** (Linux) : MyServices se connecte avec **sa propre clé** (montrée dans Machines › Connexions SSH) et lit la santé, Docker, les services en écoute et les serveurs web. Vous l'autorisez sur chaque machine avec une commande. Un compte dédié non root, dans les groupes `docker` et `adm`, est le plus sûr.
    - **Agent** (Windows ou Linux) : un petit script en lecture seule (PowerShell en tâche planifiée, ou Python en minuteur systemd) envoie la santé de la machine, ses disques, ses ports, ses services, son matériel et ses conteneurs Docker. Rien à ouvrir côté PC.
 2. **Services externes déjà installés sur le réseau** (connecteurs) : si vous faites déjà tourner Beszel, Proxmox, Uptime Kuma, MynetworK… MyServices lit leur API avec une clé en lecture seule. Rien n'est installé sur la machine.
 3. **Ping et recherche réseau** : indiquent seulement si une machine est allumée et quelles applis y répondent. La première recherche sur le réseau local se lance toute seule, puis se répète à la fréquence choisie. En mode manuel, vous choisissez les machines à suivre ; en mode automatique, les plus utiles sont ajoutées pour vous.
@@ -189,7 +189,9 @@ Un connecteur laisse MyServices lire un outil par son API, **en lecture seule** 
 | **Web et proxys** | Nginx Proxy Manager, Web-Check |
 | **DNS** | AdGuard Home, Pi-hole, Technitium DNS |
 | **Supervision** | Beszel, Uptime Kuma, Dozzle, Prometheus, Healthchecks, Netdata, LogviewR |
-| **Maison et médias** | Home Assistant, Jellyfin, Sonarr / Radarr / Prowlarr…, Frigate |
+| **Maison et médias** | Home Assistant, Jellyfin, Sonarr / Radarr / Prowlarr… |
+| **Vidéo et caméras** | Frigate, Shinobi, go2rtc, MediaMTX, Owncast |
+| **IA** | Ollama, llama.cpp, Open WebUI, API compatible OpenAI (vLLM, LM Studio, LocalAI, KoboldCpp, LiteLLM), Hermes Agent, GpuViewR |
 | **Réseau** | MynetworK, UniFi Network, Tailscale / Headscale, OPNsense |
 | **Sécurité** | CrowdSec |
 | **Virtualisation et conteneurs** | Proxmox VE, Dockhand, Portainer |
@@ -206,7 +208,7 @@ Un connecteur laisse MyServices lire un outil par son API, **en lecture seule** 
 <details>
 <summary><b>Sauvegardes</b></summary>
 
-Sauvegardes › Réglages › Ajouter des sauvegardes montre les **sources** en tuiles (cliquez sur l'une : son assistant s'ouvre sous les tuiles) :
+Sauvegardes › Ajouter des sauvegardes montre les **sources** en tuiles (cliquez sur l'une : son assistant s'ouvre sous les tuiles) :
 
 - **Dossiers sur mes machines** : trouvés par SSH aux endroits habituels (`/home/backup` est suivi automatiquement) ; vous cochez ceux à surveiller.
 - **Veeam Backup & Replication** : API REST (port 9419) avec un compte en lecture seule (rôle *Veeam Backup Viewer*) ; vous choisissez les jobs à suivre.

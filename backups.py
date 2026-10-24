@@ -43,7 +43,8 @@ SSH_OPTS = [*SSH_MUX, "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", "Se
 TIMEOUT = 240
 DISK_WARN, DISK_CRIT = 80, 90
 GRACE_H = 6  # une copie a ce délai pour rattraper une archive toute neuve
-RANK = {"ok": 0, "archive": 0, "na": 0, "warn": 1, "crit": 2, "down": 3}
+RANK = {"ok": 0, "archive": 0, "na": 0, "off": 0, "warn": 1, "crit": 2, "down": 3}   # off: its connector switched off in Settings, nothing read, no alert
+STOPPED = "coupé dans Réglages"   # end of the message of a machine read by a connector switched off
 
 # ───────────── Agent exécuté sur chaque machine (python3 -) ─────────────
 
@@ -315,13 +316,26 @@ def qm_crontab(spec: str) -> list[dict]:
             if l.strip() and not l.lstrip().startswith("#") and any(k in l.lower() for k in ("backup", "rsync", "dump"))]
 
 
+def switched_off(types, name) -> bool:
+    """A connector of config.json switched off in Settings (config.load leaves it out of CFG): its settings are kept, nothing is read."""
+    from connectors import settings
+    try:
+        return any((settings.get(t, name) or {}).get("enabled") is False for t in types)
+    except Exception:   # config.json unreadable: said elsewhere
+        return False
+
+
+def connector_missing(prefix: str, types, name) -> str:
+    return f"{prefix} : connecteur « {name} » {STOPPED}" if switched_off(types, name) else f"{prefix} : connecteur « {name} » absent de config.json"
+
+
 def api_collect(cls, h: dict, prefix: str) -> tuple[dict | None, str]:
     """Machine lue par API (connecteur Veeam ou Home Assistant) : (données, "") ou (None, message)."""
     conf = {"name": h["id"], **{k: h[k] for k in ("url", "secrets", "api_version") if k in h}}
     if h.get("connector"):  # compte réglé dans la page (connecteur de config.json, secrets déjà déchiffrés en mémoire)
         c = next((c for c in CFG.get("connectors") or [] if c.get("name") == h["connector"] and c.get("type") in CONNECTOR_OF[cls]), None)
         if c is None:
-            return None, f"{prefix} : connecteur « {h['connector']} » absent de config.json (ou coupé dans Réglages)"
+            return None, connector_missing(prefix, CONNECTOR_OF[cls], h["connector"])
         conf.update({k: c[k] for k in ("url", "user", "password", "token", "api_version", "secret", "verify_tls", "mcp_url") if c.get(k)})
     try:
         return cls(conf, Context()).collect(), ""
@@ -352,7 +366,7 @@ def remote_collect(h: dict, locs: list[tuple[str, dict]]) -> tuple[dict | None, 
     from connectors.remote_folder import RemoteFolder
     c = next((c for c in CFG.get("connectors") or [] if c.get("name") == h.get("connector") and c.get("type") == RemoteFolder.type), None)
     if c is None:
-        return None, f"dossier distant : connecteur « {h.get('connector')} » absent de config.json (ou coupé dans Réglages)"
+        return None, connector_missing("dossier distant", (RemoteFolder.type,), h.get("connector"))
     conn = RemoteFolder(dict(c), Context())
     out: dict = {"user": conn.proto.upper(), "locs": {}, "disks": [], "crons": [], "cron_root": None}
     try:
@@ -500,6 +514,15 @@ def level_for_age(age: float, max_age: float) -> str:
     return "ok" if age <= max_age else "warn" if age <= max_age * 2 else "crit"
 
 
+def _host_level(off: bool, reachable: bool, levels: list) -> str:
+    """Level of a backup host: « off » when stopped on purpose, « down » when unreachable, else the worst of its disks and sets."""
+    if off:
+        return "off"
+    if not reachable:
+        return "down"
+    return max(levels, key=RANK.get)
+
+
 def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
     hosts = {h["id"]: h for h in meta["hosts"]}
     devmap = meta.get("syncthing_devices", {})
@@ -641,7 +664,7 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                 locs.append(L)
                 continue
             if r is None:
-                L["level"], L["detail"] = "down", f"injoignable ({err})"
+                L["level"], L["detail"] = ("off", err) if err.endswith(STOPPED) else ("down", f"injoignable ({err})")
             elif not data or not data.get("exists"):
                 L["level"], L["detail"] = "crit", f"dossier absent : {loc['path']} (à créer sur {L['label']})" if loc.get("path") else "dossier absent"
             elif not data["count"]:
@@ -700,13 +723,16 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
         offsite = [l for i, l in enumerate(locs) if (l["host"] != s["origin"] or l.get("share")) and
                    (i and l["level"] == "ok" or not i and (l.get("offsite") or l.get("share")) and l["level"] in ("ok", "warn"))]
         level, why = src["level"], []
+        stopped = src["level"] == "off"   # its source is read by a connector switched off: not judged until it is on again
         if src["level"] in ("warn", "crit"):
             old = None if src.get("offsite") else src.get("oldest") or src.get("newest")  # job Veeam : son résultat
             if src.get("offsite") and src.get("age") is not None:
                 src["detail"] += f", il y a {hage(src['age'])} (seuil {max_age} j)"
             why.append(f"source {src['label']} : " + (f"{Path(old['name']).name} date de {hage(src['age'])} (seuil {max_age} j)" if old else src["detail"]))
         expect = s.get("expect_offsite", True)  # False : jeu décrit depuis la page (un dossier) sans copie déclarée ailleurs : rien à exiger
-        if not archived:
+        if archived:
+            level = "archive"
+        elif not stopped:
             if not offsite and expect:
                 cov = s.get("covered_by")
                 lv = "warn" if cov else "crit"
@@ -716,8 +742,6 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                 if l["level"] in ("warn", "crit", "down"):
                     level = max(level, "warn", key=RANK.get)
                     why.append(f"copie {l['label']} : {l['detail']}")
-        else:
-            level = "archive"
         sets_out.append({"id": s["id"], "label": s["label"], "origin": s["origin"], "origin_label": hosts[s["origin"]]["label"],
                          "schedule": s.get("schedule", ""), "retention": s.get("retention", ""), "max_age_days": max_age,
                          "mode": "each" if each else "latest", "archived": archived, "level": level,
@@ -771,16 +795,17 @@ def analyse(meta: dict, res: dict, sres: dict, now: float) -> dict:
                 dd["level"] = max(dd["level"], "warn" if l["level"] in ("crit", "down") else l["level"], key=RANK.get)
                 if l.get("age") is not None:
                     dd["age"] = l["age"] if dd["age"] is None else min(dd["age"], l["age"])
-        lv = "down" if r is None else max([dlevel] + [x["level"] for x in mine], key=RANK.get)
+        off = r is None and err.endswith(STOPPED)
+        lv = _host_level(off, r is not None, [dlevel] + [x["level"] for x in mine])
         hosts_out.append({"id": h["id"], "label": h["label"], "ip": h.get("ip", ""), "kind": h.get("kind", ""), "note": h.get("note", ""),
                           "storage": bool(h.get("storage") or h.get("mount")),
-                          "reachable": r is not None, "error": "" if r else err, "user": (r or {}).get("user"),
+                          "reachable": r is not None, "stopped": off, "error": "" if r else err, "user": (r or {}).get("user"),
                           "disks": disks, "crons": (r or {}).get("crons", []),
                           "cron_root": (r or {}).get("cron_root"), "cron_hint": h.get("cron_hint", ""),
                           "sets": [x["id"] for x in mine], "level": lv, "local": local,
                           "last_local": last_local, "copies": list(dests.values()),
                           "set_levels": {k: sum(1 for x in mine if x["level"] == k) for k in ("ok", "warn", "crit")}})
-        if r is None:
+        if r is None and not off:
             issues.append({"level": "down", "set": h["label"], "host_id": h["id"], "text": f"machine injoignable ({err})"})
 
     stn = []

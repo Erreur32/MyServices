@@ -45,6 +45,10 @@
       "honeypot|vaultwarden|bitwarden|crowdsec|authelia|authentik|fail2ban|wazuh"
     ],
     [
+      "Stream",
+      "frigate|shinobi|zoneminder|motioneye|agent-?dvr|ispy|viseron|kerberos|scrypted|go2rtc|mediamtx|rtsp-simple|restreamer|owncast|webcam|camera|\\bnvr\\b"
+    ],
+    [
       "Médias",
       "plex|jellyfin|emby|sonarr|radarr|lidarr|prowlarr|bazarr|overseerr|jellyseerr|tautulli|tunarr|reiverr|ytdl|youtube|transmission|qbittorrent|navidrome|immich|photoprism"
     ],
@@ -58,7 +62,7 @@
     ],
     [
       "Domotique",
-      "home-?assistant|zigbee|mqtt|node-?red|esphome|frigate"
+      "home-?assistant|zigbee|mqtt|node-?red|esphome"
     ],
     [
       "Infra / virtualisation",

@@ -332,7 +332,8 @@ def _glances_host(cpu, mem, load, fs: list[dict], sensors) -> dict:
 class GpuViewR(StatusConnector):
     """GpuViewR (our own GPU monitor): hub version, machines online, GPUs, hottest and busiest GPU. Read-only API token (gvk_…, Bearer),
     switched on in GpuViewR (Settings → API). Routes (GET): /api/v1/health, /api/v1/hosts (ips, hostname since 0.13), /api/v1/gpus,
-    /api/v1/llm (models, port, alias), /api/v1/gpus/stats/all (0.13; else /gpus/stats per GPU). See Docs/API.md of GpuViewR."""
+    /api/v1/llm (models, port, alias), /api/v1/gpus/stats/all (0.13; else /gpus/stats per GPU), /api/v1/processes?host= (what takes
+    each GPU, one call per machine online). See Docs/API.md of GpuViewR."""
     type = "gpuviewr"
     label = "GpuViewR"
     images = ("ghcr.io/erreur32/gpuviewr", "erreur32/gpuviewr")
@@ -383,7 +384,8 @@ class GpuViewR(StatusConnector):
                             "models": [{"model": p.get("llm_model") or p.get("process_name"), "alias": p.get("llm_alias"), "port": p.get("llm_port"),
                                         "runtime": p.get("llm_runtime"), "state": p.get("llm_state"),
                                         "gpu": p.get("gpu_index"), "mem_mb": num(p.get("used_memory"), 0) + num(p.get("gtt_memory"), 0)}
-                                       for p in llm if p.get("host_id") == x.get("id")]} for x in hosts]
+                                       for p in llm if p.get("host_id") == x.get("id")],
+                            "processes": self._processes(x, h) if x.get("status") != "offline" else []} for x in hosts]
         if health.get("update_available") is True:
             out["app_update"] = health.get("latest_version") or "?"
             out["problems"].append(f"mise à jour de GpuViewR disponible : {health.get('latest_version') or '?'}")
@@ -397,8 +399,20 @@ class GpuViewR(StatusConnector):
             q = urllib.parse.urlencode({"host": g.get("host_id"), "gpu": g.get("gpu_index", 0), "range": "24h"})
             st = (self.get_opt(f"/api/v1/gpus/stats?{q}", h) or {}).get("stats") or {}
         day = {k: round(num(st.get(k)), 1) for k in ("temp_max", "util_avg", "util_max", "mem_max", "pow_avg") if num(st.get(k)) is not None}
+        extra = {"index": g.get("gpu_index"), "driver": g.get("driver_version"), "fan": num(g.get("fan_speed")), "power_limit": num(g.get("power_limit")),
+                 "temp_limit": num(g.get("temp_limit")), "shared": g.get("memory_shared") is True or None}
         return {"name": g.get("name"), "temp": num(g.get("temperature")), "util": num(g.get("utilization")),
-                "mem_used": num(g.get("memory_used")), "mem_total": num(g.get("memory_total")), "power": num(g.get("power")), **({"day": day} if day else {})}
+                "mem_used": num(g.get("memory_used")), "mem_total": num(g.get("memory_total")), "power": num(g.get("power")),
+                **{k: v for k, v in extra.items() if v is not None}, **({"day": day} if day else {})}
+
+    def _processes(self, host: dict, h: dict) -> list[dict]:
+        """What takes the GPUs of one machine (latest agent snapshot), biggest first: name, GPU, memory in MiB, AI runtime and model if any."""
+        got = self.get_opt(f"/api/v1/processes?{urllib.parse.urlencode({'host': host.get('id')})}", h)
+        procs = rows((got or {}).get("processes") if isinstance(got, dict) else None)
+        out = [{"name": p.get("process_name"), "gpu": p.get("gpu_index"), "mem_mb": num(p.get("used_memory"), 0) + num(p.get("gtt_memory"), 0),
+                **({"runtime": p["llm_runtime"]} if p.get("llm_runtime") else {}), **({"model": p["llm_model"]} if p.get("llm_model") else {})}
+               for p in procs if p.get("process_name")]
+        return sorted(out, key=lambda p: -p["mem_mb"])[:12]
 
 
 class SpeedtestTracker(StatusConnector):

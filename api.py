@@ -44,6 +44,7 @@ from auth import AuthError, Store, db_path
 PREFIX = ""
 LEGACY = "/myservices"
 API = "/api/v1"
+PNG = "image/png"
 
 app = FastAPI(title="MyServices", version="2", docs_url=API + "/docs", redoc_url=None,
               openapi_url=API + "/openapi.json")
@@ -558,6 +559,11 @@ class ServiceMeta(BaseModel):
     public: bool = False
     direct_ok: bool = False
     pause: bool = False
+    name: str | None = Field(default=None, max_length=80)
+    icon: str | None = Field(default=None, max_length=40, pattern=r"^[a-z0-9-]+$")
+    app: str | None = Field(default=None, max_length=60)
+    open_url: str | None = Field(default=None, max_length=300)
+    alerts: Literal["down", "none"] | None = None
 
 
 @app.get(API + "/services/meta", tags=["services"], summary="Réglages à la main d'un service (son entrée de services-meta.json) et les catégories qu'on peut lui donner (admin)")
@@ -571,10 +577,12 @@ def services_meta_read(type: str, id: str, request: Request):
     if not row:
         return deny(404, "service introuvable (déjà disparu ?)")
     key, entry = new_services.current_entry(setup.META, row)
-    return {"key": key, "entry": {k: v for k, v in entry.items() if k in new_services.EDITABLE}, "categories": new_services.categories(setup.META, data)}
+    import known_apps
+    return {"key": key, "entry": {k: v for k, v in entry.items() if k in new_services.EDITABLE}, "categories": new_services.categories(setup.META, data),
+            "apps": known_apps.choices()}
 
 
-@app.put(API + "/services/meta", tags=["services"], summary="Modifier les réglages d'un service : catégorie, description, étiquettes, interface, public, accès direct, pause (admin)")
+@app.put(API + "/services/meta", tags=["services"], summary="Modifier les réglages d'un service : nom, icône, catégorie, description, étiquettes, appli, interface, adresse à ouvrir, public, accès direct, pause, alertes (admin)")
 def services_meta_edit(body: ServiceMeta, request: Request):
     import new_services
     import setup
@@ -586,15 +594,58 @@ def services_meta_edit(body: ServiceMeta, request: Request):
         return deny(404, "service introuvable (déjà disparu ?)")
     if body.category and body.category not in new_services.categories(setup.META, data):
         return deny(400, "catégorie inconnue : choisir parmi les catégories existantes")
+    import known_apps
+    if body.app and body.app not in {a["key"] for a in known_apps.choices()}:
+        return deny(400, "appli inconnue : choisir dans la liste")
+    open_url = (body.open_url or "").strip()
+    if open_url and (not open_url.startswith(("http://", "https://")) or any(c.isspace() for c in open_url)):
+        return deny(400, "adresse à ouvrir : commencer par http:// ou https://")
     tags = [t.strip()[:30] for t in body.tags if t.strip()]
     fields = {"category": body.category, "description": (body.description or "").strip(), "tags": tags, "web": body.web,
-              "public": body.public, "direct_ok": body.direct_ok, "pause": body.pause}
+              "public": body.public, "direct_ok": body.direct_ok, "pause": body.pause, "name": (body.name or "").strip(), "icon": body.icon,
+              "app": body.app, "open_url": open_url, "alerts": body.alerts}
     try:
         key = new_services.edit_meta(setup.META, core.WEB, row, fields)
     except LookupError as e:
         return deny(400, str(e))
     store().audit("service modifié", request.state.user["username"], ip_of(request), key)
     return {"ok": True, "key": key}
+
+
+def _stream_camera_known(connector: str, name: str, camera: str) -> bool:
+    """The camera (or stream) was seen at the last collection, on a connector that offers pictures."""
+    data = read_produced("data.json") or {}
+    status = next((c for c in data.get("services_status") or [] if c.get("connector") == connector and c.get("name") == name), None)
+    block = (status or {}).get("stream") or {}
+    known = {c.get("name") for c in block.get("cameras") or []} | {x.get("name") for x in block.get("streams") or []}
+    return bool(block.get("snapshot")) and camera in known
+
+
+def _camera_picture(connector: str, name: str, camera: str) -> bytes | JSONResponse:
+    """The picture asked from the connector, or the refusal to send back."""
+    import connectors
+    try:
+        inst = next((c for c in connectors.instances(core.CFG, kind="status") if c.type == connector and c.name == name), None)
+        if inst is None or not hasattr(inst, "snapshot"):
+            return deny(404, "connecteur introuvable")
+        return inst.snapshot(camera)
+    except connectors.ConnectorError as e:
+        return deny(502, str(e))
+
+
+@app.get(API + "/stream/snapshot", tags=["services"], summary="Image du moment d'une caméra, lue à la demande et jamais gardée (admin)")
+def stream_snapshot(connector: str, name: str, camera: str, request: Request):
+    if denied := admin_only(request):
+        return denied
+    if not _stream_camera_known(connector, name, camera):
+        return deny(404, "caméra inconnue (pas vue à la dernière collecte)")
+    img = _camera_picture(connector, name, camera)
+    if isinstance(img, Response):
+        return img
+    if img[:3] != b"\xff\xd8\xff" and img[:8] != b"\x89PNG\r\n\x1a\n":   # JPEG or PNG only
+        return deny(502, "la réponse n'est pas une image")
+    store().audit("image de caméra vue", request.state.user["username"], ip_of(request), f"{name} · {camera}"[:200])
+    return Response(img, media_type=PNG if img[:4] == b"\x89PNG" else "image/jpeg", headers={"Cache-Control": "no-store"})
 
 
 class ServicePublic(BaseModel):
@@ -2700,7 +2751,7 @@ def ha_addon_icon(name: str, slug: str):
     cache = Path(core.CFG["cache_dir"]).expanduser() / "ha-icons" / f"{slug}.png"
     try:
         if cache.is_file() and time.time() - cache.stat().st_mtime < 7 * 86400:  # NOSONAR S2083: file name = the slug checked above, in the app's cache
-            return Response(cache.read_bytes(), media_type="image/png", headers={"Cache-Control": "max-age=86400"})  # NOSONAR S2083: same checked slug
+            return Response(cache.read_bytes(), media_type=PNG, headers={"Cache-Control": "max-age=86400"})  # NOSONAR S2083: same checked slug
         ha = next((c for c in connectors.instances(core.CFG, kind="status") if c.type == "home-assistant" and c.name == name), None)
         if ha is None:
             return deny(404, "introuvable")
@@ -2709,7 +2760,7 @@ def ha_addon_icon(name: str, slug: str):
         return deny(404, "introuvable")
     cache.parent.mkdir(parents=True, exist_ok=True)  # NOSONAR S2083: the app's cache folder
     cache.write_bytes(data)  # NOSONAR S2083: the name is the slug checked above, under the app's cache folder
-    return Response(data, media_type="image/png", headers={"Cache-Control": "max-age=86400"})
+    return Response(data, media_type=PNG, headers={"Cache-Control": "max-age=86400"})
 
 
 class MuteBody(BaseModel):

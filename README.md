@@ -42,7 +42,7 @@
 >
 > Because it is still moving fast, **pull requests and issues are not being handled for now**; please hold them until a stable release.
 >
-> Development builds are not tagged. Version numbers stay **below 2.0.0** until it is declared stable (`0.21.0`, `0.21.1`…).
+> Development builds are not tagged. Version numbers stay **below 2.0.0** until it is declared stable (`0.22.0`, `0.22.1`…).
 > Details: [CHANGELOG.md](CHANGELOG.md) (always in English) · [RELEASE-NOTES.md](RELEASE-NOTES.md) (in English).
 
 ## At a glance
@@ -76,7 +76,7 @@ Then open **`http://<IP>:8090/`** (the app is at the root of the site; the old `
 
 > **The app listens on port `8090`.** It is a setting, not a fixed value: if 8090 is already taken on your machine, put **`MYSERVICES_PORT=8095`** (or any free port) in a `.env` file next to `docker-compose.yaml` (example: [`deploy/env.example`](deploy/env.example), downloaded by the second `curl` above), then run `docker compose up -d` and open `http://<IP>:8095/`. The container uses the host network, so editing a `ports:` mapping would do nothing.
 
-Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.21.0` pins a version, `:main` tracks the latest commit of the `main` branch (the header then shows e.g. `v0.10.1+ · main · abc1234`).
+Image: `ghcr.io/erreur32/myservices` (amd64 and arm64). `:latest` follows the latest tag, `:0.22.0` pins a version, `:main` tracks the latest commit of the `main` branch (the header then shows e.g. `v0.10.1+ · main · abc1234`).
 Update: `docker compose pull && docker compose up -d` (settings and data live in the `./config` and `./data` volumes).
 
 ---
@@ -95,14 +95,14 @@ Pull requests are not handled for now (see the notice at the top).
 <details>
 <summary><b>What you see: the menu</b></summary>
 
-One menu on the left holds every page, in four groups; the views of a page are its sub-pages, listed under it, each with its own address. « To watch » is the first sub-page of Services, Network, DNS, Backups and Security, and leaves the menu when nothing is to watch. An entry appears once its source is linked.
+One menu on the left holds every page, in four groups; the views of a page are its sub-pages, listed under it, each with its own address. What needs your attention is the « Alerts » filter of each list (Security: its Overview). An entry appears once its source is linked.
 
 | Group | Pages |
 |---|---|
-| **Overview** | **Home** (what needs your attention, then counters that open the page already filtered; Statistics), **History** (events of the last 24 h to one year as dots, bars, curve or heat map; availability) |
-| **Inventory** | **Machines** (every machine with its state, system, access and details; devices seen by your tools but not followed; agents), **Services** (NPM hosts and local services, new services, declare a service), **Network** (UniFi, Freebox, scan, devices, discovery), **DNS** (AdGuard Home: servers, rewrites, domains to check), **Virtualization**, **Infra** (services read through their API, containers), **Diagrams** |
-| **Protection** | **Backups** (sets, age of the latest copy, copies elsewhere, their settings), **Security** (sites, access, ports, certificates, Fail2ban), **Alerts** (channels, rules, notifications, last sent) |
-| **Administration** | **Connectors** (mine, available, found to link, already read over SSH or by an agent), **Accounts and access** (accounts and sessions, API and MCP tokens, the app's SSH key), **Application** (tasks and schedules, updates, e-mail, export and import, requests, audit, logs, information) |
+| **Overview** | **Home** (dashboard: what needs your attention, then counters that open the page already filtered; statistics), **History** (events of the last 24 h to one year as dots, bars, curve or heat map; availability) |
+| **Inventory** | **Machines** (every machine, each with its own page and settings; devices seen by your tools but not followed; agents; SSH connections and the app's SSH key), **Services** (NPM hosts and local services, each with its page, read and edited in place; new services; declare a service), **Network** (UniFi, Freebox, scan, devices, diagnostic), **DNS** (AdGuard Home: servers, details), **Virtualization**, **AI and agents** (overview, models, agents and MCP, GPU; shown once an AI service or connector exists), **Video and cameras** (overview, cameras, streams, recordings; shown once a Stream service or a video connector exists), **Infra** (services read through their API, containers), **Diagrams** |
+| **Protection** | **Backups** (by machine, sets, add backups, to link, copies elsewhere, paths searched), **Security** (overview, exposed sites, SSH access, network ports, certificates, Fail2ban, Wazuh) |
+| **Administration** | **Connectors** (mine, available, found to link, already read over SSH or by an agent), **Notifications** (channels, alert rules, my notifications, examples, last sent), **Accounts and access** (accounts and sessions, API and MCP tokens), **Application** (tasks and schedules, automatic discovery, updates, e-mail, export and import, information), **Activity** (requests, audit log, logs) |
 
 Profile, Help and About are in the account menu, top right.
 
@@ -116,7 +116,7 @@ Every filter is a toggle: click to turn it off, click again to turn it back on; 
 A machine can be followed in three ways, which can be combined. The first source that answers is used, and the next ones fill in what it could not read (the order is set per machine).
 
 1. **MyServices itself**, nothing else to install:
-   - **SSH** (Linux): MyServices connects with its **own key** (shown in Administration › Accounts and access › App's SSH key) and reads health, Docker, listening services and web servers. The key is never sent anywhere; you authorize it on each machine with one command. A dedicated non-root account in the `docker` and `adm` groups is the safest.
+   - **SSH** (Linux): MyServices connects with its **own key** (shown in Machines › SSH connections) and reads health, Docker, listening services and web servers. The key is never sent anywhere; you authorize it on each machine with one command. A dedicated non-root account in the `docker` and `adm` groups is the safest.
    - **Agent** (Windows or Linux): a small read-only script (PowerShell as a scheduled task, or Python as a systemd timer) sends the machine's own health, disks, ports, services, hardware and Docker containers. Nothing to open on the PC.
 2. **External services already on your network** (connectors): if you already run Beszel, Proxmox, Uptime Kuma, MynetworK… MyServices reads their API with a read-only key. Nothing is installed on the machine.
 3. **Ping and network scan**: only tell whether a machine is up and which apps answer on it. The first scan of your local network runs on its own, then repeats at the frequency you set. In manual mode you choose which machines to follow; in automatic mode the useful ones are added for you.
@@ -189,7 +189,9 @@ A connector lets MyServices read a tool through its API, **read-only**: give it 
 | **Web and proxies** | Nginx Proxy Manager, Web-Check |
 | **DNS** | AdGuard Home, Pi-hole, Technitium DNS |
 | **Monitoring** | Beszel, Uptime Kuma, Dozzle, Prometheus, Healthchecks, Netdata, LogviewR |
-| **Home and media** | Home Assistant, Jellyfin, Sonarr / Radarr / Prowlarr…, Frigate |
+| **Home and media** | Home Assistant, Jellyfin, Sonarr / Radarr / Prowlarr… |
+| **Video and cameras** | Frigate, Shinobi, go2rtc, MediaMTX, Owncast |
+| **AI** | Ollama, llama.cpp, Open WebUI, OpenAI-compatible API (vLLM, LM Studio, LocalAI, KoboldCpp, LiteLLM), Hermes Agent, GpuViewR |
 | **Network** | MynetworK, UniFi Network, Tailscale / Headscale, OPNsense |
 | **Security** | CrowdSec |
 | **Virtualization and containers** | Proxmox VE, Dockhand, Portainer |
@@ -206,7 +208,7 @@ Writing a connector: [docs/CONNECTEURS.md](docs/CONNECTEURS.md) (in French). Ide
 <details>
 <summary><b>Backups</b></summary>
 
-Backups › Settings › Add backups shows the **sources** as tiles (click one to open its wizard under the tiles):
+Backups › Add backups shows the **sources** as tiles (click one to open its wizard under the tiles):
 
 - **Folders on my machines**: found over SSH in the usual places (`/home/backup` is followed automatically); you tick the ones to watch.
 - **Veeam Backup & Replication**: REST API (port 9419) with a read-only account (role *Veeam Backup Viewer*); pick the jobs to follow.
