@@ -1,11 +1,11 @@
-import { ArrowUpCircle, ChevronDown, ExternalLink, Info, LifeBuoy, ListChecks, LogOut, Menu, Moon, Sun, UserRound, X } from "lucide-react";
+import { ArrowUpCircle, ChevronDown, ExternalLink, Info, LifeBuoy, ListChecks, LogOut, Menu, UserRound, X } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { DiscoveryBell } from "./DiscoveryCard";
 import { DropItem, DROP_PANEL, DropSep, useDropdown } from "./Dropdown";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { logout, type Snapshot } from "../api";
-import type { Theme } from "../theme";
-import { LOCALE, tx } from "../lib/i18n";
+import { LANG, LOCALE, setLang, tx } from "../lib/i18n";
+import { Flag } from "./Flag";
 import { appVersion } from "../lib/format";
 import { reopenAssistant } from "../lib/assistant";
 import { GITHUB } from "../lib/links";
@@ -90,7 +90,7 @@ function useUpdateNotices(update?: UpdateNews | null) {
   return { pill: on ? checked ?? update : null, toast: on ? toast : null, close };
 }
 
-export function Header({ snap, theme, toggleTheme, now, onMenu }: Readonly<{ snap: Snapshot; theme: Theme; toggleTheme: () => void; now: number; onMenu: () => void }>) {
+export function Header({ snap, now, onMenu }: Readonly<{ snap: Snapshot; now: number; onMenu: () => void }>) {
   const stale = (now - new Date(snap.data.generated).getTime()) / 60000 > snap.data.page.stale_min;
   const updates = useUpdateNotices(snap.me.update);
   const version = appVersion(snap.me.version, snap.me.released) || snap.me.version || "";
@@ -121,14 +121,14 @@ export function Header({ snap, theme, toggleTheme, now, onMenu }: Readonly<{ sna
       <div className="col-start-3 flex items-center justify-end gap-3">
         <UpdatePill update={updates.pill} />
         {snap.me.role === "admin" && <DiscoveryBell machines={snap.data.machine_list} />}
-        <UserMenu snap={snap} theme={theme} toggleTheme={toggleTheme} />
+        <UserMenu snap={snap} />
       </div>
     </header>
   );
 }
 
 /** Menu du compte, à droite : qui est connecté, réglages, profil, premiers pas, thème, projet, déconnexion. */
-function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; toggleTheme: () => void }) {
+function UserMenu({ snap }: Readonly<{ snap: Snapshot }>) {
   const { open, setOpen, box } = useDropdown();
   const admin = snap.me.role === "admin";
   const go = (hash: string) => { location.hash = hash; setOpen(false); };
@@ -151,7 +151,7 @@ function UserMenu({ snap, theme, toggleTheme }: { snap: Snapshot; theme: Theme; 
           </div>
           <DropSep />
           <DropItem icon={<UserRound size={15} />} onClick={() => go("profile")}>{tx("Profil")}</DropItem>
-          <DropItem icon={theme === "light" ? <Moon size={15} /> : <Sun size={15} />} onClick={toggleTheme}>{tx("Thème")} {theme === "light" ? tx("sombre") : tx("clair")}</DropItem>
+          <DropItem icon={<Flag lang={LANG === "fr" ? "en" : "fr"} className="h-3.5 w-5" />} onClick={() => setLang(LANG === "fr" ? "en" : "fr")}>{LANG === "fr" ? "English" : "Français"}</DropItem>{/* the other language, named in itself; the theme is chosen in the profile */}
           <DropSep />
           <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-widest text-dim">{tx("Consulter")}</p>
           <DropItem icon={<LifeBuoy size={15} />} onClick={() => go("help")}>{tx("Aide")}</DropItem>

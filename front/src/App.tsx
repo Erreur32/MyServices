@@ -38,7 +38,7 @@ const SIDE_PAGES: Record<string, { admin?: boolean; render: (snap: Snapshot) => 
 };
 
 export default function App() {
-  const [theme, toggleTheme, setTheme] = useTheme();
+  const [theme, setTheme] = useTheme();
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [error, setError] = useState("");
   const [fresh, setFresh] = useState<NotConfigured | null>(null);
@@ -133,7 +133,7 @@ export default function App() {
         onBadge={(t) => { setMenuOpen(false); if (t === "machines") goFilter("machines", { alert: ["bad", "warn"] }); else if (t === "backups" || t === "dns") goFilter(t, { alerts: ["on"] }); else if (t === "services" || t === "network") goFilter(t, { alert: ["on"] }); else go(t); }} />
       <div className="min-w-0 flex-1 px-4 pb-10 sm:px-6">
       <ScanBar onFinished={load} />
-      <Header snap={snap} theme={theme} toggleTheme={toggleTheme} now={now} onMenu={() => setMenuOpen(true)} />
+      <Header snap={snap} now={now} onMenu={() => setMenuOpen(true)} />
       {error && <p className="mb-2 rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn">{tx("⚠ Mise à jour impossible :")} {error}</p>}
       <div className={GREY_CARDS}>
       {top}

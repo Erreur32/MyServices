@@ -360,7 +360,6 @@ export const EN: Record<string, string> = {
   "Chargement…": "Loading…",
   "Cible": "Target",
   "cible inconnue": "unknown target",
-  "clair": "light",
   "Clair": "Light",
   "collecteur lui-même (local)": "the collector itself (local)",
   "compte « {0} » créé ({1})": "account “{0}” created ({1})",
@@ -1618,8 +1617,6 @@ export const EN: Record<string, string> = {
   "services hors Docker": "services outside Docker",
   "site public (voulu)": "public site (intended)",
   "SMART : {0} en défaut": "SMART: {0} failing",
-  "sombre": "dark",
-  "Sombre": "Dark",
   "sondes suspendues (« à revoir »)": "probes paused (“to review”)",
   "Sorte": "Kind",
   "Souvent éteinte": "Often off",
@@ -3238,4 +3235,6 @@ export const EN: Record<string, string> = {
   "Notifications dans l'en-tête": "Notices in the header",
   "La pastille de la nouvelle version et l'annonce animée en haut de la page. Réglage de ce navigateur.": "The new version's pill and the animated notice at the top of the page. A setting of this browser.",
   "Lignes": "Lines",
+  "Sombre (MyServices)": "Dark (MyServices)",
+  "choisi": "picked",
 };

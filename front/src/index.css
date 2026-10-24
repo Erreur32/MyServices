@@ -4,14 +4,14 @@
 
 /* Couleurs (canaux RVB, pour l'opacité Tailwind) : sombre = palette de la page actuelle ; clair = mêmes teintes
    d'état, un peu plus foncées pour rester lisibles sur fond blanc. */
-:root {
+:root, .theme-dark {   /* .theme-<id> alone: a theme's preview in Settings → Appearance, drawn in its own colours */
   --bg: 12 14 20; --bg2: 17 20 29; --card: 22 26 38; --line: 35 40 56;
   --txt: 230 233 242; --muted: 154 163 184; --dim: 107 116 136;
   --ok: 76 208 127; --warn: 232 163 61; --bad: 240 106 106; --link: 36 150 237;
   --npm: 250 164 47; --loc: 56 189 248; --apache: 192 132 252;
   color-scheme: dark;
 }
-:root.light {
+:root.light, .theme-light {
   --bg: 244 246 250; --bg2: 236 239 245; --card: 255 255 255; --line: 218 223 232;
   --txt: 22 27 38; --muted: 83 93 114; --dim: 120 129 148;
   --ok: 22 150 75; --warn: 196 120 10; --bad: 214 54 54; --link: 18 112 196;
@@ -19,23 +19,41 @@
   color-scheme: light;
 }
 /* Other dark themes (Réglages → Apparence), after their public palettes; the state colours are picked to stay apart */
-:root.theme-github-dark {
+:root.theme-github-dark, .theme-github-dark {
   --bg: 13 17 23; --bg2: 1 4 9; --card: 22 27 34; --line: 48 54 61;
   --txt: 230 237 243; --muted: 139 148 158; --dim: 110 118 129;
   --ok: 63 185 80; --warn: 210 153 34; --bad: 248 81 73; --link: 47 129 247;
   --npm: 219 109 40; --loc: 86 212 221; --apache: 188 140 255;
 }
-:root.theme-night-owl {
+:root.theme-night-owl, .theme-night-owl {
   --bg: 1 22 39; --bg2: 1 17 29; --card: 11 41 66; --line: 29 59 83;
   --txt: 214 222 235; --muted: 137 164 187; --dim: 95 126 151;
   --ok: 173 219 103; --warn: 255 203 107; --bad: 239 83 80; --link: 130 170 255;
   --npm: 247 140 108; --loc: 127 219 202; --apache: 199 146 234;
 }
-:root.theme-ayu-mirage {
+:root.theme-ayu-mirage, .theme-ayu-mirage {
   --bg: 31 36 48; --bg2: 25 30 42; --card: 36 41 54; --line: 52 61 79;
   --txt: 204 202 194; --muted: 138 145 153; --dim: 92 103 115;
   --ok: 135 217 108; --warn: 255 204 102; --bad: 255 102 102; --link: 115 208 255;
   --npm: 255 166 89; --loc: 149 230 203; --apache: 223 191 255;
+}
+:root.theme-one-dark, .theme-one-dark {
+  --bg: 40 44 52; --bg2: 33 37 43; --card: 44 49 58; --line: 62 68 81;
+  --txt: 171 178 191; --muted: 130 137 151; --dim: 92 99 112;
+  --ok: 152 195 121; --warn: 229 192 123; --bad: 224 108 117; --link: 97 175 239;
+  --npm: 209 154 102; --loc: 86 182 194; --apache: 198 120 221;
+}
+:root.theme-nord, .theme-nord {
+  --bg: 46 52 64; --bg2: 39 44 54; --card: 59 66 82; --line: 76 86 106;
+  --txt: 236 239 244; --muted: 163 171 186; --dim: 123 136 161;
+  --ok: 163 190 140; --warn: 235 203 139; --bad: 191 97 106; --link: 136 192 208;
+  --npm: 208 135 112; --loc: 143 188 187; --apache: 180 142 173;
+}
+:root.theme-dracula, .theme-dracula {   /* the author's palette: pink for errors, cyan links, purple as the third accent */
+  --bg: 40 42 54; --bg2: 33 34 44; --card: 52 55 70; --line: 68 71 90;
+  --txt: 248 248 242; --muted: 182 185 201; --dim: 98 114 164;
+  --ok: 80 250 123; --warn: 255 184 108; --bad: 255 121 198; --link: 139 233 253;
+  --npm: 241 250 140; --loc: 105 195 255; --apache: 189 147 249;
 }
 
 /* App icons drawn only in black: white on the dark theme, kept black on the light one (one line per file of public/icons) */

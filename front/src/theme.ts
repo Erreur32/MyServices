@@ -2,10 +2,9 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 /** "dark" is the original palette; the other dark themes each get a class « theme-<id> » on <html> (colours in index.css). */
-export type Theme = "dark" | "light" | "github-dark" | "night-owl" | "ayu-mirage";
-export const THEMES: Theme[] = ["dark", "github-dark", "night-owl", "ayu-mirage", "light"];
+export type Theme = "dark" | "light" | "github-dark" | "night-owl" | "ayu-mirage" | "one-dark" | "nord" | "dracula";
+export const THEMES: Theme[] = ["dark", "github-dark", "night-owl", "ayu-mirage", "one-dark", "nord", "dracula", "light"];
 const KEY = "myservices-theme";
-const DARK_KEY = "myservices-theme-dark";   // last dark theme picked: the header button comes back to it from the light one
 
 const isTheme = (v: string | null): v is Theme => THEMES.includes(v as Theme);
 
@@ -14,30 +13,20 @@ export function savedTheme(): Theme {
   return isTheme(v) ? v : "dark";
 }
 
-function savedDark(): Theme {
-  const v = localStorage.getItem(DARK_KEY);
-  return isTheme(v) && v !== "light" ? v : "dark";
-}
-
-/** Header button: light → the last dark theme, any dark theme → light. */
-export function toggledTheme(t: Theme, lastDark: Theme): Theme {
-  return t === "light" ? lastDark : "light";
-}
-
 export function applyTheme(t: Theme): void {
   const root = document.documentElement;
   root.classList.toggle("light", t === "light");
   for (const id of THEMES) root.classList.toggle(`theme-${id}`, id === t && id !== "dark" && id !== "light");
 }
 
-export function useTheme(): [Theme, () => void, (t: Theme) => void] {
+/** The theme, picked in the profile (Appearance) only: the header has no switch any more */
+export function useTheme(): [Theme, (t: Theme) => void] {
   const [theme, setTheme] = useState<Theme>(savedTheme);
   useEffect(() => {
     applyTheme(theme);
     localStorage.setItem(KEY, theme);
-    if (theme !== "light") localStorage.setItem(DARK_KEY, theme);
   }, [theme]);
-  return [theme, () => setTheme((t) => toggledTheme(t, savedDark())), setTheme];
+  return [theme, setTheme];
 }
 
 /** Logo avant le titre de l'en-tête : le favicon tel quel (grille sur carré sombre) ou la même grille sans fond. */

@@ -1,16 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { applyTheme, savedTheme, toggledTheme } from "./theme";
+import { applyTheme, savedTheme, THEMES } from "./theme";
 
 const store = (v: Record<string, string>) => vi.stubGlobal("localStorage", { getItem: (k: string) => v[k] ?? null });
 
 describe("theme", () => {
   afterEach(() => vi.unstubAllGlobals());
-
-  it("header button: light goes back to the last dark theme, any dark theme to light", () => {
-    expect(toggledTheme("light", "night-owl")).toBe("night-owl");
-    expect(toggledTheme("ayu-mirage", "ayu-mirage")).toBe("light");
-    expect(toggledTheme("dark", "dark")).toBe("light");
-  });
 
   it("an unknown saved value falls back to the original dark theme", () => {
     store({ "myservices-theme": "github-dark" });
@@ -28,5 +22,8 @@ describe("theme", () => {
     expect([...classes]).toEqual(["light"]);
     applyTheme("dark");
     expect([...classes]).toEqual([]);
+    applyTheme("dracula");
+    expect([...classes]).toEqual(["theme-dracula"]);
+    expect(THEMES).toEqual(expect.arrayContaining(["one-dark", "nord", "dracula"]));
   });
 });
