@@ -3229,4 +3229,5 @@ export const EN: Record<string, string> = {
   "{0} appli(s) à activer": "{0} app(s) to activate",
   "Ce que personne ne lit encore d'abord, puis ce qui est déjà couvert": "What nobody reads yet first, then what is already covered",
   "En bref": "At a glance",
+  "Activité": "Activity",
 };
