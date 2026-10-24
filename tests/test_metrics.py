@@ -78,7 +78,8 @@ class AgentOfSshMachine(unittest.TestCase):
         import health
         hc = {"id": "pc", "name": "pc · 10.0.0.7", "ip": "10.0.0.7", "os": "windows"}
         report = {"report": {"data": {"cpu": 12, "mem": 40, "disks": [{"m": "C:", "s": 100, "f": 20}]}}, "fresh": True}
-        with tempfile.TemporaryDirectory() as tmp, patch("auth.db_path", return_value=Path(tmp) / "t.db"):
+        with tempfile.TemporaryDirectory() as tmp, patch("auth.db_path", return_value=Path(tmp) / "t.db"), \
+                patch("metrics.time.time", return_value=NOW):   # the purge counts from the clock: fixed, or NOW ages out after a day
             self.assertTrue(health.agent_figures(hc, report, iso(NOW)))
             self.assertFalse(health.agent_figures(hc, report, iso(NOW + 60)))      # under MIN_GAP
             self.assertFalse(health.agent_figures(hc, {**report, "fresh": False}, iso(NOW + 600)))
