@@ -102,7 +102,7 @@ function SetsTable({ sets, b, snap, sizes = false }: Readonly<{ sets: BackupSet[
 }
 
 /** The view by machine (the former page): filters, one row per machine, local folders, unclaimed cron lines */
-function ByMachine({ b, initial }: Readonly<{ b: BackupsData; initial?: Selected }>) {
+function ByMachine({ b, initial, onSets }: Readonly<{ b: BackupsData; initial?: Selected; onSets: (h: BackupHost) => void }>) {
   const sets = useMemo(() => new Map((b.sets || []).map((s) => [s.id, s])), [b]);
   const facets = useMemo((): Facet<BackupHost>[] => [
     { key: "state", label: tx("État"), get: stateOf, name: (v) => LEVEL[v]?.[1] || v, order: ["crit", "down", "warn", "ok", "na"], mark: (v) => <Dot tone={LEVEL[v]?.[0] ?? "off"} /> },
@@ -129,7 +129,11 @@ function ByMachine({ b, initial }: Readonly<{ b: BackupsData; initial?: Selected
     const own = h.sets.map((id) => sets.get(id)).filter((x): x is BackupSet => !!x);
     if (!own.length) return <Dim>{tx("aucun")}</Dim>;
     const worst = own.reduce((w, x) => (rank(x.level) > rank(w.level) ? x : w), own[0]);
-    return <span title={own.map((x) => `${short(x.label)} · ${x.schedule ?? ""}`).join("\n")}><Level level={worst.level} outline plainText>{tx("{0} jeu(x)", own.length)}</Level></span>;
+    return (
+      <button type="button" className="hover:opacity-80" title={`${own.map((x) => `${short(x.label)} · ${x.schedule ?? ""}`).join("\n")}\n${tx("Voir ses jeux")}`} onClick={() => onSets(h)}>
+        <Level level={worst.level} outline plainText>{tx("{0} jeu(x)", own.length)}</Level>
+      </button>
+    );
   };
   const disks = (h: BackupHost) => h.disks.length ? (
     <div className="flex flex-col gap-1">
@@ -204,18 +208,26 @@ const SET_FILTERS: { id: SetFilter; label: string; keep: (s: BackupSet) => boole
   { id: "archived", label: tx("Archivés"), keep: (s) => s.archived },
 ];
 
-/** Backups → Sets: every set, three chips (in use, flagged, archived); each row unfolds its detail, « Set » opens its settings page */
-function SetsView({ sets, b, snap }: Readonly<{ sets: BackupSet[]; b: BackupsData; snap: Snapshot }>) {
+/** Backups → Sets: every set, a search (set, machine, folder, schedule…) with a machine filter (set by the link of a machine), three chips
+ *  (in use, flagged, archived); each row unfolds its detail, « Set » opens its settings page */
+function SetsView({ sets, b, snap, initial }: Readonly<{ sets: BackupSet[]; b: BackupsData; snap: Snapshot; initial?: Selected }>) {
   const [pick, setPick] = useState<SetFilter>("live");
+  const facets = useMemo((): Facet<BackupSet>[] => {
+    const hosts = b.hosts ?? [], names = new Map(hosts.map((h) => [h.id, h.label]));
+    return [{ key: "machine", label: tx("Machine"), get: (s) => hosts.filter((h) => h.sets.includes(s.id)).map((h) => h.id), name: (v) => names.get(v) || v }];
+  }, [b]);
+  const text = useCallback((s: BackupSet) => [s.label, s.origin_label, s.origin, s.schedule, s.mode, s.retention, ...(s.why ?? []),
+    ...s.locations.flatMap((l) => [l.label, l.host, l.path, l.via])].join(" "), []);
+  const f = useFilter(sets, facets, text, initial);
   const filter = SET_FILTERS.find((x) => x.id === pick)!;
-  const shown = sets.filter(filter.keep);
+  const shown = f.shown.filter(filter.keep);
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-card shadow-sm" aria-label={tx("Jeux")}>
       <div className="flex flex-wrap items-center gap-2 border-b border-line/60 bg-bg px-4 py-3">
         <h2 className="flex items-center gap-2 font-bold"><Layers size={16} aria-hidden />{tx("Jeux")}</h2>
         <span className="ml-auto flex flex-wrap gap-1.5">
           {SET_FILTERS.map((x) => {
-            const n = sets.filter(x.keep).length, on = x.id === pick;
+            const n = f.shown.filter(x.keep).length, on = x.id === pick;
             return (
               <button key={x.id} type="button" aria-pressed={on} onClick={() => setPick(x.id)}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${on ? "border-link bg-link/15 text-txt" : "border-line bg-bg2 text-muted hover:border-link hover:text-txt"}`}>
@@ -225,6 +237,7 @@ function SetsView({ sets, b, snap }: Readonly<{ sets: BackupSet[]; b: BackupsDat
           })}
         </span>
       </div>
+      <div className="border-b border-line/60 px-4 py-3"><FilterBar f={f} placeholder={tx("Jeu, machine, dossier, horaire…")} primary={["machine"]} oneLine bare /></div>
       {shown.length ? <SetsTable sets={shown} b={b} snap={snap} sizes /> : <p className="px-4 py-3 text-sm text-dim">{tx("Aucun jeu dans ce filtre.")}</p>}
     </section>
   );
@@ -242,6 +255,7 @@ export function Backups({ snap, initial, route }: Readonly<{ snap: Snapshot; ini
   const b = snap.backups;
   const watch = toWatch(b?.sets ?? []);
   const view = usePageView(route, "backups", VIEWS, defaultView(watch.length, !!initial && Object.keys(initial).length > 0));
+  const [setsFrom, setSetsFrom] = useState<{ sel: Selected; n: number }>({ sel: {}, n: 0 });   // the machine filter brought by « Sets produced » (By machine)
   if (!b) return <Empty>{tx("Sauvegardes pas encore relevées.")}</Empty>;
   const sm = b.summary, fig = figures(b);
   const all = [...(b.sets ?? [])].sort((a, x) => Number(a.archived) - Number(x.archived) || rank(x.level) - rank(a.level) || a.label.localeCompare(x.label));   // archived sets last, kept visible here
@@ -265,10 +279,10 @@ export function Backups({ snap, initial, route }: Readonly<{ snap: Snapshot; ini
           {watch.length ? <SetsTable sets={watch} b={b} snap={snap} /> : <p className="px-4 py-3 text-sm text-ok">{tx("Tous les jeux suivis sont à jour.")}</p>}
         </WatchPanel>
       )}
-      {view === "all" && <SetsView sets={all} b={b} snap={snap} />}
+      {view === "all" && <SetsView key={setsFrom.n} sets={all} b={b} snap={snap} initial={setsFrom.sel} />}
       {view === "machines" && (
         <FoldPanel id="backups-hosts" icon={Monitor} title={tx("Par machine")} count={b.hosts?.length ?? 0} pinned>
-          <ByMachine b={b} initial={initial} />
+          <ByMachine b={b} initial={initial} onSets={(h) => { setSetsFrom((x) => ({ sel: { machine: [h.id] }, n: x.n + 1 })); location.hash = "backups/all"; }} />
         </FoldPanel>
       )}
     </div>

@@ -1457,6 +1457,8 @@ export const EN: Record<string, string> = {
   "machine inconnue": "unknown machine",
   "Machine virtuelle": "Virtual machine",
   "Machine, jeu, dossier…": "Machine, set, folder…",
+  "Jeu, machine, dossier, horaire…": "Set, machine, folder, schedule…",
+  "Voir ses jeux": "See its sets",
   "machines": "machines",
   "Machines": "Machines",
   "Machines / SSH": "Machines / SSH",

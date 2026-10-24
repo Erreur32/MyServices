@@ -13,6 +13,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 
 ### Added
 - **Services › All services, stop following a known alert**: a service down (even on purpose), in warning or with a point to check gets the same button as on « To watch » (admin only, also on the phone cards): it hides it from « To watch », the tab's dot and the home page until its problem changes; once hidden, the button shows it back.
+- **Backups › Sets, a search**: a search field (set, machine, folder, schedule, place of a copy) and a machine filter in chips, above the three chips (in use, flagged, archived), whose counts follow it. On Backups › By machine, the « Sets produced » badge of a machine opens the sets filtered on that machine.
 
 ## v0.20.2 (2026-10-23)
 
