@@ -67,6 +67,20 @@ class Advice(unittest.TestCase):
         a = self.check(adv.facts_of(m), "agent", "agent_linux_ssh", True, "linux", ["ssh", "connector"])
         self.assertEqual(a["alternatives"], ["ssh", "connector"])
 
+    def test_esxi_is_read_by_ssh_or_its_connector_never_by_an_agent(self):
+        m = machine(info={"os": "VMware ESXi 8.0.3"}, ssh={"alias": "esxi"})
+        a = self.check(adv.facts_of(m), "ssh", "esxi", False, None, ["ssh"])
+        self.assertEqual(a["alternatives"], [])
+        m = machine(icon="esxi", ssh={"alias": "esxi"}, api=[{"label": "ESXi", "ok": True}])
+        self.assertEqual(self.check(adv.facts_of(m), "connector", "esxi", False)["alternatives"], ["ssh"])
+        self.check(adv.facts_of(machine(icon="vmware")), "ping", "esxi", False)
+
+    def test_closed_nas_never_gets_an_agent(self):
+        m = machine(ssh={"alias": "nas"}, api=[{"label": "Synology", "ok": True}])
+        self.assertEqual(self.check(adv.facts_of(m), "connector", "nas", False)["alternatives"], ["ssh"])
+        for app in ("QNAP", "TrueNAS", "Unraid", "WD My Cloud"):
+            self.check(adv.facts_of(machine(), scan={"os": "linux", "ssh_port": 22, "apps": [app]}), "ssh", "nas", False)
+
     def test_hypervisor_with_ssh(self):
         m = machine(info={"os": "Debian GNU/Linux 12"}, ssh={"alias": "pve"}, api=[{"label": "Hypervisor", "ok": True}])
         self.check(adv.facts_of(m), "agent", "agent_linux_ssh", True, "linux", ["ssh", "connector"])

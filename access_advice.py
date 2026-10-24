@@ -6,6 +6,7 @@ elle reçoit ce que l'on sait de la machine et répond. Rien n'est décidé à l
 Règle (la même que dans le README) :
 - box, passerelle, appli fermée (Freebox, UniFi…) : le connecteur, jamais d'agent ;
 - Home Assistant OS : son API (connecteur), ni SSH ni agent : l'accès SSH y est effacé à chaque redémarrage (constat de l'auteur) ;
+- VMware ESXi et NAS fermé (Synology, QNAP, WD My Cloud, TrueNAS, Unraid) : leur connecteur ou le SSH, jamais d'agent (rien ne s'y installe) ;
 - PC Windows : l'agent ;
 - machine Linux : l'agent (il relit la machine chaque minute, sans clé SSH ; décidé le 2026-10-23), le SSH en alternative et gardé pour ce
   que l'agent ne lit pas (sauvegardes, Proxmox ou ESXi, NPM, AdGuard : ssh_uses) ; une machine déjà lue par SSH n'est pas signalée pour autant ;
@@ -21,6 +22,9 @@ METHODS = ("ssh", "agent", "connector", "ping")
 APPLIANCE_ICONS = {"freebox", "free", "nut", "unifi"}
 APPLIANCE_APPS = {"unifi", "freebox", "opnsense", "pfsense", "openwrt", "mikrotik", "ubiquiti"}
 APPLIANCE_ROLE = re.compile(r"passerelle|gateway|routeur|router|firewall|\bbox\b", re.IGNORECASE)
+# Closed systems where nothing gets installed, read by their connector or over SSH: VMware ESXi, NAS systems
+ESXI = re.compile(r"esxi|vmware", re.IGNORECASE)
+CLOSED_NAS = re.compile(r"synology|qnap|\bwd\b|my ?cloud|truenas|freenas|unraid", re.IGNORECASE)
 
 
 def os_kind(f: dict) -> str:
@@ -66,6 +70,15 @@ def is_home_assistant_os(f: dict) -> bool:
     return any(re.search(r"home[ _-]?assistant", w) for w in words)
 
 
+def closed_system(f: dict) -> str | None:
+    """« esxi » or « nas » for a closed system read by its connector or over SSH (never an agent), from the SSH reading, the icon, the
+    apps recognised or the connectors; None otherwise."""
+    words = " ".join(str(w) for w in [f.get("info_os") or "", f.get("icon") or "", *(f.get("apps") or []), *(f.get("connectors") or [])])
+    if ESXI.search(words):
+        return "esxi"
+    return "nas" if CLOSED_NAS.search(words) else None
+
+
 def advise(f: dict) -> dict:
     """Recommandation pour une machine décrite par ses faits (clés facultatives) :
     ip, os (réglage « windows »), info_os (relevé SSH), scan_os, ttl, ping, icon, role, gateway, apps, ssh_port (vu par le scan),
@@ -90,6 +103,11 @@ def _plan(f: dict, kind: str, connectors: list[str]) -> tuple[str, str, list[str
         return via_tool, "appliance", ["ping"], False, None
     if is_home_assistant_os(f):   # ni SSH ni agent : l'API
         return via_tool, "home_assistant", ["ping"], False, None
+    closed = closed_system(f)
+    if closed:   # its connector first, else SSH when it answers, else the ping
+        ssh = bool(f.get("ssh_ok") or f.get("ssh_alias") or f.get("ssh_port"))
+        usable = [m for m, ok in (("connector", connectors), ("ssh", ssh)) if ok] or ["ping"]
+        return usable[0], closed, usable[1:], False, None
     if kind == "windows":
         return "agent", "windows", ["connector"] if connectors else [], True, "windows"
     if kind in ("ios", "network"):
