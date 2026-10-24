@@ -239,7 +239,15 @@ function targetOf(r: Host): string {
   return r.type === "dead" ? tx("aucune (404)") : `${r.ip}:${r.port}`;
 }
 
-function ServiceRow({ r, ports = [r], grouped, hidden, onOpen, onPort, onEdit }: Readonly<{ r: Host; ports?: Host[]; grouped: boolean; hidden: boolean; onOpen: () => void; onPort?: (p: Host) => void; onEdit?: () => void }>) {   // grouped: the rows of an opened group sit on a darker background with a coloured edge
+/** Hide a service from « To watch » or show it back, the same button as there: offered on a row with a known problem (down, warning, point to check) */
+function HideToggle({ r, hidden }: Readonly<{ r: Host; hidden: boolean }>) {
+  const toggle = (e: { stopPropagation: () => void }) => { e.stopPropagation(); void setServiceHidden(r, hostName(r), !hidden); };
+  return hidden
+    ? <button type="button" className="shrink-0 text-dim hover:text-txt" title={tx("Afficher de nouveau dans « À surveiller »")} aria-label={tx("Afficher de nouveau dans « À surveiller »")} onClick={toggle}><Undo2 size={15} aria-hidden /></button>
+    : <button type="button" className="shrink-0 text-dim hover:text-txt" title={tx("Ne plus afficher dans « À surveiller », ni dans le point de l'onglet, tant que le problème ne change pas")} aria-label={tx("Masquer de « À surveiller »")} onClick={toggle}><EyeOff size={15} aria-hidden /></button>;
+}
+
+function ServiceRow({ r, ports = [r], grouped, hidden, watched, onOpen, onPort, onEdit }: Readonly<{ r: Host; ports?: Host[]; grouped: boolean; hidden: boolean; watched?: boolean; onOpen: () => void; onPort?: (p: Host) => void; onEdit?: () => void }>) {   // watched: in « To watch », an admin can hide it from there   // grouped: the rows of an opened group sit on a darker background with a coloured edge
   const edge = grouped ? `${OPEN_EDGE} !pl-9` : "";   // the state lines up under the server icon of the group header
   return (
     <tr onClick={onOpen} className={`cursor-pointer ${grouped ? "bg-bg/30 even:bg-bg/70" : "even:bg-bg/50"} hover:!bg-bg2/60 ${r.enabled ? "" : "opacity-60"}`}>
@@ -250,7 +258,8 @@ function ServiceRow({ r, ports = [r], grouped, hidden, onOpen, onPort, onEdit }:
       </Td>
       {!grouped && <Td className="!py-1 !pl-6 align-middle">{r.machine ? <><b className="font-medium">{r.machine}</b>{r.category && <span className="block text-xs text-dim">{r.category}</span>}</> : <Dim>-</Dim>}</Td>}
       <Td className="!py-1 overflow-hidden !pl-10 align-middle"><div className="flex items-center gap-2.5"><ServiceLogo r={r} /><Tech r={r} />
-        {onEdit && <button type="button" className="ml-auto shrink-0 text-dim hover:text-link" title={tx("Modifier")} aria-label={tx("Modifier")} onClick={(e) => { e.stopPropagation(); onEdit(); }}><Pencil size={15} aria-hidden /></button>}
+        {watched && <span className="ml-auto flex"><HideToggle r={r} hidden={hidden} /></span>}
+        {onEdit && <button type="button" className={`${watched ? "" : "ml-auto "}shrink-0 text-dim hover:text-link`} title={tx("Modifier")} aria-label={tx("Modifier")} onClick={(e) => { e.stopPropagation(); onEdit(); }}><Pencil size={15} aria-hidden /></button>}
       </div></Td>
     </tr>
   );
@@ -348,7 +357,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
   const groups = useMemo(() => (grouped ? groupByMachine(sort.sorted) : [{ name: "", ip: "", rows: sort.sorted }]), [grouped, sort.sorted]);
 
   const fig = figures(snap.data.hosts), watchAll = toWatch(snap.data.hosts), admin = snap.me.role === "admin";
-  const watch = watchAll.filter((r) => !isHidden(r, hiddenMap)), hiddenRows = watchAll.filter((r) => isHidden(r, hiddenMap));
+  const watchKeys = new Set(watchAll.map(keyOfRow)), watch = watchAll.filter((r) => !isHidden(r, hiddenMap)), hiddenRows = watchAll.filter((r) => isHidden(r, hiddenMap));
   const filtered = !!initial && Object.keys(initial).length > 0;   // came with a filter (home counter, a machine): the list is wanted
   const view = usePageView(route, "services", SERVICE_VIEWS, filtered || watch.length === 0 ? "all" : "watch");
   const pageKey = decodeURIComponent(route.split("/")[2] ?? "");
@@ -385,7 +394,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
             {groups.map((g) => (
               <Fragment key={g.name}>
                 {grouped && <GroupHeader g={g} cols={4} folded={!expanded.includes(g.name)} onToggle={() => setExpanded(expanded.includes(g.name) ? expanded.filter((n) => n !== g.name) : [...expanded, g.name])} />}
-                {(!grouped || expanded.includes(g.name)) && mergePorts(g.rows).map(({ lead: r, ports }) => <ServiceRow key={keyOfRow(r)} r={r} ports={ports} grouped={grouped} hidden={isHidden(r, hiddenMap)} onOpen={() => openService(r)} onPort={openService} onEdit={admin ? () => { location.hash = servicePage("edit", r); } : undefined} />)}
+                {(!grouped || expanded.includes(g.name)) && mergePorts(g.rows).map(({ lead: r, ports }) => <ServiceRow key={keyOfRow(r)} r={r} ports={ports} grouped={grouped} hidden={isHidden(r, hiddenMap)} watched={admin && watchKeys.has(keyOfRow(r))} onOpen={() => openService(r)} onPort={openService} onEdit={admin ? () => { location.hash = servicePage("edit", r); } : undefined} />)}
               </Fragment>
             ))}
           </Table>
@@ -402,6 +411,7 @@ export function Services({ snap, initial, route }: Readonly<{ snap: Snapshot; in
                     </span>
                     <Badge tone={ST_TONE[cls]}>{label}</Badge>
                   </button>
+                  {admin && watchKeys.has(k) && <div className="mt-2 flex justify-end"><HideToggle r={r} hidden={isHidden(r, hiddenMap)} /></div>}
                 </div>
               );
             })}

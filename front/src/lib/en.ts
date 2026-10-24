@@ -3062,6 +3062,7 @@ export const EN: Record<string, string> = {
   "masqué le {0}": "hidden on {0}",
   "Afficher de nouveau dans « À surveiller »": "Show again in « To watch »",
   "Ne plus afficher ici, ni dans le point de l'onglet, tant que le problème ne change pas": "Stop showing it here and in the tab's dot while the problem stays the same",
+  "Ne plus afficher dans « À surveiller », ni dans le point de l'onglet, tant que le problème ne change pas": "Stop showing it in « To watch » and in the tab's dot while the problem stays the same",
   "Masquer de « À surveiller »": "Hide from « To watch »",
   "accepté(s)": "accepted",
   "accepté": "accepted",
