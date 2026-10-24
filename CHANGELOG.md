@@ -12,6 +12,7 @@ latest published tag. Images: `ghcr.io/erreur32/myservices` (amd64 and arm64).
 > **Still in development: expect rough edges, and keep a copy of `config/` and `data/` before updating.**
 
 ### Added
+- **Three more dark themes**: GitHub Dark, Night Owl and Ayu Mirage in Settings › Appearance, beside Dark and Light. The header's theme button now switches between light and the last dark theme picked.
 - **Backups › Sets, grouped by machine**: the sets sit under one header row per machine (its icon, name, number of sets and worst state) on a dark background, set apart by a thicker line; « By machine » turns it off (remembered). The machine column, kept when not grouped and on « To watch », shows the machine's icon.
 - **Backups › a set's page, every setting**: besides name, folder, schedule, age and copies, a set's page now edits its retention, its note and how copies are compared (newest archive or each one); the source of a folder set and each of its copies open a form with the machine (moving the source moves the set), the folder, the archive names read, the depth, how they get there and « encrypted ». Places read from a source (vzdump, Veeam, PBS, Synology, Home Assistant) stay as their source gives them.
 - **Side menu, the alerts in the dot's tooltip**: hovering the dot of an entry lists the alerts behind it (as the home page words them, up to 8, then « and N more »), instead of only « to watch ».
