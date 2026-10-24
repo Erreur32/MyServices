@@ -1,8 +1,8 @@
-# Release notes: MyServices 0.22.0
+# Release notes: MyServices 0.22.1
 
 > **Online release, early stage.** MyServices is usable but young: screens and settings may still change. Keep a copy of `config/` and `data/` before updating, and keep it on your local network.
 
-**0.22.0** (24 October 2026): two new pages, « AI and agents » and « Video and cameras », six new connectors, and the service page edited in place.
+**0.22.1** (24 October 2026) is 0.22.0 with its Docker image (a date-dependent test stopped the 0.22.0 build; the app is the same): two new pages, « AI and agents » and « Video and cameras », six new connectors, and the service page edited in place.
 
 ## For everyone
 
@@ -20,7 +20,7 @@
 
 ## In short, the technical side
 
-- **Image**: `ghcr.io/erreur32/myservices:0.22.0` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
+- **Image**: `ghcr.io/erreur32/myservices:0.22.1` (amd64 and arm64). `:latest` follows the latest tag, `:main` the latest commit.
 - **New route**: `GET /api/v1/stream/snapshot?connector=&name=&camera=` (admin only): the picture of a camera seen at the last collection, JPEG or PNG only, `Cache-Control: no-store`, written to the audit log.
 - **Connectors**: each video connector adds a common `stream` block to its result (cameras, streams, storage, events, live), each AI connector an `ai` block. Camera and source addresses (rtsp, often with a password) are never kept. Frigate's session token stays in memory only.
 - **Request counters**: path segments of 20 characters or more are masked (`/*`), so a key carried in a path (Shinobi) never reaches them.

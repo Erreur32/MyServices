@@ -5,6 +5,10 @@ section says **Nothing to do**, `docker compose pull` then `docker compose up -d
 
 Keep a copy of `config/` and `data/` before any update.
 
+## 0.22.0 → 0.22.1
+
+**Nothing to do.** Same app as 0.22.0, whose image was never published: from 0.21.0, read the 0.21.0 → 0.22.0 section below.
+
 ## 0.21.0 → 0.22.0
 
 **Nothing required.** No change to the compose file, the image's volumes or variables, or `config.json`.
