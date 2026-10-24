@@ -80,7 +80,7 @@ export function MachinesSettings({ snap, part }: Readonly<{ snap: Snapshot; part
   if (part === "agents") return <AgentsOverview machines={st.machines} open={open} />;
   if (part === "ssh" && open === "new") return <NewSshPage snap={snap} st={st} />;
   if (part === "ssh" && open) return <SshPage ip={open} snap={snap} st={st} />;
-  if (part === "ssh") return <SshConnections st={st} snap={snap} />;
+  if (part === "ssh") return <div className="flex flex-col gap-4"><KeyRefusedAlert snap={snap} /><SshConnections st={st} snap={snap} /></div>;
   const all = Object.keys(st.machines);
   const nOff = all.filter((ip) => st.machines[ip].disabled).length;
   return (
@@ -157,8 +157,8 @@ function NewSshPage({ snap, st }: Readonly<{ snap: Snapshot; st: State }>) {
   );
 }
 
-/** Machines whose Docker read is refused because the app's key is not authorised there: shown on the SSH key page, with the command and a new test */
-export function KeyRefusedAlert({ snap }: Readonly<{ snap: Snapshot }>) {
+/** Machines whose Docker read is refused because the app's key is not authorised there: on top of SSH connections, with the command and a new test */
+function KeyRefusedAlert({ snap }: Readonly<{ snap: Snapshot }>) {
   const [st] = useMachinesState();
   const [accepted, setAccepted] = useState<{ gen: string; ips: string[] }>({ gen: "", ips: [] });
   if (!st) return null;

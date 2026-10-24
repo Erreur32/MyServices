@@ -43,7 +43,6 @@ export const NAV: NavGroup[] = [
       sub("machines-devices", "settings/machines/devices", "settings", Radar, tx("Appareils non suivis")),
       sub("machines-agents", "settings/machines/agents", "settings", Cpu, tx("Agents")),
       sub("machines-ssh", "settings/machines/ssh", "settings", KeyRound, tx("Connexions SSH")),
-      sub("ssh", "settings/ssh", "settings", KeyRound, tx("Clé SSH de l'app")),   // the key it signs in with, beside the connections
     ] },
     { id: "services", hash: "services", tab: "services", icon: Globe, label: tx("Services"), subs: [
       { ...sub("services-all", "services/all", "services", Layers, tx("Tous les services")), also: ["services/item", "services/edit", "services/manual"] },

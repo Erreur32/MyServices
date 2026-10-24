@@ -1,20 +1,17 @@
-// Réglages, trois sections sur le même état : « Clé SSH » (Accès et sécurité : à autoriser sur chaque machine), « Tâches et
+// Réglages, sections sur le même état : « Tâches et
 // horaires » (Surveillance : modifiables, lancer maintenant) et « Sauvegarde et informations » (export de la configuration,
 // version de l'image et lien vers la dernière publiée, chemins, tailles).
-import { Activity, Bell, Check, Clock, Copy, ExternalLink, Eye, EyeOff, HardDrive, HeartPulse, KeyRound, Loader2, Pause, Play, Radar, RefreshCw, RotateCcw, Server, ShieldCheck, Timer, TriangleAlert, type LucideIcon } from "lucide-react";
+import { Activity, Bell, Check, Clock, ExternalLink, HardDrive, HeartPulse, Loader2, Pause, Play, Radar, RefreshCw, RotateCcw, Server, ShieldCheck, Timer, TriangleAlert, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { LOGIN, LoginRequired, read, send, type Snapshot } from "../api";
-import { copyText } from "../lib/clipboard";
-import { stateBadge } from "../lib/machines";
 import { NoteLine, Switch } from "../components/form";
 import { act, button, input, primary, quiet, type Note } from "../lib/forms";
-import { Badge, Card, Count, Dim, type Tone } from "../components/ui";
+import { Badge, Card, Dim, type Tone } from "../components/ui";
 import { bytes, dateTime, dur, hm } from "../lib/format";
 import type { SystemState, SystemTask } from "../types";
 import { usePoll } from "../lib/polling";
 import { useStoredFlag } from "../lib/storedFlag";
 import { tx } from "../lib/i18n";
-import { MachineIcon } from "../components/MachineIcon";
 import { GITHUB, releaseOf } from "../lib/links";
 import { groupOf, inText, liveText, parseAt, period, runLength, runState, summarize, TASK_GROUPS, type RunState } from "../lib/tasks";
 import { pokeScan } from "../lib/scan";
@@ -25,7 +22,7 @@ import { ConfigTransfer } from "../components/ConfigTransfer";
 import { ScheduleHelp } from "../components/ScheduleHelp";
 import { OtherSchedules } from "../components/OtherSchedules";
 
-export function SystemSettings({ part, snap }: Readonly<{ part: "mail" | "export" | "info" | "tasks" | "ssh"; snap: Snapshot }>) {
+export function SystemSettings({ part, snap }: Readonly<{ part: "mail" | "export" | "info" | "tasks"; snap: Snapshot }>) {
   const [st, setSt] = useState<SystemState | null>(null);
   const [error, setError] = useState("");
   const reload = useCallback(() => {
@@ -37,124 +34,11 @@ export function SystemSettings({ part, snap }: Readonly<{ part: "mail" | "export
   if (!st) return <p className="text-sm text-muted">{error ? `⚠ ${error}` : tx("Chargement…")}</p>;
   return (
     <div className="flex flex-col gap-4">
-      {part === "ssh" && <SshKey ssh={st.ssh} snap={snap} />}
       {part === "tasks" && <><Tasks tasks={st.tasks} netscan={st.netscan} beat={st.scheduler?.beat ?? null} reload={reload} /><OtherSchedules /><AutoDiscoveries machines={snap.data.machine_list} /></>}
       {part === "mail" && <MailSettings />}
       {part === "export" && <ConfigTransfer />}
       {part === "info" && <Info info={st.info} />}
     </div>
-  );
-}
-
-/** Clé publique avec un début et une fin lisibles et le milieu masqué : « ssh-ed25519 AAAAC3Nz…kSLsU myservices » */
-function maskKey(key: string): string {
-  const [type, body, ...comment] = key.trim().split(/\s+/);
-  if (!body) return "•".repeat(24);
-  return `${type} ${body.slice(0, 8)}${"•".repeat(24)}${body.slice(-5)}${comment.length ? ` ${comment.join(" ")}` : ""}`;
-}
-
-/** Texte à copier, masqué par défaut : l'œil le montre, le bouton « copier » marche dans les deux cas */
-function Secretish({ text, label, shown, mask }: { text: string; label: string; shown: boolean; mask: (t: string) => string }) {
-  const [note, setNote] = useState<Note>(null);
-  const copy = async () => {
-    const ok = await copyText(text);
-    setNote({ ok, text: ok ? tx("Copié dans le presse-papiers") : tx("Copie impossible : sélectionner le texte et le copier à la main") });
-    setTimeout(() => setNote(null), ok ? 2500 : 6000);
-  };
-  return (
-    <div>
-      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-dim">{label}</div>
-      <div className="flex items-start gap-2">
-        <pre className="min-w-0 flex-1 overflow-x-auto whitespace-pre-wrap break-all rounded-lg bg-bg2 p-2.5 font-mono text-xs" aria-label={shown ? label : tx("{0} (masquée)", label)}>{shown ? text : mask(text)}</pre>
-        <button type="button" onClick={() => void copy()} className={note?.ok ? `${button} border-ok bg-ok/15 text-ok` : primary}>
-          {note?.ok ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}{note?.ok ? tx("copié") : tx("copier")}
-        </button>
-      </div>
-      <NoteLine note={note} />
-    </div>
-  );
-}
-
-function SshKey({ ssh, snap }: { ssh: SystemState["ssh"]; snap: Snapshot }) {
-  const [shown, setShown] = useState(false);
-  const users = snap.data.machine_list.filter((m) => m.ssh?.identity && !m.disabled);
-  const algo = ssh.public?.split(/\s+/)[0]?.replace(/^ssh-/, "").toUpperCase();
-  const step = "flex gap-3 text-sm text-muted";
-  const num = "grid h-6 w-6 shrink-0 place-items-center rounded-full bg-link/15 text-xs font-bold text-link";
-  return (
-    <>
-      <Card>
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-bold"><KeyRound size={16} />{tx("Clé SSH de l'app")}</h2>
-          {ssh.public && (
-            <button type="button" className={quiet} onClick={() => setShown(!shown)} aria-pressed={shown}
-              title={shown ? tx("Masquer la clé") : tx("Afficher la clé")}>
-              {shown ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}{shown ? tx("Masquer") : tx("Afficher")}
-            </button>
-          )}
-        </div>
-        {!ssh.public ? <p className="text-sm text-warn">{tx("Pas encore créée : elle l'est au démarrage du conteneur.")}</p> : <>
-          <p className="mb-3 text-sm text-muted">{tx("La collecte lit chaque machine avec cette clé, en lecture seule. Seule la clé publique est montrée ici : la clé privée reste dans /config/ssh et ne quitte jamais le conteneur.")}</p>
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            {algo && <Badge tone="info" title={tx("Type de clé")}>{algo}</Badge>}
-            <Badge tone="off" title={tx("Empreinte (SHA256) : sert à reconnaître la clé sans la montrer")}><span className="font-mono">{ssh.fingerprint}</span></Badge>
-            <Badge tone="off">{ssh.known_hosts} {tx("machine(s) connue(s)")}</Badge>
-          </div>
-          <div className="flex flex-col gap-3">
-            <Secretish text={ssh.public} label={tx("Clé publique")} shown={shown} mask={maskKey} />
-            <Secretish text={ssh.authorize!} label={tx("Commande à lancer sur la machine, avec le compte visé")} shown={shown}
-              mask={(t) => t.replace(/'([^']*)'/g, (_, k: string) => `'${maskKey(k)}'`)} />
-            {ssh.public_esxi && <Secretish text={ssh.public_esxi} label={tx("Clé publique ECDSA, pour VMware ESXi (à mettre dans /etc/ssh/keys-root/authorized_keys)")} shown={shown} mask={maskKey} />}
-          </div>
-        </>}
-      </Card>
-
-      {ssh.public && (
-        <Card>
-          <h2 className="mb-2 flex items-center gap-2 font-bold"><ShieldCheck size={16} aria-hidden />{tx("Autoriser la clé sur une machine")}</h2>
-          <ol className="flex flex-col gap-2.5">
-            <li className={step}><span className={num}>1</span><span>{tx("Copiez la commande ci-dessus (le bouton « copier » fonctionne même clé masquée).")}</span></li>
-            <li className={step}><span className={num}>2</span><span>{tx("Collez-la dans un terminal de la machine, connecté avec le compte que MyServices doit utiliser. Elle ajoute la clé à")} <code className="font-mono text-xs">~/.ssh/authorized_keys</code>.</span></li>
-            <li className={step}><span className={num}>3</span><span>{tx("Dans")} <a className="text-link hover:underline" href="#machines">{tx("Machines")}</a>, {tx("ouvrez la machine : « Autoriser la clé » vérifie la connexion.")}</span></li>
-          </ol>
-          <p className="mt-3 rounded-lg bg-bg2/60 px-3 py-2 text-xs text-muted">{tx("Le plus sûr : un compte dédié, dans les groupes docker et adm, plutôt que root (voir le README). Pour retirer l'accès, supprimez cette ligne de authorized_keys sur la machine.")}</p>
-        </Card>
-      )}
-
-      <Card>
-        <h2 className="mb-1 flex items-center gap-2 font-bold"><Server size={16} />{tx("Machines qui utilisent cette clé")} <Count n={users.length} /></h2>
-        {users.length === 0 ? <Dim>{tx("Aucune machine n'est lue par SSH pour l'instant.")}</Dim> : (
-          <div className="mt-2 overflow-x-auto">
-            <table className="w-full min-w-[520px] text-sm">
-              <thead>
-                <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-dim">
-                  <th className="py-2 pr-3 font-semibold">{tx("Machine")}</th><th className="px-3 py-2 font-semibold">{tx("Compte")}</th>
-                  <th className="px-3 py-2 font-semibold">Port</th><th className="py-2 pl-3 text-right font-semibold">{tx("État")}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line/60">
-                {users.map((m) => {
-                  const [tone, label, tip] = stateBadge(m);
-                  return (
-                    <tr key={m.ip} className="hover:bg-bg2/40">
-                      <td className="py-2 pr-3">
-                        <a href={`#settings/machines/${m.ip}`} className="flex items-center gap-2.5 hover:text-link" title={tx("Ouvrir les réglages de cette machine")}>
-                          <MachineIcon m={{ name: m.name, info: m.info, ttl: m.ttl, osName: m.info?.os ?? m.agent?.os }} reserve />
-                          <span className="min-w-0"><b className="block truncate">{m.name}</b><span className="block font-mono text-xs text-dim">{m.ip}</span></span>
-                        </a>
-                      </td>
-                      <td className="px-3 py-2 font-mono text-xs text-muted">{m.ssh!.user || "?"}</td>
-                      <td className="px-3 py-2 font-mono text-xs text-muted">{m.ssh!.port}</td>
-                      <td className="py-2 pl-3 text-right"><Badge tone={tone} title={tip}>{label}</Badge></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-    </>
   );
 }
 

@@ -11,7 +11,7 @@ const link = "font-semibold text-link hover:underline";
 /** Les étapes de la mise en route, dans l'ordre : titre, ce qu'on y fait, lien direct */
 const STEPS: { title: string; text: string; href: string; go: string }[] = [
   { title: tx("Déclarer les machines"), text: tx("Ajoutez vos serveurs et PC (ou laissez la recherche réseau les trouver et choisissez celles à suivre). MyServices ne suit jamais une machine sans votre accord."), href: "#settings/machines", go: tx("Réglages → Machines") },
-  { title: tx("Donner un accès en lecture"), text: tx("Linux : SSH, avec la clé de l'app à autoriser sur la machine. PC Windows : un petit agent PowerShell à installer. Les deux ne font que lire."), href: "#settings/ssh", go: tx("Réglages → Clé SSH") },
+  { title: tx("Donner un accès en lecture"), text: tx("Linux : SSH, avec la clé de l'app à autoriser sur la machine. PC Windows : un petit agent PowerShell à installer. Les deux ne font que lire."), href: "#settings/machines/ssh", go: tx("Machines › Connexions SSH") },
   { title: tx("Relier vos outils"), text: tx("Nginx Proxy Manager, AdGuard Home, Home Assistant, Beszel, Proxmox, Veeam… Le tableau « Services détectés » montre ce que MyServices a reconnu : le bouton « Activer » ouvre le connecteur déjà rempli. Donnez-lui toujours une clé ou un compte en lecture seule."), href: "#settings/connectors", go: tx("Réglages → Connecteurs") },
   { title: tx("Laisser la découverte travailler"), text: tx("Services, conteneurs, ports, nouvelles machines et sauvegardes sont cherchés tout seuls. Ce qui demande une décision est signalé en orange, avec un compteur."), href: "#settings/discovery", go: tx("Application › Découverte automatique") },
   { title: tx("Suivre les sauvegardes"), text: tx("Dossiers trouvés par SSH, jobs Veeam, groupes Proxmox Backup, sauvegarde Home Assistant : cochez ce qui compte et fixez l'âge au-delà duquel une alerte part."), href: "#settings/backups", go: tx("Réglages → Sauvegardes") },
@@ -36,7 +36,7 @@ const HABITS = [
 
 const FIXES: { problem: string; fix: ReactNode }[] = [
   { problem: tx("Un connecteur est en rouge ou « périmé »"), fix: tx("Cliquez sur « Tester » sur sa carte : le message dit si c'est l'adresse, la clé ou le certificat. « Modifier » corrige les réglages.") },
-  { problem: tx("Une machine n'est pas lue"), fix: tx("Pour SSH, autorisez la clé de l'app sur la machine (Réglages → Clé SSH) et vérifiez le compte et le port. Pour un agent, vérifiez qu'il a envoyé un premier relevé.") },
+  { problem: tx("Une machine n'est pas lue"), fix: tx("Pour SSH, autorisez la clé de l'app sur la machine (Machines › Connexions SSH) et vérifiez le compte et le port. Pour un agent, vérifiez qu'il a envoyé un premier relevé.") },
   { problem: tx("Les chiffres ne bougent pas"), fix: tx("La collecte passe à heures fixes : Réglages → Tâches et horaires, bouton « Relancer », ou le bouton d'actualisation de la page.") },
   { problem: tx("Un service apparaît ou disparaît"), fix: tx("C'est normal : les nouveautés et les disparitions sont notées dans l'onglet Historique (« Nouveau », « Disparu »).") },
   { problem: tx("Qui a changé quoi ?"), fix: tx("Réglages → Requêtes et journaux → Journal d'audit liste chaque action des comptes, filtrable et exportable en CSV.") },

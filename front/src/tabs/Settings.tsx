@@ -11,7 +11,6 @@ import { act, danger, input, primary, quiet, type Note } from "../lib/forms";
 import { NotificationsHub } from "./NotificationsHub";
 import { Connectors, connectorsPart } from "./Connectors";
 import { MachinesSection } from "./MachinesSection";
-import { KeyRefusedAlert } from "./MachinesSettings";
 import { discoveryMoved, NetworkSettings } from "./NetworkSettings";
 import { IconChoice, type IconOption } from "../components/IconChoice";
 import { UpdatesSettings } from "./UpdatesSettings";
@@ -27,7 +26,7 @@ import { PasswordRules } from "../components/PasswordRules";
 import { InfoNote } from "../components/InfoNote";
 
 /** The sections, reached from the side menu (#settings/<section>[/<part>]); their place in the menu: lib/tabs.ts (NAV) */
-const SECTIONS = new Set(["machines", "connectors", "discovery", "backups", "alerts", "accounts", "api", "ssh", "tasks", "updates", "requests", "mail", "export"]);
+const SECTIONS = new Set(["machines", "connectors", "discovery", "backups", "alerts", "accounts", "api", "tasks", "updates", "requests", "mail", "export"]);
 
 const ROLE: Record<User["role"], string> = { admin: "admin", viewer: tx("lecture seule") };
 const ROLE_CHOICE: IconOption<User["role"]>[] = [
@@ -50,7 +49,6 @@ function SectionPanel({ section, snap }: Readonly<{ section: string; snap: Snaps
     case "updates": return <UpdatesSettings />;
     case "requests": return <ActivityHub />;
     case "api": return <ApiMcp />;
-    case "ssh": return <div className="flex flex-col gap-4"><KeyRefusedAlert snap={snap} /><SystemSettings part="ssh" snap={snap} /></div>;
     case "mail": return <SystemSettings part="mail" snap={snap} />;
     case "export": return <SystemSettings part="export" snap={snap} />;
     case "backups": return <BackupsSettings machines={snap.data.machine_list} issues={snap.backups?.issues ?? []} backups={snap.backups} />;

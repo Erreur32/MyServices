@@ -25,8 +25,9 @@ export interface SectionTarget { section?: string; redirect?: string }
 
 /** Settings sections that moved under another id (« Sauvegarde et infos » split into E-mail, Export and Informations; Connecteurs and Machines kept their old menu-link ids) */
 const SECTION_ALIAS: Record<string, string> = { system: "mail", sources: "connectors", agents: "machines" };
-/** Old Settings sections, now a page apart (#help…) or a sub-tab of Requests and logs (#settings/requests/audit) ; « tasks » (Tâches et horaires) stays a section */
-const PAGE_REDIRECT: Record<string, string> = { audit: "settings/requests/audit", logs: "settings/requests/logs", help: "help", about: "about" };
+/** Old Settings sections, now a page apart (#help…), a sub-page of Activity (#settings/requests/audit) or of Machines (the app's SSH key, now on
+ *  its SSH connections) ; « tasks » (Tâches et horaires) stays a section */
+const PAGE_REDIRECT: Record<string, string> = { audit: "settings/requests/audit", logs: "settings/requests/logs", help: "help", about: "about", ssh: "settings/machines/ssh" };
 
 /** Where an id read from the address (or from the last-section memory) leads today; an id with neither an alias nor a redirect comes back as its own section.
  *  Own keys only: an id read from the address (#settings/constructor…) never reaches Object's own methods. */

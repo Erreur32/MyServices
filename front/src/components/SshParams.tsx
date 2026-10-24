@@ -28,7 +28,7 @@ export function KeyToAuthorize({ user, kind }: Readonly<{ user: string; kind: Ss
   return (
     <div className="flex flex-col gap-1 text-sm">
       <span className="text-muted">{tx("Sur la machine, en root ou avec ce compte, autorisez la clé de l'app dans")} <code className="font-mono text-xs text-txt">{homeOf(user || "root")}/.ssh/authorized_keys</code> :</span>
-      {authorize ? <Copyable text={authorizeFor(authorize, user, esxiKey)} /> : <span className="text-warn">{tx("Clé de l'app introuvable : voir")} <a className="underline hover:text-txt" href="#settings/ssh">{tx("Réglages → Clé SSH")}</a>.</span>}
+      {authorize ? <Copyable text={authorizeFor(authorize, user, esxiKey)} /> : <span className="text-warn">{tx("Clé de l'app introuvable : voir")} <a className="underline hover:text-txt" href="#settings/machines/ssh">{tx("Machines › Connexions SSH")}</a>.</span>}
       {(user || "root") === "root" && <Dim>{tx("VMware ESXi : la commande met aussi la clé ECDSA de l'app dans /etc/ssh/keys-root/authorized_keys (ESXi ignore ~/.ssh et refuse ed25519).")}</Dim>}
     </div>
   );

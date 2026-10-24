@@ -4,7 +4,6 @@ import { normalizeSection } from "./settingsNav";
 describe("normalizeSection", () => {
   it("une ancienne section déménagée dans Réglages", () => {
     expect(normalizeSection("system")).toEqual({ section: "mail" });
-    expect(normalizeSection("ssh")).toEqual({ section: "ssh" });
     expect(normalizeSection("sources")).toEqual({ section: "connectors" });
     expect(normalizeSection("agents")).toEqual({ section: "machines" });
   });
@@ -13,6 +12,7 @@ describe("normalizeSection", () => {
     expect(normalizeSection("logs")).toEqual({ redirect: "settings/requests/logs" });
     expect(normalizeSection("help")).toEqual({ redirect: "help" });
     expect(normalizeSection("about")).toEqual({ redirect: "about" });
+    expect(normalizeSection("ssh")).toEqual({ redirect: "settings/machines/ssh" });   // the app's key, on Machines › SSH connections
   });
   it("Tâches et horaires : panneau d'un autre onglet", () => {
     expect(normalizeSection("tasks")).toEqual({ section: "tasks" });   // Tasks and schedules stays a Settings section
