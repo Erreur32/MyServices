@@ -93,10 +93,13 @@ class McpHealth(unittest.TestCase):
         with tempfile.TemporaryDirectory() as web:
             (Path(web) / "health").mkdir()
             (Path(web) / "health" / "stats.json").write_text(json.dumps({"timestamp": "t", "overall_level": "warn", "hosts": [
-                {"name": "A · 10.0.0.1", "level": "warn", "reachable": True, "disks": [], "checks": {"docker": "warn"}},
+                {"name": "A · 10.0.0.1", "level": "warn", "reachable": True, "disks": [], "checks": {"docker": "warn"},
+                 "kernel": {"has_errors": True, "samples": ["kernel: CIFS: VFS: boom"]}},
                 {"name": "B · 10.0.0.2", "level": "ok", "reachable": True, "disks": []}]}), encoding="utf-8")
             hosts = mcp_server.t_health(SimpleNamespace(WEB=web), {}, Ctx())["hosts"]
         self.assertEqual(hosts[0]["checks"], {"docker": "warn"})
+        self.assertEqual(hosts[0]["kernel_errors"], ["kernel: CIFS: VFS: boom"])
+        self.assertNotIn("kernel_errors", hosts[1])
         self.assertEqual(hosts[1]["checks"], {})   # a healthy host: an empty answer, not a missing key
 
     def test_status_lists_a_health_connector_that_fails(self):
